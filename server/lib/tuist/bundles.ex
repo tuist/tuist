@@ -143,9 +143,7 @@ defmodule Tuist.Bundles do
           [atom]
 
         :error ->
-          Logger.warning(
-            "Discarding unknown bundle supported_platforms value from ClickHouse: #{inspect(value)}"
-          )
+          Logger.warning("Discarding unknown bundle supported_platforms value from ClickHouse: #{inspect(value)}")
 
           []
       end
