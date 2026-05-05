@@ -1,6 +1,6 @@
-<div id="sso-settings">
+<div id="authentication-settings">
   <h1 data-part="title">
-    {dgettext("dashboard_account", "Single Sign-On")}
+    {dgettext("dashboard_account", "Authentication")}
   </h1>
 
   <.alert
@@ -11,8 +11,22 @@
     title={elem(@flash_message, 1)}
   />
 
+  <%!-- ============================================================ --%>
+  <%!-- Single Sign-On                                                --%>
+  <%!-- ============================================================ --%>
   <.form for={@form} id="sso-form" phx-submit="save_sso" phx-change="validate_sso">
     <.card_section data-part="sso-card">
+      <div data-part="header">
+        <span data-part="title">
+          {dgettext("dashboard_account", "Single Sign-On")}
+        </span>
+        <span data-part="subtitle">
+          {dgettext(
+            "dashboard_account",
+            "Allow members to sign in to Tuist through your identity provider."
+          )}
+        </span>
+      </div>
       <div data-part="section">
         <div data-part="toggle-label">
           <.toggle
@@ -25,10 +39,7 @@
               {dgettext("dashboard_account", "Enable Single Sign-On")}
             </span>
             <span data-part="description">
-              {dgettext(
-                "dashboard_account",
-                "Enable and configure SSO for your organization."
-              )}
+              {dgettext("dashboard_account", "Enable and configure SSO for your organization.")}
             </span>
           </div>
         </div>
@@ -73,11 +84,7 @@
           </span>
         </div>
         <div data-part="field">
-          <.text_input
-            field={@form[:google_domain]}
-            type="basic"
-            placeholder="example.com"
-          />
+          <.text_input field={@form[:google_domain]} type="basic" placeholder="example.com" />
         </div>
       </div>
 
@@ -122,10 +129,7 @@
                 )}
               </li>
               <li>
-                {dgettext(
-                  "dashboard_account",
-                  "Set the initiate login URI to:"
-                )}
+                {dgettext("dashboard_account", "Set the initiate login URI to:")}
                 <div data-part="read-only-value">
                   <code>
                     {Tuist.Environment.app_url(
@@ -236,7 +240,6 @@
         </div>
       </div>
 
-      <%!-- Custom OAuth2 endpoint URLs (only for oauth2, not okta) --%>
       <div :if={@sso_enabled and @selected_provider == "oauth2"} data-part="section">
         <div data-part="label">
           <span data-part="title">
@@ -303,20 +306,13 @@
         </div>
       </div>
 
-      <%!-- Shared client ID field (both Okta and custom OAuth2) --%>
-      <div
-        :if={@sso_enabled and @selected_provider in ["okta", "oauth2"]}
-        data-part="section"
-      >
+      <div :if={@sso_enabled and @selected_provider in ["okta", "oauth2"]} data-part="section">
         <div data-part="label">
           <span data-part="title">
             {dgettext("dashboard_account", "Client ID")}
           </span>
           <span data-part="description">
-            {dgettext(
-              "dashboard_account",
-              "The client ID from your OAuth2 application."
-            )}
+            {dgettext("dashboard_account", "The client ID from your OAuth2 application.")}
           </span>
         </div>
         <div data-part="field">
@@ -329,20 +325,13 @@
         </div>
       </div>
 
-      <%!-- Shared client secret field (both Okta and custom OAuth2) --%>
-      <div
-        :if={@sso_enabled and @selected_provider in ["okta", "oauth2"]}
-        data-part="section"
-      >
+      <div :if={@sso_enabled and @selected_provider in ["okta", "oauth2"]} data-part="section">
         <div data-part="label">
           <span data-part="title">
             {dgettext("dashboard_account", "Client secret")}
           </span>
           <span data-part="description">
-            {dgettext(
-              "dashboard_account",
-              "The client secret from your OAuth2 application."
-            )}
+            {dgettext("dashboard_account", "The client secret from your OAuth2 application.")}
           </span>
         </div>
         <div data-part="field">
@@ -393,4 +382,202 @@
       </div>
     </.card_section>
   </.form>
+
+  <%!-- ============================================================ --%>
+  <%!-- SCIM provisioning                                             --%>
+  <%!-- ============================================================ --%>
+  <.card_section data-part="scim-card">
+    <div data-part="header">
+      <span data-part="title">
+        {dgettext("dashboard_account", "SCIM provisioning")}
+      </span>
+      <span data-part="subtitle">
+        {dgettext(
+          "dashboard_account",
+          "Let your IdP (Okta, Azure AD/Entra, JumpCloud, etc.) provision users into this organization at the SCIM endpoint URL below using a bearer token."
+        )}
+      </span>
+    </div>
+    <div data-part="content">
+      <div data-part="section" data-section="base-url">
+        <div data-part="label">
+          <span data-part="title">
+            {dgettext("dashboard_account", "SCIM endpoint URL")}
+          </span>
+        </div>
+        <div data-part="field">
+          <div data-part="read-only-value">
+            <code id="scim-base-url">{@scim_base_url}</code>
+          </div>
+        </div>
+      </div>
+
+      <div data-part="section" data-section="tokens">
+        <div data-part="label">
+          <span data-part="title">
+            {dgettext("dashboard_account", "Tokens")}
+          </span>
+          <span data-part="description">
+            {dgettext(
+              "dashboard_account",
+              "Issue one bearer token per IdP. Revoke a token if it leaks or is no longer needed."
+            )}
+          </span>
+        </div>
+        <div data-part="field">
+          <.modal
+            id="generate-scim-token-modal"
+            title={dgettext("dashboard_account", "Generate SCIM token")}
+            on_dismiss="dismiss_scim_token"
+            on_open_change="scim_modal_open_change"
+          >
+            <:trigger :let={attrs}>
+              <.button
+                label={dgettext("dashboard_account", "Generate token")}
+                variant="secondary"
+                size="medium"
+                {attrs}
+              />
+            </:trigger>
+
+            <div data-part="modal-content-wrapper">
+              <.line_divider />
+
+              <%= if @new_scim_token_plaintext do %>
+                <div data-part="modal-body">
+                  <div data-part="modal-message">
+                    <span data-part="title">
+                      {dgettext("dashboard_account", "Token created")}
+                    </span>
+                    <span data-part="subtitle">
+                      {dgettext(
+                        "dashboard_account",
+                        "Copy it now — it will not be shown again after you close this dialog."
+                      )}
+                    </span>
+                  </div>
+                  <div data-part="read-only-value">
+                    <code id="new-scim-token">{@new_scim_token_plaintext}</code>
+                    <.button
+                      id="copy-scim-token-button"
+                      variant="secondary"
+                      size="small"
+                      icon_only
+                      type="button"
+                      phx-hook="Clipboard"
+                      data-clipboard-value={@new_scim_token_plaintext}
+                      aria-label={dgettext("dashboard_account", "Copy token")}
+                    >
+                      <.copy />
+                    </.button>
+                  </div>
+                </div>
+              <% else %>
+                <.form
+                  for={@new_scim_token_form}
+                  id="generate-scim-token-form"
+                  phx-submit="generate_scim_token"
+                >
+                  <div data-part="modal-body">
+                    <.text_input
+                      field={@new_scim_token_form[:name]}
+                      type="basic"
+                      label={dgettext("dashboard_account", "Token name")}
+                      sublabel={
+                        dgettext(
+                          "dashboard_account",
+                          "Name this token so you can identify it later (for example: \"Okta\")."
+                        )
+                      }
+                      placeholder={dgettext("dashboard_account", "e.g. Okta")}
+                      required
+                    />
+                  </div>
+                </.form>
+              <% end %>
+
+              <.line_divider />
+            </div>
+
+            <:footer>
+              <.modal_footer>
+                <:action>
+                  <%= if @new_scim_token_plaintext do %>
+                    <.button
+                      label={dgettext("dashboard_account", "Done")}
+                      variant="primary"
+                      phx-click="dismiss_scim_token"
+                    />
+                  <% else %>
+                    <.button
+                      label={dgettext("dashboard_account", "Cancel")}
+                      variant="secondary"
+                      phx-click="dismiss_scim_token"
+                    />
+                    <.button
+                      label={dgettext("dashboard_account", "Generate")}
+                      variant="primary"
+                      type="submit"
+                      form="generate-scim-token-form"
+                    />
+                  <% end %>
+                </:action>
+              </.modal_footer>
+            </:footer>
+          </.modal>
+        </div>
+      </div>
+
+      <div data-part="tokens-table">
+        <.table id="scim-tokens-table" rows={@scim_tokens}>
+          <:col :let={token} label={dgettext("dashboard_account", "Name")}>
+            <.text_cell label={token.name || dgettext("dashboard_account", "Unnamed")} />
+          </:col>
+          <:col :let={token} label={dgettext("dashboard_account", "Created")}>
+            <.text_cell label={Tuist.Utilities.DateFormatter.from_now(token.inserted_at)} />
+          </:col>
+          <:col :let={token} label={dgettext("dashboard_account", "Last used")}>
+            <.text_cell label={
+              if token.last_used_at,
+                do: Tuist.Utilities.DateFormatter.from_now(token.last_used_at),
+                else: dgettext("dashboard_account", "Never")
+            } />
+          </:col>
+          <:col :let={token} label="">
+            <.button_cell>
+              <:button>
+                <.button
+                  icon_only
+                  variant="secondary"
+                  size="small"
+                  phx-click="revoke_scim_token"
+                  phx-value-id={token.id}
+                  aria-label={dgettext("dashboard_account", "Revoke token")}
+                  data-confirm={
+                    dgettext(
+                      "dashboard_account",
+                      "Revoke this token? This action cannot be undone."
+                    )
+                  }
+                >
+                  <.icon name="trash" />
+                </.button>
+              </:button>
+            </.button_cell>
+          </:col>
+          <:empty_state>
+            <.table_empty_state
+              title={dgettext("dashboard_account", "No SCIM tokens yet")}
+              subtitle={
+                dgettext(
+                  "dashboard_account",
+                  "Generate one above to start provisioning from your IdP."
+                )
+              }
+            />
+          </:empty_state>
+        </.table>
+      </div>
+    </div>
+  </.card_section>
 </div>

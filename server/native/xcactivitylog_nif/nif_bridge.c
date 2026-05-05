@@ -75,8 +75,27 @@ static ERL_NIF_TERM parse_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[
     free(cas_db_path);
     free(legacy_cas_path);
 
-    if (result != 0 || output == NULL) {
+    if (result != 0) {
+        /* Swift writes a UTF-8 error message into `output`; surface it as a
+         * binary so the Elixir caller can log the actual reason instead of
+         * a bare `:parse_failed` atom. Fall back to that atom only when the
+         * Swift side returned no message at all (allocation failure, etc). */
+        if (output != NULL && output_len > 0) {
+            ERL_NIF_TERM message_binary;
+            unsigned char *bin_data = enif_make_new_binary(env, output_len, &message_binary);
+            memcpy(bin_data, output, output_len);
+            free(output);
+            return enif_make_tuple2(env, enif_make_atom(env, "error"), message_binary);
+        }
         if (output) free(output);
+        return enif_make_tuple2(
+            env,
+            enif_make_atom(env, "error"),
+            enif_make_atom(env, "parse_failed")
+        );
+    }
+
+    if (output == NULL) {
         return enif_make_tuple2(
             env,
             enif_make_atom(env, "error"),

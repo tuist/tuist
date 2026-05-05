@@ -159,6 +159,9 @@ defmodule Tuist do
       UUIDv7,
       OAuth.Apple,
       OAuth2.SSOClient,
-      OAuth2.SSRFGuard
+      OAuth2.SSRFGuard,
+      SCIM,
+      SCIM.Filter,
+      SCIM.Resource
     ]
 end

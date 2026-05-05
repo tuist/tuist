@@ -269,10 +269,17 @@ defmodule XcodeProcessor.XCResultProcessor do
   end
 
   defp find_xcresult(temp_dir) do
-    temp_dir
-    |> Path.join("**/*.xcresult")
-    |> Path.wildcard()
-    |> List.first()
+    case temp_dir |> Path.join("**/*.xcresult") |> Path.wildcard() |> List.first() do
+      # Some archives extract directly to bundle contents without a wrapping
+      # `.xcresult` directory (e.g. AppleArchive payloads compressed without
+      # the base directory preserved). Treat the temp dir as the bundle when
+      # `Info.plist` is present at its root.
+      nil ->
+        if File.exists?(Path.join(temp_dir, "Info.plist")), do: temp_dir, else: nil
+
+      path ->
+        path
+    end
   end
 
   defp cleanup_temp(temp_dir) do

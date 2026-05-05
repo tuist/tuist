@@ -1,4 +1,4 @@
-defmodule TuistWeb.SSOSettingsLive do
+defmodule TuistWeb.AuthenticationSettingsLive do
   @moduledoc false
   use TuistWeb, :live_view
   use Noora
@@ -7,6 +7,8 @@ defmodule TuistWeb.SSOSettingsLive do
 
   alias Tuist.Accounts
   alias Tuist.Authorization
+  alias Tuist.Environment
+  alias Tuist.SCIM
 
   @impl true
   def mount(_params, _uri, %{assigns: %{selected_account: selected_account, current_user: current_user}} = socket) do
@@ -17,7 +19,7 @@ defmodule TuistWeb.SSOSettingsLive do
 
     if is_nil(selected_account.organization_id) do
       raise TuistWeb.Errors.NotFoundError,
-            dgettext("dashboard_account", "SSO settings are only available for organizations.")
+            dgettext("dashboard_account", "Authentication settings are only available for organizations.")
     end
 
     {:ok, organization} = Accounts.get_organization_by_id(selected_account.organization_id)
@@ -26,18 +28,26 @@ defmodule TuistWeb.SSOSettingsLive do
 
     socket =
       socket
-      |> assign(selected_tab: "sso")
+      |> assign(selected_tab: "authentication")
       |> assign(organization: organization)
       |> assign(sso_enabled: sso_enabled)
       |> assign(sso_enforced: organization.sso_enforced)
       |> assign(flash_message: nil, field_errors: %{})
-      |> assign(field_errors: %{})
       |> assign_form_from_organization(organization)
       |> assign_saved_state()
-      |> assign(:head_title, "#{dgettext("dashboard_account", "SSO")} · #{selected_account.name} · Tuist")
+      |> assign(:scim_base_url, Environment.app_url(path: "/scim/v2"))
+      |> assign(:scim_tokens, SCIM.list_tokens(organization))
+      |> assign(:new_scim_token_plaintext, nil)
+      |> assign(:new_scim_token_form, to_form(%{"name" => ""}, as: "scim_token"))
+      |> assign(
+        :head_title,
+        "#{dgettext("dashboard_account", "Authentication")} · #{selected_account.name} · Tuist"
+      )
 
     {:ok, socket}
   end
+
+  ## SSO events ----------------------------------------------------------
 
   @impl true
   def handle_event("toggle_sso", _params, socket) do
@@ -106,6 +116,69 @@ defmodule TuistWeb.SSOSettingsLive do
         {:noreply, assign(socket, flash_message: {"error", message})}
     end
   end
+
+  ## SCIM events ---------------------------------------------------------
+
+  def handle_event("generate_scim_token", %{"scim_token" => params}, socket) do
+    name = params |> Map.get("name", "") |> String.trim()
+
+    if name == "" do
+      {:noreply,
+       assign(
+         socket,
+         :flash_message,
+         {"error", dgettext("dashboard_account", "Token name is required.")}
+       )}
+    else
+      case SCIM.create_token(socket.assigns.organization, %{name: name}) do
+        {:ok, {_token, plaintext}} ->
+          {:noreply,
+           socket
+           |> assign(:new_scim_token_plaintext, plaintext)
+           |> assign(:new_scim_token_form, to_form(%{"name" => ""}, as: "scim_token"))
+           |> assign(:scim_tokens, SCIM.list_tokens(socket.assigns.organization))
+           |> assign(:flash_message, nil)}
+
+        {:error, changeset} ->
+          message =
+            changeset
+            |> Ecto.Changeset.traverse_errors(fn {msg, _} -> msg end)
+            |> Enum.map_join("; ", fn {field, msgs} -> "#{field}: #{Enum.join(msgs, ", ")}" end)
+
+          {:noreply, assign(socket, :flash_message, {"error", message})}
+      end
+    end
+  end
+
+  def handle_event("dismiss_scim_token", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(:new_scim_token_plaintext, nil)
+     |> push_event("close-modal", %{id: "generate-scim-token-modal"})}
+  end
+
+  # Reset the modal to its blank form when closed via Escape, backdrop click, or
+  # the X icon. The `details.open` flag is sent by Zag.js dialog state machine.
+  def handle_event("scim_modal_open_change", %{"open" => false}, socket) do
+    {:noreply,
+     socket
+     |> assign(:new_scim_token_plaintext, nil)
+     |> assign(:new_scim_token_form, to_form(%{"name" => ""}, as: "scim_token"))}
+  end
+
+  def handle_event("scim_modal_open_change", _params, socket), do: {:noreply, socket}
+
+  def handle_event("revoke_scim_token", %{"id" => id}, socket) do
+    case SCIM.revoke_token(socket.assigns.organization, id) do
+      {:ok, _} ->
+        {:noreply, assign(socket, :scim_tokens, SCIM.list_tokens(socket.assigns.organization))}
+
+      {:error, :not_found} ->
+        {:noreply, assign(socket, :flash_message, {"error", dgettext("dashboard_account", "Token not found.")})}
+    end
+  end
+
+  ## SSO helpers ---------------------------------------------------------
 
   defp disable_sso(%{assigns: %{organization: organization}} = socket) do
     if is_nil(organization.sso_provider) and not organization.sso_enforced do
