@@ -167,10 +167,22 @@ defmodule TuistWeb.ProjectAutomationsLive do
         _ -> socket.assigns.create_automation_form_threshold
       end
 
+    {trigger_actions, recovery_actions} =
+      if event_driven_monitor_type?(type) do
+        {
+          strip_flaky_label_actions(socket.assigns.create_automation_form_trigger_actions, "add_label"),
+          strip_flaky_label_actions(socket.assigns.create_automation_form_recovery_actions, "remove_label")
+        }
+      else
+        {socket.assigns.create_automation_form_trigger_actions, socket.assigns.create_automation_form_recovery_actions}
+      end
+
     {:noreply,
      socket
      |> assign(create_automation_form_type: type)
-     |> assign(create_automation_form_threshold: threshold)}
+     |> assign(create_automation_form_threshold: threshold)
+     |> assign(create_automation_form_trigger_actions: trigger_actions)
+     |> assign(create_automation_form_recovery_actions: recovery_actions)}
   end
 
   def handle_event("update_create_automation_form_threshold", %{"value" => value}, socket) do
@@ -367,30 +379,53 @@ defmodule TuistWeb.ProjectAutomationsLive do
   end
 
   defp build_automation_attrs(project_id, assigns) do
-    threshold = parse_threshold(assigns.create_automation_form_type, assigns.create_automation_form_threshold)
+    type = assigns.create_automation_form_type
 
     base = %{
       "project_id" => project_id,
       "name" => assigns.create_automation_form_name,
-      "monitor_type" => assigns.create_automation_form_type,
-      "trigger_config" => %{
-        "threshold" => threshold,
-        "window" => assigns.create_automation_form_window
-      },
+      "monitor_type" => type,
+      "trigger_config" => trigger_config_for(type, assigns),
       "trigger_actions" => assigns.create_automation_form_trigger_actions,
       "recovery_enabled" => assigns.create_automation_form_recovery_enabled
     }
 
     if assigns.create_automation_form_recovery_enabled do
       base
-      |> Map.put("recovery_config", %{
-        "window" => assigns.create_automation_form_recovery_window
-      })
+      |> Map.put("recovery_config", recovery_config_for(type, assigns))
       |> Map.put("recovery_actions", assigns.create_automation_form_recovery_actions)
     else
       base
     end
   end
+
+  defp trigger_config_for(type, assigns) do
+    if event_driven_monitor_type?(type) do
+      %{}
+    else
+      %{
+        "threshold" => parse_threshold(type, assigns.create_automation_form_threshold),
+        "window" => assigns.create_automation_form_window
+      }
+    end
+  end
+
+  defp recovery_config_for(type, assigns) do
+    if event_driven_monitor_type?(type) do
+      %{}
+    else
+      %{"window" => assigns.create_automation_form_recovery_window}
+    end
+  end
+
+  defp strip_flaky_label_actions(actions, label_action_type) do
+    Enum.reject(actions, fn action ->
+      action["type"] == label_action_type and action["label"] == "flaky"
+    end)
+  end
+
+  defp event_driven_monitor_type?("manually_marked_flaky"), do: true
+  defp event_driven_monitor_type?(_), do: false
 
   defp parse_threshold("flakiness_rate", value) do
     case Float.parse(value) do
@@ -412,6 +447,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
 
   def monitor_type_label("flakiness_rate"), do: dgettext("dashboard_projects", "Flakiness rate")
   def monitor_type_label("flaky_run_count"), do: dgettext("dashboard_projects", "Flaky runs")
+  def monitor_type_label("manually_marked_flaky"), do: dgettext("dashboard_projects", "Test marked as flaky")
   def monitor_type_label(_), do: dgettext("dashboard_projects", "Unknown")
 
   def state_action_label("muted"), do: dgettext("dashboard_projects", "Mute")
@@ -468,6 +504,10 @@ defmodule TuistWeb.ProjectAutomationsLive do
     threshold = format_threshold(trigger_config["threshold"] || 0)
     window = trigger_config["window"] || "30d"
     dgettext("dashboard_projects", "When flaky runs ≥ %{threshold} over %{window}", threshold: threshold, window: window)
+  end
+
+  def automation_summary(%{monitor_type: "manually_marked_flaky"}) do
+    dgettext("dashboard_projects", "When a test is manually marked as flaky")
   end
 
   def automation_summary(_), do: ""

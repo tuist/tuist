@@ -22,6 +22,7 @@ defmodule Tuist.Tests do
   import Ecto.Query
 
   alias Tuist.Accounts.Account
+  alias Tuist.Automations
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
   alias Tuist.Projects.Project
@@ -765,31 +766,39 @@ defmodule Tuist.Tests do
 
       IngestRepo.insert_all(TestCase, [attrs])
 
-      create_events_for_test_case_changes(test_case_id, test_case, filtered_attrs, actor_id)
+      event_types = determine_test_case_events(test_case, filtered_attrs)
+      record_test_case_events(test_case_id, event_types, actor_id)
+      dispatch_event_driven_automations(test_case, event_types, actor_id)
 
       {:ok, Map.merge(test_case, filtered_attrs)}
     end
   end
 
-  defp create_events_for_test_case_changes(test_case_id, old_test_case, new_attrs, actor_id) do
-    event_types = determine_test_case_events(old_test_case, new_attrs)
+  defp record_test_case_events(_test_case_id, [], _actor_id), do: :ok
 
-    if Enum.any?(event_types) do
-      now = NaiveDateTime.utc_now()
+  defp record_test_case_events(test_case_id, event_types, actor_id) do
+    now = NaiveDateTime.utc_now()
 
-      events =
-        Enum.map(event_types, fn event_type ->
-          %{
-            id: UUIDv7.generate(),
-            test_case_id: test_case_id,
-            event_type: to_string(event_type),
-            actor_id: actor_id,
-            inserted_at: now
-          }
-        end)
+    events =
+      Enum.map(event_types, fn event_type ->
+        %{
+          id: UUIDv7.generate(),
+          test_case_id: test_case_id,
+          event_type: to_string(event_type),
+          actor_id: actor_id,
+          inserted_at: now
+        }
+      end)
 
-      TestCaseEvent.Buffer.insert_all(events)
-    end
+    TestCaseEvent.Buffer.insert_all(events)
+  end
+
+  defp dispatch_event_driven_automations(_test_case, _event_types, nil), do: :ok
+
+  defp dispatch_event_driven_automations(test_case, event_types, _actor_id) do
+    Enum.each(event_types, fn event_type ->
+      Automations.dispatch_test_case_event(event_type, test_case)
+    end)
   end
 
   defp determine_test_case_events(old_test_case, new_attrs) do

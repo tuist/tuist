@@ -2,6 +2,7 @@ defmodule Tuist.TestsTest do
   use TuistTestSupport.Cases.DataCase
   use Mimic
 
+  alias Tuist.Automations
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
   alias Tuist.Shards.ShardRun
@@ -6824,6 +6825,56 @@ defmodule Tuist.TestsTest do
       event_types = Enum.map(events, & &1.event_type)
       assert "marked_flaky" in event_types
       assert "muted" in event_types
+    end
+
+    test "dispatches :marked_flaky to Automations when actor_id is set" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: false)
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      expected_test_case_id = test_case.id
+      expected_project_id = project.id
+
+      expect(Automations, :dispatch_test_case_event, fn :marked_flaky,
+                                                        %{id: ^expected_test_case_id, project_id: ^expected_project_id} ->
+        :ok
+      end)
+
+      # When / Then
+      {:ok, _updated} =
+        Tests.update_test_case(test_case.id, %{is_flaky: true}, actor_id: user.account.id)
+    end
+
+    test "dispatches :unmarked_flaky to Automations when actor_id is set" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: true)
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      expected_test_case_id = test_case.id
+
+      expect(Automations, :dispatch_test_case_event, fn :unmarked_flaky, %{id: ^expected_test_case_id} ->
+        :ok
+      end)
+
+      # When / Then
+      {:ok, _updated} =
+        Tests.update_test_case(test_case.id, %{is_flaky: false}, actor_id: user.account.id)
+    end
+
+    test "does not dispatch automation events when actor_id is nil (system update)" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: false)
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      reject(&Automations.dispatch_test_case_event/2)
+
+      # When / Then
+      {:ok, _updated} = Tests.update_test_case(test_case.id, %{is_flaky: true})
     end
   end
 
