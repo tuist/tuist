@@ -26,6 +26,37 @@ clusters/
 └── cluster-preview.yaml
 ```
 
+## Recovering from a stuck bootstrap
+
+If a cluster's first kubeadm-init phase fails partway (one CP machine
+joins, another stays `Provisioned` with `apiserver pod not healthy
+yet`), `kubectl apply -f cluster-<env>.yaml` is a no-op: the spec
+already matches and CAPI controllers won't act.
+
+KCP refuses to remediate while etcd quorum is unverifiable (correct
+safety posture: deleting the only "maybe working" CP would lose etcd
+permanently). MachineHealthCheck for workers reads conditions through
+the workload apiserver, which is dead, so it sees stale-healthy data
+and never triggers either. The cluster sits there indefinitely.
+
+The escape hatch is delete-and-recreate. Backing Hetzner servers may or
+may not still exist; caph treats `404` from Hetzner as "already
+deleted" and clears its finalizer either way, so the cascade is safe:
+
+```bash
+KUBECONFIG=~/.kube/tuist-mgmt.yaml kubectl -n org-tuist \
+  delete cluster tuist-<env>
+KUBECONFIG=~/.kube/tuist-mgmt.yaml kubectl apply -f \
+  infra/k8s/clusters/cluster-<env>.yaml
+mise run k8s:bootstrap-workload tuist-<env> <env>
+```
+
+The bootstrap script is the only thing that brings the cluster from
+"ControlPlaneInitialized=True" to "ready for traffic" (Cilium, HCCM,
+ingress-nginx, ESO, the Cloudflare origin TLS Secret, and the 1P
+kubeconfig upload that the CI deploy workflow relies on). The Cluster
+CR alone does not.
+
 ## Target shape per cluster
 
 | Cluster | CP | Workers |

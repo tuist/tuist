@@ -283,26 +283,10 @@ KUBECONFIG="$WL_KUBECONFIG" kubectl -n "$APP_NAMESPACE" create secret tls tuist-
 rm -f "$CERT_TMP" "$KEY_TMP"
 
 # ---------------------------------------------------------------------------
-log "Step 12/12: upload workload kubeconfig to 1Password + report LB IP"
-
-# Stash the freshly-minted workload kubeconfig in the per-env vault
-# so CI (server-deployment.yml) can read it via the per-env
-# OP_SERVICE_ACCOUNT_TOKEN. Idempotent: if the item exists, replace
-# the file contents; if not, create.
-KUBECONFIG_ITEM="kubeconfig: ${CLUSTER_NAME}"
-KUBECONFIG_VAULT="tuist-k8s-${ENV}"
-if op item get "$KUBECONFIG_ITEM" --account tuist.1password.com --vault "$KUBECONFIG_VAULT" >/dev/null 2>&1; then
-  echo "Existing 1P item found; replacing the document"
-  EXISTING_ID=$(op item get "$KUBECONFIG_ITEM" --account tuist.1password.com --vault "$KUBECONFIG_VAULT" --format json | jq -r '.id')
-  op item delete "$EXISTING_ID" --account tuist.1password.com --vault "$KUBECONFIG_VAULT" --archive
-fi
-op document create "$WL_KUBECONFIG" \
-  --title "$KUBECONFIG_ITEM" \
-  --account tuist.1password.com --vault "$KUBECONFIG_VAULT"
-
-echo
+log "Step 12/12: smoke ingress + upload workload kubeconfig to 1Password"
 
 # Wait for HCCM to provision the LB and write the IP back.
+echo -n "Waiting for ingress-nginx LB IP"
 for i in $(seq 1 60); do
   LB_IP=$(KUBECONFIG="$WL_KUBECONFIG" kubectl -n platform get svc -l app.kubernetes.io/name=ingress-nginx \
     -o jsonpath='{.items[0].status.loadBalancer.ingress[0].ip}' 2>/dev/null || true)
@@ -319,6 +303,52 @@ if [ -z "${LB_IP:-}" ]; then
   err "  KUBECONFIG=$WL_KUBECONFIG kubectl -n kube-system logs -l app.kubernetes.io/name=hcloud-cloud-controller-manager"
   exit 1
 fi
+
+# Smoke: the ingress LB actually serves HTTP. Any non-zero status (including
+# 404 from ingress-nginx's default backend) proves the full path
+# Hetzner-LB -> Service -> ingress-nginx pod is wired. Connection failures
+# here mean the cluster is structurally incomplete despite earlier helm
+# successes, and uploading the kubeconfig to 1P would hand CI a target
+# that can't actually serve traffic.
+echo -n "Probing https://$LB_IP/ "
+SMOKE_HTTP=000
+for i in $(seq 1 30); do
+  SMOKE_HTTP=$(curl -sS -k --connect-timeout 5 --max-time 10 \
+    -o /dev/null -w "%{http_code}" "https://$LB_IP/" 2>/dev/null || echo "000")
+  if [ "$SMOKE_HTTP" != "000" ]; then
+    break
+  fi
+  printf '.'
+  sleep 5
+done
+echo
+
+if [ "$SMOKE_HTTP" = "000" ]; then
+  err "ingress LB $LB_IP did not return HTTP after ~2.5min, refusing to publish kubeconfig to 1P."
+  err "The cluster looks structurally incomplete. Investigate:"
+  err "  KUBECONFIG=$WL_KUBECONFIG kubectl -n platform get svc,pods -l app.kubernetes.io/name=ingress-nginx"
+  exit 1
+fi
+echo "ingress LB responded HTTP $SMOKE_HTTP. Routing is healthy."
+
+# Stash the freshly-minted workload kubeconfig in the per-env vault
+# so CI (server-deployment.yml) can read it via the per-env
+# OP_SERVICE_ACCOUNT_TOKEN. Idempotent: if the item exists, replace
+# the file contents; if not, create. Only runs after the smoke above
+# passes, so a stale kubeconfig never overwrites a working one when
+# bootstrap is invoked against a half-built cluster.
+KUBECONFIG_ITEM="kubeconfig: ${CLUSTER_NAME}"
+KUBECONFIG_VAULT="tuist-k8s-${ENV}"
+if op item get "$KUBECONFIG_ITEM" --account tuist.1password.com --vault "$KUBECONFIG_VAULT" >/dev/null 2>&1; then
+  echo "Existing 1P item found; replacing the document"
+  EXISTING_ID=$(op item get "$KUBECONFIG_ITEM" --account tuist.1password.com --vault "$KUBECONFIG_VAULT" --format json | jq -r '.id')
+  op item delete "$EXISTING_ID" --account tuist.1password.com --vault "$KUBECONFIG_VAULT" --archive
+fi
+op document create "$WL_KUBECONFIG" \
+  --title "$KUBECONFIG_ITEM" \
+  --account tuist.1password.com --vault "$KUBECONFIG_VAULT"
+
+echo
 
 cat <<DONE
 
