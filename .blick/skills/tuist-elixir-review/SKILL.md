@@ -182,6 +182,68 @@ In marketing copy and pricing UI:
 
 ---
 
+## 9. N+1 queries — DB calls inside loops
+
+A `Repo.*` / `ClickHouseRepo.*` / `IngestRepo.*` call inside `Enum.map`,
+`Enum.each`, `Enum.flat_map`, `Enum.filter`, `Enum.reduce`, `for`, or
+`Stream.*` is almost always an N+1. Each iteration is a separate round
+trip; the chart-bucket loop or per-row preload that looked harmless on
+toy data stalls real page loads.
+
+**Actively search the diff for these patterns** before signing off
+— don't just react to obvious cases:
+
+- `Enum.map(_, fn ... -> ... <Repo>.<one|all|get|get_by|aggregate|exists?|stream> ... end)`
+- `Enum.map(_, &<Repo>.<...>(&1, ...))` (point-free form is the same trap)
+- `Enum.each(_, fn ... -> ... <Repo>.<insert|update|delete> ... end)`
+- `Enum.flat_map`, `Enum.reduce(..., fn _, acc -> ... <Repo>... end)`
+- `for x <- xs, do: <Repo>.*` / `for x <- xs, do: ...` with a query inside
+- `Enum.map(_, &<Repo>.preload(&1, ...))` — `preload/2` already accepts a list
+- Pipelines like `xs |> Enum.map(&fetch_thing/1)` where `fetch_thing/1`
+  internally calls a `Repo` — follow the function one hop in.
+
+The repos to watch: `Tuist.Repo`, `Tuist.ClickHouseRepo`,
+`Tuist.IngestRepo`, plus any aliased form (e.g. `alias Tuist.Repo`,
+then bare `Repo.*` inside the loop).
+
+### Flag (Severity: medium; high if hot path)
+
+- A `Repo`/`ClickHouseRepo`/`IngestRepo` read or aggregate inside any
+  `Enum.*`/`for`/`Stream.*` in the diff. Severity is **high** if the
+  loop is on a request path (controller, LiveView mount/handle_*,
+  channel, MCP handler) or scales with tenant data (test cases,
+  bundles, runs); **medium** for background jobs and one-shot scripts.
+- Per-element `Repo.preload/2` — `preload` already takes a list; one
+  call covers all.
+- Per-element inserts/updates/deletes that have an `_all` equivalent
+  (`insert_all`, `update_all`, `delete_all`).
+
+When suggesting a fix, **name the consolidating primitive** so the
+author can act on it directly:
+
+- ClickHouse per-bucket aggregation → `argMaxIf` / `countIf` /
+  `groupArray` over a single GROUP BY, or `arrayJoin` to fan out
+  buckets as rows.
+- Ecto per-row lookup → `where: r.id in ^ids` + group in Elixir, or
+  a join.
+- Per-element preload → `Repo.preload(list, [:assoc])` once.
+- Per-element write → `*_all` + a list of params.
+
+### Do not flag
+
+- Loops over a bounded constant collection (config keys, enum members,
+  ≤5 items) where each query is genuinely independent and the loop
+  isn't on a hot request path.
+- Tests, fixtures, and seed scripts (`server/test/`,
+  `server/priv/repo/seeds*.exs`) — correctness-first, perf is fine.
+- Loops that build params in memory with no DB round trip per iteration.
+- `Repo.stream/2` inside `Enum.*` with an explicit comment justifying
+  the cursor-based stream (e.g. "stream so we don't load 10M rows").
+- Pre-existing N+1s untouched by the diff — this skill is for new
+  regressions, not codebase-wide audits.
+
+---
+
 ## Out of scope (handled elsewhere — do not flag)
 
 - Module / function naming, pipe-chain start, function ordering,
@@ -197,7 +259,7 @@ In marketing copy and pricing UI:
 For each finding, confirm:
 
 1. The `path:line` is real and the snippet appears in the diff.
-2. The category above is one of 1–8; if it isn't, downgrade to a
+2. The category above is one of 1–9; if it isn't, downgrade to a
    question (`uncertain: ...`) rather than asserting a finding.
 3. The severity is set: **critical** (auth bypass / cross-tenant read or
    write), **high** (likely security or correctness bug), **medium**
