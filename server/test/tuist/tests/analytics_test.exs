@@ -1720,11 +1720,19 @@ defmodule Tuist.Tests.AnalyticsTest do
 
       IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
 
-      # Quarantine on April 10: new row with state="muted"
-      insert_test_case_state(test_case, "muted", ~N[2024-04-10 12:00:00.000000])
+      # Quarantine on April 10
+      RunsFixtures.test_case_event_fixture(
+        test_case_id: test_case.id,
+        event_type: "muted",
+        inserted_at: ~N[2024-04-10 12:00:00.000000]
+      )
 
-      # Unquarantine on April 20: new row with state="enabled"
-      insert_test_case_state(test_case, "enabled", ~N[2024-04-20 12:00:00.000000])
+      # Unquarantine on April 20
+      RunsFixtures.test_case_event_fixture(
+        test_case_id: test_case.id,
+        event_type: "unmuted",
+        inserted_at: ~N[2024-04-20 12:00:00.000000]
+      )
 
       # When
       got =
@@ -1769,20 +1777,32 @@ defmodule Tuist.Tests.AnalyticsTest do
       test_case =
         RunsFixtures.test_case_fixture(
           project_id: project.id,
-          is_quarantined: false,
+          is_quarantined: true,
           inserted_at: ~N[2024-04-01 00:00:00.000000]
         )
 
       IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
 
       # First quarantine on April 5
-      insert_test_case_state(test_case, "muted", ~N[2024-04-05 12:00:00.000000])
+      RunsFixtures.test_case_event_fixture(
+        test_case_id: test_case.id,
+        event_type: "muted",
+        inserted_at: ~N[2024-04-05 12:00:00.000000]
+      )
 
       # First unquarantine on April 10
-      insert_test_case_state(test_case, "enabled", ~N[2024-04-10 12:00:00.000000])
+      RunsFixtures.test_case_event_fixture(
+        test_case_id: test_case.id,
+        event_type: "unmuted",
+        inserted_at: ~N[2024-04-10 12:00:00.000000]
+      )
 
       # Second quarantine on April 20
-      insert_test_case_state(test_case, "muted", ~N[2024-04-20 12:00:00.000000])
+      RunsFixtures.test_case_event_fixture(
+        test_case_id: test_case.id,
+        event_type: "muted",
+        inserted_at: ~N[2024-04-20 12:00:00.000000]
+      )
 
       # When
       got =
@@ -1871,7 +1891,7 @@ defmodule Tuist.Tests.AnalyticsTest do
         RunsFixtures.test_case_fixture(
           project_id: project.id,
           name: "test2",
-          is_quarantined: false,
+          is_quarantined: true,
           inserted_at: ~N[2024-04-01 00:00:00.000000]
         )
 
@@ -1881,13 +1901,25 @@ defmodule Tuist.Tests.AnalyticsTest do
       ])
 
       # Quarantine test 1 on April 10
-      insert_test_case_state(test_case_1, "muted", ~N[2024-04-10 12:00:00.000000])
+      RunsFixtures.test_case_event_fixture(
+        test_case_id: test_case_1.id,
+        event_type: "muted",
+        inserted_at: ~N[2024-04-10 12:00:00.000000]
+      )
 
       # Quarantine test 2 on April 15
-      insert_test_case_state(test_case_2, "muted", ~N[2024-04-15 12:00:00.000000])
+      RunsFixtures.test_case_event_fixture(
+        test_case_id: test_case_2.id,
+        event_type: "muted",
+        inserted_at: ~N[2024-04-15 12:00:00.000000]
+      )
 
       # Unquarantine test 1 on April 20
-      insert_test_case_state(test_case_1, "enabled", ~N[2024-04-20 12:00:00.000000])
+      RunsFixtures.test_case_event_fixture(
+        test_case_id: test_case_1.id,
+        event_type: "unmuted",
+        inserted_at: ~N[2024-04-20 12:00:00.000000]
+      )
 
       # When
       got =
@@ -2426,20 +2458,5 @@ defmodule Tuist.Tests.AnalyticsTest do
       assert bucket_at.(~U[2024-04-30 08:00:00Z]) == 0
       assert bucket_at.(~U[2024-04-30 10:00:00Z]) == 1
     end
-  end
-
-  # Mirrors what `Tuist.Tests.update_test_case/3` does in production:
-  # writes a new `test_cases` row with the new `state` so ReplacingMergeTree
-  # carries that state forward as the canonical value.
-  defp insert_test_case_state(test_case, state, inserted_at) do
-    row =
-      test_case
-      |> Map.from_struct()
-      |> Map.delete(:__meta__)
-      |> Map.put(:state, state)
-      |> Map.put(:inserted_at, inserted_at)
-
-    {1, _} = IngestRepo.insert_all(TestCase, [row])
-    :ok
   end
 end

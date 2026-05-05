@@ -111,11 +111,8 @@ defmodule Tuist.Tests.Analytics do
 
   @doc """
   Returns analytics for quarantined tests count over time for a project.
-  At each bucket endpoint T, the value is the number of test cases whose
-  latest `TestCase` row at time T has `state` in `["muted", "skipped"]`.
-  Sources state directly from `test_cases` (matching the quarantined-tests
-  list query) rather than replaying `test_case_events`, so the count and
-  list cannot diverge if events and `TestCase.state` drift apart.
+  This computes the number of quarantined tests at each time bucket by
+  tracking `muted` / `unmuted` events from the test_case_events table.
   """
   def quarantined_tests_analytics(project_id, opts \\ []) do
     start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
@@ -125,7 +122,42 @@ defmodule Tuist.Tests.Analytics do
     dates = date_range_for_date_period(date_period, start_datetime: start_datetime, end_datetime: end_datetime)
     date_endpoints = Enum.map(dates, &date_to_end_of_bucket(&1, date_period))
 
-    values = quarantined_counts_at_endpoints(project_id, date_endpoints)
+    project_test_case_ids_subquery =
+      from(tc in TestCase,
+        where: tc.project_id == ^project_id,
+        group_by: tc.id,
+        select: tc.id
+      )
+
+    max_endpoint = List.last(date_endpoints) || end_datetime
+
+    events =
+      ClickHouseRepo.all(
+        from(e in TestCaseEvent,
+          where: e.test_case_id in subquery(project_test_case_ids_subquery),
+          where: e.event_type in ^Tests.quarantine_event_types(),
+          where: e.inserted_at <= ^max_endpoint,
+          select: %{test_case_id: e.test_case_id, event_type: e.event_type, inserted_at: e.inserted_at},
+          order_by: [asc: e.inserted_at]
+        )
+      )
+
+    events_by_tc = Enum.group_by(events, & &1.test_case_id)
+
+    values =
+      Enum.map(date_endpoints, fn endpoint ->
+        endpoint_naive = DateTime.to_naive(endpoint)
+
+        Enum.count(events_by_tc, fn {_tc_id, tc_events} ->
+          last_event =
+            tc_events
+            |> Enum.take_while(&(NaiveDateTime.compare(&1.inserted_at, endpoint_naive) != :gt))
+            |> List.last()
+
+          last_event != nil and last_event.event_type in Tests.active_quarantine_event_types()
+        end)
+      end)
+
     count = List.last(values) || 0
 
     %{
@@ -133,52 +165,6 @@ defmodule Tuist.Tests.Analytics do
       values: values,
       dates: dates
     }
-  end
-
-  # Single-pass aggregation: groups `test_cases` by `id`, computes
-  # `argMaxIf(state, inserted_at, inserted_at <= Tᵢ)` per bucket endpoint Tᵢ
-  # in parallel, then `countIf` over each result. One ClickHouse query for
-  # the whole chart instead of one per bucket.
-  defp quarantined_counts_at_endpoints(_project_id, []), do: []
-
-  defp quarantined_counts_at_endpoints(project_id, endpoints) do
-    indexed_endpoints = Enum.with_index(endpoints)
-    active_states = Tests.active_quarantine_states()
-    active_states_sql = Enum.map_join(active_states, ", ", &"'#{&1}'")
-
-    state_columns =
-      Enum.map_join(indexed_endpoints, ",\n    ", fn {_endpoint, i} ->
-        "argMaxIf(state, inserted_at, inserted_at <= {endpoint_#{i}:DateTime64(6)}) AS s_#{i}"
-      end)
-
-    count_columns =
-      Enum.map_join(indexed_endpoints, ",\n  ", fn {_endpoint, i} ->
-        "countIf(s_#{i} IN (#{active_states_sql})) AS c_#{i}"
-      end)
-
-    query = """
-    SELECT
-      #{count_columns}
-    FROM (
-      SELECT
-        id,
-        #{state_columns}
-      FROM test_cases
-      WHERE project_id = {project_id:Int64}
-      GROUP BY id
-    )
-    """
-
-    params =
-      indexed_endpoints
-      |> Enum.into(%{project_id: project_id}, fn {endpoint, i} ->
-        {:"endpoint_#{i}", DateTime.to_naive(endpoint)}
-      end)
-
-    case ClickHouseRepo.query(query, params) do
-      {:ok, %{rows: [counts]}} -> counts
-      {:ok, %{rows: []}} -> List.duplicate(0, length(endpoints))
-    end
   end
 
   @doc """
