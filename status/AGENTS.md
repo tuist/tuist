@@ -56,18 +56,26 @@ Variables live in `wrangler.jsonc` under `vars`. The token must be set via `wran
 ```
 # status/.dev.vars (gitignored)
 USE_FAKE_DATA="false"
-GRAFANA_INCIDENT_API_URL="https://incident-prod-eu-west-2.grafana.net/incident"
+GRAFANA_INCIDENT_API_URL="https://<stack-slug>.grafana.net/api/plugins/grafana-irm-app/resources"
 GRAFANA_INCIDENT_API_TOKEN="glsa_xxxxxxxxxxxx_xxxxxxxx"
 ```
 Then `wrangler dev` from `status/`. Outbound `fetch` from local workerd reaches Grafana directly — no `--remote` needed. Hit `/api/debug/incidents.json` to see the raw upstream payload.
 
-### Production
+### CI / Deployment
+Two GitHub workflows back the project:
+- `.github/workflows/status.yml` — typecheck + dry-run build on every PR that touches `status/**`.
+- `.github/workflows/status-deploy.yml` — deploys the worker to Cloudflare on every push to `main` that touches `status/**` (also `workflow_dispatch`).
+
+The deploy workflow follows the same convention as `handbook.yml` and `search-deploy.yml`: it injects `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` from 1Password (`op://tuist/Cloudflare/...`) using the existing `OP_SERVICE_ACCOUNT_TOKEN` GitHub secret. **No new GitHub secrets are needed** if the 1Password Cloudflare token has Workers scope. If it currently only has Pages scope (handbook deploys to Pages), update the token in the Cloudflare dashboard to add `Account → Workers Scripts → Edit` and replace the value in 1Password.
+
+### First production deploy
+The Grafana token is a Wrangler secret stored in Cloudflare's encrypted store, **not** read from 1Password at deploy time. Set it once before the first CI deploy:
 ```
 cd status
-wrangler secret put GRAFANA_INCIDENT_API_TOKEN
-# then flip USE_FAKE_DATA → "false" in wrangler.jsonc
-wrangler deploy
+wrangler login                                  # one-time, opens a browser
+wrangler secret put GRAFANA_INCIDENT_API_TOKEN  # paste the glsa_… value
 ```
+Optionally flip `USE_FAKE_DATA` in `wrangler.jsonc` to `"false"` so production hits the real Grafana API. After that, every push to `main` that touches `status/**` runs `mise run deploy` and publishes a new revision.
 
 ## Style
 The worker re-renders Noora components in plain HTML — same class names (`noora-card`, `noora-card__section`, `noora-banner`, `noora-status-badge`, `noora-badge`, `noora-line-divider`) and the same `data-part` / `data-status` / `data-color` / `data-style` / `data-size` attributes Noora's Phoenix components emit.
