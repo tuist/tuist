@@ -44,12 +44,14 @@ time:
   detect-libc@2.1.2: 2025-10-05T12:46:33.077Z
   error-stack-parser-es@1.0.5: 2025-01-09T08:51:58.305Z
   esbuild@0.27.3: 2026-02-05T22:03:47.060Z
+  feed@4.2.2: 2021-01-22T09:45:20.376Z
   fsevents@2.3.3: 2023-08-21T16:24:22.854Z
   hono@4.12.16: 2026-04-30T09:10:36.576Z
   kleur@4.1.5: 2022-06-26T18:50:12.559Z
   miniflare@4.20260430.0: 2026-04-30T16:58:59.116Z
   path-to-regexp@6.3.0: 2024-09-12T01:09:36.065Z
   pathe@2.0.3: 2025-02-11T19:47:35.862Z
+  sax@1.6.0: 2026-03-17T01:32:31.446Z
   semver@7.7.4: 2026-02-05T17:23:11.131Z
   sharp@0.34.5: 2025-11-06T14:19:40.989Z
   supports-color@10.2.2: 2025-09-08T14:49:55.476Z
@@ -59,6 +61,7 @@ time:
   workerd@1.20260430.1: 2026-04-30T01:24:28.746Z
   wrangler@4.87.0: 2026-04-30T16:58:58.041Z
   ws@8.18.0: 2024-07-03T16:45:31.280Z
+  xml-js@1.6.11: 2019-02-13T05:32:42.879Z
   youch-core@0.3.3: 2025-07-04T10:19:54.659Z
   youch@4.1.0-beta.10: 2025-07-04T10:44:02.983Z
 
@@ -66,6 +69,9 @@ importers:
 
   .:
     dependencies:
+      feed:
+        specifier: ^4.2.2
+        version: 4.2.2
       hono:
         specifier: ^4.7.10
         version: 4.12.16
@@ -330,6 +336,10 @@ packages:
     engines: {node: '>=18'}
     hasBin: true
 
+  feed@4.2.2:
+    resolution: {integrity: sha512-u5/sxGfiMfZNtJ3OvQpXcvotFpYkL0n9u9mM2vkui2nGo8b4wvDkJ8gAkYqbA8QpGyFCv3RK0Z+Iv+9veCS9bQ==}
+    engines: {node: '>=0.4.0'}
+
   fsevents@2.3.3:
     resolution: {integrity: sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw==}
     engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
@@ -354,6 +364,10 @@ packages:
 
   pathe@2.0.3:
     resolution: {integrity: sha512-WUjGcAqP1gQacoQe+OBJsFA7Ld4DyXuUIjZ5cc75cLHvJ7dtNsTugphxIADwspS+AraAUePCKrSVtPLFj/F88w==}
+
+  sax@1.6.0:
+    resolution: {integrity: sha512-6R3J5M4AcbtLUdZmRv2SygeVaM7IhrLXu9BmnOGmmACak8fiUtOsYNWUS4uK7upbmHIBbLBeFeI//477BKLBzA==}
+    engines: {node: '>=11.0.0'}
 
   semver@7.7.4:
     resolution: {integrity: sha512-vFKC2IEtQnVhpT78h1Yp8wzwrf8CM+MzKMHGJZfBtzhZNycRFnXsHk6E5TxIkkMsgNS7mdX3AGB7x2QM2di4lA==}
@@ -406,6 +420,10 @@ packages:
         optional: true
       utf-8-validate:
         optional: true
+
+  xml-js@1.6.11:
+    resolution: {integrity: sha512-7rVi2KMfwfWFl+GpPg6m80IVMWXLRjO+PxTq7V2CDhoGak0wzYzFgUY2m4XJ47OGdXd8eLE8EmwfAmdjw7lC1g==}
+    hasBin: true
 
   youch-core@0.3.3:
     resolution: {integrity: sha512-ho7XuGjLaJ2hWHoK8yFnsUGy2Y5uDpqSTq1FkHLK4/oqKtyUU1AFbOOxY4IpC9f0fTLjwYbslUz0Po5BpD1wrA==}
@@ -523,6 +541,10 @@ snapshots:
       '@esbuild/win32-arm64': 0.27.3
       '@esbuild/win32-x64': 0.27.3
 
+  feed@4.2.2:
+    dependencies:
+      xml-js: 1.6.11
+
   fsevents@2.3.3: {}
 
   hono@4.12.16: {}
@@ -541,6 +563,8 @@ snapshots:
   path-to-regexp@6.3.0: {}
 
   pathe@2.0.3: {}
+
+  sax@1.6.0: {}
 
   semver@7.7.4: {}
 
@@ -595,6 +619,10 @@ snapshots:
       fsevents: 2.3.3
 
   ws@8.18.0: {}
+
+  xml-js@1.6.11:
+    dependencies:
+      sax: 1.6.0
 
   youch-core@0.3.3:
     dependencies:

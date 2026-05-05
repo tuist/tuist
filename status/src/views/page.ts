@@ -141,10 +141,10 @@ function joinWithDividers(items: Renderable[]): Renderable[] {
 }
 
 function componentRow(component: Component): Renderable {
-  return html`<div class="component-row">
-    <div class="name">
-      <strong>${component.name}</strong>
-      <span>${component.description}</span>
+  return html`<div class="status-component">
+    <div data-part="name">
+      <span data-part="title">${component.name}</span>
+      <span data-part="description">${component.description}</span>
     </div>
     ${statusBadge(component.status)}
   </div>`;
@@ -167,17 +167,19 @@ function incidentToComponentStatus(i: Incident): ComponentStatus {
 function incidentBlock(incident: Incident): Renderable {
   const updates = incident.updates.map(
     (u) => html`<li>
-      <time datetime="${u.at}">${formatDate(u.at)}</time>
-      <div><span class="update-status">${u.status}.</span> ${u.body}</div>
+      <time data-part="time" datetime="${u.at}">${formatDate(u.at)}</time>
+      <div data-part="body">
+        <span data-part="status">${u.status}.</span> ${u.body}
+      </div>
     </li>`,
   );
-  return html`<article class="incident" id="${incident.id}">
-    <header class="incident-header">
-      <h3>${incident.title}</h3>
+  return html`<article class="status-incident" id="${incident.id}">
+    <header data-part="header">
+      <h3 data-part="title">${incident.title}</h3>
       ${severityBadge(incident.severity)} ${statusBadge(incidentToComponentStatus(incident))}
     </header>
-    <div class="incident-meta">${formatRange(incident.startedAt, incident.resolvedAt)}</div>
-    <ol class="incident-updates">
+    <div data-part="meta">${formatRange(incident.startedAt, incident.resolvedAt)}</div>
+    <ol data-part="updates">
       ${updates}
     </ol>
   </article>`;
@@ -213,26 +215,26 @@ export function statusPage({ title, snapshot }: PageOptions): Renderable {
 
   const componentsBody =
     snapshot.components.length === 0
-      ? html`<div class="empty">No components configured.</div>`
+      ? html`<div class="status-empty">No components configured.</div>`
       : html`${joinWithDividers(snapshot.components.map(componentRow))}`;
 
   const activeBody =
     snapshot.activeIncidents.length === 0
-      ? html`<div class="empty">No active incidents.</div>`
+      ? html`<div class="status-empty">No active incidents.</div>`
       : html`${joinWithDividers(snapshot.activeIncidents.map(incidentBlock))}`;
 
   const recentBody =
     snapshot.recentIncidents.length === 0
-      ? html`<div class="empty">No incidents reported in the last 14 days.</div>`
+      ? html`<div class="status-empty">No incidents reported in the last 14 days.</div>`
       : html`${joinWithDividers(snapshot.recentIncidents.map(incidentBlock))}`;
 
-  const subscribeBody = html`
-    <p class="subscribe-text">Follow updates from any feed reader.</p>
-    <div class="feed-links">
-      <a class="feed-link" href="/feed.rss">${raw(ICON_RSS)} RSS</a>
-      <a class="feed-link" href="/feed.atom">${raw(ICON_RSS)} Atom</a>
+  const subscribeBody = html`<div class="status-subscribe">
+    <p data-part="text">Follow updates from any feed reader.</p>
+    <div data-part="links">
+      <a data-part="link" href="/feed.rss">${raw(ICON_RSS)} RSS</a>
+      <a data-part="link" href="/feed.atom">${raw(ICON_RSS)} Atom</a>
     </div>
-  `;
+  </div>`;
 
   return html`<!doctype html>
     <html lang="en">
@@ -265,13 +267,13 @@ export function statusPage({ title, snapshot }: PageOptions): Renderable {
             <div data-part="icon">${raw(bannerIcon)}</div>
             <div data-part="title">${OVERALL_HEADLINES[overall]}</div>
           </section>
-          <div class="page">
-            <header class="site-header">
-              <a class="brand" href="/">
-                <span class="mark">${raw(TUIST_MARK_SVG)}</span>
-                <span>${title}</span>
+          <div class="status-page">
+            <header class="status-header">
+              <a data-part="brand" href="/">
+                <span data-part="mark">${raw(TUIST_MARK_SVG)}</span>
+                <span data-part="title">${title}</span>
               </a>
-              <span class="meta">Updated ${formatDate(snapshot.fetchedAt)}</span>
+              <span data-part="meta">Updated ${formatDate(snapshot.fetchedAt)}</span>
             </header>
 
             ${card({ icon: ICON_CIRCLE_CHECK, title: "Components", body: componentsBody })}
@@ -279,7 +281,7 @@ export function statusPage({ title, snapshot }: PageOptions): Renderable {
             ${card({ icon: ICON_INFO_CIRCLE, title: "Past 14 days", body: recentBody })}
             ${card({ icon: ICON_RSS, title: "Subscribe", body: subscribeBody })}
 
-            <footer class="site-footer">
+            <footer class="status-footer">
               <span>Tuist — status.tuist.dev</span>
               <span>
                 <a href="/api/status.json">JSON</a> ·
