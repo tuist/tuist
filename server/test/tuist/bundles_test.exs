@@ -1102,6 +1102,56 @@ defmodule Tuist.BundlesTest do
     end
   end
 
+  describe "distinct_project_app_bundles/1" do
+    test "returns one bundle per distinct name with the newest row preserved" do
+      # Given — three bundles for "App" plus one for "Other". The CH
+      # `DISTINCT` semantics differ from PG (`DISTINCT` runs before
+      # `ORDER BY`), so a naive query would pick an arbitrary "App" row
+      # and the dashboard would render stale install sizes.
+      project = ProjectsFixtures.project_fixture()
+
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        name: "App",
+        install_size: 1000,
+        inserted_at: ~U[2024-01-01 02:00:00Z]
+      )
+
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        name: "App",
+        install_size: 2000,
+        inserted_at: ~U[2024-01-02 02:00:00Z]
+      )
+
+      newest_app =
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          name: "App",
+          install_size: 3000,
+          inserted_at: ~U[2024-01-03 02:00:00Z]
+        )
+
+      other =
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          name: "Other",
+          install_size: 500,
+          inserted_at: ~U[2024-01-04 02:00:00Z]
+        )
+
+      # When
+      bundles = Bundles.distinct_project_app_bundles(project)
+
+      # Then
+      assert Enum.map(bundles, & &1.name) == ["Other", "App"]
+      app_bundle = Enum.find(bundles, &(&1.name == "App"))
+      assert app_bundle.id == newest_app.id
+      assert app_bundle.install_size == 3000
+      assert Enum.find(bundles, &(&1.name == "Other")).id == other.id
+    end
+  end
+
   describe "has_bundles_in_project_default_branch?/1" do
     test "returns true when there are bundles in the project's default branch" do
       # Given

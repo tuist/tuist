@@ -435,12 +435,17 @@ defmodule Tuist.VCS do
        }) do
     git_ref_pattern = get_git_ref_pattern(git_ref)
 
+    # ClickHouse runs `DISTINCT` before `ORDER BY`, so deduping against
+    # `b.name` in the query would pick an arbitrary row per name and
+    # report stale bundle sizes. Fetch rows ordered by `inserted_at`
+    # first and keep the newest per name in Elixir. Bounded by the
+    # `git_ref` pattern (a single PR or ref) so the scan stays small.
     bundles =
       from(b in Bundle)
       |> where([b], b.project_id == ^project.id and like(b.git_ref, ^git_ref_pattern))
       |> order_by([b], desc: b.inserted_at)
-      |> distinct([b], b.name)
       |> ClickHouseRepo.all()
+      |> Enum.uniq_by(& &1.name)
 
     if Enum.empty?(bundles) do
       nil

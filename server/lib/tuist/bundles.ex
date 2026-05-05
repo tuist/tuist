@@ -282,14 +282,20 @@ defmodule Tuist.Bundles do
   end
 
   def distinct_project_app_bundles(%Project{} = project) do
+    # ClickHouse runs `DISTINCT` before `ORDER BY`, so the
+    # PostgreSQL-style `distinct(b.name) |> order_by(desc: inserted_at)`
+    # pattern would deduplicate against an unordered scan and pick an
+    # arbitrary row per name. Fetch the rows ordered by `inserted_at`
+    # first and dedup in Elixir, which keeps the first (newest)
+    # occurrence per name. Bounded by "one project's bundles in the
+    # last 365 days" so the result set stays small in practice.
     from(b in Bundle)
     |> where([b], b.project_id == ^project.id)
     |> where([b], b.inserted_at > ^DateTime.add(DateTime.utc_now(), -365, :day))
     |> order_by([b], desc: b.inserted_at)
-    |> distinct([b], b.name)
     |> ClickHouseRepo.all()
     |> decode_bundles()
-    |> Enum.sort_by(fn bundle -> bundle.inserted_at end, {:desc, DateTime})
+    |> Enum.uniq_by(& &1.name)
   end
 
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
