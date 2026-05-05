@@ -5,6 +5,7 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuilds do
 
   use Tuist.MCP.Tool,
     name: "list_xcode_builds",
+    title: "List Xcode Builds",
     authorize: [action: :read, category: :build],
     schema: %{
       "type" => "object",

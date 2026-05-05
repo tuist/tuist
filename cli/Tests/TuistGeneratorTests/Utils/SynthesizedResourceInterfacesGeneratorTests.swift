@@ -120,12 +120,52 @@ struct SynthesizedResourceInterfacesGeneratorTests {
         """)
     }
 
+    @Test(.inTemporaryDirectory)
+    func render_plistWithArrayOfScalars_producesValidSpacing() async throws {
+        let rendered = try renderPlist(
+            named: "InjectedKeyNames",
+            rootObject: [
+                "api_key",
+                "secret_token",
+                "base_url",
+            ] as [Any]
+        )
+
+        #expect(rendered == """
+        // swiftlint:disable:this file_name
+        // swiftlint:disable all
+        // swift-format-ignore-file
+        // swiftformat:disable all
+        // Generated using tuist — https://github.com/tuist/tuist
+
+        import Foundation
+
+        // swiftlint:disable superfluous_disable_command
+        // swiftlint:disable file_length
+
+        // MARK: - Plist Files
+
+        // swiftlint:disable identifier_name line_length number_separator type_body_length
+        public enum InjectedKeyNames: Sendable {
+            public static let items: [String] = [#"api_key"#, #"secret_token"#, #"base_url"#]
+        }
+        // swiftlint:enable identifier_name line_length number_separator type_body_length
+        // swiftformat:enable all
+        // swiftlint:enable all
+
+        """)
+    }
+
     private func renderPlist(named name: String, content: [String: Any]) throws -> String {
+        try renderPlist(named: name, rootObject: content)
+    }
+
+    private func renderPlist(named name: String, rootObject: Any) throws -> String {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let plistPath = temporaryDirectory.appending(component: "\(name).plist")
 
         let plistData = try PropertyListSerialization.data(
-            fromPropertyList: content,
+            fromPropertyList: rootObject,
             format: .xml,
             options: 0
         )

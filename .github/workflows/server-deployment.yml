@@ -158,6 +158,17 @@ jobs:
           op document get "kubeconfig: tuist-${{ inputs.environment }}" \
             --vault "tuist-k8s-${{ inputs.environment }}" --output "$KUBECONFIG"
           chmod 600 "$KUBECONFIG"
+      - name: Verify cluster reachability
+        # Fail fast if the 1P-stored kubeconfig points at an unreachable
+        # apiserver. Without this, the next step would hang for `--timeout`
+        # on a phantom kubeconfig (e.g. a torn-down validation cluster
+        # whose LB IP got reassigned to another tenant) and we'd find out
+        # only after a partial helm rollout.
+        run: |
+          set -euo pipefail
+          API="$(kubectl config view --minify --raw -o jsonpath='{.clusters[0].cluster.server}')"
+          echo "Reaching apiserver at $API"
+          kubectl --request-timeout=10s get --raw /version >/dev/null
       - name: helm dependency update
         run: helm dependency update "$OBSERVABILITY_CHART_PATH"
       - name: helm upgrade --install k8s-monitoring
@@ -204,6 +215,16 @@ jobs:
           op document get "kubeconfig: tuist-${{ inputs.environment }}" \
             --vault "tuist-k8s-${{ inputs.environment }}" --output "$KUBECONFIG"
           chmod 600 "$KUBECONFIG"
+      - name: Verify cluster reachability
+        # Fail fast if the 1P-stored kubeconfig points at an unreachable
+        # apiserver. Without this, helm upgrade would hang for `--timeout`
+        # against a phantom endpoint and partially mutate cluster state
+        # before erroring.
+        run: |
+          set -euo pipefail
+          API="$(kubectl config view --minify --raw -o jsonpath='{.clusters[0].cluster.server}')"
+          echo "Reaching apiserver at $API"
+          kubectl --request-timeout=10s get --raw /version >/dev/null
       - name: kubectl apply CRDs
         # Helm 3 installs `crds/*.yaml` on `helm install` and skips
         # them on `helm upgrade` (intentional — Helm refuses to manage
