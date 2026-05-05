@@ -5,7 +5,7 @@
 # Transport: tart-kubelet stages the env file via `--dir env:<host>:ro`,
 # which the guest sees at /Volumes/My Shared Files/env/tuist.env in
 # plain `KEY=value` form (one per line, kubelet escapes embedded
-# \n / \r). We re-emit it as `export KEY='value'` lines into
+# \n / \r). We re-emit it as `export KEY=<shell-quoted>` lines into
 # /etc/tuist.env so the wrapper bash launchd spawns can `source` it
 # before exec'ing the Tuist release.
 
@@ -25,20 +25,22 @@ if [ ! -f "${KUBELET_PATH}" ]; then
   exit 0
 fi
 
-python3 - "${KUBELET_PATH}" "${ENV_FILE}" <<'PY'
-import os, shlex, sys
-src, dst = sys.argv[1], sys.argv[2]
-with open(src, "r") as f:
-    lines = f.read().splitlines()
-with open(dst, "w") as f:
-    for line in lines:
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, _, value = line.partition("=")
-        # tart-kubelet writes literal `\n` / `\r` for embedded newlines.
-        # Reverse that here so the BEAM sees the original byte sequence.
-        value = value.replace("\\n", "\n").replace("\\r", "\r")
-        f.write(f"export {key}={shlex.quote(value)}\n")
-os.chmod(dst, 0o640)
-PY
+# Each line is `KEY=value`. tart-kubelet writes \n / \r as two-character
+# escapes to keep each var a single line on disk; reverse them so the
+# BEAM sees the original bytes. `printf %q` then handles shell-quoting
+# for any byte sequence the value might carry (Postgres URLs with `@`,
+# S3 secrets with `+/`, multi-line CA bundles, etc.).
+#
+# `read … || [ -n "$line" ]` keeps the loop going for a final line
+# without a trailing newline.
+{
+  while IFS= read -r line || [ -n "$line" ]; do
+    [[ -z "$line" || "$line" == \#* || "$line" != *=* ]] && continue
+    key="${line%%=*}"
+    value="${line#*=}"
+    value="${value//\\n/$'\n'}"
+    value="${value//\\r/$'\r'}"
+    printf 'export %s=%q\n' "$key" "$value"
+  done < "${KUBELET_PATH}"
+} | sudo tee "${ENV_FILE}" >/dev/null
 echo "inject-env: wrote ${ENV_FILE} from ${KUBELET_PATH}"
