@@ -227,7 +227,7 @@ KUBECONFIG="$WL_KUBECONFIG" helm upgrade --install k8s-monitoring "$REPO_ROOT/in
   --wait --timeout 5m || echo "WARN: monitoring chart didn't go Ready in 5min; continuing (not blocking the cluster)"
 
 # ---------------------------------------------------------------------------
-log "Step 10/11: pre-create the app namespace (CI deploys the app itself)"
+log "Step 10/12: pre-create the app namespace (CI deploys the app itself)"
 
 # The bootstrap script intentionally does NOT install the tuist app
 # chart. Real Tuist server deploys go through `server-deployment.yml`
@@ -240,12 +240,67 @@ log "Step 10/11: pre-create the app namespace (CI deploys the app itself)"
 # We only pre-create the namespace + the ESO-synced server-master-key
 # Secret (already wired by the platform / common values) so CI's
 # first deploy doesn't have to bootstrap its own namespace.
-APP_NAMESPACE="tuist-${ENV}"
+# Production's Cluster CR uses metadata.name=tuist (no -production
+# suffix); the namespace mirrors that.
+case "$ENV" in
+  production) APP_NAMESPACE="tuist" ;;
+  *)          APP_NAMESPACE="tuist-${ENV}" ;;
+esac
 KUBECONFIG="$WL_KUBECONFIG" kubectl create namespace "$APP_NAMESPACE" --dry-run=client -o yaml | \
   KUBECONFIG="$WL_KUBECONFIG" kubectl apply -f -
 
 # ---------------------------------------------------------------------------
-log "Step 11/11: report ingress LB IP (DNS cut target)"
+log "Step 11/12: install Cloudflare origin cert as TLS Secret"
+
+# Cloudflare-proxied DNS (the orange cloud) requires the origin to
+# present a Cloudflare Origin Certificate to satisfy "Full (strict)"
+# SSL mode. The cert is a wildcard *.tuist.dev with 15-year validity,
+# stored in 1Password Founders/cloudflare-origin-cert-tuist-dev.
+# The chart's Ingress references `tlsSecretName:
+# tuist-tls-cloudflare-origin` in the app namespace.
+#
+# Gotcha worth knowing: the private_key field in 1Password has stray
+# blank lines after the BEGIN/END markers (likely a 1P data quirk for
+# multi-line Concealed values). openssl + ingress-nginx both reject
+# such PEMs as malformed. We strip those before building the Secret.
+CERT_TMP=$(mktemp); KEY_TMP=$(mktemp)
+op read --account tuist.1password.com \
+  "op://Founders/cloudflare-origin-cert-tuist-dev/certificate" > "$CERT_TMP"
+op read --account tuist.1password.com \
+  "op://Founders/cloudflare-origin-cert-tuist-dev/private_key" > "$KEY_TMP"
+sed -i.bak '/^[[:space:]]*$/d' "$CERT_TMP" "$KEY_TMP" && rm -f "${CERT_TMP}.bak" "${KEY_TMP}.bak"
+# Sanity: the cert and key must match.
+CERT_MOD=$(openssl x509 -noout -modulus < "$CERT_TMP" 2>/dev/null | openssl md5)
+KEY_MOD=$(openssl rsa -noout -modulus < "$KEY_TMP" 2>/dev/null | openssl md5)
+if [ "$CERT_MOD" != "$KEY_MOD" ]; then
+  err "Cloudflare origin cert + key modulus mismatch — refusing to create the Secret"
+  rm -f "$CERT_TMP" "$KEY_TMP"
+  exit 1
+fi
+KUBECONFIG="$WL_KUBECONFIG" kubectl -n "$APP_NAMESPACE" create secret tls tuist-tls-cloudflare-origin \
+  --cert="$CERT_TMP" --key="$KEY_TMP" \
+  --dry-run=client -o yaml | KUBECONFIG="$WL_KUBECONFIG" kubectl apply -f -
+rm -f "$CERT_TMP" "$KEY_TMP"
+
+# ---------------------------------------------------------------------------
+log "Step 12/12: upload workload kubeconfig to 1Password + report LB IP"
+
+# Stash the freshly-minted workload kubeconfig in the per-env vault
+# so CI (server-deployment.yml) can read it via the per-env
+# OP_SERVICE_ACCOUNT_TOKEN. Idempotent: if the item exists, replace
+# the file contents; if not, create.
+KUBECONFIG_ITEM="kubeconfig: ${CLUSTER_NAME}"
+KUBECONFIG_VAULT="tuist-k8s-${ENV}"
+if op item get "$KUBECONFIG_ITEM" --account tuist.1password.com --vault "$KUBECONFIG_VAULT" >/dev/null 2>&1; then
+  echo "Existing 1P item found; replacing the document"
+  EXISTING_ID=$(op item get "$KUBECONFIG_ITEM" --account tuist.1password.com --vault "$KUBECONFIG_VAULT" --format json | jq -r '.id')
+  op item delete "$EXISTING_ID" --account tuist.1password.com --vault "$KUBECONFIG_VAULT" --archive
+fi
+op document create "$WL_KUBECONFIG" \
+  --title "$KUBECONFIG_ITEM" \
+  --account tuist.1password.com --vault "$KUBECONFIG_VAULT"
+
+echo
 
 # Wait for HCCM to provision the LB and write the IP back.
 for i in $(seq 1 60); do
