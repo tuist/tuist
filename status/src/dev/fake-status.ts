@@ -1,4 +1,4 @@
-import type { Component, Incident, StatusSnapshot } from "./types.js";
+import type { Component, Incident, StatusSnapshot } from "../types.js";
 
 const FAKE_COMPONENTS: Omit<Component, "status">[] = [
   {

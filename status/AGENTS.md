@@ -9,7 +9,8 @@ status/
 ├── src/
 │   ├── index.ts          # Hono app and routes
 │   ├── grafana-irm.ts    # Grafana IRM client + roll-up logic
-│   ├── fake-data.ts      # Dev fixtures (used when USE_FAKE_DATA=true)
+│   ├── dev/
+│   │   └── fake-status.ts  # Runtime dev/demo fixture used when USE_FAKE_DATA=true
 │   ├── types.ts
 │   └── views/
 │       ├── page.ts        # HTML rendering with hono/html (uses real Noora class names + data-* parts)
@@ -47,14 +48,14 @@ Feeds are cached for 60 seconds via `Cache-Control`.
 
 Variables live in `wrangler.jsonc` under `vars`. The token must be set via `wrangler secret put` (prod) or `.dev.vars` (local) — never committed.
 
-| Variable                      | Purpose                                                                                                                                                                                                                                                                     |
-| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `USE_FAKE_DATA`               | `"true"` short-circuits the Grafana Incident API and serves fixtures from `fake-data.ts`. Defaults to `"false"` so the deployed worker hits Grafana; opt in locally by adding `USE_FAKE_DATA="true"` to `.dev.vars` when iterating on the UI without a token.               |
-| `STATUS_PAGE_TITLE`           | Brand name shown in the header and feed `<title>`.                                                                                                                                                                                                                          |
-| `GRAFANA_INCIDENT_API_URL`    | Per-stack proxy URL: `https://<your-stack-slug>.grafana.net/api/plugins/grafana-irm-app/resources`. The regional `incident-prod-*.grafana.net` form rejects stack-scoped service account tokens (`legacy auth cannot be upgraded`), so don't use it.                        |
-| `GRAFANA_INCIDENT_API_TOKEN`  | Stack-level service account token (`glsa_…`) with Viewer role. **Secret. Set with `wrangler secret put` for prod and in `status/.dev.vars` for local dev.**                                                                                                                 |
-| `GRAFANA_COMPONENT_LABEL_KEY` | Name (or slug) of the Grafana Incident label field whose select options define the public components shown on the page. Default `affected_service`. Each select option contributes one component: `value` → component id, `label` → display name, `description` → subtitle. |
-| `ENABLE_DEBUG_ROUTES`         | When `"true"`, exposes `/api/debug/incidents.json` and `/api/debug/fields.json`. Unset by default so production returns 404; set in `.dev.vars` for local debugging.                                                                                                        |
+| Variable                      | Purpose                                                                                                                                                                                                                                                                          |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `USE_FAKE_DATA`               | `"true"` short-circuits the Grafana Incident API and serves the runtime fixture in `src/dev/fake-status.ts`. Defaults to `"false"` so the deployed worker hits Grafana; opt in locally by adding `USE_FAKE_DATA="true"` to `.dev.vars` when iterating on the UI without a token. |
+| `STATUS_PAGE_TITLE`           | Brand name shown in the header and feed `<title>`.                                                                                                                                                                                                                               |
+| `GRAFANA_INCIDENT_API_URL`    | Per-stack proxy URL: `https://<your-stack-slug>.grafana.net/api/plugins/grafana-irm-app/resources`. The regional `incident-prod-*.grafana.net` form rejects stack-scoped service account tokens (`legacy auth cannot be upgraded`), so don't use it.                             |
+| `GRAFANA_INCIDENT_API_TOKEN`  | Stack-level service account token (`glsa_…`) with Viewer role. **Secret. Set with `wrangler secret put` for prod and in `status/.dev.vars` for local dev.**                                                                                                                      |
+| `GRAFANA_COMPONENT_LABEL_KEY` | Name (or slug) of the Grafana Incident label field whose select options define the public components shown on the page. Default `affected_service`. Each select option contributes one component: `value` → component id, `label` → display name, `description` → subtitle.      |
+| `ENABLE_DEBUG_ROUTES`         | When `"true"`, exposes `/api/debug/incidents.json` and `/api/debug/fields.json`. Unset by default so production returns 404; set in `.dev.vars` for local debugging.                                                                                                             |
 
 ### Local run
 
@@ -127,7 +128,7 @@ The list of components shown on the page comes entirely from a Grafana Incident 
 
 If `/api/status.json` returns `components: []`, hit `/api/debug/fields.json` — it returns the raw `FieldsService.GetFields` response and shows you what label keys/slugs Grafana actually exposes, so you can either rename the field or set `GRAFANA_COMPONENT_LABEL_KEY` accordingly.
 
-In fake-data mode (`USE_FAKE_DATA=true`), the components list is the static fixture in `src/fake-data.ts` — useful for design work without a Grafana token.
+In fake-data mode (`USE_FAKE_DATA=true`), the components list is the runtime fixture in `src/dev/fake-status.ts` — useful for design work without a Grafana token.
 
 ## Grafana Incident API
 

@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { fakeStatus } from "./fake-data.js";
+import { fakeStatus } from "./dev/fake-status.js";
 import { fetchRawFields, fetchRawIncidents, fetchStatusFromGrafana } from "./grafana-irm.js";
 import type { Env, StatusSnapshot } from "./types.js";
 import { atomFeed, rssFeed } from "./views/feed.js";
