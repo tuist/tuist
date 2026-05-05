@@ -131,18 +131,16 @@ processor:
       memory: "1536Mi"
 
 xcresultProcessor:
-  # Single replica in staging. The xcresult processor is a regular k8s
-  # Deployment scheduled onto the Mac mini macOS node via tart-kubelet;
-  # rolling deploys get the same maxSurge=0/maxUnavailable=1 treatment
-  # as the server, with jobs queuing in oban_jobs while the pod
-  # restarts.
+  # Single replica in staging. Inherits the chart default rolling
+  # strategy (maxSurge=1, maxUnavailable=0) so helm upgrade --wait
+  # actually blocks on the new Tart-VM Pod becoming Ready before
+  # marking the rollout done — without this, replicas=1 +
+  # maxUnavailable=1 lets a Deployment look "Available" with zero
+  # actually-running Pods, and a stuck rollout slips past --atomic.
+  # Brief surge-during-roll of 2 Pods on the same Mac mini fits
+  # within the SLA-mandated max-pods=2 per host.
   enabled: true
   replicaCount: 1
-  strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxSurge: 0
-      maxUnavailable: 1
   extraEnv:
     - name: TUIST_DEPLOY_ENV
       value: stag
