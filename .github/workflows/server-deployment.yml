@@ -278,34 +278,19 @@ jobs:
           echo "$stale_jobs" | xargs -r kubectl -n "$NAMESPACE" delete job \
             --ignore-not-found --cascade=foreground --timeout=2m
       - name: Resolve macosFleet image tag
-        # The CAPI operator image is built by its own workflow on
-        # main pushes that touch infra/cluster-api-provider-scaleway-
-        # applesilicon (or the modules it embeds). When the deploy
-        # caller didn't pin a tag explicitly, look up the SHA of the
-        # most recent green build on main so the helm upgrade pins to
-        # an immutable tag rather than the floating `:latest`.
+        # Default to the SHA of the latest successful operator-image
+        # build on main. The image is tagged with the 8-char SHA prefix
+        # by capi-provider-scaleway-applesilicon-image.yml.
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          MACOS_FLEET_IMAGE_TAG_INPUT: ${{ inputs.macos_fleet_image_tag }}
+          INPUT_TAG: ${{ inputs.macos_fleet_image_tag }}
         run: |
           set -euo pipefail
-          if [ -n "${MACOS_FLEET_IMAGE_TAG_INPUT}" ]; then
-            TAG="${MACOS_FLEET_IMAGE_TAG_INPUT}"
-          else
-            HEAD_SHA="$(
-              gh api -H "Accept: application/vnd.github+json" \
-                "repos/${{ github.repository }}/actions/workflows/capi-provider-scaleway-applesilicon-image.yml/runs?status=success&branch=main&per_page=1" \
-                -q '.workflow_runs[0].head_sha'
-            )"
-            if [ -z "${HEAD_SHA}" ] || [ "${HEAD_SHA}" = "null" ]; then
-              echo "No successful run found for capi-provider-scaleway-applesilicon-image.yml on main." >&2
-              exit 1
-            fi
-            # The operator image build tags with the 8-char SHA prefix.
-            TAG="${HEAD_SHA:0:8}"
-          fi
-          echo "MACOS_FLEET_IMAGE_TAG=${TAG}" >> "$GITHUB_ENV"
-          echo "Resolved macosFleet image tag: ${TAG}"
+          TAG="${INPUT_TAG:-$(gh api \
+            "repos/${{ github.repository }}/actions/workflows/capi-provider-scaleway-applesilicon-image.yml/runs?status=success&branch=main&per_page=1" \
+            -q '.workflow_runs[0].head_sha[0:8] // ""')}"
+          test -n "$TAG" || { echo "no successful operator-image run on main" >&2; exit 1; }
+          echo "MACOS_FLEET_IMAGE_TAG=$TAG" >> "$GITHUB_ENV"
       - name: helm upgrade --install
         # App secrets never pass through --set: the chart runs in
         # `server.managedSecrets: true` mode, which reads DATABASE_URL /
