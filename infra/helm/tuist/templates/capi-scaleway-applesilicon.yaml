@@ -1,0 +1,201 @@
+{{- if .Values.macosFleet.enabled }}
+{{- $name := include "tuist.componentName" (dict "root" . "component" "capi-scaleway-applesilicon") }}
+---
+# Cluster API infrastructure provider for Scaleway Apple Silicon Mac
+# minis. Watches ScalewayAppleSiliconMachine CRs and reconciles them
+# against Scaleway's API: orders the host, SSHes in, installs Tart +
+# tart-kubelet, drops a kubeconfig, and loads the launchd job. The
+# Mac mini joins the cluster as a real Node and starts handling Pods
+# scheduled to it.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: capi-scaleway-applesilicon
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: capi-scaleway-applesilicon
+rules:
+  - apiGroups: ["infrastructure.cluster.x-k8s.io"]
+    resources:
+      - scalewayapplesiliconmachines
+      - scalewayapplesiliconmachinetemplates
+      - scalewayapplesiliconclusters
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: ["infrastructure.cluster.x-k8s.io"]
+    resources:
+      - scalewayapplesiliconmachines/status
+      - scalewayapplesiliconmachines/finalizers
+      - scalewayapplesiliconclusters/status
+    verbs: [get, update, patch]
+  - apiGroups: ["cluster.x-k8s.io"]
+    resources: [machines, machinesets, machinedeployments, clusters]
+    verbs: [get, list, watch]
+  - apiGroups: [""]
+    # `delete` is needed at Machine teardown so the Node object the
+    # tart-kubelet registered doesn't linger as NotReady after the
+    # host is released back to Scaleway (the kubelet can't deregister
+    # itself once the VM is gone).
+    resources: [nodes]
+    verbs: [get, list, watch, delete]
+  - apiGroups: [""]
+    # The operator owns four Secret families in its own namespace:
+    #   - <fleet>-ssh: per-fleet Ed25519 keypair, generated once
+    #   - <machine>-bootstrap: per-machine sudo password +
+    #     SSH username + TOFU host fingerprint
+    #   - tart-kubelet-<machine>-token: per-machine kubelet auth token,
+    #     populated by k8s once it sees the SA annotation
+    # Plus bootstrap-token-<id> in kube-system. Other Secrets (cluster
+    # Secret holding Scaleway creds) are watched read-only.
+    resources: [secrets]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [""]
+    # Per-machine kubelet identity. Manager.EnsureNodeIdentity creates
+    # one ServiceAccount per Mac mini in the operator's namespace and
+    # binds it to the chart's tart-kubelet ClusterRole.
+    resources: [serviceaccounts]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    # Per-machine binding referencing the chart's tart-kubelet
+    # ClusterRole. We bind, never modify the role itself; the chart
+    # owns the role definition centrally.
+    resources: [clusterrolebindings]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    # `bind` verb on the specific tart-kubelet ClusterRole — k8s's
+    # privilege-escalation rule otherwise blocks the operator's SA
+    # from creating a ClusterRoleBinding to a Role whose permissions
+    # it doesn't hold itself (Pod read, Node create, etc.). The
+    # `bind` meta-verb is the documented escape hatch for exactly
+    # this controller-creates-binding pattern. Scoped to the one role
+    # by name so the operator can't bind itself to anything broader.
+    resources: [clusterroles]
+    resourceNames:
+      - {{ include "tuist.componentName" (dict "root" . "component" "tart-kubelet") }}
+    verbs: [bind]
+  - apiGroups: ["coordination.k8s.io"]
+    resources: [leases]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [""]
+    resources: [events]
+    verbs: [create, patch]
+  - apiGroups: [""]
+    # Operator boot-time auto-discovery reads kube-public/cluster-info
+    # to learn the cluster's external API server URL (the value Mac
+    # minis dial when joining as Nodes). kubeadm clusters expose
+    # cluster-info to system:authenticated by default via
+    # system:public-info-viewer, but Tuist-managed Hetzner clusters
+    # don't ship that binding, so we grant the operator's SA explicit
+    # read on the single ConfigMap by name.
+    resources: [configmaps]
+    resourceNames: [cluster-info]
+    verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: capi-scaleway-applesilicon
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ $name }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: capi-scaleway-applesilicon
+spec:
+  # 2 replicas for HA via leader election (controller-runtime's
+  # built-in Lease-based mechanism — only one replica reconciles at
+  # a time, the other waits for failover).
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      {{- include "tuist.componentLabels" (dict "root" . "component" "capi-scaleway-applesilicon") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "tuist.componentLabels" (dict "root" . "component" "capi-scaleway-applesilicon") | nindent 8 }}
+    spec:
+      serviceAccountName: {{ $name }}
+      containers:
+        - name: manager
+          image: "{{ .Values.macosFleet.image.repository }}:{{ .Values.macosFleet.image.tag | default "latest" }}"
+          imagePullPolicy: {{ .Values.macosFleet.image.pullPolicy }}
+          args:
+            - --leader-elect=true
+            - --metrics-bind-address=:8080
+            - --health-probe-bind-address=:8081
+            - --secrets-namespace={{ .Release.Namespace }}
+            {{- with .Values.macosFleet.apiServerURL }}
+            - --api-server-url={{ . }}
+            {{- end }}
+            - --node-identity-cluster-role={{ include "tuist.componentName" (dict "root" . "component" "tart-kubelet") }}
+            - --tartkubelet-host-cpu={{ .Values.macosFleet.tartKubelet.hostCPU | default 8 }}
+            - --tartkubelet-host-memory-mb={{ .Values.macosFleet.tartKubelet.hostMemoryMB | default 16384 }}
+            - --tartkubelet-max-pods={{ .Values.macosFleet.tartKubelet.maxPods | default 2 }}
+          env:
+            # Scaleway credentials. ESO syncs them from 1Password into
+            # this Secret automatically (see
+            # capi-scaleway-applesilicon-external-secrets.yaml). For
+            # self-hosters not using ESO, override
+            # `macosFleet.scaleway.secretName` to point at a Secret
+            # they create themselves.
+            - name: SCW_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.macosFleet.scaleway.secretName | default $name }}
+                  key: access-key
+            - name: SCW_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.macosFleet.scaleway.secretName | default $name }}
+                  key: secret-key
+            - name: SCW_DEFAULT_PROJECT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.macosFleet.scaleway.secretName | default $name }}
+                  key: project-id
+          ports:
+            - name: metrics
+              containerPort: 8080
+            - name: probe
+              containerPort: 8081
+          livenessProbe:
+            httpGet: { path: /healthz, port: probe }
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet: { path: /readyz, port: probe }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+{{- end }}

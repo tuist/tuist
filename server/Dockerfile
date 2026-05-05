@@ -83,8 +83,6 @@ RUN mkdir config
 # Copy path dependencies (only mix.exs/mix.lock for dep resolution)
 COPY tuist_common /tuist_common
 COPY noora /noora
-COPY xcode_processor/mix.exs xcode_processor/mix.lock /xcode_processor/
-COPY xcode_processor/config /xcode_processor/config
 
 # Retry deps.get up to 3 times — hex.pm resolver can fall through to an empty
 # local cache on network flakes, producing "Unknown package in lockfile"
@@ -110,9 +108,6 @@ RUN --mount=type=cache,id=mix-hex,target=/root/.hex \
 # imported at compile time by config/config.exs.
 COPY server/config/config.exs config/
 COPY server/config/prod.exs server/config/can.exs server/config/stag.exs config/
-
-# Copy path dependency sources for compilation
-COPY xcode_processor/lib /xcode_processor/lib
 
 RUN mix deps.compile
 

@@ -151,6 +151,31 @@ processor:
     whenUnsatisfiable: DoNotSchedule
   affinity: {}
 
+# Same priv/secrets selection as the build processor; the Tart image
+# embeds the encrypted bundle and decrypts it via MASTER_KEY.
+xcresultProcessor:
+  # replicaCount stays at the chart default (2). The topology spread
+  # in xcresult-processor-deployment.yaml forces the two replicas onto
+  # distinct Mac minis (the fleet has 2 hosts in production); the PDB
+  # below keeps at least one queue consumer up across voluntary
+  # disruptions (operator-driven host drains, fleet rolls).
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+  extraEnv:
+    - name: TUIST_DEPLOY_ENV
+      value: prod
+    - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
+      value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
+
+# Mac mini fleet — declarative via CAPI. Production keeps 2 hosts so
+# a single-host Scaleway BMC reboot or macOS upgrade doesn't take all
+# xcresult capacity offline.
+macosFleet:
+  replicas: 2
+  controlPlane:
+    host: api.tuist.dev
+
 # In-cluster Valkey backs the auth rate limiter (Hammer.Redis). The
 # chart wires TUIST_REDIS_URL to the embedded Service; without it the
 # rate limiter falls back to the per-pod InMemory bucket.

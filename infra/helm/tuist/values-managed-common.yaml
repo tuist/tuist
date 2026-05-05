@@ -172,6 +172,44 @@ processor:
       cpu: "1000m"
       memory: "1Gi"
 
+# Xcresult processing runs as a standard k8s Deployment on Mac mini
+# nodes that joined the cluster via tart-cri (see infra/tart-cri/).
+# xcresulttool is Xcode-only, so this workload lives on macOS hosts
+# specifically. Flipping `enabled: true` also adds
+# TUIST_DELEGATE_PROCESS_XCRESULT=1 to the Linux server pods so they
+# drop `:process_xcresult` and the macOS Pods own the queue.
+xcresultProcessor:
+  enabled: true
+  replicaCount: 2
+  queueConcurrency: 4
+  image:
+    repository: ghcr.io/tuist/tuist-xcresult-processor
+    # Bumped automatically by the release workflow when an
+    # xcresult-processor-image-scoped conventional commit lands on
+    # main; the workflow rebuilds the Tart VM image on the bare-metal
+    # Mac mini, pushes the matching semver tag, and rewrites this
+    # line in the same auto-commit. Until release.yml has run for
+    # this scope, pin to a known-good SHA-tagged build that the
+    # standalone xcresult-processor-image.yml workflow pushed.
+    tag: "e38122ec"
+
+# Mac mini fleet provisioned declaratively via the Cluster API
+# Scaleway-Apple-Silicon provider. Scaling is `kubectl scale
+# machinedeployment <name> --replicas=N`. Per-env overlay sets the
+# control-plane URL + the per-host pod CIDR.
+macosFleet:
+  enabled: true
+  image:
+    repository: ghcr.io/tuist/capi-provider-scaleway-applesilicon
+    # Bumped automatically by the release workflow when a
+    # capi-scaleway-scoped conventional commit lands on main; the
+    # workflow builds the new image, pushes the matching semver tag,
+    # and rewrites this line in the same auto-commit. Until
+    # release.yml has run for this scope, pin to a known-good
+    # SHA-tagged build that the standalone
+    # capi-provider-scaleway-applesilicon-image.yml workflow pushed.
+    tag: "c98d7105"
+
 # Everything below = external. The managed deployment never runs embedded
 # Postgres / ClickHouse / object storage / observability stacks.
 cache:

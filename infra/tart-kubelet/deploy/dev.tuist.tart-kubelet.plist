@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  launchd job for tart-kubelet. Installed by the CAPI provider's
+  bootstrap step at /Library/LaunchDaemons/dev.tuist.tart-kubelet.plist.
+
+  Runs as root: tart-kubelet shells out to `tart`, which needs root
+  for /var/log/tart-vms and /var/lib/tart-userdata access. The Tart
+  CLI itself drops privileges where appropriate.
+
+  Args:
+    --node-name           registered Node name (CR name, set by bootstrap)
+    --kubeconfig          provisioned kubeconfig path
+    --host-cpu            advertised CPU
+    --host-memory-mb      advertised memory
+    --max-pods            concurrent VMs allowed on this host
+
+  KeepAlive=true → launchd restarts the agent on crash. RunAtLoad=true →
+  starts on every boot. ThrottleInterval keeps tight crash loops from
+  burning CPU.
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>dev.tuist.tart-kubelet</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/local/bin/tart-kubelet</string>
+    <string>--node-name=__NODE_NAME__</string>
+    <string>--kubeconfig=/etc/tart-kubelet/kubeconfig</string>
+    <string>--host-cpu=__HOST_CPU__</string>
+    <string>--host-memory-mb=__HOST_MEMORY_MB__</string>
+    <string>--max-pods=__MAX_PODS__</string>
+  </array>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>KeepAlive</key>
+  <true/>
+
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+
+  <key>StandardOutPath</key>
+  <string>/var/log/tart-kubelet.log</string>
+  <key>StandardErrorPath</key>
+  <string>/var/log/tart-kubelet.log</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>HOME</key>
+    <string>/var/root</string>
+    <key>PATH</key>
+    <string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
+</dict>
+</plist>

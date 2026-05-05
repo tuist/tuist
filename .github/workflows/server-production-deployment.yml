@@ -40,8 +40,6 @@ on:
       - server/**
       - tuist_common/**
       - noora/**
-      - processor/**
-      - xcode_processor/**
       - infra/helm/tuist/**
       - infra/helm/k8s-monitoring/**
       - .github/workflows/server-production-deployment.yml

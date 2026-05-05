@@ -66,6 +66,10 @@ defmodule Tuist.Environment do
       ingestion buffer. What the existing server pods run.
     * `:processor` — no Phoenix listener, narrowed Oban queue set to
       `:process_build`. Booted by processor-deployment.yaml.
+    * `:xcresult_processor` — no Phoenix listener, Oban queue set
+      narrowed to `:process_xcresult`. Runs inside a Tart VM on the
+      macOS Mac mini fleet (the only place the macOS-only xcresult NIF
+      can load). Booted by xcresult-processor-deployment.yaml.
 
   Read once from `TUIST_MODE`. Add new modes here when the supervision tree
   needs another shape (e.g. a future `:scheduler` or `:ingest`).
@@ -73,6 +77,7 @@ defmodule Tuist.Environment do
   def mode do
     case System.get_env("TUIST_MODE") do
       "processor" -> :processor
+      "xcresult_processor" -> :xcresult_processor
       _ -> :web
     end
   end
@@ -80,6 +85,8 @@ defmodule Tuist.Environment do
   def web?, do: mode() == :web
 
   def processor_mode?, do: mode() == :processor
+
+  def xcresult_processor_mode?, do: mode() == :xcresult_processor
 
   def database_url(secrets \\ secrets()) do
     System.get_env("DATABASE_URL") || get([:database_url], secrets)
@@ -629,12 +636,25 @@ defmodule Tuist.Environment do
     end
   end
 
-  def xcode_processor_url(secrets \\ secrets()) do
-    get([:xcode_processor, :url], secrets)
+  @doc """
+  Whether the in-cluster Linux server pod should drop `:process_xcresult`
+  from its Oban queue list because dedicated macOS xcresult-processor pods
+  are running.
+
+  The chart sets this whenever `xcresultProcessor.enabled: true`. Without
+  it, the server's local Oban worker would race the dedicated processors
+  on SKIP LOCKED — and crash on `xcresulttool` not being available since
+  Linux pods don't ship the macOS-only NIF.
+  """
+  def delegate_process_xcresult? do
+    truthy?(System.get_env("TUIST_DELEGATE_PROCESS_XCRESULT", "0"))
   end
 
-  def xcode_processor_webhook_secret(secrets \\ secrets()) do
-    get([:xcode_processor, :webhook_secret], secrets)
+  def process_xcresult_queue_concurrency do
+    case System.get_env("TUIST_PROCESS_XCRESULT_QUEUE_CONCURRENCY") do
+      value when is_binary(value) and value != "" -> String.to_integer(value)
+      _ -> if xcresult_processor_mode?(), do: 4, else: 2
+    end
   end
 
   def clickhouse_flush_interval_ms(secrets \\ secrets()) do

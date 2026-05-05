@@ -252,6 +252,161 @@ processor:
   # archive plus its CAS sidecar files.
   tmpSizeLimit: 16Gi
 
+xcresultProcessor:
+  # Dedicated macOS workers that consume `:process_xcresult`. The parse
+  # path leans on `xcresulttool` from Xcode (no Linux equivalent), so
+  # these Pods schedule onto Mac mini nodes running tart-kubelet (see
+  # infra/tart-kubelet/) — the macOS hosts join the cluster as real
+  # nodes with `kubernetes.io/os=darwin` + `tuist.dev/runtime=tart` and
+  # a `tuist.dev/macos:NoSchedule` taint that this Deployment tolerates.
+  #
+  # When enabled the chart emits two things:
+  #   1. The Deployment template here (xcresult-processor-deployment.yaml).
+  #   2. TUIST_DELEGATE_PROCESS_XCRESULT=1 on the in-cluster Linux server
+  #      pods — they drop `:process_xcresult` from their Oban queue list
+  #      so jobs land exclusively on the macOS fleet, avoiding both
+  #      SKIP-LOCKED races and `:nif_not_loaded` crashes (the macOS-only
+  #      NIF isn't loaded on Linux pods).
+  #
+  # Requires at least one Mac mini joined to the cluster. Tuist-managed
+  # deployments declare the fleet via `macosFleet.enabled=true` (see
+  # below) and the cluster-api-provider-scaleway-applesilicon operator
+  # provisions hosts from Scaleway and bootstraps Tart + tart-kubelet
+  # over SSH. Self-hosters without a macOS fleet should leave this off;
+  # xcresult ingestion silently no-ops for them (acceptable — Linux-only
+  # deployments don't have xcresult uploads to ingest in the first place).
+  enabled: false
+  replicaCount: 2
+  # Per-pod Oban concurrency. Total parallelism = replicaCount * concurrency.
+  queueConcurrency: 4
+  image:
+    # Built by .github/workflows/xcresult-processor-image.yml — Tart
+    # VM image with the Tuist server release and the macOS-only
+    # xcresult NIF baked in.
+    repository: ghcr.io/tuist/tuist-xcresult-processor
+    tag: ""  # Set by CI to the commit SHA.
+    pullPolicy: IfNotPresent
+  # When the chart's `processor.managedSecrets` is true (managed cloud)
+  # the build processor's ExternalSecret already syncs the
+  # tuist_processor role's DATABASE_URL into a Secret — we reuse that
+  # same Secret here so xcresult and build processors share one
+  # credential rotation surface. Override these for self-hosted setups
+  # that point at a different Secret.
+  databaseUrlSecretName: ""  # default: processor-external-secrets
+  databaseUrlSecretKey: "processor-database-url"
+  extraEnv: []
+  # Pair with the topology spread in the Deployment template (one
+  # replica per Mac mini hostname, ScheduleAnyway). minAvailable: 1
+  # keeps at least one queue consumer up across voluntary disruptions
+  # (host drains, fleet rolls). Off by default so single-replica
+  # deployments don't fight the chart.
+  podDisruptionBudget:
+    enabled: false
+    minAvailable: 1
+  resources:
+    requests:
+      cpu: "1000m"
+      memory: "2Gi"
+    limits:
+      cpu: "3000m"
+      memory: "4Gi"
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      # Surge by 1 so a new VM comes up before the old one drains; keeps
+      # at least 1 VM consuming the queue across deploys.
+      maxSurge: 1
+      maxUnavailable: 0
+
+# macOS Mac mini fleet, provisioned declaratively via Cluster API.
+#
+# Operator UX:
+#   1. Drop Scaleway IAM credentials in 1Password (one item with
+#      `access-key`, `secret-key`, `project-id` fields).
+#   2. Set `macosFleet.enabled: true` + `controlPlane.host` in the
+#      chart.
+#   3. `helm upgrade`. Done — Mac minis are ordered, joined to the
+#      cluster as `kubernetes.io/os=darwin` Nodes, and the
+#      xcresult-processor Deployment schedules onto them.
+#
+# Everything else is operator-managed:
+#   - SSH key: generated on first reconcile (Ed25519), public half
+#     registered with Scaleway via the IAM API, private half stored
+#     in `<fleet-name>-ssh` Secret. The chart doesn't pre-create it.
+#   - Bootstrap material: bootstrap token minted on each Machine
+#     reconcile (24h TTL); API server URL + CA cert read from the
+#     operator pod's in-cluster service-account context. No 1P
+#     entries needed for cluster join material.
+#
+# Scaling: `kubectl scale machinedeployment <name> --replicas=N`.
+macosFleet:
+  enabled: false
+  name: ""             # default: <release>-macos-fleet
+  replicas: 1
+  kubeletVersion: 1.32.1
+  controlPlane:
+    host: ""           # API server endpoint Mac minis dial when joining
+    port: 6443
+  image:
+    repository: ghcr.io/tuist/capi-provider-scaleway-applesilicon
+    # Pin the operator image to a specific build SHA in your env values.
+    # Falls back to `:latest` if unset, which is fine for development
+    # but not production.
+    tag: ""
+    pullPolicy: IfNotPresent
+  # External URL of the cluster API server that Mac minis dial when
+  # joining. Auto-discovered from the kube-public/cluster-info
+  # ConfigMap that kubeadm/CAPI write during cluster bootstrap; only
+  # set this when the ConfigMap isn't usable (non-kubeadm cluster,
+  # split-horizon DNS, ad-hoc override).
+  apiServerURL: ""
+
+  # tart-kubelet — kubelet-shaped agent the CAPI provider installs on
+  # each Mac mini. Each Mac mini joins the cluster as a real Node and
+  # runs Pods scheduled to it as Tart VMs. The darwin/arm64 binary is
+  # baked into the operator's own image — bumping
+  # `macosFleet.image.tag` rolls a new kubelet.
+  tartKubelet:
+    # Capacity advertised by each Mac mini when it registers its Node.
+    # M4-S = 8 vCPU / 16 GB. maxPods is 2 because Apple's macOS SLA
+    # only permits up to two simultaneous virtualized macOS instances
+    # per bare-metal host (Tart refuses to start a third VM).
+    hostCPU: 8
+    hostMemoryMB: 16384
+    maxPods: 2
+  scaleway:
+    # Name of the Secret holding `access-key`, `secret-key`,
+    # `project-id`. ESO populates it from 1Password by default; set
+    # to a manually-created Secret name to opt out.
+    secretName: ""
+    externalSecrets:
+      enabled: true
+      refreshInterval: "1h"
+      storeRef:
+        kind: ClusterSecretStore
+        name: onepassword
+      # Bare 1Password item name. The cluster's `ClusterSecretStore
+      # "onepassword"` is pre-configured per env to look in the
+      # matching `tuist-k8s-<env>` vault, so this name is the same
+      # across staging / canary / production. Convention: each env
+      # has its own SCALEWAY_API item with a per-env Scaleway IAM
+      # principal — leaked staging key rotates without touching
+      # production.
+      item: SCALEWAY_API
+      fields:
+        accessKey: access-key
+        secretKey: secret-key
+        projectID: project-id
+  machine:
+    # M4-S is the smallest readily-stocked Apple Silicon SKU Scaleway
+    # carries in fr-par-1 today (M4 chip, base RAM). fr-par-3 only
+    # offers M1-M and it's been unstocked; fr-par-1 has the broader
+    # M2/M4 lineup. Override per-env if the workload calls for more
+    # CPU/RAM (M4-M, M4-XL) or a different generation (M2-L).
+    type: M4-S
+    zone: fr-par-1
+    os: macos-tahoe-26.0
+
 cache:
   enabled: true
   replicaCount: 1

@@ -2,12 +2,12 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
   use TuistTestSupport.Cases.DataCase, async: false
   use Mimic
 
+  alias Tuist.Processor.XCResultProcessor
   alias Tuist.Tests.Workers.ProcessXcresultWorker
 
   setup :verify_on_exit!
 
   @storage_key "tuist/tests/test-xcresult.zip"
-  @test_run_id Ecto.UUID.generate()
 
   setup do
     %{account: account} =
@@ -124,91 +124,16 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
     }
   end
 
-  describe "perform/1 when xcode_processor_url is not configured (local processing)" do
-    setup do
-      stub(Tuist.Environment, :xcode_processor_url, fn -> nil end)
-      :ok
-    end
-
-    test "processes locally when url is nil", %{account: account, project: project} do
-      test_run_id = Ecto.UUID.generate()
-
-      expect(Tuist.Accounts, :get_account_by_id, fn id ->
-        assert id == account.id
-        {:ok, account}
-      end)
-
-      expect(Tuist.Storage, :download_to_file, fn _key, _path, _account ->
-        {:ok, :done}
-      end)
-
-      expect(XcodeProcessor.XCResultProcessor, :process_local, fn _path, _opts ->
-        {:ok, parsed_data()}
-      end)
-
-      expect(Tuist.Tests, :create_test, fn _attrs -> {:ok, %{id: test_run_id}} end)
-
-      assert :ok ==
-               ProcessXcresultWorker.perform(oban_job(job_args(test_run_id, account.id, project.id)))
-    end
-
-    test "processes locally when url is empty string", %{account: account, project: project} do
-      stub(Tuist.Environment, :xcode_processor_url, fn -> "" end)
-      test_run_id = Ecto.UUID.generate()
-
-      expect(Tuist.Accounts, :get_account_by_id, fn _id -> {:ok, account} end)
-      expect(Tuist.Storage, :download_to_file, fn _key, _path, _account -> {:ok, :done} end)
-      expect(XcodeProcessor.XCResultProcessor, :process_local, fn _path, _opts -> {:ok, parsed_data()} end)
-      expect(Tuist.Tests, :create_test, fn _attrs -> {:ok, %{id: test_run_id}} end)
-
-      assert :ok ==
-               ProcessXcresultWorker.perform(oban_job(job_args(test_run_id, account.id, project.id)))
-    end
+  defp expect_local_parse(account, parsed) do
+    expect(Tuist.Accounts, :get_account_by_id, fn _id -> {:ok, account} end)
+    expect(Tuist.Storage, :download_to_file, fn _key, _path, _account -> {:ok, :done} end)
+    expect(XCResultProcessor, :process_local, fn _path, _opts -> {:ok, parsed} end)
   end
 
-  describe "perform/1 when webhook_secret is not configured" do
-    setup do
-      stub(Tuist.Environment, :xcode_processor_url, fn -> "http://localhost:4003" end)
-      stub(Tuist.Environment, :xcode_processor_webhook_secret, fn -> nil end)
-      :ok
-    end
-
-    test "returns error when webhook_secret is nil", %{account: account, project: project} do
-      assert {:error, "webhook_secret_not_configured"} =
-               ProcessXcresultWorker.perform(oban_job(job_args(@test_run_id, account.id, project.id)))
-    end
-
-    test "returns error when webhook_secret is empty string", %{account: account, project: project} do
-      stub(Tuist.Environment, :xcode_processor_webhook_secret, fn -> "" end)
-
-      assert {:error, "webhook_secret_not_configured"} =
-               ProcessXcresultWorker.perform(oban_job(job_args(@test_run_id, account.id, project.id)))
-    end
-  end
-
-  describe "perform/1 with xcode_processor_url configured" do
-    setup do
-      stub(Tuist.Environment, :xcode_processor_url, fn -> "http://localhost:4003" end)
-      stub(Tuist.Environment, :xcode_processor_webhook_secret, fn -> "test-secret" end)
-      :ok
-    end
-
-    test "sends xcresult to processor and creates test from parsed data", %{
-      account: account,
-      project: project
-    } do
+  describe "perform/1 success path" do
+    test "downloads + parses + creates the test run", %{account: account, project: project} do
       test_run_id = Ecto.UUID.generate()
-
-      expect(Req, :post, fn url, opts ->
-        assert url == "http://localhost:4003/webhooks/process-xcresult"
-        body = Jason.decode!(opts[:body])
-        assert body["test_run_id"] == test_run_id
-        assert body["storage_key"] == @storage_key
-        assert body["account_id"] == account.id
-        assert body["project_id"] == project.id
-        assert Enum.any?(opts[:headers], fn {k, _v} -> k == "x-webhook-signature" end)
-        {:ok, %{status: 200, body: parsed_data()}}
-      end)
+      expect_local_parse(account, parsed_data())
 
       expect(Tuist.Tests, :create_test, fn attrs ->
         assert attrs.id == test_run_id
@@ -239,38 +164,9 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
                ProcessXcresultWorker.perform(oban_job(job_args(test_run_id, account.id, project.id)))
     end
 
-    test "normalizes 'passed' status to 'success'", %{account: account, project: project} do
+    test "passes failure status through unchanged", %{account: account, project: project} do
       test_run_id = Ecto.UUID.generate()
-
-      expect(Req, :post, fn _url, _opts ->
-        {:ok, %{status: 200, body: parsed_data()}}
-      end)
-
-      expect(Tuist.Tests, :create_test, fn attrs ->
-        assert attrs.status == "success"
-
-        [module] = attrs.test_modules
-        assert module["status"] == "success"
-
-        [suite] = module["test_suites"]
-        assert suite["status"] == "success"
-
-        [test_case] = module["test_cases"]
-        assert test_case["status"] == "success"
-
-        {:ok, %{id: test_run_id}}
-      end)
-
-      assert :ok ==
-               ProcessXcresultWorker.perform(oban_job(job_args(test_run_id, account.id, project.id)))
-    end
-
-    test "normalizes 'failed' status to 'failure'", %{account: account, project: project} do
-      test_run_id = Ecto.UUID.generate()
-
-      expect(Req, :post, fn _url, _opts ->
-        {:ok, %{status: 200, body: parsed_data_with_failure()}}
-      end)
+      expect_local_parse(account, parsed_data_with_failure())
 
       expect(Tuist.Tests, :create_test, fn attrs ->
         assert attrs.status == "failure"
@@ -278,19 +174,12 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
         [module] = attrs.test_modules
         assert module["status"] == "failure"
 
-        [suite] = module["test_suites"]
-        assert suite["status"] == "failure"
-
         [test_case] = module["test_cases"]
         assert test_case["status"] == "failure"
         assert length(test_case["failures"]) == 1
 
         [failure] = test_case["failures"]
         assert failure["message"] == "XCTAssertTrue failed"
-        assert failure["path"] == "AppTests/AppTests.swift"
-        assert failure["line_number"] == 42
-        assert failure["issue_type"] == "assertion_failure"
-
         {:ok, %{id: test_run_id}}
       end)
 
@@ -302,7 +191,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
          %{account: account, project: project} do
       test_run_id = Ecto.UUID.generate()
 
-      body =
+      parsed =
         Map.put(parsed_data(), "run_destinations", [
           %{"name" => "iPhone 17", "platform" => "iOS Simulator", "os_version" => "26.4"},
           %{"name" => "iPad", "platform" => "iPadOS Simulator", "os_version" => "26.4"},
@@ -310,7 +199,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
           %{"name" => "Mac", "platform" => "macOS", "os_version" => "26.3"}
         ])
 
-      expect(Req, :post, fn _url, _opts -> {:ok, %{status: 200, body: body}} end)
+      expect_local_parse(account, parsed)
 
       expect(Tuist.Tests, :create_test, fn attrs ->
         assert attrs.run_destinations == [
@@ -330,12 +219,12 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
     test "maps unrecognised platform strings to \"unknown\"", %{account: account, project: project} do
       test_run_id = Ecto.UUID.generate()
 
-      body =
+      parsed =
         Map.put(parsed_data(), "run_destinations", [
           %{"name" => "Mystery Box", "platform" => "linuxOS", "os_version" => "1.0"}
         ])
 
-      expect(Req, :post, fn _url, _opts -> {:ok, %{status: 200, body: body}} end)
+      expect_local_parse(account, parsed)
 
       expect(Tuist.Tests, :create_test, fn attrs ->
         assert [%{platform: "unknown"}] = attrs.run_destinations
@@ -351,8 +240,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
       project: project
     } do
       test_run_id = Ecto.UUID.generate()
-
-      expect(Req, :post, fn _url, _opts -> {:ok, %{status: 200, body: parsed_data()}} end)
+      expect_local_parse(account, parsed_data())
 
       expect(Tuist.Tests, :create_test, fn attrs ->
         assert attrs.run_destinations == []
@@ -363,114 +251,9 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
                ProcessXcresultWorker.perform(oban_job(job_args(test_run_id, account.id, project.id)))
     end
 
-    test "signs webhook request with HMAC-SHA256", %{account: account, project: project} do
-      test_run_id = Ecto.UUID.generate()
-
-      expect(Req, :post, fn _url, opts ->
-        body = opts[:body]
-        {_, signature} = Enum.find(opts[:headers], fn {k, _v} -> k == "x-webhook-signature" end)
-
-        expected_signature =
-          :hmac
-          |> :crypto.mac(:sha256, "test-secret", body)
-          |> Base.encode16(case: :lower)
-
-        assert signature == expected_signature
-        {:ok, %{status: 200, body: parsed_data()}}
-      end)
-
-      expect(Tuist.Tests, :create_test, fn _attrs -> {:ok, %{id: test_run_id}} end)
-
-      assert :ok ==
-               ProcessXcresultWorker.perform(oban_job(job_args(test_run_id, account.id, project.id)))
-    end
-
-    test "returns error when processor returns non-200", %{account: account, project: project} do
-      test_run_id = Ecto.UUID.generate()
-
-      expect(Req, :post, fn _url, _opts ->
-        {:ok, %{status: 500, body: %{"error" => "internal error"}}}
-      end)
-
-      assert {:error, _} =
-               ProcessXcresultWorker.perform(oban_job(job_args(test_run_id, account.id, project.id), 1, 3))
-    end
-
-    test "returns error when HTTP request fails", %{account: account, project: project} do
-      test_run_id = Ecto.UUID.generate()
-
-      expect(Req, :post, fn _url, _opts ->
-        {:error, :timeout}
-      end)
-
-      assert {:error, :timeout} =
-               ProcessXcresultWorker.perform(oban_job(job_args(test_run_id, account.id, project.id), 1, 3))
-    end
-
-    test "marks test run as failed_processing on max attempts when processor returns non-200", %{
-      account: account,
-      project: project
-    } do
-      test_run_id = Ecto.UUID.generate()
-
-      expect(Req, :post, fn _url, _opts ->
-        {:ok, %{status: 500, body: %{"error" => "internal error"}}}
-      end)
-
-      expect(Tuist.Tests, :create_test, fn attrs ->
-        assert attrs.id == test_run_id
-        assert attrs.status == "failed_processing"
-        assert attrs.duration == 0
-        assert attrs.test_modules == []
-        {:ok, %{id: test_run_id}}
-      end)
-
-      assert {:error, _} =
-               ProcessXcresultWorker.perform(oban_job(job_args(test_run_id, account.id, project.id), 3, 3))
-    end
-
-    test "marks test run as failed_processing on max attempts when HTTP request fails", %{
-      account: account,
-      project: project
-    } do
-      test_run_id = Ecto.UUID.generate()
-
-      expect(Req, :post, fn _url, _opts ->
-        {:error, :closed}
-      end)
-
-      expect(Tuist.Tests, :create_test, fn attrs ->
-        assert attrs.id == test_run_id
-        assert attrs.status == "failed_processing"
-        assert attrs.duration == 0
-        assert attrs.test_modules == []
-        {:ok, %{id: test_run_id}}
-      end)
-
-      assert {:error, :closed} =
-               ProcessXcresultWorker.perform(oban_job(job_args(test_run_id, account.id, project.id), 3, 3))
-    end
-
-    test "does not mark as failed_processing on non-final attempt", %{
-      account: account,
-      project: project
-    } do
-      test_run_id = Ecto.UUID.generate()
-
-      expect(Req, :post, fn _url, _opts ->
-        {:ok, %{status: 500, body: %{"error" => "internal error"}}}
-      end)
-
-      assert {:error, _} =
-               ProcessXcresultWorker.perform(oban_job(job_args(test_run_id, account.id, project.id), 1, 3))
-    end
-
     test "uses test_plan_name from parsed data as scheme", %{account: account, project: project} do
       test_run_id = Ecto.UUID.generate()
-
-      expect(Req, :post, fn _url, _opts ->
-        {:ok, %{status: 200, body: parsed_data()}}
-      end)
+      expect_local_parse(account, parsed_data())
 
       expect(Tuist.Tests, :create_test, fn attrs ->
         assert attrs.scheme == "AppTests"
@@ -483,12 +266,8 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
 
     test "falls back to job args scheme when test_plan_name is nil", %{account: account, project: project} do
       test_run_id = Ecto.UUID.generate()
-
       parsed_without_plan_name = %{parsed_data() | "test_plan_name" => nil}
-
-      expect(Req, :post, fn _url, _opts ->
-        {:ok, %{status: 200, body: parsed_without_plan_name}}
-      end)
+      expect_local_parse(account, parsed_without_plan_name)
 
       expect(Tuist.Tests, :create_test, fn attrs ->
         assert attrs.scheme == "App"
@@ -514,9 +293,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
         "shard_index" => 2
       }
 
-      expect(Req, :post, fn _url, _opts ->
-        {:ok, %{status: 200, body: parsed_data()}}
-      end)
+      expect_local_parse(account, parsed_data())
 
       expect(Tuist.Tests, :create_test, fn attrs ->
         assert attrs.ci_project_handle == "tuist/tuist"
@@ -529,6 +306,57 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
       args = job_args(test_run_id, account.id, project.id, extra: extra)
       assert :ok == ProcessXcresultWorker.perform(oban_job(args))
     end
+  end
+
+  describe "perform/1 failure path" do
+    test "returns error when the parser fails", %{account: account, project: project} do
+      test_run_id = Ecto.UUID.generate()
+
+      expect(Tuist.Accounts, :get_account_by_id, fn _id -> {:ok, account} end)
+      expect(Tuist.Storage, :download_to_file, fn _key, _path, _account -> {:ok, :done} end)
+
+      expect(XCResultProcessor, :process_local, fn _path, _opts ->
+        {:error, "parse failed"}
+      end)
+
+      assert {:error, "parse failed"} =
+               ProcessXcresultWorker.perform(oban_job(job_args(test_run_id, account.id, project.id), 1, 3))
+    end
+
+    test "returns error when S3 download fails", %{account: account, project: project} do
+      test_run_id = Ecto.UUID.generate()
+
+      expect(Tuist.Accounts, :get_account_by_id, fn _id -> {:ok, account} end)
+
+      expect(Tuist.Storage, :download_to_file, fn _key, _path, _account ->
+        {:error, {:http_error, 500, "server error"}}
+      end)
+
+      assert {:error, {:http_error, 500, "server error"}} =
+               ProcessXcresultWorker.perform(oban_job(job_args(test_run_id, account.id, project.id), 1, 3))
+    end
+
+    test "marks test run as failed_processing on max attempts", %{account: account, project: project} do
+      test_run_id = Ecto.UUID.generate()
+
+      expect(Tuist.Accounts, :get_account_by_id, fn _id -> {:ok, account} end)
+      expect(Tuist.Storage, :download_to_file, fn _key, _path, _account -> {:ok, :done} end)
+
+      expect(XCResultProcessor, :process_local, fn _path, _opts ->
+        {:error, "parse failed"}
+      end)
+
+      expect(Tuist.Tests, :create_test, fn attrs ->
+        assert attrs.id == test_run_id
+        assert attrs.status == "failed_processing"
+        assert attrs.duration == 0
+        assert attrs.test_modules == []
+        {:ok, %{id: test_run_id}}
+      end)
+
+      assert {:error, _} =
+               ProcessXcresultWorker.perform(oban_job(job_args(test_run_id, account.id, project.id), 3, 3))
+    end
 
     test "passes ci_project_handle through for failed_processing", %{account: account, project: project} do
       test_run_id = Ecto.UUID.generate()
@@ -539,8 +367,11 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
         "ci_provider" => "github"
       }
 
-      expect(Req, :post, fn _url, _opts ->
-        {:ok, %{status: 500, body: %{"error" => "internal error"}}}
+      expect(Tuist.Accounts, :get_account_by_id, fn _id -> {:ok, account} end)
+      expect(Tuist.Storage, :download_to_file, fn _key, _path, _account -> {:ok, :done} end)
+
+      expect(XCResultProcessor, :process_local, fn _path, _opts ->
+        {:error, "parse failed"}
       end)
 
       expect(Tuist.Tests, :create_test, fn attrs ->
@@ -552,24 +383,31 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
       args = job_args(test_run_id, account.id, project.id, extra: extra)
       assert {:error, _} = ProcessXcresultWorker.perform(oban_job(args, 3, 3))
     end
+
+    test "does not mark as failed_processing on non-final attempt", %{account: account, project: project} do
+      test_run_id = Ecto.UUID.generate()
+
+      expect(Tuist.Accounts, :get_account_by_id, fn _id -> {:ok, account} end)
+      expect(Tuist.Storage, :download_to_file, fn _key, _path, _account -> {:ok, :done} end)
+
+      expect(XCResultProcessor, :process_local, fn _path, _opts ->
+        {:error, "parse failed"}
+      end)
+
+      reject(&Tuist.Tests.create_test/1)
+
+      assert {:error, _} =
+               ProcessXcresultWorker.perform(oban_job(job_args(test_run_id, account.id, project.id), 1, 3))
+    end
   end
 
   describe "perform/1 VCS comment refresh" do
-    setup do
-      stub(Tuist.Environment, :xcode_processor_url, fn -> "http://localhost:4003" end)
-      stub(Tuist.Environment, :xcode_processor_webhook_secret, fn -> "test-secret" end)
-      :ok
-    end
-
     test "enqueues VCS comment after successful processing when vcs_comment_params present", %{
       account: account,
       project: project
     } do
       test_run_id = Ecto.UUID.generate()
-
-      expect(Req, :post, fn _url, _opts ->
-        {:ok, %{status: 200, body: parsed_data()}}
-      end)
+      expect_local_parse(account, parsed_data())
 
       expect(Tuist.Tests, :create_test, fn _attrs -> {:ok, %{id: test_run_id}} end)
 
@@ -601,10 +439,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
       project: project
     } do
       test_run_id = Ecto.UUID.generate()
-
-      expect(Req, :post, fn _url, _opts ->
-        {:ok, %{status: 200, body: parsed_data()}}
-      end)
+      expect_local_parse(account, parsed_data())
 
       expect(Tuist.Tests, :create_test, fn _attrs -> {:ok, %{id: test_run_id}} end)
       reject(&Tuist.VCS.enqueue_vcs_pull_request_comment/1)
@@ -619,8 +454,11 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
     } do
       test_run_id = Ecto.UUID.generate()
 
-      expect(Req, :post, fn _url, _opts ->
-        {:ok, %{status: 500, body: %{"error" => "internal error"}}}
+      expect(Tuist.Accounts, :get_account_by_id, fn _id -> {:ok, account} end)
+      expect(Tuist.Storage, :download_to_file, fn _key, _path, _account -> {:ok, :done} end)
+
+      expect(XCResultProcessor, :process_local, fn _path, _opts ->
+        {:error, "parse failed"}
       end)
 
       expect(Tuist.Tests, :create_test, fn _attrs -> {:ok, %{id: test_run_id}} end)

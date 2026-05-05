@@ -129,3 +129,32 @@ processor:
     limits:
       cpu: "500m"
       memory: "1536Mi"
+
+xcresultProcessor:
+  # Single replica in staging. Inherits the chart default rolling
+  # strategy (maxSurge=1, maxUnavailable=0) so helm upgrade --wait
+  # actually blocks on the new Tart-VM Pod becoming Ready before
+  # marking the rollout done — without this, replicas=1 +
+  # maxUnavailable=1 lets a Deployment look "Available" with zero
+  # actually-running Pods, and a stuck rollout slips past --atomic.
+  # Brief surge-during-roll of 2 Pods on the same Mac mini fits
+  # within the SLA-mandated max-pods=2 per host.
+  enabled: true
+  replicaCount: 1
+  extraEnv:
+    - name: TUIST_DEPLOY_ENV
+      value: stag
+    - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
+      value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
+
+# Mac mini fleet. The chart renders one ScalewayAppleSiliconMachine
+# CR per replica; the cluster-api-provider-scaleway-applesilicon
+# operator orders each Mac mini, then SSH-bootstraps it with
+# tart-kubelet. The Mac mini joins the cluster as a real Node.
+macosFleet:
+  enabled: true
+  replicas: 1
+  machine:
+    # M4-S is normally what we'd pick (smallest M4); falls back to
+    # M2-M when M4-S is no_stock. Override per Scaleway capacity.
+    type: M2-M

@@ -225,6 +225,14 @@ jobs:
           API="$(kubectl config view --minify --raw -o jsonpath='{.clusters[0].cluster.server}')"
           echo "Reaching apiserver at $API"
           kubectl --request-timeout=10s get --raw /version >/dev/null
+      - name: kubectl apply CRDs
+        # Helm 3 installs `crds/*.yaml` on `helm install` and skips
+        # them on `helm upgrade` (intentional — Helm refuses to manage
+        # CRD lifecycle to avoid data loss on schema regressions). The
+        # deploy workflow re-applies them every run so chart-managed
+        # schema changes ship the same way code changes do; no
+        # operator-side manual step.
+        run: kubectl apply -f "$HELM_CHART_PATH/crds/"
       - name: Recover interrupted Helm release
         run: |
           set -euo pipefail

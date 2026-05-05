@@ -1,0 +1,35 @@
+{{- if .Values.macosFleet.enabled }}
+{{- $fleetName := .Values.macosFleet.name | default (include "tuist.componentName" (dict "root" . "component" "macos-fleet")) }}
+{{- $replicas := int (.Values.macosFleet.replicas | default 1) }}
+{{- /*
+Mac mini fleet: render N ScalewayAppleSiliconMachine CRs directly.
+Each one is reconciled by the cluster-api-provider-scaleway-applesilicon
+operator, which orders the Mac mini from Scaleway and SSH-bootstraps
+it (sudo, auto-login, Tart, kubeconfig, tart-kubelet binary,
+launchd job). The Mac mini joins the cluster as a real Node.
+
+Scaling = bumping `replicas`. CAPI core's
+Cluster/MachineDeployment machinery is intentionally not used; we
+own the lifecycle directly because there's no separate workload
+cluster — the cluster these Mac minis join is the same one running
+the operator.
+*/ -}}
+{{- range $i, $_ := until $replicas }}
+{{- $instance := printf "%s-%d" $fleetName $i }}
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: ScalewayAppleSiliconMachine
+metadata:
+  name: {{ $instance }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: macos-fleet
+    tuist.dev/fleet: {{ $fleetName }}
+spec:
+  type: {{ $.Values.macosFleet.machine.type | default "M4-S" | quote }}
+  zone: {{ $.Values.macosFleet.machine.zone | default "fr-par-1" | quote }}
+  os: {{ $.Values.macosFleet.machine.os | default "macos-tahoe-26.0" | quote }}
+  fleetName: {{ $fleetName | quote }}
+{{- end }}
+{{- end }}
