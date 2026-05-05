@@ -4,6 +4,24 @@ import Testing
 
 struct PackageInfoTests {
     @Test
+    func resourceRule_decodesEmbedInCode() throws {
+        // Given - JSON format produced by `swift package dump-package` for .embedInCode rule
+        let json = """
+        {
+            "path": "Resources",
+            "rule": {
+                "embedInCode": {}
+            }
+        }
+        """.data(using: .utf8)!
+
+        // When / Then
+        let resource = try JSONDecoder().decode(PackageInfo.Target.Resource.self, from: json)
+        #expect(resource.rule == .embedInCode)
+        #expect(resource.path == "Resources")
+    }
+
+    @Test
     func packageInfo_codable() throws {
         // Given
         let encoder = JSONEncoder()

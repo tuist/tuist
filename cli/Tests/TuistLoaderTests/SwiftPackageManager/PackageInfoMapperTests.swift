@@ -1618,6 +1618,65 @@ struct PackageInfoMapperTests {
         )
     }
 
+    @Test(.inTemporaryDirectory, .withMockedSwiftVersionProvider) func map_whenHasEmbedInCodeResources() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
+        let resourcesPath = sourcesPath.appending(component: "Resources")
+        try await fileSystem.makeDirectory(at: resourcesPath)
+        try await fileSystem.touch(resourcesPath.appending(component: "greeting.txt"))
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "Target1",
+                            resources: [
+                                .init(rule: .embedInCode, path: "Resources"),
+                            ]
+                        ),
+                    ],
+                    platforms: [.ios],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ]
+        )
+
+        #expect(
+            project ==
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    targets: [
+                        .test(
+                            "Target1",
+                            basePath: basePath,
+                            resources: [
+                                .glob(
+                                    pattern: .path(
+                                        basePath
+                                            .appending(
+                                                try RelativePath(validating: "Package/Sources/Target1/Resources/**")
+                                            )
+                                            .pathString
+                                    ),
+                                    excluding: [],
+                                    tags: []
+                                ),
+                            ]
+                        ),
+                    ]
+                )
+        )
+    }
+
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider

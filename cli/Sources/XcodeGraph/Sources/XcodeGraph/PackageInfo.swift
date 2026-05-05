@@ -442,12 +442,14 @@ public struct PackageInfo: Equatable, Hashable, Codable { // swiftlint:disable:t
             public enum Rule: String, Codable, Hashable {
                 case process
                 case copy
+                case embedInCode
 
                 public init(from decoder: Decoder) throws {
                     // Xcode 14 format
                     enum RuleXcode14: Codable, Equatable {
                         case process(localization: String?)
                         case copy
+                        case embedInCode
                     }
 
                     if let kind = try? RuleXcode14(from: decoder) {
@@ -456,6 +458,8 @@ public struct PackageInfo: Equatable, Hashable, Codable { // swiftlint:disable:t
                             self = .process
                         case .copy:
                             self = .copy
+                        case .embedInCode:
+                            self = .embedInCode
                         }
                     } else if let singleValue = try? decoder.singleValueContainer().decode(String.self) {
                         switch singleValue {
@@ -463,6 +467,8 @@ public struct PackageInfo: Equatable, Hashable, Codable { // swiftlint:disable:t
                             self = .process
                         case "copy":
                             self = .copy
+                        case "embedInCode":
+                            self = .embedInCode
                         default:
                             throw DecodingError
                                 .dataCorrupted(.init(
