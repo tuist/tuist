@@ -1,8 +1,6 @@
 import { NOORA_CSS } from "./noora-css.js";
 
 const PAGE_CSS = `
-*, *::before, *::after { box-sizing: border-box; }
-
 html, body { margin: 0; padding: 0; }
 
 body {
