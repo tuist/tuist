@@ -3,7 +3,6 @@ defmodule TuistWeb.Plugs.LoaderPlug do
   This plug is responsible for loading (and caching) the resources pointed by the path or body parameters.
   """
   use TuistWeb, :controller
-  use TuistWeb, :verified_routes
 
   alias Tuist.Accounts
   alias Tuist.CommandEvents
