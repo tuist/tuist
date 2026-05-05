@@ -70,7 +70,7 @@ defmodule TuistWeb.Endpoint do
   plug WebhookPlug,
     at: "/webhooks/github",
     handler: GitHubController,
-    secret: {Tuist.Environment, :github_app_webhook_secret, []},
+    secret: &GitHubController.resolve_webhook_secret/1,
     signature_header: "x-hub-signature-256",
     signature_prefix: "sha256=",
     # The GitHub webhook events we handle are small, so fail fast on slow bodies.

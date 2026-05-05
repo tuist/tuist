@@ -30,6 +30,9 @@ defmodule TuistWeb.IntegrationsLive do
       |> assign(vcs_connections: vcs_connections)
       |> assign(selected_project_id: nil)
       |> assign(selected_repository_full_handle: nil)
+      |> assign(github_client_url: VCS.default_client_url())
+      |> assign(github_client_url_error: nil)
+      |> assign(show_github_enterprise_input: false)
       |> assign(:head_title, "#{dgettext("dashboard_integrations", "Integrations")} · #{selected_account.name} · Tuist")
       |> then(fn socket ->
         if github_installation do
@@ -48,6 +51,40 @@ defmodule TuistWeb.IntegrationsLive do
   @impl true
   def handle_event("close-add-connection-modal", _params, socket) do
     socket = push_event(socket, "close-modal", %{id: "add-connection-modal"})
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("update-github-client-url", %{"github_client_url" => raw_url}, socket) do
+    {url, error} = validate_github_client_url(raw_url)
+
+    socket =
+      socket
+      |> assign(github_client_url: url)
+      |> assign(github_client_url_error: error)
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("select-github-com", _params, socket) do
+    socket =
+      socket
+      |> assign(show_github_enterprise_input: false)
+      |> assign(github_client_url: VCS.default_client_url())
+      |> assign(github_client_url_error: nil)
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("select-github-enterprise", _params, socket) do
+    socket =
+      socket
+      |> assign(show_github_enterprise_input: true)
+      |> assign(github_client_url: VCS.default_client_url())
+      |> assign(github_client_url_error: nil)
 
     {:noreply, socket}
   end
@@ -166,6 +203,22 @@ defmodule TuistWeb.IntegrationsLive do
         time_ago: time_ago,
         name: vcs_connection.created_by.account.name
       )
+    end
+  end
+
+  defp validate_github_client_url(raw_url) do
+    trimmed = raw_url |> to_string() |> String.trim()
+    default = VCS.default_client_url()
+
+    case trimmed do
+      "" ->
+        {default, nil}
+
+      _ ->
+        case VCS.validate_client_url(trimmed) do
+          {:ok, url} -> {url, nil}
+          {:error, _} -> {trimmed, dgettext("dashboard_integrations", "Invalid URL")}
+        end
     end
   end
 

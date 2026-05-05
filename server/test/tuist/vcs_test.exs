@@ -27,7 +27,7 @@ defmodule Tuist.VCSTest do
   ]
 
   setup do
-    stub(GitHub.App, :get_installation_token, fn _installation_id ->
+    stub(GitHub.App, :get_installation_token, fn _installation_id, _opts ->
       {:ok, %{token: "github_token", expires_at: ~U[2024-04-30 10:30:31Z]}}
     end)
 
@@ -3100,12 +3100,12 @@ defmodule Tuist.VCSTest do
       ]
 
       expect(KeyValueStore, :get_or_update, fn key, opts, fun ->
-        assert key == [VCS, "repositories", installation_id]
+        assert key == [VCS, "repositories", "https://api.github.com", installation_id]
         assert Keyword.get(opts, :ttl) == to_timeout(minute: 15)
         fun.()
       end)
 
-      expect(Client, :list_installation_repositories, fn ^installation_id, [] ->
+      expect(Client, :list_installation_repositories, fn %GitHubAppInstallation{installation_id: ^installation_id}, [] ->
         {:ok, %{meta: %{next_url: nil}, repositories: expected_repositories}}
       end)
 
@@ -3138,20 +3138,21 @@ defmodule Tuist.VCSTest do
       ]
 
       expect(KeyValueStore, :get_or_update, fn key, opts, fun ->
-        assert key == [VCS, "repositories", installation_id]
+        assert key == [VCS, "repositories", "https://api.github.com", installation_id]
         assert Keyword.get(opts, :ttl) == to_timeout(minute: 15)
         fun.()
       end)
 
       expect(Client, :list_installation_repositories, 2, fn
-        ^installation_id, [] ->
+        %GitHubAppInstallation{installation_id: ^installation_id}, [] ->
           {:ok,
            %{
              meta: %{next_url: "https://api.github.com/installation/repositories?page=2"},
              repositories: page1_repos
            }}
 
-        ^installation_id, [next_url: "https://api.github.com/installation/repositories?page=2"] ->
+        %GitHubAppInstallation{installation_id: ^installation_id},
+        [next_url: "https://api.github.com/installation/repositories?page=2"] ->
           {:ok, %{meta: %{next_url: nil}, repositories: page2_repos}}
       end)
 
@@ -3178,12 +3179,12 @@ defmodule Tuist.VCSTest do
       error_message = "GitHub API error"
 
       expect(KeyValueStore, :get_or_update, fn key, opts, fun ->
-        assert key == [VCS, "repositories", installation_id]
+        assert key == [VCS, "repositories", "https://api.github.com", installation_id]
         assert Keyword.get(opts, :ttl) == to_timeout(minute: 15)
         fun.()
       end)
 
-      expect(Client, :list_installation_repositories, fn ^installation_id, [] ->
+      expect(Client, :list_installation_repositories, fn %GitHubAppInstallation{installation_id: ^installation_id}, [] ->
         {:error, error_message}
       end)
 
@@ -3213,7 +3214,46 @@ defmodule Tuist.VCSTest do
       # Extract and verify the state token
       state_token = result |> String.split("state=") |> List.last()
       account_id = account.id
-      assert {:ok, ^account_id} = VCS.verify_github_state_token(state_token)
+
+      assert {:ok, %{account_id: ^account_id, client_url: "https://github.com"}} =
+               VCS.verify_github_state_token(state_token)
+    end
+
+    test "kicks off the manifest registration flow when a GitHub Enterprise Server URL is provided" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = user.account
+      ghes_url = "https://github.example.com"
+
+      # When
+      result = VCS.get_github_app_installation_url(account, client_url: ghes_url)
+
+      # Then — the link points at our internal manifest-start endpoint;
+      # the state token still encodes the chosen GHES URL so the rest of
+      # the flow knows where the customer came from.
+      assert String.contains?(result, "/integrations/github/manifest/start?state=")
+
+      state_token = result |> String.split("state=") |> List.last() |> URI.decode_www_form()
+      account_id = account.id
+
+      assert {:ok, %{account_id: ^account_id, client_url: ^ghes_url}} =
+               VCS.verify_github_state_token(state_token)
+    end
+
+    test "trims trailing slashes and whitespace from the client_url" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = user.account
+
+      # When
+      result = VCS.get_github_app_installation_url(account, client_url: "  https://github.example.com/  ")
+
+      # Then
+      assert String.contains?(result, "/integrations/github/manifest/start?state=")
+
+      state_token = result |> String.split("state=") |> List.last() |> URI.decode_www_form()
+
+      assert {:ok, %{client_url: "https://github.example.com"}} = VCS.verify_github_state_token(state_token)
     end
   end
 
@@ -3265,7 +3305,7 @@ defmodule Tuist.VCSTest do
   end
 
   describe "verify_github_state_token/1" do
-    test "verifies a valid token and returns the account ID" do
+    test "verifies a valid token and returns the account ID with default github.com URL" do
       # Given
       account_id = 123
       token = VCS.generate_github_state_token(account_id)
@@ -3274,7 +3314,20 @@ defmodule Tuist.VCSTest do
       result = VCS.verify_github_state_token(token)
 
       # Then
-      assert {:ok, ^account_id} = result
+      assert {:ok, %{account_id: ^account_id, client_url: "https://github.com"}} = result
+    end
+
+    test "round-trips a custom GitHub Enterprise Server URL" do
+      # Given
+      account_id = 321
+      ghes_url = "https://github.example.com"
+      token = VCS.generate_github_state_token(account_id, ghes_url)
+
+      # When
+      result = VCS.verify_github_state_token(token)
+
+      # Then
+      assert {:ok, %{account_id: ^account_id, client_url: ^ghes_url}} = result
     end
 
     test "returns error for invalid token format" do
@@ -3419,6 +3472,88 @@ defmodule Tuist.VCSTest do
       # Then
       assert {:error, changeset_with_error} = Repo.insert(changeset)
       assert "has already been taken" in errors_on(changeset_with_error).installation_id
+    end
+
+    test "defaults client_url to https://github.com" do
+      # Given
+      account = AccountsFixtures.account_fixture()
+
+      # When
+      {:ok, installation} =
+        Repo.insert(
+          GitHubAppInstallation.changeset(%GitHubAppInstallation{}, %{
+            account_id: account.id,
+            installation_id: "default-url"
+          })
+        )
+
+      # Then
+      assert installation.client_url == "https://github.com"
+    end
+
+    test "stores a custom GitHub Enterprise Server URL" do
+      # Given
+      account = AccountsFixtures.account_fixture()
+
+      # When
+      {:ok, installation} =
+        Repo.insert(
+          GitHubAppInstallation.changeset(%GitHubAppInstallation{}, %{
+            account_id: account.id,
+            installation_id: "ghes-id",
+            client_url: "https://github.example.com/"
+          })
+        )
+
+      # Then
+      assert installation.client_url == "https://github.example.com"
+    end
+
+    test "rejects invalid client_url values" do
+      # Given
+      account = AccountsFixtures.account_fixture()
+
+      # When
+      changeset =
+        GitHubAppInstallation.changeset(%GitHubAppInstallation{}, %{
+          account_id: account.id,
+          installation_id: "bad-url",
+          client_url: "not-a-url"
+        })
+
+      # Then
+      refute changeset.valid?
+      assert errors_on(changeset)[:client_url]
+    end
+  end
+
+  describe "api_url/2" do
+    test "returns api.github.com for the default github.com client URL" do
+      assert VCS.api_url(:github, "https://github.com") == "https://api.github.com"
+    end
+
+    test "returns api.github.com when client_url is nil" do
+      assert VCS.api_url(:github, nil) == "https://api.github.com"
+    end
+
+    test "returns the GitHub Enterprise Server REST API path for custom hosts" do
+      assert VCS.api_url(:github, "https://github.example.com") ==
+               "https://github.example.com/api/v3"
+    end
+
+    test "trims trailing slashes from custom hosts" do
+      assert VCS.api_url(:github, "https://github.example.com/") ==
+               "https://github.example.com/api/v3"
+    end
+  end
+
+  describe "default_client_url/1" do
+    test "returns github.com for the github provider" do
+      assert VCS.default_client_url(:github) == "https://github.com"
+    end
+
+    test "defaults to github when no provider is given" do
+      assert VCS.default_client_url() == "https://github.com"
     end
   end
 

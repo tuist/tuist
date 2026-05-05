@@ -13,12 +13,47 @@
       </span>
     </div>
     <div data-part="content">
+      <div
+        :if={is_nil(@github_app_installation)}
+        data-part="github-host-config"
+        style="display: flex; flex-direction: column; gap: var(--noora-spacing-7); width: 320px; margin-left: auto;"
+      >
+        <.button_group size="medium" style="display: grid; grid-template-columns: 1fr 1fr;">
+          <.button_group_item
+            label="github.com"
+            phx-click="select-github-com"
+            data-selected={not @show_github_enterprise_input}
+            style="justify-content: center; white-space: nowrap;"
+          />
+          <.button_group_item
+            label={dgettext("dashboard_integrations", "Enterprise server")}
+            phx-click="select-github-enterprise"
+            data-selected={@show_github_enterprise_input}
+            style="justify-content: center; white-space: nowrap;"
+          />
+        </.button_group>
+        <form :if={@show_github_enterprise_input} phx-change="update-github-client-url">
+          <.text_input
+            id="github-client-url"
+            name="github_client_url"
+            type="basic"
+            value={@github_client_url}
+            label={dgettext("dashboard_integrations", "Server URL")}
+            placeholder="https://github.example.com"
+            error={@github_client_url_error}
+            phx-debounce="300"
+          />
+        </form>
+      </div>
       <div data-part="actions">
         <.button
           :if={is_nil(@github_app_installation)}
           label={dgettext("dashboard_integrations", "Install GitHub App")}
           variant="primary"
-          href={VCS.get_github_app_installation_url(@selected_account)}
+          href={
+            VCS.get_github_app_installation_url(@selected_account, client_url: @github_client_url)
+          }
+          disabled={not is_nil(@github_client_url_error)}
         />
         <.button
           :if={

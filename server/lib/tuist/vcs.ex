@@ -78,6 +78,105 @@ defmodule Tuist.VCS do
     ["GitHub"]
   end
 
+  @default_provider :github
+
+  @doc """
+  Default base URL for a forge provider when no custom instance is configured.
+  """
+  def default_client_url(provider \\ @default_provider)
+  def default_client_url(:github), do: "https://github.com"
+
+  @doc """
+  REST API base URL for a given forge provider and instance URL.
+
+  github.com is special-cased to use the dedicated `api.github.com`
+  hostname; self-hosted GitHub Enterprise Server instances expose the
+  REST API under `/api/v3` on the same host.
+  """
+  def api_url(provider, client_url)
+  def api_url(:github, nil), do: api_url(:github, default_client_url(:github))
+  def api_url(:github, "https://github.com"), do: "https://api.github.com"
+
+  def api_url(:github, client_url) when is_binary(client_url) do
+    client_url |> String.trim_trailing("/") |> Kernel.<>("/api/v3")
+  end
+
+  @doc """
+  Convenience overload that returns the API base URL for an installation.
+  Raises if the input is not a recognised installation struct/map.
+  """
+  def installation_api_url(%GitHubAppInstallation{client_url: client_url}), do: api_url(:github, client_url)
+
+  def installation_api_url(%{client_url: client_url}) when is_binary(client_url), do: api_url(:github, client_url)
+
+  @doc """
+  Validates a user-supplied `client_url` for a forge instance. Returns
+  `{:ok, normalized_url}` on success or `{:error, reason}` otherwise.
+
+  This is a *shape* check — it verifies the URL has an http(s) scheme and a
+  non-empty host, and trims trailing slashes. It deliberately does not perform
+  DNS resolution: SSRF protection happens at request time via
+  `Tuist.OAuth2.SSRFGuard.pin/1` so a TOCTOU rebinding attack between
+  validation and request cannot bypass it.
+  """
+  def validate_client_url(url) when is_binary(url) do
+    trimmed = url |> String.trim() |> String.trim_trailing("/")
+
+    case URI.parse(trimmed) do
+      %URI{scheme: scheme, host: host} when scheme in ["http", "https"] and is_binary(host) and host != "" ->
+        {:ok, trimmed}
+
+      _ ->
+        {:error, :invalid_url}
+    end
+  end
+
+  def validate_client_url(_), do: {:error, :invalid_url}
+
+  @doc """
+  Returns the GitHub App credentials Tuist should use to act on behalf of
+  a given installation: an installation that has its own credentials (via
+  the App manifest flow on GHES) wins, otherwise we fall back to the
+  globally-configured env vars (which target github.com).
+
+  Returns `%{app_name, client_id, client_secret, private_key, webhook_secret, app_id}`
+  or `nil` if neither source has usable credentials.
+  """
+  def github_app_credentials(installation \\ nil)
+
+  def github_app_credentials(%GitHubAppInstallation{
+        app_id: app_id,
+        client_id: client_id,
+        client_secret: client_secret,
+        private_key: private_key,
+        webhook_secret: webhook_secret,
+        app_slug: app_slug
+      })
+      when is_binary(app_id) and is_binary(client_id) and is_binary(private_key) do
+    %{
+      app_name: app_slug,
+      app_id: app_id,
+      client_id: client_id,
+      client_secret: client_secret,
+      private_key: private_key,
+      webhook_secret: webhook_secret
+    }
+  end
+
+  def github_app_credentials(_) do
+    if Environment.github_app_configured?() do
+      %{
+        app_name: Environment.github_app_name(),
+        # github.com uses the app's client_id as the JWT issuer
+        app_id: Environment.github_app_client_id(),
+        client_id: Environment.github_app_client_id(),
+        client_secret: Environment.github_app_client_secret(),
+        private_key: Environment.github_app_private_key(),
+        webhook_secret: Environment.github_app_webhook_secret()
+      }
+    end
+  end
+
   def get_repository_content(
         %{repository_full_handle: repository_full_handle, provider: provider, token: token},
         opts \\ []
@@ -114,6 +213,12 @@ defmodule Tuist.VCS do
     })
   end
 
+  # NOTE: this only recognises github.com because the few callers that use it
+  # (mainly Swift package registry resolution from raw repo URLs) target the
+  # public Tuist instance. GitHub Enterprise Server flows reach the GitHub
+  # provider through a stored `GitHubAppInstallation` instead, so they don't
+  # depend on this function. If a GHES-aware caller appears, broaden this to
+  # accept hosts that match a known installation's `client_url`.
   def get_provider_from_repository_url(repository_url) do
     vcs_uri = URI.parse(repository_url)
     host = Map.get(vcs_uri, :host)
@@ -145,18 +250,18 @@ defmodule Tuist.VCS do
     end
   end
 
-  defp get_github_app_installation_id(%{repository_full_handle: repository_full_handle, project: project}) do
+  defp get_github_app_installation_for_repository(%{repository_full_handle: repository_full_handle, project: project}) do
     project = Repo.preload(project, vcs_connection: :github_app_installation)
 
-    with true <- Environment.github_app_configured?(),
-         %{
+    with %{
            vcs_connection: %{
              repository_full_handle: connected_handle,
-             github_app_installation: %{installation_id: installation_id}
+             github_app_installation: %GitHubAppInstallation{} = installation
            }
          } <- project,
-         true <- String.downcase(connected_handle) == String.downcase(repository_full_handle) do
-      {:ok, installation_id}
+         true <- String.downcase(connected_handle) == String.downcase(repository_full_handle),
+         %{} <- github_app_credentials(installation) do
+      {:ok, installation}
     else
       _ -> {:error, :not_found}
     end
@@ -179,8 +284,11 @@ defmodule Tuist.VCS do
   """
   def create_comment(%{repository_full_handle: repository_full_handle, git_ref: git_ref, body: body, project: project}) do
     with true <- String.starts_with?(git_ref, "refs/pull/"),
-         {:ok, installation_id} <-
-           get_github_app_installation_id(%{repository_full_handle: repository_full_handle, project: project}) do
+         {:ok, installation} <-
+           get_github_app_installation_for_repository(%{
+             repository_full_handle: repository_full_handle,
+             project: project
+           }) do
       client = get_client_for_provider(:github)
       issue_id = get_issue_id_from_git_ref(git_ref)
 
@@ -188,7 +296,7 @@ defmodule Tuist.VCS do
         repository_full_handle: repository_full_handle,
         issue_id: issue_id,
         body: body,
-        installation_id: installation_id
+        installation: installation
       })
     else
       false -> {:error, :not_pull_request}
@@ -205,15 +313,18 @@ defmodule Tuist.VCS do
         body: body,
         project: project
       }) do
-    case get_github_app_installation_id(%{repository_full_handle: repository_full_handle, project: project}) do
-      {:ok, installation_id} ->
+    case get_github_app_installation_for_repository(%{
+           repository_full_handle: repository_full_handle,
+           project: project
+         }) do
+      {:ok, installation} ->
         client = get_client_for_provider(:github)
 
         client.update_comment(%{
           repository_full_handle: repository_full_handle,
           comment_id: comment_id,
           body: body,
-          installation_id: installation_id
+          installation: installation
         })
 
       {:error, :not_found} ->
@@ -243,8 +354,11 @@ defmodule Tuist.VCS do
          true <- not is_nil(git_ref) and git_ref != "",
          true <- not is_nil(repository_full_handle),
          true <- String.starts_with?(git_ref, "refs/pull/"),
-         {:ok, installation_id} <-
-           get_github_app_installation_id(%{repository_full_handle: repository_full_handle, project: project}) do
+         {:ok, installation} <-
+           get_github_app_installation_for_repository(%{
+             repository_full_handle: repository_full_handle,
+             project: project
+           }) do
       client = get_client_for_provider(:github)
       issue_id = get_issue_id_from_git_ref(git_ref)
 
@@ -265,7 +379,7 @@ defmodule Tuist.VCS do
           client: client,
           repository: repository_full_handle,
           issue_id: issue_id,
-          installation_id: installation_id
+          installation: installation
         })
 
       update_or_create_vcs_comment(%{
@@ -274,7 +388,7 @@ defmodule Tuist.VCS do
         issue_id: issue_id,
         existing_comment: existing_comment,
         client: client,
-        installation_id: installation_id
+        installation: installation
       })
     else
       # No GitHub app installation, skip posting comment
@@ -286,18 +400,24 @@ defmodule Tuist.VCS do
          client: client,
          repository: repository,
          issue_id: issue_id,
-         installation_id: installation_id
+         installation: installation
        }) do
     comments_params = %{
       repository_full_handle: repository,
       issue_id: issue_id,
-      installation_id: installation_id
+      installation: installation
     }
+
+    expected_client_id =
+      case github_app_credentials(installation) do
+        %{client_id: client_id} -> client_id
+        _ -> nil
+      end
 
     case client.get_comments(comments_params) do
       {:ok, comments} ->
         Enum.find(comments, fn comment ->
-          comment.client_id == Environment.github_app_client_id() and
+          comment.client_id == expected_client_id and
             String.starts_with?(comment.body, @tuist_run_report_prefix)
         end)
 
@@ -312,7 +432,7 @@ defmodule Tuist.VCS do
          issue_id: issue_id,
          existing_comment: existing_comment,
          client: client,
-         installation_id: installation_id
+         installation: installation
        }) do
     cond do
       is_nil(vcs_comment_body) ->
@@ -323,7 +443,7 @@ defmodule Tuist.VCS do
           repository_full_handle: repository,
           issue_id: issue_id,
           body: vcs_comment_body,
-          installation_id: installation_id
+          installation: installation
         })
 
       true ->
@@ -331,7 +451,7 @@ defmodule Tuist.VCS do
           repository_full_handle: repository,
           comment_id: existing_comment.id,
           body: vcs_comment_body,
-          installation_id: installation_id
+          installation: installation
         })
     end
   end
@@ -1075,11 +1195,50 @@ defmodule Tuist.VCS do
   end
 
   @doc """
+  Gets the (single) GitHub app installation for an account, if any.
+  """
+  def get_github_app_installation_for_account(account_id) do
+    case Repo.get_by(GitHubAppInstallation, account_id: account_id) do
+      nil -> {:error, :not_found}
+      github_app_installation -> {:ok, github_app_installation}
+    end
+  end
+
+  @doc """
+  Gets a GitHub app installation by the manifest-flow App ID Tuist
+  recorded when the customer registered an App on their GHES instance.
+
+  Used as a fallback for webhook secret resolution: GHES delivers the
+  `installation.created` event before our redirect-driven setup
+  callback has filled in `installation_id`, so we have to be able to
+  match the inbound webhook to its row by `app_id` too.
+  """
+  def get_github_app_installation_by_app_id(app_id) do
+    case Repo.get_by(GitHubAppInstallation, app_id: to_string(app_id)) do
+      nil -> {:error, :not_found}
+      github_app_installation -> {:ok, github_app_installation}
+    end
+  end
+
+  @doc """
   Updates a GitHub app installation.
   """
   def update_github_app_installation(%GitHubAppInstallation{} = github_app_installation, attrs) do
     github_app_installation
     |> GitHubAppInstallation.update_changeset(attrs)
+    |> Repo.update()
+  end
+
+  @doc """
+  Replaces the credentials and pending-install state on an existing
+  installation row. Used by the GHES manifest flow when the customer
+  re-registers an App on top of a previous, possibly-stale row.
+  """
+  def replace_github_app_installation(%GitHubAppInstallation{} = github_app_installation, attrs) do
+    # The new row supersedes the old one; clear the prior installation_id
+    # since the customer has not yet installed the freshly registered App.
+    github_app_installation
+    |> GitHubAppInstallation.changeset(Map.merge(%{installation_id: nil, html_url: nil}, attrs))
     |> Repo.update()
   end
 
@@ -1114,22 +1273,22 @@ defmodule Tuist.VCS do
   @doc """
   Gets repositories for a GitHub app installation.
   """
-  def get_github_app_installation_repositories(%GitHubAppInstallation{installation_id: installation_id}) do
+  def get_github_app_installation_repositories(%GitHubAppInstallation{} = installation) do
     KeyValueStore.get_or_update(
-      [__MODULE__, "repositories", installation_id],
+      [__MODULE__, "repositories", installation_api_url(installation), installation.installation_id],
       [ttl: to_timeout(minute: 15)],
       fn ->
         # This can take long for organizations with a lot of repositories.
         # Ideally, we would only fetch this information once, store it in the database,
         # and then sync the repositories via webhooks.
         # For now, we're sticking to this simple version.
-        get_all_repositories_recursively(installation_id, [])
+        get_all_repositories_recursively(installation, [])
       end
     )
   end
 
-  defp get_all_repositories_recursively(installation_id, accumulated_repos, opts \\ []) do
-    case Client.list_installation_repositories(installation_id, opts) do
+  defp get_all_repositories_recursively(installation, opts, accumulated_repos \\ []) do
+    case Client.list_installation_repositories(installation, opts) do
       {:ok, %{meta: %{next_url: next_url}, repositories: repositories}} ->
         all_repos = accumulated_repos ++ repositories
 
@@ -1138,7 +1297,11 @@ defmodule Tuist.VCS do
             {:ok, all_repos}
 
           next_url ->
-            get_all_repositories_recursively(installation_id, all_repos, next_url: next_url)
+            get_all_repositories_recursively(
+              installation,
+              Keyword.put(opts, :next_url, next_url),
+              all_repos
+            )
         end
 
       {:error, _reason} = error ->
@@ -1155,31 +1318,68 @@ defmodule Tuist.VCS do
 
   @doc """
   Get GitHub app installation URL with encrypted state parameter for account-specific installation.
+
+  Accepts an optional `:client_url` to target a self-hosted GitHub Enterprise Server instance,
+  defaulting to https://github.com.
+
+  For github.com, returns the direct installation URL of the
+  globally-configured Tuist App. For a GHES `client_url`, returns an
+  internal route that kicks off the App manifest registration flow —
+  GitHub Apps are scoped to a single GitHub instance, so a Tuist Cloud
+  App registered on github.com cannot be installed on GHES; the customer
+  must register and install their own App on the GHES instance and we
+  store its credentials per-installation.
   """
-  def get_github_app_installation_url(%Account{id: account_id}) do
-    app_name = Environment.github_app_name()
-    state_token = generate_github_state_token(account_id)
-    "https://github.com/apps/#{app_name}/installations/new?state=#{state_token}"
+  def get_github_app_installation_url(%Account{id: account_id}, opts \\ []) do
+    client_url = normalize_client_url(Keyword.get(opts, :client_url))
+    state_token = generate_github_state_token(account_id, client_url)
+
+    if client_url == default_client_url() do
+      app_name = Environment.github_app_name()
+      "#{client_url}/apps/#{app_name}/installations/new?state=#{state_token}"
+    else
+      Environment.app_url(path: "/integrations/github/manifest/start?state=#{URI.encode_www_form(state_token)}")
+    end
   end
+
+  defp normalize_client_url(nil), do: default_client_url()
+  defp normalize_client_url(""), do: default_client_url()
+
+  defp normalize_client_url(url) when is_binary(url), do: url |> String.trim() |> String.trim_trailing("/")
 
   # GitHub State Token functions
 
   @doc """
-  Generates a JWT state token for the given account ID.
-  Returns the signed token string that should be used in the GitHub installation URL.
+  Generates a signed state token for the given account ID and target GitHub
+  client URL. The token round-trips through GitHub's installation flow so we
+  know which GitHub instance the resulting installation belongs to.
   """
-  def generate_github_state_token(account_id) do
-    Phoenix.Token.sign(TuistWeb.Endpoint, "github_state", account_id)
+  def generate_github_state_token(account_id, client_url \\ default_client_url()) do
+    Phoenix.Token.sign(TuistWeb.Endpoint, "github_state", {account_id, normalize_client_url(client_url)})
   end
 
   @doc """
-  Verifies the JWT state token to extract the account ID.
-  Returns {:ok, account_id} if valid, {:error, reason} if invalid or expired.
+  Verifies the state token. Returns `{:ok, %{account_id: id, client_url: url}}`
+  on success, `{:error, reason}` otherwise. Tokens generated before client_url
+  was introduced are accepted with the default github.com URL.
   """
   def verify_github_state_token(token) do
     # 90 days
     token_max_age_seconds = 7_776_000
-    Phoenix.Token.verify(TuistWeb.Endpoint, "github_state", token, max_age: token_max_age_seconds)
+
+    case Phoenix.Token.verify(TuistWeb.Endpoint, "github_state", token, max_age: token_max_age_seconds) do
+      {:ok, {account_id, client_url}} when is_integer(account_id) and is_binary(client_url) ->
+        {:ok, %{account_id: account_id, client_url: normalize_client_url(client_url)}}
+
+      {:ok, account_id} when is_integer(account_id) ->
+        {:ok, %{account_id: account_id, client_url: default_client_url()}}
+
+      {:ok, _} ->
+        {:error, :invalid}
+
+      {:error, _reason} = error ->
+        error
+    end
   end
 
   def update_check_run(params), do: Client.update_check_run(params)

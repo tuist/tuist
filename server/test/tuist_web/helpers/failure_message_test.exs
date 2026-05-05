@@ -213,5 +213,25 @@ defmodule TuistWeb.Helpers.FailureMessageTest do
       assert is_binary(result)
       assert result == "Expectation failed at Tests/MyTest.swift:42"
     end
+
+    test "links to the GitHub Enterprise Server host when the installation has a custom client_url" do
+      failure =
+        make_failure(%{
+          path: "Tests/MyTest.swift",
+          issue_type: "assertion_failure",
+          message: nil,
+          line_number: 100
+        })
+
+      ghes_connection =
+        Map.put(github_vcs_connection(), :github_app_installation, %{client_url: "https://github.example.com"})
+
+      run = make_run(%{git_commit_sha: "abc123", vcs_connection: ghes_connection})
+
+      {:safe, html} = FailureMessage.format_failure_message(failure, run)
+
+      assert html =~ ~s(href="https://github.example.com/org/repo/blob/abc123/Tests/MyTest.swift#L100")
+      refute html =~ "github.com/org/repo"
+    end
   end
 end

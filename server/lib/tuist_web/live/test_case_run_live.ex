@@ -41,7 +41,7 @@ defmodule TuistWeb.TestCaseRunLive do
       raise NotFoundError, dgettext("dashboard_tests", "Test case run not found.")
     end
 
-    project = Tuist.Repo.preload(project, :vcs_connection)
+    project = Tuist.Repo.preload(project, vcs_connection: :github_app_installation)
 
     slug = Projects.get_project_slug_from_id(project.id)
 

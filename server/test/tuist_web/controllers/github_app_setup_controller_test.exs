@@ -16,7 +16,7 @@ defmodule TuistWeb.GitHubAppSetupControllerTest do
       state_token = "valid_token"
 
       expect(VCS, :verify_github_state_token, fn ^state_token ->
-        {:ok, account.id}
+        {:ok, %{account_id: account.id, client_url: "https://github.com"}}
       end)
 
       expect(Accounts, :get_account_by_id, fn account_id ->
@@ -33,6 +33,35 @@ defmodule TuistWeb.GitHubAppSetupControllerTest do
       assert redirected_to(conn) == "/#{account.name}/integrations"
     end
 
+    test "stores the GitHub Enterprise client_url from the state token", %{conn: conn} do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      account = user.account
+      installation_id = "67890"
+      state_token = "ghes_token"
+      ghes_url = "https://github.example.com"
+
+      expect(VCS, :verify_github_state_token, fn ^state_token ->
+        {:ok, %{account_id: account.id, client_url: ghes_url}}
+      end)
+
+      expect(Accounts, :get_account_by_id, fn account_id ->
+        assert account_id == account.id
+        {:ok, account}
+      end)
+
+      conn =
+        get(conn, ~p"/integrations/github/setup", %{
+          "installation_id" => installation_id,
+          "state" => state_token
+        })
+
+      assert redirected_to(conn) == "/#{account.name}/integrations"
+
+      {:ok, installation} = VCS.get_github_app_installation_for_account(account.id)
+      assert installation.installation_id == installation_id
+      assert installation.client_url == ghes_url
+    end
+
     test "returns BadRequestError when installation is already connected to a different account", %{conn: conn} do
       connected_account = AccountsFixtures.account_fixture()
       selected_account = AccountsFixtures.account_fixture()
@@ -45,7 +74,7 @@ defmodule TuistWeb.GitHubAppSetupControllerTest do
       )
 
       expect(VCS, :verify_github_state_token, fn ^state_token ->
-        {:ok, selected_account.id}
+        {:ok, %{account_id: selected_account.id, client_url: "https://github.com"}}
       end)
 
       expect(Accounts, :get_account_by_id, fn account_id ->
