@@ -26,6 +26,17 @@ metadata:
     {{- include "tuist.labels" $ | nindent 4 }}
     app.kubernetes.io/component: macos-fleet
     tuist.dev/fleet: {{ $fleetName }}
+  annotations:
+    # Operator owns the CR lifecycle via finalizers (Scaleway server
+    # release + bootstrap Secret cleanup). If helm rolls back to a
+    # revision without macosFleet.enabled while the operator is being
+    # rolled, helm tries to delete the CR but the finalizer blocks
+    # forever (no operator to remove it), and the next upgrade ends
+    # up applying a new CR over the still-Terminating one. `keep`
+    # tells helm to leave the CR alone on uninstall/rollback —
+    # explicit `kubectl delete` is the only way to remove it, which
+    # forces the operator to be running.
+    helm.sh/resource-policy: keep
 spec:
   type: {{ $.Values.macosFleet.machine.type | default "M4-S" | quote }}
   zone: {{ $.Values.macosFleet.machine.zone | default "fr-par-1" | quote }}
