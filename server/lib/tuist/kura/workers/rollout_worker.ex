@@ -23,8 +23,8 @@ defmodule Tuist.Kura.Workers.RolloutWorker do
   require Logger
 
   @impl Oban.Worker
-  def perform(%Oban.Job{args: %{"deployment_id" => id}}) do
-    case Repo.get(Deployment, id) do
+  def perform(%Oban.Job{args: %{"deployment_id" => id, "account_id" => account_id}}) do
+    case Kura.get_deployment(account_id, id) do
       nil ->
         Logger.warning("[Kura.RolloutWorker] deployment #{id} not found")
         :ok

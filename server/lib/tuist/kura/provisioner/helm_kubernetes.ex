@@ -390,6 +390,13 @@ defmodule Tuist.Kura.Provisioner.HelmKubernetes do
 
   ## Kubeconfig discovery
 
+  # The chart path resolves from runtime config (`:kura_chart_path`,
+  # populated at boot from the OTP release `priv/kura_chart` or, in
+  # dev, the monorepo `kura/ops/helm/kura`) or from the rollout
+  # worker's already-trusted `inputs` map. Neither carries
+  # user-controlled input, so we only verify the directory exists; we
+  # don't constrain the path to a fixed prefix because dev legitimately
+  # points outside `priv/`.
   defp chart_path(inputs) do
     case Map.get(inputs, :chart_path) || Application.get_env(:tuist, :kura_chart_path) do
       nil ->

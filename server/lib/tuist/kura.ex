@@ -162,7 +162,7 @@ defmodule Tuist.Kura do
     case Repo.transaction(fn ->
            with {:ok, server} <- attrs |> Server.create_changeset() |> Repo.insert(),
                 {:ok, deployment} <- insert_initial_deployment(server, region, attrs[:image_tag]),
-                {:ok, job} <- enqueue_rollout(deployment),
+                {:ok, job} <- enqueue_rollout(deployment, server.account_id),
                 {:ok, _} <- stamp_job_id(deployment, job.id) do
              Repo.preload(server, :deployments)
            else
@@ -372,7 +372,7 @@ defmodule Tuist.Kura do
   def create_deployment(%Server{} = server, image_tag) when is_binary(image_tag) do
     Repo.transaction(fn ->
       with {:ok, deployment} <- insert_deployment(server, image_tag),
-           {:ok, job} <- enqueue_rollout(deployment),
+           {:ok, job} <- enqueue_rollout(deployment, server.account_id),
            {:ok, deployment} <- stamp_job_id(deployment, job.id) do
         deployment
       else
@@ -393,8 +393,8 @@ defmodule Tuist.Kura do
     end
   end
 
-  defp enqueue_rollout(%Deployment{id: id}) do
-    %{deployment_id: id} |> RolloutWorker.new() |> Oban.insert()
+  defp enqueue_rollout(%Deployment{id: id}, account_id) do
+    %{deployment_id: id, account_id: account_id} |> RolloutWorker.new() |> Oban.insert()
   end
 
   defp stamp_job_id(deployment, job_id) do

@@ -34,7 +34,7 @@ defmodule Tuist.Kura.Workers.RolloutWorkerTest do
   test "activates the server when rollout succeeds", %{deployment: deployment, server: server} do
     stub(Provisioner, :rollout, fn %Server{}, _inputs -> :ok end)
 
-    assert :ok = RolloutWorker.perform(%Oban.Job{args: %{"deployment_id" => deployment.id}})
+    assert :ok = RolloutWorker.perform(%Oban.Job{args: %{"deployment_id" => deployment.id, "account_id" => server.account_id}})
 
     assert %Deployment{status: :succeeded} = Repo.get!(Deployment, deployment.id)
 
@@ -49,7 +49,7 @@ defmodule Tuist.Kura.Workers.RolloutWorkerTest do
     stub(Kura, :activate_server, fn %Server{}, "0.5.2" -> {:error, :activation_failed} end)
 
     assert {:error, ":activation_failed"} =
-             RolloutWorker.perform(%Oban.Job{args: %{"deployment_id" => deployment.id}})
+             RolloutWorker.perform(%Oban.Job{args: %{"deployment_id" => deployment.id, "account_id" => server.account_id}})
 
     assert %Deployment{status: :failed, error_message: ":activation_failed"} =
              Repo.get!(Deployment, deployment.id)
@@ -64,7 +64,7 @@ defmodule Tuist.Kura.Workers.RolloutWorkerTest do
     reject(&Provisioner.rollout/2)
     {:ok, server} = Kura.destroy_server(server)
 
-    assert :ok = RolloutWorker.perform(%Oban.Job{args: %{"deployment_id" => deployment.id}})
+    assert :ok = RolloutWorker.perform(%Oban.Job{args: %{"deployment_id" => deployment.id, "account_id" => server.account_id}})
 
     deployment = Repo.get!(Deployment, deployment.id)
     assert deployment.status == :cancelled
@@ -83,7 +83,7 @@ defmodule Tuist.Kura.Workers.RolloutWorkerTest do
     reject(&Provisioner.rollout/2)
     {:ok, deployment} = Kura.mark_running(deployment)
 
-    assert :ok = RolloutWorker.perform(%Oban.Job{args: %{"deployment_id" => deployment.id}})
+    assert :ok = RolloutWorker.perform(%Oban.Job{args: %{"deployment_id" => deployment.id, "account_id" => server.account_id}})
 
     assert %Deployment{
              status: :failed,
@@ -93,12 +93,12 @@ defmodule Tuist.Kura.Workers.RolloutWorkerTest do
     assert %Server{status: :failed} = Repo.get!(Server, server.id)
   end
 
-  test "continues log sequence when failing an already-running deployment", %{deployment: deployment} do
+  test "continues log sequence when failing an already-running deployment", %{deployment: deployment, server: server} do
     reject(&Provisioner.rollout/2)
     {:ok, deployment} = Kura.mark_running(deployment)
     {:ok, _} = Kura.append_log_lines(deployment.id, [{1, :stdout, "already emitted"}])
 
-    assert :ok = RolloutWorker.perform(%Oban.Job{args: %{"deployment_id" => deployment.id}})
+    assert :ok = RolloutWorker.perform(%Oban.Job{args: %{"deployment_id" => deployment.id, "account_id" => server.account_id}})
 
     assert [
              %{sequence: 1, stream: :stdout, line: "already emitted"},
@@ -109,7 +109,10 @@ defmodule Tuist.Kura.Workers.RolloutWorkerTest do
              |> Enum.map(&Map.take(&1, [:sequence, :stream, :line]))
   end
 
-  test "appends the synthetic failure line after streamed output without reusing sequence ids", %{deployment: deployment} do
+  test "appends the synthetic failure line after streamed output without reusing sequence ids", %{
+    deployment: deployment,
+    server: server
+  } do
     stub(Provisioner, :rollout, fn %Server{}, %{on_log_line: on_log_line} ->
       on_log_line.("starting rollout", :stdout)
       on_log_line.("still working", :stderr)
@@ -117,7 +120,7 @@ defmodule Tuist.Kura.Workers.RolloutWorkerTest do
     end)
 
     assert {:error, "rollout exited with status 1"} =
-             RolloutWorker.perform(%Oban.Job{args: %{"deployment_id" => deployment.id}})
+             RolloutWorker.perform(%Oban.Job{args: %{"deployment_id" => deployment.id, "account_id" => server.account_id}})
 
     assert %Deployment{status: :failed, error_message: "rollout exited with status 1"} =
              Repo.get!(Deployment, deployment.id)
