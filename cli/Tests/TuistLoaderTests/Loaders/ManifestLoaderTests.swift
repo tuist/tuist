@@ -1,9 +1,9 @@
 import FileSystem
 import Foundation
 import TuistConstants
+import TuistEnvironment
 import XcodeGraph
 import XCTest
-
 @testable import TuistLoader
 @testable import TuistSupport
 @testable import TuistTesting
@@ -190,6 +190,72 @@ final class ManifestLoaderTests: TuistTestCase {
 
         // When
         let got = try await subject.loadPackageSettings(at: temporaryPath, disableSandbox: true)
+
+        // Then
+        XCTAssertEqual(
+            got,
+            .init(
+                targetSettings: [
+                    "TargetA": .settings(base: [
+                        "OTHER_LDFLAGS": "-ObjC",
+                    ]),
+                ]
+            )
+        )
+    }
+
+    func test_loadPackageSettings_withPackageDescriptionContextEnvironment() async throws {
+        // Given
+        let temporaryPath = try temporaryPath()
+        let content = """
+        // swift-tools-version: 6.1
+        import PackageDescription
+
+        let demoContextValue = Context.environment["TUIST_DEMO_CONTEXT_VALUE"]
+        let hasGitInformation = Context.gitInformation?.currentCommit.isEmpty == false &&
+            Context.gitInformation?.hasUncommittedChanges == false
+
+        #if TUIST
+        import ProjectDescription
+
+        let packageSettings = PackageSettings(
+            targetSettings: demoContextValue == "enabled" && hasGitInformation ? ["TargetA": ["OTHER_LDFLAGS": "-ObjC"]] : [:]
+        )
+
+        #endif
+
+        let package = Package(
+            name: "PackageName",
+            dependencies: []
+        )
+
+        """
+
+        let manifestPath = temporaryPath.appending(
+            component: Manifest.package.fileName(temporaryPath)
+        )
+        try await fileSystem.makeDirectory(at: temporaryPath.appending(component: Constants.tuistDirectoryName))
+        try content.write(
+            to: manifestPath.url,
+            atomically: true,
+            encoding: .utf8
+        )
+
+        try System.shared.run(["git", "-C", temporaryPath.pathString, "init"])
+        try System.shared.run(["git", "-C", temporaryPath.pathString, "config", "user.email", "tuist@example.com"])
+        try System.shared.run(["git", "-C", temporaryPath.pathString, "config", "user.name", "Tuist"])
+        try System.shared.run(["git", "-C", temporaryPath.pathString, "add", "Package.swift"])
+        try System.shared.run(["git", "-C", temporaryPath.pathString, "commit", "-m", "Initial commit"])
+
+        let variables = Environment.current.variables.merging(
+            ["TUIST_DEMO_CONTEXT_VALUE": "enabled"],
+            uniquingKeysWith: { $1 }
+        )
+
+        // When
+        let got = try await Environment.$current.withValue(Environment(variables: variables)) {
+            try await subject.loadPackageSettings(at: temporaryPath, disableSandbox: true)
+        }
 
         // Then
         XCTAssertEqual(

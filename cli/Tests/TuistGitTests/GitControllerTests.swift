@@ -133,6 +133,66 @@ struct GitControllerTests {
         #expect(gitCommitSHA == "5e17254d4a3c14454ecab6575b4a44d6685d3865")
     }
 
+    @Test(.inTemporaryDirectory) func test_currentTag() throws {
+        // Given
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        system.succeedCommand(
+            ["git", "-C", path.pathString, "describe", "--tags", "--exact-match"],
+            output: "1.2.3\n"
+        )
+
+        // When
+        let tag = try subject.currentTag(workingDirectory: path)
+
+        // Then
+        #expect(tag == "1.2.3")
+    }
+
+    @Test(.inTemporaryDirectory) func currentTag_when_empty() throws {
+        // Given
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        system.succeedCommand(
+            ["git", "-C", path.pathString, "describe", "--tags", "--exact-match"],
+            output: "\n"
+        )
+
+        // When
+        let tag = try subject.currentTag(workingDirectory: path)
+
+        // Then
+        #expect(tag == nil)
+    }
+
+    @Test(.inTemporaryDirectory) func hasUncommittedChanges_when_status_has_output() throws {
+        // Given
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        system.succeedCommand(
+            ["git", "-C", path.pathString, "status", "--porcelain"],
+            output: " M Package.swift\n"
+        )
+
+        // When
+        let hasUncommittedChanges = try subject.hasUncommittedChanges(workingDirectory: path)
+
+        // Then
+        #expect(hasUncommittedChanges == true)
+    }
+
+    @Test(.inTemporaryDirectory) func hasUncommittedChanges_when_status_is_empty() throws {
+        // Given
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        system.succeedCommand(
+            ["git", "-C", path.pathString, "status", "--porcelain"],
+            output: "\n"
+        )
+
+        // When
+        let hasUncommittedChanges = try subject.hasUncommittedChanges(workingDirectory: path)
+
+        // Then
+        #expect(hasUncommittedChanges == false)
+    }
+
     @Test(.inTemporaryDirectory) func test_urlOrigin() throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
