@@ -42,12 +42,19 @@ jobs:
           fetch-depth: 0
 
       - uses: jdx/mise-action@v4.0.1
+        id: setup_mise
+        continue-on-error: true
         with:
           version: ${{ env.MISE_VERSION }}
           install_args: github:tuist/blick npm:opencode-ai
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
 
+      - name: Skip review when tools are unavailable
+        if: steps.setup_mise.outcome != 'success'
+        run: echo "Skipping blick review because the tool setup step did not complete."
+
       - name: Run blick review
+        if: steps.setup_mise.outcome == 'success'
         env:
           FIREWORKS_API_KEY: ${{ secrets.FIREWORKS_API_KEY }}
         run: blick review --base "origin/${{ github.event.pull_request.base.ref }}" --json --stream
@@ -56,7 +63,7 @@ jobs:
         # Only publish when the review step succeeded. `blick publish`
         # is a no-op when there are no findings and exits non-zero only
         # on real publish errors.
-        if: success()
+        if: success() && steps.setup_mise.outcome == 'success'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: blick publish
