@@ -76,7 +76,7 @@ tuist install --force-resolved-versions
 
 This flag ensures that dependencies are resolved using the exact versions pinned in `Package.resolved`, eliminating issues caused by non-determinism in dependency resolution. This is particularly important on CI where reproducible builds are critical.
 
-### Worktrees and agentic coding {#worktrees-and-agentic-coding}
+### Agentic coding and worktrees {#agentic-coding-and-worktrees}
 
 Coding agents and human contributors increasingly work in parallel: a developer keeps a worktree open for the feature they are reviewing while one or more agents iterate on their own branches in sibling worktrees. A few project choices make this much smoother.
 
