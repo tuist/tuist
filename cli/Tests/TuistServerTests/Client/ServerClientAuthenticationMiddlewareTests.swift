@@ -328,4 +328,44 @@ struct ServerClientAuthenticationMiddlewareTests {
             }
         })
     }
+
+    @Test func returns_unauthorized_response_without_retrying() async throws {
+        // Given
+        let url = URL(string: "https://test.tuist.dev")!
+        let request = HTTPRequest(method: .get, scheme: nil, authority: nil, path: "/api/projects")
+        let token: AuthenticationToken = .user(
+            accessToken: .test(token: "access-token"),
+            refreshToken: .test(token: "refresh-token")
+        )
+        given(serverAuthenticationController).authenticationToken(
+            serverURL: .value(url),
+            refreshIfNeeded: .value(true)
+        )
+        .willReturn(token)
+
+        var requestCount = 0
+
+        // When
+        let (response, _) = try await subject.intercept(
+            request,
+            body: nil,
+            baseURL: url,
+            operationID: "listProjects"
+        ) { _, _, _ in
+            requestCount += 1
+            return (HTTPResponse(status: .init(code: 401)), nil)
+        }
+
+        // Then
+        #expect(response.status.code == 401)
+        #expect(requestCount == 1)
+        verify(serverAuthenticationController)
+            .refreshToken(
+                serverURL: .any,
+                inBackground: .any,
+                locking: .any,
+                forceInProcessLock: .any
+            )
+            .called(0)
+    }
 }

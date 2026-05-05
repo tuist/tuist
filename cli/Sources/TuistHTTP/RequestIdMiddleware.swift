@@ -14,8 +14,7 @@ public struct RequestIdMiddleware: ClientMiddleware {
         next: (HTTPRequest, HTTPBody?, URL) async throws -> (HTTPResponse, HTTPBody?)
     ) async throws -> (HTTPResponse, HTTPBody?) {
         var request = request
-        guard let httpFieldName = HTTPField.Name("x-request-id") else { return try await next(request, body, baseURL) }
-        request.headerFields.append(.init(name: httpFieldName, value: UUID().uuidString))
+        request.addRequestIDHeader()
         return try await next(request, body, baseURL)
     }
 }
