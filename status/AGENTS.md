@@ -25,7 +25,7 @@ status/
 
 ## Common Commands
 
-- Dev server with fake data: `mise run status:dev` (or `aube run dev` from `status/`)
+- Dev server: `mise run status:dev` (or `aube run dev` from `status/`). Hits real Grafana by default; opt into fixtures with `USE_FAKE_DATA="true"` in `.dev.vars`.
 - Type check: `aube run typecheck`
 - Build (dry-run deploy): `mise run status:build`
 - Deploy to Cloudflare: `mise run status:deploy` (requires Cloudflare auth)
@@ -49,19 +49,20 @@ Variables live in `wrangler.jsonc` under `vars`. The token must be set via `wran
 
 | Variable                      | Purpose                                                                                                                                                                                                                                                                     |
 | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `USE_FAKE_DATA`               | `"true"` short-circuits the Grafana Incident API and serves fixtures from `fake-data.ts`. Default in dev.                                                                                                                                                                   |
+| `USE_FAKE_DATA`               | `"true"` short-circuits the Grafana Incident API and serves fixtures from `fake-data.ts`. Defaults to `"false"` so the deployed worker hits Grafana; opt in locally by adding `USE_FAKE_DATA="true"` to `.dev.vars` when iterating on the UI without a token.               |
 | `STATUS_PAGE_TITLE`           | Brand name shown in the header and feed `<title>`.                                                                                                                                                                                                                          |
 | `GRAFANA_INCIDENT_API_URL`    | Per-stack proxy URL: `https://<your-stack-slug>.grafana.net/api/plugins/grafana-irm-app/resources`. The regional `incident-prod-*.grafana.net` form rejects stack-scoped service account tokens (`legacy auth cannot be upgraded`), so don't use it.                        |
 | `GRAFANA_INCIDENT_API_TOKEN`  | Stack-level service account token (`glsa_…`) with Viewer role. **Secret. Set with `wrangler secret put` for prod and in `status/.dev.vars` for local dev.**                                                                                                                 |
 | `GRAFANA_COMPONENT_LABEL_KEY` | Name (or slug) of the Grafana Incident label field whose select options define the public components shown on the page. Default `affected_service`. Each select option contributes one component: `value` → component id, `label` → display name, `description` → subtitle. |
 
-### Local run with real data
+### Local run
 
 ```
 # status/.dev.vars (gitignored)
-USE_FAKE_DATA="false"
-GRAFANA_INCIDENT_API_URL="https://<stack-slug>.grafana.net/api/plugins/grafana-irm-app/resources"
 GRAFANA_INCIDENT_API_TOKEN="glsa_xxxxxxxxxxxx_xxxxxxxx"
+# Optional overrides:
+# USE_FAKE_DATA="true"   # serve fixtures instead of hitting Grafana
+# GRAFANA_INCIDENT_API_URL="https://<other-stack>.grafana.net/api/plugins/grafana-irm-app/resources"
 ```
 
 Then `wrangler dev` from `status/`. Outbound `fetch` from local workerd reaches Grafana directly — no `--remote` needed. Hit `/api/debug/incidents.json` to see the raw upstream payload.
@@ -85,7 +86,7 @@ wrangler login                                  # one-time, opens a browser
 wrangler secret put GRAFANA_INCIDENT_API_TOKEN  # paste the glsa_… value
 ```
 
-Optionally flip `USE_FAKE_DATA` in `wrangler.jsonc` to `"false"` so production hits the real Grafana API. After that, every push to `main` that touches `status/**` runs `mise run deploy` and publishes a new revision.
+After that, every push to `main` that touches `status/**` runs `mise run deploy` and publishes a new revision.
 
 ## Style
 
