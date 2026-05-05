@@ -5,6 +5,7 @@ defmodule TuistWeb.GitHubAppManifestControllerTest do
   alias Tuist.OAuth2.SSRFGuard
   alias Tuist.VCS
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.VCSFixtures
   alias TuistWeb.Errors.BadRequestError
 
   describe "GET /integrations/github/manifest/start" do
@@ -20,6 +21,27 @@ defmodule TuistWeb.GitHubAppManifestControllerTest do
       assert body =~ "#{ghes_url}/settings/apps/new"
       assert body =~ "name=\"manifest\""
       assert body =~ "document.getElementById('manifest-form').submit()"
+    end
+
+    test "scopes the CSP so the inline submit and cross-origin form action are allowed", %{conn: conn} do
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      ghes_url = "https://github.example.com"
+      state_token = VCS.generate_github_state_token(account.id, ghes_url)
+
+      conn = get(conn, ~p"/integrations/github/manifest/start", %{"state" => state_token})
+
+      [csp] = get_resp_header(conn, "content-security-policy")
+      body = response(conn, 200)
+
+      # The form posts cross-origin to the GHES instance; without an
+      # explicit form-action allowance the browser would block it.
+      assert csp =~ "form-action 'self' #{ghes_url}"
+
+      # The submit script must carry the nonce that the page-scoped CSP
+      # advertises, otherwise the browser silently drops it and the
+      # customer never reaches GHES.
+      assert [_, nonce] = Regex.run(~r/'nonce-([^']+)'/, csp)
+      assert body =~ ~s(<script nonce="#{nonce}">)
     end
 
     test "rejects missing state", %{conn: conn} do
@@ -92,6 +114,47 @@ defmodule TuistWeb.GitHubAppManifestControllerTest do
       assert_raise BadRequestError, fn ->
         get(conn, ~p"/integrations/github/manifest/callback", %{"code" => "x", "state" => "garbage"})
       end
+    end
+
+    test "refuses to overwrite an account that already has a working installation", %{conn: conn} do
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      ghes_url = "https://github.example.com"
+      state_token = VCS.generate_github_state_token(account.id, ghes_url)
+
+      VCSFixtures.github_app_installation_fixture(
+        account_id: account.id,
+        installation_id: "existing-install-id"
+      )
+
+      stub(SSRFGuard, :pin, fn _url -> {:ok, "https://198.51.100.10/path", "github.example.com"} end)
+      stub(SSRFGuard, :connect_options, fn _ -> [] end)
+
+      stub(Req, :post, fn _opts ->
+        {:ok,
+         %Req.Response{
+           status: 201,
+           body: %{
+             "id" => 99,
+             "slug" => "duplicate",
+             "client_id" => "Iv1.dup",
+             "client_secret" => "dup-secret",
+             "pem" => "-----BEGIN RSA PRIVATE KEY-----\nfake\n-----END RSA PRIVATE KEY-----",
+             "webhook_secret" => "dup-wh"
+           }
+         }}
+      end)
+
+      assert_raise BadRequestError, ~r/Uninstall it before registering a new one/, fn ->
+        get(conn, ~p"/integrations/github/manifest/callback", %{
+          "code" => "tmpcode",
+          "state" => state_token
+        })
+      end
+
+      # The original installation must still be there, untouched.
+      {:ok, installation} = VCS.get_github_app_installation_for_account(account.id)
+      assert installation.installation_id == "existing-install-id"
+      assert is_nil(installation.app_id)
     end
   end
 end

@@ -284,4 +284,83 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
       assert result.status == 200
     end
   end
+
+  describe "resolve_webhook_secret/1" do
+    test "returns the per-installation secret keyed by installation_id", %{conn: conn} do
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      installation =
+        VCSFixtures.github_app_installation_fixture(
+          account_id: account.id,
+          installation_id: "inst-1",
+          client_url: "https://github.example.com",
+          app_id: "555",
+          app_slug: "tuist-on-ghes",
+          client_id: "Iv1.x",
+          client_secret: "csec",
+          private_key: "-----BEGIN RSA PRIVATE KEY-----\nfake\n-----END RSA PRIVATE KEY-----",
+          webhook_secret: "row-webhook-secret"
+        )
+
+      body = %{"installation" => %{"id" => installation.installation_id}}
+      conn = %{conn | body_params: body}
+
+      assert GitHubController.resolve_webhook_secret(conn) == "row-webhook-secret"
+    end
+
+    test "falls back to matching by app_id when installation_id is missing on the row", %{conn: conn} do
+      # Simulates the race: GHES delivers installation.created before
+      # the redirect-driven /integrations/github/setup callback has
+      # filled installation_id on the manifest-flow row.
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      VCSFixtures.github_app_installation_fixture(
+        account_id: account.id,
+        installation_id: nil,
+        client_url: "https://github.example.com",
+        app_id: "555",
+        app_slug: "tuist-on-ghes",
+        client_id: "Iv1.x",
+        client_secret: "csec",
+        private_key: "-----BEGIN RSA PRIVATE KEY-----\nfake\n-----END RSA PRIVATE KEY-----",
+        webhook_secret: "row-webhook-secret"
+      )
+
+      body = %{"installation" => %{"id" => 999, "app_id" => 555}}
+      conn = %{conn | body_params: body}
+
+      assert GitHubController.resolve_webhook_secret(conn) == "row-webhook-secret"
+    end
+
+    test "falls back to matching by the X-GitHub-Hook-Installation-Target-ID header", %{conn: conn} do
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      VCSFixtures.github_app_installation_fixture(
+        account_id: account.id,
+        installation_id: nil,
+        client_url: "https://github.example.com",
+        app_id: "777",
+        app_slug: "tuist-on-ghes",
+        client_id: "Iv1.x",
+        client_secret: "csec",
+        private_key: "-----BEGIN RSA PRIVATE KEY-----\nfake\n-----END RSA PRIVATE KEY-----",
+        webhook_secret: "header-webhook-secret"
+      )
+
+      conn =
+        conn
+        |> put_req_header("x-github-hook-installation-target-id", "777")
+        |> Map.put(:body_params, %{"installation" => %{"id" => 999}})
+
+      assert GitHubController.resolve_webhook_secret(conn) == "header-webhook-secret"
+    end
+
+    test "falls back to the env-var secret when no row matches", %{conn: conn} do
+      stub(Tuist.Environment, :github_app_webhook_secret, fn -> "env-secret" end)
+
+      conn = %{conn | body_params: %{"installation" => %{"id" => 4242}}}
+
+      assert GitHubController.resolve_webhook_secret(conn) == "env-secret"
+    end
+  end
 end

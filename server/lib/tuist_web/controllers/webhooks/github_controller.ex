@@ -12,23 +12,62 @@ defmodule TuistWeb.Webhooks.GitHubController do
   GitHub Apps registered on a customer's GHES instance via the manifest
   flow have their own webhook secret stored on the
   `GitHubAppInstallation` row; the global `TUIST_GITHUB_APP_WEBHOOK_SECRET`
-  env var only signs webhooks for the github.com Tuist App. We look up
-  the installation from the parsed body (`installation.id`) and prefer
-  its secret; we fall back to the env var so existing github.com
-  installations keep working.
+  env var only signs webhooks for the github.com Tuist App.
+
+  Lookup order:
+
+    1. Match the row by `installation.id` from the body (steady state
+       once the redirect-driven setup callback has filled
+       `installation_id`).
+
+    2. Match by App ID (`installation.app_id` in the body, falling back
+       to the `X-GitHub-Hook-Installation-Target-ID` header). This
+       closes the race window between manifest-flow App creation and
+       the first `installation.created` webhook delivery: the row
+       exists with `installation_id: nil` but the App ID has been
+       persisted.
+
+    3. Fall back to the env-var webhook secret so the github.com
+       integration keeps working.
   """
   def resolve_webhook_secret(conn) do
-    installation_id =
-      get_in(conn.body_params, ["installation", "id"]) ||
-        get_in(conn.body_params, [:installation, :id])
+    body = conn.body_params
 
-    with id when not is_nil(id) <- installation_id,
+    cond do
+      secret = lookup_secret_by_installation_id(body) -> secret
+      secret = lookup_secret_by_app_id(conn, body) -> secret
+      true -> Environment.github_app_webhook_secret()
+    end
+  end
+
+  defp lookup_secret_by_installation_id(body) do
+    with id when not is_nil(id) <- body_get(body, ["installation", "id"]),
          {:ok, installation} <- VCS.get_github_app_installation_by_installation_id(to_string(id)),
          secret when is_binary(secret) <- installation.webhook_secret do
       secret
     else
-      _ -> Environment.github_app_webhook_secret()
+      _ -> nil
     end
+  end
+
+  defp lookup_secret_by_app_id(conn, body) do
+    app_id =
+      body_get(body, ["installation", "app_id"]) ||
+        conn |> get_req_header("x-github-hook-installation-target-id") |> List.first()
+
+    with id when not is_nil(id) <- app_id,
+         {:ok, installation} <- VCS.get_github_app_installation_by_app_id(to_string(id)),
+         secret when is_binary(secret) <- installation.webhook_secret do
+      secret
+    else
+      _ -> nil
+    end
+  end
+
+  defp body_get(body, [a, b]) do
+    get_in(body, [a, b]) || get_in(body, [String.to_existing_atom(a), String.to_existing_atom(b)])
+  rescue
+    ArgumentError -> nil
   end
 
   def handle(conn, params) do

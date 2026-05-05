@@ -1205,6 +1205,22 @@ defmodule Tuist.VCS do
   end
 
   @doc """
+  Gets a GitHub app installation by the manifest-flow App ID Tuist
+  recorded when the customer registered an App on their GHES instance.
+
+  Used as a fallback for webhook secret resolution: GHES delivers the
+  `installation.created` event before our redirect-driven setup
+  callback has filled in `installation_id`, so we have to be able to
+  match the inbound webhook to its row by `app_id` too.
+  """
+  def get_github_app_installation_by_app_id(app_id) do
+    case Repo.get_by(GitHubAppInstallation, app_id: to_string(app_id)) do
+      nil -> {:error, :not_found}
+      github_app_installation -> {:ok, github_app_installation}
+    end
+  end
+
+  @doc """
   Updates a GitHub app installation.
   """
   def update_github_app_installation(%GitHubAppInstallation{} = github_app_installation, attrs) do
