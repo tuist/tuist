@@ -414,6 +414,16 @@ spec:
                 - 10.128.0.10
               clusterDomain: cluster.local
               containerRuntimeEndpoint: unix:///var/run/containerd/containerd.sock
+              # Point kubelet at the systemd-resolved-managed file
+              # (real upstream resolvers from DHCP, e.g. Hetzner's
+              # 185.12.64.1) instead of /etc/resolv.conf (which is a
+              # symlink to a stub at 127.0.0.53 that pods cannot
+              # reach across network namespaces). Without this,
+              # CoreDNS upstream resolution AND any pod with
+              # dnsPolicy=Default fails to resolve external names —
+              # in particular HCCM crashes on startup trying to
+              # resolve api.hetzner.cloud.
+              resolvConf: /run/systemd/resolve/resolv.conf
               maxPods: 120
               readOnlyPort: 0
               serverTLSBootstrap: true
