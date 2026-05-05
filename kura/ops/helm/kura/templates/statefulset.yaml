@@ -112,8 +112,10 @@ spec:
               value: {{ printf "%d" (int .Values.config.metadataStore.maxOpenFiles) | quote }}
             - name: KURA_METADATA_STORE_MAX_BACKGROUND_JOBS
               value: {{ printf "%d" (int .Values.config.metadataStore.maxBackgroundJobs) | quote }}
+            {{- if .Values.config.telemetry.otlpTracesEndpoint }}
             - name: KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
               value: {{ .Values.config.telemetry.otlpTracesEndpoint | quote }}
+            {{- end }}
             - name: KURA_OTEL_SERVICE_NAME
               value: $(POD_NAME)
             - name: KURA_OTEL_DEPLOYMENT_ENVIRONMENT

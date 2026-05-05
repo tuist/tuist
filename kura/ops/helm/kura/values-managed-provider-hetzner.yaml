@@ -1,0 +1,21 @@
+# Provider overlay: Hetzner. Layered after values-managed.yaml.
+# Carries provider-wide knobs that every Hetzner location inherits.
+
+persistence:
+  storageClass: hcloud-volumes
+  size: 200Gi
+
+# Pin Kura pods to the dedicated bare-metal pool. Pool nodes (Hetzner
+# Robot AX/EX hosts onboarded via cluster-api-provider-hetzner) carry
+# `tuist.dev/role=kura` as both a label and a NoSchedule taint, so
+# only Kura pods land here and Kura pods can't be evicted onto general
+# workload nodes. Tenant separation across accounts on this shared
+# pool is application-layer (`KURA_TENANT_ID`) plus per-pod Cilium
+# bandwidth caps emitted from the spec catalog.
+nodeSelector:
+  tuist.dev/role: kura
+tolerations:
+  - key: tuist.dev/role
+    operator: Equal
+    value: kura
+    effect: NoSchedule

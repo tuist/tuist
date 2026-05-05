@@ -1,0 +1,59 @@
+<div id="ops-kura-deployment">
+  <div data-part="header">
+    <h1 data-part="title">
+      {dgettext("dashboard", "Kura deployment")} · {@deployment.cluster_id} · {@deployment.image_tag}
+    </h1>
+    <p data-part="subtitle">
+      <.link navigate={~p"/ops/accounts/#{@account.id}"}>← {@account.name}</.link>
+    </p>
+  </div>
+
+  <.card title={dgettext("dashboard", "Status")} icon="info_circle">
+    <.card_section>
+      <div data-part="metadata-grid">
+        <div data-part="metadata-row">
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard", "Status")}</div>
+            <span data-part="label">
+              <.badge
+                label={deployment_status_label(@deployment.status)}
+                color={deployment_status_color(@deployment.status)}
+                size="small"
+                style="light-fill"
+              />
+            </span>
+          </div>
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard", "Started")}</div>
+            <span data-part="label">{format_time(@deployment.started_at)}</span>
+          </div>
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard", "Finished")}</div>
+            <span data-part="label">{format_time(@deployment.finished_at)}</span>
+          </div>
+        </div>
+      </div>
+    </.card_section>
+
+    <.card_section :if={@deployment.error_message}>
+      <div data-part="metadata">
+        <div data-part="title">{dgettext("dashboard", "Error")}</div>
+        <span data-part="label">{@deployment.error_message}</span>
+      </div>
+    </.card_section>
+  </.card>
+
+  <.card title={dgettext("dashboard", "Logs")} icon="message_circle">
+    <.card_section>
+      <%= if @log_lines == [] do %>
+        <p data-part="empty-logs">{empty_logs_message(@deployment.status)}</p>
+      <% else %>
+        <div id="kura-log-tail" phx-update="ignore" data-part="terminal">
+          <%= for line <- @log_lines do %>
+            <div data-part="line">{line.line}</div>
+          <% end %>
+        </div>
+      <% end %>
+    </.card_section>
+  </.card>
+</div>

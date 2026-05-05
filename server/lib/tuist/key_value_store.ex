@@ -33,6 +33,32 @@ defmodule Tuist.KeyValueStore do
     end
   end
 
+  @doc ~S"""
+  Stores a value in the cache using the given key.
+
+  ## Opts
+
+  - `:cache`: The cache to use. Defaults to `:tuist`.
+  - `:ttl`: The time to live for the cached value. Defaults to `:timer.minutes(1)`.
+
+  ## Examples
+
+  iex> Tuist.KeyValueStore.put(:example_key, "example_value")
+  {:ok, true}
+  """
+  def put(cache_key, value, opts \\ []) do
+    if use_redis?(opts) do
+      try do
+        put_in_redis(cache_key, value, opts)
+      rescue
+        _error in Redix.ConnectionError ->
+          put_in_cachex(cache_key, value, opts)
+      end
+    else
+      put_in_cachex(cache_key, value, opts)
+    end
+  end
+
   defp get_from_redis(cache_key) do
     case Redix.command(Environment.redis_conn_name(), ["GET", cache_key(cache_key)]) do
       {:ok, nil} -> nil
@@ -141,6 +167,23 @@ defmodule Tuist.KeyValueStore do
     end
   end
 
+  defp put_in_redis(cache_key, value, opts) do
+    cache_key = cache_key(cache_key)
+    cache_ttl = Keyword.get(opts, :ttl, to_timeout(minute: 1))
+
+    Redix.command(Environment.redis_conn_name(), [
+      "SET",
+      cache_key,
+      :erlang.term_to_binary(value),
+      "EX",
+      div(cache_ttl, 1000)
+    ])
+  end
+
+  defp put_in_cachex(cache_key, value, opts) do
+    Cachex.put(cachex_cache(opts), cache_key(cache_key), value, expire: cachex_cache_ttl(opts))
+  end
+
   defp cachex_cache(opts) do
     Keyword.get(opts, :cache, :tuist)
   end
@@ -149,9 +192,9 @@ defmodule Tuist.KeyValueStore do
     Keyword.get(opts, :ttl, to_timeout(minute: 1))
   end
 
-  defp cache_key(cache_key) do
-    Enum.join(cache_key, "-")
-  end
+  defp cache_key(cache_key) when is_list(cache_key), do: Enum.map_join(cache_key, "-", &to_string/1)
+  defp cache_key(cache_key) when is_atom(cache_key), do: Atom.to_string(cache_key)
+  defp cache_key(cache_key) when is_binary(cache_key), do: cache_key
 
   defp use_redis?(opts) do
     Keyword.get(opts, :persist_across_deployments, false) and

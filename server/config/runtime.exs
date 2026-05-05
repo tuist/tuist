@@ -408,7 +408,7 @@ otel_endpoint = Tuist.Environment.get([:otel, :exporter, :otlp, :endpoint])
 #     entirely so jobs land exclusively on the processor fleet.
 #   * Self-hosted installs without a dedicated processor leave both flags
 #     unset and run every queue locally.
-base_queues = [default: 10, process_xcresult: 2]
+base_queues = [default: 10, process_xcresult: 2, kura_rollout: 1]
 process_build_queue = {:process_build, Tuist.Environment.process_build_queue_concurrency()}
 
 oban_queues =
@@ -447,6 +447,7 @@ config :tuist, Oban,
            {"@daily", Tuist.Billing.Workers.SyncStripeMetersWorker},
            {"@daily", Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker},
            {"@hourly", Tuist.Tests.Workers.ExpireStaleTestRunsWorker},
+           {"*/10 * * * *", Tuist.Kura.Reconciler},
            {"* * * * *", Tuist.Automations.Workers.AutomationScheduler}
          ],
          else: []
@@ -456,6 +457,19 @@ config :tuist, Oban,
 if Tuist.Environment.processor_mode?() do
   config :tuist, Oban, peer: false
 end
+
+# Path to the Kura Helm chart used by Tuist.Kura.Workers.RolloutWorker.
+# Production releases bake the chart into priv/kura_chart at image
+# build time (see server/Dockerfile); dev and test read it from the
+# in-tree monorepo path one level up from the server/ directory. Each
+# env is enumerated explicitly so a new one (e.g. `:bench`) fails loudly
+# rather than silently picking the wrong path.
+kura_chart_path =
+  case env do
+    e when e in [:prod, :stag, :can] -> Application.app_dir(:tuist, "priv/kura_chart")
+    e when e in [:dev, :test] -> Path.expand("../kura/ops/helm/kura", File.cwd!())
+    other -> raise "unknown env #{inspect(other)} for :kura_chart_path; add it to runtime.exs"
+  end
 
 # Guardian
 config :tuist, Tuist.Guardian,
@@ -473,6 +487,8 @@ config :tuist, Tuist.PromEx,
     port: 9091,
     auth_strategy: :none
   ]
+
+config :tuist, :kura_chart_path, kura_chart_path
 
 if otel_endpoint do
   config :opentelemetry,

@@ -8,5 +8,5 @@ if [ "${usage_update_lockfile:-}" = "true" ]; then
   mix sobelow --format compact --mark-skip-all
 else
   mix sobelow --format compact --skip
-  trivy fs --exit-code 1 --skip-files "mix.exs,mix.lock" --skip-dirs "priv/static,node_modules,deps" ./
+  trivy fs --exit-code 1 --skip-files "mix.exs,mix.lock" --skip-dirs "priv/static,node_modules,deps,_build" ./
 fi

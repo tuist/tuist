@@ -1,0 +1,365 @@
+<div id="ops-account">
+  <div data-part="header">
+    <h1 data-part="title">{@account.name}</h1>
+    <p data-part="subtitle">
+      {account_type(@account)} · {dgettext("dashboard", "Account ID")} {@account.id}
+    </p>
+  </div>
+
+  <.card title={dgettext("dashboard", "Plan & billing")} icon="credit_card">
+    <.card_section>
+      <.table id="account-plan-table" rows={[@account]}>
+        <:col :let={account} label={dgettext("dashboard", "Plan")}>
+          <.badge_cell
+            label={plan_label(current_plan(account))}
+            color={plan_color(current_plan(account))}
+            style="light-fill"
+          />
+        </:col>
+        <:col :let={account} label={dgettext("dashboard", "Status")}>
+          <.badge_cell
+            label={status_label(subscription_status(account))}
+            color={status_color(subscription_status(account))}
+            style="light-fill"
+          />
+        </:col>
+        <:col :let={account} label={dgettext("dashboard", "Billing email")}>
+          <.text_cell label={account.billing_email || dgettext("dashboard", "None")} />
+        </:col>
+        <:col :let={account} label={dgettext("dashboard", "Stripe customer")}>
+          <.text_cell label={account.customer_id || dgettext("dashboard", "Not created")} />
+        </:col>
+      </.table>
+    </.card_section>
+
+    <.card_section>
+      <div data-part="actions">
+        <.button
+          variant="secondary"
+          label={dgettext("dashboard", "Manage on Stripe")}
+          href={~p"/ops/accounts/#{@account.id}/stripe-customer"}
+          target="_blank"
+          rel="noopener noreferrer"
+        />
+        <.button
+          :if={current_plan(@account) != :enterprise}
+          variant="primary"
+          label={dgettext("dashboard", "Upgrade to Enterprise")}
+          phx-click="initiate_enterprise_upgrade"
+        />
+        <.button
+          :if={
+            current_plan(@account) in [:pro, :enterprise] and
+              subscription_status(@account) != :cancelled
+          }
+          variant="secondary"
+          label={dgettext("dashboard", "Cancel plan")}
+          phx-click="cancel_plan"
+          data-confirm={
+            dgettext(
+              "dashboard",
+              "Cancel %{account}'s subscription at the end of the current billing period? Access is kept until then.",
+              account: @account.name
+            )
+          }
+        />
+      </div>
+    </.card_section>
+  </.card>
+
+  <.card title={dgettext("dashboard", "Kura")} icon="server">
+    <.card_section>
+      <.table id="kura-servers-table" rows={@kura_servers}>
+        <:col :let={server} label={dgettext("dashboard", "Region")}>
+          <.text_cell label={server.region} />
+        </:col>
+        <:col :let={server} label={dgettext("dashboard", "Spec")}>
+          <.text_cell label={spec_label(server.spec)} />
+        </:col>
+        <:col :let={server} label={dgettext("dashboard", "Volume")}>
+          <.text_cell label={"#{server.volume_size_gi} Gi"} />
+        </:col>
+        <:col :let={server} label={dgettext("dashboard", "Status")}>
+          <.badge_cell
+            label={server_status_label(server.status)}
+            color={server_status_color(server.status)}
+            style="light-fill"
+          />
+        </:col>
+        <:col :let={server} label={dgettext("dashboard", "Version")}>
+          <.text_cell label={server.current_image_tag || dgettext("dashboard", "None")} />
+        </:col>
+        <:col :let={server} label={dgettext("dashboard", "URL")}>
+          <.text_cell label={server.url || dgettext("dashboard", "None")} />
+        </:col>
+        <:col :let={server} label={dgettext("dashboard", "Actions")}>
+          <div data-part="actions">
+            <.button
+              :if={List.first(server.deployments)}
+              variant="secondary"
+              label={dgettext("dashboard", "View deployment")}
+              navigate={
+                ~p"/ops/accounts/#{@account.id}/kura/deployments/#{List.first(server.deployments).id}"
+              }
+            />
+            <.button
+              :if={server.status not in [:destroying, :destroyed]}
+              variant="secondary"
+              label={dgettext("dashboard", "Destroy")}
+              phx-click="destroy_server"
+              phx-value-id={server.id}
+              data-confirm={
+                dgettext(
+                  "dashboard",
+                  "Destroy the Kura server in %{region}? This tears down the backing resource and removes the URL from the account's cache endpoints.",
+                  region: server.region
+                )
+              }
+            />
+          </div>
+        </:col>
+        <:empty_state>
+          <.table_empty_state
+            icon="server"
+            title={dgettext("dashboard", "No Kura servers")}
+            subtitle={dgettext("dashboard", "Add the first one with the button below.")}
+          />
+        </:empty_state>
+      </.table>
+    </.card_section>
+
+    <.card_section>
+      <div data-part="actions">
+        <.button
+          variant="primary"
+          label={dgettext("dashboard", "Add Kura server")}
+          phx-click="open_add_server"
+        />
+      </div>
+    </.card_section>
+  </.card>
+
+  <.form
+    for={@add_server_form}
+    id="add-server-form"
+    phx-submit="submit_add_server"
+    class="add-server-form"
+  >
+    <.modal
+      id="add-server-modal"
+      title={dgettext("dashboard", "Add Kura server")}
+      description={
+        dgettext(
+          "dashboard",
+          "Pick a region and a spec. The server is created in the background and shows up in the list above as soon as it's ready."
+        )
+      }
+      header_type="icon"
+      header_size="small"
+      on_dismiss="close_add_server"
+    >
+      <:header_icon><.server /></:header_icon>
+      <:trigger :let={modal_attrs}>
+        <button id="add-server-trigger" type="button" style="display: none;" {modal_attrs}>
+        </button>
+      </:trigger>
+
+      <div class="select-field">
+        <.label label={dgettext("dashboard", "Region")} required />
+        <select id="add-server-region" name="server[region]" required>
+          <option
+            :for={region <- @kura_regions}
+            value={region.id}
+            selected={region.id == @add_server_form[:region].value}
+          >
+            {region.display_name}
+          </option>
+        </select>
+      </div>
+
+      <div class="select-field">
+        <.label label={dgettext("dashboard", "Spec")} required />
+        <select id="add-server-spec" name="server[spec]" required>
+          <option
+            :for={spec <- @kura_specs}
+            value={Atom.to_string(spec.id)}
+            selected={Atom.to_string(spec.id) == @add_server_form[:spec].value}
+          >
+            {spec.label}
+          </option>
+        </select>
+      </div>
+
+      <.text_input
+        id="add-server-volume"
+        name="server[volume_size_gi]"
+        label={dgettext("dashboard", "Volume size (GiB)")}
+        value={@add_server_form[:volume_size_gi].value}
+        required
+        show_required
+      />
+
+      <p data-part="hint">
+        <%= case @latest_kura_version do %>
+          <% nil -> %>
+            {dgettext(
+              "dashboard",
+              "No Kura release is available right now. The server fetches GitHub releases on demand and caches successful responses for an hour, so try again shortly if GitHub was temporarily unavailable."
+            )}
+          <% version -> %>
+            {dgettext("dashboard", "New servers start on Kura")}
+            <strong>{version.version}</strong>
+            {dgettext(
+              "dashboard",
+              "(latest cached release). Later deployments pick up the next release the same way."
+            )}
+        <% end %>
+      </p>
+
+      <:footer>
+        <.modal_footer>
+          <:action>
+            <.button
+              label={dgettext("dashboard", "Cancel")}
+              variant="secondary"
+              phx-click="close_add_server"
+            />
+          </:action>
+          <:action>
+            <button type="submit" class="noora-button" data-variant="primary" data-size="large">
+              <span>{dgettext("dashboard", "Create server")}</span>
+            </button>
+          </:action>
+        </.modal_footer>
+      </:footer>
+    </.modal>
+  </.form>
+
+  <.modal
+    :if={@upgrade_target_account}
+    id="enterprise-modal"
+    title={
+      dgettext("dashboard", "Upgrade %{account} to Enterprise",
+        account: @upgrade_target_account.name
+      )
+    }
+    description={
+      dgettext(
+        "dashboard",
+        "Creates a Stripe customer (if missing), sets the billing address, and starts an invoice-billed Enterprise subscription. The customer receives an invoice by email; no card is collected here."
+      )
+    }
+    header_type="icon"
+    header_size="small"
+    on_dismiss="close_enterprise_modal"
+  >
+    <:header_icon><.building /></:header_icon>
+    <:trigger :let={modal_attrs}>
+      <button id="enterprise-trigger" type="button" style="display: none;" {modal_attrs}></button>
+    </:trigger>
+
+    <form
+      id="enterprise-form"
+      phx-submit="submit_enterprise_upgrade"
+      class="enterprise-upgrade-form"
+    >
+      <.text_input
+        id="enterprise-name"
+        name="name"
+        label={dgettext("dashboard", "Name on invoice")}
+        value={prefill(@upgrade_target_customer, :name, @upgrade_target_account.name)}
+        required
+        show_required
+      />
+      <.text_input
+        id="enterprise-billing-email"
+        name="billing_email"
+        label={dgettext("dashboard", "Billing email")}
+        value={prefill(@upgrade_target_customer, :email, @upgrade_target_account.billing_email)}
+        required
+        show_required
+      />
+      <.text_input
+        id="enterprise-address-line1"
+        name="address_line1"
+        label={dgettext("dashboard", "Address line 1")}
+        value={prefill_address(@upgrade_target_customer, :line1)}
+        required
+        show_required
+      />
+      <.text_input
+        id="enterprise-address-line2"
+        name="address_line2"
+        label={dgettext("dashboard", "Address line 2 (optional)")}
+        value={prefill_address(@upgrade_target_customer, :line2)}
+      />
+      <.text_input
+        id="enterprise-address-city"
+        name="address_city"
+        label={dgettext("dashboard", "City")}
+        value={prefill_address(@upgrade_target_customer, :city)}
+        required
+        show_required
+      />
+      <.text_input
+        id="enterprise-address-state"
+        name="address_state"
+        label={dgettext("dashboard", "State / region (optional)")}
+        value={prefill_address(@upgrade_target_customer, :state)}
+      />
+      <.text_input
+        id="enterprise-address-postal-code"
+        name="address_postal_code"
+        label={dgettext("dashboard", "Postal code")}
+        value={prefill_address(@upgrade_target_customer, :postal_code)}
+        required
+        show_required
+      />
+      <div class="select-field">
+        <.label label={dgettext("dashboard", "Country")} required />
+        <.select
+          id="enterprise-address-country"
+          label={dgettext("dashboard", "Select a country")}
+          name="address_country"
+          value={prefill_address(@upgrade_target_customer, :country)}
+        >
+          <:item :for={{code, name} <- countries()} value={code} label={name} />
+        </.select>
+      </div>
+
+      <div class="select-field">
+        <.label label={dgettext("dashboard", "Billing cadence")} />
+        <.select
+          id="enterprise-cadence"
+          label={dgettext("dashboard", "Monthly")}
+          name="cadence"
+          value="monthly"
+        >
+          <:item value="monthly" label={dgettext("dashboard", "Monthly")} />
+          <:item value="yearly" label={dgettext("dashboard", "Yearly")} />
+        </.select>
+      </div>
+    </form>
+
+    <:footer>
+      <.modal_footer>
+        <:action>
+          <.button
+            label={dgettext("dashboard", "Cancel")}
+            variant="secondary"
+            type="button"
+            phx-click="close_enterprise_modal"
+          />
+        </:action>
+        <:action>
+          <.button
+            label={dgettext("dashboard", "Upgrade to Enterprise")}
+            variant="primary"
+            type="submit"
+            form="enterprise-form"
+          />
+        </:action>
+      </.modal_footer>
+    </:footer>
+  </.modal>
+</div>

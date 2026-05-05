@@ -94,4 +94,62 @@ defmodule Tuist.KeyValueStoreTest do
       assert result == expected_value
     end
   end
+
+  describe "put/3" do
+    test "stores a value in cachex" do
+      cache_key = [:put, "cachex_key"]
+      value = %{data: "cachex_value"}
+
+      assert {:ok, true} = KeyValueStore.put(cache_key, value)
+      assert KeyValueStore.get(cache_key) == value
+    end
+
+    test "supports atom keys documented in the examples" do
+      cache_key = :key_value_store_atom_key
+      value = "atom-key-value"
+      Cachex.del(:tuist, "key_value_store_atom_key")
+
+      assert {:ok, true} = KeyValueStore.put(cache_key, value)
+      assert KeyValueStore.get(cache_key) == value
+    end
+
+    test "uses a custom cache when specified" do
+      cache = :"key_value_store_put_#{System.unique_integer([:positive])}"
+      {:ok, _pid} = Cachex.start_link(name: cache)
+      cache_key = [:put, "custom_cache_key"]
+      value = "custom-cache-value"
+
+      assert {:ok, true} = KeyValueStore.put(cache_key, value, cache: cache)
+      assert KeyValueStore.get(cache_key, cache: cache) == value
+    end
+
+    test "stores a value in redis when persistence is enabled" do
+      cache_key = [:redis, "put_key"]
+      value = %{data: "redis_value"}
+
+      stub(Tuist.Environment, :redis_url, fn -> "redis://localhost:6379" end)
+
+      expect(Redix, :command, fn _conn, ["SET", "redis-put_key", serialized_value, "EX", 2] ->
+        assert :erlang.binary_to_term(serialized_value) == value
+        {:ok, "OK"}
+      end)
+
+      assert {:ok, "OK"} =
+               KeyValueStore.put(cache_key, value, persist_across_deployments: true, ttl: 2000)
+    end
+
+    test "falls back to cachex when redis connection fails" do
+      cache_key = [:redis, "put_fallback_key"]
+      value = %{data: "cachex_fallback"}
+
+      stub(Tuist.Environment, :redis_url, fn -> "redis://localhost:6379" end)
+
+      expect(Redix, :command, fn _conn, ["SET", "redis-put_fallback_key", _value, "EX", 60] ->
+        raise Redix.ConnectionError, reason: :closed
+      end)
+
+      assert {:ok, true} = KeyValueStore.put(cache_key, value, persist_across_deployments: true)
+      assert KeyValueStore.get(cache_key) == value
+    end
+  end
 end

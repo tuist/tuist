@@ -65,6 +65,7 @@ jobs:
           fi
 
       - name: Update CLA comment
+        if: steps.cla_check.outputs.cla_required == 'true'
         uses: actions/github-script@v7
         with:
           script: |

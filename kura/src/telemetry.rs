@@ -44,7 +44,12 @@ pub fn init_tracing(config: &Config) -> TelemetryGuards {
     let fmt_layer = tracing_subscriber::fmt::layer();
     let sentry_guard = init_sentry(config);
 
-    match build_tracer_provider(config, &config.otlp_traces_endpoint) {
+    let tracer_result = match config.otlp_traces_endpoint.as_deref() {
+        Some(endpoint) => build_tracer_provider(config, endpoint),
+        None => Err("OTLP tracing disabled (no endpoint configured)".to_owned()),
+    };
+
+    match tracer_result {
         Ok(tracer_provider) => {
             let tracer = tracer_provider.tracer("kura");
             if sentry_guard.is_some() {
@@ -67,9 +72,7 @@ pub fn init_tracing(config: &Config) -> TelemetryGuards {
             }
         }
         Err(error) => {
-            eprintln!(
-                "failed to initialize OTLP tracing, continuing without OTLP exporter: {error}"
-            );
+            eprintln!("OTLP tracing not active: {error}");
             if sentry_guard.is_some() {
                 tracing_subscriber::registry()
                     .with(env_filter)

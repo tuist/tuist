@@ -166,6 +166,7 @@ RUN --mount=type=cache,id=og-marketing,target=/og-cache/marketing,sharing=locked
 FROM deps-builder AS builder
 
 COPY server/priv priv
+COPY kura/ops/helm/kura priv/kura_chart
 COPY skills/skills priv/static/skills
 COPY server/assets assets
 COPY server/native native
@@ -229,6 +230,24 @@ RUN : "APT_CACHE_BUST=${APT_CACHE_BUST}" \
   apt-get upgrade -y && \
   apt-get install -y curl build-essential gcc wget libvips libstdc++6 openssl libncurses5 locales ca-certificates postgresql-client zip unzip git tini \
   && apt-get clean && rm -f /var/lib/apt/lists/*_*
+
+# Pin rollout tooling used by Kura Helm rollouts.
+ARG HELM_VERSION=3.20.2
+ARG KUBECTL_VERSION=1.36.0
+RUN set -eux; \
+  arch="$(dpkg --print-architecture)"; \
+  case "$arch" in \
+    amd64|arm64) tool_arch="$arch" ;; \
+    *) echo "unsupported arch $arch"; exit 1 ;; \
+  esac; \
+  tmp_dir="$(mktemp -d)" && \
+  curl -fsSL "https://get.helm.sh/helm-v${HELM_VERSION}-linux-${tool_arch}.tar.gz" \
+    | tar -xz -C "$tmp_dir" && \
+  install -m 755 "$tmp_dir/linux-${tool_arch}/helm" /usr/local/bin/helm && \
+  curl -fsSL -o /usr/local/bin/kubectl \
+    "https://dl.k8s.io/release/v${KUBECTL_VERSION}/bin/linux/${tool_arch}/kubectl" && \
+  chmod +x /usr/local/bin/kubectl && \
+  rm -rf "$tmp_dir"
 
 RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && locale-gen
 

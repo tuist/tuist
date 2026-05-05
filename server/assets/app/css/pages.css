@@ -21,6 +21,7 @@
 @import "./pages/overview.css";
 @import "./pages/preview.css";
 @import "./pages/previews.css";
+@import "./pages/ops/account.css";
 @import "./pages/ops/accounts.css";
 @import "./pages/ops/cache.css";
 @import "./pages/project_automations.css";
