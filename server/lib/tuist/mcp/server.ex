@@ -3,7 +3,7 @@ defmodule Tuist.MCP.Server do
 
   use EMCP.Server,
     name: "tuist",
-    version: "1.6.0",
+    version: "1.6.1",
     tools: [
       Tuist.MCP.Components.Tools.ListXcodeBuilds,
       Tuist.MCP.Components.Tools.GetXcodeBuild,
