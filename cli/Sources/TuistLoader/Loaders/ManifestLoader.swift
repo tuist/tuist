@@ -123,6 +123,7 @@ public class ManifestLoader: ManifestLoading {
     let manifestFilesLocator: ManifestFilesLocating
     let environment: Environmenting
     private let decoder: JSONDecoder
+    private let packageDescriptionContextProvider: PackageDescriptionContextProvider
     private var plugins: Plugins = .none
     private let cacheDirectoriesProvider: CacheDirectoriesProviding
     private let projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactoring
@@ -162,6 +163,7 @@ public class ManifestLoader: ManifestLoading {
         self.swiftPackageManagerController = swiftPackageManagerController
         self.packageInfoLoader = packageInfoLoader
         self.fileSystem = fileSystem
+        packageDescriptionContextProvider = PackageDescriptionContextProvider()
         decoder = JSONDecoder()
     }
 
@@ -337,7 +339,7 @@ public class ManifestLoader: ManifestLoading {
             let string = try System.shared.capture(
                 arguments,
                 verbose: false,
-                environment: Environment.current.manifestLoadingVariables
+                environment: manifestLoadingEnvironment(for: manifest)
             )
 
             guard let startTokenRange = string.range(of: ManifestLoader.startManifestToken, options: .literal),
@@ -467,6 +469,9 @@ public class ManifestLoader: ManifestLoading {
         arguments.append(contentsOf: projectDescriptionHelperArguments)
         arguments.append(contentsOf: packageDescriptionArguments)
         arguments.append(path.pathString)
+        if case .packageSettings = manifest {
+            arguments.append(contentsOf: try await packageDescriptionContextProvider.arguments(packageManifestPath: path))
+        }
 
         if !disableSandbox {
             #if os(macOS)
@@ -503,6 +508,14 @@ public class ManifestLoader: ManifestLoading {
             #endif
         } else {
             return arguments
+        }
+    }
+
+    private func manifestLoadingEnvironment(for manifest: Manifest) -> [String: String] {
+        if case .packageSettings = manifest {
+            return Environment.current.variables
+        } else {
+            return Environment.current.manifestLoadingVariables
         }
     }
 

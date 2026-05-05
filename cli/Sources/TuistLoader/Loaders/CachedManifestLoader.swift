@@ -25,6 +25,7 @@ public class CachedManifestLoader: ManifestLoading {
     private let tuistVersion: String
     private let decoder = JSONDecoder()
     private let encoder = JSONEncoder()
+    private let packageDescriptionContextProvider = PackageDescriptionContextProvider()
     private let helpersCache: ThreadSafe<[AbsolutePath: Task<String, any Error>]> = ThreadSafe([:])
     private let pluginsHashCache: ThreadSafe<Task<String?, any Error>?> = ThreadSafe(nil)
     private let cacheDirectory: ThrowableCaching<AbsolutePath>
@@ -186,7 +187,7 @@ public class CachedManifestLoader: ManifestLoading {
     ) async throws -> Hashes {
         let manifestHash = try calculateManifestHash(for: manifest, at: manifestPath)
         let helpersHash = try await calculateHelpersHash(at: path)
-        let environmentHash = calculateEnvironmentHash()
+        let environmentHash = try await calculateEnvironmentHash(for: manifest, manifestPath: manifestPath)
         let disableSandboxHash = "\(disableSandbox)".md5
 
         return Hashes(
@@ -234,12 +235,22 @@ public class CachedManifestLoader: ManifestLoading {
             .md5
     }
 
-    private func calculateEnvironmentHash() -> String? {
-        let tuistEnvVariables = Environment.current.manifestLoadingVariables.map { "\($0.key)=\($0.value)" }.sorted()
-        guard !tuistEnvVariables.isEmpty else {
+    private func calculateEnvironmentHash(for manifest: Manifest, manifestPath: AbsolutePath) async throws -> String? {
+        let environmentVariables: [String: String]
+        if case .packageSettings = manifest {
+            environmentVariables = Environment.current.variables
+            return try await packageDescriptionContextProvider.cacheHash(
+                packageManifestPath: manifestPath,
+                environment: environmentVariables
+            )
+        } else {
+            environmentVariables = Environment.current.manifestLoadingVariables
+        }
+        let manifestEnvironmentVariables = environmentVariables.map { "\($0.key)=\($0.value)" }.sorted()
+        guard !manifestEnvironmentVariables.isEmpty else {
             return nil
         }
-        return tuistEnvVariables.joined(separator: "-").md5
+        return manifestEnvironmentVariables.joined(separator: "-").md5
     }
 
     private func cachedPath(for manifestPath: AbsolutePath) throws -> AbsolutePath {
