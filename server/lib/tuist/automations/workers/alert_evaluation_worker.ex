@@ -55,44 +55,35 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
     :ok
   end
 
-  defp handle_recovery(alert, currently_triggered_ids, active_events, all_ids) do
+  defp handle_recovery(alert, currently_triggered_ids, active_events, _all_ids) do
     currently_triggered_set = MapSet.new(currently_triggered_ids)
-    all_ids_set = MapSet.new(all_ids)
+    events_by_id = Map.new(active_events, &{&1.test_case_id, &1})
 
     recovery_config = alert.recovery_config || %{}
     seconds = parse_window(recovery_config["window"] || "#{recovery_config["days_without_trigger"] || 14}d")
     cutoff = NaiveDateTime.add(NaiveDateTime.utc_now(), -seconds, :second)
 
-    recovered_ids =
-      active_events
-      |> Enum.filter(fn event ->
-        MapSet.member?(all_ids_set, event.test_case_id) and
-          not MapSet.member?(currently_triggered_set, event.test_case_id) and
-          NaiveDateTime.before?(event.triggered_at, cutoff)
-      end)
-      |> Enum.map(& &1.test_case_id)
-
-    Enum.each(recovered_ids, &recover_test_case(alert, &1))
-
-    recover_orphaned_flaky_test_cases(alert, currently_triggered_set, active_events, recovered_ids)
-  end
-
-  # Tests get marked `is_flaky = true` outside this alert's tracking: manually
-  # via UI/API, or by a previous automation that has since been deleted or
-  # reconfigured. Without this path they would stay flagged forever, because
-  # recovery walks `active_events` only.
-  defp recover_orphaned_flaky_test_cases(alert, currently_triggered_set, active_events, already_recovered_ids) do
-    tracked_ids =
-      active_events
-      |> MapSet.new(& &1.test_case_id)
-      |> MapSet.union(MapSet.new(already_recovered_ids))
-
     alert.project_id
     |> Tests.list_flagged_flaky_test_case_ids()
-    |> Enum.reject(fn id ->
-      MapSet.member?(tracked_ids, id) or MapSet.member?(currently_triggered_set, id)
-    end)
+    |> MapSet.new()
+    |> MapSet.union(MapSet.new(active_events, & &1.test_case_id))
+    |> Enum.reject(&MapSet.member?(currently_triggered_set, &1))
+    |> Enum.filter(&recovery_window_elapsed?(events_by_id, &1, cutoff))
     |> Enum.each(&recover_test_case(alert, &1))
+  end
+
+  # When this alert flagged the test, its triggered event tells us when, so we
+  # wait the recovery window before unflagging to prevent ping-ponging while
+  # the test flickers in and out of the trigger condition. Tests flagged
+  # without a matching event (manually via UI/API, by a previous automation
+  # that has since been deleted or reconfigured) have no `triggered_at` to gate
+  # against; they recover on the first evaluation that finds them not currently
+  # triggered.
+  defp recovery_window_elapsed?(events_by_id, test_case_id, cutoff) do
+    case Map.get(events_by_id, test_case_id) do
+      nil -> true
+      event -> NaiveDateTime.before?(event.triggered_at, cutoff)
+    end
   end
 
   defp recover_test_case(alert, test_case_id) do

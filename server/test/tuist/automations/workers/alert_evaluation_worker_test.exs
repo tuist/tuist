@@ -9,9 +9,9 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
   alias Tuist.Tests
   alias TuistTestSupport.Fixtures.AutomationsFixtures
 
-  setup :stub_no_orphans
+  setup :stub_no_flagged_test_cases
 
-  defp stub_no_orphans(_context) do
+  defp stub_no_flagged_test_cases(_context) do
     stub(Tests, :list_flagged_flaky_test_case_ids, fn _project_id -> [] end)
     :ok
   end
@@ -152,7 +152,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     assert :ok = run(automation.id)
   end
 
-  test "recovers tests flagged flaky outside this alert's tracking" do
+  test "recovers tests flagged without an active alert event on first sight" do
     automation =
       AutomationsFixtures.automation_alert_fixture(
         recovery_enabled: true,
@@ -160,20 +160,20 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
         recovery_actions: [%{"type" => "remove_label", "label" => "flaky"}]
       )
 
-    orphan_id = Ecto.UUID.generate()
+    flagged_id = Ecto.UUID.generate()
 
     expect(FlakyTestsMonitor, :evaluate, fn _automation ->
-      %{triggered: [], all: [orphan_id]}
+      %{triggered: [], all: [flagged_id]}
     end)
 
     expect(Automations, :list_active_alert_events, fn _id -> [] end)
 
     expect(Tests, :list_flagged_flaky_test_case_ids, fn project_id ->
       assert project_id == automation.project_id
-      [orphan_id]
+      [flagged_id]
     end)
 
-    expected_entity = %{type: :test_case, id: orphan_id}
+    expected_entity = %{type: :test_case, id: flagged_id}
 
     expect(ActionExecutor, :execute_actions, fn actions, ^automation, ^expected_entity ->
       assert actions == automation.recovery_actions
@@ -182,7 +182,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
 
     expect(Automations, :create_alert_event, fn %{
                                                   alert_id: id,
-                                                  test_case_id: ^orphan_id,
+                                                  test_case_id: ^flagged_id,
                                                   status: "recovered"
                                                 } ->
       assert id == automation.id
@@ -192,7 +192,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     assert :ok = run(automation.id)
   end
 
-  test "skips orphans that are currently triggered (handled via the trigger path)" do
+  test "does not recover a flagged test that is currently triggered (trigger path takes over)" do
     automation =
       AutomationsFixtures.automation_alert_fixture(
         recovery_enabled: true,
@@ -200,31 +200,31 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
         recovery_actions: [%{"type" => "remove_label", "label" => "flaky"}]
       )
 
-    orphan_currently_flaky = Ecto.UUID.generate()
+    flagged_and_triggered = Ecto.UUID.generate()
 
     expect(FlakyTestsMonitor, :evaluate, fn _automation ->
-      %{triggered: [orphan_currently_flaky], all: [orphan_currently_flaky]}
+      %{triggered: [flagged_and_triggered], all: [flagged_and_triggered]}
     end)
 
     expect(Automations, :list_active_alert_events, fn _id -> [] end)
 
-    expect(Tests, :list_flagged_flaky_test_case_ids, fn _project_id -> [orphan_currently_flaky] end)
+    expect(Tests, :list_flagged_flaky_test_case_ids, fn _project_id -> [flagged_and_triggered] end)
 
-    expected_entity = %{type: :test_case, id: orphan_currently_flaky}
+    expected_entity = %{type: :test_case, id: flagged_and_triggered}
 
     expect(ActionExecutor, :execute_actions, fn actions, ^automation, ^expected_entity ->
       assert actions == automation.trigger_actions
       :ok
     end)
 
-    expect(Automations, :create_alert_event, fn %{status: "triggered", test_case_id: ^orphan_currently_flaky} ->
+    expect(Automations, :create_alert_event, fn %{status: "triggered", test_case_id: ^flagged_and_triggered} ->
       :ok
     end)
 
     assert :ok = run(automation.id)
   end
 
-  test "skips orphans that already have an active alert event" do
+  test "waits the recovery window for flagged tests with an active alert event" do
     automation =
       AutomationsFixtures.automation_alert_fixture(
         recovery_enabled: true,
@@ -251,7 +251,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     assert :ok = run(automation.id)
   end
 
-  test "does not double-recover an orphan that was just recovered through the active-event path" do
+  test "recovers a flagged test once when both flagged and tracked by an active alert event" do
     automation =
       AutomationsFixtures.automation_alert_fixture(
         recovery_enabled: true,

@@ -721,9 +721,9 @@ defmodule Tuist.Tests do
 
   @doc """
   Returns the IDs of test cases in `project_id` whose latest row has
-  `is_flaky == true`. Used by the automation engine to discover tests that
-  were flagged outside the alert's tracking (manually, via API, or by a
-  prior automation), so recovery can adopt them.
+  `is_flaky == true`. The automation engine uses this to evaluate recovery
+  uniformly against every flagged test, regardless of whether the flag came
+  from one of its trigger actions, the UI/API, or another automation.
 
   `argMax(is_flaky, inserted_at)` resolves the latest row per id without the
   per-call merge cost of `FINAL`; the `project_id` leading sort key keeps the
