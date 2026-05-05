@@ -1,6 +1,7 @@
 import FileSystem
 import Foundation
 import TuistConstants
+import TuistEnvironment
 import XcodeGraph
 import XCTest
 
@@ -202,6 +203,68 @@ final class ManifestLoaderTests: TuistTestCase {
                 ]
             )
         )
+    }
+
+    func test_loadPackageSettings_withPackageDescriptionContext() async throws {
+        // Given
+        let temporaryPath = try temporaryPath()
+        let content = """
+        // swift-tools-version: 5.9
+        import PackageDescription
+
+        let demoContextValue = Context.environment["DEMO_CONTEXT_VALUE"]
+        let demoPackageDirectory = Context.packageDirectory
+
+        #if TUIST
+        import ProjectDescription
+
+        let packageSettings = PackageSettings(
+            targetSettings: [
+                "DemoKit": [
+                    "DEMO_CONTEXT_VALUE": .string(demoContextValue ?? "missing"),
+                    "DEMO_PACKAGE_DIRECTORY": .string(demoPackageDirectory),
+                ],
+            ]
+        )
+
+        #endif
+
+        let package = Package(
+            name: "DemoKit",
+            targets: [
+                .target(name: "DemoKit"),
+            ]
+        )
+
+        """
+
+        let manifestPath = temporaryPath.appending(
+            component: Manifest.package.fileName(temporaryPath)
+        )
+        try await fileSystem.makeDirectory(at: temporaryPath.appending(component: Constants.tuistDirectoryName))
+        try await fileSystem.writeText(content, at: manifestPath)
+        let variables = ProcessInfo.processInfo.environment.merging(
+            ["DEMO_CONTEXT_VALUE": "hello"],
+            uniquingKeysWith: { _, new in new }
+        )
+
+        // When
+        try await Environment.$current.withValue(Environment(variables: variables)) {
+            let got = try await ManifestLoader().loadPackageSettings(at: temporaryPath, disableSandbox: true)
+
+            // Then
+            XCTAssertEqual(
+                got,
+                .init(
+                    targetSettings: [
+                        "DemoKit": .settings(base: [
+                            "DEMO_CONTEXT_VALUE": "hello",
+                            "DEMO_PACKAGE_DIRECTORY": .string(temporaryPath.pathString),
+                        ]),
+                    ]
+                )
+            )
+        }
     }
 
     func test_loadPackageBaseProductType() async throws {
