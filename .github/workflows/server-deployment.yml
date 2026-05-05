@@ -23,11 +23,12 @@ name: Server Deployment
 # new environment is just adding the matching values files.
 #
 # Required secrets:
-#   OP_SERVICE_ACCOUNT_TOKEN (repo-level) - 1Password service account
-#     with read access to the Founders vault, where each cluster's
-#     kubeconfig is stored as a Document item named
-#     `kubeconfig: tuist-<env>`. The deploy steps fetch this at
-#     runtime via op CLI.
+#   OP_SERVICE_ACCOUNT_TOKEN (per GitHub Environment server-k8s-<env>) -
+#     1Password service-account token scoped read-only to the
+#     tuist-k8s-<env> vault, where the cluster's kubeconfig is stored
+#     as a Document item named `kubeconfig: tuist-<env>`. Each
+#     environment's secret value is the SA token for that environment's
+#     vault — staging deploys can't read canary/production kubeconfigs.
 # App secrets live inside the cluster (MASTER_KEY via ESO, DATABASE_URL /
 # ClickHouse / Tigris keys in priv/secrets/<env>.yml.enc baked into the
 # image).
@@ -155,7 +156,7 @@ jobs:
         run: |
           mkdir -p "$(dirname "$KUBECONFIG")"
           op document get "kubeconfig: tuist-${{ inputs.environment }}" \
-            --vault Founders --output "$KUBECONFIG"
+            --vault "tuist-k8s-${{ inputs.environment }}" --output "$KUBECONFIG"
           chmod 600 "$KUBECONFIG"
       - name: helm dependency update
         run: helm dependency update "$OBSERVABILITY_CHART_PATH"
@@ -201,7 +202,7 @@ jobs:
         run: |
           mkdir -p "$(dirname "$KUBECONFIG")"
           op document get "kubeconfig: tuist-${{ inputs.environment }}" \
-            --vault Founders --output "$KUBECONFIG"
+            --vault "tuist-k8s-${{ inputs.environment }}" --output "$KUBECONFIG"
           chmod 600 "$KUBECONFIG"
       - name: Recover interrupted Helm release
         run: |
