@@ -130,15 +130,9 @@ defmodule Tuist.Processor.XCResultProcessorTest do
         ]
       }
 
-      stub(ExAws.S3, :download_file, fn _bucket, _key, dest_path ->
-        File.cp!(to_string(fixture_zip), dest_path)
-        %ExAws.Operation.S3{http_method: :get, bucket: "tuist", path: "key"}
-      end)
+      expect(XCResultNIF, :parse, fn _path, _root -> {:ok, parsed_data} end)
 
-      expect(ExAws, :request, fn _ -> {:ok, :done} end)
-      expect(XcodeProcessor.XCResultNIF, :parse, fn _path, _root -> {:ok, parsed_data} end)
-
-      {:ok, result} = XCResultProcessor.process("some/key.zip")
+      {:ok, result} = XCResultProcessor.process_local(to_string(fixture_zip))
 
       assert result["status"] == "success"
       [module] = result["test_modules"]
@@ -178,15 +172,9 @@ defmodule Tuist.Processor.XCResultProcessorTest do
         ]
       }
 
-      stub(ExAws.S3, :download_file, fn _bucket, _key, dest_path ->
-        File.cp!(to_string(fixture_zip), dest_path)
-        %ExAws.Operation.S3{http_method: :get, bucket: "tuist", path: "key"}
-      end)
+      expect(XCResultNIF, :parse, fn _path, _root -> {:ok, parsed_data} end)
 
-      expect(ExAws, :request, fn _ -> {:ok, :done} end)
-      expect(XcodeProcessor.XCResultNIF, :parse, fn _path, _root -> {:ok, parsed_data} end)
-
-      {:ok, result} = XCResultProcessor.process("some/key.zip")
+      {:ok, result} = XCResultProcessor.process_local(to_string(fixture_zip))
 
       assert result["status"] == "failure"
     end
