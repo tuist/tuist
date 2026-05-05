@@ -1,6 +1,5 @@
 import Foundation
 import HTTPTypes
-import Logging
 import OpenAPIRuntime
 import TuistHTTP
 
@@ -59,11 +58,12 @@ struct ServerClientAuthenticationMiddleware: ClientMiddleware {
             }
             throw ClientAuthenticationError.notAuthenticated
         }
-        request.headerFields.append(
-            .init(
-                name: .authorization, value: "Bearer \(token.value)"
-            )
-        )
+        addAuthorizationHeader(to: &request, token: token)
+
         return try await next(request, body, baseURL)
+    }
+
+    private func addAuthorizationHeader(to request: inout HTTPRequest, token: AuthenticationToken) {
+        request.headerFields[.authorization] = "Bearer \(token.value)"
     }
 }

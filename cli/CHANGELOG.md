@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
+* preserve pruned test plan metadata by [@pepicrft](https://github.com/pepicrft) in [#10611](https://github.com/tuist/tuist/pull/10611)
 * include macOS SDK version in ProjectDescriptionHelpers cache key by [@pepicrft](https://github.com/pepicrft) in [#10598](https://github.com/tuist/tuist/pull/10598)
 * skip fully cached missing test plans by [@pepicrft](https://github.com/pepicrft) in [#10582](https://github.com/tuist/tuist/pull/10582)
 * disable HAR recording for cache daemon by [@fortmarek](https://github.com/fortmarek) in [#10589](https://github.com/tuist/tuist/pull/10589)

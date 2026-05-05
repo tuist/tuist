@@ -44,6 +44,8 @@ defmodule Tuist.MCP.Tool do
       @mcp_tool_schema Keyword.fetch!(unquote(opts), :schema)
       @mcp_tool_title Keyword.fetch!(unquote(opts), :title)
       @mcp_tool_read_only_hint Keyword.get(unquote(opts), :read_only_hint, true)
+      @mcp_tool_open_world_hint Keyword.get(unquote(opts), :open_world_hint, false)
+      @mcp_tool_destructive_hint Keyword.get(unquote(opts), :destructive_hint, false)
 
       @impl EMCP.Tool
       def name, do: @mcp_tool_name
@@ -52,7 +54,14 @@ defmodule Tuist.MCP.Tool do
       def input_schema, do: @mcp_tool_schema
 
       @impl EMCP.Tool
-      def annotations, do: %{title: @mcp_tool_title, readOnlyHint: @mcp_tool_read_only_hint}
+      def annotations do
+        %{
+          title: @mcp_tool_title,
+          readOnlyHint: @mcp_tool_read_only_hint,
+          openWorldHint: @mcp_tool_open_world_hint,
+          destructiveHint: @mcp_tool_destructive_hint
+        }
+      end
 
       unquote(call_impl)
 
