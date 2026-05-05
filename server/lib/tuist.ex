@@ -37,6 +37,7 @@ defmodule Tuist do
       # This module contains Tuist features that are not expected to have inter-dependencies
       # among them. They must only depend on core and utility modules.
       Bundles,
+      Bundles.Artifact,
       Bundles.Bundle,
       Bundles.BundleThreshold,
       Bundles.Workers.BundleThresholdWorker,
@@ -159,6 +160,9 @@ defmodule Tuist do
       UUIDv7,
       OAuth.Apple,
       OAuth2.SSOClient,
-      OAuth2.SSRFGuard
+      OAuth2.SSRFGuard,
+      SCIM,
+      SCIM.Filter,
+      SCIM.Resource
     ]
 end

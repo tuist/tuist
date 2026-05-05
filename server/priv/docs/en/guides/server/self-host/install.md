@@ -204,7 +204,7 @@ You can set up authentication with Google using [OAuth 2](https://developers.goo
 
 #### Okta {#okta}
 
-You can enable authentication with Okta through the [OAuth 2.0](https://oauth.net/2/) protocol. You'll have to [create an app](https://developer.okta.com/docs/en/guides/implement-oauth-for-okta/main/#create-an-oauth-2-0-app-in-okta) on Okta following <.localized_link href="/guides/integrations/sso#okta">these instructions</.localized_link>.
+You can enable authentication with Okta through the [OAuth 2.0](https://oauth.net/2/) protocol. You'll have to [create an app](https://developer.okta.com/docs/en/guides/implement-oauth-for-okta/main/#create-an-oauth-2-0-app-in-okta) on Okta following <.localized_link href="/guides/integrations/authentication/sso#okta">these instructions</.localized_link>.
 
 You will need to set the following environment variables once you obtain the client id and secret during the set up of the Okta application:
 

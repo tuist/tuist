@@ -1093,6 +1093,25 @@ defmodule Tuist.VCS do
   end
 
   @doc """
+  Creates a GitHub app installation or returns the existing installation for the account.
+  """
+  def create_or_get_github_app_installation(%{installation_id: installation_id, account_id: account_id} = attrs) do
+    installation_id = to_string(installation_id)
+    attrs = Map.put(attrs, :installation_id, installation_id)
+
+    case Repo.get_by(GitHubAppInstallation, installation_id: installation_id) do
+      nil ->
+        create_github_app_installation(attrs)
+
+      %GitHubAppInstallation{account_id: ^account_id} = github_app_installation ->
+        {:ok, github_app_installation}
+
+      %GitHubAppInstallation{} ->
+        {:error, :installation_already_connected}
+    end
+  end
+
+  @doc """
   Gets repositories for a GitHub app installation.
   """
   def get_github_app_installation_repositories(%GitHubAppInstallation{installation_id: installation_id}) do

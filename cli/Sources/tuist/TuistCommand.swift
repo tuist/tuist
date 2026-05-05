@@ -26,6 +26,7 @@ import TuistVersionCommand
 
 #if os(macOS)
     import TuistCore
+    import TuistHAR
     import TuistHTTP
     import TuistKit
     import TuistLoader
@@ -143,6 +144,7 @@ public struct TuistCommand: AsyncParsableCommand {
     public static func main(
         logFilePath: AbsolutePath,
         sessionDirectory: AbsolutePath,
+        networkFilePath: AbsolutePath,
         _ arguments: [String]? = nil,
         parseAsRoot: ((_ arguments: [String]?) throws -> ParsableCommand) = Self.parseAsRoot
     ) async throws {
@@ -164,6 +166,7 @@ public struct TuistCommand: AsyncParsableCommand {
                 let config = try await ConfigLoader().loadConfig(path: path)
                 let serverURL = try ServerEnvironmentService().url(configServerURL: config.url)
                 let command = try parseAsRoot(processedArguments)
+                let shouldRecordHAR = (command as? HARRecordingCommand)?.shouldRecordHAR ?? true
 
                 executeCommand = {
                     logFilePathDisplayStrategy =
@@ -180,12 +183,17 @@ public struct TuistCommand: AsyncParsableCommand {
                         && processedArguments.first != "analytics-upload"
                     let optionalAuthentication = config.project.optionalAuthentication
                     let runTrackableCommand = {
-                        try await trackableCommand.run(
-                            fullHandle: config.fullHandle,
-                            serverURL: serverURL,
-                            shouldTrackAnalytics: shouldTrackAnalytics,
-                            optionalAuthentication: optionalAuthentication
-                        )
+                        try await withHARRecorder(
+                            networkFilePath: networkFilePath,
+                            shouldRecordHAR: shouldRecordHAR
+                        ) {
+                            try await trackableCommand.run(
+                                fullHandle: config.fullHandle,
+                                serverURL: serverURL,
+                                shouldTrackAnalytics: shouldTrackAnalytics,
+                                optionalAuthentication: optionalAuthentication
+                            )
+                        }
                     }
                     if let nooraReadyCommand = command as? NooraReadyCommand {
                         let jsonThroughNoora = nooraReadyCommand.jsonThroughNoora
@@ -201,7 +209,12 @@ public struct TuistCommand: AsyncParsableCommand {
             } catch {
                 parsingError = error
                 executeCommand = {
-                    try await executeTask(with: processedArguments)
+                    try await withHARRecorder(
+                        networkFilePath: networkFilePath,
+                        shouldRecordHAR: true
+                    ) {
+                        try await executeTask(with: processedArguments)
+                    }
                 }
             }
 
@@ -350,6 +363,18 @@ public struct TuistCommand: AsyncParsableCommand {
                 arguments: processedArguments,
                 tuistBinaryPath: processArguments()!.first!
             )
+        }
+
+        private static func withHARRecorder(
+            networkFilePath: AbsolutePath,
+            shouldRecordHAR: Bool,
+            _ action: () async throws -> Void
+        ) async throws {
+            let harRecorder: HARRecorder? =
+                shouldRecordHAR ? HARRecorder(filePath: networkFilePath) : nil
+            try await HARRecorder.$current.withValue(harRecorder) {
+                try await action()
+            }
         }
     #endif
 

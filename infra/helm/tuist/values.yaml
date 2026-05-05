@@ -459,6 +459,7 @@ postgresql:
     username: tuist
     password: tuist
     persistence:
+      create: true
       storageClassName: ""
       accessModes:
         - ReadWriteOnce
@@ -482,6 +483,7 @@ clickhouse:
     username: default
     password: ""
     persistence:
+      create: true
       storageClassName: ""
       accessModes:
         - ReadWriteOnce
@@ -554,6 +556,7 @@ objectStorage:
     rootPassword: minio1234
     region: auto
     persistence:
+      create: true
       storageClassName: ""
       accessModes:
         - ReadWriteOnce

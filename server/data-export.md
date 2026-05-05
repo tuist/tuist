@@ -14,10 +14,10 @@ Sensitive authentication data (passwords, tokens) are excluded from exports.
 ## Exportable Data
 
 ### Account & User Data
-- User profiles (email, account settings, preferred locale)
+- User profiles (email, active/inactive status, account settings, preferred locale)
 - Organization memberships and roles
 - Account billing information and subscriptions
-- API tokens and project tokens (existence only, not values)
+- API tokens, SCIM-scoped account tokens, and project tokens (existence, scopes, names, timestamps, and last-used metadata only; token values and hashes are excluded)
 - Custom cache endpoint configurations
 - Organization SSO configuration metadata, including the configured SSO provider, provider URL, and full OAuth2 endpoint URLs
 
@@ -50,14 +50,16 @@ The following data is stored in ClickHouse for analytics purposes:
 - **Shard plan test suites** (`shard_plan_test_suites` table): Per-shard test suite assignments with estimated durations
 - **Shard runs** (`shard_runs` table): Per-shard execution results with status and duration
 - **Test runs** (`test_runs` table): Includes `shard_plan_id` linking test results to their shard plan
+- **Bundles** (`bundles` table): App bundle metadata (name, app bundle id, version, install/download size, supported platforms, type, git ref/branch/commit). Dual-written from PostgreSQL during the in-flight PG → CH migration. PostgreSQL remains authoritative for export until the cutover completes.
 - **Bundle artifacts** (`artifacts` table): App bundle artifact tree (paths, sizes, SHA hashes, parent/child hierarchy) per uploaded bundle.
 - **Active test cases daily stats** (`test_case_runs_active_daily_stats` materialized view): Pre-aggregated `uniqExactState(test_case_id)` per (`project_id`, `date`, `is_ci`) derived from `test_case_runs`. Powers the Test Cases analytics chart; contains no data not already covered by the source `test_case_runs` table.
+- **Test case runs by commit** (`test_case_runs_by_commit` materialized view): Slim projection of `test_case_runs` ordered by (`project_id`, `git_commit_sha`, `scheme`, `is_ci`, `status`, `id`). Powers the cross-run flakiness lookup; contains no data not already covered by the source `test_case_runs` table.
 - Build performance metrics
 
 ### Non-Exportable Data
 - Encrypted passwords and authentication secrets
+- Account, SCIM-scoped account, and project token values and encrypted token hashes
 - Encrypted SSO client secrets for Okta and custom OAuth2 providers
-- Internal replication bookkeeping (e.g., `bundles.artifacts_replicated_to_ch`) used to drive the PG → ClickHouse artifacts backfill
 
 ## Binary Files
 

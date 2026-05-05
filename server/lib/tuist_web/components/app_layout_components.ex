@@ -542,6 +542,21 @@ defmodule TuistWeb.AppLayoutComponents do
             badge_label={breadcrumb_item[:badge] && breadcrumb_item.badge.label}
             badge_color={breadcrumb_item[:badge] && breadcrumb_item.badge.color}
           />
+          <:footer :if={Map.get(breadcrumb, :footer_items)}>
+            <.breadcrumb_item
+              :for={breadcrumb_item <- breadcrumb.footer_items}
+              id={"#{@id}-#{breadcrumb_item.value}"}
+              value={breadcrumb_item.value}
+              label={breadcrumb_item.label}
+              selected={breadcrumb_item.selected}
+              href={breadcrumb_item.href}
+              show_avatar={Map.get(breadcrumb_item, :show_avatar, false)}
+              avatar_color={Map.get(breadcrumb_item, :avatar_color)}
+              icon={Map.get(breadcrumb_item, :icon)}
+              badge_label={breadcrumb_item[:badge] && breadcrumb_item.badge.label}
+              badge_color={breadcrumb_item[:badge] && breadcrumb_item.badge.color}
+            />
+          </:footer>
         </.breadcrumb>
       <% end %>
     </.breadcrumbs>
