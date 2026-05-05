@@ -11,6 +11,12 @@ Tuist provides support for the Xcode compilation cache, which allows teams to sh
 
 The Xcode cache was introduced in Xcode 26. You might also see it referred to as the Xcode build cache; it reuses compilation artifacts keyed by their inputs, and Tuist's remote cache makes those artifacts shareable across machines.
 
+> [!TIP]
+> **Combine with the module cache**
+>
+> The Xcode cache and the <.localized_link href="/guides/features/cache/module-cache">module cache</.localized_link> work at different granularity levels and complement each other. The module cache replaces whole targets (typically external dependencies) with prebuilt `.xcframework`s, while the Xcode cache reuses compilation artifacts at the object level for everything the build system still compiles. Using both together is the recommended setup, and it's how we cache `tuist/tuist` itself.
+
+
 ## Setup {#setup}
 
 > [!WARNING]
