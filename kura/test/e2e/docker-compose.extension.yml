@@ -12,7 +12,9 @@ services:
       KURA_EXTENSION_JWT_VERIFIER_PRIMARY_ALGORITHM: HS256
       KURA_EXTENSION_JWT_VERIFIER_PRIMARY_SECRET: extension-jwt-secret
       KURA_EXTENSION_SIGNER_CACHE_PRIMARY_ALGORITHM: hmac-sha256
-      KURA_EXTENSION_SIGNER_CACHE_PRIMARY_SECRET: extension-signing-secret
+      # base64 of "extension-signing-secret"; the signer parser decodes
+      # the value as raw key bytes.
+      KURA_EXTENSION_SIGNER_CACHE_PRIMARY_SECRET: ZXh0ZW5zaW9uLXNpZ25pbmctc2VjcmV0
     volumes:
       - ./test/e2e/extensions/jwt_auth.lua:/etc/kura/extensions/hooks.lua:ro
 
