@@ -55,17 +55,6 @@ public enum ManifestLoaderError: FatalError, Equatable {
     }
 }
 
-private struct PackageDescriptionContext: Encodable {
-    let packageDirectory: String
-    let gitInformation: GitInformation?
-
-    struct GitInformation: Encodable {
-        let currentTag: String?
-        let currentCommit: String
-        let hasUncommittedChanges: Bool
-    }
-}
-
 @Mockable
 public protocol ManifestLoading {
     /// Loads the Tuist.swift in the given directory.
@@ -487,7 +476,7 @@ public class ManifestLoader: ManifestLoading {
             // PackageDescription.Context expects SwiftPM's manifest runtime context argument.
             let context = PackageDescriptionContext(
                 packageDirectory: path.parentDirectory.pathString,
-                gitInformation: packageDescriptionContextGitInformation(at: path.parentDirectory)
+                gitInformation: try packageDescriptionContextGitInformation(at: path.parentDirectory)
             )
             let data = try JSONEncoder().encode(context)
             arguments.append(contentsOf: [
@@ -534,18 +523,20 @@ public class ManifestLoader: ManifestLoading {
         }
     }
 
-    private func packageDescriptionContextGitInformation(at packageDirectory: AbsolutePath) -> PackageDescriptionContext
+    private func packageDescriptionContextGitInformation(at packageDirectory: AbsolutePath) throws -> PackageDescriptionContext
         .GitInformation?
     {
-        do {
-            return PackageDescriptionContext.GitInformation(
-                currentTag: try? gitController.currentTag(workingDirectory: packageDirectory),
-                currentCommit: try gitController.currentCommitSHA(workingDirectory: packageDirectory),
-                hasUncommittedChanges: try gitController.hasUncommittedChanges(workingDirectory: packageDirectory)
-            )
-        } catch {
+        guard gitController.isGitAvailable(),
+              gitController.isInGitRepository(workingDirectory: packageDirectory)
+        else {
             return nil
         }
+
+        return PackageDescriptionContext.GitInformation(
+            currentTag: try gitController.currentTag(workingDirectory: packageDirectory),
+            currentCommit: try gitController.currentCommitSHA(workingDirectory: packageDirectory),
+            hasUncommittedChanges: try gitController.hasUncommittedChanges(workingDirectory: packageDirectory)
+        )
     }
 
     private func macOSSandboxProfile(

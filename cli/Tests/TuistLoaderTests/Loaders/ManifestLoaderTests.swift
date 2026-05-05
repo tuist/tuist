@@ -1,7 +1,10 @@
 import FileSystem
 import Foundation
+import Mockable
 import TuistConstants
+import TuistCore
 import TuistEnvironment
+import TuistGit
 import XcodeGraph
 import XCTest
 @testable import TuistLoader
@@ -207,12 +210,24 @@ final class ManifestLoaderTests: TuistTestCase {
     func test_loadPackageSettings_withPackageDescriptionContextEnvironment() async throws {
         // Given
         let temporaryPath = try temporaryPath()
+        let gitController = MockGitControlling()
+        subject = ManifestLoader(
+            environment: Environment.current,
+            resourceLocator: ResourceLocator(),
+            cacheDirectoriesProvider: CacheDirectoriesProvider(),
+            projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactory(),
+            manifestFilesLocator: ManifestFilesLocator(),
+            swiftPackageManagerController: SwiftPackageManagerController(),
+            packageInfoLoader: PackageInfoLoader(),
+            gitController: gitController
+        )
         let content = """
         // swift-tools-version: 6.1
         import PackageDescription
 
         let demoContextValue = Context.environment["TUIST_DEMO_CONTEXT_VALUE"]
-        let hasGitInformation = Context.gitInformation?.currentCommit.isEmpty == false &&
+        let hasGitInformation = Context.gitInformation?.currentTag == "1.2.3" &&
+            Context.gitInformation?.currentCommit == "abc123" &&
             Context.gitInformation?.hasUncommittedChanges == false
 
         #if TUIST
@@ -241,11 +256,21 @@ final class ManifestLoaderTests: TuistTestCase {
             encoding: .utf8
         )
 
-        try System.shared.run(["git", "-C", temporaryPath.pathString, "init"])
-        try System.shared.run(["git", "-C", temporaryPath.pathString, "config", "user.email", "tuist@example.com"])
-        try System.shared.run(["git", "-C", temporaryPath.pathString, "config", "user.name", "Tuist"])
-        try System.shared.run(["git", "-C", temporaryPath.pathString, "add", "Package.swift"])
-        try System.shared.run(["git", "-C", temporaryPath.pathString, "commit", "-m", "Initial commit"])
+        given(gitController)
+            .isGitAvailable()
+            .willReturn(true)
+        given(gitController)
+            .isInGitRepository(workingDirectory: .value(temporaryPath))
+            .willReturn(true)
+        given(gitController)
+            .currentTag(workingDirectory: .value(temporaryPath))
+            .willReturn("1.2.3")
+        given(gitController)
+            .currentCommitSHA(workingDirectory: .value(temporaryPath))
+            .willReturn("abc123")
+        given(gitController)
+            .hasUncommittedChanges(workingDirectory: .value(temporaryPath))
+            .willReturn(false)
 
         let variables = Environment.current.variables.merging(
             ["TUIST_DEMO_CONTEXT_VALUE": "enabled"],
