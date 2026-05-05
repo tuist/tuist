@@ -122,7 +122,8 @@ config :logger, :console,
   ]
 
 config :mime, :types, %{
-  "application/linkset+json" => ["linkset"]
+  "application/linkset+json" => ["linkset"],
+  "application/scim+json" => ["scim+json"]
 }
 
 # Money

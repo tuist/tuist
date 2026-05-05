@@ -119,6 +119,7 @@ defmodule Tuist.Docs.Redirects do
     {:exact, "/guides/develop/automate/continuous-integration", "/guides/integrations/continuous-integration"},
     {:exact, "/guides/develop/automate/workflows", "/guides/integrations/continuous-integration"},
     {:exact, "/guides/automate/workflows", "/guides/integrations/continuous-integration"},
+    {:exact, "/guides/integrations/sso", "/guides/integrations/authentication/sso"},
     {:exact, "/guides/develop/selective-testing/xcodebuild", "/guides/features/selective-testing"},
     {:exact, "/guides/features/mcp", "/guides/features/agentic-coding/mcp"},
     {:exact, "/guides/features/agentic-building/mcp", "/guides/features/agentic-coding/mcp"},

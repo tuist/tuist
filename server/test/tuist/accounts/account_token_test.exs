@@ -165,6 +165,20 @@ defmodule Tuist.Accounts.AccountTokenTest do
       assert got.valid?
     end
 
+    test "accepts the SCIM scope" do
+      # When
+      got =
+        AccountToken.create_changeset(%{
+          account_id: 1,
+          encrypted_token_hash: "hash",
+          scopes: [AccountToken.scim_scope()],
+          name: "scim"
+        })
+
+      # Then
+      assert got.valid?
+    end
+
     test "ensures account_id and encrypted_token_hash are unique" do
       # Given
       account_id = AccountsFixtures.user_fixture(preload: [:account]).account.id

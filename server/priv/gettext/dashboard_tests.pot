@@ -487,7 +487,7 @@ msgid "Flaky test cases"
 msgstr ""
 
 #: lib/tuist_web/live/flaky_tests_live.html.heex:155
-#: lib/tuist_web/live/flaky_tests_live.html.heex:293
+#: lib/tuist_web/live/flaky_tests_live.html.heex:294
 #: lib/tuist_web/live/tests_live.html.heex:133
 #: lib/tuist_web/live/tests_live.html.heex:542
 #, elixir-autogen, elixir-format
@@ -1721,7 +1721,7 @@ msgid "Muted"
 msgstr ""
 
 #: lib/tuist_web/live/flaky_tests_live.html.heex:125
-#: lib/tuist_web/live/flaky_tests_live.html.heex:294
+#: lib/tuist_web/live/flaky_tests_live.html.heex:293
 #, elixir-autogen, elixir-format
 msgid "Flaky test case runs"
 msgstr ""
