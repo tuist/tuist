@@ -1,3 +1,4 @@
+import Command
 import Foundation
 import Mockable
 import Path
@@ -15,14 +16,14 @@ public protocol ForeignBuildHashing {
 
 public struct ForeignBuildHasher: ForeignBuildHashing {
     private let contentHasher: ContentHashing
-    private let system: Systeming
+    private let commandRunner: CommandRunning
 
     public init(
         contentHasher: ContentHashing,
-        system: Systeming = System.shared
+        commandRunner: CommandRunning = CommandRunner()
     ) {
         self.contentHasher = contentHasher
-        self.system = system
+        self.commandRunner = commandRunner
     }
 
     public func hash(
@@ -55,7 +56,7 @@ public struct ForeignBuildHasher: ForeignBuildHashing {
                 hashes.append(folderHash)
 
             case let .script(script):
-                let output = try await system.runAndCollectOutput(["/bin/sh", "-c", script])
+                let output = try await commandRunner.runAndCollectOutput(arguments: ["/bin/sh", "-c", script])
                 hashes.append(try contentHasher.hash(output.standardOutput))
             }
         }

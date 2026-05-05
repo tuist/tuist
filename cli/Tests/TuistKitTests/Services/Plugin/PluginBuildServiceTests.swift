@@ -8,7 +8,7 @@ final class PluginBuildServiceTests: TuistUnitTestCase {
 
     override func setUp() {
         super.setUp()
-        subject = PluginBuildService()
+        subject = PluginBuildService(commandRunner: mockCommandRunner)
     }
 
     override func tearDown() {
@@ -16,11 +16,11 @@ final class PluginBuildServiceTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_run_with_arguments() throws {
+    func test_run_with_arguments() async throws {
         // Given
         let path = try temporaryPath()
 
-        system.succeedCommand([
+        mockCommandRunner.succeedCommand([
             "swift", "build",
             "--configuration", PluginCommand.PackageConfiguration.release.rawValue,
             "--package-path", path.pathString,
@@ -32,36 +32,32 @@ final class PluginBuildServiceTests: TuistUnitTestCase {
             "--product", "MyProduct2",
         ])
 
-        // When / Then
-        XCTAssertNoThrow(
-            try subject.run(
-                path: path.pathString,
-                configuration: .release,
-                buildTests: true,
-                showBinPath: true,
-                targets: ["MyTarget1", "MyTarget2"],
-                products: ["MyProduct1", "MyProduct2"]
-            )
+        // When
+        try await subject.run(
+            path: path.pathString,
+            configuration: .release,
+            buildTests: true,
+            showBinPath: true,
+            targets: ["MyTarget1", "MyTarget2"],
+            products: ["MyProduct1", "MyProduct2"]
         )
     }
 
-    func test_run_with_no_arguments() throws {
+    func test_run_with_no_arguments() async throws {
         // Given
-        system.succeedCommand([
+        mockCommandRunner.succeedCommand([
             "swift", "build",
             "--configuration", PluginCommand.PackageConfiguration.debug.rawValue,
         ])
 
-        // When / Then
-        XCTAssertNoThrow(
-            try subject.run(
-                path: nil,
-                configuration: .debug,
-                buildTests: false,
-                showBinPath: false,
-                targets: [],
-                products: []
-            )
+        // When
+        try await subject.run(
+            path: nil,
+            configuration: .debug,
+            buildTests: false,
+            showBinPath: false,
+            targets: [],
+            products: []
         )
     }
 }

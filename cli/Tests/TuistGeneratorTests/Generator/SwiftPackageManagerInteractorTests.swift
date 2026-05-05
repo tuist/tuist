@@ -13,21 +13,21 @@ import XCTest
 
 final class SwiftPackageManagerInteractorTests: TuistTestCase {
     private var subject: SwiftPackageManagerInteractor!
-    private var system: MockSystem!
+    private var commandRunner: MockCommandRunner!
     private var fileSystem: FileSysteming!
 
     override func setUp() {
         super.setUp()
-        system = MockSystem()
+        commandRunner = MockCommandRunner()
         fileSystem = FileSystem()
         subject = SwiftPackageManagerInteractor(
             fileSystem: fileSystem,
-            system: system
+            commandRunner: commandRunner
         )
     }
 
     override func tearDown() {
-        system = nil
+        commandRunner = nil
         fileSystem = nil
         subject = nil
         super.tearDown()
@@ -55,7 +55,13 @@ final class SwiftPackageManagerInteractorTests: TuistTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         let workspacePath = temporaryPath.appending(component: "\(project.name).xcworkspace")
-        system.succeedCommand(["xcodebuild", "-resolvePackageDependencies", "-workspace", workspacePath.pathString, "-list"])
+        commandRunner.succeedCommand([
+            "xcodebuild",
+            "-resolvePackageDependencies",
+            "-workspace",
+            workspacePath.pathString,
+            "-list",
+        ])
         try await createFiles(["\(workspacePath.basename)/xcshareddata/swiftpm/Package.resolved"])
 
         // When
@@ -88,7 +94,13 @@ final class SwiftPackageManagerInteractorTests: TuistTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         let workspacePath = temporaryPath.appending(component: "\(project.name).xcworkspace")
-        system.succeedCommand(["xcodebuild", "-resolvePackageDependencies", "-workspace", workspacePath.pathString, "-list"])
+        commandRunner.succeedCommand([
+            "xcodebuild",
+            "-resolvePackageDependencies",
+            "-workspace",
+            workspacePath.pathString,
+            "-list",
+        ])
         try await createFiles(["\(workspacePath.basename)/xcshareddata/swiftpm/Package.resolved"])
 
         // When
@@ -122,7 +134,7 @@ final class SwiftPackageManagerInteractorTests: TuistTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         let workspacePath = temporaryPath.appending(component: "\(project.name).xcworkspace")
-        system
+        commandRunner
             .succeedCommand([
                 "xcodebuild",
                 "-resolvePackageDependencies",
@@ -180,7 +192,13 @@ final class SwiftPackageManagerInteractorTests: TuistTestCase {
         try await FileSystem().writeText("package", at: rootPackageResolvedPath)
 
         let workspacePath = temporaryPath.appending(component: workspace.name + ".xcworkspace")
-        system.succeedCommand(["xcodebuild", "-resolvePackageDependencies", "-workspace", workspacePath.pathString, "-list"])
+        commandRunner.succeedCommand([
+            "xcodebuild",
+            "-resolvePackageDependencies",
+            "-workspace",
+            workspacePath.pathString,
+            "-list",
+        ])
 
         // When
         try await subject.install(graphTraverser: graphTraverser, workspaceName: workspacePath.basename)
@@ -243,7 +261,7 @@ final class SwiftPackageManagerInteractorTests: TuistTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         let workspacePath = temporaryPath.appending(component: "\(project.name).xcworkspace")
-        system.succeedCommand([
+        commandRunner.succeedCommand([
             "xcodebuild",
             "-resolvePackageDependencies",
             "-clonedSourcePackagesDirPath",
