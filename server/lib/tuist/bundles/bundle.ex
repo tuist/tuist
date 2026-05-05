@@ -1,11 +1,26 @@
 defmodule Tuist.Bundles.Bundle do
-  @moduledoc false
+  @moduledoc """
+  ClickHouse-backed schema for app bundles.
+  """
 
   use Ecto.Schema
 
-  import Ecto.Changeset
-
   alias Tuist.Bundles.Artifact
+
+  @platforms [
+    :ios,
+    :ios_simulator,
+    :tvos,
+    :tvos_simulator,
+    :watchos,
+    :watchos_simulator,
+    :visionos,
+    :visionos_simulator,
+    :macos,
+    :android
+  ]
+
+  @types [:ipa, :app, :xcarchive, :aab, :apk]
 
   @derive {
     Flop.Schema,
@@ -22,79 +37,40 @@ defmodule Tuist.Bundles.Bundle do
     sortable: [:inserted_at, :install_size, :download_size]
   }
 
-  @primary_key {:id, UUIDv7, autogenerate: false}
-  @foreign_key_type UUIDv7
+  @primary_key {:id, Ch, type: "UUID", autogenerate: false}
   schema "bundles" do
-    field :app_bundle_id, :string
-    field :name, :string
-    field :install_size, :integer
-    field :download_size, :integer
-    field :git_branch
-    field :git_commit_sha
-    field :git_ref
+    field :app_bundle_id, Ch, type: "String"
+    field :name, Ch, type: "String"
+    field :install_size, Ch, type: "Int64"
+    field :download_size, Ch, type: "Nullable(Int64)"
+    field :git_branch, Ch, type: "Nullable(String)"
+    field :git_commit_sha, Ch, type: "Nullable(String)"
+    field :git_ref, Ch, type: "Nullable(String)"
+    field :supported_platforms, Ch, type: "Array(LowCardinality(String))"
+    field :version, Ch, type: "String"
+    field :type, Ch, type: "LowCardinality(String)"
+    field :project_id, Ch, type: "Int64"
+    field :uploaded_by_account_id, Ch, type: "Nullable(Int64)"
 
-    field :supported_platforms, {:array, Ecto.Enum},
-      values: [
-        ios: 0,
-        ios_simulator: 1,
-        tvos: 2,
-        tvos_simulator: 3,
-        watchos: 4,
-        watchos_simulator: 5,
-        visionos: 6,
-        visionos_simulator: 7,
-        macos: 8,
-        android: 9
-      ]
+    field :inserted_at, Ch, type: "DateTime64(6)"
+    field :updated_at, Ch, type: "DateTime64(6)"
 
-    field :version, :string
+    belongs_to :project, Tuist.Projects.Project, type: :integer, define_field: false
 
-    field :type, Ecto.Enum,
-      values: [
-        ipa: 0,
-        app: 1,
-        xcarchive: 2,
-        aab: 3,
-        apk: 4
-      ]
+    belongs_to :uploaded_by_account, Tuist.Accounts.Account,
+      type: :integer,
+      define_field: false
 
-    field :replicated_to_ch, :boolean, default: true
-
-    belongs_to :project, Tuist.Projects.Project, type: :integer
-    belongs_to :uploaded_by_account, Tuist.Accounts.Account, type: :integer
-    has_many :artifacts, Artifact
-
-    timestamps(type: :utc_datetime)
+    has_many :artifacts, Artifact, foreign_key: :bundle_id
   end
 
-  def changeset(bundle, attrs) do
-    bundle
-    |> cast(attrs, [
-      :id,
-      :app_bundle_id,
-      :name,
-      :install_size,
-      :download_size,
-      :supported_platforms,
-      :version,
-      :type,
-      :project_id,
-      :uploaded_by_account_id,
-      :git_commit_sha,
-      :git_branch,
-      :git_ref,
-      :inserted_at
-    ])
-    |> validate_required([
-      :app_bundle_id,
-      :name,
-      :install_size,
-      :supported_platforms,
-      :version,
-      :type,
-      :project_id
-    ])
-    |> validate_subset(:supported_platforms, Ecto.Enum.values(__MODULE__, :supported_platforms))
-    |> foreign_key_constraint(:project_id)
-  end
+  @doc """
+  Atom values accepted as `type` on bundle uploads.
+  """
+  def types, do: @types
+
+  @doc """
+  Atom values accepted in `supported_platforms` on bundle uploads.
+  """
+  def supported_platforms, do: @platforms
 end

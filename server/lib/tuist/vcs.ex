@@ -440,7 +440,7 @@ defmodule Tuist.VCS do
       |> where([b], b.project_id == ^project.id and like(b.git_ref, ^git_ref_pattern))
       |> order_by([b], desc: b.inserted_at)
       |> distinct([b], b.name)
-      |> Repo.all()
+      |> ClickHouseRepo.all()
 
     if Enum.empty?(bundles) do
       nil

@@ -7,7 +7,6 @@ defmodule Tuist.BundlesTest do
   alias Tuist.Bundles
   alias Tuist.Bundles.Artifact
   alias Tuist.Bundles.Bundle
-  alias Tuist.Bundles.BundleIngest
   alias Tuist.ClickHouseRepo
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.BundlesFixtures
@@ -103,7 +102,7 @@ defmodule Tuist.BundlesTest do
       assert NaiveDateTime.compare(parent.updated_at, ~N[2024-08-10 02:00:00]) == :eq
     end
 
-    test "shadow-writes the bundle to ClickHouse" do
+    test "writes the bundle to ClickHouse" do
       # Given
       project_id = ProjectsFixtures.project_fixture().id
       id = UUIDv7.generate()
@@ -127,7 +126,7 @@ defmodule Tuist.BundlesTest do
 
       # Then read back via the read-only `ClickHouseRepo`.
       [ch_bundle] =
-        ClickHouseRepo.all(from(b in BundleIngest, where: b.id == type(^id, Ecto.UUID)))
+        ClickHouseRepo.all(from(b in Bundle, where: b.id == type(^id, Ecto.UUID)))
 
       assert ch_bundle.id == id
       assert ch_bundle.name == "App"
@@ -142,48 +141,9 @@ defmodule Tuist.BundlesTest do
       assert ch_bundle.project_id == project_id
       assert ch_bundle.uploaded_by_account_id == nil
       assert NaiveDateTime.compare(ch_bundle.inserted_at, ~N[2024-08-10 02:00:00]) == :eq
-
-      # And the PG row is marked as replicated.
-      assert Repo.get(Bundle, id).replicated_to_ch == true
     end
 
-    test "marks the bundle as not replicated when the ClickHouse dual-write fails" do
-      # Given
-      project_id = ProjectsFixtures.project_fixture().id
-      id = UUIDv7.generate()
-
-      # Stub only the BundleIngest insert path (no artifacts in this case so
-      # the in-transaction `Artifact` insert is never reached).
-      stub(Tuist.IngestRepo, :insert_all, fn schema, _rows ->
-        if schema == BundleIngest do
-          raise DBConnection.ConnectionError, "ClickHouse is down"
-        else
-          {0, nil}
-        end
-      end)
-
-      # When
-      {:ok, bundle} =
-        Bundles.create_bundle(%{
-          id: id,
-          name: "App",
-          app_bundle_id: "dev.tuist.app",
-          install_size: 1024,
-          download_size: 1024,
-          supported_platforms: [:ios],
-          version: "1.0.0",
-          git_branch: "main",
-          type: :app,
-          project_id: project_id
-        })
-
-      # Then the bundle is committed in PG with `replicated_to_ch = false`
-      # so the eventual backfill picks it up.
-      assert bundle.id == id
-      assert Repo.get(Bundle, id).replicated_to_ch == false
-    end
-
-    test "rolls back the bundle insert when ClickHouse is unavailable" do
+    test "raises and skips the bundle insert when ClickHouse is unavailable" do
       # Given
       project_id = ProjectsFixtures.project_fixture().id
       id = UUIDv7.generate()
@@ -192,7 +152,8 @@ defmodule Tuist.BundlesTest do
         raise DBConnection.ConnectionError, "ClickHouse is down"
       end)
 
-      # When
+      # When the artifacts insert raises, the bundle insert is never reached
+      # so we never end up with a bundle row that has no artifacts in CH.
       assert_raise DBConnection.ConnectionError, fn ->
         Bundles.create_bundle(%{
           id: id,
@@ -216,9 +177,8 @@ defmodule Tuist.BundlesTest do
         })
       end
 
-      # Then the PG bundle insert is rolled back so we never have a bundle
-      # row without its artifacts in ClickHouse.
-      assert is_nil(Repo.get(Bundle, id))
+      # Then the bundle row was never persisted.
+      assert Bundles.get_bundle(id) == {:error, :not_found}
     end
 
     test "raises if an artifact type is invalid" do
