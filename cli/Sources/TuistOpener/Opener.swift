@@ -59,7 +59,7 @@ public struct Opener: Opening {
     }
 
     public func open(target: String, wait: Bool) throws {
-        #if os(macOS) || os(Linux)
+        #if os(macOS) || os(Linux) || os(Windows)
             let process = Process()
             #if os(macOS)
                 process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
@@ -71,6 +71,11 @@ public struct Opener: Opening {
             #elseif os(Linux)
                 process.executableURL = URL(fileURLWithPath: "/usr/bin/xdg-open")
                 process.arguments = [target]
+            #elseif os(Windows)
+                // The empty "" is the window title placeholder that `start` requires
+                // when the first quoted argument might otherwise be interpreted as one.
+                process.executableURL = URL(fileURLWithPath: "C:\\Windows\\System32\\cmd.exe")
+                process.arguments = ["/c", "start", "", target]
             #endif
             try process.run()
             if wait {
@@ -84,7 +89,7 @@ public struct Opener: Opening {
     }
 
     public func open(path: AbsolutePath, application: AbsolutePath, wait: Bool) throws {
-        #if os(macOS) || os(Linux)
+        #if os(macOS) || os(Linux) || os(Windows)
             let process = Process()
             #if os(macOS)
                 process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
@@ -93,8 +98,8 @@ public struct Opener: Opening {
                     arguments.insert("-W", at: 0)
                 }
                 process.arguments = arguments
-            #elseif os(Linux)
-                // On Linux, run the application directly with the file as argument
+            #elseif os(Linux) || os(Windows)
+                // Run the application directly with the file as argument.
                 process.executableURL = URL(fileURLWithPath: application.pathString)
                 process.arguments = [path.pathString]
             #endif

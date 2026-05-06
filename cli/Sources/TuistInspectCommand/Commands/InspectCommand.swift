@@ -4,9 +4,10 @@ public struct InspectCommand: AsyncParsableCommand {
     public init() {}
 
     public static var configuration: CommandConfiguration {
-        var subcommands: [ParsableCommand.Type] = [
-            InspectBundleCommand.self,
-        ]
+        var subcommands: [ParsableCommand.Type] = []
+        #if canImport(Rosalind)
+            subcommands.append(InspectBundleCommand.self)
+        #endif
         #if os(macOS)
             subcommands.append(contentsOf: [
                 InspectDependenciesCommand.self,

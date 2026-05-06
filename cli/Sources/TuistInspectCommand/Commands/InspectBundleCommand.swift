@@ -1,3 +1,4 @@
+#if canImport(Rosalind)
 import ArgumentParser
 import FileSystem
 import Foundation
@@ -83,3 +84,4 @@ public struct InspectBundleCommand: AsyncParsableCommand {
         #endif
     }
 }
+#endif

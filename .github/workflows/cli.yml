@@ -442,3 +442,42 @@ jobs:
         with:
           path: .build
           key: ${{ steps.cache-restore.outputs.cache-primary-key }}
+
+  # Feasibility-only signal for Windows. Allowed to fail while the platform is
+  # being brought up; the goal is to surface concrete blockers in CI rather
+  # than gate PRs. Once it goes consistently green, drop continue-on-error.
+  cli-windows-build:
+    name: Windows Build (feasibility)
+    runs-on: windows-latest
+    timeout-minutes: 60
+    continue-on-error: true
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Swift
+        uses: compnerd/gha-setup-swift@main
+        with:
+          branch: swift-6.2-release
+          tag: 6.2-RELEASE
+      - name: Print Swift version
+        run: swift --version
+      - name: Restore cache
+        id: cache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: .build
+          key: windows-cli-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          restore-keys: |
+            windows-cli-${{ hashFiles('Package.swift') }}-
+      - name: Resolve dependencies
+        if: steps.cache-restore.outputs.cache-hit != 'true'
+        run: swift package resolve --replace-scm-with-registry
+      - name: Build tuist CLI
+        run: swift build --target tuist --replace-scm-with-registry --force-resolved-versions
+      - name: Save cache
+        if: github.ref == 'refs/heads/main'
+        id: cache-save
+        uses: actions/cache/save@v4
+        with:
+          path: .build
+          key: ${{ steps.cache-restore.outputs.cache-primary-key }}

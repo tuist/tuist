@@ -1,3 +1,4 @@
+#if canImport(Rosalind)
 import FileSystem
 import Foundation
 import Noora
@@ -255,3 +256,4 @@ public struct InspectBundleCommandService {
         }
     }
 }
+#endif
