@@ -1,5 +1,5 @@
 # Narrowly-scoped ServiceAccount for the preview-deploy and preview-sweep
-# GitHub workflows. Lives in the SYSELF MANAGEMENT cluster (not the workload
+# GitHub workflows. Lives in the management cluster (not the workload
 # cluster) because the Cluster / MachineDeployment CRs the workflows patch
 # to scale the worker pool live there.
 #
@@ -10,8 +10,8 @@
 #   - get Machines (to wait for new nodes to become Ready before deploying).
 #
 # Apply against the management cluster:
-#   sed 's/__ORG_NS__/org-tuist/g' infra/k8s/syself/preview-mgmt-rbac.yaml \
-#     | kubectl --kubeconfig ~/.kube/tuist-syself-mgmt.yaml apply -f -
+#   sed 's/__ORG_NS__/org-tuist/g' infra/k8s/mgmt/preview-mgmt-rbac.yaml \
+#     | kubectl --kubeconfig ~/.kube/tuist-mgmt.yaml apply -f -
 
 apiVersion: v1
 kind: ServiceAccount

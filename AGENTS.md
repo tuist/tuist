@@ -242,7 +242,7 @@ The CI pipeline will fail if any `.po` files are modified by anyone other than `
 
 ## Deployment
 
-The application deploys to managed Syself Kubernetes clusters on Hetzner via Helm. See `infra/AGENTS.md` for the full layout.
+The application deploys to our self-hosted CAPI Kubernetes clusters on Hetzner via Helm. See `infra/AGENTS.md` for the full layout.
 
 - Push to `main` triggers `.github/workflows/server-production-deployment.yml`, which cascades canary → acceptance tests → production (hotfix fast-path available).
 - Single-environment deploys use `.github/workflows/server-deployment.yml` via `workflow_dispatch`.

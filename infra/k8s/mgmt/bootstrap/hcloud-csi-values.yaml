@@ -1,8 +1,7 @@
 # hcloud-csi-driver values.
-# Installed for parity with the existing Syself-managed clusters even
-# though no PVCs exist on any workload cluster today (Tigris is the
-# object store; Postgres is on Supabase). Future-proofs the cluster
-# so a new workload that wants a PVC just gets one.
+# Installed even though no PVCs exist on any workload cluster today
+# (Tigris is the object store; Postgres is on Supabase). Future-proofs
+# the cluster so a new workload that wants a PVC just gets one.
 #
 # Expects the `hetzner` Secret in kube-system with key `hcloud`
 # (same Secret HCCM uses).
