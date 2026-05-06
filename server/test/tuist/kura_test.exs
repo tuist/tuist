@@ -78,6 +78,101 @@ defmodule Tuist.KuraTest do
     end
   end
 
+  describe "schedule_latest_version_deployments/0" do
+    test "enqueues deployments for active servers behind the latest version" do
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, server} =
+        Kura.create_server(%{
+          account_id: account.id,
+          region: "local",
+          image_tag: "0.5.2"
+        })
+
+      {:ok, server} = Kura.activate_server(server, "0.5.2")
+
+      stub(Req, :get, fn _url, _opts ->
+        {:ok,
+         %Req.Response{
+           status: 200,
+           body: [
+             %{"tag_name" => "kura@0.5.3", "published_at" => "2026-05-06T00:00:00Z"}
+           ]
+         }}
+      end)
+
+      assert {:ok, [%Deployment{image_tag: "0.5.3"} = deployment]} =
+               Kura.schedule_latest_version_deployments()
+
+      assert deployment.kura_server_id == server.id
+
+      assert_enqueued(
+        worker: RolloutWorker,
+        args: %{"deployment_id" => deployment.id, "account_id" => account.id}
+      )
+    end
+
+    test "does not enqueue deployments when the active server already runs the latest version" do
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, server} =
+        Kura.create_server(%{
+          account_id: account.id,
+          region: "local",
+          image_tag: "0.5.3"
+        })
+
+      {:ok, _server} = Kura.activate_server(server, "0.5.3")
+
+      stub(Req, :get, fn _url, _opts ->
+        {:ok,
+         %Req.Response{
+           status: 200,
+           body: [
+             %{"tag_name" => "kura@0.5.3", "published_at" => "2026-05-06T00:00:00Z"}
+           ]
+         }}
+      end)
+
+      assert {:ok, []} = Kura.schedule_latest_version_deployments()
+    end
+
+    test "schedules a version only once per server" do
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, server} =
+        Kura.create_server(%{
+          account_id: account.id,
+          region: "local",
+          image_tag: "0.5.2"
+        })
+
+      {:ok, server} = Kura.activate_server(server, "0.5.2")
+      {:ok, _existing} = Kura.create_deployment(server, "0.5.3")
+
+      stub(Req, :get, fn _url, _opts ->
+        {:ok,
+         %Req.Response{
+           status: 200,
+           body: [
+             %{"tag_name" => "kura@0.5.3", "published_at" => "2026-05-06T00:00:00Z"}
+           ]
+         }}
+      end)
+
+      assert {:ok, []} = Kura.schedule_latest_version_deployments()
+    end
+
+    test "does not enqueue deployments when no latest version can be resolved" do
+      stub(Req, :get, fn _url, _opts -> {:error, :timeout} end)
+
+      assert {:ok, []} = Kura.schedule_latest_version_deployments()
+    end
+  end
+
   describe "create_deployment/2" do
     setup do
       user = AccountsFixtures.user_fixture()

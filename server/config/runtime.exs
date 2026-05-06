@@ -468,6 +468,7 @@ config :tuist, Oban,
            {"@daily", Tuist.Billing.Workers.SyncStripeMetersWorker},
            {"@daily", Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker},
            {"@hourly", Tuist.Tests.Workers.ExpireStaleTestRunsWorker},
+           {"@hourly", Tuist.Kura.Workers.VersionMonitorWorker},
            {"*/10 * * * *", Tuist.Kura.Reconciler},
            {"* * * * *", Tuist.Automations.Workers.AutomationScheduler}
          ],

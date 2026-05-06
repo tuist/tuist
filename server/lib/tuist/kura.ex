@@ -132,6 +132,50 @@ defmodule Tuist.Kura do
 
   defp extract_kura_release(_), do: []
 
+  @doc """
+  Enqueues deployments for active Kura servers that are behind the
+  newest published Kura release.
+
+  Each `(server, image_tag)` pair is scheduled at most once. A failed
+  deployment for the newest version is intentionally not retried by the
+  monitor; operators can inspect and re-trigger it manually, while the
+  next Kura release will be scheduled normally.
+  """
+  def schedule_latest_version_deployments do
+    case latest_versions(1) do
+      [] -> {:ok, []}
+      [%{version: image_tag} | _] -> schedule_version_deployments(image_tag)
+    end
+  end
+
+  def schedule_version_deployments(image_tag) when is_binary(image_tag) do
+    deployments =
+      image_tag
+      |> servers_needing_version_query()
+      |> Repo.all()
+      |> Enum.map(&create_deployment(&1, image_tag))
+
+    case Enum.find(deployments, &match?({:error, _}, &1)) do
+      nil -> {:ok, Enum.map(deployments, fn {:ok, deployment} -> deployment end)}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp servers_needing_version_query(image_tag) do
+    deployment_exists_query =
+      from(d in Deployment,
+        where: parent_as(:server).id == d.kura_server_id and d.image_tag == ^image_tag,
+        select: 1
+      )
+
+    from(s in Server,
+      as: :server,
+      where: s.status == :active,
+      where: s.current_image_tag != ^image_tag,
+      where: not exists(deployment_exists_query)
+    )
+  end
+
   ## Servers
 
   @doc """
