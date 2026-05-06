@@ -127,13 +127,13 @@ processor:
       memory: "24Gi"
 
   # Pin processor pods to the dedicated cpx51 pool provisioned by
-  # md-processor in workload-cluster-production.yaml. The label is set on
+  # md-processor in cluster-production.yaml. The label is set on
   # the MachineDeployment metadata; CAPI propagates it to each node's
   # registration. Without this the pods could land on the cheaper ccx23
   # general pool that doesn't have the memory headroom 5 concurrent parses
-  # need. Syself's ClusterClass v6 doesn't expose a taint variable, so we
-  # rely on nodeSelector alone — server pods stay on the general pool via
-  # their own anti-affinity, not via taint isolation.
+  # need. The tuist-hcloud ClusterClass doesn't expose a taint variable, so
+  # we rely on nodeSelector alone — server pods stay on the general pool
+  # via their own anti-affinity, not via taint isolation.
   nodeSelector:
     node.cluster.x-k8s.io/pool: processor
 

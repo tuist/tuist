@@ -1,8 +1,5 @@
-# Upstream hcloud-cloud-controller-manager values.
-# Replaces Syself's fork (`ghcr.io/syself/hetzner-cloud-controller-manager`)
-# that Apalla shipped on the workload clusters. Same API surface,
-# same Service annotations consumed (`load-balancer.hetzner.cloud/*`),
-# no behaviour delta we depend on.
+# Upstream hcloud-cloud-controller-manager values. Consumes the
+# `load-balancer.hetzner.cloud/*` annotations on the Service.
 #
 # Required at install time:
 #   --set 'env.HCLOUD_LOAD_BALANCERS_LOCATION.value=<region>'

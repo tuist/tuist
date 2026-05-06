@@ -11,8 +11,8 @@
 #                                Operator + a 1Password ClusterSecretStore in
 #                                the kind cluster. The chart's ExternalSecret
 #                                pulls the license from item TUIST_LICENSE_KEY
-#                                in 1Password. Mirrors how the Syself clusters
-#                                are configured (see infra/k8s/syself-onboarding.md).
+#                                in 1Password. Mirrors how the managed
+#                                clusters are configured (see infra/k8s/onboarding.md).
 #
 #   $TUIST_LICENSE_KEY         → local fallback. Skips ESO and inlines the key
 #                                so kind clusters without 1P access still work.
@@ -82,7 +82,7 @@ if [ "$LICENSE_MODE" = "eso" ]; then
         --wait --timeout 3m
 
     echo "==> Configuring 1Password ClusterSecretStore..."
-    # Mirrors infra/k8s/syself-onboarding.md: SA token Secret lives in the
+    # Mirrors infra/k8s/onboarding.md: SA token Secret lives in the
     # `onepassword` namespace, store uses the onepasswordSDK provider (matches
     # the "<item>/<field>" remoteRef syntax in templates/external-secrets.yaml).
     kubectl create namespace onepassword --dry-run=client -o yaml | kubectl apply -f -

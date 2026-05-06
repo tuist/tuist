@@ -24,6 +24,13 @@ defmodule Tuist.Bundles do
   either step surfaces before we report success and we never end up with
   a bundle row that has no artifacts.
 
+  The returned `%Bundle{}` is materialized from the validated changeset
+  rather than read back from ClickHouse: CH Cloud doesn't guarantee
+  read-your-writes across separate connection pools (writes go through
+  `IngestRepo`, reads through `ClickHouseRepo`), so a SELECT immediately
+  after the INSERT could land on a replica that hasn't seen the new
+  part yet and return `nil`.
+
   Returns `{:ok, bundle}` on success or `{:error, changeset}` if the
   input fails validation (invalid `type`, `supported_platforms`, or
   missing required fields).
@@ -52,8 +59,9 @@ defmodule Tuist.Bundles do
       IngestRepo.insert_all(Bundle, [bundle_row_from_changeset(changeset)])
 
       bundle =
-        from(b in Bundle, where: b.id == type(^bundle_id, Ecto.UUID))
-        |> ClickHouseRepo.one()
+        changeset
+        |> Ecto.Changeset.apply_changes()
+        |> Ecto.put_meta(state: :loaded)
         |> decode_bundle()
         |> Repo.preload(preload)
 

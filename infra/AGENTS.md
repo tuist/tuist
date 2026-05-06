@@ -19,13 +19,16 @@ README: [`helm/k8s-monitoring/README.md`](helm/k8s-monitoring/README.md).
 ### `helm/platform/` — platform bootstrap chart
 cert-manager + ingress-nginx + external-dns + ESO controllers, installed once per workload cluster. Provider-specific LB annotations live in per-provider overlays (e.g., `values-hetzner.yaml`).
 
-### `k8s/` — Syself Apalla cluster manifests
-Cluster API CRs and cluster-scoped manifests that stand up our managed Kubernetes clusters on Hetzner via Syself Apalla:
-- `syself/workload-cluster-{staging,canary,production}.yaml` — per-env Cluster CRs (control plane + worker shape, region, k8s version).
-- `syself/cluster-stack.yaml` — ClusterStack subscription (controls which k8s version + node image build we use).
-- `syself/ci-service-account.yaml` — SA + RBAC for the GitHub Actions deployer.
-- `syself/ingress-nginx-values.yaml` — Helm values with Hetzner LB annotations (for a future ingress-nginx-based setup; not installed today).
-- `syself-onboarding.md` — end-to-end runbook for standing up a new workload cluster.
+### `k8s/` — CAPI cluster manifests
+Cluster API CRs and cluster-scoped manifests for the self-hosted CAPI + caph stack we operate on Hetzner:
+- `clusters/clusterclass-tuist.yaml` — the `tuist-hcloud` ClusterClass (HA control plane, worker-pool variables, network config, kubeadm + kubelet config).
+- `clusters/cluster-{staging,canary,production,preview}.yaml` — per-env Cluster CRs in topology mode.
+- `clusters/README.md` — ClusterClass authoring + caph-upstream porting notes.
+- `mgmt/etcd-snapshot.yaml`, `mgmt/tailscale.yaml` — mgmt-cluster workloads (hourly etcd snapshot to Tigris, tailnet-only operator access).
+- `mgmt/bootstrap/` — Helm values for the per-workload bootstrap (Cilium, HCCM, hcloud-csi, ESO `ClusterSecretStore`).
+- `mgmt/ci-service-account.yaml` — SA + RBAC for the GitHub Actions deployer (applied per workload).
+- `mgmt/preview-mgmt-rbac.yaml` — narrow SA + Role on the mgmt cluster used by the preview-deploy / preview-sweep workflows to scale the preview MachineDeployment.
+- `onboarding.md` — end-to-end runbook for standing up a new workload cluster.
 
 ### `registry-router/` — Cloudflare Worker for `registry.tuist.dev`
 Geo-routes cache registry requests to the nearest healthy cache origin based on the requester's continent. Unrelated to the Kubernetes migration.
@@ -43,7 +46,7 @@ Each file is a `dashboard.grafana.app/v1` resource. The raw dashboard JSON lives
 
 ## Deployment
 
-- **Tuist server** (managed) is deployed to our Syself Kubernetes clusters via the CI workflows:
+- **Tuist server** (managed) is deployed to our self-hosted CAPI Kubernetes clusters via the CI workflows:
   - `.github/workflows/server-deployment.yml` — build + deploy to one environment (workflow_dispatch or workflow_call).
   - `.github/workflows/server-production-deployment.yml` — cascade on push-to-main: canary → acceptance tests → production, with hotfix fast-path.
 - **Registry Router** — `wrangler deploy` from `registry-router/`.
@@ -53,4 +56,4 @@ Each file is a `dashboard.grafana.app/v1` resource. The raw dashboard JSON lives
 
 - Keep the main Tuist chart (`helm/tuist/`) provider-agnostic. Managed-cluster-specific behavior hides behind feature flags (`managedSecrets`, `externalSecrets`) that default to self-host-safe values.
 - Don't let `helm/k8s-monitoring/` grow dependencies on things the self-host chart needs — the two are consumed by different users.
-- When a new managed-cluster operational step becomes reproducible, document it in `k8s/syself-onboarding.md` rather than in this AGENTS.md. This file maps the territory; the runbook walks you through it.
+- When a new managed-cluster operational step becomes reproducible, document it in `k8s/onboarding.md` rather than in this AGENTS.md. This file maps the territory; the runbook walks you through it.

@@ -50,8 +50,7 @@ case "$ENV" in
   *) echo "ERROR: env must be one of staging|canary|production|preview" >&2; exit 64 ;;
 esac
 
-# Map env -> 1Password vault name. Keep aligned with existing Apalla
-# clusters' ClusterSecretStore configs.
+# Map env -> 1Password vault name.
 case "$ENV" in
   staging)    VAULT_NAME="tuist-k8s-staging"    ;  OP_TOKEN_ID="4yaimkh5gcxwopssmkod5er2fm" ;;
   canary)     VAULT_NAME="tuist-k8s-canary"     ;  OP_TOKEN_ID="6o5lcwgudi6qtt2754svzh7jka" ;;

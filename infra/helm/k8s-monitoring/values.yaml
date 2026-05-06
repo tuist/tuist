@@ -5,9 +5,9 @@
 # public per Grafana Cloud stack so they live in values, not in 1Password.
 
 # ExternalSecret wiring. Assumes a ClusterSecretStore named `onepassword`
-# has already been installed on the cluster — the Tuist chart's bootstrap
-# (see k8s/syself-onboarding.md §5) puts that in place before this chart
-# is ever installed.
+# has already been installed on the cluster — the workload-cluster
+# bootstrap (see k8s/onboarding.md §4) puts that in place before this
+# chart is ever installed.
 externalSecrets:
   enabled: true
   refreshInterval: "1h"
