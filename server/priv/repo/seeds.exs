@@ -1740,8 +1740,7 @@ create_xcode_data_for_events = fn events, label ->
             binary_cache_hash: if(is_test_target, do: nil, else: Enum.at(hash_pool, hash_idx)),
             binary_cache_hit: if(is_test_target, do: 0, else: hit_value),
             binary_build_duration: 5000 + rem(idx * 17, 25_000),
-            selective_testing_hash:
-              if(is_test_target, do: Enum.at(hash_pool, rem(hash_idx + 50, 100)), else: nil),
+            selective_testing_hash: if(is_test_target, do: Enum.at(hash_pool, rem(hash_idx + 50, 100))),
             selective_testing_hit: if(is_test_target, do: hit_value, else: 0),
             xcode_project_id: project.id,
             command_event_id: project.command_event_id,
