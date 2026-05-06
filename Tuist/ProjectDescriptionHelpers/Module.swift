@@ -1843,6 +1843,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.constants.targetName),
                     .target(name: Module.environment.targetName),
                     .target(name: Module.opener.targetName),
+                    .target(name: Module.process.targetName, condition: .when([.macos])),
                     .target(name: Module.uniqueIDGenerator.targetName),
                     .target(name: Module.xcodeGraph.targetName),
                     .external(name: "OpenAPIRuntime"),
