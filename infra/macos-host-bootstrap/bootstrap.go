@@ -442,11 +442,40 @@ sudo chmod 440 /etc/sudoers.d/%[1]s-nopasswd
 func enableAutoLogin(ctx context.Context, client *ssh.Client, user, password string) error {
 	encoded := encodeKCPassword(password)
 	// Stage the binary kcpassword via base64 to avoid TTY issues.
+	//
+	// Why we kick loginwindow at the end:
+	// On headless Apple Silicon Mac minis (Scaleway, AWS EC2 Mac, etc.)
+	// macOS's loginwindow at boot does NOT honor the auto-login
+	// preference unless a display device is attached — so the system
+	// boots, the console stays at the root user, and no Aqua (GUI)
+	// session for the auto-login user comes up. Apple's
+	// Virtualization.framework refuses to start macOS guests in that
+	// state ("Failed to get current host key" / VZErrorDomain Code=-9),
+	// which means tart-kubelet's `tart run` fails on every pod even
+	// after Tart and the kubelet are correctly installed.
+	//
+	// Killing loginwindow with SIGHUP forces it to respawn, and the
+	// respawned process — unlike the boot-time process — does honor
+	// the auto-login preference, brings up the Aqua session, and the
+	// bridge100 vmnet interface starts working. Idempotent: if the
+	// Aqua session already exists, the kick still works (loginwindow
+	// re-establishes it cleanly) and we accept that small cost over
+	// branching on session state.
 	script := fmt.Sprintf(`set -euo pipefail
-if defaults read /Library/Preferences/com.apple.loginwindow autoLoginUser 2>/dev/null | grep -q '%[1]s'; then exit 0; fi
 echo '%[2]s' | base64 -d | sudo tee /etc/kcpassword > /dev/null
 sudo chmod 600 /etc/kcpassword
 sudo defaults write /Library/Preferences/com.apple.loginwindow autoLoginUser '%[1]s'
+sudo killall -HUP loginwindow 2>/dev/null || true
+# Wait for the Aqua session to come up. loginwindow respawn typically
+# takes <2s; 30s is generous. If it still doesn't appear we let
+# bootstrap continue — Stage 2 of reconcileNormal will retry on the
+# next reconcile if VZ subsequently rejects the VM start.
+for i in $(seq 1 30); do
+  if sudo launchctl print "gui/$(id -u '%[1]s')" 2>/dev/null | grep -q 'session = Aqua'; then
+    exit 0
+  fi
+  sleep 1
+done
 `, user, encoded)
 	return runCommand(ctx, client, script)
 }
