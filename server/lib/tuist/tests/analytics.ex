@@ -1261,11 +1261,12 @@ defmodule Tuist.Tests.Analytics do
   Calculates the ratio of flaky runs to total runs in the last 30 days.
   Returns 0.0 if there are no flaky runs or no data.
   """
-  def get_test_case_flakiness_rate(%TestCase{id: test_case_id}) do
+  def get_test_case_flakiness_rate(%TestCase{id: test_case_id, project_id: project_id}) do
     thirty_days_ago = DateTime.add(DateTime.utc_now(), -30, :day)
 
     query =
       from(tcr in TestCaseRun,
+        where: tcr.project_id == ^project_id,
         where: tcr.test_case_id == ^test_case_id,
         where: tcr.inserted_at >= ^thirty_days_ago,
         select: %{
