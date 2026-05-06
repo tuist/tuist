@@ -6,8 +6,7 @@ import XcodeGraph
 import XcodeProj
 @testable import XcodeGraphMapper
 
-@Suite
-struct PBXProjectMapperTests: Sendable {
+struct PBXProjectMapperTests {
     private let fileSystem = FileSystem()
 
     @Test("Maps a basic project with default attributes")

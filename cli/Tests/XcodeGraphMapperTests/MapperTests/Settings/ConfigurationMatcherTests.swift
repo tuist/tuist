@@ -2,7 +2,6 @@ import Testing
 import XcodeGraph
 @testable import XcodeGraphMapper
 
-@Suite
 struct ConfigurationMatcherTests {
     let configurationMatcher: ConfigurationMatching
 

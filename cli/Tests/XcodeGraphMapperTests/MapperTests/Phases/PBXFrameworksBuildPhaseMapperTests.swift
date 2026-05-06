@@ -4,7 +4,6 @@ import XcodeGraph
 import XcodeProj
 @testable import XcodeGraphMapper
 
-@Suite
 struct PBXFrameworksBuildPhaseMapperTests {
     // swiftlint:disable:next function_body_length
     @Test("Maps frameworks from frameworks phase")

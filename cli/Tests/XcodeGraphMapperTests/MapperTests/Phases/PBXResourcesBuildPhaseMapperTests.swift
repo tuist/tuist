@@ -3,7 +3,6 @@ import XcodeGraph
 import XcodeProj
 @testable import XcodeGraphMapper
 
-@Suite
 struct PBXResourcesBuildPhaseMapperTests {
     @Test("Maps resources (like xcassets) from resources phase")
     func mapResources() async throws {

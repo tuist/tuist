@@ -3,7 +3,6 @@ import Testing
 import XcodeGraph
 @testable import XcodeMetadata
 
-@Suite
 struct XCFrameworkMetadataProviderTests {
     private var subject: XCFrameworkMetadataProvider
 

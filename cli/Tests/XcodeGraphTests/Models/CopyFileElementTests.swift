@@ -23,7 +23,7 @@ final class CopyFileElementTests: XCTestCase {
         XCTAssertCodable(subject)
     }
 
-    func test_codable_buildProduct() throws {
+    func test_codable_buildProduct() {
         // Given
         let subject = CopyFileElement.buildProduct(
             name: "HelperApp",

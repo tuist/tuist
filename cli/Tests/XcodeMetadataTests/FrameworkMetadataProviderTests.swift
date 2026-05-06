@@ -3,7 +3,6 @@ import Testing
 import XcodeGraph
 import XcodeMetadata
 
-@Suite
 struct FrameworkMetadataProviderTests {
     var subject: FrameworkMetadataProvider
 

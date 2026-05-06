@@ -4,7 +4,6 @@ import Testing
 import XcodeGraph
 @testable import XcodeMetadata
 
-@Suite
 struct PrecompiledMetadataProviderTests {
     var subject: PrecompiledMetadataProvider
 

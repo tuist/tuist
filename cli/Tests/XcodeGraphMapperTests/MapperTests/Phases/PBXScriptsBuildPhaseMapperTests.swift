@@ -3,7 +3,6 @@ import XcodeGraph
 import XcodeProj
 @testable import XcodeGraphMapper
 
-@Suite
 struct PBXScriptsBuildPhaseMapperTests {
     @Test("Maps embedded run scripts with specified input/output paths")
     func mapScripts() async throws {

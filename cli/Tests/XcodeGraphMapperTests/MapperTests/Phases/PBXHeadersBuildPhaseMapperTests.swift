@@ -3,7 +3,6 @@ import XcodeGraph
 import XcodeProj
 @testable import XcodeGraphMapper
 
-@Suite
 struct PBXHeadersBuildPhaseMapperTests {
     @Test("Maps public, private, and project headers from headers phase")
     func mapHeaders() async throws {

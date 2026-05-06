@@ -5,7 +5,6 @@ import XcodeProj
 @testable import XcodeGraph
 @testable import XcodeGraphMapper
 
-@Suite
 struct TargetDependencyExtensionsTests {
     let sourceDirectory = AssertionsTesting.fixturePath()
     let target = Target.test(platform: .iOS)

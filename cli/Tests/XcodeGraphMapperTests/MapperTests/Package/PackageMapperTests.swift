@@ -4,7 +4,7 @@ import Testing
 import XcodeGraph
 @testable import XcodeGraphMapper
 
-struct PackageMapperTests: Sendable {
+struct PackageMapperTests {
     private let fileSystem = FileSystem()
 
     // swiftlint:disable:next function_body_length

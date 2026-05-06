@@ -3,7 +3,6 @@ import XcodeGraph
 import XcodeProj
 @testable import XcodeGraphMapper
 
-@Suite
 struct PBXBuildRuleMapperTests {
     let mapper = PBXBuildRuleMapper()
 

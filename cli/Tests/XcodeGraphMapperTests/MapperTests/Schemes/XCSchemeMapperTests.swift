@@ -6,8 +6,7 @@ import XcodeGraph
 @testable @preconcurrency import XcodeGraphMapper
 @testable @preconcurrency import XcodeProj
 
-@Suite
-struct XCSchemeMapperTests: Sendable {
+struct XCSchemeMapperTests {
     private let xcodeProj: XcodeProj
     private let mapper: XCSchemeMapper
     private let graphType: XcodeMapperGraphType

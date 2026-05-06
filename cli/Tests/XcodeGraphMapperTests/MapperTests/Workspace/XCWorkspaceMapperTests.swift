@@ -6,7 +6,6 @@ import XcodeGraph
 import XcodeProj
 @testable import XcodeGraphMapper
 
-@Suite
 struct XCWorkspaceMapperTests {
     @Test("Maps workspace without any projects or schemes")
     func map_NoProjectsOrSchemes() async throws {

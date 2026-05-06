@@ -6,9 +6,8 @@ import XcodeGraph
 import XcodeProj
 @testable import XcodeGraphMapper
 
-@Suite
 // swiftlint:disable:next type_body_length
-struct PBXTargetMapperTests: Sendable {
+struct PBXTargetMapperTests {
     private let fileSystem = FileSystem()
 
     @Test("Maps a basic target with a product bundle identifier")

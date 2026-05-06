@@ -4,7 +4,6 @@ import XcodeGraph
 import XcodeProj
 @testable import XcodeGraphMapper
 
-@Suite
 struct DependencyMapperTests {
     let mapper: PBXTargetDependencyMapping
 
