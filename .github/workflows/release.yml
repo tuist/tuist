@@ -1383,10 +1383,6 @@ jobs:
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
 
-      - name: Update version in settings.gradle.kts
-        run: |
-          sed -i 's/id("dev.tuist") version ".*"/id("dev.tuist") version "${{ needs.check-releases.outputs.gradle-next-version-number }}"/' gradle/settings.gradle.kts
-
       - name: Tag Gradle release
         run: |
           TAG=${{ needs.check-releases.outputs.gradle-next-version }}
@@ -1423,7 +1419,6 @@ jobs:
           name: gradle-artifacts
           path: |
             gradle/CHANGELOG.md
-            gradle/settings.gradle.kts
             gradle/src/main/kotlin/dev/tuist/gradle/TuistBuildCache.kt
           retention-days: 1
 
@@ -2032,7 +2027,6 @@ jobs:
             sed -i 's/public static let gradlePluginVersion = ".*"/public static let gradlePluginVersion = "${{ needs.check-releases.outputs.gradle-next-version-number }}"/' cli/Sources/TuistConstants/Constants.swift
             sed -i 's/id("dev.tuist") version ".*"/id("dev.tuist") version "${{ needs.check-releases.outputs.gradle-next-version-number }}"/' android/settings.gradle.kts
             git add gradle/CHANGELOG.md
-            git add gradle/settings.gradle.kts
             git add gradle/src/main/kotlin/dev/tuist/gradle/TuistBuildCache.kt || true
             git add cli/Sources/TuistConstants/Constants.swift
             git add android/settings.gradle.kts
