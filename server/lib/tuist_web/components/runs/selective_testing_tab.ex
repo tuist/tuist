@@ -25,7 +25,7 @@ defmodule TuistWeb.Runs.SelectiveTestingTab do
     ~H"""
     <div class="tuist-selective-testing-tab">
       <.card
-        title={dgettext("dashboard_tests", "Optimization Summary")}
+        title={dgettext("dashboard_tests", "Summary")}
         icon="chart_arcs"
         data-part="optimization-summary"
       >
