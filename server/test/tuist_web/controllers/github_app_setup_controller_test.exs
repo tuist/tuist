@@ -4,12 +4,14 @@ defmodule TuistWeb.GitHubAppSetupControllerTest do
 
   alias Tuist.Accounts
   alias Tuist.VCS
+  alias Tuist.VCS.GitHubAppInstallation
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.VCSFixtures
   alias TuistWeb.Errors.BadRequestError
 
   describe "GET /integrations/github/setup" do
-    test "redirects to integrations page when setup is successful", %{conn: conn} do
+    test "redirects to integrations page when setup is successful and creates a github.com row that defers to env-var credentials",
+         %{conn: conn} do
       user = AccountsFixtures.user_fixture(preload: [:account])
       account = user.account
       installation_id = "12345"
@@ -31,6 +33,22 @@ defmodule TuistWeb.GitHubAppSetupControllerTest do
         })
 
       assert redirected_to(conn) == "/#{account.name}/integrations"
+
+      # Regression guard: github.com installations must land with no
+      # per-installation credentials so the runtime keeps falling back
+      # to TUIST_GITHUB_APP_* env vars for JWT signing and webhook
+      # HMAC verification. If any of these columns start getting set
+      # for github.com we'd silently break the existing integration.
+      {:ok, installation} = VCS.get_github_app_installation_for_account(account.id)
+      assert installation.installation_id == installation_id
+      assert installation.client_url == "https://github.com"
+      assert is_nil(installation.app_id)
+      assert is_nil(installation.client_id)
+      assert is_nil(installation.client_secret)
+      assert is_nil(installation.private_key)
+      assert is_nil(installation.webhook_secret)
+      refute GitHubAppInstallation.enterprise?(installation)
+      refute GitHubAppInstallation.per_installation_credentials?(installation)
     end
 
     test "stores the GitHub Enterprise client_url from the state token", %{conn: conn} do

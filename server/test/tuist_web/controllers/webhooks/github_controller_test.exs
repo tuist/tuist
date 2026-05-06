@@ -389,5 +389,29 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
 
       assert GitHubController.resolve_webhook_secret(conn) == "env-secret"
     end
+
+    test "falls back to the env-var secret for github.com installations whose row carries no per-installation secret",
+         %{conn: conn} do
+      # Regression: github.com installations land in the DB via the setup
+      # callback with `installation_id` populated but no per-installation
+      # `webhook_secret` (those columns belong to the manifest flow).
+      # Step 1 of resolve_webhook_secret/1 finds the row but its secret is
+      # nil; we must fall through to the env var rather than authenticate
+      # the webhook with `nil` (which would either crash HMAC or, worse,
+      # let unsigned traffic through).
+      stub(Tuist.Environment, :github_app_webhook_secret, fn -> "github-com-env-secret" end)
+
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      VCSFixtures.github_app_installation_fixture(
+        account_id: account.id,
+        installation_id: "gh-com-12345",
+        client_url: "https://github.com"
+      )
+
+      conn = %{conn | body_params: %{"installation" => %{"id" => "gh-com-12345"}}}
+
+      assert GitHubController.resolve_webhook_secret(conn) == "github-com-env-secret"
+    end
   end
 end
