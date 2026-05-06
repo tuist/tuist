@@ -3,17 +3,18 @@ defmodule Tuist.Kura.RegionsTest do
   use Mimic
 
   alias Tuist.Kura.Provisioner.HelmKubernetes
+  alias Tuist.Kura.Provisioner.KubernetesController
   alias Tuist.Kura.Regions
 
   setup :set_mimic_from_context
 
   describe "all/0" do
-    test "exposes the eu production region backed by HelmKubernetes" do
-      assert %Regions{id: "eu", provisioner: HelmKubernetes, provisioner_config: config} =
+    test "exposes the eu production region backed by KubernetesController" do
+      assert %Regions{id: "eu", provisioner: KubernetesController, provisioner_config: config} =
                Enum.find(Regions.all(), &(&1.id == "eu"))
 
       assert config.cluster_id == "eu-1"
-      assert config.helm_overlay == "hetzner"
+      assert config.storage_class == "hcloud-volumes"
     end
 
     test "exposes the local dev region backed by HelmKubernetes" do

@@ -8,6 +8,21 @@ global:
   nodeSelector: {}
   tolerations: []
 
+kuraController:
+  enabled: false
+  replicaCount: 2
+  image:
+    repository: ghcr.io/tuist/kura-controller
+    tag: ""
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+
 server:
   enabled: true
   replicaCount: 1
