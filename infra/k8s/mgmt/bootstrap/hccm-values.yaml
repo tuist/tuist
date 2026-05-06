@@ -10,6 +10,23 @@
 # already provisions in `org-tuist`, but HCCM lives on the workload
 # cluster so we re-create it there at bootstrap time).
 
+# Disable the cloud-node-lifecycle controller. Default behaviour
+# walks every Node, calls cloudprovider.Instances.InstanceExists()
+# against the Hetzner API, and deletes any Node where that returns
+# false. Mac mini Nodes joined by tart-kubelet carry providerID
+# `scw-applesilicon://...`, which the Hetzner API can't recognise —
+# so HCCM treats them as ghosts and prunes them the moment
+# tart-kubelet skips a heartbeat. CAPI's MachineHealthCheck handles
+# dead Hetzner Linux nodes, and the Scaleway Apple Silicon CAPI
+# provider owns Mac mini lifecycle via finalizers on the
+# ScalewayAppleSiliconMachine CR, so dropping this controller
+# doesn't leave anything orphaned.
+#
+# `*` expands to the chart-default controller set; the leading `-`
+# disables a single controller by name.
+args:
+  controllers: "*,-cloud-node-lifecycle"
+
 env:
   HCLOUD_LOAD_BALANCERS_ENABLED:
     value: "true"

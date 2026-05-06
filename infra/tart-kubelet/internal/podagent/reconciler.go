@@ -201,14 +201,25 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 		}
 	}
 
-	if err := r.Tart.Run(ctx, vmName, []string{"env:" + envDir + ":ro"}); err != nil {
-		return fmt.Errorf("tart run: %w", err)
-	}
-
+	// Record the Pod ↔ VM mapping before kicking the VM off so the
+	// rest of the system (deletePod, GC, recoverState) can keep
+	// track of it even if `tart run` exits oddly. Without this an
+	// early-exit Run leaves the VM Tart-side without a Store entry,
+	// and the GC loop would happily reap it on the next pass —
+	// exactly the orphan we used to clean up reactively.
 	r.Store.Put(pod.Namespace, pod.Name, &Entry{
 		VMName:  vmName,
 		StartTS: metav1.Now(),
 	})
+
+	if err := r.Tart.Run(ctx, vmName, []string{"env:" + envDir + ":ro"}); err != nil {
+		// Roll back the Store entry — the VM either never started
+		// (cmd.Start error) or `tart run` exited immediately, so
+		// there is no live VM for podStatus to observe and no
+		// background process for deletePod to tear down.
+		r.Store.Delete(pod.Namespace, pod.Name)
+		return fmt.Errorf("tart run: %w", err)
+	}
 	return nil
 }
 

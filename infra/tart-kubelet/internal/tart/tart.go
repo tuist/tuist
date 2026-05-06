@@ -91,9 +91,17 @@ func (c *Client) Set(ctx context.Context, name string, cpu, memoryMB int) error 
 	return err
 }
 
-// Run starts a VM in the background and returns once it has obtained
-// an IP (proxy for "booted enough to talk to"). The VM keeps running
-// until Stop or Delete.
+// Run launches a VM in the background and returns as soon as the
+// `tart run` process is alive. It does NOT wait for the guest to
+// obtain an IP — that's the reconciler's job (via Tart.IP, polled
+// from podStatus). Decoupling makes the VM lifecycle bound by the
+// Pod lifecycle rather than by an arbitrary in-process timeout: a
+// slow-but-still-booting guest stays alive across reconcile passes
+// and the Pod transitions to Running the moment configd hands out
+// a DHCP lease, however many minutes that takes. Helm's own
+// `--wait --timeout` is the right place for a top-level deadline;
+// having a second one inside Run that destroyed the VM on expiry
+// just forced re-clones and re-boots that hit the same wall.
 //
 // Tart 2.32 quirks accommodated here:
 //   - `tart run` is foreground-only. We start it directly from Go with
@@ -107,8 +115,6 @@ func (c *Client) Set(ctx context.Context, name string, cpu, memoryMB int) error 
 //   - We deliberately do NOT use `nohup` — it requires a controlling
 //     TTY to detach from, and launchd-spawned processes don't have
 //     one. With Setsid we don't need it.
-//   - `tart get` doesn't update on-disk state for backgrounded VMs, so
-//     we poll `tart ip --wait` instead of state.
 func (c *Client) Run(ctx context.Context, name string, sharedDirs []string) error {
 	if err := os.MkdirAll(c.LogDir, 0o755); err != nil {
 		return fmt.Errorf("mkdir log dir: %w", err)
@@ -140,48 +146,26 @@ func (c *Client) Run(ctx context.Context, name string, sharedDirs []string) erro
 	// Close our own fd; the child holds its own dup. Reap the
 	// process so it doesn't go zombie if it exits before we Stop it.
 	_ = logFile.Close()
-	go func() { _ = cmd.Wait() }()
 
-	// 8 min covers a cold-boot macOS guest: first-boot of a freshly
-	// pulled Tart image runs Apple's setup pipeline (firstboot
-	// services, DiskCryptor unseal, ResearchKit prefs, etc.) before
-	// configd negotiates a vmnet DHCP lease — observed at 3-5 min on
-	// M2-M Mac minis. Setting this to 2 min meant every clean retry
-	// after TartCreateFailed re-cloned the image and re-cold-booted
-	// from zero, so retries hit the same wall instead of converging.
-	// 8 min still bounds the goroutine so a genuinely wedged VM
-	// (e.g. configd never starts) surfaces as TartCreateFailed
-	// rather than blocking the reconcile worker indefinitely.
-	const ipWaitTimeout = 8 * time.Minute
-	deadline := time.Now().Add(ipWaitTimeout)
-	for time.Now().Before(deadline) {
-		select {
-		case <-ctx.Done():
-			c.cleanupAfterFailedRun(name)
-			return ctx.Err()
-		case <-time.After(3 * time.Second):
-		}
-		if ip, err := c.IP(ctx, name); err == nil && ip != "" {
-			return nil
-		}
+	// Watch the process briefly so an immediate failure (missing
+	// image, malformed --dir, Tart admission error) surfaces here
+	// instead of stranding the Pod in Pending while podStatus polls
+	// an IP that will never come. 5s is long enough to catch the
+	// fast-fail cases (<1s in practice) without delaying the happy
+	// path meaningfully — the guest will be cold-booting for minutes
+	// either way.
+	waitErr := make(chan error, 1)
+	go func() { waitErr <- cmd.Wait() }()
+	select {
+	case err := <-waitErr:
+		return fmt.Errorf("tart run %s exited immediately: %w (see %s)", name, err, logPath)
+	case <-ctx.Done():
+		// Parent ctx cancelled. The Setsid-detached process keeps
+		// running; recoverState rebinds it after a kubelet restart.
+		return ctx.Err()
+	case <-time.After(5 * time.Second):
+		return nil
 	}
-	c.cleanupAfterFailedRun(name)
-	return fmt.Errorf("tart run %s: VM did not obtain an IP in %s", name, ipWaitTimeout)
-}
-
-// cleanupAfterFailedRun stops + deletes a VM whose Run() couldn't
-// confirm an IP. Without this the Setsid-detached `tart run` keeps
-// running on the host: each reconcile retry would orphan another VM
-// of the same name (which actually fails the next clone), or — once
-// names diverge — pile them up until disk fills. Best-effort: log via
-// the wrapped errors but never fail the parent error path on cleanup
-// errors, because the caller already has a more informative reason.
-func (c *Client) cleanupAfterFailedRun(name string) {
-	stopCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	_ = c.Stop(stopCtx, name, 10*time.Second)
-	_ = c.Delete(stopCtx, name)
-	_ = c.CleanupVMUserData(name)
 }
 
 // Stop gracefully halts a VM.
@@ -313,4 +297,3 @@ func escapeEnvValue(v string) string {
 	v = strings.ReplaceAll(v, "\r", `\r`)
 	return v
 }
-
