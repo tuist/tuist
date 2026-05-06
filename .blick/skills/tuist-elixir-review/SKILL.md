@@ -14,9 +14,16 @@ For each finding, cite `path:line` (or `Module.function/arity`) and
 quote the relevant snippet.
 
 Only report findings whose cited snippet is present in the PR diff. If
-the concern comes from unchanged context, do not emit a finding; at most
-mention it as a non-blocking note. Never label unchanged-context issues
-as "findings outside this PR's diff".
+the concern comes from unchanged context, do not emit a finding, do not
+mention it as a note, and do not create a "findings outside this PR's
+diff" section. If every possible concern is outside the diff, return no
+findings.
+
+Do not infer violations from nearby lines. A Mimic finding requires the
+exact token `Mimic.copy(` on the cited changed line. A migration
+timestamp finding requires the cited changed line to contain
+`timestamps()` without `type: :timestamptz` or a timestamp column without
+`:timestamptz`.
 
 ---
 
@@ -112,6 +119,8 @@ state across tests and are an explicit anti-pattern in this repo.
 
 - `Mimic.expect/3`, `Mimic.stub/3`, `Mimic.reject/1` — those belong in tests.
 - `Mimic.copy/1` calls in `test_helper.exs` itself.
+- `import Mimic`, `use Mimic`, `setup :set_mimic_from_context`, aliases,
+  or any other test setup line that does not contain `Mimic.copy(`.
 - A test file that merely uses Mimic (`use Mimic`, `import Mimic`,
   `stub`, `expect`, `reject`) but does not contain the exact
   `Mimic.copy(` call in the diff.
@@ -133,6 +142,8 @@ In `server/priv/repo/migrations/` and `server/priv/ingest_repo/migrations/`:
 ### Do not flag
 
 - `timestamps(type: :timestamptz)`.
+- `def change do`, `create table(...)`, blank lines, comments, or any
+  line that does not itself declare a timestamp type.
 - `add :started_at, :timestamptz`, `add :finished_at, :timestamptz`,
   or any other explicit `:timestamptz` column.
 
