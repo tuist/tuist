@@ -1,6 +1,7 @@
 defmodule TuistWeb.Webhooks.GitHubController do
   use TuistWeb, :controller
 
+  alias Tuist.Runners.Dispatch
   alias Tuist.VCS
 
   require Logger
@@ -15,11 +16,35 @@ defmodule TuistWeb.Webhooks.GitHubController do
       "check_run" ->
         handle_check_run(conn, params)
 
+      "workflow_job" ->
+        handle_workflow_job(conn, params)
+
       _ ->
         conn
         |> put_status(:ok)
         |> json(%{status: "ok"})
     end
+  end
+
+  defp handle_workflow_job(conn, params) do
+    installation_id =
+      case params do
+        %{"installation" => %{"id" => id}} when is_integer(id) -> id
+        _ -> nil
+      end
+
+    if installation_id do
+      # Best-effort dispatch. We always 200 back to GH so it
+      # doesn't queue retries — failures are operational issues
+      # the cron reconciler will rectify on its own next tick;
+      # the workflow_job sits in GH's queue until a runner with
+      # matching labels picks it up.
+      _ = Dispatch.handle_webhook(params, installation_id)
+    end
+
+    conn
+    |> put_status(:ok)
+    |> json(%{status: "ok"})
   end
 
   defp handle_installation(conn, %{"action" => "deleted", "installation" => %{"id" => installation_id}}) do

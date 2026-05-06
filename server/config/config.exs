@@ -118,7 +118,21 @@ config :logger, :console,
     :request_id,
     :auth_account_handle,
     :selected_account_handle,
-    :selected_project_handle
+    :selected_project_handle,
+    # Tuist.Runners structured fields
+    :pod_uid,
+    :pod_name,
+    :pool,
+    :runner_name,
+    :repo,
+    :requested_labels,
+    :target,
+    :observed,
+    :gap,
+    :image,
+    :fleet,
+    :reason,
+    :changeset_errors
   ]
 
 config :mime, :types, %{

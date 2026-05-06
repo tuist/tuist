@@ -894,6 +894,47 @@ defmodule Tuist.Environment do
     get([:typesense, :host], secrets(), default_value: "https://search.tuist.dev")
   end
 
+  @doc """
+  OCI image used for runner Pods. Resolved from
+  `TUIST_RUNNER_IMAGE` (set in helm values per env). Empty
+  string disables warm-pool reconciliation — the reconciler
+  treats `total_warm_target=0` as a no-op.
+
+  Should be a digest-pinned reference
+  (`ghcr.io/tuist/tuist-runner@sha256:…`) in production so a
+  retag of `:latest` can't smuggle a different image into the
+  Pod manifest.
+  """
+  def runner_image do
+    System.get_env("TUIST_RUNNER_IMAGE", "")
+  end
+
+  @doc """
+  Public URL the runner Pod's VM polls for its JIT config.
+  Set per-env in helm values.
+  """
+  def runner_dispatch_url do
+    System.get_env("TUIST_RUNNER_DISPATCH_URL", "")
+  end
+
+  @doc """
+  Name of the Mac mini fleet runner Pods schedule onto.
+  Mirrors `runnersFleet.name` in the chart and is used in the
+  Pod's nodeSelector. Set per-env in helm values.
+  """
+  def runners_fleet_name do
+    System.get_env("TUIST_RUNNERS_FLEET_NAME", "")
+  end
+
+  @doc """
+  True when the cron reconciler should run. Off by default —
+  enabled only on environments that have configured the helm
+  `runnersFleet` block + the env vars above.
+  """
+  def runners_enabled? do
+    runner_image() != "" and runner_dispatch_url() != "" and runners_fleet_name() != ""
+  end
+
   def typesense_search_api_key do
     get([:typesense, :search_api_key], secrets(), default_value: "RgIpKytJBtSQf9CoYKxIfVxh8ma5kzs6")
   end

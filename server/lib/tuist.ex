@@ -152,6 +152,16 @@ defmodule Tuist do
       OAuth2.SSRFGuard,
       SCIM,
       SCIM.Filter,
-      SCIM.Resource
+      SCIM.Resource,
+      # Customer-runner pool. The Tuist GitHub App fires
+      # `workflow_job: queued` events into the webhook controller,
+      # which delegates to Tuist.Runners.Dispatch; an Oban cron
+      # owns the warm-pool reconciliation loop.
+      Runners,
+      Runners.Dispatch,
+      Runners.PoolConfig,
+      Runners.RunnerAssignment,
+      Runners.Workers.ReconcilePoolsWorker,
+      Kubernetes.Client
     ]
 end

@@ -331,4 +331,47 @@ defmodule Tuist.GitHub.Client do
       {"Authorization", "Bearer #{token}"}
     ]
   end
+
+  @doc """
+  Generates a just-in-time runner configuration for an ephemeral
+  GitHub Actions self-hosted runner. The returned `encoded_jit_config`
+  is what the in-VM `./run.sh --jitconfig` consumes; runners
+  registered this way are single-shot and auto-cleaned by GitHub
+  after they exit.
+
+  See: https://docs.github.com/en/rest/actions/self-hosted-runners#create-configuration-for-a-just-in-time-runner-for-a-repository
+  """
+  def generate_jit_config(installation_id, owner, repo, attrs) do
+    case App.get_installation_token(installation_id) do
+      {:ok, %{token: token}} ->
+        body = %{
+          "name" => Map.fetch!(attrs, :name),
+          "runner_group_id" => Map.get(attrs, :runner_group_id, 1),
+          "labels" => Map.fetch!(attrs, :labels),
+          "work_folder" => Map.get(attrs, :work_folder, "_work")
+        }
+
+        req_opts =
+          [
+            url: "https://api.github.com/repos/#{owner}/#{repo}/actions/runners/generate-jitconfig",
+            json: body,
+            headers: default_headers(token),
+            finch: Tuist.Finch
+          ] ++ Retry.retry_options()
+
+        case Req.post(req_opts) do
+          {:ok, %{status: 201, body: %{"encoded_jit_config" => jit, "runner" => runner}}} ->
+            {:ok, %{encoded_jit_config: jit, runner_id: runner["id"], runner_name: runner["name"]}}
+
+          {:ok, %{status: status, body: body}} ->
+            {:error, {:http, status, body}}
+
+          {:error, reason} ->
+            {:error, {:transport, reason}}
+        end
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
 end
