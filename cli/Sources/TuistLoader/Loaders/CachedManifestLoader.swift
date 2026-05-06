@@ -291,20 +291,11 @@ public class CachedManifestLoader: ManifestLoading {
         guard let cachedManifestContent = String(data: cachedManifestData, encoding: .utf8) else {
             throw ManifestLoaderError.manifestCachingFailed(manifest, cachedManifestPath)
         }
-        try await write(cachedManifestContent: cachedManifestContent, to: cachedManifestPath)
-    }
-
-    private func write(cachedManifestContent: String, to cachedManifestPath: AbsolutePath) async throws {
-        if try await !fileSystem.exists(cachedManifestPath.parentDirectory, isDirectory: true) {
-            try await fileSystem.makeDirectory(at: cachedManifestPath.parentDirectory, options: [.createTargetParentDirectories])
-        }
-        if try await fileSystem.exists(cachedManifestPath) {
-            try await fileSystem.remove(cachedManifestPath)
-        }
-        try await fileSystem.writeText(
-            cachedManifestContent,
-            at: cachedManifestPath
+        try await fileSystem.makeDirectory(
+            at: cachedManifestPath.parentDirectory,
+            options: [.createTargetParentDirectories]
         )
+        try await fileSystem.writeText(cachedManifestContent, at: cachedManifestPath)
     }
 }
 
