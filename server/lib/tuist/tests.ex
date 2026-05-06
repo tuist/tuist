@@ -37,7 +37,6 @@ defmodule Tuist.Tests do
   alias Tuist.Tests.TestCaseBranchPresence
   alias Tuist.Tests.TestCaseEvent
   alias Tuist.Tests.TestCaseFailure
-  alias Tuist.Tests.TestCaseLastRanByCi
   alias Tuist.Tests.TestCaseRun
   alias Tuist.Tests.TestCaseRunArgument
   alias Tuist.Tests.TestCaseRunAttachment
@@ -591,6 +590,7 @@ defmodule Tuist.Tests do
   """
   def create_test_cases(project_id, test_case_data_list, existing_test_cases, opts \\ []) do
     test_run_id = Keyword.get(opts, :test_run_id)
+    is_ci = Keyword.get(opts, :is_ci, false)
     now = NaiveDateTime.utc_now()
 
     test_case_ids_with_data =
@@ -615,6 +615,21 @@ defmodule Tuist.Tests do
         existing_is_flaky = Map.get(existing, :is_flaky, false)
         existing_state = Map.get(existing, :state, "enabled")
 
+        # Update only the column matching the current run's environment; carry
+        # the other forward from the prior row so ReplacingMergeTree's
+        # whole-row replacement doesn't lose the timestamp from the opposite
+        # environment. The Test Cases listing's CI/Local active-period
+        # filter reads these columns directly.
+        existing_last_ran_at_ci = Map.get(existing, :last_ran_at_ci)
+        existing_last_ran_at_local = Map.get(existing, :last_ran_at_local)
+
+        {last_ran_at_ci, last_ran_at_local} =
+          if is_ci do
+            {data.ran_at, existing_last_ran_at_local}
+          else
+            {existing_last_ran_at_ci, data.ran_at}
+          end
+
         test_case = %{
           id: id,
           name: data.name,
@@ -624,6 +639,8 @@ defmodule Tuist.Tests do
           last_status: data.status,
           last_duration: data.duration,
           last_ran_at: data.ran_at,
+          last_ran_at_ci: last_ran_at_ci,
+          last_ran_at_local: last_ran_at_local,
           is_flaky: existing_is_flaky,
           last_run_id: test_run_id,
           state: existing_state,
@@ -698,6 +715,8 @@ defmodule Tuist.Tests do
         recent_durations: test_case.recent_durations,
         is_flaky: test_case.is_flaky,
         state: test_case.state,
+        last_ran_at_ci: test_case.last_ran_at_ci,
+        last_ran_at_local: test_case.last_ran_at_local,
         inserted_at: test_case.inserted_at
       }
     )
@@ -1308,7 +1327,10 @@ defmodule Tuist.Tests do
       |> Enum.uniq_by(fn data -> {data.name, data.module_name, data.suite_name} end)
 
     {test_case_id_map, test_case_ids_with_flaky_run, new_test_case_ids} =
-      create_test_cases(test.project_id, test_case_data_list, existing_test_cases, test_run_id: test.id)
+      create_test_cases(test.project_id, test_case_data_list, existing_test_cases,
+        test_run_id: test.id,
+        is_ci: test.is_ci
+      )
 
     {test_case_runs, all_failures, all_repetitions, all_attachments, all_arguments} =
       Enum.reduce(test_cases, {[], [], [], [], []}, fn case_attrs,
@@ -1552,14 +1574,14 @@ defmodule Tuist.Tests do
   by ReplacingMergeTree on each test run.
 
   Options:
-    * `:active_period` — `{start_datetime, end_datetime}` tuple. When set, the result
-      is restricted to test cases that ran in the given window. With `is_ci: nil`
-      (the default), the window is applied directly to the denormalized
-      `last_ran_at` on `test_cases` — no `test_case_runs` scan. With
-      `is_ci: true | false`, the CI-vs-local dimension isn't denormalized, so
-      we still join `test_case_runs` to find matching `test_case_id`s.
-    * `:is_ci` — when combined with `:active_period`, further restricts the run
-      lookup to CI (`true`) or local (`false`) runs.
+    * `:active_period` — `{start_datetime, end_datetime}` tuple. When set, the
+      result is restricted to test cases that ran in the given window. The
+      window is applied directly to the appropriate denormalized column on
+      `test_cases` (`last_ran_at`, `last_ran_at_ci`, or `last_ran_at_local`),
+      kept up-to-date by every test run. No `test_case_runs` scan.
+    * `:is_ci` — when combined with `:active_period`, scopes the lookup to CI
+      (`true`) or local (`false`) runs by reading the matching denormalized
+      column. `nil` (the default) means "any environment".
   """
   def list_test_cases(project_id, attrs, opts \\ []) do
     filters = Map.get(attrs, :filters, [])
@@ -1576,37 +1598,8 @@ defmodule Tuist.Tests do
 
     base_query =
       cond do
-        # `is_ci: nil` is the default ("any environment") and accounts for the
-        # bulk of dashboard traffic. The `last_ran_at` filter on `test_cases`
-        # gives identical results to joining `test_case_runs` since the column
-        # is kept up-to-date by every test run, but reads two orders of
-        # magnitude less data because `test_case_runs` is the per-execution
-        # table (production traces showed the join scanning ~94 M rows for
-        # ~5 K test cases worth of identity rows).
-        not is_nil(active_period) and is_nil(is_ci) ->
-          {start_datetime, end_datetime} = active_period
-          start_naive = DateTime.to_naive(start_datetime)
-          end_naive = DateTime.to_naive(end_datetime)
-
-          where(
-            base_query,
-            [test_case],
-            test_case.last_ran_at >= ^start_naive and test_case.last_ran_at <= ^end_naive
-          )
-
-        # The CI-vs-local dimension isn't denormalized on `test_cases`, so the
-        # CI/Local dropdown joins against `active_test_case_ids_query`, which
-        # in turn reads from the `test_cases_last_ran_by_ci` MV — a small
-        # `(project_id, is_ci, test_case_id) → maxState(ran_at)` aggregating
-        # view kept ~scoped to "distinct test cases per project". Replaces a
-        # ~94 M-row scan over `test_case_runs` with a tiny GROUP BY.
         not is_nil(active_period) ->
-          active_ids = active_test_case_ids_query(project_id, active_period, is_ci)
-
-          from(test_case in base_query,
-            inner_join: active in subquery(active_ids),
-            on: test_case.id == active.test_case_id
-          )
+          apply_active_period(base_query, active_period, is_ci)
 
         # Quarantined-by-state filters (`state in ["muted", "skipped"]` or the
         # legacy `quarantined=true` shortcut) bypass the active window. Skipped
@@ -1646,54 +1639,38 @@ defmodule Tuist.Tests do
     end)
   end
 
-  # When `is_ci` is set, the lookup goes through the
-  # `test_cases_last_ran_by_ci` AggregatingMergeTree MV: one row per
-  # `(project_id, is_ci, test_case_id)` with `maxState(ran_at)`. Active-set
-  # resolution scans ~distinct-test-cases-per-project rows instead of every
-  # `test_case_runs` row in the window (production query against project
-  # 1227 dropped from 1.74 s / 94 M rows / 3.94 GB on `test_case_runs` to
-  # well under a second on the MV).
-  #
-  # The `is_ci: nil` ("any environment") path is never reached today —
-  # `list_test_cases/3` short-circuits that branch by filtering on the
-  # denormalized `test_cases.last_ran_at` directly. The clause is kept here
-  # so other callers can still rely on the function's documented contract.
-  #
-  # `inserted_at` is added alongside `ran_at` on the `is_ci: nil` branch so
-  # the partition pruner can skip months outside the window. `test_case_runs`
-  # is `PARTITION BY toYYYYMM(inserted_at)` and `ran_at` is not a partition
-  # key. Rows with `inserted_at < ran_at` would not exist (insert happens
-  # after the run completes), so this never excludes a row that the `ran_at`
-  # window would have included.
-  defp active_test_case_ids_query(project_id, {start_datetime, end_datetime}, is_ci)
-       when is_boolean(is_ci) do
+  # `last_ran_at_ci` and `last_ran_at_local` are denormalized on `test_cases`
+  # (kept current by `create_test_cases/4`'s read-modify-write merge per
+  # test_case_id). The CI/Local-filtered active-period filter reads them
+  # directly — no `test_case_runs` join — replacing what used to be a ~94 M
+  # row / 4 GB scan on production for one project.
+  defp apply_active_period(query, {start_datetime, end_datetime}, is_ci) do
     start_naive = DateTime.to_naive(start_datetime)
     end_naive = DateTime.to_naive(end_datetime)
 
-    from(mv in TestCaseLastRanByCi,
-      where: mv.project_id == ^project_id and mv.is_ci == ^is_ci,
-      group_by: mv.test_case_id,
-      having:
-        fragment("maxMerge(last_ran_at_state) >= ?", ^start_naive) and
-          fragment("maxMerge(last_ran_at_state) <= ?", ^end_naive),
-      select: %{test_case_id: mv.test_case_id}
-    )
-  end
+    case is_ci do
+      true ->
+        where(
+          query,
+          [test_case],
+          test_case.last_ran_at_ci >= ^start_naive and test_case.last_ran_at_ci <= ^end_naive
+        )
 
-  defp active_test_case_ids_query(project_id, {start_datetime, end_datetime}, _is_ci) do
-    start_naive = DateTime.to_naive(start_datetime)
-    end_naive = DateTime.to_naive(end_datetime)
+      false ->
+        where(
+          query,
+          [test_case],
+          test_case.last_ran_at_local >= ^start_naive and
+            test_case.last_ran_at_local <= ^end_naive
+        )
 
-    from(run in TestCaseRun,
-      where:
-        run.project_id == ^project_id and
-          run.ran_at >= ^start_naive and
-          run.ran_at <= ^end_naive and
-          run.inserted_at >= ^start_naive and
-          not is_nil(run.test_case_id),
-      group_by: run.test_case_id,
-      select: %{test_case_id: run.test_case_id}
-    )
+      _ ->
+        where(
+          query,
+          [test_case],
+          test_case.last_ran_at >= ^start_naive and test_case.last_ran_at <= ^end_naive
+        )
+    end
   end
 
   @doc """

@@ -2666,12 +2666,11 @@ defmodule Tuist.TestsTest do
              ]
     end
 
-    test "active_period with is_ci scopes via the test_cases_last_ran_by_ci MV" do
-      # Locks down the CI/Local active-period path that goes through the
-      # AggregatingMergeTree MV instead of joining test_case_runs. A test
-      # that only ever ran locally must be excluded when is_ci=true and vice
-      # versa, even though both share the same `last_ran_at` denormalized
-      # on test_cases.
+    test "active_period with is_ci scopes via denormalized last_ran_at_ci/local" do
+      # Locks down the CI/Local active-period path that reads the
+      # denormalized columns on test_cases instead of joining test_case_runs.
+      # A test that only ever ran locally must be excluded when is_ci=true
+      # and vice versa, even though both share the same `last_ran_at`.
       project = ProjectsFixtures.project_fixture()
       ran_at = NaiveDateTime.utc_now()
 
