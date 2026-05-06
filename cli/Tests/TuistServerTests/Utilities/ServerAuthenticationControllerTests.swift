@@ -5,6 +5,7 @@ import Path
 import Testing
 import TuistConstants
 import TuistEnvironment
+import TuistProcess
 import TuistSupport
 import TuistTesting
 
@@ -630,23 +631,31 @@ struct ServerAuthenticationControllerTests {
         .withMockedEnvironment(),
         .withMockedDependencies()
     ) mutating func background_refresh_times_out_when_lockfile_holder_does_not_finish_in_time() async throws {
-        // Reproducer for https://tuist.dev users hitting "The refreshing of the access and refresh
-        // token pair for the URL https://tuist.dev failed after 5 seconds."
+        // Regression test for users hitting "The refreshing of the access and refresh token pair
+        // for the URL https://tuist.dev failed after N seconds."
         //
         // The default CLI flow takes the (.expired, true, true) branch (background refresh with
-        // locking) which polls for at most maxAttempts*retryInterval = 10*500ms = 5s waiting for
+        // locking) which polls for at most maxAttempts*retryInterval = 30*500ms = 15s waiting for
         // a `tuist auth refresh-token` subprocess to write the new credentials. If another
         // process is already refreshing (its `auth-locks` lockfile is fresh, < 10s old) the
-        // current process just polls — and times out if the holder doesn't finish in time.
+        // current process just polls and times out if the holder doesn't finish in time.
         //
         // We pre-create a fresh lockfile to simulate an in-flight peer subprocess that never
-        // completes. That deterministically drives the polling loop to its 5s timeout without
+        // completes. That deterministically drives the polling loop to its 15s timeout without
         // needing a real subprocess.
         let date = Date()
         let serverURL: URL = .test()
 
+        // The polling loop now extends past the 10s lockfile-staleness window,
+        // so the controller will eventually try to spawn a refresh subprocess
+        // via `BackgroundProcessRunning`. Stub it out with a no-op so the test
+        // doesn't try to launch the test runner binary as `tuist auth refresh-token`.
+        let backgroundProcessRunner = MockBackgroundProcessRunning()
+        given(backgroundProcessRunner).runInBackground(.any, environment: .any).willReturn()
+
         subject = ServerAuthenticationController(
             refreshAuthTokenService: refreshAuthTokenService,
+            backgroundProcessRunner: backgroundProcessRunner,
             cachedValueStore: CachedValueStore(backend: .fileSystem)
         )
 
@@ -677,7 +686,7 @@ struct ServerAuthenticationControllerTests {
                 .withValue(ServerAuthenticationConfig(backgroundRefresh: true)) {
                     await #expect(
                         throws: ServerAuthenticationControllerError.timedOut(
-                            seconds: 5,
+                            seconds: 15,
                             serverURL: serverURL
                         )
                     ) {
@@ -687,6 +696,74 @@ struct ServerAuthenticationControllerTests {
         }
     }
 
+    @Test(
+        .withMockedEnvironment(),
+        .withMockedDependencies()
+    ) mutating func unauthorized_refresh_does_not_delete_credentials_when_peer_rotated_them() async throws {
+        // When two `tuist` processes race on a token refresh, the slower one
+        // ends up POSTing an already-rotated refresh token and the server
+        // returns 401. The credentials file on disk has already been updated
+        // by the peer with valid tokens, so wiping it is what surfaces as
+        // "Token for Tuist was not found" on the next invocation. This test
+        // pins the fix: detect that the on-disk refresh token has changed
+        // since we started the action and preserve the rotated credentials.
+        let date = Date()
+        subject = ServerAuthenticationController(
+            refreshAuthTokenService: refreshAuthTokenService,
+            cachedValueStore: CachedValueStore()
+        )
+        let serverCredentialsStore = MockServerCredentialsStoring()
+        let serverURL: URL = .test()
+
+        let accessToken = try JWT.make(expiryDate: date.addingTimeInterval(-100), typ: "access")
+        let staleRefreshToken = try JWT.make(expiryDate: date.addingTimeInterval(+60), typ: "refresh")
+        let rotatedRefreshToken = try JWT.make(expiryDate: date.addingTimeInterval(+120), typ: "refresh")
+
+        let staleCredentials: ServerCredentials = .test(
+            accessToken: accessToken.token,
+            refreshToken: staleRefreshToken.token
+        )
+        let rotatedCredentials: ServerCredentials = .test(
+            accessToken: accessToken.token,
+            refreshToken: rotatedRefreshToken.token
+        )
+
+        let credentialsBox = TestStore<ServerCredentials?>(staleCredentials)
+        given(serverCredentialsStore).read(serverURL: .value(serverURL)).willProduce { _ in
+            credentialsBox.value
+        }
+        given(serverCredentialsStore).delete(serverURL: .value(serverURL)).willReturn()
+
+        let unauthorizedError = RefreshAuthTokenServiceError.unauthorized("Refresh token revoked")
+        given(refreshAuthTokenService)
+            .refreshTokens(serverURL: .value(serverURL), refreshToken: .any)
+            .willProduce { _, _ in
+                // Simulate a peer process rotating the refresh token on disk
+                // while our request was in flight, then the server rejecting
+                // our request because we used the now-revoked token.
+                credentialsBox.value = rotatedCredentials
+                throw unauthorizedError
+            }
+
+        try await ServerCredentialsStore.$current.withValue(serverCredentialsStore) {
+            try await Date.$now.withValue({ date }) {
+                await #expect(throws: unauthorizedError, performing: {
+                    try await subject.refreshToken(
+                        serverURL: serverURL,
+                        inBackground: false,
+                        locking: true,
+                        forceInProcessLock: true
+                    )
+                })
+            }
+        }
+
+        verify(serverCredentialsStore)
+            .delete(serverURL: .value(serverURL))
+            .called(0)
+        #expect(credentialsBox.value == rotatedCredentials)
+    }
+
     private static func makeTokens(date: Date) throws -> ServerAuthenticationTokens {
         let newAccessToken = try JWT.make(expiryDate: date.addingTimeInterval(+600), typ: "access")
         let newRefreshToken = try JWT.make(expiryDate: date.addingTimeInterval(+7200), typ: "refresh")
@@ -694,6 +771,28 @@ struct ServerAuthenticationControllerTests {
             accessToken: newAccessToken.token,
             refreshToken: newRefreshToken.token
         )
+    }
+}
+
+private final class TestStore<T>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var _value: T
+
+    init(_ value: T) {
+        _value = value
+    }
+
+    var value: T {
+        get {
+            lock.lock()
+            defer { lock.unlock() }
+            return _value
+        }
+        set {
+            lock.lock()
+            defer { lock.unlock() }
+            _value = newValue
+        }
     }
 }
 
