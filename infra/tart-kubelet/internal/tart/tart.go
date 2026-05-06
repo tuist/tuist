@@ -142,7 +142,18 @@ func (c *Client) Run(ctx context.Context, name string, sharedDirs []string) erro
 	_ = logFile.Close()
 	go func() { _ = cmd.Wait() }()
 
-	deadline := time.Now().Add(2 * time.Minute)
+	// 8 min covers a cold-boot macOS guest: first-boot of a freshly
+	// pulled Tart image runs Apple's setup pipeline (firstboot
+	// services, DiskCryptor unseal, ResearchKit prefs, etc.) before
+	// configd negotiates a vmnet DHCP lease — observed at 3-5 min on
+	// M2-M Mac minis. Setting this to 2 min meant every clean retry
+	// after TartCreateFailed re-cloned the image and re-cold-booted
+	// from zero, so retries hit the same wall instead of converging.
+	// 8 min still bounds the goroutine so a genuinely wedged VM
+	// (e.g. configd never starts) surfaces as TartCreateFailed
+	// rather than blocking the reconcile worker indefinitely.
+	const ipWaitTimeout = 8 * time.Minute
+	deadline := time.Now().Add(ipWaitTimeout)
 	for time.Now().Before(deadline) {
 		select {
 		case <-ctx.Done():
@@ -155,7 +166,7 @@ func (c *Client) Run(ctx context.Context, name string, sharedDirs []string) erro
 		}
 	}
 	c.cleanupAfterFailedRun(name)
-	return fmt.Errorf("tart run %s: VM did not obtain an IP in 2m", name)
+	return fmt.Errorf("tart run %s: VM did not obtain an IP in %s", name, ipWaitTimeout)
 }
 
 // cleanupAfterFailedRun stops + deletes a VM whose Run() couldn't
