@@ -1,7 +1,20 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.191.2<!-- RELEASE NOTES START -->
+## What's Changed in 4.191.6<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* preserve pruned test plan metadata by [@pepicrft](https://github.com/pepicrft) in [#10611](https://github.com/tuist/tuist/pull/10611)
+* include macOS SDK version in ProjectDescriptionHelpers cache key by [@pepicrft](https://github.com/pepicrft) in [#10598](https://github.com/tuist/tuist/pull/10598)
+* skip fully cached missing test plans by [@pepicrft](https://github.com/pepicrft) in [#10582](https://github.com/tuist/tuist/pull/10582)
+* disable HAR recording for cache daemon by [@fortmarek](https://github.com/fortmarek) in [#10589](https://github.com/tuist/tuist/pull/10589)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.191.5...4.191.6
+
+## What's Changed in 4.191.5<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
 
@@ -13,7 +26,7 @@ All notable changes to this project will be documented in this file.
 
 
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.191.1...4.191.2
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.191.1...4.191.5
 
 ## What's Changed in 4.191.1<!-- RELEASE NOTES START -->
 

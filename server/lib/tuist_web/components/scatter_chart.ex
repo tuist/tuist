@@ -49,12 +49,15 @@ defmodule TuistWeb.Components.ScatterChart do
   end
 
   @doc """
-  Returns the ISO8601 representation of the scatter result's oldest entry, or
-  an empty string when the result is not truncated. Callers pass this into their
-  localized truncation message via `dgettext(..., date: scatter_oldest_entry_iso(...))`.
+  Returns a locale-neutral, human-readable representation of the scatter result's
+  oldest entry, or an empty string when the result is not truncated. The format
+  uses digits only (no locale-specific month names) so it composes safely with
+  any translated truncation message via `dgettext(..., date: scatter_oldest_entry_formatted(...))`.
   """
-  def scatter_oldest_entry_iso({:scatter, %{oldest_entry: %NaiveDateTime{} = entry}}), do: NaiveDateTime.to_iso8601(entry)
-  def scatter_oldest_entry_iso(_), do: ""
+  def scatter_oldest_entry_formatted({:scatter, %{oldest_entry: %NaiveDateTime{} = entry}}),
+    do: Calendar.strftime(entry, "%Y-%m-%d %H:%M")
+
+  def scatter_oldest_entry_formatted(_), do: ""
 
   defp scatter?(%{result: {:scatter, _}, loading: loading}), do: !loading
   defp scatter?(_), do: false

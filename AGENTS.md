@@ -17,6 +17,7 @@ This file provides guidance to AI agents when working with code in this reposito
 - `server/native/xcactivitylog_nif/` - Swift NIF linked into the server release for xcactivitylog parsing. The processor is no longer a standalone Elixir app; it's the same `ghcr.io/tuist/tuist` image booted with `TUIST_MODE=processor` to run the `:process_build` Oban queue consumer.
 - `xcode_processor/` - Xcode processor service for xcresult processing (Elixir/Phoenix + Swift NIF, macOS) - see `xcode_processor/AGENTS.md`
 - `search/` - Search infrastructure (TypeSense) - see `search/AGENTS.md`
+- `status/` - Public status page (Cloudflare Worker + Hono) backed by Grafana IRM - see `status/AGENTS.md`
 - `infra/` - Infrastructure and deployment assets - see `infra/AGENTS.md`
 
 ## Global Guardrails
@@ -39,6 +40,7 @@ When creating commits and pull requests, use these conventional commit scopes:
 - `noora` - Changes to the Noora web component library
 - `skills` - Changes to the Agent Skills package
 - `search` - Changes to the search infrastructure (TypeSense)
+- `status` - Changes to the public status page (Cloudflare Worker)
 - `docs` - Changes to documentation
 - `handbook` - Changes to the handbook/guides
 
@@ -240,7 +242,7 @@ The CI pipeline will fail if any `.po` files are modified by anyone other than `
 
 ## Deployment
 
-The application deploys to managed Syself Kubernetes clusters on Hetzner via Helm. See `infra/AGENTS.md` for the full layout.
+The application deploys to our self-hosted CAPI Kubernetes clusters on Hetzner via Helm. See `infra/AGENTS.md` for the full layout.
 
 - Push to `main` triggers `.github/workflows/server-production-deployment.yml`, which cascades canary → acceptance tests → production (hotfix fast-path available).
 - Single-environment deploys use `.github/workflows/server-deployment.yml` via `workflow_dispatch`.

@@ -179,7 +179,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
       expect(Tuist.Storage, :download_to_file, fn _, _, _ -> {:ok, :done} end)
 
       expect(BuildProcessor, :process_build, fn _path, _ ->
-        {:error, {:parse_failed, "NIF not loaded"}}
+        {:error, "NIF not loaded"}
       end)
 
       expect(Tuist.Builds, :create_build, fn attrs ->
@@ -187,7 +187,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
         {:ok, %{id: build.id}}
       end)
 
-      assert {:error, {:parse_failed, "NIF not loaded"}} =
+      assert {:error, "NIF not loaded"} =
                ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id), 3, 3))
     end
 
@@ -258,7 +258,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
       expect(Tuist.Storage, :download_to_file, fn _, _, _ -> {:ok, :done} end)
 
       expect(BuildProcessor, :process_build, fn _, _ ->
-        {:error, {:parse_failed, "boom"}}
+        {:error, "boom"}
       end)
 
       expect(Tuist.Builds, :create_build, fn _attrs -> {:ok, %{id: build.id}} end)

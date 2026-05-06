@@ -5,6 +5,7 @@ defmodule Tuist.MCP.Components.Tools.ListGradleBuildTasks do
 
   use Tuist.MCP.Tool,
     name: "list_gradle_build_tasks",
+    title: "List Gradle Build Tasks",
     schema: %{
       "type" => "object",
       "properties" => %{

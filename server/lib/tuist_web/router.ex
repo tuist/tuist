@@ -183,6 +183,14 @@ defmodule TuistWeb.Router do
     plug ObservabilityContextPlug
   end
 
+  pipeline :scim_api do
+    plug :accepts, ["scim+json", "json"]
+    plug TuistWeb.Plugs.SCIMAuthPlug
+    plug TuistWeb.Plugs.SCIMRateLimitPlug
+    plug SentryContextPlug
+    plug ObservabilityContextPlug
+  end
+
   pipeline :authenticated do
     plug TuistWeb.AuthenticationPlug, :load_authenticated_subject
     plug SentryContextPlug
@@ -406,6 +414,7 @@ defmodule TuistWeb.Router do
     get "/oauth-protected-resource/*resource_path", WellKnownController, :oauth_protected_resource
     get "/jwks.json", WellKnownController, :jwks
     get "/mcp/server-card.json", WellKnownController, :mcp_server_card
+    get "/openai-apps-challenge", WellKnownController, :openai_apps_challenge
     get "/apple-app-site-association", WellKnownController, :apple_app_site_association
     get "/assetlinks.json", WellKnownController, :assetlinks
   end
@@ -414,6 +423,26 @@ defmodule TuistWeb.Router do
     pipe_through [:mcp]
 
     forward "/mcp", EMCP.Transport.StreamableHTTP, server: Tuist.MCP.Server
+  end
+
+  scope "/scim/v2", TuistWeb.SCIM do
+    pipe_through [:scim_api]
+
+    get "/ServiceProviderConfig", DiscoveryController, :service_provider_config
+    get "/ResourceTypes", DiscoveryController, :resource_types
+    get "/Schemas", DiscoveryController, :schemas
+    get "/Schemas/:id", DiscoveryController, :schema
+
+    get "/Users", UsersController, :index
+    post "/Users", UsersController, :create
+    get "/Users/:id", UsersController, :show
+    put "/Users/:id", UsersController, :replace
+    patch "/Users/:id", UsersController, :patch
+    delete "/Users/:id", UsersController, :delete
+
+    get "/Groups", GroupsController, :index
+    get "/Groups/:id", GroupsController, :show
+    patch "/Groups/:id", GroupsController, :patch
   end
 
   scope path: "/api",
@@ -890,7 +919,7 @@ defmodule TuistWeb.Router do
       live "/members", MembersLive
       live "/billing", BillingLive
       live "/integrations", IntegrationsLive
-      live "/sso", SSOSettingsLive
+      live "/authentication", AuthenticationSettingsLive
       live "/settings", AccountSettingsLive
     end
   end

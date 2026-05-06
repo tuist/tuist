@@ -57,12 +57,7 @@ public func parseXCActivityLog(
 
     let deadline = DispatchTime.now() + .seconds(parseTimeoutSeconds)
     if semaphore.wait(timeout: deadline) == .timedOut {
-        let error = NSError(
-            domain: "XCActivityLogNIF",
-            code: -1,
-            userInfo: [NSLocalizedDescriptionKey: "parse timed out after \(parseTimeoutSeconds)s"]
-        )
-        return writeError(error, outputPtr: outputPtr, outputLen: outputLen)
+        return writeMessage("parse timed out after \(parseTimeoutSeconds)s", outputPtr: outputPtr, outputLen: outputLen)
     }
 
     switch box.value! {
@@ -77,25 +72,27 @@ public func parseXCActivityLog(
             outputLen.pointee = Int32(jsonData.count)
             return 0
         } catch {
-            return writeError(error, outputPtr: outputPtr, outputLen: outputLen)
+            return writeMessage(error.localizedDescription, outputPtr: outputPtr, outputLen: outputLen)
         }
     case let .failure(error):
-        return writeError(error, outputPtr: outputPtr, outputLen: outputLen)
+        return writeMessage(error.localizedDescription, outputPtr: outputPtr, outputLen: outputLen)
     }
 }
 
-private func writeError(
-    _ error: Error,
+// Writes a plain UTF-8 error message into the output buffer. The C bridge
+// surfaces the bytes as an Erlang binary in `{:error, <<message>>}`, so a
+// raw string is enough — no JSON wrapping needed on this path.
+private func writeMessage(
+    _ message: String,
     outputPtr: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>,
     outputLen: UnsafeMutablePointer<Int32>
 ) -> Int32 {
-    let errorJSON = "{\"error\": \"\(error.localizedDescription.replacingOccurrences(of: "\"", with: "\\\""))\"}"
-    let data = Array(errorJSON.utf8)
-    let buffer = UnsafeMutablePointer<CChar>.allocate(capacity: data.count)
-    for (i, byte) in data.enumerated() {
+    let bytes = Array(message.utf8)
+    let buffer = UnsafeMutablePointer<CChar>.allocate(capacity: max(bytes.count, 1))
+    for (i, byte) in bytes.enumerated() {
         buffer[i] = CChar(bitPattern: byte)
     }
     outputPtr.pointee = buffer
-    outputLen.pointee = Int32(data.count)
+    outputLen.pointee = Int32(bytes.count)
     return 1
 }

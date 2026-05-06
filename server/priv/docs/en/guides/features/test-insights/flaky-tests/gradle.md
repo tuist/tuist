@@ -47,7 +47,9 @@ tasks.test {
 
 ### Cross-run detection {#cross-run-detection}
 
-Even without test retries, Tuist can detect flaky tests by comparing results across different CI runs on the same commit. If a test passes in one CI run but fails in another run for the same commit, both runs are marked as flaky.
+Even without test retries, Tuist can detect flaky tests by comparing results across different CI runs on the same commit and the same Gradle project. If a test passes in one CI run but fails in another run for the same commit and project, both runs are marked as flaky.
+
+The Gradle project is part of the comparison key because the same test can behave deterministically differently across projects — for example, a shared test class compiled with different dependencies or run on a different module fixture. Two runs of the same commit on different Gradle projects are treated as separate execution variants and won't flag each other as flaky.
 
 This is particularly useful for catching flaky tests that don't fail consistently enough to be caught by retries, but still cause intermittent CI failures.
 

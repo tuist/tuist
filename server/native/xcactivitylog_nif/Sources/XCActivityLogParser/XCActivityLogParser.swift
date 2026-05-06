@@ -188,13 +188,7 @@ public struct XCActivityLogParser: Sendable {
             let warnings = step.warnings ?? []
             for notice in errors + warnings {
                 let issueType: String = notice.severity == 1 ? "warning" : "error"
-                var message = notice.detail
-                if var detail = notice.detail {
-                    if let r = detail.range(of: "warning: ") { detail = String(detail[r.upperBound...]) }
-                    if let r = detail.range(of: "error: ") { detail = String(detail[r.upperBound...]) }
-                    if let r = detail.range(of: " ^~") { detail = String(detail[..<r.lowerBound]) }
-                    message = detail
-                }
+
                 let key = "\(step.signature):\(notice.startingLineNumber):\(notice.startingColumnNumber):\(issueType)"
                 guard !seen.contains(key) else { continue }
                 seen.insert(key)
@@ -212,7 +206,7 @@ public struct XCActivityLogParser: Sendable {
                     signature: step.signature,
                     step_type: stepTypeString(from: step.signature),
                     path: path,
-                    message: message.flatMap { $0.count > 1000 ? String($0.prefix(1000)) + "..." : $0 },
+                    message: notice.detail.flatMap(cleanIssueDetail),
                     starting_line: Int(notice.startingLineNumber),
                     ending_line: Int(notice.endingLineNumber),
                     starting_column: Int(notice.startingColumnNumber),
@@ -221,6 +215,53 @@ public struct XCActivityLogParser: Sendable {
             }
         }
         return result
+    }
+
+    // Cap raw detail before searching: pathological diagnostics (e.g. macro
+    // expansion errors) can be megabytes, and `range(of:)` is linear in the
+    // input even with `.literal`. We truncate to the final 1000-char message
+    // limit anyway, plus headroom for the preamble we strip below. UTF-16
+    // length is O(1) on native strings; grapheme `count` is not.
+    private static let issueDetailSearchCap = 4096
+    private static let issueMessageCap = 1000
+
+    private func cleanIssueDetail(_ raw: String) -> String {
+        var detail = raw
+        if detail.utf16.count > Self.issueDetailSearchCap {
+            let cap = detail.utf16.index(
+                detail.utf16.startIndex,
+                offsetBy: Self.issueDetailSearchCap,
+                limitedBy: detail.utf16.endIndex
+            ) ?? detail.utf16.endIndex
+            // Round to a Unicode scalar boundary; bail to the original string
+            // if the cap landed inside a surrogate pair (rare, but cheap to
+            // handle correctly).
+            detail = String.Index(cap, within: detail).map { String(detail[..<$0]) } ?? detail
+        }
+        // `.literal` skips canonical equivalence so the search runs on raw
+        // UTF-16 code units instead of grapheme clusters — this is what
+        // takes the parse from minutes to seconds on builds with thousands
+        // of diagnostics.
+        if let r = detail.range(of: "warning: ", options: .literal) {
+            detail = String(detail[r.upperBound...])
+        }
+        if let r = detail.range(of: "error: ", options: .literal) {
+            detail = String(detail[r.upperBound...])
+        }
+        if let r = detail.range(of: " ^~", options: .literal) {
+            detail = String(detail[..<r.lowerBound])
+        }
+        if detail.utf16.count > Self.issueMessageCap {
+            let cap = detail.utf16.index(
+                detail.utf16.startIndex,
+                offsetBy: Self.issueMessageCap,
+                limitedBy: detail.utf16.endIndex
+            ) ?? detail.utf16.endIndex
+            if let stringIdx = String.Index(cap, within: detail) {
+                detail = String(detail[..<stringIdx]) + "..."
+            }
+        }
+        return detail
     }
 
     // MARK: - Files

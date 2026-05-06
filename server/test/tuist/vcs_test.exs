@@ -965,11 +965,28 @@ defmodule Tuist.VCSTest do
         inserted_at: ~U[2024-01-01 04:00:00Z]
       )
 
+      # An older bundle for the same PR ref + app name (on the feature
+      # branch, not main, so it doesn't displace the main-branch
+      # baseline used to compute size deviation). The comment must only
+      # render the newest "App" row — CH `DISTINCT` runs before
+      # `ORDER BY`, so a naive query would surface this stale 999-byte
+      # row instead of the 1000-byte one below.
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        install_size: 999,
+        download_size: 999,
+        git_branch: "feat/my-feature",
+        git_ref: @git_ref,
+        git_commit_sha: @git_commit_sha,
+        inserted_at: ~U[2024-01-01 04:30:00Z]
+      )
+
       bundle_ios_app =
         BundlesFixtures.bundle_fixture(
           project: project,
           install_size: 1000,
           download_size: 3000,
+          git_branch: "feat/my-feature",
           git_ref: @git_ref,
           git_commit_sha: @git_commit_sha,
           inserted_at: ~U[2024-01-01 05:00:00Z]

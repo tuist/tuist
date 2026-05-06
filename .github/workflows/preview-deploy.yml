@@ -28,13 +28,13 @@ name: Preview Deploy
 # Required GitHub Environment secret (environment: server-k8s-preview):
 #   KUBECONFIG  - base64 kubeconfig for the preview WORKLOAD cluster's CI
 #                 ServiceAccount (cluster-admin in preview-system). Minted
-#                 at cluster bootstrap; see infra/k8s/syself-onboarding.md §9.
+#                 at cluster bootstrap; see infra/k8s/onboarding.md §5.
 #
 # No management-cluster kubeconfig: the preview cluster keeps a fixed worker
-# pool (see workload-cluster-preview.yaml's "Why pinned `replicas: 1`"
-# comment) because Syself's OIDC users can't create the ServiceAccount we'd
-# need to scale from CI. ~€13/mo of always-on cost in exchange for sidestepping
-# that dependency entirely.
+# pool (see cluster-preview.yaml's "DO NOT APPLY THIS FILE AFTER INITIAL
+# BOOTSTRAP" header). Activating elastic scaling is the §8.3 step in
+# infra/k8s/onboarding.md (apply preview-mgmt-rbac.yaml, set KUBECONFIG_MGMT,
+# drop the replicas pin); until then we eat ~€13/mo of always-on cost.
 
 on:
   workflow_dispatch:
@@ -278,9 +278,8 @@ jobs:
     # gate. We only require the actual prerequisite (build) to succeed;
     # start-deployment can fail (e.g. status-check API conflict) without
     # blocking the real deploy. There's no scale-up job — the preview
-    # cluster keeps a fixed worker pool because we can't get the
-    # management-cluster permissions Syself would require for elastic
-    # scaling (see infra/k8s/syself/workload-cluster-preview.yaml).
+    # cluster keeps a fixed worker pool until the scaler RBAC is wired
+    # (see infra/k8s/clusters/cluster-preview.yaml + onboarding §8.3).
     if: |
       always()
       && needs.resolve.outputs.action == 'deploy'
@@ -317,10 +316,10 @@ jobs:
           chmod 600 "$KUBECONFIG"
 
       - name: Re-apply role=preview label/taint on workers
-        # CAPI/Syself doesn't surface node labels via topology variables, so
-        # workers come up un-labeled. Re-applying every deploy makes the
-        # workflow idempotent and survives MachineDeployment scale events
-        # that bring up fresh nodes.
+        # The tuist-hcloud ClusterClass doesn't surface node labels via
+        # topology variables, so workers come up un-labeled. Re-applying
+        # every deploy makes the workflow idempotent and survives
+        # MachineDeployment scale events that bring up fresh nodes.
         run: |
           kubectl label nodes -l '!node-role.kubernetes.io/control-plane' role=preview --overwrite
           kubectl taint nodes -l '!node-role.kubernetes.io/control-plane' role=preview:NoSchedule --overwrite
