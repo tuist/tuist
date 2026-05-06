@@ -3,26 +3,19 @@
     import Foundation
     import XCTest
 
-    @testable import TuistSupport
-
     open class TuistUnitTestCase: TuistTestCase {
-        public var system: MockSystem!
+        public var mockCommandRunner: MockCommandRunner!
         public var fileSystem: FileSysteming!
 
         override open func setUp() {
             super.setUp()
-            // System
-            system = MockSystem()
-            System._shared.mutate { $0 = system }
+            mockCommandRunner = MockCommandRunner()
 
             fileSystem = FileSystem()
         }
 
         override open func tearDown() {
-            // System
-            system = nil
-            System._shared.mutate { $0 = System() }
-
+            mockCommandRunner = nil
             fileSystem = nil
 
             super.tearDown()

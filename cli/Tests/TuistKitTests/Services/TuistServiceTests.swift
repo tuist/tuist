@@ -19,7 +19,8 @@ final class TuistServiceTests: TuistUnitTestCase {
         configLoader = MockConfigLoading()
         subject = TuistService(
             pluginService: pluginService,
-            configLoader: configLoader
+            configLoader: configLoader,
+            commandRunner: mockCommandRunner
         )
     }
 
@@ -51,7 +52,7 @@ final class TuistServiceTests: TuistUnitTestCase {
         try await fileSystem.makeDirectory(at: pluginReleasePath)
         try await fileSystem.touch(pluginReleasePath.appending(component: "tuist-command-a"))
         try await fileSystem.touch(pluginReleasePath.appending(component: "tuist-command-b"))
-        system.succeedCommand([
+        mockCommandRunner.succeedCommand([
             pluginReleasePath.appending(component: "tuist-command-b").pathString,
             "--path",
             projectPath.pathString,
@@ -67,7 +68,7 @@ final class TuistServiceTests: TuistUnitTestCase {
                 ),
             ]
         }
-        system.succeedCommand(["tuist-command-b"])
+        mockCommandRunner.succeedCommand(["tuist-command-b"])
 
         // When/Then
         XCTAssertNoThrow(
@@ -78,11 +79,11 @@ final class TuistServiceTests: TuistUnitTestCase {
     func test_run_when_command_is_global() async throws {
         // Given
         var whichCommand: String?
-        system.whichStub = { invokedWhichCommand in
+        mockCommandRunner.whichStub = { invokedWhichCommand in
             whichCommand = invokedWhichCommand
             return ""
         }
-        system.succeedCommand(["tuist-my-command", "argument-one"])
+        mockCommandRunner.succeedCommand(["tuist-my-command", "argument-one"])
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(.default)

@@ -1,5 +1,4 @@
 import Command
-import Mockable
 import TSCUtility
 import TuistCore
 import TuistTesting
@@ -9,16 +8,13 @@ import XCTest
 
 final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
     private var subject: SwiftPackageManagerController!
-    private var commandRunner: MockCommandRunning!
 
     override func setUp() {
         super.setUp()
 
-        commandRunner = MockCommandRunning()
         subject = SwiftPackageManagerController(
-            system: system,
             fileSystem: fileSystem,
-            commandRunner: { self.commandRunner }
+            commandRunner: { self.mockCommandRunner }
         )
     }
 
@@ -28,10 +24,10 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_resolve() throws {
+    func test_resolve() async throws {
         // Given
         let path = try temporaryPath()
-        system.succeedCommand([
+        mockCommandRunner.succeedCommand([
             "swift",
             "package",
             "--package-path",
@@ -40,20 +36,18 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
             "resolve",
         ])
 
-        // When / Then
-        XCTAssertNoThrow(
-            try subject.resolve(
-                at: path,
-                arguments: ["--replace-scm-with-registry"],
-                printOutput: false
-            )
+        // When
+        try await subject.resolve(
+            at: path,
+            arguments: ["--replace-scm-with-registry"],
+            printOutput: false
         )
     }
 
-    func test_update() throws {
+    func test_update() async throws {
         // Given
         let path = try temporaryPath()
-        system.succeedCommand([
+        mockCommandRunner.succeedCommand([
             "swift",
             "package",
             "--package-path",
@@ -62,21 +56,19 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
             "update",
         ])
 
-        // When / Then
-        XCTAssertNoThrow(
-            try subject.update(
-                at: path,
-                arguments: ["--replace-scm-with-registry"],
-                printOutput: false
-            )
+        // When
+        try await subject.update(
+            at: path,
+            arguments: ["--replace-scm-with-registry"],
+            printOutput: false
         )
     }
 
-    func test_setToolsVersion_specificVersion() throws {
+    func test_setToolsVersion_specificVersion() async throws {
         // Given
         let path = try temporaryPath()
         let version = Version("5.4.0")
-        system.succeedCommand([
+        mockCommandRunner.succeedCommand([
             "swift",
             "package",
             "--package-path",
@@ -86,8 +78,8 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
             "5.4",
         ])
 
-        // When / Then
-        XCTAssertNoThrow(try subject.setToolsVersion(at: path, to: version!))
+        // When
+        try await subject.setToolsVersion(at: path, to: version!)
     }
 
     func test_buildFatReleaseBinary() async throws {
@@ -97,7 +89,7 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
         let buildPath = try temporaryPath()
         let outputPath = try temporaryPath()
 
-        system.succeedCommand([
+        mockCommandRunner.succeedCommand([
             "swift", "build",
             "--configuration", "release",
             "--disable-sandbox",
@@ -106,7 +98,7 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
             "--build-path", buildPath.pathString,
             "--triple", "arm64-apple-macosx",
         ])
-        system.succeedCommand([
+        mockCommandRunner.succeedCommand([
             "swift", "build",
             "--configuration", "release",
             "--disable-sandbox",
@@ -116,7 +108,7 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
             "--triple", "x86_64-apple-macosx",
         ])
 
-        system.succeedCommand([
+        mockCommandRunner.succeedCommand([
             "lipo", "-create", "-output", outputPath.appending(component: product).pathString,
             buildPath.appending(components: "arm64-apple-macosx", "release", product).pathString,
             buildPath.appending(components: "x86_64-apple-macosx", "release", product).pathString,
@@ -138,13 +130,16 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
 
     func test_package_registry_login() async throws {
         // Given
-        given(commandRunner)
-            .run(
-                arguments: .any,
-                environment: .any,
-                workingDirectory: .any
-            )
-            .willReturn(AsyncThrowingStream(unfolding: { nil }))
+        let command = [
+            "/usr/bin/swift",
+            "package-registry",
+            "login",
+            URL.test().appending(path: "login").absoluteString,
+            "--token",
+            "package-token",
+            "--no-confirm",
+        ]
+        mockCommandRunner.succeedCommand(command)
 
         // When
         try await subject.packageRegistryLogin(
@@ -153,34 +148,18 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
         )
 
         // Then
-        verify(commandRunner)
-            .run(
-                arguments: .value(
-                    [
-                        "/usr/bin/swift",
-                        "package-registry",
-                        "login",
-                        URL.test().appending(path: "login").absoluteString,
-                        "--token",
-                        "package-token",
-                        "--no-confirm",
-                    ]
-                ),
-                environment: .any,
-                workingDirectory: .any
-            )
-            .called(1)
+        XCTAssertTrue(mockCommandRunner.called(command))
     }
 
     func test_package_registry_logout() async throws {
         // Given
-        given(commandRunner)
-            .run(
-                arguments: .any,
-                environment: .any,
-                workingDirectory: .any
-            )
-            .willReturn(AsyncThrowingStream(unfolding: { nil }))
+        let command = [
+            "/usr/bin/swift",
+            "package-registry",
+            "logout",
+            URL.test().appending(path: "logout").absoluteString,
+        ]
+        mockCommandRunner.succeedCommand(command)
 
         // When
         try await subject.packageRegistryLogout(
@@ -188,19 +167,6 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
         )
 
         // Then
-        verify(commandRunner)
-            .run(
-                arguments: .value(
-                    [
-                        "/usr/bin/swift",
-                        "package-registry",
-                        "logout",
-                        URL.test().appending(path: "logout").absoluteString,
-                    ]
-                ),
-                environment: .any,
-                workingDirectory: .any
-            )
-            .called(1)
+        XCTAssertTrue(mockCommandRunner.called(command))
     }
 }

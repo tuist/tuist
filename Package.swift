@@ -563,6 +563,7 @@ var targets: [Target] = [
     .target(
         name: "TuistGit",
         dependencies: [
+            commandDependency,
             "TuistSupport",
             fileSystemDependency,
             swiftToolsSupportDependency,
@@ -874,6 +875,7 @@ var targets: [Target] = [
     .target(
         name: "TuistTesting",
         dependencies: [
+            commandDependency,
             "TuistSupport",
             "TuistMacOSSDK",
             "TuistXcodeBuildProducts",
@@ -1186,6 +1188,7 @@ targets.append(contentsOf: [
         name: "TuistCore",
         dependencies: [
             pathDependency,
+            commandDependency,
             "TuistConfig",
             "TuistSupport",
             xcodeGraphDependency,
@@ -1314,6 +1317,7 @@ targets.append(contentsOf: [
         dependencies: [
             xcodeProjDependency,
             pathDependency,
+            commandDependency,
             "TuistConfig",
             "TuistCore",
             xcodeGraphDependency,
@@ -1412,6 +1416,7 @@ targets.append(contentsOf: [
         dependencies: [
             xcodeProjDependency,
             pathDependency,
+            commandDependency,
             "TuistCore",
             xcodeGraphDependency,
             "TuistSupport",
@@ -1442,6 +1447,7 @@ targets.append(contentsOf: [
     .target(
         name: "TuistPlugin",
         dependencies: [
+            commandDependency,
             xcodeGraphDependency,
             "TuistLoader",
             "TuistCore",
@@ -1461,6 +1467,7 @@ targets.append(contentsOf: [
     .target(
         name: "TuistHasher",
         dependencies: [
+            commandDependency,
             "TuistCore",
             "TuistSupport",
             fileSystemDependency,
