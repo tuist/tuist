@@ -1662,11 +1662,13 @@ defmodule Tuist.Tests.AnalyticsTest do
         )
 
       # Then
-      assert got.count == 0
-      assert Enum.all?(got.values, &(&1 == 0))
+      assert got.muted_count == 0
+      assert got.skipped_count == 0
+      assert Enum.all?(got.muted_values, &(&1 == 0))
+      assert Enum.all?(got.skipped_values, &(&1 == 0))
     end
 
-    test "counts quarantined test correctly" do
+    test "counts muted test correctly" do
       # Given
       stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:00:00Z] end)
       project = ProjectsFixtures.project_fixture()
@@ -1695,18 +1697,21 @@ defmodule Tuist.Tests.AnalyticsTest do
         )
 
       # Then
-      assert got.count == 1
+      assert got.muted_count == 1
+      assert got.skipped_count == 0
 
       # Find index for April 15 (dates are Date structs)
       april_15_index = Enum.find_index(got.dates, &(&1 == ~D[2024-04-15]))
 
       if april_15_index do
-        values_after = Enum.drop(got.values, april_15_index)
+        values_after = Enum.drop(got.muted_values, april_15_index)
         assert Enum.all?(values_after, &(&1 == 1))
       end
+
+      assert Enum.all?(got.skipped_values, &(&1 == 0))
     end
 
-    test "unquarantining a test decreases count by exactly one" do
+    test "unmuting a test decreases muted count by exactly one" do
       # Given
       stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:00:00Z] end)
       project = ProjectsFixtures.project_fixture()
@@ -1720,14 +1725,14 @@ defmodule Tuist.Tests.AnalyticsTest do
 
       IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
 
-      # Quarantine on April 10
+      # Mute on April 10
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case.id,
         event_type: "muted",
         inserted_at: ~N[2024-04-10 12:00:00.000000]
       )
 
-      # Unquarantine on April 20
+      # Unmute on April 20
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case.id,
         event_type: "unmuted",
@@ -1743,7 +1748,8 @@ defmodule Tuist.Tests.AnalyticsTest do
         )
 
       # Then
-      assert got.count == 0
+      assert got.muted_count == 0
+      assert got.skipped_count == 0
 
       # Find indices for April 10 and April 20 (dates are Date structs)
       april_10_index = Enum.find_index(got.dates, &(&1 == ~D[2024-04-10]))
@@ -1753,23 +1759,23 @@ defmodule Tuist.Tests.AnalyticsTest do
       assert april_20_index != nil, "April 20 should be in dates"
 
       # Before April 10: should be 0
-      values_before_10 = Enum.take(got.values, april_10_index)
-      assert Enum.all?(values_before_10, &(&1 == 0)), "Values before quarantine should be 0"
+      values_before_10 = Enum.take(got.muted_values, april_10_index)
+      assert Enum.all?(values_before_10, &(&1 == 0)), "Values before mute should be 0"
 
       # Between April 10 and April 19: should be 1
-      values_between = Enum.slice(got.values, april_10_index..(april_20_index - 1))
+      values_between = Enum.slice(got.muted_values, april_10_index..(april_20_index - 1))
 
       assert Enum.all?(values_between, &(&1 == 1)),
-             "Values between quarantine and unquarantine should be 1, got: #{inspect(values_between)}"
+             "Values between mute and unmute should be 1, got: #{inspect(values_between)}"
 
       # April 20 onwards: should be 0
-      values_after_20 = Enum.drop(got.values, april_20_index)
+      values_after_20 = Enum.drop(got.muted_values, april_20_index)
 
       assert Enum.all?(values_after_20, &(&1 == 0)),
-             "Values after unquarantine should be 0, got: #{inspect(values_after_20)}"
+             "Values after unmute should be 0, got: #{inspect(values_after_20)}"
     end
 
-    test "multiple quarantine/unquarantine cycles are tracked correctly" do
+    test "multiple mute/unmute cycles are tracked correctly" do
       # Given
       stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:00:00Z] end)
       project = ProjectsFixtures.project_fixture()
@@ -1783,21 +1789,21 @@ defmodule Tuist.Tests.AnalyticsTest do
 
       IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
 
-      # First quarantine on April 5
+      # First mute on April 5
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case.id,
         event_type: "muted",
         inserted_at: ~N[2024-04-05 12:00:00.000000]
       )
 
-      # First unquarantine on April 10
+      # First unmute on April 10
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case.id,
         event_type: "unmuted",
         inserted_at: ~N[2024-04-10 12:00:00.000000]
       )
 
-      # Second quarantine on April 20
+      # Second mute on April 20
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case.id,
         event_type: "muted",
@@ -1813,7 +1819,8 @@ defmodule Tuist.Tests.AnalyticsTest do
         )
 
       # Then
-      assert got.count == 1
+      assert got.muted_count == 1
+      assert got.skipped_count == 0
 
       april_05_index = Enum.find_index(got.dates, &(&1 == ~D[2024-04-05]))
       april_10_index = Enum.find_index(got.dates, &(&1 == ~D[2024-04-10]))
@@ -1824,19 +1831,19 @@ defmodule Tuist.Tests.AnalyticsTest do
       assert april_20_index
 
       # Before April 5: should be 0
-      values_before_5 = Enum.take(got.values, april_05_index)
+      values_before_5 = Enum.take(got.muted_values, april_05_index)
       assert Enum.all?(values_before_5, &(&1 == 0))
 
       # April 5 to April 9: should be 1
-      values_5_to_10 = Enum.slice(got.values, april_05_index..(april_10_index - 1))
+      values_5_to_10 = Enum.slice(got.muted_values, april_05_index..(april_10_index - 1))
       assert Enum.all?(values_5_to_10, &(&1 == 1))
 
       # April 10 to April 19: should be 0
-      values_10_to_20 = Enum.slice(got.values, april_10_index..(april_20_index - 1))
+      values_10_to_20 = Enum.slice(got.muted_values, april_10_index..(april_20_index - 1))
       assert Enum.all?(values_10_to_20, &(&1 == 0))
 
       # April 20 onwards: should be 1
-      values_after_20 = Enum.drop(got.values, april_20_index)
+      values_after_20 = Enum.drop(got.muted_values, april_20_index)
       assert Enum.all?(values_after_20, &(&1 == 1))
     end
 
@@ -1854,7 +1861,7 @@ defmodule Tuist.Tests.AnalyticsTest do
 
       IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
 
-      # Quarantine BEFORE the period (March 15)
+      # Mute BEFORE the period (March 15)
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case.id,
         event_type: "muted",
@@ -1869,9 +1876,11 @@ defmodule Tuist.Tests.AnalyticsTest do
           end_datetime: ~U[2024-04-30 23:59:59Z]
         )
 
-      # Then - all values should be 1 since test was quarantined before period started
-      assert got.count == 1
-      assert Enum.all?(got.values, &(&1 == 1))
+      # Then - all muted values should be 1 since test was muted before period started
+      assert got.muted_count == 1
+      assert got.skipped_count == 0
+      assert Enum.all?(got.muted_values, &(&1 == 1))
+      assert Enum.all?(got.skipped_values, &(&1 == 0))
     end
 
     test "multiple test cases are counted independently" do
@@ -1900,21 +1909,21 @@ defmodule Tuist.Tests.AnalyticsTest do
         test_case_2 |> Map.from_struct() |> Map.delete(:__meta__)
       ])
 
-      # Quarantine test 1 on April 10
+      # Mute test 1 on April 10
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case_1.id,
         event_type: "muted",
         inserted_at: ~N[2024-04-10 12:00:00.000000]
       )
 
-      # Quarantine test 2 on April 15
+      # Mute test 2 on April 15
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case_2.id,
         event_type: "muted",
         inserted_at: ~N[2024-04-15 12:00:00.000000]
       )
 
-      # Unquarantine test 1 on April 20
+      # Unmute test 1 on April 20
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case_1.id,
         event_type: "unmuted",
@@ -1929,8 +1938,9 @@ defmodule Tuist.Tests.AnalyticsTest do
           end_datetime: ~U[2024-04-30 23:59:59Z]
         )
 
-      # Then - test_case_2 is quarantined at the end
-      assert got.count == 1
+      # Then - test_case_2 is muted at the end
+      assert got.muted_count == 1
+      assert got.skipped_count == 0
 
       april_10_index = Enum.find_index(got.dates, &(&1 == ~D[2024-04-10]))
       april_15_index = Enum.find_index(got.dates, &(&1 == ~D[2024-04-15]))
@@ -1941,26 +1951,26 @@ defmodule Tuist.Tests.AnalyticsTest do
       assert april_20_index
 
       # Before April 10: should be 0
-      values_before_10 = Enum.take(got.values, april_10_index)
+      values_before_10 = Enum.take(got.muted_values, april_10_index)
       assert Enum.all?(values_before_10, &(&1 == 0))
 
       # April 10 to April 14: should be 1 (only test 1)
-      values_10_to_15 = Enum.slice(got.values, april_10_index..(april_15_index - 1))
+      values_10_to_15 = Enum.slice(got.muted_values, april_10_index..(april_15_index - 1))
       assert Enum.all?(values_10_to_15, &(&1 == 1))
 
       # April 15 to April 19: should be 2 (both tests)
-      values_15_to_20 = Enum.slice(got.values, april_15_index..(april_20_index - 1))
+      values_15_to_20 = Enum.slice(got.muted_values, april_15_index..(april_20_index - 1))
       assert Enum.all?(values_15_to_20, &(&1 == 2))
 
       # April 20 onwards: should be 1 (only test 2)
-      values_after_20 = Enum.drop(got.values, april_20_index)
+      values_after_20 = Enum.drop(got.muted_values, april_20_index)
       assert Enum.all?(values_after_20, &(&1 == 1))
     end
 
-    test "chart values are not inflated by duplicate quarantine events" do
+    test "chart values are not inflated by duplicate mute events" do
       # Simulates pre-fix behavior: ingestion silently resets is_quarantined
-      # without creating "unquarantined" events, then auto-quarantine creates
-      # another "quarantined" event. This should NOT inflate the chart count.
+      # without creating "unmuted" events, then auto-quarantine creates
+      # another "muted" event. This should NOT inflate the chart count.
       stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:00:00Z] end)
       project = ProjectsFixtures.project_fixture()
 
@@ -1973,14 +1983,14 @@ defmodule Tuist.Tests.AnalyticsTest do
 
       IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
 
-      # First quarantine event
+      # First mute event
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case.id,
         event_type: "muted",
         inserted_at: ~N[2024-04-05 12:00:00.000000]
       )
 
-      # Duplicate quarantine events (no matching unquarantine events)
+      # Duplicate mute events (no matching unmute events)
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case.id,
         event_type: "muted",
@@ -2000,8 +2010,139 @@ defmodule Tuist.Tests.AnalyticsTest do
           end_datetime: ~U[2024-04-30 23:59:59Z]
         )
 
-      assert got.count == 1
-      assert Enum.max(got.values) <= 1
+      assert got.muted_count == 1
+      assert Enum.max(got.muted_values) <= 1
+      assert got.skipped_count == 0
+    end
+
+    test "counts skipped tests separately from muted tests" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:00:00Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      test_case_1 =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "test_muted",
+          is_quarantined: true,
+          inserted_at: ~N[2024-04-01 00:00:00.000000]
+        )
+
+      test_case_2 =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "test_skipped",
+          is_quarantined: true,
+          inserted_at: ~N[2024-04-01 00:00:00.000000]
+        )
+
+      IngestRepo.insert_all(TestCase, [
+        test_case_1 |> Map.from_struct() |> Map.delete(:__meta__),
+        test_case_2 |> Map.from_struct() |> Map.delete(:__meta__)
+      ])
+
+      # Mute test 1 on April 10
+      RunsFixtures.test_case_event_fixture(
+        test_case_id: test_case_1.id,
+        event_type: "muted",
+        inserted_at: ~N[2024-04-10 12:00:00.000000]
+      )
+
+      # Skip test 2 on April 15
+      RunsFixtures.test_case_event_fixture(
+        test_case_id: test_case_2.id,
+        event_type: "skipped",
+        inserted_at: ~N[2024-04-15 12:00:00.000000]
+      )
+
+      # When
+      got =
+        Analytics.quarantined_tests_analytics(
+          project.id,
+          start_datetime: ~U[2024-04-01 00:00:00Z],
+          end_datetime: ~U[2024-04-30 23:59:59Z]
+        )
+
+      # Then
+      assert got.muted_count == 1
+      assert got.skipped_count == 1
+
+      april_10_index = Enum.find_index(got.dates, &(&1 == ~D[2024-04-10]))
+      april_15_index = Enum.find_index(got.dates, &(&1 == ~D[2024-04-15]))
+
+      assert april_10_index
+      assert april_15_index
+
+      # Before April 10: both should be 0
+      assert Enum.all?(Enum.take(got.muted_values, april_10_index), &(&1 == 0))
+      assert Enum.all?(Enum.take(got.skipped_values, april_10_index), &(&1 == 0))
+
+      # April 10 to April 14: muted=1, skipped=0
+      muted_10_to_15 = Enum.slice(got.muted_values, april_10_index..(april_15_index - 1))
+      skipped_10_to_15 = Enum.slice(got.skipped_values, april_10_index..(april_15_index - 1))
+      assert Enum.all?(muted_10_to_15, &(&1 == 1))
+      assert Enum.all?(skipped_10_to_15, &(&1 == 0))
+
+      # April 15 onwards: muted=1, skipped=1
+      muted_after_15 = Enum.drop(got.muted_values, april_15_index)
+      skipped_after_15 = Enum.drop(got.skipped_values, april_15_index)
+      assert Enum.all?(muted_after_15, &(&1 == 1))
+      assert Enum.all?(skipped_after_15, &(&1 == 1))
+    end
+
+    test "unskipping a test decreases skipped count" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:00:00Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          is_quarantined: true,
+          inserted_at: ~N[2024-04-01 00:00:00.000000]
+        )
+
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      # Skip on April 10
+      RunsFixtures.test_case_event_fixture(
+        test_case_id: test_case.id,
+        event_type: "skipped",
+        inserted_at: ~N[2024-04-10 12:00:00.000000]
+      )
+
+      # Unskip on April 20
+      RunsFixtures.test_case_event_fixture(
+        test_case_id: test_case.id,
+        event_type: "unskipped",
+        inserted_at: ~N[2024-04-20 12:00:00.000000]
+      )
+
+      # When
+      got =
+        Analytics.quarantined_tests_analytics(
+          project.id,
+          start_datetime: ~U[2024-04-01 00:00:00Z],
+          end_datetime: ~U[2024-04-30 23:59:59Z]
+        )
+
+      # Then
+      assert got.muted_count == 0
+      assert got.skipped_count == 0
+
+      april_10_index = Enum.find_index(got.dates, &(&1 == ~D[2024-04-10]))
+      april_20_index = Enum.find_index(got.dates, &(&1 == ~D[2024-04-20]))
+
+      # Between April 10 and April 19: skipped should be 1
+      skipped_between = Enum.slice(got.skipped_values, april_10_index..(april_20_index - 1))
+      assert Enum.all?(skipped_between, &(&1 == 1))
+
+      # After April 20: skipped should be 0
+      skipped_after = Enum.drop(got.skipped_values, april_20_index)
+      assert Enum.all?(skipped_after, &(&1 == 0))
+
+      # Muted should always be 0
+      assert Enum.all?(got.muted_values, &(&1 == 0))
     end
   end
 

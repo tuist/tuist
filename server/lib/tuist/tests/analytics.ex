@@ -111,8 +111,9 @@ defmodule Tuist.Tests.Analytics do
 
   @doc """
   Returns analytics for quarantined tests count over time for a project.
-  This computes the number of quarantined tests at each time bucket by
-  tracking `muted` / `unmuted` events from the test_case_events table.
+  This computes the number of muted and skipped tests at each time bucket by
+  tracking `muted` / `unmuted` / `skipped` / `unskipped` events from the
+  test_case_events table. Returns separate series for muted and skipped counts.
   """
   def quarantined_tests_analytics(project_id, opts \\ []) do
     start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
@@ -144,25 +145,38 @@ defmodule Tuist.Tests.Analytics do
 
     events_by_tc = Enum.group_by(events, & &1.test_case_id)
 
-    values =
+    {muted_values, skipped_values} =
       Enum.map(date_endpoints, fn endpoint ->
         endpoint_naive = DateTime.to_naive(endpoint)
 
-        Enum.count(events_by_tc, fn {_tc_id, tc_events} ->
+        Enum.reduce(events_by_tc, {0, 0}, fn {_tc_id, tc_events}, {muted_acc, skipped_acc} ->
           last_event =
             tc_events
             |> Enum.take_while(&(NaiveDateTime.compare(&1.inserted_at, endpoint_naive) != :gt))
             |> List.last()
 
-          last_event != nil and last_event.event_type in Tests.active_quarantine_event_types()
+          cond do
+            last_event != nil and last_event.event_type == "muted" ->
+              {muted_acc + 1, skipped_acc}
+
+            last_event != nil and last_event.event_type == "skipped" ->
+              {muted_acc, skipped_acc + 1}
+
+            true ->
+              {muted_acc, skipped_acc}
+          end
         end)
       end)
+      |> Enum.unzip()
 
-    count = List.last(values) || 0
+    muted_count = List.last(muted_values) || 0
+    skipped_count = List.last(skipped_values) || 0
 
     %{
-      count: count,
-      values: values,
+      muted_count: muted_count,
+      skipped_count: skipped_count,
+      muted_values: muted_values,
+      skipped_values: skipped_values,
       dates: dates
     }
   end

@@ -65,15 +65,21 @@
     <.card_section
       :if={
         @quarantined_analytics.ok? &&
-          (@quarantined_analytics.result.count != 0 or
-             Enum.any?(@quarantined_analytics.result.values, &(&1 > 0)))
+          ((@quarantined_analytics.result.muted_count != 0 or @quarantined_analytics.result.skipped_count != 0) or
+             Enum.any?(@quarantined_analytics.result.muted_values, &(&1 > 0)) or
+             Enum.any?(@quarantined_analytics.result.skipped_values, &(&1 > 0)))
       }
       data-part="analytics-chart-section"
     >
       <div data-part="legends">
         <.legend
-          title={dgettext("dashboard_tests", "Quarantined Tests")}
-          value={@quarantined_analytics.result.count}
+          title={dgettext("dashboard_tests", "Muted")}
+          value={@quarantined_analytics.result.muted_count}
+          style="warning"
+        />
+        <.legend
+          title={dgettext("dashboard_tests", "Skipped")}
+          value={@quarantined_analytics.result.skipped_count}
           style="destructive"
         />
       </div>
@@ -125,14 +131,27 @@
         }
         series={[
           %{
+            color: "var:noora-chart-warning",
+            data:
+              Enum.zip(
+                @quarantined_analytics.result.dates,
+                @quarantined_analytics.result.muted_values
+              )
+              |> Enum.map(&Tuple.to_list/1),
+            name: dgettext("dashboard_tests", "Muted"),
+            type: "line",
+            smooth: 0.1,
+            symbol: "none"
+          },
+          %{
             color: "var:noora-chart-destructive",
             data:
               Enum.zip(
                 @quarantined_analytics.result.dates,
-                @quarantined_analytics.result.values
+                @quarantined_analytics.result.skipped_values
               )
               |> Enum.map(&Tuple.to_list/1),
-            name: dgettext("dashboard_tests", "Quarantined tests"),
+            name: dgettext("dashboard_tests", "Skipped"),
             type: "line",
             smooth: 0.1,
             symbol: "none"
@@ -144,8 +163,9 @@
     <.empty_card_section
       :if={
         (@quarantined_analytics.ok? &&
-           @quarantined_analytics.result.count == 0) and
-          Enum.all?(@quarantined_analytics.result.values, &(&1 == 0))
+           @quarantined_analytics.result.muted_count == 0 and @quarantined_analytics.result.skipped_count == 0) and
+          Enum.all?(@quarantined_analytics.result.muted_values, &(&1 == 0)) and
+          Enum.all?(@quarantined_analytics.result.skipped_values, &(&1 == 0))
       }
       title={dgettext("dashboard_tests", "No data yet")}
     >
