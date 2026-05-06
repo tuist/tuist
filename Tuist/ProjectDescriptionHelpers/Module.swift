@@ -347,7 +347,6 @@ public enum Module: String, CaseIterable {
         switch self {
         case .tuist, .tuistBenchmark, .tuistFixtureGenerator, .projectAutomation,
              .projectDescription,
-             .xcodeGraph, .xcodeMetadata, .xcodeGraphMapper,
              .acceptanceTesting, .simulator, .testing, .environmentTesting, .process,
              .constants, .environment, .logging,
              .envKey, .versionCommand, .encodable,
@@ -1509,7 +1508,6 @@ public enum Module: String, CaseIterable {
         var dependencies: [TargetDependency] =
             switch self {
             case .tuist, .tuistBenchmark, .acceptanceTesting, .simulator, .testing, .environmentTesting, .process,
-                 .xcodeGraph, .xcodeMetadata, .xcodeGraphMapper,
                  .constants, .environment, .logging, .nooraTesting, .loggerTesting,
                  .envKey, .versionCommand, .nooraExtension, .tuistExtension, .alert, .threadSafe, .macOSSDK, .encodable,
                  .uniqueIDGenerator, .opener, .config,
@@ -1517,6 +1515,21 @@ public enum Module: String, CaseIterable {
                  .registryCommand, .buildCommand, .generateCommand,
                  .runCommand, .shareCommand, .inspectCommand, .android:
                 []
+            case .xcodeGraph:
+                []
+            case .xcodeMetadata:
+                [
+                    .target(name: Module.xcodeGraph.targetName),
+                ]
+            case .xcodeGraphMapper:
+                [
+                    .target(name: Module.xcodeGraph.targetName),
+                    .target(name: Module.xcodeMetadata.targetName),
+                    .external(name: "AEXML"),
+                    .external(name: "FileSystem"),
+                    .external(name: "PathKit"),
+                    .external(name: "XcodeProj"),
+                ]
             case .machineMetrics:
                 [
                     .target(name: Module.testing.targetName),

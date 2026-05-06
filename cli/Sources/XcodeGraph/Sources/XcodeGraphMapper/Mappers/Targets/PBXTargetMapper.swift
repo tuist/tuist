@@ -400,29 +400,63 @@ struct PBXTargetMapper: PBXTargetMapping {
         xcodeProj: XcodeProj
     ) async throws -> [ResourceFileElement] {
         let fileSystemSynchronizedGroups = pbxTarget.fileSystemSynchronizedGroups ?? []
+        // Mirrors Xcode's synchronized-folder behavior: any file that isn't a source, header,
+        // source-compatible folder (e.g. .docc, .playground), or framework is routed to a
+        // resource build rule. Files nested inside a folder-shaped resource (.xcassets, .bundle, …)
+        // collapse onto that folder so the resource is reported once.
+        let nonResourceExtensions = Set(
+            Target.validSourceExtensions
+                + Target.validSourceCompatibleFolderExtensions
+                + Target.validHeaderExtensions
+                + ["framework"]
+        )
+        let folderResourceExtensions = Set(Target.validResourceCompatibleFolderExtensions)
         var resources: [ResourceFileElement] = []
         for fileSystemSynchronizedGroup in fileSystemSynchronizedGroups {
             guard let path = fileSystemSynchronizedGroup.path else { continue }
             let directory = xcodeProj.srcPath.appending(component: path)
             let membershipExceptions = membershipExceptions(for: fileSystemSynchronizedGroup)
 
-            let groupResources = try await globFiles(
+            let groupFiles = try await globFiles(
                 directory: directory,
-                include: [
-                    // Build glob patterns for resource files and resource-compatible folders.
-                    // This creates patterns like "**/*.{xcassets,png,...}".
-                    "**/*.{\(Target.validResourceExtensions.joined(separator: ","))}",
-                    "**/*.{\(Target.validResourceCompatibleFolderExtensions.joined(separator: ","))}",
-                ],
+                include: ["**/*"],
                 membershipExceptions: membershipExceptions
             )
-            .map {
-                ResourceFileElement(path: $0)
+
+            var seenPaths: Set<AbsolutePath> = []
+            var groupResources: [ResourceFileElement] = []
+            for file in groupFiles {
+                let resourcePath = canonicalResourcePath(
+                    for: file,
+                    rootedAt: directory,
+                    folderResourceExtensions: folderResourceExtensions
+                )
+                guard let ext = resourcePath.extension, !ext.isEmpty else { continue }
+                if nonResourceExtensions.contains(ext) { continue }
+                if !seenPaths.insert(resourcePath).inserted { continue }
+                groupResources.append(ResourceFileElement(path: resourcePath))
             }
             resources.append(contentsOf: groupResources)
         }
 
         return resources
+    }
+
+    /// Walks up from `path` toward `root`, returning the first ancestor whose extension is in
+    /// `folderResourceExtensions` (Xcode's folder-resource bundles). Falls back to `path` itself.
+    private func canonicalResourcePath(
+        for path: AbsolutePath,
+        rootedAt root: AbsolutePath,
+        folderResourceExtensions: Set<String>
+    ) -> AbsolutePath {
+        var current = path
+        while current != root {
+            if folderResourceExtensions.contains(current.extension ?? "") { return current }
+            let parent = current.parentDirectory
+            if parent == current { break }
+            current = parent
+        }
+        return path
     }
 
     private func fileSystemSynchronizedGroupsFrameworks(
