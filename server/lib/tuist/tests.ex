@@ -1556,11 +1556,7 @@ defmodule Tuist.Tests do
     active_period = Keyword.get(opts, :active_period)
     is_ci = Keyword.get(opts, :is_ci)
 
-    base_query =
-      from(test_case in TestCase,
-        hints: ["FINAL"],
-        where: test_case.project_id == ^project_id
-      )
+    base_query = from(test_case in subquery(deduplicated_test_cases_query(project_id)))
 
     base_query =
       cond do
@@ -1589,6 +1585,45 @@ defmodule Tuist.Tests do
       end
 
     Tuist.ClickHouseFlop.validate_and_run!(base_query, attrs, for: TestCase)
+  end
+
+  # Emits one row per `test_cases.id` for the given project, picking the
+  # latest version of each denormalized field via `argMax(..., inserted_at)`.
+  # Replaces the `FINAL` hint we used on the listing queries: `test_cases` is
+  # `ReplacingMergeTree` with `ORDER BY (project_id, …)` and no `PARTITION BY`,
+  # so `FINAL` had to read every part to perform the dedup merge regardless of
+  # the `project_id` predicate. `argMax(..., inserted_at) GROUP BY id` lets the
+  # `project_id` leading sort key prune the read down to that project's
+  # granules and folds dedup into a normal hash aggregation.
+  #
+  # `last_run_id` is `Nullable(UUID)`. `argMax` skips NULLs by default — which
+  # would resurrect an older non-NULL value when the latest version is NULL —
+  # so we wrap it in a tuple to preserve "latest row regardless of NULL"
+  # semantics, matching the previous FINAL behavior.
+  #
+  # `project_id` is intentionally not projected: aliasing it to a literal in
+  # the SELECT shadows the `WHERE project_id = ?` predicate (ClickHouse
+  # resolves alias names ahead of column names in WHERE), which silently
+  # disables the filter and leaks rows from other projects.
+  defp deduplicated_test_cases_query(project_id) do
+    from(tc in TestCase,
+      where: tc.project_id == ^project_id,
+      group_by: tc.id,
+      select: %{
+        id: tc.id,
+        name: fragment("argMax(?, ?)", tc.name, tc.inserted_at),
+        module_name: fragment("argMax(?, ?)", tc.module_name, tc.inserted_at),
+        suite_name: fragment("argMax(?, ?)", tc.suite_name, tc.inserted_at),
+        last_status: fragment("argMax(?, ?)", tc.last_status, tc.inserted_at),
+        last_duration: fragment("argMax(?, ?)", tc.last_duration, tc.inserted_at),
+        last_ran_at: fragment("argMax(?, ?)", tc.last_ran_at, tc.inserted_at),
+        is_flaky: fragment("argMax(?, ?)", tc.is_flaky, tc.inserted_at),
+        state: fragment("argMax(?, ?)", tc.state, tc.inserted_at),
+        last_run_id: fragment("tupleElement(argMax(tuple(?), ?), 1)", tc.last_run_id, tc.inserted_at),
+        avg_duration: fragment("argMax(?, ?)", tc.avg_duration, tc.inserted_at),
+        recent_durations: fragment("argMax(?, ?)", tc.recent_durations, tc.inserted_at)
+      }
+    )
   end
 
   defp quarantine_filter?(filters) do
@@ -1686,13 +1721,11 @@ defmodule Tuist.Tests do
 
   defp build_flaky_test_cases_query(project_id, search_term, opts) do
     base_query =
-      from(test_case in TestCase,
-        hints: ["FINAL"],
+      from(test_case in subquery(deduplicated_test_cases_query(project_id)),
         inner_join: flaky in subquery(currently_flaky_test_case_ids_subquery(project_id, opts)),
         on: test_case.id == flaky.test_case_id,
         inner_join: stats in subquery(flaky_stats_subquery(project_id, opts)),
         on: test_case.id == stats.test_case_id,
-        where: test_case.project_id == ^project_id,
         select: %{
           id: test_case.id,
           name: test_case.name,
@@ -1709,13 +1742,11 @@ defmodule Tuist.Tests do
 
   defp build_flaky_test_cases_count_query(project_id, search_term, opts) do
     base_query =
-      from(test_case in TestCase,
-        hints: ["FINAL"],
+      from(test_case in subquery(deduplicated_test_cases_query(project_id)),
         inner_join: flaky in subquery(currently_flaky_test_case_ids_subquery(project_id, opts)),
         on: test_case.id == flaky.test_case_id,
         inner_join: stats in subquery(flaky_stats_subquery(project_id, opts)),
         on: test_case.id == stats.test_case_id,
-        where: test_case.project_id == ^project_id,
         select: count(test_case.id)
       )
 
@@ -1919,10 +1950,8 @@ defmodule Tuist.Tests do
        ) do
     base_query =
       apply_quarantined_state_filter(
-        from(test_case in TestCase,
+        from(test_case in subquery(deduplicated_test_cases_query(project_id)),
           as: :test_case,
-          hints: ["FINAL"],
-          where: test_case.project_id == ^project_id,
           select: %{
             id: test_case.id,
             name: test_case.name,
@@ -1975,10 +2004,8 @@ defmodule Tuist.Tests do
        ) do
     base_query =
       apply_quarantined_state_filter(
-        from(test_case in TestCase,
+        from(test_case in subquery(deduplicated_test_cases_query(project_id)),
           as: :test_case,
-          hints: ["FINAL"],
-          where: test_case.project_id == ^project_id,
           select: count(test_case.id)
         ),
         state_filter
@@ -2019,8 +2046,9 @@ defmodule Tuist.Tests do
   def get_quarantine_actors(project_id) do
     quarantined_ids_subquery =
       from(tc in TestCase,
-        hints: ["FINAL"],
-        where: tc.project_id == ^project_id and tc.state in ["muted", "skipped"],
+        where: tc.project_id == ^project_id,
+        group_by: tc.id,
+        having: fragment("argMax(?, ?) IN ('muted', 'skipped')", tc.state, tc.inserted_at),
         select: tc.id
       )
 
