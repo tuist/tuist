@@ -65,6 +65,37 @@ server:
     license:
       item: ""
       field: password
+  # GitHub App + bot PAT secrets. When `github.managedSecrets: true`, ESO
+  # syncs these from 1Password into a dedicated Secret and the Server +
+  # Processor Deployments mount them as TUIST_GITHUB_APP_*
+  # / TUIST_GITHUB_TOKEN_* env vars. Independent of `server.managedSecrets`
+  # so the encrypted-blob and ESO paths can co-exist during migration.
+  github:
+    managedSecrets: false
+    externalSecrets:
+      refreshInterval: "1h"
+      storeRef:
+        kind: ClusterSecretStore
+        name: onepassword
+      app:
+        # The single 1P item carrying the App's atomic credential set.
+        item: GITHUB_APP
+        fields:
+          name: app_name
+          id: app_id
+          clientId: client_id
+          clientSecret: client_secret
+          webhookSecret: webhook_secret
+          # Per-env PEM filename. ESO's 1P provider reads file
+          # attachments by their filename. Set per-env values
+          # (`production.pem`, `staging.pem`, `canary.pem`).
+          privateKey: ""
+      tokenUpdatePackageReleases:
+        item: GITHUB_TOKEN_UPDATE_PACKAGE_RELEASES
+        field: credential
+      tokenUpdatePackages:
+        item: GITHUB_TOKEN_UPDATE_PACKAGES
+        field: credential
   license:
     key: ""
     certificateBase64: ""

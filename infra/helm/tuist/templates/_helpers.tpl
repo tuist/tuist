@@ -257,3 +257,56 @@ License env vars. Resolves to (in order):
 {{- define "tuist.serverHeadlessServiceName" -}}
 {{- include "tuist.componentName" (dict "root" . "component" "server-headless") -}}
 {{- end -}}
+
+{{/*
+GitHub App + bot PAT env vars. Mounted only when ESO is syncing them
+from 1Password (`server.github.managedSecrets: true`); otherwise the
+Tuist server falls back to reading the same values from the encrypted
+priv/secrets blob, so this block stays empty and nothing changes for
+clusters mid-migration.
+*/}}
+{{- define "tuist.githubEnv" -}}
+{{- if and .Values.server.enabled .Values.server.github.managedSecrets }}
+{{- $secret := include "tuist.componentName" (dict "root" . "component" "github-external-secrets") -}}
+- name: TUIST_GITHUB_APP_NAME
+  valueFrom:
+    secretKeyRef:
+      name: {{ $secret | quote }}
+      key: app-name
+- name: TUIST_GITHUB_APP_ID
+  valueFrom:
+    secretKeyRef:
+      name: {{ $secret | quote }}
+      key: app-id
+- name: TUIST_GITHUB_APP_CLIENT_ID
+  valueFrom:
+    secretKeyRef:
+      name: {{ $secret | quote }}
+      key: app-client-id
+- name: TUIST_GITHUB_APP_CLIENT_SECRET
+  valueFrom:
+    secretKeyRef:
+      name: {{ $secret | quote }}
+      key: app-client-secret
+- name: TUIST_GITHUB_APP_WEBHOOK_SECRET
+  valueFrom:
+    secretKeyRef:
+      name: {{ $secret | quote }}
+      key: app-webhook-secret
+- name: TUIST_GITHUB_APP_PRIVATE_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ $secret | quote }}
+      key: app-private-key
+- name: TUIST_GITHUB_TOKEN_UPDATE_PACKAGE_RELEASES
+  valueFrom:
+    secretKeyRef:
+      name: {{ $secret | quote }}
+      key: token-update-package-releases
+- name: TUIST_GITHUB_TOKEN_UPDATE_PACKAGES
+  valueFrom:
+    secretKeyRef:
+      name: {{ $secret | quote }}
+      key: token-update-packages
+{{- end }}
+{{- end -}}

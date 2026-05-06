@@ -11,6 +11,12 @@ server:
 
   appUrl: https://tuist.dev
 
+  github:
+    externalSecrets:
+      app:
+        fields:
+          privateKey: production.pem
+
   # HA scale-out needs distributed Erlang so PubSub + the in-memory rate
   # limiter work across pods. Emits a headless Service that libcluster's
   # Kubernetes.DNS strategy uses to discover peers; the chart wires

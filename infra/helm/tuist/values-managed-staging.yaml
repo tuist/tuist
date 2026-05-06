@@ -11,6 +11,16 @@
 server:
   replicaCount: 1
 
+  # Per-env PEM filename for the GitHub App private key. The
+  # tuist-k8s-staging 1P vault attaches the PEM as `staging.pem` on the
+  # GITHUB_APP item; ESO's 1P provider reads file attachments by their
+  # filename.
+  github:
+    externalSecrets:
+      app:
+        fields:
+          privateKey: staging.pem
+
   # Non-secret runtime config. Traces go to the in-cluster Alloy receiver
   # (deployed by infra/helm/k8s-monitoring) via OTLP gRPC; Alloy forwards
   # them to Grafana Cloud Tempo. Logs follow a different path — the server
