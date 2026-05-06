@@ -17,7 +17,14 @@ let xcodeMetadataDependency: Target.Dependency = "XcodeMetadata"
 let xcodeGraphMapperDependency: Target.Dependency = "XcodeGraphMapper"
 let xcodeProjDependency: Target.Dependency = .product(name: "XcodeProj", package: "tuist.XcodeProj")
 let mockableDependency: Target.Dependency = .product(name: "Mockable", package: "kolos65.Mockable")
-let zipFoundationDependency: Target.Dependency = .product(name: "ZIPFoundation", package: "tuist.ZIPFoundation")
+// ZIPFoundation pulls in CZlib, which has no system zlib shim on Windows.
+// The CLI doesn't actually import ZIPFoundation (zipping goes through the
+// FileSystem package), so we drop it on Windows.
+let zipFoundationDependency: Target.Dependency = .product(
+    name: "ZIPFoundation",
+    package: "tuist.ZIPFoundation",
+    condition: .when(platforms: [.macOS, .linux])
+)
 let stencilDependency: Target.Dependency = .product(name: "Stencil", package: "stencilproject.Stencil")
 let graphVizDependency: Target.Dependency = .product(name: "GraphViz", package: "tuist.GraphViz")
 let differenceDependency: Target.Dependency = .product(name: "Difference", package: "krzysztofzablocki.Difference")
