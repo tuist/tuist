@@ -288,6 +288,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			HostCPU:              r.TartKubeletHostCPU,
 			HostMemoryMB:         r.TartKubeletHostMemoryMB,
 			MaxPods:              r.TartKubeletMaxPods,
+			FleetName:            machine.Spec.FleetName,
 			KnownHostFingerprint: bootstrapCreds.HostFingerprint,
 		})
 		// Persist whatever fingerprint Run captured even on the error
@@ -364,6 +365,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			HostCPU:              r.TartKubeletHostCPU,
 			HostMemoryMB:         r.TartKubeletHostMemoryMB,
 			MaxPods:              r.TartKubeletMaxPods,
+			FleetName:            machine.Spec.FleetName,
 			KnownHostFingerprint: bootstrapCreds.HostFingerprint,
 		})
 		if fingerprint != "" && fingerprint != bootstrapCreds.HostFingerprint {

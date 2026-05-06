@@ -47,6 +47,7 @@ func init() {
 func main() {
 	var (
 		nodeName     string
+		fleet        string
 		hostCPU      int
 		hostMemoryMB int
 		maxPods      int
@@ -55,6 +56,9 @@ func main() {
 		tartBinary   string
 	)
 	flag.StringVar(&nodeName, "node-name", envOr("TART_KUBELET_NODE_NAME", ""), "Node name to register as. Defaults to os.Hostname() when empty.")
+	flag.StringVar(&fleet, "fleet", envOr("TART_KUBELET_FLEET", ""),
+		"Fleet name. When set, the Node carries label tuist.dev/fleet=<value> so "+
+			"workloads can target a specific fleet via nodeSelector. Empty disables the label.")
 	flag.IntVar(&hostCPU, "host-cpu", 8, "CPU cores to advertise on the Node.")
 	flag.IntVar(&hostMemoryMB, "host-memory-mb", 16384, "Memory MB to advertise on the Node.")
 	flag.IntVar(&maxPods, "max-pods", 2,
@@ -160,6 +164,7 @@ func main() {
 	if err := mgr.Add(&nodeagent.Maintainer{
 		Client:    mgr.GetClient(),
 		NodeName:  nodeName,
+		Fleet:     fleet,
 		CPU:       hostCPU,
 		MemoryMB:  hostMemoryMB,
 		MaxPods:   maxPods,

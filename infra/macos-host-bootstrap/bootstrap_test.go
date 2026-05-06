@@ -4,6 +4,7 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"net"
+	"strings"
 	"testing"
 
 	"golang.org/x/crypto/ssh"
@@ -14,6 +15,20 @@ func TestEncodeKCPasswordPadsToTwelveBytes(t *testing.T) {
 	// encodeKCPassword returns base64 — decode to inspect ciphertext.
 	if len(out) == 0 {
 		t.Fatalf("expected non-empty output")
+	}
+}
+
+func TestRenderLaunchdPlist_OmitsFleetWhenEmpty(t *testing.T) {
+	out := renderLaunchdPlist(Config{NodeName: "n1", SSHUser: "m1"})
+	if strings.Contains(out, "--fleet=") {
+		t.Fatalf("expected --fleet to be absent when FleetName is empty\n%s", out)
+	}
+}
+
+func TestRenderLaunchdPlist_RendersFleetWhenSet(t *testing.T) {
+	out := renderLaunchdPlist(Config{NodeName: "n1", SSHUser: "m1", FleetName: "tuist-runners"})
+	if !strings.Contains(out, "--fleet=tuist-runners") {
+		t.Fatalf("expected --fleet=tuist-runners in plist\n%s", out)
 	}
 }
 

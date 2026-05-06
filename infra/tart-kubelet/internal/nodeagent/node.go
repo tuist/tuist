@@ -27,6 +27,12 @@ import (
 type Maintainer struct {
 	Client    client.Client
 	NodeName  string
+	// Fleet, when non-empty, is published as the `tuist.dev/fleet`
+	// Node label so workloads (xcresult-processor, runner Pods) can
+	// target a specific fleet via nodeSelector. Mac minis in the
+	// xcresult fleet must not run customer runner Pods and vice
+	// versa; the label is the scheduling primitive that enforces it.
+	Fleet     string
 	CPU       int
 	MemoryMB  int
 	MaxPods   int
@@ -92,6 +98,14 @@ func (m *Maintainer) configureNode(node *corev1.Node) {
 	node.Labels["kubernetes.io/arch"] = "arm64"
 	node.Labels["tuist.dev/runtime"] = "tart"
 	node.Labels[corev1.LabelHostname] = m.NodeName
+	if m.Fleet != "" {
+		node.Labels["tuist.dev/fleet"] = m.Fleet
+	} else {
+		// Operator may have rolled the agent without a fleet flag
+		// after a previous run set the label. Drop it so the Node
+		// stops matching fleet-scoped nodeSelectors.
+		delete(node.Labels, "tuist.dev/fleet")
+	}
 
 	// Same NoSchedule taint we used for VK so stray Linux Pods don't
 	// land here. Pods that actually want darwin set both the

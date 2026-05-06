@@ -90,6 +90,13 @@ type Config struct {
 	HostMemoryMB int
 	MaxPods      int
 
+	// FleetName, when set, is passed to tart-kubelet via `--fleet=<name>`
+	// so the agent stamps `tuist.dev/fleet=<name>` on the Node it
+	// registers. Empty omits the flag and the Node carries no fleet
+	// label. Used by the chart's split macOS fleets (xcresult vs.
+	// runners) so workloads bind to a specific fleet via nodeSelector.
+	FleetName string
+
 	// KnownHostFingerprint is the SHA256 fingerprint of the SSH
 	// server's host key, persisted by the controller after the first
 	// successful bootstrap. When empty (first reconcile, fleet
@@ -296,6 +303,16 @@ func renderLaunchdPlist(cfg Config) string {
 	if user == "" {
 		user = "m1"
 	}
+	// `--fleet` is rendered conditionally so the existing single-fleet
+	// hosts (which were bootstrapped before this flag existed) keep
+	// rendering identical plists when the operator doesn't pass a
+	// FleetName. tart-kubelet treats empty fleet as "no label" and
+	// drops the label if it was previously set, which gives the
+	// operator a way to retire fleet membership cleanly.
+	fleetArg := ""
+	if cfg.FleetName != "" {
+		fleetArg = fmt.Sprintf("\n    <string>--fleet=%s</string>", cfg.FleetName)
+	}
 	// Run tart-kubelet as the SSH user (m1). Apple's
 	// Virtualization.framework requires the calling process to be the
 	// same user that holds the live GUI console session — Tart's
@@ -318,7 +335,7 @@ func renderLaunchdPlist(cfg Config) string {
     <string>--kubeconfig=/etc/tart-kubelet/kubeconfig</string>
     <string>--host-cpu=%[2]d</string>
     <string>--host-memory-mb=%[3]d</string>
-    <string>--max-pods=%[4]d</string>
+    <string>--max-pods=%[4]d</string>%[6]s
   </array>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
@@ -332,7 +349,7 @@ func renderLaunchdPlist(cfg Config) string {
   </dict>
 </dict>
 </plist>
-`, cfg.NodeName, cpu, mem, maxPods, user)
+`, cfg.NodeName, cpu, mem, maxPods, user, fleetArg)
 }
 
 func shellQuote(s string) string {
