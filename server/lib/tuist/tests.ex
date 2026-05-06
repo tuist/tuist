@@ -37,6 +37,7 @@ defmodule Tuist.Tests do
   alias Tuist.Tests.TestCaseBranchPresence
   alias Tuist.Tests.TestCaseEvent
   alias Tuist.Tests.TestCaseFailure
+  alias Tuist.Tests.TestCaseLastRanByCi
   alias Tuist.Tests.TestCaseRun
   alias Tuist.Tests.TestCaseRunArgument
   alias Tuist.Tests.TestCaseRunAttachment
@@ -1645,33 +1646,54 @@ defmodule Tuist.Tests do
     end)
   end
 
-  # `inserted_at` is added alongside `ran_at` so the partition pruner can skip
-  # months outside the window. `test_case_runs` is `PARTITION BY
-  # toYYYYMM(inserted_at)` and `ran_at` is not a partition key. Rows with
-  # `inserted_at < ran_at` would not exist (insert happens after the run
-  # completes), so this never excludes a row that the `ran_at` window would
-  # have included.
-  defp active_test_case_ids_query(project_id, {start_datetime, end_datetime}, is_ci) do
+  # When `is_ci` is set, the lookup goes through the
+  # `test_cases_last_ran_by_ci` AggregatingMergeTree MV: one row per
+  # `(project_id, is_ci, test_case_id)` with `maxState(ran_at)`. Active-set
+  # resolution scans ~distinct-test-cases-per-project rows instead of every
+  # `test_case_runs` row in the window (production query against project
+  # 1227 dropped from 1.74 s / 94 M rows / 3.94 GB on `test_case_runs` to
+  # well under a second on the MV).
+  #
+  # The `is_ci: nil` ("any environment") path is never reached today —
+  # `list_test_cases/3` short-circuits that branch by filtering on the
+  # denormalized `test_cases.last_ran_at` directly. The clause is kept here
+  # so other callers can still rely on the function's documented contract.
+  #
+  # `inserted_at` is added alongside `ran_at` on the `is_ci: nil` branch so
+  # the partition pruner can skip months outside the window. `test_case_runs`
+  # is `PARTITION BY toYYYYMM(inserted_at)` and `ran_at` is not a partition
+  # key. Rows with `inserted_at < ran_at` would not exist (insert happens
+  # after the run completes), so this never excludes a row that the `ran_at`
+  # window would have included.
+  defp active_test_case_ids_query(project_id, {start_datetime, end_datetime}, is_ci)
+       when is_boolean(is_ci) do
     start_naive = DateTime.to_naive(start_datetime)
     end_naive = DateTime.to_naive(end_datetime)
 
-    query =
-      from(run in TestCaseRun,
-        where:
-          run.project_id == ^project_id and
-            run.ran_at >= ^start_naive and
-            run.ran_at <= ^end_naive and
-            run.inserted_at >= ^start_naive and
-            not is_nil(run.test_case_id),
-        group_by: run.test_case_id,
-        select: %{test_case_id: run.test_case_id}
-      )
+    from(mv in TestCaseLastRanByCi,
+      where: mv.project_id == ^project_id and mv.is_ci == ^is_ci,
+      group_by: mv.tc_id,
+      having:
+        fragment("maxMerge(last_ran_at_state) >= ?", ^start_naive) and
+          fragment("maxMerge(last_ran_at_state) <= ?", ^end_naive),
+      select: %{test_case_id: mv.tc_id}
+    )
+  end
 
-    case is_ci do
-      true -> from(r in query, where: r.is_ci == true)
-      false -> from(r in query, where: r.is_ci == false)
-      _ -> query
-    end
+  defp active_test_case_ids_query(project_id, {start_datetime, end_datetime}, _is_ci) do
+    start_naive = DateTime.to_naive(start_datetime)
+    end_naive = DateTime.to_naive(end_datetime)
+
+    from(run in TestCaseRun,
+      where:
+        run.project_id == ^project_id and
+          run.ran_at >= ^start_naive and
+          run.ran_at <= ^end_naive and
+          run.inserted_at >= ^start_naive and
+          not is_nil(run.test_case_id),
+      group_by: run.test_case_id,
+      select: %{test_case_id: run.test_case_id}
+    )
   end
 
   @doc """
