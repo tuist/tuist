@@ -34,15 +34,15 @@ defmodule TuistWeb.Webhooks.GitHubController do
     body = conn.body_params
 
     cond do
-      secret = lookup_secret_by_installation_id(body) -> secret
+      secret = lookup_secret_by_installation_id(conn, body) -> secret
       secret = lookup_secret_by_app_id(conn, body) -> secret
       true -> Environment.github_app_webhook_secret()
     end
   end
 
-  defp lookup_secret_by_installation_id(body) do
+  defp lookup_secret_by_installation_id(conn, body) do
     with id when not is_nil(id) <- body_get(body, ["installation", "id"]),
-         {:ok, installation} <- VCS.get_github_app_installation_by_installation_id(to_string(id)),
+         {:ok, installation} <- lookup_installation_by_id(conn, body, to_string(id)),
          secret when is_binary(secret) <- installation.webhook_secret do
       secret
     else
@@ -51,17 +51,31 @@ defmodule TuistWeb.Webhooks.GitHubController do
   end
 
   defp lookup_secret_by_app_id(conn, body) do
-    app_id =
-      body_get(body, ["installation", "app_id"]) ||
-        conn |> get_req_header("x-github-hook-installation-target-id") |> List.first()
-
-    with id when not is_nil(id) <- app_id,
+    with id when not is_nil(id) <- app_id_from_request(conn, body),
          {:ok, installation} <- VCS.get_github_app_installation_by_app_id(to_string(id)),
          secret when is_binary(secret) <- installation.webhook_secret do
       secret
     else
       _ -> nil
     end
+  end
+
+  # Looks up the installation by `installation_id`, additionally pinning
+  # the row by `app_id` (from the body or the
+  # `X-GitHub-Hook-Installation-Target-ID` header) when present. The
+  # composite unique index on `(client_url, installation_id)` means two
+  # GitHub instances can have rows sharing an `installation_id`; pinning
+  # by `app_id` keeps the lookup unambiguous.
+  defp lookup_installation_by_id(conn, body, installation_id) do
+    case app_id_from_request(conn, body) do
+      nil -> VCS.get_github_app_installation_by_installation_id(installation_id)
+      app_id -> VCS.get_github_app_installation_by_installation_id(installation_id, app_id: to_string(app_id))
+    end
+  end
+
+  defp app_id_from_request(conn, body) do
+    body_get(body, ["installation", "app_id"]) ||
+      conn |> get_req_header("x-github-hook-installation-target-id") |> List.first()
   end
 
   defp body_get(body, [a, b]) do
@@ -87,19 +101,19 @@ defmodule TuistWeb.Webhooks.GitHubController do
     end
   end
 
-  defp handle_installation(conn, %{"action" => "deleted", "installation" => %{"id" => installation_id}}) do
-    {:ok, _} = delete_github_app_installation(installation_id)
+  defp handle_installation(conn, %{"action" => "deleted", "installation" => %{"id" => installation_id}} = params) do
+    {:ok, _} = delete_github_app_installation(conn, params, installation_id)
 
     conn
     |> put_status(:ok)
     |> json(%{status: "ok"})
   end
 
-  defp handle_installation(conn, %{
-         "action" => "created",
-         "installation" => %{"id" => installation_id, "html_url" => html_url}
-       }) do
-    case update_github_app_installation_html_url_with_retry(installation_id, html_url) do
+  defp handle_installation(
+         conn,
+         %{"action" => "created", "installation" => %{"id" => installation_id, "html_url" => html_url}} = params
+       ) do
+    case update_github_app_installation_html_url_with_retry(conn, params, installation_id, html_url) do
       {:ok, _} ->
         conn
         |> put_status(:ok)
@@ -128,16 +142,19 @@ defmodule TuistWeb.Webhooks.GitHubController do
     |> json(%{status: "ok"})
   end
 
-  defp handle_check_run(conn, %{
-         "action" => "requested_action",
-         "check_run" => %{"id" => check_run_id, "name" => "tuist/bundle-size"},
-         "requested_action" => %{"identifier" => "accept_bundle_size"},
-         "installation" => %{"id" => installation_id},
-         "repository" => %{"full_name" => repository_full_name}
-       }) do
+  defp handle_check_run(
+         conn,
+         %{
+           "action" => "requested_action",
+           "check_run" => %{"id" => check_run_id, "name" => "tuist/bundle-size"},
+           "requested_action" => %{"identifier" => "accept_bundle_size"},
+           "installation" => %{"id" => installation_id},
+           "repository" => %{"full_name" => repository_full_name}
+         } = params
+       ) do
     installation_id = to_string(installation_id)
 
-    with {:ok, installation} <- VCS.get_github_app_installation_by_installation_id(installation_id) do
+    with {:ok, installation} <- lookup_installation_by_id(conn, params, installation_id) do
       VCS.update_check_run(%{
         repository_full_handle: repository_full_name,
         check_run_id: check_run_id,
@@ -161,8 +178,8 @@ defmodule TuistWeb.Webhooks.GitHubController do
     |> json(%{status: "ok"})
   end
 
-  defp delete_github_app_installation(installation_id) do
-    case VCS.get_github_app_installation_by_installation_id(installation_id) do
+  defp delete_github_app_installation(conn, body, installation_id) do
+    case lookup_installation_by_id(conn, body, installation_id) do
       {:ok, github_app_installation} ->
         VCS.delete_github_app_installation(github_app_installation)
 
@@ -171,8 +188,8 @@ defmodule TuistWeb.Webhooks.GitHubController do
     end
   end
 
-  defp update_github_app_installation_html_url(installation_id, html_url) do
-    case VCS.get_github_app_installation_by_installation_id(installation_id) do
+  defp update_github_app_installation_html_url(conn, body, installation_id, html_url) do
+    case lookup_installation_by_id(conn, body, installation_id) do
       {:ok, github_app_installation} ->
         VCS.update_github_app_installation(github_app_installation, %{html_url: html_url})
 
@@ -181,11 +198,11 @@ defmodule TuistWeb.Webhooks.GitHubController do
     end
   end
 
-  defp update_github_app_installation_html_url_with_retry(installation_id, html_url, attempt \\ 1) do
+  defp update_github_app_installation_html_url_with_retry(conn, body, installation_id, html_url, attempt \\ 1) do
     max_attempts = 3
     retry_delay_ms = 1000
 
-    case update_github_app_installation_html_url(installation_id, html_url) do
+    case update_github_app_installation_html_url(conn, body, installation_id, html_url) do
       {:ok, result} ->
         {:ok, result}
 
@@ -195,7 +212,7 @@ defmodule TuistWeb.Webhooks.GitHubController do
         )
 
         Process.sleep(retry_delay_ms)
-        update_github_app_installation_html_url_with_retry(installation_id, html_url, attempt + 1)
+        update_github_app_installation_html_url_with_retry(conn, body, installation_id, html_url, attempt + 1)
 
       {:error, :not_found} ->
         {:error, :not_found_after_retries}

@@ -1204,11 +1204,17 @@ defmodule Tuist.VCS do
   # GitHub App Installation functions
 
   @doc """
-  Looks up a GitHub App installation. `installation_id` is only unique
-  *within* a GitHub instance — two GHES instances can each emit
-  installation `123` — so prefer the 2-arity form with the App ID (or
-  client_url) when the caller knows it. The 1-arity form is kept for
-  github.com flows where there's only ever one row per `installation_id`.
+  Looks up a GitHub App installation by `installation_id`.
+
+  `installation_id` is only unique *within* a GitHub instance — two GHES
+  instances can each emit installation `123`, and the composite unique
+  index on `(client_url, installation_id)` allows that. Pass `:app_id`
+  or `:client_url` whenever the caller can disambiguate (webhook
+  handlers always can, via `installation.app_id` in the body or the
+  `X-GitHub-Hook-Installation-Target-ID` header). Without a
+  disambiguator, this falls back to looking up by `installation_id`
+  alone, which raises `Ecto.MultipleResultsError` if more than one row
+  matches.
   """
   def get_github_app_installation_by_installation_id(installation_id, opts \\ []) do
     query =

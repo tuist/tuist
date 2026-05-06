@@ -232,6 +232,33 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
       assert result.status == 200
     end
 
+    test "disambiguates the installation lookup with the App ID header so two GitHub instances sharing an installation_id don't collide",
+         %{conn: conn} do
+      conn =
+        conn
+        |> put_req_header("x-github-event", "check_run")
+        |> put_req_header("x-github-hook-installation-target-id", "777")
+
+      expect(VCS, :get_github_app_installation_by_installation_id, fn installation_id, opts ->
+        assert installation_id == "12345"
+        assert Keyword.fetch!(opts, :app_id) == "777"
+        {:ok, %{installation_id: "12345"}}
+      end)
+
+      expect(VCS, :update_check_run, fn _params -> {:ok, %{"id" => 42}} end)
+
+      result =
+        GitHubController.handle(conn, %{
+          "action" => "requested_action",
+          "check_run" => %{"id" => 42, "name" => "tuist/bundle-size"},
+          "requested_action" => %{"identifier" => "accept_bundle_size"},
+          "installation" => %{"id" => 12_345},
+          "repository" => %{"full_name" => "org/repo"}
+        })
+
+      assert result.status == 200
+    end
+
     test "ignores check_run events for unknown installations", %{conn: conn} do
       conn = put_req_header(conn, "x-github-event", "check_run")
 
