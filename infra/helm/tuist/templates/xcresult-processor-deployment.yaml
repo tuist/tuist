@@ -1,0 +1,103 @@
+{{- if .Values.xcresultProcessor.enabled }}
+{{- $secretName := include "tuist.componentName" (dict "root" . "component" "xcresult-processor") }}
+{{- $masterKeySecretName := ternary (include "tuist.componentName" (dict "root" . "component" "server-external-secrets")) (include "tuist.componentName" (dict "root" . "component" "app-secrets")) .Values.server.managedSecrets }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "xcresult-processor") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: xcresult-processor
+spec:
+  replicas: {{ .Values.xcresultProcessor.replicaCount }}
+  strategy:
+    {{- toYaml .Values.xcresultProcessor.strategy | nindent 4 }}
+  selector:
+    matchLabels:
+      {{- include "tuist.componentLabels" (dict "root" . "component" "xcresult-processor") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "tuist.componentLabels" (dict "root" . "component" "xcresult-processor") | nindent 8 }}
+        {{- with .Values.global.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      # Schedule onto a real macOS node — a Mac mini running
+      # tart-kubelet. The taint `tuist.dev/macos=true:NoSchedule` is
+      # set by tart-kubelet at registration so stray Linux Pods don't
+      # land here.
+      nodeSelector:
+        kubernetes.io/os: darwin
+        tuist.dev/runtime: tart
+      tolerations:
+        - key: tuist.dev/macos
+          operator: Exists
+          effect: NoSchedule
+      # When replicaCount > 1, force replicas onto distinct hosts.
+      # Without this, two replicas can land on the same Mac mini and a
+      # single host reboot drops the queue consumer count to zero.
+      # ScheduleAnyway (rather than DoNotSchedule) so a fleet that
+      # temporarily can't satisfy the spread (e.g. one mini being
+      # replaced) still schedules — burst capacity beats strict
+      # anti-collocation.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              {{- include "tuist.componentLabels" (dict "root" . "component" "xcresult-processor") | nindent 14 }}
+      # No init containers, no sidecars — tart-kubelet maps Pod ↔
+      # Tart VM 1:1 and rejects multi-container Pods at admission.
+      # The first (and only) container's image is the Tart VM image;
+      # env flows through to /etc/tuist.env inside the VM via the
+      # tart-kubelet `--dir env:<host-path>:ro` mount, which the guest
+      # sees at /Volumes/My Shared Files/env.
+      containers:
+        - name: xcresult-processor
+          image: "{{ .Values.xcresultProcessor.image.repository }}:{{ .Values.xcresultProcessor.image.tag | default "latest" }}"
+          imagePullPolicy: {{ .Values.xcresultProcessor.image.pullPolicy }}
+          env:
+            # Boot mode: queue-only consumer for :process_xcresult.
+            # Tuist.Environment.mode/0 reads TUIST_MODE (collapse-
+            # renamed from the legacy TUIST_XCRESULT_PROCESSOR_MODE).
+            # Without this set, the BEAM falls through to :web mode:
+            # binds Phoenix on :8080, runs license validation, and
+            # generally claims a wider Oban queue set than it can
+            # actually serve under the tuist_processor DB role —
+            # leaving ProcessXcresultWorker's queue starved while
+            # legacy consumers on the same Supabase win the race.
+            - name: TUIST_MODE
+              value: "xcresult_processor"
+            - name: TUIST_HOSTED
+              value: {{ .Values.server.hosted | ternary "1" "0" | quote }}
+            - name: TUIST_LOG_LEVEL
+              value: {{ .Values.server.logLevel | quote }}
+            - name: TUIST_PROCESS_XCRESULT_QUEUE_CONCURRENCY
+              value: {{ .Values.xcresultProcessor.queueConcurrency | quote }}
+            # Supabase Supavisor (transaction mode) for Postgres. Same
+            # tuist_processor role + same connection params the build
+            # processor uses — provisioned via
+            # infra/supabase/tuist-processor-role.sql.
+            - name: TUIST_DATABASE_POOLED
+              value: "1"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default (include "tuist.componentName" (dict "root" . "component" "processor-external-secrets")) .Values.xcresultProcessor.databaseUrlSecretName }}
+                  key: {{ .Values.xcresultProcessor.databaseUrlSecretKey | default "processor-database-url" }}
+            {{- if or .Values.server.masterKey .Values.server.managedSecrets }}
+            - name: MASTER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $masterKeySecretName }}
+                  key: server-master-key
+            {{- end }}
+            {{- with .Values.xcresultProcessor.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.xcresultProcessor.resources | nindent 12 }}
+{{- end }}

@@ -99,6 +99,25 @@ processor:
       cpu: "1000m"
       memory: "1Gi"
 
+xcresultProcessor:
+  # Single replica in canary, matching macosFleet.replicas=1.
+  # Production keeps the chart default 2 because it has 2 Mac minis
+  # and the topology spread forces one replica per host. With one
+  # Mac mini and replicaCount=2 the second pod has nowhere to land
+  # without violating Apple's 2-VM SLA cap that Tart enforces.
+  replicaCount: 1
+  extraEnv:
+    - name: TUIST_DEPLOY_ENV
+      value: can
+    - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
+      value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
+
+# Mac mini fleet — declarative via CAPI.
+macosFleet:
+  replicas: 1
+  controlPlane:
+    host: api-canary.tuist.dev
+
 # In-cluster Valkey backs the auth rate limiter (Hammer.Redis). The
 # chart wires TUIST_REDIS_URL to the embedded Service; without it the
 # rate limiter falls back to the per-pod InMemory bucket.

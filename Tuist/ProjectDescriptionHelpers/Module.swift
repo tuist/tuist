@@ -101,7 +101,7 @@ public enum Module: String, CaseIterable {
                 bundleId: "dev.tuist.XCResultParser",
                 deploymentTargets: .macOS("15.0"),
                 infoPlist: .default,
-                buildableFolders: ["xcode_processor/native/xcresult_nif/Sources/XCResultParser/"],
+                buildableFolders: ["server/native/xcresult_nif/Sources/XCResultParser/"],
                 dependencies: [
                     .external(name: "Path"),
                     .external(name: "FileSystem"),
