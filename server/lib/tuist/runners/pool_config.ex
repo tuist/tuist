@@ -3,18 +3,36 @@ defmodule Tuist.Runners.PoolConfig do
   Hardcoded customer pool definitions for v1.
 
   Each entry says: "GitHub Actions jobs from this `owner/repo` get
-  bound to a runner from the shared pool, registered with this
-  label set, capped at `max_concurrent` parallel jobs."
+  bound to a runner registered with this label set, capped at
+  `max_concurrent` parallel jobs, with `min_warm` of those
+  always pre-warmed and pre-registered with GitHub for sub-second
+  pickup latency."
 
   When the second customer lands we move this into the database +
   surface it in the dashboard. The shape here is the contract
   that move has to preserve.
 
-  For v1:
-  - `min_warm: 0` — no per-customer pre-bound Pods. Everything
-    floats in the shared pool sized at `sum(max_concurrent)`.
-  - `max_concurrent` doubles as the customer's published
-    concurrency tier: 2 for staging/canary, 5 for production.
+  Pool capacity model (hybrid shape 2):
+  - `min_warm` — Pods reserved exclusively for this customer.
+    The reconciler creates them with the customer's GitHub JIT
+    config baked in at create time. They register with GitHub at
+    boot and sit as `online + idle` runners; GitHub's dispatcher
+    routes queued jobs to them autonomously. Sub-second pickup.
+  - `max_concurrent - min_warm` — burst capacity drawn from the
+    cluster-wide *shared pool*. Shared Pods boot generic
+    (no JIT) and poll the dispatch endpoint; on
+    `workflow_job: queued` from any customer with burst
+    headroom, the webhook handler picks an idle shared Pod, mints
+    JIT for the matching customer, and the Pod registers with
+    GitHub. Adds ~5-10s registration latency vs pre-warmed.
+  - The cluster-wide shared pool size is
+    `sum(max_concurrent) - sum(min_warm)` across pools. Empty
+    when every customer's max equals their min.
+
+  `installation_id` is the GitHub App installation that
+  authorizes `generate-jitconfig` for this pool's repo. Resolved
+  from a per-pool env var so the deploy step can pin it without
+  shipping a code change.
 
   Resolved at runtime by `env/0` so the per-env values
   overrides (TUIST_DEPLOY_ENV) drive the pool config without a
@@ -38,8 +56,9 @@ defmodule Tuist.Runners.PoolConfig do
             owner: "tuist",
             repo: "tuist",
             labels: ["self-hosted", "macOS", "ARM64", "tuist-tuist-staging"],
-            min_warm: 0,
-            max_concurrent: 2
+            min_warm: 1,
+            max_concurrent: 2,
+            installation_id: tuist_tuist_installation_id()
           }
         ]
 
@@ -51,8 +70,9 @@ defmodule Tuist.Runners.PoolConfig do
             owner: "tuist",
             repo: "tuist",
             labels: ["self-hosted", "macOS", "ARM64", "tuist-tuist-canary"],
-            min_warm: 0,
-            max_concurrent: 2
+            min_warm: 1,
+            max_concurrent: 2,
+            installation_id: tuist_tuist_installation_id()
           }
         ]
 
@@ -64,13 +84,30 @@ defmodule Tuist.Runners.PoolConfig do
             owner: "tuist",
             repo: "tuist",
             labels: ["self-hosted", "macOS", "ARM64", "tuist-tuist"],
-            min_warm: 0,
-            max_concurrent: 5
+            min_warm: 3,
+            max_concurrent: 5,
+            installation_id: tuist_tuist_installation_id()
           }
         ]
 
       _ ->
         []
+    end
+  end
+
+  @doc """
+  Looks up a pool by its `name` field. Used by the reconciler to
+  resolve a pool's config when minting a pre-bound Pod's JIT.
+  """
+  def find_by_name(name) when is_binary(name) do
+    Enum.find(pools(), fn p -> p.name == name end)
+  end
+
+  defp tuist_tuist_installation_id do
+    case System.get_env("TUIST_RUNNERS_TUIST_TUIST_INSTALLATION_ID") do
+      nil -> nil
+      "" -> nil
+      raw -> String.to_integer(raw)
     end
   end
 
@@ -83,9 +120,37 @@ defmodule Tuist.Runners.PoolConfig do
       2  # in staging
   """
   def total_warm_target do
-    pools()
-    |> Enum.map(fn p -> p.min_warm + p.max_concurrent end)
-    |> Enum.sum()
+    sum_min_warm() + shared_burst_target()
+  end
+
+  @doc """
+  Sum of pre-bound Pods across all pools. The reconciler keeps
+  exactly this many customer-bound Pods alive across the
+  cluster (one row in `runner_assignments` per Pod, with
+  `pool_name` + `jit_config` set at create time).
+  """
+  def sum_min_warm do
+    pools() |> Enum.map(& &1.min_warm) |> Enum.sum()
+  end
+
+  @doc """
+  Cluster-wide shared-pool size. Sized so the cluster has enough
+  generic warm capacity to satisfy any single customer's burst up
+  to their `max_concurrent`. Mathematically:
+
+      sum(max_concurrent) - sum(min_warm)
+
+  Negative would mean min_warm exceeds max_concurrent for some
+  pool — caller error in PoolConfig; we floor at 0 so the
+  reconciler doesn't try to delete shared Pods.
+  """
+  def shared_burst_target do
+    cap =
+      pools()
+      |> Enum.map(fn p -> p.max_concurrent - p.min_warm end)
+      |> Enum.sum()
+
+    max(0, cap)
   end
 
   @doc """

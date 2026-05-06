@@ -33,25 +33,43 @@ defmodule Tuist.Runners.PodSpec do
   presents when polling — the matching SHA-256 hash is persisted
   in `runner_assignments.dispatch_token_hash` by the dispatch
   flow.
+
+  `opts`:
+    - `:pool` — when set to a pool name string, the Pod gets the
+      label `tuist.dev/runner-pool=<pool>` at create time. Used
+      by the reconciler to differentiate pre-bound (`pool` set)
+      from shared (`pool` nil) Pods via label selectors —
+      `tuist.dev/runner=true,tuist.dev/runner-pool=<name>` for
+      pre-bound count, `tuist.dev/runner=true,!tuist.dev/runner-pool`
+      for shared.
   """
-  def build(name, image, dispatch_url, dispatch_token, fleet_name) do
+  def build(name, image, dispatch_url, dispatch_token, fleet_name, opts \\ []) do
+    base_labels = %{
+      "app.kubernetes.io/name" => "tuist-runner",
+      "app.kubernetes.io/component" => "runner",
+      # NetworkPolicy in templates/runners-namespace.yaml
+      # selects on this label. Don't drop it.
+      "tuist.dev/runner" => "true",
+      # Pre-bound Pods carry their JIT from the moment the row is
+      # written; their VM polls the dispatch endpoint and gets a
+      # 200 immediately. Shared Pods sit at "idle" until the
+      # `workflow_job: queued` webhook handler binds them.
+      "tuist.dev/runner-state" => "idle"
+    }
+
+    labels =
+      case Keyword.fetch(opts, :pool) do
+        {:ok, pool} when is_binary(pool) -> Map.put(base_labels, "tuist.dev/runner-pool", pool)
+        _ -> base_labels
+      end
+
     %{
       "apiVersion" => "v1",
       "kind" => "Pod",
       "metadata" => %{
         "name" => name,
         "namespace" => @namespace,
-        "labels" => %{
-          "app.kubernetes.io/name" => "tuist-runner",
-          "app.kubernetes.io/component" => "runner",
-          # NetworkPolicy in templates/runners-namespace.yaml
-          # selects on this label. Don't drop it.
-          "tuist.dev/runner" => "true",
-          # Generic state at create time — Dispatch promotes via
-          # database row, not by patching this label, so no
-          # `pods/patch` RBAC required.
-          "tuist.dev/runner-state" => "idle"
-        }
+        "labels" => labels
       },
       "spec" => %{
         # Mac mini only, runners fleet only. The fleet label is
@@ -113,10 +131,8 @@ defmodule Tuist.Runners.PodSpec do
   def namespace, do: @namespace
 
   @doc """
-  Stable Pod name for a freshly-spawned warm runner. Always
-  generic ("tuist-runner-<short-uuid>") so a Dispatch decision
-  can pick any of them — names don't carry customer identity.
-  Pool binding is recorded in Postgres, not in the name.
+  Stable Pod name for a freshly-spawned shared/burst runner.
+  Generic — the dispatch flow picks any of them.
   """
   def generate_name do
     suffix =
@@ -128,12 +144,42 @@ defmodule Tuist.Runners.PodSpec do
   end
 
   @doc """
-  Selector used by the reconciler to count and discover warm
-  runners. Matches every Pod we create through `build/4` —
-  tightening this without bumping `build/4`'s labels would silently
-  drop Pods from the reconciler's accounting.
+  Stable Pod name for a freshly-spawned pre-bound runner.
+  Carries the pool name in the prefix for at-a-glance
+  identification in `kubectl get pods`. Pool binding is also
+  recorded in Postgres + on the Pod's `tuist.dev/runner-pool`
+  label for the reconciler's selector queries.
+  """
+  def generate_pool_name(pool) when is_binary(pool) do
+    suffix =
+      4
+      |> :crypto.strong_rand_bytes()
+      |> Base.encode16(case: :lower)
+
+    "tuist-runner-#{pool}-#{suffix}"
+  end
+
+  @doc """
+  Selector matching every runner Pod we create. Used by the
+  reconciler's broad-count queries.
   """
   def selector_label, do: "tuist.dev/runner=true"
+
+  @doc """
+  Selector matching pre-bound Pods for a specific pool.
+  """
+  def pre_bound_selector(pool) when is_binary(pool) do
+    "tuist.dev/runner=true,tuist.dev/runner-pool=#{pool}"
+  end
+
+  @doc """
+  Selector matching shared (un-pool-labelled) Pods. The `!key`
+  syntax is the Kubernetes label-selector negation —
+  "label `tuist.dev/runner-pool` must NOT be present".
+  """
+  def shared_selector do
+    "tuist.dev/runner=true,!tuist.dev/runner-pool"
+  end
 
   @doc """
   Pool inventory check — is the cluster's view of a Pod still

@@ -125,6 +125,21 @@ spec:
               value: "{{ .Values.server.appUrl }}/api/internal/runners/dispatch"
             - name: TUIST_RUNNERS_FLEET_NAME
               value: {{ include "tuist.runnersFleetName" . | quote }}
+            {{- /*
+              Per-pool GitHub App installation IDs. The
+              reconciler needs these to mint JIT runner configs
+              for pre-bound Pods (`min_warm > 0`). One env var
+              per pool keeps pool config + GH App identity
+              decoupled — when an App is reinstalled the
+              installation_id changes; the chart's value
+              changes; the code stays put.
+            */}}
+            {{- with .Values.runnersFleet.installationIds }}
+            {{- range $pool, $id := . }}
+            - name: TUIST_RUNNERS_{{ $pool | upper | replace "-" "_" }}_INSTALLATION_ID
+              value: {{ $id | quote }}
+            {{- end }}
+            {{- end }}
             {{- end }}
             {{- include "tuist.licenseEnv" . | nindent 12 }}
             {{- if or .Values.server.masterKey .Values.server.managedSecrets }}

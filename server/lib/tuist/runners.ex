@@ -32,15 +32,29 @@ defmodule Tuist.Runners do
   alias Tuist.Runners.RunnerAssignment
 
   @doc """
-  Creates an idle assignment row for a freshly-spawned warm Pod.
-  Called by the reconciler immediately after a successful Pod
-  create — the row carries the dispatch-token hash so a later
-  GitHub webhook (or a server restart in between) can still
-  authenticate the polling Pod.
+  Creates an idle assignment row for a freshly-spawned shared
+  warm Pod. Called by the reconciler immediately after a
+  successful Pod create — the row carries the dispatch-token
+  hash so a later GitHub webhook (or a server restart in
+  between) can still authenticate the polling Pod.
   """
   def create_idle_assignment(attrs) do
     attrs
     |> RunnerAssignment.create_changeset()
+    |> Repo.insert()
+  end
+
+  @doc """
+  Creates a fully-dispatched assignment row for a pre-bound Pod.
+  Called by the reconciler when materializing a customer's
+  reserved warm runner: the GitHub JIT is minted *before* Pod
+  create and the row carries it from the start, so the polling
+  VM hits 200 on its first dispatch request and registers with
+  GitHub within seconds of boot.
+  """
+  def create_pre_bound_assignment(attrs) do
+    attrs
+    |> RunnerAssignment.pre_bound_changeset()
     |> Repo.insert()
   end
 

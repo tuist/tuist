@@ -1,23 +1,36 @@
 defmodule Tuist.Runners.Reconciler do
   @moduledoc """
-  Maintains the shared warm pool of generic runner Pods.
+  Maintains the warm runner pool — a hybrid of customer-reserved
+  pre-bound Pods and a cluster-wide shared burst pool.
 
-  Pure-ish: reads observed cluster state from
-  `Tuist.Kubernetes.Client`, computes desired-vs-actual against
-  `Tuist.Runners.PoolConfig.total_warm_target/0`, and emits
-  Pod-create requests to close the gap.
+  Two reconcile streams per tick:
+
+    1. For every pool with `min_warm > 0`, count Pods labeled
+       `tuist.dev/runner=true,tuist.dev/runner-pool=<name>` in
+       the runners namespace. If `alive < min_warm`, mint a JIT
+       config from GitHub for that pool's repo and create a Pod
+       carrying the JIT in env. The Pod's polling VM fetches the
+       JIT on its first dispatch request and registers with
+       GitHub within seconds of boot.
+
+    2. For the shared pool, count Pods labeled
+       `tuist.dev/runner=true,!tuist.dev/runner-pool`. If
+       `alive < shared_burst_target`, create a generic Pod with
+       no JIT. It polls the dispatch endpoint (returning 204
+       while idle) until a `workflow_job: queued` webhook binds
+       it to a customer.
 
   Cron-paced (60 s) by `Tuist.Runners.Workers.ReconcilePoolsWorker`.
-  Idempotent — safe to invoke twice in the same minute (we'd just
-  create twice the gap, which converges next tick), but the cron
-  is configured singleton.
+  Idempotent — running twice converges to the same end state;
+  the cron is configured singleton.
 
   Doesn't delete Pods: warm runners exit on their own after one
-  job (`./run.sh --jitconfig --ephemeral`); shrinking the pool is
-  a v2 concern when concurrency tiers become customer-tunable.
+  job (`./run.sh --jitconfig` is single-shot); shrinking the pool
+  is a v2 concern when concurrency tiers become customer-tunable.
   """
 
   alias Tuist.Environment
+  alias Tuist.GitHub.Client, as: GitHubClient
   alias Tuist.Kubernetes.Client
   alias Tuist.Runners
   alias Tuist.Runners.PodSpec
@@ -30,44 +43,144 @@ defmodule Tuist.Runners.Reconciler do
   logged but not surfaced (the cron retries on the next tick).
   """
   def reconcile do
-    target = PoolConfig.total_warm_target()
+    if PoolConfig.total_warm_target() == 0 do
+      :ok
+    else
+      reconcile_pre_bound()
+      reconcile_shared()
+      :ok
+    end
+  end
+
+  defp reconcile_pre_bound do
+    PoolConfig.pools()
+    |> Enum.filter(fn p -> p.min_warm > 0 end)
+    |> Enum.each(fn pool ->
+      case Client.list_pods(PodSpec.namespace(), PodSpec.pre_bound_selector(pool.name)) do
+        {:ok, pods} ->
+          alive = Enum.count(pods, &PodSpec.alive?/1)
+          gap = max(0, pool.min_warm - alive)
+
+          Logger.info("runners: pre-bound reconcile",
+            pool: pool.name,
+            target: pool.min_warm,
+            observed: alive,
+            gap: gap
+          )
+
+          Enum.each(1..gap//1, fn _ -> create_pre_bound_pod(pool) end)
+
+        {:error, :not_in_cluster} ->
+          Logger.debug("runners: skipping pre-bound reconcile — not running in-cluster")
+
+        {:error, reason} ->
+          Logger.warning("runners: pre-bound list_pods failed",
+            pool: pool.name,
+            reason: inspect(reason)
+          )
+      end
+    end)
+  end
+
+  defp reconcile_shared do
+    target = PoolConfig.shared_burst_target()
 
     if target == 0 do
       :ok
     else
-      case Client.list_pods(PodSpec.namespace(), PodSpec.selector_label()) do
+      case Client.list_pods(PodSpec.namespace(), PodSpec.shared_selector()) do
         {:ok, pods} ->
           alive = Enum.count(pods, &PodSpec.alive?/1)
           gap = max(0, target - alive)
 
-          Logger.info("runners: reconcile",
+          Logger.info("runners: shared reconcile",
             target: target,
             observed: alive,
             gap: gap
           )
 
-          Enum.each(1..gap//1, fn _ -> create_warm_pod() end)
-          :ok
+          Enum.each(1..gap//1, fn _ -> create_shared_pod() end)
 
         {:error, :not_in_cluster} ->
-          Logger.debug("runners: skipping reconcile — not running in-cluster")
-          :ok
+          Logger.debug("runners: skipping shared reconcile — not running in-cluster")
 
         {:error, reason} ->
-          Logger.warning("runners: reconcile list_pods failed: #{inspect(reason)}")
-          :ok
+          Logger.warning("runners: shared list_pods failed", reason: inspect(reason))
       end
     end
   end
 
-  defp create_warm_pod do
-    name = PodSpec.generate_name()
+  defp create_pre_bound_pod(pool) do
     image = Environment.runner_image()
     dispatch_url = Environment.runner_dispatch_url()
     fleet = Environment.runners_fleet_name()
     token = generate_dispatch_token()
+    pod_name = PodSpec.generate_pool_name(pool.name)
 
-    pod = PodSpec.build(name, image, dispatch_url, token, fleet)
+    with {:ok, installation_id} <- pool_installation_id(pool),
+         {:ok, %{encoded_jit_config: jit, runner_name: runner_name}} <-
+           GitHubClient.generate_jit_config(installation_id, pool.owner, pool.repo, %{
+             name: runner_jit_name(pool, pod_name),
+             labels: pool.labels
+           }),
+         pod = PodSpec.build(pod_name, image, dispatch_url, token, fleet, pool: pool.name),
+         {:ok, %{"metadata" => %{"uid" => uid, "name" => pod_name}}} <-
+           Client.create_pod(PodSpec.namespace(), pod),
+         {:ok, _} <-
+           Runners.create_pre_bound_assignment(%{
+             pod_uid: uid,
+             pod_name: pod_name,
+             pool_name: pool.name,
+             jit_config: jit,
+             dispatch_token_hash: Runners.hash_token(token),
+             account_id: pool.account_id,
+             owner: pool.owner,
+             repo: pool.repo
+           }) do
+      Logger.info("runners: created pre-bound pod",
+        pod_name: pod_name,
+        pod_uid: uid,
+        pool: pool.name,
+        runner_name: runner_name,
+        image: image,
+        fleet: fleet
+      )
+
+      :ok
+    else
+      {:error, :no_installation_id} ->
+        Logger.warning("runners: skipping pre-bound — no installation_id configured", pool: pool.name)
+        :ok
+
+      {:error, %Ecto.Changeset{} = cs} ->
+        # Persisted Pod but row insert failed — orphan that
+        # needs manual cleanup. Loud log because we can't
+        # auto-recover; manual `kubectl delete pod` then the
+        # next reconcile tick rebuilds.
+        Logger.error("runners: pre-bound assignment row failed; orphaned Pod will need manual cleanup",
+          pool: pool.name,
+          changeset_errors: inspect(cs.errors)
+        )
+
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("runners: create_pre_bound_pod failed",
+          pool: pool.name,
+          reason: inspect(reason)
+        )
+
+        :ok
+    end
+  end
+
+  defp create_shared_pod do
+    image = Environment.runner_image()
+    dispatch_url = Environment.runner_dispatch_url()
+    fleet = Environment.runners_fleet_name()
+    token = generate_dispatch_token()
+    pod_name = PodSpec.generate_name()
+    pod = PodSpec.build(pod_name, image, dispatch_url, token, fleet)
 
     with {:ok, %{"metadata" => %{"uid" => uid, "name" => pod_name}}} <-
            Client.create_pod(PodSpec.namespace(), pod),
@@ -77,7 +190,7 @@ defmodule Tuist.Runners.Reconciler do
              pod_name: pod_name,
              dispatch_token_hash: Runners.hash_token(token)
            }) do
-      Logger.info("runners: created warm pod",
+      Logger.info("runners: created shared pod",
         pod_name: pod_name,
         pod_uid: uid,
         image: image,
@@ -87,20 +200,26 @@ defmodule Tuist.Runners.Reconciler do
       :ok
     else
       {:error, %Ecto.Changeset{} = cs} ->
-        # Insertion failure after a successful Pod create leaks a
-        # Pod we can't authenticate. Log loudly: a hand-deleted
-        # Pod is the cleanest recovery, and the next reconcile
-        # tick will create a replacement once it's gone.
-        Logger.error("runners: persisted assignment failed; orphaned Pod will need manual cleanup",
+        Logger.error("runners: shared assignment row failed; orphaned Pod will need manual cleanup",
           changeset_errors: inspect(cs.errors)
         )
 
         :ok
 
       {:error, reason} ->
-        Logger.warning("runners: create_pod failed: #{inspect(reason)}")
+        Logger.warning("runners: create_shared_pod failed", reason: inspect(reason))
         :ok
     end
+  end
+
+  defp pool_installation_id(%{installation_id: id}) when is_integer(id) and id > 0, do: {:ok, id}
+  defp pool_installation_id(_), do: {:error, :no_installation_id}
+
+  # GitHub's runner-name uniqueness is per repo. Embed the Pod's
+  # name (already unique-per-Pod via the random suffix) so a
+  # re-create can never collide with a still-pending registration.
+  defp runner_jit_name(pool, pod_name) do
+    "tuist-#{pool.name}-#{pod_name}"
   end
 
   defp generate_dispatch_token do

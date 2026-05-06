@@ -186,6 +186,12 @@ runnersFleet:
   # workflow; a placeholder here means the helm template would
   # fail the `required` check unless overridden.
   runnerImage: ""
+  # Resolve via:
+  #   gh api /repos/tuist/tuist/installation
+  # against a token where the Tuist GitHub App is installed.
+  # The numeric `id` field is the installation_id.
+  installationIds:
+    tuist-tuist: ""
   # Cluster-internal CIDR ranges the runner namespace's
   # NetworkPolicy blocks egress to. Locks down lateral
   # reachability so a compromised runner can't speak to

@@ -13,6 +13,14 @@ defmodule Tuist.Runners.PoolConfigTest do
     max_concurrent: 2
   }
 
+  describe "find_by_name/1" do
+    test "returns nil for unknown pool" do
+      # find_by_name reads pools/0 which is empty in :test env;
+      # asserting the empty case is enough to guard the wiring.
+      assert PoolConfig.find_by_name("does-not-exist") == nil
+    end
+  end
+
   describe "match_for_dispatch/3" do
     test "matches on repo + intersecting labels" do
       assert {:ok, %{name: "tuist-tuist"}} =

@@ -42,14 +42,27 @@ defmodule Tuist.Runners.RunnerAssignment do
   end
 
   @doc """
-  Changeset for the row written when a Pod is first created. No
-  pool/JIT yet — those land via `dispatch_changeset/2` once a
-  `workflow_job: queued` webhook arrives.
+  Changeset for the row written when a *shared* Pod is first
+  created. No pool/JIT yet — those land via `dispatch_changeset/2`
+  once a `workflow_job: queued` webhook arrives.
   """
   def create_changeset(attrs) do
     %__MODULE__{}
     |> cast(attrs, ~w(pod_uid pod_name dispatch_token_hash)a)
     |> validate_required(~w(pod_uid pod_name dispatch_token_hash)a)
+    |> unique_constraint(:pod_uid, name: "runner_assignments_pkey")
+  end
+
+  @doc """
+  Changeset for the row written when a *pre-bound* Pod is created.
+  All fields land at create time — the row's `jit_config` is
+  what the polling VM will fetch on its first dispatch poll, so
+  the runner registers with GitHub seconds after Pod boot.
+  """
+  def pre_bound_changeset(attrs) do
+    %__MODULE__{}
+    |> cast(attrs, ~w(pod_uid pod_name pool_name jit_config dispatch_token_hash account_id owner repo)a)
+    |> validate_required(~w(pod_uid pod_name pool_name jit_config dispatch_token_hash owner repo)a)
     |> unique_constraint(:pod_uid, name: "runner_assignments_pkey")
   end
 
