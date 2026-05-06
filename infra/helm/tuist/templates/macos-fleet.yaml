@@ -1,5 +1,5 @@
 {{- if .Values.macosFleet.enabled }}
-{{- $fleetName := .Values.macosFleet.name | default (include "tuist.componentName" (dict "root" . "component" "macos-fleet")) }}
+{{- $fleetName := include "tuist.macosFleetName" . }}
 {{- $replicas := int (.Values.macosFleet.replicas | default 1) }}
 {{- /*
 Mac mini fleet: render N ScalewayAppleSiliconMachine CRs directly.

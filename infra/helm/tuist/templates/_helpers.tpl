@@ -64,6 +64,25 @@ tolerations:
 {{- end }}
 {{- end }}
 
+{{/*
+Mac mini fleet names. The CR / SSH-key / Node-label all share the
+same string. Centralizing keeps macos-fleet.yaml,
+runners-fleet.yaml, and the workload Deployments that target each
+fleet via nodeSelector pinned to the same value without copy-paste
+drift.
+
+Defaults pin the existing xcresult fleet to its CR-derived name to
+avoid renaming Mac minis (which would force Scaleway to re-order
+hosts). Override `macosFleet.name` only on a green-field cluster.
+*/}}
+{{- define "tuist.macosFleetName" -}}
+{{- .Values.macosFleet.name | default (include "tuist.componentName" (dict "root" . "component" "macos-fleet")) -}}
+{{- end -}}
+
+{{- define "tuist.runnersFleetName" -}}
+{{- .Values.runnersFleet.name | default (include "tuist.componentName" (dict "root" . "component" "runners-fleet")) -}}
+{{- end -}}
+
 {{- define "tuist.objectStorageEndpoint" -}}
 {{- if eq .Values.objectStorage.mode "embedded" -}}
 http://{{ include "tuist.componentName" (dict "root" . "component" "object-storage") }}:9000

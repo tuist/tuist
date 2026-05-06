@@ -1,0 +1,193 @@
+{{- if .Values.runnersFleet.enabled }}
+{{- $namespace := .Values.runnersFleet.namespace | default "tuist-runners" }}
+{{- $serverSA := include "tuist.componentServiceAccountName" (dict "root" . "component" "server") }}
+{{- /*
+Customer runner Pods live in their own namespace, separate from
+the chart's release namespace. Two reasons:
+
+1. Blast radius. The server's ServiceAccount needs Pod
+   create/list/get to materialize pre-warmed runners; granting
+   that in the release namespace would let the SA touch every
+   workload pod (server, processor, xcresult-processor). Pinning
+   the grant to a dedicated namespace keeps a server compromise
+   from cascading.
+2. Network policy. We default-deny ingress and constrain egress
+   to GitHub + the Mac mini Node IP so a compromised runner
+   can't pivot into the cluster's internal services
+   (ClickHouse, Postgres, server admin endpoints) regardless of
+   what credentials it holds.
+
+The Namespace is helm-owned (`helm.sh/resource-policy: keep`)
+because Pods inside it are short-lived but the namespace itself
+is load-bearing — uninstalling the chart shouldn't yank it from
+under in-flight Pods. Re-install picks the namespace back up.
+
+The Role is namespaced and grants exactly create/list/get on
+Pods. No `delete` (runners are ephemeral; they exit on their own
+after a single job and the next reconcile observes the gap), no
+Secrets, no exec/attach/portforward.
+*/}}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ $namespace | quote }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: runners
+    tuist.dev/runners-namespace: "true"
+  annotations:
+    helm.sh/resource-policy: keep
+---
+{{- if .Values.server.serviceAccount.create }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "runners-pool-manager") }}
+  namespace: {{ $namespace | quote }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: runners
+rules:
+  - apiGroups: [""]
+    resources: [pods]
+    # `get`/`list` for the reconciler's observed-state read; `create`
+    # to materialize new warm runners. `watch` is intentionally absent
+    # — the Oban cron worker uses periodic list, not informer-driven
+    # watches. No `delete` / `update` / `patch` / `pods/exec`: warm
+    # runners exit on their own after a single job (`./run.sh
+    # --jitconfig` is single-shot) and the next reconcile fills the
+    # gap. The lack of `delete` is the single biggest blast-radius
+    # reduction here — even a server compromise can't yank running
+    # customer jobs off the fleet.
+    verbs: [get, list, create]
+  - apiGroups: [""]
+    # Read Node objects to surface fleet inventory in the reconciler's
+    # log line (Pod -> Node binding, fleet roster). Cluster-scoped
+    # resource, so this rule lives in a ClusterRole below — left in
+    # the Role definition for documentation but commented out.
+    # resources: [nodes]
+    # verbs: [get, list]
+    resources: []
+    verbs: []
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "runners-pool-manager") }}
+  namespace: {{ $namespace | quote }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: runners
+subjects:
+  - kind: ServiceAccount
+    name: {{ $serverSA }}
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "tuist.componentName" (dict "root" . "component" "runners-pool-manager") }}
+---
+# Cluster-scoped read on Nodes so the reconciler can list runner
+# Mac minis (label selector tuist.dev/fleet=<runners>) and surface
+# the Pod -> Node mapping in audit logs / future ops dashboard.
+# No write verbs: the reconciler never patches Nodes.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "runners-fleet-reader") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: runners
+rules:
+  - apiGroups: [""]
+    resources: [nodes]
+    verbs: [get, list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "runners-fleet-reader") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: runners
+subjects:
+  - kind: ServiceAccount
+    name: {{ $serverSA }}
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "tuist.componentName" (dict "root" . "component" "runners-fleet-reader") }}
+{{- end }}
+{{- if .Values.runnersFleet.networkPolicy.enabled }}
+---
+# Default-deny ingress + constrained egress for runner Pods. The
+# label selector matches every Pod in tuist-runners (the Tuist
+# Runners controller stamps `tuist.dev/runner=true` on every Pod
+# it creates).
+#
+# Ingress: deny everything (empty `from:`). Runners receive jobs
+# by polling GitHub from inside the VM, not by accepting inbound
+# connections.
+#
+# Egress: allowlist of addresses the runner needs.
+#   - GitHub API + Actions infrastructure (api.github.com,
+#     pipelines.actions.githubusercontent.com, etc.) — needed for
+#     the JIT runner to register and pull jobs.
+#   - DNS — UDP/TCP 53 to whatever the cluster's coredns Service
+#     is. Without it the VM can't resolve github.com.
+#   - The Mac mini host's IP range (cluster Node CIDR) is
+#     intentionally NOT allowed — VMs reach the host only through
+#     Tart's local NAT, not via a routable Pod IP, so a Network
+#     Policy rule on PodIP doesn't constrain that path. The host-
+#     level pfctl rules (deferred to v2 hardening) are what'd
+#     close that loop.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "runners-default-deny") }}
+  namespace: {{ $namespace | quote }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: runners
+spec:
+  podSelector:
+    matchLabels:
+      tuist.dev/runner: "true"
+  policyTypes: [Ingress, Egress]
+  ingress: []
+  egress:
+    # DNS to kube-dns / coredns. Egress to the cluster DNS
+    # Service IP is the standard pattern; the cluster admin's
+    # NetworkPolicy provider implements it as a CNI rule rather
+    # than a literal Pod-to-Pod allow.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Public internet egress for HTTP(S) — required for the GH
+    # Actions runner binary to reach api.github.com, the actions
+    # cache, and the customer's package registries during builds.
+    # An L7 allowlist proxy (deferred to v2 hardening) tightens
+    # this; for v1 we accept "all of HTTPS".
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            {{- with .Values.runnersFleet.networkPolicy.exceptCIDRs }}
+            except:
+              {{- range $cidr := . }}
+              - {{ $cidr | quote }}
+              {{- end }}
+            {{- end }}
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 80
+{{- end }}
+{{- end }}

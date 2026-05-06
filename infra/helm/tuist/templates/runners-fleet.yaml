@@ -1,0 +1,45 @@
+{{- if .Values.runnersFleet.enabled }}
+{{- $fleetName := include "tuist.runnersFleetName" . }}
+{{- $replicas := int (.Values.runnersFleet.replicas | default 0) }}
+{{- /*
+Customer runner fleet — the Mac minis that host pre-warmed Tart VMs
+running the GitHub Actions runner binary. Sibling of macos-fleet.yaml
+(which is dedicated to xcresult-processor), provisioned by the same
+cluster-api-provider-scaleway-applesilicon operator from the same
+Scaleway IAM credentials. Split out so customer-bought concurrency
+lives on its own hosts and isn't quietly preempted by internal
+queue consumers.
+
+Each Mac mini joins the cluster with `tuist.dev/fleet=<fleetName>`
+on its Node (set by tart-kubelet from the --fleet flag the bootstrap
+step renders into the launchd plist). Tuist.Runners-issued Pods set
+nodeSelector to that label so the scheduler keeps them inside this
+fleet.
+
+Scaling = bumping `runnersFleet.replicas`. Same direct-CR shape as
+macos-fleet.yaml (no MachineDeployment indirection); same
+`helm.sh/resource-policy: keep` annotation so a helm rollback
+without runnersFleet.enabled doesn't deadlock on the Scaleway-
+release finalizer.
+*/ -}}
+{{- range $i, $_ := until $replicas }}
+{{- $instance := printf "%s-%d" $fleetName $i }}
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: ScalewayAppleSiliconMachine
+metadata:
+  name: {{ $instance }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: runners-fleet
+    tuist.dev/fleet: {{ $fleetName }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  type: {{ $.Values.runnersFleet.machine.type | default "M4-S" | quote }}
+  zone: {{ $.Values.runnersFleet.machine.zone | default "fr-par-1" | quote }}
+  os: {{ $.Values.runnersFleet.machine.os | default "macos-tahoe-26.0" | quote }}
+  fleetName: {{ $fleetName | quote }}
+{{- end }}
+{{- end }}
