@@ -170,6 +170,10 @@ struct PBXTargetMapperTests: Sendable {
             // Resources
             try await fileSystem.makeDirectory(at: buildableGroupPath.appending(component: "Location.geojson"))
             try await fileSystem.makeDirectory(at: buildableGroupPath.appending(component: "App.xcassets"))
+            try await fileSystem.touch(buildableGroupPath.appending(components: "App.xcassets", "Contents.json"))
+            try await fileSystem.touch(buildableGroupPath.appending(component: "image.jpg"))
+            try await fileSystem.touch(buildableGroupPath.appending(component: "icon.png"))
+            try await fileSystem.touch(buildableGroupPath.appending(component: "font.ttf"))
 
             // Headers
             try await fileSystem.touch(buildableGroupPath.appending(component: "Public.h"))
@@ -223,6 +227,9 @@ struct PBXTargetMapperTests: Sendable {
                 mapped.resources.resources.map(\.path.basename).sorted() == [
                     "App.xcassets",
                     "Location.geojson",
+                    "font.ttf",
+                    "icon.png",
+                    "image.jpg",
                 ]
             )
             #expect(

@@ -347,7 +347,6 @@ public enum Module: String, CaseIterable {
         switch self {
         case .tuist, .tuistBenchmark, .tuistFixtureGenerator, .projectAutomation,
              .projectDescription,
-             .xcodeGraph, .xcodeMetadata, .xcodeGraphMapper,
              .acceptanceTesting, .simulator, .testing, .environmentTesting, .process,
              .constants, .environment, .logging,
              .envKey, .versionCommand, .encodable,
@@ -1509,7 +1508,6 @@ public enum Module: String, CaseIterable {
         var dependencies: [TargetDependency] =
             switch self {
             case .tuist, .tuistBenchmark, .acceptanceTesting, .simulator, .testing, .environmentTesting, .process,
-                 .xcodeGraph, .xcodeMetadata, .xcodeGraphMapper,
                  .constants, .environment, .logging, .nooraTesting, .loggerTesting,
                  .envKey, .versionCommand, .nooraExtension, .tuistExtension, .alert, .threadSafe, .macOSSDK, .encodable,
                  .uniqueIDGenerator, .opener, .config,
@@ -1517,6 +1515,16 @@ public enum Module: String, CaseIterable {
                  .registryCommand, .buildCommand, .generateCommand,
                  .runCommand, .shareCommand, .inspectCommand, .android:
                 []
+            case .xcodeGraph:
+                []
+            case .xcodeMetadata:
+                [
+                    .target(name: Module.xcodeGraph.targetName),
+                ]
+            case .xcodeGraphMapper:
+                [
+                    .external(name: "FileSystem"),
+                ]
             case .machineMetrics:
                 [
                     .target(name: Module.testing.targetName),
@@ -2022,7 +2030,12 @@ public enum Module: String, CaseIterable {
         let buildableFolderPath: Path
         switch product {
         case .unitTests:
-            buildableFolderPath = "cli/Tests/\(name)/"
+            switch self {
+            case .xcodeGraph, .xcodeMetadata, .xcodeGraphMapper:
+                buildableFolderPath = "cli/Sources/XcodeGraph/Tests/\(name)/"
+            default:
+                buildableFolderPath = "cli/Tests/\(name)/"
+            }
             debugSettings["CODE_SIGN_IDENTITY"] = ""
         default:
             switch self {
