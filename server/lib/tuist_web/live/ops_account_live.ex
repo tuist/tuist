@@ -2,7 +2,7 @@ defmodule TuistWeb.OpsAccountLive do
   @moduledoc """
   Account detail page in /ops. The hub for everything an operator does
   on a single account: plan / billing actions (Stripe, Enterprise
-  upgrade, cancel) and Kura mesh management.
+  upgrade, cancel).
   """
   use TuistWeb, :live_view
   use Noora
@@ -13,9 +13,6 @@ defmodule TuistWeb.OpsAccountLive do
   alias Tuist.Accounts
   alias Tuist.Billing
   alias Tuist.Billing.Subscription
-  alias Tuist.Kura
-  alias Tuist.Kura.Regions
-  alias Tuist.Kura.Server
   alias Tuist.Repo
 
   @impl true
@@ -23,16 +20,13 @@ defmodule TuistWeb.OpsAccountLive do
     case Accounts.get_account_by_id(parse_id(id)) do
       {:ok, account} ->
         account = preload_billing(account)
-        if connected?(socket), do: Kura.subscribe_to_account(account.id)
 
         {:ok,
          socket
          |> assign(:head_title, "#{account.name} · Tuist Ops")
          |> assign(:account, account)
          |> assign(:upgrade_target_account, nil)
-         |> assign(:upgrade_target_customer, nil)
-         |> assign(:add_server_form, default_add_server_form())
-         |> load_kura_state()}
+         |> assign(:upgrade_target_customer, nil)}
 
       {:error, :not_found} ->
         {:ok,
@@ -40,17 +34,6 @@ defmodule TuistWeb.OpsAccountLive do
          |> put_flash(:error, dgettext("dashboard", "Account not found."))
          |> push_navigate(to: ~p"/ops/accounts")}
     end
-  end
-
-  defp default_add_server_form do
-    default_region = List.first(Regions.available())
-
-    to_form(
-      %{
-        "region" => default_region && default_region.id
-      },
-      as: :server
-    )
   end
 
   defp preload_billing(account) do
@@ -70,62 +53,6 @@ defmodule TuistWeb.OpsAccountLive do
       {n, ""} -> n
       {_n, _rest} -> 0
       :error -> 0
-    end
-  end
-
-  defp load_kura_state(socket) do
-    account = socket.assigns.account
-    latest = List.first(Kura.latest_versions(1))
-
-    socket
-    |> assign(:kura_servers, Kura.list_servers_for_account(account.id))
-    |> assign(:kura_regions, Regions.available())
-    |> assign(:latest_kura_version, latest)
-  end
-
-  ## Kura events
-
-  @impl true
-  def handle_event("open_add_server", _params, socket) do
-    {:noreply, push_event(socket, "open-modal", %{id: "add-server-modal"})}
-  end
-
-  @impl true
-  def handle_event("close_add_server", _params, socket) do
-    {:noreply, push_event(socket, "close-modal", %{id: "add-server-modal"})}
-  end
-
-  @impl true
-  def handle_event("submit_add_server", %{"server" => params}, socket) do
-    case Kura.latest_versions(1) do
-      [] ->
-        {:noreply,
-         put_flash(
-           socket,
-           :error,
-           dgettext("dashboard", "Could not resolve a Kura release from GitHub right now. Try again shortly.")
-         )}
-
-      [%{version: image_tag} | _] ->
-        attrs = %{
-          account_id: socket.assigns.account.id,
-          region: params["region"],
-          image_tag: image_tag
-        }
-
-        submit_add_server(socket, attrs)
-    end
-  end
-
-  @impl true
-  def handle_event("destroy_server", %{"id" => id}, socket) do
-    case Kura.get_server(socket.assigns.account.id, id) do
-      nil ->
-        {:noreply, put_flash(socket, :error, dgettext("dashboard", "Server not found."))}
-
-      %Server{} = server ->
-        {:ok, _} = Kura.destroy_server(server)
-        {:noreply, socket |> put_flash(:info, dgettext("dashboard", "Destroying Kura server...")) |> load_kura_state()}
     end
   end
 
@@ -217,64 +144,6 @@ defmodule TuistWeb.OpsAccountLive do
      |> assign(:upgrade_target_customer, nil)
      |> push_event("close-modal", %{id: "enterprise-modal"})}
   end
-
-  @impl true
-  def handle_info({:kura_server, _event, _server}, socket) do
-    {:noreply, load_kura_state(socket)}
-  end
-
-  ## Add-server helpers
-
-  defp submit_add_server(socket, attrs) do
-    case Kura.create_server(attrs) do
-      {:ok, server} ->
-        {:noreply,
-         socket
-         |> put_flash(
-           :info,
-           dgettext("dashboard", "Creating Kura server in %{region}...", region: server.region)
-         )
-         |> assign(:add_server_form, default_add_server_form())
-         |> push_event("close-modal", %{id: "add-server-modal"})
-         |> load_kura_state()}
-
-      {:error, %Ecto.Changeset{} = changeset} ->
-        {:noreply,
-         socket
-         |> put_flash(
-           :error,
-           dgettext("dashboard", "Failed to create Kura server: %{reason}", reason: format_errors(changeset))
-         )
-         |> push_event("close-modal", %{id: "add-server-modal"})}
-
-      {:error, reason} ->
-        {:noreply,
-         socket
-         |> put_flash(
-           :error,
-           dgettext("dashboard", "Failed to create Kura server: %{reason}", reason: inspect(reason))
-         )
-         |> push_event("close-modal", %{id: "add-server-modal"})}
-    end
-  end
-
-  defp format_errors(%Ecto.Changeset{errors: errors}) do
-    Enum.map_join(errors, ", ", fn {field, {msg, _}} -> "#{field} #{msg}" end)
-  end
-
-  ## View helpers
-
-  def server_status_label(:provisioning), do: dgettext("dashboard", "Creating")
-  def server_status_label(:active), do: dgettext("dashboard", "Active")
-  def server_status_label(:failed), do: dgettext("dashboard", "Failed")
-  def server_status_label(:destroying), do: dgettext("dashboard", "Destroying")
-  def server_status_label(:destroyed), do: dgettext("dashboard", "Destroyed")
-
-  def server_status_color(:provisioning), do: "information"
-  def server_status_color(:active), do: "success"
-  def server_status_color(:failed), do: "destructive"
-  def server_status_color(:destroying), do: "warning"
-  def server_status_color(:destroyed), do: "neutral"
 
   ## Stripe-customer prefill helpers (moved from OpsAccountsLive)
 

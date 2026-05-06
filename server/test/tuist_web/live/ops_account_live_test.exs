@@ -7,7 +7,6 @@ defmodule TuistWeb.OpsAccountLiveTest do
 
   alias Tuist.Billing
   alias Tuist.Environment
-  alias Tuist.Kura
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
 
@@ -18,18 +17,16 @@ defmodule TuistWeb.OpsAccountLiveTest do
     conn = log_in_user(conn, user)
 
     stub(Environment, :ops_user_handles, fn -> [user.account.name] end)
-    stub(Kura, :latest_versions, fn 1 -> [%{version: "0.5.2", released_at: DateTime.utc_now(:second)}] end)
 
     %{conn: conn, user: user}
   end
 
-  test "renders account billing and Kura controls", %{conn: conn, user: user} do
+  test "renders account billing controls", %{conn: conn, user: user} do
     {:ok, _lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
 
     assert html =~ user.account.name
     assert html =~ "Plan &amp; billing"
-    assert html =~ "Kura"
-    assert html =~ "Add Kura server"
+    refute html =~ "Kura"
   end
 
   test "one-click upgrade when the Stripe customer already has billing details", %{conn: conn, user: user} do
