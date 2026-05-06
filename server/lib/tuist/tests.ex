@@ -1552,8 +1552,11 @@ defmodule Tuist.Tests do
 
   Options:
     * `:active_period` — `{start_datetime, end_datetime}` tuple. When set, the result
-      is restricted to test cases that had at least one run in the given window
-      (via a join with `test_case_runs`), regardless of `last_ran_at`.
+      is restricted to test cases that ran in the given window. With `is_ci: nil`
+      (the default), the window is applied directly to the denormalized
+      `last_ran_at` on `test_cases` — no `test_case_runs` scan. With
+      `is_ci: true | false`, the CI-vs-local dimension isn't denormalized, so
+      we still join `test_case_runs` to find matching `test_case_id`s.
     * `:is_ci` — when combined with `:active_period`, further restricts the run
       lookup to CI (`true`) or local (`false`) runs.
   """
@@ -1568,6 +1571,27 @@ defmodule Tuist.Tests do
 
     base_query =
       cond do
+        # `is_ci: nil` is the default ("any environment") and accounts for the
+        # bulk of dashboard traffic. The `last_ran_at` filter on `test_cases`
+        # gives identical results to joining `test_case_runs` since the column
+        # is kept up-to-date by every test run, but reads two orders of
+        # magnitude less data because `test_case_runs` is the per-execution
+        # table (production traces showed the join scanning ~94 M rows for
+        # ~5 K test cases worth of identity rows).
+        not is_nil(active_period) and is_nil(is_ci) ->
+          {start_datetime, end_datetime} = active_period
+          start_naive = DateTime.to_naive(start_datetime)
+          end_naive = DateTime.to_naive(end_datetime)
+
+          where(
+            base_query,
+            [test_case],
+            test_case.last_ran_at >= ^start_naive and test_case.last_ran_at <= ^end_naive
+          )
+
+        # The CI-vs-local dimension isn't denormalized on `test_cases`, so the
+        # CI/Local dropdown still has to consult `test_case_runs` to scope the
+        # active set. Worth denormalizing as a follow-up.
         not is_nil(active_period) ->
           active_ids = active_test_case_ids_query(project_id, active_period, is_ci)
 
