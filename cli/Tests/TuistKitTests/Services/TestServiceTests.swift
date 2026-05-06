@@ -12,6 +12,8 @@ import TuistCore
 import TuistGenerator
 import TuistGit
 import TuistLoader
+import TuistLoggerTesting
+import TuistLogging
 import TuistServer
 import TuistSupport
 import TuistXCActivityLog
