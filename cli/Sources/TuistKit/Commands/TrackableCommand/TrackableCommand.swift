@@ -97,8 +97,7 @@ public class TrackableCommand {
                             runMetadataStorage: runMetadataStorage,
                             fullHandle: fullHandle,
                             serverURL: serverURL,
-                            ranAt: ranAt,
-                            usesOptionalAuthentication: usesOptionalAuthentication
+                            ranAt: ranAt
                         )
                     }
                 } catch {
@@ -111,8 +110,7 @@ public class TrackableCommand {
                             runMetadataStorage: runMetadataStorage,
                             fullHandle: fullHandle,
                             serverURL: serverURL,
-                            ranAt: ranAt,
-                            usesOptionalAuthentication: usesOptionalAuthentication
+                            ranAt: ranAt
                         )
                     }
                     throw error
@@ -129,12 +127,14 @@ public class TrackableCommand {
         runMetadataStorage: RunMetadataStorage,
         fullHandle: String,
         serverURL: URL,
-        ranAt: Date,
-        usesOptionalAuthentication: Bool
+        ranAt: Date
     ) async throws {
-        if usesOptionalAuthentication {
-            let hasToken = try await hasAuthenticationToken(serverURL: serverURL)
-            if !hasToken {
+        if ServerAuthenticationConfig.current.optionalAuthentication {
+            let token = try? await serverAuthenticationController.authenticationToken(
+                serverURL: serverURL,
+                refreshIfNeeded: false
+            )
+            if token == nil {
                 Logger.current.debug("Skipping run metadata upload: no authentication credentials available.")
                 return
             }
@@ -212,18 +212,6 @@ public class TrackableCommand {
                 ],
                 environment: ProcessInfo.processInfo.environment
             )
-        }
-    }
-
-    private func hasAuthenticationToken(serverURL: URL) async throws -> Bool {
-        do {
-            let token = try await serverAuthenticationController.authenticationToken(
-                serverURL: serverURL,
-                refreshIfNeeded: false
-            )
-            return token != nil
-        } catch {
-            return false
         }
     }
 
