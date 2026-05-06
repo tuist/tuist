@@ -90,12 +90,15 @@ server:
           # attachments by their filename. Set per-env values
           # (`production.pem`, `staging.pem`, `canary.pem`).
           privateKey: ""
+      # 1P's Password template stores the secret in `password`. If a PAT
+      # item uses a custom template (e.g. API Credential with field
+      # `credential`), override here.
       tokenUpdatePackageReleases:
         item: GITHUB_TOKEN_UPDATE_PACKAGE_RELEASES
-        field: credential
+        field: password
       tokenUpdatePackages:
         item: GITHUB_TOKEN_UPDATE_PACKAGES
-        field: credential
+        field: password
   license:
     key: ""
     certificateBase64: ""
