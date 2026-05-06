@@ -118,6 +118,30 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   end
 
   @impl true
+  def nodes(name, %Regions{} = region) do
+    with {:ok, kubeconfig} <- write_kubeconfig(region) do
+      args = [
+        "kubectl",
+        "--kubeconfig",
+        kubeconfig,
+        "-n",
+        @namespace,
+        "get",
+        "pods",
+        "-l",
+        "app.kubernetes.io/instance=#{name}",
+        "-o",
+        "json"
+      ]
+
+      case MuonTrap.cmd("env", args, stderr_to_stdout: true) do
+        {output, 0} -> parse_nodes(output)
+        {output, _} -> {:error, String.trim(output)}
+      end
+    end
+  end
+
+  @impl true
   def resources_for(%Server{}), do: %{}
 
   def instance_name(handle, %Regions{provisioner_config: %{cluster_id: cluster_id}}) do
@@ -222,6 +246,33 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   defp storage_class(%Regions{provisioner_config: %{storage_class: storage_class}}), do: storage_class
   defp storage_class(_), do: nil
+
+  @doc false
+  def parse_nodes(json) do
+    case Jason.decode(json) do
+      {:ok, %{"items" => items}} -> {:ok, Enum.map(items, &node_from_pod/1)}
+      {:error, reason} -> {:error, reason}
+      _ -> {:error, "unexpected kubectl pod list shape"}
+    end
+  end
+
+  defp node_from_pod(%{"metadata" => metadata, "status" => status} = pod) do
+    %{
+      name: metadata["name"],
+      pod_ip: status["podIP"],
+      host_ip: status["hostIP"],
+      node_name: pod |> Map.get("spec", %{}) |> Map.get("nodeName"),
+      phase: status["phase"],
+      ready: pod_ready?(status),
+      started_at: status["startTime"]
+    }
+  end
+
+  defp pod_ready?(%{"conditions" => conditions}) when is_list(conditions) do
+    Enum.any?(conditions, &(&1["type"] == "Ready" and &1["status"] == "True"))
+  end
+
+  defp pod_ready?(_), do: false
 
   defp interpolate_host(template, handle, %{cluster_id: cluster_id}) do
     template

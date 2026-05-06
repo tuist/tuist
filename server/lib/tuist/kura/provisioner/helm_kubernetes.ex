@@ -147,6 +147,30 @@ defmodule Tuist.Kura.Provisioner.HelmKubernetes do
     end
   end
 
+  @impl true
+  def nodes(release, %Regions{} = region) do
+    with {:ok, kubeconfig} <- write_kubeconfig(region) do
+      args = [
+        "kubectl",
+        "--kubeconfig",
+        kubeconfig,
+        "-n",
+        @namespace,
+        "get",
+        "pods",
+        "-l",
+        "app.kubernetes.io/instance=#{release}",
+        "-o",
+        "json"
+      ]
+
+      case MuonTrap.cmd("env", args, stderr_to_stdout: true) do
+        {output, 0} -> Tuist.Kura.Provisioner.KubernetesController.parse_nodes(output)
+        {output, _} -> {:error, String.trim(output)}
+      end
+    end
+  end
+
   @doc """
   The helm release name for `(account, region)`. Public so tests and
   ops scripts can compute it without going through `provision/3`.

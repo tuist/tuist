@@ -63,6 +63,42 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
     end
   end
 
+  describe "parse_nodes/1" do
+    test "maps kubectl pod JSON to Kura node maps" do
+      json =
+        Jason.encode!(%{
+          "items" => [
+            %{
+              "metadata" => %{"name" => "kura-tuist-eu-1-0"},
+              "spec" => %{"nodeName" => "worker-1"},
+              "status" => %{
+                "phase" => "Running",
+                "podIP" => "10.42.0.12",
+                "hostIP" => "10.0.0.2",
+                "startTime" => "2026-05-06T10:00:00Z",
+                "conditions" => [
+                  %{"type" => "Ready", "status" => "True"}
+                ]
+              }
+            }
+          ]
+        })
+
+      assert {:ok,
+              [
+                %{
+                  name: "kura-tuist-eu-1-0",
+                  node_name: "worker-1",
+                  pod_ip: "10.42.0.12",
+                  host_ip: "10.0.0.2",
+                  phase: "Running",
+                  ready: true,
+                  started_at: "2026-05-06T10:00:00Z"
+                }
+              ]} = KubernetesController.parse_nodes(json)
+    end
+  end
+
   defp chart_fixture(tmp_dir, hook_script) do
     root = Path.join(tmp_dir, "chart-#{System.unique_integer([:positive])}")
     hooks = Path.join(root, "hooks")
