@@ -504,7 +504,7 @@
           dgettext(
             "dashboard_builds",
             "The 10,000 entry limit has been reached, data is only included up to %{date}. Try filtering by scheme, configuration, or other properties to narrow down the dataset.",
-            date: scatter_oldest_entry_iso(@build_duration_chart.result)
+            date: scatter_oldest_entry_formatted(@build_duration_chart.result)
           )
         }
       />
