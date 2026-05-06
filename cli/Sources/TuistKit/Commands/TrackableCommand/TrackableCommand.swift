@@ -41,6 +41,7 @@ public class TrackableCommand {
     private let commandEventFactory: CommandEventFactory
     private let backgroundProcessRunner: BackgroundProcessRunning
     private let uploadAnalyticsService: UploadAnalyticsServicing
+    private let serverAuthenticationController: ServerAuthenticationControlling
     private let fileSystem: FileSysteming
     private let sessionDirectory: AbsolutePath
 
@@ -51,6 +52,7 @@ public class TrackableCommand {
         commandEventFactory: CommandEventFactory = CommandEventFactory(),
         backgroundProcessRunner: BackgroundProcessRunning = BackgroundProcessRunner(),
         uploadAnalyticsService: UploadAnalyticsServicing = UploadAnalyticsService(),
+        serverAuthenticationController: ServerAuthenticationControlling = ServerAuthenticationController(),
         fileSystem: FileSysteming = FileSystem(),
         sessionDirectory: AbsolutePath
     ) {
@@ -60,6 +62,7 @@ public class TrackableCommand {
         self.commandEventFactory = commandEventFactory
         self.backgroundProcessRunner = backgroundProcessRunner
         self.uploadAnalyticsService = uploadAnalyticsService
+        self.serverAuthenticationController = serverAuthenticationController
         self.fileSystem = fileSystem
         self.sessionDirectory = sessionDirectory
     }
@@ -126,6 +129,16 @@ public class TrackableCommand {
         serverURL: URL,
         ranAt: Date
     ) async throws {
+        if ServerAuthenticationConfig.current.optionalAuthentication {
+            let token = try? await serverAuthenticationController.authenticationToken(
+                serverURL: serverURL,
+                refreshIfNeeded: false
+            )
+            if token == nil {
+                Logger.current.debug("Skipping run metadata upload: no authentication credentials available.")
+                return
+            }
+        }
         let durationInSeconds = timer.stop()
         let durationInMs = Int(durationInSeconds * 1000)
         let configuration = type(of: command).configuration
