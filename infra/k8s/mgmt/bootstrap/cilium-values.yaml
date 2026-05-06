@@ -1,7 +1,6 @@
 # Cilium values for Tuist workload clusters.
-# Replicates the shape Apalla shipped on the Syself-managed clusters
-# (kube-proxy replacement, host firewall, BBR + bandwidth manager,
-# egress gateway, hubble metrics, ip-masq-agent).
+# Enables kube-proxy replacement, host firewall, BBR + bandwidth manager,
+# egress gateway, hubble metrics, ip-masq-agent.
 #
 # Version: pin chart appVersion to v1.18.x; the tuist-hcloud
 # ClusterClass already does `skipPhases: [addon/kube-proxy]` in
