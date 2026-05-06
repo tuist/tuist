@@ -1,0 +1,20 @@
+// Go workspace tying the infra/ modules together. Each module ships
+// its own go.mod (so the modules can be built / released independently)
+// but local development resolves cross-module imports through this
+// workspace without each consumer needing a `replace` directive.
+//
+// macos-host-bootstrap is the substrate the Apple Silicon CAPI
+// providers consume. Today only the Scaleway one is wired up; the
+// AWS EC2 Mac path described in PR #10499's BYOC section will land
+// as a sibling module that imports macos-host-bootstrap unchanged.
+//
+// tart-kubelet has no dependencies on the others — it ships as a
+// binary baked into each provider's controller image.
+
+go 1.25.0
+
+use (
+	./infra/cluster-api-provider-scaleway-applesilicon
+	./infra/macos-host-bootstrap
+	./infra/tart-kubelet
+)

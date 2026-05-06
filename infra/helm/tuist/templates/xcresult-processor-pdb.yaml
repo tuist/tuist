@@ -1,0 +1,14 @@
+{{- if and .Values.xcresultProcessor.enabled .Values.xcresultProcessor.podDisruptionBudget.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "xcresult-processor") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: xcresult-processor
+spec:
+  minAvailable: {{ .Values.xcresultProcessor.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "tuist.componentLabels" (dict "root" . "component" "xcresult-processor") | nindent 6 }}
+{{- end }}

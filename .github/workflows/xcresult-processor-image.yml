@@ -26,7 +26,7 @@ on:
       base_image:
         description: "Base Tart image"
         required: false
-        default: "ghcr.io/cirruslabs/macos-tahoe-xcode:26.0"
+        default: "ghcr.io/cirruslabs/macos-tahoe-xcode:26.4"
 
 concurrency:
   group: xcresult-processor-image
@@ -53,26 +53,47 @@ jobs:
           install_args: "erlang elixir"
           working_directory: server
 
-      # 1. Build the macOS Erlang release. Includes the xcresult NIF
-      # (built via server/native/xcresult_nif/build.sh as a Mix release
-      # step) and the macOS-only priv/native/xcresult_nif.so.
+      # 1. Build the macOS Erlang release. Includes both the xcresult NIF
+      # (used by xcresult-processor mode) and the xcactivitylog NIF
+      # (used by build-processor mode). Both are macOS-only and both
+      # have `@on_load` that crashes the BEAM at boot if the .so is
+      # missing in a prod build — the xcresult-processor mode doesn't
+      # *call* xcactivitylog_nif but the Module still gets loaded
+      # eagerly, so the .so has to be present either way.
       - name: Build server release for macOS
+        id: release
         working-directory: server
         run: |
           set -euo pipefail
           MIX_ENV=prod mix deps.get --only prod
-          # Build the xcresult NIF first — `mix release` doesn't know to
-          # invoke the build.sh; we run it explicitly so .so + .dylib land
-          # in priv/native before the release tarball is assembled.
+          # `mix release` doesn't invoke the per-NIF build.sh scripts;
+          # run them explicitly so the .so / .dylib land in priv/native
+          # before the release tarball is assembled.
           ./native/xcresult_nif/build.sh
-          MIX_ENV=prod mix compile --warnings-as-errors
+          ./native/xcactivitylog_nif/build.sh
+          # The bare-metal Mac mini reuses a single $TUIST_MIX_BUILD_ROOT
+          # across runs, which is mostly fine — except mix's mtime-based
+          # incremental compile occasionally keeps a stale .beam after a
+          # rebase. `--force` recompiles every .ex regardless; the BEAM
+          # build is fast enough (~30s) that the safety is worth more
+          # than the saved time.
+          MIX_ENV=prod mix compile --force --warnings-as-errors
           MIX_ENV=prod mix release tuist --overwrite
+          # mix.exs honors $TUIST_MIX_BUILD_ROOT (set on the bare-metal
+          # runner to share the BEAM build cache across jobs). When it's
+          # set, the release lands at $TUIST_MIX_BUILD_ROOT/server/prod/
+          # rel/tuist; when unset, plain ./_build/prod/rel/tuist.
+          if [ -n "${TUIST_MIX_BUILD_ROOT:-}" ]; then
+            RELEASE_DIR="${TUIST_MIX_BUILD_ROOT}/server/prod/rel/tuist"
+          else
+            RELEASE_DIR="$(pwd)/_build/prod/rel/tuist"
+          fi
+          echo "dir=${RELEASE_DIR}" >> "$GITHUB_OUTPUT"
 
       - name: Package release tarball
-        working-directory: server
         run: |
           set -euo pipefail
-          tar -czf /tmp/release.tar.gz -C _build/prod/rel/tuist .
+          tar -czf /tmp/release.tar.gz -C "${{ steps.release.outputs.dir }}" .
           ls -lh /tmp/release.tar.gz
 
       # 2. Bake the tarball into a Tart image.
@@ -80,11 +101,33 @@ jobs:
         working-directory: infra/xcresult-processor-image
         run: packer init xcresult-processor.pkr.hcl
 
+      # The bare-metal runner has tuist-bot ghcr.io creds cached from
+      # earlier image-push jobs. Those creds don't authorize pulls
+      # from ghcr.io/cirruslabs/*, so Tart's token-fetch returns 403.
+      # Log out so Tart falls back to anonymous (public) for the pull.
+      - name: Drop cached ghcr.io credentials
+        run: tart logout ghcr.io || true
+
+      # Reclaim disk before the Cirrus pull. macos-tahoe-xcode:26.4 is
+      # ~70GB on disk; the bare-metal Mac mini accumulates older Tart
+      # VMs + image layers across runs and fills up. Stop+delete any
+      # leftover xcresult VM, then prune unused image layers.
+      - name: Reclaim Tart disk
+        run: |
+          set -uo pipefail
+          tart list --format json || true
+          df -h /
+          tart stop tuist-xcresult-processor 2>/dev/null || true
+          tart delete tuist-xcresult-processor 2>/dev/null || true
+          tart prune --entries caches --older-than 0
+          tart prune --entries vms --older-than 1
+          df -h /
+
       - name: Build image
         working-directory: infra/xcresult-processor-image
         run: |
           packer build \
-            -var "base_image=${{ inputs.base_image || 'ghcr.io/cirruslabs/macos-tahoe-xcode:26.0' }}" \
+            -var "base_image=${{ inputs.base_image || 'ghcr.io/cirruslabs/macos-tahoe-xcode:26.4' }}" \
             -var "output_image=tuist-xcresult-processor" \
             -var "release_tarball=/tmp/release.tar.gz" \
             xcresult-processor.pkr.hcl
@@ -94,10 +137,11 @@ jobs:
 
       - name: Push image to GHCR
         run: |
+          # SHA-tagged builds for ad-hoc deploys; semver tags + `:latest`
+          # are owned by release.yml's release-xcresult-processor job.
           set -euo pipefail
           GIT_SHA="${GITHUB_SHA::8}"
           tart push tuist-xcresult-processor "ghcr.io/tuist/tuist-xcresult-processor:${GIT_SHA}"
-          tart push tuist-xcresult-processor "ghcr.io/tuist/tuist-xcresult-processor:latest"
           echo "Pushed ghcr.io/tuist/tuist-xcresult-processor:${GIT_SHA}"
 
       - name: Cleanup

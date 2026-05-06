@@ -7,7 +7,6 @@ on:
       - "server/**"
       - "cache/**"
       - "processor/**"
-      - "xcode_processor/**"
       - "tuist_common/**"
       - "noora/**"
       - ".blick/**"

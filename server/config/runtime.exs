@@ -399,23 +399,39 @@ otel_endpoint = Tuist.Environment.get([:otel, :exporter, :otlp, :endpoint])
 
 # Oban.
 #
-# Three queue-list shapes derived from the same base. New queues go into
-# `base_queues` and are picked up by both the default and delegate paths.
+# Four queue-list shapes derived from the same base. Pod role is set
+# via TUIST_MODE; delegate flags let the web tier hand off specific
+# queues to dedicated fleets without changing pod role.
 #
-#   * Processor pods (TUIST_MODE=processor) only consume :process_build
-#     so the CPU-heavy xcactivitylog parse is isolated from the hot web path.
-#   * Server pods with TUIST_DELEGATE_PROCESS_BUILD=1 skip :process_build
-#     entirely so jobs land exclusively on the processor fleet.
-#   * Self-hosted installs without a dedicated processor leave both flags
-#     unset and run every queue locally.
-base_queues = [default: 10, process_xcresult: 2]
+#   * Web/server (default): every queue. Self-hosted installs without
+#     dedicated processors stay on this shape.
+#   * Build processor (TUIST_MODE=processor): only :process_build. CPU-
+#     heavy xcactivitylog parse, runs in-cluster on Linux.
+#   * Xcresult processor (TUIST_MODE=xcresult_processor): only
+#     :process_xcresult. Runs on macOS (Scaleway Mac mini) inside a
+#     Tart VM because xcresulttool is Xcode-only.
+#   * Server pods with TUIST_DELEGATE_PROCESS_BUILD=1 /
+#     TUIST_DELEGATE_PROCESS_XCRESULT=1 skip the matching queue so
+#     jobs land exclusively on the dedicated fleet — without those
+#     flags the server would race the processors on SKIP LOCKED, and
+#     on Linux the xcresult parse would crash because the macOS-only
+#     NIF isn't loaded.
+base_queues = [default: 10]
 process_build_queue = {:process_build, Tuist.Environment.process_build_queue_concurrency()}
+process_xcresult_queue = {:process_xcresult, Tuist.Environment.process_xcresult_queue_concurrency()}
 
 oban_queues =
   cond do
-    Tuist.Environment.processor_mode?() -> [process_build_queue]
-    Tuist.Environment.delegate_process_build?() -> base_queues
-    true -> base_queues ++ [process_build_queue]
+    Tuist.Environment.processor_mode?() ->
+      [process_build_queue]
+
+    Tuist.Environment.xcresult_processor_mode?() ->
+      [process_xcresult_queue]
+
+    true ->
+      base = base_queues
+      base = if Tuist.Environment.delegate_process_build?(), do: base, else: base ++ [process_build_queue]
+      if Tuist.Environment.delegate_process_xcresult?(), do: base, else: base ++ [process_xcresult_queue]
   end
 
 # Leader-only Oban work (Cron, Pruner, Lifeline, Oban.Met.Reporter) runs on
@@ -438,7 +454,9 @@ config :tuist, Oban,
     {Oban.Plugins.Lifeline, rescue_after: to_timeout(minute: 30)},
     {Oban.Plugins.Cron,
      crontab:
-       if(Tuist.Environment.tuist_hosted?() and env in [:prod, :stag, :can],
+       if(
+         not Tuist.Environment.processor_mode?() and not Tuist.Environment.xcresult_processor_mode?() and
+           Tuist.Environment.tuist_hosted?() and env in [:prod, :stag, :can],
          do: [
            {"0 10 * * 1-5", Tuist.Ops.DailySlackReportWorker},
            {"0 * * * 1-5", Tuist.Ops.HourlySlackReportWorker},

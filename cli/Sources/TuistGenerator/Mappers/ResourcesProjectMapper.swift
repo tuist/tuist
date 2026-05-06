@@ -622,7 +622,7 @@ extension AbsolutePath {
     fileprivate var isSourceLike: Bool {
         let validExtensions = Target.validSourceExtensions
             + Target.validSourceCompatibleFolderExtensions
-            + ["h", "hpp", "hh", "hxx"]
+            + Target.validHeaderExtensions
         return matchesExtension(in: validExtensions)
     }
 

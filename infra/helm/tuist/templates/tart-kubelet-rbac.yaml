@@ -1,0 +1,40 @@
+{{- if .Values.macosFleet.enabled }}
+{{- $name := include "tuist.componentName" (dict "root" . "component" "tart-kubelet") }}
+{{- /*
+ClusterRole every per-machine tart-kubelet ServiceAccount binds to.
+
+The chart owns the role definition only; the per-machine
+ServiceAccount + service-account-token Secret + ClusterRoleBinding
+that authenticate each Mac mini are created by the CAPI provider's
+credentials.Manager.EnsureNodeIdentity, one set per Machine. Splitting
+identity from role definition lets us tighten the role uniformly later
+(e.g. Node-graph-restricted access via NodeAuthorizer) without
+touching the operator's lifecycle code.
+*/}}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: tart-kubelet
+rules:
+  # Manage the Node object this kubelet registers itself as.
+  - apiGroups: [""]
+    resources: [nodes, nodes/status]
+    verbs: [get, list, watch, create, update, patch]
+  # Watch + status-update Pods scheduled here.
+  - apiGroups: [""]
+    resources: [pods, pods/status]
+    verbs: [get, list, watch, update, patch]
+  # Resolve `valueFrom` / `envFrom` references in Pod env, exactly the
+  # way a real kubelet does.
+  - apiGroups: [""]
+    resources: [secrets, configmaps]
+    verbs: [get, list, watch]
+  # Emit Events on Pod failures so `kubectl describe pod` shows them.
+  - apiGroups: [""]
+    resources: [events]
+    verbs: [create, patch]
+{{- end }}

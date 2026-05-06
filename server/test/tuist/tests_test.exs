@@ -2665,6 +2665,55 @@ defmodule Tuist.TestsTest do
                "stale_skipped"
              ]
     end
+
+    test "is_ci scopes the trailing active window via denormalized last_ran_at_ci/local" do
+      # Locks down the CI/Local active-window path that reads the denormalized
+      # columns on test_cases instead of joining test_case_runs. A test that
+      # only ever ran locally must be excluded when is_ci=true and vice versa,
+      # even though both share the same `last_ran_at`.
+      project = ProjectsFixtures.project_fixture()
+      ran_at = NaiveDateTime.utc_now()
+
+      {:ok, _ci_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          is_ci: true,
+          ran_at: ran_at,
+          test_modules: [
+            %{
+              name: "M",
+              status: "success",
+              duration: 100,
+              test_cases: [%{name: "ran_in_ci", status: "success", duration: 100}]
+            }
+          ]
+        )
+
+      {:ok, _local_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          is_ci: false,
+          ran_at: ran_at,
+          test_modules: [
+            %{
+              name: "M",
+              status: "success",
+              duration: 100,
+              test_cases: [%{name: "ran_locally", status: "success", duration: 100}]
+            }
+          ]
+        )
+
+      RunsFixtures.optimize_test_case_runs()
+
+      {ci_results, _} = Tests.list_test_cases(project.id, %{}, is_ci: true)
+      {local_results, _} = Tests.list_test_cases(project.id, %{}, is_ci: false)
+      {any_results, _} = Tests.list_test_cases(project.id, %{}, is_ci: nil)
+
+      assert Enum.map(ci_results, & &1.name) == ["ran_in_ci"]
+      assert Enum.map(local_results, & &1.name) == ["ran_locally"]
+      assert any_results |> Enum.map(& &1.name) |> Enum.sort() == ["ran_in_ci", "ran_locally"]
+    end
   end
 
   describe "get_test_case_by_id/1" do
