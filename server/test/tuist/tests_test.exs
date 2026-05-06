@@ -4969,7 +4969,7 @@ defmodule Tuist.TestsTest do
     end
   end
 
-  describe "get_flaky_runs_groups_count_for_test_case/1" do
+  describe "get_flaky_runs_groups_count_for_test_case/2" do
     test "returns 0 when no flaky runs exist" do
       project = ProjectsFixtures.project_fixture()
 
@@ -4990,7 +4990,7 @@ defmodule Tuist.TestsTest do
 
       {[test_case], _} = Tests.list_test_cases(project.id, %{})
 
-      count = Tests.get_flaky_runs_groups_count_for_test_case(test_case.id)
+      count = Tests.get_flaky_runs_groups_count_for_test_case(project.id, test_case.id)
       assert count == 0
     end
 
@@ -5058,16 +5058,17 @@ defmodule Tuist.TestsTest do
       RunsFixtures.optimize_test_case_runs()
 
       {[test_case], _} = Tests.list_test_cases(project.id, %{})
-      count = Tests.get_flaky_runs_groups_count_for_test_case(test_case.id)
+      count = Tests.get_flaky_runs_groups_count_for_test_case(project.id, test_case.id)
 
       # 2 groups: (default_scheme, commit1) and (default_scheme, commit2)
       assert count == 2
     end
   end
 
-  describe "get_flaky_runs_groups_counts_for_test_cases/1" do
+  describe "get_flaky_runs_groups_counts_for_test_cases/2" do
     test "returns empty map for empty list" do
-      result = Tests.get_flaky_runs_groups_counts_for_test_cases([])
+      project = ProjectsFixtures.project_fixture()
+      result = Tests.get_flaky_runs_groups_counts_for_test_cases(project.id, [])
       assert result == %{}
     end
 
@@ -5092,7 +5093,7 @@ defmodule Tuist.TestsTest do
       {[test_case_run | _], _} =
         Tests.list_test_case_runs(%{filters: [%{field: :test_run_id, op: :==, value: test.id}]})
 
-      result = Tests.get_flaky_runs_groups_counts_for_test_cases([test_case_run.test_case_id])
+      result = Tests.get_flaky_runs_groups_counts_for_test_cases(project.id, [test_case_run.test_case_id])
       assert result == %{}
     end
 
@@ -5198,7 +5199,7 @@ defmodule Tuist.TestsTest do
         Tests.list_test_case_runs(%{filters: [%{field: :test_run_id, op: :==, value: test2.id}]})
 
       result =
-        Tests.get_flaky_runs_groups_counts_for_test_cases([
+        Tests.get_flaky_runs_groups_counts_for_test_cases(project.id, [
           test_case_run_1.test_case_id,
           test_case_run_2.test_case_id
         ])
@@ -5272,7 +5273,7 @@ defmodule Tuist.TestsTest do
         Tests.list_test_case_runs(%{filters: [%{field: :test_run_id, op: :==, value: non_flaky_test.id}]})
 
       result =
-        Tests.get_flaky_runs_groups_counts_for_test_cases([
+        Tests.get_flaky_runs_groups_counts_for_test_cases(project.id, [
           flaky_run.test_case_id,
           non_flaky_run.test_case_id
         ])
@@ -5283,7 +5284,7 @@ defmodule Tuist.TestsTest do
     end
   end
 
-  describe "list_flaky_runs_for_test_case/2" do
+  describe "list_flaky_runs_for_test_case/3" do
     test "returns empty list with meta when no flaky runs exist" do
       project = ProjectsFixtures.project_fixture()
 
@@ -5304,7 +5305,7 @@ defmodule Tuist.TestsTest do
 
       {[test_case], _} = Tests.list_test_cases(project.id, %{})
 
-      {groups, meta} = Tests.list_flaky_runs_for_test_case(test_case.id)
+      {groups, meta} = Tests.list_flaky_runs_for_test_case(project.id, test_case.id)
 
       assert groups == []
       assert meta.total_count == 0
@@ -5351,7 +5352,7 @@ defmodule Tuist.TestsTest do
       RunsFixtures.optimize_test_case_runs()
 
       {[test_case], _} = Tests.list_test_cases(project.id, %{})
-      {groups, meta} = Tests.list_flaky_runs_for_test_case(test_case.id)
+      {groups, meta} = Tests.list_flaky_runs_for_test_case(project.id, test_case.id)
 
       assert length(groups) == 1
       assert meta.total_count == 1
@@ -5407,13 +5408,13 @@ defmodule Tuist.TestsTest do
 
       {[test_case], _} = Tests.list_test_cases(project.id, %{})
 
-      {page1, meta1} = Tests.list_flaky_runs_for_test_case(test_case.id, %{page: 1, page_size: 2})
+      {page1, meta1} = Tests.list_flaky_runs_for_test_case(project.id, test_case.id, %{page: 1, page_size: 2})
       assert length(page1) == 2
       assert meta1.total_count == 3
       assert meta1.total_pages == 2
       assert meta1.current_page == 1
 
-      {page2, meta2} = Tests.list_flaky_runs_for_test_case(test_case.id, %{page: 2, page_size: 2})
+      {page2, meta2} = Tests.list_flaky_runs_for_test_case(project.id, test_case.id, %{page: 2, page_size: 2})
       assert length(page2) == 1
       assert meta2.current_page == 2
     end
@@ -5482,7 +5483,7 @@ defmodule Tuist.TestsTest do
       RunsFixtures.optimize_test_case_runs()
 
       {[test_case], _} = Tests.list_test_cases(project.id, %{})
-      {groups, _} = Tests.list_flaky_runs_for_test_case(test_case.id)
+      {groups, _} = Tests.list_flaky_runs_for_test_case(project.id, test_case.id)
 
       assert length(groups) == 2
       assert Enum.at(groups, 0).git_commit_sha == "newer_commit"
