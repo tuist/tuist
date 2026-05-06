@@ -100,6 +100,14 @@ processor:
       memory: "1Gi"
 
 xcresultProcessor:
+  # Single replica in canary, matching macosFleet.replicas=1.
+  # tart-kubelet caps max-pods=2 per Apple's macOS SLA, and the
+  # existing hcloud-csi-node DaemonSet already consumes one of those
+  # slots — the chart default replicaCount=2 would leave the second
+  # xcresult-processor Pod permanently Pending on "Too many pods".
+  # Production keeps the chart default 2 because it has 2 Mac minis
+  # and the topology spread forces one replica per host.
+  replicaCount: 1
   extraEnv:
     - name: TUIST_DEPLOY_ENV
       value: can
