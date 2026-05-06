@@ -45,12 +45,12 @@
 
   <.card title={dgettext("dashboard", "Logs")} icon="message_circle">
     <.card_section>
-      <%= if @log_lines == [] do %>
+      <%= if @log_line_count == 0 do %>
         <p data-part="empty-logs">{empty_logs_message(@deployment.status)}</p>
       <% else %>
-        <div id="kura-log-tail" phx-update="ignore" data-part="terminal">
-          <%= for line <- @log_lines do %>
-            <div data-part="line">{line.line}</div>
+        <div id="kura-log-tail" phx-update="stream" data-part="terminal">
+          <%= for {id, line} <- @streams.log_lines do %>
+            <div id={id} data-part="line">{line.line}</div>
           <% end %>
         </div>
       <% end %>

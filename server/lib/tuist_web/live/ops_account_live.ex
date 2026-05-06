@@ -71,7 +71,8 @@ defmodule TuistWeb.OpsAccountLive do
 
   defp parse_id(id) when is_binary(id) do
     case Integer.parse(id) do
-      {n, _} -> n
+      {n, ""} -> n
+      {_n, _rest} -> 0
       :error -> 0
     end
   end

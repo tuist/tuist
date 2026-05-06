@@ -37,8 +37,9 @@ defmodule TuistWeb.OpsAccountKuraDeploymentLive do
              |> assign(:head_title, "#{dgettext("dashboard", "Deployment")} · Tuist Ops")
              |> assign(:account, account)
              |> assign(:deployment, deployment)
-             |> assign(:log_lines, [])
+             |> assign(:log_line_count, 0)
              |> assign(:last_sequence, -1)
+             |> stream(:log_lines, [], dom_id: &log_line_dom_id/1)
              |> refresh()}
         end
     end
@@ -74,13 +75,17 @@ defmodule TuistWeb.OpsAccountKuraDeploymentLive do
 
     socket
     |> assign(:deployment, deployment)
-    |> assign(:log_lines, socket.assigns.log_lines ++ new_lines)
+    |> assign(:log_line_count, socket.assigns.log_line_count + length(new_lines))
     |> assign(:last_sequence, last_sequence)
+    |> stream(:log_lines, new_lines, dom_id: &log_line_dom_id/1)
   end
+
+  defp log_line_dom_id(%{sequence: sequence}), do: "kura-log-line-#{sequence}"
 
   defp parse_id(id) when is_binary(id) do
     case Integer.parse(id) do
-      {n, _} -> n
+      {n, ""} -> n
+      {_n, _rest} -> 0
       :error -> 0
     end
   end
