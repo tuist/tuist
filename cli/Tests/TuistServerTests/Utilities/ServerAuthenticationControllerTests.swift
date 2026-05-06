@@ -1,5 +1,7 @@
+import FileSystem
 import Foundation
 import Mockable
+import Path
 import Testing
 import TuistConstants
 import TuistEnvironment
@@ -622,6 +624,67 @@ struct ServerAuthenticationControllerTests {
 
         let callCount = await countingRefreshService.callCount
         #expect(callCount == 1, "Expected coalesced callers to issue exactly one refresh, got \(callCount) calls")
+    }
+
+    @Test(
+        .withMockedEnvironment(),
+        .withMockedDependencies()
+    ) mutating func background_refresh_times_out_when_lockfile_holder_does_not_finish_in_time() async throws {
+        // Reproducer for https://tuist.dev users hitting "The refreshing of the access and refresh
+        // token pair for the URL https://tuist.dev failed after 5 seconds."
+        //
+        // The default CLI flow takes the (.expired, true, true) branch (background refresh with
+        // locking) which polls for at most maxAttempts*retryInterval = 10*500ms = 5s waiting for
+        // a `tuist auth refresh-token` subprocess to write the new credentials. If another
+        // process is already refreshing (its `auth-locks` lockfile is fresh, < 10s old) the
+        // current process just polls — and times out if the holder doesn't finish in time.
+        //
+        // We pre-create a fresh lockfile to simulate an in-flight peer subprocess that never
+        // completes. That deterministically drives the polling loop to its 5s timeout without
+        // needing a real subprocess.
+        let date = Date()
+        let serverURL: URL = .test()
+
+        subject = ServerAuthenticationController(
+            refreshAuthTokenService: refreshAuthTokenService,
+            cachedValueStore: CachedValueStore(backend: .fileSystem)
+        )
+
+        let serverCredentialsStore = try #require(ServerCredentialsStore.mocked)
+        let accessToken = try JWT.make(expiryDate: date.addingTimeInterval(-100), typ: "access")
+        let refreshToken = try JWT.make(expiryDate: date.addingTimeInterval(+3600), typ: "refresh")
+        let storeCredentials: ServerCredentials = .test(
+            accessToken: accessToken.token,
+            refreshToken: refreshToken.token
+        )
+        given(serverCredentialsStore).read(serverURL: .value(serverURL)).willReturn(storeCredentials)
+
+        let fileSystem = FileSystem()
+        let key = "token_\(serverURL.absoluteString)"
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: ":", with: "_")
+            .replacingOccurrences(of: " ", with: "_")
+        let lockfilePath = Environment.current.stateDirectory
+            .appending(component: "auth-locks")
+            .appending(component: "\(key).lock")
+        try await fileSystem.makeDirectory(at: lockfilePath.parentDirectory)
+        try await fileSystem.touch(lockfilePath)
+
+        // When/Then
+        let subjectCopy = subject!
+        try await Date.$now.withValue({ date }) {
+            try await ServerAuthenticationConfig.$current
+                .withValue(ServerAuthenticationConfig(backgroundRefresh: true)) {
+                    await #expect(
+                        throws: ServerAuthenticationControllerError.timedOut(
+                            seconds: 5,
+                            serverURL: serverURL
+                        )
+                    ) {
+                        try await subjectCopy.authenticationToken(serverURL: serverURL)
+                    }
+                }
+        }
     }
 
     private static func makeTokens(date: Date) throws -> ServerAuthenticationTokens {
