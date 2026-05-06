@@ -181,6 +181,44 @@ defmodule Tuist.BundlesTest do
       assert Bundles.get_bundle(id) == {:error, :not_found}
     end
 
+    test "returns a populated bundle even when a CH read of the just-inserted row would not see it yet" do
+      # Given
+      project_id = ProjectsFixtures.project_fixture().id
+      id = UUIDv7.generate()
+
+      # Simulate ClickHouse Cloud read-after-write lag: any SELECT of the
+      # row we just wrote via `IngestRepo` lands on a replica that hasn't
+      # observed the new part yet and returns `nil`. Pre-fix, this turned
+      # `create_bundle/2` into `{:ok, nil}` and crashed the controller
+      # with a Phoenix HTML 500 that the CLI couldn't decode. The fix
+      # builds the response from the changeset so this read never has to
+      # happen.
+      stub(ClickHouseRepo, :one, fn _ -> nil end)
+
+      # When
+      {:ok, bundle} =
+        Bundles.create_bundle(%{
+          id: id,
+          name: "App",
+          app_bundle_id: "dev.tuist.app",
+          install_size: 1024,
+          download_size: 1024,
+          supported_platforms: [:ios, :ios_simulator],
+          version: "1.0.0",
+          git_branch: "main",
+          type: :app,
+          project_id: project_id
+        })
+
+      # Then we get a fully populated `%Bundle{}` regardless of CH read state.
+      assert %Bundle{} = bundle
+      assert bundle.id == id
+      assert bundle.name == "App"
+      assert bundle.type == :app
+      assert bundle.supported_platforms == [:ios, :ios_simulator]
+      assert %DateTime{} = bundle.inserted_at
+    end
+
     test "raises if an artifact type is invalid" do
       # Given
       project_id = ProjectsFixtures.project_fixture().id

@@ -292,31 +292,39 @@ defmodule TuistWeb.API.BundlesController do
       |> Map.get(:artifacts, [])
       |> Enum.map(&struct_to_map/1)
 
-    with {:ok, %Bundles.Bundle{} = bundle} <-
-           Bundles.create_bundle(
-             %{
-               id: id,
-               project_id: selected_project.id,
-               app_bundle_id: Map.get(bundle_params, :app_bundle_id),
-               name: Map.get(bundle_params, :name),
-               install_size: Map.get(bundle_params, :install_size),
-               download_size: Map.get(bundle_params, :download_size),
-               supported_platforms: Map.get(bundle_params, :supported_platforms),
-               version: Map.get(bundle_params, :version),
-               artifacts: artifacts,
-               git_branch: Map.get(bundle_params, :git_branch),
-               git_commit_sha: Map.get(bundle_params, :git_commit_sha),
-               git_ref: Map.get(bundle_params, :git_ref),
-               type: type,
-               uploaded_by_account_id: account_id
-             },
-             preload: [:uploaded_by_account, project: [:account]]
-           ) do
-      maybe_enqueue_threshold_check(bundle, selected_project)
+    case Bundles.create_bundle(
+           %{
+             id: id,
+             project_id: selected_project.id,
+             app_bundle_id: Map.get(bundle_params, :app_bundle_id),
+             name: Map.get(bundle_params, :name),
+             install_size: Map.get(bundle_params, :install_size),
+             download_size: Map.get(bundle_params, :download_size),
+             supported_platforms: Map.get(bundle_params, :supported_platforms),
+             version: Map.get(bundle_params, :version),
+             artifacts: artifacts,
+             git_branch: Map.get(bundle_params, :git_branch),
+             git_commit_sha: Map.get(bundle_params, :git_commit_sha),
+             git_ref: Map.get(bundle_params, :git_ref),
+             type: type,
+             uploaded_by_account_id: account_id
+           },
+           preload: [:uploaded_by_account, project: [:account]]
+         ) do
+      {:ok, %Bundles.Bundle{} = bundle} ->
+        maybe_enqueue_threshold_check(bundle, selected_project)
 
-      conn
-      |> put_status(:ok)
-      |> json(bundle_to_map(bundle))
+        conn
+        |> put_status(:ok)
+        |> json(bundle_to_map(bundle))
+
+      {:error, %Ecto.Changeset{} = changeset} ->
+        fields =
+          Ecto.Changeset.traverse_errors(changeset, fn {message, _opts} -> message end)
+
+        conn
+        |> put_status(:bad_request)
+        |> json(%ValidationError{message: "Validation failed", fields: fields})
     end
   end
 
