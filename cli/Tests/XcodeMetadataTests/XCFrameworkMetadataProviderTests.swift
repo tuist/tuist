@@ -31,6 +31,7 @@ struct XCFrameworkMetadataProviderTests {
                     path: expectedPath,
                     mergeable: false,
                     platform: .iOS,
+                    platformVariant: .simulator,
                     architectures: [.x8664]
                 ),
                 XCFrameworkInfoPlist.Library(
@@ -69,6 +70,7 @@ struct XCFrameworkMetadataProviderTests {
                     path: expectedPath,
                     mergeable: false,
                     platform: .iOS,
+                    platformVariant: .simulator,
                     architectures: [.x8664]
                 ),
                 XCFrameworkInfoPlist.Library(
@@ -105,6 +107,7 @@ struct XCFrameworkMetadataProviderTests {
                 path: try RelativePath(validating: "MyFramework.framework"),
                 mergeable: false,
                 platform: .iOS,
+                platformVariant: .simulator,
                 architectures: [.x8664]
             ),
             XCFrameworkInfoPlist.Library(
@@ -169,6 +172,7 @@ struct XCFrameworkMetadataProviderTests {
                 path: try RelativePath(validating: "MyMergeableFramework.framework"),
                 mergeable: true,
                 platform: .iOS,
+                platformVariant: .simulator,
                 architectures: [.x8664]
             ),
             XCFrameworkInfoPlist.Library(
@@ -251,6 +255,7 @@ struct XCFrameworkMetadataProviderTests {
                 path: try RelativePath(validating: "MyTBDFramework.framework"),
                 mergeable: false,
                 platform: .iOS,
+                platformVariant: .simulator,
                 architectures: [.x8664]
             ),
             XCFrameworkInfoPlist.Library(
