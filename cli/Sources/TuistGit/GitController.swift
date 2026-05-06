@@ -44,6 +44,15 @@ public protocol GitControlling {
     /// Return the current commit SHA
     func currentCommitSHA(workingDirectory: AbsolutePath) throws -> String
 
+    /// Return whether git is available in the current environment.
+    func isGitAvailable() -> Bool
+
+    /// Return the current tag if HEAD points exactly to one.
+    func currentTag(workingDirectory: AbsolutePath) throws -> String?
+
+    /// Return whether the git working tree has uncommitted changes.
+    func hasUncommittedChanges(workingDirectory: AbsolutePath) throws -> Bool
+
     /// Return the git URL origin
     func urlOrigin(workingDirectory: AbsolutePath) throws -> String
 
@@ -109,6 +118,23 @@ public struct GitController: GitControlling {
     public func currentCommitSHA(workingDirectory: AbsolutePath) throws -> String {
         try capture(command: "git", "-C", workingDirectory.pathString, "rev-parse", "HEAD")
             .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    public func isGitAvailable() -> Bool {
+        system.commandExists("git")
+    }
+
+    public func currentTag(workingDirectory: AbsolutePath) throws -> String? {
+        let tag = try? capture(command: "git", "-C", workingDirectory.pathString, "describe", "--tags", "--exact-match")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let tag, !tag.isEmpty else { return nil }
+        return tag
+    }
+
+    public func hasUncommittedChanges(workingDirectory: AbsolutePath) throws -> Bool {
+        let status = try capture(command: "git", "-C", workingDirectory.pathString, "status", "--porcelain")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return !status.isEmpty
     }
 
     public func hasUrlOrigin(workingDirectory: AbsolutePath) throws -> Bool {
