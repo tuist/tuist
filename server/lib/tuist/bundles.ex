@@ -168,9 +168,20 @@ defmodule Tuist.Bundles do
     end)
   end
 
+  # Drop the microsecond precision the CH `DateTime64(6)` column carries
+  # so the API response renders as `2026-05-06T11:12:36Z` rather than
+  # `2026-05-06T11:12:36.000000Z`. The Swift CLI decodes `inserted_at`
+  # with `ISO8601DateFormatter` configured for `.withInternetDateTime`,
+  # which rejects fractional seconds and turned every `createBundle`
+  # response into a client-side decoding error after the CH cutover.
+  # The pre-CH PG column was `:utc_datetime` (second precision), so
+  # truncating here also restores the historical wire format.
   defp from_naive_usec(nil), do: nil
-  defp from_naive_usec(%DateTime{} = dt), do: dt
-  defp from_naive_usec(%NaiveDateTime{} = ndt), do: DateTime.from_naive!(ndt, "Etc/UTC")
+  defp from_naive_usec(%DateTime{} = dt), do: DateTime.truncate(dt, :second)
+
+  defp from_naive_usec(%NaiveDateTime{} = ndt) do
+    ndt |> DateTime.from_naive!("Etc/UTC") |> DateTime.truncate(:second)
+  end
 
   defp decode_bundles(bundles) when is_list(bundles), do: Enum.map(bundles, &decode_bundle/1)
 
