@@ -52,6 +52,51 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
       assert result.status == 200
     end
 
+    test "deletes the github.com row on uninstall when GitHub sends the App ID via X-GitHub-Hook-Installation-Target-ID",
+         %{conn: conn} do
+      # Regression: github.com installations leave `app_id` NULL on the
+      # row, so a naive `app_id = ?` filter on the lookup would miss
+      # the row and the uninstall webhook would 200 OK without actually
+      # deleting it (the symptom the user hit on staging). The fix is
+      # to route github.com webhooks (App ID matches the env var) by
+      # `client_url='https://github.com'` instead.
+      user = AccountsFixtures.user_fixture()
+      installation_id = "gh-com-12345"
+      app_id = "777"
+
+      stub(Tuist.Environment, :github_app_id, fn -> app_id end)
+
+      installation =
+        VCSFixtures.github_app_installation_fixture(
+          account_id: user.account.id,
+          installation_id: installation_id,
+          client_url: "https://github.com"
+        )
+
+      conn =
+        conn
+        |> put_req_header("x-github-event", "installation")
+        |> put_req_header("x-github-hook-installation-target-id", app_id)
+
+      expect(VCS, :get_github_app_installation_by_installation_id, fn ^installation_id, opts ->
+        assert Keyword.fetch!(opts, :client_url) == "https://github.com"
+        refute Keyword.has_key?(opts, :app_id)
+        {:ok, installation}
+      end)
+
+      expect(VCS, :delete_github_app_installation, fn ^installation ->
+        {:ok, installation}
+      end)
+
+      result =
+        GitHubController.handle(conn, %{
+          "action" => "deleted",
+          "installation" => %{"id" => installation_id}
+        })
+
+      assert result.status == 200
+    end
+
     test "handles installation deleted event when installation not found", %{conn: conn} do
       # Given
       installation_id = "99999"
@@ -232,8 +277,10 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
       assert result.status == 200
     end
 
-    test "disambiguates the installation lookup with the App ID header so two GitHub instances sharing an installation_id don't collide",
+    test "routes the lookup by app_id when the App ID header points at a manifest-flow GHES App",
          %{conn: conn} do
+      stub(Tuist.Environment, :github_app_id, fn -> "999" end)
+
       conn =
         conn
         |> put_req_header("x-github-event", "check_run")
@@ -242,6 +289,41 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
       expect(VCS, :get_github_app_installation_by_installation_id, fn installation_id, opts ->
         assert installation_id == "12345"
         assert Keyword.fetch!(opts, :app_id) == "777"
+        {:ok, %{installation_id: "12345"}}
+      end)
+
+      expect(VCS, :update_check_run, fn _params -> {:ok, %{"id" => 42}} end)
+
+      result =
+        GitHubController.handle(conn, %{
+          "action" => "requested_action",
+          "check_run" => %{"id" => 42, "name" => "tuist/bundle-size"},
+          "requested_action" => %{"identifier" => "accept_bundle_size"},
+          "installation" => %{"id" => 12_345},
+          "repository" => %{"full_name" => "org/repo"}
+        })
+
+      assert result.status == 200
+    end
+
+    test "routes the lookup by client_url when the App ID matches the github.com Tuist App so github.com rows (with NULL app_id) still match",
+         %{conn: conn} do
+      # Regression: github.com installations leave `app_id` NULL on the
+      # row (env-var fallback). An `app_id = ?` filter would miss them
+      # entirely and post-HMAC handlers (uninstall, html_url update,
+      # check_run) would silently no-op. Routing by `client_url` for
+      # the github.com Tuist App restores the match.
+      stub(Tuist.Environment, :github_app_id, fn -> "777" end)
+
+      conn =
+        conn
+        |> put_req_header("x-github-event", "check_run")
+        |> put_req_header("x-github-hook-installation-target-id", "777")
+
+      expect(VCS, :get_github_app_installation_by_installation_id, fn installation_id, opts ->
+        assert installation_id == "12345"
+        assert Keyword.fetch!(opts, :client_url) == "https://github.com"
+        refute Keyword.has_key?(opts, :app_id)
         {:ok, %{installation_id: "12345"}}
       end)
 

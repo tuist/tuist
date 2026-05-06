@@ -73,16 +73,41 @@ defmodule TuistWeb.Webhooks.GitHubController do
     end
   end
 
-  # Looks up the installation by `installation_id`, additionally pinning
-  # the row by `app_id` (from the body or the
-  # `X-GitHub-Hook-Installation-Target-ID` header) when present. The
-  # composite unique index on `(client_url, installation_id)` means two
-  # GitHub instances can have rows sharing an `installation_id`; pinning
-  # by `app_id` keeps the lookup unambiguous.
+  # Looks up the installation by `installation_id`, disambiguating with
+  # the App ID from the body or the `X-GitHub-Hook-Installation-Target-ID`
+  # header. The composite unique index on
+  # `(client_url, installation_id)` means two GitHub instances can have
+  # rows sharing an `installation_id`, so a disambiguator is required.
+  #
+  # Two routing rules, depending on whether the App ID identifies the
+  # github.com Tuist App or a manifest-flow GHES App:
+  #
+  #   * `app_id == Environment.github_app_id()` → it's a github.com
+  #     webhook. github.com rows leave `app_id` NULL on the row (the
+  #     runtime falls back to `TUIST_GITHUB_APP_*` env vars), so an
+  #     `app_id = ?` filter would miss them. Pin by
+  #     `client_url='https://github.com'` instead, which is unique
+  #     within the composite index.
+  #
+  #   * Otherwise → it's a GHES App registered via the manifest flow.
+  #     The row carries its own `app_id`; pin by that.
   defp lookup_installation_by_id(conn, body, installation_id) do
     case app_id_from_request(conn, body) do
-      nil -> VCS.get_github_app_installation_by_installation_id(installation_id)
-      app_id -> VCS.get_github_app_installation_by_installation_id(installation_id, app_id: to_string(app_id))
+      nil ->
+        VCS.get_github_app_installation_by_installation_id(installation_id)
+
+      app_id ->
+        VCS.get_github_app_installation_by_installation_id(
+          installation_id,
+          installation_lookup_opts(to_string(app_id))
+        )
+    end
+  end
+
+  defp installation_lookup_opts(app_id) do
+    case Environment.github_app_id() do
+      ^app_id -> [client_url: VCS.default_client_url()]
+      _ -> [app_id: app_id]
     end
   end
 
