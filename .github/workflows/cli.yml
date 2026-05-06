@@ -453,6 +453,8 @@ jobs:
     continue-on-error: true
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
+      - name: Enable git long paths
+        run: git config --system core.longpaths true
       - uses: actions/checkout@v4
       - name: Set up Swift
         uses: compnerd/gha-setup-swift@main
