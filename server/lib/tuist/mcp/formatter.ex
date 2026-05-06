@@ -22,4 +22,11 @@ defmodule Tuist.MCP.Formatter do
   end
 
   def iso8601(other, _opts), do: to_string(other)
+
+  def changeset_errors(changeset) do
+    changeset
+    |> Ecto.Changeset.traverse_errors(fn {message, _opts} -> message end)
+    |> Enum.flat_map(fn {_key, value} -> value end)
+    |> Enum.join(", ")
+  end
 end
