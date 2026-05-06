@@ -176,6 +176,22 @@ macosFleet:
   controlPlane:
     host: api.tuist.dev
 
+# Customer-runner Mac mini fleet. Sized to 5 hosts = 5 concurrent
+# customer runs (one VM per host for predictable build times).
+# Production gates on staging + canary proving the substrate and
+# the dispatch flow first; this block is inert until
+# `runnersFleet.runnerImage` is pinned to a built image SHA.
+runnersFleet:
+  enabled: false
+  replicas: 5
+  runnerImage: ""
+  networkPolicy:
+    enabled: true
+    exceptCIDRs:
+      - "10.0.0.0/8"
+      - "172.16.0.0/12"
+      - "192.168.0.0/16"
+
 # In-cluster Valkey backs the auth rate limiter (Hammer.Redis). The
 # chart wires TUIST_REDIS_URL to the embedded Service; without it the
 # rate limiter falls back to the per-pod InMemory bucket.

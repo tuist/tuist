@@ -446,6 +446,13 @@ runnersFleet:
   # flight Pods. Per-namespace RBAC + NetworkPolicy live alongside.
   namespace: tuist-runners
   replicas: 0
+  # OCI image the reconciler stamps into runner Pod manifests.
+  # Pin by digest in production (`@sha256:…`) so a registry retag
+  # of `:latest` can't smuggle in a different image. Required when
+  # runnersFleet.enabled is true; the chart fails the render
+  # otherwise. Matches the artifact built by
+  # .github/workflows/runner-image.yml.
+  runnerImage: ""
   machine:
     # Match the existing macosFleet shape — same M4-S baseline. Override
     # per-env when product demands a beefier SKU (M4-M for memory-

@@ -118,6 +118,20 @@ macosFleet:
   controlPlane:
     host: api-canary.tuist.dev
 
+# Customer-runner Mac mini fleet — sibling of macosFleet.
+# Canary runs the same concurrency tier as staging (2 hosts) so
+# we can de-risk the production roll on canary first.
+runnersFleet:
+  enabled: false
+  replicas: 2
+  runnerImage: ""
+  networkPolicy:
+    enabled: true
+    exceptCIDRs:
+      - "10.0.0.0/8"
+      - "172.16.0.0/12"
+      - "192.168.0.0/16"
+
 # In-cluster Valkey backs the auth rate limiter (Hammer.Redis). The
 # chart wires TUIST_REDIS_URL to the embedded Service; without it the
 # rate limiter falls back to the per-pod InMemory bucket.

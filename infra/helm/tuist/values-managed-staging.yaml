@@ -158,3 +158,44 @@ macosFleet:
     # M4-S is normally what we'd pick (smallest M4); falls back to
     # M2-M when M4-S is no_stock. Override per Scaleway capacity.
     type: M2-M
+
+# Customer-runner Mac mini fleet. Sized to tuist/tuist's
+# concurrency tier (2 in staging; production keeps 5).
+# Workloads that target this fleet schedule via
+# `nodeSelector: tuist.dev/fleet=tuist-tuist-runners-fleet`.
+#
+# Off by default so the chart can land without a runner image
+# pinned. Flip on with:
+#
+#   helm upgrade ... \
+#     --set runnersFleet.enabled=true \
+#     --set runnersFleet.runnerImage=ghcr.io/tuist/tuist-runner@sha256:<digest>
+#
+# The runner image is built by .github/workflows/runner-image.yml
+# (manual workflow_dispatch in v1; automated deploy in v2).
+runnersFleet:
+  enabled: false
+  replicas: 2
+  machine:
+    # M2-M same as macosFleet above — fr-par-1 has limited
+    # M4-S capacity in some windows, M2-M is the reliable
+    # fallback. Bump to M4-S once stocking stabilizes.
+    type: M2-M
+  # Pinned by CI to the GHA-built runner image SHA. The chart
+  # `--set runnersFleet.runnerImage=<digest>` from the deploy
+  # workflow; a placeholder here means the helm template would
+  # fail the `required` check unless overridden.
+  runnerImage: ""
+  # Cluster-internal CIDR ranges the runner namespace's
+  # NetworkPolicy blocks egress to. Locks down lateral
+  # reachability so a compromised runner can't speak to
+  # Postgres / ClickHouse / the server's admin endpoints. The
+  # ranges below match the staging cluster's Pod + Service CIDRs;
+  # double-check with `kubectl cluster-info dump | grep -i cidr`
+  # before bumping these on a fresh cluster.
+  networkPolicy:
+    enabled: true
+    exceptCIDRs:
+      - "10.0.0.0/8"
+      - "172.16.0.0/12"
+      - "192.168.0.0/16"

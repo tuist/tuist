@@ -1,0 +1,54 @@
+name: Runners Staging Smoke Test
+
+# Manual smoke test for the staging Tuist Runners pool. Targets
+# `runs-on: tuist-tuist-staging` so the staging tier's warm Pods
+# (configured in infra/helm/tuist/values-managed-staging.yaml as
+# `runnersFleet.replicas: 2`) pick up this job.
+#
+# Use this to validate, end-to-end:
+#   1. workflow_job: queued webhook reaches the staging server.
+#   2. Tuist.Runners.Dispatch finds an idle Pod and mints a JIT
+#      config from GitHub.
+#   3. The runner VM polls /api/internal/runners/dispatch on
+#      staging.tuist.dev, claims the JIT, registers as a runner.
+#   4. GH dispatches this job to the registered runner.
+#   5. The job runs on the runner VM.
+#   6. After completion the Pod terminates and the reconciler's
+#      next 60 s tick creates a replacement.
+#
+# Triggered manually only — we don't want every push to staging
+# burning runner cycles.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: [self-hosted, tuist-tuist-staging]
+    timeout-minutes: 10
+    steps:
+      - name: Show environment
+        run: |
+          echo "Hostname:    $(hostname)"
+          echo "macOS:       $(sw_vers -productVersion)"
+          echo "Architecture: $(uname -m)"
+          echo "Xcode path:  $(xcode-select -p)"
+          # Confirm we're inside a Tart VM. The VM's hostname is
+          # set by Tart and the host CPU model leaks via sysctl.
+          sysctl -n machdep.cpu.brand_string
+
+      - name: Network reachability check
+        run: |
+          set -euo pipefail
+          # Public GH should be reachable (the runner already
+          # registered, so this had better work).
+          curl -fsSL -o /dev/null -w "github.com → HTTP %{http_code}\n" https://github.com
+          # The cluster's API server should NOT be reachable from
+          # inside the VM. The host runs tart-kubelet on its own
+          # network namespace; runner Pods egress through Tart's
+          # NAT and don't need direct API-server access. If this
+          # *does* respond, the NetworkPolicy on tuist-runners or
+          # the host firewall slipped.
+          set +e
+          curl -fsSL -m 5 -o /dev/null -w "k8s API (negative test) → HTTP %{http_code}\n" \
+            "https://${KUBERNETES_SERVICE_HOST:-no-such-host}:443" 2>&1 || echo "k8s API unreachable from VM (expected)"

@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Boots the Tuist runner image. The wrapper:
+    1. Runs /opt/tuist/inject-env.sh — materializes /etc/tuist.env
+       from the tart-kubelet env mount.
+    2. Sources /etc/tuist.env so the dispatch-poll script sees
+       the per-Pod TUIST_RUNNER_* vars.
+    3. Execs /opt/tuist/dispatch-poll.sh — polls the Tuist server
+       for a JIT config and execs ./run.sh on first 200.
+
+  KeepAlive=false: the runner image is single-shot. After the GH
+  Actions job finishes the runner exits, the wrapper exits, and
+  the Pod transitions to Completed. Restarting would re-poll for
+  a JIT config that's already been claimed; the next reconcile
+  cycle creates a fresh Pod instead.
+
+  RunAsUser is implicit (root via LaunchDaemon) — the runner
+  binary handles its own user dropping if needed.
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>dev.tuist.runner</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>-c</string>
+        <string>/opt/tuist/inject-env.sh &amp;&amp; source /etc/tuist.env &amp;&amp; exec /opt/tuist/dispatch-poll.sh</string>
+    </array>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <false/>
+
+    <key>WorkingDirectory</key>
+    <string>/opt/actions-runner</string>
+
+    <key>StandardOutPath</key>
+    <string>/var/log/tuist-runner/stdout.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/var/log/tuist-runner/stderr.log</string>
+
+    <key>ProcessType</key>
+    <string>Interactive</string>
+</dict>
+</plist>

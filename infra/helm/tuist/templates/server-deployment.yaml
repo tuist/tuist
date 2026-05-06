@@ -113,6 +113,19 @@ spec:
             - name: TUIST_DELEGATE_PROCESS_XCRESULT
               value: "1"
             {{- end }}
+            {{- if .Values.runnersFleet.enabled }}
+            # Customer runner pool wiring. Tuist.Environment exposes
+            # these to Tuist.Runners.Reconciler / .PodSpec; together
+            # they enable the warm-pool reconciler cron in
+            # config/runtime.exs (Tuist.Environment.runners_enabled?
+            # checks all three are non-empty).
+            - name: TUIST_RUNNER_IMAGE
+              value: {{ required "runnersFleet.runnerImage required when runnersFleet.enabled" .Values.runnersFleet.runnerImage | quote }}
+            - name: TUIST_RUNNER_DISPATCH_URL
+              value: "{{ .Values.server.appUrl }}/api/internal/runners/dispatch"
+            - name: TUIST_RUNNERS_FLEET_NAME
+              value: {{ include "tuist.runnersFleetName" . | quote }}
+            {{- end }}
             {{- include "tuist.licenseEnv" . | nindent 12 }}
             {{- if or .Values.server.masterKey .Values.server.managedSecrets }}
             - name: MASTER_KEY
