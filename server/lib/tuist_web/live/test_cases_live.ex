@@ -403,8 +403,9 @@ defmodule TuistWeb.TestCasesLive do
     sort_order = params["sort_order"] || "desc"
     search = params["search"] || ""
 
-    {start_datetime, end_datetime} = socket.assigns.analytics_period
-
+    # The table intentionally ignores the analytics date picker — see
+    # `Tests.list_test_cases/3` docs. The CI/Local environment dropdown still
+    # narrows the listing because it's an environment axis, not a date range.
     is_ci =
       case socket.assigns.analytics_environment do
         "ci" -> true
@@ -427,7 +428,7 @@ defmodule TuistWeb.TestCasesLive do
       page_size: 20
     }
 
-    list_opts = [active_period: {start_datetime, end_datetime}, is_ci: is_ci]
+    list_opts = [is_ci: is_ci]
 
     socket
     |> assign(:active_filters, filters)

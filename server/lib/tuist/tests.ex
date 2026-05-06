@@ -590,6 +590,7 @@ defmodule Tuist.Tests do
   """
   def create_test_cases(project_id, test_case_data_list, existing_test_cases, opts \\ []) do
     test_run_id = Keyword.get(opts, :test_run_id)
+    is_ci = Keyword.get(opts, :is_ci, false)
     now = NaiveDateTime.utc_now()
 
     test_case_ids_with_data =
@@ -614,6 +615,21 @@ defmodule Tuist.Tests do
         existing_is_flaky = Map.get(existing, :is_flaky, false)
         existing_state = Map.get(existing, :state, "enabled")
 
+        # Update only the column matching the current run's environment; carry
+        # the other forward from the prior row so ReplacingMergeTree's
+        # whole-row replacement doesn't lose the timestamp from the opposite
+        # environment. The Test Cases listing's CI/Local active-period
+        # filter reads these columns directly.
+        existing_last_ran_at_ci = Map.get(existing, :last_ran_at_ci)
+        existing_last_ran_at_local = Map.get(existing, :last_ran_at_local)
+
+        {last_ran_at_ci, last_ran_at_local} =
+          if is_ci do
+            {data.ran_at, existing_last_ran_at_local}
+          else
+            {existing_last_ran_at_ci, data.ran_at}
+          end
+
         test_case = %{
           id: id,
           name: data.name,
@@ -623,6 +639,8 @@ defmodule Tuist.Tests do
           last_status: data.status,
           last_duration: data.duration,
           last_ran_at: data.ran_at,
+          last_ran_at_ci: last_ran_at_ci,
+          last_ran_at_local: last_ran_at_local,
           is_flaky: existing_is_flaky,
           last_run_id: test_run_id,
           state: existing_state,
@@ -697,6 +715,8 @@ defmodule Tuist.Tests do
         recent_durations: test_case.recent_durations,
         is_flaky: test_case.is_flaky,
         state: test_case.state,
+        last_ran_at_ci: test_case.last_ran_at_ci,
+        last_ran_at_local: test_case.last_ran_at_local,
         inserted_at: test_case.inserted_at
       }
     )
@@ -1307,7 +1327,10 @@ defmodule Tuist.Tests do
       |> Enum.uniq_by(fn data -> {data.name, data.module_name, data.suite_name} end)
 
     {test_case_id_map, test_case_ids_with_flaky_run, new_test_case_ids} =
-      create_test_cases(test.project_id, test_case_data_list, existing_test_cases, test_run_id: test.id)
+      create_test_cases(test.project_id, test_case_data_list, existing_test_cases,
+        test_run_id: test.id,
+        is_ci: test.is_ci
+      )
 
     {test_case_runs, all_failures, all_repetitions, all_attachments, all_arguments} =
       Enum.reduce(test_cases, {[], [], [], [], []}, fn case_attrs,
@@ -1551,17 +1574,21 @@ defmodule Tuist.Tests do
   by ReplacingMergeTree on each test run.
 
   Options:
-    * `:active_period` — `{start_datetime, end_datetime}` tuple. When set, the result
-      is restricted to test cases that had at least one run in the given window
-      (via a join with `test_case_runs`), regardless of `last_ran_at`.
-    * `:is_ci` — when combined with `:active_period`, further restricts the run
-      lookup to CI (`true`) or local (`false`) runs.
+    * `:is_ci` — scopes "active" to CI (`true`) or local (`false`) runs by
+      reading the matching denormalized column on `test_cases`. `nil` (the
+      default) means "any environment".
+
+  The listing intentionally has no date-window option. Callers that take a
+  user-controlled date picker on the same page (e.g. the Test Cases LiveView)
+  show analytics for the picked range while the table stays anchored to the
+  trailing `@active_window_days` window — that way the table is a stable
+  view of the project's active surface and never silently drops rows because
+  a custom historical range excluded their most recent run.
   """
   def list_test_cases(project_id, attrs, opts \\ []) do
     filters = Map.get(attrs, :filters, [])
     has_name_filter = Enum.any?(filters, fn f -> f.field == :name end)
     quarantine_filter? = quarantine_filter?(filters)
-    active_period = Keyword.get(opts, :active_period)
     is_ci = Keyword.get(opts, :is_ci)
 
     base_query =
@@ -1572,14 +1599,6 @@ defmodule Tuist.Tests do
 
     base_query =
       cond do
-        not is_nil(active_period) ->
-          active_ids = active_test_case_ids_query(project_id, active_period, is_ci)
-
-          from(test_case in base_query,
-            inner_join: active in subquery(active_ids),
-            on: test_case.id == active.test_case_id
-          )
-
         # Quarantined-by-state filters (`state in ["muted", "skipped"]` or the
         # legacy `quarantined=true` shortcut) bypass the active window. Skipped
         # tests intentionally never run, so their `last_ran_at` doesn't
@@ -1592,8 +1611,7 @@ defmodule Tuist.Tests do
           base_query
 
         true ->
-          window_start = NaiveDateTime.add(NaiveDateTime.utc_now(), -@active_window_days, :day)
-          where(base_query, [test_case], test_case.last_ran_at >= ^window_start)
+          apply_active_window(base_query, is_ci)
       end
 
     Tuist.ClickHouseFlop.validate_and_run!(base_query, attrs, for: TestCase)
@@ -1618,32 +1636,25 @@ defmodule Tuist.Tests do
     end)
   end
 
-  # `inserted_at` is added alongside `ran_at` so the partition pruner can skip
-  # months outside the window. `test_case_runs` is `PARTITION BY
-  # toYYYYMM(inserted_at)` and `ran_at` is not a partition key. Rows with
-  # `inserted_at < ran_at` would not exist (insert happens after the run
-  # completes), so this never excludes a row that the `ran_at` window would
-  # have included.
-  defp active_test_case_ids_query(project_id, {start_datetime, end_datetime}, is_ci) do
-    start_naive = DateTime.to_naive(start_datetime)
-    end_naive = DateTime.to_naive(end_datetime)
-
-    query =
-      from(run in TestCaseRun,
-        where:
-          run.project_id == ^project_id and
-            run.ran_at >= ^start_naive and
-            run.ran_at <= ^end_naive and
-            run.inserted_at >= ^start_naive and
-            not is_nil(run.test_case_id),
-        group_by: run.test_case_id,
-        select: %{test_case_id: run.test_case_id}
-      )
+  # `last_ran_at_ci` and `last_ran_at_local` are denormalized on `test_cases`
+  # (kept current by `create_test_cases/4`'s read-modify-write merge per
+  # test_case_id). Reading them directly — no `test_case_runs` join —
+  # replaces what used to be a ~94 M row / 4 GB scan on production for one
+  # project. Only the lower bound is checked: a test that ran once inside
+  # the window and many times since still has its latest timestamp ≥
+  # window_start, so it correctly stays in the listing.
+  defp apply_active_window(query, is_ci) do
+    window_start = NaiveDateTime.add(NaiveDateTime.utc_now(), -@active_window_days, :day)
 
     case is_ci do
-      true -> from(r in query, where: r.is_ci == true)
-      false -> from(r in query, where: r.is_ci == false)
-      _ -> query
+      true ->
+        where(query, [test_case], test_case.last_ran_at_ci >= ^window_start)
+
+      false ->
+        where(query, [test_case], test_case.last_ran_at_local >= ^window_start)
+
+      _ ->
+        where(query, [test_case], test_case.last_ran_at >= ^window_start)
     end
   end
 
