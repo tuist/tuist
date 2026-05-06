@@ -111,7 +111,8 @@ public struct CommandEventFactory {
 
                         selectiveTestingMetadata = RunCacheTargetMetadata(
                             hash: cacheItem.hash,
-                            hit: hit
+                            hit: hit,
+                            subhashes: targetContentHashSubhashes[cacheItem.hash]
                         )
                     } else {
                         selectiveTestingMetadata = nil

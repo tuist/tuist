@@ -6532,6 +6532,96 @@ paths:
                                       type: string
                                       x-struct:
                                       x-validate:
+                                    subhashes:
+                                      description: Individual component hashes that make up the final hash
+                                      properties:
+                                        additional_strings:
+                                          description: Additional strings used in the hash
+                                          items:
+                                            type: string
+                                            x-struct:
+                                            x-validate:
+                                          type: array
+                                          x-struct:
+                                          x-validate:
+                                        buildable_folders:
+                                          description: Buildable folders hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        copy_files:
+                                          description: Copy files hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        core_data_models:
+                                          description: Core data models hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        dependencies:
+                                          description: Dependencies hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        deployment_target:
+                                          description: Deployment target hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        entitlements:
+                                          description: Entitlements hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        environment:
+                                          description: Environment hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        external:
+                                          description: External project hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        headers:
+                                          description: Headers hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        info_plist:
+                                          description: Info.plist hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        project_settings:
+                                          description: Project settings hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        resources:
+                                          description: Resources hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        sources:
+                                          description: Sources hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        target_scripts:
+                                          description: Target scripts hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        target_settings:
+                                          description: Target settings hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                      type: object
+                                      x-struct:
+                                      x-validate:
                                   required:
                                     - hash
                                     - hit
