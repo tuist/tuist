@@ -389,7 +389,7 @@ spec:
           # unset so kubelet falls back to the host's /etc/resolv.conf,
           # which DHCP populates with Hetzner's resolvers (185.12.64.1,
           # 185.12.64.2 + IPv6) — multi-IP, dual-stack, one network hop
-          # away. Same posture Apalla shipped on the workload clusters.
+          # away.
           - content: |
               apiVersion: kubelet.config.k8s.io/v1beta1
               kind: KubeletConfiguration
@@ -468,8 +468,7 @@ spec:
         initConfiguration:
           # Cilium is the CNI on Tuist's workload clusters and replaces
           # kube-proxy. Skip the kube-proxy addon during cluster init so
-          # the kube-proxy DaemonSet is never deployed; existing nodes
-          # already have no kube-proxy (Apalla shipped the same skip).
+          # the kube-proxy DaemonSet is never deployed.
           skipPhases:
             - addon/kube-proxy
           nodeRegistration:

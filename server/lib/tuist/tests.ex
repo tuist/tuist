@@ -70,6 +70,7 @@ defmodule Tuist.Tests do
   @skip_event_types ~w(skipped unskipped)
   @quarantine_event_types @mute_event_types ++ @skip_event_types
   @active_quarantine_event_types ~w(muted skipped)
+  @active_quarantine_states ~w(muted skipped)
 
   @doc """
   All mute-related event type names (`muted`, `unmuted`).
@@ -88,6 +89,13 @@ defmodule Tuist.Tests do
   not-quarantined state.
   """
   def active_quarantine_event_types, do: @active_quarantine_event_types
+
+  @doc """
+  `TestCase.state` values that indicate a test is currently quarantined.
+  Source of truth for the quarantined-tests list and analytics — both
+  must use this constant so the count and the table cannot disagree.
+  """
+  def active_quarantine_states, do: @active_quarantine_states
 
   # Keys present on the `Test` struct that are NOT columns on the `test_runs`
   # ClickHouse table (Ecto metadata + association loaders). Used to scrub the
@@ -1120,7 +1128,7 @@ defmodule Tuist.Tests do
     {test_case_data, historical_flaky_runs} =
       check_cross_run_flakiness(test, test_case_data)
 
-    mark_test_case_runs_as_flaky(historical_flaky_runs)
+    mark_test_case_runs_as_flaky(test.project_id, historical_flaky_runs)
 
     test_case_data = check_new_test_cases(test, test_case_data)
 
@@ -1684,13 +1692,20 @@ defmodule Tuist.Tests do
     if search_filter, do: search_filter[:value]
   end
 
+  # The flaky-stats join is `left_join`, not `inner_join`: a test case can be
+  # currently flagged flaky (per `test_case_events`) without having any
+  # `flaky_test_case_runs` rows in the analytics window — for example a
+  # low-frequency test that was auto-flagged a while ago and hasn't run since,
+  # or a test whose recent flaky runs sit in a different `:is_ci` segment.
+  # `inner_join` here would silently drop such rows and put the list out of
+  # sync with the analytics card, which counts purely off events.
   defp build_flaky_test_cases_query(project_id, search_term, opts) do
     base_query =
       from(test_case in TestCase,
         hints: ["FINAL"],
         inner_join: flaky in subquery(currently_flaky_test_case_ids_subquery(project_id, opts)),
         on: test_case.id == flaky.test_case_id,
-        inner_join: stats in subquery(flaky_stats_subquery(project_id, opts)),
+        left_join: stats in subquery(flaky_stats_subquery(project_id, opts)),
         on: test_case.id == stats.test_case_id,
         where: test_case.project_id == ^project_id,
         select: %{
@@ -1698,9 +1713,17 @@ defmodule Tuist.Tests do
           name: test_case.name,
           module_name: test_case.module_name,
           suite_name: test_case.suite_name,
-          flaky_runs_count: stats.flaky_runs_count,
-          last_flaky_at: stats.last_flaky_at,
-          last_flaky_run_id: stats.last_flaky_run_id
+          flaky_runs_count: coalesce(stats.flaky_runs_count, 0),
+          # ClickHouse's LEFT JOIN fills missing rows with each type's
+          # zero value rather than NULL. `nullIf` collapses those zero
+          # sentinels back to NULL so the consumer doesn't render
+          # `1970-01-01` / `00000000-…` for stale-flagged tests.
+          last_flaky_at: fragment("nullIf(?, toDateTime64(0, 6))", stats.last_flaky_at),
+          last_flaky_run_id:
+            fragment(
+              "nullIf(?, toUUID('00000000-0000-0000-0000-000000000000'))",
+              stats.last_flaky_run_id
+            )
         }
       )
 
@@ -1713,7 +1736,7 @@ defmodule Tuist.Tests do
         hints: ["FINAL"],
         inner_join: flaky in subquery(currently_flaky_test_case_ids_subquery(project_id, opts)),
         on: test_case.id == flaky.test_case_id,
-        inner_join: stats in subquery(flaky_stats_subquery(project_id, opts)),
+        left_join: stats in subquery(flaky_stats_subquery(project_id, opts)),
         on: test_case.id == stats.test_case_id,
         where: test_case.project_id == ^project_id,
         select: count(test_case.id)
@@ -1903,8 +1926,8 @@ defmodule Tuist.Tests do
 
   defp extract_state_filter(filters) do
     Enum.find_value(filters, fn
-      %{field: :state, value: value} when value in ["muted", "skipped"] -> value
-      %{field: "state", value: value} when value in ["muted", "skipped"] -> value
+      %{field: :state, value: value} when value in @active_quarantine_states -> value
+      %{field: "state", value: value} when value in @active_quarantine_states -> value
       _ -> nil
     end)
   end
@@ -2020,7 +2043,7 @@ defmodule Tuist.Tests do
     quarantined_ids_subquery =
       from(tc in TestCase,
         hints: ["FINAL"],
-        where: tc.project_id == ^project_id and tc.state in ["muted", "skipped"],
+        where: tc.project_id == ^project_id and tc.state in @active_quarantine_states,
         select: tc.id
       )
 
@@ -2104,9 +2127,9 @@ defmodule Tuist.Tests do
     do: from([test_case: tc] in query, order_by: [desc: tc.last_ran_at, asc: tc.id])
 
   defp apply_quarantined_state_filter(query, nil),
-    do: from([test_case: tc] in query, where: tc.state in ["muted", "skipped"])
+    do: from([test_case: tc] in query, where: tc.state in @active_quarantine_states)
 
-  defp apply_quarantined_state_filter(query, state) when state in ["muted", "skipped"],
+  defp apply_quarantined_state_filter(query, state) when state in @active_quarantine_states,
     do: from([test_case: tc] in query, where: tc.state == ^state)
 
   defp apply_quarantined_by_filter(query, nil), do: query
@@ -2149,18 +2172,24 @@ defmodule Tuist.Tests do
     }
   end
 
-  defp mark_test_case_runs_as_flaky([]), do: :ok
+  defp mark_test_case_runs_as_flaky(_project_id, []), do: :ok
 
-  defp mark_test_case_runs_as_flaky(runs) when is_list(runs) do
+  defp mark_test_case_runs_as_flaky(project_id, runs) when is_list(runs) do
     ids = runs |> Enum.map(& &1.id) |> Enum.uniq()
+    test_case_ids = runs |> Enum.map(& &1.test_case_id) |> Enum.uniq()
 
-    # `test_case_runs` is a ReplacingMergeTree, so a re-inserted run can
-    # return multiple versions per id until the background merge collapses
-    # them. We dedupe in Elixir on a small result set so the `proj_by_id`
-    # projection (binary search on `id`) is used; `FINAL` would disable it
-    # and force a full part scan with an in-memory merge.
+    # `test_case_runs` is `ORDER BY (project_id, test_case_id, ran_at, id)` —
+    # filtering by `project_id` and `test_case_id` (both already known per
+    # `historical_flaky_runs`) lets the primary key prune granules instead
+    # of falling back to the bloom filter on `id` alone, which scales poorly.
+    # The table is also a ReplacingMergeTree, so a re-inserted run can return
+    # multiple versions per id until the background merge collapses them; we
+    # dedupe in Elixir so the result set stays small. `FINAL` would force a
+    # full part scan with an in-memory merge instead.
     full_runs =
       from(tcr in TestCaseRun,
+        where: tcr.project_id == ^project_id,
+        where: tcr.test_case_id in ^test_case_ids,
         where: tcr.id in ^ids,
         order_by: [desc: tcr.inserted_at]
       )
