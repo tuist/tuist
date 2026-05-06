@@ -300,8 +300,8 @@ jobs:
         # in-cluster ExternalSecret. Passing secrets through --set would
         # leak them into `helm get manifest`.
         #
-        # 90m timeout is sized for first-time macOS-fleet bring-up: the
-        # operator's CreateServer call to Scaleway commonly takes ~50
+        # helm --timeout 90m is sized for first-time macOS-fleet bring-up:
+        # the operator's CreateServer call to Scaleway commonly takes ~50
         # min for an Apple Silicon Mac mini to come online, plus ~5-8
         # min for the Tart VM cold-boot on the host before xcresult-
         # processor pods report Ready. Production rolls 2 Mac minis in
@@ -311,8 +311,17 @@ jobs:
         # queue ran slow. Steady-state deploys (Mac minis already
         # allocated, the helm.sh/resource-policy: keep on the CR keeps
         # them across rollbacks) finish in 5-15 min and never approach
-        # this ceiling. Job-level timeout-minutes above is sized to
-        # accommodate this plus the surrounding pre-flight steps.
+        # this ceiling.
+        #
+        # timeout-minutes: 95 is the runner-level kill ceiling — 5 min
+        # over helm's own --timeout. Without it, the only kill semantic
+        # for a hung helm is the job-level timeout; helm under
+        # `--atomic --wait` ignores SIGINT/SIGTERM until its in-process
+        # rollback completes, so a manual `gh run cancel` doesn't free
+        # the concurrency lock for ~90 min. With this in place the
+        # runner SIGKILLs helm 5 min after its own timeout would have
+        # fired, bounding the recovery window.
+        timeout-minutes: 95
         run: |
           helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
             --namespace "$NAMESPACE" --create-namespace \
