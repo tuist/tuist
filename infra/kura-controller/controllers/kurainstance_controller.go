@@ -221,7 +221,7 @@ func (r *KuraInstanceReconciler) readyReplicas(ctx context.Context, instance *ku
 
 func podTemplate(instance *kurav1alpha1.KuraInstance) corev1.PodTemplateSpec {
 	return corev1.PodTemplateSpec{
-		ObjectMeta: metav1.ObjectMeta{Labels: selectorLabels(instance), Annotations: defaultPodAnnotations()},
+		ObjectMeta: metav1.ObjectMeta{Labels: labels(instance), Annotations: defaultPodAnnotations()},
 		Spec: corev1.PodSpec{
 			TerminationGracePeriodSeconds: ptr(int64(255)),
 			NodeSelector:                  defaultNodeSelector(),
@@ -328,7 +328,7 @@ func volumes(instance *kurav1alpha1.KuraInstance) []corev1.Volume {
 func dataVolumeClaim(instance *kurav1alpha1.KuraInstance) corev1.PersistentVolumeClaim {
 	storage := resource.MustParse("20Gi")
 	pvc := corev1.PersistentVolumeClaim{
-		ObjectMeta: metav1.ObjectMeta{Name: "data"},
+		ObjectMeta: metav1.ObjectMeta{Name: "data", Labels: labels(instance)},
 		Spec: corev1.PersistentVolumeClaimSpec{
 			AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOncePod},
 			Resources:   corev1.VolumeResourceRequirements{Requests: corev1.ResourceList{corev1.ResourceStorage: storage}},

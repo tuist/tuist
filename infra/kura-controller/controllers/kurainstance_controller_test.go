@@ -101,6 +101,18 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	if got := sts.Spec.Template.Spec.NodeSelector["node.cluster.x-k8s.io/pool"]; got != "kura" {
 		t.Fatalf("expected kura node pool selector, got %q", got)
 	}
+	if got := sts.Spec.Template.Labels["tuist.dev/account"]; got != "tuist" {
+		t.Fatalf("expected pod template account label, got %q", got)
+	}
+	if got := sts.Spec.Template.Labels["tuist.dev/region"]; got != "eu" {
+		t.Fatalf("expected pod template region label, got %q", got)
+	}
+	if got := sts.Spec.VolumeClaimTemplates[0].Labels["tuist.dev/account"]; got != "tuist" {
+		t.Fatalf("expected PVC account label, got %q", got)
+	}
+	if got := sts.Spec.VolumeClaimTemplates[0].Labels["tuist.dev/region"]; got != "eu" {
+		t.Fatalf("expected PVC region label, got %q", got)
+	}
 	if got := *sts.Spec.VolumeClaimTemplates[0].Spec.StorageClassName; got != "hcloud-volumes" {
 		t.Fatalf("expected storage class, got %q", got)
 	}
