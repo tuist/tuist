@@ -14,14 +14,15 @@ defmodule Tuist.Tests.TestCaseLastRanByCi do
 
   use Ecto.Schema
 
-  # `tc_id` is named differently from `test_cases.id` / `test_case_runs.test_case_id`
-  # because aliasing the projection back to `test_case_id` in the MV's SELECT
-  # collides with the source column name in the GROUP BY (ClickHouse resolves
-  # alias names ahead of column names). See the migration for the full reasoning.
+  # The underlying ClickHouse column is `tc_id`, not `test_case_id`: aliasing
+  # the projection back to `test_case_id` in the MV's SELECT would collide
+  # with the source column name in the GROUP BY (ClickHouse resolves alias
+  # names ahead of column names). The `:source` option keeps the abbreviation
+  # confined to the storage layer so callers see the conventional name.
   @primary_key false
   schema "test_cases_last_ran_by_ci" do
     field :project_id, Ch, type: "Int64"
     field :is_ci, :boolean
-    field :tc_id, Ch, type: "UUID"
+    field :test_case_id, Ch, type: "UUID", source: :tc_id
   end
 end

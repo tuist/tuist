@@ -1595,11 +1595,11 @@ defmodule Tuist.Tests do
           )
 
         # The CI-vs-local dimension isn't denormalized on `test_cases`, so the
-        # CI/Local dropdown still has to consult `test_case_runs` to scope the
-        # active set. Worth denormalizing as a follow-up — a small
-        # `(project_id, is_ci, test_case_id) → max(ran_at)` aggregating MV
-        # would close the gap; the existing `proj_by_branch_ci` projection
-        # doesn't help here because it requires a `git_branch` filter.
+        # CI/Local dropdown joins against `active_test_case_ids_query`, which
+        # in turn reads from the `test_cases_last_ran_by_ci` MV — a small
+        # `(project_id, is_ci, test_case_id) → maxState(ran_at)` aggregating
+        # view kept ~scoped to "distinct test cases per project". Replaces a
+        # ~94 M-row scan over `test_case_runs` with a tiny GROUP BY.
         not is_nil(active_period) ->
           active_ids = active_test_case_ids_query(project_id, active_period, is_ci)
 
@@ -1672,11 +1672,11 @@ defmodule Tuist.Tests do
 
     from(mv in TestCaseLastRanByCi,
       where: mv.project_id == ^project_id and mv.is_ci == ^is_ci,
-      group_by: mv.tc_id,
+      group_by: mv.test_case_id,
       having:
         fragment("maxMerge(last_ran_at_state) >= ?", ^start_naive) and
           fragment("maxMerge(last_ran_at_state) <= ?", ^end_naive),
-      select: %{test_case_id: mv.tc_id}
+      select: %{test_case_id: mv.test_case_id}
     )
   end
 
