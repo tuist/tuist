@@ -41,6 +41,7 @@ public class TrackableCommand {
     private let commandEventFactory: CommandEventFactory
     private let backgroundProcessRunner: BackgroundProcessRunning
     private let uploadAnalyticsService: UploadAnalyticsServicing
+    private let serverAuthenticationController: ServerAuthenticationControlling
     private let fileSystem: FileSysteming
     private let sessionDirectory: AbsolutePath
 
@@ -51,6 +52,7 @@ public class TrackableCommand {
         commandEventFactory: CommandEventFactory = CommandEventFactory(),
         backgroundProcessRunner: BackgroundProcessRunning = BackgroundProcessRunner(),
         uploadAnalyticsService: UploadAnalyticsServicing = UploadAnalyticsService(),
+        serverAuthenticationController: ServerAuthenticationControlling = ServerAuthenticationController(),
         fileSystem: FileSysteming = FileSystem(),
         sessionDirectory: AbsolutePath
     ) {
@@ -60,6 +62,7 @@ public class TrackableCommand {
         self.commandEventFactory = commandEventFactory
         self.backgroundProcessRunner = backgroundProcessRunner
         self.uploadAnalyticsService = uploadAnalyticsService
+        self.serverAuthenticationController = serverAuthenticationController
         self.fileSystem = fileSystem
         self.sessionDirectory = sessionDirectory
     }
@@ -94,7 +97,8 @@ public class TrackableCommand {
                             runMetadataStorage: runMetadataStorage,
                             fullHandle: fullHandle,
                             serverURL: serverURL,
-                            ranAt: ranAt
+                            ranAt: ranAt,
+                            usesOptionalAuthentication: usesOptionalAuthentication
                         )
                     }
                 } catch {
@@ -107,7 +111,8 @@ public class TrackableCommand {
                             runMetadataStorage: runMetadataStorage,
                             fullHandle: fullHandle,
                             serverURL: serverURL,
-                            ranAt: ranAt
+                            ranAt: ranAt,
+                            usesOptionalAuthentication: usesOptionalAuthentication
                         )
                     }
                     throw error
@@ -124,8 +129,16 @@ public class TrackableCommand {
         runMetadataStorage: RunMetadataStorage,
         fullHandle: String,
         serverURL: URL,
-        ranAt: Date
+        ranAt: Date,
+        usesOptionalAuthentication: Bool
     ) async throws {
+        if usesOptionalAuthentication {
+            let hasToken = try await hasAuthenticationToken(serverURL: serverURL)
+            if !hasToken {
+                Logger.current.debug("Skipping run metadata upload: no authentication credentials available.")
+                return
+            }
+        }
         let durationInSeconds = timer.stop()
         let durationInMs = Int(durationInSeconds * 1000)
         let configuration = type(of: command).configuration
@@ -199,6 +212,18 @@ public class TrackableCommand {
                 ],
                 environment: ProcessInfo.processInfo.environment
             )
+        }
+    }
+
+    private func hasAuthenticationToken(serverURL: URL) async throws -> Bool {
+        do {
+            let token = try await serverAuthenticationController.authenticationToken(
+                serverURL: serverURL,
+                refreshIfNeeded: false
+            )
+            return token != nil
+        } catch {
+            return false
         }
     }
 
