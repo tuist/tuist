@@ -42,7 +42,7 @@ defmodule Tuist.Runners.Dispatch do
     full_name = Map.get(repo, "full_name", "")
     requested = Map.get(job, "labels", [])
 
-    with {:ok, pool} <- PoolConfig.match_for_dispatch(full_name, requested),
+    with {:ok, pool} <- PoolConfig.match_for_dispatch(full_name, requested, nil),
          [idle | _] <- Runners.list_idle_assignments(),
          {:ok, %{encoded_jit_config: jit, runner_name: runner_name}} <-
            GitHubClient.generate_jit_config(installation_id, pool.owner, pool.repo, %{

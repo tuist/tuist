@@ -93,12 +93,17 @@ defmodule Tuist.Runners.PoolConfig do
   event. Matches on `repository.full_name` (case-insensitive) and
   the requested `runs-on` labels intersecting the pool's labels.
   Returns `{:ok, pool}` or `{:error, :no_match}`.
+
+  `pools_override` is for tests; production callers omit it and
+  resolve via `pools/0`.
   """
-  def match_for_dispatch(repo_full_name, requested_labels) when is_binary(repo_full_name) and is_list(requested_labels) do
+  def match_for_dispatch(repo_full_name, requested_labels, pools_override \\ nil)
+      when is_binary(repo_full_name) and is_list(requested_labels) do
     needle = String.downcase(repo_full_name)
     requested = MapSet.new(requested_labels, &String.downcase/1)
+    candidates = pools_override || pools()
 
-    Enum.find_value(pools(), {:error, :no_match}, fn pool ->
+    Enum.find_value(candidates, {:error, :no_match}, fn pool ->
       full = String.downcase("#{pool.owner}/#{pool.repo}")
       pool_labels = MapSet.new(pool.labels, &String.downcase/1)
 
