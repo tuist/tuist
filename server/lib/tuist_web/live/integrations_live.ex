@@ -238,7 +238,8 @@ defmodule TuistWeb.IntegrationsLive do
   end
 
   # The GitHub integration card is shown when ANY of:
-  #   * The github.com Tuist App env vars are set (Tuist Cloud always);
+  #   * The github.com Tuist App env vars are set (the hosted Tuist server
+  #     always has them);
   #   * An installation already exists for the account (GHES install
   #     persisted via the manifest flow even with no env vars);
   #   * The account is entitled to GHES (so they can start the manifest

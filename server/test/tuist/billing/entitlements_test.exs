@@ -7,7 +7,7 @@ defmodule Tuist.Billing.EntitlementsTest do
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
 
-  describe "allows?/2 — :github_enterprise_server on Tuist Cloud" do
+  describe "allows?/2 — :github_enterprise_server on the hosted Tuist server" do
     setup do
       stub(Environment, :tuist_hosted?, fn -> true end)
       :ok

@@ -9,19 +9,16 @@ defmodule Tuist.Billing.Entitlements do
   the application layer.
 
   Add a feature by adding a `plan_allows?/2` clause for it. Default is
-  to deny on Tuist Cloud, so unknown feature names fail closed.
+  to deny on the hosted Tuist server, so unknown feature names fail closed.
   """
 
   alias Tuist.Accounts.Account
   alias Tuist.Billing
   alias Tuist.Environment
 
-  @type feature :: :github_enterprise_server
-
   @doc """
   Returns true when the account's plan grants access to `feature`.
   """
-  @spec allows?(Account.t() | nil, feature()) :: boolean()
   def allows?(account, feature) do
     not Environment.tuist_hosted?() or plan_allows?(current_plan(account), feature)
   end

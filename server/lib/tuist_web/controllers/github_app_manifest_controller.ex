@@ -2,9 +2,9 @@ defmodule TuistWeb.GitHubAppManifestController do
   @moduledoc """
   Implements GitHub's [App manifest registration flow](https://docs.github.com/en/apps/sharing-github-apps/registering-a-github-app-from-a-manifest)
   so a Tuist organization can stand up a brand new GitHub App on its own
-  GitHub Enterprise Server (GHES) instance — Tuist Cloud cannot install
-  its own github.com App on a GHES instance, since GitHub Apps are scoped
-  to a single GitHub instance.
+  GitHub Enterprise Server (GHES) instance — the Tuist App registered on
+  github.com cannot be installed on a GHES instance, since GitHub Apps
+  are scoped to a single GitHub instance.
 
   Two-step flow:
 

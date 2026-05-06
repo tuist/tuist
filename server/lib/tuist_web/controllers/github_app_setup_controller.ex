@@ -3,11 +3,11 @@ defmodule TuistWeb.GitHubAppSetupController do
   Handles the post-installation callback GitHub redirects to once a user
   finishes installing the Tuist GitHub App. Two flows land here:
 
-  - **github.com**: the App is globally registered for Tuist Cloud, so we
-    create a fresh `GitHubAppInstallation` row keyed on `account_id` with
-    the `installation_id` GitHub assigned. Per-installation App
-    credential columns stay nil and Tuist falls back to the
-    `TUIST_GITHUB_APP_*` env vars.
+  - **github.com**: the App is globally registered via the
+    `TUIST_GITHUB_APP_*` env vars, so we create a fresh
+    `GitHubAppInstallation` row keyed on `account_id` with the
+    `installation_id` GitHub assigned. Per-installation App credential
+    columns stay nil and Tuist falls back to those env vars.
 
   - **GitHub Enterprise Server (manifest flow)**: a pending row already
     exists — `TuistWeb.GitHubAppManifestController` created it when GHES

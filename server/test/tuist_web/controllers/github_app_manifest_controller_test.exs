@@ -10,7 +10,8 @@ defmodule TuistWeb.GitHubAppManifestControllerTest do
   alias TuistWeb.Errors.BadRequestError
 
   setup do
-    # The manifest flow is gated to Enterprise plans on Tuist Cloud. The
+    # The manifest flow is gated to Enterprise plans on the hosted Tuist
+    # server. The
     # existing scenarios below cover the protocol regardless of plan, so we
     # default to self-hosted (where the gate is always open) and let the
     # dedicated "Enterprise plan gate" describe block opt back in.
@@ -168,7 +169,7 @@ defmodule TuistWeb.GitHubAppManifestControllerTest do
     end
   end
 
-  describe "Enterprise plan gate (Tuist Cloud)" do
+  describe "Enterprise plan gate (hosted Tuist server)" do
     setup do
       stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
       :ok

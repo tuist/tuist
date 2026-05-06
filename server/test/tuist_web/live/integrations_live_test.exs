@@ -178,7 +178,7 @@ defmodule TuistWeb.IntegrationsLiveTest do
     assert html =~ "test-org/test-repo"
   end
 
-  describe "GitHub Enterprise Server entitlement gate (Tuist Cloud)" do
+  describe "GitHub Enterprise Server entitlement gate (hosted Tuist server)" do
     setup do
       stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
       :ok

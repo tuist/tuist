@@ -1366,7 +1366,7 @@ defmodule Tuist.VCS do
   For github.com, returns the direct installation URL of the
   globally-configured Tuist App. For a GHES `client_url`, returns an
   internal route that kicks off the App manifest registration flow —
-  GitHub Apps are scoped to a single GitHub instance, so a Tuist Cloud
+  GitHub Apps are scoped to a single GitHub instance, so the Tuist
   App registered on github.com cannot be installed on GHES; the customer
   must register and install their own App on the GHES instance and we
   store its credentials per-installation.

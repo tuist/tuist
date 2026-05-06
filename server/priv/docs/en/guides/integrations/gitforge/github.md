@@ -32,9 +32,9 @@ Because GitHub Apps are scoped to a single GitHub instance, Tuist cannot reuse i
 No additional Tuist server configuration is needed; the manifest flow generates and provisions everything automatically.
 
 > [!NOTE]
-> **Enterprise plan only on Tuist Cloud**
+> **Enterprise plan only on the hosted Tuist server**
 >
-> On Tuist Cloud, the GitHub Enterprise Server integration is available exclusively to organizations on the **Enterprise** plan. Self-hosted Tuist deployments can use it on any plan.
+> On the hosted Tuist server (`https://tuist.dev`), the GitHub Enterprise Server integration is available exclusively to organizations on the **Enterprise** plan. Self-hosted Tuist deployments can use it on any plan.
 
 
 ## Pull/merge request comments {#pull-merge-request-comments}
