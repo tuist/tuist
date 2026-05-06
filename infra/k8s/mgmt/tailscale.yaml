@@ -1,0 +1,205 @@
+# Joins the management VM to a Tailscale tailnet as a regular tailnet
+# node so operators reach talosd on :50000 via a stable tailnet IP /
+# MagicDNS name (`tuist-mgmt`) instead of a hand-maintained
+# operator-IP allowlist on the Hetzner firewall.
+#
+# Architecture: tailscaled runs in a Deployment with hostNetwork=true
+# on the single mgmt control-plane node. The WireGuard interface lives
+# on the host, so inbound tailnet traffic is routed by the host kernel
+# to whatever's listening on :50000 (talosd). No subnet routing
+# needed — there's exactly one host to reach.
+#
+# Authentication: OAuth client credentials, NOT a regular auth key.
+# OAuth clients don't have the 90-day rotation cap that auth keys do
+# (Tailscale UI caps auth-key expiry at 90 days), and they're the
+# pattern Tailscale recommends for unattended Kubernetes deployments.
+# The `tailscale/tailscale` container detects an OAuth secret by the
+# `tskey-client-` prefix on TS_AUTHKEY and uses it to mint a
+# short-lived auth key on the fly at registration time.
+#
+# Operator onboarding (one-time per operator):
+#   1. Install tailscale (https://tailscale.com/download).
+#   2. Be added to the Tuist tailnet by an admin.
+#   3. `talosctl config endpoint tuist-mgmt` (replaces the public IP).
+#   4. `talosctl health` should return clean.
+#
+# Tenant bootstrap (one-time, ever):
+#   1. Create / use the tuist.dev Tailscale tenant.
+#   2. In the ACL editor (Access Controls → Edit file), add a tag
+#      definition for the mgmt VM. The owner restricts who can mint
+#      keys for this tag — keep it to admins only:
+#        "tagOwners": {
+#          "tag:tuist-mgmt": ["autogroup:admin"]
+#        }
+#      (Merge with any existing `tagOwners` block; don't replace.)
+#   3. Settings → OAuth clients → Generate OAuth client.
+#      - Description: `mgmt-cluster tailscaled (manifest: infra/k8s/mgmt/tailscale.yaml)`
+#      - Scopes: `auth_keys` write (Devices → Auth Keys → Write)
+#      - Tags: `tag:tuist-mgmt` (limits what the client can mint)
+#      Copy the secret (starts with `tskey-client-`); shown once.
+#   4. Store the secret in 1Password as
+#      `tailscale-mgmt-oauth-client-secret`.
+#   5. On the mgmt cluster:
+#        kubectl -n mgmt-system create secret generic tailscale-oauth \
+#          --from-literal=TS_AUTHKEY="tskey-client-PASTE?ephemeral=false&preauthorized=true"
+#      `ephemeral=false&preauthorized=true` keep the device long-lived
+#      and skip manual approval. Don't add `&tag=` here — containerboot
+#      rejects it as an unknown attribute. The tag is set instead by
+#      `--advertise-tags=tag:tuist-mgmt` in TS_EXTRA_ARGS below, which
+#      OAuth flow requires regardless.
+#   6. `kubectl apply -f infra/k8s/mgmt/tailscale.yaml`.
+#   7. Wait for the pod to come up, confirm the device shows up in
+#      the Tailscale admin console as `tuist-mgmt` with `tag:tuist-mgmt`.
+#   8. In the admin console: Machines → tuist-mgmt → ⋯ → Disable key
+#      expiry. Default node-key expiry is 180 days; disabling it on
+#      this single long-lived device keeps the running mgmt pod from
+#      silently breaking on a forgotten rotation.
+#   9. Test from an operator machine: `talosctl --endpoints tuist-mgmt
+#      --nodes tuist-mgmt version` returns the expected Talos version.
+#  10. Drop the `:50000` allowlist rule from the `tuist-mgmt` Hetzner
+#      firewall. Re-test talosctl. `:6443` stays public + cert auth
+#      (CI workflows reach it via KUBECONFIG_MGMT).
+#
+# Rotation: the OAuth client itself doesn't expire. Revoke it via the
+# admin console if compromised; create a replacement, update the
+# `tailscale-oauth` Secret, restart the Deployment.
+#
+# Failure mode: if Tailscale's coordination server is unreachable,
+# already-paired peers keep working over their last-known direct path
+# or DERP relay. If tailscaled crashes here, operators briefly lose
+# `:50000` access until it restarts (a few seconds). `:6443` is
+# unaffected — that's still the public Hetzner IP + cert auth, so the
+# cluster keeps reconciling and CI keeps deploying.
+#
+# Expects:
+#   - mgmt-system namespace (created by etcd-snapshot.yaml).
+#   - Secret `tailscale-oauth` (TS_AUTHKEY field, OAuth client secret
+#     prefixed with `tskey-client-`), pre-created per the bootstrap
+#     steps above.
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: tailscale
+  namespace: mgmt-system
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: tailscale
+  namespace: mgmt-system
+rules:
+  # tailscaled persists its node key + machine state in the Secret
+  # named by TS_KUBE_SECRET. Scoped tightly to that single object.
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["tailscale-state"]
+    verbs: ["get", "update", "patch"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["create"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: tailscale
+  namespace: mgmt-system
+subjects:
+  - kind: ServiceAccount
+    name: tailscale
+    namespace: mgmt-system
+roleRef:
+  kind: Role
+  name: tailscale
+  apiGroup: rbac.authorization.k8s.io
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tailscale
+  namespace: mgmt-system
+  labels:
+    app: tailscale
+spec:
+  replicas: 1
+  strategy:
+    # One mgmt node, one tailscaled. RollingUpdate would briefly run
+    # two pods racing for the same TS_KUBE_SECRET / device identity.
+    type: Recreate
+  selector:
+    matchLabels:
+      app: tailscale
+  template:
+    metadata:
+      labels:
+        app: tailscale
+    spec:
+      serviceAccountName: tailscale
+      # hostNetwork: WireGuard interface created by tailscaled lives
+      # on the host so inbound traffic on the tailnet IP can reach
+      # services already listening on the host (talosd on :50000).
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+      nodeSelector:
+        node-role.kubernetes.io/control-plane: ""
+      containers:
+        - name: tailscale
+          image: ghcr.io/tailscale/tailscale:v1.84.0
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: TS_AUTHKEY
+              valueFrom:
+                secretKeyRef:
+                  name: tailscale-oauth
+                  key: TS_AUTHKEY
+            - name: TS_HOSTNAME
+              value: tuist-mgmt
+            - name: TS_KUBE_SECRET
+              value: tailscale-state
+            - name: TS_USERSPACE
+              # false = kernel WireGuard. Talos ships with the
+              # wireguard module loaded; if a future Talos release
+              # drops it we'll see this pod fail and can flip to
+              # userspace mode (small perf hit, no functional change
+              # for the low traffic on a mgmt session).
+              value: "false"
+            - name: TS_ACCEPT_DNS
+              # Don't override the host's DNS resolver (Talos manages
+              # /etc/resolv.conf). Set as env var, NOT in
+              # TS_EXTRA_ARGS — containerboot already passes
+              # --accept-dns based on this env var, and adding the
+              # same flag to TS_EXTRA_ARGS causes "flag provided
+              # multiple times" and a crashloop.
+              value: "false"
+            - name: TS_EXTRA_ARGS
+              # OAuth flow requires --advertise-tags here in addition
+              # to the `?tag=` query param on TS_AUTHKEY (containerboot
+              # rejects OAuth auth keys without --advertise-tags).
+              value: "--advertise-tags=tag:tuist-mgmt"
+          securityContext:
+            capabilities:
+              add:
+                - NET_ADMIN
+                - NET_RAW
+          volumeMounts:
+            - name: tun
+              mountPath: /dev/net/tun
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 128Mi
+      volumes:
+        - name: tun
+          hostPath:
+            path: /dev/net/tun
+            type: CharDevice

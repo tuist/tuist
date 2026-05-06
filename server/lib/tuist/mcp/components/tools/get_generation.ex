@@ -5,6 +5,7 @@ defmodule Tuist.MCP.Components.Tools.GetGeneration do
 
   use Tuist.MCP.Tool,
     name: "get_generation",
+    title: "Get Project Generation",
     schema: %{
       "type" => "object",
       "properties" => %{

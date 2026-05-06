@@ -5,6 +5,7 @@ defmodule Tuist.MCP.Components.Tools.GetTestCaseRun do
 
   use Tuist.MCP.Tool,
     name: "get_test_case_run",
+    title: "Get Test Case Run",
     schema: %{
       "type" => "object",
       "properties" => %{

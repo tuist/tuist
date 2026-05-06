@@ -116,7 +116,7 @@ defmodule Tuist.MixProject do
       {:retry, "~> 0.19"},
       {:redirect, "~> 0.4.0"},
       {:let_me, "~> 1.2"},
-      {:emcp, "~> 0.3.2"},
+      {:emcp, "~> 0.3.4"},
       {:ua_parser, "~> 1.8"},
       {:money, "~> 1.12"},
       {:image, "~> 0.60"},

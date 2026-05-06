@@ -6,6 +6,14 @@ defmodule TuistWeb.LayoutComponents do
 
   import TuistWeb.CSP, only: [get_csp_nonce: 0]
 
+  def head_favicon_links(assigns) do
+    ~H"""
+    <link rel="icon" href={~p"/favicon.ico"} sizes="any" />
+    <link rel="icon" type="image/png" sizes="32x32" href={~p"/favicon-32x32.png"} />
+    <link rel="icon" type="image/png" sizes="16x16" href={~p"/favicon-16x16.png"} />
+    """
+  end
+
   attr(:current_user, :map, default: nil)
 
   def head_plain_script(assigns) do

@@ -352,6 +352,41 @@ defmodule XcodeProcessor.XCResultProcessorTest do
       assert {:ok, ^parsed_data} = XCResultProcessor.process("some/key.aar")
     end
 
+    test "treats temp dir as the bundle when archive lacks an .xcresult wrapper" do
+      fixture_dir =
+        Path.join(
+          System.tmp_dir!(),
+          "xcresult_legacy_fixture_#{:erlang.unique_integer([:positive])}"
+        )
+
+      File.mkdir_p!(fixture_dir)
+      fixture_path = Path.join(fixture_dir, "fixture.aar")
+      File.write!(fixture_path, <<0x62, 0x76, 0x78, 0x32, "fake-aar-body">>)
+      on_exit(fn -> File.rm_rf(fixture_dir) end)
+
+      parsed_data = %{"tests" => [%{"name" => "testLegacy", "status" => "passed"}]}
+
+      stub(ExAws.S3, :download_file, fn _bucket, _key, dest_path ->
+        File.cp!(fixture_path, dest_path)
+        %ExAws.Operation.S3{http_method: :get, bucket: "tuist", path: "key"}
+      end)
+
+      expect(ExAws, :request, fn _ -> {:ok, :done} end)
+
+      expect(XcodeProcessor.XCResultNIF, :decompress_archive, fn _archive_path, temp_dir ->
+        File.write!(Path.join(temp_dir, "Info.plist"), "fake-plist")
+        File.mkdir_p!(Path.join(temp_dir, "Data"))
+        :ok
+      end)
+
+      expect(XcodeProcessor.XCResultNIF, :parse, fn xcresult_path, _root ->
+        assert File.exists?(Path.join(xcresult_path, "Info.plist"))
+        {:ok, parsed_data}
+      end)
+
+      assert {:ok, ^parsed_data} = XCResultProcessor.process("some/key.aar")
+    end
+
     test "surfaces NIF decompression failures for AppleArchive payloads" do
       fixture_dir =
         Path.join(

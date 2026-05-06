@@ -75,6 +75,38 @@ defmodule Tuist.AuthenticationTest do
     assert result.project_ids == []
   end
 
+  test "authenticated_subject returns nil for account tokens owned by inactive personal users" do
+    # Given
+    user = AccountsFixtures.user_fixture(preload: [:account])
+
+    {:ok, {_, token_value}} =
+      Accounts.create_account_token(%{account: user.account, scopes: ["project:cache:read"], name: "test-token"})
+
+    user |> User.active_changeset(false) |> Repo.update!()
+
+    # When/Then
+    assert Authentication.authenticated_subject(token_value) == nil
+  end
+
+  test "authenticated_subject returns nil for organization account tokens created by inactive users" do
+    # Given
+    organization_account = AccountsFixtures.organization_fixture(preload: [:account]).account
+    creator = AccountsFixtures.user_fixture(preload: [:account])
+
+    {:ok, {_, token_value}} =
+      Accounts.create_account_token(%{
+        account: organization_account,
+        created_by_account: creator.account,
+        scopes: ["project:cache:read"],
+        name: "test-token"
+      })
+
+    creator |> User.active_changeset(false) |> Repo.update!()
+
+    # When/Then
+    assert Authentication.authenticated_subject(token_value) == nil
+  end
+
   test "authenticated_subject returns AuthenticatedAccount for JWT account token" do
     # Given
     account = AccountsFixtures.organization_fixture(preload: [:account]).account
@@ -98,6 +130,27 @@ defmodule Tuist.AuthenticationTest do
 
     # Then
     assert account_id == account.id
+  end
+
+  test "authenticated_subject returns nil for JWT account tokens owned by inactive personal users" do
+    # Given
+    user = AccountsFixtures.user_fixture(preload: [:account])
+
+    {:ok, jwt_token, _claims} =
+      Authentication.encode_and_sign(
+        user.account,
+        %{
+          "type" => "account",
+          "scopes" => ["project:cache:read"]
+        },
+        token_type: :access,
+        ttl: {1, :hour}
+      )
+
+    user |> User.active_changeset(false) |> Repo.update!()
+
+    # When/Then
+    assert Authentication.authenticated_subject(jwt_token) == nil
   end
 
   test "refresh/2 refreshes an account JWT" do

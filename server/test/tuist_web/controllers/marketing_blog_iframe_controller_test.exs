@@ -19,5 +19,15 @@ defmodule TuistWeb.Marketing.MarketingBlogIframeControllerTest do
       assert response(conn, 200) =~ "viz-container"
       assert get_resp_header(conn, "content-type") == ["text/html; charset=utf-8"]
     end
+
+    test "renders the English template when accessed via a localized route", %{conn: conn} do
+      # When
+      conn =
+        get(conn, "/zh_Hans/blog/2025/11/17/smart-before-fast/iframe.html?id=complexity_wall")
+
+      # Then
+      assert response(conn, 200) =~ "viz-container"
+      assert get_resp_header(conn, "content-type") == ["text/html; charset=utf-8"]
+    end
   end
 end
