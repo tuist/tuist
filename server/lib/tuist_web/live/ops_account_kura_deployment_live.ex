@@ -23,13 +23,13 @@ defmodule TuistWeb.OpsAccountKuraDeploymentLive do
 
       {:ok, account} ->
         case Kura.get_deployment(account.id, deployment_id) do
-          nil ->
+          {:error, :not_found} ->
             {:ok,
              socket
              |> put_flash(:error, dgettext("dashboard", "Deployment not found."))
              |> push_navigate(to: ~p"/ops/accounts/#{account.id}")}
 
-          deployment ->
+          {:ok, deployment} ->
             if connected?(socket), do: schedule_poll(deployment)
 
             {:ok,
@@ -59,7 +59,11 @@ defmodule TuistWeb.OpsAccountKuraDeploymentLive do
   defp schedule_poll(_), do: :ok
 
   defp refresh(socket) do
-    deployment = Kura.get_deployment(socket.assigns.account.id, socket.assigns.deployment.id)
+    deployment =
+      case Kura.get_deployment(socket.assigns.account.id, socket.assigns.deployment.id) do
+        {:ok, deployment} -> deployment
+        {:error, :not_found} -> socket.assigns.deployment
+      end
 
     new_lines =
       Kura.list_log_lines(deployment.id,

@@ -415,11 +415,17 @@ defmodule Tuist.Kura do
 
   @doc "Fetches a deployment record, scoped so URLs cannot enumerate."
   def get_deployment(account_id, deployment_id) do
-    Deployment
-    |> join(:inner, [d], s in assoc(d, :kura_server))
-    |> where([d, s], d.id == ^deployment_id and s.account_id == ^account_id)
-    |> select([d, _s], d)
-    |> Repo.one()
+    deployment =
+      Deployment
+      |> join(:inner, [d], s in assoc(d, :kura_server))
+      |> where([d, s], d.id == ^deployment_id and s.account_id == ^account_id)
+      |> select([d, _s], d)
+      |> Repo.one()
+
+    case deployment do
+      nil -> {:error, :not_found}
+      deployment -> {:ok, deployment}
+    end
   end
 
   @doc "Marks a deployment record as running and stamps the start time."

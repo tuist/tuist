@@ -16,7 +16,7 @@ defmodule Tuist.IngestRepo.Migrations.CreateKuraDeploymentLogLines do
       add :sequence, :UInt64, null: false
       add :stream, :"Enum8('stdout' = 0, 'stderr' = 1)", null: false
       add :line, :string, null: false
-      add :inserted_at, :timestamp, default: fragment("now64(3)")
+      add :inserted_at, :"DateTime64(3)", default: fragment("now64(3)")
     end
   end
 end

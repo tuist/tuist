@@ -25,19 +25,19 @@ defmodule Tuist.Kura.Workers.RolloutWorker do
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"deployment_id" => id, "account_id" => account_id}}) do
     case Kura.get_deployment(account_id, id) do
-      nil ->
+      {:error, :not_found} ->
         Logger.warning("[Kura.RolloutWorker] deployment #{id} not found")
         :ok
 
-      %Deployment{status: :running} = deployment ->
+      {:ok, %Deployment{status: :running} = deployment} ->
         fail_running(deployment)
         :ok
 
-      %Deployment{status: status} when status in [:succeeded, :failed, :cancelled] ->
+      {:ok, %Deployment{status: status}} when status in [:succeeded, :failed, :cancelled] ->
         Logger.info("[Kura.RolloutWorker] deployment #{id} already in #{status}")
         :ok
 
-      %Deployment{} = deployment ->
+      {:ok, %Deployment{} = deployment} ->
         execute(deployment)
     end
   end
