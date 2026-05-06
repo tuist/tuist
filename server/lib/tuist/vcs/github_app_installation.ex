@@ -104,13 +104,29 @@ defmodule Tuist.VCS.GitHubAppInstallation do
   end
 
   @doc """
-  Returns true if the installation carries its own App credentials
-  (manifest-flow registered) instead of relying on the global env vars.
-  """
-  def has_own_app_credentials?(%__MODULE__{app_id: app_id, private_key: pk}) when is_binary(app_id) and is_binary(pk),
-    do: true
+  Returns true if the installation lives on a GitHub Enterprise Server
+  instance (any non-default `client_url`). Drives URL/link rendering and
+  API base URL selection.
 
-  def has_own_app_credentials?(_), do: false
+  Independent of `per_installation_credentials?/1` — today GHES rows
+  always carry per-installation credentials and github.com rows never
+  do, but the two questions answer different things and may diverge if
+  we ever offer per-tenant Apps on github.com.
+  """
+  def enterprise?(%__MODULE__{client_url: client_url}) when is_binary(client_url), do: client_url != @default_client_url
+
+  def enterprise?(_), do: false
+
+  @doc """
+  Returns true if the installation carries its own App credentials
+  (manifest-flow registered) and we should authenticate as it using
+  those, rather than falling back to the global `TUIST_GITHUB_APP_*`
+  env vars.
+  """
+  def per_installation_credentials?(%__MODULE__{app_id: app_id, private_key: pk})
+      when is_binary(app_id) and is_binary(pk), do: true
+
+  def per_installation_credentials?(_), do: false
 
   defp normalize_client_url(changeset) do
     case get_change(changeset, :client_url) do
