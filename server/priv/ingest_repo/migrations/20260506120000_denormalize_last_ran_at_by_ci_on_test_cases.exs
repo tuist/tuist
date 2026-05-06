@@ -14,10 +14,23 @@ defmodule Tuist.IngestRepo.Migrations.DenormalizeLastRanAtByCiOnTestCases do
   `last_ran_at_ci` is set from `data.ran_at` and `last_ran_at_local` is
   carried forward from the existing row (and vice versa).
 
-  Backfill seeds the new columns from `test_case_runs` history so listings
-  return the right set on day one. The insert sets `inserted_at = now64(6)`
-  to ensure the backfill row outranks the pre-migration version under
-  ReplacingMergeTree.
+  Backfill copies `last_ran_at` into both new columns. This deliberately
+  ignores the actual CI-vs-local origin of each historical run, so the
+  CI/Local toggle is briefly imprecise for stale tests right after deploy
+  — a test whose last run was local will show up in the CI listing
+  (and vice versa) until its next CI/local run rewrites the matching
+  column. For projects that use test insights actively, both columns
+  converge to the correct values within a day or two of normal traffic.
+  Inactive tests will continue to show the seeded fallback indefinitely;
+  this is acceptable because they're inactive.
+
+  The alternative — joining `test_case_runs` per (project_id, test_case_id,
+  is_ci) to compute the true historical max — would be precise but adds
+  a multi-way LEFT JOIN over the per-execution table for a one-time cost
+  the active-traffic path will overwrite anyway.
+
+  The insert sets `inserted_at = now64(6)` so the backfill row outranks
+  the pre-migration version under ReplacingMergeTree.
   """
   use Ecto.Migration
   alias Tuist.IngestRepo
@@ -36,46 +49,20 @@ defmodule Tuist.IngestRepo.Migrations.DenormalizeLastRanAtByCiOnTestCases do
     ADD COLUMN IF NOT EXISTS last_ran_at_local Nullable(DateTime64(6)) DEFAULT NULL
     """)
 
-    # The `assumeNotNull(test_case_id)` cast is wrapped in its own inner
-    # subquery so the outer `GROUP BY` sees a plain non-nullable column
-    # already named `test_case_id`. Aliasing the cast at the outer level
-    # would shadow the source column (ClickHouse resolves alias names ahead
-    # of column names) and trip a "not under aggregate function" error.
     IngestRepo.query!("""
     INSERT INTO test_cases
       (id, name, module_name, suite_name, project_id, last_status, last_duration,
        last_ran_at, inserted_at, recent_durations, avg_duration, is_flaky,
        is_quarantined, last_run_id, state, last_ran_at_ci, last_ran_at_local)
     SELECT
-      tc.id, tc.name, tc.module_name, tc.suite_name, tc.project_id,
-      tc.last_status, tc.last_duration, tc.last_ran_at,
+      id, name, module_name, suite_name, project_id,
+      last_status, last_duration, last_ran_at,
       now64(6) AS inserted_at,
-      tc.recent_durations, tc.avg_duration, tc.is_flaky,
-      tc.is_quarantined, tc.last_run_id, tc.state,
-      ci_max.last_ran_at_ci,
-      local_max.last_ran_at_local
-    FROM (SELECT * FROM test_cases FINAL) AS tc
-    LEFT JOIN (
-      SELECT project_id, test_case_id, max(ran_at) AS last_ran_at_ci
-      FROM (
-        SELECT project_id, assumeNotNull(test_case_id) AS test_case_id, ran_at
-        FROM test_case_runs
-        WHERE is_ci AND isNotNull(test_case_id)
-      )
-      GROUP BY project_id, test_case_id
-    ) AS ci_max
-      ON tc.project_id = ci_max.project_id AND tc.id = ci_max.test_case_id
-    LEFT JOIN (
-      SELECT project_id, test_case_id, max(ran_at) AS last_ran_at_local
-      FROM (
-        SELECT project_id, assumeNotNull(test_case_id) AS test_case_id, ran_at
-        FROM test_case_runs
-        WHERE NOT is_ci AND isNotNull(test_case_id)
-      )
-      GROUP BY project_id, test_case_id
-    ) AS local_max
-      ON tc.project_id = local_max.project_id AND tc.id = local_max.test_case_id
-    SETTINGS join_use_nulls = 1
+      recent_durations, avg_duration, is_flaky,
+      is_quarantined, last_run_id, state,
+      last_ran_at AS last_ran_at_ci,
+      last_ran_at AS last_ran_at_local
+    FROM test_cases FINAL
     """)
   end
 
