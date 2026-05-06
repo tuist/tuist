@@ -92,7 +92,7 @@ msgstr "캐시 실행"
 #: lib/tuist_web/live/layout_live.ex:176
 #, elixir-autogen, elixir-format
 msgid "Create organization"
-msgstr "조직 생성하기"
+msgstr "조직 생성"
 
 #: lib/tuist_web/components/account_dropdown.ex:91
 #, elixir-autogen, elixir-format
@@ -144,12 +144,12 @@ msgstr "통합"
 #: lib/tuist_web/controllers/github_app_setup_controller.ex:28
 #, elixir-autogen, elixir-format
 msgid "Invalid GitHub app installation. Please try again."
-msgstr "잘못된 GitHub 앱 설치입니다. 다시 시도해주세요."
+msgstr "잘못된 GitHub 앱 설치입니다. 다시 시도하세요."
 
 #: lib/tuist_web/controllers/github_app_setup_controller.ex:31
 #, elixir-autogen, elixir-format
 msgid "Invalid installation request. Please try again."
-msgstr "잘못된 설치 요청입니다. 다시 시도해주세요."
+msgstr "잘못된 설치 요청입니다. 다시 시도하세요."
 
 #: lib/tuist_web/components/app_layout_components.ex:392
 #, elixir-autogen, elixir-format
@@ -184,7 +184,7 @@ msgstr "모듈 캐시"
 #: lib/tuist_web/components/percentile_dropdown_widget.ex:117
 #, elixir-autogen, elixir-format
 msgid "N/A"
-msgstr "해당 없음"
+msgstr "정보 없음"
 
 #: lib/tuist_web/components/app_components.ex:60
 #, elixir-autogen, elixir-format
@@ -194,7 +194,7 @@ msgstr "다음"
 #: lib/tuist_web/components/widget.ex:146
 #, elixir-autogen, elixir-format
 msgid "No data yet"
-msgstr "데이터가 없습니다"
+msgstr "데이터 없음"
 
 #: lib/tuist_web/controllers/error_html.ex:64
 #, elixir-autogen, elixir-format
@@ -210,7 +210,7 @@ msgstr "운영 역할만 이 페이지에 접근할 수 있습니다."
 #: lib/tuist_web/controllers/error_html.ex:98
 #, elixir-autogen, elixir-format
 msgid "Oops! Something went wrong"
-msgstr "앗! 뭔가 잘못되었습니다"
+msgstr "앗! 문제가 발생했습니다"
 
 #: lib/tuist_web/controllers/error_html.ex:65
 #, elixir-autogen, elixir-format
@@ -230,7 +230,7 @@ msgstr "개요"
 #: lib/tuist_web/controllers/error_html.ex:44
 #, elixir-autogen, elixir-format
 msgid "Please, make sure you are accessing the right resource and that you have the permissions to access it."
-msgstr "올바른 리소스에 접근 중인지, 그리고 접근 권한이 있는지 확인해주세요."
+msgstr "올바른 리소스에 접근 중인지, 접근 권한이 있는지 확인하세요."
 
 #: lib/tuist_web/components/app_components.ex:51
 #, elixir-autogen, elixir-format
@@ -265,27 +265,27 @@ msgstr "프로젝트 설정"
 #: lib/tuist_web/controllers/error_html.ex:101
 #, elixir-autogen, elixir-format
 msgid "Sorry, something went wrong on our side. Contact us at contact@tuist.dev and we'll look into it."
-msgstr "죄송합니다. 저희 쪽에 문제가 발생했습니다. contact@tuist.dev로 문의해주시면 확인하겠습니다."
+msgstr "죄송합니다, 저희 쪽에서 문제가 발생했습니다. contact@tuist.dev로 연락 주시면 확인해드리겠습니다."
 
 #: lib/tuist_web/controllers/error_html.ex:58
 #, elixir-autogen, elixir-format
 msgid "Sorry, the page you are looking for doesn't exist or has been moved."
-msgstr "죄송합니다. 찾으시는 페이지가 없거나 이동되었습니다."
+msgstr "죄송합니다, 찾으시는 페이지가 없거나 이동되었습니다."
 
 #: lib/tuist_web/controllers/error_html.ex:79
 #, elixir-autogen, elixir-format
 msgid "Sorry, you made too many requests. Please try again later."
-msgstr "죄송합니다. 요청이 너무 많습니다. 나중에 다시 시도해주세요."
+msgstr "죄송합니다, 너무 많은 요청을 하셨습니다. 잠시 후 다시 시도하세요."
 
 #: lib/tuist_web/components/app_layout_components.ex:412
 #, elixir-autogen, elixir-format
 msgid "Storage"
-msgstr "저장소"
+msgstr "스토리지"
 
 #: lib/tuist_web/components/account_dropdown.ex:100
 #, elixir-autogen, elixir-format
 msgid "Switch to your preferred theme"
-msgstr "선호하는 테마로 변경하기"
+msgstr "선호하는 테마로 변경"
 
 #: lib/tuist_web/components/app_layout_components.ex:94
 #: lib/tuist_web/components/app_layout_components.ex:269
@@ -305,15 +305,15 @@ msgstr "테스트 실행"
 msgid "Tests"
 msgstr "테스트"
 
-#: lib/tuist_web/plugs/loader_plug.ex:53
+#: lib/tuist_web/plugs/loader_plug.ex:52
 #, elixir-autogen, elixir-format
 msgid "The account %{account_handle} was not found."
-msgstr "계정 %{account_handle}을(를) 찾을 수 없습니다."
+msgstr "계정 %{account_handle}를 찾을 수 없습니다."
 
 #: lib/tuist_web/live/layout_live.ex:153
 #, elixir-autogen, elixir-format
 msgid "The account you are looking for doesn't exist or has been moved."
-msgstr "찾으시는 계정이 없거나 이동되었습니다."
+msgstr "찾고 계신 계정이 없거나 이동되었습니다."
 
 #: lib/tuist_web/controllers/auth_controller.ex:29
 #, elixir-autogen, elixir-format
@@ -324,34 +324,34 @@ msgstr "인증 URL이 지원되지 않습니다"
 #: lib/tuist_web/authorization.ex:79
 #, elixir-autogen, elixir-format
 msgid "The page you are looking for doesn't exist or has been moved."
-msgstr "찾으시는 페이지가 없거나 이동되었습니다."
+msgstr "찾고 계신 페이지가 없거나 이동되었습니다."
 
 #: lib/tuist_web/controllers/preview_controller.ex:133
 #, elixir-autogen, elixir-format
 msgid "The preview ipa doesn't exist or has expired."
-msgstr "미리보기 ipa가 없거나 만료되었습니다."
+msgstr "미리 보기 IPA가 없거나 만료되었습니다."
 
 #: lib/tuist_web/controllers/api/cache/plugs/loader_query_plug.ex:36
-#: lib/tuist_web/plugs/loader_plug.ex:116
+#: lib/tuist_web/plugs/loader_plug.ex:115
 #, elixir-autogen, elixir-format
 msgid "The project %{project_slug} was not found."
-msgstr "프로젝트 %{project_slug}을(를) 찾을 수 없습니다."
+msgstr "프로젝트 %{project_slug}을 찾을 수 없습니다."
 
 #: lib/tuist_web/controllers/api/cache/plugs/loader_query_plug.ex:45
-#: lib/tuist_web/plugs/loader_plug.ex:120
+#: lib/tuist_web/plugs/loader_plug.ex:119
 #, elixir-autogen, elixir-format
 msgid "The project full handle %{project_slug} is invalid. It should follow the convention 'account_handle/project_handle'."
-msgstr "프로젝트 전체 핸들 %{project_slug}이(가) 잘못되었습니다. 'account_handle/project_handle' 형식을 따라야 합니다."
+msgstr "프로젝트 전체 핸들 %{project_slug}이 유효하지 않습니다. 'account_handle/project_handle' 규칙을 따라야 합니다."
 
 #: lib/tuist_web/live/layout_live.ex:61
 #, elixir-autogen, elixir-format
 msgid "The project you are looking for doesn't exist or has been moved."
 msgstr "찾으시는 프로젝트가 없거나 이동되었습니다."
 
-#: lib/tuist_web/plugs/loader_plug.ex:96
+#: lib/tuist_web/plugs/loader_plug.ex:95
 #, elixir-autogen, elixir-format
 msgid "The run with ID %{run_id} was not found."
-msgstr "ID가 %{run_id}인 실행을 찾을 수 없습니다."
+msgstr "ID %{run_id}인 실행을 찾을 수 없습니다."
 
 #: lib/tuist_web/live/layout_live.ex:253
 #, elixir-autogen, elixir-format
@@ -374,10 +374,10 @@ msgstr "요청이 너무 많습니다."
 msgid "Tuist Icon"
 msgstr "Tuist 아이콘"
 
-#: lib/tuist_web/components/layout_components.ex:56
+#: lib/tuist_web/components/layout_components.ex:64
 #, elixir-autogen, elixir-format
 msgid "Tuist extends Apple's tools, helping you ship apps that stand out."
-msgstr "Tuist는 Apple의 도구를 확장하여 돋보이는 앱을 출시할 수 있도록 도와줍니다."
+msgstr "Tuist는 Apple의 도구를 확장하여 돋보이는 앱 개발을 돕습니다."
 
 #: lib/tuist_web/controllers/error_html.ex:40
 #, elixir-autogen, elixir-format
@@ -412,7 +412,7 @@ msgstr "이 페이지에 접근하려면 인증이 필요합니다."
 #: lib/tuist_web/controllers/user_session_controller.ex:28
 #, elixir-autogen, elixir-format
 msgid "You've exceeded the rate limit. Try again later."
-msgstr "요청 제한을 초과했습니다. 나중에 다시 시도해주세요."
+msgstr "요청 제한을 초과했습니다. 나중에 다시 시도하세요."
 
 #: lib/tuist_web/components/terminal.ex:10
 #, elixir-autogen, elixir-format
@@ -443,7 +443,7 @@ msgstr "불안정한 테스트"
 #: lib/tuist_web/components/public_project_cta_banner.ex:33
 #, elixir-autogen, elixir-format
 msgid "Ready to speed up your builds and unlock insights for your app?"
-msgstr "빌드 속도를 높이고 앱에 대한 인사이트를 얻을 준비가 되셨나요?"
+msgstr "빌드를 가속화하고 앱에 대한 인사이트를 얻을 준비가 되셨나요?"
 
 #: lib/tuist_web/components/public_project_cta_banner.ex:47
 #, elixir-autogen, elixir-format
@@ -464,7 +464,7 @@ msgstr "격리된 테스트"
 #: lib/tuist_web/components/app_layout_components.ex:180
 #, elixir-autogen, elixir-format
 msgid "Generations"
-msgstr "생성"
+msgstr "세대"
 
 #: lib/tuist_web/components/app_layout_components.ex:319
 #, elixir-autogen, elixir-format
@@ -485,7 +485,7 @@ msgstr "캐시"
 #: lib/tuist_web/controllers/preview_controller.ex:154
 #, elixir-autogen, elixir-format
 msgid "The preview APK doesn't exist or has expired."
-msgstr "미리보기 APK가 없거나 만료되었습니다."
+msgstr "미리 보기 APK가 없거나 만료되었습니다."
 
 #: lib/tuist_web/live/components/machine_metrics_charts.ex:73
 #, elixir-autogen, elixir-format
@@ -497,11 +497,11 @@ msgstr "지표"
 msgid "Authentication failed"
 msgstr "인증 실패"
 
-#: lib/tuist_web/controllers/auth_controller.ex:330
-#: lib/tuist_web/controllers/auth_controller.ex:502
+#: lib/tuist_web/controllers/auth_controller.ex:343
+#: lib/tuist_web/controllers/auth_controller.ex:515
 #, elixir-autogen, elixir-format
 msgid "Your identity provider denied access. Please ask your organization admin to assign you to the Tuist application."
-msgstr "귀하의 아이덴티티 공급자가 접근을 거부했습니다. 조직 관리자에게 Tuist 애플리케이션 할당을 요청하세요."
+msgstr "신원 제공자가 접근을 거부했습니다. 조직 관리자에게 Tuist 애플리케이션에 할당해 달라고 요청하세요."
 
 #: lib/tuist_web/components/app_layout_components.ex:131
 #: lib/tuist_web/components/app_layout_components.ex:306
@@ -509,100 +509,100 @@ msgstr "귀하의 아이덴티티 공급자가 접근을 거부했습니다. 조
 msgid "Shards"
 msgstr "샤드"
 
-#: lib/tuist_web/controllers/auth_controller.ex:339
+#: lib/tuist_web/controllers/auth_controller.ex:352
 #, elixir-autogen, elixir-format
 msgid "Authentication with the identity provider failed. Please try again."
-msgstr "아이덴티티 공급자와의 인증에 실패했습니다. 다시 시도해주세요."
+msgstr "신원 제공자와의 인증에 실패했습니다. 다시 시도하세요."
 
-#: lib/tuist_web/controllers/auth_controller.ex:586
+#: lib/tuist_web/controllers/auth_controller.ex:599
 #, elixir-autogen, elixir-format
 msgid "Failed to authenticate with the SSO provider. Please try again."
-msgstr "SSO 공급자와의 인증에 실패했습니다. 다시 시도해주세요."
+msgstr "SSO 제공자와 인증에 실패했습니다. 다시 시도하세요."
 
-#: lib/tuist_web/controllers/auth_controller.ex:481
+#: lib/tuist_web/controllers/auth_controller.ex:494
 #, elixir-autogen, elixir-format
 msgid "SSO is not fully configured for this organization. Ask an organization admin to review the SSO settings."
-msgstr "이 조직에 대한 SSO가 완전히 구성되지 않았습니다. 조직 관리자에게 SSO 설정 검토를 요청하세요."
+msgstr "이 조직에 대해 SSO가 완전히 구성되지 않았습니다. 조직 관리자에게 SSO 설정을 검토해 달라고 요청하세요."
 
-#: lib/tuist_web/controllers/auth_controller.ex:544
+#: lib/tuist_web/controllers/auth_controller.ex:557
 #, elixir-autogen, elixir-format
 msgid "The SSO authorization code is invalid or expired. Please restart the sign-in flow."
-msgstr "SSO 승인 코드가 잘못되었거나 만료되었습니다. 로그인 절차를 다시 시작해주세요."
+msgstr "SSO 권한 부여 코드가 잘못되었거나 만료되었습니다. 로그인 절차를 다시 시작하세요."
 
-#: lib/tuist_web/controllers/auth_controller.ex:516
+#: lib/tuist_web/controllers/auth_controller.ex:529
 #, elixir-autogen, elixir-format
 msgid "The SSO provider callback is missing an authorization code. Please restart the sign-in flow."
-msgstr "SSO 공급자 콜백에 승인 코드가 누락되었습니다. 로그인 절차를 다시 시작해주세요."
+msgstr "SSO 제공자 콜백에 권한 부여 코드가 없습니다. 로그인 절차를 다시 시작하세요."
 
-#: lib/tuist_web/controllers/auth_controller.ex:467
+#: lib/tuist_web/controllers/auth_controller.ex:480
 #, elixir-autogen, elixir-format
 msgid "The SSO request is missing an organization identifier. Please start the sign-in flow again from the login page."
-msgstr "SSO 요청에 조직 식별자가 없습니다. 로그인 페이지에서 다시 로그인 절차를 시작해주세요."
+msgstr "SSO 요청에 조직 식별자가 없습니다. 로그인 페이지에서 로그인 절차를 다시 시작하세요."
 
-#: lib/tuist_web/controllers/auth_controller.ex:495
+#: lib/tuist_web/controllers/auth_controller.ex:508
 #, elixir-autogen, elixir-format
 msgid "The SSO response could not be validated because the request state did not match. Please try again."
-msgstr "요청 상태가 일치하지 않아 SSO 응답을 확인할 수 없습니다. 다시 시도해주세요."
+msgstr "요청 상태가 일치하지 않아 SSO 응답을 검증할 수 없습니다. 다시 시도하세요."
 
-#: lib/tuist_web/controllers/auth_controller.ex:523
+#: lib/tuist_web/controllers/auth_controller.ex:536
 #, elixir-autogen, elixir-format
 msgid "The configured SSO endpoints are invalid. Ask your organization admin to review the SSO settings."
-msgstr "구성된 SSO 엔드포인트가 잘못되었습니다. 조직 관리자에게 SSO 설정 검토를 요청하세요."
+msgstr "구성된 SSO 엔드포인트가 잘못되었습니다. 조직 관리자에게 SSO 설정을 검토해 달라고 요청하세요."
 
 #: lib/tuist_web/components/layouts/ops.html.heex:8
 #, elixir-autogen, elixir-format
 msgid "Tuist Ops"
-msgstr "Tuist Ops"
+msgstr "Tuist 운영"
 
-#: lib/tuist_web/controllers/auth_controller.ex:530
+#: lib/tuist_web/controllers/auth_controller.ex:543
 #, elixir-autogen, elixir-format
 msgid "Tuist couldn't exchange the authorization code with your identity provider. Ask your organization admin to verify the SSO credentials and callback URL."
-msgstr "Tuist가 아이덴티티 공급자와 승인 코드를 교환하지 못했습니다. 조직 관리자에게 SSO 자격 증명과 콜백 URL을 확인하도록 요청하세요."
+msgstr "Tuist가 신원 제공자와 권한 부여 코드를 교환하지 못했습니다. 조직 관리자에게 SSO 자격 증명과 콜백 URL을 확인해달라고 요청하세요."
 
-#: lib/tuist_web/controllers/auth_controller.ex:537
+#: lib/tuist_web/controllers/auth_controller.ex:550
 #, elixir-autogen, elixir-format
 msgid "Tuist couldn't fetch your profile from your identity provider. Ask your organization admin to verify the user info endpoint and configured scopes."
-msgstr "Tuist가 아이덴티티 공급자에서 프로필을 가져오지 못했습니다. 조직 관리자에게 사용자 정보 엔드포인트와 구성된 범위를 확인하도록 요청하세요."
+msgstr "Tuist가 신원 제공자에서 프로필을 가져오지 못했습니다. 조직 관리자에게 사용자 정보 엔드포인트와 구성된 권한을 확인해달라고 요청하세요."
 
-#: lib/tuist_web/controllers/auth_controller.ex:579
+#: lib/tuist_web/controllers/auth_controller.ex:592
 #, elixir-autogen, elixir-format
 msgid "We couldn't complete the SSO callback for this request. Please try again."
-msgstr "이 요청에 대한 SSO 콜백을 완료할 수 없습니다. 다시 시도해주세요."
+msgstr "이 요청에 대한 SSO 콜백을 완료하지 못했습니다. 다시 시도하세요."
 
-#: lib/tuist_web/controllers/auth_controller.ex:474
+#: lib/tuist_web/controllers/auth_controller.ex:487
 #, elixir-autogen, elixir-format
 msgid "We couldn't find the organization for this SSO request. Please verify that you are using the correct SSO link."
-msgstr "이 SSO 요청에 대한 조직을 찾을 수 없습니다. 올바른 SSO 링크를 사용하고 있는지 확인해주세요."
+msgstr "이 SSO 요청에 대한 조직을 찾을 수 없습니다. 올바른 SSO 링크를 사용하고 있는지 확인하세요."
 
-#: lib/tuist_web/controllers/auth_controller.ex:572
+#: lib/tuist_web/controllers/auth_controller.ex:585
 #, elixir-autogen, elixir-format
 msgid "We couldn't start the SSO flow for this organization. Please verify the SSO configuration and try again."
-msgstr "이 조직에 대한 SSO 절차를 시작할 수 없습니다. SSO 구성을 확인하고 다시 시도해주세요."
+msgstr "이 조직의 SSO 절차를 시작하지 못했습니다. SSO 구성을 확인하고 다시 시도하세요."
 
-#: lib/tuist_web/controllers/auth_controller.ex:488
+#: lib/tuist_web/controllers/auth_controller.ex:501
 #, elixir-autogen, elixir-format
 msgid "Your SSO session has expired. Please restart the sign-in flow from the login page."
-msgstr "SSO 세션이 만료되었습니다. 로그인 페이지에서 로그인 절차를 다시 시작해주세요."
+msgstr "SSO 세션이 만료되었습니다. 로그인 페이지에서 로그인 절차를 다시 시작하세요."
 
-#: lib/tuist_web/controllers/auth_controller.ex:565
+#: lib/tuist_web/controllers/auth_controller.ex:578
 #, elixir-autogen, elixir-format
 msgid "Your Tuist account already exists, but it isn't a member of this organization. Ask an organization admin to add you, then sign in with SSO again."
-msgstr "Tuist 계정은 이미 존재하지만, 이 조직의 멤버가 아닙니다. 조직 관리자에게 추가를 요청한 후 SSO로 다시 로그인하세요."
+msgstr "Tuist 계정은 존재하지만 이 조직의 멤버가 아닙니다. 조직 관리자에게 추가를 요청한 후 SSO로 다시 로그인하세요."
 
-#: lib/tuist_web/controllers/auth_controller.ex:551
+#: lib/tuist_web/controllers/auth_controller.ex:564
 #, elixir-autogen, elixir-format
 msgid "Your identity provider response is missing a stable user identifier. Ask your organization admin to review the user info claims."
-msgstr "아이덴티티 공급자 응답에 안정적인 사용자 식별자가 없습니다. 조직 관리자에게 사용자 정보 클레임을 검토하도록 요청하세요."
+msgstr "신원 제공자 응답에 안정적인 사용자 식별자가 없습니다. 조직 관리자에게 사용자 정보 클레임을 검토해달라고 요청하세요."
 
-#: lib/tuist_web/controllers/auth_controller.ex:558
+#: lib/tuist_web/controllers/auth_controller.ex:571
 #, elixir-autogen, elixir-format
 msgid "Your identity provider response is missing an email address. Ask your organization admin to include the email claim."
-msgstr "아이덴티티 공급자 응답에 이메일 주소가 없습니다. 조직 관리자에게 이메일 클레임을 포함하도록 요청하세요."
+msgstr "신원 제공자 응답에 이메일 주소가 없습니다. 조직 관리자에게 이메일 클레임을 포함하도록 요청하세요."
 
-#: lib/tuist_web/controllers/auth_controller.ex:509
+#: lib/tuist_web/controllers/auth_controller.ex:522
 #, elixir-autogen, elixir-format
 msgid "Your identity provider returned an authentication error. Please try again or contact your organization admin."
-msgstr "아이덴티티 공급자가 인증 오류를 반환했습니다. 다시 시도하거나 조직 관리자에게 문의하세요."
+msgstr "신원 제공자에서 인증 오류가 반환되었습니다. 다시 시도하거나 조직 관리자에게 문의하세요."
 
 #: lib/tuist_web/components/account_dropdown.ex:73
 #, elixir-autogen, elixir-format
@@ -619,3 +619,8 @@ msgstr "계정"
 #, elixir-autogen, elixir-format
 msgid "Authentication"
 msgstr "인증"
+
+#: lib/tuist_web/controllers/github_app_setup_controller.ex:34
+#, elixir-autogen, elixir-format
+msgid "This GitHub app installation is already connected."
+msgstr "이 GitHub 앱 설치는 이미 연결되어 있습니다."

@@ -14,7 +14,7 @@ msgstr "¡Cuenta confirmada!"
 #: lib/tuist_web/live/user_registration_live.ex:295
 #, elixir-autogen, elixir-format
 msgid "Account created successfully! Please log in."
-msgstr "Cuenta creada con éxito. Por favor, inicia sesión."
+msgstr "¡Cuenta creada exitosamente! Por favor, inicia sesión."
 
 #: lib/tuist_web/live/user_registration_live.ex:307
 #, elixir-autogen, elixir-format
@@ -34,7 +34,7 @@ msgstr "¿Ya configuraste tu proyecto Tuist? Omite la configuración y ve al das
 #: lib/tuist_web/live/user_forgot_password_live.ex:74
 #, elixir-autogen, elixir-format
 msgid "Back to log in"
-msgstr "Volver a iniciar sesión"
+msgstr "Volver al inicio de sesión"
 
 #: lib/tuist_web/live/user_registration_live.ex:39
 #, elixir-autogen, elixir-format
@@ -49,7 +49,7 @@ msgstr "Cambia tu contraseña"
 #: lib/tuist_web/live/user_forgot_password_live.ex:42
 #, elixir-autogen, elixir-format
 msgid "Check your email"
-msgstr "Revisa tu correo"
+msgstr "Revisa tu correo electrónico"
 
 #: lib/tuist_web/live/user_registration_live.ex:221
 #, elixir-autogen, elixir-format
@@ -94,7 +94,7 @@ msgstr "Conecta tu proyecto al dashboard"
 #: lib/tuist_web/live/connect_live.ex:33
 #, elixir-autogen, elixir-format
 msgid "Connection successful"
-msgstr "Conexión satisfactoria"
+msgstr "Conexión exitosa"
 
 #: lib/tuist_web/live/sso_login_live.ex:105
 #, elixir-autogen, elixir-format
@@ -114,7 +114,7 @@ msgstr "Dashboard"
 #: lib/tuist_web/live/user_registration_live.ex:30
 #, elixir-autogen, elixir-format
 msgid "Discover how selective testing is reducing your test time."
-msgstr "Descubre cómo selective testing está reduciendo tu tiempo de tests."
+msgstr "Descubre cómo el selective testing está reduciendo tu tiempo de tests."
 
 #: lib/tuist_web/live/user_login_live.ex:202
 #, elixir-autogen, elixir-format
@@ -142,7 +142,7 @@ msgstr "Explora funcionalidades de Tuist como binary caching y selective testing
 #: lib/tuist_web/live/user_registration_live.ex:42
 #, elixir-autogen, elixir-format
 msgid "Explore how binary caching is enhancing your build times."
-msgstr "Descubre cómo binary caching mejora tus tiempos de build."
+msgstr "Descubre cómo el binary caching está mejorando tus tiempos de build."
 
 #: lib/tuist_web/live/user_login_live.ex:171
 #, elixir-autogen, elixir-format
@@ -157,7 +157,7 @@ msgstr "¿Olvidaste tu contraseña?"
 #: lib/tuist_web/live/user_forgot_password_live.ex:44
 #, elixir-autogen, elixir-format
 msgid "If your email exists in our records, you'll receive reset instructions shortly."
-msgstr "Si tu correo está en nuestros registros, recibirás instrucciones para restablecerla pronto."
+msgstr "Si tu correo existe en nuestros registros, recibirás instrucciones para reiniciar tu contraseña en breve."
 
 #: lib/tuist_web/live/connect_live.ex:41
 #, elixir-autogen, elixir-format
@@ -222,7 +222,7 @@ msgstr "Contraseña"
 #: lib/tuist_web/live/user_reset_password_live.ex:97
 #, elixir-autogen, elixir-format
 msgid "Password reset successfully."
-msgstr "Contraseña restablecida con éxito."
+msgstr "Contraseña restablecida exitosamente."
 
 #: lib/tuist_web/live/user_registration_live.ex:51
 #, elixir-autogen, elixir-format
@@ -260,7 +260,7 @@ msgstr "Selective testing"
 #: lib/tuist_web/live/user_registration_live.ex:265
 #, elixir-autogen, elixir-format
 msgid "Sign up"
-msgstr "Registrarse"
+msgstr "Regístrate"
 
 #: lib/tuist_web/live/user_registration_live.ex:75
 #, elixir-autogen, elixir-format
@@ -293,7 +293,7 @@ msgstr "Logo de Tuist"
 #: lib/tuist_web/live/device_codes_success_live.ex:39
 #, elixir-autogen, elixir-format
 msgid "Tuist app is connected!"
-msgstr "¡La app de Tuist está conectada!"
+msgstr "¡La app Tuist está conectada!"
 
 #: lib/tuist_web/live/connect_live.ex:104
 #, elixir-autogen, elixir-format
@@ -313,7 +313,7 @@ msgstr "¡Tuist está conectado!"
 #: lib/tuist_web/live/user_confirmation_live.ex:57
 #, elixir-autogen, elixir-format
 msgid "User confirmation link is invalid or it has expired."
-msgstr "El enlace de confirmación de usuario es inválido o ha expirado."
+msgstr "El enlace de confirmación del usuario no es válido o ha expirado."
 
 #: lib/tuist_web/live/choose_username_live.ex:65
 #: lib/tuist_web/live/user_registration_live.ex:170
@@ -325,7 +325,7 @@ msgstr "Nombre de usuario"
 #: lib/tuist_web/live/user_registration_live.ex:173
 #, elixir-autogen, elixir-format
 msgid "Username may only contain alphanumeric characters"
-msgstr "El nombre de usuario sólo puede contener caracteres alfanuméricos"
+msgstr "El nombre de usuario solo puede contener caracteres alfanuméricos"
 
 #: lib/tuist_web/live/connect_live.ex:28
 #, elixir-autogen, elixir-format
@@ -360,12 +360,12 @@ msgstr "Puedes cerrar la pestaña y continuar en la app"
 #: lib/tuist_web/live/device_codes_success_live.ex:51
 #, elixir-autogen, elixir-format
 msgid "You can close the tab and continue in the terminal"
-msgstr "Puedes cerrar la pestaña y continuar en el terminal"
+msgstr "Puedes cerrar la pestaña y continuar en la terminal"
 
 #: lib/tuist_web/live/user_confirmation_live.ex:48
 #, elixir-autogen, elixir-format
 msgid "Your account could not be confirmed."
-msgstr "No fue posible confirmar tu cuenta."
+msgstr "Tu cuenta no pudo ser confirmada."
 
 #: lib/tuist_web/live/user_confirmation_live.ex:29
 #, elixir-autogen, elixir-format
@@ -422,7 +422,7 @@ msgstr "y"
 #: lib/tuist_web/live/user_login_live.ex:197
 #, elixir-autogen, elixir-format
 msgid "Log in as test user"
-msgstr "Iniciar sesión como usuario de prueba"
+msgstr "Inicia sesión como usuario de prueba"
 
 #: lib/tuist_web/live/choose_username_live.ex:52
 #, elixir-autogen, elixir-format
@@ -432,9 +432,14 @@ msgstr "Elige un nombre de usuario para tu cuenta"
 #: lib/tuist_web/live/user_login_live.ex:104
 #, elixir-autogen, elixir-format
 msgid "Log in with SSO"
-msgstr "Iniciar sesión con SSO"
+msgstr "Inicia sesión con SSO"
 
 #: lib/tuist_web/live/sso_login_live.ex:46
 #, elixir-autogen, elixir-format
 msgid "No SSO organization is configured for this email. Check the address and ask your organization admin to verify the SSO domain setup."
-msgstr "No hay ninguna organización SSO configurada para este correo. Verifica la dirección y pide a tu administrador organizacional que compruebe la configuración del dominio SSO."
+msgstr "No hay ninguna organización SSO configurada para este correo. Revisa la dirección y pide al administrador de tu organización verificar la configuración del dominio SSO."
+
+#: lib/tuist_web/controllers/auth_controller.ex:332
+#, elixir-autogen, elixir-format
+msgid "An account with this email already exists. Please log in instead."
+msgstr "Ya existe una cuenta con este correo. Por favor, inicia sesión."

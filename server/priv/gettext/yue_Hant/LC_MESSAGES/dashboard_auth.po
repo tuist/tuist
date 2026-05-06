@@ -29,7 +29,7 @@ msgstr "已經有帳戶？"
 #: lib/tuist_web/live/connect_live.ex:97
 #, elixir-autogen, elixir-format
 msgid "Already set up your Tuist project? Skip setup and go to the dashboard."
-msgstr "已經設定好你的 Tuist 專案？跳過設定並前往 Dashboard。"
+msgstr "已設定好 Tuist 專案？直接跳過設定，前往 Dashboard。"
 
 #: lib/tuist_web/live/user_forgot_password_live.ex:74
 #, elixir-autogen, elixir-format
@@ -54,12 +54,12 @@ msgstr "檢查你的電郵"
 #: lib/tuist_web/live/user_registration_live.ex:221
 #, elixir-autogen, elixir-format
 msgid "Check your inbox for a confirmation email and click the link to continue."
-msgstr "檢查你的收件箱內的確認電郵，點擊連結以繼續。"
+msgstr "檢查你的收件箱，點擊確認郵件中的連結以繼續。"
 
 #: lib/tuist_web/live/choose_username_live.ex:50
 #, elixir-autogen, elixir-format
 msgid "Choose a username"
-msgstr "選擇一個用戶名稱"
+msgstr "選擇一個使用者名稱"
 
 #: lib/tuist_web/live/user_reset_password_live.ex:53
 #, elixir-autogen, elixir-format
@@ -89,7 +89,7 @@ msgstr "連接你的專案"
 #: lib/tuist_web/live/connect_live.ex:37
 #, elixir-autogen, elixir-format
 msgid "Connect your project to the dashboard"
-msgstr "將你的專案連接到 Dashboard"
+msgstr "將你的專案連接至 Dashboard"
 
 #: lib/tuist_web/live/connect_live.ex:33
 #, elixir-autogen, elixir-format
@@ -114,12 +114,12 @@ msgstr "Dashboard"
 #: lib/tuist_web/live/user_registration_live.ex:30
 #, elixir-autogen, elixir-format
 msgid "Discover how selective testing is reducing your test time."
-msgstr "了解 selective testing 如何幫你縮短測試時間。"
+msgstr "了解 Selective Testing 如何幫助你減少測試時間。"
 
 #: lib/tuist_web/live/user_login_live.ex:202
 #, elixir-autogen, elixir-format
 msgid "Don't have an account?"
-msgstr "還沒有帳戶？"
+msgstr "沒有帳戶？"
 
 #: lib/tuist_web/live/sso_login_live.ex:88
 #: lib/tuist_web/live/user_forgot_password_live.ex:54
@@ -132,17 +132,17 @@ msgstr "電郵地址"
 #: lib/tuist_web/live/user_registration_live.ex:310
 #, elixir-autogen, elixir-format
 msgid "Email is already taken"
-msgstr "電郵已被使用"
+msgstr "電郵地址已被使用"
 
 #: lib/tuist_web/live/connect_live.ex:75
 #, elixir-autogen, elixir-format
 msgid "Explore Tuist features like binary caching and selective testing to speed up your development."
-msgstr "探索 Tuist 功能，如 Binary Caching 同 selective testing，加快你嘅開發速度。"
+msgstr "探索 Tuist 功能，如 Binary Caching 和 Selective Testing，加快你的開發速度。"
 
 #: lib/tuist_web/live/user_registration_live.ex:42
 #, elixir-autogen, elixir-format
 msgid "Explore how binary caching is enhancing your build times."
-msgstr "了解 Binary Caching 如何提升你的建置速度。"
+msgstr "了解 Binary Caching 如何提高你的建置速度。"
 
 #: lib/tuist_web/live/user_login_live.ex:171
 #, elixir-autogen, elixir-format
@@ -157,7 +157,7 @@ msgstr "忘記你的密碼？"
 #: lib/tuist_web/live/user_forgot_password_live.ex:44
 #, elixir-autogen, elixir-format
 msgid "If your email exists in our records, you'll receive reset instructions shortly."
-msgstr "如果你的電郵在我們記錄中，我們會儘快發送重設指示。"
+msgstr "若你的電郵存在於本系統，我們會稍後發送重設密碼指示。"
 
 #: lib/tuist_web/live/connect_live.ex:41
 #, elixir-autogen, elixir-format
@@ -167,12 +167,12 @@ msgstr "安裝 Tuist CLI"
 #: lib/tuist_web/live/user_registration_live.ex:54
 #, elixir-autogen, elixir-format
 msgid "Instantly share your app using a URL."
-msgstr "即時用 URL 分享你的應用程式。"
+msgstr "即時透過 URL 分享你的應用程式。"
 
 #: lib/tuist_web/live/sso_login_live.ex:100
 #, elixir-autogen, elixir-format
 msgid "Interested in SSO?"
-msgstr "有興趣使用 SSO？"
+msgstr "對 SSO 有興趣？"
 
 #: lib/tuist_web/live/user_login_live.ex:164
 #, elixir-autogen, elixir-format
@@ -222,7 +222,7 @@ msgstr "密碼"
 #: lib/tuist_web/live/user_reset_password_live.ex:97
 #, elixir-autogen, elixir-format
 msgid "Password reset successfully."
-msgstr "密碼重設成功。"
+msgstr "密碼已成功重設。"
 
 #: lib/tuist_web/live/user_registration_live.ex:51
 #, elixir-autogen, elixir-format
@@ -232,7 +232,7 @@ msgstr "Previews"
 #: lib/tuist_web/live/connect_live.ex:94
 #, elixir-autogen, elixir-format
 msgid "Project Ready? Proceed to dashboard"
-msgstr "專案準備好了？前往 Dashboard"
+msgstr "專案準備好？前往 Dashboard"
 
 #: lib/tuist_web/live/user_forgot_password_live.ex:63
 #: lib/tuist_web/live/user_reset_password_live.ex:60
@@ -248,12 +248,12 @@ msgstr "執行以下指令以安裝 Tuist CLI。"
 #: lib/tuist_web/live/connect_live.ex:57
 #, elixir-autogen, elixir-format
 msgid "Run this command to link your project to the dashboard."
-msgstr "執行此指令以連接你的專案到 Dashboard。"
+msgstr "執行此指令將你的專案連接到 Dashboard。"
 
 #: lib/tuist_web/live/user_registration_live.ex:27
 #, elixir-autogen, elixir-format
 msgid "Selective testing"
-msgstr "Selective testing"
+msgstr "Selective Testing"
 
 #: lib/tuist_web/live/user_login_live.ex:207
 #: lib/tuist_web/live/user_registration_live.ex:182
@@ -270,7 +270,7 @@ msgstr "註冊 Tuist"
 #: lib/tuist_web/live/choose_username_live.ex:117
 #, elixir-autogen, elixir-format
 msgid "This username has already been taken"
-msgstr "此用戶名稱已被使用"
+msgstr "此使用者名稱已被使用"
 
 #: lib/tuist_web/live/device_codes_success_live.ex:41
 #, elixir-autogen, elixir-format
@@ -293,7 +293,7 @@ msgstr "Tuist 標誌"
 #: lib/tuist_web/live/device_codes_success_live.ex:39
 #, elixir-autogen, elixir-format
 msgid "Tuist app is connected!"
-msgstr "Tuist 應用已連接！"
+msgstr "Tuist 應用程式已連接！"
 
 #: lib/tuist_web/live/connect_live.ex:104
 #, elixir-autogen, elixir-format
@@ -313,19 +313,19 @@ msgstr "Tuist 已連接！"
 #: lib/tuist_web/live/user_confirmation_live.ex:57
 #, elixir-autogen, elixir-format
 msgid "User confirmation link is invalid or it has expired."
-msgstr "用戶確認連結無效或已過期。"
+msgstr "使用者確認連結無效或已過期。"
 
 #: lib/tuist_web/live/choose_username_live.ex:65
 #: lib/tuist_web/live/user_registration_live.ex:170
 #, elixir-autogen, elixir-format
 msgid "Username"
-msgstr "用戶名稱"
+msgstr "使用者名稱"
 
 #: lib/tuist_web/live/choose_username_live.ex:66
 #: lib/tuist_web/live/user_registration_live.ex:173
 #, elixir-autogen, elixir-format
 msgid "Username may only contain alphanumeric characters"
-msgstr "用戶名稱只可以包含字母及數字"
+msgstr "使用者名稱只可包含英文字母及數字"
 
 #: lib/tuist_web/live/connect_live.ex:28
 #, elixir-autogen, elixir-format
@@ -335,7 +335,7 @@ msgstr "等待連接"
 #: lib/tuist_web/live/user_forgot_password_live.ex:33
 #, elixir-autogen, elixir-format
 msgid "We'll send a password reset link to your inbox"
-msgstr "我們會發送重設密碼連結至你的收件箱"
+msgstr "我們會把重設密碼連結發送至你的收件箱"
 
 #: lib/tuist_web/live/user_login_live.ex:50
 #, elixir-autogen, elixir-format
@@ -350,32 +350,32 @@ msgstr "歡迎！建立帳戶以繼續"
 #: lib/tuist_web/live/device_codes_success_live.ex:53
 #, elixir-autogen, elixir-format
 msgid "You can close the tab and continue"
-msgstr "你可以關閉此分頁並繼續"
+msgstr "你可以關閉標籤頁繼續操作"
 
 #: lib/tuist_web/live/device_codes_success_live.ex:49
 #, elixir-autogen, elixir-format
 msgid "You can close the tab and continue in the app"
-msgstr "你可以關閉此分頁並在應用程式繼續"
+msgstr "你可以關閉標籤頁，在應用程式繼續"
 
 #: lib/tuist_web/live/device_codes_success_live.ex:51
 #, elixir-autogen, elixir-format
 msgid "You can close the tab and continue in the terminal"
-msgstr "你可以關閉此分頁並在終端機繼續"
+msgstr "你可以關閉標籤頁，在終端機繼續"
 
 #: lib/tuist_web/live/user_confirmation_live.ex:48
 #, elixir-autogen, elixir-format
 msgid "Your account could not be confirmed."
-msgstr "無法確認你的帳戶。"
+msgstr "你的帳戶無法被確認。"
 
 #: lib/tuist_web/live/user_confirmation_live.ex:29
 #, elixir-autogen, elixir-format
 msgid "Your account has been confirmed."
-msgstr "你的帳戶已確認。"
+msgstr "你的帳戶已被確認。"
 
 #: lib/tuist_web/live/user_confirmation_live.ex:38
 #, elixir-autogen, elixir-format
 msgid "Your account has been confirmed. You will be redirected shortly..."
-msgstr "你的帳戶已確認。即將重新導向…"
+msgstr "你的帳戶已被確認。你將會被轉向..."
 
 #: lib/tuist_web/live/user_reset_password_live.ex:34
 #, elixir-autogen, elixir-format
@@ -422,19 +422,24 @@ msgstr "及"
 #: lib/tuist_web/live/user_login_live.ex:197
 #, elixir-autogen, elixir-format
 msgid "Log in as test user"
-msgstr "以測試用戶登入"
+msgstr "以測試使用者登入"
 
 #: lib/tuist_web/live/choose_username_live.ex:52
 #, elixir-autogen, elixir-format
 msgid "Choose a username for your account"
-msgstr "為你的帳戶選擇一個用戶名稱"
+msgstr "為你的帳戶選擇一個使用者名稱"
 
 #: lib/tuist_web/live/user_login_live.ex:104
 #, elixir-autogen, elixir-format
 msgid "Log in with SSO"
-msgstr "使用 SSO 登入"
+msgstr "用 SSO 登入"
 
 #: lib/tuist_web/live/sso_login_live.ex:46
 #, elixir-autogen, elixir-format
 msgid "No SSO organization is configured for this email. Check the address and ask your organization admin to verify the SSO domain setup."
-msgstr "此電郵未設定任何 SSO 組織。請檢查地址並請你的組織管理員驗證 SSO 網域設定。"
+msgstr "此電郵未配置任何 SSO 組織。請檢查地址並請你的組織管理員確認 SSO 網域設定。"
+
+#: lib/tuist_web/controllers/auth_controller.ex:332
+#, elixir-autogen, elixir-format
+msgid "An account with this email already exists. Please log in instead."
+msgstr "此電郵已有帳戶，請直接登入。"
