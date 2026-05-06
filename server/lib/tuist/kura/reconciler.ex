@@ -49,40 +49,49 @@ defmodule Tuist.Kura.Reconciler do
     # It only ever transitions a `:running` row to `:failed`, never reads
     # back to a tenant-facing surface, so there's no leak path; account
     # isolation is enforced at the writer (Tuist.Kura.mark_failed/2).
-    query = from(d in Deployment, where: d.status == :running, preload: :kura_server)
+    deployments =
+      Deployment
+      |> where([d], d.status == :running)
+      |> preload(:kura_server)
+      |> Repo.all()
 
-    query
-    |> Repo.all()
-    |> Enum.each(&reconcile_deployment/1)
+    job_states = oban_job_states(deployments)
+
+    Enum.each(deployments, fn deployment ->
+      reconcile_deployment(deployment, Map.get(job_states, deployment.oban_job_id, :orphaned))
+    end)
 
     :ok
   end
 
-  defp reconcile_deployment(%Deployment{} = deployment) do
-    case oban_job_state(deployment.oban_job_id) do
-      :alive ->
-        :ok
+  defp reconcile_deployment(%Deployment{}, :alive), do: :ok
 
-      :orphaned ->
-        Logger.info("[Kura.Reconciler] failing orphaned deployment #{deployment.id}")
-        {:ok, _} = Kura.mark_failed(deployment, @reason)
-        maybe_fail_server(deployment.kura_server)
-    end
+  defp reconcile_deployment(%Deployment{} = deployment, :orphaned) do
+    Logger.info("[Kura.Reconciler] failing orphaned deployment #{deployment.id}")
+    {:ok, _} = Kura.mark_failed(deployment, @reason)
+    maybe_fail_server(deployment.kura_server)
   end
 
-  defp oban_job_state(nil), do: :orphaned
-
-  defp oban_job_state(job_id) do
+  defp oban_job_states(deployments) do
     # Intentional cross-tenant lookup: the reconciler runs as a
     # background job to detect orphaned deployments after a web-process
     # crash, and Oban jobs aren't account-scoped to begin with. The
-    # deployment row carrying job_id is already account-owned, so
-    # there's no leak: we only act on rows the caller already loaded.
-    case Repo.get(Oban.Job, job_id) do
-      nil -> :orphaned
-      %Oban.Job{state: state} when state in @terminal_oban_states -> :orphaned
-      %Oban.Job{} -> :alive
-    end
+    # deployment rows carrying job_ids are already account-owned, so
+    # there's no leak: we only act on rows this job already loaded.
+    job_ids =
+      deployments
+      |> Enum.map(& &1.oban_job_id)
+      |> Enum.reject(&is_nil/1)
+      |> Enum.uniq()
+
+    Oban.Job
+    |> where([j], j.id in ^job_ids)
+    |> select([j], {j.id, j.state})
+    |> Repo.all()
+    |> Map.new(fn
+      {id, state} when state in @terminal_oban_states -> {id, :orphaned}
+      {id, _state} -> {id, :alive}
+    end)
   end
 
   defp maybe_fail_server(%Server{status: status} = server) when status in [:provisioning, :active, :failed] do
