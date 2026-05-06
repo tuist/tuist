@@ -1820,18 +1820,6 @@ if length(test_run_command_events) > 0 do
   IngestRepo.insert_all(Event, test_run_command_events, timeout: 120_000)
   IO.puts("  - Created #{length(test_run_command_events)} test command events")
   create_xcode_data_for_events.(test_run_command_events, "Test runs")
-
-  sample_test_run_id =
-    test_run_command_events
-    |> List.first()
-    |> Map.fetch!(:test_run_id)
-
-  account_name = Repo.preload(tuist_project, :account).account.name
-
-  IO.puts(
-    "  - Sample test run with selective testing subhashes: " <>
-      "http://localhost:8977/#{account_name}/#{tuist_project.name}/tests/test-runs/#{sample_test_run_id}"
-  )
 end
 
 # Also create command events with xcode data for generate and cache runs
