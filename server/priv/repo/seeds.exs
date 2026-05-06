@@ -1727,19 +1727,25 @@ create_xcode_data_for_events = fn events, label ->
           hit_value = rem(idx, 3)
           is_external = rem(idx, 7) == 0
           hash_idx = rem(idx, 100)
+          is_test_target = String.ends_with?(target_name, "Tests")
+
+          product =
+            if is_test_target,
+              do: "unit_tests",
+              else: Enum.at(product_types, rem(idx, length(product_types)))
 
           %{
             id: UUIDv7.generate(),
             name: "#{project.name}_#{target_name}",
-            binary_cache_hash: Enum.at(hash_pool, hash_idx),
-            binary_cache_hit: hit_value,
+            binary_cache_hash: if(is_test_target, do: nil, else: Enum.at(hash_pool, hash_idx)),
+            binary_cache_hit: if(is_test_target, do: 0, else: hit_value),
             binary_build_duration: 5000 + rem(idx * 17, 25_000),
-            selective_testing_hash: nil,
-            selective_testing_hit: 0,
+            selective_testing_hash: if(is_test_target, do: Enum.at(hash_pool, rem(hash_idx + 50, 100))),
+            selective_testing_hit: if(is_test_target, do: hit_value, else: 0),
             xcode_project_id: project.id,
             command_event_id: project.command_event_id,
             inserted_at: project.inserted_at,
-            product: Enum.at(product_types, rem(idx, length(product_types))),
+            product: product,
             bundle_id: "com.tuist.#{String.downcase(project.name)}.#{String.downcase(target_name)}",
             product_name: target_name,
             destinations: Enum.at(dest_pool, rem(idx, length(dest_pool))),

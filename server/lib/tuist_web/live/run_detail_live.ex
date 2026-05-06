@@ -6,6 +6,7 @@ defmodule TuistWeb.RunDetailLive do
   import TuistWeb.Runs.CacheEndpointFormatter
   import TuistWeb.Runs.ModuleCacheTab
   import TuistWeb.Runs.RanByBadge
+  import TuistWeb.Runs.SelectiveTestingTab
 
   alias Noora.Filter
   alias Tuist.CommandEvents
