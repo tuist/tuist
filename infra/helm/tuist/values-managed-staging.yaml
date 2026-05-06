@@ -137,8 +137,8 @@ xcresultProcessor:
   # marking the rollout done — without this, replicas=1 +
   # maxUnavailable=1 lets a Deployment look "Available" with zero
   # actually-running Pods, and a stuck rollout slips past --atomic.
-  # Brief surge-during-roll of 2 Pods on the same Mac mini fits
-  # within the SLA-mandated max-pods=2 per host.
+  # Surge-during-roll fits within tart-kubelet's max-pods=3
+  # (chart default): csi-daemonset(1) + old(1) + new(1) = 3.
   enabled: true
   replicaCount: 1
   extraEnv:

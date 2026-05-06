@@ -284,8 +284,13 @@ func renderLaunchdPlist(cfg Config) string {
 	maxPods := cfg.MaxPods
 	if maxPods == 0 {
 		// Apple's macOS SLA caps virtualized macOS instances at 2 per
-		// bare-metal host; Tart refuses to start a third VM.
-		maxPods = 2
+		// bare-metal host (Tart refuses to start a third VM). max-pods
+		// is set to 3 (not 2) because it counts every Pod on the Node,
+		// not just Tart-VM Pods — host-system DaemonSets like
+		// hcloud-csi-node already consume one slot, and the rolling-
+		// update surge needs a third for csi(1) + old(1) + new(1).
+		// The 2-VM cap is enforced by Tart at the virtualization layer.
+		maxPods = 3
 	}
 	user := cfg.SSHUser
 	if user == "" {

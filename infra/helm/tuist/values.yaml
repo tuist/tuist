@@ -368,12 +368,25 @@ macosFleet:
   # `macosFleet.image.tag` rolls a new kubelet.
   tartKubelet:
     # Capacity advertised by each Mac mini when it registers its Node.
-    # M4-S = 8 vCPU / 16 GB. maxPods is 2 because Apple's macOS SLA
-    # only permits up to two simultaneous virtualized macOS instances
-    # per bare-metal host (Tart refuses to start a third VM).
+    # M4-S = 8 vCPU / 16 GB.
+    #
+    # maxPods=3 (not 2): Apple's macOS SLA caps virtualized macOS
+    # instances at 2 per host, but max-pods is a Kubernetes-level
+    # limit that counts every Pod on the Node, not just Tart-VM Pods.
+    # The hcloud-csi-node DaemonSet runs on every Node in the workload
+    # cluster (it doesn't honor the macOS taint) and already consumes
+    # one slot — capping max-pods=2 leaves only one slot for
+    # xcresult-processor and deadlocks the rolling update on every
+    # image bump (maxSurge=1 + maxUnavailable=0 needs a 3rd slot for
+    # the surge: csi(1) + old(1) + new(1) = 3 pods → "Too many pods"
+    # → rollout never converges). max-pods=3 leaves headroom for one
+    # host-system Pod plus the SLA-mandated 2 macOS guests, which is
+    # what the SLA actually allows. Tart itself still refuses to
+    # start a third VM, so the SLA cap is enforced at the
+    # virtualization layer regardless of what kubelet schedules.
     hostCPU: 8
     hostMemoryMB: 16384
-    maxPods: 2
+    maxPods: 3
   scaleway:
     # Name of the Secret holding `access-key`, `secret-key`,
     # `project-id`. ESO populates it from 1Password by default; set
