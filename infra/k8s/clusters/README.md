@@ -32,7 +32,7 @@ clusters/
 |---|---|---|
 | `tuist-staging` | 3× cpx22 | md-0: 2× cpx31 |
 | `tuist-canary` | 3× cpx22 | md-0: 2× cpx31 |
-| `tuist` (production) | 3× cpx22 | md-0: 2× ccx23 (`pool=general`); md-processor: 2× cpx62 (`pool=processor`, autoscaled 2→6) |
+| `tuist` (production) | 3× cpx22 | md-0: 2× ccx23 (`pool=general`); md-processor: 2× cpx62 (`pool=processor`, autoscaled 2→6); md-kura: 3× ccx13 (`pool=kura`, autoscaled 3→12) |
 | `tuist-preview` | 1× cpx22 | md-0: 1× cpx42 |
 
 Variables exposed by the ClusterClass: control plane replicas + machine
