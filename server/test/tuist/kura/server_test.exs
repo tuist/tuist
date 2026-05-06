@@ -112,6 +112,22 @@ defmodule Tuist.Kura.ServerTest do
       end
     end
 
+    test "rejects provisioner refs that are not Kubernetes label safe" do
+      for provisioner_node_ref <- ["kura_tuist_local", "kura.tuist.local", String.duplicate("a", 54)] do
+        changeset =
+          Server.create_changeset(%{
+            account_id: account_id(),
+            region: "local",
+            spec: :small,
+            volume_size_gi: 50,
+            provisioner_node_ref: provisioner_node_ref
+          })
+
+        refute changeset.valid?
+        assert %{provisioner_node_ref: [_]} = errors_on(changeset)
+      end
+    end
+
     test "ignores lifecycle fields on create" do
       changeset =
         Server.create_changeset(%{

@@ -343,6 +343,9 @@ defmodule Tuist.Kura do
   end
 
   defp ensure_cache_endpoint(account, url) do
+    # Kura URLs are deterministic for `(account, region)`, so this
+    # derived endpoint row survives destroy/re-create cycles without
+    # accumulating stale alternatives for the same server.
     case %AccountCacheEndpoint{}
          |> AccountCacheEndpoint.create_changeset(%{account_id: account.id, url: url, technology: :kura})
          |> Repo.insert(on_conflict: :nothing, conflict_target: [:account_id, :technology, :url]) do

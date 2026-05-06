@@ -29,9 +29,10 @@ defmodule Tuist.Kura.Provisioner.HelmKubernetes do
   Tenant separation is application-layer: `KURA_TENANT_ID` (already in
   the StatefulSet env) plus per-pod Cilium ingress/egress bandwidth
   caps generated from the spec catalog. Hardware is shared across
-  accounts via a single pool of bare-metal Hetzner nodes labelled
-  `tuist.dev/role=kura`; the pool selector + toleration live in the
-  Hetzner provider overlay rather than per-account values.
+  accounts via a single pool of Hetzner Cloud worker nodes labelled
+  `tuist.dev/role=kura`; the pool selector, toleration, and
+  `hcloud-volumes` storage class live in the Hetzner provider overlay
+  rather than per-account values.
   """
 
   @behaviour Tuist.Kura.Provisioner
@@ -47,9 +48,8 @@ defmodule Tuist.Kura.Provisioner.HelmKubernetes do
   # Customer-facing spec → Pod resources. The catalog of customer
   # tiers (small/medium/large) lives in `Tuist.Kura.Specs`; how each
   # tier maps to Kubernetes-flavored requests/limits is a
-  # provisioner-specific concern that lives here. A future bare-metal
-  # provisioner would have its own table mapping the same tiers to
-  # instance types.
+  # provisioner-specific concern that lives here. Another provisioner
+  # would have its own table mapping the same tiers to its platform.
   @pod_resources %{
     small: %{
       "requests" => %{"cpu" => "250m", "memory" => "512Mi"},
@@ -223,9 +223,9 @@ defmodule Tuist.Kura.Provisioner.HelmKubernetes do
 
   # Per-pod Cilium bandwidth caps. Cilium honors the
   # `kubernetes.io/{ingress,egress}-bandwidth` annotations and shapes
-  # traffic at the pod's veth, so on a shared bare-metal pool one
-  # account's burst can't starve another's host NIC. Sized per spec
-  # tier (the pod's customer-facing capacity), tunable in
+  # traffic at the pod's veth, so on a shared Cloud worker pool one
+  # account's burst can't starve another's available NIC budget. Sized
+  # per spec tier (the pod's customer-facing capacity), tunable in
   # `Tuist.Kura.Specs`.
   defp bandwidth_annotations(%Server{spec: spec}) do
     case Specs.bandwidth(spec) do

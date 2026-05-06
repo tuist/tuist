@@ -44,6 +44,8 @@ defmodule Tuist.Kura.Server do
   }
   @image_tag_format ~r/^v?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?\z/
   @image_tag_message "must be a Kura image tag like 0.5.2, 0.5.2-rc.1, or v0.5.2"
+  @provisioner_node_ref_format ~r/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/
+  @provisioner_node_ref_message "must be a valid Kubernetes RFC1123 label"
 
   @primary_key {:id, :binary_id, autogenerate: true}
   schema "kura_servers" do
@@ -78,6 +80,8 @@ defmodule Tuist.Kura.Server do
       :provisioner_node_ref
     ])
     |> validate_required([:account_id, :region, :spec, :volume_size_gi, :provisioner_node_ref])
+    |> validate_format(:provisioner_node_ref, @provisioner_node_ref_format, message: @provisioner_node_ref_message)
+    |> validate_length(:provisioner_node_ref, max: 53)
     |> validate_number(:volume_size_gi, greater_than: 0, less_than_or_equal_to: 10_000)
     |> validate_change(:region, fn :region, value ->
       if Tuist.Kura.Regions.exists?(value),

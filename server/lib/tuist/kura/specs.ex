@@ -9,9 +9,8 @@ defmodule Tuist.Kura.Specs do
 
     * On Kubernetes (`HelmKubernetes`), the spec maps to Pod CPU and
       memory requests/limits and the volume to a PVC size.
-    * On a future bare-metal provisioner (Hetzner Dedicated, Vultr, …),
-      the same spec would map to an instance type and the volume to
-      a separately-attached block volume.
+    * Another provisioner would map the same spec to whatever its
+      platform uses for compute and storage capacity.
 
   Adding a spec is a code change: append to `@catalog`, deploy. The
   list is the dropdown the operator sees in /ops, so the labels are
@@ -21,9 +20,9 @@ defmodule Tuist.Kura.Specs do
   defstruct [:id, :label, :description, :default_volume_gi, :bandwidth]
 
   # Per-spec ingress/egress bandwidth limits applied as Cilium-honored
-  # pod annotations on the StatefulSet. Starting points sized for a
-  # 1 Gbps Hetzner AX NIC with light oversubscription; revisit once we
-  # have load data.
+  # pod annotations on the StatefulSet. Starting points for a shared
+  # Hetzner Cloud Kura pool; revisit once we have load data from the
+  # actual worker shape.
   @catalog [
     %{
       id: :small,

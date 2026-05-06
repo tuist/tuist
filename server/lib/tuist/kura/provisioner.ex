@@ -6,9 +6,9 @@ defmodule Tuist.Kura.Provisioner do
   The control plane (Oban workers, /ops UI, the `Tuist.Kura` context)
   speaks in regions and accounts. It does not know whether a given
   region is backed by a Helm release on a managed Kubernetes cluster,
-  by a bare-metal Hetzner cloud server, or by a kind cluster on a
-  developer laptop. Each backing platform is a module that implements
-  this behaviour.
+  by a direct VM provisioner, or by a kind cluster on a developer
+  laptop. Each backing platform is a module that implements this
+  behaviour.
 
   Implementations return an opaque `provisioner_node_ref` from
   `provision/3`. The control plane stores it on the `Server` row
@@ -82,9 +82,9 @@ defmodule Tuist.Kura.Provisioner do
   provisioner-specific resource description, used by the provisioner
   during provisioning and rollout. Shape is implementation-defined.
 
-  Kubernetes provisioners return Pod resource requests/limits;
-  bare-metal provisioners would return an instance type and a block
-  volume size. The customer-facing `Tuist.Kura.Specs` catalog stays
+  Kubernetes provisioners return Pod resource requests/limits; another
+  provisioner would return its own platform-specific compute and
+  storage shape. The customer-facing `Tuist.Kura.Specs` catalog stays
   free of any platform vocabulary.
   """
   @callback resources_for(Server.t()) :: map()
