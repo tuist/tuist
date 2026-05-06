@@ -113,18 +113,32 @@ defmodule Tuist.VCS do
   Validates a user-supplied `client_url` for a forge instance. Returns
   `{:ok, normalized_url}` on success or `{:error, reason}` otherwise.
 
-  This is a *shape* check — it verifies the URL has an http(s) scheme and a
-  non-empty host, and trims trailing slashes. It deliberately does not perform
-  DNS resolution: SSRF protection happens at request time via
-  `Tuist.OAuth2.SSRFGuard.pin/1` so a TOCTOU rebinding attack between
-  validation and request cannot bypass it.
+  This is a *shape* check — it verifies the URL has an https scheme and a
+  non-empty host, and trims trailing slashes. The scheme is restricted to
+  https because the manifest exchange transports a fresh GitHub App's
+  private key, client secret, and webhook secret; allowing http would
+  expose those credentials in transit. http:// is permitted only for
+  the dev/test envs so local fixtures (e.g. `http://localhost:4002`)
+  keep working.
+
+  The validator deliberately does not perform DNS resolution: SSRF
+  protection happens at request time via `Tuist.OAuth2.SSRFGuard.pin/1`
+  so a TOCTOU rebinding attack between validation and request cannot
+  bypass it.
   """
   def validate_client_url(url) when is_binary(url) do
     trimmed = url |> String.trim() |> String.trim_trailing("/")
 
     case URI.parse(trimmed) do
-      %URI{scheme: scheme, host: host} when scheme in ["http", "https"] and is_binary(host) and host != "" ->
+      %URI{scheme: "https", host: host} when is_binary(host) and host != "" ->
         {:ok, trimmed}
+
+      %URI{scheme: "http", host: host} when is_binary(host) and host != "" ->
+        if Environment.env() in [:dev, :test] do
+          {:ok, trimmed}
+        else
+          {:error, :insecure_scheme}
+        end
 
       _ ->
         {:error, :invalid_url}
@@ -1190,13 +1204,35 @@ defmodule Tuist.VCS do
   # GitHub App Installation functions
 
   @doc """
-  Gets a GitHub app installation by its installation ID.
+  Looks up a GitHub App installation. `installation_id` is only unique
+  *within* a GitHub instance — two GHES instances can each emit
+  installation `123` — so prefer the 2-arity form with the App ID (or
+  client_url) when the caller knows it. The 1-arity form is kept for
+  github.com flows where there's only ever one row per `installation_id`.
   """
-  def get_github_app_installation_by_installation_id(installation_id) do
-    case Repo.get_by(GitHubAppInstallation, installation_id: to_string(installation_id)) do
+  def get_github_app_installation_by_installation_id(installation_id, opts \\ []) do
+    query =
+      GitHubAppInstallation
+      |> where([i], i.installation_id == ^to_string(installation_id))
+      |> apply_lookup_opts(opts)
+
+    case Repo.one(query) do
       nil -> {:error, :not_found}
       github_app_installation -> {:ok, github_app_installation}
     end
+  end
+
+  defp apply_lookup_opts(query, opts) do
+    Enum.reduce(opts, query, fn
+      {:client_url, url}, q when is_binary(url) ->
+        where(q, [i], i.client_url == ^url)
+
+      {:app_id, app_id}, q when is_binary(app_id) ->
+        where(q, [i], i.app_id == ^app_id)
+
+      _, q ->
+        q
+    end)
   end
 
   @doc """

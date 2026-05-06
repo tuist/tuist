@@ -30,6 +30,7 @@ defmodule TuistWeb.GitHubAppManifestController do
   use TuistWeb, :controller
 
   alias Tuist.Accounts
+  alias Tuist.Billing.Entitlements
   alias Tuist.Environment
   alias Tuist.OAuth2.SSRFGuard
   alias Tuist.VCS
@@ -45,10 +46,12 @@ defmodule TuistWeb.GitHubAppManifestController do
 
   def start(conn, %{"state" => state_token}) when is_binary(state_token) do
     case VCS.verify_github_state_token(state_token) do
-      {:ok, %{client_url: client_url}} ->
+      {:ok, %{account_id: account_id, client_url: client_url}} ->
         if client_url == VCS.default_client_url() do
           raise BadRequestError, dgettext("dashboard", "Manifest flow is only available for GitHub Enterprise Server.")
         end
+
+        ensure_entitled!(account_id)
 
         manifest = manifest_payload()
         nonce = CSP.get_csp_nonce()
@@ -70,6 +73,7 @@ defmodule TuistWeb.GitHubAppManifestController do
 
   def callback(conn, %{"code" => code, "state" => state_token}) when is_binary(code) and is_binary(state_token) do
     with {:ok, %{account_id: account_id, client_url: client_url}} <- VCS.verify_github_state_token(state_token),
+         :ok <- ensure_entitled(account_id),
          {:ok, account} <- Accounts.get_account_by_id(account_id),
          {:ok, app} <- exchange_manifest_code(client_url, code),
          {:ok, installation} <- upsert_installation(account, client_url, app) do
@@ -90,6 +94,13 @@ defmodule TuistWeb.GitHubAppManifestController do
                 "This account already has a GitHub app installation. Uninstall it before registering a new one."
               )
 
+      {:error, :not_entitled} ->
+        raise BadRequestError,
+              dgettext(
+                "dashboard",
+                "GitHub Enterprise Server is only available on the Enterprise plan."
+              )
+
       {:error, reason} when is_binary(reason) ->
         Logger.error("GitHub App manifest exchange failed: #{reason}")
         raise BadRequestError, dgettext("dashboard", "Could not complete the GitHub App registration.")
@@ -102,6 +113,37 @@ defmodule TuistWeb.GitHubAppManifestController do
 
   def callback(_conn, _params) do
     raise BadRequestError, dgettext("dashboard", "Invalid manifest registration request.")
+  end
+
+  defp ensure_entitled!(account_id) do
+    case ensure_entitled(account_id) do
+      :ok ->
+        :ok
+
+      {:error, :not_entitled} ->
+        raise BadRequestError,
+              dgettext(
+                "dashboard",
+                "GitHub Enterprise Server is only available on the Enterprise plan."
+              )
+
+      {:error, :not_found} ->
+        raise BadRequestError, dgettext("dashboard", "Invalid manifest registration request.")
+    end
+  end
+
+  defp ensure_entitled(account_id) do
+    case Accounts.get_account_by_id(account_id) do
+      {:ok, account} ->
+        if Entitlements.allows?(account, :github_enterprise_server) do
+          :ok
+        else
+          {:error, :not_entitled}
+        end
+
+      {:error, :not_found} ->
+        {:error, :not_found}
+    end
   end
 
   defp manifest_payload do

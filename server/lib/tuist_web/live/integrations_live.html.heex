@@ -1,6 +1,6 @@
 <div id="integrations">
   <h1 data-part="title">{dgettext("dashboard_integrations", "Integrations")}</h1>
-  <.card_section :if={Tuist.Environment.github_app_configured?()} data-part="github-card-section">
+  <.card_section :if={@github_card_visible?} data-part="github-card-section">
     <div data-part="header">
       <span data-part="title">
         {dgettext("dashboard_integrations", "GitHub")}
@@ -14,7 +14,7 @@
     </div>
     <div data-part="content">
       <div
-        :if={is_nil(@github_app_installation)}
+        :if={is_nil(@github_app_installation) and @github_enterprise_available?}
         data-part="github-host-config"
         style="display: flex; flex-direction: column; gap: var(--noora-spacing-7); width: 320px; margin-left: auto;"
       >

@@ -7,6 +7,7 @@ defmodule TuistWeb.IntegrationsLiveTest do
 
   alias Tuist.VCS
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.BillingFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.VCSFixtures
 
@@ -175,5 +176,41 @@ defmodule TuistWeb.IntegrationsLiveTest do
 
     html = render_async(lv)
     assert html =~ "test-org/test-repo"
+  end
+
+  describe "GitHub Enterprise Server entitlement gate (Tuist Cloud)" do
+    setup do
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      :ok
+    end
+
+    test "hides the Enterprise server tab when the account is not on the Enterprise plan",
+         %{conn: conn, organization: organization, account: account} do
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro)
+
+      {:ok, _lv, html} = live(conn, ~p"/#{organization.account.name}/integrations")
+
+      refute html =~ "Enterprise server"
+    end
+
+    test "shows the Enterprise server tab when the account is on the Enterprise plan",
+         %{conn: conn, organization: organization, account: account} do
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
+
+      {:ok, _lv, html} = live(conn, ~p"/#{organization.account.name}/integrations")
+
+      assert html =~ "Enterprise server"
+    end
+
+    test "ignores a fabricated select-github-enterprise event when the account is not entitled",
+         %{conn: conn, organization: organization, account: account} do
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/integrations")
+
+      html = render_click(lv, "select-github-enterprise")
+
+      refute html =~ "Server URL"
+    end
   end
 end

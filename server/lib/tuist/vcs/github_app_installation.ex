@@ -69,7 +69,8 @@ defmodule Tuist.VCS.GitHubAppInstallation do
       end
     end)
     |> unique_constraint([:account_id])
-    |> unique_constraint([:installation_id])
+    |> unique_constraint([:installation_id], name: :github_app_installations_client_url_installation_id_index)
+    |> unique_constraint([:app_id], name: :github_app_installations_client_url_app_id_index)
     |> foreign_key_constraint(:account_id)
   end
 

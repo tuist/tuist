@@ -5,8 +5,18 @@ defmodule TuistWeb.GitHubAppManifestControllerTest do
   alias Tuist.OAuth2.SSRFGuard
   alias Tuist.VCS
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.BillingFixtures
   alias TuistTestSupport.Fixtures.VCSFixtures
   alias TuistWeb.Errors.BadRequestError
+
+  setup do
+    # The manifest flow is gated to Enterprise plans on Tuist Cloud. The
+    # existing scenarios below cover the protocol regardless of plan, so we
+    # default to self-hosted (where the gate is always open) and let the
+    # dedicated "Enterprise plan gate" describe block opt back in.
+    stub(Tuist.Environment, :tuist_hosted?, fn -> false end)
+    :ok
+  end
 
   describe "GET /integrations/github/manifest/start" do
     test "renders an auto-submit form pointing at the GHES /settings/apps/new", %{conn: conn} do
@@ -155,6 +165,38 @@ defmodule TuistWeb.GitHubAppManifestControllerTest do
       {:ok, installation} = VCS.get_github_app_installation_for_account(account.id)
       assert installation.installation_id == "existing-install-id"
       assert is_nil(installation.app_id)
+    end
+  end
+
+  describe "Enterprise plan gate (Tuist Cloud)" do
+    setup do
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      :ok
+    end
+
+    test "rejects manifest start when the account is not on the Enterprise plan", %{conn: conn} do
+      account = AccountsFixtures.organization_fixture(preload: [:account]).account
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro)
+
+      state_token = VCS.generate_github_state_token(account.id, "https://github.example.com")
+
+      assert_raise BadRequestError, ~r/Enterprise plan/, fn ->
+        get(conn, ~p"/integrations/github/manifest/start", %{"state" => state_token})
+      end
+    end
+
+    test "rejects manifest callback when the account is not on the Enterprise plan", %{conn: conn} do
+      account = AccountsFixtures.organization_fixture(preload: [:account]).account
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro)
+
+      state_token = VCS.generate_github_state_token(account.id, "https://github.example.com")
+
+      assert_raise BadRequestError, ~r/Enterprise plan/, fn ->
+        get(conn, ~p"/integrations/github/manifest/callback", %{
+          "code" => "tmpcode",
+          "state" => state_token
+        })
+      end
     end
   end
 end

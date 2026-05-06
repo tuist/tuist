@@ -4,6 +4,7 @@ defmodule TuistWeb.IntegrationsLive do
   use Noora
 
   alias Tuist.Authorization
+  alias Tuist.Billing.Entitlements
   alias Tuist.Projects
   alias Tuist.Slack
   alias Tuist.Utilities.DateFormatter
@@ -17,7 +18,13 @@ defmodule TuistWeb.IntegrationsLive do
     end
 
     selected_account = Tuist.Repo.preload(selected_account, [:github_app_installation, :slack_installation, :projects])
-    github_installation = selected_account.github_app_installation
+    pending_or_installed = selected_account.github_app_installation
+    # A row only counts as "installed" once GitHub has assigned an
+    # installation_id via the post-install setup callback; manifest-flow
+    # rows exist with credentials but `installation_id: nil` until then.
+    github_installation =
+      if pending_or_installed && pending_or_installed.installation_id, do: pending_or_installed
+
     slack_installation = selected_account.slack_installation
     vcs_connections = vcs_connections(selected_account)
 
@@ -33,6 +40,8 @@ defmodule TuistWeb.IntegrationsLive do
       |> assign(github_client_url: VCS.default_client_url())
       |> assign(github_client_url_error: nil)
       |> assign(show_github_enterprise_input: false)
+      |> assign(github_enterprise_available?: Entitlements.allows?(selected_account, :github_enterprise_server))
+      |> assign(github_card_visible?: github_card_visible?(selected_account, github_installation))
       |> assign(:head_title, "#{dgettext("dashboard_integrations", "Integrations")} · #{selected_account.name} · Tuist")
       |> then(fn socket ->
         if github_installation do
@@ -80,13 +89,19 @@ defmodule TuistWeb.IntegrationsLive do
 
   @impl true
   def handle_event("select-github-enterprise", _params, socket) do
-    socket =
-      socket
-      |> assign(show_github_enterprise_input: true)
-      |> assign(github_client_url: VCS.default_client_url())
-      |> assign(github_client_url_error: nil)
+    if socket.assigns.github_enterprise_available? do
+      socket =
+        socket
+        |> assign(show_github_enterprise_input: true)
+        |> assign(github_client_url: VCS.default_client_url())
+        |> assign(github_client_url_error: nil)
 
-    {:noreply, socket}
+      {:noreply, socket}
+    else
+      # Defense in depth: the tab is hidden in the UI for non-Enterprise
+      # accounts, so reaching this branch implies a fabricated event.
+      {:noreply, socket}
+    end
   end
 
   @impl true
@@ -220,6 +235,18 @@ defmodule TuistWeb.IntegrationsLive do
           {:error, _} -> {trimmed, dgettext("dashboard_integrations", "Invalid URL")}
         end
     end
+  end
+
+  # The GitHub integration card is shown when ANY of:
+  #   * The github.com Tuist App env vars are set (Tuist Cloud always);
+  #   * An installation already exists for the account (GHES install
+  #     persisted via the manifest flow even with no env vars);
+  #   * The account is entitled to GHES (so they can start the manifest
+  #     flow without github.com env vars on a self-hosted Tuist).
+  defp github_card_visible?(account, github_installation) do
+    Tuist.Environment.github_app_configured?() or
+      not is_nil(github_installation) or
+      Entitlements.allows?(account, :github_enterprise_server)
   end
 
   defp vcs_connections(account, opts \\ []) do

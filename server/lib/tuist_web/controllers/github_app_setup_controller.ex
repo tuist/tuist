@@ -50,8 +50,9 @@ defmodule TuistWeb.GitHubAppSetupController do
 
   defp attach_installation_id(account, client_url, installation_id) do
     installation_id = to_string(installation_id)
+    client_url = client_url || VCS.default_client_url()
 
-    case VCS.get_github_app_installation_by_installation_id(installation_id) do
+    case VCS.get_github_app_installation_by_installation_id(installation_id, client_url: client_url) do
       {:ok, %GitHubAppInstallation{account_id: account_id}} when account_id != account.id ->
         {:error, :installation_already_connected}
 
@@ -70,7 +71,7 @@ defmodule TuistWeb.GitHubAppSetupController do
             VCS.create_github_app_installation(%{
               account_id: account.id,
               installation_id: installation_id,
-              client_url: client_url || VCS.default_client_url()
+              client_url: client_url
             })
         end
     end
