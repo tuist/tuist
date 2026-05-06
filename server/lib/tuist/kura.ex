@@ -31,6 +31,7 @@ defmodule Tuist.Kura do
   alias Tuist.Kura.Deployment
   alias Tuist.Kura.DeploymentLogLine
   alias Tuist.Kura.Provisioner
+  alias Tuist.Kura.Reconciler
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
   alias Tuist.Kura.Specs
@@ -52,6 +53,9 @@ defmodule Tuist.Kura do
     "volume_size_gi" => :volume_size_gi
   }
   @create_server_atom_keys Map.values(@create_server_keys)
+
+  @doc "Reconciles Kura deployments stranded in `:running` after a server restart."
+  def reconcile_orphaned_deployments, do: Reconciler.reconcile()
 
   ## Versions
 

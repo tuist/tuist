@@ -19,6 +19,7 @@ defmodule Tuist.Application do
   alias Tuist.Environment
   alias Tuist.Gradle
   alias Tuist.Gradle.Build.Buffer
+  alias Tuist.Kura
   alias Tuist.Tests.TestCase
   alias Tuist.Tests.TestCaseEvent
   alias Tuist.Tests.TestCaseFailure
@@ -403,7 +404,12 @@ defmodule Tuist.Application do
   # `:kura_rollout` queue and so never produces orphans.
   defp kura_children do
     if Environment.web?() and not Environment.test?() do
-      [Tuist.Kura.Reconciler]
+      [
+        Supervisor.child_spec(
+          {Task, &Kura.reconcile_orphaned_deployments/0},
+          id: Kura.Reconciler
+        )
+      ]
     else
       []
     end
