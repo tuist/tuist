@@ -1523,7 +1523,12 @@ public enum Module: String, CaseIterable {
                 ]
             case .xcodeGraphMapper:
                 [
+                    .target(name: Module.xcodeGraph.targetName),
+                    .target(name: Module.xcodeMetadata.targetName),
+                    .external(name: "AEXML"),
                     .external(name: "FileSystem"),
+                    .external(name: "PathKit"),
+                    .external(name: "XcodeProj"),
                 ]
             case .machineMetrics:
                 [
@@ -2030,12 +2035,7 @@ public enum Module: String, CaseIterable {
         let buildableFolderPath: Path
         switch product {
         case .unitTests:
-            switch self {
-            case .xcodeGraph, .xcodeMetadata, .xcodeGraphMapper:
-                buildableFolderPath = "cli/Sources/XcodeGraph/Tests/\(name)/"
-            default:
-                buildableFolderPath = "cli/Tests/\(name)/"
-            }
+            buildableFolderPath = "cli/Tests/\(name)/"
             debugSettings["CODE_SIGN_IDENTITY"] = ""
         default:
             switch self {
