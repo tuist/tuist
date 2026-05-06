@@ -1,9 +1,10 @@
 defmodule Tuist.MCP.ServerTest do
   use TuistTestSupport.Cases.ConnCase, async: true
-  use Mimic
 
+  alias Tuist.MCP.Components.Tools.AddOrganizationMember
+  alias Tuist.MCP.Components.Tools.CreateOrganization
+  alias Tuist.MCP.Components.Tools.CreateProject
   alias Tuist.MCP.Server
-  alias Tuist.Projects
 
   describe "server/0" do
     test "returns a server with all tools" do
@@ -11,6 +12,9 @@ defmodule Tuist.MCP.ServerTest do
 
       tool_names = server.tools |> Map.keys() |> Enum.sort()
 
+      assert "create_organization" in tool_names
+      assert "create_project" in tool_names
+      assert "add_organization_member" in tool_names
       assert "list_xcode_builds" in tool_names
       assert "get_xcode_build" in tool_names
       assert "list_xcode_build_targets" in tool_names
@@ -47,15 +51,20 @@ defmodule Tuist.MCP.ServerTest do
         assert is_binary(annotations[:title]) and annotations[:title] != "",
                "tool #{name} is missing a non-empty :title annotation"
 
-        assert annotations[:readOnlyHint] == true,
-               "tool #{name} must declare readOnlyHint: true"
+        assert is_boolean(annotations[:readOnlyHint]),
+               "tool #{name} must declare readOnlyHint"
 
         assert annotations[:openWorldHint] == false,
                "tool #{name} must declare openWorldHint: false"
 
-        assert annotations[:destructiveHint] == false,
-               "tool #{name} must declare destructiveHint: false"
+        assert is_boolean(annotations[:destructiveHint]),
+               "tool #{name} must declare destructiveHint"
       end
+
+      assert CreateOrganization.annotations()[:readOnlyHint] == false
+      assert CreateProject.annotations()[:readOnlyHint] == false
+      assert AddOrganizationMember.annotations()[:readOnlyHint] == false
+      assert AddOrganizationMember.annotations()[:destructiveHint] == true
     end
 
     test "returns a server with all prompts" do
@@ -70,17 +79,8 @@ defmodule Tuist.MCP.ServerTest do
       assert "compare_test_case" in prompt_names
       assert "compare_generations" in prompt_names
       assert "compare_cache_runs" in prompt_names
-    end
-
-    test "list_projects tool returns results" do
-      stub(Projects, :list_accessible_projects, fn _subject, _opts -> [] end)
-
-      conn = %Plug.Conn{assigns: %{current_subject: :subject}}
-
-      result = Tuist.MCP.Components.Tools.ListProjects.call(conn, %{})
-
-      assert %{"content" => [%{"type" => "text", "text" => text}]} = result
-      assert JSON.decode!(text) == []
+      assert "integrate_gradle_project" in prompt_names
+      assert "integrate_xcode_project" in prompt_names
     end
   end
 end

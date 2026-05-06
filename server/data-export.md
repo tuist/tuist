@@ -15,14 +15,15 @@ Sensitive authentication data (passwords, tokens) are excluded from exports.
 
 ### Account & User Data
 - User profiles (email, active/inactive status, account settings, preferred locale)
-- Organization memberships and roles
+- Organization records (account handle/name, creator relationship, and timestamps)
+- Organization memberships and roles (user, organization, role, and timestamps)
 - Account billing information and subscriptions
 - API tokens, SCIM-scoped account tokens, and project tokens (existence, scopes, names, timestamps, and last-used metadata only; token values and hashes are excluded)
 - Custom cache endpoint configurations
 - Organization SSO configuration metadata, including the configured SSO provider, provider URL, and full OAuth2 endpoint URLs
 
 ### Projects & Development
-- Project information (names, settings, repositories)
+- Project information (account relationship, handle/name, build system, default branch, visibility/settings, repositories, and timestamps)
 - Command events (CLI usage, build data, performance metrics)
 - Cache events and cache action items
 - Test cases and test execution results
