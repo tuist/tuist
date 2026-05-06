@@ -2,6 +2,7 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
+  alias Tuist.CommandEvents
   alias Tuist.MCP.Components.Tools.GetTestCase
   alias Tuist.MCP.Components.Tools.GetTestCaseRun
   alias Tuist.MCP.Components.Tools.GetTestRun
@@ -581,15 +582,20 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
   describe "list_xcode_test_targets" do
     test "returns targets with selective testing status" do
       project = %{id: 1, name: "app"}
+      command_event = %{id: "event-1", project_id: 1, created_at: ~N[2024-01-01 12:00:00]}
 
       stub(Tests, :get_test, fn "run-1" ->
         {:ok, %{id: "run-1", project_id: 1}}
       end)
 
+      stub(CommandEvents, :get_command_event_by_test_run_id, fn "run-1" ->
+        {:ok, command_event}
+      end)
+
       stub(Projects, :get_project_by_id, fn 1 -> project end)
       stub(Tuist.Authorization, :authorize, fn :test_read, :subject, ^project -> :ok end)
 
-      stub(Xcode, :selective_testing_analytics, fn %{id: "run-1"}, _flop_params ->
+      stub(Xcode, :selective_testing_analytics, fn ^command_event, _flop_params ->
         {%{
            test_modules: [
              %{name: "AuthTests", selective_testing_hit: :miss, selective_testing_hash: "abc123"},
@@ -642,6 +648,28 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
                ListXcodeTestTargets.call(conn, %{"test_run_id" => "run-1"})
 
       assert text =~ "You do not have access to this resource."
+    end
+
+    test "returns an error when no command event is associated with the test run" do
+      project = %{id: 1, name: "app"}
+
+      stub(Tests, :get_test, fn "run-1" ->
+        {:ok, %{id: "run-1", project_id: 1}}
+      end)
+
+      stub(CommandEvents, :get_command_event_by_test_run_id, fn "run-1" ->
+        {:error, :not_found}
+      end)
+
+      stub(Projects, :get_project_by_id, fn 1 -> project end)
+      stub(Tuist.Authorization, :authorize, fn :test_read, :subject, ^project -> :ok end)
+
+      conn = %Plug.Conn{assigns: %{current_subject: :subject}}
+
+      assert %{"content" => [%{"type" => "text", "text" => text}], "isError" => true} =
+               ListXcodeTestTargets.call(conn, %{"test_run_id" => "run-1"})
+
+      assert text =~ "Test run not found: run-1"
     end
   end
 end
