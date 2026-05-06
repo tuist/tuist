@@ -1120,7 +1120,7 @@ defmodule Tuist.Tests do
     {test_case_data, historical_flaky_runs} =
       check_cross_run_flakiness(test, test_case_data)
 
-    mark_test_case_runs_as_flaky(historical_flaky_runs)
+    mark_test_case_runs_as_flaky(test.project_id, historical_flaky_runs)
 
     test_case_data = check_new_test_cases(test, test_case_data)
 
@@ -2149,18 +2149,24 @@ defmodule Tuist.Tests do
     }
   end
 
-  defp mark_test_case_runs_as_flaky([]), do: :ok
+  defp mark_test_case_runs_as_flaky(_project_id, []), do: :ok
 
-  defp mark_test_case_runs_as_flaky(runs) when is_list(runs) do
+  defp mark_test_case_runs_as_flaky(project_id, runs) when is_list(runs) do
     ids = runs |> Enum.map(& &1.id) |> Enum.uniq()
+    test_case_ids = runs |> Enum.map(& &1.test_case_id) |> Enum.uniq()
 
-    # `test_case_runs` is a ReplacingMergeTree, so a re-inserted run can
-    # return multiple versions per id until the background merge collapses
-    # them. We dedupe in Elixir on a small result set so the `proj_by_id`
-    # projection (binary search on `id`) is used; `FINAL` would disable it
-    # and force a full part scan with an in-memory merge.
+    # `test_case_runs` is `ORDER BY (project_id, test_case_id, ran_at, id)` —
+    # filtering by `project_id` and `test_case_id` (both already known per
+    # `historical_flaky_runs`) lets the primary key prune granules instead
+    # of falling back to the bloom filter on `id` alone, which scales poorly.
+    # The table is also a ReplacingMergeTree, so a re-inserted run can return
+    # multiple versions per id until the background merge collapses them; we
+    # dedupe in Elixir so the result set stays small. `FINAL` would force a
+    # full part scan with an in-memory merge instead.
     full_runs =
       from(tcr in TestCaseRun,
+        where: tcr.project_id == ^project_id,
+        where: tcr.test_case_id in ^test_case_ids,
         where: tcr.id in ^ids,
         order_by: [desc: tcr.inserted_at]
       )
