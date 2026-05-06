@@ -3,8 +3,7 @@ defmodule Tuist.Kura.Server do
   A Kura server allocated for a single account, in a single region.
 
   Identity is `(account, region)`: an account can light up Kura in as
-  many regions as it needs, but only one server per region. `spec` is
-  a capacity knob (CPU/memory/volume per node), not part of identity.
+  many regions as it needs, but only one server per region.
 
   Lifecycle:
 
@@ -31,8 +30,6 @@ defmodule Tuist.Kura.Server do
   alias Tuist.Accounts.Account
   alias Tuist.Kura.Deployment
 
-  @spec_mappings [small: 0, medium: 1, large: 2]
-  @specs Keyword.keys(@spec_mappings)
   @status_mappings [provisioning: 0, active: 1, failed: 2, destroying: 3, destroyed: 4]
   @statuses Keyword.keys(@status_mappings)
   @allowed_status_transitions %{
@@ -50,8 +47,6 @@ defmodule Tuist.Kura.Server do
   @primary_key {:id, :binary_id, autogenerate: true}
   schema "kura_servers" do
     field :region, :string
-    field :spec, Ecto.Enum, values: @spec_mappings, default: :medium
-    field :volume_size_gi, :integer
     field :status, Ecto.Enum, values: @status_mappings, default: :provisioning
     field :url, :string
     field :current_image_tag, :string
@@ -67,7 +62,6 @@ defmodule Tuist.Kura.Server do
     timestamps(type: :utc_datetime_usec)
   end
 
-  def specs, do: @specs
   def statuses, do: @statuses
 
   def create_changeset(server \\ %__MODULE__{}, attrs) do
@@ -75,14 +69,11 @@ defmodule Tuist.Kura.Server do
     |> cast(attrs, [
       :account_id,
       :region,
-      :spec,
-      :volume_size_gi,
       :provisioner_node_ref
     ])
-    |> validate_required([:account_id, :region, :spec, :volume_size_gi, :provisioner_node_ref])
+    |> validate_required([:account_id, :region, :provisioner_node_ref])
     |> validate_format(:provisioner_node_ref, @provisioner_node_ref_format, message: @provisioner_node_ref_message)
     |> validate_length(:provisioner_node_ref, max: 53)
-    |> validate_number(:volume_size_gi, greater_than: 0, less_than_or_equal_to: 10_000)
     |> validate_change(:region, fn :region, value ->
       if Tuist.Kura.Regions.exists?(value),
         do: [],

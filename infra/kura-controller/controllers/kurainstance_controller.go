@@ -327,9 +327,6 @@ func volumes(instance *kurav1alpha1.KuraInstance) []corev1.Volume {
 
 func dataVolumeClaim(instance *kurav1alpha1.KuraInstance) corev1.PersistentVolumeClaim {
 	storage := resource.MustParse("20Gi")
-	if instance.Spec.VolumeSizeGi > 0 {
-		storage = resource.MustParse(fmt.Sprintf("%dGi", instance.Spec.VolumeSizeGi))
-	}
 	pvc := corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{Name: "data"},
 		Spec: corev1.PersistentVolumeClaimSpec{

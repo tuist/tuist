@@ -118,16 +118,14 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   end
 
   @impl true
-  def resources_for(%Server{}) do
-    %{}
-  end
+  def resources_for(%Server{}), do: %{}
 
   def instance_name(handle, %Regions{provisioner_config: %{cluster_id: cluster_id}}) do
     "kura-#{dns_handle(handle)}-#{cluster_id}"
   end
 
   @doc false
-  def manifest(name, image_tag, account, %Regions{} = region, %Server{} = server, chart) do
+  def manifest(name, image_tag, account, %Regions{} = region, %Server{}, chart) do
     %{
       "apiVersion" => "kura.tuist.dev/v1alpha1",
       "kind" => "KuraInstance",
@@ -150,7 +148,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           "publicHost" => public_host(account.name, region),
           "tlsSecretName" => @tls_secret_name,
           "storageClassName" => storage_class(region),
-          "volumeSizeGi" => server.volume_size_gi || 20,
           "extensionScript" => chart |> Path.join("hooks/tuist.lua") |> File.read!(),
           "extraEnv" => extension_env(region)
         }

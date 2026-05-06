@@ -73,12 +73,6 @@
         <:col :let={server} label={dgettext("dashboard", "Region")}>
           <.text_cell label={server.region} />
         </:col>
-        <:col :let={server} label={dgettext("dashboard", "Spec")}>
-          <.text_cell label={spec_label(server.spec)} />
-        </:col>
-        <:col :let={server} label={dgettext("dashboard", "Volume")}>
-          <.text_cell label={"#{server.volume_size_gi} Gi"} />
-        </:col>
         <:col :let={server} label={dgettext("dashboard", "Status")}>
           <.badge_cell
             label={server_status_label(server.status)}
@@ -151,7 +145,7 @@
       description={
         dgettext(
           "dashboard",
-          "Pick a region and a spec. The server is created in the background and shows up in the list above as soon as it's ready."
+          "Pick a region. The server is created in the background and shows up in the list above as soon as it's ready."
         )
       }
       header_type="icon"
@@ -176,28 +170,6 @@
           </option>
         </select>
       </div>
-
-      <div class="select-field">
-        <.label label={dgettext("dashboard", "Spec")} required />
-        <select id="add-server-spec" name="server[spec]" required>
-          <option
-            :for={spec <- @kura_specs}
-            value={Atom.to_string(spec.id)}
-            selected={Atom.to_string(spec.id) == @add_server_form[:spec].value}
-          >
-            {spec.label}
-          </option>
-        </select>
-      </div>
-
-      <.text_input
-        id="add-server-volume"
-        name="server[volume_size_gi]"
-        label={dgettext("dashboard", "Volume size (GiB)")}
-        value={@add_server_form[:volume_size_gi].value}
-        required
-        show_required
-      />
 
       <p data-part="hint">
         <%= case @latest_kura_version do %>

@@ -27,7 +27,7 @@ defmodule Tuist.Kura.Provisioner.HelmKubernetesTest do
                HelmKubernetes.rollout("kura-tuist-local", %{
                  image_tag: "0.5.2",
                  account: %{name: "tuist"},
-                 server: %Server{spec: :small, volume_size_gi: 25},
+                 server: %Server{},
                  region: region,
                  chart_path: chart,
                  on_log_line: fn line, stream -> send(test_pid, {:log_line, line, stream}) end
@@ -70,7 +70,7 @@ defmodule Tuist.Kura.Provisioner.HelmKubernetesTest do
                HelmKubernetes.rollout("kura-tuist-local", %{
                  image_tag: "0.5.2",
                  account: %{name: "tuist"},
-                 server: %Server{spec: :small, volume_size_gi: 25},
+                 server: %Server{},
                  region: local_region(),
                  chart_path: chart,
                  on_log_line: fn _, _ -> :ok end
@@ -127,22 +127,13 @@ defmodule Tuist.Kura.Provisioner.HelmKubernetesTest do
   end
 
   describe "resources_for/1" do
-    test "maps each customer-facing spec to Pod resources" do
-      for spec <- [:small, :medium, :large] do
-        server = %Server{spec: spec}
-
-        assert %{"resources" => %{"requests" => req, "limits" => lim}} =
-                 HelmKubernetes.resources_for(server)
-
-        assert is_binary(req["cpu"])
-        assert is_binary(req["memory"])
-        assert is_binary(lim["memory"])
-      end
-    end
-
-    test "returns an empty map for an unknown spec" do
-      server = %Server{spec: :nonsense}
-      assert HelmKubernetes.resources_for(server) == %{}
+    test "returns the default Pod resources" do
+      assert HelmKubernetes.resources_for(%Server{}) == %{
+               "resources" => %{
+                 "requests" => %{"cpu" => "500m", "memory" => "1Gi"},
+                 "limits" => %{"memory" => "2Gi"}
+               }
+             }
     end
   end
 
@@ -169,7 +160,7 @@ defmodule Tuist.Kura.Provisioner.HelmKubernetesTest do
                  "0.5.2",
                  %{name: "TUIST"},
                  region,
-                 %Server{spec: :small, volume_size_gi: 25},
+                 %Server{},
                  chart
                )
 
@@ -177,11 +168,10 @@ defmodule Tuist.Kura.Provisioner.HelmKubernetesTest do
       assert values["image"] == %{"tag" => "0.5.2"}
       assert values["config"] == %{"tenantId" => "TUIST", "region" => "local"}
       assert values["extension"] == %{"enabled" => true, "script" => "print('tuist hook')"}
-      assert values["persistence"] == %{"size" => "25Gi"}
 
       assert values["resources"] == %{
-               "requests" => %{"cpu" => "250m", "memory" => "512Mi"},
-               "limits" => %{"memory" => "1Gi"}
+               "requests" => %{"cpu" => "500m", "memory" => "1Gi"},
+               "limits" => %{"memory" => "2Gi"}
              }
 
       refute Map.has_key?(values, "ingress")
@@ -213,7 +203,7 @@ defmodule Tuist.Kura.Provisioner.HelmKubernetesTest do
           "0.5.2",
           %{name: "TUIST"},
           region,
-          %Server{spec: :medium, volume_size_gi: 100},
+          %Server{},
           chart_fixture(tmp_dir, "return true")
         )
 
@@ -233,7 +223,7 @@ defmodule Tuist.Kura.Provisioner.HelmKubernetesTest do
     end
 
     @tag :tmp_dir
-    test "emits per-pod Cilium bandwidth annotations from the spec catalog", %{tmp_dir: tmp_dir} do
+    test "emits default per-pod Cilium bandwidth annotations", %{tmp_dir: tmp_dir} do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
       stub(Tuist.Environment, :secret_key_tokens, fn -> nil end)
       stub(Tuist.License, :get_license, fn -> {:error, :missing} end)
@@ -243,7 +233,7 @@ defmodule Tuist.Kura.Provisioner.HelmKubernetesTest do
           "0.5.2",
           %{name: "TUIST"},
           local_region(),
-          %Server{spec: :medium, volume_size_gi: 100},
+          %Server{},
           chart_fixture(tmp_dir, "return true")
         )
 
@@ -251,24 +241,6 @@ defmodule Tuist.Kura.Provisioner.HelmKubernetesTest do
                "kubernetes.io/ingress-bandwidth" => "250M",
                "kubernetes.io/egress-bandwidth" => "250M"
              }
-    end
-
-    @tag :tmp_dir
-    test "omits bandwidth annotations for unknown specs", %{tmp_dir: tmp_dir} do
-      stub(Tuist.Environment, :app_url, fn -> "http://localhost:4000" end)
-      stub(Tuist.Environment, :secret_key_tokens, fn -> nil end)
-      stub(Tuist.License, :get_license, fn -> {:error, :missing} end)
-
-      values =
-        HelmKubernetes.instance_values(
-          "0.5.2",
-          %{name: "TUIST"},
-          local_region(),
-          %Server{spec: :nonsense, volume_size_gi: 25},
-          chart_fixture(tmp_dir, "return true")
-        )
-
-      refute Map.has_key?(values, "podAnnotations")
     end
   end
 

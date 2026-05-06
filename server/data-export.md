@@ -21,7 +21,7 @@ Sensitive authentication data (passwords, tokens) are excluded from exports.
 - API tokens, SCIM-scoped account tokens, and project tokens (existence, scopes, names, timestamps, and last-used metadata only; token values and hashes are excluded)
 - Custom cache endpoint configurations
 - Organization SSO configuration metadata, including the configured SSO provider, provider URL, and full OAuth2 endpoint URLs
-- Kura server records (`kura_servers` table): per-account Kura server configuration including region, spec tier, image tag, public URL, status, and volume size
+- Kura server records (`kura_servers` table): per-account Kura server configuration including region, image tag, public URL, and status
 - Kura deployment history (`kura_deployments` table): rollout attempts for the account's Kura servers including image tag, status, error messages, and start/finish timestamps
 
 ### Projects & Development

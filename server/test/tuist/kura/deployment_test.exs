@@ -231,8 +231,6 @@ defmodule Tuist.Kura.DeploymentTest do
     |> Server.create_changeset(%{
       account_id: account.id,
       region: "local",
-      spec: :small,
-      volume_size_gi: 50,
       provisioner_node_ref: "kura-#{account.name}-local"
     })
     |> Repo.insert!()

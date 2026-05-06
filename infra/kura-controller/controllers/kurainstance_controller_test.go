@@ -37,7 +37,6 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 			PublicHost:       "tuist-eu-1.kura.tuist.dev",
 			TLSSecretName:    "tuist-tls-cloudflare-origin-kura",
 			StorageClassName: "hcloud-volumes",
-			VolumeSizeGi:     100,
 			ExtensionScript:  "return true",
 		},
 	}
@@ -105,7 +104,7 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	if got := *sts.Spec.VolumeClaimTemplates[0].Spec.StorageClassName; got != "hcloud-volumes" {
 		t.Fatalf("expected storage class, got %q", got)
 	}
-	if got := sts.Spec.VolumeClaimTemplates[0].Spec.Resources.Requests.Storage().String(); got != "100Gi" {
+	if got := sts.Spec.VolumeClaimTemplates[0].Spec.Resources.Requests.Storage().String(); got != "20Gi" {
 		t.Fatalf("expected PVC size, got %q", got)
 	}
 }

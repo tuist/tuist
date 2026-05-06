@@ -23,7 +23,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
           "0.5.2",
           %{name: "tuist"},
           eu_region(),
-          %Server{volume_size_gi: 100, spec: :small},
+          %Server{},
           chart
         )
 
@@ -39,7 +39,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       assert spec["image"] == "ghcr.io/tuist/kura:0.5.2"
       assert spec["publicHost"] == "tuist-eu-1.kura.tuist.dev"
       assert spec["storageClassName"] == "hcloud-volumes"
-      assert spec["volumeSizeGi"] == 100
       assert spec["extensionScript"] == "return true"
 
       refute Map.has_key?(spec, "resources")
@@ -60,7 +59,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
   describe "resources_for/1" do
     test "does not expose per-account Kubernetes resources" do
-      assert KubernetesController.resources_for(%Server{spec: :small}) == %{}
+      assert KubernetesController.resources_for(%Server{}) == %{}
     end
   end
 

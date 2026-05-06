@@ -22,7 +22,6 @@ defmodule Tuist.Kura.Workers.RolloutWorkerTest do
       Kura.create_server(%{
         account_id: account.id,
         region: "local",
-        spec: :small,
         image_tag: "0.5.2"
       })
 

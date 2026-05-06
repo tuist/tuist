@@ -5,16 +5,6 @@ defmodule Tuist.Kura.ServerTest do
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
-  describe "spec enum" do
-    test "keeps persisted integer values stable" do
-      assert Ecto.Enum.mappings(Server, :spec) == [
-               small: 0,
-               medium: 1,
-               large: 2
-             ]
-    end
-  end
-
   describe "status enum" do
     test "keeps persisted integer values stable" do
       assert Ecto.Enum.mappings(Server, :status) == [
@@ -28,7 +18,7 @@ defmodule Tuist.Kura.ServerTest do
   end
 
   describe "create_changeset/2" do
-    test "requires account id, region, volume size, and provisioner ref" do
+    test "requires account id, region, and provisioner ref" do
       changeset = Server.create_changeset(%{})
 
       refute changeset.valid?
@@ -36,50 +26,19 @@ defmodule Tuist.Kura.ServerTest do
       assert %{
                account_id: ["can't be blank"],
                provisioner_node_ref: ["can't be blank"],
-               region: ["can't be blank"],
-               volume_size_gi: ["can't be blank"]
+               region: ["can't be blank"]
              } = errors_on(changeset)
     end
 
-    test "defaults spec to medium" do
+    test "accepts valid create attrs" do
       changeset =
         Server.create_changeset(%{
           account_id: account_id(),
           region: "local",
-          volume_size_gi: 200,
           provisioner_node_ref: "kura-tuist-local"
         })
 
       assert changeset.valid?
-      assert Ecto.Changeset.get_field(changeset, :spec) == :medium
-    end
-
-    test "casts supported specs from string params" do
-      changeset =
-        Server.create_changeset(%{
-          account_id: account_id(),
-          region: "local",
-          spec: "small",
-          volume_size_gi: 50,
-          provisioner_node_ref: "kura-tuist-local"
-        })
-
-      assert changeset.valid?
-      assert Ecto.Changeset.get_change(changeset, :spec) == :small
-    end
-
-    test "rejects unknown specs" do
-      changeset =
-        Server.create_changeset(%{
-          account_id: account_id(),
-          region: "local",
-          spec: :xlarge,
-          volume_size_gi: 50,
-          provisioner_node_ref: "kura-tuist-local"
-        })
-
-      refute changeset.valid?
-      assert %{spec: ["is invalid"]} = errors_on(changeset)
     end
 
     test "rejects unknown regions" do
@@ -87,29 +46,11 @@ defmodule Tuist.Kura.ServerTest do
         Server.create_changeset(%{
           account_id: account_id(),
           region: "moon",
-          spec: :small,
-          volume_size_gi: 50,
           provisioner_node_ref: "kura-tuist-moon"
         })
 
       refute changeset.valid?
       assert %{region: ["is not a registered region"]} = errors_on(changeset)
-    end
-
-    test "rejects invalid volume sizes" do
-      for volume_size_gi <- [0, 10_001] do
-        changeset =
-          Server.create_changeset(%{
-            account_id: account_id(),
-            region: "local",
-            spec: :small,
-            volume_size_gi: volume_size_gi,
-            provisioner_node_ref: "kura-tuist-local"
-          })
-
-        refute changeset.valid?
-        assert %{volume_size_gi: [_]} = errors_on(changeset)
-      end
     end
 
     test "rejects provisioner refs that are not Kubernetes label safe" do
@@ -118,8 +59,6 @@ defmodule Tuist.Kura.ServerTest do
           Server.create_changeset(%{
             account_id: account_id(),
             region: "local",
-            spec: :small,
-            volume_size_gi: 50,
             provisioner_node_ref: provisioner_node_ref
           })
 
@@ -133,8 +72,6 @@ defmodule Tuist.Kura.ServerTest do
         Server.create_changeset(%{
           account_id: account_id(),
           region: "local",
-          spec: :small,
-          volume_size_gi: 50,
           provisioner_node_ref: "kura-tuist-local",
           status: :active,
           url: "https://cache.example.com",
@@ -145,38 +82,6 @@ defmodule Tuist.Kura.ServerTest do
       refute Ecto.Changeset.get_change(changeset, :status)
       refute Ecto.Changeset.get_change(changeset, :url)
       refute Ecto.Changeset.get_change(changeset, :current_image_tag)
-    end
-
-    test "database constrains persisted spec and status integers" do
-      for {name, values} <- [
-            {"kura_servers_spec_valid", 0..2},
-            {"kura_servers_status_valid", 0..4}
-          ] do
-        %{rows: [[definition]]} =
-          Repo.query!(
-            """
-            SELECT pg_get_constraintdef(oid)
-            FROM pg_constraint
-            WHERE conrelid = 'kura_servers'::regclass
-            AND conname = $1
-            """,
-            [name]
-          )
-
-        for value <- values do
-          assert definition =~ Integer.to_string(value)
-        end
-      end
-    end
-
-    test "database rejects spec integers outside known enum values" do
-      account_id = account_id()
-
-      assert_raise Postgrex.Error, ~r/kura_servers_spec_valid/, fn ->
-        Repo.transaction(fn ->
-          insert_raw_server!(account_id, spec: 99)
-        end)
-      end
     end
 
     test "database rejects status integers outside known enum values" do
@@ -194,8 +99,6 @@ defmodule Tuist.Kura.ServerTest do
                %{
                  account_id: -1,
                  region: "local",
-                 spec: :small,
-                 volume_size_gi: 50,
                  provisioner_node_ref: "kura-tuist-local"
                }
                |> Server.create_changeset()
@@ -212,8 +115,6 @@ defmodule Tuist.Kura.ServerTest do
                %{
                  account_id: account_id,
                  region: "local",
-                 spec: :small,
-                 volume_size_gi: 50,
                  provisioner_node_ref: "kura-tuist-local-2"
                }
                |> Server.create_changeset()
@@ -237,8 +138,6 @@ defmodule Tuist.Kura.ServerTest do
                %{
                  account_id: account_id,
                  region: "local",
-                 spec: :small,
-                 volume_size_gi: 50,
                  provisioner_node_ref: "kura-tuist-local-2"
                }
                |> Server.create_changeset()
@@ -338,8 +237,6 @@ defmodule Tuist.Kura.ServerTest do
     %{
       account_id: account_id,
       region: "local",
-      spec: :small,
-      volume_size_gi: 50,
       provisioner_node_ref: "kura-tuist-local"
     }
     |> Server.create_changeset()
@@ -355,8 +252,6 @@ defmodule Tuist.Kura.ServerTest do
           id: Ecto.UUID.dump!(Ecto.UUID.generate()),
           account_id: account_id,
           region: "local",
-          spec: 0,
-          volume_size_gi: 50,
           status: 0,
           provisioner_node_ref: "kura-tuist-local",
           inserted_at: now,
@@ -368,15 +263,13 @@ defmodule Tuist.Kura.ServerTest do
     Repo.query!(
       """
       INSERT INTO kura_servers
-      (id, account_id, region, spec, volume_size_gi, status, provisioner_node_ref, inserted_at, updated_at)
-      VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8::timestamptz, $9::timestamptz)
+      (id, account_id, region, status, provisioner_node_ref, inserted_at, updated_at)
+      VALUES ($1::uuid, $2, $3, $4, $5, $6::timestamptz, $7::timestamptz)
       """,
       [
         values.id,
         values.account_id,
         values.region,
-        values.spec,
-        values.volume_size_gi,
         values.status,
         values.provisioner_node_ref,
         values.inserted_at,

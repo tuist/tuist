@@ -3,8 +3,7 @@ defmodule Tuist.Kura do
   Per-account Kura server management.
 
   Identity is `(account, region)`: an account can light up Kura in as
-  many regions as it needs, but only one server per region. `spec` is
-  the capacity tier of that server.
+  many regions as it needs, but only one server per region.
 
   This context is provisioner-agnostic. The backend resource-allocation
   decisions live behind `Tuist.Kura.Provisioner`; here we ask for an
@@ -34,7 +33,6 @@ defmodule Tuist.Kura do
   alias Tuist.Kura.Reconciler
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
-  alias Tuist.Kura.Specs
   alias Tuist.Kura.Workers.DestroyServerWorker
   alias Tuist.Kura.Workers.RolloutWorker
   alias Tuist.Repo
@@ -48,9 +46,7 @@ defmodule Tuist.Kura do
   @create_server_keys %{
     "account_id" => :account_id,
     "region" => :region,
-    "spec" => :spec,
-    "image_tag" => :image_tag,
-    "volume_size_gi" => :volume_size_gi
+    "image_tag" => :image_tag
   }
   @create_server_atom_keys Map.values(@create_server_keys)
 
@@ -147,15 +143,13 @@ defmodule Tuist.Kura do
   install. Returns `{:ok, server}` (deployment history preloaded) or
   `{:error, reason}`.
 
-  `attrs` keys: `:account_id`, `:region`, `:spec`, `:image_tag`,
-  optional `:volume_size_gi` (defaults from the spec catalog).
+  `attrs` keys: `:account_id`, `:region`, `:image_tag`.
   """
   def create_server(attrs) do
     attrs = normalize_attrs(attrs)
 
     with {:ok, region} <- fetch_region(attrs[:region]),
          {:ok, account} <- Accounts.get_account_by_id(attrs[:account_id]),
-         attrs = with_defaults(attrs, region),
          {:ok, ref} <- region.provisioner.provision(account, region, server_stub(attrs)) do
       attrs = Map.put(attrs, :provisioner_node_ref, ref)
       insert_server_and_enqueue(attrs, region)
@@ -211,18 +205,6 @@ defmodule Tuist.Kura do
 
   defp normalize_create_server_key(_), do: nil
 
-  defp with_defaults(attrs, _region) do
-    Map.put_new_lazy(attrs, :volume_size_gi, fn ->
-      attrs |> Map.get(:spec, :medium) |> normalize_spec() |> Specs.default_volume_gi() || 200
-    end)
-  end
-
-  defp normalize_spec(spec) when spec in [:small, :medium, :large], do: spec
-  defp normalize_spec("small"), do: :small
-  defp normalize_spec("medium"), do: :medium
-  defp normalize_spec("large"), do: :large
-  defp normalize_spec(_), do: :medium
-
   defp fetch_region(nil) do
     {:error, %Ecto.Changeset{errors: [region: {"can't be blank", []}]}}
   end
@@ -240,9 +222,7 @@ defmodule Tuist.Kura do
     end
   end
 
-  defp server_stub(attrs) do
-    struct(Server, Map.take(attrs, [:spec, :volume_size_gi]))
-  end
+  defp server_stub(_attrs), do: %Server{}
 
   # The deployment row stored in `kura_deployments` carries `cluster_id`
   # as an audit field — which backing cluster an install or update
@@ -262,7 +242,7 @@ defmodule Tuist.Kura do
 
     Server
     |> where([s], s.account_id == ^account_id and s.status != :destroyed)
-    |> order_by([s], asc: s.region, asc: s.spec)
+    |> order_by([s], asc: s.region)
     |> preload(deployments: ^deployments_query)
     |> Repo.all()
   end
@@ -575,5 +555,4 @@ defmodule Tuist.Kura do
 
   defdelegate regions, to: Regions, as: :all
   defdelegate region(id), to: Regions, as: :get
-  defdelegate specs, to: Specs, as: :all
 end

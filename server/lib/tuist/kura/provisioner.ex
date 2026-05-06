@@ -77,16 +77,7 @@ defmodule Tuist.Kura.Provisioner do
   @callback current_image_tag(ref :: String.t(), Regions.t()) ::
               {:ok, String.t() | nil} | {:error, term()}
 
-  @doc """
-  Translate a customer-facing `(spec, volume_size_gi)` pair into a
-  provisioner-specific resource description, used by the provisioner
-  during provisioning and rollout. Shape is implementation-defined.
-
-  Kubernetes provisioners return Pod resource requests/limits; another
-  provisioner would return its own platform-specific compute and
-  storage shape. The customer-facing `Tuist.Kura.Specs` catalog stays
-  free of any platform vocabulary.
-  """
+  @doc "Returns the provisioner's default resource description for one Kura server."
   @callback resources_for(Server.t()) :: map()
 
   ## Convenience dispatchers

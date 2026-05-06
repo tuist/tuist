@@ -16,7 +16,6 @@ defmodule TuistWeb.OpsAccountLive do
   alias Tuist.Kura
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
-  alias Tuist.Kura.Specs
   alias Tuist.Repo
 
   @impl true
@@ -45,13 +44,10 @@ defmodule TuistWeb.OpsAccountLive do
 
   defp default_add_server_form do
     default_region = List.first(Regions.available())
-    default_spec = :medium
 
     to_form(
       %{
-        "region" => default_region && default_region.id,
-        "spec" => Atom.to_string(default_spec),
-        "volume_size_gi" => to_string(Specs.default_volume_gi(default_spec) || 200)
+        "region" => default_region && default_region.id
       },
       as: :server
     )
@@ -84,7 +80,6 @@ defmodule TuistWeb.OpsAccountLive do
     socket
     |> assign(:kura_servers, Kura.list_servers_for_account(account.id))
     |> assign(:kura_regions, Regions.available())
-    |> assign(:kura_specs, Specs.all())
     |> assign(:latest_kura_version, latest)
   end
 
@@ -112,13 +107,9 @@ defmodule TuistWeb.OpsAccountLive do
          )}
 
       [%{version: image_tag} | _] ->
-        spec = parse_spec(params["spec"])
-
         attrs = %{
           account_id: socket.assigns.account.id,
           region: params["region"],
-          spec: spec,
-          volume_size_gi: parse_int(params["volume_size_gi"], Specs.default_volume_gi(spec) || 200),
           image_tag: image_tag
         }
 
@@ -234,10 +225,6 @@ defmodule TuistWeb.OpsAccountLive do
 
   ## Add-server helpers
 
-  defp parse_spec("small"), do: :small
-  defp parse_spec("large"), do: :large
-  defp parse_spec(_), do: :medium
-
   defp submit_add_server(socket, attrs) do
     case Kura.create_server(attrs) do
       {:ok, server} ->
@@ -271,15 +258,6 @@ defmodule TuistWeb.OpsAccountLive do
     end
   end
 
-  defp parse_int(value, default) when is_binary(value) do
-    case Integer.parse(value) do
-      {n, _} when n > 0 -> n
-      _ -> default
-    end
-  end
-
-  defp parse_int(_, default), do: default
-
   defp format_errors(%Ecto.Changeset{errors: errors}) do
     Enum.map_join(errors, ", ", fn {field, {msg, _}} -> "#{field} #{msg}" end)
   end
@@ -297,13 +275,6 @@ defmodule TuistWeb.OpsAccountLive do
   def server_status_color(:failed), do: "destructive"
   def server_status_color(:destroying), do: "warning"
   def server_status_color(:destroyed), do: "neutral"
-
-  def spec_label(spec) when is_atom(spec) do
-    case Specs.get(spec) do
-      %Specs{label: label} -> label
-      _ -> Atom.to_string(spec)
-    end
-  end
 
   ## Stripe-customer prefill helpers (moved from OpsAccountsLive)
 

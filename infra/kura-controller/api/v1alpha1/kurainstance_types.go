@@ -14,7 +14,6 @@ type KuraInstanceSpec struct {
 	PublicHost       string          `json:"publicHost,omitempty"`
 	TLSSecretName    string          `json:"tlsSecretName,omitempty"`
 	StorageClassName string          `json:"storageClassName,omitempty"`
-	VolumeSizeGi     int32           `json:"volumeSizeGi,omitempty"`
 	ExtraEnv         []corev1.EnvVar `json:"extraEnv,omitempty"`
 	ExtensionScript  string          `json:"extensionScript,omitempty"`
 }

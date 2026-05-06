@@ -71,10 +71,6 @@ spec:
                   type: string
                 storageClassName:
                   type: string
-                volumeSizeGi:
-                  type: integer
-                  format: int32
-                  minimum: 1
                 extraEnv:
                   type: array
                   items:

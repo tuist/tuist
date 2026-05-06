@@ -19,8 +19,6 @@ defmodule Tuist.Repo.Migrations.CreateKuraTables do
       add :account_id, references(:accounts, on_delete: :delete_all), null: false
 
       add :region, :string, null: false
-      add :spec, :integer, null: false, default: 1
-      add :volume_size_gi, :integer, null: false
       add :status, :integer, null: false, default: 0
       add :url, :string
       add :current_image_tag, :string
@@ -28,9 +26,6 @@ defmodule Tuist.Repo.Migrations.CreateKuraTables do
 
       timestamps(type: :timestamptz)
     end
-
-    # excellent_migrations:safety-assured-for-next-line check_constraint_added
-    create constraint(:kura_servers, :kura_servers_spec_valid, check: "spec IN (0, 1, 2)")
 
     # excellent_migrations:safety-assured-for-next-line check_constraint_added
     create constraint(:kura_servers, :kura_servers_status_valid,

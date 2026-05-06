@@ -87,8 +87,6 @@ defmodule Tuist.KuraTest do
         |> Server.create_changeset(%{
           account_id: account.id,
           region: "local",
-          spec: :medium,
-          volume_size_gi: 200,
           provisioner_node_ref: "kura-#{account.name}-local"
         })
         |> Repo.insert()
@@ -128,8 +126,6 @@ defmodule Tuist.KuraTest do
         |> Server.create_changeset(%{
           account_id: account_a.id,
           region: "local",
-          spec: :small,
-          volume_size_gi: 50,
           provisioner_node_ref: "kura-#{account_a.name}-local"
         })
         |> Repo.insert()
@@ -139,8 +135,6 @@ defmodule Tuist.KuraTest do
         |> Server.create_changeset(%{
           account_id: account_b.id,
           region: "local",
-          spec: :small,
-          volume_size_gi: 50,
           provisioner_node_ref: "kura-#{account_b.name}-local"
         })
         |> Repo.insert()
@@ -166,14 +160,10 @@ defmodule Tuist.KuraTest do
                Kura.create_server(%{
                  account_id: account.id,
                  region: "local",
-                 spec: :medium,
-                 volume_size_gi: 200,
                  image_tag: "0.5.2"
                })
 
       assert server.status == :provisioning
-      assert server.spec == :medium
-      assert server.volume_size_gi == 200
 
       assert [%{image_tag: "0.5.2", kura_server_id: kura_server_id}] =
                server.deployments
@@ -186,24 +176,11 @@ defmodule Tuist.KuraTest do
       )
     end
 
-    test "fills volume_size_gi from spec defaults when omitted", %{account: account} do
-      assert {:ok, server} =
-               Kura.create_server(%{
-                 account_id: account.id,
-                 region: "local",
-                 spec: :small,
-                 image_tag: "0.5.2"
-               })
-
-      assert server.volume_size_gi == 50
-    end
-
     test "rejects a region that is not available in the current environment", %{account: account} do
       assert {:error, %Ecto.Changeset{errors: [region: {"is not available in this environment", _}]}} =
                Kura.create_server(%{
                  account_id: account.id,
                  region: "eu",
-                 spec: :medium,
                  image_tag: "0.5.2"
                })
     end
@@ -213,7 +190,6 @@ defmodule Tuist.KuraTest do
                Kura.create_server(%{
                  account_id: account.id,
                  region: "moon",
-                 spec: :medium,
                  image_tag: "0.5.2"
                })
     end
@@ -222,7 +198,6 @@ defmodule Tuist.KuraTest do
       attrs = %{
         account_id: account.id,
         region: "local",
-        spec: :medium,
         image_tag: "0.5.2"
       }
 
@@ -235,13 +210,11 @@ defmodule Tuist.KuraTest do
                Kura.create_server(%{
                  "account_id" => account.id,
                  "region" => "local",
-                 "spec" => "small",
                  "image_tag" => "0.5.2",
                  "ignored-#{Ecto.UUID.generate()}" => "ignored"
                })
 
       assert server.region == "local"
-      assert server.spec == :small
     end
   end
 
@@ -254,7 +227,6 @@ defmodule Tuist.KuraTest do
         Kura.create_server(%{
           account_id: account.id,
           region: "local",
-          spec: :small,
           image_tag: "0.5.2"
         })
 
@@ -263,8 +235,6 @@ defmodule Tuist.KuraTest do
         |> Server.create_changeset(%{
           account_id: account.id,
           region: "eu",
-          spec: :small,
-          volume_size_gi: 50,
           provisioner_node_ref: "kura-tuist-eu-1"
         })
         |> Repo.insert()
@@ -287,7 +257,6 @@ defmodule Tuist.KuraTest do
         Kura.create_server(%{
           account_id: account.id,
           region: "local",
-          spec: :small,
           image_tag: "0.5.2"
         })
 
@@ -311,7 +280,6 @@ defmodule Tuist.KuraTest do
         Kura.create_server(%{
           account_id: account.id,
           region: "local",
-          spec: :medium,
           image_tag: "0.5.2"
         })
 
@@ -335,7 +303,6 @@ defmodule Tuist.KuraTest do
         Kura.create_server(%{
           account_id: account.id,
           region: "local",
-          spec: :medium,
           image_tag: "0.5.2"
         })
 
@@ -368,7 +335,6 @@ defmodule Tuist.KuraTest do
         Kura.create_server(%{
           account_id: account.id,
           region: "local",
-          spec: :medium,
           image_tag: "0.5.2"
         })
 

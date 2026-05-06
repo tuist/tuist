@@ -28,40 +28,25 @@ defmodule Tuist.Kura.Provisioner.HelmKubernetes do
 
   Tenant separation is application-layer: `KURA_TENANT_ID` (already in
   the StatefulSet env) plus per-pod Cilium ingress/egress bandwidth
-  caps generated from the spec catalog. Hardware is shared across
-  accounts via a single pool of Hetzner Cloud worker nodes labelled
-  `tuist.dev/role=kura`; the pool selector, toleration, and
-  `hcloud-volumes` storage class live in the Hetzner provider overlay
-  rather than per-account values.
+  caps. Hardware is shared across accounts via a single worker pool.
   """
 
   @behaviour Tuist.Kura.Provisioner
 
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
-  alias Tuist.Kura.Specs
 
   require Logger
 
   @namespace "kura"
-
-  # Customer-facing spec → Pod resources. The catalog of customer
-  # tiers (small/medium/large) lives in `Tuist.Kura.Specs`; how each
-  # tier maps to Kubernetes-flavored requests/limits is a
-  # provisioner-specific concern that lives here. Another provisioner
-  # would have its own table mapping the same tiers to its platform.
   @pod_resources %{
-    small: %{
-      "requests" => %{"cpu" => "250m", "memory" => "512Mi"},
-      "limits" => %{"memory" => "1Gi"}
-    },
-    medium: %{
-      "requests" => %{"cpu" => "500m", "memory" => "1.5Gi"},
-      "limits" => %{"memory" => "2Gi"}
-    },
-    large: %{
-      "requests" => %{"cpu" => "1000m", "memory" => "3Gi"},
-      "limits" => %{"memory" => "4Gi"}
+    "requests" => %{"cpu" => "500m", "memory" => "1Gi"},
+    "limits" => %{"memory" => "2Gi"}
+  }
+  @bandwidth_annotations %{
+    "podAnnotations" => %{
+      "kubernetes.io/ingress-bandwidth" => "250M",
+      "kubernetes.io/egress-bandwidth" => "250M"
     }
   }
 
@@ -213,48 +198,15 @@ defmodule Tuist.Kura.Provisioner.HelmKubernetes do
 
     [
       resources_for(server),
-      persistence(server),
       ingress(region, account.name),
-      bandwidth_annotations(server)
+      @bandwidth_annotations
     ]
     |> Enum.reject(&(&1 in [nil, %{}]))
     |> Enum.reduce(base, &Map.merge(&2, &1))
   end
 
-  # Per-pod Cilium bandwidth caps. Cilium honors the
-  # `kubernetes.io/{ingress,egress}-bandwidth` annotations and shapes
-  # traffic at the pod's veth, so on a shared Cloud worker pool one
-  # account's burst can't starve another's available NIC budget. Sized
-  # per spec tier (the pod's customer-facing capacity), tunable in
-  # `Tuist.Kura.Specs`.
-  defp bandwidth_annotations(%Server{spec: spec}) do
-    case Specs.bandwidth(spec) do
-      %{ingress: ingress, egress: egress} ->
-        %{
-          "podAnnotations" => %{
-            "kubernetes.io/ingress-bandwidth" => ingress,
-            "kubernetes.io/egress-bandwidth" => egress
-          }
-        }
-
-      _ ->
-        nil
-    end
-  end
-
   @impl true
-  def resources_for(%Server{spec: spec}) do
-    case Map.get(@pod_resources, spec) do
-      nil -> %{}
-      pod_resources -> %{"resources" => pod_resources}
-    end
-  end
-
-  defp persistence(%Server{volume_size_gi: gi}) when is_integer(gi) and gi > 0 do
-    %{"persistence" => %{"size" => "#{gi}Gi"}}
-  end
-
-  defp persistence(_), do: nil
+  def resources_for(%Server{}), do: %{"resources" => @pod_resources}
 
   defp ingress(%Regions{provisioner_config: config}, handle) do
     case config[:public_host_template] do
