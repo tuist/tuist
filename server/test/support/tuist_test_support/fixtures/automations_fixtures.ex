@@ -12,6 +12,12 @@ defmodule TuistTestSupport.Fixtures.AutomationsFixtures do
 
     unique_id = TuistTestSupport.Utilities.unique_integer()
 
+    # Default to a baseline already established so existing tests exercise
+    # the transition path. Tests covering the first-evaluation baseline pass
+    # `baseline_established_at: nil` explicitly.
+    baseline_established_at =
+      Keyword.get(opts, :baseline_established_at, DateTime.truncate(DateTime.utc_now(), :second))
+
     attrs = %{
       "project_id" => Keyword.get(opts, :project_id, project.id),
       "name" => Keyword.get(opts, :name, "Test alert #{unique_id}"),
@@ -25,7 +31,8 @@ defmodule TuistTestSupport.Fixtures.AutomationsFixtures do
         ]),
       "recovery_enabled" => Keyword.get(opts, :recovery_enabled, false),
       "recovery_config" => Keyword.get(opts, :recovery_config, %{}),
-      "recovery_actions" => Keyword.get(opts, :recovery_actions, [])
+      "recovery_actions" => Keyword.get(opts, :recovery_actions, []),
+      "baseline_established_at" => baseline_established_at
     }
 
     {:ok, alert} = Automations.create_alert(attrs)
