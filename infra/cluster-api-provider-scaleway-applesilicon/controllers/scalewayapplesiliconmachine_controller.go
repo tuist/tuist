@@ -227,6 +227,30 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 		return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 	}
 
+	// Detect Node drift: bootstrap previously succeeded
+	// (BootstrappedCondition=True) but the Node tart-kubelet
+	// registered no longer exists in the cluster. Causes seen in
+	// practice: upstream CAPI core deleting the Node during workload-
+	// cluster reconcile churn, manual `kubectl delete node`, or a
+	// cluster-level cleanup controller. The Mac mini host itself is
+	// still allocated at Scaleway and the launchd job is still loaded;
+	// re-running bootstrap reloads launchd, which makes tart-kubelet
+	// re-register the Node. No Scaleway re-provisioning needed and the
+	// existing per-machine token + ServiceAccount + ClusterRoleBinding
+	// stay in place. Flipping the condition False here lets Stage 2's
+	// existing gate drive the re-bootstrap.
+	if missing, lookupErr := r.nodeMissingAfterBootstrap(ctx, machine); lookupErr != nil {
+		logger.Error(lookupErr, "Node existence check failed; will retry")
+		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+	} else if missing {
+		conditions.MarkFalse(machine, BootstrappedCondition, "NodeMissing",
+			clusterv1.ConditionSeverityWarning,
+			"Node %s not found in cluster despite Bootstrapped=True; re-running bootstrap", machine.Name)
+		r.Recorder.Eventf(machine, corev1.EventTypeWarning, "NodeMissing",
+			"Node %s missing; reloading tart-kubelet on the existing Mac mini to re-register",
+			machine.Name)
+	}
+
 	// Stage 2: bootstrap (idempotent — re-running picks up where it
 	// left off).
 	if !conditions.IsTrue(machine, BootstrappedCondition) {
@@ -462,6 +486,42 @@ func recordUpdateFailure(machine *infrav1.ScalewayAppleSiliconMachine, err error
 	recorder.Eventf(machine, corev1.EventTypeWarning, "AgentRollFailed",
 		"tart-kubelet update attempt %d/%d: %v",
 		machine.Status.TartKubeletUpdateAttempts, maxAttempts, err)
+}
+
+// nodeBootstrapGrace is how long after BootstrappedCondition flips to
+// True we tolerate a missing Node before deciding it's drift. tart-
+// kubelet's launchd job typically registers within ~30s of bootstrap
+// completion; 2 min absorbs apiserver + watch propagation delays
+// without giving up so long that the deploy waits multiple reconcile
+// cycles to detect the drift.
+const nodeBootstrapGrace = 2 * time.Minute
+
+// nodeMissingAfterBootstrap returns true when the operator previously
+// bootstrapped this Machine (BootstrappedCondition=True for at least
+// nodeBootstrapGrace) but the Node it registered no longer exists.
+// The grace window prevents the initial post-bootstrap requeue from
+// looking like drift while tart-kubelet's first registration is still
+// propagating.
+func (r *ScalewayAppleSiliconMachineReconciler) nodeMissingAfterBootstrap(
+	ctx context.Context,
+	machine *infrav1.ScalewayAppleSiliconMachine,
+) (bool, error) {
+	cond := conditions.Get(machine, BootstrappedCondition)
+	if cond == nil || cond.Status != corev1.ConditionTrue {
+		return false, nil
+	}
+	if time.Since(cond.LastTransitionTime.Time) < nodeBootstrapGrace {
+		return false, nil
+	}
+	node := &corev1.Node{}
+	err := r.Get(ctx, client.ObjectKey{Name: machine.Name}, node)
+	if apierrors.IsNotFound(err) {
+		return true, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return false, nil
 }
 
 func machineIP(m *infrav1.ScalewayAppleSiliconMachine) string {

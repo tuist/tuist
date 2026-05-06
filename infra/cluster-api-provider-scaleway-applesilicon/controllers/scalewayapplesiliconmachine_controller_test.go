@@ -1,11 +1,18 @@
 package controllers
 
 import (
+	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/go-logr/logr"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
+	"sigs.k8s.io/cluster-api/util/conditions"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/api/v1alpha1"
 )
@@ -79,3 +86,91 @@ func TestRecordUpdateFailure_DisabledCap(t *testing.T) {
 		t.Fatalf("cap=0 must never trigger terminal failure; got %q", *machine.Status.FailureReason)
 	}
 }
+
+// nodeMissingAfterBootstrap is the drift detector that lets an
+// already-bootstrapped Machine recover when its Node disappears
+// (typically: upstream CAPI core deleting the Node during workload-
+// cluster reconcile churn). The contract: the operator returns true
+// only when it's confident the Node should already be registered —
+// after BootstrappedCondition has been True for nodeBootstrapGrace —
+// otherwise it would race the initial post-bootstrap registration
+// and falsely re-bootstrap a healthy Machine.
+
+func TestNodeMissingAfterBootstrap_NotBootstrapped(t *testing.T) {
+	r := newReconciler(t)
+	machine := &infrav1.ScalewayAppleSiliconMachine{ObjectMeta: metav1.ObjectMeta{Name: "m1"}}
+	missing, err := r.nodeMissingAfterBootstrap(context.Background(), machine)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if missing {
+		t.Fatal("not yet bootstrapped: drift detector must not fire")
+	}
+}
+
+func TestNodeMissingAfterBootstrap_WithinGrace(t *testing.T) {
+	r := newReconciler(t)
+	machine := &infrav1.ScalewayAppleSiliconMachine{ObjectMeta: metav1.ObjectMeta{Name: "m1"}}
+	conditions.MarkTrue(machine, BootstrappedCondition)
+	// Just-flipped condition simulates the post-bootstrap requeue
+	// before tart-kubelet's first registration has propagated.
+	missing, err := r.nodeMissingAfterBootstrap(context.Background(), machine)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if missing {
+		t.Fatal("within grace window: drift detector must wait")
+	}
+}
+
+func TestNodeMissingAfterBootstrap_NodeExists(t *testing.T) {
+	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "m1"}}
+	r := newReconciler(t, node)
+	machine := &infrav1.ScalewayAppleSiliconMachine{ObjectMeta: metav1.ObjectMeta{Name: "m1"}}
+	conditions.MarkTrue(machine, BootstrappedCondition)
+	backdateBootstrappedCondition(machine, 5*time.Minute)
+	missing, err := r.nodeMissingAfterBootstrap(context.Background(), machine)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if missing {
+		t.Fatal("Node present: drift detector must not fire")
+	}
+}
+
+func TestNodeMissingAfterBootstrap_NodeGone(t *testing.T) {
+	r := newReconciler(t)
+	machine := &infrav1.ScalewayAppleSiliconMachine{ObjectMeta: metav1.ObjectMeta{Name: "m1"}}
+	conditions.MarkTrue(machine, BootstrappedCondition)
+	backdateBootstrappedCondition(machine, 5*time.Minute)
+	missing, err := r.nodeMissingAfterBootstrap(context.Background(), machine)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !missing {
+		t.Fatal("Node missing past grace: drift detector must fire to drive re-bootstrap")
+	}
+}
+
+func newReconciler(t *testing.T, objs ...runtime.Object) *ScalewayAppleSiliconMachineReconciler {
+	t.Helper()
+	scheme := runtime.NewScheme()
+	if err := corev1.AddToScheme(scheme); err != nil {
+		t.Fatalf("scheme: %v", err)
+	}
+	c := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(objs...).Build()
+	return &ScalewayAppleSiliconMachineReconciler{Client: c}
+}
+
+func backdateBootstrappedCondition(machine *infrav1.ScalewayAppleSiliconMachine, by time.Duration) {
+	// Mutating Status.Conditions directly: conditions.Set preserves
+	// LastTransitionTime when state hasn't changed, which would no-op
+	// the backdate in this test setup.
+	for i, c := range machine.Status.Conditions {
+		if c.Type == BootstrappedCondition {
+			machine.Status.Conditions[i].LastTransitionTime = metav1.NewTime(time.Now().Add(-by))
+			return
+		}
+	}
+}
+
