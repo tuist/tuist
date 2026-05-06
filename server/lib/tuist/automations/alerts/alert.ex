@@ -7,6 +7,7 @@ defmodule Tuist.Automations.Alerts.Alert do
   alias Tuist.Projects.Project
 
   @monitor_types ~w(flakiness_rate flaky_run_count)
+  @comparisons ~w(gte gt lt lte)
   @valid_states ~w(enabled muted skipped)
 
   @primary_key {:id, UUIDv7, autogenerate: true}
@@ -22,6 +23,7 @@ defmodule Tuist.Automations.Alerts.Alert do
     field :recovery_enabled, :boolean, default: false
     field :recovery_config, :map, default: %{}
     field :recovery_actions, {:array, :map}, default: []
+    field :baseline_established_at, :utc_datetime
 
     belongs_to :project, Project, type: :integer
 
@@ -40,7 +42,8 @@ defmodule Tuist.Automations.Alerts.Alert do
       :trigger_actions,
       :recovery_enabled,
       :recovery_config,
-      :recovery_actions
+      :recovery_actions,
+      :baseline_established_at
     ])
     |> validate_required([:project_id, :name, :monitor_type])
     |> validate_inclusion(:monitor_type, @monitor_types)
@@ -110,15 +113,21 @@ defmodule Tuist.Automations.Alerts.Alert do
     monitor_type = get_field(changeset, :monitor_type)
     trigger_config = get_field(changeset, :trigger_config) || %{}
 
-    case monitor_type do
-      "flakiness_rate" ->
-        validate_flakiness_rate_config(changeset, trigger_config)
+    changeset =
+      case monitor_type do
+        "flakiness_rate" -> validate_flakiness_rate_config(changeset, trigger_config)
+        "flaky_run_count" -> validate_flaky_run_count_config(changeset, trigger_config)
+        _ -> changeset
+      end
 
-      "flaky_run_count" ->
-        validate_flaky_run_count_config(changeset, trigger_config)
+    validate_comparison(changeset, trigger_config)
+  end
 
-      _ ->
-        changeset
+  defp validate_comparison(changeset, trigger_config) do
+    case Map.get(trigger_config, "comparison") do
+      nil -> changeset
+      value when value in @comparisons -> changeset
+      _ -> add_error(changeset, :trigger_config, "comparison must be one of: #{Enum.join(@comparisons, ", ")}")
     end
   end
 
@@ -130,8 +139,8 @@ defmodule Tuist.Automations.Alerts.Alert do
       !is_number(threshold) or threshold <= 0 or threshold > 100 ->
         add_error(changeset, :trigger_config, "threshold must be a number between 0 and 100")
 
-      !is_binary(window) ->
-        add_error(changeset, :trigger_config, "window must be a string like '30d'")
+      !valid_window?(window) ->
+        add_error(changeset, :trigger_config, "window must be a string like '30d' (day-level only)")
 
       true ->
         changeset
@@ -146,11 +155,18 @@ defmodule Tuist.Automations.Alerts.Alert do
       !is_integer(threshold) or threshold <= 0 ->
         add_error(changeset, :trigger_config, "threshold must be a positive integer")
 
-      !is_binary(window) ->
-        add_error(changeset, :trigger_config, "window must be a string like '30d'")
+      !valid_window?(window) ->
+        add_error(changeset, :trigger_config, "window must be a string like '30d' (day-level only)")
 
       true ->
         changeset
     end
   end
+
+  # The flaky-test monitor evaluates against a per-day-aggregated MV, so
+  # sub-day windows would silently round to a full day and look broken.
+  # Constrain `trigger_config.window` to day-level (`Nd`) up front so users
+  # don't think `1h` / `5m` are honored.
+  defp valid_window?(window) when is_binary(window), do: Regex.match?(~r/^[1-9]\d*d$/, window)
+  defp valid_window?(_), do: false
 end

@@ -846,11 +846,30 @@ final class GraphTraverserTests: TuistUnitTestCase {
                     exceptions: BuildableFolderExceptions(exceptions: []),
                     resolvedFiles: [
                         BuildableFolderFile(path: "/Sources/File.swift", compilerFlags: nil),
+                        BuildableFolderFile(path: "/Sources/Header.h", compilerFlags: nil),
                     ]
                 ),
             ]
         )
         XCTAssertFalse(target.containsResources)
+    }
+
+    func test_containsResources_is_true_when_buildable_folders_contain_non_allowlisted_resources() {
+        let target = Target.test(
+            product: .staticFramework,
+            resources: .init([]),
+            buildableFolders: [
+                BuildableFolder(
+                    path: "/Sources",
+                    exceptions: BuildableFolderExceptions(exceptions: []),
+                    resolvedFiles: [
+                        BuildableFolderFile(path: "/Sources/File.swift", compilerFlags: nil),
+                        BuildableFolderFile(path: "/Sources/image.jpg", compilerFlags: nil),
+                    ]
+                ),
+            ]
+        )
+        XCTAssertTrue(target.containsResources)
     }
 
     func test_resourceBundleDependencies_when_static_framework_has_resources_in_buildable_folders() {

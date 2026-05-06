@@ -7,6 +7,7 @@ defmodule TuistWeb.WellKnownController do
   alias TuistWeb.AgentSkillsDiscovery
   alias TuistWeb.RequestOrigin
 
+  @openai_apps_challenge_token "YoBqoSMoA-RuEX8RMuCKrLnPCXDYUsYtKg-yjFBHmDQ"
   @mcp_path "/mcp"
   @oauth_token_path "/oauth2/token"
   @oauth_authorize_path "/oauth2/authorize"
@@ -24,6 +25,16 @@ defmodule TuistWeb.WellKnownController do
 
   def agent_skills_index(conn, _params) do
     json(conn, AgentSkillsDiscovery.index())
+  end
+
+  def openai_apps_challenge(conn, _params) do
+    if Environment.tuist_hosted?() do
+      conn
+      |> put_resp_content_type("text/plain")
+      |> send_resp(:ok, @openai_apps_challenge_token)
+    else
+      send_resp(conn, :not_found, "")
+    end
   end
 
   @doc """

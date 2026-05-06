@@ -22,8 +22,13 @@ name: Server Deployment
 # public host = `<env>.tuist.dev` (except production = `tuist.dev`). Adding a
 # new environment is just adding the matching values files.
 #
-# Required GitHub Environment secrets (per environment):
-#   KUBECONFIG - base64-encoded kubeconfig for that environment's cluster.
+# Required secrets:
+#   OP_SERVICE_ACCOUNT_TOKEN (per GitHub Environment server-k8s-<env>) -
+#     1Password service-account token scoped read-only to the
+#     tuist-k8s-<env> vault, where the cluster's kubeconfig is stored
+#     as a Document item named `kubeconfig: tuist-<env>`. Each
+#     environment's secret value is the SA token for that environment's
+#     vault — staging deploys can't read canary/production kubeconfigs.
 # App secrets live inside the cluster (MASTER_KEY via ESO, DATABASE_URL /
 # ClickHouse / Tigris keys in priv/secrets/<env>.yml.enc baked into the
 # image).
@@ -144,11 +149,26 @@ jobs:
         with:
           install_args: "helm kubectl"
           cache: "false"
-      - name: Load kubeconfig
+      - uses: 1password/install-cli-action@v2
+      - name: Load kubeconfig from 1Password
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
         run: |
           mkdir -p "$(dirname "$KUBECONFIG")"
-          echo "${{ secrets.KUBECONFIG }}" | base64 -d > "$KUBECONFIG"
+          op document get "kubeconfig: tuist-${{ inputs.environment }}" \
+            --vault "tuist-k8s-${{ inputs.environment }}" --output "$KUBECONFIG"
           chmod 600 "$KUBECONFIG"
+      - name: Verify cluster reachability
+        # Fail fast if the 1P-stored kubeconfig points at an unreachable
+        # apiserver. Without this, the next step would hang for `--timeout`
+        # on a phantom kubeconfig (e.g. a torn-down validation cluster
+        # whose LB IP got reassigned to another tenant) and we'd find out
+        # only after a partial helm rollout.
+        run: |
+          set -euo pipefail
+          API="$(kubectl config view --minify --raw -o jsonpath='{.clusters[0].cluster.server}')"
+          echo "Reaching apiserver at $API"
+          kubectl --request-timeout=10s get --raw /version >/dev/null
       - name: helm dependency update
         run: helm dependency update "$OBSERVABILITY_CHART_PATH"
       - name: helm upgrade --install k8s-monitoring
@@ -173,7 +193,7 @@ jobs:
     concurrency:
       group: server-deploy-${{ inputs.environment }}
       cancel-in-progress: false
-    timeout-minutes: 75
+    timeout-minutes: 105
     env:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
       NAMESPACE: ${{ inputs.environment == 'production' && 'tuist' || format('tuist-{0}', inputs.environment) }}
@@ -186,11 +206,33 @@ jobs:
         with:
           install_args: "helm kubectl"
           cache: "false"
-      - name: Load kubeconfig
+      - uses: 1password/install-cli-action@v2
+      - name: Load kubeconfig from 1Password
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
         run: |
           mkdir -p "$(dirname "$KUBECONFIG")"
-          echo "${{ secrets.KUBECONFIG }}" | base64 -d > "$KUBECONFIG"
+          op document get "kubeconfig: tuist-${{ inputs.environment }}" \
+            --vault "tuist-k8s-${{ inputs.environment }}" --output "$KUBECONFIG"
           chmod 600 "$KUBECONFIG"
+      - name: Verify cluster reachability
+        # Fail fast if the 1P-stored kubeconfig points at an unreachable
+        # apiserver. Without this, helm upgrade would hang for `--timeout`
+        # against a phantom endpoint and partially mutate cluster state
+        # before erroring.
+        run: |
+          set -euo pipefail
+          API="$(kubectl config view --minify --raw -o jsonpath='{.clusters[0].cluster.server}')"
+          echo "Reaching apiserver at $API"
+          kubectl --request-timeout=10s get --raw /version >/dev/null
+      - name: kubectl apply CRDs
+        # Helm 3 installs `crds/*.yaml` on `helm install` and skips
+        # them on `helm upgrade` (intentional — Helm refuses to manage
+        # CRD lifecycle to avoid data loss on schema regressions). The
+        # deploy workflow re-applies them every run so chart-managed
+        # schema changes ship the same way code changes do; no
+        # operator-side manual step.
+        run: kubectl apply -f "$HELM_CHART_PATH/crds/"
       - name: Recover interrupted Helm release
         run: |
           set -euo pipefail
@@ -257,13 +299,36 @@ jobs:
         # baked into the image and pulls MASTER_KEY from 1Password via an
         # in-cluster ExternalSecret. Passing secrets through --set would
         # leak them into `helm get manifest`.
+        #
+        # helm --timeout 90m is sized for first-time macOS-fleet bring-up:
+        # the operator's CreateServer call to Scaleway commonly takes ~50
+        # min for an Apple Silicon Mac mini to come online, plus ~5-8
+        # min for the Tart VM cold-boot on the host before xcresult-
+        # processor pods report Ready. Production rolls 2 Mac minis in
+        # parallel (helm waits on both via topology-spread), so worst-
+        # case provisioning runs the same ~50-min wall plus a small
+        # serialization overhead. 60m left no margin if Scaleway's
+        # queue ran slow. Steady-state deploys (Mac minis already
+        # allocated, the helm.sh/resource-policy: keep on the CR keeps
+        # them across rollbacks) finish in 5-15 min and never approach
+        # this ceiling.
+        #
+        # timeout-minutes: 95 is the runner-level kill ceiling — 5 min
+        # over helm's own --timeout. Without it, the only kill semantic
+        # for a hung helm is the job-level timeout; helm under
+        # `--atomic --wait` ignores SIGINT/SIGTERM until its in-process
+        # rollback completes, so a manual `gh run cancel` doesn't free
+        # the concurrency lock for ~90 min. With this in place the
+        # runner SIGKILLs helm 5 min after its own timeout would have
+        # fired, bounding the recovery window.
+        timeout-minutes: 95
         run: |
           helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
             --namespace "$NAMESPACE" --create-namespace \
             -f "$HELM_CHART_PATH/values-managed-common.yaml" \
             -f "$HELM_CHART_PATH/values-managed-${{ inputs.environment }}.yaml" \
             --set server.image.tag="$IMAGE_TAG" \
-            --atomic --timeout 60m --wait
+            --atomic --timeout 90m --wait
       - name: Diagnostics on failure
         # `--atomic` rolls back the release on timeout, so `helm history` and
         # most cluster state reflect the rolled-back revision rather than the

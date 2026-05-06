@@ -3,7 +3,6 @@ defmodule TuistWeb.API.Authorization.BillingPlug do
   A plug that authorizes API actions.
   """
   use TuistWeb, :controller
-  use TuistWeb, :verified_routes
 
   alias Tuist.Accounts
   alias Tuist.Billing

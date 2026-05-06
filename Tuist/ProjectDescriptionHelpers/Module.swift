@@ -52,6 +52,7 @@ public enum Module: String, CaseIterable {
     case tuistExtension = "TuistExtension"
     case alert = "TuistAlert"
     case threadSafe = "TuistThreadSafe"
+    case macOSSDK = "TuistMacOSSDK"
     case userInputReader = "TuistUserInputReader"
     case encodable = "TuistEncodable"
     case uniqueIDGenerator = "TuistUniqueIDGenerator"
@@ -100,7 +101,7 @@ public enum Module: String, CaseIterable {
                 bundleId: "dev.tuist.XCResultParser",
                 deploymentTargets: .macOS("15.0"),
                 infoPlist: .default,
-                buildableFolders: ["xcode_processor/native/xcresult_nif/Sources/XCResultParser/"],
+                buildableFolders: ["server/native/xcresult_nif/Sources/XCResultParser/"],
                 dependencies: [
                     .external(name: "Path"),
                     .external(name: "FileSystem"),
@@ -346,11 +347,10 @@ public enum Module: String, CaseIterable {
         switch self {
         case .tuist, .tuistBenchmark, .tuistFixtureGenerator, .projectAutomation,
              .projectDescription,
-             .xcodeGraph, .xcodeMetadata, .xcodeGraphMapper,
              .acceptanceTesting, .simulator, .testing, .environmentTesting, .process,
              .constants, .environment, .logging,
              .envKey, .versionCommand, .encodable,
-             .uniqueIDGenerator, .opener, .nooraExtension, .alert, .threadSafe,
+             .uniqueIDGenerator, .opener, .nooraExtension, .alert, .threadSafe, .macOSSDK,
              .tuistExtension, .config, .nooraTesting, .loggerTesting,
              .accountCommand, .organizationCommand, .projectCommand, .bundleCommand,
              .registryCommand, .buildCommand, .generateCommand,
@@ -513,7 +513,7 @@ public enum Module: String, CaseIterable {
              .registryCommand, .buildCommand, .generateCommand, .testCommand,
              .initCommand, .runCommand, .shareCommand, .inspectCommand, .android:
             moduleTags.append("domain:cli")
-        case .nooraExtension, .alert, .threadSafe, .encodable, .uniqueIDGenerator, .opener:
+        case .nooraExtension, .alert, .threadSafe, .macOSSDK, .encodable, .uniqueIDGenerator, .opener:
             moduleTags.append("domain:foundation")
         case .tuistExtension:
             moduleTags.append("domain:generation")
@@ -522,7 +522,7 @@ public enum Module: String, CaseIterable {
         // Layer tags
         switch self {
         case .projectDescription, .projectAutomation, .xcodeGraph, .xcodeMetadata, .xcodeGraphMapper, .support, .core,
-             .constants, .environment, .logging, .nooraExtension, .alert, .threadSafe, .encodable,
+             .constants, .environment, .logging, .nooraExtension, .alert, .threadSafe, .macOSSDK, .encodable,
              .uniqueIDGenerator, .opener, .config:
             moduleTags.append("layer:foundation")
         case .tuist, .tuistBenchmark, .tuistFixtureGenerator:
@@ -602,6 +602,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.core.targetName),
                     .target(name: Module.server.targetName),
                     .target(name: Module.support.targetName),
+                    .target(name: Module.macOSSDK.targetName),
                     .target(name: Module.xcodeBuildProducts.targetName),
                     .target(name: Module.http.targetName),
                     .target(name: Module.alert.targetName),
@@ -859,6 +860,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.config.targetName),
                     .target(name: Module.core.targetName),
                     .target(name: Module.support.targetName),
+                    .target(name: Module.macOSSDK.targetName),
                     .target(name: Module.rootDirectoryLocator.targetName),
                     .target(name: Module.projectDescription.targetName),
                     .target(name: Module.git.targetName),
@@ -1189,6 +1191,11 @@ public enum Module: String, CaseIterable {
                 ]
             case .threadSafe:
                 []
+            case .macOSSDK:
+                [
+                    .target(name: Module.threadSafe.targetName),
+                    .external(name: "Command"),
+                ]
             case .encodable:
                 [
                     .external(name: "SwiftToolsSupport"),
@@ -1501,14 +1508,28 @@ public enum Module: String, CaseIterable {
         var dependencies: [TargetDependency] =
             switch self {
             case .tuist, .tuistBenchmark, .acceptanceTesting, .simulator, .testing, .environmentTesting, .process,
-                 .xcodeGraph, .xcodeMetadata, .xcodeGraphMapper,
                  .constants, .environment, .logging, .nooraTesting, .loggerTesting,
-                 .envKey, .versionCommand, .nooraExtension, .tuistExtension, .alert, .threadSafe, .encodable,
+                 .envKey, .versionCommand, .nooraExtension, .tuistExtension, .alert, .threadSafe, .macOSSDK, .encodable,
                  .uniqueIDGenerator, .opener, .config,
                  .accountCommand, .organizationCommand, .projectCommand, .bundleCommand,
                  .registryCommand, .buildCommand, .generateCommand,
                  .runCommand, .shareCommand, .inspectCommand, .android:
                 []
+            case .xcodeGraph:
+                []
+            case .xcodeMetadata:
+                [
+                    .target(name: Module.xcodeGraph.targetName),
+                ]
+            case .xcodeGraphMapper:
+                [
+                    .target(name: Module.xcodeGraph.targetName),
+                    .target(name: Module.xcodeMetadata.targetName),
+                    .external(name: "AEXML"),
+                    .external(name: "FileSystem"),
+                    .external(name: "PathKit"),
+                    .external(name: "XcodeProj"),
+                ]
             case .machineMetrics:
                 [
                     .target(name: Module.testing.targetName),
@@ -1754,6 +1775,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.projectDescription.targetName),
                     .target(name: Module.core.targetName),
                     .target(name: Module.support.targetName),
+                    .target(name: Module.macOSSDK.targetName),
                     .target(name: Module.testing.targetName),
                     .target(name: Module.nooraTesting.targetName),
                     .target(name: Module.rootDirectoryLocator.targetName),

@@ -428,7 +428,7 @@
           dgettext(
             "dashboard_gradle",
             "The 10,000 entry limit has been reached, data is only included up to %{date}. Try filtering to narrow down the dataset.",
-            date: scatter_oldest_entry_iso(@cache_hit_rate_chart.result)
+            date: scatter_oldest_entry_formatted(@cache_hit_rate_chart.result)
           )
         }
       />

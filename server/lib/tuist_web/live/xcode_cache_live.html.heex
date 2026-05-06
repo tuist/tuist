@@ -407,7 +407,7 @@
           dgettext(
             "dashboard_cache",
             "The 10,000 entry limit has been reached, data is only included up to %{date}. Try narrowing the date range to see more recent data.",
-            date: scatter_oldest_entry_iso(@cache_hit_rate_chart.result)
+            date: scatter_oldest_entry_formatted(@cache_hit_rate_chart.result)
           )
         }
       />

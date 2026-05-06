@@ -145,9 +145,13 @@ extension Target {
 
     public var containsResources: Bool {
         if !resources.resources.isEmpty || !coreDataModels.isEmpty { return true }
-        let resourceExtensions = Self.validResourceExtensions + Self.validResourceCompatibleFolderExtensions
+        let sourceExtensions = Set(
+            Self.validSourceExtensions
+                + Self.validSourceCompatibleFolderExtensions
+                + Self.validHeaderExtensions
+        )
         return buildableFolders.contains { folder in
-            folder.resolvedFiles.contains { resourceExtensions.contains($0.path.extension ?? "") }
+            folder.resolvedFiles.contains { !sourceExtensions.contains($0.path.extension ?? "") }
         }
     }
 

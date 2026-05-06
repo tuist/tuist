@@ -25,13 +25,6 @@ let targets: [Target] = [
             .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
-    .testTarget(
-        name: "XcodeMetadataTests",
-        dependencies: ["XcodeMetadata", "XcodeGraph"],
-        swiftSettings: [
-            .enableExperimentalFeature("StrictConcurrency"),
-        ]
-    ),
     .target(
         name: "XcodeGraphMapper",
         dependencies: [
@@ -41,24 +34,6 @@ let targets: [Target] = [
             .product(name: "FileSystem", package: "tuist.FileSystem"),
             .product(name: "Path", package: "tuist.Path"),
             .product(name: "XcodeProj", package: "tuist.XcodeProj"),
-        ],
-        swiftSettings: [
-            .enableExperimentalFeature("StrictConcurrency"),
-            .define("MOCKING", .when(configuration: .debug)),
-        ]
-    ),
-    .testTarget(
-        name: "XcodeGraphTests",
-        dependencies: [.target(name: "XcodeGraph")],
-        swiftSettings: [
-            .enableExperimentalFeature("StrictConcurrency"),
-        ]
-    ),
-    .testTarget(
-        name: "XcodeGraphMapperTests",
-        dependencies: [
-            "XcodeGraphMapper",
-            .product(name: "FileSystem", package: "tuist.FileSystem"),
         ],
         swiftSettings: [
             .enableExperimentalFeature("StrictConcurrency"),

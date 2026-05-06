@@ -136,13 +136,13 @@ processor:
       memory: "24Gi"
 
   # Pin processor pods to the dedicated cpx51 pool provisioned by
-  # md-processor in workload-cluster-production.yaml. The label is set on
+  # md-processor in cluster-production.yaml. The label is set on
   # the MachineDeployment metadata; CAPI propagates it to each node's
   # registration. Without this the pods could land on the cheaper ccx23
   # general pool that doesn't have the memory headroom 5 concurrent parses
-  # need. Syself's ClusterClass v6 doesn't expose a taint variable, so we
-  # rely on nodeSelector alone — server pods stay on the general pool via
-  # their own anti-affinity, not via taint isolation.
+  # need. The tuist-hcloud ClusterClass doesn't expose a taint variable, so
+  # we rely on nodeSelector alone — server pods stay on the general pool
+  # via their own anti-affinity, not via taint isolation.
   nodeSelector:
     node.cluster.x-k8s.io/pool: processor
 
@@ -159,6 +159,31 @@ processor:
     enabled: true
     whenUnsatisfiable: DoNotSchedule
   affinity: {}
+
+# Same priv/secrets selection as the build processor; the Tart image
+# embeds the encrypted bundle and decrypts it via MASTER_KEY.
+xcresultProcessor:
+  # replicaCount stays at the chart default (2). The topology spread
+  # in xcresult-processor-deployment.yaml forces the two replicas onto
+  # distinct Mac minis (the fleet has 2 hosts in production); the PDB
+  # below keeps at least one queue consumer up across voluntary
+  # disruptions (operator-driven host drains, fleet rolls).
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+  extraEnv:
+    - name: TUIST_DEPLOY_ENV
+      value: prod
+    - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
+      value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
+
+# Mac mini fleet — declarative via CAPI. Production keeps 2 hosts so
+# a single-host Scaleway BMC reboot or macOS upgrade doesn't take all
+# xcresult capacity offline.
+macosFleet:
+  replicas: 2
+  controlPlane:
+    host: api.tuist.dev
 
 # Registry population: same Supabase project as the rest of the
 # production stack, scoped to the `tuist_registry` role provisioned via
@@ -201,12 +226,6 @@ registryServing:
       ingress:
         host: registry-us-east.tuist.dev
         tlsSecretName: registry-us-east-tls
-  extraEnv:
-    - name: TUIST_DEPLOY_ENV
-      value: prod
-    - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
-      value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
-
 # In-cluster Valkey backs the auth rate limiter (Hammer.Redis). The
 # chart wires TUIST_REDIS_URL to the embedded Service; without it the
 # rate limiter falls back to the per-pod InMemory bucket.

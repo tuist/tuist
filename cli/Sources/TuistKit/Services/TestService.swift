@@ -967,12 +967,11 @@ public struct TestService { // swiftlint:disable:this type_body_length
         schemes: [Scheme],
         testPlanConfiguration: TestPlanConfiguration?
     ) -> SelectiveTestingGraph {
-        let attemptedTestPlans = attemptedTestPlans(
-            schemes: schemes,
-            testPlanConfiguration: testPlanConfiguration
-        )
-
         guard let initialGraph = mapperEnvironment.initialGraph else {
+            let attemptedTestPlans = attemptedTestPlans(
+                schemes: schemes,
+                testPlanConfiguration: testPlanConfiguration
+            )
             return SelectiveTestingGraph(
                 testTargetHashes: [:],
                 attemptedTestPlans: attemptedTestPlans
@@ -984,6 +983,10 @@ public struct TestService { // swiftlint:disable:this type_body_length
         let matchingSchemes = initialSchemes.filter { initialScheme in
             schemes.contains(where: { $0.name == initialScheme.name })
         }
+        let attemptedTestPlans = attemptedTestPlans(
+            schemes: matchingSchemes,
+            testPlanConfiguration: testPlanConfiguration
+        )
         let allTestTargets = matchingSchemes.flatMap {
             testActionTargetReferences(scheme: $0, testPlanConfiguration: testPlanConfiguration, action: .build)
         }

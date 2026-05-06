@@ -34,7 +34,7 @@ Sensitive authentication data (passwords, tokens) are excluded from exports.
 - App build information
 
 ### Alerts & Monitoring
-- Alert rules (name, category, metric, deviation thresholds, Slack channel configuration)
+- Alert rules (name, category, metric, deviation thresholds, Slack channel configuration, baseline established timestamp)
 - Alert history (triggered alerts with current/previous values, timestamps)
 
 ### Analytics Data (ClickHouse)
@@ -50,10 +50,12 @@ The following data is stored in ClickHouse for analytics purposes:
 - **Shard plan test suites** (`shard_plan_test_suites` table): Per-shard test suite assignments with estimated durations
 - **Shard runs** (`shard_runs` table): Per-shard execution results with status and duration
 - **Test runs** (`test_runs` table): Includes `shard_plan_id` linking test results to their shard plan
-- **Bundles** (`bundles` table): App bundle metadata (name, app bundle id, version, install/download size, supported platforms, type, git ref/branch/commit). Dual-written from PostgreSQL during the in-flight PG → CH migration. PostgreSQL remains authoritative for export until the cutover completes.
+- **Bundles** (`bundles` table): App bundle metadata (name, app bundle id, version, install/download size, supported platforms, type, git ref/branch/commit).
 - **Bundle artifacts** (`artifacts` table): App bundle artifact tree (paths, sizes, SHA hashes, parent/child hierarchy) per uploaded bundle.
 - **Active test cases daily stats** (`test_case_runs_active_daily_stats` materialized view): Pre-aggregated `uniqExactState(test_case_id)` per (`project_id`, `date`, `is_ci`) derived from `test_case_runs`. Powers the Test Cases analytics chart; contains no data not already covered by the source `test_case_runs` table.
 - **Test case runs by commit** (`test_case_runs_by_commit` materialized view): Slim projection of `test_case_runs` ordered by (`project_id`, `git_commit_sha`, `scheme`, `is_ci`, `status`, `id`). Powers the cross-run flakiness lookup; contains no data not already covered by the source `test_case_runs` table.
+- **Per-test-case daily run stats** (`test_case_run_daily_stats_per_case` materialized view): AggregatingMergeTree keyed on (`project_id`, `date`, `test_case_id`) with `count` and `sumState(toUInt8(is_flaky))` aggregate states. Powers the flaky-test automation engine's per-test windowed comparisons; contains no data not already covered by the source `test_case_runs` table.
+- **Per-environment last-run timestamps** (`test_cases.last_ran_at_ci`, `test_cases.last_ran_at_local` columns): Denormalized timestamps tracking the most recent CI and local run per test case. Maintained by the ingestion path on every test run; contains no data not already covered by the source `test_case_runs` table.
 - Build performance metrics
 
 ### Non-Exportable Data
