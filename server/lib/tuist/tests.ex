@@ -1574,20 +1574,21 @@ defmodule Tuist.Tests do
   by ReplacingMergeTree on each test run.
 
   Options:
-    * `:active_period` — `{start_datetime, end_datetime}` tuple. When set, the
-      result is restricted to test cases that ran in the given window. The
-      window is applied directly to the appropriate denormalized column on
-      `test_cases` (`last_ran_at`, `last_ran_at_ci`, or `last_ran_at_local`),
-      kept up-to-date by every test run. No `test_case_runs` scan.
-    * `:is_ci` — when combined with `:active_period`, scopes the lookup to CI
-      (`true`) or local (`false`) runs by reading the matching denormalized
-      column. `nil` (the default) means "any environment".
+    * `:is_ci` — scopes "active" to CI (`true`) or local (`false`) runs by
+      reading the matching denormalized column on `test_cases`. `nil` (the
+      default) means "any environment".
+
+  The listing intentionally has no date-window option. Callers that take a
+  user-controlled date picker on the same page (e.g. the Test Cases LiveView)
+  show analytics for the picked range while the table stays anchored to the
+  trailing `@active_window_days` window — that way the table is a stable
+  view of the project's active surface and never silently drops rows because
+  a custom historical range excluded their most recent run.
   """
   def list_test_cases(project_id, attrs, opts \\ []) do
     filters = Map.get(attrs, :filters, [])
     has_name_filter = Enum.any?(filters, fn f -> f.field == :name end)
     quarantine_filter? = quarantine_filter?(filters)
-    active_period = Keyword.get(opts, :active_period)
     is_ci = Keyword.get(opts, :is_ci)
 
     base_query =
@@ -1598,9 +1599,6 @@ defmodule Tuist.Tests do
 
     base_query =
       cond do
-        not is_nil(active_period) ->
-          apply_active_period(base_query, active_period, is_ci)
-
         # Quarantined-by-state filters (`state in ["muted", "skipped"]` or the
         # legacy `quarantined=true` shortcut) bypass the active window. Skipped
         # tests intentionally never run, so their `last_ran_at` doesn't
@@ -1613,8 +1611,7 @@ defmodule Tuist.Tests do
           base_query
 
         true ->
-          window_start = NaiveDateTime.add(NaiveDateTime.utc_now(), -@active_window_days, :day)
-          where(base_query, [test_case], test_case.last_ran_at >= ^window_start)
+          apply_active_window(base_query, is_ci)
       end
 
     Tuist.ClickHouseFlop.validate_and_run!(base_query, attrs, for: TestCase)
@@ -1641,35 +1638,23 @@ defmodule Tuist.Tests do
 
   # `last_ran_at_ci` and `last_ran_at_local` are denormalized on `test_cases`
   # (kept current by `create_test_cases/4`'s read-modify-write merge per
-  # test_case_id). The CI/Local-filtered active-period filter reads them
-  # directly — no `test_case_runs` join — replacing what used to be a ~94 M
-  # row / 4 GB scan on production for one project.
-  defp apply_active_period(query, {start_datetime, end_datetime}, is_ci) do
-    start_naive = DateTime.to_naive(start_datetime)
-    end_naive = DateTime.to_naive(end_datetime)
+  # test_case_id). Reading them directly — no `test_case_runs` join —
+  # replaces what used to be a ~94 M row / 4 GB scan on production for one
+  # project. Only the lower bound is checked: a test that ran once inside
+  # the window and many times since still has its latest timestamp ≥
+  # window_start, so it correctly stays in the listing.
+  defp apply_active_window(query, is_ci) do
+    window_start = NaiveDateTime.add(NaiveDateTime.utc_now(), -@active_window_days, :day)
 
     case is_ci do
       true ->
-        where(
-          query,
-          [test_case],
-          test_case.last_ran_at_ci >= ^start_naive and test_case.last_ran_at_ci <= ^end_naive
-        )
+        where(query, [test_case], test_case.last_ran_at_ci >= ^window_start)
 
       false ->
-        where(
-          query,
-          [test_case],
-          test_case.last_ran_at_local >= ^start_naive and
-            test_case.last_ran_at_local <= ^end_naive
-        )
+        where(query, [test_case], test_case.last_ran_at_local >= ^window_start)
 
       _ ->
-        where(
-          query,
-          [test_case],
-          test_case.last_ran_at >= ^start_naive and test_case.last_ran_at <= ^end_naive
-        )
+        where(query, [test_case], test_case.last_ran_at >= ^window_start)
     end
   end
 
