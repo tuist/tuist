@@ -9,26 +9,39 @@ defmodule TuistWeb.Webhooks.GitHubController do
   @doc """
   Resolves the HMAC signing secret for an inbound GitHub webhook.
 
-  GitHub Apps registered on a customer's GHES instance via the manifest
-  flow have their own webhook secret stored on the
-  `GitHubAppInstallation` row; the global `TUIST_GITHUB_APP_WEBHOOK_SECRET`
-  env var only signs webhooks for the github.com Tuist App.
+  Two ways an installation gets a webhook secret:
 
-  Lookup order:
+    * **Per-installation** — manifest-flow registrations (GHES) persist
+      `webhook_secret` directly on the `GitHubAppInstallation` row,
+      Cloak-encrypted. Each customer's GHES App has its own secret.
 
-    1. Match the row by `installation.id` from the body (steady state
-       once the redirect-driven setup callback has filled
-       `installation_id`).
+    * **Global env var** — github.com installations leave
+      `webhook_secret` `nil` and rely on
+      `TUIST_GITHUB_APP_WEBHOOK_SECRET`, which is the secret of the
+      single Tuist App registered on github.com.
 
-    2. Match by App ID (`installation.app_id` in the body, falling back
-       to the `X-GitHub-Hook-Installation-Target-ID` header). This
-       closes the race window between manifest-flow App creation and
-       the first `installation.created` webhook delivery: the row
-       exists with `installation_id: nil` but the App ID has been
-       persisted.
+  Strategy: prefer the per-installation secret when a row exposes one,
+  otherwise fall back to the env var. We try to locate a row two ways:
 
-    3. Fall back to the env-var webhook secret so the github.com
-       integration keeps working.
+    1. By `installation.id` from the body — covers the steady state
+       for GHES installations (once the post-install setup callback
+       has filled `installation_id`). For github.com webhooks this
+       step also finds the row, but its `webhook_secret` is `nil`,
+       so we fall through.
+
+    2. By App ID alone — covers the bootstrap race for a brand new
+       GHES App: the manifest exchange has persisted `app_id` and
+       `webhook_secret` but the setup callback hasn't filled
+       `installation_id` yet, so step 1 misses. The App ID comes from
+       `installation.app_id` in the body or the
+       `X-GitHub-Hook-Installation-Target-ID` header.
+
+    3. If neither yields a secret, fall back to the env var.
+
+  github.com webhooks always land on step 3 (their rows carry no
+  per-installation secret); GHES webhooks always resolve at step 1 or
+  2. HMAC verification then rejects anything whose signature doesn't
+  match the resolved secret.
   """
   def resolve_webhook_secret(conn) do
     body = conn.body_params
