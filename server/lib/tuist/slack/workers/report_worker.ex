@@ -5,6 +5,10 @@ defmodule Tuist.Slack.Workers.ReportWorker do
   The cron job finds projects due for reports and enqueues individual
   project-specific jobs. This allows tracking when the last report was
   sent per project via the oban_jobs table.
+
+  Reports prefer the per-channel `slack_webhook_url`. Destinations created
+  before the webhook flow existed fall back to `chat.postMessage` with the
+  account-level bot token.
   """
   use Oban.Worker, max_attempts: 3
 
@@ -13,7 +17,9 @@ defmodule Tuist.Slack.Workers.ReportWorker do
   alias Tuist.Projects
   alias Tuist.Projects.Project
   alias Tuist.Repo
+  alias Tuist.Slack
   alias Tuist.Slack.Client, as: SlackClient
+  alias Tuist.Slack.Installation
   alias Tuist.Slack.Reports
 
   require Logger
@@ -25,7 +31,7 @@ defmodule Tuist.Slack.Workers.ReportWorker do
         :ok
 
       project ->
-        project = Repo.preload(project, :account)
+        project = Repo.preload(project, account: :slack_installation)
         send_report(project)
     end
   end
@@ -69,19 +75,46 @@ defmodule Tuist.Slack.Workers.ReportWorker do
   end
 
   defp send_report(project) do
-    with %{slack_webhook_url: webhook_url} when is_binary(webhook_url) and webhook_url != "" <- project,
-         last_report_at = get_last_report_time(project.id),
-         blocks = Reports.report(project, last_report_at: last_report_at),
-         :ok <- SlackClient.post_to_webhook(webhook_url, blocks) do
-      :ok
-    else
-      {:error, reason} -> handle_post_report_error(reason, project)
-      _ -> :ok
+    case configured_destination(project) do
+      :unconfigured ->
+        :ok
+
+      {:webhook, webhook_url} ->
+        last_report_at = get_last_report_time(project.id)
+        blocks = Reports.report(project, last_report_at: last_report_at)
+
+        case SlackClient.post_to_webhook(webhook_url, blocks) do
+          :ok -> :ok
+          {:error, reason} -> handle_webhook_error(reason, project)
+        end
+
+      {:bot_token, %Installation{access_token: token}, channel_id} ->
+        last_report_at = get_last_report_time(project.id)
+        blocks = Reports.report(project, last_report_at: last_report_at)
+
+        case SlackClient.post_message(token, channel_id, blocks) do
+          :ok -> :ok
+          {:error, reason} -> handle_post_message_error(reason, project)
+        end
     end
   end
 
-  defp handle_post_report_error(_reason, project) do
-    Logger.warning("Clearing failing Slack report channel for project #{project.id}")
+  defp configured_destination(%Project{slack_webhook_url: url}) when is_binary(url) and url != "" do
+    {:webhook, url}
+  end
+
+  defp configured_destination(%Project{
+         account: %{slack_installation: %Installation{} = installation},
+         slack_channel_id: channel_id
+       })
+       when is_binary(channel_id) do
+    {:bot_token, installation, channel_id}
+  end
+
+  defp configured_destination(_), do: :unconfigured
+
+  defp handle_webhook_error(_reason, project) do
+    Logger.warning("Clearing failing Slack webhook for project #{project.id}")
 
     case Projects.update_project(project, %{
            slack_channel_id: nil,
@@ -92,6 +125,26 @@ defmodule Tuist.Slack.Workers.ReportWorker do
       {:error, reason} -> {:error, reason}
     end
   end
+
+  defp handle_post_message_error("account_inactive", project) do
+    Logger.warning("Deleting inactive Slack installation for account #{project.account_id}")
+
+    case Slack.delete_installation(project.account.slack_installation) do
+      {:ok, _installation} -> {:discard, :account_inactive}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp handle_post_message_error("channel_not_found", project) do
+    Logger.warning("Clearing missing Slack report channel for project #{project.id}")
+
+    case Projects.update_project(project, %{slack_channel_id: nil, slack_channel_name: nil}) do
+      {:ok, _project} -> {:discard, :channel_not_found}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp handle_post_message_error(reason, _project), do: {:error, reason}
 
   defp get_last_report_time(project_id) do
     worker_name = to_string(__MODULE__)

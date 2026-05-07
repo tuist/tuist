@@ -9,6 +9,7 @@ defmodule TuistWeb.ProjectNotificationsLive do
   alias Tuist.Projects
   alias Tuist.Repo
   alias Tuist.Slack.Client, as: SlackClient
+  alias Tuist.Slack.Installation
   alias Tuist.Slack.Reports
   alias TuistWeb.SlackOAuthController
 
@@ -107,14 +108,18 @@ defmodule TuistWeb.ProjectNotificationsLive do
   def handle_event(
         "send_test_slack_report",
         _params,
-        %{assigns: %{selected_project: selected_project}} = socket
+        %{assigns: %{selected_project: selected_project, selected_account: selected_account}} = socket
       ) do
-    case selected_project.slack_webhook_url do
-      url when is_binary(url) and url != "" ->
-        blocks = Reports.report(selected_project)
-        :ok = SlackClient.post_to_webhook(url, blocks)
+    blocks = Reports.report(selected_project)
 
-      _ ->
+    cond do
+      is_binary(selected_project.slack_webhook_url) and selected_project.slack_webhook_url != "" ->
+        :ok = SlackClient.post_to_webhook(selected_project.slack_webhook_url, blocks)
+
+      installation = legacy_installation(selected_account) ->
+        :ok = SlackClient.post_message(installation.access_token, selected_project.slack_channel_id, blocks)
+
+      true ->
         :ok
     end
 
@@ -710,4 +715,11 @@ defmodule TuistWeb.ProjectNotificationsLive do
   defp bundle_size_metric_label(:install_size), do: dgettext("dashboard_projects", "Install size")
   defp bundle_size_metric_label(:download_size), do: dgettext("dashboard_projects", "Download size")
   defp bundle_size_metric_label(_), do: ""
+
+  defp legacy_installation(account) do
+    case Repo.preload(account, :slack_installation).slack_installation do
+      %Installation{} = installation -> installation
+      _ -> nil
+    end
+  end
 end

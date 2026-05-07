@@ -30,11 +30,13 @@ defmodule Tuist.Alerts.Workers.AlertWorker do
   end
 
   defp check_and_notify(alert_rule) do
+    alert_rule = Repo.preload(alert_rule, project: [account: :slack_installation])
+
     cond do
       not Alerts.cooldown_elapsed?(alert_rule) ->
         :ok
 
-      not webhook_configured?(alert_rule) ->
+      not slack_configured?(alert_rule) ->
         :ok
 
       true ->
@@ -47,7 +49,7 @@ defmodule Tuist.Alerts.Workers.AlertWorker do
                 previous_value: result.previous
               })
 
-            alert = Repo.preload(alert, alert_rule: [project: :account])
+            alert = Repo.preload(alert, alert_rule: [project: [account: :slack_installation]])
             :ok = Slack.send_alert(alert)
 
           :ok ->
@@ -56,6 +58,16 @@ defmodule Tuist.Alerts.Workers.AlertWorker do
     end
   end
 
-  defp webhook_configured?(%{slack_webhook_url: url}) when is_binary(url) and url != "", do: true
-  defp webhook_configured?(_), do: false
+  # Either a per-channel webhook URL (preferred) or a legacy account-level
+  # bot token (with a channel id) is enough to deliver an alert.
+  defp slack_configured?(%{slack_webhook_url: url}) when is_binary(url) and url != "", do: true
+
+  defp slack_configured?(%{
+         slack_channel_id: channel_id,
+         project: %{account: %{slack_installation: %{access_token: token}}}
+       })
+       when is_binary(channel_id) and is_binary(token),
+       do: true
+
+  defp slack_configured?(_), do: false
 end

@@ -1,14 +1,21 @@
 defmodule Tuist.Slack.Client do
   @moduledoc """
-  Slack API client for OAuth operations and incoming-webhook messaging.
+  Slack API client for OAuth operations and notification delivery.
 
-  Tuist requests only the `incoming-webhook` OAuth scope. Notifications are
-  delivered by POSTing to the webhook URL Slack returns at install time.
+  New OAuth flows request only the `incoming-webhook` scope and notifications
+  are delivered by POSTing to the webhook URL Slack returns at install time
+  (`post_to_webhook/2`).
+
+  Notification destinations created before the webhook flow existed only have
+  a bot token + channel id, so `post_message/3` (chat.postMessage) is kept as
+  a fallback. Each destination upgrades to the webhook path the next time the
+  user re-selects its channel.
   """
 
   alias Tuist.Environment
 
   @oauth_token_url "https://slack.com/api/oauth.v2.access"
+  @chat_post_message_url "https://slack.com/api/chat.postMessage"
 
   @doc """
   Exchanges an OAuth authorization code for an `incoming-webhook` token.
@@ -37,6 +44,24 @@ defmodule Tuist.Slack.Client do
     body = JSON.encode!(%{blocks: blocks, unfurl_links: false, unfurl_media: false})
 
     webhook_url
+    |> Req.post(headers: headers, body: body)
+    |> handle_webhook_response()
+  end
+
+  @doc """
+  Posts a Slack Block Kit message via `chat.postMessage` using a legacy bot
+  token. Kept as a fallback for destinations installed before the webhook
+  flow existed.
+  """
+  def post_message(access_token, channel_id, blocks) do
+    headers = [
+      {"Authorization", "Bearer #{access_token}"},
+      {"Content-Type", "application/json"}
+    ]
+
+    body = JSON.encode!(%{channel: channel_id, blocks: blocks, unfurl_links: false, unfurl_media: false})
+
+    @chat_post_message_url
     |> Req.post(headers: headers, body: body)
     |> handle_post_response()
   end
@@ -77,8 +102,24 @@ defmodule Tuist.Slack.Client do
     {:error, "Request failed: #{inspect(reason)}"}
   end
 
-  defp handle_post_response({:ok, %Req.Response{status: status}}) when status in 200..299 do
+  defp handle_webhook_response({:ok, %Req.Response{status: status}}) when status in 200..299 do
     :ok
+  end
+
+  defp handle_webhook_response({:ok, %Req.Response{status: status, body: body}}) do
+    {:error, "Unexpected status code: #{status}. Body: #{inspect(body)}"}
+  end
+
+  defp handle_webhook_response({:error, reason}) do
+    {:error, "Request failed: #{inspect(reason)}"}
+  end
+
+  defp handle_post_response({:ok, %Req.Response{status: 200, body: %{"ok" => true}}}) do
+    :ok
+  end
+
+  defp handle_post_response({:ok, %Req.Response{status: 200, body: %{"ok" => false, "error" => error}}}) do
+    {:error, error}
   end
 
   defp handle_post_response({:ok, %Req.Response{status: status, body: body}}) do

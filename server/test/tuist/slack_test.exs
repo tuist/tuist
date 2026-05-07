@@ -305,6 +305,43 @@ defmodule Tuist.SlackTest do
       assert result == :ok
     end
 
+    test "falls back to chat.postMessage with the legacy bot token when no webhook URL is set" do
+      # Given - simulates a destination configured before the webhook flow
+      # was introduced: only the account-level bot token + channel id exist.
+      user = AccountsFixtures.user_fixture()
+      installation = SlackFixtures.slack_installation_fixture(account_id: user.account.id)
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(
+          project: project,
+          category: :build_run_duration,
+          metric: :p90,
+          slack_channel_id: "C12345",
+          slack_channel_name: "alerts",
+          slack_webhook_url: nil
+        )
+
+      alert =
+        AlertsFixtures.alert_fixture(
+          alert_rule: alert_rule,
+          current_value: 1200.0,
+          previous_value: 1000.0
+        )
+
+      reject(&Client.post_to_webhook/2)
+
+      expect(Client, :post_message, fn token, channel_id, blocks ->
+        assert token == installation.access_token
+        assert channel_id == "C12345"
+        assert is_list(blocks)
+        :ok
+      end)
+
+      # When/Then
+      assert Slack.send_alert(alert) == :ok
+    end
+
     test "includes scheme in build_run_duration title and message" do
       # Given
       user = AccountsFixtures.user_fixture()

@@ -188,7 +188,7 @@
             <.toggle
               id="slack-reports-toggle"
               checked={@slack_reports_enabled}
-              disabled={is_nil(@selected_project.slack_webhook_url)}
+              disabled={is_nil(@selected_project.slack_channel_id)}
               phx-click="toggle_slack_reports"
             />
             <label data-part="label">
