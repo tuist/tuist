@@ -60,15 +60,10 @@ rules:
     # reduction here — even a server compromise can't yank running
     # customer jobs off the fleet.
     verbs: [get, list, create]
-  - apiGroups: [""]
-    # Read Node objects to surface fleet inventory in the reconciler's
-    # log line (Pod -> Node binding, fleet roster). Cluster-scoped
-    # resource, so this rule lives in a ClusterRole below — left in
-    # the Role definition for documentation but commented out.
-    # resources: [nodes]
-    # verbs: [get, list]
-    resources: []
-    verbs: []
+  # Read Node objects (cluster-scoped) is granted via the
+  # ClusterRole + ClusterRoleBinding emitted below — surfacing
+  # the Pod -> Node mapping in audit logs / future ops UI
+  # without widening the namespaced Role.
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
