@@ -173,10 +173,12 @@ runnersFleet:
   enabled: true
   replicas: 2
   machine:
-    # M2-M same as macosFleet above — fr-par-1 has limited
-    # M4-S capacity in some windows, M2-M is the reliable
-    # fallback. Bump to M4-S once stocking stabilizes.
-    type: M2-M
+    # M2-L: M2 chip / 32 GB RAM. Picked because M4-S/M2-M
+    # were no_stock in fr-par-1 on first runners-fleet
+    # bring-up; M2-L had inventory. Bump back to M4-S when
+    # capacity stabilizes — the larger SKU is moderately
+    # over-provisioned for one Tart VM.
+    type: M2-L
   runnerImage: "ghcr.io/tuist/tuist-runner@sha256:800e78c62a887642b29d23be72f54a561d60cd86bcaf430f077bce4bc389b6ee"
   # Cluster-internal CIDR ranges the runner namespace's
   # NetworkPolicy blocks egress to. Locks down lateral
