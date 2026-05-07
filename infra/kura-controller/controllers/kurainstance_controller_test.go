@@ -120,8 +120,8 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	if got := container.Resources.Requests.Cpu().String(); got != "500m" {
 		t.Fatalf("expected default CPU request, got %q", got)
 	}
-	if got := sts.Spec.Template.Annotations["kubernetes.io/ingress-bandwidth"]; got != "250M" {
-		t.Fatalf("expected default ingress bandwidth, got %q", got)
+	if _, ok := sts.Spec.Template.Annotations["kubernetes.io/ingress-bandwidth"]; ok {
+		t.Fatal("expected no default ingress bandwidth annotation")
 	}
 	if got := sts.Spec.Template.Spec.NodeSelector["node.cluster.x-k8s.io/pool"]; got != "kura" {
 		t.Fatalf("expected kura node pool selector, got %q", got)

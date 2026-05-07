@@ -277,7 +277,7 @@ func rolloutStatusFromStatefulSet(instance *kurav1alpha1.KuraInstance, sts *apps
 
 func podTemplate(instance *kurav1alpha1.KuraInstance) corev1.PodTemplateSpec {
 	return corev1.PodTemplateSpec{
-		ObjectMeta: metav1.ObjectMeta{Labels: labels(instance), Annotations: defaultPodAnnotations()},
+		ObjectMeta: metav1.ObjectMeta{Labels: labels(instance)},
 		Spec: corev1.PodSpec{
 			TerminationGracePeriodSeconds: ptr(int64(255)),
 			NodeSelector:                  nodeSelector(instance),
@@ -333,13 +333,6 @@ func publicServiceAnnotations(instance *kurav1alpha1.KuraInstance) map[string]st
 		"load-balancer.hetzner.cloud/health-check-protocol":            "http",
 		"load-balancer.hetzner.cloud/health-check-http-path":           "/ready",
 		"load-balancer.hetzner.cloud/http-status-codes":                "200",
-	}
-}
-
-func defaultPodAnnotations() map[string]string {
-	return map[string]string{
-		"kubernetes.io/ingress-bandwidth": "250M",
-		"kubernetes.io/egress-bandwidth":  "250M",
 	}
 }
 

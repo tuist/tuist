@@ -223,7 +223,7 @@ defmodule Tuist.Kura.Provisioner.HelmKubernetesTest do
     end
 
     @tag :tmp_dir
-    test "emits default per-pod Cilium bandwidth annotations", %{tmp_dir: tmp_dir} do
+    test "does not emit default per-pod bandwidth annotations", %{tmp_dir: tmp_dir} do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
       stub(Tuist.Environment, :secret_key_tokens, fn -> nil end)
       stub(Tuist.License, :get_license, fn -> {:error, :missing} end)
@@ -237,10 +237,7 @@ defmodule Tuist.Kura.Provisioner.HelmKubernetesTest do
           chart_fixture(tmp_dir, "return true")
         )
 
-      assert values["podAnnotations"] == %{
-               "kubernetes.io/ingress-bandwidth" => "250M",
-               "kubernetes.io/egress-bandwidth" => "250M"
-             }
+      refute Map.has_key?(values, "podAnnotations")
     end
   end
 

@@ -27,8 +27,8 @@ defmodule Tuist.Kura.Provisioner.HelmKubernetes do
       auto-create the cluster.
 
   Tenant separation is application-layer: `KURA_TENANT_ID` (already in
-  the StatefulSet env) plus per-pod Cilium ingress/egress bandwidth
-  caps. Hardware is shared across accounts via a single worker pool.
+  the StatefulSet env). Hardware is shared across accounts via a single
+  worker pool.
   """
 
   @behaviour Tuist.Kura.Provisioner
@@ -42,12 +42,6 @@ defmodule Tuist.Kura.Provisioner.HelmKubernetes do
   @pod_resources %{
     "requests" => %{"cpu" => "500m", "memory" => "1Gi"},
     "limits" => %{"memory" => "2Gi"}
-  }
-  @bandwidth_annotations %{
-    "podAnnotations" => %{
-      "kubernetes.io/ingress-bandwidth" => "250M",
-      "kubernetes.io/egress-bandwidth" => "250M"
-    }
   }
 
   ## Provisioner callbacks
@@ -218,8 +212,7 @@ defmodule Tuist.Kura.Provisioner.HelmKubernetes do
 
     [
       resources_for(server),
-      ingress(region, account.name),
-      @bandwidth_annotations
+      ingress(region, account.name)
     ]
     |> Enum.reject(&(&1 in [nil, %{}]))
     |> Enum.reduce(base, &Map.merge(&2, &1))
