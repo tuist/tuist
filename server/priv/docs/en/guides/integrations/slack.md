@@ -9,7 +9,7 @@
 
 Tuist's integration for Slack surfaces build, test, and bundle insights directly in your channels. It turns monitoring from something your team has to remember to do into something that just happens. For example, your team can receive daily summaries of build performance, cache hit rates, or bundle size trends, and instant alerts the moment a key metric regresses or a test becomes flaky.
 
-This page describes what the integration does, how to install it on a per-channel basis, and how Tuist handles your data. For pricing, see the [Tuist pricing page](https://tuist.dev/pricing). For details on how Tuist collects, manages, and stores third-party data, see our [privacy policy](https://tuist.dev/privacy).
+This page describes what the integration does, how to install it on a per-channel basis, and how Tuist handles your data. The integration is free for every Tuist account; for pricing of the underlying Tuist service see the [Tuist pricing page](https://tuist.dev/pricing). For details on how Tuist collects, manages, and stores third-party data, see our [privacy policy](https://tuist.dev/privacy).
 
 ## How the integration works {#how-it-works}
 
@@ -78,7 +78,7 @@ When a test becomes flaky and meets your threshold, you'll receive a notificatio
 
 ## Pricing {#pricing}
 
-Tuist offers a free tier and paid plans. The integration for Slack is available on all paid plans. See the [Tuist pricing page](https://tuist.dev/pricing) for details.
+The integration for Slack is included for free with every Tuist account on every plan, including the free tier. For pricing of the underlying Tuist service, see the [Tuist pricing page](https://tuist.dev/pricing).
 
 ## Privacy and data handling {#privacy}
 
