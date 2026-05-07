@@ -2481,12 +2481,22 @@ defmodule Tuist.Tests do
     |> Enum.sort_by(& &1.latest_ran_at, {:desc, NaiveDateTime})
   end
 
+  # Avoids `FINAL` (which forces a cross-part merge of the entire matched
+  # range). Aggregating with `argMax(...inserted_at)` deduplicates only the
+  # rows that already pass the `test_run_id` primary-key filter, then
+  # `HAVING` checks the *latest* version of `is_flaky` for each test case.
   defp fetch_flaky_runs_for_test_run(test_run_id) do
     slim_query =
       from(mv in TestCaseRunByTestRun,
-        hints: ["FINAL"],
-        where: mv.test_run_id == ^test_run_id and mv.is_flaky == true,
-        order_by: [desc: mv.ran_at]
+        where: mv.test_run_id == ^test_run_id,
+        group_by: mv.id,
+        having: fragment("argMax(?, ?) = ?", mv.is_flaky, mv.inserted_at, true),
+        order_by: [desc: fragment("argMax(?, ?)", mv.ran_at, mv.inserted_at)],
+        select: %{
+          id: mv.id,
+          project_id: fragment("argMax(?, ?)", mv.project_id, mv.inserted_at),
+          test_case_id: fragment("argMax(?, ?)", mv.test_case_id, mv.inserted_at)
+        }
       )
 
     slim_results = ClickHouseRepo.all(slim_query)

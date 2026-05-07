@@ -18,7 +18,7 @@ defmodule TuistWeb.BuildControllerTest do
       project = ProjectsFixtures.project_fixture(account_id: user.account.id)
       build_id = UUIDv7.generate()
 
-      stub(Builds, :get_build, fn ^build_id ->
+      stub(Builds, :get_build, fn ^build_id, _opts ->
         {:ok,
          %Builds.Build{
            id: build_id,
@@ -48,7 +48,7 @@ defmodule TuistWeb.BuildControllerTest do
       project = ProjectsFixtures.project_fixture(account_id: user.account.id)
       build_id = UUIDv7.generate()
 
-      stub(Builds, :get_build, fn ^build_id -> {:error, :not_found} end)
+      stub(Builds, :get_build, fn ^build_id, _opts -> {:error, :not_found} end)
 
       # When/Then
       assert_error_sent 404, fn ->
@@ -86,7 +86,7 @@ defmodule TuistWeb.BuildControllerTest do
       other_project = ProjectsFixtures.project_fixture(account_id: user.account.id)
       build_id = UUIDv7.generate()
 
-      stub(Builds, :get_build, fn ^build_id ->
+      stub(Builds, :get_build, fn ^build_id, _opts ->
         {:ok,
          %Builds.Build{
            id: build_id,
