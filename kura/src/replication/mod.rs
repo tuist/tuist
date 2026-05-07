@@ -18,7 +18,10 @@ use tracing::{Instrument, field, warn};
 use crate::{
     artifact::manifest::ArtifactManifest,
     config::Config,
-    constants::REPLICATION_RETRY_SECS,
+    constants::{
+        MAX_BOOTSTRAP_PAGE_BYTES, MAX_INLINE_REPLICATION_BODY_BYTES, MAX_REPLICATION_BODY_BYTES,
+        REPLICATION_RETRY_SECS,
+    },
     failpoints::FailpointName,
     state::SharedState,
     store::{ArtifactApplyOutcome, ManifestPage, NamespaceTombstonePage},
@@ -139,7 +142,15 @@ async fn maybe_spawn_bootstrap_task(state: SharedState, peer: String) {
         return;
     }
 
+    let semaphore = state.bootstrap_semaphore.clone();
     tokio::spawn(async move {
+        let _permit = match semaphore.acquire_owned().await {
+            Ok(permit) => permit,
+            Err(_) => {
+                state.note_bootstrap_failed(&peer).await;
+                return;
+            }
+        };
         let started_at = std::time::Instant::now();
         let timeout = Duration::from_millis(state.config.bootstrap_timeout_ms);
         let result = match tokio::time::timeout(timeout, bootstrap_from_peer(&state, &peer)).await {
@@ -287,10 +298,12 @@ async fn bootstrap_artifact_from_peer(
         .map_err(|error| format!("bootstrap artifact response failed: {error}"))?;
 
     if manifest.inline {
-        let bytes = response
-            .bytes()
-            .await
-            .map_err(|error| format!("failed to read bootstrap keyvalue body: {error}"))?;
+        let bytes = read_bounded_body(
+            response,
+            MAX_INLINE_REPLICATION_BODY_BYTES,
+            "bootstrap inline artifact",
+        )
+        .await?;
         state
             .store
             .hit_failpoint(FailpointName::AfterBootstrapArtifactFetchBeforePersist)
@@ -336,10 +349,26 @@ async fn stream_response_to_temp(
         .parent()
         .ok_or_else(|| "bootstrap temp path is missing a parent directory".to_string())?;
     state.io.create_dir_all(parent).await?;
+    if let Some(content_length) = response.content_length()
+        && content_length > MAX_REPLICATION_BODY_BYTES
+    {
+        return Err(format!(
+            "bootstrap artifact response declared {content_length} bytes, exceeds limit of {MAX_REPLICATION_BODY_BYTES}"
+        ));
+    }
     let mut destination = state.io.create_file(path).await?;
     let mut stream = response.bytes_stream();
+    let mut total: u64 = 0;
     while let Some(chunk) = stream.next().await {
         let chunk = chunk.map_err(|error| format!("failed to stream bootstrap body: {error}"))?;
+        total = total.saturating_add(chunk.len() as u64);
+        if total > MAX_REPLICATION_BODY_BYTES {
+            drop(destination);
+            state.io.remove_file_if_exists(path).await;
+            return Err(format!(
+                "bootstrap artifact response exceeded limit of {MAX_REPLICATION_BODY_BYTES} bytes"
+            ));
+        }
         destination
             .write_all(&chunk)
             .await
@@ -363,16 +392,16 @@ async fn fetch_bootstrap_manifests_page(
         url.push_str(&url_encode(after));
     }
 
-    state
+    let response = state
         .client
         .get(&url)
         .send()
         .await
         .map_err(|error| format!("bootstrap manifest request failed: {error}"))?
         .error_for_status()
-        .map_err(|error| format!("bootstrap manifest response failed: {error}"))?
-        .json::<ManifestPage>()
-        .await
+        .map_err(|error| format!("bootstrap manifest response failed: {error}"))?;
+    let bytes = read_bounded_body(response, MAX_BOOTSTRAP_PAGE_BYTES, "bootstrap manifest").await?;
+    serde_json::from_slice(&bytes)
         .map_err(|error| format!("failed to decode bootstrap manifest page: {error}"))
 }
 
@@ -388,17 +417,45 @@ async fn fetch_bootstrap_tombstones_page(
         url.push_str(&url_encode(after));
     }
 
-    state
+    let response = state
         .client
         .get(&url)
         .send()
         .await
         .map_err(|error| format!("bootstrap tombstone request failed: {error}"))?
         .error_for_status()
-        .map_err(|error| format!("bootstrap tombstone response failed: {error}"))?
-        .json::<NamespaceTombstonePage>()
-        .await
+        .map_err(|error| format!("bootstrap tombstone response failed: {error}"))?;
+    let bytes = read_bounded_body(response, MAX_BOOTSTRAP_PAGE_BYTES, "bootstrap tombstone").await?;
+    serde_json::from_slice(&bytes)
         .map_err(|error| format!("failed to decode bootstrap tombstone page: {error}"))
+}
+
+async fn read_bounded_body(
+    response: reqwest::Response,
+    max_bytes: u64,
+    label: &str,
+) -> Result<Vec<u8>, String> {
+    if let Some(content_length) = response.content_length()
+        && content_length > max_bytes
+    {
+        return Err(format!(
+            "{label} response body declared {content_length} bytes, exceeds limit of {max_bytes}"
+        ));
+    }
+    let mut buffer = Vec::new();
+    let mut total: u64 = 0;
+    let mut stream = response.bytes_stream();
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk.map_err(|error| format!("{label} body stream failed: {error}"))?;
+        total = total.saturating_add(chunk.len() as u64);
+        if total > max_bytes {
+            return Err(format!(
+                "{label} response body exceeded limit of {max_bytes} bytes"
+            ));
+        }
+        buffer.extend_from_slice(&chunk);
+    }
+    Ok(buffer)
 }
 
 async fn discovery_targets(config: &Config) -> Vec<String> {

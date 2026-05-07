@@ -3,8 +3,9 @@ use std::path::PathBuf;
 use tokio::fs;
 
 use crate::constants::{
-    DEFAULT_BOOTSTRAP_TIMEOUT_MS, DEFAULT_MULTIPART_JANITOR_INTERVAL_MS,
-    DEFAULT_MULTIPART_UPLOAD_TTL_MS, DEFAULT_OUTBOX_MAX_DEPTH,
+    DEFAULT_BOOTSTRAP_MAX_CONCURRENT_PEERS, DEFAULT_BOOTSTRAP_TIMEOUT_MS,
+    DEFAULT_MULTIPART_JANITOR_INTERVAL_MS, DEFAULT_MULTIPART_UPLOAD_TTL_MS,
+    DEFAULT_OUTBOX_MAX_DEPTH,
 };
 
 const KURA_PORT: &str = "KURA_PORT";
@@ -50,6 +51,7 @@ const KURA_OUTBOX_MAX_DEPTH: &str = "KURA_OUTBOX_MAX_DEPTH";
 const KURA_MULTIPART_UPLOAD_TTL_MS: &str = "KURA_MULTIPART_UPLOAD_TTL_MS";
 const KURA_MULTIPART_JANITOR_INTERVAL_MS: &str = "KURA_MULTIPART_JANITOR_INTERVAL_MS";
 const KURA_BOOTSTRAP_TIMEOUT_MS: &str = "KURA_BOOTSTRAP_TIMEOUT_MS";
+const KURA_BOOTSTRAP_MAX_CONCURRENT_PEERS: &str = "KURA_BOOTSTRAP_MAX_CONCURRENT_PEERS";
 const KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: &str = "KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT";
 const KURA_OTEL_SERVICE_NAME: &str = "KURA_OTEL_SERVICE_NAME";
 const KURA_OTEL_DEPLOYMENT_ENVIRONMENT: &str = "KURA_OTEL_DEPLOYMENT_ENVIRONMENT";
@@ -95,6 +97,7 @@ pub struct Config {
     pub multipart_upload_ttl_ms: u64,
     pub multipart_janitor_interval_ms: u64,
     pub bootstrap_timeout_ms: u64,
+    pub bootstrap_max_concurrent_peers: usize,
     pub analytics: Option<AnalyticsConfig>,
     pub otlp_traces_endpoint: Option<String>,
     pub otel_service_name: String,
@@ -643,6 +646,22 @@ impl Config {
                 "{KURA_BOOTSTRAP_TIMEOUT_MS} must be greater than 0"
             ));
         }
+        let bootstrap_max_concurrent_peers = optional_parsed_value(
+            &mut lookup,
+            KURA_BOOTSTRAP_MAX_CONCURRENT_PEERS,
+            &mut invalid,
+            |value| {
+                value.parse::<usize>().map_err(|_| {
+                    format!("{KURA_BOOTSTRAP_MAX_CONCURRENT_PEERS} must be a valid usize")
+                })
+            },
+        )
+        .unwrap_or(DEFAULT_BOOTSTRAP_MAX_CONCURRENT_PEERS);
+        if bootstrap_max_concurrent_peers == 0 {
+            invalid.push(format!(
+                "{KURA_BOOTSTRAP_MAX_CONCURRENT_PEERS} must be greater than 0"
+            ));
+        }
         let analytics_server_url = lookup(KURA_ANALYTICS_SERVER_URL)
             .map(|value| value.trim().trim_end_matches('/').to_owned())
             .filter(|value| !value.is_empty());
@@ -886,6 +905,7 @@ impl Config {
             multipart_upload_ttl_ms,
             multipart_janitor_interval_ms,
             bootstrap_timeout_ms,
+            bootstrap_max_concurrent_peers,
             analytics,
             otlp_traces_endpoint,
             otel_service_name: otel_service_name

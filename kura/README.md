@@ -212,11 +212,13 @@ When `Optional` is `Yes`, the `Default` column shows what Kura uses today. `auto
 | `KURA_MULTIPART_UPLOAD_TTL_MS` | How long an in-progress multipart upload may sit before the janitor expires it. | Yes | `86400000` |
 | `KURA_MULTIPART_JANITOR_INTERVAL_MS` | How often the multipart janitor scans for stale uploads. | Yes | `600000` |
 | `KURA_BOOTSTRAP_TIMEOUT_MS` | Maximum time a single bootstrap-from-peer task may run before it is cancelled. | Yes | `1800000` |
+| `KURA_BOOTSTRAP_MAX_CONCURRENT_PEERS` | Upper bound on concurrent bootstrap-from-peer tasks. Holds a semaphore so a discovery burst can't fan out unbounded. | Yes | `8` |
+| `KURA_EXTENSION_CACHE_MAX_ENTRIES` | Maximum entries kept in each of the extension authenticate/authorize caches. New entries are dropped (with metric `extension_cache{result="rejected"}`) once the cap is reached and no expired entries remain. | Yes | `100000` |
 | `KURA_TOKIO_WORKER_THREADS` | Number of tokio worker threads. Pin this to the cgroup CPU quota in containers; defaults to detected parallelism clamped to `[2, 16]`. | Yes | auto |
 
 Kura also enforces a few hard-coded budgets that are not configurable:
 
-- Replication ingest bodies on `/_internal/replicate/artifact` are capped at four times `MAX_SEGMENT_BYTES` (2 GiB) so a misbehaving peer cannot fill the data PVC.
+- Replication ingest bodies on `/_internal/replicate/artifact` are capped at four times `MAX_SEGMENT_BYTES` (2 GiB) so a misbehaving peer cannot fill the data PVC. Bootstrap-from-peer fetches enforce the same ceiling for segment-backed artifacts and a 4 MiB ceiling for inline artifacts; bootstrap manifest and tombstone pages are capped at 32 MiB each.
 - Public writes are rejected with `503 Service Unavailable` and a short `Retry-After` header when memory pressure reaches `Critical`, when the outbox is at `KURA_OUTBOX_MAX_DEPTH`, when the FD pool is exhausted, or when the data PVC has insufficient free space for a new segment.
 - RocksDB column families are configured with explicit level-0 slowdown/stop triggers and pending compaction limits so backlog turns into write-side backpressure instead of unbounded write-buffer growth.
 - Inline keyvalue payloads are buffered in memory before being written. Total RAM committed to inline payloads is bounded by `KURA_FILE_DESCRIPTOR_POOL_SIZE * KURA_MAX_KEYVALUE_BYTES`; both knobs are tuned together when sizing per-pod memory.

@@ -2270,6 +2270,7 @@ mod tests {
             multipart_upload_ttl_ms: 24 * 60 * 60 * 1000,
             multipart_janitor_interval_ms: 10 * 60 * 1000,
             bootstrap_timeout_ms: 30 * 60 * 1000,
+            bootstrap_max_concurrent_peers: 8,
             analytics: None,
             otlp_traces_endpoint: Some("http://127.0.0.1:4318/v1/traces".into()),
             otel_service_name: "kura-test".into(),

@@ -22,6 +22,10 @@ pub const DEFAULT_MULTIPART_JANITOR_INTERVAL_MS: u64 = 10 * 60 * 1000;
 pub const DEFAULT_BOOTSTRAP_TIMEOUT_MS: u64 = 30 * 60 * 1000;
 pub const SEGMENT_FREE_SPACE_MARGIN: u64 = 2;
 
+pub const MAX_BOOTSTRAP_PAGE_BYTES: u64 = 32 * 1024 * 1024;
+pub const MAX_INLINE_REPLICATION_BODY_BYTES: u64 = 4 * 1024 * 1024;
+pub const DEFAULT_BOOTSTRAP_MAX_CONCURRENT_PEERS: usize = 8;
+
 pub const ROCKSDB_CF_MANIFESTS: &str = "manifests";
 pub const ROCKSDB_CF_KEY_VALUE: &str = "key_value";
 pub const ROCKSDB_CF_NAMESPACE_ARTIFACTS: &str = "project_artifacts";

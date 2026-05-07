@@ -39,6 +39,8 @@ const KURA_EXTENSION_AUTH_CACHE_DENY_TTL_SECONDS: &str =
 const KURA_EXTENSION_FAIL_CLOSED_AUTHENTICATE: &str = "KURA_EXTENSION_FAIL_CLOSED_AUTHENTICATE";
 const KURA_EXTENSION_FAIL_CLOSED_AUTHORIZE: &str = "KURA_EXTENSION_FAIL_CLOSED_AUTHORIZE";
 const KURA_EXTENSION_FAIL_OPEN_RESPONSE_HEADERS: &str = "KURA_EXTENSION_FAIL_OPEN_RESPONSE_HEADERS";
+const KURA_EXTENSION_CACHE_MAX_ENTRIES: &str = "KURA_EXTENSION_CACHE_MAX_ENTRIES";
+const DEFAULT_EXTENSION_CACHE_MAX_ENTRIES: usize = 100_000;
 
 const SIGNER_PREFIX: &str = "KURA_EXTENSION_SIGNER_";
 const JWT_VERIFIER_PREFIX: &str = "KURA_EXTENSION_JWT_VERIFIER_";
@@ -153,6 +155,7 @@ struct ExtensionConfig {
     fail_closed_authenticate: bool,
     fail_closed_authorize: bool,
     fail_open_response_headers: bool,
+    cache_max_entries: usize,
     signers: Arc<HashMap<String, Signer>>,
     jwt_verifiers: Arc<HashMap<String, JwtVerifier>>,
     http_clients: Arc<HashMap<String, ExtensionHttpClient>>,
@@ -557,6 +560,14 @@ impl ExtensionEngine {
             return;
         }
         let mut cache = self.principal_cache.write().await;
+        let max_entries = self.config.cache_max_entries;
+        if cache.len() >= max_entries && !cache.contains_key(key) {
+            evict_expired_authenticate(&mut cache);
+            if cache.len() >= max_entries {
+                self.metrics.record_extension_cache("authenticate", "rejected");
+                return;
+            }
+        }
         cache.insert(
             key.to_owned(),
             CachedAuthenticateResult {
@@ -584,6 +595,14 @@ impl ExtensionEngine {
             return;
         }
         let mut cache = self.decision_cache.write().await;
+        let max_entries = self.config.cache_max_entries;
+        if cache.len() >= max_entries && !cache.contains_key(key) {
+            evict_expired_authorize(&mut cache);
+            if cache.len() >= max_entries {
+                self.metrics.record_extension_cache("authorize", "rejected");
+                return;
+            }
+        }
         cache.insert(
             key.to_owned(),
             CachedAuthorizeResult {
@@ -592,6 +611,16 @@ impl ExtensionEngine {
             },
         );
     }
+}
+
+fn evict_expired_authenticate(cache: &mut HashMap<String, CachedAuthenticateResult>) {
+    let now = Instant::now();
+    cache.retain(|_, entry| entry.expires_at > now);
+}
+
+fn evict_expired_authorize(cache: &mut HashMap<String, CachedAuthorizeResult>) {
+    let now = Instant::now();
+    cache.retain(|_, entry| entry.expires_at > now);
 }
 
 impl LuaRuntime {
@@ -798,6 +827,13 @@ impl ExtensionConfig {
             env_truthy(KURA_EXTENSION_FAIL_CLOSED_AUTHORIZE).unwrap_or(true);
         let fail_open_response_headers =
             env_truthy(KURA_EXTENSION_FAIL_OPEN_RESPONSE_HEADERS).unwrap_or(true);
+        let cache_max_entries = optional_env_parse(KURA_EXTENSION_CACHE_MAX_ENTRIES)?
+            .unwrap_or(DEFAULT_EXTENSION_CACHE_MAX_ENTRIES);
+        if cache_max_entries == 0 {
+            return Err(format!(
+                "{KURA_EXTENSION_CACHE_MAX_ENTRIES} must be greater than 0"
+            ));
+        }
 
         Ok(Some(Self {
             script_path: PathBuf::from(script_path),
@@ -807,6 +843,7 @@ impl ExtensionConfig {
             fail_closed_authenticate,
             fail_closed_authorize,
             fail_open_response_headers,
+            cache_max_entries,
             signers: Arc::new(parse_signers()?),
             jwt_verifiers: Arc::new(parse_jwt_verifiers()?),
             http_clients: Arc::new(parse_http_clients()?),

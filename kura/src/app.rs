@@ -7,7 +7,7 @@ use std::{
 
 use axum_server::Handle;
 use hyper_util::rt::TokioTimer;
-use tokio::sync::{Notify, oneshot};
+use tokio::sync::{Notify, Semaphore, oneshot};
 use tokio::{task::JoinHandle, time::Instant};
 use tracing::{info, warn};
 
@@ -83,6 +83,7 @@ pub async fn run() -> Result<(), String> {
     let client = build_peer_client(&config).await?;
     let notify = Notify::new();
 
+    let bootstrap_semaphore = Arc::new(Semaphore::new(config.bootstrap_max_concurrent_peers));
     let state = Arc::new(AppState {
         config,
         _data_dir_lock: data_dir_lock,
@@ -96,6 +97,7 @@ pub async fn run() -> Result<(), String> {
         client,
         notify,
         readiness: tokio::sync::Mutex::new(ReadinessState::new(Instant::now())),
+        bootstrap_semaphore,
     });
     state.sync_runtime_metrics().await;
     let drain_completion_timeout = Duration::from_millis(state.config.drain_completion_timeout_ms);

@@ -4,7 +4,7 @@ use axum::response::Response;
 use http_body_util::BodyExt;
 use reqwest::Client;
 use tempfile::TempDir;
-use tokio::sync::Notify;
+use tokio::sync::{Notify, Semaphore};
 use tokio::time::Instant;
 
 use crate::{
@@ -70,6 +70,7 @@ where
         multipart_upload_ttl_ms: 24 * 60 * 60 * 1000,
         multipart_janitor_interval_ms: 10 * 60 * 1000,
         bootstrap_timeout_ms: 30 * 60 * 1000,
+        bootstrap_max_concurrent_peers: 8,
         analytics: None,
         otlp_traces_endpoint: Some("http://127.0.0.1:4318/v1/traces".into()),
         otel_service_name: "kura-test".into(),
@@ -106,6 +107,7 @@ where
         .timeout(Duration::from_secs(5))
         .build()
         .expect("failed to build test client");
+    let bootstrap_semaphore = Arc::new(Semaphore::new(config.bootstrap_max_concurrent_peers));
     let state = Arc::new(AppState {
         config,
         _data_dir_lock: data_dir_lock,
@@ -119,6 +121,7 @@ where
         client,
         notify: Notify::new(),
         readiness: tokio::sync::Mutex::new(ReadinessState::new(Instant::now())),
+        bootstrap_semaphore,
     });
     state.sync_runtime_metrics().await;
 
