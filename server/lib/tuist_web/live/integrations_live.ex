@@ -66,7 +66,7 @@ defmodule TuistWeb.IntegrationsLive do
 
   @impl true
   def handle_event("update-github-client-url", %{"github_client_url" => raw_url}, socket) do
-    {url, error} = validate_github_client_url(raw_url)
+    {url, error} = validate_github_client_url(raw_url, socket.assigns.show_github_enterprise_input)
 
     socket =
       socket
@@ -93,7 +93,11 @@ defmodule TuistWeb.IntegrationsLive do
       socket =
         socket
         |> assign(show_github_enterprise_input: true)
-        |> assign(github_client_url: VCS.default_client_url())
+        # Don't pre-fill with the default github.com URL — the user has
+        # to enter their GHES base URL. Leaving it as the default would
+        # let an Enterprise-tab Install button silently install the
+        # github.com App, which is exactly the wrong target.
+        |> assign(github_client_url: "")
         |> assign(github_client_url_error: nil)
 
       {:noreply, socket}
@@ -221,15 +225,35 @@ defmodule TuistWeb.IntegrationsLive do
     end
   end
 
-  defp validate_github_client_url(raw_url) do
+  # The Install button is disabled when:
+  #   * The current URL has a validation error.
+  #   * The Enterprise tab is showing and the URL is empty or still
+  #     collapsed to the github.com default — clicking Install in that
+  #     state would silently target github.com from inside the GHES tab.
+  defp install_button_disabled?(assigns) do
+    not is_nil(assigns.github_client_url_error) or
+      (assigns.show_github_enterprise_input and
+         (assigns.github_client_url in ["", nil] or
+            assigns.github_client_url == VCS.default_client_url()))
+  end
+
+  defp validate_github_client_url(raw_url, enterprise_tab?) do
     trimmed = raw_url |> to_string() |> String.trim()
-    default = VCS.default_client_url()
 
-    case trimmed do
-      "" ->
-        {default, nil}
+    cond do
+      trimmed == "" and enterprise_tab? ->
+        # On the Enterprise tab the URL is required and must not silently
+        # collapse to the github.com default — that would let the Install
+        # button target github.com from inside the GHES tab.
+        {"", dgettext("dashboard_integrations", "Required")}
 
-      _ ->
+      trimmed == "" ->
+        {VCS.default_client_url(), nil}
+
+      enterprise_tab? and trimmed == VCS.default_client_url() ->
+        {trimmed, dgettext("dashboard_integrations", "Use a GitHub Enterprise Server URL")}
+
+      true ->
         case VCS.validate_client_url(trimmed) do
           {:ok, url} -> {url, nil}
           {:error, _} -> {trimmed, dgettext("dashboard_integrations", "Invalid URL")}

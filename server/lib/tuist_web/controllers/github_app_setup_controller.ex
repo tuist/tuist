@@ -45,12 +45,20 @@ defmodule TuistWeb.GitHubAppSetupController do
 
       {:error, :installation_already_connected} ->
         raise BadRequestError, dgettext("dashboard", "This GitHub app installation is already connected.")
+
+      {:error, :ghes_setup_without_manifest} ->
+        raise BadRequestError,
+              dgettext(
+                "dashboard",
+                "GitHub Enterprise Server installations must go through the App registration flow first."
+              )
     end
   end
 
   defp attach_installation_id(account, client_url, installation_id) do
     installation_id = to_string(installation_id)
     client_url = client_url || VCS.default_client_url()
+    ghes? = client_url != VCS.default_client_url()
 
     case VCS.get_github_app_installation_by_installation_id(installation_id, client_url: client_url) do
       {:ok, %GitHubAppInstallation{account_id: account_id}} when account_id != account.id ->
@@ -61,19 +69,44 @@ defmodule TuistWeb.GitHubAppSetupController do
         {:ok, existing}
 
       {:error, :not_found} ->
-        case VCS.get_github_app_installation_for_account(account.id) do
-          {:ok, pending} ->
-            # GHES manifest flow: a pending row already carries the App
-            # credentials; fill in the installation_id GitHub just assigned.
-            VCS.update_github_app_installation(pending, %{installation_id: installation_id})
+        attach_to_pending_or_create(account, client_url, installation_id, ghes?)
+    end
+  end
 
-          {:error, :not_found} ->
-            VCS.create_github_app_installation(%{
-              account_id: account.id,
-              installation_id: installation_id,
-              client_url: client_url
-            })
-        end
+  defp attach_to_pending_or_create(account, client_url, installation_id, ghes?) do
+    case VCS.get_github_app_installation_for_account(account.id) do
+      {:ok, %GitHubAppInstallation{client_url: ^client_url} = pending} ->
+        # Pending manifest-flow row for this exact host — fill in the
+        # installation_id GitHub just assigned.
+        VCS.update_github_app_installation(pending, %{installation_id: installation_id})
+
+      {:ok, _other_host_pending} when ghes? ->
+        # The account has a pending row for a *different* host. Refuse
+        # rather than silently retarget it: the existing row carries
+        # credentials valid only for its own host, and overwriting
+        # `installation_id` would leave a row that fails every API
+        # call.
+        {:error, :ghes_setup_without_manifest}
+
+      {:ok, existing} ->
+        # github.com path: a pre-existing row for this account (no
+        # client_url constraint needed because github.com is the only
+        # other shape). Reuse.
+        VCS.update_github_app_installation(existing, %{installation_id: installation_id})
+
+      {:error, :not_found} when ghes? ->
+        # GHES setup callback without a prior manifest exchange means
+        # the row would land with no per-installation credentials and
+        # silently fall back to the github.com env vars at API call
+        # time. That's an unusable state; fail fast.
+        {:error, :ghes_setup_without_manifest}
+
+      {:error, :not_found} ->
+        VCS.create_github_app_installation(%{
+          account_id: account.id,
+          installation_id: installation_id,
+          client_url: client_url
+        })
     end
   end
 

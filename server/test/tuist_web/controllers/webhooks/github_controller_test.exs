@@ -395,8 +395,28 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
   end
 
   describe "resolve_webhook_secret/1" do
-    test "returns the per-installation secret keyed by installation_id", %{conn: conn} do
+    # Helper: produce the X-Hub-Signature-256 header value GitHub
+    # would send for `body` signed with `secret`. The resolver picks
+    # the row whose secret reproduces this signature, so any test that
+    # wants a per-installation row to win has to compute one.
+    defp sign(body, secret) do
+      "sha256=" <>
+        (:hmac
+         |> :crypto.mac(:sha256, secret, body)
+         |> Base.encode16(case: :lower))
+    end
+
+    defp put_signed_body(conn, raw_body, secret) do
+      conn
+      |> put_req_header("x-hub-signature-256", sign(raw_body, secret))
+      |> Plug.Conn.assign(:raw_body, raw_body)
+      |> Map.put(:body_params, Jason.decode!(raw_body))
+    end
+
+    test "returns the per-installation secret of the row whose webhook_secret HMACs the body",
+         %{conn: conn} do
       account = AccountsFixtures.user_fixture(preload: [:account]).account
+      secret = "row-webhook-secret"
 
       installation =
         VCSFixtures.github_app_installation_fixture(
@@ -408,20 +428,20 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
           client_id: "Iv1.x",
           client_secret: "csec",
           private_key: "-----BEGIN RSA PRIVATE KEY-----\nfake\n-----END RSA PRIVATE KEY-----",
-          webhook_secret: "row-webhook-secret"
+          webhook_secret: secret
         )
 
-      body = %{"installation" => %{"id" => installation.installation_id}}
-      conn = %{conn | body_params: body}
+      raw_body = ~s({"installation":{"id":"#{installation.installation_id}"}})
+      conn = put_signed_body(conn, raw_body, secret)
 
-      assert GitHubController.resolve_webhook_secret(conn) == "row-webhook-secret"
+      assert {:ok, ^secret, conn} = GitHubController.resolve_webhook_secret(conn)
+      assert conn.assigns[:github_installation].id == installation.id
     end
 
-    test "falls back to matching by app_id when installation_id is missing on the row", %{conn: conn} do
-      # Simulates the race: GHES delivers installation.created before
-      # the redirect-driven /integrations/github/setup callback has
-      # filled installation_id on the manifest-flow row.
+    test "matches by app_id when installation_id on the row is still nil (manifest-flow bootstrap race)",
+         %{conn: conn} do
       account = AccountsFixtures.user_fixture(preload: [:account]).account
+      secret = "row-webhook-secret"
 
       VCSFixtures.github_app_installation_fixture(
         account_id: account.id,
@@ -432,17 +452,19 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
         client_id: "Iv1.x",
         client_secret: "csec",
         private_key: "-----BEGIN RSA PRIVATE KEY-----\nfake\n-----END RSA PRIVATE KEY-----",
-        webhook_secret: "row-webhook-secret"
+        webhook_secret: secret
       )
 
-      body = %{"installation" => %{"id" => 999, "app_id" => 555}}
-      conn = %{conn | body_params: body}
+      raw_body = ~s({"installation":{"id":999,"app_id":555}})
+      conn = put_signed_body(conn, raw_body, secret)
 
-      assert GitHubController.resolve_webhook_secret(conn) == "row-webhook-secret"
+      assert {:ok, ^secret, _conn} = GitHubController.resolve_webhook_secret(conn)
     end
 
-    test "falls back to matching by the X-GitHub-Hook-Installation-Target-ID header", %{conn: conn} do
+    test "matches by the X-GitHub-Hook-Installation-Target-ID header",
+         %{conn: conn} do
       account = AccountsFixtures.user_fixture(preload: [:account]).account
+      secret = "header-webhook-secret"
 
       VCSFixtures.github_app_installation_fixture(
         account_id: account.id,
@@ -453,15 +475,63 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
         client_id: "Iv1.x",
         client_secret: "csec",
         private_key: "-----BEGIN RSA PRIVATE KEY-----\nfake\n-----END RSA PRIVATE KEY-----",
-        webhook_secret: "header-webhook-secret"
+        webhook_secret: secret
       )
+
+      raw_body = ~s({"installation":{"id":999}})
 
       conn =
         conn
         |> put_req_header("x-github-hook-installation-target-id", "777")
-        |> Map.put(:body_params, %{"installation" => %{"id" => 999}})
+        |> put_signed_body(raw_body, secret)
 
-      assert GitHubController.resolve_webhook_secret(conn) == "header-webhook-secret"
+      assert {:ok, ^secret, _conn} = GitHubController.resolve_webhook_secret(conn)
+    end
+
+    test "picks the row whose webhook_secret HMACs the body when two rows share (installation_id, app_id) across hosts (P1 disambiguation)",
+         %{conn: conn} do
+      # Schema permits this: composite unique index is per host. Two
+      # GHES instances can independently assign overlapping numeric IDs
+      # to their Apps. Without HMAC-driven row resolution, the lookup
+      # picks an arbitrary one (or crashes on multi-result). With it,
+      # only the row whose webhook_secret matches GitHub's signature
+      # is selected.
+      account_a = AccountsFixtures.user_fixture(preload: [:account]).account
+      account_b = AccountsFixtures.user_fixture(preload: [:account]).account
+      secret_a = "secret-from-ghes-a"
+      secret_b = "secret-from-ghes-b"
+
+      _row_a =
+        VCSFixtures.github_app_installation_fixture(
+          account_id: account_a.id,
+          installation_id: "1",
+          client_url: "https://ghes-a.example.com",
+          app_id: "42",
+          app_slug: "tuist",
+          client_id: "Iv1.a",
+          client_secret: "csec-a",
+          private_key: "-----BEGIN RSA PRIVATE KEY-----\nfake-a\n-----END RSA PRIVATE KEY-----",
+          webhook_secret: secret_a
+        )
+
+      row_b =
+        VCSFixtures.github_app_installation_fixture(
+          account_id: account_b.id,
+          installation_id: "1",
+          client_url: "https://ghes-b.example.com",
+          app_id: "42",
+          app_slug: "tuist",
+          client_id: "Iv1.b",
+          client_secret: "csec-b",
+          private_key: "-----BEGIN RSA PRIVATE KEY-----\nfake-b\n-----END RSA PRIVATE KEY-----",
+          webhook_secret: secret_b
+        )
+
+      raw_body = ~s({"installation":{"id":"1","app_id":"42"}})
+      conn = put_signed_body(conn, raw_body, secret_b)
+
+      assert {:ok, ^secret_b, conn} = GitHubController.resolve_webhook_secret(conn)
+      assert conn.assigns[:github_installation].id == row_b.id
     end
 
     test "falls back to the env-var secret when no row matches", %{conn: conn} do

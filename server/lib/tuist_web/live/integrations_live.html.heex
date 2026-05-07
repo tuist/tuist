@@ -50,7 +50,7 @@
           href={
             VCS.get_github_app_installation_url(@selected_account, client_url: @github_client_url)
           }
-          disabled={not is_nil(@github_client_url_error)}
+          disabled={install_button_disabled?(assigns)}
         />
         <.button
           :if={

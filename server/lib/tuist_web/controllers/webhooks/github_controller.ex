@@ -7,7 +7,10 @@ defmodule TuistWeb.Webhooks.GitHubController do
   require Logger
 
   @doc """
-  Resolves the HMAC signing secret for an inbound GitHub webhook.
+  Resolves the HMAC signing secret for an inbound GitHub webhook and,
+  when a per-installation row owns the request, stashes it on
+  `conn.assigns[:github_installation]` so post-HMAC handlers don't
+  redo a potentially-ambiguous lookup.
 
   Two ways an installation gets a webhook secret:
 
@@ -20,57 +23,69 @@ defmodule TuistWeb.Webhooks.GitHubController do
       `TUIST_GITHUB_APP_WEBHOOK_SECRET`, which is the secret of the
       single Tuist App registered on github.com.
 
-  Strategy: prefer the per-installation secret when a row exposes one,
-  otherwise fall back to the env var. We try to locate a row two ways:
+  Strategy: gather every row that could plausibly own the request
+  (matching `installation.id` from the body and/or the App ID from
+  `installation.app_id` / `X-GitHub-Hook-Installation-Target-ID`) and
+  iterate them, computing the HMAC of the raw body against each row's
+  `webhook_secret`. The row whose signature matches GitHub's is the
+  one that owns the request — `webhook_secret` is the natural
+  disambiguator because it's a per-row cryptographic capability, so
+  even when the schema permits two rows to share an
+  `(installation_id, app_id)` pair across different `client_url`s
+  (the composite unique index is per host), the right row is the
+  unique one whose secret verifies.
 
-    1. By `installation.id` from the body — covers the steady state
-       for GHES installations (once the post-install setup callback
-       has filled `installation_id`). For github.com webhooks this
-       step also finds the row, but its `webhook_secret` is `nil`,
-       so we fall through.
-
-    2. By App ID alone — covers the bootstrap race for a brand new
-       GHES App: the manifest exchange has persisted `app_id` and
-       `webhook_secret` but the setup callback hasn't filled
-       `installation_id` yet, so step 1 misses. The App ID comes from
-       `installation.app_id` in the body or the
-       `X-GitHub-Hook-Installation-Target-ID` header.
-
-    3. If neither yields a secret, fall back to the env var.
-
-  github.com webhooks always land on step 3 (their rows carry no
-  per-installation secret); GHES webhooks always resolve at step 1 or
-  2. HMAC verification then rejects anything whose signature doesn't
-  match the resolved secret.
+  github.com webhooks have no matching per-installation row (their
+  `webhook_secret` is nil), so they fall through to the env var; HMAC
+  verification then runs against that.
   """
   def resolve_webhook_secret(conn) do
     body = conn.body_params
+    installation_id = body_get(body, ["installation", "id"])
+    app_id = app_id_from_request(conn, body)
 
-    cond do
-      secret = lookup_secret_by_installation_id(conn, body) -> secret
-      secret = lookup_secret_by_app_id(conn, body) -> secret
-      true -> Environment.github_app_webhook_secret()
+    case find_matching_installation(conn, installation_id, app_id) do
+      {:ok, installation} ->
+        {:ok, installation.webhook_secret, assign(conn, :github_installation, installation)}
+
+      :error ->
+        # No per-installation row matches. Fall back to the env var so
+        # github.com webhooks (and any unsigned-by-us deliveries) still
+        # get HMAC-checked.
+        Environment.github_app_webhook_secret()
     end
   end
 
-  defp lookup_secret_by_installation_id(conn, body) do
-    with id when not is_nil(id) <- body_get(body, ["installation", "id"]),
-         {:ok, installation} <- lookup_installation_by_id(conn, body, to_string(id)),
-         secret when is_binary(secret) <- installation.webhook_secret do
-      secret
-    else
-      _ -> nil
-    end
+  defp find_matching_installation(_conn, nil, nil), do: :error
+
+  defp find_matching_installation(conn, installation_id, app_id) do
+    raw_body = conn.assigns[:raw_body] |> List.wrap() |> IO.iodata_to_binary()
+    signature = conn |> get_req_header("x-hub-signature-256") |> List.first()
+
+    candidates =
+      VCS.list_github_app_installations_for_webhook(
+        installation_id && to_string(installation_id),
+        app_id && to_string(app_id)
+      )
+
+    Enum.find_value(candidates, :error, fn installation ->
+      if is_binary(installation.webhook_secret) and
+           webhook_signature_matches?(raw_body, installation.webhook_secret, signature) do
+        {:ok, installation}
+      end
+    end)
   end
 
-  defp lookup_secret_by_app_id(conn, body) do
-    with id when not is_nil(id) <- app_id_from_request(conn, body),
-         {:ok, installation} <- VCS.get_github_app_installation_by_app_id(to_string(id)),
-         secret when is_binary(secret) <- installation.webhook_secret do
-      secret
-    else
-      _ -> nil
-    end
+  defp webhook_signature_matches?(_raw_body, _secret, nil), do: false
+
+  defp webhook_signature_matches?(raw_body, secret, signature) do
+    expected =
+      "sha256=" <>
+        (:hmac
+         |> :crypto.mac(:sha256, secret, raw_body)
+         |> Base.encode16(case: :lower))
+
+    Plug.Crypto.secure_compare(signature, expected)
   end
 
   # Looks up the installation by `installation_id`, disambiguating with
@@ -79,35 +94,79 @@ defmodule TuistWeb.Webhooks.GitHubController do
   # `(client_url, installation_id)` means two GitHub instances can have
   # rows sharing an `installation_id`, so a disambiguator is required.
   #
-  # Two routing rules, depending on whether the App ID identifies the
-  # github.com Tuist App or a manifest-flow GHES App:
+  # Three branches, depending on what we know about the App ID:
   #
-  #   * `app_id == Environment.github_app_id()` → it's a github.com
-  #     webhook. github.com rows leave `app_id` NULL on the row (the
+  #   * Request App ID matches `Environment.github_app_id()` → it's a
+  #     github.com webhook. github.com rows leave `app_id` NULL (the
   #     runtime falls back to `TUIST_GITHUB_APP_*` env vars), so an
   #     `app_id = ?` filter would miss them. Pin by
-  #     `client_url='https://github.com'` instead, which is unique
-  #     within the composite index.
+  #     `client_url='https://github.com'`.
+  #
+  #   * `Environment.github_app_id()` is `nil` (self-hosted instance
+  #     without a configured github.com App ID) → we can't tell the
+  #     two cases apart from the header alone. Try the github.com row
+  #     first, fall back to an `app_id` lookup. github.com is the more
+  #     common deployment, so the first try usually wins.
   #
   #   * Otherwise → it's a GHES App registered via the manifest flow.
-  #     The row carries its own `app_id`; pin by that.
+  #     Pin by `app_id`. (Cross-instance `app_id` collisions on the
+  #     same `installation_id` are theoretically possible but require
+  #     two unrelated GHES instances to assign overlapping numeric IDs
+  #     to the Apps registered for this Tuist deployment; the schema
+  #     allows it but the chance is very low. If it ever happens, the
+  #     HMAC step at `resolve_webhook_secret/1` is the next-line
+  #     disambiguator — only one row's `webhook_secret` will verify.)
   defp lookup_installation_by_id(conn, body, installation_id) do
+    case conn.assigns[:github_installation] do
+      %{installation_id: ^installation_id} = installation ->
+        # `resolve_webhook_secret/1` already picked the row by HMAC
+        # verification — trust that result rather than redoing a
+        # potentially-ambiguous DB lookup here.
+        {:ok, installation}
+
+      _ ->
+        lookup_installation_by_id_uncached(conn, body, installation_id)
+    end
+  end
+
+  defp lookup_installation_by_id_uncached(conn, body, installation_id) do
     case app_id_from_request(conn, body) do
       nil ->
         VCS.get_github_app_installation_by_installation_id(installation_id)
 
       app_id ->
-        VCS.get_github_app_installation_by_installation_id(
-          installation_id,
-          installation_lookup_opts(to_string(app_id))
-        )
+        app_id_string = to_string(app_id)
+        env_app_id = Environment.github_app_id()
+
+        cond do
+          env_app_id == app_id_string ->
+            VCS.get_github_app_installation_by_installation_id(
+              installation_id,
+              client_url: VCS.default_client_url()
+            )
+
+          is_nil(env_app_id) ->
+            github_com_or_app_id_lookup(installation_id, app_id_string)
+
+          true ->
+            VCS.get_github_app_installation_by_installation_id(
+              installation_id,
+              app_id: app_id_string
+            )
+        end
     end
   end
 
-  defp installation_lookup_opts(app_id) do
-    case Environment.github_app_id() do
-      ^app_id -> [client_url: VCS.default_client_url()]
-      _ -> [app_id: app_id]
+  defp github_com_or_app_id_lookup(installation_id, app_id) do
+    case VCS.get_github_app_installation_by_installation_id(
+           installation_id,
+           client_url: VCS.default_client_url()
+         ) do
+      {:ok, _} = ok ->
+        ok
+
+      {:error, :not_found} ->
+        VCS.get_github_app_installation_by_installation_id(installation_id, app_id: app_id)
     end
   end
 

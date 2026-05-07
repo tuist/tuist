@@ -1268,6 +1268,49 @@ defmodule Tuist.VCS do
   end
 
   @doc """
+  Returns every `GitHubAppInstallation` row that could plausibly own an
+  inbound webhook with the given `installation_id` and/or `app_id`.
+
+  Webhook secret resolution uses this list as the candidate set for
+  HMAC verification: the schema's composite unique index permits two
+  rows to share an `(installation_id, app_id)` pair across different
+  `client_url`s, so a single-row lookup can be ambiguous. Iterating
+  candidates and picking the one whose `webhook_secret` HMACs the
+  inbound body lets the cryptographic check act as the
+  disambiguator — only the row whose secret matches GitHub's
+  signature is the right row.
+
+  Both filters are optional. Pass `nil` for either to skip it. With
+  both `nil`, returns `[]`.
+  """
+  def list_github_app_installations_for_webhook(installation_id, app_id) do
+    installation_id = if is_nil(installation_id), do: nil, else: to_string(installation_id)
+    app_id = if is_nil(app_id), do: nil, else: to_string(app_id)
+
+    query =
+      cond do
+        is_binary(installation_id) and is_binary(app_id) ->
+          from(i in GitHubAppInstallation,
+            where: i.installation_id == ^installation_id or i.app_id == ^app_id
+          )
+
+        is_binary(installation_id) ->
+          from(i in GitHubAppInstallation, where: i.installation_id == ^installation_id)
+
+        is_binary(app_id) ->
+          from(i in GitHubAppInstallation, where: i.app_id == ^app_id)
+
+        true ->
+          nil
+      end
+
+    case query do
+      nil -> []
+      query -> Repo.all(query)
+    end
+  end
+
+  @doc """
   Updates a GitHub app installation.
   """
   def update_github_app_installation(%GitHubAppInstallation{} = github_app_installation, attrs) do

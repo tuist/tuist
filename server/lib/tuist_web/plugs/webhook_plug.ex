@@ -94,8 +94,14 @@ defmodule TuistWeb.Plugs.WebhookPlug do
         # Secret resolution may depend on the parsed body (e.g. webhooks
         # whose signing secret is per-installation, not global), so it
         # has to happen after parse_request_body.
+        #
+        # The resolver may also need to stash request-derived state on
+        # the conn (the matched installation row, for one) so post-HMAC
+        # handlers don't have to redo a potentially-ambiguous lookup.
+        # Resolvers can opt into that by returning `{:ok, secret, conn}`
+        # in addition to a bare secret string or `{:ok, secret}`.
         case resolve_secret(get_config(options, :secret), conn) do
-          {:ok, secret} ->
+          {:ok, secret, conn} ->
             if valid_signature?(conn, secret, signature, signature_prefix) do
               handle_verified_webhook(conn, module)
             else
@@ -116,8 +122,9 @@ defmodule TuistWeb.Plugs.WebhookPlug do
   defp resolve_secret(config, conn) do
     case parse_secret!(config, conn) do
       nil -> {:error, "no secret"}
-      secret when is_binary(secret) -> {:ok, secret}
-      {:ok, secret} when is_binary(secret) -> {:ok, secret}
+      secret when is_binary(secret) -> {:ok, secret, conn}
+      {:ok, secret} when is_binary(secret) -> {:ok, secret, conn}
+      {:ok, secret, %Plug.Conn{} = conn} when is_binary(secret) -> {:ok, secret, conn}
       {:error, reason} -> {:error, reason}
       other -> {:error, "unexpected secret: #{inspect(other)}"}
     end
