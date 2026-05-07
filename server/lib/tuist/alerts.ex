@@ -47,7 +47,7 @@ defmodule Tuist.Alerts do
   def get_all_alert_rules do
     AlertRule
     |> Repo.all()
-    |> Repo.preload(project: [account: :slack_installation])
+    |> Repo.preload(project: [:account])
   end
 
   def create_alert(attrs) do

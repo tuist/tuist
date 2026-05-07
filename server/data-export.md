@@ -38,6 +38,11 @@ Sensitive authentication data (passwords, tokens) are excluded from exports.
 - Alert rules (name, category, metric, deviation thresholds, Slack channel configuration, baseline established timestamp)
 - Alert history (triggered alerts with current/previous values, timestamps)
 
+### Slack Integration
+- Account-level Slack installation records (workspace id/name, bot user id; bot access tokens are excluded as authentication secrets)
+- Per-channel Slack webhook destinations stored on projects, alert rules, and project flaky-test settings (channel id, channel name; the encrypted webhook URL itself is excluded as an authentication secret)
+- Per-action Slack webhook destinations stored on automation alerts (channel id, channel name; the encrypted webhook URL embedded in the action payload is excluded as an authentication secret)
+
 ### Analytics Data (ClickHouse)
 The following data is stored in ClickHouse for analytics purposes:
 - **Build runs** (`build_runs` table): Complete build execution data including duration, status, cache statistics, CI metadata, git information, and custom tags
@@ -63,6 +68,7 @@ The following data is stored in ClickHouse for analytics purposes:
 - Encrypted passwords and authentication secrets
 - Account, SCIM-scoped account, and project token values and encrypted token hashes
 - Encrypted SSO client secrets for Okta and custom OAuth2 providers
+- Slack bot access tokens and incoming-webhook URLs (treated as bearer credentials)
 
 ## Binary Files
 

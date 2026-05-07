@@ -30,6 +30,7 @@ defmodule Tuist.Alerts.AlertRule do
     field :git_branch, :string
     field :slack_channel_id, :string
     field :slack_channel_name, :string
+    field :slack_webhook_url, Tuist.Vault.Binary
     field :scheme, :string, default: ""
     field :bundle_name, :string, default: ""
     field :environment, Ecto.Enum, values: @environments, default: :any
@@ -52,6 +53,7 @@ defmodule Tuist.Alerts.AlertRule do
       :git_branch,
       :slack_channel_id,
       :slack_channel_name,
+      :slack_webhook_url,
       :scheme,
       :bundle_name,
       :environment

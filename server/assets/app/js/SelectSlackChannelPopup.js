@@ -17,11 +17,8 @@ const SelectSlackChannelPopup = {
         if (this.el.dataset.id) {
           payload.id = this.el.dataset.id;
         }
-        if (event.data.channel_id) {
-          payload.channel_id = event.data.channel_id;
-        }
-        if (event.data.channel_name) {
-          payload.channel_name = event.data.channel_name;
+        if (event.data.channel_token) {
+          payload.channel_token = event.data.channel_token;
         }
         this.pushEvent(eventName, payload);
       }
