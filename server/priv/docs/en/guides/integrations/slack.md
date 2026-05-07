@@ -76,12 +76,6 @@ When a test becomes flaky and meets your threshold, you'll receive a notificatio
 
 <img src="/images/guides/integrations/slack/flaky-test-alert.png" alt="An image that shows a Slack flaky test alert message" style="max-width: 500px;" />
 
-## Privacy and data handling {#privacy}
-
-Tuist stores the webhook URLs you authorize, the channel name and ID associated with each webhook, and the notification configuration (schedule, thresholds, filters). Tuist does not read any data from your Slack workspace and only writes notifications to channels you have explicitly authorized.
-
-For the full list of personal and organizational data Tuist stores and how it can be exported or deleted, see our [privacy policy](https://tuist.dev/privacy) and [data export documentation](https://github.com/tuist/tuist/blob/main/server/data-export.md).
-
 ## Disconnecting the integration {#disconnect}
 
 To stop a notification, remove the configured Slack channel from the report, alert rule, or automation action in your Tuist dashboard. To revoke Tuist's access entirely, remove the webhook integration from inside Slack via **Settings & administration → Manage apps**.
