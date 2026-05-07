@@ -18,7 +18,7 @@ defmodule Tuist.Kura.Provisioner do
   Adding a backing platform is self-contained: implement the
   callbacks, register the module against a region in
   `Tuist.Kura.Regions`, and supply whatever config the implementation
-  needs (kubeconfig path, API token, instance-type table, …).
+  needs (region host template, API token, instance-type table, …).
   """
 
   alias Tuist.Accounts.Account
@@ -47,12 +47,9 @@ defmodule Tuist.Kura.Provisioner do
 
   Used both for the first install (right after `provision/3`) and for
   later version changes. Implementations decide what "rollout" means:
-  helm install or upgrade, ssh + systemctl restart, a multi-step warm
-  rollout, etc.
-
-  `inputs.on_log_line` is the sink for stdout/stderr the provisioner
-  produces. The control plane batches those into ClickHouse and
-  surfaces them in /ops.
+  creating a custom resource, ssh + systemctl restart, a multi-step warm
+  rollout, etc. Durable status belongs in the deployment row and the
+  backing resource status, not in captured stdout.
   """
   @callback rollout(ref :: String.t(), inputs :: map()) :: :ok | {:error, term()}
 

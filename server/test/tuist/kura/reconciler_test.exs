@@ -18,7 +18,7 @@ defmodule Tuist.Kura.ReconcilerTest do
     {:ok, server} =
       Kura.create_server(%{
         account_id: account.id,
-        region: "local",
+        region: "local-controller",
         image_tag: "0.5.2"
       })
 
@@ -42,6 +42,17 @@ defmodule Tuist.Kura.ReconcilerTest do
              Repo.get!(Deployment, deployment.id)
 
     assert %Server{status: :failed} = Repo.get!(Server, server.id)
+  end
+
+  test "marks an orphaned deployment succeeded when the server was already activated" do
+    {server, deployment} = running_deployment()
+    {:ok, _server} = Kura.activate_server(server, deployment.image_tag)
+    set_oban_state(deployment, "discarded")
+
+    Reconciler.reconcile()
+
+    assert %Deployment{status: :succeeded, error_message: nil} = Repo.get!(Deployment, deployment.id)
+    assert %Server{status: :active, current_image_tag: "0.5.2"} = Repo.get!(Server, server.id)
   end
 
   test "runs as an Oban worker" do

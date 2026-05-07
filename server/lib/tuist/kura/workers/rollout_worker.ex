@@ -4,15 +4,11 @@ defmodule Tuist.Kura.Workers.RolloutWorker do
 
   Intentionally thin: load the deployment record and parent server,
   mark `:running`, hand it to the provisioner, translate the outcome
-  into row state. Provisioner-specific machinery (helm shells, log
-  streaming, kubeconfig discovery) lives behind the behaviour; this
+  into row state. Provisioner-specific machinery (Helm shells, Kubernetes
+  API calls, controller status polling) lives behind the behaviour; this
   worker has no opinion about how the rollout happens.
-
-  Stdout/stderr from the provisioner streams into ClickHouse via the
-  per-deployment log sink so /ops can tail in real time. Concurrency
-  is capped at 1 by the `:kura_rollout` queue.
   """
-  use Oban.Worker, queue: :kura_rollout, max_attempts: 1
+  use Oban.Worker, queue: :default, max_attempts: 1
 
   alias Tuist.Kura
   alias Tuist.Kura.Deployment
@@ -58,8 +54,10 @@ defmodule Tuist.Kura.Workers.RolloutWorker do
   end
 
   defp cancel(deployment, %Server{} = server) do
-    message = "server #{server.id} is #{server.status}; skipping rollout"
-    {:ok, _} = Kura.append_log_lines(deployment.id, [{next_sequence(deployment.id), :stderr, message}])
+    cancel(deployment, "server #{server.id} is #{server.status}; skipping rollout")
+  end
+
+  defp cancel(deployment, message) do
     {:ok, _} = Kura.mark_cancelled(deployment, message)
     :ok
   end
@@ -70,8 +68,7 @@ defmodule Tuist.Kura.Workers.RolloutWorker do
     inputs = %{
       image_tag: deployment.image_tag,
       account: server.account,
-      server: server,
-      on_log_line: log_sink(deployment.id)
+      server: server
     }
 
     case Provisioner.rollout(server, inputs) do
@@ -80,6 +77,9 @@ defmodule Tuist.Kura.Workers.RolloutWorker do
           {:ok, _} ->
             {:ok, _} = Kura.mark_succeeded(deployment)
             :ok
+
+          {:error, status} when status in [:server_destroying, :server_destroyed] ->
+            cancel(deployment, "server #{server.id} became #{server_status(status)} during rollout; skipping activation")
 
           {:error, reason} ->
             fail(deployment, server, reason)
@@ -95,29 +95,11 @@ defmodule Tuist.Kura.Workers.RolloutWorker do
 
   defp fail(deployment, server, reason) do
     message = if is_binary(reason), do: reason, else: inspect(reason)
-    # Synthetic log line so /ops shows the reason instead of an empty terminal.
-    {:ok, _} = Kura.append_log_lines(deployment.id, [{next_sequence(deployment.id), :stderr, message}])
     {:ok, _} = Kura.mark_failed(deployment, message)
     if server, do: Kura.fail_server(server)
     {:error, message}
   end
 
-  # Returns a 2-arity callback the provisioner invokes per stdout/stderr
-  # line. The callback batches into ClickHouse with a monotonically
-  # increasing sequence so /ops's tail order is stable.
-  defp log_sink(deployment_id) do
-    Process.put(:kura_log_sequence, 0)
-
-    fn line, stream ->
-      {:ok, _} = Kura.append_log_lines(deployment_id, [{next_sequence(deployment_id), stream, line}])
-      :ok
-    end
-  end
-
-  defp next_sequence(deployment_id) do
-    seq = Process.get(:kura_log_sequence) || Kura.next_log_sequence(deployment_id) - 1
-    seq = seq + 1
-    Process.put(:kura_log_sequence, seq)
-    seq
-  end
+  defp server_status(:server_destroying), do: "destroying"
+  defp server_status(:server_destroyed), do: "destroyed"
 end

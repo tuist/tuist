@@ -60,14 +60,10 @@ defmodule Tuist.Kura.Provisioner.HelmKubernetes do
   @impl true
   def rollout(
         release,
-        %{
-          image_tag: image_tag,
-          account: account,
-          server: %Server{} = server,
-          region: %Regions{} = region,
-          on_log_line: on_log_line
-        } = inputs
+        %{image_tag: image_tag, account: account, server: %Server{} = server, region: %Regions{} = region} = inputs
       ) do
+    on_log_line = Map.get(inputs, :on_log_line, &drop_log/2)
+
     with {:ok, chart} <- chart_path(inputs),
          {:ok, kubeconfig} <- write_kubeconfig(region),
          {:ok, values} <- write_instance_values(image_tag, account, region, server, chart) do
@@ -367,9 +363,8 @@ defmodule Tuist.Kura.Provisioner.HelmKubernetes do
   ## Kubeconfig discovery
 
   # The chart path resolves from runtime config (`:kura_chart_path`,
-  # populated at boot from the OTP release `priv/kura_chart` or, in
-  # dev, the monorepo `kura/ops/helm/kura`) or from the rollout
-  # worker's already-trusted `inputs` map. Neither carries
+  # populated in dev/test from the monorepo `kura/ops/helm/kura`) or
+  # from the rollout worker's already-trusted `inputs` map. Neither carries
   # user-controlled input, so we only verify the directory exists; we
   # don't constrain the path to a fixed prefix because dev legitimately
   # points outside `priv/`.

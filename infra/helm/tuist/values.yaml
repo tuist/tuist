@@ -10,6 +10,7 @@ global:
 
 kuraController:
   enabled: false
+  namespace: kura
   replicaCount: 2
   image:
     repository: ghcr.io/tuist/kura-controller

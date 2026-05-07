@@ -1,18 +1,30 @@
 {{- if .Values.kuraController.enabled }}
 {{- $name := include "tuist.componentName" (dict "root" . "component" "kura-controller") }}
+{{- $namespace := .Values.kuraController.namespace }}
+{{- $serverRoleName := printf "%s-server" $name }}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ $namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura
 ---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: {{ $name }}
+  namespace: {{ $namespace }}
   labels:
     {{- include "tuist.labels" . | nindent 4 }}
     app.kubernetes.io/component: kura-controller
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
+kind: Role
 metadata:
   name: {{ $name }}
+  namespace: {{ $namespace }}
   labels:
     {{- include "tuist.labels" . | nindent 4 }}
     app.kubernetes.io/component: kura-controller
@@ -32,6 +44,9 @@ rules:
   - apiGroups: ["networking.k8s.io"]
     resources: [ingresses]
     verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: ["policy"]
+    resources: [poddisruptionbudgets]
+    verbs: [get, list, watch, create, update, patch, delete]
   - apiGroups: ["coordination.k8s.io"]
     resources: [leases]
     verbs: [get, list, watch, create, update, patch, delete]
@@ -40,25 +55,62 @@ rules:
     verbs: [create, patch]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
+kind: RoleBinding
 metadata:
   name: {{ $name }}
+  namespace: {{ $namespace }}
   labels:
     {{- include "tuist.labels" . | nindent 4 }}
     app.kubernetes.io/component: kura-controller
 roleRef:
   apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
+  kind: Role
   name: {{ $name }}
 subjects:
   - kind: ServiceAccount
     name: {{ $name }}
+    namespace: {{ $namespace }}
+{{- if .Values.server.enabled }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $serverRoleName }}
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+rules:
+  - apiGroups: ["kura.tuist.dev"]
+    resources: [kurainstances]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $serverRoleName }}
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $serverRoleName }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "tuist.componentServiceAccountName" (dict "root" . "component" "server") }}
     namespace: {{ .Release.Namespace }}
+{{- end }}
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ $name }}
+  namespace: {{ $namespace }}
   labels:
     {{- include "tuist.labels" . | nindent 4 }}
     app.kubernetes.io/component: kura-controller
@@ -86,6 +138,7 @@ spec:
             - --leader-elect=true
             - --metrics-bind-address=:8080
             - --health-probe-bind-address=:8081
+            - --watch-namespace={{ $namespace }}
           ports:
             - name: metrics
               containerPort: 8080
@@ -102,4 +155,3 @@ spec:
           resources:
             {{- toYaml .Values.kuraController.resources | nindent 12 }}
 {{- end }}
-

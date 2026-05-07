@@ -28,7 +28,6 @@ defmodule Tuist.Kura.Reconciler do
 
   import Ecto.Query
 
-  alias Tuist.Kura
   alias Tuist.Kura.Deployment
   alias Tuist.Kura.Server
   alias Tuist.Repo
@@ -37,6 +36,7 @@ defmodule Tuist.Kura.Reconciler do
 
   @reason "deployment was interrupted by a server restart; re-trigger manually"
   @terminal_oban_states ~w(completed discarded cancelled)
+  @server_statuses_to_fail [:provisioning, :active, :failed]
 
   @impl Oban.Worker
   def perform(%Oban.Job{}) do
@@ -57,20 +57,33 @@ defmodule Tuist.Kura.Reconciler do
 
     job_states = oban_job_states(deployments)
 
-    Enum.each(deployments, fn deployment ->
-      reconcile_deployment(deployment, Map.get(job_states, deployment.oban_job_id, :orphaned))
-    end)
+    deployments
+    |> Enum.reject(&(Map.get(job_states, &1.oban_job_id, :orphaned) == :alive))
+    |> reconcile_orphaned_deployments()
 
     :ok
   end
 
-  defp reconcile_deployment(%Deployment{}, :alive), do: :ok
+  defp reconcile_orphaned_deployments([]), do: :ok
 
-  defp reconcile_deployment(%Deployment{} = deployment, :orphaned) do
-    Logger.info("[Kura.Reconciler] failing orphaned deployment #{deployment.id}")
-    {:ok, _} = Kura.mark_failed(deployment, @reason)
-    maybe_fail_server(deployment.kura_server)
+  defp reconcile_orphaned_deployments(deployments) do
+    {already_activated, failed} = Enum.split_with(deployments, &deployment_already_activated?/1)
+
+    mark_deployments_succeeded(already_activated)
+    mark_deployments_failed(failed)
+    fail_servers_for(failed)
+
+    :ok
   end
+
+  defp deployment_already_activated?(%Deployment{
+         image_tag: image_tag,
+         kura_server: %Server{status: :active, current_image_tag: current_image_tag}
+       }) do
+    current_image_tag == image_tag
+  end
+
+  defp deployment_already_activated?(_), do: false
 
   defp oban_job_states(deployments) do
     # Intentional cross-tenant lookup: the reconciler runs as a
@@ -94,10 +107,68 @@ defmodule Tuist.Kura.Reconciler do
     end)
   end
 
-  defp maybe_fail_server(%Server{status: status} = server) when status in [:provisioning, :active, :failed] do
-    {:ok, _} = Kura.fail_server(server)
+  defp mark_deployments_succeeded([]), do: :ok
+
+  defp mark_deployments_succeeded(deployments) do
+    Enum.each(deployments, fn deployment ->
+      Logger.info("[Kura.Reconciler] marking already-activated orphaned deployment #{deployment.id} as succeeded")
+    end)
+
+    update_deployments(deployments, %{
+      status: :succeeded,
+      error_message: nil,
+      finished_at: now_truncated()
+    })
+  end
+
+  defp mark_deployments_failed([]), do: :ok
+
+  defp mark_deployments_failed(deployments) do
+    Enum.each(deployments, fn deployment ->
+      Logger.info("[Kura.Reconciler] failing orphaned deployment #{deployment.id}")
+    end)
+
+    update_deployments(deployments, %{
+      status: :failed,
+      error_message: @reason,
+      finished_at: now_truncated()
+    })
+  end
+
+  defp update_deployments(deployments, attrs) do
+    ids = Enum.map(deployments, & &1.id)
+    timestamp = now_truncated()
+
+    Deployment
+    |> where([d], d.id in ^ids and d.status == :running)
+    |> Repo.update_all(set: attrs |> Map.put(:updated_at, timestamp) |> Map.to_list())
+
     :ok
   end
 
-  defp maybe_fail_server(_), do: :ok
+  defp fail_servers_for(deployments) do
+    server_ids =
+      deployments
+      |> Enum.flat_map(fn
+        %Deployment{kura_server: %Server{id: id, status: status}} when status in @server_statuses_to_fail -> [id]
+        _deployment -> []
+      end)
+      |> Enum.uniq()
+
+    case server_ids do
+      [] ->
+        :ok
+
+      server_ids ->
+        timestamp = now_truncated()
+
+        Server
+        |> where([s], s.id in ^server_ids and s.status in ^@server_statuses_to_fail)
+        |> Repo.update_all(set: [status: :failed, updated_at: timestamp])
+
+        :ok
+    end
+  end
+
+  defp now_truncated, do: DateTime.truncate(DateTime.utc_now(), :second)
 end

@@ -7,6 +7,7 @@ defmodule TuistWeb.OpsAccountLiveTest do
 
   alias Tuist.Billing
   alias Tuist.Environment
+  alias Tuist.Kura
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
 
@@ -26,7 +27,23 @@ defmodule TuistWeb.OpsAccountLiveTest do
 
     assert html =~ user.account.name
     assert html =~ "Plan &amp; billing"
-    refute html =~ "Kura"
+    assert html =~ "Kura"
+  end
+
+  test "links Kura servers to their latest deployment", %{conn: conn, user: user} do
+    {:ok, server} =
+      Kura.create_server(%{
+        account_id: user.account.id,
+        region: "local-controller",
+        image_tag: "0.5.2"
+      })
+
+    deployment = List.first(server.deployments)
+
+    {:ok, _lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+    assert html =~ "0.5.2"
+    assert html =~ ~p"/ops/accounts/#{user.account.id}/kura/deployments/#{deployment.id}"
   end
 
   test "one-click upgrade when the Stripe customer already has billing details", %{conn: conn, user: user} do

@@ -90,7 +90,13 @@ defmodule TuistWeb.AccountSettingsLiveTest do
     {:ok, lv, html} = live(conn, ~p"/#{account.name}/settings")
 
     assert html =~ "Kura cache servers"
+    assert html =~ "Local Controller (kind)"
+    refute html =~ "Local (kind)"
+    refute html =~ "No Kura servers"
     assert has_element?(lv, "button", "Deploy Kura server")
+    assert html =~ "create_kura_server"
+    assert html =~ ~s(phx-value-region="local-controller")
+    refute has_element?(lv, "#kura-servers-table")
   end
 
   test "shows Kura server state, machine, domain, and version", %{conn: conn, account: account} do
@@ -100,7 +106,7 @@ defmodule TuistWeb.AccountSettingsLiveTest do
     {:ok, server} =
       Kura.create_server(%{
         account_id: account.id,
-        region: "local",
+        region: "local-controller",
         image_tag: "0.5.2"
       })
 
@@ -129,11 +135,25 @@ defmodule TuistWeb.AccountSettingsLiveTest do
 
     {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings")
 
-    _html =
-      lv
-      |> form("#add-kura-server-form", server: %{region: "local"})
-      |> render_submit()
+    stub(Kura, :latest_versions, fn 1 ->
+      raise "create_kura_server should reuse the version loaded before opening the modal"
+    end)
 
-    assert [%{region: "local", current_image_tag: nil}] = Kura.list_servers_for_account(account.id)
+    _html = render_submit(lv, "create_kura_server", %{"server" => %{"region" => "local-controller"}})
+
+    assert [%{region: "local-controller", current_image_tag: nil}] = Kura.list_servers_for_account(account.id)
+  end
+
+  test "deploys the only available Kura region when the portaled form omits inputs", %{conn: conn, account: account} do
+    FunWithFlags.enable(:kura, for_actor: account)
+    stub(Kura, :latest_versions, fn 1 -> [%{version: "0.5.2", released_at: DateTime.utc_now(:second)}] end)
+    account_id = account.id
+    stub(Kura, :list_nodes_for_server, fn ^account_id, _server_id -> {:ok, []} end)
+
+    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings")
+
+    _html = render_submit(lv, "create_kura_server", %{})
+
+    assert [%{region: "local-controller", current_image_tag: nil}] = Kura.list_servers_for_account(account.id)
   end
 end

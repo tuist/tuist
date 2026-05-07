@@ -22,13 +22,10 @@ defmodule Tuist.Kura do
   alias Phoenix.PubSub
   alias Tuist.Accounts
   alias Tuist.Accounts.AccountCacheEndpoint
-  alias Tuist.ClickHouseRepo
   alias Tuist.GitHub.Releases
   alias Tuist.GitHub.Retry
-  alias Tuist.IngestRepo
   alias Tuist.KeyValueStore
   alias Tuist.Kura.Deployment
-  alias Tuist.Kura.DeploymentLogLine
   alias Tuist.Kura.Provisioner
   alias Tuist.Kura.Reconciler
   alias Tuist.Kura.Regions
@@ -279,7 +276,7 @@ defmodule Tuist.Kura do
   @doc """
   Returns the non-destroyed servers for an account, each with its
   deployment history preloaded newest-first so the /ops UI can link
-  straight to the latest log tail.
+  straight to the latest deployment attempt.
   """
   def list_servers_for_account(account_id) do
     deployments_query = from(d in Deployment, order_by: [desc: d.inserted_at, desc: d.id])
@@ -322,23 +319,55 @@ defmodule Tuist.Kura do
 
   defp activate_server_transaction(server, account, url, image_tag) do
     Repo.transaction(fn ->
-      with {:ok, server} <-
-             server
-             |> Server.status_changeset(%{status: :active, url: url, current_image_tag: image_tag})
-             |> Repo.update(),
-           :ok <- ensure_cache_endpoint(account, url) do
-        server
-      else
-        {:error, reason} -> Repo.rollback(reason)
+      case lock_server(server.id, server.account_id) do
+        nil ->
+          Repo.rollback(:not_found)
+
+        %Server{status: :destroying} ->
+          Repo.rollback(:server_destroying)
+
+        %Server{status: :destroyed} ->
+          Repo.rollback(:server_destroyed)
+
+        %Server{} = server ->
+          with {:ok, server} <-
+                 server
+                 |> Server.status_changeset(%{status: :active, url: url, current_image_tag: image_tag})
+                 |> Repo.update(),
+               :ok <- ensure_cache_endpoint(account, url) do
+            server
+          else
+            {:error, reason} -> Repo.rollback(reason)
+          end
       end
     end)
   end
 
   @doc "Marks a server as `:failed` after an unrecoverable rollout error."
   def fail_server(%Server{} = server) do
-    {:ok, server} = server |> Server.status_changeset(%{status: :failed}) |> Repo.update()
-    broadcast_server(server, :updated)
-    {:ok, server}
+    case Repo.transaction(fn ->
+           case lock_server(server.id, server.account_id) do
+             nil ->
+               Repo.rollback(:not_found)
+
+             %Server{status: status} = server when status in [:destroying, :destroyed] ->
+               {:ignored, server}
+
+             %Server{} = server ->
+               {:ok, server} = server |> Server.status_changeset(%{status: :failed}) |> Repo.update()
+               {:updated, server}
+           end
+         end) do
+      {:ok, {:updated, server}} ->
+        broadcast_server(server, :updated)
+        {:ok, server}
+
+      {:ok, {:ignored, server}} ->
+        {:ok, server}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
   end
 
   @doc """
@@ -402,6 +431,13 @@ defmodule Tuist.Kura do
     :ok
   end
 
+  defp lock_server(id, account_id) do
+    Server
+    |> where([s], s.id == ^id and s.account_id == ^account_id)
+    |> lock("FOR UPDATE")
+    |> Repo.one()
+  end
+
   ## Deployments
 
   @doc """
@@ -458,7 +494,7 @@ defmodule Tuist.Kura do
       Deployment
       |> join(:inner, [d], s in assoc(d, :kura_server))
       |> where([d, s], d.id == ^deployment_id and s.account_id == ^account_id)
-      |> select([d, _s], d)
+      |> preload([_d, s], kura_server: s)
       |> Repo.one()
 
     case deployment do
@@ -507,84 +543,6 @@ defmodule Tuist.Kura do
   end
 
   defp now_truncated, do: DateTime.truncate(DateTime.utc_now(), :second)
-
-  ## Logs (ClickHouse)
-
-  @doc """
-  Appends a batch of `{sequence, stream, line}` log lines for a
-  deployment record. Stream is `:stdout` or `:stderr`. Sequences are caller-
-  assigned so ordering is stable across ClickHouse parts.
-  """
-  def append_log_lines(_deployment_id, []), do: {:ok, 0}
-
-  def append_log_lines(deployment_id, lines) when is_list(lines) do
-    rows =
-      Enum.map(lines, fn {seq, stream, line} ->
-        [
-          deployment_id: deployment_id,
-          sequence: seq,
-          stream: Atom.to_string(stream),
-          line: line
-        ]
-      end)
-
-    {count, _} = IngestRepo.insert_all(DeploymentLogLine, rows)
-    {:ok, count}
-  end
-
-  @doc "Returns log lines for a deployment record, oldest first, capped at `limit`."
-  def list_log_lines(deployment_id, opts \\ []) do
-    limit = Keyword.get(opts, :limit, 1_000)
-    after_sequence = Keyword.get(opts, :after_sequence, 0)
-
-    query = """
-    SELECT sequence, stream, line, inserted_at
-    FROM kura_deployment_log_lines
-    WHERE deployment_id = {deployment_id:UUID}
-      AND sequence > {after_sequence:UInt64}
-    ORDER BY sequence ASC
-    LIMIT {limit:UInt32}
-    """
-
-    case ClickHouseRepo.query(query, %{
-           "deployment_id" => deployment_id,
-           "after_sequence" => max(after_sequence, 0),
-           "limit" => limit
-         }) do
-      {:ok, %{rows: rows}} ->
-        Enum.map(rows, fn [seq, stream, line, inserted_at] ->
-          %{
-            sequence: seq,
-            stream: parse_stream(stream),
-            line: line,
-            inserted_at: inserted_at
-          }
-        end)
-
-      {:error, _reason} ->
-        []
-    end
-  end
-
-  defp parse_stream("stdout"), do: :stdout
-  defp parse_stream("stderr"), do: :stderr
-  defp parse_stream(other), do: other
-
-  @doc false
-  def next_log_sequence(deployment_id) do
-    query = """
-    SELECT sequence
-    FROM kura_deployment_log_lines
-    WHERE deployment_id = {deployment_id:UUID}
-    ORDER BY sequence DESC
-    LIMIT 1
-    """
-
-    case ClickHouseRepo.query(query, %{"deployment_id" => deployment_id}) do
-      {:ok, %{rows: [[sequence]]}} -> sequence + 1
-      _ -> 1
-    end
-  end
 
   ## PubSub
 

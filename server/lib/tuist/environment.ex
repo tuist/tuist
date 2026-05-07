@@ -137,6 +137,14 @@ defmodule Tuist.Environment do
     not dev?() or truthy?(System.get_env("TUIST_DEV_USE_REMOTE_STORAGE", "0"))
   end
 
+  def kura_available_region_ids do
+    "TUIST_KURA_AVAILABLE_REGIONS"
+    |> System.get_env("")
+    |> String.split(",", trim: true)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+  end
+
   def prometheus_enabled? do
     prometheus_enabled = System.get_env("TUIST_PROMETHEUS_ENABLED")
 
@@ -183,21 +191,21 @@ defmodule Tuist.Environment do
   Returns the kubeconfig (raw YAML string) for the given Kura cluster
   ID, or `nil` if none is configured.
 
-  Three sources are checked in order:
+  Used by the local Helm provisioner. Managed Kura uses the
+  server pod's in-cluster ServiceAccount and does not load kubeconfigs.
+
+  Two sources are checked in order:
 
     1. `TUIST_KURA_KUBECONFIG_PATH_<CLUSTER>` env var pointing at a
        file on disk (the convenient dev path — devs use their own
        `~/.kube/config` against a kind cluster).
     2. `TUIST_KURA_KUBECONFIG_<CLUSTER>` env var with the kubeconfig
        YAML inline.
-    3. The encrypted secrets bundle, under
-       `kura.kubeconfigs.<cluster>` (the production path — kubeconfigs
-       are baked into `priv/secrets/<env>.yml.enc`).
 
-  In all forms the cluster ID is uppercased and `-` becomes `_` for
-  env vars; the secrets bundle uses an atom key with `_` for `-`.
+  In both forms the cluster ID is uppercased and `-` becomes `_` for
+  env vars.
   """
-  def kura_kubeconfig(cluster_id, secrets \\ secrets()) when is_binary(cluster_id) do
+  def kura_kubeconfig(cluster_id, _secrets \\ secrets()) when is_binary(cluster_id) do
     upper = cluster_id |> String.upcase() |> String.replace("-", "_")
 
     cond do
@@ -211,8 +219,7 @@ defmodule Tuist.Environment do
         inline
 
       true ->
-        key = cluster_id |> String.replace("-", "_") |> String.to_atom()
-        get([:kura, :kubeconfigs, key], secrets)
+        nil
     end
   end
 

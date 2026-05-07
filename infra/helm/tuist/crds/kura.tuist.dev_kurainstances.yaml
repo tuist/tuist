@@ -67,10 +67,14 @@ spec:
                   minimum: 1
                 publicHost:
                   type: string
-                tlsSecretName:
-                  type: string
                 storageClassName:
                   type: string
+                storageSize:
+                  type: string
+                nodeSelector:
+                  type: object
+                  additionalProperties:
+                    type: string
                 extraEnv:
                   type: array
                   items:

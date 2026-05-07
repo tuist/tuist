@@ -39,3 +39,60 @@ Pass: tuistrocks
 1. Change the url in `Tuist.swift` to the local URL for the current clone or worktree, for example `http://localhost:8523`.
 1. Run `tuist auth` to authenticate.
 1. You are now connected to the local Tuist Server!  You can try running `tuist cache` and see the binaries being uploaded.
+
+### Local Kura Controller
+
+To test the server's controller-backed Kura provisioning path from account settings, use the dev-only `Local Controller (kind)` region.
+
+```bash
+repo_root="$(git rev-parse --show-toplevel)"
+cd "$repo_root"
+
+suffix="${TUIST_DEV_INSTANCE:-0}"
+cluster="kura-dev-${suffix}"
+
+kind get clusters | grep -qx "$cluster" || \
+  kind create cluster --name "$cluster" --config kura/ops/kind/dev-cluster.yaml
+
+docker build -t ghcr.io/tuist/kura-controller:dev -f infra/kura-controller/Dockerfile .
+kind load docker-image ghcr.io/tuist/kura-controller:dev --name "$cluster"
+
+# Optional controller verification from the repository root.
+mise x go@1.25.0 -- go test ./infra/kura-controller/...
+
+kubectl --context "kind-${cluster}" apply -f infra/helm/tuist/crds/kura.tuist.dev_kurainstances.yaml
+helm template tuist infra/helm/tuist \
+  --show-only templates/kura-controller.yaml \
+  --set kuraController.enabled=true \
+  --set kuraController.namespace=kura \
+  --set kuraController.image.tag=dev \
+  --set kuraController.image.pullPolicy=IfNotPresent \
+  --set server.enabled=false \
+  | kubectl --context "kind-${cluster}" apply -f -
+```
+
+When rebuilding the controller with the same `:dev` tag after the initial install, restart the Deployment so kind uses the newly-loaded image:
+
+```bash
+kubectl --context "kind-${cluster}" -n kura rollout restart deployment/tuist-tuist-kura-controller
+kubectl --context "kind-${cluster}" -n kura rollout status deployment/tuist-tuist-kura-controller
+```
+
+Start the server, open the account settings page, and deploy a server in `Local Controller (kind)`.
+
+```bash
+cd server
+mise run dev
+```
+
+After the controller creates the service, port-forward it:
+
+```bash
+port=$((4100 + suffix))
+kubectl --context "kind-${cluster}" -n kura port-forward svc/kura-tuist-local-controller "${port}:4000"
+curl "http://localhost:${port}/up"
+```
+
+### Managed Kura Regions
+
+Managed deployments expose the regions listed in `TUIST_KURA_AVAILABLE_REGIONS`. The production Helm overlay currently sets `eu-central,us-east,us-west`, so account settings can deploy one Kura server per account in any managed region that is not already occupied by that account.

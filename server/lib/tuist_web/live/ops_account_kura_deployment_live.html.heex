@@ -43,17 +43,15 @@
     </.card_section>
   </.card>
 
-  <.card title={dgettext("dashboard", "Logs")} icon="message_circle">
+  <.card title="Kubernetes logs" icon="message_circle">
     <.card_section>
-      <%= if @log_line_count == 0 do %>
-        <p data-part="empty-logs">{empty_logs_message(@deployment.status)}</p>
-      <% else %>
-        <div id="kura-log-tail" phx-update="stream" data-part="terminal">
-          <%= for {id, line} <- @streams.log_lines do %>
-            <div id={id} data-part="line">{line.line}</div>
-          <% end %>
-        </div>
-      <% end %>
+      <.link_button
+        href={@grafana_logs_url}
+        label={dgettext("dashboard", "Grafana")}
+        variant="secondary"
+        size="medium"
+        target="_blank"
+      />
     </.card_section>
   </.card>
 </div>

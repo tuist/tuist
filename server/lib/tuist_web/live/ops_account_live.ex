@@ -13,6 +13,7 @@ defmodule TuistWeb.OpsAccountLive do
   alias Tuist.Accounts
   alias Tuist.Billing
   alias Tuist.Billing.Subscription
+  alias Tuist.Kura
   alias Tuist.Repo
 
   @impl true
@@ -25,6 +26,7 @@ defmodule TuistWeb.OpsAccountLive do
          socket
          |> assign(:head_title, "#{account.name} · Tuist Ops")
          |> assign(:account, account)
+         |> assign(:kura_servers, Kura.list_servers_for_account(account.id))
          |> assign(:upgrade_target_account, nil)
          |> assign(:upgrade_target_customer, nil)}
 

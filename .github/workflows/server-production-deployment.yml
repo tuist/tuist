@@ -28,9 +28,10 @@ name: Server Production Deployment
 #   vault; the OP_SERVICE_ACCOUNT_TOKEN repo secret already authenticates
 #   them.
 #
-# Required per-env secrets (on server-k8s-canary / server-k8s-production
-# GitHub Environments):
-#   KUBECONFIG - base64-encoded kubeconfig for each cluster.
+# Required per-env secrets on the server-k8s-* GitHub Environments:
+#   OP_SERVICE_ACCOUNT_TOKEN - 1Password service account token scoped to
+#   the matching tuist-k8s-* vault, where the deployment kubeconfig is
+#   stored as a Document item.
 
 on:
   push:
@@ -40,6 +41,7 @@ on:
       - server/**
       - tuist_common/**
       - noora/**
+      - infra/kura-controller/**
       - infra/helm/tuist/**
       - infra/helm/k8s-monitoring/**
       - .github/workflows/server-production-deployment.yml
@@ -59,6 +61,7 @@ permissions:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: tuist/tuist
+  KURA_CONTROLLER_IMAGE_NAME: tuist/kura-controller
 
 jobs:
   # --------------------------------------------------------------------------
@@ -88,6 +91,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - uses: docker/build-push-action@v6
+        name: Build and push server image
         with:
           context: .
           file: ./server/Dockerfile
@@ -99,6 +103,14 @@ jobs:
             TUIST_HOSTED=1
             MIX_ENV=prod
             APT_CACHE_BUST=${{ inputs.commit_sha || github.sha }}
+      - uses: docker/build-push-action@v6
+        name: Build and push Kura controller image
+        with:
+          context: .
+          file: ./infra/kura-controller/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.KURA_CONTROLLER_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
 
   # --------------------------------------------------------------------------
   # Canary leg - deploys the pre-built image. Runs for every push (hotfix

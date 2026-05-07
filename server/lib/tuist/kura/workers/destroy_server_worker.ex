@@ -19,7 +19,7 @@ defmodule Tuist.Kura.Workers.DestroyServerWorker do
   those retries are safe even when the backing resource was already
   removed.
   """
-  use Oban.Worker, queue: :kura_rollout, max_attempts: 5
+  use Oban.Worker, queue: :default, max_attempts: 5
 
   alias Tuist.Kura
   alias Tuist.Kura.Provisioner

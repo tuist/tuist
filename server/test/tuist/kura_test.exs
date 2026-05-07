@@ -86,7 +86,7 @@ defmodule Tuist.KuraTest do
       {:ok, server} =
         Kura.create_server(%{
           account_id: account.id,
-          region: "local",
+          region: "local-controller",
           image_tag: "0.5.2"
         })
 
@@ -120,7 +120,7 @@ defmodule Tuist.KuraTest do
       {:ok, server} =
         Kura.create_server(%{
           account_id: account.id,
-          region: "local",
+          region: "local-controller",
           image_tag: "0.5.3"
         })
 
@@ -146,7 +146,7 @@ defmodule Tuist.KuraTest do
       {:ok, server} =
         Kura.create_server(%{
           account_id: account.id,
-          region: "local",
+          region: "local-controller",
           image_tag: "0.5.2"
         })
 
@@ -182,7 +182,7 @@ defmodule Tuist.KuraTest do
         %Server{}
         |> Server.create_changeset(%{
           account_id: account.id,
-          region: "local",
+          region: "local-controller",
           provisioner_node_ref: "kura-#{account.name}-local"
         })
         |> Repo.insert()
@@ -196,7 +196,7 @@ defmodule Tuist.KuraTest do
 
       assert deployment.oban_job_id
       assert deployment.kura_server_id == server.id
-      assert deployment.cluster_id == "local"
+      assert deployment.cluster_id == "local-controller"
 
       assert_enqueued(
         worker: RolloutWorker,
@@ -221,7 +221,7 @@ defmodule Tuist.KuraTest do
         %Server{}
         |> Server.create_changeset(%{
           account_id: account_a.id,
-          region: "local",
+          region: "local-controller",
           provisioner_node_ref: "kura-#{account_a.name}-local"
         })
         |> Repo.insert()
@@ -230,7 +230,7 @@ defmodule Tuist.KuraTest do
         %Server{}
         |> Server.create_changeset(%{
           account_id: account_b.id,
-          region: "local",
+          region: "local-controller",
           provisioner_node_ref: "kura-#{account_b.name}-local"
         })
         |> Repo.insert()
@@ -255,7 +255,7 @@ defmodule Tuist.KuraTest do
       assert {:ok, server} =
                Kura.create_server(%{
                  account_id: account.id,
-                 region: "local",
+                 region: "local-controller",
                  image_tag: "0.5.2"
                })
 
@@ -276,7 +276,7 @@ defmodule Tuist.KuraTest do
       assert {:error, %Ecto.Changeset{errors: [region: {"is not available in this environment", _}]}} =
                Kura.create_server(%{
                  account_id: account.id,
-                 region: "eu",
+                 region: "eu-central",
                  image_tag: "0.5.2"
                })
     end
@@ -293,7 +293,7 @@ defmodule Tuist.KuraTest do
     test "rejects a duplicate (account, region)", %{account: account} do
       attrs = %{
         account_id: account.id,
-        region: "local",
+        region: "local-controller",
         image_tag: "0.5.2"
       }
 
@@ -305,12 +305,12 @@ defmodule Tuist.KuraTest do
       assert {:ok, server} =
                Kura.create_server(%{
                  "account_id" => account.id,
-                 "region" => "local",
+                 "region" => "local-controller",
                  "image_tag" => "0.5.2",
                  "ignored-#{Ecto.UUID.generate()}" => "ignored"
                })
 
-      assert server.region == "local"
+      assert server.region == "local-controller"
     end
   end
 
@@ -322,7 +322,7 @@ defmodule Tuist.KuraTest do
       {:ok, kept} =
         Kura.create_server(%{
           account_id: account.id,
-          region: "local",
+          region: "local-controller",
           image_tag: "0.5.2"
         })
 
@@ -330,8 +330,8 @@ defmodule Tuist.KuraTest do
         %Server{}
         |> Server.create_changeset(%{
           account_id: account.id,
-          region: "eu",
-          provisioner_node_ref: "kura-tuist-eu-1"
+          region: "eu-central",
+          provisioner_node_ref: "kura-tuist-eu-central-1"
         })
         |> Repo.insert()
 
@@ -352,7 +352,7 @@ defmodule Tuist.KuraTest do
       {:ok, server} =
         Kura.create_server(%{
           account_id: account.id,
-          region: "local",
+          region: "local-controller",
           image_tag: "0.5.2"
         })
 
@@ -374,7 +374,7 @@ defmodule Tuist.KuraTest do
       {:ok, server} =
         Kura.create_server(%{
           account_id: other_account.id,
-          region: "local",
+          region: "local-controller",
           image_tag: "0.5.2"
         })
 
@@ -392,7 +392,7 @@ defmodule Tuist.KuraTest do
       {:ok, server} =
         Kura.create_server(%{
           account_id: account.id,
-          region: "local",
+          region: "local-controller",
           image_tag: "0.5.2"
         })
 
@@ -415,7 +415,7 @@ defmodule Tuist.KuraTest do
       {:ok, server} =
         Kura.create_server(%{
           account_id: account.id,
-          region: "local",
+          region: "local-controller",
           image_tag: "0.5.2"
         })
 
@@ -438,7 +438,7 @@ defmodule Tuist.KuraTest do
       {:ok, server} =
         Kura.create_server(%{
           account_id: account.id,
-          region: "local",
+          region: "local-controller",
           image_tag: "0.5.2"
         })
 
@@ -470,7 +470,7 @@ defmodule Tuist.KuraTest do
       {:ok, server} =
         Kura.create_server(%{
           account_id: account.id,
-          region: "local",
+          region: "local-controller",
           image_tag: "0.5.2"
         })
 

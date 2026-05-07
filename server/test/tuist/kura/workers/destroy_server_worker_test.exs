@@ -20,7 +20,7 @@ defmodule Tuist.Kura.Workers.DestroyServerWorkerTest do
     {:ok, server} =
       Kura.create_server(%{
         account_id: account.id,
-        region: "local",
+        region: "local-controller",
         image_tag: "0.5.2"
       })
 
@@ -103,7 +103,7 @@ defmodule Tuist.Kura.Workers.DestroyServerWorkerTest do
       assert_enqueued(
         worker: DestroyServerWorker,
         args: %{"server_id" => server.id, "account_id" => account.id},
-        queue: :kura_rollout,
+        queue: :default,
         max_attempts: 5
       )
     end

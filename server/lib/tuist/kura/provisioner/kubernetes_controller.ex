@@ -3,12 +3,13 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   Submits desired Kura endpoint state as `KuraInstance` custom resources.
 
   The Go controller in `infra/kura-controller` owns the actual
-  StatefulSet/Service/Ingress reconciliation. This provisioner is only
+  StatefulSet and direct LoadBalancer Service reconciliation. This provisioner is only
   the bridge from Tuist's account model to the CRD.
   """
 
   @behaviour Tuist.Kura.Provisioner
 
+  alias Tuist.Kubernetes.Client
   alias Tuist.Kura.Provisioner.HelmKubernetes
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
@@ -16,7 +17,9 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   require Logger
 
   @namespace "kura"
-  @tls_secret_name "tuist-tls-cloudflare-origin-kura"
+  @rollout_timeout_ms to_timeout(minute: 10)
+  @rollout_poll_ms 2_000
+  @delete_timeout_ms to_timeout(minute: 5)
 
   @impl true
   def provision(%{name: handle}, %Regions{} = region, %Server{}) do
@@ -26,56 +29,21 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   @impl true
   def rollout(
         name,
-        %{
-          image_tag: image_tag,
-          account: account,
-          server: %Server{} = server,
-          region: %Regions{} = region,
-          on_log_line: on_log_line
-        } = inputs
+        %{image_tag: image_tag, account: account, server: %Server{} = server, region: %Regions{} = region} = inputs
       ) do
-    with {:ok, chart} <- chart_path(inputs),
-         {:ok, kubeconfig} <- write_kubeconfig(region),
-         {:ok, manifest} <- write_manifest(name, image_tag, account, region, server, chart),
-         :ok <- shell(["kubectl", "apply", "-f", manifest], kubeconfig, on_log_line) do
-      case shell(
-             [
-               "kubectl",
-               "-n",
-               @namespace,
-               "wait",
-               "--for=jsonpath={.status.phase}=Ready",
-               "kurainstance/#{name}",
-               "--timeout=10m"
-             ],
-             kubeconfig,
-             on_log_line
-           ) do
-        :ok -> :ok
-        {:error, status} -> {:error, "kubectl wait exited with status #{status}"}
-      end
-    else
-      {:error, status} when is_integer(status) -> {:error, "kubectl apply exited with status #{status}"}
-      {:error, reason} -> {:error, reason}
+    with {:ok, hook_script} <- hook_script(inputs),
+         manifest = manifest(name, image_tag, account, region, server, hook_script),
+         {:ok, _} <- client_apply(manifest, region) do
+      wait_until_ready(name, image_tag, region)
     end
   end
 
   @impl true
   def destroy(name, %Regions{} = region) do
-    case write_kubeconfig(region) do
-      {:ok, kubeconfig} ->
-        case shell(
-               ["kubectl", "-n", @namespace, "delete", "kurainstance", name, "--ignore-not-found", "--wait=true"],
-               kubeconfig,
-               &drop_log/2
-             ) do
-          :ok -> :ok
-          {:error, status} -> {:error, "kubectl delete exited with status #{status}"}
-        end
-
-      {:error, reason} ->
-        Logger.warning("[Kura.KubernetesController] destroy(#{name}) skipped: #{inspect(reason)}")
-        :ok
+    case client_delete_kura_instance(@namespace, name, region) do
+      :ok -> wait_until_deleted(name, region)
+      {:error, :not_found} -> :ok
+      {:error, reason} -> {:error, reason}
     end
   end
 
@@ -96,48 +64,17 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   @impl true
   def current_image_tag(name, %Regions{} = region) do
-    with {:ok, kubeconfig} <- write_kubeconfig(region) do
-      args = [
-        "kubectl",
-        "--kubeconfig",
-        kubeconfig,
-        "-n",
-        @namespace,
-        "get",
-        "kurainstance",
-        name,
-        "-o",
-        "jsonpath={.status.observedImage}"
-      ]
-
-      case MuonTrap.cmd("env", args, stderr_to_stdout: true) do
-        {output, 0} -> {:ok, HelmKubernetes.image_tag_from_image(output)}
-        {output, _} -> {:error, String.trim(output)}
-      end
+    case client_get_kura_instance(@namespace, name, region) do
+      {:ok, %{"status" => %{"observedImage" => image}}} -> {:ok, HelmKubernetes.image_tag_from_image(image)}
+      {:ok, _} -> {:ok, nil}
+      {:error, reason} -> {:error, reason}
     end
   end
 
   @impl true
   def nodes(name, %Regions{} = region) do
-    with {:ok, kubeconfig} <- write_kubeconfig(region) do
-      args = [
-        "kubectl",
-        "--kubeconfig",
-        kubeconfig,
-        "-n",
-        @namespace,
-        "get",
-        "pods",
-        "-l",
-        "app.kubernetes.io/instance=#{name}",
-        "-o",
-        "json"
-      ]
-
-      case MuonTrap.cmd("env", args, stderr_to_stdout: true) do
-        {output, 0} -> parse_nodes(output)
-        {output, _} -> {:error, String.trim(output)}
-      end
+    with {:ok, body} <- client_list_pods(@namespace, "app.kubernetes.io/instance=#{name}", region) do
+      parse_nodes_body(body)
     end
   end
 
@@ -149,7 +86,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   end
 
   @doc false
-  def manifest(name, image_tag, account, %Regions{} = region, %Server{}, chart) do
+  def manifest(name, image_tag, account, %Regions{} = region, %Server{}, hook_script) do
     %{
       "apiVersion" => "kura.tuist.dev/v1alpha1",
       "kind" => "KuraInstance",
@@ -170,21 +107,16 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           "region" => region.id,
           "image" => "ghcr.io/tuist/kura:#{image_tag}",
           "publicHost" => public_host(account.name, region),
-          "tlsSecretName" => @tls_secret_name,
           "storageClassName" => storage_class(region),
-          "extensionScript" => chart |> Path.join("hooks/tuist.lua") |> File.read!(),
+          "storageSize" => storage_size(region),
+          "replicas" => replicas(region),
+          "nodeSelector" => node_selector(region),
+          "extensionScript" => hook_script,
           "extraEnv" => extension_env(region)
         }
         |> Enum.reject(fn {_key, value} -> value in [nil, ""] end)
         |> Map.new()
     }
-  end
-
-  defp write_manifest(name, image_tag, account, region, server, chart) do
-    name
-    |> manifest(image_tag, account, region, server, chart)
-    |> Ymlr.document!()
-    |> write_temp("kurainstance")
   end
 
   defp public_host(handle, %Regions{provisioner_config: %{public_host_template: template} = config}) do
@@ -201,8 +133,15 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
       env_var("KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL", tuist_base_url(region)),
       env_var("KURA_EXTENSION_HTTP_CLIENT_TUIST_CONNECT_TIMEOUT_MS", "3000"),
       env_var("KURA_EXTENSION_HTTP_CLIENT_TUIST_REQUEST_TIMEOUT_MS", "4000")
-    ] ++ jwt_verifier_env() ++ signer_env()
+    ] ++ telemetry_env(region) ++ jwt_verifier_env() ++ signer_env()
   end
+
+  defp telemetry_env(%Regions{provisioner_config: %{otlp_traces_endpoint: endpoint}})
+       when is_binary(endpoint) and endpoint != "" do
+    [env_var("KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", endpoint)]
+  end
+
+  defp telemetry_env(_), do: []
 
   defp jwt_verifier_env do
     case Tuist.Environment.secret_key_tokens() do
@@ -242,19 +181,47 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
     _ -> nil
   end
 
+  defp tuist_base_url(%Regions{provisioner_config: %{kubernetes_client: client_opts}}) do
+    if Keyword.get(client_opts, :mode) == :kubectl do
+      Tuist.Environment.app_url()
+      |> URI.parse()
+      |> rewrite_loopback("host.docker.internal")
+      |> URI.to_string()
+    else
+      Tuist.Environment.app_url()
+    end
+  end
+
   defp tuist_base_url(_), do: Tuist.Environment.app_url()
+
+  defp rewrite_loopback(%URI{host: host} = uri, replacement) when host in ["localhost", "127.0.0.1", "0.0.0.0"] do
+    %{uri | host: replacement}
+  end
+
+  defp rewrite_loopback(uri, _), do: uri
 
   defp storage_class(%Regions{provisioner_config: %{storage_class: storage_class}}), do: storage_class
   defp storage_class(_), do: nil
 
+  defp storage_size(%Regions{provisioner_config: %{storage_size: storage_size}}), do: storage_size
+  defp storage_size(_), do: nil
+
+  defp replicas(%Regions{provisioner_config: %{replicas: replicas}}), do: replicas
+  defp replicas(_), do: nil
+
+  defp node_selector(%Regions{provisioner_config: %{node_selector: node_selector}}), do: node_selector
+  defp node_selector(_), do: nil
+
   @doc false
   def parse_nodes(json) do
     case Jason.decode(json) do
-      {:ok, %{"items" => items}} -> {:ok, Enum.map(items, &node_from_pod/1)}
+      {:ok, body} -> parse_nodes_body(body)
       {:error, reason} -> {:error, reason}
-      _ -> {:error, "unexpected kubectl pod list shape"}
     end
   end
+
+  defp parse_nodes_body(%{"items" => items}) when is_list(items), do: {:ok, Enum.map(items, &node_from_pod/1)}
+  defp parse_nodes_body(_), do: {:error, "unexpected Kubernetes pod list shape"}
 
   defp node_from_pod(%{"metadata" => metadata, "status" => status} = pod) do
     %{
@@ -282,69 +249,122 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   defp dns_handle(handle), do: String.downcase(handle)
 
-  defp chart_path(inputs) do
-    case Map.get(inputs, :chart_path) || Application.get_env(:tuist, :kura_chart_path) do
+  defp hook_script(inputs) do
+    case Map.get(inputs, :hook_script) do
+      script when is_binary(script) ->
+        {:ok, script}
+
       nil ->
-        {:error, "kura_chart_path is not configured"}
+        hook_script_from_runtime()
+    end
+  end
+
+  defp hook_script_from_runtime do
+    case Application.get_env(:tuist, :kura_hook_path) do
+      nil ->
+        {:error, "kura_hook_path is not configured"}
 
       path when is_binary(path) ->
-        if File.dir?(path),
-          do: {:ok, path},
-          else: {:error, "kura_chart_path #{path} is not a directory"}
+        if File.regular?(path),
+          do: {:ok, File.read!(path)},
+          else: {:error, "kura_hook_path #{path} is not a file"}
     end
   end
 
-  defp write_kubeconfig(%Regions{} = region) do
-    with {:ok, contents} <- resolve_kubeconfig(region) do
-      write_temp(contents, "kubeconfig")
-    end
+  defp wait_until_ready(name, image_tag, region) do
+    deadline = System.monotonic_time(:millisecond) + @rollout_timeout_ms
+    wait_until_ready(name, "ghcr.io/tuist/kura:#{image_tag}", region, deadline)
   end
 
-  defp resolve_kubeconfig(%Regions{provisioner_config: config}) do
-    case Tuist.Environment.kura_kubeconfig(config[:cluster_id]) do
-      kc when is_binary(kc) and kc != "" -> {:ok, kc}
-      _ -> {:error, "no kubeconfig configured for cluster #{config[:cluster_id]}"}
-    end
-  end
-
-  defp shell(args, kubeconfig_path, on_log_line) do
-    env = [
-      {~c"KUBECONFIG", String.to_charlist(kubeconfig_path)},
-      {~c"PATH", String.to_charlist(System.get_env("PATH") || "/usr/local/bin:/usr/bin:/bin")}
-    ]
-
-    port =
-      Port.open(
-        {:spawn_executable, System.find_executable("env") || "/usr/bin/env"},
-        [:binary, :exit_status, :stderr_to_stdout, {:line, 4_096}, {:env, env}, {:args, args}]
-      )
-
-    drain(port, on_log_line)
-  end
-
-  defp drain(port, on_log_line) do
-    receive do
-      {^port, {:data, {kind, line}}} when kind in [:eol, :noeol] ->
-        on_log_line.(line, :stdout)
-        drain(port, on_log_line)
-
-      {^port, {:exit_status, 0}} ->
+  defp wait_until_ready(name, image, region, deadline) do
+    case client_get_kura_instance(@namespace, name, region) do
+      {:ok, %{"status" => %{"phase" => "Ready", "observedImage" => ^image}}} ->
         :ok
 
-      {^port, {:exit_status, status}} ->
-        {:error, status}
+      {:ok, %{"status" => status}} ->
+        Logger.info(
+          "[Kura.KubernetesController] waiting for #{name}: #{status["message"] || status["phase"] || "pending"}"
+        )
+
+        sleep_or_timeout(
+          fn -> wait_until_ready(name, image, region, deadline) end,
+          deadline,
+          "KuraInstance #{name} did not become ready"
+        )
+
+      {:ok, _} ->
+        Logger.info("[Kura.KubernetesController] waiting for #{name}: status is not published yet")
+
+        sleep_or_timeout(
+          fn -> wait_until_ready(name, image, region, deadline) end,
+          deadline,
+          "KuraInstance #{name} did not become ready"
+        )
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
-  defp write_temp(contents, label) do
-    with {:ok, path} <- Briefly.create(prefix: "kura-#{label}-", extname: ".yaml"),
-         :ok <- File.write(path, contents),
-         :ok <- File.chmod(path, 0o600) do
-      {:ok, path}
+  defp wait_until_deleted(name, region) do
+    deadline = System.monotonic_time(:millisecond) + @delete_timeout_ms
+    wait_until_deleted(name, region, deadline)
+  end
+
+  defp wait_until_deleted(name, region, deadline) do
+    case client_get_kura_instance(@namespace, name, region) do
+      {:error, :not_found} ->
+        :ok
+
+      {:ok, _} ->
+        sleep_or_timeout(
+          fn -> wait_until_deleted(name, region, deadline) end,
+          deadline,
+          "KuraInstance #{name} was not deleted"
+        )
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp sleep_or_timeout(fun, deadline, message) do
+    if System.monotonic_time(:millisecond) >= deadline do
+      {:error, message}
     else
-      {:error, reason} -> {:error, "failed to write #{label}: #{inspect(reason)}"}
+      Process.sleep(@rollout_poll_ms)
+      fun.()
     end
   end
 
-  defp drop_log(_line, _stream), do: :ok
+  defp client_apply(manifest, region) do
+    case kubernetes_client_opts(region) do
+      [] -> Client.apply(manifest)
+      opts -> Client.apply(manifest, opts)
+    end
+  end
+
+  defp client_get_kura_instance(namespace, name, region) do
+    case kubernetes_client_opts(region) do
+      [] -> Client.get_kura_instance(namespace, name)
+      opts -> Client.get_kura_instance(namespace, name, opts)
+    end
+  end
+
+  defp client_delete_kura_instance(namespace, name, region) do
+    case kubernetes_client_opts(region) do
+      [] -> Client.delete_kura_instance(namespace, name)
+      opts -> Client.delete_kura_instance(namespace, name, opts)
+    end
+  end
+
+  defp client_list_pods(namespace, label_selector, region) do
+    case kubernetes_client_opts(region) do
+      [] -> Client.list_pods(namespace, label_selector)
+      opts -> Client.list_pods(namespace, label_selector, opts)
+    end
+  end
+
+  defp kubernetes_client_opts(%Regions{provisioner_config: %{kubernetes_client: opts}}), do: opts
+  defp kubernetes_client_opts(_), do: []
 end

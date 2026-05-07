@@ -77,6 +77,7 @@ permissions:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: tuist/tuist
+  KURA_CONTROLLER_IMAGE_NAME: tuist/kura-controller
   HELM_CHART_PATH: infra/helm/tuist
   HELM_RELEASE_NAME: tuist
   OBSERVABILITY_CHART_PATH: infra/helm/k8s-monitoring
@@ -106,6 +107,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - uses: docker/build-push-action@v6
+        name: Build and push server image
         with:
           context: .
           file: ./server/Dockerfile
@@ -117,6 +119,14 @@ jobs:
             TUIST_HOSTED=1
             MIX_ENV=prod
             APT_CACHE_BUST=${{ env.DEPLOY_SHA }}
+      - uses: docker/build-push-action@v6
+        name: Build and push Kura controller image
+        with:
+          context: .
+          file: ./infra/kura-controller/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.KURA_CONTROLLER_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
 
   observability-install:
     # Installs / upgrades the grafana/k8s-monitoring wrapper chart ahead of
@@ -328,6 +338,7 @@ jobs:
             -f "$HELM_CHART_PATH/values-managed-common.yaml" \
             -f "$HELM_CHART_PATH/values-managed-${{ inputs.environment }}.yaml" \
             --set server.image.tag="$IMAGE_TAG" \
+            --set kuraController.image.tag="$IMAGE_TAG" \
             --atomic --timeout 90m --wait
       - name: Diagnostics on failure
         # `--atomic` rolls back the release on timeout, so `helm history` and

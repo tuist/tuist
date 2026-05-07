@@ -11,13 +11,14 @@ defmodule Tuist.Kura.Deployment do
   Kura server. The provisioner's rollout logic is how a deployment gets
   applied, especially for staged updates.
 
-  Per-line stdout/stderr streams to the `kura_deployment_log_lines`
-  ClickHouse table keyed by `id` so /ops can tail in real time.
+  Runtime rollout details live in the backing resource status and
+  application logs. This row carries the durable operator-facing
+  summary: status, timestamps, and terminal error message.
 
   `cluster_id` is an audit field: which backing cluster the deployment
   actually targeted, captured at insert time so operators reading the
-  deployment list see something concrete (`"eu-1"`) rather than the
-  abstract region (`"eu"`).
+  deployment list see something concrete (`"eu-central-1"`) rather
+  than the abstract region (`"eu-central"`).
   """
   use Ecto.Schema
 

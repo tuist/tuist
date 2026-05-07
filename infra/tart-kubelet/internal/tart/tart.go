@@ -313,4 +313,3 @@ func escapeEnvValue(v string) string {
 	v = strings.ReplaceAll(v, "\r", `\r`)
 	return v
 }
-

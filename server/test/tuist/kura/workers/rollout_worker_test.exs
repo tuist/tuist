@@ -21,7 +21,7 @@ defmodule Tuist.Kura.Workers.RolloutWorkerTest do
     {:ok, server} =
       Kura.create_server(%{
         account_id: account.id,
-        region: "local",
+        region: "local-controller",
         image_tag: "0.5.2"
       })
 
@@ -31,7 +31,10 @@ defmodule Tuist.Kura.Workers.RolloutWorkerTest do
   end
 
   test "activates the server when rollout succeeds", %{deployment: deployment, server: server} do
-    stub(Provisioner, :rollout, fn %Server{}, _inputs -> :ok end)
+    stub(Provisioner, :rollout, fn %Server{}, inputs ->
+      refute Map.has_key?(inputs, :on_log_line)
+      :ok
+    end)
 
     assert :ok =
              RolloutWorker.perform(%Oban.Job{
@@ -77,10 +80,29 @@ defmodule Tuist.Kura.Workers.RolloutWorkerTest do
     assert deployment.status == :cancelled
     assert deployment.error_message == "server #{server.id} is destroying; skipping rollout"
 
-    assert [%{sequence: 1, stream: :stderr, line: line}] = Kura.list_log_lines(deployment.id)
-    assert line == deployment.error_message
-
     assert %Server{status: :destroying} = Repo.get!(Server, server.id)
+  end
+
+  test "does not reactivate a server destroyed while rollout was in flight", %{
+    deployment: deployment,
+    server: server
+  } do
+    stub(Provisioner, :rollout, fn %Server{}, _inputs ->
+      server = Repo.get!(Server, server.id)
+      {:ok, server} = Kura.destroy_server(server)
+      {:ok, _server} = Kura.mark_destroyed(server)
+      :ok
+    end)
+
+    assert :ok =
+             RolloutWorker.perform(%Oban.Job{
+               args: %{"deployment_id" => deployment.id, "account_id" => server.account_id}
+             })
+
+    assert %Deployment{status: :cancelled, error_message: message} = Repo.get!(Deployment, deployment.id)
+    assert message == "server #{server.id} became destroyed during rollout; skipping activation"
+
+    assert %Server{status: :destroyed, url: nil} = Repo.get!(Server, server.id)
   end
 
   test "fails the parent server when a running deployment is picked up again", %{
@@ -103,34 +125,8 @@ defmodule Tuist.Kura.Workers.RolloutWorkerTest do
     assert %Server{status: :failed} = Repo.get!(Server, server.id)
   end
 
-  test "continues log sequence when failing an already-running deployment", %{deployment: deployment, server: server} do
-    reject(&Provisioner.rollout/2)
-    {:ok, deployment} = Kura.mark_running(deployment)
-    {:ok, _} = Kura.append_log_lines(deployment.id, [{1, :stdout, "already emitted"}])
-
-    assert :ok =
-             RolloutWorker.perform(%Oban.Job{
-               args: %{"deployment_id" => deployment.id, "account_id" => server.account_id}
-             })
-
-    assert [
-             %{sequence: 1, stream: :stdout, line: "already emitted"},
-             %{sequence: 2, stream: :stderr, line: "deployment was already running; re-trigger manually"}
-           ] =
-             deployment.id
-             |> Kura.list_log_lines()
-             |> Enum.map(&Map.take(&1, [:sequence, :stream, :line]))
-  end
-
-  test "appends the synthetic failure line after streamed output without reusing sequence ids", %{
-    deployment: deployment,
-    server: server
-  } do
-    stub(Provisioner, :rollout, fn %Server{}, %{on_log_line: on_log_line} ->
-      on_log_line.("starting rollout", :stdout)
-      on_log_line.("still working", :stderr)
-      {:error, "rollout exited with status 1"}
-    end)
+  test "stores the provisioner failure on the deployment", %{deployment: deployment, server: server} do
+    stub(Provisioner, :rollout, fn %Server{}, _inputs -> {:error, "rollout exited with status 1"} end)
 
     assert {:error, "rollout exited with status 1"} =
              RolloutWorker.perform(%Oban.Job{
@@ -139,14 +135,5 @@ defmodule Tuist.Kura.Workers.RolloutWorkerTest do
 
     assert %Deployment{status: :failed, error_message: "rollout exited with status 1"} =
              Repo.get!(Deployment, deployment.id)
-
-    assert [
-             %{sequence: 1, stream: :stdout, line: "starting rollout"},
-             %{sequence: 2, stream: :stderr, line: "still working"},
-             %{sequence: 3, stream: :stderr, line: "rollout exited with status 1"}
-           ] =
-             deployment.id
-             |> Kura.list_log_lines()
-             |> Enum.map(&Map.take(&1, [:sequence, :stream, :line]))
   end
 end

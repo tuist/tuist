@@ -6,16 +6,17 @@ import (
 )
 
 type KuraInstanceSpec struct {
-	AccountHandle    string          `json:"accountHandle"`
-	TenantID         string          `json:"tenantID"`
-	Region           string          `json:"region"`
-	Image            string          `json:"image"`
-	Replicas         *int32          `json:"replicas,omitempty"`
-	PublicHost       string          `json:"publicHost,omitempty"`
-	TLSSecretName    string          `json:"tlsSecretName,omitempty"`
-	StorageClassName string          `json:"storageClassName,omitempty"`
-	ExtraEnv         []corev1.EnvVar `json:"extraEnv,omitempty"`
-	ExtensionScript  string          `json:"extensionScript,omitempty"`
+	AccountHandle    string            `json:"accountHandle"`
+	TenantID         string            `json:"tenantID"`
+	Region           string            `json:"region"`
+	Image            string            `json:"image"`
+	Replicas         *int32            `json:"replicas,omitempty"`
+	PublicHost       string            `json:"publicHost,omitempty"`
+	StorageClassName string            `json:"storageClassName,omitempty"`
+	StorageSize      string            `json:"storageSize,omitempty"`
+	NodeSelector     map[string]string `json:"nodeSelector,omitempty"`
+	ExtraEnv         []corev1.EnvVar   `json:"extraEnv,omitempty"`
+	ExtensionScript  string            `json:"extensionScript,omitempty"`
 }
 
 type KuraInstanceStatus struct {

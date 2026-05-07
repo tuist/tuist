@@ -15,7 +15,7 @@
 - 🪨 Local metadata, multipart state, and the replication outbox live in RocksDB
 - 🔁 Blobs and cache metadata replicate to peer nodes with eventual consistency
 - 🔎 Nodes can discover peers through DNS and bootstrap themselves from already-running nodes
-- 📦 Kura actively supports Bazel and Buck2 REAPI, Xcode Cache, Gradle, and [Tuist Module Cache](https://tuist.dev/en/docs/guides/features/cache/module-cache)
+- 📦 Kura actively supports Bazel and Buck2 REAPI, Xcode Cache, Gradle, and module-cache protocols
 - 🧪 Compatibility endpoints for Nx and React Native Metro are available, but they are not a primary focus today
 - 🧰 The gRPC API exposes the Bazel Remote Execution cache services used by Bazel and Buck2
 - 📊 The local stack includes Grafana, Prometheus, Loki, Promtail, and Tempo traces
@@ -27,7 +27,7 @@ Actively supported:
 - `Bazel` and `Buck2`: Bazel Remote Execution API v2 over gRPC on `KURA_GRPC_PORT`
 - `Xcode Cache`: HTTP CAS artifacts on `POST/GET /api/cache/cas/{id}` and action-cache style entries on `PUT/GET /api/cache/keyvalue`
 - `Gradle`: `PUT/GET /api/cache/gradle/{cache_key}`
-- [`Module Cache`](https://tuist.dev/en/docs/guides/features/cache/module-cache): multipart uploads on `POST /api/cache/module/start`, `POST /api/cache/module/part`, `POST /api/cache/module/complete`, and `HEAD/GET /api/cache/module/{id}`
+- `Module Cache`: multipart uploads on `POST /api/cache/module/start`, `POST /api/cache/module/part`, `POST /api/cache/module/complete`, and `HEAD/GET /api/cache/module/{id}`
 
 Compatibility surfaces:
 
@@ -99,7 +99,7 @@ Kura exposes multiple cache protocols behind one service. The actively supported
 - 🍎 `Xcode Cache`: `POST/GET /api/cache/cas/{id}?tenant_id=...&namespace_id=...`
 - 🗂️ `KeyValue / action-cache entries`: `PUT /api/cache/keyvalue?tenant_id=...&namespace_id=...`
 - 🐘 `Gradle`: `PUT/GET /api/cache/gradle/{cache_key}?tenant_id=...&namespace_id=...`
-- 📦 [`Module Cache`](https://tuist.dev/en/docs/guides/features/cache/module-cache): `POST /api/cache/module/start?...`, `POST /api/cache/module/part?...`, `POST /api/cache/module/complete?...`, `HEAD/GET /api/cache/module/{id}?...`
+- 📦 `Module Cache`: `POST /api/cache/module/start?...`, `POST /api/cache/module/part?...`, `POST /api/cache/module/complete?...`, `HEAD/GET /api/cache/module/{id}?...`
 
 Kura also exposes compatibility endpoints that are not a primary focus today:
 
@@ -275,7 +275,7 @@ OTLP tracing is optional. Leaving `KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` unse
 
 ## 📣 Runtime Analytics
 
-Analytics webhooks are a separate optional subsystem that mirrors the older Tuist cache contract for Xcode and Gradle traffic.
+Analytics webhooks are a separate optional subsystem that mirrors the legacy cache analytics contract for Xcode and Gradle traffic.
 
 When enabled:
 
@@ -332,7 +332,7 @@ Install it on a generic cluster:
 helm upgrade --install kura ./ops/helm/kura \
   --namespace kura \
   --create-namespace \
-  --set image.repository=ghcr.io/tuist/kura \
+  --set image.repository=<registry>/kura \
   --set image.tag=latest \
   --set config.region=fr-par \
   --set config.telemetry.otlpTracesEndpoint=http://otel-collector.monitoring.svc.cluster.local:4318/v1/traces
@@ -389,7 +389,7 @@ helm upgrade --install kura ./ops/helm/kura \
   --namespace kura \
   --create-namespace \
   -f ./ops/helm/kura/values-scaleway.yaml \
-  --set image.repository=ghcr.io/tuist/kura \
+  --set image.repository=<registry>/kura \
   --set image.tag=latest \
   --set config.region=fr-par \
   --set config.telemetry.otlpTracesEndpoint=http://otel-collector.monitoring.svc.cluster.local:4318/v1/traces

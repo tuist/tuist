@@ -400,8 +400,8 @@ defmodule Tuist.Application do
   end
 
   # Reconciles Kura deployments stranded in `:running` after a crash or
-  # rolling deploy. Web mode only; processor mode doesn't run the
-  # `:kura_rollout` queue and so never produces orphans.
+  # rolling deploy. Web mode only; processor mode doesn't run Kura
+  # rollout jobs and so never produces orphans.
   defp kura_children do
     if Environment.web?() and not Environment.test?() do
       [

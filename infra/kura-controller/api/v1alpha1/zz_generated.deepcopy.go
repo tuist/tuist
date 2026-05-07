@@ -65,6 +65,12 @@ func (in *KuraInstanceSpec) DeepCopyInto(out *KuraInstanceSpec) {
 		out.Replicas = new(int32)
 		*out.Replicas = *in.Replicas
 	}
+	if in.NodeSelector != nil {
+		out.NodeSelector = make(map[string]string, len(in.NodeSelector))
+		for key, value := range in.NodeSelector {
+			out.NodeSelector[key] = value
+		}
+	}
 	if in.ExtraEnv != nil {
 		out.ExtraEnv = make([]corev1.EnvVar, len(in.ExtraEnv))
 		for i := range in.ExtraEnv {

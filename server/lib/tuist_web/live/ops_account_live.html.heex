@@ -6,6 +6,39 @@
     </p>
   </div>
 
+  <.card title={dgettext("dashboard", "Kura")} icon="server">
+    <.card_section>
+      <.table id="account-kura-table" rows={@kura_servers}>
+        <:col :let={server} label={dgettext("dashboard", "Region")}>
+          <.text_cell label={server.region} />
+        </:col>
+        <:col :let={server} label={dgettext("dashboard", "Status")}>
+          <.badge_cell
+            label={server.status |> Atom.to_string() |> String.replace("_", " ")}
+            color="neutral"
+            style="light-fill"
+          />
+        </:col>
+        <:col :let={server} label={dgettext("dashboard", "URL")}>
+          <.text_cell label={server.url || dgettext("dashboard", "None")} />
+        </:col>
+        <:col :let={server} label={dgettext("dashboard", "Current version")}>
+          <.text_cell label={server.current_image_tag || dgettext("dashboard", "None")} />
+        </:col>
+        <:col :let={server} label={dgettext("dashboard", "Latest deployment")}>
+          <%= case List.first(server.deployments) do %>
+            <% nil -> %>
+              <.text_cell label={dgettext("dashboard", "None")} />
+            <% deployment -> %>
+              <.link navigate={~p"/ops/accounts/#{@account.id}/kura/deployments/#{deployment.id}"}>
+                {deployment.image_tag}
+              </.link>
+          <% end %>
+        </:col>
+      </.table>
+    </.card_section>
+  </.card>
+
   <.card title={dgettext("dashboard", "Plan & billing")} icon="credit_card">
     <.card_section>
       <.table id="account-plan-table" rows={[@account]}>

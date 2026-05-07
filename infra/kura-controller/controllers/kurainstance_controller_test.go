@@ -7,6 +7,8 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
+	policyv1 "k8s.io/api/policy/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -35,14 +37,14 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 			Region:           "eu",
 			Image:            "ghcr.io/tuist/kura:0.5.2",
 			PublicHost:       "tuist-eu-1.kura.tuist.dev",
-			TLSSecretName:    "tuist-tls-cloudflare-origin-kura",
 			StorageClassName: "hcloud-volumes",
 			ExtensionScript:  "return true",
 		},
 	}
+	legacyIngress := &networkingv1.Ingress{ObjectMeta: metav1.ObjectMeta{Name: instance.Name, Namespace: instance.Namespace}}
 
 	reconciler := &KuraInstanceReconciler{
-		Client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance).WithStatusSubresource(instance).Build(),
+		Client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance, legacyIngress).WithStatusSubresource(instance).Build(),
 		Scheme: scheme,
 	}
 
@@ -54,19 +56,42 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, service); err != nil {
 		t.Fatal(err)
 	}
-	if service.Spec.Ports[0].Port != httpPort {
-		t.Fatalf("expected http port %d, got %d", httpPort, service.Spec.Ports[0].Port)
+	if service.Spec.Type != corev1.ServiceTypeLoadBalancer {
+		t.Fatalf("expected public service to be a LoadBalancer, got %q", service.Spec.Type)
+	}
+	if service.Spec.ExternalTrafficPolicy != corev1.ServiceExternalTrafficPolicyLocal {
+		t.Fatalf("expected local external traffic policy, got %q", service.Spec.ExternalTrafficPolicy)
+	}
+	if got := service.Spec.Ports[0].Port; got != httpsPort {
+		t.Fatalf("expected public service port %d, got %d", httpsPort, got)
+	}
+	if got := service.Spec.Ports[0].TargetPort.StrVal; got != "http" {
+		t.Fatalf("expected public service to target http, got %q", got)
+	}
+	if got := service.Annotations["external-dns.alpha.kubernetes.io/hostname"]; got != "tuist-eu-1.kura.tuist.dev" {
+		t.Fatalf("expected external-dns hostname, got %q", got)
+	}
+	if got := service.Annotations["load-balancer.hetzner.cloud/protocol"]; got != "https" {
+		t.Fatalf("expected Hetzner HTTPS load balancer, got %q", got)
+	}
+	if got := service.Annotations["load-balancer.hetzner.cloud/http-managed-certificate-domains"]; got != "tuist-eu-1.kura.tuist.dev" {
+		t.Fatalf("expected Hetzner managed cert domain, got %q", got)
 	}
 
 	ingress := &networkingv1.Ingress{}
-	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, ingress); err != nil {
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, ingress); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected legacy ingress to be deleted, got %v", err)
+	}
+
+	pdb := &policyv1.PodDisruptionBudget{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, pdb); err != nil {
 		t.Fatal(err)
 	}
-	if got := ingress.Spec.Rules[0].Host; got != "tuist-eu-1.kura.tuist.dev" {
-		t.Fatalf("expected ingress host, got %q", got)
+	if got := pdb.Spec.MinAvailable.IntVal; got != 2 {
+		t.Fatalf("expected PDB minAvailable 2, got %d", got)
 	}
-	if got := ingress.Spec.TLS[0].SecretName; got != "tuist-tls-cloudflare-origin-kura" {
-		t.Fatalf("expected TLS secret, got %q", got)
+	if got := pdb.Spec.Selector.MatchLabels["app.kubernetes.io/instance"]; got != instance.Name {
+		t.Fatalf("expected PDB selector to match instance, got %q", got)
 	}
 
 	configMap := &corev1.ConfigMap{}
@@ -101,6 +126,12 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	if got := sts.Spec.Template.Spec.NodeSelector["node.cluster.x-k8s.io/pool"]; got != "kura" {
 		t.Fatalf("expected kura node pool selector, got %q", got)
 	}
+	if got := len(sts.Spec.Template.Spec.TopologySpreadConstraints); got != 1 {
+		t.Fatalf("expected one topology spread constraint, got %d", got)
+	}
+	if got := sts.Spec.Template.Spec.TopologySpreadConstraints[0].TopologyKey; got != "kubernetes.io/hostname" {
+		t.Fatalf("expected hostname topology spread, got %q", got)
+	}
 	if got := sts.Spec.Template.Labels["tuist.dev/account"]; got != "tuist" {
 		t.Fatalf("expected pod template account label, got %q", got)
 	}
@@ -116,7 +147,98 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	if got := *sts.Spec.VolumeClaimTemplates[0].Spec.StorageClassName; got != "hcloud-volumes" {
 		t.Fatalf("expected storage class, got %q", got)
 	}
-	if got := sts.Spec.VolumeClaimTemplates[0].Spec.Resources.Requests.Storage().String(); got != "20Gi" {
+	if got := sts.Spec.VolumeClaimTemplates[0].Spec.Resources.Requests.Storage().String(); got != "200Gi" {
 		t.Fatalf("expected PVC size, got %q", got)
+	}
+}
+
+func TestKuraInstanceSpecSupportsLocalWorkloadOverrides(t *testing.T) {
+	replicas := int32(1)
+	instance := &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: "kura-tuist-local-controller", Namespace: "kura"},
+		Spec: kurav1alpha1.KuraInstanceSpec{
+			AccountHandle: "tuist",
+			TenantID:      "tuist",
+			Region:        "local-controller",
+			Image:         "ghcr.io/tuist/kura:0.5.2",
+			Replicas:      &replicas,
+			NodeSelector:  map[string]string{"kubernetes.io/os": "linux"},
+			StorageSize:   "10Gi",
+		},
+	}
+
+	stsTemplate := podTemplate(instance)
+	if got := stsTemplate.Spec.NodeSelector["kubernetes.io/os"]; got != "linux" {
+		t.Fatalf("expected local node selector, got %q", got)
+	}
+	if _, ok := stsTemplate.Spec.NodeSelector["node.cluster.x-k8s.io/pool"]; ok {
+		t.Fatalf("expected custom node selector to replace managed default")
+	}
+
+	pvc := dataVolumeClaim(instance)
+	if got := pvc.Spec.Resources.Requests.Storage().String(); got != "10Gi" {
+		t.Fatalf("expected local PVC size, got %q", got)
+	}
+}
+
+func TestRolloutStatusRequiresUpdatedReadyReplicas(t *testing.T) {
+	instance := &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: "kura-tuist-eu-central-1", Generation: 2},
+		Spec: kurav1alpha1.KuraInstanceSpec{
+			Image: "ghcr.io/tuist/kura:0.5.3",
+		},
+		Status: kurav1alpha1.KuraInstanceStatus{
+			ObservedImage: "ghcr.io/tuist/kura:0.5.2",
+		},
+	}
+	sts := &appsv1.StatefulSet{
+		ObjectMeta: metav1.ObjectMeta{Name: instance.Name, Generation: 2},
+		Status: appsv1.StatefulSetStatus{
+			ObservedGeneration: 2,
+			ReadyReplicas:      3,
+			UpdatedReplicas:    1,
+			CurrentRevision:    "kura-abc",
+			UpdateRevision:     "kura-def",
+		},
+	}
+
+	status := rolloutStatusFromStatefulSet(instance, sts)
+
+	if status.phase != "Pending" {
+		t.Fatalf("expected rollout to remain pending, got %q", status.phase)
+	}
+	if status.observedImage != "ghcr.io/tuist/kura:0.5.2" {
+		t.Fatalf("expected observed image to stay on previous image, got %q", status.observedImage)
+	}
+}
+
+func TestRolloutStatusMarksReadyOnlyForCurrentRevision(t *testing.T) {
+	instance := &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: "kura-tuist-eu-central-1", Generation: 2},
+		Spec: kurav1alpha1.KuraInstanceSpec{
+			Image: "ghcr.io/tuist/kura:0.5.3",
+		},
+		Status: kurav1alpha1.KuraInstanceStatus{
+			ObservedImage: "ghcr.io/tuist/kura:0.5.2",
+		},
+	}
+	sts := &appsv1.StatefulSet{
+		ObjectMeta: metav1.ObjectMeta{Name: instance.Name, Generation: 2},
+		Status: appsv1.StatefulSetStatus{
+			ObservedGeneration: 2,
+			ReadyReplicas:      3,
+			UpdatedReplicas:    3,
+			CurrentRevision:    "kura-def",
+			UpdateRevision:     "kura-def",
+		},
+	}
+
+	status := rolloutStatusFromStatefulSet(instance, sts)
+
+	if status.phase != "Ready" {
+		t.Fatalf("expected rollout to be ready, got %q", status.phase)
+	}
+	if status.observedImage != "ghcr.io/tuist/kura:0.5.3" {
+		t.Fatalf("expected observed image to advance, got %q", status.observedImage)
 	}
 }

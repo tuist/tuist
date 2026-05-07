@@ -410,16 +410,13 @@ otel_endpoint = Tuist.Environment.get([:otel, :exporter, :otlp, :endpoint])
 #   * Xcresult processor (TUIST_MODE=xcresult_processor): only
 #     :process_xcresult. Runs on macOS (Scaleway Mac mini) inside a
 #     Tart VM because xcresulttool is Xcode-only.
-#   * Kura rollout queue stays on the server tier for now because the
-#     server owns Kura product state, cache endpoint mirroring, and
-#     rollout log persistence.
 #   * Server pods with TUIST_DELEGATE_PROCESS_BUILD=1 /
 #     TUIST_DELEGATE_PROCESS_XCRESULT=1 skip the matching queue so
 #     jobs land exclusively on the dedicated fleet — without those
 #     flags the server would race the processors on SKIP LOCKED, and
 #     on Linux the xcresult parse would crash because the macOS-only
 #     NIF isn't loaded.
-base_queues = [default: 10, kura_rollout: 1]
+base_queues = [default: 10]
 process_build_queue = {:process_build, Tuist.Environment.process_build_queue_concurrency()}
 process_xcresult_queue = {:process_xcresult, Tuist.Environment.process_xcresult_queue_concurrency()}
 
@@ -480,17 +477,23 @@ if Tuist.Environment.processor_mode?() do
   config :tuist, Oban, peer: false
 end
 
-# Path to the Kura Helm chart used by Tuist.Kura.Workers.RolloutWorker.
-# Production releases bake the chart into priv/kura_chart at image
-# build time (see server/Dockerfile); dev and test read it from the
-# in-tree monorepo path one level up from the server/ directory. Each
-# env is enumerated explicitly so a new one (e.g. `:bench`) fails loudly
-# rather than silently picking the wrong path.
+# Kura rollout assets. Production writes KuraInstance CRs for the Go
+# controller and only bakes the Tuist Lua extension hook into the OTP
+# release. The Helm chart remains available in dev/test for the legacy
+# local Helm provisioner. Each env is enumerated explicitly so a new one
+# fails loudly rather than silently picking the wrong path.
 kura_chart_path =
   case env do
-    e when e in [:prod, :stag, :can] -> Application.app_dir(:tuist, "priv/kura_chart")
+    e when e in [:prod, :stag, :can] -> nil
     e when e in [:dev, :test] -> Path.expand("../kura/ops/helm/kura", File.cwd!())
     other -> raise "unknown env #{inspect(other)} for :kura_chart_path; add it to runtime.exs"
+  end
+
+kura_hook_path =
+  case env do
+    e when e in [:prod, :stag, :can] -> Application.app_dir(:tuist, "priv/kura/hooks/tuist.lua")
+    e when e in [:dev, :test] -> Path.expand("../kura/ops/helm/kura/hooks/tuist.lua", File.cwd!())
+    other -> raise "unknown env #{inspect(other)} for :kura_hook_path; add it to runtime.exs"
   end
 
 # Guardian
@@ -511,6 +514,7 @@ config :tuist, Tuist.PromEx,
   ]
 
 config :tuist, :kura_chart_path, kura_chart_path
+config :tuist, :kura_hook_path, kura_hook_path
 
 if otel_endpoint do
   config :opentelemetry,

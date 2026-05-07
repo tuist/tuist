@@ -8,6 +8,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
+	policyv1 "k8s.io/api/policy/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -25,9 +26,10 @@ import (
 const (
 	KuraInstanceFinalizer = "kurainstances.kura.tuist.dev/finalizer"
 
-	httpPort int32 = 4000
-	grpcPort int32 = 50051
-	peerPort int32 = 7443
+	httpPort  int32 = 4000
+	httpsPort int32 = 443
+	grpcPort  int32 = 50051
+	peerPort  int32 = 7443
 )
 
 type KuraInstanceReconciler struct {
@@ -41,6 +43,7 @@ type KuraInstanceReconciler struct {
 // +kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=services;configmaps,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=policy,resources=poddisruptionbudgets,verbs=get;list;watch;create;update;patch;delete
 
 func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx).WithValues("kurainstance", req.NamespacedName)
@@ -74,35 +77,33 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if err := r.reconcileService(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
-	if err := r.reconcileIngress(ctx, instance); err != nil {
+	if err := r.deleteLegacyIngress(ctx, instance); err != nil {
+		return ctrl.Result{}, err
+	}
+	if err := r.reconcilePodDisruptionBudget(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
 	if err := r.reconcileStatefulSet(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
 
-	readyReplicas, err := r.readyReplicas(ctx, instance)
+	rollout, err := r.rolloutStatus(ctx, instance)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
 	now := metav1.NewTime(time.Now().UTC())
-	phase := "Pending"
-	replicas := replicas(instance)
-	if readyReplicas >= replicas {
-		phase = "Ready"
-	}
-	instance.Status.Phase = phase
+	instance.Status.Phase = rollout.phase
 	instance.Status.PublicURL = publicURL(instance)
-	instance.Status.ObservedImage = instance.Spec.Image
-	instance.Status.ReadyReplicas = readyReplicas
-	instance.Status.Message = fmt.Sprintf("%d/%d replicas ready", readyReplicas, replicas)
+	instance.Status.ObservedImage = rollout.observedImage
+	instance.Status.ReadyReplicas = rollout.readyReplicas
+	instance.Status.Message = rollout.message
 	instance.Status.LastReconciledAt = &now
 
 	if err := r.Status().Update(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
 
-	logger.Info("reconciled Kura instance", "phase", phase, "readyReplicas", readyReplicas)
+	logger.Info("reconciled Kura instance", "phase", rollout.phase, "readyReplicas", rollout.readyReplicas)
 	return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 }
 
@@ -145,45 +146,53 @@ func (r *KuraInstanceReconciler) reconcileService(ctx context.Context, instance 
 			return err
 		}
 		service.Labels = labels(instance)
-		service.Spec.Type = corev1.ServiceTypeClusterIP
 		service.Spec.Selector = selectorLabels(instance)
+		service.Annotations = publicServiceAnnotations(instance)
+
+		if instance.Spec.PublicHost == "" {
+			service.Spec.Type = corev1.ServiceTypeClusterIP
+			service.Spec.ExternalTrafficPolicy = ""
+			service.Spec.Ports = []corev1.ServicePort{
+				{Name: "http", Port: httpPort, TargetPort: intstr.FromString("http")},
+				{Name: "grpc", Port: grpcPort, TargetPort: intstr.FromString("grpc")},
+			}
+			return nil
+		}
+
+		service.Spec.Type = corev1.ServiceTypeLoadBalancer
+		service.Spec.ExternalTrafficPolicy = corev1.ServiceExternalTrafficPolicyLocal
 		service.Spec.Ports = []corev1.ServicePort{
-			{Name: "http", Port: httpPort, TargetPort: intstr.FromString("http")},
-			{Name: "grpc", Port: grpcPort, TargetPort: intstr.FromString("grpc")},
+			{Name: "https", Port: httpsPort, TargetPort: intstr.FromString("http")},
 		}
 		return nil
 	})
 	return err
 }
 
-func (r *KuraInstanceReconciler) reconcileIngress(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
-	if instance.Spec.PublicHost == "" {
-		return nil
-	}
-	pathType := networkingv1.PathTypePrefix
+func (r *KuraInstanceReconciler) deleteLegacyIngress(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
 	ingress := &networkingv1.Ingress{ObjectMeta: metav1.ObjectMeta{Name: instance.Name, Namespace: instance.Namespace}}
-	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, ingress, func() error {
-		if err := controllerutil.SetControllerReference(instance, ingress, r.Scheme); err != nil {
+	if err := r.Delete(ctx, ingress); err != nil && !apierrors.IsNotFound(err) {
+		return err
+	}
+	return nil
+}
+
+func (r *KuraInstanceReconciler) reconcilePodDisruptionBudget(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
+	pdb := &policyv1.PodDisruptionBudget{ObjectMeta: metav1.ObjectMeta{Name: instance.Name, Namespace: instance.Namespace}}
+	if replicas(instance) <= 1 {
+		if err := r.Delete(ctx, pdb); err != nil && !apierrors.IsNotFound(err) {
 			return err
 		}
-		ingress.Labels = labels(instance)
-		ingress.Annotations = map[string]string{"nginx.ingress.kubernetes.io/backend-protocol": "HTTP"}
-		ingress.Spec.Rules = []networkingv1.IngressRule{{
-			Host: instance.Spec.PublicHost,
-			IngressRuleValue: networkingv1.IngressRuleValue{HTTP: &networkingv1.HTTPIngressRuleValue{
-				Paths: []networkingv1.HTTPIngressPath{{
-					Path:     "/",
-					PathType: &pathType,
-					Backend: networkingv1.IngressBackend{Service: &networkingv1.IngressServiceBackend{
-						Name: instance.Name,
-						Port: networkingv1.ServiceBackendPort{Name: "http"},
-					}},
-				}},
-			}},
-		}}
-		if instance.Spec.TLSSecretName != "" {
-			ingress.Spec.TLS = []networkingv1.IngressTLS{{SecretName: instance.Spec.TLSSecretName, Hosts: []string{instance.Spec.PublicHost}}}
+		return nil
+	}
+
+	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, pdb, func() error {
+		if err := controllerutil.SetControllerReference(instance, pdb, r.Scheme); err != nil {
+			return err
 		}
+		pdb.Labels = labels(instance)
+		pdb.Spec.MinAvailable = ptr(intstr.FromInt32(replicas(instance) - 1))
+		pdb.Spec.Selector = &metav1.LabelSelector{MatchLabels: selectorLabels(instance)}
 		return nil
 	})
 	return err
@@ -207,16 +216,63 @@ func (r *KuraInstanceReconciler) reconcileStatefulSet(ctx context.Context, insta
 	return err
 }
 
-func (r *KuraInstanceReconciler) readyReplicas(ctx context.Context, instance *kurav1alpha1.KuraInstance) (int32, error) {
+type rolloutState struct {
+	phase         string
+	observedImage string
+	readyReplicas int32
+	message       string
+}
+
+func (r *KuraInstanceReconciler) rolloutStatus(ctx context.Context, instance *kurav1alpha1.KuraInstance) (rolloutState, error) {
 	sts := &appsv1.StatefulSet{}
 	err := r.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, sts)
 	if apierrors.IsNotFound(err) {
-		return 0, nil
+		return rolloutState{
+			phase:         "Pending",
+			observedImage: instance.Status.ObservedImage,
+			readyReplicas: 0,
+			message:       fmt.Sprintf("StatefulSet %s has not been created yet", instance.Name),
+		}, nil
 	}
 	if err != nil {
-		return 0, err
+		return rolloutState{}, err
 	}
-	return sts.Status.ReadyReplicas, nil
+	return rolloutStatusFromStatefulSet(instance, sts), nil
+}
+
+func rolloutStatusFromStatefulSet(instance *kurav1alpha1.KuraInstance, sts *appsv1.StatefulSet) rolloutState {
+	replicas := replicas(instance)
+	readyReplicas := sts.Status.ReadyReplicas
+	updatedReplicas := sts.Status.UpdatedReplicas
+	observedImage := instance.Status.ObservedImage
+	observedGeneration := sts.Status.ObservedGeneration >= sts.Generation
+	revisionsMatch := sts.Status.UpdateRevision != "" && sts.Status.CurrentRevision == sts.Status.UpdateRevision
+
+	if observedGeneration && revisionsMatch && readyReplicas >= replicas && updatedReplicas >= replicas {
+		observedImage = instance.Spec.Image
+
+		return rolloutState{
+			phase:         "Ready",
+			observedImage: observedImage,
+			readyReplicas: readyReplicas,
+			message:       fmt.Sprintf("%d/%d replicas ready on revision %s", readyReplicas, replicas, sts.Status.CurrentRevision),
+		}
+	}
+
+	return rolloutState{
+		phase:         "Pending",
+		observedImage: observedImage,
+		readyReplicas: readyReplicas,
+		message: fmt.Sprintf(
+			"%d/%d replicas ready, %d/%d updated, observedGeneration=%t, revisionsMatch=%t",
+			readyReplicas,
+			replicas,
+			updatedReplicas,
+			replicas,
+			observedGeneration,
+			revisionsMatch,
+		),
+	}
 }
 
 func podTemplate(instance *kurav1alpha1.KuraInstance) corev1.PodTemplateSpec {
@@ -224,7 +280,8 @@ func podTemplate(instance *kurav1alpha1.KuraInstance) corev1.PodTemplateSpec {
 		ObjectMeta: metav1.ObjectMeta{Labels: labels(instance), Annotations: defaultPodAnnotations()},
 		Spec: corev1.PodSpec{
 			TerminationGracePeriodSeconds: ptr(int64(255)),
-			NodeSelector:                  defaultNodeSelector(),
+			NodeSelector:                  nodeSelector(instance),
+			TopologySpreadConstraints:     topologySpreadConstraints(instance),
 			Containers: []corev1.Container{{
 				Name:            "kura",
 				Image:           instance.Spec.Image,
@@ -258,6 +315,27 @@ func defaultResources() corev1.ResourceRequirements {
 	}
 }
 
+func publicServiceAnnotations(instance *kurav1alpha1.KuraInstance) map[string]string {
+	if instance.Spec.PublicHost == "" {
+		return nil
+	}
+
+	return map[string]string{
+		"external-dns.alpha.kubernetes.io/hostname":                    instance.Spec.PublicHost,
+		"load-balancer.hetzner.cloud/name":                             instance.Name,
+		"load-balancer.hetzner.cloud/protocol":                         "https",
+		"load-balancer.hetzner.cloud/certificate-type":                 "managed",
+		"load-balancer.hetzner.cloud/http-managed-certificate-name":    instance.Name,
+		"load-balancer.hetzner.cloud/http-managed-certificate-domains": instance.Spec.PublicHost,
+		"load-balancer.hetzner.cloud/http-redirect-http":               "true",
+		"load-balancer.hetzner.cloud/algorithm-type":                   "least_connections",
+		"load-balancer.hetzner.cloud/node-selector":                    "node.cluster.x-k8s.io/pool=kura",
+		"load-balancer.hetzner.cloud/health-check-protocol":            "http",
+		"load-balancer.hetzner.cloud/health-check-http-path":           "/ready",
+		"load-balancer.hetzner.cloud/http-status-codes":                "200",
+	}
+}
+
 func defaultPodAnnotations() map[string]string {
 	return map[string]string{
 		"kubernetes.io/ingress-bandwidth": "250M",
@@ -267,6 +345,26 @@ func defaultPodAnnotations() map[string]string {
 
 func defaultNodeSelector() map[string]string {
 	return map[string]string{"node.cluster.x-k8s.io/pool": "kura"}
+}
+
+func nodeSelector(instance *kurav1alpha1.KuraInstance) map[string]string {
+	if len(instance.Spec.NodeSelector) == 0 {
+		return defaultNodeSelector()
+	}
+	selector := make(map[string]string, len(instance.Spec.NodeSelector))
+	for key, value := range instance.Spec.NodeSelector {
+		selector[key] = value
+	}
+	return selector
+}
+
+func topologySpreadConstraints(instance *kurav1alpha1.KuraInstance) []corev1.TopologySpreadConstraint {
+	return []corev1.TopologySpreadConstraint{{
+		MaxSkew:           1,
+		TopologyKey:       "kubernetes.io/hostname",
+		WhenUnsatisfiable: corev1.DoNotSchedule,
+		LabelSelector:     &metav1.LabelSelector{MatchLabels: selectorLabels(instance)},
+	}}
 }
 
 func baseEnv(instance *kurav1alpha1.KuraInstance) []corev1.EnvVar {
@@ -326,7 +424,7 @@ func volumes(instance *kurav1alpha1.KuraInstance) []corev1.Volume {
 }
 
 func dataVolumeClaim(instance *kurav1alpha1.KuraInstance) corev1.PersistentVolumeClaim {
-	storage := resource.MustParse("20Gi")
+	storage := storageQuantity(instance)
 	pvc := corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{Name: "data", Labels: labels(instance)},
 		Spec: corev1.PersistentVolumeClaimSpec{
@@ -338,6 +436,15 @@ func dataVolumeClaim(instance *kurav1alpha1.KuraInstance) corev1.PersistentVolum
 		pvc.Spec.StorageClassName = &instance.Spec.StorageClassName
 	}
 	return pvc
+}
+
+func storageQuantity(instance *kurav1alpha1.KuraInstance) resource.Quantity {
+	if instance.Spec.StorageSize != "" {
+		if storage, err := resource.ParseQuantity(instance.Spec.StorageSize); err == nil {
+			return storage
+		}
+	}
+	return resource.MustParse("200Gi")
 }
 
 func httpProbe(path string, initialDelay, period int32) *corev1.Probe {
@@ -405,5 +512,6 @@ func (r *KuraInstanceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&corev1.Service{}).
 		Owns(&corev1.ConfigMap{}).
 		Owns(&networkingv1.Ingress{}).
+		Owns(&policyv1.PodDisruptionBudget{}).
 		Complete(r)
 }

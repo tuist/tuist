@@ -1,18 +1,19 @@
 defmodule TuistWeb.OpsAccountKuraDeploymentLive do
   @moduledoc """
   Detail view for a single Kura deployment attempt: status, error
-  message, and the live tail of `helm` / `rollout.sh` output streamed
-  from ClickHouse. Polls every two seconds while the attempt is in a
-  non-terminal state.
+  message, and a Grafana Explore link for backing Kubernetes logs.
   """
   use TuistWeb, :live_view
   use Noora
 
   alias Tuist.Accounts
   alias Tuist.Kura
+  alias Tuist.Kura.Deployment
+  alias Tuist.Kura.Server
 
   @poll_interval_ms 2_000
-  @batch_limit 1_000
+  @grafana_base_url "https://tuist.grafana.net/explore"
+  @grafana_logs_datasource "grafanacloud-tuist-logs"
 
   @impl true
   def mount(%{"id" => account_id, "deployment_id" => deployment_id}, _session, socket) do
@@ -37,19 +38,22 @@ defmodule TuistWeb.OpsAccountKuraDeploymentLive do
              |> assign(:head_title, "#{dgettext("dashboard", "Deployment")} · Tuist Ops")
              |> assign(:account, account)
              |> assign(:deployment, deployment)
-             |> assign(:log_line_count, 0)
-             |> assign(:last_sequence, -1)
-             |> stream(:log_lines, [], dom_id: &log_line_dom_id/1)
-             |> refresh()}
+             |> assign(:grafana_logs_url, grafana_logs_url(deployment))}
         end
     end
   end
 
   @impl true
   def handle_info(:poll, socket) do
-    socket = refresh(socket)
-    if connected?(socket), do: schedule_poll(socket.assigns.deployment)
-    {:noreply, socket}
+    deployment =
+      case Kura.get_deployment(socket.assigns.account.id, socket.assigns.deployment.id) do
+        {:ok, deployment} -> deployment
+        {:error, :not_found} -> socket.assigns.deployment
+      end
+
+    if connected?(socket), do: schedule_poll(deployment)
+
+    {:noreply, socket |> assign(:deployment, deployment) |> assign(:grafana_logs_url, grafana_logs_url(deployment))}
   end
 
   defp schedule_poll(%{status: status}) when status in [:pending, :running] do
@@ -57,34 +61,6 @@ defmodule TuistWeb.OpsAccountKuraDeploymentLive do
   end
 
   defp schedule_poll(_), do: :ok
-
-  defp refresh(socket) do
-    deployment =
-      case Kura.get_deployment(socket.assigns.account.id, socket.assigns.deployment.id) do
-        {:ok, deployment} -> deployment
-        {:error, :not_found} -> socket.assigns.deployment
-      end
-
-    new_lines =
-      Kura.list_log_lines(deployment.id,
-        limit: @batch_limit,
-        after_sequence: socket.assigns.last_sequence
-      )
-
-    last_sequence =
-      case List.last(new_lines) do
-        nil -> socket.assigns.last_sequence
-        %{sequence: seq} -> seq
-      end
-
-    socket
-    |> assign(:deployment, deployment)
-    |> assign(:log_line_count, socket.assigns.log_line_count + length(new_lines))
-    |> assign(:last_sequence, last_sequence)
-    |> stream(:log_lines, new_lines, dom_id: &log_line_dom_id/1)
-  end
-
-  defp log_line_dom_id(%{sequence: sequence}), do: "kura-log-line-#{sequence}"
 
   defp parse_id(id) when is_binary(id) do
     case Integer.parse(id) do
@@ -109,21 +85,23 @@ defmodule TuistWeb.OpsAccountKuraDeploymentLive do
   def format_time(nil), do: dgettext("dashboard", "None")
   def format_time(%DateTime{} = dt), do: Calendar.strftime(dt, "%Y-%m-%d %H:%M:%S UTC")
 
-  def empty_logs_message(status) when status in [:pending, :running],
-    do: dgettext("dashboard", "No log output yet. Polling every two seconds while the deployment is pending or running.")
+  defp grafana_logs_url(%Deployment{kura_server: %Server{provisioner_node_ref: ref}}) when is_binary(ref) do
+    query = ~s({namespace="kura", app_kubernetes_io_instance="#{ref}"})
 
-  def empty_logs_message(:succeeded),
-    do: dgettext("dashboard", "The deployment finished without producing any captured log output.")
+    left =
+      Jason.encode!(%{
+        "datasource" => @grafana_logs_datasource,
+        "queries" => [
+          %{
+            "refId" => "A",
+            "expr" => query
+          }
+        ],
+        "range" => %{"from" => "now-6h", "to" => "now"}
+      })
 
-  def empty_logs_message(:failed),
-    do:
-      dgettext(
-        "dashboard",
-        "The deployment failed before producing any captured log output. See the error message above for details."
-      )
+    @grafana_base_url <> "?" <> URI.encode_query(%{"orgId" => "1", "left" => left})
+  end
 
-  def empty_logs_message(:cancelled),
-    do: dgettext("dashboard", "The deployment was cancelled before producing any log output.")
-
-  def empty_logs_message(_), do: dgettext("dashboard", "No log output captured.")
+  defp grafana_logs_url(_deployment), do: @grafana_base_url
 end
