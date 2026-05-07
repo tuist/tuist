@@ -14,12 +14,6 @@ server:
 
   appUrl: https://canary.tuist.dev
 
-  github:
-    externalSecrets:
-      app:
-        fields:
-          privateKey: canary.pem
-
   autoscaling:
     enabled: false
 
