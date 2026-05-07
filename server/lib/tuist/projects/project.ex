@@ -10,6 +10,7 @@ defmodule Tuist.Projects.Project do
   alias Tuist.Accounts.User
   alias Tuist.AppBuilds.Preview
   alias Tuist.Projects.VCSConnection
+  alias Tuist.Vault.Binary
 
   @derive {
     Flop.Schema,
@@ -25,7 +26,7 @@ defmodule Tuist.Projects.Project do
     field :default_previews_visibility, Ecto.Enum, values: [private: 0, public: 1], default: :private
     field :slack_channel_id, :string
     field :slack_channel_name, :string
-    field :slack_webhook_url, Tuist.Vault.Binary
+    field :slack_webhook_url, Binary
     field :report_frequency, Ecto.Enum, values: [never: 0, daily: 1], default: :never
     field :report_days_of_week, {:array, :integer}, default: []
     field :report_schedule_time, :utc_datetime
@@ -36,7 +37,7 @@ defmodule Tuist.Projects.Project do
     field :flaky_test_alerts_enabled, :boolean, default: false
     field :flaky_test_alerts_slack_channel_id, :string
     field :flaky_test_alerts_slack_channel_name, :string
-    field :flaky_test_alerts_slack_webhook_url, Tuist.Vault.Binary
+    field :flaky_test_alerts_slack_webhook_url, Binary
     field :auto_mark_flaky_tests, :boolean, default: true
     field :auto_mark_flaky_threshold, :integer, default: 1
     field :flaky_cooldown_days, :integer, default: 14

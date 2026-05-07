@@ -29,8 +29,7 @@ defmodule TuistWeb.SlackOAuthHTML do
         <div class="message">
           <p>Channel connected successfully. This window will close automatically.</p>
         </div>
-        <div id="channel-data" data-channel-token={@channel_token} style="display: none;">
-        </div>
+        <div id="channel-data" data-channel-token={@channel_token} style="display: none;"></div>
         <script nonce={get_csp_nonce()}>
           const dataEl = document.getElementById("channel-data");
           const channelToken = dataEl.dataset.channelToken || null;

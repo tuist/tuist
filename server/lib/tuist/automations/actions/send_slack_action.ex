@@ -45,9 +45,7 @@ defmodule Tuist.Automations.Actions.SendSlackAction do
         Client.post_to_webhook(webhook_url, blocks)
 
       {:error, _reason} ->
-        Logger.warning(
-          "Automation #{automation.id} send_slack skipped: webhook URL failed to decrypt"
-        )
+        Logger.warning("Automation #{automation.id} send_slack skipped: webhook URL failed to decrypt")
 
         :ok
     end

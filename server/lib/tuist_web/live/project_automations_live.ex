@@ -203,11 +203,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
     {:noreply, assign(socket, create_automation_form_trigger_actions: actions)}
   end
 
-  def handle_event(
-        "trigger_action_channel_selected",
-        %{"id" => index, "channel_token" => channel_token},
-        socket
-      ) do
+  def handle_event("trigger_action_channel_selected", %{"id" => index, "channel_token" => channel_token}, socket) do
     case verify_and_encrypt(channel_token) do
       {:ok, %{channel_id: channel_id, channel_name: channel_name, encrypted_webhook_url: encrypted}} ->
         index = String.to_integer(index)
@@ -277,11 +273,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
     {:noreply, assign(socket, create_automation_form_recovery_actions: actions)}
   end
 
-  def handle_event(
-        "recovery_action_channel_selected",
-        %{"id" => index, "channel_token" => channel_token},
-        socket
-      ) do
+  def handle_event("recovery_action_channel_selected", %{"id" => index, "channel_token" => channel_token}, socket) do
     case verify_and_encrypt(channel_token) do
       {:ok, %{channel_id: channel_id, channel_name: channel_name, encrypted_webhook_url: encrypted}} ->
         index = String.to_integer(index)

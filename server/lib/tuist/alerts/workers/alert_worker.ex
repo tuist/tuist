@@ -66,8 +66,7 @@ defmodule Tuist.Alerts.Workers.AlertWorker do
          slack_channel_id: channel_id,
          project: %{account: %{slack_installation: %{access_token: token}}}
        })
-       when is_binary(channel_id) and is_binary(token),
-       do: true
+       when is_binary(channel_id) and is_binary(token), do: true
 
   defp slack_configured?(_), do: false
 end

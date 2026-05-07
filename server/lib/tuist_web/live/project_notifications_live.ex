@@ -500,11 +500,7 @@ defmodule TuistWeb.ProjectNotificationsLive do
     {:noreply, socket}
   end
 
-  def handle_event(
-        "edit_alert_form_channel_selected",
-        %{"id" => id, "channel_token" => channel_token},
-        socket
-      ) do
+  def handle_event("edit_alert_form_channel_selected", %{"id" => id, "channel_token" => channel_token}, socket) do
     case Slack.verify_channel_result(channel_token) do
       {:ok, %{channel_id: channel_id, channel_name: channel_name, webhook_url: webhook_url}} ->
         socket =
