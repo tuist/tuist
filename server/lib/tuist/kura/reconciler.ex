@@ -4,15 +4,13 @@ defmodule Tuist.Kura.Reconciler do
 
   Desired state lives in Postgres (`kura_servers` and `kura_deployments`)
   plus the deploy-provided Kura runtime image tag. Actual state lives in
-  `KuraInstance.status`, owned by the Go controller. This worker closes
+  `KuraInstance.status`, owned by the Go controller. This loop closes
   the gap periodically: it schedules image drift, applies pending
   deployments, mirrors observed readiness back into Postgres, and
   finalises destroys after the custom resource disappears.
 
-  Rollout and destroy workers are intentionally short-lived nudges so a
-  user action starts quickly. They do not wait for Kubernetes readiness.
-  If a BEAM dies mid-action, this loop observes the same rows on the next
-  tick and converges again.
+  User actions only mutate Postgres. If a BEAM dies mid-action, this
+  loop observes the same rows on the next tick and converges again.
   """
 
   use Oban.Worker, queue: :default, max_attempts: 1

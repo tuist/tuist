@@ -3,9 +3,9 @@ defmodule Tuist.Kura.Deployment do
   One deployment record for a `Server`.
 
   Created by `Tuist.Kura.create_server/1` (initial install) or
-  `create_deployment/2` (version bump), picked up by
-  `Tuist.Kura.Workers.RolloutWorker` via Oban. The worker dispatches
-  to the region's provisioner, which decides what "rollout" means.
+  `create_deployment/2` (version bump), then picked up by
+  `Tuist.Kura.Reconciler`. The reconciler dispatches to the region's
+  provisioner, which decides what "rollout" means.
 
   In product terms these rows track install and update attempts for a
   Kura server. The provisioner's rollout logic is how a deployment gets
@@ -44,7 +44,6 @@ defmodule Tuist.Kura.Deployment do
     field :image_tag, :string
     field :status, Ecto.Enum, values: @status_mappings, default: :pending
     field :error_message, :string
-    field :oban_job_id, :integer
     field :started_at, :utc_datetime
     field :finished_at, :utc_datetime
 
@@ -69,7 +68,7 @@ defmodule Tuist.Kura.Deployment do
 
   def status_changeset(deployment, attrs) do
     deployment
-    |> cast(attrs, [:status, :error_message, :oban_job_id, :started_at, :finished_at])
+    |> cast(attrs, [:status, :error_message, :started_at, :finished_at])
     |> validate_required([:status])
     |> validate_status_transition()
   end

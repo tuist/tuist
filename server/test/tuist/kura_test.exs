@@ -9,7 +9,6 @@ defmodule Tuist.KuraTest do
   alias Tuist.Kura.Deployment
   alias Tuist.Kura.Provisioner
   alias Tuist.Kura.Server
-  alias Tuist.Kura.Workers.RolloutWorker
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
@@ -36,7 +35,7 @@ defmodule Tuist.KuraTest do
   end
 
   describe "schedule_runtime_image_deployments/0" do
-    test "enqueues deployments for active servers behind the runtime image tag" do
+    test "creates deployments for active servers behind the runtime image tag" do
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
 
@@ -55,14 +54,9 @@ defmodule Tuist.KuraTest do
                Kura.schedule_runtime_image_deployments()
 
       assert deployment.kura_server_id == server.id
-
-      assert_enqueued(
-        worker: RolloutWorker,
-        args: %{"deployment_id" => deployment.id, "account_id" => account.id}
-      )
     end
 
-    test "does not enqueue deployments when the active server already runs the runtime image tag" do
+    test "does not create deployments when the active server already runs the runtime image tag" do
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
 
@@ -99,7 +93,7 @@ defmodule Tuist.KuraTest do
       assert {:ok, []} = Kura.schedule_runtime_image_deployments()
     end
 
-    test "does not enqueue deployments when no runtime image tag is configured" do
+    test "does not create deployments when no runtime image tag is configured" do
       stub(Tuist.Environment, :kura_runtime_image_tag, fn -> nil end)
 
       assert {:ok, []} = Kura.schedule_runtime_image_deployments()
@@ -123,18 +117,12 @@ defmodule Tuist.KuraTest do
       {:ok, account: account, server: server, user: user}
     end
 
-    test "inserts a deployment row and enqueues the rollout worker", %{server: server} do
+    test "inserts a deployment row for the reconciler", %{server: server} do
       assert {:ok, %Deployment{status: :pending} = deployment} =
                Kura.create_deployment(server, "sha-abcdef123456")
 
-      assert deployment.oban_job_id
       assert deployment.kura_server_id == server.id
       assert deployment.cluster_id == "local-controller"
-
-      assert_enqueued(
-        worker: RolloutWorker,
-        args: %{"deployment_id" => deployment.id}
-      )
     end
 
     test "rejects an invalid OCI image tag", %{server: server} do
@@ -184,7 +172,7 @@ defmodule Tuist.KuraTest do
       {:ok, account: account, user: user}
     end
 
-    test "inserts a server (provisioning) and an initial deployment + enqueues rollout", %{account: account} do
+    test "inserts a server (provisioning) and an initial deployment", %{account: account} do
       assert {:ok, server} =
                Kura.create_server(%{
                  account_id: account.id,
@@ -198,11 +186,6 @@ defmodule Tuist.KuraTest do
                server.deployments
 
       assert kura_server_id == server.id
-
-      assert_enqueued(
-        worker: RolloutWorker,
-        args: %{"deployment_id" => List.first(server.deployments).id}
-      )
     end
 
     test "rejects a region that is not available in the current environment", %{account: account} do
@@ -356,7 +339,7 @@ defmodule Tuist.KuraTest do
   end
 
   describe "destroy_server/1" do
-    test "marks destroying, removes the cache endpoint, enqueues the destroy worker" do
+    test "marks destroying and removes the cache endpoint" do
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
 
@@ -375,8 +358,6 @@ defmodule Tuist.KuraTest do
       assert {:ok, server} = Kura.destroy_server(server)
       assert server.status == :destroying
       assert Accounts.list_account_cache_endpoints(account, :kura) == []
-
-      assert_enqueued(worker: Tuist.Kura.Workers.DestroyServerWorker, args: %{"server_id" => server.id})
     end
 
     test "does not remove a default cache endpoint with the same URL" do

@@ -7,8 +7,8 @@ defmodule Tuist.Kura do
 
   This context is provisioner-agnostic. The backend resource-allocation
   decisions live behind `Tuist.Kura.Provisioner`; here we ask for an
-  opaque `provisioner_node_ref`, persist the server row, and kick off
-  the install or update attempt that will make the server active.
+  opaque `provisioner_node_ref`, persist the server row, and create a
+  deployment row for the reconciler to apply.
 
   Lifecycle transitions broadcast on `"kura:account:<account_id>"` over
   Phoenix.PubSub. When a server reaches `:active` its public URL is
@@ -27,8 +27,6 @@ defmodule Tuist.Kura do
   alias Tuist.Kura.Reconciler
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
-  alias Tuist.Kura.Workers.DestroyServerWorker
-  alias Tuist.Kura.Workers.RolloutWorker
   alias Tuist.Repo
 
   @pubsub Tuist.PubSub
@@ -67,7 +65,7 @@ defmodule Tuist.Kura do
   end
 
   @doc """
-  Enqueues deployments for active Kura servers that are behind the
+  Creates deployments for active Kura servers that are behind the
   Kura runtime image tag configured on the current Tuist server deploy.
 
   Each `(server, image_tag)` pair is scheduled at most once. A failed
@@ -128,8 +126,8 @@ defmodule Tuist.Kura do
 
   Internally this asks the region's provisioner for an opaque ref,
   inserts a `Server` (status: `:provisioning`) and an initial
-  `Deployment` row, and enqueues the worker that performs the first
-  install. Returns `{:ok, server}` (deployment history preloaded) or
+  `Deployment` row. The cron reconciler performs the first install.
+  Returns `{:ok, server}` (deployment history preloaded) or
   `{:error, reason}`.
 
   `attrs` keys: `:account_id`, `:region`, `:image_tag`.
@@ -142,7 +140,7 @@ defmodule Tuist.Kura do
          {:ok, ref} <- region.provisioner.provision(account, region, server_stub(attrs)),
          :ok <- validate_provisioner_node_ref(account, ref) do
       attrs = Map.put(attrs, :provisioner_node_ref, ref)
-      insert_server_and_enqueue(attrs, region)
+      insert_server(attrs, region)
     end
   end
 
@@ -176,12 +174,10 @@ defmodule Tuist.Kura do
     |> Ecto.Changeset.add_error(:account_handle, message)
   end
 
-  defp insert_server_and_enqueue(attrs, region) do
+  defp insert_server(attrs, region) do
     case Repo.transaction(fn ->
            with {:ok, server} <- attrs |> Server.create_changeset() |> Repo.insert(),
-                {:ok, deployment} <- insert_initial_deployment(server, region, attrs[:image_tag]),
-                {:ok, job} <- enqueue_rollout(deployment, server.account_id),
-                {:ok, _} <- stamp_job_id(deployment, job.id) do
+                {:ok, _deployment} <- insert_initial_deployment(server, region, attrs[:image_tag]) do
              Repo.preload(server, :deployments)
            else
              {:error, reason} -> Repo.rollback(reason)
@@ -350,19 +346,16 @@ defmodule Tuist.Kura do
   end
 
   @doc """
-  Schedules destruction. Marks the server `:destroying`, removes the
-  cache-endpoint mirror immediately so the CLI stops resolving the URL,
-  and enqueues the destroy worker.
+  Schedules destruction. Marks the server `:destroying` and removes the
+  cache-endpoint mirror immediately so the CLI stops resolving the URL.
+  The cron reconciler deletes the backing Kubernetes resource and marks
+  the row `:destroyed` once the resource disappears.
   """
   def destroy_server(%Server{} = server) do
     case Repo.transaction(fn ->
            with {:ok, server} <-
                   server |> Server.status_changeset(%{status: :destroying}) |> Repo.update(),
-                :ok <- remove_cache_endpoint(server),
-                {:ok, _} <-
-                  %{server_id: server.id, account_id: server.account_id}
-                  |> DestroyServerWorker.new()
-                  |> Oban.insert() do
+                :ok <- remove_cache_endpoint(server) do
              server
            else
              {:error, reason} -> Repo.rollback(reason)
@@ -377,7 +370,7 @@ defmodule Tuist.Kura do
     end
   end
 
-  @doc "Marks a server as `:destroyed` after the destroy worker finishes."
+  @doc "Marks a server as `:destroyed` after the reconciler observes teardown."
   def mark_destroyed(%Server{} = server) do
     {:ok, server} =
       server |> Server.status_changeset(%{status: :destroyed, url: nil}) |> Repo.update()
@@ -420,19 +413,10 @@ defmodule Tuist.Kura do
   ## Deployments
 
   @doc """
-  Inserts a `Deployment` deployment record and enqueues the rollout
-  worker.
+  Inserts a `Deployment` record for the reconciler to apply.
   """
   def create_deployment(%Server{} = server, image_tag) when is_binary(image_tag) do
-    Repo.transaction(fn ->
-      with {:ok, deployment} <- insert_deployment(server, image_tag),
-           {:ok, job} <- enqueue_rollout(deployment, server.account_id),
-           {:ok, deployment} <- stamp_job_id(deployment, job.id) do
-        deployment
-      else
-        {:error, reason} -> Repo.rollback(reason)
-      end
-    end)
+    insert_deployment(server, image_tag)
   end
 
   defp insert_deployment(%Server{} = server, image_tag) do
@@ -445,16 +429,6 @@ defmodule Tuist.Kura do
       |> Deployment.create_changeset()
       |> Repo.insert()
     end
-  end
-
-  defp enqueue_rollout(%Deployment{id: id}, account_id) do
-    %{deployment_id: id, account_id: account_id} |> RolloutWorker.new() |> Oban.insert()
-  end
-
-  defp stamp_job_id(deployment, job_id) do
-    deployment
-    |> Deployment.status_changeset(%{oban_job_id: job_id, status: :pending})
-    |> Repo.update()
   end
 
   @doc "Returns deployment records for the account, newest first."

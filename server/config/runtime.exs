@@ -416,7 +416,7 @@ otel_endpoint = Tuist.Environment.get([:otel, :exporter, :otlp, :endpoint])
 #     flags the server would race the processors on SKIP LOCKED, and
 #     on Linux the xcresult parse would crash because the macOS-only
 #     NIF isn't loaded.
-base_queues = [default: 10, kura_rollout: 5]
+base_queues = [default: 10]
 process_build_queue = {:process_build, Tuist.Environment.process_build_queue_concurrency()}
 process_xcresult_queue = {:process_xcresult, Tuist.Environment.process_xcresult_queue_concurrency()}
 

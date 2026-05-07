@@ -55,7 +55,6 @@ defmodule Tuist.Repo.Migrations.CreateKuraTables do
           null: false
 
       add :error_message, :text
-      add :oban_job_id, :bigint
       add :started_at, :timestamptz
       add :finished_at, :timestamptz
 

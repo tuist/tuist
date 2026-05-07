@@ -16,7 +16,7 @@ defmodule Tuist.Kura.Server do
 
   `provisioner_node_ref` is the opaque handle the provisioner returned
   from `provision/3`. The control plane stores it untouched and hands
-  it back to the provisioner for `rollout/3` and `destroy/1`. For the
+  it back to the provisioner for `rollout/2` and `destroy/1`. For the
   Kubernetes controller provisioner it's the KuraInstance name.
 
   Per-server install and update attempts live in `kura_deployments` via

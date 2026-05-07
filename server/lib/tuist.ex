@@ -51,8 +51,6 @@ defmodule Tuist do
       Kura.Provisioner,
       Kura.Provisioner.KubernetesController,
       Kura.Regions,
-      Kura.Workers.DestroyServerWorker,
-      Kura.Workers.RolloutWorker,
       Gradle,
       Gradle.Analytics,
       Gradle.Build,

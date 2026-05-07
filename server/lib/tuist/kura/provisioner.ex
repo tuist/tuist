@@ -3,11 +3,11 @@ defmodule Tuist.Kura.Provisioner do
   Behaviour the control plane uses to prepare backing resources, apply
   Kura to them, and destroy servers on a particular platform.
 
-  The control plane (Oban workers, /ops UI, the `Tuist.Kura` context)
-  speaks in regions and accounts. It does not know whether a given
-  region is backed by a Kubernetes custom resource, by a direct VM
-  provisioner, or by another platform. Each backing platform is a
-  module that implements this behaviour.
+  The control plane (`Tuist.Kura.Reconciler`, /ops UI, and the
+  `Tuist.Kura` context) speaks in regions and accounts. It does not
+  know whether a given region is backed by a Kubernetes custom resource,
+  by a direct VM provisioner, or by another platform. Each backing
+  platform is a module that implements this behaviour.
 
   Implementations return an opaque `provisioner_node_ref` from
   `provision/3`. The control plane stores it on the `Server` row

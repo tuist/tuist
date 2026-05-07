@@ -74,14 +74,12 @@ defmodule Tuist.Kura.DeploymentTest do
           image_tag: "0.5.2",
           kura_server_id: Ecto.UUID.generate(),
           status: :succeeded,
-          error_message: "already done",
-          oban_job_id: 123
+          error_message: "already done"
         })
 
       assert changeset.valid?
       refute Ecto.Changeset.get_change(changeset, :status)
       refute Ecto.Changeset.get_change(changeset, :error_message)
-      refute Ecto.Changeset.get_change(changeset, :oban_job_id)
     end
 
     test "database constrains status to known enum integers" do
@@ -168,7 +166,6 @@ defmodule Tuist.Kura.DeploymentTest do
         Deployment.status_changeset(%Deployment{status: :running}, %{
           status: :failed,
           error_message: "rollout failed",
-          oban_job_id: 123,
           started_at: started_at,
           finished_at: finished_at
         })
@@ -176,7 +173,6 @@ defmodule Tuist.Kura.DeploymentTest do
       assert changeset.valid?
       assert Ecto.Changeset.get_change(changeset, :status) == :failed
       assert Ecto.Changeset.get_change(changeset, :error_message) == "rollout failed"
-      assert Ecto.Changeset.get_change(changeset, :oban_job_id) == 123
     end
 
     test "casts status updates from string params" do
