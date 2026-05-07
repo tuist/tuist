@@ -5,7 +5,6 @@ defmodule TuistWeb.IntegrationsLive do
 
   alias Tuist.Authorization
   alias Tuist.Projects
-  alias Tuist.Slack
   alias Tuist.Utilities.DateFormatter
   alias Tuist.VCS
 
@@ -16,9 +15,8 @@ defmodule TuistWeb.IntegrationsLive do
             dgettext("dashboard_integrations", "You are not authorized to perform this action.")
     end
 
-    selected_account = Tuist.Repo.preload(selected_account, [:github_app_installation, :slack_installation, :projects])
+    selected_account = Tuist.Repo.preload(selected_account, [:github_app_installation, :projects])
     github_installation = selected_account.github_app_installation
-    slack_installation = selected_account.slack_installation
     vcs_connections = vcs_connections(selected_account)
 
     socket =
@@ -26,7 +24,6 @@ defmodule TuistWeb.IntegrationsLive do
       |> assign(selected_tab: "integrations")
       |> assign(selected_account: selected_account)
       |> assign(github_app_installation: github_installation)
-      |> assign(slack_installation: slack_installation)
       |> assign(vcs_connections: vcs_connections)
       |> assign(selected_project_id: nil)
       |> assign(selected_repository_full_handle: nil)
@@ -112,17 +109,6 @@ defmodule TuistWeb.IntegrationsLive do
     else
       _ -> {:noreply, socket}
     end
-  end
-
-  @impl true
-  def handle_event("disconnect-slack", _params, %{assigns: assigns} = socket) do
-    %{slack_installation: slack_installation} = assigns
-
-    if slack_installation do
-      {:ok, _} = Slack.delete_installation(slack_installation)
-    end
-
-    {:noreply, assign(socket, slack_installation: nil)}
   end
 
   defp get_available_projects(%{selected_account: selected_account, vcs_connections: vcs_connections}) do

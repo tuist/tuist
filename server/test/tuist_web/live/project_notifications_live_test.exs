@@ -138,10 +138,14 @@ defmodule TuistWeb.ProjectNotificationsLiveTest do
       # When: user selects CI environment, sets a channel, then creates the alert rule
       render_hook(lv, "update_create_alert_form_environment", %{"environment" => "ci"})
 
-      render_hook(lv, "create_alert_form_channel_selected", %{
-        "channel_id" => "C123456",
-        "channel_name" => "test-channel"
-      })
+      {:ok, channel_token} =
+        Tuist.Slack.sign_channel_result(%{
+          channel_id: "C123456",
+          channel_name: "test-channel",
+          webhook_url: "https://hooks.slack.com/services/T0/B0/abc"
+        })
+
+      render_hook(lv, "create_alert_form_channel_selected", %{"channel_token" => channel_token})
 
       render_hook(lv, "create_alert_rule", %{})
 
