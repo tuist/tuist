@@ -171,29 +171,32 @@ defmodule Tuist.Slack do
   @slack_webhook_prefix "https://hooks.slack.com/services/"
 
   @doc """
-  Signs a `{channel_id, channel_name, webhook_url}` tuple coming back from
-  the Slack OAuth callback so a LiveView can later verify the values came
-  from us (and weren't forged from the browser).
+  Encrypts a `{channel_id, channel_name, webhook_url}` tuple coming back
+  from the Slack OAuth callback so a LiveView can later verify the values
+  came from us. The token is `Phoenix.Token.encrypt/4`-encrypted (not just
+  signed) because the payload includes the webhook URL, which is a bearer
+  credential — a signed-only token would be readable by anyone with access
+  to the page that renders it.
 
   Returns `{:error, :invalid_webhook_url}` if the URL doesn't look like a
   real Slack webhook — a small belt-and-suspenders check on top of the
-  signature.
+  encryption.
   """
   def sign_channel_result(%{webhook_url: webhook_url} = payload) when is_binary(webhook_url) do
     if slack_webhook_url?(webhook_url) do
-      {:ok, Phoenix.Token.sign(TuistWeb.Endpoint, @channel_result_namespace, payload)}
+      {:ok, Phoenix.Token.encrypt(TuistWeb.Endpoint, @channel_result_namespace, payload)}
     else
       {:error, :invalid_webhook_url}
     end
   end
 
   @doc """
-  Verifies a token produced by `sign_channel_result/1`. Re-checks the
+  Decrypts a token produced by `sign_channel_result/1`. Re-checks the
   webhook URL against the Slack host allowlist after decoding so a stolen
   token can't smuggle a non-Slack URL through.
   """
   def verify_channel_result(token) when is_binary(token) do
-    case Phoenix.Token.verify(TuistWeb.Endpoint, @channel_result_namespace, token,
+    case Phoenix.Token.decrypt(TuistWeb.Endpoint, @channel_result_namespace, token,
            max_age: @channel_result_max_age_seconds
          ) do
       {:ok, %{webhook_url: webhook_url} = payload} ->
