@@ -244,6 +244,45 @@ author can act on it directly:
 
 ---
 
+## 10. Inline `style="..."` in HEEx templates
+
+Component styling lives in `server/assets/app/css/pages/*.css` (or
+`noora/lib/noora/**/*.css` for design-system primitives), keyed off
+`data-part` selectors that mirror the HEEx structure. Inline `style=`
+attributes on elements or component props bypass the design tokens
+(`var(--noora-spacing-*)`, `var(--noora-font-*)`, etc.) at review
+time, leak presentation into LiveView diffs, and prevent themers /
+density modes from overriding the value.
+
+### Flag (Severity: low)
+
+- A new `style="..."` attribute on an HTML element inside any
+  `server/lib/tuist_web/**/*.html.heex` or `*_live.html.heex`.
+- A `style=` prop passed to a Noora component (`<.button_group
+  style="...">`, `<.text_input style="...">`, etc.). These flow through
+  to the underlying element via `{@rest}`, so they're inline styles by
+  another name.
+
+When suggesting a fix:
+
+1. Add a stable `data-part` (or reuse one already on the element).
+2. Move the rule into the matching page CSS file
+   (`server/assets/app/css/pages/<page>.css`) or, if it belongs to a
+   reusable component, the Noora primitive's CSS.
+3. Prefer Noora design tokens (`--noora-spacing-*`, `--noora-radius-*`,
+   `--noora-font-*`, `--noora-surface-*`) over raw values.
+
+### Do not flag
+
+- `style=` attributes that already existed before the diff.
+- Generated SVG markup with inline styles (it's the artist tool's
+  output, not author-written).
+- One-off `style="display: none"` toggles whose visibility is driven
+  by a temporary Phoenix `:if` — those still belong in CSS, but the
+  signal-to-noise here is low.
+
+---
+
 ## Out of scope (handled elsewhere — do not flag)
 
 - Module / function naming, pipe-chain start, function ordering,
@@ -259,7 +298,7 @@ author can act on it directly:
 For each finding, confirm:
 
 1. The `path:line` is real and the snippet appears in the diff.
-2. The category above is one of 1–9; if it isn't, downgrade to a
+2. The category above is one of 1–10; if it isn't, downgrade to a
    question (`uncertain: ...`) rather than asserting a finding.
 3. The severity is set: **critical** (auth bypass / cross-tenant read or
    write), **high** (likely security or correctness bug), **medium**
