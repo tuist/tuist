@@ -23,6 +23,7 @@ defmodule TuistWeb.IntegrationsLive do
     # rows exist with credentials but `installation_id: nil` until then.
     github_installation =
       if pending_or_installed && pending_or_installed.installation_id, do: pending_or_installed
+
     vcs_connections = vcs_connections(selected_account)
     github_enterprise_available? = Entitlements.allows?(selected_account, :github_enterprise_server)
 
