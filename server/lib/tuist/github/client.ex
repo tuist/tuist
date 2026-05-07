@@ -334,14 +334,27 @@ defmodule Tuist.GitHub.Client do
 
   @doc """
   Generates a just-in-time runner configuration for an ephemeral
-  GitHub Actions self-hosted runner. The returned `encoded_jit_config`
-  is what the in-VM `./run.sh --jitconfig` consumes; runners
-  registered this way are single-shot and auto-cleaned by GitHub
-  after they exit.
+  GitHub Actions self-hosted runner registered at the org level.
+  The returned `encoded_jit_config` is what the in-VM
+  `./run.sh --jitconfig` consumes; runners registered this way
+  are single-shot and auto-cleaned by GitHub after they exit.
 
-  See: https://docs.github.com/en/rest/actions/self-hosted-runners#create-configuration-for-a-just-in-time-runner-for-a-repository
+  Org-scoped (vs. repo-scoped) intentionally — the repo-scoped
+  endpoint requires the GH App to hold `administration: write`
+  on the repo, which grants access to settings, secrets,
+  collaborators, and many other unrelated capabilities. The
+  org-scoped endpoint requires only
+  `organization_self_hosted_runners: write`, a targeted scope
+  that does only what the name implies.
+
+  Runners registered at the org level are usable by any repo in
+  the org subject to the runner-group's repo allowlist. The
+  default group ID is 1; pass a different `:runner_group_id` in
+  `attrs` to register the runner into a restricted group.
+
+  See: https://docs.github.com/en/rest/actions/self-hosted-runners#create-configuration-for-a-just-in-time-runner-for-an-organization
   """
-  def generate_jit_config(installation_id, owner, repo, attrs) do
+  def generate_jit_config(installation_id, org, attrs) do
     case App.get_installation_token(installation_id) do
       {:ok, %{token: token}} ->
         body = %{
@@ -353,7 +366,7 @@ defmodule Tuist.GitHub.Client do
 
         req_opts =
           [
-            url: "https://api.github.com/repos/#{owner}/#{repo}/actions/runners/generate-jitconfig",
+            url: "https://api.github.com/orgs/#{org}/actions/runners/generate-jitconfig",
             json: body,
             headers: default_headers(token),
             finch: Tuist.Finch

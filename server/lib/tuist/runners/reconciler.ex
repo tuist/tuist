@@ -120,7 +120,7 @@ defmodule Tuist.Runners.Reconciler do
 
     with {:ok, installation_id} <- GitHubApp.get_installation_id_for_repo(pool.owner, pool.repo),
          {:ok, %{encoded_jit_config: jit, runner_name: runner_name}} <-
-           GitHubClient.generate_jit_config(installation_id, pool.owner, pool.repo, %{
+           GitHubClient.generate_jit_config(installation_id, pool.owner, %{
              name: runner_jit_name(pool, pod_name),
              labels: pool.labels
            }),
