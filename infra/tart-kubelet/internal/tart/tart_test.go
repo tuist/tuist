@@ -1,10 +1,12 @@
 package tart
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestStageEnvFile(t *testing.T) {
@@ -69,5 +71,87 @@ func TestShellEscape(t *testing.T) {
 func TestEscapeEnvValue(t *testing.T) {
 	if got := escapeEnvValue("a\nb\rc"); got != `a\nb\rc` {
 		t.Fatalf("got %q", got)
+	}
+}
+
+// TestRunHandleExitedAfterSanityWindow simulates the case the
+// reviewer flagged: `tart run` returns from the 5s sanity window,
+// then the underlying process exits later. The handle must report
+// that exit so the reconciler can transition the Pod to Failed
+// instead of stranding helm on an indefinite IP poll.
+func TestRunHandleExitedAfterSanityWindow(t *testing.T) {
+	dir := t.TempDir()
+	// Substitute a tiny shell script for the `tart` binary that
+	// exits ~0.5s after launch — long enough to pass Run's 5s
+	// sanity check would be nicer, but we don't want to slow tests
+	// to multi-seconds. Use a 100ms exit, then assert handle
+	// eventually reports Exited.
+	binPath := filepath.Join(dir, "fake-tart")
+	if err := os.WriteFile(binPath, []byte("#!/bin/sh\nsleep 0.1\nexit 7\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	c := &Client{
+		Binary:      binPath,
+		UserDataDir: filepath.Join(dir, "userdata"),
+		LogDir:      filepath.Join(dir, "logs"),
+	}
+
+	// Patch the sanity-check window so the test doesn't sleep 5s.
+	// We can't override the const without touching production code,
+	// so we rely on the script exiting WITHIN the 5s window — which
+	// means Run will surface it as an immediate-exit error rather
+	// than returning a handle. To exercise the post-window exit
+	// path we'd need DI on the timeout; for now lock in the
+	// immediate-exit contract, which is the lower bound of the
+	// behaviour the reviewer asked us to preserve.
+	handle, err := c.Run(context.Background(), "test-vm", nil)
+	if err == nil {
+		t.Fatalf("expected immediate-exit error, got handle=%v", handle)
+	}
+	if !strings.Contains(err.Error(), "exited immediately") {
+		t.Fatalf("expected immediate-exit error, got %q", err)
+	}
+}
+
+// TestRunHandleExitedTracksProcess covers the post-sanity-window
+// path: Run returns a handle, and a later cmd.Wait result is
+// observable through handle.Exited().
+func TestRunHandleExitedTracksProcess(t *testing.T) {
+	dir := t.TempDir()
+	// `sleep 6` outlives the 5s sanity window — Run will return a
+	// handle. The script then exits with code 0, which the
+	// launcher goroutine must surface through handle.Exited().
+	binPath := filepath.Join(dir, "fake-tart")
+	if err := os.WriteFile(binPath, []byte("#!/bin/sh\nsleep 6\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	c := &Client{
+		Binary:      binPath,
+		UserDataDir: filepath.Join(dir, "userdata"),
+		LogDir:      filepath.Join(dir, "logs"),
+	}
+
+	handle, err := c.Run(context.Background(), "test-vm", nil)
+	if err != nil {
+		t.Fatalf("unexpected immediate-exit: %v", err)
+	}
+	if handle == nil {
+		t.Fatal("expected non-nil handle")
+	}
+	if _, exited := handle.Exited(); exited {
+		t.Fatal("handle reported exited inside sanity window")
+	}
+
+	// Wait for the script's `sleep 6` plus a small margin, then
+	// confirm the handle has flipped.
+	select {
+	case <-handle.Done():
+	case <-time.After(10 * time.Second):
+		t.Fatal("handle.Done() never closed")
+	}
+	if _, exited := handle.Exited(); !exited {
+		t.Fatal("handle did not report exited after process death")
 	}
 }

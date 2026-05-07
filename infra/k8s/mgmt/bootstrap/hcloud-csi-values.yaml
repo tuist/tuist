@@ -3,8 +3,9 @@
 # (Tigris is the object store; Postgres is on Supabase). Future-proofs
 # the cluster so a new workload that wants a PVC just gets one.
 #
-# Expects the `hetzner` Secret in kube-system with key `hcloud`
-# (same Secret HCCM uses).
+# HCLOUD_TOKEN comes from the chart's default secretKeyRef
+# (kube-system/hcloud, key `token`), which caph provisions when it
+# brings the workload cluster up — same Secret HCCM reads.
 
 # Default StorageClass uses Hetzner volumes (block storage in fsn1).
 storageClasses:
