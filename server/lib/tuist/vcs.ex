@@ -692,10 +692,16 @@ defmodule Tuist.VCS do
   end
 
   defp get_flaky_tests_body(%{test_runs: test_runs, project: project}) do
+    # Batched lookup: one round-trip against `test_case_runs_by_test_run` for
+    # every test run on the PR instead of N. This is the dominant query in the
+    # post-CI burst when several schemes report at once.
+    flaky_runs_by_test_run_id =
+      test_runs |> Enum.map(& &1.id) |> Tests.get_flaky_runs_for_test_runs()
+
     flaky_tests_by_run =
       test_runs
       |> Enum.map(fn test_run ->
-        flaky_tests = Tests.get_flaky_runs_for_test_run(test_run.id)
+        flaky_tests = Map.get(flaky_runs_by_test_run_id, test_run.id, [])
         {test_run, flaky_tests}
       end)
       |> Enum.filter(fn {_test_run, flaky_tests} -> Enum.any?(flaky_tests) end)

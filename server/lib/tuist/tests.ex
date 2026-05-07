@@ -2431,21 +2431,46 @@ defmodule Tuist.Tests do
   Returns a list of groups, each containing runs with their failures.
   """
   def get_flaky_runs_for_test_run(test_run_id) do
-    current_flaky_runs = fetch_flaky_runs_for_test_run(test_run_id)
+    [test_run_id]
+    |> get_flaky_runs_for_test_runs()
+    |> Map.get(test_run_id, [])
+  end
 
-    cross_run_counterparts =
-      get_cross_run_flaky_runs(test_run_id, current_flaky_runs)
+  @doc """
+  Batched form of `get_flaky_runs_for_test_run/1`. Returns a map keyed by
+  `test_run_id`. The CommentWorker fan-out path resolves N test runs per PR
+  comment; using this avoids N round-trips against `test_case_runs_by_test_run`
+  during the post-CI burst.
+  """
+  def get_flaky_runs_for_test_runs([]), do: %{}
 
-    flaky_runs = current_flaky_runs ++ cross_run_counterparts
+  def get_flaky_runs_for_test_runs(test_run_ids) when is_list(test_run_ids) do
+    current_by_test_run = fetch_flaky_runs_for_test_runs(test_run_ids)
 
-    run_ids = Enum.map(flaky_runs, & &1.id)
+    flaky_runs_by_test_run =
+      Map.new(test_run_ids, fn test_run_id ->
+        current = Map.get(current_by_test_run, test_run_id, [])
+        cross = get_cross_run_flaky_runs(test_run_id, current)
+        {test_run_id, current ++ cross}
+      end)
 
-    failures = get_failures_for_runs(run_ids)
-    failures_by_run_id = Enum.group_by(failures, & &1.test_case_run_id)
+    all_run_ids =
+      flaky_runs_by_test_run
+      |> Map.values()
+      |> Enum.flat_map(fn runs -> Enum.map(runs, & &1.id) end)
 
-    repetitions = get_repetitions_for_runs(run_ids)
-    repetitions_by_run_id = Enum.group_by(repetitions, & &1.test_case_run_id)
+    failures_by_run_id =
+      all_run_ids |> get_failures_for_runs() |> Enum.group_by(& &1.test_case_run_id)
 
+    repetitions_by_run_id =
+      all_run_ids |> get_repetitions_for_runs() |> Enum.group_by(& &1.test_case_run_id)
+
+    Map.new(flaky_runs_by_test_run, fn {test_run_id, flaky_runs} ->
+      {test_run_id, group_flaky_runs(flaky_runs, failures_by_run_id, repetitions_by_run_id)}
+    end)
+  end
+
+  defp group_flaky_runs(flaky_runs, failures_by_run_id, repetitions_by_run_id) do
     flaky_runs
     |> Enum.group_by(fn run -> {run.test_case_id, run.name, run.module_name, run.suite_name} end)
     |> Enum.map(fn {{test_case_id, name, module_name, suite_name}, runs} ->
@@ -2485,25 +2510,37 @@ defmodule Tuist.Tests do
   # range). Aggregating with `argMax(...inserted_at)` deduplicates only the
   # rows that already pass the `test_run_id` primary-key filter, then
   # `HAVING` checks the *latest* version of `is_flaky` for each test case.
-  defp fetch_flaky_runs_for_test_run(test_run_id) do
+  # Returns a map keyed by `test_run_id` so callers can preserve per-run
+  # grouping after the batched query.
+  defp fetch_flaky_runs_for_test_runs(test_run_ids) do
     slim_query =
       from(mv in TestCaseRunByTestRun,
-        where: mv.test_run_id == ^test_run_id,
-        group_by: mv.id,
+        where: mv.test_run_id in ^test_run_ids,
+        group_by: [mv.test_run_id, mv.id],
         having: fragment("argMax(?, ?) = ?", mv.is_flaky, mv.inserted_at, true),
-        order_by: [desc: fragment("argMax(?, ?)", mv.ran_at, mv.inserted_at)],
         select: %{
           id: mv.id,
+          test_run_id: mv.test_run_id,
           project_id: fragment("argMax(?, ?)", mv.project_id, mv.inserted_at),
-          test_case_id: fragment("argMax(?, ?)", mv.test_case_id, mv.inserted_at)
+          test_case_id: fragment("argMax(?, ?)", mv.test_case_id, mv.inserted_at),
+          ran_at: fragment("argMax(?, ?)", mv.ran_at, mv.inserted_at)
         }
       )
 
     slim_results = ClickHouseRepo.all(slim_query)
-    ids = Enum.map(slim_results, & &1.id)
-    full_results = fetch_full_test_case_runs(slim_results)
-    ordered_by_id = Map.new(full_results, &{&1.id, &1})
-    ids |> Enum.map(&Map.get(ordered_by_id, &1)) |> Enum.reject(&is_nil/1)
+    full_by_id = slim_results |> fetch_full_test_case_runs() |> Map.new(&{&1.id, &1})
+
+    slim_results
+    |> Enum.group_by(& &1.test_run_id)
+    |> Map.new(fn {test_run_id, slim_rows} ->
+      ordered =
+        slim_rows
+        |> Enum.sort_by(& &1.ran_at, {:desc, NaiveDateTime})
+        |> Enum.map(&Map.get(full_by_id, &1.id))
+        |> Enum.reject(&is_nil/1)
+
+      {test_run_id, ordered}
+    end)
   end
 
   defp get_cross_run_flaky_runs(_test_run_id, []), do: []
