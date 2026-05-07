@@ -15,14 +15,15 @@ Sensitive authentication data (passwords, tokens) are excluded from exports.
 
 ### Account & User Data
 - User profiles (email, active/inactive status, account settings, preferred locale)
-- Organization memberships and roles
+- Organization records (account handle/name, creator relationship, and timestamps)
+- Organization memberships and roles (user, organization, role, and timestamps)
 - Account billing information and subscriptions
 - API tokens, SCIM-scoped account tokens, and project tokens (existence, scopes, names, timestamps, and last-used metadata only; token values and hashes are excluded)
 - Custom cache endpoint configurations
 - Organization SSO configuration metadata, including the configured SSO provider, provider URL, and full OAuth2 endpoint URLs
 
 ### Projects & Development
-- Project information (names, settings, repositories)
+- Project information (account relationship, handle/name, build system, default branch, visibility/settings, repositories, and timestamps)
 - Command events (CLI usage, build data, performance metrics)
 - Cache events and cache action items
 - Test cases and test execution results
@@ -36,6 +37,11 @@ Sensitive authentication data (passwords, tokens) are excluded from exports.
 ### Alerts & Monitoring
 - Alert rules (name, category, metric, deviation thresholds, Slack channel configuration, baseline established timestamp)
 - Alert history (triggered alerts with current/previous values, timestamps)
+
+### Slack Integration
+- Account-level Slack installation records (workspace id/name, bot user id; bot access tokens are excluded as authentication secrets)
+- Per-channel Slack webhook destinations stored on projects, alert rules, and project flaky-test settings (channel id, channel name; the encrypted webhook URL itself is excluded as an authentication secret)
+- Per-action Slack webhook destinations stored on automation alerts (channel id, channel name; the encrypted webhook URL embedded in the action payload is excluded as an authentication secret)
 
 ### Analytics Data (ClickHouse)
 The following data is stored in ClickHouse for analytics purposes:
@@ -62,6 +68,7 @@ The following data is stored in ClickHouse for analytics purposes:
 - Encrypted passwords and authentication secrets
 - Account, SCIM-scoped account, and project token values and encrypted token hashes
 - Encrypted SSO client secrets for Okta and custom OAuth2 providers
+- Slack bot access tokens and incoming-webhook URLs (treated as bearer credentials)
 
 ## Binary Files
 

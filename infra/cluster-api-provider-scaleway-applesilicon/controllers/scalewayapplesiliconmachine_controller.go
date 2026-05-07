@@ -18,6 +18,7 @@ import (
 	"sigs.k8s.io/cluster-api/util/patch"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -91,6 +92,15 @@ type ScalewayAppleSiliconMachineReconciler struct {
 	// terminal-failure surface for ops. Defaulted to 5 attempts in
 	// the manager binary; chart can override per env if needed.
 	TartKubeletMaxUpdateAttempts int32
+
+	// MaxConcurrentReconciles is how many machines this controller
+	// reconciles in parallel. controller-runtime's default of 1
+	// serializes first-time fleet bring-up: each Mac mini's
+	// CreateServer + SSH bootstrap blocks the worker for ~50 min, so
+	// N machines take N × that wall-clock. Reconciles for the same
+	// machine are still serialized by controller-runtime's per-key
+	// locking — bumping this only parallelizes across distinct CRs.
+	MaxConcurrentReconciles int
 }
 
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=scalewayapplesiliconmachines,verbs=get;list;watch;create;update;patch;delete
@@ -536,8 +546,13 @@ func machineIP(m *infrav1.ScalewayAppleSiliconMachine) string {
 }
 
 func (r *ScalewayAppleSiliconMachineReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	concurrency := r.MaxConcurrentReconciles
+	if concurrency <= 0 {
+		concurrency = 1
+	}
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&infrav1.ScalewayAppleSiliconMachine{}).
+		WithOptions(controller.Options{MaxConcurrentReconciles: concurrency}).
 		Complete(r)
 }
 

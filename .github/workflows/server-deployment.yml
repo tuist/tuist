@@ -323,6 +323,23 @@ jobs:
         # fired, bounding the recovery window.
         timeout-minutes: 95
         run: |
+          # Stream cluster state every 30s while helm waits. helm
+          # --atomic --wait produces no stdout during the wait, so
+          # without this the action log shows nothing for up to 90 min.
+          # The watcher dies via trap when helm exits (either way).
+          (
+            while true; do
+              sleep 30
+              echo "::group::cluster snapshot $(date -u +%H:%M:%SZ)"
+              kubectl -n "$NAMESPACE" get pods -o wide 2>&1 | tail -40 || true
+              echo "--- recent events ---"
+              kubectl -n "$NAMESPACE" get events --sort-by=.lastTimestamp 2>&1 | tail -20 || true
+              echo "::endgroup::"
+            done
+          ) &
+          watcher_pid=$!
+          trap 'kill "$watcher_pid" 2>/dev/null || true; wait "$watcher_pid" 2>/dev/null || true' EXIT
+
           helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
             --namespace "$NAMESPACE" --create-namespace \
             -f "$HELM_CHART_PATH/values-managed-common.yaml" \

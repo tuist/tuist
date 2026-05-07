@@ -37,3 +37,10 @@ To run tests selectively with your <.localized_link href="/guides/features/proje
 
 Once your Tuist project is connected with your Git platform such as [GitHub](https://github.com), and you start using `tuist test` as part of your CI workflow, Tuist will post a comment directly in your pull/merge requests, including which tests were run and which skipped:
 ![GitHub app comment with a Tuist Preview link](/images/guides/features/selective-testing/github-app-comment.png)
+
+
+## Investigating misses on the dashboard {#investigating-misses-on-the-dashboard}
+
+When a previously cached test target shows up as a miss, the **Selective Testing** tab on a test run page lets you drill into the inputs that produced the hash. Expanding a row reveals the per-component subhashes — sources, dependencies, environment variables, project and target settings, Info.plist, entitlements, headers, and so on — so you can pinpoint the input that drifted between runs.
+
+Use the **Copy as JSON** button at the top of the Selective Testing card to export every selective testing target with its hash and subhashes. Comparing the JSON between two runs is the fastest way to confirm which input changed when the test target's hash drifted.

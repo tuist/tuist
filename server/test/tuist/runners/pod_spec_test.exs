@@ -106,6 +106,13 @@ defmodule Tuist.Runners.PodSpecTest do
       refute PodSpec.alive?(%{"status" => %{"phase" => "Failed"}})
       refute PodSpec.alive?(%{})
     end
+
+    test "Pods with deletionTimestamp set are not alive even if phase is Running" do
+      refute PodSpec.alive?(%{
+               "metadata" => %{"deletionTimestamp" => "2026-05-07T10:00:00Z"},
+               "status" => %{"phase" => "Running"}
+             })
+    end
   end
 
   describe "generate_name/0" do

@@ -93,14 +93,14 @@ xcodebuild build -project YourProject.xcodeproj -scheme YourScheme \
 
 ### Cache upload policy {#cache-upload-policy}
 
-By default, the cache service both downloads and uploads artifacts to the remote cache. You can control this with the `cache` option in your `Tuist.swift` file to enable read-only mode, where artifacts are downloaded but never uploaded:
+By default, the cache service both downloads and uploads artifacts to the remote cache. You can control this with the `xcodeCache` option in your `Tuist.swift` file to enable read-only mode, where artifacts are downloaded but never uploaded:
 
 ```swift
 import ProjectDescription
 
 let tuist = Tuist(
     fullHandle: "your-org/your-project",
-    cache: .cache(
+    xcodeCache: .xcodeCache(
         upload: false
     ),
     project: .tuist(
@@ -118,7 +118,7 @@ import ProjectDescription
 
 let tuist = Tuist(
     fullHandle: "your-org/your-project",
-    cache: .cache(
+    xcodeCache: .xcodeCache(
         upload: Environment.isCI
     ),
     project: .tuist(
@@ -217,4 +217,4 @@ A build log that mixes successful `uploaded CAS output` notes with `deadlineExce
 
 ### `uploaded CAS output` appears locally even though uploads are disabled {#uploaded-cas-output-with-upload-disabled}
 
-When `cache: .cache(upload: false)` (or `upload: Environment.isCI` on a non-CI machine) is set, you may still see `note: uploaded CAS output ...` in the build log. `xcodebuild` has no way to skip those calls, so the socket still receives them; the daemon short-circuits the request internally and does not send anything to the Tuist server. The dashboard metrics account for this, so no spurious upload traffic is reported.
+When `xcodeCache: .xcodeCache(upload: false)` (or `upload: Environment.isCI` on a non-CI machine) is set, you may still see `note: uploaded CAS output ...` in the build log. `xcodebuild` has no way to skip those calls, so the socket still receives them; the daemon short-circuits the request internally and does not send anything to the Tuist server. The dashboard metrics account for this, so no spurious upload traffic is reported.

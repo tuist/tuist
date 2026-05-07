@@ -11,7 +11,7 @@ import TuistTesting
 
 struct XCResultControllerTests {
     private var subject: XCResultToolController!
-    private let system = MockSystem()
+    private let commandRunner = MockCommandRunner()
 
     init() throws {
         let mockXcodeController = try #require(XcodeController.mocked)
@@ -19,14 +19,14 @@ struct XCResultControllerTests {
             .selectedVersion()
             .willReturn(Version(16, 0, 0))
 
-        subject = XCResultToolController(system: system)
+        subject = XCResultToolController(commandRunner: commandRunner)
     }
 
     @Test(.withMockedXcodeController, .inTemporaryDirectory) func test_resultBundleObject() async throws {
         // Given
         let resultBundlePath = try #require(FileSystem.temporaryTestDirectory)
 
-        system.succeedCommand(
+        commandRunner.succeedCommand(
             [
                 "/usr/bin/xcrun", "xcresulttool", "get",
                 "--path", resultBundlePath.pathString,
@@ -53,7 +53,7 @@ struct XCResultControllerTests {
             .willReturn(Version(15, 3, 0))
         let resultBundlePath = try #require(FileSystem.temporaryTestDirectory)
 
-        system.succeedCommand(
+        commandRunner.succeedCommand(
             [
                 "/usr/bin/xcrun", "xcresulttool", "get",
                 "--path", resultBundlePath.pathString,
@@ -73,7 +73,7 @@ struct XCResultControllerTests {
         // Given
         let resultBundlePath = try #require(FileSystem.temporaryTestDirectory)
 
-        system.succeedCommand(
+        commandRunner.succeedCommand(
             [
                 "/usr/bin/xcrun", "xcresulttool", "get",
                 "--path", resultBundlePath.pathString,
@@ -104,7 +104,7 @@ struct XCResultControllerTests {
             .willReturn(Version(15, 3, 0))
         let resultBundlePath = try #require(FileSystem.temporaryTestDirectory)
 
-        system.succeedCommand(
+        commandRunner.succeedCommand(
             [
                 "/usr/bin/xcrun", "xcresulttool", "get",
                 "--path", resultBundlePath.pathString,

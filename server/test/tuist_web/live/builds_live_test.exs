@@ -8,6 +8,11 @@ defmodule TuistWeb.BuildsLiveTest do
 
   alias TuistTestSupport.Fixtures.RunsFixtures
 
+  # render_async/2 is LiveViewTest's first-party hook for waiting on async assigns.
+  # The builds widgets still cross analytics-backed async work that can be slower on CI,
+  # so keep an explicit timeout until we have a deterministic non-time-based drain.
+  @render_async_timeout 1_000
+
   test "renders empty view when no builds are available", %{
     conn: conn,
     organization: organization,
@@ -37,7 +42,7 @@ defmodule TuistWeb.BuildsLiveTest do
 
     # When
     {:ok, lv, _html} = live(conn, ~p"/#{project.account.name}/#{project.name}/builds")
-    render_async(lv)
+    render_async(lv, @render_async_timeout)
 
     # Then
     assert has_element?(lv, "span", "AppOne")
@@ -64,7 +69,7 @@ defmodule TuistWeb.BuildsLiveTest do
         ~p"/#{project.account.name}/#{project.name}/builds?analytics-selected-widget=build-duration"
       )
 
-    render_async(lv)
+    render_async(lv, @render_async_timeout)
 
     # Then
     assert has_element?(lv, ".tuist-chart-type-toggle")
@@ -96,7 +101,7 @@ defmodule TuistWeb.BuildsLiveTest do
 
     # When
     {:ok, lv, _html} = live(conn, ~p"/#{project.account.name}/#{project.name}/builds")
-    render_async(lv)
+    render_async(lv, @render_async_timeout)
 
     # Then
     assert has_element?(lv, "#widget-build-success-rate")
@@ -109,7 +114,7 @@ defmodule TuistWeb.BuildsLiveTest do
     project: project
   } do
     {:ok, lv, _html} = live(conn, ~p"/#{project.account.name}/#{project.name}/builds")
-    render_async(lv)
+    render_async(lv, @render_async_timeout)
 
     assert has_element?(lv, "#builds-analytics-scheme-dropdown [data-part='search-input']")
   end

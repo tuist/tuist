@@ -202,10 +202,19 @@ defmodule Tuist.Runners.PodSpec do
 
   @doc """
   Pool inventory check — is the cluster's view of a Pod still
-  alive (Pending or Running)? Pods that have transitioned to
-  Succeeded/Failed shouldn't count as warm capacity; the
-  reconciler creates replacements for them on the next tick.
+  alive (Pending or Running) AND not in mid-deletion? Pods that
+  have transitioned to Succeeded/Failed shouldn't count as warm
+  capacity; the reconciler creates replacements for them on the
+  next tick. Pods with `deletionTimestamp` set are also out —
+  they're on their way out, even if the phase is still Running
+  (it stays Running until tart-kubelet's VM teardown finalizer
+  resolves, which can take indefinitely on a wedged host).
+  Without the deletion check, a stuck-Terminating Pod blocks
+  the reconciler from spawning a replacement.
   """
+  def alive?(%{"metadata" => %{"deletionTimestamp" => ts}}) when is_binary(ts) and ts != "", do: false
+
   def alive?(%{"status" => %{"phase" => phase}}) when phase in ["Pending", "Running"], do: true
+
   def alive?(_), do: false
 end

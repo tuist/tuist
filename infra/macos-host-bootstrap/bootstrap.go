@@ -141,6 +141,9 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 	if err := enableAutoLogin(ctx, client, cfg.SSHUser, cfg.UserPassword); err != nil {
 		return hk.observed(), fmt.Errorf("auto-login: %w", err)
 	}
+	if err := disableIdleSleep(ctx, client); err != nil {
+		return hk.observed(), fmt.Errorf("disable idle sleep: %w", err)
+	}
 	if cfg.NodeName != "" {
 		if err := setHostname(ctx, client, cfg.NodeName); err != nil {
 			return hk.observed(), fmt.Errorf("set hostname: %w", err)
@@ -499,6 +502,49 @@ for i in $(seq 1 30); do
   sleep 1
 done
 `, user, encoded)
+	return runCommand(ctx, client, script)
+}
+
+// disableIdleSleep stops macOS from tearing the user's Aqua session
+// down out from under tart-kubelet. Apple's Virtualization framework
+// needs the auto-login user to hold a live console session at the
+// moment of `tart run`; if the host idle-sleeps, the screensaver
+// triggers an auto-logout, or display-sleep flushes WindowServer,
+// the session goes away and every subsequent VM start fails with
+// `VZErrorDomain Code=-9 / Failed to create new HostKey` until
+// something kicks loginwindow again. tart-kubelet has a runtime
+// preflight that re-establishes the session on demand, but
+// preventing the teardown in the first place avoids the sub-30s
+// reanimation latency on every cold-start Pod and keeps the kubelet
+// from spamming sudo against loginwindow under load.
+//
+// Settings applied:
+//   - `pmset -a sleep 0 displaysleep 0 disksleep 0`: disable host
+//     idle sleep + display blank-out + disk spindown. These are
+//     `-a` (all power sources) because Mac mini servers are AC-only
+//     but we don't trust the default profile selection.
+//   - `com.apple.screensaver idleTime 0`: disable the screensaver.
+//     Without this, even with `displaysleep 0`, the screensaver
+//     timer fires and (depending on host policy) can trigger
+//     auto-logout.
+//   - `com.apple.screensaver askForPassword 0`: don't lock the
+//     screen. Locking destroys the GUI/Aqua session in the same way
+//     a logout does on Tahoe.
+//   - `com.apple.autologout.AutoLogOutDelay 0`: disable auto-logout
+//     after inactivity. This is the policy Apple uses for managed
+//     fleets; off-by-default on consumer Macs but Scaleway-baked
+//     macOS images sometimes ship with it on.
+//
+// Idempotent: every call writes the same values regardless of prior
+// state. Failures here are fatal because there's no point shipping
+// a host that will silently fall over an hour after bootstrap.
+func disableIdleSleep(ctx context.Context, client *ssh.Client) error {
+	script := `set -euo pipefail
+sudo pmset -a sleep 0 displaysleep 0 disksleep 0
+sudo defaults write /Library/Preferences/com.apple.screensaver idleTime -int 0
+sudo defaults write /Library/Preferences/com.apple.screensaver askForPassword -int 0
+sudo defaults write /Library/Preferences/.GlobalPreferences com.apple.autologout.AutoLogOutDelay -int 0
+`
 	return runCommand(ctx, client, script)
 }
 

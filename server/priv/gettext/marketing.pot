@@ -468,7 +468,7 @@ msgstr ""
 msgid "Great! The email %{email} has been confirmed and subscribed to Tuist Digest."
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:86
+#: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:82
 #, elixir-autogen, elixir-format
 msgid "Happiness"
 msgstr ""
@@ -672,7 +672,7 @@ msgid "Open the %{feature} feature documentation"
 msgstr ""
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:205
-#: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:65
+#: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:61
 #, elixir-autogen, elixir-format
 msgid "Openness"
 msgstr ""
@@ -1012,7 +1012,7 @@ msgstr ""
 msgid "The newsletter issue number %{issue_number} is not a valid number."
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:120
+#: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:116
 #, elixir-autogen, elixir-format
 msgid "The team"
 msgstr ""
@@ -1209,12 +1209,12 @@ msgstr ""
 msgid "We accept credit card payments and wire transfers."
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:67
+#: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:63
 #, elixir-autogen, elixir-format
 msgid "We believe openness builds better tools, keeping only what’s needed closed for sustainable development."
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:109
+#: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:105
 #, elixir-autogen, elixir-format
 msgid "We embrace standards for long-term success while respecting freedom of choice."
 msgstr ""
@@ -1225,7 +1225,7 @@ msgstr ""
 msgid "We have a generous free tier on every paid plan so you can try out the features before paying any money."
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:88
+#: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:84
 #, elixir-autogen, elixir-format
 msgid "We prioritize developer happiness because it's closely tied to creating better apps."
 msgstr ""
@@ -1245,7 +1245,7 @@ msgstr ""
 msgid "We're here to help you succeed with Tuist. Whether you need technical assistance, have questions about features or have ideas how to improve the project, we have multiple ways you can reach out to us."
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:122
+#: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:118
 #, elixir-autogen, elixir-format
 msgid "We’re a small, passionate team that cares deeply about developer experience and takes pride in crafting tools with care and attention to detail."
 msgstr ""
@@ -1270,7 +1270,7 @@ msgstr ""
 msgid "What support is included with each plan?"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:50
+#: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:46
 #, elixir-autogen, elixir-format
 msgid "What we believe in"
 msgstr ""
@@ -1345,7 +1345,7 @@ msgstr ""
 msgid "You're only charged for the features you use, based on your usage, and only after you exceed a free threshold."
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:166
+#: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:155
 #, elixir-autogen, elixir-format
 msgid "Your platform team, as a service"
 msgstr ""
@@ -2333,7 +2333,7 @@ msgstr ""
 msgid "Standard support via Slack and email"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:107
+#: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:103
 #, elixir-autogen, elixir-format
 msgid "Standards"
 msgstr ""

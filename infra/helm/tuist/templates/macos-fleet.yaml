@@ -38,6 +38,15 @@ metadata:
     {{- include "tuist.labels" . | nindent 4 }}
     app.kubernetes.io/component: macos-fleet
     tuist.dev/fleet: {{ $fleetName }}
+  # No `helm.sh/resource-policy: keep`. Helm orphans kept
+  # resources from BOTH uninstall AND upgrade, so spec changes
+  # would be silently dropped — exactly the bug the Fleet
+  # abstraction above already fixes for individual Machines, and
+  # the same trap applies here. The dangerous case to avoid is
+  # `macosFleet.enabled=false` in a single upgrade that ALSO
+  # removes the operator: scale `replicas` to 0 first, let the
+  # operator drain via the Fleet controller, then disable in a
+  # follow-up release.
 spec:
   replicas: {{ .Values.macosFleet.replicas | default 1 }}
   machineTemplate:

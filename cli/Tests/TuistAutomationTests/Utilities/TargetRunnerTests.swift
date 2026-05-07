@@ -40,7 +40,8 @@ final class TargetRunnerTests: TuistUnitTestCase {
             xcodeBuildController: xcodeBuildController,
             xcodeProjectBuildDirectoryLocator: xcodeProjectBuildDirectoryLocator,
             simulatorController: simulatorController,
-            opener: opener
+            opener: opener,
+            commandRunner: mockCommandRunner
         )
     }
 
@@ -92,7 +93,7 @@ final class TargetRunnerTests: TuistUnitTestCase {
         let workspacePath = path.appending(component: "App.xcworkspace")
         try await fileSystem.makeDirectory(at: workspacePath)
         try await fileSystem.touch(workspacePath.appending(component: "Target"))
-        system.succeedCommand(
+        mockCommandRunner.succeedCommand(
             [
                 workspacePath.appending(component: "Target").pathString,
             ]
@@ -150,7 +151,7 @@ final class TargetRunnerTests: TuistUnitTestCase {
                 configuration: .any
             )
             .willReturn(outputPath)
-        system.succeedCommand([executablePath.pathString] + arguments)
+        mockCommandRunner.succeedCommand([executablePath.pathString] + arguments)
 
         // THEN
         do {

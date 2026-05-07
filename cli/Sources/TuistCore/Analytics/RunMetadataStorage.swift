@@ -37,10 +37,12 @@ public actor RunMetadataStorage {
         self.selectiveTestingCacheItems = selectiveTestingCacheItems
     }
 
-    /// Target content hash subhashes keyed by hash
+    /// Target content hash subhashes keyed by hash. Multiple graph mappers (binary cache, selective
+    /// testing, cache warm) each contribute their own entries, so updates merge into the existing
+    /// dictionary rather than replacing it.
     public private(set) var targetContentHashSubhashes: [String: TargetContentHashSubhashes] = [:]
     public func update(targetContentHashSubhashes: [String: TargetContentHashSubhashes]) {
-        self.targetContentHashSubhashes = targetContentHashSubhashes
+        self.targetContentHashSubhashes.merge(targetContentHashSubhashes, uniquingKeysWith: { _, new in new })
     }
 
     /// Preview associated with the current run

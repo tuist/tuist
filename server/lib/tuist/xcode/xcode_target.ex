@@ -64,7 +64,11 @@ defmodule Tuist.Xcode.XcodeTarget do
   def changeset(command_event_id, xcode_project_id, xcode_target, inserted_at \\ nil) do
     binary_cache_metadata = xcode_target["binary_cache_metadata"]
     selective_testing_metadata = xcode_target["selective_testing_metadata"]
-    subhashes = (binary_cache_metadata || %{})["subhashes"] || %{}
+
+    subhashes =
+      (binary_cache_metadata || %{})["subhashes"] ||
+        (selective_testing_metadata || %{})["subhashes"] ||
+        %{}
 
     %{
       id: UUIDv7.generate(),

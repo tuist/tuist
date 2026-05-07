@@ -441,6 +441,85 @@ defmodule TuistWeb.AnalyticsControllerTest do
       assert external_target.resources_hash == ""
     end
 
+    test "returns newly created command event with selective_testing_metadata subhashes", %{
+      conn: conn,
+      user: user
+    } do
+      # Given
+      conn = Authentication.put_current_user(conn, user)
+
+      account = Accounts.get_account_from_user(user)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          "/api/analytics?project_id=#{account.name}/#{project.name}",
+          %{
+            name: "test",
+            subcommand: "test",
+            command_arguments: ["App"],
+            duration: 100,
+            tuist_version: "1.0.0",
+            swift_version: "5.0",
+            macos_version: "10.15",
+            params: %{},
+            is_ci: false,
+            client_id: "client-id",
+            xcode_graph: %{
+              name: "Graph",
+              projects: [
+                %{
+                  name: "ProjectA",
+                  path: ".",
+                  targets: [
+                    %{
+                      name: "AppTests",
+                      product: "unit_tests",
+                      bundle_id: "com.example.apptests",
+                      product_name: "AppTests",
+                      destinations: ["iphone"],
+                      selective_testing_metadata: %{
+                        hash: "tests-hash-a",
+                        hit: "miss",
+                        subhashes: %{
+                          sources: "tests-sources-hash",
+                          dependencies: "tests-deps-hash",
+                          environment: "tests-env-hash",
+                          project_settings: "tests-project-settings"
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        )
+
+      response = json_response(conn, :ok)
+
+      Buffer.flush()
+
+      {:ok, command_event} = CommandEvents.get_command_event_by_id(response["id"])
+
+      Tuist.Xcode.XcodeGraph.Buffer.flush()
+      Tuist.Xcode.XcodeProject.Buffer.flush()
+      Tuist.Xcode.XcodeTarget.Buffer.flush()
+
+      command_event = ClickHouseRepo.preload(command_event, [:xcode_targets])
+      [target] = command_event.xcode_targets
+
+      assert target.name == "AppTests"
+      assert target.selective_testing_hash == "tests-hash-a"
+      assert target.selective_testing_hit == "miss"
+      assert target.sources_hash == "tests-sources-hash"
+      assert target.dependencies_hash == "tests-deps-hash"
+      assert target.environment_hash == "tests-env-hash"
+      assert target.project_settings_hash == "tests-project-settings"
+    end
+
     test "returns command event URL with runs route when build_run_id is not provided", %{
       conn: conn,
       user: user
