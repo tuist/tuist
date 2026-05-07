@@ -2,6 +2,7 @@
 #MISE description="Bootstrap a freshly-provisioned workload cluster end-to-end (CNI, CCM, CSI, platform, monitoring, app). Idempotent."
 #USAGE arg "<cluster_name>" help="Cluster name (e.g. tuist-staging-2, tuist-canary, tuist, tuist-preview)"
 #USAGE arg "<env>" help="Helm values overlay (staging | canary | production | preview)"
+#USAGE arg "[kubeconfig_item]" help="Optional 1Password document title for the workload kubeconfig"
 
 # End-to-end workload-cluster bootstrap. Run AFTER:
 #   1. The Cluster CR is applied on the mgmt cluster, AND
@@ -30,15 +31,17 @@
 
 set -euo pipefail
 
-if [ $# -lt 2 ]; then
-  echo "Usage: $0 <cluster_name> <env>" >&2
-  echo "  cluster_name: tuist-staging-2, tuist-canary, tuist, tuist-preview" >&2
-  echo "  env:          staging | canary | production | preview" >&2
+if [ $# -lt 2 ] || [ $# -gt 3 ]; then
+  echo "Usage: $0 <cluster_name> <env> [kubeconfig_item]" >&2
+  echo "  cluster_name:     tuist-staging-2, tuist-canary, tuist, tuist-preview, tuist-kura-us-east" >&2
+  echo "  env:              staging | canary | production | preview" >&2
+  echo "  kubeconfig_item:  optional 1Password document title, e.g. 'kubeconfig: kura-us-east-1'" >&2
   exit 64
 fi
 
 CLUSTER_NAME="$1"
 ENV="$2"
+KUBECONFIG_ITEM="${3:-kubeconfig: tuist-${ENV}}"
 NAMESPACE="${ORG_NAMESPACE:-org-tuist}"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 BOOTSTRAP_DIR="$REPO_ROOT/infra/k8s/mgmt/bootstrap"
@@ -336,12 +339,11 @@ echo "ingress LB responded HTTP $SMOKE_HTTP. Routing is healthy."
 # the file contents; if not, create. Only runs after the smoke above
 # passes, so a stale kubeconfig never overwrites a working one when
 # bootstrap is invoked against a half-built cluster.
-# Doc name follows env, not cluster_name, so the deploy workflow can
-# look up `kubeconfig: tuist-${env}` uniformly across all environments.
-# Production's Cluster CR uses metadata.name=tuist (no env suffix), but
-# we still store its kubeconfig as `kubeconfig: tuist-production` to
-# keep the workflow's lookup pattern simple.
-KUBECONFIG_ITEM="kubeconfig: tuist-${ENV}"
+# By default, app cluster document names follow env, not cluster_name,
+# so the deploy workflow can look up `kubeconfig: tuist-${env}`
+# uniformly across all environments. Regional Kura production clusters
+# pass an explicit title such as `kubeconfig: kura-us-east-1`, matching
+# the product cluster_id consumed by TUIST_KURA_KUBECONFIG_*.
 KUBECONFIG_VAULT="tuist-k8s-${ENV}"
 if op item get "$KUBECONFIG_ITEM" --account tuist.1password.com --vault "$KUBECONFIG_VAULT" >/dev/null 2>&1; then
   echo "Existing 1P item found; replacing the document"
@@ -369,6 +371,10 @@ to point at $LB_IP.
   canary    -> canary.tuist.dev
   production -> tuist.dev (and any apex aliases)
   preview   -> *.preview.tuist.dev (or whatever wildcard pattern is used)
+
+Kura regional clusters do not get an app DNS cut. Their per-account
+LoadBalancer Services carry external-dns annotations and publish hosts
+like {account}-{cluster_id}.kura.tuist.dev after the controller deploys.
 
 Verify cert + ingress on the new cluster (DNS cut not needed for this):
   curl -k --resolve "staging.tuist.dev:443:$LB_IP" https://staging.tuist.dev/health

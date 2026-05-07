@@ -86,6 +86,8 @@ defmodule Tuist.Kura.Regions do
       provisioner: KubernetesController,
       provisioner_config: %{
         cluster_id: "us-east-1",
+        hetzner_location: "ash",
+        kubernetes_client: [mode: :kubeconfig, cluster_id: "us-east-1"],
         public_host_template: "{account_handle}-{cluster_id}.kura.tuist.dev",
         storage_class: "hcloud-volumes"
       }
@@ -99,6 +101,8 @@ defmodule Tuist.Kura.Regions do
       provisioner: KubernetesController,
       provisioner_config: %{
         cluster_id: "us-west-1",
+        hetzner_location: "hil",
+        kubernetes_client: [mode: :kubeconfig, cluster_id: "us-west-1"],
         public_host_template: "{account_handle}-{cluster_id}.kura.tuist.dev",
         storage_class: "hcloud-volumes"
       }
@@ -112,6 +116,7 @@ defmodule Tuist.Kura.Regions do
       provisioner: KubernetesController,
       provisioner_config: %{
         cluster_id: "eu-central-1",
+        hetzner_location: "fsn1",
         public_host_template: "{account_handle}-{cluster_id}.kura.tuist.dev",
         storage_class: "hcloud-volumes"
       }

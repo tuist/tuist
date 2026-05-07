@@ -109,6 +109,44 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
                  hook_script: "return true"
                })
     end
+
+    test "passes regional Kubernetes client options through" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+      stub(Tuist.Environment, :secret_key_tokens, fn -> "jwt-secret" end)
+      stub(Tuist.License, :get_license, fn -> {:ok, %{signing_key: "signing-secret"}} end)
+
+      region = us_east_region()
+      client_opts = [mode: :kubeconfig, cluster_id: "us-east-1"]
+
+      expect(Client, :apply, fn manifest, opts ->
+        assert opts == client_opts
+        assert manifest["metadata"]["name"] == "kura-tuist-us-east-1"
+        assert manifest["spec"]["region"] == "us-east"
+        {:ok, manifest}
+      end)
+
+      expect(Client, :get_kura_instance, fn "kura", "kura-tuist-us-east-1", opts ->
+        assert opts == client_opts
+
+        {:ok,
+         %{
+           "status" => %{
+             "phase" => "Ready",
+             "observedImage" => "ghcr.io/tuist/kura:0.5.2",
+             "readyReplicas" => 3
+           }
+         }}
+      end)
+
+      assert :ok =
+               KubernetesController.rollout("kura-tuist-us-east-1", %{
+                 image_tag: "0.5.2",
+                 account: %{name: "tuist"},
+                 server: %Server{},
+                 region: region,
+                 hook_script: "return true"
+               })
+    end
   end
 
   describe "destroy/2" do
@@ -191,6 +229,18 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       id: "eu-central",
       provisioner_config: %{
         cluster_id: "eu-central-1",
+        public_host_template: "{account_handle}-{cluster_id}.kura.tuist.dev",
+        storage_class: "hcloud-volumes"
+      }
+    }
+  end
+
+  defp us_east_region do
+    %Regions{
+      id: "us-east",
+      provisioner_config: %{
+        cluster_id: "us-east-1",
+        kubernetes_client: [mode: :kubeconfig, cluster_id: "us-east-1"],
         public_host_template: "{account_handle}-{cluster_id}.kura.tuist.dev",
         storage_class: "hcloud-volumes"
       }

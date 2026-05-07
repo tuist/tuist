@@ -1,0 +1,51 @@
+# Production regional Kura workload clusters.
+# Layer on top of values.yaml when deploying only the Kura controller to
+# us-east/us-west clusters. The Tuist server itself remains in the main
+# production cluster and writes KuraInstance CRs here via kubeconfig.
+
+global:
+  commonLabels:
+    tuist.dev/service: kura
+    tuist.dev/stack: managed
+
+kuraController:
+  enabled: true
+  namespace: kura
+  image:
+    tag: ""  # Set by CI to the commit SHA on each deploy.
+
+server:
+  enabled: false
+  serviceAccount:
+    create: false
+  migrationJob:
+    enabled: false
+
+cache:
+  enabled: false
+
+processor:
+  enabled: false
+
+xcresultProcessor:
+  enabled: false
+
+macosFleet:
+  enabled: false
+
+postgresql:
+  mode: external
+
+clickhouse:
+  mode: external
+
+objectStorage:
+  mode: external
+  external:
+    managedSecrets: false
+
+redis:
+  enabled: false
+
+observability:
+  enabled: false

@@ -33,6 +33,18 @@ server:
     # maps to a controller-backed Kura cluster_id in Tuist.Kura.Regions.
     - name: TUIST_KURA_AVAILABLE_REGIONS
       value: eu-central,us-east,us-west
+    # Kubeconfigs for regional Kura clusters. CI syncs this Secret from
+    # 1Password before Helm upgrades the production server release.
+    - name: TUIST_KURA_KUBECONFIG_US_EAST_1
+      valueFrom:
+        secretKeyRef:
+          name: tuist-kura-kubeconfigs
+          key: TUIST_KURA_KUBECONFIG_US_EAST_1
+    - name: TUIST_KURA_KUBECONFIG_US_WEST_1
+      valueFrom:
+        secretKeyRef:
+          name: tuist-kura-kubeconfigs
+          key: TUIST_KURA_KUBECONFIG_US_WEST_1
 
   autoscaling:
     enabled: true

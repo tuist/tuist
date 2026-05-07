@@ -96,3 +96,18 @@ curl "http://localhost:${port}/up"
 ### Managed Kura Regions
 
 Managed deployments expose the regions listed in `TUIST_KURA_AVAILABLE_REGIONS`. The production Helm overlay currently sets `eu-central,us-east,us-west`, so account settings can deploy one Kura server per account in any managed region that is not already occupied by that account.
+
+Production maps those product regions to Hetzner-backed workload clusters:
+
+| Product region | Cluster ID | Kubernetes client | Hetzner location |
+| --- | --- | --- | --- |
+| `eu-central` | `eu-central-1` | in-cluster ServiceAccount on `tuist` | `fsn1` |
+| `us-east` | `us-east-1` | `TUIST_KURA_KUBECONFIG_US_EAST_1` | `ash` |
+| `us-west` | `us-west-1` | `TUIST_KURA_KUBECONFIG_US_WEST_1` | `hil` |
+
+The regional kubeconfig variables are synced by the production deploy workflow from the `tuist-k8s-production` 1Password vault documents `kubeconfig: kura-us-east-1` and `kubeconfig: kura-us-west-1`. Bootstrap those regional clusters with:
+
+```bash
+mise run k8s:bootstrap-workload tuist-kura-us-east production "kubeconfig: kura-us-east-1"
+mise run k8s:bootstrap-workload tuist-kura-us-west production "kubeconfig: kura-us-west-1"
+```

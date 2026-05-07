@@ -11,6 +11,7 @@ defmodule Tuist.Kura.RegionsTest do
   describe "all/0" do
     test "exposes concrete managed regions backed by KubernetesController" do
       ids = Enum.map(Regions.all(), & &1.id)
+      hetzner_locations = %{"eu-central" => "fsn1", "us-east" => "ash", "us-west" => "hil"}
 
       assert "us-east" in ids
       assert "us-west" in ids
@@ -19,8 +20,13 @@ defmodule Tuist.Kura.RegionsTest do
       for id <- ["us-east", "us-west", "eu-central"] do
         assert %Regions{provisioner: KubernetesController, provisioner_config: config} = Regions.get(id)
         assert config.cluster_id == "#{id}-1"
+        assert config.hetzner_location == hetzner_locations[id]
         assert config.storage_class == "hcloud-volumes"
       end
+
+      assert Regions.get("us-east").provisioner_config.kubernetes_client == [mode: :kubeconfig, cluster_id: "us-east-1"]
+      assert Regions.get("us-west").provisioner_config.kubernetes_client == [mode: :kubeconfig, cluster_id: "us-west-1"]
+      refute Map.has_key?(Regions.get("eu-central").provisioner_config, :kubernetes_client)
     end
 
     test "exposes the local dev region backed by HelmKubernetes" do

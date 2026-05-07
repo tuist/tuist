@@ -2,9 +2,9 @@ defmodule Tuist.Kubernetes.Client do
   @moduledoc """
   Small Kubernetes API client for server-owned control-plane writes.
 
-  Production uses the pod ServiceAccount projected by Kubernetes instead of a
-  kubeconfig file. The chart binds that ServiceAccount to the specific
-  namespace/resources Tuist needs.
+  Production uses the pod ServiceAccount projected by Kubernetes for the
+  cluster the server runs in. Cross-region Kura operations use kubeconfigs
+  loaded from the runtime environment.
 
   Dev/test can opt into `mode: :kubectl` to exercise the same controller-backed
   path from a local server process against kind.
@@ -94,37 +94,41 @@ defmodule Tuist.Kubernetes.Client do
     if kubectl_mode?(opts) do
       kubectl_request(method, path, query, opts)
     else
-      in_cluster_request(method, path, headers, query, body, opts)
+      api_request(method, path, headers, query, body, opts)
     end
   end
 
-  defp in_cluster_request(method, path, headers, query, body, opts) do
+  defp api_request(method, path, headers, query, body, opts) do
     with {:ok, config} <- config(opts) do
       req_opts =
         maybe_put_body(
           [
             method: method,
             url: url(config, path),
-            headers: [{"authorization", "Bearer #{config.token}"}, {"accept", "application/json"} | headers],
+            headers: request_headers(config, headers),
             params: query,
             finch: Tuist.Finch,
-            connect_options: [transport_opts: [cacertfile: config.ca_path]]
+            connect_options: [transport_opts: config.transport_opts]
           ],
           body
         )
 
-      case Req.request(req_opts) do
-        {:ok, %Req.Response{status: status, body: body}} when status in 200..299 ->
-          {:ok, body}
+      try do
+        case Req.request(req_opts) do
+          {:ok, %Req.Response{status: status, body: body}} when status in 200..299 ->
+            {:ok, body}
 
-        {:ok, %Req.Response{status: 404}} ->
-          {:error, :not_found}
+          {:ok, %Req.Response{status: 404}} ->
+            {:error, :not_found}
 
-        {:ok, %Req.Response{status: status, body: body}} ->
-          {:error, "Kubernetes API #{method} #{path} returned #{status}: #{format_body(body)}"}
+          {:ok, %Req.Response{status: status, body: body}} ->
+            {:error, "Kubernetes API #{method} #{path} returned #{status}: #{format_body(body)}"}
 
-        {:error, reason} ->
-          {:error, reason}
+          {:error, reason} ->
+            {:error, reason}
+        end
+      after
+        cleanup_temp_files(config)
       end
     end
   end
@@ -314,6 +318,8 @@ defmodule Tuist.Kubernetes.Client do
 
   defp kubectl_mode?(opts), do: Keyword.get(opts, :mode) in [:kubectl, "kubectl"]
 
+  defp kubeconfig_mode?(opts), do: Keyword.get(opts, :mode) in [:kubeconfig, "kubeconfig"]
+
   defp kura_instance_path(path) do
     case Regex.run(@kura_instance_path, path) do
       [_, namespace, name] -> {:ok, namespace, name}
@@ -348,8 +354,8 @@ defmodule Tuist.Kubernetes.Client do
     "kubectl #{action} exited with status #{status}: #{String.trim(output)}"
   end
 
-  defp write_temp(contents, label) do
-    with {:ok, path} <- Briefly.create(prefix: "kubernetes-#{label}-", extname: ".yaml"),
+  defp write_temp(contents, label, extname \\ ".yaml") do
+    with {:ok, path} <- Briefly.create(prefix: "kubernetes-#{label}-", extname: extname),
          :ok <- File.write(path, contents),
          :ok <- File.chmod(path, 0o600) do
       {:ok, path}
@@ -359,11 +365,156 @@ defmodule Tuist.Kubernetes.Client do
   end
 
   defp config(opts) do
+    if kubeconfig_mode?(opts), do: kubeconfig_config(opts), else: in_cluster_config(opts)
+  end
+
+  defp in_cluster_config(opts) do
     with {:ok, host} <- env("KUBERNETES_SERVICE_HOST", opts),
          {:ok, port} <- env("KUBERNETES_SERVICE_PORT", opts),
          {:ok, token} <- service_account_token(opts),
          {:ok, ca_path} <- service_account_ca_path(opts) do
-      {:ok, %{host: host, port: port, token: token, ca_path: ca_path}}
+      {:ok, %{host: host, port: port, token: token, transport_opts: [cacertfile: ca_path], temp_paths: []}}
+    end
+  end
+
+  defp kubeconfig_config(opts) do
+    with {:ok, contents} <- kubeconfig_contents(opts),
+         {:ok, kubeconfig} <- parse_kubeconfig(contents),
+         {:ok, context} <- kubeconfig_current_context(kubeconfig),
+         {:ok, cluster} <- kubeconfig_named_entry(kubeconfig, "clusters", context["cluster"]),
+         {:ok, user} <- kubeconfig_named_entry(kubeconfig, "users", context["user"]),
+         {:ok, token} <- kubeconfig_token(user),
+         {:ok, server} <- kubeconfig_server(cluster),
+         {:ok, transport_opts, temp_paths} <- kubeconfig_transport_opts(cluster, user) do
+      {:ok, %{server: server, token: token, transport_opts: transport_opts, temp_paths: temp_paths}}
+    end
+  end
+
+  defp kubeconfig_contents(opts) do
+    cond do
+      contents = Keyword.get(opts, :kubeconfig) ->
+        {:ok, contents}
+
+      path = Keyword.get(opts, :kubeconfig_path) ->
+        case File.read(path) do
+          {:ok, contents} -> {:ok, contents}
+          {:error, reason} -> {:error, "cannot read Kubernetes kubeconfig #{path}: #{inspect(reason)}"}
+        end
+
+      cluster_id = Keyword.get(opts, :cluster_id) ->
+        case Tuist.Environment.kura_kubeconfig(cluster_id) do
+          contents when is_binary(contents) and contents != "" ->
+            {:ok, contents}
+
+          _ ->
+            suffix = cluster_id |> String.upcase() |> String.replace("-", "_")
+
+            {:error,
+             "missing Kubernetes kubeconfig for Kura cluster #{cluster_id}; set TUIST_KURA_KUBECONFIG_#{suffix} or TUIST_KURA_KUBECONFIG_PATH_#{suffix}"}
+        end
+
+      true ->
+        {:error, "Kubernetes kubeconfig client mode requires :kubeconfig, :kubeconfig_path, or :cluster_id"}
+    end
+  end
+
+  defp parse_kubeconfig(contents) do
+    case YamlElixir.read_from_string(contents) do
+      {:ok, kubeconfig} when is_map(kubeconfig) -> {:ok, kubeconfig}
+      {:ok, _} -> {:error, "Kubernetes kubeconfig is not a YAML map"}
+      {:error, reason} -> {:error, "invalid Kubernetes kubeconfig: #{inspect(reason)}"}
+    end
+  end
+
+  defp kubeconfig_current_context(%{"current-context" => name} = kubeconfig) when is_binary(name) do
+    kubeconfig_named_entry(kubeconfig, "contexts", name)
+  end
+
+  defp kubeconfig_current_context(_), do: {:error, "Kubernetes kubeconfig has no current-context"}
+
+  defp kubeconfig_named_entry(kubeconfig, key, name) when is_binary(name) do
+    data_key = kubeconfig_entry_data_key(key)
+
+    kubeconfig
+    |> Map.get(key, [])
+    |> Enum.find(&(Map.get(&1, "name") == name))
+    |> case do
+      %{"name" => ^name} = entry -> {:ok, Map.get(entry, data_key, %{})}
+      nil -> {:error, "Kubernetes kubeconfig references missing #{String.trim_trailing(key, "s")} #{name}"}
+    end
+  end
+
+  defp kubeconfig_named_entry(_kubeconfig, key, _name) do
+    {:error, "Kubernetes kubeconfig context has no #{String.trim_trailing(key, "s")} name"}
+  end
+
+  defp kubeconfig_entry_data_key("clusters"), do: "cluster"
+  defp kubeconfig_entry_data_key("contexts"), do: "context"
+  defp kubeconfig_entry_data_key("users"), do: "user"
+
+  defp kubeconfig_server(%{"server" => server}) when is_binary(server) and server != "" do
+    {:ok, String.trim_trailing(server, "/")}
+  end
+
+  defp kubeconfig_server(_), do: {:error, "Kubernetes kubeconfig cluster has no server"}
+
+  defp kubeconfig_token(%{"token" => token}) when is_binary(token) and token != "", do: {:ok, token}
+
+  defp kubeconfig_token(%{"client-certificate-data" => cert, "client-key-data" => key})
+       when is_binary(cert) and cert != "" and is_binary(key) and key != "", do: {:ok, nil}
+
+  defp kubeconfig_token(%{"client-certificate" => cert, "client-key" => key})
+       when is_binary(cert) and cert != "" and is_binary(key) and key != "", do: {:ok, nil}
+
+  defp kubeconfig_token(_user) do
+    {:error, "Kubernetes kubeconfig user must contain token or client certificate credentials"}
+  end
+
+  defp kubeconfig_transport_opts(cluster, user) do
+    with {:ok, cluster_opts, cluster_paths} <- kubeconfig_cluster_transport_opts(cluster),
+         {:ok, user_opts, user_paths} <- kubeconfig_user_transport_opts(user) do
+      {:ok, cluster_opts ++ user_opts, cluster_paths ++ user_paths}
+    end
+  end
+
+  defp kubeconfig_cluster_transport_opts(%{"certificate-authority-data" => data}) when is_binary(data) do
+    with {:ok, contents} <- decode_kubeconfig_data(data, "certificate-authority-data"),
+         {:ok, path} <- write_temp(contents, "ca", ".crt") do
+      {:ok, [cacertfile: path], [path]}
+    end
+  end
+
+  defp kubeconfig_cluster_transport_opts(%{"certificate-authority" => path}) when is_binary(path) and path != "" do
+    {:ok, [cacertfile: path], []}
+  end
+
+  defp kubeconfig_cluster_transport_opts(%{"insecure-skip-tls-verify" => true}) do
+    {:ok, [verify: :verify_none], []}
+  end
+
+  defp kubeconfig_cluster_transport_opts(_), do: {:ok, [], []}
+
+  defp kubeconfig_user_transport_opts(%{"client-certificate-data" => cert_data, "client-key-data" => key_data})
+       when is_binary(cert_data) and cert_data != "" and is_binary(key_data) and key_data != "" do
+    with {:ok, cert} <- decode_kubeconfig_data(cert_data, "client-certificate-data"),
+         {:ok, key} <- decode_kubeconfig_data(key_data, "client-key-data"),
+         {:ok, cert_path} <- write_temp(cert, "client-cert", ".crt"),
+         {:ok, key_path} <- write_temp(key, "client-key", ".key") do
+      {:ok, [certfile: cert_path, keyfile: key_path], [cert_path, key_path]}
+    end
+  end
+
+  defp kubeconfig_user_transport_opts(%{"client-certificate" => cert_path, "client-key" => key_path})
+       when is_binary(cert_path) and cert_path != "" and is_binary(key_path) and key_path != "" do
+    {:ok, [certfile: cert_path, keyfile: key_path], []}
+  end
+
+  defp kubeconfig_user_transport_opts(_), do: {:ok, [], []}
+
+  defp decode_kubeconfig_data(data, field) do
+    case Base.decode64(data, ignore: :whitespace) do
+      {:ok, contents} -> {:ok, contents}
+      :error -> {:error, "Kubernetes kubeconfig #{field} is not valid base64"}
     end
   end
 
@@ -395,6 +546,22 @@ defmodule Tuist.Kubernetes.Client do
     end
   end
 
+  defp request_headers(config, headers) do
+    base_headers = [{"accept", "application/json"} | headers]
+
+    case Map.get(config, :token) do
+      token when is_binary(token) and token != "" -> [{"authorization", "Bearer #{token}"} | base_headers]
+      _ -> base_headers
+    end
+  end
+
+  defp cleanup_temp_files(%{temp_paths: paths}) do
+    Enum.each(paths, &File.rm/1)
+  end
+
+  defp cleanup_temp_files(_), do: :ok
+
+  defp url(%{server: server}, path), do: server <> path
   defp url(config, path), do: "https://#{config.host}:#{config.port}#{path}"
 
   defp maybe_put_body(req_opts, nil), do: req_opts

@@ -89,6 +89,64 @@ defmodule Tuist.Kubernetes.ClientTest do
                )
     end
 
+    test "can use a token-based kubeconfig for remote clusters" do
+      kubeconfig = kubeconfig(%{token: "region-token"})
+
+      expect(Req, :request, fn opts ->
+        assert opts[:method] == :patch
+
+        assert opts[:url] ==
+                 "https://kubernetes.us-east.example.com/apis/kura.tuist.dev/v1alpha1/namespaces/kura/kurainstances/kura-tuist-us-east-1"
+
+        assert {"authorization", "Bearer region-token"} in opts[:headers]
+
+        transport_opts = opts[:connect_options][:transport_opts]
+        ca_path = Keyword.fetch!(transport_opts, :cacertfile)
+        assert File.read!(ca_path) == "test-ca"
+
+        {:ok, %Req.Response{status: 200, body: %{"metadata" => %{"name" => "kura-tuist-us-east-1"}}}}
+      end)
+
+      assert {:ok, %{"metadata" => %{"name" => "kura-tuist-us-east-1"}}} =
+               Client.apply(
+                 %{
+                   "apiVersion" => "kura.tuist.dev/v1alpha1",
+                   "kind" => "KuraInstance",
+                   "metadata" => %{"namespace" => "kura", "name" => "kura-tuist-us-east-1"},
+                   "spec" => %{"image" => "ghcr.io/tuist/kura:0.5.2"}
+                 },
+                 mode: :kubeconfig,
+                 kubeconfig: kubeconfig
+               )
+    end
+
+    test "can use a client-certificate kubeconfig for remote clusters" do
+      kubeconfig = kubeconfig(%{client_certificate: "test-cert", client_key: "test-key"})
+
+      expect(Req, :request, fn opts ->
+        refute Enum.any?(opts[:headers], fn {key, _value} -> key == "authorization" end)
+
+        transport_opts = opts[:connect_options][:transport_opts]
+        assert File.read!(Keyword.fetch!(transport_opts, :cacertfile)) == "test-ca"
+        assert File.read!(Keyword.fetch!(transport_opts, :certfile)) == "test-cert"
+        assert File.read!(Keyword.fetch!(transport_opts, :keyfile)) == "test-key"
+
+        {:ok, %Req.Response{status: 200, body: %{"metadata" => %{"name" => "kura-tuist-us-east-1"}}}}
+      end)
+
+      assert {:ok, %{"metadata" => %{"name" => "kura-tuist-us-east-1"}}} =
+               Client.apply(
+                 %{
+                   "apiVersion" => "kura.tuist.dev/v1alpha1",
+                   "kind" => "KuraInstance",
+                   "metadata" => %{"namespace" => "kura", "name" => "kura-tuist-us-east-1"},
+                   "spec" => %{"image" => "ghcr.io/tuist/kura:0.5.2"}
+                 },
+                 mode: :kubeconfig,
+                 kubeconfig: kubeconfig
+               )
+    end
+
     test "rejects kubectl mode outside dev and test" do
       stub(Tuist.Environment, :dev?, fn -> false end)
       stub(Tuist.Environment, :test?, fn -> false end)
@@ -160,5 +218,46 @@ defmodule Tuist.Kubernetes.ClientTest do
 
       assert :ok = Client.delete(path, opts)
     end
+  end
+
+  defp kubeconfig(%{token: token}) do
+    kubeconfig_user("token: #{token}")
+  end
+
+  defp kubeconfig(%{client_certificate: cert, client_key: key}) do
+    kubeconfig_user("""
+    client-certificate-data: #{Base.encode64(cert)}
+    client-key-data: #{Base.encode64(key)}
+    """)
+  end
+
+  defp kubeconfig_user(user) do
+    """
+    apiVersion: v1
+    current-context: us-east
+    clusters:
+      - name: us-east
+        cluster:
+          server: https://kubernetes.us-east.example.com
+          certificate-authority-data: #{Base.encode64("test-ca")}
+    contexts:
+      - name: us-east
+        context:
+          cluster: us-east
+          user: tuist
+    users:
+      - name: tuist
+        user:
+    #{indent(user, 8)}
+    """
+  end
+
+  defp indent(contents, spaces) do
+    padding = String.duplicate(" ", spaces)
+
+    contents
+    |> String.trim_trailing()
+    |> String.split("\n")
+    |> Enum.map_join("\n", &(padding <> &1))
   end
 end

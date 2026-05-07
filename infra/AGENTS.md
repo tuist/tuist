@@ -23,6 +23,7 @@ cert-manager + ingress-nginx + external-dns + ESO controllers, installed once pe
 Cluster API CRs and cluster-scoped manifests for the self-hosted CAPI + caph stack we operate on Hetzner:
 - `clusters/clusterclass-tuist.yaml` — the `tuist-hcloud` ClusterClass (HA control plane, worker-pool variables, network config, kubeadm + kubelet config).
 - `clusters/cluster-{staging,canary,production,preview}.yaml` — per-env Cluster CRs in topology mode.
+- `clusters/cluster-production-us-{east,west}.yaml` — production Kura regional workload clusters mapped to Hetzner `ash` / `hil`.
 - `clusters/README.md` — ClusterClass authoring + caph-upstream porting notes.
 - `mgmt/etcd-snapshot.yaml`, `mgmt/tailscale.yaml` — mgmt-cluster workloads (hourly etcd snapshot to Tigris, tailnet-only operator access).
 - `mgmt/bootstrap/` — Helm values for the per-workload bootstrap (Cilium, HCCM, hcloud-csi, ESO `ClusterSecretStore`).

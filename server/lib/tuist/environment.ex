@@ -191,8 +191,10 @@ defmodule Tuist.Environment do
   Returns the kubeconfig (raw YAML string) for the given Kura cluster
   ID, or `nil` if none is configured.
 
-  Used by the local Helm provisioner. Managed Kura uses the
-  server pod's in-cluster ServiceAccount and does not load kubeconfigs.
+  Used by the local Helm provisioner and by managed Kura regions that
+  run outside the server's own Kubernetes cluster. Managed regions in
+  the same cluster can still use the server pod's in-cluster
+  ServiceAccount instead.
 
   Two sources are checked in order:
 
