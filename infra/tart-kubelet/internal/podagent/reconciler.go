@@ -128,6 +128,28 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, nil
 	}
 
+	// If a previous reconcile recorded a RunHandle and the
+	// `tart run` process has since exited (e.g. the guest crashed
+	// 30s into a multi-minute boot, well past Run's 5s sanity
+	// window), surface it as a Pod failure right here. Without this
+	// check podStatus would just keep returning Pending on the IP
+	// poll forever and helm --wait would hang for the full
+	// --timeout. Marking the Pod Failed lets the owning ReplicaSet
+	// schedule a replacement Pod with a fresh VM.
+	if entry := r.Store.Get(pod.Namespace, pod.Name); entry != nil && entry.Run != nil {
+		if exitErr, exited := entry.Run.Exited(); exited {
+			logger.Info("tart run exited; marking pod failed",
+				"vm", entry.VMName, "log", entry.Run.LogPath, "err", exitErr)
+			_ = r.deleteByKey(ctx, pod.Namespace, pod.Name)
+			_ = r.publishStatus(ctx, pod, &corev1.PodStatus{
+				Phase:   corev1.PodFailed,
+				Reason:  "TartRunExited",
+				Message: fmt.Sprintf("tart run exited: %v (see %s)", exitErr, entry.Run.LogPath),
+			})
+			return ctrl.Result{}, nil
+		}
+	}
+
 	if err := r.createPod(ctx, pod); err != nil {
 		logger.Error(err, "create failed; will retry")
 		// Surface the failure to the API server immediately so
@@ -201,14 +223,28 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 		}
 	}
 
-	if err := r.Tart.Run(ctx, vmName, []string{"env:" + envDir + ":ro"}); err != nil {
-		return fmt.Errorf("tart run: %w", err)
-	}
-
-	r.Store.Put(pod.Namespace, pod.Name, &Entry{
+	// Record the Pod ↔ VM mapping before kicking the VM off so the
+	// rest of the system (deletePod, GC, recoverState) can keep
+	// track of it even if `tart run` exits oddly. Without this an
+	// early-exit Run leaves the VM Tart-side without a Store entry,
+	// and the GC loop would happily reap it on the next pass —
+	// exactly the orphan we used to clean up reactively.
+	entry := &Entry{
 		VMName:  vmName,
 		StartTS: metav1.Now(),
-	})
+	}
+	r.Store.Put(pod.Namespace, pod.Name, entry)
+
+	handle, err := r.Tart.Run(ctx, vmName, []string{"env:" + envDir + ":ro"})
+	if err != nil {
+		// Roll back the Store entry — the VM either never started
+		// (cmd.Start error) or `tart run` exited immediately, so
+		// there is no live VM for podStatus to observe and no
+		// background process for deletePod to tear down.
+		r.Store.Delete(pod.Namespace, pod.Name)
+		return fmt.Errorf("tart run: %w", err)
+	}
+	entry.Run = handle
 	return nil
 }
 
@@ -311,9 +347,17 @@ func VMNameForPod(pod *corev1.Pod) string {
 // === In-memory Pod ↔ VM map ================================================
 
 // Entry is the kubelet-side bookkeeping for one running Pod.
+//
+// Run is the handle to the backgrounded `tart run` process. It is
+// nil for entries materialised by recoverState after a kubelet
+// restart — those VMs are still running on the host but the
+// process is no longer a child of this kubelet, so we can't observe
+// its exit. The reconciler treats `Run == nil` as "trust IP probe
+// alone" and skips the post-launch exit check.
 type Entry struct {
 	VMName  string
 	StartTS metav1.Time
+	Run     *tart.RunHandle
 }
 
 // Store is a tiny thread-safe map. Backed by in-memory state — on

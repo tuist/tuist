@@ -785,7 +785,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .build
-          key: ${{ runner.os }}-cli-release-${{ hashFiles('.xcode-version-releases') }}-${{ hashFiles('Package.resolved') }}
+          key: ${{ runner.os }}-cli-release-${{ hashFiles('.xcode-version-releases') }}-${{ hashFiles('Package.swift') }}-${{ hashFiles('Package.resolved') }}
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
@@ -884,7 +884,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .build
-          key: linux-${{ matrix.arch }}-cli-release-${{ hashFiles('Package.resolved') }}
+          key: linux-${{ matrix.arch }}-cli-release-${{ hashFiles('Package.swift') }}-${{ hashFiles('Package.resolved') }}
 
       - name: Update version in Constants.swift
         run: |
@@ -1037,7 +1037,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .build
-          key: ${{ runner.os }}-app-${{ hashFiles('Package.resolved') }}
+          key: ${{ runner.os }}-app-${{ hashFiles('Package.swift') }}-${{ hashFiles('Package.resolved') }}
       - name: Update version
         working-directory: app
         run: |
@@ -1966,7 +1966,7 @@ jobs:
           # values-managed-common.yaml carries multiple `tag:` lines.
           # Anchor the substitution to the xcresult-processor's
           # repository line so only that block's tag is rewritten.
-          sed -i '/repository: ghcr.io\/tuist\/tuist-xcresult-processor/,/tag:/{
+          sed -i '' '/repository: ghcr.io\/tuist\/tuist-xcresult-processor/,/tag:/{
             s|tag: "[^"]*"|tag: "${{ needs.check-releases.outputs.xcresult-processor-image-next-version-number }}"|
           }' infra/helm/tuist/values-managed-common.yaml
 
@@ -2069,23 +2069,7 @@ jobs:
       ]
     if: |
       always() &&
-      needs.check-releases.outputs.should-release-any == 'true' &&
-      (needs.release-cli.result == 'success' || needs.release-cli.result == 'skipped') &&
-      (needs.release-cli-linux.result == 'success' || needs.release-cli-linux.result == 'skipped') &&
-      (needs.release-app.result == 'success' || needs.release-app.result == 'skipped') &&
-      (needs.release-ios.result == 'success' || needs.release-ios.result == 'skipped') &&
-      (needs.release-android.result == 'success' || needs.release-android.result == 'skipped') &&
-      (needs.release-server.result == 'success' || needs.release-server.result == 'skipped') &&
-      (needs.release-cache.result == 'success' || needs.release-cache.result == 'skipped') &&
-      (needs.release-kura-prepare.result == 'success' || needs.release-kura-prepare.result == 'skipped') &&
-      (needs.release-kura-binaries.result == 'success' || needs.release-kura-binaries.result == 'skipped') &&
-      (needs.release-kura-docker.result == 'success' || needs.release-kura-docker.result == 'skipped') &&
-      (needs.release-gradle.result == 'success' || needs.release-gradle.result == 'skipped') &&
-      (needs.release-skills.result == 'success' || needs.release-skills.result == 'skipped') &&
-      (needs.release-noora.result == 'success' || needs.release-noora.result == 'skipped') &&
-      (needs.release-helm.result == 'success' || needs.release-helm.result == 'skipped') &&
-      (needs.release-capi-scaleway.result == 'success' || needs.release-capi-scaleway.result == 'skipped') &&
-      (needs.release-xcresult-processor-image.result == 'success' || needs.release-xcresult-processor-image.result == 'skipped')
+      needs.check-releases.outputs.should-release-any == 'true'
     runs-on: namespace-profile-default-with-volume
     timeout-minutes: 30
     concurrency:
@@ -2258,10 +2242,10 @@ jobs:
       - name: Create tags for successfully released components
         run: |
           # Create tags for successfully released components
-          if [ "${{ needs.check-releases.outputs.cli-should-release }}" == "true" ] && [ "${{ needs.release-cli.result }}" == "success" ]; then
+          if [ "${{ needs.check-releases.outputs.cli-should-release }}" == "true" ] && [ "${{ needs.release-cli.result }}" == "success" ] && [ "${{ needs.release-cli-linux.result }}" == "success" ]; then
             git tag ${{ needs.check-releases.outputs.cli-next-version }}
           fi
-          if [ "${{ needs.check-releases.outputs.app-should-release }}" == "true" ] && [ "${{ needs.release-app.result }}" == "success" ]; then
+          if [ "${{ needs.check-releases.outputs.app-should-release }}" == "true" ] && [ "${{ needs.release-app.result }}" == "success" ] && [ "${{ needs.release-ios.result }}" == "success" ] && [ "${{ needs.release-android.result }}" == "success" ]; then
             git tag ${{ needs.check-releases.outputs.app-next-version }}
           fi
           if [ "${{ needs.check-releases.outputs.server-should-release }}" == "true" ] && [ "${{ needs.release-server.result }}" == "success" ]; then
@@ -2287,7 +2271,7 @@ jobs:
           fi
 
       - name: Create CLI GitHub Release
-        if: needs.check-releases.outputs.cli-should-release == 'true' && needs.release-cli.result == 'success'
+        if: needs.check-releases.outputs.cli-should-release == 'true' && needs.release-cli.result == 'success' && needs.release-cli-linux.result == 'success'
         uses: softprops/action-gh-release@v2
         with:
           draft: false
@@ -2305,11 +2289,11 @@ jobs:
             build/tuist.spec.json
 
       - name: Update mise.lock
-        if: needs.check-releases.outputs.cli-should-release == 'true' && needs.release-cli.result == 'success'
+        if: needs.check-releases.outputs.cli-should-release == 'true' && needs.release-cli.result == 'success' && needs.release-cli-linux.result == 'success'
         run: mise lock tuist --platform linux-x64,macos-arm64,macos-x64
 
       - name: Create App GitHub Release
-        if: needs.check-releases.outputs.app-should-release == 'true' && needs.release-app.result == 'success'
+        if: needs.check-releases.outputs.app-should-release == 'true' && needs.release-app.result == 'success' && needs.release-ios.result == 'success' && needs.release-android.result == 'success'
         uses: softprops/action-gh-release@v2
         with:
           draft: false
@@ -2414,13 +2398,13 @@ jobs:
             ${{ needs.release-xcresult-processor-image.outputs.release-notes }}
 
       - name: Trigger Homebrew Formula Update
-        if: needs.check-releases.outputs.cli-should-release == 'true' && needs.release-cli.result == 'success'
+        if: needs.check-releases.outputs.cli-should-release == 'true' && needs.release-cli.result == 'success' && needs.release-cli-linux.result == 'success'
         run: |
           SHA256=$(cat build/SHASUMS256.txt | grep tuist.zip | awk '{print $1}')
           mise run --no-deps cli:release:homebrew-formula --version "${{ needs.check-releases.outputs.cli-next-version }}" --github-token "${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}" --sha256 "$SHA256"
 
       - name: Trigger Homebrew Cask Update
-        if: needs.check-releases.outputs.app-should-release == 'true' && needs.release-app.result == 'success'
+        if: needs.check-releases.outputs.app-should-release == 'true' && needs.release-app.result == 'success' && needs.release-ios.result == 'success' && needs.release-android.result == 'success'
         run: |
           SHA256=$(cat app/build/artifacts/SHASUMS256.txt | grep Tuist.dmg | awk '{print $1}')
           mise run --no-deps app:release:homebrew-cask --version "${{ needs.check-releases.outputs.app-next-version-number }}" --github-token "${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}" --sha256 "$SHA256"
@@ -2434,12 +2418,12 @@ jobs:
           FILES_ADDED=false
 
           # Add files from each component that was released
-          if [ "${{ needs.check-releases.outputs.cli-should-release }}" == "true" ] && [ "${{ needs.release-cli.result }}" == "success" ]; then
+          if [ "${{ needs.check-releases.outputs.cli-should-release }}" == "true" ] && [ "${{ needs.release-cli.result }}" == "success" ] && [ "${{ needs.release-cli-linux.result }}" == "success" ]; then
             git add cli/CHANGELOG.md cli/Sources/TuistConstants/Constants.swift mise.toml mise.lock
             FILES_ADDED=true
           fi
 
-          if [ "${{ needs.check-releases.outputs.app-should-release }}" == "true" ] && [ "${{ needs.release-app.result }}" == "success" ]; then
+          if [ "${{ needs.check-releases.outputs.app-should-release }}" == "true" ] && [ "${{ needs.release-app.result }}" == "success" ] && [ "${{ needs.release-ios.result }}" == "success" ] && [ "${{ needs.release-android.result }}" == "success" ]; then
             git add app/CHANGELOG.md app/Project.swift app/appcast.xml
             FILES_ADDED=true
           fi
@@ -2501,10 +2485,10 @@ jobs:
             if ! git diff --cached --quiet; then
               # Create commit message
               COMMIT_MSG="[Release]"
-              if [ "${{ needs.check-releases.outputs.cli-should-release }}" == "true" ] && [ "${{ needs.release-cli.result }}" == "success" ]; then
+              if [ "${{ needs.check-releases.outputs.cli-should-release }}" == "true" ] && [ "${{ needs.release-cli.result }}" == "success" ] && [ "${{ needs.release-cli-linux.result }}" == "success" ]; then
                 COMMIT_MSG="$COMMIT_MSG Tuist CLI ${{ needs.check-releases.outputs.cli-next-version }}"
               fi
-              if [ "${{ needs.check-releases.outputs.app-should-release }}" == "true" ] && [ "${{ needs.release-app.result }}" == "success" ]; then
+              if [ "${{ needs.check-releases.outputs.app-should-release }}" == "true" ] && [ "${{ needs.release-app.result }}" == "success" ] && [ "${{ needs.release-ios.result }}" == "success" ] && [ "${{ needs.release-android.result }}" == "success" ]; then
                 COMMIT_MSG="$COMMIT_MSG Tuist App ${{ needs.check-releases.outputs.app-next-version }}"
               fi
               if [ "${{ needs.check-releases.outputs.server-should-release }}" == "true" ] && [ "${{ needs.release-server.result }}" == "success" ]; then

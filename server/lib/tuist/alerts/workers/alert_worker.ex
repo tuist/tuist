@@ -36,7 +36,7 @@ defmodule Tuist.Alerts.Workers.AlertWorker do
       not Alerts.cooldown_elapsed?(alert_rule) ->
         :ok
 
-      is_nil(alert_rule.project.account.slack_installation) ->
+      not slack_configured?(alert_rule) ->
         :ok
 
       true ->
@@ -57,4 +57,16 @@ defmodule Tuist.Alerts.Workers.AlertWorker do
         end
     end
   end
+
+  # Either a per-channel webhook URL (preferred) or a legacy account-level
+  # bot token (with a channel id) is enough to deliver an alert.
+  defp slack_configured?(%{slack_webhook_url: url}) when is_binary(url) and url != "", do: true
+
+  defp slack_configured?(%{
+         slack_channel_id: channel_id,
+         project: %{account: %{slack_installation: %{access_token: token}}}
+       })
+       when is_binary(channel_id) and is_binary(token), do: true
+
+  defp slack_configured?(_), do: false
 end

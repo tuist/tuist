@@ -2,7 +2,7 @@ import ProjectDescription
 
 let tuist = Tuist(
     fullHandle: "tuist/tuist",
-    cache: .cache(
+    xcodeCache: .xcodeCache(
         upload: false
     ),
     url: "http://localhost:8080",

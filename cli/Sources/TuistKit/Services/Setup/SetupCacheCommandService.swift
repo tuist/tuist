@@ -61,7 +61,7 @@ struct SetupCacheCommandService {
 
         programArguments.append(contentsOf: ["--url", serverURL.absoluteString])
 
-        if !config.cache.upload {
+        if !config.xcodeCache.upload {
             programArguments.append("--no-upload")
         }
 

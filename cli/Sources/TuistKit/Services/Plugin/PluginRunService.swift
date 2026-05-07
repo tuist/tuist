@@ -1,8 +1,15 @@
+import Command
 import Path
 import TuistEnvironment
 import TuistSupport
 
 struct PluginRunService {
+    private let commandRunner: CommandRunning
+
+    init(commandRunner: CommandRunning = CommandRunner()) {
+        self.commandRunner = commandRunner
+    }
+
     func run(
         path: String?,
         configuration: PluginCommand.PackageConfiguration,
@@ -33,6 +40,6 @@ struct PluginRunService {
         }
         runCommand.append(task)
         runCommand += arguments
-        try System.shared.runAndPrint(runCommand)
+        try await commandRunner.runAndPrint(arguments: runCommand)
     }
 }

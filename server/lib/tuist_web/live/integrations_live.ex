@@ -6,7 +6,6 @@ defmodule TuistWeb.IntegrationsLive do
   alias Tuist.Authorization
   alias Tuist.Billing.Entitlements
   alias Tuist.Projects
-  alias Tuist.Slack
   alias Tuist.Utilities.DateFormatter
   alias Tuist.VCS
 
@@ -17,15 +16,13 @@ defmodule TuistWeb.IntegrationsLive do
             dgettext("dashboard_integrations", "You are not authorized to perform this action.")
     end
 
-    selected_account = Tuist.Repo.preload(selected_account, [:github_app_installation, :slack_installation, :projects])
+    selected_account = Tuist.Repo.preload(selected_account, [:github_app_installation, :projects])
     pending_or_installed = selected_account.github_app_installation
     # A row only counts as "installed" once GitHub has assigned an
     # installation_id via the post-install setup callback; manifest-flow
     # rows exist with credentials but `installation_id: nil` until then.
     github_installation =
       if pending_or_installed && pending_or_installed.installation_id, do: pending_or_installed
-
-    slack_installation = selected_account.slack_installation
     vcs_connections = vcs_connections(selected_account)
     github_enterprise_available? = Entitlements.allows?(selected_account, :github_enterprise_server)
 
@@ -43,7 +40,6 @@ defmodule TuistWeb.IntegrationsLive do
       |> assign(selected_tab: "integrations")
       |> assign(selected_account: selected_account)
       |> assign(github_app_installation: github_installation)
-      |> assign(slack_installation: slack_installation)
       |> assign(vcs_connections: vcs_connections)
       |> assign(selected_project_id: nil)
       |> assign(selected_repository_full_handle: nil)
@@ -178,17 +174,6 @@ defmodule TuistWeb.IntegrationsLive do
     else
       _ -> {:noreply, socket}
     end
-  end
-
-  @impl true
-  def handle_event("disconnect-slack", _params, %{assigns: assigns} = socket) do
-    %{slack_installation: slack_installation} = assigns
-
-    if slack_installation do
-      {:ok, _} = Slack.delete_installation(slack_installation)
-    end
-
-    {:noreply, assign(socket, slack_installation: nil)}
   end
 
   defp get_available_projects(%{selected_account: selected_account, vcs_connections: vcs_connections}) do

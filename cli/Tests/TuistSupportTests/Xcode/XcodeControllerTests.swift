@@ -11,7 +11,7 @@ final class XcodeControllerTests: TuistUnitTestCase {
 
     override func setUp() {
         super.setUp()
-        subject = XcodeController()
+        subject = XcodeController(commandRunner: mockCommandRunner)
     }
 
     override func tearDown() {
@@ -21,7 +21,7 @@ final class XcodeControllerTests: TuistUnitTestCase {
 
     func test_selected_when_xcodeSelectDoesntReturnThePath() async throws {
         // Given
-        system.errorCommand(["xcode-select", "-p"])
+        mockCommandRunner.errorCommand(["xcode-select", "-p"])
 
         // When / Then
         do {
@@ -41,14 +41,14 @@ final class XcodeControllerTests: TuistUnitTestCase {
         let infoPlistData = try PropertyListEncoder().encode(infoPlist)
         try infoPlistData.write(to: infoPlistPath.url)
 
-        system.succeedCommand(["xcode-select", "-p"], output: developerPath.pathString)
+        mockCommandRunner.succeedCommand(["xcode-select", "-p"], output: developerPath.pathString)
 
         // When
         _ = try await subject.selected()
 
         // Then
         // Testing that on the second run the value is cached and does not trigger a terminal command
-        system.errorCommand(["xcode-select", "-p"])
+        mockCommandRunner.errorCommand(["xcode-select", "-p"])
         let selected = try await subject.selected()
         XCTAssertNotNil(selected)
     }
@@ -64,7 +64,7 @@ final class XcodeControllerTests: TuistUnitTestCase {
         let infoPlistData = try PropertyListEncoder().encode(infoPlist)
         try infoPlistData.write(to: infoPlistPath.url)
 
-        system.succeedCommand(["xcode-select", "-p"], output: developerPath.pathString)
+        mockCommandRunner.succeedCommand(["xcode-select", "-p"], output: developerPath.pathString)
 
         // When
         let xcode = try await subject.selected()
@@ -84,7 +84,7 @@ final class XcodeControllerTests: TuistUnitTestCase {
         let infoPlistData = try PropertyListEncoder().encode(infoPlist)
         try infoPlistData.write(to: infoPlistPath.url)
 
-        system.succeedCommand(["xcode-select", "-p"], output: developerPath.pathString)
+        mockCommandRunner.succeedCommand(["xcode-select", "-p"], output: developerPath.pathString)
 
         // When
         let xcodeVersion = try await subject.selectedVersion()

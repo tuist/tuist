@@ -11,6 +11,7 @@ defmodule TuistWeb.TestRunLive do
   import TuistWeb.Previews.PlatformIcon
   import TuistWeb.Runs.ModuleCacheTab
   import TuistWeb.Runs.RanByBadge
+  import TuistWeb.Runs.SelectiveTestingTab
 
   alias Noora.Filter
   alias Tuist.ClickHouseRepo
@@ -83,6 +84,9 @@ defmodule TuistWeb.TestRunLive do
       |> assign_shard_rows(run)
       |> assign_async(:has_result_bundle, fn ->
         {:ok, %{has_result_bundle: (command_event && CommandEvents.has_result_bundle?(command_event)) || false}}
+      end)
+      |> assign_async(:has_session, fn ->
+        {:ok, %{has_session: (command_event && CommandEvents.has_session?(command_event)) || false}}
       end)
 
     if connected?(socket) and run.status == "processing" do

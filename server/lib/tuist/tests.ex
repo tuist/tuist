@@ -2233,9 +2233,10 @@ defmodule Tuist.Tests do
   @doc """
   Returns the count of unique flaky run groups (scheme + commit_sha) for a test case.
   """
-  def get_flaky_runs_groups_count_for_test_case(test_case_id) do
+  def get_flaky_runs_groups_count_for_test_case(project_id, test_case_id) do
     query =
       from(tcr in TestCaseRun,
+        where: tcr.project_id == ^project_id,
         where: tcr.test_case_id == ^test_case_id,
         where: tcr.is_flaky == true,
         select: fragment("count(DISTINCT (scheme, git_commit_sha))")
@@ -2247,11 +2248,12 @@ defmodule Tuist.Tests do
   @doc """
   Returns a map of test_case_id => count of unique flaky run groups for multiple test cases.
   """
-  def get_flaky_runs_groups_counts_for_test_cases([]), do: %{}
+  def get_flaky_runs_groups_counts_for_test_cases(_project_id, []), do: %{}
 
-  def get_flaky_runs_groups_counts_for_test_cases(test_case_ids) do
+  def get_flaky_runs_groups_counts_for_test_cases(project_id, test_case_ids) do
     query =
       from(tcr in TestCaseRun,
+        where: tcr.project_id == ^project_id,
         where: tcr.test_case_id in ^test_case_ids,
         where: tcr.is_flaky == true,
         group_by: tcr.test_case_id,
@@ -2267,13 +2269,14 @@ defmodule Tuist.Tests do
   Fetches flaky runs for a specific test case, grouped by scheme and commit SHA.
   Returns paginated groups, each containing all runs with their failures.
   """
-  def list_flaky_runs_for_test_case(test_case_id, params \\ %{}) do
+  def list_flaky_runs_for_test_case(project_id, test_case_id, params \\ %{}) do
     page = Map.get(params, :page, 1)
     page_size = Map.get(params, :page_size, 20)
     offset = (page - 1) * page_size
 
     groups_query =
       from(tcr in TestCaseRun,
+        where: tcr.project_id == ^project_id,
         where: tcr.test_case_id == ^test_case_id,
         where: tcr.is_flaky == true,
         group_by: [tcr.scheme, tcr.git_commit_sha],
@@ -2292,6 +2295,7 @@ defmodule Tuist.Tests do
 
     flaky_runs_query =
       from(tcr in TestCaseRun,
+        where: tcr.project_id == ^project_id,
         where: tcr.test_case_id == ^test_case_id,
         where: tcr.is_flaky == true,
         order_by: [desc: tcr.ran_at]
@@ -2343,7 +2347,7 @@ defmodule Tuist.Tests do
         }
       end)
 
-    total_count = get_flaky_runs_groups_count_for_test_case(test_case_id)
+    total_count = get_flaky_runs_groups_count_for_test_case(project_id, test_case_id)
 
     meta = %{
       total_count: total_count,
@@ -2358,6 +2362,7 @@ defmodule Tuist.Tests do
   def get_flaky_run_group_for_test_case_run(test_case_run) do
     flaky_runs_query =
       from(tcr in TestCaseRun,
+        where: tcr.project_id == ^test_case_run.project_id,
         where: tcr.test_case_id == ^test_case_run.test_case_id,
         where: tcr.git_commit_sha == ^test_case_run.git_commit_sha,
         where: tcr.scheme == ^test_case_run.scheme,
@@ -2494,6 +2499,7 @@ defmodule Tuist.Tests do
   defp get_cross_run_flaky_runs(_test_run_id, []), do: []
 
   defp get_cross_run_flaky_runs(test_run_id, current_flaky_runs) do
+    project_ids = current_flaky_runs |> Enum.map(& &1.project_id) |> Enum.uniq()
     test_case_ids = current_flaky_runs |> Enum.map(& &1.test_case_id) |> Enum.uniq()
 
     commit_shas =
@@ -2507,9 +2513,10 @@ defmodule Tuist.Tests do
     else
       query =
         from(tcr in TestCaseRun,
+          where: tcr.project_id in ^project_ids,
+          where: tcr.test_case_id in ^test_case_ids,
           where: tcr.test_run_id != ^test_run_id,
           where: tcr.git_commit_sha in ^commit_shas,
-          where: tcr.test_case_id in ^test_case_ids,
           where: tcr.is_flaky == true,
           order_by: [desc: tcr.ran_at]
         )

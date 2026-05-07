@@ -50,7 +50,7 @@ defmodule TuistWeb.RunDetailLiveTest do
         live(conn, ~p"/#{organization.account.name}/#{project.name}/runs/#{test_run.id}")
 
       # Then
-      assert has_element?(lv, "span", "Test Optimizations")
+      assert has_element?(lv, "span", "Selective Testing")
       assert has_element?(lv, "span", "tuist test App")
     end
 

@@ -270,7 +270,7 @@
                             </div>
                             <div data-part="slack-action-header-right">
                               <.button
-                                :if={@slack_installation}
+                                :if={@slack_configured}
                                 label={
                                   if action["channel_name"] && action["channel_name"] != "",
                                     do: dgettext("dashboard_projects", "Update channel"),
@@ -284,16 +284,6 @@
                                 data-event="trigger_action_channel_selected"
                                 data-id={index}
                               />
-                              <.link_button
-                                :if={is_nil(@slack_installation)}
-                                href={~p"/#{@selected_account.name}/integrations"}
-                                target="_blank"
-                                label={dgettext("dashboard_projects", "Connect Slack")}
-                                variant="primary"
-                                size="medium"
-                              >
-                                <:icon_right><.external_link /></:icon_right>
-                              </.link_button>
                               <.button
                                 icon_only
                                 size="medium"
@@ -523,7 +513,7 @@
                             </div>
                             <div data-part="slack-action-header-right">
                               <.button
-                                :if={@slack_installation}
+                                :if={@slack_configured}
                                 label={
                                   if action["channel_name"] && action["channel_name"] != "",
                                     do: dgettext("dashboard_projects", "Update channel"),
@@ -537,16 +527,6 @@
                                 data-event="recovery_action_channel_selected"
                                 data-id={index}
                               />
-                              <.link_button
-                                :if={is_nil(@slack_installation)}
-                                href={~p"/#{@selected_account.name}/integrations"}
-                                target="_blank"
-                                label={dgettext("dashboard_projects", "Connect Slack")}
-                                variant="primary"
-                                size="medium"
-                              >
-                                <:icon_right><.external_link /></:icon_right>
-                              </.link_button>
                               <.button
                                 icon_only
                                 size="medium"

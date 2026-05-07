@@ -9,7 +9,7 @@ final class TemplateLocationParserTests: TuistUnitTestCase {
 
     override func setUp() {
         super.setUp()
-        subject = TemplateLocationParser(system: system)
+        subject = TemplateLocationParser()
     }
 
     override func tearDown() {

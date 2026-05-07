@@ -104,7 +104,7 @@ public enum AuthenticationToken: Equatable, CustomStringConvertible {
         func withLock<T>(
             lockfilePath: AbsolutePath,
             serverURL: URL,
-            maxAttempts: Int = 10,
+            maxAttempts: Int = 30,
             retryInterval: UInt64 = 500, // Milliseconds
             action: (_ complete: () async throws -> Void) async throws -> Void,
             fetchActionResult: () async throws -> T?
@@ -278,14 +278,32 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
     private func deletingCredentialsOnUnauthorizedError<T>(
         serverURL: URL, action: () async throws -> T
     ) async throws -> T {
+        // Snapshot the refresh token before the action so we can detect a peer
+        // process rotating it while our refresh request was in flight. Without
+        // this, two parallel `tuist` invocations can race: the slower one POSTs
+        // a now-revoked refresh token, the server responds 401, and we used to
+        // wipe the credentials file even though the on-disk credentials had
+        // already been refreshed by the peer.
+        let refreshTokenBeforeAction = try? await ServerCredentialsStore.current
+            .read(serverURL: serverURL)?.refreshToken
         do {
             return try await action()
         } catch let error as RefreshAuthTokenServiceError {
             if case .unauthorized = error {
-                #if canImport(TuistSupport)
-                    Logger.current.debug("Deleting the credentials for \(serverURL)")
-                #endif
-                try? await ServerCredentialsStore.current.delete(serverURL: serverURL)
+                let refreshTokenAfterAction = try? await ServerCredentialsStore.current
+                    .read(serverURL: serverURL)?.refreshToken
+                if refreshTokenBeforeAction != refreshTokenAfterAction {
+                    #if canImport(TuistSupport)
+                        Logger.current.debug(
+                            "Refresh token for \(serverURL) was rotated by another process; preserving credentials"
+                        )
+                    #endif
+                } else {
+                    #if canImport(TuistSupport)
+                        Logger.current.debug("Deleting the credentials for \(serverURL)")
+                    #endif
+                    try? await ServerCredentialsStore.current.delete(serverURL: serverURL)
+                }
             }
             throw error
         } catch {

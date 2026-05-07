@@ -261,7 +261,7 @@ struct SetupCacheCommandServiceTests {
 
         let config = Tuist.test(
             fullHandle: "organization/project",
-            cache: .init(upload: false)
+            xcodeCache: .init(upload: false)
         )
         configLoader.reset()
         given(configLoader)
@@ -292,7 +292,7 @@ struct SetupCacheCommandServiceTests {
 
         let config = Tuist.test(
             fullHandle: "organization/project",
-            cache: .init(upload: true)
+            xcodeCache: .init(upload: true)
         )
         configLoader.reset()
         given(configLoader)

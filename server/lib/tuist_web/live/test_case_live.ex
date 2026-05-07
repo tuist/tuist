@@ -335,7 +335,7 @@ defmodule TuistWeb.TestCaseLive do
       {:ok, %{analytics: Analytics.test_case_analytics_by_id(test_case_id)}}
     end)
     |> assign_async([:flakiness_rate, :flaky_runs_grouped, :flaky_runs_meta], fn ->
-      {flaky_runs_grouped, flaky_runs_meta} = Tests.list_flaky_runs_for_test_case(test_case_id)
+      {flaky_runs_grouped, flaky_runs_meta} = Tests.list_flaky_runs_for_test_case(project.id, test_case_id)
 
       {:ok,
        %{
