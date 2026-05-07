@@ -95,15 +95,17 @@
     [data-part="form-row-inline"] {
       display: flex;
       flex-direction: row;
+      flex-wrap: wrap;
       gap: var(--noora-spacing-5);
 
       /* Pin each control to a width that comfortably holds its label and
          value without forcing the row over to a single growing column.
          Without explicit widths the flexed dropdowns ballooned and the
-         inputs cramped; with `flex: 0 1 auto` everything stays predictable
-         across modal sizes. */
+         inputs cramped; with `flex: 0 0 auto` everything stays predictable
+         across modal sizes and the row wraps cleanly when the modal is
+         narrower than the controls' combined width. */
       & > [data-part="form-row"] {
-        flex: 0 1 auto;
+        flex: 0 0 auto;
         min-width: 0;
       }
 
