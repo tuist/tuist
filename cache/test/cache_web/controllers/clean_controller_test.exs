@@ -26,7 +26,7 @@ defmodule CacheWeb.CleanControllerTest do
       project_handle = "test_project"
 
       expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
-        {:ok, "Bearer valid-token"}
+        {:ok, "Bearer valid-token", nil}
       end)
 
       capture_log(fn ->
@@ -46,7 +46,7 @@ defmodule CacheWeb.CleanControllerTest do
 
     test "returns 422 when path params contain traversal", %{conn: conn} do
       expect(Authentication, :ensure_project_accessible, fn _conn, "..", "test_project" ->
-        {:ok, "Bearer valid-token"}
+        {:ok, "Bearer valid-token", nil}
       end)
 
       conn =

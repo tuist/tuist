@@ -509,6 +509,41 @@ defmodule TuistWeb.API.ProjectsControllerTest do
       response = json_response(conn, :unauthorized)
       assert response["message"] == "You need to be authenticated to access this resource."
     end
+
+    test "returns a billing snapshot per account", %{conn: conn, user: user} do
+      conn = Authentication.put_current_user(conn, user)
+      ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      conn = get(conn, "/api/projects")
+
+      response = json_response(conn, :ok)
+
+      assert [
+               %{
+                 "name" => account_name,
+                 "plan" => "air",
+                 "subscription_active" => true,
+                 "thresholds_surpassed" => false
+               }
+             ] = response["accounts"]
+
+      assert account_name == user.account.name
+    end
+
+    test "marks an account as having surpassed thresholds when over the free tier limit", %{conn: conn, user: user} do
+      conn = Authentication.put_current_user(conn, user)
+      ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      threshold = Tuist.Billing.get_payment_thresholds()[:remote_cache_hits]
+
+      Accounts.update_account_current_month_usage(user.account.id, %{remote_cache_hits_count: threshold})
+
+      conn = get(conn, "/api/projects")
+
+      response = json_response(conn, :ok)
+
+      assert [%{"plan" => "air", "thresholds_surpassed" => true}] = response["accounts"]
+    end
   end
 
   describe "GET /api/projects/{account_name}/{project_name}" do

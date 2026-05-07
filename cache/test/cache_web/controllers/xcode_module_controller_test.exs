@@ -39,7 +39,7 @@ defmodule CacheWeb.XcodeModuleControllerTest do
       artifact_id = "some-artifact-id"
 
       expect(Authentication, :ensure_project_accessible, fn _conn, "test-account", "test-project" ->
-        {:ok, "Bearer valid-token"}
+        {:ok, "Bearer valid-token", nil}
       end)
 
       expect(XcodeModule.Disk, :stat, fn "test-account", "test-project", "builds", ^hash, ^name ->
@@ -75,7 +75,7 @@ defmodule CacheWeb.XcodeModuleControllerTest do
       artifact_id = "some-artifact-id"
 
       expect(Authentication, :ensure_project_accessible, fn _conn, "test-account", "test-project" ->
-        {:ok, "Bearer valid-token"}
+        {:ok, "Bearer valid-token", nil}
       end)
 
       expect(XcodeModule.Disk, :stat, fn "test-account", "test-project", "builds", ^hash, ^name ->
@@ -122,7 +122,7 @@ defmodule CacheWeb.XcodeModuleControllerTest do
       artifact_id = "some-artifact-id"
 
       expect(Authentication, :ensure_project_accessible, fn _conn, "test-account", "test-project" ->
-        {:ok, "Bearer valid-token"}
+        {:ok, "Bearer valid-token", nil}
       end)
 
       expect(XcodeModule.Disk, :stat, fn "test-account", "test-project", "builds", ^hash, ^name ->
@@ -151,7 +151,7 @@ defmodule CacheWeb.XcodeModuleControllerTest do
 
     test "returns 422 when artifact path params contain traversal", %{conn: conn} do
       expect(Authentication, :ensure_project_accessible, fn _conn, "test-account", "test-project" ->
-        {:ok, "Bearer valid-token"}
+        {:ok, "Bearer valid-token", nil}
       end)
 
       conn =
@@ -188,7 +188,7 @@ defmodule CacheWeb.XcodeModuleControllerTest do
       artifact_id = "some-artifact-id"
 
       expect(Authentication, :ensure_project_accessible, fn _conn, "test-account", "test-project" ->
-        {:ok, "Bearer valid-token"}
+        {:ok, "Bearer valid-token", nil}
       end)
 
       expect(XcodeModule.Disk, :exists?, fn "test-account", "test-project", "builds", ^hash, ^name ->
@@ -213,7 +213,7 @@ defmodule CacheWeb.XcodeModuleControllerTest do
       artifact_id = "some-artifact-id"
 
       expect(Authentication, :ensure_project_accessible, fn _conn, "test-account", "test-project" ->
-        {:ok, "Bearer valid-token"}
+        {:ok, "Bearer valid-token", nil}
       end)
 
       expect(XcodeModule.Disk, :exists?, fn "test-account", "test-project", "builds", ^hash, ^name ->
@@ -243,7 +243,7 @@ defmodule CacheWeb.XcodeModuleControllerTest do
       artifact_id = "some-artifact-id"
 
       expect(Authentication, :ensure_project_accessible, fn _conn, "test-account", "test-project" ->
-        {:ok, "Bearer valid-token"}
+        {:ok, "Bearer valid-token", nil}
       end)
 
       expect(XcodeModule.Disk, :exists?, fn "test-account", "test-project", "builds", ^hash, ^name ->
@@ -273,7 +273,7 @@ defmodule CacheWeb.XcodeModuleControllerTest do
       name = "MyModule.xcframework.zip"
 
       expect(Authentication, :ensure_project_accessible, fn _conn, "test-account", "test-project" ->
-        {:ok, "Bearer valid-token"}
+        {:ok, "Bearer valid-token", nil}
       end)
 
       expect(XcodeModule.Disk, :exists?, fn "test-account", "test-project", "builds", ^hash, ^name ->
@@ -300,7 +300,7 @@ defmodule CacheWeb.XcodeModuleControllerTest do
       name = "MyModule.xcframework.zip"
 
       expect(Authentication, :ensure_project_accessible, fn _conn, "test-account", "test-project" ->
-        {:ok, "Bearer valid-token"}
+        {:ok, "Bearer valid-token", nil}
       end)
 
       expect(XcodeModule.Disk, :exists?, fn "test-account", "test-project", "builds", ^hash, ^name ->
@@ -327,7 +327,7 @@ defmodule CacheWeb.XcodeModuleControllerTest do
       category = "custom_category"
 
       expect(Authentication, :ensure_project_accessible, fn _conn, "test-account", "test-project" ->
-        {:ok, "Bearer valid-token"}
+        {:ok, "Bearer valid-token", nil}
       end)
 
       expect(XcodeModule.Disk, :exists?, fn "test-account", "test-project", ^category, ^hash, ^name ->
@@ -348,7 +348,7 @@ defmodule CacheWeb.XcodeModuleControllerTest do
 
     test "returns 422 when artifact path params contain traversal", %{conn: conn} do
       expect(Authentication, :ensure_project_accessible, fn _conn, "test-account", "test-project" ->
-        {:ok, "Bearer valid-token"}
+        {:ok, "Bearer valid-token", nil}
       end)
 
       conn =
@@ -382,7 +382,7 @@ defmodule CacheWeb.XcodeModuleControllerTest do
       body = String.duplicate("x", 1000)
 
       expect(Authentication, :ensure_project_accessible, fn _conn, "test-account", "test-project" ->
-        {:ok, "Bearer valid-token"}
+        {:ok, "Bearer valid-token", nil}
       end)
 
       conn =
@@ -408,7 +408,7 @@ defmodule CacheWeb.XcodeModuleControllerTest do
       body = String.duplicate("x", 1000)
 
       expect(Authentication, :ensure_project_accessible, fn _conn, "test-account", "test-project" ->
-        {:ok, "Bearer valid-token"}
+        {:ok, "Bearer valid-token", nil}
       end)
 
       conn =
@@ -434,7 +434,7 @@ defmodule CacheWeb.XcodeModuleControllerTest do
       body = String.duplicate("x", 1000)
 
       expect(Authentication, :ensure_project_accessible, fn _conn, "test-account", "test-project" ->
-        {:ok, "Bearer valid-token"}
+        {:ok, "Bearer valid-token", nil}
       end)
 
       conn =
@@ -467,7 +467,7 @@ defmodule CacheWeb.XcodeModuleControllerTest do
       assembly_path = upload.assembly_path
 
       expect(Authentication, :ensure_project_accessible, fn _conn, "test-account", "test-project" ->
-        {:ok, "Bearer valid-token"}
+        {:ok, "Bearer valid-token", nil}
       end)
 
       expect(S3, :exists?, fn ^key, opts ->
@@ -528,7 +528,7 @@ defmodule CacheWeb.XcodeModuleControllerTest do
       assembly_path = upload.assembly_path
 
       expect(Authentication, :ensure_project_accessible, fn _conn, "test-account", "test-project" ->
-        {:ok, "Bearer valid-token"}
+        {:ok, "Bearer valid-token", nil}
       end)
 
       expect(S3, :exists?, fn ^key, opts ->
@@ -564,7 +564,7 @@ defmodule CacheWeb.XcodeModuleControllerTest do
 
     test "returns 404 for unknown upload_id", %{conn: conn} do
       expect(Authentication, :ensure_project_accessible, fn _conn, "test-account", "test-project" ->
-        {:ok, "Bearer valid-token"}
+        {:ok, "Bearer valid-token", nil}
       end)
 
       conn =
@@ -589,7 +589,7 @@ defmodule CacheWeb.XcodeModuleControllerTest do
       MultipartUploads.add_part(upload_id, 1, tmp_path, 12)
 
       expect(Authentication, :ensure_project_accessible, fn _conn, "test-account", "test-project" ->
-        {:ok, "Bearer valid-token"}
+        {:ok, "Bearer valid-token", nil}
       end)
 
       conn =
@@ -630,7 +630,7 @@ defmodule CacheWeb.XcodeModuleControllerTest do
       assembly_path = upload.assembly_path
 
       expect(Authentication, :ensure_project_accessible, fn _conn, "test-account", "test-project" ->
-        {:ok, "Bearer valid-token"}
+        {:ok, "Bearer valid-token", nil}
       end)
 
       expect(S3, :exists?, fn ^key, opts ->

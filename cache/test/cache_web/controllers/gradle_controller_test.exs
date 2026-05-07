@@ -42,7 +42,7 @@ defmodule CacheWeb.GradleControllerTest do
       test_pid = self()
 
       expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
-        {:ok, "Bearer valid-token"}
+        {:ok, "Bearer valid-token", nil}
       end)
 
       expect(S3, :exists?, fn ^key, opts ->
@@ -103,7 +103,7 @@ defmodule CacheWeb.GradleControllerTest do
       test_pid = self()
 
       expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
-        {:ok, "Bearer valid-token"}
+        {:ok, "Bearer valid-token", nil}
       end)
 
       expect(S3, :exists?, fn ^key, opts ->
@@ -169,7 +169,7 @@ defmodule CacheWeb.GradleControllerTest do
       test_pid = self()
 
       expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
-        {:ok, "Bearer valid-token"}
+        {:ok, "Bearer valid-token", nil}
       end)
 
       expect(S3, :exists?, fn ^key, opts ->
@@ -216,7 +216,7 @@ defmodule CacheWeb.GradleControllerTest do
       call_count = :counters.new(1, [])
 
       expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
-        {:ok, "Bearer valid-token"}
+        {:ok, "Bearer valid-token", nil}
       end)
 
       expect(Gradle.Disk, :exists?, fn ^account_handle, ^project_handle, ^cache_key ->
@@ -270,7 +270,7 @@ defmodule CacheWeb.GradleControllerTest do
       reject(Gradle.Disk, :put, 4)
 
       expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
-        {:ok, "Bearer valid-token"}
+        {:ok, "Bearer valid-token", nil}
       end)
 
       conn =
@@ -320,7 +320,7 @@ defmodule CacheWeb.GradleControllerTest do
       declared_length = 10_000
 
       expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
-        {:ok, "Bearer valid-token"}
+        {:ok, "Bearer valid-token", nil}
       end)
 
       expect(Gradle.Disk, :exists?, fn ^account_handle, ^project_handle, ^cache_key ->
@@ -361,7 +361,7 @@ defmodule CacheWeb.GradleControllerTest do
       body = "test artifact content"
 
       expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
-        {:ok, "Bearer valid-token"}
+        {:ok, "Bearer valid-token", nil}
       end)
 
       expect(Gradle.Disk, :exists?, fn ^account_handle, ^project_handle, ^cache_key ->
@@ -389,7 +389,7 @@ defmodule CacheWeb.GradleControllerTest do
       body = :binary.copy("0123456789abcdef", 20_000)
 
       expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
-        {:ok, "Bearer valid-token"}
+        {:ok, "Bearer valid-token", nil}
       end)
 
       expect(Gradle.Disk, :exists?, fn ^account_handle, ^project_handle, ^cache_key ->
@@ -420,7 +420,7 @@ defmodule CacheWeb.GradleControllerTest do
       body = "test artifact content"
 
       expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
-        {:ok, "Bearer valid-token"}
+        {:ok, "Bearer valid-token", nil}
       end)
 
       Gradle.Disk
@@ -455,7 +455,7 @@ defmodule CacheWeb.GradleControllerTest do
       large_body = :binary.copy("0123456789abcdef", 150_000)
 
       expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
-        {:ok, "Bearer valid-token"}
+        {:ok, "Bearer valid-token", nil}
       end)
 
       Gradle.Disk
@@ -533,7 +533,7 @@ defmodule CacheWeb.GradleControllerTest do
       project_handle = "test-project"
 
       expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
-        {:ok, "Bearer valid-token"}
+        {:ok, "Bearer valid-token", nil}
       end)
 
       conn =

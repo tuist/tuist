@@ -5,6 +5,7 @@ defmodule TuistWeb.API.ProjectsController do
   alias OpenApiSpex.Schema
   alias Tuist.Accounts
   alias Tuist.Authorization
+  alias Tuist.Billing
   alias Tuist.Projects
   alias TuistWeb.API.Schemas.BuildSystem
   alias TuistWeb.API.Schemas.Error
@@ -161,6 +162,31 @@ defmodule TuistWeb.API.ProjectsController do
              projects: %Schema{
                type: :array,
                items: Project
+             },
+             accounts: %Schema{
+               type: :array,
+               description:
+                 "Billing snapshot for each account the authenticated subject has access to. Used by downstream services (e.g. the cache) to enforce plan limits.",
+               items: %Schema{
+                 type: :object,
+                 required: [:name, :plan, :subscription_active, :thresholds_surpassed],
+                 properties: %{
+                   name: %Schema{type: :string, description: "The account handle."},
+                   plan: %Schema{
+                     type: :string,
+                     description: "The active plan for the account.",
+                     enum: ["air", "pro", "open_source", "enterprise"]
+                   },
+                   subscription_active: %Schema{
+                     type: :boolean,
+                     description: "Whether the account has an active (or trialing) subscription."
+                   },
+                   thresholds_surpassed: %Schema{
+                     type: :boolean,
+                     description: "Whether the account has reached the free tier limits for the current month."
+                   }
+                 }
+               }
              }
            },
            required: [:projects]
@@ -177,17 +203,35 @@ defmodule TuistWeb.API.ProjectsController do
       |> put_status(:unauthorized)
       |> json(%Error{message: "You need to be authenticated to access this resource."})
     else
+      project_accounts = Projects.get_all_project_accounts(subject)
+
       projects =
-        subject
-        |> Projects.get_all_project_accounts()
-        |> Enum.map(fn project_account ->
+        Enum.map(project_accounts, fn project_account ->
           project_response(project_account.project, project_account.handle)
         end)
 
+      accounts =
+        project_accounts
+        |> Enum.map(& &1.account)
+        |> Enum.uniq_by(& &1.id)
+        |> Enum.map(&account_billing_response/1)
+
       conn
       |> put_status(:ok)
-      |> json(%{projects: projects})
+      |> json(%{projects: projects, accounts: accounts})
     end
+  end
+
+  defp account_billing_response(account) do
+    %{plan: plan, subscription_active: subscription_active, thresholds_surpassed: thresholds_surpassed} =
+      Billing.account_billing_status(account)
+
+    %{
+      name: account.name,
+      plan: Atom.to_string(plan),
+      subscription_active: subscription_active,
+      thresholds_surpassed: thresholds_surpassed
+    }
   end
 
   operation(:show,

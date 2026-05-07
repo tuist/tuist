@@ -26,7 +26,11 @@ defmodule Cache.Authentication do
   @doc """
   Ensures the request has access to the specified project.
 
-  Returns `{:ok, auth_header}` if authorized, or `{:error, status, message}` otherwise.
+  Returns `{:ok, auth_header, billing}` if authorized, where `billing` is either
+  the billing snapshot for the account (a map with `:plan`,
+  `:subscription_active`, `:thresholds_surpassed`) or `nil` when it could not
+  be determined locally (e.g. JWT-only authorization). Returns
+  `{:error, status, message}` otherwise.
   """
   def ensure_project_accessible(conn, account_handle, project_handle, opts \\ []) do
     auth_header = conn |> Plug.Conn.get_req_header("authorization") |> List.first()
@@ -38,8 +42,8 @@ defmodule Cache.Authentication do
       requested_handle = full_handle(account_handle, project_handle)
 
       case authorize(auth_header, requested_handle, conn, cache) do
-        :ok ->
-          {:ok, auth_header}
+        {:ok, billing} ->
+          {:ok, auth_header, billing}
 
         {:error, status, message} ->
           {:error, status, message}
@@ -57,7 +61,7 @@ defmodule Cache.Authentication do
 
       {:ok, result} ->
         :telemetry.execute([:cache, :auth, :cache, :hit], %{}, %{})
-        if result == :ok, do: :telemetry.execute([:cache, :auth, :authorized], %{}, %{method: :cache})
+        if match?({:ok, _}, result), do: :telemetry.execute([:cache, :auth, :authorized], %{}, %{method: :cache})
         result
 
       _ ->
@@ -72,16 +76,16 @@ defmodule Cache.Authentication do
     case verify_jwt(token, requested_handle) do
       {:ok, ttl} ->
         :telemetry.execute([:cache, :auth, :authorized], %{}, %{method: :jwt})
-        cache_result(cache, cache_key, :ok, ttl)
+        cache_result(cache, cache_key, {:ok, nil}, ttl)
 
       {:error, :not_jwt} ->
-        fetch_and_cache_projects(auth_header, cache_key, conn, cache)
+        fetch_and_cache_projects(auth_header, cache_key, requested_handle, conn, cache)
 
       {:error, :project_not_in_jwt} ->
-        fetch_and_cache_projects(auth_header, cache_key, conn, cache)
+        fetch_and_cache_projects(auth_header, cache_key, requested_handle, conn, cache)
 
       {:error, _reason} ->
-        fetch_and_cache_projects(auth_header, cache_key, conn, cache)
+        fetch_and_cache_projects(auth_header, cache_key, requested_handle, conn, cache)
     end
   end
 
@@ -132,16 +136,16 @@ defmodule Cache.Authentication do
 
   defp calculate_ttl(_), do: success_ttl()
 
-  defp fetch_and_cache_projects(auth_header, cache_key, conn, cache) do
+  defp fetch_and_cache_projects(auth_header, cache_key, requested_handle, conn, cache) do
     headers = build_headers(auth_header, conn)
     options = request_options(headers)
 
     cache
-    |> Cachex.fetch(cache_key, fn -> fetch_projects(cache_key, options) end)
+    |> Cachex.fetch(cache_key, fn -> fetch_projects(cache_key, requested_handle, options) end)
     |> unwrap_fetch_result()
   end
 
-  defp fetch_projects(cache_key, options) do
+  defp fetch_projects(cache_key, requested_handle, options) do
     start_time = System.monotonic_time()
     :telemetry.execute([:cache, :auth, :server, :request], %{}, %{})
 
@@ -151,9 +155,9 @@ defmodule Cache.Authentication do
     :telemetry.execute([:cache, :auth, :server, :response], %{duration: duration}, %{})
 
     case result do
-      {:ok, %{status: 200, body: %{"projects" => projects}}} ->
-        result = project_access_result(cache_key, projects)
-        ttl = if result == :ok, do: success_ttl(), else: failure_ttl()
+      {:ok, %{status: 200, body: %{"projects" => projects} = body}} ->
+        result = project_access_result(cache_key, projects, Map.get(body, "accounts", []), requested_handle)
+        ttl = if match?({:ok, _}, result), do: success_ttl(), else: failure_ttl()
         {:commit, result, expire: ttl}
 
       {:ok, %{status: 403}} ->
@@ -229,7 +233,7 @@ defmodule Cache.Authentication do
     |> Base.encode16(case: :lower)
   end
 
-  defp project_access_result({_auth_key, requested_handle}, projects) do
+  defp project_access_result({_auth_key, _requested_handle}, projects, accounts, requested_handle) do
     project_handles =
       projects
       |> Enum.map(fn
@@ -241,11 +245,46 @@ defmodule Cache.Authentication do
 
     if MapSet.member?(project_handles, requested_handle) do
       :telemetry.execute([:cache, :auth, :authorized], %{}, %{method: :server})
-      :ok
+      {:ok, billing_for_handle(accounts, requested_handle)}
     else
       {:error, 403, "You don't have access to this project"}
     end
   end
+
+  defp billing_for_handle(accounts, requested_handle) when is_list(accounts) do
+    [account_handle, _project_handle] = String.split(requested_handle, "/", parts: 2)
+
+    Enum.find_value(accounts, fn
+      %{"name" => name} = account when is_binary(name) ->
+        if String.downcase(name) == account_handle, do: parse_billing(account)
+
+      _ ->
+        nil
+    end)
+  end
+
+  defp billing_for_handle(_accounts, _requested_handle), do: nil
+
+  defp parse_billing(%{
+         "plan" => plan,
+         "subscription_active" => subscription_active,
+         "thresholds_surpassed" => thresholds_surpassed
+       })
+       when is_binary(plan) do
+    %{
+      plan: parse_plan(plan),
+      subscription_active: subscription_active == true,
+      thresholds_surpassed: thresholds_surpassed == true
+    }
+  end
+
+  defp parse_billing(_), do: nil
+
+  defp parse_plan("air"), do: :air
+  defp parse_plan("pro"), do: :pro
+  defp parse_plan("open_source"), do: :open_source
+  defp parse_plan("enterprise"), do: :enterprise
+  defp parse_plan(_), do: :unknown
 
   defp cache_result(cache, cache_key, result, ttl) do
     Cachex.put(cache, cache_key, result, ttl: ttl)

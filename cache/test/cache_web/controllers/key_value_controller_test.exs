@@ -14,7 +14,7 @@ defmodule CacheWeb.KeyValueControllerTest do
       cas_id = "test_cas_id_123"
 
       expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
-        {:ok, "Bearer valid-token"}
+        {:ok, "Bearer valid-token", nil}
       end)
 
       :ok = KeyValueStore.put_key_value(cas_id, account_handle, project_handle, ["value1", "value2"])
@@ -38,7 +38,7 @@ defmodule CacheWeb.KeyValueControllerTest do
       cas_id = "nonexistent_cas_id"
 
       expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
-        {:ok, "Bearer valid-token"}
+        {:ok, "Bearer valid-token", nil}
       end)
 
       conn =
@@ -90,7 +90,7 @@ defmodule CacheWeb.KeyValueControllerTest do
       cas_id = "busy_cas_id"
 
       expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
-        {:ok, "Bearer valid-token"}
+        {:ok, "Bearer valid-token", nil}
       end)
 
       expect(KeyValueStore, :get_key_value, fn ^cas_id, ^account_handle, ^project_handle ->
@@ -111,7 +111,7 @@ defmodule CacheWeb.KeyValueControllerTest do
       cas_id = "test_cas_id_123"
 
       expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
-        {:ok, "Bearer valid-token"}
+        {:ok, "Bearer valid-token", nil}
       end)
 
       entries = [

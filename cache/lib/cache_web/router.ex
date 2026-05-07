@@ -14,6 +14,7 @@ defmodule CacheWeb.Router do
   pipeline :project_auth do
     plug CacheWeb.Plugs.ObservabilityContextPlug
     plug CacheWeb.Plugs.AuthPlug
+    plug CacheWeb.Plugs.BillingPlug
   end
 
   pipeline :open_api do

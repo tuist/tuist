@@ -33,7 +33,7 @@ defmodule CacheWeb.XcodeControllerTest do
       test_pid = self()
 
       expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
-        {:ok, "Bearer valid-token"}
+        {:ok, "Bearer valid-token", nil}
       end)
 
       expect(S3, :exists?, fn ^key, opts ->
@@ -87,7 +87,7 @@ defmodule CacheWeb.XcodeControllerTest do
       test_pid = self()
 
       expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
-        {:ok, "Bearer valid-token"}
+        {:ok, "Bearer valid-token", nil}
       end)
 
       expect(S3, :exists?, fn ^key, opts ->
@@ -145,7 +145,7 @@ defmodule CacheWeb.XcodeControllerTest do
       test_pid = self()
 
       expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
-        {:ok, "Bearer valid-token"}
+        {:ok, "Bearer valid-token", nil}
       end)
 
       expect(S3, :exists?, fn ^key, opts ->
@@ -188,7 +188,7 @@ defmodule CacheWeb.XcodeControllerTest do
       call_count = :counters.new(1, [])
 
       expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
-        {:ok, "Bearer valid-token"}
+        {:ok, "Bearer valid-token", nil}
       end)
 
       expect(Xcode.Disk, :exists?, fn ^account_handle, ^project_handle, ^id ->
@@ -231,7 +231,7 @@ defmodule CacheWeb.XcodeControllerTest do
       body = "test artifact content"
 
       expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
-        {:ok, "Bearer valid-token"}
+        {:ok, "Bearer valid-token", nil}
       end)
 
       expect(Xcode.Disk, :exists?, fn ^account_handle, ^project_handle, ^id ->
@@ -255,7 +255,7 @@ defmodule CacheWeb.XcodeControllerTest do
       body = :binary.copy("0123456789abcdef", 20_000)
 
       expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
-        {:ok, "Bearer valid-token"}
+        {:ok, "Bearer valid-token", nil}
       end)
 
       expect(Xcode.Disk, :exists?, fn ^account_handle, ^project_handle, ^id ->
@@ -282,7 +282,7 @@ defmodule CacheWeb.XcodeControllerTest do
       body = "test artifact content"
 
       expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
-        {:ok, "Bearer valid-token"}
+        {:ok, "Bearer valid-token", nil}
       end)
 
       Xcode.Disk
@@ -313,7 +313,7 @@ defmodule CacheWeb.XcodeControllerTest do
       large_body = :binary.copy("0123456789abcdef", 150_000)
 
       expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
-        {:ok, "Bearer valid-token"}
+        {:ok, "Bearer valid-token", nil}
       end)
 
       Xcode.Disk
@@ -381,7 +381,7 @@ defmodule CacheWeb.XcodeControllerTest do
       project_handle = "test-project"
 
       expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
-        {:ok, "Bearer valid-token"}
+        {:ok, "Bearer valid-token", nil}
       end)
 
       conn =
@@ -415,7 +415,7 @@ defmodule CacheWeb.XcodeControllerTest do
       id = "abc123"
 
       expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
-        {:ok, "Bearer valid-token"}
+        {:ok, "Bearer valid-token", nil}
       end)
 
       expect(Xcode.Disk, :stat, fn ^account_handle, ^project_handle, ^id ->
@@ -447,7 +447,7 @@ defmodule CacheWeb.XcodeControllerTest do
       id = "abc123"
 
       expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
-        {:ok, "Bearer valid-token"}
+        {:ok, "Bearer valid-token", nil}
       end)
 
       expect(Xcode.Disk, :stat, fn ^account_handle, ^project_handle, ^id ->
@@ -485,7 +485,7 @@ defmodule CacheWeb.XcodeControllerTest do
       id = "abc123"
 
       expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
-        {:ok, "Bearer valid-token"}
+        {:ok, "Bearer valid-token", nil}
       end)
 
       expect(Xcode.Disk, :stat, fn ^account_handle, ^project_handle, ^id ->
