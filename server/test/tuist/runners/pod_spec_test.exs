@@ -30,7 +30,7 @@ defmodule Tuist.Runners.PodSpecTest do
 
       [container] = pod["spec"]["containers"]
       assert container["image"] == "ghcr.io/tuist/tuist-runner@sha256:beefcafe"
-      assert container["resources"]["requests"]["cpu"] == "4000m"
+      assert container["resources"]["requests"]["cpu"] == "8000m"
       assert container["resources"]["requests"]["memory"] == "14Gi"
 
       env = container["env"]

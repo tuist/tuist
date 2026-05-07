@@ -201,6 +201,18 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 		}
 	}
 
+	// Resize the cloned VM to match the Pod's resource requests.
+	// The image is built small (~4 vCPU / 8 GB) so it fits on a
+	// 16 GB image-builder host; at deploy time the host is bigger
+	// and the customer wants the VM to use whatever the Pod
+	// requested. `tart set` is no-op when the VM already matches.
+	cpu, memMB := vmResourcesFromPod(c)
+	if cpu > 0 || memMB > 0 {
+		if err := r.Tart.Set(ctx, vmName, cpu, memMB); err != nil {
+			return fmt.Errorf("tart set: %w", err)
+		}
+	}
+
 	if err := r.Tart.Run(ctx, vmName, []string{"env:" + envDir + ":ro"}); err != nil {
 		return fmt.Errorf("tart run: %w", err)
 	}
@@ -285,6 +297,47 @@ func podIsHandled(pod *corev1.Pod) bool {
 		return false
 	}
 	return true
+}
+
+// vmResourcesFromPod returns the (cpu_cores, memory_mb) the VM
+// should be sized to before `tart run`. Reads the first
+// container's resources, preferring `limits` (a hard cap, the
+// safer "this is the most we want this VM to consume") and
+// falling back to `requests` (used by kube-scheduler for
+// placement, often equal to limits in practice).
+//
+// Returns 0/0 when the Pod doesn't request anything specific —
+// the caller skips `tart set` and the VM keeps the image's baked
+// defaults. CPU is rounded down (millicores -> integer cores;
+// 4000m -> 4); memory is rounded down to whole megabytes
+// (Tart's `--memory` flag is integer MB).
+func vmResourcesFromPod(c corev1.Container) (cpu int, memoryMB int) {
+	cpu = pickIntCPU(c.Resources.Limits, c.Resources.Requests)
+	memoryMB = pickIntMemoryMB(c.Resources.Limits, c.Resources.Requests)
+	return cpu, memoryMB
+}
+
+func pickIntCPU(lists ...corev1.ResourceList) int {
+	for _, list := range lists {
+		if q, ok := list[corev1.ResourceCPU]; ok {
+			// MilliValue() returns millicores as int64; integer
+			// division by 1000 truncates toward zero. Quantity.Value()
+			// rounds half-up which would over-promise on fractional
+			// requests like 3500m -> 4 cores.
+			return int(q.MilliValue() / 1000)
+		}
+	}
+	return 0
+}
+
+func pickIntMemoryMB(lists ...corev1.ResourceList) int {
+	for _, list := range lists {
+		if q, ok := list[corev1.ResourceMemory]; ok {
+			// Value() returns bytes; convert to MB.
+			return int(q.Value() / (1024 * 1024))
+		}
+	}
+	return 0
 }
 
 // VMNameForPod produces a Tart-safe VM name. Tart accepts alphanum +

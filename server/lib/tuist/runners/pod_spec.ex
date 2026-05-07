@@ -8,13 +8,32 @@ defmodule Tuist.Runners.PodSpec do
   `runner_assignments`; the Pod's startup script polls the
   dispatch endpoint and gets the JIT config back.
 
-  Resource shape: Pod requests are sized so kube-scheduler packs
-  exactly one runner Pod per Mac mini. With Node capacity
-  cpu=8 / memory=16Gi, a single 4000m / 14Gi request leaves
-  remaining capacity too small to fit a second Pod. The Tart VM
-  inside the Pod is configured with the host's full resources by
-  the runner image, so the consistent build-time guarantee holds:
-  one VM per host, full host resources to that VM.
+  Resource shape: Pod requests double as both the kube-scheduler
+  one-Pod-per-host constraint AND the source-of-truth for the
+  VM's CPU/memory at deploy time. tart-kubelet reads the first
+  container's `resources.requests` (limits preferred when set)
+  and calls `tart set --cpu --memory` between clone and run, so
+  the VM is sized to whatever this manifest declares.
+
+  Sizing for the Scaleway M4-S host (8 vCPU / 16 GB):
+
+    - `cpu: 8000m` (= 8 cores) — give the VM the whole host.
+    - `memory: 14Gi` — the M4-S has 16 GB total but Apple's
+      Virtualization.framework reserves ~2 GB for the host
+      kernel + tart-kubelet + helpers. Asking for 16 fails with
+      `memorySize > maximumAllowedMemorySize`; 14 leaves a
+      comfortable margin and is what the customer's VM gets.
+
+  Two consequences fall out:
+
+    1. After one such Pod schedules, remaining Node capacity is
+       cpu=0 / memory=2Gi. No second runner fits. One VM per
+       host, predictable build times.
+    2. The runner Tart image is built small (4 vCPU / 8 GB) so
+       it builds on the M1-M `vm-image-builder` host where a
+       16 GB VM would exceed its `maximumAllowedMemorySize`.
+       Image size at build time is decoupled from VM size at
+       deploy time.
   """
 
   @namespace "tuist-runners"
@@ -97,7 +116,7 @@ defmodule Tuist.Runners.PodSpec do
             # module-level docstring.
             "resources" => %{
               "requests" => %{
-                "cpu" => "4000m",
+                "cpu" => "8000m",
                 "memory" => "14Gi"
               }
             },
