@@ -13,6 +13,26 @@ Cluster/MachineDeployment machinery is intentionally not used; we
 own the lifecycle directly because there's no separate workload
 cluster — the cluster these Mac minis join is the same one running
 the operator.
+
+Lifecycle note: helm.sh/resource-policy: keep is intentionally
+NOT set here, even though the CR has operator-owned finalizers.
+The trade-off:
+  - With `keep`: helm orphans the CR after first apply, so spec
+    changes (SKU, zone, fleetName) on values updates DO NOT
+    propagate. Manual `kubectl delete` + redeploy is the only
+    way to roll a SKU change. We hit this when Scaleway ran
+    out of M2-M stock and the values flip to M2-L was silently
+    ignored.
+  - Without `keep`: helm tracks the CR fully; spec changes
+    propagate cleanly. The historical concern was a rollback to
+    a revision with `enabled: false` while the operator is
+    being rolled — finalizer blocks forever — but that's a
+    narrow scenario that needs operator-image rolls + fleet
+    disabling at the same time. Manual `kubectl patch` to
+    remove the finalizer is the recovery path if it ever fires.
+A proper long-term fix is a "fleet pool" CRD the operator
+watches, with the operator owning Machine instance lifecycle
+(MachineDeployment-shaped). Tracked separately.
 */ -}}
 {{- range $i, $_ := until $replicas }}
 {{- $instance := printf "%s-%d" $fleetName $i }}
@@ -26,17 +46,6 @@ metadata:
     {{- include "tuist.labels" $ | nindent 4 }}
     app.kubernetes.io/component: macos-fleet
     tuist.dev/fleet: {{ $fleetName }}
-  annotations:
-    # Operator owns the CR lifecycle via finalizers (Scaleway server
-    # release + bootstrap Secret cleanup). If helm rolls back to a
-    # revision without macosFleet.enabled while the operator is being
-    # rolled, helm tries to delete the CR but the finalizer blocks
-    # forever (no operator to remove it), and the next upgrade ends
-    # up applying a new CR over the still-Terminating one. `keep`
-    # tells helm to leave the CR alone on uninstall/rollback —
-    # explicit `kubectl delete` is the only way to remove it, which
-    # forces the operator to be running.
-    helm.sh/resource-policy: keep
 spec:
   type: {{ $.Values.macosFleet.machine.type | default "M4-S" | quote }}
   zone: {{ $.Values.macosFleet.machine.zone | default "fr-par-1" | quote }}
