@@ -97,17 +97,50 @@ rules:
     resources: [configmaps]
     resourceNames: [cluster-info]
     verbs: [get]
-  {{- if .Values.xcresultProcessor.enabled }}
+{{- if .Values.xcresultProcessor.enabled }}
+---
+# Namespaced Role for the fleet-spread controller's one operation:
+# patching the xcresult-processor Deployment's pod-template
+# annotation to roll a new ReplicaSet on fleet-shape change. Done
+# as a Role (not a ClusterRole rule with resourceNames) because
+# RBAC's resourceNames matches across all namespaces — a
+# ClusterRole granting `get,patch` on `deployments/xcresult-
+# processor` would let the operator patch any same-named Deployment
+# anywhere in the cluster, not just the one in this release. A
+# namespace-scoped Role caps the blast radius at the release
+# namespace where the operator actually needs to operate.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $name }}-fleet-spread
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: capi-scaleway-applesilicon
+rules:
   - apiGroups: ["apps"]
-    # Fleet-spread controller patches a single Deployment's pod-
-    # template annotation to roll a new ReplicaSet on fleet-shape
-    # change. Scoped to the one Deployment by name so the operator
-    # can't patch arbitrary workloads even if compromised.
     resources: [deployments]
     resourceNames:
       - {{ include "tuist.componentName" (dict "root" . "component" "xcresult-processor") }}
     verbs: [get, patch]
-  {{- end }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $name }}-fleet-spread
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: capi-scaleway-applesilicon
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $name }}-fleet-spread
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding

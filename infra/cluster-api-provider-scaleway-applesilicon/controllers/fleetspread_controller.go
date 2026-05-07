@@ -8,31 +8,50 @@ import (
 	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-
-	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/api/v1alpha1"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 )
 
 // FleetHashAnnotation is stamped on the target Deployment's pod
-// template whenever the set of Ready Mac minis changes. K8s sees the
-// new annotation, mints a new ReplicaSet, and the rolling update
+// template whenever the set of Ready Mac mini Nodes changes. K8s sees
+// the new annotation, mints a new ReplicaSet, and the rolling update
 // re-evaluates topologySpreadConstraints — which is the only way to
 // rebalance Pods after a fleet-shape change, since the scheduler
 // doesn't reconsider placement of running Pods on its own.
 const FleetHashAnnotation = "tuist.dev/fleet-hash"
 
-// FleetSpreadReconciler watches ScalewayAppleSiliconMachine and patches
-// a target Deployment's pod-template annotation with a hash of the
-// Ready fleet members. When fleet-1 transitions Ready, the hash
-// changes from `{fleet-0}` to `{fleet-0,fleet-1}` and the Deployment
-// rolls — pods then spread one-per-host via the Deployment's existing
+// FleetNodeSelector picks out Mac mini Nodes (the ones tart-kubelet
+// registered) from the rest of the cluster. Matches the nodeSelector
+// the chart's xcresult-processor Deployment uses, so the hash is over
+// exactly the set of hosts that workload can schedule on.
+var FleetNodeSelector = labels.SelectorFromSet(labels.Set{
+	"kubernetes.io/os":   "darwin",
+	"tuist.dev/runtime":  "tart",
+})
+
+// FleetSpreadReconciler watches Mac mini Nodes and patches a target
+// Deployment's pod-template annotation with a hash of the Ready
+// members. When fleet-1's Node transitions Ready, the hash changes
+// from `{fleet-0}` to `{fleet-0,fleet-1}` and the Deployment rolls —
+// pods then spread one-per-host via the Deployment's existing
 // topologySpreadConstraints. Without this, fleet additions don't
 // rebalance Pods and operators have to `kubectl rollout restart`
 // every time a Mac mini is added or replaced.
+//
+// We hash on Node Ready, not Machine Phase=Ready, on purpose. The
+// machine controller sets Phase=Ready as soon as bootstrap returns,
+// but tart-kubelet's first heartbeat may not have landed yet — the
+// kube Node can still be NotReady. Rolling at Phase=Ready means the
+// new ReplicaSet's Pods can't schedule on the not-yet-Ready Node,
+// the topology spread settles for `ScheduleAnyway` on the only
+// Ready host (fleet-0 again), and the imbalance reappears.
 //
 // Disabled when DeploymentName is empty, so OSS deployments that
 // don't run xcresult-processor aren't affected by it.
@@ -51,25 +70,25 @@ type FleetSpreadReconciler struct {
 	// Empty disables the controller.
 	DeploymentName string
 
-	// Namespace is where DeploymentName lives. The reconciler also
-	// scopes ScalewayAppleSiliconMachine listing to this namespace —
-	// fleets are namespace-local in practice (chart deploys both the
-	// CRs and the workload into the same release namespace).
+	// Namespace is where DeploymentName lives. Chart deploys both the
+	// macOS fleet CRs and the workload into the same release
+	// namespace; this scopes the Deployment Get/Patch to that one
+	// namespace (Nodes themselves are cluster-scoped).
 	Namespace string
 }
 
-// Reconcile ignores req.NamespacedName: any machine event fires the
-// same idempotent "list Ready machines, hash, patch deployment" pass.
-// Cheap because patches that don't change the value are k8s no-ops,
-// and steady state is one List + one Get per machine event.
+// Reconcile ignores req.NamespacedName: any Node event fires the
+// same idempotent "list Ready fleet Nodes, hash, patch deployment"
+// pass. Cheap because patches that don't change the value are k8s
+// no-ops, and steady state is one List + one Get per Node event.
 func (r *FleetSpreadReconciler) Reconcile(ctx context.Context, _ ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx).WithValues("deployment", r.DeploymentName, "namespace", r.Namespace)
 
-	var machines infrav1.ScalewayAppleSiliconMachineList
-	if err := r.List(ctx, &machines, client.InNamespace(r.Namespace)); err != nil {
+	var nodes corev1.NodeList
+	if err := r.List(ctx, &nodes, &client.ListOptions{LabelSelector: FleetNodeSelector}); err != nil {
 		return ctrl.Result{}, err
 	}
-	hash := readyFleetHash(machines.Items)
+	hash := readyNodeHash(nodes.Items)
 
 	reader := r.APIReader
 	if reader == nil {
@@ -104,37 +123,49 @@ func (r *FleetSpreadReconciler) Reconcile(ctx context.Context, _ ctrl.Request) (
 	return ctrl.Result{}, nil
 }
 
-// readyFleetHash is a stable, order-independent hash of the Ready
-// fleet members. Includes only Ready, non-deleting machines: a
-// machine flapping through transient phases (Provisioning,
-// Bootstrapping) won't roll the workload until the host actually
-// comes Ready, and a machine being torn down stops counting the
-// moment it's marked for deletion (rather than when its finalizer
-// finally clears, which can be minutes later).
-func readyFleetHash(machines []infrav1.ScalewayAppleSiliconMachine) string {
-	names := make([]string, 0, len(machines))
-	for _, m := range machines {
-		if !m.DeletionTimestamp.IsZero() {
+// readyNodeHash is a stable, order-independent hash of the schedulable
+// Mac mini Nodes. Source of truth is `NodeReady=True`: the kube
+// scheduler will only place new Pods onto a Ready Node, so anything
+// else doesn't count toward the spread. A Node being drained or
+// torn down (DeletionTimestamp set) drops out the moment the delete
+// is observed, before its Pods get evicted — the Deployment rolls
+// onto the surviving hosts ahead of time.
+func readyNodeHash(nodes []corev1.Node) string {
+	names := make([]string, 0, len(nodes))
+	for _, n := range nodes {
+		if !n.DeletionTimestamp.IsZero() {
 			continue
 		}
-		if m.Status.Phase != "Ready" {
+		if !isNodeReady(n) {
 			continue
 		}
-		names = append(names, m.Name)
+		names = append(names, n.Name)
 	}
 	sort.Strings(names)
 	sum := sha256.Sum256([]byte(strings.Join(names, ",")))
 	return hex.EncodeToString(sum[:8])
 }
 
-// SetupWithManager wires the controller's only watch:
-// ScalewayAppleSiliconMachine. Reconciles ignore the request key
-// (we always operate on the configured Deployment), so every
-// machine event triggers the same idempotent pass — no Watches()
-// gymnastics needed.
+func isNodeReady(n corev1.Node) bool {
+	for _, c := range n.Status.Conditions {
+		if c.Type == corev1.NodeReady {
+			return c.Status == corev1.ConditionTrue
+		}
+	}
+	return false
+}
+
+// SetupWithManager watches Nodes filtered to the Mac mini fleet —
+// that's the source of truth for "Pod can schedule here." Predicate
+// trims the watch to fleet Nodes server-side via the cache's label
+// selector index, so the operator doesn't churn through Linux node
+// updates from the rest of the cluster.
 func (r *FleetSpreadReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	fleetNode := predicate.NewPredicateFuncs(func(o client.Object) bool {
+		return FleetNodeSelector.Matches(labels.Set(o.GetLabels()))
+	})
 	return ctrl.NewControllerManagedBy(mgr).
 		Named("fleet-spread").
-		For(&infrav1.ScalewayAppleSiliconMachine{}).
+		For(&corev1.Node{}, builder.WithPredicates(fleetNode)).
 		Complete(r)
 }
