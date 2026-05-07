@@ -579,6 +579,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 )
                 try await fileSystem.writeAsJSON(selectiveTestingGraph, at: selectiveTestingGraphPath)
 
+                try await writeRunMetadataSnapshot(at: testProductsPath)
+
                 if isSharding,
                    let fullHandle = config.fullHandle
                 {
@@ -665,6 +667,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 relativeTo: shardCurrentPath
             )
         }
+
+        await restoreRunMetadataSnapshotIfPresent(at: shard.testProductsPath)
 
         var shardPassthroughArguments = passthroughXcodeBuildArguments
         if let xcTestRunPath = shard.xcTestRunPath {
@@ -763,6 +767,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
             at: selectiveTestingGraphPath
         )
 
+        await restoreRunMetadataSnapshotIfPresent(at: testProductsPath)
+
         let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
 
         let runResultBundlePath =
@@ -856,6 +862,49 @@ public struct TestService { // swiftlint:disable:this type_body_length
         }
 
         AlertController.current.success(.alert("The project tests ran successfully"))
+    }
+
+    private func writeRunMetadataSnapshot(at testProductsPath: AbsolutePath) async throws {
+        let storage = RunMetadataStorage.current
+        let snapshot = await RunMetadataSnapshot(
+            graph: storage.graph,
+            binaryCacheItems: storage.binaryCacheItems,
+            selectiveTestingCacheItems: storage.selectiveTestingCacheItems,
+            targetContentHashSubhashes: storage.targetContentHashSubhashes,
+            buildRunId: storage.buildRunId
+        )
+        let snapshotPath = testProductsPath.appending(component: RunMetadataSnapshot.fileName)
+        do {
+            try await fileSystem.writeAsJSON(snapshot, at: snapshotPath)
+        } catch {
+            Logger.current.warning("Failed to persist run metadata snapshot: \(error.localizedDescription)")
+        }
+    }
+
+    private func restoreRunMetadataSnapshotIfPresent(at testProductsPath: AbsolutePath) async {
+        let snapshotPath = testProductsPath.appending(component: RunMetadataSnapshot.fileName)
+        guard (try? await fileSystem.exists(snapshotPath)) == true else { return }
+        do {
+            let snapshot: RunMetadataSnapshot = try await fileSystem.readJSONFile(at: snapshotPath)
+            let storage = RunMetadataStorage.current
+            if let graph = snapshot.graph {
+                await storage.update(graph: graph)
+            }
+            if !snapshot.binaryCacheItems.isEmpty {
+                await storage.update(binaryCacheItems: snapshot.binaryCacheItems)
+            }
+            if !snapshot.selectiveTestingCacheItems.isEmpty {
+                await storage.update(selectiveTestingCacheItems: snapshot.selectiveTestingCacheItems)
+            }
+            if !snapshot.targetContentHashSubhashes.isEmpty {
+                await storage.update(targetContentHashSubhashes: snapshot.targetContentHashSubhashes)
+            }
+            if let buildRunId = snapshot.buildRunId {
+                await storage.update(buildRunId: buildRunId)
+            }
+        } catch {
+            Logger.current.warning("Failed to restore run metadata snapshot: \(error.localizedDescription)")
+        }
     }
 
     private func removeOption(_ option: String, from arguments: [String]) -> [String] {

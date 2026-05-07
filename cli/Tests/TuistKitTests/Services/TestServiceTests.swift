@@ -4241,6 +4241,122 @@ final class TestServiceTests: TuistUnitTestCase {
             .called(1)
     }
 
+    func test_run_testWithoutBuilding_restoresRunMetadataSnapshot_fromBundle() async throws {
+        // Given
+        let path = try temporaryPath()
+        let testProductsPath = path.appending(component: "MyApp.xctestproducts")
+        try await fileSystem.makeDirectory(at: testProductsPath)
+
+        let selectiveTestingGraph = SelectiveTestingGraph(
+            testTargetHashes: ["MyTests": "abc123"]
+        )
+        let graphPath = testProductsPath.appending(component: SelectiveTestingGraph.fileName)
+        try JSONEncoder().encode(selectiveTestingGraph).write(to: graphPath.url)
+
+        let projectPath = try AbsolutePath(validating: "/tmp/Project")
+        let project = Project.test(
+            path: projectPath,
+            name: "Project",
+            targets: [.test(name: "MyTests")]
+        )
+        let graph = Graph.test(
+            name: "MyApp",
+            path: projectPath,
+            workspace: .test(),
+            projects: [projectPath: project]
+        )
+        let binaryCacheItems: [AbsolutePath: [String: CacheItem]] = [
+            projectPath: [
+                "MyTests": CacheItem.test(name: "MyTests", hash: "binary-hash", source: .remote, cacheCategory: .binaries),
+            ],
+        ]
+        let selectiveTestingCacheItems: [AbsolutePath: [String: CacheItem]] = [
+            projectPath: [
+                "MyTests": CacheItem.test(
+                    name: "MyTests",
+                    hash: "selective-hash",
+                    source: .remote,
+                    cacheCategory: .selectiveTests
+                ),
+            ],
+        ]
+        let snapshot = RunMetadataSnapshot(
+            graph: graph,
+            binaryCacheItems: binaryCacheItems,
+            selectiveTestingCacheItems: selectiveTestingCacheItems,
+            targetContentHashSubhashes: [:],
+            buildRunId: "BUILD-RUN-ID"
+        )
+        let snapshotPath = testProductsPath.appending(component: RunMetadataSnapshot.fileName)
+        try JSONEncoder().encode(snapshot).write(to: snapshotPath.url)
+
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
+
+        given(xcodebuildController)
+            .run(arguments: .any)
+            .willReturn(())
+
+        // When
+        try await AlertController.$current.withValue(AlertController()) {
+            try await testRun(
+                path: path,
+                action: .testWithoutBuilding,
+                passthroughXcodeBuildArguments: ["-testProductsPath", testProductsPath.pathString]
+            )
+        }
+
+        // Then — RunMetadataStorage should be populated from the snapshot
+        let restoredBuildRunId = await runMetadataStorage.buildRunId
+        XCTAssertEqual(restoredBuildRunId, "BUILD-RUN-ID")
+        let restoredBinaryCacheItems = await runMetadataStorage.binaryCacheItems
+        XCTAssertEqual(restoredBinaryCacheItems, binaryCacheItems)
+        let restoredSelectiveTestingCacheItems = await runMetadataStorage.selectiveTestingCacheItems
+        XCTAssertEqual(restoredSelectiveTestingCacheItems, selectiveTestingCacheItems)
+        let restoredGraph = await runMetadataStorage.graph
+        XCTAssertEqual(restoredGraph?.name, "MyApp")
+        XCTAssertEqual(restoredGraph?.projects[projectPath]?.name, "Project")
+    }
+
+    func test_run_testWithoutBuilding_skipsRunMetadataRestore_whenSnapshotMissing() async throws {
+        // Given
+        let path = try temporaryPath()
+        let testProductsPath = path.appending(component: "MyApp.xctestproducts")
+        try await fileSystem.makeDirectory(at: testProductsPath)
+
+        let selectiveTestingGraph = SelectiveTestingGraph(
+            testTargetHashes: ["MyTests": "abc123"]
+        )
+        let graphPath = testProductsPath.appending(component: SelectiveTestingGraph.fileName)
+        try JSONEncoder().encode(selectiveTestingGraph).write(to: graphPath.url)
+
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
+
+        given(xcodebuildController)
+            .run(arguments: .any)
+            .willReturn(())
+
+        // When
+        try await AlertController.$current.withValue(AlertController()) {
+            try await testRun(
+                path: path,
+                action: .testWithoutBuilding,
+                passthroughXcodeBuildArguments: ["-testProductsPath", testProductsPath.pathString]
+            )
+        }
+
+        // Then — RunMetadataStorage stays untouched (no snapshot file present)
+        let buildRunId = await runMetadataStorage.buildRunId
+        XCTAssertNil(buildRunId)
+        let binaryCacheItems = await runMetadataStorage.binaryCacheItems
+        XCTAssertTrue(binaryCacheItems.isEmpty)
+        let selectiveTestingCacheItems = await runMetadataStorage.selectiveTestingCacheItems
+        XCTAssertTrue(selectiveTestingCacheItems.isEmpty)
+    }
+
     func test_run_testWithoutBuilding_fallsBackToGeneration_whenNoSelectiveTestingGraph() async throws {
         // Given
         givenGenerator()
