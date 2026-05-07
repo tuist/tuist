@@ -10,6 +10,14 @@ defmodule Tuist.Kubernetes.Client do
   tests) the functions return `{:error, :not_in_cluster}` unless a
   test override is configured.
 
+  Doesn't share `Tuist.Finch` because Req rejects combining a
+  custom `finch:` pool with `connect_options:` (the pool has its
+  own connection settings). The K8s API server uses the cluster
+  CA bundle from `/var/run/secrets/.../ca.crt`, which we inject
+  via `connect_options.transport_opts.cacerts`. Volume of K8s
+  API calls is tiny (per-60s reconcile), so a separate connection
+  pool is acceptable.
+
   Surface intentionally minimal — only the verbs the runners pool
   reconciler needs:
 
@@ -38,8 +46,7 @@ defmodule Tuist.Kubernetes.Client do
           url: "https://#{host}/api/v1/namespaces/#{namespace}/pods",
           params: [{"labelSelector", label_selector}],
           headers: auth_headers(token),
-          connect_options: [transport_opts: [cacerts: ca]],
-          finch: Tuist.Finch
+          connect_options: [transport_opts: [cacerts: ca]]
         ]
 
       case Req.get(req_opts) do
@@ -65,8 +72,7 @@ defmodule Tuist.Kubernetes.Client do
           url: "https://#{host}/api/v1/namespaces/#{namespace}/pods",
           json: manifest,
           headers: auth_headers(token),
-          connect_options: [transport_opts: [cacerts: ca]],
-          finch: Tuist.Finch
+          connect_options: [transport_opts: [cacerts: ca]]
         ]
 
       case Req.post(req_opts) do
@@ -89,8 +95,7 @@ defmodule Tuist.Kubernetes.Client do
           url: "https://#{host}/api/v1/nodes",
           params: [{"labelSelector", label_selector}],
           headers: auth_headers(token),
-          connect_options: [transport_opts: [cacerts: ca]],
-          finch: Tuist.Finch
+          connect_options: [transport_opts: [cacerts: ca]]
         ]
 
       case Req.get(req_opts) do
