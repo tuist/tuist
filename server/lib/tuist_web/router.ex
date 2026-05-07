@@ -412,9 +412,14 @@ defmodule TuistWeb.Router do
     get "/oauth-protected-resource/*resource_path", WellKnownController, :oauth_protected_resource
     get "/jwks.json", WellKnownController, :jwks
     get "/mcp/server-card.json", WellKnownController, :mcp_server_card
-    get "/openai-apps-challenge", WellKnownController, :openai_apps_challenge
     get "/apple-app-site-association", WellKnownController, :apple_app_site_association
     get "/assetlinks.json", WellKnownController, :assetlinks
+  end
+
+  scope "/.well-known", TuistWeb do
+    pipe_through :open_api
+
+    get "/openai-apps-challenge", WellKnownController, :openai_apps_challenge
   end
 
   scope "/" do
