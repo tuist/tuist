@@ -785,7 +785,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .build
-          key: ${{ runner.os }}-cli-release-${{ hashFiles('.xcode-version-releases') }}-${{ hashFiles('Package.resolved') }}
+          key: ${{ runner.os }}-cli-release-${{ hashFiles('.xcode-version-releases') }}-${{ hashFiles('Package.swift') }}-${{ hashFiles('Package.resolved') }}
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
@@ -884,7 +884,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .build
-          key: linux-${{ matrix.arch }}-cli-release-${{ hashFiles('Package.resolved') }}
+          key: linux-${{ matrix.arch }}-cli-release-${{ hashFiles('Package.swift') }}-${{ hashFiles('Package.resolved') }}
 
       - name: Update version in Constants.swift
         run: |
@@ -1037,7 +1037,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .build
-          key: ${{ runner.os }}-app-${{ hashFiles('Package.resolved') }}
+          key: ${{ runner.os }}-app-${{ hashFiles('Package.swift') }}-${{ hashFiles('Package.resolved') }}
       - name: Update version
         working-directory: app
         run: |
@@ -1966,7 +1966,7 @@ jobs:
           # values-managed-common.yaml carries multiple `tag:` lines.
           # Anchor the substitution to the xcresult-processor's
           # repository line so only that block's tag is rewritten.
-          sed -i '/repository: ghcr.io\/tuist\/tuist-xcresult-processor/,/tag:/{
+          sed -i '' '/repository: ghcr.io\/tuist\/tuist-xcresult-processor/,/tag:/{
             s|tag: "[^"]*"|tag: "${{ needs.check-releases.outputs.xcresult-processor-image-next-version-number }}"|
           }' infra/helm/tuist/values-managed-common.yaml
 
