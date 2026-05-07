@@ -50,6 +50,8 @@ use crate::{
     },
 };
 
+const MULTIPART_LOCK_STRIPES: usize = 64;
+
 pub struct Store {
     db: DB,
     io: IoController,
@@ -64,6 +66,7 @@ pub struct Store {
     segment_refresh_lock: Mutex<()>,
     segment_handles: Mutex<SegmentHandleCache>,
     manifest_cache: StdMutex<ManifestCache>,
+    multipart_locks: [Mutex<()>; MULTIPART_LOCK_STRIPES],
     failpoints: Arc<FailpointSet>,
 }
 
@@ -287,8 +290,16 @@ impl Store {
             segment_refresh_lock: Mutex::new(()),
             segment_handles: Mutex::new(SegmentHandleCache::new(config.segment_handle_cache_size)),
             manifest_cache: StdMutex::new(ManifestCache::new(config.manifest_cache_max_bytes)),
+            multipart_locks: std::array::from_fn(|_| Mutex::new(())),
             failpoints: Arc::new(FailpointSet::default()),
         })
+    }
+
+    fn multipart_lock_for(&self, upload_id: &str) -> &Mutex<()> {
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        std::hash::Hash::hash(upload_id, &mut hasher);
+        let index = (std::hash::Hasher::finish(&hasher) as usize) % MULTIPART_LOCK_STRIPES;
+        &self.multipart_locks[index]
     }
 
     pub async fn artifact_exists(
@@ -1343,6 +1354,7 @@ impl Store {
         part_path: &Path,
         size: u64,
     ) -> Result<(), MultipartError> {
+        let _guard = self.multipart_lock_for(upload_id).lock().await;
         let mut upload = self
             .multipart_upload(upload_id)
             .map_err(MultipartError::Other)?
@@ -1406,6 +1418,7 @@ impl Store {
         expected_parts: &[u32],
         replication_targets: &[String],
     ) -> Result<ArtifactManifest, MultipartError> {
+        let _guard = self.multipart_lock_for(upload_id).lock().await;
         let upload = self
             .multipart_upload(upload_id)
             .map_err(MultipartError::Other)?
@@ -1454,7 +1467,7 @@ impl Store {
             .await
             .map_err(MultipartError::Other)?;
 
-        self.abort_multipart_upload(upload_id)
+        self.abort_multipart_upload_locked(upload_id)
             .await
             .map_err(MultipartError::Other)?;
 
@@ -1462,6 +1475,11 @@ impl Store {
     }
 
     pub async fn abort_multipart_upload(&self, upload_id: &str) -> Result<(), String> {
+        let _guard = self.multipart_lock_for(upload_id).lock().await;
+        self.abort_multipart_upload_locked(upload_id).await
+    }
+
+    async fn abort_multipart_upload_locked(&self, upload_id: &str) -> Result<(), String> {
         if let Some(upload) = self.multipart_upload(upload_id)? {
             self.io
                 .remove_dir_all_if_exists(&self.data_dir.join("multipart").join(upload_id))
@@ -2955,6 +2973,41 @@ mod tests {
                 .expect("failed to load multipart upload")
                 .is_none()
         );
+    }
+
+    #[tokio::test]
+    async fn concurrent_multipart_part_writes_do_not_lose_updates() {
+        let (_temp_dir, config, store) = temp_store();
+        let upload_id = store
+            .start_multipart_upload("acme", "ios", "builds", "hash-1", "Module.framework")
+            .expect("failed to start upload");
+        let store = Arc::new(store);
+
+        let mut handles = Vec::new();
+        for part_number in 1u32..=8 {
+            let part_path = config.tmp_dir.join(format!("part-{part_number}"));
+            std::fs::write(&part_path, format!("part-{part_number}")).expect("write part");
+            let store = store.clone();
+            let upload_id = upload_id.clone();
+            handles.push(tokio::spawn(async move {
+                store
+                    .add_multipart_part(&upload_id, part_number, &part_path, 6)
+                    .await
+                    .expect("part should persist");
+            }));
+        }
+        for handle in handles {
+            handle.await.expect("part task should complete");
+        }
+
+        let upload = store
+            .multipart_upload(&upload_id)
+            .expect("failed to load multipart upload")
+            .expect("upload should exist");
+        assert_eq!(upload.parts.len(), 8, "all 8 parts should be persisted");
+        for part_number in 1u32..=8 {
+            assert!(upload.parts.contains_key(&part_number), "missing part {part_number}");
+        }
     }
 
     #[test]

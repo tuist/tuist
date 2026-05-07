@@ -68,13 +68,18 @@ pub fn spawn_membership_task(state: SharedState) {
             let mut peer_nodes = BTreeMap::new();
             let targets = discovery_targets(&state.config).await;
             let mut peer_status_successes = 0_usize;
-            for peer in &targets {
-                match state
-                    .client
-                    .get(format!("{peer}/_internal/status"))
-                    .send()
-                    .await
-                {
+            let lookups = futures_util::future::join_all(targets.iter().map(|peer| {
+                let client = state.client.clone();
+                let url = format!("{peer}/_internal/status");
+                let label = peer.clone();
+                async move {
+                    let result = client.get(url).send().await;
+                    (label, result)
+                }
+            }))
+            .await;
+            for (peer, result) in lookups {
+                match result {
                     Ok(response) if response.status().is_success() => match response
                         .json::<PeerStatusPayload>()
                         .await
@@ -117,6 +122,9 @@ pub fn spawn_membership_task(state: SharedState) {
 pub fn spawn_outbox_task(state: SharedState) {
     tokio::spawn(async move {
         loop {
+            let notified = state.notify.notified();
+            tokio::pin!(notified);
+
             let pause_outbox = state.memory.pause_outbox();
             state
                 .metrics
@@ -126,7 +134,7 @@ pub fn spawn_outbox_task(state: SharedState) {
             }
 
             tokio::select! {
-                _ = state.notify.notified() => {},
+                _ = &mut notified => {},
                 _ = sleep(Duration::from_secs(REPLICATION_RETRY_SECS)) => {},
             }
         }
