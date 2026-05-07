@@ -14,6 +14,9 @@ defmodule CacheWeb.Router do
   pipeline :project_auth do
     plug CacheWeb.Plugs.ObservabilityContextPlug
     plug CacheWeb.Plugs.AuthPlug
+  end
+
+  pipeline :module_cache_billing do
     plug CacheWeb.Plugs.BillingPlug
   end
 
@@ -60,17 +63,21 @@ defmodule CacheWeb.Router do
     get "/cas/:id", XcodeController, :download
     post "/cas/:id", XcodeController, :save
 
+    delete "/clean", CleanController, :clean
+
+    get "/gradle/:cache_key", GradleController, :download
+    put "/gradle/:cache_key", GradleController, :save
+  end
+
+  scope "/api/cache", CacheWeb do
+    pipe_through [:api_json, :open_api, :project_auth, :module_cache_billing]
+
     head "/module/:id", XcodeModuleController, :exists
     get "/module/:id", XcodeModuleController, :download
 
     post "/module/start", XcodeModuleController, :start_multipart
     post "/module/part", XcodeModuleController, :upload_part
     post "/module/complete", XcodeModuleController, :complete_multipart
-
-    delete "/clean", CleanController, :clean
-
-    get "/gradle/:cache_key", GradleController, :download
-    put "/gradle/:cache_key", GradleController, :save
   end
 
   scope "/api/registry/swift", CacheWeb do

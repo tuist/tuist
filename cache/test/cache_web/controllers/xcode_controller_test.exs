@@ -441,6 +441,29 @@ defmodule CacheWeb.XcodeControllerTest do
       assert conn.resp_body == ""
     end
 
+    test "is not gated by the free-tier billing plug (only the module cache is)", %{conn: conn} do
+      account_handle = "test-account"
+      project_handle = "test-project"
+      id = "abc123"
+
+      expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
+        {:ok, "Bearer valid-token", %{plan: :air, subscription_active: true, thresholds_surpassed: true}}
+      end)
+
+      expect(Xcode.Disk, :stat, fn ^account_handle, ^project_handle, ^id ->
+        {:ok, %File.Stat{size: 1024, type: :regular}}
+      end)
+
+      stub(CacheArtifacts, :track_artifact_access, fn _ -> :ok end)
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> get("/api/cache/cas/#{id}?account_handle=#{account_handle}&project_handle=#{project_handle}")
+
+      assert conn.status == 200
+    end
+
     test "returns X-Accel-Redirect to remote when not on disk and S3 presign succeeds", %{conn: conn} do
       account_handle = "test-account"
       project_handle = "test-project"

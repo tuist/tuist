@@ -149,6 +149,30 @@ defmodule CacheWeb.XcodeModuleControllerTest do
       end)
     end
 
+    test "returns 402 when the air-plan account has surpassed the free tier thresholds", %{conn: conn} do
+      account_handle = "test-account"
+      project_handle = "test-project"
+      hash = "abc123"
+      name = "MyModule.xcframework.zip"
+      artifact_id = "some-artifact-id"
+
+      expect(Authentication, :ensure_project_accessible, fn _conn, "test-account", "test-project" ->
+        {:ok, "Bearer valid-token", %{plan: :air, subscription_active: true, thresholds_surpassed: true}}
+      end)
+
+      reject(&XcodeModule.Disk.stat/5)
+      reject(&CacheArtifacts.track_artifact_access/1)
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> get(
+          "/api/cache/module/#{artifact_id}?account_handle=#{account_handle}&project_handle=#{project_handle}&hash=#{hash}&name=#{name}"
+        )
+
+      assert conn.status == 402
+    end
+
     test "returns 422 when artifact path params contain traversal", %{conn: conn} do
       expect(Authentication, :ensure_project_accessible, fn _conn, "test-account", "test-project" ->
         {:ok, "Bearer valid-token", nil}
