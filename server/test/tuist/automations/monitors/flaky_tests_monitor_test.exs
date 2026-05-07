@@ -226,4 +226,216 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
       assert test_case.id in triggered
     end
   end
+
+  describe "evaluate/1 with rolling window" do
+    test "computes flakiness rate over the last N runs per test case" do
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, _run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          test_modules: [
+            %{
+              name: "M",
+              status: "success",
+              duration: 1000,
+              test_cases: [%{name: "tc", status: "success", duration: 100}]
+            }
+          ]
+        )
+
+      {[test_case], _meta} = Tests.list_test_cases(project.id, %{})
+
+      # Older runs: 5 stable. Most recent: 5 flaky. Rolling window of 5 sees
+      # only the flaky tail (100% rate); a calendar 30d window would see all
+      # 10 runs (50% rate). The two modes should disagree here.
+      base = NaiveDateTime.utc_now()
+
+      for i <- 1..5 do
+        RunsFixtures.test_case_run_fixture(
+          project_id: project.id,
+          test_case_id: test_case.id,
+          is_flaky: false,
+          ran_at: NaiveDateTime.add(base, -10 + i, :day),
+          inserted_at: NaiveDateTime.add(base, -10 + i, :day)
+        )
+      end
+
+      for i <- 1..5 do
+        RunsFixtures.test_case_run_fixture(
+          project_id: project.id,
+          test_case_id: test_case.id,
+          is_flaky: true,
+          ran_at: NaiveDateTime.add(base, -i, :hour),
+          inserted_at: NaiveDateTime.add(base, -i, :hour)
+        )
+      end
+
+      alert =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "flakiness_rate",
+          trigger_config: %{
+            "threshold" => 80,
+            "window_type" => "rolling",
+            "rolling_window_size" => 5,
+            "comparison" => "gte"
+          }
+        )
+
+      assert %{triggered: triggered} = FlakyTestsMonitor.evaluate(alert)
+      assert test_case.id in triggered
+    end
+
+    test "skips test cases whose last N runs are below the threshold" do
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, _run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          test_modules: [
+            %{
+              name: "M",
+              status: "success",
+              duration: 1000,
+              test_cases: [%{name: "tc", status: "success", duration: 100}]
+            }
+          ]
+        )
+
+      {[test_case], _meta} = Tests.list_test_cases(project.id, %{})
+
+      base = NaiveDateTime.utc_now()
+
+      for i <- 1..5 do
+        RunsFixtures.test_case_run_fixture(
+          project_id: project.id,
+          test_case_id: test_case.id,
+          is_flaky: false,
+          ran_at: NaiveDateTime.add(base, -i, :hour),
+          inserted_at: NaiveDateTime.add(base, -i, :hour)
+        )
+      end
+
+      alert =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "flakiness_rate",
+          trigger_config: %{
+            "threshold" => 1,
+            "window_type" => "rolling",
+            "rolling_window_size" => 5,
+            "comparison" => "gte"
+          }
+        )
+
+      refute test_case.id in FlakyTestsMonitor.evaluate(alert).triggered
+    end
+  end
+
+  describe "evaluate_by_run_count/1 with rolling window" do
+    test "fires when flaky run count in last N runs meets the threshold" do
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, _run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          test_modules: [
+            %{
+              name: "M",
+              status: "success",
+              duration: 1000,
+              test_cases: [%{name: "tc", status: "success", duration: 100}]
+            }
+          ]
+        )
+
+      {[test_case], _meta} = Tests.list_test_cases(project.id, %{})
+
+      base = NaiveDateTime.utc_now()
+
+      for i <- 1..3 do
+        RunsFixtures.test_case_run_fixture(
+          project_id: project.id,
+          test_case_id: test_case.id,
+          is_flaky: true,
+          ran_at: NaiveDateTime.add(base, -i, :hour),
+          inserted_at: NaiveDateTime.add(base, -i, :hour)
+        )
+      end
+
+      alert =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "flaky_run_count",
+          trigger_config: %{
+            "threshold" => 2,
+            "window_type" => "rolling",
+            "rolling_window_size" => 5,
+            "comparison" => "gte"
+          }
+        )
+
+      assert %{triggered: triggered} = FlakyTestsMonitor.evaluate_by_run_count(alert)
+      assert test_case.id in triggered
+    end
+
+    test "ignores runs outside the rolling window" do
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, _run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          test_modules: [
+            %{
+              name: "M",
+              status: "success",
+              duration: 1000,
+              test_cases: [%{name: "tc", status: "success", duration: 100}]
+            }
+          ]
+        )
+
+      {[test_case], _meta} = Tests.list_test_cases(project.id, %{})
+
+      base = NaiveDateTime.utc_now()
+
+      # 3 flaky runs, all older than the most recent stable runs that fill the
+      # rolling window. Rolling-of-2 sees only the stable tail and reports 0
+      # flaky; a 30d calendar window would still count the older flaky runs.
+      for i <- 1..3 do
+        RunsFixtures.test_case_run_fixture(
+          project_id: project.id,
+          test_case_id: test_case.id,
+          is_flaky: true,
+          ran_at: NaiveDateTime.add(base, -10 + i, :day),
+          inserted_at: NaiveDateTime.add(base, -10 + i, :day)
+        )
+      end
+
+      for i <- 1..2 do
+        RunsFixtures.test_case_run_fixture(
+          project_id: project.id,
+          test_case_id: test_case.id,
+          is_flaky: false,
+          ran_at: NaiveDateTime.add(base, -i, :hour),
+          inserted_at: NaiveDateTime.add(base, -i, :hour)
+        )
+      end
+
+      alert =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "flaky_run_count",
+          trigger_config: %{
+            "threshold" => 1,
+            "window_type" => "rolling",
+            "rolling_window_size" => 2,
+            "comparison" => "gte"
+          }
+        )
+
+      refute test_case.id in FlakyTestsMonitor.evaluate_by_run_count(alert).triggered
+    end
+  end
 end

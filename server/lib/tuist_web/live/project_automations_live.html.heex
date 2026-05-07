@@ -180,9 +180,39 @@
                       phx-debounce="300"
                     />
                   </div>
-                  <div data-part="form-row" data-size="compact">
+                  <div data-part="form-row" data-size="dropdown">
                     <label data-part="label">
-                      {dgettext("dashboard_projects", "Over the last")}
+                      {dgettext("dashboard_projects", "Over")}
+                    </label>
+                    <.dropdown
+                      id="create-automation-window-type-dropdown"
+                      label={window_type_label(@create_automation_form_window_type)}
+                    >
+                      <.dropdown_item
+                        value="last_days"
+                        label={dgettext("dashboard_projects", "Last days")}
+                        on_click="update_create_automation_form_window_type"
+                        data-selected={@create_automation_form_window_type == "last_days"}
+                      >
+                        <:right_icon><.check /></:right_icon>
+                      </.dropdown_item>
+                      <.dropdown_item
+                        value="rolling"
+                        label={dgettext("dashboard_projects", "Rolling window")}
+                        on_click="update_create_automation_form_window_type"
+                        data-selected={@create_automation_form_window_type == "rolling"}
+                      >
+                        <:right_icon><.check /></:right_icon>
+                      </.dropdown_item>
+                    </.dropdown>
+                  </div>
+                  <div
+                    :if={@create_automation_form_window_type == "last_days"}
+                    data-part="form-row"
+                    data-size="compact"
+                  >
+                    <label data-part="label">
+                      {dgettext("dashboard_projects", "Window")}
                     </label>
                     <.text_input
                       type="basic"
@@ -191,6 +221,25 @@
                       value={@create_automation_form_window}
                       placeholder="30d"
                       phx-keyup="update_create_automation_form_window"
+                      phx-debounce="300"
+                    />
+                  </div>
+                  <div
+                    :if={@create_automation_form_window_type == "rolling"}
+                    data-part="form-row"
+                    data-size="compact"
+                  >
+                    <label data-part="label">
+                      {dgettext("dashboard_projects", "Last N runs")}
+                    </label>
+                    <.text_input
+                      type="basic"
+                      input_type="number"
+                      id="create-automation-rolling-window-size"
+                      name="rolling_window_size"
+                      value={@create_automation_form_rolling_window_size}
+                      placeholder="100"
+                      phx-keyup="update_create_automation_form_rolling_window_size"
                       phx-debounce="300"
                     />
                   </div>

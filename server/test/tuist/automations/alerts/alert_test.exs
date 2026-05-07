@@ -128,6 +128,110 @@ defmodule Tuist.Automations.Alerts.AlertTest do
       refute changeset.valid?
       assert errors_on(changeset).trigger_config
     end
+
+    test "accepts a flakiness_rate alert with rolling window_type" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "trigger_config" => %{
+              "threshold" => 10,
+              "window_type" => "rolling",
+              "rolling_window_size" => 100
+            }
+          })
+        )
+
+      assert changeset.valid?
+    end
+
+    test "accepts a flaky_run_count alert with rolling window_type" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "monitor_type" => "flaky_run_count",
+            "trigger_config" => %{
+              "threshold" => 3,
+              "window_type" => "rolling",
+              "rolling_window_size" => 50
+            }
+          })
+        )
+
+      assert changeset.valid?
+    end
+
+    test "rejects rolling window_type without rolling_window_size" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "trigger_config" => %{"threshold" => 10, "window_type" => "rolling"}
+          })
+        )
+
+      refute changeset.valid?
+      assert errors_on(changeset).trigger_config
+    end
+
+    test "rejects rolling window_type with non-positive rolling_window_size" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "trigger_config" => %{
+              "threshold" => 10,
+              "window_type" => "rolling",
+              "rolling_window_size" => 0
+            }
+          })
+        )
+
+      refute changeset.valid?
+      assert errors_on(changeset).trigger_config
+    end
+
+    test "rejects unknown window_type" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "trigger_config" => %{
+              "threshold" => 10,
+              "window_type" => "weekly",
+              "window" => "30d"
+            }
+          })
+        )
+
+      refute changeset.valid?
+      assert errors_on(changeset).trigger_config
+    end
+
+    test "defaults missing window_type to last_days for backward compatibility" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "trigger_config" => %{"threshold" => 10, "window" => "30d"}
+          })
+        )
+
+      assert changeset.valid?
+    end
   end
 
   describe "trigger_actions validation" do

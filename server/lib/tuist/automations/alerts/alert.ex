@@ -9,6 +9,7 @@ defmodule Tuist.Automations.Alerts.Alert do
   @monitor_types ~w(flakiness_rate flaky_run_count)
   @comparisons ~w(gte gt lt lte)
   @valid_states ~w(enabled muted skipped)
+  @window_types ~w(last_days rolling)
 
   @primary_key {:id, UUIDv7, autogenerate: true}
   @foreign_key_type UUIDv7
@@ -133,35 +134,55 @@ defmodule Tuist.Automations.Alerts.Alert do
 
   defp validate_flakiness_rate_config(changeset, trigger_config) do
     threshold = trigger_config["threshold"]
-    window = trigger_config["window"]
 
-    cond do
-      !is_number(threshold) or threshold <= 0 or threshold > 100 ->
-        add_error(changeset, :trigger_config, "threshold must be a number between 0 and 100")
-
-      !valid_window?(window) ->
-        add_error(changeset, :trigger_config, "window must be a string like '30d' (day-level only)")
-
-      true ->
-        changeset
+    if !is_number(threshold) or threshold <= 0 or threshold > 100 do
+      add_error(changeset, :trigger_config, "threshold must be a number between 0 and 100")
+    else
+      validate_window_config(changeset, trigger_config)
     end
   end
 
   defp validate_flaky_run_count_config(changeset, trigger_config) do
     threshold = trigger_config["threshold"]
-    window = trigger_config["window"]
 
-    cond do
-      !is_integer(threshold) or threshold <= 0 ->
-        add_error(changeset, :trigger_config, "threshold must be a positive integer")
-
-      !valid_window?(window) ->
-        add_error(changeset, :trigger_config, "window must be a string like '30d' (day-level only)")
-
-      true ->
-        changeset
+    if !is_integer(threshold) or threshold <= 0 do
+      add_error(changeset, :trigger_config, "threshold must be a positive integer")
+    else
+      validate_window_config(changeset, trigger_config)
     end
   end
+
+  # `window_type` selects between a calendar window ("last_days", configured
+  # via `window: "30d"`) and a count-based rolling window ("rolling",
+  # configured via `rolling_window_size: 100`). Missing `window_type` defaults
+  # to "last_days" for backwards compatibility with alerts created before the
+  # rolling-window option existed.
+  defp validate_window_config(changeset, trigger_config) do
+    case window_type(trigger_config) do
+      "last_days" ->
+        if valid_window?(trigger_config["window"]) do
+          changeset
+        else
+          add_error(changeset, :trigger_config, "window must be a string like '30d' (day-level only)")
+        end
+
+      "rolling" ->
+        size = trigger_config["rolling_window_size"]
+
+        if is_integer(size) and size > 0 do
+          changeset
+        else
+          add_error(changeset, :trigger_config, "rolling_window_size must be a positive integer")
+        end
+
+      _ ->
+        add_error(changeset, :trigger_config, "window_type must be one of: #{Enum.join(@window_types, ", ")}")
+    end
+  end
+
+  defp window_type(%{"window_type" => type}) when type in @window_types, do: type
+  defp window_type(%{"window_type" => _}), do: :invalid
+  defp window_type(_), do: "last_days"
 
   # The flaky-test monitor evaluates against a per-day-aggregated MV, so
   # sub-day windows would silently round to a full day and look broken.
