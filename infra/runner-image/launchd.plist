@@ -44,6 +44,21 @@
     <key>StandardErrorPath</key>
     <string>/var/log/tuist-runner/stderr.log</string>
 
+    <key>EnvironmentVariables</key>
+    <dict>
+        <!--
+          The GitHub Actions runner aborts on startup when uid=0
+          unless RUNNER_ALLOW_RUNASROOT is set, on the assumption
+          that runner-as-root is a security mistake. Inside our
+          ephemeral Tart VM the entire OS is the customer's job
+          environment — there's no separation gain from dropping
+          privileges, and the inject-env.sh + dispatch-poll.sh
+          chain assumes root for /etc writes. Bypass the check.
+        -->
+        <key>RUNNER_ALLOW_RUNASROOT</key>
+        <string>1</string>
+    </dict>
+
     <key>ProcessType</key>
     <string>Interactive</string>
 </dict>
