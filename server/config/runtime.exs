@@ -452,14 +452,13 @@ oban_queues =
 # was first added without this guard.
 #
 # Crontab split: `shared_crons` are project-level features (alerts,
-# automations, per-project Slack reports, usage stats, sharded-test
-# cleanup) — they run on any deployment, hosted or self-hosted. Hosted-
-# only entries (Tuist's internal Slack ops reports + Stripe metered
-# billing) layer on top when `tuist_hosted?()` is set.
+# automations, per-project Slack reports, sharded-test cleanup) — they
+# run on any deployment, hosted or self-hosted. Hosted-only entries
+# (Tuist's internal Slack ops reports, account-usage rollup, Stripe
+# metered billing) layer on top when `tuist_hosted?()` is set.
 shared_crons = [
   {"@hourly", Tuist.Slack.Workers.ReportWorker},
   {"*/10 * * * *", Tuist.Alerts.Workers.AlertWorker},
-  {"@daily", Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker},
   {"@hourly", Tuist.Tests.Workers.ExpireStaleTestRunsWorker},
   {"* * * * *", Tuist.Automations.Workers.AutomationScheduler}
 ]
@@ -477,10 +476,12 @@ config :tuist, Oban,
 
          Tuist.Environment.tuist_hosted?() ->
            [
-             # Tuist-hosted-only: report into Tuist's own Slack workspace
-             # and reconcile Stripe metered billing.
+             # Tuist-hosted-only: report into Tuist's own Slack workspace,
+             # roll up account usage that feeds Stripe metered billing,
+             # and reconcile Stripe meters from the rolled-up usage.
              {"0 10 * * 1-5", Tuist.Ops.DailySlackReportWorker},
              {"0 * * * 1-5", Tuist.Ops.HourlySlackReportWorker},
+             {"@daily", Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker},
              {"@daily", Tuist.Billing.Workers.SyncStripeMetersWorker}
            ] ++ shared_crons
 
