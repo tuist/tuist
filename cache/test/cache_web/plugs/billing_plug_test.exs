@@ -7,63 +7,30 @@ defmodule CacheWeb.Plugs.BillingPlugTest do
   alias CacheWeb.Plugs.BillingPlug
 
   describe "call/2" do
-    test "lets the request through when no billing snapshot is assigned (e.g. JWT-only auth)" do
-      conn = assign(build_conn(), :account_billing, nil)
+    test "lets the request through when no xcode cache limit flag is assigned (e.g. JWT-only auth)" do
+      conn = assign(build_conn(), :xcode_cache_limit_surpassed, nil)
 
       result = BillingPlug.call(conn, BillingPlug.init([]))
 
       refute result.halted
     end
 
-    test "lets an air-plan account through when under the threshold" do
-      conn =
-        assign(build_conn(), :account_billing, %{plan: :air, subscription_active: true, thresholds_surpassed: false})
+    test "lets the request through when the xcode cache limit is not surpassed" do
+      conn = assign(build_conn(), :xcode_cache_limit_surpassed, false)
 
       result = BillingPlug.call(conn, BillingPlug.init([]))
 
       refute result.halted
     end
 
-    test "rejects an air-plan account that has surpassed the free tier thresholds" do
-      conn =
-        assign(build_conn(), :account_billing, %{plan: :air, subscription_active: true, thresholds_surpassed: true})
+    test "rejects the request when the xcode cache limit is surpassed" do
+      conn = assign(build_conn(), :xcode_cache_limit_surpassed, true)
 
       result = BillingPlug.call(conn, BillingPlug.init([]))
 
       assert result.halted
       assert result.status == 402
       assert result.resp_body =~ "free tier"
-    end
-
-    test "lets a pro-plan account through even when over the air thresholds" do
-      conn =
-        assign(build_conn(), :account_billing, %{plan: :pro, subscription_active: true, thresholds_surpassed: true})
-
-      result = BillingPlug.call(conn, BillingPlug.init([]))
-
-      refute result.halted
-    end
-
-    test "lets a trialing pro-plan account through (treated as paid, not blocked here)" do
-      conn =
-        assign(build_conn(), :account_billing, %{plan: :pro, subscription_active: false, thresholds_surpassed: false})
-
-      result = BillingPlug.call(conn, BillingPlug.init([]))
-
-      refute result.halted
-    end
-
-    test "lets an enterprise-plan account through regardless of subscription_active" do
-      conn =
-        assign(build_conn(), :account_billing, %{
-          plan: :enterprise,
-          subscription_active: false,
-          thresholds_surpassed: false
-        })
-
-      result = BillingPlug.call(conn, BillingPlug.init([]))
-
-      refute result.halted
     end
   end
 

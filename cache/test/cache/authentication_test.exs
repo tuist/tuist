@@ -43,15 +43,13 @@ defmodule Cache.AuthenticationTest do
       assert {:ok, @test_auth_header, nil} = result
     end
 
-    test "returns billing snapshot for the requested account when present", %{cache_name: cache_name} do
+    test "returns xcode cache limit status for the requested account when present", %{cache_name: cache_name} do
       projects = [%{"full_name" => "account/project"}]
 
       accounts = [
         %{
           "name" => "account",
-          "plan" => "air",
-          "subscription_active" => true,
-          "thresholds_surpassed" => true
+          "xcode_cache_limit_surpassed" => true
         }
       ]
 
@@ -61,7 +59,7 @@ defmodule Cache.AuthenticationTest do
 
       result = Authentication.ensure_project_accessible(conn, "account", "project", cache_name: cache_name)
 
-      assert {:ok, @test_auth_header, %{plan: :air, subscription_active: true, thresholds_surpassed: true}} = result
+      assert {:ok, @test_auth_header, true} = result
     end
 
     test "handles case-insensitive project handles", %{cache_name: cache_name} do

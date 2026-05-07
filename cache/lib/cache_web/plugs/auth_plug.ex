@@ -26,12 +26,13 @@ defmodule CacheWeb.Plugs.AuthPlug do
 
     with {:ok, account} when account != "" <- {:ok, account_handle},
          {:ok, project} when project != "" <- {:ok, project_handle},
-         {:ok, _auth_header, billing} <- Authentication.ensure_project_accessible(conn, account, project) do
+         {:ok, _auth_header, xcode_cache_limit_surpassed} <-
+           Authentication.ensure_project_accessible(conn, account, project) do
       set_auth_observability_context(account)
 
       conn
       |> Plug.Conn.assign(:account_handle, account)
-      |> Plug.Conn.assign(:account_billing, billing)
+      |> Plug.Conn.assign(:xcode_cache_limit_surpassed, xcode_cache_limit_surpassed)
     else
       {:ok, _} -> error_response(conn, 400, "Missing account_handle")
       {:error, 400, _} -> error_response(conn, 400, "Missing project_handle")

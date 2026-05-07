@@ -169,21 +169,13 @@ defmodule TuistWeb.API.ProjectsController do
                  "Billing snapshot for each account the authenticated subject has access to. Used by downstream services (e.g. the cache) to enforce plan limits.",
                items: %Schema{
                  type: :object,
-                 required: [:name, :plan, :subscription_active, :thresholds_surpassed],
+                 required: [:name, :xcode_cache_limit_surpassed],
                  properties: %{
                    name: %Schema{type: :string, description: "The account handle."},
-                   plan: %Schema{
-                     type: :string,
-                     description: "The active plan for the account.",
-                     enum: ["air", "pro", "open_source", "enterprise"]
-                   },
-                   subscription_active: %Schema{
+                   xcode_cache_limit_surpassed: %Schema{
                      type: :boolean,
-                     description: "Whether the account has an active (or trialing) subscription."
-                   },
-                   thresholds_surpassed: %Schema{
-                     type: :boolean,
-                     description: "Whether the account has reached the free tier limits for the current month."
+                     description:
+                       "Whether the account has surpassed the free-tier monthly cache limit. The cache service blocks module cache requests when true."
                    }
                  }
                }
@@ -223,14 +215,9 @@ defmodule TuistWeb.API.ProjectsController do
   end
 
   defp account_billing_response(account) do
-    %{plan: plan, subscription_active: subscription_active, thresholds_surpassed: thresholds_surpassed} =
-      Billing.account_billing_status(account)
-
     %{
       name: account.name,
-      plan: Atom.to_string(plan),
-      subscription_active: subscription_active,
-      thresholds_surpassed: thresholds_surpassed
+      xcode_cache_limit_surpassed: Billing.xcode_cache_limit_surpassed?(account)
     }
   end
 

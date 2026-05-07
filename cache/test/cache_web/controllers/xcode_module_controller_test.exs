@@ -157,7 +157,7 @@ defmodule CacheWeb.XcodeModuleControllerTest do
       artifact_id = "some-artifact-id"
 
       expect(Authentication, :ensure_project_accessible, fn _conn, "test-account", "test-project" ->
-        {:ok, "Bearer valid-token", %{plan: :air, subscription_active: true, thresholds_surpassed: true}}
+        {:ok, "Bearer valid-token", true}
       end)
 
       reject(&XcodeModule.Disk.stat/5)

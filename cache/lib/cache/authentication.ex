@@ -26,10 +26,10 @@ defmodule Cache.Authentication do
   @doc """
   Ensures the request has access to the specified project.
 
-  Returns `{:ok, auth_header, billing}` if authorized, where `billing` is either
-  the billing snapshot for the account (a map with `:plan`,
-  `:subscription_active`, `:thresholds_surpassed`) or `nil` when it could not
-  be determined locally (e.g. JWT-only authorization). Returns
+  Returns `{:ok, auth_header, xcode_cache_limit_surpassed}` if authorized, where
+  `xcode_cache_limit_surpassed` is `true` when the account has surpassed the
+  free-tier monthly cache limit, `false` otherwise, or `nil` when it could
+  not be determined locally (e.g. JWT-only authorization). Returns
   `{:error, status, message}` otherwise.
   """
   def ensure_project_accessible(conn, account_handle, project_handle, opts \\ []) do
@@ -42,8 +42,8 @@ defmodule Cache.Authentication do
       requested_handle = full_handle(account_handle, project_handle)
 
       case authorize(auth_header, requested_handle, conn, cache) do
-        {:ok, billing} ->
-          {:ok, auth_header, billing}
+        {:ok, xcode_cache_limit_surpassed} ->
+          {:ok, auth_header, xcode_cache_limit_surpassed}
 
         {:error, status, message} ->
           {:error, status, message}
@@ -245,46 +245,25 @@ defmodule Cache.Authentication do
 
     if MapSet.member?(project_handles, requested_handle) do
       :telemetry.execute([:cache, :auth, :authorized], %{}, %{method: :server})
-      {:ok, billing_for_handle(accounts, requested_handle)}
+      {:ok, xcode_cache_limit_surpassed?(accounts, requested_handle)}
     else
       {:error, 403, "You don't have access to this project"}
     end
   end
 
-  defp billing_for_handle(accounts, requested_handle) when is_list(accounts) do
+  defp xcode_cache_limit_surpassed?(accounts, requested_handle) when is_list(accounts) do
     [account_handle, _project_handle] = String.split(requested_handle, "/", parts: 2)
 
-    Enum.find_value(accounts, fn
-      %{"name" => name} = account when is_binary(name) ->
-        if String.downcase(name) == account_handle, do: parse_billing(account)
-
-      _ ->
-        nil
-    end)
+    case Enum.find(accounts, fn
+           %{"name" => name} when is_binary(name) -> String.downcase(name) == account_handle
+           _ -> false
+         end) do
+      %{"xcode_cache_limit_surpassed" => surpassed} -> surpassed == true
+      _ -> nil
+    end
   end
 
-  defp billing_for_handle(_accounts, _requested_handle), do: nil
-
-  defp parse_billing(%{
-         "plan" => plan,
-         "subscription_active" => subscription_active,
-         "thresholds_surpassed" => thresholds_surpassed
-       })
-       when is_binary(plan) do
-    %{
-      plan: parse_plan(plan),
-      subscription_active: subscription_active == true,
-      thresholds_surpassed: thresholds_surpassed == true
-    }
-  end
-
-  defp parse_billing(_), do: nil
-
-  defp parse_plan("air"), do: :air
-  defp parse_plan("pro"), do: :pro
-  defp parse_plan("open_source"), do: :open_source
-  defp parse_plan("enterprise"), do: :enterprise
-  defp parse_plan(_), do: :unknown
+  defp xcode_cache_limit_surpassed?(_accounts, _requested_handle), do: nil
 
   defp cache_result(cache, cache_key, result, ttl) do
     Cachex.put(cache, cache_key, result, ttl: ttl)

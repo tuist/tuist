@@ -447,7 +447,7 @@ defmodule CacheWeb.XcodeControllerTest do
       id = "abc123"
 
       expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
-        {:ok, "Bearer valid-token", %{plan: :air, subscription_active: true, thresholds_surpassed: true}}
+        {:ok, "Bearer valid-token", true}
       end)
 
       expect(Xcode.Disk, :stat, fn ^account_handle, ^project_handle, ^id ->

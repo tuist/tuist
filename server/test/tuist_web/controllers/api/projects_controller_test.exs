@@ -510,7 +510,7 @@ defmodule TuistWeb.API.ProjectsControllerTest do
       assert response["message"] == "You need to be authenticated to access this resource."
     end
 
-    test "returns a billing snapshot per account", %{conn: conn, user: user} do
+    test "returns an xcode_cache_limit_surpassed flag per account", %{conn: conn, user: user} do
       conn = Authentication.put_current_user(conn, user)
       ProjectsFixtures.project_fixture(account_id: user.account.id)
 
@@ -518,19 +518,14 @@ defmodule TuistWeb.API.ProjectsControllerTest do
 
       response = json_response(conn, :ok)
 
-      assert [
-               %{
-                 "name" => account_name,
-                 "plan" => "air",
-                 "subscription_active" => true,
-                 "thresholds_surpassed" => false
-               }
-             ] = response["accounts"]
-
+      assert [%{"name" => account_name, "xcode_cache_limit_surpassed" => false}] = response["accounts"]
       assert account_name == user.account.name
     end
 
-    test "marks an account as having surpassed thresholds when over the free tier limit", %{conn: conn, user: user} do
+    test "marks xcode_cache_limit_surpassed as true when the air-plan account is over the free tier limit", %{
+      conn: conn,
+      user: user
+    } do
       conn = Authentication.put_current_user(conn, user)
       ProjectsFixtures.project_fixture(account_id: user.account.id)
 
@@ -542,7 +537,7 @@ defmodule TuistWeb.API.ProjectsControllerTest do
 
       response = json_response(conn, :ok)
 
-      assert [%{"plan" => "air", "thresholds_surpassed" => true}] = response["accounts"]
+      assert [%{"xcode_cache_limit_surpassed" => true}] = response["accounts"]
     end
   end
 

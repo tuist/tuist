@@ -3,22 +3,19 @@ defmodule CacheWeb.Plugs.BillingPlug do
   Plug that blocks module cache requests when a free-tier account has
   surpassed the monthly thresholds.
 
-  Reads the billing snapshot stashed on `conn.assigns[:account_billing]` by
+  Reads the `xcode_cache_limit_surpassed` flag stashed on the connection by
   `CacheWeb.Plugs.AuthPlug` and rejects the request with `402 Payment Required`
-  for air-plan accounts over the threshold.
+  when it is `true`.
 
-  When the billing snapshot is `nil` (e.g. JWT-only authorization that does not
-  carry billing info) the request is let through. Paid plans are not enforced
-  here; lapsed paid subscriptions surface as `:air` from
-  `Tuist.Billing.account_billing_status/1` and fall back to the same free-tier
-  check.
+  When the flag is `nil` (e.g. JWT-only authorization that does not carry
+  billing info) the request is let through.
   """
 
   import Plug.Conn
 
   def init(opts), do: opts
 
-  def call(%Plug.Conn{assigns: %{account_billing: %{plan: :air, thresholds_surpassed: true}}} = conn, _opts) do
+  def call(%Plug.Conn{assigns: %{xcode_cache_limit_surpassed: true}} = conn, _opts) do
     conn
     |> put_resp_content_type("application/json")
     |> send_resp(402, JSON.encode!(%{message: rejection_message()}))

@@ -407,36 +407,24 @@ defmodule Tuist.Billing do
   end
 
   @doc """
-  Returns a snapshot of the account's billing status used to gate access to
-  metered features (e.g. cache hits) at the API and cache layers.
+  Returns `true` when the account has surpassed the free-tier monthly cache
+  limit. Used by the cache service to block module cache requests for
+  air-plan accounts past the threshold.
 
-  The map contains:
-    * `:plan` — `:air`, `:pro`, `:open_source`, or `:enterprise`
-    * `:subscription_active` — `true` when the subscription is `active`/`trialing`
-      (always `true` for `:air` since the free plan has no subscription)
-    * `:thresholds_surpassed` — `true` when the account has reached the free
-      tier limits (currently `remote_cache_hits >= 200/month`)
+  Lapsed paid subscriptions (past_due/canceled) surface here as `:air`
+  because `get_current_active_subscription/1` only returns `active`/`trialing`
+  rows, so they fall under the same free-tier check.
   """
-  def account_billing_status(%Account{} = account) do
-    subscription = get_current_active_subscription(account)
+  def xcode_cache_limit_surpassed?(%Account{} = account) do
+    plan =
+      case get_current_active_subscription(account) do
+        nil -> :air
+        subscription -> subscription.plan
+      end
 
-    plan = if(is_nil(subscription), do: :air, else: subscription.plan)
-
-    subscription_active =
-      if(is_nil(subscription),
-        do: plan == :air,
-        else: subscription.status == "active"
-      )
-
-    thresholds_surpassed =
+    plan == :air and
       (account.current_month_remote_cache_hits_count || 0) >=
         get_payment_thresholds()[:remote_cache_hits]
-
-    %{
-      plan: plan,
-      subscription_active: subscription_active,
-      thresholds_surpassed: thresholds_surpassed
-    }
   end
 
   @doc """

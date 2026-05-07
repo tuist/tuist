@@ -30,17 +30,15 @@ defmodule CacheWeb.Plugs.AuthPlugTest do
 
       refute result.halted
       assert result.assigns[:account_handle] == "tuist"
-      assert result.assigns[:account_billing] == nil
+      assert result.assigns[:xcode_cache_limit_surpassed] == nil
       assert Logger.metadata()[:auth_account_handle] == "tuist"
       refute Keyword.has_key?(Logger.metadata(), :selected_account_handle)
       refute Keyword.has_key?(Logger.metadata(), :selected_project_handle)
     end
 
-    test "stashes the billing snapshot returned by Authentication on conn assigns" do
-      billing = %{plan: :air, subscription_active: true, thresholds_surpassed: true}
-
+    test "stashes the xcode cache limit flag returned by Authentication on conn assigns" do
       expect(Authentication, :ensure_project_accessible, fn _conn, "tuist", "app" ->
-        {:ok, "Bearer token", billing}
+        {:ok, "Bearer token", true}
       end)
 
       stub(OpenTelemetry.Tracer, :set_attribute, fn _, _ -> :ok end)
@@ -53,7 +51,7 @@ defmodule CacheWeb.Plugs.AuthPlugTest do
       result = AuthPlug.call(conn, AuthPlug.init([]))
 
       refute result.halted
-      assert result.assigns[:account_billing] == billing
+      assert result.assigns[:xcode_cache_limit_surpassed] == true
     end
 
     test "does not set authenticated account context when authorization does not succeed" do
