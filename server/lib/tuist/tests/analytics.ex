@@ -111,8 +111,10 @@ defmodule Tuist.Tests.Analytics do
 
   @doc """
   Returns analytics for quarantined tests count over time for a project.
-  This computes the number of quarantined tests at each time bucket by
-  tracking `muted` / `unmuted` events from the test_case_events table.
+  This computes the number of muted and skipped tests at each time bucket by
+  tracking `muted` / `unmuted` / `skipped` / `unskipped` events from the
+  test_case_events table. Returns separate series for muted and skipped counts,
+  plus a combined `count`/`values` covering both states.
   """
   def quarantined_tests_analytics(project_id, opts \\ []) do
     start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
@@ -144,27 +146,52 @@ defmodule Tuist.Tests.Analytics do
 
     events_by_tc = Enum.group_by(events, & &1.test_case_id)
 
+    {muted_values, skipped_values} =
+      date_endpoints
+      |> Enum.map(&quarantine_counts_at(events_by_tc, DateTime.to_naive(&1)))
+      |> Enum.unzip()
+
     values =
-      Enum.map(date_endpoints, fn endpoint ->
-        endpoint_naive = DateTime.to_naive(endpoint)
+      muted_values
+      |> Enum.zip(skipped_values)
+      |> Enum.map(fn {muted, skipped} -> muted + skipped end)
 
-        Enum.count(events_by_tc, fn {_tc_id, tc_events} ->
-          last_event =
-            tc_events
-            |> Enum.take_while(&(NaiveDateTime.compare(&1.inserted_at, endpoint_naive) != :gt))
-            |> List.last()
+    muted_count = List.last(muted_values) || 0
+    skipped_count = List.last(skipped_values) || 0
+    count = muted_count + skipped_count
 
-          last_event != nil and last_event.event_type in Tests.active_quarantine_event_types()
-        end)
-      end)
+    {previous_muted, previous_skipped} =
+      quarantine_counts_at(events_by_tc, DateTime.to_naive(DateTime.add(start_datetime, -1, :second)))
 
-    count = List.last(values) || 0
+    previous_count = previous_muted + previous_skipped
 
     %{
+      trend: trend(previous_value: previous_count, current_value: count),
+      muted_trend: trend(previous_value: previous_muted, current_value: muted_count),
+      skipped_trend: trend(previous_value: previous_skipped, current_value: skipped_count),
       count: count,
       values: values,
+      muted_count: muted_count,
+      skipped_count: skipped_count,
+      muted_values: muted_values,
+      skipped_values: skipped_values,
       dates: dates
     }
+  end
+
+  defp quarantine_counts_at(events_by_tc, datetime_naive) do
+    Enum.reduce(events_by_tc, {0, 0}, fn {_tc_id, tc_events}, {muted_acc, skipped_acc} ->
+      last_event =
+        tc_events
+        |> Enum.take_while(&(NaiveDateTime.compare(&1.inserted_at, datetime_naive) != :gt))
+        |> List.last()
+
+      case last_event do
+        %{event_type: "muted"} -> {muted_acc + 1, skipped_acc}
+        %{event_type: "skipped"} -> {muted_acc, skipped_acc + 1}
+        _ -> {muted_acc, skipped_acc}
+      end
+    end)
   end
 
   @doc """
