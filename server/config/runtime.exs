@@ -492,7 +492,7 @@ config :tuist, Oban,
        end}
   ]
 
-unless Tuist.Environment.web?() do
+if !Tuist.Environment.web?() do
   config :tuist, Oban, peer: false
 end
 
