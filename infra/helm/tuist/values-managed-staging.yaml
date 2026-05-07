@@ -164,32 +164,25 @@ macosFleet:
 # Workloads that target this fleet schedule via
 # `nodeSelector: tuist.dev/fleet=tuist-tuist-runners-fleet`.
 #
-# Off by default so the chart can land without a runner image
-# pinned. Flip on with:
+# Image digest pinned to the artifact built by the most recent
+# successful run of .github/workflows/runner-image.yml. Bumped
+# manually for now (one digest per runner-image release);
+# automation lands when the image flow gets its own
+# release-bump workflow.
 #
-#   helm upgrade ... \
-#     --set runnersFleet.enabled=true \
-#     --set runnersFleet.runnerImage=ghcr.io/tuist/tuist-runner@sha256:<digest>
-#
-# The runner image is built by .github/workflows/runner-image.yml
-# (manual workflow_dispatch in v1; automated deploy in v2).
+# `installationIds.tuist-tuist` MUST be set at deploy time via
+# `--set runnersFleet.installationIds.tuist-tuist=<id>`. Resolve
+# it via the Tuist GitHub App's installation page on the tuist
+# org; the numeric ID appears in the URL.
 runnersFleet:
-  enabled: false
+  enabled: true
   replicas: 2
   machine:
     # M2-M same as macosFleet above — fr-par-1 has limited
     # M4-S capacity in some windows, M2-M is the reliable
     # fallback. Bump to M4-S once stocking stabilizes.
     type: M2-M
-  # Pinned by CI to the GHA-built runner image SHA. The chart
-  # `--set runnersFleet.runnerImage=<digest>` from the deploy
-  # workflow; a placeholder here means the helm template would
-  # fail the `required` check unless overridden.
-  runnerImage: ""
-  # Resolve via:
-  #   gh api /repos/tuist/tuist/installation
-  # against a token where the Tuist GitHub App is installed.
-  # The numeric `id` field is the installation_id.
+  runnerImage: "ghcr.io/tuist/tuist-runner@sha256:800e78c62a887642b29d23be72f54a561d60cd86bcaf430f077bce4bc389b6ee"
   installationIds:
     tuist-tuist: ""
   # Cluster-internal CIDR ranges the runner namespace's
