@@ -470,23 +470,25 @@ config :tuist, Oban,
     {Oban.Plugins.Lifeline, rescue_after: to_timeout(minute: 30)},
     {Oban.Plugins.Cron,
      crontab:
-       cond do
-         not (Tuist.Environment.web?() and env in [:prod, :stag, :can]) ->
-           []
-
-         Tuist.Environment.tuist_hosted?() ->
-           [
+       if Tuist.Environment.web?() and env in [:prod, :stag, :can] do
+         hosted_only_crons =
+           if Tuist.Environment.tuist_hosted?() do
              # Tuist-hosted-only: report into Tuist's own Slack workspace,
              # roll up account usage that feeds Stripe metered billing,
              # and reconcile Stripe meters from the rolled-up usage.
-             {"0 10 * * 1-5", Tuist.Ops.DailySlackReportWorker},
-             {"0 * * * 1-5", Tuist.Ops.HourlySlackReportWorker},
-             {"@daily", Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker},
-             {"@daily", Tuist.Billing.Workers.SyncStripeMetersWorker}
-           ] ++ shared_crons
+             [
+               {"0 10 * * 1-5", Tuist.Ops.DailySlackReportWorker},
+               {"0 * * * 1-5", Tuist.Ops.HourlySlackReportWorker},
+               {"@daily", Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker},
+               {"@daily", Tuist.Billing.Workers.SyncStripeMetersWorker}
+             ]
+           else
+             []
+           end
 
-         true ->
-           shared_crons
+         hosted_only_crons ++ shared_crons
+       else
+         []
        end}
   ]
 
