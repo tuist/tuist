@@ -118,7 +118,7 @@ public struct UploadBuildRunService: UploadBuildRunServicing {
                 macOSVersion: machineEnvironment.macOSVersion,
                 scheme: scheme ?? Environment.current.schemeName,
                 targets: [],
-                xcodeCacheUploadEnabled: config.cache.upload,
+                xcodeCacheUploadEnabled: config.xcodeCache.upload,
                 xcodeVersion: try await xcodeBuildController.version()?.description,
                 status: .processing,
                 ciRunId: ciInfo?.runId,

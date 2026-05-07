@@ -21,7 +21,7 @@ public struct Tuist: Equatable, Hashable, Sendable {
         }
     }
 
-    public struct Cache: Equatable, Hashable, Sendable {
+    public struct XcodeCache: Equatable, Hashable, Sendable {
         public let upload: Bool
 
         public init(upload: Bool = true) {
@@ -33,7 +33,7 @@ public struct Tuist: Equatable, Hashable, Sendable {
     public let fullHandle: String?
     public let inspectOptions: InspectOptions
     public let network: Network
-    public let cache: Cache
+    public let xcodeCache: XcodeCache
     public let url: URL
 
     public static var `default`: Tuist {
@@ -41,7 +41,7 @@ public struct Tuist: Equatable, Hashable, Sendable {
             project: .defaultGeneratedProject(),
             fullHandle: nil,
             inspectOptions: .init(redundantDependencies: .init(ignoreTagsMatching: [])),
-            cache: Cache(),
+            xcodeCache: XcodeCache(),
             url: Constants.URLs.production,
             network: Network()
         )
@@ -51,7 +51,7 @@ public struct Tuist: Equatable, Hashable, Sendable {
         project: TuistProject,
         fullHandle: String?,
         inspectOptions: InspectOptions,
-        cache: Cache = Cache(),
+        xcodeCache: XcodeCache = XcodeCache(),
         url: URL,
         network: Network = Network()
     ) {
@@ -59,7 +59,7 @@ public struct Tuist: Equatable, Hashable, Sendable {
         self.fullHandle = fullHandle
         self.inspectOptions = inspectOptions
         self.network = network
-        self.cache = cache
+        self.xcodeCache = xcodeCache
         self.url = url
     }
 
@@ -82,7 +82,7 @@ public struct Tuist: Equatable, Hashable, Sendable {
             project: TuistProject = .testGeneratedProject(),
             fullHandle: String? = nil,
             inspectOptions: InspectOptions = .init(redundantDependencies: .init(ignoreTagsMatching: [])),
-            cache: Cache = Cache(),
+            xcodeCache: XcodeCache = XcodeCache(),
             url: URL = Constants.URLs.production,
             network: Network = Network()
         ) -> Self {
@@ -90,7 +90,7 @@ public struct Tuist: Equatable, Hashable, Sendable {
                 project: project,
                 fullHandle: fullHandle,
                 inspectOptions: inspectOptions,
-                cache: cache,
+                xcodeCache: xcodeCache,
                 url: url,
                 network: network
             )
