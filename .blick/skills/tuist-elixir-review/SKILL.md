@@ -56,6 +56,8 @@ Tenant-owned schemas include at least: `Bundle`, `Run`, `Cache`,
 
 - Internal background jobs that intentionally operate across tenants (look for an explicit `# admin / cross-tenant: ...` comment or a function name like `*_for_all/_global/_admin`).
 - Reads from non-tenant tables (`User`, `Account`, `Organization`, `Subscription`, etc.).
+- **Webhook handlers operating on a row that was already cryptographically selected upstream.** When `lib/tuist_web/plugs/webhook_plug.ex` resolves a per-row HMAC secret (e.g. `GitHubController.resolve_webhook_secret/1` matches a `GitHubAppInstallation` row whose `webhook_secret` HMACs the raw body, then stashes the row on `conn.assigns[:github_installation]`), downstream handlers reading that assign do not need a separate `installation.account_id == expected_account_id` check. There is no separate "expected account" — webhooks land on a global `/webhooks/<provider>` URL, and the row *is* the tenant context, selected by a per-row cryptographic capability. A redundant `account_id` equality check after `valid_signature?/4` would compare the row's value to itself; it adds dead code, not a defense layer. If the cryptographic check fails, the request 403's before the handler ever runs.
+- **Internal dispatch paths whose inputs come from a query already scoped by tenant.** When a function receives a struct produced by an upstream context function that already filters by `project_id` / `account_id` (e.g. `FlakyTestsMonitor.evaluate/1` → `AlertEvaluationWorker` → `ActionExecutor`), do not flag the downstream call as needing its own scoping check. Trace the input chain before flagging; only flag when the input is user-controllable (URL param, body field, header).
 
 ---
 
