@@ -24,11 +24,15 @@ defmodule Tuist.Kubernetes.Client do
     - `list_pods/2` (label selector, namespace) → counts warm Pods
     - `create_pod/2` (manifest, namespace) → materializes a Pod
     - `list_nodes/1` (label selector) → fleet roster
+    - `stream_watch_pods/3` (namespace, selector, callback) →
+      long-lived watch on Pod events, drives the reconciler's
+      event-driven trigger so warm-pool refills happen the
+      moment a Pod terminates instead of on a cron tick
 
-  No watches, no informers, no CRDs. Reconciliation runs as an Oban
-  cron at 60 s cadence — well below the substrate's reaction time
-  for warm-Pod cycle, simple to operate, no long-lived BEAM
-  processes holding API server connections.
+  The reconciler runs from `Tuist.Runners.Watcher` — a GenServer
+  that opens a watch on Pod events, calls the reconciler on each
+  terminal-state transition, and reconnects with backoff on
+  stream end. No periodic polling.
   """
 
   @sa_path "/var/run/secrets/kubernetes.io/serviceaccount"
@@ -103,6 +107,84 @@ defmodule Tuist.Kubernetes.Client do
         {:ok, %{status: status, body: body}} -> {:error, {:http, status, body}}
         {:error, reason} -> {:error, {:transport, reason}}
       end
+    end
+  end
+
+  @doc """
+  Opens a long-lived `watch=true` request against the Pod
+  collection in `namespace` filtered by `label_selector`, parses
+  the JSON-Lines event stream, and invokes `callback` for every
+  WatchEvent with `{type, object}`.
+
+  Returns `:ok` when the upstream stream closes cleanly,
+  `{:error, reason}` on transport / non-2xx status / invalid
+  credentials. The caller (typically `Tuist.Runners.Watcher`)
+  handles reconnection with backoff.
+
+  `resource_version` is optional. When passed, the server replays
+  events since that revision (useful if the caller persists the
+  cursor across reconnects). When omitted, the server starts
+  from the current state. We use `omit` and run a fresh LIST on
+  every reconnect — simpler than RV bookkeeping, only slightly
+  more expensive at reconnect time, and avoids the
+  `410 Gone` retry path for stale RVs.
+
+  The HTTP request has no client-side timeout: K8s API servers
+  send a TCP FIN at their own idle limit (~5–10 min) and the
+  watcher reconnects from there.
+  """
+  def stream_watch_pods(namespace, label_selector, callback)
+      when is_binary(namespace) and is_binary(label_selector) and is_function(callback, 1) do
+    with {:ok, host, ca, token} <- in_cluster_config() do
+      req_opts =
+        [
+          url:
+            "https://#{host}/api/v1/namespaces/#{namespace}/pods?watch=true&allowWatchBookmarks=true&labelSelector=" <>
+              URI.encode_www_form(label_selector),
+          headers: auth_headers(token),
+          connect_options: [transport_opts: [cacerts: ca]],
+          # Watch streams idle indefinitely between events; the
+          # API server sends a TCP FIN at its own idle limit
+          # (~5–10 min) and the watcher reconnects from there.
+          # Disable Req's receive timeout so a quiet stream
+          # isn't torn down by the client.
+          receive_timeout: :infinity,
+          # Buffer raw bytes line-by-line — the K8s watch
+          # protocol is JSON-Lines (one JSON object per line)
+          # and a TCP frame can split mid-event. The `into`
+          # callback re-assembles full lines from chunks and
+          # emits each as a decoded map through the user's
+          # callback; partial trailing data stays in the
+          # buffer until the next chunk arrives.
+          into: fn {:data, chunk}, {req, resp} ->
+            buffer = Map.get(resp.private, :tuist_buffer, "") <> chunk
+            {events, leftover} = split_lines(buffer)
+            Enum.each(events, fn line -> dispatch_event(line, callback) end)
+            {:cont, {req, %{resp | private: Map.put(resp.private, :tuist_buffer, leftover)}}}
+          end
+        ]
+
+      case Req.get(req_opts) do
+        {:ok, %{status: 200}} -> :ok
+        {:ok, %{status: status, body: body}} -> {:error, {:http, status, body}}
+        {:error, reason} -> {:error, {:transport, reason}}
+      end
+    end
+  end
+
+  defp split_lines(data) do
+    case String.split(data, "\n", trim: false) do
+      [single] -> {[], single}
+      lines -> {Enum.drop(lines, -1), List.last(lines)}
+    end
+  end
+
+  defp dispatch_event("", _callback), do: :ok
+
+  defp dispatch_event(line, callback) do
+    case Jason.decode(line) do
+      {:ok, %{"type" => _type, "object" => _object} = event} -> callback.(event)
+      _ -> :ok
     end
   end
 

@@ -457,22 +457,16 @@ config :tuist, Oban,
        if(
          not Tuist.Environment.processor_mode?() and not Tuist.Environment.xcresult_processor_mode?() and
            Tuist.Environment.tuist_hosted?() and env in [:prod, :stag, :can],
-         do:
-           [
-             {"0 10 * * 1-5", Tuist.Ops.DailySlackReportWorker},
-             {"0 * * * 1-5", Tuist.Ops.HourlySlackReportWorker},
-             {"@hourly", Tuist.Slack.Workers.ReportWorker},
-             {"*/10 * * * *", Tuist.Alerts.Workers.AlertWorker},
-             {"@daily", Tuist.Billing.Workers.SyncStripeMetersWorker},
-             {"@daily", Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker},
-             {"@hourly", Tuist.Tests.Workers.ExpireStaleTestRunsWorker},
-             {"* * * * *", Tuist.Automations.Workers.AutomationScheduler}
-           ] ++
-             if Tuist.Environment.runners_enabled?() do
-               [{"* * * * *", Tuist.Runners.Workers.ReconcilePoolsWorker}]
-             else
-               []
-             end,
+         do: [
+           {"0 10 * * 1-5", Tuist.Ops.DailySlackReportWorker},
+           {"0 * * * 1-5", Tuist.Ops.HourlySlackReportWorker},
+           {"@hourly", Tuist.Slack.Workers.ReportWorker},
+           {"*/10 * * * *", Tuist.Alerts.Workers.AlertWorker},
+           {"@daily", Tuist.Billing.Workers.SyncStripeMetersWorker},
+           {"@daily", Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker},
+           {"@hourly", Tuist.Tests.Workers.ExpireStaleTestRunsWorker},
+           {"* * * * *", Tuist.Automations.Workers.AutomationScheduler}
+         ],
          else: []
        )}
   ]

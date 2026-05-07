@@ -33,19 +33,12 @@ defmodule TuistWeb.Webhooks.GitHubController do
         _ -> nil
       end
 
-    Logger.info("runners: workflow_job webhook",
-      action: Map.get(params, "action"),
-      repo: get_in(params, ["repository", "full_name"]),
-      labels: get_in(params, ["workflow_job", "labels"]),
-      installation_id: installation_id
-    )
-
     if installation_id do
       # Best-effort dispatch. We always 200 back to GH so it
-      # doesn't queue retries — failures are operational issues
-      # the cron reconciler will rectify on its own next tick;
-      # the workflow_job sits in GH's queue until a runner with
-      # matching labels picks it up.
+      # doesn't queue retries — `:no_idle_pod` and other
+      # operational failures are recoverable on the next event:
+      # GH's queue retains queued jobs and our watcher refills
+      # the warm pool the moment a Pod terminates.
       _ = Dispatch.handle_webhook(params, installation_id)
     end
 

@@ -363,6 +363,20 @@ defmodule Tuist.Application do
         do: [],
         else: [Tuist.Marketing.Stats]
     )
+    |> Kernel.++(
+      # Runner-pool watcher: opens a long-lived watch on Pod
+      # events in the runners namespace and drives the
+      # reconciler on each terminal-state transition. Replaces
+      # the periodic Oban cron — event-driven means warm-pool
+      # refills happen within seconds of a Pod terminating
+      # rather than up to ~60 s later.
+      #
+      # The Watcher's init/1 returns :ignore when
+      # `runners_enabled?` is false (env vars unset on
+      # self-hosted / preview / dev), so it costs nothing in
+      # those deployments.
+      if Environment.test?(), do: [], else: [Tuist.Runners.Watcher]
+    )
   end
 
   defp dev_content_children do

@@ -161,7 +161,7 @@ defmodule Tuist do
       Runners.Dispatch,
       Runners.PoolConfig,
       Runners.RunnerAssignment,
-      Runners.Workers.ReconcilePoolsWorker,
+      Runners.Watcher,
       Kubernetes.Client
     ]
 end
