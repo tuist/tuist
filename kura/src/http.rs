@@ -253,6 +253,7 @@ struct BlobPutSpec<'a> {
     analytics_key: Option<&'a str>,
     max_bytes: u64,
     success_status: StatusCode,
+    existing_status: StatusCode,
     analytics: Option<LegacyAnalyticsContext<'a>>,
 }
 
@@ -870,6 +871,7 @@ async fn put_nx(
             analytics_key: None,
             max_bytes: MAX_MODULE_TOTAL_BYTES,
             success_status: StatusCode::OK,
+            existing_status: StatusCode::OK,
             analytics: None,
         },
     )
@@ -906,6 +908,7 @@ async fn put_metro(
             analytics_key: None,
             max_bytes: MAX_MODULE_TOTAL_BYTES,
             success_status: StatusCode::OK,
+            existing_status: StatusCode::OK,
             analytics: None,
         },
     )
@@ -944,10 +947,8 @@ async fn put_keyvalue(
         }
     };
 
-    let cas_id = body.cas_id.clone();
-    let key = action_cache_key(&cas_id);
+    let key = action_cache_key(&body.cas_id);
     let payload = serde_json::json!({
-        "cas_id": body.cas_id,
         "entries": body.entries.into_iter().map(|entry| serde_json::json!({ "value": entry.value })).collect::<Vec<_>>()
     });
     let payload_bytes = match serde_json::to_vec(&payload) {
@@ -1037,6 +1038,7 @@ async fn put_xcode(
             analytics_key: Some(&id),
             max_bytes: MAX_XCODE_BYTES,
             success_status: StatusCode::NO_CONTENT,
+            existing_status: StatusCode::NO_CONTENT,
             analytics: Some(LegacyAnalyticsContext {
                 tenant_id: &namespace.tenant_id,
                 namespace_id: &namespace.namespace_id,
@@ -1091,6 +1093,7 @@ async fn put_gradle(
             analytics_key: Some(&cache_key),
             max_bytes: MAX_GRADLE_BYTES,
             success_status: StatusCode::CREATED,
+            existing_status: StatusCode::OK,
             analytics: Some(LegacyAnalyticsContext {
                 tenant_id: &namespace.tenant_id,
                 namespace_id: &namespace.namespace_id,
@@ -1624,7 +1627,7 @@ async fn put_blob_artifact(
         .artifact_exists(producer, spec.namespace_id, spec.key)
         .await
     {
-        Ok(true) => return spec.success_status.into_response(),
+        Ok(true) => return spec.existing_status.into_response(),
         Ok(false) => {}
         Err(error) => {
             return error_response(
@@ -2115,7 +2118,7 @@ mod tests {
 
         let body: Value = serde_json::from_str(&response_text(get_response).await)
             .expect("failed to decode keyvalue response");
-        assert_eq!(body["cas_id"], "cas-1");
+        assert!(body.get("cas_id").is_none(), "stored payload must not include cas_id");
         assert_eq!(body["entries"][0]["value"], "hello");
         assert_eq!(body["entries"][1]["value"], "world");
     }

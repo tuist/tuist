@@ -62,83 +62,112 @@ pub async fn enqueue_replication_for_artifact(state: &SharedState, manifest: &Ar
 }
 
 pub fn spawn_membership_task(state: SharedState) {
+    spawn_supervised("membership", state, membership_task_loop);
+}
+
+pub fn spawn_outbox_task(state: SharedState) {
+    spawn_supervised("outbox", state, outbox_task_loop);
+}
+
+fn spawn_supervised<F, Fut>(name: &'static str, state: SharedState, work: F)
+where
+    F: Fn(SharedState) -> Fut + Send + Sync + 'static,
+    Fut: std::future::Future<Output = ()> + Send + 'static,
+{
     tokio::spawn(async move {
         loop {
-            let mut members = BTreeSet::new();
-            let mut peer_nodes = BTreeMap::new();
-            let targets = discovery_targets(&state.config).await;
-            let mut peer_status_successes = 0_usize;
-            let lookups = futures_util::future::join_all(targets.iter().map(|peer| {
-                let client = state.client.clone();
-                let url = format!("{peer}/_internal/status");
-                let label = peer.clone();
-                async move {
-                    let result = client.get(url).send().await;
-                    (label, result)
+            let task_state = state.clone();
+            let handle = tokio::spawn(work(task_state));
+            match handle.await {
+                Ok(()) => return,
+                Err(error) if error.is_panic() => {
+                    state.metrics.record_memory_action(&format!("background_panic_{name}"));
+                    warn!("background task '{name}' panicked: {error:?}; respawning in 1s");
+                    sleep(Duration::from_secs(1)).await;
                 }
-            }))
-            .await;
-            for (peer, result) in lookups {
-                match result {
-                    Ok(response) if response.status().is_success() => match response
-                        .json::<PeerStatusPayload>()
-                        .await
-                    {
-                        Ok(payload) => {
-                            peer_status_successes += 1;
-                            if payload.tenant_id != state.config.tenant_id
-                                || payload.node_url == state.config.node_url
-                            {
-                                continue;
-                            }
-                            members.insert(payload.region.clone());
-                            peer_nodes.insert(payload.node_url, payload.region);
-                        }
-                        Err(error) => warn!("failed to decode peer status from {peer}: {error}"),
-                    },
-                    Ok(response) => {
-                        warn!("peer status check failed for {peer}: {}", response.status())
-                    }
-                    Err(error) => warn!("peer status request failed for {peer}: {error}"),
+                Err(error) => {
+                    warn!("background task '{name}' aborted: {error:?}");
+                    return;
                 }
             }
-
-            let discovery_observed = targets.is_empty() || peer_status_successes > 0;
-            let membership_update = state
-                .apply_membership_view(members, peer_nodes, discovery_observed)
-                .await;
-            state
-                .metrics
-                .update_discovered_peer_nodes(membership_update.known_peer_count);
-            for peer in state.peers_needing_bootstrap().await {
-                maybe_spawn_bootstrap_task(state.clone(), peer).await;
-            }
-            state.maybe_mark_serving().await;
-            sleep(Duration::from_secs(2)).await;
         }
     });
 }
 
-pub fn spawn_outbox_task(state: SharedState) {
-    tokio::spawn(async move {
-        loop {
-            let notified = state.notify.notified();
-            tokio::pin!(notified);
-
-            let pause_outbox = state.memory.pause_outbox();
-            state
-                .metrics
-                .update_background_work_paused("outbox", pause_outbox);
-            if !pause_outbox && let Err(error) = process_outbox(&state).await {
-                warn!("outbox processing failed: {error}");
+async fn membership_task_loop(state: SharedState) {
+    loop {
+        let mut members = BTreeSet::new();
+        let mut peer_nodes = BTreeMap::new();
+        let targets = discovery_targets(&state.config).await;
+        let mut peer_status_successes = 0_usize;
+        let lookups = futures_util::future::join_all(targets.iter().map(|peer| {
+            let client = state.client.clone();
+            let url = format!("{peer}/_internal/status");
+            let label = peer.clone();
+            async move {
+                let result = client.get(url).send().await;
+                (label, result)
             }
-
-            tokio::select! {
-                _ = &mut notified => {},
-                _ = sleep(Duration::from_secs(REPLICATION_RETRY_SECS)) => {},
+        }))
+        .await;
+        for (peer, result) in lookups {
+            match result {
+                Ok(response) if response.status().is_success() => match response
+                    .json::<PeerStatusPayload>()
+                    .await
+                {
+                    Ok(payload) => {
+                        peer_status_successes += 1;
+                        if payload.tenant_id != state.config.tenant_id
+                            || payload.node_url == state.config.node_url
+                        {
+                            continue;
+                        }
+                        members.insert(payload.region.clone());
+                        peer_nodes.insert(payload.node_url, payload.region);
+                    }
+                    Err(error) => warn!("failed to decode peer status from {peer}: {error}"),
+                },
+                Ok(response) => {
+                    warn!("peer status check failed for {peer}: {}", response.status())
+                }
+                Err(error) => warn!("peer status request failed for {peer}: {error}"),
             }
         }
-    });
+
+        let discovery_observed = targets.is_empty() || peer_status_successes > 0;
+        let membership_update = state
+            .apply_membership_view(members, peer_nodes, discovery_observed)
+            .await;
+        state
+            .metrics
+            .update_discovered_peer_nodes(membership_update.known_peer_count);
+        for peer in state.peers_needing_bootstrap().await {
+            maybe_spawn_bootstrap_task(state.clone(), peer).await;
+        }
+        state.maybe_mark_serving().await;
+        sleep(Duration::from_secs(2)).await;
+    }
+}
+
+async fn outbox_task_loop(state: SharedState) {
+    loop {
+        let notified = state.notify.notified();
+        tokio::pin!(notified);
+
+        let pause_outbox = state.memory.pause_outbox();
+        state
+            .metrics
+            .update_background_work_paused("outbox", pause_outbox);
+        if !pause_outbox && let Err(error) = process_outbox(&state).await {
+            warn!("outbox processing failed: {error}");
+        }
+
+        tokio::select! {
+            _ = &mut notified => {},
+            _ = sleep(Duration::from_secs(REPLICATION_RETRY_SECS)) => {},
+        }
+    }
 }
 
 pub async fn replication_targets(state: &SharedState) -> Vec<String> {
