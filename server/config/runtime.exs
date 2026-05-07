@@ -450,6 +450,20 @@ oban_queues =
 # also empty on non-web roles, so a non-web leader silently halts every
 # scheduled job — exactly what happened when the xcresult-processor role
 # was first added without this guard.
+#
+# Crontab split: `shared_crons` are project-level features (alerts,
+# automations, per-project Slack reports, usage stats, sharded-test
+# cleanup) — they run on any deployment, hosted or self-hosted. Hosted-
+# only entries (Tuist's internal Slack ops reports + Stripe metered
+# billing) layer on top when `tuist_hosted?()` is set.
+shared_crons = [
+  {"@hourly", Tuist.Slack.Workers.ReportWorker},
+  {"*/10 * * * *", Tuist.Alerts.Workers.AlertWorker},
+  {"@daily", Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker},
+  {"@hourly", Tuist.Tests.Workers.ExpireStaleTestRunsWorker},
+  {"* * * * *", Tuist.Automations.Workers.AutomationScheduler}
+]
+
 config :tuist, Oban,
   queues: oban_queues,
   plugins: [
@@ -457,20 +471,22 @@ config :tuist, Oban,
     {Oban.Plugins.Lifeline, rescue_after: to_timeout(minute: 30)},
     {Oban.Plugins.Cron,
      crontab:
-       if(
-         Tuist.Environment.web?() and Tuist.Environment.tuist_hosted?() and env in [:prod, :stag, :can],
-         do: [
-           {"0 10 * * 1-5", Tuist.Ops.DailySlackReportWorker},
-           {"0 * * * 1-5", Tuist.Ops.HourlySlackReportWorker},
-           {"@hourly", Tuist.Slack.Workers.ReportWorker},
-           {"*/10 * * * *", Tuist.Alerts.Workers.AlertWorker},
-           {"@daily", Tuist.Billing.Workers.SyncStripeMetersWorker},
-           {"@daily", Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker},
-           {"@hourly", Tuist.Tests.Workers.ExpireStaleTestRunsWorker},
-           {"* * * * *", Tuist.Automations.Workers.AutomationScheduler}
-         ],
-         else: []
-       )}
+       cond do
+         not (Tuist.Environment.web?() and env in [:prod, :stag, :can]) ->
+           []
+
+         Tuist.Environment.tuist_hosted?() ->
+           [
+             # Tuist-hosted-only: report into Tuist's own Slack workspace
+             # and reconcile Stripe metered billing.
+             {"0 10 * * 1-5", Tuist.Ops.DailySlackReportWorker},
+             {"0 * * * 1-5", Tuist.Ops.HourlySlackReportWorker},
+             {"@daily", Tuist.Billing.Workers.SyncStripeMetersWorker}
+           ] ++ shared_crons
+
+         true ->
+           shared_crons
+       end}
   ]
 
 unless Tuist.Environment.web?() do
