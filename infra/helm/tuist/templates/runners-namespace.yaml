@@ -59,7 +59,13 @@ rules:
     # gap. The lack of `delete` is the single biggest blast-radius
     # reduction here — even a server compromise can't yank running
     # customer jobs off the fleet.
-    verbs: [get, list, create]
+    # `watch` joins the original get/list/create after the
+    # Tuist.Runners.Watcher GenServer replaced the periodic
+    # cron — the watcher streams Pod events from the API
+    # server and only reconciles on transitions, so it needs
+    # the verb. Same trust boundary as `list` (read-only on
+    # Pod metadata + status).
+    verbs: [get, list, watch, create]
   # Read Node objects (cluster-scoped) is granted via the
   # ClusterRole + ClusterRoleBinding emitted below — surfacing
   # the Pod -> Node mapping in audit logs / future ops UI
