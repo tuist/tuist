@@ -33,6 +33,13 @@ defmodule TuistWeb.Webhooks.GitHubController do
         _ -> nil
       end
 
+    Logger.info("runners: workflow_job webhook",
+      action: Map.get(params, "action"),
+      repo: get_in(params, ["repository", "full_name"]),
+      labels: get_in(params, ["workflow_job", "labels"]),
+      installation_id: installation_id
+    )
+
     if installation_id do
       # Best-effort dispatch. We always 200 back to GH so it
       # doesn't queue retries — failures are operational issues
