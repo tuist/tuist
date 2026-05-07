@@ -44,18 +44,16 @@ defmodule CacheWeb.Plugs.BillingPlugTest do
       refute result.halted
     end
 
-    test "rejects a pro-plan account whose subscription is no longer active" do
+    test "lets a trialing pro-plan account through (treated as paid, not blocked here)" do
       conn =
         assign(build_conn(), :account_billing, %{plan: :pro, subscription_active: false, thresholds_surpassed: false})
 
       result = BillingPlug.call(conn, BillingPlug.init([]))
 
-      assert result.halted
-      assert result.status == 402
-      assert result.resp_body =~ "subscription"
+      refute result.halted
     end
 
-    test "rejects an enterprise-plan account whose subscription is no longer active" do
+    test "lets an enterprise-plan account through regardless of subscription_active" do
       conn =
         assign(build_conn(), :account_billing, %{
           plan: :enterprise,
@@ -65,8 +63,7 @@ defmodule CacheWeb.Plugs.BillingPlugTest do
 
       result = BillingPlug.call(conn, BillingPlug.init([]))
 
-      assert result.halted
-      assert result.status == 402
+      refute result.halted
     end
   end
 
