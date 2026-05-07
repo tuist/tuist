@@ -231,6 +231,48 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
       assert result.status == 200
     end
 
+    test "fills installation_id on a pending GHES row when installation.created arrives before the setup callback (manifest-flow bootstrap race)",
+         %{conn: conn} do
+      # Regression: when `resolve_webhook_secret/1` HMAC-matches a row by
+      # app_id (its `installation_id` is still nil — the setup callback
+      # hasn't fired yet) and stashes it on conn.assigns, the
+      # `installation.created` handler must fill the row's
+      # `installation_id` from the body. Previously the handler looked
+      # the row up by the body's installation_id, missed the pending
+      # row entirely, and left it orphaned.
+      user = AccountsFixtures.user_fixture()
+      installation_id = "fresh-install-id"
+      html_url = "https://github.example.com/organizations/x/settings/installations/fresh-install-id"
+
+      pending_row = %Tuist.VCS.GitHubAppInstallation{
+        id: "00000000-0000-0000-0000-000000000001",
+        account_id: user.account.id,
+        installation_id: nil,
+        client_url: "https://github.example.com",
+        app_id: "999",
+        webhook_secret: "wh"
+      }
+
+      conn =
+        conn
+        |> put_req_header("x-github-event", "installation")
+        |> Plug.Conn.assign(:github_installation, pending_row)
+
+      expect(VCS, :update_github_app_installation, fn ^pending_row, attrs ->
+        assert attrs.installation_id == installation_id
+        assert attrs.html_url == html_url
+        {:ok, %{pending_row | installation_id: installation_id, html_url: html_url}}
+      end)
+
+      result =
+        GitHubController.handle(conn, %{
+          "action" => "created",
+          "installation" => %{"id" => installation_id, "html_url" => html_url}
+        })
+
+      assert result.status == 200
+    end
+
     test "returns ok for installation events with non-deleted actions", %{conn: conn} do
       # Given
       conn = put_req_header(conn, "x-github-event", "installation")

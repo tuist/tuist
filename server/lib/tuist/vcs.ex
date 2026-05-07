@@ -1284,30 +1284,26 @@ defmodule Tuist.VCS do
   both `nil`, returns `[]`.
   """
   def list_github_app_installations_for_webhook(installation_id, app_id) do
-    installation_id = if is_nil(installation_id), do: nil, else: to_string(installation_id)
-    app_id = if is_nil(app_id), do: nil, else: to_string(app_id)
-
-    query =
-      cond do
-        is_binary(installation_id) and is_binary(app_id) ->
-          from(i in GitHubAppInstallation,
-            where: i.installation_id == ^installation_id or i.app_id == ^app_id
-          )
-
-        is_binary(installation_id) ->
-          from(i in GitHubAppInstallation, where: i.installation_id == ^installation_id)
-
-        is_binary(app_id) ->
-          from(i in GitHubAppInstallation, where: i.app_id == ^app_id)
-
-        true ->
-          nil
-      end
-
-    case query do
+    case build_webhook_lookup_query(maybe_to_string(installation_id), maybe_to_string(app_id)) do
       nil -> []
       query -> Repo.all(query)
     end
+  end
+
+  defp maybe_to_string(nil), do: nil
+  defp maybe_to_string(value), do: to_string(value)
+
+  defp build_webhook_lookup_query(nil, nil), do: nil
+
+  defp build_webhook_lookup_query(installation_id, nil),
+    do: from(i in GitHubAppInstallation, where: i.installation_id == ^installation_id)
+
+  defp build_webhook_lookup_query(nil, app_id), do: from(i in GitHubAppInstallation, where: i.app_id == ^app_id)
+
+  defp build_webhook_lookup_query(installation_id, app_id) do
+    from(i in GitHubAppInstallation,
+      where: i.installation_id == ^installation_id or i.app_id == ^app_id
+    )
   end
 
   @doc """

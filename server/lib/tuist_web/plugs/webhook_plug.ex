@@ -75,10 +75,7 @@ defmodule TuistWeb.Plugs.WebhookPlug do
   end
 
   defp handle_webhook(conn, options) do
-    module = get_config(options, :handler)
     signature_header = get_config(options, :signature_header) || "x-hub-signature-256"
-    signature_prefix = get_config(options, :signature_prefix)
-    parser_opts = get_config(options, :parser_opts)
     signature = conn |> get_req_header(signature_header) |> List.first()
 
     if is_nil(signature) do
@@ -86,36 +83,51 @@ defmodule TuistWeb.Plugs.WebhookPlug do
       |> send_resp(401, "Missing #{signature_header} header")
       |> halt()
     else
-      conn = parse_request_body(conn, parser_opts)
+      verify_and_dispatch(conn, options, signature)
+    end
+  end
 
-      if conn.halted do
+  # Secret resolution may depend on the parsed body (e.g. webhooks
+  # whose signing secret is per-installation, not global), so it has
+  # to happen after `parse_request_body/2`.
+  #
+  # The resolver may also need to stash request-derived state on the
+  # conn (the matched installation row, for one) so post-HMAC handlers
+  # don't have to redo a potentially-ambiguous lookup. Resolvers can
+  # opt into that by returning `{:ok, secret, conn}` alongside the
+  # bare-string and `{:ok, secret}` shapes.
+  defp verify_and_dispatch(conn, options, signature) do
+    conn = parse_request_body(conn, get_config(options, :parser_opts))
+
+    if conn.halted do
+      conn
+    else
+      do_verify_and_dispatch(conn, options, signature)
+    end
+  end
+
+  defp do_verify_and_dispatch(conn, options, signature) do
+    signature_prefix = get_config(options, :signature_prefix)
+    module = get_config(options, :handler)
+
+    case resolve_secret(get_config(options, :secret), conn) do
+      {:ok, secret, conn} ->
+        dispatch_after_signature_check(conn, secret, signature, signature_prefix, module)
+
+      {:error, reason} ->
         conn
-      else
-        # Secret resolution may depend on the parsed body (e.g. webhooks
-        # whose signing secret is per-installation, not global), so it
-        # has to happen after parse_request_body.
-        #
-        # The resolver may also need to stash request-derived state on
-        # the conn (the matched installation row, for one) so post-HMAC
-        # handlers don't have to redo a potentially-ambiguous lookup.
-        # Resolvers can opt into that by returning `{:ok, secret, conn}`
-        # in addition to a bare secret string or `{:ok, secret}`.
-        case resolve_secret(get_config(options, :secret), conn) do
-          {:ok, secret, conn} ->
-            if valid_signature?(conn, secret, signature, signature_prefix) do
-              handle_verified_webhook(conn, module)
-            else
-              conn
-              |> send_resp(403, "Invalid signature")
-              |> halt()
-            end
+        |> send_resp(403, "Invalid signature: #{reason}")
+        |> halt()
+    end
+  end
 
-          {:error, reason} ->
-            conn
-            |> send_resp(403, "Invalid signature: #{reason}")
-            |> halt()
-        end
-      end
+  defp dispatch_after_signature_check(conn, secret, signature, signature_prefix, module) do
+    if valid_signature?(conn, secret, signature, signature_prefix) do
+      handle_verified_webhook(conn, module)
+    else
+      conn
+      |> send_resp(403, "Invalid signature")
+      |> halt()
     end
   end
 

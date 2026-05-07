@@ -118,14 +118,20 @@ defmodule TuistWeb.Webhooks.GitHubController do
   #     disambiguator — only one row's `webhook_secret` will verify.)
   defp lookup_installation_by_id(conn, body, installation_id) do
     case conn.assigns[:github_installation] do
-      %{installation_id: ^installation_id} = installation ->
+      nil ->
+        lookup_installation_by_id_uncached(conn, body, installation_id)
+
+      installation ->
         # `resolve_webhook_secret/1` already picked the row by HMAC
         # verification — trust that result rather than redoing a
-        # potentially-ambiguous DB lookup here.
+        # potentially-ambiguous DB lookup here. We deliberately do NOT
+        # gate this on `installation.installation_id == installation_id`
+        # because the manifest-flow bootstrap race (the `installation.created`
+        # webhook arriving before the redirect-driven setup callback)
+        # leaves the row's `installation_id` nil while the body carries
+        # the freshly-assigned one. Falling through to a DB lookup keyed
+        # on the body's id would miss the pending row entirely.
         {:ok, installation}
-
-      _ ->
-        lookup_installation_by_id_uncached(conn, body, installation_id)
     end
   end
 
@@ -288,7 +294,21 @@ defmodule TuistWeb.Webhooks.GitHubController do
   defp update_github_app_installation_html_url(conn, body, installation_id, html_url) do
     case lookup_installation_by_id(conn, body, installation_id) do
       {:ok, github_app_installation} ->
-        VCS.update_github_app_installation(github_app_installation, %{html_url: html_url})
+        # Manifest-flow bootstrap race: when this webhook arrives before
+        # the redirect-driven setup callback has filled the row's
+        # `installation_id`, fill it from the body alongside the
+        # html_url. Without this, the pending row stays orphaned with
+        # `installation_id: nil` because the setup callback's
+        # update path never runs (the user's browser already redirected
+        # past it).
+        attrs =
+          if is_nil(github_app_installation.installation_id) do
+            %{html_url: html_url, installation_id: installation_id}
+          else
+            %{html_url: html_url}
+          end
+
+        VCS.update_github_app_installation(github_app_installation, attrs)
 
       {:error, :not_found} ->
         {:error, :not_found}

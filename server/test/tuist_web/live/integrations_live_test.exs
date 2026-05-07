@@ -14,6 +14,13 @@ defmodule TuistWeb.IntegrationsLiveTest do
   setup %{conn: conn} do
     user = AccountsFixtures.user_fixture(handle: "user123#{System.unique_integer([:positive])}")
     stub(Tuist.Environment, :github_app_configured?, fn -> true end)
+    # The integrations UI gates its Enterprise tab on
+    # `Entitlements.allows?(account, :github_enterprise_server)` which
+    # short-circuits to true on self-hosted (`tuist_hosted?` false).
+    # CI runs with `TUIST_HOSTED=1`, so without this stub the tab is
+    # hidden and every test that interacts with it fails. The dedicated
+    # entitlement-gate describe block (further down) overrides this.
+    stub(Tuist.Environment, :tuist_hosted?, fn -> false end)
 
     %{account: account} =
       organization =
@@ -126,6 +133,32 @@ defmodule TuistWeb.IntegrationsLiveTest do
 
     refute html =~ "Server URL"
     assert html =~ "Install GitHub App"
+  end
+
+  test "defaults to the Enterprise tab when github.com isn't configured but GHES is entitled",
+       %{conn: conn, organization: organization} do
+    # Regression: a self-hosted Tuist deployment with no `TUIST_GITHUB_APP_*`
+    # env vars but a GHES-entitled account would otherwise land on the
+    # github.com tab by default — clicking Install would generate a
+    # broken `/apps//installations/new` URL because there is no global
+    # app name to interpolate.
+    stub(Tuist.Environment, :github_app_configured?, fn -> false end)
+
+    {:ok, lv, html} = live(conn, ~p"/#{organization.account.name}/integrations")
+
+    # Server URL input renders (Enterprise tab is the default).
+    assert html =~ "Server URL"
+
+    # Form is interactive — change events trigger the validator.
+    error_html =
+      lv
+      |> form("form[phx-change=update-github-client-url]", %{"github_client_url" => ""})
+      |> render_change()
+
+    # Empty URL on the Enterprise tab surfaces a "Required" error
+    # (validate_github_client_url/2 distinguishes empty + Enterprise
+    # from empty + github.com).
+    assert error_html =~ "Required"
   end
 
   describe "delete-connection" do

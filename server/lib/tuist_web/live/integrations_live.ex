@@ -27,6 +27,16 @@ defmodule TuistWeb.IntegrationsLive do
 
     slack_installation = selected_account.slack_installation
     vcs_connections = vcs_connections(selected_account)
+    github_enterprise_available? = Entitlements.allows?(selected_account, :github_enterprise_server)
+
+    # When github.com isn't configured (no `TUIST_GITHUB_APP_*` env
+    # vars on the deployment) but the account is entitled to GHES,
+    # default the UI to the Enterprise tab. Otherwise the github.com
+    # tab is selected by default and its Install button generates a
+    # broken `/apps//installations/new` URL until the user manually
+    # switches tabs.
+    default_to_enterprise? =
+      github_enterprise_available? and not Tuist.Environment.github_app_configured?()
 
     socket =
       socket
@@ -37,10 +47,10 @@ defmodule TuistWeb.IntegrationsLive do
       |> assign(vcs_connections: vcs_connections)
       |> assign(selected_project_id: nil)
       |> assign(selected_repository_full_handle: nil)
-      |> assign(github_client_url: VCS.default_client_url())
+      |> assign(github_client_url: if(default_to_enterprise?, do: "", else: VCS.default_client_url()))
       |> assign(github_client_url_error: nil)
-      |> assign(show_github_enterprise_input: false)
-      |> assign(github_enterprise_available?: Entitlements.allows?(selected_account, :github_enterprise_server))
+      |> assign(show_github_enterprise_input: default_to_enterprise?)
+      |> assign(github_enterprise_available?: github_enterprise_available?)
       |> assign(github_card_visible?: github_card_visible?(selected_account, github_installation))
       |> assign(:head_title, "#{dgettext("dashboard_integrations", "Integrations")} · #{selected_account.name} · Tuist")
       |> then(fn socket ->
