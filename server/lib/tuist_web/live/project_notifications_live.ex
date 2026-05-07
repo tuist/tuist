@@ -5,9 +5,9 @@ defmodule TuistWeb.ProjectNotificationsLive do
 
   alias Tuist.Alerts
   alias Tuist.Authorization
+  alias Tuist.Environment
   alias Tuist.Projects
   alias Tuist.Repo
-  alias Tuist.Slack
   alias Tuist.Slack.Client, as: SlackClient
   alias Tuist.Slack.Reports
   alias TuistWeb.SlackOAuthController
@@ -24,16 +24,9 @@ defmodule TuistWeb.ProjectNotificationsLive do
             dgettext("dashboard_projects", "You are not authorized to perform this action.")
     end
 
-    selected_account = Repo.preload(selected_account, [:slack_installation])
-    slack_installation = selected_account.slack_installation
-
-    if connected?(socket) do
-      Tuist.PubSub.subscribe(Slack.slack_installation_topic(selected_account.id))
-    end
-
     socket =
       socket
-      |> assign(slack_installation: slack_installation)
+      |> assign(:slack_configured, Environment.slack_configured?())
       |> assign(:head_title, "#{dgettext("dashboard_projects", "Notifications")} · #{selected_project.name} · Tuist")
       |> assign(
         :slack_channel_selection_url,
@@ -43,23 +36,6 @@ defmodule TuistWeb.ProjectNotificationsLive do
       |> assign_alert_defaults(selected_project)
 
     {:ok, socket}
-  end
-
-  @impl true
-  def handle_info({:slack_installation_changed, %{status: status}}, socket) do
-    selected_account = socket.assigns.selected_account
-
-    slack_installation =
-      case status do
-        :connected ->
-          selected_account = Repo.preload(selected_account, [:slack_installation], force: true)
-          selected_account.slack_installation
-
-        :disconnected ->
-          nil
-      end
-
-    {:noreply, assign(socket, slack_installation: slack_installation)}
   end
 
   defp assign_alert_defaults(socket, project) do
@@ -84,6 +60,7 @@ defmodule TuistWeb.ProjectNotificationsLive do
     |> assign(create_alert_form_environment: "any")
     |> assign(create_alert_form_channel_id: nil)
     |> assign(create_alert_form_channel_name: nil)
+    |> assign(create_alert_form_webhook_url: nil)
     # Metric alert edit forms - one per alert rule
     |> assign(edit_alert_forms: edit_alert_forms)
   end
@@ -100,7 +77,8 @@ defmodule TuistWeb.ProjectNotificationsLive do
       bundle_name: rule.bundle_name || "",
       environment: to_string(rule.environment || :any),
       channel_id: rule.slack_channel_id,
-      channel_name: rule.slack_channel_name
+      channel_name: rule.slack_channel_name,
+      webhook_url: rule.slack_webhook_url
     }
   end
 
@@ -129,11 +107,17 @@ defmodule TuistWeb.ProjectNotificationsLive do
   def handle_event(
         "send_test_slack_report",
         _params,
-        %{assigns: %{selected_project: selected_project, slack_installation: slack_installation}} = socket
+        %{assigns: %{selected_project: selected_project}} = socket
       ) do
-    blocks = Reports.report(selected_project)
+    case selected_project.slack_webhook_url do
+      url when is_binary(url) and url != "" ->
+        blocks = Reports.report(selected_project)
+        :ok = SlackClient.post_to_webhook(url, blocks)
 
-    :ok = SlackClient.post_message(slack_installation.access_token, selected_project.slack_channel_id, blocks)
+      _ ->
+        :ok
+    end
+
     {:noreply, socket}
   end
 
@@ -250,6 +234,7 @@ defmodule TuistWeb.ProjectNotificationsLive do
       |> assign(create_alert_form_environment: "any")
       |> assign(create_alert_form_channel_id: nil)
       |> assign(create_alert_form_channel_name: nil)
+      |> assign(create_alert_form_webhook_url: nil)
 
     {:noreply, socket}
   end
@@ -377,7 +362,8 @@ defmodule TuistWeb.ProjectNotificationsLive do
       bundle_name: assigns.create_alert_form_bundle_name,
       environment: assigns.create_alert_form_environment,
       slack_channel_id: assigns.create_alert_form_channel_id,
-      slack_channel_name: assigns.create_alert_form_channel_name
+      slack_channel_name: assigns.create_alert_form_channel_name,
+      slack_webhook_url: assigns.create_alert_form_webhook_url
     }
 
     {:ok, _alert_rule} = Alerts.create_alert_rule(attrs)
@@ -408,7 +394,8 @@ defmodule TuistWeb.ProjectNotificationsLive do
         bundle_name: form.bundle_name,
         environment: Map.get(form, :environment, "any"),
         slack_channel_id: form.channel_id,
-        slack_channel_name: form.channel_name
+        slack_channel_name: form.channel_name,
+        slack_webhook_url: form.webhook_url
       }
 
       {:ok, _alert_rule} = Alerts.update_alert_rule(alert_rule, attrs)
@@ -458,13 +445,14 @@ defmodule TuistWeb.ProjectNotificationsLive do
 
   def handle_event(
         "oauth_channel_selected",
-        %{"channel_id" => channel_id, "channel_name" => channel_name},
+        %{"channel_id" => channel_id, "channel_name" => channel_name, "webhook_url" => webhook_url},
         %{assigns: %{selected_project: selected_project}} = socket
       ) do
     {:ok, selected_project} =
       Projects.update_project(selected_project, %{
         slack_channel_id: channel_id,
         slack_channel_name: channel_name,
+        slack_webhook_url: webhook_url,
         report_frequency: :daily
       })
 
@@ -476,15 +464,20 @@ defmodule TuistWeb.ProjectNotificationsLive do
     {:noreply, socket}
   end
 
+  def handle_event("oauth_channel_selected", _params, socket) do
+    {:noreply, socket}
+  end
+
   def handle_event(
         "create_alert_form_channel_selected",
-        %{"channel_id" => channel_id, "channel_name" => channel_name},
+        %{"channel_id" => channel_id, "channel_name" => channel_name, "webhook_url" => webhook_url},
         socket
       ) do
     socket =
       socket
       |> assign(create_alert_form_channel_id: channel_id)
       |> assign(create_alert_form_channel_name: channel_name)
+      |> assign(create_alert_form_webhook_url: webhook_url)
 
     {:noreply, socket}
   end
@@ -495,13 +488,14 @@ defmodule TuistWeb.ProjectNotificationsLive do
 
   def handle_event(
         "edit_alert_form_channel_selected",
-        %{"id" => id, "channel_id" => channel_id, "channel_name" => channel_name},
+        %{"id" => id, "channel_id" => channel_id, "channel_name" => channel_name, "webhook_url" => webhook_url},
         socket
       ) do
     socket =
       socket
       |> update_edit_alert_form(id, :channel_id, channel_id)
       |> update_edit_alert_form(id, :channel_name, channel_name)
+      |> update_edit_alert_form(id, :webhook_url, webhook_url)
 
     {:noreply, socket}
   end

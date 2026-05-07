@@ -2,61 +2,54 @@
 {
   "title": "Slack",
   "titleTemplate": ":title | Integrations | Guides | Tuist",
-  "description": "Learn how to integrate Tuist with Slack."
+  "description": "Learn how to use the Tuist integration for Slack."
 }
 ---
-# Slack integration {#slack}
+# Tuist integration for Slack {#slack}
 
-If your organization uses Slack, you can integrate Tuist to surface insights directly in your channels. This turns monitoring from something your team has to remember to do into something that just happens. For example, your team can receive daily summaries of build performance, cache hit rates, or bundle size trends.
+Tuist's integration for Slack surfaces build, test, and bundle insights directly in your channels. It turns monitoring from something your team has to remember to do into something that just happens. For example, your team can receive daily summaries of build performance, cache hit rates, or bundle size trends, and instant alerts the moment a key metric regresses or a test becomes flaky.
+
+This page describes what the integration does, how to install it on a per-channel basis, and how Tuist handles your data. For pricing, see the [Tuist pricing page](https://tuist.dev/pricing). For details on how Tuist collects, manages, and stores third-party data, see our [privacy policy](https://tuist.dev/privacy).
+
+## How the integration works {#how-it-works}
+
+Tuist sends notifications into Slack via Slack's [Incoming Webhooks](https://docs.slack.dev/messaging/sending-messages-using-incoming-webhooks). The integration only requests the `incoming-webhook` scope. Each notification destination (project report, alert rule, flaky test alert, automation action) corresponds to a single Slack channel that you pick at install time. Slack creates one webhook URL per channel and Tuist stores it to deliver messages.
+
+Tuist never reads messages, member lists, or any other data from your workspace. The integration only writes notifications into the channels you have explicitly authorized.
 
 ## Setup {#setup}
 
-### Connect your Slack workspace {#connect-workspace}
-
-First, connect your Slack workspace to your Tuist account in the `Integrations` tab:
-
-![An image that shows the integrations tab with Slack connection](/images/guides/integrations/slack/integrations.png)
-
-Click **Connect Slack** to authorize Tuist to post messages to your workspace. This will redirect you to Slack's authorization page where you can approve the connection.
-
-> [!NOTE] SLACK ADMIN APPROVAL
-> <!-- -->
-> If your Slack workspace restricts app installations, you may need to request approval from a Slack administrator. Slack will guide you through the approval request process during authorization.
-> <!-- -->
-
 ### Project reports {#project-reports}
 
-After connecting Slack, configure reports for each project in the project settings' notifications tab:
+Project reports deliver a daily summary of your project's build, test, and cache metrics into a Slack channel of your choice.
+
+1. Open your project's notification settings in the Tuist dashboard.
+2. Click **Select Slack channel** and choose the workspace and channel you want Tuist to post into. Slack will ask you to authorize the `incoming-webhook` scope and pick a single channel.
+3. Choose the days of the week and the time of day you want the daily report to arrive.
 
 ![An image that shows the notifications settings with Slack report configuration](/images/guides/integrations/slack/notifications-settings.png)
 
-You can configure:
-- **Channel**: Select which Slack channel receives the reports
-- **Schedule**: Choose which days of the week to receive reports
-- **Time**: Set the time of day
-
-> [!WARNING] PRIVATE CHANNELS
-> <!-- -->
-> For the Tuist Slack app to post messages in a private channel, you must first add the Tuist bot to that channel. In Slack, open the private channel, click the channel name to open settings, select "Integrations", then "Add apps" and search for Tuist.
-> <!-- -->
-
-Once configured, Tuist sends automated daily reports to your selected Slack channel:
+Once configured, Tuist sends automated daily reports to the selected channel:
 
 <img src="/images/guides/integrations/slack/report.png" alt="An image that shows a Slack report message" style="max-width: 500px;" />
 
+> [!NOTE] PRIVATE CHANNELS
+> <!-- -->
+> To post into a private channel, open the channel inside Slack first and add it to the list of channels visible to the integration during the authorization step.
+> <!-- -->
+
 ### Alert rules {#alert-rules}
 
-Get notified in Slack with alert rules when key metrics significantly regress to help you catch slower builds, cache degradation, or test slowdowns as soon as possible, minimizing the impact on your team's productivity.
+Alert rules notify you in Slack when key metrics significantly regress, helping you catch slower builds, cache degradation, or test slowdowns as soon as possible.
 
-To create an alert rule, go to your project's notification settings and click **Add alert rule**:
+To create an alert rule, go to your project's notification settings and click **Add alert rule**. You can configure:
 
-You can configure:
 - **Name**: A descriptive name for the alert
 - **Category**: What to measure (build duration, test duration, or cache hit rate)
 - **Metric**: How to aggregate the data (p50, p90, p99, or average)
 - **Deviation**: The percentage change that triggers an alert
 - **Rolling window**: How many recent runs to compare against
-- **Slack channel**: Where to send the alert
+- **Slack channel**: The destination channel. You authorize the channel through the same `incoming-webhook` flow described above.
 
 For example, you might create an alert that triggers when the p90 build duration increases by more than 20% compared to the previous 100 builds.
 
@@ -71,66 +64,28 @@ When an alert triggers, you'll receive a message like this in your Slack channel
 
 ### Flaky test alerts {#flaky-test-alerts}
 
-Get notified instantly when a test becomes flaky. Unlike metric-based alert rules that compare rolling windows, flaky test alerts trigger the moment Tuist detects a new flaky test, helping you catch test instability before it impacts your team.
+Flaky test alerts trigger the moment Tuist detects a new flaky test, helping you catch test instability before it impacts your team.
 
-To create a flaky test alert rule, go to your project's notification settings and click **Add flaky test alert rule**:
+To create a flaky test alert rule, go to your project's notification settings and click **Add flaky test alert rule**. You can configure:
 
-You can configure:
 - **Name**: A descriptive name for the alert
 - **Trigger threshold**: The minimum number of flaky runs in the last 30 days required to trigger an alert
-- **Slack channel**: Where to send the alert
+- **Slack channel**: The destination channel, authorized through the `incoming-webhook` flow.
 
 When a test becomes flaky and meets your threshold, you'll receive a notification with a direct link to investigate the test case:
 
 <img src="/images/guides/integrations/slack/flaky-test-alert.png" alt="An image that shows a Slack flaky test alert message" style="max-width: 500px;" />
 
-## On-premise installations {#on-premise}
+## Pricing {#pricing}
 
-For on-premise Tuist installations, you'll need to create your own Slack app and configure the necessary environment variables.
+Tuist offers a free tier and paid plans. The integration for Slack is available on all paid plans. See the [Tuist pricing page](https://tuist.dev/pricing) for details.
 
-### Create a Slack app {#create-slack-app}
+## Privacy and data handling {#privacy}
 
-1. Go to the [Slack API Apps page](https://api.slack.com/apps) and click **Create New App**
-2. Choose **From an app manifest** and select the workspace where you want to install the app
-3. Paste the following manifest, replacing the redirect URL with your Tuist server URL:
+Tuist stores the webhook URLs you authorize, the channel name and ID associated with each webhook, and the notification configuration (schedule, thresholds, filters). Tuist does not read any data from your Slack workspace and only writes notifications to channels you have explicitly authorized.
 
-```json
-{
-    "display_information": {
-        "name": "Tuist",
-        "description": "Get regular updates and alerts for your builds, tests, and caching.",
-        "background_color": "#6f2cff"
-    },
-    "features": {
-        "bot_user": {
-            "display_name": "Tuist",
-            "always_online": false
-        }
-    },
-    "oauth_config": {
-        "redirect_urls": [
-            "https://your-tuist-server.com/integrations/slack/callback"
-        ],
-        "scopes": {
-            "bot": [
-                "chat:write",
-                "chat:write.public"
-            ]
-        }
-    },
-    "settings": {
-        "org_deploy_enabled": false,
-        "socket_mode_enabled": false,
-        "token_rotation_enabled": false
-    }
-}
-```
+For the full list of personal and organizational data Tuist stores and how it can be exported or deleted, see our [privacy policy](https://tuist.dev/privacy) and [data export documentation](https://github.com/tuist/tuist/blob/main/server/data-export.md).
 
-4. Review and create the app
+## Disconnecting the integration {#disconnect}
 
-### Configure environment variables {#configure-environment}
-
-Set the following environment variables on your Tuist server:
-
-- `SLACK_CLIENT_ID` - The Client ID from your Slack app's Basic Information page
-- `SLACK_CLIENT_SECRET` - The Client Secret from your Slack app's Basic Information page
+To stop a notification, remove the configured Slack channel from the report, alert rule, or automation action in your Tuist dashboard. To revoke Tuist's access entirely, remove the webhook integration from inside Slack via **Settings & administration → Manage apps**.

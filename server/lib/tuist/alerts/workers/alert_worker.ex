@@ -30,13 +30,11 @@ defmodule Tuist.Alerts.Workers.AlertWorker do
   end
 
   defp check_and_notify(alert_rule) do
-    alert_rule = Repo.preload(alert_rule, project: [account: :slack_installation])
-
     cond do
       not Alerts.cooldown_elapsed?(alert_rule) ->
         :ok
 
-      is_nil(alert_rule.project.account.slack_installation) ->
+      not webhook_configured?(alert_rule) ->
         :ok
 
       true ->
@@ -49,7 +47,7 @@ defmodule Tuist.Alerts.Workers.AlertWorker do
                 previous_value: result.previous
               })
 
-            alert = Repo.preload(alert, alert_rule: [project: [account: :slack_installation]])
+            alert = Repo.preload(alert, alert_rule: [project: :account])
             :ok = Slack.send_alert(alert)
 
           :ok ->
@@ -57,4 +55,7 @@ defmodule Tuist.Alerts.Workers.AlertWorker do
         end
     end
   end
+
+  defp webhook_configured?(%{slack_webhook_url: url}) when is_binary(url) and url != "", do: true
+  defp webhook_configured?(_), do: false
 end

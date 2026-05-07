@@ -33,6 +33,7 @@ defmodule TuistWeb.SlackOAuthHTML do
           id="channel-data"
           data-channel-id={@channel_id}
           data-channel-name={@channel_name}
+          data-webhook-url={@webhook_url}
           style="display: none;"
         >
         </div>
@@ -40,6 +41,7 @@ defmodule TuistWeb.SlackOAuthHTML do
           const dataEl = document.getElementById("channel-data");
           const channelId = dataEl.dataset.channelId || null;
           const channelName = dataEl.dataset.channelName || null;
+          const webhookUrl = dataEl.dataset.webhookUrl || null;
           const nonce = sessionStorage.getItem("slack_popup_nonce");
           sessionStorage.removeItem("slack_popup_nonce");
           const channel = new BroadcastChannel("oauth_popup");
@@ -48,6 +50,7 @@ defmodule TuistWeb.SlackOAuthHTML do
             success: true,
             channel_id: channelId,
             channel_name: channelName,
+            webhook_url: webhookUrl,
             nonce: nonce
           });
           channel.close();

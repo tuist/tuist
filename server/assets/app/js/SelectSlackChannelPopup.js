@@ -23,6 +23,9 @@ const SelectSlackChannelPopup = {
         if (event.data.channel_name) {
           payload.channel_name = event.data.channel_name;
         }
+        if (event.data.webhook_url) {
+          payload.webhook_url = event.data.webhook_url;
+        }
         this.pushEvent(eventName, payload);
       }
     };

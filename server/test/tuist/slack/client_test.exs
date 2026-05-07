@@ -105,44 +105,31 @@ defmodule Tuist.Slack.ClientTest do
       assert token_data.access_token == "xoxb-test-token"
       assert token_data.incoming_webhook.channel == "#general"
       assert token_data.incoming_webhook.channel_id == "C123456"
+      assert token_data.incoming_webhook.url == "https://hooks.slack.com/services/xxx"
     end
   end
 
-  describe "post_message/3" do
+  describe "post_to_webhook/2" do
     test "returns :ok on successful post" do
       stub(Req, :post, fn _url, _opts ->
-        {:ok,
-         %Req.Response{
-           status: 200,
-           body: %{"ok" => true}
-         }}
+        {:ok, %Req.Response{status: 200, body: "ok"}}
       end)
 
-      result = Client.post_message("xoxb-token", "C123", [%{type: "section", text: "Hello"}])
+      result =
+        Client.post_to_webhook(
+          "https://hooks.slack.com/services/T0/B0/abcd",
+          [%{type: "section", text: "Hello"}]
+        )
 
       assert :ok = result
     end
 
-    test "returns error when Slack API returns error" do
-      stub(Req, :post, fn _url, _opts ->
-        {:ok,
-         %Req.Response{
-           status: 200,
-           body: %{"ok" => false, "error" => "channel_not_found"}
-         }}
-      end)
-
-      result = Client.post_message("xoxb-token", "invalid-channel", [])
-
-      assert {:error, "channel_not_found"} = result
-    end
-
     test "returns error on unexpected status code" do
       stub(Req, :post, fn _url, _opts ->
-        {:ok, %Req.Response{status: 500, body: %{}}}
+        {:ok, %Req.Response{status: 500, body: "boom"}}
       end)
 
-      result = Client.post_message("xoxb-token", "C123", [])
+      result = Client.post_to_webhook("https://hooks.slack.com/services/T0/B0/abcd", [])
 
       assert {:error, message} = result
       assert message =~ "Unexpected status code: 500"
@@ -153,7 +140,7 @@ defmodule Tuist.Slack.ClientTest do
         {:error, %Req.TransportError{reason: :timeout}}
       end)
 
-      result = Client.post_message("xoxb-token", "C123", [])
+      result = Client.post_to_webhook("https://hooks.slack.com/services/T0/B0/abcd", [])
 
       assert {:error, message} = result
       assert message =~ "Request failed"

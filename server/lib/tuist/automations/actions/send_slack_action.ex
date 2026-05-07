@@ -2,22 +2,21 @@ defmodule Tuist.Automations.Actions.SendSlackAction do
   @moduledoc false
   alias Tuist.Environment
   alias Tuist.Projects
-  alias Tuist.Repo
   alias Tuist.Slack.Client
-  alias Tuist.Slack.Installation
   alias Tuist.Tests
 
   require Logger
 
-  def execute(automation, %{type: :test_case, id: test_case_id}, %{"channel" => channel} = action) do
+  def execute(automation, %{type: :test_case, id: test_case_id}, action) do
+    webhook_url = action["webhook_url"]
+
     with {:ok, test_case} <- Tests.get_test_case_by_id(test_case_id),
          project = Projects.get_project_by_id(automation.project_id),
          false <- is_nil(project),
-         project = Repo.preload(project, account: :slack_installation),
-         %Installation{access_token: access_token} <- project.account.slack_installation do
+         true <- is_binary(webhook_url) and webhook_url != "" do
       message = interpolate(action["message"], automation, project, test_case)
       blocks = build_blocks(automation, message)
-      Client.post_message(access_token, channel, blocks)
+      Client.post_to_webhook(webhook_url, blocks)
     else
       {:error, :not_found} ->
         Logger.warning("Automation #{automation.id} send_slack skipped: test case #{test_case_id} not found")
@@ -29,9 +28,9 @@ defmodule Tuist.Automations.Actions.SendSlackAction do
 
         :ok
 
-      nil ->
+      false ->
         Logger.warning(
-          "Automation #{automation.id} send_slack skipped: Slack installation missing for project #{automation.project_id}"
+          "Automation #{automation.id} send_slack skipped: missing webhook URL for project #{automation.project_id}"
         )
 
         :ok

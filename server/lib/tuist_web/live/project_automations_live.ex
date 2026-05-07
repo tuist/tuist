@@ -5,8 +5,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
 
   alias Tuist.Authorization
   alias Tuist.Automations
-  alias Tuist.Repo
-  alias Tuist.Slack
+  alias Tuist.Environment
   alias TuistWeb.SlackOAuthController
 
   @impl true
@@ -21,16 +20,9 @@ defmodule TuistWeb.ProjectAutomationsLive do
             dgettext("dashboard_projects", "You are not authorized to perform this action.")
     end
 
-    selected_account = Repo.preload(selected_account, [:slack_installation])
-    slack_installation = selected_account.slack_installation
-
-    if connected?(socket) do
-      Tuist.PubSub.subscribe(Slack.slack_installation_topic(selected_account.id))
-    end
-
     socket =
       socket
-      |> assign(slack_installation: slack_installation)
+      |> assign(:slack_configured, Environment.slack_configured?())
       |> assign(:head_title, "#{dgettext("dashboard_projects", "Automations")} · #{selected_project.name} · Tuist")
       |> assign(
         :automation_channel_selection_url,
@@ -85,10 +77,22 @@ defmodule TuistWeb.ProjectAutomationsLive do
   @default_recovery_slack_message ":white_check_mark: *{{test_case.name}}* in module `{{test_case.module_name}}` has recovered.\n\n<{{test_case.url}}|View test case>"
 
   defp default_send_slack_action(:trigger),
-    do: %{"type" => "send_slack", "channel" => "", "channel_name" => "", "message" => @default_trigger_slack_message}
+    do: %{
+      "type" => "send_slack",
+      "channel" => "",
+      "channel_name" => "",
+      "webhook_url" => "",
+      "message" => @default_trigger_slack_message
+    }
 
   defp default_send_slack_action(:recovery),
-    do: %{"type" => "send_slack", "channel" => "", "channel_name" => "", "message" => @default_recovery_slack_message}
+    do: %{
+      "type" => "send_slack",
+      "channel" => "",
+      "channel_name" => "",
+      "webhook_url" => "",
+      "message" => @default_recovery_slack_message
+    }
 
   defp automation_to_form(automation) do
     %{
@@ -114,23 +118,6 @@ defmodule TuistWeb.ProjectAutomationsLive do
   @impl true
   def handle_params(_params, _uri, socket) do
     {:noreply, socket}
-  end
-
-  @impl true
-  def handle_info({:slack_installation_changed, %{status: status}}, socket) do
-    selected_account = socket.assigns.selected_account
-
-    slack_installation =
-      case status do
-        :connected ->
-          selected_account = Repo.preload(selected_account, [:slack_installation], force: true)
-          selected_account.slack_installation
-
-        :disconnected ->
-          nil
-      end
-
-    {:noreply, assign(socket, slack_installation: slack_installation)}
   end
 
   @impl true
@@ -217,14 +204,17 @@ defmodule TuistWeb.ProjectAutomationsLive do
 
   def handle_event(
         "trigger_action_channel_selected",
-        %{"id" => index, "channel_id" => channel_id, "channel_name" => channel_name},
+        %{"id" => index, "channel_id" => channel_id, "channel_name" => channel_name, "webhook_url" => webhook_url},
         socket
       ) do
     index = String.to_integer(index)
 
     actions =
       update_action_at(socket.assigns.create_automation_form_trigger_actions, index, fn action ->
-        action |> Map.put("channel", channel_id) |> Map.put("channel_name", channel_name)
+        action
+        |> Map.put("channel", channel_id)
+        |> Map.put("channel_name", channel_name)
+        |> Map.put("webhook_url", webhook_url)
       end)
 
     {:noreply, assign(socket, create_automation_form_trigger_actions: actions)}
@@ -282,14 +272,17 @@ defmodule TuistWeb.ProjectAutomationsLive do
 
   def handle_event(
         "recovery_action_channel_selected",
-        %{"id" => index, "channel_id" => channel_id, "channel_name" => channel_name},
+        %{"id" => index, "channel_id" => channel_id, "channel_name" => channel_name, "webhook_url" => webhook_url},
         socket
       ) do
     index = String.to_integer(index)
 
     actions =
       update_action_at(socket.assigns.create_automation_form_recovery_actions, index, fn action ->
-        action |> Map.put("channel", channel_id) |> Map.put("channel_name", channel_name)
+        action
+        |> Map.put("channel", channel_id)
+        |> Map.put("channel_name", channel_name)
+        |> Map.put("webhook_url", webhook_url)
       end)
 
     {:noreply, assign(socket, create_automation_form_recovery_actions: actions)}

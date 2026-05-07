@@ -78,8 +78,10 @@ defmodule Tuist.Slack do
         set: [
           slack_channel_id: nil,
           slack_channel_name: nil,
+          slack_webhook_url: nil,
           flaky_test_alerts_slack_channel_id: nil,
-          flaky_test_alerts_slack_channel_name: nil
+          flaky_test_alerts_slack_channel_name: nil,
+          flaky_test_alerts_slack_webhook_url: nil
         ]
       ]
     )
@@ -93,7 +95,8 @@ defmodule Tuist.Slack do
       update: [
         set: [
           slack_channel_id: nil,
-          slack_channel_name: nil
+          slack_channel_name: nil,
+          slack_webhook_url: nil
         ]
       ]
     )
@@ -190,18 +193,21 @@ defmodule Tuist.Slack do
   Sends an alert notification to Slack.
   """
   def send_alert(%Alert{} = alert) do
+    alert = Repo.preload(alert, alert_rule: [project: [:account]])
+
     %Alert{
       alert_rule: %{
-        slack_channel_id: slack_channel_id,
-        project: %{
-          name: project_name,
-          account: %{name: account_name, slack_installation: %Installation{access_token: access_token}}
-        }
+        slack_webhook_url: webhook_url,
+        project: %{name: project_name, account: %{name: account_name}}
       }
-    } = alert = Repo.preload(alert, alert_rule: [project: [account: :slack_installation]])
+    } = alert
 
-    blocks = build_alert_blocks(alert, account_name, project_name)
-    Client.post_message(access_token, slack_channel_id, blocks)
+    if is_binary(webhook_url) and webhook_url != "" do
+      blocks = build_alert_blocks(alert, account_name, project_name)
+      Client.post_to_webhook(webhook_url, blocks)
+    else
+      :ok
+    end
   end
 
   defp build_alert_blocks(alert, account_name, project_name) do
@@ -460,16 +466,22 @@ defmodule Tuist.Slack do
   Sends a flaky test alert notification to Slack using project-level settings.
   """
   def send_flaky_test_alert(project, test_case, flaky_runs_count, was_auto_quarantined \\ false) do
-    project = Repo.preload(project, account: :slack_installation)
+    project = Repo.preload(project, :account)
 
     %Project{
-      flaky_test_alerts_slack_channel_id: slack_channel_id,
+      flaky_test_alerts_slack_webhook_url: webhook_url,
       name: project_name,
-      account: %{name: account_name, slack_installation: %Installation{access_token: access_token}}
+      account: %{name: account_name}
     } = project
 
-    blocks = build_flaky_test_alert_blocks(test_case, flaky_runs_count, account_name, project_name, was_auto_quarantined)
-    Client.post_message(access_token, slack_channel_id, blocks)
+    if is_binary(webhook_url) and webhook_url != "" do
+      blocks =
+        build_flaky_test_alert_blocks(test_case, flaky_runs_count, account_name, project_name, was_auto_quarantined)
+
+      Client.post_to_webhook(webhook_url, blocks)
+    else
+      :ok
+    end
   end
 
   defp build_flaky_test_alert_blocks(test_case, flaky_runs_count, account_name, project_name, was_auto_quarantined) do

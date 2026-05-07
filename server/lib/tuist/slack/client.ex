@@ -1,15 +1,17 @@
 defmodule Tuist.Slack.Client do
   @moduledoc """
-  Slack API client for OAuth operations and messaging.
+  Slack API client for OAuth operations and incoming-webhook messaging.
+
+  Tuist requests only the `incoming-webhook` OAuth scope. Notifications are
+  delivered by POSTing to the webhook URL Slack returns at install time.
   """
 
   alias Tuist.Environment
 
   @oauth_token_url "https://slack.com/api/oauth.v2.access"
-  @chat_post_message_url "https://slack.com/api/chat.postMessage"
 
   @doc """
-  Exchanges an OAuth authorization code for an access token.
+  Exchanges an OAuth authorization code for an `incoming-webhook` token.
   """
   def exchange_code_for_token(code, redirect_uri) do
     client_id = Environment.slack_client_id()
@@ -28,17 +30,13 @@ defmodule Tuist.Slack.Client do
   end
 
   @doc """
-  Posts a message to a channel using the provided access token.
+  Posts a Slack Block Kit message to the given incoming-webhook URL.
   """
-  def post_message(access_token, channel_id, blocks) do
-    headers = [
-      {"Authorization", "Bearer #{access_token}"},
-      {"Content-Type", "application/json"}
-    ]
+  def post_to_webhook(webhook_url, blocks) when is_binary(webhook_url) do
+    headers = [{"Content-Type", "application/json"}]
+    body = JSON.encode!(%{blocks: blocks, unfurl_links: false, unfurl_media: false})
 
-    body = JSON.encode!(%{channel: channel_id, blocks: blocks, unfurl_links: false, unfurl_media: false})
-
-    @chat_post_message_url
+    webhook_url
     |> Req.post(headers: headers, body: body)
     |> handle_post_response()
   end
@@ -57,7 +55,8 @@ defmodule Tuist.Slack.Client do
 
         Map.put(result, :incoming_webhook, %{
           channel: webhook["channel"],
-          channel_id: webhook["channel_id"]
+          channel_id: webhook["channel_id"],
+          url: webhook["url"]
         })
       else
         result
@@ -78,12 +77,8 @@ defmodule Tuist.Slack.Client do
     {:error, "Request failed: #{inspect(reason)}"}
   end
 
-  defp handle_post_response({:ok, %Req.Response{status: 200, body: %{"ok" => true}}}) do
+  defp handle_post_response({:ok, %Req.Response{status: status}}) when status in 200..299 do
     :ok
-  end
-
-  defp handle_post_response({:ok, %Req.Response{status: 200, body: %{"ok" => false, "error" => error}}}) do
-    {:error, error}
   end
 
   defp handle_post_response({:ok, %Req.Response{status: status, body: body}}) do
