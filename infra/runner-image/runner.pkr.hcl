@@ -58,19 +58,30 @@ variable "runner_version" {
   default     = "2.328.0"
 }
 
-# VM CPU/memory at image creation time. The actual concurrency
-# guarantee comes from kube-scheduler placing one Pod per Mac
-# mini; this number sizes the VM itself once it boots. 8/16 maps
-# to the M4-S host's full capacity so customer builds aren't
-# throttled by VM resourcing.
+# VM CPU/memory baked into the Tart image. Kept at 4 / 8 (same
+# shape as the xcresult-processor image) so the build runs on
+# the existing M1-M `vm-image-builder` Mac mini — the host has
+# 16 GB total, so a 16 GB VM exceeds Tart's
+# `maximumAllowedMemorySize` and Packer aborts at boot.
+#
+# Trade-off: at deploy time customer VMs use these baked sizes
+# (4 vCPU / 8 GB) rather than the M4-S host's full 8 vCPU / 16
+# GB. The Pod-level resource request (`4000m / 14Gi` in
+# `Tuist.Runners.PodSpec`) still pins exactly one runner Pod
+# per Mac mini, so the build-time consistency property is
+# preserved — neighbour VMs can't contend for resources because
+# there are no neighbours. To use the host's full resources at
+# runtime, tart-kubelet would need to invoke `tart set` before
+# `tart run`. That's a v2 hardening item; until it lands, 8 GB
+# is the customer-facing VM size.
 variable "cpu_count" {
   type    = number
-  default = 8
+  default = 4
 }
 
 variable "memory_gb" {
   type    = number
-  default = 16
+  default = 8
 }
 
 source "tart-cli" "runner" {
