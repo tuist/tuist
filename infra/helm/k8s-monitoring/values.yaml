@@ -131,12 +131,18 @@ k8s-monitoring:
     collector: alloy-logs
 
   # Picks up any Pod/Service annotated with prometheus.io/scrape=true.
-  # The Tuist server Deployment already sets these (prometheus.io/scrape,
-  # prometheus.io/port=9091), so server app metrics flow through without
-  # any static scrape-target config in this chart.
+  # Upstream defaults to the k8s.grafana.com/* annotation namespace; we
+  # override to prometheus.io/* so the same annotations work for both
+  # this chart and the embedded Prometheus that self-hosters opt into
+  # via observability.enabled in the main Tuist chart.
   annotationAutodiscovery:
     enabled: true
     collector: alloy-metrics
+    annotations:
+      scrape: "prometheus.io/scrape"
+      metricsPortNumber: "prometheus.io/port"
+      metricsPath: "prometheus.io/path"
+      metricsScheme: "prometheus.io/scheme"
 
   # OTLP gRPC receiver on :4317 for the managed Tuist server's span
   # exports. Preserves the contract the server expects today (only the

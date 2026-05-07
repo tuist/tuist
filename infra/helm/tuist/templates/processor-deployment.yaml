@@ -31,7 +31,10 @@ spec:
         # PromEx in the release binds /metrics on :9091 in every TUIST_MODE
         # (it's a separate HTTP server, not the Phoenix endpoint). The Alloy
         # scraper finds the endpoint via these annotations and forwards to
-        # Grafana Cloud Prometheus — same path as the server pod.
+        # Grafana Cloud Prometheus — same path as the server pod. The Grafana
+        # k8s-monitoring chart's annotationAutodiscovery feature is overridden
+        # in helm/k8s-monitoring/values.yaml to look for the prometheus.io/*
+        # namespace instead of its k8s.grafana.com/* default.
         prometheus.io/scrape: "true"
         prometheus.io/port: "9091"
         {{- with .Values.processor.podAnnotations }}

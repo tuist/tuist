@@ -1,12 +1,14 @@
 defmodule Tuist.Oban.PromExPlugin do
   @moduledoc """
   Oban metrics plugin emitting job event metrics (with extended
-  duration histogram buckets), queue length polling metrics, and
+  duration histogram buckets), queue length polling metrics, a
+  per-worker recent-terminal-state polling metric (so alerts can see
+  failures from workers that run on pods Alloy can't scrape), and
   producer event metrics.
   """
   use PromEx.Plugin
 
-  import Ecto.Query, only: [group_by: 3, select: 3]
+  import Ecto.Query, only: [group_by: 3, select: 3, where: 3]
 
   @job_complete_event [:oban, :job, :stop]
   @job_exception_event [:oban, :job, :exception]
@@ -19,6 +21,12 @@ defmodule Tuist.Oban.PromExPlugin do
   @job_attempt_buckets [1, 5, 10]
   @producer_duration_buckets [10, 100, 500, 1_000, 5_000, 10_000]
   @producer_dispatch_buckets [5, 10, 50, 100]
+
+  # Lookback window for the per-worker terminal-state poll. Anything
+  # older drops out of the gauge so a single discard doesn't keep an
+  # alert firing for the full 7-day Pruner retention.
+  @recent_terminal_window_seconds 30 * 60
+  @recent_terminal_states ~w(discarded cancelled)
 
   @impl true
   def event_metrics(_opts) do
@@ -139,6 +147,28 @@ defmodule Tuist.Oban.PromExPlugin do
             tags: [:name, :queue, :state]
           )
         ]
+      ),
+      # Per-worker counts of jobs that landed in a terminal failure
+      # state recently. Polled from oban_jobs so the metric is emitted
+      # by every PromEx-enabled pod regardless of which pod processed
+      # the job. That matters for workers like ProcessXcresultWorker
+      # that only run on the macOS xcresult-processor fleet, where the
+      # Tart VM pods aren't reachable from the in-cluster Alloy
+      # scrapers — alerts can read this gauge from a web pod instead.
+      Polling.build(
+        :oban_recent_terminal_poll_metrics,
+        60_000,
+        {__MODULE__, :execute_recent_terminal_metrics, []},
+        [
+          last_value(
+            @metric_prefix ++ [:jobs, :recent, :terminal, :count],
+            event_name: [:prom_ex, :plugin, :oban, :jobs, :recent, :terminal, :count],
+            description:
+              "Jobs that entered a terminal failure state (discarded, cancelled) in the last #{div(@recent_terminal_window_seconds, 60)} minutes, grouped by queue, state, and worker.",
+            measurement: :count,
+            tags: [:name, :queue, :state, :worker]
+          )
+        ]
       )
     ]
   end
@@ -161,6 +191,38 @@ defmodule Tuist.Oban.PromExPlugin do
             [:prom_ex, :plugin, :oban, :queue, :length, :count],
             %{count: count},
             %{name: normalize_module_name(Oban), queue: queue, state: state}
+          )
+        end)
+
+      _ ->
+        :ok
+    end
+  end
+
+  def execute_recent_terminal_metrics do
+    case Oban.Registry.whereis(Oban) do
+      oban_pid when is_pid(oban_pid) ->
+        config = Oban.Registry.config(Oban)
+        cutoff = DateTime.add(DateTime.utc_now(), -@recent_terminal_window_seconds, :second)
+
+        query =
+          Oban.Job
+          |> where([j], j.state in ^@recent_terminal_states)
+          |> where(
+            [j],
+            (not is_nil(j.discarded_at) and j.discarded_at > ^cutoff) or
+              (not is_nil(j.cancelled_at) and j.cancelled_at > ^cutoff)
+          )
+          |> group_by([j], [j.queue, j.state, j.worker])
+          |> select([j], {j.queue, j.state, j.worker, count(j.id)})
+
+        config
+        |> Oban.Repo.all(query)
+        |> Enum.each(fn {queue, state, worker, count} ->
+          :telemetry.execute(
+            [:prom_ex, :plugin, :oban, :jobs, :recent, :terminal, :count],
+            %{count: count},
+            %{name: normalize_module_name(Oban), queue: queue, state: state, worker: worker}
           )
         end)
 
