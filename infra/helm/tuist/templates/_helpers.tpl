@@ -258,13 +258,6 @@ License env vars. Resolves to (in order):
 {{- include "tuist.componentName" (dict "root" . "component" "server-headless") -}}
 {{- end -}}
 
-{{/*
-GitHub App + bot PAT env vars. Mounted only when ESO is syncing them
-from 1Password (`server.github.managedSecrets: true`); otherwise the
-Tuist server falls back to reading the same values from the encrypted
-priv/secrets blob, so this block stays empty and nothing changes for
-clusters mid-migration.
-*/}}
 {{- define "tuist.githubEnv" -}}
 {{- if and .Values.server.enabled .Values.server.github.managedSecrets }}
 {{- $secret := include "tuist.componentName" (dict "root" . "component" "github-external-secrets") -}}

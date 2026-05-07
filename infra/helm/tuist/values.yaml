@@ -66,10 +66,11 @@ server:
       item: ""
       field: password
   # GitHub App + bot PAT secrets. When `github.managedSecrets: true`, ESO
-  # syncs these from 1Password into a dedicated Secret and the Server +
-  # Processor Deployments mount them as TUIST_GITHUB_APP_*
-  # / TUIST_GITHUB_TOKEN_* env vars. Independent of `server.managedSecrets`
-  # so the encrypted-blob and ESO paths can co-exist during migration.
+  # syncs them from 1Password into a dedicated Secret and the Server +
+  # Processor Deployments mount the keys as TUIST_GITHUB_APP_* /
+  # TUIST_GITHUB_TOKEN_* env vars. Self-hosted installs that prefer to
+  # supply those env vars by other means (own Secret, extraEnv) leave
+  # this off.
   github:
     managedSecrets: false
     externalSecrets:
