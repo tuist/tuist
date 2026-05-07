@@ -179,7 +179,7 @@ runnersFleet:
     # capacity stabilizes — the larger SKU is moderately
     # over-provisioned for one Tart VM.
     type: M2-L
-  runnerImage: "ghcr.io/tuist/tuist-runner@sha256:800e78c62a887642b29d23be72f54a561d60cd86bcaf430f077bce4bc389b6ee"
+  runnerImage: "ghcr.io/tuist/tuist-runner@sha256:27a0be1576d7f532ff781295e2ef790c09c3e4ab8e81650c0120e55a665a69ab"
   # Cluster-internal CIDR ranges the runner namespace's
   # NetworkPolicy blocks egress to. Locks down lateral
   # reachability so a compromised runner can't speak to
