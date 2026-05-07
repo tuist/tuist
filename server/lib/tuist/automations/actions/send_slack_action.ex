@@ -3,6 +3,7 @@ defmodule Tuist.Automations.Actions.SendSlackAction do
   alias Tuist.Environment
   alias Tuist.Projects
   alias Tuist.Repo
+  alias Tuist.Slack
   alias Tuist.Slack.Client
   alias Tuist.Slack.Installation
   alias Tuist.Tests
@@ -34,12 +35,22 @@ defmodule Tuist.Automations.Actions.SendSlackAction do
     end
   end
 
-  # Prefer the action's webhook URL (captured the next time the user picks
-  # the channel). Fall back to the account-level bot token + channel id for
-  # actions configured before the webhook flow existed.
-  defp deliver(%{"webhook_url" => url}, _project, blocks, _automation, _test_case_id)
-       when is_binary(url) and url != "" do
-    Client.post_to_webhook(url, blocks)
+  # Prefer the action's encrypted webhook URL (captured the next time the
+  # user picks the channel). Fall back to the account-level bot token +
+  # channel id for actions configured before the webhook flow existed.
+  defp deliver(%{"webhook_url_encrypted" => encrypted}, _project, blocks, automation, _test_case_id)
+       when is_binary(encrypted) and encrypted != "" do
+    case Slack.decrypt_webhook_url(encrypted) do
+      {:ok, webhook_url} ->
+        Client.post_to_webhook(webhook_url, blocks)
+
+      {:error, _reason} ->
+        Logger.warning(
+          "Automation #{automation.id} send_slack skipped: webhook URL failed to decrypt"
+        )
+
+        :ok
+    end
   end
 
   defp deliver(%{"channel" => channel}, project, blocks, automation, _test_case_id)

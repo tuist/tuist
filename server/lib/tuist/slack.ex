@@ -71,17 +71,38 @@ defmodule Tuist.Slack do
 
   def slack_installation_topic(account_id), do: "slack_installation:#{account_id}"
 
+  # Only clear destinations that still rely on the bot-token fallback.
+  # Destinations that already migrated to a per-channel webhook keep working
+  # independently of the legacy installation we're tearing down.
   defp clear_project_slack_fields_query(account_id) do
     from(p in Project,
       where: p.account_id == ^account_id,
       update: [
         set: [
-          slack_channel_id: nil,
-          slack_channel_name: nil,
-          slack_webhook_url: nil,
-          flaky_test_alerts_slack_channel_id: nil,
-          flaky_test_alerts_slack_channel_name: nil,
-          flaky_test_alerts_slack_webhook_url: nil
+          slack_channel_id:
+            fragment(
+              "CASE WHEN ? IS NULL THEN NULL ELSE ? END",
+              p.slack_webhook_url,
+              p.slack_channel_id
+            ),
+          slack_channel_name:
+            fragment(
+              "CASE WHEN ? IS NULL THEN NULL ELSE ? END",
+              p.slack_webhook_url,
+              p.slack_channel_name
+            ),
+          flaky_test_alerts_slack_channel_id:
+            fragment(
+              "CASE WHEN ? IS NULL THEN NULL ELSE ? END",
+              p.flaky_test_alerts_slack_webhook_url,
+              p.flaky_test_alerts_slack_channel_id
+            ),
+          flaky_test_alerts_slack_channel_name:
+            fragment(
+              "CASE WHEN ? IS NULL THEN NULL ELSE ? END",
+              p.flaky_test_alerts_slack_webhook_url,
+              p.flaky_test_alerts_slack_channel_name
+            )
         ]
       ]
     )
@@ -92,11 +113,11 @@ defmodule Tuist.Slack do
       join: p in Project,
       on: ar.project_id == p.id,
       where: p.account_id == ^account_id,
+      where: is_nil(ar.slack_webhook_url),
       update: [
         set: [
           slack_channel_id: nil,
-          slack_channel_name: nil,
-          slack_webhook_url: nil
+          slack_channel_name: nil
         ]
       ]
     )
@@ -144,6 +165,86 @@ defmodule Tuist.Slack do
     token_max_age_seconds = 600
     Phoenix.Token.verify(TuistWeb.Endpoint, "slack_state", token, max_age: token_max_age_seconds)
   end
+
+  @channel_result_namespace "slack_channel_result"
+  @channel_result_max_age_seconds 600
+  @slack_webhook_prefix "https://hooks.slack.com/services/"
+
+  @doc """
+  Signs a `{channel_id, channel_name, webhook_url}` tuple coming back from
+  the Slack OAuth callback so a LiveView can later verify the values came
+  from us (and weren't forged from the browser).
+
+  Returns `{:error, :invalid_webhook_url}` if the URL doesn't look like a
+  real Slack webhook — a small belt-and-suspenders check on top of the
+  signature.
+  """
+  def sign_channel_result(%{webhook_url: webhook_url} = payload) when is_binary(webhook_url) do
+    if slack_webhook_url?(webhook_url) do
+      {:ok, Phoenix.Token.sign(TuistWeb.Endpoint, @channel_result_namespace, payload)}
+    else
+      {:error, :invalid_webhook_url}
+    end
+  end
+
+  @doc """
+  Verifies a token produced by `sign_channel_result/1`. Re-checks the
+  webhook URL against the Slack host allowlist after decoding so a stolen
+  token can't smuggle a non-Slack URL through.
+  """
+  def verify_channel_result(token) when is_binary(token) do
+    case Phoenix.Token.verify(TuistWeb.Endpoint, @channel_result_namespace, token,
+           max_age: @channel_result_max_age_seconds
+         ) do
+      {:ok, %{webhook_url: webhook_url} = payload} ->
+        if slack_webhook_url?(webhook_url), do: {:ok, payload}, else: {:error, :invalid_webhook_url}
+
+      {:ok, _other} ->
+        {:error, :invalid}
+
+      {:error, _reason} = error ->
+        error
+    end
+  end
+
+  def verify_channel_result(_), do: {:error, :invalid}
+
+  @doc """
+  Returns true when the URL is a Slack incoming-webhook URL.
+  """
+  def slack_webhook_url?(url) when is_binary(url), do: String.starts_with?(url, @slack_webhook_prefix)
+  def slack_webhook_url?(_), do: false
+
+  @doc """
+  Encrypts a Slack webhook URL for storage inside JSON columns (e.g.
+  automation action payloads), where Cloak's Ecto types cannot apply.
+
+  The result is base64-encoded ciphertext. Callers MUST validate the URL
+  with `slack_webhook_url?/1` before encrypting.
+  """
+  def encrypt_webhook_url(url) when is_binary(url) do
+    if slack_webhook_url?(url) do
+      {:ok, ciphertext} = Tuist.Vault.encrypt(url)
+      {:ok, Base.encode64(ciphertext)}
+    else
+      {:error, :invalid_webhook_url}
+    end
+  end
+
+  @doc """
+  Decrypts a webhook URL produced by `encrypt_webhook_url/1`.
+  """
+  def decrypt_webhook_url(encoded) when is_binary(encoded) do
+    with {:ok, ciphertext} <- Base.decode64(encoded),
+         {:ok, plaintext} <- Tuist.Vault.decrypt(ciphertext),
+         true <- slack_webhook_url?(plaintext) do
+      {:ok, plaintext}
+    else
+      _ -> {:error, :invalid_webhook_url}
+    end
+  end
+
+  def decrypt_webhook_url(_), do: {:error, :invalid_webhook_url}
 
   def send_message(blocks, opts \\ []) do
     if Environment.tuist_hosted?() and Environment.prod?() do

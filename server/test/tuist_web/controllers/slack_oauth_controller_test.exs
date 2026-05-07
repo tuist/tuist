@@ -49,7 +49,7 @@ defmodule TuistWeb.SlackOAuthControllerTest do
       end
     end
 
-    test "renders popup_close template on successful channel selection", %{conn: conn} do
+    test "renders popup_close template with a signed channel token", %{conn: conn} do
       # Given
       project_id = "00000000-0000-0000-0000-000000000001"
       account_id = 1
@@ -75,9 +75,45 @@ defmodule TuistWeb.SlackOAuthControllerTest do
       conn = get(conn, "/integrations/slack/callback", %{"code" => "valid_code", "state" => state_token})
 
       # Then
-      assert html_response(conn, 200) =~ "Channel connected successfully"
-      assert conn.resp_body =~ "C12345"
-      assert conn.resp_body =~ "general"
+      html = html_response(conn, 200)
+      assert html =~ "Channel connected successfully"
+      # Raw webhook URL must NOT appear in the popup HTML — only the signed token does
+      refute html =~ "hooks.slack.com"
+
+      [_, channel_token] = Regex.run(~r/data-channel-token="([^"]+)"/, html)
+
+      assert {:ok, %{channel_id: "C12345", channel_name: "general", webhook_url: webhook_url}} =
+               Slack.verify_channel_result(channel_token)
+
+      assert webhook_url == "https://hooks.slack.com/services/T12345/B12345/abcdef"
+    end
+
+    test "rejects an exchange that returns a non-Slack webhook URL", %{conn: conn} do
+      # Given
+      project_id = "00000000-0000-0000-0000-000000000001"
+      account_id = 1
+      state_token = Slack.generate_channel_selection_token(project_id, account_id)
+
+      token_data = %{
+        access_token: "xoxb-test-token",
+        team_id: "T12345",
+        team_name: "Test Workspace",
+        bot_user_id: "U12345",
+        incoming_webhook: %{
+          channel: "#general",
+          channel_id: "C12345",
+          url: "https://attacker.example.com/hook"
+        }
+      }
+
+      stub(SlackClient, :exchange_code_for_token, fn _code, _redirect_uri ->
+        {:ok, token_data}
+      end)
+
+      # When/Then
+      assert_raise BadRequestError, ~r/unexpected webhook URL/i, fn ->
+        get(conn, "/integrations/slack/callback", %{"code" => "valid_code", "state" => state_token})
+      end
     end
   end
 

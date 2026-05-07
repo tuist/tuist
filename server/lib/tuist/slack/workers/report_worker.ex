@@ -85,7 +85,8 @@ defmodule Tuist.Slack.Workers.ReportWorker do
 
         case SlackClient.post_to_webhook(webhook_url, blocks) do
           :ok -> :ok
-          {:error, reason} -> handle_webhook_error(reason, project)
+          {:error, :webhook_revoked} -> handle_revoked_webhook(project)
+          {:error, reason} -> {:error, reason}
         end
 
       {:bot_token, %Installation{access_token: token}, channel_id} ->
@@ -113,15 +114,20 @@ defmodule Tuist.Slack.Workers.ReportWorker do
 
   defp configured_destination(_), do: :unconfigured
 
-  defp handle_webhook_error(_reason, project) do
-    Logger.warning("Clearing failing Slack webhook for project #{project.id}")
+  # 404 from Slack means the webhook URL is permanently dead (revoked, or
+  # the channel/app no longer exists). Drop the destination so we stop
+  # retrying — the user will need to re-OAuth the channel to restore
+  # delivery. Transient failures (5xx, network) bubble up as `{:error, _}`
+  # so Oban retries the job.
+  defp handle_revoked_webhook(project) do
+    Logger.warning("Clearing revoked Slack webhook for project #{project.id}")
 
     case Projects.update_project(project, %{
            slack_channel_id: nil,
            slack_channel_name: nil,
            slack_webhook_url: nil
          }) do
-      {:ok, _project} -> {:discard, :webhook_failed}
+      {:ok, _project} -> {:discard, :webhook_revoked}
       {:error, reason} -> {:error, reason}
     end
   end

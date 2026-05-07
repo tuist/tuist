@@ -106,6 +106,14 @@ defmodule Tuist.Slack.Client do
     :ok
   end
 
+  # 404 from a Slack webhook URL is permanent — the webhook was revoked,
+  # the channel was deleted, or the app was uninstalled from the workspace.
+  # Surface it distinctly so callers can clear the destination instead of
+  # retrying forever.
+  defp handle_webhook_response({:ok, %Req.Response{status: 404}}) do
+    {:error, :webhook_revoked}
+  end
+
   defp handle_webhook_response({:ok, %Req.Response{status: status, body: body}}) do
     {:error, "Unexpected status code: #{status}. Body: #{inspect(body)}"}
   end

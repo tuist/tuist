@@ -8,6 +8,7 @@ defmodule TuistWeb.ProjectNotificationsLive do
   alias Tuist.Environment
   alias Tuist.Projects
   alias Tuist.Repo
+  alias Tuist.Slack
   alias Tuist.Slack.Client, as: SlackClient
   alias Tuist.Slack.Installation
   alias Tuist.Slack.Reports
@@ -450,41 +451,49 @@ defmodule TuistWeb.ProjectNotificationsLive do
 
   def handle_event(
         "oauth_channel_selected",
-        %{"channel_id" => channel_id, "channel_name" => channel_name, "webhook_url" => webhook_url},
+        %{"channel_token" => channel_token},
         %{assigns: %{selected_project: selected_project}} = socket
       ) do
-    {:ok, selected_project} =
-      Projects.update_project(selected_project, %{
-        slack_channel_id: channel_id,
-        slack_channel_name: channel_name,
-        slack_webhook_url: webhook_url,
-        report_frequency: :daily
-      })
+    case Slack.verify_channel_result(channel_token) do
+      {:ok, %{channel_id: channel_id, channel_name: channel_name, webhook_url: webhook_url}} ->
+        {:ok, selected_project} =
+          Projects.update_project(selected_project, %{
+            slack_channel_id: channel_id,
+            slack_channel_name: channel_name,
+            slack_webhook_url: webhook_url,
+            report_frequency: :daily
+          })
 
-    socket =
-      socket
-      |> assign(selected_project: selected_project)
-      |> assign_schedule_form_defaults(selected_project)
+        socket =
+          socket
+          |> assign(selected_project: selected_project)
+          |> assign_schedule_form_defaults(selected_project)
 
-    {:noreply, socket}
+        {:noreply, socket}
+
+      {:error, _reason} ->
+        {:noreply, socket}
+    end
   end
 
   def handle_event("oauth_channel_selected", _params, socket) do
     {:noreply, socket}
   end
 
-  def handle_event(
-        "create_alert_form_channel_selected",
-        %{"channel_id" => channel_id, "channel_name" => channel_name, "webhook_url" => webhook_url},
-        socket
-      ) do
-    socket =
-      socket
-      |> assign(create_alert_form_channel_id: channel_id)
-      |> assign(create_alert_form_channel_name: channel_name)
-      |> assign(create_alert_form_webhook_url: webhook_url)
+  def handle_event("create_alert_form_channel_selected", %{"channel_token" => channel_token}, socket) do
+    case Slack.verify_channel_result(channel_token) do
+      {:ok, %{channel_id: channel_id, channel_name: channel_name, webhook_url: webhook_url}} ->
+        socket =
+          socket
+          |> assign(create_alert_form_channel_id: channel_id)
+          |> assign(create_alert_form_channel_name: channel_name)
+          |> assign(create_alert_form_webhook_url: webhook_url)
 
-    {:noreply, socket}
+        {:noreply, socket}
+
+      {:error, _reason} ->
+        {:noreply, socket}
+    end
   end
 
   def handle_event("create_alert_form_channel_selected", _params, socket) do
@@ -493,16 +502,22 @@ defmodule TuistWeb.ProjectNotificationsLive do
 
   def handle_event(
         "edit_alert_form_channel_selected",
-        %{"id" => id, "channel_id" => channel_id, "channel_name" => channel_name, "webhook_url" => webhook_url},
+        %{"id" => id, "channel_token" => channel_token},
         socket
       ) do
-    socket =
-      socket
-      |> update_edit_alert_form(id, :channel_id, channel_id)
-      |> update_edit_alert_form(id, :channel_name, channel_name)
-      |> update_edit_alert_form(id, :webhook_url, webhook_url)
+    case Slack.verify_channel_result(channel_token) do
+      {:ok, %{channel_id: channel_id, channel_name: channel_name, webhook_url: webhook_url}} ->
+        socket =
+          socket
+          |> update_edit_alert_form(id, :channel_id, channel_id)
+          |> update_edit_alert_form(id, :channel_name, channel_name)
+          |> update_edit_alert_form(id, :webhook_url, webhook_url)
 
-    {:noreply, socket}
+        {:noreply, socket}
+
+      {:error, _reason} ->
+        {:noreply, socket}
+    end
   end
 
   def handle_event("edit_alert_form_channel_selected", _params, socket) do

@@ -6,6 +6,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
   alias Tuist.Authorization
   alias Tuist.Automations
   alias Tuist.Environment
+  alias Tuist.Slack
   alias TuistWeb.SlackOAuthController
 
   @impl true
@@ -81,7 +82,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
       "type" => "send_slack",
       "channel" => "",
       "channel_name" => "",
-      "webhook_url" => "",
+      "webhook_url_encrypted" => "",
       "message" => @default_trigger_slack_message
     }
 
@@ -90,7 +91,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
       "type" => "send_slack",
       "channel" => "",
       "channel_name" => "",
-      "webhook_url" => "",
+      "webhook_url_encrypted" => "",
       "message" => @default_recovery_slack_message
     }
 
@@ -204,20 +205,26 @@ defmodule TuistWeb.ProjectAutomationsLive do
 
   def handle_event(
         "trigger_action_channel_selected",
-        %{"id" => index, "channel_id" => channel_id, "channel_name" => channel_name, "webhook_url" => webhook_url},
+        %{"id" => index, "channel_token" => channel_token},
         socket
       ) do
-    index = String.to_integer(index)
+    case verify_and_encrypt(channel_token) do
+      {:ok, %{channel_id: channel_id, channel_name: channel_name, encrypted_webhook_url: encrypted}} ->
+        index = String.to_integer(index)
 
-    actions =
-      update_action_at(socket.assigns.create_automation_form_trigger_actions, index, fn action ->
-        action
-        |> Map.put("channel", channel_id)
-        |> Map.put("channel_name", channel_name)
-        |> Map.put("webhook_url", webhook_url)
-      end)
+        actions =
+          update_action_at(socket.assigns.create_automation_form_trigger_actions, index, fn action ->
+            action
+            |> Map.put("channel", channel_id)
+            |> Map.put("channel_name", channel_name)
+            |> Map.put("webhook_url_encrypted", encrypted)
+          end)
 
-    {:noreply, assign(socket, create_automation_form_trigger_actions: actions)}
+        {:noreply, assign(socket, create_automation_form_trigger_actions: actions)}
+
+      {:error, _reason} ->
+        {:noreply, socket}
+    end
   end
 
   def handle_event("trigger_action_channel_selected", _params, socket) do
@@ -272,20 +279,26 @@ defmodule TuistWeb.ProjectAutomationsLive do
 
   def handle_event(
         "recovery_action_channel_selected",
-        %{"id" => index, "channel_id" => channel_id, "channel_name" => channel_name, "webhook_url" => webhook_url},
+        %{"id" => index, "channel_token" => channel_token},
         socket
       ) do
-    index = String.to_integer(index)
+    case verify_and_encrypt(channel_token) do
+      {:ok, %{channel_id: channel_id, channel_name: channel_name, encrypted_webhook_url: encrypted}} ->
+        index = String.to_integer(index)
 
-    actions =
-      update_action_at(socket.assigns.create_automation_form_recovery_actions, index, fn action ->
-        action
-        |> Map.put("channel", channel_id)
-        |> Map.put("channel_name", channel_name)
-        |> Map.put("webhook_url", webhook_url)
-      end)
+        actions =
+          update_action_at(socket.assigns.create_automation_form_recovery_actions, index, fn action ->
+            action
+            |> Map.put("channel", channel_id)
+            |> Map.put("channel_name", channel_name)
+            |> Map.put("webhook_url_encrypted", encrypted)
+          end)
 
-    {:noreply, assign(socket, create_automation_form_recovery_actions: actions)}
+        {:noreply, assign(socket, create_automation_form_recovery_actions: actions)}
+
+      {:error, _reason} ->
+        {:noreply, socket}
+    end
   end
 
   def handle_event("recovery_action_channel_selected", _params, socket) do
@@ -508,4 +521,14 @@ defmodule TuistWeb.ProjectAutomationsLive do
 
   defp format_threshold(n) when is_float(n) and trunc(n) == n, do: trunc(n)
   defp format_threshold(n), do: n
+
+  # Decode the signed channel-result token, then encrypt the webhook URL so
+  # we never store it as plaintext inside the action JSON.
+  defp verify_and_encrypt(channel_token) do
+    with {:ok, %{channel_id: channel_id, channel_name: channel_name, webhook_url: webhook_url}} <-
+           Slack.verify_channel_result(channel_token),
+         {:ok, encrypted} <- Slack.encrypt_webhook_url(webhook_url) do
+      {:ok, %{channel_id: channel_id, channel_name: channel_name, encrypted_webhook_url: encrypted}}
+    end
+  end
 end

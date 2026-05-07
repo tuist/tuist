@@ -124,7 +124,16 @@ defmodule Tuist.Slack.ClientTest do
       assert :ok = result
     end
 
-    test "returns error on unexpected status code" do
+    test "returns :webhook_revoked on 404 (permanent failure)" do
+      stub(Req, :post, fn _url, _opts ->
+        {:ok, %Req.Response{status: 404, body: "no_service"}}
+      end)
+
+      assert {:error, :webhook_revoked} =
+               Client.post_to_webhook("https://hooks.slack.com/services/T0/B0/abcd", [])
+    end
+
+    test "returns error on unexpected status code (transient)" do
       stub(Req, :post, fn _url, _opts ->
         {:ok, %Req.Response{status: 500, body: "boom"}}
       end)

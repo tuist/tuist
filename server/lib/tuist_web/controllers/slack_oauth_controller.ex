@@ -49,7 +49,7 @@ defmodule TuistWeb.SlackOAuthController do
 
   defp handle_access_denied(conn, %{type: type})
        when type in [:alert_channel_selection, :flaky_alert_channel_selection] do
-    render_popup_close(conn, nil, nil, nil)
+    render_popup_close(conn, nil)
   end
 
   defp handle_access_denied(conn, %{type: :channel_selection, account_id: account_id, project_id: project_id}) do
@@ -110,15 +110,7 @@ defmodule TuistWeb.SlackOAuthController do
   end
 
   defp handle_channel_selection(conn, code, _payload) do
-    case SlackClient.exchange_code_for_token(code, slack_redirect_uri()) do
-      {:ok, %{incoming_webhook: %{channel_id: channel_id, channel: channel, url: webhook_url}}} ->
-        channel_name = String.trim_leading(channel, "#")
-        render_popup_close(conn, channel_id, channel_name, webhook_url)
-
-      {:error, reason} when is_binary(reason) ->
-        raise BadRequestError,
-              dgettext("dashboard_slack", "Slack authorization failed: %{reason}", reason: reason)
-    end
+    render_channel_selection(conn, code)
   end
 
   defp handle_alert_channel_selection(conn, code, %{alert_rule_id: alert_rule_id} = payload) do
@@ -126,7 +118,7 @@ defmodule TuistWeb.SlackOAuthController do
          {:ok, alert_rule} <- Alerts.get_alert_rule(alert_rule_id),
          {:ok, token_data} <- SlackClient.exchange_code_for_token(code, slack_redirect_uri()),
          {:ok, _alert_rule} <- update_alert_rule_channel(alert_rule, token_data) do
-      render_popup_close(conn, nil, nil, nil)
+      render_popup_close(conn, nil)
     else
       {:error, :not_found} ->
         raise BadRequestError, dgettext("dashboard_slack", "Alert rule not found. Please try again.")
@@ -142,22 +134,33 @@ defmodule TuistWeb.SlackOAuthController do
   end
 
   defp handle_alert_channel_selection(conn, code, _payload) do
-    case SlackClient.exchange_code_for_token(code, slack_redirect_uri()) do
-      {:ok, %{incoming_webhook: %{channel_id: channel_id, channel: channel, url: webhook_url}}} ->
-        channel_name = String.trim_leading(channel, "#")
-        render_popup_close(conn, channel_id, channel_name, webhook_url)
-
-      {:error, reason} when is_binary(reason) ->
-        raise BadRequestError,
-              dgettext("dashboard_slack", "Slack authorization failed: %{reason}", reason: reason)
-    end
+    render_channel_selection(conn, code)
   end
 
   defp handle_flaky_alert_channel_selection(conn, code) do
+    render_channel_selection(conn, code)
+  end
+
+  defp render_channel_selection(conn, code) do
     case SlackClient.exchange_code_for_token(code, slack_redirect_uri()) do
       {:ok, %{incoming_webhook: %{channel_id: channel_id, channel: channel, url: webhook_url}}} ->
         channel_name = String.trim_leading(channel, "#")
-        render_popup_close(conn, channel_id, channel_name, webhook_url)
+
+        case Slack.sign_channel_result(%{
+               channel_id: channel_id,
+               channel_name: channel_name,
+               webhook_url: webhook_url
+             }) do
+          {:ok, token} ->
+            render_popup_close(conn, token)
+
+          {:error, :invalid_webhook_url} ->
+            raise BadRequestError,
+                  dgettext(
+                    "dashboard_slack",
+                    "Slack returned an unexpected webhook URL. Please try again."
+                  )
+        end
 
       {:error, reason} when is_binary(reason) ->
         raise BadRequestError,
@@ -168,13 +171,17 @@ defmodule TuistWeb.SlackOAuthController do
   defp update_alert_rule_channel(alert_rule, %{
          incoming_webhook: %{channel_id: channel_id, channel: channel, url: webhook_url}
        }) do
-    channel_name = String.trim_leading(channel, "#")
+    if Slack.slack_webhook_url?(webhook_url) do
+      channel_name = String.trim_leading(channel, "#")
 
-    Alerts.update_alert_rule(alert_rule, %{
-      slack_channel_id: channel_id,
-      slack_channel_name: channel_name,
-      slack_webhook_url: webhook_url
-    })
+      Alerts.update_alert_rule(alert_rule, %{
+        slack_channel_id: channel_id,
+        slack_channel_name: channel_name,
+        slack_webhook_url: webhook_url
+      })
+    else
+      {:error, :invalid_webhook_url}
+    end
   end
 
   defp redirect_after_channel_cancel(conn, account_id, project_id) do
@@ -196,14 +203,10 @@ defmodule TuistWeb.SlackOAuthController do
     Environment.app_url(path: ~p"/integrations/slack/callback")
   end
 
-  defp render_popup_close(conn, channel_id, channel_name, webhook_url) do
+  defp render_popup_close(conn, channel_token) do
     conn
     |> put_view(TuistWeb.SlackOAuthHTML)
     |> put_layout(false)
-    |> render("popup_close.html",
-      channel_id: channel_id,
-      channel_name: channel_name,
-      webhook_url: webhook_url
-    )
+    |> render("popup_close.html", channel_token: channel_token)
   end
 end
