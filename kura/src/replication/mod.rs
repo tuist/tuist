@@ -141,7 +141,14 @@ async fn maybe_spawn_bootstrap_task(state: SharedState, peer: String) {
 
     tokio::spawn(async move {
         let started_at = std::time::Instant::now();
-        let result = bootstrap_from_peer(&state, &peer).await;
+        let timeout = Duration::from_millis(state.config.bootstrap_timeout_ms);
+        let result = match tokio::time::timeout(timeout, bootstrap_from_peer(&state, &peer)).await {
+            Ok(result) => result,
+            Err(_) => Err(format!(
+                "bootstrap timed out after {} ms",
+                state.config.bootstrap_timeout_ms
+            )),
+        };
         match result {
             Ok(stats) => {
                 state.note_bootstrap_succeeded(&peer).await;

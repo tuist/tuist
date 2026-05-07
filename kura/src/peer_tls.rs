@@ -9,7 +9,9 @@ use tokio::fs;
 use crate::config::{Config, PeerTlsConfig};
 
 pub async fn build_peer_client(config: &Config) -> Result<Client, String> {
-    let mut builder = Client::builder().timeout(Duration::from_secs(30));
+    let mut builder = Client::builder()
+        .connect_timeout(Duration::from_secs(5))
+        .timeout(Duration::from_secs(30));
 
     if let Some(peer_tls) = &config.peer_tls {
         let ca_pem = fs::read(&peer_tls.ca_cert_path).await.map_err(|error| {

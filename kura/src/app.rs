@@ -49,6 +49,10 @@ pub async fn run() -> Result<(), String> {
     let config = Config::from_env().map_err(|error| format!("invalid configuration: {error}"))?;
     let telemetry = init_tracing(&config);
 
+    if let Err(error) = raise_nofile_soft_to_hard() {
+        tracing::warn!("failed to raise RLIMIT_NOFILE soft limit: {error}");
+    }
+
     config
         .ensure_directories()
         .await
@@ -101,11 +105,17 @@ pub async fn run() -> Result<(), String> {
     spawn_snapshot_task(state.clone());
     spawn_runtime_metrics_task(state.clone());
     spawn_drain_signal_task(state.clone());
+    spawn_multipart_janitor_task(state.clone());
+    spawn_tmp_dir_metrics_task(state.clone());
 
     let address = SocketAddr::from((Ipv4Addr::UNSPECIFIED, state.config.port));
     let grpc_address = SocketAddr::from((Ipv4Addr::UNSPECIFIED, state.config.grpc_port));
     info!("Kura service listening on {address}");
-    info!("Kura REAPI service listening on {grpc_address}");
+    if state.config.grpc_tls.is_some() {
+        info!("Kura REAPI service listening on {grpc_address} (TLS)");
+    } else {
+        info!("Kura REAPI service listening on {grpc_address}");
+    }
     let internal_address = SocketAddr::from((Ipv4Addr::UNSPECIFIED, state.config.internal_port));
     if state.config.peer_tls.is_some() {
         info!("Kura internal mTLS service listening on {internal_address}");
@@ -274,6 +284,7 @@ fn spawn_snapshot_task(state: Arc<AppState>) {
                     state
                         .metrics
                         .update_outbox_messages(snapshot.outbox_messages);
+                    state.runtime.update_outbox_depth(snapshot.outbox_messages);
                     state
                         .metrics
                         .update_multipart_uploads(snapshot.multipart_uploads);
@@ -333,6 +344,114 @@ fn spawn_runtime_metrics_task(state: Arc<AppState>) {
             tokio::time::sleep(Duration::from_secs(1)).await;
         }
     });
+}
+
+fn spawn_multipart_janitor_task(state: Arc<AppState>) {
+    let interval = Duration::from_millis(state.config.multipart_janitor_interval_ms);
+    let ttl_ms = state.config.multipart_upload_ttl_ms;
+    tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(interval).await;
+            let now = crate::utils::now_ms();
+            let cutoff_ms = now.saturating_sub(ttl_ms);
+            let stale = match state.store.multipart_uploads_older_than(cutoff_ms) {
+                Ok(stale) => stale,
+                Err(error) => {
+                    warn!("multipart janitor scan failed: {error}");
+                    continue;
+                }
+            };
+            if stale.is_empty() {
+                continue;
+            }
+            for upload_id in &stale {
+                if let Err(error) = state.store.abort_multipart_upload(upload_id).await {
+                    warn!("multipart janitor failed to expire {upload_id}: {error}");
+                }
+            }
+            state.metrics.record_memory_action("multipart_janitor_pruned");
+            info!(
+                ttl_ms,
+                expired = stale.len(),
+                "multipart janitor pruned stale uploads"
+            );
+        }
+    });
+}
+
+fn spawn_tmp_dir_metrics_task(state: Arc<AppState>) {
+    tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(Duration::from_secs(30)).await;
+            let tmp_dir = state.config.tmp_dir.clone();
+            let bytes = tokio::task::spawn_blocking(move || directory_size_bytes(&tmp_dir))
+                .await
+                .unwrap_or(0);
+            state.metrics.update_tmp_dir_bytes(bytes);
+        }
+    });
+}
+
+#[cfg(unix)]
+fn raise_nofile_soft_to_hard() -> Result<(), String> {
+    let mut limit = libc::rlimit {
+        rlim_cur: 0,
+        rlim_max: 0,
+    };
+    let read = unsafe { libc::getrlimit(libc::RLIMIT_NOFILE, &mut limit) };
+    if read != 0 {
+        return Err(format!(
+            "getrlimit failed: {}",
+            std::io::Error::last_os_error()
+        ));
+    }
+    if limit.rlim_cur >= limit.rlim_max {
+        return Ok(());
+    }
+    let target = libc::rlimit {
+        rlim_cur: limit.rlim_max,
+        rlim_max: limit.rlim_max,
+    };
+    let set = unsafe { libc::setrlimit(libc::RLIMIT_NOFILE, &target) };
+    if set != 0 {
+        return Err(format!(
+            "setrlimit failed: {}",
+            std::io::Error::last_os_error()
+        ));
+    }
+    info!(
+        previous_soft = limit.rlim_cur,
+        new_soft = target.rlim_cur,
+        "raised RLIMIT_NOFILE soft limit to hard limit"
+    );
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn raise_nofile_soft_to_hard() -> Result<(), String> {
+    Ok(())
+}
+
+fn directory_size_bytes(path: &std::path::Path) -> u64 {
+    let mut total = 0_u64;
+    let mut stack = vec![path.to_path_buf()];
+    while let Some(dir) = stack.pop() {
+        let entries = match std::fs::read_dir(&dir) {
+            Ok(entries) => entries,
+            Err(_) => continue,
+        };
+        for entry in entries.flatten() {
+            let Ok(file_type) = entry.file_type() else {
+                continue;
+            };
+            if file_type.is_dir() {
+                stack.push(entry.path());
+            } else if let Ok(metadata) = entry.metadata() {
+                total = total.saturating_add(metadata.len());
+            }
+        }
+    }
+    total
 }
 
 #[cfg(unix)]

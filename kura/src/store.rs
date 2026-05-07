@@ -31,7 +31,9 @@ use crate::{
         MAX_MODULE_TOTAL_BYTES, MAX_SEGMENT_BYTES, ROCKSDB_BYTES_PER_SYNC, ROCKSDB_CF_KEY_VALUE,
         ROCKSDB_CF_MANIFESTS, ROCKSDB_CF_MULTIPART_UPLOADS, ROCKSDB_CF_NAMESPACE_ARTIFACTS,
         ROCKSDB_CF_NAMESPACE_TOMBSTONES, ROCKSDB_CF_OUTBOX, ROCKSDB_CF_SEGMENT_ARTIFACTS,
-        ROCKSDB_CF_SEGMENT_STATE, ROCKSDB_WAL_BYTES_PER_SYNC,
+        ROCKSDB_CF_SEGMENT_STATE, ROCKSDB_HARD_PENDING_COMPACTION_BYTES,
+        ROCKSDB_LEVEL0_SLOWDOWN_TRIGGER, ROCKSDB_LEVEL0_STOP_TRIGGER,
+        ROCKSDB_SOFT_PENDING_COMPACTION_BYTES, ROCKSDB_WAL_BYTES_PER_SYNC, SEGMENT_FREE_SPACE_MARGIN,
     },
     failpoints::{FailpointName, FailpointSet},
     io::{IoController, PersistentFile},
@@ -795,6 +797,15 @@ impl Store {
         };
 
         if needs_new_segment {
+            let required_bytes = MAX_SEGMENT_BYTES.saturating_mul(SEGMENT_FREE_SPACE_MARGIN);
+            if let Some(available) = available_disk_bytes(&self.data_dir)
+                && available < required_bytes
+            {
+                return Err(format!(
+                    "{DISK_FULL_MARKER}: insufficient free space for segment rotation: \
+                    {available} bytes available, {required_bytes} required"
+                ));
+            }
             let segment = SegmentReference::new(Uuid::now_v7().to_string(), now_ms());
             let evicted_segments = state.push_new(
                 segment.clone(),
@@ -1295,6 +1306,34 @@ impl Store {
                 .map_err(|error| format!("failed to decode multipart upload: {error}"))
         })
         .transpose()
+    }
+
+    pub fn multipart_uploads_older_than(&self, cutoff_ms: u64) -> Result<Vec<String>, String> {
+        let iter = self
+            .db
+            .iterator_cf(self.cf(ROCKSDB_CF_MULTIPART_UPLOADS), IteratorMode::Start);
+        let mut stale = Vec::new();
+        for item in iter {
+            let (key, value) =
+                item.map_err(|error| format!("failed to iterate multipart uploads: {error}"))?;
+            let upload_id = match std::str::from_utf8(&key) {
+                Ok(value) => value.to_owned(),
+                Err(error) => {
+                    return Err(format!("invalid multipart upload key: {error}"));
+                }
+            };
+            let upload: MultipartUpload = match serde_json::from_slice(&value) {
+                Ok(upload) => upload,
+                Err(error) => {
+                    tracing::warn!("failed to decode multipart upload {upload_id}: {error}");
+                    continue;
+                }
+            };
+            if upload.created_at_ms < cutoff_ms {
+                stale.push(upload_id);
+            }
+        }
+        Ok(stale)
     }
 
     pub async fn add_multipart_part(
@@ -2008,6 +2047,35 @@ fn estimated_manifest_bytes(manifest: &ArtifactManifest) -> usize {
         + std::mem::size_of::<ArtifactManifest>()
 }
 
+pub const DISK_FULL_MARKER: &str = "disk_full";
+
+pub fn is_disk_full_error(error: &str) -> bool {
+    error.contains(DISK_FULL_MARKER)
+}
+
+#[cfg(unix)]
+fn available_disk_bytes(path: &Path) -> Option<u64> {
+    use std::ffi::CString;
+    use std::os::unix::ffi::OsStrExt;
+
+    let path = CString::new(path.as_os_str().as_bytes()).ok()?;
+    let mut stat: libc::statvfs = unsafe { std::mem::zeroed() };
+    let result = unsafe { libc::statvfs(path.as_ptr(), &mut stat) };
+    if result != 0 {
+        return None;
+    }
+    #[allow(clippy::unnecessary_cast)]
+    let f_bavail = stat.f_bavail as u64;
+    #[allow(clippy::unnecessary_cast)]
+    let f_frsize = stat.f_frsize as u64;
+    Some(f_bavail.saturating_mul(f_frsize))
+}
+
+#[cfg(not(unix))]
+fn available_disk_bytes(_path: &Path) -> Option<u64> {
+    None
+}
+
 fn rocksdb_column_family_options(
     config: &Config,
     block_cache: &Cache,
@@ -2018,6 +2086,10 @@ fn rocksdb_column_family_options(
     options.set_write_buffer_size(config.rocksdb_write_buffer_size_bytes);
     options.set_max_write_buffer_number(config.rocksdb_max_write_buffer_number);
     options.set_write_buffer_manager(write_buffer_manager);
+    options.set_level_zero_slowdown_writes_trigger(ROCKSDB_LEVEL0_SLOWDOWN_TRIGGER);
+    options.set_level_zero_stop_writes_trigger(ROCKSDB_LEVEL0_STOP_TRIGGER);
+    options.set_soft_pending_compaction_bytes_limit(ROCKSDB_SOFT_PENDING_COMPACTION_BYTES as usize);
+    options.set_hard_pending_compaction_bytes_limit(ROCKSDB_HARD_PENDING_COMPACTION_BYTES as usize);
 
     let mut block_based = BlockBasedOptions::default();
     block_based.set_block_cache(block_cache);
@@ -2179,6 +2251,7 @@ mod tests {
             peers: vec!["http://127.0.0.1:7443".into()],
             discovery_dns_name: None,
             peer_tls: None,
+            grpc_tls: None,
             file_descriptor_pool_size: 32,
             file_descriptor_acquire_timeout_ms: 5_000,
             drain_completion_timeout_ms: 240_000,
@@ -2193,6 +2266,10 @@ mod tests {
             rocksdb_write_buffer_manager_bytes: 32 * 1024 * 1024,
             rocksdb_write_buffer_size_bytes: 8 * 1024 * 1024,
             rocksdb_max_write_buffer_number: 4,
+            outbox_max_depth: 100_000,
+            multipart_upload_ttl_ms: 24 * 60 * 60 * 1000,
+            multipart_janitor_interval_ms: 10 * 60 * 1000,
+            bootstrap_timeout_ms: 30 * 60 * 1000,
             analytics: None,
             otlp_traces_endpoint: Some("http://127.0.0.1:4318/v1/traces".into()),
             otel_service_name: "kura-test".into(),

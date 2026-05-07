@@ -2,6 +2,11 @@ use std::path::PathBuf;
 
 use tokio::fs;
 
+use crate::constants::{
+    DEFAULT_BOOTSTRAP_TIMEOUT_MS, DEFAULT_MULTIPART_JANITOR_INTERVAL_MS,
+    DEFAULT_MULTIPART_UPLOAD_TTL_MS, DEFAULT_OUTBOX_MAX_DEPTH,
+};
+
 const KURA_PORT: &str = "KURA_PORT";
 const KURA_GRPC_PORT: &str = "KURA_GRPC_PORT";
 const KURA_TENANT_ID: &str = "KURA_TENANT_ID";
@@ -15,6 +20,8 @@ const KURA_INTERNAL_PORT: &str = "KURA_INTERNAL_PORT";
 const KURA_INTERNAL_TLS_CA_CERT_PATH: &str = "KURA_INTERNAL_TLS_CA_CERT_PATH";
 const KURA_INTERNAL_TLS_CERT_PATH: &str = "KURA_INTERNAL_TLS_CERT_PATH";
 const KURA_INTERNAL_TLS_KEY_PATH: &str = "KURA_INTERNAL_TLS_KEY_PATH";
+const KURA_GRPC_TLS_CERT_PATH: &str = "KURA_GRPC_TLS_CERT_PATH";
+const KURA_GRPC_TLS_KEY_PATH: &str = "KURA_GRPC_TLS_KEY_PATH";
 const KURA_FILE_DESCRIPTOR_POOL_SIZE: &str = "KURA_FILE_DESCRIPTOR_POOL_SIZE";
 const KURA_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS: &str = "KURA_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS";
 const KURA_DRAIN_COMPLETION_TIMEOUT_MS: &str = "KURA_DRAIN_COMPLETION_TIMEOUT_MS";
@@ -39,6 +46,10 @@ const KURA_ANALYTICS_REQUEST_TIMEOUT_MS: &str = "KURA_ANALYTICS_REQUEST_TIMEOUT_
 const KURA_ANALYTICS_CIRCUIT_BREAKER_FAILURE_THRESHOLD: &str =
     "KURA_ANALYTICS_CIRCUIT_BREAKER_FAILURE_THRESHOLD";
 const KURA_ANALYTICS_CIRCUIT_BREAKER_OPEN_MS: &str = "KURA_ANALYTICS_CIRCUIT_BREAKER_OPEN_MS";
+const KURA_OUTBOX_MAX_DEPTH: &str = "KURA_OUTBOX_MAX_DEPTH";
+const KURA_MULTIPART_UPLOAD_TTL_MS: &str = "KURA_MULTIPART_UPLOAD_TTL_MS";
+const KURA_MULTIPART_JANITOR_INTERVAL_MS: &str = "KURA_MULTIPART_JANITOR_INTERVAL_MS";
+const KURA_BOOTSTRAP_TIMEOUT_MS: &str = "KURA_BOOTSTRAP_TIMEOUT_MS";
 const KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: &str = "KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT";
 const KURA_OTEL_SERVICE_NAME: &str = "KURA_OTEL_SERVICE_NAME";
 const KURA_OTEL_DEPLOYMENT_ENVIRONMENT: &str = "KURA_OTEL_DEPLOYMENT_ENVIRONMENT";
@@ -65,6 +76,7 @@ pub struct Config {
     pub peers: Vec<String>,
     pub discovery_dns_name: Option<String>,
     pub peer_tls: Option<PeerTlsConfig>,
+    pub grpc_tls: Option<GrpcTlsConfig>,
     pub file_descriptor_pool_size: usize,
     pub file_descriptor_acquire_timeout_ms: u64,
     pub drain_completion_timeout_ms: u64,
@@ -79,6 +91,10 @@ pub struct Config {
     pub rocksdb_write_buffer_manager_bytes: usize,
     pub rocksdb_write_buffer_size_bytes: usize,
     pub rocksdb_max_write_buffer_number: i32,
+    pub outbox_max_depth: usize,
+    pub multipart_upload_ttl_ms: u64,
+    pub multipart_janitor_interval_ms: u64,
+    pub bootstrap_timeout_ms: u64,
     pub analytics: Option<AnalyticsConfig>,
     pub otlp_traces_endpoint: Option<String>,
     pub otel_service_name: String,
@@ -89,6 +105,12 @@ pub struct Config {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PeerTlsConfig {
     pub ca_cert_path: PathBuf,
+    pub cert_path: PathBuf,
+    pub key_path: PathBuf,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct GrpcTlsConfig {
     pub cert_path: PathBuf,
     pub key_path: PathBuf,
 }
@@ -297,6 +319,25 @@ impl Config {
             _ => {
                 invalid.push(format!(
                     "{KURA_INTERNAL_TLS_CA_CERT_PATH}, {KURA_INTERNAL_TLS_CERT_PATH}, and {KURA_INTERNAL_TLS_KEY_PATH} must either all be set or all be unset"
+                ));
+                None
+            }
+        };
+        let grpc_tls_cert_path = lookup(KURA_GRPC_TLS_CERT_PATH)
+            .map(PathBuf::from)
+            .filter(|value| !value.as_os_str().is_empty());
+        let grpc_tls_key_path = lookup(KURA_GRPC_TLS_KEY_PATH)
+            .map(PathBuf::from)
+            .filter(|value| !value.as_os_str().is_empty());
+        let grpc_tls = match (grpc_tls_cert_path, grpc_tls_key_path) {
+            (None, None) => None,
+            (Some(cert_path), Some(key_path)) => Some(GrpcTlsConfig {
+                cert_path,
+                key_path,
+            }),
+            _ => {
+                invalid.push(format!(
+                    "{KURA_GRPC_TLS_CERT_PATH} and {KURA_GRPC_TLS_KEY_PATH} must either both be set or both be unset"
                 ));
                 None
             }
@@ -544,6 +585,64 @@ impl Config {
                 "{KURA_METADATA_STORE_MAX_WRITE_BUFFERS} must be greater than 0"
             ));
         }
+        let outbox_max_depth =
+            optional_parsed_value(&mut lookup, KURA_OUTBOX_MAX_DEPTH, &mut invalid, |value| {
+                value
+                    .parse::<usize>()
+                    .map_err(|_| format!("{KURA_OUTBOX_MAX_DEPTH} must be a valid usize"))
+            })
+            .unwrap_or(DEFAULT_OUTBOX_MAX_DEPTH);
+        if outbox_max_depth == 0 {
+            invalid.push(format!("{KURA_OUTBOX_MAX_DEPTH} must be greater than 0"));
+        }
+        let multipart_upload_ttl_ms = optional_parsed_value(
+            &mut lookup,
+            KURA_MULTIPART_UPLOAD_TTL_MS,
+            &mut invalid,
+            |value| {
+                value
+                    .parse::<u64>()
+                    .map_err(|_| format!("{KURA_MULTIPART_UPLOAD_TTL_MS} must be a valid u64"))
+            },
+        )
+        .unwrap_or(DEFAULT_MULTIPART_UPLOAD_TTL_MS);
+        if multipart_upload_ttl_ms == 0 {
+            invalid.push(format!(
+                "{KURA_MULTIPART_UPLOAD_TTL_MS} must be greater than 0"
+            ));
+        }
+        let multipart_janitor_interval_ms = optional_parsed_value(
+            &mut lookup,
+            KURA_MULTIPART_JANITOR_INTERVAL_MS,
+            &mut invalid,
+            |value| {
+                value.parse::<u64>().map_err(|_| {
+                    format!("{KURA_MULTIPART_JANITOR_INTERVAL_MS} must be a valid u64")
+                })
+            },
+        )
+        .unwrap_or(DEFAULT_MULTIPART_JANITOR_INTERVAL_MS);
+        if multipart_janitor_interval_ms == 0 {
+            invalid.push(format!(
+                "{KURA_MULTIPART_JANITOR_INTERVAL_MS} must be greater than 0"
+            ));
+        }
+        let bootstrap_timeout_ms = optional_parsed_value(
+            &mut lookup,
+            KURA_BOOTSTRAP_TIMEOUT_MS,
+            &mut invalid,
+            |value| {
+                value
+                    .parse::<u64>()
+                    .map_err(|_| format!("{KURA_BOOTSTRAP_TIMEOUT_MS} must be a valid u64"))
+            },
+        )
+        .unwrap_or(DEFAULT_BOOTSTRAP_TIMEOUT_MS);
+        if bootstrap_timeout_ms == 0 {
+            invalid.push(format!(
+                "{KURA_BOOTSTRAP_TIMEOUT_MS} must be greater than 0"
+            ));
+        }
         let analytics_server_url = lookup(KURA_ANALYTICS_SERVER_URL)
             .map(|value| value.trim().trim_end_matches('/').to_owned())
             .filter(|value| !value.is_empty());
@@ -768,6 +867,7 @@ impl Config {
             peers: peers.expect("peers should be present when configuration is valid"),
             discovery_dns_name,
             peer_tls,
+            grpc_tls,
             file_descriptor_pool_size,
             file_descriptor_acquire_timeout_ms,
             drain_completion_timeout_ms,
@@ -782,6 +882,10 @@ impl Config {
             rocksdb_write_buffer_manager_bytes,
             rocksdb_write_buffer_size_bytes,
             rocksdb_max_write_buffer_number,
+            outbox_max_depth,
+            multipart_upload_ttl_ms,
+            multipart_janitor_interval_ms,
+            bootstrap_timeout_ms,
             analytics,
             otlp_traces_endpoint,
             otel_service_name: otel_service_name
@@ -1090,6 +1194,7 @@ mod tests {
         );
         assert_eq!(config.discovery_dns_name, None);
         assert_eq!(config.peer_tls, None);
+        assert_eq!(config.grpc_tls, None);
         assert_eq!(config.file_descriptor_pool_size, 64);
         assert_eq!(config.file_descriptor_acquire_timeout_ms, 5000);
         assert_eq!(config.drain_completion_timeout_ms, 120000);
@@ -1431,6 +1536,82 @@ mod tests {
                 key_path: PathBuf::from("/etc/kura/peer.key"),
             })
         );
+    }
+
+    #[test]
+    fn from_lookup_parses_grpc_tls_config() {
+        let config = config_from(&[
+            (KURA_PORT, "4500"),
+            (KURA_GRPC_PORT, "5500"),
+            (KURA_TENANT_ID, "acme"),
+            (KURA_REGION, "eu_west"),
+            (KURA_TMP_DIR, "/tmp/kura"),
+            (KURA_DATA_DIR, "/tmp/kura-data"),
+            (KURA_NODE_URL, "http://kura.example.com:7443"),
+            (KURA_PEERS, "http://kura-a.example.com:7443"),
+            (KURA_INTERNAL_PORT, "7443"),
+            (KURA_GRPC_TLS_CERT_PATH, "/etc/kura/grpc-tls/tls.crt"),
+            (KURA_GRPC_TLS_KEY_PATH, "/etc/kura/grpc-tls/tls.key"),
+            (KURA_FILE_DESCRIPTOR_POOL_SIZE, "64"),
+            (KURA_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS, "5000"),
+            (KURA_SEGMENT_HANDLE_CACHE_SIZE, "16"),
+            (KURA_MEMORY_SOFT_LIMIT_BYTES, "268435456"),
+            (KURA_MEMORY_HARD_LIMIT_BYTES, "536870912"),
+            (KURA_MANIFEST_CACHE_MAX_BYTES, "16777216"),
+            (KURA_MAX_KEYVALUE_BYTES, "1048576"),
+            (KURA_METADATA_STORE_MAX_OPEN_FILES, "1024"),
+            (KURA_METADATA_STORE_MAX_BACKGROUND_JOBS, "4"),
+            (
+                KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
+                "https://otel.example.com/v1/traces",
+            ),
+            (KURA_OTEL_SERVICE_NAME, "kura-eu"),
+            (KURA_OTEL_DEPLOYMENT_ENVIRONMENT, "staging"),
+        ])
+        .expect("expected gRPC tls config to parse");
+
+        assert_eq!(
+            config.grpc_tls,
+            Some(GrpcTlsConfig {
+                cert_path: PathBuf::from("/etc/kura/grpc-tls/tls.crt"),
+                key_path: PathBuf::from("/etc/kura/grpc-tls/tls.key"),
+            })
+        );
+    }
+
+    #[test]
+    fn from_lookup_requires_complete_grpc_tls_config() {
+        let error = config_from(&[
+            (KURA_PORT, "4500"),
+            (KURA_GRPC_PORT, "5500"),
+            (KURA_TENANT_ID, "acme"),
+            (KURA_REGION, "eu_west"),
+            (KURA_TMP_DIR, "/tmp/kura"),
+            (KURA_DATA_DIR, "/tmp/kura-data"),
+            (KURA_NODE_URL, "http://kura.example.com:7443"),
+            (KURA_PEERS, "http://kura-a.example.com:7443"),
+            (KURA_INTERNAL_PORT, "7443"),
+            (KURA_GRPC_TLS_CERT_PATH, "/etc/kura/grpc-tls/tls.crt"),
+            (KURA_FILE_DESCRIPTOR_POOL_SIZE, "64"),
+            (KURA_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS, "5000"),
+            (KURA_SEGMENT_HANDLE_CACHE_SIZE, "16"),
+            (KURA_MEMORY_SOFT_LIMIT_BYTES, "268435456"),
+            (KURA_MEMORY_HARD_LIMIT_BYTES, "536870912"),
+            (KURA_MANIFEST_CACHE_MAX_BYTES, "16777216"),
+            (KURA_MAX_KEYVALUE_BYTES, "1048576"),
+            (KURA_METADATA_STORE_MAX_OPEN_FILES, "1024"),
+            (KURA_METADATA_STORE_MAX_BACKGROUND_JOBS, "4"),
+            (
+                KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
+                "https://otel.example.com/v1/traces",
+            ),
+            (KURA_OTEL_SERVICE_NAME, "kura-eu"),
+            (KURA_OTEL_DEPLOYMENT_ENVIRONMENT, "staging"),
+        ])
+        .expect_err("expected incomplete grpc tls config to fail");
+
+        assert!(error.contains(KURA_GRPC_TLS_CERT_PATH));
+        assert!(error.contains(KURA_GRPC_TLS_KEY_PATH));
     }
 
     #[test]
