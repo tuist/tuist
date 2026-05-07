@@ -169,11 +169,6 @@ macosFleet:
 # manually for now (one digest per runner-image release);
 # automation lands when the image flow gets its own
 # release-bump workflow.
-#
-# `installationIds.tuist-tuist` MUST be set at deploy time via
-# `--set runnersFleet.installationIds.tuist-tuist=<id>`. Resolve
-# it via the Tuist GitHub App's installation page on the tuist
-# org; the numeric ID appears in the URL.
 runnersFleet:
   enabled: true
   replicas: 2
@@ -183,8 +178,6 @@ runnersFleet:
     # fallback. Bump to M4-S once stocking stabilizes.
     type: M2-M
   runnerImage: "ghcr.io/tuist/tuist-runner@sha256:800e78c62a887642b29d23be72f54a561d60cd86bcaf430f077bce4bc389b6ee"
-  installationIds:
-    tuist-tuist: ""
   # Cluster-internal CIDR ranges the runner namespace's
   # NetworkPolicy blocks egress to. Locks down lateral
   # reachability so a compromised runner can't speak to

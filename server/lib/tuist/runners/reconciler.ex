@@ -30,6 +30,7 @@ defmodule Tuist.Runners.Reconciler do
   """
 
   alias Tuist.Environment
+  alias Tuist.GitHub.App, as: GitHubApp
   alias Tuist.GitHub.Client, as: GitHubClient
   alias Tuist.Kubernetes.Client
   alias Tuist.Runners
@@ -117,7 +118,7 @@ defmodule Tuist.Runners.Reconciler do
     token = generate_dispatch_token()
     pod_name = PodSpec.generate_pool_name(pool.name)
 
-    with {:ok, installation_id} <- pool_installation_id(pool),
+    with {:ok, installation_id} <- GitHubApp.get_installation_id_for_repo(pool.owner, pool.repo),
          {:ok, %{encoded_jit_config: jit, runner_name: runner_name}} <-
            GitHubClient.generate_jit_config(installation_id, pool.owner, pool.repo, %{
              name: runner_jit_name(pool, pod_name),
@@ -148,8 +149,12 @@ defmodule Tuist.Runners.Reconciler do
 
       :ok
     else
-      {:error, :no_installation_id} ->
-        Logger.warning("runners: skipping pre-bound — no installation_id configured", pool: pool.name)
+      {:error, :not_installed} ->
+        Logger.warning("runners: skipping pre-bound — Tuist GitHub App not installed on repo",
+          pool: pool.name,
+          repo: "#{pool.owner}/#{pool.repo}"
+        )
+
         :ok
 
       {:error, %Ecto.Changeset{} = cs} ->
@@ -211,9 +216,6 @@ defmodule Tuist.Runners.Reconciler do
         :ok
     end
   end
-
-  defp pool_installation_id(%{installation_id: id}) when is_integer(id) and id > 0, do: {:ok, id}
-  defp pool_installation_id(_), do: {:error, :no_installation_id}
 
   # GitHub's runner-name uniqueness is per repo. Embed the Pod's
   # name (already unique-per-Pod via the random suffix) so a

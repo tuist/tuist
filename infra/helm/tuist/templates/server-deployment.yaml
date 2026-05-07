@@ -114,32 +114,22 @@ spec:
               value: "1"
             {{- end }}
             {{- if .Values.runnersFleet.enabled }}
-            # Customer runner pool wiring. Tuist.Environment exposes
-            # these to Tuist.Runners.Reconciler / .PodSpec; together
-            # they enable the warm-pool reconciler cron in
-            # config/runtime.exs (Tuist.Environment.runners_enabled?
-            # checks all three are non-empty).
+            # Customer runner pool wiring. Tuist.Environment
+            # exposes these to Tuist.Runners.Reconciler / .PodSpec;
+            # together they enable the warm-pool reconciler cron
+            # in config/runtime.exs
+            # (Tuist.Environment.runners_enabled? checks all
+            # three are non-empty). The reconciler resolves
+            # per-pool GitHub App installation_ids dynamically
+            # via Tuist.GitHub.App.get_installation_id_for_repo,
+            # so adding a customer pool is just adding a row in
+            # Tuist.Runners.PoolConfig — no chart change needed.
             - name: TUIST_RUNNER_IMAGE
               value: {{ required "runnersFleet.runnerImage required when runnersFleet.enabled" .Values.runnersFleet.runnerImage | quote }}
             - name: TUIST_RUNNER_DISPATCH_URL
               value: "{{ .Values.server.appUrl }}/api/internal/runners/dispatch"
             - name: TUIST_RUNNERS_FLEET_NAME
               value: {{ include "tuist.runnersFleetName" . | quote }}
-            {{- /*
-              Per-pool GitHub App installation IDs. The
-              reconciler needs these to mint JIT runner configs
-              for pre-bound Pods (`min_warm > 0`). One env var
-              per pool keeps pool config + GH App identity
-              decoupled — when an App is reinstalled the
-              installation_id changes; the chart's value
-              changes; the code stays put.
-            */}}
-            {{- with .Values.runnersFleet.installationIds }}
-            {{- range $pool, $id := . }}
-            - name: TUIST_RUNNERS_{{ $pool | upper | replace "-" "_" }}_INSTALLATION_ID
-              value: {{ $id | quote }}
-            {{- end }}
-            {{- end }}
             {{- end }}
             {{- include "tuist.licenseEnv" . | nindent 12 }}
             {{- if or .Values.server.masterKey .Values.server.managedSecrets }}

@@ -29,10 +29,12 @@ defmodule Tuist.Runners.PoolConfig do
     `sum(max_concurrent) - sum(min_warm)` across pools. Empty
     when every customer's max equals their min.
 
-  `installation_id` is the GitHub App installation that
-  authorizes `generate-jitconfig` for this pool's repo. Resolved
-  from a per-pool env var so the deploy step can pin it without
-  shipping a code change.
+  The GitHub App installation that authorizes
+  `generate-jitconfig` for this pool's repo is resolved
+  dynamically by `Tuist.GitHub.App.get_installation_id_for_repo/3`
+  at reconcile time — no per-pool config required, and adding a
+  customer is just a new entry here (or a row in the v2 DB
+  table).
 
   Resolved at runtime by `env/0` so the per-env values
   overrides (TUIST_DEPLOY_ENV) drive the pool config without a
@@ -57,8 +59,7 @@ defmodule Tuist.Runners.PoolConfig do
             repo: "tuist",
             labels: ["self-hosted", "macOS", "ARM64", "tuist-tuist-staging"],
             min_warm: 1,
-            max_concurrent: 2,
-            installation_id: tuist_tuist_installation_id()
+            max_concurrent: 2
           }
         ]
 
@@ -71,8 +72,7 @@ defmodule Tuist.Runners.PoolConfig do
             repo: "tuist",
             labels: ["self-hosted", "macOS", "ARM64", "tuist-tuist-canary"],
             min_warm: 1,
-            max_concurrent: 2,
-            installation_id: tuist_tuist_installation_id()
+            max_concurrent: 2
           }
         ]
 
@@ -85,8 +85,7 @@ defmodule Tuist.Runners.PoolConfig do
             repo: "tuist",
             labels: ["self-hosted", "macOS", "ARM64", "tuist-tuist"],
             min_warm: 3,
-            max_concurrent: 5,
-            installation_id: tuist_tuist_installation_id()
+            max_concurrent: 5
           }
         ]
 
@@ -101,14 +100,6 @@ defmodule Tuist.Runners.PoolConfig do
   """
   def find_by_name(name) when is_binary(name) do
     Enum.find(pools(), fn p -> p.name == name end)
-  end
-
-  defp tuist_tuist_installation_id do
-    case System.get_env("TUIST_RUNNERS_TUIST_TUIST_INSTALLATION_ID") do
-      nil -> nil
-      "" -> nil
-      raw -> String.to_integer(raw)
-    end
   end
 
   @doc """

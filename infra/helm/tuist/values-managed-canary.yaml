@@ -125,8 +125,6 @@ runnersFleet:
   enabled: false
   replicas: 2
   runnerImage: ""
-  installationIds:
-    tuist-tuist: ""
   networkPolicy:
     enabled: true
     exceptCIDRs:

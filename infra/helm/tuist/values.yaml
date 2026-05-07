@@ -453,18 +453,6 @@ runnersFleet:
   # otherwise. Matches the artifact built by
   # .github/workflows/runner-image.yml.
   runnerImage: ""
-  # GitHub App installation IDs per pool. Maps a pool name
-  # (matching `Tuist.Runners.PoolConfig.pools/0` entries) to the
-  # numeric installation_id GitHub assigned when the Tuist App
-  # was installed on the pool's repo. The reconciler reads
-  # `TUIST_RUNNERS_<POOL_NAME_UPPERCASED>_INSTALLATION_ID` to mint
-  # JIT runner configs for pre-bound Pods.
-  #
-  # Resolved with `gh api /repos/<owner>/<repo>/installation`
-  # against a token that has the App installed on the repo.
-  # Per-env (the App's installation can differ between
-  # tuist.dev orgs).
-  installationIds: {}
   machine:
     # Match the existing macosFleet shape — same M4-S baseline. Override
     # per-env when product demands a beefier SKU (M4-M for memory-
