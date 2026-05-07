@@ -26,8 +26,8 @@ defmodule Cache.Authentication do
   @doc """
   Ensures the request has access to the specified project.
 
-  Returns `{:ok, auth_header, xcode_cache_limit_surpassed}` if authorized, where
-  `xcode_cache_limit_surpassed` is `true` when the account has surpassed the
+  Returns `{:ok, auth_header, hit_limit_surpassed}` if authorized, where
+  `hit_limit_surpassed` is `true` when the account has surpassed the
   free-tier monthly cache limit, `false` otherwise, or `nil` when it could
   not be determined locally (e.g. JWT-only authorization). Returns
   `{:error, status, message}` otherwise.
@@ -42,8 +42,8 @@ defmodule Cache.Authentication do
       requested_handle = full_handle(account_handle, project_handle)
 
       case authorize(auth_header, requested_handle, conn, cache) do
-        {:ok, xcode_cache_limit_surpassed} ->
-          {:ok, auth_header, xcode_cache_limit_surpassed}
+        {:ok, hit_limit_surpassed} ->
+          {:ok, auth_header, hit_limit_surpassed}
 
         {:error, status, message} ->
           {:error, status, message}
@@ -245,25 +245,25 @@ defmodule Cache.Authentication do
 
     if MapSet.member?(project_handles, requested_handle) do
       :telemetry.execute([:cache, :auth, :authorized], %{}, %{method: :server})
-      {:ok, xcode_cache_limit_surpassed?(accounts, requested_handle)}
+      {:ok, hit_limit_surpassed?(accounts, requested_handle)}
     else
       {:error, 403, "You don't have access to this project"}
     end
   end
 
-  defp xcode_cache_limit_surpassed?(accounts, requested_handle) when is_list(accounts) do
+  defp hit_limit_surpassed?(accounts, requested_handle) when is_list(accounts) do
     [account_handle, _project_handle] = String.split(requested_handle, "/", parts: 2)
 
     case Enum.find(accounts, fn
            %{"name" => name} when is_binary(name) -> String.downcase(name) == account_handle
            _ -> false
          end) do
-      %{"xcode_cache_limit_surpassed" => surpassed} -> surpassed == true
+      %{"hit_limit_surpassed" => surpassed} -> surpassed == true
       _ -> nil
     end
   end
 
-  defp xcode_cache_limit_surpassed?(_accounts, _requested_handle), do: nil
+  defp hit_limit_surpassed?(_accounts, _requested_handle), do: nil
 
   defp cache_result(cache, cache_key, result, ttl) do
     Cachex.put(cache, cache_key, result, ttl: ttl)

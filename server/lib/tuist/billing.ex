@@ -415,9 +415,32 @@ defmodule Tuist.Billing do
   because `get_current_active_subscription/1` only returns `active`/`trialing`
   rows, so they fall under the same free-tier check.
   """
-  def xcode_cache_limit_surpassed?(%Account{} = account) do
+  def hit_limit_surpassed?(%Account{} = account) do
+    hit_limit_surpassed?(account, get_current_active_subscription(account))
+  end
+
+  def hit_limits_surpassed(accounts) when is_list(accounts) do
+    account_ids = Enum.map(accounts, & &1.id)
+
+    subscriptions_by_account_id =
+      from(s in Subscription,
+        where: s.account_id in ^account_ids,
+        where: s.status == "active" or s.status == "trialing",
+        order_by: [asc: s.account_id, desc: s.inserted_at]
+      )
+      |> Repo.all()
+      |> Enum.reduce(%{}, fn subscription, acc ->
+        Map.put_new(acc, subscription.account_id, subscription)
+      end)
+
+    Map.new(accounts, fn account ->
+      {account.id, hit_limit_surpassed?(account, Map.get(subscriptions_by_account_id, account.id))}
+    end)
+  end
+
+  defp hit_limit_surpassed?(%Account{} = account, subscription) do
     plan =
-      case get_current_active_subscription(account) do
+      case subscription do
         nil -> :air
         subscription -> subscription.plan
       end

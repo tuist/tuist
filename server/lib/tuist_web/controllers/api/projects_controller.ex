@@ -169,10 +169,10 @@ defmodule TuistWeb.API.ProjectsController do
                  "Billing snapshot for each account the authenticated subject has access to. Used by downstream services (e.g. the cache) to enforce plan limits.",
                items: %Schema{
                  type: :object,
-                 required: [:name, :xcode_cache_limit_surpassed],
+                 required: [:name, :hit_limit_surpassed],
                  properties: %{
                    name: %Schema{type: :string, description: "The account handle."},
-                   xcode_cache_limit_surpassed: %Schema{
+                   hit_limit_surpassed: %Schema{
                      type: :boolean,
                      description:
                        "Whether the account has surpassed the free-tier monthly cache limit. The cache service blocks module cache requests when true."
@@ -202,11 +202,17 @@ defmodule TuistWeb.API.ProjectsController do
           project_response(project_account.project, project_account.handle)
         end)
 
-      accounts =
+      unique_accounts =
         project_accounts
         |> Enum.map(& &1.account)
         |> Enum.uniq_by(& &1.id)
-        |> Enum.map(&account_billing_response/1)
+
+      hit_limits_surpassed = Billing.hit_limits_surpassed(unique_accounts)
+
+      accounts =
+        Enum.map(unique_accounts, fn account ->
+          account_billing_response(account, hit_limits_surpassed)
+        end)
 
       conn
       |> put_status(:ok)
@@ -214,10 +220,10 @@ defmodule TuistWeb.API.ProjectsController do
     end
   end
 
-  defp account_billing_response(account) do
+  defp account_billing_response(account, hit_limits_surpassed) do
     %{
       name: account.name,
-      xcode_cache_limit_surpassed: Billing.xcode_cache_limit_surpassed?(account)
+      hit_limit_surpassed: Map.fetch!(hit_limits_surpassed, account.id)
     }
   end
 

@@ -734,6 +734,34 @@ defmodule Tuist.BillingTest do
     end
   end
 
+  describe "hit_limits_surpassed/1" do
+    test "returns xcode cache limit status for multiple accounts" do
+      # Given
+      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
+
+      air_organization = AccountsFixtures.organization_fixture(current_month_remote_cache_hits_count: threshold)
+      air_account = Accounts.get_account_from_organization(air_organization)
+
+      pro_organization = AccountsFixtures.organization_fixture(current_month_remote_cache_hits_count: threshold)
+      pro_account = Accounts.get_account_from_organization(pro_organization)
+      BillingFixtures.subscription_fixture(account_id: pro_account.id, plan: :pro)
+
+      canceled_organization = AccountsFixtures.organization_fixture(current_month_remote_cache_hits_count: threshold)
+      canceled_account = Accounts.get_account_from_organization(canceled_organization)
+      BillingFixtures.subscription_fixture(account_id: canceled_account.id, plan: :pro, status: "canceled")
+
+      # When
+      got = Billing.hit_limits_surpassed([air_account, pro_account, canceled_account])
+
+      # Then
+      assert got == %{
+               air_account.id => true,
+               pro_account.id => false,
+               canceled_account.id => true
+             }
+    end
+  end
+
   describe "upgrade_to_enterprise/2" do
     test "creates an invoice-billed subscription and updates the customer when no sub exists" do
       # Given

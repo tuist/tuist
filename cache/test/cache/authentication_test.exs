@@ -49,7 +49,7 @@ defmodule Cache.AuthenticationTest do
       accounts = [
         %{
           "name" => "account",
-          "xcode_cache_limit_surpassed" => true
+          "hit_limit_surpassed" => true
         }
       ]
 

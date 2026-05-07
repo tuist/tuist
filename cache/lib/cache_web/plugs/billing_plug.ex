@@ -3,7 +3,7 @@ defmodule CacheWeb.Plugs.BillingPlug do
   Plug that blocks module cache requests when a free-tier account has
   surpassed the monthly thresholds.
 
-  Reads the `xcode_cache_limit_surpassed` flag stashed on the connection by
+  Reads the `hit_limit_surpassed` flag stashed on the connection by
   `CacheWeb.Plugs.AuthPlug` and rejects the request with `402 Payment Required`
   when it is `true`.
 
@@ -15,7 +15,7 @@ defmodule CacheWeb.Plugs.BillingPlug do
 
   def init(opts), do: opts
 
-  def call(%Plug.Conn{assigns: %{xcode_cache_limit_surpassed: true}} = conn, _opts) do
+  def call(%Plug.Conn{assigns: %{hit_limit_surpassed: true}} = conn, _opts) do
     conn
     |> put_resp_content_type("application/json")
     |> send_resp(402, JSON.encode!(%{message: rejection_message()}))

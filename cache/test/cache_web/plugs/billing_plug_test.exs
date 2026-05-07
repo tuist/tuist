@@ -8,7 +8,7 @@ defmodule CacheWeb.Plugs.BillingPlugTest do
 
   describe "call/2" do
     test "lets the request through when no xcode cache limit flag is assigned (e.g. JWT-only auth)" do
-      conn = assign(build_conn(), :xcode_cache_limit_surpassed, nil)
+      conn = assign(build_conn(), :hit_limit_surpassed, nil)
 
       result = BillingPlug.call(conn, BillingPlug.init([]))
 
@@ -16,7 +16,7 @@ defmodule CacheWeb.Plugs.BillingPlugTest do
     end
 
     test "lets the request through when the xcode cache limit is not surpassed" do
-      conn = assign(build_conn(), :xcode_cache_limit_surpassed, false)
+      conn = assign(build_conn(), :hit_limit_surpassed, false)
 
       result = BillingPlug.call(conn, BillingPlug.init([]))
 
@@ -24,7 +24,7 @@ defmodule CacheWeb.Plugs.BillingPlugTest do
     end
 
     test "rejects the request when the xcode cache limit is surpassed" do
-      conn = assign(build_conn(), :xcode_cache_limit_surpassed, true)
+      conn = assign(build_conn(), :hit_limit_surpassed, true)
 
       result = BillingPlug.call(conn, BillingPlug.init([]))
 
