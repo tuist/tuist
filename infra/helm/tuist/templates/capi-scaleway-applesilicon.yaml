@@ -28,12 +28,15 @@ rules:
       - scalewayapplesiliconmachines
       - scalewayapplesiliconmachinetemplates
       - scalewayapplesiliconclusters
+      - scalewayapplesiliconfleets
     verbs: [get, list, watch, create, update, patch, delete]
   - apiGroups: ["infrastructure.cluster.x-k8s.io"]
     resources:
       - scalewayapplesiliconmachines/status
       - scalewayapplesiliconmachines/finalizers
       - scalewayapplesiliconclusters/status
+      - scalewayapplesiliconfleets/status
+      - scalewayapplesiliconfleets/finalizers
     verbs: [get, update, patch]
   - apiGroups: ["cluster.x-k8s.io"]
     resources: [machines, machinesets, machinedeployments, clusters]
