@@ -208,7 +208,7 @@ macosFleet:
     # release.yml has run for this scope, pin to a known-good
     # SHA-tagged build that the standalone
     # capi-provider-scaleway-applesilicon-image.yml workflow pushed.
-    tag: "c8067e5b"
+    tag: "1330d8f7"
 
 # Everything below = external. The managed deployment never runs embedded
 # Postgres / ClickHouse / object storage / observability stacks.
