@@ -3,19 +3,14 @@ defmodule Tuist.Kubernetes.Client do
   Small Kubernetes API client for server-owned control-plane writes.
 
   Production uses the pod ServiceAccount projected by Kubernetes for the
-  cluster the server runs in. Cross-region Kura operations use kubeconfigs
-  loaded from the runtime environment.
-
-  Dev/test can opt into `mode: :kubectl` to exercise the same controller-backed
-  path from a local server process against kind.
+  cluster the server runs in. Cross-region and local-controller Kura operations
+  use kubeconfigs loaded from the runtime environment or local kubeconfig files.
   """
 
   @service_account_dir "/var/run/secrets/kubernetes.io/serviceaccount"
   @token_path Path.join(@service_account_dir, "token")
   @ca_path Path.join(@service_account_dir, "ca.crt")
   @field_manager "tuist-server"
-  @kura_instance_path ~r{\A/apis/kura\.tuist\.dev/v1alpha1/namespaces/([^/]+)/kurainstances/([^/]+)\z}
-  @pods_path ~r{\A/api/v1/namespaces/([^/]+)/pods\z}
 
   def get(path, opts \\ []) when is_binary(path) do
     request(:get, path, opts: opts)
@@ -47,18 +42,14 @@ defmodule Tuist.Kubernetes.Client do
 
   def apply(manifest, opts \\ []) when is_map(manifest) do
     with {:ok, path} <- manifest_path(manifest) do
-      if kubectl_mode?(opts) do
-        kubectl_apply(manifest, opts)
-      else
-        body = Ymlr.document!(manifest)
+      body = Ymlr.document!(manifest)
 
-        request(:patch, path,
-          opts: opts,
-          body: body,
-          query: %{"fieldManager" => @field_manager, "force" => "true"},
-          headers: [{"content-type", "application/apply-patch+yaml"}]
-        )
-      end
+      request(:patch, path,
+        opts: opts,
+        body: body,
+        query: %{"fieldManager" => @field_manager, "force" => "true"},
+        headers: [{"content-type", "application/apply-patch+yaml"}]
+      )
     end
   end
 
@@ -91,14 +82,6 @@ defmodule Tuist.Kubernetes.Client do
     query = Keyword.get(options, :query, %{})
     body = Keyword.get(options, :body)
 
-    if kubectl_mode?(opts) do
-      kubectl_request(method, path, query, opts)
-    else
-      api_request(method, path, headers, query, body, opts)
-    end
-  end
-
-  defp api_request(method, path, headers, query, body, opts) do
     with {:ok, config} <- config(opts) do
       req_opts =
         maybe_put_body(
@@ -133,228 +116,9 @@ defmodule Tuist.Kubernetes.Client do
     end
   end
 
-  defp kubectl_apply(manifest, opts) do
-    with :ok <- ensure_local_kubectl_mode(),
-         {:ok, manifest_path} <- write_temp(Ymlr.document!(manifest), "manifest"),
-         {:ok, output} <-
-           kubectl(
-             [
-               "apply",
-               "--server-side",
-               "--field-manager",
-               @field_manager,
-               "--force-conflicts",
-               "-f",
-               manifest_path,
-               "-o",
-               "json"
-             ],
-             opts
-           ) do
-      decode_json(output)
-    else
-      {:error, %{status: _status} = error} ->
-        {:error, format_kubectl_error("apply KuraInstance", error)}
-
-      {:error, reason} ->
-        {:error, reason}
-    end
-  end
-
-  defp kubectl_request(:get, path, query, opts) do
-    case kura_instance_path(path) do
-      {:ok, namespace, name} ->
-        case kubectl(["-n", namespace, "get", "kurainstance", name, "-o", "json"], opts) do
-          {:ok, output} ->
-            decode_json(output)
-
-          {:error, %{output: output} = error} when is_binary(output) ->
-            if not_found?(output),
-              do: {:error, :not_found},
-              else: {:error, format_kubectl_error("get KuraInstance", error)}
-
-          {:error, reason} ->
-            {:error, reason}
-        end
-
-      {:error, _} ->
-        kubectl_get_pods(path, query, opts)
-    end
-  end
-
-  defp kubectl_request(:delete, path, _query, opts) do
-    with {:ok, namespace, name} <- kura_instance_path(path) do
-      case kubectl(["-n", namespace, "delete", "kurainstance", name], opts) do
-        {:ok, _output} ->
-          {:ok, %{}}
-
-        {:error, %{output: output} = error} when is_binary(output) ->
-          if not_found?(output),
-            do: {:error, :not_found},
-            else: {:error, format_kubectl_error("delete KuraInstance", error)}
-
-        {:error, reason} ->
-          {:error, reason}
-      end
-    end
-  end
-
-  defp kubectl_request(method, path, _query, _opts) do
-    {:error, "unsupported local kubectl Kubernetes request #{method} #{path}"}
-  end
-
-  defp kubectl_get_pods(path, query, opts) do
-    with {:ok, namespace} <- pods_path(path),
-         label_selector when is_binary(label_selector) <- Map.get(query, "labelSelector") do
-      case kubectl(["-n", namespace, "get", "pods", "-l", label_selector, "-o", "json"], opts) do
-        {:ok, output} ->
-          decode_json(output)
-
-        {:error, %{status: _status} = error} ->
-          {:error, format_kubectl_error("list pods", error)}
-
-        {:error, reason} ->
-          {:error, reason}
-      end
-    else
-      {:error, reason} -> {:error, reason}
-      _ -> {:error, "local kubectl pod list request requires a label selector"}
-    end
-  end
-
-  defp kubectl(args, opts) do
-    with :ok <- ensure_local_kubectl_mode(),
-         :ok <- ensure_executable("kubectl"),
-         {:ok, kubeconfig_args} <- kubeconfig_args(opts) do
-      case MuonTrap.cmd("env", ["kubectl"] ++ kubeconfig_args ++ args, stderr_to_stdout: true) do
-        {output, 0} -> {:ok, output}
-        {output, status} -> {:error, %{status: status, output: String.trim(output)}}
-      end
-    end
-  end
-
-  defp kubeconfig_args(opts) do
-    cond do
-      path = Keyword.get(opts, :kubeconfig_path) ->
-        if File.exists?(path),
-          do: {:ok, ["--kubeconfig", path]},
-          else: {:error, "configured Kubernetes kubeconfig path #{path} does not exist"}
-
-      contents = Keyword.get(opts, :kubeconfig) ->
-        with {:ok, path} <- write_temp(contents, "kubeconfig") do
-          {:ok, ["--kubeconfig", path]}
-        end
-
-      name = Keyword.get(opts, :kind_cluster_name) ->
-        with {:ok, contents} <- resolve_kind_kubeconfig(name),
-             {:ok, path} <- write_temp(contents, "kubeconfig") do
-          {:ok, ["--kubeconfig", path]}
-        end
-
-      true ->
-        {:ok, []}
-    end
-  end
-
-  defp resolve_kind_kubeconfig(name) do
-    with :ok <- ensure_executable("kind") do
-      case kind_kubeconfig(name) do
-        kubeconfig when is_binary(kubeconfig) and kubeconfig != "" ->
-          {:ok, kubeconfig}
-
-        _ ->
-          with :ok <- create_kind_cluster(name),
-               kubeconfig when is_binary(kubeconfig) and kubeconfig != "" <- kind_kubeconfig(name) do
-            {:ok, kubeconfig}
-          else
-            {:error, reason} -> {:error, reason}
-            _ -> {:error, "failed to bring up kind cluster `#{name}`"}
-          end
-      end
-    end
-  end
-
-  defp kind_kubeconfig(name) do
-    case MuonTrap.cmd("kind", ["get", "kubeconfig", "--name", name], stderr_to_stdout: true) do
-      {kubeconfig, 0} when is_binary(kubeconfig) and kubeconfig != "" -> kubeconfig
-      _ -> nil
-    end
-  end
-
-  defp create_kind_cluster(name) do
-    args = ["create", "cluster", "--name", name] ++ kind_config_args()
-
-    case MuonTrap.cmd("kind", args, stderr_to_stdout: true) do
-      {_, 0} -> :ok
-      {output, _} -> {:error, "kind create cluster failed: #{String.trim(output)}"}
-    end
-  end
-
-  defp kind_config_args do
-    [
-      Path.expand("../kura/ops/kind/dev-cluster.yaml", File.cwd!()),
-      Path.expand("kura/ops/kind/dev-cluster.yaml", File.cwd!())
-    ]
-    |> Enum.find(&File.exists?/1)
-    |> case do
-      nil -> []
-      path -> ["--config", path]
-    end
-  end
-
-  defp ensure_local_kubectl_mode do
-    if Tuist.Environment.dev?() or Tuist.Environment.test?() do
-      :ok
-    else
-      {:error, "local kubectl Kubernetes client mode is only available in dev/test"}
-    end
-  end
-
-  defp ensure_executable(name) do
-    if System.find_executable(name),
-      do: :ok,
-      else: {:error, "#{name} is not on PATH"}
-  end
-
-  defp kubectl_mode?(opts), do: Keyword.get(opts, :mode) in [:kubectl, "kubectl"]
-
   defp kubeconfig_mode?(opts), do: Keyword.get(opts, :mode) in [:kubeconfig, "kubeconfig"]
 
-  defp kura_instance_path(path) do
-    case Regex.run(@kura_instance_path, path) do
-      [_, namespace, name] -> {:ok, namespace, name}
-      _ -> {:error, "unsupported Kubernetes KuraInstance path #{path}"}
-    end
-  end
-
-  defp pods_path(path) do
-    case Regex.run(@pods_path, path) do
-      [_, namespace] -> {:ok, namespace}
-      _ -> {:error, "unsupported Kubernetes pod list path #{path}"}
-    end
-  end
-
-  defp decode_json(output) do
-    case Jason.decode(output) do
-      {:ok, body} -> {:ok, body}
-      {:error, reason} -> {:error, "kubectl returned invalid JSON: #{Exception.message(reason)}"}
-    end
-  end
-
-  defp not_found?(output) do
-    output = String.downcase(output)
-    String.contains?(output, "notfound") or String.contains?(output, "not found")
-  end
-
-  defp format_kubectl_error(action, %{status: nil, output: output}) do
-    "kubectl #{action} failed: #{String.trim(output)}"
-  end
-
-  defp format_kubectl_error(action, %{status: status, output: output}) do
-    "kubectl #{action} exited with status #{status}: #{String.trim(output)}"
-  end
-
-  defp write_temp(contents, label, extname \\ ".yaml") do
+  defp write_temp(contents, label, extname) do
     with {:ok, path} <- Briefly.create(prefix: "kubernetes-#{label}-", extname: extname),
          :ok <- File.write(path, contents),
          :ok <- File.chmod(path, 0o600) do
@@ -380,7 +144,7 @@ defmodule Tuist.Kubernetes.Client do
   defp kubeconfig_config(opts) do
     with {:ok, contents} <- kubeconfig_contents(opts),
          {:ok, kubeconfig} <- parse_kubeconfig(contents),
-         {:ok, context} <- kubeconfig_current_context(kubeconfig),
+         {:ok, context} <- kubeconfig_current_context(kubeconfig, opts),
          {:ok, cluster} <- kubeconfig_named_entry(kubeconfig, "clusters", context["cluster"]),
          {:ok, user} <- kubeconfig_named_entry(kubeconfig, "users", context["user"]),
          {:ok, token} <- kubeconfig_token(user),
@@ -426,11 +190,17 @@ defmodule Tuist.Kubernetes.Client do
     end
   end
 
-  defp kubeconfig_current_context(%{"current-context" => name} = kubeconfig) when is_binary(name) do
+  defp kubeconfig_current_context(kubeconfig, opts) do
+    name = Keyword.get(opts, :context) || Map.get(kubeconfig, "current-context")
+
+    kubeconfig_context(kubeconfig, name)
+  end
+
+  defp kubeconfig_context(kubeconfig, name) when is_binary(name) and name != "" do
     kubeconfig_named_entry(kubeconfig, "contexts", name)
   end
 
-  defp kubeconfig_current_context(_), do: {:error, "Kubernetes kubeconfig has no current-context"}
+  defp kubeconfig_context(_kubeconfig, _name), do: {:error, "Kubernetes kubeconfig has no current-context"}
 
   defp kubeconfig_named_entry(kubeconfig, key, name) when is_binary(name) do
     data_key = kubeconfig_entry_data_key(key)

@@ -49,46 +49,6 @@ defmodule Tuist.Kubernetes.ClientTest do
                )
     end
 
-    @tag :tmp_dir
-    test "can use kubectl mode for local controller-backed testing", %{tmp_dir: tmp_dir} do
-      kubeconfig_path = Path.join(tmp_dir, "kubeconfig")
-      File.write!(kubeconfig_path, "apiVersion: v1")
-
-      expect(System, :find_executable, fn "kubectl" -> "/usr/bin/kubectl" end)
-
-      expect(MuonTrap, :cmd, fn "env", args, [stderr_to_stdout: true] ->
-        assert [
-                 "kubectl",
-                 "--kubeconfig",
-                 ^kubeconfig_path,
-                 "apply",
-                 "--server-side",
-                 "--field-manager",
-                 "tuist-server",
-                 "--force-conflicts",
-                 "-f",
-                 manifest_path,
-                 "-o",
-                 "json"
-               ] = args
-
-        assert File.read!(manifest_path) =~ "kind: KuraInstance"
-        {Jason.encode!(%{"metadata" => %{"name" => "kura-tuist-local-controller"}}), 0}
-      end)
-
-      assert {:ok, %{"metadata" => %{"name" => "kura-tuist-local-controller"}}} =
-               Client.apply(
-                 %{
-                   "apiVersion" => "kura.tuist.dev/v1alpha1",
-                   "kind" => "KuraInstance",
-                   "metadata" => %{"namespace" => "kura", "name" => "kura-tuist-local-controller"},
-                   "spec" => %{"image" => "ghcr.io/tuist/kura:0.5.2"}
-                 },
-                 mode: :kubectl,
-                 kubeconfig_path: kubeconfig_path
-               )
-    end
-
     test "can use a token-based kubeconfig for remote clusters" do
       kubeconfig = kubeconfig(%{token: "region-token"})
 
@@ -120,6 +80,61 @@ defmodule Tuist.Kubernetes.ClientTest do
                )
     end
 
+    test "can select an explicit kubeconfig context" do
+      kubeconfig =
+        """
+        apiVersion: v1
+        current-context: default
+        clusters:
+          - name: default
+            cluster:
+              server: https://kubernetes.default.example.com
+          - name: kind-kura-dev-0
+            cluster:
+              server: https://kubernetes.kind.example.com
+        contexts:
+          - name: default
+            context:
+              cluster: default
+              user: default
+          - name: kind-kura-dev-0
+            context:
+              cluster: kind-kura-dev-0
+              user: tuist
+        users:
+          - name: default
+            user:
+              token: default-token
+          - name: tuist
+            user:
+              token: kind-token
+        """
+
+      expect(Req, :request, fn opts ->
+        assert opts[:method] == :patch
+
+        assert opts[:url] ==
+                 "https://kubernetes.kind.example.com/apis/kura.tuist.dev/v1alpha1/namespaces/kura/kurainstances/kura-tuist-local-controller"
+
+        assert {"authorization", "Bearer kind-token"} in opts[:headers]
+
+        {:ok, %Req.Response{status: 200, body: %{"metadata" => %{"name" => "kura-tuist-local-controller"}}}}
+      end)
+
+      assert {:ok, %{"metadata" => %{"name" => "kura-tuist-local-controller"}}} =
+               Client.apply(
+                 %{
+                   "apiVersion" => "kura.tuist.dev/v1alpha1",
+                   "kind" => "KuraInstance",
+                   "metadata" => %{"namespace" => "kura", "name" => "kura-tuist-local-controller"},
+                   "spec" => %{"image" => "ghcr.io/tuist/kura:0.5.2"}
+                 },
+                 mode: :kubeconfig,
+                 kubeconfig: kubeconfig,
+                 context: "kind-kura-dev-0"
+               )
+    end
+
     test "can use a client-certificate kubeconfig for remote clusters" do
       kubeconfig = kubeconfig(%{client_certificate: "test-cert", client_key: "test-key"})
 
@@ -144,23 +159,6 @@ defmodule Tuist.Kubernetes.ClientTest do
                  },
                  mode: :kubeconfig,
                  kubeconfig: kubeconfig
-               )
-    end
-
-    test "rejects kubectl mode outside dev and test" do
-      stub(Tuist.Environment, :dev?, fn -> false end)
-      stub(Tuist.Environment, :test?, fn -> false end)
-
-      assert {:error, "local kubectl Kubernetes client mode is only available in dev/test"} =
-               Client.apply(
-                 %{
-                   "apiVersion" => "kura.tuist.dev/v1alpha1",
-                   "kind" => "KuraInstance",
-                   "metadata" => %{"namespace" => "kura", "name" => "kura-tuist-local-controller"},
-                   "spec" => %{"image" => "ghcr.io/tuist/kura:0.5.2"}
-                 },
-                 mode: :kubectl,
-                 kubeconfig_path: "/tmp/kubeconfig"
                )
     end
   end

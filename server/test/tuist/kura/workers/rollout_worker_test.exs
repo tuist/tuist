@@ -30,7 +30,7 @@ defmodule Tuist.Kura.Workers.RolloutWorkerTest do
     {:ok, account: account, deployment: deployment, server: server}
   end
 
-  test "activates the server when rollout succeeds", %{deployment: deployment, server: server} do
+  test "applies the deployment and leaves readiness to the reconciler", %{deployment: deployment, server: server} do
     stub(Provisioner, :rollout, fn %Server{}, inputs ->
       refute Map.has_key?(inputs, :on_log_line)
       :ok
@@ -41,27 +41,11 @@ defmodule Tuist.Kura.Workers.RolloutWorkerTest do
                args: %{"deployment_id" => deployment.id, "account_id" => server.account_id}
              })
 
-    assert %Deployment{status: :succeeded} = Repo.get!(Deployment, deployment.id)
+    assert %Deployment{status: :running} = Repo.get!(Deployment, deployment.id)
 
     server = Repo.get!(Server, server.id)
-    assert server.status == :active
-    assert server.current_image_tag == "0.5.2"
-    assert server.url =~ ~r/^http:\/\/localhost:\d+$/
-  end
-
-  test "fails the deployment when server activation fails", %{deployment: deployment, server: server} do
-    stub(Provisioner, :rollout, fn %Server{}, _inputs -> :ok end)
-    stub(Kura, :activate_server, fn %Server{}, "0.5.2" -> {:error, :activation_failed} end)
-
-    assert {:error, ":activation_failed"} =
-             RolloutWorker.perform(%Oban.Job{
-               args: %{"deployment_id" => deployment.id, "account_id" => server.account_id}
-             })
-
-    assert %Deployment{status: :failed, error_message: ":activation_failed"} =
-             Repo.get!(Deployment, deployment.id)
-
-    assert %Server{status: :failed} = Repo.get!(Server, server.id)
+    assert server.status == :provisioning
+    assert server.current_image_tag == nil
   end
 
   test "cancels the deployment without provisioning when the server is destroying", %{
@@ -83,7 +67,7 @@ defmodule Tuist.Kura.Workers.RolloutWorkerTest do
     assert %Server{status: :destroying} = Repo.get!(Server, server.id)
   end
 
-  test "does not reactivate a server destroyed while rollout was in flight", %{
+  test "does not activate a server destroyed while rollout was in flight", %{
     deployment: deployment,
     server: server
   } do
@@ -99,17 +83,15 @@ defmodule Tuist.Kura.Workers.RolloutWorkerTest do
                args: %{"deployment_id" => deployment.id, "account_id" => server.account_id}
              })
 
-    assert %Deployment{status: :cancelled, error_message: message} = Repo.get!(Deployment, deployment.id)
-    assert message == "server #{server.id} became destroyed during rollout; skipping activation"
-
+    assert %Deployment{status: :running} = Repo.get!(Deployment, deployment.id)
     assert %Server{status: :destroyed, url: nil} = Repo.get!(Server, server.id)
   end
 
-  test "fails the parent server when a running deployment is picked up again", %{
+  test "re-applies a running deployment without failing the parent server", %{
     deployment: deployment,
     server: server
   } do
-    reject(&Provisioner.rollout/2)
+    stub(Provisioner, :rollout, fn %Server{}, _inputs -> :ok end)
     {:ok, deployment} = Kura.mark_running(deployment)
 
     assert :ok =
@@ -117,12 +99,9 @@ defmodule Tuist.Kura.Workers.RolloutWorkerTest do
                args: %{"deployment_id" => deployment.id, "account_id" => server.account_id}
              })
 
-    assert %Deployment{
-             status: :failed,
-             error_message: "deployment was already running; re-trigger manually"
-           } = Repo.get!(Deployment, deployment.id)
+    assert %Deployment{status: :running, error_message: nil} = Repo.get!(Deployment, deployment.id)
 
-    assert %Server{status: :failed} = Repo.get!(Server, server.id)
+    assert %Server{status: :provisioning} = Repo.get!(Server, server.id)
   end
 
   test "stores the provisioner failure on the deployment", %{deployment: deployment, server: server} do

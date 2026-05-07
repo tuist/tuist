@@ -35,8 +35,8 @@ defmodule Tuist.Kura.Deployment do
     failed: [:failed],
     cancelled: [:cancelled]
   }
-  @image_tag_format ~r/^v?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?\z/
-  @image_tag_message "must be a Kura image tag like 0.5.2, 0.5.2-rc.1, or v0.5.2"
+  @image_tag_format ~r/\A[A-Za-z0-9_][A-Za-z0-9_.-]*\z/
+  @image_tag_message "must be a valid OCI image tag like sha-abcdef123456, latest, or 0.5.2"
 
   @primary_key {:id, :binary_id, autogenerate: true}
   schema "kura_deployments" do

@@ -49,7 +49,6 @@ defmodule Tuist do
       Kura.Deployment,
       Kura.Server,
       Kura.Provisioner,
-      Kura.Provisioner.HelmKubernetes,
       Kura.Provisioner.KubernetesController,
       Kura.Regions,
       Kura.Workers.DestroyServerWorker,

@@ -29,7 +29,7 @@ defmodule Tuist.Kura.DeploymentTest do
     end
 
     test "accepts deployable Kura image tags" do
-      for image_tag <- ["0.5.2", "v0.5.2", "0.5.2-rc.1", "0.5.2-rc.1.2"] do
+      for image_tag <- ["0.5.2", "v0.5.2", "0.5.2-rc.1", "latest", "sha-abcdef123456"] do
         changeset =
           Deployment.create_changeset(%{
             cluster_id: "local",
@@ -42,7 +42,7 @@ defmodule Tuist.Kura.DeploymentTest do
     end
 
     test "rejects tags outside the deployable Kura image tag format" do
-      for image_tag <- ["latest", "0.5", "01.5.2", "0.5.2-", "0.5.2+build.1", "0.5.2\n"] do
+      for image_tag <- ["bad tag", "-bad", ".bad", "bad/tag", "0.5.2+build.1", "0.5.2\n"] do
         changeset =
           Deployment.create_changeset(%{
             cluster_id: "local",
@@ -50,7 +50,7 @@ defmodule Tuist.Kura.DeploymentTest do
             kura_server_id: Ecto.UUID.generate()
           })
 
-        assert %{image_tag: ["must be a Kura image tag like 0.5.2, 0.5.2-rc.1, or v0.5.2"]} =
+        assert %{image_tag: ["must be a valid OCI image tag like sha-abcdef123456, latest, or 0.5.2"]} =
                  errors_on(changeset)
       end
     end
@@ -230,8 +230,8 @@ defmodule Tuist.Kura.DeploymentTest do
     %Server{}
     |> Server.create_changeset(%{
       account_id: account.id,
-      region: "local",
-      provisioner_node_ref: "kura-#{account.name}-local"
+      region: "local-controller",
+      provisioner_node_ref: "kura-#{account.name}-local-controller"
     })
     |> Repo.insert!()
   end

@@ -55,7 +55,9 @@ kind get clusters | grep -qx "$cluster" || \
   kind create cluster --name "$cluster" --config kura/ops/kind/dev-cluster.yaml
 
 docker build -t ghcr.io/tuist/kura-controller:dev -f infra/kura-controller/Dockerfile .
+docker build -t ghcr.io/tuist/kura:dev -f kura/Dockerfile kura
 kind load docker-image ghcr.io/tuist/kura-controller:dev --name "$cluster"
+kind load docker-image ghcr.io/tuist/kura:dev --name "$cluster"
 
 # Optional controller verification from the repository root.
 mise x go@1.25.0 -- go test ./infra/kura-controller/...
@@ -82,7 +84,7 @@ Start the server, open the account settings page, and deploy a server in `Local 
 
 ```bash
 cd server
-mise run dev
+TUIST_KURA_RUNTIME_IMAGE_TAG=dev mise run dev
 ```
 
 After the controller creates the service, port-forward it:
@@ -96,6 +98,8 @@ curl "http://localhost:${port}/up"
 ### Managed Kura Regions
 
 Managed deployments expose the regions listed in `TUIST_KURA_AVAILABLE_REGIONS`. The production Helm overlay currently sets `eu-central,us-east,us-west`, so account settings can deploy one Kura server per account in any managed region that is not already occupied by that account.
+
+Server deploys build and push `ghcr.io/tuist/kura:<sha-tag>` alongside the Tuist server and Kura controller images. Helm passes that tag as `TUIST_KURA_RUNTIME_IMAGE_TAG`; the reconciler uses it to roll active Kura servers forward in lockstep with the server deploy.
 
 Production maps those product regions to Hetzner-backed workload clusters:
 

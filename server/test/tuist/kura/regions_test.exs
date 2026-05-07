@@ -2,7 +2,6 @@ defmodule Tuist.Kura.RegionsTest do
   use ExUnit.Case, async: true
   use Mimic
 
-  alias Tuist.Kura.Provisioner.HelmKubernetes
   alias Tuist.Kura.Provisioner.KubernetesController
   alias Tuist.Kura.Regions
 
@@ -29,19 +28,14 @@ defmodule Tuist.Kura.RegionsTest do
       refute Map.has_key?(Regions.get("eu-central").provisioner_config, :kubernetes_client)
     end
 
-    test "exposes the local dev region backed by HelmKubernetes" do
-      assert %Regions{id: "local", provisioner: HelmKubernetes, provisioner_config: config} =
-               Enum.find(Regions.all(), &(&1.id == "local"))
-
-      assert config.helm_overlay == "local"
-    end
-
     test "exposes a local controller-backed region for kind smoke tests" do
       assert %Regions{id: "local-controller", provisioner: KubernetesController, provisioner_config: config} =
                Enum.find(Regions.all(), &(&1.id == "local-controller"))
 
       assert config.cluster_id == "local-controller"
-      assert config.kubernetes_client[:mode] == :kubectl
+      assert config.kubernetes_client[:mode] == :kubeconfig
+      assert config.kubernetes_client[:kubeconfig_path] == Path.expand("~/.kube/config")
+      assert String.starts_with?(config.kubernetes_client[:context], "kind-kura-dev-")
       assert config.replicas == 1
       assert config.storage_size == "10Gi"
       assert config.node_selector == %{"kubernetes.io/os" => "linux"}
@@ -83,7 +77,7 @@ defmodule Tuist.Kura.RegionsTest do
       assert %Regions{id: "local-controller"} = Regions.available_region("local-controller")
     end
 
-    test "returns nil for a registered region that is not available here" do
+    test "returns nil for regions that are not available here" do
       assert Regions.available_region("local") == nil
       assert Regions.available_region("eu-central") == nil
     end
@@ -115,7 +109,7 @@ defmodule Tuist.Kura.RegionsTest do
 
   describe "fetch/1" do
     test "returns {:ok, region} when found" do
-      assert {:ok, %Regions{id: "local"}} = Regions.fetch("local")
+      assert {:ok, %Regions{id: "local-controller"}} = Regions.fetch("local-controller")
     end
 
     test "returns {:error, :not_found} for an unknown region" do
@@ -128,34 +122,28 @@ defmodule Tuist.Kura.RegionsTest do
       assert Regions.exists?("eu-central")
       assert Regions.exists?("us-east")
       assert Regions.exists?("us-west")
-      assert Regions.exists?("local")
       assert Regions.exists?("local-controller")
+      refute Regions.exists?("local")
       refute Regions.exists?("nope")
       refute Regions.exists?(nil)
       refute Regions.exists?(:eu)
     end
   end
 
-  describe "local region with worktree scoping" do
+  describe "local controller region with worktree scoping" do
     test "kind cluster + URL pick up TUIST_DEV_INSTANCE" do
       stub(Tuist.Environment, :dev_instance_suffix, fn -> 42 end)
-      region = Regions.get("local")
       controller_region = Regions.get("local-controller")
 
-      assert region.provisioner_config.kind_cluster_name == "kura-dev-42"
-      assert region.provisioner_config.public_url == "http://localhost:4042"
-      assert controller_region.provisioner_config.kubernetes_client[:kind_cluster_name] == "kura-dev-42"
+      assert controller_region.provisioner_config.kubernetes_client[:context] == "kind-kura-dev-42"
       assert controller_region.provisioner_config.public_url == "http://localhost:4142"
     end
 
     test "falls back to suffix 0 outside mise" do
       stub(Tuist.Environment, :dev_instance_suffix, fn -> 0 end)
-      region = Regions.get("local")
       controller_region = Regions.get("local-controller")
 
-      assert region.provisioner_config.kind_cluster_name == "kura-dev-0"
-      assert region.provisioner_config.public_url == "http://localhost:4000"
-      assert controller_region.provisioner_config.kubernetes_client[:kind_cluster_name] == "kura-dev-0"
+      assert controller_region.provisioner_config.kubernetes_client[:context] == "kind-kura-dev-0"
       assert controller_region.provisioner_config.public_url == "http://localhost:4100"
     end
   end

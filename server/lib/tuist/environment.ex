@@ -145,6 +145,10 @@ defmodule Tuist.Environment do
     |> Enum.reject(&(&1 == ""))
   end
 
+  def kura_runtime_image_tag(secrets \\ secrets()) do
+    System.get_env("TUIST_KURA_RUNTIME_IMAGE_TAG") || get([:kura, :runtime_image_tag], secrets)
+  end
+
   def prometheus_enabled? do
     prometheus_enabled = System.get_env("TUIST_PROMETHEUS_ENABLED")
 
@@ -191,10 +195,9 @@ defmodule Tuist.Environment do
   Returns the kubeconfig (raw YAML string) for the given Kura cluster
   ID, or `nil` if none is configured.
 
-  Used by the local Helm provisioner and by managed Kura regions that
-  run outside the server's own Kubernetes cluster. Managed regions in
-  the same cluster can still use the server pod's in-cluster
-  ServiceAccount instead.
+  Used by managed Kura regions that run outside the server's own
+  Kubernetes cluster. Managed regions in the same cluster can still use
+  the server pod's in-cluster ServiceAccount instead.
 
   Two sources are checked in order:
 

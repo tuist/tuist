@@ -24,6 +24,11 @@ kuraController:
       cpu: "500m"
       memory: "512Mi"
 
+kuraRuntime:
+  image:
+    repository: ghcr.io/tuist/kura
+    tag: ""
+
 server:
   enabled: true
   replicaCount: 1

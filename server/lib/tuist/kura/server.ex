@@ -17,7 +17,7 @@ defmodule Tuist.Kura.Server do
   `provisioner_node_ref` is the opaque handle the provisioner returned
   from `provision/3`. The control plane stores it untouched and hands
   it back to the provisioner for `rollout/3` and `destroy/1`. For the
-  helm-Kubernetes provisioner it's the helm release name.
+  Kubernetes controller provisioner it's the KuraInstance name.
 
   Per-server install and update attempts live in `kura_deployments` via
   `kura_server_id`. These rows are the deployment records the
@@ -39,10 +39,10 @@ defmodule Tuist.Kura.Server do
     destroying: [:destroying, :destroyed],
     destroyed: [:destroyed]
   }
-  @image_tag_format ~r/^v?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?\z/
-  @image_tag_message "must be a Kura image tag like 0.5.2, 0.5.2-rc.1, or v0.5.2"
+  @image_tag_format ~r/\A[A-Za-z0-9_][A-Za-z0-9_.-]*\z/
+  @image_tag_message "must be a valid OCI image tag like sha-abcdef123456, latest, or 0.5.2"
   @provisioner_node_ref_format ~r/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/
-  @provisioner_node_ref_message "must be a valid Kubernetes RFC1123 label"
+  @provisioner_node_ref_message "must come from an account handle and region that produce a valid Kubernetes RFC1123 label"
 
   @primary_key {:id, :binary_id, autogenerate: true}
   schema "kura_servers" do

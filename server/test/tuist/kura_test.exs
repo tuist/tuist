@@ -15,71 +15,28 @@ defmodule Tuist.KuraTest do
 
   setup :set_mimic_from_context
 
-  setup do
-    Cachex.del(:tuist, "Elixir.Tuist.Kura-versions")
-    :ok
-  end
-
   describe "latest_versions/1" do
-    test "returns kura@* releases newest first" do
-      stub(Req, :get, fn _url, _opts ->
-        {:ok,
-         %Req.Response{
-           status: 200,
-           body: [
-             %{"tag_name" => "kura@0.5.0", "published_at" => "2026-04-01T00:00:00Z"},
-             %{"tag_name" => "kura@0.5.2", "published_at" => "2026-04-29T00:00:00Z"},
-             %{"tag_name" => "kura@0.5.1", "published_at" => "2026-04-15T00:00:00Z"},
-             %{"tag_name" => "tuist@4.188.3", "published_at" => "2026-04-15T00:00:00Z"}
-           ]
-         }}
-      end)
+    test "returns the runtime image tag from the current server deploy" do
+      stub(Tuist.Environment, :kura_runtime_image_tag, fn -> "sha-abcdef123456" end)
 
-      assert ["0.5.2", "0.5.1", "0.5.0"] ==
-               10 |> Kura.latest_versions() |> Enum.map(& &1.version)
-    end
-
-    test "returns an empty list when GitHub is unreachable" do
-      stub(Req, :get, fn _url, _opts -> {:error, :timeout} end)
-
-      assert Kura.latest_versions(10) == []
-    end
-
-    test "does not cache a failed GitHub fetch" do
-      expect(Req, :get, fn _url, _opts -> {:error, :timeout} end)
-
-      expect(Req, :get, fn _url, _opts ->
-        {:ok,
-         %Req.Response{
-           status: 200,
-           body: [
-             %{"tag_name" => "kura@0.5.2", "published_at" => "2026-04-29T00:00:00Z"}
-           ]
-         }}
-      end)
-
-      assert Kura.latest_versions(10) == []
-      assert ["0.5.2"] == 10 |> Kura.latest_versions() |> Enum.map(& &1.version)
+      assert [%{version: "sha-abcdef123456", released_at: nil}] = Kura.latest_versions(10)
     end
 
     test "caps the result at limit" do
-      stub(Req, :get, fn _url, _opts ->
-        {:ok,
-         %Req.Response{
-           status: 200,
-           body:
-             for n <- 0..30 do
-               %{"tag_name" => "kura@0.5.#{n}", "published_at" => "2026-04-#{rem(n, 28) + 1}T00:00:00Z"}
-             end
-         }}
-      end)
+      stub(Tuist.Environment, :kura_runtime_image_tag, fn -> "sha-abcdef123456" end)
 
-      assert length(Kura.latest_versions(5)) == 5
+      assert Kura.latest_versions(0) == []
+    end
+
+    test "returns an empty list when no runtime image tag is configured" do
+      stub(Tuist.Environment, :kura_runtime_image_tag, fn -> nil end)
+
+      assert Kura.latest_versions(10) == []
     end
   end
 
-  describe "schedule_latest_version_deployments/0" do
-    test "enqueues deployments for active servers behind the latest version" do
+  describe "schedule_runtime_image_deployments/0" do
+    test "enqueues deployments for active servers behind the runtime image tag" do
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
 
@@ -92,18 +49,10 @@ defmodule Tuist.KuraTest do
 
       {:ok, server} = Kura.activate_server(server, "0.5.2")
 
-      stub(Req, :get, fn _url, _opts ->
-        {:ok,
-         %Req.Response{
-           status: 200,
-           body: [
-             %{"tag_name" => "kura@0.5.3", "published_at" => "2026-05-06T00:00:00Z"}
-           ]
-         }}
-      end)
+      stub(Tuist.Environment, :kura_runtime_image_tag, fn -> "sha-abcdef123456" end)
 
-      assert {:ok, [%Deployment{image_tag: "0.5.3"} = deployment]} =
-               Kura.schedule_latest_version_deployments()
+      assert {:ok, [%Deployment{image_tag: "sha-abcdef123456"} = deployment]} =
+               Kura.schedule_runtime_image_deployments()
 
       assert deployment.kura_server_id == server.id
 
@@ -113,7 +62,7 @@ defmodule Tuist.KuraTest do
       )
     end
 
-    test "does not enqueue deployments when the active server already runs the latest version" do
+    test "does not enqueue deployments when the active server already runs the runtime image tag" do
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
 
@@ -126,17 +75,9 @@ defmodule Tuist.KuraTest do
 
       {:ok, _server} = Kura.activate_server(server, "0.5.3")
 
-      stub(Req, :get, fn _url, _opts ->
-        {:ok,
-         %Req.Response{
-           status: 200,
-           body: [
-             %{"tag_name" => "kura@0.5.3", "published_at" => "2026-05-06T00:00:00Z"}
-           ]
-         }}
-      end)
+      stub(Tuist.Environment, :kura_runtime_image_tag, fn -> "0.5.3" end)
 
-      assert {:ok, []} = Kura.schedule_latest_version_deployments()
+      assert {:ok, []} = Kura.schedule_runtime_image_deployments()
     end
 
     test "schedules a version only once per server" do
@@ -153,23 +94,15 @@ defmodule Tuist.KuraTest do
       {:ok, server} = Kura.activate_server(server, "0.5.2")
       {:ok, _existing} = Kura.create_deployment(server, "0.5.3")
 
-      stub(Req, :get, fn _url, _opts ->
-        {:ok,
-         %Req.Response{
-           status: 200,
-           body: [
-             %{"tag_name" => "kura@0.5.3", "published_at" => "2026-05-06T00:00:00Z"}
-           ]
-         }}
-      end)
+      stub(Tuist.Environment, :kura_runtime_image_tag, fn -> "0.5.3" end)
 
-      assert {:ok, []} = Kura.schedule_latest_version_deployments()
+      assert {:ok, []} = Kura.schedule_runtime_image_deployments()
     end
 
-    test "does not enqueue deployments when no latest version can be resolved" do
-      stub(Req, :get, fn _url, _opts -> {:error, :timeout} end)
+    test "does not enqueue deployments when no runtime image tag is configured" do
+      stub(Tuist.Environment, :kura_runtime_image_tag, fn -> nil end)
 
-      assert {:ok, []} = Kura.schedule_latest_version_deployments()
+      assert {:ok, []} = Kura.schedule_runtime_image_deployments()
     end
   end
 
@@ -183,7 +116,7 @@ defmodule Tuist.KuraTest do
         |> Server.create_changeset(%{
           account_id: account.id,
           region: "local-controller",
-          provisioner_node_ref: "kura-#{account.name}-local"
+          provisioner_node_ref: "kura-#{account.name}-local-controller"
         })
         |> Repo.insert()
 
@@ -192,7 +125,7 @@ defmodule Tuist.KuraTest do
 
     test "inserts a deployment row and enqueues the rollout worker", %{server: server} do
       assert {:ok, %Deployment{status: :pending} = deployment} =
-               Kura.create_deployment(server, "0.5.2")
+               Kura.create_deployment(server, "sha-abcdef123456")
 
       assert deployment.oban_job_id
       assert deployment.kura_server_id == server.id
@@ -204,9 +137,9 @@ defmodule Tuist.KuraTest do
       )
     end
 
-    test "rejects a non-semver image tag", %{server: server} do
+    test "rejects an invalid OCI image tag", %{server: server} do
       assert {:error, %Ecto.Changeset{errors: [image_tag: _]}} =
-               Kura.create_deployment(server, "latest")
+               Kura.create_deployment(server, "bad tag")
     end
   end
 
@@ -222,7 +155,7 @@ defmodule Tuist.KuraTest do
         |> Server.create_changeset(%{
           account_id: account_a.id,
           region: "local-controller",
-          provisioner_node_ref: "kura-#{account_a.name}-local"
+          provisioner_node_ref: "kura-#{account_a.name}-local-controller"
         })
         |> Repo.insert()
 
@@ -231,7 +164,7 @@ defmodule Tuist.KuraTest do
         |> Server.create_changeset(%{
           account_id: account_b.id,
           region: "local-controller",
-          provisioner_node_ref: "kura-#{account_b.name}-local"
+          provisioner_node_ref: "kura-#{account_b.name}-local-controller"
         })
         |> Repo.insert()
 
@@ -299,6 +232,21 @@ defmodule Tuist.KuraTest do
 
       assert {:ok, _} = Kura.create_server(attrs)
       assert {:error, %Ecto.Changeset{}} = Kura.create_server(attrs)
+    end
+
+    test "returns an account handle error when the generated Kubernetes name is too long" do
+      user = AccountsFixtures.user_fixture(handle: String.duplicate("a", 32))
+      account = Accounts.get_account_from_user(user)
+
+      assert {:error, %Ecto.Changeset{} = changeset} =
+               Kura.create_server(%{
+                 account_id: account.id,
+                 region: "local-controller",
+                 image_tag: "0.5.2"
+               })
+
+      assert {"is too long for Kura in this region; shorten it so the generated Kubernetes resource name stays under 53 characters",
+              _} = changeset.errors[:account_handle]
     end
 
     test "ignores unknown string keys instead of raising", %{account: account} do

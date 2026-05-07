@@ -10,16 +10,10 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   @behaviour Tuist.Kura.Provisioner
 
   alias Tuist.Kubernetes.Client
-  alias Tuist.Kura.Provisioner.HelmKubernetes
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
 
-  require Logger
-
   @namespace "kura"
-  @rollout_timeout_ms to_timeout(minute: 10)
-  @rollout_poll_ms 2_000
-  @delete_timeout_ms to_timeout(minute: 5)
 
   @impl true
   def provision(%{name: handle}, %Regions{} = region, %Server{}) do
@@ -31,17 +25,20 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
         name,
         %{image_tag: image_tag, account: account, server: %Server{} = server, region: %Regions{} = region} = inputs
       ) do
-    with {:ok, hook_script} <- hook_script(inputs),
-         manifest = manifest(name, image_tag, account, region, server, hook_script),
-         {:ok, _} <- client_apply(manifest, region) do
-      wait_until_ready(name, image_tag, region)
+    with {:ok, hook_script} <- hook_script(inputs) do
+      manifest = manifest(name, image_tag, account, region, server, hook_script)
+
+      case client_apply(manifest, region) do
+        {:ok, _} -> :ok
+        {:error, reason} -> {:error, reason}
+      end
     end
   end
 
   @impl true
   def destroy(name, %Regions{} = region) do
     case client_delete_kura_instance(@namespace, name, region) do
-      :ok -> wait_until_deleted(name, region)
+      :ok -> :ok
       {:error, :not_found} -> :ok
       {:error, reason} -> {:error, reason}
     end
@@ -65,7 +62,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   @impl true
   def current_image_tag(name, %Regions{} = region) do
     case client_get_kura_instance(@namespace, name, region) do
-      {:ok, %{"status" => %{"observedImage" => image}}} -> {:ok, HelmKubernetes.image_tag_from_image(image)}
+      {:ok, %{"status" => %{"observedImage" => image}}} -> {:ok, image_tag_from_image(image)}
       {:ok, _} -> {:ok, nil}
       {:error, reason} -> {:error, reason}
     end
@@ -83,6 +80,28 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   def instance_name(handle, %Regions{provisioner_config: %{cluster_id: cluster_id}}) do
     "kura-#{dns_handle(handle)}-#{cluster_id}"
+  end
+
+  @doc false
+  def image_tag_from_image(image) when is_binary(image) do
+    image
+    |> String.trim()
+    |> String.split("/", trim: true)
+    |> List.last()
+    |> image_tag_from_last_path_segment()
+  end
+
+  defp image_tag_from_last_path_segment(nil), do: nil
+
+  defp image_tag_from_last_path_segment(segment) do
+    segment
+    |> String.split("@", parts: 2)
+    |> List.first()
+    |> String.split(":", parts: 2)
+    |> case do
+      [_image, tag] when tag != "" -> tag
+      _ -> nil
+    end
   end
 
   @doc false
@@ -181,15 +200,11 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
     _ -> nil
   end
 
-  defp tuist_base_url(%Regions{provisioner_config: %{kubernetes_client: client_opts}}) do
-    if Keyword.get(client_opts, :mode) == :kubectl do
-      Tuist.Environment.app_url()
-      |> URI.parse()
-      |> rewrite_loopback("host.docker.internal")
-      |> URI.to_string()
-    else
-      Tuist.Environment.app_url()
-    end
+  defp tuist_base_url(%Regions{id: "local-controller"}) do
+    Tuist.Environment.app_url()
+    |> URI.parse()
+    |> rewrite_loopback("host.docker.internal")
+    |> URI.to_string()
   end
 
   defp tuist_base_url(_), do: Tuist.Environment.app_url()
@@ -268,72 +283,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
         if File.regular?(path),
           do: {:ok, File.read!(path)},
           else: {:error, "kura_hook_path #{path} is not a file"}
-    end
-  end
-
-  defp wait_until_ready(name, image_tag, region) do
-    deadline = System.monotonic_time(:millisecond) + @rollout_timeout_ms
-    wait_until_ready(name, "ghcr.io/tuist/kura:#{image_tag}", region, deadline)
-  end
-
-  defp wait_until_ready(name, image, region, deadline) do
-    case client_get_kura_instance(@namespace, name, region) do
-      {:ok, %{"status" => %{"phase" => "Ready", "observedImage" => ^image}}} ->
-        :ok
-
-      {:ok, %{"status" => status}} ->
-        Logger.info(
-          "[Kura.KubernetesController] waiting for #{name}: #{status["message"] || status["phase"] || "pending"}"
-        )
-
-        sleep_or_timeout(
-          fn -> wait_until_ready(name, image, region, deadline) end,
-          deadline,
-          "KuraInstance #{name} did not become ready"
-        )
-
-      {:ok, _} ->
-        Logger.info("[Kura.KubernetesController] waiting for #{name}: status is not published yet")
-
-        sleep_or_timeout(
-          fn -> wait_until_ready(name, image, region, deadline) end,
-          deadline,
-          "KuraInstance #{name} did not become ready"
-        )
-
-      {:error, reason} ->
-        {:error, reason}
-    end
-  end
-
-  defp wait_until_deleted(name, region) do
-    deadline = System.monotonic_time(:millisecond) + @delete_timeout_ms
-    wait_until_deleted(name, region, deadline)
-  end
-
-  defp wait_until_deleted(name, region, deadline) do
-    case client_get_kura_instance(@namespace, name, region) do
-      {:error, :not_found} ->
-        :ok
-
-      {:ok, _} ->
-        sleep_or_timeout(
-          fn -> wait_until_deleted(name, region, deadline) end,
-          deadline,
-          "KuraInstance #{name} was not deleted"
-        )
-
-      {:error, reason} ->
-        {:error, reason}
-    end
-  end
-
-  defp sleep_or_timeout(fun, deadline, message) do
-    if System.monotonic_time(:millisecond) >= deadline do
-      {:error, message}
-    else
-      Process.sleep(@rollout_poll_ms)
-      fun.()
     end
   end
 

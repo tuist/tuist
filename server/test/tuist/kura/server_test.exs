@@ -34,8 +34,8 @@ defmodule Tuist.Kura.ServerTest do
       changeset =
         Server.create_changeset(%{
           account_id: account_id(),
-          region: "local",
-          provisioner_node_ref: "kura-tuist-local"
+          region: "local-controller",
+          provisioner_node_ref: "kura-tuist-local-controller"
         })
 
       assert changeset.valid?
@@ -58,7 +58,7 @@ defmodule Tuist.Kura.ServerTest do
         changeset =
           Server.create_changeset(%{
             account_id: account_id(),
-            region: "local",
+            region: "local-controller",
             provisioner_node_ref: provisioner_node_ref
           })
 
@@ -71,8 +71,8 @@ defmodule Tuist.Kura.ServerTest do
       changeset =
         Server.create_changeset(%{
           account_id: account_id(),
-          region: "local",
-          provisioner_node_ref: "kura-tuist-local",
+          region: "local-controller",
+          provisioner_node_ref: "kura-tuist-local-controller",
           status: :active,
           url: "https://cache.example.com",
           current_image_tag: "0.5.2"
@@ -98,8 +98,8 @@ defmodule Tuist.Kura.ServerTest do
       assert {:error, changeset} =
                %{
                  account_id: -1,
-                 region: "local",
-                 provisioner_node_ref: "kura-tuist-local"
+                 region: "local-controller",
+                 provisioner_node_ref: "kura-tuist-local-controller"
                }
                |> Server.create_changeset()
                |> Repo.insert()
@@ -114,8 +114,8 @@ defmodule Tuist.Kura.ServerTest do
       assert {:error, changeset} =
                %{
                  account_id: account_id,
-                 region: "local",
-                 provisioner_node_ref: "kura-tuist-local-2"
+                 region: "local-controller",
+                 provisioner_node_ref: "kura-tuist-local-controller-2"
                }
                |> Server.create_changeset()
                |> Repo.insert()
@@ -137,8 +137,8 @@ defmodule Tuist.Kura.ServerTest do
       assert {:ok, %Server{status: :provisioning}} =
                %{
                  account_id: account_id,
-                 region: "local",
-                 provisioner_node_ref: "kura-tuist-local-2"
+                 region: "local-controller",
+                 provisioner_node_ref: "kura-tuist-local-controller-2"
                }
                |> Server.create_changeset()
                |> Repo.insert()
@@ -177,7 +177,7 @@ defmodule Tuist.Kura.ServerTest do
 
       refute changeset.valid?
 
-      assert %{current_image_tag: ["must be a Kura image tag like 0.5.2, 0.5.2-rc.1, or v0.5.2"]} =
+      assert %{current_image_tag: ["must be a valid OCI image tag like sha-abcdef123456, latest, or 0.5.2"]} =
                errors_on(changeset)
     end
 
@@ -236,8 +236,8 @@ defmodule Tuist.Kura.ServerTest do
   defp insert_server!(account_id) do
     %{
       account_id: account_id,
-      region: "local",
-      provisioner_node_ref: "kura-tuist-local"
+      region: "local-controller",
+      provisioner_node_ref: "kura-tuist-local-controller"
     }
     |> Server.create_changeset()
     |> Repo.insert!()
@@ -251,9 +251,9 @@ defmodule Tuist.Kura.ServerTest do
         %{
           id: Ecto.UUID.dump!(Ecto.UUID.generate()),
           account_id: account_id,
-          region: "local",
+          region: "local-controller",
           status: 0,
-          provisioner_node_ref: "kura-tuist-local",
+          provisioner_node_ref: "kura-tuist-local-controller",
           inserted_at: now,
           updated_at: now
         },

@@ -17,24 +17,22 @@ defmodule Tuist.Kura.Regions do
     * `provisioner_config` — opaque to the rest of the codebase; only the
       provisioner module reads it.
 
-  The local regions are worktree-scoped via `TUIST_DEV_INSTANCE`: their
-  kind cluster name and forwarded ports are suffixed with the instance
+  The local controller region is worktree-scoped via `TUIST_DEV_INSTANCE`:
+  its kind cluster name and forwarded port are suffixed with the instance
   number so multiple worktrees can run side by side without colliding.
   """
 
-  alias Tuist.Kura.Provisioner.HelmKubernetes
   alias Tuist.Kura.Provisioner.KubernetesController
 
   defstruct [:id, :display_name, :provisioner, :provisioner_config]
 
-  # The local regions' kind cluster + forwarded ports are derived from
+  # The local controller region's kind cluster + forwarded port are derived from
   # `TUIST_DEV_INSTANCE` so each worktree is isolated. Worktree
   # instance N runs Kura on `kura-dev-N`.
-  @local_kura_base_port 4000
   @local_controller_kura_base_port 4100
 
   @doc "All registered regions."
-  def all, do: managed_regions() ++ [local_region(), local_controller_region()]
+  def all, do: managed_regions() ++ [local_controller_region()]
 
   @doc """
   Regions exposed in the current runtime environment. Dev/test sees
@@ -123,22 +121,6 @@ defmodule Tuist.Kura.Regions do
     }
   end
 
-  defp local_region do
-    suffix = Tuist.Environment.dev_instance_suffix()
-
-    %__MODULE__{
-      id: "local",
-      display_name: "Local (kind)",
-      provisioner: HelmKubernetes,
-      provisioner_config: %{
-        cluster_id: "local",
-        helm_overlay: "local",
-        kind_cluster_name: "kura-dev-#{suffix}",
-        public_url: "http://localhost:#{@local_kura_base_port + suffix}"
-      }
-    }
-  end
-
   defp local_controller_region do
     suffix = Tuist.Environment.dev_instance_suffix()
 
@@ -148,8 +130,12 @@ defmodule Tuist.Kura.Regions do
       provisioner: KubernetesController,
       provisioner_config: %{
         cluster_id: "local-controller",
-        kind_cluster_name: "kura-dev-#{suffix}",
-        kubernetes_client: [mode: :kubectl, kind_cluster_name: "kura-dev-#{suffix}"],
+        kubeconfig_context: "kind-kura-dev-#{suffix}",
+        kubernetes_client: [
+          mode: :kubeconfig,
+          kubeconfig_path: Path.expand("~/.kube/config"),
+          context: "kind-kura-dev-#{suffix}"
+        ],
         node_selector: %{"kubernetes.io/os" => "linux"},
         otlp_traces_endpoint: "http://127.0.0.1:4318/v1/traces",
         public_url: "http://localhost:#{@local_controller_kura_base_port + suffix}",

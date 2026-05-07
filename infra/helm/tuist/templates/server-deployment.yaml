@@ -172,6 +172,10 @@ spec:
             - name: TUIST_CACHE_ENDPOINTS
               value: {{ .Values.server.cacheEndpointUrl | default (printf "http://%s:%v" (include "tuist.componentName" (dict "root" . "component" "cache")) .Values.cache.service.port) | quote }}
             {{- end }}
+            {{- if .Values.kuraRuntime.image.tag }}
+            - name: TUIST_KURA_RUNTIME_IMAGE_TAG
+              value: {{ .Values.kuraRuntime.image.tag | quote }}
+            {{- end }}
             {{- $redisUrl := include "tuist.redisUrl" . }}
             {{- if and .Values.redis.enabled $redisUrl }}
             - name: TUIST_REDIS_URL

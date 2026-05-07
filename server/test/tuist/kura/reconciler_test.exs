@@ -1,17 +1,142 @@
 defmodule Tuist.Kura.ReconcilerTest do
   use TuistTestSupport.Cases.DataCase, async: true
+  use Mimic
 
   alias Tuist.Accounts
   alias Tuist.Kura
   alias Tuist.Kura.Deployment
+  alias Tuist.Kura.Provisioner
   alias Tuist.Kura.Reconciler
   alias Tuist.Kura.Server
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
-  @orphan_message "deployment was interrupted by a server restart; re-trigger manually"
+  setup :set_mimic_from_context
 
-  defp running_deployment do
+  setup do
+    stub(Tuist.Environment, :kura_runtime_image_tag, fn -> nil end)
+    stub(Provisioner, :public_url, fn _account, _server -> "http://localhost:4100" end)
+    :ok
+  end
+
+  test "applies a pending deployment when the KuraInstance is missing" do
+    {_account, server, deployment} = create_server()
+
+    expect(Provisioner, :current_image_tag, fn %Server{id: id} ->
+      assert id == server.id
+      {:error, :not_found}
+    end)
+
+    expect(Provisioner, :rollout, fn %Server{id: id}, inputs ->
+      assert id == server.id
+      assert inputs.image_tag == deployment.image_tag
+      :ok
+    end)
+
+    assert :ok = Reconciler.reconcile()
+
+    assert %Deployment{status: :running} = Repo.get!(Deployment, deployment.id)
+    assert %Server{status: :provisioning, current_image_tag: nil} = Repo.get!(Server, server.id)
+  end
+
+  test "marks a deployment succeeded when the controller observes the requested image" do
+    {_account, server, deployment} = create_server()
+    {:ok, deployment} = Kura.mark_running(deployment)
+
+    expect(Provisioner, :current_image_tag, fn %Server{id: id} ->
+      assert id == server.id
+      {:ok, deployment.image_tag}
+    end)
+
+    assert :ok = Reconciler.reconcile()
+
+    assert %Deployment{status: :succeeded, error_message: nil} = Repo.get!(Deployment, deployment.id)
+
+    assert %Server{status: :active, current_image_tag: "0.5.2", url: "http://localhost:4100"} =
+             Repo.get!(Server, server.id)
+  end
+
+  test "schedules and applies runtime image drift for active servers" do
+    {_account, server, deployment} = create_server()
+    {:ok, server} = Kura.activate_server(server, deployment.image_tag)
+    mark_deployment_succeeded(deployment)
+
+    stub(Tuist.Environment, :kura_runtime_image_tag, fn -> "sha-abcdef123456" end)
+
+    expect(Provisioner, :current_image_tag, fn %Server{id: id} ->
+      assert id == server.id
+      {:ok, "0.5.2"}
+    end)
+
+    expect(Provisioner, :rollout, fn %Server{id: id}, inputs ->
+      assert id == server.id
+      assert inputs.image_tag == "sha-abcdef123456"
+      :ok
+    end)
+
+    assert :ok = Reconciler.reconcile()
+
+    assert %Deployment{status: :running} =
+             Repo.get_by!(Deployment, kura_server_id: server.id, image_tag: "sha-abcdef123456")
+  end
+
+  test "marks destroying servers destroyed after the KuraInstance disappears" do
+    {_account, server, deployment} = create_server()
+    {:ok, server} = Kura.activate_server(server, deployment.image_tag)
+    mark_deployment_succeeded(deployment)
+    {:ok, server} = Kura.destroy_server(server)
+
+    expect(Provisioner, :current_image_tag, fn %Server{id: id} ->
+      assert id == server.id
+      {:error, :not_found}
+    end)
+
+    assert :ok = Reconciler.reconcile()
+
+    assert %Server{status: :destroyed} = Repo.get!(Server, server.id)
+  end
+
+  test "keeps destroying servers destroying while the KuraInstance still exists" do
+    {_account, server, deployment} = create_server()
+    {:ok, server} = Kura.activate_server(server, deployment.image_tag)
+    mark_deployment_succeeded(deployment)
+    {:ok, server} = Kura.destroy_server(server)
+
+    expect(Provisioner, :current_image_tag, fn %Server{id: id} ->
+      assert id == server.id
+      {:ok, deployment.image_tag}
+    end)
+
+    expect(Provisioner, :destroy, fn %Server{id: id} ->
+      assert id == server.id
+      :ok
+    end)
+
+    assert :ok = Reconciler.reconcile()
+
+    assert %Server{status: :destroying} = Repo.get!(Server, server.id)
+  end
+
+  test "marks the deployment and server failed when apply fails" do
+    {_account, server, deployment} = create_server()
+
+    expect(Provisioner, :current_image_tag, fn %Server{id: id} ->
+      assert id == server.id
+      {:error, :not_found}
+    end)
+
+    expect(Provisioner, :rollout, fn %Server{id: id}, _inputs ->
+      assert id == server.id
+      {:error, "apply failed"}
+    end)
+
+    assert :ok = Reconciler.reconcile()
+
+    assert %Deployment{status: :failed, error_message: "apply failed"} = Repo.get!(Deployment, deployment.id)
+    assert %Server{status: :failed} = Repo.get!(Server, server.id)
+  end
+
+  defp create_server do
     user = AccountsFixtures.user_fixture()
     account = Accounts.get_account_from_user(user)
 
@@ -22,99 +147,12 @@ defmodule Tuist.Kura.ReconcilerTest do
         image_tag: "0.5.2"
       })
 
-    deployment = List.first(server.deployments)
+    {account, server, List.first(server.deployments)}
+  end
+
+  defp mark_deployment_succeeded(deployment) do
     {:ok, deployment} = Kura.mark_running(deployment)
-    {server, deployment}
-  end
-
-  defp set_oban_state(deployment, state) do
-    job = Repo.get!(Oban.Job, deployment.oban_job_id)
-    job |> Ecto.Changeset.change(%{state: state}) |> Repo.update!()
-  end
-
-  test "fails deployments whose oban job is in a terminal state" do
-    {server, deployment} = running_deployment()
-    set_oban_state(deployment, "discarded")
-
-    Reconciler.reconcile()
-
-    assert %Deployment{status: :failed, error_message: @orphan_message} =
-             Repo.get!(Deployment, deployment.id)
-
-    assert %Server{status: :failed} = Repo.get!(Server, server.id)
-  end
-
-  test "marks an orphaned deployment succeeded when the server was already activated" do
-    {server, deployment} = running_deployment()
-    {:ok, _server} = Kura.activate_server(server, deployment.image_tag)
-    set_oban_state(deployment, "discarded")
-
-    Reconciler.reconcile()
-
-    assert %Deployment{status: :succeeded, error_message: nil} = Repo.get!(Deployment, deployment.id)
-    assert %Server{status: :active, current_image_tag: "0.5.2"} = Repo.get!(Server, server.id)
-  end
-
-  test "runs as an Oban worker" do
-    {_server, deployment} = running_deployment()
-    set_oban_state(deployment, "discarded")
-
-    assert :ok = Reconciler.perform(%Oban.Job{})
-    assert %Deployment{status: :failed, error_message: @orphan_message} = Repo.get!(Deployment, deployment.id)
-  end
-
-  test "fails deployments whose oban job has been purged" do
-    {_server, deployment} = running_deployment()
-    Repo.delete!(Repo.get!(Oban.Job, deployment.oban_job_id))
-
-    Reconciler.reconcile()
-
-    assert %Deployment{status: :failed, error_message: @orphan_message} =
-             Repo.get!(Deployment, deployment.id)
-  end
-
-  test "fails running deployments without an oban job id" do
-    {_server, deployment} = running_deployment()
-    deployment |> Ecto.Changeset.change(%{oban_job_id: nil}) |> Repo.update!()
-
-    Reconciler.reconcile()
-
-    assert %Deployment{status: :failed, error_message: @orphan_message} =
-             Repo.get!(Deployment, deployment.id)
-  end
-
-  test "leaves :running deployments alone when the oban job is still alive" do
-    {server, deployment} = running_deployment()
-    set_oban_state(deployment, "executing")
-
-    Reconciler.reconcile()
-
-    assert %Deployment{status: :running, error_message: nil} =
-             Repo.get!(Deployment, deployment.id)
-
-    assert %Server{status: :provisioning} = Repo.get!(Server, server.id)
-  end
-
-  test "skips deployments that are not :running" do
-    {server, deployment} = running_deployment()
-    {:ok, _} = Kura.mark_succeeded(deployment)
-    set_oban_state(deployment, "discarded")
-
-    Reconciler.reconcile()
-
-    assert %Deployment{status: :succeeded} = Repo.get!(Deployment, deployment.id)
-    assert %Server{status: :provisioning} = Repo.get!(Server, server.id)
-  end
-
-  test "does not unset :destroyed servers when reconciling an orphaned deployment" do
-    {server, deployment} = running_deployment()
-    {:ok, server} = Kura.destroy_server(server)
-    {:ok, _} = Kura.mark_destroyed(server)
-    set_oban_state(deployment, "discarded")
-
-    Reconciler.reconcile()
-
-    assert %Deployment{status: :failed} = Repo.get!(Deployment, deployment.id)
-    assert %Server{status: :destroyed} = Repo.get!(Server, server.id)
+    {:ok, deployment} = Kura.mark_succeeded(deployment)
+    deployment
   end
 end

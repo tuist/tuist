@@ -2,13 +2,12 @@ defmodule Tuist.Kura.Workers.RolloutWorker do
   @moduledoc """
   Executes a single Kura deployment record through `Tuist.Kura.Provisioner`.
 
-  Intentionally thin: load the deployment record and parent server,
-  mark `:running`, hand it to the provisioner, translate the outcome
-  into row state. Provisioner-specific machinery (Helm shells, Kubernetes
-  API calls, controller status polling) lives behind the behaviour; this
-  worker has no opinion about how the rollout happens.
+  Intentionally thin: load the deployment record and parent server, mark
+  `:running`, and apply the desired `KuraInstance`. Readiness is observed
+  asynchronously by `Tuist.Kura.Reconciler`, so this worker never waits on
+  Kubernetes rollout status.
   """
-  use Oban.Worker, queue: :default, max_attempts: 1
+  use Oban.Worker, queue: :kura_rollout, max_attempts: 1
 
   alias Tuist.Kura
   alias Tuist.Kura.Deployment
@@ -25,10 +24,6 @@ defmodule Tuist.Kura.Workers.RolloutWorker do
         Logger.warning("[Kura.RolloutWorker] deployment #{id} not found")
         :ok
 
-      {:ok, %Deployment{status: :running} = deployment} ->
-        fail_running(deployment)
-        :ok
-
       {:ok, %Deployment{status: status}} when status in [:succeeded, :failed, :cancelled] ->
         Logger.info("[Kura.RolloutWorker] deployment #{id} already in #{status}")
         :ok
@@ -36,11 +31,6 @@ defmodule Tuist.Kura.Workers.RolloutWorker do
       {:ok, %Deployment{} = deployment} ->
         execute(deployment)
     end
-  end
-
-  defp fail_running(%Deployment{} = deployment) do
-    deployment = Repo.preload(deployment, :kura_server)
-    fail(deployment, deployment.kura_server, "deployment was already running; re-trigger manually")
   end
 
   defp execute(%Deployment{} = deployment) do
@@ -63,35 +53,28 @@ defmodule Tuist.Kura.Workers.RolloutWorker do
   end
 
   defp roll(deployment, %Server{} = server) do
-    {:ok, deployment} = Kura.mark_running(deployment)
+    with {:ok, deployment} <- ensure_running(deployment) do
+      inputs = %{
+        image_tag: deployment.image_tag,
+        account: server.account,
+        server: server
+      }
 
-    inputs = %{
-      image_tag: deployment.image_tag,
-      account: server.account,
-      server: server
-    }
+      case Provisioner.rollout(server, inputs) do
+        :ok ->
+          :ok
 
-    case Provisioner.rollout(server, inputs) do
-      :ok ->
-        case Kura.activate_server(server, deployment.image_tag) do
-          {:ok, _} ->
-            {:ok, _} = Kura.mark_succeeded(deployment)
-            :ok
+        {:error, :not_found} ->
+          fail(deployment, server, "region #{server.region} is no longer in the catalog")
 
-          {:error, status} when status in [:server_destroying, :server_destroyed] ->
-            cancel(deployment, "server #{server.id} became #{server_status(status)} during rollout; skipping activation")
-
-          {:error, reason} ->
-            fail(deployment, server, reason)
-        end
-
-      {:error, :not_found} ->
-        fail(deployment, server, "region #{server.region} is no longer in the catalog")
-
-      {:error, reason} ->
-        fail(deployment, server, reason)
+        {:error, reason} ->
+          fail(deployment, server, reason)
+      end
     end
   end
+
+  defp ensure_running(%Deployment{status: :running} = deployment), do: {:ok, deployment}
+  defp ensure_running(%Deployment{} = deployment), do: Kura.mark_running(deployment)
 
   defp fail(deployment, server, reason) do
     message = if is_binary(reason), do: reason, else: inspect(reason)
@@ -99,7 +82,4 @@ defmodule Tuist.Kura.Workers.RolloutWorker do
     if server, do: Kura.fail_server(server)
     {:error, message}
   end
-
-  defp server_status(:server_destroying), do: "destroying"
-  defp server_status(:server_destroyed), do: "destroyed"
 end

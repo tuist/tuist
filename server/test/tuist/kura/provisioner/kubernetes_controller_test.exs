@@ -78,7 +78,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
   end
 
   describe "rollout/2" do
-    test "applies the KuraInstance and waits for the controller status" do
+    test "applies the KuraInstance without waiting for controller readiness" do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
       stub(Tuist.Environment, :secret_key_tokens, fn -> "jwt-secret" end)
       stub(Tuist.License, :get_license, fn -> {:ok, %{signing_key: "signing-secret"}} end)
@@ -87,17 +87,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
         assert manifest["metadata"]["name"] == "kura-tuist-eu-central-1"
         assert manifest["spec"]["image"] == "ghcr.io/tuist/kura:0.5.2"
         {:ok, manifest}
-      end)
-
-      expect(Client, :get_kura_instance, fn "kura", "kura-tuist-eu-central-1" ->
-        {:ok,
-         %{
-           "status" => %{
-             "phase" => "Ready",
-             "observedImage" => "ghcr.io/tuist/kura:0.5.2",
-             "readyReplicas" => 3
-           }
-         }}
       end)
 
       assert :ok =
@@ -123,19 +112,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
         assert manifest["metadata"]["name"] == "kura-tuist-us-east-1"
         assert manifest["spec"]["region"] == "us-east"
         {:ok, manifest}
-      end)
-
-      expect(Client, :get_kura_instance, fn "kura", "kura-tuist-us-east-1", opts ->
-        assert opts == client_opts
-
-        {:ok,
-         %{
-           "status" => %{
-             "phase" => "Ready",
-             "observedImage" => "ghcr.io/tuist/kura:0.5.2",
-             "readyReplicas" => 3
-           }
-         }}
       end)
 
       assert :ok =
@@ -172,13 +148,37 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
   describe "current_image_tag/2" do
     test "passes local Kubernetes client options through" do
       expect(Client, :get_kura_instance, fn "kura", "kura-tuist-local-controller", opts ->
-        assert opts == [mode: :kubectl, kind_cluster_name: "kura-dev-0"]
+        assert opts == [
+                 mode: :kubeconfig,
+                 kubeconfig_path: Path.expand("~/.kube/config"),
+                 context: "kind-kura-dev-0"
+               ]
 
-        {:ok, %{"status" => %{"observedImage" => "ghcr.io/tuist/kura:0.5.2"}}}
+        {:ok, %{"status" => %{"observedImage" => "ghcr.io/tuist/kura:sha-abcdef123456"}}}
       end)
 
-      assert {:ok, "0.5.2"} =
+      assert {:ok, "sha-abcdef123456"} =
                KubernetesController.current_image_tag("kura-tuist-local-controller", local_controller_region())
+    end
+  end
+
+  describe "image_tag_from_image/1" do
+    test "extracts the tag from a normal image reference" do
+      assert KubernetesController.image_tag_from_image("ghcr.io/tuist/kura:0.5.2") == "0.5.2"
+    end
+
+    test "extracts the tag from an image reference that uses a registry port" do
+      assert KubernetesController.image_tag_from_image("localhost:5001/tuist/kura:0.5.2") == "0.5.2"
+    end
+
+    test "returns nil when the image reference has no tag" do
+      assert KubernetesController.image_tag_from_image("ghcr.io/tuist/kura") == nil
+      assert KubernetesController.image_tag_from_image("ghcr.io/tuist/kura@sha256:abc123") == nil
+    end
+
+    test "extracts the tag from a reference that also has a digest" do
+      assert KubernetesController.image_tag_from_image("ghcr.io/tuist/kura:sha-abcdef123456@sha256:abc123") ==
+               "sha-abcdef123456"
     end
   end
 
@@ -252,7 +252,11 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       id: "local-controller",
       provisioner_config: %{
         cluster_id: "local-controller",
-        kubernetes_client: [mode: :kubectl, kind_cluster_name: "kura-dev-0"],
+        kubernetes_client: [
+          mode: :kubeconfig,
+          kubeconfig_path: Path.expand("~/.kube/config"),
+          context: "kind-kura-dev-0"
+        ],
         node_selector: %{"kubernetes.io/os" => "linux"},
         otlp_traces_endpoint: "http://127.0.0.1:4318/v1/traces",
         public_url: "http://localhost:4100",

@@ -1,42 +1,33 @@
 defmodule Tuist.Kura.Reconciler do
   @moduledoc """
-  Cleans up Kura deployments stranded in `:running` after a server crash
-  or restart.
+  Primary reconciliation loop for Kura servers.
 
-  `Tuist.Kura.Workers.RolloutWorker` is `max_attempts: 1`. When the
-  worker's BEAM is killed mid-flight (SIGTERM during a rolling deploy,
-  SIGKILL on OOM) Oban has no retry budget left — the job ends up
-  `discarded`/`cancelled` and is never picked back up. The deployment
-  row stays in `:running` forever, and the worker explicitly bails on
-  pre-existing `:running` rows to avoid re-entrancy, so manual SQL is
-  the only way out.
+  Desired state lives in Postgres (`kura_servers` and `kura_deployments`)
+  plus the deploy-provided Kura runtime image tag. Actual state lives in
+  `KuraInstance.status`, owned by the Go controller. This worker closes
+  the gap periodically: it schedules image drift, applies pending
+  deployments, mirrors observed readiness back into Postgres, and
+  finalises destroys after the custom resource disappears.
 
-  The reconciler runs periodically through Oban Cron and walks every
-  `:running` row. If the associated Oban job is in a terminal state —
-  or gone — the deployment is marked `:failed` (and the parent server
-  with it, to match how the worker reports rollout failures). Jobs
-  still alive (`executing` on another node, `available`/`scheduled`/
-  `retryable` pending pickup) are left untouched: the worker handles
-  those itself.
-
-  A deliberately conservative design: we never auto-resume a rollout.
-  `rollout.sh` is idempotent, but the cluster-side state may be
-  mid-helm-upgrade and an operator should look before re-triggering.
+  Rollout and destroy workers are intentionally short-lived nudges so a
+  user action starts quickly. They do not wait for Kubernetes readiness.
+  If a BEAM dies mid-action, this loop observes the same rows on the next
+  tick and converges again.
   """
 
   use Oban.Worker, queue: :default, max_attempts: 1
 
   import Ecto.Query
 
+  alias Tuist.Kura
   alias Tuist.Kura.Deployment
+  alias Tuist.Kura.Provisioner
   alias Tuist.Kura.Server
   alias Tuist.Repo
 
   require Logger
 
-  @reason "deployment was interrupted by a server restart; re-trigger manually"
-  @terminal_oban_states ~w(completed discarded cancelled)
-  @server_statuses_to_fail [:provisioning, :active, :failed]
+  @deployment_statuses [:pending, :running]
 
   @impl Oban.Worker
   def perform(%Oban.Job{}) do
@@ -44,131 +35,138 @@ defmodule Tuist.Kura.Reconciler do
   end
 
   def reconcile do
-    # Intentional cross-tenant scan: this is a system-level recovery job
-    # (Oban Cron) detecting deployments stranded after a server restart.
-    # It only ever transitions a `:running` row to `:failed`, never reads
-    # back to a tenant-facing surface, so there's no leak path; account
-    # isolation is enforced at the writer (Tuist.Kura.mark_failed/2).
-    deployments =
-      Deployment
-      |> where([d], d.status == :running)
-      |> preload(:kura_server)
-      |> Repo.all()
+    with {:ok, scheduled} <- Kura.schedule_runtime_image_deployments() do
+      log_scheduled_deployments(scheduled)
+      reconcile_destroying_servers()
+      reconcile_deployments()
+    end
+  end
 
-    job_states = oban_job_states(deployments)
+  defp log_scheduled_deployments([]), do: :ok
 
-    deployments
-    |> Enum.reject(&(Map.get(job_states, &1.oban_job_id, :orphaned) == :alive))
-    |> reconcile_orphaned_deployments()
-
+  defp log_scheduled_deployments(deployments) do
+    Logger.info("[Kura.Reconciler] scheduled #{length(deployments)} runtime image deployment(s)")
     :ok
   end
 
-  defp reconcile_orphaned_deployments([]), do: :ok
-
-  defp reconcile_orphaned_deployments(deployments) do
-    {already_activated, failed} = Enum.split_with(deployments, &deployment_already_activated?/1)
-
-    mark_deployments_succeeded(already_activated)
-    mark_deployments_failed(failed)
-    fail_servers_for(failed)
-
-    :ok
-  end
-
-  defp deployment_already_activated?(%Deployment{
-         image_tag: image_tag,
-         kura_server: %Server{status: :active, current_image_tag: current_image_tag}
-       }) do
-    current_image_tag == image_tag
-  end
-
-  defp deployment_already_activated?(_), do: false
-
-  defp oban_job_states(deployments) do
-    # Intentional cross-tenant lookup: the reconciler runs as a
-    # background job to detect orphaned deployments after a web-process
-    # crash, and Oban jobs aren't account-scoped to begin with. The
-    # deployment rows carrying job_ids are already account-owned, so
-    # there's no leak: we only act on rows this job already loaded.
-    job_ids =
-      deployments
-      |> Enum.map(& &1.oban_job_id)
-      |> Enum.reject(&is_nil/1)
-      |> Enum.uniq()
-
-    Oban.Job
-    |> where([j], j.id in ^job_ids)
-    |> select([j], {j.id, j.state})
+  defp reconcile_destroying_servers do
+    Server
+    |> where([s], s.status == :destroying)
     |> Repo.all()
-    |> Map.new(fn
-      {id, state} when state in @terminal_oban_states -> {id, :orphaned}
-      {id, _state} -> {id, :alive}
-    end)
-  end
-
-  defp mark_deployments_succeeded([]), do: :ok
-
-  defp mark_deployments_succeeded(deployments) do
-    Enum.each(deployments, fn deployment ->
-      Logger.info("[Kura.Reconciler] marking already-activated orphaned deployment #{deployment.id} as succeeded")
-    end)
-
-    update_deployments(deployments, %{
-      status: :succeeded,
-      error_message: nil,
-      finished_at: now_truncated()
-    })
-  end
-
-  defp mark_deployments_failed([]), do: :ok
-
-  defp mark_deployments_failed(deployments) do
-    Enum.each(deployments, fn deployment ->
-      Logger.info("[Kura.Reconciler] failing orphaned deployment #{deployment.id}")
-    end)
-
-    update_deployments(deployments, %{
-      status: :failed,
-      error_message: @reason,
-      finished_at: now_truncated()
-    })
-  end
-
-  defp update_deployments(deployments, attrs) do
-    ids = Enum.map(deployments, & &1.id)
-    timestamp = now_truncated()
-
-    Deployment
-    |> where([d], d.id in ^ids and d.status == :running)
-    |> Repo.update_all(set: attrs |> Map.put(:updated_at, timestamp) |> Map.to_list())
+    |> Enum.each(&reconcile_destroying_server/1)
 
     :ok
   end
 
-  defp fail_servers_for(deployments) do
-    server_ids =
-      deployments
-      |> Enum.flat_map(fn
-        %Deployment{kura_server: %Server{id: id, status: status}} when status in @server_statuses_to_fail -> [id]
-        _deployment -> []
-      end)
-      |> Enum.uniq()
-
-    case server_ids do
-      [] ->
+  defp reconcile_destroying_server(%Server{} = server) do
+    case Provisioner.current_image_tag(server) do
+      {:error, :not_found} ->
+        {:ok, _} = Kura.mark_destroyed(server)
         :ok
 
-      server_ids ->
-        timestamp = now_truncated()
+      {:ok, _image_tag} ->
+        case Provisioner.destroy(server) do
+          :ok ->
+            :ok
 
-        Server
-        |> where([s], s.id in ^server_ids and s.status in ^@server_statuses_to_fail)
-        |> Repo.update_all(set: [status: :failed, updated_at: timestamp])
+          {:error, reason} ->
+            Logger.warning("[Kura.Reconciler] destroy failed for server #{server.id}: #{inspect(reason)}")
+            :ok
+        end
 
+      {:error, reason} ->
+        Logger.warning("[Kura.Reconciler] could not observe destroying server #{server.id}: #{inspect(reason)}")
         :ok
     end
   end
 
-  defp now_truncated, do: DateTime.truncate(DateTime.utc_now(), :second)
+  defp reconcile_deployments do
+    Enum.each(latest_open_deployments(), &reconcile_deployment/1)
+    :ok
+  end
+
+  defp latest_open_deployments do
+    Deployment
+    |> where([d], d.status in ^@deployment_statuses)
+    |> join(:inner, [d], s in assoc(d, :kura_server))
+    |> order_by([d, _s], desc: d.inserted_at, desc: d.id)
+    |> preload([_d, s], kura_server: {s, :account})
+    |> Repo.all()
+    |> Enum.uniq_by(& &1.kura_server_id)
+  end
+
+  defp reconcile_deployment(%Deployment{kura_server: %Server{status: status} = server} = deployment)
+       when status in [:destroying, :destroyed] do
+    cancel(deployment, "server #{server.id} is #{server.status}; skipping rollout")
+  end
+
+  defp reconcile_deployment(%Deployment{kura_server: %Server{} = server} = deployment) do
+    case Provisioner.current_image_tag(server) do
+      {:ok, image_tag} when image_tag == deployment.image_tag ->
+        activate_and_mark_succeeded(deployment, server)
+
+      {:ok, _other_image_tag} ->
+        apply_deployment(deployment, server)
+
+      {:error, :not_found} ->
+        apply_deployment(deployment, server)
+
+      {:error, reason} ->
+        Logger.warning("[Kura.Reconciler] could not observe deployment #{deployment.id}: #{inspect(reason)}")
+        :ok
+    end
+  end
+
+  defp activate_and_mark_succeeded(%Deployment{} = deployment, %Server{} = server) do
+    case Kura.activate_server(server, deployment.image_tag) do
+      {:ok, _server} ->
+        {:ok, _deployment} = Kura.mark_succeeded(deployment)
+        :ok
+
+      {:error, status} when status in [:server_destroying, :server_destroyed] ->
+        cancel(deployment, "server #{server.id} became #{server_status(status)} during rollout; skipping activation")
+
+      {:error, reason} ->
+        fail(deployment, server, reason)
+    end
+  end
+
+  defp apply_deployment(%Deployment{} = deployment, %Server{} = server) do
+    with {:ok, deployment} <- ensure_running(deployment) do
+      inputs = %{
+        image_tag: deployment.image_tag,
+        account: server.account,
+        server: server
+      }
+
+      case Provisioner.rollout(server, inputs) do
+        :ok ->
+          :ok
+
+        {:error, :not_found} ->
+          fail(deployment, server, "region #{server.region} is no longer in the catalog")
+
+        {:error, reason} ->
+          fail(deployment, server, reason)
+      end
+    end
+  end
+
+  defp ensure_running(%Deployment{status: :running} = deployment), do: {:ok, deployment}
+  defp ensure_running(%Deployment{} = deployment), do: Kura.mark_running(deployment)
+
+  defp cancel(deployment, message) do
+    {:ok, _} = Kura.mark_cancelled(deployment, message)
+    :ok
+  end
+
+  defp fail(deployment, server, reason) do
+    message = if is_binary(reason), do: reason, else: inspect(reason)
+    {:ok, _} = Kura.mark_failed(deployment, message)
+    if server, do: Kura.fail_server(server)
+    :ok
+  end
+
+  defp server_status(:server_destroying), do: "destroying"
+  defp server_status(:server_destroyed), do: "destroyed"
 end

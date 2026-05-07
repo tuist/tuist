@@ -416,7 +416,7 @@ otel_endpoint = Tuist.Environment.get([:otel, :exporter, :otlp, :endpoint])
 #     flags the server would race the processors on SKIP LOCKED, and
 #     on Linux the xcresult parse would crash because the macOS-only
 #     NIF isn't loaded.
-base_queues = [default: 10]
+base_queues = [default: 10, kura_rollout: 5]
 process_build_queue = {:process_build, Tuist.Environment.process_build_queue_concurrency()}
 process_xcresult_queue = {:process_xcresult, Tuist.Environment.process_xcresult_queue_concurrency()}
 
@@ -465,8 +465,7 @@ config :tuist, Oban,
            {"@daily", Tuist.Billing.Workers.SyncStripeMetersWorker},
            {"@daily", Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker},
            {"@hourly", Tuist.Tests.Workers.ExpireStaleTestRunsWorker},
-           {"@hourly", Tuist.Kura.Workers.VersionMonitorWorker},
-           {"*/10 * * * *", Tuist.Kura.Reconciler},
+           {"* * * * *", Tuist.Kura.Reconciler},
            {"* * * * *", Tuist.Automations.Workers.AutomationScheduler}
          ],
          else: []
@@ -477,18 +476,8 @@ if Tuist.Environment.processor_mode?() do
   config :tuist, Oban, peer: false
 end
 
-# Kura rollout assets. Production writes KuraInstance CRs for the Go
-# controller and only bakes the Tuist Lua extension hook into the OTP
-# release. The Helm chart remains available in dev/test for the legacy
-# local Helm provisioner. Each env is enumerated explicitly so a new one
-# fails loudly rather than silently picking the wrong path.
-kura_chart_path =
-  case env do
-    e when e in [:prod, :stag, :can] -> nil
-    e when e in [:dev, :test] -> Path.expand("../kura/ops/helm/kura", File.cwd!())
-    other -> raise "unknown env #{inspect(other)} for :kura_chart_path; add it to runtime.exs"
-  end
-
+# Kura controller rollout assets. Each env is enumerated explicitly so a
+# new one fails loudly rather than silently picking the wrong hook path.
 kura_hook_path =
   case env do
     e when e in [:prod, :stag, :can] -> Application.app_dir(:tuist, "priv/kura/hooks/tuist.lua")
@@ -513,7 +502,6 @@ config :tuist, Tuist.PromEx,
     auth_strategy: :none
   ]
 
-config :tuist, :kura_chart_path, kura_chart_path
 config :tuist, :kura_hook_path, kura_hook_path
 
 if otel_endpoint do

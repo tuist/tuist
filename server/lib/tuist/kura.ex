@@ -22,9 +22,6 @@ defmodule Tuist.Kura do
   alias Phoenix.PubSub
   alias Tuist.Accounts
   alias Tuist.Accounts.AccountCacheEndpoint
-  alias Tuist.GitHub.Releases
-  alias Tuist.GitHub.Retry
-  alias Tuist.KeyValueStore
   alias Tuist.Kura.Deployment
   alias Tuist.Kura.Provisioner
   alias Tuist.Kura.Reconciler
@@ -34,114 +31,65 @@ defmodule Tuist.Kura do
   alias Tuist.Kura.Workers.RolloutWorker
   alias Tuist.Repo
 
-  require Logger
-
   @pubsub Tuist.PubSub
-  @versions_cache_key [__MODULE__, "versions"]
-  @versions_cache_ttl to_timeout(hour: 1)
-  @versions_cache_opts [ttl: @versions_cache_ttl, persist_across_deployments: true]
   @create_server_keys %{
     "account_id" => :account_id,
     "region" => :region,
     "image_tag" => :image_tag
   }
   @create_server_atom_keys Map.values(@create_server_keys)
+  @provisioner_node_ref_format ~r/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/
+  @provisioner_node_ref_max_length 53
 
-  @doc "Reconciles Kura deployments stranded in `:running` after a server restart."
+  @doc "Reconciles desired Kura server rows with the observed Kubernetes state."
   def reconcile_orphaned_deployments, do: Reconciler.reconcile()
 
   ## Versions
 
   @doc """
-  Returns published Kura versions newest first.
+  Returns the Kura runtime image tag configured for the current Tuist
+  server deploy.
 
-  Reads through `Tuist.KeyValueStore` with a one-hour TTL: the first
-  request after a cold start (or after the TTL expires) calls GitHub
-  Releases; subsequent successful calls hit the in-memory or Redis
-  cache. No background worker, no `kura_versions` table — the source
-  of truth is the GitHub release feed.
-
-  Returns a list of `%{version: String.t(), released_at: DateTime.t()}`
-  maps, newest first, capped at `limit`. Returns `[]` when the
-  GitHub call fails so callers (e.g. /ops version dropdown) degrade
-  gracefully. Failed fetches are not cached, so a transient GitHub
-  outage does not pin the UI to an empty result for the full TTL.
+  Managed deploys build the Kura runtime image with the same `sha-*` tag
+  as the server and controller images, then pass that tag through Helm as
+  `TUIST_KURA_RUNTIME_IMAGE_TAG`. Returning it through the older
+  `latest_versions/1` shape keeps the account settings UI and ops code
+  simple while making the deploy SHA, not GitHub Releases, the source of
+  truth.
   """
   def latest_versions(limit \\ 20) when is_integer(limit) do
-    versions =
-      case KeyValueStore.get(@versions_cache_key, @versions_cache_opts) do
-        nil ->
-          case fetch_versions() do
-            [] = versions ->
-              versions
-
-            versions ->
-              _ = KeyValueStore.put(@versions_cache_key, versions, @versions_cache_opts)
-              versions
-          end
-
-        versions ->
-          versions
-      end
-
-    Enum.take(versions, limit)
-  end
-
-  defp fetch_versions do
-    headers = [
-      {"Accept", "application/vnd.github.v3+json"}
-      | github_auth_headers()
-    ]
-
-    req_opts = [finch: Tuist.Finch, headers: headers] ++ Retry.retry_options()
-
-    case Req.get(Releases.releases_url() <> "?per_page=100", req_opts) do
-      {:ok, %Req.Response{status: 200, body: releases}} when is_list(releases) ->
-        releases
-        |> Enum.flat_map(&extract_kura_release/1)
-        |> Enum.sort_by(& &1.released_at, {:desc, DateTime})
-
-      {:ok, %Req.Response{status: status}} ->
-        Logger.warning("[Kura.latest_versions] GitHub responded with #{status}")
-        []
-
-      {:error, reason} ->
-        Logger.warning("[Kura.latest_versions] GitHub request failed: #{inspect(reason)}")
-        []
-    end
-  end
-
-  defp github_auth_headers do
-    case Tuist.Environment.github_token_update_package_releases() do
+    runtime_image_tag()
+    |> case do
       nil -> []
-      token -> [{"Authorization", "Bearer #{token}"}]
+      tag -> [%{version: tag, released_at: nil}]
     end
+    |> Enum.take(limit)
   end
-
-  # Releases are tagged like `kura@0.5.2`. Returns a list with one entry
-  # for matching tags, dropped otherwise.
-  defp extract_kura_release(%{"tag_name" => "kura@" <> version, "published_at" => published_at}) do
-    case DateTime.from_iso8601(published_at) do
-      {:ok, dt, _offset} -> [%{version: version, released_at: DateTime.truncate(dt, :second)}]
-      _ -> []
-    end
-  end
-
-  defp extract_kura_release(_), do: []
 
   @doc """
   Enqueues deployments for active Kura servers that are behind the
-  newest published Kura release.
+  Kura runtime image tag configured on the current Tuist server deploy.
 
   Each `(server, image_tag)` pair is scheduled at most once. A failed
-  deployment for the newest version is intentionally not retried by the
-  monitor; operators can inspect and re-trigger it manually, while the
-  next Kura release will be scheduled normally.
+  deployment for the configured image is intentionally not retried here;
+  operators can inspect and re-trigger it manually, while the next Tuist
+  deploy SHA will be scheduled normally.
   """
-  def schedule_latest_version_deployments do
-    case latest_versions(1) do
-      [] -> {:ok, []}
-      [%{version: image_tag} | _] -> schedule_version_deployments(image_tag)
+  def schedule_runtime_image_deployments do
+    case runtime_image_tag() do
+      nil -> {:ok, []}
+      image_tag -> schedule_version_deployments(image_tag)
+    end
+  end
+
+  defp runtime_image_tag do
+    case Tuist.Environment.kura_runtime_image_tag() do
+      tag when is_binary(tag) ->
+        tag = String.trim(tag)
+        if tag == "", do: nil, else: tag
+
+      _ ->
+        nil
     end
   end
 
@@ -191,10 +139,41 @@ defmodule Tuist.Kura do
 
     with {:ok, region} <- fetch_region(attrs[:region]),
          {:ok, account} <- Accounts.get_account_by_id(attrs[:account_id]),
-         {:ok, ref} <- region.provisioner.provision(account, region, server_stub(attrs)) do
+         {:ok, ref} <- region.provisioner.provision(account, region, server_stub(attrs)),
+         :ok <- validate_provisioner_node_ref(account, ref) do
       attrs = Map.put(attrs, :provisioner_node_ref, ref)
       insert_server_and_enqueue(attrs, region)
     end
+  end
+
+  defp validate_provisioner_node_ref(account, ref) do
+    cond do
+      not is_binary(ref) or ref == "" ->
+        {:error, account_handle_error(account, "produced an empty Kubernetes resource name for Kura")}
+
+      String.length(ref) > @provisioner_node_ref_max_length ->
+        {:error,
+         account_handle_error(
+           account,
+           "is too long for Kura in this region; shorten it so the generated Kubernetes resource name stays under #{@provisioner_node_ref_max_length} characters"
+         )}
+
+      not Regex.match?(@provisioner_node_ref_format, ref) ->
+        {:error,
+         account_handle_error(
+           account,
+           "must contain only letters, numbers, or hyphens so Kura can create Kubernetes resources"
+         )}
+
+      true ->
+        :ok
+    end
+  end
+
+  defp account_handle_error(_account, message) do
+    %Server{}
+    |> Ecto.Changeset.change()
+    |> Ecto.Changeset.add_error(:account_handle, message)
   end
 
   defp insert_server_and_enqueue(attrs, region) do

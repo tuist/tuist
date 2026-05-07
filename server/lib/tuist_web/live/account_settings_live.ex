@@ -249,7 +249,10 @@ defmodule TuistWeb.AccountSettingsLive do
          socket
          |> put_flash(
            :error,
-           dgettext("dashboard_account", "Could not resolve a Kura release from GitHub right now. Try again shortly.")
+           dgettext(
+             "dashboard_account",
+             "No Kura runtime image is configured right now. Try again after the next server deploy."
+           )
          )
          |> push_event("close-modal", %{id: "add-kura-server-modal"})}
 
@@ -493,12 +496,12 @@ defmodule TuistWeb.AccountSettingsLive do
                   <% nil -> %>
                     {dgettext(
                       "dashboard_account",
-                      "No Kura release is available right now. Try again shortly if GitHub was temporarily unavailable."
+                      "No Kura runtime image is configured right now. Try again after the next server deploy."
                     )}
                   <% version -> %>
                     {dgettext("dashboard_account", "New servers start on Kura")}
                     <strong>{version.version}</strong>
-                    {dgettext("dashboard_account", "(latest cached release).")}
+                    {dgettext("dashboard_account", "(current deploy).")}
                 <% end %>
               </p>
             </div>
