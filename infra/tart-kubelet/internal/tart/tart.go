@@ -91,17 +91,59 @@ func (c *Client) Set(ctx context.Context, name string, cpu, memoryMB int) error 
 	return err
 }
 
-// Run launches a VM in the background and returns as soon as the
-// `tart run` process is alive. It does NOT wait for the guest to
-// obtain an IP — that's the reconciler's job (via Tart.IP, polled
-// from podStatus). Decoupling makes the VM lifecycle bound by the
-// Pod lifecycle rather than by an arbitrary in-process timeout: a
-// slow-but-still-booting guest stays alive across reconcile passes
-// and the Pod transitions to Running the moment configd hands out
-// a DHCP lease, however many minutes that takes. Helm's own
-// `--wait --timeout` is the right place for a top-level deadline;
-// having a second one inside Run that destroyed the VM on expiry
-// just forced re-clones and re-boots that hit the same wall.
+// RunHandle exposes the lifecycle of a backgrounded `tart run`
+// process. The reconciler stashes one in its Store entry alongside
+// the VM name so subsequent reconciles can detect a process that
+// exited *after* the launch sanity check window without depending
+// on the IP poll alone.
+type RunHandle struct {
+	// Name is the Tart VM name the process was started for.
+	Name string
+
+	// LogPath is where the process's stdout/stderr was redirected.
+	// Surfaced in error messages so operators can `tail` it.
+	LogPath string
+
+	done    chan struct{}
+	exitErr error
+}
+
+// Done returns a channel that is closed once the process exits.
+// Useful for callers that want to block; Exited() is the
+// non-blocking variant.
+func (h *RunHandle) Done() <-chan struct{} { return h.done }
+
+// Exited reports whether the `tart run` process has terminated. The
+// returned error is whatever cmd.Wait observed — a nil err with
+// ok=true means a clean exit (rare for a long-lived VM process,
+// usually a sign of an internal Tart shutdown). Safe for concurrent
+// use: writes to exitErr happen-before close(done) in the launcher
+// goroutine, and reads happen after the receive on done returns.
+func (h *RunHandle) Exited() (err error, ok bool) {
+	select {
+	case <-h.done:
+		return h.exitErr, true
+	default:
+		return nil, false
+	}
+}
+
+// Run launches a VM in the background and returns a handle as soon
+// as the `tart run` process is alive. It does NOT wait for the
+// guest to obtain an IP — that's the reconciler's job (via Tart.IP,
+// polled from podStatus). Decoupling makes the VM lifecycle bound
+// by the Pod lifecycle rather than by an arbitrary in-process
+// timeout: a slow-but-still-booting guest stays alive across
+// reconcile passes and the Pod transitions to Running the moment
+// configd hands out a DHCP lease, however many minutes that takes.
+// Helm's own `--wait --timeout` is the right place for a top-level
+// deadline; an inner one that destroyed the VM on expiry just
+// forced re-clones and re-boots that hit the same wall.
+//
+// The returned RunHandle reports later exits (after the 5s sanity
+// window). Callers MUST poll handle.Exited() each reconcile so a
+// process that drops, say, 30s in surfaces as a Pod failure rather
+// than stranding helm on an IP poll that will never succeed.
 //
 // Tart 2.32 quirks accommodated here:
 //   - `tart run` is foreground-only. We start it directly from Go with
@@ -115,9 +157,9 @@ func (c *Client) Set(ctx context.Context, name string, cpu, memoryMB int) error 
 //   - We deliberately do NOT use `nohup` — it requires a controlling
 //     TTY to detach from, and launchd-spawned processes don't have
 //     one. With Setsid we don't need it.
-func (c *Client) Run(ctx context.Context, name string, sharedDirs []string) error {
+func (c *Client) Run(ctx context.Context, name string, sharedDirs []string) (*RunHandle, error) {
 	if err := os.MkdirAll(c.LogDir, 0o755); err != nil {
-		return fmt.Errorf("mkdir log dir: %w", err)
+		return nil, fmt.Errorf("mkdir log dir: %w", err)
 	}
 
 	args := []string{"run", name, "--no-graphics"}
@@ -128,7 +170,7 @@ func (c *Client) Run(ctx context.Context, name string, sharedDirs []string) erro
 	logPath := filepath.Join(c.LogDir, name+".log")
 	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
 	if err != nil {
-		return fmt.Errorf("open vm log: %w", err)
+		return nil, fmt.Errorf("open vm log: %w", err)
 	}
 
 	// Bare exec.Command (NOT CommandContext) so the parent ctx
@@ -141,11 +183,26 @@ func (c *Client) Run(ctx context.Context, name string, sharedDirs []string) erro
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 	if err := cmd.Start(); err != nil {
 		_ = logFile.Close()
-		return fmt.Errorf("start tart run: %w", err)
+		return nil, fmt.Errorf("start tart run: %w", err)
 	}
-	// Close our own fd; the child holds its own dup. Reap the
-	// process so it doesn't go zombie if it exits before we Stop it.
+	// Close our own fd; the child holds its own dup. The launcher
+	// goroutine reaps the process via cmd.Wait so it doesn't go
+	// zombie if it exits before we Stop it.
 	_ = logFile.Close()
+
+	handle := &RunHandle{
+		Name:    name,
+		LogPath: logPath,
+		done:    make(chan struct{}),
+	}
+	// Single launcher goroutine owns cmd.Wait for the lifetime of
+	// the process. Writing exitErr before close(done) gives readers
+	// of Exited() a happens-before relationship on the field — no
+	// extra mutex needed.
+	go func() {
+		handle.exitErr = cmd.Wait()
+		close(handle.done)
+	}()
 
 	// Watch the process briefly so an immediate failure (missing
 	// image, malformed --dir, Tart admission error) surfaces here
@@ -153,18 +210,17 @@ func (c *Client) Run(ctx context.Context, name string, sharedDirs []string) erro
 	// an IP that will never come. 5s is long enough to catch the
 	// fast-fail cases (<1s in practice) without delaying the happy
 	// path meaningfully — the guest will be cold-booting for minutes
-	// either way.
-	waitErr := make(chan error, 1)
-	go func() { waitErr <- cmd.Wait() }()
+	// either way. Slower exits are caught by the reconciler via
+	// handle.Exited() on subsequent passes.
 	select {
-	case err := <-waitErr:
-		return fmt.Errorf("tart run %s exited immediately: %w (see %s)", name, err, logPath)
+	case <-handle.done:
+		return nil, fmt.Errorf("tart run %s exited immediately: %w (see %s)", name, handle.exitErr, logPath)
 	case <-ctx.Done():
 		// Parent ctx cancelled. The Setsid-detached process keeps
 		// running; recoverState rebinds it after a kubelet restart.
-		return ctx.Err()
+		return nil, ctx.Err()
 	case <-time.After(5 * time.Second):
-		return nil
+		return handle, nil
 	}
 }
 

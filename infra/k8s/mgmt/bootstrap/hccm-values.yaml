@@ -5,10 +5,14 @@
 #   --set 'env.HCLOUD_LOAD_BALANCERS_LOCATION.value=<region>'
 # The bootstrap script reads `region` from the Cluster CR variables.
 #
-# Expects the `hetzner` Secret in kube-system with key `hcloud`
-# (the workload Hetzner project token; same Secret the ClusterClass
-# already provisions in `org-tuist`, but HCCM lives on the workload
-# cluster so we re-create it there at bootstrap time).
+# HCLOUD_TOKEN comes from the chart's default secretKeyRef
+# (kube-system/hcloud, key `token`), which caph (the CAPI Hetzner
+# provider) provisions in the workload cluster at cluster
+# bring-up — it carries the workload-project Hetzner token plus the
+# robot credentials and apiserver coordinates. The unrelated
+# `hetzner` Secret that bootstrap-workload.sh stamps in kube-system
+# is left over from an earlier wiring and is not consumed by HCCM
+# or hcloud-csi today; both pick up the chart-default reference.
 
 # Disable the cloud-node-lifecycle controller. Default behaviour
 # walks every Node, calls cloudprovider.Instances.InstanceExists()
