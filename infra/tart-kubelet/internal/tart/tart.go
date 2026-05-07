@@ -36,14 +36,22 @@ type Client struct {
 	// LogDir is where per-VM `tart run` stdout/stderr is redirected.
 	// Defaults to /var/log/tart-vms.
 	LogDir string
+
+	// EnsureGUISession runs before each `tart run` to verify the
+	// calling user holds a live Aqua launchd session — required
+	// for VZ HostKey creation on macOS guests. `New()` wires this
+	// to EnsureRealGUISession; tests construct Client directly and
+	// leave it nil to skip the check.
+	EnsureGUISession func(ctx context.Context) error
 }
 
 // New returns a Client with sensible defaults.
 func New() *Client {
 	return &Client{
-		Binary:      "/usr/local/bin/tart",
-		UserDataDir: "/var/lib/tart-userdata",
-		LogDir:      "/var/log/tart-vms",
+		Binary:           "/usr/local/bin/tart",
+		UserDataDir:      "/var/lib/tart-userdata",
+		LogDir:           "/var/log/tart-vms",
+		EnsureGUISession: EnsureRealGUISession,
 	}
 }
 
@@ -160,6 +168,19 @@ func (h *RunHandle) Exited() (err error, ok bool) {
 func (c *Client) Run(ctx context.Context, name string, sharedDirs []string) (*RunHandle, error) {
 	if err := os.MkdirAll(c.LogDir, 0o755); err != nil {
 		return nil, fmt.Errorf("mkdir log dir: %w", err)
+	}
+
+	// VZ HostKey creation needs a live Aqua session; without it
+	// `tart run` exits in <1s with `VZErrorDomain Code=-9 / Failed
+	// to create new HostKey` and the Pod stalls in
+	// TartCreateFailed. Verify (and reanimate) the session here
+	// rather than after the fact — the 5s sanity window below
+	// would otherwise just observe the immediate exit on every
+	// retry forever.
+	if c.EnsureGUISession != nil {
+		if err := c.EnsureGUISession(ctx); err != nil {
+			return nil, fmt.Errorf("ensure gui session: %w", err)
+		}
 	}
 
 	args := []string{"run", name, "--no-graphics"}

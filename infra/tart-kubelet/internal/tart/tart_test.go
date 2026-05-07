@@ -2,6 +2,7 @@ package tart
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -153,5 +154,71 @@ func TestRunHandleExitedTracksProcess(t *testing.T) {
 	}
 	if _, exited := handle.Exited(); !exited {
 		t.Fatal("handle did not report exited after process death")
+	}
+}
+
+// TestRunInvokesEnsureGUISessionBeforeStartingTart locks in that the
+// preflight runs before `tart run`. Without it the kubelet ships
+// VMs straight into `Failed to create new HostKey` on hosts whose
+// Aqua session got torn down post-bootstrap.
+func TestRunInvokesEnsureGUISessionBeforeStartingTart(t *testing.T) {
+	dir := t.TempDir()
+	binPath := filepath.Join(dir, "fake-tart")
+	// Long-lived stub so Run returns a handle (process outlives the
+	// 5s sanity window) — we want to assert the preflight ran, not
+	// the immediate-exit path which already has coverage above.
+	if err := os.WriteFile(binPath, []byte("#!/bin/sh\nsleep 30\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	called := 0
+	c := &Client{
+		Binary:      binPath,
+		UserDataDir: filepath.Join(dir, "userdata"),
+		LogDir:      filepath.Join(dir, "logs"),
+		EnsureGUISession: func(_ context.Context) error {
+			called++
+			return nil
+		},
+	}
+	if _, err := c.Run(context.Background(), "test-vm", nil); err != nil {
+		t.Fatalf("Run failed: %v", err)
+	}
+	if called != 1 {
+		t.Fatalf("EnsureGUISession called %d times, want 1", called)
+	}
+}
+
+// TestRunSurfacesEnsureGUISessionFailure locks in that a preflight
+// failure short-circuits Run before `tart run` is started. Without
+// this, the kubelet would launch the VM into a wall and surface a
+// less-actionable error from Tart.
+func TestRunSurfacesEnsureGUISessionFailure(t *testing.T) {
+	dir := t.TempDir()
+	// Sentinel binary that should never run — assert it didn't by
+	// checking no log file was created.
+	binPath := filepath.Join(dir, "fake-tart-must-not-run")
+	if err := os.WriteFile(binPath, []byte("#!/bin/sh\ntouch \"$0.ran\"\nexit 0\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	sentinel := errors.New("preflight rejected")
+	c := &Client{
+		Binary:      binPath,
+		UserDataDir: filepath.Join(dir, "userdata"),
+		LogDir:      filepath.Join(dir, "logs"),
+		EnsureGUISession: func(_ context.Context) error {
+			return sentinel
+		},
+	}
+	_, err := c.Run(context.Background(), "test-vm", nil)
+	if err == nil {
+		t.Fatal("expected preflight error, got nil")
+	}
+	if !errors.Is(err, sentinel) {
+		t.Fatalf("error chain doesn't wrap sentinel: %v", err)
+	}
+	if _, statErr := os.Stat(binPath + ".ran"); statErr == nil {
+		t.Fatal("fake tart was executed despite preflight failure")
 	}
 }
