@@ -21,6 +21,18 @@ name: Runners Staging Smoke Test
 
 on:
   workflow_dispatch:
+  # Also fires on push to the feat/runners-shape-2 branch
+  # specifically — the runner-pool smoke test isn't a default
+  # CI hook (would burn runner cycles on every PR), but during
+  # the staging bring-up we need a way to dispatch it without
+  # the workflow file being on main yet (gh workflow run
+  # requires that). Empty commits on the branch trigger the
+  # job.
+  push:
+    branches:
+      - feat/runners-shape-2
+    paths:
+      - .github/workflows/runners-staging-smoke.yml
 
 jobs:
   smoke:
