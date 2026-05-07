@@ -97,6 +97,17 @@ rules:
     resources: [configmaps]
     resourceNames: [cluster-info]
     verbs: [get]
+  {{- if .Values.xcresultProcessor.enabled }}
+  - apiGroups: ["apps"]
+    # Fleet-spread controller patches a single Deployment's pod-
+    # template annotation to roll a new ReplicaSet on fleet-shape
+    # change. Scoped to the one Deployment by name so the operator
+    # can't patch arbitrary workloads even if compromised.
+    resources: [deployments]
+    resourceNames:
+      - {{ include "tuist.componentName" (dict "root" . "component" "xcresult-processor") }}
+    verbs: [get, patch]
+  {{- end }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -156,6 +167,16 @@ spec:
             - --tartkubelet-host-cpu={{ .Values.macosFleet.tartKubelet.hostCPU | default 8 }}
             - --tartkubelet-host-memory-mb={{ .Values.macosFleet.tartKubelet.hostMemoryMB | default 16384 }}
             - --tartkubelet-max-pods={{ .Values.macosFleet.tartKubelet.maxPods | default 3 }}
+            {{- if .Values.xcresultProcessor.enabled }}
+            # Auto-roll the xcresult-processor Deployment whenever the
+            # set of Ready Mac minis changes, so Pods spread across new
+            # hosts without a manual `kubectl rollout restart`. The
+            # Deployment's existing topologySpreadConstraints handle
+            # the placement; this just forces a new ReplicaSet on
+            # fleet-shape change. See controllers/fleetspread_controller.go.
+            - --fleet-spread-deployment={{ include "tuist.componentName" (dict "root" . "component" "xcresult-processor") }}
+            - --fleet-spread-namespace={{ .Release.Namespace }}
+            {{- end }}
           env:
             # Scaleway credentials. ESO syncs them from 1Password into
             # this Secret automatically (see
