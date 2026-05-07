@@ -5,6 +5,8 @@ defmodule Tuist.MCP.Components.Tools.UpdateTestCase do
 
   use Tuist.MCP.Tool,
     name: "update_test_case",
+    title: "Update Test Case",
+    read_only_hint: false,
     schema: %{
       "type" => "object",
       "properties" => %{
