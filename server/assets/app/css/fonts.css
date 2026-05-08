@@ -5,6 +5,7 @@
  * Font sources:
  * - Geist Mono: https://vercel.com/font
  * - Inter: https://rsms.me/inter/
+ * - Noto Sans Georgian: https://fonts.google.com/noto/specimen/Noto+Sans+Georgian
  */
 
 /* Geist Mono - Latin Extended */
@@ -64,4 +65,14 @@
   font-family: "Inter Variable";
   font-display: swap;
   font-optical-sizing: auto;
+}
+
+/* Noto Sans Georgian - Georgian */
+@font-face {
+  font-style: normal;
+  font-weight: 100 900;
+  src: url("/fonts/NotoSansGeorgian-georgian.woff2") format("woff2");
+  font-family: "Noto Sans Georgian";
+  font-display: swap;
+  unicode-range: U+0589, U+10A0-10FF, U+1C90-1CBA, U+1CBD-1CBF, U+205A, U+2D00-2D2F, U+2E31;
 }

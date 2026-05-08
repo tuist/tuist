@@ -6,7 +6,7 @@ defmodule Tuist.Cldr.Configuration do
       if Tuist.Environment.dev_single_locale?() do
         ["en"]
       else
-        ["ar", "en", "es", "ja", "ko", "ru", "yue-Hant", "zh-Hans", "zh-Hant"]
+        ["ar", "en", "es", "ja", "ka", "ko", "ru", "yue-Hant", "zh-Hans", "zh-Hant"]
       end
 
     data_dir =

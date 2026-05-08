@@ -14,6 +14,7 @@ Since language support is a continuous effort, we add languages as we see contri
 - English
 - Spanish
 - Japanese
+- Georgian
 - Korean
 - Russian
 - Cantonese
@@ -77,4 +78,3 @@ That means you can place context where it belongs:
 - repository-wide guidance at the root
 - area-specific guidance in a subdirectory
 - language-specific guidance in `L10N/<locale>.md`
-

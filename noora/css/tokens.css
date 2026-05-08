@@ -844,8 +844,8 @@
   --noora-icon-size-large: 1.25rem;
 
   /* Typography */
-  --noora-font-heading: "Inter Variable", sans-serif;
-  --noora-font-body: "Inter Variable", sans-serif;
+  --noora-font-heading: "Inter Variable", "Noto Sans Georgian", sans-serif;
+  --noora-font-body: "Inter Variable", "Noto Sans Georgian", sans-serif;
   --noora-font-code: "Geist Mono", monospace;
 
   --noora-font-weight-regular: 400;

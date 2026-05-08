@@ -5,9 +5,11 @@
  * Fonts used:
  * - Geist Mono (weights 400, 700) - Monospace font for code
  * - Inter Variable (weights 100-900) - Headings and body text font
+ * - Noto Sans Georgian (weights 100-900) - Georgian fallback for headings and body text
  *
  * If you prefer to self-host fonts, don't import this file and provide
  * your own @font-face declarations instead.
  */
 @import url("https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+Georgian:wght@100..900&display=swap");
 @import "https://rsms.me/inter/inter.css";
