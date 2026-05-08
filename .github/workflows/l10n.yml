@@ -10,6 +10,10 @@ on:
       - "L10N.md"
       - "server/L10N.md"
       - "server/L10N/**"
+      - "server/priv/docs/L10N.md"
+      - "server/priv/docs/L10N/**"
+      - "server/priv/docs/en/guides/install-tuist.md"
+      - "server/priv/docs/en/guides/features/cache.md"
 
 permissions:
   contents: write
@@ -45,7 +49,7 @@ jobs:
       - name: Check for changes
         id: changes
         run: |
-          if [[ -n $(git diff --name-only -- '*.po' '.l10n/') ]]; then
+          if [[ -n $(git diff --name-only -- '*.po' '.l10n/' 'server/priv/docs/**/*.md') ]]; then
             echo "has_changes=true" >> $GITHUB_OUTPUT
           fi
       - name: Create PR

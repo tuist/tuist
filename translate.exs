@@ -169,9 +169,9 @@ defmodule L10n.Lock do
   @moduledoc """
   Manages lock files that track translation state.
 
-  Each lock file is a JSON document stored at `.l10n/{pot_path}/{locale}.lock`
+  Each lock file is a JSON document stored at `.l10n/{source_path}/{locale}.lock`
   and contains the full context tree used to produce the translation, including
-  individual hashes for the source .pot file and each L10N.md context file.
+  individual hashes for the source file and each L10N.md context file.
   A translation is considered stale when any of these hashes change.
 
   To avoid unnecessary retranslations, source reference comments are normalized
@@ -182,13 +182,13 @@ defmodule L10n.Lock do
   @reference_comment_prefix "#: "
 
   @doc """
-  Computes a composite SHA-256 hash from the .pot content, merged context body,
+  Computes a composite SHA-256 hash from the source content, merged context body,
   and any per-locale override content. This single hash is used for quick
   staleness comparison.
   """
-  def compute_hash(pot_content, context_content, locale_override) do
+  def compute_hash(source_content, context_content, locale_override, source_format \\ :gettext) do
     data =
-      normalized_pot_content(pot_content) <>
+      normalized_source_content(source_content, source_format) <>
         "\n---\n" <> context_content <> "\n---\n" <> (locale_override || "")
 
     :crypto.hash(:sha256, data) |> Base.encode16(case: :lower)
@@ -200,21 +200,21 @@ defmodule L10n.Lock do
   The hash uses normalized reference comments so line-number-only changes in
   Gettext references do not force retranslation.
   """
-  def source_hash(pot_content) do
-    normalized_pot_content(pot_content)
+  def source_hash(source_content, source_format \\ :gettext) do
+    normalized_source_content(source_content, source_format)
     |> then(&:crypto.hash(:sha256, &1))
     |> Base.encode16(case: :lower)
   end
 
   @doc """
-  Returns the file path for a lock file given the repo root, the relative
-  path of the .pot source file, and the target locale.
+  Returns the file path for a lock file given the repo root, the relative path
+  of the source file, and the target locale.
 
-  Example: `lock_path("/repo", "server/priv/gettext/errors.pot", "es")`
-  returns `"/repo/.l10n/server/priv/gettext/errors.pot/es.lock"`
+  Example: `lock_path("/repo", "server/priv/docs/en/index.md", "es")`
+  returns `"/repo/.l10n/server/priv/docs/en/index.md/es.lock"`
   """
-  def lock_path(repo_root, pot_relative_path, locale) do
-    Path.join([repo_root, ".l10n", pot_relative_path, "#{locale}.lock"])
+  def lock_path(repo_root, source_relative_path, locale) do
+    Path.join([repo_root, ".l10n", source_relative_path, "#{locale}.lock"])
   end
 
   @doc """
@@ -232,7 +232,7 @@ defmodule L10n.Lock do
   Writes a lock file with the full dependency tree.
 
   The lock represents the hash as a tree of inputs:
-  - `source`: the .pot file that was translated
+  - `source`: the file that was translated
   - `context`: nested L10N.md chain (root -> child -> child), with
     locale overrides attached to the deepest context node
 
@@ -301,6 +301,13 @@ defmodule L10n.Lock do
       {:error, _} -> {:error, :not_found}
     end
   end
+
+  defp normalized_source_content(content, source_format)
+       when source_format in [:gettext, "gettext", nil] do
+    normalized_pot_content(content)
+  end
+
+  defp normalized_source_content(content, _source_format), do: content
 
   defp normalized_pot_content(content) do
     content
@@ -504,7 +511,7 @@ defmodule L10n.Translator do
     end
   end
 
-  defp generate_text_with_retries(resolved_model, messages, timeout, locale, attempt \\ 1) do
+  def generate_text_with_retries(resolved_model, messages, timeout, locale, attempt \\ 1) do
     case ReqLLM.generate_text(resolved_model, messages,
            max_tokens: 64_000,
            receive_timeout: timeout
@@ -677,6 +684,381 @@ defmodule L10n.Validator do
   end
 end
 
+defmodule L10n.MarkdownValidator do
+  @moduledoc """
+  Validates translated Tuist documentation markdown.
+
+  The checks intentionally focus on the proprietary structure the docs renderer
+  depends on: frontmatter, explicit heading IDs, component tags, links, code
+  blocks, and GitHub-style alert markers.
+  """
+
+  @frontmatter_regex ~r/\A---\s*\n(?<frontmatter>.*?)\n---\s*\n(?<body>.*)\z/s
+  @fenced_code_block_regex ~r/^```[^\n]*\n.*?^```\s*$/ms
+  @heading_id_regex ~r/\{#[A-Za-z0-9_-]+\}/
+  @alert_marker_regex ~r/^\s*>\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]/m
+  @directive_marker_regex ~r/^:{3,4}[^\n]*$/m
+  @inline_code_regex ~r/`([^`\n]+)`/
+  @markdown_link_target_regex ~r/\[[^\]\n]+\]\(([^)\s]+)(?:\s+"[^"]*")?\)/
+  @attribute_target_regex ~r/\b(?:href|to|src|link)=["']([^"']+)["']/
+  @raw_url_regex ~r/https?:\/\/[^\s\])<>"']+/
+  @component_tag_regex ~r/<\/?(\.?localized_link|LocalizedLink|HomeCards|HomeCard|Noora\.[A-Za-z0-9_.]+)(?:\s|>|\/)/
+  @html_tag_regex ~r/<\/?(a|details|summary|img)(?:\s|>|\/)/
+  @heex_expression_regex ~r/(<%.*?%>|\{@[A-Za-z0-9_]+\})/s
+  @script_setup_regex ~r/<script\s+setup>.*?<\/script>/s
+
+  @doc """
+  Returns `:ok` when the translated markdown preserves the renderer-sensitive
+  structure from the source document.
+  """
+  def validate(source_content, translated_content) do
+    with {:ok, source} <- split_document(source_content),
+         {:ok, translated} <- split_document(translated_content),
+         :ok <- validate_frontmatter(source, translated),
+         :ok <-
+           validate_sequence(
+             "fenced code blocks",
+             code_blocks(source.body),
+             code_blocks(translated.body)
+           ),
+         :ok <-
+           validate_sequence(
+             "inline code spans",
+             inline_code_spans(source.body),
+             inline_code_spans(translated.body)
+           ),
+         :ok <-
+           validate_sequence(
+             "heading anchors",
+             heading_ids(source.body),
+             heading_ids(translated.body)
+           ),
+         :ok <-
+           validate_sequence(
+             "GitHub alert markers",
+             alert_markers(source.body),
+             alert_markers(translated.body)
+           ),
+         :ok <-
+           validate_sequence(
+             "directive markers",
+             directive_markers(source.body),
+             directive_markers(translated.body)
+           ),
+         :ok <-
+           validate_sequence(
+             "link targets",
+             link_targets(source.body),
+             link_targets(translated.body)
+           ),
+         :ok <-
+           validate_sequence(
+             "component tags",
+             component_tags(source.body),
+             component_tags(translated.body)
+           ),
+         :ok <- validate_sequence("HTML tags", html_tags(source.body), html_tags(translated.body)),
+         :ok <-
+           validate_sequence(
+             "HEEx expressions",
+             heex_expressions(source.body),
+             heex_expressions(translated.body)
+           ),
+         :ok <-
+           validate_sequence(
+             "script setup blocks",
+             script_setup_blocks(source.body),
+             script_setup_blocks(translated.body)
+           ) do
+      :ok
+    end
+  end
+
+  defp split_document(content) do
+    case Regex.named_captures(@frontmatter_regex, content) do
+      %{"frontmatter" => frontmatter, "body" => body} ->
+        with {:ok, attrs} <- parse_frontmatter(frontmatter) do
+          {:ok, %{frontmatter: frontmatter, attrs: attrs, body: body}}
+        end
+
+      _ ->
+        {:ok, %{frontmatter: nil, attrs: %{}, body: content}}
+    end
+  end
+
+  defp parse_frontmatter(frontmatter) do
+    case YamlElixir.read_from_string(frontmatter) do
+      {:ok, attrs} when is_map(attrs) ->
+        {:ok, attrs}
+
+      _ ->
+        case JSON.decode(frontmatter) do
+          {:ok, attrs} when is_map(attrs) -> {:ok, attrs}
+          {:error, error} -> {:error, "invalid frontmatter: #{inspect(error)}"}
+          _ -> {:error, "frontmatter must be a map"}
+        end
+    end
+  end
+
+  defp validate_frontmatter(%{frontmatter: nil}, %{frontmatter: nil}), do: :ok
+
+  defp validate_frontmatter(%{frontmatter: nil}, %{frontmatter: _}) do
+    {:error, "translated document unexpectedly added frontmatter"}
+  end
+
+  defp validate_frontmatter(%{frontmatter: _}, %{frontmatter: nil}) do
+    {:error, "translated document is missing frontmatter"}
+  end
+
+  defp validate_frontmatter(source, translated) do
+    source_keys = source.attrs |> Map.keys() |> Enum.sort()
+    translated_keys = translated.attrs |> Map.keys() |> Enum.sort()
+
+    if source_keys == translated_keys do
+      :ok
+    else
+      {:error, "frontmatter keys changed"}
+    end
+  end
+
+  defp validate_sequence(_name, source_values, source_values), do: :ok
+
+  defp validate_sequence(name, _source_values, _translated_values) do
+    {:error, "#{name} changed during markdown translation"}
+  end
+
+  defp code_blocks(body), do: regex_values(@fenced_code_block_regex, body)
+
+  defp inline_code_spans(body) do
+    body
+    |> remove_code_blocks()
+    |> regex_values(@inline_code_regex)
+  end
+
+  defp heading_ids(body), do: regex_values(@heading_id_regex, body)
+
+  defp alert_markers(body) do
+    @alert_marker_regex
+    |> Regex.scan(body)
+    |> Enum.map(fn [_, marker] -> marker end)
+  end
+
+  defp directive_markers(body), do: regex_values(@directive_marker_regex, body)
+
+  defp link_targets(body) do
+    body_without_code = remove_code_blocks(body)
+
+    markdown_targets = capture_values(@markdown_link_target_regex, body_without_code)
+    attribute_targets = capture_values(@attribute_target_regex, body_without_code)
+    raw_urls = regex_values(@raw_url_regex, body_without_code)
+
+    markdown_targets ++ attribute_targets ++ raw_urls
+  end
+
+  defp component_tags(body) do
+    @component_tag_regex
+    |> Regex.scan(body)
+    |> Enum.map(fn [_, tag] -> tag end)
+  end
+
+  defp html_tags(body) do
+    @html_tag_regex
+    |> Regex.scan(body)
+    |> Enum.map(fn [_, tag] -> tag end)
+  end
+
+  defp heex_expressions(body), do: regex_values(@heex_expression_regex, body)
+  defp script_setup_blocks(body), do: regex_values(@script_setup_regex, body)
+
+  defp remove_code_blocks(body) do
+    Regex.replace(@fenced_code_block_regex, body, "")
+  end
+
+  defp regex_values(%Regex{} = regex, content) do
+    regex
+    |> Regex.scan(content)
+    |> Enum.map(&List.first/1)
+  end
+
+  defp regex_values(content, %Regex{} = regex), do: regex_values(regex, content)
+
+  defp capture_values(regex, content) do
+    regex
+    |> Regex.scan(content)
+    |> Enum.map(fn [_, value | _] -> value end)
+  end
+end
+
+defmodule L10n.MarkdownTranslator do
+  @moduledoc """
+  Translates Tuist documentation markdown to target locales using an LLM.
+  """
+
+  @default_timeout 900_000
+
+  @doc """
+  Translates a single markdown document to the given locale.
+  """
+  def translate(markdown_content, locale, language, context_body, locale_override, model, timeout) do
+    system_prompt = """
+    You are a professional translator specializing in technical documentation.
+    You translate Tuist documentation markdown from English to #{language} (#{locale}).
+
+    Output ONLY the complete translated markdown file. No markdown fences, no explanation, no preamble.
+
+    Rules:
+    1. Preserve the frontmatter delimiters (`---`) and all frontmatter keys.
+    2. Translate human-readable frontmatter values such as `title` and `description`, but preserve placeholders such as `:title`.
+    3. Preserve all heading IDs exactly, for example `{#install-tuist}`.
+    4. Preserve all URLs, email addresses, file paths, command names, inline code spans, fenced code blocks, and code fence language labels exactly.
+    5. Preserve GitHub alert markers exactly, for example `> [!TIP]`, but translate the alert title and prose.
+    6. Preserve Tuist docs components and Phoenix components exactly, including `<.localized_link>`, `<LocalizedLink>`, `<HomeCards>`, `<HomeCard>`, and `Noora.*` tags.
+    7. Preserve renderer-sensitive attributes exactly when they contain links or paths, including `href`, `to`, `src`, and `link`.
+    8. Translate visible prose, Markdown link text, headings, table prose, and human-readable component attributes such as `title`, `details`, and `linkText`.
+    9. Do not translate proper nouns, product names, or technical terms unless the localization context explicitly says otherwise.
+    10. Do not use em dashes. Use regular hyphens or rephrase.
+
+    #{context_body}
+
+    #{if locale_override != "", do: "## Locale-specific instructions for #{language}:\n#{locale_override}", else: ""}
+    """
+
+    user_prompt = """
+    Translate the following markdown file to #{language} (#{locale}):
+
+    #{markdown_content}
+    """
+
+    import ReqLLM.Context
+
+    messages = [
+      system(system_prompt),
+      user(user_prompt)
+    ]
+
+    resolved_model = L10n.Translator.resolve_model(model)
+
+    case L10n.Translator.generate_text_with_retries(resolved_model, messages, timeout, locale) do
+      {:ok, response} ->
+        text =
+          response
+          |> ReqLLM.Response.text()
+          |> String.trim()
+          |> String.replace(~r/^```[a-zA-Z0-9_-]*\n/, "")
+          |> String.replace(~r/\n```$/, "")
+          |> String.trim()
+
+        {:ok, text}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc """
+  Translates a markdown file to all target locales in parallel.
+  """
+  def translate_all(
+        markdown_content,
+        targets,
+        context_body,
+        model,
+        l10n_dir,
+        repo_root,
+        source_relative_path,
+        source_path_relative_to_l10n_dir,
+        context_files,
+        opts
+      ) do
+    request_timeout = Keyword.get(opts, :timeout, @default_timeout)
+    force = Keyword.get(opts, :force, false)
+    source_language = Keyword.get(opts, :source_language, "en")
+    source_hash = L10n.Lock.source_hash(markdown_content, :markdown)
+
+    output_relative_path =
+      localized_relative_path(source_path_relative_to_l10n_dir, source_language)
+
+    targets
+    |> Task.async_stream(
+      fn target ->
+        locale = target["locale"]
+        language = target["language"]
+
+        {locale_override, locale_override_files} =
+          Keyword.get(opts, :locale_override_fn, fn _ -> {"", []} end).(locale)
+
+        hash =
+          L10n.Lock.compute_hash(
+            markdown_content,
+            context_body,
+            locale_override,
+            :markdown
+          )
+
+        lock_path = L10n.Lock.lock_path(repo_root, source_relative_path, locale)
+
+        if not force and not L10n.Lock.stale?(lock_path, hash) do
+          {:skipped, locale}
+        else
+          try do
+            with {:ok, translated_content} <-
+                   translate(
+                     markdown_content,
+                     locale,
+                     language,
+                     context_body,
+                     locale_override,
+                     model,
+                     request_timeout
+                   ),
+                 :ok <- L10n.MarkdownValidator.validate(markdown_content, translated_content) do
+              output_path = Path.join([l10n_dir, target["path"], output_relative_path])
+              output_path |> Path.dirname() |> File.mkdir_p!()
+              File.write!(output_path, translated_content <> "\n")
+
+              L10n.Lock.write!(lock_path, %{
+                hash: hash,
+                model: model,
+                source_file: source_relative_path,
+                source_hash: source_hash,
+                context_files: context_files,
+                locale_override_files: locale_override_files
+              })
+
+              {:translated, locale}
+            else
+              {:error, reason} -> {:error, locale, reason}
+            end
+          rescue
+            e -> {:error, locale, Exception.message(e)}
+          end
+        end
+      end,
+      max_concurrency: Keyword.get(opts, :max_concurrency, 7),
+      timeout: request_timeout + 30_000,
+      on_timeout: :kill_task
+    )
+    |> Enum.zip(targets)
+    |> Enum.map(fn
+      {{:ok, result}, _target} ->
+        result
+
+      {{:exit, :timeout}, target} ->
+        {:error, target["locale"], "timed out after #{request_timeout} ms"}
+
+      {{:exit, reason}, target} ->
+        {:error, target["locale"], inspect(reason)}
+    end)
+  end
+
+  defp localized_relative_path(source_path, source_language) do
+    case Path.split(source_path) do
+      [^source_language | rest] -> Path.join(rest)
+      _ -> source_path
+    end
+  end
+end
+
 defmodule L10n.CLI do
   @moduledoc """
   Entry point for the translation script.
@@ -731,6 +1113,11 @@ defmodule L10n.CLI do
     model = Keyword.get(opts, :model) || Map.get(frontmatter, "model", "openai:gpt-4.1-mini")
     sources = Map.get(frontmatter, "sources", [])
 
+    source_format =
+      Map.get(frontmatter, "format") || Map.get(frontmatter, "source_format") || "gettext"
+
+    source_language = Map.get(frontmatter, "source_language", "en")
+
     target_path_template =
       Map.get(frontmatter, "target_path", "priv/gettext/{locale}/LC_MESSAGES")
 
@@ -750,17 +1137,18 @@ defmodule L10n.CLI do
       IO.puts("  No matching targets found.")
       []
     else
-      pot_files =
+      source_files =
         Enum.flat_map(sources, fn pattern ->
           Path.join(l10n_dir, pattern) |> Path.wildcard()
         end)
 
-      pot_files
+      source_files
       |> Task.async_stream(
-        fn pot_path ->
-          pot_relative = Path.relative_to(pot_path, repo_root)
-          pot_content = File.read!(pot_path)
-          domain = Path.basename(pot_path, ".pot")
+        fn source_path ->
+          source_relative = Path.relative_to(source_path, repo_root)
+          source_path_relative_to_l10n_dir = Path.relative_to(source_path, l10n_dir)
+          source_content = File.read!(source_path)
+          domain = source_relative |> Path.basename() |> Path.rootname()
 
           IO.puts("  Translating #{domain}...")
 
@@ -768,23 +1156,44 @@ defmodule L10n.CLI do
             L10n.Context.load_locale_override(l10n_dir, repo_root, locale)
           end
 
-          L10n.Translator.translate_all(
-            pot_content,
-            targets,
-            context_body,
-            model,
-            l10n_dir,
-            repo_root,
-            pot_relative,
-            context_files,
-            force: Keyword.get(opts, :force, false),
-            locale_override_fn: locale_override_fn,
-            max_concurrency: Keyword.get(opts, :concurrency, 7),
-            timeout: Keyword.get(opts, :timeout, @default_timeout)
-          )
+          case source_format do
+            "markdown" ->
+              L10n.MarkdownTranslator.translate_all(
+                source_content,
+                targets,
+                context_body,
+                model,
+                l10n_dir,
+                repo_root,
+                source_relative,
+                source_path_relative_to_l10n_dir,
+                context_files,
+                force: Keyword.get(opts, :force, false),
+                locale_override_fn: locale_override_fn,
+                max_concurrency: Keyword.get(opts, :concurrency, 7),
+                source_language: source_language,
+                timeout: Keyword.get(opts, :timeout, @default_timeout)
+              )
+
+            _ ->
+              L10n.Translator.translate_all(
+                source_content,
+                targets,
+                context_body,
+                model,
+                l10n_dir,
+                repo_root,
+                source_relative,
+                context_files,
+                force: Keyword.get(opts, :force, false),
+                locale_override_fn: locale_override_fn,
+                max_concurrency: Keyword.get(opts, :concurrency, 7),
+                timeout: Keyword.get(opts, :timeout, @default_timeout)
+              )
+          end
         end,
         max_concurrency: Keyword.get(opts, :pot_concurrency, 4),
-        # pot-level timeout is infinite; per-locale tasks have their own timeout
+        # source-level timeout is infinite; per-locale tasks have their own timeout
         timeout: :infinity
       )
       |> Enum.flat_map(fn {:ok, results} -> results end)
