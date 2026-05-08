@@ -97,10 +97,21 @@ REGION=$(KUBECONFIG="$MGMT_KUBECONFIG" kubectl -n "$NAMESPACE" get cluster "$CLU
 REGION="${REGION:-fsn1}"
 
 CONTROL_PLANE_REPLICAS=$(KUBECONFIG="$MGMT_KUBECONFIG" kubectl -n "$NAMESPACE" get cluster "$CLUSTER_NAME" \
-  -o jsonpath='{.spec.topology.controlPlane.replicas}')
+  -o jsonpath='{.status.controlPlane.desiredReplicas}')
+if [ -z "$CONTROL_PLANE_REPLICAS" ]; then
+  CONTROL_PLANE_REPLICAS=$(KUBECONFIG="$MGMT_KUBECONFIG" kubectl -n "$NAMESPACE" get cluster "$CLUSTER_NAME" \
+    -o jsonpath='{.spec.topology.controlPlane.replicas}')
+fi
 CONTROL_PLANE_REPLICAS="${CONTROL_PLANE_REPLICAS:-1}"
+
 WORKER_REPLICAS=$(KUBECONFIG="$MGMT_KUBECONFIG" kubectl -n "$NAMESPACE" get cluster "$CLUSTER_NAME" \
-  -o jsonpath='{range .spec.topology.workers.machineDeployments[*]}{.replicas}{"\n"}{end}' | awk '{sum += $1} END {print sum + 0}')
+  -o jsonpath='{.status.workers.desiredReplicas}')
+if [ -z "$WORKER_REPLICAS" ]; then
+  WORKER_REPLICAS=$(KUBECONFIG="$MGMT_KUBECONFIG" kubectl -n "$NAMESPACE" get machinedeployments.cluster.x-k8s.io \
+    -l "cluster.x-k8s.io/cluster-name=$CLUSTER_NAME" \
+    -o jsonpath='{range .items[*]}{.spec.replicas}{"\n"}{end}' | awk '{sum += $1} END {print sum + 0}')
+fi
+WORKER_REPLICAS="${WORKER_REPLICAS:-0}"
 EXPECTED_MACHINE_COUNT=$((CONTROL_PLANE_REPLICAS + WORKER_REPLICAS))
 
 echo "API endpoint: ${API_HOST}:${API_PORT}"
