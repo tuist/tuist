@@ -23,7 +23,7 @@ on:
       runner_version:
         description: "GitHub Actions runner version"
         required: false
-        default: "2.328.0"
+        default: "2.334.0"
 
 concurrency:
   group: runner-image
@@ -69,7 +69,7 @@ jobs:
           packer build \
             -var "base_image=${{ inputs.base_image || 'ghcr.io/cirruslabs/macos-tahoe-xcode:26.4' }}" \
             -var "output_image=tuist-runner" \
-            -var "runner_version=${{ inputs.runner_version || '2.328.0' }}" \
+            -var "runner_version=${{ inputs.runner_version || '2.334.0' }}" \
             runner.pkr.hcl
 
       - name: Log in to GHCR

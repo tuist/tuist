@@ -55,7 +55,16 @@ variable "output_image" {
 variable "runner_version" {
   type        = string
   description = "GitHub Actions runner version. https://github.com/actions/runner/releases."
-  default     = "2.328.0"
+  # Bumped after 2.328.0 was deprecated by GitHub mid-rollout —
+  # the runner registers cleanly but the broker channel returns
+  # `Runner version v2.328.0 is deprecated and cannot receive
+  # messages` on the first long-poll, so the runner exits and
+  # GH never dispatches jobs. Pin the latest stable; the actions
+  # runner has a runtime auto-update flag (--disableupdate=false)
+  # that we keep enabled, but baking in a current version
+  # avoids the registration-then-immediate-deprecation cycle on
+  # cold-cache fleet bring-up.
+  default     = "2.334.0"
 }
 
 # VM CPU/memory baked into the Tart image. Kept at 4 / 8 (same
