@@ -121,7 +121,9 @@ defmodule Tuist.Automations.Alerts.Alert do
         _ -> changeset
       end
 
-    validate_comparison(changeset, trigger_config)
+    changeset
+    |> validate_comparison(trigger_config)
+    |> validate_recovery_config()
   end
 
   defp validate_comparison(changeset, trigger_config) do
@@ -158,25 +160,44 @@ defmodule Tuist.Automations.Alerts.Alert do
   # to "last_days" for backwards compatibility with alerts created before the
   # rolling-window option existed.
   defp validate_window_config(changeset, trigger_config) do
-    case window_type(trigger_config) do
+    case validate_window_shape(trigger_config) do
+      :ok -> changeset
+      {:error, message} -> add_error(changeset, :trigger_config, message)
+    end
+  end
+
+  # Recovery is only validated when the user opts in. The shape mirrors
+  # `trigger_config` so a `rolling_window_size: 0` can't sneak past and have
+  # the worker silently fall back to its default.
+  defp validate_recovery_config(changeset) do
+    if get_field(changeset, :recovery_enabled) do
+      recovery_config = get_field(changeset, :recovery_config) || %{}
+
+      case validate_window_shape(recovery_config) do
+        :ok -> changeset
+        {:error, message} -> add_error(changeset, :recovery_config, message)
+      end
+    else
+      changeset
+    end
+  end
+
+  defp validate_window_shape(config) do
+    case window_type(config) do
       "last_days" ->
-        if valid_window?(trigger_config["window"]) do
-          changeset
-        else
-          add_error(changeset, :trigger_config, "window must be a string like '30d' (day-level only)")
-        end
+        if valid_window?(config["window"]),
+          do: :ok,
+          else: {:error, "window must be a string like '30d' (day-level only)"}
 
       "rolling" ->
-        size = trigger_config["rolling_window_size"]
+        size = config["rolling_window_size"]
 
-        if is_integer(size) and size > 0 do
-          changeset
-        else
-          add_error(changeset, :trigger_config, "rolling_window_size must be a positive integer")
-        end
+        if is_integer(size) and size > 0,
+          do: :ok,
+          else: {:error, "rolling_window_size must be a positive integer"}
 
       _ ->
-        add_error(changeset, :trigger_config, "window_type must be one of: #{Enum.join(@window_types, ", ")}")
+        {:error, "window_type must be one of: #{Enum.join(@window_types, ", ")}"}
     end
   end
 

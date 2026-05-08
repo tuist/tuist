@@ -232,6 +232,88 @@ defmodule Tuist.Automations.Alerts.AlertTest do
 
       assert changeset.valid?
     end
+
+    test "rejects rolling recovery_config with non-positive rolling_window_size" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "recovery_enabled" => true,
+            "recovery_config" => %{"window_type" => "rolling", "rolling_window_size" => 0},
+            "recovery_actions" => [%{"type" => "remove_label", "label" => "flaky"}]
+          })
+        )
+
+      refute changeset.valid?
+      assert errors_on(changeset).recovery_config
+    end
+
+    test "rejects rolling recovery_config without rolling_window_size" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "recovery_enabled" => true,
+            "recovery_config" => %{"window_type" => "rolling"},
+            "recovery_actions" => [%{"type" => "remove_label", "label" => "flaky"}]
+          })
+        )
+
+      refute changeset.valid?
+      assert errors_on(changeset).recovery_config
+    end
+
+    test "rejects last_days recovery_config without a window string" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "recovery_enabled" => true,
+            "recovery_config" => %{"window_type" => "last_days"},
+            "recovery_actions" => [%{"type" => "remove_label", "label" => "flaky"}]
+          })
+        )
+
+      refute changeset.valid?
+      assert errors_on(changeset).recovery_config
+    end
+
+    test "accepts rolling recovery_config with a positive rolling_window_size" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "recovery_enabled" => true,
+            "recovery_config" => %{"window_type" => "rolling", "rolling_window_size" => 50},
+            "recovery_actions" => [%{"type" => "remove_label", "label" => "flaky"}]
+          })
+        )
+
+      assert changeset.valid?
+    end
+
+    test "skips recovery validation when recovery is disabled" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "recovery_enabled" => false,
+            "recovery_config" => %{"window_type" => "rolling", "rolling_window_size" => 0}
+          })
+        )
+
+      assert changeset.valid?
+    end
   end
 
   describe "trigger_actions validation" do

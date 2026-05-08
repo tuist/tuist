@@ -267,12 +267,20 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
     )
   end
 
-  # `row_number() OVER (PARTITION BY test_case_id ORDER BY ran_at DESC)` so we
-  # can keep the latest `size` runs per test case. The outer query that wraps
-  # this filters by `rn <= size` and aggregates `is_flaky_int`.
+  # `test_case_runs` is a ReplacingMergeTree keyed on `(test_run_id,
+  # test_module_run_id, id)` with `inserted_at` as the version column, so a
+  # run reinserted with an updated `is_flaky` value sticks around as a
+  # duplicate row until background merges. `FINAL` collapses those duplicates
+  # at query time, otherwise a single logical run could occupy multiple slots
+  # in the rolling window and skew rate / count thresholds.
+  #
+  # `row_number() OVER (PARTITION BY test_case_id ORDER BY ran_at DESC)` then
+  # keeps the latest `size` runs per test case; the outer query filters by
+  # `rn <= size` and aggregates `is_flaky_int`.
   defp rolling_window_runs(project_id, size) do
     ranked =
       from(r in TestCaseRun,
+        hints: ["FINAL"],
         where: r.project_id == ^project_id,
         where: not is_nil(r.test_case_id),
         select: %{

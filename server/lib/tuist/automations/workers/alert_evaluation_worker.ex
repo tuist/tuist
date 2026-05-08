@@ -155,9 +155,15 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
   # per candidate rather than fetching every run and filtering client-side.
   # The active set is normally small (only test cases currently in the
   # triggered state), so the per-event cost is fine.
+  #
+  # `test_case_runs` is a ReplacingMergeTree, so a single logical run can
+  # appear as multiple row versions until background merges. `FINAL`
+  # deduplicates those at query time so a reinserted run doesn't double-count
+  # against the rolling recovery threshold.
   defp runs_since_trigger(project_id, test_case_id, triggered_at) do
     ClickHouseRepo.one(
       from(r in TestCaseRun,
+        hints: ["FINAL"],
         where: r.project_id == ^project_id,
         where: r.test_case_id == ^test_case_id,
         where: r.ran_at > ^triggered_at,
