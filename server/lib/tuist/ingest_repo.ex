@@ -23,6 +23,5 @@ defmodule Tuist.IngestRepo do
     with_retry(fn -> super(queryable, opts) end)
   end
 
-  def with_retry(fun, retries_left \\ 3),
-    do: ClickHouseRetry.with_retry(fun, retries_left)
+  def with_retry(fun, retries_left \\ 3), do: ClickHouseRetry.with_retry(fun, retries_left)
 end
