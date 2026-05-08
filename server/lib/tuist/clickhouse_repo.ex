@@ -14,9 +14,9 @@ defmodule Tuist.ClickHouseRepo do
   # `query/3` and `query!/3` are injected by `Ecto.Adapters.ClickHouse`'s
   # own `__before_compile__` callback, which fires after this module's
   # body runs — so they don't exist yet for `defoverridable`. Defer those
-  # two overrides to our own `@before_compile` so the adapter has already
-  # planted them by then.
-  @before_compile __MODULE__
+  # two overrides to a separate `@before_compile` module that runs after
+  # the adapter has planted them.
+  @before_compile Tuist.ClickHouseRepo.QueryRetry
 
   defoverridable aggregate: 2,
                  aggregate: 3,
@@ -50,16 +50,4 @@ defmodule Tuist.ClickHouseRepo do
 
   def aggregate(queryable, type, field, opts),
     do: ClickHouseRetry.with_retry(fn -> super(queryable, type, field, opts) end)
-
-  defmacro __before_compile__(_env) do
-    quote do
-      defoverridable query: 1, query: 2, query: 3, query!: 1, query!: 2, query!: 3
-
-      def query(sql, params \\ [], opts \\ []),
-        do: Tuist.ClickHouseRetry.with_retry(fn -> super(sql, params, opts) end)
-
-      def query!(sql, params \\ [], opts \\ []),
-        do: Tuist.ClickHouseRetry.with_retry(fn -> super(sql, params, opts) end)
-    end
-  end
 end
