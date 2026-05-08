@@ -230,9 +230,7 @@
                     data-size="compact"
                   >
                     <label data-part="label">
-                      {dgettext("dashboard_projects", "Last N runs (max %{max})",
-                        max: Tuist.Automations.Alerts.Alert.max_rolling_window_size()
-                      )}
+                      {dgettext("dashboard_projects", "Last N runs")}
                     </label>
                     <.text_input
                       type="basic"
@@ -605,9 +603,7 @@
                       data-size="compact"
                     >
                       <label data-part="label">
-                        {dgettext("dashboard_projects", "Last N runs (max %{max})",
-                          max: Tuist.Automations.Alerts.Alert.max_rolling_window_size()
-                        )}
+                        {dgettext("dashboard_projects", "Last N runs")}
                       </label>
                       <.text_input
                         type="basic"
