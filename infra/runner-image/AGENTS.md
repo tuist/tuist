@@ -62,7 +62,7 @@ different image at runner-Pod create time.
    should show two rows with `jit_config IS NULL`,
    `dispatch_token_hash IS NOT NULL`.
 4. Trigger `.github/workflows/runners-staging-smoke.yml` from the
-   Actions UI. The job has `runs-on: tuist-tuist-staging`.
+   Actions UI. The job has `runs-on: tuist-staging-macos`.
 5. Within a few seconds: GH fires `workflow_job: queued`, the
    server's webhook handler binds an idle Pod, the VM polls and
    gets the JIT, the runner registers and runs the job.

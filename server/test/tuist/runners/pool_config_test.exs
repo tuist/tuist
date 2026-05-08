@@ -8,7 +8,7 @@ defmodule Tuist.Runners.PoolConfigTest do
     account_id: nil,
     owner: "tuist",
     repo: "tuist",
-    labels: ["self-hosted", "macOS", "tuist-tuist-staging"],
+    labels: ["self-hosted", "macOS", "tuist-staging-macos"],
     min_warm: 0,
     max_concurrent: 2
   }
@@ -26,7 +26,7 @@ defmodule Tuist.Runners.PoolConfigTest do
       assert {:ok, %{name: "tuist-tuist"}} =
                PoolConfig.match_for_dispatch(
                  "tuist/tuist",
-                 ["self-hosted", "tuist-tuist-staging"],
+                 ["self-hosted", "tuist-staging-macos"],
                  [@sample_pool]
                )
     end
@@ -35,7 +35,7 @@ defmodule Tuist.Runners.PoolConfigTest do
       assert {:ok, %{name: "tuist-tuist"}} =
                PoolConfig.match_for_dispatch(
                  "Tuist/Tuist",
-                 ["TUIST-TUIST-STAGING"],
+                 ["TUIST-STAGING-MACOS"],
                  [@sample_pool]
                )
     end
@@ -48,7 +48,7 @@ defmodule Tuist.Runners.PoolConfigTest do
     test "returns :no_match when only generic labels are requested" do
       # `self-hosted` and `macOS` are advertised on the runner but
       # are not authorization boundaries — without the pool's
-      # tuist-tuist-staging tag in the request the pool must not bind.
+      # tuist-staging-macos tag in the request the pool must not bind.
       assert {:error, :no_match} =
                PoolConfig.match_for_dispatch(
                  "tuist/tuist",
@@ -69,7 +69,7 @@ defmodule Tuist.Runners.PoolConfigTest do
 
   describe "dispatch_label/1" do
     test "returns the last (pool-unique) label" do
-      assert PoolConfig.dispatch_label(@sample_pool) == "tuist-tuist-staging"
+      assert PoolConfig.dispatch_label(@sample_pool) == "tuist-staging-macos"
     end
   end
 end

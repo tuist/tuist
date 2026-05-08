@@ -57,7 +57,7 @@ defmodule Tuist.Runners.PoolConfig do
             account_id: nil,
             owner: "tuist",
             repo: "tuist",
-            labels: ["self-hosted", "macOS", "ARM64", "tuist-tuist-staging"],
+            labels: ["self-hosted", "macOS", "ARM64", "tuist-staging-macos"],
             # Repo-allowlisted org runner group — restricts these
             # JIT runners to tuist/tuist regardless of which repo's
             # workflow asks for the labels. Resolved per-env via
@@ -77,7 +77,7 @@ defmodule Tuist.Runners.PoolConfig do
             account_id: nil,
             owner: "tuist",
             repo: "tuist",
-            labels: ["self-hosted", "macOS", "ARM64", "tuist-tuist-canary"],
+            labels: ["self-hosted", "macOS", "ARM64", "tuist-canary-macos"],
             runner_group_id: env_runner_group_id(),
             min_warm: 1,
             max_concurrent: 2
@@ -91,7 +91,7 @@ defmodule Tuist.Runners.PoolConfig do
             account_id: nil,
             owner: "tuist",
             repo: "tuist",
-            labels: ["self-hosted", "macOS", "ARM64", "tuist-tuist"],
+            labels: ["self-hosted", "macOS", "ARM64", "tuist-macos"],
             runner_group_id: env_runner_group_id(),
             min_warm: 3,
             max_concurrent: 5
@@ -171,8 +171,8 @@ defmodule Tuist.Runners.PoolConfig do
   Returns the pool's *dispatch label* — the pool-unique label a
   workflow_job must request before this pool will bind a runner to
   it. By convention it's the last entry in the pool's `labels` list
-  (the customer-scoped `tuist-tuist-staging` / `tuist-tuist-canary`
-  / `tuist-tuist` tag). Generic GitHub labels like `self-hosted`,
+  (the customer-scoped `tuist-staging-macos` / `tuist-canary-macos`
+  / `tuist-macos` tag). Generic GitHub labels like `self-hosted`,
   `macOS`, and `ARM64` are advertised on the runner but are *not*
   authorization boundaries — a workflow that asks for only
   `self-hosted` must NOT consume customer pre-bound capacity.

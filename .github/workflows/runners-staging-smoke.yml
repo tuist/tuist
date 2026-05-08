@@ -1,7 +1,7 @@
 name: Runners Staging Smoke Test
 
 # Manual smoke test for the staging Tuist Runners pool. Targets
-# `runs-on: tuist-tuist-staging` so the staging tier's warm Pods
+# `runs-on: tuist-staging-macos` so the staging tier's warm Pods
 # (configured in infra/helm/tuist/values-managed-staging.yaml as
 # `runnersFleet.replicas: 2`) pick up this job.
 #
@@ -36,11 +36,11 @@ on:
 
 jobs:
   smoke:
-    # Single-label form. `tuist-tuist-staging` is the pool's unique
+    # Single-label form. `tuist-staging-macos` is the pool's unique
     # dispatch label and is sufficient to pick a runner — no need
     # to also list `self-hosted` (which is advertised on the
     # runner but isn't an authorization boundary).
-    runs-on: tuist-tuist-staging
+    runs-on: tuist-staging-macos
     timeout-minutes: 10
     steps:
       - name: Show environment
