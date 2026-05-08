@@ -300,6 +300,27 @@ func (c *Client) IP(ctx context.Context, name string) (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
+// IsRunning checks whether a `tart run <name>` process is currently
+// executing on this host. Used as the canonical liveness signal —
+// `tart ip` keeps returning the last-leased address even after the
+// VM halts, and `tart list`'s State field is unreliable for
+// backgrounded VMs (the on-disk state file isn't updated on exit).
+// pgrep against the actual command line is the only reading that
+// flips the moment the VM exits.
+//
+// Returns false (no error) when no matching process exists; returns
+// an error only on unexpected pgrep failures.
+func (c *Client) IsRunning(ctx context.Context, name string) (bool, error) {
+	cmd := exec.CommandContext(ctx, "pgrep", "-f", fmt.Sprintf("tart run %s", name))
+	if err := cmd.Run(); err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
+			return false, nil
+		}
+		return false, fmt.Errorf("pgrep tart run %s: %w", name, err)
+	}
+	return true, nil
+}
+
 // StageEnvFile writes a Pod's resolved env into
 // <UserDataDir>/<vm>/tuist.env, ready to be shared into the guest as
 // the `env` directory. The directory is created with 0o700; the file

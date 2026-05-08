@@ -286,8 +286,26 @@ func (r *Reconciler) deleteByKey(ctx context.Context, namespace, name string) er
 }
 
 // podStatus reads the underlying VM and translates to a Pod status.
-// Tart 2.32's `get` doesn't update state for backgrounded VMs, so we
-// use `tart ip` as the liveness probe — non-empty IP ⇒ running.
+//
+// Liveness signal layering:
+//   - `tart ip` returns the last-leased address even *after* the VM
+//     halts — relying on it alone leaves a halted VM stuck Running
+//     forever (the runner image's dispatch-poll exits and shuts the
+//     guest down after one job; without a fresh signal the warm
+//     pool never refills).
+//   - `tart list`'s State field is unreliable for backgrounded VMs
+//     under Tart 2.32 — it stays "stopped" while the VM is running.
+//   - `pgrep tart run <name>` flips the moment the VM exits and is
+//     the only signal that does, so it's the canonical liveness
+//     probe. We still call `tart ip` afterwards to pick up the IP
+//     for the podIP field while the VM is up.
+//
+// PodSucceeded vs PodFailed: a clean shutdown (the runner image's
+// `shutdown -h now` after a successful job) is Succeeded; a `tart
+// run` exit caught in-flight (RunHandle.Exited at line 141 above)
+// is Failed because we caught the process error code. Both
+// transitions wake the watcher; the distinction is reflected in
+// `kubectl describe`.
 func (r *Reconciler) podStatus(ctx context.Context, pod *corev1.Pod) (*corev1.PodStatus, error) {
 	entry := r.Store.Get(pod.Namespace, pod.Name)
 	if entry == nil {
@@ -300,14 +318,35 @@ func (r *Reconciler) podStatus(ctx context.Context, pod *corev1.Pod) (*corev1.Po
 		HostIP:    hostIP,
 	}
 
-	ip, err := r.Tart.IP(ctx, entry.VMName)
-	if err == nil && ip != "" {
+	running, err := r.Tart.IsRunning(ctx, entry.VMName)
+	if err != nil {
+		// pgrep failed unexpectedly — leave the Pod Running on
+		// the optimistic read so we don't flap on a transient
+		// host hiccup. The next reconcile retries.
+		status.Phase = corev1.PodRunning
+		return status, nil
+	}
+
+	if !running {
+		// VM exited cleanly. Tear down the Tart clone + Store
+		// entry so the host state mirrors what the API server
+		// will see post-update, then mark the Pod Succeeded so
+		// the watcher refills the warm pool.
+		_ = r.deleteByKey(ctx, pod.Namespace, pod.Name)
+		status.Phase = corev1.PodSucceeded
+		status.Reason = "TartRunExited"
+		return status, nil
+	}
+
+	if ip, ipErr := r.Tart.IP(ctx, entry.VMName); ipErr == nil && ip != "" {
 		status.Phase = corev1.PodRunning
 		status.PodIP = ip
 		status.Conditions = []corev1.PodCondition{
 			{Type: corev1.PodReady, Status: corev1.ConditionTrue},
 		}
 	} else {
+		// VM process is alive but IP isn't yet available — the
+		// guest is still booting. Pending is the right read.
 		status.Phase = corev1.PodPending
 	}
 	return status, nil
