@@ -54,6 +54,29 @@ defmodule Tuist.GitHub.App do
     )
   end
 
+  @doc """
+  Returns the GitHub App installation id for an organization
+  account. Used by the runner-pool path, which is org-scoped:
+  the runner group's repo allowlist on the GitHub side is the
+  source of truth for which repos can consume capacity, so the
+  pool itself only needs the org's installation id (one per
+  customer org, not one per repo).
+
+  Same 6 h cache + 404 → `{:error, :not_installed}` shape as
+  the per-repo variant.
+  """
+  def get_installation_id_for_org(owner, opts \\ []) when is_binary(owner) do
+    ttl = Keyword.get(opts, :ttl, to_timeout(hour: 6))
+
+    KeyValueStore.get_or_update(
+      [__MODULE__, "installation_id_for_org", owner],
+      [cache: get_cache(opts), ttl: ttl],
+      fn ->
+        refresh_installation_id_for_org(owner, expires_in: to_timeout(minute: 10))
+      end
+    )
+  end
+
   def clear_token(opts \\ []) do
     opts |> get_cache() |> Cachex.clear()
   end
@@ -142,6 +165,43 @@ defmodule Tuist.GitHub.App do
         # during a fresh staging cluster bring-up before the App
         # is granted access, or if a customer's pool config
         # references a repo without an active install.
+        {:error, :not_installed}
+
+      {:ok, %Req.Response{status: status, body: body}} ->
+        {:error, "Failed to resolve installation_id (HTTP #{status}): #{inspect(body)}"}
+
+      {:error, %Req.HTTPError{} = error} ->
+        {:error, "GitHub API connection error: #{inspect(error.reason)}"}
+
+      {:error, error} ->
+        {:error, "Unexpected error resolving installation_id: #{inspect(error)}"}
+    end
+  end
+
+  defp refresh_installation_id_for_org(owner, opts) do
+    jwt = generate_app_jwt(opts)
+
+    headers = [
+      {"Accept", "application/vnd.github+json"},
+      {"Authorization", "Bearer #{jwt}"},
+      {"X-GitHub-Api-Version", "2022-11-28"}
+    ]
+
+    req_opts =
+      [
+        url: "https://api.github.com/orgs/#{owner}/installation",
+        headers: headers,
+        finch: Tuist.Finch
+      ] ++ Retry.retry_options()
+
+    case Req.get(req_opts) do
+      {:ok, %Req.Response{status: 200, body: %{"id" => id}}} when is_integer(id) ->
+        {:ok, id}
+
+      {:ok, %Req.Response{status: 404}} ->
+        # The Tuist App is not installed on this org. Mirrors the
+        # per-repo variant's :not_installed signal so pool callers
+        # can degrade gracefully (skip reconcile / drop dispatch).
         {:error, :not_installed}
 
       {:ok, %Req.Response{status: status, body: body}} ->

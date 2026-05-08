@@ -4,10 +4,9 @@ defmodule Tuist.Runners.PoolConfigTest do
   alias Tuist.Runners.PoolConfig
 
   @sample_pool %{
-    name: "tuist-tuist",
+    name: "tuist",
     account_id: nil,
     owner: "tuist",
-    repo: "tuist",
     labels: ["self-hosted", "macOS", "tuist-staging-macos"],
     min_warm: 0,
     max_concurrent: 2
@@ -22,27 +21,27 @@ defmodule Tuist.Runners.PoolConfigTest do
   end
 
   describe "match_for_dispatch/3" do
-    test "matches when the pool's dispatch label is present" do
-      assert {:ok, %{name: "tuist-tuist"}} =
+    test "matches on owner + dispatch label" do
+      assert {:ok, %{name: "tuist"}} =
                PoolConfig.match_for_dispatch(
-                 "tuist/tuist",
+                 "tuist",
                  ["self-hosted", "tuist-staging-macos"],
                  [@sample_pool]
                )
     end
 
     test "matches case-insensitively" do
-      assert {:ok, %{name: "tuist-tuist"}} =
+      assert {:ok, %{name: "tuist"}} =
                PoolConfig.match_for_dispatch(
-                 "Tuist/Tuist",
+                 "Tuist",
                  ["TUIST-STAGING-MACOS"],
                  [@sample_pool]
                )
     end
 
-    test "returns :no_match for an unknown repo" do
+    test "returns :no_match for an unknown owner" do
       assert {:error, :no_match} =
-               PoolConfig.match_for_dispatch("acme/ios", ["self-hosted"], [@sample_pool])
+               PoolConfig.match_for_dispatch("acme", ["self-hosted"], [@sample_pool])
     end
 
     test "returns :no_match when only generic labels are requested" do
@@ -51,7 +50,7 @@ defmodule Tuist.Runners.PoolConfigTest do
       # tuist-staging-macos tag in the request the pool must not bind.
       assert {:error, :no_match} =
                PoolConfig.match_for_dispatch(
-                 "tuist/tuist",
+                 "tuist",
                  ["self-hosted", "macOS"],
                  [@sample_pool]
                )
@@ -60,7 +59,7 @@ defmodule Tuist.Runners.PoolConfigTest do
     test "returns :no_match when labels don't include dispatch_label" do
       assert {:error, :no_match} =
                PoolConfig.match_for_dispatch(
-                 "tuist/tuist",
+                 "tuist",
                  ["windows-latest"],
                  [@sample_pool]
                )

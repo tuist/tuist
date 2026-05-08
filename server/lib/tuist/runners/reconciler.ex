@@ -146,7 +146,7 @@ defmodule Tuist.Runners.Reconciler do
     token = generate_dispatch_token()
     pod_name = PodSpec.generate_pool_name(pool.name)
 
-    with {:ok, installation_id} <- GitHubApp.get_installation_id_for_repo(pool.owner, pool.repo),
+    with {:ok, installation_id} <- GitHubApp.get_installation_id_for_org(pool.owner),
          {:ok, %{encoded_jit_config: jit, runner_name: runner_name}} <-
            GitHubClient.generate_jit_config(installation_id, pool.owner, jit_attrs(pool, pod_name)),
          pod = PodSpec.build(pod_name, image, dispatch_url, token, fleet, pool: pool.name),
@@ -160,8 +160,7 @@ defmodule Tuist.Runners.Reconciler do
              jit_config: jit,
              dispatch_token_hash: Runners.hash_token(token),
              account_id: pool.account_id,
-             owner: pool.owner,
-             repo: pool.repo
+             owner: pool.owner
            }) do
       Logger.info("runners: created pre-bound pod",
         pod_name: pod_name,
@@ -175,9 +174,9 @@ defmodule Tuist.Runners.Reconciler do
       :ok
     else
       {:error, :not_installed} ->
-        Logger.warning("runners: skipping pre-bound — Tuist GitHub App not installed on repo",
+        Logger.warning("runners: skipping pre-bound — Tuist GitHub App not installed on org",
           pool: pool.name,
-          repo: "#{pool.owner}/#{pool.repo}"
+          owner: pool.owner
         )
 
         :ok

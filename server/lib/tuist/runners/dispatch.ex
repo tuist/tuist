@@ -6,11 +6,13 @@ defmodule Tuist.Runners.Dispatch do
   Driven by the `workflow_job: queued` webhook event. For each
   queued job:
 
-  1. Resolve the pool config from `repository.full_name` +
-     `runs-on` labels via `Tuist.Runners.PoolConfig.match_for_dispatch/2`.
-  2. Resolve the GitHub App installation for the repo so we can
-     authenticate `generate-jitconfig`.
-  3. Pick an idle runner from `Tuist.Runners.list_idle_assignments/0`.
+  1. Resolve the pool config from `repository.owner` +
+     `runs-on` labels via `Tuist.Runners.PoolConfig.match_for_dispatch/3`.
+     Pools are org-scoped; repo-level scoping is the GitHub
+     runner group's job, so we don't reimplement it here.
+  2. Resolve the GitHub App installation for the org.
+  3. Atomically claim an idle Pod with
+     `Tuist.Runners.claim_idle_for_dispatch/0`.
   4. Mint a JIT config for the runner with the pool's labels.
   5. UPDATE the assignment row — the polling Pod's next
      `dispatch` request returns the JIT.
@@ -40,9 +42,10 @@ defmodule Tuist.Runners.Dispatch do
     job = Map.get(payload, "workflow_job", %{})
     repo = Map.get(payload, "repository", %{})
     full_name = Map.get(repo, "full_name", "")
+    {owner, repo_name} = parse_full_name(full_name)
     requested = Map.get(job, "labels", [])
 
-    with {:ok, pool} <- PoolConfig.match_for_dispatch(full_name, requested, nil),
+    with {:ok, pool} <- PoolConfig.match_for_dispatch(owner, requested, nil),
          {:ok, idle} <- Runners.claim_idle_for_dispatch(),
          {:ok, %{encoded_jit_config: jit, runner_name: runner_name}} <-
            GitHubClient.generate_jit_config(installation_id, pool.owner, jit_attrs(pool, idle)),
@@ -51,7 +54,11 @@ defmodule Tuist.Runners.Dispatch do
              pool_name: pool.name,
              jit_config: jit,
              owner: pool.owner,
-             repo: pool.repo,
+             # Repo of the job that consumed this runner. Recorded
+             # for analytics / debugging only — pool selection
+             # already happened by `owner`, and GitHub enforces the
+             # runner group's allowlist independently.
+             repo: repo_name,
              account_id: pool.account_id
            }) do
       Logger.info("runners: dispatched",
@@ -64,10 +71,8 @@ defmodule Tuist.Runners.Dispatch do
       {:ok, dispatched}
     else
       {:error, :no_match} ->
-        # No pool matches this repo + labels combo. Probably a
-        # workflow_job for a repository we don't manage runners
-        # for. Common case for GH Apps installed across many
-        # repos; not an error.
+        # No pool matches this org + labels combo. Common case
+        # for GH Apps installed across many orgs; not an error.
         :ignored
 
       {:error, :no_idle_pod} ->
@@ -89,6 +94,13 @@ defmodule Tuist.Runners.Dispatch do
   end
 
   def handle_webhook(_payload, _installation_id), do: :ignored
+
+  defp parse_full_name(full_name) when is_binary(full_name) do
+    case String.split(full_name, "/", parts: 2) do
+      [owner, repo] -> {owner, repo}
+      _ -> {"", ""}
+    end
+  end
 
   # GH's runner-name uniqueness is per repo. Embed the Pod's UID
   # short prefix so a re-dispatch (next reconcile cycle) doesn't

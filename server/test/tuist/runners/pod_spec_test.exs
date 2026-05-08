@@ -62,23 +62,23 @@ defmodule Tuist.Runners.PodSpecTest do
     test "stamps tuist.dev/runner-pool=<pool> on the Pod" do
       pod =
         PodSpec.build(
-          "tuist-runner-tuist-tuist-abcd",
+          "tuist-runner-tuist-abcd",
           "ghcr.io/tuist/tuist-runner@sha256:beefcafe",
           "https://staging.tuist.dev/api/internal/runners/dispatch",
           "tok",
           "fleet",
-          pool: "tuist-tuist"
+          pool: "tuist"
         )
 
-      assert get_in(pod, ["metadata", "labels", "tuist.dev/runner-pool"]) == "tuist-tuist"
+      assert get_in(pod, ["metadata", "labels", "tuist.dev/runner-pool"]) == "tuist"
       assert get_in(pod, ["metadata", "labels", "tuist.dev/runner"]) == "true"
     end
   end
 
   describe "selectors" do
     test "pre_bound_selector includes the pool name" do
-      assert PodSpec.pre_bound_selector("tuist-tuist") ==
-               "tuist.dev/runner=true,tuist.dev/runner-pool=tuist-tuist"
+      assert PodSpec.pre_bound_selector("tuist") ==
+               "tuist.dev/runner=true,tuist.dev/runner-pool=tuist"
     end
 
     test "shared_selector negates the pool label" do
@@ -89,9 +89,9 @@ defmodule Tuist.Runners.PodSpecTest do
 
   describe "generate_pool_name/1" do
     test "embeds the pool name in the Pod name" do
-      name = PodSpec.generate_pool_name("tuist-tuist")
-      assert String.starts_with?(name, "tuist-runner-tuist-tuist-")
-      assert String.match?(name, ~r/^tuist-runner-tuist-tuist-[0-9a-f]{8}$/)
+      name = PodSpec.generate_pool_name("tuist")
+      assert String.starts_with?(name, "tuist-runner-tuist-")
+      assert String.match?(name, ~r/^tuist-runner-tuist-[0-9a-f]{8}$/)
     end
   end
 

@@ -32,20 +32,20 @@ defmodule Tuist.RunnersTest do
   end
 
   describe "create_pre_bound_assignment/1" do
-    test "persists pool + jit + owner/repo at create time (not idle)" do
+    test "persists pool + jit + owner at create time (not idle)" do
       attrs = %{
         pod_uid: "pod-uid-pb-1",
-        pod_name: "tuist-runner-tuist-tuist-abcd",
-        pool_name: "tuist-tuist",
+        pod_name: "tuist-runner-tuist-abcd",
+        pool_name: "tuist",
         jit_config: "encoded-jit-payload",
         dispatch_token_hash: Runners.hash_token("token-pb"),
-        owner: "tuist",
-        repo: "tuist"
+        owner: "tuist"
       }
 
       assert {:ok, %RunnerAssignment{} = a} = Runners.create_pre_bound_assignment(attrs)
-      assert a.pool_name == "tuist-tuist"
+      assert a.pool_name == "tuist"
       assert a.jit_config == "encoded-jit-payload"
+      assert a.repo == nil
       refute RunnerAssignment.idle?(a)
     end
 
@@ -73,11 +73,10 @@ defmodule Tuist.RunnersTest do
         Runners.create_pre_bound_assignment(%{
           pod_uid: "pod-uid-list-pre-bound",
           pod_name: "pre-bound",
-          pool_name: "tuist-tuist",
+          pool_name: "tuist",
           jit_config: "j",
           dispatch_token_hash: Runners.hash_token("t2"),
-          owner: "tuist",
-          repo: "tuist"
+          owner: "tuist"
         })
 
       idle_uids = Enum.map(Runners.list_idle_assignments(), & &1.pod_uid)
@@ -144,14 +143,14 @@ defmodule Tuist.RunnersTest do
     test "fills in jit + pool + owner/repo", %{idle: idle} do
       assert {:ok, dispatched} =
                Runners.dispatch_assignment(idle, %{
-                 pool_name: "tuist-tuist",
+                 pool_name: "tuist",
                  jit_config: "encoded-jit",
                  owner: "tuist",
                  repo: "tuist"
                })
 
       refute RunnerAssignment.idle?(dispatched)
-      assert dispatched.pool_name == "tuist-tuist"
+      assert dispatched.pool_name == "tuist"
       assert dispatched.jit_config == "encoded-jit"
     end
   end

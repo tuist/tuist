@@ -8,6 +8,14 @@ defmodule Tuist.Runners.RunnerAssignment do
   `dispatch_token_hash` is set, so the dispatch endpoint can
   later authenticate the polling Pod.
 
+  Pre-bound rows skip the idle-then-dispatch pattern: `pool_name`
+  / `owner` / `jit_config` are set at create time. `repo` stays
+  NULL on pre-bound rows because pools are org-scoped (the
+  customer's runner group's allowlist is the source of truth for
+  which repos can consume capacity); shared rows promoted via
+  `dispatch_changeset/2` *do* record `repo` so analytics know
+  which repo's job consumed the runner.
+
   Promoted to a customer pool by `Tuist.Runners.Dispatch` when a
   matching `workflow_job: queued` webhook arrives: same row gets
   the JIT config + pool fields filled in.
@@ -61,20 +69,22 @@ defmodule Tuist.Runners.RunnerAssignment do
   """
   def pre_bound_changeset(attrs) do
     %__MODULE__{}
-    |> cast(attrs, ~w(pod_uid pod_name pool_name jit_config dispatch_token_hash account_id owner repo)a)
-    |> validate_required(~w(pod_uid pod_name pool_name jit_config dispatch_token_hash owner repo)a)
+    |> cast(attrs, ~w(pod_uid pod_name pool_name jit_config dispatch_token_hash account_id owner)a)
+    |> validate_required(~w(pod_uid pod_name pool_name jit_config dispatch_token_hash owner)a)
     |> unique_constraint(:pod_uid, name: "runner_assignments_pkey")
   end
 
   @doc """
   Changeset for promoting a Pod from the shared pool into a
   customer's pool. Validates we don't double-dispatch (jit_config
-  already set).
+  already set). `repo` is stamped from the webhook payload — it
+  records which repo's job consumed the runner, not which pool
+  is allowed to use it (pool selection is `owner`-scoped).
   """
   def dispatch_changeset(assignment, attrs) do
     assignment
     |> cast(attrs, ~w(pool_name jit_config account_id owner repo)a)
-    |> validate_required(~w(pool_name jit_config owner repo)a)
+    |> validate_required(~w(pool_name jit_config owner)a)
   end
 
   @doc """

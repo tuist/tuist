@@ -2,14 +2,23 @@ defmodule Tuist.Runners.PoolConfig do
   @moduledoc """
   Hardcoded customer pool definitions for v1.
 
-  Each entry says: "GitHub Actions jobs from this `owner/repo` get
-  bound to a runner registered with this label set, capped at
-  `max_concurrent` parallel jobs, with `min_warm` of those
-  always pre-warmed and pre-registered with GitHub for sub-second
-  pickup latency."
+  Pools are **org-scoped**, not repo-scoped. Each entry says:
+  "GitHub Actions jobs from any repo under `owner` get bound to a
+  runner registered with this label set, capped at
+  `max_concurrent` parallel jobs across the whole org, with
+  `min_warm` of those always pre-warmed and pre-registered with
+  GitHub for sub-second pickup latency."
 
-  When the second customer lands we move this into the database +
-  surface it in the dashboard. The shape here is the contract
+  Repo-level scoping is delegated to the GitHub org runner
+  group's allowlist (`runner_group_id` below): GitHub itself
+  refuses to dispatch a workflow_job into a runner whose group
+  doesn't allowlist the repo, so we don't reimplement that
+  check here. This matches how every comparable product
+  (Namespace, BuildJet, Cirrus, GitHub-hosted larger runners)
+  models capacity.
+
+  When the second customer lands we move this into the database
+  + surface it in the dashboard. The shape here is the contract
   that move has to preserve.
 
   Pool capacity model (hybrid shape 2):
@@ -30,13 +39,12 @@ defmodule Tuist.Runners.PoolConfig do
     when every customer's max equals their min.
 
   The GitHub App installation that authorizes
-  `generate-jitconfig` for this pool's repo is resolved
-  dynamically by `Tuist.GitHub.App.get_installation_id_for_repo/3`
-  at reconcile time — no per-pool config required, and adding a
-  customer is just a new entry here (or a row in the v2 DB
-  table).
+  `generate-jitconfig` is resolved per-org by
+  `Tuist.GitHub.App.get_installation_id_for_org/2` at reconcile
+  time — no per-pool config required, and adding a customer is
+  just a new entry here (or a row in the v2 DB table).
 
-  Resolved at runtime by `env/0` so the per-env values
+  Resolved at runtime by `pools/0` so the per-env values
   overrides (TUIST_DEPLOY_ENV) drive the pool config without a
   redeploy of the chart's Helm values.
   """
@@ -53,14 +61,14 @@ defmodule Tuist.Runners.PoolConfig do
       :stag ->
         [
           %{
-            name: "tuist-tuist",
+            name: "tuist",
             account_id: nil,
             owner: "tuist",
-            repo: "tuist",
             labels: ["self-hosted", "macOS", "ARM64", "tuist-staging-macos"],
             # Repo-allowlisted org runner group — restricts these
-            # JIT runners to tuist/tuist regardless of which repo's
-            # workflow asks for the labels. Resolved per-env via
+            # JIT runners to the repos the org admin allowlisted
+            # in the runner group, regardless of which workflow
+            # asks for the labels. Resolved per-env via
             # TUIST_RUNNER_GROUP_ID; nil falls back to GitHub's
             # default group (id=1) which is *every* repo in the
             # org and is wrong for production.
@@ -73,10 +81,9 @@ defmodule Tuist.Runners.PoolConfig do
       :can ->
         [
           %{
-            name: "tuist-tuist",
+            name: "tuist",
             account_id: nil,
             owner: "tuist",
-            repo: "tuist",
             labels: ["self-hosted", "macOS", "ARM64", "tuist-canary-macos"],
             runner_group_id: env_runner_group_id(),
             min_warm: 1,
@@ -87,10 +94,9 @@ defmodule Tuist.Runners.PoolConfig do
       :prod ->
         [
           %{
-            name: "tuist-tuist",
+            name: "tuist",
             account_id: nil,
             owner: "tuist",
-            repo: "tuist",
             labels: ["self-hosted", "macOS", "ARM64", "tuist-macos"],
             runner_group_id: env_runner_group_id(),
             min_warm: 3,
@@ -183,30 +189,39 @@ defmodule Tuist.Runners.PoolConfig do
 
   @doc """
   Looks up the pool that should accept a `workflow_job: queued`
-  event. Matches on `repository.full_name` (case-insensitive) and
-  requires the pool's `dispatch_label/1` to be present in the
-  requested `runs-on` labels — *not* a generic intersection. The
-  intersection variant (`not MapSet.disjoint?`) was loose enough
-  that any tuist/tuist workflow asking for only `self-hosted`
-  would consume customer capacity; the dispatch label is the
-  authoritative signal for "this job is targeting this pool."
+  event. Matches on `owner` (case-insensitive) — the org login
+  parsed from the webhook's `repository.full_name` — and requires
+  the pool's `dispatch_label/1` to be present in the requested
+  `runs-on` labels.
 
-  Returns `{:ok, pool}` or `{:error, :no_match}`.
+  Repo-level scoping is *not* enforced here; that's the GitHub
+  runner group's job (and is configured per-pool via
+  `runner_group_id`). A workflow_job from a repo that isn't on
+  the runner group's allowlist is rejected by GitHub before it
+  reaches a registered runner, so by the time we see the
+  `workflow_job: queued` event we already know the repo is
+  permitted. Matching on `owner` here keeps the trust boundaries
+  in one place (GitHub) instead of duplicating them.
+
+  Generic labels like `self-hosted` aren't enough — without the
+  pool's customer-scoped tag in the request we return
+  `{:error, :no_match}` so unrelated workflows don't consume
+  pool capacity.
 
   `pools_override` is for tests; production callers omit it and
   resolve via `pools/0`.
   """
-  def match_for_dispatch(repo_full_name, requested_labels, pools_override \\ nil)
-      when is_binary(repo_full_name) and is_list(requested_labels) do
-    needle = String.downcase(repo_full_name)
+  def match_for_dispatch(owner, requested_labels, pools_override \\ nil)
+      when is_binary(owner) and is_list(requested_labels) do
+    needle = String.downcase(owner)
     requested = MapSet.new(requested_labels, &String.downcase/1)
     candidates = pools_override || pools()
 
     Enum.find_value(candidates, {:error, :no_match}, fn pool ->
-      full = String.downcase("#{pool.owner}/#{pool.repo}")
+      pool_owner = String.downcase(pool.owner)
       tag = pool |> dispatch_label() |> String.downcase()
 
-      if full == needle and MapSet.member?(requested, tag) do
+      if pool_owner == needle and MapSet.member?(requested, tag) do
         {:ok, pool}
       end
     end)
