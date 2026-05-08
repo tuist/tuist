@@ -181,6 +181,25 @@ defmodule Tuist.Automations.Alerts.AlertTest do
       assert errors_on(changeset).trigger_config
     end
 
+    test "rejects rolling window_type with rolling_window_size above the cap" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "trigger_config" => %{
+              "threshold" => 10,
+              "window_type" => "rolling",
+              "rolling_window_size" => 1_000_000
+            }
+          })
+        )
+
+      refute changeset.valid?
+      assert errors_on(changeset).trigger_config
+    end
+
     test "rejects rolling window_type with non-positive rolling_window_size" do
       project = ProjectsFixtures.project_fixture()
 

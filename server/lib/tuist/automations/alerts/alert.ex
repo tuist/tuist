@@ -11,6 +11,12 @@ defmodule Tuist.Automations.Alerts.Alert do
   @valid_states ~w(enabled muted skipped)
   @window_types ~w(last_days rolling)
 
+  # Cap on `rolling_window_size` to keep the per-evaluation scan bounded — the
+  # monitor has to read every run for the project in the lookback window to
+  # decide which N to keep per test case, so an unbounded N here would let a
+  # single alert dominate ClickHouse load.
+  @max_rolling_window_size 1000
+
   @primary_key {:id, UUIDv7, autogenerate: true}
   @foreign_key_type UUIDv7
 
@@ -192,9 +198,16 @@ defmodule Tuist.Automations.Alerts.Alert do
       "rolling" ->
         size = config["rolling_window_size"]
 
-        if is_integer(size) and size > 0,
-          do: :ok,
-          else: {:error, "rolling_window_size must be a positive integer"}
+        cond do
+          not (is_integer(size) and size > 0) ->
+            {:error, "rolling_window_size must be a positive integer"}
+
+          size > @max_rolling_window_size ->
+            {:error, "rolling_window_size must be at most #{@max_rolling_window_size}"}
+
+          true ->
+            :ok
+        end
 
       _ ->
         {:error, "window_type must be one of: #{Enum.join(@window_types, ", ")}"}

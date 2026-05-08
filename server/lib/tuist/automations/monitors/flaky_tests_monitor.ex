@@ -43,12 +43,14 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
 
   @comparisons ~w(gte gt lt lte)
 
-  # The rolling-window scan is bounded to this many days of test_case_runs to
-  # keep the scan cost predictable. A test case that hasn't run within this
-  # window has nothing to measure against the threshold anyway, and the
-  # bound is what lets the query land on `proj_test_case_runs_by_project_ran_at`
-  # cleanly.
-  @rolling_window_lookback_days 180
+  # The rolling-window scan is bounded to this many days of test_case_runs so
+  # the per-evaluation read cost stays predictable. The query has to scan every
+  # run in this window for the project to decide which N to keep per test case
+  # (there is no shortcut around `LIMIT N BY` for that), so the lookback is the
+  # main lever on cost. 30 days is plenty for any test that runs even once a
+  # week — tests that run less frequently than that won't usefully fill a
+  # rolling window anyway.
+  @rolling_window_lookback_days 30
 
   def evaluate(alert) do
     trigger_config = alert.trigger_config
