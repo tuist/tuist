@@ -399,6 +399,28 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
       assert {:error, _} =
                ProcessXcresultWorker.perform(oban_job(job_args(test_run_id, account.id, project.id), 1, 3))
     end
+
+    for reason <- [:bundle_invalid, :xcresult_not_found] do
+      test "discards the job and marks failed_processing on the first attempt for #{inspect(reason)}", %{
+        account: account,
+        project: project
+      } do
+        test_run_id = Ecto.UUID.generate()
+
+        expect(Tuist.Accounts, :get_account_by_id, fn _id -> {:ok, account} end)
+        expect(Tuist.Storage, :download_to_file, fn _key, _path, _account -> {:ok, :done} end)
+        expect(XCResultProcessor, :process_local, fn _path, _opts -> {:error, unquote(reason)} end)
+
+        expect(Tuist.Tests, :create_test, fn attrs ->
+          assert attrs.id == test_run_id
+          assert attrs.status == "failed_processing"
+          {:ok, %{id: test_run_id}}
+        end)
+
+        assert {:discard, unquote(reason)} =
+                 ProcessXcresultWorker.perform(oban_job(job_args(test_run_id, account.id, project.id), 1, 5))
+      end
+    end
   end
 
   describe "perform/1 VCS comment refresh" do
