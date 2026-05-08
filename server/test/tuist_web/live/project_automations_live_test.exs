@@ -177,6 +177,46 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
       assert automation.trigger_config["window_type"] == "last_days"
     end
 
+    test "disables Save when rolling_window_size is above the cap", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      {:ok, lv, _html} = open(conn, organization, project)
+
+      render_hook(lv, "open_create_automation_modal", %{})
+      render_hook(lv, "update_create_automation_form_name", %{"value" => "Over cap"})
+      render_hook(lv, "update_create_automation_form_window_type", %{"data" => "rolling"})
+      render_hook(lv, "update_create_automation_form_rolling_window_size", %{"value" => "100000"})
+
+      # The Save button itself is rendered as disabled, so the user can't
+      # click it and the changeset's cap is never exercised silently.
+      assert render(lv) =~
+               ~s(<button class="noora-button" data-variant="primary" data-size="large" disabled="" type="button" phx-click="save_automation"><span>Create</span></button>)
+
+      # And even if we force the click, no alert is created.
+      render_hook(lv, "save_automation", %{})
+      assert Automations.list_alerts(project.id) == []
+    end
+
+    test "re-enables Save when rolling_window_size is brought within the cap", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      {:ok, lv, _html} = open(conn, organization, project)
+
+      render_hook(lv, "open_create_automation_modal", %{})
+      render_hook(lv, "update_create_automation_form_name", %{"value" => "Within cap"})
+      render_hook(lv, "update_create_automation_form_window_type", %{"data" => "rolling"})
+      render_hook(lv, "update_create_automation_form_rolling_window_size", %{"value" => "100000"})
+      render_hook(lv, "update_create_automation_form_rolling_window_size", %{"value" => "500"})
+
+      render_hook(lv, "save_automation", %{})
+      assert [automation] = Automations.list_alerts(project.id)
+      assert automation.trigger_config["rolling_window_size"] == 500
+    end
+
     test "rolling recovery window persists rolling_window_size and drops the days window", %{
       conn: conn,
       organization: organization,

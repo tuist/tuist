@@ -604,6 +604,37 @@ defmodule TuistWeb.ProjectAutomationsLive do
   def window_type_label("rolling"), do: dgettext("dashboard_projects", "Rolling window")
   def window_type_label(_), do: dgettext("dashboard_projects", "Last days")
 
+  @doc """
+  True when the form's rolling-window inputs are within the schema cap.
+  Drives the Save button's disabled state so a too-large value can't be
+  submitted silently — the changeset already rejects it server-side, but
+  Save dispatches via `phx-click` not a form submit, so the browser's
+  `max` attribute doesn't intercept the click.
+  """
+  def rolling_window_inputs_valid?(assigns) do
+    valid_rolling_size?(
+      assigns.create_automation_form_window_type,
+      assigns.create_automation_form_rolling_window_size
+    ) and
+      valid_rolling_size?(
+        assigns.create_automation_form_recovery_window_type,
+        assigns.create_automation_form_recovery_rolling_window_size,
+        recovery_enabled: assigns.create_automation_form_recovery_enabled
+      )
+  end
+
+  defp valid_rolling_size?(window_type, raw_size, opts \\ [])
+  defp valid_rolling_size?(_window_type, _raw_size, recovery_enabled: false), do: true
+  defp valid_rolling_size?("rolling", raw_size, _opts), do: rolling_size_within_cap?(raw_size)
+  defp valid_rolling_size?(_window_type, _raw_size, _opts), do: true
+
+  defp rolling_size_within_cap?(raw_size) do
+    case Integer.parse(to_string(raw_size)) do
+      {n, ""} -> n >= 1 and n <= Tuist.Automations.Alerts.Alert.max_rolling_window_size()
+      _ -> false
+    end
+  end
+
   # Decode the signed channel-result token, then encrypt the webhook URL so
   # we never store it as plaintext inside the action JSON.
   defp verify_and_encrypt(channel_token) do
