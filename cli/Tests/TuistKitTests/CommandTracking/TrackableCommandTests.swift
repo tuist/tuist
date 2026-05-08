@@ -217,6 +217,42 @@ final class TrackableCommandTests: TuistTestCase {
             .called(1)
     }
 
+    func test_whenRunMetadataUploadTimesOut_doesNotFailCommand() async throws {
+        // Given
+        uploadAnalyticsService.reset()
+        given(uploadAnalyticsService)
+            .upload(commandEvent: .any, fullHandle: .any, serverURL: .any, sessionDirectory: .any)
+            .willThrow(URLError(.timedOut))
+        try makeSubject(analyticsRequired: true)
+
+        // When/Then
+        try await subject.run(
+            fullHandle: "tuist/tuist",
+            serverURL: .test(),
+            shouldTrackAnalytics: true
+        )
+    }
+
+    func test_whenRunMetadataCreationFails_doesNotFailCommand() async throws {
+        // Given
+        gitController.reset()
+        given(gitController)
+            .gitInfo(workingDirectory: .any)
+            .willThrow(NSError(domain: "TestDomain", code: 525))
+        try makeSubject(analyticsRequired: true)
+
+        // When/Then
+        try await subject.run(
+            fullHandle: "tuist/tuist",
+            serverURL: .test(),
+            shouldTrackAnalytics: true
+        )
+
+        verify(uploadAnalyticsService)
+            .upload(commandEvent: .any, fullHandle: .any, serverURL: .any, sessionDirectory: .any)
+            .called(0)
+    }
+
     func test_whenOptionalAuthenticationIsEnabled_background_upload_does_not_add_a_flag() async throws {
         // Given
         try makeSubject(analyticsRequired: false)
