@@ -219,10 +219,17 @@ defmodule TuistWeb.LayoutLive do
   end
 
   defp get_projects(account, current_user) do
+    # All projects share `account`, so the membership half of
+    # `:project_url_access` is identical for every row. Resolve it once
+    # rather than re-querying accounts/organizations/users_roles per project.
+    user_belongs_to_account? =
+      not is_nil(current_user) and
+        Accounts.owns_account_or_belongs_to_account_organization?(current_user, %{id: account.id})
+
     account
     |> Projects.get_all_project_accounts()
-    |> Enum.filter(fn %{account: account, project: project} ->
-      Authorization.authorize(:project_url_access, current_user, %{project | account: account}) == :ok
+    |> Enum.filter(fn %{project: project} ->
+      user_belongs_to_account? or project.visibility == :public
     end)
     |> Enum.map(&%{&1.project | account: &1.account})
   end
