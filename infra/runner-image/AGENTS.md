@@ -8,12 +8,17 @@ runner.
 ## What's in the image
 
 - `/opt/actions-runner/` — GitHub Actions runner binary (no
-  registration; we register at runtime via JIT config).
+  registration; we register at runtime via JIT config minted by
+  `Tuist.Runners.Reconciler` / `Tuist.Runners.Dispatch`).
 - `/opt/tuist/inject-env.sh` — reads tart-kubelet's env mount
   (`/Volumes/My Shared Files/env/tuist.env`) into `/etc/tuist.env`.
 - `/opt/tuist/dispatch-poll.sh` — polls
   `TUIST_RUNNER_DISPATCH_URL?pod_uid=…&token=…`. While 204 it
-  sleeps; on 200 it execs `./run.sh --jitconfig $JIT`.
+  sleeps; on 200 it runs `./run.sh --jitconfig $JIT`. Captures the
+  rc and `shutdown -h now`s the VM via an `EXIT` trap so
+  `tart run` returns and tart-kubelet flips the Pod to
+  Succeeded — the watcher's GC + warm-pool refill are gated on
+  that transition.
 - `/Library/LaunchDaemons/dev.tuist.runner.plist` — auto-runs
   `inject-env.sh` then `dispatch-poll.sh` on first boot.
 
@@ -25,46 +30,44 @@ packer init runner.pkr.hcl
 packer build runner.pkr.hcl
 ```
 
-CI: `.github/workflows/runner-image.yml` (manual
-`workflow_dispatch`, runs on the bare-metal `vm-image-builder`
-Mac mini that already serves xcresult-processor builds).
+CI:
+- **Steady state.** `feat(runner-image)` / `fix(runner-image)`
+  conventional commits on `main` trigger `release.yml`'s
+  `release-runner-image` job: builds, pushes
+  `ghcr.io/tuist/tuist-runner:<semver>` + `:latest`, resolves the
+  digest with `crane digest`, rewrites
+  `runnersFleet.runnerImage` across managed-env values files
+  that already have a digest pin, tags `runner-image@x.y.z`,
+  opens a GitHub Release, commits.
+- **Ad-hoc rebuilds.** `.github/workflows/runner-image.yml`
+  (push-to-main on `infra/runner-image/**` changes, plus a
+  manual `workflow_dispatch` trigger) builds + pushes a
+  SHA-tagged image without bumping the version. Used during
+  bring-up before the auto-bump path was wired and as an escape
+  hatch for non-versioned rebuilds.
 
-## Deploy to staging
+Both flows run on the bare-metal `vm-image-builder` Mac mini
+that also builds xcresult-processor — Tart needs a live GUI
+session for Virtualization.framework, so this can't run on
+hosted runners.
 
-The chart treats `runnersFleet.enabled` as off by default so
-the substrate (Mac mini fleet, RBAC, NetworkPolicy) doesn't
-land before a runner image is pinned. Once the workflow has
-pushed an image:
+## How it ends up serving traffic
 
-```bash
-RUNNER_DIGEST=$(crane digest ghcr.io/tuist/tuist-runner:<sha>)
+1. `runnersFleet.runnerImage` (helm value) is digest-pinned to a
+   built image. Server-deployment.yaml's `required` directive
+   rejects non-digest values.
+2. `Tuist.Runners.Reconciler` creates a Pod with this image as
+   `spec.containers[0].image`; tart-kubelet on the target Mac
+   mini calls `tart pull`/`tart clone`/`tart run`.
+3. The launchd plist runs on first boot inside the VM. The
+   dispatch-poll script exchanges the per-Pod token for a JIT
+   config (200 immediately for pre-bound, 200 once a webhook
+   binds an on-demand Pod), runs the GitHub Actions runner
+   single-shot, traps the exit, halts the VM. tart-kubelet sees
+   `tart run` exit, the Pod goes Succeeded, the watcher GCs the
+   Pod + assignment row and (if `min_warm > 0`) refills.
 
-helm upgrade tuist infra/helm/tuist \
-  -f infra/helm/tuist/values-managed-common.yaml \
-  -f infra/helm/tuist/values-managed-staging.yaml \
-  --set server.image.tag=$GIT_SHA \
-  --set runnersFleet.enabled=true \
-  --set runnersFleet.runnerImage="ghcr.io/tuist/tuist-runner@${RUNNER_DIGEST}"
-```
-
-`--set runnersFleet.runnerImage` is digest-pinned in production
-so a registry retag of the floating tag can't smuggle in a
-different image at runner-Pod create time.
-
-## Verifying end-to-end
-
-1. After deploy, watch `kubectl get pods -n tuist-runners
-   -l tuist.dev/runner=true -w`. Two Pods should appear within
-   one minute (the staging tier's `runnersFleet.replicas: 2`).
-2. Each Pod should reach `Running` once tart-kubelet on its host
-   has the VM up.
-3. `select * from runner_assignments` in the staging Postgres
-   should show two rows with `jit_config IS NULL`,
-   `dispatch_token_hash IS NOT NULL`.
-4. Trigger `.github/workflows/runners-staging-smoke.yml` from the
-   Actions UI. The job has `runs-on: tuist-staging-macos`.
-5. Within a few seconds: GH fires `workflow_job: queued`, the
-   server's webhook handler binds an idle Pod, the VM polls and
-   gets the JIT, the runner registers and runs the job.
-6. After the job exits, the Pod transitions to `Completed`. Next
-   reconcile cycle (≤ 60 s) creates a fresh Pod.
+For the customer-facing dispatch label and capacity model see
+`server/lib/tuist/runners/pool_config.ex` and the PR description
+that introduced the runner pool — they're the right place for
+the routing semantics, this doc is just about the VM image.
