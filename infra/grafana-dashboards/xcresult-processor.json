@@ -1,0 +1,518 @@
+{
+  "apiVersion": "dashboard.grafana.app/v1",
+  "kind": "Dashboard",
+  "metadata": {
+    "name": "tuist-xcresult-processor"
+  },
+  "spec": {
+    "annotations": {
+      "list": [
+        {
+          "builtIn": 1,
+          "datasource": {
+            "type": "grafana",
+            "uid": "-- Grafana --"
+          },
+          "enable": true,
+          "hide": true,
+          "iconColor": "rgba(0, 211, 255, 1)",
+          "name": "Annotations & Alerts",
+          "type": "dashboard"
+        }
+      ]
+    },
+    "editable": true,
+    "fiscalYearStartMonth": 0,
+    "graphTooltip": 1,
+    "id": null,
+    "links": [],
+    "panels": [
+      {
+        "collapsed": false,
+        "gridPos": {"h": 1, "w": 24, "x": 0, "y": 0},
+        "id": 100,
+        "panels": [],
+        "title": "Overview",
+        "type": "row"
+      },
+      {
+        "datasource": "$datasource",
+        "description": "xcresult-processor Pods that are currently being scraped. Mac mini fleet is sized for one Pod per host (Apple's 2-VM SLA + per-Pod resource budget); production runs 2 hosts and so this should sit at 2 in steady state.",
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "red", "value": null},
+                {"color": "yellow", "value": 1},
+                {"color": "green", "value": 2}
+              ]
+            },
+            "unit": "none"
+          }
+        },
+        "gridPos": {"h": 4, "w": 6, "x": 0, "y": 1},
+        "id": 1,
+        "options": {
+          "colorMode": "background",
+          "graphMode": "none",
+          "justifyMode": "center",
+          "orientation": "horizontal",
+          "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+          "textMode": "auto"
+        },
+        "pluginVersion": "11.0.0",
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "count(up{job=~\"$job\"} == 1)",
+            "instant": true,
+            "refId": "A"
+          }
+        ],
+        "title": "Active Consumers",
+        "type": "stat"
+      },
+      {
+        "datasource": "$datasource",
+        "description": "Pending work in the :process_xcresult queue — sum of available + scheduled + retryable. Climbing under steady consumer count means a backlog.",
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 50},
+                {"color": "red", "value": 200}
+              ]
+            },
+            "unit": "none"
+          }
+        },
+        "gridPos": {"h": 4, "w": 6, "x": 6, "y": 1},
+        "id": 2,
+        "options": {
+          "colorMode": "background",
+          "graphMode": "area",
+          "justifyMode": "center",
+          "orientation": "horizontal",
+          "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+          "textMode": "auto"
+        },
+        "pluginVersion": "11.0.0",
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "max(sum by (instance) (tuist_oban_queue_length_count{queue=\"process_xcresult\", state=~\"available|scheduled|retryable\"}))",
+            "instant": false,
+            "refId": "A"
+          }
+        ],
+        "title": "Pending Jobs",
+        "type": "stat"
+      },
+      {
+        "datasource": "$datasource",
+        "description": "Successful job completions per minute over the last 5 minutes. Counts only state=\"success\" — discards/cancels are tracked separately below.",
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [{"color": "green", "value": null}]
+            },
+            "unit": "short"
+          }
+        },
+        "gridPos": {"h": 4, "w": 6, "x": 12, "y": 1},
+        "id": 3,
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "center",
+          "orientation": "horizontal",
+          "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+          "textMode": "auto"
+        },
+        "pluginVersion": "11.0.0",
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum(rate(tuist_oban_job_processing_duration_milliseconds_count{worker=\"Tuist.Tests.Workers.ProcessXcresultWorker\", state=\"success\"}[5m])) * 60",
+            "instant": false,
+            "refId": "A"
+          }
+        ],
+        "title": "Throughput (jobs/min)",
+        "type": "stat"
+      },
+      {
+        "datasource": "$datasource",
+        "description": "Jobs the ProcessXcresultWorker discarded in the last 30 minutes. A non-zero value means at least one xcresult parse exhausted its retries — investigate the failures panel below.",
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "red", "value": 1}
+              ]
+            },
+            "unit": "short"
+          }
+        },
+        "gridPos": {"h": 4, "w": 6, "x": 18, "y": 1},
+        "id": 4,
+        "options": {
+          "colorMode": "background",
+          "graphMode": "none",
+          "justifyMode": "center",
+          "orientation": "horizontal",
+          "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+          "textMode": "auto"
+        },
+        "pluginVersion": "11.0.0",
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum(increase(tuist_oban_job_processing_duration_milliseconds_count{worker=\"Tuist.Tests.Workers.ProcessXcresultWorker\", state=\"discarded\"}[30m]))",
+            "instant": false,
+            "refId": "A"
+          }
+        ],
+        "title": "Discarded (last 30m)",
+        "type": "stat"
+      },
+      {
+        "collapsed": false,
+        "gridPos": {"h": 1, "w": 24, "x": 0, "y": 5},
+        "id": 101,
+        "panels": [],
+        "title": "Latency",
+        "type": "row"
+      },
+      {
+        "datasource": "$datasource",
+        "description": "Wall time from when ProcessXcresultWorker started a job to when it finished. p99 climbing without throughput climbing means individual parses are slowing down (large xcresult bundles, S3 latency, NIF contention).",
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineWidth": 1,
+              "showPoints": "never"
+            },
+            "unit": "ms"
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 6},
+        "id": 5,
+        "options": {
+          "legend": {"calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true},
+          "tooltip": {"mode": "multi", "sort": "none"}
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "histogram_quantile(0.50, sum by (le) (rate(tuist_oban_job_processing_duration_milliseconds_bucket{worker=\"Tuist.Tests.Workers.ProcessXcresultWorker\"}[5m])))",
+            "legendFormat": "p50",
+            "refId": "A"
+          },
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "histogram_quantile(0.95, sum by (le) (rate(tuist_oban_job_processing_duration_milliseconds_bucket{worker=\"Tuist.Tests.Workers.ProcessXcresultWorker\"}[5m])))",
+            "legendFormat": "p95",
+            "refId": "B"
+          },
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "histogram_quantile(0.99, sum by (le) (rate(tuist_oban_job_processing_duration_milliseconds_bucket{worker=\"Tuist.Tests.Workers.ProcessXcresultWorker\"}[5m])))",
+            "legendFormat": "p99",
+            "refId": "C"
+          }
+        ],
+        "title": "Processing Duration",
+        "type": "timeseries"
+      },
+      {
+        "datasource": "$datasource",
+        "description": "How long a job sat in the queue between insert and the worker picking it up. Persistent non-zero queue time means consumers are saturated relative to incoming work — add capacity or look for upstream bursts.",
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineWidth": 1,
+              "showPoints": "never"
+            },
+            "unit": "ms"
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 6},
+        "id": 6,
+        "options": {
+          "legend": {"calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true},
+          "tooltip": {"mode": "multi", "sort": "none"}
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "histogram_quantile(0.50, sum by (le) (rate(tuist_oban_job_queue_time_milliseconds_bucket{worker=\"Tuist.Tests.Workers.ProcessXcresultWorker\"}[5m])))",
+            "legendFormat": "p50",
+            "refId": "A"
+          },
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "histogram_quantile(0.95, sum by (le) (rate(tuist_oban_job_queue_time_milliseconds_bucket{worker=\"Tuist.Tests.Workers.ProcessXcresultWorker\"}[5m])))",
+            "legendFormat": "p95",
+            "refId": "B"
+          },
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "histogram_quantile(0.99, sum by (le) (rate(tuist_oban_job_queue_time_milliseconds_bucket{worker=\"Tuist.Tests.Workers.ProcessXcresultWorker\"}[5m])))",
+            "legendFormat": "p99",
+            "refId": "C"
+          }
+        ],
+        "title": "Queue Wait Time",
+        "type": "timeseries"
+      },
+      {
+        "collapsed": false,
+        "gridPos": {"h": 1, "w": 24, "x": 0, "y": 14},
+        "id": 102,
+        "panels": [],
+        "title": "Queue Depth & Failures",
+        "type": "row"
+      },
+      {
+        "datasource": "$datasource",
+        "description": "Queue contents over time, broken down by Oban state. Polled every 5s from oban_jobs by every PromEx-enabled pod; we max() by state to dedupe across replicas. Watch for `available` spikes that don't drain — that's where backlogs show.",
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 30,
+              "lineWidth": 1,
+              "showPoints": "never",
+              "stacking": {"mode": "normal"}
+            },
+            "unit": "short"
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 15},
+        "id": 7,
+        "options": {
+          "legend": {"calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true},
+          "tooltip": {"mode": "multi", "sort": "none"}
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "max by (state) (tuist_oban_queue_length_count{queue=\"process_xcresult\", state=~\"available|scheduled|executing|retryable\"})",
+            "legendFormat": "{{state}}",
+            "refId": "A"
+          }
+        ],
+        "title": "Queue Depth by State",
+        "type": "timeseries"
+      },
+      {
+        "datasource": "$datasource",
+        "description": "Per-error-class exception rate from the ProcessXcresultWorker. The `error` label is the normalised module name of whatever exception bubbled out of the perform/1 callback. Bursts here usually point at a specific failure mode (S3 timeout, NIF panic, etc.).",
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineWidth": 1,
+              "showPoints": "never"
+            },
+            "unit": "short"
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 15},
+        "id": 8,
+        "options": {
+          "legend": {"calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true},
+          "tooltip": {"mode": "multi", "sort": "none"}
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum by (error) (rate(tuist_oban_job_exception_duration_milliseconds_count{worker=\"Tuist.Tests.Workers.ProcessXcresultWorker\"}[5m]))",
+            "legendFormat": "{{error}}",
+            "refId": "A"
+          }
+        ],
+        "title": "Exception Rate by Error Class",
+        "type": "timeseries"
+      },
+      {
+        "collapsed": false,
+        "gridPos": {"h": 1, "w": 24, "x": 0, "y": 23},
+        "id": 103,
+        "panels": [],
+        "title": "Retries",
+        "type": "row"
+      },
+      {
+        "datasource": "$datasource",
+        "description": "Distribution of how many attempts a job needed before completing successfully. The Oban max_attempts on this worker is 3; anything in the 2-3 range means the parser eventually succeeded but only after a retry. A floor that's drifting up usually points at flaky upstream behaviour.",
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineWidth": 1,
+              "showPoints": "never"
+            },
+            "unit": "short"
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24},
+        "id": 9,
+        "options": {
+          "legend": {"calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true},
+          "tooltip": {"mode": "multi", "sort": "none"}
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "histogram_quantile(0.50, sum by (le) (rate(tuist_oban_job_complete_attempts_bucket{worker=\"Tuist.Tests.Workers.ProcessXcresultWorker\"}[5m])))",
+            "legendFormat": "p50",
+            "refId": "A"
+          },
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "histogram_quantile(0.95, sum by (le) (rate(tuist_oban_job_complete_attempts_bucket{worker=\"Tuist.Tests.Workers.ProcessXcresultWorker\"}[5m])))",
+            "legendFormat": "p95",
+            "refId": "B"
+          },
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "histogram_quantile(0.99, sum by (le) (rate(tuist_oban_job_complete_attempts_bucket{worker=\"Tuist.Tests.Workers.ProcessXcresultWorker\"}[5m])))",
+            "legendFormat": "p99",
+            "refId": "C"
+          }
+        ],
+        "title": "Attempts to Completion",
+        "type": "timeseries"
+      },
+      {
+        "datasource": "$datasource",
+        "description": "Discards (job exhausted retries → moved to discarded) and cancellations (cancelled mid-flight) over time, per state. Both are terminal: the parse won't be tried again automatically. Sustained discards are usually correlated with a specific bundle pattern; spot-check via the Logs section in Loki.",
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineWidth": 1,
+              "showPoints": "never"
+            },
+            "unit": "short"
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24},
+        "id": 10,
+        "options": {
+          "legend": {"calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true},
+          "tooltip": {"mode": "multi", "sort": "none"}
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum by (state) (rate(tuist_oban_job_processing_duration_milliseconds_count{worker=\"Tuist.Tests.Workers.ProcessXcresultWorker\", state=~\"discarded|cancelled\"}[5m]))",
+            "legendFormat": "{{state}}",
+            "refId": "A"
+          }
+        ],
+        "title": "Discards & Cancellations Rate",
+        "type": "timeseries"
+      }
+    ],
+    "refresh": "30s",
+    "schemaVersion": 39,
+    "tags": ["tuist", "oban", "xcresult"],
+    "templating": {
+      "list": [
+        {
+          "current": {
+            "selected": false,
+            "text": "grafanacloud-prom",
+            "value": "grafanacloud-prom"
+          },
+          "hide": 0,
+          "includeAll": false,
+          "label": "Data Source",
+          "multi": false,
+          "name": "datasource",
+          "options": [],
+          "query": "prometheus",
+          "refresh": 1,
+          "regex": "",
+          "skipUrlSync": false,
+          "type": "datasource"
+        },
+        {
+          "current": {
+            "selected": false,
+            "text": "xcresult-processor",
+            "value": "xcresult-processor"
+          },
+          "datasource": "$datasource",
+          "definition": "label_values(tuist_oban_queue_length_count{queue=\"process_xcresult\"}, job)",
+          "hide": 0,
+          "includeAll": false,
+          "label": "Job",
+          "multi": false,
+          "name": "job",
+          "options": [],
+          "query": {
+            "qryType": 1,
+            "query": "label_values(tuist_oban_queue_length_count{queue=\"process_xcresult\"}, job)",
+            "refId": "PrometheusVariableQueryEditor-VariableQuery"
+          },
+          "refresh": 1,
+          "regex": "",
+          "skipUrlSync": false,
+          "sort": 1,
+          "type": "query"
+        }
+      ]
+    },
+    "time": {
+      "from": "now-3h",
+      "to": "now"
+    },
+    "timepicker": {},
+    "timezone": "browser",
+    "title": "Tuist xcresult Processor",
+    "uid": "tuist-xcresult-processor",
+    "version": 1,
+    "weekStart": ""
+  }
+}

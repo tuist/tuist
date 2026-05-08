@@ -32,6 +32,13 @@ spec:
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9091"
+        # Ports declared on this Pod: http, metrics, epmd (HA prod).
+        # Without a port-name discriminator, Kubernetes pod-role
+        # discovery emits one scrape target per declared port — naming
+        # the metrics one explicitly keeps Alloy on a single target
+        # per pod. See helm/k8s-monitoring/values.yaml for the
+        # annotation→config mapping.
+        prometheus.io/port-name: metrics
         {{- with .Values.server.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
