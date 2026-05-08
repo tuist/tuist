@@ -65,15 +65,28 @@ tolerations:
 {{- end }}
 
 {{/*
-Mac mini fleet names. The CR / SSH-key / Node-label all share the
-same string. Centralizing keeps macos-fleet.yaml,
-runners-fleet.yaml, and the workload Deployments that target each
-fleet via nodeSelector pinned to the same value without copy-paste
-drift.
+Mac mini fleet names. "Fleet" stays as the human-facing label
+for "a logical group of identical Mac minis" — CAPI doesn't ship
+a Fleet primitive, but the concept is real, and it ties together
+every resource that needs to share an identity:
 
-Defaults pin the existing xcresult fleet to its CR-derived name to
-avoid renaming Mac minis (which would force Scaleway to re-order
-hosts). Override `macosFleet.name` only on a green-field cluster.
+  - the MachineDeployment + MachineSet + Machines that own host
+    lifecycle
+  - the ScalewayAppleSiliconMachineTemplate the deployment clones
+    from
+  - the per-fleet SSH-key Secret (`<fleetName>-ssh`)
+  - the Node label `tuist.dev/fleet=<name>` and the Pod
+    nodeSelector that pins workloads to the right fleet
+
+Centralizing the name in this helper keeps macos-fleet.yaml,
+runners-fleet.yaml, and the workload Deployments pinned to the
+same value without copy-paste drift.
+
+Defaults pin the existing xcresult fleet to its release-name-
+derived value so a chart upgrade doesn't rename Mac minis (which
+would otherwise force the operator to re-order hosts under
+Scaleway's 24h-floor). Override `macosFleet.name` only on a
+green-field cluster.
 */}}
 {{- define "tuist.macosFleetName" -}}
 {{- .Values.macosFleet.name | default (include "tuist.componentName" (dict "root" . "component" "macos-fleet")) -}}
