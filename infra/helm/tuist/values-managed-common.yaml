@@ -212,7 +212,7 @@ macosFleet:
     # carries the Fleet CRD + Fleet controller. Will roll forward
     # to whatever semver tag the release workflow produces once
     # this PR lands and the auto-bump path runs.
-    tag: "ffe0c18c"
+    tag: "56858800"
 
 # Everything below = external. The managed deployment never runs embedded
 # Postgres / ClickHouse / object storage / observability stacks.
