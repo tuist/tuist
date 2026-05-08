@@ -130,7 +130,7 @@ func TestForwarder_CachesResolverWithinTTL(t *testing.T) {
 }
 
 func TestForwarder_ReturnsBadGatewayWhenResolveFails(t *testing.T) {
-	fw, err := NewForwarder("127.0.0.1:0", func() (string, error) { return "", errors.New("vm has no IP yet") }, ForwarderOptions{})
+	fw, err := NewForwarder("127.0.0.1:0", func() (string, error) { return "", errors.New("vm has no IP yet: secret-vm-name") }, ForwarderOptions{})
 	if err != nil {
 		t.Fatalf("NewForwarder: %v", err)
 	}
@@ -144,6 +144,15 @@ func TestForwarder_ReturnsBadGatewayWhenResolveFails(t *testing.T) {
 
 	if resp.StatusCode != http.StatusBadGateway {
 		t.Fatalf("status = %d, want 502", resp.StatusCode)
+	}
+
+	// Detail must NOT leak into the HTTP body — the scraper is
+	// inside our allowed CIDR but that's a network boundary, not a
+	// trust boundary, and VM names / IPs / Tart subprocess output
+	// are operationally sensitive.
+	body, _ := io.ReadAll(resp.Body)
+	if strings.Contains(string(body), "secret-vm-name") {
+		t.Fatalf("response body leaked the underlying error: %q", string(body))
 	}
 }
 
@@ -264,6 +273,44 @@ func TestCachedResolver_RefreshesAfterTTL(t *testing.T) {
 	v3, _ := c.get()
 	if v3 == v2 {
 		t.Fatalf("expected refresh after TTL; still %q", v3)
+	}
+}
+
+func TestCachedResolver_DoesNotCacheErrors(t *testing.T) {
+	var calls atomic.Int32
+	results := []struct {
+		target string
+		err    error
+	}{
+		{"", errors.New("transient: vm restarting")},
+		{"127.0.0.1:9091", nil},
+		{"", errors.New("another transient blip")},
+		{"127.0.0.1:9092", nil},
+	}
+	c := newCachedResolver(func() (string, error) {
+		i := int(calls.Add(1)) - 1
+		if i >= len(results) {
+			t.Fatalf("resolver called more than %d times", len(results))
+		}
+		return results[i].target, results[i].err
+	}, time.Hour) // long TTL — only the success-cache rule should keep us off the resolver.
+
+	// First call errors; resolver invoked (1).
+	if _, err := c.get(); err == nil {
+		t.Fatal("expected error on first call")
+	}
+	// Next call must invoke the resolver again (2) — error wasn't cached.
+	v, err := c.get()
+	if err != nil || v != "127.0.0.1:9091" {
+		t.Fatalf("expected fresh success after error, got %q / %v", v, err)
+	}
+	// Subsequent call within TTL must NOT invoke the resolver: success is cached.
+	v, err = c.get()
+	if err != nil || v != "127.0.0.1:9091" {
+		t.Fatalf("expected cached success, got %q / %v", v, err)
+	}
+	if calls.Load() != 2 {
+		t.Fatalf("resolver call count = %d, want 2", calls.Load())
 	}
 }
 

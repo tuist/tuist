@@ -318,8 +318,15 @@ xcresultProcessor:
       # in tart-kubelet has a single owner per Mac mini) and the
       # scheduler refuses to bind the same hostPort to two Pods on
       # the same Node. Surging would deadlock on a fleet whose
-      # nodes are all already at capacity. PDB.minAvailable=1 keeps
-      # at least one consumer up across the rollout window.
+      # nodes are all already at capacity.
+      #
+      # Multi-replica deployments that turn `podDisruptionBudget`
+      # on (managed prod sets minAvailable: 1) keep one consumer
+      # up across the rollout window. Single-replica deployments
+      # and ones that leave the PDB off above briefly drop to zero
+      # consumers while the new VM boots — acceptable for an Oban
+      # queue where work just queues; if you need stricter SLOs,
+      # bump `replicaCount` and enable the PDB.
       maxSurge: 0
       maxUnavailable: 1
 

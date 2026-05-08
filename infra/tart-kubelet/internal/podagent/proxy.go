@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -51,6 +52,13 @@ type ForwarderOptions struct {
 	// Empty = allow all (only used in tests). RemoteAddr is parsed
 	// against each CIDR in order; the first match accepts.
 	AllowedCIDRs []*net.IPNet
+
+	// Logger receives the detailed errors that the proxy
+	// deliberately suppresses from HTTP responses (a 502 body must
+	// not leak VM IPs / names / Tart subprocess output to the
+	// allowlisted-but-still-untrusted scraper). Nil falls back to
+	// slog.Default().
+	Logger *slog.Logger
 }
 
 // MetricsPath is the only request path the forwarder will proxy.
@@ -80,6 +88,11 @@ func NewForwarder(listenAddr string, resolve func() (string, error), opts Forwar
 		return nil, fmt.Errorf("listen on %s: %w", listenAddr, err)
 	}
 
+	logger := opts.Logger
+	if logger == nil {
+		logger = slog.Default()
+	}
+
 	cached := newCachedResolver(resolve, 30*time.Second)
 
 	rp := &httputil.ReverseProxy{
@@ -99,11 +112,21 @@ func NewForwarder(listenAddr string, resolve func() (string, error), opts Forwar
 			req.Host = target
 		},
 		ErrorHandler: func(w http.ResponseWriter, req *http.Request, err error) {
+			// Log the detail server-side, return a generic body to
+			// the client. The detailed error can include VM names,
+			// IPs, or Tart subprocess output, none of which the
+			// scraper has any business seeing — even though it sits
+			// inside the allowed CIDR, that's a network boundary,
+			// not a trust boundary.
 			if rerr, ok := req.Context().Value(resolveErrKey{}).(error); ok && rerr != nil {
-				http.Error(w, "tart-kubelet: upstream resolve failed: "+rerr.Error(), http.StatusBadGateway)
+				logger.Warn("metrics forwarder: upstream resolve failed",
+					"listen", listenAddr, "remote", req.RemoteAddr, "err", rerr)
+				http.Error(w, "bad gateway", http.StatusBadGateway)
 				return
 			}
-			http.Error(w, "tart-kubelet: upstream proxy error: "+err.Error(), http.StatusBadGateway)
+			logger.Warn("metrics forwarder: upstream proxy error",
+				"listen", listenAddr, "remote", req.RemoteAddr, "err", err)
+			http.Error(w, "bad gateway", http.StatusBadGateway)
 		},
 		Transport: &http.Transport{
 			DialContext: (&net.Dialer{
@@ -227,14 +250,19 @@ func DefaultScrapeAllowedCIDRs() []*net.IPNet {
 // cachedResolver memoises the upstream lookup for `ttl` so a burst
 // of scrapes (or anyone hammering the proxy) doesn't translate 1:1
 // into `tart ip` subprocess invocations on the host.
+//
+// Only successful results are cached. Errors are returned as-is and
+// the next call retries the underlying resolver — without that, a
+// single transient `tart ip` failure during a VM restart would
+// poison every scrape for the full TTL even after the VM came back
+// healthy with a new DHCP lease.
 type cachedResolver struct {
 	fn  func() (string, error)
 	ttl time.Duration
 
-	mu        sync.Mutex
-	cachedAt  time.Time
-	target    string
-	cachedErr error
+	mu       sync.Mutex
+	cachedAt time.Time
+	target   string
 }
 
 func newCachedResolver(fn func() (string, error), ttl time.Duration) *cachedResolver {
@@ -245,15 +273,20 @@ func (c *cachedResolver) get() (string, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if !c.cachedAt.IsZero() && time.Since(c.cachedAt) < c.ttl {
-		return c.target, c.cachedErr
+	if c.target != "" && time.Since(c.cachedAt) < c.ttl {
+		return c.target, nil
 	}
 
 	target, err := c.fn()
+	if err != nil {
+		// Don't poison the cache; next call retries the resolver.
+		// Keep the previously-cached target untouched so a transient
+		// failure doesn't blow it away either.
+		return "", err
+	}
 	c.target = target
-	c.cachedErr = err
 	c.cachedAt = time.Now()
-	return target, err
+	return target, nil
 }
 
 // resolveErrKey is the context key tart-kubelet's reverse-proxy
