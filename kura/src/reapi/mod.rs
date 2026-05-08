@@ -26,10 +26,14 @@ use sha2::{Digest as _, Sha256};
 use tokio::{io::AsyncReadExt, net::TcpListener};
 use tokio_stream::wrappers::TcpListenerStream;
 use tokio_util::io::ReaderStream;
-use tonic::{Request, Response, Status, transport::Server};
+use tonic::{
+    Request, Response, Status,
+    transport::{Identity, Server, ServerTlsConfig},
+};
 
 use crate::{
     artifact::{manifest::ArtifactManifest, producer::ArtifactProducer},
+    config::GrpcTlsConfig,
     constants::MAX_MODULE_TOTAL_BYTES,
     extension::{AccessDecision, ExtensionContext, Principal},
     replication::replication_targets,
@@ -58,6 +62,7 @@ pub async fn serve<F>(listener: TcpListener, state: SharedState, shutdown: F) ->
 where
     F: Future<Output = ()> + Send + 'static,
 {
+    let tls = state.config.grpc_tls.clone();
     let service = ReapiService { state };
     let capabilities = CapabilitiesServer::new(service.clone()).max_decoding_message_size(64 << 20);
     let action_cache = ActionCacheServer::new(service.clone()).max_decoding_message_size(64 << 20);
@@ -65,9 +70,16 @@ where
         ContentAddressableStorageServer::new(service.clone()).max_decoding_message_size(64 << 20);
     let byte_stream = ByteStreamServer::new(service).max_decoding_message_size(64 << 20);
 
-    Server::builder()
+    let mut builder = Server::builder()
         .max_connection_age(Duration::from_secs(300))
-        .max_connection_age_grace(Duration::from_secs(300))
+        .max_connection_age_grace(Duration::from_secs(300));
+    if let Some(tls) = tls {
+        builder = builder
+            .tls_config(load_grpc_tls_config(&tls).await?)
+            .map_err(|error| format!("gRPC TLS configuration error: {error}"))?;
+    }
+
+    builder
         .add_service(capabilities)
         .add_service(action_cache)
         .add_service(cas)
@@ -75,6 +87,22 @@ where
         .serve_with_incoming_shutdown(TcpListenerStream::new(listener), shutdown)
         .await
         .map_err(|error| format!("gRPC server error: {error}"))
+}
+
+async fn load_grpc_tls_config(tls: &GrpcTlsConfig) -> Result<ServerTlsConfig, String> {
+    let cert = tokio::fs::read(&tls.cert_path).await.map_err(|error| {
+        format!(
+            "failed to read gRPC TLS cert at {}: {error}",
+            tls.cert_path.display()
+        )
+    })?;
+    let key = tokio::fs::read(&tls.key_path).await.map_err(|error| {
+        format!(
+            "failed to read gRPC TLS key at {}: {error}",
+            tls.key_path.display()
+        )
+    })?;
+    Ok(ServerTlsConfig::new().identity(Identity::from_pem(cert, key)))
 }
 
 impl ReapiService {

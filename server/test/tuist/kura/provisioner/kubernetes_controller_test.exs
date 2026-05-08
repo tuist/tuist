@@ -12,8 +12,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
   describe "manifest/6" do
     test "renders a KuraInstance without a per-account compute spec" do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
-      stub(Tuist.Environment, :secret_key_tokens, fn -> "jwt-secret" end)
-      stub(Tuist.License, :get_license, fn -> {:ok, %{signing_key: "signing-secret"}} end)
 
       manifest =
         KubernetesController.manifest(
@@ -36,6 +34,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       assert spec["region"] == "eu-central"
       assert spec["image"] == "ghcr.io/tuist/kura:0.5.2"
       assert spec["publicHost"] == "tuist-eu-central-1.kura.tuist.dev"
+      assert spec["grpcPublicHost"] == "grpc.tuist-eu-central-1.kura.tuist.dev"
       refute Map.has_key?(spec, "tlsSecretName")
       assert spec["storageClassName"] == "hcloud-volumes"
       assert spec["extensionScript"] == "return true"
@@ -45,14 +44,17 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       env = Map.new(spec["extraEnv"], &{&1["name"], &1["value"]})
       assert env["KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL"] == "https://tuist.dev"
-      assert env["KURA_EXTENSION_JWT_VERIFIER_TUIST_SECRET"] == "jwt-secret"
-      assert env["KURA_EXTENSION_SIGNER_TUIST_SECRET"] == "signing-secret"
+      # Tuist platform secrets (JWT verifier, license signer) live in the
+      # kura-shared-secrets Kubernetes Secret; the controller envFroms
+      # them into the pod. They must NEVER appear in the spec, since
+      # anyone with list/watch on KuraInstance would otherwise read the
+      # global JWT signing secret.
+      refute Map.has_key?(env, "KURA_EXTENSION_JWT_VERIFIER_TUIST_SECRET")
+      refute Map.has_key?(env, "KURA_EXTENSION_SIGNER_TUIST_SECRET")
     end
 
     test "renders local controller overrides for kind testing" do
       stub(Tuist.Environment, :app_url, fn -> "http://localhost:8080" end)
-      stub(Tuist.Environment, :secret_key_tokens, fn -> nil end)
-      stub(Tuist.License, :get_license, fn -> {:error, :not_found} end)
 
       manifest =
         KubernetesController.manifest(
@@ -70,6 +72,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       assert spec["storageSize"] == "10Gi"
       assert spec["nodeSelector"] == %{"kubernetes.io/os" => "linux"}
       refute Map.has_key?(spec, "publicHost")
+      refute Map.has_key?(spec, "grpcPublicHost")
 
       env = Map.new(spec["extraEnv"], &{&1["name"], &1["value"]})
       assert env["KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL"] == "http://host.docker.internal:8080"
@@ -80,8 +83,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
   describe "rollout/2" do
     test "applies the KuraInstance without waiting for controller readiness" do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
-      stub(Tuist.Environment, :secret_key_tokens, fn -> "jwt-secret" end)
-      stub(Tuist.License, :get_license, fn -> {:ok, %{signing_key: "signing-secret"}} end)
 
       expect(Client, :apply, fn manifest ->
         assert manifest["metadata"]["name"] == "kura-tuist-eu-central-1"
@@ -101,8 +102,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
     test "passes regional Kubernetes client options through" do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
-      stub(Tuist.Environment, :secret_key_tokens, fn -> "jwt-secret" end)
-      stub(Tuist.License, :get_license, fn -> {:ok, %{signing_key: "signing-secret"}} end)
 
       region = us_east_region()
       client_opts = [mode: :kubeconfig, cluster_id: "us-east-1"]
@@ -142,6 +141,18 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
     test "uses the configured public URL for local controller regions" do
       assert KubernetesController.public_url("TUIST", local_controller_region(), "any-ref") ==
                "http://localhost:4100"
+    end
+  end
+
+  describe "grpc_public_url/3" do
+    test "interpolates the gRPC host template with the account handle" do
+      assert KubernetesController.grpc_public_url("TUIST", eu_region(), "any-ref") ==
+               "grpcs://grpc.tuist-eu-central-1.kura.tuist.dev"
+    end
+
+    test "returns nil when the region has no gRPC host configured" do
+      assert KubernetesController.grpc_public_url("TUIST", local_controller_region(), "any-ref") ==
+               nil
     end
   end
 
@@ -230,6 +241,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       provisioner_config: %{
         cluster_id: "eu-central-1",
         public_host_template: "{account_handle}-{cluster_id}.kura.tuist.dev",
+        grpc_public_host_template: "grpc.{account_handle}-{cluster_id}.kura.tuist.dev",
         storage_class: "hcloud-volumes"
       }
     }
@@ -242,6 +254,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
         cluster_id: "us-east-1",
         kubernetes_client: [mode: :kubeconfig, cluster_id: "us-east-1"],
         public_host_template: "{account_handle}-{cluster_id}.kura.tuist.dev",
+        grpc_public_host_template: "grpc.{account_handle}-{cluster_id}.kura.tuist.dev",
         storage_class: "hcloud-volumes"
       }
     }

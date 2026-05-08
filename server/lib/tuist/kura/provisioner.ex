@@ -65,6 +65,14 @@ defmodule Tuist.Kura.Provisioner do
               String.t()
 
   @doc """
+  Public gRPC (Bazel REAPI) URL for the server, or `nil` if the region
+  doesn't expose gRPC publicly. Returned with a `grpcs://` scheme when
+  TLS is terminated by the runtime.
+  """
+  @callback grpc_public_url(account_handle :: String.t(), Regions.t(), ref :: String.t()) ::
+              String.t() | nil
+
+  @doc """
   Best-effort drift check: what version is actually running on the
   node right now? Returns `{:ok, nil}` when the resource exists but
   isn't reporting a version yet. Used for reconciliation jobs and the
@@ -100,6 +108,13 @@ defmodule Tuist.Kura.Provisioner do
   def public_url(%Account{name: handle}, %Server{provisioner_node_ref: ref, region: region_id}) do
     with {:ok, region} <- Regions.fetch(region_id) do
       region.provisioner.public_url(handle, region, ref)
+    end
+  end
+
+  @doc "Calls `grpc_public_url/3` on the region's provisioner."
+  def grpc_public_url(%Account{name: handle}, %Server{provisioner_node_ref: ref, region: region_id}) do
+    with {:ok, region} <- Regions.fetch(region_id) do
+      region.provisioner.grpc_public_url(handle, region, ref)
     end
   end
 

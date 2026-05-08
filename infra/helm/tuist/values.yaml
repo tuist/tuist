@@ -23,6 +23,28 @@ kuraController:
     limits:
       cpu: "500m"
       memory: "512Mi"
+  # cert-manager ClusterIssuer to use for the per-instance gRPC TLS
+  # Certificate. Leave empty to expose gRPC plaintext (no public LB
+  # certificate) — recommended only for kind/dev clusters.
+  grpcClusterIssuer: ""
+  sharedSecrets:
+    # Renders the kura-shared-secrets Kubernetes Secret in the
+    # controller namespace. Set to false if the Secret is managed
+    # out-of-band (sealed-secrets, external-secrets, etc.).
+    enabled: true
+    annotations: {}
+    # Map of env-var names to literal values. The controller's
+    # StatefulSet picks them up via envFrom on every Kura pod. Leave
+    # empty if you populate the Secret out-of-band; the manifest will
+    # still be created so envFrom doesn't 404, and stringData will be
+    # absent, which Kubernetes accepts.
+    data: {}
+    # Example shape — never commit real values here:
+    #   KURA_EXTENSION_JWT_VERIFIER_TUIST_ALGORITHM: HS512
+    #   KURA_EXTENSION_JWT_VERIFIER_TUIST_ISSUER: tuist
+    #   KURA_EXTENSION_JWT_VERIFIER_TUIST_SECRET: "<JWT signing secret>"
+    #   KURA_EXTENSION_SIGNER_TUIST_ALGORITHM: hmac-sha256
+    #   KURA_EXTENSION_SIGNER_TUIST_SECRET: "<license signing key>"
 
 kuraRuntime:
   image:

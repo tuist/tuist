@@ -278,17 +278,34 @@ defmodule Tuist.Kura do
 
   @doc """
   Marks a server as `:active`, mirrors its URL into
-  `account_cache_endpoints`, and broadcasts.
+  `account_cache_endpoints`, and broadcasts. Public DNS is checked
+  first so the CLI doesn't see the URL before external-dns has
+  propagated; the reconciler retries on the next tick if DNS isn't
+  resolvable yet.
   """
   def activate_server(%Server{} = server, image_tag) when is_binary(image_tag) do
     with {:ok, account} <- Accounts.get_account_by_id(server.account_id),
          url when is_binary(url) <- Provisioner.public_url(account, server),
+         :ok <- ensure_public_host_resolves(url),
          {:ok, server} <- activate_server_transaction(server, account, url, image_tag) do
       broadcast_server(server, :updated)
       {:ok, server}
     else
       {:error, reason} -> {:error, reason}
       reason -> {:error, reason}
+    end
+  end
+
+  defp ensure_public_host_resolves(url) when is_binary(url) do
+    case URI.parse(url) do
+      %URI{host: host} when is_binary(host) and host != "" ->
+        case :inet.gethostbyname(String.to_charlist(host)) do
+          {:ok, _} -> :ok
+          {:error, reason} -> {:error, {:public_host_not_resolvable, host, reason}}
+        end
+
+      _ ->
+        {:error, :public_url_invalid}
     end
   end
 

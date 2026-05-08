@@ -13,7 +13,7 @@ defmodule Tuist.Kura.Reconciler do
   loop observes the same rows on the next tick and converges again.
   """
 
-  use Oban.Worker, queue: :default, max_attempts: 1
+  use Oban.Worker, queue: :default, max_attempts: 3
 
   import Ecto.Query
 
@@ -26,6 +26,12 @@ defmodule Tuist.Kura.Reconciler do
   require Logger
 
   @deployment_statuses [:pending, :running]
+  # Hard ceiling on how much converge work the reconciler does in one
+  # tick. The cron fires every 30 s; bigger fan-outs are rare enough in
+  # practice that one or two extra ticks are fine, and the ceiling
+  # guards against a runaway query if a regression ever leaks
+  # `:running` rows.
+  @reconcile_batch_size 200
 
   @impl Oban.Worker
   def perform(%Oban.Job{}) do
@@ -50,6 +56,8 @@ defmodule Tuist.Kura.Reconciler do
   defp reconcile_destroying_servers do
     Server
     |> where([s], s.status == :destroying)
+    |> order_by([s], asc: s.updated_at, asc: s.id)
+    |> limit(^@reconcile_batch_size)
     |> Repo.all()
     |> Enum.each(&reconcile_destroying_server/1)
 
@@ -88,6 +96,7 @@ defmodule Tuist.Kura.Reconciler do
     |> where([d], d.status in ^@deployment_statuses)
     |> join(:inner, [d], s in assoc(d, :kura_server))
     |> order_by([d, _s], desc: d.inserted_at, desc: d.id)
+    |> limit(^@reconcile_batch_size)
     |> preload([_d, s], kura_server: {s, :account})
     |> Repo.all()
     |> Enum.uniq_by(& &1.kura_server_id)
@@ -123,6 +132,14 @@ defmodule Tuist.Kura.Reconciler do
 
       {:error, status} when status in [:server_destroying, :server_destroyed] ->
         cancel(deployment, "server #{server.id} became #{server_status(status)} during rollout; skipping activation")
+
+      {:error, {:public_host_not_resolvable, host, reason}} ->
+        # external-dns has not propagated yet. Leave the deployment in
+        # `:running` so the next reconciler tick retries instead of
+        # marking the server failed for what's a benign delay.
+        Logger.info("[Kura.Reconciler] waiting on DNS for server #{server.id} (#{host}): #{inspect(reason)}")
+
+        :ok
 
       {:error, reason} ->
         fail(deployment, server, reason)

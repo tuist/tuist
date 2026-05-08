@@ -60,6 +60,20 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   end
 
   @impl true
+  def grpc_public_url(handle, %Regions{provisioner_config: config}, _ref) do
+    cond do
+      template = config[:grpc_public_host_template] ->
+        "grpcs://" <> interpolate_host(template, dns_handle(handle), config)
+
+      url = config[:grpc_public_url] ->
+        url
+
+      true ->
+        nil
+    end
+  end
+
+  @impl true
   def current_image_tag(name, %Regions{} = region) do
     case client_get_kura_instance(@namespace, name, region) do
       {:ok, %{"status" => %{"observedImage" => image}}} -> {:ok, image_tag_from_image(image)}
@@ -126,6 +140,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           "region" => region.id,
           "image" => "ghcr.io/tuist/kura:#{image_tag}",
           "publicHost" => public_host(account.name, region),
+          "grpcPublicHost" => grpc_public_host(account.name, region),
           "storageClassName" => storage_class(region),
           "storageSize" => storage_size(region),
           "replicas" => replicas(region),
@@ -144,6 +159,19 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   defp public_host(_handle, _region), do: nil
 
+  defp grpc_public_host(handle, %Regions{provisioner_config: %{grpc_public_host_template: template} = config}) do
+    interpolate_host(template, dns_handle(handle), config)
+  end
+
+  defp grpc_public_host(_handle, _region), do: nil
+
+  # Tuist-platform-wide secrets (license signing key, JWT verifier) are
+  # mounted into the Kura pod from the shared kura-shared-secrets
+  # Secret in the kura namespace, not embedded in the KuraInstance
+  # spec. Anyone with list/watch on kurainstances can read its spec, so
+  # putting the global JWT secret there would leak forging material to
+  # every account that ever runs Kura. The controller's envFrom on the
+  # StatefulSet picks up that Secret automatically.
   defp extension_env(%Regions{} = region) do
     [
       env_var("KURA_EXTENSION_FAIL_CLOSED_AUTHENTICATE", "true"),
@@ -152,7 +180,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
       env_var("KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL", tuist_base_url(region)),
       env_var("KURA_EXTENSION_HTTP_CLIENT_TUIST_CONNECT_TIMEOUT_MS", "3000"),
       env_var("KURA_EXTENSION_HTTP_CLIENT_TUIST_REQUEST_TIMEOUT_MS", "4000")
-    ] ++ telemetry_env(region) ++ jwt_verifier_env() ++ signer_env()
+    ] ++ telemetry_env(region)
   end
 
   defp telemetry_env(%Regions{provisioner_config: %{otlp_traces_endpoint: endpoint}})
@@ -162,43 +190,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   defp telemetry_env(_), do: []
 
-  defp jwt_verifier_env do
-    case Tuist.Environment.secret_key_tokens() do
-      nil ->
-        []
-
-      secret ->
-        [
-          env_var("KURA_EXTENSION_JWT_VERIFIER_TUIST_ALGORITHM", "HS512"),
-          env_var("KURA_EXTENSION_JWT_VERIFIER_TUIST_SECRET", secret),
-          env_var("KURA_EXTENSION_JWT_VERIFIER_TUIST_ISSUER", "tuist")
-        ]
-    end
-  end
-
-  defp signer_env do
-    case license_signing_key() do
-      nil ->
-        []
-
-      key ->
-        [
-          env_var("KURA_EXTENSION_SIGNER_TUIST_ALGORITHM", "hmac-sha256"),
-          env_var("KURA_EXTENSION_SIGNER_TUIST_SECRET", key)
-        ]
-    end
-  end
-
   defp env_var(name, value), do: %{"name" => name, "value" => value}
-
-  defp license_signing_key do
-    case Tuist.License.get_license() do
-      {:ok, %{signing_key: key}} when is_binary(key) and key != "" -> key
-      _ -> nil
-    end
-  rescue
-    _ -> nil
-  end
 
   defp tuist_base_url(%Regions{id: "local-controller"}) do
     Tuist.Environment.app_url()
@@ -274,15 +266,33 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
     end
   end
 
+  # Hook script is the same for every rollout in a given release, so we
+  # read it once and keep it in :persistent_term to avoid disk I/O on
+  # every reconciler tick. Cleared automatically when the BEAM is
+  # restarted (release upgrade, pod replacement) so a chart change to
+  # the bundled hooks.lua picks up on the next deploy.
+  @hook_script_cache_key {__MODULE__, :hook_script}
+
   defp hook_script_from_runtime do
     case Application.get_env(:tuist, :kura_hook_path) do
       nil ->
         {:error, "kura_hook_path is not configured"}
 
       path when is_binary(path) ->
-        if File.regular?(path),
-          do: {:ok, File.read!(path)},
-          else: {:error, "kura_hook_path #{path} is not a file"}
+        case :persistent_term.get({@hook_script_cache_key, path}, :__missing__) do
+          :__missing__ -> read_and_cache_hook_script(path)
+          script -> {:ok, script}
+        end
+    end
+  end
+
+  defp read_and_cache_hook_script(path) do
+    if File.regular?(path) do
+      script = File.read!(path)
+      :persistent_term.put({@hook_script_cache_key, path}, script)
+      {:ok, script}
+    else
+      {:error, "kura_hook_path #{path} is not a file"}
     end
   end
 

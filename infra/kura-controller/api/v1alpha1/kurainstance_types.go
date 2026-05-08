@@ -12,6 +12,7 @@ type KuraInstanceSpec struct {
 	Image            string            `json:"image"`
 	Replicas         *int32            `json:"replicas,omitempty"`
 	PublicHost       string            `json:"publicHost,omitempty"`
+	GRPCPublicHost   string            `json:"grpcPublicHost,omitempty"`
 	StorageClassName string            `json:"storageClassName,omitempty"`
 	StorageSize      string            `json:"storageSize,omitempty"`
 	NodeSelector     map[string]string `json:"nodeSelector,omitempty"`
@@ -22,6 +23,7 @@ type KuraInstanceSpec struct {
 type KuraInstanceStatus struct {
 	Phase            string       `json:"phase,omitempty"`
 	PublicURL        string       `json:"publicURL,omitempty"`
+	GRPCPublicURL    string       `json:"grpcPublicURL,omitempty"`
 	ObservedImage    string       `json:"observedImage,omitempty"`
 	ReadyReplicas    int32        `json:"readyReplicas,omitempty"`
 	Message          string       `json:"message,omitempty"`

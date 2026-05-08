@@ -13,6 +13,16 @@ kuraController:
   namespace: kura
   image:
     tag: ""  # Set by CI to the commit SHA on each deploy.
+  # ClusterIssuer that fronts the gRPC public LoadBalancer with a
+  # Let's Encrypt certificate. Must already exist on the regional
+  # cluster (cert-manager + the issuer are bootstrapped via the
+  # mgmt-cluster pipeline). Leave empty to keep gRPC plaintext.
+  grpcClusterIssuer: "letsencrypt-prod"
+  sharedSecrets:
+    # In managed regions, kura-shared-secrets is populated by CI from
+    # the same secret store as the Tuist server release.
+    enabled: true
+    data: {}
 
 server:
   enabled: false

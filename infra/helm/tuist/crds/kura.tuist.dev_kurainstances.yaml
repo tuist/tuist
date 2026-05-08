@@ -25,6 +25,9 @@ spec:
         - name: Host
           type: string
           jsonPath: .spec.publicHost
+        - name: gRPC
+          type: string
+          jsonPath: .spec.grpcPublicHost
         - name: Ready
           type: integer
           jsonPath: .status.readyReplicas
@@ -52,21 +55,33 @@ spec:
                 accountHandle:
                   type: string
                   minLength: 1
+                  maxLength: 63
+                  pattern: "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$"
                 tenantID:
                   type: string
                   minLength: 1
+                  maxLength: 63
+                  pattern: "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$"
                 region:
                   type: string
                   minLength: 1
+                  maxLength: 63
+                  pattern: "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$"
                 image:
                   type: string
                   minLength: 1
+                  maxLength: 256
+                  pattern: "^[A-Za-z0-9._/-]+(:[A-Za-z0-9._-]+)?(@sha256:[A-Fa-f0-9]{64})?$"
                 replicas:
                   type: integer
                   format: int32
                   minimum: 1
                 publicHost:
                   type: string
+                  maxLength: 253
+                grpcPublicHost:
+                  type: string
+                  maxLength: 253
                 storageClassName:
                   type: string
                 storageSize:
@@ -88,6 +103,8 @@ spec:
                 phase:
                   type: string
                 publicURL:
+                  type: string
+                grpcPublicURL:
                   type: string
                 observedImage:
                   type: string

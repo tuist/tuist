@@ -2,6 +2,10 @@
 {{- $name := include "tuist.componentName" (dict "root" . "component" "kura-controller") }}
 {{- $namespace := .Values.kuraController.namespace }}
 {{- $serverRoleName := printf "%s-server" $name }}
+{{- $imageTag := .Values.kuraController.image.tag }}
+{{- if not $imageTag }}
+{{- fail "kuraController.image.tag is required — running the controller on :latest silently drifts and surfaces in production after the next push to ghcr." }}
+{{- end }}
 ---
 apiVersion: v1
 kind: Namespace
@@ -42,13 +46,16 @@ rules:
     resources: [services, configmaps]
     verbs: [get, list, watch, create, update, patch, delete]
   - apiGroups: ["networking.k8s.io"]
-    resources: [ingresses]
+    resources: [ingresses, networkpolicies]
     verbs: [get, list, watch, create, update, patch, delete]
   - apiGroups: ["policy"]
     resources: [poddisruptionbudgets]
     verbs: [get, list, watch, create, update, patch, delete]
   - apiGroups: ["coordination.k8s.io"]
     resources: [leases]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: ["cert-manager.io"]
+    resources: [certificates]
     verbs: [get, list, watch, create, update, patch, delete]
   - apiGroups: [""]
     resources: [events]
@@ -132,13 +139,16 @@ spec:
       serviceAccountName: {{ $name }}
       containers:
         - name: manager
-          image: "{{ .Values.kuraController.image.repository }}:{{ .Values.kuraController.image.tag | default "latest" }}"
+          image: "{{ .Values.kuraController.image.repository }}:{{ $imageTag }}"
           imagePullPolicy: {{ .Values.kuraController.image.pullPolicy }}
           args:
             - --leader-elect=true
             - --metrics-bind-address=:8080
             - --health-probe-bind-address=:8081
             - --watch-namespace={{ $namespace }}
+            {{- if .Values.kuraController.grpcClusterIssuer }}
+            - --grpc-cluster-issuer={{ .Values.kuraController.grpcClusterIssuer }}
+            {{- end }}
           ports:
             - name: metrics
               containerPort: 8080
@@ -154,4 +164,32 @@ spec:
             periodSeconds: 10
           resources:
             {{- toYaml .Values.kuraController.resources | nindent 12 }}
+{{- if .Values.kuraController.sharedSecrets.enabled }}
+---
+# Shared platform secrets for every Kura runtime pod in this cluster.
+# The controller mounts this Secret via envFrom on the StatefulSet so
+# the JWT verifier secret + license signing key never have to live in
+# the KuraInstance spec (anyone with list/watch on the CR could
+# otherwise read forging material). Keys are populated either through
+# Helm values (CI deploy) or by an out-of-band operator (sealed-secrets,
+# external-secrets, etc.) — leave .Values.kuraController.sharedSecrets.data
+# empty to keep operator-managed secrets unchanged on each deploy.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: kura-shared-secrets
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura
+{{- if .Values.kuraController.sharedSecrets.annotations }}
+  annotations:
+    {{- toYaml .Values.kuraController.sharedSecrets.annotations | nindent 4 }}
+{{- end }}
+type: Opaque
+{{- with .Values.kuraController.sharedSecrets.data }}
+stringData:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- end }}
 {{- end }}
