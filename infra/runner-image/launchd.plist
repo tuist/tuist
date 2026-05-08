@@ -9,10 +9,11 @@
        for a JIT config and execs ./run.sh on first 200.
 
   KeepAlive=false: the runner image is single-shot. After the GH
-  Actions job finishes the runner exits, the wrapper exits, and
-  the Pod transitions to Completed. Restarting would re-poll for
-  a JIT config that's already been claimed; the next reconcile
-  cycle creates a fresh Pod instead.
+  Actions job finishes, dispatch-poll.sh halts the VM so `tart
+  run` returns and tart-kubelet transitions the Pod to Succeeded;
+  the watcher then reconciles a fresh warm Pod into its place.
+  Restarting the wrapper would just re-poll for a JIT config
+  that's already been claimed.
 
   RunAsUser is implicit (root via LaunchDaemon) — the runner
   binary handles its own user dropping if needed.

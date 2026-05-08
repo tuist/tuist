@@ -62,8 +62,18 @@ while true; do
       echo "$(date -u +%FT%TZ) dispatch-poll: dispatched, starting runner"
       cd /opt/actions-runner
       # `--jitconfig` implies ephemeral: the runner accepts one
-      # job and exits. Pod terminates with the runner.
-      exec ./run.sh --jitconfig "${jit}"
+      # job and exits. We then halt the VM so `tart run` returns,
+      # tart-kubelet observes the exit, the Pod transitions to
+      # Succeeded, and the watcher reconciles a fresh warm Pod
+      # into its place. Without the explicit shutdown the VM
+      # would idle indefinitely with launchd's wrapper exited but
+      # macOS still up — `kubectl get pods` would keep showing
+      # Running and the warm pool would never refill.
+      ./run.sh --jitconfig "${jit}"
+      rc=$?
+      echo "$(date -u +%FT%TZ) dispatch-poll: runner exited with code ${rc}; shutting down VM"
+      /sbin/shutdown -h now
+      exit "${rc}"
       ;;
     401)
       echo "$(date -u +%FT%TZ) dispatch-poll: 401 unauthorized; aborting"
