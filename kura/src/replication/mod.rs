@@ -81,7 +81,9 @@ where
             match handle.await {
                 Ok(()) => return,
                 Err(error) if error.is_panic() => {
-                    state.metrics.record_memory_action(&format!("background_panic_{name}"));
+                    state
+                        .metrics
+                        .record_memory_action(&format!("background_panic_{name}"));
                     warn!("background task '{name}' panicked: {error:?}; respawning in 1s");
                     sleep(Duration::from_secs(1)).await;
                 }
@@ -112,22 +114,21 @@ async fn membership_task_loop(state: SharedState) {
         .await;
         for (peer, result) in lookups {
             match result {
-                Ok(response) if response.status().is_success() => match response
-                    .json::<PeerStatusPayload>()
-                    .await
-                {
-                    Ok(payload) => {
-                        peer_status_successes += 1;
-                        if payload.tenant_id != state.config.tenant_id
-                            || payload.node_url == state.config.node_url
-                        {
-                            continue;
+                Ok(response) if response.status().is_success() => {
+                    match response.json::<PeerStatusPayload>().await {
+                        Ok(payload) => {
+                            peer_status_successes += 1;
+                            if payload.tenant_id != state.config.tenant_id
+                                || payload.node_url == state.config.node_url
+                            {
+                                continue;
+                            }
+                            members.insert(payload.region.clone());
+                            peer_nodes.insert(payload.node_url, payload.region);
                         }
-                        members.insert(payload.region.clone());
-                        peer_nodes.insert(payload.node_url, payload.region);
+                        Err(error) => warn!("failed to decode peer status from {peer}: {error}"),
                     }
-                    Err(error) => warn!("failed to decode peer status from {peer}: {error}"),
-                },
+                }
                 Ok(response) => {
                     warn!("peer status check failed for {peer}: {}", response.status())
                 }
@@ -462,7 +463,8 @@ async fn fetch_bootstrap_tombstones_page(
         .map_err(|error| format!("bootstrap tombstone request failed: {error}"))?
         .error_for_status()
         .map_err(|error| format!("bootstrap tombstone response failed: {error}"))?;
-    let bytes = read_bounded_body(response, MAX_BOOTSTRAP_PAGE_BYTES, "bootstrap tombstone").await?;
+    let bytes =
+        read_bounded_body(response, MAX_BOOTSTRAP_PAGE_BYTES, "bootstrap tombstone").await?;
     serde_json::from_slice(&bytes)
         .map_err(|error| format!("failed to decode bootstrap tombstone page: {error}"))
 }

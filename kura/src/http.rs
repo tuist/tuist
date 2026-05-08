@@ -21,11 +21,11 @@ use crate::{
     },
     extension::{AccessDecision, ExtensionContext},
     io::is_fd_pool_exhausted_error,
-    store::is_disk_full_error,
     memory::MemoryPressure,
     multipart::error::MultipartError,
     replication::replication_targets,
     state::SharedState,
+    store::is_disk_full_error,
     telemetry::attach_parent_context,
     utils::{BodyReadError, action_cache_key, blob_key, module_key, read_request_to_temp},
 };
@@ -414,7 +414,9 @@ async fn reject_overloaded_public_writes(
 
     if is_write_method(&method) && !is_probe_route(&route) {
         if state.memory.pressure() == MemoryPressure::Critical {
-            state.metrics.record_memory_action("write_rejected_critical");
+            state
+                .metrics
+                .record_memory_action("write_rejected_critical");
             return overloaded_response("server is shedding writes due to memory pressure");
         }
         if state.runtime.outbox_depth() >= state.config.outbox_max_depth {
@@ -438,9 +440,10 @@ fn is_write_method(method: &axum::http::Method) -> bool {
 
 fn overloaded_response(message: &str) -> Response {
     let mut response = error_response(StatusCode::SERVICE_UNAVAILABLE, message);
-    response
-        .headers_mut()
-        .insert(axum::http::header::RETRY_AFTER, HeaderValue::from_static("1"));
+    response.headers_mut().insert(
+        axum::http::header::RETRY_AFTER,
+        HeaderValue::from_static("1"),
+    );
     response
 }
 
@@ -2118,7 +2121,10 @@ mod tests {
 
         let body: Value = serde_json::from_str(&response_text(get_response).await)
             .expect("failed to decode keyvalue response");
-        assert!(body.get("cas_id").is_none(), "stored payload must not include cas_id");
+        assert!(
+            body.get("cas_id").is_none(),
+            "stored payload must not include cas_id"
+        );
         assert_eq!(body["entries"][0]["value"], "hello");
         assert_eq!(body["entries"][1]["value"], "world");
     }

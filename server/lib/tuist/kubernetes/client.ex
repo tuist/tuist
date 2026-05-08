@@ -156,29 +156,30 @@ defmodule Tuist.Kubernetes.Client do
 
   defp kubeconfig_contents(opts) do
     cond do
-      contents = Keyword.get(opts, :kubeconfig) ->
+      contents = Keyword.get(opts, :kubeconfig) -> {:ok, contents}
+      path = Keyword.get(opts, :kubeconfig_path) -> kubeconfig_from_path(path)
+      cluster_id = Keyword.get(opts, :cluster_id) -> kubeconfig_from_cluster(cluster_id)
+      true -> {:error, "Kubernetes kubeconfig client mode requires :kubeconfig, :kubeconfig_path, or :cluster_id"}
+    end
+  end
+
+  defp kubeconfig_from_path(path) do
+    case File.read(path) do
+      {:ok, contents} -> {:ok, contents}
+      {:error, reason} -> {:error, "cannot read Kubernetes kubeconfig #{path}: #{inspect(reason)}"}
+    end
+  end
+
+  defp kubeconfig_from_cluster(cluster_id) do
+    case Tuist.Environment.kura_kubeconfig(cluster_id) do
+      contents when is_binary(contents) and contents != "" ->
         {:ok, contents}
 
-      path = Keyword.get(opts, :kubeconfig_path) ->
-        case File.read(path) do
-          {:ok, contents} -> {:ok, contents}
-          {:error, reason} -> {:error, "cannot read Kubernetes kubeconfig #{path}: #{inspect(reason)}"}
-        end
+      _ ->
+        suffix = cluster_id |> String.upcase() |> String.replace("-", "_")
 
-      cluster_id = Keyword.get(opts, :cluster_id) ->
-        case Tuist.Environment.kura_kubeconfig(cluster_id) do
-          contents when is_binary(contents) and contents != "" ->
-            {:ok, contents}
-
-          _ ->
-            suffix = cluster_id |> String.upcase() |> String.replace("-", "_")
-
-            {:error,
-             "missing Kubernetes kubeconfig for Kura cluster #{cluster_id}; set TUIST_KURA_KUBECONFIG_#{suffix} or TUIST_KURA_KUBECONFIG_PATH_#{suffix}"}
-        end
-
-      true ->
-        {:error, "Kubernetes kubeconfig client mode requires :kubeconfig, :kubeconfig_path, or :cluster_id"}
+        {:error,
+         "missing Kubernetes kubeconfig for Kura cluster #{cluster_id}; set TUIST_KURA_KUBECONFIG_#{suffix} or TUIST_KURA_KUBECONFIG_PATH_#{suffix}"}
     end
   end
 

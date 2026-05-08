@@ -371,7 +371,9 @@ fn spawn_multipart_janitor_task(state: Arc<AppState>) {
                     warn!("multipart janitor failed to expire {upload_id}: {error}");
                 }
             }
-            state.metrics.record_memory_action("multipart_janitor_pruned");
+            state
+                .metrics
+                .record_memory_action("multipart_janitor_pruned");
             info!(
                 ttl_ms,
                 expired = stale.len(),

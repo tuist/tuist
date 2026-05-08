@@ -33,7 +33,8 @@ use crate::{
         ROCKSDB_CF_NAMESPACE_TOMBSTONES, ROCKSDB_CF_OUTBOX, ROCKSDB_CF_SEGMENT_ARTIFACTS,
         ROCKSDB_CF_SEGMENT_STATE, ROCKSDB_HARD_PENDING_COMPACTION_BYTES,
         ROCKSDB_LEVEL0_SLOWDOWN_TRIGGER, ROCKSDB_LEVEL0_STOP_TRIGGER,
-        ROCKSDB_SOFT_PENDING_COMPACTION_BYTES, ROCKSDB_WAL_BYTES_PER_SYNC, SEGMENT_FREE_SPACE_MARGIN,
+        ROCKSDB_SOFT_PENDING_COMPACTION_BYTES, ROCKSDB_WAL_BYTES_PER_SYNC,
+        SEGMENT_FREE_SPACE_MARGIN,
     },
     failpoints::{FailpointName, FailpointSet},
     io::{IoController, PersistentFile},
@@ -3006,7 +3007,10 @@ mod tests {
             .expect("upload should exist");
         assert_eq!(upload.parts.len(), 8, "all 8 parts should be persisted");
         for part_number in 1u32..=8 {
-            assert!(upload.parts.contains_key(&part_number), "missing part {part_number}");
+            assert!(
+                upload.parts.contains_key(&part_number),
+                "missing part {part_number}"
+            );
         }
     }
 

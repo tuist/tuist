@@ -564,7 +564,8 @@ impl ExtensionEngine {
         if cache.len() >= max_entries && !cache.contains_key(key) {
             evict_expired_authenticate(&mut cache);
             if cache.len() >= max_entries {
-                self.metrics.record_extension_cache("authenticate", "rejected");
+                self.metrics
+                    .record_extension_cache("authenticate", "rejected");
                 return;
             }
         }
