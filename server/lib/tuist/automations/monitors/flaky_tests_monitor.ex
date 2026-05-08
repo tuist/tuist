@@ -39,10 +39,16 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
 
   alias Tuist.ClickHouseRepo
   alias Tuist.Tests.TestCase
-  alias Tuist.Tests.TestCaseRun
   alias Tuist.Tests.TestCaseRunDailyStatsPerCase
 
   @comparisons ~w(gte gt lt lte)
+
+  # The rolling-window scan is bounded to this many days of test_case_runs to
+  # keep the scan cost predictable. A test case that hasn't run within this
+  # window has nothing to measure against the threshold anyway, and the
+  # bound is what lets the query land on `proj_test_case_runs_by_project_ran_at`
+  # cleanly.
+  @rolling_window_lookback_days 180
 
   def evaluate(alert) do
     trigger_config = alert.trigger_config
@@ -51,7 +57,15 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
     project_id = alert.project_id
 
     triggered_test_case_ids =
-      ClickHouseRepo.all(flakiness_rate_query(project_id, threshold, comparison, trigger_config))
+      case window_mode(trigger_config) do
+        {:last_days, seconds} ->
+          ClickHouseRepo.all(
+            flakiness_rate_last_days_query(project_id, window_cutoff_date(seconds), threshold, comparison)
+          )
+
+        {:rolling, size} ->
+          rolling_triggered_test_case_ids(project_id, "flakiness_rate", size, threshold, comparison)
+      end
 
     %{
       triggered: triggered_test_case_ids,
@@ -66,32 +80,20 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
     project_id = alert.project_id
 
     triggered_test_case_ids =
-      ClickHouseRepo.all(flaky_run_count_query(project_id, threshold, comparison, trigger_config))
+      case window_mode(trigger_config) do
+        {:last_days, seconds} ->
+          ClickHouseRepo.all(
+            flaky_run_count_last_days_query(project_id, window_cutoff_date(seconds), threshold, comparison)
+          )
+
+        {:rolling, size} ->
+          rolling_triggered_test_case_ids(project_id, "flaky_run_count", size, threshold, comparison)
+      end
 
     %{
       triggered: triggered_test_case_ids,
       all: load_all_test_case_ids(project_id, alert.recovery_enabled)
     }
-  end
-
-  defp flakiness_rate_query(project_id, threshold, comparison, trigger_config) do
-    case window_mode(trigger_config) do
-      {:last_days, seconds} ->
-        flakiness_rate_last_days_query(project_id, window_cutoff_date(seconds), threshold, comparison)
-
-      {:rolling, size} ->
-        flakiness_rate_rolling_query(project_id, size, threshold, comparison)
-    end
-  end
-
-  defp flaky_run_count_query(project_id, threshold, comparison, trigger_config) do
-    case window_mode(trigger_config) do
-      {:last_days, seconds} ->
-        flaky_run_count_last_days_query(project_id, window_cutoff_date(seconds), threshold, comparison)
-
-      {:rolling, size} ->
-        flaky_run_count_rolling_query(project_id, size, threshold, comparison)
-    end
   end
 
   # The MV is keyed on `(project_id, date, test_case_id)`, so we round the
@@ -203,98 +205,54 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
     )
   end
 
-  defp flakiness_rate_rolling_query(project_id, size, threshold, "gte") do
-    from(t in subquery(rolling_window_runs(project_id, size)),
-      group_by: t.test_case_id,
-      having: fragment("sum(?) * 100.0 / count(*) >= ?", t.is_flaky_int, ^threshold),
-      select: t.test_case_id
-    )
-  end
-
-  defp flakiness_rate_rolling_query(project_id, size, threshold, "gt") do
-    from(t in subquery(rolling_window_runs(project_id, size)),
-      group_by: t.test_case_id,
-      having: fragment("sum(?) * 100.0 / count(*) > ?", t.is_flaky_int, ^threshold),
-      select: t.test_case_id
-    )
-  end
-
-  defp flakiness_rate_rolling_query(project_id, size, threshold, "lt") do
-    from(t in subquery(rolling_window_runs(project_id, size)),
-      group_by: t.test_case_id,
-      having: fragment("sum(?) * 100.0 / count(*) < ?", t.is_flaky_int, ^threshold),
-      select: t.test_case_id
-    )
-  end
-
-  defp flakiness_rate_rolling_query(project_id, size, threshold, "lte") do
-    from(t in subquery(rolling_window_runs(project_id, size)),
-      group_by: t.test_case_id,
-      having: fragment("sum(?) * 100.0 / count(*) <= ?", t.is_flaky_int, ^threshold),
-      select: t.test_case_id
-    )
-  end
-
-  defp flaky_run_count_rolling_query(project_id, size, threshold, "gte") do
-    from(t in subquery(rolling_window_runs(project_id, size)),
-      group_by: t.test_case_id,
-      having: fragment("sum(?) >= ?", t.is_flaky_int, ^threshold),
-      select: t.test_case_id
-    )
-  end
-
-  defp flaky_run_count_rolling_query(project_id, size, threshold, "gt") do
-    from(t in subquery(rolling_window_runs(project_id, size)),
-      group_by: t.test_case_id,
-      having: fragment("sum(?) > ?", t.is_flaky_int, ^threshold),
-      select: t.test_case_id
-    )
-  end
-
-  defp flaky_run_count_rolling_query(project_id, size, threshold, "lt") do
-    from(t in subquery(rolling_window_runs(project_id, size)),
-      group_by: t.test_case_id,
-      having: fragment("sum(?) < ?", t.is_flaky_int, ^threshold),
-      select: t.test_case_id
-    )
-  end
-
-  defp flaky_run_count_rolling_query(project_id, size, threshold, "lte") do
-    from(t in subquery(rolling_window_runs(project_id, size)),
-      group_by: t.test_case_id,
-      having: fragment("sum(?) <= ?", t.is_flaky_int, ^threshold),
-      select: t.test_case_id
-    )
-  end
-
-  # `test_case_runs` is a ReplacingMergeTree keyed on `(test_run_id,
-  # test_module_run_id, id)` with `inserted_at` as the version column, so a
-  # run reinserted with an updated `is_flaky` value sticks around as a
-  # duplicate row until background merges. `FINAL` collapses those duplicates
-  # at query time, otherwise a single logical run could occupy multiple slots
-  # in the rolling window and skew rate / count thresholds.
+  # The rolling path keeps the latest `size` runs per test case using
+  # ClickHouse's `LIMIT N BY` (cheaper than a window function) and lands the
+  # scan on `proj_test_case_runs_by_project_ran_at` via the
+  # `(project_id, ran_at)` filter. `FINAL` collapses ReplacingMergeTree
+  # duplicates at read time so a re-inserted run can't occupy multiple slots
+  # in the window — projection rebuilds run alongside dedup merges, so the
+  # projection stays valid under FINAL.
   #
-  # `row_number() OVER (PARTITION BY test_case_id ORDER BY ran_at DESC)` then
-  # keeps the latest `size` runs per test case; the outer query filters by
-  # `rn <= size` and aggregates `is_flaky_int`.
-  defp rolling_window_runs(project_id, size) do
-    ranked =
-      from(r in TestCaseRun,
-        hints: ["FINAL"],
-        where: r.project_id == ^project_id,
-        where: not is_nil(r.test_case_id),
-        select: %{
-          test_case_id: r.test_case_id,
-          is_flaky_int: fragment("toUInt8(?)", r.is_flaky),
-          rn: fragment("row_number() OVER (PARTITION BY ? ORDER BY ? DESC)", r.test_case_id, r.ran_at)
-        }
-      )
-
-    from(t in subquery(ranked),
-      where: t.rn <= ^size,
-      select: %{test_case_id: t.test_case_id, is_flaky_int: t.is_flaky_int}
+  # `monitor_type`, `comparison`, and `lookback_days` are interpolated
+  # because each is constrained to a fixed allowlist (`@monitor_types`,
+  # `@comparisons`, a module attribute), so there is no SQL-injection vector.
+  # Numeric inputs (`project_id`, `size`, `threshold`) flow through bound
+  # parameters.
+  defp rolling_triggered_test_case_ids(project_id, monitor_type, size, threshold, comparison) do
+    sql = """
+    SELECT test_case_id
+    FROM (
+      SELECT test_case_id, toUInt8(is_flaky) AS is_flaky_int
+      FROM test_case_runs FINAL
+      WHERE project_id = {project_id:Int64}
+        AND test_case_id IS NOT NULL
+        AND ran_at >= now() - INTERVAL #{@rolling_window_lookback_days} DAY
+      ORDER BY test_case_id, ran_at DESC
+      LIMIT {size:UInt32} BY test_case_id
     )
+    GROUP BY test_case_id
+    HAVING #{rolling_having_expr(monitor_type)} #{rolling_comparison_op(comparison)} {threshold:Float64}
+    """
+
+    case ClickHouseRepo.query(sql, %{project_id: project_id, size: size, threshold: threshold * 1.0}) do
+      {:ok, %{rows: rows}} ->
+        # Raw query results return UUID columns as 16-byte binaries; the rest
+        # of the worker compares against string-encoded UUIDs from the Ecto
+        # path, so normalise here.
+        Enum.map(rows, fn [binary] -> Ecto.UUID.load!(binary) end)
+
+      _ ->
+        []
+    end
   end
+
+  defp rolling_having_expr("flakiness_rate"), do: "sum(is_flaky_int) * 100.0 / count()"
+  defp rolling_having_expr("flaky_run_count"), do: "sum(is_flaky_int)"
+
+  defp rolling_comparison_op("gte"), do: ">="
+  defp rolling_comparison_op("gt"), do: ">"
+  defp rolling_comparison_op("lt"), do: "<"
+  defp rolling_comparison_op("lte"), do: "<="
 
   defp load_all_test_case_ids(_project_id, false), do: []
 
