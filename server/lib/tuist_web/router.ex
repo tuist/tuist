@@ -14,6 +14,7 @@ defmodule TuistWeb.Router do
   alias TuistWeb.Plugs.LocalePlug
   alias TuistWeb.Plugs.MarkdownNegotiationPlug
   alias TuistWeb.Plugs.ObservabilityContextPlug
+  alias TuistWeb.Plugs.RequestKindPlug
   alias TuistWeb.Plugs.SentryContextPlug
   alias TuistWeb.Plugs.UeberauthHostPlug
 
@@ -54,6 +55,7 @@ defmodule TuistWeb.Router do
   end
 
   pipeline :browser_app do
+    plug RequestKindPlug, "page_load"
     plug :accepts, ["html"]
     plug :disable_robot_indexing
     plug :fetch_session
@@ -71,6 +73,7 @@ defmodule TuistWeb.Router do
   end
 
   pipeline :browser_app_image do
+    plug RequestKindPlug, "page_image"
     plug :accepts, ["svg", "png"]
     plug :disable_robot_indexing
     plug :fetch_session
@@ -84,6 +87,7 @@ defmodule TuistWeb.Router do
   end
 
   pipeline :ueberauth do
+    plug RequestKindPlug, "auth"
     plug :accepts, ["html"]
     plug :disable_robot_indexing
     plug :fetch_session
@@ -98,6 +102,7 @@ defmodule TuistWeb.Router do
   # Some endpoints must be accessible without the :protect_from_forgery plug.
   # For example, the POST request Apple makes as part of OAuth 2.0 is not compatible with the CSRF protection.
   pipeline :unprotected_browser_app do
+    plug RequestKindPlug, "auth"
     plug :accepts, ["html"]
     plug :disable_robot_indexing
     plug :fetch_session
@@ -114,6 +119,7 @@ defmodule TuistWeb.Router do
   end
 
   pipeline :browser_marketing do
+    plug RequestKindPlug, "marketing"
     plug MarkdownNegotiationPlug
     plug :accepts, ["html"]
     plug :enable_robot_indexing
@@ -136,6 +142,7 @@ defmodule TuistWeb.Router do
   end
 
   pipeline :browser_docs do
+    plug RequestKindPlug, "docs"
     plug MarkdownNegotiationPlug
     plug :accepts, ["html"]
     plug :enable_robot_indexing
@@ -153,27 +160,32 @@ defmodule TuistWeb.Router do
   end
 
   pipeline :browser_marketing_feed do
+    plug RequestKindPlug, "marketing_feed"
     plug :accepts, ["xml"]
     plug TuistWeb.OnPremisePlug, :forward_marketing_to_dashboard
   end
 
   pipeline :non_authenticated_api do
+    plug RequestKindPlug, "api"
     plug :accepts, ["json"]
 
     plug TuistWeb.WarningsHeaderPlug
   end
 
   pipeline :api_catalog do
+    plug RequestKindPlug, "api_catalog"
     plug :accepts, ["linkset"]
   end
 
   pipeline :mcp do
+    plug RequestKindPlug, "mcp"
     plug TuistWeb.AuthenticationPlug, :load_authenticated_subject
     plug TuistWeb.AuthenticationPlug, {:require_authentication, response_type: :mcp}
     plug TuistWeb.Plugs.MCPRateLimitPlug
   end
 
   pipeline :authenticated_api do
+    plug RequestKindPlug, "api"
     plug :accepts, ["json", "application/octet-stream"]
 
     plug TuistWeb.WarningsHeaderPlug
@@ -184,6 +196,7 @@ defmodule TuistWeb.Router do
   end
 
   pipeline :scim_api do
+    plug RequestKindPlug, "scim"
     plug :accepts, ["scim+json", "json"]
     plug TuistWeb.Plugs.SCIMAuthPlug
     plug TuistWeb.Plugs.SCIMRateLimitPlug

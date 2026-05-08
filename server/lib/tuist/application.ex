@@ -207,6 +207,7 @@ defmodule Tuist.Application do
         :trace_id,
         :span_id,
         :request_id,
+        :request_kind,
         :auth_account_handle,
         :selected_account_handle,
         :selected_project_handle,
