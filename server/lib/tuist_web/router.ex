@@ -1016,7 +1016,13 @@ defmodule TuistWeb.Router do
   # FunWithFlags.UI serves its bundled JS via Plug.Static after the :browser_app
   # pipeline registers Plug.CSRFProtection's before_send callback, which raises
   # InvalidCrossOriginRequestError on any non-XHR GET that returns a JS response.
-  defp skip_csrf_for_fun_with_flags_assets(%Plug.Conn{path_info: ["ops", "flags", "assets" | _]} = conn, _opts) do
+  # Constrained to safe methods so any future state-changing route under this
+  # prefix still goes through CSRF protection.
+  defp skip_csrf_for_fun_with_flags_assets(
+         %Plug.Conn{method: method, path_info: ["ops", "flags", "assets" | _]} = conn,
+         _opts
+       )
+       when method in ["GET", "HEAD"] do
     Plug.Conn.put_private(conn, :plug_skip_csrf_protection, true)
   end
 
