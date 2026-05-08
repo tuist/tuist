@@ -340,6 +340,19 @@ defmodule Tuist.Processor.XCResultProcessorTest do
       assert {:error, "decompression failed"} = XCResultProcessor.process_local(fixture_path)
     end
 
+    @tag :tmp_dir
+    test "returns :bundle_invalid when the .xcresult bundle has no Info.plist", %{tmp_dir: tmp_dir} do
+      {:ok, fixture_zip} =
+        :zip.create(
+          ~c"#{Path.join(tmp_dir, "fixture.zip")}",
+          [{~c"Test.xcresult/quarantined_tests.json", "[]"}]
+        )
+
+      reject(&XCResultNIF.parse/2)
+
+      assert {:error, :bundle_invalid} = XCResultProcessor.process_local(to_string(fixture_zip))
+    end
+
     test "cleans up temp directory even when processing fails" do
       missing_path = Path.join(System.tmp_dir!(), "definitely-not-an-archive-#{:erlang.unique_integer([:positive])}")
 

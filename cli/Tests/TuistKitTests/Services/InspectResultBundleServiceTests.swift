@@ -739,6 +739,7 @@ struct UploadResultBundleServiceTests {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let xcresultPath = temporaryDirectory.appending(component: "Test.xcresult")
         try await fileSystem.makeDirectory(at: xcresultPath)
+        try await fileSystem.writeText("", at: xcresultPath.appending(component: "Info.plist"))
 
         given(analyticsArtifactUploadService)
             .uploadResultBundle(
@@ -798,6 +799,7 @@ struct UploadResultBundleServiceTests {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let xcresultPath = temporaryDirectory.appending(component: "Test.xcresult")
         try await fileSystem.makeDirectory(at: xcresultPath)
+        try await fileSystem.writeText("", at: xcresultPath.appending(component: "Info.plist"))
 
         given(analyticsArtifactUploadService)
             .uploadResultBundle(
@@ -838,6 +840,7 @@ struct UploadResultBundleServiceTests {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let xcresultPath = temporaryDirectory.appending(component: "result-bundle.xcresult")
         try await fileSystem.makeDirectory(at: xcresultPath)
+        try await fileSystem.writeText("", at: xcresultPath.appending(component: "Info.plist"))
         let symlinkPath = temporaryDirectory.appending(component: "result-bundle")
         try FileManager.default.createSymbolicLink(
             atPath: symlinkPath.pathString,
@@ -884,5 +887,33 @@ struct UploadResultBundleServiceTests {
                 shardIndex: nil
             )
         }
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func uploadResultBundle_throwsWhenInfoPlistMissing() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let xcresultPath = temporaryDirectory.appending(component: "Test.xcresult")
+        try await fileSystem.makeDirectory(at: xcresultPath)
+
+        await #expect(
+            throws: UploadResultBundleServiceError.bundleMissingInfoPlist(xcresultPath)
+        ) {
+            try await subject.uploadResultBundle(
+                resultBundlePath: xcresultPath,
+                config: .test(fullHandle: "tuist/tuist"),
+                quarantinedTests: [],
+                shardPlanId: nil,
+                shardIndex: nil
+            )
+        }
+
+        verify(analyticsArtifactUploadService)
+            .uploadResultBundle(
+                .any,
+                fullHandle: .any,
+                commandEventId: .any,
+                serverURL: .any
+            )
+            .called(0)
     }
 }

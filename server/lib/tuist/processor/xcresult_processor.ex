@@ -38,7 +38,8 @@ defmodule Tuist.Processor.XCResultProcessor do
 
   defp process_archive(archive_path, temp_dir) do
     with :ok <- extract_archive(archive_path, temp_dir),
-         xcresult_path when not is_nil(xcresult_path) <- find_xcresult(temp_dir) do
+         xcresult_path when not is_nil(xcresult_path) <- find_xcresult(temp_dir),
+         :ok <- validate_xcresult(xcresult_path) do
       root_dir = Path.dirname(xcresult_path)
 
       with {:ok, parsed_data} <- parse_xcresult(xcresult_path, root_dir) do
@@ -48,6 +49,20 @@ defmodule Tuist.Processor.XCResultProcessor do
     else
       nil -> {:error, :xcresult_not_found}
       {:error, _} = error -> error
+    end
+  end
+
+  # An xcresult bundle that xcodebuild populated has an `Info.plist` at its
+  # root. CLI clients sometimes upload a bundle that xcodebuild never wrote
+  # to (e.g. `xcodebuild test` was killed mid-build) — the directory exists
+  # only because Tuist's CLI dropped `quarantined_tests.json` into it before
+  # archiving. Detect that shape here so callers can drop the job cleanly
+  # instead of letting `xcresulttool` fail and bubble up as a generic error.
+  defp validate_xcresult(xcresult_path) do
+    if File.exists?(Path.join(xcresult_path, "Info.plist")) do
+      :ok
+    else
+      {:error, :bundle_invalid}
     end
   end
 

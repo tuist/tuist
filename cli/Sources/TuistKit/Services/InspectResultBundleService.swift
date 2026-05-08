@@ -20,12 +20,16 @@ import XCResultParser
 
 public enum UploadResultBundleServiceError: Equatable, LocalizedError {
     case missingFullHandle
+    case bundleMissingInfoPlist(AbsolutePath)
 
     public var errorDescription: String? {
         switch self {
         case .missingFullHandle:
             return
                 "The 'Tuist.swift' file is missing a fullHandle. See how to set up a Tuist project at: https://tuist.dev/en/docs/guides/server/accounts-and-projects#projects"
+        case let .bundleMissingInfoPlist(path):
+            return
+                "The xcresult bundle at \(path.pathString) is missing 'Info.plist' — xcodebuild did not finish populating it (the test action was likely interrupted or failed before producing results). Skipping upload."
         }
     }
 }
@@ -176,6 +180,15 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
         // xcodebuild creates result-bundle as a symlink to result-bundle.xcresult,
         // so we resolve it to ensure the archiver zips the actual directory.
         let resolvedResultBundlePath = try await fileSystem.resolveSymbolicLink(resultBundlePath)
+
+        // A populated xcresult bundle has Info.plist at its root. If it's
+        // missing, xcodebuild was interrupted before writing results — uploading
+        // the empty skeleton just produces a 5-attempt failure on the server side
+        // and a Sentry alert for nothing actionable.
+        let infoPlistPath = resolvedResultBundlePath.appending(component: "Info.plist")
+        if !(try await fileSystem.exists(infoPlistPath)) {
+            throw UploadResultBundleServiceError.bundleMissingInfoPlist(resolvedResultBundlePath)
+        }
 
         if !quarantinedTests.isEmpty {
             try await writeQuarantinedTests(quarantinedTests, to: resolvedResultBundlePath)
