@@ -12,6 +12,7 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"net"
 	"os"
 	"time"
@@ -47,18 +48,21 @@ func init() {
 
 func main() {
 	var (
-		nodeName     string
-		nodeIP       string
-		hostCPU      int
-		hostMemoryMB int
-		maxPods      int
-		metricsAddr  string
-		probeAddr    string
-		tartBinary   string
+		nodeName           string
+		nodeIP             string
+		scrapeAllowedCIDRs cidrList
+		hostCPU            int
+		hostMemoryMB       int
+		maxPods            int
+		metricsAddr        string
+		probeAddr          string
+		tartBinary         string
 	)
 	flag.StringVar(&nodeName, "node-name", envOr("TART_KUBELET_NODE_NAME", ""), "Node name to register as. Defaults to os.Hostname() when empty.")
 	flag.StringVar(&nodeIP, "node-ip", envOr("TART_KUBELET_NODE_IP", ""),
 		"Routable IP of this Mac mini. Pods that opt into Prometheus scraping advertise it as their PodIP and run a host-side forwarder on the host port. Defaults to the first non-loopback IPv4 address on a UP interface.")
+	flag.Var(&scrapeAllowedCIDRs, "scrape-allowed-cidr",
+		"CIDR (IPv4 or IPv6) allowed to reach the per-Pod metrics forwarder. May be repeated. Defaults to RFC1918 / IPv6 ULA / loopback / link-local — covers any realistic cluster Pod or Node CIDR while clamping out the public WAN. The Mac mini's bind address can in practice be a public IP, so this allowlist (not the bind interface) is the load-bearing security boundary.")
 	flag.IntVar(&hostCPU, "host-cpu", 8, "CPU cores to advertise on the Node.")
 	flag.IntVar(&hostMemoryMB, "host-memory-mb", 16384, "Memory MB to advertise on the Node.")
 	flag.IntVar(&maxPods, "max-pods", 2,
@@ -163,13 +167,14 @@ func main() {
 	}
 
 	if err := (&podagent.Reconciler{
-		CachedClient: mgr.GetClient(),
-		NodeName:     nodeName,
-		NodeIP:       nodeIP,
-		Tart:         tartClient,
-		Resolver:     resolver,
-		Store:        store,
-		GC:           gcCollector,
+		CachedClient:       mgr.GetClient(),
+		NodeName:           nodeName,
+		NodeIP:             nodeIP,
+		ScrapeAllowedCIDRs: scrapeAllowedCIDRs.Value(),
+		Tart:               tartClient,
+		Resolver:           resolver,
+		Store:              store,
+		GC:                 gcCollector,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup pod reconciler")
 		os.Exit(1)
@@ -271,6 +276,47 @@ type noNodeIPError struct{}
 
 func (*noNodeIPError) Error() string {
 	return "no non-loopback IPv4 address found on any UP interface"
+}
+
+// cidrList implements flag.Value for repeated --scrape-allowed-cidr.
+// Each invocation appends one CIDR; no value at all means "fall
+// back to DefaultScrapeAllowedCIDRs in the reconciler" rather than
+// "deny everything", because an empty allowlist would silently lock
+// out every scraper.
+type cidrList []*net.IPNet
+
+func (c *cidrList) String() string {
+	if c == nil || len(*c) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(*c))
+	for _, n := range *c {
+		parts = append(parts, n.String())
+	}
+	return joinComma(parts)
+}
+
+func (c *cidrList) Set(value string) error {
+	_, n, err := net.ParseCIDR(value)
+	if err != nil {
+		return fmt.Errorf("parse cidr %q: %w", value, err)
+	}
+	*c = append(*c, n)
+	return nil
+}
+
+// Value returns the parsed CIDRs, or nil when none were passed.
+func (c cidrList) Value() []*net.IPNet { return []*net.IPNet(c) }
+
+func joinComma(s []string) string {
+	out := ""
+	for i, v := range s {
+		if i > 0 {
+			out += ","
+		}
+		out += v
+	}
+	return out
 }
 
 // pickPodsForNode narrows the Pod informer with a server-side field

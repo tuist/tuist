@@ -12,6 +12,12 @@
     --node-ip             routable IP of this Mac mini, used to expose
                           metrics endpoints of VM Pods to in-cluster
                           scrapers; auto-detected if not passed
+    --scrape-allowed-cidr CIDR (repeatable) the per-Pod metrics
+                          forwarder accepts source addresses from;
+                          defaults to RFC1918 + IPv6 ULA + loopback +
+                          link-local. Override only if the cluster
+                          routes Pod-to-Node traffic through public
+                          IPs (rare).
     --kubeconfig          provisioned kubeconfig path
     --host-cpu            advertised CPU
     --host-memory-mb      advertised memory

@@ -3,6 +3,7 @@ package podagent
 import (
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -19,7 +20,7 @@ func TestForwarder_RelaysMetricsRequest(t *testing.T) {
 
 	upstreamAddr := strings.TrimPrefix(upstream.URL, "http://")
 
-	fw, err := NewForwarder("127.0.0.1:0", func() (string, error) { return upstreamAddr, nil })
+	fw, err := NewForwarder("127.0.0.1:0", func() (string, error) { return upstreamAddr, nil }, ForwarderOptions{})
 	if err != nil {
 		t.Fatalf("NewForwarder: %v", err)
 	}
@@ -50,7 +51,7 @@ func TestForwarder_RejectsNonMetricsPaths(t *testing.T) {
 
 	fw, err := NewForwarder("127.0.0.1:0", func() (string, error) {
 		return strings.TrimPrefix(upstream.URL, "http://"), nil
-	})
+	}, ForwarderOptions{})
 	if err != nil {
 		t.Fatalf("NewForwarder: %v", err)
 	}
@@ -76,7 +77,7 @@ func TestForwarder_RejectsNonGETMethods(t *testing.T) {
 
 	fw, err := NewForwarder("127.0.0.1:0", func() (string, error) {
 		return strings.TrimPrefix(upstream.URL, "http://"), nil
-	})
+	}, ForwarderOptions{})
 	if err != nil {
 		t.Fatalf("NewForwarder: %v", err)
 	}
@@ -106,7 +107,7 @@ func TestForwarder_CachesResolverWithinTTL(t *testing.T) {
 	fw, err := NewForwarder("127.0.0.1:0", func() (string, error) {
 		resolves.Add(1)
 		return upstreamAddr, nil
-	})
+	}, ForwarderOptions{})
 	if err != nil {
 		t.Fatalf("NewForwarder: %v", err)
 	}
@@ -129,7 +130,7 @@ func TestForwarder_CachesResolverWithinTTL(t *testing.T) {
 }
 
 func TestForwarder_ReturnsBadGatewayWhenResolveFails(t *testing.T) {
-	fw, err := NewForwarder("127.0.0.1:0", func() (string, error) { return "", errors.New("vm has no IP yet") })
+	fw, err := NewForwarder("127.0.0.1:0", func() (string, error) { return "", errors.New("vm has no IP yet") }, ForwarderOptions{})
 	if err != nil {
 		t.Fatalf("NewForwarder: %v", err)
 	}
@@ -146,8 +147,100 @@ func TestForwarder_ReturnsBadGatewayWhenResolveFails(t *testing.T) {
 	}
 }
 
+func TestForwarder_RejectsSourcesOutsideAllowedCIDR(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
+		t.Errorf("upstream should not be reached")
+	}))
+	defer upstream.Close()
+
+	// Allow only loopback IPv4 — but bind on all interfaces and
+	// connect via an explicit non-loopback source. We do that by
+	// binding on 0.0.0.0 and dialing the local IPv4 of an alias
+	// that's not in the allowlist. Easiest portable way is to
+	// allowlist just `198.51.100.0/24` (TEST-NET-2) and dial via
+	// 127.0.0.1, which won't match.
+	_, deny, _ := net.ParseCIDR("198.51.100.0/24")
+	fw, err := NewForwarder("127.0.0.1:0", func() (string, error) {
+		return strings.TrimPrefix(upstream.URL, "http://"), nil
+	}, ForwarderOptions{AllowedCIDRs: []*net.IPNet{deny}})
+	if err != nil {
+		t.Fatalf("NewForwarder: %v", err)
+	}
+	defer fw.Stop()
+
+	resp, err := http.Get("http://" + fw.Addr().String() + MetricsPath)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403", resp.StatusCode)
+	}
+}
+
+func TestForwarder_AcceptsSourcesInsideAllowedCIDR(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = io.WriteString(w, "ok")
+	}))
+	defer upstream.Close()
+
+	_, allow, _ := net.ParseCIDR("127.0.0.0/8")
+	fw, err := NewForwarder("127.0.0.1:0", func() (string, error) {
+		return strings.TrimPrefix(upstream.URL, "http://"), nil
+	}, ForwarderOptions{AllowedCIDRs: []*net.IPNet{allow}})
+	if err != nil {
+		t.Fatalf("NewForwarder: %v", err)
+	}
+	defer fw.Stop()
+
+	resp, err := http.Get("http://" + fw.Addr().String() + MetricsPath)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
+}
+
+func TestDefaultScrapeAllowedCIDRs_CoversRFC1918AndLoopback(t *testing.T) {
+	cidrs := DefaultScrapeAllowedCIDRs()
+	cases := map[string]bool{
+		"10.0.0.5":    true,
+		"172.20.1.1":  true,
+		"192.168.1.1": true,
+		"127.0.0.1":   true,
+		"169.254.1.1": true,
+		"::1":         true,
+		"fc00::1":     true,
+		"fe80::1":     true,
+		// public WAN — must NOT match
+		"1.1.1.1":              false,
+		"51.15.42.1":           false, // example Scaleway range
+		"2001:4860:4860::8888": false,
+	}
+	for ip, want := range cases {
+		parsed := net.ParseIP(ip)
+		if parsed == nil {
+			t.Fatalf("bad test fixture: %q doesn't parse", ip)
+		}
+		matched := false
+		for _, c := range cidrs {
+			if c.Contains(parsed) {
+				matched = true
+				break
+			}
+		}
+		if matched != want {
+			t.Errorf("%s: got match=%v, want %v", ip, matched, want)
+		}
+	}
+}
+
 func TestForwarder_StopIsIdempotent(t *testing.T) {
-	fw, err := NewForwarder("127.0.0.1:0", func() (string, error) { return "127.0.0.1:1", nil })
+	fw, err := NewForwarder("127.0.0.1:0", func() (string, error) { return "127.0.0.1:1", nil }, ForwarderOptions{})
 	if err != nil {
 		t.Fatalf("NewForwarder: %v", err)
 	}

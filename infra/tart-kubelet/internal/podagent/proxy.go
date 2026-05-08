@@ -37,6 +37,22 @@ type Forwarder struct {
 	done     chan struct{}
 }
 
+// ForwarderOptions controls request-side restrictions on the proxy.
+// A zero ForwarderOptions allows traffic from anywhere — callers
+// should always set AllowedCIDRs in production deployments because
+// the bind address can in practice be a public IP (eg. Scaleway
+// Apple Silicon Mac minis only expose a public address; the
+// WireGuard / overlay interface a cluster CNI later layers on top
+// is what other Nodes actually reach the Mac mini on, and clamping
+// to RFC1918 is the simplest portable way to reject the WAN-facing
+// path).
+type ForwarderOptions struct {
+	// AllowedCIDRs is the set of source ranges the proxy accepts.
+	// Empty = allow all (only used in tests). RemoteAddr is parsed
+	// against each CIDR in order; the first match accepts.
+	AllowedCIDRs []*net.IPNet
+}
+
 // MetricsPath is the only request path the forwarder will proxy.
 // Prometheus exporters serve metrics at /metrics by convention; any
 // other path is rejected with 404 to keep the surface area minimal
@@ -55,7 +71,7 @@ const MetricsPath = "/metrics"
 // expires; longer than that and a recently-restarted VM would just
 // see one failed scrape before recovering, which the scraper's own
 // retry handles.
-func NewForwarder(listenAddr string, resolve func() (string, error)) (*Forwarder, error) {
+func NewForwarder(listenAddr string, resolve func() (string, error), opts ForwarderOptions) (*Forwarder, error) {
 	if resolve == nil {
 		return nil, errors.New("resolve function is required")
 	}
@@ -100,7 +116,7 @@ func NewForwarder(listenAddr string, resolve func() (string, error)) (*Forwarder
 	}
 
 	srv := &http.Server{
-		Handler:           pathFilter(MetricsPath, rp),
+		Handler:           sourceCIDRFilter(opts.AllowedCIDRs, pathFilter(MetricsPath, rp)),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
@@ -148,6 +164,64 @@ func pathFilter(path string, next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, req)
 	})
+}
+
+// sourceCIDRFilter returns a handler that rejects requests whose
+// RemoteAddr falls outside `allowed`. With `allowed` empty the
+// filter is a no-op (used in tests). The bind address can in
+// practice be a public IP — Scaleway Apple Silicon Mac minis
+// don't expose a private interface that's still routable to
+// Linux Alloy DaemonSet Pods elsewhere in the cluster — so this
+// is the load-bearing network boundary, not the listen address.
+func sourceCIDRFilter(allowed []*net.IPNet, next http.Handler) http.Handler {
+	if len(allowed) == 0 {
+		return next
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		host, _, err := net.SplitHostPort(req.RemoteAddr)
+		if err != nil {
+			host = req.RemoteAddr
+		}
+		ip := net.ParseIP(host)
+		if ip == nil {
+			http.Error(w, "forbidden: unparseable client address", http.StatusForbidden)
+			return
+		}
+		for _, c := range allowed {
+			if c.Contains(ip) {
+				next.ServeHTTP(w, req)
+				return
+			}
+		}
+		http.Error(w, "forbidden: source address not in allowlist", http.StatusForbidden)
+	})
+}
+
+// DefaultScrapeAllowedCIDRs is the safe baseline allowlist for the
+// metrics proxy: RFC1918 IPv4 ranges, IPv4 link-local, IPv4 loopback,
+// IPv6 unique-local, IPv6 link-local, and IPv6 loopback. This covers
+// every realistic cluster Pod / Node CIDR while clamping out the
+// public WAN. Operators on clusters that route Pod traffic through
+// public IPs (rare) need to override via --scrape-allowed-cidr.
+func DefaultScrapeAllowedCIDRs() []*net.IPNet {
+	defaults := []string{
+		"10.0.0.0/8",
+		"172.16.0.0/12",
+		"192.168.0.0/16",
+		"169.254.0.0/16",
+		"127.0.0.0/8",
+		"fc00::/7",
+		"fe80::/10",
+		"::1/128",
+	}
+	out := make([]*net.IPNet, 0, len(defaults))
+	for _, c := range defaults {
+		_, n, err := net.ParseCIDR(c)
+		if err == nil {
+			out = append(out, n)
+		}
+	}
+	return out
 }
 
 // cachedResolver memoises the upstream lookup for `ttl` so a burst

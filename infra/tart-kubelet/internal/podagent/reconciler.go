@@ -9,6 +9,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"net"
 	"strconv"
 	"sync"
 	"time"
@@ -54,7 +55,15 @@ type Reconciler struct {
 	// NAT-private network. Empty when discovery failed at boot; the
 	// forwarder + PodIP rewrite both no-op in that case so the rest
 	// of the reconciler still functions.
-	NodeIP   string
+	NodeIP string
+
+	// ScrapeAllowedCIDRs restricts which client addresses the
+	// per-Pod metrics forwarder accepts. NodeIP can in practice be
+	// a public IP on Scaleway, so the bind address alone isn't a
+	// security boundary; this allowlist is. Empty defers to
+	// DefaultScrapeAllowedCIDRs at forwarder construction.
+	ScrapeAllowedCIDRs []*net.IPNet
+
 	Tart     *tart.Client
 	Resolver *envresolver.Resolver
 	Store    *Store
@@ -320,7 +329,11 @@ func (r *Reconciler) startMetricsForwarder(pod *corev1.Pod, entry *Entry) error 
 	// errors out so a runtime collision still means "no Alloy traffic
 	// to this Pod" rather than "Alloy scrapes the wrong VM."
 	listenAddr := fmt.Sprintf("%s:%d", r.NodeIP, port)
-	fw, err := NewForwarder(listenAddr, resolve)
+	allowed := r.ScrapeAllowedCIDRs
+	if len(allowed) == 0 {
+		allowed = DefaultScrapeAllowedCIDRs()
+	}
+	fw, err := NewForwarder(listenAddr, resolve, ForwarderOptions{AllowedCIDRs: allowed})
 	if err != nil {
 		return fmt.Errorf("start metrics forwarder for %s/%s on %s: %w", pod.Namespace, pod.Name, listenAddr, err)
 	}
