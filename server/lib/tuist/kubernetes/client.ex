@@ -88,6 +88,36 @@ defmodule Tuist.Kubernetes.Client do
   end
 
   @doc """
+  Deletes a Pod by name. Used by the watcher to garbage-collect
+  warm runners that have transitioned to a terminal phase: tart-
+  kubelet marks the Pod Succeeded after the VM exits, the watcher
+  refills the warm pool with a fresh Pod, then deletes the
+  Succeeded Pod so it doesn't accumulate in `kubectl get pods`.
+
+  Returns `{:ok, body}` on the standard 200/202 (delete accepted),
+  `{:ok, :not_found}` when the Pod is already gone (idempotent —
+  a duplicate event from the watch shouldn't surface as an
+  error), or `{:error, _}` on transport / unexpected status.
+  """
+  def delete_pod(namespace, name) when is_binary(namespace) and is_binary(name) do
+    with {:ok, host, ca, token} <- in_cluster_config() do
+      req_opts =
+        [
+          url: "https://#{host}/api/v1/namespaces/#{namespace}/pods/#{name}",
+          headers: auth_headers(token),
+          connect_options: [transport_opts: [cacerts: ca]]
+        ]
+
+      case Req.delete(req_opts) do
+        {:ok, %{status: status, body: body}} when status in [200, 202] -> {:ok, body}
+        {:ok, %{status: 404}} -> {:ok, :not_found}
+        {:ok, %{status: status, body: body}} -> {:error, {:http, status, body}}
+        {:error, reason} -> {:error, {:transport, reason}}
+      end
+    end
+  end
+
+  @doc """
   Returns `{:ok, nodes}` matching `label_selector`. Cluster-scoped
   resource — the server's ServiceAccount carries a ClusterRole grant
   for `nodes: get,list` (templates/runners-namespace.yaml).

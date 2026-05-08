@@ -65,7 +65,13 @@ rules:
     # server and only reconciles on transitions, so it needs
     # the verb. Same trust boundary as `list` (read-only on
     # Pod metadata + status).
-    verbs: [get, list, watch, create]
+    # `delete` is the watcher's GC: once a runner Pod hits
+    # Succeeded/Failed (tart-kubelet observed the VM exit),
+    # the watcher refills the warm pool *and* deletes the
+    # terminal Pod so kubectl doesn't accumulate stale
+    # entries. Only Pods in this namespace, never Pods on
+    # the user-workload side.
+    verbs: [get, list, watch, create, delete]
   # Read Node objects (cluster-scoped) is granted via the
   # ClusterRole + ClusterRoleBinding emitted below — surfacing
   # the Pod -> Node mapping in audit logs / future ops UI

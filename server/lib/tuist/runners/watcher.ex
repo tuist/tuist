@@ -102,6 +102,7 @@ defmodule Tuist.Runners.Watcher do
 
   def handle_info({:watch_event, event}, state) do
     if relevant?(event) do
+      maybe_garbage_collect(event)
       {:noreply, maybe_reconcile(state)}
     else
       {:noreply, state}
@@ -186,6 +187,27 @@ defmodule Tuist.Runners.Watcher do
     do: true
 
   defp relevant?(_), do: false
+
+  # Garbage-collect terminal Pods. Once a runner has finished its
+  # one-shot job and its VM has exited, tart-kubelet marks the Pod
+  # Succeeded (or Failed on an unclean exit). Without active deletion
+  # those Pods sit indefinitely in `kubectl get pods` because the
+  # workload isn't owned by a ReplicaSet/Deployment/Job — there's no
+  # controller to reap them. Delete here on the same event that
+  # triggered the reconcile; the deletion is idempotent (404 ⇒ ok)
+  # so a duplicate event from a reconnect/replay is safe.
+  defp maybe_garbage_collect(%{
+         "type" => "MODIFIED",
+         "object" => %{"metadata" => %{"namespace" => ns, "name" => name}, "status" => %{"phase" => phase}}
+       })
+       when phase in ["Succeeded", "Failed"] do
+    case Client.delete_pod(ns, name) do
+      {:ok, _} -> :ok
+      {:error, reason} -> Logger.warning("runners: gc delete failed", pod: name, reason: inspect(reason))
+    end
+  end
+
+  defp maybe_garbage_collect(_), do: :ok
 
   defp maybe_reconcile(state) do
     elapsed = now_ms() - state.last_reconcile

@@ -88,6 +88,18 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, err
 	}
 
+	// Pod already moved to a terminal phase (we marked it Succeeded
+	// after the VM exited, or someone else marked it Failed). Do
+	// nothing here: re-running createPod would clone+boot a fresh
+	// VM for a Pod the workload controller is about to garbage-
+	// collect, and the watcher needs the Pod to stay in the
+	// terminal phase long enough to observe the transition. The
+	// finalizer comes off via the DeletionTimestamp branch below
+	// when the controller eventually deletes the Pod.
+	if pod.Status.Phase == corev1.PodSucceeded || pod.Status.Phase == corev1.PodFailed {
+		return ctrl.Result{}, nil
+	}
+
 	if !pod.DeletionTimestamp.IsZero() {
 		// Pod is being deleted. Run VM teardown, then drop our
 		// finalizer so the API server can complete deletion. Order
