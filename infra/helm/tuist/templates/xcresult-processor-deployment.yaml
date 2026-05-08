@@ -23,18 +23,15 @@ spec:
         {{- with .Values.global.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
-      # No prometheus.io/scrape annotation: these Pods run inside Tart
-      # VMs whose IPs sit behind the Mac mini's NAT bridge and aren't
-      # routable from the in-cluster Linux Alloy DaemonSet, and
-      # tart-kubelet doesn't (yet) expose a host-side proxy to the VM
-      # network. Per-job event metrics (latency, attempts) and pod-
-      # level resource metrics (CPU, memory) are therefore unavailable
-      # for the :process_xcresult queue. For dashboards and alerts,
-      # use the `tuist_oban_jobs_recent_count{worker="...Process
-      # XcresultWorker"}` gauge — it's polled from oban_jobs by every
-      # PromEx-enabled pod (server, processor) and reports per-worker
-      # throughput, retry, discard, and cancel counts even for jobs
-      # that ran here.
+      annotations:
+        # tart-kubelet honours these by spinning up a host-side TCP
+        # forwarder on <node_ip>:9091 → <vm_ip>:9091 for the Tart VM
+        # and rewriting Pod.Status.PodIP to the Mac mini's host IP,
+        # so the in-cluster Linux Alloy DaemonSet's annotation
+        # autodiscovery works without a route into the VM's NAT-
+        # private network. See infra/tart-kubelet/internal/podagent.
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9091"
     spec:
       # Schedule onto a real macOS node — a Mac mini running
       # tart-kubelet. The taint `tuist.dev/macos=true:NoSchedule` is

@@ -9,6 +9,9 @@
 
   Args:
     --node-name           registered Node name (CR name, set by bootstrap)
+    --node-ip             routable IP of this Mac mini, used to expose
+                          metrics endpoints of VM Pods to in-cluster
+                          scrapers; auto-detected if not passed
     --kubeconfig          provisioned kubeconfig path
     --host-cpu            advertised CPU
     --host-memory-mb      advertised memory

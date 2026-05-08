@@ -1,15 +1,12 @@
 defmodule Tuist.Oban.PromExPlugin do
   @moduledoc """
   Oban metrics plugin emitting job event metrics (with extended
-  duration histogram buckets), queue length polling metrics, a
-  per-worker recent-state polling metric (so dashboards and alerts
-  can see throughput, failures, and retries broken down by worker —
-  including for workers that run on pods Alloy can't scrape), and
+  duration histogram buckets), queue length polling metrics, and
   producer event metrics.
   """
   use PromEx.Plugin
 
-  import Ecto.Query, only: [from: 2, group_by: 3, select: 3]
+  import Ecto.Query, only: [group_by: 3, select: 3]
 
   @job_complete_event [:oban, :job, :stop]
   @job_exception_event [:oban, :job, :exception]
@@ -22,18 +19,6 @@ defmodule Tuist.Oban.PromExPlugin do
   @job_attempt_buckets [1, 5, 10]
   @producer_duration_buckets [10, 100, 500, 1_000, 5_000, 10_000]
   @producer_dispatch_buckets [5, 10, 50, 100]
-
-  # Lookback window for the per-worker recent-state poll. Anything
-  # older drops out of the gauge so a single event doesn't keep a
-  # series elevated for the full 7-day Pruner retention.
-  @recent_state_window_seconds 30 * 60
-  # States we count: every outcome with a per-state timestamp on the
-  # row, which gives us throughput (completed), retry pressure
-  # (retryable), and failure signals (discarded, cancelled). Other
-  # states (available / scheduled / executing) are best read from the
-  # existing `tuist_oban_queue_length_count` snapshot instead — they
-  # don't have a "transitioned in at T" timestamp to filter on.
-  @recent_states ~w(completed discarded cancelled retryable)
 
   @impl true
   def event_metrics(_opts) do
@@ -154,30 +139,6 @@ defmodule Tuist.Oban.PromExPlugin do
             tags: [:name, :queue, :state]
           )
         ]
-      ),
-      # Per-worker counts of jobs that recently transitioned into one
-      # of the states with a recorded timestamp (completed, discarded,
-      # cancelled, retryable). Polled from oban_jobs so the metric is
-      # emitted by every PromEx-enabled pod regardless of which pod
-      # processed the job. That matters for workers like
-      # ProcessXcresultWorker that only run on the macOS xcresult-
-      # processor fleet, where the Tart VM pods aren't reachable from
-      # the in-cluster Alloy scrapers — dashboards and alerts can read
-      # this gauge from a web pod instead.
-      Polling.build(
-        :oban_recent_state_poll_metrics,
-        60_000,
-        {__MODULE__, :execute_recent_state_metrics, []},
-        [
-          last_value(
-            @metric_prefix ++ [:jobs, :recent, :count],
-            event_name: [:prom_ex, :plugin, :oban, :jobs, :recent, :count],
-            description:
-              "Jobs that transitioned into completed, discarded, cancelled, or retryable in the last #{div(@recent_state_window_seconds, 60)} minutes, grouped by queue, state, and worker.",
-            measurement: :count,
-            tags: [:name, :queue, :state, :worker]
-          )
-        ]
       )
     ]
   end
@@ -200,63 +161,6 @@ defmodule Tuist.Oban.PromExPlugin do
             [:prom_ex, :plugin, :oban, :queue, :length, :count],
             %{count: count},
             %{name: normalize_module_name(Oban), queue: queue, state: state}
-          )
-        end)
-
-      _ ->
-        :ok
-    end
-  end
-
-  def execute_recent_state_metrics do
-    case Oban.Registry.whereis(Oban) do
-      oban_pid when is_pid(oban_pid) ->
-        config = Oban.Registry.config(Oban)
-        cutoff = DateTime.add(DateTime.utc_now(), -@recent_state_window_seconds, :second)
-
-        # Group over every (queue, state, worker) currently in one of
-        # the tracked states (bounded by Pruner retention) and use
-        # FILTER to count just the rows whose state-transition
-        # timestamp is inside the lookback window. Each state has its
-        # own "transitioned at" column, so we pick the right one with
-        # CASE on j.state. Grouping over the universe — rather than
-        # only over rows that match the time filter — keeps the
-        # labelset stable across polls, so a count drops cleanly from
-        # N → 0 when the last in-window row ages out. Without that,
-        # last_value gauges hold the previous positive sample forever
-        # and `> 0` alerts never clear.
-        query =
-          from j in Oban.Job,
-            where: j.state in ^@recent_states,
-            group_by: [j.queue, j.state, j.worker],
-            select:
-              {j.queue, j.state, j.worker,
-               fragment(
-                 """
-                 COUNT(*) FILTER (WHERE
-                   CASE ?
-                     WHEN 'completed' THEN ?
-                     WHEN 'discarded' THEN ?
-                     WHEN 'cancelled' THEN ?
-                     WHEN 'retryable' THEN ?
-                   END > ?
-                 )
-                 """,
-                 j.state,
-                 j.completed_at,
-                 j.discarded_at,
-                 j.cancelled_at,
-                 j.attempted_at,
-                 ^cutoff
-               )}
-
-        config
-        |> Oban.Repo.all(query)
-        |> Enum.each(fn {queue, state, worker, count} ->
-          :telemetry.execute(
-            [:prom_ex, :plugin, :oban, :jobs, :recent, :count],
-            %{count: count},
-            %{name: normalize_module_name(Oban), queue: queue, state: state, worker: worker}
           )
         end)
 

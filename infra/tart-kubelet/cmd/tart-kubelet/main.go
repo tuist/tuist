@@ -12,6 +12,7 @@ package main
 import (
 	"context"
 	"flag"
+	"net"
 	"os"
 	"time"
 
@@ -47,6 +48,7 @@ func init() {
 func main() {
 	var (
 		nodeName     string
+		nodeIP       string
 		hostCPU      int
 		hostMemoryMB int
 		maxPods      int
@@ -55,6 +57,8 @@ func main() {
 		tartBinary   string
 	)
 	flag.StringVar(&nodeName, "node-name", envOr("TART_KUBELET_NODE_NAME", ""), "Node name to register as. Defaults to os.Hostname() when empty.")
+	flag.StringVar(&nodeIP, "node-ip", envOr("TART_KUBELET_NODE_IP", ""),
+		"Routable IP of this Mac mini. Pods that opt into Prometheus scraping advertise it as their PodIP and run a host-side forwarder on the host port. Defaults to the first non-loopback IPv4 address on a UP interface.")
 	flag.IntVar(&hostCPU, "host-cpu", 8, "CPU cores to advertise on the Node.")
 	flag.IntVar(&hostMemoryMB, "host-memory-mb", 16384, "Memory MB to advertise on the Node.")
 	flag.IntVar(&maxPods, "max-pods", 2,
@@ -81,6 +85,19 @@ func main() {
 			os.Exit(1)
 		}
 		nodeName = hostname
+	}
+
+	if nodeIP == "" {
+		ip, err := defaultNodeIP()
+		if err != nil {
+			// Non-fatal: scraping is opt-in per Pod, and the
+			// reconciler's PodIP rewrite is gated on NodeIP being
+			// set. Everything else (Pod ↔ VM management) keeps
+			// working without a known host IP.
+			setupLog.Info("no --node-ip and auto-detect failed; metrics scraping for VM Pods will be disabled", "err", err.Error())
+		} else {
+			nodeIP = ip
+		}
 	}
 
 	// controller-runtime's GetConfigOrDie resolves config via (in order):
@@ -148,6 +165,7 @@ func main() {
 	if err := (&podagent.Reconciler{
 		CachedClient: mgr.GetClient(),
 		NodeName:     nodeName,
+		NodeIP:       nodeIP,
 		Tart:         tartClient,
 		Resolver:     resolver,
 		Store:        store,
@@ -190,6 +208,69 @@ func envOr(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+// defaultNodeIP picks the first non-loopback IPv4 address bound to a
+// UP, non-loopback, non-VM-bridge interface. Mirrors what real
+// kubelet does when --node-ip isn't set, with one extra exclusion:
+// Tart spins up `bridge*` interfaces for the VM NAT network
+// (192.168.64.0/24 by default) on first `tart run`, and after a
+// kubelet restart with a running VM those would be the first
+// candidate the naive walker picked — handing back the host-side
+// gateway of the VM network instead of the routable host IP.
+// Returns an error if no candidate is found — the caller treats
+// that as "scraping disabled" rather than fatal.
+func defaultNodeIP() (string, error) {
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return "", err
+	}
+	for _, iface := range ifaces {
+		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
+			continue
+		}
+		if isVMBridge(iface.Name) {
+			continue
+		}
+		addrs, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+		for _, a := range addrs {
+			ip, _, err := net.ParseCIDR(a.String())
+			if err != nil {
+				continue
+			}
+			if ip.IsLoopback() || ip.IsLinkLocalUnicast() {
+				continue
+			}
+			ip4 := ip.To4()
+			if ip4 == nil {
+				continue
+			}
+			return ip4.String(), nil
+		}
+	}
+	return "", &noNodeIPError{}
+}
+
+// isVMBridge matches the interface-name patterns macOS uses for
+// virtualization NAT bridges — Tart's `bridge100+` and the more
+// generic `vmnet*` (Hypervisor.framework's reserved prefix).
+func isVMBridge(name string) bool {
+	if len(name) >= 6 && name[:6] == "bridge" {
+		return true
+	}
+	if len(name) >= 5 && name[:5] == "vmnet" {
+		return true
+	}
+	return false
+}
+
+type noNodeIPError struct{}
+
+func (*noNodeIPError) Error() string {
+	return "no non-loopback IPv4 address found on any UP interface"
 }
 
 // pickPodsForNode narrows the Pod informer with a server-side field
