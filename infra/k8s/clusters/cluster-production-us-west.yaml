@@ -37,7 +37,6 @@ spec:
         # workers for the default three replicas.
         - class: hcloud-worker
           name: kura
-          replicas: 3
           failureDomain: hil
           metadata:
             labels:

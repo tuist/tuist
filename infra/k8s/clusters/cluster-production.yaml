@@ -65,8 +65,6 @@ spec:
             labels:
               node.cluster.x-k8s.io/pool: processor
             annotations:
-              cluster.x-k8s.io/cluster-api-autoscaler-node-group-min-size: "2"
-              cluster.x-k8s.io/cluster-api-autoscaler-node-group-max-size: "6"
               cluster.x-k8s.io/cluster-autoscaler-node-group-min-size: "2"
               cluster.x-k8s.io/cluster-autoscaler-node-group-max-size: "6"
           variables:
@@ -83,7 +81,6 @@ spec:
         # and general/server pods pin to their own pools.
         - class: hcloud-worker
           name: kura
-          replicas: 3
           failureDomain: fsn1
           metadata:
             labels:
