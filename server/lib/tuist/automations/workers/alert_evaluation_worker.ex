@@ -156,14 +156,14 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
   # The active set is normally small (only test cases currently in the
   # triggered state), so the per-event cost is fine.
   #
-  # `test_case_runs` is a ReplacingMergeTree, so a single logical run can
-  # appear as multiple row versions until background merges. `FINAL`
-  # deduplicates those at query time so a reinserted run doesn't double-count
-  # against the rolling recovery threshold.
+  # We don't use `FINAL` here for the same reason as in the rolling-window
+  # monitor: `test_case_runs` is a ReplacingMergeTree on a hot table where
+  # `is_flaky` updates re-insert rows, and `FINAL` multiplies the read by
+  # the duplicate factor. A re-inserted run can shift the recovery count by
+  # at most one, which is well within the threshold's natural slop.
   defp runs_since_trigger(project_id, test_case_id, triggered_at) do
     ClickHouseRepo.one(
       from(r in TestCaseRun,
-        hints: ["FINAL"],
         where: r.project_id == ^project_id,
         where: r.test_case_id == ^test_case_id,
         where: r.ran_at > ^triggered_at,

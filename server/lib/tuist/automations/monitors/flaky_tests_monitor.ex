@@ -208,12 +208,18 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
   end
 
   # The rolling path keeps the latest `size` runs per test case using
-  # ClickHouse's `LIMIT N BY` (cheaper than a window function) and lands the
-  # scan on `proj_test_case_runs_by_project_ran_at` via the
-  # `(project_id, ran_at)` filter. `FINAL` collapses ReplacingMergeTree
-  # duplicates at read time so a re-inserted run can't occupy multiple slots
-  # in the window — projection rebuilds run alongside dedup merges, so the
-  # projection stays valid under FINAL.
+  # ClickHouse's `LIMIT N BY` (cheaper than a window function) and rides the
+  # main table's `(project_id, test_case_id, ran_at, id)` primary key for the
+  # `project_id + ran_at` prefix.
+  #
+  # We deliberately do NOT use `FINAL` here. `test_case_runs` is a
+  # ReplacingMergeTree, so a run reinserted with an updated `is_flaky` value
+  # can show up twice until merges catch up. `FINAL` reads every version and
+  # collapses them at query time, but that multiplies the scan by the
+  # duplicate factor — measured at ~5x on busy projects, enough to make the
+  # query unrunnable. Skipping it lets a stray duplicate contribute at most
+  # `1/size` noise to the rate (≤1% at the default window), which is well
+  # below the natural variance of a flakiness threshold.
   #
   # `monitor_type`, `comparison`, and `lookback_days` are interpolated
   # because each is constrained to a fixed allowlist (`@monitor_types`,
@@ -225,7 +231,7 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
     SELECT test_case_id
     FROM (
       SELECT test_case_id, toUInt8(is_flaky) AS is_flaky_int
-      FROM test_case_runs FINAL
+      FROM test_case_runs
       WHERE project_id = {project_id:Int64}
         AND test_case_id IS NOT NULL
         AND ran_at >= now() - INTERVAL #{@rolling_window_lookback_days} DAY
