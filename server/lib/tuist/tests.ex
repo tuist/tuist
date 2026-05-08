@@ -2548,16 +2548,29 @@ defmodule Tuist.Tests do
 
   # Resolves the "same test_case_id flaked on the same commit in OTHER
   # test_runs" lookup for an entire batch of test_run_ids in one query.
-  # We can't push the per-test_run `test_run_id != X` exclusion into SQL
-  # without re-running the query N times, so the query returns every
-  # matching flaky run and Elixir filters self-matches per test_run.
-  # A row that originates from another in-batch test_run is kept on
-  # purpose — that mirrors the per-call behaviour where each test_run
-  # sees its sibling's run as a cross-run counterpart.
+  #
+  # The single ClickHouse query is filtered against the *union* of
+  # per-axis IN sets across the batch, but each test_run's slice of the
+  # result is then re-filtered in Elixir against THAT test_run's own
+  # per-axis sets. This preserves the per-call semantics — run A only
+  # sees matches that satisfy A's own (project, test_case, commit) IN
+  # filters — without inflating its set with runs that only matched
+  # because run B contributed an unrelated key to the union. Without
+  # this re-filter, A flaky on `(Foo, sha1)` and B flaky on
+  # `(Bar, sha2)` would mistakenly cross-link Bar@sha2 into A's flaky
+  # group in the PR comment.
   defp fetch_cross_run_flaky_runs(test_run_ids, current_by_test_run) do
-    all_current = current_by_test_run |> Map.values() |> List.flatten()
+    per_run_keys =
+      Map.new(test_run_ids, fn test_run_id ->
+        {test_run_id,
+         current_by_test_run |> Map.get(test_run_id, []) |> collect_cross_run_keys()}
+      end)
 
-    {project_ids, test_case_ids, commit_shas} = collect_cross_run_keys(all_current)
+    {project_ids, test_case_ids, commit_shas} =
+      current_by_test_run
+      |> Map.values()
+      |> List.flatten()
+      |> collect_cross_run_keys()
 
     cond do
       Enum.empty?(test_run_ids) ->
@@ -2579,7 +2592,26 @@ defmodule Tuist.Tests do
           )
 
         Map.new(test_run_ids, fn test_run_id ->
-          {test_run_id, Enum.reject(all_matches, &(&1.test_run_id == test_run_id))}
+          {own_projects, own_test_cases, own_commits} =
+            Map.get(per_run_keys, test_run_id, {[], [], []})
+
+          if Enum.empty?(own_commits) or Enum.empty?(own_test_cases) do
+            {test_run_id, []}
+          else
+            project_set = MapSet.new(own_projects)
+            test_case_set = MapSet.new(own_test_cases)
+            commit_set = MapSet.new(own_commits)
+
+            cross =
+              Enum.filter(all_matches, fn match ->
+                match.test_run_id != test_run_id and
+                  MapSet.member?(project_set, match.project_id) and
+                  MapSet.member?(test_case_set, match.test_case_id) and
+                  MapSet.member?(commit_set, match.git_commit_sha)
+              end)
+
+            {test_run_id, cross}
+          end
         end)
     end
   end
