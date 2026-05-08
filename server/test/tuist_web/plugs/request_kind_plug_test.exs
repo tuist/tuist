@@ -2,6 +2,7 @@ defmodule TuistWeb.Plugs.RequestKindPlugTest do
   use TuistTestSupport.Cases.ConnCase, async: false
   use Mimic
 
+  import Plug.Conn
   import Plug.Test
 
   alias TuistWeb.Plugs.RequestKindPlug
@@ -13,39 +14,55 @@ defmodule TuistWeb.Plugs.RequestKindPlugTest do
     :ok
   end
 
-  describe "init/1" do
-    test "passes through binary kinds" do
-      assert RequestKindPlug.init("page_load") == "page_load"
-    end
-
-    test "raises on non-binary kinds to fail loudly at compile time" do
-      assert_raise FunctionClauseError, fn -> RequestKindPlug.init(:page_load) end
-    end
+  defp send_through(conn) do
+    conn
+    |> RequestKindPlug.call([])
+    |> resp(200, "")
+    |> send_resp()
   end
 
   describe "call/2" do
-    test "writes the kind to Logger.metadata" do
+    test "writes the assigned kind to Logger.metadata when the response is sent" do
       stub(OpenTelemetry.Tracer, :set_attribute, fn _, _ -> :ok end)
 
-      conn = :get |> conn("/") |> RequestKindPlug.call("page_load")
+      :get
+      |> conn("/")
+      |> assign(:request_kind, "page_load")
+      |> send_through()
 
-      assert conn
       assert Logger.metadata()[:request_kind] == "page_load"
     end
 
-    test "writes the kind to the active OpenTelemetry span" do
+    test "writes the assigned kind to the active OpenTelemetry span" do
       expect(OpenTelemetry.Tracer, :set_attribute, fn "request_kind", "api" ->
         :ok
       end)
 
-      :get |> conn("/") |> RequestKindPlug.call("api")
+      :get
+      |> conn("/")
+      |> assign(:request_kind, "api")
+      |> send_through()
     end
 
-    test "returns the conn unchanged" do
-      stub(OpenTelemetry.Tracer, :set_attribute, fn _, _ -> :ok end)
+    test "is a no-op when no kind has been assigned" do
+      reject(&OpenTelemetry.Tracer.set_attribute/2)
 
-      conn = conn(:get, "/foo")
-      assert RequestKindPlug.call(conn, "page_load") == conn
+      :get
+      |> conn("/")
+      |> send_through()
+
+      refute Logger.metadata()[:request_kind]
+    end
+
+    test "is a no-op when the assigned kind is not a binary" do
+      reject(&OpenTelemetry.Tracer.set_attribute/2)
+
+      :get
+      |> conn("/")
+      |> assign(:request_kind, :page_load)
+      |> send_through()
+
+      refute Logger.metadata()[:request_kind]
     end
   end
 end
