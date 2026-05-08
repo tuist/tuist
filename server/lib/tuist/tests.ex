@@ -2447,10 +2447,13 @@ defmodule Tuist.Tests do
   def get_flaky_runs_for_test_runs(test_run_ids) when is_list(test_run_ids) do
     current_by_test_run = fetch_flaky_runs_for_test_runs(test_run_ids)
 
+    cross_by_test_run =
+      fetch_cross_run_flaky_runs(test_run_ids, current_by_test_run)
+
     flaky_runs_by_test_run =
       Map.new(test_run_ids, fn test_run_id ->
         current = Map.get(current_by_test_run, test_run_id, [])
-        cross = get_cross_run_flaky_runs(test_run_id, current)
+        cross = Map.get(cross_by_test_run, test_run_id, [])
         {test_run_id, current ++ cross}
       end)
 
@@ -2543,9 +2546,45 @@ defmodule Tuist.Tests do
     end)
   end
 
-  defp get_cross_run_flaky_runs(_test_run_id, []), do: []
+  # Resolves the "same test_case_id flaked on the same commit in OTHER
+  # test_runs" lookup for an entire batch of test_run_ids in one query.
+  # We can't push the per-test_run `test_run_id != X` exclusion into SQL
+  # without re-running the query N times, so the query returns every
+  # matching flaky run and Elixir filters self-matches per test_run.
+  # A row that originates from another in-batch test_run is kept on
+  # purpose — that mirrors the per-call behaviour where each test_run
+  # sees its sibling's run as a cross-run counterpart.
+  defp fetch_cross_run_flaky_runs(test_run_ids, current_by_test_run) do
+    all_current = current_by_test_run |> Map.values() |> List.flatten()
 
-  defp get_cross_run_flaky_runs(test_run_id, current_flaky_runs) do
+    {project_ids, test_case_ids, commit_shas} = collect_cross_run_keys(all_current)
+
+    cond do
+      Enum.empty?(test_run_ids) ->
+        %{}
+
+      Enum.empty?(commit_shas) or Enum.empty?(test_case_ids) ->
+        Map.new(test_run_ids, &{&1, []})
+
+      true ->
+        all_matches =
+          ClickHouseRepo.all(
+            from(tcr in TestCaseRun,
+              where: tcr.project_id in ^project_ids,
+              where: tcr.test_case_id in ^test_case_ids,
+              where: tcr.git_commit_sha in ^commit_shas,
+              where: tcr.is_flaky == true,
+              order_by: [desc: tcr.ran_at]
+            )
+          )
+
+        Map.new(test_run_ids, fn test_run_id ->
+          {test_run_id, Enum.reject(all_matches, &(&1.test_run_id == test_run_id))}
+        end)
+    end
+  end
+
+  defp collect_cross_run_keys(current_flaky_runs) do
     project_ids = current_flaky_runs |> Enum.map(& &1.project_id) |> Enum.uniq()
     test_case_ids = current_flaky_runs |> Enum.map(& &1.test_case_id) |> Enum.uniq()
 
@@ -2555,21 +2594,7 @@ defmodule Tuist.Tests do
       |> Enum.reject(&(&1 == "" or is_nil(&1)))
       |> Enum.uniq()
 
-    if Enum.empty?(commit_shas) do
-      []
-    else
-      query =
-        from(tcr in TestCaseRun,
-          where: tcr.project_id in ^project_ids,
-          where: tcr.test_case_id in ^test_case_ids,
-          where: tcr.test_run_id != ^test_run_id,
-          where: tcr.git_commit_sha in ^commit_shas,
-          where: tcr.is_flaky == true,
-          order_by: [desc: tcr.ran_at]
-        )
-
-      ClickHouseRepo.all(query)
-    end
+    {project_ids, test_case_ids, commit_shas}
   end
 
   defp get_failures_for_runs([]), do: []
