@@ -37,6 +37,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -90,12 +91,19 @@ type Config struct {
 	HostMemoryMB int
 	MaxPods      int
 
-	// FleetName, when set, is passed to tart-kubelet via `--fleet=<name>`
-	// so the agent stamps `tuist.dev/fleet=<name>` on the Node it
-	// registers. Empty omits the flag and the Node carries no fleet
-	// label. Used by the chart's split macOS fleets (xcresult vs.
-	// runners) so workloads bind to a specific fleet via nodeSelector.
-	FleetName string
+	// NodeLabels is the set of labels tart-kubelet stamps on the
+	// Node it registers. The bootstrap layer is generic — fleet
+	// membership is just one entry the caller adds (typically
+	// `{"tuist.dev/fleet": <fleetName>}`). Empty map omits the
+	// flag entirely; the Node carries no operator-set labels.
+	//
+	// Why bootstrap-time and not a post-registration patch: the
+	// label has to land atomically with kubelet registration, or
+	// there's a race window where a Node is `Ready` but unlabeled
+	// and Pods with `nodeSelector: tuist.dev/fleet=<name>` fail to
+	// schedule on it. Same convention CAPI bootstrap providers
+	// follow with `kubeadm`'s `kubeletExtraArgs.node-labels`.
+	NodeLabels map[string]string
 
 	// KnownHostFingerprint is the SHA256 fingerprint of the SSH
 	// server's host key, persisted by the controller after the first
@@ -306,15 +314,28 @@ func renderLaunchdPlist(cfg Config) string {
 	if user == "" {
 		user = "m1"
 	}
-	// `--fleet` is rendered conditionally so the existing single-fleet
-	// hosts (which were bootstrapped before this flag existed) keep
-	// rendering identical plists when the operator doesn't pass a
-	// FleetName. tart-kubelet treats empty fleet as "no label" and
-	// drops the label if it was previously set, which gives the
-	// operator a way to retire fleet membership cleanly.
-	fleetArg := ""
-	if cfg.FleetName != "" {
-		fleetArg = fmt.Sprintf("\n    <string>--fleet=%s</string>", cfg.FleetName)
+	// `--node-labels` is rendered conditionally so a host bootstrapped
+	// without any labels (or one whose operator wants to retire
+	// labels) renders an identical plist. tart-kubelet treats an
+	// absent flag as "operator-managed labels = ∅" and drops any
+	// labels it previously set, giving us a clean retire path.
+	//
+	// k=v,k=v,... form (kubelet's --node-labels convention).
+	// Sorted for deterministic plist rendering — otherwise map
+	// iteration order would dirty the host fingerprint and
+	// trigger needless plist rewrites.
+	nodeLabelsArg := ""
+	if len(cfg.NodeLabels) > 0 {
+		keys := make([]string, 0, len(cfg.NodeLabels))
+		for k := range cfg.NodeLabels {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		pairs := make([]string, 0, len(keys))
+		for _, k := range keys {
+			pairs = append(pairs, fmt.Sprintf("%s=%s", k, cfg.NodeLabels[k]))
+		}
+		nodeLabelsArg = fmt.Sprintf("\n    <string>--node-labels=%s</string>", strings.Join(pairs, ","))
 	}
 	// Run tart-kubelet as the SSH user (m1). Apple's
 	// Virtualization.framework requires the calling process to be the
@@ -352,7 +373,7 @@ func renderLaunchdPlist(cfg Config) string {
   </dict>
 </dict>
 </plist>
-`, cfg.NodeName, cpu, mem, maxPods, user, fleetArg)
+`, cfg.NodeName, cpu, mem, maxPods, user, nodeLabelsArg)
 }
 
 func shellQuote(s string) string {

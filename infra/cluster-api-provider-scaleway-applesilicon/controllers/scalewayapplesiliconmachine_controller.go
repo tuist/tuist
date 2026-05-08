@@ -343,7 +343,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			HostCPU:              r.TartKubeletHostCPU,
 			HostMemoryMB:         r.TartKubeletHostMemoryMB,
 			MaxPods:              r.TartKubeletMaxPods,
-			FleetName:            machine.Spec.FleetName,
+			NodeLabels:           machineNodeLabels(machine),
 			KnownHostFingerprint: bootstrapCreds.HostFingerprint,
 		})
 		// Persist whatever fingerprint Run captured even on the error
@@ -420,7 +420,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			HostCPU:              r.TartKubeletHostCPU,
 			HostMemoryMB:         r.TartKubeletHostMemoryMB,
 			MaxPods:              r.TartKubeletMaxPods,
-			FleetName:            machine.Spec.FleetName,
+			NodeLabels:           machineNodeLabels(machine),
 			KnownHostFingerprint: bootstrapCreds.HostFingerprint,
 		})
 		if fingerprint != "" && fingerprint != bootstrapCreds.HostFingerprint {
@@ -588,6 +588,19 @@ func machineIP(m *infrav1.ScalewayAppleSiliconMachine) string {
 		}
 	}
 	return ""
+}
+
+// machineNodeLabels returns the labels tart-kubelet will stamp on
+// the Node it registers. v1 sets only `tuist.dev/fleet=<FleetName>`
+// — the fleet membership label that workloads pin to via
+// nodeSelector. Adding more labels (e.g. instance-type for multi-
+// profile pre-warming) is a one-line change here; bootstrap +
+// tart-kubelet already accept arbitrary maps.
+func machineNodeLabels(m *infrav1.ScalewayAppleSiliconMachine) map[string]string {
+	if m.Spec.FleetName == "" {
+		return nil
+	}
+	return map[string]string{"tuist.dev/fleet": m.Spec.FleetName}
 }
 
 func (r *ScalewayAppleSiliconMachineReconciler) SetupWithManager(mgr ctrl.Manager) error {

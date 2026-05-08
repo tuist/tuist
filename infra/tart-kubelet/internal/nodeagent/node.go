@@ -10,6 +10,7 @@ package nodeagent
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -25,19 +26,32 @@ import (
 // lifecycle on the API server and bumps `LastHeartbeatTime` so the
 // node-controller doesn't NotReady-evict workloads.
 type Maintainer struct {
-	Client    client.Client
-	NodeName  string
-	// Fleet, when non-empty, is published as the `tuist.dev/fleet`
-	// Node label so workloads (xcresult-processor, runner Pods) can
-	// target a specific fleet via nodeSelector. Mac minis in the
-	// xcresult fleet must not run customer runner Pods and vice
-	// versa; the label is the scheduling primitive that enforces it.
-	Fleet     string
-	CPU       int
-	MemoryMB  int
-	MaxPods   int
-	Heartbeat time.Duration
+	Client   client.Client
+	NodeName string
+	// NodeLabels are operator-set labels published on the Node at
+	// registration time. The chart populates this with at least
+	// `tuist.dev/fleet=<name>` so workloads (xcresult-processor,
+	// runner Pods) can target a specific fleet via nodeSelector;
+	// callers can add arbitrary labels (e.g. instance-type) by
+	// passing additional entries.
+	//
+	// Labels NOT in this map but previously set by us are deleted
+	// on the next reconcile, giving operators a clean retire path
+	// — flip `--node-labels` and the Node loses the labels next
+	// heartbeat.
+	NodeLabels map[string]string
+	CPU        int
+	MemoryMB   int
+	MaxPods    int
+	Heartbeat  time.Duration
 }
+
+// operatorOwnedLabelPrefix is the prefix tart-kubelet treats as
+// "I own this label." Labels with this prefix that aren't in the
+// current NodeLabels map get pruned. We don't prune all unknown
+// labels — kube-system DaemonSets, the cluster admin, and other
+// agents may stamp legitimate labels we shouldn't touch.
+const operatorOwnedLabelPrefix = "tuist.dev/"
 
 // Start blocks until ctx is cancelled. Conforms to manager.Runnable.
 func (m *Maintainer) Start(ctx context.Context) error {
@@ -96,15 +110,30 @@ func (m *Maintainer) configureNode(node *corev1.Node) {
 	}
 	node.Labels["kubernetes.io/os"] = "darwin"
 	node.Labels["kubernetes.io/arch"] = "arm64"
-	node.Labels["tuist.dev/runtime"] = "tart"
 	node.Labels[corev1.LabelHostname] = m.NodeName
-	if m.Fleet != "" {
-		node.Labels["tuist.dev/fleet"] = m.Fleet
-	} else {
-		// Operator may have rolled the agent without a fleet flag
-		// after a previous run set the label. Drop it so the Node
-		// stops matching fleet-scoped nodeSelectors.
-		delete(node.Labels, "tuist.dev/fleet")
+	// `tuist.dev/runtime=tart` is intrinsic to a tart-kubelet Node
+	// (not operator-tunable), so it's stamped unconditionally and
+	// excluded from the prune below.
+	node.Labels["tuist.dev/runtime"] = "tart"
+
+	// Apply operator-set labels. Any tuist.dev/* label not in the
+	// current NodeLabels map gets dropped — gives the operator a
+	// clean retire path: flip --node-labels and the Node sheds
+	// the old labels on the next heartbeat. The runtime label is
+	// excluded from prune (intrinsic, not operator-tunable).
+	for k, v := range m.NodeLabels {
+		node.Labels[k] = v
+	}
+	for k := range node.Labels {
+		if !strings.HasPrefix(k, operatorOwnedLabelPrefix) {
+			continue
+		}
+		if k == "tuist.dev/runtime" {
+			continue
+		}
+		if _, kept := m.NodeLabels[k]; !kept {
+			delete(node.Labels, k)
+		}
 	}
 
 	// Same NoSchedule taint we used for VK so stray Linux Pods don't
