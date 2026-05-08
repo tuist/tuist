@@ -612,28 +612,35 @@ defmodule TuistWeb.ProjectAutomationsLive do
   `max` attribute doesn't intercept the click.
   """
   def rolling_window_inputs_valid?(assigns) do
-    valid_rolling_size?(
-      assigns.create_automation_form_window_type,
-      assigns.create_automation_form_rolling_window_size
-    ) and
-      valid_rolling_size?(
-        assigns.create_automation_form_recovery_window_type,
-        assigns.create_automation_form_recovery_rolling_window_size,
-        recovery_enabled: assigns.create_automation_form_recovery_enabled
-      )
+    is_nil(rolling_size_error(assigns.create_automation_form_window_type, assigns.create_automation_form_rolling_window_size)) and
+      (not assigns.create_automation_form_recovery_enabled or
+         is_nil(
+           rolling_size_error(
+             assigns.create_automation_form_recovery_window_type,
+             assigns.create_automation_form_recovery_rolling_window_size
+           )
+         ))
   end
 
-  defp valid_rolling_size?(window_type, raw_size, opts \\ [])
-  defp valid_rolling_size?(_window_type, _raw_size, recovery_enabled: false), do: true
-  defp valid_rolling_size?("rolling", raw_size, _opts), do: rolling_size_within_cap?(raw_size)
-  defp valid_rolling_size?(_window_type, _raw_size, _opts), do: true
+  @doc """
+  User-facing error string for a rolling-window size input, or `nil` when
+  the value is valid (or the window mode isn't rolling). Wired into the
+  `error` attribute on the noora `text_input` so the same constraint that
+  disables Save is visible inline on the field.
+  """
+  def rolling_size_error("rolling", raw_size) do
+    max = Tuist.Automations.Alerts.Alert.max_rolling_window_size()
 
-  defp rolling_size_within_cap?(raw_size) do
     case Integer.parse(to_string(raw_size)) do
-      {n, ""} -> n >= 1 and n <= Tuist.Automations.Alerts.Alert.max_rolling_window_size()
-      _ -> false
+      {n, ""} when n >= 1 and n <= max ->
+        nil
+
+      _ ->
+        dgettext("dashboard_projects", "Must be between 1 and %{max}", max: max)
     end
   end
+
+  def rolling_size_error(_window_type, _raw_size), do: nil
 
   # Decode the signed channel-result token, then encrypt the webhook URL so
   # we never store it as plaintext inside the action JSON.

@@ -241,6 +241,12 @@
                       placeholder="100"
                       min={1}
                       max={Tuist.Automations.Alerts.Alert.max_rolling_window_size()}
+                      error={
+                        rolling_size_error(
+                          @create_automation_form_window_type,
+                          @create_automation_form_rolling_window_size
+                        )
+                      }
                       phx-keyup="update_create_automation_form_rolling_window_size"
                       phx-debounce="300"
                     />
@@ -614,6 +620,12 @@
                         placeholder="100"
                         min={1}
                         max={Tuist.Automations.Alerts.Alert.max_rolling_window_size()}
+                        error={
+                          rolling_size_error(
+                            @create_automation_form_recovery_window_type,
+                            @create_automation_form_recovery_rolling_window_size
+                          )
+                        }
                         phx-keyup="update_create_automation_form_recovery_rolling_window_size"
                         phx-debounce="300"
                       />
