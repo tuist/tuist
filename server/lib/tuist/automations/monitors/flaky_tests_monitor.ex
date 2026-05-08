@@ -208,9 +208,16 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
   end
 
   # The rolling path keeps the latest `size` runs per test case using
-  # ClickHouse's `LIMIT N BY` (cheaper than a window function) and rides the
-  # main table's `(project_id, test_case_id, ran_at, id)` primary key for the
-  # `project_id + ran_at` prefix.
+  # ClickHouse's `LIMIT N BY` (cheaper than a window function).
+  #
+  # The inner WHERE intentionally filters only on `project_id` and `ran_at`
+  # so ClickHouse can binary-search the `(project_id, test_case_id, ran_at,
+  # id)` primary key by the `(project_id, ran_at)` prefix. Adding
+  # `test_case_id IS NOT NULL` between them forces "generic exclusion
+  # search" — the ran_at range stops pruning granules and the scan blows up
+  # to "every row in the project's partitions". The NULL test_case_ids
+  # collapse into a single `NULL` group inside `LIMIT N BY` and we drop it
+  # in the outer aggregation.
   #
   # We deliberately do NOT use `FINAL` here. `test_case_runs` is a
   # ReplacingMergeTree, so a run reinserted with an updated `is_flaky` value
@@ -233,11 +240,11 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
       SELECT test_case_id, toUInt8(is_flaky) AS is_flaky_int
       FROM test_case_runs
       WHERE project_id = {project_id:Int64}
-        AND test_case_id IS NOT NULL
         AND ran_at >= now() - INTERVAL #{@rolling_window_lookback_days} DAY
       ORDER BY test_case_id, ran_at DESC
       LIMIT {size:UInt32} BY test_case_id
     )
+    WHERE test_case_id IS NOT NULL
     GROUP BY test_case_id
     HAVING #{rolling_having_expr(monitor_type)} #{rolling_comparison_op(comparison)} {threshold:Float64}
     """
