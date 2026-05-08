@@ -36,7 +36,11 @@ on:
 
 jobs:
   smoke:
-    runs-on: [self-hosted, tuist-tuist-staging]
+    # Single-label form. `tuist-tuist-staging` is the pool's unique
+    # dispatch label and is sufficient to pick a runner — no need
+    # to also list `self-hosted` (which is advertised on the
+    # runner but isn't an authorization boundary).
+    runs-on: tuist-tuist-staging
     timeout-minutes: 10
     steps:
       - name: Show environment
