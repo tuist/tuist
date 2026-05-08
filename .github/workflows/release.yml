@@ -2213,18 +2213,23 @@ jobs:
           path: infra/helm
 
       - name: Download CAPI operator artifacts
-        # No `path:` so the artifact's `infra/...` paths land back at
-        # workspace root for the later `git add` to find them.
+        # `path:` matches the upload's LCA so CHANGELOG.md lands back at
+        # `infra/cluster-api-provider-scaleway-applesilicon/CHANGELOG.md`
+        # for the later `git add` to find. upload-artifact@v4 strips the
+        # LCA from each entry's archive path, so a workspace-root
+        # download would put it at `<workspace>/CHANGELOG.md`.
         if: needs.check-releases.outputs.capi-scaleway-should-release == 'true' && needs.release-capi-scaleway.result == 'success'
         uses: actions/download-artifact@v4
         with:
           name: capi-scaleway-artifacts
+          path: infra/cluster-api-provider-scaleway-applesilicon
 
       - name: Download xcresult-processor-image artifacts
         if: needs.check-releases.outputs.xcresult-processor-image-should-release == 'true' && needs.release-xcresult-processor-image.result == 'success'
         uses: actions/download-artifact@v4
         with:
           name: xcresult-processor-image-artifacts
+          path: infra/xcresult-processor-image
 
       - name: Bump chart image pins for released components
         # Single writer for values-managed-common.yaml. Each release-*
