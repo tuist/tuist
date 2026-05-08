@@ -6057,8 +6057,8 @@ defmodule Tuist.TestsTest do
 
       result = Tests.get_flaky_runs_for_test_runs([run_a.id, run_b.id])
 
-      group_a = result |> Map.fetch!(run_a.id)
-      group_b = result |> Map.fetch!(run_b.id)
+      group_a = Map.fetch!(result, run_a.id)
+      group_b = Map.fetch!(result, run_b.id)
 
       assert [%{name: "testFooFlaky"} = group] = group_a
       assert length(group.runs) == 1

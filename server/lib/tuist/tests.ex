@@ -2562,8 +2562,7 @@ defmodule Tuist.Tests do
   defp fetch_cross_run_flaky_runs(test_run_ids, current_by_test_run) do
     per_run_keys =
       Map.new(test_run_ids, fn test_run_id ->
-        {test_run_id,
-         current_by_test_run |> Map.get(test_run_id, []) |> collect_cross_run_keys()}
+        {test_run_id, current_by_test_run |> Map.get(test_run_id, []) |> collect_cross_run_keys()}
       end)
 
     {project_ids, test_case_ids, commit_shas} =
@@ -2592,27 +2591,28 @@ defmodule Tuist.Tests do
           )
 
         Map.new(test_run_ids, fn test_run_id ->
-          {own_projects, own_test_cases, own_commits} =
-            Map.get(per_run_keys, test_run_id, {[], [], []})
-
-          if Enum.empty?(own_commits) or Enum.empty?(own_test_cases) do
-            {test_run_id, []}
-          else
-            project_set = MapSet.new(own_projects)
-            test_case_set = MapSet.new(own_test_cases)
-            commit_set = MapSet.new(own_commits)
-
-            cross =
-              Enum.filter(all_matches, fn match ->
-                match.test_run_id != test_run_id and
-                  MapSet.member?(project_set, match.project_id) and
-                  MapSet.member?(test_case_set, match.test_case_id) and
-                  MapSet.member?(commit_set, match.git_commit_sha)
-              end)
-
-            {test_run_id, cross}
-          end
+          {test_run_id, scope_cross_run_matches(all_matches, test_run_id, per_run_keys)}
         end)
+    end
+  end
+
+  defp scope_cross_run_matches(all_matches, test_run_id, per_run_keys) do
+    {own_projects, own_test_cases, own_commits} =
+      Map.get(per_run_keys, test_run_id, {[], [], []})
+
+    if Enum.empty?(own_commits) or Enum.empty?(own_test_cases) do
+      []
+    else
+      project_set = MapSet.new(own_projects)
+      test_case_set = MapSet.new(own_test_cases)
+      commit_set = MapSet.new(own_commits)
+
+      Enum.filter(all_matches, fn match ->
+        match.test_run_id != test_run_id and
+          MapSet.member?(project_set, match.project_id) and
+          MapSet.member?(test_case_set, match.test_case_id) and
+          MapSet.member?(commit_set, match.git_commit_sha)
+      end)
     end
   end
 
