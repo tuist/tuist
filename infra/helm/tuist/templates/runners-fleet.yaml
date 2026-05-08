@@ -1,16 +1,20 @@
 {{- if .Values.runnersFleet.enabled }}
 {{- $fleetName := include "tuist.runnersFleetName" . }}
+{{- $clusterName := include "tuist.componentName" (dict "root" . "component" "capi") }}
+{{- $bootstrapSecret := include "tuist.componentName" (dict "root" . "component" "noop-bootstrap") }}
 {{- /*
 Customer-runner Mac mini fleet. Sibling of macos-fleet.yaml,
 provisioned by the same cluster-api-provider-scaleway-applesilicon
 operator from the same Scaleway IAM credentials.
 
 See macos-fleet.yaml for the rationale on the
-ScalewayAppleSiliconFleet abstraction. Same shape — one Fleet CR
-per pool; operator owns Machine instance lifecycle.
+MachineDeployment + ScalewayAppleSiliconMachineTemplate shape.
+Same primitive — one MachineDeployment per pool; CAPI core
+drives Machine lifecycle; our infra-Machine controller
+provisions + bootstraps the Scaleway host.
 */ -}}
 apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
-kind: ScalewayAppleSiliconFleet
+kind: ScalewayAppleSiliconMachineTemplate
 metadata:
   name: {{ $fleetName }}
   namespace: {{ .Release.Namespace }}
@@ -19,9 +23,43 @@ metadata:
     app.kubernetes.io/component: runners-fleet
     tuist.dev/fleet: {{ $fleetName }}
 spec:
+  template:
+    spec:
+      type: {{ .Values.runnersFleet.machine.type | default "M4-S" | quote }}
+      zone: {{ .Values.runnersFleet.machine.zone | default "fr-par-1" | quote }}
+      os: {{ .Values.runnersFleet.machine.os | default "macos-tahoe-26.0" | quote }}
+      fleetName: {{ $fleetName }}
+---
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: MachineDeployment
+metadata:
+  name: {{ $fleetName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: runners-fleet
+    tuist.dev/fleet: {{ $fleetName }}
+    cluster.x-k8s.io/cluster-name: {{ $clusterName }}
+spec:
+  clusterName: {{ $clusterName }}
   replicas: {{ .Values.runnersFleet.replicas | default 0 }}
-  machineTemplate:
-    type: {{ .Values.runnersFleet.machine.type | default "M4-S" | quote }}
-    zone: {{ .Values.runnersFleet.machine.zone | default "fr-par-1" | quote }}
-    os: {{ .Values.runnersFleet.machine.os | default "macos-tahoe-26.0" | quote }}
+  strategy:
+    type: OnDelete
+  selector:
+    matchLabels:
+      cluster.x-k8s.io/cluster-name: {{ $clusterName }}
+      tuist.dev/fleet: {{ $fleetName }}
+  template:
+    metadata:
+      labels:
+        cluster.x-k8s.io/cluster-name: {{ $clusterName }}
+        tuist.dev/fleet: {{ $fleetName }}
+    spec:
+      clusterName: {{ $clusterName }}
+      bootstrap:
+        dataSecretName: {{ $bootstrapSecret }}
+      infrastructureRef:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+        kind: ScalewayAppleSiliconMachineTemplate
+        name: {{ $fleetName }}
 {{- end }}

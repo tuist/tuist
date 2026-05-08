@@ -184,15 +184,6 @@ func main() {
 		APIServerURL: apiServerURL,
 	}
 
-	if err := (&controllers.ScalewayAppleSiliconFleetReconciler{
-		Client:   mgr.GetClient(),
-		Scheme:   mgr.GetScheme(),
-		Recorder: mgr.GetEventRecorderFor("scalewayapplesiliconfleet-controller"),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "setup FleetReconciler")
-		os.Exit(1)
-	}
-
 	if err := (&controllers.ScalewayAppleSiliconMachineReconciler{
 		Client:                       mgr.GetClient(),
 		Scheme:                       mgr.GetScheme(),

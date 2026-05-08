@@ -1,36 +1,32 @@
 {{- if .Values.macosFleet.enabled }}
 {{- $fleetName := include "tuist.macosFleetName" . }}
+{{- $clusterName := include "tuist.componentName" (dict "root" . "component" "capi") }}
+{{- $bootstrapSecret := include "tuist.componentName" (dict "root" . "component" "noop-bootstrap") }}
 {{- /*
 Mac mini fleet — declarative.
 
-The chart owns ONE ScalewayAppleSiliconFleet CR per logical pool;
-the cluster-api-provider-scaleway-applesilicon operator's Fleet
-controller owns the lifecycle of the underlying
-ScalewayAppleSiliconMachine instances. This split was introduced
-after `helm.sh/resource-policy: keep` on direct Machine CRs led
-to silently-dropped spec updates (helm orphans the resource and
-stops patching). With the Fleet abstraction:
+CAPI primitive shape: MachineDeployment owns a MachineSet, which
+creates Machines per replica, each Machine.spec.infrastructureRef
+points at a per-replica ScalewayAppleSiliconMachine cloned from
+the MachineTemplate below. Updates to the template (SKU change,
+OS bump) propagate via MachineSet rotation; OnDelete strategy
+keeps Ready Machines alive across template changes — physical
+Mac minis are expensive to churn (Scaleway 24h-floor).
 
-  - helm freely patches the Fleet's `spec.replicas` /
-    `spec.machineTemplate` on every upgrade.
-  - The Fleet controller scales Machines up/down to match
-    `spec.replicas` and recycles non-Ready Machines whose spec
-    drifts from the template (covers the "Scaleway out of stock,
-    flip SKU" scenario without manual `kubectl delete`).
-  - Ready Machines (with a Scaleway server allocated) are not
-    disrupted on a template change; rolling-update them is a
-    follow-up enhancement.
+Replaces the previous ScalewayAppleSiliconFleet abstraction. We
+get rolling-update / health-check / clusterctl tooling for free
+and shed ~600 lines of custom Fleet controller code; sizing,
+template, and Node-label semantics are unchanged.
 
-Adoption: pre-existing Machine CRs (rendered by the older chart
-shape before this template emitted Fleets) carrying
-`tuist.dev/fleet=<fleetName>` are auto-adopted by the Fleet
-controller via OwnerReference on first reconcile. No manual
-kubectl ceremony beyond stripping the Machine's helm-tracking
-annotations / labels so helm doesn't fight the operator over
-ownership during the first upgrade.
+Adoption of pre-existing Machines: MachineSet's label-selector
+adoption pulls Machines whose labels match into ownership on the
+first reconcile, so a chart upgrade from the Fleet shape doesn't
+recreate Mac minis (avoids the 24h-floor cost). Operator-side
+prep before the upgrade: strip the old Fleet's OwnerRef from
+existing Machines.
 */ -}}
 apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
-kind: ScalewayAppleSiliconFleet
+kind: ScalewayAppleSiliconMachineTemplate
 metadata:
   name: {{ $fleetName }}
   namespace: {{ .Release.Namespace }}
@@ -38,19 +34,49 @@ metadata:
     {{- include "tuist.labels" . | nindent 4 }}
     app.kubernetes.io/component: macos-fleet
     tuist.dev/fleet: {{ $fleetName }}
-  # No `helm.sh/resource-policy: keep`. Helm orphans kept
-  # resources from BOTH uninstall AND upgrade, so spec changes
-  # would be silently dropped — exactly the bug the Fleet
-  # abstraction above already fixes for individual Machines, and
-  # the same trap applies here. The dangerous case to avoid is
-  # `macosFleet.enabled=false` in a single upgrade that ALSO
-  # removes the operator: scale `replicas` to 0 first, let the
-  # operator drain via the Fleet controller, then disable in a
-  # follow-up release.
 spec:
+  template:
+    spec:
+      type: {{ .Values.macosFleet.machine.type | default "M4-S" | quote }}
+      zone: {{ .Values.macosFleet.machine.zone | default "fr-par-1" | quote }}
+      os: {{ .Values.macosFleet.machine.os | default "macos-tahoe-26.0" | quote }}
+      fleetName: {{ $fleetName }}
+---
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: MachineDeployment
+metadata:
+  name: {{ $fleetName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: macos-fleet
+    tuist.dev/fleet: {{ $fleetName }}
+    cluster.x-k8s.io/cluster-name: {{ $clusterName }}
+spec:
+  clusterName: {{ $clusterName }}
   replicas: {{ .Values.macosFleet.replicas | default 1 }}
-  machineTemplate:
-    type: {{ .Values.macosFleet.machine.type | default "M4-S" | quote }}
-    zone: {{ .Values.macosFleet.machine.zone | default "fr-par-1" | quote }}
-    os: {{ .Values.macosFleet.machine.os | default "macos-tahoe-26.0" | quote }}
+  # OnDelete: don't auto-roll Ready Mac minis when the template
+  # changes — physical churn is expensive (Scaleway 24h-floor)
+  # and the existing Mac minis are doing real work. Operator
+  # rolls by `kubectl delete` on the Machines they want
+  # replaced, MachineSet creates fresh ones from the new template.
+  strategy:
+    type: OnDelete
+  selector:
+    matchLabels:
+      cluster.x-k8s.io/cluster-name: {{ $clusterName }}
+      tuist.dev/fleet: {{ $fleetName }}
+  template:
+    metadata:
+      labels:
+        cluster.x-k8s.io/cluster-name: {{ $clusterName }}
+        tuist.dev/fleet: {{ $fleetName }}
+    spec:
+      clusterName: {{ $clusterName }}
+      bootstrap:
+        dataSecretName: {{ $bootstrapSecret }}
+      infrastructureRef:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+        kind: ScalewayAppleSiliconMachineTemplate
+        name: {{ $fleetName }}
 {{- end }}

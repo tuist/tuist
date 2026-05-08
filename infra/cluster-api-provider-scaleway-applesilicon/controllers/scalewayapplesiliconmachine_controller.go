@@ -12,15 +12,19 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	"sigs.k8s.io/cluster-api/util"
 	"sigs.k8s.io/cluster-api/util/conditions"
 	"sigs.k8s.io/cluster-api/util/patch"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/api/v1alpha1"
 	"github.com/tuist/tuist/infra/macos-host-bootstrap"
@@ -144,6 +148,19 @@ func (r *ScalewayAppleSiliconMachineReconciler) Reconcile(ctx context.Context, r
 		}
 	}()
 
+	// Resolve the parent CAPI Machine, if there is one. The chart
+	// renders MachineDeployment → MachineSet → Machine →
+	// ScalewayAppleSiliconMachine; CAPI core stamps an OwnerRef on
+	// our CR pointing at the Machine, and we drive most lifecycle
+	// off the parent's spec / status. Standalone CRs (no parent
+	// Machine) are still reconciled normally — useful for tests
+	// and for any operator-side bring-up before MachineDeployment
+	// adoption completes.
+	ownerMachine, ownerErr := util.GetOwnerMachine(ctx, r.Client, machine.ObjectMeta)
+	if ownerErr != nil {
+		return ctrl.Result{}, fmt.Errorf("get owner Machine: %w", ownerErr)
+	}
+
 	// Handle deletion.
 	if !machine.DeletionTimestamp.IsZero() {
 		return r.reconcileDelete(ctx, machine)
@@ -153,6 +170,34 @@ func (r *ScalewayAppleSiliconMachineReconciler) Reconcile(ctx context.Context, r
 	// release the Scaleway server before the CR disappears.
 	if !controllerutil.ContainsFinalizer(machine, MachineFinalizer) {
 		controllerutil.AddFinalizer(machine, MachineFinalizer)
+	}
+
+	if ownerMachine != nil {
+		// CAPI's Machine controller waits for the InfrastructureCluster's
+		// Status.Ready before stamping our CR's OwnerRef, but we still
+		// gate on the parent Machine's Cluster being ready before
+		// touching Scaleway — covers the brief window where a Machine
+		// exists but the cluster's not provisioned. Cluster.Spec.Paused
+		// also pauses us.
+		clusterName := ownerMachine.Spec.ClusterName
+		if clusterName != "" {
+			cluster := &clusterv1.Cluster{}
+			if err := r.Get(ctx, types.NamespacedName{Namespace: machine.Namespace, Name: clusterName}, cluster); err != nil {
+				if apierrors.IsNotFound(err) {
+					logger.Info("parent Cluster not found; requeueing", "cluster", clusterName)
+					return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+				}
+				return ctrl.Result{}, err
+			}
+			if cluster.Spec.Paused {
+				logger.Info("parent Cluster paused; skipping reconcile")
+				return ctrl.Result{}, nil
+			}
+			if !cluster.Status.InfrastructureReady {
+				logger.Info("parent Cluster InfrastructureReady=false; requeueing")
+				return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+			}
+		}
 	}
 
 	return r.reconcileNormal(ctx, machine)
@@ -553,6 +598,36 @@ func (r *ScalewayAppleSiliconMachineReconciler) SetupWithManager(mgr ctrl.Manage
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&infrav1.ScalewayAppleSiliconMachine{}).
 		WithOptions(controller.Options{MaxConcurrentReconciles: concurrency}).
+		// Wake up on parent CAPI Machine events so a change in the
+		// Machine (e.g. Cluster.InfrastructureReady flipping, the
+		// bootstrap data secret landing, the parent being deleted)
+		// reconciles the infra Machine immediately instead of
+		// waiting for our own resync window.
+		Watches(
+			&clusterv1.Machine{},
+			handler.EnqueueRequestsFromMapFunc(scalewayMachineForCAPIMachine),
+		).
 		Complete(r)
+}
+
+// scalewayMachineForCAPIMachine maps a CAPI Machine event to a
+// reconcile request for the ScalewayAppleSiliconMachine it owns
+// (if any). Machines with `infrastructureRef.Kind` other than ours
+// are silently ignored — the same controller may run alongside
+// other infrastructure providers.
+func scalewayMachineForCAPIMachine(_ context.Context, o client.Object) []reconcile.Request {
+	m, ok := o.(*clusterv1.Machine)
+	if !ok {
+		return nil
+	}
+	if m.Spec.InfrastructureRef.Kind != "ScalewayAppleSiliconMachine" {
+		return nil
+	}
+	return []reconcile.Request{{
+		NamespacedName: types.NamespacedName{
+			Namespace: m.Spec.InfrastructureRef.Namespace,
+			Name:      m.Spec.InfrastructureRef.Name,
+		},
+	}}
 }
 

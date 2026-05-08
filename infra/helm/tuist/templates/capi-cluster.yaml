@@ -1,0 +1,75 @@
+{{- if or .Values.macosFleet.enabled .Values.runnersFleet.enabled }}
+{{- $clusterName := include "tuist.componentName" (dict "root" . "component" "capi") }}
+{{- $bootstrapSecret := include "tuist.componentName" (dict "root" . "component" "noop-bootstrap") }}
+{{- /*
+CAPI Cluster + InfrastructureCluster + bootstrap Secret.
+
+These are the three top-level resources that gate every
+MachineDeployment + Machine the chart renders. Without all three:
+
+  1. Cluster — CAPI core's parent resource; every Machine carries
+     `spec.clusterName: <this>` and CAPI core refuses to drive a
+     Machine whose Cluster doesn't exist or isn't ready.
+  2. ScalewayAppleSiliconCluster — our infrastructure-side
+     Cluster; flipped to Status.Ready=true by our cluster
+     controller. CAPI core watches it and sets
+     Cluster.Status.InfrastructureReady from it.
+  3. Bootstrap Secret — Machine.Spec.Bootstrap.DataSecretName must
+     point at a Secret. We don't run a bootstrap provider (our
+     own SSH-based bootstrap is in macos-host-bootstrap), so this
+     is a placeholder. CAPI core only checks that it exists; our
+     Machine reconciler ignores its content.
+
+The whole stack is gated on at least one fleet being enabled —
+without a fleet there's no Machine to drive, and the Cluster
+shell would just be inert YAML.
+*/ -}}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ $bootstrapSecret }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: capi-bootstrap
+type: Opaque
+stringData:
+  # Empty bootstrap script. Mac minis don't run cloud-init or any
+  # CAPI bootstrap provider — `infra/macos-host-bootstrap` SSHes
+  # in directly with credentials our operator manages. CAPI's
+  # contract just needs *some* Secret here so the parent Machine
+  # progresses past the WaitingForBootstrap phase.
+  value: ""
+---
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: Cluster
+metadata:
+  name: {{ $clusterName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: capi-cluster
+spec:
+  # Single-cluster topology: Mac minis join the same Kubernetes
+  # cluster CAPI is running in. There's no separate workload
+  # cluster — the control plane lives elsewhere (Hetzner-backed)
+  # and Mac minis register as worker Nodes. We don't drive the
+  # control plane via CAPI, so controlPlaneEndpoint is a stub.
+  controlPlaneEndpoint:
+    host: "127.0.0.1"
+    port: 6443
+  infrastructureRef:
+    apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+    kind: ScalewayAppleSiliconCluster
+    name: {{ $clusterName }}
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: ScalewayAppleSiliconCluster
+metadata:
+  name: {{ $clusterName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: capi-cluster
+spec: {}
+{{- end }}
