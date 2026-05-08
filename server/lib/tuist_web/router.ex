@@ -699,6 +699,7 @@ defmodule TuistWeb.Router do
   pipeline :ops do
     plug TuistWeb.Authorization, [:current_user, :read, :ops]
     plug :assign_current_path
+    plug :skip_csrf_for_fun_with_flags_assets
   end
 
   scope "/ops", TuistWeb do
@@ -1011,4 +1012,13 @@ defmodule TuistWeb.Router do
       disable_robot_indexing(conn, params)
     end
   end
+
+  # FunWithFlags.UI serves its bundled JS via Plug.Static after the :browser_app
+  # pipeline registers Plug.CSRFProtection's before_send callback, which raises
+  # InvalidCrossOriginRequestError on any non-XHR GET that returns a JS response.
+  defp skip_csrf_for_fun_with_flags_assets(%Plug.Conn{path_info: ["ops", "flags", "assets" | _]} = conn, _opts) do
+    Plug.Conn.put_private(conn, :plug_skip_csrf_protection, true)
+  end
+
+  defp skip_csrf_for_fun_with_flags_assets(conn, _opts), do: conn
 end
