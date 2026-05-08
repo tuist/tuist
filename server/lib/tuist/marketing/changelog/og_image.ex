@@ -13,7 +13,7 @@ defmodule Tuist.Marketing.Changelog.OgImage do
   attr :date, :string, default: nil
   attr :pull_request, :integer, default: nil
   attr :font_data_uri, :string, required: true
-  attr :fallback_font_data_uri, :string, required: true
+  attr :georgian_font_data_uri, :string, required: true
   attr :logo_data_uri, :string, required: true
 
   def card(assigns) do
@@ -32,7 +32,7 @@ defmodule Tuist.Marketing.Changelog.OgImage do
             font-family: 'Noto Sans Georgian';
             font-style: normal;
             font-weight: 100 900;
-            src: url(<%= @fallback_font_data_uri %>) format('woff2');
+            src: url(<%= @georgian_font_data_uri %>) format('woff2');
             unicode-range: U+0589, U+10A0-10FF, U+1C90-1CBA, U+1CBD-1CBF, U+205A, U+2D00-2D2F, U+2E31;
           }
           * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -170,7 +170,7 @@ defmodule Tuist.Marketing.Changelog.OgImage do
     logo_path = Keyword.fetch!(opts, :logo_path)
 
     font_base64 = fonts_dir |> Path.join("InterVariable.woff2") |> File.read!() |> Base.encode64()
-    fallback_font_base64 = fonts_dir |> Path.join("NotoSansGeorgian-georgian.woff2") |> File.read!() |> Base.encode64()
+    georgian_font_base64 = fonts_dir |> Path.join("NotoSansGeorgian-georgian.woff2") |> File.read!() |> Base.encode64()
     logo_base64 = logo_path |> File.read!() |> Base.encode64()
 
     assigns = %{
@@ -179,7 +179,7 @@ defmodule Tuist.Marketing.Changelog.OgImage do
       date: date,
       pull_request: pull_request,
       font_data_uri: "data:font/woff2;base64,#{font_base64}",
-      fallback_font_data_uri: "data:font/woff2;base64,#{fallback_font_base64}",
+      georgian_font_data_uri: "data:font/woff2;base64,#{georgian_font_base64}",
       logo_data_uri: "data:image/webp;base64,#{logo_base64}",
       max_title_length: @max_title_length,
       max_description_length: @max_description_length

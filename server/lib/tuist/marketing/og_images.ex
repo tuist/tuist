@@ -8,7 +8,7 @@ defmodule Tuist.Marketing.OgImages do
   alias Phoenix.HTML.Safe
 
   attr :font_data_uri, :string, required: true
-  attr :fallback_font_data_uri, :string, required: true
+  attr :georgian_font_data_uri, :string, required: true
 
   defp font_faces(assigns) do
     ~H"""
@@ -23,7 +23,7 @@ defmodule Tuist.Marketing.OgImages do
         font-family: 'Noto Sans Georgian';
         font-style: normal;
         font-weight: 100 900;
-        src: url(<%= @fallback_font_data_uri %>) format('woff2');
+        src: url(<%= @georgian_font_data_uri %>) format('woff2');
         unicode-range: U+0589, U+10A0-10FF, U+1C90-1CBA, U+1CBD-1CBF, U+205A, U+2D00-2D2F, U+2E31;
       }
     </style>
@@ -32,7 +32,7 @@ defmodule Tuist.Marketing.OgImages do
 
   attr :title, :string, required: true
   attr :font_data_uri, :string, required: true
-  attr :fallback_font_data_uri, :string, required: true
+  attr :georgian_font_data_uri, :string, required: true
   attr :logo_data_uri, :string, required: true
   attr :bg_data_uri, :string, required: true
   attr :icon_data_uri, :string, default: nil
@@ -42,7 +42,7 @@ defmodule Tuist.Marketing.OgImages do
     <html>
       <head>
         <meta charset="utf-8" />
-        <.font_faces font_data_uri={@font_data_uri} fallback_font_data_uri={@fallback_font_data_uri} />
+        <.font_faces font_data_uri={@font_data_uri} georgian_font_data_uri={@georgian_font_data_uri} />
         <style>
           /*
            * Colors are hardcoded as hex instead of using Noora CSS variables because
@@ -124,7 +124,7 @@ defmodule Tuist.Marketing.OgImages do
 
   attr :title, :string, required: true
   attr :font_data_uri, :string, required: true
-  attr :fallback_font_data_uri, :string, required: true
+  attr :georgian_font_data_uri, :string, required: true
   attr :logo_data_uri, :string, required: true
   attr :phone_data_uri, :string, required: true
 
@@ -133,7 +133,7 @@ defmodule Tuist.Marketing.OgImages do
     <html>
       <head>
         <meta charset="utf-8" />
-        <.font_faces font_data_uri={@font_data_uri} fallback_font_data_uri={@fallback_font_data_uri} />
+        <.font_faces font_data_uri={@font_data_uri} georgian_font_data_uri={@georgian_font_data_uri} />
         <style>
           * { margin: 0; padding: 0; box-sizing: border-box; }
           html, body {
@@ -196,7 +196,7 @@ defmodule Tuist.Marketing.OgImages do
 
   attr :title, :string, required: true
   attr :font_data_uri, :string, required: true
-  attr :fallback_font_data_uri, :string, required: true
+  attr :georgian_font_data_uri, :string, required: true
   attr :logo_data_uri, :string, required: true
   attr :bg_data_uri, :string, required: true
   attr :timeline_data_uri, :string, required: true
@@ -206,7 +206,7 @@ defmodule Tuist.Marketing.OgImages do
     <html>
       <head>
         <meta charset="utf-8" />
-        <.font_faces font_data_uri={@font_data_uri} fallback_font_data_uri={@fallback_font_data_uri} />
+        <.font_faces font_data_uri={@font_data_uri} georgian_font_data_uri={@georgian_font_data_uri} />
         <style>
           * { margin: 0; padding: 0; box-sizing: border-box; }
           html, body {
@@ -344,7 +344,7 @@ defmodule Tuist.Marketing.OgImages do
 
   attr :title, :string, required: true
   attr :font_data_uri, :string, required: true
-  attr :fallback_font_data_uri, :string, required: true
+  attr :georgian_font_data_uri, :string, required: true
   attr :logo_data_uri, :string, required: true
   attr :bg_data_uri, :string, required: true
 
@@ -353,7 +353,7 @@ defmodule Tuist.Marketing.OgImages do
     <html>
       <head>
         <meta charset="utf-8" />
-        <.font_faces font_data_uri={@font_data_uri} fallback_font_data_uri={@fallback_font_data_uri} />
+        <.font_faces font_data_uri={@font_data_uri} georgian_font_data_uri={@georgian_font_data_uri} />
         <style>
           * { margin: 0; padding: 0; box-sizing: border-box; }
           html, body {
@@ -557,7 +557,7 @@ defmodule Tuist.Marketing.OgImages do
 
   attr :title, :string, required: true
   attr :font_data_uri, :string, required: true
-  attr :fallback_font_data_uri, :string, required: true
+  attr :georgian_font_data_uri, :string, required: true
   attr :logo_data_uri, :string, required: true
   attr :bg_data_uri, :string, required: true
   attr :icon_data_uri, :string, required: true
@@ -567,7 +567,7 @@ defmodule Tuist.Marketing.OgImages do
     <html>
       <head>
         <meta charset="utf-8" />
-        <.font_faces font_data_uri={@font_data_uri} fallback_font_data_uri={@fallback_font_data_uri} />
+        <.font_faces font_data_uri={@font_data_uri} georgian_font_data_uri={@georgian_font_data_uri} />
         <style>
           * { margin: 0; padding: 0; box-sizing: border-box; }
           html, body {
@@ -665,7 +665,7 @@ defmodule Tuist.Marketing.OgImages do
 
   attr :title, :string, required: true
   attr :font_data_uri, :string, required: true
-  attr :fallback_font_data_uri, :string, required: true
+  attr :georgian_font_data_uri, :string, required: true
   attr :logo_data_uri, :string, required: true
   attr :bg_data_uri, :string, required: true
 
@@ -674,7 +674,7 @@ defmodule Tuist.Marketing.OgImages do
     <html>
       <head>
         <meta charset="utf-8" />
-        <.font_faces font_data_uri={@font_data_uri} fallback_font_data_uri={@fallback_font_data_uri} />
+        <.font_faces font_data_uri={@font_data_uri} georgian_font_data_uri={@georgian_font_data_uri} />
         <style>
           * { margin: 0; padding: 0; box-sizing: border-box; }
           html, body {
@@ -878,7 +878,7 @@ defmodule Tuist.Marketing.OgImages do
   defp font_data_uris(fonts_dir) do
     %{
       font_data_uri: font_data_uri(fonts_dir, "InterVariable.woff2"),
-      fallback_font_data_uri: font_data_uri(fonts_dir, "NotoSansGeorgian-georgian.woff2")
+      georgian_font_data_uri: font_data_uri(fonts_dir, "NotoSansGeorgian-georgian.woff2")
     }
   end
 
