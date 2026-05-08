@@ -112,10 +112,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
       trigger_actions: automation.trigger_actions,
       recovery_enabled: automation.recovery_enabled,
       recovery_window_type: parse_window_type(automation.recovery_config["window_type"]),
-      recovery_window:
-        automation.recovery_config["window"] ||
-          (automation.recovery_config["days_without_trigger"] && "#{automation.recovery_config["days_without_trigger"]}d") ||
-          "14d",
+      recovery_window: automation.recovery_config["window"] || "14d",
       recovery_rolling_window_size: to_string(automation.recovery_config["rolling_window_size"] || 100),
       recovery_actions: automation.recovery_actions,
       enabled: automation.enabled

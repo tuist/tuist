@@ -143,7 +143,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
   end
 
   defp filter_recovered_candidates(_alert, candidates, recovery_config) do
-    seconds = parse_window(recovery_config["window"] || "#{recovery_config["days_without_trigger"] || 14}d")
+    seconds = parse_window(recovery_config["window"] || "14d")
     cutoff = NaiveDateTime.add(NaiveDateTime.utc_now(), -seconds, :second)
 
     Enum.filter(candidates, fn event ->
