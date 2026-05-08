@@ -146,38 +146,15 @@ if Enum.member?([:prod, :stag, :can], env) do
   # Cloud-egress NAT drops idle TCP connections after roughly 5 to 15 min,
   # far below the OS default `tcp_keepalive_time` (7200s on Linux). With
   # SO_KEEPALIVE alone the pool hands out half-dead sockets that fail the
-  # next request with `Mint.TransportError: socket closed`. Force keepalive
-  # probes after 60s of idle, every 15s, dropping the connection after 4
-  # missed probes (about 2 min total to reap a dead idle, well under any
-  # cloud NAT timeout). macOS and Linux use different option numbers for
-  # the same TCP-level fields; the xcresult-processor on Mac mini Tart VMs
-  # needs the Darwin branch.
-  tcp_keepalive_raw_opts =
-    case :os.type() do
-      {:unix, :linux} ->
-        [
-          {:raw, 6, 4, <<60::native-32>>},
-          {:raw, 6, 5, <<15::native-32>>},
-          {:raw, 6, 6, <<4::native-32>>}
-        ]
-
-      {:unix, :darwin} ->
-        [
-          {:raw, 6, 0x10, <<60::native-32>>},
-          {:raw, 6, 0x101, <<15::native-32>>},
-          {:raw, 6, 0x102, <<4::native-32>>}
-        ]
-
-      _ ->
-        []
-    end
-
+  # next request with `Mint.TransportError: socket closed`. The keepalive
+  # raw options (see `Tuist.Net`) reap a dead idle in about 2 min, well
+  # under any cloud NAT timeout.
   clickhouse_transport_opts =
     [
       keepalive: true,
       show_econnreset: true,
       inet6: Tuist.Environment.use_ipv6?(secrets)
-    ] ++ tcp_keepalive_raw_opts
+    ] ++ Tuist.Net.tcp_keepalive_raw_opts()
 
   config :tuist, Tuist.ClickHouseRepo,
     url: Tuist.Environment.clickhouse_url(secrets),
