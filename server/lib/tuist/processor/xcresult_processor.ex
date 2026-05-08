@@ -173,7 +173,7 @@ defmodule Tuist.Processor.XCResultProcessor do
         |> Task.async_stream(
           &upload_attachment(&1, bucket, account_handle, project_handle, test_run_id),
           max_concurrency: 30,
-          timeout: 60_000,
+          timeout: 180_000,
           on_timeout: :kill_task
         )
         |> Enum.zip(all_attachments)
@@ -226,20 +226,31 @@ defmodule Tuist.Processor.XCResultProcessor do
       s3_key =
         "#{String.downcase(account_handle)}/#{String.downcase(project_handle)}/tests/runs/#{test_run_id}/attachments/#{attachment_id}/#{file_name}"
 
-      case file_path
-           |> ExAws.S3.Upload.stream_file()
-           |> ExAws.S3.upload(bucket, s3_key)
-           |> ExAws.request() do
-        {:ok, _} ->
-          uploaded =
-            attachment
-            |> Map.delete("file_path")
-            |> Map.put("attachment_id", attachment_id)
+      # ExAws.S3.Upload internally fans chunks out via Task.async_stream with a
+      # 30s default per-chunk timeout. A slow chunk crashes the inner task and
+      # Logger reports it as a SASL crash, even though the outer reducer
+      # already drops the attachment cleanly. Catch the exit here so transient
+      # slowness fails as a normal `:error` instead of paging.
+      try do
+        case file_path
+             |> ExAws.S3.Upload.stream_file()
+             |> ExAws.S3.upload(bucket, s3_key, timeout: 120_000)
+             |> ExAws.request() do
+          {:ok, _} ->
+            uploaded =
+              attachment
+              |> Map.delete("file_path")
+              |> Map.put("attachment_id", attachment_id)
 
-          {:ok, uploaded}
+            {:ok, uploaded}
 
-        {:error, reason} ->
-          Logger.error("Failed to upload attachment #{file_name}: #{inspect(reason)}")
+          {:error, reason} ->
+            Logger.error("Failed to upload attachment #{file_name}: #{inspect(reason)}")
+            :error
+        end
+      catch
+        :exit, reason ->
+          Logger.error("Attachment upload exited for #{file_name}: #{inspect(reason)}")
           :error
       end
     else

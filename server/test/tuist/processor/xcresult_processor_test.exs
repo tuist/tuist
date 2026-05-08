@@ -239,7 +239,7 @@ defmodule Tuist.Processor.XCResultProcessorTest do
         {:ok, %{status_code: 200}}
       end)
 
-      stub(ExAws.S3, :upload, fn stream, _bucket, key ->
+      stub(ExAws.S3, :upload, fn stream, _bucket, key, _opts ->
         %Upload{bucket: "tuist", path: key, src: stream}
       end)
 
