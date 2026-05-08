@@ -13,6 +13,18 @@ those.** Focus on the rules below; they catch real bugs.
 For each finding, cite `path:line` (or `Module.function/arity`) and
 quote the relevant snippet.
 
+Only report findings whose cited snippet is present in the PR diff. If
+the concern comes from unchanged context, do not emit a finding, do not
+mention it as a note, and do not create a "findings outside this PR's
+diff" section. If every possible concern is outside the diff, return no
+findings.
+
+Do not infer violations from nearby lines. A Mimic finding requires the
+exact token `Mimic.copy(` on the cited changed line. A migration
+timestamp finding requires the cited changed line to contain
+`timestamps()` without `type: :timestamptz` or a timestamp column without
+`:timestamptz`.
+
 ---
 
 ## 1. Authorization — `lib/tuist/authorization.ex` + `AuthorizationPlug`
@@ -38,6 +50,8 @@ hard-codes which categories are project-scoped:
 
 - Existing `object`/`action` blocks unchanged by the diff.
 - Reordering of `allow(...)` lines within an action.
+- `/ops` LiveView routes. They are not API `AuthorizationPlug`
+  categories and do not belong in `@project_categories`.
 
 ---
 
@@ -107,6 +121,11 @@ state across tests and are an explicit anti-pattern in this repo.
 
 - `Mimic.expect/3`, `Mimic.stub/3`, `Mimic.reject/1` — those belong in tests.
 - `Mimic.copy/1` calls in `test_helper.exs` itself.
+- `import Mimic`, `use Mimic`, `setup :set_mimic_from_context`, aliases,
+  or any other test setup line that does not contain `Mimic.copy(`.
+- A test file that merely uses Mimic (`use Mimic`, `import Mimic`,
+  `stub`, `expect`, `reject`) but does not contain the exact
+  `Mimic.copy(` call in the diff.
 
 ---
 
@@ -121,6 +140,14 @@ In `server/priv/repo/migrations/` and `server/priv/ingest_repo/migrations/`:
   without `:timestamptz`. The `.credo.exs` rule says: migrations use
   `:timestamptz`, schemas (`lib/`) use `:utc_datetime`.
 - `add :inserted_at, :naive_datetime` or `:datetime` without timezone in a migration. Should be `:timestamptz`.
+
+### Do not flag
+
+- `timestamps(type: :timestamptz)`.
+- `def change do`, `create table(...)`, blank lines, comments, or any
+  line that does not itself declare a timestamp type.
+- `add :started_at, :timestamptz`, `add :finished_at, :timestamptz`,
+  or any other explicit `:timestamptz` column.
 
 ---
 
@@ -305,3 +332,5 @@ For each finding, confirm:
 3. The severity is set: **critical** (auth bypass / cross-tenant read or
    write), **high** (likely security or correctness bug), **medium**
    (compliance / consistency gap), **low** (nice-to-have).
+4. You are not reporting an unchanged line as a finding. Unchanged
+   context can explain a diff finding, but cannot be the finding itself.

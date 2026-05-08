@@ -29,6 +29,10 @@ name: Server Deployment
 #     as a Document item named `kubeconfig: tuist-<env>`. Each
 #     environment's secret value is the SA token for that environment's
 #     vault — staging deploys can't read canary/production kubeconfigs.
+#     Production also reads the Kura regional workload kubeconfigs from
+#     `kubeconfig: kura-us-east-1` and `kubeconfig: kura-us-west-1` in
+#     the production vault so the server can write KuraInstance CRs to
+#     the us-east and us-west clusters.
 # App secrets live inside the cluster (MASTER_KEY via ESO, DATABASE_URL /
 # ClickHouse / Tigris keys in priv/secrets/<env>.yml.enc baked into the
 # image).
@@ -77,6 +81,8 @@ permissions:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: tuist/tuist
+  KURA_RUNTIME_IMAGE_NAME: tuist/kura
+  KURA_CONTROLLER_IMAGE_NAME: tuist/kura-controller
   HELM_CHART_PATH: infra/helm/tuist
   HELM_RELEASE_NAME: tuist
   OBSERVABILITY_CHART_PATH: infra/helm/k8s-monitoring
@@ -106,6 +112,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - uses: docker/build-push-action@v6
+        name: Build and push server image
         with:
           context: .
           file: ./server/Dockerfile
@@ -117,6 +124,22 @@ jobs:
             TUIST_HOSTED=1
             MIX_ENV=prod
             APT_CACHE_BUST=${{ env.DEPLOY_SHA }}
+      - uses: docker/build-push-action@v6
+        name: Build and push Kura controller image
+        with:
+          context: .
+          file: ./infra/kura-controller/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.KURA_CONTROLLER_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
+      - uses: docker/build-push-action@v6
+        name: Build and push Kura runtime image
+        with:
+          context: ./kura
+          file: ./kura/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.KURA_RUNTIME_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
 
   observability-install:
     # Installs / upgrades the grafana/k8s-monitoring wrapper chart ahead of
@@ -225,6 +248,27 @@ jobs:
           API="$(kubectl config view --minify --raw -o jsonpath='{.clusters[0].cluster.server}')"
           echo "Reaching apiserver at $API"
           kubectl --request-timeout=10s get --raw /version >/dev/null
+      - name: Sync Kura regional kubeconfigs
+        if: inputs.environment == 'production'
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          dir="$RUNNER_TEMP/kura-kubeconfigs"
+          mkdir -p "$dir"
+
+          op document get "kubeconfig: kura-us-east-1" \
+            --vault "tuist-k8s-production" --output "$dir/us-east-1.yaml"
+          op document get "kubeconfig: kura-us-west-1" \
+            --vault "tuist-k8s-production" --output "$dir/us-west-1.yaml"
+          chmod 600 "$dir/us-east-1.yaml" "$dir/us-west-1.yaml"
+
+          kubectl create namespace "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
+          kubectl -n "$NAMESPACE" create secret generic tuist-kura-kubeconfigs \
+            --from-file=TUIST_KURA_KUBECONFIG_US_EAST_1="$dir/us-east-1.yaml" \
+            --from-file=TUIST_KURA_KUBECONFIG_US_WEST_1="$dir/us-west-1.yaml" \
+            --dry-run=client -o yaml | kubectl apply -f -
       - name: kubectl apply CRDs
         # Helm 3 installs `crds/*.yaml` on `helm install` and skips
         # them on `helm upgrade` (intentional — Helm refuses to manage
@@ -345,7 +389,37 @@ jobs:
             -f "$HELM_CHART_PATH/values-managed-common.yaml" \
             -f "$HELM_CHART_PATH/values-managed-${{ inputs.environment }}.yaml" \
             --set server.image.tag="$IMAGE_TAG" \
+            --set kuraController.image.tag="$IMAGE_TAG" \
+            --set kuraRuntime.image.tag="$IMAGE_TAG" \
             --atomic --timeout 90m --wait
+      - name: Deploy Kura regional controllers
+        if: inputs.environment == 'production'
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          declare -A kubeconfig_items=(
+            ["us-east-1"]="kubeconfig: kura-us-east-1"
+            ["us-west-1"]="kubeconfig: kura-us-west-1"
+          )
+
+          for region in us-east-1 us-west-1; do
+            kubeconfig="$RUNNER_TEMP/kura-${region}.yaml"
+            op document get "${kubeconfig_items[$region]}" \
+              --vault "tuist-k8s-production" --output "$kubeconfig"
+            chmod 600 "$kubeconfig"
+
+            api="$(KUBECONFIG="$kubeconfig" kubectl config view --minify --raw -o jsonpath='{.clusters[0].cluster.server}')"
+            echo "Deploying Kura controller to $region at $api"
+            KUBECONFIG="$kubeconfig" kubectl --request-timeout=10s get --raw /version >/dev/null
+            KUBECONFIG="$kubeconfig" kubectl apply -f "$HELM_CHART_PATH/crds/"
+            KUBECONFIG="$kubeconfig" helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
+              --namespace tuist-kura-controller --create-namespace \
+              -f "$HELM_CHART_PATH/values-managed-kura-region.yaml" \
+              --set kuraController.image.tag="$IMAGE_TAG" \
+              --atomic --timeout 10m --wait
+          done
       - name: Diagnostics on failure
         # `--atomic` rolls back the release on timeout, so `helm history` and
         # most cluster state reflect the rolled-back revision rather than the

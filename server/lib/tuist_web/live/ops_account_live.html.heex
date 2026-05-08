@@ -1,0 +1,230 @@
+<div id="ops-account">
+  <div data-part="header">
+    <h1 data-part="title">{@account.name}</h1>
+    <p data-part="subtitle">
+      {account_type(@account)} · {dgettext("dashboard", "Account ID")} {@account.id}
+    </p>
+  </div>
+
+  <.card title={dgettext("dashboard", "Kura")} icon="server">
+    <.card_section>
+      <.table id="account-kura-table" rows={@kura_servers}>
+        <:col :let={server} label={dgettext("dashboard", "Region")}>
+          <.text_cell label={server.region} />
+        </:col>
+        <:col :let={server} label={dgettext("dashboard", "Status")}>
+          <.badge_cell
+            label={server.status |> Atom.to_string() |> String.replace("_", " ")}
+            color="neutral"
+            style="light-fill"
+          />
+        </:col>
+        <:col :let={server} label={dgettext("dashboard", "URL")}>
+          <.text_cell label={server.url || dgettext("dashboard", "None")} />
+        </:col>
+        <:col :let={server} label={dgettext("dashboard", "Current version")}>
+          <.text_cell label={server.current_image_tag || dgettext("dashboard", "None")} />
+        </:col>
+        <:col :let={server} label={dgettext("dashboard", "Latest deployment")}>
+          <%= case List.first(server.deployments) do %>
+            <% nil -> %>
+              <.text_cell label={dgettext("dashboard", "None")} />
+            <% deployment -> %>
+              <.link navigate={~p"/ops/accounts/#{@account.id}/kura/deployments/#{deployment.id}"}>
+                {deployment.image_tag}
+              </.link>
+          <% end %>
+        </:col>
+      </.table>
+    </.card_section>
+  </.card>
+
+  <.card title={dgettext("dashboard", "Plan & billing")} icon="credit_card">
+    <.card_section>
+      <.table id="account-plan-table" rows={[@account]}>
+        <:col :let={account} label={dgettext("dashboard", "Plan")}>
+          <.badge_cell
+            label={plan_label(current_plan(account))}
+            color={plan_color(current_plan(account))}
+            style="light-fill"
+          />
+        </:col>
+        <:col :let={account} label={dgettext("dashboard", "Status")}>
+          <.badge_cell
+            label={status_label(subscription_status(account))}
+            color={status_color(subscription_status(account))}
+            style="light-fill"
+          />
+        </:col>
+        <:col :let={account} label={dgettext("dashboard", "Billing email")}>
+          <.text_cell label={account.billing_email || dgettext("dashboard", "None")} />
+        </:col>
+        <:col :let={account} label={dgettext("dashboard", "Stripe customer")}>
+          <.text_cell label={account.customer_id || dgettext("dashboard", "Not created")} />
+        </:col>
+      </.table>
+    </.card_section>
+
+    <.card_section>
+      <div data-part="actions">
+        <.button
+          variant="secondary"
+          label={dgettext("dashboard", "Manage on Stripe")}
+          href={~p"/ops/accounts/#{@account.id}/stripe-customer"}
+          target="_blank"
+          rel="noopener noreferrer"
+        />
+        <.button
+          :if={current_plan(@account) != :enterprise}
+          variant="primary"
+          label={dgettext("dashboard", "Upgrade to Enterprise")}
+          phx-click="initiate_enterprise_upgrade"
+        />
+        <.button
+          :if={
+            current_plan(@account) in [:pro, :enterprise] and
+              subscription_status(@account) != :cancelled
+          }
+          variant="secondary"
+          label={dgettext("dashboard", "Cancel plan")}
+          phx-click="cancel_plan"
+          data-confirm={
+            dgettext(
+              "dashboard",
+              "Cancel %{account}'s subscription at the end of the current billing period? Access is kept until then.",
+              account: @account.name
+            )
+          }
+        />
+      </div>
+    </.card_section>
+  </.card>
+
+  <.modal
+    :if={@upgrade_target_account}
+    id="enterprise-modal"
+    title={
+      dgettext("dashboard", "Upgrade %{account} to Enterprise",
+        account: @upgrade_target_account.name
+      )
+    }
+    description={
+      dgettext(
+        "dashboard",
+        "Creates a Stripe customer (if missing), sets the billing address, and starts an invoice-billed Enterprise subscription. The customer receives an invoice by email; no card is collected here."
+      )
+    }
+    header_type="icon"
+    header_size="small"
+    on_dismiss="close_enterprise_modal"
+  >
+    <:header_icon><.building /></:header_icon>
+    <:trigger :let={modal_attrs}>
+      <button id="enterprise-trigger" type="button" style="display: none;" {modal_attrs}></button>
+    </:trigger>
+
+    <form
+      id="enterprise-form"
+      phx-submit="submit_enterprise_upgrade"
+      class="enterprise-upgrade-form"
+    >
+      <.text_input
+        id="enterprise-name"
+        name="name"
+        label={dgettext("dashboard", "Name on invoice")}
+        value={prefill(@upgrade_target_customer, :name, @upgrade_target_account.name)}
+        required
+        show_required
+      />
+      <.text_input
+        id="enterprise-billing-email"
+        name="billing_email"
+        label={dgettext("dashboard", "Billing email")}
+        value={prefill(@upgrade_target_customer, :email, @upgrade_target_account.billing_email)}
+        required
+        show_required
+      />
+      <.text_input
+        id="enterprise-address-line1"
+        name="address_line1"
+        label={dgettext("dashboard", "Address line 1")}
+        value={prefill_address(@upgrade_target_customer, :line1)}
+        required
+        show_required
+      />
+      <.text_input
+        id="enterprise-address-line2"
+        name="address_line2"
+        label={dgettext("dashboard", "Address line 2 (optional)")}
+        value={prefill_address(@upgrade_target_customer, :line2)}
+      />
+      <.text_input
+        id="enterprise-address-city"
+        name="address_city"
+        label={dgettext("dashboard", "City")}
+        value={prefill_address(@upgrade_target_customer, :city)}
+        required
+        show_required
+      />
+      <.text_input
+        id="enterprise-address-state"
+        name="address_state"
+        label={dgettext("dashboard", "State / region (optional)")}
+        value={prefill_address(@upgrade_target_customer, :state)}
+      />
+      <.text_input
+        id="enterprise-address-postal-code"
+        name="address_postal_code"
+        label={dgettext("dashboard", "Postal code")}
+        value={prefill_address(@upgrade_target_customer, :postal_code)}
+        required
+        show_required
+      />
+      <div class="select-field">
+        <.label label={dgettext("dashboard", "Country")} required />
+        <.select
+          id="enterprise-address-country"
+          label={dgettext("dashboard", "Select a country")}
+          name="address_country"
+          value={prefill_address(@upgrade_target_customer, :country)}
+        >
+          <:item :for={{code, name} <- countries()} value={code} label={name} />
+        </.select>
+      </div>
+
+      <div class="select-field">
+        <.label label={dgettext("dashboard", "Billing cadence")} />
+        <.select
+          id="enterprise-cadence"
+          label={dgettext("dashboard", "Monthly")}
+          name="cadence"
+          value="monthly"
+        >
+          <:item value="monthly" label={dgettext("dashboard", "Monthly")} />
+          <:item value="yearly" label={dgettext("dashboard", "Yearly")} />
+        </.select>
+      </div>
+    </form>
+
+    <:footer>
+      <.modal_footer>
+        <:action>
+          <.button
+            label={dgettext("dashboard", "Cancel")}
+            variant="secondary"
+            type="button"
+            phx-click="close_enterprise_modal"
+          />
+        </:action>
+        <:action>
+          <.button
+            label={dgettext("dashboard", "Upgrade to Enterprise")}
+            variant="primary"
+            type="submit"
+            form="enterprise-form"
+          />
+        </:action>
+      </.modal_footer>
+    </:footer>
+  </.modal>
+</div>

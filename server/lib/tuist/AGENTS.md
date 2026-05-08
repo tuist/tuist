@@ -32,6 +32,7 @@ This directory contains the core business logic and domain modules for the serve
 - Http: `server/lib/tuist/http/AGENTS.md`
 - Ingestion: `server/lib/tuist/ingestion/AGENTS.md`
 - Key Value Store: `server/lib/tuist/key_value_store/AGENTS.md`
+- Kubernetes: `server/lib/tuist/kubernetes/AGENTS.md`
 - Marketing: `server/lib/tuist/marketing/AGENTS.md`
 - MCP: `server/lib/tuist/mcp/AGENTS.md`
 - Namespace: `server/lib/tuist/namespace/AGENTS.md`

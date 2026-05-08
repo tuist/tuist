@@ -15,6 +15,12 @@ use tokio::{
 
 use crate::metrics::Metrics;
 
+pub const FD_POOL_EXHAUSTED_MARKER: &str = "fd_pool_exhausted";
+
+pub fn is_fd_pool_exhausted_error(error: &str) -> bool {
+    error.contains(FD_POOL_EXHAUSTED_MARKER)
+}
+
 #[derive(Clone)]
 pub struct IoController {
     inner: Arc<IoControllerInner>,
@@ -388,7 +394,7 @@ impl IoController {
                     .metrics
                     .record_file_descriptor_wait("timeout", started_at.elapsed());
                 format!(
-                    "timed out waiting {:?} for file descriptor permit during {operation}",
+                    "{FD_POOL_EXHAUSTED_MARKER}: timed out waiting {:?} for file descriptor permit during {operation}",
                     self.inner.acquire_timeout
                 )
             })?

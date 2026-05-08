@@ -24,7 +24,8 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"0 10 * * 1-5", Tuist.Ops.DailySlackReportWorker},
     {"0 * * * 1-5", Tuist.Ops.HourlySlackReportWorker},
     {"@daily", Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker},
-    {"@daily", Tuist.Billing.Workers.SyncStripeMetersWorker}
+    {"@daily", Tuist.Billing.Workers.SyncStripeMetersWorker},
+    {"* * * * *", Tuist.Kura.Reconciler}
   ]
 
   @prod_like_envs [:prod, :stag, :can]

@@ -6,6 +6,7 @@ defmodule Tuist.Oban.RuntimeConfigTest do
   alias Tuist.Automations.Workers.AutomationScheduler
   alias Tuist.Billing.Workers.SyncStripeMetersWorker
   alias Tuist.Environment
+  alias Tuist.Kura.Reconciler, as: KuraReconciler
   alias Tuist.Oban.RuntimeConfig
   alias Tuist.Ops.DailySlackReportWorker
   alias Tuist.Ops.HourlySlackReportWorker
@@ -60,6 +61,7 @@ defmodule Tuist.Oban.RuntimeConfigTest do
         refute HourlySlackReportWorker in workers
         refute UpdateAllAccountsUsageWorker in workers
         refute SyncStripeMetersWorker in workers
+        refute KuraReconciler in workers
       end
     end
 
@@ -79,6 +81,7 @@ defmodule Tuist.Oban.RuntimeConfigTest do
         assert HourlySlackReportWorker in workers
         assert UpdateAllAccountsUsageWorker in workers
         assert SyncStripeMetersWorker in workers
+        assert KuraReconciler in workers
       end
     end
   end

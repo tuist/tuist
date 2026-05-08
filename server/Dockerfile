@@ -161,6 +161,7 @@ RUN --mount=type=cache,id=og-marketing,target=/og-cache/marketing,sharing=locked
 FROM deps-builder AS builder
 
 COPY server/priv priv
+COPY kura/ops/helm/kura/hooks/tuist.lua priv/kura/hooks/tuist.lua
 COPY skills/skills priv/static/skills
 COPY server/assets assets
 COPY server/native native

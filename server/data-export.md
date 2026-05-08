@@ -21,6 +21,8 @@ Sensitive authentication data (passwords, tokens) are excluded from exports.
 - API tokens, SCIM-scoped account tokens, and project tokens (existence, scopes, names, timestamps, and last-used metadata only; token values and hashes are excluded)
 - Custom cache endpoint configurations
 - Organization SSO configuration metadata, including the configured SSO provider, provider URL, and full OAuth2 endpoint URLs
+- Kura server records (`kura_servers` table): per-account Kura server configuration including region, image tag, public URL, and status
+- Kura deployment history (`kura_deployments` table): rollout attempts for the account's Kura servers including image tag, status, error messages, and start/finish timestamps
 - GitHub App installation metadata (`github_app_installations` table): the installation ID GitHub assigned, the GitHub instance the App lives on (`client_url`, e.g. `https://github.com` or a customer's GitHub Enterprise Server host), the App's `app_id`/`app_slug`/`client_id`, and the GitHub-side management `html_url`. The accompanying `client_secret`, `private_key` (PEM), and `webhook_secret` are stored encrypted at rest and are excluded from exports as authentication secrets.
 - VCS connections (`vcs_connections` table): the link between a Tuist project and an external repository handle (provider, repository full name, the originating GitHub App installation, and the user who created the connection)
 
@@ -70,6 +72,8 @@ The following data is stored in ClickHouse for analytics purposes:
 - Encrypted passwords and authentication secrets
 - Account, SCIM-scoped account, and project token values and encrypted token hashes
 - Encrypted SSO client secrets for Okta and custom OAuth2 providers
+- Internal replication bookkeeping (e.g., `bundles.artifacts_replicated_to_ch`) used to drive the PG → ClickHouse artifacts backfill
+- Internal Kura shared secrets used by the control plane and Kura runtime extensions
 - Encrypted GitHub App credentials (`client_secret`, `private_key`, `webhook_secret` on `github_app_installations`)
 - Slack bot access tokens and incoming-webhook URLs (treated as bearer credentials)
 

@@ -12,6 +12,12 @@ global:
     tuist.dev/service: server
     tuist.dev/stack: managed
 
+kuraController:
+  enabled: true
+  namespace: kura
+  image:
+    tag: ""  # Set by CI to the commit SHA on each deploy.
+
 server:
   serviceAccount:
     create: true

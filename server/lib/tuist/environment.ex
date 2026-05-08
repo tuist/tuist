@@ -69,6 +69,26 @@ defmodule Tuist.Environment do
     env() == :prod
   end
 
+  @doc """
+  Worktree suffix from `TUIST_DEV_INSTANCE`, set by the mise
+  `dev_instance_env.sh` hook. Used to scope ports, DB names, kind
+  cluster names, and similar per-worktree resources so multiple
+  worktrees can run side by side without colliding. Returns 0 when
+  unset (CI, ad-hoc scripts) or when the value isn't a valid integer.
+  """
+  def dev_instance_suffix do
+    case System.get_env("TUIST_DEV_INSTANCE") do
+      value when is_binary(value) and value != "" ->
+        case Integer.parse(value) do
+          {n, ""} -> n
+          _ -> 0
+        end
+
+      _ ->
+        0
+    end
+  end
+
   def truthy?(value) do
     Enum.member?(["1", "true", "TRUE", "yes", "YES"], value)
   end
@@ -143,6 +163,18 @@ defmodule Tuist.Environment do
     not dev?() or truthy?(System.get_env("TUIST_DEV_USE_REMOTE_STORAGE", "0"))
   end
 
+  def kura_available_region_ids do
+    "TUIST_KURA_AVAILABLE_REGIONS"
+    |> System.get_env("")
+    |> String.split(",", trim: true)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+  end
+
+  def kura_runtime_image_tag(secrets \\ secrets()) do
+    System.get_env("TUIST_KURA_RUNTIME_IMAGE_TAG") || get([:kura, :runtime_image_tag], secrets)
+  end
+
   def prometheus_enabled? do
     prometheus_enabled = System.get_env("TUIST_PROMETHEUS_ENABLED")
 
@@ -181,6 +213,43 @@ defmodule Tuist.Environment do
         endpoints |> String.split(",") |> Enum.map(&String.trim/1)
 
       _ ->
+        nil
+    end
+  end
+
+  @doc """
+  Returns the kubeconfig (raw YAML string) for the given Kura cluster
+  ID, or `nil` if none is configured.
+
+  Used by managed Kura regions that run outside the server's own
+  Kubernetes cluster. Managed regions in the same cluster can still use
+  the server pod's in-cluster ServiceAccount instead.
+
+  Two sources are checked in order:
+
+    1. `TUIST_KURA_KUBECONFIG_PATH_<CLUSTER>` env var pointing at a
+       file on disk (the convenient dev path — devs use their own
+       `~/.kube/config` against a kind cluster).
+    2. `TUIST_KURA_KUBECONFIG_<CLUSTER>` env var with the kubeconfig
+       YAML inline.
+
+  In both forms the cluster ID is uppercased and `-` becomes `_` for
+  env vars.
+  """
+  def kura_kubeconfig(cluster_id, _secrets \\ secrets()) when is_binary(cluster_id) do
+    upper = cluster_id |> String.upcase() |> String.replace("-", "_")
+
+    cond do
+      path = System.get_env("TUIST_KURA_KUBECONFIG_PATH_#{upper}") ->
+        case File.read(path) do
+          {:ok, contents} -> contents
+          {:error, _reason} -> nil
+        end
+
+      inline = System.get_env("TUIST_KURA_KUBECONFIG_#{upper}") ->
+        inline
+
+      true ->
         nil
     end
   end

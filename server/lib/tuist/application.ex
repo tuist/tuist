@@ -19,6 +19,7 @@ defmodule Tuist.Application do
   alias Tuist.Environment
   alias Tuist.Gradle
   alias Tuist.Gradle.Build.Buffer
+  alias Tuist.Kura
   alias Tuist.Tests.TestCase
   alias Tuist.Tests.TestCaseEvent
   alias Tuist.Tests.TestCaseFailure
@@ -356,6 +357,7 @@ defmodule Tuist.Application do
         ],
         else: []
     )
+    |> Kernel.++(kura_children())
     # Marketing.Stats polls ClickHouse on init. Skip it in test (tables
     # may not exist) and dev (noisy debug logs every 5 s).
     |> Kernel.++(
@@ -390,6 +392,22 @@ defmodule Tuist.Application do
            extensions: [".md", ".yml"],
            cache: Tuist.Marketing.NimblePublisher.Cache},
           id: Tuist.Marketing.ContentFileWatcher
+        )
+      ]
+    else
+      []
+    end
+  end
+
+  # Reconciles Kura deployments stranded in `:running` after a crash or
+  # rolling deploy. Web mode only; processor mode doesn't run Kura
+  # rollout jobs and so never produces orphans.
+  defp kura_children do
+    if Environment.web?() and not Environment.test?() do
+      [
+        Supervisor.child_spec(
+          {Task, &Kura.reconcile_orphaned_deployments/0},
+          id: Kura.Reconciler
         )
       ]
     else
