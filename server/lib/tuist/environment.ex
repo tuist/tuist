@@ -449,33 +449,48 @@ defmodule Tuist.Environment do
   end
 
   def github_token_update_package_releases(secrets \\ secrets()) do
-    get([:github, :token, :update_package_releases], secrets)
+    System.get_env("TUIST_GITHUB_TOKEN_UPDATE_PACKAGE_RELEASES") ||
+      get([:github, :token, :update_package_releases], secrets)
+  end
+
+  def github_token_update_packages(secrets \\ secrets()) do
+    System.get_env("TUIST_GITHUB_TOKEN_UPDATE_PACKAGES") ||
+      get([:github, :token, :update_packages], secrets)
   end
 
   def github_app_name(secrets \\ secrets()) do
-    get([:github, :app_name], secrets)
+    System.get_env("TUIST_GITHUB_APP_NAME") || get([:github, :app_name], secrets)
+  end
+
+  def github_app_id(secrets \\ secrets()) do
+    System.get_env("TUIST_GITHUB_APP_ID") || get([:github, :app_id], secrets)
   end
 
   def github_app_client_id(secrets \\ secrets()) do
-    get([:github, :app_client_id], secrets) || get([:github, :oauth_id], secrets)
+    System.get_env("TUIST_GITHUB_APP_CLIENT_ID") ||
+      get([:github, :app_client_id], secrets) || get([:github, :oauth_id], secrets)
   end
 
   def github_app_client_secret(secrets \\ secrets()) do
-    get([:github, :app_client_secret], secrets) || get([:github, :oauth_secret], secrets)
+    System.get_env("TUIST_GITHUB_APP_CLIENT_SECRET") ||
+      get([:github, :app_client_secret], secrets) || get([:github, :oauth_secret], secrets)
   end
 
   def github_app_private_key(secrets \\ secrets()) do
-    base_64_key = get([:github, :app_private_key_base64], secrets)
+    base_64_key =
+      System.get_env("TUIST_GITHUB_APP_PRIVATE_KEY_BASE64") ||
+        get([:github, :app_private_key_base64], secrets)
 
-    if is_nil(base_64_key) do
-      get([:github, :app_private_key], secrets)
-    else
-      Base.decode64!(base_64_key)
+    cond do
+      is_binary(base_64_key) -> Base.decode64!(base_64_key)
+      env_key = System.get_env("TUIST_GITHUB_APP_PRIVATE_KEY") -> env_key
+      true -> get([:github, :app_private_key], secrets)
     end
   end
 
   def github_app_webhook_secret(secrets \\ secrets()) do
-    get([:github, :app_webhook_secret], secrets)
+    System.get_env("TUIST_GITHUB_APP_WEBHOOK_SECRET") ||
+      get([:github, :app_webhook_secret], secrets)
   end
 
   def github_oauth_configured?(secrets \\ secrets()) do

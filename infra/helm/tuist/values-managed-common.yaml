@@ -63,6 +63,13 @@ server:
       # Default `password` field for items of category Password.
       field: password
 
+  # ESO-synced GitHub App + bot PATs. The PEM file attachment name
+  # differs per env (production.pem / staging.pem / canary.pem) and is
+  # set in each values-managed-<env>.yaml. Everything else is shared
+  # across envs.
+  github:
+    managedSecrets: true
+
   database:
     ssl: true
 

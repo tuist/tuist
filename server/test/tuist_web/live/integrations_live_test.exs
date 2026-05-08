@@ -7,12 +7,20 @@ defmodule TuistWeb.IntegrationsLiveTest do
 
   alias Tuist.VCS
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.BillingFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.VCSFixtures
 
   setup %{conn: conn} do
     user = AccountsFixtures.user_fixture(handle: "user123#{System.unique_integer([:positive])}")
     stub(Tuist.Environment, :github_app_configured?, fn -> true end)
+    # The integrations UI gates its Enterprise tab on
+    # `Entitlements.allows?(account, :github_enterprise_server)` which
+    # short-circuits to true on self-hosted (`tuist_hosted?` false).
+    # CI runs with `TUIST_HOSTED=1`, so without this stub the tab is
+    # hidden and every test that interacts with it fails. The dedicated
+    # entitlement-gate describe block (further down) overrides this.
+    stub(Tuist.Environment, :tuist_hosted?, fn -> false end)
 
     %{account: account} =
       organization =
@@ -46,13 +54,111 @@ defmodule TuistWeb.IntegrationsLiveTest do
     organization: organization,
     account: _account
   } do
-    stub(VCS, :get_github_app_installation_url, fn _account ->
+    stub(VCS, :get_github_app_installation_url, fn _account, _opts ->
       "https://github.com/apps/test-app/installations/new"
     end)
 
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/integrations")
 
     assert has_element?(lv, "a", "Install GitHub App")
+  end
+
+  test "hides the GitHub Enterprise URL input by default", %{conn: conn, organization: organization} do
+    stub(VCS, :get_github_app_installation_url, fn _account, _opts ->
+      "https://github.com/apps/test-app/installations/new"
+    end)
+
+    {:ok, _lv, html} = live(conn, ~p"/#{organization.account.name}/integrations")
+
+    refute html =~ "Server URL"
+    assert html =~ "github.com"
+    assert html =~ "Enterprise server"
+  end
+
+  test "reveals the URL input when the Enterprise server tab is selected", %{
+    conn: conn,
+    organization: organization
+  } do
+    stub(VCS, :get_github_app_installation_url, fn _account, _opts ->
+      "https://github.example.com/apps/test-app/installations/new"
+    end)
+
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/integrations")
+
+    html = render_click(lv, "select-github-enterprise")
+    assert html =~ "Server URL"
+  end
+
+  test "shows a validation error and disables the install button for malformed URLs", %{
+    conn: conn,
+    organization: organization
+  } do
+    stub(VCS, :get_github_app_installation_url, fn _account, _opts ->
+      "https://github.com/apps/test-app/installations/new"
+    end)
+
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/integrations")
+
+    render_click(lv, "select-github-enterprise")
+
+    html =
+      lv
+      |> form("form[phx-change=update-github-client-url]", %{
+        "github_client_url" => "not-a-url"
+      })
+      |> render_change()
+
+    assert html =~ "Invalid URL"
+  end
+
+  test "switching back to github.com hides the input and clears the URL", %{
+    conn: conn,
+    organization: organization
+  } do
+    stub(VCS, :get_github_app_installation_url, fn _account, _opts ->
+      "https://github.com/apps/test-app/installations/new"
+    end)
+
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/integrations")
+
+    render_click(lv, "select-github-enterprise")
+
+    lv
+    |> form("form[phx-change=update-github-client-url]", %{
+      "github_client_url" => "https://github.example.com"
+    })
+    |> render_change()
+
+    html = render_click(lv, "select-github-com")
+
+    refute html =~ "Server URL"
+    assert html =~ "Install GitHub App"
+  end
+
+  test "defaults to the Enterprise tab when github.com isn't configured but GHES is entitled",
+       %{conn: conn, organization: organization} do
+    # Regression: a self-hosted Tuist deployment with no `TUIST_GITHUB_APP_*`
+    # env vars but a GHES-entitled account would otherwise land on the
+    # github.com tab by default — clicking Install would generate a
+    # broken `/apps//installations/new` URL because there is no global
+    # app name to interpolate.
+    stub(Tuist.Environment, :github_app_configured?, fn -> false end)
+
+    {:ok, lv, html} = live(conn, ~p"/#{organization.account.name}/integrations")
+
+    # Server URL input renders (Enterprise tab is the default).
+    assert html =~ "Server URL"
+
+    # Form is interactive — change events trigger the validator.
+    error_html =
+      lv
+      |> form("form[phx-change=update-github-client-url]", %{"github_client_url" => ""})
+      |> render_change()
+
+    # Empty URL on the Enterprise tab surfaces a "Required" error
+    # (validate_github_client_url/2 distinguishes empty + Enterprise
+    # from empty + github.com).
+    assert error_html =~ "Required"
   end
 
   describe "delete-connection" do
@@ -103,5 +209,41 @@ defmodule TuistWeb.IntegrationsLiveTest do
 
     html = render_async(lv)
     assert html =~ "test-org/test-repo"
+  end
+
+  describe "GitHub Enterprise Server entitlement gate (hosted Tuist server)" do
+    setup do
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      :ok
+    end
+
+    test "hides the Enterprise server tab when the account is not on the Enterprise plan",
+         %{conn: conn, organization: organization, account: account} do
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro)
+
+      {:ok, _lv, html} = live(conn, ~p"/#{organization.account.name}/integrations")
+
+      refute html =~ "Enterprise server"
+    end
+
+    test "shows the Enterprise server tab when the account is on the Enterprise plan",
+         %{conn: conn, organization: organization, account: account} do
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
+
+      {:ok, _lv, html} = live(conn, ~p"/#{organization.account.name}/integrations")
+
+      assert html =~ "Enterprise server"
+    end
+
+    test "ignores a fabricated select-github-enterprise event when the account is not entitled",
+         %{conn: conn, organization: organization, account: account} do
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/integrations")
+
+      html = render_click(lv, "select-github-enterprise")
+
+      refute html =~ "Server URL"
+    end
   end
 end
