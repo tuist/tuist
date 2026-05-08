@@ -323,17 +323,10 @@ defmodule Tuist.Processor.XCResultProcessorTest do
       assert {:ok, ^parsed_data} = XCResultProcessor.process_local(fixture_path)
     end
 
-    test "logs temp_dir contents when extraction yields no recognizable bundle" do
-      fixture_dir =
-        Path.join(
-          System.tmp_dir!(),
-          "xcresult_no_bundle_#{:erlang.unique_integer([:positive])}"
-        )
-
-      File.mkdir_p!(fixture_dir)
-      fixture_path = Path.join(fixture_dir, "fixture.aar")
+    @tag :tmp_dir
+    test "logs temp_dir contents when extraction yields no recognizable bundle", %{tmp_dir: tmp_dir} do
+      fixture_path = Path.join(tmp_dir, "fixture.aar")
       File.write!(fixture_path, <<0x62, 0x76, 0x78, 0x32, "fake-aar-body">>)
-      on_exit(fn -> File.rm_rf(fixture_dir) end)
 
       expect(XCResultNIF, :decompress_archive, fn _archive_path, temp_dir ->
         File.write!(Path.join(temp_dir, "stray.txt"), "no plist, no xcresult")
