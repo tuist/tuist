@@ -277,6 +277,39 @@ jobs:
         # schema changes ship the same way code changes do; no
         # operator-side manual step.
         run: kubectl apply -f "$HELM_CHART_PATH/crds/"
+      - name: Force-delete stuck Terminating pods
+        # A pod stuck Terminating for hours blocks rolling updates on
+        # capacity-constrained nodes, most acutely the macOS fleet:
+        # xcresult-processor pins to a single Mac mini via nodeSelector
+        # + hostPort 9091 and the rollout strategy is
+        # maxSurge=0/maxUnavailable=1. The new ReplicaSet's Pod stays
+        # Pending with FailedScheduling ("Too many pods") because the
+        # zombie still occupies the host's pod slot, and helm
+        # `--atomic --wait` (and the recovery rollback below) time out
+        # waiting for a Ready that can never happen. Anything stuck
+        # Terminating past 5 min is effectively orphaned: the kubelet
+        # has lost track of the container, and force-deleting just
+        # removes it from etcd so the scheduler frees up the slot.
+        run: |
+          set -euo pipefail
+
+          threshold=300  # seconds
+          now="$(date -u +%s)"
+
+          # `--ignore-not-found` covers a rare race where the pod gets
+          # cleaned up between the list and delete calls.
+          kubectl -n "$NAMESPACE" get pods \
+            -o jsonpath='{range .items[?(@.metadata.deletionTimestamp)]}{.metadata.name}{"\t"}{.metadata.deletionTimestamp}{"\n"}{end}' |
+            while IFS=$'\t' read -r pod_name deletion_ts; do
+              [ -n "$pod_name" ] || continue
+              ts_epoch="$(date -u -d "$deletion_ts" +%s 2>/dev/null || echo 0)"
+              age=$((now - ts_epoch))
+              if [ "$age" -gt "$threshold" ]; then
+                echo "Force-deleting $pod_name (Terminating for ${age}s)"
+                kubectl -n "$NAMESPACE" delete pod "$pod_name" \
+                  --grace-period=0 --force --ignore-not-found || true
+              fi
+            done
       - name: Recover interrupted Helm release
         run: |
           set -euo pipefail
