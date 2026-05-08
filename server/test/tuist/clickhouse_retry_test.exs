@@ -5,12 +5,12 @@ defmodule Tuist.ClickHouseRetryTest do
 
   alias Tuist.ClickHouseRetry
 
-  describe "run/1" do
+  describe "with_retry/1" do
     test "returns the function result on success without retrying" do
       counter = :counters.new(1, [])
 
       result =
-        ClickHouseRetry.run(fn ->
+        ClickHouseRetry.with_retry(fn ->
           :counters.add(counter, 1, 1)
           :ok
         end)
@@ -22,9 +22,9 @@ defmodule Tuist.ClickHouseRetryTest do
     test "retries on Mint.TransportError and returns once the call succeeds" do
       counter = :counters.new(1, [])
 
-      result =
+      log =
         capture_log(fn ->
-          assert ClickHouseRetry.run(fn ->
+          assert ClickHouseRetry.with_retry(fn ->
                    :counters.add(counter, 1, 1)
 
                    if :counters.get(counter, 1) < 2 do
@@ -36,29 +36,51 @@ defmodule Tuist.ClickHouseRetryTest do
         end)
 
       assert :counters.get(counter, 1) == 2
-      assert result =~ "ClickHouse transport error"
+      assert log =~ "ClickHouse operation failed"
     end
 
-    test "reraises Mint.TransportError after exhausting attempts" do
+    test "retries on DBConnection.ConnectionError" do
+      counter = :counters.new(1, [])
+
+      capture_log(fn ->
+        assert ClickHouseRetry.with_retry(fn ->
+                 :counters.add(counter, 1, 1)
+
+                 if :counters.get(counter, 1) < 2 do
+                   raise %DBConnection.ConnectionError{
+                     message: "connection not available",
+                     reason: :error,
+                     severity: :error
+                   }
+                 end
+
+                 :ok
+               end) == :ok
+      end)
+
+      assert :counters.get(counter, 1) == 2
+    end
+
+    test "reraises Mint.TransportError after exhausting retries" do
       counter = :counters.new(1, [])
 
       capture_log(fn ->
         assert_raise Mint.TransportError, fn ->
-          ClickHouseRetry.run(fn ->
+          ClickHouseRetry.with_retry(fn ->
             :counters.add(counter, 1, 1)
             raise %Mint.TransportError{reason: :timeout}
           end)
         end
       end)
 
-      assert :counters.get(counter, 1) == 3
+      assert :counters.get(counter, 1) == 4
     end
 
-    test "lets non-Mint exceptions propagate without retry" do
+    test "lets non-Mint, non-DBConnection exceptions propagate without retry" do
       counter = :counters.new(1, [])
 
       assert_raise RuntimeError, fn ->
-        ClickHouseRetry.run(fn ->
+        ClickHouseRetry.with_retry(fn ->
           :counters.add(counter, 1, 1)
           raise "boom"
         end)

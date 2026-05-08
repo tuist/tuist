@@ -23,7 +23,6 @@ defmodule Tuist.Tests do
 
   alias Tuist.Accounts.Account
   alias Tuist.ClickHouseRepo
-  alias Tuist.ClickHouseRetry
   alias Tuist.IngestRepo
   alias Tuist.Projects.Project
   alias Tuist.Repo
@@ -2198,20 +2197,14 @@ defmodule Tuist.Tests do
     # multiple versions per id until the background merge collapses them; we
     # dedupe in Elixir so the result set stays small. `FINAL` would force a
     # full part scan with an in-memory merge instead.
-    # `ClickHouseRetry.run/1` absorbs the transient `Mint.TransportError`
-    # that surfaces when an idle pool socket is reaped by Scaleway egress
-    # NAT mid-xcresult ingestion. Without it the worker burns its full
-    # 5 Oban retries on a transport blip that clears in milliseconds.
     full_runs =
-      ClickHouseRetry.run(fn ->
-        from(tcr in TestCaseRun,
-          where: tcr.project_id == ^project_id,
-          where: tcr.test_case_id in ^test_case_ids,
-          where: tcr.id in ^ids,
-          order_by: [desc: tcr.inserted_at]
-        )
-        |> ClickHouseRepo.all()
-      end)
+      from(tcr in TestCaseRun,
+        where: tcr.project_id == ^project_id,
+        where: tcr.test_case_id in ^test_case_ids,
+        where: tcr.id in ^ids,
+        order_by: [desc: tcr.inserted_at]
+      )
+      |> ClickHouseRepo.all()
       |> Enum.uniq_by(& &1.id)
 
     updated_runs =
