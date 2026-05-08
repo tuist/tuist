@@ -684,6 +684,46 @@ defmodule L10n.Validator do
   end
 end
 
+defmodule L10n.CommandValidator do
+  @moduledoc """
+  Runs optional post-translation validation commands.
+
+  Commands run from the repository root and receive translation metadata through
+  environment variables. This keeps L10N.md validation hooks reusable across
+  source formats without baking project-specific commands into this script.
+  """
+
+  @doc """
+  Runs `command` with translation metadata exposed in the environment.
+  """
+  def validate(nil, _attrs), do: :ok
+  def validate("", _attrs), do: :ok
+
+  def validate(command, attrs) when is_binary(command) do
+    env = [
+      {"L10N_REPO_ROOT", attrs.repo_root},
+      {"L10N_L10N_DIR", attrs.l10n_dir},
+      {"L10N_SOURCE_PATH", attrs.source_path},
+      {"L10N_OUTPUT_PATH", attrs.output_path},
+      {"L10N_LOCALE", attrs.locale},
+      {"L10N_LANGUAGE", attrs.language},
+      {"L10N_FORMAT", attrs.format}
+    ]
+
+    case System.cmd("bash", ["-lc", command],
+           cd: attrs.repo_root,
+           env: env,
+           stderr_to_stdout: true
+         ) do
+      {_output, 0} ->
+        :ok
+
+      {output, exit_code} ->
+        {:error, "validation command failed with exit code #{exit_code}:\n#{String.trim(output)}"}
+    end
+  end
+end
+
 defmodule L10n.MarkdownValidator do
   @moduledoc """
   Validates translated Tuist documentation markdown.
@@ -956,6 +996,75 @@ defmodule L10n.MarkdownTranslator do
   end
 
   @doc """
+  Repairs a translated markdown document using validation feedback.
+  """
+  def repair(
+        source_content,
+        translated_content,
+        validation_error,
+        locale,
+        language,
+        context_body,
+        locale_override,
+        model,
+        timeout
+      ) do
+    system_prompt = """
+    You are repairing a translated Tuist documentation markdown file for #{language} (#{locale}).
+
+    Output ONLY the complete corrected markdown file. No markdown fences, no explanation, no preamble.
+
+    Keep the translation in #{language}. Fix only the issues identified by validation while preserving the source document structure:
+    - Preserve frontmatter delimiters and keys.
+    - Preserve heading IDs, URLs, paths, inline code spans, fenced code blocks, component tags, HTML tags, HEEx expressions, and GitHub alert markers exactly.
+    - Preserve the translated prose unless changing it is necessary to satisfy validation.
+    - Do not use em dashes.
+
+    #{context_body}
+
+    #{if locale_override != "", do: "## Locale-specific instructions for #{language}:\n#{locale_override}", else: ""}
+    """
+
+    user_prompt = """
+    The translated markdown failed validation.
+
+    Validation error:
+    #{validation_error}
+
+    English source markdown:
+    #{source_content}
+
+    Current translated markdown:
+    #{translated_content}
+    """
+
+    import ReqLLM.Context
+
+    messages = [
+      system(system_prompt),
+      user(user_prompt)
+    ]
+
+    resolved_model = L10n.Translator.resolve_model(model)
+
+    case L10n.Translator.generate_text_with_retries(resolved_model, messages, timeout, locale) do
+      {:ok, response} ->
+        text =
+          response
+          |> ReqLLM.Response.text()
+          |> String.trim()
+          |> String.replace(~r/^```[a-zA-Z0-9_-]*\n/, "")
+          |> String.replace(~r/\n```$/, "")
+          |> String.trim()
+
+        {:ok, text}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc """
   Translates a markdown file to all target locales in parallel.
   """
   def translate_all(
@@ -973,6 +1082,8 @@ defmodule L10n.MarkdownTranslator do
     request_timeout = Keyword.get(opts, :timeout, @default_timeout)
     force = Keyword.get(opts, :force, false)
     source_language = Keyword.get(opts, :source_language, "en")
+    validation_command = Keyword.get(opts, :validation_command)
+    validation_attempts = Keyword.get(opts, :validation_attempts, 1)
     source_hash = L10n.Lock.source_hash(markdown_content, :markdown)
 
     output_relative_path =
@@ -1001,6 +1112,8 @@ defmodule L10n.MarkdownTranslator do
           {:skipped, locale}
         else
           try do
+            output_path = Path.join([l10n_dir, target["path"], output_relative_path])
+
             with {:ok, translated_content} <-
                    translate(
                      markdown_content,
@@ -1011,9 +1124,28 @@ defmodule L10n.MarkdownTranslator do
                      model,
                      request_timeout
                    ),
-                 :ok <- L10n.MarkdownValidator.validate(markdown_content, translated_content) do
-              output_path = Path.join([l10n_dir, target["path"], output_relative_path])
-              output_path |> Path.dirname() |> File.mkdir_p!()
+                 {:ok, translated_content} <-
+                   validate_or_repair(
+                     markdown_content,
+                     translated_content,
+                     locale,
+                     language,
+                     context_body,
+                     locale_override,
+                     model,
+                     request_timeout,
+                     validation_command,
+                     validation_attempts,
+                     %{
+                       repo_root: repo_root,
+                       l10n_dir: l10n_dir,
+                       source_path: Path.join(repo_root, source_relative_path),
+                       output_path: output_path,
+                       locale: locale,
+                       language: language,
+                       format: "markdown"
+                     }
+                   ) do
               File.write!(output_path, translated_content <> "\n")
 
               L10n.Lock.write!(lock_path, %{
@@ -1055,6 +1187,103 @@ defmodule L10n.MarkdownTranslator do
     case Path.split(source_path) do
       [^source_language | rest] -> Path.join(rest)
       _ -> source_path
+    end
+  end
+
+  defp validate_or_repair(
+         source_content,
+         translated_content,
+         locale,
+         language,
+         context_body,
+         locale_override,
+         model,
+         timeout,
+         validation_command,
+         max_attempts,
+         validation_attrs,
+         attempt \\ 1
+       ) do
+    case validate_candidate(source_content, translated_content, validation_command, validation_attrs) do
+      :ok ->
+        {:ok, translated_content}
+
+      {:error, reason} when attempt < max_attempts ->
+        IO.puts(
+          "    #{locale}: validation failed, asking the model to repair it (attempt #{attempt + 1}/#{max_attempts})"
+        )
+
+        with {:ok, repaired_content} <-
+               repair(
+                 source_content,
+                 translated_content,
+                 reason,
+                 locale,
+                 language,
+                 context_body,
+                 locale_override,
+                 model,
+                 timeout
+               ) do
+          validate_or_repair(
+            source_content,
+            repaired_content,
+            locale,
+            language,
+            context_body,
+            locale_override,
+            model,
+            timeout,
+            validation_command,
+            max_attempts,
+            validation_attrs,
+            attempt + 1
+          )
+        end
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp validate_candidate(source_content, translated_content, validation_command, validation_attrs) do
+    output_path = validation_attrs.output_path
+    previous_content = read_existing_file(output_path)
+
+    output_path |> Path.dirname() |> File.mkdir_p!()
+    File.write!(output_path, translated_content <> "\n")
+
+    result =
+      with :ok <- L10n.MarkdownValidator.validate(source_content, translated_content),
+           :ok <- L10n.CommandValidator.validate(validation_command, validation_attrs) do
+        :ok
+      end
+
+    case result do
+      :ok ->
+        :ok
+
+      {:error, reason} ->
+        restore_file(output_path, previous_content)
+        {:error, reason}
+    end
+  end
+
+  defp read_existing_file(path) do
+    case File.read(path) do
+      {:ok, content} -> {:existing, content}
+      {:error, :enoent} -> :missing
+      {:error, reason} -> raise "failed to read #{path}: #{:file.format_error(reason)}"
+    end
+  end
+
+  defp restore_file(path, {:existing, content}), do: File.write!(path, content)
+
+  defp restore_file(path, :missing) do
+    case File.rm(path) do
+      :ok -> :ok
+      {:error, :enoent} -> :ok
+      {:error, reason} -> raise "failed to remove #{path}: #{:file.format_error(reason)}"
     end
   end
 end
@@ -1117,6 +1346,8 @@ defmodule L10n.CLI do
       Map.get(frontmatter, "format") || Map.get(frontmatter, "source_format") || "gettext"
 
     source_language = Map.get(frontmatter, "source_language", "en")
+    validation_command = Map.get(frontmatter, "validation_command")
+    validation_attempts = Map.get(frontmatter, "validation_attempts", 1)
 
     target_path_template =
       Map.get(frontmatter, "target_path", "priv/gettext/{locale}/LC_MESSAGES")
@@ -1172,6 +1403,8 @@ defmodule L10n.CLI do
                 locale_override_fn: locale_override_fn,
                 max_concurrency: Keyword.get(opts, :concurrency, 7),
                 source_language: source_language,
+                validation_command: validation_command,
+                validation_attempts: validation_attempts,
                 timeout: Keyword.get(opts, :timeout, @default_timeout)
               )
 

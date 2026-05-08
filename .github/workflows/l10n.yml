@@ -42,6 +42,9 @@ jobs:
           version: ${{ env.MISE_VERSION }}
           install_args: "elixir erlang"
           cache: "false"
+      - name: Install server dependencies
+        working-directory: server
+        run: mix deps.get
       - name: Run translations
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -62,5 +65,9 @@ jobs:
           title: "chore(server): update translations"
           body: |
             Automated translation update triggered by changes to `.pot` files or `L10N.md` context.
+          add-paths: |
+            .l10n/**
+            server/priv/gettext/**/*.po
+            server/priv/docs/**/*.md
           committer: "tuistit <tuistit@users.noreply.github.com>"
           author: "tuistit <tuistit@users.noreply.github.com>"
