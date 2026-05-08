@@ -252,7 +252,7 @@ defmodule Tuist.Processor.XCResultProcessor do
         else
           Logger.error(
             "xcresult bundle not found after extraction in #{temp_dir}: " <>
-              "contents=#{inspect(temp_dir |> Path.join("**") |> Path.wildcard() |> Enum.take(30))}"
+              "contents=#{temp_dir |> Path.join("**") |> Path.wildcard() |> Enum.take(30) |> inspect()}"
           )
 
           nil
