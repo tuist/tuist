@@ -2,41 +2,32 @@ defmodule Tuist.Runners.PoolConfig do
   @moduledoc """
   Hardcoded customer pool definitions for v1.
 
-  Pools are **org-scoped**, not repo-scoped. Each entry says:
-  "GitHub Actions jobs from any repo under `owner` get bound to a
-  runner registered with this label set, capped at
-  `max_concurrent` parallel jobs across the whole org, with
-  `min_warm` of those always pre-warmed and pre-registered with
-  GitHub for sub-second pickup latency."
+  Pools are **org-scoped** and have a single capacity dimension:
+  `min_warm`, the count of pre-bound Pods reserved for this
+  customer. Pre-bound is the paid sub-second-pickup tier — the
+  reconciler keeps that many Pods alive with a JIT pre-minted at
+  create time, so they're already `online + idle` on GitHub when
+  a workflow_job arrives.
+
+  No `max_concurrent` cap, no shared / burst pool. The other CI
+  vendors (Namespace, Blacksmith, WarpBuild, RunsOn) don't expose
+  a per-customer concurrency ceiling, and on closer inspection
+  the shared-pool concept doesn't carry its weight either:
+  bursts above `min_warm` are served by minting an on-demand
+  Pod from the dispatch webhook — that's the cold path and pays
+  ~30-90 s of clone+boot+register, but it's the same path every
+  competitor's "default tier" walks. Adding a shared pre-warmed
+  pool sized by aggregate burst is a Phase 2+ optimization for
+  when cold-start latency starts mattering at scale.
 
   Repo-level scoping is delegated to the GitHub org runner
-  group's allowlist (`runner_group_id` below): GitHub itself
+  group's allowlist (`runner_group_id` below). GitHub itself
   refuses to dispatch a workflow_job into a runner whose group
-  doesn't allowlist the repo, so we don't reimplement that
-  check here. This matches how every comparable product
-  (Namespace, BuildJet, Cirrus, GitHub-hosted larger runners)
-  models capacity.
+  doesn't allowlist the repo, so we don't reimplement that check.
 
   When the second customer lands we move this into the database
   + surface it in the dashboard. The shape here is the contract
   that move has to preserve.
-
-  Pool capacity model (hybrid shape 2):
-  - `min_warm` — Pods reserved exclusively for this customer.
-    The reconciler creates them with the customer's GitHub JIT
-    config baked in at create time. They register with GitHub at
-    boot and sit as `online + idle` runners; GitHub's dispatcher
-    routes queued jobs to them autonomously. Sub-second pickup.
-  - `max_concurrent - min_warm` — burst capacity drawn from the
-    cluster-wide *shared pool*. Shared Pods boot generic
-    (no JIT) and poll the dispatch endpoint; on
-    `workflow_job: queued` from any customer with burst
-    headroom, the webhook handler picks an idle shared Pod, mints
-    JIT for the matching customer, and the Pod registers with
-    GitHub. Adds ~5-10s registration latency vs pre-warmed.
-  - The cluster-wide shared pool size is
-    `sum(max_concurrent) - sum(min_warm)` across pools. Empty
-    when every customer's max equals their min.
 
   The GitHub App installation that authorizes
   `generate-jitconfig` is resolved per-org by
@@ -55,6 +46,12 @@ defmodule Tuist.Runners.PoolConfig do
   Returns the list of pool configs for the current deploy
   environment. Empty list when runners are off (self-hosted /
   preview / dev) so reconcilers no-op cleanly.
+
+  `min_warm` is the only customer-visible knob — and we don't
+  expose it directly today (it's an internal Tuist setting). For
+  customers who haven't paid for the sub-second-pickup tier it
+  defaults to `0`; their queued jobs spin up an on-demand Pod
+  from the webhook handler.
   """
   def pools do
     case Environment.env() do
@@ -73,8 +70,7 @@ defmodule Tuist.Runners.PoolConfig do
             # default group (id=1) which is *every* repo in the
             # org and is wrong for production.
             runner_group_id: env_runner_group_id(),
-            min_warm: 1,
-            max_concurrent: 2
+            min_warm: 1
           }
         ]
 
@@ -86,8 +82,7 @@ defmodule Tuist.Runners.PoolConfig do
             owner: "tuist",
             labels: ["self-hosted", "macOS", "ARM64", "tuist-canary-macos"],
             runner_group_id: env_runner_group_id(),
-            min_warm: 1,
-            max_concurrent: 2
+            min_warm: 1
           }
         ]
 
@@ -99,8 +94,7 @@ defmodule Tuist.Runners.PoolConfig do
             owner: "tuist",
             labels: ["self-hosted", "macOS", "ARM64", "tuist-macos"],
             runner_group_id: env_runner_group_id(),
-            min_warm: 3,
-            max_concurrent: 5
+            min_warm: 3
           }
         ]
 
@@ -118,45 +112,14 @@ defmodule Tuist.Runners.PoolConfig do
   end
 
   @doc """
-  Total warm-pool size across all customers for the current env.
-  The reconciler keeps this many generic Pods alive in the
-  `tuist-runners` namespace.
-
-      iex> Tuist.Runners.PoolConfig.total_warm_target()
-      2  # in staging
-  """
-  def total_warm_target do
-    sum_min_warm() + shared_burst_target()
-  end
-
-  @doc """
-  Sum of pre-bound Pods across all pools. The reconciler keeps
-  exactly this many customer-bound Pods alive across the
-  cluster (one row in `runner_assignments` per Pod, with
-  `pool_name` + `jit_config` set at create time).
+  Total count of pre-bound Pods the reconciler should keep alive
+  across all pools — `sum(min_warm)`. Used by callers that want
+  an early-out when the cluster has no pre-warm at all (e.g. a
+  freshly bootstrapped self-hosted instance with no customers
+  yet).
   """
   def sum_min_warm do
     pools() |> Enum.map(& &1.min_warm) |> Enum.sum()
-  end
-
-  @doc """
-  Cluster-wide shared-pool size. Sized so the cluster has enough
-  generic warm capacity to satisfy any single customer's burst up
-  to their `max_concurrent`. Mathematically:
-
-      sum(max_concurrent) - sum(min_warm)
-
-  Negative would mean min_warm exceeds max_concurrent for some
-  pool — caller error in PoolConfig; we floor at 0 so the
-  reconciler doesn't try to delete shared Pods.
-  """
-  def shared_burst_target do
-    cap =
-      pools()
-      |> Enum.map(fn p -> p.max_concurrent - p.min_warm end)
-      |> Enum.sum()
-
-    max(0, cap)
   end
 
   # Reads TUIST_RUNNER_GROUP_ID at runtime so each managed env

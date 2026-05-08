@@ -2,22 +2,28 @@ defmodule Tuist.Runners do
   @moduledoc """
   Customer-facing GitHub Actions runners on Tuist's Mac mini fleet.
 
-  Architecture (shape 2 — dispatch-time binding):
+  Architecture:
 
-  - The reconciler (`Tuist.Runners.Reconciler`) maintains N
-    generic warm Pods in the `tuist-runners` namespace. Each Pod
-    creation also INSERTs a `runner_assignments` row carrying the
-    Pod's dispatch-token hash. The Pod is "idle" until dispatch
-    fills in its `pool_name` / `jit_config`.
-  - On GitHub `workflow_job: queued`, `Tuist.Runners.Dispatch.dispatch/2`
-    finds an idle row, mints a JIT runner config from GitHub's API
-    for the matching pool, and UPDATEs the row.
-  - The VM polls `TuistWeb.RunnersController.dispatch/2`, presents
-    its per-Pod token, and gets the JIT config back. It runs
-    `./run.sh --jitconfig $JIT --ephemeral`, accepts the queued
-    job, exits when complete.
-  - The reconciler observes the gap on the next 60 s tick and
-    creates a replacement.
+  - `Tuist.Runners.Reconciler` keeps `min_warm` pre-bound Pods
+    alive per pool. Each Pod is created with a JIT runner config
+    minted in advance, plus a `runner_assignments` row carrying
+    the dispatch-token hash + JIT material. The polling VM picks
+    up the JIT on its first poll and registers with GitHub
+    seconds after boot — `online + idle`, ready for a queued job.
+  - GitHub's own dispatcher routes `workflow_job: queued` events
+    to those `online + idle` runners autonomously. We never see
+    the webhook for jobs the pre-bound pool can serve.
+  - When pre-bound is saturated, GitHub fires
+    `workflow_job: queued` for the unscheduled job. The webhook
+    handler (`Tuist.Runners.Dispatch`) creates an on-demand Pod
+    for that customer's pool — same shape as a pre-bound Pod,
+    just minted reactively. The job pays a ~30-90 s cold-start
+    while the VM clones, boots, and registers.
+  - Each runner is single-shot: `./run.sh --jitconfig` exits
+    after one job, the VM halts, the Watcher (`Tuist.Runners.Watcher`)
+    observes the terminal Pod, deletes the Pod + assignment row,
+    and (if the pool dropped below `min_warm`) the reconciler
+    refills.
 
   No `pods/patch` or `secrets/*` RBAC required: state lives in
   Postgres; the Pod object is treated as immutable after create.
@@ -26,31 +32,16 @@ defmodule Tuist.Runners do
   for v1; moves to the database in v2).
   """
 
-  import Ecto.Query
-
   alias Tuist.Repo
   alias Tuist.Runners.RunnerAssignment
 
   @doc """
-  Creates an idle assignment row for a freshly-spawned shared
-  warm Pod. Called by the reconciler immediately after a
-  successful Pod create — the row carries the dispatch-token
-  hash so a later GitHub webhook (or a server restart in
-  between) can still authenticate the polling Pod.
-  """
-  def create_idle_assignment(attrs) do
-    attrs
-    |> RunnerAssignment.create_changeset()
-    |> Repo.insert()
-  end
-
-  @doc """
-  Creates a fully-dispatched assignment row for a pre-bound Pod.
-  Called by the reconciler when materializing a customer's
-  reserved warm runner: the GitHub JIT is minted *before* Pod
-  create and the row carries it from the start, so the polling
-  VM hits 200 on its first dispatch request and registers with
-  GitHub within seconds of boot.
+  Creates the `runner_assignments` row for a Pod whose JIT was
+  minted at create time. Called by both the reconciler (when
+  filling the steady-state `min_warm` gap) and the dispatch
+  webhook (on-demand for a queued workflow_job beyond the
+  pre-bound pool). Same shape either way — the only difference
+  is *when* it runs.
   """
   def create_pre_bound_assignment(attrs) do
     attrs
@@ -66,68 +57,15 @@ defmodule Tuist.Runners do
   end
 
   @doc """
-  Returns idle assignments — Pods sitting in the shared pool
-  with no JIT config yet. Read-only; do *not* use this for
-  dispatch (use `claim_idle_for_dispatch/0`, which locks).
-  """
-  def list_idle_assignments do
-    Repo.all(from a in RunnerAssignment, where: is_nil(a.jit_config), order_by: [asc: a.inserted_at])
-  end
-
-  @doc """
-  Atomically reserves the oldest idle assignment so two
-  concurrent webhook deliveries can't bind the same Pod. Locks
-  the row with `FOR UPDATE SKIP LOCKED` inside a transaction:
-  the second caller skips the locked row and either picks the
-  next idle one (capacity available) or returns
-  `{:error, :no_idle_pod}` (must wait for refill). The row is
-  *only* observed by callers that hold the lock; other readers
-  see the unmodified row until the transaction commits.
-
-  Returns `{:ok, assignment}` or `{:error, :no_idle_pod}`. The
-  caller is expected to follow up with `dispatch_assignment/2`
-  to write `pool_name` / `jit_config` (still the JIT mint can
-  fail and we don't want to hold the row locked across the
-  GitHub API call).
-  """
-  def claim_idle_for_dispatch do
-    Repo.transaction(fn ->
-      query =
-        from a in RunnerAssignment,
-          where: is_nil(a.jit_config),
-          order_by: [asc: a.inserted_at],
-          limit: 1,
-          lock: "FOR UPDATE SKIP LOCKED"
-
-      case Repo.one(query) do
-        nil -> Repo.rollback(:no_idle_pod)
-        assignment -> assignment
-      end
-    end)
-  end
-
-  @doc """
-  Promotes a Pod from idle to customer-bound by writing pool +
-  JIT config onto its row. Used by `Tuist.Runners.Dispatch`.
-  """
-  def dispatch_assignment(%RunnerAssignment{} = assignment, attrs) do
-    assignment
-    |> RunnerAssignment.dispatch_changeset(attrs)
-    |> Repo.update()
-  end
-
-  @doc """
   Removes an assignment row. Used by the watcher's GC when a
   Pod transitions to a terminal phase (Succeeded/Failed) or is
-  deleted from the cluster — without it `list_idle_assignments`
-  would carry orphan idle rows for Pods that no longer exist,
-  and the next webhook would happily bind a JIT to a
-  nonexistent VM. Idempotent: missing pod_uid returns ok.
+  deleted from the cluster. Idempotent: missing pod_uid returns
+  ok.
   """
   def delete_assignment(pod_uid) when is_binary(pod_uid) do
     case Repo.get(RunnerAssignment, pod_uid) do
       nil -> :ok
-      assignment -> Repo.delete(assignment) |> normalize_delete()
+      assignment -> assignment |> Repo.delete() |> normalize_delete()
     end
   end
 

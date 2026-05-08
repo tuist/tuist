@@ -202,10 +202,7 @@ defmodule Tuist.Runners.Watcher do
   # reconnect/replay is safe.
   defp maybe_garbage_collect(%{
          "type" => "MODIFIED",
-         "object" => %{
-           "metadata" => %{"namespace" => ns, "name" => name, "uid" => uid},
-           "status" => %{"phase" => phase}
-         }
+         "object" => %{"metadata" => %{"namespace" => ns, "name" => name, "uid" => uid}, "status" => %{"phase" => phase}}
        })
        when phase in ["Succeeded", "Failed"] do
     case Client.delete_pod(ns, name) do
@@ -216,11 +213,7 @@ defmodule Tuist.Runners.Watcher do
     Runners.delete_assignment(uid)
   end
 
-  defp maybe_garbage_collect(%{
-         "type" => "DELETED",
-         "object" => %{"metadata" => %{"uid" => uid}}
-       })
-       when is_binary(uid) do
+  defp maybe_garbage_collect(%{"type" => "DELETED", "object" => %{"metadata" => %{"uid" => uid}}}) when is_binary(uid) do
     Runners.delete_assignment(uid)
   end
 

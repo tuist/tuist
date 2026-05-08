@@ -47,9 +47,12 @@ defmodule TuistWeb.RunnersController do
   end
 
   defp respond(conn, %{jit_config: nil}) do
-    # Pod is idle — no `workflow_job: queued` has bound it yet.
-    # 204 with no body; the polling loop in the runner image
-    # treats this as "wait and retry".
+    # Defensive: a row exists but jit_config is NULL. Shouldn't
+    # happen — both the reconciler and the webhook handler
+    # populate `jit_config` before inserting the row, and there's
+    # no flow that creates an idle row anymore. Treat as 204 so
+    # a transient race during create still degrades gracefully
+    # (the next poll picks up the populated row).
     send_resp(conn, :no_content, "")
   end
 

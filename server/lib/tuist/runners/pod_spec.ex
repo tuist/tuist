@@ -1,12 +1,14 @@
 defmodule Tuist.Runners.PodSpec do
   @moduledoc """
-  Builds Kubernetes Pod manifests for the runner shared pool.
+  Builds Kubernetes Pod manifests for runner Pods.
 
-  Pods are intentionally generic at create time — no JIT config,
-  no customer label. The `Tuist.Runners.Dispatch` flow binds them
-  to a customer at job-queued time by writing a row in
-  `runner_assignments`; the Pod's startup script polls the
-  dispatch endpoint and gets the JIT config back.
+  Every Pod is pool-bound at create time — there's no "generic"
+  shared pool that gets bound at dispatch. Both the reconciler
+  (steady-state `min_warm` refill) and the dispatch webhook
+  (on-demand burst Pod) walk the same `build/6` path, with the
+  pool's name passed via the `pool:` keyword. The Pod gets a
+  `tuist.dev/runner-pool=<name>` label which the reconciler's
+  list query keys off when counting alive pre-bound Pods.
 
   Resource shape: Pod requests double as both the kube-scheduler
   one-Pod-per-host constraint AND the source-of-truth for the
@@ -54,33 +56,23 @@ defmodule Tuist.Runners.PodSpec do
   flow.
 
   `opts`:
-    - `:pool` — when set to a pool name string, the Pod gets the
-      label `tuist.dev/runner-pool=<pool>` at create time. Used
-      by the reconciler to differentiate pre-bound (`pool` set)
-      from shared (`pool` nil) Pods via label selectors —
-      `tuist.dev/runner=true,tuist.dev/runner-pool=<name>` for
-      pre-bound count, `tuist.dev/runner=true,!tuist.dev/runner-pool`
-      for shared.
+    - `:pool` — pool name string. Required. Stamps
+      `tuist.dev/runner-pool=<pool>` on the Pod so the
+      reconciler's list selector
+      `tuist.dev/runner=true,tuist.dev/runner-pool=<name>`
+      counts alive pre-bound capacity per pool.
   """
   def build(name, image, dispatch_url, dispatch_token, fleet_name, opts \\ []) do
-    base_labels = %{
+    pool = Keyword.fetch!(opts, :pool)
+
+    labels = %{
       "app.kubernetes.io/name" => "tuist-runner",
       "app.kubernetes.io/component" => "runner",
       # NetworkPolicy in templates/runners-namespace.yaml
       # selects on this label. Don't drop it.
       "tuist.dev/runner" => "true",
-      # Pre-bound Pods carry their JIT from the moment the row is
-      # written; their VM polls the dispatch endpoint and gets a
-      # 200 immediately. Shared Pods sit at "idle" until the
-      # `workflow_job: queued` webhook handler binds them.
-      "tuist.dev/runner-state" => "idle"
+      "tuist.dev/runner-pool" => pool
     }
-
-    labels =
-      case Keyword.fetch(opts, :pool) do
-        {:ok, pool} when is_binary(pool) -> Map.put(base_labels, "tuist.dev/runner-pool", pool)
-        _ -> base_labels
-      end
 
     %{
       "apiVersion" => "v1",
@@ -150,19 +142,6 @@ defmodule Tuist.Runners.PodSpec do
   def namespace, do: @namespace
 
   @doc """
-  Stable Pod name for a freshly-spawned shared/burst runner.
-  Generic — the dispatch flow picks any of them.
-  """
-  def generate_name do
-    suffix =
-      4
-      |> :crypto.strong_rand_bytes()
-      |> Base.encode16(case: :lower)
-
-    "tuist-runner-#{suffix}"
-  end
-
-  @doc """
   Stable Pod name for a freshly-spawned pre-bound runner.
   Carries the pool name in the prefix for at-a-glance
   identification in `kubectl get pods`. Pool binding is also
@@ -180,7 +159,7 @@ defmodule Tuist.Runners.PodSpec do
 
   @doc """
   Selector matching every runner Pod we create. Used by the
-  reconciler's broad-count queries.
+  watcher's namespace-wide watch.
   """
   def selector_label, do: "tuist.dev/runner=true"
 
@@ -189,15 +168,6 @@ defmodule Tuist.Runners.PodSpec do
   """
   def pre_bound_selector(pool) when is_binary(pool) do
     "tuist.dev/runner=true,tuist.dev/runner-pool=#{pool}"
-  end
-
-  @doc """
-  Selector matching shared (un-pool-labelled) Pods. The `!key`
-  syntax is the Kubernetes label-selector negation —
-  "label `tuist.dev/runner-pool` must NOT be present".
-  """
-  def shared_selector do
-    "tuist.dev/runner=true,!tuist.dev/runner-pool"
   end
 
   @doc """

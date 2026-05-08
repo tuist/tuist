@@ -1,26 +1,18 @@
 defmodule Tuist.Runners.RunnerAssignment do
   @moduledoc """
   Persistent record of a runner Pod's lifecycle, from create to
-  dispatch to claim.
+  claim.
 
-  Created by `Tuist.Runners.Reconciler` at Pod-create time with
-  `pool_name`/`owner`/`repo`/`jit_config` all NULL — only the
-  `dispatch_token_hash` is set, so the dispatch endpoint can
-  later authenticate the polling Pod.
+  Created by `Tuist.Runners.Reconciler.create_pre_bound_pod/1`
+  immediately after a successful Pod create. The row carries the
+  GitHub-issued `jit_config` + the `dispatch_token_hash` so the
+  polling VM can authenticate against the dispatch endpoint and
+  fetch its JIT on the first poll. Both the reconciler (steady-
+  state `min_warm` refill) and the dispatch webhook handler
+  (on-demand burst Pod) walk the same code path — the row's
+  shape is the same either way.
 
-  Pre-bound rows skip the idle-then-dispatch pattern: `pool_name`
-  / `owner` / `jit_config` are set at create time. `repo` stays
-  NULL on pre-bound rows because pools are org-scoped (the
-  customer's runner group's allowlist is the source of truth for
-  which repos can consume capacity); shared rows promoted via
-  `dispatch_changeset/2` *do* record `repo` so analytics know
-  which repo's job consumed the runner.
-
-  Promoted to a customer pool by `Tuist.Runners.Dispatch` when a
-  matching `workflow_job: queued` webhook arrives: same row gets
-  the JIT config + pool fields filled in.
-
-  Marked `claimed_at` by the dispatch endpoint after the VM
+  `claimed_at` is stamped by the dispatch endpoint after the VM
   successfully fetches the JIT config — first poll wins, later
   polls return the same row idempotently.
 
@@ -34,7 +26,7 @@ defmodule Tuist.Runners.RunnerAssignment do
   import Ecto.Changeset
 
   @primary_key {:pod_uid, :string, []}
-  @derive {Jason.Encoder, only: [:pod_uid, :pod_name, :pool_name, :owner, :repo, :claimed_at, :inserted_at]}
+  @derive {Jason.Encoder, only: [:pod_uid, :pod_name, :pool_name, :owner, :claimed_at, :inserted_at]}
 
   schema "runner_assignments" do
     field :pod_name, :string
@@ -50,22 +42,15 @@ defmodule Tuist.Runners.RunnerAssignment do
   end
 
   @doc """
-  Changeset for the row written when a *shared* Pod is first
-  created. No pool/JIT yet — those land via `dispatch_changeset/2`
-  once a `workflow_job: queued` webhook arrives.
-  """
-  def create_changeset(attrs) do
-    %__MODULE__{}
-    |> cast(attrs, ~w(pod_uid pod_name dispatch_token_hash)a)
-    |> validate_required(~w(pod_uid pod_name dispatch_token_hash)a)
-    |> unique_constraint(:pod_uid, name: "runner_assignments_pkey")
-  end
+  Changeset for the row written when a pre-bound (or on-demand
+  burst) Pod is created. All fields land at create time — the
+  row's `jit_config` is what the polling VM fetches on its first
+  dispatch poll, so the runner registers with GitHub seconds
+  after Pod boot.
 
-  @doc """
-  Changeset for the row written when a *pre-bound* Pod is created.
-  All fields land at create time — the row's `jit_config` is
-  what the polling VM will fetch on its first dispatch poll, so
-  the runner registers with GitHub seconds after Pod boot.
+  `repo` stays NULL on these rows; pools are org-scoped and the
+  customer's runner group's allowlist on the GitHub side is the
+  source of truth for which repos can consume capacity.
   """
   def pre_bound_changeset(attrs) do
     %__MODULE__{}
@@ -75,28 +60,9 @@ defmodule Tuist.Runners.RunnerAssignment do
   end
 
   @doc """
-  Changeset for promoting a Pod from the shared pool into a
-  customer's pool. Validates we don't double-dispatch (jit_config
-  already set). `repo` is stamped from the webhook payload — it
-  records which repo's job consumed the runner, not which pool
-  is allowed to use it (pool selection is `owner`-scoped).
-  """
-  def dispatch_changeset(assignment, attrs) do
-    assignment
-    |> cast(attrs, ~w(pool_name jit_config account_id owner repo)a)
-    |> validate_required(~w(pool_name jit_config owner)a)
-  end
-
-  @doc """
   Stamps `claimed_at` once the VM has fetched its JIT.
   """
   def claim_changeset(assignment, claimed_at) do
     change(assignment, claimed_at: claimed_at)
   end
-
-  @doc """
-  True when the row represents an idle Pod waiting for dispatch.
-  """
-  def idle?(%__MODULE__{jit_config: nil}), do: true
-  def idle?(%__MODULE__{}), do: false
 end

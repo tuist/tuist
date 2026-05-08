@@ -4,35 +4,8 @@ defmodule Tuist.RunnersTest do
   alias Tuist.Runners
   alias Tuist.Runners.RunnerAssignment
 
-  describe "create_idle_assignment/1" do
-    test "persists pod_uid + token hash with NULL pool/jit/owner/repo" do
-      attrs = %{
-        pod_uid: "pod-uid-1",
-        pod_name: "tuist-runner-abcd",
-        dispatch_token_hash: Runners.hash_token("token-1")
-      }
-
-      assert {:ok, %RunnerAssignment{} = a} = Runners.create_idle_assignment(attrs)
-      assert a.pod_uid == "pod-uid-1"
-      assert a.jit_config == nil
-      assert a.pool_name == nil
-      assert RunnerAssignment.idle?(a)
-    end
-
-    test "rejects duplicate pod_uid" do
-      attrs = %{
-        pod_uid: "pod-uid-2",
-        pod_name: "n",
-        dispatch_token_hash: Runners.hash_token("t")
-      }
-
-      {:ok, _} = Runners.create_idle_assignment(attrs)
-      assert {:error, %Ecto.Changeset{}} = Runners.create_idle_assignment(attrs)
-    end
-  end
-
   describe "create_pre_bound_assignment/1" do
-    test "persists pool + jit + owner at create time (not idle)" do
+    test "persists pool + jit + owner at create time" do
       attrs = %{
         pod_uid: "pod-uid-pb-1",
         pod_name: "tuist-runner-tuist-abcd",
@@ -45,8 +18,8 @@ defmodule Tuist.RunnersTest do
       assert {:ok, %RunnerAssignment{} = a} = Runners.create_pre_bound_assignment(attrs)
       assert a.pool_name == "tuist"
       assert a.jit_config == "encoded-jit-payload"
+      assert a.owner == "tuist"
       assert a.repo == nil
-      refute RunnerAssignment.idle?(a)
     end
 
     test "rejects when required fields missing" do
@@ -58,65 +31,32 @@ defmodule Tuist.RunnersTest do
 
       assert {:error, %Ecto.Changeset{}} = Runners.create_pre_bound_assignment(attrs)
     end
-  end
 
-  describe "list_idle_assignments/0" do
-    test "returns only shared rows (jit_config IS NULL); pre-bound ones are excluded" do
-      {:ok, _shared} =
-        Runners.create_idle_assignment(%{
-          pod_uid: "pod-uid-list-shared",
-          pod_name: "shared",
-          dispatch_token_hash: Runners.hash_token("t")
-        })
+    test "rejects duplicate pod_uid" do
+      attrs = %{
+        pod_uid: "pod-uid-pb-dup",
+        pod_name: "n",
+        pool_name: "tuist",
+        jit_config: "j",
+        dispatch_token_hash: Runners.hash_token("t"),
+        owner: "tuist"
+      }
 
-      {:ok, _pre_bound} =
-        Runners.create_pre_bound_assignment(%{
-          pod_uid: "pod-uid-list-pre-bound",
-          pod_name: "pre-bound",
-          pool_name: "tuist",
-          jit_config: "j",
-          dispatch_token_hash: Runners.hash_token("t2"),
-          owner: "tuist"
-        })
-
-      idle_uids = Enum.map(Runners.list_idle_assignments(), & &1.pod_uid)
-      assert "pod-uid-list-shared" in idle_uids
-      refute "pod-uid-list-pre-bound" in idle_uids
-    end
-  end
-
-  describe "claim_idle_for_dispatch/0" do
-    test "returns the oldest idle row" do
-      {:ok, _older} =
-        Runners.create_idle_assignment(%{
-          pod_uid: "pod-uid-claim-older",
-          pod_name: "older",
-          dispatch_token_hash: Runners.hash_token("t1")
-        })
-
-      {:ok, _newer} =
-        Runners.create_idle_assignment(%{
-          pod_uid: "pod-uid-claim-newer",
-          pod_name: "newer",
-          dispatch_token_hash: Runners.hash_token("t2")
-        })
-
-      assert {:ok, claimed} = Runners.claim_idle_for_dispatch()
-      assert claimed.pod_uid == "pod-uid-claim-older"
-    end
-
-    test "returns :no_idle_pod when none are idle" do
-      assert {:error, :no_idle_pod} = Runners.claim_idle_for_dispatch()
+      {:ok, _} = Runners.create_pre_bound_assignment(attrs)
+      assert {:error, %Ecto.Changeset{}} = Runners.create_pre_bound_assignment(attrs)
     end
   end
 
   describe "delete_assignment/1" do
     test "removes the row by pod_uid" do
       {:ok, _} =
-        Runners.create_idle_assignment(%{
+        Runners.create_pre_bound_assignment(%{
           pod_uid: "pod-uid-del",
           pod_name: "n",
-          dispatch_token_hash: Runners.hash_token("t")
+          pool_name: "tuist",
+          jit_config: "j",
+          dispatch_token_hash: Runners.hash_token("t"),
+          owner: "tuist"
         })
 
       assert :ok = Runners.delete_assignment("pod-uid-del")
@@ -128,52 +68,20 @@ defmodule Tuist.RunnersTest do
     end
   end
 
-  describe "dispatch_assignment/2" do
-    setup do
-      {:ok, idle} =
-        Runners.create_idle_assignment(%{
-          pod_uid: "pod-uid-d",
-          pod_name: "n",
-          dispatch_token_hash: Runners.hash_token("t")
-        })
-
-      %{idle: idle}
-    end
-
-    test "fills in jit + pool + owner/repo", %{idle: idle} do
-      assert {:ok, dispatched} =
-               Runners.dispatch_assignment(idle, %{
-                 pool_name: "tuist",
-                 jit_config: "encoded-jit",
-                 owner: "tuist",
-                 repo: "tuist"
-               })
-
-      refute RunnerAssignment.idle?(dispatched)
-      assert dispatched.pool_name == "tuist"
-      assert dispatched.jit_config == "encoded-jit"
-    end
-  end
-
   describe "claim_assignment/1" do
     test "stamps claimed_at on first claim, no-ops on second" do
-      {:ok, idle} =
-        Runners.create_idle_assignment(%{
+      {:ok, assignment} =
+        Runners.create_pre_bound_assignment(%{
           pod_uid: "pod-uid-c",
           pod_name: "n",
-          dispatch_token_hash: Runners.hash_token("t")
-        })
-
-      {:ok, dispatched} =
-        Runners.dispatch_assignment(idle, %{
-          pool_name: "p",
+          pool_name: "tuist",
           jit_config: "j",
-          owner: "o",
-          repo: "r"
+          dispatch_token_hash: Runners.hash_token("t"),
+          owner: "tuist"
         })
 
-      assert dispatched.claimed_at == nil
-      assert {:ok, claimed} = Runners.claim_assignment(dispatched)
+      assert assignment.claimed_at == nil
+      assert {:ok, claimed} = Runners.claim_assignment(assignment)
       assert claimed.claimed_at
 
       assert {:ok, claimed_again} = Runners.claim_assignment(claimed)

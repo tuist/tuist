@@ -1,32 +1,32 @@
 defmodule Tuist.Runners.Reconciler do
   @moduledoc """
-  Maintains the warm runner pool — a hybrid of customer-reserved
-  pre-bound Pods and a cluster-wide shared burst pool.
+  Maintains the per-customer pre-bound pool.
 
-  Two reconcile streams per tick:
+  For every pool with `min_warm > 0`, count Pods labeled
+  `tuist.dev/runner=true,tuist.dev/runner-pool=<name>` in the
+  runners namespace. If `alive < min_warm`, mint a JIT config
+  from GitHub for that pool and create a Pod carrying the JIT in
+  env. The Pod's polling VM fetches the JIT on its first
+  dispatch poll and registers with GitHub seconds after boot.
 
-    1. For every pool with `min_warm > 0`, count Pods labeled
-       `tuist.dev/runner=true,tuist.dev/runner-pool=<name>` in
-       the runners namespace. If `alive < min_warm`, mint a JIT
-       config from GitHub for that pool's repo and create a Pod
-       carrying the JIT in env. The Pod's polling VM fetches the
-       JIT on its first dispatch request and registers with
-       GitHub within seconds of boot.
+  Bursts above `min_warm` are *not* reconciled here — they're
+  served by the dispatch webhook handler creating an on-demand
+  Pod for the queued workflow_job. This keeps the steady-state
+  warm pool tightly bounded (no surge capacity sitting idle) at
+  the cost of a one-time clone+boot+register tax (~30-90 s) on
+  jobs above the customer's reserved slots. That's the same
+  default-tier cold-start every other CI provider walks; we'll
+  add a generic shared pre-warm pool back as a Phase 2+
+  optimization if the cold-start tax starts mattering at scale.
 
-    2. For the shared pool, count Pods labeled
-       `tuist.dev/runner=true,!tuist.dev/runner-pool`. If
-       `alive < shared_burst_target`, create a generic Pod with
-       no JIT. It polls the dispatch endpoint (returning 204
-       while idle) until a `workflow_job: queued` webhook binds
-       it to a customer.
-
-  Cron-paced (60 s) by `Tuist.Runners.Workers.ReconcilePoolsWorker`.
-  Idempotent — running twice converges to the same end state;
-  the cron is configured singleton.
+  Triggered event-driven from `Tuist.Runners.Watcher` (Pod
+  termination → reconcile) plus once at Watcher boot.
+  Idempotent — running twice converges to the same end state.
 
   Doesn't delete Pods: warm runners exit on their own after one
-  job (`./run.sh --jitconfig` is single-shot); shrinking the pool
-  is a v2 concern when concurrency tiers become customer-tunable.
+  job (`./run.sh --jitconfig` is single-shot); the Watcher
+  garbage-collects the terminal Pods after observing the phase
+  transition.
   """
 
   alias Tuist.Environment
@@ -61,85 +61,38 @@ defmodule Tuist.Runners.Reconciler do
   and create duplicate Pods (over-registering JIT runners).
   """
   def reconcile do
-    if PoolConfig.total_warm_target() == 0 do
+    if PoolConfig.sum_min_warm() == 0 do
       :ok
     else
-      Repo.transaction(fn ->
-        case Repo.query!("SELECT pg_try_advisory_xact_lock($1)", [@reconcile_lock_id]) do
-          %{rows: [[true]]} ->
-            reconcile_pre_bound()
-            reconcile_shared()
-            :ok
+      {:ok, _} =
+        Repo.transaction(fn ->
+          case Repo.query!("SELECT pg_try_advisory_xact_lock($1)", [@reconcile_lock_id]) do
+            %{rows: [[true]]} ->
+              reconcile_pre_bound()
+              :ok
 
-          _ ->
-            Logger.debug("runners: reconcile skipped — another replica holds the lock")
-            :skipped
-        end
-      end)
+            _ ->
+              Logger.debug("runners: reconcile skipped — another replica holds the lock")
+              :skipped
+          end
+        end)
 
       :ok
     end
   end
 
-  defp reconcile_pre_bound do
-    PoolConfig.pools()
-    |> Enum.filter(fn p -> p.min_warm > 0 end)
-    |> Enum.each(fn pool ->
-      case Client.list_pods(PodSpec.namespace(), PodSpec.pre_bound_selector(pool.name)) do
-        {:ok, pods} ->
-          alive = Enum.count(pods, &PodSpec.alive?/1)
-          gap = max(0, pool.min_warm - alive)
+  @doc """
+  Creates a fresh pre-bound Pod for a given pool. Used by both
+  the reconciler (filling the steady-state min_warm gap) and the
+  dispatch webhook (on-demand Pod for a queued workflow_job
+  beyond `min_warm`). Same shape either way: a Pod with the JIT
+  config minted at create time, the customer's labels, and the
+  pool's runner group baked into the JIT registration.
 
-          Logger.info("runners: pre-bound reconcile",
-            pool: pool.name,
-            target: pool.min_warm,
-            observed: alive,
-            gap: gap
-          )
-
-          Enum.each(1..gap//1, fn _ -> create_pre_bound_pod(pool) end)
-
-        {:error, :not_in_cluster} ->
-          Logger.debug("runners: skipping pre-bound reconcile — not running in-cluster")
-
-        {:error, reason} ->
-          Logger.warning("runners: pre-bound list_pods failed",
-            pool: pool.name,
-            reason: inspect(reason)
-          )
-      end
-    end)
-  end
-
-  defp reconcile_shared do
-    target = PoolConfig.shared_burst_target()
-
-    if target == 0 do
-      :ok
-    else
-      case Client.list_pods(PodSpec.namespace(), PodSpec.shared_selector()) do
-        {:ok, pods} ->
-          alive = Enum.count(pods, &PodSpec.alive?/1)
-          gap = max(0, target - alive)
-
-          Logger.info("runners: shared reconcile",
-            target: target,
-            observed: alive,
-            gap: gap
-          )
-
-          Enum.each(1..gap//1, fn _ -> create_shared_pod() end)
-
-        {:error, :not_in_cluster} ->
-          Logger.debug("runners: skipping shared reconcile — not running in-cluster")
-
-        {:error, reason} ->
-          Logger.warning("runners: shared list_pods failed", reason: inspect(reason))
-      end
-    end
-  end
-
-  defp create_pre_bound_pod(pool) do
+  Returns `:ok` on success, `{:error, reason}` on failure. The
+  caller logs.
+  """
+  def create_pre_bound_pod(pool) do
     image = Environment.runner_image()
     dispatch_url = Environment.runner_dispatch_url()
     fleet = Environment.runners_fleet_name()
@@ -173,15 +126,15 @@ defmodule Tuist.Runners.Reconciler do
 
       :ok
     else
-      {:error, :not_installed} ->
+      {:error, :not_installed} = err ->
         Logger.warning("runners: skipping pre-bound — Tuist GitHub App not installed on org",
           pool: pool.name,
           owner: pool.owner
         )
 
-        :ok
+        err
 
-      {:error, %Ecto.Changeset{} = cs} ->
+      {:error, %Ecto.Changeset{} = cs} = err ->
         # Persisted Pod but row insert failed — orphan that
         # needs manual cleanup. Loud log because we can't
         # auto-recover; manual `kubectl delete pod` then the
@@ -191,54 +144,46 @@ defmodule Tuist.Runners.Reconciler do
           changeset_errors: inspect(cs.errors)
         )
 
-        :ok
+        err
 
-      {:error, reason} ->
+      {:error, reason} = err ->
         Logger.warning("runners: create_pre_bound_pod failed",
           pool: pool.name,
           reason: inspect(reason)
         )
 
-        :ok
+        err
     end
   end
 
-  defp create_shared_pod do
-    image = Environment.runner_image()
-    dispatch_url = Environment.runner_dispatch_url()
-    fleet = Environment.runners_fleet_name()
-    token = generate_dispatch_token()
-    pod_name = PodSpec.generate_name()
-    pod = PodSpec.build(pod_name, image, dispatch_url, token, fleet)
+  defp reconcile_pre_bound do
+    PoolConfig.pools()
+    |> Enum.filter(fn p -> p.min_warm > 0 end)
+    |> Enum.each(fn pool ->
+      case Client.list_pods(PodSpec.namespace(), PodSpec.pre_bound_selector(pool.name)) do
+        {:ok, pods} ->
+          alive = Enum.count(pods, &PodSpec.alive?/1)
+          gap = max(0, pool.min_warm - alive)
 
-    with {:ok, %{"metadata" => %{"uid" => uid, "name" => pod_name}}} <-
-           Client.create_pod(PodSpec.namespace(), pod),
-         {:ok, _} <-
-           Runners.create_idle_assignment(%{
-             pod_uid: uid,
-             pod_name: pod_name,
-             dispatch_token_hash: Runners.hash_token(token)
-           }) do
-      Logger.info("runners: created shared pod",
-        pod_name: pod_name,
-        pod_uid: uid,
-        image: image,
-        fleet: fleet
-      )
+          Logger.info("runners: pre-bound reconcile",
+            pool: pool.name,
+            target: pool.min_warm,
+            observed: alive,
+            gap: gap
+          )
 
-      :ok
-    else
-      {:error, %Ecto.Changeset{} = cs} ->
-        Logger.error("runners: shared assignment row failed; orphaned Pod will need manual cleanup",
-          changeset_errors: inspect(cs.errors)
-        )
+          Enum.each(1..gap//1, fn _ -> create_pre_bound_pod(pool) end)
 
-        :ok
+        {:error, :not_in_cluster} ->
+          Logger.debug("runners: skipping pre-bound reconcile — not running in-cluster")
 
-      {:error, reason} ->
-        Logger.warning("runners: create_shared_pod failed", reason: inspect(reason))
-        :ok
-    end
+        {:error, reason} ->
+          Logger.warning("runners: pre-bound list_pods failed",
+            pool: pool.name,
+            reason: inspect(reason)
+          )
+      end
+    end)
   end
 
   # GitHub's runner-name uniqueness is per repo. Embed the Pod's

@@ -8,8 +8,7 @@ defmodule Tuist.Runners.PoolConfigTest do
     account_id: nil,
     owner: "tuist",
     labels: ["self-hosted", "macOS", "tuist-staging-macos"],
-    min_warm: 0,
-    max_concurrent: 2
+    min_warm: 0
   }
 
   describe "find_by_name/1" do

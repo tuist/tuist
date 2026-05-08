@@ -3,22 +3,22 @@ defmodule Tuist.Runners.PodSpecTest do
 
   alias Tuist.Runners.PodSpec
 
-  describe "build/6 — shared (no pool option)" do
-    test "renders a Pod manifest without the pool label" do
+  describe "build/6" do
+    test "renders a pool-bound Pod manifest" do
       pod =
         PodSpec.build(
-          "tuist-runner-abcd",
+          "tuist-runner-tuist-abcd",
           "ghcr.io/tuist/tuist-runner@sha256:beefcafe",
           "https://staging.tuist.dev/api/internal/runners/dispatch",
           "secret-token-xyz",
-          "tuist-test-tuist-runners-fleet"
+          "tuist-test-tuist-runners-fleet",
+          pool: "tuist"
         )
 
       assert pod["kind"] == "Pod"
       assert get_in(pod, ["metadata", "namespace"]) == "tuist-runners"
       assert get_in(pod, ["metadata", "labels", "tuist.dev/runner"]) == "true"
-      assert get_in(pod, ["metadata", "labels", "tuist.dev/runner-state"]) == "idle"
-      refute Map.has_key?(pod["metadata"]["labels"], "tuist.dev/runner-pool")
+      assert get_in(pod, ["metadata", "labels", "tuist.dev/runner-pool"]) == "tuist"
 
       assert get_in(pod, ["spec", "nodeSelector"]) == %{
                "kubernetes.io/os" => "darwin",
@@ -56,22 +56,11 @@ defmodule Tuist.Runners.PodSpecTest do
                )
              )
     end
-  end
 
-  describe "build/6 — pre-bound (pool option set)" do
-    test "stamps tuist.dev/runner-pool=<pool> on the Pod" do
-      pod =
-        PodSpec.build(
-          "tuist-runner-tuist-abcd",
-          "ghcr.io/tuist/tuist-runner@sha256:beefcafe",
-          "https://staging.tuist.dev/api/internal/runners/dispatch",
-          "tok",
-          "fleet",
-          pool: "tuist"
-        )
-
-      assert get_in(pod, ["metadata", "labels", "tuist.dev/runner-pool"]) == "tuist"
-      assert get_in(pod, ["metadata", "labels", "tuist.dev/runner"]) == "true"
+    test "raises when pool is missing" do
+      assert_raise KeyError, fn ->
+        PodSpec.build("name", "image", "url", "token", "fleet")
+      end
     end
   end
 
@@ -79,11 +68,6 @@ defmodule Tuist.Runners.PodSpecTest do
     test "pre_bound_selector includes the pool name" do
       assert PodSpec.pre_bound_selector("tuist") ==
                "tuist.dev/runner=true,tuist.dev/runner-pool=tuist"
-    end
-
-    test "shared_selector negates the pool label" do
-      assert PodSpec.shared_selector() ==
-               "tuist.dev/runner=true,!tuist.dev/runner-pool"
     end
   end
 
@@ -112,14 +96,6 @@ defmodule Tuist.Runners.PodSpecTest do
                "metadata" => %{"deletionTimestamp" => "2026-05-07T10:00:00Z"},
                "status" => %{"phase" => "Running"}
              })
-    end
-  end
-
-  describe "generate_name/0" do
-    test "returns a tuist-runner-<8 hex chars> name" do
-      name = PodSpec.generate_name()
-      assert String.starts_with?(name, "tuist-runner-")
-      assert String.match?(name, ~r/^tuist-runner-[0-9a-f]{8}$/)
     end
   end
 end
