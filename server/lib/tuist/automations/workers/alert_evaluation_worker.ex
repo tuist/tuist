@@ -2,9 +2,13 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
   @moduledoc false
   use Oban.Worker, max_attempts: 3, queue: :default
 
+  import Ecto.Query
+
   alias Tuist.Automations
   alias Tuist.Automations.ActionExecutor
   alias Tuist.Automations.Monitors.FlakyTestsMonitor
+  alias Tuist.ClickHouseRepo
+  alias Tuist.Tests.TestCaseRun
 
   require Logger
 
@@ -86,17 +90,15 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
   defp handle_recovery(alert, currently_triggered_ids, active_events, all_ids) do
     currently_triggered_set = MapSet.new(currently_triggered_ids)
     all_ids_set = MapSet.new(all_ids)
-
     recovery_config = alert.recovery_config || %{}
-    seconds = parse_window(recovery_config["window"] || "#{recovery_config["days_without_trigger"] || 14}d")
-    cutoff = NaiveDateTime.add(NaiveDateTime.utc_now(), -seconds, :second)
 
-    recovered =
+    candidates =
       Enum.filter(active_events, fn event ->
         MapSet.member?(all_ids_set, event.test_case_id) and
-          not MapSet.member?(currently_triggered_set, event.test_case_id) and
-          NaiveDateTime.before?(event.triggered_at, cutoff)
+          not MapSet.member?(currently_triggered_set, event.test_case_id)
       end)
+
+    recovered = filter_recovered_candidates(alert, candidates, recovery_config)
 
     Enum.each(recovered, fn event ->
       entity = %{type: :test_case, id: event.test_case_id}
@@ -124,6 +126,48 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
       end
     end)
   end
+
+  # In `last_days` mode the recovery cooldown is "wait this long without a
+  # re-trigger." In `rolling` mode it's "wait for at least this many new runs
+  # of the test case without a re-trigger" — measured against the test_case's
+  # own run cadence rather than wall-clock time, which matches what the user
+  # picks in the trigger window.
+  defp filter_recovered_candidates(_alert, [], _recovery_config), do: []
+
+  defp filter_recovered_candidates(alert, candidates, %{"window_type" => "rolling"} = recovery_config) do
+    size = parse_rolling_size(recovery_config["rolling_window_size"])
+
+    Enum.filter(candidates, fn event ->
+      runs_since_trigger(alert.project_id, event.test_case_id, event.triggered_at) >= size
+    end)
+  end
+
+  defp filter_recovered_candidates(_alert, candidates, recovery_config) do
+    seconds = parse_window(recovery_config["window"] || "#{recovery_config["days_without_trigger"] || 14}d")
+    cutoff = NaiveDateTime.add(NaiveDateTime.utc_now(), -seconds, :second)
+
+    Enum.filter(candidates, fn event ->
+      NaiveDateTime.before?(event.triggered_at, cutoff)
+    end)
+  end
+
+  # Each candidate has its own `triggered_at` cutoff, so we issue one count
+  # per candidate rather than fetching every run and filtering client-side.
+  # The active set is normally small (only test cases currently in the
+  # triggered state), so the per-event cost is fine.
+  defp runs_since_trigger(project_id, test_case_id, triggered_at) do
+    ClickHouseRepo.one(
+      from(r in TestCaseRun,
+        where: r.project_id == ^project_id,
+        where: r.test_case_id == ^test_case_id,
+        where: r.ran_at > ^triggered_at,
+        select: count()
+      )
+    ) || 0
+  end
+
+  defp parse_rolling_size(size) when is_integer(size) and size > 0, do: size
+  defp parse_rolling_size(_), do: 100
 
   defp parse_window(window) when is_binary(window) do
     case Integer.parse(window) do

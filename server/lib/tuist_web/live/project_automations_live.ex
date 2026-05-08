@@ -59,7 +59,9 @@ defmodule TuistWeb.ProjectAutomationsLive do
     |> assign(create_automation_form_rolling_window_size: "100")
     |> assign(create_automation_form_trigger_actions: [default_add_label_action()])
     |> assign(create_automation_form_recovery_enabled: false)
+    |> assign(create_automation_form_recovery_window_type: "last_days")
     |> assign(create_automation_form_recovery_window: "14d")
+    |> assign(create_automation_form_recovery_rolling_window_size: "100")
     |> assign(create_automation_form_recovery_actions: [default_remove_label_action()])
   end
 
@@ -109,10 +111,12 @@ defmodule TuistWeb.ProjectAutomationsLive do
       rolling_window_size: to_string(automation.trigger_config["rolling_window_size"] || 100),
       trigger_actions: automation.trigger_actions,
       recovery_enabled: automation.recovery_enabled,
+      recovery_window_type: parse_window_type(automation.recovery_config["window_type"]),
       recovery_window:
         automation.recovery_config["window"] ||
           (automation.recovery_config["days_without_trigger"] && "#{automation.recovery_config["days_without_trigger"]}d") ||
           "14d",
+      recovery_rolling_window_size: to_string(automation.recovery_config["rolling_window_size"] || 100),
       recovery_actions: automation.recovery_actions,
       enabled: automation.enabled
     }
@@ -154,7 +158,9 @@ defmodule TuistWeb.ProjectAutomationsLive do
         |> assign(create_automation_form_rolling_window_size: form.rolling_window_size)
         |> assign(create_automation_form_trigger_actions: form.trigger_actions)
         |> assign(create_automation_form_recovery_enabled: form.recovery_enabled)
+        |> assign(create_automation_form_recovery_window_type: form.recovery_window_type)
         |> assign(create_automation_form_recovery_window: form.recovery_window)
+        |> assign(create_automation_form_recovery_rolling_window_size: form.recovery_rolling_window_size)
         |> assign(create_automation_form_recovery_actions: form.recovery_actions)
         |> push_event("open-modal", %{id: "create-automation-modal"})
 
@@ -271,6 +277,18 @@ defmodule TuistWeb.ProjectAutomationsLive do
 
   def handle_event("update_create_automation_form_recovery_window", %{"value" => value}, socket) do
     {:noreply, assign(socket, create_automation_form_recovery_window: value)}
+  end
+
+  def handle_event("update_create_automation_form_recovery_window_type", %{"data" => window_type}, socket) do
+    if window_type in @window_types do
+      {:noreply, assign(socket, create_automation_form_recovery_window_type: window_type)}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_event("update_create_automation_form_recovery_rolling_window_size", %{"value" => value}, socket) do
+    {:noreply, assign(socket, create_automation_form_recovery_rolling_window_size: value)}
   end
 
   def handle_event("add_create_automation_form_recovery_action", %{"data" => type}, socket) do
@@ -419,9 +437,14 @@ defmodule TuistWeb.ProjectAutomationsLive do
 
     if assigns.create_automation_form_recovery_enabled do
       base
-      |> Map.put("recovery_config", %{
-        "window" => assigns.create_automation_form_recovery_window
-      })
+      |> Map.put(
+        "recovery_config",
+        build_recovery_config(
+          assigns.create_automation_form_recovery_window_type,
+          assigns.create_automation_form_recovery_window,
+          assigns.create_automation_form_recovery_rolling_window_size
+        )
+      )
       |> Map.put("recovery_actions", assigns.create_automation_form_recovery_actions)
     else
       base
@@ -441,6 +464,20 @@ defmodule TuistWeb.ProjectAutomationsLive do
     %{
       "threshold" => threshold,
       "comparison" => comparison,
+      "window_type" => "last_days",
+      "window" => window
+    }
+  end
+
+  defp build_recovery_config("rolling", _window, rolling_window_size) do
+    %{
+      "window_type" => "rolling",
+      "rolling_window_size" => parse_int(rolling_window_size, 100)
+    }
+  end
+
+  defp build_recovery_config(_window_type, window, _rolling_window_size) do
+    %{
       "window_type" => "last_days",
       "window" => window
     }

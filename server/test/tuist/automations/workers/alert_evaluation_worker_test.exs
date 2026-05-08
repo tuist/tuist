@@ -6,6 +6,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
   alias Tuist.Automations.ActionExecutor
   alias Tuist.Automations.Monitors.FlakyTestsMonitor
   alias Tuist.Automations.Workers.AlertEvaluationWorker
+  alias Tuist.ClickHouseRepo
   alias TuistTestSupport.Fixtures.AutomationsFixtures
 
   defp run(alert_id) do
@@ -126,6 +127,69 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     expect(Automations, :list_active_alert_events, fn _id ->
       [%{test_case_id: recovered_id, triggered_at: triggered_recently}]
     end)
+
+    reject(&ActionExecutor.execute_actions/3)
+    reject(&Automations.create_alert_event/1)
+
+    assert :ok = run(automation.id)
+  end
+
+  test "rolling recovery fires when enough new runs have followed the trigger" do
+    automation =
+      AutomationsFixtures.automation_alert_fixture(
+        recovery_enabled: true,
+        recovery_config: %{"window_type" => "rolling", "rolling_window_size" => 5},
+        recovery_actions: [%{"type" => "change_state", "state" => "enabled"}]
+      )
+
+    recovered_id = Ecto.UUID.generate()
+
+    expect(FlakyTestsMonitor, :evaluate, fn _automation ->
+      %{triggered: [], all: [recovered_id]}
+    end)
+
+    expect(Automations, :list_active_alert_events, fn _id ->
+      [%{test_case_id: recovered_id, triggered_at: NaiveDateTime.utc_now()}]
+    end)
+
+    # 7 runs have happened since the trigger, exceeds the rolling window of 5.
+    expect(ClickHouseRepo, :one, fn _query -> 7 end)
+
+    expected_entity = %{type: :test_case, id: recovered_id}
+    expect(ActionExecutor, :execute_actions, fn _actions, ^automation, ^expected_entity -> :ok end)
+
+    expect(Automations, :create_alert_event, fn %{
+                                                  alert_id: id,
+                                                  test_case_id: ^recovered_id,
+                                                  status: "recovered"
+                                                } ->
+      assert id == automation.id
+      :ok
+    end)
+
+    assert :ok = run(automation.id)
+  end
+
+  test "rolling recovery holds off until enough runs have followed the trigger" do
+    automation =
+      AutomationsFixtures.automation_alert_fixture(
+        recovery_enabled: true,
+        recovery_config: %{"window_type" => "rolling", "rolling_window_size" => 5}
+      )
+
+    recovered_id = Ecto.UUID.generate()
+
+    expect(FlakyTestsMonitor, :evaluate, fn _automation ->
+      %{triggered: [], all: [recovered_id]}
+    end)
+
+    expect(Automations, :list_active_alert_events, fn _id ->
+      [%{test_case_id: recovered_id, triggered_at: NaiveDateTime.utc_now()}]
+    end)
+
+    # Only 2 runs since the trigger — below the rolling window of 5, so recovery
+    # should not fire.
+    expect(ClickHouseRepo, :one, fn _query -> 2 end)
 
     reject(&ActionExecutor.execute_actions/3)
     reject(&Automations.create_alert_event/1)

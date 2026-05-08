@@ -176,6 +176,48 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
       assert [automation] = Automations.list_alerts(project.id)
       assert automation.trigger_config["window_type"] == "last_days"
     end
+
+    test "rolling recovery window persists rolling_window_size and drops the days window", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      {:ok, lv, _html} = open(conn, organization, project)
+
+      render_hook(lv, "open_create_automation_modal", %{})
+      render_hook(lv, "update_create_automation_form_name", %{"value" => "Rolling recovery"})
+      render_hook(lv, "toggle_create_automation_form_recovery", %{})
+      render_hook(lv, "update_create_automation_form_recovery_window_type", %{"data" => "rolling"})
+
+      render_hook(lv, "update_create_automation_form_recovery_rolling_window_size", %{
+        "value" => "25"
+      })
+
+      render_hook(lv, "save_automation", %{})
+
+      assert [automation] = Automations.list_alerts(project.id)
+      assert automation.recovery_config["window_type"] == "rolling"
+      assert automation.recovery_config["rolling_window_size"] == 25
+      refute Map.has_key?(automation.recovery_config, "window")
+    end
+
+    test "last_days recovery window persists window string", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      {:ok, lv, _html} = open(conn, organization, project)
+
+      render_hook(lv, "open_create_automation_modal", %{})
+      render_hook(lv, "update_create_automation_form_name", %{"value" => "Days recovery"})
+      render_hook(lv, "toggle_create_automation_form_recovery", %{})
+      render_hook(lv, "save_automation", %{})
+
+      assert [automation] = Automations.list_alerts(project.id)
+      assert automation.recovery_config["window_type"] == "last_days"
+      assert automation.recovery_config["window"] == "14d"
+      refute Map.has_key?(automation.recovery_config, "rolling_window_size")
+    end
   end
 
   describe "editing an automation" do
