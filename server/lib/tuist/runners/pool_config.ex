@@ -58,6 +58,13 @@ defmodule Tuist.Runners.PoolConfig do
             owner: "tuist",
             repo: "tuist",
             labels: ["self-hosted", "macOS", "ARM64", "tuist-tuist-staging"],
+            # Repo-allowlisted org runner group — restricts these
+            # JIT runners to tuist/tuist regardless of which repo's
+            # workflow asks for the labels. Resolved per-env via
+            # TUIST_RUNNER_GROUP_ID; nil falls back to GitHub's
+            # default group (id=1) which is *every* repo in the
+            # org and is wrong for production.
+            runner_group_id: env_runner_group_id(),
             min_warm: 1,
             max_concurrent: 2
           }
@@ -71,6 +78,7 @@ defmodule Tuist.Runners.PoolConfig do
             owner: "tuist",
             repo: "tuist",
             labels: ["self-hosted", "macOS", "ARM64", "tuist-tuist-canary"],
+            runner_group_id: env_runner_group_id(),
             min_warm: 1,
             max_concurrent: 2
           }
@@ -84,6 +92,7 @@ defmodule Tuist.Runners.PoolConfig do
             owner: "tuist",
             repo: "tuist",
             labels: ["self-hosted", "macOS", "ARM64", "tuist-tuist"],
+            runner_group_id: env_runner_group_id(),
             min_warm: 3,
             max_concurrent: 5
           }
@@ -144,10 +153,44 @@ defmodule Tuist.Runners.PoolConfig do
     max(0, cap)
   end
 
+  # Reads TUIST_RUNNER_GROUP_ID at runtime so each managed env
+  # (staging / canary / production) can point at its own
+  # repo-allowlisted runner group without a chart-template fork.
+  # Returns nil when unset — the JIT call then falls back to
+  # GitHub's default group (id=1, every repo in the org). That
+  # default is fine for staging bring-up but should be overridden
+  # before canary/production land.
+  defp env_runner_group_id do
+    case Environment.runner_group_id() do
+      nil -> nil
+      id when is_integer(id) -> id
+    end
+  end
+
+  @doc """
+  Returns the pool's *dispatch label* — the pool-unique label a
+  workflow_job must request before this pool will bind a runner to
+  it. By convention it's the last entry in the pool's `labels` list
+  (the customer-scoped `tuist-tuist-staging` / `tuist-tuist-canary`
+  / `tuist-tuist` tag). Generic GitHub labels like `self-hosted`,
+  `macOS`, and `ARM64` are advertised on the runner but are *not*
+  authorization boundaries — a workflow that asks for only
+  `self-hosted` must NOT consume customer pre-bound capacity.
+  """
+  def dispatch_label(%{labels: labels}) when is_list(labels) and labels != [] do
+    List.last(labels)
+  end
+
   @doc """
   Looks up the pool that should accept a `workflow_job: queued`
   event. Matches on `repository.full_name` (case-insensitive) and
-  the requested `runs-on` labels intersecting the pool's labels.
+  requires the pool's `dispatch_label/1` to be present in the
+  requested `runs-on` labels — *not* a generic intersection. The
+  intersection variant (`not MapSet.disjoint?`) was loose enough
+  that any tuist/tuist workflow asking for only `self-hosted`
+  would consume customer capacity; the dispatch label is the
+  authoritative signal for "this job is targeting this pool."
+
   Returns `{:ok, pool}` or `{:error, :no_match}`.
 
   `pools_override` is for tests; production callers omit it and
@@ -161,9 +204,9 @@ defmodule Tuist.Runners.PoolConfig do
 
     Enum.find_value(candidates, {:error, :no_match}, fn pool ->
       full = String.downcase("#{pool.owner}/#{pool.repo}")
-      pool_labels = MapSet.new(pool.labels, &String.downcase/1)
+      tag = pool |> dispatch_label() |> String.downcase()
 
-      if full == needle and not MapSet.disjoint?(pool_labels, requested) do
+      if full == needle and MapSet.member?(requested, tag) do
         {:ok, pool}
       end
     end)

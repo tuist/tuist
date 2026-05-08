@@ -42,6 +42,7 @@ defmodule Tuist.Runners.Watcher do
 
   alias Tuist.Environment
   alias Tuist.Kubernetes.Client
+  alias Tuist.Runners
   alias Tuist.Runners.PodSpec
   alias Tuist.Runners.Reconciler
 
@@ -188,23 +189,39 @@ defmodule Tuist.Runners.Watcher do
 
   defp relevant?(_), do: false
 
-  # Garbage-collect terminal Pods. Once a runner has finished its
-  # one-shot job and its VM has exited, tart-kubelet marks the Pod
-  # Succeeded (or Failed on an unclean exit). Without active deletion
-  # those Pods sit indefinitely in `kubectl get pods` because the
-  # workload isn't owned by a ReplicaSet/Deployment/Job — there's no
-  # controller to reap them. Delete here on the same event that
-  # triggered the reconcile; the deletion is idempotent (404 ⇒ ok)
-  # so a duplicate event from a reconnect/replay is safe.
+  # Garbage-collect terminal Pods + their assignment rows. Once a
+  # runner has finished its one-shot job and its VM has exited,
+  # tart-kubelet marks the Pod Succeeded (or Failed on an unclean
+  # exit). Without active deletion those Pods sit indefinitely in
+  # `kubectl get pods` because the workload isn't owned by a
+  # ReplicaSet/Deployment/Job. The companion `runner_assignments`
+  # row is removed here too — otherwise an orphan idle row would
+  # outlive its Pod and the next dispatch would bind a JIT to a
+  # nonexistent VM, and the queued GH job would sit forever.
+  # Both deletions are idempotent so a duplicate event from a
+  # reconnect/replay is safe.
   defp maybe_garbage_collect(%{
          "type" => "MODIFIED",
-         "object" => %{"metadata" => %{"namespace" => ns, "name" => name}, "status" => %{"phase" => phase}}
+         "object" => %{
+           "metadata" => %{"namespace" => ns, "name" => name, "uid" => uid},
+           "status" => %{"phase" => phase}
+         }
        })
        when phase in ["Succeeded", "Failed"] do
     case Client.delete_pod(ns, name) do
       {:ok, _} -> :ok
       {:error, reason} -> Logger.warning("runners: gc delete failed", pod: name, reason: inspect(reason))
     end
+
+    Runners.delete_assignment(uid)
+  end
+
+  defp maybe_garbage_collect(%{
+         "type" => "DELETED",
+         "object" => %{"metadata" => %{"uid" => uid}}
+       })
+       when is_binary(uid) do
+    Runners.delete_assignment(uid)
   end
 
   defp maybe_garbage_collect(_), do: :ok

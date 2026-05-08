@@ -43,12 +43,9 @@ defmodule Tuist.Runners.Dispatch do
     requested = Map.get(job, "labels", [])
 
     with {:ok, pool} <- PoolConfig.match_for_dispatch(full_name, requested, nil),
-         [idle | _] <- Runners.list_idle_assignments(),
+         {:ok, idle} <- Runners.claim_idle_for_dispatch(),
          {:ok, %{encoded_jit_config: jit, runner_name: runner_name}} <-
-           GitHubClient.generate_jit_config(installation_id, pool.owner, %{
-             name: jit_runner_name(pool, idle),
-             labels: pool.labels
-           }),
+           GitHubClient.generate_jit_config(installation_id, pool.owner, jit_attrs(pool, idle)),
          {:ok, dispatched} <-
            Runners.dispatch_assignment(idle, %{
              pool_name: pool.name,
@@ -73,7 +70,7 @@ defmodule Tuist.Runners.Dispatch do
         # repos; not an error.
         :ignored
 
-      [] ->
+      {:error, :no_idle_pod} ->
         Logger.warning("runners: queued job with no idle Pod available",
           repo: full_name,
           requested_labels: requested
@@ -99,5 +96,14 @@ defmodule Tuist.Runners.Dispatch do
   defp jit_runner_name(pool, %{pod_uid: uid}) do
     short = uid |> String.replace("-", "") |> binary_part(0, 8)
     "tuist-#{pool.name}-#{short}"
+  end
+
+  defp jit_attrs(pool, idle) do
+    base = %{name: jit_runner_name(pool, idle), labels: pool.labels}
+
+    case Map.get(pool, :runner_group_id) do
+      nil -> base
+      id when is_integer(id) -> Map.put(base, :runner_group_id, id)
+    end
   end
 end

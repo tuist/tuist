@@ -18,10 +18,19 @@
 # runners auto-register, run a single job, and exit. Pod
 # transitions to Completed and tart-kubelet GCs the VM.
 
-set -euo pipefail
+set -uo pipefail
 
 LOG=/var/log/tuist-runner/poll.log
 exec >>"${LOG}" 2>&1
+
+# Always halt the VM on script exit. tart-kubelet observes `tart run`
+# exiting and transitions the Pod to a terminal phase; without this
+# trap a non-zero `./run.sh` (errexit), an early `exit 1` (401 abort,
+# missing /etc/tuist.env, etc.), or any other failure path would
+# leave macOS up, the Pod stuck Running, and the warm pool never
+# refilling. The trap fires once on EXIT so it covers the happy
+# path too — the explicit `shutdown` in the 200 branch is removed.
+trap '_rc=$?; echo "$(date -u +%FT%TZ) dispatch-poll: exiting (rc=${_rc}); halting VM"; /sbin/shutdown -h now || true; exit "${_rc}"' EXIT
 
 if [ ! -f /etc/tuist.env ]; then
   echo "$(date -u +%FT%TZ) dispatch-poll: /etc/tuist.env missing; aborting"
@@ -61,19 +70,12 @@ while true; do
       fi
       echo "$(date -u +%FT%TZ) dispatch-poll: dispatched, starting runner"
       cd /opt/actions-runner
-      # `--jitconfig` implies ephemeral: the runner accepts one
-      # job and exits. We then halt the VM so `tart run` returns,
-      # tart-kubelet observes the exit, the Pod transitions to
-      # Succeeded, and the watcher reconciles a fresh warm Pod
-      # into its place. Without the explicit shutdown the VM
-      # would idle indefinitely with launchd's wrapper exited but
-      # macOS still up — `kubectl get pods` would keep showing
-      # Running and the warm pool would never refill.
+      # `--jitconfig` implies ephemeral: the runner accepts one job
+      # and exits. The EXIT trap above halts the VM regardless of
+      # rc — the trap is what tart-kubelet ultimately observes, so
+      # both clean and crash paths refill the warm pool the same way.
       ./run.sh --jitconfig "${jit}"
-      rc=$?
-      echo "$(date -u +%FT%TZ) dispatch-poll: runner exited with code ${rc}; shutting down VM"
-      /sbin/shutdown -h now
-      exit "${rc}"
+      exit $?
       ;;
     401)
       echo "$(date -u +%FT%TZ) dispatch-poll: 401 unauthorized; aborting"

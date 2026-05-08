@@ -38,6 +38,9 @@ Sensitive authentication data (passwords, tokens) are excluded from exports.
 - Alert rules (name, category, metric, deviation thresholds, Slack channel configuration, baseline established timestamp)
 - Alert history (triggered alerts with current/previous values, timestamps)
 
+### Managed GitHub Actions Runners
+- Runner assignments (`runner_assignments` table): one row per warm-pool Pod scheduled on the Tuist Mac mini fleet for a customer's GitHub Actions workflow. Includes `pod_uid`, `pod_name`, the customer's `account_id` / `owner` / `repo` once a queued workflow_job binds the Pod, the `pool_name`, and the `inserted_at` / `claimed_at` lifecycle timestamps. The per-Pod dispatch token hash is stored as an irreversible SHA-256 (`dispatch_token_hash`) and the GitHub-issued JIT runner config (`jit_config`) is treated as an authentication secret — both are excluded from exports.
+
 ### Slack Integration
 - Account-level Slack installation records (workspace id/name, bot user id; bot access tokens are excluded as authentication secrets)
 - Per-channel Slack webhook destinations stored on projects, alert rules, and project flaky-test settings (channel id, channel name; the encrypted webhook URL itself is excluded as an authentication secret)
@@ -69,6 +72,7 @@ The following data is stored in ClickHouse for analytics purposes:
 - Account, SCIM-scoped account, and project token values and encrypted token hashes
 - Encrypted SSO client secrets for Okta and custom OAuth2 providers
 - Slack bot access tokens and incoming-webhook URLs (treated as bearer credentials)
+- Runner dispatch tokens (only the SHA-256 hash is persisted) and GitHub-issued JIT runner configs on `runner_assignments` (treated as bearer credentials)
 
 ## Binary Files
 

@@ -33,22 +33,50 @@ defmodule Tuist.Runners.Reconciler do
   alias Tuist.GitHub.App, as: GitHubApp
   alias Tuist.GitHub.Client, as: GitHubClient
   alias Tuist.Kubernetes.Client
+  alias Tuist.Repo
   alias Tuist.Runners
   alias Tuist.Runners.PodSpec
   alias Tuist.Runners.PoolConfig
 
   require Logger
 
+  # Postgres advisory-lock id used to serialize reconcile across
+  # BEAM nodes. Arbitrary 63-bit constant; just needs to be
+  # stable + unique across the codebase. Decimal form so a
+  # `pg_locks` audit reads cleanly.
+  @reconcile_lock_id 4_223_915_876_001
+
   @doc """
   Runs one reconcile pass. Always returns `:ok` — errors are
-  logged but not surfaced (the cron retries on the next tick).
+  logged but not surfaced (the next event/tick retries).
+
+  Cluster-wide single-owner via a Postgres transaction-scoped
+  advisory lock (`pg_try_advisory_xact_lock`). Every BEAM node
+  runs its own watcher and may attempt reconcile concurrently,
+  but only the node that wins the lock for that transaction
+  does the list/create work; the rest skip. The lock auto-
+  releases when the transaction commits / rolls back, so a
+  crashing reconciler doesn't strand the lock. Without this
+  guard each replica would compute the same gap independently
+  and create duplicate Pods (over-registering JIT runners).
   """
   def reconcile do
     if PoolConfig.total_warm_target() == 0 do
       :ok
     else
-      reconcile_pre_bound()
-      reconcile_shared()
+      Repo.transaction(fn ->
+        case Repo.query!("SELECT pg_try_advisory_xact_lock($1)", [@reconcile_lock_id]) do
+          %{rows: [[true]]} ->
+            reconcile_pre_bound()
+            reconcile_shared()
+            :ok
+
+          _ ->
+            Logger.debug("runners: reconcile skipped — another replica holds the lock")
+            :skipped
+        end
+      end)
+
       :ok
     end
   end
@@ -120,10 +148,7 @@ defmodule Tuist.Runners.Reconciler do
 
     with {:ok, installation_id} <- GitHubApp.get_installation_id_for_repo(pool.owner, pool.repo),
          {:ok, %{encoded_jit_config: jit, runner_name: runner_name}} <-
-           GitHubClient.generate_jit_config(installation_id, pool.owner, %{
-             name: runner_jit_name(pool, pod_name),
-             labels: pool.labels
-           }),
+           GitHubClient.generate_jit_config(installation_id, pool.owner, jit_attrs(pool, pod_name)),
          pod = PodSpec.build(pod_name, image, dispatch_url, token, fleet, pool: pool.name),
          {:ok, %{"metadata" => %{"uid" => uid, "name" => pod_name}}} <-
            Client.create_pod(PodSpec.namespace(), pod),
@@ -222,6 +247,15 @@ defmodule Tuist.Runners.Reconciler do
   # re-create can never collide with a still-pending registration.
   defp runner_jit_name(pool, pod_name) do
     "tuist-#{pool.name}-#{pod_name}"
+  end
+
+  defp jit_attrs(pool, pod_name) do
+    base = %{name: runner_jit_name(pool, pod_name), labels: pool.labels}
+
+    case Map.get(pool, :runner_group_id) do
+      nil -> base
+      id when is_integer(id) -> Map.put(base, :runner_group_id, id)
+    end
   end
 
   defp generate_dispatch_token do

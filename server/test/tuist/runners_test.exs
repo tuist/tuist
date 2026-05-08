@@ -86,6 +86,49 @@ defmodule Tuist.RunnersTest do
     end
   end
 
+  describe "claim_idle_for_dispatch/0" do
+    test "returns the oldest idle row" do
+      {:ok, _older} =
+        Runners.create_idle_assignment(%{
+          pod_uid: "pod-uid-claim-older",
+          pod_name: "older",
+          dispatch_token_hash: Runners.hash_token("t1")
+        })
+
+      {:ok, _newer} =
+        Runners.create_idle_assignment(%{
+          pod_uid: "pod-uid-claim-newer",
+          pod_name: "newer",
+          dispatch_token_hash: Runners.hash_token("t2")
+        })
+
+      assert {:ok, claimed} = Runners.claim_idle_for_dispatch()
+      assert claimed.pod_uid == "pod-uid-claim-older"
+    end
+
+    test "returns :no_idle_pod when none are idle" do
+      assert {:error, :no_idle_pod} = Runners.claim_idle_for_dispatch()
+    end
+  end
+
+  describe "delete_assignment/1" do
+    test "removes the row by pod_uid" do
+      {:ok, _} =
+        Runners.create_idle_assignment(%{
+          pod_uid: "pod-uid-del",
+          pod_name: "n",
+          dispatch_token_hash: Runners.hash_token("t")
+        })
+
+      assert :ok = Runners.delete_assignment("pod-uid-del")
+      assert Runners.get_assignment("pod-uid-del") == nil
+    end
+
+    test "is idempotent for missing rows" do
+      assert :ok = Runners.delete_assignment("pod-uid-missing")
+    end
+  end
+
   describe "dispatch_assignment/2" do
     setup do
       {:ok, idle} =

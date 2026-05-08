@@ -67,11 +67,43 @@ defmodule Tuist.Runners do
 
   @doc """
   Returns idle assignments — Pods sitting in the shared pool
-  with no JIT config yet. Used by the dispatch flow to pick a
-  Pod to bind.
+  with no JIT config yet. Read-only; do *not* use this for
+  dispatch (use `claim_idle_for_dispatch/0`, which locks).
   """
   def list_idle_assignments do
     Repo.all(from a in RunnerAssignment, where: is_nil(a.jit_config), order_by: [asc: a.inserted_at])
+  end
+
+  @doc """
+  Atomically reserves the oldest idle assignment so two
+  concurrent webhook deliveries can't bind the same Pod. Locks
+  the row with `FOR UPDATE SKIP LOCKED` inside a transaction:
+  the second caller skips the locked row and either picks the
+  next idle one (capacity available) or returns
+  `{:error, :no_idle_pod}` (must wait for refill). The row is
+  *only* observed by callers that hold the lock; other readers
+  see the unmodified row until the transaction commits.
+
+  Returns `{:ok, assignment}` or `{:error, :no_idle_pod}`. The
+  caller is expected to follow up with `dispatch_assignment/2`
+  to write `pool_name` / `jit_config` (still the JIT mint can
+  fail and we don't want to hold the row locked across the
+  GitHub API call).
+  """
+  def claim_idle_for_dispatch do
+    Repo.transaction(fn ->
+      query =
+        from a in RunnerAssignment,
+          where: is_nil(a.jit_config),
+          order_by: [asc: a.inserted_at],
+          limit: 1,
+          lock: "FOR UPDATE SKIP LOCKED"
+
+      case Repo.one(query) do
+        nil -> Repo.rollback(:no_idle_pod)
+        assignment -> assignment
+      end
+    end)
   end
 
   @doc """
@@ -83,6 +115,24 @@ defmodule Tuist.Runners do
     |> RunnerAssignment.dispatch_changeset(attrs)
     |> Repo.update()
   end
+
+  @doc """
+  Removes an assignment row. Used by the watcher's GC when a
+  Pod transitions to a terminal phase (Succeeded/Failed) or is
+  deleted from the cluster — without it `list_idle_assignments`
+  would carry orphan idle rows for Pods that no longer exist,
+  and the next webhook would happily bind a JIT to a
+  nonexistent VM. Idempotent: missing pod_uid returns ok.
+  """
+  def delete_assignment(pod_uid) when is_binary(pod_uid) do
+    case Repo.get(RunnerAssignment, pod_uid) do
+      nil -> :ok
+      assignment -> Repo.delete(assignment) |> normalize_delete()
+    end
+  end
+
+  defp normalize_delete({:ok, _}), do: :ok
+  defp normalize_delete({:error, _} = err), do: err
 
   @doc """
   Marks the assignment claimed (the VM has fetched its JIT
