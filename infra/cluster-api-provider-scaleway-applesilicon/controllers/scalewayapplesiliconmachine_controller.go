@@ -340,8 +340,8 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			Kubeconfig:           kubeconfigYAML,
 			TartKubeletBinary:    r.TartKubeletBinary,
 			TartTarball:          r.TartTarball,
-			HostCPU:              r.TartKubeletHostCPU,
-			HostMemoryMB:         r.TartKubeletHostMemoryMB,
+			HostCPU:              hostCPUFor(machine, r.TartKubeletHostCPU),
+			HostMemoryMB:         hostMemoryMBFor(machine, r.TartKubeletHostMemoryMB),
 			MaxPods:              r.TartKubeletMaxPods,
 			NodeLabels:           machineNodeLabels(machine),
 			KnownHostFingerprint: bootstrapCreds.HostFingerprint,
@@ -417,8 +417,8 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			NodeName:             machine.Name,
 			Kubeconfig:           kubeconfigYAML,
 			TartKubeletBinary:    r.TartKubeletBinary,
-			HostCPU:              r.TartKubeletHostCPU,
-			HostMemoryMB:         r.TartKubeletHostMemoryMB,
+			HostCPU:              hostCPUFor(machine, r.TartKubeletHostCPU),
+			HostMemoryMB:         hostMemoryMBFor(machine, r.TartKubeletHostMemoryMB),
 			MaxPods:              r.TartKubeletMaxPods,
 			NodeLabels:           machineNodeLabels(machine),
 			KnownHostFingerprint: bootstrapCreds.HostFingerprint,
@@ -588,6 +588,26 @@ func machineIP(m *infrav1.ScalewayAppleSiliconMachine) string {
 		}
 	}
 	return ""
+}
+
+// hostCPUFor / hostMemoryMBFor select the per-Machine capacity
+// override when set on the spec, falling back to the operator-
+// global flag default. Lets a single operator instance manage
+// heterogeneous fleets (e.g. xcresult-fleet on M2-M and
+// runners-fleet on M2-L) without spawning a deployment per fleet
+// or under-advertising on the larger SKU.
+func hostCPUFor(m *infrav1.ScalewayAppleSiliconMachine, fallback int) int {
+	if m.Spec.HostCPU > 0 {
+		return m.Spec.HostCPU
+	}
+	return fallback
+}
+
+func hostMemoryMBFor(m *infrav1.ScalewayAppleSiliconMachine, fallback int) int {
+	if m.Spec.HostMemoryMB > 0 {
+		return m.Spec.HostMemoryMB
+	}
+	return fallback
 }
 
 // machineNodeLabels returns the labels tart-kubelet will stamp on

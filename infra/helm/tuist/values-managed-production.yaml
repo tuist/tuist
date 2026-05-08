@@ -182,6 +182,10 @@ macosFleet:
     # back to the chart default once Scaleway restocks M4-S; canary
     # stays on M4-S so we keep tracking that capacity.
     type: M2-L
+    # M2-L (M2 Pro): 12 CPU / 32 GB. 30720 leaves 2 GB for VZ.
+    # Bump down to 14336 + cpu=8 if we flip back to M4-S.
+    hostCPU: 12
+    hostMemoryMB: 30720
   controlPlane:
     host: api.tuist.dev
 

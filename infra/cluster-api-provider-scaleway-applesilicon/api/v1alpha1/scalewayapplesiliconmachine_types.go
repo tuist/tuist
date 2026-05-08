@@ -41,6 +41,26 @@ type ScalewayAppleSiliconMachineSpec struct {
 	// chart-level value when empty.
 	// +optional
 	KubeletVersion string `json:"kubeletVersion,omitempty"`
+
+	// HostCPU is the CPU-core count the Mac mini's host advertises
+	// on the Node it registers (Node.Status.Capacity). Sets
+	// tart-kubelet's `--host-cpu` flag at bootstrap. Should match
+	// the Scaleway SKU — heterogeneous fleets (M2-M=8 / M2-L=12 /
+	// M4-S=8 etc.) need per-Machine values so kube-scheduler sees
+	// the real capacity. Falls back to the operator's
+	// `--tartkubelet-host-cpu` global default (8) when unset.
+	// +optional
+	HostCPU int `json:"hostCPU,omitempty"`
+
+	// HostMemoryMB is the memory advertised on the Node. Mirrors
+	// the Scaleway SKU's RAM minus the ~2 GB Apple
+	// Virtualization.framework reserves for the host (otherwise
+	// the VM's `tart run` fails with `memorySize >
+	// maximumAllowedMemorySize`). Falls back to the operator's
+	// `--tartkubelet-host-memory-mb` global default (16384) when
+	// unset.
+	// +optional
+	HostMemoryMB int `json:"hostMemoryMB,omitempty"`
 }
 
 // ScalewayAppleSiliconMachineStatus is the observed state of the Machine.

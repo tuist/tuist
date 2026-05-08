@@ -158,6 +158,10 @@ macosFleet:
     # M4-S is normally what we'd pick (smallest M4); falls back to
     # M2-M when M4-S is no_stock. Override per Scaleway capacity.
     type: M2-M
+    # M2-M: M2 chip / 8 CPU / 16 GB RAM. 14336 = 14 GB after the
+    # ~2 GB Apple Virtualization.framework reserve.
+    hostCPU: 8
+    hostMemoryMB: 14336
 
 # Customer-runner Mac mini fleet. Sized to tuist/tuist's
 # concurrency tier (2 in staging; production keeps 5).
@@ -173,12 +177,26 @@ runnersFleet:
   enabled: true
   replicas: 2
   machine:
-    # M2-L: M2 chip / 32 GB RAM. Picked because M4-S/M2-M
-    # were no_stock in fr-par-1 on first runners-fleet
-    # bring-up; M2-L had inventory. Bump back to M4-S when
-    # capacity stabilizes — the larger SKU is moderately
-    # over-provisioned for one Tart VM.
+    # M2-L: M2 Pro chip / 12 CPU / 32 GB RAM. Picked because
+    # M4-S/M2-M were no_stock in fr-par-1 on first runners-fleet
+    # bring-up; M2-L had inventory.
     type: M2-L
+    # Match the SKU's actual capacity so tart-kubelet advertises
+    # the right Node.Status.Capacity and kube-scheduler packs Pods
+    # against the real budget. 30720 leaves ~2 GB for the Apple
+    # Virtualization.framework reserve (32 GB - 2 GB = 30 GB);
+    # asking for 32 GB on a 32 GB host fails with `memorySize >
+    # maximumAllowedMemorySize` at `tart run`.
+    hostCPU: 12
+    hostMemoryMB: 30720
+  pod:
+    # Pod request = host capacity. kube-scheduler bin-packs one
+    # Pod per host AND tart-kubelet's `tart set` gives the VM
+    # the host's full CPU/RAM. Mismatch with `machine.host*`
+    # would either waste memory (Pod under-requests, VM is
+    # smaller than host) or fail to schedule (over-requests).
+    cpuMilli: 12000
+    memoryMB: 30720
   runnerImage: "ghcr.io/tuist/tuist-runner@sha256:ac69458c53c86ad81fe6e90e89245da5b45b3969f87ad8d760870cb2c49d8e7b"
   # Cluster-internal CIDR ranges the runner namespace's
   # NetworkPolicy blocks egress to. Locks down lateral

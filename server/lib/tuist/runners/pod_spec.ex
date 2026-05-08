@@ -17,19 +17,21 @@ defmodule Tuist.Runners.PodSpec do
   and calls `tart set --cpu --memory` between clone and run, so
   the VM is sized to whatever this manifest declares.
 
-  Sizing for the Scaleway M4-S host (8 vCPU / 16 GB):
-
-    - `cpu: 8000m` (= 8 cores) — give the VM the whole host.
-    - `memory: 14Gi` — the M4-S has 16 GB total but Apple's
-      Virtualization.framework reserves ~2 GB for the host
-      kernel + tart-kubelet + helpers. Asking for 16 fails with
-      `memorySize > maximumAllowedMemorySize`; 14 leaves a
-      comfortable margin and is what the customer's VM gets.
+  Sizing is read from `Tuist.Environment.runner_pod_cpu_milli` /
+  `runner_pod_memory_mb` (defaults: 8 cores / 14336 MiB),
+  configured per-env via the chart's `runnersFleet.pod.{cpuMilli,
+  memoryMB}` values. Match the runners-fleet host's advertised
+  capacity (`ScalewayAppleSiliconMachine.Spec.HostMemoryMB`,
+  passed to tart-kubelet's `--host-memory-mb`) so kube-scheduler
+  packs exactly one Pod per host AND tart-kubelet sizes the VM
+  to the host's full budget. M4-S (16 GB host) → 14 Gi
+  (Virtualization.framework reserves ~2 GB); M2-L (32 GB host)
+  → 30 Gi (same 2 GB reserve).
 
   Two consequences fall out:
 
     1. After one such Pod schedules, remaining Node capacity is
-       cpu=0 / memory=2Gi. No second runner fits. One VM per
+       cpu=0 / memory=~2Gi. No second runner fits. One VM per
        host, predictable build times.
     2. The runner Tart image is built small (4 vCPU / 8 GB) so
        it builds on the M1-M `vm-image-builder` host where a
@@ -37,6 +39,8 @@ defmodule Tuist.Runners.PodSpec do
        Image size at build time is decoupled from VM size at
        deploy time.
   """
+
+  alias Tuist.Environment
 
   @namespace "tuist-runners"
 
@@ -108,8 +112,8 @@ defmodule Tuist.Runners.PodSpec do
             # module-level docstring.
             "resources" => %{
               "requests" => %{
-                "cpu" => "8000m",
-                "memory" => "14Gi"
+                "cpu" => "#{Environment.runner_pod_cpu_milli()}m",
+                "memory" => "#{Environment.runner_pod_memory_mb()}Mi"
               }
             },
             "env" => [

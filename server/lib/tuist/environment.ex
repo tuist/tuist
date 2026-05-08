@@ -952,6 +952,34 @@ defmodule Tuist.Environment do
     end
   end
 
+  @doc """
+  Per-Pod CPU shape for runner Pods, in millicores. Defaults to
+  `8000` (= 8 cores) when unset, matching the M2-M / M4-S
+  baseline. Should match the runners-fleet host's advertised
+  capacity (`ScalewayAppleSiliconMachine.Spec.HostCPU`); a
+  mismatch either wastes host resources (Pod under-requests) or
+  starves the scheduler (over-requests).
+  """
+  def runner_pod_cpu_milli do
+    raw = System.get_env("TUIST_RUNNER_POD_CPU_MILLI", "8000")
+    String.to_integer(raw)
+  end
+
+  @doc """
+  Per-Pod memory shape for runner Pods, in MiB. Defaults to
+  `14336` (14 Gi — the M4-S host's 16 GB RAM minus the ~2 GB
+  Apple Virtualization.framework reserves for the host kernel
+  + tart-kubelet + helpers). Asking for the full host RAM fails
+  with `memorySize > maximumAllowedMemorySize` at `tart run`.
+
+  Should match the runners-fleet host's advertised capacity
+  (`ScalewayAppleSiliconMachine.Spec.HostMemoryMB`).
+  """
+  def runner_pod_memory_mb do
+    raw = System.get_env("TUIST_RUNNER_POD_MEMORY_MB", "14336")
+    String.to_integer(raw)
+  end
+
   def typesense_search_api_key do
     get([:typesense, :search_api_key], secrets(), default_value: "RgIpKytJBtSQf9CoYKxIfVxh8ma5kzs6")
   end

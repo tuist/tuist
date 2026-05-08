@@ -41,6 +41,12 @@ spec:
       zone: {{ .Values.macosFleet.machine.zone | default "fr-par-1" | quote }}
       os: {{ .Values.macosFleet.machine.os | default "macos-tahoe-26.0" | quote }}
       fleetName: {{ $fleetName }}
+      {{- with .Values.macosFleet.machine.hostCPU }}
+      hostCPU: {{ . }}
+      {{- end }}
+      {{- with .Values.macosFleet.machine.hostMemoryMB }}
+      hostMemoryMB: {{ . }}
+      {{- end }}
 ---
 apiVersion: cluster.x-k8s.io/v1beta1
 kind: MachineDeployment
