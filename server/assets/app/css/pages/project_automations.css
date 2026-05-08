@@ -161,6 +161,24 @@
           gap: var(--noora-spacing-3);
         }
 
+        /* Sections that pair the title with a primary action (e.g. "Add
+           action") split into a title group on the left and the action on
+           the right. */
+        &[data-with-action] {
+          flex-direction: row;
+          align-items: center;
+          gap: var(--noora-spacing-4);
+
+          & > [data-part="form-section-header-titles"] {
+            flex: 1;
+            min-width: 0;
+          }
+
+          & > .noora-dropdown {
+            flex-shrink: 0;
+          }
+        }
+
         & > [data-part="form-section-header-titles"] {
           display: flex;
           flex-direction: column;
@@ -303,10 +321,6 @@
           }
         }
       }
-    }
-
-    [data-part="add-action-wrapper"] {
-      display: flex;
     }
 
     [data-part="toggle"] {
