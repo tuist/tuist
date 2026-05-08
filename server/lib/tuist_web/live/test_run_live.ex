@@ -54,7 +54,7 @@ defmodule TuistWeb.TestRunLive do
       Tuist.Tasks.parallel_tasks([
         fn ->
           if is_nil(run.shard_plan_id) do
-            case CommandEvents.get_command_event_by_test_run_id(run.id) do
+            case CommandEvents.get_command_event_by_test_run_id(run.id, project_id: run.project_id) do
               {:ok, event} -> event
               {:error, :not_found} -> nil
             end

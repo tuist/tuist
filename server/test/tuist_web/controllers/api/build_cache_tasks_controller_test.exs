@@ -19,7 +19,7 @@ defmodule TuistWeb.API.BuildCacheTasksControllerTest do
     test "returns an empty list when there are no cache tasks", %{conn: conn, user: user, project: project} do
       {:ok, build} = RunsFixtures.build_fixture(project_id: project.id, user_id: user.account.id)
 
-      stub(Builds, :get_build, fn _id -> {:ok, build} end)
+      stub(Builds, :get_build, fn _id, _opts -> {:ok, build} end)
 
       stub(Builds, :list_cacheable_tasks, fn _attrs ->
         {:ok,
@@ -52,7 +52,7 @@ defmodule TuistWeb.API.BuildCacheTasksControllerTest do
     test "returns cache tasks for the build", %{conn: conn, user: user, project: project} do
       {:ok, build} = RunsFixtures.build_fixture(project_id: project.id, user_id: user.account.id)
 
-      stub(Builds, :get_build, fn _id -> {:ok, build} end)
+      stub(Builds, :get_build, fn _id, _opts -> {:ok, build} end)
 
       stub(Builds, :list_cacheable_tasks, fn _attrs ->
         {:ok,
@@ -95,7 +95,7 @@ defmodule TuistWeb.API.BuildCacheTasksControllerTest do
     test "filters cache tasks by status", %{conn: conn, user: user, project: project} do
       {:ok, build} = RunsFixtures.build_fixture(project_id: project.id, user_id: user.account.id)
 
-      stub(Builds, :get_build, fn _id -> {:ok, build} end)
+      stub(Builds, :get_build, fn _id, _opts -> {:ok, build} end)
 
       expect(Builds, :list_cacheable_tasks, fn attrs ->
         assert %{field: :status, op: :==, value: "miss"} in attrs.filters
@@ -136,7 +136,7 @@ defmodule TuistWeb.API.BuildCacheTasksControllerTest do
     test "filters cache tasks by type", %{conn: conn, user: user, project: project} do
       {:ok, build} = RunsFixtures.build_fixture(project_id: project.id, user_id: user.account.id)
 
-      stub(Builds, :get_build, fn _id -> {:ok, build} end)
+      stub(Builds, :get_build, fn _id, _opts -> {:ok, build} end)
 
       expect(Builds, :list_cacheable_tasks, fn attrs ->
         assert %{field: :type, op: :==, value: "clang"} in attrs.filters
@@ -177,7 +177,7 @@ defmodule TuistWeb.API.BuildCacheTasksControllerTest do
     test "supports pagination", %{conn: conn, user: user, project: project} do
       {:ok, build} = RunsFixtures.build_fixture(project_id: project.id, user_id: user.account.id)
 
-      stub(Builds, :get_build, fn _id -> {:ok, build} end)
+      stub(Builds, :get_build, fn _id, _opts -> {:ok, build} end)
 
       expect(Builds, :list_cacheable_tasks, fn attrs ->
         assert attrs.page == 2
@@ -220,7 +220,7 @@ defmodule TuistWeb.API.BuildCacheTasksControllerTest do
     end
 
     test "returns 404 when build is not found", %{conn: conn, user: user, project: project} do
-      stub(Builds, :get_build, fn _id -> {:error, :not_found} end)
+      stub(Builds, :get_build, fn _id, _opts -> {:error, :not_found} end)
 
       conn =
         get(conn, "/api/projects/#{user.account.name}/#{project.name}/xcode/builds/#{UUIDv7.generate()}/cache-tasks")
@@ -232,7 +232,7 @@ defmodule TuistWeb.API.BuildCacheTasksControllerTest do
       other_project = ProjectsFixtures.project_fixture(account_id: user.account.id)
       {:ok, build} = RunsFixtures.build_fixture(project_id: other_project.id, user_id: user.account.id)
 
-      stub(Builds, :get_build, fn _id -> {:ok, build} end)
+      stub(Builds, :get_build, fn _id, _opts -> {:ok, build} end)
 
       conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/xcode/builds/#{build.id}/cache-tasks")
 

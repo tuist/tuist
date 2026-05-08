@@ -511,11 +511,14 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       get_build_call_count = :counters.new(1, [:atomics])
 
-      stub(Builds, :get_build, fn ^id ->
+      get_build_response = fn ->
         count = :counters.get(get_build_call_count, 1)
         :counters.add(get_build_call_count, 1, 1)
         if count == 0, do: {:error, :not_found}, else: {:ok, existing_build}
-      end)
+      end
+
+      stub(Builds, :get_build, fn ^id -> get_build_response.() end)
+      stub(Builds, :get_build, fn ^id, _opts -> get_build_response.() end)
 
       error_changeset = %Ecto.Changeset{
         errors: [id: {"has already been taken", [constraint: :unique]}],

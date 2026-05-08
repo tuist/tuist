@@ -806,7 +806,7 @@ defmodule Tuist.Tests.Analytics do
     event_data =
       ClickHouseRepo.all(
         from(e in Event,
-          where: e.test_run_id in ^test_run_ids,
+          where: e.project_id == ^project_id and e.test_run_id in ^test_run_ids,
           select: %{
             test_run_id: e.test_run_id,
             cacheable_targets_count: e.cacheable_targets_count,

@@ -36,22 +36,36 @@ defmodule Tuist.Builds do
   end
 
   # `ORDER BY inserted_at DESC LIMIT 1` picks the latest version of the row
-  # without the multi-part merge `FINAL` would force; the `proj_by_id`
-  # projection lets the lookup binary-search to a single granule.
-  def get_build(id) do
+  # without the multi-part merge `FINAL` would force. When the caller knows
+  # `project_id` (controllers/LiveView mounted under a project), passing it
+  # lets the lookup hit the `(project_id, id)` primary key directly. Without
+  # it, the lookup falls back to the `proj_by_id` projection.
+  def get_build(id, opts \\ []) do
+    project_id = Keyword.get(opts, :project_id)
+
     with {:ok, uuid} <- Ecto.UUID.cast(id),
          build when not is_nil(build) <-
-           ClickHouseRepo.one(
-             from(b in Build,
-               where: b.id == ^uuid,
-               order_by: [desc: b.inserted_at],
-               limit: 1
-             )
-           ) do
+           ClickHouseRepo.one(get_build_query(uuid, project_id)) do
       {:ok, build}
     else
       _ -> {:error, :not_found}
     end
+  end
+
+  defp get_build_query(uuid, nil) do
+    from(b in Build,
+      where: b.id == ^uuid,
+      order_by: [desc: b.inserted_at],
+      limit: 1
+    )
+  end
+
+  defp get_build_query(uuid, project_id) do
+    from(b in Build,
+      where: b.project_id == ^project_id and b.id == ^uuid,
+      order_by: [desc: b.inserted_at],
+      limit: 1
+    )
   end
 
   def create_build(attrs) do
