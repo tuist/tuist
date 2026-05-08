@@ -17,6 +17,8 @@ import Config
 #     `:process_build` queue.
 #
 # See `Tuist.Environment.mode/0` for the full list.
+alias Tuist.Oban.RuntimeConfig
+
 if Tuist.Environment.web?() do
   config :tuist, TuistWeb.Endpoint, server: true
 end
@@ -434,45 +436,29 @@ oban_queues =
       if Tuist.Environment.delegate_process_xcresult?(), do: base, else: base ++ [process_xcresult_queue]
   end
 
-# Leader-only Oban work (Cron, Pruner, Lifeline, Oban.Met.Reporter) runs on
-# whichever node wins the peer election. Server pods are always running and
-# carry the full DB role, so we make them the only leader-eligible nodes by
-# setting `peer: false` on processor pods. Oban normalises that to the
-# Isolated peer with `leader?: false`, so leader-only plugins start there but
-# stay idle.
-#
-# Why not let the processor become leader? The tuist_processor role is
-# least-privilege (USAGE only on schema public, see
-# infra/supabase/tuist-processor-role.sql). Oban.Met.Reporter's leader path
-# runs `CREATE OR REPLACE FUNCTION public.oban_count_estimate(...)` on every
-# checkpoint, which the role can't execute and which crashes the Reporter
-# repeatedly when the processor wins the election.
+# Leader-only Oban work (Cron, Pruner, Lifeline, Oban.Met.Reporter) runs
+# on whichever node wins the peer election. Web pods are the only leader-
+# eligible nodes; every other role gets `peer: false` (Oban normalises
+# that to the Isolated peer with `leader?: false`, so leader-only plugins
+# start there but stay idle). The crontab and the peer rule are derived
+# by `Tuist.Oban.RuntimeConfig`, which is unit-tested against every value
+# of `Tuist.Environment.modes/0` so a future denylist regression — like
+# the one where `:xcresult_processor` shipped leader-eligible with an
+# empty crontab and silently halted every cron job — fails CI before it
+# lands in prod.
+mode = Tuist.Environment.mode()
+
+crontab = RuntimeConfig.crontab(mode, env, Tuist.Environment.tuist_hosted?())
+
 config :tuist, Oban,
   queues: oban_queues,
   plugins: [
     {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 7},
     {Oban.Plugins.Lifeline, rescue_after: to_timeout(minute: 30)},
-    {Oban.Plugins.Cron,
-     crontab:
-       if(
-         not Tuist.Environment.processor_mode?() and not Tuist.Environment.xcresult_processor_mode?() and
-           Tuist.Environment.tuist_hosted?() and env in [:prod, :stag, :can],
-         do: [
-           {"0 10 * * 1-5", Tuist.Ops.DailySlackReportWorker},
-           {"0 * * * 1-5", Tuist.Ops.HourlySlackReportWorker},
-           {"@hourly", Tuist.Slack.Workers.ReportWorker},
-           {"*/10 * * * *", Tuist.Alerts.Workers.AlertWorker},
-           {"@daily", Tuist.Billing.Workers.SyncStripeMetersWorker},
-           {"@daily", Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker},
-           {"@hourly", Tuist.Tests.Workers.ExpireStaleTestRunsWorker},
-           {"* * * * *", Tuist.Kura.Reconciler},
-           {"* * * * *", Tuist.Automations.Workers.AutomationScheduler}
-         ],
-         else: []
-       )}
+    {Oban.Plugins.Cron, crontab: crontab}
   ]
 
-if Tuist.Environment.processor_mode?() do
+if !RuntimeConfig.peer_eligible?(mode) do
   config :tuist, Oban, peer: false
 end
 

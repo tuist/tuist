@@ -97,6 +97,50 @@ rules:
     resources: [configmaps]
     resourceNames: [cluster-info]
     verbs: [get]
+{{- if .Values.xcresultProcessor.enabled }}
+---
+# Namespaced Role for the fleet-spread controller's one operation:
+# patching the xcresult-processor Deployment's pod-template
+# annotation to roll a new ReplicaSet on fleet-shape change. Done
+# as a Role (not a ClusterRole rule with resourceNames) because
+# RBAC's resourceNames matches across all namespaces — a
+# ClusterRole granting `get,patch` on `deployments/xcresult-
+# processor` would let the operator patch any same-named Deployment
+# anywhere in the cluster, not just the one in this release. A
+# namespace-scoped Role caps the blast radius at the release
+# namespace where the operator actually needs to operate.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $name }}-fleet-spread
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: capi-scaleway-applesilicon
+rules:
+  - apiGroups: ["apps"]
+    resources: [deployments]
+    resourceNames:
+      - {{ include "tuist.componentName" (dict "root" . "component" "xcresult-processor") }}
+    verbs: [get, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $name }}-fleet-spread
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: capi-scaleway-applesilicon
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $name }}-fleet-spread
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -156,6 +200,16 @@ spec:
             - --tartkubelet-host-cpu={{ .Values.macosFleet.tartKubelet.hostCPU | default 8 }}
             - --tartkubelet-host-memory-mb={{ .Values.macosFleet.tartKubelet.hostMemoryMB | default 16384 }}
             - --tartkubelet-max-pods={{ .Values.macosFleet.tartKubelet.maxPods | default 3 }}
+            {{- if .Values.xcresultProcessor.enabled }}
+            # Auto-roll the xcresult-processor Deployment whenever the
+            # set of Ready Mac minis changes, so Pods spread across new
+            # hosts without a manual `kubectl rollout restart`. The
+            # Deployment's existing topologySpreadConstraints handle
+            # the placement; this just forces a new ReplicaSet on
+            # fleet-shape change. See controllers/fleetspread_controller.go.
+            - --fleet-spread-deployment={{ include "tuist.componentName" (dict "root" . "component" "xcresult-processor") }}
+            - --fleet-spread-namespace={{ .Release.Namespace }}
+            {{- end }}
           env:
             # Scaleway credentials. ESO syncs them from 1Password into
             # this Secret automatically (see

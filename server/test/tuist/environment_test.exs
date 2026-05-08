@@ -188,4 +188,35 @@ defmodule Tuist.EnvironmentTest do
       assert is_nil(result)
     end
   end
+
+  describe "mode/1" do
+    test "defaults to :web when TUIST_MODE is unset or empty" do
+      assert Environment.mode(nil) == :web
+      assert Environment.mode("") == :web
+    end
+
+    test "maps each known TUIST_MODE string to its atom" do
+      assert Environment.mode("web") == :web
+      assert Environment.mode("processor") == :processor
+      assert Environment.mode("xcresult_processor") == :xcresult_processor
+    end
+
+    test "raises on unknown non-empty TUIST_MODE so a manifest typo fails the pod fast" do
+      assert_raise RuntimeError, ~r/Unknown TUIST_MODE="processsor"/, fn ->
+        Environment.mode("processsor")
+      end
+
+      assert_raise RuntimeError, ~r/Unknown TUIST_MODE="ingest"/, fn ->
+        Environment.mode("ingest")
+      end
+    end
+  end
+
+  describe "modes/0" do
+    test "every value round-trips through mode/1 so the list stays in sync with the parser" do
+      for mode <- Environment.modes() do
+        assert Environment.mode(Atom.to_string(mode)) == mode
+      end
+    end
+  end
 end

@@ -11,6 +11,20 @@ defmodule Tuist.Environment do
 
   @runtime_envs ~w(prod can stag)
 
+  # Every supported pod role. `mode/0` raises on any other value of
+  # TUIST_MODE so a deployment-manifest typo (`processsor`, `ingest`,
+  # ...) fails the pod fast at boot rather than landing it in `:web`
+  # silently — exactly the failure mode that previously masked the
+  # xcresult-processor leader-election bug.
+  @modes [:web, :processor, :xcresult_processor]
+
+  @doc """
+  All pod roles `mode/0` may return. Stable list — used by
+  `Tuist.Oban.RuntimeConfig` tests to assert that no future role
+  accidentally regains leader eligibility or the full crontab.
+  """
+  def modes, do: @modes
+
   def env do
     with :prod <- @compile_env,
          deploy_env when deploy_env in @runtime_envs <- System.get_env("TUIST_DEPLOY_ENV") do
@@ -94,12 +108,24 @@ defmodule Tuist.Environment do
   Read once from `TUIST_MODE`. Add new modes here when the supervision tree
   needs another shape (e.g. a future `:scheduler` or `:ingest`).
   """
-  def mode do
-    case System.get_env("TUIST_MODE") do
-      "processor" -> :processor
-      "xcresult_processor" -> :xcresult_processor
-      _ -> :web
-    end
+  def mode, do: mode(System.get_env("TUIST_MODE"))
+
+  @doc """
+  Pure variant of `mode/0` that takes the raw `TUIST_MODE` value
+  directly. Exposed so callers (tests, future config tooling) can
+  exercise the parser without stubbing `System.get_env/1`.
+  """
+  def mode(nil), do: :web
+  def mode(""), do: :web
+  def mode("web"), do: :web
+  def mode("processor"), do: :processor
+  def mode("xcresult_processor"), do: :xcresult_processor
+
+  def mode(other) do
+    raise """
+    Unknown TUIST_MODE=#{inspect(other)}.
+    Expected one of #{inspect(@modes)}, or unset/empty for #{inspect(:web)}.
+    """
   end
 
   def web?, do: mode() == :web
