@@ -55,16 +55,19 @@ variable "output_image" {
 variable "runner_version" {
   type        = string
   description = "GitHub Actions runner version. https://github.com/actions/runner/releases."
-  # Bumped after 2.328.0 was deprecated by GitHub mid-rollout —
-  # the runner registers cleanly but the broker channel returns
-  # `Runner version v2.328.0 is deprecated and cannot receive
-  # messages` on the first long-poll, so the runner exits and
-  # GH never dispatches jobs. Pin the latest stable; the actions
-  # runner has a runtime auto-update flag (--disableupdate=false)
-  # that we keep enabled, but baking in a current version
-  # avoids the registration-then-immediate-deprecation cycle on
-  # cold-cache fleet bring-up.
-  default     = "2.334.0"
+  # Pinned: the runner is launched with `--disableupdate` so what
+  # ships is what runs — no opaque mid-VM self-upgrades, no race
+  # against GitHub's broker-deprecation message on cold boot.
+  # Renovate watches actions/runner releases (see renovate.json's
+  # custom regex manager keyed off the marker comment below) and
+  # opens `fix(runner-image): …` PRs which release-runner-image
+  # picks up to rebuild + bump the digest pin. Renovate PRs
+  # auto-merge on green CI, same flow we use for other external
+  # deps; falling more than ~1 release behind would re-introduce
+  # the v2.328-style deprecation risk so the cadence is
+  # load-bearing.
+  # renovate: datasource=github-releases depName=actions/runner
+  default = "2.334.0"
 }
 
 # VM CPU/memory baked into the Tart image. Kept at 4 / 8 (same

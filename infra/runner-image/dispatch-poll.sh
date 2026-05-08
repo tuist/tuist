@@ -71,10 +71,17 @@ while true; do
       echo "$(date -u +%FT%TZ) dispatch-poll: dispatched, starting runner"
       cd /opt/actions-runner
       # `--jitconfig` implies ephemeral: the runner accepts one job
-      # and exits. The EXIT trap above halts the VM regardless of
+      # and exits. `--disableupdate` pins the runner to whatever
+      # version is baked into the image; we bump that via Renovate
+      # PRs against `runner_version` in runner.pkr.hcl, which the
+      # release-runner-image flow turns into a fresh image + digest
+      # bump. Auto-update would self-upgrade the runner mid-VM, which
+      # is opaque (the version that ran a job isn't the version we
+      # baked in) and can race with GitHub's deprecation message on
+      # cold boot. The EXIT trap above halts the VM regardless of
       # rc — the trap is what tart-kubelet ultimately observes, so
       # both clean and crash paths refill the warm pool the same way.
-      ./run.sh --jitconfig "${jit}"
+      ./run.sh --jitconfig "${jit}" --disableupdate
       exit $?
       ;;
     401)
