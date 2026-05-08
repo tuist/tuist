@@ -24,7 +24,7 @@ spec:
       - name: region
         value: ash
       - name: hcloudControlPlaneMachineType
-        value: cpx22
+        value: ccx13
       - name: hcloudWorkerMachineType
         value: ccx13
       - name: hcloudSSHKeyName
