@@ -31,9 +31,12 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
   `(test_run_id, …)` and would have to filter `project_id` after reading
   every granule in the relevant monthly partitions).
 
-  The `rolling` mode reads `test_case_runs` directly with a
-  `row_number() OVER (PARTITION BY test_case_id ORDER BY ran_at DESC)`
-  so we can keep "last N runs per test case" without a per-day rollup.
+  The `rolling` mode reads `test_case_runs_recent_per_case`, an
+  `AggregatingMergeTree` MV that maintains a `groupArrayLast(N)` aggregate
+  of `(ran_at, is_flaky)` tuples per `(project_id, test_case_id)`. A
+  project's whole rolling-window scan becomes one row per active test
+  case, regardless of run volume — reading raw `test_case_runs` for that
+  pattern is unrunnable on busy projects.
   """
   import Ecto.Query
 
@@ -43,14 +46,11 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
 
   @comparisons ~w(gte gt lt lte)
 
-  # The rolling-window scan is bounded to this many days of test_case_runs so
-  # the per-evaluation read cost stays predictable. The query has to scan every
-  # run in this window for the project to decide which N to keep per test case
-  # (there is no shortcut around `LIMIT N BY` for that), so the lookback is the
-  # main lever on cost. 30 days is plenty for any test that runs even once a
-  # week — tests that run less frequently than that won't usefully fill a
-  # rolling window anyway.
-  @rolling_window_lookback_days 30
+  # Matches the `groupArrayLast(N)` cap baked into
+  # `test_case_runs_recent_per_case_mv` and the `Alert.changeset/2`
+  # validation. If we ever raise the user-facing cap, all three sites need to
+  # move together.
+  @max_rolling_window_size 1000
 
   def evaluate(alert) do
     trigger_config = alert.trigger_config
@@ -207,53 +207,53 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
     )
   end
 
-  # The rolling path keeps the latest `size` runs per test case using
-  # ClickHouse's `LIMIT N BY` (cheaper than a window function).
+  # The rolling path reads `test_case_runs_recent_per_case_mv`, which
+  # maintains a `groupArrayLast` aggregate of `(ran_at, is_flaky)` tuples per
+  # `(project_id, test_case_id)`, capped at `@max_rolling_window_size`
+  # entries. Reading raw `test_case_runs` here doesn't scale: even with a
+  # 30-day lookback and `LIMIT N BY`, the query has to walk every run in the
+  # project's lookback (200M+ rows on busy projects) because the table's
+  # primary key prefix doesn't fit "last N runs per test case per project."
   #
-  # The inner WHERE intentionally filters only on `project_id` and `ran_at`
-  # so ClickHouse can binary-search the `(project_id, test_case_id, ran_at,
-  # id)` primary key by the `(project_id, ran_at)` prefix. Adding
-  # `test_case_id IS NOT NULL` between them forces "generic exclusion
-  # search" — the ran_at range stops pruning granules and the scan blows up
-  # to "every row in the project's partitions". The NULL test_case_ids
-  # collapse into a single `NULL` group inside `LIMIT N BY` and we drop it
-  # in the outer aggregation.
+  # The MV scan is bounded by `active_test_cases_in_project` rather than
+  # total run volume — usually a few thousand rows. We sort the per-row
+  # array by `ran_at` DESC at read time so the user-facing semantic stays
+  # exact "last N by ran_at" rather than "last N by insertion order."
   #
-  # We deliberately do NOT use `FINAL` here. `test_case_runs` is a
-  # ReplacingMergeTree, so a run reinserted with an updated `is_flaky` value
-  # can show up twice until merges catch up. `FINAL` reads every version and
-  # collapses them at query time, but that multiplies the scan by the
-  # duplicate factor — measured at ~5x on busy projects, enough to make the
-  # query unrunnable. Skipping it lets a stray duplicate contribute at most
-  # `1/size` noise to the rate (≤1% at the default window), which is well
-  # below the natural variance of a flakiness threshold.
+  # ReplacingMergeTree dedup on `test_case_runs` happens after the MV has
+  # already absorbed the row, so a re-inserted run (e.g. is_flaky updated
+  # later) appears twice in the `groupArrayLast` array. That's bounded
+  # noise — ≤1% at the default window — well within the natural variance
+  # of a flakiness threshold.
   #
-  # `monitor_type`, `comparison`, and `lookback_days` are interpolated
-  # because each is constrained to a fixed allowlist (`@monitor_types`,
-  # `@comparisons`, a module attribute), so there is no SQL-injection vector.
+  # `monitor_type` and `comparison` are interpolated because each is
+  # constrained to a fixed allowlist, so there is no SQL-injection vector.
   # Numeric inputs (`project_id`, `size`, `threshold`) flow through bound
   # parameters.
   defp rolling_triggered_test_case_ids(project_id, monitor_type, size, threshold, comparison) do
     sql = """
     SELECT test_case_id
     FROM (
-      SELECT test_case_id, toUInt8(is_flaky) AS is_flaky_int
-      FROM test_case_runs
+      SELECT
+        test_case_id,
+        arraySlice(
+          arrayReverseSort(x -> x.1, groupArrayLastMerge(#{@max_rolling_window_size})(recent_runs)),
+          1,
+          {size:UInt32}
+        ) AS recent_n
+      FROM test_case_runs_recent_per_case
       WHERE project_id = {project_id:Int64}
-        AND ran_at >= now() - INTERVAL #{@rolling_window_lookback_days} DAY
-      ORDER BY test_case_id, ran_at DESC
-      LIMIT {size:UInt32} BY test_case_id
+      GROUP BY test_case_id
     )
-    WHERE test_case_id IS NOT NULL
-    GROUP BY test_case_id
-    HAVING #{rolling_having_expr(monitor_type)} #{rolling_comparison_op(comparison)} {threshold:Float64}
+    WHERE length(recent_n) > 0
+      AND #{rolling_having_expr(monitor_type)} #{rolling_comparison_op(comparison)} {threshold:Float64}
     """
 
     case ClickHouseRepo.query(sql, %{project_id: project_id, size: size, threshold: threshold * 1.0}) do
       {:ok, %{rows: rows}} ->
-        # Raw query results return UUID columns as 16-byte binaries; the rest
+        # ClickHouse returns UUID columns as 16-byte binaries here; the rest
         # of the worker compares against string-encoded UUIDs from the Ecto
-        # path, so normalise here.
+        # path, so normalise.
         Enum.map(rows, fn [binary] -> Ecto.UUID.load!(binary) end)
 
       _ ->
@@ -261,8 +261,11 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
     end
   end
 
-  defp rolling_having_expr("flakiness_rate"), do: "sum(is_flaky_int) * 100.0 / count()"
-  defp rolling_having_expr("flaky_run_count"), do: "sum(is_flaky_int)"
+  defp rolling_having_expr("flakiness_rate"),
+    do: "arraySum(x -> toFloat64(x.2), recent_n) * 100.0 / length(recent_n)"
+
+  defp rolling_having_expr("flaky_run_count"),
+    do: "arraySum(x -> toFloat64(x.2), recent_n)"
 
   defp rolling_comparison_op("gte"), do: ">="
   defp rolling_comparison_op("gt"), do: ">"
