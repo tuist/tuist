@@ -74,7 +74,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     automation =
       AutomationsFixtures.automation_alert_fixture(
         recovery_enabled: true,
-        recovery_config: %{"window" => "1d"},
+        recovery_config: %{"window_type" => "last_days", "window" => "1d"},
         recovery_actions: [%{"type" => "change_state", "state" => "enabled"}]
       )
 
@@ -113,7 +113,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     automation =
       AutomationsFixtures.automation_alert_fixture(
         recovery_enabled: true,
-        recovery_config: %{"window" => "14d"}
+        recovery_config: %{"window_type" => "last_days", "window" => "14d"}
       )
 
     recovered_id = Ecto.UUID.generate()
@@ -275,7 +275,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     automation =
       AutomationsFixtures.automation_alert_fixture(
         monitor_type: "flaky_run_count",
-        trigger_config: %{"threshold" => 1, "window" => "30d", "comparison" => "lt"},
+        trigger_config: %{"threshold" => 1, "window_type" => "last_days", "window" => "30d", "comparison" => "lt"},
         trigger_actions: [%{"type" => "remove_label", "label" => "flaky"}]
       )
 

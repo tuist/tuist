@@ -311,12 +311,16 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
     )
   end
 
-  defp window_mode(trigger_config) do
-    case trigger_config["window_type"] do
-      "rolling" -> {:rolling, parse_rolling_size(trigger_config["rolling_window_size"])}
-      _ -> {:last_days, parse_window(trigger_config["window"] || "30d")}
-    end
-  end
+  # Persisted alerts always carry an explicit `window_type` after the backfill
+  # migration, so we only handle the two known modes. The catch-all clause
+  # protects against malformed in-memory data slipping through.
+  defp window_mode(%{"window_type" => "rolling"} = config),
+    do: {:rolling, parse_rolling_size(config["rolling_window_size"])}
+
+  defp window_mode(%{"window_type" => "last_days"} = config),
+    do: {:last_days, parse_window(config["window"] || "30d")}
+
+  defp window_mode(config), do: {:last_days, parse_window(config["window"] || "30d")}
 
   # `Alert.changeset/2` constrains `trigger_config.window` to `Nd`, so we
   # only need to handle day-suffixed strings here. Non-matching values fall

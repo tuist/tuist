@@ -10,7 +10,7 @@ defmodule Tuist.Automations.Alerts.AlertTest do
         "project_id" => project.id,
         "name" => "Auto-quarantine flaky tests",
         "monitor_type" => "flakiness_rate",
-        "trigger_config" => %{"threshold" => 10, "window" => "30d"},
+        "trigger_config" => %{"threshold" => 10, "window_type" => "last_days", "window" => "30d"},
         "trigger_actions" => [%{"type" => "change_state", "state" => "muted"}]
       },
       overrides
@@ -49,7 +49,7 @@ defmodule Tuist.Automations.Alerts.AlertTest do
           %Alert{},
           valid_attrs(project, %{
             "monitor_type" => "flaky_run_count",
-            "trigger_config" => %{"threshold" => 3, "window" => "30d"}
+            "trigger_config" => %{"threshold" => 3, "window_type" => "last_days", "window" => "30d"}
           })
         )
 
@@ -64,7 +64,7 @@ defmodule Tuist.Automations.Alerts.AlertTest do
           %Alert{},
           valid_attrs(project, %{
             "monitor_type" => "flaky_run_count",
-            "trigger_config" => %{"threshold" => 1, "window" => "30d", "comparison" => "lt"},
+            "trigger_config" => %{"threshold" => 1, "window_type" => "last_days", "window" => "30d", "comparison" => "lt"},
             "trigger_actions" => [%{"type" => "remove_label", "label" => "flaky"}]
           })
         )
@@ -80,7 +80,7 @@ defmodule Tuist.Automations.Alerts.AlertTest do
           %Alert{},
           valid_attrs(project, %{
             "monitor_type" => "flakiness_rate",
-            "trigger_config" => %{"threshold" => 5, "window" => "30d", "comparison" => "lte"},
+            "trigger_config" => %{"threshold" => 5, "window_type" => "last_days", "window" => "30d", "comparison" => "lte"},
             "trigger_actions" => [%{"type" => "remove_label", "label" => "flaky"}]
           })
         )
@@ -95,7 +95,7 @@ defmodule Tuist.Automations.Alerts.AlertTest do
         Alert.changeset(
           %Alert{},
           valid_attrs(project, %{
-            "trigger_config" => %{"threshold" => 5, "window" => "30d", "comparison" => "bogus"}
+            "trigger_config" => %{"threshold" => 5, "window_type" => "last_days", "window" => "30d", "comparison" => "bogus"}
           })
         )
 
@@ -109,7 +109,7 @@ defmodule Tuist.Automations.Alerts.AlertTest do
       changeset =
         Alert.changeset(
           %Alert{},
-          valid_attrs(project, %{"trigger_config" => %{"threshold" => 200, "window" => "30d"}})
+          valid_attrs(project, %{"trigger_config" => %{"threshold" => 200, "window_type" => "last_days", "window" => "30d"}})
         )
 
       refute changeset.valid?
@@ -219,7 +219,7 @@ defmodule Tuist.Automations.Alerts.AlertTest do
       assert errors_on(changeset).trigger_config
     end
 
-    test "defaults missing window_type to last_days for backward compatibility" do
+    test "rejects trigger_config without an explicit window_type" do
       project = ProjectsFixtures.project_fixture()
 
       changeset =
@@ -230,7 +230,8 @@ defmodule Tuist.Automations.Alerts.AlertTest do
           })
         )
 
-      assert changeset.valid?
+      refute changeset.valid?
+      assert errors_on(changeset).trigger_config
     end
 
     test "rejects rolling recovery_config with non-positive rolling_window_size" do
@@ -413,7 +414,7 @@ defmodule Tuist.Automations.Alerts.AlertTest do
           valid_attrs(project, %{
             "trigger_actions" => [%{"type" => "add_label", "label" => "flaky"}],
             "recovery_enabled" => true,
-            "recovery_config" => %{"window" => "14d"},
+            "recovery_config" => %{"window_type" => "last_days", "window" => "14d"},
             "recovery_actions" => [%{"type" => "remove_label", "label" => "flaky"}]
           })
         )

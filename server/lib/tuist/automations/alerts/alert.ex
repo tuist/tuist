@@ -156,9 +156,9 @@ defmodule Tuist.Automations.Alerts.Alert do
 
   # `window_type` selects between a calendar window ("last_days", configured
   # via `window: "30d"`) and a count-based rolling window ("rolling",
-  # configured via `rolling_window_size: 100`). Missing `window_type` defaults
-  # to "last_days" for backwards compatibility with alerts created before the
-  # rolling-window option existed.
+  # configured via `rolling_window_size: 100`). Every persisted row carries an
+  # explicit `window_type` after the backfill migration, so missing values are
+  # rejected here instead of inferred.
   defp validate_window_config(changeset, trigger_config) do
     case validate_window_shape(trigger_config) do
       :ok -> changeset
@@ -202,8 +202,7 @@ defmodule Tuist.Automations.Alerts.Alert do
   end
 
   defp window_type(%{"window_type" => type}) when type in @window_types, do: type
-  defp window_type(%{"window_type" => _}), do: :invalid
-  defp window_type(_), do: "last_days"
+  defp window_type(_), do: :invalid
 
   # The flaky-test monitor evaluates against a per-day-aggregated MV, so
   # sub-day windows would silently round to a full day and look broken.

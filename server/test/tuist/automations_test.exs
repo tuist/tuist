@@ -49,7 +49,7 @@ defmodule Tuist.AutomationsTest do
         "project_id" => project.id,
         "name" => "Quarantine flaky tests",
         "monitor_type" => "flakiness_rate",
-        "trigger_config" => %{"threshold" => 5, "window" => "30d"},
+        "trigger_config" => %{"threshold" => 5, "window_type" => "last_days", "window" => "30d"},
         "trigger_actions" => [%{"type" => "change_state", "state" => "muted"}]
       }
 

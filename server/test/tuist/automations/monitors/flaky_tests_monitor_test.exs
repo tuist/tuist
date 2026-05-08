@@ -30,7 +30,7 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
         AutomationsFixtures.automation_alert_fixture(
           project: project,
           monitor_type: "flakiness_rate",
-          trigger_config: %{"threshold" => 5, "window" => "1d", "comparison" => "lt"}
+          trigger_config: %{"threshold" => 5, "window_type" => "last_days", "window" => "1d", "comparison" => "lt"}
         )
 
       # The test case has 1 run, 0 flaky → rate = 0%, below 5%. The fact that
@@ -52,7 +52,7 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
         AutomationsFixtures.automation_alert_fixture(
           project: project,
           monitor_type: "flakiness_rate",
-          trigger_config: %{"threshold" => 5, "window" => "30d", "comparison" => "lt"}
+          trigger_config: %{"threshold" => 5, "window_type" => "last_days", "window" => "30d", "comparison" => "lt"}
         )
 
       refute orphan_id in FlakyTestsMonitor.evaluate(alert).triggered
@@ -93,7 +93,7 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
         AutomationsFixtures.automation_alert_fixture(
           project: project,
           monitor_type: "flakiness_rate",
-          trigger_config: %{"threshold" => 50, "window" => "30d", "comparison" => "lt"}
+          trigger_config: %{"threshold" => 50, "window_type" => "last_days", "window" => "30d", "comparison" => "lt"}
         )
 
       # 100% flaky rate, threshold 50% lt → does not fire.
@@ -137,7 +137,7 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
         AutomationsFixtures.automation_alert_fixture(
           project: project,
           monitor_type: "flaky_run_count",
-          trigger_config: %{"threshold" => 2, "window" => "30d", "comparison" => "lt"}
+          trigger_config: %{"threshold" => 2, "window_type" => "last_days", "window" => "30d", "comparison" => "lt"}
         )
 
       triggered = FlakyTestsMonitor.evaluate_by_run_count(alert).triggered
@@ -180,7 +180,7 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
         AutomationsFixtures.automation_alert_fixture(
           project: project,
           monitor_type: "flaky_run_count",
-          trigger_config: %{"threshold" => 2, "window" => "30d", "comparison" => "gt"}
+          trigger_config: %{"threshold" => 2, "window_type" => "last_days", "window" => "30d", "comparison" => "gt"}
         )
 
       assert %{triggered: triggered} = FlakyTestsMonitor.evaluate_by_run_count(alert)
@@ -219,7 +219,7 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
         AutomationsFixtures.automation_alert_fixture(
           project: project,
           monitor_type: "flaky_run_count",
-          trigger_config: %{"threshold" => 3, "window" => "30d"}
+          trigger_config: %{"threshold" => 3, "window_type" => "last_days", "window" => "30d"}
         )
 
       assert %{triggered: triggered} = FlakyTestsMonitor.evaluate_by_run_count(alert)
