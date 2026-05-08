@@ -9,6 +9,7 @@ All notable changes to this project will be documented in this file.
 * add tuist test case update command by [@justine-acorns](https://github.com/justine-acorns) in [#10450](https://github.com/tuist/tuist/pull/10450)
 ### 🐛 Bug Fixes
 
+* limit implicit import source scans by [@pepicrft](https://github.com/pepicrft) in [#10693](https://github.com/tuist/tuist/pull/10693)
 * CLI hangs running processes concurrently by [@pepicrft](https://github.com/pepicrft) in [#10682](https://github.com/tuist/tuist/pull/10682)
 * resolve race condition in CachedManifestLoader parallel writes by [@ze-diaz](https://github.com/ze-diaz) in [#10662](https://github.com/tuist/tuist/pull/10662)
 * duplicate selective testing log messages and improve skip reason clarity by [@irena327](https://github.com/irena327) in [#10637](https://github.com/tuist/tuist/pull/10637)

@@ -2,6 +2,8 @@ defmodule Tuist.Processor.XCResultProcessorTest do
   use ExUnit.Case, async: true
   use Mimic
 
+  import ExUnit.CaptureLog
+
   alias Tuist.Processor.XCResultNIF
   alias Tuist.Processor.XCResultProcessor
 
@@ -452,6 +454,25 @@ defmodule Tuist.Processor.XCResultProcessorTest do
       end)
 
       assert {:ok, ^parsed_data} = XCResultProcessor.process_local(fixture_path)
+    end
+
+    @tag :tmp_dir
+    test "logs temp_dir contents when extraction yields no recognizable bundle", %{tmp_dir: tmp_dir} do
+      fixture_path = Path.join(tmp_dir, "fixture.aar")
+      File.write!(fixture_path, <<0x62, 0x76, 0x78, 0x32, "fake-aar-body">>)
+
+      expect(XCResultNIF, :decompress_archive, fn _archive_path, temp_dir ->
+        File.write!(Path.join(temp_dir, "stray.txt"), "no plist, no xcresult")
+        :ok
+      end)
+
+      log =
+        capture_log(fn ->
+          assert {:error, :xcresult_not_found} = XCResultProcessor.process_local(fixture_path)
+        end)
+
+      assert log =~ "xcresult bundle not found after extraction"
+      assert log =~ "stray.txt"
     end
 
     test "surfaces NIF decompression failures for AppleArchive payloads" do
