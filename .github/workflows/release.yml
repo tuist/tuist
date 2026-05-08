@@ -1858,16 +1858,6 @@ jobs:
             git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../../" --bump -o CHANGELOG.md 2>/dev/null
           fi
 
-      - name: Bump operator image pin in chart values
-        run: |
-          # values-managed-common.yaml carries multiple `tag:` lines
-          # (server, xcresult-processor, macosFleet). Use a sed range
-          # anchored to the operator's repository line so the
-          # substitution only fires for the macosFleet block.
-          sed -i '/repository: ghcr.io\/tuist\/capi-provider-scaleway-applesilicon/,/tag:/{
-            s|tag: "[^"]*"|tag: "${{ needs.check-releases.outputs.capi-scaleway-next-version-number }}"|
-          }' infra/helm/tuist/values-managed-common.yaml
-
       - name: Set up Docker Buildx
         uses: namespacelabs/nscloud-setup-buildx-action@v0
 
@@ -1892,10 +1882,13 @@ jobs:
       - name: Upload capi-scaleway artifacts
         uses: actions/upload-artifact@v4
         with:
+          # values-managed-common.yaml is bumped by commit-and-release
+          # against its own checkout, not packaged here, so two parallel
+          # release-* jobs touching different `tag:` lines in the same
+          # file can't trample each other on artifact extract.
           name: capi-scaleway-artifacts
           path: |
             infra/cluster-api-provider-scaleway-applesilicon/CHANGELOG.md
-            infra/helm/tuist/values-managed-common.yaml
           retention-days: 1
 
   release-xcresult-processor-image:
@@ -1961,15 +1954,6 @@ jobs:
             git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../../" --bump -o CHANGELOG.md 2>/dev/null
           fi
 
-      - name: Bump xcresult-processor image pin in chart values
-        run: |
-          # values-managed-common.yaml carries multiple `tag:` lines.
-          # Anchor the substitution to the xcresult-processor's
-          # repository line so only that block's tag is rewritten.
-          sed -i '' '/repository: ghcr.io\/tuist\/tuist-xcresult-processor/,/tag:/{
-            s|tag: "[^"]*"|tag: "${{ needs.check-releases.outputs.xcresult-processor-image-next-version-number }}"|
-          }' infra/helm/tuist/values-managed-common.yaml
-
       - name: Build server release for macOS
         id: release
         working-directory: server
@@ -2033,10 +2017,13 @@ jobs:
       - name: Upload xcresult-processor-image artifacts
         uses: actions/upload-artifact@v4
         with:
+          # values-managed-common.yaml is bumped by commit-and-release
+          # against its own checkout, not packaged here, so two parallel
+          # release-* jobs touching different `tag:` lines in the same
+          # file can't trample each other on artifact extract.
           name: xcresult-processor-image-artifacts
           path: |
             infra/xcresult-processor-image/CHANGELOG.md
-            infra/helm/tuist/values-managed-common.yaml
           retention-days: 1
 
       - name: Cleanup
@@ -2238,6 +2225,28 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: xcresult-processor-image-artifacts
+
+      - name: Bump chart image pins for released components
+        # Single writer for values-managed-common.yaml. Each release-*
+        # job pushes its image to ghcr.io and surfaces the new version
+        # via check-releases outputs; we apply the corresponding `tag:`
+        # bumps here against this job's own checkout. Doing it here
+        # (rather than in each release-* job + bundling the file in the
+        # artifact) prevents the artifact-extract overwrite that
+        # previously dropped capi-scaleway's bump on the floor whenever
+        # both capi-scaleway and xcresult-processor-image released in
+        # the same run.
+        run: |
+          if [ "${{ needs.check-releases.outputs.capi-scaleway-should-release }}" == "true" ] && [ "${{ needs.release-capi-scaleway.result }}" == "success" ]; then
+            sed -i '/repository: ghcr.io\/tuist\/capi-provider-scaleway-applesilicon/,/tag:/{
+              s|tag: "[^"]*"|tag: "${{ needs.check-releases.outputs.capi-scaleway-next-version-number }}"|
+            }' infra/helm/tuist/values-managed-common.yaml
+          fi
+          if [ "${{ needs.check-releases.outputs.xcresult-processor-image-should-release }}" == "true" ] && [ "${{ needs.release-xcresult-processor-image.result }}" == "success" ]; then
+            sed -i '/repository: ghcr.io\/tuist\/tuist-xcresult-processor/,/tag:/{
+              s|tag: "[^"]*"|tag: "${{ needs.check-releases.outputs.xcresult-processor-image-next-version-number }}"|
+            }' infra/helm/tuist/values-managed-common.yaml
+          fi
 
       - name: Create tags for successfully released components
         run: |
