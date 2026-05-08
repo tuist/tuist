@@ -277,6 +277,52 @@ defmodule Tuist.Processor.XCResultProcessorTest do
       refute Map.has_key?(attachment, "file_path")
     end
 
+    test "uploads an empty part for zero-byte attachments" do
+      {fixture_dir, fixture_zip} = create_xcresult_zip()
+      on_exit(fn -> File.rm_rf(fixture_dir) end)
+
+      attachment_file = Path.join(fixture_dir, "empty.log")
+      File.write!(attachment_file, "")
+
+      parsed_data = %{
+        "test_modules" => [
+          %{
+            "name" => "Module",
+            "test_cases" => [
+              %{
+                "name" => "test_example",
+                "attachments" => [
+                  %{
+                    "file_path" => attachment_file,
+                    "file_name" => "empty.log",
+                    "repetition_number" => nil
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+
+      stub(ExAws, :request, &handle_multipart_request/1)
+
+      expect(XCResultNIF, :parse, fn _path, _root -> {:ok, parsed_data} end)
+
+      opts = [
+        test_run_id: "run-123",
+        account_handle: "MyOrg",
+        project_handle: "MyProject"
+      ]
+
+      assert {:ok, result} = XCResultProcessor.process_local(fixture_zip, opts)
+
+      [module] = result["test_modules"]
+      [test_case] = module["test_cases"]
+      [attachment] = test_case["attachments"]
+      assert attachment["attachment_id"]
+      assert attachment["file_name"] == "empty.log"
+    end
+
     test "retries part upload on transient ExAws error before succeeding" do
       {fixture_dir, fixture_zip} = create_xcresult_zip()
       on_exit(fn -> File.rm_rf(fixture_dir) end)

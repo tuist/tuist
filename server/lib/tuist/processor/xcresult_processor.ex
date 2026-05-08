@@ -279,13 +279,30 @@ defmodule Tuist.Processor.XCResultProcessor do
         {:exit, reason} -> {:error, {:chunk_task_exit, reason}}
       end)
 
-    case Enum.find(results, &match?({:error, _}, &1)) do
-      nil ->
-        {:ok, results}
+    cond do
+      results == [] ->
+        upload_empty_part(bucket, s3_key, upload_id)
 
+      error = Enum.find(results, &match?({:error, _}, &1)) ->
+        bucket |> ExAws.S3.abort_multipart_upload(s3_key, upload_id) |> ExAws.request()
+        error
+
+      true ->
+        {:ok, results}
+    end
+  end
+
+  # S3's CompleteMultipartUpload rejects an empty part list. For zero-byte
+  # files we upload a single empty part so the request is well-formed,
+  # matching ExAws.S3.Upload.complete/3's behaviour for empty sources.
+  defp upload_empty_part(bucket, s3_key, upload_id) do
+    case upload_part_with_retry({"", 1}, bucket, s3_key, upload_id, 1) do
       {:error, _} = error ->
         bucket |> ExAws.S3.abort_multipart_upload(s3_key, upload_id) |> ExAws.request()
         error
+
+      part ->
+        {:ok, [part]}
     end
   end
 
