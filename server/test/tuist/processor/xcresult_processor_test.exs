@@ -2,9 +2,30 @@ defmodule Tuist.Processor.XCResultProcessorTest do
   use ExUnit.Case, async: true
   use Mimic
 
-  alias ExAws.S3.Upload
   alias Tuist.Processor.XCResultNIF
   alias Tuist.Processor.XCResultProcessor
+
+  defp handle_multipart_request(op, opts \\ %{}) do
+    case op do
+      %{http_method: :post, resource: "uploads"} ->
+        {:ok, %{body: %{upload_id: "test-upload-id"}}}
+
+      %{http_method: :put, params: %{"partNumber" => n, "uploadId" => _}} ->
+        case Map.get(opts, :on_part) do
+          nil -> {:ok, %{headers: [{"ETag", "etag-#{n}"}]}}
+          fun -> fun.(n)
+        end
+
+      %{http_method: :post, params: %{"uploadId" => _}} ->
+        {:ok, %{}}
+
+      %{http_method: :delete, params: %{"uploadId" => _}} ->
+        case Map.get(opts, :on_abort) do
+          nil -> {:ok, %{}}
+          fun -> fun.()
+        end
+    end
+  end
 
   setup :verify_on_exit!
 
@@ -232,16 +253,7 @@ defmodule Tuist.Processor.XCResultProcessorTest do
         ]
       }
 
-      # Upload call for the attachment (streaming multipart upload)
-      expect(ExAws, :request, fn %Upload{bucket: _bucket, path: path} ->
-        assert String.contains?(path, "tests/runs/run-123/attachments/")
-        assert String.ends_with?(path, "/screenshot.png")
-        {:ok, %{status_code: 200}}
-      end)
-
-      stub(ExAws.S3, :upload, fn stream, _bucket, key ->
-        %Upload{bucket: "tuist", path: key, src: stream}
-      end)
+      stub(ExAws, :request, &handle_multipart_request/1)
 
       expect(XCResultNIF, :parse, fn _path, _root ->
         {:ok, parsed_data}
@@ -263,7 +275,7 @@ defmodule Tuist.Processor.XCResultProcessorTest do
       refute Map.has_key?(attachment, "file_path")
     end
 
-    test "retries attachment upload on transient ExAws error before succeeding" do
+    test "retries part upload on transient ExAws error before succeeding" do
       {fixture_dir, fixture_zip} = create_xcresult_zip()
       on_exit(fn -> File.rm_rf(fixture_dir) end)
 
@@ -293,16 +305,14 @@ defmodule Tuist.Processor.XCResultProcessorTest do
       {:ok, attempts} = Agent.start_link(fn -> 0 end)
       on_exit(fn -> if Process.alive?(attempts), do: Agent.stop(attempts) end)
 
-      stub(ExAws, :request, fn %Upload{} ->
+      on_part = fn n ->
         case Agent.get_and_update(attempts, &{&1 + 1, &1 + 1}) do
           1 -> {:error, :timeout}
-          _ -> {:ok, %{status_code: 200}}
+          _ -> {:ok, %{headers: [{"ETag", "etag-#{n}"}]}}
         end
-      end)
+      end
 
-      stub(ExAws.S3, :upload, fn stream, _bucket, key ->
-        %Upload{bucket: "tuist", path: key, src: stream}
-      end)
+      stub(ExAws, :request, &handle_multipart_request(&1, %{on_part: on_part}))
 
       expect(XCResultNIF, :parse, fn _path, _root -> {:ok, parsed_data} end)
 
@@ -321,7 +331,7 @@ defmodule Tuist.Processor.XCResultProcessorTest do
       assert Agent.get(attempts, & &1) == 2
     end
 
-    test "drops attachment after retries are exhausted" do
+    test "aborts multipart upload and drops attachment after retries are exhausted" do
       {fixture_dir, fixture_zip} = create_xcresult_zip()
       on_exit(fn -> File.rm_rf(fixture_dir) end)
 
@@ -348,17 +358,24 @@ defmodule Tuist.Processor.XCResultProcessorTest do
         ]
       }
 
-      {:ok, attempts} = Agent.start_link(fn -> 0 end)
-      on_exit(fn -> if Process.alive?(attempts), do: Agent.stop(attempts) end)
+      {:ok, counters} = Agent.start_link(fn -> %{part: 0, abort: 0} end)
+      on_exit(fn -> if Process.alive?(counters), do: Agent.stop(counters) end)
 
-      stub(ExAws, :request, fn %Upload{} ->
-        Agent.update(attempts, &(&1 + 1))
+      on_part = fn _n ->
+        Agent.update(counters, &%{&1 | part: &1.part + 1})
         {:error, :timeout}
-      end)
+      end
 
-      stub(ExAws.S3, :upload, fn stream, _bucket, key ->
-        %Upload{bucket: "tuist", path: key, src: stream}
-      end)
+      on_abort = fn ->
+        Agent.update(counters, &%{&1 | abort: &1.abort + 1})
+        {:ok, %{}}
+      end
+
+      stub(
+        ExAws,
+        :request,
+        &handle_multipart_request(&1, %{on_part: on_part, on_abort: on_abort})
+      )
 
       expect(XCResultNIF, :parse, fn _path, _root -> {:ok, parsed_data} end)
 
@@ -373,7 +390,10 @@ defmodule Tuist.Processor.XCResultProcessorTest do
       [module] = result["test_modules"]
       [test_case] = module["test_cases"]
       assert test_case["attachments"] == []
-      assert Agent.get(attempts, & &1) == 3
+
+      state = Agent.get(counters, & &1)
+      assert state.part == 3
+      assert state.abort == 1
     end
 
     test "dispatches to AppleArchive NIF when the downloaded payload is not PKZIP" do
