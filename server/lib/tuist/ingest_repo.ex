@@ -1,6 +1,7 @@
 defmodule Tuist.IngestRepo do
   @moduledoc """
-  Write-centric ClickHouse repository.
+  Write-only ClickHouse repository. Reads belong on
+  `Tuist.ClickHouseRepo`.
   """
 
   use Ecto.Repo,
@@ -9,7 +10,7 @@ defmodule Tuist.IngestRepo do
 
   alias Tuist.ClickHouseRetry
 
-  defoverridable insert_all: 2, insert_all: 3, insert: 1, insert: 2, all: 1, all: 2
+  defoverridable insert_all: 2, insert_all: 3, insert: 1, insert: 2
 
   def insert_all(schema_or_source, entries, opts \\ []) do
     with_retry(fn -> super(schema_or_source, entries, opts) end)
@@ -17,10 +18,6 @@ defmodule Tuist.IngestRepo do
 
   def insert(struct, opts \\ []) do
     with_retry(fn -> super(struct, opts) end)
-  end
-
-  def all(queryable, opts \\ []) do
-    with_retry(fn -> super(queryable, opts) end)
   end
 
   defdelegate with_retry(fun), to: ClickHouseRetry

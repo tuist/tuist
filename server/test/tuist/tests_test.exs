@@ -8136,7 +8136,7 @@ defmodule Tuist.TestsTest do
       :ok = Tests.expire_stale_in_progress_test_runs()
 
       [run] =
-        IngestRepo.all(from(t in Tests.Test, hints: ["FINAL"], where: t.id == ^stale_id))
+        ClickHouseRepo.all(from(t in Tests.Test, hints: ["FINAL"], where: t.id == ^stale_id))
 
       assert run.status == "failure"
     end
@@ -8171,7 +8171,7 @@ defmodule Tuist.TestsTest do
       :ok = Tests.expire_stale_in_progress_test_runs()
 
       [run] =
-        IngestRepo.all(from(t in Tests.Test, hints: ["FINAL"], where: t.id == ^recent_id))
+        ClickHouseRepo.all(from(t in Tests.Test, hints: ["FINAL"], where: t.id == ^recent_id))
 
       assert run.status == "in_progress"
     end
@@ -8205,7 +8205,7 @@ defmodule Tuist.TestsTest do
       :ok = Tests.expire_stale_in_progress_test_runs()
 
       [run] =
-        IngestRepo.all(from(t in Tests.Test, hints: ["FINAL"], where: t.id == ^completed_id))
+        ClickHouseRepo.all(from(t in Tests.Test, hints: ["FINAL"], where: t.id == ^completed_id))
 
       assert run.status == "success"
     end

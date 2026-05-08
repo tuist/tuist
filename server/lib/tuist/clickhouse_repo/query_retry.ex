@@ -14,11 +14,9 @@ defmodule Tuist.ClickHouseRepo.QueryRetry do
     quote do
       defoverridable query: 1, query: 2, query: 3, query!: 1, query!: 2, query!: 3
 
-      def query(sql, params \\ [], opts \\ []),
-        do: Tuist.ClickHouseRetry.with_retry(fn -> super(sql, params, opts) end)
+      def query(sql, params \\ [], opts \\ []), do: Tuist.ClickHouseRetry.with_retry(fn -> super(sql, params, opts) end)
 
-      def query!(sql, params \\ [], opts \\ []),
-        do: Tuist.ClickHouseRetry.with_retry(fn -> super(sql, params, opts) end)
+      def query!(sql, params \\ [], opts \\ []), do: Tuist.ClickHouseRetry.with_retry(fn -> super(sql, params, opts) end)
     end
   end
 end

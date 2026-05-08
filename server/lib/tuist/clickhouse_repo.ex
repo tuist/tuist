@@ -30,14 +30,11 @@ defmodule Tuist.ClickHouseRepo do
                  preload: 2,
                  preload: 3
 
-  def all(queryable, opts \\ []),
-    do: ClickHouseRetry.with_retry(fn -> super(queryable, opts) end)
+  def all(queryable, opts \\ []), do: ClickHouseRetry.with_retry(fn -> super(queryable, opts) end)
 
-  def one(queryable, opts \\ []),
-    do: ClickHouseRetry.with_retry(fn -> super(queryable, opts) end)
+  def one(queryable, opts \\ []), do: ClickHouseRetry.with_retry(fn -> super(queryable, opts) end)
 
-  def exists?(queryable, opts \\ []),
-    do: ClickHouseRetry.with_retry(fn -> super(queryable, opts) end)
+  def exists?(queryable, opts \\ []), do: ClickHouseRetry.with_retry(fn -> super(queryable, opts) end)
 
   def preload(structs_or_struct_or_nil, preloads, opts \\ []),
     do: ClickHouseRetry.with_retry(fn -> super(structs_or_struct_or_nil, preloads, opts) end)
