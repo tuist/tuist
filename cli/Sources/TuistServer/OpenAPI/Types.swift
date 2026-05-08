@@ -11071,6 +11071,8 @@ public enum Operations {
                         @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
                             case success = "success"
                             case failure = "failure"
+                            case processing = "processing"
+                            case failed_processing = "failed_processing"
                         }
                         /// Build status.
                         ///
@@ -12932,6 +12934,8 @@ public enum Operations {
                         @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
                             case success = "success"
                             case failure = "failure"
+                            case processing = "processing"
+                            case failed_processing = "failed_processing"
                         }
                         /// Build status.
                         ///
@@ -19467,6 +19471,9 @@ public enum Operations {
                             case success = "success"
                             case failure = "failure"
                             case skipped = "skipped"
+                            case in_progress = "in_progress"
+                            case processing = "processing"
+                            case failed_processing = "failed_processing"
                         }
                         /// Run status.
                         ///

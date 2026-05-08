@@ -84,6 +84,9 @@ struct TestShowCommandService: TestShowCommandServicing {
         case .success: statusLabel = "passed"
         case .failure: statusLabel = "failed"
         case .skipped: statusLabel = "skipped"
+        case .in_progress: statusLabel = "in progress"
+        case .processing: statusLabel = "processing"
+        case .failed_processing: statusLabel = "failed processing"
         }
         info.append("Test Run (\(statusLabel))".bold())
 

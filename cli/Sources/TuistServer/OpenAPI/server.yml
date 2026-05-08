@@ -5980,6 +5980,8 @@ paths:
                     enum:
                       - success
                       - failure
+                      - processing
+                      - failed_processing
                     type: string
                     x-struct:
                     x-validate:
@@ -6836,6 +6838,8 @@ paths:
                     enum:
                       - success
                       - failure
+                      - processing
+                      - failed_processing
                     type: string
                     x-struct:
                     x-validate:
@@ -8721,6 +8725,9 @@ paths:
                       - success
                       - failure
                       - skipped
+                      - in_progress
+                      - processing
+                      - failed_processing
                     type: string
                     x-struct:
                     x-validate:

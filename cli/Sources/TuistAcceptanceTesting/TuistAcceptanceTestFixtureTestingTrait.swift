@@ -16,9 +16,15 @@ import TuistTesting
 
 public struct TuistAcceptanceTestFixtureTestingTrait: TestTrait, SuiteTrait, TestScoping {
     let fixtureDirectory: AbsolutePath
+    let urlEnvVar: String
 
-    init(fixture: String, fixturesDirectory: AbsolutePath = Fixtures.directory) {
+    init(
+        fixture: String,
+        fixturesDirectory: AbsolutePath = Fixtures.directory,
+        urlEnvVar: String = "TUIST_URL"
+    ) {
         fixtureDirectory = fixturesDirectory.appending(component: fixture)
+        self.urlEnvVar = urlEnvVar
     }
 
     public func provideScope(
@@ -47,7 +53,7 @@ public struct TuistAcceptanceTestFixtureTestingTrait: TestTrait, SuiteTrait, Tes
                     try await TuistTest.$fixtureDirectory.withValue(fixtureTemporaryDirectory) {
                         try await TuistTest.$fixtureAccountHandle.withValue(organizationHandle) {
                             try await TuistTest.$fixtureFullHandle.withValue(fullHandle) {
-                                let serverURL = Environment.current.variables["TUIST_URL"] ?? "https://canary.tuist.dev"
+                                let serverURL = Environment.current.variables[urlEnvVar] ?? "https://canary.tuist.dev"
 
                                 try await fileSystem.writeText(
                                     """
@@ -118,5 +124,21 @@ extension Trait where Self == TuistAcceptanceTestFixtureTestingTrait {
         fixturesDirectory: AbsolutePath = Fixtures.directory
     ) -> Self {
         return Self(fixture: fixture, fixturesDirectory: fixturesDirectory)
+    }
+
+    /// Like `withFixtureConnectedToCanary` but reads the server URL from
+    /// `TUIST_ACCEPTANCE_URL` instead of `TUIST_URL`. Use this for tests that
+    /// must run against the per-PR acceptance helm release (kind+helm on
+    /// Pedro's preview cluster) rather than canary — the main test step
+    /// stays pointed at canary, only this trait's tests target the cluster.
+    public static func withFixtureConnectedToAcceptanceCluster(
+        _ fixture: String,
+        fixturesDirectory: AbsolutePath = Fixtures.directory
+    ) -> Self {
+        return Self(
+            fixture: fixture,
+            fixturesDirectory: fixturesDirectory,
+            urlEnvVar: "TUIST_ACCEPTANCE_URL"
+        )
     }
 }

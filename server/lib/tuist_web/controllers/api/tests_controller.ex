@@ -625,7 +625,11 @@ defmodule TuistWeb.API.TestsController do
            type: :object,
            properties: %{
              id: %Schema{type: :string, format: :uuid, description: "The test run ID."},
-             status: %Schema{type: :string, enum: ["success", "failure", "skipped"], description: "Run status."},
+             status: %Schema{
+               type: :string,
+               enum: ["success", "failure", "skipped", "in_progress", "processing", "failed_processing"],
+               description: "Run status."
+             },
              duration: %Schema{type: :integer, description: "Duration in milliseconds."},
              is_ci: %Schema{type: :boolean, description: "Whether the run was on CI."},
              is_flaky: %Schema{type: :boolean, description: "Whether the run was flaky."},

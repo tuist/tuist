@@ -1,0 +1,64 @@
+name: Server image
+
+# Builds + Trivy-scans + publishes the `ghcr.io/tuist/tuist:image-<sha>` server
+# image for server-affecting changes. CLI acceptance tests call the reusable
+# image build directly from cli.yml, so the regular CLI jobs and the image build
+# can fan out together without polling this workflow.
+#
+# Triggered on the union of the paths that can affect the image so any commit that
+# changes the runtime gets a fresh scanned image.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - server/**
+      - tuist_common/**
+      - noora/**
+      - examples/xcode/**
+      - skills/skills/**
+      - mise.toml
+      - mise.lock
+      - Tuist/**
+      - Package.swift
+      - Package.resolved
+      - .github/workflows/server-image.yml
+      - .github/workflows/server-image-build.yml
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - server/**
+      - tuist_common/**
+      - noora/**
+      - examples/xcode/**
+      - skills/skills/**
+      - mise.toml
+      - mise.lock
+      - Tuist/**
+      - Package.swift
+      - Package.resolved
+      - .github/workflows/server-image.yml
+      - .github/workflows/server-image-build.yml
+  merge_group: {}
+
+concurrency:
+  group: server-image-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    name: Build + scan
+    # TEMP (this PR only): drop the `draft == false` gate so the docker image
+    # builds on draft PRs too, since the acceptance tests need it. Restore
+    # before merge.
+    uses: ./.github/workflows/server-image-build.yml
+    with:
+      tag: image-${{ github.sha }}
+      scan: true
+      tuist_hosted: "0"
+      mix_env: prod

@@ -1,92 +1,107 @@
-import Command
 import FileSystem
 import FileSystemTesting
 import Foundation
 import Testing
 import TuistAcceptanceTesting
 import TuistCore
+import TuistEnvironment
 import TuistLoggerTesting
+import TuistLogging
 import TuistNooraTesting
+import TuistServer
 import TuistSupport
 import TuistTesting
-
 @testable import TuistInspectCommand
 @testable import TuistKit
 
 struct InspectAcceptanceTests {
     @Test(
-        .disabled(),
+        .disabled(
+            if: ProcessInfo.processInfo.environment["TUIST_ACCEPTANCE_URL"] == nil,
+            "Requires the per-PR acceptance helm release (TUIST_ACCEPTANCE_URL). The CI workflow boots a kind+helm tuist server on Pedro's preview cluster and feeds the URL through this env var; without it, the test has nowhere to upload + verify the build."
+        ),
         .inTemporaryDirectory,
-        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedEnvironment(inheritingVariables: ["PATH", "TUIST_ACCEPTANCE_URL"]),
         .withMockedNoora,
         .withMockedLogger(forwardLogs: true),
-        .withFixtureConnectedToCanary("xcode_project_with_inspect_build")
+        .withFixtureConnectedToAcceptanceCluster("xcode_project_with_inspect_build")
     )
     func build() async throws {
-        // Given
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fullHandle = try #require(TuistTest.fixtureFullHandle)
+        let acceptanceURLString = try #require(Environment.current.variables["TUIST_ACCEPTANCE_URL"])
+        let serverURL = try #require(URL(string: acceptanceURLString))
 
-        let arguments = [
-            "-scheme", "App",
-            "-destination", "generic/platform=iOS Simulator",
-            "-project", fixtureDirectory.appending(component: "App.xcodeproj").pathString,
-            "-resultBundlePath", fixtureDirectory.appending(component: "result.xcresult").pathString,
-            "-derivedDataPath", temporaryDirectory.pathString,
-        ]
-
-        // When: I build the app
         try await TuistTest.run(
             XcodeBuildBuildCommand.self,
-            arguments
-        )
-
-        // When: I inspect the bundle
-        try await TuistTest.run(
-            InspectBuildCommand.self,
-            ["--path", fixtureDirectory.pathString, "--derived-data-path", temporaryDirectory.pathString]
-        )
-
-        // Then
-        #expect(ui().contains("View the analyzed build at"))
-    }
-
-    @Test(
-        .disabled(),
-        .inTemporaryDirectory,
-        .withMockedEnvironment(inheritingVariables: ["PATH"]),
-        .withMockedNoora,
-        .withMockedLogger(forwardLogs: true),
-        .withFixtureConnectedToCanary("xcode_project_with_inspect_build")
-    )
-    func test() async throws {
-        // Given
-        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
-        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-
-        // When: I build the app
-        let commandRunner = CommandRunner()
-        try await commandRunner.run(
-            arguments: [
-                "/usr/bin/xcrun",
-                "xcodebuild",
-                "clean",
-                "test",
+            [
                 "-scheme", "App",
-                "-destination", "platform=iOS Simulator,name=iPhone 17",
+                "-destination", "platform=macOS,arch=arm64",
                 "-project", fixtureDirectory.appending(component: "App.xcodeproj").pathString,
                 "-derivedDataPath", temporaryDirectory.pathString,
+                "CODE_SIGN_IDENTITY=",
+                "CODE_SIGNING_REQUIRED=NO",
+                "CODE_SIGNING_ALLOWED=NO",
             ]
-        ).pipedStream().awaitCompletion()
-
-        // When: I inspect the test
-        try await TuistTest.run(
-            InspectTestCommand.self,
-            ["--path", fixtureDirectory.pathString, "--derived-data-path", temporaryDirectory.pathString]
         )
 
-        // Then
-        #expect(ui().contains("View the analyzed test at"))
+        let buildId = try #require(
+            await RunMetadataStorage.current.buildRunId,
+            "XcodeBuildBuildCommand did not record a buildRunId"
+        )
+        Logger.current.warning("Polling build \(buildId) on \(serverURL.absoluteString) for \(fullHandle)")
+
+        let build = try await Self.pollUntilProcessed(
+            timeout: .seconds(30),
+            interval: .seconds(2),
+            label: "build \(buildId)",
+            isTerminal: { $0.status != .processing }
+        ) {
+            try await GetBuildService().getBuild(
+                fullHandle: fullHandle,
+                buildId: buildId,
+                serverURL: serverURL
+            )
+        }
+
+        // The fixture builds successfully — `failed_processing` would mean the upload
+        // made it to the server but the worker couldn't parse the activity log, which is
+        // the regression shape we want this test to catch.
+        #expect(build.status == .success, "Expected build status .success but got \(build.status.rawValue)")
+    }
+
+    /// Polls `operation` until `isTerminal` returns true or the deadline is reached.
+    /// Transient errors (network blips, 5xx) are treated as "not yet ready" so the test
+    /// stays robust on the canary deploy gate.
+    private static func pollUntilProcessed<Value>(
+        timeout: Duration,
+        interval: Duration,
+        label: String,
+        isTerminal: @Sendable (Value) -> Bool,
+        operation: @Sendable () async throws -> Value
+    ) async throws -> Value {
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: timeout)
+        var lastError: (any Error)?
+        while clock.now < deadline {
+            do {
+                let value = try await operation()
+                if isTerminal(value) {
+                    return value
+                }
+            } catch {
+                lastError = error
+                Logger.current.warning("Polling \(label): \(error.localizedDescription)")
+            }
+            try await Task.sleep(for: interval)
+        }
+        if let lastError {
+            Issue.record("Timed out after \(timeout) waiting for \(label) to be processed; last error: \(lastError)")
+        } else {
+            Issue.record("Timed out after \(timeout) waiting for \(label) to be processed")
+        }
+        return try await operation()
     }
 
     @Test(
@@ -148,7 +163,7 @@ struct LintAcceptanceTests {
     @Test(.disabled(), .withFixture("generated_ios_app_with_implicit_dependencies"), .withMockedDependencies())
     func ios_app_with_implicit_dependencies() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
-        let appDependencies: Set<String> = [
+        let appDependencies: Set = [
             "ClassModule",
             "EnumModule",
             "FuncModule",
