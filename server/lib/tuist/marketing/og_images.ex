@@ -7,6 +7,29 @@ defmodule Tuist.Marketing.OgImages do
 
   alias Phoenix.HTML.Safe
 
+  attr :font_data_uri, :string, required: true
+  attr :fallback_font_data_uri, :string, required: true
+
+  defp font_faces(assigns) do
+    ~H"""
+    <style>
+      @font-face {
+        font-family: 'Inter Variable';
+        font-style: normal;
+        font-weight: 100 900;
+        src: url(<%= @font_data_uri %>) format('woff2');
+      }
+      @font-face {
+        font-family: 'Noto Sans Georgian';
+        font-style: normal;
+        font-weight: 100 900;
+        src: url(<%= @fallback_font_data_uri %>) format('woff2');
+        unicode-range: U+0589, U+10A0-10FF, U+1C90-1CBA, U+1CBD-1CBF, U+205A, U+2D00-2D2F, U+2E31;
+      }
+    </style>
+    """
+  end
+
   attr :title, :string, required: true
   attr :font_data_uri, :string, required: true
   attr :fallback_font_data_uri, :string, required: true
@@ -19,20 +42,8 @@ defmodule Tuist.Marketing.OgImages do
     <html>
       <head>
         <meta charset="utf-8" />
+        <.font_faces font_data_uri={@font_data_uri} fallback_font_data_uri={@fallback_font_data_uri} />
         <style>
-          @font-face {
-            font-family: 'Inter Variable';
-            font-style: normal;
-            font-weight: 100 900;
-            src: url(<%= @font_data_uri %>) format('woff2');
-          }
-          @font-face {
-            font-family: 'Noto Sans Georgian';
-            font-style: normal;
-            font-weight: 100 900;
-            src: url(<%= @fallback_font_data_uri %>) format('woff2');
-            unicode-range: U+0589, U+10A0-10FF, U+1C90-1CBA, U+1CBD-1CBF, U+205A, U+2D00-2D2F, U+2E31;
-          }
           /*
            * Colors are hardcoded as hex instead of using Noora CSS variables because
            * headless Chrome doesn't reliably resolve oklch() values in gradient and
@@ -122,20 +133,8 @@ defmodule Tuist.Marketing.OgImages do
     <html>
       <head>
         <meta charset="utf-8" />
+        <.font_faces font_data_uri={@font_data_uri} fallback_font_data_uri={@fallback_font_data_uri} />
         <style>
-          @font-face {
-            font-family: 'Inter Variable';
-            font-style: normal;
-            font-weight: 100 900;
-            src: url(<%= @font_data_uri %>) format('woff2');
-          }
-          @font-face {
-            font-family: 'Noto Sans Georgian';
-            font-style: normal;
-            font-weight: 100 900;
-            src: url(<%= @fallback_font_data_uri %>) format('woff2');
-            unicode-range: U+0589, U+10A0-10FF, U+1C90-1CBA, U+1CBD-1CBF, U+205A, U+2D00-2D2F, U+2E31;
-          }
           * { margin: 0; padding: 0; box-sizing: border-box; }
           html, body {
             width: 1920px;
@@ -207,20 +206,8 @@ defmodule Tuist.Marketing.OgImages do
     <html>
       <head>
         <meta charset="utf-8" />
+        <.font_faces font_data_uri={@font_data_uri} fallback_font_data_uri={@fallback_font_data_uri} />
         <style>
-          @font-face {
-            font-family: 'Inter Variable';
-            font-style: normal;
-            font-weight: 100 900;
-            src: url(<%= @font_data_uri %>) format('woff2');
-          }
-          @font-face {
-            font-family: 'Noto Sans Georgian';
-            font-style: normal;
-            font-weight: 100 900;
-            src: url(<%= @fallback_font_data_uri %>) format('woff2');
-            unicode-range: U+0589, U+10A0-10FF, U+1C90-1CBA, U+1CBD-1CBF, U+205A, U+2D00-2D2F, U+2E31;
-          }
           * { margin: 0; padding: 0; box-sizing: border-box; }
           html, body {
             width: 1920px;
@@ -336,20 +323,20 @@ defmodule Tuist.Marketing.OgImages do
     bg_path = Keyword.fetch!(opts, :bg_path)
     timeline_path = Keyword.fetch!(opts, :timeline_path)
 
-    font_base64 = fonts_dir |> Path.join("InterVariable.woff2") |> File.read!() |> Base.encode64()
-    fallback_font_base64 = fonts_dir |> Path.join("NotoSansGeorgian-georgian.woff2") |> File.read!() |> Base.encode64()
     logo_base64 = logo_path |> File.read!() |> Base.encode64()
     bg_base64 = bg_path |> File.read!() |> Base.encode64()
     timeline_base64 = timeline_path |> File.read!() |> Base.encode64()
 
-    assigns = %{
-      title: title,
-      font_data_uri: "data:font/woff2;base64,#{font_base64}",
-      fallback_font_data_uri: "data:font/woff2;base64,#{fallback_font_base64}",
-      logo_data_uri: "data:image/webp;base64,#{logo_base64}",
-      bg_data_uri: "data:image/webp;base64,#{bg_base64}",
-      timeline_data_uri: "data:image/svg+xml;base64,#{timeline_base64}"
-    }
+    assigns =
+      Map.merge(
+        %{
+          title: title,
+          logo_data_uri: "data:image/webp;base64,#{logo_base64}",
+          bg_data_uri: "data:image/webp;base64,#{bg_base64}",
+          timeline_data_uri: "data:image/svg+xml;base64,#{timeline_base64}"
+        },
+        font_data_uris(fonts_dir)
+      )
 
     "<!DOCTYPE html>" <>
       (assigns |> changelog_card() |> Safe.to_iodata() |> IO.iodata_to_binary())
@@ -366,20 +353,8 @@ defmodule Tuist.Marketing.OgImages do
     <html>
       <head>
         <meta charset="utf-8" />
+        <.font_faces font_data_uri={@font_data_uri} fallback_font_data_uri={@fallback_font_data_uri} />
         <style>
-          @font-face {
-            font-family: 'Inter Variable';
-            font-style: normal;
-            font-weight: 100 900;
-            src: url(<%= @font_data_uri %>) format('woff2');
-          }
-          @font-face {
-            font-family: 'Noto Sans Georgian';
-            font-style: normal;
-            font-weight: 100 900;
-            src: url(<%= @fallback_font_data_uri %>) format('woff2');
-            unicode-range: U+0589, U+10A0-10FF, U+1C90-1CBA, U+1CBD-1CBF, U+205A, U+2D00-2D2F, U+2E31;
-          }
           * { margin: 0; padding: 0; box-sizing: border-box; }
           html, body {
             width: 1920px;
@@ -563,18 +538,18 @@ defmodule Tuist.Marketing.OgImages do
     logo_path = Keyword.fetch!(opts, :logo_path)
     bg_path = Keyword.fetch!(opts, :bg_path)
 
-    font_base64 = fonts_dir |> Path.join("InterVariable.woff2") |> File.read!() |> Base.encode64()
-    fallback_font_base64 = fonts_dir |> Path.join("NotoSansGeorgian-georgian.woff2") |> File.read!() |> Base.encode64()
     logo_base64 = logo_path |> File.read!() |> Base.encode64()
     bg_base64 = bg_path |> File.read!() |> Base.encode64()
 
-    assigns = %{
-      title: title,
-      font_data_uri: "data:font/woff2;base64,#{font_base64}",
-      fallback_font_data_uri: "data:font/woff2;base64,#{fallback_font_base64}",
-      logo_data_uri: "data:image/webp;base64,#{logo_base64}",
-      bg_data_uri: "data:image/webp;base64,#{bg_base64}"
-    }
+    assigns =
+      Map.merge(
+        %{
+          title: title,
+          logo_data_uri: "data:image/webp;base64,#{logo_base64}",
+          bg_data_uri: "data:image/webp;base64,#{bg_base64}"
+        },
+        font_data_uris(fonts_dir)
+      )
 
     "<!DOCTYPE html>" <>
       (assigns |> api_docs_card() |> Safe.to_iodata() |> IO.iodata_to_binary())
@@ -592,20 +567,8 @@ defmodule Tuist.Marketing.OgImages do
     <html>
       <head>
         <meta charset="utf-8" />
+        <.font_faces font_data_uri={@font_data_uri} fallback_font_data_uri={@fallback_font_data_uri} />
         <style>
-          @font-face {
-            font-family: 'Inter Variable';
-            font-style: normal;
-            font-weight: 100 900;
-            src: url(<%= @font_data_uri %>) format('woff2');
-          }
-          @font-face {
-            font-family: 'Noto Sans Georgian';
-            font-style: normal;
-            font-weight: 100 900;
-            src: url(<%= @fallback_font_data_uri %>) format('woff2');
-            unicode-range: U+0589, U+10A0-10FF, U+1C90-1CBA, U+1CBD-1CBF, U+205A, U+2D00-2D2F, U+2E31;
-          }
           * { margin: 0; padding: 0; box-sizing: border-box; }
           html, body {
             width: 1920px;
@@ -681,20 +644,20 @@ defmodule Tuist.Marketing.OgImages do
     bg_path = Keyword.fetch!(opts, :bg_path)
     icon_path = Keyword.fetch!(opts, :icon_path)
 
-    font_base64 = fonts_dir |> Path.join("InterVariable.woff2") |> File.read!() |> Base.encode64()
-    fallback_font_base64 = fonts_dir |> Path.join("NotoSansGeorgian-georgian.woff2") |> File.read!() |> Base.encode64()
     logo_base64 = logo_path |> File.read!() |> Base.encode64()
     bg_base64 = bg_path |> File.read!() |> Base.encode64()
     icon_base64 = icon_path |> File.read!() |> Base.encode64()
 
-    assigns = %{
-      title: title,
-      font_data_uri: "data:font/woff2;base64,#{font_base64}",
-      fallback_font_data_uri: "data:font/woff2;base64,#{fallback_font_base64}",
-      logo_data_uri: "data:image/webp;base64,#{logo_base64}",
-      bg_data_uri: "data:image/webp;base64,#{bg_base64}",
-      icon_data_uri: "data:image/webp;base64,#{icon_base64}"
-    }
+    assigns =
+      Map.merge(
+        %{
+          title: title,
+          logo_data_uri: "data:image/webp;base64,#{logo_base64}",
+          bg_data_uri: "data:image/webp;base64,#{bg_base64}",
+          icon_data_uri: "data:image/webp;base64,#{icon_base64}"
+        },
+        font_data_uris(fonts_dir)
+      )
 
     "<!DOCTYPE html>" <>
       (assigns |> newsletter_card() |> Safe.to_iodata() |> IO.iodata_to_binary())
@@ -711,20 +674,8 @@ defmodule Tuist.Marketing.OgImages do
     <html>
       <head>
         <meta charset="utf-8" />
+        <.font_faces font_data_uri={@font_data_uri} fallback_font_data_uri={@fallback_font_data_uri} />
         <style>
-          @font-face {
-            font-family: 'Inter Variable';
-            font-style: normal;
-            font-weight: 100 900;
-            src: url(<%= @font_data_uri %>) format('woff2');
-          }
-          @font-face {
-            font-family: 'Noto Sans Georgian';
-            font-style: normal;
-            font-weight: 100 900;
-            src: url(<%= @fallback_font_data_uri %>) format('woff2');
-            unicode-range: U+0589, U+10A0-10FF, U+1C90-1CBA, U+1CBD-1CBF, U+205A, U+2D00-2D2F, U+2E31;
-          }
           * { margin: 0; padding: 0; box-sizing: border-box; }
           html, body {
             width: 1920px;
@@ -845,18 +796,18 @@ defmodule Tuist.Marketing.OgImages do
     logo_path = Keyword.fetch!(opts, :logo_path)
     bg_path = Keyword.fetch!(opts, :bg_path)
 
-    font_base64 = fonts_dir |> Path.join("InterVariable.woff2") |> File.read!() |> Base.encode64()
-    fallback_font_base64 = fonts_dir |> Path.join("NotoSansGeorgian-georgian.woff2") |> File.read!() |> Base.encode64()
     logo_base64 = logo_path |> File.read!() |> Base.encode64()
     bg_base64 = bg_path |> File.read!() |> Base.encode64()
 
-    assigns = %{
-      title: title,
-      font_data_uri: "data:font/woff2;base64,#{font_base64}",
-      fallback_font_data_uri: "data:font/woff2;base64,#{fallback_font_base64}",
-      logo_data_uri: "data:image/webp;base64,#{logo_base64}",
-      bg_data_uri: "data:image/webp;base64,#{bg_base64}"
-    }
+    assigns =
+      Map.merge(
+        %{
+          title: title,
+          logo_data_uri: "data:image/webp;base64,#{logo_base64}",
+          bg_data_uri: "data:image/webp;base64,#{bg_base64}"
+        },
+        font_data_uris(fonts_dir)
+      )
 
     "<!DOCTYPE html>" <>
       (assigns |> blog_card() |> Safe.to_iodata() |> IO.iodata_to_binary())
@@ -868,18 +819,18 @@ defmodule Tuist.Marketing.OgImages do
     logo_path = Keyword.fetch!(opts, :logo_path)
     phone_path = Keyword.fetch!(opts, :phone_path)
 
-    font_base64 = fonts_dir |> Path.join("InterVariable.woff2") |> File.read!() |> Base.encode64()
-    fallback_font_base64 = fonts_dir |> Path.join("NotoSansGeorgian-georgian.woff2") |> File.read!() |> Base.encode64()
     logo_base64 = logo_path |> File.read!() |> Base.encode64()
     phone_base64 = phone_path |> File.read!() |> Base.encode64()
 
-    assigns = %{
-      title: title,
-      font_data_uri: "data:font/woff2;base64,#{font_base64}",
-      fallback_font_data_uri: "data:font/woff2;base64,#{fallback_font_base64}",
-      logo_data_uri: "data:image/webp;base64,#{logo_base64}",
-      phone_data_uri: "data:image/png;base64,#{phone_base64}"
-    }
+    assigns =
+      Map.merge(
+        %{
+          title: title,
+          logo_data_uri: "data:image/webp;base64,#{logo_base64}",
+          phone_data_uri: "data:image/png;base64,#{phone_base64}"
+        },
+        font_data_uris(fonts_dir)
+      )
 
     "<!DOCTYPE html>" <>
       (assigns |> home_card() |> Safe.to_iodata() |> IO.iodata_to_binary())
@@ -892,8 +843,6 @@ defmodule Tuist.Marketing.OgImages do
     bg_path = Keyword.fetch!(opts, :bg_path)
     icon_path = Keyword.get(opts, :icon_path)
 
-    font_base64 = fonts_dir |> Path.join("InterVariable.woff2") |> File.read!() |> Base.encode64()
-    fallback_font_base64 = fonts_dir |> Path.join("NotoSansGeorgian-georgian.woff2") |> File.read!() |> Base.encode64()
     logo_base64 = logo_path |> File.read!() |> Base.encode64()
     bg_base64 = bg_path |> File.read!() |> Base.encode64()
 
@@ -911,16 +860,31 @@ defmodule Tuist.Marketing.OgImages do
         "data:#{mime};base64,#{icon_base64}"
       end
 
-    assigns = %{
-      title: title,
-      font_data_uri: "data:font/woff2;base64,#{font_base64}",
-      fallback_font_data_uri: "data:font/woff2;base64,#{fallback_font_base64}",
-      logo_data_uri: "data:image/webp;base64,#{logo_base64}",
-      bg_data_uri: "data:image/webp;base64,#{bg_base64}",
-      icon_data_uri: icon_data_uri
-    }
+    assigns =
+      Map.merge(
+        %{
+          title: title,
+          logo_data_uri: "data:image/webp;base64,#{logo_base64}",
+          bg_data_uri: "data:image/webp;base64,#{bg_base64}",
+          icon_data_uri: icon_data_uri
+        },
+        font_data_uris(fonts_dir)
+      )
 
     "<!DOCTYPE html>" <>
       (assigns |> card() |> Safe.to_iodata() |> IO.iodata_to_binary())
+  end
+
+  defp font_data_uris(fonts_dir) do
+    %{
+      font_data_uri: font_data_uri(fonts_dir, "InterVariable.woff2"),
+      fallback_font_data_uri: font_data_uri(fonts_dir, "NotoSansGeorgian-georgian.woff2")
+    }
+  end
+
+  defp font_data_uri(fonts_dir, filename) do
+    font_base64 = fonts_dir |> Path.join(filename) |> File.read!() |> Base.encode64()
+
+    "data:font/woff2;base64,#{font_base64}"
   end
 end
