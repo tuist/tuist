@@ -10,9 +10,12 @@ defmodule Tuist.ClickHouseRetry do
   half-dead socket surface as `:timeout`. Both clear within
   milliseconds and are safe to retry on idempotent reads/writes.
 
-  Used by `Tuist.IngestRepo` (writes) and `Tuist.ClickHouseRepo`
-  (reads) so every Repo call inherits the retry without per-call-site
-  wrapping.
+  Used by `Tuist.IngestRepo` (writes: `insert`, `insert_all`, `all`)
+  and `Tuist.ClickHouseRepo` (reads: `all`, `one`, `aggregate`,
+  `exists?`, `preload`, `query`, `query!`) so every wired Repo call
+  inherits the retry without per-call-site wrapping. `stream/1,2` and
+  cursor-based reads are intentionally left out: a retry mid-iteration
+  can't recover the producer's position cleanly.
   """
 
   require Logger
