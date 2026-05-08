@@ -173,7 +173,7 @@ defmodule Tuist.Processor.XCResultProcessor do
         |> Task.async_stream(
           &upload_attachment(&1, bucket, account_handle, project_handle, test_run_id),
           max_concurrency: 30,
-          timeout: 180_000,
+          timeout: 60_000,
           on_timeout: :kill_task
         )
         |> Enum.zip(all_attachments)
@@ -217,6 +217,8 @@ defmodule Tuist.Processor.XCResultProcessor do
     end)
   end
 
+  @upload_max_attempts 3
+
   defp upload_attachment(attachment, bucket, account_handle, project_handle, test_run_id) do
     file_path = Map.get(attachment, "file_path")
     file_name = Map.get(attachment, "file_name")
@@ -226,36 +228,55 @@ defmodule Tuist.Processor.XCResultProcessor do
       s3_key =
         "#{String.downcase(account_handle)}/#{String.downcase(project_handle)}/tests/runs/#{test_run_id}/attachments/#{attachment_id}/#{file_name}"
 
-      # ExAws.S3.Upload internally fans chunks out via Task.async_stream with a
-      # 30s default per-chunk timeout. A slow chunk crashes the inner task and
-      # Logger reports it as a SASL crash, even though the outer reducer
-      # already drops the attachment cleanly. Catch the exit here so transient
-      # slowness fails as a normal `:error` instead of paging.
-      try do
-        case file_path
-             |> ExAws.S3.Upload.stream_file()
-             |> ExAws.S3.upload(bucket, s3_key, timeout: 120_000)
-             |> ExAws.request() do
-          {:ok, _} ->
-            uploaded =
-              attachment
-              |> Map.delete("file_path")
-              |> Map.put("attachment_id", attachment_id)
+      case upload_to_s3(file_path, bucket, s3_key, file_name, 1) do
+        {:ok, _} ->
+          uploaded =
+            attachment
+            |> Map.delete("file_path")
+            |> Map.put("attachment_id", attachment_id)
 
-            {:ok, uploaded}
+          {:ok, uploaded}
 
-          {:error, reason} ->
-            Logger.error("Failed to upload attachment #{file_name}: #{inspect(reason)}")
-            :error
-        end
-      catch
-        :exit, reason ->
-          Logger.error("Attachment upload exited for #{file_name}: #{inspect(reason)}")
+        {:error, reason} ->
+          Logger.error("Failed to upload attachment #{file_name}: #{inspect(reason)}")
           :error
       end
     else
       :error
     end
+  end
+
+  # ExAws.S3.Upload fans chunks out via an internal Task.async_stream with a
+  # 30s per-chunk timeout; a slow chunk crashes the upload Task. Retry up to
+  # @upload_max_attempts times to ride through transient slowness; on the
+  # final attempt nothing is caught, so a real outage still propagates as a
+  # crash and surfaces in Sentry.
+  defp upload_to_s3(file_path, bucket, s3_key, file_name, attempt) when attempt < @upload_max_attempts do
+    case do_s3_upload(file_path, bucket, s3_key) do
+      {:ok, _} = ok ->
+        ok
+
+      {:error, reason} ->
+        Logger.warning("xcresult attachment upload errored (#{file_name}, attempt #{attempt}): #{inspect(reason)}")
+
+        upload_to_s3(file_path, bucket, s3_key, file_name, attempt + 1)
+    end
+  catch
+    :exit, reason ->
+      Logger.warning("xcresult attachment upload exited (#{file_name}, attempt #{attempt}): #{inspect(reason)}")
+
+      upload_to_s3(file_path, bucket, s3_key, file_name, attempt + 1)
+  end
+
+  defp upload_to_s3(file_path, bucket, s3_key, _file_name, _attempt) do
+    do_s3_upload(file_path, bucket, s3_key)
+  end
+
+  defp do_s3_upload(file_path, bucket, s3_key) do
+    file_path
+    |> ExAws.S3.Upload.stream_file()
+    |> ExAws.S3.upload(bucket, s3_key)
+    |> ExAws.request()
   end
 
   defp make_temp_dir do

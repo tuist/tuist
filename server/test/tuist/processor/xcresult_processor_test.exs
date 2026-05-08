@@ -239,7 +239,7 @@ defmodule Tuist.Processor.XCResultProcessorTest do
         {:ok, %{status_code: 200}}
       end)
 
-      stub(ExAws.S3, :upload, fn stream, _bucket, key, _opts ->
+      stub(ExAws.S3, :upload, fn stream, _bucket, key ->
         %Upload{bucket: "tuist", path: key, src: stream}
       end)
 
@@ -261,6 +261,119 @@ defmodule Tuist.Processor.XCResultProcessorTest do
       assert attachment["attachment_id"]
       assert attachment["file_name"] == "screenshot.png"
       refute Map.has_key?(attachment, "file_path")
+    end
+
+    test "retries attachment upload on transient ExAws error before succeeding" do
+      {fixture_dir, fixture_zip} = create_xcresult_zip()
+      on_exit(fn -> File.rm_rf(fixture_dir) end)
+
+      attachment_file = Path.join(fixture_dir, "screenshot.png")
+      File.write!(attachment_file, "fake-png-data")
+
+      parsed_data = %{
+        "test_modules" => [
+          %{
+            "name" => "Module",
+            "test_cases" => [
+              %{
+                "name" => "test_example",
+                "attachments" => [
+                  %{
+                    "file_path" => attachment_file,
+                    "file_name" => "screenshot.png",
+                    "repetition_number" => nil
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+
+      {:ok, attempts} = Agent.start_link(fn -> 0 end)
+      on_exit(fn -> if Process.alive?(attempts), do: Agent.stop(attempts) end)
+
+      stub(ExAws, :request, fn %Upload{} ->
+        case Agent.get_and_update(attempts, &{&1 + 1, &1 + 1}) do
+          1 -> {:error, :timeout}
+          _ -> {:ok, %{status_code: 200}}
+        end
+      end)
+
+      stub(ExAws.S3, :upload, fn stream, _bucket, key ->
+        %Upload{bucket: "tuist", path: key, src: stream}
+      end)
+
+      expect(XCResultNIF, :parse, fn _path, _root -> {:ok, parsed_data} end)
+
+      opts = [
+        test_run_id: "run-123",
+        account_handle: "MyOrg",
+        project_handle: "MyProject"
+      ]
+
+      assert {:ok, result} = XCResultProcessor.process_local(fixture_zip, opts)
+
+      [module] = result["test_modules"]
+      [test_case] = module["test_cases"]
+      [attachment] = test_case["attachments"]
+      assert attachment["attachment_id"]
+      assert Agent.get(attempts, & &1) == 2
+    end
+
+    test "drops attachment after retries are exhausted" do
+      {fixture_dir, fixture_zip} = create_xcresult_zip()
+      on_exit(fn -> File.rm_rf(fixture_dir) end)
+
+      attachment_file = Path.join(fixture_dir, "screenshot.png")
+      File.write!(attachment_file, "fake-png-data")
+
+      parsed_data = %{
+        "test_modules" => [
+          %{
+            "name" => "Module",
+            "test_cases" => [
+              %{
+                "name" => "test_example",
+                "attachments" => [
+                  %{
+                    "file_path" => attachment_file,
+                    "file_name" => "screenshot.png",
+                    "repetition_number" => nil
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+
+      {:ok, attempts} = Agent.start_link(fn -> 0 end)
+      on_exit(fn -> if Process.alive?(attempts), do: Agent.stop(attempts) end)
+
+      stub(ExAws, :request, fn %Upload{} ->
+        Agent.update(attempts, &(&1 + 1))
+        {:error, :timeout}
+      end)
+
+      stub(ExAws.S3, :upload, fn stream, _bucket, key ->
+        %Upload{bucket: "tuist", path: key, src: stream}
+      end)
+
+      expect(XCResultNIF, :parse, fn _path, _root -> {:ok, parsed_data} end)
+
+      opts = [
+        test_run_id: "run-123",
+        account_handle: "MyOrg",
+        project_handle: "MyProject"
+      ]
+
+      assert {:ok, result} = XCResultProcessor.process_local(fixture_zip, opts)
+
+      [module] = result["test_modules"]
+      [test_case] = module["test_cases"]
+      assert test_case["attachments"] == []
+      assert Agent.get(attempts, & &1) == 3
     end
 
     test "dispatches to AppleArchive NIF when the downloaded payload is not PKZIP" do
