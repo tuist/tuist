@@ -48,7 +48,7 @@ defmodule TuistWeb.BuildRunLive do
 
     run =
       run
-      |> Tuist.Repo.preload([:ran_by_account, project: :vcs_connection])
+      |> Tuist.Repo.preload([:ran_by_account, project: [vcs_connection: :github_app_installation]])
       |> Tuist.ClickHouseRepo.preload([:issues, :machine_metrics])
 
     if run.project.id != project.id do
@@ -129,7 +129,7 @@ defmodule TuistWeb.BuildRunLive do
 
       run =
         run
-        |> Tuist.Repo.preload([:ran_by_account, project: :vcs_connection])
+        |> Tuist.Repo.preload([:ran_by_account, project: [vcs_connection: :github_app_installation]])
         |> Tuist.ClickHouseRepo.preload([:issues])
 
       {:noreply, socket |> assign(:run, run) |> assign_build_data(run)}
@@ -223,7 +223,7 @@ defmodule TuistWeb.BuildRunLive do
 
     refreshed_run =
       refreshed_run
-      |> Tuist.Repo.preload([:ran_by_account, project: :vcs_connection])
+      |> Tuist.Repo.preload([:ran_by_account, project: [vcs_connection: :github_app_installation]])
       |> Tuist.ClickHouseRepo.preload([:issues, :machine_metrics])
 
     {:noreply,

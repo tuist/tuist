@@ -109,6 +109,7 @@ spec:
                 secretKeyRef:
                   name: {{ $processorSecretName }}
                   key: processor-database-url
+            {{- include "tuist.githubEnv" . | nindent 12 }}
             {{- if or .Values.server.masterKey .Values.server.managedSecrets }}
             # MASTER_KEY unlocks the rest of priv/secrets/<env>.yml.enc
             # (ClickHouse URL, S3 creds, Sentry, Stripe, etc.). The release

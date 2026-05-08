@@ -1051,12 +1051,14 @@ flaky_test_case_updates =
 # Track which test cases are quarantined (muted or skipped) vs enabled for event generation.
 quarantined_states = ["muted", "skipped"]
 
-{quarantined_ids, unquarantined_ids} =
+{quarantined_with_state, unquarantined_ids} =
   flaky_test_case_defs
   |> Enum.split_with(fn {_def, _id, state} -> state in quarantined_states end)
   |> then(fn {quarantined, enabled} ->
-    {Enum.map(quarantined, fn {_def, id, _} -> id end), Enum.map(enabled, fn {_def, id, _} -> id end)}
+    {Enum.map(quarantined, fn {_def, id, state} -> {id, state} end), Enum.map(enabled, fn {_def, id, _} -> id end)}
   end)
+
+quarantined_ids = Enum.map(quarantined_with_state, fn {id, _state} -> id end)
 
 muted_count = Enum.count(flaky_test_case_defs, fn {_def, _id, state} -> state == "muted" end)
 skipped_count = Enum.count(flaky_test_case_defs, fn {_def, _id, state} -> state == "skipped" end)
@@ -2006,10 +2008,17 @@ end
 
 IO.puts("Generating test case events for quarantine history...")
 
-# Generate events for quarantined test cases (odd number of events, ending with "muted")
+# Generate events for quarantined test cases (odd number of events, ending with the
+# test's current state — "muted" or "skipped" — so analytics matches the table).
 quarantined_events =
-  Enum.flat_map(quarantined_ids, fn test_case_id ->
-    # Odd number of events so it ends with "muted"
+  Enum.flat_map(quarantined_with_state, fn {test_case_id, state} ->
+    {active_event, inverse_event} =
+      case state do
+        "muted" -> {"muted", "unmuted"}
+        "skipped" -> {"skipped", "unskipped"}
+      end
+
+    # Odd number of events so it ends with the active event
     num_events = Enum.random([1, 3, 5, 7])
     base_date = DateTime.utc_now()
 
@@ -2024,7 +2033,7 @@ quarantined_events =
     event_timestamps
     |> Enum.with_index()
     |> Enum.map(fn {inserted_at, index} ->
-      event_type = if rem(index, 2) == 0, do: "muted", else: "unmuted"
+      event_type = if rem(index, 2) == 0, do: active_event, else: inverse_event
       actor_id = if Enum.random(1..10) <= 7, do: nil, else: user_account_id
 
       %{

@@ -393,6 +393,8 @@ defmodule TuistWeb.Router do
     pipe_through [:open_api, :browser_app]
 
     get "/github/setup", GitHubAppSetupController, :setup
+    get "/github/manifest/start", GitHubAppManifestController, :start
+    get "/github/manifest/callback", GitHubAppManifestController, :callback
     get "/slack/callback", SlackOAuthController, :callback
   end
 
@@ -412,9 +414,14 @@ defmodule TuistWeb.Router do
     get "/oauth-protected-resource/*resource_path", WellKnownController, :oauth_protected_resource
     get "/jwks.json", WellKnownController, :jwks
     get "/mcp/server-card.json", WellKnownController, :mcp_server_card
-    get "/openai-apps-challenge", WellKnownController, :openai_apps_challenge
     get "/apple-app-site-association", WellKnownController, :apple_app_site_association
     get "/assetlinks.json", WellKnownController, :assetlinks
+  end
+
+  scope "/.well-known", TuistWeb do
+    pipe_through :open_api
+
+    get "/openai-apps-challenge", WellKnownController, :openai_apps_challenge
   end
 
   scope "/" do
@@ -526,6 +533,7 @@ defmodule TuistWeb.Router do
             end
 
             get "/:test_case_id", TestCasesController, :show
+            patch "/:test_case_id", TestCasesController, :update
             get "/:test_case_id/events", TestCasesController, :events
             get "/:test_case_id/runs", TestCaseRunsController, :index_by_test_case
           end

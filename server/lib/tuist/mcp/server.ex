@@ -25,6 +25,7 @@ defmodule Tuist.MCP.Server do
       Tuist.MCP.Components.Tools.ListTestCases,
       Tuist.MCP.Components.Tools.ListTestCaseEvents,
       Tuist.MCP.Components.Tools.GetTestCase,
+      Tuist.MCP.Components.Tools.UpdateTestCase,
       Tuist.MCP.Components.Tools.GetTestRun,
       Tuist.MCP.Components.Tools.GetTestCaseRun,
       Tuist.MCP.Components.Tools.ListTestCaseRunAttachments,

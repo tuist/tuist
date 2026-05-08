@@ -97,6 +97,7 @@ defmodule Tuist do
       OIDC,
       Authorization.Checks,
       Billing,
+      Billing.Entitlements,
       Billing.Subscription,
       AppBuilds,
       AppBuilds.Preview,

@@ -23,7 +23,7 @@ defmodule TuistWeb.TestCaseLive do
         _session,
         %{assigns: %{selected_project: project, selected_account: account}} = socket
       ) do
-    project = Tuist.Repo.preload(project, :vcs_connection)
+    project = Tuist.Repo.preload(project, vcs_connection: :github_app_installation)
 
     test_case_detail =
       case Tests.get_test_case_by_id(test_case_id) do
@@ -335,7 +335,7 @@ defmodule TuistWeb.TestCaseLive do
       {:ok, %{analytics: Analytics.test_case_analytics_by_id(test_case_id)}}
     end)
     |> assign_async([:flakiness_rate, :flaky_runs_grouped, :flaky_runs_meta], fn ->
-      {flaky_runs_grouped, flaky_runs_meta} = Tests.list_flaky_runs_for_test_case(test_case_id)
+      {flaky_runs_grouped, flaky_runs_meta} = Tests.list_flaky_runs_for_test_case(project.id, test_case_id)
 
       {:ok,
        %{

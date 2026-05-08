@@ -114,6 +114,7 @@ spec:
               value: "1"
             {{- end }}
             {{- include "tuist.licenseEnv" . | nindent 12 }}
+            {{- include "tuist.githubEnv" . | nindent 12 }}
             {{- if or .Values.server.masterKey .Values.server.managedSecrets }}
             - name: MASTER_KEY
               valueFrom:

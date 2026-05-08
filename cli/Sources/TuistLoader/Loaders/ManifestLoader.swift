@@ -1,3 +1,4 @@
+import Command
 import FileSystem
 import Foundation
 import Mockable
@@ -130,6 +131,7 @@ public class ManifestLoader: ManifestLoading {
     private let swiftPackageManagerController: SwiftPackageManagerControlling
     private let packageInfoLoader: PackageInfoLoading
     private let fileSystem: FileSysteming
+    private let commandRunner: CommandRunning
     private let gitController: GitControlling
 
     // MARK: - Init
@@ -143,6 +145,7 @@ public class ManifestLoader: ManifestLoading {
             manifestFilesLocator: ManifestFilesLocator(),
             swiftPackageManagerController: SwiftPackageManagerController(),
             packageInfoLoader: PackageInfoLoader(),
+            commandRunner: CommandRunner(),
             gitController: GitController()
         )
     }
@@ -156,6 +159,7 @@ public class ManifestLoader: ManifestLoading {
         swiftPackageManagerController: SwiftPackageManagerControlling,
         packageInfoLoader: PackageInfoLoading,
         fileSystem: FileSysteming = FileSystem(),
+        commandRunner: CommandRunning = CommandRunner(),
         gitController: GitControlling = GitController()
     ) {
         self.environment = environment
@@ -166,6 +170,7 @@ public class ManifestLoader: ManifestLoading {
         self.swiftPackageManagerController = swiftPackageManagerController
         self.packageInfoLoader = packageInfoLoader
         self.fileSystem = fileSystem
+        self.commandRunner = commandRunner
         self.gitController = gitController
         decoder = JSONDecoder()
     }
@@ -339,9 +344,8 @@ public class ManifestLoader: ManifestLoading {
         ) + ["--tuist-dump"]
 
         do {
-            let string = try System.shared.capture(
-                arguments,
-                verbose: false,
+            let string = try await commandRunner.capture(
+                arguments: arguments,
                 environment: Environment.current.manifestLoadingVariables
             )
 
@@ -451,7 +455,7 @@ public class ManifestLoader: ManifestLoading {
                     }
                     return try await XcodeController.current.selected().path
                 }()
-                let packageVersion = try swiftPackageManagerController.getToolsVersion(
+                let packageVersion = try await swiftPackageManagerController.getToolsVersion(
                     at: path.parentDirectory
                 )
                 let manifestPath =
@@ -476,7 +480,7 @@ public class ManifestLoader: ManifestLoading {
             // PackageDescription.Context expects SwiftPM's manifest runtime context argument.
             let context = PackageDescriptionContext(
                 packageDirectory: path.parentDirectory.pathString,
-                gitInformation: try packageDescriptionContextGitInformation(at: path.parentDirectory)
+                gitInformation: try await packageDescriptionContextGitInformation(at: path.parentDirectory)
             )
             let data = try JSONEncoder().encode(context)
             arguments.append(contentsOf: [
@@ -523,19 +527,20 @@ public class ManifestLoader: ManifestLoading {
         }
     }
 
-    private func packageDescriptionContextGitInformation(at packageDirectory: AbsolutePath) throws -> PackageDescriptionContext
+    private func packageDescriptionContextGitInformation(at packageDirectory: AbsolutePath) async throws
+        -> PackageDescriptionContext
         .GitInformation?
     {
-        guard gitController.isGitAvailable(),
-              gitController.isInGitRepository(workingDirectory: packageDirectory)
+        guard await gitController.isGitAvailable(),
+              await gitController.isInGitRepository(workingDirectory: packageDirectory)
         else {
             return nil
         }
 
         return PackageDescriptionContext.GitInformation(
-            currentTag: try gitController.currentTag(workingDirectory: packageDirectory),
-            currentCommit: try gitController.currentCommitSHA(workingDirectory: packageDirectory),
-            hasUncommittedChanges: try gitController.hasUncommittedChanges(workingDirectory: packageDirectory)
+            currentTag: try await gitController.currentTag(workingDirectory: packageDirectory),
+            currentCommit: try await gitController.currentCommitSHA(workingDirectory: packageDirectory),
+            hasUncommittedChanges: try await gitController.hasUncommittedChanges(workingDirectory: packageDirectory)
         )
     }
 
@@ -569,10 +574,11 @@ public class ManifestLoader: ManifestLoading {
     }
 
     private func logUnexpectedImportErrorIfNeeded(in path: AbsolutePath, error: Error, manifest: Manifest) {
-        guard case let TuistSupport.SystemError.terminated(command, _, standardError) = error,
+        guard case let CommandError.terminated(_, standardError, command) = error,
               manifest == .config || manifest == .plugin,
-              command == "swiftc",
-              let errorMessage = String(data: standardError, encoding: .utf8) else { return }
+              command.first == "swiftc" else { return }
+
+        let errorMessage = standardError
 
         let defaultHelpersName = ProjectDescriptionHelpersBuilder.defaultHelpersName
 
@@ -586,9 +592,10 @@ public class ManifestLoader: ManifestLoading {
     }
 
     private func logPluginHelperBuildErrorIfNeeded(in _: AbsolutePath, error: Error, manifest _: Manifest) {
-        guard case let TuistSupport.SystemError.terminated(command, _, standardError) = error,
-              command == "swiftc",
-              let errorMessage = String(data: standardError, encoding: .utf8) else { return }
+        guard case let CommandError.terminated(_, standardError, command) = error,
+              command.first == "swiftc" else { return }
+
+        let errorMessage = standardError
 
         let pluginHelpers = plugins.projectDescriptionHelpers
         guard let pluginHelper = pluginHelpers.first(where: { errorMessage.contains($0.name) }) else { return }

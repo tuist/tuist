@@ -70,6 +70,8 @@ Tenant-owned schemas include at least: `Bundle`, `Run`, `Cache`,
 
 - Internal background jobs that intentionally operate across tenants (look for an explicit `# admin / cross-tenant: ...` comment or a function name like `*_for_all/_global/_admin`).
 - Reads from non-tenant tables (`User`, `Account`, `Organization`, `Subscription`, etc.).
+- **Webhook handlers operating on a row that was already cryptographically selected upstream.** When `lib/tuist_web/plugs/webhook_plug.ex` resolves a per-row HMAC secret (e.g. `GitHubController.resolve_webhook_secret/1` matches a `GitHubAppInstallation` row whose `webhook_secret` HMACs the raw body, then stashes the row on `conn.assigns[:github_installation]`), downstream handlers reading that assign do not need a separate `installation.account_id == expected_account_id` check. There is no separate "expected account" — webhooks land on a global `/webhooks/<provider>` URL, and the row *is* the tenant context, selected by a per-row cryptographic capability. A redundant `account_id` equality check after `valid_signature?/4` would compare the row's value to itself; it adds dead code, not a defense layer. If the cryptographic check fails, the request 403's before the handler ever runs.
+- **Internal dispatch paths whose inputs come from a query already scoped by tenant.** When a function receives a struct produced by an upstream context function that already filters by `project_id` / `account_id` (e.g. `FlakyTestsMonitor.evaluate/1` → `AlertEvaluationWorker` → `ActionExecutor`), do not flag the downstream call as needing its own scoping check. Trace the input chain before flagging; only flag when the input is user-controllable (URL param, body field, header).
 
 ---
 
@@ -271,6 +273,45 @@ author can act on it directly:
 
 ---
 
+## 10. Inline `style="..."` in HEEx templates
+
+Component styling lives in `server/assets/app/css/pages/*.css` (or
+`noora/lib/noora/**/*.css` for design-system primitives), keyed off
+`data-part` selectors that mirror the HEEx structure. Inline `style=`
+attributes on elements or component props bypass the design tokens
+(`var(--noora-spacing-*)`, `var(--noora-font-*)`, etc.) at review
+time, leak presentation into LiveView diffs, and prevent themers /
+density modes from overriding the value.
+
+### Flag (Severity: low)
+
+- A new `style="..."` attribute on an HTML element inside any
+  `server/lib/tuist_web/**/*.html.heex` or `*_live.html.heex`.
+- A `style=` prop passed to a Noora component (`<.button_group
+  style="...">`, `<.text_input style="...">`, etc.). These flow through
+  to the underlying element via `{@rest}`, so they're inline styles by
+  another name.
+
+When suggesting a fix:
+
+1. Add a stable `data-part` (or reuse one already on the element).
+2. Move the rule into the matching page CSS file
+   (`server/assets/app/css/pages/<page>.css`) or, if it belongs to a
+   reusable component, the Noora primitive's CSS.
+3. Prefer Noora design tokens (`--noora-spacing-*`, `--noora-radius-*`,
+   `--noora-font-*`, `--noora-surface-*`) over raw values.
+
+### Do not flag
+
+- `style=` attributes that already existed before the diff.
+- Generated SVG markup with inline styles (it's the artist tool's
+  output, not author-written).
+- One-off `style="display: none"` toggles whose visibility is driven
+  by a temporary Phoenix `:if` — those still belong in CSS, but the
+  signal-to-noise here is low.
+
+---
+
 ## Out of scope (handled elsewhere — do not flag)
 
 - Module / function naming, pipe-chain start, function ordering,
@@ -286,7 +327,7 @@ author can act on it directly:
 For each finding, confirm:
 
 1. The `path:line` is real and the snippet appears in the diff.
-2. The category above is one of 1–9; if it isn't, downgrade to a
+2. The category above is one of 1–10; if it isn't, downgrade to a
    question (`uncertain: ...`) rather than asserting a finding.
 3. The severity is set: **critical** (auth bypass / cross-tenant read or
    write), **high** (likely security or correctness bug), **medium**

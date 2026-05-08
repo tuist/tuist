@@ -189,6 +189,15 @@ xcresultProcessor:
 # xcresult capacity offline.
 macosFleet:
   replicas: 2
+  machine:
+    # M2-L while M4-S is out of stock at Scaleway (fr-par-1) — the
+    # first production rollout failed with `resource server is out
+    # of stock` against the chart default (M4-S). M2-L is the next
+    # SKU up that's been independently stocked when M4 capacity
+    # rotates out, and the M2 generation has its own pool. Flip
+    # back to the chart default once Scaleway restocks M4-S; canary
+    # stays on M4-S so we keep tracking that capacity.
+    type: M2-L
   controlPlane:
     host: api.tuist.dev
 

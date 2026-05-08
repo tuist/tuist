@@ -153,6 +153,19 @@ defmodule TuistWeb.QuarantinedTestsLive do
     {:noreply, socket}
   end
 
+  def handle_event("select_widget", %{"widget" => widget}, socket) do
+    query = Query.put(socket.assigns.uri.query, "analytics-selected-widget", widget)
+    uri = URI.new!("?" <> query)
+
+    socket =
+      socket
+      |> assign(:analytics_selected_widget, widget)
+      |> assign(:uri, uri)
+      |> push_event("replace-url", %{url: "?" <> query})
+
+    {:noreply, socket}
+  end
+
   def handle_event(
         "analytics_period_changed",
         %{"value" => %{"start" => start_date, "end" => end_date}, "preset" => preset},
@@ -250,10 +263,29 @@ defmodule TuistWeb.QuarantinedTestsLive do
     socket
     |> assign(:analytics_preset, preset)
     |> assign(:analytics_period, period)
+    |> assign(:analytics_trend_label, analytics_trend_label(preset))
+    |> assign(:analytics_selected_widget, normalize_selected_widget(params["analytics-selected-widget"]))
     |> assign_async(:quarantined_analytics, fn ->
       {:ok, %{quarantined_analytics: Analytics.quarantined_tests_analytics(project.id, opts)}}
     end)
   end
+
+  defp normalize_selected_widget(widget) when widget in ["quarantined", "muted", "skipped"], do: widget
+  defp normalize_selected_widget(_), do: "quarantined"
+
+  defp analytics_trend_label("last-24-hours"), do: dgettext("dashboard_tests", "since yesterday")
+  defp analytics_trend_label("last-7-days"), do: dgettext("dashboard_tests", "since last week")
+  defp analytics_trend_label("last-12-months"), do: dgettext("dashboard_tests", "since last year")
+  defp analytics_trend_label("custom"), do: dgettext("dashboard_tests", "since last period")
+  defp analytics_trend_label(_), do: dgettext("dashboard_tests", "since last month")
+
+  defp selected_count(%{count: count}, "quarantined"), do: count
+  defp selected_count(%{muted_count: count}, "muted"), do: count
+  defp selected_count(%{skipped_count: count}, "skipped"), do: count
+
+  defp selected_values(%{values: values}, "quarantined"), do: values
+  defp selected_values(%{muted_values: values}, "muted"), do: values
+  defp selected_values(%{skipped_values: values}, "skipped"), do: values
 
   defp sort_icon("asc"), do: "square_rounded_arrow_up"
   defp sort_icon("desc"), do: "square_rounded_arrow_down"

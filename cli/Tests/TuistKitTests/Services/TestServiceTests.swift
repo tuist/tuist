@@ -1,3 +1,4 @@
+import Command
 import Foundation
 import Mockable
 import Path
@@ -12,6 +13,8 @@ import TuistCore
 import TuistGenerator
 import TuistGit
 import TuistLoader
+import TuistLoggerTesting
+import TuistLogging
 import TuistServer
 import TuistSupport
 import TuistXCActivityLog
@@ -1997,6 +2000,333 @@ final class TestServiceTests: TuistUnitTestCase {
                     cacheCategory: .value(.selectiveTests)
                 )
                 .called(1)
+        }
+    }
+
+    func test_run_tests_when_part_is_cached_only_logs_requested_targets_as_skipped() async throws {
+        try await withMockedDependencies {
+            // Given
+            // TargetA, TargetB, TargetC are in the scheme.
+            // TargetB and TargetC are cached.
+            // User passes --test-targets TargetA TargetB (not TargetC).
+            // Only TargetB should appear in the "will be skipped" message.
+            givenGenerator()
+            given(configLoader)
+                .loadConfig(path: .any)
+                .willReturn(.default)
+            given(buildGraphInspector)
+                .testableSchemes(graphTraverser: .any)
+                .willReturn([])
+
+            let projectPath = try temporaryPath().appending(component: "ProjectOne")
+            let scheme = Scheme.test(
+                name: "ProjectScheme",
+                testAction: .test(
+                    targets: [
+                        .test(target: TargetReference(projectPath: projectPath, name: "TargetA")),
+                    ]
+                )
+            )
+
+            given(buildGraphInspector)
+                .workspaceSchemes(graphTraverser: .any)
+                .willReturn([scheme])
+            given(buildGraphInspector)
+                .testableTarget(
+                    scheme: .any,
+                    testPlan: .any,
+                    testTargets: .any,
+                    skipTestTargets: .any,
+                    graphTraverser: .any,
+                    action: .any
+                )
+                .willReturn(.test())
+
+            var environment = MapperEnvironment()
+            environment.initialGraph = .test(
+                projects: [
+                    projectPath: .test(
+                        path: projectPath,
+                        targets: [
+                            .test(name: "TargetA", bundleId: "io.tuist.TargetA"),
+                            .test(name: "TargetB", bundleId: "io.tuist.TargetB"),
+                            .test(name: "TargetC", bundleId: "io.tuist.TargetC"),
+                        ],
+                        schemes: [
+                            .test(
+                                name: "ProjectScheme",
+                                testAction: .test(
+                                    targets: [
+                                        .test(target: TargetReference(projectPath: projectPath, name: "TargetA")),
+                                        .test(target: TargetReference(projectPath: projectPath, name: "TargetB")),
+                                        .test(target: TargetReference(projectPath: projectPath, name: "TargetC")),
+                                    ]
+                                )
+                            ),
+                        ]
+                    ),
+                ]
+            )
+            environment.targetTestHashes = [
+                projectPath: [
+                    "TargetA": "hash-a",
+                    "TargetB": "hash-b",
+                    "TargetC": "hash-c",
+                ],
+            ]
+            environment.targetTestCacheItems = [
+                projectPath: [
+                    "TargetB": .test(source: .local, cacheCategory: .selectiveTests),
+                    "TargetC": .test(source: .remote, cacheCategory: .selectiveTests),
+                ],
+            ]
+            given(generator)
+                .generateWithGraph(path: .any, options: .any)
+                .willProduce { path, _ in
+                    (
+                        path,
+                        .test(
+                            projects: [
+                                projectPath: .test(
+                                    path: projectPath,
+                                    targets: [
+                                        .test(name: "TargetA"),
+                                    ],
+                                    schemes: [scheme]
+                                ),
+                            ]
+                        ),
+                        environment
+                    )
+                }
+
+            // When
+            try await testRun(
+                path: try temporaryPath(),
+                testTargets: [
+                    try TestIdentifier(string: "TargetA"),
+                    try TestIdentifier(string: "TargetB"),
+                ]
+            )
+
+            // Then
+            XCTAssertEqual(testedSchemes, ["ProjectScheme"])
+            // Only TargetB should be reported as skipped (it was requested and cached).
+            // TargetC should NOT appear (it was cached but not requested).
+            XCTAssertStandardOutput(
+                pattern:
+                "The following targets have not changed since the last successful run and will be skipped: TargetB"
+            )
+            XCTAssertStandardOutputNotContains("TargetC")
+        }
+    }
+
+    func test_run_tests_when_part_is_cached_does_not_log_duplicate_messages() async throws {
+        try await withMockedDependencies {
+            // Given
+            givenGenerator()
+            given(configLoader)
+                .loadConfig(path: .any)
+                .willReturn(.default)
+            given(buildGraphInspector)
+                .testableSchemes(graphTraverser: .any)
+                .willReturn([])
+
+            let projectPath = try temporaryPath().appending(component: "ProjectOne")
+            let scheme = Scheme.test(
+                name: "ProjectScheme",
+                testAction: .test(
+                    targets: [
+                        .test(target: TargetReference(projectPath: projectPath, name: "TargetA")),
+                    ]
+                )
+            )
+
+            given(buildGraphInspector)
+                .workspaceSchemes(graphTraverser: .any)
+                .willReturn([scheme])
+            given(buildGraphInspector)
+                .testableTarget(
+                    scheme: .any,
+                    testPlan: .any,
+                    testTargets: .any,
+                    skipTestTargets: .any,
+                    graphTraverser: .any,
+                    action: .any
+                )
+                .willReturn(.test())
+
+            var environment = MapperEnvironment()
+            environment.initialGraph = .test(
+                projects: [
+                    projectPath: .test(
+                        path: projectPath,
+                        targets: [
+                            .test(name: "TargetA", bundleId: "io.tuist.TargetA"),
+                            .test(name: "TargetB", bundleId: "io.tuist.TargetB"),
+                        ],
+                        schemes: [
+                            .test(
+                                name: "ProjectScheme",
+                                testAction: .test(
+                                    targets: [
+                                        .test(target: TargetReference(projectPath: projectPath, name: "TargetA")),
+                                        .test(target: TargetReference(projectPath: projectPath, name: "TargetB")),
+                                    ]
+                                )
+                            ),
+                        ]
+                    ),
+                ]
+            )
+            environment.targetTestHashes = [
+                projectPath: [
+                    "TargetA": "hash-a",
+                    "TargetB": "hash-b",
+                ],
+            ]
+            environment.targetTestCacheItems = [
+                projectPath: [
+                    "TargetB": .test(source: .local, cacheCategory: .selectiveTests),
+                ],
+            ]
+            given(generator)
+                .generateWithGraph(path: .any, options: .any)
+                .willProduce { path, _ in
+                    (
+                        path,
+                        .test(
+                            projects: [
+                                projectPath: .test(
+                                    path: projectPath,
+                                    targets: [
+                                        .test(name: "TargetA"),
+                                    ],
+                                    schemes: [scheme]
+                                ),
+                            ]
+                        ),
+                        environment
+                    )
+                }
+
+            // When
+            try await testRun(path: try temporaryPath())
+
+            // Then — verify the "Testing" message appears exactly once (no duplicates)
+            let standardOutput = Logger.testingLogHandler.collected[.info, <=]
+            let searchString = "Testing the following targets: TargetA"
+            let occurrences = standardOutput.components(separatedBy: searchString).count - 1
+            XCTAssertEqual(
+                occurrences, 1,
+                "Expected 'Testing the following targets' to appear exactly once, but it appeared \(occurrences) times"
+            )
+        }
+    }
+
+    func test_run_tests_when_no_test_targets_filter_logs_all_cached_as_skipped() async throws {
+        try await withMockedDependencies {
+            // Given
+            // No --test-targets passed. All cached targets in the scheme should be reported as skipped.
+            givenGenerator()
+            given(configLoader)
+                .loadConfig(path: .any)
+                .willReturn(.default)
+            given(buildGraphInspector)
+                .testableSchemes(graphTraverser: .any)
+                .willReturn([])
+
+            let projectPath = try temporaryPath().appending(component: "ProjectOne")
+            let scheme = Scheme.test(
+                name: "ProjectScheme",
+                testAction: .test(
+                    targets: [
+                        .test(target: TargetReference(projectPath: projectPath, name: "TargetA")),
+                    ]
+                )
+            )
+
+            given(buildGraphInspector)
+                .workspaceSchemes(graphTraverser: .any)
+                .willReturn([scheme])
+            given(buildGraphInspector)
+                .testableTarget(
+                    scheme: .any,
+                    testPlan: .any,
+                    testTargets: .any,
+                    skipTestTargets: .any,
+                    graphTraverser: .any,
+                    action: .any
+                )
+                .willReturn(.test())
+
+            var environment = MapperEnvironment()
+            environment.initialGraph = .test(
+                projects: [
+                    projectPath: .test(
+                        path: projectPath,
+                        targets: [
+                            .test(name: "TargetA", bundleId: "io.tuist.TargetA"),
+                            .test(name: "TargetB", bundleId: "io.tuist.TargetB"),
+                            .test(name: "TargetC", bundleId: "io.tuist.TargetC"),
+                        ],
+                        schemes: [
+                            .test(
+                                name: "ProjectScheme",
+                                testAction: .test(
+                                    targets: [
+                                        .test(target: TargetReference(projectPath: projectPath, name: "TargetA")),
+                                        .test(target: TargetReference(projectPath: projectPath, name: "TargetB")),
+                                        .test(target: TargetReference(projectPath: projectPath, name: "TargetC")),
+                                    ]
+                                )
+                            ),
+                        ]
+                    ),
+                ]
+            )
+            environment.targetTestHashes = [
+                projectPath: [
+                    "TargetA": "hash-a",
+                    "TargetB": "hash-b",
+                    "TargetC": "hash-c",
+                ],
+            ]
+            environment.targetTestCacheItems = [
+                projectPath: [
+                    "TargetB": .test(source: .local, cacheCategory: .selectiveTests),
+                    "TargetC": .test(source: .remote, cacheCategory: .selectiveTests),
+                ],
+            ]
+            given(generator)
+                .generateWithGraph(path: .any, options: .any)
+                .willProduce { path, _ in
+                    (
+                        path,
+                        .test(
+                            projects: [
+                                projectPath: .test(
+                                    path: projectPath,
+                                    targets: [
+                                        .test(name: "TargetA"),
+                                    ],
+                                    schemes: [scheme]
+                                ),
+                            ]
+                        ),
+                        environment
+                    )
+                }
+
+            // When — no testTargets filter
+            try await testRun(path: try temporaryPath())
+
+            // Then — both TargetB and TargetC should appear as skipped
+            XCTAssertStandardOutput(
+                pattern:
+                "The following targets have not changed since the last successful run and will be skipped: TargetB, TargetC"
+            )
+            XCTAssertEqual(testedSchemes, ["ProjectScheme"])
         }
     }
 
@@ -4108,27 +4438,34 @@ final class TestServiceTests: TuistUnitTestCase {
             .loadConfig(path: .any)
             .willReturn(.test(project: .testGeneratedProject()))
 
-        let error = SystemError.terminated(
-            command: "xcodebuild test-without-building",
-            code: 66,
-            standardError: Data("xcodebuild: error: xctestproducts does not contain test plan: \(typoTestPlan)".utf8)
+        let error = CommandError.terminated(
+            66,
+            stderr: "xcodebuild: error: xctestproducts does not contain test plan: \(typoTestPlan)",
+            command: ["xcodebuild", "test-without-building"]
         )
         given(xcodebuildController)
             .run(arguments: .any)
             .willThrow(error)
 
         // When / Then
-        await XCTAssertThrowsSpecific(
-            {
-                try await testRun(
-                    path: path,
-                    action: .testWithoutBuilding,
-                    testPlanConfiguration: TestPlanConfiguration(testPlan: typoTestPlan),
-                    passthroughXcodeBuildArguments: ["-testProductsPath", testProductsPath.pathString]
-                )
-            },
-            error
-        )
+        do {
+            try await testRun(
+                path: path,
+                action: .testWithoutBuilding,
+                testPlanConfiguration: TestPlanConfiguration(testPlan: typoTestPlan),
+                passthroughXcodeBuildArguments: ["-testProductsPath", testProductsPath.pathString]
+            )
+            XCTFail("Expected xcodebuild to throw")
+        } catch let CommandError.terminated(exitCode, stderr, command) {
+            XCTAssertEqual(exitCode, 66)
+            XCTAssertEqual(
+                stderr,
+                "xcodebuild: error: xctestproducts does not contain test plan: \(typoTestPlan)"
+            )
+            XCTAssertEqual(command, ["xcodebuild", "test-without-building"])
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
     }
 
     func test_run_testWithoutBuilding_doesNotSkipWhenLegacyGraphHasNoAttemptedTestPlans() async throws {
