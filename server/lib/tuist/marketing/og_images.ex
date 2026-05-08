@@ -9,6 +9,7 @@ defmodule Tuist.Marketing.OgImages do
 
   attr :title, :string, required: true
   attr :font_data_uri, :string, required: true
+  attr :fallback_font_data_uri, :string, required: true
   attr :logo_data_uri, :string, required: true
   attr :bg_data_uri, :string, required: true
   attr :icon_data_uri, :string, default: nil
@@ -25,6 +26,13 @@ defmodule Tuist.Marketing.OgImages do
             font-weight: 100 900;
             src: url(<%= @font_data_uri %>) format('woff2');
           }
+          @font-face {
+            font-family: 'Noto Sans Georgian';
+            font-style: normal;
+            font-weight: 100 900;
+            src: url(<%= @fallback_font_data_uri %>) format('woff2');
+            unicode-range: U+0589, U+10A0-10FF, U+1C90-1CBA, U+1CBD-1CBF, U+205A, U+2D00-2D2F, U+2E31;
+          }
           /*
            * Colors are hardcoded as hex instead of using Noora CSS variables because
            * headless Chrome doesn't reliably resolve oklch() values in gradient and
@@ -38,7 +46,7 @@ defmodule Tuist.Marketing.OgImages do
             width: 1920px;
             height: 1080px;
             overflow: hidden;
-            font-family: 'Inter Variable', sans-serif;
+            font-family: 'Inter Variable', 'Noto Sans Georgian', sans-serif;
             color-scheme: light;
           }
           .bg {
@@ -105,6 +113,7 @@ defmodule Tuist.Marketing.OgImages do
 
   attr :title, :string, required: true
   attr :font_data_uri, :string, required: true
+  attr :fallback_font_data_uri, :string, required: true
   attr :logo_data_uri, :string, required: true
   attr :phone_data_uri, :string, required: true
 
@@ -120,12 +129,19 @@ defmodule Tuist.Marketing.OgImages do
             font-weight: 100 900;
             src: url(<%= @font_data_uri %>) format('woff2');
           }
+          @font-face {
+            font-family: 'Noto Sans Georgian';
+            font-style: normal;
+            font-weight: 100 900;
+            src: url(<%= @fallback_font_data_uri %>) format('woff2');
+            unicode-range: U+0589, U+10A0-10FF, U+1C90-1CBA, U+1CBD-1CBF, U+205A, U+2D00-2D2F, U+2E31;
+          }
           * { margin: 0; padding: 0; box-sizing: border-box; }
           html, body {
             width: 1920px;
             height: 1080px;
             overflow: hidden;
-            font-family: 'Inter Variable', sans-serif;
+            font-family: 'Inter Variable', 'Noto Sans Georgian', sans-serif;
             color-scheme: light;
             background: linear-gradient(180deg, #f4f5fe 0%, #efe8ff 100%);
           }
@@ -181,6 +197,7 @@ defmodule Tuist.Marketing.OgImages do
 
   attr :title, :string, required: true
   attr :font_data_uri, :string, required: true
+  attr :fallback_font_data_uri, :string, required: true
   attr :logo_data_uri, :string, required: true
   attr :bg_data_uri, :string, required: true
   attr :timeline_data_uri, :string, required: true
@@ -197,12 +214,19 @@ defmodule Tuist.Marketing.OgImages do
             font-weight: 100 900;
             src: url(<%= @font_data_uri %>) format('woff2');
           }
+          @font-face {
+            font-family: 'Noto Sans Georgian';
+            font-style: normal;
+            font-weight: 100 900;
+            src: url(<%= @fallback_font_data_uri %>) format('woff2');
+            unicode-range: U+0589, U+10A0-10FF, U+1C90-1CBA, U+1CBD-1CBF, U+205A, U+2D00-2D2F, U+2E31;
+          }
           * { margin: 0; padding: 0; box-sizing: border-box; }
           html, body {
             width: 1920px;
             height: 1080px;
             overflow: hidden;
-            font-family: 'Inter Variable', sans-serif;
+            font-family: 'Inter Variable', 'Noto Sans Georgian', sans-serif;
             color-scheme: light;
           }
           .bg {
@@ -313,6 +337,7 @@ defmodule Tuist.Marketing.OgImages do
     timeline_path = Keyword.fetch!(opts, :timeline_path)
 
     font_base64 = fonts_dir |> Path.join("InterVariable.woff2") |> File.read!() |> Base.encode64()
+    fallback_font_base64 = fonts_dir |> Path.join("NotoSansGeorgian-georgian.woff2") |> File.read!() |> Base.encode64()
     logo_base64 = logo_path |> File.read!() |> Base.encode64()
     bg_base64 = bg_path |> File.read!() |> Base.encode64()
     timeline_base64 = timeline_path |> File.read!() |> Base.encode64()
@@ -320,6 +345,7 @@ defmodule Tuist.Marketing.OgImages do
     assigns = %{
       title: title,
       font_data_uri: "data:font/woff2;base64,#{font_base64}",
+      fallback_font_data_uri: "data:font/woff2;base64,#{fallback_font_base64}",
       logo_data_uri: "data:image/webp;base64,#{logo_base64}",
       bg_data_uri: "data:image/webp;base64,#{bg_base64}",
       timeline_data_uri: "data:image/svg+xml;base64,#{timeline_base64}"
@@ -331,6 +357,7 @@ defmodule Tuist.Marketing.OgImages do
 
   attr :title, :string, required: true
   attr :font_data_uri, :string, required: true
+  attr :fallback_font_data_uri, :string, required: true
   attr :logo_data_uri, :string, required: true
   attr :bg_data_uri, :string, required: true
 
@@ -346,12 +373,19 @@ defmodule Tuist.Marketing.OgImages do
             font-weight: 100 900;
             src: url(<%= @font_data_uri %>) format('woff2');
           }
+          @font-face {
+            font-family: 'Noto Sans Georgian';
+            font-style: normal;
+            font-weight: 100 900;
+            src: url(<%= @fallback_font_data_uri %>) format('woff2');
+            unicode-range: U+0589, U+10A0-10FF, U+1C90-1CBA, U+1CBD-1CBF, U+205A, U+2D00-2D2F, U+2E31;
+          }
           * { margin: 0; padding: 0; box-sizing: border-box; }
           html, body {
             width: 1920px;
             height: 1080px;
             overflow: hidden;
-            font-family: 'Inter Variable', sans-serif;
+            font-family: 'Inter Variable', 'Noto Sans Georgian', sans-serif;
             color-scheme: light;
           }
           .bg {
@@ -530,12 +564,14 @@ defmodule Tuist.Marketing.OgImages do
     bg_path = Keyword.fetch!(opts, :bg_path)
 
     font_base64 = fonts_dir |> Path.join("InterVariable.woff2") |> File.read!() |> Base.encode64()
+    fallback_font_base64 = fonts_dir |> Path.join("NotoSansGeorgian-georgian.woff2") |> File.read!() |> Base.encode64()
     logo_base64 = logo_path |> File.read!() |> Base.encode64()
     bg_base64 = bg_path |> File.read!() |> Base.encode64()
 
     assigns = %{
       title: title,
       font_data_uri: "data:font/woff2;base64,#{font_base64}",
+      fallback_font_data_uri: "data:font/woff2;base64,#{fallback_font_base64}",
       logo_data_uri: "data:image/webp;base64,#{logo_base64}",
       bg_data_uri: "data:image/webp;base64,#{bg_base64}"
     }
@@ -546,6 +582,7 @@ defmodule Tuist.Marketing.OgImages do
 
   attr :title, :string, required: true
   attr :font_data_uri, :string, required: true
+  attr :fallback_font_data_uri, :string, required: true
   attr :logo_data_uri, :string, required: true
   attr :bg_data_uri, :string, required: true
   attr :icon_data_uri, :string, required: true
@@ -562,12 +599,19 @@ defmodule Tuist.Marketing.OgImages do
             font-weight: 100 900;
             src: url(<%= @font_data_uri %>) format('woff2');
           }
+          @font-face {
+            font-family: 'Noto Sans Georgian';
+            font-style: normal;
+            font-weight: 100 900;
+            src: url(<%= @fallback_font_data_uri %>) format('woff2');
+            unicode-range: U+0589, U+10A0-10FF, U+1C90-1CBA, U+1CBD-1CBF, U+205A, U+2D00-2D2F, U+2E31;
+          }
           * { margin: 0; padding: 0; box-sizing: border-box; }
           html, body {
             width: 1920px;
             height: 1080px;
             overflow: hidden;
-            font-family: 'Inter Variable', sans-serif;
+            font-family: 'Inter Variable', 'Noto Sans Georgian', sans-serif;
             color-scheme: light;
           }
           .bg {
@@ -638,6 +682,7 @@ defmodule Tuist.Marketing.OgImages do
     icon_path = Keyword.fetch!(opts, :icon_path)
 
     font_base64 = fonts_dir |> Path.join("InterVariable.woff2") |> File.read!() |> Base.encode64()
+    fallback_font_base64 = fonts_dir |> Path.join("NotoSansGeorgian-georgian.woff2") |> File.read!() |> Base.encode64()
     logo_base64 = logo_path |> File.read!() |> Base.encode64()
     bg_base64 = bg_path |> File.read!() |> Base.encode64()
     icon_base64 = icon_path |> File.read!() |> Base.encode64()
@@ -645,6 +690,7 @@ defmodule Tuist.Marketing.OgImages do
     assigns = %{
       title: title,
       font_data_uri: "data:font/woff2;base64,#{font_base64}",
+      fallback_font_data_uri: "data:font/woff2;base64,#{fallback_font_base64}",
       logo_data_uri: "data:image/webp;base64,#{logo_base64}",
       bg_data_uri: "data:image/webp;base64,#{bg_base64}",
       icon_data_uri: "data:image/webp;base64,#{icon_base64}"
@@ -656,6 +702,7 @@ defmodule Tuist.Marketing.OgImages do
 
   attr :title, :string, required: true
   attr :font_data_uri, :string, required: true
+  attr :fallback_font_data_uri, :string, required: true
   attr :logo_data_uri, :string, required: true
   attr :bg_data_uri, :string, required: true
 
@@ -671,12 +718,19 @@ defmodule Tuist.Marketing.OgImages do
             font-weight: 100 900;
             src: url(<%= @font_data_uri %>) format('woff2');
           }
+          @font-face {
+            font-family: 'Noto Sans Georgian';
+            font-style: normal;
+            font-weight: 100 900;
+            src: url(<%= @fallback_font_data_uri %>) format('woff2');
+            unicode-range: U+0589, U+10A0-10FF, U+1C90-1CBA, U+1CBD-1CBF, U+205A, U+2D00-2D2F, U+2E31;
+          }
           * { margin: 0; padding: 0; box-sizing: border-box; }
           html, body {
             width: 1920px;
             height: 1080px;
             overflow: hidden;
-            font-family: 'Inter Variable', sans-serif;
+            font-family: 'Inter Variable', 'Noto Sans Georgian', sans-serif;
             color-scheme: light;
           }
           .bg {
@@ -792,12 +846,14 @@ defmodule Tuist.Marketing.OgImages do
     bg_path = Keyword.fetch!(opts, :bg_path)
 
     font_base64 = fonts_dir |> Path.join("InterVariable.woff2") |> File.read!() |> Base.encode64()
+    fallback_font_base64 = fonts_dir |> Path.join("NotoSansGeorgian-georgian.woff2") |> File.read!() |> Base.encode64()
     logo_base64 = logo_path |> File.read!() |> Base.encode64()
     bg_base64 = bg_path |> File.read!() |> Base.encode64()
 
     assigns = %{
       title: title,
       font_data_uri: "data:font/woff2;base64,#{font_base64}",
+      fallback_font_data_uri: "data:font/woff2;base64,#{fallback_font_base64}",
       logo_data_uri: "data:image/webp;base64,#{logo_base64}",
       bg_data_uri: "data:image/webp;base64,#{bg_base64}"
     }
@@ -813,12 +869,14 @@ defmodule Tuist.Marketing.OgImages do
     phone_path = Keyword.fetch!(opts, :phone_path)
 
     font_base64 = fonts_dir |> Path.join("InterVariable.woff2") |> File.read!() |> Base.encode64()
+    fallback_font_base64 = fonts_dir |> Path.join("NotoSansGeorgian-georgian.woff2") |> File.read!() |> Base.encode64()
     logo_base64 = logo_path |> File.read!() |> Base.encode64()
     phone_base64 = phone_path |> File.read!() |> Base.encode64()
 
     assigns = %{
       title: title,
       font_data_uri: "data:font/woff2;base64,#{font_base64}",
+      fallback_font_data_uri: "data:font/woff2;base64,#{fallback_font_base64}",
       logo_data_uri: "data:image/webp;base64,#{logo_base64}",
       phone_data_uri: "data:image/png;base64,#{phone_base64}"
     }
@@ -835,6 +893,7 @@ defmodule Tuist.Marketing.OgImages do
     icon_path = Keyword.get(opts, :icon_path)
 
     font_base64 = fonts_dir |> Path.join("InterVariable.woff2") |> File.read!() |> Base.encode64()
+    fallback_font_base64 = fonts_dir |> Path.join("NotoSansGeorgian-georgian.woff2") |> File.read!() |> Base.encode64()
     logo_base64 = logo_path |> File.read!() |> Base.encode64()
     bg_base64 = bg_path |> File.read!() |> Base.encode64()
 
@@ -855,6 +914,7 @@ defmodule Tuist.Marketing.OgImages do
     assigns = %{
       title: title,
       font_data_uri: "data:font/woff2;base64,#{font_base64}",
+      fallback_font_data_uri: "data:font/woff2;base64,#{fallback_font_base64}",
       logo_data_uri: "data:image/webp;base64,#{logo_base64}",
       bg_data_uri: "data:image/webp;base64,#{bg_base64}",
       icon_data_uri: icon_data_uri

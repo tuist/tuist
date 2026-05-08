@@ -12,6 +12,7 @@ defmodule Tuist.Docs.OgImage do
   attr :description, :string, default: nil
   attr :category, :string, default: "Docs"
   attr :font_data_uri, :string, required: true
+  attr :fallback_font_data_uri, :string, required: true
   attr :logo_data_uri, :string, required: true
 
   def card(assigns) do
@@ -25,6 +26,13 @@ defmodule Tuist.Docs.OgImage do
             font-style: normal;
             font-weight: 100 900;
             src: url(<%= @font_data_uri %>) format('woff2');
+          }
+          @font-face {
+            font-family: 'Noto Sans Georgian';
+            font-style: normal;
+            font-weight: 100 900;
+            src: url(<%= @fallback_font_data_uri %>) format('woff2');
+            unicode-range: U+0589, U+10A0-10FF, U+1C90-1CBA, U+1CBD-1CBF, U+205A, U+2D00-2D2F, U+2E31;
           }
           /*
            * Colors are hardcoded as hex instead of using Noora CSS variables because
@@ -42,7 +50,7 @@ defmodule Tuist.Docs.OgImage do
             width: 1920px;
             height: 1080px;
             overflow: hidden;
-            font-family: 'Inter Variable', sans-serif;
+            font-family: 'Inter Variable', 'Noto Sans Georgian', sans-serif;
             color-scheme: light;
             background: linear-gradient(180deg, #f4f5fe 0%, #efe8ff 100%);
           }
@@ -150,6 +158,7 @@ defmodule Tuist.Docs.OgImage do
     logo_path = Keyword.fetch!(opts, :logo_path)
 
     font_base64 = fonts_dir |> Path.join("InterVariable.woff2") |> File.read!() |> Base.encode64()
+    fallback_font_base64 = fonts_dir |> Path.join("NotoSansGeorgian-georgian.woff2") |> File.read!() |> Base.encode64()
     logo_base64 = logo_path |> File.read!() |> Base.encode64()
 
     assigns = %{
@@ -157,6 +166,7 @@ defmodule Tuist.Docs.OgImage do
       description: description,
       category: category,
       font_data_uri: "data:font/woff2;base64,#{font_base64}",
+      fallback_font_data_uri: "data:font/woff2;base64,#{fallback_font_base64}",
       logo_data_uri: "data:image/webp;base64,#{logo_base64}",
       max_title_length: @max_title_length,
       max_description_length: @max_description_length

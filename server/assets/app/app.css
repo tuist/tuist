@@ -1,6 +1,7 @@
 /* Self-hosted fonts (loaded before noora to override external font imports) */
 @import "./css/fonts.css";
 @import "noora/noora.css";
+@import "./css/font-fallbacks.css";
 
 @import "./css/layouts.css";
 @import "./css/components.css";
