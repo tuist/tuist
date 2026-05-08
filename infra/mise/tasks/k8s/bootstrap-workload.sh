@@ -23,8 +23,9 @@
 #   8. Install the platform chart (cert-manager, ESO, ingress-nginx,
 #      external-dns).
 #   9. Install the monitoring chart (Grafana Cloud agent).
-#  10. Install the tuist app chart with the env-specific values.
-#  11. Print the externally-routable LB IP for DNS cut.
+#  10. Pre-create the app namespace.
+#  11. Install the Cloudflare origin cert TLS Secret.
+#  12. Smoke ingress + upload workload kubeconfig to 1Password.
 #
 # Idempotent: re-running is safe; helm upgrades in-place, kubectl
 # create | apply uses --dry-run + apply.
@@ -67,7 +68,7 @@ log() { printf '\n\033[1;34m==> %s\033[0m\n' "$*"; }
 err() { printf '\n\033[1;31mERROR: %s\033[0m\n' "$*" >&2; }
 
 # ---------------------------------------------------------------------------
-log "Step 1/11: extract workload kubeconfig + API endpoint from mgmt"
+log "Step 1/12: extract workload kubeconfig + API endpoint from mgmt"
 
 if ! KUBECONFIG="$MGMT_KUBECONFIG" kubectl -n "$NAMESPACE" get cluster "$CLUSTER_NAME" >/dev/null 2>&1; then
   err "Cluster $NAMESPACE/$CLUSTER_NAME not found on mgmt cluster ($MGMT_KUBECONFIG). Apply the Cluster CR first."
@@ -95,11 +96,19 @@ REGION=$(KUBECONFIG="$MGMT_KUBECONFIG" kubectl -n "$NAMESPACE" get cluster "$CLU
   -o jsonpath='{.spec.topology.variables[?(@.name=="region")].value}' | tr -d '"')
 REGION="${REGION:-fsn1}"
 
+CONTROL_PLANE_REPLICAS=$(KUBECONFIG="$MGMT_KUBECONFIG" kubectl -n "$NAMESPACE" get cluster "$CLUSTER_NAME" \
+  -o jsonpath='{.spec.topology.controlPlane.replicas}')
+CONTROL_PLANE_REPLICAS="${CONTROL_PLANE_REPLICAS:-1}"
+WORKER_REPLICAS=$(KUBECONFIG="$MGMT_KUBECONFIG" kubectl -n "$NAMESPACE" get cluster "$CLUSTER_NAME" \
+  -o jsonpath='{range .spec.topology.workers.machineDeployments[*]}{.replicas}{"\n"}{end}' | awk '{sum += $1} END {print sum + 0}')
+EXPECTED_MACHINE_COUNT=$((CONTROL_PLANE_REPLICAS + WORKER_REPLICAS))
+
 echo "API endpoint: ${API_HOST}:${API_PORT}"
 echo "Region:       $REGION"
+echo "Machines:     $EXPECTED_MACHINE_COUNT (${CONTROL_PLANE_REPLICAS} control plane, ${WORKER_REPLICAS} workers)"
 
 # ---------------------------------------------------------------------------
-log "Step 2/11: install Cilium (CNI must be first)"
+log "Step 2/12: install Cilium (CNI must be first)"
 
 # Repo add is idempotent.
 helm repo add cilium https://helm.cilium.io >/dev/null 2>&1 || true
@@ -118,7 +127,7 @@ KUBECONFIG="$WL_KUBECONFIG" helm upgrade --install cilium cilium/cilium \
 # only depend on the agent, not hubble-relay.
 
 # ---------------------------------------------------------------------------
-log "Step 3/11: create workload Hetzner Secrets"
+log "Step 3/12: create workload Hetzner Secrets"
 
 HCLOUD_TOKEN=$(op read --account tuist.1password.com "op://Founders/tuist-workloads/password")
 
@@ -153,7 +162,7 @@ fi
 unset HCLOUD_SECRET_TOKEN
 
 # ---------------------------------------------------------------------------
-log "Step 4/11: install hcloud-cloud-controller-manager"
+log "Step 4/12: install hcloud-cloud-controller-manager"
 
 helm repo add hcloud https://charts.hetzner.cloud >/dev/null 2>&1 || true
 helm repo update hcloud >/dev/null
@@ -165,7 +174,7 @@ KUBECONFIG="$WL_KUBECONFIG" helm upgrade --install hccm hcloud/hcloud-cloud-cont
   --wait --timeout 3m
 
 # ---------------------------------------------------------------------------
-log "Step 5/11: install hcloud-csi-driver"
+log "Step 5/12: install hcloud-csi-driver"
 
 KUBECONFIG="$WL_KUBECONFIG" helm upgrade --install hcloud-csi hcloud/hcloud-csi \
   --namespace kube-system \
@@ -173,12 +182,40 @@ KUBECONFIG="$WL_KUBECONFIG" helm upgrade --install hcloud-csi hcloud/hcloud-csi 
   --wait --timeout 3m
 
 # ---------------------------------------------------------------------------
-log "Step 6/11: wait for nodes to go Ready"
+log "Step 6/12: wait for CAPI machines and workload nodes to go Ready"
+
+echo -n "Waiting for $EXPECTED_MACHINE_COUNT CAPI Machines to exist"
+MACHINE_COUNT=0
+for _ in $(seq 1 120); do
+  MACHINE_COUNT=$(KUBECONFIG="$MGMT_KUBECONFIG" kubectl -n "$NAMESPACE" get machines.cluster.x-k8s.io \
+    -l "cluster.x-k8s.io/cluster-name=$CLUSTER_NAME" --no-headers 2>/dev/null | wc -l | tr -d ' ')
+  if [ "$MACHINE_COUNT" -ge "$EXPECTED_MACHINE_COUNT" ]; then
+    break
+  fi
+  printf '.'
+  sleep 5
+done
+echo
+
+if [ "$MACHINE_COUNT" -lt "$EXPECTED_MACHINE_COUNT" ]; then
+  err "Only $MACHINE_COUNT/$EXPECTED_MACHINE_COUNT CAPI Machines exist for $CLUSTER_NAME."
+  KUBECONFIG="$MGMT_KUBECONFIG" kubectl -n "$NAMESPACE" get machines.cluster.x-k8s.io \
+    -l "cluster.x-k8s.io/cluster-name=$CLUSTER_NAME" -o wide >&2 || true
+  exit 1
+fi
+
+if ! KUBECONFIG="$MGMT_KUBECONFIG" kubectl -n "$NAMESPACE" wait --for=condition=Ready \
+  machines.cluster.x-k8s.io -l "cluster.x-k8s.io/cluster-name=$CLUSTER_NAME" --timeout=20m; then
+  err "Not all CAPI Machines for $CLUSTER_NAME became Ready."
+  KUBECONFIG="$MGMT_KUBECONFIG" kubectl -n "$NAMESPACE" get machines.cluster.x-k8s.io,hcloudmachines.infrastructure.cluster.x-k8s.io \
+    -l "cluster.x-k8s.io/cluster-name=$CLUSTER_NAME" -o wide >&2 || true
+  exit 1
+fi
 
 KUBECONFIG="$WL_KUBECONFIG" kubectl wait --for=condition=Ready nodes --all --timeout=5m
 
 # ---------------------------------------------------------------------------
-log "Step 7/11: install platform chart (cert-manager, ESO, ingress-nginx)"
+log "Step 7/12: install platform chart (cert-manager, ESO, ingress-nginx)"
 
 helm dependency update "$REPO_ROOT/infra/helm/platform" >/dev/null
 
@@ -217,7 +254,7 @@ KUBECONFIG="$WL_KUBECONFIG" helm upgrade --install platform "$REPO_ROOT/infra/he
   --wait --timeout 5m
 
 # ---------------------------------------------------------------------------
-log "Step 8/11: wire ESO -> 1Password for the per-env vault"
+log "Step 8/12: wire ESO -> 1Password for the per-env vault"
 
 OP_TOKEN=$(op read --account tuist.1password.com "op://Founders/${OP_TOKEN_ID}/credential")
 
@@ -241,7 +278,7 @@ unset OP_TOKEN
 KUBECONFIG="$WL_KUBECONFIG" kubectl wait --for=condition=Ready clustersecretstore/onepassword --timeout=2m
 
 # ---------------------------------------------------------------------------
-log "Step 9/11: install monitoring chart"
+log "Step 9/12: install monitoring chart"
 
 helm dependency update "$REPO_ROOT/infra/helm/k8s-monitoring" >/dev/null
 

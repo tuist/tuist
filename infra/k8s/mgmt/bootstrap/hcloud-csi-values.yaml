@@ -17,6 +17,15 @@ storageClasses:
 
 controller:
   replicaCount: 1
+  # During bootstrap, only the first control-plane node may be joined when
+  # the CSI chart is installed. Schedule the controller there so Helm's
+  # readiness wait does not depend on worker-node provisioning.
+  nodeSelector:
+    node-role.kubernetes.io/control-plane: ""
+  tolerations:
+    - key: node-role.kubernetes.io/control-plane
+      operator: Exists
+      effect: NoSchedule
   resources:
     requests:
       cpu: 50m
