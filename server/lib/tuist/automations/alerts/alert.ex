@@ -11,11 +11,19 @@ defmodule Tuist.Automations.Alerts.Alert do
   @valid_states ~w(enabled muted skipped)
   @window_types ~w(last_days rolling)
 
-  # Cap on `rolling_window_size` to keep the per-evaluation scan bounded — the
-  # monitor has to read every run for the project in the lookback window to
-  # decide which N to keep per test case, so an unbounded N here would let a
-  # single alert dominate ClickHouse load.
+  # Cap on `rolling_window_size`. The monitor reads from
+  # `test_case_runs_recent_per_case`, an AggregatingMergeTree MV whose
+  # `groupArrayLast(N)` state is sized at this value, so raising the cap
+  # without also bumping the MV's aggregate type would silently truncate
+  # any window above the old N.
   @max_rolling_window_size 1000
+
+  @doc """
+  Maximum value the `trigger_config.rolling_window_size` /
+  `recovery_config.rolling_window_size` field accepts. Surfaced so the UI
+  can apply the same constraint at the input level.
+  """
+  def max_rolling_window_size, do: @max_rolling_window_size
 
   @primary_key {:id, UUIDv7, autogenerate: true}
   @foreign_key_type UUIDv7

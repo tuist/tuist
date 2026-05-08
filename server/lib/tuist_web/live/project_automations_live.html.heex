@@ -230,7 +230,9 @@
                     data-size="compact"
                   >
                     <label data-part="label">
-                      {dgettext("dashboard_projects", "Last N runs")}
+                      {dgettext("dashboard_projects", "Last N runs (max %{max})",
+                        max: Tuist.Automations.Alerts.Alert.max_rolling_window_size()
+                      )}
                     </label>
                     <.text_input
                       type="basic"
@@ -239,6 +241,8 @@
                       name="rolling_window_size"
                       value={@create_automation_form_rolling_window_size}
                       placeholder="100"
+                      min={1}
+                      max={Tuist.Automations.Alerts.Alert.max_rolling_window_size()}
                       phx-keyup="update_create_automation_form_rolling_window_size"
                       phx-debounce="300"
                     />
@@ -601,7 +605,9 @@
                       data-size="compact"
                     >
                       <label data-part="label">
-                        {dgettext("dashboard_projects", "Last N runs")}
+                        {dgettext("dashboard_projects", "Last N runs (max %{max})",
+                          max: Tuist.Automations.Alerts.Alert.max_rolling_window_size()
+                        )}
                       </label>
                       <.text_input
                         type="basic"
@@ -610,6 +616,8 @@
                         name="recovery_rolling_window_size"
                         value={@create_automation_form_recovery_rolling_window_size}
                         placeholder="100"
+                        min={1}
+                        max={Tuist.Automations.Alerts.Alert.max_rolling_window_size()}
                         phx-keyup="update_create_automation_form_recovery_rolling_window_size"
                         phx-debounce="300"
                       />
