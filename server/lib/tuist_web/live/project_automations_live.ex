@@ -632,11 +632,8 @@ defmodule TuistWeb.ProjectAutomationsLive do
     max = Tuist.Automations.Alerts.Alert.max_rolling_window_size()
 
     case Integer.parse(to_string(raw_size)) do
-      {n, ""} when n >= 1 and n <= max ->
-        nil
-
-      _ ->
-        dgettext("dashboard_projects", "Must be between 1 and %{max}", max: max)
+      {n, ""} when n >= 1 and n <= max -> nil
+      _ -> dgettext("dashboard_projects", "1–%{max}", max: max)
     end
   end
 
