@@ -92,6 +92,22 @@
       }
     }
 
+    /* Number inputs default to a wider intrinsic width than text inputs and
+       carry the browser spin buttons that bleed past our `compact` width
+       constraint. We explicitly suppress the spinner everywhere in the
+       form so the inputs sit flush inside their wrappers. */
+    input[type="number"] {
+      appearance: textfield;
+      -moz-appearance: textfield;
+    }
+
+    input[type="number"]::-webkit-inner-spin-button,
+    input[type="number"]::-webkit-outer-spin-button {
+      appearance: none;
+      -webkit-appearance: none;
+      margin: 0;
+    }
+
     [data-part="form-row-inline"] {
       display: flex;
       flex-direction: row;
