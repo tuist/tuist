@@ -12,12 +12,12 @@
 #   1. Extract the workload kubeconfig + API endpoint from the mgmt
 #      cluster's ClusterCR + minted Secret.
 #   2. Install Cilium (must be first — nothing networks without it).
-#   3. Install hcloud-cloud-controller-manager (sets providerID,
+#   3. Create the legacy `hetzner` Secret on the workload cluster and
+#      wait for caph's `hcloud` Secret. HCCM + CSI read `hcloud`.
+#   4. Install hcloud-cloud-controller-manager (sets providerID,
 #      enables LoadBalancer Services).
-#   4. Install hcloud-csi-driver (for parity; no PVCs use it today).
-#   5. Wait for nodes to go Ready (CNI- and CCM-dependent).
-#   6. Create the `hetzner` Secret on the workload cluster (same
-#      project token as the mgmt-side Secret; HCCM + CSI both read it).
+#   5. Install hcloud-csi-driver (for parity; no PVCs use it today).
+#   6. Wait for nodes to go Ready (CNI- and CCM-dependent).
 #   7. Create the `onepassword` namespace + service-account-token
 #      Secret + ClusterSecretStore so ESO can pull from 1Password.
 #   8. Install the platform chart (cert-manager, ESO, ingress-nginx,
@@ -118,14 +118,39 @@ KUBECONFIG="$WL_KUBECONFIG" helm upgrade --install cilium cilium/cilium \
 # only depend on the agent, not hubble-relay.
 
 # ---------------------------------------------------------------------------
-log "Step 3/11: create hetzner Secret on workload (HCCM + CSI both read it)"
+log "Step 3/11: create workload Hetzner Secrets"
 
 HCLOUD_TOKEN=$(op read --account tuist.1password.com "op://Founders/tuist-workloads/password")
 
+# Older bootstrap wiring created kube-system/hetzner directly. Keep it
+# idempotently present for compatibility, but HCCM and hcloud-csi consume
+# kube-system/hcloud, which caph writes after the first control-plane node
+# comes up.
 KUBECONFIG="$WL_KUBECONFIG" kubectl -n kube-system create secret generic hetzner \
   --from-literal=hcloud="$HCLOUD_TOKEN" \
   --dry-run=client -o yaml | KUBECONFIG="$WL_KUBECONFIG" kubectl apply -f -
 unset HCLOUD_TOKEN
+
+echo -n "Waiting for caph-provisioned kube-system/hcloud Secret"
+HCLOUD_SECRET_TOKEN=""
+for _ in $(seq 1 60); do
+  HCLOUD_SECRET_TOKEN=$(KUBECONFIG="$WL_KUBECONFIG" kubectl -n kube-system get secret hcloud \
+    -o jsonpath='{.data.token}' 2>/dev/null || true)
+  if [ -n "$HCLOUD_SECRET_TOKEN" ]; then
+    break
+  fi
+  printf '.'
+  sleep 5
+done
+echo
+
+if [ -z "$HCLOUD_SECRET_TOKEN" ]; then
+  err "kube-system/hcloud Secret did not appear after 5 minutes. HCCM and hcloud-csi need it."
+  err "Check caph reconciliation on the management cluster:"
+  err "  KUBECONFIG=$MGMT_KUBECONFIG kubectl -n $NAMESPACE describe cluster $CLUSTER_NAME"
+  exit 1
+fi
+unset HCLOUD_SECRET_TOKEN
 
 # ---------------------------------------------------------------------------
 log "Step 4/11: install hcloud-cloud-controller-manager"
