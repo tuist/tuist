@@ -198,7 +198,7 @@
       font-weight: 400;
       font-size: 17.631px;
       line-height: 23.509px;
-      font-family: var(--tuist-font-sans);
+      font-family: var(--noora-font-body);
 
       @media (min-width: 1024px) {
         gap: var(--noora-spacing-5);

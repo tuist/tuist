@@ -1,7 +1,6 @@
 /* Self-hosted fonts (loaded before noora to provide font definitions) */
 @import "../app/css/fonts.css";
 @import "noora/noora.css";
-@import "../app/css/font-fallbacks.css";
 @import "css/shared/tokens.css";
 @import "../shared/css/prose.css";
 @import "../shared/css/code-window.css";
