@@ -59,13 +59,12 @@ spec:
         #     -o jsonpath='{.metadata.annotations}'
         - class: hcloud-worker
           name: md-processor
+          replicas: 2
           failureDomain: fsn1
           metadata:
             labels:
               node.cluster.x-k8s.io/pool: processor
             annotations:
-              cluster.x-k8s.io/cluster-api-autoscaler-node-group-min-size: "2"
-              cluster.x-k8s.io/cluster-api-autoscaler-node-group-max-size: "6"
               cluster.x-k8s.io/cluster-autoscaler-node-group-min-size: "2"
               cluster.x-k8s.io/cluster-autoscaler-node-group-max-size: "6"
           variables:
