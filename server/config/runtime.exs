@@ -143,19 +143,6 @@ if Enum.member?([:prod, :stag, :can], env) do
   # Check `Plug.SSL` for all available options in `force_ssl`.
   config :logger, level: Tuist.Environment.log_level()
 
-  # Cloud-egress NAT drops idle TCP connections after roughly 5 to 15 min,
-  # far below the OS default `tcp_keepalive_time` (7200s on Linux). With
-  # SO_KEEPALIVE alone the pool hands out half-dead sockets that fail the
-  # next request with `Mint.TransportError: socket closed`. The keepalive
-  # raw options (see `Tuist.Net`) reap a dead idle in about 2 min, well
-  # under any cloud NAT timeout.
-  clickhouse_transport_opts =
-    [
-      keepalive: true,
-      show_econnreset: true,
-      inet6: Tuist.Environment.use_ipv6?(secrets)
-    ] ++ Tuist.Net.tcp_keepalive_raw_opts()
-
   config :tuist, Tuist.ClickHouseRepo,
     url: Tuist.Environment.clickhouse_url(secrets),
     pool_size: Tuist.Environment.clickhouse_pool_size(secrets),
@@ -168,7 +155,11 @@ if Enum.member?([:prod, :stag, :can], env) do
       # parallel_hash (good for medium tables), and hash (fallback for large tables)
       join_algorithm: "direct,parallel_hash,hash"
     ],
-    transport_opts: clickhouse_transport_opts
+    transport_opts: [
+      keepalive: true,
+      show_econnreset: true,
+      inet6: Tuist.Environment.use_ipv6?(secrets)
+    ]
 
   config :tuist, Tuist.IngestRepo,
     url: Tuist.Environment.clickhouse_url(secrets),
@@ -181,7 +172,11 @@ if Enum.member?([:prod, :stag, :can], env) do
     settings: [
       max_threads: Tuist.Environment.clickhouse_max_threads(secrets)
     ],
-    transport_opts: clickhouse_transport_opts
+    transport_opts: [
+      keepalive: true,
+      show_econnreset: true,
+      inet6: Tuist.Environment.use_ipv6?(secrets)
+    ]
 
   config :tuist, Tuist.Repo, database_options
 
