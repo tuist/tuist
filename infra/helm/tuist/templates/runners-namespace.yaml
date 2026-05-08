@@ -11,21 +11,31 @@ the chart's release namespace. Two reasons:
    workload pod (server, processor, xcresult-processor). Pinning
    the grant to a dedicated namespace keeps a server compromise
    from cascading.
-2. Network policy. We default-deny ingress and constrain egress
-   to GitHub + the Mac mini Node IP so a compromised runner
-   can't pivot into the cluster's internal services
+2. Network policy. We default-deny ingress (runners receive jobs
+   by polling GitHub from inside the VM, never via inbound
+   connections), and allow egress to all of HTTP/HTTPS *except*
+   cluster-internal CIDRs (`exceptCIDRs` carves out the cluster's
+   Pod + Service ranges). Customer CI workflows legitimately
+   reach a long tail of third-party hosts — actions cache,
+   package registries (npm, CocoaPods, Homebrew, RubyGems),
+   monitoring services, etc. — so a closed allowlist would
+   break real workflows. The CIDR carve-out blocks a compromised
+   runner from pivoting into our internal services
    (ClickHouse, Postgres, server admin endpoints) regardless of
-   what credentials it holds.
+   what credentials it holds; an L7 domain-allowlist proxy is on
+   the v2 hardening list for tightening this further.
 
 The Namespace is helm-owned (`helm.sh/resource-policy: keep`)
 because Pods inside it are short-lived but the namespace itself
 is load-bearing — uninstalling the chart shouldn't yank it from
 under in-flight Pods. Re-install picks the namespace back up.
 
-The Role is namespaced and grants exactly create/list/get on
-Pods. No `delete` (runners are ephemeral; they exit on their own
-after a single job and the next reconcile observes the gap), no
-Secrets, no exec/attach/portforward.
+The Role is namespaced and grants exactly
+get/list/watch/create/delete on Pods. `delete` is the watcher's
+GC verb — once tart-kubelet marks a Pod Succeeded/Failed after
+its single job, the watcher deletes the terminal Pod (and its
+runner_assignments row) so kubectl doesn't accumulate stale
+entries. No `secrets/*`, no `pods/exec/attach/portforward`.
 */}}
 apiVersion: v1
 kind: Namespace
