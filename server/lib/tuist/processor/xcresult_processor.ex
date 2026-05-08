@@ -262,7 +262,16 @@ defmodule Tuist.Processor.XCResultProcessor do
       # the base directory preserved). Treat the temp dir as the bundle when
       # `Info.plist` is present at its root.
       nil ->
-        if File.exists?(Path.join(temp_dir, "Info.plist")), do: temp_dir
+        if File.exists?(Path.join(temp_dir, "Info.plist")) do
+          temp_dir
+        else
+          Logger.error(
+            "xcresult bundle not found after extraction in #{temp_dir}: " <>
+              "contents=#{temp_dir |> Path.join("**") |> Path.wildcard() |> Enum.take(30) |> inspect()}"
+          )
+
+          nil
+        end
 
       path ->
         path
