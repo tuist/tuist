@@ -8,7 +8,7 @@ defmodule Tuist.Oban.PromExPlugin do
   """
   use PromEx.Plugin
 
-  import Ecto.Query, only: [group_by: 3, select: 3, where: 3]
+  import Ecto.Query, only: [from: 2, group_by: 3, select: 3]
 
   @job_complete_event [:oban, :job, :stop]
   @job_exception_event [:oban, :job, :exception]
@@ -205,16 +205,26 @@ defmodule Tuist.Oban.PromExPlugin do
         config = Oban.Registry.config(Oban)
         cutoff = DateTime.add(DateTime.utc_now(), -@recent_terminal_window_seconds, :second)
 
+        # Group over every (queue, state, worker) that has at least one
+        # row in a terminal state (bounded by the Pruner retention) and
+        # use FILTER to count just the rows whose discard/cancel
+        # timestamp is inside the lookback window. That keeps the
+        # labelset universe stable across polls so a count drops cleanly
+        # to 0 when the last in-window row ages out — without that, the
+        # last_value gauge would hold the previous positive sample
+        # forever and the alert would never clear.
         query =
-          Oban.Job
-          |> where([j], j.state in ^@recent_terminal_states)
-          |> where(
-            [j],
-            (not is_nil(j.discarded_at) and j.discarded_at > ^cutoff) or
-              (not is_nil(j.cancelled_at) and j.cancelled_at > ^cutoff)
-          )
-          |> group_by([j], [j.queue, j.state, j.worker])
-          |> select([j], {j.queue, j.state, j.worker, count(j.id)})
+          from j in Oban.Job,
+            where: j.state in ^@recent_terminal_states,
+            group_by: [j.queue, j.state, j.worker],
+            select:
+              {j.queue, j.state, j.worker,
+               fragment(
+                 "COUNT(*) FILTER (WHERE COALESCE(?, ?) > ?)",
+                 j.discarded_at,
+                 j.cancelled_at,
+                 ^cutoff
+               )}
 
         config
         |> Oban.Repo.all(query)

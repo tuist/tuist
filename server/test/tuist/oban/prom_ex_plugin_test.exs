@@ -1,5 +1,6 @@
 defmodule Tuist.Oban.PromExPluginTest do
   use TuistTestSupport.Cases.DataCase, async: false
+  use Mimic
 
   alias Tuist.Oban.PromExPlugin
 
@@ -30,10 +31,10 @@ defmodule Tuist.Oban.PromExPluginTest do
         cancelled_at: recent
       )
 
-      # Outside the 30-minute window — must not be reported.
+      # Aged out — emits zero so the last_value gauge clears.
       insert_job!(
         queue: "process_xcresult",
-        worker: "Tuist.Tests.Workers.ProcessXcresultWorker",
+        worker: "Tuist.Tests.Workers.OldWorker",
         state: "discarded",
         discarded_at: stale
       )
@@ -45,22 +46,45 @@ defmodule Tuist.Oban.PromExPluginTest do
         state: "executing"
       )
 
-      events =
-        attach_capture([:prom_ex, :plugin, :oban, :jobs, :recent, :terminal, :count])
-
-      try do
-        PromExPlugin.execute_recent_terminal_metrics()
-      after
-        :telemetry.detach(events)
-      end
-
-      received = drain_telemetry()
+      received = capture_telemetry(&PromExPlugin.execute_recent_terminal_metrics/0)
 
       assert {%{count: 2},
               %{queue: "process_xcresult", state: "discarded", worker: "Tuist.Tests.Workers.ProcessXcresultWorker"}} in received
 
       assert {%{count: 1}, %{queue: "default", state: "cancelled", worker: "Tuist.Some.OtherWorker"}} in received
-      assert length(received) == 2
+
+      assert {%{count: 0}, %{queue: "process_xcresult", state: "discarded", worker: "Tuist.Tests.Workers.OldWorker"}} in received
+
+      assert length(received) == 3
+    end
+
+    test "drops a previously-counted labelset to zero on the next poll once its row ages out of the window" do
+      base = DateTime.utc_now()
+      discarded_at = DateTime.add(base, -5 * 60, :second)
+
+      insert_job!(
+        queue: "process_xcresult",
+        worker: "Tuist.Tests.Workers.ProcessXcresultWorker",
+        state: "discarded",
+        discarded_at: discarded_at
+      )
+
+      # First poll — wall-clock now. Discard is 5 minutes old → in window.
+      stub(DateTime, :utc_now, fn -> base end)
+      first = capture_telemetry(&PromExPlugin.execute_recent_terminal_metrics/0)
+
+      assert {%{count: 1},
+              %{queue: "process_xcresult", state: "discarded", worker: "Tuist.Tests.Workers.ProcessXcresultWorker"}} in first
+
+      # Second poll — pretend we're 35 minutes later. Same row is now
+      # outside the 30-minute window. Same labelset must still emit, with
+      # count: 0, so the last_value gauge clears (and the alert resolves).
+      later = DateTime.add(base, 35 * 60, :second)
+      stub(DateTime, :utc_now, fn -> later end)
+      second = capture_telemetry(&PromExPlugin.execute_recent_terminal_metrics/0)
+
+      assert {%{count: 0},
+              %{queue: "process_xcresult", state: "discarded", worker: "Tuist.Tests.Workers.ProcessXcresultWorker"}} in second
     end
   end
 
@@ -75,20 +99,27 @@ defmodule Tuist.Oban.PromExPluginTest do
     Tuist.Repo.insert!(struct(Oban.Job, Map.merge(base, Map.new(attrs))))
   end
 
-  defp attach_capture(event_name) do
+  defp capture_telemetry(fun) do
     test_pid = self()
+    event = [:prom_ex, :plugin, :oban, :jobs, :recent, :terminal, :count]
     handler_id = {__MODULE__, System.unique_integer([:positive])}
 
     :telemetry.attach(
       handler_id,
-      event_name,
-      fn ^event_name, measurements, metadata, _ ->
+      event,
+      fn ^event, measurements, metadata, _ ->
         send(test_pid, {:telemetry, measurements, metadata})
       end,
       nil
     )
 
-    handler_id
+    try do
+      fun.()
+    after
+      :telemetry.detach(handler_id)
+    end
+
+    drain_telemetry()
   end
 
   defp drain_telemetry(acc \\ []) do
