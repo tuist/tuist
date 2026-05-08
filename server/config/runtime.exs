@@ -17,6 +17,8 @@ import Config
 #     `:process_build` queue.
 #
 # See `Tuist.Environment.mode/0` for the full list.
+alias Tuist.Oban.RuntimeConfig
+
 if Tuist.Environment.web?() do
   config :tuist, TuistWeb.Endpoint, server: true
 end
@@ -434,65 +436,29 @@ oban_queues =
       if Tuist.Environment.delegate_process_xcresult?(), do: base, else: base ++ [process_xcresult_queue]
   end
 
-# Leader-only Oban work (Cron, Pruner, Lifeline, Oban.Met.Reporter) runs on
-# whichever node wins the peer election. Web pods are always running and
-# carry the full DB role, so we make them the only leader-eligible nodes by
-# setting `peer: false` on every non-web pod role. Oban normalises that to
-# the Isolated peer with `leader?: false`, so leader-only plugins start
-# there but stay idle.
-#
-# Why not let processor pods become leader? They run as the
-# `tuist_processor` role, which is least-privilege (USAGE only on schema
-# public, see infra/supabase/tuist-processor-role.sql). Oban.Met.Reporter's
-# leader path runs `CREATE OR REPLACE FUNCTION public.oban_count_estimate(...)`
-# on every checkpoint, which the role can't execute and which crashes the
-# Reporter repeatedly when a processor wins the election. The crontab is
-# also empty on non-web roles, so a non-web leader silently halts every
-# scheduled job — exactly what happened when the xcresult-processor role
-# was first added without this guard.
-#
-# Crontab split: `shared_crons` are project-level features (alerts,
-# automations, per-project Slack reports, sharded-test cleanup) — they
-# run on any deployment, hosted or self-hosted. Hosted-only entries
-# (Tuist's internal Slack ops reports, account-usage rollup, Stripe
-# metered billing) layer on top when `tuist_hosted?()` is set.
-shared_crons = [
-  {"@hourly", Tuist.Slack.Workers.ReportWorker},
-  {"*/10 * * * *", Tuist.Alerts.Workers.AlertWorker},
-  {"@hourly", Tuist.Tests.Workers.ExpireStaleTestRunsWorker},
-  {"* * * * *", Tuist.Automations.Workers.AutomationScheduler}
-]
+# Leader-only Oban work (Cron, Pruner, Lifeline, Oban.Met.Reporter) runs
+# on whichever node wins the peer election. Web pods are the only leader-
+# eligible nodes; every other role gets `peer: false` (Oban normalises
+# that to the Isolated peer with `leader?: false`, so leader-only plugins
+# start there but stay idle). The crontab and the peer rule are derived
+# by `Tuist.Oban.RuntimeConfig`, which is unit-tested against every value
+# of `Tuist.Environment.modes/0` so a future denylist regression — like
+# the one where `:xcresult_processor` shipped leader-eligible with an
+# empty crontab and silently halted every cron job — fails CI before it
+# lands in prod.
+mode = Tuist.Environment.mode()
+
+crontab = RuntimeConfig.crontab(mode, env, Tuist.Environment.tuist_hosted?())
 
 config :tuist, Oban,
   queues: oban_queues,
   plugins: [
     {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 7},
     {Oban.Plugins.Lifeline, rescue_after: to_timeout(minute: 30)},
-    {Oban.Plugins.Cron,
-     crontab:
-       if Tuist.Environment.web?() and env in [:prod, :stag, :can] do
-         hosted_only_crons =
-           if Tuist.Environment.tuist_hosted?() do
-             # Tuist-hosted-only: report into Tuist's own Slack workspace,
-             # roll up account usage that feeds Stripe metered billing,
-             # and reconcile Stripe meters from the rolled-up usage.
-             [
-               {"0 10 * * 1-5", Tuist.Ops.DailySlackReportWorker},
-               {"0 * * * 1-5", Tuist.Ops.HourlySlackReportWorker},
-               {"@daily", Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker},
-               {"@daily", Tuist.Billing.Workers.SyncStripeMetersWorker}
-             ]
-           else
-             []
-           end
-
-         hosted_only_crons ++ shared_crons
-       else
-         []
-       end}
+    {Oban.Plugins.Cron, crontab: crontab}
   ]
 
-if !Tuist.Environment.web?() do
+if !RuntimeConfig.peer_eligible?(mode) do
   config :tuist, Oban, peer: false
 end
 
