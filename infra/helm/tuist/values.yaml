@@ -313,10 +313,15 @@ xcresultProcessor:
   strategy:
     type: RollingUpdate
     rollingUpdate:
-      # Surge by 1 so a new VM comes up before the old one drains; keeps
-      # at least 1 VM consuming the queue across deploys.
-      maxSurge: 1
-      maxUnavailable: 0
+      # Terminate-then-replace, not surge-then-terminate: the Pod
+      # declares hostPort 9091 (so the host-side metrics forwarder
+      # in tart-kubelet has a single owner per Mac mini) and the
+      # scheduler refuses to bind the same hostPort to two Pods on
+      # the same Node. Surging would deadlock on a fleet whose
+      # nodes are all already at capacity. PDB.minAvailable=1 keeps
+      # at least one consumer up across the rollout window.
+      maxSurge: 0
+      maxUnavailable: 1
 
 # macOS Mac mini fleet, provisioned declaratively via Cluster API.
 #

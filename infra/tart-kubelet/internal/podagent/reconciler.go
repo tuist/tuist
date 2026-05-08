@@ -309,7 +309,17 @@ func (r *Reconciler) startMetricsForwarder(pod *corev1.Pod, entry *Entry) error 
 		return fmt.Sprintf("%s:%d", ip, port), nil
 	}
 
-	listenAddr := fmt.Sprintf("0.0.0.0:%d", port)
+	// Bind to the Node IP rather than 0.0.0.0 so the forwarder is
+	// only reachable from the cluster network — anything Alloy can
+	// see, but not random clients on the host's other interfaces
+	// (BMC, public WAN if any). The Pod also declares a hostPort:9091
+	// in its container spec which makes the scheduler enforce
+	// uniqueness across Pods on the same Node, so the bind here is
+	// guaranteed not to clash with another scrape-opted-in Pod —
+	// belt-and-braces, podStatus drops the PodIP rewrite when this
+	// errors out so a runtime collision still means "no Alloy traffic
+	// to this Pod" rather than "Alloy scrapes the wrong VM."
+	listenAddr := fmt.Sprintf("%s:%d", r.NodeIP, port)
 	fw, err := NewForwarder(listenAddr, resolve)
 	if err != nil {
 		return fmt.Errorf("start metrics forwarder for %s/%s on %s: %w", pod.Namespace, pod.Name, listenAddr, err)
@@ -401,15 +411,21 @@ func (r *Reconciler) podStatus(ctx context.Context, pod *corev1.Pod) (*corev1.Po
 		// metrics) targets the host-side forwarder rather than the
 		// VM's NAT-private address. Spin the forwarder up here too
 		// — first podStatus after VM boot is when an upstream IP
-		// becomes available.
+		// becomes available. The PodIP rewrite is gated on the
+		// forwarder actually starting: a bind failure (eg. another
+		// Pod already on this host won the hostPort race) leaves
+		// PodIP at the unreachable VM IP so Alloy harmlessly
+		// times out instead of mis-scraping the other Pod's VM.
+		// The Pod stays Ready because the BEAM is up regardless of
+		// scraping plumbing — Oban consumption doesn't depend on it.
+		status.PodIP = ip
 		if _, scraped := metricsPortFromPod(pod); scraped && r.NodeIP != "" {
 			if err := r.startMetricsForwarder(pod, entry); err != nil {
-				log.FromContext(ctx).Error(err, "start metrics forwarder",
+				log.FromContext(ctx).Error(err, "start metrics forwarder; leaving PodIP at VM IP so Alloy doesn't mis-scrape",
 					"pod", pod.Namespace+"/"+pod.Name)
+			} else {
+				status.PodIP = r.NodeIP
 			}
-			status.PodIP = r.NodeIP
-		} else {
-			status.PodIP = ip
 		}
 		status.Conditions = []corev1.PodCondition{
 			{Type: corev1.PodReady, Status: corev1.ConditionTrue},

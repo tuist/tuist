@@ -37,11 +37,24 @@ type Forwarder struct {
 	done     chan struct{}
 }
 
-// NewForwarder starts listening on listenAddr. Resolve is called on
-// every incoming request to compute the upstream `host:port` to
-// proxy to — keeping it pluggable lets the caller plug in a Tart IP
-// lookup rather than hardcoding an address that goes stale on VM
-// restart.
+// MetricsPath is the only request path the forwarder will proxy.
+// Prometheus exporters serve metrics at /metrics by convention; any
+// other path is rejected with 404 to keep the surface area minimal
+// (defense in depth — the Tart VM only exposes /metrics on this
+// port today, but a future PromEx config or a sibling endpoint on
+// the same listener would otherwise become reachable through here).
+const MetricsPath = "/metrics"
+
+// NewForwarder starts listening on listenAddr. Resolve is called to
+// compute the upstream `host:port` the proxy targets — pluggable so
+// the caller can hand in a Tart-IP lookup that surface VM restarts
+// (the new VM gets a new IP from configd's DHCP). The forwarder
+// caches the resolution for ~30s so a burst of scrapes doesn't
+// hammer `tart ip` (which exec's a subprocess on every call) — a
+// stale entry self-heals on the first scrape after the cache window
+// expires; longer than that and a recently-restarted VM would just
+// see one failed scrape before recovering, which the scraper's own
+// retry handles.
 func NewForwarder(listenAddr string, resolve func() (string, error)) (*Forwarder, error) {
 	if resolve == nil {
 		return nil, errors.New("resolve function is required")
@@ -51,13 +64,15 @@ func NewForwarder(listenAddr string, resolve func() (string, error)) (*Forwarder
 		return nil, fmt.Errorf("listen on %s: %w", listenAddr, err)
 	}
 
+	cached := newCachedResolver(resolve, 30*time.Second)
+
 	rp := &httputil.ReverseProxy{
 		// Director rewrites the outbound request to point at the
 		// freshly resolved upstream. Errors here can't be surfaced
 		// directly, so we stash them on the request context for the
 		// ErrorHandler to translate into a 502.
 		Director: func(req *http.Request) {
-			target, err := resolve()
+			target, err := cached.get()
 			if err != nil || target == "" {
 				ctx := context.WithValue(req.Context(), resolveErrKey{}, err)
 				*req = *req.WithContext(ctx)
@@ -85,7 +100,7 @@ func NewForwarder(listenAddr string, resolve func() (string, error)) (*Forwarder
 	}
 
 	srv := &http.Server{
-		Handler:           rp,
+		Handler:           pathFilter(MetricsPath, rp),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
@@ -115,6 +130,56 @@ func (f *Forwarder) Stop() {
 		_ = f.server.Shutdown(ctx)
 	})
 	<-f.done
+}
+
+// pathFilter returns a handler that forwards GET / HEAD requests
+// for `path` to `next` and rejects everything else with 404. Keeps
+// the proxy single-purpose: it exists to serve scrapes, not as a
+// general HTTP relay into the VM.
+func pathFilter(path string, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if req.URL.Path != path {
+			http.NotFound(w, req)
+			return
+		}
+		if req.Method != http.MethodGet && req.Method != http.MethodHead {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		next.ServeHTTP(w, req)
+	})
+}
+
+// cachedResolver memoises the upstream lookup for `ttl` so a burst
+// of scrapes (or anyone hammering the proxy) doesn't translate 1:1
+// into `tart ip` subprocess invocations on the host.
+type cachedResolver struct {
+	fn  func() (string, error)
+	ttl time.Duration
+
+	mu        sync.Mutex
+	cachedAt  time.Time
+	target    string
+	cachedErr error
+}
+
+func newCachedResolver(fn func() (string, error), ttl time.Duration) *cachedResolver {
+	return &cachedResolver{fn: fn, ttl: ttl}
+}
+
+func (c *cachedResolver) get() (string, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if !c.cachedAt.IsZero() && time.Since(c.cachedAt) < c.ttl {
+		return c.target, c.cachedErr
+	}
+
+	target, err := c.fn()
+	c.target = target
+	c.cachedErr = err
+	c.cachedAt = time.Now()
+	return target, err
 }
 
 // resolveErrKey is the context key tart-kubelet's reverse-proxy
