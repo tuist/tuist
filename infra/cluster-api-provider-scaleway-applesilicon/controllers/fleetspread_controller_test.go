@@ -152,6 +152,60 @@ func TestReconcile_RepatchesOnFleetGrowth(t *testing.T) {
 	}
 }
 
+// TestReconcile_DefersPatchWhileDeploymentRolling covers the
+// production failure mode where Helm is already rolling the
+// xcresult-processor Deployment and a fleet Node event asks the
+// controller to stamp another pod-template annotation. Patching in
+// that window mints a second ReplicaSet, deletes the first replacement
+// Pod, and can strand the newest Pod behind hostPort/max-pods
+// constraints on a two-host fleet.
+func TestReconcile_DefersPatchWhileDeploymentRolling(t *testing.T) {
+	n0 := readyNode("fleet-0")
+	n1 := readyNode("fleet-1")
+	dep := emptyDeployment("xcresult-processor", "tuist")
+	replicas := int32(2)
+	dep.Spec.Replicas = &replicas
+	dep.Generation = 3
+	dep.Status = appsv1.DeploymentStatus{
+		ObservedGeneration:  3,
+		Replicas:            2,
+		UpdatedReplicas:     1,
+		ReadyReplicas:       1,
+		AvailableReplicas:   1,
+		UnavailableReplicas: 1,
+	}
+	dep.Spec.Template.Annotations = map[string]string{
+		FleetHashAnnotation: readyNodeHash([]corev1.Node{n0}),
+	}
+
+	r, ctx := newFleetSpreadReconciler(t, "tuist", "xcresult-processor", &n0, &n1, &dep)
+
+	var before appsv1.Deployment
+	if err := r.Get(ctx, types.NamespacedName{Namespace: "tuist", Name: "xcresult-processor"}, &before); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := r.Reconcile(ctx, ctrl.Request{})
+	if err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if result.RequeueAfter != rolloutRequeueAfter {
+		t.Fatalf("expected requeue after %s, got %s", rolloutRequeueAfter, result.RequeueAfter)
+	}
+
+	var after appsv1.Deployment
+	if err := r.Get(ctx, types.NamespacedName{Namespace: "tuist", Name: "xcresult-processor"}, &after); err != nil {
+		t.Fatal(err)
+	}
+	if after.ResourceVersion != before.ResourceVersion {
+		t.Fatalf("expected no patch while deployment is rolling, RV %q -> %q",
+			before.ResourceVersion, after.ResourceVersion)
+	}
+	if got := after.Spec.Template.Annotations[FleetHashAnnotation]; got != readyNodeHash([]corev1.Node{n0}) {
+		t.Fatalf("hash changed while deployment was rolling: got %q", got)
+	}
+}
+
 // TestReconcile_DoesNotRollOnPhaseReadyBeforeNodeReady is the P2
 // regression test. A new Mac mini whose ScalewayAppleSiliconMachine
 // has Phase=Ready but whose kube Node hasn't reported NodeReady yet
@@ -230,15 +284,25 @@ func nodeWithReady(name string, ready corev1.ConditionStatus) corev1.Node {
 }
 
 func emptyDeployment(name, namespace string) appsv1.Deployment {
+	replicas := int32(1)
 	return appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
+			Name:       name,
+			Namespace:  namespace,
+			Generation: 1,
 		},
 		Spec: appsv1.DeploymentSpec{
+			Replicas: &replicas,
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{},
 			},
+		},
+		Status: appsv1.DeploymentStatus{
+			ObservedGeneration: 1,
+			Replicas:           replicas,
+			UpdatedReplicas:    replicas,
+			ReadyReplicas:      replicas,
+			AvailableReplicas:  replicas,
 		},
 	}
 }

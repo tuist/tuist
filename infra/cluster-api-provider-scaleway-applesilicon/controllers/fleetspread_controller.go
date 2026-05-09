@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"sort"
 	"strings"
+	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -27,13 +28,15 @@ import (
 // doesn't reconsider placement of running Pods on its own.
 const FleetHashAnnotation = "tuist.dev/fleet-hash"
 
+const rolloutRequeueAfter = 30 * time.Second
+
 // FleetNodeSelector picks out Mac mini Nodes (the ones tart-kubelet
 // registered) from the rest of the cluster. Matches the nodeSelector
 // the chart's xcresult-processor Deployment uses, so the hash is over
 // exactly the set of hosts that workload can schedule on.
 var FleetNodeSelector = labels.SelectorFromSet(labels.Set{
-	"kubernetes.io/os":   "darwin",
-	"tuist.dev/runtime":  "tart",
+	"kubernetes.io/os":  "darwin",
+	"tuist.dev/runtime": "tart",
 })
 
 // FleetSpreadReconciler watches Mac mini Nodes and patches a target
@@ -110,6 +113,10 @@ func (r *FleetSpreadReconciler) Reconcile(ctx context.Context, _ ctrl.Request) (
 	if dep.Spec.Template.Annotations[FleetHashAnnotation] == hash {
 		return ctrl.Result{}, nil
 	}
+	if !deploymentRolloutSettled(dep) {
+		logger.Info("deferring fleet-shape rollout while deployment is still settling", "fleet-hash", hash)
+		return ctrl.Result{RequeueAfter: rolloutRequeueAfter}, nil
+	}
 
 	patch := client.MergeFrom(dep.DeepCopy())
 	if dep.Spec.Template.Annotations == nil {
@@ -121,6 +128,27 @@ func (r *FleetSpreadReconciler) Reconcile(ctx context.Context, _ ctrl.Request) (
 	}
 	logger.Info("rolled deployment on fleet-shape change", "fleet-hash", hash)
 	return ctrl.Result{}, nil
+}
+
+func deploymentRolloutSettled(dep appsv1.Deployment) bool {
+	desired := int32(1)
+	if dep.Spec.Replicas != nil {
+		desired = *dep.Spec.Replicas
+	}
+
+	if dep.Generation > dep.Status.ObservedGeneration {
+		return false
+	}
+	if dep.Status.UpdatedReplicas != desired {
+		return false
+	}
+	if dep.Status.Replicas != desired {
+		return false
+	}
+	if dep.Status.AvailableReplicas != desired {
+		return false
+	}
+	return dep.Status.UnavailableReplicas == 0
 }
 
 // readyNodeHash is a stable, order-independent hash of the schedulable
