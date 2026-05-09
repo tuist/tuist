@@ -28,8 +28,9 @@ exec >>"${LOG}" 2>&1
 # trap a non-zero `./run.sh` (errexit), an early `exit 1` (401 abort,
 # missing /etc/tuist.env, etc.), or any other failure path would
 # leave macOS up, the Pod stuck Running, and the warm pool never
-# refilling. The trap fires once on EXIT so it covers the happy
-# path too — the explicit `shutdown` in the 200 branch is removed.
+# refilling. The trap fires once on EXIT so the happy path
+# (clean ./run.sh exit) and every error path halt the VM the
+# same way.
 trap '_rc=$?; echo "$(date -u +%FT%TZ) dispatch-poll: exiting (rc=${_rc}); halting VM"; /sbin/shutdown -h now || true; exit "${_rc}"' EXIT
 
 if [ ! -f /etc/tuist.env ]; then

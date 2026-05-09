@@ -5,25 +5,21 @@
 {{- /*
 Mac mini fleet — declarative.
 
-CAPI primitive shape: MachineDeployment owns a MachineSet, which
-creates Machines per replica, each Machine.spec.infrastructureRef
-points at a per-replica ScalewayAppleSiliconMachine cloned from
-the MachineTemplate below. Updates to the template (SKU change,
-OS bump) propagate via MachineSet rotation; OnDelete strategy
+MachineDeployment owns a MachineSet, which creates Machines per
+replica; each Machine.spec.infrastructureRef points at a
+per-replica ScalewayAppleSiliconMachine cloned from the
+MachineTemplate below. Updates to the template (SKU change, OS
+bump) propagate via MachineSet rotation; `OnDelete` strategy
 keeps Ready Machines alive across template changes — physical
-Mac minis are expensive to churn (Scaleway 24h-floor).
+Mac minis are expensive to churn (Scaleway 24h-floor on server
+release), so the operator hand-rolls each Machine via
+`kubectl delete` when a planned replacement is wanted.
 
-Replaces the previous ScalewayAppleSiliconFleet abstraction. We
-get rolling-update / health-check / clusterctl tooling for free
-and shed ~600 lines of custom Fleet controller code; sizing,
-template, and Node-label semantics are unchanged.
-
-Adoption of pre-existing Machines: MachineSet's label-selector
-adoption pulls Machines whose labels match into ownership on the
-first reconcile, so a chart upgrade from the Fleet shape doesn't
-recreate Mac minis (avoids the 24h-floor cost). Operator-side
-prep before the upgrade: strip the old Fleet's OwnerRef from
-existing Machines.
+Per-Machine `hostCPU` / `hostMemoryMB` are stamped on the
+MachineTemplate so a single operator instance can manage
+heterogeneous fleets (xcresult-fleet + runners-fleet on
+different SKUs); falls back to the operator-global
+`--tartkubelet-host-{cpu,memory-mb}` defaults when unset.
 */ -}}
 apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
 kind: ScalewayAppleSiliconMachineTemplate
