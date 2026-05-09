@@ -216,7 +216,7 @@ jobs:
     concurrency:
       group: server-deploy-${{ inputs.environment }}
       cancel-in-progress: false
-    timeout-minutes: 105
+    timeout-minutes: 130
     env:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
       NAMESPACE: ${{ inputs.environment == 'production' && 'tuist' || format('tuist-{0}', inputs.environment) }}
@@ -302,7 +302,7 @@ jobs:
               fi
 
               helm rollback "$HELM_RELEASE_NAME" "$deployed_revision" \
-                --namespace "$NAMESPACE" --wait --timeout 10m
+                --namespace "$NAMESPACE" --wait --timeout 25m
               ;;
             *)
               echo "Release $HELM_RELEASE_NAME status is ${status:-not-installed}; no recovery needed."
@@ -357,15 +357,11 @@ jobs:
         # them across rollbacks) finish in 5-15 min and never approach
         # this ceiling.
         #
-        # timeout-minutes: 95 is the runner-level kill ceiling — 5 min
-        # over helm's own --timeout. Without it, the only kill semantic
-        # for a hung helm is the job-level timeout; helm under
-        # `--atomic --wait` ignores SIGINT/SIGTERM until its in-process
-        # rollback completes, so a manual `gh run cancel` doesn't free
-        # the concurrency lock for ~90 min. With this in place the
-        # runner SIGKILLs helm 5 min after its own timeout would have
-        # fired, bounding the recovery window.
-        timeout-minutes: 95
+        # timeout-minutes: 120 leaves 30 min over helm's own --timeout
+        # for the in-process `--atomic` rollback. Five minutes was too
+        # tight for macOS-fleet rollbacks and could kill helm after it had
+        # already moved the release into pending-rollback.
+        timeout-minutes: 120
         run: |
           # Stream cluster state every 30s while helm waits. helm
           # --atomic --wait produces no stdout during the wait, so
@@ -458,6 +454,24 @@ jobs:
             kubectl -n "$NAMESPACE" logs "$pod" --all-containers --tail=500 || true
             echo "--- logs $pod (previous) ---"
             kubectl -n "$NAMESPACE" logs "$pod" --all-containers --previous --tail=500 || true
+          done
+          echo "::endgroup::"
+          echo "::group::xcresult processor deployment + pods"
+          kubectl -n "$NAMESPACE" describe deploy/tuist-tuist-xcresult-processor || true
+          for pod in $(kubectl -n "$NAMESPACE" get pods -l app.kubernetes.io/component=xcresult-processor -o name 2>/dev/null); do
+            echo "--- describe $pod ---"
+            kubectl -n "$NAMESPACE" describe "$pod" || true
+            echo "--- logs $pod (current) ---"
+            kubectl -n "$NAMESPACE" logs "$pod" --all-containers --tail=500 || true
+            echo "--- logs $pod (previous) ---"
+            kubectl -n "$NAMESPACE" logs "$pod" --all-containers --previous --tail=500 || true
+          done
+          echo "::endgroup::"
+          echo "::group::macOS fleet nodes"
+          kubectl get nodes -l kubernetes.io/os=darwin,tuist.dev/runtime=tart -o wide || true
+          for node in $(kubectl get nodes -l kubernetes.io/os=darwin,tuist.dev/runtime=tart -o name 2>/dev/null); do
+            echo "--- describe $node ---"
+            kubectl describe "$node" || true
           done
           echo "::endgroup::"
           echo "::group::external secrets"
