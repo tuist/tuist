@@ -5,6 +5,7 @@ import ProjectDescription
 import TuistConfigLoader
 import TuistCore
 import TuistDependencies
+import TuistEnvironment
 import TuistLoader
 import TuistPlugin
 import TuistSupport
@@ -99,8 +100,18 @@ public struct ManifestGraphLoader: ManifestGraphLoading {
         self.manifestFilesLocator = manifestFilesLocator
     }
 
-    // swiftlint:disable:next function_body_length
     public func load(
+        path: AbsolutePath,
+        disableSandbox: Bool
+    ) async throws -> (Graph, [SideEffectDescriptor], MapperEnvironment, [LintingIssue]) { // swiftlint:disable:this large_tuple
+        let config = try await configLoader.loadConfig(path: path)
+        return try await Environment.$additionalManifestEnvironmentKeys.withValue(config.manifestEnvironment) {
+            try await loadInternal(path: path, disableSandbox: disableSandbox)
+        }
+    }
+
+    // swiftlint:disable:next function_body_length
+    private func loadInternal(
         path: AbsolutePath,
         disableSandbox: Bool
     ) async throws -> (Graph, [SideEffectDescriptor], MapperEnvironment, [LintingIssue]) { // swiftlint:disable:this large_tuple

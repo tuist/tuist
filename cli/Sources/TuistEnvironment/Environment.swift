@@ -141,6 +141,14 @@ extension Environmenting {
 public struct Environment: Environmenting {
     @TaskLocal public static var current: Environmenting = Environment()
 
+    /// Names of process environment variables that, in addition to `TUIST_*`, `CI`, and
+    /// `DEVELOPER_DIR`, are forwarded to the manifest evaluation subprocess.
+    ///
+    /// Each entry is either a literal name or a name ending in `*` for prefix matching.
+    /// The list is sourced from `Tuist.swift`'s `manifestEnvironment` and bound by the
+    /// graph loader after the config has been loaded.
+    @TaskLocal public static var additionalManifestEnvironmentKeys: [String] = []
+
     public var processId: String
     public var variables: [String: String]
     public var arguments: [String]
@@ -293,7 +301,27 @@ public struct Environment: Environmenting {
         let allowedVariables = variables.filter {
             allowedVariableKeys.contains($0.key)
         }
-        return tuistVariables.merging(allowedVariables, uniquingKeysWith: { $1 })
+        let additionalPatterns = Environment.additionalManifestEnvironmentKeys
+        let additionalVariables = additionalPatterns.isEmpty ? [:] : variables.filter { key, _ in
+            Self.matches(key: key, patterns: additionalPatterns)
+        }
+        return tuistVariables
+            .merging(allowedVariables, uniquingKeysWith: { $1 })
+            .merging(additionalVariables, uniquingKeysWith: { $1 })
+    }
+
+    static func matches(key: String, patterns: [String]) -> Bool {
+        for pattern in patterns {
+            if pattern.hasSuffix("*") {
+                let prefix = String(pattern.dropLast())
+                if !prefix.isEmpty, key.hasPrefix(prefix) {
+                    return true
+                }
+            } else if key == pattern {
+                return true
+            }
+        }
+        return false
     }
 
     public var workspacePath: AbsolutePath? {

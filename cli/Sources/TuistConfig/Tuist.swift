@@ -35,6 +35,7 @@ public struct Tuist: Equatable, Hashable, Sendable {
     public let network: Network
     public let xcodeCache: XcodeCache
     public let url: URL
+    public let manifestEnvironment: [String]
 
     public static var `default`: Tuist {
         return Tuist(
@@ -43,7 +44,8 @@ public struct Tuist: Equatable, Hashable, Sendable {
             inspectOptions: .init(redundantDependencies: .init(ignoreTagsMatching: [])),
             xcodeCache: XcodeCache(),
             url: Constants.URLs.production,
-            network: Network()
+            network: Network(),
+            manifestEnvironment: []
         )
     }
 
@@ -53,7 +55,8 @@ public struct Tuist: Equatable, Hashable, Sendable {
         inspectOptions: InspectOptions,
         xcodeCache: XcodeCache = XcodeCache(),
         url: URL,
-        network: Network = Network()
+        network: Network = Network(),
+        manifestEnvironment: [String] = []
     ) {
         self.project = project
         self.fullHandle = fullHandle
@@ -61,6 +64,7 @@ public struct Tuist: Equatable, Hashable, Sendable {
         self.network = network
         self.xcodeCache = xcodeCache
         self.url = url
+        self.manifestEnvironment = manifestEnvironment
     }
 
     public func hash(into hasher: inout Hasher) {
@@ -68,6 +72,7 @@ public struct Tuist: Equatable, Hashable, Sendable {
         hasher.combine(fullHandle)
         hasher.combine(network)
         hasher.combine(url)
+        hasher.combine(manifestEnvironment)
     }
 
     public func assertingIsGeneratedProjectOrSwiftPackage(errorMessageOverride: String?) throws -> Self {
@@ -84,7 +89,8 @@ public struct Tuist: Equatable, Hashable, Sendable {
             inspectOptions: InspectOptions = .init(redundantDependencies: .init(ignoreTagsMatching: [])),
             xcodeCache: XcodeCache = XcodeCache(),
             url: URL = Constants.URLs.production,
-            network: Network = Network()
+            network: Network = Network(),
+            manifestEnvironment: [String] = []
         ) -> Self {
             return Tuist(
                 project: project,
@@ -92,7 +98,8 @@ public struct Tuist: Equatable, Hashable, Sendable {
                 inspectOptions: inspectOptions,
                 xcodeCache: xcodeCache,
                 url: url,
-                network: network
+                network: network,
+                manifestEnvironment: manifestEnvironment
             )
         }
     #endif

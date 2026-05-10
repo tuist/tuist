@@ -4,6 +4,7 @@ import TSCBasic
 import TuistConfigLoader
 import TuistCore
 import TuistEncodable
+import TuistEnvironment
 import TuistLoader
 import TuistLogging
 import TuistPlugin
@@ -36,43 +37,44 @@ struct DumpService {
             projectPath = AbsolutePath.current
         }
 
-        let manifestGraphLoader = ManifestGraphLoader(
-            manifestLoader: manifestLoader,
-            workspaceMapper: SequentialWorkspaceMapper(mappers: []),
-            graphMapper: SequentialGraphMapper([])
-        )
-        try await manifestGraphLoader.loadPlugins(at: projectPath)
+        let config = try await configLoader.loadConfig(path: projectPath)
 
-        let encoded: Encodable
-        switch manifest {
-        case .project:
-            let config = try await configLoader.loadConfig(path: projectPath)
-            encoded = try await manifestLoader.loadProject(
-                at: projectPath,
-                disableSandbox: config.project.disableSandbox
+        try await Environment.$additionalManifestEnvironmentKeys.withValue(config.manifestEnvironment) {
+            let manifestGraphLoader = ManifestGraphLoader(
+                manifestLoader: manifestLoader,
+                workspaceMapper: SequentialWorkspaceMapper(mappers: []),
+                graphMapper: SequentialGraphMapper([])
             )
-        case .workspace:
-            let config = try await configLoader.loadConfig(path: projectPath)
-            encoded = try await manifestLoader.loadWorkspace(
-                at: projectPath,
-                disableSandbox: config.project.disableSandbox
-            )
-        case .config:
-            encoded = try await manifestLoader.loadConfig(at: projectPath)
-        case .template:
-            encoded = try await manifestLoader.loadTemplate(at: projectPath)
-        case .plugin:
-            encoded = try await manifestLoader.loadPlugin(at: projectPath)
-        case .package:
-            let config = try await configLoader.loadConfig(path: projectPath)
-            encoded = try await manifestLoader.loadPackageSettings(
-                at: projectPath,
-                disableSandbox: config.project.disableSandbox
-            )
+            try await manifestGraphLoader.loadPlugins(at: projectPath)
+
+            let encoded: Encodable
+            switch manifest {
+            case .project:
+                encoded = try await manifestLoader.loadProject(
+                    at: projectPath,
+                    disableSandbox: config.project.disableSandbox
+                )
+            case .workspace:
+                encoded = try await manifestLoader.loadWorkspace(
+                    at: projectPath,
+                    disableSandbox: config.project.disableSandbox
+                )
+            case .config:
+                encoded = try await manifestLoader.loadConfig(at: projectPath)
+            case .template:
+                encoded = try await manifestLoader.loadTemplate(at: projectPath)
+            case .plugin:
+                encoded = try await manifestLoader.loadPlugin(at: projectPath)
+            case .package:
+                encoded = try await manifestLoader.loadPackageSettings(
+                    at: projectPath,
+                    disableSandbox: config.project.disableSandbox
+                )
+            }
+
+            let json: JSON = try encoded.toJSON()
+            Logger.current.notice("\(json.toString(prettyPrint: true))", metadata: .json)
         }
-
-        let json: JSON = try encoded.toJSON()
-        Logger.current.notice("\(json.toString(prettyPrint: true))", metadata: .json)
     }
 }
 

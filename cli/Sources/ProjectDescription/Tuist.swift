@@ -81,6 +81,16 @@ public struct Tuist: Codable, Equatable, Sendable {
     /// The base URL that points to the Tuist server.
     public let url: String
 
+    /// Names of process environment variables that Tuist forwards to manifest evaluation
+    /// in addition to the default set (`TUIST_*`, `CI`, and `DEVELOPER_DIR`).
+    ///
+    /// Each entry is either a literal name (e.g. `OPENSWIFTUI_LIBRARY_TYPE`) or a name
+    /// ending in `*` for prefix matching (e.g. `OPENSWIFTUI_*`).
+    ///
+    /// Listed variables also participate in the manifest cache hash, so changes invalidate
+    /// the cache as expected.
+    public let manifestEnvironment: [String]
+
     /// Creates a tuist configuration.
     ///
     /// - Parameters:
@@ -124,6 +134,7 @@ public struct Tuist: Codable, Equatable, Sendable {
         self.network = network
         xcodeCache = .xcodeCache()
         self.url = url
+        manifestEnvironment = []
         dumpIfNeeded(self)
     }
 
@@ -133,6 +144,7 @@ public struct Tuist: Codable, Equatable, Sendable {
         xcodeCache: XcodeCache = .xcodeCache(),
         url: String = "https://tuist.dev",
         network: Network = .network(),
+        manifestEnvironment: [String] = [],
         project: TuistProject
     ) {
         self.project = project
@@ -141,10 +153,11 @@ public struct Tuist: Codable, Equatable, Sendable {
         self.network = network
         self.xcodeCache = xcodeCache
         self.url = url
+        self.manifestEnvironment = manifestEnvironment
         dumpIfNeeded(self)
     }
 
-    @available(*, deprecated, renamed: "init(fullHandle:inspectOptions:xcodeCache:url:network:project:)")
+    @available(*, deprecated, renamed: "init(fullHandle:inspectOptions:xcodeCache:url:network:manifestEnvironment:project:)")
     public init(
         fullHandle: String? = nil,
         inspectOptions: InspectOptions = .options(),
@@ -159,6 +172,7 @@ public struct Tuist: Codable, Equatable, Sendable {
             xcodeCache: cache,
             url: url,
             network: network,
+            manifestEnvironment: [],
             project: project
         )
     }
