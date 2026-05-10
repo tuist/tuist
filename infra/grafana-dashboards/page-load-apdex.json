@@ -27,7 +27,7 @@
       }
     ],
     "cursorSync": "Off",
-    "description": "Apdex score and latency metrics for Tuist web page loads (request_kind=\"page_load\"). T=1s (satisfied <1s, tolerating 1-4s, frustrated >4s).",
+    "description": "Apdex score and latency metrics for Tuist web page loads. Discriminated by request_kind=\"page_load\" — extracted via | logfmt from the pod-log stdout stream that the per-node Alloy DaemonSet ships to Loki. T=1s (satisfied <1s, tolerating 1-4s, frustrated >4s).",
     "editable": true,
     "elements": {
       "panel-11": {
@@ -53,7 +53,7 @@
                       },
                       "spec": {
                         "app": "grafana-assistant-app",
-                        "expr": "sum(rate({service_name=\"tuist\", env=\"production\", container=\"server\"} | request_kind=\"page_load\" | regexp \"in (?P<ms>[0-9]+)ms\" | ms <= 1000 [$__interval]))",
+                        "expr": "sum(rate({env=\"production\", container=\"server\"} | logfmt | request_kind=\"page_load\" | regexp \"in (?P<ms>[0-9]+)ms\" | ms <= 1000 [$__interval]))",
                         "instant": false,
                         "legendFormat": "satisfied",
                         "queryType": "range",
@@ -76,7 +76,7 @@
                       },
                       "spec": {
                         "app": "grafana-assistant-app",
-                        "expr": "sum(rate({service_name=\"tuist\", env=\"production\", container=\"server\"} | request_kind=\"page_load\" | regexp \"in (?P<ms>[0-9]+)ms\" | ms > 1000 | ms <= 4000 [$__interval]))",
+                        "expr": "sum(rate({env=\"production\", container=\"server\"} | logfmt | request_kind=\"page_load\" | regexp \"in (?P<ms>[0-9]+)ms\" | ms > 1000 | ms <= 4000 [$__interval]))",
                         "instant": false,
                         "legendFormat": "tolerating",
                         "queryType": "range",
@@ -99,7 +99,7 @@
                       },
                       "spec": {
                         "app": "grafana-assistant-app",
-                        "expr": "sum(rate({service_name=\"tuist\", env=\"production\", container=\"server\"} | request_kind=\"page_load\" | regexp \"in (?P<ms>[0-9]+)ms\" [$__interval]))",
+                        "expr": "sum(rate({env=\"production\", container=\"server\"} | logfmt | request_kind=\"page_load\" | regexp \"in (?P<ms>[0-9]+)ms\" [$__interval]))",
                         "instant": false,
                         "legendFormat": "total",
                         "queryType": "range",
@@ -213,7 +213,7 @@
                       },
                       "spec": {
                         "app": "grafana-assistant-app",
-                        "expr": "sum(rate({service_name=\"tuist\", env=\"production\", container=\"server\"} | request_kind=\"page_load\" |~ \"Sent [0-9]+ in\" [$__interval]))",
+                        "expr": "sum(rate({env=\"production\", container=\"server\"} | logfmt | request_kind=\"page_load\" |~ \"Sent [0-9]+ in\" [$__interval]))",
                         "instant": false,
                         "legendFormat": "Page Loads/s",
                         "queryType": "range",
@@ -297,7 +297,7 @@
                       },
                       "spec": {
                         "app": "grafana-assistant-app",
-                        "expr": "max(quantile_over_time(0.99, {service_name=\"tuist\", env=\"production\", container=\"server\"} | request_kind=\"page_load\" | regexp \"in (?P<ms>[0-9]+)ms\" | unwrap ms [$__interval]))",
+                        "expr": "max(quantile_over_time(0.99, {env=\"production\", container=\"server\"} | logfmt | request_kind=\"page_load\" | regexp \"in (?P<ms>[0-9]+)ms\" | unwrap ms [$__interval]))",
                         "instant": false,
                         "queryType": "range",
                         "range": true
@@ -388,7 +388,7 @@
                       },
                       "spec": {
                         "app": "grafana-assistant-app",
-                        "expr": "sum(rate({service_name=\"tuist\", env=\"production\", container=\"server\"} | request_kind=\"page_load\" |~ \"Sent 5[0-9][0-9] in\" [$__interval]))",
+                        "expr": "sum(rate({env=\"production\", container=\"server\"} | logfmt | request_kind=\"page_load\" |~ \"Sent 5[0-9][0-9] in\" [$__interval]))",
                         "instant": false,
                         "queryType": "range",
                         "range": true
@@ -478,7 +478,7 @@
                       },
                       "spec": {
                         "app": "grafana-assistant-app",
-                        "expr": "sum(rate({service_name=\"tuist\", env=\"production\", container=\"server\"} | request_kind=\"page_load\" | regexp \"in (?P<ms>[0-9]+)ms\" | ms <= 1000 [$__interval]))",
+                        "expr": "sum(rate({env=\"production\", container=\"server\"} | logfmt | request_kind=\"page_load\" | regexp \"in (?P<ms>[0-9]+)ms\" | ms <= 1000 [$__interval]))",
                         "instant": false,
                         "queryType": "range",
                         "range": true
@@ -500,7 +500,7 @@
                       },
                       "spec": {
                         "app": "grafana-assistant-app",
-                        "expr": "sum(rate({service_name=\"tuist\", env=\"production\", container=\"server\"} | request_kind=\"page_load\" | regexp \"in (?P<ms>[0-9]+)ms\" | ms > 1000 | ms <= 4000 [$__interval]))",
+                        "expr": "sum(rate({env=\"production\", container=\"server\"} | logfmt | request_kind=\"page_load\" | regexp \"in (?P<ms>[0-9]+)ms\" | ms > 1000 | ms <= 4000 [$__interval]))",
                         "instant": false,
                         "queryType": "range",
                         "range": true
@@ -522,7 +522,7 @@
                       },
                       "spec": {
                         "app": "grafana-assistant-app",
-                        "expr": "sum(rate({service_name=\"tuist\", env=\"production\", container=\"server\"} | request_kind=\"page_load\" | regexp \"in (?P<ms>[0-9]+)ms\" | ms <= 200 [$__interval]))",
+                        "expr": "sum(rate({env=\"production\", container=\"server\"} | logfmt | request_kind=\"page_load\" | regexp \"in (?P<ms>[0-9]+)ms\" | ms <= 200 [$__interval]))",
                         "instant": false,
                         "queryType": "range",
                         "range": true
@@ -544,7 +544,7 @@
                       },
                       "spec": {
                         "app": "grafana-assistant-app",
-                        "expr": "sum(rate({service_name=\"tuist\", env=\"production\", container=\"server\"} | request_kind=\"page_load\" | regexp \"in (?P<ms>[0-9]+)ms\" | ms > 200 | ms <= 800 [$__interval]))",
+                        "expr": "sum(rate({env=\"production\", container=\"server\"} | logfmt | request_kind=\"page_load\" | regexp \"in (?P<ms>[0-9]+)ms\" | ms > 200 | ms <= 800 [$__interval]))",
                         "instant": false,
                         "queryType": "range",
                         "range": true
@@ -566,7 +566,7 @@
                       },
                       "spec": {
                         "app": "grafana-assistant-app",
-                        "expr": "sum(rate({service_name=\"tuist\", env=\"production\", container=\"server\"} | request_kind=\"page_load\" | regexp \"in (?P<ms>[0-9]+)ms\" [$__interval]))",
+                        "expr": "sum(rate({env=\"production\", container=\"server\"} | logfmt | request_kind=\"page_load\" | regexp \"in (?P<ms>[0-9]+)ms\" [$__interval]))",
                         "instant": false,
                         "queryType": "range",
                         "range": true
@@ -773,7 +773,7 @@
                       },
                       "spec": {
                         "app": "grafana-assistant-app",
-                        "expr": "sum(rate({service_name=\"tuist\", env=\"production\", container=\"server\"} | request_kind=\"page_load\" |~ \"Sent [0-9]+ in\" [$__interval]))",
+                        "expr": "sum(rate({env=\"production\", container=\"server\"} | logfmt | request_kind=\"page_load\" |~ \"Sent [0-9]+ in\" [$__interval]))",
                         "instant": false,
                         "legendFormat": "Page Loads/s",
                         "queryType": "range",
@@ -894,7 +894,7 @@
                       },
                       "spec": {
                         "app": "grafana-assistant-app",
-                        "expr": "sum(rate({service_name=\"tuist\", env=\"production\", container=\"server\"} | request_kind=\"page_load\" |~ \"Sent 5[0-9][0-9] in\" [$__interval]))",
+                        "expr": "sum(rate({env=\"production\", container=\"server\"} | logfmt | request_kind=\"page_load\" |~ \"Sent 5[0-9][0-9] in\" [$__interval]))",
                         "instant": false,
                         "legendFormat": "5xx/s",
                         "queryType": "range",
@@ -1016,7 +1016,7 @@
                       },
                       "spec": {
                         "app": "grafana-assistant-app",
-                        "expr": "max(quantile_over_time(0.50, {service_name=\"tuist\", env=\"production\", container=\"server\"} | request_kind=\"page_load\" | regexp \"in (?P<ms>[0-9]+)ms\" | unwrap ms [$__interval]))",
+                        "expr": "max(quantile_over_time(0.50, {env=\"production\", container=\"server\"} | logfmt | request_kind=\"page_load\" | regexp \"in (?P<ms>[0-9]+)ms\" | unwrap ms [$__interval]))",
                         "instant": false,
                         "legendFormat": "P50",
                         "queryType": "range",
@@ -1039,7 +1039,7 @@
                       },
                       "spec": {
                         "app": "grafana-assistant-app",
-                        "expr": "max(quantile_over_time(0.95, {service_name=\"tuist\", env=\"production\", container=\"server\"} | request_kind=\"page_load\" | regexp \"in (?P<ms>[0-9]+)ms\" | unwrap ms [$__interval]))",
+                        "expr": "max(quantile_over_time(0.95, {env=\"production\", container=\"server\"} | logfmt | request_kind=\"page_load\" | regexp \"in (?P<ms>[0-9]+)ms\" | unwrap ms [$__interval]))",
                         "instant": false,
                         "legendFormat": "P95",
                         "queryType": "range",
@@ -1062,7 +1062,7 @@
                       },
                       "spec": {
                         "app": "grafana-assistant-app",
-                        "expr": "max(quantile_over_time(0.99, {service_name=\"tuist\", env=\"production\", container=\"server\"} | request_kind=\"page_load\" | regexp \"in (?P<ms>[0-9]+)ms\" | unwrap ms [$__interval]))",
+                        "expr": "max(quantile_over_time(0.99, {env=\"production\", container=\"server\"} | logfmt | request_kind=\"page_load\" | regexp \"in (?P<ms>[0-9]+)ms\" | unwrap ms [$__interval]))",
                         "instant": false,
                         "legendFormat": "P99",
                         "queryType": "range",
