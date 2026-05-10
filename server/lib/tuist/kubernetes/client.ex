@@ -90,7 +90,6 @@ defmodule Tuist.Kubernetes.Client do
             url: url(config, path),
             headers: request_headers(config, headers),
             params: query,
-            finch: Tuist.Finch,
             connect_options: [transport_opts: config.transport_opts]
           ],
           body
