@@ -192,6 +192,9 @@ final class DumpServiceTests: TuistTestCase {
                   ]
                 }
               },
+              "manifestEnvironment": [
+
+              ],
               "network": {
                 "proxy": true
               },
