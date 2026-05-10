@@ -61,17 +61,20 @@ Environment.isCI.getBoolean(default: false)
 
 By default, only variables prefixed with `TUIST_`, plus `CI` and `DEVELOPER_DIR`, are forwarded to the subprocess that evaluates `Project.swift`, `Workspace.swift`, `Package.swift`, and the project description helpers. This keeps generation deterministic and prevents unrelated shell or CI variables from invalidating the manifest cache.
 
-When a manifest needs to read variables that are not under your control (for example, a third-party `Package.swift` that already reads `OPENSWIFTUI_LIBRARY_TYPE`), declare them in `Tuist.swift` via `manifestEnvironment`. Each entry is either a literal name or a name ending in `*` for prefix matching:
+When a manifest needs to read variables that are not under your control (for example, a third-party `Package.swift` that already reads `OPENSWIFTUI_LIBRARY_TYPE`), declare them in `Tuist.swift` via `manifestEnvironment` on the generation options. Each entry is either a literal name or a name ending in `*` for prefix matching:
 
 ```swift
 import ProjectDescription
 
 let tuist = Tuist(
-    manifestEnvironment: [
-        "OPENSWIFTUI_*",
-        "MY_VAR",
-    ],
-    project: .tuist()
+    project: .tuist(
+        generationOptions: .options(
+            manifestEnvironment: [
+                "OPENSWIFTUI_*",
+                "MY_VAR",
+            ]
+        )
+    )
 )
 ```
 

@@ -83,8 +83,7 @@ extension TuistConfig.Tuist {
                 inspectOptions: inspectOptions,
                 xcodeCache: xcodeCache,
                 url: url,
-                network: network,
-                manifestEnvironment: manifest.manifestEnvironment
+                network: network
             )
         case .xcode:
             return TuistConfig.Tuist(
@@ -93,8 +92,7 @@ extension TuistConfig.Tuist {
                 inspectOptions: inspectOptions,
                 xcodeCache: xcodeCache,
                 url: url,
-                network: network,
-                manifestEnvironment: manifest.manifestEnvironment
+                network: network
             )
         }
     }

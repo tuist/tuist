@@ -105,7 +105,8 @@ public struct ManifestGraphLoader: ManifestGraphLoading {
         disableSandbox: Bool
     ) async throws -> (Graph, [SideEffectDescriptor], MapperEnvironment, [LintingIssue]) { // swiftlint:disable:this large_tuple
         let config = try await configLoader.loadConfig(path: path)
-        return try await Environment.$additionalManifestEnvironmentKeys.withValue(config.manifestEnvironment) {
+        let manifestEnvironment = config.project.generatedProject?.generationOptions.manifestEnvironment ?? []
+        return try await Environment.$additionalManifestEnvironmentKeys.withValue(manifestEnvironment) {
             try await loadInternal(path: path, disableSandbox: disableSandbox)
         }
     }

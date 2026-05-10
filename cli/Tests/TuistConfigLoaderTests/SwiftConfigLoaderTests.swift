@@ -349,8 +349,11 @@
             stubRootDirectory(projectPath)
             stubConfig(
                 ProjectDescription.Config(
-                    manifestEnvironment: ["OPENSWIFTUI_*", "MY_VAR"],
-                    project: .tuist()
+                    project: .tuist(
+                        generationOptions: .options(
+                            manifestEnvironment: ["OPENSWIFTUI_*", "MY_VAR"]
+                        )
+                    )
                 ),
                 at: configPath.parentDirectory
             )
@@ -358,7 +361,9 @@
             let subject = makeSubject()
             let result = try await subject.loadConfig(path: projectPath)
 
-            #expect(result.manifestEnvironment == ["OPENSWIFTUI_*", "MY_VAR"])
+            #expect(
+                result.project.generatedProject?.generationOptions.manifestEnvironment == ["OPENSWIFTUI_*", "MY_VAR"]
+            )
         }
 
         // MARK: - Helpers

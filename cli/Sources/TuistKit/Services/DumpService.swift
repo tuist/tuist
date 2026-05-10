@@ -38,8 +38,9 @@ struct DumpService {
         }
 
         let config = try await configLoader.loadConfig(path: projectPath)
+        let manifestEnvironment = config.project.generatedProject?.generationOptions.manifestEnvironment ?? []
 
-        try await Environment.$additionalManifestEnvironmentKeys.withValue(config.manifestEnvironment) {
+        try await Environment.$additionalManifestEnvironmentKeys.withValue(manifestEnvironment) {
             let manifestGraphLoader = ManifestGraphLoader(
                 manifestLoader: manifestLoader,
                 workspaceMapper: SequentialWorkspaceMapper(mappers: []),
