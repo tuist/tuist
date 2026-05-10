@@ -23,6 +23,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/envresolver"
+	"github.com/tuist/tuist/infra/tart-kubelet/internal/satoken"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/tart"
 )
 
@@ -48,6 +49,12 @@ type Reconciler struct {
 	Tart         *tart.Client
 	Resolver     *envresolver.Resolver
 	Store        *Store
+
+	// TokenMinter mints projected ServiceAccount tokens for Pods
+	// whose Spec.AutomountServiceAccountToken is true. Optional —
+	// when nil, no token is staged (the env file is the only file
+	// shared into the VM).
+	TokenMinter satoken.Minter
 
 	// GC reclaims disk when a Tart pull errors with no-space. Optional
 	// — when nil, the reconciler just surfaces the error.
@@ -206,6 +213,22 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 	envDir, err := r.Tart.StageEnvFile(vmName, env)
 	if err != nil {
 		return err
+	}
+
+	// Mint + stage a projected SA token alongside the env file when
+	// the Pod opts in via AutomountServiceAccountToken. The VM's
+	// dispatch-poll script reads it as the Bearer credential for
+	// the Tuist server's dispatch endpoint, which validates the
+	// token via TokenReview and reads the SA's `tuist.dev/runner-pool`
+	// label to resolve which pool to mint a JIT runner for.
+	if r.TokenMinter != nil && shouldAutomountSAToken(pod) {
+		token, err := r.TokenMinter.Mint(ctx, pod)
+		if err != nil {
+			return fmt.Errorf("mint sa token: %w", err)
+		}
+		if err := r.Tart.StageServiceAccountToken(vmName, token); err != nil {
+			return fmt.Errorf("stage sa token: %w", err)
+		}
 	}
 
 	// Reuse an existing local clone if one is on disk: a kubelet
@@ -367,6 +390,19 @@ func (r *Reconciler) podStatus(ctx context.Context, pod *corev1.Pod) (*corev1.Po
 func (r *Reconciler) publishStatus(ctx context.Context, pod *corev1.Pod, status *corev1.PodStatus) error {
 	pod.Status = *status
 	return r.CachedClient.Status().Update(ctx, pod)
+}
+
+// shouldAutomountSAToken mirrors kubelet's automount logic: the
+// PodSpec's AutomountServiceAccountToken overrides the SA's
+// default, falling back to true when neither is set explicitly
+// (the apiserver's behavior). We only stage a token for Pods
+// that actually want one — most workloads on tart-kubelet today
+// don't, and minting + writing for them is wasted IO.
+func shouldAutomountSAToken(pod *corev1.Pod) bool {
+	if pod.Spec.AutomountServiceAccountToken != nil {
+		return *pod.Spec.AutomountServiceAccountToken
+	}
+	return false
 }
 
 // podIsHandled returns true for Pods that fit tart-kubelet's contract:

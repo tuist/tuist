@@ -1,0 +1,198 @@
+{{- if .Values.runnersFleet.enabled }}
+{{- $namespace := .Values.runnersFleet.namespace | default "tuist-runners" }}
+{{- $controllerName := include "tuist.componentName" (dict "root" . "component" "runners-controller") }}
+{{- $controllerSA := $controllerName }}
+{{- /*
+The runners-controller Deployment runs in the chart's release
+namespace; its workload (RunnerAssignment CRs + Pods + SAs)
+lives in tuist-runners. Single-replica with leader election so
+a future scale-up to two replicas is a values change, not a
+rewrite.
+*/}}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $controllerSA }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: runners-controller
+---
+# Cluster-scoped reads for CRDs (controller-runtime walks them at
+# startup) and the leader-lease lives in the chart namespace via
+# the namespaced Role below.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ $controllerName }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: runners-controller
+rules:
+  - apiGroups: [apiextensions.k8s.io]
+    resources: [customresourcedefinitions]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ $controllerName }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: runners-controller
+subjects:
+  - kind: ServiceAccount
+    name: {{ $controllerSA }}
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ $controllerName }}
+---
+# Leader election lease + events in the chart namespace. Standard
+# controller-runtime requirement; the lease holder is the active
+# reconciler when we run >1 replica.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $controllerName }}-leader-election
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: runners-controller
+rules:
+  - apiGroups: [coordination.k8s.io]
+    resources: [leases]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [""]
+    resources: [events]
+    verbs: [create, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $controllerName }}-leader-election
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: runners-controller
+subjects:
+  - kind: ServiceAccount
+    name: {{ $controllerSA }}
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $controllerName }}-leader-election
+---
+# All reconcile work happens in the runners namespace. The Role is
+# scoped there so a controller compromise can't write Pods or SAs
+# anywhere else in the cluster.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $controllerName }}
+  namespace: {{ $namespace | quote }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: runners-controller
+rules:
+  - apiGroups: [tuist.dev]
+    resources: [runnerpools, runnerassignments]
+    verbs: [get, list, watch, update, patch]
+  - apiGroups: [tuist.dev]
+    resources: [runnerpools/status, runnerassignments/status]
+    verbs: [get, update, patch]
+  - apiGroups: [tuist.dev]
+    resources: [runnerassignments]
+    # Pool reconciler creates assignments to fill MinWarm gaps;
+    # both reconcilers can delete to drive cascade GC.
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [tuist.dev]
+    resources: [runnerassignments/finalizers]
+    verbs: [update]
+  - apiGroups: [""]
+    resources: [pods, serviceaccounts]
+    verbs: [get, list, watch, create, delete]
+  - apiGroups: [""]
+    resources: [events]
+    verbs: [create, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $controllerName }}
+  namespace: {{ $namespace | quote }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: runners-controller
+subjects:
+  - kind: ServiceAccount
+    name: {{ $controllerSA }}
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $controllerName }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $controllerName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: runners-controller
+spec:
+  replicas: {{ .Values.runnersController.replicaCount | default 1 }}
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "tuist.componentLabels" (dict "root" . "component" "runners-controller") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "tuist.componentLabels" (dict "root" . "component" "runners-controller") | nindent 8 }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+    spec:
+      serviceAccountName: {{ $controllerSA }}
+      {{- include "tuist.podScheduling" . | nindent 6 }}
+      containers:
+        - name: manager
+          image: "{{ .Values.runnersController.image.repository }}:{{ .Values.runnersController.image.tag }}"
+          imagePullPolicy: {{ .Values.runnersController.image.pullPolicy | default "IfNotPresent" }}
+          args:
+            - --metrics-bind-address=:8080
+            - --health-probe-bind-address=:8081
+            - --namespace={{ $namespace }}
+            - --dispatch-url={{ .Values.server.appUrl }}/api/internal/runners/dispatch
+          ports:
+            - name: metrics
+              containerPort: 8080
+            - name: probes
+              containerPort: 8081
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: probes
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: probes
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            {{- toYaml (.Values.runnersController.resources | default dict) | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65532
+{{- end }}

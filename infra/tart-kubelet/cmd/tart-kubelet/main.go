@@ -21,6 +21,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/kubernetes"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -34,6 +35,7 @@ import (
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/envresolver"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/nodeagent"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/podagent"
+	"github.com/tuist/tuist/infra/tart-kubelet/internal/satoken"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/tart"
 )
 
@@ -48,7 +50,7 @@ func init() {
 
 func main() {
 	var (
-		nodeName     string
+		nodeName      string
 		nodeLabelsRaw string
 		hostCPU       int
 		hostMemoryMB  int
@@ -154,12 +156,23 @@ func main() {
 		setupLog.Error(err, "state recovery failed; reconciles may treat existing VMs as stale")
 	}
 
+	// Typed kubernetes.Interface for TokenRequest — the
+	// controller-runtime client doesn't expose CreateToken on
+	// ServiceAccounts because TokenRequest is a subresource that
+	// doesn't fit the generic resource shape.
+	typedClient, err := kubernetes.NewForConfig(cfg)
+	if err != nil {
+		setupLog.Error(err, "create typed kubernetes client")
+		os.Exit(1)
+	}
+
 	if err := (&podagent.Reconciler{
 		CachedClient: mgr.GetClient(),
 		NodeName:     nodeName,
 		Tart:         tartClient,
 		Resolver:     resolver,
 		Store:        store,
+		TokenMinter:  &satoken.ClientMinter{Client: typedClient, ExpirationSeconds: 3600},
 		GC:           gcCollector,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup pod reconciler")

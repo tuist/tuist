@@ -210,6 +210,15 @@ macosFleet:
     # capi-provider-scaleway-applesilicon-image.yml workflow pushed.
     tag: "56858800"
 
+runnersController:
+  image:
+    repository: ghcr.io/tuist/tuist-runners-controller
+    # Bumped automatically by the release workflow when a
+    # runners-controller-scoped conventional commit lands on main;
+    # the workflow builds the new image, pushes the matching
+    # semver tag, and rewrites this line in the same auto-commit.
+    tag: "0.1.0"
+
 # Everything below = external. The managed deployment never runs embedded
 # Postgres / ClickHouse / object storage / observability stacks.
 cache:

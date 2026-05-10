@@ -473,6 +473,46 @@ runnersFleet:
     # by IP. Override per-env with the real cluster ranges.
     exceptCIDRs: []
 
+# runners-controller: standalone Go reconciler that owns Pod + SA
+# materialization for the RunnerPool / RunnerAssignment CRDs. The
+# Tuist server writes Burst RunnerAssignment CRs and the
+# controller turns each into a Pod + per-Pod ServiceAccount; the
+# Pod's projected SA token is the dispatch-endpoint authentication
+# anchor (server validates it via TokenReview).
+runnersController:
+  replicaCount: 1
+  image:
+    repository: ghcr.io/tuist/tuist-runners-controller
+    tag: ""
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+# RunnerPool CRs the chart renders into the runners namespace.
+# Each entry materializes one customer pool; the controller keeps
+# `minWarm` pre-bound runners alive per pool. Empty list means the
+# CRDs ship but no pools are pre-declared (operator can `kubectl
+# apply` ad-hoc).
+runnerPools: []
+# Example:
+# runnerPools:
+#   - name: acme-prod
+#     owner: acme
+#     labels:
+#       - self-hosted
+#       - macOS
+#       - tuist-acme-macos
+#     minWarm: 2
+#     runnerGroupID: 42
+#     # `image` and `pod*` default to runnersFleet.runnerImage /
+#     # runnersFleet.pod.* — override per-pool when a customer
+#     # needs a different image or VM size.
+
 cache:
   enabled: true
   replicaCount: 1

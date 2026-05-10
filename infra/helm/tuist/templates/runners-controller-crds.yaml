@@ -1,0 +1,160 @@
+{{- if .Values.runnersFleet.enabled }}
+{{- /*
+CRDs for the runners-controller. Helm renders them as regular
+templates (not under crds/) so an in-place upgrade picks up
+schema changes; the trade-off is that `helm uninstall` will
+delete them, which would cascade-delete every RunnerPool +
+RunnerAssignment in the cluster. We accept that — the chart is
+the source of truth for these CRDs and we only run `helm
+uninstall` on the chart in greenfield rebuilds.
+*/}}
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: runnerpools.tuist.dev
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: runners-controller
+spec:
+  group: tuist.dev
+  scope: Namespaced
+  names:
+    plural: runnerpools
+    singular: runnerpool
+    kind: RunnerPool
+    shortNames: [rpool]
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Owner
+          type: string
+          jsonPath: .spec.owner
+        - name: MinWarm
+          type: integer
+          jsonPath: .spec.minWarm
+        - name: Replicas
+          type: integer
+          jsonPath: .status.observedReplicas
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              required: [owner, labels, image, fleetSelector]
+              properties:
+                owner:
+                  type: string
+                  description: GitHub org/login this pool serves.
+                labels:
+                  type: array
+                  items:
+                    type: string
+                  description: Runner labels advertised on every Pod for this pool. Last entry is the dispatch label by convention.
+                minWarm:
+                  type: integer
+                  default: 0
+                  minimum: 0
+                  description: Number of pre-bound Pods to keep warm for sub-second pickup.
+                runnerGroupID:
+                  type: integer
+                  format: int64
+                  description: GitHub org runner-group id this pool's JIT registrations land in. Repo allowlisting on the runner group is the authoritative authorization boundary.
+                image:
+                  type: string
+                  description: OCI ref of the runner Tart image, digest-pinned.
+                fleetSelector:
+                  type: string
+                  description: Value of `tuist.dev/fleet=<name>` Pods in this pool pin to via nodeSelector.
+                podCPUMilli:
+                  type: integer
+                  default: 8000
+                  description: Pod request shape so kube-scheduler bin-packs one Pod per host AND tart-kubelet's `tart set` matches host capacity minus VZ overhead.
+                podMemoryMB:
+                  type: integer
+                  default: 14336
+                  description: Pod memory request matching the Mac mini SKU's capacity minus VZ overhead.
+            status:
+              type: object
+              properties:
+                observedReplicas:
+                  type: integer
+                lastReconcile:
+                  type: string
+                  format: date-time
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: runnerassignments.tuist.dev
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: runners-controller
+spec:
+  group: tuist.dev
+  scope: Namespaced
+  names:
+    plural: runnerassignments
+    singular: runnerassignment
+    kind: RunnerAssignment
+    shortNames: [rassign]
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Pool
+          type: string
+          jsonPath: .spec.poolRef.name
+        - name: Trigger
+          type: string
+          jsonPath: .spec.trigger
+        - name: Phase
+          type: string
+          jsonPath: .status.phase
+        - name: Pod
+          type: string
+          jsonPath: .status.podName
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              required: [poolRef]
+              properties:
+                poolRef:
+                  type: object
+                  required: [name]
+                  properties:
+                    name:
+                      type: string
+                trigger:
+                  type: string
+                  enum: [PreBound, Burst]
+                  default: PreBound
+            status:
+              type: object
+              properties:
+                podName:
+                  type: string
+                podUID:
+                  type: string
+                serviceAccountName:
+                  type: string
+                phase:
+                  type: string
+                  enum: [Pending, Running, Terminated]
+{{- end }}

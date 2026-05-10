@@ -114,36 +114,13 @@ spec:
               value: "1"
             {{- end }}
             {{- if .Values.runnersFleet.enabled }}
-            # Customer runner pool wiring. Tuist.Environment
-            # exposes these to Tuist.Runners.Reconciler / .PodSpec;
-            # together they enable the warm-pool reconciler cron
-            # in config/runtime.exs
-            # (Tuist.Environment.runners_enabled? checks all
-            # three are non-empty). The reconciler resolves
-            # per-pool GitHub App installation_ids dynamically
-            # via Tuist.GitHub.App.get_installation_id_for_repo,
-            # so adding a customer pool is just adding a row in
-            # Tuist.Runners.PoolConfig — no chart change needed.
-            - name: TUIST_RUNNER_IMAGE
-              value: {{ required "runnersFleet.runnerImage required when runnersFleet.enabled" .Values.runnersFleet.runnerImage | quote }}
-            - name: TUIST_RUNNER_DISPATCH_URL
-              value: "{{ .Values.server.appUrl }}/api/internal/runners/dispatch"
-            - name: TUIST_RUNNERS_FLEET_NAME
-              value: {{ include "tuist.runnersFleetName" . | quote }}
-            # Per-Pod resource shape. Both values must match what
-            # tart-kubelet on the target host advertises for
-            # Node.Status.Capacity (set per-Machine via
-            # ScalewayAppleSiliconMachine{Spec.HostCPU, .HostMemoryMB}
-            # — see runners-fleet.yaml). Pod request = host
-            # capacity, so kube-scheduler bin-packs exactly one
-            # runner Pod per host AND tart-kubelet's `tart set`
-            # gives the VM the host's full CPU/RAM minus VZ
-            # overhead. Mismatched values waste host resources or
-            # cause runaway scheduling.
-            - name: TUIST_RUNNER_POD_CPU_MILLI
-              value: {{ .Values.runnersFleet.pod.cpuMilli | default 8000 | quote }}
-            - name: TUIST_RUNNER_POD_MEMORY_MB
-              value: {{ .Values.runnersFleet.pod.memoryMB | default 14336 | quote }}
+            # Customer runner pool wiring. The server reads
+            # RunnerPool / RunnerAssignment CRs and validates Pod
+            # SA tokens via TokenReview; per-Pod sizing + image
+            # are now CR-side fields owned by the runners-controller,
+            # not server env vars.
+            - name: TUIST_RUNNERS_NAMESPACE
+              value: {{ .Values.runnersFleet.namespace | default "tuist-runners" | quote }}
             {{- end }}
             {{- include "tuist.licenseEnv" . | nindent 12 }}
             {{- if or .Values.server.masterKey .Values.server.managedSecrets }}

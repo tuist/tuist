@@ -33,6 +33,18 @@ rules:
   - apiGroups: [""]
     resources: [secrets, configmaps]
     verbs: [get, list, watch]
+  # Read ServiceAccounts to look up the SA tart-kubelet projects
+  # into the VM when AutomountServiceAccountToken=true.
+  - apiGroups: [""]
+    resources: [serviceaccounts]
+    verbs: [get, list, watch]
+  # Mint short-lived projected ServiceAccount tokens for Pods
+  # whose Spec sets AutomountServiceAccountToken=true. tart-kubelet
+  # stages the token alongside tuist.env so the VM can use it as
+  # the dispatch-endpoint Bearer credential.
+  - apiGroups: [""]
+    resources: [serviceaccounts/token]
+    verbs: [create]
   # Emit Events on Pod failures so `kubectl describe pod` shows them.
   - apiGroups: [""]
     resources: [events]

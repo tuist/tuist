@@ -39,7 +39,7 @@ Sensitive authentication data (passwords, tokens) are excluded from exports.
 - Alert history (triggered alerts with current/previous values, timestamps)
 
 ### Managed GitHub Actions Runners
-- Runner assignments (`runner_assignments` table): one row per warm-pool Pod scheduled on the Tuist Mac mini fleet for a customer's GitHub Actions workflow. Includes `pod_uid`, `pod_name`, the customer's `account_id` / `owner` / `repo` once a queued workflow_job binds the Pod, the `pool_name`, and the `inserted_at` / `claimed_at` lifecycle timestamps. The per-Pod dispatch token hash is stored as an irreversible SHA-256 (`dispatch_token_hash`) and the GitHub-issued JIT runner config (`jit_config`) is treated as an authentication secret — both are excluded from exports.
+- Runner pool + assignment state lives entirely in Kubernetes (`RunnerPool` / `RunnerAssignment` CRDs in the `tuist-runners` namespace) and the Pods / ServiceAccounts those CRs materialize. No customer data is persisted in Tuist's Postgres or ClickHouse stores; the CR fields are operational metadata (pool name, owner login, trigger source, Pod / SA name, observed phase) that the runners-controller reconciles. The GitHub-issued JIT runner config the dispatch endpoint mints for each Pod is treated as an ephemeral authentication secret and is never persisted server-side.
 
 ### Slack Integration
 - Account-level Slack installation records (workspace id/name, bot user id; bot access tokens are excluded as authentication secrets)
@@ -72,7 +72,7 @@ The following data is stored in ClickHouse for analytics purposes:
 - Account, SCIM-scoped account, and project token values and encrypted token hashes
 - Encrypted SSO client secrets for Okta and custom OAuth2 providers
 - Slack bot access tokens and incoming-webhook URLs (treated as bearer credentials)
-- Runner dispatch tokens (only the SHA-256 hash is persisted) and GitHub-issued JIT runner configs on `runner_assignments` (treated as bearer credentials)
+- GitHub-issued JIT runner configs (minted on demand for runner Pods at dispatch time and never persisted server-side)
 
 ## Binary Files
 

@@ -38,9 +38,9 @@ defmodule Tuist.GitHub.App do
   actions (uninstall + reinstall, App rotation). The TTL bounds
   staleness on the rare case where they do change.
 
-  Used by `Tuist.Runners.Reconciler` to mint JIT runner configs
-  without the chart needing to enumerate installation_ids per
-  customer pool.
+  Used by `TuistWeb.RunnersController.dispatch/2` to mint JIT
+  runner configs without the chart needing to enumerate
+  installation_ids per customer pool.
   """
   def get_installation_id_for_repo(owner, repo, opts \\ []) when is_binary(owner) and is_binary(repo) do
     ttl = Keyword.get(opts, :ttl, to_timeout(hour: 6))

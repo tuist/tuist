@@ -1,0 +1,44 @@
+{{- if .Values.runnersFleet.enabled }}
+{{- $namespace := .Values.runnersFleet.namespace | default "tuist-runners" }}
+{{- $fleetName := include "tuist.runnersFleetName" . }}
+{{- $defaultImage := required "runnersFleet.runnerImage required when runnersFleet.enabled" .Values.runnersFleet.runnerImage }}
+{{- $defaultPodCPU := .Values.runnersFleet.pod.cpuMilli | default 8000 }}
+{{- $defaultPodMem := .Values.runnersFleet.pod.memoryMB | default 14336 }}
+{{- /*
+RunnerPool CRs — one per customer pool. Each entry in
+`runnerPools` renders into a CR the runners-controller picks
+up; the controller maintains MinWarm pre-bound RunnerAssignment
+CRs, each of which materializes one Pod + SA.
+
+The Pool's `image`, `podCPUMilli`, `podMemoryMB` default to the
+fleet's shared image + pod sizing values; per-pool overrides
+are supported for customers that need a different runner image
+or VM size.
+*/}}
+{{- range $pool := .Values.runnerPools | default list }}
+---
+apiVersion: tuist.dev/v1alpha1
+kind: RunnerPool
+metadata:
+  name: {{ required "runnerPools[].name required" $pool.name | quote }}
+  namespace: {{ $namespace | quote }}
+  labels:
+    {{- include "tuist.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: runners-controller
+    tuist.dev/runner-pool-owner: {{ required "runnerPools[].owner required" $pool.owner | quote }}
+spec:
+  owner: {{ $pool.owner | quote }}
+  labels:
+    {{- range $pool.labels }}
+    - {{ . | quote }}
+    {{- end }}
+  minWarm: {{ $pool.minWarm | default 0 }}
+  {{- with $pool.runnerGroupID }}
+  runnerGroupID: {{ . }}
+  {{- end }}
+  image: {{ $pool.image | default $defaultImage | quote }}
+  fleetSelector: {{ $pool.fleetSelector | default $fleetName | quote }}
+  podCPUMilli: {{ $pool.podCPUMilli | default $defaultPodCPU }}
+  podMemoryMB: {{ $pool.podMemoryMB | default $defaultPodMem }}
+{{- end }}
+{{- end }}

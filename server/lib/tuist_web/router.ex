@@ -680,7 +680,7 @@ defmodule TuistWeb.Router do
   scope "/api/internal", TuistWeb do
     pipe_through [:non_authenticated_api]
 
-    get "/runners/dispatch", RunnersController, :dispatch
+    post "/runners/dispatch", RunnersController, :dispatch
   end
 
   scope "/oauth2", TuistWeb.Oauth do

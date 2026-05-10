@@ -1,22 +1,25 @@
 #!/bin/bash
-# Polls the Tuist server's runner dispatch endpoint until it
-# returns a JIT config, then execs the GitHub Actions runner.
+# POSTs to the Tuist server's runner dispatch endpoint with the
+# Pod's projected ServiceAccount token as the Bearer credential
+# and execs the GitHub Actions runner with the returned JIT config.
 #
-# Env (sourced from /etc/tuist.env, populated by inject-env.sh):
-#   TUIST_RUNNER_DISPATCH_URL   — full URL of the dispatch endpoint
-#   TUIST_RUNNER_POD_UID        — Pod UID (k8s downward API)
-#   TUIST_RUNNER_DISPATCH_TOKEN — per-Pod random token
+# Files (staged by tart-kubelet, read-mounted at
+# `/Volumes/My Shared Files/env/`):
+#   tuist.env  — env vars from the Pod spec (TUIST_RUNNER_DISPATCH_URL,
+#                TUIST_RUNNER_POOL, TUIST_RUNNER_POD_NAME)
+#   sa_token   — Pod's projected SA token, minted via TokenRequest
 #
 # Server contract:
-#   GET <url>?pod_uid=<uid>&token=<tok>
-#     204 No Content        -> Pod still idle, sleep + retry
-#     200 with body         -> { encoded_jit_config: "...", ... }
-#     401                   -> token mismatch / unknown pod, abort
-#     5xx                   -> transient; sleep + retry
+#   POST <url> with header `Authorization: Bearer <sa_token>`
+#     200 with body { encoded_jit_config: "...", pool: "...", owner: "..." }
+#       -> exec ./run.sh --jitconfig <jit> --disableupdate
+#     401  -> auth failed, abort (the SA was likely GCed already)
+#     5xx  -> transient; sleep + retry
 #
-# Once 200 is observed we exec ./run.sh with --jitconfig. JIT
-# runners auto-register, run a single job, and exit. Pod
-# transitions to Completed and tart-kubelet GCs the VM.
+# Once the runner exits, the EXIT trap halts the VM. tart-kubelet
+# observes the exit and transitions the Pod to Succeeded; the
+# runners-controller's PodGC reaper deletes the assignment +
+# cascades Pod + SA.
 
 set -uo pipefail
 
@@ -25,8 +28,8 @@ exec >>"${LOG}" 2>&1
 
 # Always halt the VM on script exit. tart-kubelet observes `tart run`
 # exiting and transitions the Pod to a terminal phase; without this
-# trap a non-zero `./run.sh` (errexit), an early `exit 1` (401 abort,
-# missing /etc/tuist.env, etc.), or any other failure path would
+# trap a non-zero `./run.sh` (errexit), an early `exit 1`
+# (auth abort, missing files, etc.), or any other failure path would
 # leave macOS up, the Pod stuck Running, and the warm pool never
 # refilling. The trap fires once on EXIT so the happy path
 # (clean ./run.sh exit) and every error path halt the VM the
@@ -41,8 +44,17 @@ fi
 source /etc/tuist.env
 
 : "${TUIST_RUNNER_DISPATCH_URL:?TUIST_RUNNER_DISPATCH_URL not set}"
-: "${TUIST_RUNNER_POD_UID:?TUIST_RUNNER_POD_UID not set}"
-: "${TUIST_RUNNER_DISPATCH_TOKEN:?TUIST_RUNNER_DISPATCH_TOKEN not set}"
+
+SA_TOKEN_PATH=/etc/tuist-sa-token
+if [ ! -f "${SA_TOKEN_PATH}" ]; then
+  echo "$(date -u +%FT%TZ) dispatch-poll: ${SA_TOKEN_PATH} missing; aborting"
+  exit 1
+fi
+SA_TOKEN="$(cat "${SA_TOKEN_PATH}")"
+if [ -z "${SA_TOKEN}" ]; then
+  echo "$(date -u +%FT%TZ) dispatch-poll: SA token empty; aborting"
+  exit 1
+fi
 
 interval=5
 attempt=0
@@ -51,17 +63,13 @@ while true; do
   attempt=$((attempt + 1))
   http=$(curl -fsS -o /tmp/dispatch.json -w '%{http_code}' \
     --max-time 10 \
-    --get \
-    --data-urlencode "pod_uid=${TUIST_RUNNER_POD_UID}" \
-    --data-urlencode "token=${TUIST_RUNNER_DISPATCH_TOKEN}" \
+    --request POST \
+    --header "Authorization: Bearer ${SA_TOKEN}" \
+    --header "Content-Type: application/json" \
+    --data '{}' \
     "${TUIST_RUNNER_DISPATCH_URL}" || echo "000")
 
   case "${http}" in
-    204)
-      # Idle. Don't log every tick — the file would balloon.
-      [ $((attempt % 12)) -eq 0 ] && echo "$(date -u +%FT%TZ) dispatch-poll: still idle (attempt=${attempt})"
-      sleep "${interval}"
-      ;;
     200)
       jit=$(/usr/bin/python3 -c 'import json,sys; print(json.load(sys.stdin)["encoded_jit_config"])' < /tmp/dispatch.json)
       if [ -z "${jit}" ]; then
@@ -85,8 +93,8 @@ while true; do
       ./run.sh --jitconfig "${jit}" --disableupdate
       exit $?
       ;;
-    401)
-      echo "$(date -u +%FT%TZ) dispatch-poll: 401 unauthorized; aborting"
+    401|403)
+      echo "$(date -u +%FT%TZ) dispatch-poll: ${http} unauthorized; aborting"
       exit 1
       ;;
     *)

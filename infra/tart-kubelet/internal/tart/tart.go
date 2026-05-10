@@ -343,6 +343,27 @@ func (c *Client) StageEnvFile(name string, env map[string]string) (string, error
 	return dir, nil
 }
 
+// StageServiceAccountToken writes a projected ServiceAccount token
+// to <UserDataDir>/<vm>/sa_token (0o600). The same directory the
+// env file lives in, so a single `tart run --dir env:<dir>:ro`
+// mount makes both available to the guest at
+// `/Volumes/My Shared Files/env/{tuist.env,sa_token}`.
+//
+// The VM's dispatch-poll script reads sa_token and uses it as the
+// Bearer credential against the Tuist server's dispatch endpoint,
+// which validates it via the Kubernetes TokenReview API.
+func (c *Client) StageServiceAccountToken(name, token string) error {
+	dir := filepath.Join(c.UserDataDir, name)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return fmt.Errorf("mkdir userdata: %w", err)
+	}
+	path := filepath.Join(dir, "sa_token")
+	if err := os.WriteFile(path, []byte(token), 0o600); err != nil {
+		return fmt.Errorf("write sa_token: %w", err)
+	}
+	return nil
+}
+
 // CleanupVMUserData removes <UserDataDir>/<vm>. Best-effort.
 func (c *Client) CleanupVMUserData(name string) error {
 	return os.RemoveAll(filepath.Join(c.UserDataDir, name))

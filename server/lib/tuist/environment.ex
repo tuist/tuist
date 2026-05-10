@@ -895,44 +895,14 @@ defmodule Tuist.Environment do
   end
 
   @doc """
-  OCI image used for runner Pods. Resolved from
-  `TUIST_RUNNER_IMAGE` (set in helm values per env). Empty
-  string disables warm-pool reconciliation — the reconciler
-  treats `total_warm_target=0` as a no-op.
-
-  Should be a digest-pinned reference
-  (`ghcr.io/tuist/tuist-runner@sha256:…`) in production so a
-  retag of `:latest` can't smuggle a different image into the
-  Pod manifest.
+  Kubernetes namespace customer runner Pods live in. The
+  webhook handler writes RunnerAssignment CRs into this
+  namespace; the runners-controller reconciles them into Pods.
+  Defaults to `tuist-runners` (matches the chart's
+  `runnersFleet.namespace`).
   """
-  def runner_image do
-    System.get_env("TUIST_RUNNER_IMAGE", "")
-  end
-
-  @doc """
-  Public URL the runner Pod's VM polls for its JIT config.
-  Set per-env in helm values.
-  """
-  def runner_dispatch_url do
-    System.get_env("TUIST_RUNNER_DISPATCH_URL", "")
-  end
-
-  @doc """
-  Name of the Mac mini fleet runner Pods schedule onto.
-  Mirrors `runnersFleet.name` in the chart and is used in the
-  Pod's nodeSelector. Set per-env in helm values.
-  """
-  def runners_fleet_name do
-    System.get_env("TUIST_RUNNERS_FLEET_NAME", "")
-  end
-
-  @doc """
-  True when the cron reconciler should run. Off by default —
-  enabled only on environments that have configured the helm
-  `runnersFleet` block + the env vars above.
-  """
-  def runners_enabled? do
-    runner_image() != "" and runner_dispatch_url() != "" and runners_fleet_name() != ""
+  def runners_namespace do
+    System.get_env("TUIST_RUNNERS_NAMESPACE", "tuist-runners")
   end
 
   @doc """
@@ -950,34 +920,6 @@ defmodule Tuist.Environment do
       "" -> nil
       raw -> String.to_integer(raw)
     end
-  end
-
-  @doc """
-  Per-Pod CPU shape for runner Pods, in millicores. Defaults to
-  `8000` (= 8 cores) when unset, matching the M2-M / M4-S
-  baseline. Should match the runners-fleet host's advertised
-  capacity (`ScalewayAppleSiliconMachine.Spec.HostCPU`); a
-  mismatch either wastes host resources (Pod under-requests) or
-  starves the scheduler (over-requests).
-  """
-  def runner_pod_cpu_milli do
-    raw = System.get_env("TUIST_RUNNER_POD_CPU_MILLI", "8000")
-    String.to_integer(raw)
-  end
-
-  @doc """
-  Per-Pod memory shape for runner Pods, in MiB. Defaults to
-  `14336` (14 Gi — the M4-S host's 16 GB RAM minus the ~2 GB
-  Apple Virtualization.framework reserves for the host kernel
-  + tart-kubelet + helpers). Asking for the full host RAM fails
-  with `memorySize > maximumAllowedMemorySize` at `tart run`.
-
-  Should match the runners-fleet host's advertised capacity
-  (`ScalewayAppleSiliconMachine.Spec.HostMemoryMB`).
-  """
-  def runner_pod_memory_mb do
-    raw = System.get_env("TUIST_RUNNER_POD_MEMORY_MB", "14336")
-    String.to_integer(raw)
   end
 
   def typesense_search_api_key do

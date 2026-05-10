@@ -1,139 +1,95 @@
 defmodule Tuist.Kubernetes.Client do
   @moduledoc """
-  Thin Kubernetes API client used by `Tuist.Runners` to materialize
-  warm runner Pods on the Mac mini fleet.
+  Thin Kubernetes API client used by the runner-dispatch flow.
+
+  The runners-controller (separate Go process) owns Pod + SA
+  materialization end-to-end; the server only needs three K8s
+  verbs to participate:
+
+    1. `create_token_review/1` — validate a Pod's projected
+       ServiceAccount token from the dispatch endpoint, recovering
+       the SA's namespace + name without trusting the request
+       body.
+    2. `get_service_account/2` — read the SA's labels (most
+       importantly `tuist.dev/runner-pool`) so the dispatch
+       endpoint can resolve which pool the caller is authorized
+       for. The SA's labels are the authentic mapping; the Pod
+       can't lie about them because TokenReview tied the request
+       to the SA.
+    3. `create_runner_assignment/2` — when GitHub fires
+       `workflow_job: queued` and the matched pool's pre-bound
+       runners are saturated, the webhook handler writes a
+       RunnerAssignment CR (`trigger: Burst`) and the controller
+       picks it up to materialize a fresh Pod.
 
   Authenticates with the in-cluster ServiceAccount mount (token at
   `/var/run/secrets/kubernetes.io/serviceaccount/token`, CA at
-  `…/ca.crt`, host from `KUBERNETES_SERVICE_HOST` /
-  `KUBERNETES_SERVICE_PORT_HTTPS`). Outside the cluster (local dev,
-  tests) the functions return `{:error, :not_in_cluster}` unless a
-  test override is configured.
-
-  Doesn't share `Tuist.Finch` because Req rejects combining a
-  custom `finch:` pool with `connect_options:` (the pool has its
-  own connection settings). The K8s API server uses the cluster
-  CA bundle from `/var/run/secrets/.../ca.crt`, which we inject
-  via `connect_options.transport_opts.cacerts`. Volume of K8s
-  API calls is tiny (per-60s reconcile), so a separate connection
-  pool is acceptable.
-
-  Surface intentionally minimal — only the verbs the runners pool
-  reconciler needs:
-
-    - `list_pods/2` (label selector, namespace) → counts warm Pods
-    - `create_pod/2` (manifest, namespace) → materializes a Pod
-    - `list_nodes/1` (label selector) → fleet roster
-    - `stream_watch_pods/3` (namespace, selector, callback) →
-      long-lived watch on Pod events, drives the reconciler's
-      event-driven trigger so warm-pool refills happen the
-      moment a Pod terminates instead of on a cron tick
-
-  The reconciler runs from `Tuist.Runners.Watcher` — a GenServer
-  that opens a watch on Pod events, calls the reconciler on each
-  terminal-state transition, and reconnects with backoff on
-  stream end. No periodic polling.
+  `…/ca.crt`, host from `KUBERNETES_SERVICE_HOST`/
+  `KUBERNETES_SERVICE_PORT_HTTPS`). Outside the cluster (local
+  dev, tests) the functions return `{:error, :not_in_cluster}`
+  unless a test override is configured.
   """
 
   @sa_path "/var/run/secrets/kubernetes.io/serviceaccount"
 
   @doc """
-  Returns `{:ok, pods}` (list of decoded items from `/api/v1/pods`)
-  matching `label_selector` in `namespace`. Returns `{:error, _}`
-  on transport error, non-2xx status, or missing in-cluster
-  credentials.
+  POSTs a TokenReview for `token` and returns
+  `{:ok, %{namespace: ns, name: sa_name, uid: uid}}` when the
+  apiserver authenticates the token AND the principal is a
+  ServiceAccount (we reject user / node tokens here so a leaked
+  kubeconfig can't impersonate a runner).
+
+  Returns `{:error, :unauthenticated}` when TokenReview rejects
+  the token, `{:error, :not_service_account}` when authenticated
+  but not an SA, or `{:error, _}` on transport / non-2xx errors.
   """
-  def list_pods(namespace, label_selector) when is_binary(namespace) and is_binary(label_selector) do
-    with {:ok, host, ca, token} <- in_cluster_config() do
-      req_opts =
-        [
-          url: "https://#{host}/api/v1/namespaces/#{namespace}/pods",
-          params: [{"labelSelector", label_selector}],
-          headers: auth_headers(token),
-          connect_options: [transport_opts: [cacerts: ca]]
-        ]
+  def create_token_review(token) when is_binary(token) do
+    with {:ok, host, ca, sa_token} <- in_cluster_config() do
+      body = %{
+        "apiVersion" => "authentication.k8s.io/v1",
+        "kind" => "TokenReview",
+        "spec" => %{"token" => token}
+      }
 
-      case Req.get(req_opts) do
-        {:ok, %{status: 200, body: %{"items" => items}}} -> {:ok, items}
-        {:ok, %{status: status, body: body}} -> {:error, {:http, status, body}}
-        {:error, reason} -> {:error, {:transport, reason}}
-      end
-    end
-  end
-
-  @doc """
-  Creates a Pod from a fully-formed manifest map. The caller is
-  responsible for shaping the manifest — `Tuist.Runners.PodSpec`
-  builds the canonical runner Pod shape.
-
-  Returns `{:ok, pod}` (the API server's view of the newly created
-  Pod, with status fields, resourceVersion, etc.) or `{:error, _}`.
-  """
-  def create_pod(namespace, manifest) when is_binary(namespace) and is_map(manifest) do
-    with {:ok, host, ca, token} <- in_cluster_config() do
-      req_opts =
-        [
-          url: "https://#{host}/api/v1/namespaces/#{namespace}/pods",
-          json: manifest,
-          headers: auth_headers(token),
-          connect_options: [transport_opts: [cacerts: ca]]
-        ]
+      req_opts = [
+        url: "https://#{host}/apis/authentication.k8s.io/v1/tokenreviews",
+        json: body,
+        headers: auth_headers(sa_token),
+        connect_options: [transport_opts: [cacerts: ca]]
+      ]
 
       case Req.post(req_opts) do
-        {:ok, %{status: 201, body: pod}} -> {:ok, pod}
-        {:ok, %{status: status, body: body}} -> {:error, {:http, status, body}}
-        {:error, reason} -> {:error, {:transport, reason}}
+        {:ok, %{status: 201, body: %{"status" => %{"authenticated" => true, "user" => user}}}} ->
+          parse_sa_principal(user)
+
+        {:ok, %{status: 201, body: %{"status" => %{"authenticated" => false}}}} ->
+          {:error, :unauthenticated}
+
+        {:ok, %{status: status, body: body}} ->
+          {:error, {:http, status, body}}
+
+        {:error, reason} ->
+          {:error, {:transport, reason}}
       end
     end
   end
 
   @doc """
-  Deletes a Pod by name. Used by the watcher to garbage-collect
-  warm runners that have transitioned to a terminal phase: tart-
-  kubelet marks the Pod Succeeded after the VM exits, the watcher
-  refills the warm pool with a fresh Pod, then deletes the
-  Succeeded Pod so it doesn't accumulate in `kubectl get pods`.
-
-  Returns `{:ok, body}` on the standard 200/202 (delete accepted),
-  `{:ok, :not_found}` when the Pod is already gone (idempotent —
-  a duplicate event from the watch shouldn't surface as an
-  error), or `{:error, _}` on transport / unexpected status.
+  GETs a ServiceAccount by name from `namespace`. The dispatch
+  endpoint reads `metadata.labels["tuist.dev/runner-pool"]` to
+  resolve which pool the SA-as-caller is authorized for.
   """
-  def delete_pod(namespace, name) when is_binary(namespace) and is_binary(name) do
+  def get_service_account(namespace, name) when is_binary(namespace) and is_binary(name) do
     with {:ok, host, ca, token} <- in_cluster_config() do
-      req_opts =
-        [
-          url: "https://#{host}/api/v1/namespaces/#{namespace}/pods/#{name}",
-          headers: auth_headers(token),
-          connect_options: [transport_opts: [cacerts: ca]]
-        ]
-
-      case Req.delete(req_opts) do
-        {:ok, %{status: status, body: body}} when status in [200, 202] -> {:ok, body}
-        {:ok, %{status: 404}} -> {:ok, :not_found}
-        {:ok, %{status: status, body: body}} -> {:error, {:http, status, body}}
-        {:error, reason} -> {:error, {:transport, reason}}
-      end
-    end
-  end
-
-  @doc """
-  Returns `{:ok, nodes}` matching `label_selector`. Cluster-scoped
-  resource — the server's ServiceAccount carries a ClusterRole grant
-  for `nodes: get,list` (templates/runners-namespace.yaml).
-  """
-  def list_nodes(label_selector) when is_binary(label_selector) do
-    with {:ok, host, ca, token} <- in_cluster_config() do
-      req_opts =
-        [
-          url: "https://#{host}/api/v1/nodes",
-          params: [{"labelSelector", label_selector}],
-          headers: auth_headers(token),
-          connect_options: [transport_opts: [cacerts: ca]]
-        ]
+      req_opts = [
+        url: "https://#{host}/api/v1/namespaces/#{namespace}/serviceaccounts/#{name}",
+        headers: auth_headers(token),
+        connect_options: [transport_opts: [cacerts: ca]]
+      ]
 
       case Req.get(req_opts) do
-        {:ok, %{status: 200, body: %{"items" => items}}} -> {:ok, items}
+        {:ok, %{status: 200, body: sa}} -> {:ok, sa}
+        {:ok, %{status: 404}} -> {:error, :not_found}
         {:ok, %{status: status, body: body}} -> {:error, {:http, status, body}}
         {:error, reason} -> {:error, {:transport, reason}}
       end
@@ -141,82 +97,38 @@ defmodule Tuist.Kubernetes.Client do
   end
 
   @doc """
-  Opens a long-lived `watch=true` request against the Pod
-  collection in `namespace` filtered by `label_selector`, parses
-  the JSON-Lines event stream, and invokes `callback` for every
-  WatchEvent with `{type, object}`.
-
-  Returns `:ok` when the upstream stream closes cleanly,
-  `{:error, reason}` on transport / non-2xx status / invalid
-  credentials. The caller (typically `Tuist.Runners.Watcher`)
-  handles reconnection with backoff.
-
-  `resource_version` is optional. When passed, the server replays
-  events since that revision (useful if the caller persists the
-  cursor across reconnects). When omitted, the server starts
-  from the current state. We use `omit` and run a fresh LIST on
-  every reconnect — simpler than RV bookkeeping, only slightly
-  more expensive at reconnect time, and avoids the
-  `410 Gone` retry path for stale RVs.
-
-  The HTTP request has no client-side timeout: K8s API servers
-  send a TCP FIN at their own idle limit (~5–10 min) and the
-  watcher reconnects from there.
+  POSTs a RunnerAssignment CR into `namespace` from a fully-shaped
+  manifest map. Used by the webhook handler to ask the controller
+  to materialize an on-demand Burst Pod.
   """
-  def stream_watch_pods(namespace, label_selector, callback)
-      when is_binary(namespace) and is_binary(label_selector) and is_function(callback, 1) do
+  def create_runner_assignment(namespace, manifest) when is_binary(namespace) and is_map(manifest) do
     with {:ok, host, ca, token} <- in_cluster_config() do
-      req_opts =
-        [
-          url:
-            "https://#{host}/api/v1/namespaces/#{namespace}/pods?watch=true&allowWatchBookmarks=true&labelSelector=" <>
-              URI.encode_www_form(label_selector),
-          headers: auth_headers(token),
-          connect_options: [transport_opts: [cacerts: ca]],
-          # Watch streams idle indefinitely between events; the
-          # API server sends a TCP FIN at its own idle limit
-          # (~5–10 min) and the watcher reconnects from there.
-          # Disable Req's receive timeout so a quiet stream
-          # isn't torn down by the client.
-          receive_timeout: :infinity,
-          # Buffer raw bytes line-by-line — the K8s watch
-          # protocol is JSON-Lines (one JSON object per line)
-          # and a TCP frame can split mid-event. The `into`
-          # callback re-assembles full lines from chunks and
-          # emits each as a decoded map through the user's
-          # callback; partial trailing data stays in the
-          # buffer until the next chunk arrives.
-          into: fn {:data, chunk}, {req, resp} ->
-            buffer = Map.get(resp.private, :tuist_buffer, "") <> chunk
-            {events, leftover} = split_lines(buffer)
-            Enum.each(events, fn line -> dispatch_event(line, callback) end)
-            {:cont, {req, %{resp | private: Map.put(resp.private, :tuist_buffer, leftover)}}}
-          end
-        ]
+      req_opts = [
+        url: "https://#{host}/apis/tuist.dev/v1alpha1/namespaces/#{namespace}/runnerassignments",
+        json: manifest,
+        headers: auth_headers(token),
+        connect_options: [transport_opts: [cacerts: ca]]
+      ]
 
-      case Req.get(req_opts) do
-        {:ok, %{status: 200}} -> :ok
+      case Req.post(req_opts) do
+        {:ok, %{status: status, body: cr}} when status in [200, 201] -> {:ok, cr}
         {:ok, %{status: status, body: body}} -> {:error, {:http, status, body}}
         {:error, reason} -> {:error, {:transport, reason}}
       end
     end
   end
 
-  defp split_lines(data) do
-    case String.split(data, "\n", trim: false) do
-      [single] -> {[], single}
-      lines -> {Enum.drop(lines, -1), List.last(lines)}
+  defp parse_sa_principal(%{"username" => "system:serviceaccount:" <> rest, "uid" => uid}) do
+    case String.split(rest, ":", parts: 2) do
+      [namespace, name] when namespace != "" and name != "" ->
+        {:ok, %{namespace: namespace, name: name, uid: uid}}
+
+      _ ->
+        {:error, :not_service_account}
     end
   end
 
-  defp dispatch_event("", _callback), do: :ok
-
-  defp dispatch_event(line, callback) do
-    case Jason.decode(line) do
-      {:ok, %{"type" => _type, "object" => _object} = event} -> callback.(event)
-      _ -> :ok
-    end
-  end
+  defp parse_sa_principal(_), do: {:error, :not_service_account}
 
   defp auth_headers(token) do
     [
@@ -226,14 +138,12 @@ defmodule Tuist.Kubernetes.Client do
     ]
   end
 
-  # Resolves the API server host:port + CA bundle + bearer token
-  # from the standard in-cluster ServiceAccount mount. Returns
-  # `{:error, :not_in_cluster}` outside the cluster so callers
-  # surface a clean error instead of a misleading transport
-  # failure.
   defp in_cluster_config do
     host = System.get_env("KUBERNETES_SERVICE_HOST")
-    port = System.get_env("KUBERNETES_SERVICE_PORT_HTTPS") || System.get_env("KUBERNETES_SERVICE_PORT") || "443"
+
+    port =
+      System.get_env("KUBERNETES_SERVICE_PORT_HTTPS") ||
+        System.get_env("KUBERNETES_SERVICE_PORT") || "443"
 
     with true <- is_binary(host) and host != "",
          {:ok, token} <- File.read(Path.join(@sa_path, "token")),
