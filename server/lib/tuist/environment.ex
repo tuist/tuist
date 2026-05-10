@@ -905,23 +905,6 @@ defmodule Tuist.Environment do
     System.get_env("TUIST_RUNNERS_NAMESPACE", "tuist-runners")
   end
 
-  @doc """
-  GitHub Actions runner-group id used when minting org-scoped
-  JIT runner registrations. Restricts which repos in the org can
-  pick up the runner — labels alone aren't an authorization
-  boundary, so without an explicit group the default (id=1,
-  every repo) lets any other org workflow consume customer
-  capacity. Returns nil when unset; the JIT call then falls
-  back to GitHub's default group, which is acceptable for
-  staging bring-up but must be set before canary / production.
-  """
-  def runner_group_id do
-    case System.get_env("TUIST_RUNNER_GROUP_ID", "") do
-      "" -> nil
-      raw -> String.to_integer(raw)
-    end
-  end
-
   def typesense_search_api_key do
     get([:typesense, :search_api_key], secrets(), default_value: "RgIpKytJBtSQf9CoYKxIfVxh8ma5kzs6")
   end

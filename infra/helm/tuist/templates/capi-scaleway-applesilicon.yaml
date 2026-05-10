@@ -1,4 +1,4 @@
-{{- if .Values.macosFleet.enabled }}
+{{- if and .Values.capi.enabled .Values.macosFleet.enabled }}
 {{- $name := include "tuist.componentName" (dict "root" . "component" "capi-scaleway-applesilicon") }}
 ---
 # Cluster API infrastructure provider for Scaleway Apple Silicon Mac

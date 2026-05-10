@@ -67,6 +67,17 @@ spec:
                   type: integer
                   format: int64
                   description: GitHub org runner-group id this pool's JIT registrations land in. Repo allowlisting on the runner group is the authoritative authorization boundary.
+                allowedRepos:
+                  type: array
+                  items:
+                    type: string
+                  description: |-
+                    Optional repo allowlist (mirror of the GitHub runner group's repo
+                    allowlist) used by the webhook handler to short-circuit Burst
+                    RunnerAssignment creation for queued workflow_jobs from repos
+                    GitHub would refuse to dispatch anyway. Empty / omitted means
+                    "every repo in the org" (the runner group default). Format:
+                    `<owner>/<repo>` strings, case-insensitive.
                 image:
                   type: string
                   description: OCI ref of the runner Tart image, digest-pinned.

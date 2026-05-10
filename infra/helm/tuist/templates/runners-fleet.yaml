@@ -1,4 +1,4 @@
-{{- if .Values.runnersFleet.enabled }}
+{{- if and .Values.capi.enabled .Values.runnersFleet.enabled }}
 {{- $fleetName := include "tuist.runnersFleetName" . }}
 {{- $clusterName := include "tuist.componentName" (dict "root" . "component" "capi") }}
 {{- $bootstrapSecret := include "tuist.componentName" (dict "root" . "component" "noop-bootstrap") }}

@@ -36,6 +36,16 @@ type RunnerPoolSpec struct {
 	// +optional
 	RunnerGroupID *int64 `json:"runnerGroupID,omitempty"`
 
+	// AllowedRepos mirrors the GitHub runner group's repo allowlist
+	// for the webhook handler's short-circuit check: a queued
+	// workflow_job from a repo not on this list won't materialize
+	// a Burst RunnerAssignment + VM, since GitHub would refuse to
+	// dispatch the job to the runner group anyway. Empty means
+	// "every repo in the org" (the runner group default). Strings
+	// are `<owner>/<repo>`, case-insensitive.
+	// +optional
+	AllowedRepos []string `json:"allowedRepos,omitempty"`
+
 	// Image is the OCI ref of the runner Tart image, digest-pinned
 	// (`ghcr.io/tuist/tuist-runner@sha256:…`).
 	Image string `json:"image"`

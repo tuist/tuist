@@ -70,4 +70,26 @@ defmodule Tuist.Runners.PoolConfigTest do
       assert PoolConfig.dispatch_label(@sample_pool) == "tuist-staging-macos"
     end
   end
+
+  describe "repo_allowed?/2" do
+    test "allows every repo when allowed_repos is nil" do
+      assert :ok = PoolConfig.repo_allowed?(%{allowed_repos: nil}, "tuist/tuist")
+    end
+
+    test "allows every repo when allowed_repos is empty" do
+      assert :ok = PoolConfig.repo_allowed?(%{allowed_repos: []}, "tuist/tuist")
+    end
+
+    test "matches case-insensitively when repo is on the list" do
+      pool = %{allowed_repos: ["tuist/tuist", "tuist/Cli"]}
+      assert :ok = PoolConfig.repo_allowed?(pool, "TUIST/cli")
+    end
+
+    test "rejects when repo is not on the list" do
+      pool = %{allowed_repos: ["tuist/tuist"]}
+
+      assert {:error, :repo_not_allowed} =
+               PoolConfig.repo_allowed?(pool, "acme/widgets")
+    end
+  end
 end

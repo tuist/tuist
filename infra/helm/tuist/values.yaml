@@ -338,6 +338,23 @@ xcresultProcessor:
 #     operator pod's in-cluster service-account context. No 1P
 #     entries needed for cluster join material.
 #
+# Cluster API toggle. The Mac mini fleets render against
+# `cluster.x-k8s.io` + `infrastructure.cluster.x-k8s.io` CRDs which
+# are NOT installed by this chart — they ship via clusterctl /
+# `cluster-api-operator` outside the chart's lifecycle. Set to
+# `true` only after CAPI core CRDs are installed in the target
+# cluster; otherwise `helm upgrade` fails on the first
+# `kind: Cluster` it tries to apply. Existing managed envs that
+# already have CAPI core can leave the default.
+#
+# Operationally, `capi.enabled=false` is a useful escape hatch for
+# bringing this chart up on a green-field cluster before the CAPI
+# install runs: macosFleet / runnersFleet stay un-rendered until
+# CAPI is in place, then a follow-up `helm upgrade` flips this on
+# alongside `macosFleet.enabled`.
+capi:
+  enabled: true
+
 # Scaling: `kubectl scale machinedeployment <name> --replicas=N`.
 macosFleet:
   enabled: false

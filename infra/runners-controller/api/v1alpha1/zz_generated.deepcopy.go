@@ -74,6 +74,10 @@ func (in *RunnerPoolSpec) DeepCopyInto(out *RunnerPoolSpec) {
 		v := *in.RunnerGroupID
 		out.RunnerGroupID = &v
 	}
+	if in.AllowedRepos != nil {
+		out.AllowedRepos = make([]string, len(in.AllowedRepos))
+		copy(out.AllowedRepos, in.AllowedRepos)
+	}
 }
 
 func (in *RunnerPoolStatus) DeepCopyInto(out *RunnerPoolStatus) {

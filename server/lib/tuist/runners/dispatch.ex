@@ -53,31 +53,45 @@ defmodule Tuist.Runners.Dispatch do
     {owner, _repo_name} = parse_full_name(full_name)
     requested = Map.get(job, "labels", [])
 
-    case PoolConfig.match_for_dispatch(owner, requested, nil) do
-      {:ok, pool} ->
-        case Client.create_runner_assignment(namespace(), burst_manifest(pool)) do
-          {:ok, %{"metadata" => %{"name" => name}}} ->
-            Logger.info("runners: dispatched burst assignment",
-              pool: pool.name,
-              repo: full_name,
-              assignment: name
-            )
+    with {:ok, pool} <- PoolConfig.match_for_dispatch(owner, requested, nil),
+         :ok <- PoolConfig.repo_allowed?(pool, full_name) do
+      case Client.create_runner_assignment(namespace(), burst_manifest(pool)) do
+        {:ok, %{"metadata" => %{"name" => name}}} ->
+          Logger.info("runners: dispatched burst assignment",
+            pool: pool.name,
+            repo: full_name,
+            assignment: name
+          )
 
-            {:ok, :created}
+          {:ok, :created}
 
-          {:error, reason} = err ->
-            Logger.warning("runners: burst assignment create failed: #{inspect(reason)}",
-              pool: pool.name,
-              repo: full_name,
-              requested_labels: requested
-            )
+        {:error, reason} = err ->
+          Logger.warning("runners: burst assignment create failed: #{inspect(reason)}",
+            pool: pool.name,
+            repo: full_name,
+            requested_labels: requested
+          )
 
-            err
-        end
-
+          err
+      end
+    else
       {:error, :no_match} ->
         # No pool matches this org + labels combo. Common case
         # for GH Apps installed across many orgs; not an error.
+        :ignored
+
+      {:error, :repo_not_allowed} ->
+        # Repo isn't on the pool's allowedRepos list — GitHub
+        # would refuse to dispatch this workflow_job to the
+        # runner group anyway, so spending a Burst VM on it
+        # would just leave the host idle until the runner
+        # registration timed out. Drop the event quietly; the
+        # webhook is informational at this point.
+        Logger.info("runners: ignoring burst — repo not on pool allowlist",
+          repo: full_name,
+          requested_labels: requested
+        )
+
         :ignored
     end
   end

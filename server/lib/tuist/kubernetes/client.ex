@@ -97,6 +97,50 @@ defmodule Tuist.Kubernetes.Client do
   end
 
   @doc """
+  GETs a single RunnerPool CR by name. Returns the decoded JSON map
+  on success; the caller pulls `spec.owner`, `spec.labels`,
+  `spec.runnerGroupID` to drive the JIT mint.
+  """
+  def get_runner_pool(namespace, name) when is_binary(namespace) and is_binary(name) do
+    with {:ok, host, ca, token} <- in_cluster_config() do
+      req_opts = [
+        url: "https://#{host}/apis/tuist.dev/v1alpha1/namespaces/#{namespace}/runnerpools/#{name}",
+        headers: auth_headers(token),
+        connect_options: [transport_opts: [cacerts: ca]]
+      ]
+
+      case Req.get(req_opts) do
+        {:ok, %{status: 200, body: cr}} -> {:ok, cr}
+        {:ok, %{status: 404}} -> {:error, :not_found}
+        {:ok, %{status: status, body: body}} -> {:error, {:http, status, body}}
+        {:error, reason} -> {:error, {:transport, reason}}
+      end
+    end
+  end
+
+  @doc """
+  LISTs RunnerPool CRs in `namespace`. The webhook handler folds
+  the result into the `(owner, labels) -> pool` matcher so a queued
+  workflow_job binds to the same pool the controller already
+  reconciles.
+  """
+  def list_runner_pools(namespace) when is_binary(namespace) do
+    with {:ok, host, ca, token} <- in_cluster_config() do
+      req_opts = [
+        url: "https://#{host}/apis/tuist.dev/v1alpha1/namespaces/#{namespace}/runnerpools",
+        headers: auth_headers(token),
+        connect_options: [transport_opts: [cacerts: ca]]
+      ]
+
+      case Req.get(req_opts) do
+        {:ok, %{status: 200, body: %{"items" => items}}} -> {:ok, items}
+        {:ok, %{status: status, body: body}} -> {:error, {:http, status, body}}
+        {:error, reason} -> {:error, {:transport, reason}}
+      end
+    end
+  end
+
+  @doc """
   POSTs a RunnerAssignment CR into `namespace` from a fully-shaped
   manifest map. Used by the webhook handler to ask the controller
   to materialize an on-demand Burst Pod.

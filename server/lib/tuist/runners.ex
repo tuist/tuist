@@ -29,8 +29,11 @@ defmodule Tuist.Runners do
   truth for which Pod/SA pair belongs to which pool; the SA-as-
   auth contract makes the dispatch endpoint stateless.
 
-  See `Tuist.Runners.PoolConfig` for the pool table (hardcoded
-  for v1; moves to the database in v2).
+  `Tuist.Runners.PoolConfig` reads pools from `RunnerPool` CRs in
+  the runners namespace — the chart renders the CRs from
+  `runnerPools` in values, so the helm values are the operator-
+  facing surface and there's exactly one source of truth for
+  `name` / `owner` / `labels` / `runnerGroupID` / `allowedRepos`.
   """
 
   alias Tuist.GitHub.App, as: GitHubApp
@@ -62,8 +65,7 @@ defmodule Tuist.Runners do
   trusts its `namespace`/`sa_name` callers because they've
   already authenticated via TokenReview.
   """
-  def dispatch_for_sa(namespace, sa_name)
-      when is_binary(namespace) and is_binary(sa_name) do
+  def dispatch_for_sa(namespace, sa_name) when is_binary(namespace) and is_binary(sa_name) do
     with {:ok, sa} <- K8sClient.get_service_account(namespace, sa_name),
          {:ok, pool_name} <- pool_label(sa),
          {:ok, pool} <- find_pool(pool_name),

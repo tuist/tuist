@@ -4,6 +4,10 @@
 {{- $defaultImage := required "runnersFleet.runnerImage required when runnersFleet.enabled" .Values.runnersFleet.runnerImage }}
 {{- $defaultPodCPU := .Values.runnersFleet.pod.cpuMilli | default 8000 }}
 {{- $defaultPodMem := .Values.runnersFleet.pod.memoryMB | default 14336 }}
+{{- $pools := .Values.runnerPools | default list }}
+{{- if eq (len $pools) 0 }}
+{{- fail "runnerPools must declare at least one entry when runnersFleet.enabled is true; without a RunnerPool the controller has nothing to reconcile and burst RunnerAssignments are reaped on poolRef-not-found." }}
+{{- end }}
 {{- /*
 RunnerPool CRs — one per customer pool. Each entry in
 `runnerPools` renders into a CR the runners-controller picks
@@ -35,6 +39,12 @@ spec:
   minWarm: {{ $pool.minWarm | default 0 }}
   {{- with $pool.runnerGroupID }}
   runnerGroupID: {{ . }}
+  {{- end }}
+  {{- with $pool.allowedRepos }}
+  allowedRepos:
+    {{- range . }}
+    - {{ . | quote }}
+    {{- end }}
   {{- end }}
   image: {{ $pool.image | default $defaultImage | quote }}
   fleetSelector: {{ $pool.fleetSelector | default $fleetName | quote }}
