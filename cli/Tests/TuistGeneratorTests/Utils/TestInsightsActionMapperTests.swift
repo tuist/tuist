@@ -64,7 +64,8 @@ struct TestInsightsActionMapperTests {
                     title: "Push test insights",
                     scriptText: "/mise/tuist inspect test",
                     target: target,
-                    shellPath: nil
+                    shellPath: nil,
+                    isImplicit: true
                 ),
             ]
         )

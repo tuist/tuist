@@ -31,7 +31,8 @@ struct BuildInsightsActionMapper: BuildInsightsActionMapping {
                 title: "Push build insights",
                 scriptText: "\(currentExecutablePath.pathString) inspect build",
                 target: target,
-                shellPath: nil
+                shellPath: nil,
+                isImplicit: true
             )
         )
         buildAction.runPostActionsOnFailure = true

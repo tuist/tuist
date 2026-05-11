@@ -51,7 +51,8 @@ struct BuildInsightsActionMapperTests {
                     title: "Push build insights",
                     scriptText: "/mise/tuist inspect build",
                     target: nil,
-                    shellPath: nil
+                    shellPath: nil,
+                    isImplicit: true
                 ),
             ]
         )
@@ -81,7 +82,8 @@ struct BuildInsightsActionMapperTests {
                     title: "Push build insights",
                     scriptText: "/mise/tuist inspect build",
                     target: TargetReference(projectPath: "/tmp/project", name: "TargetA"),
-                    shellPath: nil
+                    shellPath: nil,
+                    isImplicit: true
                 ),
             ]
         )
