@@ -249,16 +249,22 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
       AND #{rolling_having_expr(monitor_type)} #{rolling_comparison_op(comparison)} {threshold:Float64}
     """
 
-    case ClickHouseRepo.query(sql, %{project_id: project_id, size: size, threshold: threshold * 1.0}) do
-      {:ok, %{rows: rows}} ->
-        # ClickHouse returns UUID columns as 16-byte binaries here; the rest
-        # of the worker compares against string-encoded UUIDs from the Ecto
-        # path, so normalise.
-        Enum.map(rows, fn [binary] -> Ecto.UUID.load!(binary) end)
+    # Raise on ClickHouse errors instead of swallowing them. If the MV is
+    # missing or the query fails transiently, returning `[]` would tell the
+    # worker "no test cases match" and trip recovery actions on every active
+    # event. Letting the error propagate matches the `ClickHouseRepo.all`
+    # path in the `last_days` branch and gives Oban a chance to retry.
+    %{rows: rows} =
+      ClickHouseRepo.query!(sql, %{
+        project_id: project_id,
+        size: size,
+        threshold: threshold * 1.0
+      })
 
-      _ ->
-        []
-    end
+    # ClickHouse returns UUID columns as 16-byte binaries here; the rest of
+    # the worker compares against string-encoded UUIDs from the Ecto path,
+    # so normalise.
+    Enum.map(rows, fn [binary] -> Ecto.UUID.load!(binary) end)
   end
 
   defp rolling_having_expr("flakiness_rate"), do: "arraySum(x -> toFloat64(x.2), recent_n) * 100.0 / length(recent_n)"
