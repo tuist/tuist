@@ -318,6 +318,35 @@ jobs:
               echo "Release $HELM_RELEASE_NAME status is ${status:-not-installed}; no recovery needed."
               ;;
           esac
+      - name: Ensure CAPI core in workload cluster
+        # The Tuist chart renders nested CAPI CRs (Cluster +
+        # MachineDeployment + Machine) into the workload cluster for
+        # Mac mini fleet management — see infra/helm/tuist/templates/
+        # capi-cluster.yaml. CAPI core itself ships outside the chart
+        # (Helm doesn't gracefully carry the ~7000-line components
+        # manifest as a subchart), so each workload cluster needs
+        # it installed separately.
+        #
+        # We don't install bootstrap/control-plane providers — the
+        # workload cluster's own nodes are managed by the *mgmt*
+        # cluster's CAPI, not this nested install. This nested CAPI
+        # only manages Mac mini sub-fleets via the Scaleway Apple
+        # Silicon infrastructure provider that the helm chart
+        # itself deploys (templates/capi-scaleway-applesilicon.yaml).
+        #
+        # Idempotent on re-runs: kubectl apply against an existing
+        # install reconciles labels/annotations but doesn't bump
+        # the controller's generation. Pinned by CAPI_CORE_VERSION;
+        # bump deliberately, verify against a staging deploy first.
+        env:
+          CAPI_CORE_VERSION: v1.10.4
+        run: |
+          set -euo pipefail
+          echo "Ensuring CAPI core $CAPI_CORE_VERSION on $NAMESPACE's workload cluster"
+          kubectl apply -f \
+            "https://github.com/kubernetes-sigs/cluster-api/releases/download/${CAPI_CORE_VERSION}/core-components.yaml"
+          kubectl -n capi-system wait --for=condition=Available \
+            deploy/capi-controller-manager --timeout=5m
       - name: Clean up stale migration Jobs
         # The chart's pre-upgrade migration hook is named
         # `tuist-tuist-server-migrate` (stable across revisions). Any

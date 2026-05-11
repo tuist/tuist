@@ -1,20 +1,20 @@
-{{- if .Values.runnersFleet.enabled }}
-{{- /*
-CRDs for the runners-controller. Helm renders them as regular
-templates (not under crds/) so an in-place upgrade picks up
-schema changes; the trade-off is that `helm uninstall` will
-delete them, which would cascade-delete every RunnerPool in the
-cluster (and the Pods + SAs owned by it). We accept that — the
-chart is the source of truth for these CRDs and we only run
-`helm uninstall` on the chart in greenfield rebuilds.
-*/}}
+# RunnerPool CRD for the runners-controller. Lives in `crds/` (not
+# `templates/`) so helm applies it BEFORE any RunnerPool CR the chart
+# renders during a fresh install — without that ordering, the
+# apiserver rejects the CR with "no matches for kind RunnerPool" and
+# the install fails on first deploy to a clean cluster.
+#
+# Trade-off vs. living in `templates/`: helm does NOT touch crds/ on
+# `helm upgrade`. Schema changes therefore have to be applied
+# out-of-band on existing installs (kubectl apply -f this file).
+# That's acceptable here — the chart is the source of truth for the
+# CRD, runners-controller is the only consumer, and we evolve the
+# spec rarely. Schema-evolution drill on upgrades: re-applying this
+# file manually (or via a one-shot Job) before the helm upgrade lands.
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   name: runnerpools.tuist.dev
-  labels:
-    {{- include "tuist.labels" . | nindent 4 }}
-    app.kubernetes.io/component: runners-controller
 spec:
   group: tuist.dev
   scope: Namespaced
@@ -85,4 +85,3 @@ spec:
                 lastReconcile:
                   type: string
                   format: date-time
-{{- end }}
