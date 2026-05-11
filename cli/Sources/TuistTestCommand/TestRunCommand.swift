@@ -50,6 +50,7 @@
         "test-without-building",
     ]
 
+    // swiftlint:disable:next type_body_length
     public struct TestRunCommand: AsyncParsableCommand, LogConfigurableCommand, TrackableParsableCommand {
         public init() {}
 
