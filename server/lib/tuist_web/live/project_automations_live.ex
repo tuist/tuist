@@ -54,14 +54,19 @@ defmodule TuistWeb.ProjectAutomationsLive do
     |> assign(create_automation_form_metric: "flakiness_rate")
     |> assign(create_automation_form_comparison: "gte")
     |> assign(create_automation_form_threshold: "10")
+    |> assign(create_automation_form_window_type: "last_days")
     |> assign(create_automation_form_window: "30d")
+    |> assign(create_automation_form_rolling_window_size: "100")
     |> assign(create_automation_form_trigger_actions: [default_add_label_action()])
     |> assign(create_automation_form_recovery_enabled: false)
+    |> assign(create_automation_form_recovery_window_type: "last_days")
     |> assign(create_automation_form_recovery_window: "14d")
+    |> assign(create_automation_form_recovery_rolling_window_size: "100")
     |> assign(create_automation_form_recovery_actions: [default_remove_label_action()])
   end
 
   @comparisons ~w(gte gt lt lte)
+  @window_types ~w(last_days rolling)
 
   # Only varies by metric — switching comparison keeps whatever the user has
   # typed, since "% < 5" and "% >= 5" are both reasonable starting points and
@@ -101,13 +106,14 @@ defmodule TuistWeb.ProjectAutomationsLive do
       metric: automation.monitor_type,
       comparison: parse_comparison(automation.trigger_config["comparison"]),
       threshold: to_string(automation.trigger_config["threshold"] || ""),
+      window_type: parse_window_type(automation.trigger_config["window_type"]),
       window: automation.trigger_config["window"] || "30d",
+      rolling_window_size: to_string(automation.trigger_config["rolling_window_size"] || 100),
       trigger_actions: automation.trigger_actions,
       recovery_enabled: automation.recovery_enabled,
-      recovery_window:
-        automation.recovery_config["window"] ||
-          (automation.recovery_config["days_without_trigger"] && "#{automation.recovery_config["days_without_trigger"]}d") ||
-          "14d",
+      recovery_window_type: parse_window_type(automation.recovery_config["window_type"]),
+      recovery_window: automation.recovery_config["window"] || "14d",
+      recovery_rolling_window_size: to_string(automation.recovery_config["rolling_window_size"] || 100),
       recovery_actions: automation.recovery_actions,
       enabled: automation.enabled
     }
@@ -115,6 +121,9 @@ defmodule TuistWeb.ProjectAutomationsLive do
 
   defp parse_comparison(comparison) when comparison in @comparisons, do: comparison
   defp parse_comparison(_), do: "gte"
+
+  defp parse_window_type(window_type) when window_type in @window_types, do: window_type
+  defp parse_window_type(_), do: "last_days"
 
   @impl true
   def handle_params(_params, _uri, socket) do
@@ -141,10 +150,14 @@ defmodule TuistWeb.ProjectAutomationsLive do
         |> assign(create_automation_form_metric: form.metric)
         |> assign(create_automation_form_comparison: form.comparison)
         |> assign(create_automation_form_threshold: form.threshold)
+        |> assign(create_automation_form_window_type: form.window_type)
         |> assign(create_automation_form_window: form.window)
+        |> assign(create_automation_form_rolling_window_size: form.rolling_window_size)
         |> assign(create_automation_form_trigger_actions: form.trigger_actions)
         |> assign(create_automation_form_recovery_enabled: form.recovery_enabled)
+        |> assign(create_automation_form_recovery_window_type: form.recovery_window_type)
         |> assign(create_automation_form_recovery_window: form.recovery_window)
+        |> assign(create_automation_form_recovery_rolling_window_size: form.recovery_rolling_window_size)
         |> assign(create_automation_form_recovery_actions: form.recovery_actions)
         |> push_event("open-modal", %{id: "create-automation-modal"})
 
@@ -179,6 +192,18 @@ defmodule TuistWeb.ProjectAutomationsLive do
 
   def handle_event("update_create_automation_form_window", %{"value" => value}, socket) do
     {:noreply, assign(socket, create_automation_form_window: value)}
+  end
+
+  def handle_event("update_create_automation_form_window_type", %{"data" => window_type}, socket) do
+    if window_type in @window_types do
+      {:noreply, assign(socket, create_automation_form_window_type: window_type)}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_event("update_create_automation_form_rolling_window_size", %{"value" => value}, socket) do
+    {:noreply, assign(socket, create_automation_form_rolling_window_size: value)}
   end
 
   def handle_event("add_create_automation_form_trigger_action", %{"data" => type}, socket) do
@@ -249,6 +274,18 @@ defmodule TuistWeb.ProjectAutomationsLive do
 
   def handle_event("update_create_automation_form_recovery_window", %{"value" => value}, socket) do
     {:noreply, assign(socket, create_automation_form_recovery_window: value)}
+  end
+
+  def handle_event("update_create_automation_form_recovery_window_type", %{"data" => window_type}, socket) do
+    if window_type in @window_types do
+      {:noreply, assign(socket, create_automation_form_recovery_window_type: window_type)}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_event("update_create_automation_form_recovery_rolling_window_size", %{"value" => value}, socket) do
+    {:noreply, assign(socket, create_automation_form_recovery_rolling_window_size: value)}
   end
 
   def handle_event("add_create_automation_form_recovery_action", %{"data" => type}, socket) do
@@ -383,24 +420,64 @@ defmodule TuistWeb.ProjectAutomationsLive do
       "project_id" => project_id,
       "name" => assigns.create_automation_form_name,
       "monitor_type" => assigns.create_automation_form_metric,
-      "trigger_config" => %{
-        "threshold" => threshold,
-        "window" => assigns.create_automation_form_window,
-        "comparison" => assigns.create_automation_form_comparison
-      },
+      "trigger_config" =>
+        build_trigger_config(
+          threshold,
+          assigns.create_automation_form_comparison,
+          assigns.create_automation_form_window_type,
+          assigns.create_automation_form_window,
+          assigns.create_automation_form_rolling_window_size
+        ),
       "trigger_actions" => assigns.create_automation_form_trigger_actions,
       "recovery_enabled" => assigns.create_automation_form_recovery_enabled
     }
 
     if assigns.create_automation_form_recovery_enabled do
       base
-      |> Map.put("recovery_config", %{
-        "window" => assigns.create_automation_form_recovery_window
-      })
+      |> Map.put(
+        "recovery_config",
+        build_recovery_config(
+          assigns.create_automation_form_recovery_window_type,
+          assigns.create_automation_form_recovery_window,
+          assigns.create_automation_form_recovery_rolling_window_size
+        )
+      )
       |> Map.put("recovery_actions", assigns.create_automation_form_recovery_actions)
     else
       base
     end
+  end
+
+  defp build_trigger_config(threshold, comparison, "rolling", _window, rolling_window_size) do
+    %{
+      "threshold" => threshold,
+      "comparison" => comparison,
+      "window_type" => "rolling",
+      "rolling_window_size" => parse_int(rolling_window_size, 100)
+    }
+  end
+
+  defp build_trigger_config(threshold, comparison, _window_type, window, _rolling_window_size) do
+    %{
+      "threshold" => threshold,
+      "comparison" => comparison,
+      "window_type" => "last_days",
+      "window" => window
+    }
+  end
+
+  defp build_recovery_config("rolling", _window, rolling_window_size) do
+    %{
+      "window_type" => "rolling",
+      "rolling_window_size" => parse_int(rolling_window_size, 100)
+    }
+  end
+
+  defp build_recovery_config(_window_type, window, _rolling_window_size) do
+    %{
+      "window_type" => "last_days",
+      "window" => window
+    }
   end
 
   defp parse_threshold("flakiness_rate", value) do
@@ -483,7 +560,6 @@ defmodule TuistWeb.ProjectAutomationsLive do
 
   def automation_summary(%{monitor_type: "flakiness_rate", trigger_config: trigger_config}) do
     threshold = format_threshold(trigger_config["threshold"] || 0)
-    window = trigger_config["window"] || "30d"
     symbol = comparison_symbol(parse_comparison(trigger_config["comparison"]))
 
     dgettext(
@@ -491,13 +567,12 @@ defmodule TuistWeb.ProjectAutomationsLive do
       "When flakiness rate %{symbol} %{threshold}% over %{window}",
       symbol: symbol,
       threshold: threshold,
-      window: window
+      window: window_summary(trigger_config)
     )
   end
 
   def automation_summary(%{monitor_type: "flaky_run_count", trigger_config: trigger_config}) do
     threshold = format_threshold(trigger_config["threshold"] || 0)
-    window = trigger_config["window"] || "30d"
     symbol = comparison_symbol(parse_comparison(trigger_config["comparison"]))
 
     dgettext(
@@ -505,14 +580,66 @@ defmodule TuistWeb.ProjectAutomationsLive do
       "When flaky runs %{symbol} %{threshold} over %{window}",
       symbol: symbol,
       threshold: threshold,
-      window: window
+      window: window_summary(trigger_config)
     )
   end
 
   def automation_summary(_), do: ""
 
+  defp window_summary(%{"window_type" => "rolling"} = trigger_config) do
+    size = trigger_config["rolling_window_size"] || 100
+
+    dgettext(
+      "dashboard_projects",
+      "the last %{size} runs",
+      size: size
+    )
+  end
+
+  defp window_summary(trigger_config), do: trigger_config["window"] || "30d"
+
   defp format_threshold(n) when is_float(n) and trunc(n) == n, do: trunc(n)
   defp format_threshold(n), do: n
+
+  def window_type_label("rolling"), do: dgettext("dashboard_projects", "Rolling window")
+  def window_type_label(_), do: dgettext("dashboard_projects", "Last days")
+
+  @doc """
+  True when the form's rolling-window inputs are within the schema cap.
+  Drives the Save button's disabled state so a too-large value can't be
+  submitted silently — the changeset already rejects it server-side, but
+  Save dispatches via `phx-click` not a form submit, so the browser's
+  `max` attribute doesn't intercept the click.
+  """
+  def rolling_window_inputs_valid?(assigns) do
+    is_nil(
+      rolling_size_error(assigns.create_automation_form_window_type, assigns.create_automation_form_rolling_window_size)
+    ) and
+      (not assigns.create_automation_form_recovery_enabled or
+         is_nil(
+           rolling_size_error(
+             assigns.create_automation_form_recovery_window_type,
+             assigns.create_automation_form_recovery_rolling_window_size
+           )
+         ))
+  end
+
+  @doc """
+  User-facing error string for a rolling-window size input, or `nil` when
+  the value is valid (or the window mode isn't rolling). Wired into the
+  `error` attribute on the noora `text_input` so the same constraint that
+  disables Save is visible inline on the field.
+  """
+  def rolling_size_error("rolling", raw_size) do
+    max = Tuist.Automations.Alerts.Alert.max_rolling_window_size()
+
+    case Integer.parse(to_string(raw_size)) do
+      {n, ""} when n >= 1 and n <= max -> nil
+      _ -> dgettext("dashboard_projects", "1–%{max}", max: max)
+    end
+  end
+
+  def rolling_size_error(_window_type, _raw_size), do: nil
 
   # Decode the signed channel-result token, then encrypt the webhook URL so
   # we never store it as plaintext inside the action JSON.

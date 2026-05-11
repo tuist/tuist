@@ -1,0 +1,129 @@
+defmodule Tuist.IngestRepo.Migrations.CreateTestCaseRunsRecentPerCaseMv do
+  @moduledoc """
+  Per-test-case rolling-window aggregate of `test_case_runs`.
+
+  The flaky-tests automation engine's "rolling window" mode evaluates the last
+  N runs per `(project_id, test_case_id)` ordered by `ran_at`. Reading raw
+  `test_case_runs` for that pattern scans every run in the project's lookback
+  range — measured at 200M+ rows for 30 days on busy projects, with no primary
+  key prefix that fits "last N per test case per project."
+
+  This MV maintains a `groupArrayLast(N)` aggregate of `(ran_at, is_flaky)`
+  tuples per test case, capped at 1000 entries to match the changeset's
+  `rolling_window_size` cap. A project's whole rolling-window scan becomes
+  one row per test case — bounded by `active_test_cases`, regardless of run
+  volume.
+
+  Ordering caveat: `groupArrayLast(N)` keeps the last N values by
+  *aggregation order*, not by `ran_at`. The backfill query orders source
+  rows by the table's primary key via `optimize_aggregation_in_order`, so
+  the initial state is exactly the last N runs by `ran_at` per
+  `(project_id, test_case_id)`. For live inserts the MV trigger sees each
+  INSERT block in arrival order — typically a single CI run with one row
+  per test case, so per-group ordering is trivially preserved — and the
+  state stays approximately chronological. The query layer
+  `arrayReverseSort`s by `ran_at` before slicing, so even if `is_flaky`
+  re-inserts of older runs leave a few older entries inside the 1000-cap
+  state, the user-facing window is still "last N by `ran_at`" up to N = 1000.
+
+  Mirrors the `test_case_run_daily_stats_per_case` pattern (explicit storage
+  table + MV trigger + partition-by-partition backfill) so it survives the
+  ClickHouse Cloud `TABLE_IS_READ_ONLY` race during compaction churn.
+  """
+  use Ecto.Migration
+  alias Tuist.IngestRepo
+  require Logger
+
+  @disable_ddl_transaction true
+  @disable_migration_lock true
+
+  @max_window_size 1000
+
+  def up do
+    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
+    IngestRepo.query!("""
+    CREATE TABLE IF NOT EXISTS test_case_runs_recent_per_case (
+      project_id Int64,
+      test_case_id UUID,
+      recent_runs AggregateFunction(groupArrayLast(#{@max_window_size}), Tuple(DateTime64(6), UInt8))
+    ) ENGINE = AggregatingMergeTree
+    ORDER BY (project_id, test_case_id)
+    """)
+
+    backfill_by_partition()
+
+    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
+    IngestRepo.query!("""
+    CREATE MATERIALIZED VIEW IF NOT EXISTS test_case_runs_recent_per_case_mv
+    TO test_case_runs_recent_per_case
+    AS SELECT
+      project_id,
+      assumeNotNull(test_case_id) AS test_case_id,
+      groupArrayLastState(#{@max_window_size})((ran_at, toUInt8(is_flaky))) AS recent_runs
+    FROM test_case_runs
+    WHERE test_case_id IS NOT NULL
+    GROUP BY project_id, test_case_id
+    """)
+  end
+
+  def down do
+    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
+    IngestRepo.query!("DROP VIEW IF EXISTS test_case_runs_recent_per_case_mv")
+    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
+    IngestRepo.query!("DROP TABLE IF EXISTS test_case_runs_recent_per_case")
+  end
+
+  defp backfill_by_partition do
+    {:ok, %{rows: partitions}} =
+      IngestRepo.query(
+        """
+        SELECT DISTINCT partition
+        FROM system.parts
+        WHERE database = currentDatabase() AND table = {table:String} AND active
+        ORDER BY partition
+        """,
+        %{table: "test_case_runs"}
+      )
+
+    for [partition] <- partitions do
+      Logger.info("Backfilling partition #{partition} into test_case_runs_recent_per_case")
+
+      retry_on_shutting_down(fn ->
+        # `optimize_aggregation_in_order = 1` plus the matching primary key
+        # `(project_id, test_case_id, ran_at, id)` makes the aggregator see
+        # rows in ran_at order within each `(project_id, test_case_id)`
+        # group, so `groupArrayLast(N)` captures the actual last N runs by
+        # `ran_at`. Without the setting the aggregation is parallelised and
+        # per-group order is undefined.
+        IngestRepo.query!(
+          """
+          INSERT INTO test_case_runs_recent_per_case
+          SELECT
+            project_id,
+            assumeNotNull(test_case_id) AS test_case_id,
+            groupArrayLastState(#{@max_window_size})((ran_at, toUInt8(is_flaky))) AS recent_runs
+          FROM test_case_runs
+          WHERE toYYYYMM(inserted_at) = {partition:UInt32} AND test_case_id IS NOT NULL
+          GROUP BY project_id, test_case_id
+          SETTINGS optimize_aggregation_in_order = 1
+          """,
+          %{partition: String.to_integer(partition)},
+          timeout: 1_200_000
+        )
+      end)
+    end
+  end
+
+  defp retry_on_shutting_down(fun, attempts \\ 5) do
+    fun.()
+  rescue
+    e in Ch.Error ->
+      if attempts > 1 and String.contains?(to_string(e.message), "TABLE_IS_READ_ONLY") do
+        Logger.warning("Table is shutting down, retrying in 5s (#{attempts - 1} attempts left)")
+        Process.sleep(:timer.seconds(5))
+        retry_on_shutting_down(fun, attempts - 1)
+      else
+        reraise e, __STACKTRACE__
+      end
+  end
+end
