@@ -612,7 +612,9 @@ defmodule TuistWeb.ProjectAutomationsLive do
   `max` attribute doesn't intercept the click.
   """
   def rolling_window_inputs_valid?(assigns) do
-    is_nil(rolling_size_error(assigns.create_automation_form_window_type, assigns.create_automation_form_rolling_window_size)) and
+    is_nil(
+      rolling_size_error(assigns.create_automation_form_window_type, assigns.create_automation_form_rolling_window_size)
+    ) and
       (not assigns.create_automation_form_recovery_enabled or
          is_nil(
            rolling_size_error(

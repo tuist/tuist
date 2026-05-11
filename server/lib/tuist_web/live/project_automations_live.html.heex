@@ -803,7 +803,9 @@
                     else: dgettext("dashboard_projects", "Create")
                 }
                 variant="primary"
-                disabled={@create_automation_form_name == "" or not rolling_window_inputs_valid?(assigns)}
+                disabled={
+                  @create_automation_form_name == "" or not rolling_window_inputs_valid?(assigns)
+                }
                 phx-click="save_automation"
               />
             </:action>

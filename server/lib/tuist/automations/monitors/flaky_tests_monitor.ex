@@ -261,11 +261,9 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
     end
   end
 
-  defp rolling_having_expr("flakiness_rate"),
-    do: "arraySum(x -> toFloat64(x.2), recent_n) * 100.0 / length(recent_n)"
+  defp rolling_having_expr("flakiness_rate"), do: "arraySum(x -> toFloat64(x.2), recent_n) * 100.0 / length(recent_n)"
 
-  defp rolling_having_expr("flaky_run_count"),
-    do: "arraySum(x -> toFloat64(x.2), recent_n)"
+  defp rolling_having_expr("flaky_run_count"), do: "arraySum(x -> toFloat64(x.2), recent_n)"
 
   defp rolling_comparison_op("gte"), do: ">="
   defp rolling_comparison_op("gt"), do: ">"
@@ -293,8 +291,7 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
   defp window_mode(%{"window_type" => "rolling"} = config),
     do: {:rolling, parse_rolling_size(config["rolling_window_size"])}
 
-  defp window_mode(%{"window_type" => "last_days"} = config),
-    do: {:last_days, parse_window(config["window"] || "30d")}
+  defp window_mode(%{"window_type" => "last_days"} = config), do: {:last_days, parse_window(config["window"] || "30d")}
 
   defp window_mode(config), do: {:last_days, parse_window(config["window"] || "30d")}
 

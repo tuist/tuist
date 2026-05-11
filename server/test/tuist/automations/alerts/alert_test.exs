@@ -80,7 +80,12 @@ defmodule Tuist.Automations.Alerts.AlertTest do
           %Alert{},
           valid_attrs(project, %{
             "monitor_type" => "flakiness_rate",
-            "trigger_config" => %{"threshold" => 5, "window_type" => "last_days", "window" => "30d", "comparison" => "lte"},
+            "trigger_config" => %{
+              "threshold" => 5,
+              "window_type" => "last_days",
+              "window" => "30d",
+              "comparison" => "lte"
+            },
             "trigger_actions" => [%{"type" => "remove_label", "label" => "flaky"}]
           })
         )
@@ -95,7 +100,12 @@ defmodule Tuist.Automations.Alerts.AlertTest do
         Alert.changeset(
           %Alert{},
           valid_attrs(project, %{
-            "trigger_config" => %{"threshold" => 5, "window_type" => "last_days", "window" => "30d", "comparison" => "bogus"}
+            "trigger_config" => %{
+              "threshold" => 5,
+              "window_type" => "last_days",
+              "window" => "30d",
+              "comparison" => "bogus"
+            }
           })
         )
 
@@ -109,7 +119,9 @@ defmodule Tuist.Automations.Alerts.AlertTest do
       changeset =
         Alert.changeset(
           %Alert{},
-          valid_attrs(project, %{"trigger_config" => %{"threshold" => 200, "window_type" => "last_days", "window" => "30d"}})
+          valid_attrs(project, %{
+            "trigger_config" => %{"threshold" => 200, "window_type" => "last_days", "window" => "30d"}
+          })
         )
 
       refute changeset.valid?
