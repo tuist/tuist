@@ -69,7 +69,7 @@
         0 37px 22px 0 rgba(0, 0, 0, 0.02),
         0 16px 16px 0 rgba(0, 0, 0, 0.04),
         0 4px 9px 0 rgba(0, 0, 0, 0.04);
-      border-radius: var(--noora-radius-2xlarge);
+      border-radius: var(--noora-radius-8);
       background: #fff;
       width: 100%;
       max-width: 780px;
@@ -184,7 +184,7 @@
           0 1px 1px 0 rgba(22, 24, 28, 0.05),
           0 0 0 1px rgba(46, 51, 56, 0.08),
           0 1px 1px 0 rgba(46, 51, 56, 0.1);
-        border-radius: var(--noora-radius-xlarge);
+        border-radius: var(--noora-radius-6);
         background: var(--noora-surface-background-primary);
         text-decoration: none;
 
@@ -200,8 +200,8 @@
         }
 
         & > [data-part="image"] {
-          border-top-right-radius: var(--noora-radius-xlarge);
-          border-top-left-radius: var(--noora-radius-xlarge);
+          border-top-right-radius: var(--noora-radius-6);
+          border-top-left-radius: var(--noora-radius-6);
           aspect-ratio: 16 / 9;
           width: 100%;
           object-fit: cover;

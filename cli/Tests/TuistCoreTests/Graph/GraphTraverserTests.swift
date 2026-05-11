@@ -846,11 +846,30 @@ final class GraphTraverserTests: TuistUnitTestCase {
                     exceptions: BuildableFolderExceptions(exceptions: []),
                     resolvedFiles: [
                         BuildableFolderFile(path: "/Sources/File.swift", compilerFlags: nil),
+                        BuildableFolderFile(path: "/Sources/Header.h", compilerFlags: nil),
                     ]
                 ),
             ]
         )
         XCTAssertFalse(target.containsResources)
+    }
+
+    func test_containsResources_is_true_when_buildable_folders_contain_non_allowlisted_resources() {
+        let target = Target.test(
+            product: .staticFramework,
+            resources: .init([]),
+            buildableFolders: [
+                BuildableFolder(
+                    path: "/Sources",
+                    exceptions: BuildableFolderExceptions(exceptions: []),
+                    resolvedFiles: [
+                        BuildableFolderFile(path: "/Sources/File.swift", compilerFlags: nil),
+                        BuildableFolderFile(path: "/Sources/image.jpg", compilerFlags: nil),
+                    ]
+                ),
+            ]
+        )
+        XCTAssertTrue(target.containsResources)
     }
 
     func test_resourceBundleDependencies_when_static_framework_has_resources_in_buildable_folders() {
@@ -1724,7 +1743,8 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
     func test_embeddableFrameworks_whenHostedTestTarget_withDirectFrameworkNotInHost() throws {
         // Given: Unit test depends on a host app AND a framework that the host does NOT depend on.
-        // The framework should NOT be embedded in the .xctest bundle.
+        // The framework MUST be embedded in the .xctest bundle — otherwise dyld finds the
+        // unsigned framework in BUILT_PRODUCTS_DIR and a hardened host rejects it at launch.
         let featureFramework = Target.test(name: "FeatureA", product: .framework)
         let app = Target.test(name: "SharedTestHost", product: .app)
         let tests = Target.test(name: "FeatureATests", product: .unitTests)
@@ -1749,7 +1769,12 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.embeddableFrameworks(path: featureProject.path, name: tests.name).sorted()
 
         // Then
-        XCTAssertTrue(got.isEmpty)
+        XCTAssertEqual(got, [
+            GraphDependencyReference.product(
+                target: featureFramework.name,
+                productName: featureFramework.productNameWithExtension
+            ),
+        ])
     }
 
     func test_embeddableFrameworks_whenUITest_andAppPrecompiledDependencies() throws {
@@ -2090,12 +2115,20 @@ final class GraphTraverserTests: TuistUnitTestCase {
         // When
         let got = try subject.linkableDependencies(path: project.path, name: target.name).sorted()
 
-        // Then
+        // Then: static xcframeworks reached through a dynamic xcframework are NOT relinked
+        // at the consumer level. The dynamic xcframework absorbs their symbols at build time;
+        // relinking would duplicate symbols and break libraries with global state.
         XCTAssertEqual(got, [
             GraphDependencyReference(dependencyDynamicXCFramework),
-            GraphDependencyReference(dependencyStaticXCFrameworkA),
-            GraphDependencyReference(dependencyStaticXCFrameworkB),
         ])
+
+        // When
+        let searchablePaths = try subject.searchablePathDependencies(path: project.path, name: target.name)
+
+        // Then: static xcframeworks remain reachable via FRAMEWORK_SEARCH_PATHS so the
+        // compiler can resolve `import StaticFrameworkA` / `import StaticFrameworkB`.
+        XCTAssertTrue(searchablePaths.contains(GraphDependencyReference(dependencyStaticXCFrameworkA)))
+        XCTAssertTrue(searchablePaths.contains(GraphDependencyReference(dependencyStaticXCFrameworkB)))
 
         // When
         let embeddable = subject.embeddableFrameworks(path: project.path, name: target.name)
@@ -2190,7 +2223,9 @@ final class GraphTraverserTests: TuistUnitTestCase {
         // When
         let got = try subject.linkableDependencies(path: project.path, name: target.name).sorted()
 
-        // Then
+        // Then: the static xcframework itself is not relinked, but the system library it
+        // declared as a dependency must still be linked at the consumer level (otherwise
+        // unresolved system symbols would surface during the consumer's link step).
         XCTAssertBetterEqual(got, [
             .sdk(
                 path: try AbsolutePath(validating: "/libc++.tbd"),
@@ -2199,8 +2234,13 @@ final class GraphTraverserTests: TuistUnitTestCase {
                 condition: nil
             ),
             GraphDependencyReference(dependencyDynamicXCFramework),
-            GraphDependencyReference(dependencyStaticXCFrameworkA),
         ])
+
+        // When
+        let searchablePaths = try subject.searchablePathDependencies(path: project.path, name: target.name)
+
+        // Then
+        XCTAssertTrue(searchablePaths.contains(GraphDependencyReference(dependencyStaticXCFrameworkA)))
 
         // When
         let embeddable = subject.embeddableFrameworks(path: project.path, name: target.name)

@@ -42,22 +42,39 @@ pub async fn read_request_to_temp(
     let mut size = 0_u64;
 
     while let Some(item) = stream.next().await {
-        let chunk = item
-            .map_err(|error| BodyReadError::Io(format!("failed to read request body: {error}")))?;
+        let chunk = match item {
+            Ok(chunk) => chunk,
+            Err(error) => {
+                drop(file);
+                io.remove_file_if_exists(&temp_path).await;
+                return Err(BodyReadError::Io(format!(
+                    "failed to read request body: {error}"
+                )));
+            }
+        };
         size += chunk.len() as u64;
         if size > max_bytes {
+            drop(file);
             io.remove_file_if_exists(&temp_path).await;
             return Err(BodyReadError::TooLarge);
         }
 
-        file.write_all(&chunk)
-            .await
-            .map_err(|error| BodyReadError::Io(format!("failed to write temp file: {error}")))?;
+        if let Err(error) = file.write_all(&chunk).await {
+            drop(file);
+            io.remove_file_if_exists(&temp_path).await;
+            return Err(BodyReadError::Io(format!(
+                "failed to write temp file: {error}"
+            )));
+        }
     }
 
-    file.flush()
-        .await
-        .map_err(|error| BodyReadError::Io(format!("failed to flush temp file: {error}")))?;
+    if let Err(error) = file.flush().await {
+        drop(file);
+        io.remove_file_if_exists(&temp_path).await;
+        return Err(BodyReadError::Io(format!(
+            "failed to flush temp file: {error}"
+        )));
+    }
 
     Ok(TempBodyFile {
         path: temp_path,

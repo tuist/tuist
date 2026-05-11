@@ -78,6 +78,40 @@ defmodule TuistWeb.API.BundlesControllerTest do
       assert Enum.map(bundle.artifacts, & &1.size) == [1024]
     end
 
+    test "renders inserted_at without fractional seconds so the Swift CLI can decode it", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      # Given — minimal valid params; exercise is the response wire format.
+      bundle_params = %{
+        "bundle" => %{
+          "app_bundle_id" => "com.example.app",
+          "name" => "Test Bundle",
+          "install_size" => 1024,
+          "supported_platforms" => ["ios"],
+          "version" => "1.0.0",
+          "type" => "app",
+          "artifacts" => []
+        }
+      }
+
+      # When
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects/#{project.account.name}/#{project.name}/bundles", bundle_params)
+
+      # Then — must match `yyyy-MM-ddTHH:mm:ssZ` exactly, since the CLI's
+      # default `ISO8601DateFormatter` (configured with
+      # `.withInternetDateTime`) rejects anything with a fractional
+      # second component, which broke `tuist inspect bundle` after the
+      # CH cutover bumped the column to `DateTime64(6)`.
+      assert %{"inserted_at" => inserted_at} = json_response(conn, :ok)
+      assert inserted_at =~ ~r/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/
+    end
+
     test "creates a bundle with git metadata", %{conn: conn, user: user, project: project} do
       # Given
       bundle_params = %{

@@ -17,11 +17,15 @@ final class TrackableCommandTests: TuistTestCase {
     private var subject: TrackableCommand!
     private var backgroundProcessRunner: MockBackgroundProcessRunning!
     private var gitController: MockGitControlling!
+    private var serverAuthenticationController: MockServerAuthenticationControlling!
+    private var uploadAnalyticsService: MockUploadAnalyticsServicing!
 
     override func setUp() {
         super.setUp()
         gitController = MockGitControlling()
         backgroundProcessRunner = MockBackgroundProcessRunning()
+        serverAuthenticationController = MockServerAuthenticationControlling()
+        uploadAnalyticsService = MockUploadAnalyticsServicing()
         given(backgroundProcessRunner)
             .runInBackground(.any, environment: .any)
             .willReturn()
@@ -32,12 +36,18 @@ final class TrackableCommandTests: TuistTestCase {
         given(gitController)
             .gitInfo(workingDirectory: .any)
             .willReturn(.test())
+
+        given(uploadAnalyticsService)
+            .upload(commandEvent: .any, fullHandle: .any, serverURL: .any, sessionDirectory: .any)
+            .willReturn(.test())
     }
 
     override func tearDown() {
         subject = nil
         gitController = nil
         backgroundProcessRunner = nil
+        serverAuthenticationController = nil
+        uploadAnalyticsService = nil
         super.tearDown()
     }
 
@@ -61,6 +71,8 @@ final class TrackableCommandTests: TuistTestCase {
                 gitController: gitController
             ),
             backgroundProcessRunner: backgroundProcessRunner,
+            uploadAnalyticsService: uploadAnalyticsService,
+            serverAuthenticationController: serverAuthenticationController,
             sessionDirectory: temporaryPath
         )
     }
@@ -158,6 +170,51 @@ final class TrackableCommandTests: TuistTestCase {
         // Then
         let recordedValues = await recorder.values()
         XCTAssertEqual(recordedValues, [true])
+    }
+
+    func test_whenOptionalAuthenticationIsEnabled_andNoToken_skipsForegroundUpload() async throws {
+        // Given
+        given(serverAuthenticationController)
+            .authenticationToken(serverURL: .any, refreshIfNeeded: .any)
+            .willReturn(nil)
+        try makeSubject(analyticsRequired: true)
+
+        // When
+        try await subject.run(
+            fullHandle: "tuist/tuist",
+            serverURL: .test(),
+            shouldTrackAnalytics: true,
+            optionalAuthentication: true
+        )
+
+        // Then
+        verify(uploadAnalyticsService)
+            .upload(commandEvent: .any, fullHandle: .any, serverURL: .any, sessionDirectory: .any)
+            .called(0)
+        verify(backgroundProcessRunner)
+            .runInBackground(.any, environment: .any)
+            .called(0)
+    }
+
+    func test_whenOptionalAuthenticationIsEnabled_andTokenIsAvailable_uploadsRunMetadata() async throws {
+        // Given
+        given(serverAuthenticationController)
+            .authenticationToken(serverURL: .any, refreshIfNeeded: .any)
+            .willReturn(.project("token"))
+        try makeSubject(analyticsRequired: true)
+
+        // When
+        try await subject.run(
+            fullHandle: "tuist/tuist",
+            serverURL: .test(),
+            shouldTrackAnalytics: true,
+            optionalAuthentication: true
+        )
+
+        // Then
+        verify(uploadAnalyticsService)
+            .upload(commandEvent: .any, fullHandle: .any, serverURL: .any, sessionDirectory: .any)
+            .called(1)
     }
 
     func test_whenOptionalAuthenticationIsEnabled_background_upload_does_not_add_a_flag() async throws {

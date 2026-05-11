@@ -13,7 +13,15 @@ public enum TuistConfigError: LocalizedError, Equatable {
 }
 
 public struct Tuist: Equatable, Hashable, Sendable {
-    public struct Cache: Equatable, Hashable, Sendable {
+    public struct Network: Equatable, Hashable, Sendable {
+        public let proxy: Bool
+
+        public init(proxy: Bool = true) {
+            self.proxy = proxy
+        }
+    }
+
+    public struct XcodeCache: Equatable, Hashable, Sendable {
         public let upload: Bool
 
         public init(upload: Bool = true) {
@@ -24,7 +32,8 @@ public struct Tuist: Equatable, Hashable, Sendable {
     public let project: TuistProject
     public let fullHandle: String?
     public let inspectOptions: InspectOptions
-    public let cache: Cache
+    public let network: Network
+    public let xcodeCache: XcodeCache
     public let url: URL
 
     public static var `default`: Tuist {
@@ -32,8 +41,9 @@ public struct Tuist: Equatable, Hashable, Sendable {
             project: .defaultGeneratedProject(),
             fullHandle: nil,
             inspectOptions: .init(redundantDependencies: .init(ignoreTagsMatching: [])),
-            cache: Cache(),
-            url: Constants.URLs.production
+            xcodeCache: XcodeCache(),
+            url: Constants.URLs.production,
+            network: Network()
         )
     }
 
@@ -41,19 +51,22 @@ public struct Tuist: Equatable, Hashable, Sendable {
         project: TuistProject,
         fullHandle: String?,
         inspectOptions: InspectOptions,
-        cache: Cache = Cache(),
-        url: URL
+        xcodeCache: XcodeCache = XcodeCache(),
+        url: URL,
+        network: Network = Network()
     ) {
         self.project = project
         self.fullHandle = fullHandle
         self.inspectOptions = inspectOptions
-        self.cache = cache
+        self.network = network
+        self.xcodeCache = xcodeCache
         self.url = url
     }
 
     public func hash(into hasher: inout Hasher) {
         hasher.combine(project)
         hasher.combine(fullHandle)
+        hasher.combine(network)
         hasher.combine(url)
     }
 
@@ -69,15 +82,17 @@ public struct Tuist: Equatable, Hashable, Sendable {
             project: TuistProject = .testGeneratedProject(),
             fullHandle: String? = nil,
             inspectOptions: InspectOptions = .init(redundantDependencies: .init(ignoreTagsMatching: [])),
-            cache: Cache = Cache(),
-            url: URL = Constants.URLs.production
+            xcodeCache: XcodeCache = XcodeCache(),
+            url: URL = Constants.URLs.production,
+            network: Network = Network()
         ) -> Self {
             return Tuist(
                 project: project,
                 fullHandle: fullHandle,
                 inspectOptions: inspectOptions,
-                cache: cache,
-                url: url
+                xcodeCache: xcodeCache,
+                url: url,
+                network: network
             )
         }
     #endif

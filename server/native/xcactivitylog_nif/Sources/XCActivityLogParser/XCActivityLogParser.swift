@@ -82,14 +82,18 @@ public struct XCActivityLogParser: Sendable {
 
     // MARK: - Build Steps
 
+    // Iterative DFS so build trees thousands of levels deep don't overflow the
+    // stack. Order matches the recursive walk: parent before children.
     private func flattenBuildSteps(_ steps: [BuildStep]) -> [BuildStep] {
-        steps.flatMap { step in
-            var flattened = [step]
+        var result = [BuildStep]()
+        var stack = Array(steps.reversed())
+        while let step = stack.popLast() {
+            result.append(step)
             if !step.subSteps.isEmpty {
-                flattened.append(contentsOf: flattenBuildSteps(step.subSteps))
+                stack.append(contentsOf: step.subSteps.reversed())
             }
-            return flattened
         }
+        return result
     }
 
     // MARK: - Category
@@ -121,19 +125,27 @@ public struct XCActivityLogParser: Sendable {
 
         let targetIdentifiers = buildTargetIdentifiers(from: steps)
         var targetsCompiledCount = [String: Int]()
+        var targetFilesCount = [String: Int]()
         for target in targetSteps {
             targetsCompiledCount[target.identifier] = 0
+            targetFilesCount[target.identifier] = 0
         }
 
-        for step in buildSteps where !step.fetchedFromCache {
+        // Tally both totals and not-fetched-from-cache counts per target in a
+        // single pass. Filtering buildSteps once per target is O(targets * buildSteps),
+        // which dominates parse time on logs with ~1k targets and ~100k build steps.
+        for step in buildSteps {
             guard let targetID = targetIdentifiers[step.identifier] else { continue }
-            targetsCompiledCount[targetID, default: 0] += 1
+            targetFilesCount[targetID, default: 0] += 1
+            if !step.fetchedFromCache {
+                targetsCompiledCount[targetID, default: 0] += 1
+            }
         }
 
         var cleanCount = 0
         for (target, filesCompiledCount) in targetsCompiledCount {
-            let targetFilesCount = buildSteps.filter { targetIdentifiers[$0.identifier] == target }.count
-            if filesCompiledCount == targetFilesCount && filesCompiledCount > 0 {
+            let total = targetFilesCount[target] ?? 0
+            if filesCompiledCount == total && filesCompiledCount > 0 {
                 cleanCount += 1
             }
         }
@@ -176,13 +188,7 @@ public struct XCActivityLogParser: Sendable {
             let warnings = step.warnings ?? []
             for notice in errors + warnings {
                 let issueType: String = notice.severity == 1 ? "warning" : "error"
-                var message = notice.detail
-                if var detail = notice.detail {
-                    if let r = detail.range(of: "warning: ") { detail = String(detail[r.upperBound...]) }
-                    if let r = detail.range(of: "error: ") { detail = String(detail[r.upperBound...]) }
-                    if let r = detail.range(of: " ^~") { detail = String(detail[..<r.lowerBound]) }
-                    message = detail
-                }
+
                 let key = "\(step.signature):\(notice.startingLineNumber):\(notice.startingColumnNumber):\(issueType)"
                 guard !seen.contains(key) else { continue }
                 seen.insert(key)
@@ -200,7 +206,7 @@ public struct XCActivityLogParser: Sendable {
                     signature: step.signature,
                     step_type: stepTypeString(from: step.signature),
                     path: path,
-                    message: message.flatMap { $0.count > 1000 ? String($0.prefix(1000)) + "..." : $0 },
+                    message: notice.detail.flatMap(cleanIssueDetail),
                     starting_line: Int(notice.startingLineNumber),
                     ending_line: Int(notice.endingLineNumber),
                     starting_column: Int(notice.startingColumnNumber),
@@ -209,6 +215,53 @@ public struct XCActivityLogParser: Sendable {
             }
         }
         return result
+    }
+
+    // Cap raw detail before searching: pathological diagnostics (e.g. macro
+    // expansion errors) can be megabytes, and `range(of:)` is linear in the
+    // input even with `.literal`. We truncate to the final 1000-char message
+    // limit anyway, plus headroom for the preamble we strip below. UTF-16
+    // length is O(1) on native strings; grapheme `count` is not.
+    private static let issueDetailSearchCap = 4096
+    private static let issueMessageCap = 1000
+
+    private func cleanIssueDetail(_ raw: String) -> String {
+        var detail = raw
+        if detail.utf16.count > Self.issueDetailSearchCap {
+            let cap = detail.utf16.index(
+                detail.utf16.startIndex,
+                offsetBy: Self.issueDetailSearchCap,
+                limitedBy: detail.utf16.endIndex
+            ) ?? detail.utf16.endIndex
+            // Round to a Unicode scalar boundary; bail to the original string
+            // if the cap landed inside a surrogate pair (rare, but cheap to
+            // handle correctly).
+            detail = String.Index(cap, within: detail).map { String(detail[..<$0]) } ?? detail
+        }
+        // `.literal` skips canonical equivalence so the search runs on raw
+        // UTF-16 code units instead of grapheme clusters — this is what
+        // takes the parse from minutes to seconds on builds with thousands
+        // of diagnostics.
+        if let r = detail.range(of: "warning: ", options: .literal) {
+            detail = String(detail[r.upperBound...])
+        }
+        if let r = detail.range(of: "error: ", options: .literal) {
+            detail = String(detail[r.upperBound...])
+        }
+        if let r = detail.range(of: " ^~", options: .literal) {
+            detail = String(detail[..<r.lowerBound])
+        }
+        if detail.utf16.count > Self.issueMessageCap {
+            let cap = detail.utf16.index(
+                detail.utf16.startIndex,
+                offsetBy: Self.issueMessageCap,
+                limitedBy: detail.utf16.endIndex
+            ) ?? detail.utf16.endIndex
+            if let stringIdx = String.Index(cap, within: detail) {
+                detail = String(detail[..<stringIdx]) + "..."
+            }
+        }
+        return detail
     }
 
     // MARK: - Files

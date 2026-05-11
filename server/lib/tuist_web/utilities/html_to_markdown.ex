@@ -71,6 +71,8 @@ defmodule TuistWeb.Utilities.HtmlToMarkdown do
     {tag, normalized_attrs, absolutize_urls(children, base_uri)}
   end
 
+  defp absolutize_urls(node, _base_uri), do: node
+
   defp maybe_absolute_url(nil, _base_uri), do: nil
   defp maybe_absolute_url("", _base_uri), do: ""
 

@@ -6,51 +6,49 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
 
-#: lib/tuist_web/live/test_run_live.html.heex:402
+#: lib/tuist_web/live/test_run_live.html.heex:422
 #, elixir-autogen, elixir-format
 msgid "%{duration}s"
 msgstr "%{duration}초"
 
-#: lib/tuist_web/live/tests_live.html.heex:738
+#: lib/tuist_web/live/tests_live.html.heex:655
 #, elixir-autogen, elixir-format
 msgid "%{selective_test_effectiveness}%"
 msgstr "%{selective_test_effectiveness}%"
 
 #: lib/tuist_web/live/test_case_run_live.html.heex:1094
-#: lib/tuist_web/live/test_run_live.html.heex:2042
+#: lib/tuist_web/live/test_run_live.html.heex:1950
 #, elixir-autogen, elixir-format
 msgid "All tests passed!"
-msgstr "모든 테스트가 통과되었습니다!"
+msgstr "모든 테스트가 통과했습니다!"
 
-#: lib/tuist_web/live/quarantined_tests_live.html.heex:2
-#: lib/tuist_web/live/test_cases_live.html.heex:2
-#: lib/tuist_web/live/test_runs_live.html.heex:2
-#: lib/tuist_web/live/tests_live.html.heex:2
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:55
+#: lib/tuist_web/live/test_cases_live.html.heex:81
+#: lib/tuist_web/live/test_runs_live.html.heex:81
+#: lib/tuist_web/live/tests_live.html.heex:115
 #, elixir-autogen, elixir-format
 msgid "Analytics"
 msgstr "분석"
 
-#: lib/tuist_web/live/flaky_tests_live.ex:281
-#: lib/tuist_web/live/flaky_tests_live.html.heex:15
-#: lib/tuist_web/live/test_cases_live.ex:383
-#: lib/tuist_web/live/test_cases_live.html.heex:11
-#: lib/tuist_web/live/test_runs_live.ex:359
-#: lib/tuist_web/live/tests_live.ex:445
-#: lib/tuist_web/live/tests_live.ex:454
-#: lib/tuist_web/live/tests_live.html.heex:18
-#: lib/tuist_web/live/tests_live.html.heex:41
-#: lib/tuist_web/live/tests_live.html.heex:643
+#: lib/tuist_web/live/flaky_tests_live.ex:286
+#: lib/tuist_web/live/flaky_tests_live.html.heex:10
+#: lib/tuist_web/live/test_cases_live.ex:390
+#: lib/tuist_web/live/test_cases_live.html.heex:10
+#: lib/tuist_web/live/test_runs_live.ex:364
+#: lib/tuist_web/live/tests_live.ex:418
+#: lib/tuist_web/live/tests_live.ex:427
+#: lib/tuist_web/live/tests_live.html.heex:17
+#: lib/tuist_web/live/tests_live.html.heex:40
 #, elixir-autogen, elixir-format
 msgid "Any"
-msgstr "모두"
+msgstr "전체"
 
-#: lib/tuist_web/live/flaky_tests_live.html.heex:80
-#: lib/tuist_web/live/quarantined_tests_live.html.heex:46
-#: lib/tuist_web/live/shards_live.html.heex:44
-#: lib/tuist_web/live/test_cases_live.html.heex:74
-#: lib/tuist_web/live/test_runs_live.html.heex:74
-#: lib/tuist_web/live/tests_live.html.heex:106
-#: lib/tuist_web/live/tests_live.html.heex:708
+#: lib/tuist_web/live/flaky_tests_live.html.heex:75
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:45
+#: lib/tuist_web/live/shards_live.html.heex:43
+#: lib/tuist_web/live/test_cases_live.html.heex:73
+#: lib/tuist_web/live/test_runs_live.html.heex:73
+#: lib/tuist_web/live/tests_live.html.heex:105
 #, elixir-autogen, elixir-format
 msgid "Apply"
 msgstr "적용"
@@ -58,85 +56,85 @@ msgstr "적용"
 #: lib/tuist_web/live/test_case_run_live.html.heex:511
 #, elixir-autogen, elixir-format
 msgid "Attachments"
-msgstr "첨부 파일"
+msgstr "첨부파일"
 
-#: lib/tuist_web/live/test_case_live.ex:466
+#: lib/tuist_web/live/test_case_live.ex:468
 #, elixir-autogen, elixir-format
 msgid "Automatically by Tuist"
 msgstr "Tuist에 의해 자동으로"
 
 #: lib/tuist_web/live/shards_live.html.heex:348
 #: lib/tuist_web/live/shards_live.html.heex:466
-#: lib/tuist_web/live/test_cases_live.html.heex:401
+#: lib/tuist_web/live/test_cases_live.html.heex:407
 #: lib/tuist_web/live/test_runs_live.html.heex:358
 #: lib/tuist_web/live/tests_live.html.heex:356
-#: lib/tuist_web/live/tests_live.html.heex:835
+#: lib/tuist_web/live/tests_live.html.heex:751
 #, elixir-autogen, elixir-format
 msgid "Average"
 msgstr "평균"
 
-#: lib/tuist_web/live/test_run_live.html.heex:365
+#: lib/tuist_web/live/test_run_live.html.heex:385
 #, elixir-autogen, elixir-format
 msgid "Average duration of all test cases."
-msgstr "모든 테스트 케이스의 평균 실행 시간입니다."
+msgstr "모든 테스트 케이스의 평균 소요 시간입니다."
 
 #: lib/tuist_web/live/test_cases_live.html.heex:161
 #, elixir-autogen, elixir-format
 msgid "Average duration of individual test case executions during a given period."
-msgstr "주어진 기간 동안 개별 테스트 케이스 실행의 평균 실행 시간입니다."
+msgstr "주어진 기간 동안 개별 테스트 케이스 실행의 평균 소요 시간입니다."
 
 #: lib/tuist_web/live/test_runs_live.html.heex:150
 #, elixir-autogen, elixir-format
 msgid "Average duration of test runs during a given period."
-msgstr "주어진 기간 동안 테스트 실행의 평균 실행 시간입니다."
+msgstr "주어진 기간 동안 테스트 실행의 평균 소요 시간입니다."
 
-#: lib/tuist_web/live/test_case_live.html.heex:257
+#: lib/tuist_web/live/test_case_live.html.heex:252
 #, elixir-autogen, elixir-format
 msgid "Average duration of this test case across the last 50 runs."
-msgstr "최근 50회 실행에서 이 테스트 케이스의 평균 실행 시간입니다."
+msgstr "최근 50회 실행에서 이 테스트 케이스의 평균 소요 시간입니다."
 
-#: lib/tuist_web/live/test_cases_live.html.heex:480
-#: lib/tuist_web/live/test_cases_live.html.heex:504
-#: lib/tuist_web/live/test_cases_live.html.heex:592
+#: lib/tuist_web/live/test_cases_live.html.heex:486
+#: lib/tuist_web/live/test_cases_live.html.heex:510
+#: lib/tuist_web/live/test_cases_live.html.heex:605
 #, elixir-autogen, elixir-format
 msgid "Avg. duration"
-msgstr "평균 실행 시간"
+msgstr "평균 시간"
 
-#: lib/tuist_web/live/test_run_live.ex:976
-#: lib/tuist_web/live/test_run_live.ex:1033
-#: lib/tuist_web/live/test_run_live.html.heex:364
-#: lib/tuist_web/live/test_run_live.html.heex:1259
-#: lib/tuist_web/live/test_run_live.html.heex:1288
-#: lib/tuist_web/live/test_run_live.html.heex:1366
-#: lib/tuist_web/live/test_run_live.html.heex:1477
-#: lib/tuist_web/live/test_run_live.html.heex:1514
-#: lib/tuist_web/live/test_run_live.html.heex:1606
+#: lib/tuist_web/live/test_run_live.ex:971
+#: lib/tuist_web/live/test_run_live.ex:1028
+#: lib/tuist_web/live/test_run_live.html.heex:384
+#: lib/tuist_web/live/test_run_live.html.heex:1279
+#: lib/tuist_web/live/test_run_live.html.heex:1308
+#: lib/tuist_web/live/test_run_live.html.heex:1386
+#: lib/tuist_web/live/test_run_live.html.heex:1497
+#: lib/tuist_web/live/test_run_live.html.heex:1534
+#: lib/tuist_web/live/test_run_live.html.heex:1626
 #, elixir-autogen, elixir-format
 msgid "Avg. test case duration"
-msgstr "평균 테스트 케이스 실행 시간"
+msgstr "평균 테스트 케이스 소요 시간"
 
-#: lib/tuist_web/live/test_case_live.html.heex:255
-#: lib/tuist_web/live/test_cases_live.ex:359
+#: lib/tuist_web/live/test_case_live.html.heex:250
+#: lib/tuist_web/live/test_cases_live.ex:365
 #: lib/tuist_web/live/test_cases_live.html.heex:146
 #, elixir-autogen, elixir-format
 msgid "Avg. test case run duration"
-msgstr "평균 테스트 케이스 실행 시간"
+msgstr "평균 테스트 케이스 실행 소요 시간"
 
-#: lib/tuist_web/live/test_runs_live.ex:341
+#: lib/tuist_web/live/test_runs_live.ex:346
 #: lib/tuist_web/live/test_runs_live.html.heex:135
 #: lib/tuist_web/live/tests_live.html.heex:174
 #: lib/tuist_web/live/xcode_overview_live.html.heex:176
 #, elixir-autogen, elixir-format
 msgid "Avg. test run duration"
-msgstr "평균 테스트 실행 시간"
+msgstr "평균 테스트 실행 소요 시간"
 
 #: lib/tuist_web/live/test_case_live.ex:93
-#: lib/tuist_web/live/test_case_live.html.heex:552
+#: lib/tuist_web/live/test_case_live.html.heex:547
 #: lib/tuist_web/live/test_case_run_live.html.heex:169
-#: lib/tuist_web/live/test_run_live.html.heex:281
+#: lib/tuist_web/live/test_run_live.html.heex:301
 #: lib/tuist_web/live/test_runs_live.ex:52
-#: lib/tuist_web/live/test_runs_live.html.heex:482
-#: lib/tuist_web/live/tests_live.html.heex:1044
+#: lib/tuist_web/live/test_runs_live.html.heex:487
+#: lib/tuist_web/live/tests_live.html.heex:960
 #, elixir-autogen, elixir-format
 msgid "Branch"
 msgstr "브랜치"
@@ -151,33 +149,31 @@ msgstr "빌드: %{name}"
 msgid "Build: %{scheme}"
 msgstr "빌드: %{scheme}"
 
-#: lib/tuist_web/live/flaky_tests_live.ex:283
-#: lib/tuist_web/live/flaky_tests_live.html.heex:31
+#: lib/tuist_web/live/flaky_tests_live.ex:288
+#: lib/tuist_web/live/flaky_tests_live.html.heex:26
 #: lib/tuist_web/live/test_case_live.ex:116
-#: lib/tuist_web/live/test_cases_live.ex:385
-#: lib/tuist_web/live/test_cases_live.html.heex:27
-#: lib/tuist_web/live/test_runs_live.ex:361
-#: lib/tuist_web/live/tests_live.ex:447
-#: lib/tuist_web/live/tests_live.ex:448
-#: lib/tuist_web/live/tests_live.html.heex:49
-#: lib/tuist_web/live/tests_live.html.heex:651
+#: lib/tuist_web/live/test_cases_live.ex:392
+#: lib/tuist_web/live/test_cases_live.html.heex:26
+#: lib/tuist_web/live/test_runs_live.ex:366
+#: lib/tuist_web/live/tests_live.ex:420
+#: lib/tuist_web/live/tests_live.ex:421
+#: lib/tuist_web/live/tests_live.html.heex:48
 #, elixir-autogen, elixir-format
 msgid "CI"
 msgstr "CI"
 
-#: lib/tuist_web/live/test_run_live.html.heex:127
-#: lib/tuist_web/live/test_run_live.html.heex:136
+#: lib/tuist_web/live/test_run_live.html.heex:140
+#: lib/tuist_web/live/test_run_live.html.heex:149
 #, elixir-autogen, elixir-format
 msgid "CI Run"
 msgstr "CI 실행"
 
-#: lib/tuist_web/live/flaky_tests_live.html.heex:71
-#: lib/tuist_web/live/quarantined_tests_live.html.heex:37
-#: lib/tuist_web/live/shards_live.html.heex:37
-#: lib/tuist_web/live/test_cases_live.html.heex:67
-#: lib/tuist_web/live/test_runs_live.html.heex:67
-#: lib/tuist_web/live/tests_live.html.heex:97
-#: lib/tuist_web/live/tests_live.html.heex:699
+#: lib/tuist_web/live/flaky_tests_live.html.heex:66
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:36
+#: lib/tuist_web/live/shards_live.html.heex:36
+#: lib/tuist_web/live/test_cases_live.html.heex:66
+#: lib/tuist_web/live/test_runs_live.html.heex:66
+#: lib/tuist_web/live/tests_live.html.heex:96
 #, elixir-autogen, elixir-format
 msgid "Cancel"
 msgstr "취소"
@@ -185,17 +181,17 @@ msgstr "취소"
 #: lib/tuist_web/helpers/failure_message.ex:33
 #, elixir-autogen, elixir-format
 msgid "Caught error"
-msgstr "오류가 발생했습니다"
+msgstr "오류 발생"
 
 #: lib/tuist_web/helpers/failure_message.ex:58
 #, elixir-autogen, elixir-format
 msgid "Caught error at %{location}"
-msgstr "%{location}에서 오류가 발생했습니다"
+msgstr "%{location}에서 오류 발생"
 
 #: lib/tuist_web/helpers/failure_message.ex:61
 #, elixir-autogen, elixir-format
 msgid "Caught error at %{location}: %{message}"
-msgstr "%{location}에서 오류가 발생했습니다: %{message}"
+msgstr "%{location}에서 오류 발생: %{message}"
 
 #: lib/tuist_web/helpers/failure_message.ex:36
 #, elixir-autogen, elixir-format
@@ -207,37 +203,36 @@ msgstr "오류 발생: %{message}"
 msgid "Class"
 msgstr "클래스"
 
-#: lib/tuist_web/live/test_run_live.html.heex:379
-#, elixir-autogen, elixir-format
-msgid "Command"
-msgstr "명령"
-
 #: lib/tuist_web/live/test_run_live.html.heex:399
 #, elixir-autogen, elixir-format
+msgid "Command"
+msgstr "명령어"
+
+#: lib/tuist_web/live/test_run_live.html.heex:419
+#, elixir-autogen, elixir-format
 msgid "Command duration"
-msgstr "명령 실행 시간"
+msgstr "명령어 실행 시간"
 
 #: lib/tuist_web/live/test_case_run_live.html.heex:179
-#: lib/tuist_web/live/test_run_live.html.heex:291
+#: lib/tuist_web/live/test_run_live.html.heex:311
 #, elixir-autogen, elixir-format
 msgid "Commit"
 msgstr "커밋"
 
 #: lib/tuist_web/helpers/attachment_helpers.ex:28
 #: lib/tuist_web/live/test_case_run_live.html.heex:443
-#: lib/tuist_web/live/test_run_live.html.heex:753
-#: lib/tuist_web/live/test_run_live.html.heex:1967
+#: lib/tuist_web/live/test_run_live.html.heex:773
+#: lib/tuist_web/live/test_run_live.html.heex:1875
 #, elixir-autogen, elixir-format
 msgid "Crash Report"
 msgstr "크래시 리포트"
 
-#: lib/tuist_web/live/flaky_tests_live.html.heex:62
-#: lib/tuist_web/live/quarantined_tests_live.html.heex:28
-#: lib/tuist_web/live/shards_live.html.heex:28
-#: lib/tuist_web/live/test_cases_live.html.heex:58
-#: lib/tuist_web/live/test_runs_live.html.heex:58
-#: lib/tuist_web/live/tests_live.html.heex:88
-#: lib/tuist_web/live/tests_live.html.heex:690
+#: lib/tuist_web/live/flaky_tests_live.html.heex:57
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:27
+#: lib/tuist_web/live/shards_live.html.heex:27
+#: lib/tuist_web/live/test_cases_live.html.heex:57
+#: lib/tuist_web/live/test_runs_live.html.heex:57
+#: lib/tuist_web/live/tests_live.html.heex:87
 #, elixir-autogen, elixir-format
 msgid "Custom"
 msgstr "사용자 정의"
@@ -250,52 +245,51 @@ msgstr "결과 다운로드"
 
 #: lib/tuist_web/live/shards_live.html.heex:594
 #: lib/tuist_web/live/test_case_live.ex:85
-#: lib/tuist_web/live/test_case_live.html.heex:475
-#: lib/tuist_web/live/test_case_live.html.heex:491
-#: lib/tuist_web/live/test_case_live.html.heex:567
+#: lib/tuist_web/live/test_case_live.html.heex:470
+#: lib/tuist_web/live/test_case_live.html.heex:486
+#: lib/tuist_web/live/test_case_live.html.heex:562
 #: lib/tuist_web/live/test_case_run_live.html.heex:149
-#: lib/tuist_web/live/test_run_live.ex:922
-#: lib/tuist_web/live/test_run_live.ex:984
-#: lib/tuist_web/live/test_run_live.ex:1041
-#: lib/tuist_web/live/test_run_live.html.heex:258
-#: lib/tuist_web/live/test_run_live.html.heex:455
-#: lib/tuist_web/live/test_run_live.html.heex:1064
-#: lib/tuist_web/live/test_run_live.html.heex:1079
-#: lib/tuist_web/live/test_run_live.html.heex:1172
-#: lib/tuist_web/live/test_run_live.html.heex:1262
-#: lib/tuist_web/live/test_run_live.html.heex:1296
-#: lib/tuist_web/live/test_run_live.html.heex:1404
-#: lib/tuist_web/live/test_run_live.html.heex:1480
-#: lib/tuist_web/live/test_run_live.html.heex:1522
-#: lib/tuist_web/live/test_run_live.html.heex:1639
-#: lib/tuist_web/live/test_runs_live.html.heex:495
-#: lib/tuist_web/live/tests_live.html.heex:1057
+#: lib/tuist_web/live/test_run_live.ex:917
+#: lib/tuist_web/live/test_run_live.ex:979
+#: lib/tuist_web/live/test_run_live.ex:1036
+#: lib/tuist_web/live/test_run_live.html.heex:278
+#: lib/tuist_web/live/test_run_live.html.heex:475
+#: lib/tuist_web/live/test_run_live.html.heex:1084
+#: lib/tuist_web/live/test_run_live.html.heex:1099
+#: lib/tuist_web/live/test_run_live.html.heex:1192
+#: lib/tuist_web/live/test_run_live.html.heex:1282
+#: lib/tuist_web/live/test_run_live.html.heex:1316
+#: lib/tuist_web/live/test_run_live.html.heex:1424
+#: lib/tuist_web/live/test_run_live.html.heex:1500
+#: lib/tuist_web/live/test_run_live.html.heex:1542
+#: lib/tuist_web/live/test_run_live.html.heex:1659
+#: lib/tuist_web/live/test_runs_live.html.heex:500
+#: lib/tuist_web/live/tests_live.html.heex:973
 #, elixir-autogen, elixir-format
 msgid "Duration"
-msgstr "지속 시간"
+msgstr "소요 시간"
 
-#: lib/tuist_web/live/flaky_tests_live.html.heex:11
-#: lib/tuist_web/live/test_cases_live.html.heex:7
-#: lib/tuist_web/live/test_runs_live.html.heex:7
-#: lib/tuist_web/live/tests_live.html.heex:37
-#: lib/tuist_web/live/tests_live.html.heex:639
+#: lib/tuist_web/live/flaky_tests_live.html.heex:6
+#: lib/tuist_web/live/test_cases_live.html.heex:6
+#: lib/tuist_web/live/test_runs_live.html.heex:6
+#: lib/tuist_web/live/tests_live.html.heex:36
 #, elixir-autogen, elixir-format
 msgid "Environment:"
 msgstr "환경:"
 
-#: lib/tuist_web/live/test_case_live.ex:462
+#: lib/tuist_web/live/test_case_live.ex:464
 #, elixir-autogen, elixir-format
 msgid "Event"
 msgstr "이벤트"
 
-#: lib/tuist_web/live/test_case_live.html.heex:655
+#: lib/tuist_web/live/test_case_live.html.heex:650
 #, elixir-autogen, elixir-format
 msgid "Events will appear here when the test case status changes."
 msgstr "테스트 케이스 상태가 변경되면 이벤트가 여기에 표시됩니다."
 
 #: lib/tuist_web/live/test_case_run_live.html.heex:466
-#: lib/tuist_web/live/test_run_live.html.heex:772
-#: lib/tuist_web/live/test_run_live.html.heex:1985
+#: lib/tuist_web/live/test_run_live.html.heex:792
+#: lib/tuist_web/live/test_run_live.html.heex:1893
 #, elixir-autogen, elixir-format
 msgid "Exception"
 msgstr "예외"
@@ -303,31 +297,31 @@ msgstr "예외"
 #: lib/tuist_web/helpers/failure_message.ex:28
 #, elixir-autogen, elixir-format
 msgid "Expectation failed"
-msgstr "기대값 실패"
+msgstr "기대 실패"
 
 #: lib/tuist_web/helpers/failure_message.ex:48
 #, elixir-autogen, elixir-format
 msgid "Expectation failed at %{location}"
-msgstr "%{location}에서 기대값 실패"
+msgstr "%{location}에서 기대 실패"
 
 #: lib/tuist_web/helpers/failure_message.ex:51
 #, elixir-autogen, elixir-format
 msgid "Expectation failed at %{location}: %{message}"
-msgstr "%{location}에서 기대값 실패: %{message}"
+msgstr "%{location}에서 기대 실패: %{message}"
 
 #: lib/tuist_web/helpers/failure_message.ex:31
 #, elixir-autogen, elixir-format
 msgid "Expectation failed: %{message}"
-msgstr "기대값 실패: %{message}"
+msgstr "기대 실패: %{message}"
 
-#: lib/tuist_web/live/quarantined_tests_live.html.heex:280
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:376
 #: lib/tuist_web/live/shards_live.ex:32
 #: lib/tuist_web/live/shards_live.html.heex:573
 #: lib/tuist_web/live/test_case_live.ex:76
-#: lib/tuist_web/live/test_case_live.html.heex:168
-#: lib/tuist_web/live/test_case_live.html.heex:376
-#: lib/tuist_web/live/test_case_live.html.heex:420
-#: lib/tuist_web/live/test_case_live.html.heex:543
+#: lib/tuist_web/live/test_case_live.html.heex:163
+#: lib/tuist_web/live/test_case_live.html.heex:371
+#: lib/tuist_web/live/test_case_live.html.heex:415
+#: lib/tuist_web/live/test_case_live.html.heex:538
 #: lib/tuist_web/live/test_case_run_live.html.heex:129
 #: lib/tuist_web/live/test_case_run_live.html.heex:307
 #: lib/tuist_web/live/test_case_run_live.html.heex:364
@@ -340,32 +334,32 @@ msgstr "기대값 실패: %{message}"
 #: lib/tuist_web/live/test_case_run_live.html.heex:1007
 #: lib/tuist_web/live/test_case_run_live.html.heex:1044
 #: lib/tuist_web/live/test_cases_live.ex:45
-#: lib/tuist_web/live/test_cases_live.html.heex:619
-#: lib/tuist_web/live/test_run_live.ex:935
-#: lib/tuist_web/live/test_run_live.ex:997
-#: lib/tuist_web/live/test_run_live.ex:1054
-#: lib/tuist_web/live/test_run_live.html.heex:231
-#: lib/tuist_web/live/test_run_live.html.heex:479
-#: lib/tuist_web/live/test_run_live.html.heex:587
-#: lib/tuist_web/live/test_run_live.html.heex:646
-#: lib/tuist_web/live/test_run_live.html.heex:702
-#: lib/tuist_web/live/test_run_live.html.heex:940
-#: lib/tuist_web/live/test_run_live.html.heex:985
-#: lib/tuist_web/live/test_run_live.html.heex:1199
-#: lib/tuist_web/live/test_run_live.html.heex:1393
-#: lib/tuist_web/live/test_run_live.html.heex:1633
-#: lib/tuist_web/live/test_run_live.html.heex:1917
-#: lib/tuist_web/live/test_run_live.html.heex:2155
-#: lib/tuist_web/live/test_run_live.html.heex:2200
+#: lib/tuist_web/live/test_cases_live.html.heex:632
+#: lib/tuist_web/live/test_run_live.ex:930
+#: lib/tuist_web/live/test_run_live.ex:992
+#: lib/tuist_web/live/test_run_live.ex:1049
+#: lib/tuist_web/live/test_run_live.html.heex:244
+#: lib/tuist_web/live/test_run_live.html.heex:499
+#: lib/tuist_web/live/test_run_live.html.heex:607
+#: lib/tuist_web/live/test_run_live.html.heex:666
+#: lib/tuist_web/live/test_run_live.html.heex:722
+#: lib/tuist_web/live/test_run_live.html.heex:960
+#: lib/tuist_web/live/test_run_live.html.heex:1005
+#: lib/tuist_web/live/test_run_live.html.heex:1219
+#: lib/tuist_web/live/test_run_live.html.heex:1413
+#: lib/tuist_web/live/test_run_live.html.heex:1653
+#: lib/tuist_web/live/test_run_live.html.heex:1825
+#: lib/tuist_web/live/test_run_live.html.heex:2063
+#: lib/tuist_web/live/test_run_live.html.heex:2108
 #: lib/tuist_web/live/test_runs_live.ex:43
 #: lib/tuist_web/live/test_runs_live.html.heex:468
-#: lib/tuist_web/live/tests_live.ex:511
-#: lib/tuist_web/live/tests_live.html.heex:1035
+#: lib/tuist_web/live/tests_live.ex:484
+#: lib/tuist_web/live/tests_live.html.heex:951
 #, elixir-autogen, elixir-format
 msgid "Failed"
 msgstr "실패"
 
-#: lib/tuist_web/live/test_runs_live.ex:324
+#: lib/tuist_web/live/test_runs_live.ex:329
 #: lib/tuist_web/live/test_runs_live.html.heex:108
 #, elixir-autogen, elixir-format
 msgid "Failed run count"
@@ -374,15 +368,15 @@ msgstr "실패한 실행 수"
 #: lib/tuist_web/live/test_runs_live.html.heex:110
 #, elixir-autogen, elixir-format
 msgid "Failed run count represents a number of how many test runs failed during a given period. A test run is executed by either running 'tuist test' or 'tuist xcodebuild test'."
-msgstr "실패한 실행 수는 주어진 기간 동안 실패한 테스트 실행의 수를 나타냅니다. 테스트 실행은 'tuist test' 또는 'tuist xcodebuild test'를 실행하여 수행됩니다."
+msgstr "실패한 실행 수는 주어진 기간 동안 실패한 테스트 실행 횟수를 나타냅니다. 테스트 실행은 'tuist test' 또는 'tuist xcodebuild test' 명령어로 수행됩니다."
 
-#: lib/tuist_web/live/tests_live.html.heex:957
+#: lib/tuist_web/live/tests_live.html.heex:873
 #, elixir-autogen, elixir-format
 msgid "Failed runs"
 msgstr "실패한 실행"
 
-#: lib/tuist_web/live/test_case_live.html.heex:245
-#: lib/tuist_web/live/test_cases_live.ex:342
+#: lib/tuist_web/live/test_case_live.html.heex:240
+#: lib/tuist_web/live/test_cases_live.ex:347
 #: lib/tuist_web/live/test_cases_live.html.heex:113
 #, elixir-autogen, elixir-format
 msgid "Failed test case runs"
@@ -391,9 +385,9 @@ msgstr "실패한 테스트 케이스 실행"
 #: lib/tuist_web/live/test_cases_live.html.heex:115
 #, elixir-autogen, elixir-format
 msgid "Failed test case runs represents the number of individual test case executions that failed during a given period."
-msgstr "실패한 테스트 케이스 실행은 주어진 기간 동안 실패한 개별 테스트 케이스 실행 수입니다."
+msgstr "실패한 테스트 케이스 실행 수는 주어진 기간 동안 실패한 개별 테스트 케이스 실행 횟수를 나타냅니다."
 
-#: lib/tuist_web/live/test_run_live.html.heex:350
+#: lib/tuist_web/live/test_run_live.html.heex:370
 #, elixir-autogen, elixir-format
 msgid "Failed test cases"
 msgstr "실패한 테스트 케이스"
@@ -407,11 +401,11 @@ msgstr "실패한 테스트 실행"
 #: lib/tuist_web/live/test_case_run_live.html.heex:102
 #: lib/tuist_web/live/test_case_run_live.html.heex:230
 #: lib/tuist_web/live/test_case_run_live.html.heex:864
-#: lib/tuist_web/live/test_run_live.html.heex:197
-#: lib/tuist_web/live/test_run_live.html.heex:494
-#: lib/tuist_web/live/test_run_live.html.heex:501
-#: lib/tuist_web/live/test_run_live.html.heex:1824
-#: lib/tuist_web/live/test_run_live.html.heex:1831
+#: lib/tuist_web/live/test_run_live.html.heex:210
+#: lib/tuist_web/live/test_run_live.html.heex:514
+#: lib/tuist_web/live/test_run_live.html.heex:521
+#: lib/tuist_web/live/test_run_live.html.heex:1732
+#: lib/tuist_web/live/test_run_live.html.heex:1739
 #, elixir-autogen, elixir-format
 msgid "Failures"
 msgstr "실패"
@@ -421,91 +415,89 @@ msgstr "실패"
 msgid "File"
 msgstr "파일"
 
-#: lib/tuist_web/live/flaky_tests_live.html.heex:321
-#: lib/tuist_web/live/quarantined_tests_live.html.heex:206
+#: lib/tuist_web/live/flaky_tests_live.html.heex:375
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:286
 #: lib/tuist_web/live/shards_live.html.heex:531
-#: lib/tuist_web/live/test_case_live.html.heex:500
-#: lib/tuist_web/live/test_cases_live.html.heex:513
-#: lib/tuist_web/live/test_run_live.html.heex:1088
-#: lib/tuist_web/live/test_run_live.html.heex:1305
-#: lib/tuist_web/live/test_run_live.html.heex:1531
+#: lib/tuist_web/live/test_case_live.html.heex:495
+#: lib/tuist_web/live/test_cases_live.html.heex:519
+#: lib/tuist_web/live/test_run_live.html.heex:1108
+#: lib/tuist_web/live/test_run_live.html.heex:1325
+#: lib/tuist_web/live/test_run_live.html.heex:1551
 #: lib/tuist_web/live/test_runs_live.html.heex:434
 #, elixir-autogen, elixir-format
 msgid "Filter"
 msgstr "필터"
 
-#: lib/tuist_web/live/test_case_live.ex:455
+#: lib/tuist_web/live/test_case_live.ex:457
 #, elixir-autogen, elixir-format
 msgid "First run of this test"
 msgstr "이 테스트의 첫 실행"
 
-#: lib/tuist_web/live/test_case_live.html.heex:205
+#: lib/tuist_web/live/test_case_live.html.heex:200
 #, elixir-autogen, elixir-format
 msgid "Flakiness rate"
 msgstr "불안정성 비율"
 
-#: lib/tuist_web/live/test_case_live.html.heex:37
-#: lib/tuist_web/live/test_case_live.html.heex:526
+#: lib/tuist_web/live/test_case_live.html.heex:521
 #: lib/tuist_web/live/test_case_run_live.html.heex:40
 #: lib/tuist_web/live/test_cases_live.ex:74
-#: lib/tuist_web/live/test_cases_live.html.heex:562
-#: lib/tuist_web/live/test_run_live.ex:949
+#: lib/tuist_web/live/test_cases_live.html.heex:568
+#: lib/tuist_web/live/test_run_live.ex:944
 #: lib/tuist_web/live/test_run_live.html.heex:55
-#: lib/tuist_web/live/test_run_live.html.heex:1125
-#: lib/tuist_web/live/test_run_live.html.heex:1332
-#: lib/tuist_web/live/test_run_live.html.heex:1558
+#: lib/tuist_web/live/test_run_live.html.heex:1145
+#: lib/tuist_web/live/test_run_live.html.heex:1352
+#: lib/tuist_web/live/test_run_live.html.heex:1578
 #, elixir-autogen, elixir-format
 msgid "Flaky"
-msgstr "불안정한"
+msgstr "불안정"
 
-#: lib/tuist_web/live/flaky_tests_live.html.heex:125
-#: lib/tuist_web/live/test_case_live.html.heex:134
-#: lib/tuist_web/live/test_case_live.html.heex:319
+#: lib/tuist_web/live/test_case_live.html.heex:129
+#: lib/tuist_web/live/test_case_live.html.heex:314
 #: lib/tuist_web/live/test_case_run_live.html.heex:667
-#: lib/tuist_web/live/test_run_live.html.heex:204
-#: lib/tuist_web/live/test_run_live.html.heex:837
-#: lib/tuist_web/live/test_run_live.html.heex:844
-#: lib/tuist_web/live/test_run_live.html.heex:2059
-#: lib/tuist_web/live/test_run_live.html.heex:2066
+#: lib/tuist_web/live/test_run_live.html.heex:217
+#: lib/tuist_web/live/test_run_live.html.heex:857
+#: lib/tuist_web/live/test_run_live.html.heex:864
+#: lib/tuist_web/live/test_run_live.html.heex:1967
+#: lib/tuist_web/live/test_run_live.html.heex:1974
 #, elixir-autogen, elixir-format
 msgid "Flaky Runs"
-msgstr "불안정한 실행"
+msgstr "불안정 실행"
 
 #: lib/tuist_web/live/flaky_tests_live.ex:23
-#: lib/tuist_web/live/flaky_tests_live.html.heex:3
-#: lib/tuist_web/live/flaky_tests_live.html.heex:94
+#: lib/tuist_web/live/flaky_tests_live.html.heex:86
 #, elixir-autogen, elixir-format
 msgid "Flaky Tests"
-msgstr "불안정한 테스트"
+msgstr "불안정 테스트"
 
-#: lib/tuist_web/live/flaky_tests_live.html.heex:244
-#: lib/tuist_web/live/flaky_tests_live.html.heex:289
-#: lib/tuist_web/live/flaky_tests_live.html.heex:296
-#: lib/tuist_web/live/flaky_tests_live.html.heex:372
+#: lib/tuist_web/live/flaky_tests_live.html.heex:343
+#: lib/tuist_web/live/flaky_tests_live.html.heex:350
+#: lib/tuist_web/live/flaky_tests_live.html.heex:426
 #, elixir-autogen, elixir-format
 msgid "Flaky runs"
-msgstr "불안정한 실행"
+msgstr "불안정 실행"
 
-#: lib/tuist_web/live/test_run_live.html.heex:356
+#: lib/tuist_web/live/test_run_live.html.heex:376
 #, elixir-autogen, elixir-format
 msgid "Flaky test cases"
-msgstr "불안정한 테스트 케이스"
+msgstr "불안정 테스트 케이스"
 
+#: lib/tuist_web/live/flaky_tests_live.html.heex:155
+#: lib/tuist_web/live/flaky_tests_live.html.heex:294
 #: lib/tuist_web/live/tests_live.html.heex:133
 #: lib/tuist_web/live/tests_live.html.heex:542
 #, elixir-autogen, elixir-format
 msgid "Flaky test runs"
-msgstr "불안정한 테스트 실행"
+msgstr "불안정 테스트 실행"
 
-#: lib/tuist_web/live/test_run_live.html.heex:1779
+#: lib/tuist_web/components/runs/selective_testing_tab.ex:144
 #, elixir-autogen, elixir-format
 msgid "Hash"
 msgstr "해시"
 
-#: lib/tuist_web/live/test_run_live.html.heex:1759
+#: lib/tuist_web/components/runs/selective_testing_tab.ex:124
 #, elixir-autogen, elixir-format
 msgid "Hit"
-msgstr "히트"
+msgstr "적중"
 
 #: lib/tuist_web/helpers/attachment_helpers.ex:22
 #, elixir-autogen, elixir-format
@@ -520,122 +512,117 @@ msgstr "문제 기록됨"
 #: lib/tuist_web/helpers/failure_message.ex:68
 #, elixir-autogen, elixir-format
 msgid "Issue recorded at %{location}"
-msgstr "%{location}에 문제가 기록됨"
+msgstr "%{location}에 문제 기록됨"
 
 #: lib/tuist_web/helpers/failure_message.ex:71
 #, elixir-autogen, elixir-format
 msgid "Issue recorded at %{location}: %{message}"
-msgstr "%{location}에 문제가 기록됨: %{message}"
+msgstr "%{location}에 문제 기록됨: %{message}"
 
 #: lib/tuist_web/helpers/failure_message.ex:41
 #, elixir-autogen, elixir-format
 msgid "Issue recorded: %{message}"
 msgstr "문제 기록됨: %{message}"
 
-#: lib/tuist_web/live/flaky_tests_live.html.heex:59
-#: lib/tuist_web/live/quarantined_tests_live.html.heex:25
-#: lib/tuist_web/live/shards_live.html.heex:25
-#: lib/tuist_web/live/test_cases_live.html.heex:55
-#: lib/tuist_web/live/test_runs_live.html.heex:55
-#: lib/tuist_web/live/tests_live.html.heex:85
-#: lib/tuist_web/live/tests_live.html.heex:687
+#: lib/tuist_web/live/flaky_tests_live.html.heex:54
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:24
+#: lib/tuist_web/live/shards_live.html.heex:24
+#: lib/tuist_web/live/test_cases_live.html.heex:54
+#: lib/tuist_web/live/test_runs_live.html.heex:54
+#: lib/tuist_web/live/tests_live.html.heex:84
 #, elixir-autogen, elixir-format
 msgid "Last 12 months"
 msgstr "지난 12개월"
 
-#: lib/tuist_web/live/flaky_tests_live.html.heex:44
-#: lib/tuist_web/live/quarantined_tests_live.html.heex:10
-#: lib/tuist_web/live/shards_live.html.heex:10
-#: lib/tuist_web/live/test_cases_live.html.heex:40
-#: lib/tuist_web/live/test_runs_live.html.heex:40
-#: lib/tuist_web/live/tests_live.html.heex:70
-#: lib/tuist_web/live/tests_live.html.heex:672
+#: lib/tuist_web/live/flaky_tests_live.html.heex:39
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:9
+#: lib/tuist_web/live/shards_live.html.heex:9
+#: lib/tuist_web/live/test_cases_live.html.heex:39
+#: lib/tuist_web/live/test_runs_live.html.heex:39
+#: lib/tuist_web/live/tests_live.html.heex:69
 #, elixir-autogen, elixir-format
 msgid "Last 24 hours"
 msgstr "지난 24시간"
 
-#: lib/tuist_web/live/flaky_tests_live.html.heex:54
-#: lib/tuist_web/live/quarantined_tests_live.html.heex:20
-#: lib/tuist_web/live/shards_live.html.heex:20
-#: lib/tuist_web/live/test_cases_live.html.heex:50
-#: lib/tuist_web/live/test_runs_live.html.heex:50
-#: lib/tuist_web/live/tests_live.html.heex:80
-#: lib/tuist_web/live/tests_live.html.heex:682
+#: lib/tuist_web/live/flaky_tests_live.html.heex:49
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:19
+#: lib/tuist_web/live/shards_live.html.heex:19
+#: lib/tuist_web/live/test_cases_live.html.heex:49
+#: lib/tuist_web/live/test_runs_live.html.heex:49
+#: lib/tuist_web/live/tests_live.html.heex:79
 #, elixir-autogen, elixir-format
 msgid "Last 30 days"
 msgstr "지난 30일"
 
-#: lib/tuist_web/live/flaky_tests_live.html.heex:49
-#: lib/tuist_web/live/quarantined_tests_live.html.heex:15
-#: lib/tuist_web/live/shards_live.html.heex:15
-#: lib/tuist_web/live/test_cases_live.html.heex:45
-#: lib/tuist_web/live/test_runs_live.html.heex:45
-#: lib/tuist_web/live/tests_live.html.heex:75
-#: lib/tuist_web/live/tests_live.html.heex:677
+#: lib/tuist_web/live/flaky_tests_live.html.heex:44
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:14
+#: lib/tuist_web/live/shards_live.html.heex:14
+#: lib/tuist_web/live/test_cases_live.html.heex:44
+#: lib/tuist_web/live/test_runs_live.html.heex:44
+#: lib/tuist_web/live/tests_live.html.heex:74
 #, elixir-autogen, elixir-format
 msgid "Last 7 days"
 msgstr "지난 7일"
 
-#: lib/tuist_web/live/test_case_live.html.heex:158
+#: lib/tuist_web/live/test_case_live.html.heex:153
 #: lib/tuist_web/live/test_cases_live.ex:40
 #, elixir-autogen, elixir-format
 msgid "Last Status"
-msgstr "마지막 상태"
+msgstr "최근 상태"
 
-#: lib/tuist_web/live/flaky_tests_live.html.heex:288
-#: lib/tuist_web/live/flaky_tests_live.html.heex:312
-#: lib/tuist_web/live/flaky_tests_live.html.heex:386
+#: lib/tuist_web/live/flaky_tests_live.html.heex:342
+#: lib/tuist_web/live/flaky_tests_live.html.heex:366
+#: lib/tuist_web/live/flaky_tests_live.html.heex:440
 #, elixir-autogen, elixir-format
 msgid "Last flaky run"
-msgstr "마지막 불안정 실행"
+msgstr "최근 불안정 실행"
 
-#: lib/tuist_web/live/test_case_live.html.heex:191
-#: lib/tuist_web/live/test_cases_live.html.heex:481
-#: lib/tuist_web/live/test_cases_live.html.heex:488
-#: lib/tuist_web/live/test_cases_live.html.heex:629
+#: lib/tuist_web/live/test_case_live.html.heex:186
+#: lib/tuist_web/live/test_cases_live.html.heex:487
+#: lib/tuist_web/live/test_cases_live.html.heex:494
+#: lib/tuist_web/live/test_cases_live.html.heex:642
 #, elixir-autogen, elixir-format
 msgid "Last ran at"
 msgstr "마지막 실행 시각"
 
-#: lib/tuist_web/live/quarantined_tests_live.html.heex:182
-#: lib/tuist_web/live/quarantined_tests_live.html.heex:189
-#: lib/tuist_web/live/quarantined_tests_live.html.heex:291
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:262
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:269
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:387
 #, elixir-autogen, elixir-format
 msgid "Last run"
-msgstr "마지막 실행"
+msgstr "최근 실행"
 
-#: lib/tuist_web/live/test_case_live.html.heex:182
+#: lib/tuist_web/live/test_case_live.html.heex:177
 #, elixir-autogen, elixir-format
 msgid "Last run duration"
-msgstr "마지막 실행 시간"
+msgstr "최근 실행 소요 시간"
 
-#: lib/tuist_web/live/quarantined_tests_live.html.heex:272
-#: lib/tuist_web/live/test_cases_live.html.heex:611
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:368
+#: lib/tuist_web/live/test_cases_live.html.heex:624
 #, elixir-autogen, elixir-format
 msgid "Last status"
-msgstr "마지막 상태"
+msgstr "최근 상태"
 
-#: lib/tuist_web/live/test_case_live.html.heex:665
+#: lib/tuist_web/live/test_case_live.html.heex:660
 #, elixir-autogen, elixir-format
 msgid "Load more"
-msgstr "더 불러오기"
+msgstr "더 보기"
 
 #: lib/tuist_web/live/test_case_run_live.ex:217
-#: lib/tuist_web/live/test_run_live.ex:1252
+#: lib/tuist_web/live/test_run_live.ex:1247
 #, elixir-autogen, elixir-format
 msgid "Loading..."
-msgstr "로딩..."
+msgstr "로딩 중..."
 
-#: lib/tuist_web/live/flaky_tests_live.ex:282
-#: lib/tuist_web/live/flaky_tests_live.html.heex:23
-#: lib/tuist_web/live/test_cases_live.ex:384
-#: lib/tuist_web/live/test_cases_live.html.heex:19
-#: lib/tuist_web/live/test_run_live.html.heex:1768
-#: lib/tuist_web/live/test_runs_live.ex:360
-#: lib/tuist_web/live/tests_live.ex:446
-#: lib/tuist_web/live/tests_live.ex:449
-#: lib/tuist_web/live/tests_live.html.heex:57
-#: lib/tuist_web/live/tests_live.html.heex:659
+#: lib/tuist_web/components/runs/selective_testing_tab.ex:133
+#: lib/tuist_web/live/flaky_tests_live.ex:287
+#: lib/tuist_web/live/flaky_tests_live.html.heex:18
+#: lib/tuist_web/live/test_cases_live.ex:391
+#: lib/tuist_web/live/test_cases_live.html.heex:18
+#: lib/tuist_web/live/test_runs_live.ex:365
+#: lib/tuist_web/live/tests_live.ex:419
+#: lib/tuist_web/live/tests_live.ex:422
+#: lib/tuist_web/live/tests_live.html.heex:56
 #, elixir-autogen, elixir-format
 msgid "Local"
 msgstr "로컬"
@@ -645,183 +632,168 @@ msgstr "로컬"
 msgid "Log File"
 msgstr "로그 파일"
 
-#: lib/tuist_web/live/test_run_live.html.heex:300
+#: lib/tuist_web/live/test_run_live.html.heex:320
 #, elixir-autogen, elixir-format
 msgid "Mac device"
-msgstr "Mac 기기"
+msgstr "맥 장비"
 
-#: lib/tuist_web/live/test_case_live.ex:468
+#: lib/tuist_web/live/test_case_live.ex:470
 #, elixir-autogen, elixir-format
 msgid "Manually by @%{name}"
 msgstr "@%{name}에 의해 수동으로"
 
-#: lib/tuist_web/live/test_case_live.html.heex:110
+#: lib/tuist_web/live/test_case_live.html.heex:105
 #, elixir-autogen, elixir-format
 msgid "Mark as flaky"
-msgstr "불안정한 것으로 표시"
-
-#: lib/tuist_web/live/test_case_live.ex:456
-#, elixir-autogen, elixir-format
-msgid "Marked as flaky"
-msgstr "불안정한 것으로 표시됨"
+msgstr "불안정으로 표시"
 
 #: lib/tuist_web/live/test_case_live.ex:458
 #, elixir-autogen, elixir-format
-msgid "Marked as quarantined"
-msgstr "격리된 것으로 표시됨"
+msgid "Marked as flaky"
+msgstr "불안정으로 표시됨"
 
-#: lib/tuist_web/live/test_case_live.ex:459
-#, elixir-autogen, elixir-format
-msgid "Marked as unquarantined"
-msgstr "격리를 해제한 것으로 표시됨"
-
-#: lib/tuist_web/live/test_run_live.html.heex:1774
+#: lib/tuist_web/components/runs/selective_testing_tab.ex:139
 #, elixir-autogen, elixir-format
 msgid "Missed"
-msgstr "놓침"
+msgstr "빗나감"
 
+#: lib/tuist_web/components/runs/selective_testing_tab.ex:110
 #: lib/tuist_web/helpers/test_labels.ex:14
-#: lib/tuist_web/live/test_run_live.html.heex:1745
 #, elixir-autogen, elixir-format
 msgid "Module"
 msgstr "모듈"
 
-#: lib/tuist_web/live/test_run_live.html.heex:190
+#: lib/tuist_web/live/test_run_live.html.heex:203
 #, elixir-autogen, elixir-format
 msgid "Module Cache"
 msgstr "모듈 캐시"
 
 #: lib/tuist_web/helpers/test_labels.ex:16
-#: lib/tuist_web/live/test_run_live.html.heex:449
+#: lib/tuist_web/live/test_run_live.html.heex:469
 #, elixir-autogen, elixir-format
 msgid "Modules"
 msgstr "모듈"
 
-#: lib/tuist_web/live/tests_live.html.heex:1155
+#: lib/tuist_web/live/tests_live.html.heex:1071
 #, elixir-autogen, elixir-format
 msgid "Most occurring flaky tests"
-msgstr "가장 자주 발생하는 불안정한 테스트"
+msgstr "가장 자주 발생하는 불안정 테스트"
 
 #: lib/tuist_web/live/test_case_run_live.html.heex:47
-#: lib/tuist_web/live/test_run_live.ex:948
-#: lib/tuist_web/live/test_run_live.html.heex:1132
+#: lib/tuist_web/live/test_run_live.ex:943
+#: lib/tuist_web/live/test_run_live.html.heex:1152
 #, elixir-autogen, elixir-format
 msgid "New"
-msgstr "새로 생성됨"
+msgstr "새로운"
 
 #: lib/tuist_web/live/shards_live.html.heex:130
 #: lib/tuist_web/live/shards_live.html.heex:192
-#: lib/tuist_web/live/test_case_live.html.heex:228
-#: lib/tuist_web/live/test_case_live.html.heex:271
+#: lib/tuist_web/live/test_case_live.html.heex:223
+#: lib/tuist_web/live/test_case_live.html.heex:266
 #: lib/tuist_web/live/test_cases_live.html.heex:216
 #: lib/tuist_web/live/test_runs_live.html.heex:202
 #, elixir-autogen, elixir-format
 msgid "No data"
 msgstr "데이터 없음"
 
-#: lib/tuist_web/live/flaky_tests_live.html.heex:262
-#: lib/tuist_web/live/quarantined_tests_live.html.heex:150
-#: lib/tuist_web/live/test_cases_live.html.heex:452
-#: lib/tuist_web/live/test_cases_live.html.heex:659
+#: lib/tuist_web/live/flaky_tests_live.html.heex:316
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:229
+#: lib/tuist_web/live/test_cases_live.html.heex:458
+#: lib/tuist_web/live/test_cases_live.html.heex:672
 #: lib/tuist_web/live/test_runs_live.html.heex:409
-#: lib/tuist_web/live/test_runs_live.html.heex:518
+#: lib/tuist_web/live/test_runs_live.html.heex:523
 #: lib/tuist_web/live/tests_live.html.heex:620
-#: lib/tuist_web/live/tests_live.html.heex:1072
+#: lib/tuist_web/live/tests_live.html.heex:988
 #, elixir-autogen, elixir-format
 msgid "No data yet"
-msgstr "아직 데이터가 없습니다"
+msgstr "아직 데이터 없음"
 
 #: lib/tuist_web/live/test_case_run_live.html.heex:1093
-#: lib/tuist_web/live/test_run_live.html.heex:2041
+#: lib/tuist_web/live/test_run_live.html.heex:1949
 #, elixir-autogen, elixir-format
 msgid "No failures detected"
-msgstr "실패가 감지되지 않음"
+msgstr "실패 없음"
 
-#: lib/tuist_web/live/flaky_tests_live.html.heex:426
+#: lib/tuist_web/live/flaky_tests_live.html.heex:478
 #, elixir-autogen, elixir-format
 msgid "No flaky tests"
-msgstr "불안정한 테스트 없음"
+msgstr "불안정 테스트 없음"
 
-#: lib/tuist_web/live/test_case_live.html.heex:653
+#: lib/tuist_web/live/test_case_live.html.heex:648
 #, elixir-autogen, elixir-format
 msgid "No history available"
 msgstr "사용 가능한 기록이 없습니다"
 
-#: lib/tuist_web/live/test_run_live.html.heex:1787
+#: lib/tuist_web/components/runs/selective_testing_tab.ex:155
 #, elixir-autogen, elixir-format
 msgid "No modules found"
 msgstr "모듈을 찾을 수 없음"
 
-#: lib/tuist_web/live/quarantined_tests_live.html.heex:331
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:414
 #, elixir-autogen, elixir-format
 msgid "No quarantined tests"
 msgstr "격리된 테스트 없음"
 
-#: lib/tuist_web/live/test_case_live.html.heex:603
+#: lib/tuist_web/live/test_case_live.html.heex:598
 #, elixir-autogen, elixir-format
 msgid "No test case runs found"
 msgstr "테스트 케이스 실행을 찾을 수 없음"
 
-#: lib/tuist_web/live/test_run_live.html.heex:1211
+#: lib/tuist_web/live/test_run_live.html.heex:1231
 #, elixir-autogen, elixir-format
 msgid "No test cases found"
 msgstr "테스트 케이스를 찾을 수 없음"
 
-#: lib/tuist_web/live/tests_live.html.heex:1210
+#: lib/tuist_web/live/tests_live.html.heex:1126
 #, elixir-autogen, elixir-format
 msgid "No test cases yet"
 msgstr "아직 테스트 케이스 없음"
 
-#: lib/tuist_web/live/test_run_live.html.heex:1661
+#: lib/tuist_web/live/test_run_live.html.heex:1681
 #, elixir-autogen, elixir-format
 msgid "No test modules found"
 msgstr "테스트 모듈을 찾을 수 없음"
 
-#: lib/tuist_web/live/test_run_live.html.heex:1426
+#: lib/tuist_web/live/test_run_live.html.heex:1446
 #, elixir-autogen, elixir-format
 msgid "No test suites found"
 msgstr "테스트 스위트를 찾을 수 없음"
 
-#: lib/tuist_web/live/test_run_live.html.heex:351
+#: lib/tuist_web/live/test_run_live.html.heex:371
 #, elixir-autogen, elixir-format
 msgid "Number of test cases that failed."
-msgstr "실패한 테스트 케이스 수입니다."
+msgstr "실패한 테스트 케이스 수"
 
-#: lib/tuist_web/live/test_run_live.html.heex:358
+#: lib/tuist_web/live/test_run_live.html.heex:378
 #, elixir-autogen, elixir-format
 msgid "Number of test cases that passed after retry."
-msgstr "재시도 후 통과한 테스트 케이스 수입니다."
+msgstr "재시도 후 통과한 테스트 케이스 수"
 
-#: lib/tuist_web/live/test_case_live.html.heex:247
+#: lib/tuist_web/live/test_case_live.html.heex:242
 #, elixir-autogen, elixir-format
 msgid "Number of times this test case has failed."
-msgstr "이 테스트 케이스가 실패한 횟수입니다."
-
-#: lib/tuist_web/live/test_run_live.html.heex:1682
-#, elixir-autogen, elixir-format
-msgid "Optimization Summary"
-msgstr "최적화 요약"
+msgstr "이 테스트 케이스가 실패한 횟수"
 
 #: lib/tuist_web/live/test_case_run_live.html.heex:635
 #, elixir-autogen, elixir-format
 msgid "Other"
 msgstr "기타"
 
-#: lib/tuist_web/live/test_case_live.html.heex:124
+#: lib/tuist_web/live/test_case_live.html.heex:119
 #: lib/tuist_web/live/test_case_run_live.html.heex:96
-#: lib/tuist_web/live/test_run_live.html.heex:176
+#: lib/tuist_web/live/test_run_live.html.heex:189
 #, elixir-autogen, elixir-format
 msgid "Overview"
 msgstr "개요"
 
-#: lib/tuist_web/live/quarantined_tests_live.html.heex:275
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:371
 #: lib/tuist_web/live/shards_live.ex:31
 #: lib/tuist_web/live/shards_live.html.heex:568
 #: lib/tuist_web/live/test_case_live.ex:75
-#: lib/tuist_web/live/test_case_live.html.heex:161
-#: lib/tuist_web/live/test_case_live.html.heex:369
-#: lib/tuist_web/live/test_case_live.html.heex:413
-#: lib/tuist_web/live/test_case_live.html.heex:538
+#: lib/tuist_web/live/test_case_live.html.heex:156
+#: lib/tuist_web/live/test_case_live.html.heex:364
+#: lib/tuist_web/live/test_case_live.html.heex:408
+#: lib/tuist_web/live/test_case_live.html.heex:533
 #: lib/tuist_web/live/test_case_run_live.html.heex:122
 #: lib/tuist_web/live/test_case_run_live.html.heex:357
 #: lib/tuist_web/live/test_case_run_live.html.heex:396
@@ -833,109 +805,103 @@ msgstr "개요"
 #: lib/tuist_web/live/test_case_run_live.html.heex:1000
 #: lib/tuist_web/live/test_case_run_live.html.heex:1037
 #: lib/tuist_web/live/test_cases_live.ex:44
-#: lib/tuist_web/live/test_cases_live.html.heex:615
-#: lib/tuist_web/live/test_run_live.ex:934
-#: lib/tuist_web/live/test_run_live.ex:996
-#: lib/tuist_web/live/test_run_live.ex:1053
-#: lib/tuist_web/live/test_run_live.html.heex:224
-#: lib/tuist_web/live/test_run_live.html.heex:474
-#: lib/tuist_web/live/test_run_live.html.heex:639
-#: lib/tuist_web/live/test_run_live.html.heex:695
-#: lib/tuist_web/live/test_run_live.html.heex:933
-#: lib/tuist_web/live/test_run_live.html.heex:978
-#: lib/tuist_web/live/test_run_live.html.heex:1194
-#: lib/tuist_web/live/test_run_live.html.heex:1388
-#: lib/tuist_web/live/test_run_live.html.heex:1628
-#: lib/tuist_web/live/test_run_live.html.heex:1910
-#: lib/tuist_web/live/test_run_live.html.heex:2148
-#: lib/tuist_web/live/test_run_live.html.heex:2193
+#: lib/tuist_web/live/test_cases_live.html.heex:628
+#: lib/tuist_web/live/test_run_live.ex:929
+#: lib/tuist_web/live/test_run_live.ex:991
+#: lib/tuist_web/live/test_run_live.ex:1048
+#: lib/tuist_web/live/test_run_live.html.heex:237
+#: lib/tuist_web/live/test_run_live.html.heex:494
+#: lib/tuist_web/live/test_run_live.html.heex:659
+#: lib/tuist_web/live/test_run_live.html.heex:715
+#: lib/tuist_web/live/test_run_live.html.heex:953
+#: lib/tuist_web/live/test_run_live.html.heex:998
+#: lib/tuist_web/live/test_run_live.html.heex:1214
+#: lib/tuist_web/live/test_run_live.html.heex:1408
+#: lib/tuist_web/live/test_run_live.html.heex:1648
+#: lib/tuist_web/live/test_run_live.html.heex:1818
+#: lib/tuist_web/live/test_run_live.html.heex:2056
+#: lib/tuist_web/live/test_run_live.html.heex:2101
 #: lib/tuist_web/live/test_runs_live.ex:42
 #: lib/tuist_web/live/test_runs_live.html.heex:463
-#: lib/tuist_web/live/tests_live.ex:510
-#: lib/tuist_web/live/tests_live.html.heex:1030
+#: lib/tuist_web/live/tests_live.ex:483
+#: lib/tuist_web/live/tests_live.html.heex:946
 #, elixir-autogen, elixir-format
 msgid "Passed"
 msgstr "통과"
 
-#: lib/tuist_web/live/tests_live.html.heex:952
+#: lib/tuist_web/live/tests_live.html.heex:868
 #, elixir-autogen, elixir-format
 msgid "Passed runs"
-msgstr "통과한 실행"
+msgstr "성공 실행"
 
-#: lib/tuist_web/live/test_case_live.html.heex:207
+#: lib/tuist_web/live/test_case_live.html.heex:202
 #, elixir-autogen, elixir-format
 msgid "Percentage of test runs that were flaky in the last 30 days."
-msgstr "지난 30일 동안 불안정한 테스트 실행의 비율입니다."
+msgstr "지난 30일 동안 불안정이었던 테스트 실행 비율입니다."
 
 #: lib/tuist_web/helpers/test_labels.ex:29
 #, elixir-autogen, elixir-format
 msgid "Project"
 msgstr "프로젝트"
 
-#: lib/tuist_web/live/test_case_live.ex:431
-#: lib/tuist_web/live/test_case_live.ex:460
-#: lib/tuist_web/live/test_case_live.html.heex:44
-#: lib/tuist_web/live/test_case_live.html.heex:89
 #: lib/tuist_web/live/test_case_run_live.html.heex:54
-#: lib/tuist_web/live/test_cases_live.ex:75
-#: lib/tuist_web/live/test_cases_live.html.heex:569
-#: lib/tuist_web/live/test_run_live.html.heex:536
-#: lib/tuist_web/live/test_run_live.html.heex:881
-#: lib/tuist_web/live/test_run_live.html.heex:1139
-#: lib/tuist_web/live/test_run_live.html.heex:1860
-#: lib/tuist_web/live/test_run_live.html.heex:2096
+#: lib/tuist_web/live/test_run_live.html.heex:556
+#: lib/tuist_web/live/test_run_live.html.heex:901
+#: lib/tuist_web/live/test_run_live.html.heex:1159
+#: lib/tuist_web/live/test_run_live.html.heex:1768
+#: lib/tuist_web/live/test_run_live.html.heex:2004
 #, elixir-autogen, elixir-format
 msgid "Quarantined"
 msgstr "격리됨"
 
 #: lib/tuist_web/live/quarantined_tests_live.ex:25
-#: lib/tuist_web/live/quarantined_tests_live.html.heex:75
-#: lib/tuist_web/live/quarantined_tests_live.html.heex:160
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:240
 #, elixir-autogen, elixir-format
 msgid "Quarantined Tests"
 msgstr "격리된 테스트"
 
-#: lib/tuist_web/live/quarantined_tests_live.ex:62
-#: lib/tuist_web/live/quarantined_tests_live.html.heex:255
+#: lib/tuist_web/live/quarantined_tests_live.ex:75
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:351
 #, elixir-autogen, elixir-format
 msgid "Quarantined by"
 msgstr "격리한 사람"
 
-#: lib/tuist_web/live/quarantined_tests_live.html.heex:135
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:60
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:207
 #, elixir-autogen, elixir-format
 msgid "Quarantined tests"
 msgstr "격리된 테스트"
 
 #: lib/tuist_web/live/shards_live.html.heex:610
-#: lib/tuist_web/live/test_case_live.html.heex:476
-#: lib/tuist_web/live/test_case_live.html.heex:483
-#: lib/tuist_web/live/test_case_live.html.heex:588
+#: lib/tuist_web/live/test_case_live.html.heex:471
+#: lib/tuist_web/live/test_case_live.html.heex:478
+#: lib/tuist_web/live/test_case_live.html.heex:583
 #: lib/tuist_web/live/test_case_run_live.html.heex:158
-#: lib/tuist_web/live/test_run_live.html.heex:273
-#: lib/tuist_web/live/test_run_live.html.heex:409
-#: lib/tuist_web/live/test_runs_live.html.heex:503
-#: lib/tuist_web/live/tests_live.html.heex:1065
+#: lib/tuist_web/live/test_run_live.html.heex:293
+#: lib/tuist_web/live/test_run_live.html.heex:429
+#: lib/tuist_web/live/test_runs_live.html.heex:508
+#: lib/tuist_web/live/tests_live.html.heex:981
 #, elixir-autogen, elixir-format
 msgid "Ran at"
-msgstr "실행 위치"
+msgstr "실행 시각"
 
 #: lib/tuist_web/live/test_case_live.ex:110
-#: lib/tuist_web/live/test_case_live.html.heex:562
+#: lib/tuist_web/live/test_case_live.html.heex:557
 #: lib/tuist_web/live/test_case_run_live.html.heex:143
-#: lib/tuist_web/live/test_run_live.html.heex:252
+#: lib/tuist_web/live/test_run_live.html.heex:272
 #: lib/tuist_web/live/test_runs_live.ex:69
-#: lib/tuist_web/live/test_runs_live.html.heex:492
-#: lib/tuist_web/live/tests_live.html.heex:1054
+#: lib/tuist_web/live/test_runs_live.html.heex:497
+#: lib/tuist_web/live/tests_live.html.heex:970
 #, elixir-autogen, elixir-format
 msgid "Ran by"
 msgstr "실행자"
 
-#: lib/tuist_web/live/tests_live.html.heex:923
+#: lib/tuist_web/live/tests_live.html.heex:839
 #, elixir-autogen, elixir-format
 msgid "Recent Test Runs"
 msgstr "최근 테스트 실행"
 
-#: lib/tuist_web/live/test_run_live.html.heex:1762
+#: lib/tuist_web/components/runs/selective_testing_tab.ex:127
 #, elixir-autogen, elixir-format
 msgid "Remote"
 msgstr "원격"
@@ -947,107 +913,115 @@ msgstr "실행 상세"
 
 #: lib/tuist_web/helpers/test_labels.ex:30
 #: lib/tuist_web/live/shards_live.html.heex:551
-#: lib/tuist_web/live/tests_live.ex:494
+#: lib/tuist_web/live/tests_live.ex:467
 #: lib/tuist_web/live/tests_live.html.heex:267
 #, elixir-autogen, elixir-format
 msgid "Scheme"
 msgstr "스킴"
 
-#: lib/tuist_web/live/tests_live.html.heex:7
+#: lib/tuist_web/live/tests_live.html.heex:6
 #, elixir-autogen, elixir-format
 msgid "Scheme:"
 msgstr "스킴:"
 
-#: lib/tuist_web/live/flaky_tests_live.html.heex:277
-#: lib/tuist_web/live/quarantined_tests_live.html.heex:171
+#: lib/tuist_web/components/runs/selective_testing_tab.ex:95
+#: lib/tuist_web/live/flaky_tests_live.html.heex:331
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:251
 #: lib/tuist_web/live/shards_live.html.heex:523
-#: lib/tuist_web/live/test_case_live.html.heex:465
-#: lib/tuist_web/live/test_cases_live.html.heex:469
-#: lib/tuist_web/live/test_run_live.html.heex:1053
-#: lib/tuist_web/live/test_run_live.html.heex:1242
-#: lib/tuist_web/live/test_run_live.html.heex:1457
-#: lib/tuist_web/live/test_run_live.html.heex:1736
+#: lib/tuist_web/live/test_case_live.html.heex:460
+#: lib/tuist_web/live/test_cases_live.html.heex:475
+#: lib/tuist_web/live/test_run_live.html.heex:1073
+#: lib/tuist_web/live/test_run_live.html.heex:1262
+#: lib/tuist_web/live/test_run_live.html.heex:1477
 #: lib/tuist_web/live/test_runs_live.html.heex:426
-#: lib/tuist_web/live/tests_live.html.heex:12
+#: lib/tuist_web/live/tests_live.html.heex:11
 #, elixir-autogen, elixir-format
 msgid "Search..."
 msgstr "검색..."
 
-#: lib/tuist_web/live/test_run_live.html.heex:1726
+#: lib/tuist_web/components/runs/selective_testing_tab.ex:72
+#: lib/tuist_web/live/test_run_live.html.heex:196
 #: lib/tuist_web/live/tests_live.html.heex:631
 #, elixir-autogen, elixir-format
 msgid "Selective Testing"
 msgstr "선택적 테스트"
 
-#: lib/tuist_web/live/tests_live.html.heex:736
+#: lib/tuist_web/live/tests_live.html.heex:653
 #, elixir-autogen, elixir-format
 msgid "Selective test effectiveness"
 msgstr "선택적 테스트 효과"
 
-#: lib/tuist_web/live/test_run_live.html.heex:1699
+#: lib/tuist_web/components/runs/selective_testing_tab.ex:45
 #, elixir-autogen, elixir-format
 msgid "Selective test hits"
 msgstr "선택적 테스트 적중"
 
-#: lib/tuist_web/live/test_run_live.html.heex:1701
+#: lib/tuist_web/components/runs/selective_testing_tab.ex:47
 #, elixir-autogen, elixir-format
 msgid "Selective test hits represents the number of test modules that were skipped thanks to the selective testing."
 msgstr "선택적 테스트 적중은 선택적 테스트 덕분에 건너뛴 테스트 모듈 수를 나타냅니다."
 
-#: lib/tuist_web/live/test_run_live.html.heex:1713
+#: lib/tuist_web/components/runs/selective_testing_tab.ex:59
 #, elixir-autogen, elixir-format
 msgid "Selective test misses"
-msgstr "선택적 테스트 미스"
+msgstr "선택적 테스트 누락"
 
-#: lib/tuist_web/live/test_run_live.html.heex:1715
+#: lib/tuist_web/components/runs/selective_testing_tab.ex:61
 #, elixir-autogen, elixir-format
 msgid "Selective test misses represents the number of test modules that were run as they were not successfully run before."
-msgstr "선택적 테스트 미스는 이전에 성공적으로 실행되지 않아 실행된 테스트 모듈 수를 나타냅니다."
+msgstr "선택적 테스트 누락은 이전에 성공적으로 실행되지 않아 실행된 테스트 모듈 수를 나타냅니다."
 
-#: lib/tuist_web/live/tests_live.html.heex:912
+#: lib/tuist_web/live/tests_live.html.heex:828
 #, elixir-autogen, elixir-format
 msgid "Selective testing: no data yet"
 msgstr "선택적 테스트: 아직 데이터 없음"
 
 #: lib/tuist_web/live/test_case_run_live.html.heex:473
-#: lib/tuist_web/live/test_run_live.html.heex:782
-#: lib/tuist_web/live/test_run_live.html.heex:1994
+#: lib/tuist_web/live/test_run_live.html.heex:802
+#: lib/tuist_web/live/test_run_live.html.heex:1902
 #, elixir-autogen, elixir-format
 msgid "Signal"
 msgstr "신호"
 
-#: lib/tuist_web/live/quarantined_tests_live.html.heex:285
+#: lib/tuist_web/live/quarantined_tests_live.ex:64
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:345
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:381
 #: lib/tuist_web/live/shards_live.html.heex:583
 #: lib/tuist_web/live/test_case_live.ex:77
-#: lib/tuist_web/live/test_case_live.html.heex:175
-#: lib/tuist_web/live/test_case_live.html.heex:548
+#: lib/tuist_web/live/test_case_live.ex:432
+#: lib/tuist_web/live/test_case_live.ex:462
+#: lib/tuist_web/live/test_case_live.html.heex:84
+#: lib/tuist_web/live/test_case_live.html.heex:170
+#: lib/tuist_web/live/test_case_live.html.heex:543
 #: lib/tuist_web/live/test_case_run_live.html.heex:136
 #: lib/tuist_web/live/test_cases_live.ex:46
-#: lib/tuist_web/live/test_cases_live.html.heex:622
-#: lib/tuist_web/live/test_run_live.ex:936
-#: lib/tuist_web/live/test_run_live.ex:998
-#: lib/tuist_web/live/test_run_live.html.heex:245
-#: lib/tuist_web/live/test_run_live.html.heex:1204
-#: lib/tuist_web/live/test_run_live.html.heex:1398
+#: lib/tuist_web/live/test_cases_live.ex:76
+#: lib/tuist_web/live/test_cases_live.html.heex:582
+#: lib/tuist_web/live/test_cases_live.html.heex:635
+#: lib/tuist_web/live/test_run_live.ex:931
+#: lib/tuist_web/live/test_run_live.ex:993
+#: lib/tuist_web/live/test_run_live.html.heex:258
+#: lib/tuist_web/live/test_run_live.html.heex:1224
+#: lib/tuist_web/live/test_run_live.html.heex:1418
 #: lib/tuist_web/live/test_runs_live.ex:44
 #: lib/tuist_web/live/test_runs_live.html.heex:473
-#: lib/tuist_web/live/tests_live.html.heex:1040
+#: lib/tuist_web/live/tests_live.html.heex:956
 #, elixir-autogen, elixir-format
 msgid "Skipped"
 msgstr "건너뜀"
 
-#: lib/tuist_web/live/tests_live.html.heex:1099
+#: lib/tuist_web/live/tests_live.html.heex:1015
 #, elixir-autogen, elixir-format
 msgid "Slowest test cases"
 msgstr "가장 느린 테스트 케이스"
 
-#: lib/tuist_web/live/flaky_tests_live.html.heex:292
-#: lib/tuist_web/live/quarantined_tests_live.html.heex:185
-#: lib/tuist_web/live/test_case_live.html.heex:479
-#: lib/tuist_web/live/test_cases_live.html.heex:484
-#: lib/tuist_web/live/test_run_live.html.heex:1067
-#: lib/tuist_web/live/test_run_live.html.heex:1268
-#: lib/tuist_web/live/test_run_live.html.heex:1486
+#: lib/tuist_web/live/flaky_tests_live.html.heex:346
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:265
+#: lib/tuist_web/live/test_case_live.html.heex:474
+#: lib/tuist_web/live/test_cases_live.html.heex:490
+#: lib/tuist_web/live/test_run_live.html.heex:1087
+#: lib/tuist_web/live/test_run_live.html.heex:1288
+#: lib/tuist_web/live/test_run_live.html.heex:1506
 #, elixir-autogen, elixir-format
 msgid "Sort by:"
 msgstr "정렬 기준:"
@@ -1055,59 +1029,60 @@ msgstr "정렬 기준:"
 #: lib/tuist_web/live/shards_live.ex:27
 #: lib/tuist_web/live/shards_live.html.heex:565
 #: lib/tuist_web/live/test_case_live.ex:71
-#: lib/tuist_web/live/test_case_live.html.heex:535
+#: lib/tuist_web/live/test_case_live.html.heex:530
 #: lib/tuist_web/live/test_case_run_live.html.heex:119
 #: lib/tuist_web/live/test_case_run_live.html.heex:845
-#: lib/tuist_web/live/test_run_live.ex:930
-#: lib/tuist_web/live/test_run_live.ex:992
-#: lib/tuist_web/live/test_run_live.ex:1049
-#: lib/tuist_web/live/test_run_live.html.heex:221
-#: lib/tuist_web/live/test_run_live.html.heex:471
-#: lib/tuist_web/live/test_run_live.html.heex:1385
-#: lib/tuist_web/live/test_run_live.html.heex:1625
+#: lib/tuist_web/live/test_run_live.ex:925
+#: lib/tuist_web/live/test_run_live.ex:987
+#: lib/tuist_web/live/test_run_live.ex:1044
+#: lib/tuist_web/live/test_run_live.html.heex:234
+#: lib/tuist_web/live/test_run_live.html.heex:491
+#: lib/tuist_web/live/test_run_live.html.heex:1405
+#: lib/tuist_web/live/test_run_live.html.heex:1645
 #: lib/tuist_web/live/test_runs_live.ex:38
-#: lib/tuist_web/live/tests_live.ex:495
+#: lib/tuist_web/live/tests_live.ex:468
 #, elixir-autogen, elixir-format
 msgid "Status"
 msgstr "상태"
 
 #: lib/tuist_web/live/test_case_run_live.html.heex:480
-#: lib/tuist_web/live/test_run_live.html.heex:789
-#: lib/tuist_web/live/test_run_live.html.heex:2001
+#: lib/tuist_web/live/test_run_live.html.heex:809
+#: lib/tuist_web/live/test_run_live.html.heex:1909
 #, elixir-autogen, elixir-format
 msgid "Subtype"
 msgstr "하위 유형"
 
-#: lib/tuist_web/live/test_case_live.html.heex:219
+#: lib/tuist_web/live/test_case_live.html.heex:214
 #, elixir-autogen, elixir-format
 msgid "Success rate based on runs from the %{branch} branch. Falls back to all branches if no runs exist on %{branch}."
-msgstr "%{branch} 브랜치 실행을 기준으로 한 성공률입니다. %{branch}에 실행이 없으면 모든 브랜치를 대상으로 합니다."
+msgstr "%{branch} 브랜치의 실행을 기준으로 한 성공률입니다. %{branch}에 실행이 없으면 모든 브랜치를 기준으로 계산합니다."
 
 #: lib/tuist_web/helpers/test_labels.ex:21
 #, elixir-autogen, elixir-format
 msgid "Suite"
 msgstr "스위트"
 
-#: lib/tuist_web/live/test_case_live.html.heex:149
+#: lib/tuist_web/components/runs/selective_testing_tab.ex:28
+#: lib/tuist_web/live/test_case_live.html.heex:144
 #, elixir-autogen, elixir-format
 msgid "Summary"
 msgstr "요약"
 
-#: lib/tuist_web/live/flaky_tests_live.html.heex:287
-#: lib/tuist_web/live/flaky_tests_live.html.heex:304
-#: lib/tuist_web/live/flaky_tests_live.html.heex:344
-#: lib/tuist_web/live/quarantined_tests_live.html.heex:181
-#: lib/tuist_web/live/quarantined_tests_live.html.heex:197
-#: lib/tuist_web/live/quarantined_tests_live.html.heex:229
-#: lib/tuist_web/live/test_cases_live.html.heex:479
-#: lib/tuist_web/live/test_cases_live.html.heex:496
-#: lib/tuist_web/live/test_cases_live.html.heex:546
-#: lib/tuist_web/live/test_run_live.ex:944
+#: lib/tuist_web/live/flaky_tests_live.html.heex:341
+#: lib/tuist_web/live/flaky_tests_live.html.heex:358
+#: lib/tuist_web/live/flaky_tests_live.html.heex:398
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:261
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:277
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:309
+#: lib/tuist_web/live/test_cases_live.html.heex:485
+#: lib/tuist_web/live/test_cases_live.html.heex:502
+#: lib/tuist_web/live/test_cases_live.html.heex:552
+#: lib/tuist_web/live/test_run_live.ex:939
 #, elixir-autogen, elixir-format
 msgid "Test Case"
 msgstr "테스트 케이스"
 
-#: lib/tuist_web/live/test_case_live.html.heex:454
+#: lib/tuist_web/live/test_case_live.html.heex:449
 #, elixir-autogen, elixir-format
 msgid "Test Case Runs"
 msgstr "테스트 케이스 실행"
@@ -1119,10 +1094,10 @@ msgstr "테스트 케이스: %{name}"
 
 #: lib/tuist_web/live/test_case_live.html.heex:3
 #: lib/tuist_web/live/test_cases_live.ex:24
-#: lib/tuist_web/live/test_cases_live.html.heex:461
-#: lib/tuist_web/live/test_run_live.html.heex:1024
-#: lib/tuist_web/live/test_run_live.html.heex:1042
-#: lib/tuist_web/live/tests_live.html.heex:1082
+#: lib/tuist_web/live/test_cases_live.html.heex:467
+#: lib/tuist_web/live/test_run_live.html.heex:1044
+#: lib/tuist_web/live/test_run_live.html.heex:1062
+#: lib/tuist_web/live/tests_live.html.heex:998
 #, elixir-autogen, elixir-format
 msgid "Test Cases"
 msgstr "테스트 케이스"
@@ -1137,13 +1112,13 @@ msgstr "테스트 클래스"
 msgid "Test Classes"
 msgstr "테스트 클래스"
 
-#: lib/tuist_web/live/test_run_live.html.heex:213
+#: lib/tuist_web/live/test_run_live.html.heex:226
 #, elixir-autogen, elixir-format
 msgid "Test Details"
 msgstr "테스트 상세"
 
-#: lib/tuist_web/live/test_case_live.html.heex:140
-#: lib/tuist_web/live/test_case_live.html.heex:623
+#: lib/tuist_web/live/test_case_live.html.heex:135
+#: lib/tuist_web/live/test_case_live.html.heex:618
 #, elixir-autogen, elixir-format
 msgid "Test History"
 msgstr "테스트 기록"
@@ -1153,14 +1128,9 @@ msgstr "테스트 기록"
 msgid "Test Modules"
 msgstr "테스트 모듈"
 
-#: lib/tuist_web/live/test_run_live.html.heex:183
-#, elixir-autogen, elixir-format
-msgid "Test Optimizations"
-msgstr "테스트 최적화"
-
 #: lib/tuist_web/live/test_case_run_live.html.heex:4
 #: lib/tuist_web/live/test_case_run_live.html.heex:212
-#: lib/tuist_web/live/test_run_live.ex:71
+#: lib/tuist_web/live/test_run_live.ex:72
 #, elixir-autogen, elixir-format
 msgid "Test Run"
 msgstr "테스트 실행"
@@ -1178,15 +1148,15 @@ msgid "Test Suite"
 msgstr "테스트 스위트"
 
 #: lib/tuist_web/helpers/test_labels.ex:27
-#: lib/tuist_web/live/test_run_live.html.heex:448
+#: lib/tuist_web/live/test_run_live.html.heex:468
 #, elixir-autogen, elixir-format
 msgid "Test Suites"
 msgstr "테스트 스위트"
 
 #: lib/tuist_web/live/test_cases_live.ex:70
-#: lib/tuist_web/live/test_run_live.html.heex:1063
-#: lib/tuist_web/live/test_run_live.html.heex:1071
-#: lib/tuist_web/live/test_run_live.html.heex:1109
+#: lib/tuist_web/live/test_run_live.html.heex:1083
+#: lib/tuist_web/live/test_run_live.html.heex:1091
+#: lib/tuist_web/live/test_run_live.html.heex:1129
 #, elixir-autogen, elixir-format
 msgid "Test case"
 msgstr "테스트 케이스"
@@ -1203,8 +1173,8 @@ msgstr "테스트 케이스를 찾을 수 없습니다."
 msgid "Test case run not found."
 msgstr "테스트 케이스 실행을 찾을 수 없습니다."
 
-#: lib/tuist_web/live/test_case_live.html.heex:232
-#: lib/tuist_web/live/test_cases_live.ex:334
+#: lib/tuist_web/live/test_case_live.html.heex:227
+#: lib/tuist_web/live/test_cases_live.ex:338
 #: lib/tuist_web/live/test_cases_live.html.heex:86
 #, elixir-autogen, elixir-format
 msgid "Test case runs"
@@ -1213,34 +1183,34 @@ msgstr "테스트 케이스 실행"
 #: lib/tuist_web/live/test_cases_live.html.heex:88
 #, elixir-autogen, elixir-format
 msgid "Test case runs represents the total number of individual test case executions during a given period."
-msgstr "테스트 케이스 실행은 주어진 기간 동안 개별 테스트 케이스가 실행된 총 횟수를 나타냅니다."
+msgstr "테스트 케이스 실행은 주어진 기간 동안 개별 테스트 케이스 실행의 총 횟수를 나타냅니다."
 
-#: lib/tuist_web/live/test_cases_live.ex:326
+#: lib/tuist_web/live/test_cases_live.ex:329
 #: lib/tuist_web/live/test_cases_live.html.heex:220
-#: lib/tuist_web/live/test_run_live.ex:968
-#: lib/tuist_web/live/test_run_live.ex:1025
-#: lib/tuist_web/live/test_run_live.html.heex:344
-#: lib/tuist_web/live/test_run_live.html.heex:1256
-#: lib/tuist_web/live/test_run_live.html.heex:1280
-#: lib/tuist_web/live/test_run_live.html.heex:1352
-#: lib/tuist_web/live/test_run_live.html.heex:1474
-#: lib/tuist_web/live/test_run_live.html.heex:1506
-#: lib/tuist_web/live/test_run_live.html.heex:1592
+#: lib/tuist_web/live/test_run_live.ex:963
+#: lib/tuist_web/live/test_run_live.ex:1020
+#: lib/tuist_web/live/test_run_live.html.heex:364
+#: lib/tuist_web/live/test_run_live.html.heex:1276
+#: lib/tuist_web/live/test_run_live.html.heex:1300
+#: lib/tuist_web/live/test_run_live.html.heex:1372
+#: lib/tuist_web/live/test_run_live.html.heex:1494
+#: lib/tuist_web/live/test_run_live.html.heex:1526
+#: lib/tuist_web/live/test_run_live.html.heex:1612
 #, elixir-autogen, elixir-format
 msgid "Test cases"
 msgstr "테스트 케이스"
 
-#: lib/tuist_web/live/test_case_live.html.heex:281
+#: lib/tuist_web/live/test_case_live.html.heex:276
 #, elixir-autogen, elixir-format
 msgid "Test history"
 msgstr "테스트 기록"
 
-#: lib/tuist_web/live/test_case_live.html.heex:217
+#: lib/tuist_web/live/test_case_live.html.heex:212
 #, elixir-autogen, elixir-format
 msgid "Test reliability"
-msgstr "테스트 신뢰성"
+msgstr "테스트 신뢰도"
 
-#: lib/tuist_web/live/test_runs_live.ex:316
+#: lib/tuist_web/live/test_runs_live.ex:321
 #: lib/tuist_web/live/test_runs_live.html.heex:86
 #, elixir-autogen, elixir-format
 msgid "Test run count"
@@ -1249,10 +1219,10 @@ msgstr "테스트 실행 수"
 #: lib/tuist_web/live/test_runs_live.html.heex:88
 #, elixir-autogen, elixir-format
 msgid "Test run count represents a number of how many test runs were run during a given period. A test run is executed by either running 'tuist test' or 'tuist xcodebuild test'."
-msgstr "테스트 실행 수는 주어진 기간 동안 실행된 테스트 실행의 수를 나타냅니다. 테스트 실행은 'tuist test' 또는 'tuist xcodebuild test' 실행으로 수행됩니다."
+msgstr "테스트 실행 수는 주어진 기간 동안 실행된 테스트 실행 횟수를 나타냅니다. 테스트 실행은 'tuist test' 또는 'tuist xcodebuild test' 명령어로 수행됩니다."
 
-#: lib/tuist_web/live/test_run_live.ex:39
-#: lib/tuist_web/live/test_run_live.ex:43
+#: lib/tuist_web/live/test_run_live.ex:40
+#: lib/tuist_web/live/test_run_live.ex:44
 #, elixir-autogen, elixir-format
 msgid "Test run not found."
 msgstr "테스트 실행을 찾을 수 없습니다."
@@ -1276,71 +1246,72 @@ msgstr "텍스트 파일"
 #: lib/tuist_web/live/tests_live.html.heex:186
 #, elixir-autogen, elixir-format
 msgid "The average test run duration with individual percentile intervals."
-msgstr "개별 백분위 구간을 포함한 평균 테스트 실행 시간입니다."
+msgstr "개별 백분위 구간의 평균 테스트 실행 소요 시간입니다."
 
 #: lib/tuist_web/live/tests_live.html.heex:152
 #, elixir-autogen, elixir-format
 msgid "The number of test runs that failed."
-msgstr "실패한 테스트 실행 수입니다."
+msgstr "실패한 테스트 실행 수"
 
 #: lib/tuist_web/live/tests_live.html.heex:135
 #, elixir-autogen, elixir-format
 msgid "The number of test runs with flaky tests."
-msgstr "불안정한 테스트가 포함된 테스트 실행 수입니다."
+msgstr "불안정 테스트가 포함된 테스트 실행 수"
 
 #: lib/tuist_web/live/tests_live.html.heex:120
 #, elixir-autogen, elixir-format
 msgid "The total number of test runs."
-msgstr "전체 테스트 실행 수입니다."
+msgstr "총 테스트 실행 수"
 
-#: lib/tuist_web/live/test_run_live.html.heex:1688
+#: lib/tuist_web/components/runs/selective_testing_tab.ex:34
 #, elixir-autogen, elixir-format
 msgid "Total modules"
-msgstr "전체 모듈 수"
+msgstr "총 모듈 수"
 
-#: lib/tuist_web/live/test_run_live.html.heex:1690
+#: lib/tuist_web/components/runs/selective_testing_tab.ex:36
 #, elixir-autogen, elixir-format
 msgid "Total modules represents the total number of testable modules."
-msgstr "전체 모듈 수는 테스트 가능한 모듈의 총 수를 나타냅니다."
+msgstr "총 모듈 수는 테스트 가능한 모듈의 총 개수를 나타냅니다."
 
-#: lib/tuist_web/live/test_run_live.html.heex:345
+#: lib/tuist_web/live/test_run_live.html.heex:365
 #, elixir-autogen, elixir-format
 msgid "Total number of test cases executed."
-msgstr "실행된 테스트 케이스의 총 수입니다."
+msgstr "실행된 테스트 케이스 총 수"
 
-#: lib/tuist_web/live/test_case_live.html.heex:234
+#: lib/tuist_web/live/test_case_live.html.heex:229
 #, elixir-autogen, elixir-format
 msgid "Total number of times this test case has been executed."
-msgstr "이 테스트 케이스가 실행된 총 횟수입니다."
+msgstr "이 테스트 케이스가 실행된 총 횟수"
 
-#: lib/tuist_web/live/test_run_live.html.heex:1788
+#: lib/tuist_web/components/runs/selective_testing_tab.ex:156
 #, elixir-autogen, elixir-format
 msgid "Try changing your search term"
 msgstr "검색어를 변경해 보세요"
 
-#: lib/tuist_web/live/test_case_live.html.heex:604
-#: lib/tuist_web/live/test_run_live.html.heex:1212
-#: lib/tuist_web/live/test_run_live.html.heex:1427
-#: lib/tuist_web/live/test_run_live.html.heex:1662
+#: lib/tuist_web/live/test_case_live.html.heex:599
+#: lib/tuist_web/live/test_run_live.html.heex:1232
+#: lib/tuist_web/live/test_run_live.html.heex:1447
+#: lib/tuist_web/live/test_run_live.html.heex:1682
 #, elixir-autogen, elixir-format
 msgid "Try updating your search"
 msgstr "검색을 업데이트해 보세요"
 
-#: lib/tuist_web/live/quarantined_tests_live.ex:67
-#: lib/tuist_web/live/quarantined_tests_live.html.heex:258
+#: lib/tuist_web/live/quarantined_tests_live.ex:80
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:354
 #, elixir-autogen, elixir-format
 msgid "Tuist"
 msgstr "Tuist"
 
-#: lib/tuist_web/live/test_run_live.html.heex:392
+#: lib/tuist_web/live/test_run_live.html.heex:412
 #, elixir-autogen, elixir-format
 msgid "Tuist version"
 msgstr "Tuist 버전"
 
+#: lib/tuist_web/components/runs/selective_testing_tab.ex:146
 #: lib/tuist_web/live/shards_live.html.heex:555
 #: lib/tuist_web/live/shards_live.html.heex:562
-#: lib/tuist_web/live/test_case_live.html.heex:523
-#: lib/tuist_web/live/test_case_live.html.heex:557
+#: lib/tuist_web/live/test_case_live.html.heex:518
+#: lib/tuist_web/live/test_case_live.html.heex:552
 #: lib/tuist_web/live/test_case_run_live.html.heex:174
 #: lib/tuist_web/live/test_case_run_live.html.heex:183
 #: lib/tuist_web/live/test_case_run_live.html.heex:190
@@ -1348,14 +1319,13 @@ msgstr "Tuist 버전"
 #: lib/tuist_web/live/test_run_live.html.heex:49
 #: lib/tuist_web/live/test_run_live.html.heex:70
 #: lib/tuist_web/live/test_run_live.html.heex:89
-#: lib/tuist_web/live/test_run_live.html.heex:286
-#: lib/tuist_web/live/test_run_live.html.heex:295
-#: lib/tuist_web/live/test_run_live.html.heex:304
-#: lib/tuist_web/live/test_run_live.html.heex:1781
-#: lib/tuist_web/live/test_runs_live.html.heex:487
-#: lib/tuist_web/live/tests_live.ex:506
-#: lib/tuist_web/live/tests_live.html.heex:1024
-#: lib/tuist_web/live/tests_live.html.heex:1049
+#: lib/tuist_web/live/test_run_live.html.heex:306
+#: lib/tuist_web/live/test_run_live.html.heex:315
+#: lib/tuist_web/live/test_run_live.html.heex:324
+#: lib/tuist_web/live/test_runs_live.html.heex:492
+#: lib/tuist_web/live/tests_live.ex:479
+#: lib/tuist_web/live/tests_live.html.heex:940
+#: lib/tuist_web/live/tests_live.html.heex:965
 #, elixir-autogen, elixir-format
 msgid "Unknown"
 msgstr "알 수 없음"
@@ -1365,49 +1335,49 @@ msgstr "알 수 없음"
 msgid "Unknown error"
 msgstr "알 수 없는 오류"
 
-#: lib/tuist_web/live/test_case_live.html.heex:99
+#: lib/tuist_web/live/test_case_live.html.heex:94
 #, elixir-autogen, elixir-format
 msgid "Unmark as flaky"
-msgstr "불안정한 표시 해제"
+msgstr "불안정 표시 해제"
 
-#: lib/tuist_web/live/test_case_live.ex:457
+#: lib/tuist_web/live/test_case_live.ex:459
 #, elixir-autogen, elixir-format
 msgid "Unmarked as flaky"
-msgstr "불안정한 표시 해제됨"
+msgstr "불안정 표시가 해제됨"
 
-#: lib/tuist_web/live/test_case_live.html.heex:304
+#: lib/tuist_web/live/test_case_live.html.heex:299
 #: lib/tuist_web/live/test_case_run_live.html.heex:237
-#: lib/tuist_web/live/test_run_live.html.heex:511
-#: lib/tuist_web/live/test_run_live.html.heex:854
-#: lib/tuist_web/live/tests_live.html.heex:930
-#: lib/tuist_web/live/tests_live.html.heex:1102
-#: lib/tuist_web/live/tests_live.html.heex:1159
+#: lib/tuist_web/live/test_run_live.html.heex:531
+#: lib/tuist_web/live/test_run_live.html.heex:874
+#: lib/tuist_web/live/tests_live.html.heex:846
+#: lib/tuist_web/live/tests_live.html.heex:1018
+#: lib/tuist_web/live/tests_live.html.heex:1075
 #, elixir-autogen, elixir-format
 msgid "View more"
 msgstr "더 보기"
 
-#: lib/tuist_web/live/test_run_live.html.heex:309
+#: lib/tuist_web/live/test_run_live.html.heex:329
 #, elixir-autogen, elixir-format
 msgid "macOS version"
 msgstr "macOS 버전"
 
 #: lib/tuist_web/live/shards_live.html.heex:387
 #: lib/tuist_web/live/shards_live.html.heex:505
-#: lib/tuist_web/live/test_cases_live.html.heex:440
+#: lib/tuist_web/live/test_cases_live.html.heex:446
 #: lib/tuist_web/live/test_runs_live.html.heex:397
 #: lib/tuist_web/live/tests_live.html.heex:395
-#: lib/tuist_web/live/tests_live.html.heex:883
+#: lib/tuist_web/live/tests_live.html.heex:799
 #, elixir-autogen, elixir-format
 msgid "p50"
 msgstr "p50"
 
-#: lib/tuist_web/live/test_cases_live.ex:356
+#: lib/tuist_web/live/test_cases_live.ex:362
 #: lib/tuist_web/live/test_cases_live.html.heex:149
 #, elixir-autogen, elixir-format
 msgid "p50 test case run duration"
 msgstr "p50 테스트 케이스 실행 시간"
 
-#: lib/tuist_web/live/test_runs_live.ex:338
+#: lib/tuist_web/live/test_runs_live.ex:343
 #: lib/tuist_web/live/test_runs_live.html.heex:138
 #: lib/tuist_web/live/tests_live.html.heex:173
 #, elixir-autogen, elixir-format
@@ -1416,21 +1386,21 @@ msgstr "p50 테스트 실행 시간"
 
 #: lib/tuist_web/live/shards_live.html.heex:374
 #: lib/tuist_web/live/shards_live.html.heex:492
-#: lib/tuist_web/live/test_cases_live.html.heex:427
+#: lib/tuist_web/live/test_cases_live.html.heex:433
 #: lib/tuist_web/live/test_runs_live.html.heex:384
 #: lib/tuist_web/live/tests_live.html.heex:382
-#: lib/tuist_web/live/tests_live.html.heex:867
+#: lib/tuist_web/live/tests_live.html.heex:783
 #, elixir-autogen, elixir-format
 msgid "p90"
 msgstr "p90"
 
-#: lib/tuist_web/live/test_cases_live.ex:353
+#: lib/tuist_web/live/test_cases_live.ex:359
 #: lib/tuist_web/live/test_cases_live.html.heex:148
 #, elixir-autogen, elixir-format
 msgid "p90 test case run duration"
 msgstr "p90 테스트 케이스 실행 시간"
 
-#: lib/tuist_web/live/test_runs_live.ex:335
+#: lib/tuist_web/live/test_runs_live.ex:340
 #: lib/tuist_web/live/test_runs_live.html.heex:137
 #: lib/tuist_web/live/tests_live.html.heex:172
 #, elixir-autogen, elixir-format
@@ -1439,87 +1409,92 @@ msgstr "p90 테스트 실행 시간"
 
 #: lib/tuist_web/live/shards_live.html.heex:361
 #: lib/tuist_web/live/shards_live.html.heex:479
-#: lib/tuist_web/live/test_cases_live.html.heex:414
+#: lib/tuist_web/live/test_cases_live.html.heex:420
 #: lib/tuist_web/live/test_runs_live.html.heex:371
 #: lib/tuist_web/live/tests_live.html.heex:369
-#: lib/tuist_web/live/tests_live.html.heex:851
+#: lib/tuist_web/live/tests_live.html.heex:767
 #, elixir-autogen, elixir-format
 msgid "p99"
 msgstr "p99"
 
-#: lib/tuist_web/live/test_cases_live.ex:350
+#: lib/tuist_web/live/test_cases_live.ex:356
 #: lib/tuist_web/live/test_cases_live.html.heex:147
 #, elixir-autogen, elixir-format
 msgid "p99 test case run duration"
 msgstr "p99 테스트 케이스 실행 시간"
 
-#: lib/tuist_web/live/test_runs_live.ex:332
+#: lib/tuist_web/live/test_runs_live.ex:337
 #: lib/tuist_web/live/test_runs_live.html.heex:136
 #: lib/tuist_web/live/tests_live.html.heex:171
 #, elixir-autogen, elixir-format
 msgid "p99 test run duration"
 msgstr "p99 테스트 실행 시간"
 
-#: lib/tuist_web/live/flaky_tests_live.ex:279
-#: lib/tuist_web/live/shards_live.ex:333
-#: lib/tuist_web/live/test_cases_live.ex:381
-#: lib/tuist_web/live/test_runs_live.ex:357
-#: lib/tuist_web/live/tests_live.ex:443
+#: lib/tuist_web/live/flaky_tests_live.ex:284
+#: lib/tuist_web/live/quarantined_tests_live.ex:280
+#: lib/tuist_web/live/shards_live.ex:338
+#: lib/tuist_web/live/test_cases_live.ex:388
+#: lib/tuist_web/live/test_runs_live.ex:362
+#: lib/tuist_web/live/tests_live.ex:416
 #, elixir-autogen, elixir-format
 msgid "since last month"
-msgstr "지난 달 이후"
+msgstr "지난달부터"
 
-#: lib/tuist_web/live/flaky_tests_live.ex:278
-#: lib/tuist_web/live/shards_live.ex:332
-#: lib/tuist_web/live/test_cases_live.ex:380
-#: lib/tuist_web/live/test_runs_live.ex:356
-#: lib/tuist_web/live/tests_live.ex:442
+#: lib/tuist_web/live/flaky_tests_live.ex:283
+#: lib/tuist_web/live/quarantined_tests_live.ex:279
+#: lib/tuist_web/live/shards_live.ex:337
+#: lib/tuist_web/live/test_cases_live.ex:387
+#: lib/tuist_web/live/test_runs_live.ex:361
+#: lib/tuist_web/live/tests_live.ex:415
 #, elixir-autogen, elixir-format
 msgid "since last period"
-msgstr "지난 기간 이후"
+msgstr "지난 기간부터"
 
-#: lib/tuist_web/live/flaky_tests_live.ex:276
-#: lib/tuist_web/live/shards_live.ex:330
-#: lib/tuist_web/live/test_cases_live.ex:378
-#: lib/tuist_web/live/test_runs_live.ex:354
-#: lib/tuist_web/live/tests_live.ex:440
+#: lib/tuist_web/live/flaky_tests_live.ex:281
+#: lib/tuist_web/live/quarantined_tests_live.ex:277
+#: lib/tuist_web/live/shards_live.ex:335
+#: lib/tuist_web/live/test_cases_live.ex:385
+#: lib/tuist_web/live/test_runs_live.ex:359
+#: lib/tuist_web/live/tests_live.ex:413
 #, elixir-autogen, elixir-format
 msgid "since last week"
-msgstr "지난 주 이후"
+msgstr "지난주부터"
 
-#: lib/tuist_web/live/flaky_tests_live.ex:277
-#: lib/tuist_web/live/shards_live.ex:331
-#: lib/tuist_web/live/test_cases_live.ex:379
-#: lib/tuist_web/live/test_runs_live.ex:355
-#: lib/tuist_web/live/tests_live.ex:441
+#: lib/tuist_web/live/flaky_tests_live.ex:282
+#: lib/tuist_web/live/quarantined_tests_live.ex:278
+#: lib/tuist_web/live/shards_live.ex:336
+#: lib/tuist_web/live/test_cases_live.ex:386
+#: lib/tuist_web/live/test_runs_live.ex:360
+#: lib/tuist_web/live/tests_live.ex:414
 #, elixir-autogen, elixir-format
 msgid "since last year"
-msgstr "지난 해 이후"
+msgstr "지난해부터"
 
-#: lib/tuist_web/live/flaky_tests_live.ex:275
-#: lib/tuist_web/live/shards_live.ex:329
-#: lib/tuist_web/live/test_cases_live.ex:377
-#: lib/tuist_web/live/test_runs_live.ex:353
-#: lib/tuist_web/live/tests_live.ex:439
+#: lib/tuist_web/live/flaky_tests_live.ex:280
+#: lib/tuist_web/live/quarantined_tests_live.ex:276
+#: lib/tuist_web/live/shards_live.ex:334
+#: lib/tuist_web/live/test_cases_live.ex:384
+#: lib/tuist_web/live/test_runs_live.ex:358
+#: lib/tuist_web/live/tests_live.ex:412
 #, elixir-autogen, elixir-format
 msgid "since yesterday"
-msgstr "어제 이후"
+msgstr "어제부터"
 
-#: lib/tuist_web/live/test_run_live.html.heex:504
-#: lib/tuist_web/live/test_run_live.html.heex:847
-#: lib/tuist_web/live/test_run_live.html.heex:1834
-#: lib/tuist_web/live/test_run_live.html.heex:2069
+#: lib/tuist_web/live/test_run_live.html.heex:524
+#: lib/tuist_web/live/test_run_live.html.heex:867
+#: lib/tuist_web/live/test_run_live.html.heex:1742
+#: lib/tuist_web/live/test_run_live.html.heex:1977
 #, elixir-autogen, elixir-format
 msgid "•"
 msgstr "•"
 
-#: lib/tuist_web/live/shards_live.ex:317
+#: lib/tuist_web/live/shards_live.ex:322
 #: lib/tuist_web/live/shards_live.html.heex:137
 #, elixir-autogen, elixir-format
 msgid "Avg. shard balance"
 msgstr "평균 샤드 균형"
 
-#: lib/tuist_web/live/shards_live.ex:294
+#: lib/tuist_web/live/shards_live.ex:299
 #: lib/tuist_web/live/shards_live.html.heex:75
 #, elixir-autogen, elixir-format
 msgid "Avg. shard count"
@@ -1533,18 +1508,18 @@ msgstr "세분성"
 #: lib/tuist_web/live/shards_live.html.heex:144
 #, elixir-autogen, elixir-format
 msgid "How evenly test duration is distributed across shards. 100% means perfectly balanced."
-msgstr "테스트 실행 시간이 샤드에 얼마나 균등하게 분배되어 있는지 나타냅니다. 100%는 완벽하게 균형 잡힌 상태를 의미합니다."
+msgstr "샤드 간 테스트 소요 시간이 얼마나 고르게 분배되는지 나타냅니다. 100%는 완벽하게 균형 잡힌 상태입니다."
 
 #: lib/tuist_web/live/shards_live.ex:33
 #: lib/tuist_web/live/shards_live.html.heex:578
 #: lib/tuist_web/live/shards_live.html.heex:606
-#: lib/tuist_web/live/test_run_live.html.heex:267
-#: lib/tuist_web/live/test_run_live.html.heex:467
+#: lib/tuist_web/live/test_run_live.html.heex:287
+#: lib/tuist_web/live/test_run_live.html.heex:487
 #, elixir-autogen, elixir-format
 msgid "In Progress"
 msgstr "진행 중"
 
-#: lib/tuist_web/live/test_run_live.html.heex:238
+#: lib/tuist_web/live/test_run_live.html.heex:251
 #, elixir-autogen, elixir-format
 msgid "In progress"
 msgstr "진행 중"
@@ -1552,92 +1527,92 @@ msgstr "진행 중"
 #: lib/tuist_web/live/shards_live.html.heex:625
 #, elixir-autogen, elixir-format
 msgid "No sharded runs"
-msgstr "샤딩된 실행 없음"
+msgstr "샤드 실행 없음"
 
 #: lib/tuist_web/live/shards_live.html.heex:82
 #, elixir-autogen, elixir-format
 msgid "Number of shards used per sharded run during a given period."
-msgstr "주어진 기간 동안 샤딩된 실행당 사용된 샤드 수입니다."
+msgstr "주어진 기간 동안 샤드 실행마다 사용된 샤드 수입니다."
 
-#: lib/tuist_web/live/test_run_live.html.heex:484
+#: lib/tuist_web/live/test_run_live.html.heex:504
 #, elixir-autogen, elixir-format
 msgid "Pending"
 msgstr "대기 중"
 
 #: lib/tuist_web/live/test_case_run_live.html.heex:197
-#: lib/tuist_web/live/test_run_live.ex:1087
-#: lib/tuist_web/live/test_run_live.html.heex:439
-#: lib/tuist_web/live/test_run_live.html.heex:1164
-#: lib/tuist_web/live/test_run_live.html.heex:1344
-#: lib/tuist_web/live/test_run_live.html.heex:1570
+#: lib/tuist_web/live/test_run_live.ex:1082
+#: lib/tuist_web/live/test_run_live.html.heex:459
+#: lib/tuist_web/live/test_run_live.html.heex:1184
+#: lib/tuist_web/live/test_run_live.html.heex:1364
+#: lib/tuist_web/live/test_run_live.html.heex:1590
 #, elixir-autogen, elixir-format
 msgid "Shard"
 msgstr "샤드"
 
 #: lib/tuist_web/live/test_case_run_live.html.heex:201
-#: lib/tuist_web/live/test_run_live.ex:1081
-#: lib/tuist_web/live/test_run_live.html.heex:441
-#: lib/tuist_web/live/test_run_live.html.heex:1167
-#: lib/tuist_web/live/test_run_live.html.heex:1347
-#: lib/tuist_web/live/test_run_live.html.heex:1573
+#: lib/tuist_web/live/test_run_live.ex:1076
+#: lib/tuist_web/live/test_run_live.html.heex:461
+#: lib/tuist_web/live/test_run_live.html.heex:1187
+#: lib/tuist_web/live/test_run_live.html.heex:1367
+#: lib/tuist_web/live/test_run_live.html.heex:1593
 #, elixir-autogen, elixir-format
 msgid "Shard %{index}"
 msgstr "샤드 %{index}"
 
-#: lib/tuist_web/live/shards_live.ex:277
+#: lib/tuist_web/live/shards_live.ex:282
 #, elixir-autogen, elixir-format
 msgid "Sharded run count"
-msgstr "샤딩된 실행 수"
+msgstr "샤드 실행 수"
 
 #: lib/tuist_web/live/shards_live.ex:22
-#: lib/tuist_web/live/shards_live.html.heex:2
+#: lib/tuist_web/live/shards_live.html.heex:51
 #: lib/tuist_web/live/shards_live.html.heex:587
-#: lib/tuist_web/live/test_run_live.html.heex:424
+#: lib/tuist_web/live/test_run_live.html.heex:444
 #, elixir-autogen, elixir-format
 msgid "Shards"
 msgstr "샤드"
 
-#: lib/tuist_web/live/test_run_live.html.heex:435
+#: lib/tuist_web/live/test_run_live.html.heex:455
 #, elixir-autogen, elixir-format
 msgid "The shards are in progress..."
-msgstr "샤드 실행이 진행 중입니다..."
+msgstr "샤드가 진행 중입니다..."
 
 #: lib/tuist_web/live/shards_live.html.heex:57
 #, elixir-autogen, elixir-format
 msgid "Total sharded runs"
-msgstr "샤딩된 실행 총 수"
+msgstr "총 샤드 실행"
 
-#: lib/tuist_web/live/shards_live.ex:314
+#: lib/tuist_web/live/shards_live.ex:319
 #: lib/tuist_web/live/shards_live.html.heex:140
 #, elixir-autogen, elixir-format
 msgid "p50 shard balance"
 msgstr "p50 샤드 균형"
 
-#: lib/tuist_web/live/shards_live.ex:291
+#: lib/tuist_web/live/shards_live.ex:296
 #: lib/tuist_web/live/shards_live.html.heex:78
 #, elixir-autogen, elixir-format
 msgid "p50 shard count"
 msgstr "p50 샤드 수"
 
-#: lib/tuist_web/live/shards_live.ex:311
+#: lib/tuist_web/live/shards_live.ex:316
 #: lib/tuist_web/live/shards_live.html.heex:139
 #, elixir-autogen, elixir-format
 msgid "p90 shard balance"
 msgstr "p90 샤드 균형"
 
-#: lib/tuist_web/live/shards_live.ex:288
+#: lib/tuist_web/live/shards_live.ex:293
 #: lib/tuist_web/live/shards_live.html.heex:77
 #, elixir-autogen, elixir-format
 msgid "p90 shard count"
 msgstr "p90 샤드 수"
 
-#: lib/tuist_web/live/shards_live.ex:308
+#: lib/tuist_web/live/shards_live.ex:313
 #: lib/tuist_web/live/shards_live.html.heex:138
 #, elixir-autogen, elixir-format
 msgid "p99 shard balance"
 msgstr "p99 샤드 균형"
 
-#: lib/tuist_web/live/shards_live.ex:285
+#: lib/tuist_web/live/shards_live.ex:290
 #: lib/tuist_web/live/shards_live.html.heex:76
 #, elixir-autogen, elixir-format
 msgid "p99 shard count"
@@ -1648,17 +1623,17 @@ msgstr "p99 샤드 수"
 msgid "Processing"
 msgstr "처리 중"
 
-#: lib/tuist_web/live/test_run_live.html.heex:163
+#: lib/tuist_web/live/test_run_live.html.heex:176
 #, elixir-autogen, elixir-format
 msgid "Refresh"
-msgstr "새로 고침"
+msgstr "새로고침"
 
-#: lib/tuist_web/live/test_run_live.html.heex:156
+#: lib/tuist_web/live/test_run_live.html.heex:169
 #, elixir-autogen, elixir-format
 msgid "This usually takes a few seconds. If the page doesn't update automatically, click the refresh button."
-msgstr "보통 몇 초 정도 걸립니다. 페이지가 자동으로 업데이트되지 않으면 새로 고침 버튼을 클릭하세요."
+msgstr "보통 몇 초 정도 걸립니다. 페이지가 자동으로 업데이트되지 않으면 새로고침 버튼을 클릭하세요."
 
-#: lib/tuist_web/live/test_run_live.html.heex:153
+#: lib/tuist_web/live/test_run_live.html.heex:166
 #, elixir-autogen, elixir-format
 msgid "Your test results are being processed"
 msgstr "테스트 결과를 처리 중입니다"
@@ -1672,3 +1647,137 @@ msgstr "인자"
 #, elixir-autogen, elixir-format
 msgid "Arguments"
 msgstr "인자들"
+
+#: lib/tuist_web/live/xcode_overview_live.html.heex:178
+#, elixir-autogen, elixir-format
+msgid "The average test run duration."
+msgstr "평균 테스트 실행 시간."
+
+#: lib/tuist_web/live/test_run_live.html.heex:339
+#, elixir-autogen, elixir-format
+msgid "Device"
+msgid_plural "Devices"
+msgstr[0] "장치"
+msgstr[1] "장치들"
+
+#: lib/tuist_web/live/tests_live.ex:469
+#: lib/tuist_web/live/tests_live.ex:475
+#: lib/tuist_web/live/tests_live.html.heex:268
+#, elixir-autogen, elixir-format
+msgid "Environment"
+msgstr "환경"
+
+#: lib/tuist_web/live/tests_live.ex:482
+#, elixir-autogen, elixir-format
+msgid "Passed (flaky)"
+msgstr "통과 (불안정)"
+
+#: lib/tuist_web/live/tests_live.html.heex:415
+#, elixir-autogen, elixir-format
+msgid "The 10,000 entry limit has been reached, data is only included up to %{date}. Try filtering by scheme or other properties to narrow down the dataset."
+msgstr "10,000개 항목 제한에 도달했습니다. 데이터는 %{date}까지 포함됩니다. 스킴 또는 기타 속성으로 필터링하여 데이터셋을 좁혀보세요."
+
+#: lib/tuist_web/live/tests_live.html.heex:816
+#, elixir-autogen, elixir-format
+msgid "The 10,000 entry limit has been reached, data is only included up to %{date}. Try filtering to narrow down the dataset."
+msgstr "10,000개 항목 제한에 도달했습니다. 데이터는 %{date}까지 포함됩니다. 필터링하여 데이터셋을 좁혀보세요."
+
+#: lib/tuist_web/live/test_case_live.ex:433
+#: lib/tuist_web/live/test_case_live.ex:461
+#: lib/tuist_web/live/test_case_live.ex:463
+#: lib/tuist_web/live/test_case_live.html.heex:66
+#, elixir-autogen, elixir-format
+msgid "Enabled"
+msgstr "활성화됨"
+
+#: lib/tuist_web/live/test_cases_live.html.heex:222
+#, elixir-autogen, elixir-format
+msgid "Number of distinct test cases with at least one run in the 14 days ending on each date."
+msgstr "각 날짜에 끝나는 14일 동안 최소 한 번 실행된 고유 테스트 케이스 수."
+
+#: lib/tuist_web/live/quarantined_tests_live.ex:59
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:335
+#, elixir-autogen, elixir-format
+msgid "Mode"
+msgstr "모드"
+
+#: lib/tuist_web/live/quarantined_tests_live.ex:63
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:338
+#: lib/tuist_web/live/test_case_live.ex:431
+#: lib/tuist_web/live/test_case_live.ex:460
+#: lib/tuist_web/live/test_case_live.html.heex:75
+#: lib/tuist_web/live/test_cases_live.ex:75
+#: lib/tuist_web/live/test_cases_live.html.heex:575
+#, elixir-autogen, elixir-format
+msgid "Muted"
+msgstr "음소거됨"
+
+#: lib/tuist_web/live/flaky_tests_live.html.heex:125
+#: lib/tuist_web/live/flaky_tests_live.html.heex:293
+#, elixir-autogen, elixir-format
+msgid "Flaky test case runs"
+msgstr "불안정한 테스트 케이스 실행"
+
+#: lib/tuist_web/live/flaky_tests_live.html.heex:157
+#, elixir-autogen, elixir-format
+msgid "Number of test runs (build-level test invocations) that contained at least one flaky test case. Each test run is counted once even if it contained many flaky executions."
+msgstr "적어도 한 개 이상의 불안정한 테스트 케이스가 포함된 테스트 실행(빌드 단위 테스트 호출) 수입니다. 각 테스트 실행은 여러 불안정 실행이 포함되어도 한 번만 계산됩니다."
+
+#: lib/tuist_web/live/flaky_tests_live.html.heex:96
+#, elixir-autogen, elixir-format
+msgid "Number of unique test cases currently flagged as flaky at the end of the period. Each test case is counted at most once, regardless of how often it flaked."
+msgstr "해당 기간 종료 시점에 불안정으로 표시된 고유 테스트 케이스 수입니다. 각 테스트 케이스는 여러 번 불안정해도 최대 한 번만 계산됩니다."
+
+#: lib/tuist_web/live/flaky_tests_live.html.heex:127
+#, elixir-autogen, elixir-format
+msgid "Total number of individual test case executions marked as flaky in the period. A single test case can be counted many times if it flaked across multiple runs."
+msgstr "기간 동안 불안정으로 표시된 개별 테스트 케이스 실행 총 수입니다. 단일 테스트 케이스가 여러 실행에서 불안정했다면 여러 번 계산될 수 있습니다."
+
+#: lib/tuist_web/live/flaky_tests_live.html.heex:94
+#: lib/tuist_web/live/flaky_tests_live.html.heex:292
+#, elixir-autogen, elixir-format
+msgid "Flagged flaky test cases"
+msgstr "불안정으로 표시된 테스트 케이스"
+
+#: lib/tuist_web/live/test_run_live.html.heex:265
+#: lib/tuist_web/live/test_runs_live.html.heex:483
+#, elixir-autogen, elixir-format
+msgid "Failed processing"
+msgstr "처리 실패"
+
+#: lib/tuist_web/components/runs/selective_testing_tab.ex:80
+#, elixir-autogen, elixir-format
+msgid "Copy as JSON"
+msgstr "JSON으로 복사"
+
+#: lib/tuist_web/live/test_run_live.html.heex:131
+#, elixir-autogen, elixir-format
+msgid "Download session"
+msgstr "세션 다운로드"
+
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:84
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:208
+#, elixir-autogen, elixir-format
+msgid "Muted tests"
+msgstr "음소거된 테스트"
+
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:86
+#, elixir-autogen, elixir-format
+msgid "Number of muted test cases at the end of the period. Muted tests still execute but their failures are ignored."
+msgstr "기간 종료 시점에 음소거된 테스트 케이스 수입니다. 음소거된 테스트는 여전히 실행되지만 실패는 무시됩니다."
+
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:110
+#, elixir-autogen, elixir-format
+msgid "Number of skipped test cases at the end of the period. Skipped tests are not executed at all."
+msgstr "기간 종료 시점에 건너뛴 테스트 케이스 수입니다. 건너뛴 테스트는 전혀 실행되지 않습니다."
+
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:62
+#, elixir-autogen, elixir-format
+msgid "Number of test cases currently quarantined at the end of the period. Combines both muted and skipped tests."
+msgstr "기간 종료 시점에 현재 격리된 테스트 케이스 수입니다. 음소거된 테스트와 건너뛴 테스트를 합산한 수입니다."
+
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:108
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:209
+#, elixir-autogen, elixir-format
+msgid "Skipped tests"
+msgstr "건너뛴 테스트"

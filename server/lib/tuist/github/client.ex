@@ -1,10 +1,16 @@
 defmodule Tuist.GitHub.Client do
   @moduledoc """
   A module to interact with the GitHub API authenticated as the Tuist GitHub app.
+
+  Functions that target a specific installation accept an `:installation`
+  field — any struct or map carrying `:installation_id` and `:client_url`.
+  The host of the GitHub instance (github.com or a self-hosted GitHub
+  Enterprise Server) is derived from `:client_url`.
   """
 
   alias Tuist.GitHub.App
   alias Tuist.GitHub.Retry
+  alias Tuist.OAuth2.SSRFGuard
   alias Tuist.VCS
   alias Tuist.VCS.Comment
   alias Tuist.VCS.Repositories.Content
@@ -14,50 +20,49 @@ defmodule Tuist.GitHub.Client do
   Lists repositories for a GitHub app installation with pagination support.
   Returns {:ok, %{meta: %{next_url: ...}, repositories: [...]}} format similar to Flop.
   """
-  def list_installation_repositories(installation_id, opts \\ []) do
+  def list_installation_repositories(installation, opts \\ []) do
+    api_url = installation_api_url(installation)
+
     url =
       Keyword.get(
         opts,
         :next_url,
-        "https://api.github.com/installation/repositories?per_page=100"
+        "#{api_url}/installation/repositories?per_page=100"
       )
 
-    case App.get_installation_token(installation_id) do
-      {:ok, %{token: token}} ->
-        req_opts =
-          [
-            url: url,
-            headers: default_headers(token),
-            finch: Tuist.Finch
-          ] ++ Retry.retry_options()
+    with {:ok, %{token: token}} <- App.get_installation_token(installation, api_url: api_url),
+         {:ok, request_url, ssrf_opts} <- pin_ghes_url(url, api_url) do
+      req_opts =
+        [
+          url: request_url,
+          headers: default_headers(token),
+          finch: Tuist.Finch
+        ] ++ ssrf_opts ++ Retry.retry_options()
 
-        case Req.get(req_opts) do
-          {:ok, %{status: 200, body: %{"repositories" => repositories}, headers: headers}} ->
-            formatted_repos =
-              Enum.map(repositories, fn repo ->
-                %{
-                  id: repo["id"],
-                  name: repo["name"],
-                  full_name: repo["full_name"],
-                  private: repo["private"],
-                  default_branch: repo["default_branch"]
-                }
-              end)
+      case Req.get(req_opts) do
+        {:ok, %{status: 200, body: %{"repositories" => repositories}, headers: headers}} ->
+          formatted_repos =
+            Enum.map(repositories, fn repo ->
+              %{
+                id: repo["id"],
+                name: repo["name"],
+                full_name: repo["full_name"],
+                private: repo["private"],
+                default_branch: repo["default_branch"]
+              }
+            end)
 
-            next_url = extract_next_url(headers)
-            meta = %{next_url: next_url}
+          next_url = extract_next_url(headers)
+          meta = %{next_url: next_url}
 
-            {:ok, %{meta: meta, repositories: formatted_repos}}
+          {:ok, %{meta: meta, repositories: formatted_repos}}
 
-          {:ok, %{status: _status, body: _body}} ->
-            {:error, "Failed to fetch repositories"}
+        {:ok, %{status: _status, body: _body}} ->
+          {:error, "Failed to fetch repositories"}
 
-          {:error, reason} ->
-            {:error, "Request failed: #{inspect(reason)}"}
-        end
-
-      response ->
-        response
+        {:error, reason} ->
+          {:error, "Request failed: #{inspect(reason)}"}
+      end
     end
   end
 
@@ -79,10 +84,11 @@ defmodule Tuist.GitHub.Client do
     end
   end
 
-  def get_user_by_id(%{id: github_id, installation_id: installation_id}) do
-    url = "https://api.github.com/user/#{github_id}"
+  def get_user_by_id(%{id: github_id, installation: installation}) do
+    api_url = installation_api_url(installation)
+    url = "#{api_url}/user/#{github_id}"
 
-    case github_request(&Req.get/1, url: url, installation_id: installation_id) do
+    case github_request(&Req.get/1, url: url, installation: installation, api_url: api_url) do
       {:ok, user} ->
         {:ok, %VCS.User{username: user["login"]}}
 
@@ -91,14 +97,11 @@ defmodule Tuist.GitHub.Client do
     end
   end
 
-  def get_comments(%{
-        repository_full_handle: repository_full_handle,
-        issue_id: issue_id,
-        installation_id: installation_id
-      }) do
-    url = "https://api.github.com/repos/#{repository_full_handle}/issues/#{issue_id}/comments"
+  def get_comments(%{repository_full_handle: repository_full_handle, issue_id: issue_id, installation: installation}) do
+    api_url = installation_api_url(installation)
+    url = "#{api_url}/repos/#{repository_full_handle}/issues/#{issue_id}/comments"
 
-    case github_request(&Req.get/1, url: url, installation_id: installation_id) do
+    case github_request(&Req.get/1, url: url, installation: installation, api_url: api_url) do
       {:ok, comments} ->
         {:ok,
          Enum.map(comments, fn comment ->
@@ -121,13 +124,15 @@ defmodule Tuist.GitHub.Client do
         repository_full_handle: repository_full_handle,
         issue_id: issue_id,
         body: body,
-        installation_id: installation_id
+        installation: installation
       }) do
-    url = "https://api.github.com/repos/#{repository_full_handle}/issues/#{issue_id}/comments"
+    api_url = installation_api_url(installation)
+    url = "#{api_url}/repos/#{repository_full_handle}/issues/#{issue_id}/comments"
 
     github_request(&Req.post/1,
       url: url,
-      installation_id: installation_id,
+      installation: installation,
+      api_url: api_url,
       json: %{body: body}
     )
   end
@@ -136,13 +141,15 @@ defmodule Tuist.GitHub.Client do
         repository_full_handle: repository_full_handle,
         comment_id: comment_id,
         body: body,
-        installation_id: installation_id
+        installation: installation
       }) do
-    url = "https://api.github.com/repos/#{repository_full_handle}/issues/comments/#{comment_id}"
+    api_url = installation_api_url(installation)
+    url = "#{api_url}/repos/#{repository_full_handle}/issues/comments/#{comment_id}"
 
     github_request(&Req.patch/1,
       url: url,
-      installation_id: installation_id,
+      installation: installation,
+      api_url: api_url,
       json: %{body: body}
     )
   end
@@ -202,24 +209,26 @@ defmodule Tuist.GitHub.Client do
   end
 
   defp github_request(method, attrs) do
-    installation_id = Keyword.get(attrs, :installation_id)
+    installation = Keyword.get(attrs, :installation)
+    api_url = Keyword.get(attrs, :api_url, VCS.api_url(:github, nil))
+    url = Keyword.fetch!(attrs, :url)
 
-    case App.get_installation_token(installation_id) do
-      {:ok, %{token: token}} ->
-        attrs_with_headers =
-          attrs
-          |> Keyword.put(:headers, [
-            {"Accept", "application/vnd.github.v3+json"},
-            {"Authorization", "token #{token}"}
-          ])
-          |> Keyword.put(:finch, Tuist.Finch)
-          |> Keyword.merge(Retry.retry_options())
-          |> Keyword.delete(:installation_id)
+    with {:ok, %{token: token}} <- App.get_installation_token(installation, api_url: api_url),
+         {:ok, pinned_url, ssrf_opts} <- pin_ghes_url(url, api_url) do
+      attrs_with_headers =
+        attrs
+        |> Keyword.put(:url, pinned_url)
+        |> Keyword.put(:headers, [
+          {"Accept", "application/vnd.github.v3+json"},
+          {"Authorization", "token #{token}"}
+        ])
+        |> Keyword.put(:finch, Tuist.Finch)
+        |> Keyword.merge(ssrf_opts)
+        |> Keyword.merge(Retry.retry_options())
+        |> Keyword.delete(:installation)
+        |> Keyword.delete(:api_url)
 
-        attrs_with_headers |> method.() |> handle_github_response(method, attrs)
-
-      {:error, response} ->
-        {:error, response}
+      attrs_with_headers |> method.() |> handle_github_response(method, attrs)
     end
   end
 
@@ -254,25 +263,22 @@ defmodule Tuist.GitHub.Client do
 
   def get_pull_request(%{
         repository_full_handle: repository_full_handle,
-        installation_id: installation_id,
+        installation: installation,
         pr_number: pr_number
       }) do
-    url =
-      URI.to_string(%URI{
-        scheme: "https",
-        host: "api.github.com",
-        path: "/repos/#{repository_full_handle}/pulls/#{pr_number}"
-      })
+    api_url = installation_api_url(installation)
+    url = "#{api_url}/repos/#{repository_full_handle}/pulls/#{pr_number}"
 
     github_request(&Req.get/1,
       url: url,
-      installation_id: installation_id
+      installation: installation,
+      api_url: api_url
     )
   end
 
-  def create_check_run(%{repository_full_handle: repository_full_handle, installation_id: installation_id} = params) do
-    url =
-      URI.to_string(%URI{scheme: "https", host: "api.github.com", path: "/repos/#{repository_full_handle}/check-runs"})
+  def create_check_run(%{repository_full_handle: repository_full_handle, installation: installation} = params) do
+    api_url = installation_api_url(installation)
+    url = "#{api_url}/repos/#{repository_full_handle}/check-runs"
 
     json =
       params
@@ -282,21 +288,17 @@ defmodule Tuist.GitHub.Client do
 
     github_request(&Req.post/1,
       url: url,
-      installation_id: installation_id,
+      installation: installation,
+      api_url: api_url,
       json: json
     )
   end
 
   def update_check_run(
-        %{repository_full_handle: repository_full_handle, check_run_id: check_run_id, installation_id: installation_id} =
-          params
+        %{repository_full_handle: repository_full_handle, check_run_id: check_run_id, installation: installation} = params
       ) do
-    url =
-      URI.to_string(%URI{
-        scheme: "https",
-        host: "api.github.com",
-        path: "/repos/#{repository_full_handle}/check-runs/#{check_run_id}"
-      })
+    api_url = installation_api_url(installation)
+    url = "#{api_url}/repos/#{repository_full_handle}/check-runs/#{check_run_id}"
 
     json =
       params
@@ -306,7 +308,8 @@ defmodule Tuist.GitHub.Client do
 
     github_request(&Req.patch/1,
       url: url,
-      installation_id: installation_id,
+      installation: installation,
+      api_url: api_url,
       json: json
     )
   end
@@ -330,5 +333,22 @@ defmodule Tuist.GitHub.Client do
       {"Accept", "application/vnd.github.v3+json"},
       {"Authorization", "Bearer #{token}"}
     ]
+  end
+
+  defp installation_api_url(%{client_url: client_url}), do: VCS.api_url(:github, client_url)
+  defp installation_api_url(_), do: VCS.api_url(:github, nil)
+
+  # Pin GHES URLs to a public IP to defend against DNS rebinding /
+  # SSRF; github.com is treated as a known public host and skips the pin.
+  defp pin_ghes_url(url, "https://api.github.com"), do: {:ok, url, []}
+
+  defp pin_ghes_url(url, _api_url) do
+    case SSRFGuard.pin(url) do
+      {:ok, pinned_url, hostname} ->
+        {:ok, pinned_url, [connect_options: SSRFGuard.connect_options(hostname)]}
+
+      {:error, reason} ->
+        {:error, "GitHub Enterprise Server host failed SSRF check: #{inspect(reason)}"}
+    end
   end
 end

@@ -13,16 +13,22 @@
       "vue-demi"
     ],
     "overrides": {
-      "axios": "1.15.0",
+      "axios": "1.15.2",
       "mdast-util-to-hast": "13.2.1",
       "ajv": "8.18.0",
       "dompurify": "3.4.0",
+      "fast-uri": "3.1.2",
       "flatted": "3.4.2",
       "yaml": "2.8.3",
       "defu": "6.1.5",
       "follow-redirects": "1.16.0",
       "protobufjs": "7.5.5",
       "postcss": "8.5.10"
+    },
+    "allowBuilds": {
+      "core-js": true,
+      "protobufjs": true,
+      "vue-demi": true
     }
   }
 }

@@ -22,7 +22,7 @@ msgstr ""
 msgid "$0.50"
 msgstr ""
 
-#: lib/tuist_web/live/accept_invitation_live.ex:114
+#: lib/tuist_web/live/accept_invitation_live.ex:136
 #, elixir-autogen, elixir-format
 msgid "%{inviter} has invited you to join the %{organization} organization"
 msgstr ""
@@ -33,7 +33,7 @@ msgid "%{month}/%{year}"
 msgstr ""
 
 #: lib/tuist/accounts/user_notifier.ex:175
-#: lib/tuist_web/live/accept_invitation_live.ex:136
+#: lib/tuist_web/live/accept_invitation_live.ex:148
 #, elixir-autogen, elixir-format
 msgid "Accept invitation"
 msgstr ""
@@ -72,13 +72,13 @@ msgstr ""
 msgid "All members"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:307
+#: lib/tuist_web/live/account_settings_live.ex:662
 #, elixir-autogen, elixir-format
 msgid "All regions"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.html.heex:105
-#: lib/tuist_web/live/account_settings_live.html.heex:254
+#: lib/tuist_web/live/account_settings_live.html.heex:112
+#: lib/tuist_web/live/account_settings_live.html.heex:268
 #, elixir-autogen, elixir-format
 msgid "Are you sure you want to delete this?"
 msgstr ""
@@ -99,12 +99,14 @@ msgstr ""
 msgid "Billing email"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:379
-#: lib/tuist_web/live/account_settings_live.ex:466
-#: lib/tuist_web/live/account_settings_live.html.heex:69
-#: lib/tuist_web/live/account_settings_live.html.heex:143
-#: lib/tuist_web/live/account_settings_live.html.heex:218
-#: lib/tuist_web/live/account_settings_live.html.heex:290
+#: lib/tuist_web/live/account_settings_live.ex:500
+#: lib/tuist_web/live/account_settings_live.ex:734
+#: lib/tuist_web/live/account_settings_live.ex:821
+#: lib/tuist_web/live/account_settings_live.html.heex:76
+#: lib/tuist_web/live/account_settings_live.html.heex:150
+#: lib/tuist_web/live/account_settings_live.html.heex:232
+#: lib/tuist_web/live/account_settings_live.html.heex:304
+#: lib/tuist_web/live/authentication_settings_live.html.heex:513
 #: lib/tuist_web/live/create_organization_live.ex:83
 #: lib/tuist_web/live/members_live.ex:157
 #: lib/tuist_web/live/members_live.ex:206
@@ -122,7 +124,7 @@ msgstr ""
 msgid "Change your subscription to fit your needs."
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:291
+#: lib/tuist_web/live/account_settings_live.ex:646
 #, elixir-autogen, elixir-format
 msgid "Choose where your artifacts, like module cache binaries, are stored for legal compliance."
 msgstr ""
@@ -204,108 +206,108 @@ msgstr ""
 msgid "Custom terms: Tailored agreements to meet your specific needs"
 msgstr ""
 
-#: lib/tuist_web/live/accept_invitation_live.ex:152
+#: lib/tuist_web/live/accept_invitation_live.ex:154
 #, elixir-autogen, elixir-format
 msgid "Decline"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:440
-#: lib/tuist_web/live/account_settings_live.ex:474
-#: lib/tuist_web/live/account_settings_live.ex:486
-#: lib/tuist_web/live/account_settings_live.html.heex:151
-#: lib/tuist_web/live/account_settings_live.html.heex:298
+#: lib/tuist_web/live/account_settings_live.ex:795
+#: lib/tuist_web/live/account_settings_live.ex:829
+#: lib/tuist_web/live/account_settings_live.ex:841
+#: lib/tuist_web/live/account_settings_live.html.heex:158
+#: lib/tuist_web/live/account_settings_live.html.heex:312
 #, elixir-autogen, elixir-format
 msgid "Delete"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.html.heex:239
-#: lib/tuist_web/live/account_settings_live.html.heex:260
+#: lib/tuist_web/live/account_settings_live.html.heex:253
+#: lib/tuist_web/live/account_settings_live.html.heex:274
 #, elixir-autogen, elixir-format
 msgid "Delete account"
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.html.heex:326
+#: lib/tuist_web/live/authentication_settings_live.html.heex:322
 #, elixir-autogen, elixir-format
 msgid "OAuth2 application client ID"
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.html.heex:149
+#: lib/tuist_web/live/authentication_settings_live.html.heex:153
 #, elixir-autogen, elixir-format
 msgid "Configure your OAuth2 provider to redirect users back to Tuist after authentication."
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.html.heex:159
+#: lib/tuist_web/live/authentication_settings_live.html.heex:163
 #, elixir-autogen, elixir-format
 msgid "Create an OAuth2 application in your identity provider."
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.html.heex:173
+#: lib/tuist_web/live/authentication_settings_live.html.heex:177
 #, elixir-autogen, elixir-format
 msgid "Copy the provider URL, authorize URL, token URL, user info URL, client ID, and client secret into the fields below."
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.html.heex:220
+#: lib/tuist_web/live/authentication_settings_live.html.heex:224
 #, elixir-autogen, elixir-format
 msgid "Provider URL"
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.html.heex:223
+#: lib/tuist_web/live/authentication_settings_live.html.heex:227
 #, elixir-autogen, elixir-format
 msgid "The base URL of your identity provider, for example https://auth.example.com."
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.html.heex:243
+#: lib/tuist_web/live/authentication_settings_live.html.heex:246
 #, elixir-autogen, elixir-format
 msgid "Authorize URL"
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.html.heex:246
+#: lib/tuist_web/live/authentication_settings_live.html.heex:249
 #, elixir-autogen, elixir-format
 msgid "The full authorization endpoint URL used to start the OAuth2 flow."
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.html.heex:265
+#: lib/tuist_web/live/authentication_settings_live.html.heex:268
 #, elixir-autogen, elixir-format
 msgid "Token URL"
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.html.heex:268
+#: lib/tuist_web/live/authentication_settings_live.html.heex:271
 #, elixir-autogen, elixir-format
 msgid "The full token endpoint URL used to exchange the authorization code."
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.html.heex:287
+#: lib/tuist_web/live/authentication_settings_live.html.heex:290
 #, elixir-autogen, elixir-format
 msgid "User info URL"
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.html.heex:290
+#: lib/tuist_web/live/authentication_settings_live.html.heex:293
 #, elixir-autogen, elixir-format
 msgid "The full user info endpoint URL that returns the authenticated user profile."
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.html.heex:316
+#: lib/tuist_web/live/authentication_settings_live.html.heex:315
 #, elixir-autogen, elixir-format
 msgid "The client ID from your OAuth2 application."
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.html.heex:342
+#: lib/tuist_web/live/authentication_settings_live.html.heex:334
 #, elixir-autogen, elixir-format
 msgid "The client secret from your OAuth2 application."
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.html.heex:90
-#: lib/tuist_web/live/account_settings_live.html.heex:111
+#: lib/tuist_web/live/account_settings_live.html.heex:97
+#: lib/tuist_web/live/account_settings_live.html.heex:118
 #, elixir-autogen, elixir-format
 msgid "Delete organization"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.html.heex:124
+#: lib/tuist_web/live/account_settings_live.html.heex:131
 #, elixir-autogen, elixir-format
 msgid "Deleting the organization will delete all of its projects"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.html.heex:272
+#: lib/tuist_web/live/account_settings_live.html.heex:286
 #, elixir-autogen, elixir-format
 msgid "Deleting your account will also delete all the projects that belong to it"
 msgstr ""
@@ -336,12 +338,12 @@ msgstr ""
 msgid "Email address"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.html.heex:131
+#: lib/tuist_web/live/account_settings_live.html.heex:138
 #, elixir-autogen, elixir-format
 msgid "Enter this organization's name to confirm"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.html.heex:279
+#: lib/tuist_web/live/account_settings_live.html.heex:293
 #, elixir-autogen, elixir-format
 msgid "Enter your username to confirm"
 msgstr ""
@@ -353,7 +355,7 @@ msgstr ""
 msgid "Enterprise"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:308
+#: lib/tuist_web/live/account_settings_live.ex:663
 #, elixir-autogen, elixir-format
 msgid "Europe"
 msgstr ""
@@ -429,7 +431,7 @@ msgstr ""
 msgid "If you didn't make this request, feel free to ignore this email."
 msgstr ""
 
-#: lib/tuist_web/live/accept_invitation_live.ex:57
+#: lib/tuist_web/live/accept_invitation_live.ex:174
 #, elixir-autogen, elixir-format
 msgid "Invitation not found"
 msgstr ""
@@ -501,6 +503,7 @@ msgstr ""
 msgid "Most Popular"
 msgstr ""
 
+#: lib/tuist_web/live/authentication_settings_live.html.heex:533
 #: lib/tuist_web/live/create_organization_live.ex:65
 #, elixir-autogen, elixir-format
 msgid "Name"
@@ -537,13 +540,13 @@ msgstr ""
 msgid "Open source"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.html.heex:60
-#: lib/tuist_web/live/account_settings_live.html.heex:134
+#: lib/tuist_web/live/account_settings_live.html.heex:67
+#: lib/tuist_web/live/account_settings_live.html.heex:141
 #, elixir-autogen, elixir-format
 msgid "Organization name"
 msgstr ""
 
-#: lib/tuist/accounts/user.ex:90
+#: lib/tuist/accounts/user.ex:91
 #, elixir-autogen, elixir-format
 msgid "Passwords don't match"
 msgstr ""
@@ -570,6 +573,8 @@ msgstr ""
 msgid "Payments for your subscription are made using the default card."
 msgstr ""
 
+#: lib/tuist_web/live/account_settings_live.ex:547
+#: lib/tuist_web/live/account_settings_live.ex:550
 #: lib/tuist_web/live/members_live.ex:279
 #, elixir-autogen, elixir-format
 msgid "Pending"
@@ -607,7 +612,10 @@ msgstr ""
 msgid "Pro"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:304
+#: lib/tuist_web/live/account_settings_live.ex:455
+#: lib/tuist_web/live/account_settings_live.ex:468
+#: lib/tuist_web/live/account_settings_live.ex:536
+#: lib/tuist_web/live/account_settings_live.ex:659
 #, elixir-autogen, elixir-format
 msgid "Region"
 msgstr ""
@@ -633,30 +641,30 @@ msgstr ""
 msgid "Remove member"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.html.heex:77
-#: lib/tuist_web/live/account_settings_live.html.heex:226
+#: lib/tuist_web/live/account_settings_live.html.heex:84
+#: lib/tuist_web/live/account_settings_live.html.heex:240
 #, elixir-autogen, elixir-format
 msgid "Rename"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.html.heex:19
-#: lib/tuist_web/live/account_settings_live.html.heex:43
+#: lib/tuist_web/live/account_settings_live.html.heex:26
+#: lib/tuist_web/live/account_settings_live.html.heex:50
 #, elixir-autogen, elixir-format
 msgid "Rename organization"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.html.heex:37
+#: lib/tuist_web/live/account_settings_live.html.heex:44
 #, elixir-autogen, elixir-format
 msgid "Rename your organization?"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.html.heex:55
-#: lib/tuist_web/live/account_settings_live.html.heex:205
+#: lib/tuist_web/live/account_settings_live.html.heex:62
+#: lib/tuist_web/live/account_settings_live.html.heex:219
 #, elixir-autogen, elixir-format
 msgid "Renaming can have unexpected consequences"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.html.heex:22
+#: lib/tuist_web/live/account_settings_live.html.heex:29
 #, elixir-autogen, elixir-format
 msgid "Renaming your organization can have unintended side effects."
 msgstr ""
@@ -692,7 +700,7 @@ msgstr ""
 msgid "Search members..."
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:299
+#: lib/tuist_web/live/account_settings_live.ex:654
 #, elixir-autogen, elixir-format
 msgid "Select region"
 msgstr ""
@@ -702,7 +710,7 @@ msgstr ""
 msgid "Self-host your instance of Tuist"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:44
+#: lib/tuist_web/live/account_settings_live.ex:51
 #: lib/tuist_web/live/account_settings_live.html.heex:3
 #, elixir-autogen, elixir-format
 msgid "Settings"
@@ -723,12 +731,13 @@ msgstr ""
 msgid "Standard support: Via Slack and email"
 msgstr ""
 
+#: lib/tuist_web/live/account_settings_live.ex:539
 #: lib/tuist_web/live/members_live.ex:277
 #, elixir-autogen, elixir-format
 msgid "Status"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:288
+#: lib/tuist_web/live/account_settings_live.ex:643
 #, elixir-autogen, elixir-format
 msgid "Storage region"
 msgstr ""
@@ -743,8 +752,8 @@ msgstr ""
 msgid "Tailored agreements to meet your specific needs"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.html.heex:93
-#: lib/tuist_web/live/account_settings_live.html.heex:242
+#: lib/tuist_web/live/account_settings_live.html.heex:100
+#: lib/tuist_web/live/account_settings_live.html.heex:256
 #, elixir-autogen, elixir-format
 msgid "This action cannot be undone."
 msgstr ""
@@ -764,18 +773,18 @@ msgstr ""
 msgid "Try changing your search term"
 msgstr ""
 
-#: lib/tuist_web/live/accept_invitation_live.ex:46
+#: lib/tuist_web/live/accept_invitation_live.ex:73
 #: lib/tuist_web/live/create_organization_live.ex:39
 #, elixir-autogen, elixir-format
 msgid "Tuist Logo"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:309
+#: lib/tuist_web/live/account_settings_live.ex:664
 #, elixir-autogen, elixir-format
 msgid "United States"
 msgstr ""
 
-#: lib/tuist/vcs.ex:500
+#: lib/tuist/vcs.ex:639
 #, elixir-autogen, elixir-format
 msgid "Unknown"
 msgstr ""
@@ -795,18 +804,18 @@ msgstr ""
 msgid "Update payment method"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.html.heex:170
-#: lib/tuist_web/live/account_settings_live.html.heex:194
+#: lib/tuist_web/live/account_settings_live.html.heex:184
+#: lib/tuist_web/live/account_settings_live.html.heex:208
 #, elixir-autogen, elixir-format
 msgid "Update username"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.html.heex:188
+#: lib/tuist_web/live/account_settings_live.html.heex:202
 #, elixir-autogen, elixir-format
 msgid "Update your username?"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.html.heex:173
+#: lib/tuist_web/live/account_settings_live.html.heex:187
 #, elixir-autogen, elixir-format
 msgid "Updating your username can have unintended consequences."
 msgstr ""
@@ -873,8 +882,8 @@ msgstr ""
 msgid "User"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.html.heex:210
-#: lib/tuist_web/live/account_settings_live.html.heex:282
+#: lib/tuist_web/live/account_settings_live.html.heex:224
+#: lib/tuist_web/live/account_settings_live.html.heex:296
 #, elixir-autogen, elixir-format
 msgid "Username"
 msgstr ""
@@ -889,15 +898,14 @@ msgstr ""
 msgid "Via shared Slack channel"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:19
+#: lib/tuist_web/live/account_settings_live.ex:23
+#: lib/tuist_web/live/authentication_settings_live.ex:17
 #: lib/tuist_web/live/billing_live.ex:13
-#: lib/tuist_web/live/sso_settings_live.ex:15
 #, elixir-autogen, elixir-format
 msgid "You are not authorized to perform this action."
 msgstr ""
 
-#: lib/tuist_web/live/accept_invitation_live.ex:88
-#: lib/tuist_web/live/accept_invitation_live.ex:111
+#: lib/tuist_web/live/accept_invitation_live.ex:133
 #, elixir-autogen, elixir-format
 msgid "You have been invited"
 msgstr ""
@@ -958,190 +966,180 @@ msgstr ""
 msgid "xxxx xxxx xxxx %{card_number}"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:387
+#: lib/tuist_web/live/account_settings_live.ex:742
 #, elixir-autogen, elixir-format
 msgid "Add"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:349
+#: lib/tuist_web/live/account_settings_live.ex:704
 #, elixir-autogen, elixir-format
 msgid "Add cache endpoint"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:356
+#: lib/tuist_web/live/account_settings_live.ex:711
 #, elixir-autogen, elixir-format
 msgid "Add endpoint"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:369
+#: lib/tuist_web/live/account_settings_live.ex:724
 #, elixir-autogen, elixir-format
 msgid "Endpoint URL"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:426
+#: lib/tuist_web/live/account_settings_live.ex:781
 #, elixir-autogen, elixir-format
 msgid "URL"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:433
+#: lib/tuist_web/live/account_settings_live.ex:788
 #, elixir-autogen, elixir-format
 msgid "Delete last cache endpoint?"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:453
+#: lib/tuist_web/live/account_settings_live.ex:808
 #, elixir-autogen, elixir-format
 msgid "Removing the last custom cache endpoint will switch your organization back to Tuist-hosted caching. This affects all builds across your organization."
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:331
+#: lib/tuist_web/live/account_settings_live.ex:686
 #, elixir-autogen, elixir-format
 msgid "Cache endpoints"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:335
+#: lib/tuist_web/live/account_settings_live.ex:690
 #, elixir-autogen, elixir-format
 msgid "Configure custom cache endpoints for self-hosted cache setups. When enabled, Tuist will read from and write to these endpoints instead of the default Tuist-hosted cache."
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:403
+#: lib/tuist_web/live/account_settings_live.ex:758
 #, elixir-autogen, elixir-format
 msgid "Custom cache endpoints are disabled. Tuist will use the default Tuist-hosted cache."
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:415
+#: lib/tuist_web/live/account_settings_live.ex:770
 #, elixir-autogen, elixir-format
 msgid "No custom cache endpoints configured. Tuist will use the default Tuist-hosted cache until endpoints are added."
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.html.heex:313
+#: lib/tuist_web/live/authentication_settings_live.html.heex:312
 #, elixir-autogen, elixir-format
 msgid "Client ID"
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.html.heex:339
+#: lib/tuist_web/live/authentication_settings_live.html.heex:331
 #, elixir-autogen, elixir-format
 msgid "Client secret"
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.html.heex:119
+#: lib/tuist_web/live/authentication_settings_live.html.heex:126
 #, elixir-autogen, elixir-format
 msgid "Copy the Client ID and Client Secret from the application settings"
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.html.heex:101
+#: lib/tuist_web/live/authentication_settings_live.html.heex:108
 #, elixir-autogen, elixir-format
 msgid "Go to Applications > Applications > Create App Integration"
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.html.heex:66
+#: lib/tuist_web/live/authentication_settings_live.html.heex:77
 #, elixir-autogen, elixir-format
 msgid "Google Workspace domain"
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.html.heex:197
+#: lib/tuist_web/live/authentication_settings_live.html.heex:201
 #, elixir-autogen, elixir-format
 msgid "Okta domain"
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.html.heex:53
+#: lib/tuist_web/live/authentication_settings_live.html.heex:64
 #, elixir-autogen, elixir-format
 msgid "Provider"
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.ex:37
-#, elixir-autogen, elixir-format
-msgid "SSO"
-msgstr ""
-
-#: lib/tuist_web/live/sso_settings_live.ex:20
-#, elixir-autogen, elixir-format
-msgid "SSO settings are only available for organizations."
-msgstr ""
-
-#: lib/tuist_web/live/sso_settings_live.html.heex:107
+#: lib/tuist_web/live/authentication_settings_live.html.heex:114
 #, elixir-autogen, elixir-format
 msgid "Select \"OIDC - OpenID Connect\" and \"Web Application\""
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.html.heex:3
+#: lib/tuist_web/live/authentication_settings_live.html.heex:21
 #, elixir-autogen, elixir-format
 msgid "Single Sign-On"
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.ex:270
+#: lib/tuist_web/live/authentication_settings_live.ex:343
 #, elixir-autogen, elixir-format
 msgid "You must be authenticated with Google using an email tied to this domain. Please sign in with Google first."
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.html.heex:91
+#: lib/tuist_web/live/authentication_settings_live.html.heex:98
 #, elixir-autogen, elixir-format
 msgid "Create an OIDC Web Application in your Okta admin dashboard before configuring the fields below."
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.html.heex:40
+#: lib/tuist_web/live/authentication_settings_live.html.heex:51
 #, elixir-autogen, elixir-format
 msgid "SSO provider"
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.html.heex:388
+#: lib/tuist_web/live/authentication_settings_live.html.heex:377
 #, elixir-autogen, elixir-format
 msgid "Save changes"
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.html.heex:43
+#: lib/tuist_web/live/authentication_settings_live.html.heex:54
 #, elixir-autogen, elixir-format
 msgid "Select an SSO provider to allow users to sign in to Tuist and automatically join this organization."
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.html.heex:88
-#: lib/tuist_web/live/sso_settings_live.html.heex:146
+#: lib/tuist_web/live/authentication_settings_live.html.heex:95
+#: lib/tuist_web/live/authentication_settings_live.html.heex:150
 #, elixir-autogen, elixir-format
 msgid "Setup instructions"
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.html.heex:69
+#: lib/tuist_web/live/authentication_settings_live.html.heex:80
 #, elixir-autogen, elixir-format
 msgid "Users signing in with a Google account from this domain will be automatically added to this organization."
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.html.heex:200
+#: lib/tuist_web/live/authentication_settings_live.html.heex:204
 #, elixir-autogen, elixir-format
 msgid "Your Okta organization URL without the https:// prefix."
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.html.heex:25
+#: lib/tuist_web/live/authentication_settings_live.html.heex:39
 #, elixir-autogen, elixir-format
 msgid "Enable Single Sign-On"
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.html.heex:28
+#: lib/tuist_web/live/authentication_settings_live.html.heex:42
 #, elixir-autogen, elixir-format
 msgid "Enable and configure SSO for your organization."
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.html.heex:125
-#: lib/tuist_web/live/sso_settings_live.html.heex:179
+#: lib/tuist_web/live/authentication_settings_live.html.heex:132
+#: lib/tuist_web/live/authentication_settings_live.html.heex:183
 #, elixir-autogen, elixir-format
 msgid "Set the initiate login URI to:"
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.html.heex:113
-#: lib/tuist_web/live/sso_settings_live.html.heex:165
+#: lib/tuist_web/live/authentication_settings_live.html.heex:120
+#: lib/tuist_web/live/authentication_settings_live.html.heex:169
 #, elixir-autogen, elixir-format
 msgid "Set the sign-in redirect URI to:"
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.html.heex:373
+#: lib/tuist_web/live/authentication_settings_live.html.heex:362
 #, elixir-autogen, elixir-format
 msgid "Enforce SSO"
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.html.heex:376
+#: lib/tuist_web/live/authentication_settings_live.html.heex:365
 #, elixir-autogen, elixir-format
 msgid "When enabled, organization members will not be able to log in with email and password. They must use SSO instead."
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.ex:256
+#: lib/tuist_web/live/authentication_settings_live.ex:329
 #, elixir-autogen, elixir-format
 msgid "You must authenticate with the SSO provider before enforcing SSO. Please sign in with your SSO provider first."
 msgstr ""
@@ -1161,84 +1159,328 @@ msgstr ""
 msgid "What's the name of your company or team? You can change this later in the settings"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:243
+#: lib/tuist_web/live/account_settings_live.ex:598
 #, elixir-autogen, elixir-format
 msgid "Browser default"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:253
+#: lib/tuist_web/live/account_settings_live.ex:608
 #, elixir-autogen, elixir-format
 msgid "Choose your preferred dashboard language."
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:250
+#: lib/tuist_web/live/account_settings_live.ex:605
 #, elixir-autogen, elixir-format
 msgid "Dashboard language"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:258
-#: lib/tuist_web/live/account_settings_live.ex:263
+#: lib/tuist_web/live/account_settings_live.ex:613
+#: lib/tuist_web/live/account_settings_live.ex:618
 #, elixir-autogen, elixir-format
 msgid "Language"
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.html.heex:58
+#: lib/tuist_web/live/authentication_settings_live.html.heex:69
 #, elixir-autogen, elixir-format
 msgid "OAuth2"
 msgstr ""
 
-#: lib/tuist_web/live/accept_invitation_live.ex:91
-#, elixir-autogen, elixir-format
-msgid "%{inviter} has invited %{email} to join the %{organization} organization. Create a Tuist account with that email to accept."
-msgstr ""
-
-#: lib/tuist_web/live/accept_invitation_live.ex:163
-#, elixir-autogen, elixir-format
-msgid "Back to login"
-msgstr ""
-
-#: lib/tuist_web/live/accept_invitation_live.ex:105
-#, elixir-autogen, elixir-format
-msgid "Create an account"
-msgstr ""
-
-#: lib/tuist_web/controllers/invitation_controller.ex:66
-#, elixir-autogen, elixir-format
-msgid "Create an account with %{email} to accept the invitation."
-msgstr ""
-
-#: lib/tuist_web/controllers/invitation_controller.ex:84
-#, elixir-autogen, elixir-format
-msgid "Invitation declined."
-msgstr ""
-
-#: lib/tuist_web/controllers/invitation_controller.ex:92
-#, elixir-autogen, elixir-format
-msgid "Invitation not found."
-msgstr ""
-
-#: lib/tuist_web/controllers/invitation_controller.ex:54
-#, elixir-autogen, elixir-format
-msgid "This invitation is addressed to %{email}. Log out and retry with that account."
-msgstr ""
-
-#: lib/tuist_web/live/accept_invitation_live.ex:78
+#: lib/tuist_web/live/accept_invitation_live.ex:164
 #, elixir-autogen, elixir-format
 msgid "This invitation is addressed to %{email}. Log out and sign in with that account to accept it."
 msgstr ""
 
-#: lib/tuist_web/controllers/invitation_controller.ex:43
-#: lib/tuist_web/live/accept_invitation_live.ex:66
+#: lib/tuist_web/live/accept_invitation_live.ex:183
 #, elixir-autogen, elixir-format
 msgid "We could not find the invitation you are trying to accept. Please ask the inviter to send a new invitation."
 msgstr ""
 
-#: lib/tuist_web/live/accept_invitation_live.ex:75
+#: lib/tuist_web/live/accept_invitation_live.ex:161
 #, elixir-autogen, elixir-format
 msgid "Wrong account"
 msgstr ""
 
-#: lib/tuist_web/controllers/invitation_controller.ex:32
+#: lib/tuist_web/live/authentication_settings_live.html.heex:24
 #, elixir-autogen, elixir-format
-msgid "You are now a part of the organization."
+msgid "Allow members to sign in to Tuist through your identity provider."
+msgstr ""
+
+#: lib/tuist_web/live/authentication_settings_live.ex:44
+#: lib/tuist_web/live/authentication_settings_live.html.heex:3
+#, elixir-autogen, elixir-format
+msgid "Authentication"
+msgstr ""
+
+#: lib/tuist_web/live/authentication_settings_live.ex:22
+#, elixir-autogen, elixir-format
+msgid "Authentication settings are only available for organizations."
+msgstr ""
+
+#: lib/tuist_web/live/authentication_settings_live.html.heex:405
+#, elixir-autogen, elixir-format
+msgid "SCIM endpoint URL"
+msgstr ""
+
+#: lib/tuist_web/live/authentication_settings_live.html.heex:453
+#, elixir-autogen, elixir-format
+msgid "Copy it now — it will not be shown again after you close this dialog."
+msgstr ""
+
+#: lib/tuist_web/live/authentication_settings_live.html.heex:469
+#, elixir-autogen, elixir-format
+msgid "Copy token"
+msgstr ""
+
+#: lib/tuist_web/live/authentication_settings_live.html.heex:536
+#, elixir-autogen, elixir-format
+msgid "Created"
+msgstr ""
+
+#: lib/tuist_web/live/accept_invitation_live.ex:201
+#, elixir-autogen, elixir-format
+msgid "Dashboard"
+msgstr ""
+
+#: lib/tuist_web/live/authentication_settings_live.html.heex:507
+#, elixir-autogen, elixir-format
+msgid "Done"
+msgstr ""
+
+#: lib/tuist_web/live/authentication_settings_live.html.heex:518
+#, elixir-autogen, elixir-format
+msgid "Generate"
+msgstr ""
+
+#: lib/tuist_web/live/authentication_settings_live.html.heex:430
+#, elixir-autogen, elixir-format
+msgid "Generate SCIM token"
+msgstr ""
+
+#: lib/tuist_web/live/authentication_settings_live.html.heex:572
+#, elixir-autogen, elixir-format
+msgid "Generate one above to start provisioning from your IdP."
+msgstr ""
+
+#: lib/tuist_web/live/authentication_settings_live.html.heex:436
+#, elixir-autogen, elixir-format
+msgid "Generate token"
+msgstr ""
+
+#: lib/tuist_web/live/accept_invitation_live.ex:84
+#, elixir-autogen, elixir-format
+msgid "Invitation accepted!"
+msgstr ""
+
+#: lib/tuist_web/live/accept_invitation_live.ex:109
+#, elixir-autogen, elixir-format
+msgid "Invitation rejected"
+msgstr ""
+
+#: lib/tuist_web/live/authentication_settings_live.html.heex:421
+#, elixir-autogen, elixir-format
+msgid "Issue one bearer token per IdP. Revoke a token if it leaks or is no longer needed."
+msgstr ""
+
+#: lib/tuist_web/live/authentication_settings_live.html.heex:539
+#, elixir-autogen, elixir-format
+msgid "Last used"
+msgstr ""
+
+#: lib/tuist_web/live/authentication_settings_live.html.heex:395
+#, elixir-autogen, elixir-format
+msgid "Let your IdP (Okta, Azure AD/Entra, JumpCloud, etc.) provision users into this organization at the SCIM endpoint URL below using a bearer token."
+msgstr ""
+
+#: lib/tuist_web/live/authentication_settings_live.html.heex:487
+#, elixir-autogen, elixir-format
+msgid "Name this token so you can identify it later (for example: \"Okta\")."
+msgstr ""
+
+#: lib/tuist_web/live/authentication_settings_live.html.heex:543
+#, elixir-autogen, elixir-format
+msgid "Never"
+msgstr ""
+
+#: lib/tuist_web/live/authentication_settings_live.html.heex:570
+#, elixir-autogen, elixir-format
+msgid "No SCIM tokens yet"
+msgstr ""
+
+#: lib/tuist_web/live/authentication_settings_live.html.heex:557
+#, elixir-autogen, elixir-format
+msgid "Revoke this token? This action cannot be undone."
+msgstr ""
+
+#: lib/tuist_web/live/authentication_settings_live.html.heex:392
+#, elixir-autogen, elixir-format
+msgid "SCIM provisioning"
+msgstr ""
+
+#: lib/tuist_web/live/authentication_settings_live.html.heex:450
+#, elixir-autogen, elixir-format
+msgid "Token created"
+msgstr ""
+
+#: lib/tuist_web/live/authentication_settings_live.html.heex:485
+#, elixir-autogen, elixir-format
+msgid "Token name"
+msgstr ""
+
+#: lib/tuist_web/live/authentication_settings_live.ex:130
+#, elixir-autogen, elixir-format
+msgid "Token name is required."
+msgstr ""
+
+#: lib/tuist_web/live/authentication_settings_live.ex:177
+#, elixir-autogen, elixir-format
+msgid "Token not found."
+msgstr ""
+
+#: lib/tuist_web/live/authentication_settings_live.html.heex:418
+#, elixir-autogen, elixir-format
+msgid "Tokens"
+msgstr ""
+
+#: lib/tuist_web/live/authentication_settings_live.html.heex:534
+#, elixir-autogen, elixir-format
+msgid "Unnamed"
+msgstr ""
+
+#: lib/tuist_web/live/accept_invitation_live.ex:99
+#, elixir-autogen, elixir-format
+msgid "You are now a part of %{organization} organization"
+msgstr ""
+
+#: lib/tuist_web/live/accept_invitation_live.ex:87
+#, elixir-autogen, elixir-format
+msgid "You have accepted the invite to join the organization"
+msgstr ""
+
+#: lib/tuist_web/live/accept_invitation_live.ex:112
+#, elixir-autogen, elixir-format
+msgid "You have rejected the invite to join the organization"
+msgstr ""
+
+#: lib/tuist_web/live/accept_invitation_live.ex:124
+#, elixir-autogen, elixir-format
+msgid "You won’t be able to access this organization unless invited again."
+msgstr ""
+
+#: lib/tuist_web/live/authentication_settings_live.html.heex:492
+#, elixir-autogen, elixir-format
+msgid "e.g. Okta"
+msgstr ""
+
+#: lib/tuist_web/live/authentication_settings_live.html.heex:555
+#, elixir-autogen, elixir-format
+msgid "Revoke token"
+msgstr ""
+
+#: lib/tuist_web/live/account_settings_live.ex:577
+#, elixir-autogen, elixir-format
+msgid "Active"
+msgstr ""
+
+#: lib/tuist_web/live/account_settings_live.ex:518
+#: lib/tuist_web/live/account_settings_live.ex:524
+#, elixir-autogen, elixir-format
+msgid "Deploy"
+msgstr ""
+
+#: lib/tuist_web/live/account_settings_live.ex:432
+#: lib/tuist_web/live/account_settings_live.ex:439
+#, elixir-autogen, elixir-format
+msgid "Deploy Kura server"
+msgstr ""
+
+#: lib/tuist_web/live/account_settings_live.ex:423
+#, elixir-autogen, elixir-format
+msgid "Deploy regional Kura cache servers for this account. Each region can have at most one server."
+msgstr ""
+
+#: lib/tuist_web/live/account_settings_live.ex:576
+#, elixir-autogen, elixir-format
+msgid "Deploying"
+msgstr ""
+
+#: lib/tuist_web/live/account_settings_live.ex:370
+#, elixir-autogen, elixir-format
+msgid "Deploying Kura in %{region}..."
+msgstr ""
+
+#: lib/tuist_web/live/account_settings_live.ex:556
+#, elixir-autogen, elixir-format
+msgid "Destroy"
+msgstr ""
+
+#: lib/tuist_web/live/account_settings_live.ex:562
+#, elixir-autogen, elixir-format
+msgid "Destroy the Kura server in %{region}? This removes the account's Kura cache endpoint for that region."
+msgstr ""
+
+#: lib/tuist_web/live/account_settings_live.ex:580
+#, elixir-autogen, elixir-format
+msgid "Destroyed"
+msgstr ""
+
+#: lib/tuist_web/live/account_settings_live.ex:579
+#, elixir-autogen, elixir-format
+msgid "Destroying"
+msgstr ""
+
+#: lib/tuist_web/live/account_settings_live.ex:282
+#, elixir-autogen, elixir-format
+msgid "Destroying Kura server..."
+msgstr ""
+
+#: lib/tuist_web/live/account_settings_live.ex:546
+#, elixir-autogen, elixir-format
+msgid "Domain"
+msgstr ""
+
+#: lib/tuist_web/live/account_settings_live.ex:578
+#, elixir-autogen, elixir-format
+msgid "Failed"
+msgstr ""
+
+#: lib/tuist_web/live/account_settings_live.ex:380
+#: lib/tuist_web/live/account_settings_live.ex:389
+#, elixir-autogen, elixir-format
+msgid "Failed to deploy Kura: %{reason}"
+msgstr ""
+
+#: lib/tuist_web/live/account_settings_live.ex:420
+#, elixir-autogen, elixir-format
+msgid "Kura cache servers"
+msgstr ""
+
+#: lib/tuist_web/live/account_settings_live.ex:275
+#, elixir-autogen, elixir-format
+msgid "Kura server not found."
+msgstr ""
+
+#: lib/tuist_web/live/account_settings_live.ex:487
+#, elixir-autogen, elixir-format
+msgid "New servers start on Kura"
+msgstr ""
+
+#: lib/tuist_web/live/account_settings_live.ex:549
+#, elixir-autogen, elixir-format
+msgid "Version"
+msgstr ""
+
+#: lib/tuist_web/live/account_settings_live.ex:489
+#, elixir-autogen, elixir-format
+msgid "(current deploy)."
+msgstr ""
+
+#: lib/tuist_web/live/account_settings_live.ex:252
+#: lib/tuist_web/live/account_settings_live.ex:482
+#, elixir-autogen, elixir-format
+msgid "No Kura runtime image is configured right now. Try again after the next server deploy."
+msgstr ""
+
+#: lib/tuist_web/live/account_settings_live.ex:244
+#, elixir-autogen, elixir-format
+msgid "Select a Kura region before deploying."
 msgstr ""

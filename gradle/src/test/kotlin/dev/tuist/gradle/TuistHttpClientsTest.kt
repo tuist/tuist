@@ -35,6 +35,26 @@ class TuistHttpClientsTest {
     }
 
     @Test
+    fun `does not create proxy when environment proxy usage is disabled`() {
+        val httpClients = TuistHttpClients(
+            useEnvironmentProxy = false,
+            proxyURLProvider = { "http://proxy.tuist.dev:8080" }
+        )
+
+        assertNull(httpClients.javaProxy)
+    }
+
+    @Test
+    fun `creates proxy from environment when enabled`() {
+        val httpClients = TuistHttpClients(
+            useEnvironmentProxy = true,
+            proxyURLProvider = { "http://proxy.tuist.dev:8080" }
+        )
+
+        assertNotNull(httpClients.javaProxy)
+    }
+
+    @Test
     fun `unauthenticatedRetrofit reaches the target server when no proxy env var is set`() {
         server.enqueue(MockResponse().setResponseCode(200).setBody("""{"access_token":"at","refresh_token":"rt"}"""))
 

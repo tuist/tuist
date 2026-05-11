@@ -62,20 +62,28 @@ public struct ExternalProjectsPlatformNarrowerGraphMapper: GraphMapping { // swi
 
         var targetFilteredDestinations = externalTargetSupportedDestinations[graphTarget]
 
-        // Local SPM test targets are orphans (nothing depends on them), so the top-down
-        // traversal never reaches them. Inherit destinations from their direct dependencies instead.
+        // Orphan local SPM test targets aren't reached by the top-down traversal. Union
+        // destinations of the test's linkable deps — non-linkable deps (macros, bundles)
+        // don't constrain runtime platforms.
         if targetFilteredDestinations == nil,
            target.metadata.tags.contains(TargetTags.localSwiftPackageTest)
         {
-            let depDestinations = target.dependencies.compactMap { dep -> Set<Destination>? in
-                guard case let .target(name, _, _) = dep,
-                      let depTarget = project.targets[name]
+            let linkableDestinations = target.dependencies.compactMap { dep -> Set<Destination>? in
+                guard case let .target(name, _, dependencyCondition) = dep,
+                      let depTarget = project.targets[name],
+                      depTarget.isLinkable()
                 else { return nil }
                 let depGraphTarget = GraphTarget(path: project.path, target: depTarget, project: project)
-                return externalTargetSupportedDestinations[depGraphTarget]
+                guard let depDestinations = externalTargetSupportedDestinations[depGraphTarget] else { return nil }
+
+                return orphanTestDependencyDestinations(
+                    depDestinations,
+                    target: target,
+                    dependencyCondition: dependencyCondition
+                )
             }
-            if let merged = depDestinations.first {
-                targetFilteredDestinations = depDestinations.dropFirst().reduce(merged) { $0.union($1) }
+            if let first = linkableDestinations.first {
+                targetFilteredDestinations = linkableDestinations.dropFirst().reduce(first) { $0.union($1) }
             }
         }
 
@@ -95,5 +103,28 @@ public struct ExternalProjectsPlatformNarrowerGraphMapper: GraphMapping { // swi
             )
         }
         return target
+    }
+
+    private func orphanTestDependencyDestinations(
+        _ destinations: Set<Destination>,
+        target: Target,
+        dependencyCondition: PlatformCondition?
+    ) -> Set<Destination>? {
+        let inheritedDestinations = destinations.intersection(target.destinations)
+
+        guard let dependencyCondition,
+              let targetCondition = PlatformCondition.when(target.dependencyPlatformFilters)
+        else {
+            return inheritedDestinations
+        }
+
+        switch targetCondition.intersection(dependencyCondition) {
+        case .incompatible:
+            return nil
+        case let .condition(condition):
+            guard let condition else { return inheritedDestinations }
+            let allowedPlatformFilters = condition.platformFilters
+            return inheritedDestinations.filter { allowedPlatformFilters.contains($0.platformFilter) }
+        }
     }
 }

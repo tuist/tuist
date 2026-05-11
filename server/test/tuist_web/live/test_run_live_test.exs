@@ -487,4 +487,26 @@ defmodule TuistWeb.TestRunLiveTest do
       assert has_element?(lv, "#shard-balance-table", "Pending")
     end
   end
+
+  describe "refresh_test_run event" do
+    test "re-renders without raising when refreshing a non-processing run", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # Given - a finished test run rendered on the overview tab (test-cases sub-tab is the default)
+      {:ok, test_run} = RunsFixtures.test_fixture(project_id: project.id)
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
+
+      # When - the LiveView re-fetches the run after the run has finished processing.
+      # This mirrors handle_info({:test_created, ...}) and the manual refresh flow,
+      # which both reset the test_cases_meta assign back to %{}.
+      html = render_hook(lv, "refresh_test_run")
+
+      # Then - the page re-renders without raising a KeyError on @test_cases_meta.total_pages
+      assert html =~ "test-cases-card"
+    end
+  end
 end

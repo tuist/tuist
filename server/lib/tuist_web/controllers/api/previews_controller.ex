@@ -829,6 +829,7 @@ defmodule TuistWeb.API.PreviewsController do
 
   def delete(
         %{
+          assigns: %{selected_project: selected_project},
           path_params: %{
             "account_handle" => _account_handle,
             "project_handle" => _project_handle,
@@ -837,7 +838,7 @@ defmodule TuistWeb.API.PreviewsController do
         } = conn,
         _params
       ) do
-    case AppBuilds.preview_by_id(preview_id) do
+    case AppBuilds.preview_by_id(preview_id, project_id: selected_project.id) do
       {:ok, preview} ->
         AppBuilds.delete_preview!(preview)
 

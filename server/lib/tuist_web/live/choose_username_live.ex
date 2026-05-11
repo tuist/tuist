@@ -118,6 +118,9 @@ defmodule TuistWeb.ChooseUsernameLive do
 
         {:noreply, socket}
 
+      {:error, :email_taken} ->
+        {:noreply, redirect(socket, to: ~p"/auth/cancel-pending-signup")}
+
       {:error, errors} when is_map(errors) ->
         error = Map.get(errors, :name)
 

@@ -24,6 +24,10 @@ import org.gradle.api.logging.Logging
  *
  *     uploadInBackground = true // default: true locally, false on CI
  *
+ *     network {
+ *         proxy = false
+ *     }
+ *
  *     buildCache {
  *         enabled = true
  *         push = true
@@ -38,9 +42,12 @@ import org.gradle.api.logging.Logging
 data class TuistGradleConfig(
     val url: String,
     val project: String?,
+    val network: Network,
     val uploadInBackground: Boolean? = null,
     val testQuarantineEnabled: Boolean? = null
 ) {
+    data class Network(val proxy: Boolean)
+
     companion object {
         internal const val EXTRA_PROPERTY_KEY = "tuist.config"
 
@@ -48,6 +55,12 @@ data class TuistGradleConfig(
             TuistGradleConfig(
                 url = extension.url,
                 project = extension.project.ifBlank { null },
+                network = Network(
+                    proxy = EnvironmentProxyResolver.resolve(
+                        extensionProxy = extension.network.proxy,
+                        projectDir = settings.settingsDir
+                    )
+                ),
                 uploadInBackground = extension.uploadInBackground,
                 testQuarantineEnabled = extension.testQuarantine.enabled
             )
@@ -124,6 +137,8 @@ class TuistPlugin : Plugin<Settings> {
             remote(TuistBuildCache::class.java) {
                 this.project = config.project
                 this.url = config.url
+                this.projectDir = settings.settingsDir.absolutePath
+                this.useEnvironmentProxy = config.network.proxy
                 isPush = buildCacheConfig.push
                 this.allowInsecureProtocol = buildCacheConfig.allowInsecureProtocol
             }
@@ -160,6 +175,18 @@ open class TuistExtension {
      * to ensure it completes before ephemeral agents exit.
      */
     var uploadInBackground: Boolean? = null
+
+    /**
+     * Network configuration.
+     */
+    val network: NetworkSettings = NetworkSettings()
+
+    /**
+     * Configure network settings.
+     */
+    fun network(action: Action<NetworkSettings>) {
+        action.execute(network)
+    }
 
     /**
      * Build cache configuration.
@@ -204,6 +231,18 @@ open class BuildCacheExtension {
      * Whether to allow insecure HTTP connections. Defaults to false.
      */
     var allowInsecureProtocol: Boolean = false
+}
+
+/**
+ * Configuration for Tuist's network behavior.
+ */
+open class NetworkSettings {
+    /**
+     * Whether the plugin should use the proxy defined by `HTTPS_PROXY`/`HTTP_PROXY`.
+     * When null (default), the plugin reads `[network].proxy` from `tuist.toml`
+     * and otherwise falls back to `true`.
+     */
+    var proxy: Boolean? = null
 }
 
 /**

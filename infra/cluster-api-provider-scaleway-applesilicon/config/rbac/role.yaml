@@ -1,0 +1,33 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: capa-scaleway-applesilicon-manager
+rules:
+  - apiGroups: ["infrastructure.cluster.x-k8s.io"]
+    resources:
+      - scalewayapplesiliconmachines
+      - scalewayapplesiliconmachinetemplates
+      - scalewayapplesiliconclusters
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: ["infrastructure.cluster.x-k8s.io"]
+    resources:
+      - scalewayapplesiliconmachines/status
+      - scalewayapplesiliconmachines/finalizers
+      - scalewayapplesiliconclusters/status
+    verbs: [get, update, patch]
+  # CAPI core resources we read but don't mutate.
+  - apiGroups: ["cluster.x-k8s.io"]
+    resources: [machines, machinesets, machinedeployments, clusters]
+    verbs: [get, list, watch]
+  # Secrets for SSH keys + bootstrap tokens; Nodes for Ready signal.
+  - apiGroups: [""]
+    resources: [secrets, nodes]
+    verbs: [get, list, watch]
+  # Leader election (single-flight reconcile across replicas).
+  - apiGroups: ["coordination.k8s.io"]
+    resources: [leases]
+    verbs: [get, list, watch, create, update, patch, delete]
+  # Events surface progress/failure to operators via kubectl describe.
+  - apiGroups: [""]
+    resources: [events]
+    verbs: [create, patch]

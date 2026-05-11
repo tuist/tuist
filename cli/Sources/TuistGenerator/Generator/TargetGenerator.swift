@@ -102,7 +102,7 @@ struct TargetGenerator: TargetGenerating {
 
         // Pre actions
         Logger.current.debug("TargetGenerator: Generating pre-scripts for \(target.name)")
-        try buildPhaseGenerator.generateScripts(
+        try await buildPhaseGenerator.generateScripts(
             target.scripts.preScripts,
             pbxTarget: pbxTarget,
             pbxproj: pbxproj,
@@ -147,7 +147,7 @@ struct TargetGenerator: TargetGenerating {
 
         // Post actions
         Logger.current.debug("TargetGenerator: Generating post-scripts for \(target.name)")
-        try buildPhaseGenerator.generateScripts(
+        try await buildPhaseGenerator.generateScripts(
             target.scripts.postScripts,
             pbxTarget: pbxTarget,
             pbxproj: pbxproj,

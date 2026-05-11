@@ -35,7 +35,7 @@
     & > [data-part="content"] {
       box-sizing: border-box;
       box-shadow: var(--noora-border-heavy);
-      border-radius: var(--noora-radius-2xlarge);
+      border-radius: var(--noora-radius-8);
       background: var(--noora-surface-background-primary);
 
       & > [data-part="body"] {
@@ -111,7 +111,7 @@
           gap: var(--noora-spacing-6);
 
           & [data-part="icon"] {
-            border-radius: var(--noora-radius-large);
+            border-radius: var(--noora-radius-4);
             padding: 10px;
           }
 

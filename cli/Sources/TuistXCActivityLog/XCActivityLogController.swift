@@ -291,8 +291,8 @@ public struct XCActivityLogController: XCActivityLogControlling {
     private func rootDirectory() async throws -> AbsolutePath? {
         let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
         let workingDirectory = Environment.current.workspacePath ?? currentWorkingDirectory
-        if gitController.isInGitRepository(workingDirectory: workingDirectory) {
-            return try gitController.topLevelGitDirectory(workingDirectory: workingDirectory)
+        if await gitController.isInGitRepository(workingDirectory: workingDirectory) {
+            return try await gitController.topLevelGitDirectory(workingDirectory: workingDirectory)
         } else {
             return try await rootDirectoryLocator.locate(from: workingDirectory)
         }

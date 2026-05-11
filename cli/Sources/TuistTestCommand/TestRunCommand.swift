@@ -50,9 +50,7 @@
         "test-without-building",
     ]
 
-    public struct TestRunCommand: AsyncParsableCommand, LogConfigurableCommand,
-        RecentPathRememberableCommand, TrackableParsableCommand
-    {
+    public struct TestRunCommand: AsyncParsableCommand, LogConfigurableCommand, TrackableParsableCommand {
         public init() {}
 
         public static var configuration: CommandConfiguration {

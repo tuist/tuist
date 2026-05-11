@@ -31,6 +31,7 @@ final class GraphToGraphVizMapperTests: XCTestCase {
             targetsAndDependencies: graph.filter(
                 skipTestTargets: false,
                 skipExternalDependencies: false,
+                skipMacroSupportTargets: false,
                 platformToFilter: nil,
                 targetsToFilter: []
             )
@@ -54,6 +55,7 @@ final class GraphToGraphVizMapperTests: XCTestCase {
             targetsAndDependencies: graph.filter(
                 skipTestTargets: false,
                 skipExternalDependencies: true,
+                skipMacroSupportTargets: false,
                 platformToFilter: nil,
                 targetsToFilter: []
             )
@@ -78,6 +80,7 @@ final class GraphToGraphVizMapperTests: XCTestCase {
             targetsAndDependencies: graph.filter(
                 skipTestTargets: true,
                 skipExternalDependencies: false,
+                skipMacroSupportTargets: false,
                 platformToFilter: nil,
                 targetsToFilter: []
             )
@@ -102,6 +105,7 @@ final class GraphToGraphVizMapperTests: XCTestCase {
             targetsAndDependencies: graph.filter(
                 skipTestTargets: false,
                 skipExternalDependencies: false,
+                skipMacroSupportTargets: false,
                 platformToFilter: .iOS,
                 targetsToFilter: []
             )
@@ -130,6 +134,7 @@ final class GraphToGraphVizMapperTests: XCTestCase {
             targetsAndDependencies: graph.filter(
                 skipTestTargets: false,
                 skipExternalDependencies: true,
+                skipMacroSupportTargets: false,
                 platformToFilter: nil,
                 targetsToFilter: ["Tuist iOS"]
             )

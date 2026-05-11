@@ -6,7 +6,6 @@ defmodule NooraStorybook.MixProject do
       app: :noora_storybook,
       version: "0.1.0",
       elixir: "~> 1.14",
-      build_path: build_path(),
       elixirc_paths: elixirc_paths(Mix.env()),
       elixirc_options: [check_cwd: false],
       start_permanent: Mix.env() == :prod,
@@ -25,13 +24,6 @@ defmodule NooraStorybook.MixProject do
 
   defp elixirc_paths(:test), do: ["lib", "test/support"]
   defp elixirc_paths(_), do: ["lib"]
-
-  defp build_path do
-    case System.get_env("TUIST_MIX_BUILD_ROOT") do
-      root when root in [nil, ""] -> "_build"
-      root -> Path.join(root, "noora/storybook")
-    end
-  end
 
   defp deps do
     [

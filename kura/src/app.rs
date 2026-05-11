@@ -7,7 +7,7 @@ use std::{
 
 use axum_server::Handle;
 use hyper_util::rt::TokioTimer;
-use tokio::sync::{Notify, oneshot};
+use tokio::sync::{Notify, Semaphore, oneshot};
 use tokio::{task::JoinHandle, time::Instant};
 use tracing::{info, warn};
 
@@ -19,7 +19,7 @@ use crate::{
     io::IoController,
     memory::MemoryController,
     metrics::Metrics,
-    peer_tls::{build_internal_rustls_config, build_peer_client},
+    peer_tls::{build_internal_rustls_config, build_peer_client, build_public_rustls_config},
     reapi,
     replication::{spawn_membership_task, spawn_outbox_task},
     runtime::{DataDirLock, RuntimeState},
@@ -48,6 +48,10 @@ impl ShutdownBudget {
 pub async fn run() -> Result<(), String> {
     let config = Config::from_env().map_err(|error| format!("invalid configuration: {error}"))?;
     let telemetry = init_tracing(&config);
+
+    if let Err(error) = raise_nofile_soft_to_hard() {
+        tracing::warn!("failed to raise RLIMIT_NOFILE soft limit: {error}");
+    }
 
     config
         .ensure_directories()
@@ -79,6 +83,7 @@ pub async fn run() -> Result<(), String> {
     let client = build_peer_client(&config).await?;
     let notify = Notify::new();
 
+    let bootstrap_semaphore = Arc::new(Semaphore::new(config.bootstrap_max_concurrent_peers));
     let state = Arc::new(AppState {
         config,
         _data_dir_lock: data_dir_lock,
@@ -92,6 +97,7 @@ pub async fn run() -> Result<(), String> {
         client,
         notify,
         readiness: tokio::sync::Mutex::new(ReadinessState::new(Instant::now())),
+        bootstrap_semaphore,
     });
     state.sync_runtime_metrics().await;
     let drain_completion_timeout = Duration::from_millis(state.config.drain_completion_timeout_ms);
@@ -101,11 +107,21 @@ pub async fn run() -> Result<(), String> {
     spawn_snapshot_task(state.clone());
     spawn_runtime_metrics_task(state.clone());
     spawn_drain_signal_task(state.clone());
+    spawn_multipart_janitor_task(state.clone());
+    spawn_tmp_dir_metrics_task(state.clone());
 
     let address = SocketAddr::from((Ipv4Addr::UNSPECIFIED, state.config.port));
     let grpc_address = SocketAddr::from((Ipv4Addr::UNSPECIFIED, state.config.grpc_port));
+    let https_address = SocketAddr::from((Ipv4Addr::UNSPECIFIED, state.config.https_port));
     info!("Kura service listening on {address}");
-    info!("Kura REAPI service listening on {grpc_address}");
+    if state.config.public_tls.is_some() {
+        info!("Kura HTTPS service listening on {https_address} (TLS)");
+    }
+    if state.config.grpc_tls.is_some() {
+        info!("Kura REAPI service listening on {grpc_address} (TLS)");
+    } else {
+        info!("Kura REAPI service listening on {grpc_address}");
+    }
     let internal_address = SocketAddr::from((Ipv4Addr::UNSPECIFIED, state.config.internal_port));
     if state.config.peer_tls.is_some() {
         info!("Kura internal mTLS service listening on {internal_address}");
@@ -195,7 +211,9 @@ pub async fn run() -> Result<(), String> {
 
     let router = http::public_router(state.clone());
     let public_handle = Handle::new();
+    let https_handle = Handle::new();
     let public_shutdown_handle = public_handle.clone();
+    let https_shutdown_handle = https_handle.clone();
     let public_shutdown_state = state.clone();
     tokio::spawn(async move {
         shutdown_signal().await;
@@ -204,7 +222,28 @@ pub async fn run() -> Result<(), String> {
         let _ = public_shutdown_state.enter_draining();
         public_shutdown_state.sync_runtime_metrics().await;
         public_shutdown_handle.graceful_shutdown(Some(budget.remaining()));
+        https_shutdown_handle.graceful_shutdown(Some(budget.remaining()));
     });
+
+    let https_handle_task = if let Some(public_tls) = state.config.public_tls.clone() {
+        let tls_config = build_public_rustls_config(&public_tls).await?;
+        let https_router = http::public_router(state.clone());
+        Some(tokio::spawn(async move {
+            let mut server =
+                axum_server::bind_rustls(https_address, tls_config).handle(https_handle);
+            server
+                .http_builder()
+                .http1()
+                .keep_alive(true)
+                .timer(TokioTimer::new())
+                .header_read_timeout(Some(Duration::from_secs(30)));
+            if let Err(error) = server.serve(https_router.into_make_service()).await {
+                tracing::error!("public HTTPS server failed: {error}");
+            }
+        }))
+    } else {
+        None
+    };
 
     let mut public_server = axum_server::bind(address).handle(public_handle);
     public_server
@@ -234,6 +273,9 @@ pub async fn run() -> Result<(), String> {
     wait_for_task_shutdown(grpc_handle, "gRPC", shutdown_budget).await;
     if let Some(internal_handle) = internal_handle {
         wait_for_task_shutdown(internal_handle, "internal", shutdown_budget).await;
+    }
+    if let Some(https_handle_task) = https_handle_task {
+        wait_for_task_shutdown(https_handle_task, "public HTTPS", shutdown_budget).await;
     }
 
     telemetry.shutdown();
@@ -274,6 +316,7 @@ fn spawn_snapshot_task(state: Arc<AppState>) {
                     state
                         .metrics
                         .update_outbox_messages(snapshot.outbox_messages);
+                    state.runtime.update_outbox_depth(snapshot.outbox_messages);
                     state
                         .metrics
                         .update_multipart_uploads(snapshot.multipart_uploads);
@@ -333,6 +376,116 @@ fn spawn_runtime_metrics_task(state: Arc<AppState>) {
             tokio::time::sleep(Duration::from_secs(1)).await;
         }
     });
+}
+
+fn spawn_multipart_janitor_task(state: Arc<AppState>) {
+    let interval = Duration::from_millis(state.config.multipart_janitor_interval_ms);
+    let ttl_ms = state.config.multipart_upload_ttl_ms;
+    tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(interval).await;
+            let now = crate::utils::now_ms();
+            let cutoff_ms = now.saturating_sub(ttl_ms);
+            let stale = match state.store.multipart_uploads_older_than(cutoff_ms) {
+                Ok(stale) => stale,
+                Err(error) => {
+                    warn!("multipart janitor scan failed: {error}");
+                    continue;
+                }
+            };
+            if stale.is_empty() {
+                continue;
+            }
+            for upload_id in &stale {
+                if let Err(error) = state.store.abort_multipart_upload(upload_id).await {
+                    warn!("multipart janitor failed to expire {upload_id}: {error}");
+                }
+            }
+            state
+                .metrics
+                .record_memory_action("multipart_janitor_pruned");
+            info!(
+                ttl_ms,
+                expired = stale.len(),
+                "multipart janitor pruned stale uploads"
+            );
+        }
+    });
+}
+
+fn spawn_tmp_dir_metrics_task(state: Arc<AppState>) {
+    tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(Duration::from_secs(30)).await;
+            let tmp_dir = state.config.tmp_dir.clone();
+            let bytes = tokio::task::spawn_blocking(move || directory_size_bytes(&tmp_dir))
+                .await
+                .unwrap_or(0);
+            state.metrics.update_tmp_dir_bytes(bytes);
+        }
+    });
+}
+
+#[cfg(unix)]
+fn raise_nofile_soft_to_hard() -> Result<(), String> {
+    let mut limit = libc::rlimit {
+        rlim_cur: 0,
+        rlim_max: 0,
+    };
+    let read = unsafe { libc::getrlimit(libc::RLIMIT_NOFILE, &mut limit) };
+    if read != 0 {
+        return Err(format!(
+            "getrlimit failed: {}",
+            std::io::Error::last_os_error()
+        ));
+    }
+    if limit.rlim_cur >= limit.rlim_max {
+        return Ok(());
+    }
+    let target = libc::rlimit {
+        rlim_cur: limit.rlim_max,
+        rlim_max: limit.rlim_max,
+    };
+    let set = unsafe { libc::setrlimit(libc::RLIMIT_NOFILE, &target) };
+    if set != 0 {
+        return Err(format!(
+            "setrlimit failed: {}",
+            std::io::Error::last_os_error()
+        ));
+    }
+    info!(
+        previous_soft = limit.rlim_cur,
+        new_soft = target.rlim_cur,
+        "raised RLIMIT_NOFILE soft limit to hard limit"
+    );
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn raise_nofile_soft_to_hard() -> Result<(), String> {
+    Ok(())
+}
+
+fn directory_size_bytes(path: &std::path::Path) -> u64 {
+    let mut total = 0_u64;
+    let mut stack = vec![path.to_path_buf()];
+    while let Some(dir) = stack.pop() {
+        let entries = match std::fs::read_dir(&dir) {
+            Ok(entries) => entries,
+            Err(_) => continue,
+        };
+        for entry in entries.flatten() {
+            let Ok(file_type) = entry.file_type() else {
+                continue;
+            };
+            if file_type.is_dir() {
+                stack.push(entry.path());
+            } else if let Ok(metadata) = entry.metadata() {
+                total = total.saturating_add(metadata.len());
+            }
+        }
+    }
+    total
 }
 
 #[cfg(unix)]

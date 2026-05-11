@@ -1,5 +1,19 @@
 defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
-  @moduledoc false
+  @moduledoc """
+  Oban worker that parses an uploaded xcresult archive and writes the
+  structured test run.
+
+  In the managed deployment the `:process_xcresult` queue only runs on
+  external macOS xcresult-processor pods (`TUIST_XCRESULT_PROCESSOR_MODE=true`),
+  so this worker's body executes there; the in-cluster Linux server pods
+  enqueue jobs but never claim them. In self-hosted installs running on
+  macOS the server runs both roles in the same BEAM.
+
+  The xcresult parse path leans on `xcresulttool` from Xcode, which has no
+  Linux equivalent — that's why the processor fleet lives outside the
+  Hetzner-backed k8s cluster on Scaleway Mac minis.
+  """
+
   use Oban.Worker, queue: :process_xcresult, max_attempts: 5, unique: [keys: [:test_run_id]]
 
   alias Tuist.Accounts
@@ -8,22 +22,21 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
 
   require Logger
 
+  # Failures whose root cause is the uploaded archive itself, not anything
+  # transient. Retrying is pointless and surfacing them as Oban errors lights
+  # up Sentry every five attempts for what is fundamentally a CLI-side
+  # mistake (xcodebuild never populated the bundle, or the upload was a
+  # bare `quarantined_tests.json` skeleton). We mark the run as
+  # `failed_processing` once and discard the job.
+  @unprocessable_input_reasons [:bundle_invalid, :xcresult_not_found]
+
   @impl Oban.Worker
   def perform(%Oban.Job{
         args: %{"test_run_id" => test_run_id, "storage_key" => storage_key, "account_id" => account_id} = args,
         attempt: attempt,
         max_attempts: max_attempts
       }) do
-    xcode_processor_url = Tuist.Environment.xcode_processor_url()
-
-    result =
-      if is_nil(xcode_processor_url) or xcode_processor_url == "" do
-        process_locally(test_run_id, storage_key, account_id, args)
-      else
-        send_to_xcode_processor(xcode_processor_url, test_run_id, storage_key, args)
-      end
-
-    case result do
+    case process_xcresult(test_run_id, storage_key, account_id, args) do
       {:ok, parsed_data} ->
         replace_test_run(parsed_data, args)
 
@@ -33,6 +46,14 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
         end
 
         :ok
+
+      {:error, reason} when reason in @unprocessable_input_reasons ->
+        Logger.info(
+          "Discarding xcresult for test run #{test_run_id}: uploaded archive is unprocessable (#{inspect(reason)})"
+        )
+
+        mark_failed_processing(args)
+        {:discard, reason}
 
       {:error, reason} ->
         if attempt >= max_attempts do
@@ -47,7 +68,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
     end
   end
 
-  defp process_locally(test_run_id, storage_key, account_id, args) do
+  defp process_xcresult(test_run_id, storage_key, account_id, args) do
     with {:ok, account} <- Accounts.get_account_by_id(account_id) do
       temp_path = Path.join(System.tmp_dir!(), "xcresult_#{test_run_id}.zip")
 
@@ -61,60 +82,13 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
               s3_bucket: Tuist.Environment.s3_bucket_name()
             ]
 
-            XcodeProcessor.XCResultProcessor.process_local(temp_path, opts)
+            Tuist.Processor.XCResultProcessor.process_local(temp_path, opts)
 
           {:error, _} = error ->
             error
         end
       after
         File.rm(temp_path)
-      end
-    end
-  end
-
-  defp send_to_xcode_processor(xcode_processor_url, test_run_id, storage_key, args) do
-    webhook_secret = Tuist.Environment.xcode_processor_webhook_secret()
-
-    if is_nil(webhook_secret) or webhook_secret == "" do
-      Logger.error("Xcode processor webhook secret not configured for test run #{test_run_id}")
-      {:error, "webhook_secret_not_configured"}
-    else
-      payload = %{
-        test_run_id: test_run_id,
-        storage_key: storage_key,
-        account_id: args["account_id"],
-        project_id: args["project_id"],
-        account_handle: args["account_handle"],
-        project_handle: args["project_handle"]
-      }
-
-      json_body = JSON.encode!(payload)
-
-      signature =
-        :hmac
-        |> :crypto.mac(:sha256, webhook_secret, json_body)
-        |> Base.encode16(case: :lower)
-
-      case Req.post("#{xcode_processor_url}/webhooks/process-xcresult",
-             body: json_body,
-             headers: [
-               {"content-type", "application/json"},
-               {"x-webhook-signature", signature}
-             ],
-             receive_timeout: 1_200_000
-           ) do
-        {:ok, %{status: 200, body: parsed_data}} ->
-          {:ok, parsed_data}
-
-        {:ok, %{status: status, body: body}} ->
-          Logger.error("Xcode processor returned #{status} for test run #{test_run_id}: #{inspect(body)}")
-
-          {:error, "xcode_processor_error_#{status}: #{inspect(body)}"}
-
-        {:error, reason} ->
-          Logger.error("Xcode processor request failed for test run #{test_run_id}: #{inspect(reason)}")
-
-          {:error, reason}
       end
     end
   end

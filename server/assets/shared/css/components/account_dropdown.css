@@ -27,7 +27,7 @@
 
   & [data-part="content"] {
     box-shadow: var(--noora-border-heavy);
-    border-radius: var(--noora-radius-2xlarge);
+    border-radius: var(--noora-radius-8);
     background-color: var(--noora-surface-background-primary);
     padding: var(--noora-spacing-0) var(--noora-spacing-7);
     & [data-part="header"] {
@@ -125,7 +125,7 @@
 
           & > * {
             cursor: pointer;
-            border-radius: var(--noora-radius-xlarge);
+            border-radius: var(--noora-radius-6);
             padding: var(--noora-spacing-2);
           }
 

@@ -101,7 +101,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .build
-          key: ${{ runner.os }}-app-${{ hashFiles('Package.resolved') }}
+          key: ${{ runner.os }}-app-${{ hashFiles('Package.resolved', 'Package.swift') }}
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
@@ -158,7 +158,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .build
-          key: ${{ runner.os }}-app-${{ hashFiles('Package.resolved') }}
+          key: ${{ runner.os }}-app-${{ hashFiles('Package.resolved', 'Package.swift') }}
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
@@ -206,7 +206,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .build
-          key: ${{ runner.os }}-app-${{ hashFiles('Package.resolved') }}
+          key: ${{ runner.os }}-app-${{ hashFiles('Package.resolved', 'Package.swift') }}
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}

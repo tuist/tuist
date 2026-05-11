@@ -10,6 +10,10 @@ defmodule TuistWeb.AccountSettingsLive do
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.AccountCacheEndpoint
   alias Tuist.Authorization
+  alias Tuist.Environment
+  alias Tuist.Kura
+  alias Tuist.Kura.Regions
+  alias Tuist.Kura.Server
   alias Tuist.Locale, as: SharedLocale
 
   @impl true
@@ -26,6 +30,8 @@ defmodule TuistWeb.AccountSettingsLive do
     add_cache_endpoint_form = to_form(AccountCacheEndpoint.create_changeset(%{}))
     cache_endpoints = Accounts.list_account_cache_endpoints(selected_account)
     custom_cache_endpoints_available = Accounts.custom_cache_endpoints_available?(selected_account)
+    kura_enabled = kura_enabled?(selected_account)
+    if connected?(socket) and kura_enabled, do: Kura.subscribe_to_account(selected_account.id)
 
     preferred_locale_form =
       to_form(%{"preferred_locale" => current_user.preferred_locale || "browser"})
@@ -40,8 +46,10 @@ defmodule TuistWeb.AccountSettingsLive do
       |> assign(add_cache_endpoint_form: add_cache_endpoint_form)
       |> assign(cache_endpoints: cache_endpoints)
       |> assign(custom_cache_endpoints_available: custom_cache_endpoints_available)
+      |> assign(kura_enabled: kura_enabled)
       |> assign(preferred_locale_form: preferred_locale_form)
       |> assign(:head_title, "#{dgettext("dashboard_account", "Settings")} · #{selected_account.name} · Tuist")
+      |> load_kura_state()
 
     {:ok, socket}
   end
@@ -215,6 +223,69 @@ defmodule TuistWeb.AccountSettingsLive do
     {:noreply, socket}
   end
 
+  def handle_event("open-add-kura-server", _params, socket) do
+    {:noreply, push_event(socket, "open-modal", %{id: "add-kura-server-modal"})}
+  end
+
+  def handle_event("close-add-kura-server-modal", _params, socket) do
+    socket =
+      socket
+      |> push_event("close-modal", %{id: "add-kura-server-modal"})
+      |> assign(:add_kura_server_form, default_kura_server_form(socket.assigns.available_kura_regions))
+
+    {:noreply, socket}
+  end
+
+  def handle_event("create_kura_server", params, %{assigns: %{kura_enabled: true}} = socket) do
+    case {kura_region_from_params(params, socket.assigns.available_kura_regions), socket.assigns.latest_kura_version} do
+      {nil, _} ->
+        {:noreply,
+         socket
+         |> put_flash(:error, dgettext("dashboard_account", "Select a Kura region before deploying."))
+         |> push_event("close-modal", %{id: "add-kura-server-modal"})}
+
+      {_region, nil} ->
+        {:noreply,
+         socket
+         |> put_flash(
+           :error,
+           dgettext(
+             "dashboard_account",
+             "No Kura runtime image is configured right now. Try again after the next server deploy."
+           )
+         )
+         |> push_event("close-modal", %{id: "add-kura-server-modal"})}
+
+      {region, %{version: image_tag}} ->
+        attrs = %{
+          account_id: socket.assigns.selected_account.id,
+          region: region,
+          image_tag: image_tag
+        }
+
+        create_kura_server(socket, attrs)
+    end
+  end
+
+  def handle_event("create_kura_server", _params, socket), do: {:noreply, socket}
+
+  def handle_event("destroy_kura_server", %{"id" => id}, %{assigns: %{kura_enabled: true}} = socket) do
+    case Kura.get_server(socket.assigns.selected_account.id, id) do
+      nil ->
+        {:noreply, put_flash(socket, :error, dgettext("dashboard_account", "Kura server not found."))}
+
+      %Server{} = server ->
+        {:ok, _} = Kura.destroy_server(server)
+
+        {:noreply,
+         socket
+         |> put_flash(:info, dgettext("dashboard_account", "Destroying Kura server..."))
+         |> load_kura_state()}
+    end
+  end
+
+  def handle_event("destroy_kura_server", _params, socket), do: {:noreply, socket}
+
   def handle_event(
         "toggle_custom_cache_endpoints",
         %{"checked" => checked},
@@ -226,6 +297,105 @@ defmodule TuistWeb.AccountSettingsLive do
     {:noreply, assign(socket, selected_account: updated_account)}
   end
 
+  @impl true
+  def handle_info({:kura_server, _event, _server}, %{assigns: %{kura_enabled: true}} = socket) do
+    {:noreply, load_kura_state(socket)}
+  end
+
+  def handle_info({:kura_server, _event, _server}, socket), do: {:noreply, socket}
+
+  defp load_kura_state(%{assigns: %{kura_enabled: false}} = socket) do
+    socket
+    |> assign(:kura_servers, [])
+    |> assign(:kura_regions, [])
+    |> assign(:available_kura_regions, [])
+    |> assign(:latest_kura_version, nil)
+    |> assign(:add_kura_server_form, default_kura_server_form([]))
+  end
+
+  defp load_kura_state(socket, opts \\ []) do
+    account = socket.assigns.selected_account
+    servers = Kura.list_servers_for_account(account.id)
+    regions = Regions.available()
+    available_regions = available_kura_regions(regions, servers)
+    latest = Keyword.get_lazy(opts, :latest_kura_version, fn -> List.first(Kura.latest_versions(1)) end)
+
+    socket
+    |> assign(:kura_servers, servers)
+    |> assign(:kura_regions, regions)
+    |> assign(:available_kura_regions, available_regions)
+    |> assign(:latest_kura_version, latest)
+    |> assign(:add_kura_server_form, default_kura_server_form(available_regions))
+  end
+
+  defp kura_enabled?(account) do
+    Environment.dev?() or FunWithFlags.enabled?(:kura, for: account)
+  end
+
+  defp available_kura_regions(regions, servers) do
+    occupied_regions = MapSet.new(servers, & &1.region)
+    Enum.reject(regions, &MapSet.member?(occupied_regions, &1.id))
+  end
+
+  defp kura_region_from_params(params, available_regions) do
+    [
+      get_in(params, ["server", "region"]),
+      params["region"]
+    ]
+    |> Enum.find(&present?/1)
+    |> case do
+      nil -> single_available_kura_region_id(available_regions)
+      region -> region
+    end
+  end
+
+  defp single_available_kura_region_id([region]), do: region.id
+  defp single_available_kura_region_id(_regions), do: nil
+
+  defp present?(value), do: is_binary(value) and value != ""
+
+  defp default_kura_server_form([]), do: to_form(%{"region" => nil}, as: :server)
+
+  defp default_kura_server_form([region | _]) do
+    to_form(%{"region" => region.id}, as: :server)
+  end
+
+  defp create_kura_server(socket, attrs) do
+    case Kura.create_server(attrs) do
+      {:ok, server} ->
+        {:noreply,
+         socket
+         |> put_flash(
+           :info,
+           dgettext("dashboard_account", "Deploying Kura in %{region}...", region: server.region)
+         )
+         |> push_event("close-modal", %{id: "add-kura-server-modal"})
+         |> load_kura_state(latest_kura_version: socket.assigns.latest_kura_version)}
+
+      {:error, %Ecto.Changeset{} = changeset} ->
+        {:noreply,
+         socket
+         |> put_flash(
+           :error,
+           dgettext("dashboard_account", "Failed to deploy Kura: %{reason}", reason: format_errors(changeset))
+         )
+         |> push_event("close-modal", %{id: "add-kura-server-modal"})}
+
+      {:error, reason} ->
+        {:noreply,
+         socket
+         |> put_flash(
+           :error,
+           dgettext("dashboard_account", "Failed to deploy Kura: %{reason}", reason: inspect(reason))
+         )
+         |> push_event("close-modal", %{id: "add-kura-server-modal"})}
+    end
+  end
+
+  defp format_errors(%Ecto.Changeset{errors: errors}) do
+    Enum.map_join(errors, ", ", fn {field, {msg, _}} -> "#{field} #{msg}" end)
+  end
+
   defp delete_cache_endpoint(socket, endpoint_id) do
     selected_account = socket.assigns.selected_account
 
@@ -234,6 +404,191 @@ defmodule TuistWeb.AccountSettingsLive do
       {:ok, Accounts.list_account_cache_endpoints(selected_account)}
     else
       _ -> :error
+    end
+  end
+
+  attr(:kura_servers, :list, required: true)
+  attr(:available_kura_regions, :list, required: true)
+  attr(:add_kura_server_form, Form, required: true)
+  attr(:latest_kura_version, :map, default: nil)
+
+  def kura_servers_section(assigns) do
+    ~H"""
+    <.card_section data-part="kura-servers-card-section">
+      <div data-part="header">
+        <span data-part="title">
+          {dgettext("dashboard_account", "Kura cache servers")}
+        </span>
+        <span data-part="subtitle">
+          {dgettext(
+            "dashboard_account",
+            "Deploy regional Kura cache servers for this account. Each region can have at most one server."
+          )}
+        </span>
+      </div>
+      <div :if={Enum.any?(@available_kura_regions)} data-part="button-container">
+        <.modal
+          id="add-kura-server-modal"
+          title={dgettext("dashboard_account", "Deploy Kura server")}
+          header_size="large"
+          on_dismiss="close-add-kura-server-modal"
+        >
+          <:trigger :let={attrs}>
+            <.button
+              id="add-kura-server-button"
+              label={dgettext("dashboard_account", "Deploy Kura server")}
+              variant="secondary"
+              size="medium"
+              disabled={Enum.empty?(@available_kura_regions)}
+              type="button"
+              {attrs}
+            />
+          </:trigger>
+          <.form
+            for={@add_kura_server_form}
+            id="add-kura-server-form"
+            phx-submit="create_kura_server"
+          >
+            <.line_divider />
+            <div data-part="modal-content">
+              <label data-part="select-label">
+                {dgettext("dashboard_account", "Region")}
+              </label>
+              <%= case @available_kura_regions do %>
+                <% [region] -> %>
+                  <input type="hidden" name={@add_kura_server_form[:region].name} value={region.id} />
+                  <div data-part="selected-region">
+                    <.icon name="world" />
+                    <span>{region.display_name}</span>
+                  </div>
+                <% _ -> %>
+                  <.select
+                    id="add-kura-server-region"
+                    field={@add_kura_server_form[:region]}
+                    label={dgettext("dashboard_account", "Region")}
+                    disabled={Enum.empty?(@available_kura_regions)}
+                  >
+                    <:item
+                      :for={region <- @available_kura_regions}
+                      value={region.id}
+                      label={region.display_name}
+                      icon="world"
+                    />
+                  </.select>
+              <% end %>
+              <p data-part="hint">
+                <%= case @latest_kura_version do %>
+                  <% nil -> %>
+                    {dgettext(
+                      "dashboard_account",
+                      "No Kura runtime image is configured right now. Try again after the next server deploy."
+                    )}
+                  <% version -> %>
+                    {dgettext("dashboard_account", "New servers start on Kura")}
+                    <strong>{version.version}</strong>
+                    {dgettext("dashboard_account", "(current deploy).")}
+                <% end %>
+              </p>
+            </div>
+            <.line_divider />
+          </.form>
+          <:footer>
+            <.modal_footer>
+              <:action>
+                <.button
+                  type="button"
+                  label={dgettext("dashboard_account", "Cancel")}
+                  variant="secondary"
+                  phx-click="close-add-kura-server-modal"
+                />
+              </:action>
+              <:action>
+                <%= case @available_kura_regions do %>
+                  <% [region] -> %>
+                    <button
+                      type="button"
+                      class="noora-button"
+                      data-variant="primary"
+                      data-size="large"
+                      data-icon-only="false"
+                      phx-click="create_kura_server"
+                      phx-value-region={region.id}
+                      disabled={is_nil(@latest_kura_version)}
+                    >
+                      <span>{dgettext("dashboard_account", "Deploy")}</span>
+                    </button>
+                  <% _ -> %>
+                    <.button
+                      type="submit"
+                      form="add-kura-server-form"
+                      label={dgettext("dashboard_account", "Deploy")}
+                      variant="primary"
+                      disabled={is_nil(@latest_kura_version) or Enum.empty?(@available_kura_regions)}
+                    />
+                <% end %>
+              </:action>
+            </.modal_footer>
+          </:footer>
+        </.modal>
+      </div>
+      <div data-part="content">
+        <.table :if={Enum.any?(@kura_servers)} id="kura-servers-table" rows={@kura_servers}>
+          <:col :let={server} label={dgettext("dashboard_account", "Region")}>
+            <.text_cell label={kura_region_label(server.region)} />
+          </:col>
+          <:col :let={server} label={dgettext("dashboard_account", "Status")}>
+            <.badge_cell
+              label={kura_server_status_label(server.status)}
+              color={kura_server_status_color(server.status)}
+              style="light-fill"
+            />
+          </:col>
+          <:col :let={server} label={dgettext("dashboard_account", "Domain")}>
+            <.text_cell label={server.url || dgettext("dashboard_account", "Pending")} />
+          </:col>
+          <:col :let={server} label={dgettext("dashboard_account", "Version")}>
+            <.text_cell label={server.current_image_tag || dgettext("dashboard_account", "Pending")} />
+          </:col>
+          <:col :let={server} label="">
+            <.button
+              :if={server.status not in [:destroying, :destroyed]}
+              type="button"
+              label={dgettext("dashboard_account", "Destroy")}
+              variant="destructive"
+              size="small"
+              phx-click="destroy_kura_server"
+              phx-value-id={server.id}
+              data-confirm={
+                dgettext(
+                  "dashboard_account",
+                  "Destroy the Kura server in %{region}? This removes the account's Kura cache endpoint for that region.",
+                  region: server.region
+                )
+              }
+            />
+          </:col>
+        </.table>
+      </div>
+    </.card_section>
+    """
+  end
+
+  def kura_server_status_label(:provisioning), do: dgettext("dashboard_account", "Deploying")
+  def kura_server_status_label(:active), do: dgettext("dashboard_account", "Active")
+  def kura_server_status_label(:failed), do: dgettext("dashboard_account", "Failed")
+  def kura_server_status_label(:destroying), do: dgettext("dashboard_account", "Destroying")
+  def kura_server_status_label(:destroyed), do: dgettext("dashboard_account", "Destroyed")
+
+  def kura_server_status_color(:provisioning), do: "information"
+  def kura_server_status_color(:active), do: "success"
+  def kura_server_status_color(:failed), do: "destructive"
+  def kura_server_status_color(:destroying), do: "warning"
+  def kura_server_status_color(:destroyed), do: "neutral"
+
+  defp kura_region_label(region_id) do
+    case Regions.get(region_id) do
+      nil -> region_id
+      region -> region.display_name
     end
   end
 

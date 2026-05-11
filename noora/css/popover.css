@@ -10,7 +10,7 @@
 
   & [data-part="content"] {
     box-shadow: var(--noora-border-light-default);
-    border-radius: var(--noora-radius-large);
+    border-radius: var(--noora-radius-4);
     background: var(--noora-surface-background-primary);
   }
 }

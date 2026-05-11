@@ -6,7 +6,12 @@ import java.io.File
 
 data class TomlConfig(
     val project: String?,
-    val url: String?
+    val url: String?,
+    val network: TomlNetworkConfig?
+)
+
+data class TomlNetworkConfig(
+    val proxy: Boolean?
 )
 
 object TomlParser {
@@ -23,11 +28,26 @@ object TomlParser {
             }
             TomlConfig(
                 project = result.getString("project"),
-                url = result.getString("url")
+                url = result.getString("url"),
+                network = result.getBoolean("network.proxy")?.let { TomlNetworkConfig(proxy = it) }
             )
         } catch (e: Exception) {
             logger.warn("Tuist: Failed to parse {}: {}", file, e.message)
             null
         }
+    }
+}
+
+object EnvironmentProxyResolver {
+    fun resolve(extensionProxy: Boolean?, projectDir: File?): Boolean {
+        extensionProxy?.let { return it }
+
+        if (projectDir != null) {
+            ServerUrlResolver.findTomlFile(projectDir)?.let { tomlFile ->
+                TomlParser.parse(tomlFile)?.network?.proxy?.let { return it }
+            }
+        }
+
+        return true
     }
 }

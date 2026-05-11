@@ -66,7 +66,7 @@
 
     & > [data-part="legend"] {
       margin-right: var(--noora-spacing-3);
-      border-radius: var(--noora-radius-xsmall);
+      border-radius: var(--noora-radius-1);
       width: 6px;
       height: 16px;
 
@@ -195,7 +195,7 @@
 .tuist-loading-skeleton {
   display: inline-block;
   animation: tuist-widget-loading-pulse 1.5s ease-in-out infinite;
-  border-radius: var(--noora-radius-small);
+  border-radius: var(--noora-radius-2);
   background-color: var(--noora-surface-background-secondary);
   min-width: 80px;
   color: transparent;

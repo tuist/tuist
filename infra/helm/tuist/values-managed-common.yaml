@@ -3,13 +3,20 @@
 # traffic flows through cert-manager + Cloudflare DNS-01 TLS and an ingress-nginx
 # LoadBalancer backed by the cloud provider's managed LB.
 #
-# This file is layered under values-managed-staging.yaml / values-managed-production.yaml;
-# those overlays tune replica count, host names, and any environment-specific knobs.
+# This file is layered under values-managed-staging.yaml /
+# values-managed-canary.yaml / values-managed-production.yaml; those overlays
+# tune replica count, host names, and any environment-specific knobs.
 
 global:
   commonLabels:
     tuist.dev/service: server
     tuist.dev/stack: managed
+
+kuraController:
+  enabled: true
+  namespace: kura
+  image:
+    tag: ""  # Set by CI to the commit SHA on each deploy.
 
 server:
   serviceAccount:
@@ -33,15 +40,23 @@ server:
   # artifact and grows past 1 MB on big iOS apps). Match the Phoenix
   # Plug.Parsers limit at lib/tuist_web/endpoint.ex so the two stay in
   # lockstep — bump both when bumping either.
+  #
+  # `proxy-request-buffering: off` streams the request body straight to
+  # Bandit instead of spooling it to /tmp/nginx/client-body on the
+  # controller pod. With buffering on, anything over `client-body-buffer-size`
+  # (8–16 KB) hits disk; slow disk reads back to upstream then trip Bandit's
+  # thousand_island read_timeout (15s, runtime.exs) and surface as 502s on
+  # any POST endpoint with a non-trivial body (cache, runs, webhooks).
   ingress:
     annotations:
       nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+      nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
 
   # All runtime secrets (DATABASE_URL, CLICKHOUSE_URL, S3 creds, Sentry, Stripe,
   # OAuth, Mailgun, etc.) live in priv/secrets/<env>.yml.enc baked into the
   # image. The app decrypts them at boot when MASTER_KEY is present in the
   # environment. MASTER_KEY itself is synced from 1Password by ESO — see
-  # externalSecrets below and infra/k8s/syself-onboarding.md for the bootstrap.
+  # externalSecrets below and infra/k8s/onboarding.md for the bootstrap.
   managedSecrets: true
   externalSecrets:
     refreshInterval: "1h"
@@ -53,6 +68,13 @@ server:
       item: MASTER_KEY
       # Default `password` field for items of category Password.
       field: password
+
+  # ESO-synced GitHub App + bot PATs. The PEM file attachment name
+  # differs per env (production.pem / staging.pem / canary.pem) and is
+  # set in each values-managed-<env>.yaml. Everything else is shared
+  # across envs.
+  github:
+    managedSecrets: true
 
   database:
     ssl: true
@@ -82,6 +104,21 @@ server:
     enabled: true
     asHook: true
     backoffLimit: 3
+    # Keep a non-zero memory request so the migration pod isn't the first
+    # thing kubelet evicts under node pressure. Production has room for this
+    # default; staging/canary override the request lower so the pre-upgrade
+    # hook still schedules on their smaller two-worker clusters. The 4Gi
+    # limit gives the artifact backfill (which streams chunks but still
+    # carries the BEAM, the PG cursor, and the CH client) headroom over
+    # its tens-of-MB working set, while still bounding a runaway so it
+    # self-terminates instead of taking the node's other pods down.
+    resources:
+      requests:
+        cpu: "250m"
+        memory: "1Gi"
+      limits:
+        cpu: "1000m"
+        memory: "4Gi"
 
   # HTTP probes all hit /ready. startupProbe covers the ~30-60s Phoenix boot
   # and the OTel / Sentry init latency we occasionally see in prod.
@@ -148,6 +185,44 @@ processor:
       cpu: "1000m"
       memory: "1Gi"
 
+# Xcresult processing runs as a standard k8s Deployment on Mac mini
+# nodes that joined the cluster via tart-cri (see infra/tart-cri/).
+# xcresulttool is Xcode-only, so this workload lives on macOS hosts
+# specifically. Flipping `enabled: true` also adds
+# TUIST_DELEGATE_PROCESS_XCRESULT=1 to the Linux server pods so they
+# drop `:process_xcresult` and the macOS Pods own the queue.
+xcresultProcessor:
+  enabled: true
+  replicaCount: 2
+  queueConcurrency: 4
+  image:
+    repository: ghcr.io/tuist/tuist-xcresult-processor
+    # Bumped automatically by the release workflow when an
+    # xcresult-processor-image-scoped conventional commit lands on
+    # main; the workflow rebuilds the Tart VM image on the bare-metal
+    # Mac mini, pushes the matching semver tag, and rewrites this
+    # line in the same auto-commit. Until release.yml has run for
+    # this scope, pin to a known-good SHA-tagged build that the
+    # standalone xcresult-processor-image.yml workflow pushed.
+    tag: "e38122ec"
+
+# Mac mini fleet provisioned declaratively via the Cluster API
+# Scaleway-Apple-Silicon provider. Scaling is `kubectl scale
+# machinedeployment <name> --replicas=N`. Per-env overlay sets the
+# control-plane URL + the per-host pod CIDR.
+macosFleet:
+  enabled: true
+  image:
+    repository: ghcr.io/tuist/capi-provider-scaleway-applesilicon
+    # Bumped automatically by the release workflow when a
+    # capi-scaleway-scoped conventional commit lands on main; the
+    # workflow builds the new image, pushes the matching semver tag,
+    # and rewrites this line in the same auto-commit. Until
+    # release.yml has run for this scope, pin to a known-good
+    # SHA-tagged build that the standalone
+    # capi-provider-scaleway-applesilicon-image.yml workflow pushed.
+    tag: "0.2.0"
+
 # Everything below = external. The managed deployment never runs embedded
 # Postgres / ClickHouse / object storage / observability stacks.
 cache:
@@ -172,17 +247,25 @@ clickhouse:
 
 objectStorage:
   mode: external
-  # Tigris S3-compatible storage.
+  # Tigris S3-compatible storage. Per-env access key + secret access key are
+  # synced from 1Password via ESO (item S3_CREDENTIALS in tuist-k8s-<env>);
+  # endpoint and region are vendor-level constants and live here. Per-env
+  # bucket name is set in values-managed-<env>.yaml.
   external:
-    endpoint: ""       # e.g. https://fly.storage.tigris.dev
-    accessKey: ""
-    secretKey: ""
+    endpoint: https://t3.storage.dev
     region: auto
-    buckets:
-      default: tuist
-      cache: tuist-cache
-      xcodeCache: tuist-xcode-cache
-      registry: tuist-registry
+    managedSecrets: true
+    externalSecrets:
+      refreshInterval: "1h"
+      storeRef:
+        kind: ClusterSecretStore
+        name: onepassword
+      accessKey:
+        item: S3_CREDENTIALS
+        field: access_key_id
+      secretKey:
+        item: S3_CREDENTIALS
+        field: secret_access_key
 
 observability:
   # We forward to Grafana Cloud via an in-cluster Alloy DaemonSet installed by

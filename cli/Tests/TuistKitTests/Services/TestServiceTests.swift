@@ -1,3 +1,4 @@
+import Command
 import Foundation
 import Mockable
 import Path
@@ -12,6 +13,8 @@ import TuistCore
 import TuistGenerator
 import TuistGit
 import TuistLoader
+import TuistLoggerTesting
+import TuistLogging
 import TuistServer
 import TuistSupport
 import TuistXCActivityLog
@@ -2000,6 +2003,333 @@ final class TestServiceTests: TuistUnitTestCase {
         }
     }
 
+    func test_run_tests_when_part_is_cached_only_logs_requested_targets_as_skipped() async throws {
+        try await withMockedDependencies {
+            // Given
+            // TargetA, TargetB, TargetC are in the scheme.
+            // TargetB and TargetC are cached.
+            // User passes --test-targets TargetA TargetB (not TargetC).
+            // Only TargetB should appear in the "will be skipped" message.
+            givenGenerator()
+            given(configLoader)
+                .loadConfig(path: .any)
+                .willReturn(.default)
+            given(buildGraphInspector)
+                .testableSchemes(graphTraverser: .any)
+                .willReturn([])
+
+            let projectPath = try temporaryPath().appending(component: "ProjectOne")
+            let scheme = Scheme.test(
+                name: "ProjectScheme",
+                testAction: .test(
+                    targets: [
+                        .test(target: TargetReference(projectPath: projectPath, name: "TargetA")),
+                    ]
+                )
+            )
+
+            given(buildGraphInspector)
+                .workspaceSchemes(graphTraverser: .any)
+                .willReturn([scheme])
+            given(buildGraphInspector)
+                .testableTarget(
+                    scheme: .any,
+                    testPlan: .any,
+                    testTargets: .any,
+                    skipTestTargets: .any,
+                    graphTraverser: .any,
+                    action: .any
+                )
+                .willReturn(.test())
+
+            var environment = MapperEnvironment()
+            environment.initialGraph = .test(
+                projects: [
+                    projectPath: .test(
+                        path: projectPath,
+                        targets: [
+                            .test(name: "TargetA", bundleId: "io.tuist.TargetA"),
+                            .test(name: "TargetB", bundleId: "io.tuist.TargetB"),
+                            .test(name: "TargetC", bundleId: "io.tuist.TargetC"),
+                        ],
+                        schemes: [
+                            .test(
+                                name: "ProjectScheme",
+                                testAction: .test(
+                                    targets: [
+                                        .test(target: TargetReference(projectPath: projectPath, name: "TargetA")),
+                                        .test(target: TargetReference(projectPath: projectPath, name: "TargetB")),
+                                        .test(target: TargetReference(projectPath: projectPath, name: "TargetC")),
+                                    ]
+                                )
+                            ),
+                        ]
+                    ),
+                ]
+            )
+            environment.targetTestHashes = [
+                projectPath: [
+                    "TargetA": "hash-a",
+                    "TargetB": "hash-b",
+                    "TargetC": "hash-c",
+                ],
+            ]
+            environment.targetTestCacheItems = [
+                projectPath: [
+                    "TargetB": .test(source: .local, cacheCategory: .selectiveTests),
+                    "TargetC": .test(source: .remote, cacheCategory: .selectiveTests),
+                ],
+            ]
+            given(generator)
+                .generateWithGraph(path: .any, options: .any)
+                .willProduce { path, _ in
+                    (
+                        path,
+                        .test(
+                            projects: [
+                                projectPath: .test(
+                                    path: projectPath,
+                                    targets: [
+                                        .test(name: "TargetA"),
+                                    ],
+                                    schemes: [scheme]
+                                ),
+                            ]
+                        ),
+                        environment
+                    )
+                }
+
+            // When
+            try await testRun(
+                path: try temporaryPath(),
+                testTargets: [
+                    try TestIdentifier(string: "TargetA"),
+                    try TestIdentifier(string: "TargetB"),
+                ]
+            )
+
+            // Then
+            XCTAssertEqual(testedSchemes, ["ProjectScheme"])
+            // Only TargetB should be reported as skipped (it was requested and cached).
+            // TargetC should NOT appear (it was cached but not requested).
+            XCTAssertStandardOutput(
+                pattern:
+                "The following targets have not changed since the last successful run and will be skipped: TargetB"
+            )
+            XCTAssertStandardOutputNotContains("TargetC")
+        }
+    }
+
+    func test_run_tests_when_part_is_cached_does_not_log_duplicate_messages() async throws {
+        try await withMockedDependencies {
+            // Given
+            givenGenerator()
+            given(configLoader)
+                .loadConfig(path: .any)
+                .willReturn(.default)
+            given(buildGraphInspector)
+                .testableSchemes(graphTraverser: .any)
+                .willReturn([])
+
+            let projectPath = try temporaryPath().appending(component: "ProjectOne")
+            let scheme = Scheme.test(
+                name: "ProjectScheme",
+                testAction: .test(
+                    targets: [
+                        .test(target: TargetReference(projectPath: projectPath, name: "TargetA")),
+                    ]
+                )
+            )
+
+            given(buildGraphInspector)
+                .workspaceSchemes(graphTraverser: .any)
+                .willReturn([scheme])
+            given(buildGraphInspector)
+                .testableTarget(
+                    scheme: .any,
+                    testPlan: .any,
+                    testTargets: .any,
+                    skipTestTargets: .any,
+                    graphTraverser: .any,
+                    action: .any
+                )
+                .willReturn(.test())
+
+            var environment = MapperEnvironment()
+            environment.initialGraph = .test(
+                projects: [
+                    projectPath: .test(
+                        path: projectPath,
+                        targets: [
+                            .test(name: "TargetA", bundleId: "io.tuist.TargetA"),
+                            .test(name: "TargetB", bundleId: "io.tuist.TargetB"),
+                        ],
+                        schemes: [
+                            .test(
+                                name: "ProjectScheme",
+                                testAction: .test(
+                                    targets: [
+                                        .test(target: TargetReference(projectPath: projectPath, name: "TargetA")),
+                                        .test(target: TargetReference(projectPath: projectPath, name: "TargetB")),
+                                    ]
+                                )
+                            ),
+                        ]
+                    ),
+                ]
+            )
+            environment.targetTestHashes = [
+                projectPath: [
+                    "TargetA": "hash-a",
+                    "TargetB": "hash-b",
+                ],
+            ]
+            environment.targetTestCacheItems = [
+                projectPath: [
+                    "TargetB": .test(source: .local, cacheCategory: .selectiveTests),
+                ],
+            ]
+            given(generator)
+                .generateWithGraph(path: .any, options: .any)
+                .willProduce { path, _ in
+                    (
+                        path,
+                        .test(
+                            projects: [
+                                projectPath: .test(
+                                    path: projectPath,
+                                    targets: [
+                                        .test(name: "TargetA"),
+                                    ],
+                                    schemes: [scheme]
+                                ),
+                            ]
+                        ),
+                        environment
+                    )
+                }
+
+            // When
+            try await testRun(path: try temporaryPath())
+
+            // Then — verify the "Testing" message appears exactly once (no duplicates)
+            let standardOutput = Logger.testingLogHandler.collected[.info, <=]
+            let searchString = "Testing the following targets: TargetA"
+            let occurrences = standardOutput.components(separatedBy: searchString).count - 1
+            XCTAssertEqual(
+                occurrences, 1,
+                "Expected 'Testing the following targets' to appear exactly once, but it appeared \(occurrences) times"
+            )
+        }
+    }
+
+    func test_run_tests_when_no_test_targets_filter_logs_all_cached_as_skipped() async throws {
+        try await withMockedDependencies {
+            // Given
+            // No --test-targets passed. All cached targets in the scheme should be reported as skipped.
+            givenGenerator()
+            given(configLoader)
+                .loadConfig(path: .any)
+                .willReturn(.default)
+            given(buildGraphInspector)
+                .testableSchemes(graphTraverser: .any)
+                .willReturn([])
+
+            let projectPath = try temporaryPath().appending(component: "ProjectOne")
+            let scheme = Scheme.test(
+                name: "ProjectScheme",
+                testAction: .test(
+                    targets: [
+                        .test(target: TargetReference(projectPath: projectPath, name: "TargetA")),
+                    ]
+                )
+            )
+
+            given(buildGraphInspector)
+                .workspaceSchemes(graphTraverser: .any)
+                .willReturn([scheme])
+            given(buildGraphInspector)
+                .testableTarget(
+                    scheme: .any,
+                    testPlan: .any,
+                    testTargets: .any,
+                    skipTestTargets: .any,
+                    graphTraverser: .any,
+                    action: .any
+                )
+                .willReturn(.test())
+
+            var environment = MapperEnvironment()
+            environment.initialGraph = .test(
+                projects: [
+                    projectPath: .test(
+                        path: projectPath,
+                        targets: [
+                            .test(name: "TargetA", bundleId: "io.tuist.TargetA"),
+                            .test(name: "TargetB", bundleId: "io.tuist.TargetB"),
+                            .test(name: "TargetC", bundleId: "io.tuist.TargetC"),
+                        ],
+                        schemes: [
+                            .test(
+                                name: "ProjectScheme",
+                                testAction: .test(
+                                    targets: [
+                                        .test(target: TargetReference(projectPath: projectPath, name: "TargetA")),
+                                        .test(target: TargetReference(projectPath: projectPath, name: "TargetB")),
+                                        .test(target: TargetReference(projectPath: projectPath, name: "TargetC")),
+                                    ]
+                                )
+                            ),
+                        ]
+                    ),
+                ]
+            )
+            environment.targetTestHashes = [
+                projectPath: [
+                    "TargetA": "hash-a",
+                    "TargetB": "hash-b",
+                    "TargetC": "hash-c",
+                ],
+            ]
+            environment.targetTestCacheItems = [
+                projectPath: [
+                    "TargetB": .test(source: .local, cacheCategory: .selectiveTests),
+                    "TargetC": .test(source: .remote, cacheCategory: .selectiveTests),
+                ],
+            ]
+            given(generator)
+                .generateWithGraph(path: .any, options: .any)
+                .willProduce { path, _ in
+                    (
+                        path,
+                        .test(
+                            projects: [
+                                projectPath: .test(
+                                    path: projectPath,
+                                    targets: [
+                                        .test(name: "TargetA"),
+                                    ],
+                                    schemes: [scheme]
+                                ),
+                            ]
+                        ),
+                        environment
+                    )
+                }
+
+            // When — no testTargets filter
+            try await testRun(path: try temporaryPath())
+
+            // Then — both TargetB and TargetC should appear as skipped
+            XCTAssertStandardOutput(
+                pattern:
+                "The following targets have not changed since the last successful run and will be skipped: TargetB, TargetC"
+            )
+            XCTAssertEqual(testedSchemes, ["ProjectScheme"])
+        }
+    }
+
     func test_run_tests_with_skipped_targets() async throws {
         // Given
         given(configLoader)
@@ -3960,6 +4290,221 @@ final class TestServiceTests: TuistUnitTestCase {
             .called(1)
     }
 
+    func test_run_testWithoutBuilding_skipsWhenRequestedTestPlanXCTestRunIsMissing() async throws {
+        // Given
+        let path = try temporaryPath()
+        let testProductsPath = path.appending(component: "MyApp.xctestproducts")
+        try await fileSystem.makeDirectory(at: testProductsPath)
+        let testPlan = "IntegrationTestSuite"
+
+        let selectiveTestingGraph = SelectiveTestingGraph(
+            testTargetHashes: ["IntegrationTests": "abc123"],
+            attemptedTestPlans: [testPlan]
+        )
+        let graphPath = testProductsPath.appending(component: SelectiveTestingGraph.fileName)
+        let data = try JSONEncoder().encode(selectiveTestingGraph)
+        try data.write(to: graphPath.url)
+
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
+
+        // When
+        try await AlertController.$current.withValue(AlertController()) {
+            try await testRun(
+                path: path,
+                action: .testWithoutBuilding,
+                testPlanConfiguration: TestPlanConfiguration(testPlan: testPlan),
+                passthroughXcodeBuildArguments: ["-testProductsPath", testProductsPath.pathString]
+            )
+        }
+
+        // Then
+        verify(generatorFactory)
+            .testing(
+                config: .any,
+                testPlan: .any,
+                includedTargets: .any,
+                excludedTargets: .any,
+                skipUITests: .any,
+                skipUnitTests: .any,
+                configuration: .any,
+                ignoreBinaryCache: .any,
+                ignoreSelectiveTesting: .any,
+                cacheStorage: .any,
+                destination: .any,
+                schemeName: .any
+            )
+            .called(0)
+
+        verify(xcodebuildController)
+            .run(arguments: .any)
+            .called(0)
+    }
+
+    func test_run_testWithoutBuilding_skipsWhenRequestedSchemeXCTestRunIsMissing() async throws {
+        // Given
+        let path = try temporaryPath()
+        let testProductsPath = path.appending(component: "MyApp.xctestproducts")
+        try await fileSystem.makeDirectory(at: testProductsPath)
+        let schemeName = "App"
+
+        let selectiveTestingGraph = SelectiveTestingGraph(
+            testTargetHashes: ["UnitTests": "abc123"],
+            attemptedTestPlans: [schemeName]
+        )
+        let graphPath = testProductsPath.appending(component: SelectiveTestingGraph.fileName)
+        let data = try JSONEncoder().encode(selectiveTestingGraph)
+        try data.write(to: graphPath.url)
+
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
+
+        // When
+        try await AlertController.$current.withValue(AlertController()) {
+            try await testRun(
+                schemeName: schemeName,
+                path: path,
+                action: .testWithoutBuilding,
+                passthroughXcodeBuildArguments: ["-testProductsPath", testProductsPath.pathString]
+            )
+        }
+
+        // Then
+        verify(xcodebuildController)
+            .run(arguments: .any)
+            .called(0)
+    }
+
+    func test_run_testWithoutBuilding_doesNotSkipWhenRequestedTestPlanXCTestRunIsPresent() async throws {
+        // Given
+        let path = try temporaryPath()
+        let testProductsPath = path.appending(component: "MyApp.xctestproducts")
+        try await fileSystem.makeDirectory(at: testProductsPath)
+        let requestedTestPlan = "IntegrationTestSuite"
+
+        let selectiveTestingGraph = SelectiveTestingGraph(
+            testTargetHashes: ["UnitTests": "abc123"],
+            attemptedTestPlans: [requestedTestPlan]
+        )
+        let graphPath = testProductsPath.appending(component: SelectiveTestingGraph.fileName)
+        let data = try JSONEncoder().encode(selectiveTestingGraph)
+        try data.write(to: graphPath.url)
+        // Simulate xcodebuild having emitted the .xctestrun for the requested plan.
+        let xctestrunPath = testProductsPath.appending(component: "\(requestedTestPlan).xctestrun")
+        try Data().write(to: xctestrunPath.url)
+
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
+
+        given(xcodebuildController)
+            .run(arguments: .any)
+            .willReturn()
+
+        // When
+        try await AlertController.$current.withValue(AlertController()) {
+            try await testRun(
+                path: path,
+                action: .testWithoutBuilding,
+                testPlanConfiguration: TestPlanConfiguration(testPlan: requestedTestPlan),
+                passthroughXcodeBuildArguments: ["-testProductsPath", testProductsPath.pathString]
+            )
+        }
+
+        // Then
+        verify(xcodebuildController)
+            .run(arguments: .any)
+            .called(1)
+    }
+
+    func test_run_testWithoutBuilding_doesNotSkipUnknownTestPlan() async throws {
+        // Given
+        let path = try temporaryPath()
+        let testProductsPath = path.appending(component: "MyApp.xctestproducts")
+        try await fileSystem.makeDirectory(at: testProductsPath)
+        let typoTestPlan = "TpyoTestPlan"
+
+        let selectiveTestingGraph = SelectiveTestingGraph(
+            testTargetHashes: ["UnitTests": "abc123"],
+            attemptedTestPlans: ["IntegrationTestSuite"]
+        )
+        let graphPath = testProductsPath.appending(component: SelectiveTestingGraph.fileName)
+        let data = try JSONEncoder().encode(selectiveTestingGraph)
+        try data.write(to: graphPath.url)
+
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
+
+        let error = CommandError.terminated(
+            66,
+            stderr: "xcodebuild: error: xctestproducts does not contain test plan: \(typoTestPlan)",
+            command: ["xcodebuild", "test-without-building"]
+        )
+        given(xcodebuildController)
+            .run(arguments: .any)
+            .willThrow(error)
+
+        // When / Then
+        do {
+            try await testRun(
+                path: path,
+                action: .testWithoutBuilding,
+                testPlanConfiguration: TestPlanConfiguration(testPlan: typoTestPlan),
+                passthroughXcodeBuildArguments: ["-testProductsPath", testProductsPath.pathString]
+            )
+            XCTFail("Expected xcodebuild to throw")
+        } catch let CommandError.terminated(exitCode, stderr, command) {
+            XCTAssertEqual(exitCode, 66)
+            XCTAssertEqual(
+                stderr,
+                "xcodebuild: error: xctestproducts does not contain test plan: \(typoTestPlan)"
+            )
+            XCTAssertEqual(command, ["xcodebuild", "test-without-building"])
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
+    func test_run_testWithoutBuilding_doesNotSkipWhenLegacyGraphHasNoAttemptedTestPlans() async throws {
+        // Given
+        let path = try temporaryPath()
+        let testProductsPath = path.appending(component: "MyApp.xctestproducts")
+        try await fileSystem.makeDirectory(at: testProductsPath)
+        let testPlan = "IntegrationTestSuite"
+
+        // Simulate a bundle written by an older CLI: only `testTargetHashes`,
+        // no `attemptedTestPlans` field.
+        let legacyJSON = #"{"testTargetHashes":{"IntegrationTests":"abc123"}}"#
+        let graphPath = testProductsPath.appending(component: SelectiveTestingGraph.fileName)
+        try Data(legacyJSON.utf8).write(to: graphPath.url)
+
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
+
+        given(xcodebuildController)
+            .run(arguments: .any)
+            .willReturn()
+
+        // When
+        try await AlertController.$current.withValue(AlertController()) {
+            try await testRun(
+                path: path,
+                action: .testWithoutBuilding,
+                testPlanConfiguration: TestPlanConfiguration(testPlan: testPlan),
+                passthroughXcodeBuildArguments: ["-testProductsPath", testProductsPath.pathString]
+            )
+        }
+
+        // Then
+        verify(xcodebuildController)
+            .run(arguments: .any)
+            .called(1)
+    }
+
     func test_run_build_passesShardArchivePathToShardPlanService() async throws {
         // Given
         givenGenerator()
@@ -4172,6 +4717,184 @@ final class TestServiceTests: TuistUnitTestCase {
         let graphPath = testProductsPath.appending(component: SelectiveTestingGraph.fileName)
         let exists = try await fileSystem.exists(graphPath)
         XCTAssertTrue(exists, "Expected selective testing graph at \(graphPath.pathString)")
+        let writtenGraph: SelectiveTestingGraph = try await fileSystem.readJSONFile(at: graphPath)
+        XCTAssertEqual(writtenGraph.attemptedTestPlans, ["TestScheme"])
+    }
+
+    func test_run_build_writesAllTestPlanNames_whenSchemeHasMultiplePlans() async throws {
+        // Given
+        givenGenerator()
+        let path = try temporaryPath()
+        let bundleName = "MyApp.xctestproducts"
+        let testProductsPath = path.appending(component: bundleName)
+        try await fileSystem.makeDirectory(at: testProductsPath)
+
+        let projectPath = path.appending(component: "Project")
+        let smokeTestPlanPath = projectPath.appending(components: "TestPlans", "Smoke.xctestplan")
+        let regressionTestPlanPath = projectPath.appending(components: "TestPlans", "Regression.xctestplan")
+        let testableTarget = TestableTarget(target: TargetReference(projectPath: projectPath, name: "TargetA"))
+        let scheme = Scheme.test(
+            name: "TestScheme",
+            testAction: .test(
+                testPlans: [
+                    .init(path: smokeTestPlanPath, testTargets: [testableTarget], isDefault: true),
+                    .init(path: regressionTestPlanPath, testTargets: [testableTarget], isDefault: false),
+                ]
+            )
+        )
+        let graph: Graph = .test(
+            workspace: .test(schemes: [.test(name: "App-Workspace")]),
+            projects: [
+                projectPath: .test(
+                    path: projectPath,
+                    targets: [.test(name: "TargetA")],
+                    schemes: [scheme]
+                ),
+            ]
+        )
+        var environment = MapperEnvironment()
+        environment.initialGraph = graph
+        environment.targetTestHashes = [projectPath: ["TargetA": "hash-a"]]
+
+        given(generator)
+            .generateWithGraph(path: .any, options: .any)
+            .willProduce { path, _ in
+                (path, graph, environment)
+            }
+        given(buildGraphInspector)
+            .testableSchemes(graphTraverser: .any)
+            .willReturn([scheme])
+        given(buildGraphInspector)
+            .testableTarget(
+                scheme: .any,
+                testPlan: .any,
+                testTargets: .any,
+                skipTestTargets: .any,
+                graphTraverser: .any,
+                action: .any
+            )
+            .willProduce { scheme, _, _, _, _, _ in
+                GraphTarget.test(target: Target.test(name: scheme.name))
+            }
+        given(buildGraphInspector)
+            .workspaceSchemes(graphTraverser: .any)
+            .willReturn([])
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
+
+        // When
+        try await testRun(
+            schemeName: "TestScheme",
+            path: path,
+            action: .build,
+            passthroughXcodeBuildArguments: ["-testProductsPath", bundleName]
+        )
+
+        // Then
+        let graphPath = testProductsPath.appending(component: SelectiveTestingGraph.fileName)
+        let writtenGraph: SelectiveTestingGraph = try await fileSystem.readJSONFile(at: graphPath)
+        XCTAssertEqual(writtenGraph.attemptedTestPlans.sorted(), ["Regression", "Smoke"])
+    }
+
+    func test_run_build_writesOriginalTestPlanNames_whenSelectiveTestingPrunesPlanFromGeneratedScheme() async throws {
+        // Given
+        givenGenerator()
+        let path = try temporaryPath()
+        let bundleName = "MyApp.xctestproducts"
+        let testProductsPath = path.appending(component: bundleName)
+        try await fileSystem.makeDirectory(at: testProductsPath)
+
+        let projectPath = path.appending(component: "Project")
+        let smokeTestPlanPath = projectPath.appending(components: "TestPlans", "Smoke.xctestplan")
+        let integrationTestPlanPath = projectPath.appending(components: "TestPlans", "IntegrationTestSuite.xctestplan")
+        let smokeTarget = TestableTarget(target: TargetReference(projectPath: projectPath, name: "SmokeTests"))
+        let integrationTarget = TestableTarget(target: TargetReference(projectPath: projectPath, name: "IntegrationTests"))
+        let initialScheme = Scheme.test(
+            name: "TestScheme",
+            testAction: .test(
+                testPlans: [
+                    .init(path: smokeTestPlanPath, testTargets: [smokeTarget], isDefault: true),
+                    .init(path: integrationTestPlanPath, testTargets: [integrationTarget], isDefault: false),
+                ]
+            )
+        )
+        let generatedScheme = Scheme.test(
+            name: "TestScheme",
+            testAction: .test(
+                testPlans: [
+                    .init(path: smokeTestPlanPath, testTargets: [smokeTarget], isDefault: true),
+                ]
+            )
+        )
+        let initialGraph: Graph = .test(
+            workspace: .test(schemes: [.test(name: "App-Workspace")]),
+            projects: [
+                projectPath: .test(
+                    path: projectPath,
+                    targets: [.test(name: "SmokeTests"), .test(name: "IntegrationTests")],
+                    schemes: [initialScheme]
+                ),
+            ]
+        )
+        let generatedGraph: Graph = .test(
+            workspace: .test(schemes: [.test(name: "App-Workspace")]),
+            projects: [
+                projectPath: .test(
+                    path: projectPath,
+                    targets: [.test(name: "SmokeTests")],
+                    schemes: [generatedScheme]
+                ),
+            ]
+        )
+        var environment = MapperEnvironment()
+        environment.initialGraph = initialGraph
+        environment.targetTestHashes = [
+            projectPath: [
+                "SmokeTests": "hash-smoke",
+                "IntegrationTests": "hash-integration",
+            ],
+        ]
+
+        given(generator)
+            .generateWithGraph(path: .any, options: .any)
+            .willProduce { path, _ in
+                (path, generatedGraph, environment)
+            }
+        given(buildGraphInspector)
+            .testableSchemes(graphTraverser: .any)
+            .willReturn([generatedScheme])
+        given(buildGraphInspector)
+            .testableTarget(
+                scheme: .any,
+                testPlan: .any,
+                testTargets: .any,
+                skipTestTargets: .any,
+                graphTraverser: .any,
+                action: .any
+            )
+            .willProduce { scheme, _, _, _, _, _ in
+                GraphTarget.test(target: Target.test(name: scheme.name))
+            }
+        given(buildGraphInspector)
+            .workspaceSchemes(graphTraverser: .any)
+            .willReturn([])
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
+
+        // When
+        try await testRun(
+            schemeName: "TestScheme",
+            path: path,
+            action: .build,
+            passthroughXcodeBuildArguments: ["-testProductsPath", bundleName]
+        )
+
+        // Then
+        let graphPath = testProductsPath.appending(component: SelectiveTestingGraph.fileName)
+        let writtenGraph: SelectiveTestingGraph = try await fileSystem.readJSONFile(at: graphPath)
+        XCTAssertEqual(writtenGraph.attemptedTestPlans.sorted(), ["IntegrationTestSuite", "Smoke"])
     }
 
     fileprivate func testRun(

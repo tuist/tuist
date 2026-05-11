@@ -1927,6 +1927,33 @@ defmodule Tuist.AccountsTest do
       assert user_token.sent_to == user.email
       assert user_token.context == "reset_password"
     end
+
+    test "does not create another reset password token during the cooldown window", %{user: user} do
+      reset_password_url = &"/users/reset_password/#{&1}"
+
+      Accounts.deliver_user_reset_password_instructions(%{
+        user: user,
+        reset_password_url: reset_password_url
+      })
+
+      assert Repo.aggregate(
+               from(t in UserToken, where: t.user_id == ^user.id and t.context == "reset_password"),
+               :count,
+               :id
+             ) == 1
+
+      assert :ok =
+               Accounts.deliver_user_reset_password_instructions(%{
+                 user: user,
+                 reset_password_url: reset_password_url
+               })
+
+      assert Repo.aggregate(
+               from(t in UserToken, where: t.user_id == ^user.id and t.context == "reset_password"),
+               :count,
+               :id
+             ) == 1
+    end
   end
 
   describe "get_user_by_reset_password_token/1" do

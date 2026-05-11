@@ -7,7 +7,7 @@
   box-sizing: border-box;
   -webkit-appearance: button;
   border: 0;
-  border-radius: var(--noora-radius-medium);
+  border-radius: var(--noora-radius-3);
   padding: 0;
   text-decoration: none;
 
@@ -236,7 +236,7 @@
 
 .noora-neutral-button {
   cursor: pointer;
-  border-radius: var(--noora-radius-medium);
+  border-radius: var(--noora-radius-3);
   background: unset;
   padding: var(--noora-spacing-3);
   color: var(--noora-button-neutral-label);

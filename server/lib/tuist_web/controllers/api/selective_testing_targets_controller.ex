@@ -109,7 +109,8 @@ defmodule TuistWeb.API.SelectiveTestingTargetsController do
       ) do
     with {:ok, %{project_id: project_id} = test_run} when project_id == selected_project.id <-
            Tests.get_test(test_run_id),
-         {:ok, command_event} <- CommandEvents.get_command_event_by_test_run_id(test_run.id) do
+         {:ok, command_event} <-
+           CommandEvents.get_command_event_by_test_run_id(test_run.id, project_id: project_id) do
       page = params.page
       page_size = params.page_size
 

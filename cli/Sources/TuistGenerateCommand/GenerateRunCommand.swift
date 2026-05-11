@@ -11,7 +11,7 @@
     import TuistServer
     import TuistSupport
 
-    public struct GenerateRunCommand: AsyncParsableCommand, RecentPathRememberableCommand {
+    public struct GenerateRunCommand: AsyncParsableCommand {
         public init() {}
 
         public static var configuration: CommandConfiguration {

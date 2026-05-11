@@ -15,7 +15,7 @@ on:
 
 jobs:
   build:
-    runs-on: namespace-profile-default-macos
+    runs-on: namespace-profile-macos-xcode-26
     steps:
       - uses: actions/checkout@v4
 

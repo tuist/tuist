@@ -13,12 +13,29 @@ defmodule TuistTestSupport.Fixtures.VCSFixtures do
       end)
       |> Repo.preload([:account])
 
+    attrs =
+      %{
+        account_id: Keyword.get(opts, :account_id, account.account.id),
+        installation_id:
+          if Keyword.has_key?(opts, :installation_id) do
+            Keyword.get(opts, :installation_id)
+          else
+            "#{TuistTestSupport.Utilities.unique_integer()}"
+          end,
+        html_url: Keyword.get(opts, :html_url),
+        client_url: Keyword.get(opts, :client_url),
+        app_id: Keyword.get(opts, :app_id),
+        app_slug: Keyword.get(opts, :app_slug),
+        client_id: Keyword.get(opts, :client_id),
+        client_secret: Keyword.get(opts, :client_secret),
+        private_key: Keyword.get(opts, :private_key),
+        webhook_secret: Keyword.get(opts, :webhook_secret)
+      }
+      |> Enum.reject(fn {_, v} -> is_nil(v) end)
+      |> Map.new()
+
     %GitHubAppInstallation{}
-    |> GitHubAppInstallation.changeset(%{
-      account_id: Keyword.get(opts, :account_id, account.account.id),
-      installation_id: Keyword.get(opts, :installation_id, "#{TuistTestSupport.Utilities.unique_integer()}"),
-      html_url: Keyword.get(opts, :html_url)
-    })
+    |> GitHubAppInstallation.changeset(attrs)
     |> Repo.insert!()
     |> Repo.preload(Keyword.get(opts, :preload, []))
   end

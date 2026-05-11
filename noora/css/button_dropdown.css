@@ -3,7 +3,7 @@
   position: relative;
   flex-direction: row;
   align-items: stretch;
-  border-radius: var(--noora-radius-medium);
+  border-radius: var(--noora-radius-3);
   box-shadow: var(--noora-button-border-secondary);
 
   &:hover {
@@ -39,7 +39,7 @@
     align-items: center;
     gap: var(--noora-spacing-1);
     overflow: clip;
-    border-radius: var(--noora-radius-medium) 0 0 var(--noora-radius-medium);
+    border-radius: var(--noora-radius-3) 0 0 var(--noora-radius-3);
     background: var(--noora-button-background-secondary);
     color: var(--noora-button-secondary-label);
 
@@ -63,7 +63,7 @@
     align-items: center;
     overflow: clip;
     border-left: 1px solid var(--noora-surface-border-primary);
-    border-radius: 0 var(--noora-radius-medium) var(--noora-radius-medium) 0;
+    border-radius: 0 var(--noora-radius-3) var(--noora-radius-3) 0;
     background: var(--noora-button-background-secondary);
     color: var(--noora-button-secondary-label);
 

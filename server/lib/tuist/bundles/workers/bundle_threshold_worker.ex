@@ -11,6 +11,7 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorker do
   alias Tuist.Projects
   alias Tuist.Repo
   alias Tuist.Utilities.ByteFormatter
+  alias Tuist.VCS
 
   @check_name "tuist/bundle-size"
 
@@ -26,7 +27,8 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorker do
          project = Projects.get_project_by_id(project_id),
          true <- project != nil,
          project = Repo.preload(project, [:account, vcs_connection: :github_app_installation]),
-         true <- Environment.github_app_configured?() && Projects.has_vcs_connection?(project) do
+         true <- Projects.has_vcs_connection?(project),
+         %{} <- VCS.github_app_credentials(project.vcs_connection.github_app_installation) do
       thresholds = Bundles.get_project_bundle_thresholds(project)
 
       if Enum.empty?(thresholds) do
@@ -53,7 +55,7 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorker do
          {:ok, %{"head" => %{"sha" => head_sha}}} <-
            Client.get_pull_request(%{
              repository_full_handle: project.vcs_connection.repository_full_handle,
-             installation_id: project.vcs_connection.github_app_installation.installation_id,
+             installation: project.vcs_connection.github_app_installation,
              pr_number: pr_number
            }) do
       head_sha
@@ -64,10 +66,7 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorker do
 
   defp post_check_run(
          %{
-           vcs_connection: %{
-             github_app_installation: %{installation_id: installation_id},
-             repository_full_handle: repo_handle
-           },
+           vcs_connection: %{github_app_installation: installation, repository_full_handle: repo_handle},
            account: %{name: account_name},
            name: project_name
          },
@@ -82,7 +81,7 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorker do
 
     params = %{
       repository_full_handle: repo_handle,
-      installation_id: installation_id,
+      installation: installation,
       name: @check_name,
       head_sha: git_commit_sha,
       status: "completed",

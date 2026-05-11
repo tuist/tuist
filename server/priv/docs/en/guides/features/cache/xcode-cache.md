@@ -11,6 +11,12 @@ Tuist provides support for the Xcode compilation cache, which allows teams to sh
 
 The Xcode cache was introduced in Xcode 26. You might also see it referred to as the Xcode build cache; it reuses compilation artifacts keyed by their inputs, and Tuist's remote cache makes those artifacts shareable across machines.
 
+> [!TIP]
+> **Combine with the module cache**
+>
+> The Xcode cache and the <.localized_link href="/guides/features/cache/module-cache">module cache</.localized_link> work at different granularity levels and complement each other. The module cache replaces whole modules with prebuilt `.xcframework`s before the build runs, while the Xcode cache reuses compilation outputs during the build.
+
+
 ## Setup {#setup}
 
 > [!WARNING]
@@ -87,14 +93,14 @@ xcodebuild build -project YourProject.xcodeproj -scheme YourScheme \
 
 ### Cache upload policy {#cache-upload-policy}
 
-By default, the cache service both downloads and uploads artifacts to the remote cache. You can control this with the `cache` option in your `Tuist.swift` file to enable read-only mode, where artifacts are downloaded but never uploaded:
+By default, the cache service both downloads and uploads artifacts to the remote cache. You can control this with the `xcodeCache` option in your `Tuist.swift` file to enable read-only mode, where artifacts are downloaded but never uploaded:
 
 ```swift
 import ProjectDescription
 
 let tuist = Tuist(
     fullHandle: "your-org/your-project",
-    cache: .cache(
+    xcodeCache: .xcodeCache(
         upload: false
     ),
     project: .tuist(
@@ -112,7 +118,7 @@ import ProjectDescription
 
 let tuist = Tuist(
     fullHandle: "your-org/your-project",
-    cache: .cache(
+    xcodeCache: .xcodeCache(
         upload: Environment.isCI
     ),
     project: .tuist(
@@ -211,4 +217,4 @@ A build log that mixes successful `uploaded CAS output` notes with `deadlineExce
 
 ### `uploaded CAS output` appears locally even though uploads are disabled {#uploaded-cas-output-with-upload-disabled}
 
-When `cache: .cache(upload: false)` (or `upload: Environment.isCI` on a non-CI machine) is set, you may still see `note: uploaded CAS output ...` in the build log. `xcodebuild` has no way to skip those calls, so the socket still receives them; the daemon short-circuits the request internally and does not send anything to the Tuist server. The dashboard metrics account for this, so no spurious upload traffic is reported.
+When `xcodeCache: .xcodeCache(upload: false)` (or `upload: Environment.isCI` on a non-CI machine) is set, you may still see `note: uploaded CAS output ...` in the build log. `xcodebuild` has no way to skip those calls, so the socket still receives them; the daemon short-circuits the request internally and does not send anything to the Tuist server. The dashboard metrics account for this, so no spurious upload traffic is reported.

@@ -324,6 +324,19 @@ defmodule TuistWeb.AuthController do
     redirect(conn, to: ~p"/users/log_in")
   end
 
+  def cancel_pending_signup(conn, _params) do
+    conn
+    |> delete_session(:pending_oauth_signup)
+    |> put_flash(
+      :error,
+      dgettext(
+        "dashboard_auth",
+        "An account with this email already exists. Please log in instead."
+      )
+    )
+    |> redirect(to: ~p"/users/log_in")
+  end
+
   defp oauth_failure_message(%Ueberauth.Failure{errors: errors}) do
     case errors do
       [%Error{message_key: "access_denied"} | _] ->

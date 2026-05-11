@@ -1,0 +1,53 @@
+{{- if .Values.macosFleet.enabled }}
+{{- $fleetName := .Values.macosFleet.name | default (include "tuist.componentName" (dict "root" . "component" "macos-fleet")) }}
+{{- $replicas := int (.Values.macosFleet.replicas | default 1) }}
+{{- /*
+Mac mini fleet: render N ScalewayAppleSiliconMachine CRs directly.
+Each one is reconciled by the cluster-api-provider-scaleway-applesilicon
+operator, which orders the Mac mini from Scaleway and SSH-bootstraps
+it (sudo, auto-login, Tart, kubeconfig, tart-kubelet binary,
+launchd job). The Mac mini joins the cluster as a real Node.
+
+Scaling = bumping `replicas`. CAPI core's
+Cluster/MachineDeployment machinery is intentionally not used; we
+own the lifecycle directly because there's no separate workload
+cluster — the cluster these Mac minis join is the same one running
+the operator.
+*/ -}}
+{{- range $i, $_ := until $replicas }}
+{{- $instance := printf "%s-%d" $fleetName $i }}
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: ScalewayAppleSiliconMachine
+metadata:
+  name: {{ $instance }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: macos-fleet
+    tuist.dev/fleet: {{ $fleetName }}
+  # No `helm.sh/resource-policy: keep` — that annotation makes Helm
+  # silently skip kept resources during BOTH uninstall AND upgrade
+  # (despite Helm's docs only describing the uninstall path). With it,
+  # spec changes (machine type, zone, OS) made via overlays are
+  # rendered into `helm get manifest` but never patched onto the live
+  # CR, so the operator keeps reconciling against the original spec
+  # forever and only manual `kubectl patch` reconciles the drift.
+  #
+  # Without `keep`, helm uninstall will request CR deletion and the
+  # operator's finalizer must clear before the CR actually goes away.
+  # That's fine in normal teardown — the operator deployment lives in
+  # the same release, k8s sets DeletionTimestamps in parallel, and
+  # controller-runtime's graceful shutdown drains the workqueue
+  # before the operator pod exits, so reconcileDelete runs and the
+  # finalizer clears. The hazardous case is `macosFleet.enabled=false`
+  # in a single upgrade that ALSO removes the operator — don't do
+  # that; scale `replicas` to 0 first, let the operator drain, then
+  # disable the chart in a follow-up.
+spec:
+  type: {{ $.Values.macosFleet.machine.type | default "M4-S" | quote }}
+  zone: {{ $.Values.macosFleet.machine.zone | default "fr-par-1" | quote }}
+  os: {{ $.Values.macosFleet.machine.os | default "macos-tahoe-26.0" | quote }}
+  fleetName: {{ $fleetName | quote }}
+{{- end }}
+{{- end }}

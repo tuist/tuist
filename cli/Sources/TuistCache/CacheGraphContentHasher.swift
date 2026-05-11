@@ -88,7 +88,7 @@ public struct CacheGraphContentHasher: CacheGraphContentHashing {
             destination: destination,
             additionalStrings: [
                 configuration,
-                try SwiftVersionProvider.current.swiftlangVersion(),
+                try await SwiftVersionProvider.current.swiftlangVersion(),
                 version.rawValue,
             ]
         )

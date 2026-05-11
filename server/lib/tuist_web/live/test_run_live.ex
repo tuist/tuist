@@ -11,6 +11,7 @@ defmodule TuistWeb.TestRunLive do
   import TuistWeb.Previews.PlatformIcon
   import TuistWeb.Runs.ModuleCacheTab
   import TuistWeb.Runs.RanByBadge
+  import TuistWeb.Runs.SelectiveTestingTab
 
   alias Noora.Filter
   alias Tuist.ClickHouseRepo
@@ -45,7 +46,7 @@ defmodule TuistWeb.TestRunLive do
 
     slug = Projects.get_project_slug_from_id(project.id)
 
-    project = Tuist.Repo.preload(project, :vcs_connection)
+    project = Tuist.Repo.preload(project, vcs_connection: :github_app_installation)
 
     run = Map.put(run, :project, project)
 
@@ -53,7 +54,7 @@ defmodule TuistWeb.TestRunLive do
       Tuist.Tasks.parallel_tasks([
         fn ->
           if is_nil(run.shard_plan_id) do
-            case CommandEvents.get_command_event_by_test_run_id(run.id) do
+            case CommandEvents.get_command_event_by_test_run_id(run.id, project_id: run.project_id) do
               {:ok, event} -> event
               {:error, :not_found} -> nil
             end
@@ -83,6 +84,9 @@ defmodule TuistWeb.TestRunLive do
       |> assign_shard_rows(run)
       |> assign_async(:has_result_bundle, fn ->
         {:ok, %{has_result_bundle: (command_event && CommandEvents.has_result_bundle?(command_event)) || false}}
+      end)
+      |> assign_async(:has_session, fn ->
+        {:ok, %{has_session: (command_event && CommandEvents.has_session?(command_event)) || false}}
       end)
 
     if connected?(socket) and run.status == "processing" do
@@ -127,44 +131,16 @@ defmodule TuistWeb.TestRunLive do
     {:noreply, socket}
   end
 
-  def handle_info({:test_created, test}, %{assigns: %{run: run, selected_project: project}} = socket) do
+  def handle_info({:test_created, test}, %{assigns: %{run: run}} = socket) do
     if test.id == run.id do
-      case Tests.get_test(run.id, preload: [:ran_by_account, :build_run, :gradle_build, :shard_plan, :run_destinations]) do
-        {:ok, refreshed_run} ->
-          refreshed_run = Map.put(refreshed_run, :project, project)
-
-          {:noreply,
-           socket
-           |> assign(:run, refreshed_run)
-           |> assign_initial_analytics_state()
-           |> assign_initial_test_cases_state()
-           |> assign_initial_failures_state()
-           |> assign_initial_flaky_runs_state()}
-
-        {:error, :not_found} ->
-          {:noreply, socket}
-      end
+      {:noreply, reload_run_state(socket)}
     else
       {:noreply, socket}
     end
   end
 
-  def handle_event("refresh_test_run", _params, %{assigns: %{run: run, selected_project: project}} = socket) do
-    case Tests.get_test(run.id, preload: [:ran_by_account, :build_run, :gradle_build, :shard_plan, :run_destinations]) do
-      {:ok, refreshed_run} ->
-        refreshed_run = Map.put(refreshed_run, :project, project)
-
-        {:noreply,
-         socket
-         |> assign(:run, refreshed_run)
-         |> assign_initial_analytics_state()
-         |> assign_initial_test_cases_state()
-         |> assign_initial_failures_state()
-         |> assign_initial_flaky_runs_state()}
-
-      {:error, :not_found} ->
-        {:noreply, socket}
-    end
+  def handle_event("refresh_test_run", _params, socket) do
+    {:noreply, reload_run_state(socket)}
   end
 
   def handle_event("search-selective-testing", %{"search" => search}, socket) do
@@ -296,6 +272,25 @@ defmodule TuistWeb.TestRunLive do
       end
     else
       "asc"
+    end
+  end
+
+  defp reload_run_state(%{assigns: %{run: run, selected_project: project, selected_tab: selected_tab, uri: uri}} = socket) do
+    case Tests.get_test(run.id, preload: [:ran_by_account, :build_run, :gradle_build, :shard_plan, :run_destinations]) do
+      {:ok, refreshed_run} ->
+        refreshed_run = Map.put(refreshed_run, :project, project)
+        params = URI.decode_query(uri.query || "")
+
+        socket
+        |> assign(:run, refreshed_run)
+        |> assign_initial_analytics_state()
+        |> assign_initial_test_cases_state()
+        |> assign_initial_failures_state()
+        |> assign_initial_flaky_runs_state()
+        |> assign_tab_data(selected_tab, params)
+
+      {:error, :not_found} ->
+        socket
     end
   end
 

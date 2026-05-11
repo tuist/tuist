@@ -69,7 +69,7 @@
         0 37px 22px 0 rgba(0, 0, 0, 0.02),
         0 16px 16px 0 rgba(0, 0, 0, 0.04),
         0 4px 9px 0 rgba(0, 0, 0, 0.04);
-      border-radius: var(--noora-radius-2xlarge);
+      border-radius: var(--noora-radius-8);
       background: #fff;
       width: 100%;
       max-width: 780px;

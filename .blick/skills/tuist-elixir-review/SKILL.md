@@ -13,6 +13,18 @@ those.** Focus on the rules below; they catch real bugs.
 For each finding, cite `path:line` (or `Module.function/arity`) and
 quote the relevant snippet.
 
+Only report findings whose cited snippet is present in the PR diff. If
+the concern comes from unchanged context, do not emit a finding, do not
+mention it as a note, and do not create a "findings outside this PR's
+diff" section. If every possible concern is outside the diff, return no
+findings.
+
+Do not infer violations from nearby lines. A Mimic finding requires the
+exact token `Mimic.copy(` on the cited changed line. A migration
+timestamp finding requires the cited changed line to contain
+`timestamps()` without `type: :timestamptz` or a timestamp column without
+`:timestamptz`.
+
 ---
 
 ## 1. Authorization — `lib/tuist/authorization.ex` + `AuthorizationPlug`
@@ -38,6 +50,8 @@ hard-codes which categories are project-scoped:
 
 - Existing `object`/`action` blocks unchanged by the diff.
 - Reordering of `allow(...)` lines within an action.
+- `/ops` LiveView routes. They are not API `AuthorizationPlug`
+  categories and do not belong in `@project_categories`.
 
 ---
 
@@ -56,14 +70,20 @@ Tenant-owned schemas include at least: `Bundle`, `Run`, `Cache`,
 
 - Internal background jobs that intentionally operate across tenants (look for an explicit `# admin / cross-tenant: ...` comment or a function name like `*_for_all/_global/_admin`).
 - Reads from non-tenant tables (`User`, `Account`, `Organization`, `Subscription`, etc.).
+- **Webhook handlers operating on a row that was already cryptographically selected upstream.** When `lib/tuist_web/plugs/webhook_plug.ex` resolves a per-row HMAC secret (e.g. `GitHubController.resolve_webhook_secret/1` matches a `GitHubAppInstallation` row whose `webhook_secret` HMACs the raw body, then stashes the row on `conn.assigns[:github_installation]`), downstream handlers reading that assign do not need a separate `installation.account_id == expected_account_id` check. There is no separate "expected account" — webhooks land on a global `/webhooks/<provider>` URL, and the row *is* the tenant context, selected by a per-row cryptographic capability. A redundant `account_id` equality check after `valid_signature?/4` would compare the row's value to itself; it adds dead code, not a defense layer. If the cryptographic check fails, the request 403's before the handler ever runs.
+- **Internal dispatch paths whose inputs come from a query already scoped by tenant.** When a function receives a struct produced by an upstream context function that already filters by `project_id` / `account_id` (e.g. `FlakyTestsMonitor.evaluate/1` → `AlertEvaluationWorker` → `ActionExecutor`), do not flag the downstream call as needing its own scoping check. Trace the input chain before flagging; only flag when the input is user-controllable (URL param, body field, header).
 
 ---
 
 ## 3. ClickHouse `IngestRepo` is write-only
 
-`Tuist.IngestRepo` is the analytics ClickHouse repo. ClickHouse is the
-analytics DB, and we treat it as **write-only from application code** —
-reads happen out of band.
+There are **two** ClickHouse repos in this codebase, and they are not
+interchangeable. Be precise about which one a call uses before flagging.
+
+- **`Tuist.IngestRepo`** — write-only ingest path. Application code must
+  not read from it; reads happen out of band.
+- **`Tuist.ClickHouseRepo`** — the read-only ClickHouse repo (declared
+  with `read_only: true` in `server/lib/tuist/clickhouse_repo.ex`).
 
 ### Flag (Severity: high)
 
@@ -72,7 +92,17 @@ reads happen out of band.
   `Tuist.IngestRepo.exists?/1`, or `Tuist.IngestRepo.aggregate/3`.
 - Any `from(... ) |> Tuist.IngestRepo.<read fn>`.
 
-The fix is almost always to read from `Tuist.Repo` (PostgreSQL) instead.
+The fix is almost always to read through `Tuist.ClickHouseRepo` (for
+ClickHouse-only data) or `Tuist.Repo` (PostgreSQL).
+
+### Do not flag
+
+- `Tuist.ClickHouseRepo.all/1`, `Tuist.ClickHouseRepo.one/1`,
+  `Tuist.ClickHouseRepo.aggregate/3`, or any other read through
+  `ClickHouseRepo`. That repo exists specifically for application reads.
+  Do **not** confuse it with `IngestRepo`.
+- Writes via `Tuist.IngestRepo.insert/2` / `insert_all/2,3` — those are
+  the intended use.
 
 ---
 
@@ -91,6 +121,11 @@ state across tests and are an explicit anti-pattern in this repo.
 
 - `Mimic.expect/3`, `Mimic.stub/3`, `Mimic.reject/1` — those belong in tests.
 - `Mimic.copy/1` calls in `test_helper.exs` itself.
+- `import Mimic`, `use Mimic`, `setup :set_mimic_from_context`, aliases,
+  or any other test setup line that does not contain `Mimic.copy(`.
+- A test file that merely uses Mimic (`use Mimic`, `import Mimic`,
+  `stub`, `expect`, `reject`) but does not contain the exact
+  `Mimic.copy(` call in the diff.
 
 ---
 
@@ -105,6 +140,14 @@ In `server/priv/repo/migrations/` and `server/priv/ingest_repo/migrations/`:
   without `:timestamptz`. The `.credo.exs` rule says: migrations use
   `:timestamptz`, schemas (`lib/`) use `:utc_datetime`.
 - `add :inserted_at, :naive_datetime` or `:datetime` without timezone in a migration. Should be `:timestamptz`.
+
+### Do not flag
+
+- `timestamps(type: :timestamptz)`.
+- `def change do`, `create table(...)`, blank lines, comments, or any
+  line that does not itself declare a timestamp type.
+- `add :started_at, :timestamptz`, `add :finished_at, :timestamptz`,
+  or any other explicit `:timestamptz` column.
 
 ---
 
@@ -168,6 +211,107 @@ In marketing copy and pricing UI:
 
 ---
 
+## 9. N+1 queries — DB calls inside loops
+
+A `Repo.*` / `ClickHouseRepo.*` / `IngestRepo.*` call inside `Enum.map`,
+`Enum.each`, `Enum.flat_map`, `Enum.filter`, `Enum.reduce`, `for`, or
+`Stream.*` is almost always an N+1. Each iteration is a separate round
+trip; the chart-bucket loop or per-row preload that looked harmless on
+toy data stalls real page loads.
+
+**Actively search the diff for these patterns** before signing off
+— don't just react to obvious cases:
+
+- `Enum.map(_, fn ... -> ... <Repo>.<one|all|get|get_by|aggregate|exists?|stream> ... end)`
+- `Enum.map(_, &<Repo>.<...>(&1, ...))` (point-free form is the same trap)
+- `Enum.each(_, fn ... -> ... <Repo>.<insert|update|delete> ... end)`
+- `Enum.flat_map`, `Enum.reduce(..., fn _, acc -> ... <Repo>... end)`
+- `for x <- xs, do: <Repo>.*` / `for x <- xs, do: ...` with a query inside
+- `Enum.map(_, &<Repo>.preload(&1, ...))` — `preload/2` already accepts a list
+- Pipelines like `xs |> Enum.map(&fetch_thing/1)` where `fetch_thing/1`
+  internally calls a `Repo` — follow the function one hop in.
+
+The repos to watch: `Tuist.Repo`, `Tuist.ClickHouseRepo`,
+`Tuist.IngestRepo`, plus any aliased form (e.g. `alias Tuist.Repo`,
+then bare `Repo.*` inside the loop).
+
+### Flag (Severity: medium; high if hot path)
+
+- A `Repo`/`ClickHouseRepo`/`IngestRepo` read or aggregate inside any
+  `Enum.*`/`for`/`Stream.*` in the diff. Severity is **high** if the
+  loop is on a request path (controller, LiveView mount/handle_*,
+  channel, MCP handler) or scales with tenant data (test cases,
+  bundles, runs); **medium** for background jobs and one-shot scripts.
+- Per-element `Repo.preload/2` — `preload` already takes a list; one
+  call covers all.
+- Per-element inserts/updates/deletes that have an `_all` equivalent
+  (`insert_all`, `update_all`, `delete_all`).
+
+When suggesting a fix, **name the consolidating primitive** so the
+author can act on it directly:
+
+- ClickHouse per-bucket aggregation → `argMaxIf` / `countIf` /
+  `groupArray` over a single GROUP BY, or `arrayJoin` to fan out
+  buckets as rows.
+- Ecto per-row lookup → `where: r.id in ^ids` + group in Elixir, or
+  a join.
+- Per-element preload → `Repo.preload(list, [:assoc])` once.
+- Per-element write → `*_all` + a list of params.
+
+### Do not flag
+
+- Loops over a bounded constant collection (config keys, enum members,
+  ≤5 items) where each query is genuinely independent and the loop
+  isn't on a hot request path.
+- Tests, fixtures, and seed scripts (`server/test/`,
+  `server/priv/repo/seeds*.exs`) — correctness-first, perf is fine.
+- Loops that build params in memory with no DB round trip per iteration.
+- `Repo.stream/2` inside `Enum.*` with an explicit comment justifying
+  the cursor-based stream (e.g. "stream so we don't load 10M rows").
+- Pre-existing N+1s untouched by the diff — this skill is for new
+  regressions, not codebase-wide audits.
+
+---
+
+## 10. Inline `style="..."` in HEEx templates
+
+Component styling lives in `server/assets/app/css/pages/*.css` (or
+`noora/lib/noora/**/*.css` for design-system primitives), keyed off
+`data-part` selectors that mirror the HEEx structure. Inline `style=`
+attributes on elements or component props bypass the design tokens
+(`var(--noora-spacing-*)`, `var(--noora-font-*)`, etc.) at review
+time, leak presentation into LiveView diffs, and prevent themers /
+density modes from overriding the value.
+
+### Flag (Severity: low)
+
+- A new `style="..."` attribute on an HTML element inside any
+  `server/lib/tuist_web/**/*.html.heex` or `*_live.html.heex`.
+- A `style=` prop passed to a Noora component (`<.button_group
+  style="...">`, `<.text_input style="...">`, etc.). These flow through
+  to the underlying element via `{@rest}`, so they're inline styles by
+  another name.
+
+When suggesting a fix:
+
+1. Add a stable `data-part` (or reuse one already on the element).
+2. Move the rule into the matching page CSS file
+   (`server/assets/app/css/pages/<page>.css`) or, if it belongs to a
+   reusable component, the Noora primitive's CSS.
+3. Prefer Noora design tokens (`--noora-spacing-*`, `--noora-radius-*`,
+   `--noora-font-*`, `--noora-surface-*`) over raw values.
+
+### Do not flag
+
+- `style=` attributes that already existed before the diff.
+- Generated SVG markup with inline styles (it's the artist tool's
+  output, not author-written).
+- One-off `style="display: none"` toggles whose visibility is driven
+  by a temporary Phoenix `:if` — those still belong in CSS, but the
+  signal-to-noise here is low.
+
+---
+
 ## Out of scope (handled elsewhere — do not flag)
 
 - Module / function naming, pipe-chain start, function ordering,
@@ -183,8 +327,10 @@ In marketing copy and pricing UI:
 For each finding, confirm:
 
 1. The `path:line` is real and the snippet appears in the diff.
-2. The category above is one of 1–8; if it isn't, downgrade to a
+2. The category above is one of 1–10; if it isn't, downgrade to a
    question (`uncertain: ...`) rather than asserting a finding.
 3. The severity is set: **critical** (auth bypass / cross-tenant read or
    write), **high** (likely security or correctness bug), **medium**
    (compliance / consistency gap), **low** (nice-to-have).
+4. You are not reporting an unchanged line as a finding. Unchanged
+   context can explain a diff finding, but cannot be the finding itself.

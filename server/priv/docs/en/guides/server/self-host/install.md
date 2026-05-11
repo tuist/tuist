@@ -204,7 +204,7 @@ You can set up authentication with Google using [OAuth 2](https://developers.goo
 
 #### Okta {#okta}
 
-You can enable authentication with Okta through the [OAuth 2.0](https://oauth.net/2/) protocol. You'll have to [create an app](https://developer.okta.com/docs/en/guides/implement-oauth-for-okta/main/#create-an-oauth-2-0-app-in-okta) on Okta following <.localized_link href="/guides/integrations/sso#okta">these instructions</.localized_link>.
+You can enable authentication with Okta through the [OAuth 2.0](https://oauth.net/2/) protocol. You'll have to [create an app](https://developer.okta.com/docs/en/guides/implement-oauth-for-okta/main/#create-an-oauth-2-0-app-in-okta) on Okta following <.localized_link href="/guides/integrations/authentication/sso#okta">these instructions</.localized_link>.
 
 You will need to set the following environment variables once you obtain the client id and secret during the set up of the Okta application:
 
@@ -288,6 +288,10 @@ On top of the `TUIST_GITHUB_APP_CLIENT_ID` and `TUIST_GITHUB_APP_CLIENT_SECRET`,
 | Environment variable | Description | Required | Default | Example |
 | --- | --- | --- | --- | --- |
 | `TUIST_GITHUB_APP_PRIVATE_KEY` | The private key of the GitHub application | Yes | | `-----BEGIN RSA PRIVATE KEY-----...` |
+
+##### GitHub Enterprise Server {#platform-github-enterprise-server}
+
+The env vars above only configure Tuist's github.com App. To integrate Tuist with a GitHub Enterprise Server (GHES) instance instead, organization admins switch to the **Enterprise server** tab on the integrations page and enter the GHES base URL — Tuist walks them through GitHub's [App manifest flow](https://docs.github.com/en/apps/sharing-github-apps/registering-a-github-app-from-a-manifest) to register a fresh Tuist App on their GHES instance. The new App's credentials are stored encrypted per installation; no additional `TUIST_GITHUB_APP_*` env vars are needed.
 
 ## Testing Locally {#testing-locally}
 
@@ -504,7 +508,7 @@ ghcr.io/tuist/tuist
 The published image includes embedded Linux build processing for `.xcactivitylog` archives, so self-hosted deployments can process builds without running any additional service — the `ProcessBuildWorker` Oban job runs in-process on each server pod. If you want to offload build processing to a dedicated replica set (for example, to scale parse throughput independently of the web tier), set `processor.enabled: true` in the Helm chart: the chart deploys the same image as a queue-only consumer (`TUIST_PROCESSOR_MODE=true`). See [`values.yaml`](https://github.com/tuist/tuist/blob/main/infra/helm/tuist/values.yaml) for the full set of knobs.
 
 > [!NOTE]
-> `.xcresult` processing remains a separate concern and still requires the macOS-based `xcode_processor` service.
+> `.xcresult` parsing leans on `xcresulttool` from Xcode, so it can only run on macOS. The CLI handles this transparently for self-hosted deployments: `tuist test` defaults to **local** processing mode against any non-`tuist.dev` server, parsing the xcresult on the developer machine (which already has Xcode for the build itself) and uploading the structured results. Test results are ingested without any additional infrastructure.
 
 ### Pulling the Docker image {#pulling-the-docker-image}
 

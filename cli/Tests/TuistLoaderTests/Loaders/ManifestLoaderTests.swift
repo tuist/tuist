@@ -1,9 +1,12 @@
 import FileSystem
 import Foundation
+import Mockable
 import TuistConstants
+import TuistCore
+import TuistEnvironment
+import TuistGit
 import XcodeGraph
 import XCTest
-
 @testable import TuistLoader
 @testable import TuistSupport
 @testable import TuistTesting
@@ -190,6 +193,94 @@ final class ManifestLoaderTests: TuistTestCase {
 
         // When
         let got = try await subject.loadPackageSettings(at: temporaryPath, disableSandbox: true)
+
+        // Then
+        XCTAssertEqual(
+            got,
+            .init(
+                targetSettings: [
+                    "TargetA": .settings(base: [
+                        "OTHER_LDFLAGS": "-ObjC",
+                    ]),
+                ]
+            )
+        )
+    }
+
+    func test_loadPackageSettings_withPackageDescriptionContextEnvironment() async throws {
+        // Given
+        let temporaryPath = try temporaryPath()
+        let gitController = MockGitControlling()
+        subject = ManifestLoader(
+            environment: Environment.current,
+            resourceLocator: ResourceLocator(),
+            cacheDirectoriesProvider: CacheDirectoriesProvider(),
+            projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactory(),
+            manifestFilesLocator: ManifestFilesLocator(),
+            swiftPackageManagerController: SwiftPackageManagerController(),
+            packageInfoLoader: PackageInfoLoader(),
+            gitController: gitController
+        )
+        let content = """
+        // swift-tools-version: 6.1
+        import PackageDescription
+
+        let demoContextValue = Context.environment["TUIST_DEMO_CONTEXT_VALUE"]
+        let hasGitInformation = Context.gitInformation?.currentTag == "1.2.3" &&
+            Context.gitInformation?.currentCommit == "abc123" &&
+            Context.gitInformation?.hasUncommittedChanges == false
+
+        #if TUIST
+        import ProjectDescription
+
+        let packageSettings = PackageSettings(
+            targetSettings: demoContextValue == "enabled" && hasGitInformation ? ["TargetA": ["OTHER_LDFLAGS": "-ObjC"]] : [:]
+        )
+
+        #endif
+
+        let package = Package(
+            name: "PackageName",
+            dependencies: []
+        )
+
+        """
+
+        let manifestPath = temporaryPath.appending(
+            component: Manifest.package.fileName(temporaryPath)
+        )
+        try await fileSystem.makeDirectory(at: temporaryPath.appending(component: Constants.tuistDirectoryName))
+        try content.write(
+            to: manifestPath.url,
+            atomically: true,
+            encoding: .utf8
+        )
+
+        given(gitController)
+            .isGitAvailable()
+            .willReturn(true)
+        given(gitController)
+            .isInGitRepository(workingDirectory: .value(temporaryPath))
+            .willReturn(true)
+        given(gitController)
+            .currentTag(workingDirectory: .value(temporaryPath))
+            .willReturn("1.2.3")
+        given(gitController)
+            .currentCommitSHA(workingDirectory: .value(temporaryPath))
+            .willReturn("abc123")
+        given(gitController)
+            .hasUncommittedChanges(workingDirectory: .value(temporaryPath))
+            .willReturn(false)
+
+        let variables = Environment.current.variables.merging(
+            ["TUIST_DEMO_CONTEXT_VALUE": "enabled"],
+            uniquingKeysWith: { $1 }
+        )
+
+        // When
+        let got = try await Environment.$current.withValue(Environment(variables: variables)) {
+            try await subject.loadPackageSettings(at: temporaryPath, disableSandbox: true)
+        }
 
         // Then
         XCTAssertEqual(

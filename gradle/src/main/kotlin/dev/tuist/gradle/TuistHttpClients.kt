@@ -17,14 +17,19 @@ import java.util.concurrent.TimeUnit
  * pool is shared.
  *
  * When the `HTTPS_PROXY` or `HTTP_PROXY` environment variable is set, the
- * clients automatically route requests through it; otherwise they use direct
- * connections. No explicit configuration is exposed to users.
+ * clients automatically route requests through it by default; otherwise they use
+ * direct connections. Callers can opt out by setting [useEnvironmentProxy] to
+ * `false`.
  */
 open class TuistHttpClients(
+    private val useEnvironmentProxy: Boolean = true,
+    private val proxyURLProvider: () -> String? = { environmentProxyURL() },
     private val environmentVariables: Map<String, String> = System.getenv()
 ) {
 
-    val javaProxy: java.net.Proxy? by lazy { environmentProxy() }
+    val javaProxy: java.net.Proxy? by lazy {
+        if (useEnvironmentProxy) environmentProxy() else null
+    }
 
     open val okHttp: OkHttpClient by lazy {
         OkHttpClient.Builder()
@@ -93,23 +98,28 @@ open class TuistHttpClients(
 
         private val PROXY_ENV_VARS = listOf("HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy")
 
-        private fun environmentProxy(): java.net.Proxy? {
+        private fun environmentProxyURL(): String? {
             for (name in PROXY_ENV_VARS) {
                 val value = System.getenv(name)
-                if (!value.isNullOrBlank()) {
-                    val uri = runCatching { URI(value) }.getOrNull() ?: continue
-                    val host = uri.host ?: continue
-                    val port = if (uri.port != -1) uri.port else defaultProxyPort(uri.scheme)
-                    return java.net.Proxy(java.net.Proxy.Type.HTTP, InetSocketAddress(host, port))
-                }
+                if (!value.isNullOrBlank()) return value
             }
             return null
         }
+    }
 
-        private fun defaultProxyPort(scheme: String?): Int = when (scheme?.lowercase()) {
-            "https" -> 443
-            "http" -> 80
-            else -> 8080
-        }
+    private fun environmentProxy(): java.net.Proxy? {
+        val value = proxyURLProvider()
+        if (value.isNullOrBlank()) return null
+
+        val uri = runCatching { URI(value) }.getOrNull() ?: return null
+        val host = uri.host ?: return null
+        val port = if (uri.port != -1) uri.port else defaultProxyPort(uri.scheme)
+        return java.net.Proxy(java.net.Proxy.Type.HTTP, InetSocketAddress(host, port))
+    }
+
+    private fun defaultProxyPort(scheme: String?): Int = when (scheme?.lowercase()) {
+        "https" -> 443
+        "http" -> 80
+        else -> 8080
     }
 }

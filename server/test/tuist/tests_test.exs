@@ -3,6 +3,7 @@ defmodule Tuist.TestsTest do
   use Mimic
 
   alias Tuist.Automations
+  alias Tuist.Automations.ActionExecutor
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
   alias Tuist.Shards.ShardRun
@@ -2665,6 +2666,55 @@ defmodule Tuist.TestsTest do
                "stale_skipped"
              ]
     end
+
+    test "is_ci scopes the trailing active window via denormalized last_ran_at_ci/local" do
+      # Locks down the CI/Local active-window path that reads the denormalized
+      # columns on test_cases instead of joining test_case_runs. A test that
+      # only ever ran locally must be excluded when is_ci=true and vice versa,
+      # even though both share the same `last_ran_at`.
+      project = ProjectsFixtures.project_fixture()
+      ran_at = NaiveDateTime.utc_now()
+
+      {:ok, _ci_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          is_ci: true,
+          ran_at: ran_at,
+          test_modules: [
+            %{
+              name: "M",
+              status: "success",
+              duration: 100,
+              test_cases: [%{name: "ran_in_ci", status: "success", duration: 100}]
+            }
+          ]
+        )
+
+      {:ok, _local_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          is_ci: false,
+          ran_at: ran_at,
+          test_modules: [
+            %{
+              name: "M",
+              status: "success",
+              duration: 100,
+              test_cases: [%{name: "ran_locally", status: "success", duration: 100}]
+            }
+          ]
+        )
+
+      RunsFixtures.optimize_test_case_runs()
+
+      {ci_results, _} = Tests.list_test_cases(project.id, %{}, is_ci: true)
+      {local_results, _} = Tests.list_test_cases(project.id, %{}, is_ci: false)
+      {any_results, _} = Tests.list_test_cases(project.id, %{}, is_ci: nil)
+
+      assert Enum.map(ci_results, & &1.name) == ["ran_in_ci"]
+      assert Enum.map(local_results, & &1.name) == ["ran_locally"]
+      assert any_results |> Enum.map(& &1.name) |> Enum.sort() == ["ran_in_ci", "ran_locally"]
+    end
   end
 
   describe "get_test_case_by_id/1" do
@@ -3751,6 +3801,176 @@ defmodule Tuist.TestsTest do
       assert hd(second_test_case_runs).is_flaky == false
     end
 
+    test "does not mark as flaky when same test case on same commit runs on different schemes" do
+      project = ProjectsFixtures.project_fixture()
+      account_id = project.account_id
+      commit_sha = "scheme_partition_#{System.unique_integer([:positive])}"
+      test_case_id = Ecto.UUID.generate()
+
+      # First CI run on scheme "AllModules": test case fails (e.g. wrong simulator)
+      {:ok, first_test} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account_id,
+          duration: 1000,
+          status: "failure",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: commit_sha,
+          scheme: "AllModules",
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600),
+          is_ci: true,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "failure",
+              duration: 500,
+              test_cases: [
+                %{
+                  name: "testSomething",
+                  status: "failure",
+                  duration: 250,
+                  test_case_id: test_case_id
+                }
+              ]
+            }
+          ]
+        })
+
+      # Second CI run on scheme "AppWorkspace": same test case passes on same commit
+      {:ok, second_test} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account_id,
+          duration: 1000,
+          status: "success",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: commit_sha,
+          scheme: "AppWorkspace",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 500,
+              test_cases: [
+                %{
+                  name: "testSomething",
+                  status: "success",
+                  duration: 250,
+                  test_case_id: test_case_id
+                }
+              ]
+            }
+          ]
+        })
+
+      RunsFixtures.optimize_test_case_runs()
+
+      {first_test_case_runs, _} =
+        Tests.list_test_case_runs(%{
+          filters: [%{field: :test_run_id, op: :==, value: first_test.id}]
+        })
+
+      {second_test_case_runs, _} =
+        Tests.list_test_case_runs(%{
+          filters: [%{field: :test_run_id, op: :==, value: second_test.id}]
+        })
+
+      assert hd(first_test_case_runs).is_flaky == false
+      assert hd(second_test_case_runs).is_flaky == false
+    end
+
+    test "marks as flaky when same test case on same commit and same scheme has different results" do
+      project = ProjectsFixtures.project_fixture()
+      account_id = project.account_id
+      commit_sha = "same_scheme_flake_#{System.unique_integer([:positive])}"
+      test_case_id = Ecto.UUID.generate()
+
+      {:ok, first_test} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account_id,
+          duration: 1000,
+          status: "success",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: commit_sha,
+          scheme: "AppScheme",
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600),
+          is_ci: true,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 500,
+              test_cases: [
+                %{
+                  name: "testSomething",
+                  status: "success",
+                  duration: 250,
+                  test_case_id: test_case_id
+                }
+              ]
+            }
+          ]
+        })
+
+      {:ok, second_test} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account_id,
+          duration: 1000,
+          status: "failure",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: commit_sha,
+          scheme: "AppScheme",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "failure",
+              duration: 500,
+              test_cases: [
+                %{
+                  name: "testSomething",
+                  status: "failure",
+                  duration: 250,
+                  test_case_id: test_case_id
+                }
+              ]
+            }
+          ]
+        })
+
+      RunsFixtures.optimize_test_case_runs()
+
+      {first_test_case_runs, _} =
+        Tests.list_test_case_runs(%{
+          filters: [%{field: :test_run_id, op: :==, value: first_test.id}]
+        })
+
+      {second_test_case_runs, _} =
+        Tests.list_test_case_runs(%{
+          filters: [%{field: :test_run_id, op: :==, value: second_test.id}]
+        })
+
+      assert hd(first_test_case_runs).is_flaky == true
+      assert hd(second_test_case_runs).is_flaky == true
+    end
+
     test "propagates cross-run flakiness to the test_run record" do
       project = ProjectsFixtures.project_fixture()
       account_id = project.account_id
@@ -4429,7 +4649,12 @@ defmodule Tuist.TestsTest do
       assert project2_results == []
     end
 
-    test "filters by time range" do
+    test "scopes flaky-run stats by time range without dropping currently-flagged tests" do
+      # The page's date range scopes stats (flaky_runs_count, last_flaky_at)
+      # but not list membership: a test that is currently flagged flaky still
+      # appears even when its flaky runs sit outside the window. Otherwise
+      # the list silently drops stale-flagged tests and the count diverges
+      # from the analytics card, which counts purely off events.
       project = ProjectsFixtures.project_fixture()
 
       test_modules = fn status ->
@@ -4518,9 +4743,17 @@ defmodule Tuist.TestsTest do
       {results, meta} =
         Tests.list_flaky_test_cases(project.id, %{}, start_datetime: thirty_days_ago, end_datetime: now)
 
-      assert length(results) == 1
-      assert meta.total_count == 1
-      assert hd(results).name == "recentFlaky"
+      assert length(results) == 2
+      assert meta.total_count == 2
+
+      recent = Enum.find(results, &(&1.name == "recentFlaky"))
+      old = Enum.find(results, &(&1.name == "oldFlaky"))
+
+      assert recent.flaky_runs_count >= 1
+      assert recent.last_flaky_at
+
+      assert old.flaky_runs_count == 0
+      refute old.last_flaky_at
 
       {all_results, all_meta} = Tests.list_flaky_test_cases(project.id, %{})
 
@@ -4528,7 +4761,7 @@ defmodule Tuist.TestsTest do
       assert all_meta.total_count == 2
     end
 
-    test "filters by CI environment" do
+    test "scopes flaky-run stats by environment without dropping currently-flagged tests" do
       project = ProjectsFixtures.project_fixture()
 
       test_modules = fn status ->
@@ -4575,14 +4808,24 @@ defmodule Tuist.TestsTest do
 
       assert length(ci_results) == 1
       assert ci_meta.total_count == 1
-      assert hd(ci_results).name == "ciFlaky"
 
+      ci_only = hd(ci_results)
+      assert ci_only.name == "ciFlaky"
+      assert ci_only.flaky_runs_count >= 1
+
+      # When the page filters by environment "local" (is_ci: false), the test
+      # is still flagged so it appears, but its flaky-run stats are empty
+      # because no flaky runs match the environment.
       {no_ci_results, _} = Tests.list_flaky_test_cases(project.id, %{}, is_ci: false)
 
-      assert Enum.empty?(no_ci_results)
+      assert length(no_ci_results) == 1
+      no_ci_only = hd(no_ci_results)
+      assert no_ci_only.name == "ciFlaky"
+      assert no_ci_only.flaky_runs_count == 0
+      refute no_ci_only.last_flaky_at
     end
 
-    test "combines time range and environment filters" do
+    test "scopes flaky-run stats by combined time range and environment filters" do
       project = ProjectsFixtures.project_fixture()
 
       test_modules = fn name, status ->
@@ -4643,13 +4886,91 @@ defmodule Tuist.TestsTest do
           is_ci: true
         )
 
-      assert length(results) == 1
-      assert meta.total_count == 1
-      assert hd(results).name == "recentCI"
+      # Both currently-flagged tests appear; only their stats are scoped.
+      assert length(results) == 2
+      assert meta.total_count == 2
+
+      recent_row = Enum.find(results, &(&1.name == "recentCI"))
+      old_row = Enum.find(results, &(&1.name == "oldCI"))
+
+      assert recent_row.flaky_runs_count >= 1
+      assert old_row.flaky_runs_count == 0
+    end
+
+    test "list count matches the flaky-tests analytics count for the same window" do
+      # Locks the invariant that prompted the join change: a stale-flagged
+      # test (no flaky runs in the analytics window) must still appear in
+      # the list, so the table count agrees with the *Flaky Tests* card.
+      project = ProjectsFixtures.project_fixture()
+
+      test_modules = fn name, status ->
+        [
+          %{
+            name: "TestModule",
+            status: status,
+            duration: 500,
+            test_cases: [%{name: name, status: status, duration: 250}]
+          }
+        ]
+      end
+
+      {:ok, recent} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: "rc",
+          is_ci: true,
+          status: "success",
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600),
+          test_modules: test_modules.("recentFlaky", "success")
+        )
+
+      {:ok, _} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: "rc",
+          is_ci: true,
+          status: "failure",
+          ran_at: NaiveDateTime.utc_now(),
+          test_modules: test_modules.("recentFlaky", "failure")
+        )
+
+      {[recent_run | _], _} =
+        Tests.list_test_case_runs(%{filters: [%{field: :test_run_id, op: :==, value: recent.id}]})
+
+      {:ok, _} = Tests.update_test_case(recent_run.test_case_id, %{is_flaky: true})
+
+      stale_test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "staleFlagged",
+          module_name: "TestModule",
+          suite_name: "",
+          is_flaky: false
+        )
+
+      IngestRepo.insert_all(TestCase, [
+        stale_test_case |> Map.from_struct() |> Map.delete(:__meta__)
+      ])
+
+      {:ok, _} = Tests.update_test_case(stale_test_case.id, %{is_flaky: true})
+
+      RunsFixtures.optimize_test_case_runs()
+
+      now = DateTime.utc_now()
+      thirty_days_ago = DateTime.add(now, -30, :day)
+      opts = [start_datetime: thirty_days_ago, end_datetime: now]
+
+      {_results, meta} = Tests.list_flaky_test_cases(project.id, %{}, opts)
+      analytics = Tuist.Tests.Analytics.flaky_tests_analytics(project.id, opts)
+
+      assert meta.total_count == analytics.count
+      assert meta.total_count == 2
     end
   end
 
-  describe "get_flaky_runs_groups_count_for_test_case/1" do
+  describe "get_flaky_runs_groups_count_for_test_case/2" do
     test "returns 0 when no flaky runs exist" do
       project = ProjectsFixtures.project_fixture()
 
@@ -4670,7 +4991,7 @@ defmodule Tuist.TestsTest do
 
       {[test_case], _} = Tests.list_test_cases(project.id, %{})
 
-      count = Tests.get_flaky_runs_groups_count_for_test_case(test_case.id)
+      count = Tests.get_flaky_runs_groups_count_for_test_case(project.id, test_case.id)
       assert count == 0
     end
 
@@ -4738,16 +5059,17 @@ defmodule Tuist.TestsTest do
       RunsFixtures.optimize_test_case_runs()
 
       {[test_case], _} = Tests.list_test_cases(project.id, %{})
-      count = Tests.get_flaky_runs_groups_count_for_test_case(test_case.id)
+      count = Tests.get_flaky_runs_groups_count_for_test_case(project.id, test_case.id)
 
       # 2 groups: (default_scheme, commit1) and (default_scheme, commit2)
       assert count == 2
     end
   end
 
-  describe "get_flaky_runs_groups_counts_for_test_cases/1" do
+  describe "get_flaky_runs_groups_counts_for_test_cases/2" do
     test "returns empty map for empty list" do
-      result = Tests.get_flaky_runs_groups_counts_for_test_cases([])
+      project = ProjectsFixtures.project_fixture()
+      result = Tests.get_flaky_runs_groups_counts_for_test_cases(project.id, [])
       assert result == %{}
     end
 
@@ -4772,7 +5094,7 @@ defmodule Tuist.TestsTest do
       {[test_case_run | _], _} =
         Tests.list_test_case_runs(%{filters: [%{field: :test_run_id, op: :==, value: test.id}]})
 
-      result = Tests.get_flaky_runs_groups_counts_for_test_cases([test_case_run.test_case_id])
+      result = Tests.get_flaky_runs_groups_counts_for_test_cases(project.id, [test_case_run.test_case_id])
       assert result == %{}
     end
 
@@ -4878,7 +5200,7 @@ defmodule Tuist.TestsTest do
         Tests.list_test_case_runs(%{filters: [%{field: :test_run_id, op: :==, value: test2.id}]})
 
       result =
-        Tests.get_flaky_runs_groups_counts_for_test_cases([
+        Tests.get_flaky_runs_groups_counts_for_test_cases(project.id, [
           test_case_run_1.test_case_id,
           test_case_run_2.test_case_id
         ])
@@ -4952,7 +5274,7 @@ defmodule Tuist.TestsTest do
         Tests.list_test_case_runs(%{filters: [%{field: :test_run_id, op: :==, value: non_flaky_test.id}]})
 
       result =
-        Tests.get_flaky_runs_groups_counts_for_test_cases([
+        Tests.get_flaky_runs_groups_counts_for_test_cases(project.id, [
           flaky_run.test_case_id,
           non_flaky_run.test_case_id
         ])
@@ -4963,7 +5285,7 @@ defmodule Tuist.TestsTest do
     end
   end
 
-  describe "list_flaky_runs_for_test_case/2" do
+  describe "list_flaky_runs_for_test_case/3" do
     test "returns empty list with meta when no flaky runs exist" do
       project = ProjectsFixtures.project_fixture()
 
@@ -4984,7 +5306,7 @@ defmodule Tuist.TestsTest do
 
       {[test_case], _} = Tests.list_test_cases(project.id, %{})
 
-      {groups, meta} = Tests.list_flaky_runs_for_test_case(test_case.id)
+      {groups, meta} = Tests.list_flaky_runs_for_test_case(project.id, test_case.id)
 
       assert groups == []
       assert meta.total_count == 0
@@ -5031,7 +5353,7 @@ defmodule Tuist.TestsTest do
       RunsFixtures.optimize_test_case_runs()
 
       {[test_case], _} = Tests.list_test_cases(project.id, %{})
-      {groups, meta} = Tests.list_flaky_runs_for_test_case(test_case.id)
+      {groups, meta} = Tests.list_flaky_runs_for_test_case(project.id, test_case.id)
 
       assert length(groups) == 1
       assert meta.total_count == 1
@@ -5087,13 +5409,13 @@ defmodule Tuist.TestsTest do
 
       {[test_case], _} = Tests.list_test_cases(project.id, %{})
 
-      {page1, meta1} = Tests.list_flaky_runs_for_test_case(test_case.id, %{page: 1, page_size: 2})
+      {page1, meta1} = Tests.list_flaky_runs_for_test_case(project.id, test_case.id, %{page: 1, page_size: 2})
       assert length(page1) == 2
       assert meta1.total_count == 3
       assert meta1.total_pages == 2
       assert meta1.current_page == 1
 
-      {page2, meta2} = Tests.list_flaky_runs_for_test_case(test_case.id, %{page: 2, page_size: 2})
+      {page2, meta2} = Tests.list_flaky_runs_for_test_case(project.id, test_case.id, %{page: 2, page_size: 2})
       assert length(page2) == 1
       assert meta2.current_page == 2
     end
@@ -5162,7 +5484,7 @@ defmodule Tuist.TestsTest do
       RunsFixtures.optimize_test_case_runs()
 
       {[test_case], _} = Tests.list_test_cases(project.id, %{})
-      {groups, _} = Tests.list_flaky_runs_for_test_case(test_case.id)
+      {groups, _} = Tests.list_flaky_runs_for_test_case(project.id, test_case.id)
 
       assert length(groups) == 2
       assert Enum.at(groups, 0).git_commit_sha == "newer_commit"
@@ -5656,6 +5978,94 @@ defmodule Tuist.TestsTest do
       result_second = Tests.get_flaky_runs_for_test_run(second_run.id)
       assert length(result_second) == 1
       assert length(hd(result_second).runs) == 1
+    end
+
+    # Regression: when batching the cross-run lookup, each test_run's
+    # slice must be re-filtered against its OWN per-axis IN sets — not
+    # against the union of every test_run's keys. Otherwise A flaky on
+    # (Foo, sha1) would see B's flaky `(Bar, sha2)` row appear in its
+    # group, inflating the per-run flaky count in PR comments.
+    test "batched form does not cross-contaminate flaky keys across test_runs" do
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, run_a} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: project.account_id,
+          duration: 1000,
+          status: "success",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600),
+          is_ci: true,
+          test_modules: [
+            %{
+              name: "ModA",
+              status: "success",
+              duration: 500,
+              test_cases: [
+                %{
+                  name: "testFooFlaky",
+                  status: "success",
+                  duration: 250,
+                  repetitions: [
+                    %{repetition_number: 1, name: "First Run", status: "failure", duration: 100},
+                    %{repetition_number: 2, name: "Retry", status: "success", duration: 150}
+                  ]
+                }
+              ]
+            }
+          ]
+        })
+
+      {:ok, run_b} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: project.account_id,
+          duration: 1000,
+          status: "success",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          test_modules: [
+            %{
+              name: "ModB",
+              status: "success",
+              duration: 500,
+              test_cases: [
+                %{
+                  name: "testBarFlaky",
+                  status: "success",
+                  duration: 250,
+                  repetitions: [
+                    %{repetition_number: 1, name: "First Run", status: "failure", duration: 100},
+                    %{repetition_number: 2, name: "Retry", status: "success", duration: 150}
+                  ]
+                }
+              ]
+            }
+          ]
+        })
+
+      RunsFixtures.optimize_test_case_runs()
+
+      result = Tests.get_flaky_runs_for_test_runs([run_a.id, run_b.id])
+
+      group_a = Map.fetch!(result, run_a.id)
+      group_b = Map.fetch!(result, run_b.id)
+
+      assert [%{name: "testFooFlaky"} = group] = group_a
+      assert length(group.runs) == 1
+
+      assert [%{name: "testBarFlaky"} = group] = group_b
+      assert length(group.runs) == 1
     end
   end
 
@@ -6708,6 +7118,116 @@ defmodule Tuist.TestsTest do
     end
   end
 
+  describe "automation flow ↔ TestCase.state ⁄ test_case_events consistency invariant" do
+    # The Apr 30 → May 5 drift on a customer project (PR #10601) was caused by
+    # the pre-`a3e34233da` `ActionExecutor` dispatching each automation
+    # attribute action through its own `update_test_case/3` call. Each call did
+    # a read-modify-write against `test_cases`; the second call's read missed
+    # the first call's just-written row, so the second write reverted `state`
+    # while leaving the first call's `muted` event in place.
+    #
+    # `a3e34233da` coalesces all attribute-mutating actions into one
+    # `update_test_case/3`. These tests guard that invariant at the integration
+    # level: after a multi-action automation run, `TestCase.state` (used by the
+    # quarantined-tests list) and the latest quarantine event in
+    # `test_case_events` (used by analytics replay) must agree on whether the
+    # test is currently quarantined. If a future refactor reintroduces
+    # sequential dispatch, these tests fail.
+
+    test "[change_state: muted, add_label: flaky] writes a single coalesced row whose state and event agree" do
+      project = ProjectsFixtures.project_fixture()
+
+      test_case =
+        RunsFixtures.test_case_fixture(project_id: project.id, state: "enabled", is_flaky: false)
+
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      assert :ok =
+               ActionExecutor.execute_actions(
+                 [
+                   %{"type" => "change_state", "state" => "muted"},
+                   %{"type" => "add_label", "label" => "flaky"}
+                 ],
+                 %{name: "Auto", project_id: project.id},
+                 %{type: :test_case, id: test_case.id}
+               )
+
+      assert {:ok, %{state: "muted", is_flaky: true}} = Tests.get_test_case_by_id(test_case.id)
+      assert_state_event_agree(test_case.id)
+    end
+
+    test "[remove_label: flaky, change_state: enabled] (recovery) writes a single coalesced row whose state and event agree" do
+      project = ProjectsFixtures.project_fixture()
+
+      test_case =
+        RunsFixtures.test_case_fixture(project_id: project.id, state: "muted", is_flaky: true)
+
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      assert :ok =
+               ActionExecutor.execute_actions(
+                 [
+                   %{"type" => "remove_label", "label" => "flaky"},
+                   %{"type" => "change_state", "state" => "enabled"}
+                 ],
+                 %{name: "Auto", project_id: project.id},
+                 %{type: :test_case, id: test_case.id}
+               )
+
+      assert {:ok, %{state: "enabled", is_flaky: false}} = Tests.get_test_case_by_id(test_case.id)
+      assert_state_event_agree(test_case.id)
+    end
+
+    test "ActionExecutor issues exactly one update_test_case call per automation, not one per action" do
+      # Direct guard against the pre-coalesce dispatch shape — it's the
+      # observable behaviour difference that made drift possible. Counting
+      # update_test_case calls is the cheapest way to keep the coalescing
+      # contract from regressing without depending on a ClickHouse
+      # part-visibility race that's hard to reproduce in tests.
+      project = ProjectsFixtures.project_fixture()
+
+      test_case =
+        RunsFixtures.test_case_fixture(project_id: project.id, state: "enabled", is_flaky: false)
+
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      expect(Tests, :update_test_case, 1, fn id, attrs ->
+        Mimic.call_original(Tests, :update_test_case, [id, attrs])
+      end)
+
+      assert :ok =
+               ActionExecutor.execute_actions(
+                 [
+                   %{"type" => "change_state", "state" => "muted"},
+                   %{"type" => "add_label", "label" => "flaky"}
+                 ],
+                 %{name: "Auto", project_id: project.id},
+                 %{type: :test_case, id: test_case.id}
+               )
+    end
+  end
+
+  defp assert_state_event_agree(test_case_id) do
+    {:ok, %{state: state}} = Tests.get_test_case_by_id(test_case_id)
+
+    last_quarantine_event_type =
+      ClickHouseRepo.one(
+        from(e in TestCaseEvent,
+          where: e.test_case_id == ^test_case_id,
+          where: e.event_type in ^Tests.quarantine_event_types(),
+          order_by: [desc: e.inserted_at],
+          limit: 1,
+          select: e.event_type
+        )
+      )
+
+    state_says_quarantined = state in Tests.active_quarantine_states()
+    event_says_quarantined = last_quarantine_event_type in Tests.active_quarantine_event_types()
+
+    assert state_says_quarantined == event_says_quarantined,
+           "drift: state=#{inspect(state)} last_quarantine_event=#{inspect(last_quarantine_event_type)}"
+  end
+
   describe "list_quarantined_test_cases/2" do
     test "returns empty list when no quarantined test cases exist" do
       project = ProjectsFixtures.project_fixture()
@@ -7667,7 +8187,7 @@ defmodule Tuist.TestsTest do
       :ok = Tests.expire_stale_in_progress_test_runs()
 
       [run] =
-        IngestRepo.all(from(t in Tests.Test, hints: ["FINAL"], where: t.id == ^stale_id))
+        ClickHouseRepo.all(from(t in Tests.Test, hints: ["FINAL"], where: t.id == ^stale_id))
 
       assert run.status == "failure"
     end
@@ -7702,7 +8222,7 @@ defmodule Tuist.TestsTest do
       :ok = Tests.expire_stale_in_progress_test_runs()
 
       [run] =
-        IngestRepo.all(from(t in Tests.Test, hints: ["FINAL"], where: t.id == ^recent_id))
+        ClickHouseRepo.all(from(t in Tests.Test, hints: ["FINAL"], where: t.id == ^recent_id))
 
       assert run.status == "in_progress"
     end
@@ -7736,7 +8256,7 @@ defmodule Tuist.TestsTest do
       :ok = Tests.expire_stale_in_progress_test_runs()
 
       [run] =
-        IngestRepo.all(from(t in Tests.Test, hints: ["FINAL"], where: t.id == ^completed_id))
+        ClickHouseRepo.all(from(t in Tests.Test, hints: ["FINAL"], where: t.id == ^completed_id))
 
       assert run.status == "success"
     end

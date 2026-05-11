@@ -29,7 +29,7 @@ helm upgrade --install k8s-monitoring infra/helm/k8s-monitoring \
 
 Prerequisites:
 
-1. **ClusterSecretStore `onepassword` exists.** Installed once per workload cluster as part of the Tuist chart bootstrap — see [`k8s/syself-onboarding.md`](../../k8s/syself-onboarding.md) §5.
+1. **ClusterSecretStore `onepassword` exists.** Installed once per workload cluster as part of the bootstrap — see [`k8s/onboarding.md`](../../k8s/onboarding.md) §4.
 2. **1Password items** present in the cluster's vault:
 
    | Item name | Category | Field |

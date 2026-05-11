@@ -3,19 +3,24 @@ defmodule Tuist.Marketing.Blog do
   This module loads the blog posts and authors to be used in the blog section of the marketing website.
   The content is included in the compiled Erlang binary.
   """
-  use NimblePublisher,
+
+  use Tuist.Marketing.NimblePublisher.Content,
     build: Tuist.Marketing.Blog.Post,
-    from: Application.app_dir(:tuist, "priv/marketing/blog/**/*.md"),
+    dev_from: Path.expand("../../../priv/marketing/blog/**/*.md", __DIR__),
+    prod_from: Application.app_dir(:tuist, "priv/marketing/blog/**/*.md"),
     as: :posts,
     parser: Tuist.Marketing.Blog.PostParser,
     highlighters: [],
     html_converter: Tuist.Marketing.MDExConverter
 
-  @posts Enum.reverse(@posts)
-  @categories @posts |> Enum.map(& &1.category) |> Enum.uniq()
+  def get_posts do
+    Enum.reverse(content_entries())
+  end
 
-  def get_posts, do: @posts
-  def get_categories, do: @categories
+  def get_categories do
+    get_posts() |> Enum.map(& &1.category) |> Enum.uniq()
+  end
+
   def get_post_author(post), do: get_authors()[post.author]
 
   def get_post_author_name(post), do: post |> get_post_author() |> author_name_or_fallback(post.author)

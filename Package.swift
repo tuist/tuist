@@ -294,6 +294,7 @@ var tuistConfigLoaderDependencies: [Target.Dependency] = [
     mockableDependency,
     "TuistConfig",
     "TuistConstants",
+    "TuistHTTP",
     "TuistRootDirectoryLocator",
     tomlDecoderDependency,
 ]
@@ -301,6 +302,7 @@ var tuistConfigLoaderTestDependencies: [Target.Dependency] = [
     "TuistConfigLoader",
     "TuistConfig",
     "TuistConstants",
+    "TuistHTTP",
     "TuistRootDirectoryLocator",
     pathDependency,
     fileSystemDependency,
@@ -540,6 +542,18 @@ var targets: [Target] = [
         path: "cli/Sources/TuistThreadSafe"
     ),
     .target(
+        name: "TuistMacOSSDK",
+        dependencies: [
+            mockableDependency,
+            commandDependency,
+            "TuistThreadSafe",
+        ],
+        path: "cli/Sources/TuistMacOSSDK",
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
         name: "TuistEncodable",
         dependencies: [
             swiftToolsSupportDependency,
@@ -549,6 +563,7 @@ var targets: [Target] = [
     .target(
         name: "TuistGit",
         dependencies: [
+            commandDependency,
             "TuistSupport",
             fileSystemDependency,
             swiftToolsSupportDependency,
@@ -860,7 +875,9 @@ var targets: [Target] = [
     .target(
         name: "TuistTesting",
         dependencies: [
+            commandDependency,
             "TuistSupport",
+            "TuistMacOSSDK",
             "TuistXcodeBuildProducts",
             .target(name: "TuistServer", condition: .when(platforms: [.macOS])),
             .target(name: "TuistHTTP", condition: .when(platforms: [.macOS])),
@@ -909,6 +926,8 @@ var targets: [Target] = [
         name: "TuistHTTPTests",
         dependencies: [
             "TuistHTTP",
+            "TuistEnvironment",
+            "TuistEnvironmentTesting",
             mockableDependency,
         ],
         path: "cli/Tests/TuistHTTPTests"
@@ -1169,6 +1188,7 @@ targets.append(contentsOf: [
         name: "TuistCore",
         dependencies: [
             pathDependency,
+            commandDependency,
             "TuistConfig",
             "TuistSupport",
             xcodeGraphDependency,
@@ -1297,6 +1317,7 @@ targets.append(contentsOf: [
         dependencies: [
             xcodeProjDependency,
             pathDependency,
+            commandDependency,
             "TuistConfig",
             "TuistCore",
             xcodeGraphDependency,
@@ -1395,9 +1416,11 @@ targets.append(contentsOf: [
         dependencies: [
             xcodeProjDependency,
             pathDependency,
+            commandDependency,
             "TuistCore",
             xcodeGraphDependency,
             "TuistSupport",
+            "TuistMacOSSDK",
             mockableDependency,
             "ProjectDescription",
             fileSystemDependency,
@@ -1424,6 +1447,7 @@ targets.append(contentsOf: [
     .target(
         name: "TuistPlugin",
         dependencies: [
+            commandDependency,
             xcodeGraphDependency,
             "TuistLoader",
             "TuistCore",
@@ -1443,6 +1467,7 @@ targets.append(contentsOf: [
     .target(
         name: "TuistHasher",
         dependencies: [
+            commandDependency,
             "TuistCore",
             "TuistSupport",
             fileSystemDependency,
@@ -1713,8 +1738,8 @@ let package = Package(
         ),
         .package(id: "tuist.Path", .upToNextMajor(from: "0.3.8")),
         .package(id: "p-x9.MachOKit", .upToNextMajor(from: "0.46.1")),
-        .package(id: "tuist.FileSystem", .upToNextMajor(from: "0.17.0")),
-        .package(id: "tuist.Command", .upToNextMajor(from: "0.14.0")),
+        .package(id: "tuist.FileSystem", .upToNextMajor(from: "0.17.3")),
+        .package(id: "tuist.Command", .upToNextMajor(from: "0.14.4")),
         .package(id: "apple.swift-crypto", from: "3.0.0"),
         .package(id: "crspybits.swift-log-file", .upToNextMajor(from: "0.1.0")),
         .package(id: "tuist.Noora", from: "0.55.0"),
@@ -1747,7 +1772,7 @@ let package = Package(
         .package(id: "dduan.TOMLDecoder", from: "0.4.1"),
         .package(id: "apple.swift-algorithms", from: "1.2.1"),
         .package(id: "swiftlang.swift-docc-plugin", from: "1.4.6"),
-        .package(name: "XCResultNIF", path: "xcode_processor/native/xcresult_nif"),
+        .package(name: "XCResultNIF", path: "server/native/xcresult_nif"),
         .package(id: "stephencelis.SQLite_swift", from: "0.16.0"),
     ],
     targets: targets,

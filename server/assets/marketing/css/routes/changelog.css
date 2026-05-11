@@ -64,7 +64,7 @@
 
         & > [data-part="category"] {
           flex-shrink: 0;
-          border-radius: var(--noora-radius-2xlarge);
+          border-radius: var(--noora-radius-8);
           padding: var(--noora-spacing-1) var(--noora-spacing-6);
           color: var(--noora-surface-label-secondary);
           font: var(--noora-font-weight-regular) var(--noora-font-body-medium);

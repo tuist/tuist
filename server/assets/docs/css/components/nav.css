@@ -65,7 +65,7 @@
     & #docs-language-selector > [data-part="trigger"] {
       gap: var(--noora-spacing-3);
       box-shadow: var(--noora-button-border-secondary);
-      border-radius: var(--noora-radius-medium);
+      border-radius: var(--noora-radius-3);
       background: var(--noora-button-background-secondary);
       padding: var(--noora-spacing-3);
       font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
@@ -218,7 +218,7 @@ html[data-theme="dark"] {
     gap: var(--noora-spacing-5);
     z-index: var(--noora-z-index-2);
     box-shadow: var(--noora-light-border-default);
-    border-radius: var(--noora-radius-medium);
+    border-radius: var(--noora-radius-3);
     background: var(--noora-surface-background-primary);
     padding: var(--noora-spacing-5);
   }

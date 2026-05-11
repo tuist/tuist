@@ -1,6 +1,6 @@
 [package]
 name = "kura"
-version = "0.3.0"
+version = "0.4.0"
 edition = "2024"
 
 [dependencies]
@@ -34,11 +34,14 @@ sha2 = "0.10.9"
 tokio = { version = "1.48.0", features = ["fs", "macros", "rt-multi-thread", "signal", "sync", "time"] }
 tokio-stream = { version = "0.1.17", features = ["net"] }
 tokio-util = { version = "0.7.17", features = ["io"] }
-tonic = "0.14.2"
+tonic = { version = "0.14.2", features = ["tls-ring"] }
 tracing = "0.1.41"
 tracing-opentelemetry = "0.32.1"
 tracing-subscriber = { version = "0.3.20", features = ["env-filter", "fmt"] }
 uuid = { version = "1.18.1", features = ["serde", "v7"] }
+
+[target.'cfg(not(target_env = "msvc"))'.dependencies]
+tikv-jemallocator = "0.6.0"
 
 [dev-dependencies]
 rcgen = "0.14.5"

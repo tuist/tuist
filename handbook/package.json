@@ -14,5 +14,12 @@
     "build": "vitepress build",
     "preview": "vitepress preview",
     "deploy": "vitepress build && wrangler pages deploy .vitepress/dist --project-name tuist-handbook --branch main"
+  },
+  "aube": {
+    "allowBuilds": {
+      "esbuild": true,
+      "sharp": true,
+      "workerd": true
+    }
   }
 }

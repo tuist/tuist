@@ -52,7 +52,7 @@
       0px 1px 1px 0px oklch(16.2% 0 0 / 0.05),
       0px 0px 0px 1px oklch(31.8% 0.011 248.2 / 0.08),
       0px 1px 1px 0px oklch(31.8% 0.011 248.2 / 0.1);
-    border-radius: var(--noora-radius-xlarge);
+    border-radius: var(--noora-radius-6);
     background: var(--noora-neutral-light-50);
     padding: var(--noora-spacing-6);
     height: 230px;
@@ -153,7 +153,7 @@
       0px 1px 1px 0px rgb(14 14 14 / 0.3),
       0px 0px 0px 1px rgb(113 113 113 / 0.45),
       0px 2px 3px 0px rgb(0 0 0 / 0.3);
-    border-radius: var(--noora-radius-xlarge);
+    border-radius: var(--noora-radius-6);
     background: var(--noora-neutral-dark-1200);
     padding: var(--noora-spacing-2);
     width: 380px;
@@ -194,7 +194,7 @@
         right: 0;
         bottom: calc(-1 * var(--noora-spacing-5));
         left: 0;
-        border-radius: var(--noora-radius-xsmall);
+        border-radius: var(--noora-radius-1);
         background: var(--noora-neutral-light-50);
         height: 2px;
         content: "";
@@ -211,7 +211,7 @@
     align-items: center;
     cursor: pointer;
     border: none;
-    border-radius: var(--noora-radius-medium);
+    border-radius: var(--noora-radius-3);
     background: none;
     padding: var(--noora-spacing-3);
     color: var(--noora-neutral-light-500);
@@ -249,7 +249,7 @@
       0px 1px 1px 0px rgb(14 14 14 / 0.8),
       0px 0px 0px 1px rgb(58 58 58 / 0.7),
       0px 2px 2px 0px rgb(0 0 0 / 0.24);
-    border-radius: var(--noora-radius-large);
+    border-radius: var(--noora-radius-4);
     background: var(--noora-neutral-dark-1100);
     padding: var(--noora-spacing-6) var(--noora-spacing-5);
     user-select: text;
@@ -285,7 +285,7 @@
     flex-shrink: 0;
     flex-direction: column;
     border: 2.66px solid var(--noora-neutral-dark-800);
-    border-radius: var(--noora-radius-2xlarge);
+    border-radius: var(--noora-radius-8);
     background: var(--noora-neutral-dark-1200);
     width: 358px;
     height: 246px;
@@ -297,7 +297,7 @@
     flex-shrink: 0;
     align-items: center;
     gap: var(--noora-spacing-5);
-    border-radius: var(--noora-radius-2xlarge) var(--noora-radius-2xlarge) 0 0;
+    border-radius: var(--noora-radius-8) var(--noora-radius-8) 0 0;
     background: var(--noora-neutral-dark-1000);
     padding: var(--noora-spacing-6) var(--noora-spacing-8);
     height: 45px;
@@ -342,7 +342,7 @@
   }
 
   & [data-part="sidebar-line"] {
-    border-radius: var(--noora-radius-medium);
+    border-radius: var(--noora-radius-3);
     background: var(--noora-neutral-dark-1000);
     width: 100%;
     height: 8px;
@@ -368,7 +368,7 @@
 
     &[data-cols="4"] [data-part="main-block"] {
       flex: 1;
-      border-radius: var(--noora-radius-medium);
+      border-radius: var(--noora-radius-3);
       background: var(--noora-neutral-dark-1000);
       height: 27px;
     }
@@ -377,7 +377,7 @@
       gap: var(--noora-spacing-5);
 
       & [data-part="main-block"] {
-        border-radius: var(--noora-radius-medium);
+        border-radius: var(--noora-radius-3);
         background: var(--noora-neutral-dark-1000);
         height: 43px;
 
@@ -397,7 +397,7 @@
 
       & [data-part="main-block"] {
         flex-shrink: 0;
-        border-radius: var(--noora-radius-medium);
+        border-radius: var(--noora-radius-3);
         background: var(--noora-neutral-dark-1000);
         width: 112px;
         height: 43px;
@@ -458,7 +458,7 @@
     gap: var(--noora-spacing-4);
     transition: box-shadow 0.15s ease;
     box-shadow: var(--noora-light-border-default);
-    border-radius: var(--noora-radius-xlarge);
+    border-radius: var(--noora-radius-6);
     background: var(--noora-surface-background-primary);
     width: 370px;
     overflow: hidden;
@@ -479,7 +479,7 @@
       0px 1px 1px 0px oklch(16.2% 0 0 / 0.05),
       0px 0px 0px 1px oklch(31.8% 0.011 248.2 / 0.08),
       0px 1px 1px 0px oklch(31.8% 0.011 248.2 / 0.1);
-    border-radius: var(--noora-radius-xlarge);
+    border-radius: var(--noora-radius-6);
     background: linear-gradient(
       180deg,
       var(--noora-purple-50) 0%,
@@ -535,7 +535,7 @@
     flex-direction: column;
     transition: box-shadow 0.15s ease;
     box-shadow: var(--noora-light-border-default);
-    border-radius: var(--noora-radius-xlarge);
+    border-radius: var(--noora-radius-6);
     background: var(--noora-surface-background-primary);
     width: 370px;
     overflow: hidden;
@@ -612,7 +612,7 @@
     transition: box-shadow 0.15s ease;
     box-sizing: border-box;
     box-shadow: var(--noora-light-border-default);
-    border-radius: var(--noora-radius-xlarge);
+    border-radius: var(--noora-radius-6);
     background: var(--noora-surface-background-primary);
     padding: var(--noora-spacing-6);
     width: 100%;

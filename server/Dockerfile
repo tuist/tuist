@@ -39,18 +39,18 @@ RUN swift build -c release --replace-scm-with-registry && \
 # Stage 1: NPM dependencies
 # ========================================
 FROM node:22-slim AS npm-deps
-ENV PNPM_HOME="/pnpm"
-ENV PATH="$PNPM_HOME:$PATH"
-RUN corepack enable
+ENV CI=1
+ENV XDG_DATA_HOME="/aube-data"
+RUN npm install -g --ignore-scripts=false @endevco/aube
 COPY server/package.json /app/package.json
 COPY server/pnpm-lock.yaml /app/pnpm-lock.yaml
 WORKDIR /app
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
+RUN --mount=type=cache,id=aube,target=/aube-data/aube aube install --frozen-lockfile
 
 # Build noora static assets (JS + CSS) from source
 COPY noora /noora
 WORKDIR /noora
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install
+RUN --mount=type=cache,id=aube,target=/aube-data/aube aube install
 RUN npx esbuild js/index.js --bundle --minify --sourcemap --format=esm --outfile=./priv/static/noora.js && \
     npx esbuild css/noora.css --bundle --minify --sourcemap --outfile=./priv/static/noora.css
 WORKDIR /app
@@ -83,8 +83,6 @@ RUN mkdir config
 # Copy path dependencies (only mix.exs/mix.lock for dep resolution)
 COPY tuist_common /tuist_common
 COPY noora /noora
-COPY xcode_processor/mix.exs xcode_processor/mix.lock /xcode_processor/
-COPY xcode_processor/config /xcode_processor/config
 
 # Retry deps.get up to 3 times — hex.pm resolver can fall through to an empty
 # local cache on network flakes, producing "Unknown package in lockfile"
@@ -110,9 +108,6 @@ RUN --mount=type=cache,id=mix-hex,target=/root/.hex \
 # imported at compile time by config/config.exs.
 COPY server/config/config.exs config/
 COPY server/config/prod.exs server/config/can.exs server/config/stag.exs config/
-
-# Copy path dependency sources for compilation
-COPY xcode_processor/lib /xcode_processor/lib
 
 RUN mix deps.compile
 
@@ -166,6 +161,7 @@ RUN --mount=type=cache,id=og-marketing,target=/og-cache/marketing,sharing=locked
 FROM deps-builder AS builder
 
 COPY server/priv priv
+COPY kura/ops/helm/kura/hooks/tuist.lua priv/kura/hooks/tuist.lua
 COPY skills/skills priv/static/skills
 COPY server/assets assets
 COPY server/native native
@@ -241,9 +237,11 @@ RUN chown nobody /app
 
 ARG MIX_ENV=prod
 ARG TUIST_HOSTED=1
+ARG TUIST_VERSION=0.0.0
 ARG EMBED_CLICKHOUSE=false
 ENV MIX_ENV=$MIX_ENV
 ENV TUIST_HOSTED=$TUIST_HOSTED
+ENV TUIST_VERSION=$TUIST_VERSION
 
 # Swift runtime libs the NIF links against at load time. Small (~20 MB) but
 # carried by every release image because any pod may run in processor mode

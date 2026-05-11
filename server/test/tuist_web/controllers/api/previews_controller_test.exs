@@ -1907,5 +1907,31 @@ defmodule TuistWeb.PreviewsControllerTest do
       assert response["message"] ==
                "tuist is not authorized to delete preview"
     end
+
+    test "returns not_found and does not delete the preview when it belongs to a different project", %{
+      conn: conn,
+      user: user,
+      project: project,
+      account: account
+    } do
+      # Given
+      other_account = Accounts.get_account_from_organization(AccountsFixtures.organization_fixture())
+
+      other_project = ProjectsFixtures.project_fixture(account_id: other_account.id)
+      other_preview = AppBuildsFixtures.preview_fixture(project: other_project)
+      conn = Authentication.put_current_user(conn, user)
+
+      # When
+      conn =
+        delete(
+          conn,
+          ~p"/api/projects/#{account.name}/#{project.name}/previews/#{other_preview.id}"
+        )
+
+      # Then
+      response = json_response(conn, :not_found)
+      assert response["message"] == "Preview not found."
+      assert Repo.get(Preview, other_preview.id)
+    end
   end
 end

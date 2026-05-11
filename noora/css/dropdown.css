@@ -29,7 +29,7 @@
     outline: unset;
     box-shadow: var(--noora-button-border-secondary);
     border: 0;
-    border-radius: var(--noora-radius-medium);
+    border-radius: var(--noora-radius-3);
     background: var(--noora-button-background-secondary);
     padding: var(--noora-spacing-3) var(--noora-spacing-4);
     color: var(--noora-surface-label-primary);
@@ -37,7 +37,7 @@
 
     &[data-icon-only] {
       box-sizing: content-box;
-      border-radius: var(--noora-radius-medium);
+      border-radius: var(--noora-radius-3);
       padding: var(--noora-spacing-3);
       width: var(--noora-icon-size-small);
       height: var(--noora-icon-size-small);
@@ -103,7 +103,7 @@
 
   &[data-size="medium"] [data-part="trigger"] {
     font: var(--noora-font-body-small);
-    border-radius: var(--noora-radius-small);
+    border-radius: var(--noora-radius-2);
     gap: var(--noora-spacing-3);
     padding: var(--noora-spacing-3) var(--noora-spacing-4);
 
@@ -164,7 +164,7 @@
     outline: unset;
     box-shadow: var(--noora-border-light-default);
     border: 0;
-    border-radius: var(--noora-radius-small);
+    border-radius: var(--noora-radius-2);
     background: transparent;
     padding: var(--noora-spacing-1) var(--noora-spacing-2);
 
@@ -215,7 +215,7 @@
     & > [data-part="trigger"] {
       gap: var(--noora-spacing-3);
       box-shadow: var(--noora-button-border-secondary);
-      border-radius: var(--noora-radius-medium);
+      border-radius: var(--noora-radius-3);
       background: var(--noora-button-background-secondary);
       padding: var(--noora-spacing-3);
 
@@ -263,7 +263,7 @@
   z-index: var(--noora-z-index-10);
   outline: none;
   box-shadow: var(--noora-border-medium);
-  border-radius: var(--noora-radius-large);
+  border-radius: var(--noora-radius-4);
   background: var(--noora-surface-background-primary);
   width: 100%;
   overflow-y: auto;
@@ -338,7 +338,7 @@
   align-items: center;
   align-self: stretch;
   cursor: pointer;
-  border-radius: var(--noora-radius-medium);
+  border-radius: var(--noora-radius-3);
   color: var(--noora-surface-label-primary);
   font: var(--noora-font-body-medium);
   text-decoration: none;
@@ -385,7 +385,7 @@
 
     & [data-part="left-icon"] {
       box-shadow: var(--noora-border-light-default);
-      border-radius: var(--noora-radius-large);
+      border-radius: var(--noora-radius-4);
       padding: 10px;
     }
   }

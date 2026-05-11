@@ -76,12 +76,30 @@ wait_for_updated_revision() {
   return 1
 }
 
+first_install() {
+  echo "StatefulSet ${STATEFULSET_NAME} not found in namespace ${NAMESPACE}; performing fresh install."
+  helm upgrade --install "${RELEASE_NAME}" "${CHART_DIR}" \
+    --namespace "${NAMESPACE}" --create-namespace \
+    --wait \
+    --timeout "${HELM_TIMEOUT}" \
+    --set-string "podAnnotations.rolloutNonce=${ROLLOUT_NONCE}" \
+    "${HELM_ARGS[@]}"
+  echo "Fresh install of ${STATEFULSET_NAME} complete."
+}
+
 main() {
   local replicas target_revision ordinal pod_name baseline_cluster_outbox baseline_cluster_fd_timeouts current_cluster_fd_timeouts
   local cluster_nodes=()
 
-  replicas="$(kubectl get statefulset "${STATEFULSET_NAME}" -n "${NAMESPACE}" -o jsonpath='{.spec.replicas}')"
-  require_non_empty "${replicas}" "Failed to resolve replica count for ${STATEFULSET_NAME}"
+  # On first install the StatefulSet doesn't exist yet, so the
+  # partition cursor has nothing to walk. Bring everything up with a
+  # plain `helm upgrade --install --wait` and exit; subsequent
+  # invocations land on the partitioned warm-rollout path below.
+  replicas="$(kubectl get statefulset "${STATEFULSET_NAME}" -n "${NAMESPACE}" -o jsonpath='{.spec.replicas}' 2>/dev/null || true)"
+  if [[ -z "${replicas}" ]]; then
+    first_install
+    return 0
+  fi
 
   for ((ordinal = 0; ordinal < replicas; ordinal += 1)); do
     cluster_nodes+=("$(pod_name_for_ordinal "${ordinal}")")

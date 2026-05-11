@@ -4,8 +4,8 @@ defmodule TuistWeb.IntegrationsLive do
   use Noora
 
   alias Tuist.Authorization
+  alias Tuist.Billing.Entitlements
   alias Tuist.Projects
-  alias Tuist.Slack
   alias Tuist.Utilities.DateFormatter
   alias Tuist.VCS
 
@@ -16,20 +16,39 @@ defmodule TuistWeb.IntegrationsLive do
             dgettext("dashboard_integrations", "You are not authorized to perform this action.")
     end
 
-    selected_account = Tuist.Repo.preload(selected_account, [:github_app_installation, :slack_installation, :projects])
-    github_installation = selected_account.github_app_installation
-    slack_installation = selected_account.slack_installation
+    selected_account = Tuist.Repo.preload(selected_account, [:github_app_installation, :projects])
+    pending_or_installed = selected_account.github_app_installation
+    # A row only counts as "installed" once GitHub has assigned an
+    # installation_id via the post-install setup callback; manifest-flow
+    # rows exist with credentials but `installation_id: nil` until then.
+    github_installation =
+      if pending_or_installed && pending_or_installed.installation_id, do: pending_or_installed
+
     vcs_connections = vcs_connections(selected_account)
+    github_enterprise_available? = Entitlements.allows?(selected_account, :github_enterprise_server)
+
+    # When github.com isn't configured (no `TUIST_GITHUB_APP_*` env
+    # vars on the deployment) but the account is entitled to GHES,
+    # default the UI to the Enterprise tab. Otherwise the github.com
+    # tab is selected by default and its Install button generates a
+    # broken `/apps//installations/new` URL until the user manually
+    # switches tabs.
+    default_to_enterprise? =
+      github_enterprise_available? and not Tuist.Environment.github_app_configured?()
 
     socket =
       socket
       |> assign(selected_tab: "integrations")
       |> assign(selected_account: selected_account)
       |> assign(github_app_installation: github_installation)
-      |> assign(slack_installation: slack_installation)
       |> assign(vcs_connections: vcs_connections)
       |> assign(selected_project_id: nil)
       |> assign(selected_repository_full_handle: nil)
+      |> assign(github_client_url: if(default_to_enterprise?, do: "", else: VCS.default_client_url()))
+      |> assign(github_client_url_error: nil)
+      |> assign(show_github_enterprise_input: default_to_enterprise?)
+      |> assign(github_enterprise_available?: github_enterprise_available?)
+      |> assign(github_card_visible?: github_card_visible?(selected_account, github_installation))
       |> assign(:head_title, "#{dgettext("dashboard_integrations", "Integrations")} · #{selected_account.name} · Tuist")
       |> then(fn socket ->
         if github_installation do
@@ -50,6 +69,50 @@ defmodule TuistWeb.IntegrationsLive do
     socket = push_event(socket, "close-modal", %{id: "add-connection-modal"})
 
     {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("update-github-client-url", %{"github_client_url" => raw_url}, socket) do
+    {url, error} = validate_github_client_url(raw_url, socket.assigns.show_github_enterprise_input)
+
+    socket =
+      socket
+      |> assign(github_client_url: url)
+      |> assign(github_client_url_error: error)
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("select-github-com", _params, socket) do
+    socket =
+      socket
+      |> assign(show_github_enterprise_input: false)
+      |> assign(github_client_url: VCS.default_client_url())
+      |> assign(github_client_url_error: nil)
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("select-github-enterprise", _params, socket) do
+    if socket.assigns.github_enterprise_available? do
+      socket =
+        socket
+        |> assign(show_github_enterprise_input: true)
+        # Don't pre-fill with the default github.com URL — the user has
+        # to enter their GHES base URL. Leaving it as the default would
+        # let an Enterprise-tab Install button silently install the
+        # github.com App, which is exactly the wrong target.
+        |> assign(github_client_url: "")
+        |> assign(github_client_url_error: nil)
+
+      {:noreply, socket}
+    else
+      # Defense in depth: the tab is hidden in the UI for non-Enterprise
+      # accounts, so reaching this branch implies a fabricated event.
+      {:noreply, socket}
+    end
   end
 
   @impl true
@@ -114,17 +177,6 @@ defmodule TuistWeb.IntegrationsLive do
     end
   end
 
-  @impl true
-  def handle_event("disconnect-slack", _params, %{assigns: assigns} = socket) do
-    %{slack_installation: slack_installation} = assigns
-
-    if slack_installation do
-      {:ok, _} = Slack.delete_installation(slack_installation)
-    end
-
-    {:noreply, assign(socket, slack_installation: nil)}
-  end
-
   defp get_available_projects(%{selected_account: selected_account, vcs_connections: vcs_connections}) do
     connected_project_ids = MapSet.new(vcs_connections, & &1.project_id)
 
@@ -167,6 +219,55 @@ defmodule TuistWeb.IntegrationsLive do
         name: vcs_connection.created_by.account.name
       )
     end
+  end
+
+  # The Install button is disabled when:
+  #   * The current URL has a validation error.
+  #   * The Enterprise tab is showing and the URL is empty or still
+  #     collapsed to the github.com default — clicking Install in that
+  #     state would silently target github.com from inside the GHES tab.
+  defp install_button_disabled?(assigns) do
+    not is_nil(assigns.github_client_url_error) or
+      (assigns.show_github_enterprise_input and
+         (assigns.github_client_url in ["", nil] or
+            assigns.github_client_url == VCS.default_client_url()))
+  end
+
+  defp validate_github_client_url(raw_url, enterprise_tab?) do
+    trimmed = raw_url |> to_string() |> String.trim()
+
+    cond do
+      trimmed == "" and enterprise_tab? ->
+        # On the Enterprise tab the URL is required and must not silently
+        # collapse to the github.com default — that would let the Install
+        # button target github.com from inside the GHES tab.
+        {"", dgettext("dashboard_integrations", "Required")}
+
+      trimmed == "" ->
+        {VCS.default_client_url(), nil}
+
+      enterprise_tab? and trimmed == VCS.default_client_url() ->
+        {trimmed, dgettext("dashboard_integrations", "Use a GitHub Enterprise Server URL")}
+
+      true ->
+        case VCS.validate_client_url(trimmed) do
+          {:ok, url} -> {url, nil}
+          {:error, _} -> {trimmed, dgettext("dashboard_integrations", "Invalid URL")}
+        end
+    end
+  end
+
+  # The GitHub integration card is shown when ANY of:
+  #   * The github.com Tuist App env vars are set (the hosted Tuist server
+  #     always has them);
+  #   * An installation already exists for the account (GHES install
+  #     persisted via the manifest flow even with no env vars);
+  #   * The account is entitled to GHES (so they can start the manifest
+  #     flow without github.com env vars on a self-hosted Tuist).
+  defp github_card_visible?(account, github_installation) do
+    Tuist.Environment.github_app_configured?() or
+      not is_nil(github_installation) or
+      Entitlements.allows?(account, :github_enterprise_server)
   end
 
   defp vcs_connections(account, opts \\ []) do

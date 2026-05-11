@@ -73,6 +73,12 @@ spec:
             periodSeconds: 10
           resources:
             {{- toYaml .Values.objectStorage.embedded.resources | nindent 12 }}
+      {{- if not .Values.objectStorage.embedded.persistence.create }}
+      volumes:
+        - name: data
+          emptyDir: {}
+      {{- end }}
+  {{- if .Values.objectStorage.embedded.persistence.create }}
   volumeClaimTemplates:
     - metadata:
         name: data
@@ -85,6 +91,7 @@ spec:
         {{- if .Values.objectStorage.embedded.persistence.storageClassName }}
         storageClassName: {{ .Values.objectStorage.embedded.persistence.storageClassName }}
         {{- end }}
+  {{- end }}
 ---
 apiVersion: batch/v1
 kind: Job

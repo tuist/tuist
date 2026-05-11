@@ -38,7 +38,8 @@ extension TuistConfig.Tuist {
     ) async throws -> TuistConfig.Tuist {
         let fullHandle = manifest.fullHandle
         let inspectOptions = InspectOptions.from(manifest: manifest.inspectOptions)
-        let cache = TuistConfig.Tuist.Cache(upload: manifest.cache.upload)
+        let network = TuistConfig.Tuist.Network(proxy: manifest.network.proxy)
+        let xcodeCache = TuistConfig.Tuist.XcodeCache(upload: manifest.xcodeCache.upload)
         let urlString = manifest.url
 
         guard let url = URL(string: urlString.dropSuffix("/")) else {
@@ -80,16 +81,18 @@ extension TuistConfig.Tuist {
                 ),
                 fullHandle: fullHandle,
                 inspectOptions: inspectOptions,
-                cache: cache,
-                url: url
+                xcodeCache: xcodeCache,
+                url: url,
+                network: network
             )
         case .xcode:
             return TuistConfig.Tuist(
                 project: .xcode(TuistXcodeProjectOptions()),
                 fullHandle: fullHandle,
                 inspectOptions: inspectOptions,
-                cache: cache,
-                url: url
+                xcodeCache: xcodeCache,
+                url: url,
+                network: network
             )
         }
     }

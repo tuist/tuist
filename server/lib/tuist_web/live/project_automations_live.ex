@@ -5,7 +5,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
 
   alias Tuist.Authorization
   alias Tuist.Automations
-  alias Tuist.Repo
+  alias Tuist.Environment
   alias Tuist.Slack
   alias TuistWeb.SlackOAuthController
 
@@ -21,16 +21,9 @@ defmodule TuistWeb.ProjectAutomationsLive do
             dgettext("dashboard_projects", "You are not authorized to perform this action.")
     end
 
-    selected_account = Repo.preload(selected_account, [:slack_installation])
-    slack_installation = selected_account.slack_installation
-
-    if connected?(socket) do
-      Tuist.PubSub.subscribe(Slack.slack_installation_topic(selected_account.id))
-    end
-
     socket =
       socket
-      |> assign(slack_installation: slack_installation)
+      |> assign(:slack_configured, Environment.slack_configured?())
       |> assign(:head_title, "#{dgettext("dashboard_projects", "Automations")} · #{selected_project.name} · Tuist")
       |> assign(
         :automation_channel_selection_url,
@@ -58,7 +51,8 @@ defmodule TuistWeb.ProjectAutomationsLive do
     socket
     |> assign(editing_automation_id: nil)
     |> assign(create_automation_form_name: "")
-    |> assign(create_automation_form_type: "flakiness_rate")
+    |> assign(create_automation_form_metric: "flakiness_rate")
+    |> assign(create_automation_form_comparison: "gte")
     |> assign(create_automation_form_threshold: "10")
     |> assign(create_automation_form_window: "30d")
     |> assign(create_automation_form_trigger_actions: [default_add_label_action()])
@@ -66,6 +60,15 @@ defmodule TuistWeb.ProjectAutomationsLive do
     |> assign(create_automation_form_recovery_window: "14d")
     |> assign(create_automation_form_recovery_actions: [default_remove_label_action()])
   end
+
+  @comparisons ~w(gte gt lt lte)
+
+  # Only varies by metric — switching comparison keeps whatever the user has
+  # typed, since "% < 5" and "% >= 5" are both reasonable starting points and
+  # auto-resetting on every dropdown click would clobber their input.
+  defp default_threshold("flakiness_rate"), do: "10"
+  defp default_threshold("flaky_run_count"), do: "3"
+  defp default_threshold(_), do: "1"
 
   defp default_change_state_action(state), do: %{"type" => "change_state", "state" => state}
   defp default_add_label_action, do: %{"type" => "add_label", "label" => "flaky"}
@@ -75,15 +78,28 @@ defmodule TuistWeb.ProjectAutomationsLive do
   @default_recovery_slack_message ":white_check_mark: *{{test_case.name}}* in module `{{test_case.module_name}}` has recovered.\n\n<{{test_case.url}}|View test case>"
 
   defp default_send_slack_action(:trigger),
-    do: %{"type" => "send_slack", "channel" => "", "channel_name" => "", "message" => @default_trigger_slack_message}
+    do: %{
+      "type" => "send_slack",
+      "channel" => "",
+      "channel_name" => "",
+      "webhook_url_encrypted" => "",
+      "message" => @default_trigger_slack_message
+    }
 
   defp default_send_slack_action(:recovery),
-    do: %{"type" => "send_slack", "channel" => "", "channel_name" => "", "message" => @default_recovery_slack_message}
+    do: %{
+      "type" => "send_slack",
+      "channel" => "",
+      "channel_name" => "",
+      "webhook_url_encrypted" => "",
+      "message" => @default_recovery_slack_message
+    }
 
   defp automation_to_form(automation) do
     %{
       name: automation.name,
-      monitor_type: automation.monitor_type,
+      metric: automation.monitor_type,
+      comparison: parse_comparison(automation.trigger_config["comparison"]),
       threshold: to_string(automation.trigger_config["threshold"] || ""),
       window: automation.trigger_config["window"] || "30d",
       trigger_actions: automation.trigger_actions,
@@ -97,26 +113,12 @@ defmodule TuistWeb.ProjectAutomationsLive do
     }
   end
 
+  defp parse_comparison(comparison) when comparison in @comparisons, do: comparison
+  defp parse_comparison(_), do: "gte"
+
   @impl true
   def handle_params(_params, _uri, socket) do
     {:noreply, socket}
-  end
-
-  @impl true
-  def handle_info({:slack_installation_changed, %{status: status}}, socket) do
-    selected_account = socket.assigns.selected_account
-
-    slack_installation =
-      case status do
-        :connected ->
-          selected_account = Repo.preload(selected_account, [:slack_installation], force: true)
-          selected_account.slack_installation
-
-        :disconnected ->
-          nil
-      end
-
-    {:noreply, assign(socket, slack_installation: slack_installation)}
   end
 
   @impl true
@@ -136,7 +138,8 @@ defmodule TuistWeb.ProjectAutomationsLive do
         socket
         |> assign(editing_automation_id: automation.id)
         |> assign(create_automation_form_name: form.name)
-        |> assign(create_automation_form_type: form.monitor_type)
+        |> assign(create_automation_form_metric: form.metric)
+        |> assign(create_automation_form_comparison: form.comparison)
         |> assign(create_automation_form_threshold: form.threshold)
         |> assign(create_automation_form_window: form.window)
         |> assign(create_automation_form_trigger_actions: form.trigger_actions)
@@ -159,16 +162,9 @@ defmodule TuistWeb.ProjectAutomationsLive do
     {:noreply, assign(socket, create_automation_form_name: name)}
   end
 
-  def handle_event("update_create_automation_form_type", %{"data" => type}, socket) do
-    threshold =
-      case type do
-        "flakiness_rate" -> "10"
-        "flaky_run_count" -> "3"
-        _ -> socket.assigns.create_automation_form_threshold
-      end
-
+  def handle_event("update_create_automation_form_metric", %{"data" => metric}, socket) do
     {trigger_actions, recovery_actions} =
-      if event_driven_monitor_type?(type) do
+      if event_driven_monitor_type?(metric) do
         {
           strip_flaky_label_actions(socket.assigns.create_automation_form_trigger_actions, "add_label"),
           strip_flaky_label_actions(socket.assigns.create_automation_form_recovery_actions, "remove_label")
@@ -179,10 +175,14 @@ defmodule TuistWeb.ProjectAutomationsLive do
 
     {:noreply,
      socket
-     |> assign(create_automation_form_type: type)
-     |> assign(create_automation_form_threshold: threshold)
+     |> assign(create_automation_form_metric: metric)
+     |> assign(create_automation_form_threshold: default_threshold(metric))
      |> assign(create_automation_form_trigger_actions: trigger_actions)
      |> assign(create_automation_form_recovery_actions: recovery_actions)}
+  end
+
+  def handle_event("update_create_automation_form_comparison", %{"data" => comparison}, socket) do
+    {:noreply, assign(socket, create_automation_form_comparison: comparison)}
   end
 
   def handle_event("update_create_automation_form_threshold", %{"value" => value}, socket) do
@@ -215,19 +215,24 @@ defmodule TuistWeb.ProjectAutomationsLive do
     {:noreply, assign(socket, create_automation_form_trigger_actions: actions)}
   end
 
-  def handle_event(
-        "trigger_action_channel_selected",
-        %{"id" => index, "channel_id" => channel_id, "channel_name" => channel_name},
-        socket
-      ) do
-    index = String.to_integer(index)
+  def handle_event("trigger_action_channel_selected", %{"id" => index, "channel_token" => channel_token}, socket) do
+    case verify_and_encrypt(channel_token) do
+      {:ok, %{channel_id: channel_id, channel_name: channel_name, encrypted_webhook_url: encrypted}} ->
+        index = String.to_integer(index)
 
-    actions =
-      update_action_at(socket.assigns.create_automation_form_trigger_actions, index, fn action ->
-        action |> Map.put("channel", channel_id) |> Map.put("channel_name", channel_name)
-      end)
+        actions =
+          update_action_at(socket.assigns.create_automation_form_trigger_actions, index, fn action ->
+            action
+            |> Map.put("channel", channel_id)
+            |> Map.put("channel_name", channel_name)
+            |> Map.put("webhook_url_encrypted", encrypted)
+          end)
 
-    {:noreply, assign(socket, create_automation_form_trigger_actions: actions)}
+        {:noreply, assign(socket, create_automation_form_trigger_actions: actions)}
+
+      {:error, _reason} ->
+        {:noreply, socket}
+    end
   end
 
   def handle_event("trigger_action_channel_selected", _params, socket) do
@@ -280,19 +285,24 @@ defmodule TuistWeb.ProjectAutomationsLive do
     {:noreply, assign(socket, create_automation_form_recovery_actions: actions)}
   end
 
-  def handle_event(
-        "recovery_action_channel_selected",
-        %{"id" => index, "channel_id" => channel_id, "channel_name" => channel_name},
-        socket
-      ) do
-    index = String.to_integer(index)
+  def handle_event("recovery_action_channel_selected", %{"id" => index, "channel_token" => channel_token}, socket) do
+    case verify_and_encrypt(channel_token) do
+      {:ok, %{channel_id: channel_id, channel_name: channel_name, encrypted_webhook_url: encrypted}} ->
+        index = String.to_integer(index)
 
-    actions =
-      update_action_at(socket.assigns.create_automation_form_recovery_actions, index, fn action ->
-        action |> Map.put("channel", channel_id) |> Map.put("channel_name", channel_name)
-      end)
+        actions =
+          update_action_at(socket.assigns.create_automation_form_recovery_actions, index, fn action ->
+            action
+            |> Map.put("channel", channel_id)
+            |> Map.put("channel_name", channel_name)
+            |> Map.put("webhook_url_encrypted", encrypted)
+          end)
 
-    {:noreply, assign(socket, create_automation_form_recovery_actions: actions)}
+        {:noreply, assign(socket, create_automation_form_recovery_actions: actions)}
+
+      {:error, _reason} ->
+        {:noreply, socket}
+    end
   end
 
   def handle_event("recovery_action_channel_selected", _params, socket) do
@@ -379,39 +389,40 @@ defmodule TuistWeb.ProjectAutomationsLive do
   end
 
   defp build_automation_attrs(project_id, assigns) do
-    type = assigns.create_automation_form_type
+    metric = assigns.create_automation_form_metric
 
     base = %{
       "project_id" => project_id,
       "name" => assigns.create_automation_form_name,
-      "monitor_type" => type,
-      "trigger_config" => trigger_config_for(type, assigns),
+      "monitor_type" => metric,
+      "trigger_config" => trigger_config_for(metric, assigns),
       "trigger_actions" => assigns.create_automation_form_trigger_actions,
       "recovery_enabled" => assigns.create_automation_form_recovery_enabled
     }
 
     if assigns.create_automation_form_recovery_enabled do
       base
-      |> Map.put("recovery_config", recovery_config_for(type, assigns))
+      |> Map.put("recovery_config", recovery_config_for(metric, assigns))
       |> Map.put("recovery_actions", assigns.create_automation_form_recovery_actions)
     else
       base
     end
   end
 
-  defp trigger_config_for(type, assigns) do
-    if event_driven_monitor_type?(type) do
+  defp trigger_config_for(metric, assigns) do
+    if event_driven_monitor_type?(metric) do
       %{}
     else
       %{
-        "threshold" => parse_threshold(type, assigns.create_automation_form_threshold),
-        "window" => assigns.create_automation_form_window
+        "threshold" => parse_threshold(metric, assigns.create_automation_form_threshold),
+        "window" => assigns.create_automation_form_window,
+        "comparison" => assigns.create_automation_form_comparison
       }
     end
   end
 
-  defp recovery_config_for(type, assigns) do
-    if event_driven_monitor_type?(type) do
+  defp recovery_config_for(metric, assigns) do
+    if event_driven_monitor_type?(metric) do
       %{}
     else
       %{"window" => assigns.create_automation_form_recovery_window}
@@ -434,7 +445,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
     end
   end
 
-  defp parse_threshold(_type, value) do
+  defp parse_threshold(_metric, value) do
     parse_int(value, 1)
   end
 
@@ -445,10 +456,26 @@ defmodule TuistWeb.ProjectAutomationsLive do
     end
   end
 
-  def monitor_type_label("flakiness_rate"), do: dgettext("dashboard_projects", "Flakiness rate")
-  def monitor_type_label("flaky_run_count"), do: dgettext("dashboard_projects", "Flaky runs")
-  def monitor_type_label("manually_marked_flaky"), do: dgettext("dashboard_projects", "Test marked as flaky")
-  def monitor_type_label(_), do: dgettext("dashboard_projects", "Unknown")
+  def metric_label("flakiness_rate"), do: dgettext("dashboard_projects", "Flakiness rate")
+  def metric_label("flaky_run_count"), do: dgettext("dashboard_projects", "Flaky runs")
+  def metric_label("manually_marked_flaky"), do: dgettext("dashboard_projects", "Test marked as flaky")
+  def metric_label(_), do: dgettext("dashboard_projects", "Unknown")
+
+  def comparison_label("gte"), do: dgettext("dashboard_projects", "Greater or equal")
+  def comparison_label("gt"), do: dgettext("dashboard_projects", "Greater than")
+  def comparison_label("lt"), do: dgettext("dashboard_projects", "Less than")
+  def comparison_label("lte"), do: dgettext("dashboard_projects", "Less or equal")
+  def comparison_label(_), do: dgettext("dashboard_projects", "Unknown")
+
+  def comparison_symbol("gte"), do: "≥"
+  def comparison_symbol("gt"), do: ">"
+  def comparison_symbol("lt"), do: "<"
+  def comparison_symbol("lte"), do: "≤"
+  def comparison_symbol(_), do: "≥"
+
+  def threshold_label("flakiness_rate"), do: dgettext("dashboard_projects", "Percent")
+  def threshold_label("flaky_run_count"), do: dgettext("dashboard_projects", "Count")
+  def threshold_label(_), do: dgettext("dashboard_projects", "Threshold")
 
   def state_action_label("muted"), do: dgettext("dashboard_projects", "Mute")
   def state_action_label("skipped"), do: dgettext("dashboard_projects", "Skip")
@@ -493,8 +520,12 @@ defmodule TuistWeb.ProjectAutomationsLive do
   def automation_summary(%{monitor_type: "flakiness_rate", trigger_config: trigger_config}) do
     threshold = format_threshold(trigger_config["threshold"] || 0)
     window = trigger_config["window"] || "30d"
+    symbol = comparison_symbol(parse_comparison(trigger_config["comparison"]))
 
-    dgettext("dashboard_projects", "When flakiness rate ≥ %{threshold}% over %{window}",
+    dgettext(
+      "dashboard_projects",
+      "When flakiness rate %{symbol} %{threshold}% over %{window}",
+      symbol: symbol,
       threshold: threshold,
       window: window
     )
@@ -503,7 +534,15 @@ defmodule TuistWeb.ProjectAutomationsLive do
   def automation_summary(%{monitor_type: "flaky_run_count", trigger_config: trigger_config}) do
     threshold = format_threshold(trigger_config["threshold"] || 0)
     window = trigger_config["window"] || "30d"
-    dgettext("dashboard_projects", "When flaky runs ≥ %{threshold} over %{window}", threshold: threshold, window: window)
+    symbol = comparison_symbol(parse_comparison(trigger_config["comparison"]))
+
+    dgettext(
+      "dashboard_projects",
+      "When flaky runs %{symbol} %{threshold} over %{window}",
+      symbol: symbol,
+      threshold: threshold,
+      window: window
+    )
   end
 
   def automation_summary(%{monitor_type: "manually_marked_flaky"}) do
@@ -514,4 +553,14 @@ defmodule TuistWeb.ProjectAutomationsLive do
 
   defp format_threshold(n) when is_float(n) and trunc(n) == n, do: trunc(n)
   defp format_threshold(n), do: n
+
+  # Decode the signed channel-result token, then encrypt the webhook URL so
+  # we never store it as plaintext inside the action JSON.
+  defp verify_and_encrypt(channel_token) do
+    with {:ok, %{channel_id: channel_id, channel_name: channel_name, webhook_url: webhook_url}} <-
+           Slack.verify_channel_result(channel_token),
+         {:ok, encrypted} <- Slack.encrypt_webhook_url(webhook_url) do
+      {:ok, %{channel_id: channel_id, channel_name: channel_name, encrypted_webhook_url: encrypted}}
+    end
+  end
 end

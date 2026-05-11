@@ -54,6 +54,37 @@ defmodule TuistWeb.API.TestCaseRunsControllerTest do
       assert run["git_branch"] == "main"
     end
 
+    test "lists runs filtered by both test_run_id and test_case_id", %{conn: conn, user: user, project: project} do
+      # Given
+      test_run_id = UUIDv7.generate()
+      test_case_id = UUIDv7.generate()
+
+      matching_run =
+        RunsFixtures.test_case_run_fixture(
+          project_id: project.id,
+          test_run_id: test_run_id,
+          test_case_id: test_case_id
+        )
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_run_id: test_run_id,
+        test_case_id: UUIDv7.generate()
+      )
+
+      # When
+      conn =
+        get(
+          conn,
+          "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases/runs?test_run_id=#{test_run_id}&test_case_id=#{test_case_id}"
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      assert length(response["test_case_runs"]) == 1
+      assert hd(response["test_case_runs"])["id"] == matching_run.id
+    end
+
     test "passes flaky filter to service", %{conn: conn, user: user, project: project} do
       # Given
       test_case_id = UUIDv7.generate()

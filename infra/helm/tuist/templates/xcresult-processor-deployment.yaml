@@ -1,0 +1,132 @@
+{{- if .Values.xcresultProcessor.enabled }}
+{{- $secretName := include "tuist.componentName" (dict "root" . "component" "xcresult-processor") }}
+{{- $masterKeySecretName := ternary (include "tuist.componentName" (dict "root" . "component" "server-external-secrets")) (include "tuist.componentName" (dict "root" . "component" "app-secrets")) .Values.server.managedSecrets }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "xcresult-processor") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: xcresult-processor
+spec:
+  replicas: {{ .Values.xcresultProcessor.replicaCount }}
+  strategy:
+    {{- toYaml .Values.xcresultProcessor.strategy | nindent 4 }}
+  selector:
+    matchLabels:
+      {{- include "tuist.componentLabels" (dict "root" . "component" "xcresult-processor") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "tuist.componentLabels" (dict "root" . "component" "xcresult-processor") | nindent 8 }}
+        {{- with .Values.global.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        # tart-kubelet honours these by spinning up a host-side HTTP
+        # reverse proxy on <node_ip>:9091 → <vm_ip>:9091 for the Tart
+        # VM and rewriting Pod.Status.PodIP to the Mac mini's host
+        # IP, so the in-cluster Linux Alloy DaemonSet's annotation
+        # autodiscovery works without a route into the VM's NAT-
+        # private network. See infra/tart-kubelet/internal/podagent.
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9091"
+        # Pairs with the metricsPortName mapping in
+        # helm/k8s-monitoring/values.yaml so Alloy's keepequal filter
+        # only retains the metrics target — keeps targets stable when
+        # the container declares more than one named port.
+        prometheus.io/port-name: metrics
+    spec:
+      # Schedule onto a real macOS node — a Mac mini running
+      # tart-kubelet. The taint `tuist.dev/macos=true:NoSchedule` is
+      # set by tart-kubelet at registration so stray Linux Pods don't
+      # land here.
+      nodeSelector:
+        kubernetes.io/os: darwin
+        tuist.dev/runtime: tart
+      tolerations:
+        - key: tuist.dev/macos
+          operator: Exists
+          effect: NoSchedule
+      # When replicaCount > 1, force replicas onto distinct hosts.
+      # DoNotSchedule (not ScheduleAnyway) here because two scrape-
+      # opted-in Pods on the same Mac mini would race to bind the
+      # host-side metrics forwarder on hostPort 9091 — see
+      # infra/tart-kubelet/internal/podagent. Spread + hostPort + the
+      # rollout strategy below all lean on the same invariant: at
+      # most one xcresult-processor Pod per Node at any moment.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              {{- include "tuist.componentLabels" (dict "root" . "component" "xcresult-processor") | nindent 14 }}
+      # No init containers, no sidecars — tart-kubelet maps Pod ↔
+      # Tart VM 1:1 and rejects multi-container Pods at admission.
+      # The first (and only) container's image is the Tart VM image;
+      # env flows through to /etc/tuist.env inside the VM via the
+      # tart-kubelet `--dir env:<host-path>:ro` mount, which the guest
+      # sees at /Volumes/My Shared Files/env.
+      containers:
+        - name: xcresult-processor
+          image: "{{ .Values.xcresultProcessor.image.repository }}:{{ .Values.xcresultProcessor.image.tag | default "latest" }}"
+          imagePullPolicy: {{ .Values.xcresultProcessor.image.pullPolicy }}
+          # Declared so the kube-scheduler enforces hostPort
+          # uniqueness across Pods on the same Mac mini Node — two
+          # xcresult-processor Pods can't land on the same host
+          # because the second wouldn't be able to reserve hostPort
+          # 9091. tart-kubelet doesn't implement port forwarding for
+          # containerPort itself (Pods talk to the host via NAT, not
+          # via kube-proxy); the hostPort declaration is purely a
+          # scheduler constraint here, paired with the Deployment
+          # rollout strategy below (maxSurge=0) so a deploy doesn't
+          # try to surge a Pod onto an already-occupied host.
+          ports:
+            - name: metrics
+              containerPort: 9091
+              hostPort: 9091
+              protocol: TCP
+          env:
+            # Boot mode: queue-only consumer for :process_xcresult.
+            # Tuist.Environment.mode/0 reads TUIST_MODE (collapse-
+            # renamed from the legacy TUIST_XCRESULT_PROCESSOR_MODE).
+            # Without this set, the BEAM falls through to :web mode:
+            # binds Phoenix on :8080, runs license validation, and
+            # generally claims a wider Oban queue set than it can
+            # actually serve under the tuist_processor DB role —
+            # leaving ProcessXcresultWorker's queue starved while
+            # legacy consumers on the same Supabase win the race.
+            - name: TUIST_MODE
+              value: "xcresult_processor"
+            - name: TUIST_HOSTED
+              value: {{ .Values.server.hosted | ternary "1" "0" | quote }}
+            - name: TUIST_LOG_LEVEL
+              value: {{ .Values.server.logLevel | quote }}
+            - name: TUIST_PROCESS_XCRESULT_QUEUE_CONCURRENCY
+              value: {{ .Values.xcresultProcessor.queueConcurrency | quote }}
+            # Supabase Supavisor (transaction mode) for Postgres. Same
+            # tuist_processor role + same connection params the build
+            # processor uses — provisioned via
+            # infra/supabase/tuist-processor-role.sql.
+            - name: TUIST_DATABASE_POOLED
+              value: "1"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default (include "tuist.componentName" (dict "root" . "component" "processor-external-secrets")) .Values.xcresultProcessor.databaseUrlSecretName }}
+                  key: {{ .Values.xcresultProcessor.databaseUrlSecretKey | default "processor-database-url" }}
+            {{- if or .Values.server.masterKey .Values.server.managedSecrets }}
+            - name: MASTER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $masterKeySecretName }}
+                  key: server-master-key
+            {{- end }}
+            {{- with .Values.xcresultProcessor.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.xcresultProcessor.resources | nindent 12 }}
+{{- end }}

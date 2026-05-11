@@ -30,6 +30,8 @@ defmodule Tuist.Accounts do
 
   require Logger
 
+  @reset_password_delivery_cooldown_in_minutes 5
+
   def new_organizations_in_last_hour do
     Repo.all(from(o in Organization, where: o.created_at > ago(1, "hour"), preload: [:account]))
   end
@@ -1272,10 +1274,15 @@ defmodule Tuist.Accounts do
       Repo.one(from(u in User, where: u.email == ^email, preload: [:account]))
 
     if User.valid_password?(user, password) do
-      if is_nil(user.confirmed_at) do
-        {:error, :not_confirmed}
-      else
-        {:ok, user}
+      cond do
+        is_nil(user.confirmed_at) ->
+          {:error, :not_confirmed}
+
+        not user.active ->
+          {:error, :invalid_email_or_password}
+
+        true ->
+          {:ok, user}
       end
     else
       {:error, :invalid_email_or_password}
@@ -1364,9 +1371,10 @@ defmodule Tuist.Accounts do
     preload = Keyword.get(opts, :preload, [])
     {:ok, query} = UserToken.verify_session_token_query(token)
 
-    query
-    |> Repo.one()
-    |> Repo.preload(preload)
+    case query |> Repo.one() |> Repo.preload(preload) do
+      %User{active: false} -> nil
+      user -> user
+    end
   end
 
   @doc """
@@ -1441,13 +1449,19 @@ defmodule Tuist.Accounts do
   """
   def deliver_user_reset_password_instructions(%{user: %User{} = user, reset_password_url: reset_password_url})
       when is_function(reset_password_url, 1) do
-    {encoded_token, user_token} = UserToken.build_email_token(user, "reset_password")
-    Repo.insert!(user_token)
+    if recently_sent_reset_password_instructions?(user) do
+      :ok
+    else
+      Repo.delete_all(UserToken.by_user_and_contexts_query(user, ["reset_password"]))
 
-    UserNotifier.deliver_reset_password_instructions(%{
-      user: user,
-      reset_password_url: reset_password_url.(encoded_token)
-    })
+      {encoded_token, user_token} = UserToken.build_email_token(user, "reset_password")
+      Repo.insert!(user_token)
+
+      UserNotifier.deliver_reset_password_instructions(%{
+        user: user,
+        reset_password_url: reset_password_url.(encoded_token)
+      })
+    end
   end
 
   @doc """
@@ -1492,6 +1506,16 @@ defmodule Tuist.Accounts do
       {:ok, %{user: user}} -> {:ok, user}
       {:error, :user, changeset, _} -> {:error, changeset}
     end
+  end
+
+  defp recently_sent_reset_password_instructions?(%User{id: user_id}) do
+    Repo.exists?(
+      from t in UserToken,
+        where:
+          t.user_id == ^user_id and
+            t.context == "reset_password" and
+            t.inserted_at > ago(@reset_password_delivery_cooldown_in_minutes, "minute")
+    )
   end
 
   defp generate_random_string(length) do
@@ -1582,17 +1606,32 @@ defmodule Tuist.Accounts do
              |> Repo.one()
              |> Repo.preload(preload),
            false <- account_token_expired?(token),
+           :ok <- reject_inactive_account_token_users(token),
            true <- verify_pass(token, token_hash) do
         {:ok, token}
       else
         nil -> {:error, :not_found}
         true -> {:error, :expired}
+        {:error, :inactive_user} -> {:error, :inactive_user}
         _ -> {:error, :invalid_token}
       end
     else
       {:error, :invalid_token}
     end
   end
+
+  defp reject_inactive_account_token_users(%AccountToken{} = token) do
+    token = Repo.preload(token, account: :user, created_by_account: :user)
+
+    if account_user_inactive?(token.account) or account_user_inactive?(token.created_by_account) do
+      {:error, :inactive_user}
+    else
+      :ok
+    end
+  end
+
+  defp account_user_inactive?(%Account{user: %User{active: false}}), do: true
+  defp account_user_inactive?(_account), do: false
 
   @doc """
   Lists account tokens for a given account with pagination support via Flop.

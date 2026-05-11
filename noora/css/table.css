@@ -1,6 +1,6 @@
 .noora-table {
   box-sizing: border-box;
-  border-radius: var(--noora-radius-2xlarge);
+  border-radius: var(--noora-radius-8);
   background: var(--noora-surface-table-header);
   padding: var(--noora-spacing-2);
   width: 100%;
@@ -25,7 +25,7 @@
       left: 0;
       z-index: 1;
       box-shadow: var(--noora-border-light-default);
-      border-radius: var(--noora-radius-xlarge);
+      border-radius: var(--noora-radius-6);
       pointer-events: none;
       content: "";
     }
@@ -126,19 +126,19 @@
       /* Border radius on the `tbody` itself is unsupported, so we're selectively adding radius to specific cells. */
       & tr:first-child {
         & td:first-child {
-          border-top-left-radius: var(--noora-radius-xlarge);
+          border-top-left-radius: var(--noora-radius-6);
         }
         & td:last-child {
-          border-top-right-radius: var(--noora-radius-xlarge);
+          border-top-right-radius: var(--noora-radius-6);
         }
       }
 
       & tr:last-child {
         & td:first-child {
-          border-bottom-left-radius: var(--noora-radius-xlarge);
+          border-bottom-left-radius: var(--noora-radius-6);
         }
         & td:last-child {
-          border-bottom-right-radius: var(--noora-radius-xlarge);
+          border-bottom-right-radius: var(--noora-radius-6);
         }
       }
     }
@@ -232,7 +232,7 @@
 
       & [data-part="icon"] {
         display: flex;
-        border-radius: var(--noora-radius-large);
+        border-radius: var(--noora-radius-4);
         color: var(--noora-surface-label-primary);
 
         &:not(:has(img)) {
@@ -241,7 +241,7 @@
         }
 
         & img {
-          border-radius: var(--noora-radius-large);
+          border-radius: var(--noora-radius-4);
           width: 40px;
           height: 40px;
         }
@@ -293,7 +293,7 @@
     & > [data-part="icon"] {
       margin-bottom: var(--noora-spacing-8);
       box-shadow: var(--noora-border-light-default);
-      border-radius: var(--noora-radius-medium);
+      border-radius: var(--noora-radius-3);
       background: var(--noora-surface-background-primary);
       padding: var(--noora-spacing-3);
       width: var(--noora-icon-size-large);

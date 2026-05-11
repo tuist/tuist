@@ -4,6 +4,7 @@ defmodule Tuist.Builds.BuildMachineMetric do
   Used for both Xcode builds (via build_run_id) and Gradle builds (via gradle_build_id).
   """
   use Ecto.Schema
+  use Tuist.Ingestion.Bufferable
 
   @primary_key false
   schema "build_machine_metrics" do

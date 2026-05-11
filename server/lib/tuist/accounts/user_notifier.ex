@@ -38,7 +38,7 @@ defmodule Tuist.Accounts.UserNotifier do
         body {
           margin: 0;
           padding: 0;
-          font-family: "Inter", sans-serif;
+          font-family: "Inter", "Noto Sans Georgian", sans-serif;
         }
         .container {
           max-width: 590px;

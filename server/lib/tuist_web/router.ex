@@ -54,6 +54,7 @@ defmodule TuistWeb.Router do
   end
 
   pipeline :browser_app do
+    plug :put_request_kind, "page_load"
     plug :accepts, ["html"]
     plug :disable_robot_indexing
     plug :fetch_session
@@ -71,6 +72,7 @@ defmodule TuistWeb.Router do
   end
 
   pipeline :browser_app_image do
+    plug :put_request_kind, "page_image"
     plug :accepts, ["svg", "png"]
     plug :disable_robot_indexing
     plug :fetch_session
@@ -84,6 +86,7 @@ defmodule TuistWeb.Router do
   end
 
   pipeline :ueberauth do
+    plug :put_request_kind, "auth"
     plug :accepts, ["html"]
     plug :disable_robot_indexing
     plug :fetch_session
@@ -98,6 +101,7 @@ defmodule TuistWeb.Router do
   # Some endpoints must be accessible without the :protect_from_forgery plug.
   # For example, the POST request Apple makes as part of OAuth 2.0 is not compatible with the CSRF protection.
   pipeline :unprotected_browser_app do
+    plug :put_request_kind, "auth"
     plug :accepts, ["html"]
     plug :disable_robot_indexing
     plug :fetch_session
@@ -114,6 +118,7 @@ defmodule TuistWeb.Router do
   end
 
   pipeline :browser_marketing do
+    plug :put_request_kind, "marketing"
     plug MarkdownNegotiationPlug
     plug :accepts, ["html"]
     plug :enable_robot_indexing
@@ -136,6 +141,7 @@ defmodule TuistWeb.Router do
   end
 
   pipeline :browser_docs do
+    plug :put_request_kind, "docs"
     plug MarkdownNegotiationPlug
     plug :accepts, ["html"]
     plug :enable_robot_indexing
@@ -153,32 +159,46 @@ defmodule TuistWeb.Router do
   end
 
   pipeline :browser_marketing_feed do
+    plug :put_request_kind, "marketing_feed"
     plug :accepts, ["xml"]
     plug TuistWeb.OnPremisePlug, :forward_marketing_to_dashboard
   end
 
   pipeline :non_authenticated_api do
+    plug :put_request_kind, "api"
     plug :accepts, ["json"]
 
     plug TuistWeb.WarningsHeaderPlug
   end
 
   pipeline :api_catalog do
+    plug :put_request_kind, "api_catalog"
     plug :accepts, ["linkset"]
   end
 
   pipeline :mcp do
+    plug :put_request_kind, "mcp"
     plug TuistWeb.AuthenticationPlug, :load_authenticated_subject
     plug TuistWeb.AuthenticationPlug, {:require_authentication, response_type: :mcp}
     plug TuistWeb.Plugs.MCPRateLimitPlug
   end
 
   pipeline :authenticated_api do
+    plug :put_request_kind, "api"
     plug :accepts, ["json", "application/octet-stream"]
 
     plug TuistWeb.WarningsHeaderPlug
     plug TuistWeb.AuthenticationPlug, :load_authenticated_subject
     plug TuistWeb.AuthenticationPlug, {:require_authentication, response_type: :open_api}
+    plug SentryContextPlug
+    plug ObservabilityContextPlug
+  end
+
+  pipeline :scim_api do
+    plug :put_request_kind, "scim"
+    plug :accepts, ["scim+json", "json"]
+    plug TuistWeb.Plugs.SCIMAuthPlug
+    plug TuistWeb.Plugs.SCIMRateLimitPlug
     plug SentryContextPlug
     plug ObservabilityContextPlug
   end
@@ -385,6 +405,8 @@ defmodule TuistWeb.Router do
     pipe_through [:open_api, :browser_app]
 
     get "/github/setup", GitHubAppSetupController, :setup
+    get "/github/manifest/start", GitHubAppManifestController, :start
+    get "/github/manifest/callback", GitHubAppManifestController, :callback
     get "/slack/callback", SlackOAuthController, :callback
   end
 
@@ -408,10 +430,36 @@ defmodule TuistWeb.Router do
     get "/assetlinks.json", WellKnownController, :assetlinks
   end
 
+  scope "/.well-known", TuistWeb do
+    pipe_through :open_api
+
+    get "/openai-apps-challenge", WellKnownController, :openai_apps_challenge
+  end
+
   scope "/" do
     pipe_through [:mcp]
 
     forward "/mcp", EMCP.Transport.StreamableHTTP, server: Tuist.MCP.Server
+  end
+
+  scope "/scim/v2", TuistWeb.SCIM do
+    pipe_through [:scim_api]
+
+    get "/ServiceProviderConfig", DiscoveryController, :service_provider_config
+    get "/ResourceTypes", DiscoveryController, :resource_types
+    get "/Schemas", DiscoveryController, :schemas
+    get "/Schemas/:id", DiscoveryController, :schema
+
+    get "/Users", UsersController, :index
+    post "/Users", UsersController, :create
+    get "/Users/:id", UsersController, :show
+    put "/Users/:id", UsersController, :replace
+    patch "/Users/:id", UsersController, :patch
+    delete "/Users/:id", UsersController, :delete
+
+    get "/Groups", GroupsController, :index
+    get "/Groups/:id", GroupsController, :show
+    patch "/Groups/:id", GroupsController, :patch
   end
 
   scope path: "/api",
@@ -497,6 +545,7 @@ defmodule TuistWeb.Router do
             end
 
             get "/:test_case_id", TestCasesController, :show
+            patch "/:test_case_id", TestCasesController, :update
             get "/:test_case_id/events", TestCasesController, :events
             get "/:test_case_id/runs", TestCaseRunsController, :index_by_test_case
           end
@@ -662,6 +711,7 @@ defmodule TuistWeb.Router do
   pipeline :ops do
     plug TuistWeb.Authorization, [:current_user, :read, :ops]
     plug :assign_current_path
+    plug :skip_csrf_for_fun_with_flags_assets
   end
 
   scope "/ops", TuistWeb do
@@ -703,6 +753,8 @@ defmodule TuistWeb.Router do
       ] do
       live "/", TuistWeb.OpsCacheLive
       live "/accounts", TuistWeb.OpsAccountsLive
+      live "/accounts/:id", TuistWeb.OpsAccountLive
+      live "/accounts/:id/kura/deployments/:deployment_id", TuistWeb.OpsAccountKuraDeploymentLive
     end
   end
 
@@ -760,6 +812,7 @@ defmodule TuistWeb.Router do
   scope "/auth", TuistWeb do
     pipe_through [:browser_app]
     get "/complete-signup", AuthController, :complete_signup
+    get "/cancel-pending-signup", AuthController, :cancel_pending_signup
   end
 
   scope "/users/auth", TuistWeb do
@@ -887,7 +940,7 @@ defmodule TuistWeb.Router do
       live "/members", MembersLive
       live "/billing", BillingLive
       live "/integrations", IntegrationsLive
-      live "/sso", SSOSettingsLive
+      live "/authentication", AuthenticationSettingsLive
       live "/settings", AccountSettingsLive
     end
   end
@@ -958,6 +1011,10 @@ defmodule TuistWeb.Router do
     assign(conn, :current_path, conn.request_path)
   end
 
+  defp put_request_kind(conn, kind) when is_binary(kind) do
+    assign(conn, :request_kind, kind)
+  end
+
   def disable_robot_indexing(conn, _params) do
     put_resp_header(conn, "x-robots-tag", "noindex, nofollow")
   end
@@ -971,4 +1028,19 @@ defmodule TuistWeb.Router do
       disable_robot_indexing(conn, params)
     end
   end
+
+  # FunWithFlags.UI serves its bundled JS via Plug.Static after the :browser_app
+  # pipeline registers Plug.CSRFProtection's before_send callback, which raises
+  # InvalidCrossOriginRequestError on any non-XHR GET that returns a JS response.
+  # Constrained to safe methods so any future state-changing route under this
+  # prefix still goes through CSRF protection.
+  defp skip_csrf_for_fun_with_flags_assets(
+         %Plug.Conn{method: method, path_info: ["ops", "flags", "assets" | _]} = conn,
+         _opts
+       )
+       when method in ["GET", "HEAD"] do
+    Plug.Conn.put_private(conn, :plug_skip_csrf_protection, true)
+  end
+
+  defp skip_csrf_for_fun_with_flags_assets(conn, _opts), do: conn
 end

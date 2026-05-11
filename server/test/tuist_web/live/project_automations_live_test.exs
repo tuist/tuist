@@ -47,7 +47,7 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
       assert [%{"type" => "add_label", "label" => "flaky"}] = automation.trigger_actions
     end
 
-    test "preserves the type-specific threshold default when switching types", %{
+    test "preserves the metric-specific threshold default when switching metrics", %{
       conn: conn,
       organization: organization,
       project: project
@@ -56,12 +56,36 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
 
       render_hook(lv, "open_create_automation_modal", %{})
       render_hook(lv, "update_create_automation_form_name", %{"value" => "Flaky runs"})
-      render_hook(lv, "update_create_automation_form_type", %{"data" => "flaky_run_count"})
+      render_hook(lv, "update_create_automation_form_metric", %{"data" => "flaky_run_count"})
       render_hook(lv, "save_automation", %{})
 
       assert [automation] = Automations.list_alerts(project.id)
       assert automation.monitor_type == "flaky_run_count"
       assert automation.trigger_config["threshold"] == 3
+    end
+
+    test "switching the comparison to lt persists it without touching threshold or actions", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      {:ok, lv, _html} = open(conn, organization, project)
+
+      render_hook(lv, "open_create_automation_modal", %{})
+      render_hook(lv, "update_create_automation_form_name", %{"value" => "Cleanup"})
+      render_hook(lv, "update_create_automation_form_metric", %{"data" => "flaky_run_count"})
+      render_hook(lv, "update_create_automation_form_comparison", %{"data" => "lt"})
+      render_hook(lv, "save_automation", %{})
+
+      assert [automation] = Automations.list_alerts(project.id)
+      assert automation.monitor_type == "flaky_run_count"
+      assert automation.trigger_config["comparison"] == "lt"
+      # Threshold stays at the metric default (3) — switching comparison
+      # doesn't clobber whatever the user typed.
+      assert automation.trigger_config["threshold"] == 3
+      # Trigger actions stay at the form default; the user picks Unmark as
+      # flaky explicitly via the action dropdown.
+      assert [%{"type" => "add_label", "label" => "flaky"}] = automation.trigger_actions
     end
 
     test "supports adding multiple actions and dropping the change_state option once added", %{
@@ -107,7 +131,7 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
 
       render_hook(lv, "open_create_automation_modal", %{})
       render_hook(lv, "update_create_automation_form_name", %{"value" => "Quarantine on manual mark"})
-      render_hook(lv, "update_create_automation_form_type", %{"data" => "manually_marked_flaky"})
+      render_hook(lv, "update_create_automation_form_metric", %{"data" => "manually_marked_flaky"})
       # The default add_label action makes no sense once the user just marked
       # the test as flaky, so the type switch should drop it. We then layer on
       # an explicit change_state action.
@@ -129,7 +153,7 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
 
       render_hook(lv, "open_create_automation_modal", %{})
       render_hook(lv, "toggle_create_automation_form_recovery", %{})
-      html = render_hook(lv, "update_create_automation_form_type", %{"data" => "manually_marked_flaky"})
+      html = render_hook(lv, "update_create_automation_form_metric", %{"data" => "manually_marked_flaky"})
 
       refute html =~ "create-automation-threshold"
       refute html =~ "create-automation-window"

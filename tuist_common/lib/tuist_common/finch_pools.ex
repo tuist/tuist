@@ -6,8 +6,9 @@ defmodule TuistCommon.FinchPools do
   download. A small default pool wedges under concurrent processing: chunk
   `Task.async_stream` timeouts can leak in-flight connections faster than
   they're released, eventually starving new requests with "excess queuing"
-  errors. This module centralizes the sizing and TLS defaults used by
-  `server/`, `processor/`, and `xcode_processor/`.
+  errors. This module centralizes the sizing and TLS defaults used by the
+  Tuist server release in any of its boot modes (web, build-processor,
+  xcresult-processor) and the cache service.
   """
 
   @default_size 500

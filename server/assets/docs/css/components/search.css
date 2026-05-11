@@ -28,7 +28,7 @@ body[data-search-open] {
     transform: translateX(-50%);
     z-index: var(--noora-z-index-12);
     box-shadow: var(--noora-border-heavy);
-    border-radius: var(--noora-radius-xlarge);
+    border-radius: var(--noora-radius-6);
     background: var(--noora-surface-background-primary);
     width: 550px;
     max-width: calc(100vw - var(--noora-spacing-9));
@@ -50,7 +50,7 @@ body[data-search-open] {
     align-items: center;
     gap: var(--noora-spacing-4);
     box-shadow: var(--noora-border-light-default);
-    border-radius: var(--noora-radius-medium);
+    border-radius: var(--noora-radius-3);
     background: var(--noora-surface-background-primary);
     padding: var(--noora-spacing-3) var(--noora-spacing-4);
   }
@@ -129,7 +129,7 @@ body[data-search-open] {
     transition: background 0.1s;
     cursor: pointer;
     box-shadow: var(--noora-border-light-default);
-    border-radius: var(--noora-radius-large);
+    border-radius: var(--noora-radius-4);
     background: var(--noora-surface-background-tertiary);
     padding: var(--noora-spacing-4);
     color: inherit;
@@ -222,7 +222,7 @@ body[data-search-open] {
     justify-content: center;
     align-items: center;
     box-shadow: var(--noora-border-light-default);
-    border-radius: var(--noora-radius-xsmall);
+    border-radius: var(--noora-radius-1);
     padding: 0 var(--noora-spacing-2);
     height: var(--noora-icon-size-medium);
     color: var(--noora-surface-label-tertiary);

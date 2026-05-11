@@ -122,7 +122,7 @@ defmodule TuistWeb.API.BuildCASOutputsController do
         } = conn,
         _params
       ) do
-    case Builds.get_build(build_id) do
+    case Builds.get_build(build_id, project_id: selected_project.id) do
       {:error, :not_found} ->
         conn
         |> put_status(:not_found)

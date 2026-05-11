@@ -2,6 +2,7 @@ package dev.tuist.gradle
 
 import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
+import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.logging.Logging
@@ -288,7 +289,9 @@ abstract class TuistTestInsightsService :
     interface Params : BuildServiceParameters {
         val url: Property<String>
         val project: Property<String>
+        val useEnvironmentProxy: Property<Boolean>
         val rootProjectName: Property<String>
+        val projectDir: DirectoryProperty
     }
 
     private val logger = Logging.getLogger(TuistTestInsightsService::class.java)
@@ -372,12 +375,13 @@ abstract class TuistTestInsightsService :
 
     private fun sendReport() {
         val projectValue = parameters.project.orNull
-        val httpClients = TuistHttpClients()
+        val httpClients = TuistHttpClients(useEnvironmentProxy = parameters.useEnvironmentProxy.get())
+        val projectDir = parameters.projectDir.asFile.get()
 
         val configProvider = DefaultConfigurationProvider(
             project = projectValue,
             serverUrl = parameters.url.get(),
-            projectDir = java.io.File(System.getProperty("user.dir")),
+            projectDir = projectDir,
             httpClients = httpClients
         )
 
@@ -464,7 +468,9 @@ internal abstract class TuistTestInsightsPlugin @Inject constructor() : Plugin<P
         ) {
             parameters.url.set(config.url)
             config.project?.let { parameters.project.set(it) }
+            parameters.useEnvironmentProxy.set(config.network.proxy)
             parameters.rootProjectName.set(project.rootProject.name)
+            parameters.projectDir.set(project.rootProject.layout.projectDirectory)
         }
 
         val quarantineEnabled = config.testQuarantineEnabled ?: ciDetector.isCi()
@@ -475,7 +481,8 @@ internal abstract class TuistTestInsightsPlugin @Inject constructor() : Plugin<P
             ) {
                 parameters.serverUrl.set(config.url)
                 config.project?.let { parameters.tuistProject.set(it) }
-                parameters.projectDir.set(System.getProperty("user.dir"))
+                parameters.useEnvironmentProxy.set(config.network.proxy)
+                parameters.projectDir.set(project.rootProject.layout.projectDirectory)
             }
         } else {
             null

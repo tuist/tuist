@@ -29,6 +29,22 @@ server:
       value: "15"
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
+    # Exposes the managed Kura regions in account settings. Each region
+    # maps to a controller-backed Kura cluster_id in Tuist.Kura.Regions.
+    - name: TUIST_KURA_AVAILABLE_REGIONS
+      value: eu-central,us-east,us-west
+    # Kubeconfigs for regional Kura clusters. CI syncs this Secret from
+    # 1Password before Helm upgrades the production server release.
+    - name: TUIST_KURA_KUBECONFIG_US_EAST_1
+      valueFrom:
+        secretKeyRef:
+          name: tuist-kura-kubeconfigs
+          key: TUIST_KURA_KUBECONFIG_US_EAST_1
+    - name: TUIST_KURA_KUBECONFIG_US_WEST_1
+      valueFrom:
+        secretKeyRef:
+          name: tuist-kura-kubeconfigs
+          key: TUIST_KURA_KUBECONFIG_US_WEST_1
 
   autoscaling:
     enabled: true
@@ -71,6 +87,14 @@ server:
                 app.kubernetes.io/component: server
             topologyKey: kubernetes.io/hostname
 
+  # Keep server pods on the dedicated-vCPU general pool. Without this the
+  # scheduler could place a server replica on the cpx51 processor pool
+  # (shared vCPU, sized for parsing) and we'd get the latency spikes the
+  # ccx23 dedicated cores were chosen to avoid. md-0 in
+  # workload-cluster-production.yaml carries the matching pool label.
+  nodeSelector:
+    node.cluster.x-k8s.io/pool: general
+
 postgresql:
   external:
     host: db.tuist.dev  # Supabase pooler endpoint for production.
@@ -81,12 +105,8 @@ clickhouse:
 
 objectStorage:
   external:
-    endpoint: https://fly.storage.tigris.dev
     buckets:
-      default: tuist
-      cache: tuist-cache
-      xcodeCache: tuist-xcode-cache
-      registry: tuist-registry
+      default: tuist-prod-storage
 
 processor:
   # Supabase production project (yltsvvtmlktxdgpcbylg) — dedicated pooler on
@@ -102,13 +122,84 @@ processor:
       value: prod
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
+  # Sized for the dedicated cpx51 processor pool (16 vCPU / 32 GiB shared
+  # vCPU per node). With anti-affinity pinning one replica per node, each
+  # pod owns the whole node minus kube-system overhead; we leave ~4 GiB
+  # and ~4 vCPU as headroom. The Swift parser holds ~3-4x the .xcactivitylog
+  # file size in memory while building the BuildStep tree and JSON-encoding
+  # the result; at queueConcurrency=5 most realistic builds fit comfortably
+  # in 24 GiB. If we ever start seeing OOMKills again the next move is
+  # either to lower queueConcurrency, bump pod memory, or reintroduce a
+  # per-archive size cap in Tuist.Processor.BuildProcessor.
+  # CPU limit at 12 cores lets the BEAM run ~12 dirty-CPU schedulers,
+  # so all 5 NIF parses run on dedicated dirty schedulers without
+  # serializing on scheduler availability the way they did at 4 cores.
   resources:
     requests:
-      cpu: "500m"
-      memory: "1Gi"
+      cpu: "4000m"
+      memory: "8Gi"
     limits:
-      cpu: "2000m"
-      memory: "2Gi"
+      cpu: "12000m"
+      memory: "24Gi"
+
+  # Pin processor pods to the dedicated cpx51 pool provisioned by
+  # md-processor in cluster-production.yaml. The label is set on
+  # the MachineDeployment metadata; CAPI propagates it to each node's
+  # registration. Without this the pods could land on the cheaper ccx23
+  # general pool that doesn't have the memory headroom 5 concurrent parses
+  # need. The tuist-hcloud ClusterClass doesn't expose a taint variable, so
+  # we rely on nodeSelector alone — server pods stay on the general pool
+  # via their own anti-affinity, not via taint isolation.
+  nodeSelector:
+    node.cluster.x-k8s.io/pool: processor
+
+  # Hard one-replica-per-node spread. Soft preferred-anti-affinity wasn't
+  # enough — when the new ReplicaSet was rolling out and only one cpx62
+  # node was Ready yet, both pods landed on it and stayed stacked even
+  # after the second node came up; combined ~10 cores of work on one
+  # 16-vCPU node halved effective parsing throughput while the other
+  # node sat idle. DoNotSchedule + nodeTaintsPolicy=Honor (set in the
+  # template) makes the separation enforced without deadlocking under
+  # node drain — a tainted node is excluded from the topology so the
+  # replacement pod can still land on the surviving worker.
+  topologySpread:
+    enabled: true
+    whenUnsatisfiable: DoNotSchedule
+  affinity: {}
+
+# Same priv/secrets selection as the build processor; the Tart image
+# embeds the encrypted bundle and decrypts it via MASTER_KEY.
+xcresultProcessor:
+  # replicaCount stays at the chart default (2). The topology spread
+  # in xcresult-processor-deployment.yaml forces the two replicas onto
+  # distinct Mac minis (the fleet has 2 hosts in production); the PDB
+  # below keeps at least one queue consumer up across voluntary
+  # disruptions (operator-driven host drains, fleet rolls).
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+  extraEnv:
+    - name: TUIST_DEPLOY_ENV
+      value: prod
+    - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
+      value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
+
+# Mac mini fleet — declarative via CAPI. Production keeps 2 hosts so
+# a single-host Scaleway BMC reboot or macOS upgrade doesn't take all
+# xcresult capacity offline.
+macosFleet:
+  replicas: 2
+  machine:
+    # M2-L while M4-S is out of stock at Scaleway (fr-par-1) — the
+    # first production rollout failed with `resource server is out
+    # of stock` against the chart default (M4-S). M2-L is the next
+    # SKU up that's been independently stocked when M4 capacity
+    # rotates out, and the M2 generation has its own pool. Flip
+    # back to the chart default once Scaleway restocks M4-S; canary
+    # stays on M4-S so we keep tracking that capacity.
+    type: M2-L
+  controlPlane:
+    host: api.tuist.dev
 
 # In-cluster Valkey backs the auth rate limiter (Hammer.Redis). The
 # chart wires TUIST_REDIS_URL to the embedded Service; without it the

@@ -5,7 +5,7 @@ import TuistEnvironment
 import TuistEnvKey
 import TuistSupport
 
-public struct XcodeBuildTestCommand: AsyncParsableCommand, TrackableParsableCommand, RecentPathRememberableCommand {
+public struct XcodeBuildTestCommand: AsyncParsableCommand, TrackableParsableCommand {
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "test",

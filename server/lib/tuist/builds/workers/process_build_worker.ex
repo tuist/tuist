@@ -7,15 +7,36 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
   pods (`TUIST_MODE=processor`), so this worker's body executes there;
   the server pods enqueue jobs but never claim them. In self-hosted installs
   the server runs both roles in the same BEAM.
+
+  ## Uniqueness
+
+  Jobs are unique on `build_id` over `available | scheduled | executing |
+  retryable` with `period: :infinity` to absorb the duplicate enqueues from
+  the race in `get_or_create_build`. A re-enqueue while a previous job is
+  still in-flight (or sitting in retryable) is silently dropped — to manually
+  requeue a stuck job, cancel the existing one first.
   """
 
-  use Oban.Worker, queue: :process_build, max_attempts: 5
+  use Oban.Worker,
+    queue: :process_build,
+    max_attempts: 5,
+    unique: [
+      keys: [:build_id],
+      states: [:available, :scheduled, :executing, :retryable],
+      period: :infinity
+    ]
 
   alias Tuist.Accounts
   alias Tuist.Builds
   alias Tuist.Storage
 
   require Logger
+
+  # Cap one job's wall time so a single huge xcactivitylog cannot hold a worker
+  # slot indefinitely. The NIF's internal timeout is set lower so it returns
+  # a structured error first; this is the outer guard for everything else.
+  @impl Oban.Worker
+  def timeout(_job), do: to_timeout(minute: 5)
 
   @impl Oban.Worker
   def perform(%Oban.Job{
@@ -31,7 +52,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
     case process_build(build_id, storage_key, account_id, xcode_cache_upload_enabled) do
       {:ok, parsed_data} ->
         parsed_data = Map.put(parsed_data, "project_id", project_id)
-        replace_build_run(build_id, parsed_data, account_id, build_metadata)
+        replace_build_run(build_id, parsed_data, account_id, project_id, build_metadata)
 
         case Map.get(args, "vcs_comment_params", %{}) do
           params when params != %{} -> Tuist.VCS.enqueue_vcs_pull_request_comment(params)
@@ -66,11 +87,11 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
     end
   end
 
-  defp replace_build_run(build_id, parsed_data, account_id, build_metadata) do
+  defp replace_build_run(build_id, parsed_data, account_id, project_id, build_metadata) do
     parsed = atomize_keys(parsed_data)
 
     attrs =
-      Map.merge(base_build_attrs(build_id, account_id, build_metadata), %{
+      Map.merge(base_build_attrs(build_id, project_id, account_id, build_metadata), %{
         project_id: parsed[:project_id],
         duration: parsed[:duration] || 0,
         status: parsed[:status] || "success",
@@ -89,7 +110,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
 
   defp mark_failed_build_processing(build_id, project_id, account_id, build_metadata) do
     attrs =
-      Map.merge(base_build_attrs(build_id, account_id, build_metadata), %{
+      Map.merge(base_build_attrs(build_id, project_id, account_id, build_metadata), %{
         project_id: project_id,
         status: "failed_processing",
         duration: 0
@@ -98,8 +119,8 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
     Builds.create_build(attrs)
   end
 
-  defp base_build_attrs(build_id, account_id, build_metadata) do
-    case Builds.get_build(build_id) do
+  defp base_build_attrs(build_id, project_id, account_id, build_metadata) do
+    case Builds.get_build(build_id, project_id: project_id) do
       {:error, :not_found} ->
         Map.merge(
           %{id: build_id, account_id: account_id, is_ci: false},

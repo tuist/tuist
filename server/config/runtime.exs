@@ -17,6 +17,8 @@ import Config
 #     `:process_build` queue.
 #
 # See `Tuist.Environment.mode/0` for the full list.
+alias Tuist.Oban.RuntimeConfig
+
 if Tuist.Environment.web?() do
   config :tuist, TuistWeb.Endpoint, server: true
 end
@@ -294,6 +296,7 @@ if Tuist.Environment.error_tracking_enabled?() do
     client: TuistCommon.SentryHTTPClient,
     dsn: Tuist.Environment.sentry_dsn(secrets),
     environment_name: env,
+    release: Tuist.Environment.version(),
     enable_source_code_context: true,
     root_source_code_paths: [File.cwd!()],
     before_send: {Tuist.SentryEventFilter, :before_send}
@@ -338,25 +341,15 @@ if Tuist.Environment.env() not in [:test] do
   config :ex_aws, :s3, s3_config
 
   config :ex_aws,
+         Tuist.AWS.S3AuthenticationConfig.ex_aws_config(
+           Tuist.Environment.s3_authentication_method(secrets),
+           secrets
+         )
+
+  config :ex_aws,
     http_client: TuistCommon.AWS.Client
 
   config :tuist_common, finch_name: Tuist.Finch
-
-  case Tuist.Environment.s3_authentication_method(secrets) do
-    :env_access_key_id_and_secret_access_key ->
-      config :ex_aws,
-        secret_access_key: Tuist.Environment.s3_secret_access_key(secrets),
-        access_key_id: Tuist.Environment.s3_access_key_id(secrets)
-
-    :aws_web_identity_token_from_env_vars ->
-      config :ex_aws,
-        secret_access_key: [{:awscli, "profile_name", 30}],
-        access_key_id: [{:awscli, "profile_name", 30}],
-        awscli_auth_adapter: ExAws.STS.AuthCache.AssumeRoleWebIdentityAdapter
-
-    _ ->
-      nil
-  end
 end
 
 # Stripe config
@@ -398,53 +391,75 @@ otel_endpoint = Tuist.Environment.get([:otel, :exporter, :otlp, :endpoint])
 
 # Oban.
 #
-# Three queue-list shapes derived from the same base. New queues go into
-# `base_queues` and are picked up by both the default and delegate paths.
+# Four queue-list shapes derived from the same base. Pod role is set
+# via TUIST_MODE; delegate flags let the web tier hand off specific
+# queues to dedicated fleets without changing pod role.
 #
-#   * Processor pods (TUIST_MODE=processor) only consume :process_build
-#     so the CPU-heavy xcactivitylog parse is isolated from the hot web path.
-#   * Server pods with TUIST_DELEGATE_PROCESS_BUILD=1 skip :process_build
-#     entirely so jobs land exclusively on the processor fleet.
-#   * Self-hosted installs without a dedicated processor leave both flags
-#     unset and run every queue locally.
-base_queues = [default: 10, process_xcresult: 2]
+#   * Web/server (default): every queue. Self-hosted installs without
+#     dedicated processors stay on this shape.
+#   * Build processor (TUIST_MODE=processor): only :process_build. CPU-
+#     heavy xcactivitylog parse, runs in-cluster on Linux.
+#   * Xcresult processor (TUIST_MODE=xcresult_processor): only
+#     :process_xcresult. Runs on macOS (Scaleway Mac mini) inside a
+#     Tart VM because xcresulttool is Xcode-only.
+#   * Server pods with TUIST_DELEGATE_PROCESS_BUILD=1 /
+#     TUIST_DELEGATE_PROCESS_XCRESULT=1 skip the matching queue so
+#     jobs land exclusively on the dedicated fleet — without those
+#     flags the server would race the processors on SKIP LOCKED, and
+#     on Linux the xcresult parse would crash because the macOS-only
+#     NIF isn't loaded.
+base_queues = [default: 10]
 process_build_queue = {:process_build, Tuist.Environment.process_build_queue_concurrency()}
+process_xcresult_queue = {:process_xcresult, Tuist.Environment.process_xcresult_queue_concurrency()}
 
 oban_queues =
   cond do
-    Tuist.Environment.processor_mode?() -> [process_build_queue]
-    Tuist.Environment.delegate_process_build?() -> base_queues
-    true -> base_queues ++ [process_build_queue]
+    Tuist.Environment.processor_mode?() ->
+      [process_build_queue]
+
+    Tuist.Environment.xcresult_processor_mode?() ->
+      [process_xcresult_queue]
+
+    true ->
+      base = base_queues
+      base = if Tuist.Environment.delegate_process_build?(), do: base, else: base ++ [process_build_queue]
+      if Tuist.Environment.delegate_process_xcresult?(), do: base, else: base ++ [process_xcresult_queue]
   end
 
-# Cron is leader-only: whichever Oban node wins the leader election runs the
-# crontab. With multiple pod roles in the same Oban cluster (server + processor)
-# the leader can land on either. Configure the same crontab everywhere so
-# scheduled jobs fire regardless of which pod is currently leader; the *jobs*
-# are then claimed by whichever pod runs the matching queue. Pruner + Lifeline
-# are also leader-only; both work fine on either pod since the tuist_processor
-# DB role has the necessary INSERT/UPDATE/DELETE on oban_jobs.
+# Leader-only Oban work (Cron, Pruner, Lifeline, Oban.Met.Reporter) runs
+# on whichever node wins the peer election. Web pods are the only leader-
+# eligible nodes; every other role gets `peer: false` (Oban normalises
+# that to the Isolated peer with `leader?: false`, so leader-only plugins
+# start there but stay idle). The crontab and the peer rule are derived
+# by `Tuist.Oban.RuntimeConfig`, which is unit-tested against every value
+# of `Tuist.Environment.modes/0` so a future denylist regression — like
+# the one where `:xcresult_processor` shipped leader-eligible with an
+# empty crontab and silently halted every cron job — fails CI before it
+# lands in prod.
+mode = Tuist.Environment.mode()
+
+crontab = RuntimeConfig.crontab(mode, env, Tuist.Environment.tuist_hosted?())
+
 config :tuist, Oban,
   queues: oban_queues,
   plugins: [
     {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 7},
     {Oban.Plugins.Lifeline, rescue_after: to_timeout(minute: 30)},
-    {Oban.Plugins.Cron,
-     crontab:
-       if(Tuist.Environment.tuist_hosted?() and env in [:prod, :stag, :can],
-         do: [
-           {"0 10 * * 1-5", Tuist.Ops.DailySlackReportWorker},
-           {"0 * * * 1-5", Tuist.Ops.HourlySlackReportWorker},
-           {"@hourly", Tuist.Slack.Workers.ReportWorker},
-           {"*/10 * * * *", Tuist.Alerts.Workers.AlertWorker},
-           {"@daily", Tuist.Billing.Workers.SyncStripeMetersWorker},
-           {"@daily", Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker},
-           {"@hourly", Tuist.Tests.Workers.ExpireStaleTestRunsWorker},
-           {"* * * * *", Tuist.Automations.Workers.AutomationScheduler}
-         ],
-         else: []
-       )}
+    {Oban.Plugins.Cron, crontab: crontab}
   ]
+
+if !RuntimeConfig.peer_eligible?(mode) do
+  config :tuist, Oban, peer: false
+end
+
+# Kura controller rollout assets. Each env is enumerated explicitly so a
+# new one fails loudly rather than silently picking the wrong hook path.
+kura_hook_path =
+  case env do
+    e when e in [:prod, :stag, :can] -> Application.app_dir(:tuist, "priv/kura/hooks/tuist.lua")
+    e when e in [:dev, :test] -> Path.expand("../kura/ops/helm/kura/hooks/tuist.lua", File.cwd!())
+    other -> raise "unknown env #{inspect(other)} for :kura_hook_path; add it to runtime.exs"
+  end
 
 # Guardian
 config :tuist, Tuist.Guardian,
@@ -463,11 +478,17 @@ config :tuist, Tuist.PromEx,
     auth_strategy: :none
   ]
 
+config :tuist, :kura_hook_path, kura_hook_path
+
 if otel_endpoint do
   config :opentelemetry,
     span_processor: :batch,
     resource: [
-      service: [name: "tuist-server", namespace: "tuist"],
+      service: [
+        name: "tuist-server",
+        namespace: "tuist",
+        version: to_string(Tuist.Environment.version())
+      ],
       deployment: [environment: to_string(env)]
     ]
 

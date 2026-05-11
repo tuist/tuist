@@ -7,8 +7,23 @@ defmodule Tuist.Environment do
   # builds ignore TUIST_DEPLOY_ENV so tests can't accidentally flip into
   # a prod-like mode.
   @compile_env Mix.env()
+  @dev_all_locales Application.compile_env(:tuist, :dev_all_locales, false)
 
   @runtime_envs ~w(prod can stag)
+
+  # Every supported pod role. `mode/0` raises on any other value of
+  # TUIST_MODE so a deployment-manifest typo (`processsor`, `ingest`,
+  # ...) fails the pod fast at boot rather than landing it in `:web`
+  # silently — exactly the failure mode that previously masked the
+  # xcresult-processor leader-election bug.
+  @modes [:web, :processor, :xcresult_processor]
+
+  @doc """
+  All pod roles `mode/0` may return. Stable list — used by
+  `Tuist.Oban.RuntimeConfig` tests to assert that no future role
+  accidentally regains leader eligibility or the full crontab.
+  """
+  def modes, do: @modes
 
   def env do
     with :prod <- @compile_env,
@@ -54,6 +69,26 @@ defmodule Tuist.Environment do
     env() == :prod
   end
 
+  @doc """
+  Worktree suffix from `TUIST_DEV_INSTANCE`, set by the mise
+  `dev_instance_env.sh` hook. Used to scope ports, DB names, kind
+  cluster names, and similar per-worktree resources so multiple
+  worktrees can run side by side without colliding. Returns 0 when
+  unset (CI, ad-hoc scripts) or when the value isn't a valid integer.
+  """
+  def dev_instance_suffix do
+    case System.get_env("TUIST_DEV_INSTANCE") do
+      value when is_binary(value) and value != "" ->
+        case Integer.parse(value) do
+          {n, ""} -> n
+          _ -> 0
+        end
+
+      _ ->
+        0
+    end
+  end
+
   def truthy?(value) do
     Enum.member?(["1", "true", "TRUE", "yes", "YES"], value)
   end
@@ -65,20 +100,39 @@ defmodule Tuist.Environment do
       ingestion buffer. What the existing server pods run.
     * `:processor` — no Phoenix listener, narrowed Oban queue set to
       `:process_build`. Booted by processor-deployment.yaml.
+    * `:xcresult_processor` — no Phoenix listener, Oban queue set
+      narrowed to `:process_xcresult`. Runs inside a Tart VM on the
+      macOS Mac mini fleet (the only place the macOS-only xcresult NIF
+      can load). Booted by xcresult-processor-deployment.yaml.
 
   Read once from `TUIST_MODE`. Add new modes here when the supervision tree
   needs another shape (e.g. a future `:scheduler` or `:ingest`).
   """
-  def mode do
-    case System.get_env("TUIST_MODE") do
-      "processor" -> :processor
-      _ -> :web
-    end
+  def mode, do: mode(System.get_env("TUIST_MODE"))
+
+  @doc """
+  Pure variant of `mode/0` that takes the raw `TUIST_MODE` value
+  directly. Exposed so callers (tests, future config tooling) can
+  exercise the parser without stubbing `System.get_env/1`.
+  """
+  def mode(nil), do: :web
+  def mode(""), do: :web
+  def mode("web"), do: :web
+  def mode("processor"), do: :processor
+  def mode("xcresult_processor"), do: :xcresult_processor
+
+  def mode(other) do
+    raise """
+    Unknown TUIST_MODE=#{inspect(other)}.
+    Expected one of #{inspect(@modes)}, or unset/empty for #{inspect(:web)}.
+    """
   end
 
   def web?, do: mode() == :web
 
   def processor_mode?, do: mode() == :processor
+
+  def xcresult_processor_mode?, do: mode() == :xcresult_processor
 
   def database_url(secrets \\ secrets()) do
     System.get_env("DATABASE_URL") || get([:database_url], secrets)
@@ -93,6 +147,10 @@ defmodule Tuist.Environment do
       truthy?(System.get_env("TUIST_HOSTED", "0"))
   end
 
+  def dev_all_locales?, do: @dev_all_locales
+
+  def dev_single_locale?, do: dev?() and not dev_all_locales?()
+
   def log_level do
     "TUIST_LOG_LEVEL" |> System.get_env("info") |> String.to_atom()
   end
@@ -105,11 +163,23 @@ defmodule Tuist.Environment do
     not dev?() or truthy?(System.get_env("TUIST_DEV_USE_REMOTE_STORAGE", "0"))
   end
 
+  def kura_available_region_ids do
+    "TUIST_KURA_AVAILABLE_REGIONS"
+    |> System.get_env("")
+    |> String.split(",", trim: true)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+  end
+
+  def kura_runtime_image_tag(secrets \\ secrets()) do
+    System.get_env("TUIST_KURA_RUNTIME_IMAGE_TAG") || get([:kura, :runtime_image_tag], secrets)
+  end
+
   def prometheus_enabled? do
     prometheus_enabled = System.get_env("TUIST_PROMETHEUS_ENABLED")
 
     if is_nil(prometheus_enabled) do
-      not dev?() and not test?() and web?()
+      not dev?() and not test?()
     else
       truthy?(prometheus_enabled)
     end
@@ -143,6 +213,43 @@ defmodule Tuist.Environment do
         endpoints |> String.split(",") |> Enum.map(&String.trim/1)
 
       _ ->
+        nil
+    end
+  end
+
+  @doc """
+  Returns the kubeconfig (raw YAML string) for the given Kura cluster
+  ID, or `nil` if none is configured.
+
+  Used by managed Kura regions that run outside the server's own
+  Kubernetes cluster. Managed regions in the same cluster can still use
+  the server pod's in-cluster ServiceAccount instead.
+
+  Two sources are checked in order:
+
+    1. `TUIST_KURA_KUBECONFIG_PATH_<CLUSTER>` env var pointing at a
+       file on disk (the convenient dev path — devs use their own
+       `~/.kube/config` against a kind cluster).
+    2. `TUIST_KURA_KUBECONFIG_<CLUSTER>` env var with the kubeconfig
+       YAML inline.
+
+  In both forms the cluster ID is uppercased and `-` becomes `_` for
+  env vars.
+  """
+  def kura_kubeconfig(cluster_id, _secrets \\ secrets()) when is_binary(cluster_id) do
+    upper = cluster_id |> String.upcase() |> String.replace("-", "_")
+
+    cond do
+      path = System.get_env("TUIST_KURA_KUBECONFIG_PATH_#{upper}") ->
+        case File.read(path) do
+          {:ok, contents} -> contents
+          {:error, _reason} -> nil
+        end
+
+      inline = System.get_env("TUIST_KURA_KUBECONFIG_#{upper}") ->
+        inline
+
+      true ->
         nil
     end
   end
@@ -182,7 +289,11 @@ defmodule Tuist.Environment do
   end
 
   def version do
-    Application.spec(:tuist)[:vsn]
+    case System.get_env("TUIST_VERSION") do
+      nil -> to_string(Application.spec(:tuist)[:vsn])
+      "" -> to_string(Application.spec(:tuist)[:vsn])
+      version -> version
+    end
   end
 
   def ops_user_handles(secrets \\ secrets()) do
@@ -293,7 +404,9 @@ defmodule Tuist.Environment do
 
   def s3_access_key_id(secrets \\ secrets()) do
     if dev_use_remote_storage?() do
-      System.get_env("AWS_ACCESS_KEY_ID") || get([:s3, :access_key_id], secrets)
+      System.get_env("TUIST_S3_ACCESS_KEY_ID") ||
+        System.get_env("AWS_ACCESS_KEY_ID") ||
+        get([:s3, :access_key_id], secrets)
     else
       "minio"
     end
@@ -301,19 +414,24 @@ defmodule Tuist.Environment do
 
   def s3_secret_access_key(secrets \\ secrets()) do
     if dev_use_remote_storage?() do
-      System.get_env("AWS_SECRET_ACCESS_KEY") || get([:s3, :secret_access_key], secrets)
+      System.get_env("TUIST_S3_SECRET_ACCESS_KEY") ||
+        System.get_env("AWS_SECRET_ACCESS_KEY") ||
+        get([:s3, :secret_access_key], secrets)
     else
       "minio1234"
     end
   end
 
   def s3_region(secrets \\ secrets()) do
-    System.get_env("AWS_REGION") || get([:s3, :region], secrets) || "auto"
+    System.get_env("TUIST_S3_REGION") ||
+      System.get_env("AWS_REGION") ||
+      get([:s3, :region], secrets) ||
+      "auto"
   end
 
   def s3_bucket_name(secrets \\ secrets()) do
     if dev_use_remote_storage?() do
-      get([:s3, :bucket_name], secrets)
+      System.get_env("TUIST_S3_BUCKET_NAME") || get([:s3, :bucket_name], secrets)
     else
       "tuist-development"
     end
@@ -321,7 +439,7 @@ defmodule Tuist.Environment do
 
   def s3_endpoint(secrets \\ secrets()) do
     if dev_use_remote_storage?() do
-      get([:s3, :endpoint], secrets)
+      System.get_env("TUIST_S3_ENDPOINT") || get([:s3, :endpoint], secrets)
     else
       System.get_env("TUIST_LOCAL_S3_ENDPOINT") ||
         case System.get_env("TUIST_MINIO_API_PORT") do
@@ -333,7 +451,10 @@ defmodule Tuist.Environment do
 
   def s3_virtual_host(secrets \\ secrets()) do
     if dev_use_remote_storage?() do
-      [:s3, :virtual_host] |> get(secrets) |> truthy?()
+      case System.get_env("TUIST_S3_VIRTUAL_HOST") do
+        nil -> [:s3, :virtual_host] |> get(secrets) |> truthy?()
+        value -> truthy?(value)
+      end
     else
       false
     end
@@ -341,7 +462,10 @@ defmodule Tuist.Environment do
 
   def s3_bucket_as_host(secrets \\ secrets()) do
     if dev_use_remote_storage?() do
-      [:s3, :bucket_as_host] |> get(secrets) |> truthy?()
+      case System.get_env("TUIST_S3_BUCKET_AS_HOST") do
+        nil -> [:s3, :bucket_as_host] |> get(secrets) |> truthy?()
+        value -> truthy?(value)
+      end
     else
       false
     end
@@ -420,33 +544,48 @@ defmodule Tuist.Environment do
   end
 
   def github_token_update_package_releases(secrets \\ secrets()) do
-    get([:github, :token, :update_package_releases], secrets)
+    System.get_env("TUIST_GITHUB_TOKEN_UPDATE_PACKAGE_RELEASES") ||
+      get([:github, :token, :update_package_releases], secrets)
+  end
+
+  def github_token_update_packages(secrets \\ secrets()) do
+    System.get_env("TUIST_GITHUB_TOKEN_UPDATE_PACKAGES") ||
+      get([:github, :token, :update_packages], secrets)
   end
 
   def github_app_name(secrets \\ secrets()) do
-    get([:github, :app_name], secrets)
+    System.get_env("TUIST_GITHUB_APP_NAME") || get([:github, :app_name], secrets)
+  end
+
+  def github_app_id(secrets \\ secrets()) do
+    System.get_env("TUIST_GITHUB_APP_ID") || get([:github, :app_id], secrets)
   end
 
   def github_app_client_id(secrets \\ secrets()) do
-    get([:github, :app_client_id], secrets) || get([:github, :oauth_id], secrets)
+    System.get_env("TUIST_GITHUB_APP_CLIENT_ID") ||
+      get([:github, :app_client_id], secrets) || get([:github, :oauth_id], secrets)
   end
 
   def github_app_client_secret(secrets \\ secrets()) do
-    get([:github, :app_client_secret], secrets) || get([:github, :oauth_secret], secrets)
+    System.get_env("TUIST_GITHUB_APP_CLIENT_SECRET") ||
+      get([:github, :app_client_secret], secrets) || get([:github, :oauth_secret], secrets)
   end
 
   def github_app_private_key(secrets \\ secrets()) do
-    base_64_key = get([:github, :app_private_key_base64], secrets)
+    base_64_key =
+      System.get_env("TUIST_GITHUB_APP_PRIVATE_KEY_BASE64") ||
+        get([:github, :app_private_key_base64], secrets)
 
-    if is_nil(base_64_key) do
-      get([:github, :app_private_key], secrets)
-    else
-      Base.decode64!(base_64_key)
+    cond do
+      is_binary(base_64_key) -> Base.decode64!(base_64_key)
+      env_key = System.get_env("TUIST_GITHUB_APP_PRIVATE_KEY") -> env_key
+      true -> get([:github, :app_private_key], secrets)
     end
   end
 
   def github_app_webhook_secret(secrets \\ secrets()) do
-    get([:github, :app_webhook_secret], secrets)
+    System.get_env("TUIST_GITHUB_APP_WEBHOOK_SECRET") ||
+      get([:github, :app_webhook_secret], secrets)
   end
 
   def github_oauth_configured?(secrets \\ secrets()) do
@@ -607,12 +746,25 @@ defmodule Tuist.Environment do
     end
   end
 
-  def xcode_processor_url(secrets \\ secrets()) do
-    get([:xcode_processor, :url], secrets)
+  @doc """
+  Whether the in-cluster Linux server pod should drop `:process_xcresult`
+  from its Oban queue list because dedicated macOS xcresult-processor pods
+  are running.
+
+  The chart sets this whenever `xcresultProcessor.enabled: true`. Without
+  it, the server's local Oban worker would race the dedicated processors
+  on SKIP LOCKED — and crash on `xcresulttool` not being available since
+  Linux pods don't ship the macOS-only NIF.
+  """
+  def delegate_process_xcresult? do
+    truthy?(System.get_env("TUIST_DELEGATE_PROCESS_XCRESULT", "0"))
   end
 
-  def xcode_processor_webhook_secret(secrets \\ secrets()) do
-    get([:xcode_processor, :webhook_secret], secrets)
+  def process_xcresult_queue_concurrency do
+    case System.get_env("TUIST_PROCESS_XCRESULT_QUEUE_CONCURRENCY") do
+      value when is_binary(value) and value != "" -> String.to_integer(value)
+      _ -> if xcresult_processor_mode?(), do: 4, else: 2
+    end
   end
 
   def clickhouse_flush_interval_ms(secrets \\ secrets()) do

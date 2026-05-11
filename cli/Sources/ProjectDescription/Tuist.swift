@@ -28,18 +28,39 @@
 public typealias Config = Tuist
 
 public struct Tuist: Codable, Equatable, Sendable {
+    /// Options for configuring network behavior.
+    public struct Network: Codable, Equatable, Sendable {
+        /// When `true` (default), Tuist automatically uses the proxy defined by
+        /// `HTTPS_PROXY`/`HTTP_PROXY` when present in the environment.
+        public let proxy: Bool
+
+        /// Creates network options.
+        /// - Parameter proxy: Whether Tuist should use the proxy defined in the environment. Defaults to `true`.
+        public static func network(proxy: Bool = true) -> Self {
+            Network(proxy: proxy)
+        }
+    }
+
     /// Options for configuring the Xcode Cache behavior.
-    public struct Cache: Codable, Equatable, Sendable {
+    public struct XcodeCache: Codable, Equatable, Sendable {
         /// When `true` (default), the local proxy uploads artifacts to the remote cache.
         /// Set to `false` for read-only mode (downloads only, no uploads).
         public let upload: Bool
 
-        /// Creates cache options.
+        /// Creates Xcode Cache options.
         /// - Parameter upload: Whether to upload artifacts to the remote cache. Defaults to `true`.
+        public static func xcodeCache(upload: Bool = true) -> Self {
+            XcodeCache(upload: upload)
+        }
+
+        @available(*, deprecated, renamed: "xcodeCache(upload:)")
         public static func cache(upload: Bool = true) -> Self {
-            Cache(upload: upload)
+            XcodeCache(upload: upload)
         }
     }
+
+    @available(*, deprecated, renamed: "XcodeCache")
+    public typealias Cache = XcodeCache
 
     /// Configures the project Tuist will interact with.
     /// When no project is provided, Tuist defaults to the workspace or project in the current directory.
@@ -51,8 +72,11 @@ public struct Tuist: Codable, Equatable, Sendable {
     /// The options to use when running `tuist inspect`.
     public let inspectOptions: InspectOptions
 
+    /// The network configuration.
+    public let network: Network
+
     /// The Xcode Cache configuration.
-    public let cache: Cache
+    public let xcodeCache: XcodeCache
 
     /// The base URL that points to the Tuist server.
     public let url: String
@@ -75,6 +99,7 @@ public struct Tuist: Codable, Equatable, Sendable {
         cloud: Cloud? = nil,
         fullHandle: String? = nil,
         url: String = "https://tuist.dev",
+        network: Network = .network(),
         swiftVersion _: Version? = nil,
         plugins: [PluginLocation] = [],
         generationOptions: GenerationOptions = .options(),
@@ -96,7 +121,8 @@ public struct Tuist: Codable, Equatable, Sendable {
         )
         self.fullHandle = fullHandle
         self.inspectOptions = inspectOptions
-        cache = .cache()
+        self.network = network
+        xcodeCache = .xcodeCache()
         self.url = url
         dumpIfNeeded(self)
     }
@@ -104,15 +130,36 @@ public struct Tuist: Codable, Equatable, Sendable {
     public init(
         fullHandle: String? = nil,
         inspectOptions: InspectOptions = .options(),
-        cache: Cache = .cache(),
+        xcodeCache: XcodeCache = .xcodeCache(),
         url: String = "https://tuist.dev",
+        network: Network = .network(),
         project: TuistProject
     ) {
         self.project = project
         self.fullHandle = fullHandle
         self.inspectOptions = inspectOptions
-        self.cache = cache
+        self.network = network
+        self.xcodeCache = xcodeCache
         self.url = url
         dumpIfNeeded(self)
+    }
+
+    @available(*, deprecated, renamed: "init(fullHandle:inspectOptions:xcodeCache:url:network:project:)")
+    public init(
+        fullHandle: String? = nil,
+        inspectOptions: InspectOptions = .options(),
+        cache: XcodeCache,
+        url: String = "https://tuist.dev",
+        network: Network = .network(),
+        project: TuistProject
+    ) {
+        self.init(
+            fullHandle: fullHandle,
+            inspectOptions: inspectOptions,
+            xcodeCache: cache,
+            url: url,
+            network: network,
+            project: project
+        )
     }
 }

@@ -5,7 +5,7 @@ use std::{
 
 use reqwest::Client;
 use tokio::{
-    sync::{Mutex, Notify},
+    sync::{Mutex, Notify, Semaphore},
     time::{Duration, Instant},
 };
 
@@ -35,6 +35,7 @@ pub struct AppState {
     pub client: Client,
     pub notify: Notify,
     pub readiness: Mutex<ReadinessState>,
+    pub bootstrap_semaphore: Arc<Semaphore>,
 }
 
 pub type SharedState = Arc<AppState>;

@@ -5,9 +5,9 @@
 # public per Grafana Cloud stack so they live in values, not in 1Password.
 
 # ExternalSecret wiring. Assumes a ClusterSecretStore named `onepassword`
-# has already been installed on the cluster — the Tuist chart's bootstrap
-# (see k8s/syself-onboarding.md §5) puts that in place before this chart
-# is ever installed.
+# has already been installed on the cluster — the workload-cluster
+# bootstrap (see k8s/onboarding.md §4) puts that in place before this
+# chart is ever installed.
 externalSecrets:
   enabled: true
   refreshInterval: "1h"
@@ -131,12 +131,28 @@ k8s-monitoring:
     collector: alloy-logs
 
   # Picks up any Pod/Service annotated with prometheus.io/scrape=true.
-  # The Tuist server Deployment already sets these (prometheus.io/scrape,
-  # prometheus.io/port=9091), so server app metrics flow through without
-  # any static scrape-target config in this chart.
+  # Upstream defaults to the k8s.grafana.com/* annotation namespace; we
+  # override to prometheus.io/* so the same annotations work for both
+  # this chart and the embedded Prometheus that self-hosters opt into
+  # via observability.enabled in the main Tuist chart.
+  #
+  # metricsPortName narrows the discovery output to a single target per
+  # pod when the pod declares more than one container port. Without it,
+  # Kubernetes pod-role discovery emits one target per declared port
+  # (e.g. server pods have http + metrics + epmd), and even though the
+  # metricsPortNumber rewrite collapses them all to :9091, that's still
+  # extra work the relabel pipeline has to do per scrape interval.
+  # Pods with a single port (or no named port) ignore the keepequal
+  # filter, so this is safe for the cache pod too.
   annotationAutodiscovery:
     enabled: true
     collector: alloy-metrics
+    annotations:
+      scrape: "prometheus.io/scrape"
+      metricsPortName: "prometheus.io/port-name"
+      metricsPortNumber: "prometheus.io/port"
+      metricsPath: "prometheus.io/path"
+      metricsScheme: "prometheus.io/scheme"
 
   # OTLP gRPC receiver on :4317 for the managed Tuist server's span
   # exports. Preserves the contract the server expects today (only the

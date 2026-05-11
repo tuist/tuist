@@ -2,7 +2,7 @@
   display: inline-flex;
   justify-content: center;
   align-items: center;
-  border-radius: var(--noora-radius-small);
+  border-radius: var(--noora-radius-2);
   padding: var(--noora-spacing-1) var(--noora-spacing-4);
 
   &[data-disabled] {
@@ -209,7 +209,7 @@
   align-items: center;
   gap: var(--noora-spacing-2);
   box-shadow: var(--noora-border-light-default);
-  border-radius: var(--noora-radius-medium);
+  border-radius: var(--noora-radius-3);
   background: var(--noora-surface-background-primary);
   padding: var(--noora-spacing-2) var(--noora-spacing-4) var(--noora-spacing-2)
     var(--noora-spacing-2);

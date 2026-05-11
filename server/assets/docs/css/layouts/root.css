@@ -90,7 +90,7 @@
 
   /* Compact tab_menu_vertical inside sidebar */
   & #docs-sidebar .noora-tab-menu-vertical {
-    border-radius: var(--noora-radius-medium);
+    border-radius: var(--noora-radius-3);
     padding: var(--noora-spacing-3) var(--noora-spacing-4);
 
     & [data-part="label"] {

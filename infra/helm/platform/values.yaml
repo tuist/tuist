@@ -9,7 +9,7 @@
 #     --set cloudflare.email=ops@tuist.dev
 #
 # The Cloudflare API token is expected in a pre-existing Secret in the platform
-# namespace (see infra/k8s/syself-onboarding.md for the bootstrap commands).
+# namespace (see infra/k8s/onboarding.md for the bootstrap commands).
 
 # Cloudflare wiring shared by cert-manager (DNS-01 ACME) and external-dns.
 cloudflare:
@@ -65,7 +65,8 @@ external-dns:
     - ingress
   txtOwnerId: tuist-platform
   # Limit which records external-dns will touch; be explicit for prod safety.
-  domainFilters: []
+  domainFilters:
+    - tuist.dev
   policy: sync
   cloudflare:
     # Reference the Cloudflare API token Secret created out-of-band. The

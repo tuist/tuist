@@ -11,6 +11,8 @@
 MCP makes LLM-powered applications such as [Claude](https://claude.ai/), [Claude Code](https://docs.anthropic.com/en/docs/claude-code), and editors like [Zed](https://zed.dev), [Cursor](https://www.cursor.com), or [VS Code](https://code.visualstudio.com) interoperable with external services and data sources.
 
 Tuist hosts a server-side MCP endpoint at `https://tuist.dev/mcp`. By connecting your MCP client to it, AI agents can access your Tuist project data, including test insights, flaky test analysis, and more.
+Most MCP tools are read-only and scoped to authenticated Tuist project data. Account setup tools can create organizations, create projects, and add existing users to organizations when the authenticated user has the required permissions.
+The account setup tools require user authentication. They are not available to project tokens or account tokens.
 
 ## MCP vs Skills
 
@@ -114,6 +116,9 @@ The following tools are available through the Tuist MCP server:
 
 | Tool | Description | Required parameters |
 |------|-------------|---------------------|
+| `create_organization` | Create a Tuist organization for the authenticated user. | `handle` |
+| `create_project` | Create a Tuist project under an account the authenticated user can access. | `account_handle`, `project_handle` |
+| `add_organization_member` | Add an existing Tuist user to an organization. | `organization_handle`, `email` |
 | `list_projects` | List all projects accessible to the authenticated user. | None |
 
 #### Xcode builds
@@ -184,5 +189,34 @@ The following tools are available through the Tuist MCP server:
 | `compare_test_case` | Guides you through comparing a test case's behavior across two branches or time periods. |
 | `compare_generations` | Guides you through comparing two generation runs to identify performance regressions and module cache changes. |
 | `compare_cache_runs` | Guides you through comparing two cache runs to identify cache effectiveness changes and target-level regressions. |
+| `integrate_gradle_project` | Guides you through integrating Tuist into an existing Gradle project. Supports remote build cache, build insights, test insights, flaky test detection and quarantine, and test sharding. |
+| `integrate_xcode_project` | Guides you through integrating Tuist into an existing Xcode project. Supports Xcode cache, build insights, test insights, and test sharding. |
 
-All prompts accept `account_handle` and `project_handle` to scope the investigation to a specific project. The comparison prompts also accept `base` and `head` arguments to specify the two items to compare (by ID, dashboard URL, or branch name).
+All prompts accept `account_handle` and `project_handle` to scope the investigation to a specific project. The comparison prompts also accept `base` and `head` arguments to specify the two items to compare (by ID, dashboard URL, or branch name). `integrate_gradle_project` also accepts `features`, a comma-separated list of Gradle integrations to apply: `remote_cache`, `build_insights`, `test_insights`, `flaky_tests`, and `test_sharding`. `integrate_xcode_project` accepts `features` with `xcode_cache`, `build_insights`, `test_insights`, and `test_sharding`.
+
+#### Gradle integration prompt features
+
+The `integrate_gradle_project` prompt documents every Gradle integration that the Tuist Gradle plugin supports:
+
+| Feature | What the agent configures |
+|---------|---------------------------|
+| `remote_cache` | Enables Gradle's build cache, configures Tuist remote cache upload policy, and recommends CI-only uploads with local read-only usage. |
+| `build_insights` | Applies the Tuist Gradle plugin and configures build analytics upload behavior when needed. |
+| `test_insights` | Applies the Tuist Gradle plugin so Gradle `Test` task results are uploaded automatically. |
+| `flaky_tests` | Guides setup for flaky test detection, optional Gradle Test Retry plugin usage, and test quarantine configuration. |
+| `test_sharding` | Adds the CI workflow for `tuistPrepareTestShards`, shard matrix generation, and `TUIST_SHARD_INDEX` based test execution. |
+
+When `features` is omitted, the prompt asks the agent to clarify which integrations the user wants or infer the smallest useful set from the request before editing the Gradle project.
+
+#### Xcode integration prompt features
+
+The `integrate_xcode_project` prompt documents every Xcode integration that Tuist supports:
+
+| Feature | What the agent configures |
+|---------|---------------------------|
+| `xcode_cache` | Configures `tuist setup cache`, generated-project cache settings, manual Xcode cache build settings, and CI-only cache upload policy. |
+| `build_insights` | Configures `tuist inspect build`, `tuist xcodebuild`, `-resultBundlePath`, and optional machine metrics through `tuist setup insights`. |
+| `test_insights` | Configures `tuist inspect test`, scheme test post-actions, and result bundle generation for CI test runs. |
+| `test_sharding` | Adds the Xcode or generated-project shard planning and shard execution workflow with `TUIST_SHARD_INDEX`. |
+
+When `features` is omitted, the prompt asks the agent to clarify which integrations the user wants or infer the smallest useful set from the request before editing the Xcode project.

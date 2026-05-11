@@ -6,27 +6,27 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
 
-#: lib/tuist_web/live/integrations_live.html.heex:50
+#: lib/tuist_web/live/integrations_live.html.heex:90
 #, elixir-autogen, elixir-format
 msgid "Add new project connection"
 msgstr "新しいプロジェクト接続を追加"
 
-#: lib/tuist_web/live/integrations_live.html.heex:113
+#: lib/tuist_web/live/integrations_live.html.heex:153
 #, elixir-autogen, elixir-format
 msgid "Cancel"
 msgstr "キャンセル"
 
-#: lib/tuist_web/live/integrations_live.html.heex:65
+#: lib/tuist_web/live/integrations_live.html.heex:105
 #, elixir-autogen, elixir-format
 msgid "Choose Tuist project"
 msgstr "Tuistプロジェクトを選択"
 
-#: lib/tuist_web/live/integrations_live.html.heex:92
+#: lib/tuist_web/live/integrations_live.html.heex:132
 #, elixir-autogen, elixir-format
 msgid "Choose a repository"
 msgstr "リポジトリを選択"
 
-#: lib/tuist_web/live/integrations_live.html.heex:43
+#: lib/tuist_web/live/integrations_live.html.heex:83
 #, elixir-autogen, elixir-format
 msgid "Choose repository to connect to"
 msgstr "接続するリポジトリを選択"
@@ -34,19 +34,19 @@ msgstr "接続するリポジトリを選択"
 #: lib/tuist_web/live/integrations_live.html.heex:9
 #, elixir-autogen, elixir-format
 msgid "Connect any of your GitHub repositories to a project"
-msgstr "GitHubの任意のリポジトリをプロジェクトに接続"
+msgstr "あなたのGitHubリポジトリを任意のプロジェクトに接続"
 
-#: lib/tuist_web/live/integrations_live.ex:163
+#: lib/tuist_web/live/integrations_live.ex:201
 #, elixir-autogen, elixir-format
 msgid "Connected %{time_ago}"
-msgstr "%{time_ago} に接続済み"
+msgstr "%{time_ago} に接続"
 
-#: lib/tuist_web/live/integrations_live.ex:165
+#: lib/tuist_web/live/integrations_live.ex:203
 #, elixir-autogen, elixir-format
 msgid "Connected %{time_ago} by %{name}"
-msgstr "%{time_ago} に %{name} によって接続済み"
+msgstr "%{time_ago} に %{name} が接続"
 
-#: lib/tuist_web/live/integrations_live.html.heex:120
+#: lib/tuist_web/live/integrations_live.html.heex:160
 #, elixir-autogen, elixir-format
 msgid "Create Connection"
 msgstr "接続を作成"
@@ -56,58 +56,73 @@ msgstr "接続を作成"
 msgid "GitHub"
 msgstr "GitHub"
 
-#: lib/tuist_web/live/integrations_live.html.heex:19
+#: lib/tuist_web/live/integrations_live.html.heex:56
 #, elixir-autogen, elixir-format
 msgid "Install GitHub App"
-msgstr "GitHubアプリをインストール"
+msgstr "GitHub Appをインストール"
 
-#: lib/tuist_web/live/integrations_live.ex:33
+#: lib/tuist_web/live/integrations_live.ex:37
 #: lib/tuist_web/live/integrations_live.html.heex:2
 #, elixir-autogen, elixir-format
 msgid "Integrations"
-msgstr "連携"
+msgstr "統合"
 
-#: lib/tuist_web/live/integrations_live.html.heex:159
+#: lib/tuist_web/live/integrations_live.html.heex:199
 #, elixir-autogen, elixir-format
 msgid "Manage"
 msgstr "管理"
 
-#: lib/tuist_web/live/integrations_live.html.heex:27
+#: lib/tuist_web/live/integrations_live.html.heex:67
 #, elixir-autogen, elixir-format
 msgid "Manage integration"
-msgstr "連携を管理"
+msgstr "統合を管理"
 
-#: lib/tuist_web/live/integrations_live.html.heex:162
+#: lib/tuist_web/live/integrations_live.html.heex:202
 #, elixir-autogen, elixir-format
 msgid "Remove connection"
-msgstr "接続を解除"
+msgstr "接続を削除"
 
-#: lib/tuist_web/live/integrations_live.ex:16
+#: lib/tuist_web/live/integrations_live.ex:17
 #, elixir-autogen, elixir-format
 msgid "You are not authorized to perform this action."
 msgstr "この操作を実行する権限がありません。"
 
-#: lib/tuist_web/live/integrations_live.html.heex:38
+#: lib/tuist_web/live/integrations_live.html.heex:78
 #, elixir-autogen, elixir-format
 msgid "Your access to repositories depends on your GitHub and Tuist integration setup."
-msgstr "リポジトリへのアクセスは、GitHubとTuistの連携設定によって決まります。"
+msgstr "リポジトリへのアクセスはGitHubとTuistの統合設定に依存します。"
 
-#: lib/tuist_web/live/integrations_live.html.heex:190
+#: lib/tuist_web/live/integrations_live.html.heex:230
 #, elixir-autogen, elixir-format
 msgid "Connect Slack"
 msgstr "Slackを接続"
 
-#: lib/tuist_web/live/integrations_live.html.heex:180
+#: lib/tuist_web/live/integrations_live.html.heex:220
 #, elixir-autogen, elixir-format
 msgid "Connect Slack to receive project analytics reports"
-msgstr "Slackを接続してプロジェクトの分析レポートを受け取る"
+msgstr "プロジェクト分析レポートを受け取るためにSlackを接続"
 
-#: lib/tuist_web/live/integrations_live.html.heex:197
+#: lib/tuist_web/live/integrations_live.html.heex:237
 #, elixir-autogen, elixir-format
 msgid "Disconnect from %{team_name}"
 msgstr "%{team_name} から切断"
 
-#: lib/tuist_web/live/integrations_live.html.heex:177
+#: lib/tuist_web/live/integrations_live.html.heex:217
 #, elixir-autogen, elixir-format
 msgid "Slack"
 msgstr "Slack"
+
+#: lib/tuist_web/live/integrations_live.ex:222
+#, elixir-autogen, elixir-format
+msgid "Invalid URL"
+msgstr "無効なURLです"
+
+#: lib/tuist_web/live/integrations_live.html.heex:46
+#, elixir-autogen, elixir-format
+msgid "Server URL"
+msgstr "サーバーURL"
+
+#: lib/tuist_web/live/integrations_live.html.heex:29
+#, elixir-autogen, elixir-format
+msgid "Enterprise server"
+msgstr "エンタープライズサーバー"

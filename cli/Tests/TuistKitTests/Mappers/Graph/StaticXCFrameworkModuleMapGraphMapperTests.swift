@@ -236,6 +236,7 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                         settings: .test(
                             base: [
                                 "FRAMEWORK_SEARCH_PATHS[sdk=iphoneos*]": [
+                                    "$(inherited)",
                                     "\"$(SRCROOT)/../GoogleMaps.xcframework/ios-arm64\"",
                                 ],
                             ]
@@ -350,9 +351,11 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                         settings: .test(
                             base: [
                                 "FRAMEWORK_SEARCH_PATHS[sdk=iphoneos*]": [
+                                    "$(inherited)",
                                     "\"$(SRCROOT)/../GoogleMaps.xcframework/ios-arm64\"",
                                 ],
                                 "FRAMEWORK_SEARCH_PATHS[sdk=iphonesimulator*]": [
+                                    "$(inherited)",
                                     "\"$(SRCROOT)/../GoogleMaps.xcframework/ios-arm64-simulator\"",
                                 ],
                             ]
@@ -867,6 +870,7 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                         settings: .test(
                             base: [
                                 "FRAMEWORK_SEARCH_PATHS[sdk=iphoneos*]": [
+                                    "$(inherited)",
                                     "\"$(SRCROOT)/../BuiltFrameworks/GoogleMaps.xcframework/ios-arm64\"",
                                 ],
                             ]
@@ -1372,6 +1376,7 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                         settings: .test(
                             base: [
                                 "FRAMEWORK_SEARCH_PATHS[sdk=iphoneos*]": [
+                                    "$(inherited)",
                                     "\"$(SRCROOT)/../GoogleMaps.xcframework/ios-arm64\"",
                                 ],
                             ]

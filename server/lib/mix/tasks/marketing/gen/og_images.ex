@@ -12,7 +12,7 @@ defmodule Mix.Tasks.Marketing.Gen.OgImages do
   alias Tuist.Marketing.OpenGraph
 
   # Available locales for OG image generation — must match Localization.all_locales()
-  @locales ["en", "es", "ja", "ko", "ru", "yue_Hant", "zh_Hans", "zh_Hant"]
+  @locales ["en", "es", "ja", "ka", "ko", "ru", "yue_Hant", "zh_Hans", "zh_Hant"]
 
   @pool Tuist.Marketing.OgImagePool
 
