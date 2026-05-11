@@ -56,7 +56,12 @@ if [ -z "${SA_TOKEN}" ]; then
   exit 1
 fi
 
-interval=5
+# 2 s polling interval is the practical floor for "feels live" to
+# a customer staring at their CI dashboard without burning the
+# dispatch endpoint. Average pickup latency is ~1 s after a
+# webhook lands; server-side load is still trivial at this rate
+# (a few QPS per warm Pod, multiplied by host count).
+interval=2
 attempt=0
 
 while true; do
@@ -109,13 +114,13 @@ while true; do
       exit $?
       ;;
     204)
-      # SharedWarm pool: server has nothing for us yet. Keep
-      # polling — the VM is booted and registered with the
-      # dispatch endpoint via its SA token; when a customer's
-      # Burst arrives, our next poll will return 200 with the
-      # JIT bound to that customer. Quiet log every Nth tick so
-      # the file doesn't balloon while idle.
-      [ $((attempt % 12)) -eq 0 ] && echo "$(date -u +%FT%TZ) dispatch-poll: warm standby (attempt=${attempt})"
+      # Server has nothing for us yet. Keep polling — the VM is
+      # booted and registered with the dispatch endpoint via its
+      # SA token; when a customer workflow_job arrives, our next
+      # poll will return 200 with the JIT bound to that customer.
+      # Quiet log every 30th tick (~once per minute at 2 s
+      # interval) so the file doesn't balloon while idle.
+      [ $((attempt % 30)) -eq 0 ] && echo "$(date -u +%FT%TZ) dispatch-poll: warm standby (attempt=${attempt})"
       sleep "${interval}"
       ;;
     401|403)

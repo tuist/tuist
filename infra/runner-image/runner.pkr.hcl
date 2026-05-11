@@ -17,7 +17,7 @@ packer {
 #     /etc/tuist.env (staged by tart-kubelet via the env-mount
 #     flow at /Volumes/My Shared Files/env/tuist.env, then
 #     re-emitted as /etc/tuist.env by inject-env.sh on first boot).
-#  3. Polls the dispatch URL on a 5 s loop. While the Pod is idle
+#  3. Polls the dispatch URL on a 2 s loop. While the Pod is idle
 #     the server returns 204 — the script sleeps and retries.
 #  4. Once the server returns 200 with `encoded_jit_config`, the
 #     script writes the JIT to a temp file and execs
