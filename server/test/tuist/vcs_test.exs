@@ -3526,6 +3526,24 @@ defmodule Tuist.VCSTest do
       assert installation.client_url == "https://github.example.com"
     end
 
+    test "strips a path component from a GHES client_url" do
+      # Given
+      account = AccountsFixtures.account_fixture()
+
+      # When
+      {:ok, installation} =
+        Repo.insert(
+          GitHubAppInstallation.changeset(%GitHubAppInstallation{}, %{
+            account_id: account.id,
+            installation_id: "ghes-id",
+            client_url: "https://github.bumble.dev/ios/bumble"
+          })
+        )
+
+      # Then
+      assert installation.client_url == "https://github.bumble.dev"
+    end
+
     test "rejects invalid client_url values" do
       # Given
       account = AccountsFixtures.account_fixture()
@@ -3571,6 +3589,71 @@ defmodule Tuist.VCSTest do
 
     test "defaults to github when no provider is given" do
       assert VCS.default_client_url() == "https://github.com"
+    end
+  end
+
+  describe "validate_client_url/1" do
+    test "returns a clean https origin unchanged" do
+      assert VCS.validate_client_url("https://github.example.com") ==
+               {:ok, "https://github.example.com"}
+    end
+
+    test "trims surrounding whitespace and trailing slashes" do
+      assert VCS.validate_client_url("  https://github.example.com/  ") ==
+               {:ok, "https://github.example.com"}
+    end
+
+    test "strips a path component so the manifest action stays on /settings/apps/new" do
+      # Without this, a user pasting their org/repo URL produces a 404 on
+      # GHES because the manifest controller appends `/settings/apps/new`
+      # to the client_url verbatim. See:
+      # https://github.bumble.dev/ios/bumble/settings/apps/new -> 404
+      assert VCS.validate_client_url("https://github.bumble.dev/ios/bumble") ==
+               {:ok, "https://github.bumble.dev"}
+    end
+
+    test "strips a query string" do
+      assert VCS.validate_client_url("https://github.example.com/?ref=share") ==
+               {:ok, "https://github.example.com"}
+    end
+
+    test "strips a fragment" do
+      assert VCS.validate_client_url("https://github.example.com/#anchor") ==
+               {:ok, "https://github.example.com"}
+    end
+
+    test "preserves a non-default port" do
+      assert VCS.validate_client_url("https://github.example.com:8443/foo") ==
+               {:ok, "https://github.example.com:8443"}
+    end
+
+    test "omits the default port for https" do
+      assert VCS.validate_client_url("https://github.example.com:443/foo") ==
+               {:ok, "https://github.example.com"}
+    end
+
+    test "rejects a string without a scheme/host" do
+      assert VCS.validate_client_url("not-a-url") == {:error, :invalid_url}
+    end
+
+    test "rejects the empty string" do
+      assert VCS.validate_client_url("") == {:error, :invalid_url}
+    end
+
+    test "rejects a non-string input" do
+      assert VCS.validate_client_url(nil) == {:error, :invalid_url}
+    end
+
+    test "rejects http outside dev/test environments" do
+      stub(Environment, :env, fn -> :prod end)
+      assert VCS.validate_client_url("http://github.example.com") == {:error, :insecure_scheme}
+    end
+
+    test "accepts http in dev/test for local fixtures" do
+      stub(Environment, :env, fn -> :test end)
+
+      assert VCS.validate_client_url("http://localhost:4002/some/path") ==
+               {:ok, "http://localhost:4002"}
     end
   end
 

@@ -137,7 +137,10 @@ defmodule Tuist.VCS.GitHubAppInstallation do
         put_change(changeset, :client_url, @default_client_url)
 
       url when is_binary(url) ->
-        put_change(changeset, :client_url, url |> String.trim() |> String.trim_trailing("/"))
+        case VCS.validate_client_url(url) do
+          {:ok, normalized} -> put_change(changeset, :client_url, normalized)
+          {:error, _} -> changeset
+        end
 
       _ ->
         changeset

@@ -113,13 +113,18 @@ defmodule Tuist.VCS do
   Validates a user-supplied `client_url` for a forge instance. Returns
   `{:ok, normalized_url}` on success or `{:error, reason}` otherwise.
 
-  This is a *shape* check — it verifies the URL has an https scheme and a
-  non-empty host, and trims trailing slashes. The scheme is restricted to
-  https because the manifest exchange transports a fresh GitHub App's
-  private key, client secret, and webhook secret; allowing http would
-  expose those credentials in transit. http:// is permitted only for
-  the dev/test envs so local fixtures (e.g. `http://localhost:4002`)
-  keep working.
+  The normalized URL is the bare origin (`scheme://host[:port]`) — any
+  path, query, or fragment in the input is dropped. Downstream code
+  (the GitHub App manifest flow, the API base URL builder) appends
+  fixed suffixes like `/settings/apps/new` or `/api/v3`, so letting a
+  user-supplied path through produces a 404 on GHES. The default port
+  for the scheme is omitted so the output stays canonical.
+
+  The scheme is restricted to https because the manifest exchange
+  transports a fresh GitHub App's private key, client secret, and
+  webhook secret; allowing http would expose those credentials in
+  transit. http:// is permitted only for the dev/test envs so local
+  fixtures (e.g. `http://localhost:4002`) keep working.
 
   The validator deliberately does not perform DNS resolution: SSRF
   protection happens at request time via `Tuist.OAuth2.SSRFGuard.pin/1`
@@ -127,15 +132,13 @@ defmodule Tuist.VCS do
   bypass it.
   """
   def validate_client_url(url) when is_binary(url) do
-    trimmed = url |> String.trim() |> String.trim_trailing("/")
+    case URI.parse(String.trim(url)) do
+      %URI{scheme: "https", host: host} = uri when is_binary(host) and host != "" ->
+        {:ok, build_origin(uri)}
 
-    case URI.parse(trimmed) do
-      %URI{scheme: "https", host: host} when is_binary(host) and host != "" ->
-        {:ok, trimmed}
-
-      %URI{scheme: "http", host: host} when is_binary(host) and host != "" ->
+      %URI{scheme: "http", host: host} = uri when is_binary(host) and host != "" ->
         if Environment.env() in [:dev, :test] do
-          {:ok, trimmed}
+          {:ok, build_origin(uri)}
         else
           {:error, :insecure_scheme}
         end
@@ -146,6 +149,14 @@ defmodule Tuist.VCS do
   end
 
   def validate_client_url(_), do: {:error, :invalid_url}
+
+  defp build_origin(%URI{scheme: scheme, host: host, port: port}) do
+    if is_integer(port) and port != URI.default_port(scheme) do
+      "#{scheme}://#{host}:#{port}"
+    else
+      "#{scheme}://#{host}"
+    end
+  end
 
   @doc """
   Returns the GitHub App credentials Tuist should use to act on behalf of
@@ -1437,7 +1448,12 @@ defmodule Tuist.VCS do
   defp normalize_client_url(nil), do: default_client_url()
   defp normalize_client_url(""), do: default_client_url()
 
-  defp normalize_client_url(url) when is_binary(url), do: url |> String.trim() |> String.trim_trailing("/")
+  defp normalize_client_url(url) when is_binary(url) do
+    case validate_client_url(url) do
+      {:ok, normalized} -> normalized
+      {:error, _} -> url |> String.trim() |> String.trim_trailing("/")
+    end
+  end
 
   # GitHub State Token functions
 
