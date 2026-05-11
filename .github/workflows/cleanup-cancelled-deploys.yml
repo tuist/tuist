@@ -1,0 +1,63 @@
+name: Cleanup cancelled deploys
+
+# When a job using `environment:` is cancelled, the GitHub Actions runner
+# auto-posts a deployment_status of `failure` once the job finalizes. The
+# GitHub Slack app then surfaces that as a misleading "Failed" deployment
+# card even though the run was cancelled, not failed.
+#
+# We can't pre-empt the runner from inside the cancelled job (its
+# auto-status fires after `if: cancelled()` cleanup steps). So we listen
+# for the workflow_run finishing as `cancelled` and flip any
+# deployment whose latest status is `failure` and that was created during
+# this run to `inactive`. The Slack app updates the card in place on
+# transition, removing the false alarm.
+
+on:
+  workflow_run:
+    workflows:
+      - Server Deployment
+      - Server Production Deployment
+    types: [completed]
+
+permissions:
+  deployments: write
+
+jobs:
+  flip-to-inactive:
+    if: ${{ github.event.workflow_run.conclusion == 'cancelled' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Flip auto-failed deployments to inactive
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+          RUN_STARTED_AT: ${{ github.event.workflow_run.run_started_at }}
+        run: |
+          set -euo pipefail
+
+          run_start_epoch=$(date -d "$RUN_STARTED_AT" +%s)
+
+          for env_name in server-k8s-staging server-k8s-canary server-k8s-production; do
+            gh api "/repos/$REPO/deployments?sha=$SHA&environment=$env_name&per_page=20" \
+              --jq '.[] | "\(.id) \(.created_at)"' |
+            while read -r id created; do
+              created_epoch=$(date -d "$created" +%s)
+              # Skip deployments from earlier runs so we never touch a
+              # genuine pre-existing failure.
+              if [ "$created_epoch" -lt "$run_start_epoch" ]; then
+                continue
+              fi
+
+              state=$(gh api "/repos/$REPO/deployments/$id/statuses" --jq '.[0].state // empty')
+              if [ "$state" = "failure" ]; then
+                echo "Flipping deployment $id ($env_name, created $created) to inactive"
+                gh api "/repos/$REPO/deployments/$id/statuses" \
+                  --method POST \
+                  -f state=inactive \
+                  -f description="Workflow run was cancelled, not failed" >/dev/null
+              else
+                echo "Skipping deployment $id ($env_name): state=$state"
+              fi
+            done
+          done
