@@ -95,6 +95,18 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestCaseRunsRecentPerCaseMv do
         # group, so `groupArrayLast(N)` captures the actual last N runs by
         # `ran_at`. Without the setting the aggregation is parallelised and
         # per-group order is undefined.
+        #
+        # `max_bytes_before_external_group_by` caps the in-memory hash
+        # table for the GROUP BY and spills the rest to disk. Production's
+        # `test_case_runs` has hundreds of millions of rows per monthly
+        # partition; the `groupArrayLast(1000)` state per group is up to
+        # ~9 KB, and the aggregator builds per-thread states that
+        # collectively pushed total ClickHouse process memory past its
+        # 18 GiB OvercommitTracker ceiling without the spill threshold.
+        # `max_threads = 4` is the matching half: fewer parallel
+        # aggregators means fewer concurrent partial-state hash tables,
+        # which keeps the worst-case memory bounded even on the largest
+        # partitions.
         IngestRepo.query!(
           """
           INSERT INTO test_case_runs_recent_per_case
@@ -105,7 +117,10 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestCaseRunsRecentPerCaseMv do
           FROM test_case_runs
           WHERE toYYYYMM(inserted_at) = {partition:UInt32} AND test_case_id IS NOT NULL
           GROUP BY project_id, test_case_id
-          SETTINGS optimize_aggregation_in_order = 1
+          SETTINGS
+            optimize_aggregation_in_order = 1,
+            max_threads = 4,
+            max_bytes_before_external_group_by = 6000000000
           """,
           %{partition: String.to_integer(partition)},
           timeout: 1_200_000
