@@ -43,6 +43,9 @@ spec:
       {{- with .Values.macosFleet.machine.hostMemoryMB }}
       hostMemoryMB: {{ . }}
       {{- end }}
+      {{- with .Values.macosFleet.adoptPoolPrefix }}
+      adoptPoolPrefix: {{ . | quote }}
+      {{- end }}
 ---
 apiVersion: cluster.x-k8s.io/v1beta1
 kind: MachineDeployment

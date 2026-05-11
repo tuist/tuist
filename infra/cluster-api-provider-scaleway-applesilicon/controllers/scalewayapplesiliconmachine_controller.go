@@ -4,6 +4,7 @@ package controllers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -228,22 +229,14 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 
 	// Stage 1: ensure the Scaleway server exists.
 	if machine.Status.ServerID == "" {
-		machine.Status.Phase = "Provisioning"
-		r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Provisioning",
-			"Ordering %s Mac mini in zone %s", machine.Spec.Type, machine.Spec.Zone)
-		srv, err := r.ScalewayClient.CreateServer(
-			ctx,
-			machine.Name,
-			machine.Spec.Zone,
-			machine.Spec.Type,
-			machine.Spec.OS,
-		)
+		srv, requeue, err := r.acquireServer(ctx, machine)
 		if err != nil {
-			conditions.MarkFalse(machine, ProvisionedCondition, "ScalewayCreateFailed",
-				clusterv1.ConditionSeverityError, "%v", err)
-			r.Recorder.Eventf(machine, corev1.EventTypeWarning, "ProvisioningFailed",
-				"Scaleway CreateServer: %v", err)
-			return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
+			return ctrl.Result{RequeueAfter: requeue}, nil
+		}
+		if srv == nil {
+			// Adoption path with no available host. Requeue and
+			// keep the operator-visible event/condition state.
+			return ctrl.Result{RequeueAfter: requeue}, nil
 		}
 
 		machine.Status.ServerID = srv.ID
@@ -267,7 +260,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 		}
 		conditions.MarkTrue(machine, ProvisionedCondition)
 		r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Provisioned",
-			"Mac mini %s ordered, IP=%s", srv.ID, srv.IP)
+			"Mac mini %s ready, IP=%s", srv.ID, srv.IP)
 		logger.Info("provisioned Scaleway Mac mini", "id", srv.ID, "ip", srv.IP)
 	}
 
@@ -543,6 +536,74 @@ func recordUpdateFailure(machine *infrav1.ScalewayAppleSiliconMachine, err error
 	recorder.Eventf(machine, corev1.EventTypeWarning, "AgentRollFailed",
 		"tart-kubelet update attempt %d/%d: %v",
 		machine.Status.TartKubeletUpdateAttempts, maxAttempts, err)
+}
+
+// acquireServer either claims a pre-ordered host from the pool
+// (when `Spec.AdoptPoolPrefix` is set) or orders a new one. The
+// adoption path returns (nil, requeue, nil) on
+// `ErrNoAvailableHost` — that's a transient "wait for operator
+// pre-order" state, not a failure; surfaces a `NoAvailableHost`
+// event so the operator sees the queue. On any other error the
+// caller requeues and the condition message carries the detail.
+func (r *ScalewayAppleSiliconMachineReconciler) acquireServer(
+	ctx context.Context,
+	machine *infrav1.ScalewayAppleSiliconMachine,
+) (*scaleway.Server, time.Duration, error) {
+	if machine.Spec.AdoptPoolPrefix != "" {
+		machine.Status.Phase = "Adopting"
+		r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Adopting",
+			"Searching pool %q for an unclaimed %s Mac mini in zone %s",
+			machine.Spec.AdoptPoolPrefix, machine.Spec.Type, machine.Spec.Zone)
+		srv, err := r.ScalewayClient.AdoptByPrefix(
+			ctx,
+			machine.Name,
+			machine.Spec.Zone,
+			machine.Spec.Type,
+			machine.Spec.OS,
+			machine.Spec.AdoptPoolPrefix,
+		)
+		if errors.Is(err, scaleway.ErrNoAvailableHost) {
+			conditions.MarkFalse(machine, ProvisionedCondition, "NoAvailableHost",
+				clusterv1.ConditionSeverityWarning,
+				"no server with prefix %q matching %s/%s/%s in zone %s; pre-order more capacity",
+				machine.Spec.AdoptPoolPrefix, machine.Spec.Type, machine.Spec.OS,
+				"ready", machine.Spec.Zone)
+			r.Recorder.Eventf(machine, corev1.EventTypeWarning, "NoAvailableHost",
+				"No pre-ordered Mac mini matching pool=%q type=%s os=%s zone=%s; waiting for operator to pre-order more capacity",
+				machine.Spec.AdoptPoolPrefix, machine.Spec.Type, machine.Spec.OS, machine.Spec.Zone)
+			return nil, 60 * time.Second, nil
+		}
+		if err != nil {
+			conditions.MarkFalse(machine, ProvisionedCondition, "ScalewayAdoptFailed",
+				clusterv1.ConditionSeverityError, "%v", err)
+			r.Recorder.Eventf(machine, corev1.EventTypeWarning, "ProvisioningFailed",
+				"Scaleway AdoptByPrefix: %v", err)
+			return nil, 30 * time.Second, err
+		}
+		r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Adopted",
+			"Claimed Mac mini %s from pool %q (renamed to %s)",
+			srv.ID, machine.Spec.AdoptPoolPrefix, machine.Name)
+		return srv, 0, nil
+	}
+
+	machine.Status.Phase = "Provisioning"
+	r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Provisioning",
+		"Ordering %s Mac mini in zone %s", machine.Spec.Type, machine.Spec.Zone)
+	srv, err := r.ScalewayClient.CreateServer(
+		ctx,
+		machine.Name,
+		machine.Spec.Zone,
+		machine.Spec.Type,
+		machine.Spec.OS,
+	)
+	if err != nil {
+		conditions.MarkFalse(machine, ProvisionedCondition, "ScalewayCreateFailed",
+			clusterv1.ConditionSeverityError, "%v", err)
+		r.Recorder.Eventf(machine, corev1.EventTypeWarning, "ProvisioningFailed",
+			"Scaleway CreateServer: %v", err)
+		return nil, 60 * time.Second, err
+	}
+	return srv, 0, nil
 }
 
 // nodeBootstrapGrace is how long after BootstrappedCondition flips to

@@ -205,6 +205,91 @@ func (c *Client) findServerByName(ctx context.Context, name, zone string) (*appl
 	}
 }
 
+// ErrNoAvailableHost is returned by AdoptByPrefix when no
+// pre-ordered server in the project carries the configured pool
+// prefix AND matches the requested spec (`type`/`os`/`zone`).
+// Scaleway Mac mini lead times rule out auto-ordering on the hot
+// path, so the controller treats this as a transient state —
+// emit an event and requeue, expecting the operator to pre-order
+// more capacity.
+var ErrNoAvailableHost = errors.New("no available Apple Silicon host in pool")
+
+// AdoptByPrefix claims a pre-ordered server in `zone` whose
+// Scaleway-side name starts with `poolPrefix`, matches
+// (`serverType`, `osName`), and is `Delivered=true` +
+// `Status=ready`. It renames the chosen server to `claimName` via
+// UpdateServer; that rename IS the claim — it both removes the
+// pool prefix (so the host no longer appears available) and
+// makes the host findable on future reconciles via the existing
+// name-based idempotency path (`findServerByName`).
+//
+// The "claim by rename" model relies on the operator's naming
+// convention as the single source of truth for "available":
+//
+//   * Operator pre-orders a Mac mini in the Scaleway console and
+//     names it `<poolPrefix>-<anything>` (e.g. the chart default
+//     `tuist-pool-001`, `tuist-pool-fr-par-1-a`, etc.).
+//   * Controller picks the first one whose `(type, os, status)`
+//     match this Machine and renames it. Two concurrent
+//     reconciles racing for the same host both call UpdateServer
+//     with the same `claimName`; Scaleway returns a name
+//     conflict on the losing call, which we surface and let the
+//     parent reconcile retry — the renamed host is no longer in
+//     the pool prefix on the next ListServers, so the retry
+//     picks a different one (or hits ErrNoAvailableHost).
+//
+// Why a rename and not a Scaleway tag? The Apple Silicon API
+// doesn't expose tags. Naming is the only mutable, queryable
+// signal we have.
+func (c *Client) AdoptByPrefix(ctx context.Context, claimName, zone, serverType, osName, poolPrefix string) (*Server, error) {
+	if poolPrefix == "" {
+		return nil, fmt.Errorf("poolPrefix is required for adoption")
+	}
+
+	page := int32(1)
+	pageSize := uint32(100)
+	for {
+		resp, err := c.API.ListServers(&applesilicon.ListServersRequest{
+			Zone:     scw.Zone(zone),
+			Page:     &page,
+			PageSize: &pageSize,
+		}, scw.WithContext(ctx))
+		if err != nil {
+			return nil, fmt.Errorf("list servers: %w", err)
+		}
+
+		for _, s := range resp.Servers {
+			if !strings.HasPrefix(s.Name, poolPrefix) {
+				continue
+			}
+			if !s.Delivered || s.Status != applesilicon.ServerStatusReady {
+				continue
+			}
+			if s.Type != serverType {
+				continue
+			}
+			if s.Os == nil || s.Os.Name != osName {
+				continue
+			}
+
+			renamed, err := c.API.UpdateServer(&applesilicon.UpdateServerRequest{
+				ServerID: s.ID,
+				Zone:     scw.Zone(zone),
+				Name:     &claimName,
+			}, scw.WithContext(ctx))
+			if err != nil {
+				return nil, fmt.Errorf("claim server %s via rename: %w", s.ID, err)
+			}
+			return scalewayServerToServer(renamed), nil
+		}
+
+		if len(resp.Servers) < int(pageSize) {
+			return nil, ErrNoAvailableHost
+		}
+		page++
+	}
+}
+
 // GetServer fetches the current state of an existing server.
 func (c *Client) GetServer(ctx context.Context, id, zone string) (*Server, error) {
 	srv, err := c.API.GetServer(&applesilicon.GetServerRequest{

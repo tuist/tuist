@@ -62,6 +62,35 @@ type ScalewayAppleSiliconMachineSpec struct {
 	// unset.
 	// +optional
 	HostMemoryMB int `json:"hostMemoryMB,omitempty"`
+
+	// AdoptPoolPrefix switches the controller from `Scaleway CreateServer`
+	// (auto-order) to "claim a pre-ordered host whose Scaleway-side
+	// name starts with this prefix." Recommended for the customer-
+	// runner fleet because Scaleway Mac mini inventory is frequently
+	// out of stock and Apple's 24h licensing floor makes speculative
+	// auto-ordering expensive — pre-ordering days in advance and
+	// letting the controller adopt is the operationally sane path.
+	//
+	// Operator workflow:
+	//
+	//   1. Pre-order Mac minis in the Scaleway console with names
+	//      starting with this prefix (e.g. `tuist-pool-001`,
+	//      `tuist-pool-fr-par-1-a`). The exact suffix doesn't
+	//      matter — only the prefix is matched.
+	//   2. When CAPI creates a ScalewayAppleSiliconMachine, the
+	//      controller picks the first server matching `(Type, Zone,
+	//      OS)` whose name has this prefix, renames it to the
+	//      Machine's name via `UpdateServer`, and adopts it. The
+	//      rename IS the claim: the prefix is gone, so the next
+	//      reconcile won't double-claim.
+	//
+	// When no compatible pre-ordered host is available, reconcile
+	// requeues with a `NoAvailableHost` event. No auto-order
+	// fallback — the operator pre-orders, the controller adopts.
+	//
+	// Empty (default) preserves the legacy auto-order behavior.
+	// +optional
+	AdoptPoolPrefix string `json:"adoptPoolPrefix,omitempty"`
 }
 
 // ScalewayAppleSiliconMachineStatus is the observed state of the Machine.

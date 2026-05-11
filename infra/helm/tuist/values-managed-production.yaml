@@ -197,6 +197,12 @@ macosFleet:
 runnersFleet:
   enabled: false
   hostCount: 5
+  # Pre-ordered pool. Operator orders M2-L hosts in the Scaleway
+  # console with names starting with `tuist-pool-` ahead of
+  # bringing this block live (Mac mini lead times can stretch
+  # several days). The CAPI controller claims them on demand;
+  # there is no auto-order fallback.
+  adoptPoolPrefix: "tuist-pool-"
   networkPolicy:
     enabled: true
     exceptCIDRs:

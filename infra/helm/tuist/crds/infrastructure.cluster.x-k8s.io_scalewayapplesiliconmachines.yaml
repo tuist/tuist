@@ -58,6 +58,18 @@ spec:
             spec:
               description: ScalewayAppleSiliconMachineSpec is the desired state of one Mac mini.
               properties:
+                adoptPoolPrefix:
+                  description: |-
+                    AdoptPoolPrefix switches the controller from Scaleway CreateServer
+                    (auto-order) to "claim a pre-ordered host whose Scaleway-side name
+                    starts with this prefix." Operator pre-orders Mac minis in the
+                    Scaleway console with names beginning with this prefix; the
+                    controller picks the first match for (type, zone, os, status=ready)
+                    and renames it to the Machine's name — the rename IS the claim.
+                    Empty preserves the legacy auto-order behavior. Mac mini lead times
+                    make pre-ordering the operationally sane path; no auto-order
+                    fallback when adoption is in effect.
+                  type: string
                 fleetName:
                   description: |-
                     FleetName groups Machines that share an SSH key. Set by the

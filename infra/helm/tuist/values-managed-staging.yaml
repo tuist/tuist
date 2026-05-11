@@ -178,10 +178,20 @@ macosFleet:
 runnersFleet:
   enabled: true
   hostCount: 2
+  # Pre-ordered Mac mini pool. Operator orders Mac minis in the
+  # Scaleway console with names starting with `tuist-pool-`
+  # (e.g. `tuist-pool-001`, `tuist-pool-002`); the CAPI controller
+  # claims the first matching one for each new Machine. No
+  # auto-order fallback — if the pool runs dry the new Machine
+  # stays in `Provisioning` with `NoAvailableHost` events until
+  # capacity is pre-ordered.
+  adoptPoolPrefix: "tuist-pool-"
   machine:
     # Chart default — M2-L: M2 Pro / 12 CPU / 32 GB. Explicit
     # here so `hostCPU`/`hostMemoryMB` stay in sync if a future
-    # operator overrides the SKU per env.
+    # operator overrides the SKU per env. The operator's
+    # pre-ordered hosts MUST be M2-L (matching the controller's
+    # adoption filter); other SKUs in the pool are skipped.
     type: M2-L
     # Match the SKU's actual capacity so tart-kubelet advertises
     # the right Node.Status.Capacity and kube-scheduler packs Pods
