@@ -103,6 +103,7 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
         public let registryEnabled: Bool
         public let warningsAsErrors: WarningsAsErrors
         public let defaultSwiftVersion: String
+        public let manifestEnvironment: [String]
 
         public init(
             resolveDependenciesWithSystemScm: Bool,
@@ -120,7 +121,8 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
             enableCaching: Bool = false,
             registryEnabled: Bool = false,
             warningsAsErrors: WarningsAsErrors = .none,
-            defaultSwiftVersion: String = GenerationOptions.defaultSwiftVersionValue
+            defaultSwiftVersion: String = GenerationOptions.defaultSwiftVersionValue,
+            manifestEnvironment: [String] = []
         ) {
             self.resolveDependenciesWithSystemScm = resolveDependenciesWithSystemScm
             self.disablePackageVersionLocking = disablePackageVersionLocking
@@ -138,6 +140,7 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
             self.registryEnabled = registryEnabled
             self.warningsAsErrors = warningsAsErrors
             self.defaultSwiftVersion = defaultSwiftVersion
+            self.manifestEnvironment = manifestEnvironment
         }
 
         #if DEBUG
@@ -158,7 +161,8 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
                 enableCaching: Bool = false,
                 registryEnabled: Bool = false,
                 warningsAsErrors: TuistGeneratedProjectOptions.GenerationOptions.WarningsAsErrors = .none,
-                defaultSwiftVersion: String = GenerationOptions.defaultSwiftVersionValue
+                defaultSwiftVersion: String = GenerationOptions.defaultSwiftVersionValue,
+                manifestEnvironment: [String] = []
             ) -> Self {
                 .init(
                     resolveDependenciesWithSystemScm: resolveDependenciesWithSystemScm,
@@ -176,7 +180,8 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
                     enableCaching: enableCaching,
                     registryEnabled: registryEnabled,
                     warningsAsErrors: warningsAsErrors,
-                    defaultSwiftVersion: defaultSwiftVersion
+                    defaultSwiftVersion: defaultSwiftVersion,
+                    manifestEnvironment: manifestEnvironment
                 )
             }
         #endif
