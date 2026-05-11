@@ -19,8 +19,8 @@ defmodule Tuist.Runners.Dispatch do
   a capped customer's overflow waits in the queue instead of
   being dropped on the GitHub side.
 
-  Returns `{:ok, :queued}` / `:ignored` / `:throttled` /
-  `{:error, reason}`. The webhook handler always responds 200.
+  Returns `{:ok, :queued}` / `:ignored` / `{:error, reason}`. The
+  webhook handler always responds 200.
   """
 
   alias Tuist.Accounts
@@ -86,14 +86,6 @@ defmodule Tuist.Runners.Dispatch do
 
       {:error, :wrong_label} ->
         :ignored
-
-      {:error, :queue_full} ->
-        Logger.warning("runners: queue full for account — dropping",
-          owner: owner,
-          repo: full_name
-        )
-
-        :throttled
 
       {:error, :no_fleet} ->
         Logger.error("runners: no fleet RunnerPool in cluster; ignoring", repo: full_name)

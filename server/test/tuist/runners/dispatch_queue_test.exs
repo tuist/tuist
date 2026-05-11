@@ -25,12 +25,6 @@ defmodule Tuist.Runners.DispatchQueueTest do
       assert entry.fleet_name == "fleet-a"
       assert entry.repo == "acme/cli"
     end
-
-    test "refuses when account's queue depth hits 4× max_concurrent" do
-      account = account_with_cap(2)
-      Enum.each(1..8, fn _ -> DispatchQueue.enqueue(account, "fleet-a", "acme/cli") end)
-      assert {:error, :queue_full} = DispatchQueue.enqueue(account, "fleet-a", "acme/cli")
-    end
   end
 
   describe "claim_oldest_eligible/2" do

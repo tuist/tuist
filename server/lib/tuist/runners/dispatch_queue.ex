@@ -11,9 +11,11 @@ defmodule Tuist.Runners.DispatchQueue do
   Pod LIST and passed in as the set of ineligible account ids to
   exclude.
 
-  Enqueue refuses when the requesting account already has
-  `4 × runner_max_concurrent` rows queued — a guard against one
-  customer's sustained over-rate filling the table.
+  No per-account enqueue depth ceiling today — one customer can
+  queue as many entries as they generate; the cap on actually
+  running jobs is enforced at claim time via `runner_max_concurrent`.
+  If table growth becomes a real concern later, a per-account
+  depth ceiling is a 10-line addition here.
   """
 
   import Ecto.Query
@@ -22,41 +24,21 @@ defmodule Tuist.Runners.DispatchQueue do
   alias Tuist.Repo
   alias Tuist.Runners.DispatchQueueEntry
 
-  @queue_depth_multiplier 4
-
   @doc """
   Inserts a queue entry. Returns `{:ok, entry}` on success,
-  `{:error, :queue_full}` when the account's pending count would
-  exceed its per-customer ceiling, `{:error, :runners_disabled}`
-  if `runner_max_concurrent` is 0, or `{:error, changeset}` on
+  `{:error, :runners_disabled}` if the account's
+  `runner_max_concurrent` is 0, or `{:error, changeset}` on
   validation errors.
   """
   def enqueue(%Account{} = account, fleet_name, repo) when is_binary(fleet_name) and is_binary(repo) do
-    cap = depth_cap_for(account)
-
-    if cap == 0 do
+    if (account.runner_max_concurrent || 0) <= 0 do
       {:error, :runners_disabled}
     else
-      Repo.transaction(fn ->
-        pending =
-          Repo.aggregate(
-            from(q in DispatchQueueEntry, where: q.account_id == ^account.id),
-            :count
-          )
-
-        if pending >= cap do
-          Repo.rollback(:queue_full)
-        else
-          case Repo.insert(%DispatchQueueEntry{
-                 account_id: account.id,
-                 fleet_name: fleet_name,
-                 repo: repo
-               }) do
-            {:ok, entry} -> entry
-            {:error, cs} -> Repo.rollback(cs)
-          end
-        end
-      end)
+      Repo.insert(%DispatchQueueEntry{
+        account_id: account.id,
+        fleet_name: fleet_name,
+        repo: repo
+      })
     end
   end
 
@@ -125,11 +107,4 @@ defmodule Tuist.Runners.DispatchQueue do
       :count
     )
   end
-
-  # 0 means runners disabled. Otherwise multiplier-of-cap so larger
-  # tiers get proportional headroom.
-  defp depth_cap_for(%Account{runner_max_concurrent: cap}) when is_integer(cap) and cap > 0,
-    do: cap * @queue_depth_multiplier
-
-  defp depth_cap_for(_), do: 0
 end
