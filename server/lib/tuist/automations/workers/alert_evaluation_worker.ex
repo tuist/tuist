@@ -148,7 +148,8 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
   # Event-driven monitors are dispatched directly from the originating event
   # (see `Tuist.Automations.dispatch_test_case_event/2`), so the scheduled
   # evaluator has nothing to do for them.
-  defp evaluate_monitor(%{monitor_type: "manually_marked_flaky"}) do
+  defp evaluate_monitor(%{monitor_type: type})
+       when type in ["manually_marked_flaky", "manually_unmarked_flaky", "test_state_changed"] do
     %{triggered: [], all: []}
   end
 

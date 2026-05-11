@@ -144,7 +144,56 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
       assert [%{"type" => "change_state", "state" => "muted"}] = automation.trigger_actions
     end
 
-    test "hides threshold/window/recovery-window inputs for manually_marked_flaky", %{
+    test "creates a manually_unmarked_flaky automation", %{conn: conn, organization: organization, project: project} do
+      {:ok, lv, _html} = open(conn, organization, project)
+
+      render_hook(lv, "open_create_automation_modal", %{})
+      render_hook(lv, "update_create_automation_form_name", %{"value" => "Re-enable on unmark"})
+      render_hook(lv, "update_create_automation_form_metric", %{"data" => "manually_unmarked_flaky"})
+      render_hook(lv, "add_create_automation_form_trigger_action", %{"data" => "change_state"})
+      render_hook(lv, "save_automation", %{})
+
+      assert [automation] = Automations.list_alerts(project.id)
+      assert automation.monitor_type == "manually_unmarked_flaky"
+      assert automation.trigger_config == %{}
+      # change_state defaults to "muted" via new_action/2; user would adjust.
+      assert [%{"type" => "change_state"}] = automation.trigger_actions
+    end
+
+    test "creates a test_state_changed automation", %{conn: conn, organization: organization, project: project} do
+      {:ok, lv, _html} = open(conn, organization, project)
+
+      render_hook(lv, "open_create_automation_modal", %{})
+      render_hook(lv, "update_create_automation_form_name", %{"value" => "Notify on state change"})
+      render_hook(lv, "update_create_automation_form_metric", %{"data" => "test_state_changed"})
+      render_hook(lv, "save_automation", %{})
+
+      assert [automation] = Automations.list_alerts(project.id)
+      assert automation.monitor_type == "test_state_changed"
+      assert automation.trigger_config == %{}
+    end
+
+    for monitor_type <- ["manually_marked_flaky", "manually_unmarked_flaky", "test_state_changed"] do
+      test "hides threshold/window/recovery section for #{monitor_type}", %{
+        conn: conn,
+        organization: organization,
+        project: project
+      } do
+        {:ok, lv, _html} = open(conn, organization, project)
+
+        render_hook(lv, "open_create_automation_modal", %{})
+        # Toggle recovery on before switching — the type switch must force it off.
+        render_hook(lv, "toggle_create_automation_form_recovery", %{})
+        html = render_hook(lv, "update_create_automation_form_metric", %{"data" => unquote(monitor_type)})
+
+        refute html =~ "create-automation-threshold"
+        refute html =~ "create-automation-window"
+        refute html =~ "create-automation-recovery-days"
+        refute html =~ "create-automation-recovery-toggle"
+      end
+    end
+
+    test "switching to event-driven metric forces recovery off", %{
       conn: conn,
       organization: organization,
       project: project
@@ -153,11 +202,15 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
 
       render_hook(lv, "open_create_automation_modal", %{})
       render_hook(lv, "toggle_create_automation_form_recovery", %{})
-      html = render_hook(lv, "update_create_automation_form_metric", %{"data" => "manually_marked_flaky"})
+      render_hook(lv, "update_create_automation_form_metric", %{"data" => "manually_marked_flaky"})
+      render_hook(lv, "update_create_automation_form_name", %{"value" => "Mark trigger"})
+      # Switching the metric stripped the default add_label trigger action, so
+      # add an explicit one before saving (validation rejects empty list).
+      render_hook(lv, "add_create_automation_form_trigger_action", %{"data" => "change_state"})
+      render_hook(lv, "save_automation", %{})
 
-      refute html =~ "create-automation-threshold"
-      refute html =~ "create-automation-window"
-      refute html =~ "create-automation-recovery-days"
+      assert [automation] = Automations.list_alerts(project.id)
+      refute automation.recovery_enabled
     end
   end
 

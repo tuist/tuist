@@ -97,81 +97,59 @@ defmodule Tuist.Automations do
   @doc """
   Dispatches an event-driven test case automation trigger.
 
-  Looks up enabled `manually_marked_flaky` alerts for the test case's project
-  and runs their trigger or recovery actions immediately. This is the
-  event-driven counterpart to the scheduled `AlertEvaluationWorker` and is
-  invoked from `Tuist.Tests.update_test_case/3` when a user manually flips
-  `is_flaky`.
+  Event-driven monitors fire the moment a user-initiated change happens to
+  a test case, rather than waiting for the scheduled `AlertEvaluationWorker`.
+  They have no recovery semantics — each event is a discrete one-shot.
 
-  Recognised events: `:marked_flaky`, `:unmarked_flaky`. Other events are
-  ignored so this can be safely called for every test case event the caller
-  produces.
+  Mapping:
+    * `:marked_flaky`   → enabled alerts with `monitor_type = "manually_marked_flaky"`
+    * `:unmarked_flaky` → enabled alerts with `monitor_type = "manually_unmarked_flaky"`
+    * `:muted` / `:unmuted` / `:skipped` / `:unskipped` →
+        enabled alerts with `monitor_type = "test_state_changed"`
+
+  Other events are ignored so this can be safely called for every test case
+  event the caller produces.
   """
-  def dispatch_test_case_event(:marked_flaky, %{id: test_case_id, project_id: project_id}) do
-    project_id
-    |> manually_marked_flaky_alerts(recovery: false)
-    |> Enum.each(fn alert ->
-      run_event_actions(alert, test_case_id, alert.trigger_actions, "triggered")
-    end)
-
-    :ok
-  end
-
-  def dispatch_test_case_event(:unmarked_flaky, %{id: test_case_id, project_id: project_id}) do
-    project_id
-    |> manually_marked_flaky_alerts(recovery: true)
-    |> Enum.each(fn alert ->
-      run_event_actions(alert, test_case_id, alert.recovery_actions, "recovered")
-    end)
-
-    :ok
-  end
-
+  def dispatch_test_case_event(:marked_flaky, test_case), do: dispatch(test_case, "manually_marked_flaky")
+  def dispatch_test_case_event(:unmarked_flaky, test_case), do: dispatch(test_case, "manually_unmarked_flaky")
+  def dispatch_test_case_event(:muted, test_case), do: dispatch(test_case, "test_state_changed")
+  def dispatch_test_case_event(:unmuted, test_case), do: dispatch(test_case, "test_state_changed")
+  def dispatch_test_case_event(:skipped, test_case), do: dispatch(test_case, "test_state_changed")
+  def dispatch_test_case_event(:unskipped, test_case), do: dispatch(test_case, "test_state_changed")
   def dispatch_test_case_event(_event, _test_case), do: :ok
 
-  defp manually_marked_flaky_alerts(project_id, opts) do
-    base =
-      from(a in Alert,
-        where: a.project_id == ^project_id,
-        where: a.monitor_type == "manually_marked_flaky",
-        where: a.enabled == true
-      )
+  defp dispatch(%{id: test_case_id, project_id: project_id}, monitor_type) do
+    project_id
+    |> event_driven_alerts(monitor_type)
+    |> Enum.each(fn alert -> run_event_actions(alert, test_case_id) end)
 
-    base =
-      if Keyword.get(opts, :recovery, false) do
-        from(a in base, where: a.recovery_enabled == true)
-      else
-        base
-      end
-
-    Repo.all(base)
+    :ok
   end
 
-  defp run_event_actions(alert, test_case_id, actions, status) do
+  defp event_driven_alerts(project_id, monitor_type) do
+    Repo.all(
+      from(a in Alert,
+        where: a.project_id == ^project_id,
+        where: a.monitor_type == ^monitor_type,
+        where: a.enabled == true
+      )
+    )
+  end
+
+  defp run_event_actions(alert, test_case_id) do
     entity = %{type: :test_case, id: test_case_id}
 
-    case ActionExecutor.execute_actions(actions, alert, entity) do
+    case ActionExecutor.execute_actions(alert.trigger_actions, alert, entity) do
       :ok ->
-        now = NaiveDateTime.utc_now()
-
-        attrs = %{
+        create_alert_event(%{
           alert_id: alert.id,
           test_case_id: test_case_id,
-          status: status,
-          triggered_at: now
-        }
-
-        attrs =
-          if status == "recovered" do
-            Map.put(attrs, :recovered_at, now)
-          else
-            attrs
-          end
-
-        create_alert_event(attrs)
+          status: "triggered",
+          triggered_at: NaiveDateTime.utc_now()
+        })
 
       {:error, reason} ->
-        Logger.error("Alert #{alert.id} #{status} actions failed for test_case #{test_case_id}: #{inspect(reason)}")
+        Logger.error("Alert #{alert.id} actions failed for test_case #{test_case_id}: #{inspect(reason)}")
     end
   end
 end

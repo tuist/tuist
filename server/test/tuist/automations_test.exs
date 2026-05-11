@@ -198,7 +198,47 @@ defmodule Tuist.AutomationsTest do
       assert :ok = Automations.dispatch_test_case_event(:marked_flaky, test_case)
     end
 
-    test "runs recovery actions for enabled manually_marked_flaky alerts with recovery on :unmarked_flaky" do
+    test ":marked_flaky does not run manually_unmarked_flaky alerts" do
+      project = ProjectsFixtures.project_fixture()
+      test_case = %{id: Ecto.UUID.generate(), project_id: project.id}
+
+      AutomationsFixtures.automation_alert_fixture(
+        project: project,
+        monitor_type: "manually_unmarked_flaky",
+        trigger_config: %{}
+      )
+
+      reject(&ActionExecutor.execute_actions/3)
+
+      assert :ok = Automations.dispatch_test_case_event(:marked_flaky, test_case)
+    end
+
+    test "runs trigger actions for enabled manually_unmarked_flaky alerts on :unmarked_flaky" do
+      project = ProjectsFixtures.project_fixture()
+      test_case = %{id: Ecto.UUID.generate(), project_id: project.id}
+
+      alert =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "manually_unmarked_flaky",
+          trigger_config: %{},
+          trigger_actions: [%{"type" => "change_state", "state" => "enabled"}]
+        )
+
+      expected_entity = %{type: :test_case, id: test_case.id}
+
+      expect(ActionExecutor, :execute_actions, fn actions, ^alert, ^expected_entity ->
+        assert actions == alert.trigger_actions
+        :ok
+      end)
+
+      assert :ok = Automations.dispatch_test_case_event(:unmarked_flaky, test_case)
+    end
+
+    test "ignores recovery_actions/recovery_enabled for event-driven alerts" do
+      # The Recovery toggle isn't surfaced for event-driven monitors, but if
+      # a legacy alert still has recovery_enabled=true + recovery_actions set,
+      # they MUST NOT fire — recovery has no meaning for a discrete event.
       project = ProjectsFixtures.project_fixture()
       test_case = %{id: Ecto.UUID.generate(), project_id: project.id}
 
@@ -215,31 +255,45 @@ defmodule Tuist.AutomationsTest do
 
       expected_entity = %{type: :test_case, id: test_case.id}
 
+      # Trigger fires on :marked_flaky and uses trigger_actions, not recovery_actions.
       expect(ActionExecutor, :execute_actions, fn actions, ^alert, ^expected_entity ->
-        assert actions == alert.recovery_actions
+        assert actions == alert.trigger_actions
         :ok
       end)
 
+      assert :ok = Automations.dispatch_test_case_event(:marked_flaky, test_case)
+
+      # :unmarked_flaky doesn't dispatch to manually_marked_flaky alerts at all.
+      reject(&ActionExecutor.execute_actions/3)
       assert :ok = Automations.dispatch_test_case_event(:unmarked_flaky, test_case)
     end
 
-    test "does not run recovery when recovery_enabled is false" do
+    test "routes state-change events (:muted/:unmuted/:skipped/:unskipped) to test_state_changed alerts" do
       project = ProjectsFixtures.project_fixture()
       test_case = %{id: Ecto.UUID.generate(), project_id: project.id}
 
-      AutomationsFixtures.automation_alert_fixture(
-        project: project,
-        monitor_type: "manually_marked_flaky",
-        trigger_config: %{},
-        recovery_enabled: false
-      )
+      alert =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "test_state_changed",
+          trigger_config: %{},
+          trigger_actions: [%{"type" => "send_slack", "channel" => "C1", "message" => "hi"}]
+        )
 
-      reject(&ActionExecutor.execute_actions/3)
+      expected_entity = %{type: :test_case, id: test_case.id}
 
-      assert :ok = Automations.dispatch_test_case_event(:unmarked_flaky, test_case)
+      expect(ActionExecutor, :execute_actions, 4, fn actions, ^alert, ^expected_entity ->
+        assert actions == alert.trigger_actions
+        :ok
+      end)
+
+      assert :ok = Automations.dispatch_test_case_event(:muted, test_case)
+      assert :ok = Automations.dispatch_test_case_event(:unmuted, test_case)
+      assert :ok = Automations.dispatch_test_case_event(:skipped, test_case)
+      assert :ok = Automations.dispatch_test_case_event(:unskipped, test_case)
     end
 
-    test "ignores unrelated event types" do
+    test "state-change events do not fire manually_(un)marked_flaky alerts" do
       project = ProjectsFixtures.project_fixture()
       test_case = %{id: Ecto.UUID.generate(), project_id: project.id}
 
@@ -249,10 +303,16 @@ defmodule Tuist.AutomationsTest do
         trigger_config: %{}
       )
 
+      AutomationsFixtures.automation_alert_fixture(
+        project: project,
+        monitor_type: "manually_unmarked_flaky",
+        trigger_config: %{}
+      )
+
       reject(&ActionExecutor.execute_actions/3)
 
       assert :ok = Automations.dispatch_test_case_event(:muted, test_case)
-      assert :ok = Automations.dispatch_test_case_event(:unmuted, test_case)
+      assert :ok = Automations.dispatch_test_case_event(:skipped, test_case)
     end
 
     test "does not record an alert event when actions fail" do

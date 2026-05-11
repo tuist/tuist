@@ -163,14 +163,17 @@ defmodule TuistWeb.ProjectAutomationsLive do
   end
 
   def handle_event("update_create_automation_form_metric", %{"data" => metric}, socket) do
-    {trigger_actions, recovery_actions} =
-      if event_driven_monitor_type?(metric) do
-        {
-          strip_flaky_label_actions(socket.assigns.create_automation_form_trigger_actions, "add_label"),
-          strip_flaky_label_actions(socket.assigns.create_automation_form_recovery_actions, "remove_label")
-        }
+    event_driven? = event_driven_monitor_type?(metric)
+
+    trigger_actions = strip_redundant_actions(socket.assigns.create_automation_form_trigger_actions, metric)
+
+    # Event-driven monitors are discrete one-shots — there's no "condition no
+    # longer holds" semantic, so we force recovery off when switching to one.
+    {recovery_enabled, recovery_actions} =
+      if event_driven? do
+        {false, socket.assigns.create_automation_form_recovery_actions}
       else
-        {socket.assigns.create_automation_form_trigger_actions, socket.assigns.create_automation_form_recovery_actions}
+        {socket.assigns.create_automation_form_recovery_enabled, socket.assigns.create_automation_form_recovery_actions}
       end
 
     {:noreply,
@@ -178,6 +181,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
      |> assign(create_automation_form_metric: metric)
      |> assign(create_automation_form_threshold: default_threshold(metric))
      |> assign(create_automation_form_trigger_actions: trigger_actions)
+     |> assign(create_automation_form_recovery_enabled: recovery_enabled)
      |> assign(create_automation_form_recovery_actions: recovery_actions)}
   end
 
@@ -429,14 +433,24 @@ defmodule TuistWeb.ProjectAutomationsLive do
     end
   end
 
-  defp strip_flaky_label_actions(actions, label_action_type) do
+  # For mark/unmark event-driven triggers, both `add_label flaky` and
+  # `remove_label flaky` are nonsensical defaults — one is redundant (the
+  # label was just flipped) and the other fights the user (immediately
+  # undoing the flip they intentionally made). Strip both so the form
+  # starts clean. `test_state_changed` keeps them since they're valid
+  # responses to a state change.
+  defp strip_redundant_actions(actions, metric) when metric in ["manually_marked_flaky", "manually_unmarked_flaky"] do
     Enum.reject(actions, fn action ->
-      action["type"] == label_action_type and action["label"] == "flaky"
+      action["label"] == "flaky" and action["type"] in ["add_label", "remove_label"]
     end)
   end
 
-  defp event_driven_monitor_type?("manually_marked_flaky"), do: true
-  defp event_driven_monitor_type?(_), do: false
+  defp strip_redundant_actions(actions, _), do: actions
+
+  def event_driven_monitor_type?(type)
+      when type in ["manually_marked_flaky", "manually_unmarked_flaky", "test_state_changed"], do: true
+
+  def event_driven_monitor_type?(_), do: false
 
   defp parse_threshold("flakiness_rate", value) do
     case Float.parse(value) do
@@ -459,6 +473,8 @@ defmodule TuistWeb.ProjectAutomationsLive do
   def metric_label("flakiness_rate"), do: dgettext("dashboard_projects", "Flakiness rate")
   def metric_label("flaky_run_count"), do: dgettext("dashboard_projects", "Flaky runs")
   def metric_label("manually_marked_flaky"), do: dgettext("dashboard_projects", "Test marked as flaky")
+  def metric_label("manually_unmarked_flaky"), do: dgettext("dashboard_projects", "Test unmarked as flaky")
+  def metric_label("test_state_changed"), do: dgettext("dashboard_projects", "Test state changed")
   def metric_label(_), do: dgettext("dashboard_projects", "Unknown")
 
   def comparison_label("gte"), do: dgettext("dashboard_projects", "Greater or equal")
@@ -547,6 +563,14 @@ defmodule TuistWeb.ProjectAutomationsLive do
 
   def automation_summary(%{monitor_type: "manually_marked_flaky"}) do
     dgettext("dashboard_projects", "When a test is manually marked as flaky")
+  end
+
+  def automation_summary(%{monitor_type: "manually_unmarked_flaky"}) do
+    dgettext("dashboard_projects", "When a test is manually unmarked as flaky")
+  end
+
+  def automation_summary(%{monitor_type: "test_state_changed"}) do
+    dgettext("dashboard_projects", "When a test case state changes")
   end
 
   def automation_summary(_), do: ""

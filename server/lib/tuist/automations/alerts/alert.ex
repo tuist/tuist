@@ -6,7 +6,7 @@ defmodule Tuist.Automations.Alerts.Alert do
 
   alias Tuist.Projects.Project
 
-  @monitor_types ~w(flakiness_rate flaky_run_count manually_marked_flaky)
+  @monitor_types ~w(flakiness_rate flaky_run_count manually_marked_flaky manually_unmarked_flaky test_state_changed)
   @comparisons ~w(gte gt lt lte)
   @valid_states ~w(enabled muted skipped)
 

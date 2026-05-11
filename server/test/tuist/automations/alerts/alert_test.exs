@@ -129,20 +129,22 @@ defmodule Tuist.Automations.Alerts.AlertTest do
       assert errors_on(changeset).trigger_config
     end
 
-    test "accepts manually_marked_flaky monitor_type with empty trigger_config" do
-      project = ProjectsFixtures.project_fixture()
+    for monitor_type <- ["manually_marked_flaky", "manually_unmarked_flaky", "test_state_changed"] do
+      test "accepts event-driven #{monitor_type} monitor_type with empty trigger_config" do
+        project = ProjectsFixtures.project_fixture()
 
-      changeset =
-        Alert.changeset(
-          %Alert{},
-          valid_attrs(project, %{
-            "monitor_type" => "manually_marked_flaky",
-            "trigger_config" => %{},
-            "trigger_actions" => [%{"type" => "change_state", "state" => "muted"}]
-          })
-        )
+        changeset =
+          Alert.changeset(
+            %Alert{},
+            valid_attrs(project, %{
+              "monitor_type" => unquote(monitor_type),
+              "trigger_config" => %{},
+              "trigger_actions" => [%{"type" => "change_state", "state" => "muted"}]
+            })
+          )
 
-      assert changeset.valid?
+        assert changeset.valid?
+      end
     end
   end
 
