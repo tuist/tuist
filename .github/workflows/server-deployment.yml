@@ -301,8 +301,18 @@ jobs:
                 exit 1
               fi
 
+              # This is a metadata recovery path, not the real health gate.
+              # An interrupted atomic rollback can leave the latest Helm
+              # revision in pending-rollback even when the last deployed
+              # revision is the only viable base for the next deploy. Waiting
+              # here replays the old manifest's readiness problems and can
+              # strand this recovery step before the current chart gets a
+              # chance to fix them. The following helm upgrade owns the full
+              # --wait/--atomic rollout with richer diagnostics.
               helm rollback "$HELM_RELEASE_NAME" "$deployed_revision" \
-                --namespace "$NAMESPACE" --wait --timeout 25m
+                --namespace "$NAMESPACE" --timeout 5m
+
+              helm status "$HELM_RELEASE_NAME" -n "$NAMESPACE"
               ;;
             *)
               echo "Release $HELM_RELEASE_NAME status is ${status:-not-installed}; no recovery needed."
@@ -336,6 +346,49 @@ jobs:
           # so dependent pods (Pending or otherwise) go with the Job.
           echo "$stale_jobs" | xargs -r kubectl -n "$NAMESPACE" delete job \
             --ignore-not-found --cascade=foreground --timeout=2m
+      - name: Clean up stale xcresult processor Pods
+        # Tart-backed Pods use a finalizer so API deletion waits until
+        # tart-kubelet has stopped and deleted the guest VM. If that cleanup
+        # path wedges, old xcresult-processor Pods can sit in Terminating for
+        # days and still count against the Mac mini node's maxPods/hostPort
+        # scheduling constraints. Only force-remove Pods that have already
+        # been terminating for at least 30 minutes; normal Tart shutdowns
+        # should finish long before this step touches them.
+        run: |
+          set -euo pipefail
+
+          now="$(date -u +%s)"
+          stale_after_seconds=$((30 * 60))
+
+          stale_pods="$(
+            kubectl -n "$NAMESPACE" get pods \
+              -l app.kubernetes.io/component=xcresult-processor \
+              -o go-template='{{range .items}}{{if .metadata.deletionTimestamp}}{{.metadata.name}}{{"\t"}}{{.metadata.deletionTimestamp}}{{"\n"}}{{end}}{{end}}' |
+              while IFS=$'\t' read -r pod deletion_timestamp; do
+                [ -n "$pod" ] || continue
+
+                deleted_at="$(date -u -d "$deletion_timestamp" +%s)"
+                if [ $((now - deleted_at)) -ge "$stale_after_seconds" ]; then
+                  printf '%s\n' "$pod"
+                fi
+              done
+          )"
+
+          if [ -z "$stale_pods" ]; then
+            echo "No stale terminating xcresult-processor Pods to clean up."
+            exit 0
+          fi
+
+          echo "Force-removing stale terminating xcresult-processor Pods:"
+          echo "$stale_pods"
+
+          for pod in $stale_pods; do
+            kubectl -n "$NAMESPACE" patch pod "$pod" \
+              --type=json \
+              -p='[{"op":"remove","path":"/metadata/finalizers"}]' || true
+            kubectl -n "$NAMESPACE" delete pod "$pod" \
+              --ignore-not-found --force --grace-period=0 --timeout=1m || true
+          done
       - name: helm upgrade --install
         # App secrets never pass through --set: the chart runs in
         # `server.managedSecrets: true` mode, which reads DATABASE_URL /
