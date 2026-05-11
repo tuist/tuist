@@ -1,7 +1,17 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.192.0<!-- RELEASE NOTES START -->
+## What's Changed in 4.192.4<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* route static xcframeworks behind dynamic via search paths, not relink by [@pepicrft](https://github.com/pepicrft) in [#10704](https://github.com/tuist/tuist/pull/10704)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.192.3...4.192.4
+
+## What's Changed in 4.192.3<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
 
@@ -27,7 +37,7 @@ All notable changes to this project will be documented in this file.
 
 
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.191.5...4.192.0
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.191.5...4.192.3
 
 ## What's Changed in 4.191.5<!-- RELEASE NOTES START -->
 
