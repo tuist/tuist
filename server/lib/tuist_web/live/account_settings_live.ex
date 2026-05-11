@@ -538,8 +538,8 @@ defmodule TuistWeb.AccountSettingsLive do
           </:col>
           <:col :let={server} label={dgettext("dashboard_account", "Status")}>
             <.badge_cell
-              label={kura_server_status_label(server.status)}
-              color={kura_server_status_color(server.status)}
+              label={kura_display_status_label(server)}
+              color={kura_display_status_color(server)}
               style="light-fill"
             />
           </:col>
@@ -573,6 +573,18 @@ defmodule TuistWeb.AccountSettingsLive do
     """
   end
 
+  def kura_display_status_label(server) do
+    if show_deploying?(server),
+      do: dgettext("dashboard_account", "Deploying"),
+      else: kura_server_status_label(server.status)
+  end
+
+  def kura_display_status_color(server) do
+    if show_deploying?(server),
+      do: "information",
+      else: kura_server_status_color(server.status)
+  end
+
   def kura_server_status_label(:provisioning), do: dgettext("dashboard_account", "Deploying")
   def kura_server_status_label(:active), do: dgettext("dashboard_account", "Active")
   def kura_server_status_label(:failed), do: dgettext("dashboard_account", "Failed")
@@ -584,6 +596,14 @@ defmodule TuistWeb.AccountSettingsLive do
   def kura_server_status_color(:failed), do: "destructive"
   def kura_server_status_color(:destroying), do: "warning"
   def kura_server_status_color(:destroyed), do: "neutral"
+
+  defp show_deploying?(%{status: status}) when status in [:destroying, :destroyed], do: false
+
+  defp show_deploying?(%{deployments: deployments}) when is_list(deployments) do
+    Enum.any?(deployments, &(&1.status in [:pending, :running]))
+  end
+
+  defp show_deploying?(_), do: false
 
   defp kura_region_label(region_id) do
     case Regions.get(region_id) do
