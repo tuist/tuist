@@ -10,16 +10,16 @@ extension XcodeGraph.ExecutionAction {
     static func from(manifest: ProjectDescription.ExecutionAction, generatorPaths: GeneratorPaths) throws -> XcodeGraph
         .ExecutionAction
     {
-        let buildSettingsSource: XcodeGraph.ExecutionAction.BuildSettingsSource? = try manifest.target.map {
-            .target(XcodeGraph.TargetReference(
+        let targetReference: XcodeGraph.TargetReference? = try manifest.target.map {
+            .init(
                 projectPath: try generatorPaths.resolveSchemeActionProjectPath($0.projectPath),
                 name: $0.targetName
-            ))
+            )
         }
         return ExecutionAction(
             title: manifest.title,
             scriptText: manifest.scriptText,
-            target: buildSettingsSource,
+            target: targetReference,
             shellPath: manifest.shellPath
         )
     }

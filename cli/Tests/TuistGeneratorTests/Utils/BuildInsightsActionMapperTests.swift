@@ -48,7 +48,7 @@ struct BuildInsightsActionMapperTests {
                 ExecutionAction(
                     title: "Push build insights",
                     scriptText: "/mise/tuist inspect build",
-                    target: .any,
+                    target: nil,
                     shellPath: nil
                 ),
             ]

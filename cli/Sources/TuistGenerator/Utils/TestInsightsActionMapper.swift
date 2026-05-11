@@ -27,7 +27,7 @@ struct TestInsightsActionMapper: TestInsightsActionMapping {
             ExecutionAction(
                 title: "Push test insights",
                 scriptText: "\(currentExecutablePath.pathString) inspect test",
-                target: .any,
+                target: nil,
                 shellPath: nil
             )
         )
