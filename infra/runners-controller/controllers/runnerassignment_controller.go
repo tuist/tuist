@@ -48,16 +48,9 @@ const (
 	// claimAnnotation is set by the Tuist server on a Burst
 	// RunnerAssignment when a polling SharedWarm Pod claims it.
 	// The value is the warm Pod's name. The controller reads this
-	// to know it doesn't need to materialize a fresh Pod — the
-	// warm Pod is serving the Burst.
+	// to know the Burst's queue-entry job is done; the warm Pod is
+	// serving the customer.
 	claimAnnotation = "tuist.dev/claimed-by-pod"
-
-	// burstClaimGracePeriod is how long the controller waits for a
-	// SharedWarm Pod to claim a fresh Burst before falling back to
-	// the cold path (spawn a new Pod). Sized to one warm-poll
-	// interval (5s) + a small slack so the typical "warm pool has
-	// capacity" case never reaches cold start.
-	burstClaimGracePeriod = 7 * time.Second
 )
 
 func (r *RunnerAssignmentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -83,6 +76,27 @@ func (r *RunnerAssignmentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		return ctrl.Result{Requeue: true}, nil
 	}
 
+	// Burst CRs are pure queue entries — no Pod / SA materialization
+	// here. SharedWarm size = host count, so there are never any
+	// spare hosts for a cold-path Pod to schedule onto anyway; the
+	// only path that produces a Pod for a Burst is "a SharedWarm
+	// warm Pod polls dispatch, claims the Burst, and registers
+	// under the customer's runner group for one job." When that
+	// happens, the server sets the claim annotation on this CR
+	// and we delete it (its queue-entry job is done). Bursts that
+	// haven't been claimed yet sit indefinitely until a freshly
+	// refilled warm Pod picks them up.
+	if a.Spec.Trigger == tuistv1.TriggerBurst {
+		if claimer, claimed := a.Annotations[claimAnnotation]; claimed {
+			logger.Info("burst claimed by shared-warm pod; deleting placeholder",
+				"claimer", claimer)
+			return ctrl.Result{}, r.Delete(ctx, a)
+		}
+		return ctrl.Result{}, nil
+	}
+
+	// PreBound assignments (SharedWarm pool only) — materialize
+	// the Pod + SA from the owning RunnerPool's spec.
 	pool := &tuistv1.RunnerPool{}
 	if err := r.Get(ctx, types.NamespacedName{Namespace: a.Namespace, Name: a.Spec.PoolRef.Name}, pool); err != nil {
 		if apierrors.IsNotFound(err) {
@@ -90,28 +104,6 @@ func (r *RunnerAssignmentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 			return ctrl.Result{}, r.Delete(ctx, a)
 		}
 		return ctrl.Result{}, err
-	}
-
-	// Burst-only short-circuits: a SharedWarm Pod may have already
-	// claimed this Burst at dispatch time (annotation set by the
-	// server). If so, no Pod-create work — the warm Pod is running
-	// the customer's job; we drop the Burst CR since its only
-	// purpose was to queue the work for the warm pool.
-	if a.Spec.Trigger == tuistv1.TriggerBurst {
-		if claimer, claimed := a.Annotations[claimAnnotation]; claimed {
-			logger.Info("burst claimed by shared-warm pod; deleting placeholder",
-				"claimer", claimer)
-			return ctrl.Result{}, r.Delete(ctx, a)
-		}
-		// Give the warm pool a chance to claim before we eat the
-		// ~30-90 s clone+boot tax of the cold path. Past the grace
-		// window, fall through and materialize a fresh Pod.
-		elapsed := time.Since(a.CreationTimestamp.Time)
-		if elapsed < burstClaimGracePeriod {
-			remaining := burstClaimGracePeriod - elapsed
-			logger.V(1).Info("burst awaiting warm-pool claim", "elapsed", elapsed, "remaining", remaining)
-			return ctrl.Result{RequeueAfter: remaining}, nil
-		}
 	}
 
 	podName, saName := podtemplate.AssignmentResources(a.Name)

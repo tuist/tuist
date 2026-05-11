@@ -131,7 +131,16 @@ defmodule Tuist.Runners.PoolReconciler do
 
   defp sync_to_cluster do
     namespace = Environment.runners_namespace()
-    db_rows = Pools.list_pools()
+
+    # Only SharedWarm rows materialize a RunnerPool CR. Customer
+    # rows live in the DB as authorization + JIT-mint metadata —
+    # they have no K8s consumer because (a) the dispatch endpoint
+    # reads pool config from the DB directly and (b) Burst CRs are
+    # pure queue entries (no controller-side Pod template lookup,
+    # since SharedWarm size = host count makes the cold-path Pod
+    # creation impossible — every host always carries either a
+    # warm Pod or a running customer job).
+    db_rows = Enum.filter(Pools.list_pools(), &(&1.role == "shared_warm"))
 
     case K8sClient.list_runner_pools(namespace) do
       {:ok, cluster_items} ->

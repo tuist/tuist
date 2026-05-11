@@ -131,14 +131,13 @@ spec:
               value: {{ .Values.runnersFleet.pod.cpuMilli | default 8000 | quote }}
             - name: TUIST_RUNNER_POD_MEMORY_MB_DEFAULT
               value: {{ .Values.runnersFleet.pod.memoryMB | default 14336 | quote }}
-            # Cluster-wide standby pool size. The Go controller
-            # maintains this many Pre-Bound RunnerAssignments in the
-            # SharedWarm pool; each Pod boots and polls the dispatch
-            # endpoint without a customer binding, ready to claim a
-            # Burst within ~5 s. Size based on observed aggregate
-            # burst rate, not per-customer.
+            # Cluster-wide standby pool size — equal to the fleet's
+            # host count so every Mac mini always carries either a
+            # warm Pod or a Pod running a customer job (one VM per
+            # host per Apple SLA). The PoolReconciler shapes the
+            # SharedWarm CR's spec.minWarm from this value.
             - name: TUIST_RUNNERS_SHARED_WARM_SIZE
-              value: {{ .Values.runnersFleet.sharedWarmSize | default 1 | quote }}
+              value: {{ .Values.runnersFleet.replicas | default 0 | quote }}
             {{- end }}
             {{- include "tuist.licenseEnv" . | nindent 12 }}
             {{- if or .Values.server.masterKey .Values.server.managedSecrets }}
