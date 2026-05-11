@@ -110,6 +110,7 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
         public let registryEnabled: Bool
         public let warningsAsErrors: WarningsAsErrors
         public let defaultSwiftVersion: String
+        public let manifestEnvironment: [String]
         public let onOutdatedDependencies: OutdatedDependenciesAction
 
         public init(
@@ -129,6 +130,7 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
             registryEnabled: Bool = false,
             warningsAsErrors: WarningsAsErrors = .none,
             defaultSwiftVersion: String = GenerationOptions.defaultSwiftVersionValue,
+            manifestEnvironment: [String] = [],
             onOutdatedDependencies: OutdatedDependenciesAction = .warn
         ) {
             self.resolveDependenciesWithSystemScm = resolveDependenciesWithSystemScm
@@ -147,6 +149,7 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
             self.registryEnabled = registryEnabled
             self.warningsAsErrors = warningsAsErrors
             self.defaultSwiftVersion = defaultSwiftVersion
+            self.manifestEnvironment = manifestEnvironment
             self.onOutdatedDependencies = onOutdatedDependencies
         }
 
@@ -169,6 +172,7 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
                 registryEnabled: Bool = false,
                 warningsAsErrors: TuistGeneratedProjectOptions.GenerationOptions.WarningsAsErrors = .none,
                 defaultSwiftVersion: String = GenerationOptions.defaultSwiftVersionValue,
+                manifestEnvironment: [String] = [],
                 onOutdatedDependencies: TuistGeneratedProjectOptions.GenerationOptions.OutdatedDependenciesAction = .warn
             ) -> Self {
                 .init(
@@ -188,6 +192,7 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
                     registryEnabled: registryEnabled,
                     warningsAsErrors: warningsAsErrors,
                     defaultSwiftVersion: defaultSwiftVersion,
+                    manifestEnvironment: manifestEnvironment,
                     onOutdatedDependencies: onOutdatedDependencies
                 )
             }

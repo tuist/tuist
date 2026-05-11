@@ -15,7 +15,7 @@ msgstr "%{hit_rate}%"
 #: lib/tuist_web/live/build_run_live.ex:638
 #, elixir-autogen, elixir-format
 msgid "%{message} in %{link}"
-msgstr "%{message} - %{link} 内"
+msgstr "%{link} の %{message}"
 
 #: lib/tuist_web/live/xcode_builds_live.html.heex:222
 #, elixir-autogen, elixir-format
@@ -57,12 +57,12 @@ msgstr "平均ビルド時間"
 #: lib/tuist_web/live/build_run_live.html.heex:1037
 #, elixir-autogen, elixir-format
 msgid "Avg. latency reading cache keys"
-msgstr "キャッシュキー読み取りの平均レイテンシ"
+msgstr "キャッシュキー読み取りの平均待ち時間"
 
 #: lib/tuist_web/live/build_run_live.html.heex:1093
 #, elixir-autogen, elixir-format
 msgid "Avg. latency writing cache keys"
-msgstr "キャッシュキー書き込みの平均レイテンシ"
+msgstr "キャッシュキー書き込みの平均待ち時間"
 
 #: lib/tuist_web/live/generate_runs_live.ex:279
 #: lib/tuist_web/live/generate_runs_live.html.heex:84
@@ -87,7 +87,7 @@ msgstr "ビルド実行"
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:3
 #, elixir-autogen, elixir-format
 msgid "Build Runs"
-msgstr "ビルド実行"
+msgstr "ビルド実行一覧"
 
 #: lib/tuist_web/live/build_run_live.ex:886
 #: lib/tuist_web/live/build_run_live.html.heex:262
@@ -120,7 +120,7 @@ msgstr "ビルド成功率"
 #: lib/tuist_web/live/xcode_builds_live.html.heex:85
 #, elixir-autogen, elixir-format
 msgid "Build:"
-msgstr "ビルド："
+msgstr "ビルド:"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:335
 #, elixir-autogen, elixir-format
@@ -141,7 +141,7 @@ msgstr "ビルド日時"
 #: lib/tuist_web/live/build_run_live.html.heex:258
 #, elixir-autogen, elixir-format
 msgid "Built by"
-msgstr "ビルド者"
+msgstr "ビルド担当者"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:241
 #, elixir-autogen, elixir-format
@@ -166,7 +166,7 @@ msgstr "CAS出力"
 #: lib/tuist_web/live/build_run_live.html.heex:1605
 #, elixir-autogen, elixir-format
 msgid "CAS outputs will appear here when using Tuist cache"
-msgstr "Tuistキャッシュを使用すると、ここにCAS出力が表示されます"
+msgstr "Tuistキャッシュを使用している場合、ここにCAS出力が表示されます"
 
 #: lib/tuist_web/live/build_run_live.html.heex:1323
 #, elixir-autogen, elixir-format
@@ -199,7 +199,7 @@ msgstr "キャッシュ概要"
 #: lib/tuist_web/live/build_run_live.html.heex:878
 #, elixir-autogen, elixir-format
 msgid "Cache downloads"
-msgstr "キャッシュダウンロード"
+msgstr "キャッシュのダウンロード"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:60
 #, elixir-autogen, elixir-format
@@ -224,7 +224,7 @@ msgstr "キャッシュミス"
 #: lib/tuist_web/live/build_run_live.html.heex:886
 #, elixir-autogen, elixir-format
 msgid "Cache uploads"
-msgstr "キャッシュアップロード"
+msgstr "キャッシュのアップロード"
 
 #: lib/tuist_web/live/build_run_live.html.heex:897
 #, elixir-autogen, elixir-format
@@ -249,17 +249,17 @@ msgstr "キャッシュ可能なタスク"
 #: lib/tuist_web/live/build_run_live.html.heex:846
 #, elixir-autogen, elixir-format
 msgid "Cacheable tasks that were not found in cache."
-msgstr "キャッシュで見つからなかったキャッシュ可能なタスク。"
+msgstr "キャッシュに見つからなかったキャッシュ可能なタスク。"
 
 #: lib/tuist_web/live/build_run_live.html.heex:835
 #, elixir-autogen, elixir-format
 msgid "Cacheable tasks that were retrieved from cache (local + remote)."
-msgstr "キャッシュから取得されたキャッシュ可能なタスク（ローカル + リモート）。"
+msgstr "キャッシュ（ローカル＋リモート）から取得されたキャッシュ可能なタスク。"
 
 #: lib/tuist_web/live/build_run_live.html.heex:1297
 #, elixir-autogen, elixir-format
 msgid "Cacheable tasks will appear here when using Tuist cache"
-msgstr "Tuistキャッシュを使用すると、ここにキャッシュ可能なタスクが表示されます"
+msgstr "Tuistキャッシュを使用している場合、ここにキャッシュ可能なタスクが表示されます"
 
 #: lib/tuist_web/live/build_run_live.html.heex:920
 #, elixir-autogen, elixir-format
@@ -319,24 +319,24 @@ msgstr "圧縮サイズ"
 #: lib/tuist_web/live/build_run_live.ex:1095
 #, elixir-autogen, elixir-format
 msgid "Compressed Size (MB)"
-msgstr "圧縮サイズ (MB)"
+msgstr "圧縮サイズ（MB）"
 
 #: lib/tuist_web/live/build_run_live.html.heex:218
 #: lib/tuist_web/live/xcode_build_runs_live.ex:216
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:91
 #, elixir-autogen, elixir-format
 msgid "Configuration"
-msgstr "構成"
+msgstr "設定"
 
 #: lib/tuist_web/live/xcode_builds_live.html.heex:607
 #, elixir-autogen, elixir-format
 msgid "Configuration Insights"
-msgstr "構成インサイト"
+msgstr "設定インサイト"
 
 #: lib/tuist_web/live/xcode_builds_live.html.heex:60
 #, elixir-autogen, elixir-format
 msgid "Configuration:"
-msgstr "構成："
+msgstr "設定："
 
 #: lib/tuist_web/live/build_run_live.html.heex:1277
 #, elixir-autogen, elixir-format
@@ -366,7 +366,7 @@ msgstr "依存関係"
 #: lib/tuist_web/components/runs/module_cache_tab.ex:299
 #, elixir-autogen, elixir-format
 msgid "Deployment target"
-msgstr "デプロイ対象"
+msgstr "デプロイターゲット"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:247
 #, elixir-autogen, elixir-format
@@ -412,7 +412,7 @@ msgstr "期間"
 #: lib/tuist_web/components/runs/module_cache_tab.ex:311
 #, elixir-autogen, elixir-format
 msgid "Entitlements"
-msgstr "権利情報"
+msgstr "権利"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:289
 #: lib/tuist_web/live/xcode_builds_live.ex:434
@@ -468,68 +468,68 @@ msgstr "失敗したビルド"
 #: lib/tuist_web/live/build_run_live.ex:654
 #, elixir-autogen, elixir-format
 msgid "Failed compiling C file %{path}"
-msgstr "Cファイル %{path} のコンパイルに失敗しました"
+msgstr "Cファイルのコンパイルに失敗しました %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:657
 #: lib/tuist_web/live/build_run_live.ex:693
 #, elixir-autogen, elixir-format
 msgid "Failed compiling Swift file %{path}"
-msgstr "Swiftファイル %{path} のコンパイルに失敗しました"
+msgstr "Swiftファイルのコンパイルに失敗しました %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:690
 #, elixir-autogen, elixir-format
 msgid "Failed compiling XIB file %{path}"
-msgstr "XIBファイル %{path} のコンパイルに失敗しました"
+msgstr "XIBファイルのコンパイルに失敗しました %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:672
 #, elixir-autogen, elixir-format
 msgid "Failed compiling assets catalog %{path}"
-msgstr "アセットカタログ %{path} のコンパイルに失敗しました"
+msgstr "アセットカタログのコンパイルに失敗しました %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:675
 #, elixir-autogen, elixir-format
 msgid "Failed compiling storyboard %{path}"
-msgstr "Storyboard %{path} のコンパイルに失敗しました"
+msgstr "ストーリーボードのコンパイルに失敗しました %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:669
 #, elixir-autogen, elixir-format
 msgid "Failed copying Swift libraries %{path}"
-msgstr "Swiftライブラリ %{path} のコピーに失敗しました"
+msgstr "Swiftライブラリのコピーに失敗しました %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:684
 #, elixir-autogen, elixir-format
 msgid "Failed copying resource file %{path}"
-msgstr "リソースファイル %{path} のコピーに失敗しました"
+msgstr "リソースファイルのコピーに失敗しました %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:663
 #, elixir-autogen, elixir-format
 msgid "Failed creating static library %{path}"
-msgstr "スタティックライブラリ %{path} の作成に失敗しました"
+msgstr "静的ライブラリの作成に失敗しました %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:660
 #, elixir-autogen, elixir-format
 msgid "Failed executing script %{script_name}"
-msgstr "スクリプト %{script_name} の実行に失敗しました"
+msgstr "スクリプトの実行に失敗しました %{script_name}"
 
 #: lib/tuist_web/live/build_run_live.ex:666
 #, elixir-autogen, elixir-format
 msgid "Failed linking %{path}"
-msgstr "リンク %{path} に失敗しました"
+msgstr "リンクに失敗しました %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:681
 #, elixir-autogen, elixir-format
 msgid "Failed linking storyboards %{path}"
-msgstr "Storyboard %{path} のリンクに失敗しました"
+msgstr "ストーリーボードのリンクに失敗しました %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:687
 #, elixir-autogen, elixir-format
 msgid "Failed merging Swift module %{path}"
-msgstr "Swiftモジュール %{path} の結合に失敗しました"
+msgstr "Swiftモジュールの統合に失敗しました %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:696
 #, elixir-autogen, elixir-format
 msgid "Failed precompiling bridging header %{path}"
-msgstr "ブリッジングヘッダ %{path} のプリコンパイルに失敗しました"
+msgstr "ブリッジヘッダーの事前コンパイルに失敗しました %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:708
 #, elixir-autogen, elixir-format
@@ -544,12 +544,12 @@ msgstr "%{path} の検証に失敗しました"
 #: lib/tuist_web/live/build_run_live.ex:699
 #, elixir-autogen, elixir-format
 msgid "Failed validating embedded binary %{path}"
-msgstr "埋め込みバイナリ %{path} の検証に失敗しました"
+msgstr "埋め込みバイナリの検証に失敗しました %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:678
 #, elixir-autogen, elixir-format
 msgid "Failed writing auxiliary file %{path}"
-msgstr "補助ファイル %{path} の書き込みに失敗しました"
+msgstr "補助ファイルの書き込みに失敗しました %{path}"
 
 #: lib/tuist_web/live/build_run_live.html.heex:626
 #: lib/tuist_web/live/build_run_live.html.heex:642
@@ -579,7 +579,7 @@ msgstr "フィルター"
 #: lib/tuist_web/live/run_detail_live.html.heex:30
 #, elixir-autogen, elixir-format
 msgid "Generate Runs"
-msgstr "実行生成"
+msgstr "実行を生成"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:192
 #, elixir-autogen, elixir-format
@@ -611,7 +611,7 @@ msgstr "ヒット率"
 #: lib/tuist_web/live/xcode_builds_live.html.heex:97
 #, elixir-autogen, elixir-format
 msgid "Incremental"
-msgstr "増分"
+msgstr "インクリメンタル"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:305
 #, elixir-autogen, elixir-format
@@ -644,7 +644,7 @@ msgstr "ローカル"
 #: lib/tuist_web/live/build_run_live.html.heex:818
 #, elixir-autogen, elixir-format
 msgid "Looks like you're having a great day!"
-msgstr "素晴らしい一日をお過ごしのようですね！"
+msgstr "今日は良い一日を過ごしているようですね！"
 
 #: lib/tuist_web/live/build_run_live.html.heex:211
 #, elixir-autogen, elixir-format
@@ -685,17 +685,17 @@ msgstr "モジュールキャッシュ"
 #: lib/tuist_web/live/build_run_live.ex:902
 #, elixir-autogen, elixir-format
 msgid "Name"
-msgstr "名称"
+msgstr "名前"
 
 #: lib/tuist_web/live/build_run_live.html.heex:1603
 #, elixir-autogen, elixir-format
 msgid "No CAS outputs found"
-msgstr "CAS出力は見つかりませんでした"
+msgstr "CAS出力が見つかりません"
 
 #: lib/tuist_web/live/build_run_live.html.heex:1295
 #, elixir-autogen, elixir-format
 msgid "No cacheable tasks found"
-msgstr "キャッシュ可能なタスクは見つかりませんでした"
+msgstr "キャッシュ可能なタスクが見つかりません"
 
 #: lib/tuist_web/live/build_run_live.html.heex:1087
 #: lib/tuist_web/live/build_run_live.html.heex:1143
@@ -722,13 +722,13 @@ msgstr "エラーは検出されませんでした"
 #: lib/tuist_web/live/build_run_live.html.heex:722
 #, elixir-autogen, elixir-format
 msgid "No files found"
-msgstr "ファイルが見つかりませんでした"
+msgstr "ファイルが見つかりません"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:203
 #: lib/tuist_web/live/build_run_live.html.heex:586
 #, elixir-autogen, elixir-format
 msgid "No modules found"
-msgstr "モジュールは見つかりませんでした"
+msgstr "モジュールが見つかりません"
 
 #: lib/tuist_web/live/build_run_live.html.heex:773
 #, elixir-autogen, elixir-format
@@ -864,7 +864,7 @@ msgstr "スキーム："
 #: lib/tuist_web/live/xcode_builds_live.html.heex:35
 #, elixir-autogen, elixir-format
 msgid "Search..."
-msgstr "検索…"
+msgstr "検索..."
 
 #: lib/tuist_web/live/run_detail_live.html.heex:92
 #, elixir-autogen, elixir-format
@@ -881,7 +881,7 @@ msgstr "サイズ"
 #: lib/tuist_web/live/build_run_live.ex:1087
 #, elixir-autogen, elixir-format
 msgid "Size (MB)"
-msgstr "サイズ (MB)"
+msgstr "サイズ（MB）"
 
 #: lib/tuist_web/live/build_run_live.html.heex:473
 #: lib/tuist_web/live/build_run_live.html.heex:630
@@ -890,7 +890,7 @@ msgstr "サイズ (MB)"
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:17
 #, elixir-autogen, elixir-format
 msgid "Sort by:"
-msgstr "並べ替え："
+msgstr "並び替え："
 
 #: lib/tuist_web/live/build_run_live.html.heex:292
 #: lib/tuist_web/live/run_detail_live.html.heex:164
@@ -979,7 +979,7 @@ msgstr "テスト: %{scheme}"
 #: lib/tuist_web/live/xcode_builds_live.html.heex:272
 #, elixir-autogen, elixir-format
 msgid "The average build duration with individual percentile intervals."
-msgstr "個別のパーセンタイル区間を含む平均ビルド時間。"
+msgstr "個々のパーセンタイル区間を含む平均ビルド時間。"
 
 #: lib/tuist_web/live/xcode_builds_live.html.heex:241
 #, elixir-autogen, elixir-format
@@ -994,7 +994,7 @@ msgstr "成功したビルドの割合。"
 #: lib/tuist_web/live/build_run_live.html.heex:857
 #, elixir-autogen, elixir-format
 msgid "The percentage of cacheable tasks that were cache hits (local + remote)."
-msgstr "キャッシュ可能なタスクのうち、キャッシュヒット（ローカル + リモート）だったものの割合。"
+msgstr "キャッシュ可能なタスクのうち、キャッシュヒット（ローカル＋リモート）した割合。"
 
 #: lib/tuist_web/live/xcode_builds_live.html.heex:204
 #, elixir-autogen, elixir-format
@@ -1004,12 +1004,12 @@ msgstr "ビルドの総数。"
 #: lib/tuist_web/live/build_run_live.html.heex:1044
 #, elixir-autogen, elixir-format
 msgid "Time to read cache keys, which uniquely identify cacheable tasks, from cache."
-msgstr "キャッシュ可能なタスクを一意に識別するキャッシュキーをキャッシュから読み取る時間。"
+msgstr "キャッシュからキャッシュ可能なタスクを一意に識別するキャッシュキーを読み取る時間。"
 
 #: lib/tuist_web/live/build_run_live.html.heex:1100
 #, elixir-autogen, elixir-format
 msgid "Time to write cache keys, which uniquely identify cacheable tasks, to cache."
-msgstr "キャッシュ可能なタスクを一意に識別するキャッシュキーを書き込む時間。"
+msgstr "キャッシュへキャッシュ可能なタスクを一意に識別するキャッシュキーを書き込む時間。"
 
 #: lib/tuist_web/live/build_run_live.html.heex:1427
 #, elixir-autogen, elixir-format
@@ -1034,17 +1034,17 @@ msgstr "ローカルまたはリモートのキャッシュから取得された
 #: lib/tuist_web/components/runs/module_cache_tab.ex:51
 #, elixir-autogen, elixir-format
 msgid "Total number of modules that could have been taken from the cache if it was fully populated."
-msgstr "完全に構築されていればキャッシュから取得可能だったモジュールの総数。"
+msgstr "キャッシュが完全に埋まっていれば取得できたはずのモジュールの総数。"
 
 #: lib/tuist_web/live/build_run_live.html.heex:880
 #, elixir-autogen, elixir-format
 msgid "Total size of cache artifacts downloaded."
-msgstr "ダウンロードされたキャッシュアーティファクトの総サイズ。"
+msgstr "ダウンロードされたキャッシュアーティファクトの合計サイズ。"
 
 #: lib/tuist_web/live/build_run_live.html.heex:888
 #, elixir-autogen, elixir-format
 msgid "Total size of cache artifacts uploaded."
-msgstr "アップロードされたキャッシュアーティファクトの総サイズ。"
+msgstr "アップロードされたキャッシュアーティファクトの合計サイズ。"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:204
 #, elixir-autogen, elixir-format
@@ -1118,73 +1118,73 @@ msgstr "アップロードスループット"
 #: lib/tuist_web/live/xcode_builds_live.html.heex:749
 #, elixir-autogen, elixir-format
 msgid "View more"
-msgstr "もっと見る"
+msgstr "さらに表示"
 
 #: lib/tuist_web/live/build_run_live.ex:712
 #, elixir-autogen, elixir-format
 msgid "Warning when compiling C file %{path}"
-msgstr "Cファイル %{path} のコンパイル時の警告"
+msgstr "Cファイルのコンパイル時の警告 %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:715
 #: lib/tuist_web/live/build_run_live.ex:751
 #, elixir-autogen, elixir-format
 msgid "Warning when compiling Swift file %{path}"
-msgstr "Swiftファイル %{path} のコンパイル時の警告"
+msgstr "Swiftファイルのコンパイル時の警告 %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:748
 #, elixir-autogen, elixir-format
 msgid "Warning when compiling XIB file %{path}"
-msgstr "XIBファイル %{path} のコンパイル時の警告"
+msgstr "XIBファイルのコンパイル時の警告 %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:730
 #, elixir-autogen, elixir-format
 msgid "Warning when compiling assets catalog %{path}"
-msgstr "アセットカタログ %{path} のコンパイル時の警告"
+msgstr "アセットカタログのコンパイル時の警告 %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:733
 #, elixir-autogen, elixir-format
 msgid "Warning when compiling storyboard %{path}"
-msgstr "Storyboard %{path} のコンパイル時の警告"
+msgstr "ストーリーボードのコンパイル時の警告 %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:727
 #, elixir-autogen, elixir-format
 msgid "Warning when copying Swift libraries %{path}"
-msgstr "Swiftライブラリ %{path} のコピー時の警告"
+msgstr "Swiftライブラリのコピー時の警告 %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:742
 #, elixir-autogen, elixir-format
 msgid "Warning when copying resource file %{path}"
-msgstr "リソースファイル %{path} のコピー時の警告"
+msgstr "リソースファイルのコピー時の警告 %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:721
 #, elixir-autogen, elixir-format
 msgid "Warning when creating static library %{path}"
-msgstr "スタティックライブラリ %{path} の作成時の警告"
+msgstr "静的ライブラリ作成時の警告 %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:718
 #, elixir-autogen, elixir-format
 msgid "Warning when executing script %{script_name}"
-msgstr "スクリプト %{script_name} の実行時の警告"
+msgstr "スクリプト実行時の警告 %{script_name}"
 
 #: lib/tuist_web/live/build_run_live.ex:724
 #, elixir-autogen, elixir-format
 msgid "Warning when linking %{path}"
-msgstr "リンク %{path} 時の警告"
+msgstr "リンク時の警告 %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:739
 #, elixir-autogen, elixir-format
 msgid "Warning when linking storyboards %{path}"
-msgstr "Storyboard %{path} のリンク時の警告"
+msgstr "ストーリーボードのリンク時の警告 %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:745
 #, elixir-autogen, elixir-format
 msgid "Warning when merging Swift module %{path}"
-msgstr "Swiftモジュール %{path} の結合時の警告"
+msgstr "Swiftモジュール統合時の警告 %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:754
 #, elixir-autogen, elixir-format
 msgid "Warning when precompiling bridging header %{path}"
-msgstr "ブリッジングヘッダ %{path} のプリコンパイル時の警告"
+msgstr "ブリッジヘッダーの事前コンパイル時の警告 %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:766
 #, elixir-autogen, elixir-format
@@ -1199,12 +1199,12 @@ msgstr "%{path} の検証時の警告"
 #: lib/tuist_web/live/build_run_live.ex:757
 #, elixir-autogen, elixir-format
 msgid "Warning when validating embedded binary %{path}"
-msgstr "埋め込みバイナリ %{path} の検証時の警告"
+msgstr "埋め込みバイナリの検証時の警告 %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:736
 #, elixir-autogen, elixir-format
 msgid "Warning when writing auxiliary file %{path}"
-msgstr "補助ファイル %{path} の書き込み時の警告"
+msgstr "補助ファイル書き込み時の警告 %{path}"
 
 #: lib/tuist_web/live/build_run_live.html.heex:177
 #: lib/tuist_web/live/build_run_live.html.heex:395
@@ -1253,12 +1253,12 @@ msgstr "p50 ビルド時間"
 #: lib/tuist_web/live/build_run_live.html.heex:1040
 #, elixir-autogen, elixir-format
 msgid "p50 latency reading cache keys"
-msgstr "p50 キャッシュキー読み取りレイテンシ"
+msgstr "p50 キャッシュキー読み取り待ち時間"
 
 #: lib/tuist_web/live/build_run_live.html.heex:1096
 #, elixir-autogen, elixir-format
 msgid "p50 latency writing cache keys"
-msgstr "p50 キャッシュキー書き込みレイテンシ"
+msgstr "p50 キャッシュキー書き込み待ち時間"
 
 #: lib/tuist_web/live/xcode_builds_live.html.heex:471
 #, elixir-autogen, elixir-format
@@ -1273,12 +1273,12 @@ msgstr "p90 ビルド時間"
 #: lib/tuist_web/live/build_run_live.html.heex:1039
 #, elixir-autogen, elixir-format
 msgid "p90 latency reading cache keys"
-msgstr "p90 キャッシュキー読み取りレイテンシ"
+msgstr "p90 キャッシュキー読み取り待ち時間"
 
 #: lib/tuist_web/live/build_run_live.html.heex:1095
 #, elixir-autogen, elixir-format
 msgid "p90 latency writing cache keys"
-msgstr "p90 キャッシュキー書き込みレイテンシ"
+msgstr "p90 キャッシュキー書き込み待ち時間"
 
 #: lib/tuist_web/live/xcode_builds_live.html.heex:457
 #, elixir-autogen, elixir-format
@@ -1293,12 +1293,12 @@ msgstr "p99 ビルド時間"
 #: lib/tuist_web/live/build_run_live.html.heex:1038
 #, elixir-autogen, elixir-format
 msgid "p99 latency reading cache keys"
-msgstr "p99 キャッシュキー読み取りレイテンシ"
+msgstr "p99 キャッシュキー読み取り待ち時間"
 
 #: lib/tuist_web/live/build_run_live.html.heex:1094
 #, elixir-autogen, elixir-format
 msgid "p99 latency writing cache keys"
-msgstr "p99 キャッシュキー書き込みレイテンシ"
+msgstr "p99 キャッシュキー書き込み待ち時間"
 
 #: lib/tuist_web/live/xcode_builds_live.ex:380
 #, elixir-autogen, elixir-format
@@ -1321,7 +1321,7 @@ msgstr "昨年から"
 #: lib/tuist_web/live/build_run_live.html.heex:793
 #, elixir-autogen, elixir-format
 msgid "•"
-msgstr "•"
+msgstr "・"
 
 #: lib/tuist_web/live/xcode_builds_live.html.heex:184
 #, elixir-autogen, elixir-format
@@ -1341,7 +1341,7 @@ msgstr "カスタム"
 #: lib/tuist_web/live/xcode_builds_live.html.heex:163
 #, elixir-autogen, elixir-format
 msgid "Last 12 months"
-msgstr "過去12ヶ月"
+msgstr "過去12か月"
 
 #: lib/tuist_web/live/xcode_builds_live.html.heex:148
 #, elixir-autogen, elixir-format
@@ -1361,7 +1361,7 @@ msgstr "過去7日間"
 #: lib/tuist_web/live/xcode_builds_live.ex:379
 #, elixir-autogen, elixir-format
 msgid "since last period"
-msgstr "前回期間から"
+msgstr "前期間から"
 
 #: lib/tuist_web/live/xcode_builds_live.ex:376
 #, elixir-autogen, elixir-format
@@ -1421,7 +1421,7 @@ msgstr "ビルドをダウンロード"
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:117
 #, elixir-autogen, elixir-format
 msgid "Failed processing"
-msgstr "処理に失敗しました"
+msgstr "処理に失敗"
 
 #: lib/tuist_web/live/build_run_live.html.heex:252
 #: lib/tuist_web/live/xcode_build_runs_live.ex:232
@@ -1443,7 +1443,7 @@ msgstr "更新"
 #: lib/tuist_web/live/build_run_live.html.heex:147
 #, elixir-autogen, elixir-format
 msgid "This usually takes a few seconds. If the page doesn't update automatically, click the refresh button."
-msgstr "通常数秒かかります。ページが自動更新されない場合は、更新ボタンをクリックしてください。"
+msgstr "通常数秒かかります。ページが自動で更新されない場合は更新ボタンをクリックしてください。"
 
 #: lib/tuist_web/live/run_detail_live.html.heex:75
 #, elixir-autogen, elixir-format
@@ -1453,4 +1453,4 @@ msgstr "ダウンロードセッション"
 #: lib/tuist_web/live/xcode_builds_live.html.heex:504
 #, elixir-autogen, elixir-format
 msgid "The 10,000 entry limit has been reached, data is only included up to %{date}. Try filtering by scheme, configuration, or other properties to narrow down the dataset."
-msgstr "10,000件の上限に達しました。データは%{date}まで含まれています。スキーム、構成、その他のプロパティでフィルタリングしてデータセットを絞り込んでください。"
+msgstr "10,000件の上限に達しました。データは%{date}までしか含まれていません。スキーム、設定、その他の属性でフィルタリングしてデータセットを絞り込んでください。"

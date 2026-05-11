@@ -11,7 +11,7 @@ msgstr ""
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:246
 #, elixir-autogen, elixir-format
 msgid "Account not found. Please try again."
-msgstr "找唔到帳戶。請再試一次。"
+msgstr "搵唔到帳戶。請再試一次。"
 
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:148
 #, elixir-autogen, elixir-format
@@ -45,7 +45,7 @@ msgstr "儲存頻道選擇失敗。請再試一次。"
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:242
 #, elixir-autogen, elixir-format
 msgid "Project not found. Please try again."
-msgstr "搵唔到項目。請再試一次。"
+msgstr "搵唔到專案。請再試一次。"
 
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:174
 #, elixir-autogen, elixir-format

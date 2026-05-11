@@ -2271,6 +2271,8 @@ mod tests {
             discovery_dns_name: None,
             peer_tls: None,
             grpc_tls: None,
+            public_tls: None,
+            https_port: 0,
             file_descriptor_pool_size: 32,
             file_descriptor_acquire_timeout_ms: 5_000,
             drain_completion_timeout_ms: 240_000,

@@ -339,6 +339,33 @@
             ))
         }
 
+        @Test(.inTemporaryDirectory)
+        mutating func loadConfig_propagatesManifestEnvironment() async throws {
+            let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+            let projectPath = temporaryDirectory.appending(component: "project")
+            let configPath = projectPath.appending(components: Constants.tuistManifestFileName)
+            try await fileSystem.makeDirectory(at: configPath.parentDirectory)
+            try await fileSystem.touch(configPath)
+            stubRootDirectory(projectPath)
+            stubConfig(
+                ProjectDescription.Config(
+                    project: .tuist(
+                        generationOptions: .options(
+                            manifestEnvironment: ["OPENSWIFTUI_*", "MY_VAR"]
+                        )
+                    )
+                ),
+                at: configPath.parentDirectory
+            )
+
+            let subject = makeSubject()
+            let result = try await subject.loadConfig(path: projectPath)
+
+            #expect(
+                result.project.generatedProject?.generationOptions.manifestEnvironment == ["OPENSWIFTUI_*", "MY_VAR"]
+            )
+        }
+
         // MARK: - Helpers
 
         private func makeSubject() -> SwiftConfigLoader {

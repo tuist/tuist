@@ -3,6 +3,7 @@ defmodule Tuist.Builds.AnalyticsTest do
   use Mimic
 
   alias Tuist.Builds.Analytics
+  alias Tuist.IngestRepo
   alias Tuist.Xcode.XcodeGraph.Buffer
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
@@ -2772,6 +2773,39 @@ defmodule Tuist.Builds.AnalyticsTest do
         )
 
       assert got.series == []
+    end
+  end
+
+  describe "cas_uploads_analytics/2" do
+    test "returns CAS upload analytics aggregated by month for a range spanning 60+ days" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-06-30 10:00:00Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      IngestRepo.query!(
+        """
+        INSERT INTO cas_events_daily_stats (project_id, action, date, total_size, event_count)
+        VALUES
+          ({pid:Int64}, 'upload', toDate('2024-04-15'), 1024, 2),
+          ({pid:Int64}, 'upload', toDate('2024-05-15'), 2048, 3),
+          ({pid:Int64}, 'upload', toDate('2024-06-15'), 4096, 4),
+          ({pid:Int64}, 'download', toDate('2024-05-15'), 9999, 1)
+        """,
+        %{pid: project.id}
+      )
+
+      # When
+      got =
+        Analytics.cas_uploads_analytics(
+          project.id,
+          start_datetime: ~U[2024-04-01 00:00:00Z],
+          end_datetime: ~U[2024-06-30 00:00:00Z]
+        )
+
+      # Then
+      assert got.total_size == 7168
+      assert got.values == [1024, 2048, 4096]
+      assert Enum.map(got.dates, &Date.to_iso8601/1) == ["2024-04-01", "2024-05-01", "2024-06-01"]
     end
   end
 end

@@ -125,6 +125,16 @@ extension Tuist {
         /// own `Package.swift` manifest, matching SPM's behavior.
         public var defaultSwiftVersion: String
 
+        /// Names of process environment variables that Tuist forwards to manifest evaluation
+        /// in addition to the default set (`TUIST_*`, `CI`, and `DEVELOPER_DIR`).
+        ///
+        /// Each entry is either a literal name (e.g. `OPENSWIFTUI_LIBRARY_TYPE`) or a name
+        /// ending in `*` for prefix matching (e.g. `OPENSWIFTUI_*`).
+        ///
+        /// Listed variables also participate in the manifest cache hash, so changes invalidate
+        /// the cache as expected.
+        public var manifestEnvironment: [String]
+
         /// Controls how `tuist generate` reacts to outdated dependencies. Defaults to `.warn`.
         public var onOutdatedDependencies: OutdatedDependenciesAction
 
@@ -142,6 +152,7 @@ extension Tuist {
             additionalPackageResolutionArguments: [String] = [],
             warningsAsErrors: WarningsAsErrors = .none,
             defaultSwiftVersion: String = "5",
+            manifestEnvironment: [String] = [],
             onOutdatedDependencies: OutdatedDependenciesAction = .warn
         ) -> Self {
             self.init(
@@ -161,6 +172,7 @@ extension Tuist {
                 registryEnabled: registryEnabled,
                 warningsAsErrors: warningsAsErrors,
                 defaultSwiftVersion: defaultSwiftVersion,
+                manifestEnvironment: manifestEnvironment,
                 onOutdatedDependencies: onOutdatedDependencies
             )
         }
@@ -201,6 +213,7 @@ extension Tuist {
                 registryEnabled: false,
                 warningsAsErrors: .none,
                 defaultSwiftVersion: "5",
+                manifestEnvironment: [],
                 onOutdatedDependencies: .warn
             )
         }
@@ -236,6 +249,7 @@ extension Tuist {
                 registryEnabled: false,
                 warningsAsErrors: .none,
                 defaultSwiftVersion: "5",
+                manifestEnvironment: [],
                 onOutdatedDependencies: .warn
             )
         }

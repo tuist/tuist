@@ -1,0 +1,22 @@
+msgid ""
+msgstr ""
+"Language: ka\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=n != 1;\n"
+
+#: lib/tuist_web/components/chart_type_toggle.ex:39
+#, elixir-autogen, elixir-format
+msgid "Group by:"
+msgstr "დალაგება მიხედვით:"
+
+#: lib/tuist_web/components/chart_type_toggle.ex:53
+#, elixir-autogen, elixir-format
+msgid "Line"
+msgstr "ხაზი"
+
+#: lib/tuist_web/components/chart_type_toggle.ex:59
+#, elixir-autogen, elixir-format
+msgid "Scatter plot"
+msgstr "განაწილებული გრაფიკი"

@@ -238,6 +238,9 @@ final class DumpServiceTests: TuistTestCase {
                     "enableCaching": false,
                     "enforceExplicitDependencies": false,
                     "includeGenerateScheme": true,
+                    "manifestEnvironment": [
+
+                    ],
                     "onOutdatedDependencies": "warn",
                     "optionalAuthentication": false,
                     "registryEnabled": false,

@@ -24,27 +24,27 @@ msgstr "选择 Tuist 项目"
 #: lib/tuist_web/live/integrations_live.html.heex:132
 #, elixir-autogen, elixir-format
 msgid "Choose a repository"
-msgstr "选择一个仓库"
+msgstr "选择一个代码仓库"
 
 #: lib/tuist_web/live/integrations_live.html.heex:83
 #, elixir-autogen, elixir-format
 msgid "Choose repository to connect to"
-msgstr "选择要连接的仓库"
+msgstr "选择要连接的代码仓库"
 
 #: lib/tuist_web/live/integrations_live.html.heex:9
 #, elixir-autogen, elixir-format
 msgid "Connect any of your GitHub repositories to a project"
-msgstr "将您的任何 GitHub 仓库连接到项目"
+msgstr "将您的任何 GitHub 代码仓库连接到一个项目"
 
 #: lib/tuist_web/live/integrations_live.ex:201
 #, elixir-autogen, elixir-format
 msgid "Connected %{time_ago}"
-msgstr "于 %{time_ago} 连接"
+msgstr "已连接 %{time_ago}"
 
 #: lib/tuist_web/live/integrations_live.ex:203
 #, elixir-autogen, elixir-format
 msgid "Connected %{time_ago} by %{name}"
-msgstr "于 %{time_ago} 被 %{name} 连接"
+msgstr "由 %{name} 于 %{time_ago} 连接"
 
 #: lib/tuist_web/live/integrations_live.html.heex:160
 #, elixir-autogen, elixir-format
@@ -90,7 +90,7 @@ msgstr "您无权执行此操作。"
 #: lib/tuist_web/live/integrations_live.html.heex:78
 #, elixir-autogen, elixir-format
 msgid "Your access to repositories depends on your GitHub and Tuist integration setup."
-msgstr "您对仓库的访问取决于您的 GitHub 和 Tuist 集成设置。"
+msgstr "您对代码仓库的访问权限取决于您的 GitHub 和 Tuist 集成设置。"
 
 #: lib/tuist_web/live/integrations_live.html.heex:230
 #, elixir-autogen, elixir-format

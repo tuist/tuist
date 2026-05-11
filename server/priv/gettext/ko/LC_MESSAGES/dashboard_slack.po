@@ -21,7 +21,7 @@ msgstr "Slack 설치 저장에 실패했습니다. 다시 시도해 주세요."
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:47
 #, elixir-autogen, elixir-format
 msgid "Invalid Slack authorization. Please try again."
-msgstr "잘못된 Slack 인증입니다. 다시 시도해 주세요."
+msgstr "유효하지 않은 Slack 인증입니다. 다시 시도해 주세요."
 
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:97
 #, elixir-autogen, elixir-format
@@ -35,7 +35,7 @@ msgstr "유효하지 않은 인증 요청입니다. 다시 시도해 주세요."
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:210
 #, elixir-autogen, elixir-format
 msgid "Slack authorization failed: %{reason}"
-msgstr "Slack 인증에 실패했습니다: %{reason}"
+msgstr "Slack 인증 실패: %{reason}"
 
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:182
 #, elixir-autogen, elixir-format
@@ -55,4 +55,4 @@ msgstr "알림 규칙을 찾을 수 없습니다. 다시 시도해 주세요."
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:89
 #, elixir-autogen, elixir-format
 msgid "Authorization request expired. Please start the Slack connection process again."
-msgstr "인증 요청이 만료되었습니다. Slack 연결 절차를 다시 시작해 주세요."
+msgstr "인증 요청이 만료되었습니다. Slack 연결 과정을 다시 시작해 주세요."

@@ -61,10 +61,6 @@ defmodule Tuist.Kubernetes.Client do
     delete("/apis/kura.tuist.dev/v1alpha1/namespaces/#{namespace}/kurainstances/#{name}", opts)
   end
 
-  def list_pods(namespace, label_selector, opts \\ []) when is_binary(label_selector) do
-    request(:get, "/api/v1/namespaces/#{namespace}/pods", opts: opts, query: %{"labelSelector" => label_selector})
-  end
-
   defp manifest_path(%{
          "apiVersion" => "kura.tuist.dev/v1alpha1",
          "kind" => "KuraInstance",

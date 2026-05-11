@@ -41,6 +41,7 @@ extension TuistConfig.TuistGeneratedProjectOptions.GenerationOptions {
             warningsAsErrors: TuistConfig.TuistGeneratedProjectOptions.GenerationOptions.WarningsAsErrors
                 .from(manifest: manifest.warningsAsErrors),
             defaultSwiftVersion: manifest.defaultSwiftVersion,
+            manifestEnvironment: manifest.manifestEnvironment,
             onOutdatedDependencies: TuistConfig.TuistGeneratedProjectOptions.GenerationOptions.OutdatedDependenciesAction
                 .from(manifest: manifest.onOutdatedDependencies)
         )

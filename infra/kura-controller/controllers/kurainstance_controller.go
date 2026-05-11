@@ -29,10 +29,11 @@ import (
 const (
 	KuraInstanceFinalizer = "kurainstances.kura.tuist.dev/finalizer"
 
-	httpPort  int32 = 4000
-	httpsPort int32 = 443
-	grpcPort  int32 = 50051
-	peerPort  int32 = 7443
+	httpPort          int32 = 4000
+	httpsPort         int32 = 443
+	httpsTargetPort   int32 = 4443
+	grpcPort          int32 = 50051
+	peerPort          int32 = 7443
 
 	// drainCompletionTimeoutMs and preStopDelaySeconds together set how
 	// long a Kura pod is given to bleed connections off before SIGTERM.
@@ -49,16 +50,24 @@ const (
 	grpcTLSMountPath  = "/etc/kura/grpc-tls"
 	grpcTLSCertFile   = "tls.crt"
 	grpcTLSKeyFile    = "tls.key"
+
+	publicTLSVolumeName = "public-tls"
+	publicTLSMountPath  = "/etc/kura/public-tls"
+	publicTLSCertFile   = "tls.crt"
+	publicTLSKeyFile    = "tls.key"
 )
 
 type KuraInstanceReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
 
-	// GRPCClusterIssuer, when non-empty, makes the controller request a
-	// cert-manager Certificate per instance with this ClusterIssuer.
-	// The issued Secret is then mounted into the Kura pod so the
-	// runtime can terminate TLS for the public gRPC LoadBalancer.
+	// GRPCClusterIssuer, when non-empty, makes the controller request
+	// cert-manager Certificates per instance with this ClusterIssuer for
+	// both the public HTTPS host and the gRPC host. The issued Secrets
+	// are mounted into the Kura pod so the runtime can terminate TLS
+	// for both the public HTTPS LoadBalancer and the gRPC LoadBalancer.
+	// The name is historical; the controller uses the same issuer for
+	// every cert it asks cert-manager to mint.
 	GRPCClusterIssuer string
 }
 
@@ -68,6 +77,10 @@ func certificateGVK() schema.GroupVersionKind {
 
 func grpcTLSSecretName(instance *kurav1alpha1.KuraInstance) string {
 	return instance.Name + "-grpc-tls"
+}
+
+func publicTLSSecretName(instance *kurav1alpha1.KuraInstance) string {
+	return instance.Name + "-public-tls"
 }
 
 func grpcServiceName(instance *kurav1alpha1.KuraInstance) string {
@@ -120,6 +133,9 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, err
 	}
 	if err := r.reconcileGRPCService(ctx, instance); err != nil {
+		return ctrl.Result{}, err
+	}
+	if err := r.reconcilePublicCertificate(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
 	if err := r.reconcileGRPCCertificate(ctx, instance); err != nil {
@@ -214,7 +230,7 @@ func (r *KuraInstanceReconciler) reconcileService(ctx context.Context, instance 
 		service.Spec.Type = corev1.ServiceTypeLoadBalancer
 		service.Spec.ExternalTrafficPolicy = corev1.ServiceExternalTrafficPolicyLocal
 		service.Spec.Ports = []corev1.ServicePort{
-			{Name: "https", Port: httpsPort, TargetPort: intstr.FromString("http")},
+			{Name: "https", Port: httpsPort, TargetPort: intstr.FromString("https"), Protocol: corev1.ProtocolTCP},
 		}
 		return nil
 	})
@@ -250,6 +266,48 @@ func (r *KuraInstanceReconciler) reconcileGRPCService(ctx context.Context, insta
 			{Name: "grpcs", Port: httpsPort, TargetPort: intstr.FromString("grpc"), Protocol: corev1.ProtocolTCP},
 		}
 		return nil
+	})
+	return err
+}
+
+// reconcilePublicCertificate provisions a cert-manager Certificate so
+// the runtime can terminate TLS for the public HTTPS LoadBalancer. The
+// LB is configured as TCP-passthrough; TLS termination happens in the
+// Kura pod from a cert-manager-issued Secret. No-ops when either
+// GRPCClusterIssuer or spec.publicHost is unset. cert-manager must be
+// installed in the cluster before --grpc-cluster-issuer is set.
+func (r *KuraInstanceReconciler) reconcilePublicCertificate(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
+	cert := &unstructured.Unstructured{}
+	cert.SetGroupVersionKind(certificateGVK())
+	cert.SetName(publicTLSSecretName(instance))
+	cert.SetNamespace(instance.Namespace)
+
+	if r.GRPCClusterIssuer == "" || instance.Spec.PublicHost == "" {
+		if err := r.Delete(ctx, cert); err != nil && !apierrors.IsNotFound(err) {
+			return client.IgnoreNotFound(err)
+		}
+		return nil
+	}
+
+	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, cert, func() error {
+		if err := controllerutil.SetControllerReference(instance, cert, r.Scheme); err != nil {
+			return err
+		}
+		cert.SetLabels(labels(instance))
+		spec := map[string]any{
+			"secretName": publicTLSSecretName(instance),
+			"dnsNames":   []any{instance.Spec.PublicHost},
+			"issuerRef": map[string]any{
+				"name": r.GRPCClusterIssuer,
+				"kind": "ClusterIssuer",
+			},
+			"privateKey": map[string]any{
+				"algorithm":      "ECDSA",
+				"size":           int64(256),
+				"rotationPolicy": "Always",
+			},
+		}
+		return unstructured.SetNestedField(cert.Object, spec, "spec")
 	})
 	return err
 }
@@ -418,11 +476,7 @@ func podTemplate(instance *kurav1alpha1.KuraInstance) corev1.PodTemplateSpec {
 				Name:            "kura",
 				Image:           instance.Spec.Image,
 				ImagePullPolicy: corev1.PullIfNotPresent,
-				Ports: []corev1.ContainerPort{
-					{Name: "http", ContainerPort: httpPort},
-					{Name: "grpc", ContainerPort: grpcPort},
-					{Name: "peer", ContainerPort: peerPort},
-				},
+				Ports: containerPorts(instance),
 				Env:            append(baseEnv(instance), instance.Spec.ExtraEnv...),
 				EnvFrom:        sharedSecretsEnvFrom(),
 				Resources:      defaultResources(),
@@ -483,24 +537,28 @@ func defaultResources() corev1.ResourceRequirements {
 	}
 }
 
+// publicServiceAnnotations returns the Hetzner Cloud LoadBalancer
+// annotations for the public Service. The LB runs in tcp-passthrough
+// mode and TLS is terminated inside the Kura pod from a cert-manager-
+// issued Secret. Health checks talk plain HTTP to the pod's HTTP port
+// because cluster DNS for kura.tuist.dev sits on Cloudflare and the
+// previous Hetzner-managed-certificate flow could not validate against
+// a zone Hetzner does not own.
 func publicServiceAnnotations(instance *kurav1alpha1.KuraInstance) map[string]string {
 	if instance.Spec.PublicHost == "" {
 		return nil
 	}
 
 	return map[string]string{
-		"external-dns.alpha.kubernetes.io/hostname":                    instance.Spec.PublicHost,
-		"load-balancer.hetzner.cloud/name":                             instance.Name,
-		"load-balancer.hetzner.cloud/protocol":                         "https",
-		"load-balancer.hetzner.cloud/certificate-type":                 "managed",
-		"load-balancer.hetzner.cloud/http-managed-certificate-name":    instance.Name,
-		"load-balancer.hetzner.cloud/http-managed-certificate-domains": instance.Spec.PublicHost,
-		"load-balancer.hetzner.cloud/http-redirect-http":               "true",
-		"load-balancer.hetzner.cloud/algorithm-type":                   "least_connections",
-		"load-balancer.hetzner.cloud/node-selector":                    "node.cluster.x-k8s.io/pool=kura",
-		"load-balancer.hetzner.cloud/health-check-protocol":            "http",
-		"load-balancer.hetzner.cloud/health-check-http-path":           "/ready",
-		"load-balancer.hetzner.cloud/http-status-codes":                "200",
+		"external-dns.alpha.kubernetes.io/hostname":          instance.Spec.PublicHost,
+		"load-balancer.hetzner.cloud/name":                   instance.Name,
+		"load-balancer.hetzner.cloud/protocol":               "tcp",
+		"load-balancer.hetzner.cloud/algorithm-type":         "least_connections",
+		"load-balancer.hetzner.cloud/node-selector":          "node.cluster.x-k8s.io/pool=kura",
+		"load-balancer.hetzner.cloud/health-check-protocol":  "http",
+		"load-balancer.hetzner.cloud/health-check-port":      strconv.Itoa(int(httpPort)),
+		"load-balancer.hetzner.cloud/health-check-http-path": "/ready",
+		"load-balancer.hetzner.cloud/http-status-codes":      "200",
 	}
 }
 
@@ -624,7 +682,30 @@ func baseEnv(instance *kurav1alpha1.KuraInstance) []corev1.EnvVar {
 			corev1.EnvVar{Name: "KURA_GRPC_TLS_KEY_PATH", Value: grpcTLSMountPath + "/" + grpcTLSKeyFile},
 		)
 	}
+	if instance.Spec.PublicHost != "" {
+		env = append(env,
+			corev1.EnvVar{Name: "KURA_HTTPS_PORT", Value: fmt.Sprintf("%d", httpsTargetPort)},
+			corev1.EnvVar{Name: "KURA_PUBLIC_TLS_CERT_PATH", Value: publicTLSMountPath + "/" + publicTLSCertFile},
+			corev1.EnvVar{Name: "KURA_PUBLIC_TLS_KEY_PATH", Value: publicTLSMountPath + "/" + publicTLSKeyFile},
+		)
+	}
 	return env
+}
+
+// containerPorts always exposes the plain HTTP, gRPC, and peer ports;
+// it additionally exposes the TLS-terminating HTTPS port whenever the
+// instance has a public host, so the Hetzner LoadBalancer in tcp-
+// passthrough mode can target it.
+func containerPorts(instance *kurav1alpha1.KuraInstance) []corev1.ContainerPort {
+	ports := []corev1.ContainerPort{
+		{Name: "http", ContainerPort: httpPort},
+		{Name: "grpc", ContainerPort: grpcPort},
+		{Name: "peer", ContainerPort: peerPort},
+	}
+	if instance.Spec.PublicHost != "" {
+		ports = append(ports, corev1.ContainerPort{Name: "https", ContainerPort: httpsTargetPort})
+	}
+	return ports
 }
 
 func volumeMounts(instance *kurav1alpha1.KuraInstance) []corev1.VolumeMount {
@@ -634,6 +715,9 @@ func volumeMounts(instance *kurav1alpha1.KuraInstance) []corev1.VolumeMount {
 	}
 	if instance.Spec.GRPCPublicHost != "" {
 		mounts = append(mounts, corev1.VolumeMount{Name: grpcTLSVolumeName, MountPath: grpcTLSMountPath, ReadOnly: true})
+	}
+	if instance.Spec.PublicHost != "" {
+		mounts = append(mounts, corev1.VolumeMount{Name: publicTLSVolumeName, MountPath: publicTLSMountPath, ReadOnly: true})
 	}
 	return mounts
 }
@@ -659,6 +743,15 @@ func volumes(instance *kurav1alpha1.KuraInstance) []corev1.Volume {
 			Name: grpcTLSVolumeName,
 			VolumeSource: corev1.VolumeSource{Secret: &corev1.SecretVolumeSource{
 				SecretName: grpcTLSSecretName(instance),
+				Optional:   ptr(true),
+			}},
+		})
+	}
+	if instance.Spec.PublicHost != "" {
+		volumes = append(volumes, corev1.Volume{
+			Name: publicTLSVolumeName,
+			VolumeSource: corev1.VolumeSource{Secret: &corev1.SecretVolumeSource{
+				SecretName: publicTLSSecretName(instance),
 				Optional:   ptr(true),
 			}},
 		})
