@@ -377,12 +377,13 @@ impl Config {
                 None
             }
         };
-        let https_port = optional_parsed_value(&mut lookup, KURA_HTTPS_PORT, &mut invalid, |value| {
-            value
-                .parse::<u16>()
-                .map_err(|_| format!("{KURA_HTTPS_PORT} must be a valid u16"))
-        })
-        .unwrap_or(DEFAULT_HTTPS_PORT);
+        let https_port =
+            optional_parsed_value(&mut lookup, KURA_HTTPS_PORT, &mut invalid, |value| {
+                value
+                    .parse::<u16>()
+                    .map_err(|_| format!("{KURA_HTTPS_PORT} must be a valid u16"))
+            })
+            .unwrap_or(DEFAULT_HTTPS_PORT);
         let file_descriptor_pool_size = optional_parsed_value(
             &mut lookup,
             KURA_FILE_DESCRIPTOR_POOL_SIZE,
@@ -863,7 +864,9 @@ impl Config {
                     invalid.push(format!("{KURA_HTTPS_PORT} must differ from {KURA_PORT}"));
                 }
                 if https_port == grpc_port {
-                    invalid.push(format!("{KURA_HTTPS_PORT} must differ from {KURA_GRPC_PORT}"));
+                    invalid.push(format!(
+                        "{KURA_HTTPS_PORT} must differ from {KURA_GRPC_PORT}"
+                    ));
                 }
                 if https_port == internal_port {
                     invalid.push(format!(
