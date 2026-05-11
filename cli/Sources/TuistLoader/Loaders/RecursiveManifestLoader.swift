@@ -126,7 +126,7 @@ public struct RecursiveManifestLoader: RecursiveManifestLoading {
         }.concurrentFilter {
             let manifests = try await manifestLoader.manifests(at: $0)
             return manifests.contains(.package) && !manifests.contains(.project) && !manifests.contains(.workspace) && !$0
-                .pathString.contains(".build/checkouts")
+                .pathString.contains("/checkouts/")
         }
 
         let packageProjects = try await loadPackageProjects(

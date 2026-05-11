@@ -137,4 +137,43 @@ final class ExternalDependencyPathWorkspaceMapperTests: TuistUnitTestCase {
             )
         )
     }
+
+    func test_map_when_externalProjectUsesCustomScratchPath() throws {
+        // Given
+        let externalProjectBasePath = try temporaryPath().appending(component: "custom-build")
+        let externalProjectPath = externalProjectBasePath.appending(
+            components: [
+                "checkouts",
+                "ExternalDependency",
+            ]
+        )
+        let externalProject = Project.test(
+            path: externalProjectPath,
+            sourceRootPath: externalProjectPath,
+            xcodeProjPath: externalProjectPath.appending(component: "ExternalDependency.xcodeproj"),
+            name: "ExternalDependency",
+            type: .external(hash: nil)
+        )
+
+        // When
+        let (gotWorkspaceWithProjects, _) = try subject.map(
+            workspace: WorkspaceWithProjects(
+                workspace: .test(name: "A"),
+                projects: [externalProject]
+            )
+        )
+
+        // Then
+        XCTAssertEqual(
+            gotWorkspaceWithProjects.projects.first?.xcodeProjPath,
+            externalProjectBasePath.appending(
+                components: [
+                    Constants.DerivedDirectory.dependenciesDerivedDirectory,
+                    Constants.DerivedDirectory.dependenciesProjectDirectory,
+                    "ExternalDependency",
+                    "ExternalDependency.xcodeproj",
+                ]
+            )
+        )
+    }
 }

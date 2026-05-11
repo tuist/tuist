@@ -35,7 +35,7 @@ struct AnalyticsStateControllerTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func clean_removesLegacyLogsDirectory() async throws {
+    func clean_preservesLegacyLogsDirectory() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
 
         let logsDirectory = temporaryDirectory.appending(component: "logs")
@@ -50,7 +50,8 @@ struct AnalyticsStateControllerTests {
             stateDirectory: temporaryDirectory
         )
 
-        #expect(try await !fileSystem.exists(logsDirectory))
+        #expect(try await fileSystem.exists(logsDirectory))
+        #expect(try await fileSystem.exists(logsDirectory.appending(component: "old-log.txt")))
     }
 
     @Test(.inTemporaryDirectory)

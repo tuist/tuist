@@ -251,6 +251,51 @@ struct PackageInfoMapperTests {
     }
 
     @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
+    ) func resolveDependencies_whenArtifactsUseCustomScratchPath_mapsRemoteXcframeworks() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let packagePath = basePath.appending(component: "Tuist")
+        let scratchPath = basePath.appending(component: "custom-build")
+        let artifactsPath = scratchPath.appending(components: "artifacts", "tuist")
+
+        let validXCFramework = artifactsPath.appending(components: "ValidFramework", "ValidFramework.xcframework")
+        try await fileSystem.makeDirectory(at: validXCFramework)
+        try await fileSystem.makeDirectory(at: packagePath)
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Sources/Target_1")))
+
+        let resolvedDependencies = try await subject.resolveExternalDependencies(
+            path: scratchPath,
+            packagePath: packagePath,
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target_1"]),
+                    ],
+                    targets: [
+                        .test(name: "Target_1"),
+                    ],
+                    platforms: [.ios],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ],
+            packageToFolder: ["Package": basePath],
+            packageToTargetsToArtifactPaths: [:],
+            packageModuleAliases: [:],
+            packageSettings: .test()
+        )
+
+        let validFrameworkDependency = try #require(resolvedDependencies["ValidFramework"])
+        let dep = try #require(validFrameworkDependency.first)
+        if case let .xcframework(path, _, _, _) = dep {
+            #expect(path.pathString.contains("custom-build/artifacts/tuist/ValidFramework/ValidFramework.xcframework"))
+        }
+    }
+
+    @Test(
         .inTemporaryDirectory, .withMockedSwiftVersionProvider
     ) func resolveDependencies_whenProductContainsBinaryTargetMissingFrom_packageToTargetsToArtifactPaths() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)

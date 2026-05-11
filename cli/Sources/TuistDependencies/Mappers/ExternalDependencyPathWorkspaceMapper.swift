@@ -21,8 +21,7 @@ public struct ExternalDependencyPathWorkspaceMapper: WorkspaceMapping {
 
     private func map(project: Project) throws -> (Project, [SideEffectDescriptor]) {
         guard case .external = project.type,
-              // We don't want to update local packages (which are defined outside the `checkouts` directory in `.build`
-              project.path.parentDirectory.parentDirectory.basename == Constants.SwiftPackageManager.packageBuildDirectoryName
+              project.path.parentDirectory.basename == "checkouts"
         else { return (project, []) }
         var project = project
         let xcodeProjBasename = project.xcodeProjPath.basename

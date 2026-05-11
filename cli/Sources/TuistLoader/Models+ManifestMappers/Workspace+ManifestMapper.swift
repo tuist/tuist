@@ -31,7 +31,7 @@ extension XcodeGraph.Workspace {
             )
             .collect()
             .map(\.parentDirectory)
-            .filter { $0.basename != Constants.tuistDirectoryName && !$0.pathString.contains(".build/checkouts") }
+            .filter { $0.basename != Constants.tuistDirectoryName && !$0.pathString.contains("/checkouts/") }
             .uniqued()
 
             if projects.isEmpty {

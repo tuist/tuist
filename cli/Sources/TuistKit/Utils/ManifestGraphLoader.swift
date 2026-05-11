@@ -2,6 +2,7 @@ import Foundation
 import Mockable
 import Path
 import ProjectDescription
+import TuistConfig
 import TuistConfigLoader
 import TuistCore
 import TuistDependencies
@@ -107,14 +108,15 @@ public struct ManifestGraphLoader: ManifestGraphLoading {
         let config = try await configLoader.loadConfig(path: path)
         let manifestEnvironment = config.project.generatedProject?.generationOptions.manifestEnvironment ?? []
         return try await Environment.$additionalManifestEnvironmentKeys.withValue(manifestEnvironment) {
-            try await loadInternal(path: path, disableSandbox: disableSandbox)
+            try await loadInternal(path: path, disableSandbox: disableSandbox, config: config)
         }
     }
 
     // swiftlint:disable:next function_body_length
     private func loadInternal(
         path: AbsolutePath,
-        disableSandbox: Bool
+        disableSandbox: Bool,
+        config: TuistConfig.Tuist
     ) async throws -> (Graph, [SideEffectDescriptor], MapperEnvironment, [LintingIssue]) { // swiftlint:disable:this large_tuple
         try await manifestLoader.validateHasRootManifest(at: path)
 
@@ -145,7 +147,9 @@ public struct ManifestGraphLoader: ManifestGraphLoading {
             let (manifestsDependencyGraph, loadedSpmLintingIssues) = try await swiftPackageManagerGraphLoader.load(
                 packagePath: packagePath,
                 packageSettings: loadedPackageSettings,
-                disableSandbox: disableSandbox
+                disableSandbox: disableSandbox,
+                swiftPackageManagerArguments: config.project.generatedProject?.installOptions
+                    .passthroughSwiftPackageManagerArguments ?? []
             )
             spmLintingIssues = loadedSpmLintingIssues
             dependenciesGraph = try await converter.convert(dependenciesGraph: manifestsDependencyGraph, path: path)
