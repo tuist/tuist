@@ -34,6 +34,11 @@ on:
     paths:
       - .github/workflows/runners-staging-smoke.yml
 
+# Smoke job runs shell inside the Tart VM and curls public
+# github.com — it never reads or mutates repo state, so the
+# GITHUB_TOKEN needs zero scopes.
+permissions: {}
+
 jobs:
   smoke:
     # Single-label form. `tuist-staging-macos` is the pool's unique
