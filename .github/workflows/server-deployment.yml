@@ -343,8 +343,33 @@ jobs:
         run: |
           set -euo pipefail
           echo "Ensuring CAPI core $CAPI_CORE_VERSION on $NAMESPACE's workload cluster"
-          kubectl apply -f \
-            "https://github.com/kubernetes-sigs/cluster-api/releases/download/${CAPI_CORE_VERSION}/core-components.yaml"
+
+          # `kubectl apply` of CAPI's raw core-components.yaml fails
+          # because the manifest carries shell-style `${VAR:=default}`
+          # placeholders that the apiserver stores verbatim — the
+          # controller then refuses to start with
+          # `invalid argument "${CAPI_INSECURE_DIAGNOSTICS:=false}"`.
+          # `clusterctl init` is the supported install path: it
+          # resolves the placeholders, picks the right cert-manager
+          # version (installing it if absent), and handles webhook
+          # certificate ordering.
+          clusterctl=/tmp/clusterctl
+          if [ ! -x "$clusterctl" ]; then
+            curl -fsSL -o "$clusterctl" \
+              "https://github.com/kubernetes-sigs/cluster-api/releases/download/${CAPI_CORE_VERSION}/clusterctl-linux-amd64"
+            chmod +x "$clusterctl"
+          fi
+
+          # `--core cluster-api:vX.Y.Z` pins the version we just
+          # downloaded clusterctl from. `init` is idempotent: a
+          # second invocation against an already-installed core
+          # returns a "provider already exists" no-op.
+          if ! "$clusterctl" init --core "cluster-api:${CAPI_CORE_VERSION}"; then
+            # clusterctl exits non-zero when CAPI is already
+            # installed at the same version — distinguish that
+            # from real failures by re-checking deployment health.
+            echo "clusterctl init returned non-zero — checking for an existing healthy install"
+          fi
 
           # 10 min budget: cert-manager has to issue the webhook
           # serving cert, the controller image pulls from registry.k8s.io,
