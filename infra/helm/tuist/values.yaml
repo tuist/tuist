@@ -361,11 +361,6 @@ macosFleet:
   name: ""             # default: <release>-macos-fleet
   replicas: 1
   kubeletVersion: 1.32.1
-  # See `runnersFleet.adoptPoolPrefix` below for the full operator
-  # workflow. Empty (default) preserves the legacy auto-order
-  # behavior; set per-env to a Scaleway-name prefix to switch into
-  # adopt-pre-ordered-hosts mode.
-  adoptPoolPrefix: ""
   controlPlane:
     host: ""           # API server endpoint Mac minis dial when joining
     port: 6443
