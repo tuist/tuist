@@ -106,6 +106,22 @@ defmodule Tuist.Runners.Claims do
   end
 
   @doc """
+  Deletes the claim for `workflow_job_id` regardless of handle.
+  Called from the `workflow_job.completed` webhook to free the
+  cap slot the instant GitHub tells us the job finished — without
+  this the slot stays occupied until `StaleClaimsWorker` sweeps
+  it (~5 min later), which is a real UX issue for a customer who
+  just freed a slot and wants to claim the next workflow_job.
+
+  Idempotent — repeated webhook deliveries are a no-op. Returns
+  `:ok` whether or not a row existed.
+  """
+  def complete(workflow_job_id) when is_integer(workflow_job_id) do
+    Repo.delete_all(from(c in Claim, where: c.workflow_job_id == ^workflow_job_id))
+    :ok
+  end
+
+  @doc """
   Counts active claims per account on `fleet_name`. Returns
   `%{account_id => count}`. Powers the cap_lookup the dispatch
   path builds before each claim attempt.

@@ -78,6 +78,20 @@ defmodule Tuist.Runners.ClaimsTest do
     end
   end
 
+  describe "complete/1" do
+    test "deletes the claim regardless of handle" do
+      account = account_fixture()
+      {:ok, _} = Claims.attempt(5001, account.id, "fleet-c", "pod-1")
+
+      assert :ok = Claims.complete(5001)
+      assert Claims.counts_per_account("fleet-c") == %{}
+    end
+
+    test "is idempotent for unknown workflow_job_id" do
+      assert :ok = Claims.complete(9_999_999)
+    end
+  end
+
   describe "release_stale/1" do
     test "deletes claims older than the threshold and returns them" do
       account = account_fixture()

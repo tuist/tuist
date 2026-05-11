@@ -35,6 +35,7 @@ defmodule Tuist.Runners.Dispatch do
   alias Tuist.Accounts
   alias Tuist.Environment
   alias Tuist.Kubernetes.Client
+  alias Tuist.Runners.Claims
   alias Tuist.Runners.Jobs
 
   require Logger
@@ -112,6 +113,14 @@ defmodule Tuist.Runners.Dispatch do
   end
 
   defp mark_completed(workflow_job_id, conclusion) do
+    # Free the PG cap slot FIRST. The customer's next dispatch
+    # poll (potentially seconds away) sees the freed inflight
+    # count immediately rather than waiting on the stale-claims
+    # worker. CH state transition is fire-and-forget — if it
+    # raises, the next dispatch is unaffected because cap
+    # accounting reads PG.
+    :ok = Claims.complete(workflow_job_id)
+
     case Jobs.complete(workflow_job_id, conclusion) do
       {:ok, _} ->
         Logger.info("runners: completed",
