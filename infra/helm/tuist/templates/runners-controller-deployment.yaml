@@ -98,20 +98,16 @@ metadata:
     app.kubernetes.io/component: runners-controller
 rules:
   - apiGroups: [tuist.dev]
-    resources: [runnerpools, runnerassignments]
+    resources: [runnerpools]
     verbs: [get, list, watch, update, patch]
   - apiGroups: [tuist.dev]
-    resources: [runnerpools/status, runnerassignments/status]
+    resources: [runnerpools/status]
     verbs: [get, update, patch]
-  - apiGroups: [tuist.dev]
-    resources: [runnerassignments]
-    # Pool reconciler creates assignments to fill MinWarm gaps;
-    # both reconcilers can delete to drive cascade GC.
-    verbs: [get, list, watch, create, update, patch, delete]
-  - apiGroups: [tuist.dev]
-    resources: [runnerassignments/finalizers]
-    verbs: [update]
   - apiGroups: [""]
+    # Pods + SAs are direct owner-ref children of the RunnerPool.
+    # The reconciler creates them to bring the alive Pod count up
+    # to `spec.replicas` and deletes terminal Pods + their sibling
+    # SAs before booting replacements.
     resources: [pods, serviceaccounts]
     verbs: [get, list, watch, create, delete]
   - apiGroups: [""]

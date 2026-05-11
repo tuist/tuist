@@ -57,7 +57,7 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 	// Count Pods owned by this pool that are alive (not in a
 	// terminal phase, not being deleted). Terminal Pods aren't
-	// counted toward `minWarm` — they're on their way out and a
+	// counted toward `replicas` — they're on their way out and a
 	// replacement is needed.
 	pods := &corev1.PodList{}
 	if err := r.List(ctx, pods,
@@ -91,13 +91,13 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		}
 	}
 
-	gap := int(pool.Spec.MinWarm) - alive
+	gap := int(pool.Spec.Replicas) - alive
 	if gap < 0 {
 		gap = 0
 	}
 
 	logger.Info("reconcile",
-		"target", pool.Spec.MinWarm,
+		"target", pool.Spec.Replicas,
 		"observed", alive,
 		"reaped", reaped,
 		"gap", gap,
@@ -176,7 +176,7 @@ func (r *RunnerPoolReconciler) reapTerminalRunner(ctx context.Context, pod *core
 	return nil
 }
 
-// isAlive returns true for Pods that should count toward `minWarm`:
+// isAlive returns true for Pods that should count toward `replicas`:
 // not in a terminal phase, not pending deletion.
 func isAlive(pod *corev1.Pod) bool {
 	if !pod.DeletionTimestamp.IsZero() {

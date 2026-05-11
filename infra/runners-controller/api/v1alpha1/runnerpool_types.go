@@ -4,8 +4,8 @@ import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 // RunnerPoolSpec is the operator-facing declarative shape for a
 // fleet of macOS runners. The chart renders one RunnerPool CR per
-// entry in `runnersFleet.fleets`; the controller maintains
-// `MinWarm` Pods + per-Pod ServiceAccounts on hosts matching
+// entry in `runnersFleet.pools`; the controller maintains
+// `Replicas` Pods + per-Pod ServiceAccounts on hosts matching
 // `FleetSelector`.
 //
 // Multiple RunnerPools coexist in the same namespace so different
@@ -25,13 +25,13 @@ type RunnerPoolSpec struct {
 	// +optional
 	Labels []string `json:"labels,omitempty"`
 
-	// MinWarm is the count of Pods the controller maintains. By
-	// convention this equals the fleet's host count, so every host
-	// always carries either an idle warm Pod or a Pod running a
-	// customer job. (Apple's SLA permits up to two VMs per host;
-	// v1 runs one per host to keep capacity reasoning simple.)
+	// Replicas is the count of Pods the controller maintains. The
+	// chart's `runnersFleet.pools[].replicas` flows straight into
+	// this field. Across all pools in a namespace, the sum should
+	// fit within the host fleet's capacity (one VM per host at v1;
+	// Apple's SLA permits up to two).
 	// +kubebuilder:default=0
-	MinWarm int32 `json:"minWarm,omitempty"`
+	Replicas int32 `json:"replicas,omitempty"`
 
 	// Image is the OCI ref of the runner Tart image, digest-pinned.
 	Image string `json:"image"`
@@ -79,8 +79,8 @@ type RunnerPoolStatus struct {
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:path=runnerpools,scope=Namespaced,shortName=rpool
-// +kubebuilder:printcolumn:name="MinWarm",type=integer,JSONPath=".spec.minWarm"
-// +kubebuilder:printcolumn:name="Replicas",type=integer,JSONPath=".status.observedReplicas"
+// +kubebuilder:printcolumn:name="Replicas",type=integer,JSONPath=".spec.replicas"
+// +kubebuilder:printcolumn:name="Observed",type=integer,JSONPath=".status.observedReplicas"
 // +kubebuilder:printcolumn:name="DispatchLabel",type=string,JSONPath=".spec.dispatchLabel"
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 

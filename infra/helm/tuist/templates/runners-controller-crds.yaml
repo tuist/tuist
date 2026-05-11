@@ -30,10 +30,10 @@ spec:
       subresources:
         status: {}
       additionalPrinterColumns:
-        - name: MinWarm
-          type: integer
-          jsonPath: .spec.minWarm
         - name: Replicas
+          type: integer
+          jsonPath: .spec.replicas
+        - name: Observed
           type: integer
           jsonPath: .status.observedReplicas
         - name: DispatchLabel
@@ -55,11 +55,11 @@ spec:
                   items:
                     type: string
                   description: Labels stamped on Pods + SAs the controller creates.
-                minWarm:
+                replicas:
                   type: integer
                   default: 0
                   minimum: 0
-                  description: Number of Pods the controller maintains. By convention equals the fleet's host count.
+                  description: Number of Pods the controller maintains for this pool.
                 image:
                   type: string
                   description: OCI ref of the runner Tart image, digest-pinned.

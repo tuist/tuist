@@ -511,7 +511,7 @@ runnersFleet:
     # Example entry. Defaults are applied per field; only `name`,
     # `runnerImage`, and `dispatchLabel` are required.
     # - name: default          # Suffix for the RunnerPool CR name.
-    #   replicas: 0            # spec.minWarm — number of Pods the controller maintains.
+    #   replicas: 0            # spec.replicas — number of Pods the controller maintains.
     #   runnerImage: ""        # Required. Digest-pinned in production.
     #   dispatchLabel: ""      # Required. The label customers put in `runs-on`.
     #   pod:
@@ -520,7 +520,7 @@ runnersFleet:
 
 # runners-controller: standalone Go reconciler that owns Pod + SA
 # materialization for the RunnerPool CRD. The controller watches
-# the helm-rendered RunnerPool CR and maintains `spec.minWarm`
+# the helm-rendered RunnerPool CRs and maintains `spec.replicas`
 # Pods + per-Pod ServiceAccounts as direct owner-ref children.
 # When a Pod hits a terminal phase, the controller reaps the Pod
 # and its sibling SA and boots a replacement. The Pod's projected

@@ -10,7 +10,7 @@ defmodule Tuist.Runners do
       `spec.dispatchLabel` is the runner label customers put in
       `runs-on` to route to it; the webhook handler matches
       `workflow_job.labels` against every pool's `dispatchLabel`.
-      `spec.minWarm` per pool sums to ≤ host count under the v1
+      `spec.replicas` per pool sums to ≤ host count under the v1
       one-VM-per-host design choice.
     * **The Go controller's `RunnerPoolReconciler`** maintains
       each pool's Pods + per-Pod ServiceAccounts directly via

@@ -60,14 +60,15 @@ hosted runners.
    `spec.containers[0].image`; tart-kubelet on the target Mac
    mini calls `tart pull`/`tart clone`/`tart run`.
 3. The launchd plist runs on first boot inside the VM. The
-   dispatch-poll script exchanges the per-Pod token for a JIT
-   config (200 immediately for pre-bound, 200 once a webhook
-   binds an on-demand Pod), runs the GitHub Actions runner
-   single-shot, traps the exit, halts the VM. tart-kubelet sees
-   `tart run` exit, the Pod goes Succeeded, the watcher GCs the
-   Pod + assignment row and (if `min_warm > 0`) refills.
+   dispatch-poll script exchanges the projected SA token for a
+   JIT config (200 with the JIT when a queue row is claimed, 204
+   while idle), runs the GitHub Actions runner single-shot,
+   traps the exit, halts the VM. tart-kubelet sees `tart run`
+   exit, the Pod goes Succeeded, the RunnerPoolReconciler reaps
+   the Pod + sibling SA and boots a replacement to keep the
+   pool at `spec.replicas`.
 
 For the customer-facing dispatch label and capacity model see
-`server/lib/tuist/runners/pool_config.ex` and the PR description
-that introduced the runner pool — they're the right place for
-the routing semantics, this doc is just about the VM image.
+`server/lib/tuist/runners.ex` and `infra/helm/tuist/values.yaml`
+(`runnersFleet.pools[]`) — they're the right place for routing
+semantics; this doc is just about the VM image.
