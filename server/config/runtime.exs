@@ -42,10 +42,36 @@ if Enum.member?([:prod, :stag, :can], env) do
   parsed_url = URI.parse(database_url)
   [username, password] = String.split(parsed_url.userinfo, ":")
 
+  # `{:keepalive, true}` enables SO_KEEPALIVE but inherits the OS default
+  # `tcp_keepalive_time` (7200s on Linux), so the pool keeps handing out
+  # half-dead sockets long after a cloud-egress NAT drops the idle TCP
+  # connection — surfaced as `DBConnection.ConnectionError: ssl recv
+  # (idle): closed`, fired ~14k times from `Oban.Met.Reporter` after the
+  # Render→K8s migration added NAT hops on the Supabase egress path.
+  # Postgres-side `tcp_keepalives_idle: "60"` only helps when those
+  # probes actually reach the client across the new path; mirror the
+  # same 60s/15s/4-probe cadence on the client socket so dead idles
+  # get reaped within ~2 min, well under any cloud NAT timeout.
+  # Postgrex hands `socket_options` straight to `:gen_tcp` / `:ssl`,
+  # so the `{:raw, _, _, _}` 4-tuples work here (unlike Mint, whose
+  # `Keyword.merge/2` normalization rejects them — see commit d803ae28cd).
+  tcp_keepalive_raw_opts =
+    case :os.type() do
+      {:unix, :linux} ->
+        [
+          {:raw, 6, 4, <<60::native-32>>},
+          {:raw, 6, 5, <<15::native-32>>},
+          {:raw, 6, 6, <<4::native-32>>}
+        ]
+
+      _ ->
+        []
+    end
+
   socket_opts =
     if Tuist.Environment.use_ipv6?(secrets) in ~w(true 1),
-      do: [:inet6, {:keepalive, true}],
-      else: [{:keepalive, true}]
+      do: [:inet6, {:keepalive, true}] ++ tcp_keepalive_raw_opts,
+      else: [{:keepalive, true}] ++ tcp_keepalive_raw_opts
 
   # Picks the connection shape based on `TUIST_DATABASE_POOLED` (set by the
   # chart on processor pods, unset on server pods). Direct Postgres keeps
