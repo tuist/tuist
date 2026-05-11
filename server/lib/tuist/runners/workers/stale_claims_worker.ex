@@ -1,15 +1,14 @@
 defmodule Tuist.Runners.Workers.StaleClaimsWorker do
   @moduledoc """
-  Recovers `runner_jobs` rows stuck in `status='claimed'` past
-  the recovery threshold by INSERTing a fresh row that transitions
-  them back to `status='queued'`.
+  Recovers Postgres `runner_claims` rows stuck past the recovery
+  threshold by deleting them and re-INSERTing a `queued` state
+  row into the ClickHouse `runner_jobs` table so the next poll
+  can pick the workflow_job up again.
 
   A successful claim normally lives at most a few seconds — claim
-  → mint → start. If the server crashes between the `claimed`
-  INSERT and the `running` INSERT, the row stays stuck. The
-  ReplacingMergeTree merge keeps the latest `updated_at` row, so
-  re-INSERTing with a `queued` state and a fresh timestamp puts
-  the row back into the dispatch candidate pool.
+  → mint → start. If the server crashes between the PG INSERT and
+  the JIT-mint completion, the PG row stays stuck and the
+  customer's cap slot is consumed for a job that will never run.
 
   Threshold is generous (5 min) because the happy path is
   sub-second; anything stuck > 5 min is overwhelmingly a real
@@ -18,6 +17,7 @@ defmodule Tuist.Runners.Workers.StaleClaimsWorker do
 
   use Oban.Worker, queue: :default, max_attempts: 1
 
+  alias Tuist.Runners.Claims
   alias Tuist.Runners.Jobs
 
   require Logger
@@ -28,17 +28,17 @@ defmodule Tuist.Runners.Workers.StaleClaimsWorker do
   def perform(_job) do
     threshold = DateTime.add(DateTime.utc_now(), -@stale_after_seconds, :second)
 
-    case Jobs.stale_claimed(threshold) do
+    case Claims.release_stale(threshold) do
       [] ->
         :ok
 
-      stale ->
-        Enum.each(stale, fn job ->
-          Jobs.release(job)
+      released ->
+        Enum.each(released, fn %{workflow_job_id: id} ->
+          Jobs.record_queued(id)
         end)
 
         Logger.warning("runners: released stale claims",
-          count: length(stale),
+          count: length(released),
           stale_after_seconds: @stale_after_seconds
         )
 
