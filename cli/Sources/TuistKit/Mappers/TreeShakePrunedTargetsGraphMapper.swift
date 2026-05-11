@@ -11,17 +11,21 @@ public struct TreeShakePrunedTargetsGraphMapper: GraphMapping {
         Graph, [SideEffectDescriptor], MapperEnvironment
     ) {
         Logger.current.debug("Transforming graph \(graph.name): Tree-shaking nodes")
-        let sourceTargets: Set<TargetReference> = Set(
-            graph.projects.flatMap { projectPath, project -> [TargetReference] in
-                return project.targets.compactMap { _, target -> TargetReference? in
-                    if target.metadata.tags.contains("tuist:prunable") { return nil }
-                    return TargetReference(projectPath: projectPath, name: target.name)
+        var sourceTargets: Set<TargetReference> = []
+        var prunedTargets: Set<TargetReference> = []
+        for (projectPath, project) in graph.projects {
+            for target in project.targets.values {
+                let reference = TargetReference(projectPath: projectPath, name: target.name)
+                if target.metadata.tags.contains("tuist:prunable") {
+                    prunedTargets.insert(reference)
+                } else {
+                    sourceTargets.insert(reference)
                 }
             }
-        )
+        }
 
-        // If the number of source targets matches the number of targets in the graph there's nothing to be pruned.
-        if sourceTargets.count == graph.projects.values.flatMap(\.targets.values).count {
+        // If nothing was tagged prunable there's nothing to be pruned.
+        if prunedTargets.isEmpty {
             return (graph, [], environment)
         }
 
@@ -39,7 +43,8 @@ public struct TreeShakePrunedTargetsGraphMapper: GraphMapping {
             if !treeShakenTargets.isEmpty {
                 let schemes = treeShake(
                     schemes: project.schemes,
-                    sourceTargets: sourceTargets
+                    sourceTargets: sourceTargets,
+                    prunedTargets: prunedTargets
                 )
                 var project = project
                 project.schemes = schemes
@@ -56,7 +61,8 @@ public struct TreeShakePrunedTargetsGraphMapper: GraphMapping {
         let workspace = treeShake(
             workspace: graph.workspace,
             projects: Array(treeShakenProjects.values),
-            sourceTargets: sourceTargets
+            sourceTargets: sourceTargets,
+            prunedTargets: prunedTargets
         )
 
         var graph = graph
@@ -67,10 +73,17 @@ public struct TreeShakePrunedTargetsGraphMapper: GraphMapping {
     }
 
     fileprivate func treeShake(
-        workspace: Workspace, projects: [Project], sourceTargets: Set<TargetReference>
+        workspace: Workspace,
+        projects: [Project],
+        sourceTargets: Set<TargetReference>,
+        prunedTargets: Set<TargetReference>
     ) -> Workspace {
         let projects = workspace.projects.filter { projects.map(\.path).contains($0) }
-        let schemes = treeShake(schemes: workspace.schemes, sourceTargets: sourceTargets)
+        let schemes = treeShake(
+            schemes: workspace.schemes,
+            sourceTargets: sourceTargets,
+            prunedTargets: prunedTargets
+        )
         var workspace = workspace
         workspace.schemes = schemes
         workspace.projects = projects
@@ -151,7 +164,11 @@ public struct TreeShakePrunedTargetsGraphMapper: GraphMapping {
         return (targets: treeShakenTargets, dependencies: treeShakenDependencies)
     }
 
-    fileprivate func treeShake(schemes: [Scheme], sourceTargets: Set<TargetReference>) -> [Scheme] {
+    fileprivate func treeShake(
+        schemes: [Scheme],
+        sourceTargets: Set<TargetReference>,
+        prunedTargets: Set<TargetReference>
+    ) -> [Scheme] {
         schemes.compactMap { scheme -> Scheme? in
             var scheme = scheme
 
@@ -159,10 +176,10 @@ public struct TreeShakePrunedTargetsGraphMapper: GraphMapping {
                 buildAction.targets = buildAction.targets.filter(sourceTargets.contains)
                 let buildFallback = buildAction.targets.first
                 buildAction.preActions = buildAction.preActions.map {
-                    rewriteExecutionActionTarget($0, sourceTargets: sourceTargets, fallback: buildFallback)
+                    rewriteExecutionActionTarget($0, prunedTargets: prunedTargets, fallback: buildFallback)
                 }
                 buildAction.postActions = buildAction.postActions.map {
-                    rewriteExecutionActionTarget($0, sourceTargets: sourceTargets, fallback: buildFallback)
+                    rewriteExecutionActionTarget($0, prunedTargets: prunedTargets, fallback: buildFallback)
                 }
                 scheme.buildAction = buildAction
             }
@@ -177,12 +194,20 @@ public struct TreeShakePrunedTargetsGraphMapper: GraphMapping {
                 testAction.testPlans = testAction.testPlans?.compactMap {
                     treeShake(testPlan: $0, sourceTargets: sourceTargets)
                 }
-                let testFallback = testAction.targets.first?.target ?? scheme.buildAction?.targets.first
+                // Fall back to a surviving testable in the test action; if there's only a
+                // surviving test plan, use its first surviving testable; otherwise fall back
+                // to the build action's first surviving buildable.
+                // Fall back to a surviving testable in the test action; if there's only a
+                // surviving test plan, use its first surviving testable; otherwise fall back
+                // to the build action's first surviving buildable.
+                let testFallback = testAction.targets.first?.target
+                    ?? testAction.testPlans?.lazy.compactMap(\.testTargets.first).first?.target
+                    ?? scheme.buildAction?.targets.first
                 testAction.preActions = testAction.preActions.map {
-                    rewriteExecutionActionTarget($0, sourceTargets: sourceTargets, fallback: testFallback)
+                    rewriteExecutionActionTarget($0, prunedTargets: prunedTargets, fallback: testFallback)
                 }
                 testAction.postActions = testAction.postActions.map {
-                    rewriteExecutionActionTarget($0, sourceTargets: sourceTargets, fallback: testFallback)
+                    rewriteExecutionActionTarget($0, prunedTargets: prunedTargets, fallback: testFallback)
                 }
                 scheme.testAction = testAction
             }
@@ -215,17 +240,20 @@ public struct TreeShakePrunedTargetsGraphMapper: GraphMapping {
         }
     }
 
-    /// Rewrites a pre/post-action's `target` when it names a target being pruned out of the
-    /// graph, swapping in the parent action's first surviving buildable so the script keeps
-    /// receiving target-derived build settings (`BUILD_DIR`, `CONFIGURATION`, …). When the
-    /// action already references a surviving target, or the scheme has no surviving buildable
-    /// to swap to, the action is left untouched.
+    /// Rewrites a pre/post-action's `target` when it names a target this mapper is about to
+    /// remove from the graph, swapping in the parent action's first surviving buildable so the
+    /// script keeps receiving target-derived build settings (`BUILD_DIR`, `CONFIGURATION`, …).
+    ///
+    /// Targets that were never in the graph in the first place (e.g. a typo in the manifest)
+    /// are left untouched — the existing scheme-target-not-found surface in the generator/
+    /// linter then surfaces the mistake instead of silently substituting build settings from
+    /// an unrelated target.
     private func rewriteExecutionActionTarget(
         _ action: ExecutionAction,
-        sourceTargets: Set<TargetReference>,
+        prunedTargets: Set<TargetReference>,
         fallback: TargetReference?
     ) -> ExecutionAction {
-        guard let original = action.target, !sourceTargets.contains(original) else { return action }
+        guard let original = action.target, prunedTargets.contains(original) else { return action }
         return ExecutionAction(
             title: action.title,
             scriptText: action.scriptText,

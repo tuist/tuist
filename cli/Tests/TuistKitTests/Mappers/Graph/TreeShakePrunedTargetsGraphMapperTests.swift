@@ -673,4 +673,104 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
             "Test action post-action target should be rewritten to the scheme's surviving testable target."
         )
     }
+
+    /// A pre/post-action `target` that names a target not present in the graph (e.g. a typo
+    /// in the manifest) must be left alone. Rewriting it would silently swap in another
+    /// target's build settings and suppress the existing scheme-target-not-found surface
+    /// in the linter / scheme generator.
+    func test_map_does_not_rewrite_unresolvable_pre_post_action_target() throws {
+        // Given
+        var prunedFramework = Target.test(name: "PrunedFramework", product: .framework)
+        prunedFramework.metadata.tags.formUnion(["tuist:prunable"])
+        let testTarget = Target.test(name: "FrameworkTests", product: .unitTests)
+        let path = try temporaryPath()
+        let typoRef = TargetReference(projectPath: path, name: "DoesNotExistAnywhere")
+
+        let scheme = Scheme.test(
+            name: "FrameworkTests",
+            buildAction: .test(
+                targets: [TargetReference(projectPath: path, name: testTarget.name)],
+                preActions: [
+                    ExecutionAction(
+                        title: "Pre-action",
+                        scriptText: "echo $TARGET_BUILD_DIR",
+                        target: typoRef,
+                        shellPath: nil
+                    ),
+                ]
+            ),
+            testAction: .test(
+                targets: [.test(target: TargetReference(projectPath: path, name: testTarget.name))]
+            )
+        )
+        let project = Project.test(path: path, targets: [prunedFramework, testTarget], schemes: [scheme])
+        let graph = Graph.test(projects: [project.path: project])
+
+        // When
+        let (gotGraph, _, _) = try subject.map(graph: graph, environment: MapperEnvironment())
+
+        // Then
+        let survivingScheme = try XCTUnwrap(gotGraph.projects.values.first?.schemes.first)
+        XCTAssertEqual(
+            survivingScheme.buildAction?.preActions.first?.target,
+            typoRef,
+            "An unresolvable pre-action target should not be silently rewritten — the existing linter surface should report it."
+        )
+    }
+
+    /// When the only surviving testable in a scheme lives in a test plan (not in
+    /// `testAction.targets`), test-action pre/post-action targets that name a pruned target
+    /// should fall back to that test-plan target — not to the build action's first target —
+    /// so the script gets test build settings, not arbitrary build-target ones.
+    func test_map_rewrites_test_action_target_to_surviving_test_plan_target_when_action_targets_are_empty() throws {
+        // Given
+        var prunedFramework = Target.test(name: "PrunedFramework", product: .framework)
+        prunedFramework.metadata.tags.formUnion(["tuist:prunable"])
+        let app = Target.test(name: "App", product: .app)
+        let surviveTests = Target.test(name: "SurviveTests", product: .unitTests)
+        let path = try temporaryPath()
+        let testPlanPath = path.appending(component: "Plan.xctestplan")
+
+        let scheme = Scheme.test(
+            name: "Plan",
+            buildAction: .test(targets: [TargetReference(projectPath: path, name: app.name)]),
+            testAction: .test(
+                targets: [],
+                postActions: [
+                    ExecutionAction(
+                        title: "Post-action",
+                        scriptText: "echo done",
+                        target: TargetReference(projectPath: path, name: prunedFramework.name),
+                        shellPath: nil
+                    ),
+                ],
+                testPlans: [
+                    TestPlan(
+                        path: testPlanPath,
+                        testTargets: [
+                            .test(target: TargetReference(projectPath: path, name: surviveTests.name)),
+                        ],
+                        isDefault: true
+                    ),
+                ]
+            )
+        )
+        let project = Project.test(
+            path: path,
+            targets: [prunedFramework, app, surviveTests],
+            schemes: [scheme]
+        )
+        let graph = Graph.test(projects: [project.path: project])
+
+        // When
+        let (gotGraph, _, _) = try subject.map(graph: graph, environment: MapperEnvironment())
+
+        // Then
+        let survivingScheme = try XCTUnwrap(gotGraph.projects.values.first?.schemes.first)
+        XCTAssertEqual(
+            survivingScheme.testAction?.postActions.first?.target,
+            TargetReference(projectPath: path, name: surviveTests.name),
+            "Should fall back to the surviving test plan target, not the build action's target."
+        )
+    }
 }
