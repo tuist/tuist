@@ -45,8 +45,9 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	legacyIngress := &networkingv1.Ingress{ObjectMeta: metav1.ObjectMeta{Name: instance.Name, Namespace: instance.Namespace}}
 
 	reconciler := &KuraInstanceReconciler{
-		Client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance, legacyIngress).WithStatusSubresource(instance).Build(),
-		Scheme: scheme,
+		Client:            fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance, legacyIngress).WithStatusSubresource(instance).Build(),
+		Scheme:            scheme,
+		GRPCClusterIssuer: "letsencrypt-prod",
 	}
 
 	if _, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}}); err != nil {
@@ -66,17 +67,32 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	if got := service.Spec.Ports[0].Port; got != httpsPort {
 		t.Fatalf("expected public service port %d, got %d", httpsPort, got)
 	}
-	if got := service.Spec.Ports[0].TargetPort.StrVal; got != "http" {
-		t.Fatalf("expected public service to target http, got %q", got)
+	if got := service.Spec.Ports[0].TargetPort.StrVal; got != "https" {
+		t.Fatalf("expected public service to target the TLS-terminating https port, got %q", got)
 	}
 	if got := service.Annotations["external-dns.alpha.kubernetes.io/hostname"]; got != "tuist-eu-1.kura.tuist.dev" {
 		t.Fatalf("expected external-dns hostname, got %q", got)
 	}
-	if got := service.Annotations["load-balancer.hetzner.cloud/protocol"]; got != "https" {
-		t.Fatalf("expected Hetzner HTTPS load balancer, got %q", got)
+	if got := service.Annotations["load-balancer.hetzner.cloud/protocol"]; got != "tcp" {
+		t.Fatalf("expected Hetzner LB tcp passthrough so Kura terminates TLS, got %q", got)
 	}
-	if got := service.Annotations["load-balancer.hetzner.cloud/http-managed-certificate-domains"]; got != "tuist-eu-1.kura.tuist.dev" {
-		t.Fatalf("expected Hetzner managed cert domain, got %q", got)
+	if _, ok := service.Annotations["load-balancer.hetzner.cloud/certificate-type"]; ok {
+		t.Fatal("expected managed-cert annotations to be dropped now that cert-manager issues the public cert")
+	}
+	if got := service.Annotations["load-balancer.hetzner.cloud/health-check-port"]; got != "4000" {
+		t.Fatalf("expected health check to target the plain HTTP port, got %q", got)
+	}
+
+	publicCert := &unstructured.Unstructured{}
+	publicCert.SetGroupVersionKind(certificateGVK())
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: publicTLSSecretName(instance), Namespace: instance.Namespace}, publicCert); err != nil {
+		t.Fatalf("expected cert-manager Certificate for the public host to be created: %v", err)
+	}
+	if got, _, _ := unstructured.NestedString(publicCert.Object, "spec", "issuerRef", "name"); got != "letsencrypt-prod" {
+		t.Fatalf("expected public Certificate ClusterIssuer ref, got %q", got)
+	}
+	if got, _, _ := unstructured.NestedStringSlice(publicCert.Object, "spec", "dnsNames"); len(got) != 1 || got[0] != "tuist-eu-1.kura.tuist.dev" {
+		t.Fatalf("expected public Certificate dnsNames to include the public host, got %v", got)
 	}
 
 	ingress := &networkingv1.Ingress{}
@@ -117,6 +133,32 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	}
 	if got := env["KURA_EXTENSION_ENABLED"]; got != "true" {
 		t.Fatalf("expected controller to enable the extension, got %q", got)
+	}
+	if env["KURA_PUBLIC_TLS_CERT_PATH"] == "" || env["KURA_PUBLIC_TLS_KEY_PATH"] == "" {
+		t.Fatal("expected public TLS env paths to be configured when publicHost is set")
+	}
+	if got := env["KURA_HTTPS_PORT"]; got == "" {
+		t.Fatal("expected KURA_HTTPS_PORT to be set when publicHost is set")
+	}
+	publicMountFound := false
+	for _, mount := range container.VolumeMounts {
+		if mount.Name == publicTLSVolumeName {
+			publicMountFound = true
+			break
+		}
+	}
+	if !publicMountFound {
+		t.Fatal("expected public TLS secret to be mounted into the kura container")
+	}
+	publicPortFound := false
+	for _, port := range container.Ports {
+		if port.Name == "https" {
+			publicPortFound = true
+			break
+		}
+	}
+	if !publicPortFound {
+		t.Fatal("expected https container port to be exposed when publicHost is set")
 	}
 	for _, name := range []string{
 		"KURA_FILE_DESCRIPTOR_POOL_SIZE",

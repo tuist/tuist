@@ -6,7 +6,7 @@ use rustls::pki_types::{CertificateDer, PrivateKeyDer};
 use rustls::{RootCertStore, ServerConfig, server::WebPkiClientVerifier};
 use tokio::fs;
 
-use crate::config::{Config, PeerTlsConfig};
+use crate::config::{Config, PeerTlsConfig, PublicTlsConfig};
 
 pub async fn build_peer_client(config: &Config) -> Result<Client, String> {
     let mut builder = Client::builder()
@@ -67,6 +67,22 @@ pub async fn build_internal_rustls_config(
         .with_client_cert_verifier(verifier)
         .with_single_cert(certificates, private_key)
         .map_err(|error| format!("failed to build peer TLS server config: {error}"))?;
+    server_config.alpn_protocols = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
+
+    Ok(RustlsConfig::from_config(Arc::new(server_config)))
+}
+
+pub async fn build_public_rustls_config(
+    public_tls: &PublicTlsConfig,
+) -> Result<RustlsConfig, String> {
+    install_default_crypto_provider();
+    let certificates = load_certificates(&public_tls.cert_path).await?;
+    let private_key = load_private_key(&public_tls.key_path).await?;
+
+    let mut server_config = ServerConfig::builder()
+        .with_no_client_auth()
+        .with_single_cert(certificates, private_key)
+        .map_err(|error| format!("failed to build public TLS server config: {error}"))?;
     server_config.alpn_protocols = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
 
     Ok(RustlsConfig::from_config(Arc::new(server_config)))
