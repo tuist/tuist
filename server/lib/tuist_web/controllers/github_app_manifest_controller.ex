@@ -168,7 +168,7 @@ defmodule TuistWeb.GitHubAppManifestController do
         checks: "write",
         metadata: "read"
       },
-      default_events: ["check_run", "pull_request", "issue_comment", "installation"]
+      default_events: ["check_run", "pull_request", "issue_comment"]
     }
   end
 
