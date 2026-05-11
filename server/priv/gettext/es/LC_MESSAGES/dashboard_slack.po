@@ -21,12 +21,12 @@ msgstr "Error al guardar la instalación de Slack. Por favor, inténtalo de nuev
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:47
 #, elixir-autogen, elixir-format
 msgid "Invalid Slack authorization. Please try again."
-msgstr "Autorización de Slack inválida. Por favor, inténtalo de nuevo."
+msgstr "Autorización de Slack no válida. Por favor, inténtalo de nuevo."
 
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:97
 #, elixir-autogen, elixir-format
 msgid "Invalid authorization request. Please try again."
-msgstr "Solicitud de autorización inválida. Por favor, inténtalo de nuevo."
+msgstr "Solicitud de autorización no válida. Por favor, inténtalo de nuevo."
 
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:144
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:162
@@ -55,4 +55,4 @@ msgstr "Regla de alerta no encontrada. Por favor, inténtalo de nuevo."
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:89
 #, elixir-autogen, elixir-format
 msgid "Authorization request expired. Please start the Slack connection process again."
-msgstr "La solicitud de autorización ha expirado. Por favor, inicia nuevamente el proceso de conexión con Slack."
+msgstr "La solicitud de autorización ha expirado. Por favor, inicia de nuevo el proceso de conexión con Slack."

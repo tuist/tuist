@@ -9,7 +9,7 @@ msgstr ""
 #: lib/tuist_web/live/integrations_live.html.heex:90
 #, elixir-autogen, elixir-format
 msgid "Add new project connection"
-msgstr "Agregar nueva conexión de proyecto"
+msgstr "Añadir nueva conexión de proyecto"
 
 #: lib/tuist_web/live/integrations_live.html.heex:153
 #, elixir-autogen, elixir-format
@@ -34,7 +34,7 @@ msgstr "Elige repositorio para conectar"
 #: lib/tuist_web/live/integrations_live.html.heex:9
 #, elixir-autogen, elixir-format
 msgid "Connect any of your GitHub repositories to a project"
-msgstr "Conecta cualquiera de tus repositorios GitHub a un proyecto"
+msgstr "Conecta cualquiera de tus repositorios de GitHub a un proyecto"
 
 #: lib/tuist_web/live/integrations_live.ex:201
 #, elixir-autogen, elixir-format
@@ -59,7 +59,7 @@ msgstr "GitHub"
 #: lib/tuist_web/live/integrations_live.html.heex:56
 #, elixir-autogen, elixir-format
 msgid "Install GitHub App"
-msgstr "Instalar app de GitHub"
+msgstr "Instalar la app de GitHub"
 
 #: lib/tuist_web/live/integrations_live.ex:37
 #: lib/tuist_web/live/integrations_live.html.heex:2
@@ -90,7 +90,7 @@ msgstr "No estás autorizado para realizar esta acción."
 #: lib/tuist_web/live/integrations_live.html.heex:78
 #, elixir-autogen, elixir-format
 msgid "Your access to repositories depends on your GitHub and Tuist integration setup."
-msgstr "Tu acceso a los repositorios depende de la configuración de tu integración entre GitHub y Tuist."
+msgstr "Tu acceso a los repositorios depende de la configuración de integración entre GitHub y Tuist."
 
 #: lib/tuist_web/live/integrations_live.html.heex:230
 #, elixir-autogen, elixir-format
@@ -100,7 +100,7 @@ msgstr "Conectar Slack"
 #: lib/tuist_web/live/integrations_live.html.heex:220
 #, elixir-autogen, elixir-format
 msgid "Connect Slack to receive project analytics reports"
-msgstr "Conecta Slack para recibir informes analíticos del proyecto"
+msgstr "Conecta Slack para recibir informes de análisis del proyecto"
 
 #: lib/tuist_web/live/integrations_live.html.heex:237
 #, elixir-autogen, elixir-format

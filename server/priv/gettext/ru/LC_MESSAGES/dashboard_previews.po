@@ -73,7 +73,7 @@ msgstr "Установить приложение"
 #: lib/tuist_web/live/previews_live.html.heex:24
 #, elixir-autogen, elixir-format
 msgid "Latest app previews"
-msgstr "Последние превью приложений"
+msgstr "Последние предпросмотры приложений"
 
 #: lib/tuist_web/live/previews_live.html.heex:71
 #, elixir-autogen, elixir-format
@@ -102,7 +102,7 @@ msgstr "Платформы"
 #: lib/tuist_web/live/previews_live.html.heex:33
 #, elixir-autogen, elixir-format
 msgid "Previews"
-msgstr "Превью"
+msgstr "Предпросмотры"
 
 #: lib/tuist_web/live/preview_live.html.heex:203
 #: lib/tuist_web/live/preview_live.html.heex:249
@@ -118,7 +118,7 @@ msgstr "Запущено в"
 #: lib/tuist_web/live/previews_live.html.heex:90
 #, elixir-autogen, elixir-format
 msgid "Ran by"
-msgstr "Запущено пользователем"
+msgstr "Запущено кем"
 
 #: lib/tuist_web/live/preview_live.html.heex:98
 #, elixir-autogen, elixir-format
@@ -128,7 +128,7 @@ msgstr "Запустить"
 #: lib/tuist_web/live/previews_live.html.heex:6
 #, elixir-autogen, elixir-format
 msgid "Run the following command to share app preview."
-msgstr "Выполните следующую команду, чтобы поделиться превью приложения."
+msgstr "Выполните следующую команду для обмена предпросмотром приложения."
 
 #: lib/tuist_web/live/preview_live.html.heex:190
 #: lib/tuist_web/live/preview_live.html.heex:236
@@ -139,12 +139,12 @@ msgstr "Отсканируйте QR-код"
 #: lib/tuist_web/live/preview_live.html.heex:239
 #, elixir-autogen, elixir-format
 msgid "Scan this QR code on your iOS device to install this version of the app"
-msgstr "Отсканируйте этот QR-код на вашем iOS-устройстве, чтобы установить эту версию приложения"
+msgstr "Сканируйте этот QR-код на вашем устройстве iOS, чтобы установить эту версию приложения"
 
 #: lib/tuist_web/live/previews_live.html.heex:5
 #, elixir-autogen, elixir-format
 msgid "Share app previews in one click"
-msgstr "Делитесь превью приложений одним кликом"
+msgstr "Поделитесь предпросмотрами приложений в один клик"
 
 #: lib/tuist_web/live/preview_live.html.heex:115
 #, elixir-autogen, elixir-format
@@ -154,17 +154,17 @@ msgstr "Поддерживаемые платформы"
 #: lib/tuist_web/live/preview_live.html.heex:269
 #, elixir-autogen, elixir-format
 msgid "This preview is only supported on simulators and can't be installed on a physical device"
-msgstr "Это превью поддерживается только на симуляторах и не может быть установлено на физическое устройство"
+msgstr "Этот предпросмотр поддерживается только в симуляторах и не может быть установлен на физическое устройство"
 
 #: lib/tuist_web/live/preview_live.html.heex:263
 #, elixir-autogen, elixir-format
 msgid "This preview isn't available for device installation"
-msgstr "Это превью недоступно для установки на устройство"
+msgstr "Этот предпросмотр недоступен для установки на устройство"
 
 #: lib/tuist_web/live/preview_live.html.heex:12
 #, elixir-autogen, elixir-format
 msgid "To run the preview directly from the browser, download and install the Tuist macOS app"
-msgstr "Чтобы запускать превью прямо из браузера, скачайте и установите приложение Tuist для macOS"
+msgstr "Чтобы запустить предпросмотр прямо из браузера, скачайте и установите приложение Tuist для macOS"
 
 #: lib/tuist_web/live/preview_live.html.heex:81
 #, elixir-autogen, elixir-format
@@ -196,14 +196,14 @@ msgstr "Имя пакета"
 #: lib/tuist_web/live/preview_live.html.heex:193
 #, elixir-autogen, elixir-format
 msgid "Scan this QR code on your Android device to download and install this version of the app"
-msgstr "Отсканируйте этот QR-код на вашем Android-устройстве, чтобы скачать и установить эту версию приложения"
+msgstr "Сканируйте этот QR-код на вашем устройстве Android, чтобы скачать и установить эту версию приложения"
 
 #: lib/tuist_web/live/preview_live.html.heex:221
 #, elixir-autogen, elixir-format
 msgid "The APK for this preview is no longer available"
-msgstr "APK для этого превью больше недоступен"
+msgstr "APK для этого предпросмотра больше недоступен"
 
 #: lib/tuist_web/live/preview_live.html.heex:215
 #, elixir-autogen, elixir-format
 msgid "This preview isn't available for download"
-msgstr "Это превью недоступно для скачивания"
+msgstr "Этот предпросмотр недоступен для скачивания"
