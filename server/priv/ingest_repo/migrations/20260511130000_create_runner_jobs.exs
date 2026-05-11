@@ -84,9 +84,12 @@ defmodule Tuist.IngestRepo.Migrations.CreateRunnerJobs do
       add :head_branch, :string, null: false, default: ""
       add :head_sha, :string, null: false, default: ""
 
-      # Lifecycle state. Enum8 over the four named states.
-      add :status, :"Enum8('queued' = 1, 'claimed' = 2, 'running' = 3, 'completed' = 4)",
-        null: false
+      # Lifecycle state. `LowCardinality(String)` lets us
+      # introduce a new state (e.g. `cancelled`, `failed`) without
+      # a schema migration — ClickHouse builds the dictionary
+      # on-the-fly. Enum8 would have been tighter on storage but
+      # cost a migration on every new state.
+      add :status, :"LowCardinality(String)", null: false
 
       # Final status when `status = 'completed'`. Empty until then.
       add :conclusion, :"LowCardinality(String)", null: false, default: ""

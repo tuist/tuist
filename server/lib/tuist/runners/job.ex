@@ -23,7 +23,7 @@ defmodule Tuist.Runners.Job do
     field :head_branch, Ch, type: "String", default: ""
     field :head_sha, Ch, type: "String", default: ""
 
-    field :status, Ch, type: "Enum8('queued' = 1, 'claimed' = 2, 'running' = 3, 'completed' = 4)"
+    field :status, Ch, type: "LowCardinality(String)"
 
     field :conclusion, Ch, type: "LowCardinality(String)", default: ""
 
