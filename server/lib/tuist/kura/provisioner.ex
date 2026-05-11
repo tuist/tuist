@@ -81,10 +81,6 @@ defmodule Tuist.Kura.Provisioner do
   @callback current_image_tag(ref :: String.t(), Regions.t()) ::
               {:ok, String.t() | nil} | {:error, term()}
 
-  @doc "Returns the Kura runtime nodes backing one provisioned server."
-  @callback nodes(ref :: String.t(), Regions.t()) ::
-              {:ok, [map()]} | {:error, term()}
-
   @doc "Returns the provisioner's default resource description for one Kura server."
   @callback resources_for(Server.t()) :: map()
 
@@ -122,13 +118,6 @@ defmodule Tuist.Kura.Provisioner do
   def current_image_tag(%Server{provisioner_node_ref: ref, region: region_id}) do
     with {:ok, region} <- Regions.fetch(region_id) do
       region.provisioner.current_image_tag(ref, region)
-    end
-  end
-
-  @doc "Calls `nodes/2` on the region's provisioner."
-  def nodes(%Server{provisioner_node_ref: ref, region: region_id}) do
-    with {:ok, region} <- Regions.fetch(region_id) do
-      region.provisioner.nodes(ref, region)
     end
   end
 end

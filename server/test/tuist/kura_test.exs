@@ -7,7 +7,6 @@ defmodule Tuist.KuraTest do
   alias Tuist.Accounts.AccountCacheEndpoint
   alias Tuist.Kura
   alias Tuist.Kura.Deployment
-  alias Tuist.Kura.Provisioner
   alias Tuist.Kura.Server
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -272,46 +271,6 @@ defmodule Tuist.KuraTest do
       ids = account.id |> Kura.list_servers_for_account() |> Enum.map(& &1.id)
       assert kept.id in ids
       refute gone.id in ids
-    end
-  end
-
-  describe "list_nodes_for_server/2" do
-    test "returns nodes through the server's provisioner scoped to the account" do
-      user = AccountsFixtures.user_fixture()
-      account = Accounts.get_account_from_user(user)
-
-      {:ok, server} =
-        Kura.create_server(%{
-          account_id: account.id,
-          region: "local-controller",
-          image_tag: "0.5.2"
-        })
-
-      expect(Provisioner, :nodes, fn queried_server ->
-        assert queried_server.id == server.id
-        {:ok, [%{name: "kura-tuist-local-0", ready: true}]}
-      end)
-
-      assert {:ok, [%{name: "kura-tuist-local-0", ready: true}]} =
-               Kura.list_nodes_for_server(account.id, server.id)
-    end
-
-    test "does not query Kubernetes for a server outside the account" do
-      user = AccountsFixtures.user_fixture()
-      other_user = AccountsFixtures.user_fixture()
-      account = Accounts.get_account_from_user(user)
-      other_account = Accounts.get_account_from_user(other_user)
-
-      {:ok, server} =
-        Kura.create_server(%{
-          account_id: other_account.id,
-          region: "local-controller",
-          image_tag: "0.5.2"
-        })
-
-      reject(&Provisioner.nodes/1)
-
-      assert Kura.list_nodes_for_server(account.id, server.id) == {:error, :not_found}
     end
   end
 
