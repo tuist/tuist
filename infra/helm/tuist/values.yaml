@@ -8,6 +8,49 @@ global:
   nodeSelector: {}
   tolerations: []
 
+kuraController:
+  enabled: false
+  namespace: kura
+  replicaCount: 2
+  image:
+    repository: ghcr.io/tuist/kura-controller
+    tag: ""
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+  # cert-manager ClusterIssuer to use for the per-instance gRPC TLS
+  # Certificate. Leave empty to expose gRPC plaintext (no public LB
+  # certificate) — recommended only for kind/dev clusters.
+  grpcClusterIssuer: ""
+  sharedSecrets:
+    # Renders the kura-shared-secrets Kubernetes Secret in the
+    # controller namespace. Set to false if the Secret is managed
+    # out-of-band (sealed-secrets, external-secrets, etc.).
+    enabled: true
+    annotations: {}
+    # Map of env-var names to literal values. The controller's
+    # StatefulSet picks them up via envFrom on every Kura pod. Leave
+    # empty if you populate the Secret out-of-band; the manifest will
+    # still be created so envFrom doesn't 404, and stringData will be
+    # absent, which Kubernetes accepts.
+    data: {}
+    # Example shape — never commit real values here:
+    #   KURA_EXTENSION_JWT_VERIFIER_TUIST_ALGORITHM: HS512
+    #   KURA_EXTENSION_JWT_VERIFIER_TUIST_ISSUER: tuist
+    #   KURA_EXTENSION_JWT_VERIFIER_TUIST_SECRET: "<JWT signing secret>"
+    #   KURA_EXTENSION_SIGNER_TUIST_ALGORITHM: hmac-sha256
+    #   KURA_EXTENSION_SIGNER_TUIST_SECRET: "<license signing key>"
+
+kuraRuntime:
+  image:
+    repository: ghcr.io/tuist/kura
+    tag: ""
+
 server:
   enabled: true
   replicaCount: 1
@@ -65,6 +108,42 @@ server:
     license:
       item: ""
       field: password
+  # GitHub App + bot PAT secrets. When `github.managedSecrets: true`, ESO
+  # syncs them from 1Password into a dedicated Secret and the Server +
+  # Processor Deployments mount the keys as TUIST_GITHUB_APP_* /
+  # TUIST_GITHUB_TOKEN_* env vars. Self-hosted installs that prefer to
+  # supply those env vars by other means (own Secret, extraEnv) leave
+  # this off.
+  github:
+    managedSecrets: false
+    externalSecrets:
+      refreshInterval: "1h"
+      storeRef:
+        kind: ClusterSecretStore
+        name: onepassword
+      app:
+        # The single 1P item carrying the App's atomic credential set.
+        item: GITHUB_APP
+        fields:
+          name: app_name
+          id: app_id
+          clientId: client_id
+          clientSecret: client_secret
+          webhookSecret: webhook_secret
+          # ESO's 1P provider reads file attachments by their filename.
+          # The vault scoping (tuist-k8s-{staging,canary,production})
+          # already encodes the env, so the same filename is used in
+          # every vault.
+          privateKey: private-key.pem
+      # 1P's Password template stores the secret in `password`. If a PAT
+      # item uses a custom template (e.g. API Credential with field
+      # `credential`), override here.
+      tokenUpdatePackageReleases:
+        item: GITHUB_TOKEN_UPDATE_PACKAGE_RELEASES
+        field: password
+      tokenUpdatePackages:
+        item: GITHUB_TOKEN_UPDATE_PACKAGES
+        field: password
   license:
     key: ""
     certificateBase64: ""
@@ -313,10 +392,22 @@ xcresultProcessor:
   strategy:
     type: RollingUpdate
     rollingUpdate:
-      # Surge by 1 so a new VM comes up before the old one drains; keeps
-      # at least 1 VM consuming the queue across deploys.
-      maxSurge: 1
-      maxUnavailable: 0
+      # Terminate-then-replace, not surge-then-terminate: the Pod
+      # declares hostPort 9091 (so the host-side metrics forwarder
+      # in tart-kubelet has a single owner per Mac mini) and the
+      # scheduler refuses to bind the same hostPort to two Pods on
+      # the same Node. Surging would deadlock on a fleet whose
+      # nodes are all already at capacity.
+      #
+      # Multi-replica deployments that turn `podDisruptionBudget`
+      # on (managed prod sets minAvailable: 1) keep one consumer
+      # up across the rollout window. Single-replica deployments
+      # and ones that leave the PDB off above briefly drop to zero
+      # consumers while the new VM boots — acceptable for an Oban
+      # queue where work just queues; if you need stricter SLOs,
+      # bump `replicaCount` and enable the PDB.
+      maxSurge: 0
+      maxUnavailable: 1
 
 # macOS Mac mini fleet, provisioned declaratively via Cluster API.
 #

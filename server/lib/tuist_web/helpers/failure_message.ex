@@ -8,6 +8,8 @@ defmodule TuistWeb.Helpers.FailureMessage do
 
   import Phoenix.HTML, only: [raw: 1]
 
+  alias TuistWeb.Helpers.GitHubHost
+
   @doc """
   Formats a failure message with optional linking to source code in GitHub.
   """
@@ -80,9 +82,10 @@ defmodule TuistWeb.Helpers.FailureMessage do
   defp linkify_failure_location(message, path, failure, run) do
     if not is_nil(path) and has_github_vcs?(run) do
       location_text = "#{path}:#{failure.line_number}"
+      base_url = GitHubHost.base_url_for_run(run)
 
       location_link =
-        ~s(<a href="https://github.com/#{run.project.vcs_connection.repository_full_handle}/blob/#{run.git_commit_sha}/#{path}#L#{failure.line_number}" target="_blank">#{location_text}</a>)
+        ~s(<a href="#{base_url}/#{run.project.vcs_connection.repository_full_handle}/blob/#{run.git_commit_sha}/#{path}#L#{failure.line_number}" target="_blank">#{location_text}</a>)
 
       message
       |> String.replace(location_text, location_link)

@@ -32,6 +32,13 @@ spec:
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9091"
+        # Ports declared on this Pod: http, metrics, epmd (HA prod).
+        # Without a port-name discriminator, Kubernetes pod-role
+        # discovery emits one scrape target per declared port — naming
+        # the metrics one explicitly keeps Alloy on a single target
+        # per pod. See helm/k8s-monitoring/values.yaml for the
+        # annotation→config mapping.
+        prometheus.io/port-name: metrics
         {{- with .Values.server.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -122,6 +129,7 @@ spec:
               value: {{ .Values.runnersFleet.namespace | default "tuist-runners" | quote }}
             {{- end }}
             {{- include "tuist.licenseEnv" . | nindent 12 }}
+            {{- include "tuist.githubEnv" . | nindent 12 }}
             {{- if or .Values.server.masterKey .Values.server.managedSecrets }}
             - name: MASTER_KEY
               valueFrom:
@@ -179,6 +187,10 @@ spec:
             {{- if .Values.cache.enabled }}
             - name: TUIST_CACHE_ENDPOINTS
               value: {{ .Values.server.cacheEndpointUrl | default (printf "http://%s:%v" (include "tuist.componentName" (dict "root" . "component" "cache")) .Values.cache.service.port) | quote }}
+            {{- end }}
+            {{- if .Values.kuraRuntime.image.tag }}
+            - name: TUIST_KURA_RUNTIME_IMAGE_TAG
+              value: {{ .Values.kuraRuntime.image.tag | quote }}
             {{- end }}
             {{- $redisUrl := include "tuist.redisUrl" . }}
             {{- if and .Values.redis.enabled $redisUrl }}

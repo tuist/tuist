@@ -30,7 +30,7 @@ concurrency:
 
 env:
   MISE_VERSION: "2026.4.18"
-  MISE_GITHUB_TOKEN: ${{ github.token }}
+  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
   MIX_ENV: test
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   MISE_TASK_RUN_AUTO_INSTALL: 0
@@ -321,7 +321,9 @@ jobs:
           sudo tar xzf /tmp/trivy.tar.gz -C /usr/local/bin trivy
           rm /tmp/trivy.tar.gz
       - name: Scan image for vulnerabilities
-        run: trivy image --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 --no-progress tuist/tuist
+        # Use the absolute workspace path because `trivy image` in 0.69.3
+        # resolves --ignorefile against an undocumented base, not cwd.
+        run: trivy image --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 --no-progress --ignorefile "$GITHUB_WORKSPACE/.trivyignore" tuist/tuist
   # The Codegen produces non-deterministic results, so we're skipping it for now
   # api-codegen:
   #   name: API Codegen Check

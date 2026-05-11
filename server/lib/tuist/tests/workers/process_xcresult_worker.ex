@@ -22,6 +22,14 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
 
   require Logger
 
+  # Failures whose root cause is the uploaded archive itself, not anything
+  # transient. Retrying is pointless and surfacing them as Oban errors lights
+  # up Sentry every five attempts for what is fundamentally a CLI-side
+  # mistake (xcodebuild never populated the bundle, or the upload was a
+  # bare `quarantined_tests.json` skeleton). We mark the run as
+  # `failed_processing` once and discard the job.
+  @unprocessable_input_reasons [:bundle_invalid, :xcresult_not_found]
+
   @impl Oban.Worker
   def perform(%Oban.Job{
         args: %{"test_run_id" => test_run_id, "storage_key" => storage_key, "account_id" => account_id} = args,
@@ -38,6 +46,14 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
         end
 
         :ok
+
+      {:error, reason} when reason in @unprocessable_input_reasons ->
+        Logger.info(
+          "Discarding xcresult for test run #{test_run_id}: uploaded archive is unprocessable (#{inspect(reason)})"
+        )
+
+        mark_failed_processing(args)
+        {:discard, reason}
 
       {:error, reason} ->
         if attempt >= max_attempts do

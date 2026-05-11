@@ -52,7 +52,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
     case process_build(build_id, storage_key, account_id, xcode_cache_upload_enabled) do
       {:ok, parsed_data} ->
         parsed_data = Map.put(parsed_data, "project_id", project_id)
-        replace_build_run(build_id, parsed_data, account_id, build_metadata)
+        replace_build_run(build_id, parsed_data, account_id, project_id, build_metadata)
 
         case Map.get(args, "vcs_comment_params", %{}) do
           params when params != %{} -> Tuist.VCS.enqueue_vcs_pull_request_comment(params)
@@ -87,11 +87,11 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
     end
   end
 
-  defp replace_build_run(build_id, parsed_data, account_id, build_metadata) do
+  defp replace_build_run(build_id, parsed_data, account_id, project_id, build_metadata) do
     parsed = atomize_keys(parsed_data)
 
     attrs =
-      Map.merge(base_build_attrs(build_id, account_id, build_metadata), %{
+      Map.merge(base_build_attrs(build_id, project_id, account_id, build_metadata), %{
         project_id: parsed[:project_id],
         duration: parsed[:duration] || 0,
         status: parsed[:status] || "success",
@@ -110,7 +110,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
 
   defp mark_failed_build_processing(build_id, project_id, account_id, build_metadata) do
     attrs =
-      Map.merge(base_build_attrs(build_id, account_id, build_metadata), %{
+      Map.merge(base_build_attrs(build_id, project_id, account_id, build_metadata), %{
         project_id: project_id,
         status: "failed_processing",
         duration: 0
@@ -119,8 +119,8 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
     Builds.create_build(attrs)
   end
 
-  defp base_build_attrs(build_id, account_id, build_metadata) do
-    case Builds.get_build(build_id) do
+  defp base_build_attrs(build_id, project_id, account_id, build_metadata) do
+    case Builds.get_build(build_id, project_id: project_id) do
       {:error, :not_found} ->
         Map.merge(
           %{id: build_id, account_id: account_id, is_ci: false},

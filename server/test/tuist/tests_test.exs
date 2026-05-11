@@ -5978,6 +5978,94 @@ defmodule Tuist.TestsTest do
       assert length(result_second) == 1
       assert length(hd(result_second).runs) == 1
     end
+
+    # Regression: when batching the cross-run lookup, each test_run's
+    # slice must be re-filtered against its OWN per-axis IN sets — not
+    # against the union of every test_run's keys. Otherwise A flaky on
+    # (Foo, sha1) would see B's flaky `(Bar, sha2)` row appear in its
+    # group, inflating the per-run flaky count in PR comments.
+    test "batched form does not cross-contaminate flaky keys across test_runs" do
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, run_a} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: project.account_id,
+          duration: 1000,
+          status: "success",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600),
+          is_ci: true,
+          test_modules: [
+            %{
+              name: "ModA",
+              status: "success",
+              duration: 500,
+              test_cases: [
+                %{
+                  name: "testFooFlaky",
+                  status: "success",
+                  duration: 250,
+                  repetitions: [
+                    %{repetition_number: 1, name: "First Run", status: "failure", duration: 100},
+                    %{repetition_number: 2, name: "Retry", status: "success", duration: 150}
+                  ]
+                }
+              ]
+            }
+          ]
+        })
+
+      {:ok, run_b} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: project.account_id,
+          duration: 1000,
+          status: "success",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          test_modules: [
+            %{
+              name: "ModB",
+              status: "success",
+              duration: 500,
+              test_cases: [
+                %{
+                  name: "testBarFlaky",
+                  status: "success",
+                  duration: 250,
+                  repetitions: [
+                    %{repetition_number: 1, name: "First Run", status: "failure", duration: 100},
+                    %{repetition_number: 2, name: "Retry", status: "success", duration: 150}
+                  ]
+                }
+              ]
+            }
+          ]
+        })
+
+      RunsFixtures.optimize_test_case_runs()
+
+      result = Tests.get_flaky_runs_for_test_runs([run_a.id, run_b.id])
+
+      group_a = Map.fetch!(result, run_a.id)
+      group_b = Map.fetch!(result, run_b.id)
+
+      assert [%{name: "testFooFlaky"} = group] = group_a
+      assert length(group.runs) == 1
+
+      assert [%{name: "testBarFlaky"} = group] = group_b
+      assert length(group.runs) == 1
+    end
   end
 
   describe "get_flaky_run_group_for_test_case_run/1" do
@@ -8048,7 +8136,7 @@ defmodule Tuist.TestsTest do
       :ok = Tests.expire_stale_in_progress_test_runs()
 
       [run] =
-        IngestRepo.all(from(t in Tests.Test, hints: ["FINAL"], where: t.id == ^stale_id))
+        ClickHouseRepo.all(from(t in Tests.Test, hints: ["FINAL"], where: t.id == ^stale_id))
 
       assert run.status == "failure"
     end
@@ -8083,7 +8171,7 @@ defmodule Tuist.TestsTest do
       :ok = Tests.expire_stale_in_progress_test_runs()
 
       [run] =
-        IngestRepo.all(from(t in Tests.Test, hints: ["FINAL"], where: t.id == ^recent_id))
+        ClickHouseRepo.all(from(t in Tests.Test, hints: ["FINAL"], where: t.id == ^recent_id))
 
       assert run.status == "in_progress"
     end
@@ -8117,7 +8205,7 @@ defmodule Tuist.TestsTest do
       :ok = Tests.expire_stale_in_progress_test_runs()
 
       [run] =
-        IngestRepo.all(from(t in Tests.Test, hints: ["FINAL"], where: t.id == ^completed_id))
+        ClickHouseRepo.all(from(t in Tests.Test, hints: ["FINAL"], where: t.id == ^completed_id))
 
       assert run.status == "success"
     end

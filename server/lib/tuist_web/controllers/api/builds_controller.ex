@@ -327,7 +327,7 @@ defmodule TuistWeb.API.BuildsController do
   )
 
   def show(%{assigns: %{selected_project: selected_project}, params: %{build_id: build_id}} = conn, _params) do
-    case Builds.get_build(build_id) do
+    case Builds.get_build(build_id, project_id: selected_project.id) do
       {:error, :not_found} ->
         conn
         |> put_status(:not_found)
@@ -876,7 +876,7 @@ defmodule TuistWeb.API.BuildsController do
   end
 
   defp get_or_create_build(params) do
-    case Builds.get_build(params.id) do
+    case Builds.get_build(params.id, project_id: params.project.id) do
       {:ok, build} ->
         {:ok, build}
 

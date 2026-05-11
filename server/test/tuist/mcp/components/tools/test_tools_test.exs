@@ -640,7 +640,7 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
         {:ok, %{id: "run-1", project_id: 1}}
       end)
 
-      stub(CommandEvents, :get_command_event_by_test_run_id, fn "run-1" ->
+      stub(CommandEvents, :get_command_event_by_test_run_id, fn "run-1", [project_id: 1] ->
         {:ok, command_event}
       end)
 
@@ -709,7 +709,7 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
         {:ok, %{id: "run-1", project_id: 1}}
       end)
 
-      stub(CommandEvents, :get_command_event_by_test_run_id, fn "run-1" ->
+      stub(CommandEvents, :get_command_event_by_test_run_id, fn "run-1", [project_id: 1] ->
         {:error, :not_found}
       end)
 

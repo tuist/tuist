@@ -39,11 +39,11 @@ defmodule Tuist.Automations do
       name: "Flaky test detection",
       enabled: true,
       monitor_type: "flaky_run_count",
-      trigger_config: %{"threshold" => 3, "window" => "30d"},
+      trigger_config: %{"threshold" => 3, "window_type" => "last_days", "window" => "30d"},
       cadence: "5m",
       trigger_actions: [%{"type" => "add_label", "label" => "flaky"}],
       recovery_enabled: true,
-      recovery_config: %{"window" => "14d"},
+      recovery_config: %{"window_type" => "last_days", "window" => "14d"},
       recovery_actions: [%{"type" => "remove_label", "label" => "flaky"}]
     }
   end

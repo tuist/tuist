@@ -7,7 +7,7 @@ msgstr ""
 "Plural-Forms: nplurals=1; plural=0;\n"
 
 #: lib/tuist_web/live/docs_live.ex:63
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:667
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:681
 #, elixir-autogen, elixir-format
 msgid "Page not found"
 msgstr "페이지를 찾을 수 없습니다"

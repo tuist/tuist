@@ -12,6 +12,12 @@ global:
     tuist.dev/service: server
     tuist.dev/stack: managed
 
+kuraController:
+  enabled: true
+  namespace: kura
+  image:
+    tag: ""  # Set by CI to the commit SHA on each deploy.
+
 server:
   serviceAccount:
     create: true
@@ -62,6 +68,13 @@ server:
       item: MASTER_KEY
       # Default `password` field for items of category Password.
       field: password
+
+  # ESO-synced GitHub App + bot PATs. The PEM file attachment name
+  # differs per env (production.pem / staging.pem / canary.pem) and is
+  # set in each values-managed-<env>.yaml. Everything else is shared
+  # across envs.
+  github:
+    managedSecrets: true
 
   database:
     ssl: true
@@ -208,7 +221,7 @@ macosFleet:
     # release.yml has run for this scope, pin to a known-good
     # SHA-tagged build that the standalone
     # capi-provider-scaleway-applesilicon-image.yml workflow pushed.
-    tag: "56858800"
+    tag: "0.2.0"
 
 runnersController:
   image:

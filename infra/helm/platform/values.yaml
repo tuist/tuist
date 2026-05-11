@@ -65,7 +65,8 @@ external-dns:
     - ingress
   txtOwnerId: tuist-platform
   # Limit which records external-dns will touch; be explicit for prod safety.
-  domainFilters: []
+  domainFilters:
+    - tuist.dev
   policy: sync
   cloudflare:
     # Reference the Cloudflare API token Secret created out-of-band. The

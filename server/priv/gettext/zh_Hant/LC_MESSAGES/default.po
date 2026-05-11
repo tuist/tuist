@@ -19,4 +19,4 @@ msgstr "折線圖"
 #: lib/tuist_web/components/chart_type_toggle.ex:59
 #, elixir-autogen, elixir-format
 msgid "Scatter plot"
-msgstr "散點圖"
+msgstr "散佈圖"

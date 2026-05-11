@@ -14,7 +14,7 @@ msgstr "分组方式："
 #: lib/tuist_web/components/chart_type_toggle.ex:53
 #, elixir-autogen, elixir-format
 msgid "Line"
-msgstr "折线"
+msgstr "折线图"
 
 #: lib/tuist_web/components/chart_type_toggle.ex:59
 #, elixir-autogen, elixir-format

@@ -15,11 +15,17 @@ use tracing::{Instrument, field};
 
 use crate::{
     artifact::{manifest::ArtifactManifest, producer::ArtifactProducer},
-    constants::{MAX_GRADLE_BYTES, MAX_MODULE_PART_BYTES, MAX_MODULE_TOTAL_BYTES, MAX_XCODE_BYTES},
+    constants::{
+        MAX_GRADLE_BYTES, MAX_MODULE_PART_BYTES, MAX_MODULE_TOTAL_BYTES,
+        MAX_REPLICATION_BODY_BYTES, MAX_XCODE_BYTES,
+    },
     extension::{AccessDecision, ExtensionContext},
+    io::is_fd_pool_exhausted_error,
+    memory::MemoryPressure,
     multipart::error::MultipartError,
     replication::replication_targets,
     state::SharedState,
+    store::is_disk_full_error,
     telemetry::attach_parent_context,
     utils::{BodyReadError, action_cache_key, blob_key, module_key, read_request_to_temp},
 };
@@ -29,6 +35,10 @@ pub fn public_router(state: SharedState) -> Router {
         .layer(middleware::from_fn_with_state(
             state.clone(),
             apply_extensions,
+        ))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            reject_overloaded_public_writes,
         ))
         .layer(middleware::from_fn_with_state(
             state.clone(),
@@ -243,6 +253,7 @@ struct BlobPutSpec<'a> {
     analytics_key: Option<&'a str>,
     max_bytes: u64,
     success_status: StatusCode,
+    existing_status: StatusCode,
     analytics: Option<LegacyAnalyticsContext<'a>>,
 }
 
@@ -389,6 +400,53 @@ async fn reject_draining_public_requests(
     response
 }
 
+async fn reject_overloaded_public_writes(
+    State(state): State<SharedState>,
+    req: Request,
+    next: Next,
+) -> Response {
+    let method = req.method().clone();
+    let route = req
+        .extensions()
+        .get::<MatchedPath>()
+        .map(|path| path.as_str().to_owned())
+        .unwrap_or_else(|| req.uri().path().to_owned());
+
+    if is_write_method(&method) && !is_probe_route(&route) {
+        if state.memory.pressure() == MemoryPressure::Critical {
+            state
+                .metrics
+                .record_memory_action("write_rejected_critical");
+            return overloaded_response("server is shedding writes due to memory pressure");
+        }
+        if state.runtime.outbox_depth() >= state.config.outbox_max_depth {
+            state.metrics.record_memory_action("write_rejected_outbox");
+            return overloaded_response("server is shedding writes while replication catches up");
+        }
+    }
+
+    next.run(req).await
+}
+
+fn is_write_method(method: &axum::http::Method) -> bool {
+    matches!(
+        method,
+        &axum::http::Method::POST
+            | &axum::http::Method::PUT
+            | &axum::http::Method::DELETE
+            | &axum::http::Method::PATCH
+    )
+}
+
+fn overloaded_response(message: &str) -> Response {
+    let mut response = error_response(StatusCode::SERVICE_UNAVAILABLE, message);
+    response.headers_mut().insert(
+        axum::http::header::RETRY_AFTER,
+        HeaderValue::from_static("1"),
+    );
+    response
+}
+
 async fn apply_extensions(State(state): State<SharedState>, req: Request, next: Next) -> Response {
     let Some(extension) = state.extension.as_ref() else {
         return next.run(req).await;
@@ -479,6 +537,7 @@ async fn extension_context_from_http(
         route: route.to_owned(),
         method: method.to_owned(),
         operation: metadata.operation,
+        server_tenant_id: state.config.tenant_id.clone(),
         tenant_id: metadata.tenant_id,
         namespace_id: metadata.namespace_id,
         producer: metadata.producer,
@@ -815,6 +874,7 @@ async fn put_nx(
             analytics_key: None,
             max_bytes: MAX_MODULE_TOTAL_BYTES,
             success_status: StatusCode::OK,
+            existing_status: StatusCode::OK,
             analytics: None,
         },
     )
@@ -851,6 +911,7 @@ async fn put_metro(
             analytics_key: None,
             max_bytes: MAX_MODULE_TOTAL_BYTES,
             success_status: StatusCode::OK,
+            existing_status: StatusCode::OK,
             analytics: None,
         },
     )
@@ -889,10 +950,8 @@ async fn put_keyvalue(
         }
     };
 
-    let cas_id = body.cas_id.clone();
-    let key = action_cache_key(&cas_id);
+    let key = action_cache_key(&body.cas_id);
     let payload = serde_json::json!({
-        "cas_id": body.cas_id,
         "entries": body.entries.into_iter().map(|entry| serde_json::json!({ "value": entry.value })).collect::<Vec<_>>()
     });
     let payload_bytes = match serde_json::to_vec(&payload) {
@@ -929,9 +988,9 @@ async fn put_keyvalue(
             state
                 .metrics
                 .record_artifact_write(ArtifactProducer::Xcode, "error", 0);
-            error_response(
-                StatusCode::SERVICE_UNAVAILABLE,
+            io_error_response(
                 format!("Failed to persist key-value entry: {error}"),
+                StatusCode::SERVICE_UNAVAILABLE,
             )
         }
     }
@@ -982,6 +1041,7 @@ async fn put_xcode(
             analytics_key: Some(&id),
             max_bytes: MAX_XCODE_BYTES,
             success_status: StatusCode::NO_CONTENT,
+            existing_status: StatusCode::NO_CONTENT,
             analytics: Some(LegacyAnalyticsContext {
                 tenant_id: &namespace.tenant_id,
                 namespace_id: &namespace.namespace_id,
@@ -1036,6 +1096,7 @@ async fn put_gradle(
             analytics_key: Some(&cache_key),
             max_bytes: MAX_GRADLE_BYTES,
             success_status: StatusCode::CREATED,
+            existing_status: StatusCode::OK,
             analytics: Some(LegacyAnalyticsContext {
                 tenant_id: &namespace.tenant_id,
                 namespace_id: &namespace.namespace_id,
@@ -1156,9 +1217,9 @@ async fn upload_module_part(
             return error_response(StatusCode::PAYLOAD_TOO_LARGE, "Part exceeds 10MB limit");
         }
         Err(BodyReadError::Io(error)) => {
-            return error_response(
-                StatusCode::INTERNAL_SERVER_ERROR,
+            return io_error_response(
                 format!("Failed to persist multipart upload part: {error}"),
+                StatusCode::INTERNAL_SERVER_ERROR,
             );
         }
     };
@@ -1232,9 +1293,9 @@ async fn complete_module_upload(
             StatusCode::UNPROCESSABLE_ENTITY,
             "Total upload size exceeds 2GB limit",
         ),
-        Err(MultipartError::Other(error)) => error_response(
-            StatusCode::INTERNAL_SERVER_ERROR,
+        Err(MultipartError::Other(error)) => io_error_response(
             format!("Failed to complete multipart upload: {error}"),
+            StatusCode::INTERNAL_SERVER_ERROR,
         ),
     }
 }
@@ -1407,9 +1468,9 @@ async fn internal_replicate_artifact(
                 state
                     .metrics
                     .record_replication_apply("replication", "artifact", "error");
-                error_response(
-                    StatusCode::INTERNAL_SERVER_ERROR,
+                io_error_response(
                     format!("Failed to persist replicated artifact: {error}"),
+                    StatusCode::INTERNAL_SERVER_ERROR,
                 )
             }
         };
@@ -1418,7 +1479,7 @@ async fn internal_replicate_artifact(
     let temp = match read_request_to_temp(
         request,
         &state.config.tmp_dir.join("uploads"),
-        u64::MAX,
+        MAX_REPLICATION_BODY_BYTES,
         &state.io,
     )
     .await
@@ -1437,14 +1498,14 @@ async fn internal_replicate_artifact(
             state
                 .metrics
                 .record_replication_apply("replication", "artifact", "error");
-            return error_response(
-                StatusCode::INTERNAL_SERVER_ERROR,
+            return io_error_response(
                 format!("Failed to read replication body: {error}"),
+                StatusCode::INTERNAL_SERVER_ERROR,
             );
         }
     };
 
-    match state
+    let result = state
         .store
         .apply_replicated_artifact_from_path(
             producer,
@@ -1454,8 +1515,9 @@ async fn internal_replicate_artifact(
             &temp.path,
             query.version_ms,
         )
-        .await
-    {
+        .await;
+    state.io.remove_file_if_exists(&temp.path).await;
+    match result {
         Ok(outcome) => {
             state
                 .metrics
@@ -1466,9 +1528,9 @@ async fn internal_replicate_artifact(
             state
                 .metrics
                 .record_replication_apply("replication", "artifact", "error");
-            error_response(
-                StatusCode::INTERNAL_SERVER_ERROR,
+            io_error_response(
                 format!("Failed to persist replicated artifact: {error}"),
+                StatusCode::INTERNAL_SERVER_ERROR,
             )
         }
     }
@@ -1568,7 +1630,7 @@ async fn put_blob_artifact(
         .artifact_exists(producer, spec.namespace_id, spec.key)
         .await
     {
-        Ok(true) => return spec.success_status.into_response(),
+        Ok(true) => return spec.existing_status.into_response(),
         Ok(false) => {}
         Err(error) => {
             return error_response(
@@ -1594,15 +1656,15 @@ async fn put_blob_artifact(
             );
         }
         Err(BodyReadError::Io(error)) => {
-            return error_response(
-                StatusCode::INTERNAL_SERVER_ERROR,
+            return io_error_response(
                 format!("Failed to persist artifact: {error}"),
+                StatusCode::INTERNAL_SERVER_ERROR,
             );
         }
     };
 
     let targets = replication_targets(&state).await;
-    match state
+    let result = state
         .store
         .persist_artifact_from_path_and_enqueue(
             producer,
@@ -1612,8 +1674,9 @@ async fn put_blob_artifact(
             &temp.path,
             &targets,
         )
-        .await
-    {
+        .await;
+    state.io.remove_file_if_exists(&temp.path).await;
+    match result {
         Ok(manifest) => {
             state.notify.notify_one();
             state
@@ -1631,9 +1694,9 @@ async fn put_blob_artifact(
         }
         Err(error) => {
             state.metrics.record_artifact_write(producer, "error", 0);
-            error_response(
-                StatusCode::SERVICE_UNAVAILABLE,
+            io_error_response(
                 format!("Failed to persist artifact: {error}"),
+                StatusCode::SERVICE_UNAVAILABLE,
             )
         }
     }
@@ -1709,6 +1772,16 @@ fn draining_response(version: Version) -> Response {
 fn error_response(status: StatusCode, message: impl Into<String>) -> Response {
     let body = Json(serde_json::json!({ "message": message.into() }));
     (status, body).into_response()
+}
+
+fn io_error_response(error: String, fallback_status: StatusCode) -> Response {
+    if is_fd_pool_exhausted_error(&error) {
+        return overloaded_response("server is at file descriptor capacity");
+    }
+    if is_disk_full_error(&error) {
+        return overloaded_response("server has insufficient free disk space");
+    }
+    error_response(fallback_status, error)
 }
 
 #[cfg(test)]
@@ -2048,7 +2121,10 @@ mod tests {
 
         let body: Value = serde_json::from_str(&response_text(get_response).await)
             .expect("failed to decode keyvalue response");
-        assert_eq!(body["cas_id"], "cas-1");
+        assert!(
+            body.get("cas_id").is_none(),
+            "stored payload must not include cas_id"
+        );
         assert_eq!(body["entries"][0]["value"], "hello");
         assert_eq!(body["entries"][1]["value"], "world");
     }

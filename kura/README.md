@@ -15,7 +15,7 @@
 - 🪨 Local metadata, multipart state, and the replication outbox live in RocksDB
 - 🔁 Blobs and cache metadata replicate to peer nodes with eventual consistency
 - 🔎 Nodes can discover peers through DNS and bootstrap themselves from already-running nodes
-- 📦 Kura actively supports Bazel and Buck2 REAPI, Xcode Cache, Gradle, and [Tuist Module Cache](https://tuist.dev/en/docs/guides/features/cache/module-cache)
+- 📦 Kura actively supports Bazel and Buck2 REAPI, Xcode Cache, Gradle, and module-cache protocols
 - 🧪 Compatibility endpoints for Nx and React Native Metro are available, but they are not a primary focus today
 - 🧰 The gRPC API exposes the Bazel Remote Execution cache services used by Bazel and Buck2
 - 📊 The local stack includes Grafana, Prometheus, Loki, Promtail, and Tempo traces
@@ -27,7 +27,7 @@ Actively supported:
 - `Bazel` and `Buck2`: Bazel Remote Execution API v2 over gRPC on `KURA_GRPC_PORT`
 - `Xcode Cache`: HTTP CAS artifacts on `POST/GET /api/cache/cas/{id}` and action-cache style entries on `PUT/GET /api/cache/keyvalue`
 - `Gradle`: `PUT/GET /api/cache/gradle/{cache_key}`
-- [`Module Cache`](https://tuist.dev/en/docs/guides/features/cache/module-cache): multipart uploads on `POST /api/cache/module/start`, `POST /api/cache/module/part`, `POST /api/cache/module/complete`, and `HEAD/GET /api/cache/module/{id}`
+- `Module Cache`: multipart uploads on `POST /api/cache/module/start`, `POST /api/cache/module/part`, `POST /api/cache/module/complete`, and `HEAD/GET /api/cache/module/{id}`
 
 Compatibility surfaces:
 
@@ -99,7 +99,7 @@ Kura exposes multiple cache protocols behind one service. The actively supported
 - 🍎 `Xcode Cache`: `POST/GET /api/cache/cas/{id}?tenant_id=...&namespace_id=...`
 - 🗂️ `KeyValue / action-cache entries`: `PUT /api/cache/keyvalue?tenant_id=...&namespace_id=...`
 - 🐘 `Gradle`: `PUT/GET /api/cache/gradle/{cache_key}?tenant_id=...&namespace_id=...`
-- 📦 [`Module Cache`](https://tuist.dev/en/docs/guides/features/cache/module-cache): `POST /api/cache/module/start?...`, `POST /api/cache/module/part?...`, `POST /api/cache/module/complete?...`, `HEAD/GET /api/cache/module/{id}?...`
+- 📦 `Module Cache`: `POST /api/cache/module/start?...`, `POST /api/cache/module/part?...`, `POST /api/cache/module/complete?...`, `HEAD/GET /api/cache/module/{id}?...`
 
 Kura also exposes compatibility endpoints that are not a primary focus today:
 
@@ -185,6 +185,8 @@ When `Optional` is `Yes`, the `Default` column shows what Kura uses today. `auto
 | `KURA_PORT` | Public HTTP port. | No | `—` |
 | `KURA_GRPC_PORT` | gRPC port for REAPI. | No | `—` |
 | `KURA_INTERNAL_PORT` | Internal HTTP or mTLS port used for peer replication and discovery. | No | `—` |
+| `KURA_GRPC_TLS_CERT_PATH` | PEM cert path used to terminate TLS on the public gRPC listener. | Yes | disabled |
+| `KURA_GRPC_TLS_KEY_PATH` | PEM private-key path paired with `KURA_GRPC_TLS_CERT_PATH`. | Yes | disabled |
 | `KURA_TENANT_ID` | Default tenant identifier for the node. | No | `—` |
 | `KURA_REGION` | Region label advertised in metrics and replication state. | No | `—` |
 | `KURA_TMP_DIR` | Temporary directory for staged request bodies and multipart assembly. | No | `—` |
@@ -206,6 +208,21 @@ When `Optional` is `Yes`, the `Default` column shows what Kura uses today. `auto
 | `KURA_METADATA_STORE_WRITE_BUFFER_POOL_BYTES` | Total memory budget reserved for metadata write buffering. | Yes | auto |
 | `KURA_METADATA_STORE_WRITE_BUFFER_BYTES` | Size of each metadata write buffer before flush. | Yes | auto |
 | `KURA_METADATA_STORE_MAX_WRITE_BUFFERS` | Maximum number of metadata write buffers kept in memory. | Yes | auto |
+| `KURA_OUTBOX_MAX_DEPTH` | Maximum number of replication outbox messages allowed before public writes return 503 with Retry-After. | Yes | `100000` |
+| `KURA_MULTIPART_UPLOAD_TTL_MS` | How long an in-progress multipart upload may sit before the janitor expires it. | Yes | `86400000` |
+| `KURA_MULTIPART_JANITOR_INTERVAL_MS` | How often the multipart janitor scans for stale uploads. | Yes | `600000` |
+| `KURA_BOOTSTRAP_TIMEOUT_MS` | Maximum time a single bootstrap-from-peer task may run before it is cancelled. | Yes | `1800000` |
+| `KURA_BOOTSTRAP_MAX_CONCURRENT_PEERS` | Upper bound on concurrent bootstrap-from-peer tasks. Holds a semaphore so a discovery burst can't fan out unbounded. | Yes | `8` |
+| `KURA_EXTENSION_CACHE_MAX_ENTRIES` | Maximum entries kept in each of the extension authenticate/authorize caches. New entries are dropped (with metric `extension_cache{result="rejected"}`) once the cap is reached and no expired entries remain. | Yes | `100000` |
+| `KURA_TOKIO_WORKER_THREADS` | Number of tokio worker threads. Pin this to the cgroup CPU quota in containers; defaults to detected parallelism clamped to `[2, 16]`. | Yes | auto |
+
+Kura also enforces a few hard-coded budgets that are not configurable:
+
+- Replication ingest bodies on `/_internal/replicate/artifact` are capped at four times `MAX_SEGMENT_BYTES` (2 GiB) so a misbehaving peer cannot fill the data PVC. Bootstrap-from-peer fetches enforce the same ceiling for segment-backed artifacts and a 4 MiB ceiling for inline artifacts; bootstrap manifest and tombstone pages are capped at 32 MiB each.
+- Public writes are rejected with `503 Service Unavailable` and a short `Retry-After` header when memory pressure reaches `Critical`, when the outbox is at `KURA_OUTBOX_MAX_DEPTH`, when the FD pool is exhausted, or when the data PVC has insufficient free space for a new segment.
+- RocksDB column families are configured with explicit level-0 slowdown/stop triggers and pending compaction limits so backlog turns into write-side backpressure instead of unbounded write-buffer growth.
+- Inline keyvalue payloads are buffered in memory before being written. Total RAM committed to inline payloads is bounded by `KURA_FILE_DESCRIPTOR_POOL_SIZE * KURA_MAX_KEYVALUE_BYTES`; both knobs are tuned together when sizing per-pod memory.
+- On startup, the soft `RLIMIT_NOFILE` is raised to the hard limit so the FD pool, RocksDB file descriptors, and socket budget all share the maximum the container runtime allows.
 
 Auto-derived defaults currently follow these rules:
 
@@ -269,9 +286,13 @@ Kura also exports:
 - 💾 file descriptor pool pressure metrics
 - 🧠 manifest cache occupancy and admission metrics
 
+### Disabling OTLP tracing
+
+OTLP tracing is optional. Leaving `KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` unset (or empty) makes Kura skip exporter initialization and run without distributed traces — useful in environments without a collector (local kind, isolated edge nodes). Helm operators control it by setting `config.telemetry.otlpTracesEndpoint: ""` in a values overlay; the chart only renders the env when the value is non-empty, so an empty overlay disables tracing without crashlooping the pod.
+
 ## 📣 Runtime Analytics
 
-Analytics webhooks are a separate optional subsystem that mirrors the older Tuist cache contract for Xcode and Gradle traffic.
+Analytics webhooks are a separate optional subsystem that mirrors the legacy cache analytics contract for Xcode and Gradle traffic.
 
 When enabled:
 
@@ -328,7 +349,7 @@ Install it on a generic cluster:
 helm upgrade --install kura ./ops/helm/kura \
   --namespace kura \
   --create-namespace \
-  --set image.repository=ghcr.io/tuist/kura \
+  --set image.repository=<registry>/kura \
   --set image.tag=latest \
   --set config.region=fr-par \
   --set config.telemetry.otlpTracesEndpoint=http://otel-collector.monitoring.svc.cluster.local:4318/v1/traces
@@ -385,7 +406,7 @@ helm upgrade --install kura ./ops/helm/kura \
   --namespace kura \
   --create-namespace \
   -f ./ops/helm/kura/values-scaleway.yaml \
-  --set image.repository=ghcr.io/tuist/kura \
+  --set image.repository=<registry>/kura \
   --set image.tag=latest \
   --set config.region=fr-par \
   --set config.telemetry.otlpTracesEndpoint=http://otel-collector.monitoring.svc.cluster.local:4318/v1/traces
@@ -431,5 +452,11 @@ The script may define these hooks:
 - `authenticate(ctx)`
 - `authorize(ctx, principal)`
 - `response_headers(ctx, principal)`
+
+For tenant-aware deployments, `ctx` carries both the request target
+(`tenant_id`, `namespace_id`) and the node's configured tenant as
+`server_tenant_id` (derived from `KURA_TENANT_ID`). Concrete auth and
+policy decisions are hook-specific and should be documented with the
+hook implementation rather than in the generic runtime contract.
 
 The runtime keeps decision caching, metrics, timeouts, and cryptographic primitives in Rust, while the script supplies policy.

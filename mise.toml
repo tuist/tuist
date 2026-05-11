@@ -1,6 +1,6 @@
 [tools]
     aube = "1.6.2"
-    tuist = "4.191.8"
+    tuist = "4.193.0"
     swiftlint = "0.59.1"
     "elixir" = "1.19.5"
     "erlang" = "28.4.3"
@@ -17,6 +17,8 @@
     java = "21"
     gradle = "8.12"
     caddy = "2.11.2"
+    "github:tuist/blick" = "0.8.0"
+    "npm:opencode-ai" = "1.14.39"
 
 [hooks]
     postinstall = "{{config_root}}/mise/tasks/install.sh"

@@ -18,7 +18,10 @@ use tracing::{Instrument, field, warn};
 use crate::{
     artifact::manifest::ArtifactManifest,
     config::Config,
-    constants::REPLICATION_RETRY_SECS,
+    constants::{
+        MAX_BOOTSTRAP_PAGE_BYTES, MAX_INLINE_REPLICATION_BODY_BYTES, MAX_REPLICATION_BODY_BYTES,
+        REPLICATION_RETRY_SECS,
+    },
     failpoints::FailpointName,
     state::SharedState,
     store::{ArtifactApplyOutcome, ManifestPage, NamespaceTombstonePage},
@@ -59,23 +62,60 @@ pub async fn enqueue_replication_for_artifact(state: &SharedState, manifest: &Ar
 }
 
 pub fn spawn_membership_task(state: SharedState) {
+    spawn_supervised("membership", state, membership_task_loop);
+}
+
+pub fn spawn_outbox_task(state: SharedState) {
+    spawn_supervised("outbox", state, outbox_task_loop);
+}
+
+fn spawn_supervised<F, Fut>(name: &'static str, state: SharedState, work: F)
+where
+    F: Fn(SharedState) -> Fut + Send + Sync + 'static,
+    Fut: std::future::Future<Output = ()> + Send + 'static,
+{
     tokio::spawn(async move {
         loop {
-            let mut members = BTreeSet::new();
-            let mut peer_nodes = BTreeMap::new();
-            let targets = discovery_targets(&state.config).await;
-            let mut peer_status_successes = 0_usize;
-            for peer in &targets {
-                match state
-                    .client
-                    .get(format!("{peer}/_internal/status"))
-                    .send()
-                    .await
-                {
-                    Ok(response) if response.status().is_success() => match response
-                        .json::<PeerStatusPayload>()
-                        .await
-                    {
+            let task_state = state.clone();
+            let handle = tokio::spawn(work(task_state));
+            match handle.await {
+                Ok(()) => return,
+                Err(error) if error.is_panic() => {
+                    state
+                        .metrics
+                        .record_memory_action(&format!("background_panic_{name}"));
+                    warn!("background task '{name}' panicked: {error:?}; respawning in 1s");
+                    sleep(Duration::from_secs(1)).await;
+                }
+                Err(error) => {
+                    warn!("background task '{name}' aborted: {error:?}");
+                    return;
+                }
+            }
+        }
+    });
+}
+
+async fn membership_task_loop(state: SharedState) {
+    loop {
+        let mut members = BTreeSet::new();
+        let mut peer_nodes = BTreeMap::new();
+        let targets = discovery_targets(&state.config).await;
+        let mut peer_status_successes = 0_usize;
+        let lookups = futures_util::future::join_all(targets.iter().map(|peer| {
+            let client = state.client.clone();
+            let url = format!("{peer}/_internal/status");
+            let label = peer.clone();
+            async move {
+                let result = client.get(url).send().await;
+                (label, result)
+            }
+        }))
+        .await;
+        for (peer, result) in lookups {
+            match result {
+                Ok(response) if response.status().is_success() => {
+                    match response.json::<PeerStatusPayload>().await {
                         Ok(payload) => {
                             peer_status_successes += 1;
                             if payload.tenant_id != state.config.tenant_id
@@ -87,47 +127,48 @@ pub fn spawn_membership_task(state: SharedState) {
                             peer_nodes.insert(payload.node_url, payload.region);
                         }
                         Err(error) => warn!("failed to decode peer status from {peer}: {error}"),
-                    },
-                    Ok(response) => {
-                        warn!("peer status check failed for {peer}: {}", response.status())
                     }
-                    Err(error) => warn!("peer status request failed for {peer}: {error}"),
                 }
+                Ok(response) => {
+                    warn!("peer status check failed for {peer}: {}", response.status())
+                }
+                Err(error) => warn!("peer status request failed for {peer}: {error}"),
             }
-
-            let discovery_observed = targets.is_empty() || peer_status_successes > 0;
-            let membership_update = state
-                .apply_membership_view(members, peer_nodes, discovery_observed)
-                .await;
-            state
-                .metrics
-                .update_discovered_peer_nodes(membership_update.known_peer_count);
-            for peer in state.peers_needing_bootstrap().await {
-                maybe_spawn_bootstrap_task(state.clone(), peer).await;
-            }
-            state.maybe_mark_serving().await;
-            sleep(Duration::from_secs(2)).await;
         }
-    });
+
+        let discovery_observed = targets.is_empty() || peer_status_successes > 0;
+        let membership_update = state
+            .apply_membership_view(members, peer_nodes, discovery_observed)
+            .await;
+        state
+            .metrics
+            .update_discovered_peer_nodes(membership_update.known_peer_count);
+        for peer in state.peers_needing_bootstrap().await {
+            maybe_spawn_bootstrap_task(state.clone(), peer).await;
+        }
+        state.maybe_mark_serving().await;
+        sleep(Duration::from_secs(2)).await;
+    }
 }
 
-pub fn spawn_outbox_task(state: SharedState) {
-    tokio::spawn(async move {
-        loop {
-            let pause_outbox = state.memory.pause_outbox();
-            state
-                .metrics
-                .update_background_work_paused("outbox", pause_outbox);
-            if !pause_outbox && let Err(error) = process_outbox(&state).await {
-                warn!("outbox processing failed: {error}");
-            }
+async fn outbox_task_loop(state: SharedState) {
+    loop {
+        let notified = state.notify.notified();
+        tokio::pin!(notified);
 
-            tokio::select! {
-                _ = state.notify.notified() => {},
-                _ = sleep(Duration::from_secs(REPLICATION_RETRY_SECS)) => {},
-            }
+        let pause_outbox = state.memory.pause_outbox();
+        state
+            .metrics
+            .update_background_work_paused("outbox", pause_outbox);
+        if !pause_outbox && let Err(error) = process_outbox(&state).await {
+            warn!("outbox processing failed: {error}");
         }
-    });
+
+        tokio::select! {
+            _ = &mut notified => {},
+            _ = sleep(Duration::from_secs(REPLICATION_RETRY_SECS)) => {},
+        }
+    }
 }
 
 pub async fn replication_targets(state: &SharedState) -> Vec<String> {
@@ -139,9 +180,24 @@ async fn maybe_spawn_bootstrap_task(state: SharedState, peer: String) {
         return;
     }
 
+    let semaphore = state.bootstrap_semaphore.clone();
     tokio::spawn(async move {
+        let _permit = match semaphore.acquire_owned().await {
+            Ok(permit) => permit,
+            Err(_) => {
+                state.note_bootstrap_failed(&peer).await;
+                return;
+            }
+        };
         let started_at = std::time::Instant::now();
-        let result = bootstrap_from_peer(&state, &peer).await;
+        let timeout = Duration::from_millis(state.config.bootstrap_timeout_ms);
+        let result = match tokio::time::timeout(timeout, bootstrap_from_peer(&state, &peer)).await {
+            Ok(result) => result,
+            Err(_) => Err(format!(
+                "bootstrap timed out after {} ms",
+                state.config.bootstrap_timeout_ms
+            )),
+        };
         match result {
             Ok(stats) => {
                 state.note_bootstrap_succeeded(&peer).await;
@@ -280,10 +336,12 @@ async fn bootstrap_artifact_from_peer(
         .map_err(|error| format!("bootstrap artifact response failed: {error}"))?;
 
     if manifest.inline {
-        let bytes = response
-            .bytes()
-            .await
-            .map_err(|error| format!("failed to read bootstrap keyvalue body: {error}"))?;
+        let bytes = read_bounded_body(
+            response,
+            MAX_INLINE_REPLICATION_BODY_BYTES,
+            "bootstrap inline artifact",
+        )
+        .await?;
         state
             .store
             .hit_failpoint(FailpointName::AfterBootstrapArtifactFetchBeforePersist)
@@ -329,10 +387,26 @@ async fn stream_response_to_temp(
         .parent()
         .ok_or_else(|| "bootstrap temp path is missing a parent directory".to_string())?;
     state.io.create_dir_all(parent).await?;
+    if let Some(content_length) = response.content_length()
+        && content_length > MAX_REPLICATION_BODY_BYTES
+    {
+        return Err(format!(
+            "bootstrap artifact response declared {content_length} bytes, exceeds limit of {MAX_REPLICATION_BODY_BYTES}"
+        ));
+    }
     let mut destination = state.io.create_file(path).await?;
     let mut stream = response.bytes_stream();
+    let mut total: u64 = 0;
     while let Some(chunk) = stream.next().await {
         let chunk = chunk.map_err(|error| format!("failed to stream bootstrap body: {error}"))?;
+        total = total.saturating_add(chunk.len() as u64);
+        if total > MAX_REPLICATION_BODY_BYTES {
+            drop(destination);
+            state.io.remove_file_if_exists(path).await;
+            return Err(format!(
+                "bootstrap artifact response exceeded limit of {MAX_REPLICATION_BODY_BYTES} bytes"
+            ));
+        }
         destination
             .write_all(&chunk)
             .await
@@ -356,16 +430,16 @@ async fn fetch_bootstrap_manifests_page(
         url.push_str(&url_encode(after));
     }
 
-    state
+    let response = state
         .client
         .get(&url)
         .send()
         .await
         .map_err(|error| format!("bootstrap manifest request failed: {error}"))?
         .error_for_status()
-        .map_err(|error| format!("bootstrap manifest response failed: {error}"))?
-        .json::<ManifestPage>()
-        .await
+        .map_err(|error| format!("bootstrap manifest response failed: {error}"))?;
+    let bytes = read_bounded_body(response, MAX_BOOTSTRAP_PAGE_BYTES, "bootstrap manifest").await?;
+    serde_json::from_slice(&bytes)
         .map_err(|error| format!("failed to decode bootstrap manifest page: {error}"))
 }
 
@@ -381,17 +455,46 @@ async fn fetch_bootstrap_tombstones_page(
         url.push_str(&url_encode(after));
     }
 
-    state
+    let response = state
         .client
         .get(&url)
         .send()
         .await
         .map_err(|error| format!("bootstrap tombstone request failed: {error}"))?
         .error_for_status()
-        .map_err(|error| format!("bootstrap tombstone response failed: {error}"))?
-        .json::<NamespaceTombstonePage>()
-        .await
+        .map_err(|error| format!("bootstrap tombstone response failed: {error}"))?;
+    let bytes =
+        read_bounded_body(response, MAX_BOOTSTRAP_PAGE_BYTES, "bootstrap tombstone").await?;
+    serde_json::from_slice(&bytes)
         .map_err(|error| format!("failed to decode bootstrap tombstone page: {error}"))
+}
+
+async fn read_bounded_body(
+    response: reqwest::Response,
+    max_bytes: u64,
+    label: &str,
+) -> Result<Vec<u8>, String> {
+    if let Some(content_length) = response.content_length()
+        && content_length > max_bytes
+    {
+        return Err(format!(
+            "{label} response body declared {content_length} bytes, exceeds limit of {max_bytes}"
+        ));
+    }
+    let mut buffer = Vec::new();
+    let mut total: u64 = 0;
+    let mut stream = response.bytes_stream();
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk.map_err(|error| format!("{label} body stream failed: {error}"))?;
+        total = total.saturating_add(chunk.len() as u64);
+        if total > max_bytes {
+            return Err(format!(
+                "{label} response body exceeded limit of {max_bytes} bytes"
+            ));
+        }
+        buffer.extend_from_slice(&chunk);
+    }
+    Ok(buffer)
 }
 
 async fn discovery_targets(config: &Config) -> Vec<String> {

@@ -23,7 +23,12 @@ defmodule TuistTestSupport.Fixtures.AutomationsFixtures do
       "name" => Keyword.get(opts, :name, "Test alert #{unique_id}"),
       "enabled" => Keyword.get(opts, :enabled, true),
       "monitor_type" => Keyword.get(opts, :monitor_type, "flakiness_rate"),
-      "trigger_config" => Keyword.get(opts, :trigger_config, %{"threshold" => 10, "window" => "30d"}),
+      "trigger_config" =>
+        Keyword.get(opts, :trigger_config, %{
+          "threshold" => 10,
+          "window_type" => "last_days",
+          "window" => "30d"
+        }),
       "cadence" => Keyword.get(opts, :cadence, "5m"),
       "trigger_actions" =>
         Keyword.get(opts, :trigger_actions, [

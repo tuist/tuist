@@ -21,6 +21,10 @@ defmodule Tuist.Processor.XCResultProcessor do
 
   require Logger
 
+  @chunk_max_attempts 3
+  @chunk_attempt_timeout 30_000
+  @attachment_upload_timeout @chunk_attempt_timeout * @chunk_max_attempts + 30_000
+
   def process_local(archive_path, opts \\ []) do
     bucket = Keyword.get(opts, :s3_bucket) || Tuist.Environment.s3_bucket_name()
     temp_dir = make_temp_dir()
@@ -38,7 +42,8 @@ defmodule Tuist.Processor.XCResultProcessor do
 
   defp process_archive(archive_path, temp_dir) do
     with :ok <- extract_archive(archive_path, temp_dir),
-         xcresult_path when not is_nil(xcresult_path) <- find_xcresult(temp_dir) do
+         xcresult_path when not is_nil(xcresult_path) <- find_xcresult(temp_dir),
+         :ok <- validate_xcresult(xcresult_path) do
       root_dir = Path.dirname(xcresult_path)
 
       with {:ok, parsed_data} <- parse_xcresult(xcresult_path, root_dir) do
@@ -48,6 +53,20 @@ defmodule Tuist.Processor.XCResultProcessor do
     else
       nil -> {:error, :xcresult_not_found}
       {:error, _} = error -> error
+    end
+  end
+
+  # An xcresult bundle that xcodebuild populated has an `Info.plist` at its
+  # root. CLI clients sometimes upload a bundle that xcodebuild never wrote
+  # to (e.g. `xcodebuild test` was killed mid-build) — the directory exists
+  # only because Tuist's CLI dropped `quarantined_tests.json` into it before
+  # archiving. Detect that shape here so callers can drop the job cleanly
+  # instead of letting `xcresulttool` fail and bubble up as a generic error.
+  defp validate_xcresult(xcresult_path) do
+    if File.exists?(Path.join(xcresult_path, "Info.plist")) do
+      :ok
+    else
+      {:error, :bundle_invalid}
     end
   end
 
@@ -158,7 +177,7 @@ defmodule Tuist.Processor.XCResultProcessor do
         |> Task.async_stream(
           &upload_attachment(&1, bucket, account_handle, project_handle, test_run_id),
           max_concurrency: 30,
-          timeout: 60_000,
+          timeout: @attachment_upload_timeout,
           on_timeout: :kill_task
         )
         |> Enum.zip(all_attachments)
@@ -211,10 +230,7 @@ defmodule Tuist.Processor.XCResultProcessor do
       s3_key =
         "#{String.downcase(account_handle)}/#{String.downcase(project_handle)}/tests/runs/#{test_run_id}/attachments/#{attachment_id}/#{file_name}"
 
-      case file_path
-           |> ExAws.S3.Upload.stream_file()
-           |> ExAws.S3.upload(bucket, s3_key)
-           |> ExAws.request() do
+      case upload_to_s3(file_path, bucket, s3_key) do
         {:ok, _} ->
           uploaded =
             attachment
@@ -229,6 +245,103 @@ defmodule Tuist.Processor.XCResultProcessor do
       end
     else
       :error
+    end
+  end
+
+  # ExAws.S3.Upload.perform/2 fans every chunk into one Task.async_stream
+  # (30s per-chunk default) and bails on the first failure. We drive the
+  # multipart upload ourselves so each chunk gets its own retry budget; a
+  # slow chunk no longer aborts an otherwise-healthy upload on the first 30s
+  # timeout. After retries are exhausted the multipart upload is aborted and
+  # the error surfaces to the caller, which logs it (Sentry's Logger backend
+  # picks that up so genuine failures still alert).
+  defp upload_to_s3(file_path, bucket, s3_key) do
+    with {:ok, %{body: %{upload_id: upload_id}}} <-
+           bucket |> ExAws.S3.initiate_multipart_upload(s3_key) |> ExAws.request(),
+         {:ok, parts} <- upload_parts(file_path, bucket, s3_key, upload_id) do
+      bucket |> ExAws.S3.complete_multipart_upload(s3_key, upload_id, parts) |> ExAws.request()
+    end
+  end
+
+  defp upload_parts(file_path, bucket, s3_key, upload_id) do
+    results =
+      file_path
+      |> ExAws.S3.Upload.stream_file()
+      |> Stream.with_index(1)
+      |> Task.async_stream(
+        fn chunk -> upload_part_with_retry(chunk, bucket, s3_key, upload_id, 1) end,
+        max_concurrency: 4,
+        timeout: @chunk_attempt_timeout * @chunk_max_attempts + 5_000,
+        on_timeout: :kill_task
+      )
+      |> Enum.map(fn
+        {:ok, val} -> val
+        {:exit, reason} -> {:error, {:chunk_task_exit, reason}}
+      end)
+
+    cond do
+      results == [] ->
+        upload_empty_part(bucket, s3_key, upload_id)
+
+      error = Enum.find(results, &match?({:error, _}, &1)) ->
+        bucket |> ExAws.S3.abort_multipart_upload(s3_key, upload_id) |> ExAws.request()
+        error
+
+      true ->
+        {:ok, results}
+    end
+  end
+
+  # S3's CompleteMultipartUpload rejects an empty part list. For zero-byte
+  # files we upload a single empty part so the request is well-formed,
+  # matching ExAws.S3.Upload.complete/3's behaviour for empty sources.
+  defp upload_empty_part(bucket, s3_key, upload_id) do
+    case upload_part_with_retry({"", 1}, bucket, s3_key, upload_id, 1) do
+      {:error, _} = error ->
+        bucket |> ExAws.S3.abort_multipart_upload(s3_key, upload_id) |> ExAws.request()
+        error
+
+      part ->
+        {:ok, [part]}
+    end
+  end
+
+  defp upload_part_with_retry({chunk, i}, bucket, s3_key, upload_id, attempt) when attempt < @chunk_max_attempts do
+    case attempt_part_upload(chunk, i, bucket, s3_key, upload_id) do
+      {:ok, etag} -> {i, etag}
+      _ -> upload_part_with_retry({chunk, i}, bucket, s3_key, upload_id, attempt + 1)
+    end
+  end
+
+  defp upload_part_with_retry({chunk, i}, bucket, s3_key, upload_id, _attempt) do
+    case attempt_part_upload(chunk, i, bucket, s3_key, upload_id) do
+      {:ok, etag} -> {i, etag}
+      other -> {:error, other}
+    end
+  end
+
+  # Wrap each part attempt in its own Task so a hung HTTP request can be
+  # killed at @chunk_attempt_timeout without taking down the parent task; the
+  # next attempt then gets a fresh shot.
+  defp attempt_part_upload(chunk, i, bucket, s3_key, upload_id) do
+    task =
+      Task.async(fn ->
+        bucket |> ExAws.S3.upload_part(s3_key, upload_id, i, chunk) |> ExAws.request()
+      end)
+
+    case Task.yield(task, @chunk_attempt_timeout) || Task.shutdown(task) do
+      nil ->
+        :timeout
+
+      {:ok, {:ok, %{headers: headers}}} ->
+        etag = Enum.find_value(headers, fn {k, v} -> if String.downcase(k) == "etag", do: v end)
+        {:ok, etag}
+
+      {:ok, {:error, reason}} ->
+        {:error, reason}
+
+      {:exit, reason} ->
+        {:exit, reason}
     end
   end
 
@@ -247,7 +360,16 @@ defmodule Tuist.Processor.XCResultProcessor do
       # the base directory preserved). Treat the temp dir as the bundle when
       # `Info.plist` is present at its root.
       nil ->
-        if File.exists?(Path.join(temp_dir, "Info.plist")), do: temp_dir
+        if File.exists?(Path.join(temp_dir, "Info.plist")) do
+          temp_dir
+        else
+          Logger.error(
+            "xcresult bundle not found after extraction in #{temp_dir}: " <>
+              "contents=#{temp_dir |> Path.join("**") |> Path.wildcard() |> Enum.take(30) |> inspect()}"
+          )
+
+          nil
+        end
 
       path ->
         path

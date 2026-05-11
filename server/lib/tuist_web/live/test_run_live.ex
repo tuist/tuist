@@ -46,7 +46,7 @@ defmodule TuistWeb.TestRunLive do
 
     slug = Projects.get_project_slug_from_id(project.id)
 
-    project = Tuist.Repo.preload(project, :vcs_connection)
+    project = Tuist.Repo.preload(project, vcs_connection: :github_app_installation)
 
     run = Map.put(run, :project, project)
 
@@ -54,7 +54,7 @@ defmodule TuistWeb.TestRunLive do
       Tuist.Tasks.parallel_tasks([
         fn ->
           if is_nil(run.shard_plan_id) do
-            case CommandEvents.get_command_event_by_test_run_id(run.id) do
+            case CommandEvents.get_command_event_by_test_run_id(run.id, project_id: run.project_id) do
               {:ok, event} -> event
               {:error, :not_found} -> nil
             end

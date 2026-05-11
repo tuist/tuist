@@ -1,30 +1,83 @@
 defmodule Tuist.Kubernetes.Client do
   @moduledoc """
-  Thin Kubernetes API client the runner-dispatch flow uses. The
-  runners-controller (separate Go process) owns Pod + SA lifecycle;
-  the server only needs a handful of read paths plus one Pod
-  label-patch:
+  Small Kubernetes API client used by two unrelated subsystems on
+  the server:
 
-    * `create_token_review/1` — validate a polling Pod's projected
-      SA token (returns the authenticated SA's namespace + name).
-    * `get_service_account/2` — resolve the SA → fleet from its
-      `tuist.dev/runner-pool` label.
-    * `get_runner_pool/2` / `list_runner_pools/1` — fleet discovery.
-    * `list_pods/2` — count in-flight Pods per customer (Pods
-      labeled `tuist.dev/runner-pool-owner=<owner>`) for
-      `max_concurrent` enforcement at dispatch time.
-    * `patch_pod/3` — stamp owner labels on a polling Pod the
-      moment it claims a queue entry.
+    * **Kura provisioner / Kura controller**: generic verbs
+      (`get/2`, `replace/3`, `patch/3`, `delete/2`, `apply/2`) +
+      Kura-instance helpers, with both in-cluster ServiceAccount
+      auth and cross-cluster kubeconfig support.
 
-  Authenticates with the in-cluster ServiceAccount mount (token at
-  `/var/run/secrets/kubernetes.io/serviceaccount/token`, CA at
-  `…/ca.crt`, host from `KUBERNETES_SERVICE_HOST`/
-  `KUBERNETES_SERVICE_PORT_HTTPS`). Outside the cluster (local
-  dev, tests) the functions return `{:error, :not_in_cluster}`
-  unless a test override is configured.
+    * **Runner dispatch**: domain-specific helpers
+      (`create_token_review/1`, `get_service_account/2`,
+      `get_runner_pool/2`, `list_runner_pools/1`, `list_pods/2`,
+      `patch_pod/3`) that drive the SA-token-authenticated
+      dispatch endpoint and stamp owner labels at claim time.
+
+  Both surfaces share the same auth + request infrastructure
+  (`request/3` + `config/1`). In-cluster auth uses the projected
+  ServiceAccount mount at `/var/run/secrets/kubernetes.io/serviceaccount`;
+  cross-cluster paths (Kura) load a kubeconfig from the runtime
+  environment or local files via `opts[:mode] = :kubeconfig`.
   """
 
-  @sa_path "/var/run/secrets/kubernetes.io/serviceaccount"
+  @service_account_dir "/var/run/secrets/kubernetes.io/serviceaccount"
+  @token_path Path.join(@service_account_dir, "token")
+  @ca_path Path.join(@service_account_dir, "ca.crt")
+  @field_manager "tuist-server"
+
+  # ----- Generic verbs (used by Kura) -----
+
+  def get(path, opts \\ []) when is_binary(path) do
+    request(:get, path, opts: opts)
+  end
+
+  def replace(path, body, opts \\ []) when is_binary(path) and is_map(body) do
+    request(:put, path,
+      opts: opts,
+      body: Jason.encode!(body),
+      headers: [{"content-type", "application/json"}]
+    )
+  end
+
+  def patch(path, operations, opts \\ []) when is_binary(path) and is_list(operations) do
+    request(:patch, path,
+      opts: opts,
+      body: Jason.encode!(operations),
+      headers: [{"content-type", "application/json-patch+json"}]
+    )
+  end
+
+  def delete(path, opts \\ []) when is_binary(path) do
+    case request(:delete, path, opts: opts) do
+      {:ok, _body} -> :ok
+      {:error, :not_found} -> {:error, :not_found}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  def apply(manifest, opts \\ []) when is_map(manifest) do
+    with {:ok, path} <- manifest_path(manifest) do
+      body = Ymlr.document!(manifest)
+
+      request(:patch, path,
+        opts: opts,
+        body: body,
+        query: %{"fieldManager" => @field_manager, "force" => "true"},
+        headers: [{"content-type", "application/apply-patch+yaml"}]
+      )
+    end
+  end
+
+  def get_kura_instance(namespace, name, opts \\ []) do
+    get("/apis/kura.tuist.dev/v1alpha1/namespaces/#{namespace}/kurainstances/#{name}", opts)
+  end
+
+  def delete_kura_instance(namespace, name, opts \\ []) do
+    delete("/apis/kura.tuist.dev/v1alpha1/namespaces/#{namespace}/kurainstances/#{name}", opts)
+  end
+
+  # ----- Runner dispatch helpers -----
 
   @doc """
   POSTs a TokenReview for `token` and returns
@@ -38,33 +91,25 @@ defmodule Tuist.Kubernetes.Client do
   but not an SA, or `{:error, _}` on transport / non-2xx errors.
   """
   def create_token_review(token) when is_binary(token) do
-    with {:ok, host, ca, sa_token} <- in_cluster_config() do
-      body = %{
+    body =
+      Jason.encode!(%{
         "apiVersion" => "authentication.k8s.io/v1",
         "kind" => "TokenReview",
         "spec" => %{"token" => token}
-      }
+      })
 
-      req_opts = [
-        url: "https://#{host}/apis/authentication.k8s.io/v1/tokenreviews",
-        json: body,
-        headers: auth_headers(sa_token),
-        connect_options: [transport_opts: [cacerts: ca]]
-      ]
+    case request(:post, "/apis/authentication.k8s.io/v1/tokenreviews",
+           body: body,
+           headers: [{"content-type", "application/json"}]
+         ) do
+      {:ok, %{"status" => %{"authenticated" => true, "user" => user}}} ->
+        parse_sa_principal(user)
 
-      case Req.post(req_opts) do
-        {:ok, %{status: 201, body: %{"status" => %{"authenticated" => true, "user" => user}}}} ->
-          parse_sa_principal(user)
+      {:ok, %{"status" => %{"authenticated" => false}}} ->
+        {:error, :unauthenticated}
 
-        {:ok, %{status: 201, body: %{"status" => %{"authenticated" => false}}}} ->
-          {:error, :unauthenticated}
-
-        {:ok, %{status: status, body: body}} ->
-          {:error, {:http, status, body}}
-
-        {:error, reason} ->
-          {:error, {:transport, reason}}
-      end
+      {:error, _} = err ->
+        err
     end
   end
 
@@ -74,20 +119,7 @@ defmodule Tuist.Kubernetes.Client do
   resolve which pool the SA-as-caller is authorized for.
   """
   def get_service_account(namespace, name) when is_binary(namespace) and is_binary(name) do
-    with {:ok, host, ca, token} <- in_cluster_config() do
-      req_opts = [
-        url: "https://#{host}/api/v1/namespaces/#{namespace}/serviceaccounts/#{name}",
-        headers: auth_headers(token),
-        connect_options: [transport_opts: [cacerts: ca]]
-      ]
-
-      case Req.get(req_opts) do
-        {:ok, %{status: 200, body: sa}} -> {:ok, sa}
-        {:ok, %{status: 404}} -> {:error, :not_found}
-        {:ok, %{status: status, body: body}} -> {:error, {:http, status, body}}
-        {:error, reason} -> {:error, {:transport, reason}}
-      end
-    end
+    get("/api/v1/namespaces/#{namespace}/serviceaccounts/#{name}")
   end
 
   @doc """
@@ -96,20 +128,7 @@ defmodule Tuist.Kubernetes.Client do
   spec fields) to drive the JIT mint.
   """
   def get_runner_pool(namespace, name) when is_binary(namespace) and is_binary(name) do
-    with {:ok, host, ca, token} <- in_cluster_config() do
-      req_opts = [
-        url: "https://#{host}/apis/tuist.dev/v1alpha1/namespaces/#{namespace}/runnerpools/#{name}",
-        headers: auth_headers(token),
-        connect_options: [transport_opts: [cacerts: ca]]
-      ]
-
-      case Req.get(req_opts) do
-        {:ok, %{status: 200, body: cr}} -> {:ok, cr}
-        {:ok, %{status: 404}} -> {:error, :not_found}
-        {:ok, %{status: status, body: body}} -> {:error, {:http, status, body}}
-        {:error, reason} -> {:error, {:transport, reason}}
-      end
-    end
+    get("/apis/tuist.dev/v1alpha1/namespaces/#{namespace}/runnerpools/#{name}")
   end
 
   @doc """
@@ -118,18 +137,9 @@ defmodule Tuist.Kubernetes.Client do
   `spec.dispatchLabel` matches the incoming workflow_job's labels.
   """
   def list_runner_pools(namespace) when is_binary(namespace) do
-    with {:ok, host, ca, token} <- in_cluster_config() do
-      req_opts = [
-        url: "https://#{host}/apis/tuist.dev/v1alpha1/namespaces/#{namespace}/runnerpools",
-        headers: auth_headers(token),
-        connect_options: [transport_opts: [cacerts: ca]]
-      ]
-
-      case Req.get(req_opts) do
-        {:ok, %{status: 200, body: %{"items" => items}}} -> {:ok, items}
-        {:ok, %{status: status, body: body}} -> {:error, {:http, status, body}}
-        {:error, reason} -> {:error, {:transport, reason}}
-      end
+    case get("/apis/tuist.dev/v1alpha1/namespaces/#{namespace}/runnerpools") do
+      {:ok, %{"items" => items}} -> {:ok, items}
+      {:error, _} = err -> err
     end
   end
 
@@ -140,19 +150,11 @@ defmodule Tuist.Kubernetes.Client do
   before claiming a queue entry, to enforce `max_concurrent`.
   """
   def list_pods(namespace, label_selector) when is_binary(namespace) and is_binary(label_selector) do
-    with {:ok, host, ca, token} <- in_cluster_config() do
-      req_opts = [
-        url: "https://#{host}/api/v1/namespaces/#{namespace}/pods",
-        params: [{"labelSelector", label_selector}],
-        headers: auth_headers(token),
-        connect_options: [transport_opts: [cacerts: ca]]
-      ]
-
-      case Req.get(req_opts) do
-        {:ok, %{status: 200, body: %{"items" => items}}} -> {:ok, items}
-        {:ok, %{status: status, body: body}} -> {:error, {:http, status, body}}
-        {:error, reason} -> {:error, {:transport, reason}}
-      end
+    case request(:get, "/api/v1/namespaces/#{namespace}/pods",
+           query: %{"labelSelector" => label_selector}
+         ) do
+      {:ok, %{"items" => items}} -> {:ok, items}
+      {:error, _} = err -> err
     end
   end
 
@@ -162,27 +164,291 @@ defmodule Tuist.Kubernetes.Client do
   a queue entry, so subsequent `max_concurrent` counts include
   the Pod immediately.
   """
-  def patch_pod(namespace, name, patch) when is_binary(namespace) and is_binary(name) and is_map(patch) do
-    with {:ok, host, ca, token} <- in_cluster_config() do
-      req_opts = [
-        url: "https://#{host}/api/v1/namespaces/#{namespace}/pods/#{name}",
-        json: patch,
-        headers: [
-          {"authorization", "Bearer #{token}"},
-          {"accept", "application/json"},
-          {"content-type", "application/strategic-merge-patch+json"}
-        ],
-        connect_options: [transport_opts: [cacerts: ca]]
-      ]
+  def patch_pod(namespace, name, patch_body) when is_binary(namespace) and is_binary(name) and is_map(patch_body) do
+    request(:patch, "/api/v1/namespaces/#{namespace}/pods/#{name}",
+      body: Jason.encode!(patch_body),
+      headers: [{"content-type", "application/strategic-merge-patch+json"}]
+    )
+  end
 
-      case Req.patch(req_opts) do
-        {:ok, %{status: 200, body: pod}} -> {:ok, pod}
-        {:ok, %{status: 404}} -> {:error, :not_found}
-        {:ok, %{status: status, body: body}} -> {:error, {:http, status, body}}
-        {:error, reason} -> {:error, {:transport, reason}}
+  # ----- Manifest dispatch -----
+
+  defp manifest_path(%{
+         "apiVersion" => "kura.tuist.dev/v1alpha1",
+         "kind" => "KuraInstance",
+         "metadata" => %{"namespace" => namespace, "name" => name}
+       }) do
+    {:ok, "/apis/kura.tuist.dev/v1alpha1/namespaces/#{namespace}/kurainstances/#{name}"}
+  end
+
+  defp manifest_path(%{"kind" => kind}), do: {:error, "unsupported Kubernetes manifest kind #{kind}"}
+  defp manifest_path(_), do: {:error, "unsupported Kubernetes manifest"}
+
+  # ----- Request infrastructure -----
+
+  defp request(method, path, options) do
+    opts = Keyword.get(options, :opts, [])
+    headers = Keyword.get(options, :headers, [{"content-type", "application/json"}])
+    query = Keyword.get(options, :query, %{})
+    body = Keyword.get(options, :body)
+
+    with {:ok, config} <- config(opts) do
+      req_opts =
+        maybe_put_body(
+          [
+            method: method,
+            url: url(config, path),
+            headers: request_headers(config, headers),
+            params: query,
+            connect_options: [transport_opts: config.transport_opts]
+          ],
+          body
+        )
+
+      try do
+        case Req.request(req_opts) do
+          {:ok, %Req.Response{status: status, body: body}} when status in 200..299 ->
+            {:ok, body}
+
+          {:ok, %Req.Response{status: 404}} ->
+            {:error, :not_found}
+
+          {:ok, %Req.Response{status: status, body: body}} ->
+            {:error, "Kubernetes API #{method} #{path} returned #{status}: #{format_body(body)}"}
+
+          {:error, reason} ->
+            {:error, reason}
+        end
+      after
+        cleanup_temp_files(config)
       end
     end
   end
+
+  defp kubeconfig_mode?(opts), do: Keyword.get(opts, :mode) in [:kubeconfig, "kubeconfig"]
+
+  defp write_temp(contents, label, extname) do
+    with {:ok, path} <- Briefly.create(prefix: "kubernetes-#{label}-", extname: extname),
+         :ok <- File.write(path, contents),
+         :ok <- File.chmod(path, 0o600) do
+      {:ok, path}
+    else
+      {:error, reason} -> {:error, "failed to write #{label}: #{inspect(reason)}"}
+    end
+  end
+
+  defp config(opts) do
+    if kubeconfig_mode?(opts), do: kubeconfig_config(opts), else: in_cluster_config(opts)
+  end
+
+  defp in_cluster_config(opts) do
+    with {:ok, host} <- env("KUBERNETES_SERVICE_HOST", opts),
+         {:ok, port} <- env("KUBERNETES_SERVICE_PORT", opts),
+         {:ok, token} <- service_account_token(opts),
+         {:ok, ca_path} <- service_account_ca_path(opts) do
+      {:ok, %{host: host, port: port, token: token, transport_opts: [cacertfile: ca_path], temp_paths: []}}
+    end
+  end
+
+  defp kubeconfig_config(opts) do
+    with {:ok, contents} <- kubeconfig_contents(opts),
+         {:ok, kubeconfig} <- parse_kubeconfig(contents),
+         {:ok, context} <- kubeconfig_current_context(kubeconfig, opts),
+         {:ok, cluster} <- kubeconfig_named_entry(kubeconfig, "clusters", context["cluster"]),
+         {:ok, user} <- kubeconfig_named_entry(kubeconfig, "users", context["user"]),
+         {:ok, token} <- kubeconfig_token(user),
+         {:ok, server} <- kubeconfig_server(cluster),
+         {:ok, transport_opts, temp_paths} <- kubeconfig_transport_opts(cluster, user) do
+      {:ok, %{server: server, token: token, transport_opts: transport_opts, temp_paths: temp_paths}}
+    end
+  end
+
+  defp kubeconfig_contents(opts) do
+    cond do
+      contents = Keyword.get(opts, :kubeconfig) -> {:ok, contents}
+      path = Keyword.get(opts, :kubeconfig_path) -> kubeconfig_from_path(path)
+      cluster_id = Keyword.get(opts, :cluster_id) -> kubeconfig_from_cluster(cluster_id)
+      true -> {:error, "Kubernetes kubeconfig client mode requires :kubeconfig, :kubeconfig_path, or :cluster_id"}
+    end
+  end
+
+  defp kubeconfig_from_path(path) do
+    case File.read(path) do
+      {:ok, contents} -> {:ok, contents}
+      {:error, reason} -> {:error, "cannot read Kubernetes kubeconfig #{path}: #{inspect(reason)}"}
+    end
+  end
+
+  defp kubeconfig_from_cluster(cluster_id) do
+    case Tuist.Environment.kura_kubeconfig(cluster_id) do
+      contents when is_binary(contents) and contents != "" ->
+        {:ok, contents}
+
+      _ ->
+        suffix = cluster_id |> String.upcase() |> String.replace("-", "_")
+
+        {:error,
+         "missing Kubernetes kubeconfig for Kura cluster #{cluster_id}; set TUIST_KURA_KUBECONFIG_#{suffix} or TUIST_KURA_KUBECONFIG_PATH_#{suffix}"}
+    end
+  end
+
+  defp parse_kubeconfig(contents) do
+    case YamlElixir.read_from_string(contents) do
+      {:ok, kubeconfig} when is_map(kubeconfig) -> {:ok, kubeconfig}
+      {:ok, _} -> {:error, "Kubernetes kubeconfig is not a YAML map"}
+      {:error, reason} -> {:error, "invalid Kubernetes kubeconfig: #{inspect(reason)}"}
+    end
+  end
+
+  defp kubeconfig_current_context(kubeconfig, opts) do
+    name = Keyword.get(opts, :context) || Map.get(kubeconfig, "current-context")
+
+    kubeconfig_context(kubeconfig, name)
+  end
+
+  defp kubeconfig_context(kubeconfig, name) when is_binary(name) and name != "" do
+    kubeconfig_named_entry(kubeconfig, "contexts", name)
+  end
+
+  defp kubeconfig_context(_kubeconfig, _name), do: {:error, "Kubernetes kubeconfig has no current-context"}
+
+  defp kubeconfig_named_entry(kubeconfig, key, name) when is_binary(name) do
+    data_key = kubeconfig_entry_data_key(key)
+
+    kubeconfig
+    |> Map.get(key, [])
+    |> Enum.find(&(Map.get(&1, "name") == name))
+    |> case do
+      %{"name" => ^name} = entry -> {:ok, Map.get(entry, data_key, %{})}
+      nil -> {:error, "Kubernetes kubeconfig references missing #{String.trim_trailing(key, "s")} #{name}"}
+    end
+  end
+
+  defp kubeconfig_named_entry(_kubeconfig, key, _name) do
+    {:error, "Kubernetes kubeconfig context has no #{String.trim_trailing(key, "s")} name"}
+  end
+
+  defp kubeconfig_entry_data_key("clusters"), do: "cluster"
+  defp kubeconfig_entry_data_key("contexts"), do: "context"
+  defp kubeconfig_entry_data_key("users"), do: "user"
+
+  defp kubeconfig_server(%{"server" => server}) when is_binary(server) and server != "" do
+    {:ok, String.trim_trailing(server, "/")}
+  end
+
+  defp kubeconfig_server(_), do: {:error, "Kubernetes kubeconfig cluster has no server"}
+
+  defp kubeconfig_token(%{"token" => token}) when is_binary(token) and token != "", do: {:ok, token}
+
+  defp kubeconfig_token(%{"client-certificate-data" => cert, "client-key-data" => key})
+       when is_binary(cert) and cert != "" and is_binary(key) and key != "", do: {:ok, nil}
+
+  defp kubeconfig_token(%{"client-certificate" => cert, "client-key" => key})
+       when is_binary(cert) and cert != "" and is_binary(key) and key != "", do: {:ok, nil}
+
+  defp kubeconfig_token(_user) do
+    {:error, "Kubernetes kubeconfig user must contain token or client certificate credentials"}
+  end
+
+  defp kubeconfig_transport_opts(cluster, user) do
+    with {:ok, cluster_opts, cluster_paths} <- kubeconfig_cluster_transport_opts(cluster),
+         {:ok, user_opts, user_paths} <- kubeconfig_user_transport_opts(user) do
+      {:ok, cluster_opts ++ user_opts, cluster_paths ++ user_paths}
+    end
+  end
+
+  defp kubeconfig_cluster_transport_opts(%{"certificate-authority-data" => data}) when is_binary(data) do
+    with {:ok, contents} <- decode_kubeconfig_data(data, "certificate-authority-data"),
+         {:ok, path} <- write_temp(contents, "ca", ".crt") do
+      {:ok, [cacertfile: path], [path]}
+    end
+  end
+
+  defp kubeconfig_cluster_transport_opts(%{"certificate-authority" => path}) when is_binary(path) and path != "" do
+    {:ok, [cacertfile: path], []}
+  end
+
+  defp kubeconfig_cluster_transport_opts(%{"insecure-skip-tls-verify" => true}) do
+    {:ok, [verify: :verify_none], []}
+  end
+
+  defp kubeconfig_cluster_transport_opts(_), do: {:ok, [], []}
+
+  defp kubeconfig_user_transport_opts(%{"client-certificate-data" => cert_data, "client-key-data" => key_data})
+       when is_binary(cert_data) and cert_data != "" and is_binary(key_data) and key_data != "" do
+    with {:ok, cert} <- decode_kubeconfig_data(cert_data, "client-certificate-data"),
+         {:ok, key} <- decode_kubeconfig_data(key_data, "client-key-data"),
+         {:ok, cert_path} <- write_temp(cert, "client-cert", ".crt"),
+         {:ok, key_path} <- write_temp(key, "client-key", ".key") do
+      {:ok, [certfile: cert_path, keyfile: key_path], [cert_path, key_path]}
+    end
+  end
+
+  defp kubeconfig_user_transport_opts(%{"client-certificate" => cert_path, "client-key" => key_path})
+       when is_binary(cert_path) and cert_path != "" and is_binary(key_path) and key_path != "" do
+    {:ok, [certfile: cert_path, keyfile: key_path], []}
+  end
+
+  defp kubeconfig_user_transport_opts(_), do: {:ok, [], []}
+
+  defp decode_kubeconfig_data(data, field) do
+    case Base.decode64(data, ignore: :whitespace) do
+      {:ok, contents} -> {:ok, contents}
+      :error -> {:error, "Kubernetes kubeconfig #{field} is not valid base64"}
+    end
+  end
+
+  defp env(name, opts) do
+    env = Keyword.get(opts, :env, System)
+
+    case env.get_env(name) do
+      nil -> {:error, "Kubernetes in-cluster env var #{name} is not set"}
+      value -> {:ok, value}
+    end
+  end
+
+  defp service_account_token(opts) do
+    path = Keyword.get(opts, :token_path, @token_path)
+
+    case File.read(path) do
+      {:ok, token} -> {:ok, String.trim(token)}
+      {:error, reason} -> {:error, "cannot read Kubernetes ServiceAccount token #{path}: #{inspect(reason)}"}
+    end
+  end
+
+  defp service_account_ca_path(opts) do
+    path = Keyword.get(opts, :ca_path, @ca_path)
+
+    if File.exists?(path) do
+      {:ok, path}
+    else
+      {:error, "cannot read Kubernetes ServiceAccount CA #{path}"}
+    end
+  end
+
+  defp request_headers(config, headers) do
+    base_headers = [{"accept", "application/json"} | headers]
+
+    case Map.get(config, :token) do
+      token when is_binary(token) and token != "" -> [{"authorization", "Bearer #{token}"} | base_headers]
+      _ -> base_headers
+    end
+  end
+
+  defp cleanup_temp_files(%{temp_paths: paths}) do
+    Enum.each(paths, &File.rm/1)
+  end
+
+  defp cleanup_temp_files(_), do: :ok
+
+  defp url(%{server: server}, path), do: server <> path
+  defp url(config, path), do: "https://#{config.host}:#{config.port}#{path}"
+
+  defp maybe_put_body(req_opts, nil), do: req_opts
+  defp maybe_put_body(req_opts, body), do: Keyword.put(req_opts, :body, body)
+
+  defp format_body(body) when is_binary(body), do: String.slice(body, 0, 500)
+  defp format_body(body), do: inspect(body, limit: 20)
 
   defp parse_sa_principal(%{"username" => "system:serviceaccount:" <> rest, "uid" => uid}) do
     case String.split(rest, ":", parts: 2) do
@@ -195,28 +461,4 @@ defmodule Tuist.Kubernetes.Client do
   end
 
   defp parse_sa_principal(_), do: {:error, :not_service_account}
-
-  defp auth_headers(token) do
-    [
-      {"authorization", "Bearer #{token}"},
-      {"accept", "application/json"},
-      {"content-type", "application/json"}
-    ]
-  end
-
-  defp in_cluster_config do
-    host = System.get_env("KUBERNETES_SERVICE_HOST")
-
-    port =
-      System.get_env("KUBERNETES_SERVICE_PORT_HTTPS") ||
-        System.get_env("KUBERNETES_SERVICE_PORT") || "443"
-
-    with true <- is_binary(host) and host != "",
-         {:ok, token} <- File.read(Path.join(@sa_path, "token")),
-         {:ok, ca_pem} <- File.read(Path.join(@sa_path, "ca.crt")) do
-      {:ok, "#{host}:#{port}", ca_pem |> :public_key.pem_decode() |> Enum.map(&elem(&1, 1)), String.trim(token)}
-    else
-      _ -> {:error, :not_in_cluster}
-    end
-  end
 end

@@ -6,6 +6,7 @@ defmodule TuistWeb.AccountSettingsLiveTest do
   import Phoenix.LiveViewTest
 
   alias Tuist.Accounts
+  alias Tuist.Kura
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
   setup %{conn: conn} do
@@ -74,5 +75,101 @@ defmodule TuistWeb.AccountSettingsLiveTest do
 
     # Then
     assert has_element?(lv, "button", "Update username")
+  end
+
+  test "does not render Kura controls without the account feature flag", %{conn: conn, account: account} do
+    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/settings")
+
+    refute html =~ "Kura cache servers"
+  end
+
+  test "renders Kura controls when the account feature flag is enabled", %{conn: conn, account: account} do
+    FunWithFlags.enable(:kura, for_actor: account)
+    stub(Kura, :latest_versions, fn 1 -> [%{version: "0.5.2", released_at: DateTime.utc_now(:second)}] end)
+
+    {:ok, lv, html} = live(conn, ~p"/#{account.name}/settings")
+
+    assert html =~ "Kura cache servers"
+    assert html =~ "Local Controller (kind)"
+    refute html =~ "Local (kind)"
+    refute html =~ "No Kura servers"
+    assert has_element?(lv, "button", "Deploy Kura server")
+    assert html =~ "create_kura_server"
+    assert html =~ ~s(phx-value-region="local-controller")
+    refute has_element?(lv, "#kura-servers-table")
+  end
+
+  test "shows Kura server state, domain, and version", %{conn: conn, account: account} do
+    FunWithFlags.enable(:kura, for_actor: account)
+    stub(Kura, :latest_versions, fn 1 -> [%{version: "0.5.3", released_at: DateTime.utc_now(:second)}] end)
+
+    {:ok, server} =
+      Kura.create_server(%{
+        account_id: account.id,
+        region: "local-controller",
+        image_tag: "0.5.2"
+      })
+
+    deployment = hd(server.deployments)
+    {:ok, deployment} = Kura.mark_running(deployment)
+    {:ok, _deployment} = Kura.mark_succeeded(deployment)
+
+    {:ok, server} = Kura.activate_server(server, "0.5.2")
+
+    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/settings")
+
+    assert html =~ "Active"
+    assert html =~ server.url
+    assert html =~ "0.5.2"
+  end
+
+  test "shows Deploying when an active Kura server has an in-flight deployment", %{conn: conn, account: account} do
+    FunWithFlags.enable(:kura, for_actor: account)
+    stub(Kura, :latest_versions, fn 1 -> [%{version: "0.5.3", released_at: DateTime.utc_now(:second)}] end)
+
+    {:ok, server} =
+      Kura.create_server(%{
+        account_id: account.id,
+        region: "local-controller",
+        image_tag: "0.5.2"
+      })
+
+    deployment = hd(server.deployments)
+    {:ok, deployment} = Kura.mark_running(deployment)
+    {:ok, _deployment} = Kura.mark_succeeded(deployment)
+
+    {:ok, server} = Kura.activate_server(server, "0.5.2")
+    {:ok, _deployment} = Kura.create_deployment(server, "0.5.3")
+
+    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/settings")
+
+    assert html =~ "Deploying"
+    refute html =~ ">Active<"
+  end
+
+  test "deploys a Kura server from account settings", %{conn: conn, account: account} do
+    FunWithFlags.enable(:kura, for_actor: account)
+    stub(Kura, :latest_versions, fn 1 -> [%{version: "0.5.2", released_at: DateTime.utc_now(:second)}] end)
+
+    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings")
+
+    stub(Kura, :latest_versions, fn 1 ->
+      raise "create_kura_server should reuse the version loaded before opening the modal"
+    end)
+
+    _html = render_submit(lv, "create_kura_server", %{"server" => %{"region" => "local-controller"}})
+
+    assert [%{region: "local-controller", current_image_tag: nil}] = Kura.list_servers_for_account(account.id)
+  end
+
+  test "deploys the only available Kura region when the portaled form omits inputs", %{conn: conn, account: account} do
+    FunWithFlags.enable(:kura, for_actor: account)
+    stub(Kura, :latest_versions, fn 1 -> [%{version: "0.5.2", released_at: DateTime.utc_now(:second)}] end)
+
+    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings")
+
+    _html = render_submit(lv, "create_kura_server", %{})
+
+    assert [%{region: "local-controller", current_image_tag: nil}] = Kura.list_servers_for_account(account.id)
   end
 end

@@ -1,0 +1,67 @@
+defmodule Tuist.Oban.RuntimeConfig do
+  @moduledoc """
+  Pure functions deriving Oban runtime config from pod role, deploy env,
+  and the `tuist_hosted?` flag.
+
+  Lifted out of `config/runtime.exs` so they can be unit-tested against
+  every value of `Tuist.Environment.modes/0`. Without this, a future
+  denylist regression — like the one where the `:xcresult_processor` role
+  shipped leader-eligible with an empty crontab and silently halted every
+  cron job — would only surface when the next non-web role rolled out and
+  an incident reproduced. The accompanying test asserts every non-web
+  mode returned by `Tuist.Environment.modes/0` is leader-ineligible and
+  has an empty crontab, so the gate stays an allowlist by construction.
+  """
+
+  @shared_crons [
+    {"@hourly", Tuist.Slack.Workers.ReportWorker},
+    {"*/10 * * * *", Tuist.Alerts.Workers.AlertWorker},
+    {"@hourly", Tuist.Tests.Workers.ExpireStaleTestRunsWorker},
+    {"* * * * *", Tuist.Automations.Workers.AutomationScheduler}
+  ]
+
+  @hosted_only_crons [
+    {"0 10 * * 1-5", Tuist.Ops.DailySlackReportWorker},
+    {"0 * * * 1-5", Tuist.Ops.HourlySlackReportWorker},
+    {"@daily", Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker},
+    {"@daily", Tuist.Billing.Workers.SyncStripeMetersWorker},
+    {"* * * * *", Tuist.Kura.Reconciler},
+    {"* * * * *", Tuist.Runners.Workers.StaleClaimsWorker}
+  ]
+
+  @prod_like_envs [:prod, :stag, :can]
+
+  @doc """
+  Crontab for the given pod mode, deploy env, and `tuist_hosted?` flag.
+
+  Empty for any non-`:web` pod, any non-prod-like env, or any
+  combination thereof. On `:web` + prod-like env, returns project-level
+  crons (alerts, automations, per-project Slack reports, sharded-test
+  cleanup) — Tuist-hosted deployments additionally get the internal Slack
+  ops reports, account-usage rollup, and Stripe metered-billing reconciler.
+  """
+  def crontab(mode, env, tuist_hosted?) do
+    if mode == :web and env in @prod_like_envs do
+      if tuist_hosted? do
+        @hosted_only_crons ++ @shared_crons
+      else
+        @shared_crons
+      end
+    else
+      []
+    end
+  end
+
+  @doc """
+  Whether a pod with the given mode may win the Oban peer election.
+
+  Only `:web` may. Every other mode runs as the least-privilege
+  `tuist_processor` Postgres role, which can't satisfy
+  `Oban.Met.Reporter`'s leader-path `CREATE OR REPLACE FUNCTION` query
+  (see `infra/supabase/tuist-processor-role.sql`) — Reporter would
+  crash on every checkpoint. Non-`:web` pods also carry an empty
+  crontab, so a non-web leader silently halts every scheduled job.
+  """
+  def peer_eligible?(:web), do: true
+  def peer_eligible?(_), do: false
+end

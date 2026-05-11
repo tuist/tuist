@@ -9,6 +9,8 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"net"
+	"strconv"
 	"sync"
 	"time"
 
@@ -46,9 +48,26 @@ const PodFinalizer = "tart-kubelet.tuist.dev/vm-cleanup"
 type Reconciler struct {
 	CachedClient client.Client
 	NodeName     string
-	Tart         *tart.Client
-	Resolver     *envresolver.Resolver
-	Store        *Store
+	// NodeIP is the routable address of the Mac mini host. Pods that
+	// opt into scraping via the `prometheus.io/scrape` annotation
+	// advertise this IP as their PodIP and run a host-side forwarder
+	// here on the annotated port — keeping Alloy's existing pod-IP
+	// based autodiscovery working without a route into the Tart VM's
+	// NAT-private network. Empty when discovery failed at boot; the
+	// forwarder + PodIP rewrite both no-op in that case so the rest
+	// of the reconciler still functions.
+	NodeIP string
+
+	// ScrapeAllowedCIDRs restricts which client addresses the
+	// per-Pod metrics forwarder accepts. NodeIP can in practice be
+	// a public IP on Scaleway, so the bind address alone isn't a
+	// security boundary; this allowlist is. Empty defers to
+	// DefaultScrapeAllowedCIDRs at forwarder construction.
+	ScrapeAllowedCIDRs []*net.IPNet
+
+	Tart     *tart.Client
+	Resolver *envresolver.Resolver
+	Store    *Store
 
 	// TokenMinter mints projected ServiceAccount tokens for Pods
 	// whose Spec.AutomountServiceAccountToken is true. Optional —
@@ -60,6 +79,22 @@ type Reconciler struct {
 	// — when nil, the reconciler just surfaces the error.
 	GC *Collector
 }
+
+// MetricsScrapeAnnotation is the pod annotation that tells
+// tart-kubelet to expose the Pod's metrics endpoint on the host so
+// in-cluster scrapers (Alloy, kube-prometheus-stack, etc.) can reach
+// it. Mirrors the convention the rest of the Tuist Helm chart uses
+// for Linux Pods, which is also what the Grafana k8s-monitoring
+// chart's annotationAutodiscovery is configured to look for.
+const MetricsScrapeAnnotation = "prometheus.io/scrape"
+
+// MetricsPortAnnotation is the pod annotation declaring which port
+// inside the Pod (= inside the Tart VM) serves /metrics. The
+// host-side forwarder listens on the same port number on
+// 0.0.0.0:<port>, so a Pod's annotated port doubles as the host
+// listen port — at most one VM-pod runs per Mac mini in steady
+// state (topologySpread on the Pod), making collisions a non-issue.
+const MetricsPortAnnotation = "prometheus.io/port"
 
 // SetupWithManager wires the reconciler with two predicates:
 //   - NodeName match: only Pods k8s scheduled here.
@@ -292,7 +327,91 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 		return fmt.Errorf("tart run: %w", err)
 	}
 	entry.Run = handle
+
+	// Start the metrics forwarder lazily on first podStatus rather
+	// than here — the VM hasn't booted yet, IP() returns empty, and
+	// the forwarder needs at least an upstream to dial when the
+	// scraper hits it.
 	return nil
+}
+
+// startMetricsForwarder spins up the host-side TCP relay declared by
+// the Pod's `prometheus.io/scrape` annotation. Idempotent: a second
+// call when the forwarder is already running returns nil. No-op when
+// the annotation is absent or NodeIP isn't known.
+func (r *Reconciler) startMetricsForwarder(pod *corev1.Pod, entry *Entry) error {
+	if entry.MetricsForwarder != nil {
+		return nil
+	}
+	if r.NodeIP == "" {
+		return nil
+	}
+	port, ok := metricsPortFromPod(pod)
+	if !ok {
+		return nil
+	}
+
+	vmName := entry.VMName
+	resolve := func() (string, error) {
+		ctx, cancel := contextWithTimeout(5 * time.Second)
+		defer cancel()
+		ip, err := r.Tart.IP(ctx, vmName)
+		if err != nil {
+			return "", err
+		}
+		if ip == "" {
+			return "", fmt.Errorf("vm %s has no IP yet", vmName)
+		}
+		return fmt.Sprintf("%s:%d", ip, port), nil
+	}
+
+	// Bind to the Node IP rather than 0.0.0.0 so the forwarder is
+	// only reachable from the cluster network — anything Alloy can
+	// see, but not random clients on the host's other interfaces
+	// (BMC, public WAN if any). The Pod also declares a hostPort:9091
+	// in its container spec which makes the scheduler enforce
+	// uniqueness across Pods on the same Node, so the bind here is
+	// guaranteed not to clash with another scrape-opted-in Pod —
+	// belt-and-braces, podStatus drops the PodIP rewrite when this
+	// errors out so a runtime collision still means "no Alloy traffic
+	// to this Pod" rather than "Alloy scrapes the wrong VM."
+	listenAddr := fmt.Sprintf("%s:%d", r.NodeIP, port)
+	allowed := r.ScrapeAllowedCIDRs
+	if len(allowed) == 0 {
+		allowed = DefaultScrapeAllowedCIDRs()
+	}
+	fw, err := NewForwarder(listenAddr, resolve, ForwarderOptions{AllowedCIDRs: allowed})
+	if err != nil {
+		return fmt.Errorf("start metrics forwarder for %s/%s on %s: %w", pod.Namespace, pod.Name, listenAddr, err)
+	}
+	entry.MetricsForwarder = fw
+	return nil
+}
+
+// metricsPortFromPod reads the scrape opt-in + port annotations.
+// Returns (port, true) when both are set and the port parses; the
+// caller treats false as "Pod does not opt in".
+func metricsPortFromPod(pod *corev1.Pod) (int, bool) {
+	if pod.Annotations[MetricsScrapeAnnotation] != "true" {
+		return 0, false
+	}
+	raw := pod.Annotations[MetricsPortAnnotation]
+	if raw == "" {
+		return 0, false
+	}
+	port, err := strconv.Atoi(raw)
+	if err != nil || port <= 0 || port > 65535 {
+		return 0, false
+	}
+	return port, true
+}
+
+// contextWithTimeout is split out so the production resolver can use
+// context.Background as the parent (the resolver is invoked from a
+// scraper-driven goroutine and must outlive the reconcile that
+// started it).
+func contextWithTimeout(d time.Duration) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.Background(), d)
 }
 
 func (r *Reconciler) deletePod(ctx context.Context, pod *corev1.Pod) error {
@@ -309,6 +428,11 @@ func (r *Reconciler) deleteByKey(ctx context.Context, namespace, name string) er
 	entry := r.Store.Get(namespace, name)
 	if entry == nil {
 		return nil
+	}
+
+	if entry.MetricsForwarder != nil {
+		entry.MetricsForwarder.Stop()
+		entry.MetricsForwarder = nil
 	}
 
 	_ = r.Tart.Stop(ctx, entry.VMName, 30*time.Second)
@@ -348,6 +472,9 @@ func (r *Reconciler) podStatus(ctx context.Context, pod *corev1.Pod) (*corev1.Po
 	}
 
 	hostIP := r.NodeName
+	if r.NodeIP != "" {
+		hostIP = r.NodeIP
+	}
 	status := &corev1.PodStatus{
 		StartTime: &entry.StartTS,
 		HostIP:    hostIP,
@@ -375,7 +502,28 @@ func (r *Reconciler) podStatus(ctx context.Context, pod *corev1.Pod) (*corev1.Po
 
 	if ip, ipErr := r.Tart.IP(ctx, entry.VMName); ipErr == nil && ip != "" {
 		status.Phase = corev1.PodRunning
+		// For Pods that opt into scraping we report the host IP as
+		// the Pod IP so existing pod-IP-based discovery (Alloy's
+		// annotationAutodiscovery, Service endpoints, kube-state-
+		// metrics) targets the host-side forwarder rather than the
+		// VM's NAT-private address. Spin the forwarder up here too
+		// — first podStatus after VM boot is when an upstream IP
+		// becomes available. The PodIP rewrite is gated on the
+		// forwarder actually starting: a bind failure (eg. another
+		// Pod already on this host won the hostPort race) leaves
+		// PodIP at the unreachable VM IP so Alloy harmlessly
+		// times out instead of mis-scraping the other Pod's VM.
+		// The Pod stays Ready because the BEAM is up regardless of
+		// scraping plumbing — Oban consumption doesn't depend on it.
 		status.PodIP = ip
+		if _, scraped := metricsPortFromPod(pod); scraped && r.NodeIP != "" {
+			if err := r.startMetricsForwarder(pod, entry); err != nil {
+				log.FromContext(ctx).Error(err, "start metrics forwarder; leaving PodIP at VM IP so Alloy doesn't mis-scrape",
+					"pod", pod.Namespace+"/"+pod.Name)
+			} else {
+				status.PodIP = r.NodeIP
+			}
+		}
 		status.Conditions = []corev1.PodCondition{
 			{Type: corev1.PodReady, Status: corev1.ConditionTrue},
 		}
@@ -494,10 +642,17 @@ func VMNameForPod(pod *corev1.Pod) string {
 // process is no longer a child of this kubelet, so we can't observe
 // its exit. The reconciler treats `Run == nil` as "trust IP probe
 // alone" and skips the post-launch exit check.
+//
+// MetricsForwarder is the host-side TCP relay (host_ip:port →
+// vm_ip:port) for Pods that opt into Prometheus scraping via the
+// `prometheus.io/scrape` annotation. nil for Pods without the
+// annotation and for entries materialised by recoverState — the
+// next reconcile-and-restart cycle will set one up.
 type Entry struct {
-	VMName  string
-	StartTS metav1.Time
-	Run     *tart.RunHandle
+	VMName           string
+	StartTS          metav1.Time
+	Run              *tart.RunHandle
+	MetricsForwarder *Forwarder
 }
 
 // Store is a tiny thread-safe map. Backed by in-memory state — on
