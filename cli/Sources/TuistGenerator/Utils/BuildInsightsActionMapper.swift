@@ -28,7 +28,7 @@ struct BuildInsightsActionMapper: BuildInsightsActionMapping {
             ExecutionAction(
                 title: "Push build insights",
                 scriptText: "\(currentExecutablePath.pathString) inspect build",
-                target: nil,
+                target: buildAction.targets.first,
                 shellPath: nil
             )
         )

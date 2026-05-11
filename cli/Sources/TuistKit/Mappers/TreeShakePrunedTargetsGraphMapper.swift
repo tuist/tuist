@@ -155,20 +155,36 @@ public struct TreeShakePrunedTargetsGraphMapper: GraphMapping {
         schemes.compactMap { scheme -> Scheme? in
             var scheme = scheme
 
-            if let buildAction = scheme.buildAction {
-                scheme.buildAction?.targets = buildAction.targets.filter(sourceTargets.contains)
+            if var buildAction = scheme.buildAction {
+                buildAction.targets = buildAction.targets.filter(sourceTargets.contains)
+                let buildFallback = buildAction.targets.first
+                buildAction.preActions = buildAction.preActions.map {
+                    rewriteExecutionActionTarget($0, sourceTargets: sourceTargets, fallback: buildFallback)
+                }
+                buildAction.postActions = buildAction.postActions.map {
+                    rewriteExecutionActionTarget($0, sourceTargets: sourceTargets, fallback: buildFallback)
+                }
+                scheme.buildAction = buildAction
             }
 
-            if let testAction = scheme.testAction {
-                scheme.testAction?.targets = testAction.targets.filter {
+            if var testAction = scheme.testAction {
+                testAction.targets = testAction.targets.filter {
                     sourceTargets.contains($0.target)
                 }
-                scheme.testAction?.codeCoverageTargets = testAction.codeCoverageTargets.filter(
+                testAction.codeCoverageTargets = testAction.codeCoverageTargets.filter(
                     sourceTargets.contains
                 )
-                scheme.testAction?.testPlans = testAction.testPlans?.compactMap {
+                testAction.testPlans = testAction.testPlans?.compactMap {
                     treeShake(testPlan: $0, sourceTargets: sourceTargets)
                 }
+                let testFallback = testAction.targets.first?.target ?? scheme.buildAction?.targets.first
+                testAction.preActions = testAction.preActions.map {
+                    rewriteExecutionActionTarget($0, sourceTargets: sourceTargets, fallback: testFallback)
+                }
+                testAction.postActions = testAction.postActions.map {
+                    rewriteExecutionActionTarget($0, sourceTargets: sourceTargets, fallback: testFallback)
+                }
+                scheme.testAction = testAction
             }
 
             // Clear variable-expansion references when their target has been pruned, rather than
@@ -197,6 +213,26 @@ public struct TreeShakePrunedTargetsGraphMapper: GraphMapping {
 
             return scheme
         }
+    }
+
+    /// Rewrites a pre/post-action's `target` when it names a target being pruned out of the
+    /// graph, swapping in the parent action's first surviving buildable so the script keeps
+    /// receiving target-derived build settings (`BUILD_DIR`, `CONFIGURATION`, …). When the
+    /// action already references a surviving target, or the scheme has no surviving buildable
+    /// to swap to, the action is left untouched.
+    private func rewriteExecutionActionTarget(
+        _ action: ExecutionAction,
+        sourceTargets: Set<TargetReference>,
+        fallback: TargetReference?
+    ) -> ExecutionAction {
+        guard let original = action.target, !sourceTargets.contains(original) else { return action }
+        return ExecutionAction(
+            title: action.title,
+            scriptText: action.scriptText,
+            target: fallback,
+            shellPath: action.shellPath,
+            showEnvVarsInLog: action.showEnvVarsInLog
+        )
     }
 
     private func treeShake(

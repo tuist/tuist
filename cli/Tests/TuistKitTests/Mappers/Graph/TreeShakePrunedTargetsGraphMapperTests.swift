@@ -603,4 +603,74 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
         )
         XCTAssertBetterEqual(expectedGraph, gotGraph)
     }
+
+    /// When a pre/post-action's `target` reference names a target being pruned out of the
+    /// graph, tree-shake rewrites the reference to a surviving buildable in the same scheme
+    /// so the script keeps receiving target-derived env vars.
+    func test_map_rewrites_pre_post_action_target_to_surviving_buildable_when_original_is_pruned() throws {
+        // Given
+        var prunedFramework = Target.test(name: "PrunedFramework", product: .framework)
+        prunedFramework.metadata.tags.formUnion(["tuist:prunable"])
+        let testTarget = Target.test(name: "FrameworkTests", product: .unitTests)
+        let path = try temporaryPath()
+
+        let scheme = Scheme.test(
+            name: "FrameworkTests",
+            buildAction: .test(
+                targets: [TargetReference(projectPath: path, name: testTarget.name)],
+                preActions: [
+                    ExecutionAction(
+                        title: "Pre-action",
+                        scriptText: "echo $TARGET_BUILD_DIR",
+                        target: TargetReference(projectPath: path, name: prunedFramework.name),
+                        shellPath: nil
+                    ),
+                ],
+                postActions: [
+                    ExecutionAction(
+                        title: "Post-action",
+                        scriptText: "echo done",
+                        target: TargetReference(projectPath: path, name: prunedFramework.name),
+                        shellPath: nil
+                    ),
+                ]
+            ),
+            testAction: .test(
+                targets: [.test(target: TargetReference(projectPath: path, name: testTarget.name))],
+                postActions: [
+                    ExecutionAction(
+                        title: "Test post-action",
+                        scriptText: "echo tested",
+                        target: TargetReference(projectPath: path, name: prunedFramework.name),
+                        shellPath: nil
+                    ),
+                ]
+            )
+        )
+        let project = Project.test(path: path, targets: [prunedFramework, testTarget], schemes: [scheme])
+        let graph = Graph.test(projects: [project.path: project])
+
+        // When
+        let (gotGraph, _, _) = try subject.map(graph: graph, environment: MapperEnvironment())
+
+        // Then
+        let survivingScheme = try XCTUnwrap(gotGraph.projects.values.first?.schemes.first)
+        let testTargetRef = TargetReference(projectPath: path, name: testTarget.name)
+
+        XCTAssertEqual(
+            survivingScheme.buildAction?.preActions.first?.target,
+            testTargetRef,
+            "Build action pre-action target should be rewritten to the scheme's surviving buildable."
+        )
+        XCTAssertEqual(
+            survivingScheme.buildAction?.postActions.first?.target,
+            testTargetRef,
+            "Build action post-action target should be rewritten to the scheme's surviving buildable."
+        )
+        XCTAssertEqual(
+            survivingScheme.testAction?.postActions.first?.target,
+            testTargetRef,
+            "Test action post-action target should be rewritten to the scheme's surviving testable target."
+        )
+    }
 }

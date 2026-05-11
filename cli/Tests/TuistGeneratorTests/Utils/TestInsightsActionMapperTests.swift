@@ -53,13 +53,16 @@ struct TestInsightsActionMapperTests {
             testInsightsDisabled: false
         )
 
-        // Then
+        // Then — the post-action's `target` is bound to the test action's first testable
+        // target so Xcode's `<EnvironmentBuildable>` exposes build settings to the script.
+        // If focus later prunes that target, `TreeShakePrunedTargetsGraphMapper` rewrites the
+        // reference to a surviving buildable.
         let expectedTestAction: TestAction = .test(
             postActions: [
                 ExecutionAction(
                     title: "Push test insights",
                     scriptText: "/mise/tuist inspect test",
-                    target: nil,
+                    target: testAction.targets.first?.target,
                     shellPath: nil
                 ),
             ]
