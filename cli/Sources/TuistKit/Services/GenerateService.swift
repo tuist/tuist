@@ -21,6 +21,19 @@ import TuistSupport
     import TuistCacheEE
 #endif
 
+enum GenerateServiceError: FatalError, Equatable {
+    case outdatedDependencies
+
+    var type: ErrorType { .abort }
+
+    var description: String {
+        switch self {
+        case .outdatedDependencies:
+            return "Outdated dependencies detected. Run `tuist install` to update them."
+        }
+    }
+}
+
 public struct GenerateService {
     private let opener: Opening
     private let clock: Clock
@@ -101,15 +114,22 @@ public struct GenerateService {
             )
 
         if let generatedProject = config.project.generatedProject,
-           generatedProject.generationOptions.autoInstallOutdatedDependencies,
+           generatedProject.generationOptions.onOutdatedDependencies != .warn,
            try await outdatedDependenciesChecker.packageDependenciesAreOutdated(at: path)
         {
-            Logger.current.notice("Outdated dependencies detected. Running `tuist install`.", metadata: .section)
-            try await installService.run(
-                path: path.pathString,
-                update: false,
-                passthroughArguments: []
-            )
+            switch generatedProject.generationOptions.onOutdatedDependencies {
+            case .warn:
+                break
+            case .install:
+                Logger.current.notice("Outdated dependencies detected. Running `tuist install`.", metadata: .section)
+                try await installService.run(
+                    path: path.pathString,
+                    update: false,
+                    passthroughArguments: []
+                )
+            case .fail:
+                throw GenerateServiceError.outdatedDependencies
+            }
         }
 
         let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)

@@ -379,7 +379,7 @@ struct GenerateServiceTests {
     }
 }
 
-struct GenerateServiceAutoInstallTests {
+struct GenerateServiceOutdatedDependenciesTests {
     private var subject: GenerateService!
     private var generator: MockGenerating!
     private var generatorFactory: MockGeneratorFactorying!
@@ -419,10 +419,10 @@ struct GenerateServiceAutoInstallTests {
     }
 
     @Test
-    func runs_install_when_auto_install_enabled_and_dependencies_are_outdated() async throws {
+    func runs_install_when_install_action_and_dependencies_are_outdated() async throws {
         // Given
         given(configLoader).loadConfig(path: .any).willReturn(
-            .test(project: .generated(.test(generationOptions: .test(autoInstallOutdatedDependencies: true))))
+            .test(project: .generated(.test(generationOptions: .test(onOutdatedDependencies: .install))))
         )
         given(outdatedDependenciesChecker)
             .packageDependenciesAreOutdated(at: .any)
@@ -451,10 +451,10 @@ struct GenerateServiceAutoInstallTests {
     }
 
     @Test
-    func does_not_run_install_when_auto_install_disabled() async throws {
+    func does_not_check_dependencies_when_action_is_warn() async throws {
         // Given
         given(configLoader).loadConfig(path: .any).willReturn(
-            .test(project: .generated(.test(generationOptions: .test(autoInstallOutdatedDependencies: false))))
+            .test(project: .generated(.test(generationOptions: .test(onOutdatedDependencies: .warn))))
         )
         given(generator)
             .generateWithGraph(path: .any, options: .any)
@@ -483,7 +483,7 @@ struct GenerateServiceAutoInstallTests {
     func does_not_run_install_when_dependencies_are_up_to_date() async throws {
         // Given
         given(configLoader).loadConfig(path: .any).willReturn(
-            .test(project: .generated(.test(generationOptions: .test(autoInstallOutdatedDependencies: true))))
+            .test(project: .generated(.test(generationOptions: .test(onOutdatedDependencies: .install))))
         )
         given(outdatedDependenciesChecker)
             .packageDependenciesAreOutdated(at: .any)
@@ -503,6 +503,32 @@ struct GenerateServiceAutoInstallTests {
         )
 
         // Then
+        verify(installService)
+            .run(path: .any, update: .any, passthroughArguments: .any)
+            .called(0)
+    }
+
+    @Test
+    func throws_when_action_is_fail_and_dependencies_are_outdated() async throws {
+        // Given
+        given(configLoader).loadConfig(path: .any).willReturn(
+            .test(project: .generated(.test(generationOptions: .test(onOutdatedDependencies: .fail))))
+        )
+        given(outdatedDependenciesChecker)
+            .packageDependenciesAreOutdated(at: .any)
+            .willReturn(true)
+
+        // When / Then
+        await #expect(throws: GenerateServiceError.outdatedDependencies) {
+            try await subject.run(
+                path: nil,
+                includedTargets: [],
+                noOpen: true,
+                configuration: nil,
+                ignoreBinaryCache: false,
+                cacheProfile: nil
+            )
+        }
         verify(installService)
             .run(path: .any, update: .any, passthroughArguments: .any)
             .called(0)

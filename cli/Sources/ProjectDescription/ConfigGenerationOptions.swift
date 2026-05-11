@@ -28,6 +28,17 @@ extension Tuist {
             case only([GenerationWarning])
         }
 
+        /// How `tuist generate` reacts when it detects that dependencies are outdated
+        /// (i.e. `Package.resolved` has changed since the last `tuist install`).
+        public enum OutdatedDependenciesAction: String, Codable, Equatable, Sendable {
+            /// Print a warning and continue generation (default).
+            case warn
+            /// Run `tuist install` automatically and then continue generation.
+            case install
+            /// Fail generation, requiring the user to run `tuist install` first.
+            case fail
+        }
+
         /// This is now deprecated.
         ///
         /// To achieve the same behaviour, use `additionalPackageResolutionArguments` like so:
@@ -114,10 +125,8 @@ extension Tuist {
         /// own `Package.swift` manifest, matching SPM's behavior.
         public var defaultSwiftVersion: String
 
-        /// When enabled, `tuist generate` automatically runs `tuist install` if it detects that
-        /// dependencies are outdated (i.e. `Package.resolved` has changed since the last install),
-        /// instead of just warning the user to run `tuist install` manually.
-        public var autoInstallOutdatedDependencies: Bool
+        /// Controls how `tuist generate` reacts to outdated dependencies. Defaults to `.warn`.
+        public var onOutdatedDependencies: OutdatedDependenciesAction
 
         public static func options(
             disablePackageVersionLocking: Bool = false,
@@ -133,7 +142,7 @@ extension Tuist {
             additionalPackageResolutionArguments: [String] = [],
             warningsAsErrors: WarningsAsErrors = .none,
             defaultSwiftVersion: String = "5",
-            autoInstallOutdatedDependencies: Bool = false
+            onOutdatedDependencies: OutdatedDependenciesAction = .warn
         ) -> Self {
             self.init(
                 resolveDependenciesWithSystemScm: false,
@@ -152,7 +161,7 @@ extension Tuist {
                 registryEnabled: registryEnabled,
                 warningsAsErrors: warningsAsErrors,
                 defaultSwiftVersion: defaultSwiftVersion,
-                autoInstallOutdatedDependencies: autoInstallOutdatedDependencies
+                onOutdatedDependencies: onOutdatedDependencies
             )
         }
 
@@ -192,7 +201,7 @@ extension Tuist {
                 registryEnabled: false,
                 warningsAsErrors: .none,
                 defaultSwiftVersion: "5",
-                autoInstallOutdatedDependencies: false
+                onOutdatedDependencies: .warn
             )
         }
 
@@ -227,7 +236,7 @@ extension Tuist {
                 registryEnabled: false,
                 warningsAsErrors: .none,
                 defaultSwiftVersion: "5",
-                autoInstallOutdatedDependencies: false
+                onOutdatedDependencies: .warn
             )
         }
     }

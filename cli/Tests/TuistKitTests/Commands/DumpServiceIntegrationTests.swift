@@ -231,7 +231,6 @@ final class DumpServiceTests: TuistTestCase {
                     "additionalPackageResolutionArguments": [
 
                     ],
-                    "autoInstallOutdatedDependencies": false,
                     "buildInsightsDisabled": false,
                     "defaultSwiftVersion": "5",
                     "disablePackageVersionLocking": false,
@@ -239,6 +238,7 @@ final class DumpServiceTests: TuistTestCase {
                     "enableCaching": false,
                     "enforceExplicitDependencies": false,
                     "includeGenerateScheme": true,
+                    "onOutdatedDependencies": "warn",
                     "optionalAuthentication": false,
                     "registryEnabled": false,
                     "resolveDependenciesWithSystemScm": false,
