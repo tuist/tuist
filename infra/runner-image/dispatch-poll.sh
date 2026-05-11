@@ -61,13 +61,21 @@ attempt=0
 
 while true; do
   attempt=$((attempt + 1))
-  http=$(curl -fsS -o /tmp/dispatch.json -w '%{http_code}' \
+  # `-f` is intentionally omitted: with it, curl exits non-zero on
+  # 4xx/5xx, the `|| http="000"` clause fires, and the real status
+  # never reaches the case statement. We need 401/403/5xx as
+  # numeric statuses so the case can branch on them. stderr is
+  # redirected so curl's "The requested URL returned error: …" line
+  # doesn't end up in the captured %{http_code}. The `|| http="000"`
+  # fallback now fires only on transport failure (DNS, TCP, TLS,
+  # timeout), where %{http_code} is "000" anyway.
+  http=$(curl -sS -o /tmp/dispatch.json -w '%{http_code}' \
     --max-time 10 \
     --request POST \
     --header "Authorization: Bearer ${SA_TOKEN}" \
     --header "Content-Type: application/json" \
     --data '{}' \
-    "${TUIST_RUNNER_DISPATCH_URL}" || echo "000")
+    "${TUIST_RUNNER_DISPATCH_URL}" 2>/dev/null) || http="000"
 
   case "${http}" in
     200)

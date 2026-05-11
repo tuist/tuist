@@ -135,7 +135,18 @@ config :logger, :console,
     :image,
     :fleet,
     :reason,
-    :changeset_errors
+    :changeset_errors,
+    :account,
+    :account_id,
+    :sa,
+    :runner,
+    :pod,
+    :claim_id,
+    :original_reason,
+    :release_error,
+    :owner,
+    :count,
+    :stale_after_seconds
   ]
 
 config :mime, :types, %{

@@ -3,28 +3,23 @@
 {{- $serverSA := include "tuist.componentServiceAccountName" (dict "root" . "component" "server") }}
 {{- /*
 Customer runner Pods live in their own namespace, separate from
-the chart's release namespace. Two reasons:
+the chart's release namespace. Reasons:
 
 1. Blast radius. The runners-controller's ServiceAccount needs
    Pod create/delete + SA create/delete to materialize per-Pod
-   credentials; the server's SA needs RunnerAssignment write +
-   cluster-scoped TokenReview to mint JITs. Both are scoped to
-   exactly what they need. Pinning the runner workload to a
-   dedicated namespace keeps a controller or server compromise
-   from reaching the chart's other workloads.
-2. Network policy. We default-deny ingress (runners receive jobs
-   by polling GitHub from inside the VM, never via inbound
-   connections), and allow egress to all of HTTP/HTTPS *except*
-   cluster-internal CIDRs (`exceptCIDRs` carves out the cluster's
-   Pod + Service ranges). Customer CI workflows legitimately
-   reach a long tail of third-party hosts — actions cache,
-   package registries (npm, CocoaPods, Homebrew, RubyGems),
-   monitoring services, etc. — so a closed allowlist would
-   break real workflows. The CIDR carve-out blocks a compromised
-   runner from pivoting into our internal services
-   (ClickHouse, Postgres, server admin endpoints) regardless of
-   what credentials it holds; an L7 domain-allowlist proxy is on
-   the v2 hardening list for tightening this further.
+   credentials; the server's SA needs RunnerPool read + Pod
+   patch + cluster-scoped TokenReview to mint JITs. Both are
+   scoped to exactly what they need. Pinning the runner workload
+   to a dedicated namespace keeps a controller or server
+   compromise from reaching the chart's other workloads.
+2. Pod-network policy. The NetworkPolicy below default-denies
+   ingress and gates egress for the runner Pod itself (the
+   tart-cri process that owns the VM, dispatch-poll's curl to
+   the Tuist server, projected-SA-token requests to apiserver).
+   See the long-form comment on the NetworkPolicy block for
+   what this DOES NOT cover — the Tart VM's own egress is not
+   subject to CNI policy and is gated separately at the node /
+   cluster perimeter.
 
 The Namespace is helm-owned (`helm.sh/resource-policy: keep`)
 because Pods inside it are short-lived but the namespace itself
@@ -158,20 +153,39 @@ roleRef:
 {{- end }}
 {{- if .Values.runnersFleet.networkPolicy.enabled }}
 ---
-# Default-deny ingress + constrained egress for runner Pods. The
-# label selector matches every Pod in tuist-runners (the
-# runners-controller stamps `tuist.dev/runner=true` on every Pod
-# it creates).
+# Pod-network policy for the runner Pod shell. Selects every Pod
+# in tuist-runners (the runners-controller stamps
+# `tuist.dev/runner=true` on every Pod it creates).
 #
-# Ingress: deny everything (empty `from:`). Runners receive jobs
-# by polling GitHub from inside the VM, not by accepting inbound
-# connections.
+# Scope (what this gates):
+#   * The Pod's own network namespace: the tart-cri-hosted process
+#     that owns the VM, the dispatch-poll curl, projected-SA-token
+#     requests to apiserver, etc.
+#   * Ingress: default-deny. The polling model doesn't need any
+#     inbound connection to the Pod.
+#   * Egress: HTTPS / HTTP to the public internet, with
+#     `exceptCIDRs` carving out cluster-internal ranges (Pod
+#     CIDR, Service CIDR, Node CIDR). Closes the lateral-pivot
+#     path from the Pod into ClickHouse / Postgres / the
+#     server's admin endpoints.
 #
-# Egress: HTTPS / HTTP to public internet, except cluster-internal
-# CIDRs. Customer CI workflows hit a long tail of third-party
-# hosts (actions cache, package registries, etc.), so an L4
-# allowlist would break real workloads; the CIDR carve-out blocks
-# lateral pivots into in-cluster services.
+# **What this DOES NOT gate**: the Tart VM's own network traffic.
+# Tart VMs do not live in the Pod network namespace — vmnet /
+# bridged networking on the macOS host puts the VM's interface
+# alongside the host's, NAT'd by Tart, and CNI-based NetworkPolicy
+# does not see that traffic. The "Customer CI workflow reaches
+# api.github.com / GHCR / npm / Homebrew" egress happens from
+# inside the VM and is unaffected by these rules.
+#
+# That gap is intentional for v1 — customer CI workflows
+# legitimately reach a long tail of third-party hosts, so any
+# closed allowlist would break real workloads. The real VM
+# egress gate lives at the cluster perimeter / per-node firewall
+# (CAPI-provisioned Mac mini security group), where we drop
+# RFC1918 destinations originating from VM IPs. An L7
+# domain-allowlist proxy is on the v2 hardening list; until
+# then assume the VM payload has unconstrained public-internet
+# egress.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:

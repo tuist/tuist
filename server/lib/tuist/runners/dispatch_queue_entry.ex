@@ -7,6 +7,7 @@ defmodule Tuist.Runners.DispatchQueueEntry do
   schema "runner_dispatch_queue" do
     field :fleet_name, :string
     field :repo, :string
+    field :claimed_at, :utc_datetime_usec
 
     belongs_to :account, Account
 

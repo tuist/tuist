@@ -17,6 +17,7 @@ defmodule Tuist.Repo.Migrations.AddRunnerMaxConcurrentToAccounts do
   # demands repo-level scoping on GitHub's side.
   def change do
     alter table(:accounts) do
+      # excellent_migrations:safety-assured-for-next-line column_added_with_default
       add :runner_max_concurrent, :integer, null: false, default: 0
     end
   end

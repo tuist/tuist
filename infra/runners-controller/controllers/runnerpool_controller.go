@@ -68,9 +68,26 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	}
 
 	alive := 0
-	for _, p := range pods.Items {
-		if isAlive(&p) {
+	reaped := 0
+	for i := range pods.Items {
+		p := &pods.Items[i]
+		switch {
+		case isAlive(p):
 			alive++
+		case p.DeletionTimestamp.IsZero():
+			// Terminal Pod (Succeeded/Failed) with no deletion in
+			// flight. Reap the Pod and its sibling ServiceAccount —
+			// both are owned by this RunnerPool, but they're
+			// siblings (not parent/child), so Pod deletion does not
+			// cascade to the SA. Without explicit cleanup the
+			// namespace fills with stopped Pods + orphaned SAs,
+			// and the projected-token cache in tart-kubelet keeps
+			// re-validating SAs whose Pods are already gone.
+			if err := r.reapTerminalRunner(ctx, p); err != nil {
+				logger.Error(err, "reap terminal runner; will retry", "pod", p.Name)
+				return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+			}
+			reaped++
 		}
 	}
 
@@ -82,6 +99,7 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	logger.Info("reconcile",
 		"target", pool.Spec.MinWarm,
 		"observed", alive,
+		"reaped", reaped,
 		"gap", gap,
 	)
 
@@ -133,6 +151,28 @@ func (r *RunnerPoolReconciler) createRunner(ctx context.Context, pool *tuistv1.R
 		return fmt.Errorf("create pod: %w", err)
 	}
 
+	return nil
+}
+
+// reapTerminalRunner deletes a terminal Pod and its same-named
+// ServiceAccount. Both are owned by the RunnerPool as siblings —
+// deleting the Pod alone leaves the SA behind. Pod and SA share a
+// name by construction (see createRunner), so we issue both
+// deletes by name. NotFound on either is treated as success: the
+// goal is "nothing left," not "I'm the one that deleted it."
+func (r *RunnerPoolReconciler) reapTerminalRunner(ctx context.Context, pod *corev1.Pod) error {
+	if err := r.Delete(ctx, pod); err != nil && !apierrors.IsNotFound(err) {
+		return fmt.Errorf("delete pod %s: %w", pod.Name, err)
+	}
+	sa := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: pod.Namespace,
+			Name:      pod.Name,
+		},
+	}
+	if err := r.Delete(ctx, sa); err != nil && !apierrors.IsNotFound(err) {
+		return fmt.Errorf("delete sa %s: %w", pod.Name, err)
+	}
 	return nil
 }
 

@@ -11,20 +11,31 @@ defmodule Tuist.Runners do
     * **The Go controller's `RunnerPoolReconciler`** maintains the
       pool's Pods + per-Pod ServiceAccounts directly via owner
       refs — no `RunnerAssignment` CRD. Pod terminates → reconciler
-      boots a replacement.
+      reaps the Pod + SA, then boots a replacement.
     * **`accounts.runner_max_concurrent`** is the only per-customer
       knob. 0 = runners disabled; N>0 = at most N concurrent.
     * **Postgres `runner_dispatch_queue`** is the burst queue. The
       webhook enqueues; warm Pods polling the dispatch endpoint
-      claim with `FOR UPDATE SKIP LOCKED`. Per-account depth
-      ceiling (`4 × max_concurrent`) keeps any one customer from
-      flooding the table.
+      claim via `FOR UPDATE SKIP LOCKED`, then `UPDATE … SET
+      claimed_at = now()` so the row survives a JIT-mint failure
+      and `Tuist.Runners.StaleClaimsWorker` can recover from a
+      mid-claim crash.
 
-  `max_concurrent` enforcement: at *claim* time, the dispatch
-  endpoint counts Pods labeled `tuist.dev/runner-pool-owner=<account-name>`
-  via a K8s LIST, builds the set of accounts at cap, and asks the
-  queue for the oldest entry whose account isn't in that set.
-  Capped customers' rows wait in the queue until their count drops.
+  `max_concurrent` enforcement is two-stage:
+
+    1. **Coarse, outside the tx.** The dispatch endpoint LISTs
+       Pods labeled `tuist.dev/runner-pool-owner=<account-name>`,
+       counts per owner, and excludes accounts at cap from the
+       claim's candidate set.
+    2. **Fine, inside the tx.** After picking a candidate, the
+       claim grabs `pg_advisory_xact_lock(account_id)` and adds
+       in-flight (soft-claimed) queue rows for that account into
+       the count. Closes the window between claim and Pod
+       label-stamp where two polls could race past stage 1 with
+       the same stale K8s snapshot.
+
+  Capped customers' rows wait in the queue until their count
+  drops; oldest-eligible-first keeps other customers unblocked.
 
   GitHub repo-scoping is currently delegated to the GitHub default
   runner group (id=1), which allows every repo in the org. A
@@ -66,13 +77,19 @@ defmodule Tuist.Runners do
   def dispatch_for_sa(namespace, sa_name) when is_binary(namespace) and is_binary(sa_name) do
     with {:ok, sa} <- K8sClient.get_service_account(namespace, sa_name),
          {:ok, fleet_name} <- pool_label(sa) do
-      ineligible = ineligible_account_ids(namespace)
+      {ineligible, cap_lookup} = account_state_snapshot(namespace)
 
-      case DispatchQueue.claim_oldest_eligible(fleet_name, ineligible) do
-        {:ok, %{account_id: account_id}} ->
-          serve_claim(namespace, sa_name, account_id)
+      case DispatchQueue.claim_oldest_eligible(fleet_name, ineligible, cap_lookup) do
+        {:ok, %{id: id, account_id: account_id}} ->
+          serve_claim(namespace, sa_name, id, account_id)
 
         {:error, :empty} ->
+          {:error, :no_work_yet}
+
+        {:error, :over_cap} ->
+          # Per-account lock + in-flight re-check inside the claim
+          # tx noticed the account just hit cap. Stay in warm
+          # standby; next poll's K8s snapshot will reflect it.
           {:error, :no_work_yet}
 
         {:error, reason} ->
@@ -82,13 +99,14 @@ defmodule Tuist.Runners do
     end
   end
 
-  defp serve_claim(namespace, sa_name, account_id) do
+  defp serve_claim(namespace, sa_name, claim_id, account_id) do
     case Accounts.get_account_by_id(account_id) do
       {:ok, account} ->
         pod_name = pod_name_from_sa(sa_name)
 
         with :ok <- stamp_owner_labels(namespace, pod_name, account),
-             {:ok, jit, runner_name} <- mint_jit(account, sa_name) do
+             {:ok, jit, runner_name} <- mint_jit(account, sa_name),
+             :ok <- DispatchQueue.finalize_claim(claim_id) do
           Logger.info("runners: dispatched",
             account: account.name,
             sa: sa_name,
@@ -96,52 +114,81 @@ defmodule Tuist.Runners do
           )
 
           {:ok, %{jit: jit, account: account, runner_name: runner_name}}
+        else
+          {:error, reason} = err ->
+            release_claim_safely(claim_id, reason)
+            err
         end
 
       {:error, :not_found} ->
         Logger.warning("runners: claimed entry has no account row", account_id: account_id)
+        release_claim_safely(claim_id, :unknown_account)
         {:error, :unknown_account}
     end
   end
 
-  # Builds the set of account ids whose owners are currently at
-  # `runner_max_concurrent`. The dispatch queue's claim query
-  # skips entries belonging to any of these. Returns `[]` when the
-  # LIST fails (fail-open so an apiserver blip doesn't stall the
-  # queue; a capped customer may briefly exceed by one).
-  defp ineligible_account_ids(namespace) do
-    case K8sClient.list_pods(namespace, @owner_label) do
-      {:ok, pods} ->
-        owner_counts =
-          pods
-          |> Enum.filter(&active_pod?/1)
-          |> Enum.frequencies_by(&owner_from_pod/1)
-          |> Map.delete(nil)
+  defp release_claim_safely(claim_id, reason) do
+    case DispatchQueue.release_claim(claim_id) do
+      :ok ->
+        :ok
 
-        if owner_counts == %{} do
-          []
-        else
-          owner_counts
-          |> Map.keys()
-          |> Enum.reduce([], fn owner, acc ->
-            case Accounts.get_account_by_handle(owner) do
-              %{id: id, runner_max_concurrent: cap}
-              when is_integer(cap) and cap > 0 ->
-                if Map.get(owner_counts, owner, 0) >= cap, do: [id | acc], else: acc
-
-              _ ->
-                acc
-            end
-          end)
-        end
-
-      {:error, reason} ->
-        Logger.warning("runners: list_pods failed; ineligibility check open",
-          reason: inspect(reason)
+      {:error, release_error} ->
+        Logger.warning("runners: release_claim failed; stale-claim worker will recover",
+          claim_id: claim_id,
+          original_reason: inspect(reason),
+          release_error: inspect(release_error)
         )
 
-        []
+        :ok
     end
+  end
+
+  # Builds:
+  #   * the set of account ids whose owners are currently at
+  #     `runner_max_concurrent` by K8s Pod count alone (skip-set
+  #     for the candidate query); and
+  #   * a `cap_lookup` of `account_id => {cap, k8s_count}` for
+  #     every account that has at least one Pod stamped against
+  #     it (so the in-tx re-check inside `claim_oldest_eligible`
+  #     can compute `k8s_count + inflight_count` without a second
+  #     DB hop for the cap value).
+  #
+  # Returns `{[], %{}}` if the LIST fails so the queue keeps
+  # draining; the in-tx per-account re-check + cap re-read
+  # is the safety net.
+  defp account_state_snapshot(namespace) do
+    case K8sClient.list_pods(namespace, @owner_label) do
+      {:ok, pods} -> snapshot_from_pods(pods)
+      {:error, reason} -> log_list_failure_and_skip(reason)
+    end
+  end
+
+  defp snapshot_from_pods(pods) do
+    pods
+    |> Enum.filter(&active_pod?/1)
+    |> Enum.frequencies_by(&owner_from_pod/1)
+    |> Map.delete(nil)
+    |> Enum.reduce({[], %{}}, &fold_owner_count/2)
+  end
+
+  defp fold_owner_count({owner, count}, {ineligible, lookup}) do
+    case Accounts.get_account_by_handle(owner) do
+      %{id: id, runner_max_concurrent: cap} when is_integer(cap) and cap > 0 ->
+        lookup = Map.put(lookup, id, {cap, count})
+        ineligible = if count >= cap, do: [id | ineligible], else: ineligible
+        {ineligible, lookup}
+
+      _ ->
+        {ineligible, lookup}
+    end
+  end
+
+  defp log_list_failure_and_skip(reason) do
+    Logger.warning("runners: list_pods failed; ineligibility check open",
+      reason: inspect(reason)
+    )
+
+    {[], %{}}
   end
 
   defp active_pod?(%{"status" => %{"phase" => phase}, "metadata" => meta}) do

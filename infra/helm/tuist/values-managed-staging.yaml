@@ -199,12 +199,13 @@ runnersFleet:
     memoryMB: 30720
   runnerImage: "ghcr.io/tuist/tuist-runner@sha256:ac69458c53c86ad81fe6e90e89245da5b45b3969f87ad8d760870cb2c49d8e7b"
   # Cluster-internal CIDR ranges the runner namespace's
-  # NetworkPolicy blocks egress to. Locks down lateral
-  # reachability so a compromised runner can't speak to
-  # Postgres / ClickHouse / the server's admin endpoints. The
-  # ranges below match the staging cluster's Pod + Service CIDRs;
-  # double-check with `kubectl cluster-info dump | grep -i cidr`
-  # before bumping these on a fresh cluster.
+  # NetworkPolicy blocks egress to. **Pod-network only** — the
+  # Tart VM's traffic is not subject to this policy (vmnet bypasses
+  # CNI). Use the cluster-perimeter firewall on the Mac mini's
+  # security group to gate VM egress. The ranges below match the
+  # staging cluster's Pod + Service CIDRs; double-check with
+  # `kubectl cluster-info dump | grep -i cidr` before bumping
+  # these on a fresh cluster.
   networkPolicy:
     enabled: true
     exceptCIDRs:
