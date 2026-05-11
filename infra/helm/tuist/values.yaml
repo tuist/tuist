@@ -510,25 +510,12 @@ runnersController:
       cpu: 500m
       memory: 256Mi
 
-# RunnerPool CRs the chart renders into the runners namespace.
-# Each entry materializes one customer pool; the controller keeps
-# `minWarm` pre-bound runners alive per pool. Empty list means the
-# CRDs ship but no pools are pre-declared (operator can `kubectl
-# apply` ad-hoc).
-runnerPools: []
-# Example:
-# runnerPools:
-#   - name: acme-prod
-#     owner: acme
-#     labels:
-#       - self-hosted
-#       - macOS
-#       - tuist-acme-macos
-#     minWarm: 2
-#     runnerGroupID: 42
-#     # `image` and `pod*` default to runnersFleet.runnerImage /
-#     # runnersFleet.pod.* — override per-pool when a customer
-#     # needs a different image or VM size.
+# Runner-pool config lives in the Tuist server's `runner_pools`
+# Postgres table; the server's `Tuist.Runners.PoolReconciler` syncs
+# rows into RunnerPool CRs in the runners namespace. There's no
+# helm input here — onboarding a new customer is an INSERT, not a
+# chart change. See `server/priv/repo/runner_pool_seeds.exs` for a
+# starter seed.
 
 cache:
   enabled: true

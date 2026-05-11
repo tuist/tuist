@@ -59,7 +59,13 @@ metadata:
 rules:
   - apiGroups: [tuist.dev]
     resources: [runnerpools]
-    verbs: [get, list, watch]
+    # The server's `Tuist.Runners.PoolReconciler` is the source of
+    # truth for RunnerPool CRs labeled `tuist.dev/managed-by=tuist-server`
+    # — DB rows in `runner_pools` are reconciled into CRs here.
+    # create/update/delete only touch CRs carrying that label; CRs
+    # without it (operator-applied bootstrap entries, future
+    # self-host overlays) stay untouched.
+    verbs: [get, list, watch, create, update, delete]
   - apiGroups: [tuist.dev]
     resources: [runnerassignments]
     # `create` for Burst assignments; `get`/`list` so the dispatch

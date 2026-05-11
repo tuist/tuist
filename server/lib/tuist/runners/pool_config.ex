@@ -1,97 +1,73 @@
 defmodule Tuist.Runners.PoolConfig do
   @moduledoc """
-  Pool config sourced from `RunnerPool` CRs in the runners namespace.
+  Pool config sourced from the `runner_pools` table.
 
-  The chart renders one `RunnerPool` per customer + env entry; this
-  module reads them from the apiserver and shapes them into the
-  `%{name, owner, labels, runner_group_id, allowed_repos, ...}`
-  records the dispatch / webhook flows expect. Making the chart
-  the single source of truth keeps server-side and controller-side
-  agreement on `name`, `owner`, `labels`, and `runner_group_id`
-  by construction — drift between the two used to need both a
-  PoolConfig change AND a chart change.
-
-  No `min_warm` plumbing on this side: the controller's
-  `RunnerPoolReconciler` is the only consumer of that field, and
-  it reads the CR directly. We surface it for completeness so a
-  future ops dashboard can render the chart's intent without
-  re-reading the cluster.
+  `Tuist.Runners.Pools` is the CRUD context; this module shapes
+  the Ecto records into the runtime map the dispatch / webhook
+  flows expect. The K8s `RunnerPool` CR is derived state the
+  reconciler keeps in sync — the dispatch endpoint reads from the
+  DB so it doesn't pay an apiserver round-trip per request.
 
   Repo-level scoping is delegated to the GitHub org runner
-  group's allowlist (`runner_group_id`). GitHub itself refuses
-  to dispatch a workflow_job into a runner whose group doesn't
-  allowlist the repo. The webhook handler additionally checks
-  the optional `allowedRepos` list before creating a Burst
-  RunnerAssignment so we don't spend a VM on a workflow_job
-  that GitHub would refuse anyway.
+  group's allowlist (`runner_group_id`). GitHub itself refuses to
+  dispatch a workflow_job into a runner whose group doesn't
+  allowlist the repo. The webhook handler additionally checks the
+  optional `allowed_repos` list before creating a Burst
+  RunnerAssignment so we don't spend a VM on a workflow_job that
+  GitHub would refuse anyway.
   """
 
-  alias Tuist.Environment
-  alias Tuist.Kubernetes.Client, as: K8sClient
+  alias Tuist.Runners.Pool
+  alias Tuist.Runners.Pools
 
   @doc """
-  Returns the list of pool configs the runners namespace currently
-  declares. Empty list when the apiserver isn't reachable
-  (self-hosted / preview / dev) so reconcilers no-op cleanly.
+  Returns all pool configs as runtime-shape maps. Empty list when
+  the DB is empty (preview / dev / self-host without runners).
   """
   def pools do
-    case K8sClient.list_runner_pools(Environment.runners_namespace()) do
-      {:ok, items} -> Enum.map(items, &shape_pool/1)
-      {:error, _} -> []
+    Enum.map(Pools.list_pools(), &shape/1)
+  end
+
+  @doc """
+  Returns the cluster's SharedWarm pool config, or nil.
+  """
+  def shared_warm do
+    case Pools.find_shared_warm() do
+      nil -> nil
+      pool -> shape(pool)
     end
   end
 
   @doc """
-  Returns the first SharedWarm pool the chart declares, or nil. A
-  cluster declares at most one SharedWarm pool today (sized by
-  aggregate burst rate, not per-customer); the dispatch endpoint
-  uses it to amortize cold-start across customers.
-  """
-  def shared_warm do
-    Enum.find(pools(), fn pool -> pool.role == :shared_warm end)
-  end
-
-  @doc """
-  Looks up a pool by its `name` field. Used by the dispatch flow
-  to resolve a SA's `tuist.dev/runner-pool` label into the full
+  Looks up a pool by its `name`. Used by the dispatch flow to
+  resolve a SA's `tuist.dev/runner-pool` label into the full
   pool record before minting a JIT.
   """
   def find_by_name(name) when is_binary(name) do
-    case K8sClient.get_runner_pool(Environment.runners_namespace(), name) do
-      {:ok, cr} -> shape_pool(cr)
-      {:error, _} -> nil
+    case Pools.get_pool_by_name(name) do
+      nil -> nil
+      pool -> shape(pool)
     end
   end
 
   @doc """
-  Returns the pool's *dispatch label* — the pool-unique label a
-  workflow_job must request before this pool will bind a runner to
-  it. By convention it's the last entry in the pool's `labels` list
-  (the customer-scoped `tuist-staging-macos` / `tuist-canary-macos`
-  / `tuist-macos` tag). Generic GitHub labels like `self-hosted`,
-  `macOS`, and `ARM64` are advertised on the runner but are *not*
-  authorization boundaries — a workflow that asks for only
-  `self-hosted` must NOT consume customer pre-bound capacity.
+  Pool's *dispatch label* — the customer-scoped tag a workflow_job's
+  `runs-on` must include. Last entry of `labels` by convention.
   """
   def dispatch_label(%{labels: labels}) when is_list(labels) and labels != [] do
     List.last(labels)
   end
 
+  def dispatch_label(_), do: nil
+
   @doc """
-  Looks up the pool that should accept a `workflow_job: queued`
-  event. Matches on `owner` (case-insensitive) — the org login
-  parsed from the webhook's `repository.full_name` — and requires
-  the pool's `dispatch_label/1` to be present in the requested
+  Returns the pool that should accept a `workflow_job: queued`
+  event. Matches on `owner` (case-insensitive) and requires the
+  pool's `dispatch_label/1` to be present in the requested
   `runs-on` labels. SharedWarm pools are excluded — they're not
-  customer-facing and have no dispatch label.
+  customer-facing.
 
-  Generic labels like `self-hosted` aren't enough — without the
-  pool's customer-scoped tag in the request we return
-  `{:error, :no_match}` so unrelated workflows don't consume
-  pool capacity.
-
-  `pools_override` is for tests; production callers omit it and
-  resolve via `pools/0`.
+  `pools_override` is for tests; production callers omit it.
   """
   def match_for_dispatch(owner, requested_labels, pools_override \\ nil)
       when is_binary(owner) and is_list(requested_labels) do
@@ -113,12 +89,8 @@ defmodule Tuist.Runners.PoolConfig do
 
   @doc """
   Repo-allowlist check for a queued workflow_job. Returns `:ok`
-  when the pool either declares no allowlist (every repo in the
-  org allowed; matches the runner-group default) OR carries the
-  given `repo` (case-insensitive). Returns `{:error, :repo_not_allowed}`
-  otherwise. Callers (webhook handler) use this to short-circuit
-  Burst RunnerAssignment creation when GitHub would refuse to
-  dispatch the job to the runner group anyway.
+  when the pool either declares no allowlist OR carries the given
+  `repo` (case-insensitive); `{:error, :repo_not_allowed}` otherwise.
   """
   def repo_allowed?(%{allowed_repos: nil}, _repo), do: :ok
   def repo_allowed?(%{allowed_repos: []}, _repo), do: :ok
@@ -133,22 +105,16 @@ defmodule Tuist.Runners.PoolConfig do
     end
   end
 
-  defp shape_pool(%{"metadata" => %{"name" => name}, "spec" => spec}) do
+  defp shape(%Pool{} = pool) do
     %{
-      name: name,
-      role: spec |> Map.get("role", "Customer") |> normalize_role(),
-      owner: Map.get(spec, "owner", ""),
-      labels: Map.get(spec, "labels", []),
-      runner_group_id: spec |> Map.get("runnerGroupID") |> normalize_int(),
-      allowed_repos: Map.get(spec, "allowedRepos"),
-      min_warm: Map.get(spec, "minWarm", 0)
+      name: pool.name,
+      role: Pool.role_atom(pool),
+      account_id: pool.account_id,
+      owner: pool.owner || "",
+      labels: pool.labels || [],
+      runner_group_id: pool.runner_group_id,
+      allowed_repos: pool.allowed_repos,
+      min_warm: pool.min_warm || 0
     }
   end
-
-  defp normalize_role("SharedWarm"), do: :shared_warm
-  defp normalize_role(_), do: :customer
-
-  defp normalize_int(nil), do: nil
-  defp normalize_int(v) when is_integer(v), do: v
-  defp normalize_int(v) when is_binary(v), do: String.to_integer(v)
 end

@@ -363,6 +363,14 @@ defmodule Tuist.Application do
         do: [],
         else: [Tuist.Marketing.Stats]
     )
+    # Sync runner_pools rows into RunnerPool CRs. Skipped in test
+    # (no apiserver, no point churning) and dev (would spam the
+    # local kubeconfig context if one is set).
+    |> Kernel.++(
+      if Environment.test?() or Environment.dev?(),
+        do: [],
+        else: [Tuist.Runners.PoolReconciler]
+    )
   end
 
   defp dev_content_children do

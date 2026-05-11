@@ -114,13 +114,23 @@ spec:
               value: "1"
             {{- end }}
             {{- if .Values.runnersFleet.enabled }}
-            # Customer runner pool wiring. The server reads
-            # RunnerPool / RunnerAssignment CRs and validates Pod
-            # SA tokens via TokenReview; per-Pod sizing + image
-            # are now CR-side fields owned by the runners-controller,
-            # not server env vars.
+            # Customer runner-pool wiring. The DB (`runner_pools`
+            # table) is the system of record; the server's
+            # PoolReconciler syncs each row into a RunnerPool CR in
+            # the runners namespace. These envs provide the per-env
+            # defaults a row inherits when it leaves a field nil
+            # (image, fleet, Pod sizing) — onboarding a new customer
+            # is an INSERT, not a chart change.
             - name: TUIST_RUNNERS_NAMESPACE
               value: {{ .Values.runnersFleet.namespace | default "tuist-runners" | quote }}
+            - name: TUIST_RUNNER_IMAGE_DEFAULT
+              value: {{ required "runnersFleet.runnerImage required when runnersFleet.enabled" .Values.runnersFleet.runnerImage | quote }}
+            - name: TUIST_RUNNERS_DEFAULT_FLEET
+              value: {{ include "tuist.runnersFleetName" . | quote }}
+            - name: TUIST_RUNNER_POD_CPU_MILLI_DEFAULT
+              value: {{ .Values.runnersFleet.pod.cpuMilli | default 8000 | quote }}
+            - name: TUIST_RUNNER_POD_MEMORY_MB_DEFAULT
+              value: {{ .Values.runnersFleet.pod.memoryMB | default 14336 | quote }}
             {{- end }}
             {{- include "tuist.licenseEnv" . | nindent 12 }}
             {{- if or .Values.server.masterKey .Values.server.managedSecrets }}

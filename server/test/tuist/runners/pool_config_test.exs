@@ -1,5 +1,5 @@
 defmodule Tuist.Runners.PoolConfigTest do
-  use ExUnit.Case, async: true
+  use TuistTestSupport.Cases.DataCase
 
   alias Tuist.Runners.PoolConfig
 

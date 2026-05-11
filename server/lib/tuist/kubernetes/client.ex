@@ -119,6 +119,75 @@ defmodule Tuist.Kubernetes.Client do
   end
 
   @doc """
+  POSTs a RunnerPool CR. Used by `Tuist.Runners.PoolReconciler`
+  when a new DB row needs a matching CR in the cluster.
+  """
+  def create_runner_pool(namespace, manifest) when is_binary(namespace) and is_map(manifest) do
+    with {:ok, host, ca, token} <- in_cluster_config() do
+      req_opts = [
+        url: "https://#{host}/apis/tuist.dev/v1alpha1/namespaces/#{namespace}/runnerpools",
+        json: manifest,
+        headers: auth_headers(token),
+        connect_options: [transport_opts: [cacerts: ca]]
+      ]
+
+      case Req.post(req_opts) do
+        {:ok, %{status: status, body: cr}} when status in [200, 201] -> {:ok, cr}
+        {:ok, %{status: 409}} -> {:error, :conflict}
+        {:ok, %{status: status, body: body}} -> {:error, {:http, status, body}}
+        {:error, reason} -> {:error, {:transport, reason}}
+      end
+    end
+  end
+
+  @doc """
+  PUTs (replaces) a RunnerPool CR. The reconciler reads the existing
+  CR, applies its DB-derived overlay, and PUTs the result. Uses
+  Kubernetes' built-in optimistic-concurrency via
+  `metadata.resourceVersion`.
+  """
+  def update_runner_pool(namespace, name, manifest) when is_binary(namespace) and is_binary(name) and is_map(manifest) do
+    with {:ok, host, ca, token} <- in_cluster_config() do
+      req_opts = [
+        url: "https://#{host}/apis/tuist.dev/v1alpha1/namespaces/#{namespace}/runnerpools/#{name}",
+        json: manifest,
+        headers: auth_headers(token),
+        connect_options: [transport_opts: [cacerts: ca]]
+      ]
+
+      case Req.put(req_opts) do
+        {:ok, %{status: 200, body: cr}} -> {:ok, cr}
+        {:ok, %{status: 409}} -> {:error, :conflict}
+        {:ok, %{status: 404}} -> {:error, :not_found}
+        {:ok, %{status: status, body: body}} -> {:error, {:http, status, body}}
+        {:error, reason} -> {:error, {:transport, reason}}
+      end
+    end
+  end
+
+  @doc """
+  DELETEs a RunnerPool CR. The reconciler issues this when a DB row
+  is removed; CR deletion cascades the controller's pool-owned
+  RunnerAssignment CRs (and through them, Pods + SAs).
+  """
+  def delete_runner_pool(namespace, name) when is_binary(namespace) and is_binary(name) do
+    with {:ok, host, ca, token} <- in_cluster_config() do
+      req_opts = [
+        url: "https://#{host}/apis/tuist.dev/v1alpha1/namespaces/#{namespace}/runnerpools/#{name}",
+        headers: auth_headers(token),
+        connect_options: [transport_opts: [cacerts: ca]]
+      ]
+
+      case Req.delete(req_opts) do
+        {:ok, %{status: status, body: body}} when status in [200, 202] -> {:ok, body}
+        {:ok, %{status: 404}} -> {:ok, :not_found}
+        {:ok, %{status: status, body: body}} -> {:error, {:http, status, body}}
+        {:error, reason} -> {:error, {:transport, reason}}
+      end
+    end
+  end
+
+  @doc """
   LISTs RunnerPool CRs in `namespace`. The webhook handler folds
   the result into the `(owner, labels) -> pool` matcher so a queued
   workflow_job binds to the same pool the controller already

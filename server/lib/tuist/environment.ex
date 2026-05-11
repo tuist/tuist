@@ -905,6 +905,44 @@ defmodule Tuist.Environment do
     System.get_env("TUIST_RUNNERS_NAMESPACE", "tuist-runners")
   end
 
+  @doc """
+  Default OCI image for runner Pods, used by
+  `Tuist.Runners.PoolReconciler` when a `runner_pools` row leaves
+  `image` nil. Set per-env in helm values (`runnersFleet.runnerImage`)
+  and surfaced here so adding a customer doesn't require a chart
+  change for each one.
+  """
+  def runner_image_default do
+    System.get_env("TUIST_RUNNER_IMAGE_DEFAULT", "")
+  end
+
+  @doc """
+  Default fleet name customer runner Pods schedule onto. Threaded
+  through to the RunnerPool CR's `fleetSelector` when a row leaves
+  it nil. Matches the chart's `runnersFleet.name`.
+  """
+  def runners_default_fleet do
+    System.get_env("TUIST_RUNNERS_DEFAULT_FLEET", "")
+  end
+
+  @doc """
+  Default per-Pod CPU shape (millicores) for customer runner Pods.
+  Matches the Mac mini host's advertised capacity minus the VZ
+  overhead; set per-env in helm values.
+  """
+  def runner_pod_cpu_milli_default do
+    raw = System.get_env("TUIST_RUNNER_POD_CPU_MILLI_DEFAULT", "8000")
+    String.to_integer(raw)
+  end
+
+  @doc """
+  Default per-Pod memory shape (MiB) for customer runner Pods.
+  """
+  def runner_pod_memory_mb_default do
+    raw = System.get_env("TUIST_RUNNER_POD_MEMORY_MB_DEFAULT", "14336")
+    String.to_integer(raw)
+  end
+
   def typesense_search_api_key do
     get([:typesense, :search_api_key], secrets(), default_value: "RgIpKytJBtSQf9CoYKxIfVxh8ma5kzs6")
   end

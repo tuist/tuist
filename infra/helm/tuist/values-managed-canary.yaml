@@ -132,20 +132,12 @@ runnersFleet:
       - "172.16.0.0/12"
       - "192.168.0.0/16"
 
-# Pre-declared so flipping runnersFleet.enabled doesn't need a
-# second values change. `runnerGroupID` + `allowedRepos` MUST be
-# set before the fleet flag is flipped — without them GitHub's
-# default group (id=1) lets every repo in the org consume runner
-# capacity.
-runnerPools:
-  - name: tuist
-    owner: tuist
-    labels:
-      - self-hosted
-      - macOS
-      - ARM64
-      - tuist-canary-macos
-    minWarm: 1
+# Runner pools live in the `runner_pools` Postgres table; seed via
+# `priv/repo/runner_pool_seeds.exs` with TUIST_DEPLOY_ENV=canary
+# after the chart is up. `runner_group_id` + `allowed_repos` MUST
+# be set on the row before flipping `runnersFleet.enabled` — without
+# them GitHub's default group (id=1) lets every repo in the org
+# consume runner capacity.
 
 # In-cluster Valkey backs the auth rate limiter (Hammer.Redis). The
 # chart wires TUIST_REDIS_URL to the embedded Service; without it the

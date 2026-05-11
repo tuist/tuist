@@ -211,26 +211,7 @@ runnersFleet:
       - "10.0.0.0/8"
       - "172.16.0.0/12"
       - "192.168.0.0/16"
-
-# Runner pools rendered as RunnerPool CRs in the runners namespace.
-# The chart fails the render if `runnersFleet.enabled` is true but
-# this list is empty — without a RunnerPool the controller has
-# nothing to reconcile and burst RunnerAssignment writes from the
-# webhook handler get reaped by the assignment reconciler when it
-# can't resolve `poolRef`.
-#
-# `runnerGroupID` is the only authorization boundary between the
-# runner and the customer's repos. Leave nil only on staging while
-# the fleet is being stood up; canary / production must point at
-# a repo-allowlisted group before flipping `runnersFleet.enabled`.
-# `allowedRepos` mirrors that group's allowlist for a server-side
-# short-circuit on Burst creation.
-runnerPools:
-  - name: tuist
-    owner: tuist
-    labels:
-      - self-hosted
-      - macOS
-      - ARM64
-      - tuist-staging-macos
-    minWarm: 1
+# Runner pools live in the `runner_pools` Postgres table; the
+# server's `Tuist.Runners.PoolReconciler` syncs rows into RunnerPool
+# CRs in this namespace. Seed via `priv/repo/runner_pool_seeds.exs`
+# after the chart is up.
