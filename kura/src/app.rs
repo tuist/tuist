@@ -229,7 +229,8 @@ pub async fn run() -> Result<(), String> {
         let tls_config = build_public_rustls_config(&public_tls).await?;
         let https_router = http::public_router(state.clone());
         Some(tokio::spawn(async move {
-            let mut server = axum_server::bind_rustls(https_address, tls_config).handle(https_handle);
+            let mut server =
+                axum_server::bind_rustls(https_address, tls_config).handle(https_handle);
             server
                 .http_builder()
                 .http1()
