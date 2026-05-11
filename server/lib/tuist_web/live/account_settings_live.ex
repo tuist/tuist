@@ -311,7 +311,6 @@ defmodule TuistWeb.AccountSettingsLive do
     |> assign(:available_kura_regions, [])
     |> assign(:latest_kura_version, nil)
     |> assign(:add_kura_server_form, default_kura_server_form([]))
-    |> assign(:kura_nodes, %{})
   end
 
   defp load_kura_state(socket, opts \\ []) do
@@ -327,7 +326,6 @@ defmodule TuistWeb.AccountSettingsLive do
     |> assign(:available_kura_regions, available_regions)
     |> assign(:latest_kura_version, latest)
     |> assign(:add_kura_server_form, default_kura_server_form(available_regions))
-    |> assign(:kura_nodes, kura_nodes(account, servers))
   end
 
   defp kura_enabled?(account) do
@@ -360,18 +358,6 @@ defmodule TuistWeb.AccountSettingsLive do
 
   defp default_kura_server_form([region | _]) do
     to_form(%{"region" => region.id}, as: :server)
-  end
-
-  defp kura_nodes(account, servers) do
-    Map.new(servers, fn server ->
-      nodes =
-        case Kura.list_nodes_for_server(account.id, server.id) do
-          {:ok, nodes} -> nodes
-          {:error, reason} -> {:error, reason}
-        end
-
-      {server.id, nodes}
-    end)
   end
 
   defp create_kura_server(socket, attrs) do
@@ -422,7 +408,6 @@ defmodule TuistWeb.AccountSettingsLive do
   end
 
   attr(:kura_servers, :list, required: true)
-  attr(:kura_nodes, :map, required: true)
   attr(:available_kura_regions, :list, required: true)
   attr(:add_kura_server_form, Form, required: true)
   attr(:latest_kura_version, :map, default: nil)
@@ -558,12 +543,6 @@ defmodule TuistWeb.AccountSettingsLive do
               style="light-fill"
             />
           </:col>
-          <:col :let={server} label={dgettext("dashboard_account", "Machine")}>
-            <.text_and_description_cell
-              label={kura_machine_label(Map.get(@kura_nodes, server.id))}
-              description={kura_machine_sublabel(Map.get(@kura_nodes, server.id))}
-            />
-          </:col>
           <:col :let={server} label={dgettext("dashboard_account", "Domain")}>
             <.text_cell label={server.url || dgettext("dashboard_account", "Pending")} />
           </:col>
@@ -612,32 +591,6 @@ defmodule TuistWeb.AccountSettingsLive do
       region -> region.display_name
     end
   end
-
-  def kura_machine_label({:error, _}), do: dgettext("dashboard_account", "Unavailable")
-  def kura_machine_label([]), do: dgettext("dashboard_account", "Pending")
-
-  def kura_machine_label(nodes) when is_list(nodes) do
-    ready = Enum.count(nodes, & &1[:ready])
-    dgettext("dashboard_account", "%{ready}/%{total} nodes ready", ready: ready, total: length(nodes))
-  end
-
-  def kura_machine_label(_), do: dgettext("dashboard_account", "Pending")
-
-  def kura_machine_sublabel({:error, _}), do: dgettext("dashboard_account", "Could not query Kubernetes.")
-  def kura_machine_sublabel([]), do: dgettext("dashboard_account", "Waiting for the controller.")
-
-  def kura_machine_sublabel(nodes) when is_list(nodes) do
-    nodes
-    |> Enum.map(fn node -> node[:node_name] || node[:name] end)
-    |> Enum.reject(&is_nil/1)
-    |> Enum.uniq()
-    |> case do
-      [] -> dgettext("dashboard_account", "Waiting for scheduling.")
-      names -> Enum.join(names, ", ")
-    end
-  end
-
-  def kura_machine_sublabel(_), do: dgettext("dashboard_account", "Waiting for the controller.")
 
   attr(:preferred_locale_form, :any, required: true)
 

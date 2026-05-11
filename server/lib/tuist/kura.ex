@@ -268,14 +268,6 @@ defmodule Tuist.Kura do
     Repo.get_by(Server, id: server_id, account_id: account_id)
   end
 
-  @doc "Returns runtime nodes for a server scoped to the given account."
-  def list_nodes_for_server(account_id, server_id) do
-    case get_server(account_id, server_id) do
-      nil -> {:error, :not_found}
-      %Server{} = server -> Provisioner.nodes(server)
-    end
-  end
-
   @doc """
   Marks a server as `:active`, mirrors its URL into
   `account_cache_endpoints`, and broadcasts. Public DNS is checked

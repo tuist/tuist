@@ -83,13 +83,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   end
 
   @impl true
-  def nodes(name, %Regions{} = region) do
-    with {:ok, body} <- client_list_pods(@namespace, "app.kubernetes.io/instance=#{name}", region) do
-      parse_nodes_body(body)
-    end
-  end
-
-  @impl true
   def resources_for(%Server{}), do: %{}
 
   def instance_name(handle, %Regions{provisioner_config: %{cluster_id: cluster_id}}) do
@@ -219,35 +212,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   defp node_selector(%Regions{provisioner_config: %{node_selector: node_selector}}), do: node_selector
   defp node_selector(_), do: nil
 
-  @doc false
-  def parse_nodes(json) do
-    case Jason.decode(json) do
-      {:ok, body} -> parse_nodes_body(body)
-      {:error, reason} -> {:error, reason}
-    end
-  end
-
-  defp parse_nodes_body(%{"items" => items}) when is_list(items), do: {:ok, Enum.map(items, &node_from_pod/1)}
-  defp parse_nodes_body(_), do: {:error, "unexpected Kubernetes pod list shape"}
-
-  defp node_from_pod(%{"metadata" => metadata, "status" => status} = pod) do
-    %{
-      name: metadata["name"],
-      pod_ip: status["podIP"],
-      host_ip: status["hostIP"],
-      node_name: pod |> Map.get("spec", %{}) |> Map.get("nodeName"),
-      phase: status["phase"],
-      ready: pod_ready?(status),
-      started_at: status["startTime"]
-    }
-  end
-
-  defp pod_ready?(%{"conditions" => conditions}) when is_list(conditions) do
-    Enum.any?(conditions, &(&1["type"] == "Ready" and &1["status"] == "True"))
-  end
-
-  defp pod_ready?(_), do: false
-
   defp interpolate_host(template, handle, %{cluster_id: cluster_id}) do
     template
     |> String.replace("{account_handle}", handle)
@@ -314,13 +278,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
     case kubernetes_client_opts(region) do
       [] -> Client.delete_kura_instance(namespace, name)
       opts -> Client.delete_kura_instance(namespace, name, opts)
-    end
-  end
-
-  defp client_list_pods(namespace, label_selector, region) do
-    case kubernetes_client_opts(region) do
-      [] -> Client.list_pods(namespace, label_selector)
-      opts -> Client.list_pods(namespace, label_selector, opts)
     end
   end
 

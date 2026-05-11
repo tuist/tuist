@@ -99,7 +99,7 @@ defmodule TuistWeb.AccountSettingsLiveTest do
     refute has_element?(lv, "#kura-servers-table")
   end
 
-  test "shows Kura server state, machine, domain, and version", %{conn: conn, account: account} do
+  test "shows Kura server state, domain, and version", %{conn: conn, account: account} do
     FunWithFlags.enable(:kura, for_actor: account)
     stub(Kura, :latest_versions, fn 1 -> [%{version: "0.5.3", released_at: DateTime.utc_now(:second)}] end)
 
@@ -112,17 +112,9 @@ defmodule TuistWeb.AccountSettingsLiveTest do
 
     {:ok, server} = Kura.activate_server(server, "0.5.2")
 
-    stub(Kura, :list_nodes_for_server, fn account_id, server_id ->
-      assert account_id == account.id
-      assert server_id == server.id
-      {:ok, [%{name: "kura-test-0", node_name: "kura-pool-1", ready: true}]}
-    end)
-
     {:ok, _lv, html} = live(conn, ~p"/#{account.name}/settings")
 
     assert html =~ "Active"
-    assert html =~ "1/1 nodes ready"
-    assert html =~ "kura-pool-1"
     assert html =~ server.url
     assert html =~ "0.5.2"
   end
@@ -130,8 +122,6 @@ defmodule TuistWeb.AccountSettingsLiveTest do
   test "deploys a Kura server from account settings", %{conn: conn, account: account} do
     FunWithFlags.enable(:kura, for_actor: account)
     stub(Kura, :latest_versions, fn 1 -> [%{version: "0.5.2", released_at: DateTime.utc_now(:second)}] end)
-    account_id = account.id
-    stub(Kura, :list_nodes_for_server, fn ^account_id, _server_id -> {:ok, []} end)
 
     {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings")
 
@@ -147,8 +137,6 @@ defmodule TuistWeb.AccountSettingsLiveTest do
   test "deploys the only available Kura region when the portaled form omits inputs", %{conn: conn, account: account} do
     FunWithFlags.enable(:kura, for_actor: account)
     stub(Kura, :latest_versions, fn 1 -> [%{version: "0.5.2", released_at: DateTime.utc_now(:second)}] end)
-    account_id = account.id
-    stub(Kura, :list_nodes_for_server, fn ^account_id, _server_id -> {:ok, []} end)
 
     {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings")
 
