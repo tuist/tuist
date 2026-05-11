@@ -3715,6 +3715,135 @@ final class TestServiceTests: TuistUnitTestCase {
         }
     }
 
+    func test_run_writesReportPathInLocalMode() async throws {
+        try await withMockedDependencies {
+            // Given
+            givenGenerator()
+            given(buildGraphInspector)
+                .workspaceSchemes(graphTraverser: .any)
+                .willReturn([Scheme.test(name: "ProjectScheme")])
+            given(generator)
+                .generateWithGraph(path: .any, options: .any)
+                .willProduce { path, _ in (path, .test(), MapperEnvironment()) }
+
+            let resultBundlePath = try temporaryPath().appending(component: "test.xcresult")
+            try await fileSystem.makeDirectory(at: resultBundlePath)
+            let reportPath = try temporaryPath().appending(component: "report.json")
+
+            configLoader.reset()
+            given(configLoader)
+                .loadConfig(path: .any)
+                .willReturn(
+                    .test(
+                        project: .testGeneratedProject(),
+                        fullHandle: "tuist/tuist",
+                        url: URL(string: "https://example.com")!
+                    )
+                )
+
+            xcResultService.reset()
+            given(xcResultService)
+                .parse(path: .any, rootDirectory: .any)
+                .willReturn(
+                    TestSummary(
+                        testPlanName: "RequiredTests",
+                        status: .failed,
+                        duration: 1234,
+                        testModules: []
+                    )
+                )
+
+            // When
+            try await testRun(
+                path: try temporaryPath(),
+                resultBundlePath: resultBundlePath,
+                mode: .local,
+                reportPath: reportPath
+            )
+
+            // Then
+            let reportExists = try await fileSystem.exists(reportPath)
+            XCTAssertTrue(reportExists)
+            let data = try Data(contentsOf: URL(fileURLWithPath: reportPath.pathString))
+            let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+            XCTAssertEqual(json?["test_plan_name"] as? String, "RequiredTests")
+            XCTAssertEqual(json?["status"] as? String, "failure")
+        }
+    }
+
+    func test_run_writesReportPathInRemoteMode() async throws {
+        try await withMockedDependencies {
+            // Given
+            givenGenerator()
+            given(buildGraphInspector)
+                .workspaceSchemes(graphTraverser: .any)
+                .willReturn([Scheme.test(name: "ProjectScheme")])
+            given(generator)
+                .generateWithGraph(path: .any, options: .any)
+                .willProduce { path, _ in (path, .test(), MapperEnvironment()) }
+
+            let resultBundlePath = try temporaryPath().appending(component: "test.xcresult")
+            try await fileSystem.makeDirectory(at: resultBundlePath)
+            let reportPath = try temporaryPath().appending(component: "report.json")
+
+            configLoader.reset()
+            given(configLoader)
+                .loadConfig(path: .any)
+                .willReturn(
+                    .test(
+                        project: .testGeneratedProject(),
+                        fullHandle: "tuist/tuist",
+                        url: URL(string: "https://example.com")!
+                    )
+                )
+
+            xcResultService.reset()
+            given(xcResultService)
+                .parse(path: .any, rootDirectory: .any)
+                .willReturn(
+                    TestSummary(
+                        testPlanName: "RequiredTests",
+                        status: .passed,
+                        duration: 42,
+                        testModules: []
+                    )
+                )
+
+            given(uploadResultBundleService)
+                .uploadResultBundle(
+                    resultBundlePath: .any,
+                    config: .any,
+                    quarantinedTests: .any,
+                    buildRunId: .any,
+                    shardPlanId: .any,
+                    shardIndex: .any
+                )
+                .willReturn(
+                    Components.Schemas.RunsTest(
+                        duration: 0,
+                        id: "stub",
+                        project_id: 0,
+                        test_case_runs: [],
+                        _type: .test,
+                        url: ""
+                    )
+                )
+
+            // When: remote mode still writes the report because the CLI parses the xcresult
+            // locally for the report side-effect, regardless of the upload mode.
+            try await testRun(
+                path: try temporaryPath(),
+                resultBundlePath: resultBundlePath,
+                mode: .remote,
+                reportPath: reportPath
+            )
+
+            // Then
+            let reportExists = try await fileSystem.exists(reportPath)
+            XCTAssertTrue(reportExists)
+        }
+    }
+
     func test_run_fetches_quarantined_tests_and_runs_them() async throws {
         // Given
         givenGenerator()
@@ -4928,7 +5057,8 @@ final class TestServiceTests: TuistUnitTestCase {
         shardIndex: Int? = nil,
         shardSkipUpload: Bool = false,
         shardArchivePath: AbsolutePath? = nil,
-        mode: TestProcessingMode? = .local
+        mode: TestProcessingMode? = .local,
+        reportPath: AbsolutePath? = nil
     ) async throws {
         try await RunMetadataStorage.$current.withValue(runMetadataStorage) {
             try await subject.run(
@@ -4964,7 +5094,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 shardIndex: shardIndex,
                 shardSkipUpload: shardSkipUpload,
                 shardArchivePath: shardArchivePath,
-                mode: mode
+                mode: mode,
+                reportPath: reportPath
             )
         }
     }

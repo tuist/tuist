@@ -244,7 +244,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
         shardIndex: Int? = nil,
         shardSkipUpload: Bool = false,
         shardArchivePath: AbsolutePath? = nil,
-        mode: TestProcessingMode? = nil
+        mode: TestProcessingMode? = nil,
+        reportPath: AbsolutePath? = nil
     ) async throws {
         if validateTestTargetsParameters {
             try Self.validateParameters(
@@ -289,7 +290,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
                 runId: runId,
                 shardArchivePath: shardArchivePath,
-                mode: mode
+                mode: mode,
+                reportPath: reportPath
             )
             return
         }
@@ -313,7 +315,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 testPlanConfiguration: testPlanConfiguration,
                 passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
                 runId: runId,
-                mode: mode
+                mode: mode,
+                reportPath: reportPath
             )
             return
         }
@@ -548,7 +551,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
                 config: config,
                 quarantinedTests: mutedQuarantinedTests,
-                mode: mode
+                mode: mode,
+                reportPath: reportPath
             )
         } catch {
             try await copyResultBundlePathIfNeeded(
@@ -629,7 +633,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
         passthroughXcodeBuildArguments: [String],
         runId: String,
         shardArchivePath: AbsolutePath?,
-        mode: TestProcessingMode
+        mode: TestProcessingMode,
+        reportPath: AbsolutePath?
     ) async throws {
         guard let fullHandle = config.fullHandle else {
             throw TestServiceError.actionInvalid
@@ -694,9 +699,12 @@ public struct TestService { // swiftlint:disable:this type_body_length
             testError = error
         }
 
-        let summary = mode == .local
-            ? await testSummary(resultBundlePath: resultBundlePath, quarantinedTests: [])
-            : nil
+        let summary = await summaryIfNeeded(
+            resultBundlePath: resultBundlePath,
+            quarantinedTests: [],
+            mode: mode,
+            reportPath: reportPath
+        )
         await uploadResultBundleIfNeeded(
             testSummary: summary,
             resultBundlePath: resultBundlePath,
@@ -751,7 +759,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
         testPlanConfiguration: TestPlanConfiguration?,
         passthroughXcodeBuildArguments: [String],
         runId: String,
-        mode: TestProcessingMode
+        mode: TestProcessingMode,
+        reportPath: AbsolutePath?
     ) async throws {
         Logger.current.notice(
             "Skipping project generation, using selective testing graph from .xctestproducts bundle...",
@@ -828,9 +837,12 @@ public struct TestService { // swiftlint:disable:this type_body_length
             testError = error
         }
 
-        let summary = mode == .local
-            ? await testSummary(resultBundlePath: resultBundlePath, quarantinedTests: [])
-            : nil
+        let summary = await summaryIfNeeded(
+            resultBundlePath: resultBundlePath,
+            quarantinedTests: [],
+            mode: mode,
+            reportPath: reportPath
+        )
         await uploadResultBundleIfNeeded(
             testSummary: summary,
             resultBundlePath: resultBundlePath,
@@ -1118,7 +1130,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
         passthroughXcodeBuildArguments: [String],
         config: Tuist,
         quarantinedTests: [TestIdentifier],
-        mode: TestProcessingMode = .local
+        mode: TestProcessingMode = .local,
+        reportPath: AbsolutePath? = nil
     ) async throws {
         let timer = clock.startTimer()
         let graphTraverser = GraphTraverser(graph: graph)
@@ -1163,7 +1176,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
                     passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
                     config: config,
                     quarantinedTests: quarantinedTests,
-                    mode: mode
+                    mode: mode,
+                    reportPath: reportPath
                 )
             }
         } catch {
@@ -1522,7 +1536,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
         passthroughXcodeBuildArguments: [String],
         config: Tuist,
         quarantinedTests: [TestIdentifier],
-        mode: TestProcessingMode = .local
+        mode: TestProcessingMode = .local,
+        reportPath: AbsolutePath? = nil
     ) async throws {
         Logger.current.log(
             level: .notice, "\(action.description) scheme \(scheme.name)", metadata: .section
@@ -1626,9 +1641,12 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 scheme: scheme.name,
                 configuration: configuration
             )
-            let summary = mode == .local
-                ? await testSummary(resultBundlePath: resultBundlePath, quarantinedTests: quarantinedTests)
-                : nil
+            let summary = await summaryIfNeeded(
+                resultBundlePath: resultBundlePath,
+                quarantinedTests: quarantinedTests,
+                mode: mode,
+                reportPath: reportPath
+            )
             await uploadResultBundleIfNeeded(
                 testSummary: summary,
                 resultBundlePath: resultBundlePath,
@@ -1648,9 +1666,12 @@ public struct TestService { // swiftlint:disable:this type_body_length
             scheme: scheme.name,
             configuration: configuration
         )
-        let summary = mode == .local
-            ? await testSummary(resultBundlePath: resultBundlePath, quarantinedTests: quarantinedTests)
-            : nil
+        let summary = await summaryIfNeeded(
+            resultBundlePath: resultBundlePath,
+            quarantinedTests: quarantinedTests,
+            mode: mode,
+            reportPath: reportPath
+        )
         await uploadResultBundleIfNeeded(
             testSummary: summary,
             resultBundlePath: resultBundlePath,
@@ -1671,6 +1692,35 @@ public struct TestService { // swiftlint:disable:this type_body_length
               let parsed = try? await xcResultService.parse(path: resultBundlePath, rootDirectory: rootDir)
         else { return nil }
         return testQuarantineService.markQuarantinedTests(testSummary: parsed, quarantinedTests: quarantinedTests)
+    }
+
+    /// Produce a `TestSummary` if the caller needs it. Local mode always needs it (for the
+    /// summary upload). Remote mode skips parsing unless `--report-path` is set. Writes the
+    /// summary to `reportPath` when provided.
+    private func summaryIfNeeded(
+        resultBundlePath: AbsolutePath?,
+        quarantinedTests: [TestIdentifier],
+        mode: TestProcessingMode,
+        reportPath: AbsolutePath?
+    ) async -> TestSummary? {
+        let needsSummary = mode == .local || reportPath != nil
+        guard needsSummary else { return nil }
+        let summary = await testSummary(resultBundlePath: resultBundlePath, quarantinedTests: quarantinedTests)
+        if let summary, let reportPath {
+            writeReport(summary: summary, to: reportPath)
+        }
+        return summary
+    }
+
+    private func writeReport(summary: TestSummary, to path: AbsolutePath) {
+        do {
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            let data = try encoder.encode(summary)
+            try data.write(to: URL(fileURLWithPath: path.pathString), options: .atomic)
+        } catch {
+            AlertController.current.warning(.alert("Failed to write test report to \(path.pathString): \(error.localizedDescription)"))
+        }
     }
 
     private func uploadBuildRunIfNeeded(

@@ -158,6 +158,14 @@
         var resultBundlePath: String?
 
         @Option(
+            name: .long,
+            help: "Path where a JSON summary of test case outcomes will be written after the run. Useful for CI post-processing; parses the xcresult locally regardless of --inspect-mode.",
+            completion: .file(),
+            envKey: .testReportPath
+        )
+        var reportPath: String?
+
+        @Option(
             help:
             "[Deprecated] Overrides the folder that should be used for derived data when testing a project.",
             completion: .directory,
@@ -444,7 +452,13 @@
                     }
                     return nil
                 }(),
-                mode: inspectMode
+                mode: inspectMode,
+                reportPath: try await {
+                    if let reportPath {
+                        return try await Environment.current.pathRelativeToWorkingDirectory(reportPath)
+                    }
+                    return nil
+                }()
             )
         }
     }
