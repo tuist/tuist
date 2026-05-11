@@ -8,6 +8,9 @@ All notable changes to this project will be documented in this file.
 * allow forwarding extra env vars to manifest evaluation by [@pepicrft](https://github.com/pepicrft) in [#10705](https://github.com/tuist/tuist/pull/10705)
 ### 🐛 Bug Fixes
 
+* handle nested buildable folder xcstrings by [@pepicrft](https://github.com/pepicrft) in [#10721](https://github.com/tuist/tuist/pull/10721)
+* make metadata upload non-fatal by [@pepicrft](https://github.com/pepicrft) in [#10696](https://github.com/tuist/tuist/pull/10696)
+* rewrite dangling pre/post-action targets at prune time by [@fortmarek](https://github.com/fortmarek) in [#10654](https://github.com/tuist/tuist/pull/10654)
 * allow folder resources to overlap sources by [@pepicrft](https://github.com/pepicrft) in [#10692](https://github.com/tuist/tuist/pull/10692)
 * route static xcframeworks behind dynamic via search paths, not relink by [@pepicrft](https://github.com/pepicrft) in [#10704](https://github.com/tuist/tuist/pull/10704)
 
