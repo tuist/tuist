@@ -38,11 +38,34 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestCaseRunsRecentPerCaseMv do
   @disable_migration_lock true
 
   @max_window_size 1000
+  # Chunk size for the backfill query: each INSERT covers this many
+  # `project_id` values within a partition. Per-query memory scales with
+  # the number of unique `(project_id, test_case_id)` groups it produces,
+  # so a small chunk keeps the worst-case aggregation memory well below
+  # ClickHouse Cloud's 18 GiB process ceiling regardless of how heavy any
+  # one project's test_case_id cardinality turns out to be.
+  @project_chunk_size 20
+  # Throttle between chunks to give live ClickHouse traffic (background
+  # merges, MV writes, automation queries) breathing room and avoid
+  # piling concurrent allocations against the global memory ceiling.
+  @chunk_throttle_ms 250
 
   def up do
+    # Prior production attempts at this migration partially populated the
+    # storage table before OOM'ing the backfill. Reset cleanly so the new
+    # chunked backfill below produces the canonical state. The MV is also
+    # dropped to keep the recreate order strict (storage, then backfill,
+    # then MV).
+
+    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
+    IngestRepo.query!("DROP VIEW IF EXISTS test_case_runs_recent_per_case_mv")
+
+    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
+    IngestRepo.query!("DROP TABLE IF EXISTS test_case_runs_recent_per_case")
+
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     IngestRepo.query!("""
-    CREATE TABLE IF NOT EXISTS test_case_runs_recent_per_case (
+    CREATE TABLE test_case_runs_recent_per_case (
       project_id Int64,
       test_case_id UUID,
       recent_runs AggregateFunction(groupArrayLast(#{@max_window_size}), Tuple(DateTime64(6), UInt8))
@@ -86,57 +109,107 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestCaseRunsRecentPerCaseMv do
       )
 
     for [partition] <- partitions do
-      Logger.info("Backfilling partition #{partition} into test_case_runs_recent_per_case")
+      partition_int = String.to_integer(partition)
+      project_ids = project_ids_for_partition(partition_int)
 
-      retry_on_shutting_down(fn ->
-        # `optimize_aggregation_in_order = 1` plus the matching primary key
-        # `(project_id, test_case_id, ran_at, id)` makes the aggregator see
-        # rows in ran_at order within each `(project_id, test_case_id)`
-        # group, so `groupArrayLast(N)` captures the actual last N runs by
-        # `ran_at`. Without the setting the aggregation is parallelised and
-        # per-group order is undefined.
-        #
-        # `max_bytes_before_external_group_by` caps the in-memory hash
-        # table for the GROUP BY and spills the rest to disk. Production's
-        # `test_case_runs` has hundreds of millions of rows per monthly
-        # partition; the `groupArrayLast(1000)` state per group is up to
-        # ~9 KB, and the aggregator builds per-thread states that
-        # collectively pushed total ClickHouse process memory past its
-        # 18 GiB OvercommitTracker ceiling without the spill threshold.
-        # `max_threads = 4` is the matching half: fewer parallel
-        # aggregators means fewer concurrent partial-state hash tables,
-        # which keeps the worst-case memory bounded even on the largest
-        # partitions.
-        IngestRepo.query!(
-          """
-          INSERT INTO test_case_runs_recent_per_case
-          SELECT
-            project_id,
-            assumeNotNull(test_case_id) AS test_case_id,
-            groupArrayLastState(#{@max_window_size})((ran_at, toUInt8(is_flaky))) AS recent_runs
-          FROM test_case_runs
-          WHERE toYYYYMM(inserted_at) = {partition:UInt32} AND test_case_id IS NOT NULL
-          GROUP BY project_id, test_case_id
-          SETTINGS
-            optimize_aggregation_in_order = 1,
-            max_threads = 4,
-            max_bytes_before_external_group_by = 6000000000
-          """,
-          %{partition: String.to_integer(partition)},
-          timeout: 1_200_000
-        )
+      Logger.info(
+        "Backfilling partition #{partition} into test_case_runs_recent_per_case " <>
+          "(#{length(project_ids)} projects in #{div(length(project_ids) + @project_chunk_size - 1, @project_chunk_size)} chunk(s))"
+      )
+
+      project_ids
+      |> Enum.chunk_every(@project_chunk_size)
+      |> Enum.with_index(1)
+      |> Enum.each(fn {chunk, idx} ->
+        retry_on_transient_failure(fn ->
+          backfill_chunk(partition_int, chunk, idx)
+        end)
+
+        Process.sleep(@chunk_throttle_ms)
       end)
     end
   end
 
-  defp retry_on_shutting_down(fun, attempts \\ 5) do
+  defp project_ids_for_partition(partition) do
+    # `project_id` is the leading column of `test_case_runs`' primary key,
+    # so `SELECT DISTINCT project_id` is a cheap PK-prefix scan: it does
+    # not materialize a hash table of all rows.
+    {:ok, %{rows: rows}} =
+      IngestRepo.query(
+        """
+        SELECT DISTINCT project_id
+        FROM test_case_runs
+        WHERE toYYYYMM(inserted_at) = {partition:UInt32}
+        ORDER BY project_id
+        """,
+        %{partition: partition},
+        timeout: 600_000
+      )
+
+    Enum.map(rows, fn [project_id] -> project_id end)
+  end
+
+  # `optimize_aggregation_in_order = 1` plus the matching primary key
+  # `(project_id, test_case_id, ran_at, id)` makes the aggregator see
+  # rows in `ran_at` order within each `(project_id, test_case_id)`
+  # group, so `groupArrayLast(N)` captures the actual last N runs by
+  # `ran_at`. `max_threads = 1` forces a single ordered read so the
+  # aggregator emits group states as soon as the next group key arrives,
+  # bounding memory to one in-flight state instead of per-thread hash
+  # tables.
+  #
+  # The `project_id IN (...)` chunking caps the size of the result the
+  # query has to produce regardless of how many unique test_case_ids the
+  # selected projects accumulate, and the explicit `max_memory_usage`
+  # makes the query fail fast on a budget overshoot rather than starving
+  # other ClickHouse activity against the 18 GiB process ceiling.
+  defp backfill_chunk(partition, project_ids, idx) do
+    Logger.debug(
+      "Backfilling chunk #{idx} of partition #{partition} " <>
+        "(#{length(project_ids)} projects: #{Enum.at(project_ids, 0)}..#{List.last(project_ids)})"
+    )
+
+    IngestRepo.query!(
+      """
+      INSERT INTO test_case_runs_recent_per_case
+      SELECT
+        project_id,
+        assumeNotNull(test_case_id) AS test_case_id,
+        groupArrayLastState(#{@max_window_size})((ran_at, toUInt8(is_flaky))) AS recent_runs
+      FROM test_case_runs
+      WHERE toYYYYMM(inserted_at) = {partition:UInt32}
+        AND project_id IN {project_ids:Array(Int64)}
+        AND test_case_id IS NOT NULL
+      GROUP BY project_id, test_case_id
+      SETTINGS
+        optimize_aggregation_in_order = 1,
+        max_threads = 1,
+        max_memory_usage = 4000000000,
+        max_bytes_before_external_group_by = 1500000000
+      """,
+      %{partition: partition, project_ids: project_ids},
+      timeout: 1_200_000
+    )
+  end
+
+  defp retry_on_transient_failure(fun, attempts \\ 5) do
     fun.()
   rescue
     e in Ch.Error ->
-      if attempts > 1 and String.contains?(to_string(e.message), "TABLE_IS_READ_ONLY") do
-        Logger.warning("Table is shutting down, retrying in 5s (#{attempts - 1} attempts left)")
+      message = to_string(e.message)
+
+      transient? =
+        String.contains?(message, "TABLE_IS_READ_ONLY") or
+          String.contains?(message, "MEMORY_LIMIT_EXCEEDED")
+
+      if attempts > 1 and transient? do
+        Logger.warning(
+          "ClickHouse returned a transient error (#{String.slice(message, 0, 80)}...); " <>
+            "retrying in 5s (#{attempts - 1} attempts left)"
+        )
+
         Process.sleep(:timer.seconds(5))
-        retry_on_shutting_down(fun, attempts - 1)
+        retry_on_transient_failure(fun, attempts - 1)
       else
         reraise e, __STACKTRACE__
       end
