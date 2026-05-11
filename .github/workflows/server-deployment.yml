@@ -301,8 +301,18 @@ jobs:
                 exit 1
               fi
 
+              # This is a metadata recovery path, not the real health gate.
+              # An interrupted atomic rollback can leave the latest Helm
+              # revision in pending-rollback even when the last deployed
+              # revision is the only viable base for the next deploy. Waiting
+              # here replays the old manifest's readiness problems and can
+              # strand this recovery step before the current chart gets a
+              # chance to fix them. The following helm upgrade owns the full
+              # --wait/--atomic rollout with richer diagnostics.
               helm rollback "$HELM_RELEASE_NAME" "$deployed_revision" \
-                --namespace "$NAMESPACE" --wait --timeout 25m
+                --namespace "$NAMESPACE" --timeout 5m
+
+              helm status "$HELM_RELEASE_NAME" -n "$NAMESPACE"
               ;;
             *)
               echo "Release $HELM_RELEASE_NAME status is ${status:-not-installed}; no recovery needed."
