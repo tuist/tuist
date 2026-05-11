@@ -10,19 +10,20 @@ import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 // No customer fields here — customers are not modeled on the K8s
 // side. The Tuist server's dispatch endpoint mints a per-job JIT
 // runner registration for whichever customer's queued workflow_job
-// the polling Pod claims, looking up customer config from Postgres
-// (`runner_subscriptions`).
+// the polling Pod claims, looking up customer config from the
+// `accounts` table (`runner_max_concurrent`).
 type RunnerPoolSpec struct {
 	// Labels are stamped on the Pods + SAs the controller creates;
 	// not the GitHub Actions runner labels (those come from the
-	// subscription at JIT-mint time).
+	// dispatch label at JIT-mint time).
 	// +optional
 	Labels []string `json:"labels,omitempty"`
 
 	// MinWarm is the count of Pods the controller maintains. By
 	// convention this equals the fleet's host count, so every host
 	// always carries either an idle warm Pod or a Pod running a
-	// customer job.
+	// customer job. (Apple's SLA permits up to two VMs per host;
+	// v1 runs one per host to keep capacity reasoning simple.)
 	// +kubebuilder:default=0
 	MinWarm int32 `json:"minWarm,omitempty"`
 

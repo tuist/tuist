@@ -114,10 +114,10 @@ spec:
               value: "1"
             {{- end }}
             {{- if .Values.runnersFleet.enabled }}
-            # Runner-subscription wiring. The server reads
-            # RunnerPool CRs at dispatch time to discover the fleet
-            # name; per-customer config lives in
-            # `runner_subscriptions` and has no chart-level setting.
+            # Runners namespace. The server reads RunnerPool CRs at
+            # dispatch time to discover the fleet name; per-customer
+            # config is `accounts.runner_max_concurrent` and has no
+            # chart-level setting.
             - name: TUIST_RUNNERS_NAMESPACE
               value: {{ .Values.runnersFleet.namespace | default "tuist-runners" | quote }}
             {{- end }}

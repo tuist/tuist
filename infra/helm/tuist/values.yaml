@@ -494,11 +494,13 @@ runnersFleet:
     exceptCIDRs: []
 
 # runners-controller: standalone Go reconciler that owns Pod + SA
-# materialization for the RunnerPool / RunnerAssignment CRDs. The
-# Tuist server writes Burst RunnerAssignment CRs and the
-# controller turns each into a Pod + per-Pod ServiceAccount; the
-# Pod's projected SA token is the dispatch-endpoint authentication
-# anchor (server validates it via TokenReview).
+# materialization for the RunnerPool CRD. The controller watches
+# the helm-rendered RunnerPool CR and maintains `spec.minWarm`
+# Pods + per-Pod ServiceAccounts as direct owner-ref children.
+# When a Pod hits a terminal phase, the controller reaps the Pod
+# and its sibling SA and boots a replacement. The Pod's projected
+# SA token is the dispatch-endpoint authentication anchor (server
+# validates it via TokenReview).
 runnersController:
   replicaCount: 1
   image:
@@ -513,12 +515,12 @@ runnersController:
       cpu: 500m
       memory: 256Mi
 
-# Runner-pool config lives in the Tuist server's `runner_pools`
-# Postgres table; the server's `Tuist.Runners.PoolReconciler` syncs
-# rows into RunnerPool CRs in the runners namespace. There's no
-# helm input here — onboarding a new customer is an INSERT, not a
-# chart change. See `server/priv/repo/runner_pool_seeds.exs` for a
-# starter seed.
+# Per-customer access is `accounts.runner_max_concurrent` (0 =
+# runners disabled; N>0 = at most N concurrent). Onboarding a
+# customer is `UPDATE accounts SET runner_max_concurrent = N
+# WHERE name = …`, not a chart change. Per-repo / per-runner-
+# group scoping isn't modeled today; the dispatch endpoint mints
+# JITs under the org's default runner group (id=1).
 
 cache:
   enabled: true

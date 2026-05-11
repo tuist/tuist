@@ -4,10 +4,10 @@
 {{- $controllerSA := $controllerName }}
 {{- /*
 The runners-controller Deployment runs in the chart's release
-namespace; its workload (RunnerAssignment CRs + Pods + SAs)
-lives in tuist-runners. Single-replica with leader election so
-a future scale-up to two replicas is a values change, not a
-rewrite.
+namespace; its workload (Pods + SAs owned by the helm-rendered
+RunnerPool CR) lives in tuist-runners. Single-replica with
+leader election so a future scale-up to two replicas is a values
+change, not a rewrite.
 */}}
 apiVersion: v1
 kind: ServiceAccount

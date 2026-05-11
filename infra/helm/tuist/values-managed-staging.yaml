@@ -212,7 +212,7 @@ runnersFleet:
       - "10.0.0.0/8"
       - "172.16.0.0/12"
       - "192.168.0.0/16"
-# Runner pools live in the `runner_pools` Postgres table; the
-# server's `Tuist.Runners.PoolReconciler` syncs rows into RunnerPool
-# CRs in this namespace. Seed via `priv/repo/runner_pool_seeds.exs`
-# after the chart is up.
+# Per-customer access is `accounts.runner_max_concurrent` (0 =
+# runners disabled; N>0 = at most N concurrent). Set with
+# `UPDATE accounts SET runner_max_concurrent = N WHERE name = …`
+# once the chart is up.

@@ -38,11 +38,11 @@ metadata:
     helm.sh/resource-policy: keep
 ---
 {{- if .Values.server.serviceAccount.create }}
-# Server-side namespaced RBAC: the dispatch-handler webhook
-# creates Burst RunnerAssignment CRs when GitHub couldn't bind
-# a workflow_job to a warm runner. Read on RunnerPool to look
-# up pool config from a SA's `tuist.dev/runner-pool` label
-# during JIT mint.
+# Server-side namespaced RBAC. The dispatch endpoint reads
+# RunnerPool to discover the fleet name, reads SAs to resolve a
+# Pod's pool via its `tuist.dev/runner-pool` label, lists Pods
+# to count per-customer concurrency, and patches the polling
+# Pod with owner labels at JIT-mint time.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:

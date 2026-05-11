@@ -1,8 +1,7 @@
 defmodule Tuist.Runners.DispatchQueue do
   @moduledoc """
-  Postgres-backed dispatch queue. One row per pending Burst — a
-  workflow_job the webhook handler accepted but no warm Pod has
-  claimed yet.
+  Postgres-backed dispatch queue. One row per pending workflow_job
+  the webhook handler accepted but no warm Pod has claimed yet.
 
   ## Claim flow
 

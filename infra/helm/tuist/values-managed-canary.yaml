@@ -132,12 +132,13 @@ runnersFleet:
       - "172.16.0.0/12"
       - "192.168.0.0/16"
 
-# Runner pools live in the `runner_pools` Postgres table; seed via
-# `priv/repo/runner_pool_seeds.exs` with TUIST_DEPLOY_ENV=canary
-# after the chart is up. `runner_group_id` + `allowed_repos` MUST
-# be set on the row before flipping `runnersFleet.enabled` — without
-# them GitHub's default group (id=1) lets every repo in the org
-# consume runner capacity.
+# Per-customer access is `accounts.runner_max_concurrent` (0 =
+# runners disabled; N>0 = at most N concurrent). Set with
+# `UPDATE accounts SET runner_max_concurrent = N WHERE name = …`
+# before flipping `runnersFleet.enabled`. The dispatch endpoint
+# mints JITs under GitHub's default runner group (id=1); a
+# per-account `runner_group_id` is a follow-up once multi-tenant
+# onboarding makes per-repo scoping necessary.
 
 # In-cluster Valkey backs the auth rate limiter (Hammer.Redis). The
 # chart wires TUIST_REDIS_URL to the embedded Service; without it the

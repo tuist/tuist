@@ -11,10 +11,16 @@ exactly one fleet for v1; multi-image lands as a values-list shape
 
 `spec.minWarm` equals the fleet's host count so every Mac mini
 always carries either a polling warm Pod or a Pod running a
-customer job (one VM per host per Apple SLA). Customer
-subscriptions don't appear in K8s — they're DB-only metadata that
-the dispatch endpoint reads to mint per-customer JIT registrations
-when a warm Pod claims a Burst.
+customer job. Apple's SLA permits up to two VMs per host; for v1
+we run one VM per host to keep capacity reasoning simple and
+absorb tart/host overhead — a future knob can raise this when
+the operational story for two-VMs-per-host is in place.
+
+Per-customer concurrency is `accounts.runner_max_concurrent` in
+Postgres; it doesn't appear in K8s. The dispatch endpoint reads
+it at claim time, claims an eligible row from
+`runner_dispatch_queue`, stamps the polling Pod with owner
+labels, and mints a JIT registration scoped to that customer.
 */}}
 apiVersion: tuist.dev/v1alpha1
 kind: RunnerPool

@@ -3,10 +3,10 @@
 CRDs for the runners-controller. Helm renders them as regular
 templates (not under crds/) so an in-place upgrade picks up
 schema changes; the trade-off is that `helm uninstall` will
-delete them, which would cascade-delete every RunnerPool +
-RunnerAssignment in the cluster. We accept that — the chart is
-the source of truth for these CRDs and we only run `helm
-uninstall` on the chart in greenfield rebuilds.
+delete them, which would cascade-delete every RunnerPool in the
+cluster (and the Pods + SAs owned by it). We accept that — the
+chart is the source of truth for these CRDs and we only run
+`helm uninstall` on the chart in greenfield rebuilds.
 */}}
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
