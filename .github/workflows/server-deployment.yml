@@ -345,8 +345,22 @@ jobs:
           echo "Ensuring CAPI core $CAPI_CORE_VERSION on $NAMESPACE's workload cluster"
           kubectl apply -f \
             "https://github.com/kubernetes-sigs/cluster-api/releases/download/${CAPI_CORE_VERSION}/core-components.yaml"
-          kubectl -n capi-system wait --for=condition=Available \
-            deploy/capi-controller-manager --timeout=5m
+
+          # 10 min budget: cert-manager has to issue the webhook
+          # serving cert, the controller image pulls from registry.k8s.io,
+          # and the pod rolls out — easily 5+ min on a cold cluster
+          # where this is the first time the image was needed.
+          if ! kubectl -n capi-system wait --for=condition=Available \
+            deploy/capi-controller-manager --timeout=10m; then
+            echo "::group::capi-controller-manager not Available — diagnostics"
+            kubectl -n capi-system get pods -o wide || true
+            kubectl -n capi-system describe deploy/capi-controller-manager || true
+            kubectl -n capi-system describe pods -l cluster.x-k8s.io/provider=cluster-api || true
+            kubectl get certificates -A || true
+            kubectl get certificaterequests -A || true
+            echo "::endgroup::"
+            exit 1
+          fi
       - name: Clean up stale migration Jobs
         # The chart's pre-upgrade migration hook is named
         # `tuist-tuist-server-migrate` (stable across revisions). Any
