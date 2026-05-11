@@ -120,29 +120,6 @@ public struct FocusTargetsGraphMappers: GraphMapping {
             TargetReference(projectPath: $0.path, name: $0.target.name)
         })
 
-        // Rewrite implicit execution-action targets that point at a non-filtered target
-        // (e.g. the alphabetically first test target across the whole workspace) to a surviving
-        // target. Implicit actions bind their `target` only to surface build settings to the
-        // script, so we are free to rebind without dragging the off-shard target into the kept
-        // set via the execution-action preservation pass below. Explicit (user-authored) actions
-        // continue to preserve their target through focus.
-        graph.workspace.schemes = graph.workspace.schemes.map { scheme in
-            Self.rewriteImplicitExecutionActionTargets(
-                scheme: scheme,
-                filteredTargetRefs: filteredTargetRefs
-            )
-        }
-        graph.projects = graph.projects.mapValues { project in
-            var project = project
-            project.schemes = project.schemes.map { scheme in
-                Self.rewriteImplicitExecutionActionTargets(
-                    scheme: scheme,
-                    filteredTargetRefs: filteredTargetRefs
-                )
-            }
-            return project
-        }
-
         let allSchemes = graph.projects.values.flatMap(\.schemes) + graph.workspace.schemes
         let survivingSchemes = allSchemes.filter { scheme in
             let schemeTargetRefs = (scheme.buildAction?.targets ?? [])
@@ -189,59 +166,5 @@ public struct FocusTargetsGraphMappers: GraphMapping {
         }
 
         return (graph, [], environment)
-    }
-
-    private static func rewriteImplicitExecutionActionTargets(
-        scheme: Scheme,
-        filteredTargetRefs: Set<TargetReference>
-    ) -> Scheme {
-        var scheme = scheme
-
-        let buildFallback = scheme.buildAction?.targets.first(where: filteredTargetRefs.contains)
-        let testFallback = scheme.testAction?.targets
-            .map(\.target)
-            .first(where: filteredTargetRefs.contains)
-            ?? buildFallback
-
-        if var buildAction = scheme.buildAction {
-            buildAction.preActions = buildAction.preActions.map {
-                rewriteImplicitExecutionActionTarget($0, filteredTargetRefs: filteredTargetRefs, fallback: buildFallback)
-            }
-            buildAction.postActions = buildAction.postActions.map {
-                rewriteImplicitExecutionActionTarget($0, filteredTargetRefs: filteredTargetRefs, fallback: buildFallback)
-            }
-            scheme.buildAction = buildAction
-        }
-
-        if var testAction = scheme.testAction {
-            testAction.preActions = testAction.preActions.map {
-                rewriteImplicitExecutionActionTarget($0, filteredTargetRefs: filteredTargetRefs, fallback: testFallback)
-            }
-            testAction.postActions = testAction.postActions.map {
-                rewriteImplicitExecutionActionTarget($0, filteredTargetRefs: filteredTargetRefs, fallback: testFallback)
-            }
-            scheme.testAction = testAction
-        }
-
-        return scheme
-    }
-
-    private static func rewriteImplicitExecutionActionTarget(
-        _ action: ExecutionAction,
-        filteredTargetRefs: Set<TargetReference>,
-        fallback: TargetReference?
-    ) -> ExecutionAction {
-        guard action.isImplicit,
-              let original = action.target,
-              !filteredTargetRefs.contains(original)
-        else { return action }
-        return ExecutionAction(
-            title: action.title,
-            scriptText: action.scriptText,
-            target: fallback,
-            shellPath: action.shellPath,
-            showEnvVarsInLog: action.showEnvVarsInLog,
-            isImplicit: action.isImplicit
-        )
     }
 }

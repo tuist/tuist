@@ -10,7 +10,6 @@ import XcodeGraph
 protocol TestInsightsActionMapping {
     func map(
         _ testAction: TestAction?,
-        target: TargetReference?,
         testInsightsDisabled: Bool
     ) async throws -> TestAction?
 }
@@ -18,7 +17,6 @@ protocol TestInsightsActionMapping {
 struct TestInsightsActionMapper: TestInsightsActionMapping {
     func map(
         _ testAction: TestAction?,
-        target: TargetReference?,
         testInsightsDisabled: Bool
     ) async throws -> TestAction? {
         guard var testAction,
@@ -29,7 +27,7 @@ struct TestInsightsActionMapper: TestInsightsActionMapping {
             ExecutionAction(
                 title: "Push test insights",
                 scriptText: "\(currentExecutablePath.pathString) inspect test",
-                target: target,
+                target: nil,
                 shellPath: nil,
                 isImplicit: true
             )
