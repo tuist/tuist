@@ -430,55 +430,42 @@ class ProjectFileElements {
         case let .group(name: groupName):
             group = try groups.projectGroup(named: groupName)
         }
-        guard let firstElement = addElement(
-            fileElement,
-            relativePath: closestRelativeRelativePath,
-            isLeaf: closestRelativeRelativePath == fileElementRelativeToSourceRoot,
-            from: sourceRootPath,
-            toGroup: group,
-            pbxproj: pbxproj
-        )
-        else {
-            return
+        let remainingRelativePaths = if closestRelativeAbsolutePath == fileElement.path {
+            [RelativePath]()
+        } else {
+            try fileElement.path.relative(to: closestRelativeAbsolutePath).components
+                .map { try RelativePath(validating: $0) }
         }
-
-        // If it matches the file that we are adding or it's not a group we can exit.
-        if closestRelativeAbsolutePath == fileElement.path {
-            return
-        }
-
-        if firstElement.element is PBXFileSystemSynchronizedRootGroup {
-            addFileElementRelativeToGroup(
-                from: sourceRootPath,
-                fileAbsolutePath: fileElement.path,
-                fileRelativePath: fileElementRelativeToSourceRoot,
-                name: fileElement.path.basename,
-                expectedSignature: expectedSignature,
-                toGroup: group,
-                pbxproj: pbxproj
-            )
-            return
-        }
-
-        if !(firstElement.element is PBXGroup) {
-            return
-        }
-
-        var lastGroup: PBXGroup! = firstElement.element as? PBXGroup
-        var lastPath: AbsolutePath = firstElement.path
-        let components = fileElement.path.relative(to: lastPath).components
-        for component in components.enumerated() {
+        let relativePaths = [closestRelativeRelativePath] + remainingRelativePaths
+        var lastGroup: PBXGroup! = group
+        var lastPath = sourceRootPath
+        for relativePath in relativePaths.enumerated() {
             if lastGroup == nil { return }
             guard let element = addElement(
                 fileElement,
-                relativePath: try RelativePath(validating: component.element),
+                relativePath: relativePath.element,
                 expectedSignature: expectedSignature,
-                isLeaf: component.offset == components.count - 1,
+                isLeaf: relativePath.offset == relativePaths.count - 1,
                 from: lastPath,
                 toGroup: lastGroup!,
                 pbxproj: pbxproj
             )
             else {
+                return
+            }
+            if element.path == fileElement.path {
+                return
+            }
+            if element.element is PBXFileSystemSynchronizedRootGroup {
+                addFileElementRelativeToGroup(
+                    from: lastPath,
+                    fileAbsolutePath: fileElement.path,
+                    fileRelativePath: fileElement.path.relative(to: lastPath),
+                    name: fileElement.path.basename,
+                    expectedSignature: expectedSignature,
+                    toGroup: lastGroup!,
+                    pbxproj: pbxproj
+                )
                 return
             }
             lastGroup = element.element as? PBXGroup
