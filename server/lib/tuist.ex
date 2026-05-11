@@ -157,11 +157,12 @@ defmodule Tuist do
       # `workflow_job: queued` events into the webhook controller,
       # which delegates to Tuist.Runners.Dispatch; the
       # runners-controller (separate Go process) owns Pod + SA
-      # lifecycle via the RunnerPool / RunnerAssignment CRDs.
+      # lifecycle via the RunnerPool CRD. Workflow_job lifecycle
+      # rows live in ClickHouse (`runner_jobs`).
       Runners,
       Runners.Dispatch,
-      Runners.DispatchQueue,
-      Runners.DispatchQueueEntry,
+      Runners.Jobs,
+      Runners.Job,
       Kubernetes.Client
     ]
 end

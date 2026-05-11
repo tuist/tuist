@@ -1,23 +1,24 @@
 defmodule Tuist.Runners.Workers.StaleClaimsWorker do
   @moduledoc """
-  Releases soft-claimed `runner_dispatch_queue` rows whose
-  `claimed_at` is older than the recovery threshold.
+  Recovers `runner_jobs` rows stuck in `status='claimed'` past
+  the recovery threshold by INSERTing a fresh row that transitions
+  them back to `status='queued'`.
 
-  A soft claim normally lives at most a few seconds: the time
-  between `UPDATE … SET claimed_at` and the post-mint
-  `finalize_claim` (DELETE). If the server crashes — or any of
-  the steps between claim and finalize raises without hitting
-  `release_claim` — the row would otherwise stay claimed
-  forever, blocking the customer's slot.
+  A successful claim normally lives at most a few seconds — claim
+  → mint → start. If the server crashes between the `claimed`
+  INSERT and the `running` INSERT, the row stays stuck. The
+  ReplacingMergeTree merge keeps the latest `updated_at` row, so
+  re-INSERTing with a `queued` state and a fresh timestamp puts
+  the row back into the dispatch candidate pool.
 
-  The threshold is generous (5 minutes) because the normal path
-  is sub-second; anything stuck > 5 min is overwhelmingly likely
-  to be a real failure rather than an in-flight mint.
+  Threshold is generous (5 min) because the happy path is
+  sub-second; anything stuck > 5 min is overwhelmingly a real
+  failure rather than an in-flight mint.
   """
 
   use Oban.Worker, queue: :default, max_attempts: 1
 
-  alias Tuist.Runners.DispatchQueue
+  alias Tuist.Runners.Jobs
 
   require Logger
 
@@ -26,15 +27,22 @@ defmodule Tuist.Runners.Workers.StaleClaimsWorker do
   @impl Oban.Worker
   def perform(_job) do
     threshold = DateTime.add(DateTime.utc_now(), -@stale_after_seconds, :second)
-    released = DispatchQueue.release_stale_claims(threshold)
 
-    if released > 0 do
-      Logger.warning("runners: released stale claims",
-        count: released,
-        stale_after_seconds: @stale_after_seconds
-      )
+    case Jobs.stale_claimed(threshold) do
+      [] ->
+        :ok
+
+      stale ->
+        Enum.each(stale, fn job ->
+          Jobs.release(job)
+        end)
+
+        Logger.warning("runners: released stale claims",
+          count: length(stale),
+          stale_after_seconds: @stale_after_seconds
+        )
+
+        :ok
     end
-
-    :ok
   end
 end

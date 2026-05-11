@@ -19,30 +19,32 @@ defmodule Tuist.Runners do
     * **`accounts.runner_max_concurrent`** is the only per-customer
       knob. 0 = runners disabled; N>0 = at most N concurrent
       across all pools the customer reaches.
-    * **Postgres `runner_dispatch_queue`** is the burst queue.
-      Rows are scoped to a fleet (= pool name), so a per-pool
-      backlog never blocks another pool. The webhook enqueues;
-      warm Pods polling the dispatch endpoint claim via
-      `FOR UPDATE SKIP LOCKED`, then `UPDATE … SET claimed_at =
-      now()` so the row survives a JIT-mint failure and
-      `Tuist.Runners.StaleClaimsWorker` can recover from a
-      mid-claim crash.
+    * **`runner_jobs` in ClickHouse** is the lifecycle table.
+      One ReplacingMergeTree row per workflow_job; state
+      transitions (`queued → claimed → running → completed`) are
+      INSERTs advancing the version column. Customer-facing
+      surfaces — what's queued, what's running, recent runs —
+      read directly from this table. See `Tuist.Runners.Jobs`
+      for the full contract.
 
   `max_concurrent` enforcement is two-stage:
 
-    1. **Coarse, outside the tx.** The dispatch endpoint LISTs
-       Pods labeled `tuist.dev/runner-pool-owner=<account-name>`,
-       counts per owner, and excludes accounts at cap from the
-       claim's candidate set.
-    2. **Fine, inside the tx.** After picking a candidate, the
-       claim grabs `pg_advisory_xact_lock(account_id)` and adds
-       in-flight (soft-claimed) queue rows for that account into
-       the count. Closes the window between claim and Pod
-       label-stamp where two polls could race past stage 1 with
-       the same stale K8s snapshot.
+    1. **Skip-set built from the snapshot.** Before claiming, the
+       dispatch endpoint computes `counts_per_account/1` and
+       compares against `accounts.runner_max_concurrent`,
+       excluding accounts already at cap from the candidate
+       query.
+    2. **Verify-by-readback after insert.** The claim itself is
+       an INSERT-then-verify pair against the RMT — concurrent
+       claims for the same workflow_job both INSERT, but a
+       deterministic tiebreaker on `(updated_at DESC, pod_name
+       ASC)` means both pollers compute the same winner from any
+       vantage point. The loser bails before any side effect
+       (no mint, no Pod label, no runner registration).
 
-  Capped customers' rows wait in the queue until their count
-  drops; oldest-eligible-first keeps other customers unblocked.
+  Capped customers' jobs wait in the `queued` state until their
+  count drops; oldest-eligible-first keeps other customers
+  unblocked.
 
   GitHub repo-scoping is currently delegated to the GitHub default
   runner group (id=1), which allows every repo in the org. A
@@ -55,7 +57,7 @@ defmodule Tuist.Runners do
   alias Tuist.GitHub.Client, as: GitHubClient
   alias Tuist.Kubernetes.Client, as: K8sClient
   alias Tuist.Runners.Dispatch
-  alias Tuist.Runners.DispatchQueue
+  alias Tuist.Runners.Jobs
 
   require Logger
 
@@ -64,16 +66,16 @@ defmodule Tuist.Runners do
   @account_label "tuist.dev/runner-account"
 
   @doc """
-  Claims the oldest eligible queue entry for the SA's fleet and
-  mints a JIT for the entry's account. Stamps the polling Pod
-  with owner labels so subsequent `max_concurrent` counts include
-  it.
+  Claims the next eligible queued workflow_job for the SA's fleet
+  and mints a JIT for the workflow_job's account. Stamps the
+  polling Pod with owner labels so it shows up in operational
+  views; runtime cap accounting reads `runner_jobs` directly.
 
-  Returns `{:ok, %{jit, account}}` on success.
+  Returns `{:ok, %{jit, account, runner_name}}` on success.
 
   Error cases the web layer translates to HTTP responses:
-    * `{:error, :no_work_yet}` — queue empty (or all pending
-      accounts at cap); warm Pod keeps polling.
+    * `{:error, :no_work_yet}` — queue empty, all accounts at
+      cap, or we lost a claim race; warm Pod keeps polling.
     * `{:error, :not_found}` — SA gone (raced with GC).
     * `{:error, :no_pool_label}` — SA missing the fleet label.
     * `{:error, :unknown_account}` — claimed entry's account
@@ -84,160 +86,99 @@ defmodule Tuist.Runners do
   def dispatch_for_sa(namespace, sa_name) when is_binary(namespace) and is_binary(sa_name) do
     with {:ok, sa} <- K8sClient.get_service_account(namespace, sa_name),
          {:ok, fleet_name} <- pool_label(sa) do
-      {ineligible, cap_lookup} = account_state_snapshot(namespace)
+      cap_lookup = build_cap_lookup(fleet_name)
 
-      case DispatchQueue.claim_oldest_eligible(fleet_name, ineligible, cap_lookup) do
-        {:ok, %{id: id, account_id: account_id, claimed_at: claimed_at}} ->
-          serve_claim(namespace, sa_name, fleet_name, %{
-            id: id,
-            account_id: account_id,
-            claimed_at: claimed_at
-          })
+      case Jobs.claim(fleet_name, sa_name, cap_lookup) do
+        {:ok, job} ->
+          serve_claim(namespace, sa_name, fleet_name, job)
 
         {:error, :empty} ->
           {:error, :no_work_yet}
 
-        {:error, :over_cap} ->
-          # Per-account lock + in-flight re-check inside the claim
-          # tx noticed the account just hit cap. Stay in warm
-          # standby; next poll's K8s snapshot will reflect it.
+        {:error, :lost_race} ->
           {:error, :no_work_yet}
 
         {:error, reason} ->
-          Logger.warning("runners: claim_oldest_eligible failed", reason: inspect(reason))
+          Logger.warning("runners: claim failed", reason: inspect(reason))
           {:error, :no_work_yet}
       end
     end
   end
 
-  defp serve_claim(namespace, sa_name, fleet_name, %{id: claim_id, account_id: account_id, claimed_at: claimed_at}) do
-    case Accounts.get_account_by_id(account_id) do
+  defp serve_claim(namespace, sa_name, fleet_name, job) do
+    case Accounts.get_account_by_id(job.account_id) do
       {:ok, account} ->
         pod_name = pod_name_from_sa(sa_name)
 
         with {:ok, dispatch_label} <- Dispatch.dispatch_label_for_pool(fleet_name),
              :ok <- stamp_owner_labels(namespace, pod_name, account),
              {:ok, jit, runner_name} <- mint_jit(account, sa_name, dispatch_label),
-             :ok <- DispatchQueue.finalize_claim(claim_id, claimed_at) do
+             :ok <- Jobs.start(job, runner_name) do
           Logger.info("runners: dispatched",
             account: account.name,
             sa: sa_name,
             runner: runner_name,
-            fleet: fleet_name
+            fleet: fleet_name,
+            workflow_job_id: job.workflow_job_id
           )
 
           {:ok, %{jit: jit, account: account, runner_name: runner_name}}
         else
-          {:error, :not_found} = err ->
-            release_claim_safely(claim_id, claimed_at, :no_pool)
-            err
-
-          {:error, :no_dispatch_label} = err ->
-            release_claim_safely(claim_id, claimed_at, :no_dispatch_label)
-            err
-
-          {:error, :stale_claim} ->
-            # The stale-claims worker released our row mid-serve
-            # and another poll re-claimed it. Treat as "nothing to
-            # do" — the second poll owns the work now.
-            Logger.warning("runners: claim went stale mid-serve; dropping",
-              claim_id: claim_id
-            )
-
-            {:error, :no_work_yet}
-
           {:error, reason} = err ->
-            release_claim_safely(claim_id, claimed_at, reason)
+            release_safely(job, reason)
             err
         end
 
       {:error, :not_found} ->
-        Logger.warning("runners: claimed entry has no account row", account_id: account_id)
-        release_claim_safely(claim_id, claimed_at, :unknown_account)
+        Logger.warning("runners: claimed entry has no account row",
+          account_id: job.account_id,
+          workflow_job_id: job.workflow_job_id
+        )
+
+        release_safely(job, :unknown_account)
         {:error, :unknown_account}
     end
   end
 
-  defp release_claim_safely(claim_id, claimed_at, reason) do
-    case DispatchQueue.release_claim(claim_id, claimed_at) do
-      :ok ->
-        :ok
+  defp release_safely(job, reason) do
+    Jobs.release(job)
+  rescue
+    e ->
+      Logger.warning("runners: release failed; stale-claims worker will recover",
+        workflow_job_id: job.workflow_job_id,
+        original_reason: inspect(reason),
+        release_error: Exception.message(e)
+      )
 
-      {:error, release_error} ->
-        Logger.warning("runners: release_claim failed; stale-claim worker will recover",
-          claim_id: claim_id,
-          original_reason: inspect(reason),
-          release_error: inspect(release_error)
-        )
+      :ok
+  end
 
-        :ok
+  # Builds `%{account_id => %{cap: max, inflight: count}}` for
+  # the cap check inside `Jobs.claim/3`. Reads the inflight
+  # counts from ClickHouse (`runner_jobs`) — no K8s LIST on the
+  # hot path. Caps come from `accounts.runner_max_concurrent`
+  # for every account currently observed in-flight.
+  defp build_cap_lookup(fleet_name) do
+    counts = Jobs.counts_per_account(fleet_name)
+
+    if counts == %{} do
+      %{}
+    else
+      counts
+      |> Map.keys()
+      |> Enum.reduce(%{}, fn account_id, acc ->
+        case Accounts.get_account_by_id(account_id) do
+          {:ok, %{runner_max_concurrent: cap}} when is_integer(cap) and cap > 0 ->
+            Map.put(acc, account_id, %{cap: cap, inflight: Map.get(counts, account_id, 0)})
+
+          _ ->
+            # No account row or cap=0 — treat as ineligible to be
+            # safe (we shouldn't be running for them anyway).
+            Map.put(acc, account_id, %{cap: 0, inflight: Map.get(counts, account_id, 0)})
+        end
+      end)
     end
   end
-
-  # Builds:
-  #   * the set of account ids whose owners are currently at
-  #     `runner_max_concurrent` by K8s Pod count alone (skip-set
-  #     for the candidate query); and
-  #   * a `cap_lookup` of `account_id => {cap, k8s_count}` for
-  #     every account that has at least one Pod stamped against
-  #     it (so the in-tx re-check inside `claim_oldest_eligible`
-  #     can compute `k8s_count + inflight_count` without a second
-  #     DB hop for the cap value).
-  #
-  # Returns `{[], %{}}` if the LIST fails so the queue keeps
-  # draining; the in-tx per-account re-check + cap re-read
-  # is the safety net.
-  defp account_state_snapshot(namespace) do
-    case K8sClient.list_pods(namespace, @owner_label) do
-      {:ok, pods} -> snapshot_from_pods(pods)
-      {:error, reason} -> log_list_failure_and_skip(reason)
-    end
-  end
-
-  defp snapshot_from_pods(pods) do
-    pods
-    |> Enum.filter(&active_pod?/1)
-    |> Enum.frequencies_by(&owner_from_pod/1)
-    |> Map.delete(nil)
-    |> Enum.reduce({[], %{}}, &fold_owner_count/2)
-  end
-
-  defp fold_owner_count({owner, count}, {ineligible, lookup}) do
-    case Accounts.get_account_by_handle(owner) do
-      %{id: id, runner_max_concurrent: cap} when is_integer(cap) and cap > 0 ->
-        lookup = Map.put(lookup, id, {cap, count})
-        ineligible = if count >= cap, do: [id | ineligible], else: ineligible
-        {ineligible, lookup}
-
-      _ ->
-        {ineligible, lookup}
-    end
-  end
-
-  defp log_list_failure_and_skip(reason) do
-    Logger.warning("runners: list_pods failed; ineligibility check open",
-      reason: inspect(reason)
-    )
-
-    {[], %{}}
-  end
-
-  defp active_pod?(%{"status" => %{"phase" => phase}, "metadata" => meta}) do
-    deletion_ts = Map.get(meta, "deletionTimestamp")
-    phase not in ["Succeeded", "Failed"] and is_nil(deletion_ts)
-  end
-
-  defp active_pod?(%{"metadata" => meta}) do
-    is_nil(Map.get(meta, "deletionTimestamp"))
-  end
-
-  defp active_pod?(_), do: false
-
-  defp owner_from_pod(%{"metadata" => %{"labels" => labels}}) when is_map(labels) do
-    Map.get(labels, @owner_label)
-  end
-
-  defp owner_from_pod(_), do: nil
 
   defp stamp_owner_labels(namespace, pod_name, account) do
     patch = %{
@@ -254,13 +195,13 @@ defmodule Tuist.Runners do
         :ok
 
       {:error, reason} ->
-        Logger.warning("runners: pod label stamp failed; max_concurrent count may undercount",
+        Logger.warning("runners: pod label stamp failed; operational view may be wrong",
           pod: pod_name,
           reason: inspect(reason)
         )
 
-        # Continue — the runner still serves the job; counts are
-        # eventually consistent.
+        # Continue — cap accounting reads from ClickHouse, the K8s
+        # labels are operational visibility only.
         :ok
     end
   end

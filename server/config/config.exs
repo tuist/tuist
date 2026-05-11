@@ -146,7 +146,12 @@ config :logger, :console,
     :release_error,
     :owner,
     :count,
-    :stale_after_seconds
+    :stale_after_seconds,
+    :workflow_job_id,
+    :conclusion,
+    :ours,
+    :winner,
+    :observed_status
   ]
 
 config :mime, :types, %{

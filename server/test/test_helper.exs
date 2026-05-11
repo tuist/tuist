@@ -115,7 +115,7 @@ Mimic.copy(Tuist.Processor.XCResultProcessor)
 Mimic.copy(Tuist.Processor.XCResultNIF)
 Mimic.copy(Tuist.Runners)
 Mimic.copy(Tuist.Runners.Dispatch)
-Mimic.copy(Tuist.Runners.DispatchQueue)
+Mimic.copy(Tuist.Runners.Jobs)
 Mimic.copy(Tuist.Kubernetes.Client)
 Mimic.copy(Tuist.Tasks)
 
