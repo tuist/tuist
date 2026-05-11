@@ -79,7 +79,14 @@ while true; do
 
   case "${http}" in
     200)
-      jit=$(/usr/bin/python3 -c 'import json,sys; print(json.load(sys.stdin)["encoded_jit_config"])' < /tmp/dispatch.json)
+      # Pure-bash JSON field extraction — keeps the runner image
+      # free of a Python (or jq) dependency. Safe because
+      # `encoded_jit_config` is base64 (no quotes, no backslashes,
+      # no newlines), so the value can't contain a `"` that would
+      # confuse `[^"]*`. The server emits compact JSON; the
+      # optional whitespace lets a future pretty-printer not
+      # break this path.
+      jit=$(sed -n 's/.*"encoded_jit_config"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' /tmp/dispatch.json)
       if [ -z "${jit}" ]; then
         echo "$(date -u +%FT%TZ) dispatch-poll: 200 but empty encoded_jit_config; retrying"
         sleep "${interval}"
