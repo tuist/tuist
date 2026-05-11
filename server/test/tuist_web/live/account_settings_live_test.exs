@@ -110,6 +110,10 @@ defmodule TuistWeb.AccountSettingsLiveTest do
         image_tag: "0.5.2"
       })
 
+    deployment = hd(server.deployments)
+    {:ok, deployment} = Kura.mark_running(deployment)
+    {:ok, _deployment} = Kura.mark_succeeded(deployment)
+
     {:ok, server} = Kura.activate_server(server, "0.5.2")
 
     {:ok, _lv, html} = live(conn, ~p"/#{account.name}/settings")
@@ -117,6 +121,30 @@ defmodule TuistWeb.AccountSettingsLiveTest do
     assert html =~ "Active"
     assert html =~ server.url
     assert html =~ "0.5.2"
+  end
+
+  test "shows Deploying when an active Kura server has an in-flight deployment", %{conn: conn, account: account} do
+    FunWithFlags.enable(:kura, for_actor: account)
+    stub(Kura, :latest_versions, fn 1 -> [%{version: "0.5.3", released_at: DateTime.utc_now(:second)}] end)
+
+    {:ok, server} =
+      Kura.create_server(%{
+        account_id: account.id,
+        region: "local-controller",
+        image_tag: "0.5.2"
+      })
+
+    deployment = hd(server.deployments)
+    {:ok, deployment} = Kura.mark_running(deployment)
+    {:ok, _deployment} = Kura.mark_succeeded(deployment)
+
+    {:ok, server} = Kura.activate_server(server, "0.5.2")
+    {:ok, _deployment} = Kura.create_deployment(server, "0.5.3")
+
+    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/settings")
+
+    assert html =~ "Deploying"
+    refute html =~ ">Active<"
   end
 
   test "deploys a Kura server from account settings", %{conn: conn, account: account} do
