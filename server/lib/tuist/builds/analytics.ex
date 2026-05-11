@@ -1094,7 +1094,7 @@ defmodule Tuist.Builds.Analytics do
       ClickHouseRepo.query!(
         """
         SELECT
-          toStartOfInterval(date, INTERVAL #{interval_str}, 'UTC') as period,
+          toStartOfInterval(toDateTime(date), INTERVAL #{interval_str}, 'UTC') as period,
           SUM(total_size) as total_size
         FROM cas_events_daily_stats
         WHERE project_id = {project_id:Int64}
