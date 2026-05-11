@@ -1,10 +1,10 @@
 {
-  "hash": "42d46bad83bff6210b716e9cb71c5d947af148d0392a8bec8c43090b8f6794cc",
+  "hash": "1fced652120e85907ebadfc92ac5203e9f3d59392e5372ac428df75f672b0bdb",
   "hash_tree": {
     "context": {
       "child": {
         "file": "server/L10N.md",
-        "hash": "0879bdf5dc534e1a0d665bfee7247bc56bdf5c07163f270a05bd2666a07536e6",
+        "hash": "4b6d469c7014caa6766970af517055bd43685866b230e2545cce3b06044cec87",
         "locale_override": {
           "file": "server/L10N/es.md",
           "hash": "0fddcd4efd657f1b06dcfd0915245d2f172199275328cfa77c8f000c711a0361"
@@ -19,5 +19,5 @@
     }
   },
   "model": "openai:gpt-4.1-mini",
-  "translated_at": "2026-04-24T08:24:24.936571Z"
+  "translated_at": "2026-05-11T14:16:20.680498Z"
 }

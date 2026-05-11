@@ -16,7 +16,7 @@ msgstr "アカウントが見つかりません。もう一度お試しくださ
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:148
 #, elixir-autogen, elixir-format
 msgid "Failed to save Slack installation. Please try again."
-msgstr "Slackのインストール保存に失敗しました。もう一度お試しください。"
+msgstr "Slack のインストールの保存に失敗しました。もう一度お試しください。"
 
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:47
 #, elixir-autogen, elixir-format
@@ -40,7 +40,7 @@ msgstr "Slack認証に失敗しました: %{reason}"
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:182
 #, elixir-autogen, elixir-format
 msgid "Failed to save channel selection. Please try again."
-msgstr "チャンネル選択の保存に失敗しました。もう一度お試しください。"
+msgstr "チャンネルの選択の保存に失敗しました。もう一度お試しください。"
 
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:242
 #, elixir-autogen, elixir-format
@@ -55,4 +55,4 @@ msgstr "アラートルールが見つかりません。もう一度お試しく
 #: lib/tuist_web/controllers/slack_oauth_controller.ex:89
 #, elixir-autogen, elixir-format
 msgid "Authorization request expired. Please start the Slack connection process again."
-msgstr "認証リクエストの有効期限が切れています。もう一度Slack接続プロセスを開始してください。"
+msgstr "認証リクエストの有効期限が切れました。Slack接続の手続きをもう一度開始してください。"

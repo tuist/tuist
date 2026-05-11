@@ -9,7 +9,7 @@ msgstr ""
 #: lib/tuist_web/live/integrations_live.html.heex:90
 #, elixir-autogen, elixir-format
 msgid "Add new project connection"
-msgstr "新增專案連結"
+msgstr "新增專案連接"
 
 #: lib/tuist_web/live/integrations_live.html.heex:153
 #, elixir-autogen, elixir-format
@@ -24,17 +24,17 @@ msgstr "選擇 Tuist 專案"
 #: lib/tuist_web/live/integrations_live.html.heex:132
 #, elixir-autogen, elixir-format
 msgid "Choose a repository"
-msgstr "選擇一個儲存庫"
+msgstr "選擇一個程式碼庫"
 
 #: lib/tuist_web/live/integrations_live.html.heex:83
 #, elixir-autogen, elixir-format
 msgid "Choose repository to connect to"
-msgstr "選擇要連接的儲存庫"
+msgstr "選擇要連接的程式碼庫"
 
 #: lib/tuist_web/live/integrations_live.html.heex:9
 #, elixir-autogen, elixir-format
 msgid "Connect any of your GitHub repositories to a project"
-msgstr "將您的任何 GitHub 儲存庫連接到專案"
+msgstr "將您任何 GitHub 程式碼庫連接到專案"
 
 #: lib/tuist_web/live/integrations_live.ex:201
 #, elixir-autogen, elixir-format
@@ -49,7 +49,7 @@ msgstr "由 %{name} 於 %{time_ago} 連接"
 #: lib/tuist_web/live/integrations_live.html.heex:160
 #, elixir-autogen, elixir-format
 msgid "Create Connection"
-msgstr "建立連結"
+msgstr "建立連接"
 
 #: lib/tuist_web/live/integrations_live.html.heex:6
 #, elixir-autogen, elixir-format
@@ -59,7 +59,7 @@ msgstr "GitHub"
 #: lib/tuist_web/live/integrations_live.html.heex:56
 #, elixir-autogen, elixir-format
 msgid "Install GitHub App"
-msgstr "安裝 GitHub App"
+msgstr "安裝 GitHub 應用程式"
 
 #: lib/tuist_web/live/integrations_live.ex:37
 #: lib/tuist_web/live/integrations_live.html.heex:2
@@ -80,7 +80,7 @@ msgstr "管理整合"
 #: lib/tuist_web/live/integrations_live.html.heex:202
 #, elixir-autogen, elixir-format
 msgid "Remove connection"
-msgstr "移除連結"
+msgstr "移除連接"
 
 #: lib/tuist_web/live/integrations_live.ex:17
 #, elixir-autogen, elixir-format
@@ -90,7 +90,7 @@ msgstr "您無權執行此操作。"
 #: lib/tuist_web/live/integrations_live.html.heex:78
 #, elixir-autogen, elixir-format
 msgid "Your access to repositories depends on your GitHub and Tuist integration setup."
-msgstr "您對儲存庫的存取權取決於您的 GitHub 與 Tuist 整合設定。"
+msgstr "您對程式碼庫的存取權取決於您設定的 GitHub 與 Tuist 整合。"
 
 #: lib/tuist_web/live/integrations_live.html.heex:230
 #, elixir-autogen, elixir-format

@@ -105,6 +105,7 @@ msgid "Emails"
 msgstr "メール"
 
 #: lib/tuist_web/controllers/error_html.ex:133
+#: lib/tuist_web/live/ops_account_kura_deployment_live.html.heex:40
 #, elixir-autogen, elixir-format
 msgid "Error"
 msgstr "エラー"
@@ -123,7 +124,7 @@ msgstr "フラグ"
 #: lib/tuist_web/components/public_project_cta_banner.ex:40
 #, elixir-autogen, elixir-format
 msgid "Get started"
-msgstr "スタートする"
+msgstr "始めましょう"
 
 #: lib/tuist_web/controllers/error_html.ex:155
 #, elixir-autogen, elixir-format
@@ -131,6 +132,7 @@ msgid "Go to dashboard"
 msgstr "ダッシュボードへ"
 
 #: lib/tuist_web/components/app_layout_components.ex:428
+#: lib/tuist_web/live/ops_account_kura_deployment_live.html.heex:50
 #, elixir-autogen, elixir-format
 msgid "Grafana"
 msgstr "Grafana"
@@ -138,18 +140,18 @@ msgstr "Grafana"
 #: lib/tuist_web/components/layouts/account.html.heex:44
 #, elixir-autogen, elixir-format
 msgid "Integrations"
-msgstr "統合"
+msgstr "連携"
 
 #: lib/tuist_web/controllers/github_app_setup_controller.ex:25
 #: lib/tuist_web/controllers/github_app_setup_controller.ex:28
 #, elixir-autogen, elixir-format
 msgid "Invalid GitHub app installation. Please try again."
-msgstr "無効なGitHubアプリのインストールです。再試行してください。"
+msgstr "無効なGitHubアプリのインストールです。もう一度お試しください。"
 
 #: lib/tuist_web/controllers/github_app_setup_controller.ex:31
 #, elixir-autogen, elixir-format
 msgid "Invalid installation request. Please try again."
-msgstr "無効なインストールリクエストです。再試行してください。"
+msgstr "無効なインストールリクエストです。もう一度お試しください。"
 
 #: lib/tuist_web/components/app_layout_components.ex:392
 #, elixir-autogen, elixir-format
@@ -159,7 +161,7 @@ msgstr "ジョブ"
 #: lib/tuist_web/components/empty_state.ex:43
 #, elixir-autogen, elixir-format
 msgid "Learn more"
-msgstr "詳細を学ぶ"
+msgstr "詳細を知る"
 
 #: lib/tuist_web/components/app_layout_components.ex:386
 #, elixir-autogen, elixir-format
@@ -194,7 +196,7 @@ msgstr "次へ"
 #: lib/tuist_web/components/widget.ex:146
 #, elixir-autogen, elixir-format
 msgid "No data yet"
-msgstr "データなし"
+msgstr "データがまだありません"
 
 #: lib/tuist_web/controllers/error_html.ex:64
 #, elixir-autogen, elixir-format
@@ -205,7 +207,7 @@ msgstr "見つかりません"
 #: lib/tuist_web/authorization.ex:46
 #, elixir-autogen, elixir-format
 msgid "Only operations roles can access this page."
-msgstr "このページにはオペレーションロールのみアクセスできます。"
+msgstr "このページにアクセスできるのはオペレーションロールのみです。"
 
 #: lib/tuist_web/controllers/error_html.ex:98
 #, elixir-autogen, elixir-format
@@ -215,7 +217,7 @@ msgstr "おっと！問題が発生しました"
 #: lib/tuist_web/controllers/error_html.ex:65
 #, elixir-autogen, elixir-format
 msgid "Oops, we couldn't find that page"
-msgstr "申し訳ありませんが、そのページは見つかりませんでした"
+msgstr "申し訳ありません、そのページは見つかりませんでした"
 
 #: lib/tuist_web/components/account_dropdown.ex:81
 #, elixir-autogen, elixir-format
@@ -230,7 +232,7 @@ msgstr "概要"
 #: lib/tuist_web/controllers/error_html.ex:44
 #, elixir-autogen, elixir-format
 msgid "Please, make sure you are accessing the right resource and that you have the permissions to access it."
-msgstr "正しいリソースにアクセスしており、アクセス権限があることを確認してください。"
+msgstr "正しいリソースにアクセスし、アクセス権限があることを確認してください。"
 
 #: lib/tuist_web/components/app_components.ex:51
 #, elixir-autogen, elixir-format
@@ -265,17 +267,17 @@ msgstr "プロジェクト設定"
 #: lib/tuist_web/controllers/error_html.ex:101
 #, elixir-autogen, elixir-format
 msgid "Sorry, something went wrong on our side. Contact us at contact@tuist.dev and we'll look into it."
-msgstr "申し訳ありませんが、こちらの問題が発生しました。contact@tuist.dev までご連絡ください。調査いたします。"
+msgstr "申し訳ありません、こちらの問題が発生しました。contact@tuist.dev までご連絡ください。対応いたします。"
 
 #: lib/tuist_web/controllers/error_html.ex:58
 #, elixir-autogen, elixir-format
 msgid "Sorry, the page you are looking for doesn't exist or has been moved."
-msgstr "申し訳ありませんが、お探しのページは存在しないか移動しています。"
+msgstr "申し訳ありません、お探しのページは存在しないか移動しました。"
 
 #: lib/tuist_web/controllers/error_html.ex:79
 #, elixir-autogen, elixir-format
 msgid "Sorry, you made too many requests. Please try again later."
-msgstr "申し訳ありません、リクエストが多すぎます。後でもう一度お試しください。"
+msgstr "申し訳ありません、リクエストが多すぎます。しばらくしてから再度お試しください。"
 
 #: lib/tuist_web/components/app_layout_components.ex:412
 #, elixir-autogen, elixir-format
@@ -285,7 +287,7 @@ msgstr "ストレージ"
 #: lib/tuist_web/components/account_dropdown.ex:100
 #, elixir-autogen, elixir-format
 msgid "Switch to your preferred theme"
-msgstr "お好みのテーマに切り替え"
+msgstr "お好みのテーマに切り替える"
 
 #: lib/tuist_web/components/app_layout_components.ex:94
 #: lib/tuist_web/components/app_layout_components.ex:269
@@ -313,7 +315,7 @@ msgstr "アカウント %{account_handle} が見つかりませんでした。"
 #: lib/tuist_web/live/layout_live.ex:153
 #, elixir-autogen, elixir-format
 msgid "The account you are looking for doesn't exist or has been moved."
-msgstr "お探しのアカウントは存在しないか、移動されています。"
+msgstr "お探しのアカウントは存在しないか、移動されました。"
 
 #: lib/tuist_web/controllers/auth_controller.ex:29
 #, elixir-autogen, elixir-format
@@ -324,12 +326,12 @@ msgstr "認証URLはサポートされていません"
 #: lib/tuist_web/authorization.ex:79
 #, elixir-autogen, elixir-format
 msgid "The page you are looking for doesn't exist or has been moved."
-msgstr "お探しのページは存在しないか移動されています。"
+msgstr "お探しのページは存在しないか、移動されました。"
 
 #: lib/tuist_web/controllers/preview_controller.ex:133
 #, elixir-autogen, elixir-format
 msgid "The preview ipa doesn't exist or has expired."
-msgstr "プレビューのIPAが存在しないか期限切れです。"
+msgstr "プレビューIPAが存在しないか、期限切れです。"
 
 #: lib/tuist_web/controllers/api/cache/plugs/loader_query_plug.ex:36
 #: lib/tuist_web/plugs/loader_plug.ex:115
@@ -341,12 +343,12 @@ msgstr "プロジェクト %{project_slug} が見つかりませんでした。"
 #: lib/tuist_web/plugs/loader_plug.ex:119
 #, elixir-autogen, elixir-format
 msgid "The project full handle %{project_slug} is invalid. It should follow the convention 'account_handle/project_handle'."
-msgstr "プロジェクトのフルハンドル %{project_slug} は無効です。'account_handle/project_handle' の形式に従う必要があります。"
+msgstr "プロジェクトのフルハンドル %{project_slug} は無効です。'account_handle/project_handle' の形式に従ってください。"
 
 #: lib/tuist_web/live/layout_live.ex:61
 #, elixir-autogen, elixir-format
 msgid "The project you are looking for doesn't exist or has been moved."
-msgstr "お探しのプロジェクトは存在しないか移動されています。"
+msgstr "お探しのプロジェクトは存在しないか、移動されました。"
 
 #: lib/tuist_web/plugs/loader_plug.ex:95
 #, elixir-autogen, elixir-format
@@ -356,7 +358,7 @@ msgstr "ID %{run_id} の実行が見つかりませんでした。"
 #: lib/tuist_web/live/layout_live.ex:253
 #, elixir-autogen, elixir-format
 msgid "The run you are looking for doesn't exist or has been moved."
-msgstr "お探しの実行は存在しないか移動されています。"
+msgstr "お探しの実行は存在しないか、移動されました。"
 
 #: lib/tuist_web/controllers/error_html.ex:85
 #, elixir-autogen, elixir-format
@@ -377,7 +379,7 @@ msgstr "Tuist アイコン"
 #: lib/tuist_web/components/layout_components.ex:64
 #, elixir-autogen, elixir-format
 msgid "Tuist extends Apple's tools, helping you ship apps that stand out."
-msgstr "TuistはAppleのツールを拡張し、際立つアプリを開発・提供する手助けをします。"
+msgstr "TuistはAppleのツールを拡張し、際立つアプリの開発を支援します。"
 
 #: lib/tuist_web/controllers/error_html.ex:40
 #, elixir-autogen, elixir-format
@@ -387,6 +389,8 @@ msgstr "認証されていません"
 #: lib/tuist_web/components/runs/ran_by_badge.ex:29
 #: lib/tuist_web/components/runs/ran_by_badge.ex:77
 #: lib/tuist_web/components/runs/ran_by_badge.ex:104
+#: lib/tuist_web/live/ops_account_helpers.ex:15
+#: lib/tuist_web/live/ops_account_helpers.ex:24
 #, elixir-autogen, elixir-format
 msgid "Unknown"
 msgstr "不明"
@@ -399,7 +403,7 @@ msgstr "Xcodeキャッシュ"
 #: lib/tuist_web/controllers/error_html.ex:41
 #, elixir-autogen, elixir-format
 msgid "You are not authorized to view this page"
-msgstr "このページを閲覧する権限がありません"
+msgstr "このページを表示する権限がありません"
 
 #: lib/tuist_web/authorization.ex:21
 #: lib/tuist_web/authorization.ex:40
@@ -412,7 +416,7 @@ msgstr "このページにアクセスするには認証が必要です。"
 #: lib/tuist_web/controllers/user_session_controller.ex:28
 #, elixir-autogen, elixir-format
 msgid "You've exceeded the rate limit. Try again later."
-msgstr "レートリミットを超えました。後でもう一度お試しください。"
+msgstr "レート制限を超えました。しばらくしてから再試行してください。"
 
 #: lib/tuist_web/components/terminal.ex:10
 #, elixir-autogen, elixir-format
@@ -443,7 +447,7 @@ msgstr "不安定なテスト"
 #: lib/tuist_web/components/public_project_cta_banner.ex:33
 #, elixir-autogen, elixir-format
 msgid "Ready to speed up your builds and unlock insights for your app?"
-msgstr "ビルドの高速化とアプリのインサイト解放の準備はできていますか？"
+msgstr "ビルドを高速化し、アプリのインサイトを活用する準備はできましたか？"
 
 #: lib/tuist_web/components/public_project_cta_banner.ex:47
 #, elixir-autogen, elixir-format
@@ -459,7 +463,7 @@ msgstr "これは %{account_name}/%{project_name} プロジェクトの公開ダ
 #: lib/tuist_web/components/app_layout_components.ex:295
 #, elixir-autogen, elixir-format
 msgid "Quarantined Tests"
-msgstr "隔離されたテスト"
+msgstr "検疫中のテスト"
 
 #: lib/tuist_web/components/app_layout_components.ex:180
 #, elixir-autogen, elixir-format
@@ -485,7 +489,7 @@ msgstr "キャッシュ"
 #: lib/tuist_web/controllers/preview_controller.ex:154
 #, elixir-autogen, elixir-format
 msgid "The preview APK doesn't exist or has expired."
-msgstr "プレビューのAPKが存在しないか期限切れです。"
+msgstr "プレビューAPKが存在しないか、期限切れです。"
 
 #: lib/tuist_web/live/components/machine_metrics_charts.ex:73
 #, elixir-autogen, elixir-format
@@ -501,7 +505,7 @@ msgstr "認証に失敗しました"
 #: lib/tuist_web/controllers/auth_controller.ex:515
 #, elixir-autogen, elixir-format
 msgid "Your identity provider denied access. Please ask your organization admin to assign you to the Tuist application."
-msgstr "あなたのIDプロバイダーがアクセスを拒否しました。組織の管理者にTuistアプリケーションへの割り当てを依頼してください。"
+msgstr "IDプロバイダーがアクセスを拒否しました。組織の管理者にTuistアプリケーションへの割り当てを依頼してください。"
 
 #: lib/tuist_web/components/app_layout_components.ex:131
 #: lib/tuist_web/components/app_layout_components.ex:306
@@ -512,12 +516,12 @@ msgstr "シャード"
 #: lib/tuist_web/controllers/auth_controller.ex:352
 #, elixir-autogen, elixir-format
 msgid "Authentication with the identity provider failed. Please try again."
-msgstr "IDプロバイダーとの認証に失敗しました。再試行してください。"
+msgstr "IDプロバイダーによる認証に失敗しました。もう一度お試しください。"
 
 #: lib/tuist_web/controllers/auth_controller.ex:599
 #, elixir-autogen, elixir-format
 msgid "Failed to authenticate with the SSO provider. Please try again."
-msgstr "SSOプロバイダーとの認証に失敗しました。再試行してください。"
+msgstr "SSOプロバイダーでの認証に失敗しました。もう一度お試しください。"
 
 #: lib/tuist_web/controllers/auth_controller.ex:494
 #, elixir-autogen, elixir-format
@@ -527,22 +531,22 @@ msgstr "この組織のSSOは完全に設定されていません。組織の管
 #: lib/tuist_web/controllers/auth_controller.ex:557
 #, elixir-autogen, elixir-format
 msgid "The SSO authorization code is invalid or expired. Please restart the sign-in flow."
-msgstr "SSOの認可コードが無効か期限切れです。サインインのフローを再開してください。"
+msgstr "SSO認可コードが無効または期限切れです。サインインフローを再起動してください。"
 
 #: lib/tuist_web/controllers/auth_controller.ex:529
 #, elixir-autogen, elixir-format
 msgid "The SSO provider callback is missing an authorization code. Please restart the sign-in flow."
-msgstr "SSOプロバイダーのコールバックに認可コードがありません。サインインのフローを再開してください。"
+msgstr "SSOプロバイダーのコールバックに認可コードがありません。サインインフローを再起動してください。"
 
 #: lib/tuist_web/controllers/auth_controller.ex:480
 #, elixir-autogen, elixir-format
 msgid "The SSO request is missing an organization identifier. Please start the sign-in flow again from the login page."
-msgstr "SSOリクエストに組織識別子がありません。ログインページからサインインのフローを再度開始してください。"
+msgstr "SSOリクエストに組織識別子がありません。ログインページからサインインフローを再度開始してください。"
 
 #: lib/tuist_web/controllers/auth_controller.ex:508
 #, elixir-autogen, elixir-format
 msgid "The SSO response could not be validated because the request state did not match. Please try again."
-msgstr "SSOレスポンスの検証に失敗しました。リクエストの状態が一致しません。再試行してください。"
+msgstr "SSOレスポンスの検証に失敗しました。リクエスト状態が一致しません。もう一度お試しください。"
 
 #: lib/tuist_web/controllers/auth_controller.ex:536
 #, elixir-autogen, elixir-format
@@ -557,17 +561,17 @@ msgstr "Tuist Ops"
 #: lib/tuist_web/controllers/auth_controller.ex:543
 #, elixir-autogen, elixir-format
 msgid "Tuist couldn't exchange the authorization code with your identity provider. Ask your organization admin to verify the SSO credentials and callback URL."
-msgstr "TuistがIDプロバイダーと認可コードの交換に失敗しました。組織の管理者にSSO認証情報およびコールバックURLの確認を依頼してください。"
+msgstr "TuistはIDプロバイダーと認可コードの交換に失敗しました。組織の管理者にSSOの認証情報とコールバックURLを確認してください。"
 
 #: lib/tuist_web/controllers/auth_controller.ex:550
 #, elixir-autogen, elixir-format
 msgid "Tuist couldn't fetch your profile from your identity provider. Ask your organization admin to verify the user info endpoint and configured scopes."
-msgstr "TuistがIDプロバイダーからプロフィールを取得できませんでした。組織の管理者にユーザー情報エンドポイントと設定されたスコープの確認を依頼してください。"
+msgstr "TuistはIDプロバイダーからプロフィール情報を取得できませんでした。組織の管理者にユーザー情報エンドポイントと設定されたスコープの確認を依頼してください。"
 
 #: lib/tuist_web/controllers/auth_controller.ex:592
 #, elixir-autogen, elixir-format
 msgid "We couldn't complete the SSO callback for this request. Please try again."
-msgstr "このリクエストのSSOコールバックを完了できませんでした。再試行してください。"
+msgstr "このリクエストのSSOコールバックを完了できませんでした。もう一度お試しください。"
 
 #: lib/tuist_web/controllers/auth_controller.ex:487
 #, elixir-autogen, elixir-format
@@ -577,32 +581,32 @@ msgstr "このSSOリクエストの組織が見つかりませんでした。正
 #: lib/tuist_web/controllers/auth_controller.ex:585
 #, elixir-autogen, elixir-format
 msgid "We couldn't start the SSO flow for this organization. Please verify the SSO configuration and try again."
-msgstr "この組織のSSOフローを開始できませんでした。SSO設定を確認して再試行してください。"
+msgstr "この組織のSSOフローを開始できませんでした。SSO設定を確認し、再度お試しください。"
 
 #: lib/tuist_web/controllers/auth_controller.ex:501
 #, elixir-autogen, elixir-format
 msgid "Your SSO session has expired. Please restart the sign-in flow from the login page."
-msgstr "SSOセッションが期限切れです。ログインページからサインインのフローを再開してください。"
+msgstr "SSOセッションが期限切れです。ログインページからサインインフローを再起動してください。"
 
 #: lib/tuist_web/controllers/auth_controller.ex:578
 #, elixir-autogen, elixir-format
 msgid "Your Tuist account already exists, but it isn't a member of this organization. Ask an organization admin to add you, then sign in with SSO again."
-msgstr "あなたのTuistアカウントは既に存在しますが、この組織のメンバーではありません。組織の管理者に追加を依頼し、再度SSOでサインインしてください。"
+msgstr "Tuistアカウントは存在しますが、この組織のメンバーではありません。組織の管理者に追加を依頼し、SSOで再度サインインしてください。"
 
 #: lib/tuist_web/controllers/auth_controller.ex:564
 #, elixir-autogen, elixir-format
 msgid "Your identity provider response is missing a stable user identifier. Ask your organization admin to review the user info claims."
-msgstr "あなたのIDプロバイダーのレスポンスに安定したユーザー識別子がありません。組織の管理者にユーザー情報のクレームを確認してもらってください。"
+msgstr "IDプロバイダーの応答に安定したユーザー識別子がありません。組織の管理者にユーザー情報クレームの確認を依頼してください。"
 
 #: lib/tuist_web/controllers/auth_controller.ex:571
 #, elixir-autogen, elixir-format
 msgid "Your identity provider response is missing an email address. Ask your organization admin to include the email claim."
-msgstr "あなたのIDプロバイダーのレスポンスにメールアドレスがありません。組織の管理者にメールクレームの追加を依頼してください。"
+msgstr "IDプロバイダーの応答にメールアドレスがありません。組織の管理者にメールクレームの追加を依頼してください。"
 
 #: lib/tuist_web/controllers/auth_controller.ex:522
 #, elixir-autogen, elixir-format
 msgid "Your identity provider returned an authentication error. Please try again or contact your organization admin."
-msgstr "あなたのIDプロバイダーが認証エラーを返しました。再試行するか、組織の管理者に連絡してください。"
+msgstr "IDプロバイダーが認証エラーを返しました。もう一度お試しいただくか、組織の管理者にお問い合わせください。"
 
 #: lib/tuist_web/components/account_dropdown.ex:73
 #, elixir-autogen, elixir-format
@@ -610,7 +614,9 @@ msgid "Dashboard"
 msgstr "ダッシュボード"
 
 #: lib/tuist_web/components/app_layout_components.ex:380
+#: lib/tuist_web/live/ops_accounts_live.ex:18
 #: lib/tuist_web/live/ops_accounts_live.html.heex:3
+#: lib/tuist_web/live/ops_accounts_live.html.heex:5
 #, elixir-autogen, elixir-format
 msgid "Accounts"
 msgstr "アカウント"
@@ -623,4 +629,608 @@ msgstr "認証"
 #: lib/tuist_web/controllers/github_app_setup_controller.ex:34
 #, elixir-autogen, elixir-format
 msgid "This GitHub app installation is already connected."
-msgstr "このGitHubアプリのインストールはすでに接続されています。"
+msgstr "このGitHubアプリのインストールは既に接続されています。"
+
+#: lib/tuist_web/live/ops_account_live.ex:129
+#, elixir-autogen, elixir-format
+msgid "%{account} plan set to cancel at the end of the current period."
+msgstr "%{account} のプランは現在の期間終了時にキャンセルされるよう設定されました。"
+
+#: lib/tuist_web/live/ops_account_live.ex:78
+#: lib/tuist_web/live/ops_account_live.ex:106
+#, elixir-autogen, elixir-format
+msgid "%{account} upgraded to Enterprise. Stripe will send an invoice for the first period."
+msgstr "%{account} はEnterpriseにアップグレードされました。Stripeが初回期間の請求書を送付します。"
+
+#: lib/tuist_web/live/ops_account_live.html.heex:5
+#, elixir-autogen, elixir-format
+msgid "Account ID"
+msgstr "アカウントID"
+
+#: lib/tuist_web/live/ops_account_kura_deployment_live.ex:23
+#: lib/tuist_web/live/ops_account_live.ex:36
+#, elixir-autogen, elixir-format
+msgid "Account not found."
+msgstr "アカウントが見つかりません。"
+
+#: lib/tuist_web/live/ops_account_helpers.ex:40
+#, elixir-autogen, elixir-format
+msgid "Active"
+msgstr "アクティブ"
+
+#: lib/tuist_web/live/ops_account_live.html.heex:150
+#, elixir-autogen, elixir-format
+msgid "Address line 1"
+msgstr "住所1行目"
+
+#: lib/tuist_web/live/ops_account_live.html.heex:158
+#, elixir-autogen, elixir-format
+msgid "Address line 2 (optional)"
+msgstr "住所2行目（任意）"
+
+#: lib/tuist_web/live/ops_account_helpers.ex:20
+#, elixir-autogen, elixir-format
+msgid "Air"
+msgstr "Air"
+
+#: lib/tuist_web/live/ops_account_live.ex:211
+#, elixir-autogen, elixir-format
+msgid "Argentina"
+msgstr "アルゼンチン"
+
+#: lib/tuist_web/live/ops_account_live.ex:212
+#, elixir-autogen, elixir-format
+msgid "Australia"
+msgstr "オーストラリア"
+
+#: lib/tuist_web/live/ops_account_live.ex:213
+#, elixir-autogen, elixir-format
+msgid "Austria"
+msgstr "オーストリア"
+
+#: lib/tuist_web/live/ops_account_live.ex:214
+#, elixir-autogen, elixir-format
+msgid "Belgium"
+msgstr "ベルギー"
+
+#: lib/tuist_web/live/ops_account_live.html.heex:196
+#, elixir-autogen, elixir-format
+msgid "Billing cadence"
+msgstr "請求周期"
+
+#: lib/tuist_web/live/ops_account_live.html.heex:59
+#: lib/tuist_web/live/ops_account_live.html.heex:142
+#: lib/tuist_web/live/ops_accounts_live.html.heex:30
+#, elixir-autogen, elixir-format
+msgid "Billing email"
+msgstr "請求メール"
+
+#: lib/tuist_web/live/ops_account_live.ex:215
+#, elixir-autogen, elixir-format
+msgid "Brazil"
+msgstr "ブラジル"
+
+#: lib/tuist_web/live/ops_account_live.ex:216
+#, elixir-autogen, elixir-format
+msgid "Bulgaria"
+msgstr "ブルガリア"
+
+#: lib/tuist_web/live/ops_account_live.ex:217
+#, elixir-autogen, elixir-format
+msgid "Canada"
+msgstr "カナダ"
+
+#: lib/tuist_web/live/ops_account_live.html.heex:213
+#, elixir-autogen, elixir-format
+msgid "Cancel"
+msgstr "キャンセル"
+
+#: lib/tuist_web/live/ops_account_live.html.heex:92
+#, elixir-autogen, elixir-format
+msgid "Cancel %{account}'s subscription at the end of the current billing period? Access is kept until then."
+msgstr "%{account} のサブスクリプションを現在の請求期間終了時にキャンセルしますか？それまではアクセス可能です。"
+
+#: lib/tuist_web/live/ops_account_live.ex:136
+#, elixir-autogen, elixir-format
+msgid "Cancel failed: %{reason}"
+msgstr "キャンセルに失敗しました: %{reason}"
+
+#: lib/tuist_web/live/ops_account_live.html.heex:89
+#, elixir-autogen, elixir-format
+msgid "Cancel plan"
+msgstr "プランをキャンセル"
+
+#: lib/tuist_web/live/ops_account_helpers.ex:42
+#: lib/tuist_web/live/ops_account_kura_deployment_live.ex:77
+#, elixir-autogen, elixir-format
+msgid "Cancelled"
+msgstr "キャンセル済み"
+
+#: lib/tuist_web/live/ops_account_live.ex:218
+#, elixir-autogen, elixir-format
+msgid "Chile"
+msgstr "チリ"
+
+#: lib/tuist_web/live/ops_account_live.ex:219
+#, elixir-autogen, elixir-format
+msgid "China"
+msgstr "中国"
+
+#: lib/tuist_web/live/ops_account_live.html.heex:164
+#, elixir-autogen, elixir-format
+msgid "City"
+msgstr "市区町村"
+
+#: lib/tuist_web/live/ops_account_live.ex:220
+#, elixir-autogen, elixir-format
+msgid "Colombia"
+msgstr "コロンビア"
+
+#: lib/tuist_web/live/ops_account_live.html.heex:184
+#, elixir-autogen, elixir-format
+msgid "Country"
+msgstr "国"
+
+#: lib/tuist_web/live/ops_account_live.html.heex:112
+#, elixir-autogen, elixir-format
+msgid "Creates a Stripe customer (if missing), sets the billing address, and starts an invoice-billed Enterprise subscription. The customer receives an invoice by email; no card is collected here."
+msgstr "Stripeの顧客を作成（未作成の場合）、請求先住所を設定し、請求書支払いのEnterpriseサブスクリプションを開始します。顧客はメールで請求書を受け取り、カード情報はここで収集されません。"
+
+#: lib/tuist_web/live/ops_account_live.ex:221
+#, elixir-autogen, elixir-format
+msgid "Croatia"
+msgstr "クロアチア"
+
+#: lib/tuist_web/live/ops_account_live.html.heex:25
+#, elixir-autogen, elixir-format
+msgid "Current version"
+msgstr "現在のバージョン"
+
+#: lib/tuist_web/live/ops_account_live.ex:222
+#, elixir-autogen, elixir-format
+msgid "Cyprus"
+msgstr "キプロス"
+
+#: lib/tuist_web/live/ops_account_live.ex:223
+#, elixir-autogen, elixir-format
+msgid "Czechia"
+msgstr "チェコ"
+
+#: lib/tuist_web/live/ops_account_live.ex:224
+#, elixir-autogen, elixir-format
+msgid "Denmark"
+msgstr "デンマーク"
+
+#: lib/tuist_web/live/ops_account_kura_deployment_live.ex:38
+#, elixir-autogen, elixir-format
+msgid "Deployment"
+msgstr "デプロイ"
+
+#: lib/tuist_web/live/ops_account_kura_deployment_live.ex:30
+#, elixir-autogen, elixir-format
+msgid "Deployment not found."
+msgstr "デプロイが見つかりません。"
+
+#: lib/tuist_web/live/ops_account_helpers.ex:22
+#, elixir-autogen, elixir-format
+msgid "Enterprise"
+msgstr "Enterprise"
+
+#: lib/tuist_web/live/ops_account_live.ex:225
+#, elixir-autogen, elixir-format
+msgid "Estonia"
+msgstr "エストニア"
+
+#: lib/tuist_web/live/ops_account_kura_deployment_live.ex:76
+#, elixir-autogen, elixir-format
+msgid "Failed"
+msgstr "失敗"
+
+#: lib/tuist_web/live/ops_account_kura_deployment_live.html.heex:31
+#, elixir-autogen, elixir-format
+msgid "Finished"
+msgstr "完了"
+
+#: lib/tuist_web/live/ops_account_live.ex:226
+#, elixir-autogen, elixir-format
+msgid "Finland"
+msgstr "フィンランド"
+
+#: lib/tuist_web/live/ops_account_live.ex:227
+#, elixir-autogen, elixir-format
+msgid "France"
+msgstr "フランス"
+
+#: lib/tuist_web/live/ops_account_live.ex:228
+#, elixir-autogen, elixir-format
+msgid "Germany"
+msgstr "ドイツ"
+
+#: lib/tuist_web/live/ops_account_live.ex:229
+#, elixir-autogen, elixir-format
+msgid "Greece"
+msgstr "ギリシャ"
+
+#: lib/tuist_web/live/ops_account_live.ex:230
+#, elixir-autogen, elixir-format
+msgid "Hong Kong"
+msgstr "香港"
+
+#: lib/tuist_web/live/ops_account_live.ex:231
+#, elixir-autogen, elixir-format
+msgid "Hungary"
+msgstr "ハンガリー"
+
+#: lib/tuist_web/live/ops_account_live.ex:232
+#, elixir-autogen, elixir-format
+msgid "Iceland"
+msgstr "アイスランド"
+
+#: lib/tuist_web/live/ops_account_live.ex:233
+#, elixir-autogen, elixir-format
+msgid "India"
+msgstr "インド"
+
+#: lib/tuist_web/live/ops_account_live.ex:234
+#, elixir-autogen, elixir-format
+msgid "Indonesia"
+msgstr "インドネシア"
+
+#: lib/tuist_web/live/ops_account_live.ex:235
+#, elixir-autogen, elixir-format
+msgid "Ireland"
+msgstr "アイルランド"
+
+#: lib/tuist_web/live/ops_account_live.ex:236
+#, elixir-autogen, elixir-format
+msgid "Israel"
+msgstr "イスラエル"
+
+#: lib/tuist_web/live/ops_account_live.ex:237
+#, elixir-autogen, elixir-format
+msgid "Italy"
+msgstr "イタリア"
+
+#: lib/tuist_web/live/ops_account_live.ex:238
+#, elixir-autogen, elixir-format
+msgid "Japan"
+msgstr "日本"
+
+#: lib/tuist_web/live/ops_account_live.html.heex:9
+#, elixir-autogen, elixir-format
+msgid "Kura"
+msgstr "Kura"
+
+#: lib/tuist_web/live/ops_account_kura_deployment_live.html.heex:4
+#, elixir-autogen, elixir-format
+msgid "Kura deployment"
+msgstr "Kura デプロイ"
+
+#: lib/tuist_web/live/ops_account_live.html.heex:28
+#, elixir-autogen, elixir-format
+msgid "Latest deployment"
+msgstr "最新のデプロイ"
+
+#: lib/tuist_web/live/ops_account_live.ex:239
+#, elixir-autogen, elixir-format
+msgid "Latvia"
+msgstr "ラトビア"
+
+#: lib/tuist_web/live/ops_account_live.ex:240
+#, elixir-autogen, elixir-format
+msgid "Lithuania"
+msgstr "リトアニア"
+
+#: lib/tuist_web/live/ops_account_live.ex:241
+#, elixir-autogen, elixir-format
+msgid "Luxembourg"
+msgstr "ルクセンブルク"
+
+#: lib/tuist_web/live/ops_account_live.ex:242
+#, elixir-autogen, elixir-format
+msgid "Malaysia"
+msgstr "マレーシア"
+
+#: lib/tuist_web/live/ops_account_live.ex:243
+#, elixir-autogen, elixir-format
+msgid "Malta"
+msgstr "マルタ"
+
+#: lib/tuist_web/live/ops_account_live.html.heex:72
+#, elixir-autogen, elixir-format
+msgid "Manage on Stripe"
+msgstr "Stripeで管理"
+
+#: lib/tuist_web/live/ops_account_live.ex:244
+#, elixir-autogen, elixir-format
+msgid "Mexico"
+msgstr "メキシコ"
+
+#: lib/tuist_web/live/ops_account_live.html.heex:199
+#: lib/tuist_web/live/ops_account_live.html.heex:203
+#, elixir-autogen, elixir-format
+msgid "Monthly"
+msgstr "毎月"
+
+#: lib/tuist_web/live/ops_accounts_live.html.heex:24
+#, elixir-autogen, elixir-format
+msgid "Name"
+msgstr "名前"
+
+#: lib/tuist_web/live/ops_account_live.html.heex:134
+#, elixir-autogen, elixir-format
+msgid "Name on invoice"
+msgstr "請求書の名前"
+
+#: lib/tuist_web/live/ops_account_live.ex:245
+#, elixir-autogen, elixir-format
+msgid "Netherlands"
+msgstr "オランダ"
+
+#: lib/tuist_web/live/ops_account_live.ex:246
+#, elixir-autogen, elixir-format
+msgid "New Zealand"
+msgstr "ニュージーランド"
+
+#: lib/tuist_web/live/ops_accounts_live.html.heex:53
+#, elixir-autogen, elixir-format
+msgid "No accounts"
+msgstr "アカウントがありません"
+
+#: lib/tuist_web/live/ops_accounts_live.html.heex:54
+#, elixir-autogen, elixir-format
+msgid "No accounts match the current filter."
+msgstr "現在のフィルターに一致するアカウントはありません。"
+
+#: lib/tuist_web/live/ops_account_live.ex:119
+#, elixir-autogen, elixir-format
+msgid "No active subscription to cancel."
+msgstr "キャンセルするアクティブなサブスクリプションがありません。"
+
+#: lib/tuist_web/live/ops_account_kura_deployment_live.ex:85
+#: lib/tuist_web/live/ops_account_live.html.heex:23
+#: lib/tuist_web/live/ops_account_live.html.heex:26
+#: lib/tuist_web/live/ops_account_live.html.heex:31
+#: lib/tuist_web/live/ops_account_live.html.heex:60
+#: lib/tuist_web/live/ops_accounts_live.html.heex:31
+#, elixir-autogen, elixir-format
+msgid "None"
+msgstr "なし"
+
+#: lib/tuist_web/live/ops_account_live.ex:247
+#, elixir-autogen, elixir-format
+msgid "Norway"
+msgstr "ノルウェー"
+
+#: lib/tuist_web/live/ops_account_live.html.heex:63
+#: lib/tuist_web/live/ops_accounts_live.html.heex:48
+#, elixir-autogen, elixir-format
+msgid "Not created"
+msgstr "作成されていません"
+
+#: lib/tuist_web/live/ops_account_helpers.ex:23
+#, elixir-autogen, elixir-format
+msgid "Open Source"
+msgstr "オープンソース"
+
+#: lib/tuist_web/live/ops_account_helpers.ex:12
+#, elixir-autogen, elixir-format
+msgid "Organization"
+msgstr "組織"
+
+#: lib/tuist_web/live/ops_account_kura_deployment_live.ex:73
+#, elixir-autogen, elixir-format
+msgid "Pending"
+msgstr "保留中"
+
+#: lib/tuist_web/live/ops_account_live.ex:248
+#, elixir-autogen, elixir-format
+msgid "Philippines"
+msgstr "フィリピン"
+
+#: lib/tuist_web/live/ops_account_live.html.heex:45
+#: lib/tuist_web/live/ops_accounts_live.html.heex:33
+#, elixir-autogen, elixir-format
+msgid "Plan"
+msgstr "プラン"
+
+#: lib/tuist_web/live/ops_account_live.html.heex:42
+#, elixir-autogen, elixir-format
+msgid "Plan & billing"
+msgstr "プランと請求"
+
+#: lib/tuist_web/live/ops_account_live.ex:249
+#, elixir-autogen, elixir-format
+msgid "Poland"
+msgstr "ポーランド"
+
+#: lib/tuist_web/live/ops_account_live.ex:250
+#, elixir-autogen, elixir-format
+msgid "Portugal"
+msgstr "ポルトガル"
+
+#: lib/tuist_web/live/ops_account_live.html.heex:178
+#, elixir-autogen, elixir-format
+msgid "Postal code"
+msgstr "郵便番号"
+
+#: lib/tuist_web/live/ops_account_helpers.ex:21
+#, elixir-autogen, elixir-format
+msgid "Pro"
+msgstr "Pro"
+
+#: lib/tuist_web/live/ops_account_live.html.heex:12
+#, elixir-autogen, elixir-format
+msgid "Region"
+msgstr "地域"
+
+#: lib/tuist_web/live/ops_account_live.ex:251
+#, elixir-autogen, elixir-format
+msgid "Romania"
+msgstr "ルーマニア"
+
+#: lib/tuist_web/live/ops_account_kura_deployment_live.ex:74
+#, elixir-autogen, elixir-format
+msgid "Running"
+msgstr "実行中"
+
+#: lib/tuist_web/live/ops_accounts_live.html.heex:13
+#, elixir-autogen, elixir-format
+msgid "Search by name"
+msgstr "名前で検索"
+
+#: lib/tuist_web/live/ops_account_live.html.heex:187
+#, elixir-autogen, elixir-format
+msgid "Select a country"
+msgstr "国を選択"
+
+#: lib/tuist_web/live/ops_account_live.ex:252
+#, elixir-autogen, elixir-format
+msgid "Singapore"
+msgstr "シンガポール"
+
+#: lib/tuist_web/live/ops_account_live.ex:253
+#, elixir-autogen, elixir-format
+msgid "Slovakia"
+msgstr "スロバキア"
+
+#: lib/tuist_web/live/ops_account_live.ex:254
+#, elixir-autogen, elixir-format
+msgid "Slovenia"
+msgstr "スロベニア"
+
+#: lib/tuist_web/live/ops_account_live.ex:255
+#, elixir-autogen, elixir-format
+msgid "South Africa"
+msgstr "南アフリカ"
+
+#: lib/tuist_web/live/ops_account_live.ex:256
+#, elixir-autogen, elixir-format
+msgid "South Korea"
+msgstr "韓国"
+
+#: lib/tuist_web/live/ops_account_live.ex:257
+#, elixir-autogen, elixir-format
+msgid "Spain"
+msgstr "スペイン"
+
+#: lib/tuist_web/live/ops_account_kura_deployment_live.html.heex:27
+#, elixir-autogen, elixir-format
+msgid "Started"
+msgstr "開始済み"
+
+#: lib/tuist_web/live/ops_account_live.html.heex:172
+#, elixir-autogen, elixir-format
+msgid "State / region (optional)"
+msgstr "州 / 地域（任意）"
+
+#: lib/tuist_web/live/ops_account_kura_deployment_live.html.heex:11
+#: lib/tuist_web/live/ops_account_kura_deployment_live.html.heex:16
+#: lib/tuist_web/live/ops_account_live.html.heex:15
+#: lib/tuist_web/live/ops_account_live.html.heex:52
+#: lib/tuist_web/live/ops_accounts_live.html.heex:40
+#, elixir-autogen, elixir-format
+msgid "Status"
+msgstr "ステータス"
+
+#: lib/tuist_web/live/ops_account_live.html.heex:62
+#: lib/tuist_web/live/ops_accounts_live.html.heex:47
+#, elixir-autogen, elixir-format
+msgid "Stripe customer"
+msgstr "Stripe顧客"
+
+#: lib/tuist_web/live/ops_account_kura_deployment_live.ex:75
+#, elixir-autogen, elixir-format
+msgid "Succeeded"
+msgstr "成功"
+
+#: lib/tuist_web/live/ops_account_live.ex:258
+#, elixir-autogen, elixir-format
+msgid "Sweden"
+msgstr "スウェーデン"
+
+#: lib/tuist_web/live/ops_account_live.ex:259
+#, elixir-autogen, elixir-format
+msgid "Switzerland"
+msgstr "スイス"
+
+#: lib/tuist_web/live/ops_account_live.ex:260
+#, elixir-autogen, elixir-format
+msgid "Taiwan"
+msgstr "台湾"
+
+#: lib/tuist_web/live/ops_account_live.ex:261
+#, elixir-autogen, elixir-format
+msgid "Thailand"
+msgstr "タイ"
+
+#: lib/tuist_web/live/ops_account_helpers.ex:41
+#, elixir-autogen, elixir-format
+msgid "Trialing"
+msgstr "トライアル中"
+
+#: lib/tuist_web/live/ops_account_live.ex:262
+#, elixir-autogen, elixir-format
+msgid "Turkey"
+msgstr "トルコ"
+
+#: lib/tuist_web/live/ops_accounts_live.html.heex:27
+#, elixir-autogen, elixir-format
+msgid "Type"
+msgstr "タイプ"
+
+#: lib/tuist_web/live/ops_account_live.html.heex:22
+#, elixir-autogen, elixir-format
+msgid "URL"
+msgstr "URL"
+
+#: lib/tuist_web/live/ops_account_live.ex:263
+#, elixir-autogen, elixir-format
+msgid "Ukraine"
+msgstr "ウクライナ"
+
+#: lib/tuist_web/live/ops_account_live.ex:264
+#, elixir-autogen, elixir-format
+msgid "United Arab Emirates"
+msgstr "アラブ首長国連邦"
+
+#: lib/tuist_web/live/ops_account_live.ex:265
+#, elixir-autogen, elixir-format
+msgid "United Kingdom"
+msgstr "イギリス"
+
+#: lib/tuist_web/live/ops_account_live.ex:266
+#, elixir-autogen, elixir-format
+msgid "United States"
+msgstr "アメリカ合衆国"
+
+#: lib/tuist_web/live/ops_account_live.html.heex:107
+#, elixir-autogen, elixir-format
+msgid "Upgrade %{account} to Enterprise"
+msgstr "%{account} をEnterpriseにアップグレード"
+
+#: lib/tuist_web/live/ops_account_live.html.heex:80
+#: lib/tuist_web/live/ops_account_live.html.heex:221
+#, elixir-autogen, elixir-format
+msgid "Upgrade to Enterprise"
+msgstr "Enterpriseにアップグレード"
+
+#: lib/tuist_web/live/ops_account_live.ex:267
+#, elixir-autogen, elixir-format
+msgid "Uruguay"
+msgstr "ウルグアイ"
+
+#: lib/tuist_web/live/ops_account_helpers.ex:14
+#, elixir-autogen, elixir-format
+msgid "User"
+msgstr "ユーザー"
+
+#: lib/tuist_web/live/ops_account_live.ex:268
+#, elixir-autogen, elixir-format
+msgid "Vietnam"
+msgstr "ベトナム"
+
+#: lib/tuist_web/live/ops_account_live.html.heex:204
+#, elixir-autogen, elixir-format
+msgid "Yearly"
+msgstr "毎年"

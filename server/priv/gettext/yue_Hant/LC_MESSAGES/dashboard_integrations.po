@@ -34,12 +34,12 @@ msgstr "選擇要連接的儲存庫"
 #: lib/tuist_web/live/integrations_live.html.heex:9
 #, elixir-autogen, elixir-format
 msgid "Connect any of your GitHub repositories to a project"
-msgstr "將你任何 GitHub 儲存庫連接到一個項目"
+msgstr "將任何 GitHub 儲存庫連接到項目"
 
 #: lib/tuist_web/live/integrations_live.ex:201
 #, elixir-autogen, elixir-format
 msgid "Connected %{time_ago}"
-msgstr "已連接 %{time_ago}"
+msgstr "已於 %{time_ago} 連接"
 
 #: lib/tuist_web/live/integrations_live.ex:203
 #, elixir-autogen, elixir-format
@@ -90,7 +90,7 @@ msgstr "你無權執行此操作。"
 #: lib/tuist_web/live/integrations_live.html.heex:78
 #, elixir-autogen, elixir-format
 msgid "Your access to repositories depends on your GitHub and Tuist integration setup."
-msgstr "你對儲存庫嘅存取取決於你嘅 GitHub 同 Tuist 整合設置。"
+msgstr "你對儲存庫的訪問權限取決於你嘅 GitHub 同 Tuist 整合設置。"
 
 #: lib/tuist_web/live/integrations_live.html.heex:230
 #, elixir-autogen, elixir-format
@@ -115,7 +115,7 @@ msgstr "Slack"
 #: lib/tuist_web/live/integrations_live.ex:222
 #, elixir-autogen, elixir-format
 msgid "Invalid URL"
-msgstr "無效嘅 URL"
+msgstr "無效的 URL"
 
 #: lib/tuist_web/live/integrations_live.html.heex:46
 #, elixir-autogen, elixir-format

@@ -9,7 +9,7 @@ msgstr ""
 #: lib/tuist_web/live/bundle_live.html.heex:426
 #, elixir-autogen, elixir-format
 msgid "%{duplicates_count} duplicates"
-msgstr "%{duplicates_count} 重複項"
+msgstr "%{duplicates_count} 個重複項目"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:595
 #: lib/tuist_web/live/xcode_cache_live.html.heex:619
@@ -61,36 +61,36 @@ msgstr "0 MB"
 msgid "< 0.1 %"
 msgstr "< 0.1 %"
 
-#: lib/tuist_web/live/module_cache_live.html.heex:3
-#: lib/tuist_web/live/xcode_cache_live.html.heex:31
+#: lib/tuist_web/live/module_cache_live.html.heex:86
+#: lib/tuist_web/live/xcode_cache_live.html.heex:84
 #, elixir-autogen, elixir-format
 msgid "Analytics"
 msgstr "分析"
 
-#: lib/tuist_web/live/bundles_live.ex:395
-#: lib/tuist_web/live/bundles_live.html.heex:45
-#: lib/tuist_web/live/bundles_live.html.heex:60
-#: lib/tuist_web/live/bundles_live.html.heex:74
-#: lib/tuist_web/live/module_cache_live.ex:318
-#: lib/tuist_web/live/module_cache_live.html.heex:15
+#: lib/tuist_web/live/bundles_live.ex:420
+#: lib/tuist_web/live/bundles_live.html.heex:40
+#: lib/tuist_web/live/bundles_live.html.heex:55
+#: lib/tuist_web/live/bundles_live.html.heex:69
+#: lib/tuist_web/live/module_cache_live.ex:329
+#: lib/tuist_web/live/module_cache_live.html.heex:10
 #, elixir-autogen, elixir-format
 msgid "Any"
-msgstr "任何"
+msgstr "任意"
 
-#: lib/tuist_web/live/bundle_live.ex:995
-#: lib/tuist_web/live/bundles_live.ex:384
-#: lib/tuist_web/live/bundles_live.ex:391
-#: lib/tuist_web/live/bundles_live.ex:973
+#: lib/tuist_web/live/bundle_live.ex:1003
+#: lib/tuist_web/live/bundles_live.ex:409
+#: lib/tuist_web/live/bundles_live.ex:416
+#: lib/tuist_web/live/bundles_live.ex:1007
 #, elixir-autogen, elixir-format
 msgid "App bundle"
-msgstr "應用程式包"
+msgstr "App 包"
 
-#: lib/tuist_web/live/bundles_live.html.heex:27
+#: lib/tuist_web/live/bundles_live.html.heex:22
 #, elixir-autogen, elixir-format
 msgid "App:"
 msgstr "應用程式："
 
-#: lib/tuist_web/live/bundle_live.ex:1012
+#: lib/tuist_web/live/bundle_live.ex:1020
 #: lib/tuist_web/live/bundle_live.html.heex:550
 #, elixir-autogen, elixir-format
 msgid "Asset"
@@ -120,16 +120,16 @@ msgstr "平均命中率"
 #: lib/tuist_web/live/bundle_live.html.heex:205
 #, elixir-autogen, elixir-format
 msgid "Binaries"
-msgstr "二進位檔"
+msgstr "二進位檔案"
 
-#: lib/tuist_web/live/bundle_live.ex:1010
+#: lib/tuist_web/live/bundle_live.ex:1018
 #: lib/tuist_web/live/bundle_live.html.heex:548
 #, elixir-autogen, elixir-format
 msgid "Binary"
-msgstr "二進位檔"
+msgstr "二進位"
 
 #: lib/tuist_web/live/bundle_live.html.heex:80
-#: lib/tuist_web/live/bundles_live.ex:909
+#: lib/tuist_web/live/bundles_live.ex:943
 #: lib/tuist_web/live/bundles_live.html.heex:352
 #: lib/tuist_web/live/cache_runs_live.ex:59
 #: lib/tuist_web/live/cache_runs_live.html.heex:96
@@ -137,7 +137,7 @@ msgstr "二進位檔"
 msgid "Branch"
 msgstr "分支"
 
-#: lib/tuist_web/live/bundles_live.html.heex:48
+#: lib/tuist_web/live/bundles_live.html.heex:43
 #, elixir-autogen, elixir-format
 msgid "Branch:"
 msgstr "分支："
@@ -145,38 +145,38 @@ msgstr "分支："
 #: lib/tuist_web/live/bundle_live.ex:54
 #, elixir-autogen, elixir-format
 msgid "Bundle"
-msgstr "套件"
+msgstr "包"
 
 #: lib/tuist_web/live/bundle_live.html.heex:69
 #, elixir-autogen, elixir-format
 msgid "Bundle ID"
-msgstr "套件 ID"
+msgstr "包 ID"
 
-#: lib/tuist_web/live/bundles_live.html.heex:19
+#: lib/tuist_web/live/bundles_live.html.heex:129
 #, elixir-autogen, elixir-format
 msgid "Bundle Size"
-msgstr "套件大小"
+msgstr "包大小"
 
 #: lib/tuist_web/live/bundle_live.html.heex:194
 #, elixir-autogen, elixir-format
 msgid "Bundle Size Analysis"
-msgstr "套件大小分析"
+msgstr "包大小分析"
 
 #: lib/tuist_web/live/bundle_live.ex:855
 #, elixir-autogen, elixir-format
 msgid "Bundle not found."
-msgstr "找不到套件。"
+msgstr "找不到包。"
 
 #: lib/tuist_web/live/bundles_live.ex:33
 #: lib/tuist_web/live/bundles_live.html.heex:285
 #, elixir-autogen, elixir-format
 msgid "Bundles"
-msgstr "套件"
+msgstr "包"
 
-#: lib/tuist_web/live/module_cache_live.ex:320
-#: lib/tuist_web/live/module_cache_live.ex:321
-#: lib/tuist_web/live/module_cache_live.html.heex:31
-#: lib/tuist_web/live/xcode_cache_live.ex:301
+#: lib/tuist_web/live/module_cache_live.ex:331
+#: lib/tuist_web/live/module_cache_live.ex:332
+#: lib/tuist_web/live/module_cache_live.html.heex:26
+#: lib/tuist_web/live/xcode_cache_live.ex:319
 #, elixir-autogen, elixir-format
 msgid "CI"
 msgstr "CI"
@@ -185,9 +185,9 @@ msgstr "CI"
 #: lib/tuist_web/live/cache_runs_live.html.heex:2
 #, elixir-autogen, elixir-format
 msgid "Cache Runs"
-msgstr "快取執行"
+msgstr "快取運行"
 
-#: lib/tuist_web/live/xcode_cache_live.ex:197
+#: lib/tuist_web/live/xcode_cache_live.ex:211
 #: lib/tuist_web/live/xcode_cache_live.html.heex:190
 #, elixir-autogen, elixir-format
 msgid "Cache downloads"
@@ -196,12 +196,12 @@ msgstr "快取下載"
 #: lib/tuist_web/live/xcode_cache_live.html.heex:193
 #, elixir-autogen, elixir-format
 msgid "Cache downloads represents the total size of cache artifacts downloaded from remote storage during the given period."
-msgstr "快取下載表示在指定期間內從遠端儲存下載的快取資產總大小。"
+msgstr "快取下載代表在指定期間內，從遠端儲存下載的快取工件總大小。"
 
-#: lib/tuist_web/live/module_cache_live.ex:295
+#: lib/tuist_web/live/module_cache_live.ex:306
 #: lib/tuist_web/live/module_cache_live.html.heex:103
 #: lib/tuist_web/live/module_cache_live.html.heex:502
-#: lib/tuist_web/live/xcode_cache_live.ex:206
+#: lib/tuist_web/live/xcode_cache_live.ex:220
 #: lib/tuist_web/live/xcode_cache_live.html.heex:101
 #: lib/tuist_web/live/xcode_cache_live.html.heex:522
 #, elixir-autogen, elixir-format
@@ -211,34 +211,34 @@ msgstr "快取命中率"
 #: lib/tuist_web/live/module_cache_live.html.heex:115
 #, elixir-autogen, elixir-format
 msgid "Cache hit rate represents the percentage of cacheable targets that were resolved from cache (local or remote) rather than being rebuilt."
-msgstr "快取命中率表示從快取（本地或遠端）成功解決的可快取目標百分比，而非重新建置。"
+msgstr "快取命中率表示可快取目標中，從快取（本地或遠端）取得而非重建的比例百分比。"
 
 #: lib/tuist_web/live/xcode_cache_live.html.heex:113
 #, elixir-autogen, elixir-format
 msgid "Cache hit rate represents the percentage of cacheable tasks that were resolved from cache (local or remote) rather than being rebuilt."
-msgstr "快取命中率表示從快取（本地或遠端）成功解決的可快取任務百分比，而非重新建置。"
+msgstr "快取命中率表示可快取任務中，從快取（本地或遠端）取得而非重建的比例百分比。"
 
-#: lib/tuist_web/live/module_cache_live.ex:277
+#: lib/tuist_web/live/module_cache_live.ex:288
 #, elixir-autogen, elixir-format
 msgid "Cache hits"
-msgstr "快取命中數"
+msgstr "快取命中"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:195
 #, elixir-autogen, elixir-format
 msgid "Cache hits represents the total count of targets that were resolved from cache (local or remote) during the given period."
-msgstr "快取命中數表示在指定期間內從快取（本地或遠端）成功解決的目標總數。"
+msgstr "快取命中表示在指定期間內，從快取（本地或遠端）取得的目標總數。"
 
-#: lib/tuist_web/live/module_cache_live.ex:286
+#: lib/tuist_web/live/module_cache_live.ex:297
 #, elixir-autogen, elixir-format
 msgid "Cache misses"
-msgstr "快取未命中數"
+msgstr "快取未命中"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:215
 #, elixir-autogen, elixir-format
 msgid "Cache misses represents the total count of cacheable targets that had to be rebuilt because they were not found in cache during the given period."
-msgstr "快取未命中數表示在指定期間內因未在快取中找到而需要重建的可快取目標總數。"
+msgstr "快取未命中表示在指定期間內，因快取中未找到而必須重建的可快取目標總數。"
 
-#: lib/tuist_web/live/xcode_cache_live.ex:188
+#: lib/tuist_web/live/xcode_cache_live.ex:202
 #: lib/tuist_web/live/xcode_cache_live.html.heex:213
 #, elixir-autogen, elixir-format
 msgid "Cache uploads"
@@ -247,14 +247,14 @@ msgstr "快取上傳"
 #: lib/tuist_web/live/xcode_cache_live.html.heex:216
 #, elixir-autogen, elixir-format
 msgid "Cache uploads represents the total size of cache artifacts uploaded to remote storage during the given period."
-msgstr "快取上傳表示在指定期間內上傳到遠端儲存的快取資產總大小。"
+msgstr "快取上傳代表在指定期間內，上傳至遠端儲存的快取工件總大小。"
 
 #: lib/tuist_web/live/cache_runs_live.ex:38
 #: lib/tuist_web/live/cache_runs_live.html.heex:64
 #: lib/tuist_web/live/module_cache_live.html.heex:573
 #, elixir-autogen, elixir-format
 msgid "Command"
-msgstr "命令"
+msgstr "指令"
 
 #: lib/tuist_web/live/bundle_live.html.heex:159
 #: lib/tuist_web/live/bundles_live.html.heex:388
@@ -273,9 +273,9 @@ msgstr "建立於"
 #: lib/tuist_web/live/bundle_live.html.heex:14
 #, elixir-autogen, elixir-format
 msgid "Delete bundle"
-msgstr "刪除套件"
+msgstr "刪除包"
 
-#: lib/tuist_web/live/bundle_live.ex:1015
+#: lib/tuist_web/live/bundle_live.ex:1023
 #: lib/tuist_web/live/bundle_live.html.heex:201
 #: lib/tuist_web/live/bundle_live.html.heex:553
 #, elixir-autogen, elixir-format
@@ -294,19 +294,19 @@ msgstr "下載大小"
 msgid "Download size"
 msgstr "下載大小"
 
-#: lib/tuist_web/live/bundles_live.ex:935
+#: lib/tuist_web/live/bundles_live.ex:969
 #: lib/tuist_web/live/bundles_live.html.heex:163
 #: lib/tuist_web/live/bundles_live.html.heex:205
 #: lib/tuist_web/live/bundles_live.html.heex:296
 #: lib/tuist_web/live/bundles_live.html.heex:320
 #, elixir-autogen, elixir-format
 msgid "Download size (MB)"
-msgstr "下載大小 (MB)"
+msgstr "下載大小（MB）"
 
 #: lib/tuist_web/live/bundle_live.html.heex:221
 #, elixir-autogen, elixir-format
 msgid "Duplicates"
-msgstr "重複項"
+msgstr "重複項目"
 
 #: lib/tuist_web/live/cache_runs_live.html.heex:9
 #: lib/tuist_web/live/cache_runs_live.html.heex:26
@@ -317,7 +317,7 @@ msgstr "重複項"
 msgid "Duration"
 msgstr "持續時間"
 
-#: lib/tuist_web/live/module_cache_live.html.heex:11
+#: lib/tuist_web/live/module_cache_live.html.heex:6
 #, elixir-autogen, elixir-format
 msgid "Environment:"
 msgstr "環境："
@@ -325,16 +325,16 @@ msgstr "環境："
 #: lib/tuist_web/live/bundles_live.html.heex:5
 #, elixir-autogen, elixir-format
 msgid "Explore bundle analysis"
-msgstr "探索套件分析"
+msgstr "探索包分析"
 
 #: lib/tuist_web/live/cache_runs_live.ex:51
 #: lib/tuist_web/live/cache_runs_live.html.heex:93
-#: lib/tuist_web/live/xcode_cache_live.ex:308
+#: lib/tuist_web/live/xcode_cache_live.ex:326
 #, elixir-autogen, elixir-format
 msgid "Failed"
 msgstr "失敗"
 
-#: lib/tuist_web/live/bundle_live.ex:1014
+#: lib/tuist_web/live/bundle_live.ex:1022
 #: lib/tuist_web/live/bundle_live.html.heex:225
 #: lib/tuist_web/live/bundle_live.html.heex:552
 #, elixir-autogen, elixir-format
@@ -345,25 +345,25 @@ msgstr "檔案"
 #: lib/tuist_web/live/bundle_live.html.heex:473
 #, elixir-autogen, elixir-format
 msgid "File Breakdown"
-msgstr "檔案細目"
+msgstr "檔案細分"
 
 #: lib/tuist_web/live/bundle_live.html.heex:519
 #: lib/tuist_web/live/bundles_live.html.heex:329
 #: lib/tuist_web/live/cache_runs_live.html.heex:43
 #, elixir-autogen, elixir-format
 msgid "Filter"
-msgstr "過濾"
+msgstr "篩選"
 
-#: lib/tuist_web/live/bundle_live.ex:1013
+#: lib/tuist_web/live/bundle_live.ex:1021
 #: lib/tuist_web/live/bundle_live.html.heex:551
 #, elixir-autogen, elixir-format
 msgid "Font"
-msgstr "字型"
+msgstr "字體"
 
 #: lib/tuist_web/live/bundle_live.html.heex:213
 #, elixir-autogen, elixir-format
 msgid "Fonts"
-msgstr "字型"
+msgstr "字體"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:576
 #: lib/tuist_web/live/xcode_cache_live.html.heex:600
@@ -382,12 +382,12 @@ msgstr "命中率"
 #: lib/tuist_web/live/module_cache_live.html.heex:192
 #, elixir-autogen, elixir-format
 msgid "Hits"
-msgstr "命中數"
+msgstr "命中"
 
-#: lib/tuist_web/live/bundle_live.ex:994
-#: lib/tuist_web/live/bundles_live.ex:383
-#: lib/tuist_web/live/bundles_live.ex:390
-#: lib/tuist_web/live/bundles_live.ex:974
+#: lib/tuist_web/live/bundle_live.ex:1002
+#: lib/tuist_web/live/bundles_live.ex:408
+#: lib/tuist_web/live/bundles_live.ex:415
+#: lib/tuist_web/live/bundles_live.ex:1008
 #, elixir-autogen, elixir-format
 msgid "IPA"
 msgstr "IPA"
@@ -400,29 +400,29 @@ msgstr "IPA"
 msgid "Install size"
 msgstr "安裝大小"
 
-#: lib/tuist_web/live/bundles_live.ex:927
+#: lib/tuist_web/live/bundles_live.ex:961
 #: lib/tuist_web/live/bundles_live.html.heex:136
 #: lib/tuist_web/live/bundles_live.html.heex:206
 #: lib/tuist_web/live/bundles_live.html.heex:295
 #: lib/tuist_web/live/bundles_live.html.heex:312
 #, elixir-autogen, elixir-format
 msgid "Install size (MB)"
-msgstr "安裝大小 (MB)"
+msgstr "安裝大小（MB）"
 
 #: lib/tuist_web/live/bundle_live.html.heex:31
 #, elixir-autogen, elixir-format
 msgid "Install size deviation"
 msgstr "安裝大小偏差"
 
-#: lib/tuist_web/live/module_cache_live.ex:319
-#: lib/tuist_web/live/module_cache_live.ex:322
-#: lib/tuist_web/live/module_cache_live.html.heex:23
-#: lib/tuist_web/live/xcode_cache_live.ex:302
+#: lib/tuist_web/live/module_cache_live.ex:330
+#: lib/tuist_web/live/module_cache_live.ex:333
+#: lib/tuist_web/live/module_cache_live.html.heex:18
+#: lib/tuist_web/live/xcode_cache_live.ex:320
 #, elixir-autogen, elixir-format
 msgid "Local"
 msgstr "本地"
 
-#: lib/tuist_web/live/bundle_live.ex:1011
+#: lib/tuist_web/live/bundle_live.ex:1019
 #: lib/tuist_web/live/bundle_live.html.heex:549
 #, elixir-autogen, elixir-format
 msgid "Localization"
@@ -436,13 +436,13 @@ msgstr "本地化項目"
 #: lib/tuist_web/live/module_cache_live.html.heex:212
 #, elixir-autogen, elixir-format
 msgid "Misses"
-msgstr "未命中數"
+msgstr "未命中"
 
 #: lib/tuist_web/live/bundle_live.html.heex:184
 #: lib/tuist_web/live/bundle_live.html.heex:609
 #, elixir-autogen, elixir-format
 msgid "Module Breakdown"
-msgstr "模組細目"
+msgstr "模組細分"
 
 #: lib/tuist_web/live/module_cache_live.ex:27
 #, elixir-autogen, elixir-format
@@ -453,7 +453,7 @@ msgstr "模組快取"
 #: lib/tuist_web/live/bundle_live.html.heex:631
 #: lib/tuist_web/live/bundle_live.html.heex:638
 #: lib/tuist_web/live/bundle_live.html.heex:657
-#: lib/tuist_web/live/bundles_live.ex:901
+#: lib/tuist_web/live/bundles_live.ex:935
 #: lib/tuist_web/live/bundles_live.html.heex:349
 #, elixir-autogen, elixir-format
 msgid "Name"
@@ -462,7 +462,7 @@ msgstr "名稱"
 #: lib/tuist_web/live/bundles_live.html.heex:275
 #, elixir-autogen, elixir-format
 msgid "No bundles yet"
-msgstr "尚無套件"
+msgstr "尚無包"
 
 #: lib/tuist_web/live/bundles_live.html.heex:419
 #: lib/tuist_web/live/cache_runs_live.html.heex:144
@@ -477,17 +477,17 @@ msgstr "尚無資料"
 #: lib/tuist_web/live/bundle_live.html.heex:590
 #, elixir-autogen, elixir-format
 msgid "No files found"
-msgstr "找不到檔案"
+msgstr "未找到檔案"
 
 #: lib/tuist_web/live/bundle_live.html.heex:341
 #, elixir-autogen, elixir-format
 msgid "No insights yet"
-msgstr "尚無分析結果"
+msgstr "尚無見解"
 
 #: lib/tuist_web/live/bundle_live.html.heex:689
 #, elixir-autogen, elixir-format
 msgid "No modules found"
-msgstr "找不到模組"
+msgstr "未找到模組"
 
 #: lib/tuist_web/live/bundle_live.html.heex:125
 #: lib/tuist_web/live/bundles_live.html.heex:385
@@ -495,7 +495,7 @@ msgstr "找不到模組"
 msgid "Not available"
 msgstr "不可用"
 
-#: lib/tuist_web/live/bundle_live.ex:1016
+#: lib/tuist_web/live/bundle_live.ex:1024
 #: lib/tuist_web/live/bundle_live.html.heex:554
 #, elixir-autogen, elixir-format
 msgid "Other"
@@ -504,11 +504,11 @@ msgstr "其他"
 #: lib/tuist_web/live/bundle_live.html.heex:172
 #, elixir-autogen, elixir-format
 msgid "Overview"
-msgstr "概覽"
+msgstr "總覽"
 
 #: lib/tuist_web/live/cache_runs_live.ex:50
 #: lib/tuist_web/live/cache_runs_live.html.heex:91
-#: lib/tuist_web/live/xcode_cache_live.ex:307
+#: lib/tuist_web/live/xcode_cache_live.ex:325
 #, elixir-autogen, elixir-format
 msgid "Passed"
 msgstr "通過"
@@ -521,7 +521,7 @@ msgid "Path"
 msgstr "路徑"
 
 #: lib/tuist_web/live/bundle_live.html.heex:76
-#: lib/tuist_web/live/bundles_live.ex:952
+#: lib/tuist_web/live/bundles_live.ex:986
 #: lib/tuist_web/live/bundles_live.html.heex:391
 #, elixir-autogen, elixir-format
 msgid "Platform"
@@ -557,7 +557,7 @@ msgstr "近期建置"
 #: lib/tuist_web/live/module_cache_live.html.heex:486
 #, elixir-autogen, elixir-format
 msgid "Recent Runs"
-msgstr "近期執行"
+msgstr "近期運行"
 
 #: lib/tuist_web/live/bundle_live.html.heex:360
 #, elixir-autogen, elixir-format
@@ -567,19 +567,19 @@ msgstr "移除重複檔案"
 #: lib/tuist_web/live/bundle_live.html.heex:109
 #, elixir-autogen, elixir-format
 msgid "Represents the size of the compressed app bundle that gets downloaded by a user over the network."
-msgstr "表示用戶透過網路下載的已壓縮應用程式套件大小。"
+msgstr "表示使用者透過網路下載的壓縮應用程式包大小。"
 
 #: lib/tuist_web/live/bundle_live.html.heex:136
 #, elixir-autogen, elixir-format
 msgid "Represents the size of the uncompressed app bundle that gets installed by a user. This is the number that gets shown in the App Store."
-msgstr "表示用戶安裝的未壓縮應用程式套件大小。這是 App Store 顯示的數字。"
+msgstr "表示使用者安裝的未壓縮應用程式包大小。這是 App Store 顯示的數字。"
 
 #: lib/tuist_web/live/bundles_live.html.heex:6
 #, elixir-autogen, elixir-format
 msgid "Run the following command to analyze a bundle."
-msgstr "執行以下命令來分析套件。"
+msgstr "執行以下指令以分析包。"
 
-#: lib/tuist_web/live/xcode_cache_live.ex:295
+#: lib/tuist_web/live/xcode_cache_live.ex:313
 #: lib/tuist_web/live/xcode_cache_live.html.heex:257
 #: lib/tuist_web/live/xcode_cache_live.html.heex:595
 #, elixir-autogen, elixir-format
@@ -590,7 +590,7 @@ msgstr "方案"
 #: lib/tuist_web/live/bundle_live.html.heex:620
 #, elixir-autogen, elixir-format
 msgid "Search..."
-msgstr "搜尋..."
+msgstr "搜尋…"
 
 #: lib/tuist_web/live/bundle_live.html.heex:494
 #: lib/tuist_web/live/bundle_live.html.heex:510
@@ -614,10 +614,10 @@ msgstr "排序依據："
 #: lib/tuist_web/live/bundle_live.html.heex:683
 #, elixir-autogen, elixir-format
 msgid "Space usage"
-msgstr "空間使用率"
+msgstr "空間使用"
 
 #: lib/tuist_web/live/cache_runs_live.ex:46
-#: lib/tuist_web/live/xcode_cache_live.ex:296
+#: lib/tuist_web/live/xcode_cache_live.ex:314
 #, elixir-autogen, elixir-format
 msgid "Status"
 msgstr "狀態"
@@ -625,39 +625,39 @@ msgstr "狀態"
 #: lib/tuist_web/live/bundles_live.html.heex:165
 #, elixir-autogen, elixir-format
 msgid "The bundle download size. This is the compressed app size that the user ends up downloading from the App Store."
-msgstr "套件下載大小。這是用戶從 App Store 下載的已壓縮應用程式大小。"
+msgstr "包下載大小。這是使用者從 App Store 下載的壓縮應用程式大小。"
 
 #: lib/tuist_web/live/bundles_live.html.heex:138
 #, elixir-autogen, elixir-format
 msgid "The bundle install size. This is the uncompressed app size and represents how much space the app takes on the device."
-msgstr "套件安裝大小。這是未壓縮的應用程式大小，表示應用程式在裝置上佔用的空間。"
+msgstr "包安裝大小。這是未壓縮的應用程式大小，代表應用程式在裝置上佔用的空間。"
 
 #: lib/tuist_web/live/bundle_live.html.heex:591
 #: lib/tuist_web/live/bundle_live.html.heex:690
 #, elixir-autogen, elixir-format
 msgid "Try changing your search term"
-msgstr "嘗試更改您的搜尋條件"
+msgstr "試著更改您的搜尋詞"
 
-#: lib/tuist_web/live/bundle_live.ex:1006
+#: lib/tuist_web/live/bundle_live.ex:1014
 #: lib/tuist_web/live/bundle_live.html.heex:52
 #: lib/tuist_web/live/bundle_live.html.heex:544
-#: lib/tuist_web/live/bundles_live.ex:917
+#: lib/tuist_web/live/bundles_live.ex:951
 #: lib/tuist_web/live/bundles_live.html.heex:355
 #, elixir-autogen, elixir-format
 msgid "Type"
 msgstr "類型"
 
-#: lib/tuist_web/live/bundles_live.html.heex:70
+#: lib/tuist_web/live/bundles_live.html.heex:65
 #, elixir-autogen, elixir-format
 msgid "Type:"
 msgstr "類型："
 
-#: lib/tuist_web/live/bundle_live.ex:999
+#: lib/tuist_web/live/bundle_live.ex:1007
 #: lib/tuist_web/live/bundle_live.html.heex:82
 #: lib/tuist_web/live/bundle_live.html.heex:162
 #: lib/tuist_web/live/bundle_live.html.heex:229
-#: lib/tuist_web/live/bundles_live.ex:388
-#: lib/tuist_web/live/xcode_cache_live.ex:304
+#: lib/tuist_web/live/bundles_live.ex:413
+#: lib/tuist_web/live/xcode_cache_live.ex:322
 #, elixir-autogen, elixir-format
 msgid "Unknown"
 msgstr "未知"
@@ -677,10 +677,10 @@ msgstr "版本"
 msgid "View more"
 msgstr "查看更多"
 
-#: lib/tuist_web/live/bundle_live.ex:996
-#: lib/tuist_web/live/bundles_live.ex:385
-#: lib/tuist_web/live/bundles_live.ex:392
-#: lib/tuist_web/live/bundles_live.ex:975
+#: lib/tuist_web/live/bundle_live.ex:1004
+#: lib/tuist_web/live/bundles_live.ex:410
+#: lib/tuist_web/live/bundles_live.ex:417
+#: lib/tuist_web/live/bundles_live.ex:1009
 #, elixir-autogen, elixir-format
 msgid "XCArchive"
 msgstr "XCArchive"
@@ -693,7 +693,7 @@ msgstr "Xcode 快取"
 #: lib/tuist_web/live/bundle_live.html.heex:43
 #, elixir-autogen, elixir-format
 msgid "compared to last bundle"
-msgstr "與上一個套件比較"
+msgstr "與上個包相比"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:448
 #: lib/tuist_web/live/xcode_cache_live.html.heex:385
@@ -743,87 +743,87 @@ msgstr "p99 快取命中率"
 msgid "p99 hit rate"
 msgstr "p99 命中率"
 
-#: lib/tuist_web/live/bundles_live.ex:261
-#: lib/tuist_web/live/module_cache_live.ex:316
-#: lib/tuist_web/live/xcode_cache_live.ex:215
+#: lib/tuist_web/live/bundles_live.ex:286
+#: lib/tuist_web/live/module_cache_live.ex:327
+#: lib/tuist_web/live/xcode_cache_live.ex:229
 #, elixir-autogen, elixir-format
 msgid "since last month"
-msgstr "自上個月起"
+msgstr "自上月起"
 
-#: lib/tuist_web/live/bundles_live.ex:258
-#: lib/tuist_web/live/module_cache_live.ex:313
-#: lib/tuist_web/live/xcode_cache_live.ex:212
+#: lib/tuist_web/live/bundles_live.ex:283
+#: lib/tuist_web/live/module_cache_live.ex:324
+#: lib/tuist_web/live/xcode_cache_live.ex:226
 #, elixir-autogen, elixir-format
 msgid "since last week"
 msgstr "自上週起"
 
-#: lib/tuist_web/live/bundles_live.ex:259
-#: lib/tuist_web/live/module_cache_live.ex:314
-#: lib/tuist_web/live/xcode_cache_live.ex:213
+#: lib/tuist_web/live/bundles_live.ex:284
+#: lib/tuist_web/live/module_cache_live.ex:325
+#: lib/tuist_web/live/xcode_cache_live.ex:227
 #, elixir-autogen, elixir-format
 msgid "since last year"
 msgstr "自去年起"
 
-#: lib/tuist_web/live/bundles_live.html.heex:125
-#: lib/tuist_web/live/module_cache_live.html.heex:80
-#: lib/tuist_web/live/xcode_cache_live.html.heex:78
+#: lib/tuist_web/live/bundles_live.html.heex:120
+#: lib/tuist_web/live/module_cache_live.html.heex:75
+#: lib/tuist_web/live/xcode_cache_live.html.heex:73
 #, elixir-autogen, elixir-format
 msgid "Apply"
 msgstr "套用"
 
-#: lib/tuist_web/live/bundles_live.html.heex:118
-#: lib/tuist_web/live/module_cache_live.html.heex:71
-#: lib/tuist_web/live/xcode_cache_live.html.heex:69
+#: lib/tuist_web/live/bundles_live.html.heex:113
+#: lib/tuist_web/live/module_cache_live.html.heex:66
+#: lib/tuist_web/live/xcode_cache_live.html.heex:64
 #, elixir-autogen, elixir-format
 msgid "Cancel"
 msgstr "取消"
 
-#: lib/tuist_web/live/bundles_live.html.heex:109
-#: lib/tuist_web/live/module_cache_live.html.heex:62
-#: lib/tuist_web/live/xcode_cache_live.html.heex:60
+#: lib/tuist_web/live/bundles_live.html.heex:104
+#: lib/tuist_web/live/module_cache_live.html.heex:57
+#: lib/tuist_web/live/xcode_cache_live.html.heex:55
 #, elixir-autogen, elixir-format
 msgid "Custom"
 msgstr "自訂"
-
-#: lib/tuist_web/live/bundles_live.html.heex:106
-#: lib/tuist_web/live/module_cache_live.html.heex:59
-#: lib/tuist_web/live/xcode_cache_live.html.heex:57
-#, elixir-autogen, elixir-format
-msgid "Last 12 months"
-msgstr "過去 12 個月"
-
-#: lib/tuist_web/live/module_cache_live.html.heex:44
-#: lib/tuist_web/live/xcode_cache_live.html.heex:42
-#, elixir-autogen, elixir-format
-msgid "Last 24 hours"
-msgstr "過去 24 小時"
 
 #: lib/tuist_web/live/bundles_live.html.heex:101
 #: lib/tuist_web/live/module_cache_live.html.heex:54
 #: lib/tuist_web/live/xcode_cache_live.html.heex:52
 #, elixir-autogen, elixir-format
-msgid "Last 30 days"
-msgstr "過去 30 天"
+msgid "Last 12 months"
+msgstr "過去 12 個月"
+
+#: lib/tuist_web/live/module_cache_live.html.heex:39
+#: lib/tuist_web/live/xcode_cache_live.html.heex:37
+#, elixir-autogen, elixir-format
+msgid "Last 24 hours"
+msgstr "過去 24 小時"
 
 #: lib/tuist_web/live/bundles_live.html.heex:96
 #: lib/tuist_web/live/module_cache_live.html.heex:49
 #: lib/tuist_web/live/xcode_cache_live.html.heex:47
 #, elixir-autogen, elixir-format
+msgid "Last 30 days"
+msgstr "過去 30 天"
+
+#: lib/tuist_web/live/bundles_live.html.heex:91
+#: lib/tuist_web/live/module_cache_live.html.heex:44
+#: lib/tuist_web/live/xcode_cache_live.html.heex:42
+#, elixir-autogen, elixir-format
 msgid "Last 7 days"
 msgstr "過去 7 天"
 
-#: lib/tuist_web/live/bundles_live.ex:260
-#: lib/tuist_web/live/module_cache_live.ex:315
-#: lib/tuist_web/live/xcode_cache_live.ex:214
+#: lib/tuist_web/live/bundles_live.ex:285
+#: lib/tuist_web/live/module_cache_live.ex:326
+#: lib/tuist_web/live/xcode_cache_live.ex:228
 #, elixir-autogen, elixir-format
 msgid "since last period"
 msgstr "自上個期間起"
 
-#: lib/tuist_web/live/module_cache_live.ex:312
-#: lib/tuist_web/live/xcode_cache_live.ex:211
+#: lib/tuist_web/live/module_cache_live.ex:323
+#: lib/tuist_web/live/xcode_cache_live.ex:225
 #, elixir-autogen, elixir-format
 msgid "since yesterday"
-msgstr "自昨天起"
+msgstr "自昨日起"
 
 #: lib/tuist_web/live/cache_runs_live.ex:75
 #, elixir-autogen, elixir-format
@@ -833,40 +833,40 @@ msgstr "快取端點"
 #: lib/tuist_web/live/xcode_cache_live.html.heex:5
 #, elixir-autogen, elixir-format
 msgid "Set up Xcode cache for your project"
-msgstr "為您的專案設定 Xcode 快取"
+msgstr "為您的專案設置 Xcode 快取"
 
 #: lib/tuist_web/live/xcode_cache_live.html.heex:7
 #, elixir-autogen, elixir-format
 msgid "You can set up the Xcode cache for your project by running:"
-msgstr "您可以透過執行以下指令設定您的專案 Xcode 快取："
+msgstr "您可以透過執行下列指令來為專案設置 Xcode 快取："
 
 #: lib/tuist_web/live/xcode_cache_live.html.heex:21
 #, elixir-autogen, elixir-format
 msgid "Tuist documentation"
 msgstr "Tuist 文件"
 
-#: lib/tuist_web/live/bundle_live.ex:1024
+#: lib/tuist_web/live/bundle_live.ex:1032
 #, elixir-autogen, elixir-format
 msgid "Size (KB)"
-msgstr "大小 (KB)"
+msgstr "大小（KB）"
 
-#: lib/tuist_web/live/bundle_live.ex:1032
+#: lib/tuist_web/live/bundle_live.ex:1040
 #, elixir-autogen, elixir-format
 msgid "Space usage (%)"
 msgstr "空間使用率 (%)"
 
-#: lib/tuist_web/live/bundle_live.ex:997
-#: lib/tuist_web/live/bundles_live.ex:386
-#: lib/tuist_web/live/bundles_live.ex:393
-#: lib/tuist_web/live/bundles_live.ex:967
+#: lib/tuist_web/live/bundle_live.ex:1005
+#: lib/tuist_web/live/bundles_live.ex:411
+#: lib/tuist_web/live/bundles_live.ex:418
+#: lib/tuist_web/live/bundles_live.ex:1001
 #, elixir-autogen, elixir-format
 msgid "AAB"
 msgstr "AAB"
 
-#: lib/tuist_web/live/bundle_live.ex:998
-#: lib/tuist_web/live/bundles_live.ex:387
-#: lib/tuist_web/live/bundles_live.ex:394
-#: lib/tuist_web/live/bundles_live.ex:968
+#: lib/tuist_web/live/bundle_live.ex:1006
+#: lib/tuist_web/live/bundles_live.ex:412
+#: lib/tuist_web/live/bundles_live.ex:419
+#: lib/tuist_web/live/bundles_live.ex:1002
 #, elixir-autogen, elixir-format
 msgid "APK"
 msgstr "APK"
@@ -876,8 +876,8 @@ msgstr "APK"
 msgid "Package name"
 msgstr "套件名稱"
 
-#: lib/tuist_web/live/module_cache_live.ex:342
-#: lib/tuist_web/live/xcode_cache_live.ex:297
+#: lib/tuist_web/live/module_cache_live.ex:353
+#: lib/tuist_web/live/xcode_cache_live.ex:315
 #: lib/tuist_web/live/xcode_cache_live.html.heex:258
 #, elixir-autogen, elixir-format
 msgid "Environment"
@@ -886,9 +886,9 @@ msgstr "環境"
 #: lib/tuist_web/live/module_cache_live.html.heex:465
 #, elixir-autogen, elixir-format
 msgid "The 10,000 entry limit has been reached, data is only included up to %{date}. Try filtering to narrow down the dataset."
-msgstr "已達到 10,000 筆數限制，資料僅包含至 %{date}。請嘗試以過濾條件縮小資料集範圍。"
+msgstr "已達 10,000 筆條目上限，資料僅包含至 %{date}。請嘗試使用篩選縮小資料集。"
 
 #: lib/tuist_web/live/xcode_cache_live.html.heex:407
 #, elixir-autogen, elixir-format
 msgid "The 10,000 entry limit has been reached, data is only included up to %{date}. Try narrowing the date range to see more recent data."
-msgstr "已達到 10,000 筆數限制，資料僅包含至 %{date}。請嘗試縮小日期範圍以查看較近期資料。"
+msgstr "已達 10,000 筆條目上限，資料僅包含至 %{date}。請嘗試縮小日期範圍以查看較新的資料。"
