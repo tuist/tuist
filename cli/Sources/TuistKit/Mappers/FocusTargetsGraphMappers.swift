@@ -132,7 +132,13 @@ public struct FocusTargetsGraphMappers: GraphMapping {
                     + (scheme.buildAction?.postActions ?? [])
                     + (scheme.testAction?.preActions ?? [])
                     + (scheme.testAction?.postActions ?? [])
-                return allActions.compactMap(\.target)
+                // Preserve targets explicitly named by pre/post-actions (`.target(...)`),
+                // but not those whose source is `.any` — those just want any of the scheme's
+                // surviving targets' build settings and shouldn't pin a target through focus.
+                return allActions.compactMap { action -> TargetReference? in
+                    if case let .target(ref) = action.target { return ref }
+                    return nil
+                }
             }
         )
         let executionActionTargets = graphTraverser.allTargets().filter { graphTarget in

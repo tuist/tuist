@@ -2,17 +2,21 @@ import XcodeGraph
 
 extension Scheme {
     public func targetDependencies() -> [TargetReference] {
+        func referencedTarget(_ action: ExecutionAction) -> TargetReference? {
+            if case let .target(ref) = action.target { return ref }
+            return nil
+        }
         let targetSources: [[TargetReference]?] = [
             buildAction?.targets,
-            buildAction?.preActions.compactMap(\.target),
-            buildAction?.postActions.compactMap(\.target),
+            buildAction?.preActions.compactMap(referencedTarget),
+            buildAction?.postActions.compactMap(referencedTarget),
             testAction?.targets.map(\.target),
             testAction?.codeCoverageTargets,
-            testAction?.preActions.compactMap(\.target),
-            testAction?.postActions.compactMap(\.target),
+            testAction?.preActions.compactMap(referencedTarget),
+            testAction?.postActions.compactMap(referencedTarget),
             runAction?.executable.map { [$0] },
-            archiveAction?.preActions.compactMap(\.target),
-            archiveAction?.postActions.compactMap(\.target),
+            archiveAction?.preActions.compactMap(referencedTarget),
+            archiveAction?.postActions.compactMap(referencedTarget),
             profileAction?.executable.map { [$0] },
         ]
 
