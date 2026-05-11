@@ -41,6 +41,8 @@ Sensitive authentication data (passwords, tokens) are excluded from exports.
 ### Alerts & Monitoring
 - Alert rules (name, category, metric, deviation thresholds, Slack channel configuration, baseline established timestamp)
 - Alert history (triggered alerts with current/previous values, timestamps)
+- Automation alerts (`automation_alerts` table): per-project flaky-test automations, including name, enabled flag, monitor type (`flakiness_rate` / `flaky_run_count`), evaluation cadence, baseline established timestamp, and the trigger / recovery configuration as JSON. The configuration includes the comparison threshold, comparison operator, `window_type` (`last_days` for calendar windows or `rolling` for count-based windows), the day-string `window` (e.g. `30d`) used in `last_days` mode, and the integer `rolling_window_size` (e.g. `100` runs) used in `rolling` mode. Trigger and recovery action lists are stored alongside the configuration (state changes, label adds/removes, Slack channel references).
+- Automation alert events (`automation_alert_events` table): per-test-case trigger and recovery records produced by automation alerts (alert id, test case id, status, timestamps).
 
 ### Slack Integration
 - Account-level Slack installation records (workspace id/name, bot user id; bot access tokens are excluded as authentication secrets)

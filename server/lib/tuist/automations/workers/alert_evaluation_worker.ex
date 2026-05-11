@@ -136,9 +136,10 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
 
   defp filter_recovered_candidates(alert, candidates, %{"window_type" => "rolling"} = recovery_config) do
     size = parse_rolling_size(recovery_config["rolling_window_size"])
+    counts = batch_runs_since_trigger(alert.project_id, candidates)
 
     Enum.filter(candidates, fn event ->
-      runs_since_trigger(alert.project_id, event.test_case_id, event.triggered_at) >= size
+      Map.get(counts, event.test_case_id, 0) >= size
     end)
   end
 
@@ -151,25 +152,46 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
     end)
   end
 
-  # Each candidate has its own `triggered_at` cutoff, so we issue one count
-  # per candidate rather than fetching every run and filtering client-side.
-  # The active set is normally small (only test cases currently in the
-  # triggered state), so the per-event cost is fine.
+  # Each candidate has its own `triggered_at` cutoff, so we can't push the
+  # per-candidate filter cleanly into a single SQL `GROUP BY` without a
+  # cross-join. Instead, one query pulls every run for the candidate test
+  # cases above the global minimum `triggered_at`, and the per-candidate
+  # cutoff is applied in Elixir. That trades a small over-fetch (rows
+  # between `min(triggered_at)` and each candidate's own `triggered_at`)
+  # for one round-trip instead of one-per-candidate.
   #
   # We don't use `FINAL` here for the same reason as in the rolling-window
   # monitor: `test_case_runs` is a ReplacingMergeTree on a hot table where
   # `is_flaky` updates re-insert rows, and `FINAL` multiplies the read by
   # the duplicate factor. A re-inserted run can shift the recovery count by
   # at most one, which is well within the threshold's natural slop.
-  defp runs_since_trigger(project_id, test_case_id, triggered_at) do
-    ClickHouseRepo.one(
-      from(r in TestCaseRun,
-        where: r.project_id == ^project_id,
-        where: r.test_case_id == ^test_case_id,
-        where: r.ran_at > ^triggered_at,
-        select: count()
-      )
-    ) || 0
+  defp batch_runs_since_trigger(_project_id, []), do: %{}
+
+  defp batch_runs_since_trigger(project_id, candidates) do
+    test_case_ids = Enum.map(candidates, & &1.test_case_id)
+    trigger_by_id = Map.new(candidates, &{&1.test_case_id, &1.triggered_at})
+    min_triggered_at = candidates |> Enum.map(& &1.triggered_at) |> Enum.min(NaiveDateTime)
+
+    from(r in TestCaseRun,
+      where: r.project_id == ^project_id,
+      where: r.test_case_id in ^test_case_ids,
+      where: r.ran_at > ^min_triggered_at,
+      select: {r.test_case_id, r.ran_at}
+    )
+    |> ClickHouseRepo.all()
+    |> Enum.reduce(%{}, fn {test_case_id, ran_at}, acc ->
+      case Map.get(trigger_by_id, test_case_id) do
+        nil ->
+          acc
+
+        triggered_at ->
+          if NaiveDateTime.after?(ran_at, triggered_at) do
+            Map.update(acc, test_case_id, 1, &(&1 + 1))
+          else
+            acc
+          end
+      end
+    end)
   end
 
   defp parse_rolling_size(size) when is_integer(size) and size > 0, do: size
