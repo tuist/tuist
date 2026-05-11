@@ -346,6 +346,57 @@ jobs:
           # so dependent pods (Pending or otherwise) go with the Job.
           echo "$stale_jobs" | xargs -r kubectl -n "$NAMESPACE" delete job \
             --ignore-not-found --cascade=foreground --timeout=2m
+      - name: Pre-apply tart-kubelet RBAC out-of-band
+        # The tart-kubelet ClusterRole gates whether the per-Mac-mini
+        # kubelet can clear its `tart-kubelet.tuist.dev/vm-cleanup`
+        # finalizer when a Pod terminates (see
+        # infra/tart-kubelet/internal/podagent/reconciler.go). A regression
+        # there leaves Pods stuck Terminating on Mac minis: they hold
+        # hostPort 9091 and count against the host's max-pods budget, so
+        # the next xcresult-processor rollout never schedules
+        # ("didn't have free ports" / "Too many pods"), `helm upgrade
+        # --atomic` rolls everything back after `--timeout`, and the fix
+        # reverts with the rest of the release. Pre-applying this single
+        # resource breaks the loop — the new permissions are live before
+        # helm starts waiting on the rollout, so the kubelet can drain
+        # its retry queue and unstick the cluster while helm is still in
+        # its --wait window.
+        #
+        # Helm ownership annotations are stamped on after the apply so
+        # the subsequent `helm upgrade --install` can manage this
+        # ClusterRole normally instead of erroring on
+        # "invalid ownership metadata". A subsequent --atomic rollback
+        # would still revert this resource to the previous revision's
+        # version, but the next workflow run re-applies the current one
+        # from chart source, so the fix is self-healing across retries.
+        run: |
+          set -euo pipefail
+
+          manifest="$RUNNER_TEMP/tart-kubelet-rbac.yaml"
+          helm template "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
+            -n "$NAMESPACE" \
+            -f "$HELM_CHART_PATH/values-managed-common.yaml" \
+            -f "$HELM_CHART_PATH/values-managed-${{ inputs.environment }}.yaml" \
+            --set server.image.tag="$IMAGE_TAG" \
+            --set kuraController.image.tag="$IMAGE_TAG" \
+            --set kuraRuntime.image.tag="$IMAGE_TAG" \
+            --show-only templates/tart-kubelet-rbac.yaml > "$manifest"
+
+          if [ ! -s "$manifest" ] || ! grep -q '^kind: ClusterRole' "$manifest"; then
+            echo "macosFleet disabled or template empty — nothing to pre-apply."
+            exit 0
+          fi
+
+          kubectl apply -f "$manifest"
+
+          name="$(kubectl get -f "$manifest" -o jsonpath='{.metadata.name}')"
+          kubectl annotate "clusterrole/$name" \
+            "meta.helm.sh/release-name=$HELM_RELEASE_NAME" \
+            "meta.helm.sh/release-namespace=$NAMESPACE" \
+            --overwrite
+          kubectl label "clusterrole/$name" \
+            "app.kubernetes.io/managed-by=Helm" \
+            --overwrite
       - name: helm upgrade --install
         # App secrets never pass through --set: the chart runs in
         # `server.managedSecrets: true` mode, which reads DATABASE_URL /
