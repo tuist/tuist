@@ -41,6 +41,8 @@ defmodule Tuist.Runners.Jobs do
   visible to clients.
   """
 
+  import Ecto.Query
+
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
   alias Tuist.Runners.Job
@@ -85,39 +87,35 @@ defmodule Tuist.Runners.Jobs do
   """
   def pick_queued(fleet_name, ineligible_account_ids \\ [])
       when is_binary(fleet_name) and is_list(ineligible_account_ids) do
-    sql = """
-    SELECT
-      workflow_job_id, account_id, fleet_name, repo,
-      workflow_run_id, run_attempt, job_name, head_branch, head_sha,
-      enqueued_at
-    FROM runner_jobs FINAL
-    WHERE fleet_name = {fleet_name:String}
-      AND status = 'queued'
-      #{if ineligible_account_ids == [], do: "", else: "AND account_id NOT IN {ineligible:Array(Int64)}"}
-    ORDER BY enqueued_at ASC, workflow_job_id ASC
-    LIMIT 1
-    """
-
-    params =
-      if ineligible_account_ids == [],
-        do: %{"fleet_name" => fleet_name},
-        else: %{"fleet_name" => fleet_name, "ineligible" => ineligible_account_ids}
-
-    case ClickHouseRepo.query(sql, params) do
-      {:ok, %{rows: []}} ->
-        {:error, :empty}
-
-      {:ok, %{rows: [row], columns: cols}} ->
-        {:ok, row_to_map(cols, row)}
-
-      {:error, reason} ->
-        Logger.warning("runners: pick_queued failed",
-          reason: inspect(reason),
-          fleet: fleet_name
-        )
-
-        {:error, :empty}
+    Job
+    |> from(hints: ["FINAL"])
+    |> where([j], j.fleet_name == ^fleet_name and j.status == "queued")
+    |> exclude_accounts(ineligible_account_ids)
+    |> order_by([j], asc: j.enqueued_at, asc: j.workflow_job_id)
+    |> limit(1)
+    |> select([j], %{
+      workflow_job_id: j.workflow_job_id,
+      account_id: j.account_id,
+      fleet_name: j.fleet_name,
+      repo: j.repo,
+      workflow_run_id: j.workflow_run_id,
+      run_attempt: j.run_attempt,
+      job_name: j.job_name,
+      head_branch: j.head_branch,
+      head_sha: j.head_sha,
+      enqueued_at: j.enqueued_at
+    })
+    |> ClickHouseRepo.one()
+    |> case do
+      nil -> {:error, :empty}
+      candidate -> {:ok, candidate}
     end
+  end
+
+  defp exclude_accounts(query, []), do: query
+
+  defp exclude_accounts(query, account_ids) when is_list(account_ids) do
+    where(query, [j], j.account_id not in ^account_ids)
   end
 
   @doc """
@@ -237,37 +235,27 @@ defmodule Tuist.Runners.Jobs do
   customer dashboards.
   """
   def status_counts(account_id) when is_integer(account_id) do
-    sql = """
-    SELECT status, count() AS cnt
-    FROM runner_jobs FINAL
-    WHERE account_id = {account_id:Int64}
-    GROUP BY status
-    """
-
-    case ClickHouseRepo.query(sql, %{"account_id" => account_id}) do
-      {:ok, %{rows: rows}} ->
-        Map.new(rows, fn [status, cnt] -> {status, cnt} end)
-
-      {:error, _reason} ->
-        %{}
-    end
+    Job
+    |> from(hints: ["FINAL"])
+    |> where([j], j.account_id == ^account_id)
+    |> group_by([j], j.status)
+    |> select([j], {j.status, count(j.workflow_job_id)})
+    |> ClickHouseRepo.all()
+    |> Map.new()
   end
 
   # ----- internal -----
 
+  # Fetch the merged current state of a workflow_job. The RMT
+  # FINAL hint forces ClickHouse to apply the merge at query time
+  # so we see the latest `updated_at` row even before the
+  # background merge has run.
   defp current(workflow_job_id) do
-    sql = """
-    SELECT *
-    FROM runner_jobs FINAL
-    WHERE workflow_job_id = {workflow_job_id:Int64}
-    LIMIT 1
-    """
-
-    case ClickHouseRepo.query(sql, %{"workflow_job_id" => workflow_job_id}) do
-      {:ok, %{rows: []}} -> nil
-      {:ok, %{rows: [row], columns: cols}} -> row_to_job(cols, row)
-      {:error, _} -> nil
-    end
+    Job
+    |> from(hints: ["FINAL"])
+    |> where([j], j.workflow_job_id == ^workflow_job_id)
+    |> limit(1)
+    |> ClickHouseRepo.one()
   end
 
   defp insert_row!(row) do
@@ -279,17 +267,6 @@ defmodule Tuist.Runners.Jobs do
     job
     |> Map.from_struct()
     |> Map.delete(:__meta__)
-  end
-
-  defp row_to_map(columns, row) do
-    columns
-    |> Enum.zip(row)
-    |> Map.new(fn {col, val} -> {String.to_existing_atom(col), val} end)
-  end
-
-  defp row_to_job(columns, row) do
-    fields = row_to_map(columns, row)
-    struct(Job, fields)
   end
 
   defp epoch, do: ~U[1970-01-01 00:00:00.000000Z]
