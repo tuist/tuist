@@ -218,7 +218,3 @@ runnersFleet:
         # smaller than host) or fail to schedule (over-requests).
         cpuMilli: 12000
         memoryMB: 30720
-# Per-customer access is `accounts.runner_max_concurrent` (0 =
-# runners disabled; N>0 = at most N concurrent). Set with
-# `UPDATE accounts SET runner_max_concurrent = N WHERE name = …`
-# once the chart is up.

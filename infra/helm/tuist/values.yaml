@@ -546,13 +546,6 @@ runnersController:
       cpu: 500m
       memory: 256Mi
 
-# Per-customer access is `accounts.runner_max_concurrent` (0 =
-# runners disabled; N>0 = at most N concurrent). Onboarding a
-# customer is `UPDATE accounts SET runner_max_concurrent = N
-# WHERE name = …`, not a chart change. Per-repo / per-runner-
-# group scoping isn't modeled today; the dispatch endpoint mints
-# JITs under the org's default runner group (id=1).
-
 cache:
   enabled: true
   replicaCount: 1

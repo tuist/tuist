@@ -136,14 +136,6 @@ runnersFleet:
       runnerImage: ""
       dispatchLabel: "tuist-canary-macos"
 
-# Per-customer access is `accounts.runner_max_concurrent` (0 =
-# runners disabled; N>0 = at most N concurrent). Set with
-# `UPDATE accounts SET runner_max_concurrent = N WHERE name = …`
-# before flipping `runnersFleet.enabled`. The dispatch endpoint
-# mints JITs under GitHub's default runner group (id=1); a
-# per-account `runner_group_id` is a follow-up once multi-tenant
-# onboarding makes per-repo scoping necessary.
-
 # In-cluster Valkey backs the auth rate limiter (Hammer.Redis). The
 # chart wires TUIST_REDIS_URL to the embedded Service; without it the
 # rate limiter falls back to the per-pod InMemory bucket.
