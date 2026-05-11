@@ -1,10 +1,10 @@
 defmodule Tuist.Runners.PoolsTest do
   use TuistTestSupport.Cases.DataCase
 
+  import TuistTestSupport.Fixtures.AccountsFixtures
+
   alias Tuist.Runners.Pool
   alias Tuist.Runners.Pools
-
-  import TuistTestSupport.Fixtures.AccountsFixtures
 
   describe "create_pool/1 — customer" do
     test "inserts a customer pool with the required fields" do
@@ -17,13 +17,26 @@ defmodule Tuist.Runners.PoolsTest do
                  account_id: account.id,
                  owner: "acme",
                  labels: ["self-hosted", "macOS", "tuist-acme-macos"],
-                 min_warm: 2
+                 max_concurrent: 5
                })
 
       assert pool.name == "acme"
       assert pool.role == "customer"
       assert pool.account_id == account.id
-      assert pool.min_warm == 2
+      assert pool.max_concurrent == 5
+    end
+
+    test "max_concurrent is optional (nil = no cap)" do
+      account = account_fixture()
+
+      assert {:ok, %Pool{max_concurrent: nil}} =
+               Pools.create_pool(%{
+                 name: "acme",
+                 role: "customer",
+                 account_id: account.id,
+                 owner: "acme",
+                 labels: ["tuist-acme-macos"]
+               })
     end
 
     test "rejects a customer pool missing account_id / owner / labels" do
@@ -36,7 +49,7 @@ defmodule Tuist.Runners.PoolsTest do
       assert errors[:labels]
     end
 
-    test "rejects negative min_warm" do
+    test "rejects non-positive max_concurrent" do
       account = account_fixture()
 
       assert {:error, changeset} =
@@ -46,10 +59,10 @@ defmodule Tuist.Runners.PoolsTest do
                  account_id: account.id,
                  owner: "acme",
                  labels: ["tuist-acme-macos"],
-                 min_warm: -1
+                 max_concurrent: 0
                })
 
-      assert errors_on(changeset)[:min_warm]
+      assert errors_on(changeset)[:max_concurrent]
     end
 
     test "rejects duplicate name" do
@@ -72,19 +85,16 @@ defmodule Tuist.Runners.PoolsTest do
   describe "create_pool/1 — shared_warm" do
     test "inserts a shared_warm pool with no account / owner / labels" do
       assert {:ok, %Pool{} = pool} =
-               Pools.create_pool(%{
-                 name: "warm-standby",
-                 role: "shared_warm",
-                 min_warm: 2
-               })
+               Pools.create_pool(%{name: "warm-standby", role: "shared_warm"})
 
       assert pool.role == "shared_warm"
       assert pool.account_id == nil
       assert pool.owner == ""
       assert pool.labels == []
+      assert pool.max_concurrent == nil
     end
 
-    test "rejects a shared_warm pool that carries account_id or owner" do
+    test "rejects a shared_warm pool that carries account_id, owner, or max_concurrent" do
       account = account_fixture()
 
       assert {:error, changeset} =
@@ -92,20 +102,21 @@ defmodule Tuist.Runners.PoolsTest do
                  name: "warm-standby",
                  role: "shared_warm",
                  account_id: account.id,
-                 owner: "tuist"
+                 owner: "tuist",
+                 max_concurrent: 10
                })
 
       errors = errors_on(changeset)
       assert errors[:account_id]
       assert errors[:owner]
+      assert errors[:max_concurrent]
     end
 
     test "enforces at most one shared_warm pool per cluster" do
-      assert {:ok, _} =
-               Pools.create_pool(%{name: "warm-1", role: "shared_warm", min_warm: 1})
+      assert {:ok, _} = Pools.create_pool(%{name: "warm-1", role: "shared_warm"})
 
       assert {:error, changeset} =
-               Pools.create_pool(%{name: "warm-2", role: "shared_warm", min_warm: 1})
+               Pools.create_pool(%{name: "warm-2", role: "shared_warm"})
 
       assert errors_on(changeset)[:role]
     end
@@ -117,7 +128,7 @@ defmodule Tuist.Runners.PoolsTest do
     end
 
     test "returns the shared_warm row when one exists" do
-      {:ok, pool} = Pools.create_pool(%{name: "warm-standby", role: "shared_warm", min_warm: 1})
+      {:ok, pool} = Pools.create_pool(%{name: "warm-standby", role: "shared_warm"})
       assert %Pool{name: "warm-standby"} = Pools.find_shared_warm()
       assert Pools.find_shared_warm().id == pool.id
     end

@@ -283,10 +283,20 @@ defmodule Tuist.Runners.PoolReconciler do
   end
 
   defp spec_for(%Pool{} = row) do
+    # Customer pools rely on the SharedWarm pool for sub-10s
+    # cold-start, so they're not pre-warmed — `minWarm` is 0. Only
+    # the cluster's single SharedWarm row carries a non-zero standby
+    # size, sourced from the operator-set env var (not the DB).
+    min_warm =
+      case row.role do
+        "shared_warm" -> Environment.runners_shared_warm_size()
+        _ -> 0
+      end
+
     base = %{
       "role" => role_to_crd(row.role),
       "labels" => row.labels || [],
-      "minWarm" => row.min_warm || 0,
+      "minWarm" => min_warm,
       "image" => row.image || Environment.runner_image_default(),
       "fleetSelector" => row.fleet_selector || Environment.runners_default_fleet(),
       "podCPUMilli" => row.pod_cpu_milli || Environment.runner_pod_cpu_milli_default(),

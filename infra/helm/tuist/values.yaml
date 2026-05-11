@@ -470,6 +470,12 @@ runnersFleet:
   # otherwise. Matches the artifact built by
   # .github/workflows/runner-image.yml.
   runnerImage: ""
+  # Standby pool size for the cluster's SharedWarm RunnerPool. The
+  # runners-controller maintains this many anonymous Pods booted +
+  # polling the dispatch endpoint, ready to claim a Burst within
+  # ~5 s. Operator-set per env based on observed aggregate burst
+  # rate; this is *not* a per-customer reservation.
+  sharedWarmSize: 1
   machine:
     # Match the existing macosFleet shape — same M4-S baseline. Override
     # per-env when product demands a beefier SKU (M4-M for memory-

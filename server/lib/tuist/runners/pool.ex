@@ -7,12 +7,20 @@ defmodule Tuist.Runners.Pool do
   truth.
 
   Two roles:
-    * `:customer` — per-org reserved capacity. `account_id` + `owner`
-      are required; `min_warm` is the customer-visible knob.
+    * `:customer` — per-org capacity grant. `account_id` + `owner`
+      are required, `labels` carries the dispatch label as its last
+      entry, and `max_concurrent` caps simultaneous runners across
+      ALL of this customer's pools (image-agnostic).
     * `:shared_warm` — cluster-wide standby pool the dispatch endpoint
       claims Bursts against. `account_id` is nil, `owner` is empty,
       `labels` is empty. At most one row per cluster (enforced by a
-      partial unique index in the migration).
+      partial unique index in the migration). The standby pool's
+      size is operator-set via `TUIST_RUNNERS_SHARED_WARM_SIZE`, not
+      a per-row column.
+
+  No per-row `min_warm`: every customer relies on the SharedWarm
+  standby pool for sub-10s cold-start; the dashboard tier knob is
+  `max_concurrent`, not "how many warm runners to reserve."
   """
 
   use Ecto.Schema
@@ -28,7 +36,7 @@ defmodule Tuist.Runners.Pool do
     field :role, :string, default: "customer"
     field :owner, :string, default: ""
     field :labels, {:array, :string}, default: []
-    field :min_warm, :integer, default: 0
+    field :max_concurrent, :integer
     field :runner_group_id, :integer
     field :allowed_repos, {:array, :string}
     field :image, :string
@@ -45,7 +53,8 @@ defmodule Tuist.Runners.Pool do
   Changeset for inserting / updating a Pool row. Validates role
   semantics: customer pools must carry an `account_id` + `owner` +
   at least one label (the last entry being the dispatch label);
-  shared_warm pools must leave those empty.
+  shared_warm pools must leave those empty. `max_concurrent` only
+  applies to customer pools and must be positive when set.
   """
   def changeset(pool \\ %__MODULE__{}, attrs) do
     pool
@@ -55,7 +64,7 @@ defmodule Tuist.Runners.Pool do
       :role,
       :owner,
       :labels,
-      :min_warm,
+      :max_concurrent,
       :runner_group_id,
       :allowed_repos,
       :image,
@@ -65,7 +74,7 @@ defmodule Tuist.Runners.Pool do
     ])
     |> validate_required([:name, :role])
     |> validate_inclusion(:role, @roles)
-    |> validate_number(:min_warm, greater_than_or_equal_to: 0)
+    |> validate_number(:max_concurrent, greater_than: 0)
     |> validate_role_shape()
     |> unique_constraint(:name)
     |> unique_constraint(:role, name: :runner_pools_single_shared_warm)
@@ -100,6 +109,14 @@ defmodule Tuist.Runners.Pool do
     end)
     |> validate_change(:owner, fn :owner, value ->
       if value in [nil, ""], do: [], else: [owner: "must be empty for shared_warm pools"]
+    end)
+    |> validate_change(:max_concurrent, fn :max_concurrent, value ->
+      if is_nil(value),
+        do: [],
+        else: [
+          max_concurrent:
+            "must be empty for shared_warm pools — the standby pool's size is operator-set via TUIST_RUNNERS_SHARED_WARM_SIZE"
+        ]
     end)
   end
 

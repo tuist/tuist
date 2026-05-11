@@ -943,6 +943,19 @@ defmodule Tuist.Environment do
     String.to_integer(raw)
   end
 
+  @doc """
+  Standby pool size for the cluster's SharedWarm RunnerPool. The
+  Tuist server's `PoolReconciler` shapes the SharedWarm CR's
+  `spec.minWarm` from this value, and the controller maintains that
+  many anonymous Pods pre-booted and polling the dispatch endpoint.
+  Defaults to `1` (small staging shape); managed envs override
+  per env based on observed aggregate burst rate.
+  """
+  def runners_shared_warm_size do
+    raw = System.get_env("TUIST_RUNNERS_SHARED_WARM_SIZE", "1")
+    String.to_integer(raw)
+  end
+
   def typesense_search_api_key do
     get([:typesense, :search_api_key], secrets(), default_value: "RgIpKytJBtSQf9CoYKxIfVxh8ma5kzs6")
   end

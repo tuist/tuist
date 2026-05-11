@@ -9,7 +9,7 @@ defmodule Tuist.Runners.PoolConfigTest do
     account_id: nil,
     owner: "tuist",
     labels: ["self-hosted", "macOS", "tuist-staging-macos"],
-    min_warm: 0
+    max_concurrent: nil
   }
 
   @shared_warm_pool %{
@@ -18,7 +18,7 @@ defmodule Tuist.Runners.PoolConfigTest do
     account_id: nil,
     owner: "",
     labels: [],
-    min_warm: 2
+    max_concurrent: nil
   }
 
   describe "find_by_name/1" do

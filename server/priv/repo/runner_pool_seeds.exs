@@ -48,34 +48,26 @@ dispatch_label =
     :prod -> "tuist-macos"
   end
 
-min_warm =
-  case env do
-    :prod -> 3
-    _ -> 1
-  end
-
-shared_warm_warm =
-  case env do
-    :prod -> 3
-    _ -> 1
-  end
-
 customer_attrs = %{
   name: "tuist",
   role: "customer",
   account_id: tuist_account.id,
   owner: "tuist",
-  labels: ["self-hosted", "macOS", "ARM64", dispatch_label],
-  min_warm: min_warm
-  # runner_group_id: set per-env via iex once the GitHub runner
-  # group is created and repo-allowlisted. Leaving nil here so the
-  # seed doesn't ship a wrong-env id.
+  labels: ["self-hosted", "macOS", "ARM64", dispatch_label]
+  # `max_concurrent` left nil — tuist/tuist is the only customer
+  # so far, no risk of starving anyone. Set per-customer at
+  # onboarding time once multi-tenant lands.
+  #
+  # `runner_group_id` + `allowed_repos`: set per-env via iex once
+  # the GitHub runner group is created and repo-allowlisted.
+  # Leaving nil here so the seed doesn't ship wrong-env IDs.
 }
 
+# SharedWarm row anchors the pool name; its standby size lives in
+# the TUIST_RUNNERS_SHARED_WARM_SIZE env var (operator-owned).
 shared_warm_attrs = %{
   name: "warm-standby",
   role: "shared_warm",
-  min_warm: shared_warm_warm,
   labels: [],
   owner: ""
 }
@@ -85,7 +77,7 @@ upsert = fn attrs ->
     nil ->
       case Pools.create_pool(attrs) do
         {:ok, pool} ->
-          IO.puts("runner_pool_seeds: created #{pool.name} (#{pool.role}, min_warm=#{pool.min_warm})")
+          IO.puts("runner_pool_seeds: created #{pool.name} (#{pool.role})")
 
         {:error, changeset} ->
           IO.puts("runner_pool_seeds: failed to create #{attrs.name}: #{inspect(changeset.errors)}")

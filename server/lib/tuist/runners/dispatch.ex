@@ -2,36 +2,27 @@ defmodule Tuist.Runners.Dispatch do
   @moduledoc """
   Webhook handler for `workflow_job: queued` events from GitHub.
 
-  The customer's pre-bound pool (sized by `min_warm`) handles
-  the steady-state load — those Pods are already `online + idle`
-  on GitHub, so GitHub's own dispatcher routes queued jobs to
-  them autonomously and we never see a webhook for those slots.
-  We only see `workflow_job: queued` events for jobs that GitHub
-  *can't* dispatch immediately because every customer-labeled
-  runner is busy. Those are the burst — and we serve them by
-  writing a `RunnerAssignment` CR with `trigger: Burst`. The
-  runners-controller picks it up and materializes a fresh Pod
-  for the customer's pool.
+  No customer-side pre-warm pool today — every queued job arrives
+  here. The dispatch endpoint writes a `RunnerAssignment` CR with
+  `trigger: Burst`; one of two paths serves it:
 
-  Lifecycle of a Burst Pod is identical to a pre-bound one
-  (Pod boots → polls dispatch endpoint with its projected SA
-  token → server mints a JIT → Pod registers with GitHub,
-  runs one job, halts). The only difference is *when* the CR
-  gets created: reactively here vs. proactively in the
-  controller's RunnerPool reconciler.
+    * The cluster's **SharedWarm** standby pool claims the Burst
+      within ≤5 s (one poll interval) and the customer's job picks
+      up the warm Pod. ~5-10 s perceived pickup.
+    * If no warm Pod is available within a 7 s grace, the controller
+      materializes a fresh Pod for the Burst. ~30-90 s perceived
+      pickup.
 
-  Trade-off: an on-demand burst pays ~30-90 s of clone+boot+
-  register before the runner picks up the job. That's the
-  default-tier cold-start every comparable CI provider walks; a
-  generic shared pre-warm pool to absorb bursts without that tax
-  is a Phase 2+ optimization.
+  Before creating the Burst CR, the handler also checks the matched
+  pool's `max_concurrent` cap: the count is taken across **every**
+  RunnerAssignment in the namespace carrying the customer's
+  `tuist.dev/runner-pool-owner` label — image-agnostic, summed over
+  all of that customer's pools. If the cap is reached, the event is
+  dropped (`:throttled`) and GitHub keeps the workflow_job queued
+  until an existing runner finishes.
 
-  Returns `{:ok, :created}` on success, `:ignored` for events
-  that don't target one of our pools, or `{:error, reason}`
-  otherwise. The webhook handler returns 200 either way — GH
-  retries on 5xx but our failure modes (pool-mismatch, controller
-  unreachable) aren't ones GH retrying would help with; the
-  controller's pre-bound refill closes the gap on its own.
+  Returns `{:ok, :created}` on success, `:ignored` / `:throttled` /
+  `{:error, reason}` otherwise. The webhook responds 200 either way.
   """
 
   alias Tuist.Environment
@@ -39,6 +30,8 @@ defmodule Tuist.Runners.Dispatch do
   alias Tuist.Runners.PoolConfig
 
   require Logger
+
+  @owner_label "tuist.dev/runner-pool-owner"
 
   @doc """
   Handle a `workflow_job` webhook payload with `action: queued`.
@@ -54,7 +47,8 @@ defmodule Tuist.Runners.Dispatch do
     requested = Map.get(job, "labels", [])
 
     with {:ok, pool} <- PoolConfig.match_for_dispatch(owner, requested, nil),
-         :ok <- PoolConfig.repo_allowed?(pool, full_name) do
+         :ok <- PoolConfig.repo_allowed?(pool, full_name),
+         :ok <- check_concurrency(pool, full_name) do
       case Client.create_runner_assignment(namespace(), burst_manifest(pool)) do
         {:ok, %{"metadata" => %{"name" => name}}} ->
           Logger.info("runners: dispatched burst assignment",
@@ -81,7 +75,7 @@ defmodule Tuist.Runners.Dispatch do
         :ignored
 
       {:error, :repo_not_allowed} ->
-        # Repo isn't on the pool's allowedRepos list — GitHub
+        # Repo isn't on the pool's allowed_repos list — GitHub
         # would refuse to dispatch this workflow_job to the
         # runner group anyway, so spending a Burst VM on it
         # would just leave the host idle until the runner
@@ -93,10 +87,77 @@ defmodule Tuist.Runners.Dispatch do
         )
 
         :ignored
+
+      {:error, :throttled} ->
+        :throttled
     end
   end
 
   def handle_webhook(_payload, _installation_id), do: :ignored
+
+  # Counts non-terminal RunnerAssignment CRs labeled with the
+  # customer's owner. Cross-pool, image-agnostic — a customer with
+  # one pool on Tahoe and one on Sequoia hits the same cap. nil cap
+  # means "no limit" (the default for self-hosted clusters with no
+  # multi-tenancy concerns).
+  defp check_concurrency(%{max_concurrent: nil}, _repo), do: :ok
+  defp check_concurrency(%{max_concurrent: cap}, _repo) when not is_integer(cap) or cap <= 0, do: :ok
+
+  defp check_concurrency(%{owner: owner, max_concurrent: cap, name: pool_name}, repo)
+       when is_binary(owner) and owner != "" do
+    case Client.list_runner_assignments(namespace()) do
+      {:ok, items} ->
+        in_flight = Enum.count(items, &active_for_owner?(&1, owner))
+
+        if in_flight >= cap do
+          Logger.info("runners: throttled — owner at max_concurrent",
+            owner: owner,
+            pool: pool_name,
+            repo: repo,
+            in_flight: in_flight,
+            cap: cap
+          )
+
+          {:error, :throttled}
+        else
+          :ok
+        end
+
+      {:error, reason} ->
+        # Fail-open on K8s list errors. The alternative — refusing
+        # the Burst — punishes customers for our infrastructure
+        # blips, and any over-provisioning is bounded by the host
+        # fleet's actual capacity (the Pod sits Pending if there's
+        # no room).
+        Logger.warning("runners: max_concurrent check failed; allowing burst",
+          owner: owner,
+          reason: inspect(reason)
+        )
+
+        :ok
+    end
+  end
+
+  defp active_for_owner?(%{"metadata" => meta, "status" => status}, owner) do
+    labels = Map.get(meta, "labels", %{}) || %{}
+    phase = Map.get(status || %{}, "phase")
+    deletion_ts = Map.get(meta, "deletionTimestamp")
+
+    Map.get(labels, @owner_label) == owner and
+      phase not in ["Terminated"] and
+      is_nil(deletion_ts)
+  end
+
+  defp active_for_owner?(%{"metadata" => meta}, owner) do
+    # No status block yet — assignment was just created. Counts as
+    # active so a brand-new Burst CR is included in the next webhook's
+    # check.
+    labels = Map.get(meta, "labels", %{}) || %{}
+    deletion_ts = Map.get(meta, "deletionTimestamp")
+    Map.get(labels, @owner_label) == owner and is_nil(deletion_ts)
+  end
+
+  defp active_for_owner?(_, _), do: false
 
   defp burst_manifest(pool) do
     %{

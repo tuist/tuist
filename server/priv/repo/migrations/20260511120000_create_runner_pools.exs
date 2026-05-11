@@ -4,13 +4,25 @@ defmodule Tuist.Repo.Migrations.CreateRunnerPools do
   # Per-customer runner-pool config. The Tuist server is the system of
   # record; `Tuist.Runners.PoolReconciler` syncs each row into a
   # matching `RunnerPool` CR in the cluster's runners namespace, which
-  # the runners-controller picks up to maintain `min_warm` pre-bound
-  # Pods. Onboarding a new customer becomes an INSERT here.
+  # the runners-controller picks up. Onboarding a new customer becomes
+  # an INSERT here.
   #
-  # `role = 'customer'` rows are per-org reservations; `role =
-  # 'shared_warm'` rows hold the cluster-wide standby pool that the
+  # `role = 'customer'` rows are per-org capacity grants;
+  # `role = 'shared_warm'` rows mark the cluster-wide standby pool the
   # dispatch endpoint claims Bursts against. `account_id` is NULL for
   # SharedWarm (it isn't owned by any one customer).
+  #
+  # No `min_warm` column: customer pools rely on the cluster's
+  # SharedWarm standby for sub-10s cold-start, and the SharedWarm
+  # pool's own standby size is an operator-visible chart value
+  # (TUIST_RUNNERS_SHARED_WARM_SIZE), not a per-row knob.
+  #
+  # `max_concurrent` is the customer's hard ceiling on concurrent
+  # runners across ALL their pools (a customer with multiple pools
+  # for different macOS versions has one cap covering them all). The
+  # dispatch handler counts non-terminal RunnerAssignment CRs by the
+  # `tuist.dev/runner-pool-owner` label before creating a Burst.
+  # nil = no cap.
   def change do
     create table(:runner_pools) do
       add :account_id, references(:accounts, on_delete: :delete_all), null: true
@@ -18,7 +30,7 @@ defmodule Tuist.Repo.Migrations.CreateRunnerPools do
       add :role, :string, null: false, default: "customer"
       add :owner, :string, null: false, default: ""
       add :labels, {:array, :string}, null: false, default: []
-      add :min_warm, :integer, null: false, default: 0
+      add :max_concurrent, :integer
       add :runner_group_id, :bigint
       add :allowed_repos, {:array, :string}
       add :image, :string

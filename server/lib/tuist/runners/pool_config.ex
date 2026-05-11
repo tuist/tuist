@@ -114,7 +114,7 @@ defmodule Tuist.Runners.PoolConfig do
       labels: pool.labels || [],
       runner_group_id: pool.runner_group_id,
       allowed_repos: pool.allowed_repos,
-      min_warm: pool.min_warm || 0
+      max_concurrent: pool.max_concurrent
     }
   end
 end
