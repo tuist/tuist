@@ -1,5 +1,6 @@
 import FileSystem
 import Foundation
+import Mockable
 import Path
 import TuistAlert
 import TuistConfig
@@ -13,7 +14,16 @@ import TuistLogging
 import TuistPlugin
 import TuistSupport
 
-struct InstallService {
+@Mockable
+protocol InstallServicing {
+    func run(
+        path: String?,
+        update: Bool,
+        passthroughArguments: [String]
+    ) async throws
+}
+
+struct InstallService: InstallServicing {
     private let pluginService: PluginServicing
     private let configLoader: ConfigLoading
     private let swiftPackageManagerController: SwiftPackageManagerControlling

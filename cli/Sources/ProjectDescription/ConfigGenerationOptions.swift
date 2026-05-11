@@ -114,6 +114,11 @@ extension Tuist {
         /// own `Package.swift` manifest, matching SPM's behavior.
         public var defaultSwiftVersion: String
 
+        /// When enabled, `tuist generate` automatically runs `tuist install` if it detects that
+        /// dependencies are outdated (i.e. `Package.resolved` has changed since the last install),
+        /// instead of just warning the user to run `tuist install` manually.
+        public var autoInstallOutdatedDependencies: Bool
+
         public static func options(
             disablePackageVersionLocking: Bool = false,
             staticSideEffectsWarningTargets: StaticSideEffectsWarningTargets = .all,
@@ -127,7 +132,8 @@ extension Tuist {
             registryEnabled: Bool = false,
             additionalPackageResolutionArguments: [String] = [],
             warningsAsErrors: WarningsAsErrors = .none,
-            defaultSwiftVersion: String = "5"
+            defaultSwiftVersion: String = "5",
+            autoInstallOutdatedDependencies: Bool = false
         ) -> Self {
             self.init(
                 resolveDependenciesWithSystemScm: false,
@@ -145,7 +151,8 @@ extension Tuist {
                 enableCaching: enableCaching,
                 registryEnabled: registryEnabled,
                 warningsAsErrors: warningsAsErrors,
-                defaultSwiftVersion: defaultSwiftVersion
+                defaultSwiftVersion: defaultSwiftVersion,
+                autoInstallOutdatedDependencies: autoInstallOutdatedDependencies
             )
         }
 
@@ -184,7 +191,8 @@ extension Tuist {
                 enableCaching: enableCaching,
                 registryEnabled: false,
                 warningsAsErrors: .none,
-                defaultSwiftVersion: "5"
+                defaultSwiftVersion: "5",
+                autoInstallOutdatedDependencies: false
             )
         }
 
@@ -218,7 +226,8 @@ extension Tuist {
                 enableCaching: false,
                 registryEnabled: false,
                 warningsAsErrors: .none,
-                defaultSwiftVersion: "5"
+                defaultSwiftVersion: "5",
+                autoInstallOutdatedDependencies: false
             )
         }
     }
