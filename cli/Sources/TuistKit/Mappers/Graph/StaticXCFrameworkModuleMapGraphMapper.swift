@@ -50,7 +50,23 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
                     }
                 }
 
-            guard !staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies.isEmpty else { return [:] }
+            // Static Swift xcframeworks reached through a dynamic xcframework are not relinked
+            // at the consumer level (their symbols are already absorbed into the dynamic
+            // xcframework's binary). They still need module visibility for the compiler to
+            // resolve `import` statements that the dynamic xcframework's swiftinterface references.
+            let staticSwiftXCFrameworksLinkedByDynamicXCFrameworkDependencies = graphTraverser
+                .staticXCFrameworksLinkedByDynamicXCFrameworkDependencies(
+                    path: project.path,
+                    name: target.name
+                )
+                .sorted()
+                .compactMap { dependency -> GraphDependency.XCFramework? in
+                    if case let .xcframework(xcframework) = dependency { return xcframework } else { return nil }
+                }
+
+            guard !staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies.isEmpty
+                || !staticSwiftXCFrameworksLinkedByDynamicXCFrameworkDependencies.isEmpty
+            else { return [:] }
 
             let staticObjcXCFrameworksWithLibrariesLinkedByDynamicXCFrameworkDependencies =
                 staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies
@@ -66,10 +82,13 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
                     .filter { !$0.containsLibrary() }
 
             var settings = SettingsDictionary()
-            if !staticObjcXCFrameworksWithoutLibrariesLinkedByDynamicXCFrameworkDependencies.isEmpty {
+            let xcframeworksRequiringPerSDKSearchPaths =
+                staticObjcXCFrameworksWithoutLibrariesLinkedByDynamicXCFrameworkDependencies
+                    + staticSwiftXCFrameworksLinkedByDynamicXCFrameworkDependencies
+            if !xcframeworksRequiringPerSDKSearchPaths.isEmpty {
                 var pathsBySDKCondition: [String: [String]] = [:]
 
-                for xcframework in staticObjcXCFrameworksWithoutLibrariesLinkedByDynamicXCFrameworkDependencies {
+                for xcframework in xcframeworksRequiringPerSDKSearchPaths {
                     for library in xcframework.infoPlist.libraries {
                         let platform = library.platform.graphPlatform
                         guard target.supportedPlatforms.contains(platform) else { continue }
@@ -82,7 +101,9 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
                 }
 
                 for sdkCondition in pathsBySDKCondition.keys.sorted() {
-                    settings["FRAMEWORK_SEARCH_PATHS[\(sdkCondition)]"] = .array(pathsBySDKCondition[sdkCondition]!)
+                    settings["FRAMEWORK_SEARCH_PATHS[\(sdkCondition)]"] = .array(
+                        ["$(inherited)"] + pathsBySDKCondition[sdkCondition]!
+                    )
                 }
             }
 
