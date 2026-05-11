@@ -1,40 +1,59 @@
 {{- if .Values.runnersFleet.enabled }}
 {{- $namespace := .Values.runnersFleet.namespace | default "tuist-runners" }}
-{{- $fleetName := include "tuist.runnersFleetName" . }}
-{{- $image := required "runnersFleet.runnerImage required when runnersFleet.enabled" .Values.runnersFleet.runnerImage }}
-{{- $podCPU := .Values.runnersFleet.pod.cpuMilli | default 8000 }}
-{{- $podMem := .Values.runnersFleet.pod.memoryMB | default 14336 }}
+{{- $hostFleetName := include "tuist.runnersFleetName" . }}
+{{- $pools := .Values.runnersFleet.pools | default list }}
+{{- if not $pools }}
+  {{- fail "runnersFleet.pools must contain at least one entry when runnersFleet.enabled is true" }}
+{{- end }}
+{{- $labels := include "tuist.labels" . }}
 {{- /*
-The cluster's runner fleet, expressed as a RunnerPool CR. There's
-exactly one fleet for v1; multi-image lands as a values-list shape
-(`runnersFleet.fleets[]`) that renders one CR per entry.
+RunnerPool CRs — one per entry in `runnersFleet.pools`. Each
+pool is a runner image variant (Xcode version, base OS,
+toolchain bundle, etc.). Customers route to a pool by putting
+its `spec.dispatchLabel` in `runs-on`; the Tuist server's
+webhook handler matches `workflow_job.labels` against every
+pool's `dispatchLabel`. The dispatch endpoint reads the pool a
+caller belongs to from the polling SA's `tuist.dev/runner-pool`
+label and uses that pool's `dispatchLabel` in the JIT mint.
 
-`spec.minWarm` equals the fleet's host count so every Mac mini
-always carries either a polling warm Pod or a Pod running a
-customer job. Apple's SLA permits up to two VMs per host; for v1
-we run one VM per host to keep capacity reasoning simple and
-absorb tart/host overhead — a future knob can raise this when
-the operational story for two-VMs-per-host is in place.
+`spec.minWarm` equals the pool's `replicas`. Together with one
+VM per host (v1 design choice — Apple's SLA permits up to two),
+sum of `replicas` across pools is the cluster's max concurrent
+customer jobs. The chart doesn't validate that sum stays within
+`runnersFleet.hostCount` — an overcommit shows up as
+unscheduled Pods rather than a deploy failure.
 
-Per-customer concurrency is `accounts.runner_max_concurrent` in
-Postgres; it doesn't appear in K8s. The dispatch endpoint reads
-it at claim time, claims an eligible row from
-`runner_dispatch_queue`, stamps the polling Pod with owner
-labels, and mints a JIT registration scoped to that customer.
+All pools share the same node fleet (`FleetSelector` = the
+helm-rendered CAPI MachineDeployment name) so Pods bin-pack on
+whichever Mac mini has free capacity. Splitting a pool onto its
+own dedicated host fleet is a future shape (add a second
+MachineDeployment, set the pool's `fleetSelector` to its name).
 */}}
+{{- range $pool := $pools }}
+{{- $name := required "runnersFleet.pools[].name required" $pool.name }}
+{{- $image := required (printf "runnersFleet.pools[%s].runnerImage required" $name) $pool.runnerImage }}
+{{- $dispatchLabel := required (printf "runnersFleet.pools[%s].dispatchLabel required" $name) $pool.dispatchLabel }}
+{{- $replicas := $pool.replicas | default 0 }}
+{{- $podCPU := dig "pod" "cpuMilli" 8000 $pool }}
+{{- $podMem := dig "pod" "memoryMB" 14336 $pool }}
+{{- $poolName := printf "%s-%s" (include "tuist.componentName" (dict "root" $ "component" "runner-pool")) $name }}
+---
 apiVersion: tuist.dev/v1alpha1
 kind: RunnerPool
 metadata:
-  name: {{ $fleetName | quote }}
+  name: {{ $poolName | quote }}
   namespace: {{ $namespace | quote }}
   labels:
-    {{- include "tuist.labels" . | nindent 4 }}
+    {{- $labels | nindent 4 }}
     app.kubernetes.io/component: runners-controller
+    tuist.dev/runner-pool: {{ $poolName | quote }}
 spec:
   labels: []
-  minWarm: {{ .Values.runnersFleet.replicas | default 0 }}
+  minWarm: {{ $replicas }}
   image: {{ $image | quote }}
-  fleetSelector: {{ $fleetName | quote }}
+  fleetSelector: {{ $hostFleetName | quote }}
+  dispatchLabel: {{ $dispatchLabel | quote }}
   podCPUMilli: {{ $podCPU }}
   podMemoryMB: {{ $podMem }}
+{{- end }}
 {{- end }}

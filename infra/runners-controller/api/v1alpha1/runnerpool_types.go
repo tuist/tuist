@@ -4,18 +4,24 @@ import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 // RunnerPoolSpec is the operator-facing declarative shape for a
 // fleet of macOS runners. The chart renders one RunnerPool CR per
-// fleet (today one); the controller maintains `MinWarm` Pods +
-// per-Pod ServiceAccounts on hosts matching `FleetSelector`.
+// entry in `runnersFleet.fleets`; the controller maintains
+// `MinWarm` Pods + per-Pod ServiceAccounts on hosts matching
+// `FleetSelector`.
+//
+// Multiple RunnerPools coexist in the same namespace so different
+// runner images (e.g. Xcode versions, base macOS releases) can be
+// surfaced as distinct fleets. Customers route to a fleet by
+// putting its `DispatchLabel` in their workflow's `runs-on`; the
+// Tuist server's webhook handler matches the workflow_job's
+// labels against every pool's `DispatchLabel` and enqueues
+// against the matching fleet.
 //
 // No customer fields here — customers are not modeled on the K8s
-// side. The Tuist server's dispatch endpoint mints a per-job JIT
-// runner registration for whichever customer's queued workflow_job
-// the polling Pod claims, looking up customer config from the
-// `accounts` table (`runner_max_concurrent`).
+// side. Per-customer config lives in `accounts.runner_max_concurrent`.
 type RunnerPoolSpec struct {
 	// Labels are stamped on the Pods + SAs the controller creates;
-	// not the GitHub Actions runner labels (those come from the
-	// dispatch label at JIT-mint time).
+	// not the GitHub Actions runner labels (those come from
+	// `DispatchLabel` at JIT-mint time).
 	// +optional
 	Labels []string `json:"labels,omitempty"`
 
@@ -31,8 +37,21 @@ type RunnerPoolSpec struct {
 	Image string `json:"image"`
 
 	// FleetSelector is the value of `tuist.dev/fleet=<name>` Pods
-	// in this pool pin to via nodeSelector.
+	// in this pool pin to via nodeSelector. Multiple RunnerPools
+	// can share a node fleet (bin-pack different images on the
+	// same Mac mini hosts) or split (dedicated capacity per image).
 	FleetSelector string `json:"fleetSelector"`
+
+	// DispatchLabel is the GitHub Actions runner label customers
+	// put in `runs-on` to target this fleet. The webhook handler
+	// matches `workflow_job.labels` against every pool's
+	// DispatchLabel; the dispatch endpoint includes it in the JIT
+	// mint so the resulting runner registers with the label and
+	// GitHub binds the workflow_job to it.
+	//
+	// One-per-fleet is enforced by the server-side webhook (two
+	// pools with the same label would non-deterministically route).
+	DispatchLabel string `json:"dispatchLabel"`
 
 	// PodCPUMilli + PodMemoryMB shape the runner Pod's
 	// resources.requests so kube-scheduler bin-packs one Pod per
@@ -62,6 +81,7 @@ type RunnerPoolStatus struct {
 // +kubebuilder:resource:path=runnerpools,scope=Namespaced,shortName=rpool
 // +kubebuilder:printcolumn:name="MinWarm",type=integer,JSONPath=".spec.minWarm"
 // +kubebuilder:printcolumn:name="Replicas",type=integer,JSONPath=".status.observedReplicas"
+// +kubebuilder:printcolumn:name="DispatchLabel",type=string,JSONPath=".spec.dispatchLabel"
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 
 // RunnerPool declares one Mac mini fleet's worth of runners.

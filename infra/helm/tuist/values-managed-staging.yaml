@@ -175,7 +175,7 @@ macosFleet:
 # release-bump workflow.
 runnersFleet:
   enabled: true
-  replicas: 2
+  hostCount: 2
   machine:
     # M2-L: M2 Pro chip / 12 CPU / 32 GB RAM. Picked because
     # M4-S/M2-M were no_stock in fr-par-1 on first runners-fleet
@@ -189,15 +189,6 @@ runnersFleet:
     # maximumAllowedMemorySize` at `tart run`.
     hostCPU: 12
     hostMemoryMB: 30720
-  pod:
-    # Pod request = host capacity. kube-scheduler bin-packs one
-    # Pod per host AND tart-kubelet's `tart set` gives the VM
-    # the host's full CPU/RAM. Mismatch with `machine.host*`
-    # would either waste memory (Pod under-requests, VM is
-    # smaller than host) or fail to schedule (over-requests).
-    cpuMilli: 12000
-    memoryMB: 30720
-  runnerImage: "ghcr.io/tuist/tuist-runner@sha256:ac69458c53c86ad81fe6e90e89245da5b45b3969f87ad8d760870cb2c49d8e7b"
   # Cluster-internal CIDR ranges the runner namespace's
   # NetworkPolicy blocks egress to. **Pod-network only** — the
   # Tart VM's traffic is not subject to this policy (vmnet bypasses
@@ -212,6 +203,19 @@ runnersFleet:
       - "10.0.0.0/8"
       - "172.16.0.0/12"
       - "192.168.0.0/16"
+  pools:
+    - name: default
+      replicas: 2
+      runnerImage: "ghcr.io/tuist/tuist-runner@sha256:ac69458c53c86ad81fe6e90e89245da5b45b3969f87ad8d760870cb2c49d8e7b"
+      dispatchLabel: "tuist-staging-macos"
+      pod:
+        # Pod request = host capacity. kube-scheduler bin-packs one
+        # Pod per host AND tart-kubelet's `tart set` gives the VM
+        # the host's full CPU/RAM. Mismatch with `machine.host*`
+        # would either waste memory (Pod under-requests, VM is
+        # smaller than host) or fail to schedule (over-requests).
+        cpuMilli: 12000
+        memoryMB: 30720
 # Per-customer access is `accounts.runner_max_concurrent` (0 =
 # runners disabled; N>0 = at most N concurrent). Set with
 # `UPDATE accounts SET runner_max_concurrent = N WHERE name = …`

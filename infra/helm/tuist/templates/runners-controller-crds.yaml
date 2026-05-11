@@ -30,15 +30,15 @@ spec:
       subresources:
         status: {}
       additionalPrinterColumns:
-        - name: Owner
-          type: string
-          jsonPath: .spec.owner
         - name: MinWarm
           type: integer
           jsonPath: .spec.minWarm
         - name: Replicas
           type: integer
           jsonPath: .status.observedReplicas
+        - name: DispatchLabel
+          type: string
+          jsonPath: .spec.dispatchLabel
         - name: Age
           type: date
           jsonPath: .metadata.creationTimestamp
@@ -48,7 +48,7 @@ spec:
           properties:
             spec:
               type: object
-              required: [image, fleetSelector]
+              required: [image, fleetSelector, dispatchLabel]
               properties:
                 labels:
                   type: array
@@ -66,6 +66,9 @@ spec:
                 fleetSelector:
                   type: string
                   description: Value of `tuist.dev/fleet=<name>` Pods in this pool pin to via nodeSelector.
+                dispatchLabel:
+                  type: string
+                  description: GitHub Actions runner label customers put in `runs-on` to target this fleet. Webhook handler matches against `workflow_job.labels`; dispatch endpoint includes it in the JIT mint.
                 podCPUMilli:
                   type: integer
                   default: 8000

@@ -48,7 +48,7 @@ metadata:
     cluster.x-k8s.io/cluster-name: {{ $clusterName }}
 spec:
   clusterName: {{ $clusterName }}
-  replicas: {{ .Values.runnersFleet.replicas | default 0 }}
+  replicas: {{ .Values.runnersFleet.hostCount | default 0 }}
   strategy:
     type: OnDelete
   selector:

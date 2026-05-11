@@ -9,15 +9,21 @@ defmodule Tuist.Runners.Dispatch do
        GitHub org login by convention).
     2. Reject if `account.runner_max_concurrent` is 0 (runners
        disabled for this customer).
-    3. Reject if `workflow_job.labels` doesn't include the env's
-       dispatch label (e.g., `tuist-staging-macos`) — sanity check
-       that the workflow actually asked for our runners.
-    4. Discover the fleet (the single helm-rendered RunnerPool CR).
-    5. Enqueue a row into `runner_dispatch_queue`.
+    3. LIST RunnerPool CRs in the runners namespace and find the
+       one whose `spec.dispatchLabel` is in the workflow_job's
+       `labels` array. Reject when nothing matches (the
+       workflow_job is targeting another runner provider).
+    4. Enqueue a row scoped to that pool's name into
+       `runner_dispatch_queue`.
 
   `max_concurrent` is enforced at *claim* time, not enqueue, so
   a capped customer's overflow waits in the queue instead of
   being dropped on the GitHub side.
+
+  The dispatch label is per-pool (carried on `RunnerPool.spec`),
+  not per-env. Multi-image lands as additional pool entries in
+  the helm chart — each pool gets its own dispatch label and
+  customers route to a pool by putting that label in `runs-on`.
 
   Returns `{:ok, :queued}` / `:ignored` / `{:error, reason}`. The
   webhook handler always responds 200.
@@ -31,25 +37,6 @@ defmodule Tuist.Runners.Dispatch do
   require Logger
 
   @doc """
-  The cluster's dispatch label, derived from the current Tuist
-  deploy env. Customers' workflows include this in `runs-on` to
-  target the cluster's runners.
-
-  Per-env so a multi-env GitHub App (staging vs canary vs prod)
-  doesn't cross-bind workflow_jobs — staging customers target
-  `tuist-staging-macos`, production customers `tuist-macos`, and
-  GitHub won't pick the wrong cluster's runners.
-  """
-  def dispatch_label do
-    case Environment.env() do
-      :stag -> "tuist-staging-macos"
-      :can -> "tuist-canary-macos"
-      :prod -> "tuist-macos"
-      _ -> "tuist-staging-macos"
-    end
-  end
-
-  @doc """
   Handle a `workflow_job` webhook payload with `action: queued`.
   No-op for any other action.
   """
@@ -59,11 +46,9 @@ defmodule Tuist.Runners.Dispatch do
     full_name = Map.get(repo, "full_name", "")
     {owner, _repo_name} = parse_full_name(full_name)
     requested = Map.get(job, "labels", [])
-    label = dispatch_label()
 
     with {:ok, account} <- fetch_enabled_account(owner),
-         :ok <- check_dispatch_label(requested, label),
-         {:ok, fleet_name} <- fleet_pool_name(),
+         {:ok, %{name: fleet_name}} <- match_pool(requested),
          {:ok, _entry} <- DispatchQueue.enqueue(account, fleet_name, full_name) do
       Logger.info("runners: enqueued",
         account: account.name,
@@ -84,11 +69,15 @@ defmodule Tuist.Runners.Dispatch do
 
         :ignored
 
-      {:error, :wrong_label} ->
+      {:error, :no_matching_pool} ->
+        # The workflow_job's labels don't match any pool's
+        # `spec.dispatchLabel`. Could be a different runner
+        # provider in the same org, or a typo in `runs-on` —
+        # either way, not ours to handle.
         :ignored
 
-      {:error, :no_fleet} ->
-        Logger.error("runners: no fleet RunnerPool in cluster; ignoring", repo: full_name)
+      {:error, :no_pools} ->
+        Logger.error("runners: no RunnerPool CRs in cluster; ignoring", repo: full_name)
         :ignored
 
       {:error, reason} = err ->
@@ -98,6 +87,61 @@ defmodule Tuist.Runners.Dispatch do
   end
 
   def handle_webhook(_payload, _installation_id), do: :ignored
+
+  @doc """
+  Looks up the `RunnerPool` whose `spec.dispatchLabel` appears in
+  `requested_labels` (a workflow_job's `labels` array). Returns
+  `{:ok, %{name: pool_name, dispatch_label: label}}` on a single
+  match, `{:error, :no_matching_pool}` when nothing matches, or
+  `{:error, :no_pools}` when the LIST itself returns empty (the
+  chart is misconfigured — `runnersFleet.enabled` true with no
+  pools rendered).
+
+  Exposed so `Tuist.Runners.dispatch_for_sa/2` can resolve the
+  Pod's dispatch label at JIT-mint time (the SA's pool label
+  gives the pool name; this function maps name → label).
+  """
+  def match_pool(requested_labels) when is_list(requested_labels) do
+    needle_set = MapSet.new(requested_labels, &String.downcase/1)
+
+    case Client.list_runner_pools(namespace()) do
+      {:ok, []} ->
+        {:error, :no_pools}
+
+      {:ok, items} ->
+        items
+        |> Enum.map(&pool_summary/1)
+        |> Enum.reject(&is_nil/1)
+        |> Enum.find(fn %{dispatch_label: label} ->
+          MapSet.member?(needle_set, String.downcase(label))
+        end)
+        |> case do
+          nil -> {:error, :no_matching_pool}
+          pool -> {:ok, pool}
+        end
+
+      {:error, _reason} ->
+        {:error, :no_pools}
+    end
+  end
+
+  @doc """
+  GETs the RunnerPool by name and returns its dispatch label.
+  Used by the JIT mint path so the runner registers with the
+  label customers used in `runs-on`.
+  """
+  def dispatch_label_for_pool(pool_name) when is_binary(pool_name) do
+    case Client.get_runner_pool(namespace(), pool_name) do
+      {:ok, cr} ->
+        case pool_summary(cr) do
+          %{dispatch_label: label} -> {:ok, label}
+          nil -> {:error, :no_dispatch_label}
+        end
+
+      {:error, _} = err ->
+        err
+    end
+  end
 
   defp fetch_enabled_account(owner) when is_binary(owner) and owner != "" do
     case Accounts.get_account_by_handle(owner) do
@@ -117,25 +161,12 @@ defmodule Tuist.Runners.Dispatch do
 
   defp fetch_enabled_account(_), do: {:error, :no_account}
 
-  defp check_dispatch_label(requested, label) when is_list(requested) do
-    needle = String.downcase(label)
-    requested_set = MapSet.new(requested, &String.downcase/1)
-
-    if MapSet.member?(requested_set, needle), do: :ok, else: {:error, :wrong_label}
+  defp pool_summary(%{"metadata" => %{"name" => name}, "spec" => %{"dispatchLabel" => label}})
+       when is_binary(name) and is_binary(label) and label != "" do
+    %{name: name, dispatch_label: label}
   end
 
-  # Looks up the helm-rendered RunnerPool CR's name. The cluster
-  # has exactly one fleet today; multi-image will add a routing
-  # decision here based on the account's image entitlement (when
-  # that lands as a schema extension).
-  defp fleet_pool_name do
-    case Client.list_runner_pools(namespace()) do
-      {:ok, [%{"metadata" => %{"name" => name}} | _]} -> {:ok, name}
-      {:ok, []} -> {:error, :no_fleet}
-      {:ok, _} -> {:error, :no_fleet}
-      {:error, _} -> {:error, :no_fleet}
-    end
-  end
+  defp pool_summary(_), do: nil
 
   defp namespace, do: Environment.runners_namespace()
 

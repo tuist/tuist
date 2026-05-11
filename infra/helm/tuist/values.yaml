@@ -443,13 +443,29 @@ macosFleet:
 # concurrency lives on its own hardware and isn't preempted by
 # internal queue consumers (xcresult-processor, etc.).
 #
-# Sizing convention: `replicas` = max concurrent customer jobs
-# across all customers in this env. Each Mac mini hosts exactly one
-# active Tart VM (predictable build times trump 2-VM-per-host
-# utilization at this scale; Apple's SLA caps at 2/host but we don't
-# use both). Per-customer concurrency is enforced server-side in
-# Tuist.Runners by issuing only N pre-warmed Pods labelled to the
-# customer's pool — see server/lib/tuist/runners.ex.
+# Two-level shape:
+#
+#   * `hostCount` is the CAPI MachineDeployment replica count —
+#     i.e. how many physical Mac mini hosts the operator orders.
+#     Apple's SLA permits up to two VMs per host; v1 runs one per
+#     host, so `hostCount` equals the max concurrent VMs.
+#
+#   * `pools[]` is the list of RunnerPool CRs. Each entry is one
+#     runner image variant (e.g. Xcode 16 baseline, Xcode-15
+#     compatibility, future per-OS variants). Customers route to
+#     a pool by putting its `dispatchLabel` in `runs-on`. The
+#     webhook handler matches `workflow_job.labels` against every
+#     pool's `dispatchLabel` and enqueues against the matching
+#     fleet; the dispatch endpoint includes the label in the JIT
+#     mint so the runner registers with it.
+#
+# Sum of `pools[*].replicas` must not exceed `hostCount` while
+# we're at one VM per host. The chart doesn't enforce that today
+# (intentional — we'd rather let a thin overcommit show up as
+# unscheduled Pods than fail a deploy on arithmetic).
+#
+# Per-customer concurrency is enforced server-side via
+# `accounts.runner_max_concurrent` (see server/lib/tuist/runners.ex).
 #
 # The Tuist server's ServiceAccount holds Pod create/list/get on
 # the runners namespace (templates/runners-namespace.yaml); a
@@ -457,19 +473,15 @@ macosFleet:
 # compromised runner's reachability into the cluster.
 runnersFleet:
   enabled: false
-  name: ""              # default: <release>-runners-fleet
+  name: ""              # default: <release>-runners-fleet — CAPI MachineDeployment name.
   # Kubernetes namespace customer runner Pods live in. Helm-owned;
   # `helm.sh/resource-policy: keep` so an uninstall doesn't yank in-
   # flight Pods. Per-namespace RBAC + NetworkPolicy live alongside.
   namespace: tuist-runners
-  replicas: 0
-  # OCI image the reconciler stamps into runner Pod manifests.
-  # Pin by digest in production (`@sha256:…`) so a registry retag
-  # of `:latest` can't smuggle in a different image. Required when
-  # runnersFleet.enabled is true; the chart fails the render
-  # otherwise. Matches the artifact built by
-  # .github/workflows/runner-image.yml.
-  runnerImage: ""
+  # Number of Mac mini hosts the CAPI MachineDeployment orders.
+  # Sum of `pools[*].replicas` must fit within `hostCount` (one
+  # VM per host today).
+  hostCount: 0
   machine:
     # Match the existing macosFleet shape — same M4-S baseline. Override
     # per-env when product demands a beefier SKU (M4-M for memory-
@@ -492,6 +504,19 @@ runnersFleet:
     # ranges (Pod CIDR, Service CIDR, Node CIDR, in-cluster
     # databases). Override per-env with the real cluster ranges.
     exceptCIDRs: []
+  # RunnerPool CRs rendered into `runnersFleet.namespace`. One
+  # entry per image variant. Required when `runnersFleet.enabled`
+  # is true; the chart fails the render with an empty list.
+  pools: []
+    # Example entry. Defaults are applied per field; only `name`,
+    # `runnerImage`, and `dispatchLabel` are required.
+    # - name: default          # Suffix for the RunnerPool CR name.
+    #   replicas: 0            # spec.minWarm — number of Pods the controller maintains.
+    #   runnerImage: ""        # Required. Digest-pinned in production.
+    #   dispatchLabel: ""      # Required. The label customers put in `runs-on`.
+    #   pod:
+    #     cpuMilli: 8000
+    #     memoryMB: 14336
 
 # runners-controller: standalone Go reconciler that owns Pod + SA
 # materialization for the RunnerPool CRD. The controller watches

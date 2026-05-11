@@ -123,14 +123,18 @@ macosFleet:
 # we can de-risk the production roll on canary first.
 runnersFleet:
   enabled: false
-  replicas: 2
-  runnerImage: ""
+  hostCount: 2
   networkPolicy:
     enabled: true
     exceptCIDRs:
       - "10.0.0.0/8"
       - "172.16.0.0/12"
       - "192.168.0.0/16"
+  pools:
+    - name: default
+      replicas: 2
+      runnerImage: ""
+      dispatchLabel: "tuist-canary-macos"
 
 # Per-customer access is `accounts.runner_max_concurrent` (0 =
 # runners disabled; N>0 = at most N concurrent). Set with

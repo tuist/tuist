@@ -4,21 +4,28 @@ defmodule Tuist.Runners do
 
   Architecture:
 
-    * **One CRD: `RunnerPool`.** Helm-rendered, one CR per fleet
-      (today one). Its `spec.minWarm` equals the fleet's host count,
-      so every host always carries either a warm Pod (idle, polling)
-      or a Pod running a customer job.
-    * **The Go controller's `RunnerPoolReconciler`** maintains the
-      pool's Pods + per-Pod ServiceAccounts directly via owner
-      refs — no `RunnerAssignment` CRD. Pod terminates → reconciler
-      reaps the Pod + SA, then boots a replacement.
+    * **One CRD: `RunnerPool`.** Helm-rendered, one CR per image
+      variant (v1 ships a single `default` pool; adding a second
+      image is a new entry in `runnersFleet.pools`). Each pool's
+      `spec.dispatchLabel` is the runner label customers put in
+      `runs-on` to route to it; the webhook handler matches
+      `workflow_job.labels` against every pool's `dispatchLabel`.
+      `spec.minWarm` per pool sums to ≤ host count under the v1
+      one-VM-per-host design choice.
+    * **The Go controller's `RunnerPoolReconciler`** maintains
+      each pool's Pods + per-Pod ServiceAccounts directly via
+      owner refs — no `RunnerAssignment` CRD. Pod terminates →
+      reconciler reaps the Pod + SA, then boots a replacement.
     * **`accounts.runner_max_concurrent`** is the only per-customer
-      knob. 0 = runners disabled; N>0 = at most N concurrent.
-    * **Postgres `runner_dispatch_queue`** is the burst queue. The
-      webhook enqueues; warm Pods polling the dispatch endpoint
-      claim via `FOR UPDATE SKIP LOCKED`, then `UPDATE … SET
-      claimed_at = now()` so the row survives a JIT-mint failure
-      and `Tuist.Runners.StaleClaimsWorker` can recover from a
+      knob. 0 = runners disabled; N>0 = at most N concurrent
+      across all pools the customer reaches.
+    * **Postgres `runner_dispatch_queue`** is the burst queue.
+      Rows are scoped to a fleet (= pool name), so a per-pool
+      backlog never blocks another pool. The webhook enqueues;
+      warm Pods polling the dispatch endpoint claim via
+      `FOR UPDATE SKIP LOCKED`, then `UPDATE … SET claimed_at =
+      now()` so the row survives a JIT-mint failure and
+      `Tuist.Runners.StaleClaimsWorker` can recover from a
       mid-claim crash.
 
   `max_concurrent` enforcement is two-stage:
@@ -81,7 +88,7 @@ defmodule Tuist.Runners do
 
       case DispatchQueue.claim_oldest_eligible(fleet_name, ineligible, cap_lookup) do
         {:ok, %{id: id, account_id: account_id}} ->
-          serve_claim(namespace, sa_name, id, account_id)
+          serve_claim(namespace, sa_name, fleet_name, id, account_id)
 
         {:error, :empty} ->
           {:error, :no_work_yet}
@@ -99,22 +106,32 @@ defmodule Tuist.Runners do
     end
   end
 
-  defp serve_claim(namespace, sa_name, claim_id, account_id) do
+  defp serve_claim(namespace, sa_name, fleet_name, claim_id, account_id) do
     case Accounts.get_account_by_id(account_id) do
       {:ok, account} ->
         pod_name = pod_name_from_sa(sa_name)
 
-        with :ok <- stamp_owner_labels(namespace, pod_name, account),
-             {:ok, jit, runner_name} <- mint_jit(account, sa_name),
+        with {:ok, dispatch_label} <- Dispatch.dispatch_label_for_pool(fleet_name),
+             :ok <- stamp_owner_labels(namespace, pod_name, account),
+             {:ok, jit, runner_name} <- mint_jit(account, sa_name, dispatch_label),
              :ok <- DispatchQueue.finalize_claim(claim_id) do
           Logger.info("runners: dispatched",
             account: account.name,
             sa: sa_name,
-            runner: runner_name
+            runner: runner_name,
+            fleet: fleet_name
           )
 
           {:ok, %{jit: jit, account: account, runner_name: runner_name}}
         else
+          {:error, :not_found} = err ->
+            release_claim_safely(claim_id, :no_pool)
+            err
+
+          {:error, :no_dispatch_label} = err ->
+            release_claim_safely(claim_id, :no_dispatch_label)
+            err
+
           {:error, reason} = err ->
             release_claim_safely(claim_id, reason)
             err
@@ -234,14 +251,14 @@ defmodule Tuist.Runners do
     end
   end
 
-  defp mint_jit(account, sa_name) do
+  defp mint_jit(account, sa_name, dispatch_label) do
     runner_name = "tuist-#{account.name}-#{sa_name}"
 
     with {:ok, installation_id} <- GitHubApp.get_installation_id_for_org(account.name),
          {:ok, %{encoded_jit_config: jit, runner_name: runner_name}} <-
            GitHubClient.generate_jit_config(installation_id, account.name, %{
              name: runner_name,
-             labels: ["self-hosted", "macOS", "ARM64", Dispatch.dispatch_label()]
+             labels: ["self-hosted", "macOS", "ARM64", dispatch_label]
            }) do
       {:ok, jit, runner_name}
     else

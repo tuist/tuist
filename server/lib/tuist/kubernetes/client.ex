@@ -92,8 +92,8 @@ defmodule Tuist.Kubernetes.Client do
 
   @doc """
   GETs a single RunnerPool CR by name. Returns the decoded JSON map
-  on success; the caller pulls `spec.owner`, `spec.labels`,
-  `spec.runnerGroupID` to drive the JIT mint.
+  on success; the caller pulls `spec.dispatchLabel` (and other
+  spec fields) to drive the JIT mint.
   """
   def get_runner_pool(namespace, name) when is_binary(namespace) and is_binary(name) do
     with {:ok, host, ca, token} <- in_cluster_config() do
@@ -113,8 +113,9 @@ defmodule Tuist.Kubernetes.Client do
   end
 
   @doc """
-  LISTs RunnerPool CRs in `namespace`. The dispatch handler uses
-  this to discover the fleet's pool name when writing a Burst CR.
+  LISTs RunnerPool CRs in `namespace`. The dispatch webhook
+  handler iterates the result to find a pool whose
+  `spec.dispatchLabel` matches the incoming workflow_job's labels.
   """
   def list_runner_pools(namespace) when is_binary(namespace) do
     with {:ok, host, ca, token} <- in_cluster_config() do
