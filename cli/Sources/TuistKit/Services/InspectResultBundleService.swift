@@ -256,7 +256,7 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
         )
         guard let run = testCaseRunsByIdentity[identityKey] else { return }
 
-        await testCase.attachments.forEach(context: .concurrent) { attachment in
+        await testCase.attachments.forEach(context: .serial) { attachment in
             do {
                 let argumentId: String? = attachment.argumentName.flatMap { argName in
                     run.arguments?.first(where: { $0.name == argName })?.id
