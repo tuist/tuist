@@ -21,19 +21,6 @@ import TuistSupport
     import TuistCacheEE
 #endif
 
-enum GenerateServiceError: FatalError, Equatable {
-    case outdatedDependencies
-
-    var type: ErrorType { .abort }
-
-    var description: String {
-        switch self {
-        case .outdatedDependencies:
-            return "Outdated dependencies detected. Run `tuist install` to update them."
-        }
-    }
-}
-
 public struct GenerateService {
     private let opener: Opening
     private let clock: Clock
@@ -162,6 +149,19 @@ public struct GenerateService {
 
     private func path(_ path: String?) async throws -> AbsolutePath {
         try await Environment.current.pathRelativeToWorkingDirectory(path)
+    }
+}
+
+enum GenerateServiceError: FatalError, Equatable {
+    case outdatedDependencies
+
+    var type: ErrorType { .abort }
+
+    var description: String {
+        switch self {
+        case .outdatedDependencies:
+            return "Outdated dependencies detected. Run `tuist install` to update them."
+        }
     }
 }
 
