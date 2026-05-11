@@ -273,16 +273,12 @@ struct SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             )
         }
 
-        let buildActionFallback = buildAction.targets.first(where: {
-            graphTraverser.target(path: $0.projectPath, name: $0.name) != nil
-        })
         preActions = try buildAction.preActions.map {
             try schemeExecutionAction(
                 action: $0,
                 graphTraverser: graphTraverser,
                 generatedProjects: generatedProjects,
-                rootPath: rootPath,
-                fallbackTarget: buildActionFallback
+                rootPath: rootPath
             )
         }
 
@@ -291,8 +287,7 @@ struct SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
                 action: $0,
                 graphTraverser: graphTraverser,
                 generatedProjects: generatedProjects,
-                rootPath: rootPath,
-                fallbackTarget: buildActionFallback
+                rootPath: rootPath
             )
         }
 
@@ -398,16 +393,12 @@ struct SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             testables.append(testable)
         }
 
-        let testActionFallback = testAction.targets
-            .map(\.target)
-            .first(where: { graphTraverser.target(path: $0.projectPath, name: $0.name) != nil })
         preActions = try testAction.preActions.map {
             try schemeExecutionAction(
                 action: $0,
                 graphTraverser: graphTraverser,
                 generatedProjects: generatedProjects,
-                rootPath: rootPath,
-                fallbackTarget: testActionFallback
+                rootPath: rootPath
             )
         }
         postActions = try testAction.postActions.map {
@@ -415,8 +406,7 @@ struct SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
                 action: $0,
                 graphTraverser: graphTraverser,
                 generatedProjects: generatedProjects,
-                rootPath: rootPath,
-                fallbackTarget: testActionFallback
+                rootPath: rootPath
             )
         }
 
@@ -959,23 +949,14 @@ struct SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         action: ExecutionAction,
         graphTraverser: GraphTraversing,
         generatedProjects: [AbsolutePath: GeneratedProject],
-        rootPath: AbsolutePath,
-        fallbackTarget: TargetReference? = nil
+        rootPath: AbsolutePath
     ) throws -> XCScheme.ExecutionAction {
-        // The action's `target` populates `<EnvironmentBuildable>`. `nil` is taken at face
-        // value — the script gets no target build settings (matches Xcode's own scheme model).
-        // If the caller named a target that focus has since pruned, fall back to the parent
-        // action's first surviving buildable so the script still gets BUILD_DIR /
-        // CONFIGURATION instead of silently losing them.
-        let resolvedTargetReference: TargetReference? = {
-            guard let ref = action.target else { return nil }
-            if graphTraverser.target(path: ref.projectPath, name: ref.name) != nil {
-                return ref
-            }
-            return fallbackTarget
-        }()
-
-        guard let targetReference = resolvedTargetReference,
+        // The action's `target` populates `<EnvironmentBuildable>`. If the caller left it
+        // nil — or named a target that the final graph doesn't contain (focus pruned it,
+        // or the manifest had a typo) — emit the action without an `environmentBuildable`.
+        // Silently inventing one would mask user typos and expose env vars from a target
+        // the script never asked for.
+        guard let targetReference = action.target,
               let graphTarget = graphTraverser.target(
                   path: targetReference.projectPath, name: targetReference.name
               )

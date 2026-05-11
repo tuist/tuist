@@ -329,20 +329,19 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         XCTAssertNil(got?.postActions.first?.environmentBuildable)
     }
 
-    /// An action that names a target which focus has since pruned must resolve
-    /// `environmentBuildable` from the parent action's first surviving buildable so the
-    /// script doesn't silently lose target build settings (BUILD_DIR / CONFIGURATION).
-    func test_schemeBuildAction_execution_action_with_pruned_target_falls_back_to_parent_scheme() throws {
+    /// An action that names a target not present in the final graph (focus pruned it, or
+    /// the manifest had a typo) emits no `environmentBuildable`. Silently substituting
+    /// another target's build settings would mask user typos and surprise scripts that
+    /// happened to read target-specific env vars.
+    func test_schemeBuildAction_execution_action_with_unresolvable_target_does_not_synthesize_environmentBuildable() throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/somepath/Project")
         let xcodeProjPath = projectPath.appending(component: "Project.xcodeproj")
         let app = Target.test(name: "App", product: .app)
-        // The post-action's `target` refers to a target that is not in the final graph —
-        // simulating focus having pruned it.
         let postAction = ExecutionAction(
             title: "Post Action",
             scriptText: "echo bye",
-            target: TargetReference(projectPath: projectPath, name: "PrunedTarget"),
+            target: TargetReference(projectPath: projectPath, name: "DoesNotExist"),
             shellPath: nil
         )
         let buildAction = BuildAction.test(
@@ -362,10 +361,8 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             generatedProjects: createGeneratedProjects(projects: [project])
         )
 
-        // Then — fell back to App's buildable.
-        let postBuildableReference = got?.postActions.first?.environmentBuildable
-        XCTAssertEqual(postBuildableReference?.blueprintName, "App")
-        XCTAssertEqual(postBuildableReference?.buildableName, "App.app")
+        // Then
+        XCTAssertNil(got?.postActions.first?.environmentBuildable)
     }
 
     func test_buildAction_parallelizedBuild() throws {
