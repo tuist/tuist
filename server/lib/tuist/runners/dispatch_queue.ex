@@ -41,6 +41,20 @@ defmodule Tuist.Runners.DispatchQueue do
   than the configured threshold so the row goes back to the
   pending pool.
 
+  ## Claim handle
+
+  `claim_oldest_eligible` returns the `claimed_at` timestamp it
+  stamped onto the row; `finalize_claim` and `release_claim` take
+  both `id` AND that captured `claimed_at` and filter on both.
+  This guards against the worker-after-slow-mint race: if a slow
+  in-flight serve runs longer than the stale threshold, the
+  worker can release the row and a second poll can re-claim
+  (stamping a fresh `claimed_at`). The original serve's eventual
+  `finalize_claim`/`release_claim` matches neither the now-NULL
+  nor the new `claimed_at`, so it silently no-ops instead of
+  deleting / nulling the second claim's row.
+
+
   ## No per-account enqueue ceiling today
 
   One customer can queue as many entries as they generate; the
@@ -89,11 +103,14 @@ defmodule Tuist.Runners.DispatchQueue do
   running Pods. `ineligible_account_ids` is the precomputed set
   of accounts already at cap by K8s count alone.
 
-  Returns `{:ok, %{id, account_id, repo}}` on a successful soft
-  claim, `{:error, :empty}` if the queue has no eligible entry,
-  or `{:error, :over_cap}` if the candidate row's account turned
-  out to be over-cap once the per-account lock + in-flight
-  re-check ran (caller should retry on the next poll).
+  Returns `{:ok, %{id, account_id, repo, claimed_at}}` on a
+  successful soft claim — `claimed_at` is the timestamp stamped
+  on the row and serves as the caller's claim handle for
+  `finalize_claim`/`release_claim`. Returns `{:error, :empty}` if
+  the queue has no eligible entry, or `{:error, :over_cap}` if
+  the candidate row's account turned out to be over-cap once
+  the per-account lock + in-flight re-check ran (caller should
+  retry on the next poll).
   """
   def claim_oldest_eligible(fleet_name, ineligible_account_ids, cap_lookup \\ %{})
       when is_binary(fleet_name) and is_list(ineligible_account_ids) and is_map(cap_lookup) do
@@ -132,8 +149,8 @@ defmodule Tuist.Runners.DispatchQueue do
     if cap_exceeded?(effective_cap, k8s_count + inflight) do
       Repo.rollback(:over_cap)
     else
-      soft_claim!(id)
-      %{id: id, account_id: account_id, repo: repo}
+      claimed_at = soft_claim!(id)
+      %{id: id, account_id: account_id, repo: repo, claimed_at: claimed_at}
     end
   end
 
@@ -143,26 +160,43 @@ defmodule Tuist.Runners.DispatchQueue do
   @doc """
   Finalises a soft claim: deletes the queue row. Called after the
   JIT mint + Pod label-stamp succeed.
-  """
-  def finalize_claim(id) when is_integer(id) do
-    {count, _} = Repo.delete_all(from(q in DispatchQueueEntry, where: q.id == ^id))
 
-    if count == 1, do: :ok, else: {:error, :not_found}
+  `claimed_at` is the timestamp `claim_oldest_eligible` returned.
+  The DELETE is gated on it so a slow in-flight serve whose row
+  was already released by the stale-claims worker (and then
+  re-claimed by a different poll) doesn't delete the second
+  claim's row out from under it. Returns `{:error, :stale_claim}`
+  in that case.
+  """
+  def finalize_claim(id, %DateTime{} = claimed_at) when is_integer(id) do
+    {count, _} =
+      Repo.delete_all(from(q in DispatchQueueEntry, where: q.id == ^id and q.claimed_at == ^claimed_at))
+
+    if count == 1, do: :ok, else: {:error, :stale_claim}
   end
 
   @doc """
   Releases a soft claim: NULLs `claimed_at` so the row returns to
   the pending pool. Called when serving the claim fails after the
   soft claim (e.g. JIT mint refused by GitHub).
+
+  Gated on `claimed_at` for the same reason `finalize_claim` is —
+  a stale-worker-then-re-claim race shouldn't let an original
+  serve's release stomp on the second claim's `claimed_at`.
+  Returns `{:error, :stale_claim}` if the row's `claimed_at` has
+  moved on (or the row is already gone).
   """
-  def release_claim(id) when is_integer(id) do
+  def release_claim(id, %DateTime{} = claimed_at) when is_integer(id) do
     {count, _} =
       Repo.update_all(
-        from(q in DispatchQueueEntry, where: q.id == ^id and not is_nil(q.claimed_at), update: [set: [claimed_at: nil]]),
+        from(q in DispatchQueueEntry,
+          where: q.id == ^id and q.claimed_at == ^claimed_at,
+          update: [set: [claimed_at: nil]]
+        ),
         []
       )
 
-    if count == 1, do: :ok, else: {:error, :not_found}
+    if count == 1, do: :ok, else: {:error, :stale_claim}
   end
 
   @doc """
@@ -254,11 +288,17 @@ defmodule Tuist.Runners.DispatchQueue do
   end
 
   defp soft_claim!(id) do
+    # DateTime.utc_now/0 gives microsecond precision; Postgres
+    # `timestamptz` stores microseconds. The captured value
+    # round-trips exactly so finalize/release's equality filter
+    # matches the row we just wrote.
+    now = DateTime.utc_now()
+
     {1, _} =
       Repo.update_all(from(q in DispatchQueueEntry, where: q.id == ^id and is_nil(q.claimed_at)),
-        set: [claimed_at: DateTime.utc_now()]
+        set: [claimed_at: now]
       )
 
-    :ok
+    now
   end
 end

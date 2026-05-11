@@ -72,11 +72,12 @@ defmodule Tuist.Runners.DispatchQueueTest do
       account = account_with_cap(2)
       {:ok, entry} = DispatchQueue.enqueue(account, "fleet-a", "acme/cli")
 
-      {:ok, %{id: id}} = DispatchQueue.claim_oldest_eligible("fleet-a", [])
+      {:ok, %{id: id, claimed_at: claimed_at}} = DispatchQueue.claim_oldest_eligible("fleet-a", [])
       assert id == entry.id
+      assert %DateTime{} = claimed_at
 
       reloaded = Repo.get!(DispatchQueueEntry, id)
-      assert reloaded.claimed_at
+      assert DateTime.compare(reloaded.claimed_at, claimed_at) == :eq
 
       # pending_count still includes in-flight rows (one entry,
       # claimed but not finalised).
@@ -119,28 +120,48 @@ defmodule Tuist.Runners.DispatchQueueTest do
     end
   end
 
-  describe "finalize_claim/1" do
-    test "deletes the row" do
+  describe "finalize_claim/2" do
+    test "deletes the row when (id, claimed_at) match" do
       account = account_with_cap(2)
       {:ok, _} = DispatchQueue.enqueue(account, "fleet-a", "acme/cli")
-      {:ok, %{id: id}} = DispatchQueue.claim_oldest_eligible("fleet-a", [])
+      {:ok, %{id: id, claimed_at: claimed_at}} = DispatchQueue.claim_oldest_eligible("fleet-a", [])
 
-      assert :ok = DispatchQueue.finalize_claim(id)
+      assert :ok = DispatchQueue.finalize_claim(id, claimed_at)
       assert DispatchQueue.pending_count(account) == 0
     end
 
-    test "returns :not_found for unknown id" do
-      assert {:error, :not_found} = DispatchQueue.finalize_claim(424_242)
+    test "returns :stale_claim for unknown id" do
+      assert {:error, :stale_claim} =
+               DispatchQueue.finalize_claim(424_242, DateTime.utc_now())
+    end
+
+    test "returns :stale_claim when claimed_at no longer matches" do
+      account = account_with_cap(2)
+      {:ok, _} = DispatchQueue.enqueue(account, "fleet-a", "acme/cli")
+      {:ok, %{id: id, claimed_at: claimed_at}} = DispatchQueue.claim_oldest_eligible("fleet-a", [])
+
+      # Stale-claims worker releases the row, then a second poll re-claims it.
+      assert 1 == DispatchQueue.release_stale_claims(DateTime.add(claimed_at, 1, :second))
+
+      {:ok, %{id: ^id, claimed_at: new_claimed_at}} =
+        DispatchQueue.claim_oldest_eligible("fleet-a", [])
+
+      assert DateTime.compare(new_claimed_at, claimed_at) != :eq
+
+      # Original serve's finalize with the stale handle no-ops.
+      assert {:error, :stale_claim} = DispatchQueue.finalize_claim(id, claimed_at)
+      # The second poll's row is still there.
+      assert DispatchQueue.pending_count(account) == 1
     end
   end
 
-  describe "release_claim/1" do
+  describe "release_claim/2" do
     test "nulls claimed_at so the row goes back to the pool" do
       account = account_with_cap(2)
       {:ok, _} = DispatchQueue.enqueue(account, "fleet-a", "acme/cli")
-      {:ok, %{id: id}} = DispatchQueue.claim_oldest_eligible("fleet-a", [])
+      {:ok, %{id: id, claimed_at: claimed_at}} = DispatchQueue.claim_oldest_eligible("fleet-a", [])
 
-      assert :ok = DispatchQueue.release_claim(id)
+      assert :ok = DispatchQueue.release_claim(id, claimed_at)
 
       # Released row is claimable again.
       assert {:ok, %{id: ^id}} = DispatchQueue.claim_oldest_eligible("fleet-a", [])
@@ -149,7 +170,22 @@ defmodule Tuist.Runners.DispatchQueueTest do
     test "is a no-op when the row is already pending" do
       account = account_with_cap(2)
       {:ok, entry} = DispatchQueue.enqueue(account, "fleet-a", "acme/cli")
-      assert {:error, :not_found} = DispatchQueue.release_claim(entry.id)
+      assert {:error, :stale_claim} = DispatchQueue.release_claim(entry.id, DateTime.utc_now())
+    end
+
+    test "returns :stale_claim when claimed_at no longer matches (worker raced + re-claim)" do
+      account = account_with_cap(2)
+      {:ok, _} = DispatchQueue.enqueue(account, "fleet-a", "acme/cli")
+      {:ok, %{id: id, claimed_at: claimed_at}} = DispatchQueue.claim_oldest_eligible("fleet-a", [])
+
+      assert 1 == DispatchQueue.release_stale_claims(DateTime.add(claimed_at, 1, :second))
+      {:ok, %{id: ^id}} = DispatchQueue.claim_oldest_eligible("fleet-a", [])
+
+      # The original serve's release with the stale handle must
+      # NOT null out the second claim's claimed_at.
+      assert {:error, :stale_claim} = DispatchQueue.release_claim(id, claimed_at)
+      reloaded = Repo.get!(DispatchQueueEntry, id)
+      assert reloaded.claimed_at
     end
   end
 
@@ -173,9 +209,9 @@ defmodule Tuist.Runners.DispatchQueueTest do
     test "does not release fresh claims" do
       account = account_with_cap(2)
       {:ok, _} = DispatchQueue.enqueue(account, "fleet-a", "acme/cli")
-      {:ok, _} = DispatchQueue.claim_oldest_eligible("fleet-a", [])
+      {:ok, %{claimed_at: claimed_at}} = DispatchQueue.claim_oldest_eligible("fleet-a", [])
 
-      threshold = DateTime.add(DateTime.utc_now(), -3600, :second)
+      threshold = DateTime.add(claimed_at, -1, :second)
       released = DispatchQueue.release_stale_claims(threshold)
       assert released == 0
     end

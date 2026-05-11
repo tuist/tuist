@@ -87,8 +87,12 @@ defmodule Tuist.Runners do
       {ineligible, cap_lookup} = account_state_snapshot(namespace)
 
       case DispatchQueue.claim_oldest_eligible(fleet_name, ineligible, cap_lookup) do
-        {:ok, %{id: id, account_id: account_id}} ->
-          serve_claim(namespace, sa_name, fleet_name, id, account_id)
+        {:ok, %{id: id, account_id: account_id, claimed_at: claimed_at}} ->
+          serve_claim(namespace, sa_name, fleet_name, %{
+            id: id,
+            account_id: account_id,
+            claimed_at: claimed_at
+          })
 
         {:error, :empty} ->
           {:error, :no_work_yet}
@@ -106,7 +110,7 @@ defmodule Tuist.Runners do
     end
   end
 
-  defp serve_claim(namespace, sa_name, fleet_name, claim_id, account_id) do
+  defp serve_claim(namespace, sa_name, fleet_name, %{id: claim_id, account_id: account_id, claimed_at: claimed_at}) do
     case Accounts.get_account_by_id(account_id) do
       {:ok, account} ->
         pod_name = pod_name_from_sa(sa_name)
@@ -114,7 +118,7 @@ defmodule Tuist.Runners do
         with {:ok, dispatch_label} <- Dispatch.dispatch_label_for_pool(fleet_name),
              :ok <- stamp_owner_labels(namespace, pod_name, account),
              {:ok, jit, runner_name} <- mint_jit(account, sa_name, dispatch_label),
-             :ok <- DispatchQueue.finalize_claim(claim_id) do
+             :ok <- DispatchQueue.finalize_claim(claim_id, claimed_at) do
           Logger.info("runners: dispatched",
             account: account.name,
             sa: sa_name,
@@ -125,27 +129,37 @@ defmodule Tuist.Runners do
           {:ok, %{jit: jit, account: account, runner_name: runner_name}}
         else
           {:error, :not_found} = err ->
-            release_claim_safely(claim_id, :no_pool)
+            release_claim_safely(claim_id, claimed_at, :no_pool)
             err
 
           {:error, :no_dispatch_label} = err ->
-            release_claim_safely(claim_id, :no_dispatch_label)
+            release_claim_safely(claim_id, claimed_at, :no_dispatch_label)
             err
 
+          {:error, :stale_claim} ->
+            # The stale-claims worker released our row mid-serve
+            # and another poll re-claimed it. Treat as "nothing to
+            # do" — the second poll owns the work now.
+            Logger.warning("runners: claim went stale mid-serve; dropping",
+              claim_id: claim_id
+            )
+
+            {:error, :no_work_yet}
+
           {:error, reason} = err ->
-            release_claim_safely(claim_id, reason)
+            release_claim_safely(claim_id, claimed_at, reason)
             err
         end
 
       {:error, :not_found} ->
         Logger.warning("runners: claimed entry has no account row", account_id: account_id)
-        release_claim_safely(claim_id, :unknown_account)
+        release_claim_safely(claim_id, claimed_at, :unknown_account)
         {:error, :unknown_account}
     end
   end
 
-  defp release_claim_safely(claim_id, reason) do
-    case DispatchQueue.release_claim(claim_id) do
+  defp release_claim_safely(claim_id, claimed_at, reason) do
+    case DispatchQueue.release_claim(claim_id, claimed_at) do
       :ok ->
         :ok
 
