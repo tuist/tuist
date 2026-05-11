@@ -273,7 +273,9 @@ struct SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             )
         }
 
-        let buildActionFallback = buildAction.targets.first(where: { graphTraverser.target(path: $0.projectPath, name: $0.name) != nil })
+        let buildActionFallback = buildAction.targets.first(where: {
+            graphTraverser.target(path: $0.projectPath, name: $0.name) != nil
+        })
         preActions = try buildAction.preActions.map {
             try schemeExecutionAction(
                 action: $0,
