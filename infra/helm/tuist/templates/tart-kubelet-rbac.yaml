@@ -28,6 +28,12 @@ rules:
   - apiGroups: [""]
     resources: [pods, pods/status]
     verbs: [get, list, watch, update, patch]
+  # The pod agent adds a finalizer before starting the Tart VM and
+  # removes it only after VM teardown, so stale API Pods cannot
+  # disappear while their guest is still running on the Mac host.
+  - apiGroups: [""]
+    resources: [pods/finalizers]
+    verbs: [update, patch]
   # Resolve `valueFrom` / `envFrom` references in Pod env, exactly the
   # way a real kubelet does.
   - apiGroups: [""]
