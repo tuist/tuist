@@ -19,7 +19,7 @@ use crate::{
     io::IoController,
     memory::MemoryController,
     metrics::Metrics,
-    peer_tls::{build_internal_rustls_config, build_peer_client},
+    peer_tls::{build_internal_rustls_config, build_peer_client, build_public_rustls_config},
     reapi,
     replication::{spawn_membership_task, spawn_outbox_task},
     runtime::{DataDirLock, RuntimeState},
@@ -112,7 +112,11 @@ pub async fn run() -> Result<(), String> {
 
     let address = SocketAddr::from((Ipv4Addr::UNSPECIFIED, state.config.port));
     let grpc_address = SocketAddr::from((Ipv4Addr::UNSPECIFIED, state.config.grpc_port));
+    let https_address = SocketAddr::from((Ipv4Addr::UNSPECIFIED, state.config.https_port));
     info!("Kura service listening on {address}");
+    if state.config.public_tls.is_some() {
+        info!("Kura HTTPS service listening on {https_address} (TLS)");
+    }
     if state.config.grpc_tls.is_some() {
         info!("Kura REAPI service listening on {grpc_address} (TLS)");
     } else {
@@ -207,7 +211,9 @@ pub async fn run() -> Result<(), String> {
 
     let router = http::public_router(state.clone());
     let public_handle = Handle::new();
+    let https_handle = Handle::new();
     let public_shutdown_handle = public_handle.clone();
+    let https_shutdown_handle = https_handle.clone();
     let public_shutdown_state = state.clone();
     tokio::spawn(async move {
         shutdown_signal().await;
@@ -216,7 +222,27 @@ pub async fn run() -> Result<(), String> {
         let _ = public_shutdown_state.enter_draining();
         public_shutdown_state.sync_runtime_metrics().await;
         public_shutdown_handle.graceful_shutdown(Some(budget.remaining()));
+        https_shutdown_handle.graceful_shutdown(Some(budget.remaining()));
     });
+
+    let https_handle_task = if let Some(public_tls) = state.config.public_tls.clone() {
+        let tls_config = build_public_rustls_config(&public_tls).await?;
+        let https_router = http::public_router(state.clone());
+        Some(tokio::spawn(async move {
+            let mut server = axum_server::bind_rustls(https_address, tls_config).handle(https_handle);
+            server
+                .http_builder()
+                .http1()
+                .keep_alive(true)
+                .timer(TokioTimer::new())
+                .header_read_timeout(Some(Duration::from_secs(30)));
+            if let Err(error) = server.serve(https_router.into_make_service()).await {
+                tracing::error!("public HTTPS server failed: {error}");
+            }
+        }))
+    } else {
+        None
+    };
 
     let mut public_server = axum_server::bind(address).handle(public_handle);
     public_server
@@ -246,6 +272,9 @@ pub async fn run() -> Result<(), String> {
     wait_for_task_shutdown(grpc_handle, "gRPC", shutdown_budget).await;
     if let Some(internal_handle) = internal_handle {
         wait_for_task_shutdown(internal_handle, "internal", shutdown_budget).await;
+    }
+    if let Some(https_handle_task) = https_handle_task {
+        wait_for_task_shutdown(https_handle_task, "public HTTPS", shutdown_budget).await;
     }
 
     telemetry.shutdown();

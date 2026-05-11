@@ -23,6 +23,11 @@ const KURA_INTERNAL_TLS_CERT_PATH: &str = "KURA_INTERNAL_TLS_CERT_PATH";
 const KURA_INTERNAL_TLS_KEY_PATH: &str = "KURA_INTERNAL_TLS_KEY_PATH";
 const KURA_GRPC_TLS_CERT_PATH: &str = "KURA_GRPC_TLS_CERT_PATH";
 const KURA_GRPC_TLS_KEY_PATH: &str = "KURA_GRPC_TLS_KEY_PATH";
+const KURA_PUBLIC_TLS_CERT_PATH: &str = "KURA_PUBLIC_TLS_CERT_PATH";
+const KURA_PUBLIC_TLS_KEY_PATH: &str = "KURA_PUBLIC_TLS_KEY_PATH";
+const KURA_HTTPS_PORT: &str = "KURA_HTTPS_PORT";
+
+const DEFAULT_HTTPS_PORT: u16 = 4443;
 const KURA_FILE_DESCRIPTOR_POOL_SIZE: &str = "KURA_FILE_DESCRIPTOR_POOL_SIZE";
 const KURA_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS: &str = "KURA_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS";
 const KURA_DRAIN_COMPLETION_TIMEOUT_MS: &str = "KURA_DRAIN_COMPLETION_TIMEOUT_MS";
@@ -79,6 +84,8 @@ pub struct Config {
     pub discovery_dns_name: Option<String>,
     pub peer_tls: Option<PeerTlsConfig>,
     pub grpc_tls: Option<GrpcTlsConfig>,
+    pub public_tls: Option<PublicTlsConfig>,
+    pub https_port: u16,
     pub file_descriptor_pool_size: usize,
     pub file_descriptor_acquire_timeout_ms: u64,
     pub drain_completion_timeout_ms: u64,
@@ -114,6 +121,12 @@ pub struct PeerTlsConfig {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct GrpcTlsConfig {
+    pub cert_path: PathBuf,
+    pub key_path: PathBuf,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PublicTlsConfig {
     pub cert_path: PathBuf,
     pub key_path: PathBuf,
 }
@@ -345,6 +358,31 @@ impl Config {
                 None
             }
         };
+        let public_tls_cert_path = lookup(KURA_PUBLIC_TLS_CERT_PATH)
+            .map(PathBuf::from)
+            .filter(|value| !value.as_os_str().is_empty());
+        let public_tls_key_path = lookup(KURA_PUBLIC_TLS_KEY_PATH)
+            .map(PathBuf::from)
+            .filter(|value| !value.as_os_str().is_empty());
+        let public_tls = match (public_tls_cert_path, public_tls_key_path) {
+            (None, None) => None,
+            (Some(cert_path), Some(key_path)) => Some(PublicTlsConfig {
+                cert_path,
+                key_path,
+            }),
+            _ => {
+                invalid.push(format!(
+                    "{KURA_PUBLIC_TLS_CERT_PATH} and {KURA_PUBLIC_TLS_KEY_PATH} must either both be set or both be unset"
+                ));
+                None
+            }
+        };
+        let https_port = optional_parsed_value(&mut lookup, KURA_HTTPS_PORT, &mut invalid, |value| {
+            value
+                .parse::<u16>()
+                .map_err(|_| format!("{KURA_HTTPS_PORT} must be a valid u16"))
+        })
+        .unwrap_or(DEFAULT_HTTPS_PORT);
         let file_descriptor_pool_size = optional_parsed_value(
             &mut lookup,
             KURA_FILE_DESCRIPTOR_POOL_SIZE,
@@ -820,6 +858,19 @@ impl Config {
                     "{KURA_INTERNAL_PORT} must differ from {KURA_GRPC_PORT}"
                 ));
             }
+            if public_tls.is_some() {
+                if https_port == port {
+                    invalid.push(format!("{KURA_HTTPS_PORT} must differ from {KURA_PORT}"));
+                }
+                if https_port == grpc_port {
+                    invalid.push(format!("{KURA_HTTPS_PORT} must differ from {KURA_GRPC_PORT}"));
+                }
+                if https_port == internal_port {
+                    invalid.push(format!(
+                        "{KURA_HTTPS_PORT} must differ from {KURA_INTERNAL_PORT}"
+                    ));
+                }
+            }
         }
 
         if let (Some(node_url), Some(peers), Some(internal_port)) =
@@ -887,6 +938,8 @@ impl Config {
             discovery_dns_name,
             peer_tls,
             grpc_tls,
+            public_tls,
+            https_port,
             file_descriptor_pool_size,
             file_descriptor_acquire_timeout_ms,
             drain_completion_timeout_ms,
@@ -1597,6 +1650,143 @@ mod tests {
                 key_path: PathBuf::from("/etc/kura/grpc-tls/tls.key"),
             })
         );
+    }
+
+    #[test]
+    fn from_lookup_parses_public_tls_config() {
+        let config = config_from(&[
+            (KURA_PORT, "4500"),
+            (KURA_GRPC_PORT, "5500"),
+            (KURA_TENANT_ID, "acme"),
+            (KURA_REGION, "eu_west"),
+            (KURA_TMP_DIR, "/tmp/kura"),
+            (KURA_DATA_DIR, "/tmp/kura-data"),
+            (KURA_NODE_URL, "http://kura.example.com:7443"),
+            (KURA_PEERS, "http://kura-a.example.com:7443"),
+            (KURA_INTERNAL_PORT, "7443"),
+            (KURA_PUBLIC_TLS_CERT_PATH, "/etc/kura/public-tls/tls.crt"),
+            (KURA_PUBLIC_TLS_KEY_PATH, "/etc/kura/public-tls/tls.key"),
+            (KURA_HTTPS_PORT, "4443"),
+            (KURA_FILE_DESCRIPTOR_POOL_SIZE, "64"),
+            (KURA_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS, "5000"),
+            (KURA_SEGMENT_HANDLE_CACHE_SIZE, "16"),
+            (KURA_MEMORY_SOFT_LIMIT_BYTES, "268435456"),
+            (KURA_MEMORY_HARD_LIMIT_BYTES, "536870912"),
+            (KURA_MANIFEST_CACHE_MAX_BYTES, "16777216"),
+            (KURA_MAX_KEYVALUE_BYTES, "1048576"),
+            (KURA_METADATA_STORE_MAX_OPEN_FILES, "1024"),
+            (KURA_METADATA_STORE_MAX_BACKGROUND_JOBS, "4"),
+            (
+                KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
+                "https://otel.example.com/v1/traces",
+            ),
+            (KURA_OTEL_SERVICE_NAME, "kura-eu"),
+            (KURA_OTEL_DEPLOYMENT_ENVIRONMENT, "staging"),
+        ])
+        .expect("expected public tls config to parse");
+
+        assert_eq!(
+            config.public_tls,
+            Some(PublicTlsConfig {
+                cert_path: PathBuf::from("/etc/kura/public-tls/tls.crt"),
+                key_path: PathBuf::from("/etc/kura/public-tls/tls.key"),
+            })
+        );
+        assert_eq!(config.https_port, 4443);
+    }
+
+    #[test]
+    fn from_lookup_defaults_https_port_when_unset() {
+        let config = config_from(&[
+            (KURA_PORT, "4500"),
+            (KURA_GRPC_PORT, "5500"),
+            (KURA_TENANT_ID, "acme"),
+            (KURA_REGION, "eu_west"),
+            (KURA_TMP_DIR, "/tmp/kura"),
+            (KURA_DATA_DIR, "/tmp/kura-data"),
+            (KURA_NODE_URL, "http://kura.example.com:7443"),
+            (KURA_PEERS, "http://kura-a.example.com:7443"),
+            (KURA_INTERNAL_PORT, "7443"),
+            (KURA_FILE_DESCRIPTOR_POOL_SIZE, "64"),
+            (KURA_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS, "5000"),
+            (KURA_SEGMENT_HANDLE_CACHE_SIZE, "16"),
+            (KURA_MEMORY_SOFT_LIMIT_BYTES, "268435456"),
+            (KURA_MEMORY_HARD_LIMIT_BYTES, "536870912"),
+            (KURA_MANIFEST_CACHE_MAX_BYTES, "16777216"),
+            (KURA_MAX_KEYVALUE_BYTES, "1048576"),
+            (KURA_METADATA_STORE_MAX_OPEN_FILES, "1024"),
+            (KURA_METADATA_STORE_MAX_BACKGROUND_JOBS, "4"),
+            (KURA_OTEL_SERVICE_NAME, "kura-eu"),
+            (KURA_OTEL_DEPLOYMENT_ENVIRONMENT, "staging"),
+        ])
+        .expect("expected config without public tls to parse");
+
+        assert!(config.public_tls.is_none());
+        assert_eq!(config.https_port, DEFAULT_HTTPS_PORT);
+    }
+
+    #[test]
+    fn from_lookup_requires_complete_public_tls_config() {
+        let error = config_from(&[
+            (KURA_PORT, "4500"),
+            (KURA_GRPC_PORT, "5500"),
+            (KURA_TENANT_ID, "acme"),
+            (KURA_REGION, "eu_west"),
+            (KURA_TMP_DIR, "/tmp/kura"),
+            (KURA_DATA_DIR, "/tmp/kura-data"),
+            (KURA_NODE_URL, "http://kura.example.com:7443"),
+            (KURA_PEERS, "http://kura-a.example.com:7443"),
+            (KURA_INTERNAL_PORT, "7443"),
+            (KURA_PUBLIC_TLS_CERT_PATH, "/etc/kura/public-tls/tls.crt"),
+            (KURA_FILE_DESCRIPTOR_POOL_SIZE, "64"),
+            (KURA_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS, "5000"),
+            (KURA_SEGMENT_HANDLE_CACHE_SIZE, "16"),
+            (KURA_MEMORY_SOFT_LIMIT_BYTES, "268435456"),
+            (KURA_MEMORY_HARD_LIMIT_BYTES, "536870912"),
+            (KURA_MANIFEST_CACHE_MAX_BYTES, "16777216"),
+            (KURA_MAX_KEYVALUE_BYTES, "1048576"),
+            (KURA_METADATA_STORE_MAX_OPEN_FILES, "1024"),
+            (KURA_METADATA_STORE_MAX_BACKGROUND_JOBS, "4"),
+            (KURA_OTEL_SERVICE_NAME, "kura-eu"),
+            (KURA_OTEL_DEPLOYMENT_ENVIRONMENT, "staging"),
+        ])
+        .expect_err("expected incomplete public tls config to fail");
+
+        assert!(error.contains(KURA_PUBLIC_TLS_CERT_PATH));
+        assert!(error.contains(KURA_PUBLIC_TLS_KEY_PATH));
+    }
+
+    #[test]
+    fn from_lookup_rejects_https_port_colliding_with_other_ports() {
+        let error = config_from(&[
+            (KURA_PORT, "4500"),
+            (KURA_GRPC_PORT, "5500"),
+            (KURA_TENANT_ID, "acme"),
+            (KURA_REGION, "eu_west"),
+            (KURA_TMP_DIR, "/tmp/kura"),
+            (KURA_DATA_DIR, "/tmp/kura-data"),
+            (KURA_NODE_URL, "http://kura.example.com:7443"),
+            (KURA_PEERS, "http://kura-a.example.com:7443"),
+            (KURA_INTERNAL_PORT, "7443"),
+            (KURA_PUBLIC_TLS_CERT_PATH, "/etc/kura/public-tls/tls.crt"),
+            (KURA_PUBLIC_TLS_KEY_PATH, "/etc/kura/public-tls/tls.key"),
+            (KURA_HTTPS_PORT, "4500"),
+            (KURA_FILE_DESCRIPTOR_POOL_SIZE, "64"),
+            (KURA_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS, "5000"),
+            (KURA_SEGMENT_HANDLE_CACHE_SIZE, "16"),
+            (KURA_MEMORY_SOFT_LIMIT_BYTES, "268435456"),
+            (KURA_MEMORY_HARD_LIMIT_BYTES, "536870912"),
+            (KURA_MANIFEST_CACHE_MAX_BYTES, "16777216"),
+            (KURA_MAX_KEYVALUE_BYTES, "1048576"),
+            (KURA_METADATA_STORE_MAX_OPEN_FILES, "1024"),
+            (KURA_METADATA_STORE_MAX_BACKGROUND_JOBS, "4"),
+            (KURA_OTEL_SERVICE_NAME, "kura-eu"),
+            (KURA_OTEL_DEPLOYMENT_ENVIRONMENT, "staging"),
+        ])
+        .expect_err("expected colliding https port to fail");
+
+        assert!(error.contains(KURA_HTTPS_PORT));
+        assert!(error.contains(KURA_PORT));
     }
 
     #[test]
