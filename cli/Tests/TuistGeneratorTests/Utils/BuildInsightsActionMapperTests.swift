@@ -23,6 +23,7 @@ struct BuildInsightsActionMapperTests {
         // When
         let got = try await subject.map(
             buildAction,
+            target: nil,
             buildInsightsDisabled: true
         )
 
@@ -39,19 +40,47 @@ struct BuildInsightsActionMapperTests {
         // When
         let got = try await subject.map(
             buildAction,
+            target: nil,
             buildInsightsDisabled: false
         )
 
-        // Then — the post-action's `target` is bound to the build action's first target so
-        // Xcode's `<EnvironmentBuildable>` exposes build settings to the script. If focus later
-        // prunes that target, `TreeShakePrunedTargetsGraphMapper` rewrites the reference to a
-        // surviving buildable.
+        // Then
         var expectedBuildAction: BuildAction = .test(
             postActions: [
                 ExecutionAction(
                     title: "Push build insights",
                     scriptText: "/mise/tuist inspect build",
-                    target: buildAction.targets.first,
+                    target: nil,
+                    shellPath: nil
+                ),
+            ]
+        )
+        expectedBuildAction.runPostActionsOnFailure = true
+        #expect(
+            got == expectedBuildAction
+        )
+    }
+
+    @Test(.withMockedEnvironment()) func map_with_target() async throws {
+        // Given
+        let buildAction: BuildAction = .test()
+        let mockEnvironment = try #require(Environment.mocked)
+        mockEnvironment.currentExecutablePathStub = "/mise/tuist"
+
+        // When
+        let got = try await subject.map(
+            buildAction,
+            target: TargetReference(projectPath: "/tmp/project", name: "TargetA"),
+            buildInsightsDisabled: false
+        )
+
+        // Then
+        var expectedBuildAction: BuildAction = .test(
+            postActions: [
+                ExecutionAction(
+                    title: "Push build insights",
+                    scriptText: "/mise/tuist inspect build",
+                    target: TargetReference(projectPath: "/tmp/project", name: "TargetA"),
                     shellPath: nil
                 ),
             ]

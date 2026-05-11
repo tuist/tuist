@@ -23,6 +23,7 @@ struct TestInsightsActionMapperTests {
         // When
         let got = try await subject.map(
             testAction,
+            target: nil,
             testInsightsDisabled: true
         )
 
@@ -34,6 +35,7 @@ struct TestInsightsActionMapperTests {
         // When
         let got = try await subject.map(
             nil,
+            target: nil,
             testInsightsDisabled: false
         )
 
@@ -44,25 +46,24 @@ struct TestInsightsActionMapperTests {
     @Test(.withMockedEnvironment()) func map() async throws {
         // Given
         let testAction: TestAction = .test()
+        let target = TargetReference(projectPath: "/tmp/project", name: "AppTests")
         let mockEnvironment = try #require(Environment.mocked)
         mockEnvironment.currentExecutablePathStub = "/mise/tuist"
 
         // When
         let got = try await subject.map(
             testAction,
+            target: target,
             testInsightsDisabled: false
         )
 
-        // Then — the post-action's `target` is bound to the test action's first testable
-        // target so Xcode's `<EnvironmentBuildable>` exposes build settings to the script.
-        // If focus later prunes that target, `TreeShakePrunedTargetsGraphMapper` rewrites the
-        // reference to a surviving buildable.
+        // Then
         let expectedTestAction: TestAction = .test(
             postActions: [
                 ExecutionAction(
                     title: "Push test insights",
                     scriptText: "/mise/tuist inspect test",
-                    target: testAction.targets.first?.target,
+                    target: target,
                     shellPath: nil
                 ),
             ]
