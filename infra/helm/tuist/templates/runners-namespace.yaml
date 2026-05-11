@@ -59,30 +59,23 @@ metadata:
 rules:
   - apiGroups: [tuist.dev]
     resources: [runnerpools]
-    # The server's `Tuist.Runners.PoolReconciler` is the source of
-    # truth for RunnerPool CRs labeled `tuist.dev/managed-by=tuist-server`
-    # — DB rows in `runner_pools` are reconciled into CRs here.
-    # create/update/delete only touch CRs carrying that label; CRs
-    # without it (operator-applied bootstrap entries, future
-    # self-host overlays) stay untouched.
-    verbs: [get, list, watch, create, update, delete]
-  - apiGroups: [tuist.dev]
-    resources: [runnerassignments]
-    # `create` for Burst assignments; `get`/`list` so the dispatch
-    # endpoint can resolve the SA -> Pool linkage. `update` so the
-    # SharedWarm dispatch path can atomically claim a Burst on
-    # behalf of a polling warm Pod (PUT with resourceVersion CAS
-    # is the optimistic-concurrency contract the dispatch endpoint
-    # relies on to make claims race-free). No `delete` — only the
-    # runners-controller deletes assignments after their Pod hits
-    # a terminal phase or after a SharedWarm claim is recorded.
-    verbs: [get, list, watch, create, update]
+    # Read-only: the chart renders RunnerPool CRs from
+    # `runnersFleet` values; the server only reads them at dispatch
+    # time to discover the fleet name.
+    verbs: [get, list, watch]
   - apiGroups: [""]
     resources: [serviceaccounts]
     # Read SA labels (`tuist.dev/runner-pool`) during the
-    # TokenReview-mediated JIT mint to resolve which pool the
-    # caller is authorized for.
+    # TokenReview-mediated JIT mint to resolve which fleet the
+    # caller is polling for.
     verbs: [get, list]
+  - apiGroups: [""]
+    resources: [pods]
+    # `list` is used to count Pods labeled with a customer's name
+    # (`tuist.dev/runner-pool-owner=<account>`) for max_concurrent
+    # enforcement at queue-claim time. `patch` stamps owner labels
+    # on the polling Pod the moment it claims a queue entry.
+    verbs: [get, list, patch]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding

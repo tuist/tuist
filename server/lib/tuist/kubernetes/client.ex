@@ -1,26 +1,20 @@
 defmodule Tuist.Kubernetes.Client do
   @moduledoc """
-  Thin Kubernetes API client used by the runner-dispatch flow.
+  Thin Kubernetes API client the runner-dispatch flow uses. The
+  runners-controller (separate Go process) owns Pod + SA lifecycle;
+  the server only needs a handful of read paths plus one Pod
+  label-patch:
 
-  The runners-controller (separate Go process) owns Pod + SA
-  materialization end-to-end; the server only needs three K8s
-  verbs to participate:
-
-    1. `create_token_review/1` — validate a Pod's projected
-       ServiceAccount token from the dispatch endpoint, recovering
-       the SA's namespace + name without trusting the request
-       body.
-    2. `get_service_account/2` — read the SA's labels (most
-       importantly `tuist.dev/runner-pool`) so the dispatch
-       endpoint can resolve which pool the caller is authorized
-       for. The SA's labels are the authentic mapping; the Pod
-       can't lie about them because TokenReview tied the request
-       to the SA.
-    3. `create_runner_assignment/2` — when GitHub fires
-       `workflow_job: queued` and the matched pool's pre-bound
-       runners are saturated, the webhook handler writes a
-       RunnerAssignment CR (`trigger: Burst`) and the controller
-       picks it up to materialize a fresh Pod.
+    * `create_token_review/1` — validate a polling Pod's projected
+      SA token (returns the authenticated SA's namespace + name).
+    * `get_service_account/2` — resolve the SA → fleet from its
+      `tuist.dev/runner-pool` label.
+    * `get_runner_pool/2` / `list_runner_pools/1` — fleet discovery.
+    * `list_pods/2` — count in-flight Pods per customer (Pods
+      labeled `tuist.dev/runner-pool-owner=<owner>`) for
+      `max_concurrent` enforcement at dispatch time.
+    * `patch_pod/3` — stamp owner labels on a polling Pod the
+      moment it claims a queue entry.
 
   Authenticates with the in-cluster ServiceAccount mount (token at
   `/var/run/secrets/kubernetes.io/serviceaccount/token`, CA at
@@ -119,79 +113,8 @@ defmodule Tuist.Kubernetes.Client do
   end
 
   @doc """
-  POSTs a RunnerPool CR. Used by `Tuist.Runners.PoolReconciler`
-  when a new DB row needs a matching CR in the cluster.
-  """
-  def create_runner_pool(namespace, manifest) when is_binary(namespace) and is_map(manifest) do
-    with {:ok, host, ca, token} <- in_cluster_config() do
-      req_opts = [
-        url: "https://#{host}/apis/tuist.dev/v1alpha1/namespaces/#{namespace}/runnerpools",
-        json: manifest,
-        headers: auth_headers(token),
-        connect_options: [transport_opts: [cacerts: ca]]
-      ]
-
-      case Req.post(req_opts) do
-        {:ok, %{status: status, body: cr}} when status in [200, 201] -> {:ok, cr}
-        {:ok, %{status: 409}} -> {:error, :conflict}
-        {:ok, %{status: status, body: body}} -> {:error, {:http, status, body}}
-        {:error, reason} -> {:error, {:transport, reason}}
-      end
-    end
-  end
-
-  @doc """
-  PUTs (replaces) a RunnerPool CR. The reconciler reads the existing
-  CR, applies its DB-derived overlay, and PUTs the result. Uses
-  Kubernetes' built-in optimistic-concurrency via
-  `metadata.resourceVersion`.
-  """
-  def update_runner_pool(namespace, name, manifest) when is_binary(namespace) and is_binary(name) and is_map(manifest) do
-    with {:ok, host, ca, token} <- in_cluster_config() do
-      req_opts = [
-        url: "https://#{host}/apis/tuist.dev/v1alpha1/namespaces/#{namespace}/runnerpools/#{name}",
-        json: manifest,
-        headers: auth_headers(token),
-        connect_options: [transport_opts: [cacerts: ca]]
-      ]
-
-      case Req.put(req_opts) do
-        {:ok, %{status: 200, body: cr}} -> {:ok, cr}
-        {:ok, %{status: 409}} -> {:error, :conflict}
-        {:ok, %{status: 404}} -> {:error, :not_found}
-        {:ok, %{status: status, body: body}} -> {:error, {:http, status, body}}
-        {:error, reason} -> {:error, {:transport, reason}}
-      end
-    end
-  end
-
-  @doc """
-  DELETEs a RunnerPool CR. The reconciler issues this when a DB row
-  is removed; CR deletion cascades the controller's pool-owned
-  RunnerAssignment CRs (and through them, Pods + SAs).
-  """
-  def delete_runner_pool(namespace, name) when is_binary(namespace) and is_binary(name) do
-    with {:ok, host, ca, token} <- in_cluster_config() do
-      req_opts = [
-        url: "https://#{host}/apis/tuist.dev/v1alpha1/namespaces/#{namespace}/runnerpools/#{name}",
-        headers: auth_headers(token),
-        connect_options: [transport_opts: [cacerts: ca]]
-      ]
-
-      case Req.delete(req_opts) do
-        {:ok, %{status: status, body: body}} when status in [200, 202] -> {:ok, body}
-        {:ok, %{status: 404}} -> {:ok, :not_found}
-        {:ok, %{status: status, body: body}} -> {:error, {:http, status, body}}
-        {:error, reason} -> {:error, {:transport, reason}}
-      end
-    end
-  end
-
-  @doc """
-  LISTs RunnerPool CRs in `namespace`. The webhook handler folds
-  the result into the `(owner, labels) -> pool` matcher so a queued
-  workflow_job binds to the same pool the controller already
-  reconciles.
+  LISTs RunnerPool CRs in `namespace`. The dispatch handler uses
+  this to discover the fleet's pool name when writing a Burst CR.
   """
   def list_runner_pools(namespace) when is_binary(namespace) do
     with {:ok, host, ca, token} <- in_cluster_config() do
@@ -210,15 +133,16 @@ defmodule Tuist.Kubernetes.Client do
   end
 
   @doc """
-  LISTs RunnerAssignment CRs in `namespace`. Used by the dispatch
-  endpoint when a SharedWarm Pod polls — the server scans for
-  unclaimed Burst CRs and atomically claims one on the Pod's
-  behalf.
+  LISTs Pods in `namespace` matching `label_selector`. Used by
+  `Tuist.Runners.dispatch_for_sa` to count in-flight Pods per
+  customer (Pods labeled `tuist.dev/runner-pool-owner=<owner>`)
+  before claiming a queue entry, to enforce `max_concurrent`.
   """
-  def list_runner_assignments(namespace) when is_binary(namespace) do
+  def list_pods(namespace, label_selector) when is_binary(namespace) and is_binary(label_selector) do
     with {:ok, host, ca, token} <- in_cluster_config() do
       req_opts = [
-        url: "https://#{host}/apis/tuist.dev/v1alpha1/namespaces/#{namespace}/runnerassignments",
+        url: "https://#{host}/api/v1/namespaces/#{namespace}/pods",
+        params: [{"labelSelector", label_selector}],
         headers: auth_headers(token),
         connect_options: [transport_opts: [cacerts: ca]]
       ]
@@ -232,51 +156,27 @@ defmodule Tuist.Kubernetes.Client do
   end
 
   @doc """
-  PUTs (replaces) a RunnerAssignment CR. Carries the apiserver's
-  optimistic-concurrency contract: when `metadata.resourceVersion`
-  in `manifest` doesn't match the apiserver's current rv, the
-  request returns 409 Conflict. The dispatch endpoint relies on
-  this to atomically claim a Burst on behalf of a SharedWarm
-  Pod — two warm Pods racing for the same Burst will both LIST,
-  one will succeed at Update, the other will see 409 and pick
-  a different Burst.
+  Strategic-merge PATCHes a Pod. The dispatch endpoint uses this
+  to stamp owner labels on a polling Pod at the moment it claims
+  a queue entry, so subsequent `max_concurrent` counts include
+  the Pod immediately.
   """
-  def update_runner_assignment(namespace, name, manifest)
-      when is_binary(namespace) and is_binary(name) and is_map(manifest) do
+  def patch_pod(namespace, name, patch) when is_binary(namespace) and is_binary(name) and is_map(patch) do
     with {:ok, host, ca, token} <- in_cluster_config() do
       req_opts = [
-        url: "https://#{host}/apis/tuist.dev/v1alpha1/namespaces/#{namespace}/runnerassignments/#{name}",
-        json: manifest,
-        headers: auth_headers(token),
+        url: "https://#{host}/api/v1/namespaces/#{namespace}/pods/#{name}",
+        json: patch,
+        headers: [
+          {"authorization", "Bearer #{token}"},
+          {"accept", "application/json"},
+          {"content-type", "application/strategic-merge-patch+json"}
+        ],
         connect_options: [transport_opts: [cacerts: ca]]
       ]
 
-      case Req.put(req_opts) do
-        {:ok, %{status: 200, body: cr}} -> {:ok, cr}
-        {:ok, %{status: 409}} -> {:error, :conflict}
+      case Req.patch(req_opts) do
+        {:ok, %{status: 200, body: pod}} -> {:ok, pod}
         {:ok, %{status: 404}} -> {:error, :not_found}
-        {:ok, %{status: status, body: body}} -> {:error, {:http, status, body}}
-        {:error, reason} -> {:error, {:transport, reason}}
-      end
-    end
-  end
-
-  @doc """
-  POSTs a RunnerAssignment CR into `namespace` from a fully-shaped
-  manifest map. Used by the webhook handler to ask the controller
-  to materialize an on-demand Burst Pod.
-  """
-  def create_runner_assignment(namespace, manifest) when is_binary(namespace) and is_map(manifest) do
-    with {:ok, host, ca, token} <- in_cluster_config() do
-      req_opts = [
-        url: "https://#{host}/apis/tuist.dev/v1alpha1/namespaces/#{namespace}/runnerassignments",
-        json: manifest,
-        headers: auth_headers(token),
-        connect_options: [transport_opts: [cacerts: ca]]
-      ]
-
-      case Req.post(req_opts) do
-        {:ok, %{status: status, body: cr}} when status in [200, 201] -> {:ok, cr}
         {:ok, %{status: status, body: body}} -> {:error, {:http, status, body}}
         {:error, reason} -> {:error, {:transport, reason}}
       end

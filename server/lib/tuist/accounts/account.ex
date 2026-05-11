@@ -59,6 +59,12 @@ defmodule Tuist.Accounts.Account do
 
     field :custom_cache_endpoints_enabled, :boolean, default: false
 
+    # Customer-runner concurrency cap. 0 = runners disabled for this
+    # account (the dispatch webhook refuses to enqueue), N>0 = at
+    # most N concurrent runners. Enforced at queue-claim time by
+    # counting active Pods labeled with this account's name.
+    field :runner_max_concurrent, :integer, default: 0
+
     belongs_to :organization, Organization
     belongs_to :user, User
 

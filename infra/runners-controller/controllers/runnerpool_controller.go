@@ -1,5 +1,5 @@
 // Package controllers contains the reconcilers for the Tuist
-// runner-pool CRDs.
+// runner-pool CRD.
 package controllers
 
 import (
@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -17,23 +18,31 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	tuistv1 "github.com/tuist/tuist/infra/runners-controller/api/v1alpha1"
+	"github.com/tuist/tuist/infra/runners-controller/internal/podtemplate"
 )
 
-// RunnerPoolReconciler keeps a pool's pre-bound RunnerAssignment
-// count at MinWarm. Each assignment gets a Pod + ServiceAccount
-// from the assignment-side reconciler; this controller only
-// creates / counts assignments. Splitting MinWarm-maintenance
-// from Pod-creation keeps each reconcile loop small + idempotent.
+// RunnerPoolReconciler maintains a fleet of runner Pods + per-Pod
+// ServiceAccounts. Pods are owned directly by the RunnerPool (no
+// RunnerAssignment intermediate). When a Pod hits a terminal
+// phase, the reconciler creates a replacement on whichever host
+// the previous Pod freed.
 type RunnerPoolReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
+
+	// DispatchURL is the customer-server's runner dispatch endpoint
+	// threaded into every Pod via env. Set from the manager's
+	// --dispatch-url flag.
+	DispatchURL string
 }
 
 // +kubebuilder:rbac:groups=tuist.dev,resources=runnerpools,verbs=get;list;watch;update;patch
 // +kubebuilder:rbac:groups=tuist.dev,resources=runnerpools/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=tuist.dev,resources=runnerassignments,verbs=get;list;watch;create;delete
+// +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;create;delete
+// +kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list;watch;create;delete
 
 func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx).WithValues("pool", req.NamespacedName)
@@ -46,30 +55,23 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, err
 	}
 
-	// Count pre-bound assignments owned by this pool. Burst
-	// assignments don't count toward MinWarm — they're transient
-	// responses to a queued workflow_job and should expire with
-	// the Pod, not constrain pool sizing.
-	list := &tuistv1.RunnerAssignmentList{}
-	if err := r.List(ctx, list, client.InNamespace(pool.Namespace)); err != nil {
-		return ctrl.Result{}, fmt.Errorf("list assignments: %w", err)
+	// Count Pods owned by this pool that are alive (not in a
+	// terminal phase, not being deleted). Terminal Pods aren't
+	// counted toward `minWarm` — they're on their way out and a
+	// replacement is needed.
+	pods := &corev1.PodList{}
+	if err := r.List(ctx, pods,
+		client.InNamespace(pool.Namespace),
+		client.MatchingLabels{"tuist.dev/runner-pool": pool.Name},
+	); err != nil {
+		return ctrl.Result{}, fmt.Errorf("list pods: %w", err)
 	}
 
 	alive := 0
-	for _, a := range list.Items {
-		if a.Spec.PoolRef.Name != pool.Name {
-			continue
+	for _, p := range pods.Items {
+		if isAlive(&p) {
+			alive++
 		}
-		if a.Spec.Trigger != tuistv1.TriggerPreBound {
-			continue
-		}
-		if a.Status.Phase == tuistv1.PhaseTerminated {
-			continue
-		}
-		if !a.DeletionTimestamp.IsZero() {
-			continue
-		}
-		alive++
 	}
 
 	gap := int(pool.Spec.MinWarm) - alive
@@ -84,8 +86,8 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	)
 
 	for i := 0; i < gap; i++ {
-		if err := r.createAssignment(ctx, pool); err != nil {
-			logger.Error(err, "create assignment; will retry")
+		if err := r.createRunner(ctx, pool); err != nil {
+			logger.Error(err, "create runner; will retry")
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
 	}
@@ -93,59 +95,76 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	pool.Status.ObservedReplicas = int32(alive + gap)
 	pool.Status.LastReconcile = metav1.Now()
 	if err := r.Status().Update(ctx, pool); err != nil {
-		// Conflict / not-found are normal during rapid churn;
-		// the next reconcile picks up where we left off.
 		if !apierrors.IsConflict(err) && !apierrors.IsNotFound(err) {
 			return ctrl.Result{}, fmt.Errorf("status update: %w", err)
 		}
 	}
 
 	// Steady-state requeue: re-run every 60 s as a safety net for
-	// missed events (assignment delete watch glitches, status
-	// drift, etc.). Pod-event-driven reconcile via the GC watcher
-	// is the primary trigger; this is the catch-all.
+	// missed events. Pod-event-driven reconcile via Owns() is the
+	// primary trigger; this is the catch-all.
 	return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
 }
 
-func (r *RunnerPoolReconciler) createAssignment(ctx context.Context, pool *tuistv1.RunnerPool) error {
+// createRunner provisions one Pod + per-Pod ServiceAccount pair,
+// both owned by the RunnerPool. Pod and SA share the same name so
+// the dispatch endpoint can look up "which Pod is this SA mounted
+// on" from the validated SA name alone.
+func (r *RunnerPoolReconciler) createRunner(ctx context.Context, pool *tuistv1.RunnerPool) error {
 	suffix, err := randHex(4)
 	if err != nil {
 		return fmt.Errorf("generate suffix: %w", err)
 	}
-	assignment := &tuistv1.RunnerAssignment{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace:    pool.Namespace,
-			GenerateName: fmt.Sprintf("%s-prebound-", pool.Name),
-			Labels: map[string]string{
-				"tuist.dev/runner-pool":       pool.Name,
-				"tuist.dev/runner-pool-owner": pool.Spec.Owner,
-			},
-			Annotations: map[string]string{
-				// Suffix as an annotation so we can recognise the
-				// assignment later when filing names against logs.
-				"tuist.dev/assignment-suffix": suffix,
-			},
-		},
-		Spec: tuistv1.RunnerAssignmentSpec{
-			PoolRef: corev1LocalRef(pool.Name),
-			Trigger: tuistv1.TriggerPreBound,
-		},
+	name := fmt.Sprintf("%s-runner-%s", pool.Name, suffix)
+
+	sa := podtemplate.BuildServiceAccount(pool, name)
+	if err := controllerutil.SetControllerReference(pool, sa, r.Scheme); err != nil {
+		return fmt.Errorf("sa owner ref: %w", err)
+	}
+	if err := r.Create(ctx, sa); err != nil && !apierrors.IsAlreadyExists(err) {
+		return fmt.Errorf("create sa: %w", err)
 	}
 
-	// OwnerReference: pool owns the assignment, so deleting the
-	// pool cascades. The assignment in turn owns its Pod + SA
-	// (set by the assignment reconciler), so deleting the pool
-	// reaps everything.
-	if err := controllerutil.SetControllerReference(pool, assignment, r.Scheme); err != nil {
-		return fmt.Errorf("set owner ref: %w", err)
+	pod := podtemplate.Build(pool, name, name, r.DispatchURL)
+	if err := controllerutil.SetControllerReference(pool, pod, r.Scheme); err != nil {
+		return fmt.Errorf("pod owner ref: %w", err)
 	}
-	return r.Create(ctx, assignment)
+	if err := r.Create(ctx, pod); err != nil && !apierrors.IsAlreadyExists(err) {
+		return fmt.Errorf("create pod: %w", err)
+	}
+
+	return nil
+}
+
+// isAlive returns true for Pods that should count toward `minWarm`:
+// not in a terminal phase, not pending deletion.
+func isAlive(pod *corev1.Pod) bool {
+	if !pod.DeletionTimestamp.IsZero() {
+		return false
+	}
+	switch pod.Status.Phase {
+	case corev1.PodSucceeded, corev1.PodFailed:
+		return false
+	default:
+		return true
+	}
+}
+
+// runnerLabelPredicate filters the Pod watch down to Pods carrying
+// `tuist.dev/runner=true` so the reconciler isn't woken by
+// unrelated Pods that might land in the namespace.
+func runnerLabelPredicate() predicate.Predicate {
+	return predicate.NewPredicateFuncs(func(obj client.Object) bool {
+		v, ok := obj.GetLabels()["tuist.dev/runner"]
+		return ok && v == "true"
+	})
 }
 
 func (r *RunnerPoolReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&tuistv1.RunnerPool{}).
-		Owns(&tuistv1.RunnerAssignment{}, builder.MatchEveryOwner).
+		Owns(&corev1.Pod{}, builder.WithPredicates(runnerLabelPredicate())).
+		Owns(&corev1.ServiceAccount{}).
 		Complete(r)
 }
 

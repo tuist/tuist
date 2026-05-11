@@ -1,21 +1,19 @@
 // Package podtemplate builds the runner Pod manifest from a
-// RunnerPool spec + the per-Pod ServiceAccount the
-// RunnerAssignment controller mints.
+// RunnerPool spec. The Pod is single-shot: launchd inside the VM
+// runs dispatch-poll, which reads the projected ServiceAccount
+// token, POSTs it to the Tuist server's dispatch endpoint as a
+// Bearer token, gets a JIT runner config back when a queue entry
+// is claimed, execs `./run.sh --jitconfig`, runs one job, halts
+// the VM.
 //
-// The Pod is single-shot: launchd inside the VM runs
-// dispatch-poll, which reads the projected ServiceAccount token
-// from the standard mount path (`/var/run/secrets/kubernetes.io/
-// serviceaccount/token`), POSTs it to the Tuist server's
-// dispatch endpoint as a Bearer token, gets a JIT runner
-// config back, execs `./run.sh --jitconfig`, runs one job,
-// halts the VM. The shape mirrors any other ephemeral CAPI
-// workload — Pod-as-job-owning-VM, single container, fixed
-// resources, NodeSelector pinning to the right Mac mini fleet.
+// At boot the Pod has no customer binding — the SA carries
+// `tuist.dev/runner-pool=<pool>` only. The server stamps
+// `tuist.dev/runner-pool-owner=<account>` onto the Pod's labels
+// at the moment it claims a queue entry (so subsequent
+// `max_concurrent` counts include this Pod).
 package podtemplate
 
 import (
-	"fmt"
-
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -94,9 +92,9 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL string) *corev
 }
 
 // BuildServiceAccount returns the per-Pod ServiceAccount manifest.
-// Carries `tuist.dev/runner-pool=<name>` as a label so the
-// dispatch endpoint can resolve "this SA belongs to which pool"
-// after TokenReview validates the bearer token.
+// Carries `tuist.dev/runner-pool=<name>` so the dispatch endpoint
+// can resolve "this SA belongs to which fleet's pool" after
+// TokenReview validates the bearer token.
 func BuildServiceAccount(pool *tuistv1.RunnerPool, saName string) *corev1.ServiceAccount {
 	return &corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
@@ -106,30 +104,14 @@ func BuildServiceAccount(pool *tuistv1.RunnerPool, saName string) *corev1.Servic
 				"app.kubernetes.io/name":      "tuist-runner",
 				"app.kubernetes.io/component": "runner-sa",
 				"tuist.dev/runner-pool":       pool.Name,
-				"tuist.dev/runner-pool-owner": pool.Spec.Owner,
 			},
 		},
 		// Disable auto-mount on the SA itself; the Pod opts in via
-		// AutomountServiceAccountToken (we set this true on the Pod
-		// spec). Keeping the SA's default to false means an
-		// accidental Pod that references this SA without the explicit
-		// opt-in doesn't get a token.
+		// AutomountServiceAccountToken on its spec. Keeping the
+		// default false means a stray Pod that references this SA
+		// without explicit opt-in doesn't get a token.
 		AutomountServiceAccountToken: ptr(false),
 	}
-}
-
-// AssignmentResources returns the per-Pod object names the
-// controller derives from a RunnerAssignment. Stable across
-// reconciles; deterministic from the assignment's UID so
-// repeated reconciles converge to the same Pod / SA.
-func AssignmentResources(assignment string) (podName, saName string) {
-	// Pod name format: `tuist-runner-<assignment-name>`.
-	// The assignment name itself is `<pool>-<random>` from the
-	// reconciler, so the resulting Pod name reads naturally in
-	// `kubectl get pods`.
-	podName = fmt.Sprintf("tuist-runner-%s", assignment)
-	saName = fmt.Sprintf("tuist-runner-%s", assignment)
-	return podName, saName
 }
 
 func ptr[T any](v T) *T {

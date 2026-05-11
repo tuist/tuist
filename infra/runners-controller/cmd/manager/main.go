@@ -1,7 +1,6 @@
-// Command tuist-runners-controller reconciles RunnerPool +
-// RunnerAssignment CRDs into Pod + ServiceAccount pairs that the
-// Tuist server's dispatch endpoint can authenticate via the
-// Kubernetes TokenReview API.
+// Command tuist-runners-controller reconciles RunnerPool CRDs into
+// Pod + ServiceAccount pairs that the Tuist server's dispatch
+// endpoint can authenticate via the Kubernetes TokenReview API.
 //
 // Runs as one Deployment in the chart's release namespace. Uses
 // controller-runtime's leader election so multiple replicas don't
@@ -82,26 +81,11 @@ func main() {
 	}
 
 	if err := (&controllers.RunnerPoolReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "setup RunnerPool reconciler")
-		os.Exit(1)
-	}
-
-	if err := (&controllers.RunnerAssignmentReconciler{
 		Client:      mgr.GetClient(),
 		Scheme:      mgr.GetScheme(),
 		DispatchURL: dispatchURL,
 	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "setup RunnerAssignment reconciler")
-		os.Exit(1)
-	}
-
-	if err := (&controllers.PodGCReconciler{
-		Client: mgr.GetClient(),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "setup Pod GC reconciler")
+		setupLog.Error(err, "setup RunnerPool reconciler")
 		os.Exit(1)
 	}
 

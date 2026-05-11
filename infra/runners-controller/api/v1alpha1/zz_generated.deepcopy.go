@@ -70,70 +70,9 @@ func (in *RunnerPoolSpec) DeepCopyInto(out *RunnerPoolSpec) {
 		out.Labels = make([]string, len(in.Labels))
 		copy(out.Labels, in.Labels)
 	}
-	if in.RunnerGroupID != nil {
-		v := *in.RunnerGroupID
-		out.RunnerGroupID = &v
-	}
-	if in.AllowedRepos != nil {
-		out.AllowedRepos = make([]string, len(in.AllowedRepos))
-		copy(out.AllowedRepos, in.AllowedRepos)
-	}
 }
 
 func (in *RunnerPoolStatus) DeepCopyInto(out *RunnerPoolStatus) {
 	*out = *in
 	in.LastReconcile.DeepCopyInto(&out.LastReconcile)
-}
-
-// DeepCopyInto for RunnerAssignment.
-func (in *RunnerAssignment) DeepCopyInto(out *RunnerAssignment) {
-	*out = *in
-	out.TypeMeta = in.TypeMeta
-	in.ObjectMeta.DeepCopyInto(&out.ObjectMeta)
-	out.Spec = in.Spec
-	out.Status = in.Status
-}
-
-func (in *RunnerAssignment) DeepCopy() *RunnerAssignment {
-	if in == nil {
-		return nil
-	}
-	out := new(RunnerAssignment)
-	in.DeepCopyInto(out)
-	return out
-}
-
-func (in *RunnerAssignment) DeepCopyObject() runtime.Object {
-	if c := in.DeepCopy(); c != nil {
-		return c
-	}
-	return nil
-}
-
-func (in *RunnerAssignmentList) DeepCopyInto(out *RunnerAssignmentList) {
-	*out = *in
-	out.TypeMeta = in.TypeMeta
-	in.ListMeta.DeepCopyInto(&out.ListMeta)
-	if in.Items != nil {
-		out.Items = make([]RunnerAssignment, len(in.Items))
-		for i := range in.Items {
-			in.Items[i].DeepCopyInto(&out.Items[i])
-		}
-	}
-}
-
-func (in *RunnerAssignmentList) DeepCopy() *RunnerAssignmentList {
-	if in == nil {
-		return nil
-	}
-	out := new(RunnerAssignmentList)
-	in.DeepCopyInto(out)
-	return out
-}
-
-func (in *RunnerAssignmentList) DeepCopyObject() runtime.Object {
-	if c := in.DeepCopy(); c != nil {
-		return c
-	}
-	return nil
 }

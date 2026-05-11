@@ -160,10 +160,8 @@ defmodule Tuist do
       # lifecycle via the RunnerPool / RunnerAssignment CRDs.
       Runners,
       Runners.Dispatch,
-      Runners.Pool,
-      Runners.Pools,
-      Runners.PoolConfig,
-      Runners.PoolReconciler,
+      Runners.DispatchQueue,
+      Runners.DispatchQueueEntry,
       Kubernetes.Client
     ]
 end

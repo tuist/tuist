@@ -114,30 +114,12 @@ spec:
               value: "1"
             {{- end }}
             {{- if .Values.runnersFleet.enabled }}
-            # Customer runner-pool wiring. The DB (`runner_pools`
-            # table) is the system of record; the server's
-            # PoolReconciler syncs each row into a RunnerPool CR in
-            # the runners namespace. These envs provide the per-env
-            # defaults a row inherits when it leaves a field nil
-            # (image, fleet, Pod sizing) — onboarding a new customer
-            # is an INSERT, not a chart change.
+            # Runner-subscription wiring. The server reads
+            # RunnerPool CRs at dispatch time to discover the fleet
+            # name; per-customer config lives in
+            # `runner_subscriptions` and has no chart-level setting.
             - name: TUIST_RUNNERS_NAMESPACE
               value: {{ .Values.runnersFleet.namespace | default "tuist-runners" | quote }}
-            - name: TUIST_RUNNER_IMAGE_DEFAULT
-              value: {{ required "runnersFleet.runnerImage required when runnersFleet.enabled" .Values.runnersFleet.runnerImage | quote }}
-            - name: TUIST_RUNNERS_DEFAULT_FLEET
-              value: {{ include "tuist.runnersFleetName" . | quote }}
-            - name: TUIST_RUNNER_POD_CPU_MILLI_DEFAULT
-              value: {{ .Values.runnersFleet.pod.cpuMilli | default 8000 | quote }}
-            - name: TUIST_RUNNER_POD_MEMORY_MB_DEFAULT
-              value: {{ .Values.runnersFleet.pod.memoryMB | default 14336 | quote }}
-            # Cluster-wide standby pool size — equal to the fleet's
-            # host count so every Mac mini always carries either a
-            # warm Pod or a Pod running a customer job (one VM per
-            # host per Apple SLA). The PoolReconciler shapes the
-            # SharedWarm CR's spec.minWarm from this value.
-            - name: TUIST_RUNNERS_SHARED_WARM_SIZE
-              value: {{ .Values.runnersFleet.replicas | default 0 | quote }}
             {{- end }}
             {{- include "tuist.licenseEnv" . | nindent 12 }}
             {{- if or .Values.server.masterKey .Values.server.managedSecrets }}

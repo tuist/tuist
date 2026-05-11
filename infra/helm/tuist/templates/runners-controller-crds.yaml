@@ -50,43 +50,16 @@ spec:
               type: object
               required: [image, fleetSelector]
               properties:
-                role:
-                  type: string
-                  enum: [Customer, SharedWarm]
-                  default: Customer
-                  description: |-
-                    Customer pools register their runners with GitHub at boot for a
-                    specific org. SharedWarm pools stay anonymous and claim Burst
-                    RunnerAssignments at dispatch time, amortizing cold-start across
-                    customers.
-                owner:
-                  type: string
-                  description: GitHub org/login this pool serves. Required for Customer pools; SharedWarm pools leave empty.
                 labels:
                   type: array
                   items:
                     type: string
-                  description: Runner labels advertised on every Pod for this pool. Last entry is the dispatch label by convention.
+                  description: Labels stamped on Pods + SAs the controller creates.
                 minWarm:
                   type: integer
                   default: 0
                   minimum: 0
-                  description: Number of pre-bound Pods to keep warm for sub-second pickup.
-                runnerGroupID:
-                  type: integer
-                  format: int64
-                  description: GitHub org runner-group id this pool's JIT registrations land in. Repo allowlisting on the runner group is the authoritative authorization boundary.
-                allowedRepos:
-                  type: array
-                  items:
-                    type: string
-                  description: |-
-                    Optional repo allowlist (mirror of the GitHub runner group's repo
-                    allowlist) used by the webhook handler to short-circuit Burst
-                    RunnerAssignment creation for queued workflow_jobs from repos
-                    GitHub would refuse to dispatch anyway. Empty / omitted means
-                    "every repo in the org" (the runner group default). Format:
-                    `<owner>/<repo>` strings, case-insensitive.
+                  description: Number of Pods the controller maintains. By convention equals the fleet's host count.
                 image:
                   type: string
                   description: OCI ref of the runner Tart image, digest-pinned.
@@ -109,72 +82,4 @@ spec:
                 lastReconcile:
                   type: string
                   format: date-time
----
-apiVersion: apiextensions.k8s.io/v1
-kind: CustomResourceDefinition
-metadata:
-  name: runnerassignments.tuist.dev
-  labels:
-    {{- include "tuist.labels" . | nindent 4 }}
-    app.kubernetes.io/component: runners-controller
-spec:
-  group: tuist.dev
-  scope: Namespaced
-  names:
-    plural: runnerassignments
-    singular: runnerassignment
-    kind: RunnerAssignment
-    shortNames: [rassign]
-  versions:
-    - name: v1alpha1
-      served: true
-      storage: true
-      subresources:
-        status: {}
-      additionalPrinterColumns:
-        - name: Pool
-          type: string
-          jsonPath: .spec.poolRef.name
-        - name: Trigger
-          type: string
-          jsonPath: .spec.trigger
-        - name: Phase
-          type: string
-          jsonPath: .status.phase
-        - name: Pod
-          type: string
-          jsonPath: .status.podName
-        - name: Age
-          type: date
-          jsonPath: .metadata.creationTimestamp
-      schema:
-        openAPIV3Schema:
-          type: object
-          properties:
-            spec:
-              type: object
-              required: [poolRef]
-              properties:
-                poolRef:
-                  type: object
-                  required: [name]
-                  properties:
-                    name:
-                      type: string
-                trigger:
-                  type: string
-                  enum: [PreBound, Burst]
-                  default: PreBound
-            status:
-              type: object
-              properties:
-                podName:
-                  type: string
-                podUID:
-                  type: string
-                serviceAccountName:
-                  type: string
-                phase:
-                  type: string
-                  enum: [Pending, Running, Terminated]
 {{- end }}

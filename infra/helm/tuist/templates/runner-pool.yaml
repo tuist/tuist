@@ -1,0 +1,34 @@
+{{- if .Values.runnersFleet.enabled }}
+{{- $namespace := .Values.runnersFleet.namespace | default "tuist-runners" }}
+{{- $fleetName := include "tuist.runnersFleetName" . }}
+{{- $image := required "runnersFleet.runnerImage required when runnersFleet.enabled" .Values.runnersFleet.runnerImage }}
+{{- $podCPU := .Values.runnersFleet.pod.cpuMilli | default 8000 }}
+{{- $podMem := .Values.runnersFleet.pod.memoryMB | default 14336 }}
+{{- /*
+The cluster's runner fleet, expressed as a RunnerPool CR. There's
+exactly one fleet for v1; multi-image lands as a values-list shape
+(`runnersFleet.fleets[]`) that renders one CR per entry.
+
+`spec.minWarm` equals the fleet's host count so every Mac mini
+always carries either a polling warm Pod or a Pod running a
+customer job (one VM per host per Apple SLA). Customer
+subscriptions don't appear in K8s — they're DB-only metadata that
+the dispatch endpoint reads to mint per-customer JIT registrations
+when a warm Pod claims a Burst.
+*/}}
+apiVersion: tuist.dev/v1alpha1
+kind: RunnerPool
+metadata:
+  name: {{ $fleetName | quote }}
+  namespace: {{ $namespace | quote }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: runners-controller
+spec:
+  labels: []
+  minWarm: {{ .Values.runnersFleet.replicas | default 0 }}
+  image: {{ $image | quote }}
+  fleetSelector: {{ $fleetName | quote }}
+  podCPUMilli: {{ $podCPU }}
+  podMemoryMB: {{ $podMem }}
+{{- end }}
