@@ -155,13 +155,15 @@ macosFleet:
   enabled: true
   replicas: 1
   machine:
-    # M4-S is normally what we'd pick (smallest M4); falls back to
-    # M2-M when M4-S is no_stock. Override per Scaleway capacity.
-    type: M2-M
-    # M2-M: M2 chip / 8 CPU / 16 GB RAM. 14336 = 14 GB after the
-    # ~2 GB Apple Virtualization.framework reserve.
-    hostCPU: 8
-    hostMemoryMB: 14336
+    # Staging tracks the chart default (M2-L: M2 Pro / 12 CPU /
+    # 32 GB). Drop to M2-M (8 CPU / 16 GB) if staging capacity
+    # gets tight on inventory and we accept smaller hosts.
+    type: M2-L
+    # M2-L capacity minus the ~2 GB Apple Virtualization.framework
+    # reserve. tart-kubelet advertises this so kube-scheduler packs
+    # Pods against the real budget.
+    hostCPU: 12
+    hostMemoryMB: 30720
 
 # Customer-runner Mac mini fleet. Sized to tuist/tuist's
 # concurrency tier (2 in staging; production keeps 5).
@@ -177,9 +179,9 @@ runnersFleet:
   enabled: true
   hostCount: 2
   machine:
-    # M2-L: M2 Pro chip / 12 CPU / 32 GB RAM. Picked because
-    # M4-S/M2-M were no_stock in fr-par-1 on first runners-fleet
-    # bring-up; M2-L had inventory.
+    # Chart default — M2-L: M2 Pro / 12 CPU / 32 GB. Explicit
+    # here so `hostCPU`/`hostMemoryMB` stay in sync if a future
+    # operator overrides the SKU per env.
     type: M2-L
     # Match the SKU's actual capacity so tart-kubelet advertises
     # the right Node.Status.Capacity and kube-scheduler packs Pods

@@ -13,10 +13,11 @@ type ScalewayAppleSiliconMachineSpec struct {
 	// +optional
 	ProviderID *string `json:"providerID,omitempty"`
 
-	// Type is Scaleway's Mac mini SKU (M1-M, M4-S, M4-M, etc.).
-	// Defaults to M4-S: only zone fr-par-1 currently carries M2/M4
-	// SKUs (fr-par-3 has M1-M only and it's been unstocked).
-	// +kubebuilder:default=M4-S
+	// Type is Scaleway's Mac mini SKU (M1-M, M2-L, M4-S, M4-M, etc.).
+	// Defaults to M2-L (M2 Pro, 12 vCPU, 32 GB RAM): most reliable
+	// inventory in fr-par-1 and the capacity we want for Tuist +
+	// customer workloads. fr-par-3 has M1-M only and it's been unstocked.
+	// +kubebuilder:default=M2-L
 	Type string `json:"type,omitempty"`
 
 	// Zone is the Scaleway zone (fr-par-1, fr-par-3, etc.).
