@@ -401,6 +401,7 @@ defmodule L10n.Translator do
   @plural_forms %{
     "es" => "nplurals=2; plural=n != 1;",
     "ja" => "nplurals=1; plural=0;",
+    "ka" => "nplurals=2; plural=n != 1;",
     "ko" => "nplurals=1; plural=0;",
     "ru" =>
       "nplurals=3; plural=n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2;",

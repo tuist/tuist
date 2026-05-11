@@ -6,7 +6,7 @@ defmodule TuistWeb.Gettext.Configuration do
       if Tuist.Environment.dev_single_locale?() do
         ["en"]
       else
-        ~w(ar en es ja ko pl pt ru tr yue_Hant zh_Hans zh_Hant)
+        ~w(ar en es ja ka ko pl pt ru tr yue_Hant zh_Hans zh_Hant)
       end
 
     quote bind_quoted: [allowed_locales: allowed_locales] do

@@ -12,6 +12,7 @@ defmodule TuistWeb.LocaleTest do
   describe "normalize_locale/1" do
     test "normalizes language and region locales" do
       assert Locale.normalize_locale("es-ES") == "es"
+      assert Locale.normalize_locale("ka-GE") == "ka"
       assert Locale.normalize_locale("ru-RU") == "ru"
     end
 
@@ -38,6 +39,7 @@ defmodule TuistWeb.LocaleTest do
   describe "locale_from_accept_language/1" do
     test "returns the first supported locale from the browser preference list" do
       assert Locale.locale_from_accept_language("fr-FR,zh-CN;q=0.8,es-ES;q=0.7") == "zh_Hans"
+      assert Locale.locale_from_accept_language("fr-FR,ka-GE;q=0.8,es-ES;q=0.7") == "ka"
     end
 
     test "skips malformed tokens and keeps searching" do

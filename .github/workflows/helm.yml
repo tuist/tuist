@@ -128,6 +128,14 @@ jobs:
             for v in $values; do
               args+=("-f" "$chart/$v")
             done
+            # CI-only placeholder for required image tags. Real deploys set
+            # them via the per-environment helm upgrade. We need a value here
+            # so templates that `fail` on an empty tag still render, without
+            # changing the production guard.
+            if [ "$name" = "tuist (production)" ]; then
+              args+=("--set" "kuraController.image.tag=validation")
+              args+=("--set" "kuraRuntime.image.tag=validation")
+            fi
             if ! helm template "$release" "$chart" "${args[@]}" > rendered.yaml; then
               failed+=("$name (template)")
               echo "::endgroup::"

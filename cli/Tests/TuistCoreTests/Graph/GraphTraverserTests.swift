@@ -2115,12 +2115,20 @@ final class GraphTraverserTests: TuistUnitTestCase {
         // When
         let got = try subject.linkableDependencies(path: project.path, name: target.name).sorted()
 
-        // Then
+        // Then: static xcframeworks reached through a dynamic xcframework are NOT relinked
+        // at the consumer level. The dynamic xcframework absorbs their symbols at build time;
+        // relinking would duplicate symbols and break libraries with global state.
         XCTAssertEqual(got, [
             GraphDependencyReference(dependencyDynamicXCFramework),
-            GraphDependencyReference(dependencyStaticXCFrameworkA),
-            GraphDependencyReference(dependencyStaticXCFrameworkB),
         ])
+
+        // When
+        let searchablePaths = try subject.searchablePathDependencies(path: project.path, name: target.name)
+
+        // Then: static xcframeworks remain reachable via FRAMEWORK_SEARCH_PATHS so the
+        // compiler can resolve `import StaticFrameworkA` / `import StaticFrameworkB`.
+        XCTAssertTrue(searchablePaths.contains(GraphDependencyReference(dependencyStaticXCFrameworkA)))
+        XCTAssertTrue(searchablePaths.contains(GraphDependencyReference(dependencyStaticXCFrameworkB)))
 
         // When
         let embeddable = subject.embeddableFrameworks(path: project.path, name: target.name)
@@ -2215,7 +2223,9 @@ final class GraphTraverserTests: TuistUnitTestCase {
         // When
         let got = try subject.linkableDependencies(path: project.path, name: target.name).sorted()
 
-        // Then
+        // Then: the static xcframework itself is not relinked, but the system library it
+        // declared as a dependency must still be linked at the consumer level (otherwise
+        // unresolved system symbols would surface during the consumer's link step).
         XCTAssertBetterEqual(got, [
             .sdk(
                 path: try AbsolutePath(validating: "/libc++.tbd"),
@@ -2224,8 +2234,13 @@ final class GraphTraverserTests: TuistUnitTestCase {
                 condition: nil
             ),
             GraphDependencyReference(dependencyDynamicXCFramework),
-            GraphDependencyReference(dependencyStaticXCFrameworkA),
         ])
+
+        // When
+        let searchablePaths = try subject.searchablePathDependencies(path: project.path, name: target.name)
+
+        // Then
+        XCTAssertTrue(searchablePaths.contains(GraphDependencyReference(dependencyStaticXCFrameworkA)))
 
         // When
         let embeddable = subject.embeddableFrameworks(path: project.path, name: target.name)

@@ -1,0 +1,118 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: kurainstances.kura.tuist.dev
+spec:
+  group: kura.tuist.dev
+  names:
+    kind: KuraInstance
+    listKind: KuraInstanceList
+    plural: kurainstances
+    shortNames:
+      - kura
+    singular: kurainstance
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Phase
+          type: string
+          jsonPath: .status.phase
+        - name: Host
+          type: string
+          jsonPath: .spec.publicHost
+        - name: gRPC
+          type: string
+          jsonPath: .spec.grpcPublicHost
+        - name: Ready
+          type: integer
+          jsonPath: .status.readyReplicas
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            apiVersion:
+              type: string
+            kind:
+              type: string
+            metadata:
+              type: object
+            spec:
+              type: object
+              required:
+                - accountHandle
+                - tenantID
+                - region
+                - image
+              properties:
+                accountHandle:
+                  type: string
+                  minLength: 1
+                  maxLength: 63
+                  pattern: "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$"
+                tenantID:
+                  type: string
+                  minLength: 1
+                  maxLength: 63
+                  pattern: "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$"
+                region:
+                  type: string
+                  minLength: 1
+                  maxLength: 63
+                  pattern: "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$"
+                image:
+                  type: string
+                  minLength: 1
+                  maxLength: 256
+                  pattern: "^[A-Za-z0-9._/-]+(:[A-Za-z0-9._-]+)?(@sha256:[A-Fa-f0-9]{64})?$"
+                replicas:
+                  type: integer
+                  format: int32
+                  minimum: 1
+                publicHost:
+                  type: string
+                  maxLength: 253
+                grpcPublicHost:
+                  type: string
+                  maxLength: 253
+                storageClassName:
+                  type: string
+                storageSize:
+                  type: string
+                nodeSelector:
+                  type: object
+                  additionalProperties:
+                    type: string
+                extraEnv:
+                  type: array
+                  items:
+                    type: object
+                    x-kubernetes-preserve-unknown-fields: true
+                extensionScript:
+                  type: string
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                publicURL:
+                  type: string
+                grpcPublicURL:
+                  type: string
+                observedImage:
+                  type: string
+                readyReplicas:
+                  type: integer
+                  format: int32
+                message:
+                  type: string
+                lastReconciledAt:
+                  type: string
+                  format: date-time

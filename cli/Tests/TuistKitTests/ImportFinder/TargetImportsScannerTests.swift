@@ -1,5 +1,6 @@
 import FileSystem
 import Foundation
+import Path
 import Testing
 import TuistSupport
 import TuistTesting
@@ -127,5 +128,43 @@ struct TargetImportsScannerTests {
             // Then
             #expect(result == [])
         }
+    }
+
+    @Test func imports_limitsConcurrentFileScans() async throws {
+        // Given
+        let sourceCodeReader = ConcurrentSourceCodeReader()
+        let sources = try (0 ..< 20).map { index -> SourceFile in
+            let path = try AbsolutePath(validating: "/Target/Sources/File\(index).swift")
+            return SourceFile(path: path)
+        }
+        let target = Target.test(
+            name: "FirstTarget",
+            sources: sources
+        )
+
+        // When
+        let result = try await TargetImportsScanner(
+            maxConcurrentFileScans: 3,
+            sourceCodeReader: sourceCodeReader.read(at:)
+        )
+        .imports(for: target)
+
+        // Then
+        #expect(result == ["SecondTarget"])
+        #expect(await sourceCodeReader.maxConcurrentReads <= 3)
+    }
+}
+
+private actor ConcurrentSourceCodeReader {
+    private var activeReads = 0
+    private(set) var maxConcurrentReads = 0
+
+    func read(at _: AbsolutePath) async throws -> String? {
+        activeReads += 1
+        maxConcurrentReads = max(maxConcurrentReads, activeReads)
+        defer { activeReads -= 1 }
+
+        try await Task.sleep(nanoseconds: 10_000_000)
+        return "import SecondTarget"
     }
 }

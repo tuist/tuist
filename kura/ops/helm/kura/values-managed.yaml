@@ -1,0 +1,70 @@
+# Cross-cutting defaults for Kura on the Tuist-managed Kubernetes cluster
+# (Hetzner). Layered with a per-region and a per-account overlay; the
+# deploy workflow appends a generated per-instance file last to set
+# fullnameOverride and the public host.
+#
+# See infra/k8s/kura-rollout.md for the rollout flow.
+
+image:
+  repository: ghcr.io/tuist/kura
+  pullPolicy: IfNotPresent
+
+replicaCount: 3
+
+service:
+  type: ClusterIP
+  httpPort: 4000
+  grpcPort: 50051
+
+# Public reachability for the Tuist CLI. The CLI talks plain HTTP cache
+# protocol; gRPC (REAPI) is not exposed publicly here. Per-instance host
+# and TLS hosts are filled in by the workflow's generated overlay.
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "0"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+
+persistence:
+  enabled: true
+  # ReadWriteOncePod matches Kura's single-writer fencing contract and is
+  # supported by the Hetzner CSI driver on the cluster-stack version we
+  # run (>= 1.34). The in-process DataDirLock is the source of truth, so
+  # falling back to ReadWriteOnce only weakens the Kubernetes-side
+  # belt-and-suspenders.
+  accessModes:
+    - ReadWriteOncePod
+
+pdb:
+  enabled: true
+  minAvailable: 2
+
+# All managed clusters today are single-region (one Hetzner location, no
+# zones inside it). Spreading by hostname is the strongest constraint we
+# can apply: keeps the three replicas on three distinct workers so a node
+# drain does not take more than one Kura pod at a time.
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: DoNotSchedule
+    # The selector is filled in by the per-instance overlay so the spread
+    # constraint matches this specific release's pods, not every Kura
+    # release in the namespace.
+
+resources:
+  requests:
+    cpu: "500m"
+    memory: "1.5Gi"
+  limits:
+    memory: "2Gi"
+
+# Telemetry endpoint is the same across our managed clusters: each
+# cluster runs the k8s-monitoring Helm release in the `observability`
+# namespace, exposing alloy at the same in-cluster Service name.
+config:
+  telemetry:
+    otlpTracesEndpoint: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4318/v1/traces
+    deploymentEnvironment: production

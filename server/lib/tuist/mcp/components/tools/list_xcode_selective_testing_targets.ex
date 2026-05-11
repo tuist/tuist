@@ -49,7 +49,7 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeTestTargets do
              "Test run not found: #{test_run_id}"
            ),
          {:ok, command_event} <-
-           load_command_event(run.id, test_run_id) do
+           load_command_event(run, test_run_id) do
       page = MCPTool.page(args)
       page_size = MCPTool.page_size(args)
 
@@ -72,8 +72,8 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeTestTargets do
     end
   end
 
-  defp load_command_event(test_run_id, raw_test_run_id) do
-    case CommandEvents.get_command_event_by_test_run_id(test_run_id) do
+  defp load_command_event(run, raw_test_run_id) do
+    case CommandEvents.get_command_event_by_test_run_id(run.id, project_id: run.project_id) do
       {:ok, command_event} -> {:ok, command_event}
       {:error, :not_found} -> {:error, "Test run not found: #{raw_test_run_id}"}
     end

@@ -1,6 +1,6 @@
 <div id="integrations">
   <h1 data-part="title">{dgettext("dashboard_integrations", "Integrations")}</h1>
-  <.card_section :if={Tuist.Environment.github_app_configured?()} data-part="github-card-section">
+  <.card_section :if={@github_card_visible?} data-part="github-card-section">
     <div data-part="header">
       <span data-part="title">
         {dgettext("dashboard_integrations", "GitHub")}
@@ -13,12 +13,44 @@
       </span>
     </div>
     <div data-part="content">
+      <div
+        :if={is_nil(@github_app_installation) and @github_enterprise_available?}
+        data-part="github-host-config"
+      >
+        <.button_group size="medium">
+          <.button_group_item
+            label="github.com"
+            phx-click="select-github-com"
+            data-selected={not @show_github_enterprise_input}
+          />
+          <.button_group_item
+            label={dgettext("dashboard_integrations", "Enterprise server")}
+            phx-click="select-github-enterprise"
+            data-selected={@show_github_enterprise_input}
+          />
+        </.button_group>
+        <form :if={@show_github_enterprise_input} phx-change="update-github-client-url">
+          <.text_input
+            id="github-client-url"
+            name="github_client_url"
+            type="basic"
+            value={@github_client_url}
+            label={dgettext("dashboard_integrations", "Server URL")}
+            placeholder="https://github.example.com"
+            error={@github_client_url_error}
+            phx-debounce="300"
+          />
+        </form>
+      </div>
       <div data-part="actions">
         <.button
           :if={is_nil(@github_app_installation)}
           label={dgettext("dashboard_integrations", "Install GitHub App")}
           variant="primary"
-          href={VCS.get_github_app_installation_url(@selected_account)}
+          href={
+            VCS.get_github_app_installation_url(@selected_account, client_url: @github_client_url)
+          }
+          disabled={install_button_disabled?(assigns)}
         />
         <.button
           :if={

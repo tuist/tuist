@@ -828,7 +828,7 @@ defmodule TuistWeb.API.RunsController do
   end
 
   defp get_or_create_build(params) do
-    case Builds.get_build(params.id) do
+    case Builds.get_build(params.id, project_id: params.project.id) do
       {:ok, build} ->
         {:ok, build}
 
