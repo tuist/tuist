@@ -141,6 +141,58 @@ defmodule Tuist.Kubernetes.Client do
   end
 
   @doc """
+  LISTs RunnerAssignment CRs in `namespace`. Used by the dispatch
+  endpoint when a SharedWarm Pod polls — the server scans for
+  unclaimed Burst CRs and atomically claims one on the Pod's
+  behalf.
+  """
+  def list_runner_assignments(namespace) when is_binary(namespace) do
+    with {:ok, host, ca, token} <- in_cluster_config() do
+      req_opts = [
+        url: "https://#{host}/apis/tuist.dev/v1alpha1/namespaces/#{namespace}/runnerassignments",
+        headers: auth_headers(token),
+        connect_options: [transport_opts: [cacerts: ca]]
+      ]
+
+      case Req.get(req_opts) do
+        {:ok, %{status: 200, body: %{"items" => items}}} -> {:ok, items}
+        {:ok, %{status: status, body: body}} -> {:error, {:http, status, body}}
+        {:error, reason} -> {:error, {:transport, reason}}
+      end
+    end
+  end
+
+  @doc """
+  PUTs (replaces) a RunnerAssignment CR. Carries the apiserver's
+  optimistic-concurrency contract: when `metadata.resourceVersion`
+  in `manifest` doesn't match the apiserver's current rv, the
+  request returns 409 Conflict. The dispatch endpoint relies on
+  this to atomically claim a Burst on behalf of a SharedWarm
+  Pod — two warm Pods racing for the same Burst will both LIST,
+  one will succeed at Update, the other will see 409 and pick
+  a different Burst.
+  """
+  def update_runner_assignment(namespace, name, manifest)
+      when is_binary(namespace) and is_binary(name) and is_map(manifest) do
+    with {:ok, host, ca, token} <- in_cluster_config() do
+      req_opts = [
+        url: "https://#{host}/apis/tuist.dev/v1alpha1/namespaces/#{namespace}/runnerassignments/#{name}",
+        json: manifest,
+        headers: auth_headers(token),
+        connect_options: [transport_opts: [cacerts: ca]]
+      ]
+
+      case Req.put(req_opts) do
+        {:ok, %{status: 200, body: cr}} -> {:ok, cr}
+        {:ok, %{status: 409}} -> {:error, :conflict}
+        {:ok, %{status: 404}} -> {:error, :not_found}
+        {:ok, %{status: status, body: body}} -> {:error, {:http, status, body}}
+        {:error, reason} -> {:error, {:transport, reason}}
+      end
+    end
+  end
+
+  @doc """
   POSTs a RunnerAssignment CR into `namespace` from a fully-shaped
   manifest map. Used by the webhook handler to ask the controller
   to materialize an on-demand Burst Pod.

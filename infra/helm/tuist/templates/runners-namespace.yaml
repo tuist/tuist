@@ -63,10 +63,14 @@ rules:
   - apiGroups: [tuist.dev]
     resources: [runnerassignments]
     # `create` for Burst assignments; `get`/`list` so the dispatch
-    # endpoint can resolve the SA -> Pool linkage. No `delete`
-    # — only the runners-controller deletes assignments after
-    # their Pod hits a terminal phase.
-    verbs: [get, list, watch, create]
+    # endpoint can resolve the SA -> Pool linkage. `update` so the
+    # SharedWarm dispatch path can atomically claim a Burst on
+    # behalf of a polling warm Pod (PUT with resourceVersion CAS
+    # is the optimistic-concurrency contract the dispatch endpoint
+    # relies on to make claims race-free). No `delete` — only the
+    # runners-controller deletes assignments after their Pod hits
+    # a terminal phase or after a SharedWarm claim is recorded.
+    verbs: [get, list, watch, create, update]
   - apiGroups: [""]
     resources: [serviceaccounts]
     # Read SA labels (`tuist.dev/runner-pool`) during the

@@ -2,16 +2,52 @@ package v1alpha1
 
 import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+// PoolRole tags a pool with the function it serves. Customer pools
+// (the default) hold runners pre-registered with GitHub for a
+// specific org; shared-warm pools hold runners that are booted and
+// polling the dispatch endpoint without being bound to any
+// customer yet — they get claimed by Burst CRs at dispatch time so
+// the cold-start cost is amortized across customers.
+// +kubebuilder:validation:Enum=Customer;SharedWarm
+type PoolRole string
+
+const (
+	// RoleCustomer is the default — runners register with GitHub
+	// at boot under the customer's org runner group and sit
+	// online + idle until a workflow_job binds to them.
+	RoleCustomer PoolRole = "Customer"
+
+	// RoleSharedWarm holds runners booted and polling the dispatch
+	// endpoint but NOT yet registered with GitHub. When a Burst
+	// RunnerAssignment for any customer is pending, the dispatch
+	// endpoint atomically "claims" the Burst on behalf of a polling
+	// warm Pod and mints a JIT for the customer's pool — the warm
+	// Pod registers under the customer at that point. Skips the
+	// ~30-90s clone+boot tax on the customer-facing cold path.
+	RoleSharedWarm PoolRole = "SharedWarm"
+)
+
 // RunnerPoolSpec is the operator-facing declarative shape for a
 // customer's runner pool. The chart renders one RunnerPool CR
 // per `Tuist.Runners.PoolConfig` entry; the controller reconciles
 // each pool to keep `MinWarm` pre-bound Pods alive.
 type RunnerPoolSpec struct {
+	// Role determines whether the pool's Pods register with GitHub
+	// at boot (`Customer`) or stay anonymous and claim Burst
+	// assignments at dispatch time (`SharedWarm`). Defaults to
+	// `Customer`. There can be at most one SharedWarm pool per
+	// namespace; the dispatch endpoint picks the first it finds.
+	// +kubebuilder:default=Customer
+	// +optional
+	Role PoolRole `json:"role,omitempty"`
+
 	// Owner is the GitHub org/login this pool serves. Used by the
 	// dispatch endpoint to select the right pool when validating
 	// a workflow_job: queued event, and as the labels-prefix on
-	// the per-Pod ServiceAccount.
-	Owner string `json:"owner"`
+	// the per-Pod ServiceAccount. Required for Customer pools;
+	// SharedWarm pools leave this empty.
+	// +optional
+	Owner string `json:"owner,omitempty"`
 
 	// Labels are advertised on every runner registered for this
 	// pool. The last entry by convention is the dispatch label —

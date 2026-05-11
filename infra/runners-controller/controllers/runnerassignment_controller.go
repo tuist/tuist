@@ -42,7 +42,23 @@ type RunnerAssignmentReconciler struct {
 // +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;create;delete
 // +kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list;watch;create;delete
 
-const assignmentFinalizer = "tuist.dev/runner-assignment"
+const (
+	assignmentFinalizer = "tuist.dev/runner-assignment"
+
+	// claimAnnotation is set by the Tuist server on a Burst
+	// RunnerAssignment when a polling SharedWarm Pod claims it.
+	// The value is the warm Pod's name. The controller reads this
+	// to know it doesn't need to materialize a fresh Pod — the
+	// warm Pod is serving the Burst.
+	claimAnnotation = "tuist.dev/claimed-by-pod"
+
+	// burstClaimGracePeriod is how long the controller waits for a
+	// SharedWarm Pod to claim a fresh Burst before falling back to
+	// the cold path (spawn a new Pod). Sized to one warm-poll
+	// interval (5s) + a small slack so the typical "warm pool has
+	// capacity" case never reaches cold start.
+	burstClaimGracePeriod = 7 * time.Second
+)
 
 func (r *RunnerAssignmentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx).WithValues("assignment", req.NamespacedName)
@@ -74,6 +90,28 @@ func (r *RunnerAssignmentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 			return ctrl.Result{}, r.Delete(ctx, a)
 		}
 		return ctrl.Result{}, err
+	}
+
+	// Burst-only short-circuits: a SharedWarm Pod may have already
+	// claimed this Burst at dispatch time (annotation set by the
+	// server). If so, no Pod-create work — the warm Pod is running
+	// the customer's job; we drop the Burst CR since its only
+	// purpose was to queue the work for the warm pool.
+	if a.Spec.Trigger == tuistv1.TriggerBurst {
+		if claimer, claimed := a.Annotations[claimAnnotation]; claimed {
+			logger.Info("burst claimed by shared-warm pod; deleting placeholder",
+				"claimer", claimer)
+			return ctrl.Result{}, r.Delete(ctx, a)
+		}
+		// Give the warm pool a chance to claim before we eat the
+		// ~30-90 s clone+boot tax of the cold path. Past the grace
+		// window, fall through and materialize a fresh Pod.
+		elapsed := time.Since(a.CreationTimestamp.Time)
+		if elapsed < burstClaimGracePeriod {
+			remaining := burstClaimGracePeriod - elapsed
+			logger.V(1).Info("burst awaiting warm-pool claim", "elapsed", elapsed, "remaining", remaining)
+			return ctrl.Result{RequeueAfter: remaining}, nil
+		}
 	}
 
 	podName, saName := podtemplate.AssignmentResources(a.Name)

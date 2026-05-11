@@ -5,10 +5,20 @@ defmodule Tuist.Runners.PoolConfigTest do
 
   @sample_pool %{
     name: "tuist",
+    role: :customer,
     account_id: nil,
     owner: "tuist",
     labels: ["self-hosted", "macOS", "tuist-staging-macos"],
     min_warm: 0
+  }
+
+  @shared_warm_pool %{
+    name: "warm-standby",
+    role: :shared_warm,
+    account_id: nil,
+    owner: "",
+    labels: [],
+    min_warm: 2
   }
 
   describe "find_by_name/1" do
@@ -61,6 +71,19 @@ defmodule Tuist.Runners.PoolConfigTest do
                  "tuist",
                  ["windows-latest"],
                  [@sample_pool]
+               )
+    end
+
+    test "skips SharedWarm pools" do
+      # SharedWarm pools are not customer-facing — even if a
+      # workflow's labels somehow line up, the matcher must not
+      # bind them. Bursts route via the customer pool that
+      # matched; the warm pool only ever claims at dispatch time.
+      assert {:error, :no_match} =
+               PoolConfig.match_for_dispatch(
+                 "tuist",
+                 ["self-hosted", "tuist-staging-macos"],
+                 [@shared_warm_pool]
                )
     end
   end

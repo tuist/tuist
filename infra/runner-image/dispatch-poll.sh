@@ -93,6 +93,16 @@ while true; do
       ./run.sh --jitconfig "${jit}" --disableupdate
       exit $?
       ;;
+    204)
+      # SharedWarm pool: server has nothing for us yet. Keep
+      # polling — the VM is booted and registered with the
+      # dispatch endpoint via its SA token; when a customer's
+      # Burst arrives, our next poll will return 200 with the
+      # JIT bound to that customer. Quiet log every Nth tick so
+      # the file doesn't balloon while idle.
+      [ $((attempt % 12)) -eq 0 ] && echo "$(date -u +%FT%TZ) dispatch-poll: warm standby (attempt=${attempt})"
+      sleep "${interval}"
+      ;;
     401|403)
       echo "$(date -u +%FT%TZ) dispatch-poll: ${http} unauthorized; aborting"
       exit 1

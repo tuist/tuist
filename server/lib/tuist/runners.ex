@@ -44,6 +44,8 @@ defmodule Tuist.Runners do
   require Logger
 
   @pool_label "tuist.dev/runner-pool"
+  @claim_annotation "tuist.dev/claimed-by-pod"
+  @max_claim_attempts 3
 
   @doc """
   Resolves the SA at `namespace/sa_name` into a pool via its
@@ -68,8 +70,16 @@ defmodule Tuist.Runners do
   def dispatch_for_sa(namespace, sa_name) when is_binary(namespace) and is_binary(sa_name) do
     with {:ok, sa} <- K8sClient.get_service_account(namespace, sa_name),
          {:ok, pool_name} <- pool_label(sa),
-         {:ok, pool} <- find_pool(pool_name),
-         {:ok, jit, runner_name} <- mint_jit(pool, sa_name) do
+         {:ok, pool} <- find_pool(pool_name) do
+      case pool.role do
+        :shared_warm -> dispatch_shared_warm(namespace, sa_name, pool)
+        _ -> dispatch_customer(pool, sa_name)
+      end
+    end
+  end
+
+  defp dispatch_customer(pool, sa_name) do
+    with {:ok, jit, runner_name} <- mint_jit(pool, sa_name) do
       Logger.info("runners: dispatched jit",
         pool: pool.name,
         sa: sa_name,
@@ -77,6 +87,111 @@ defmodule Tuist.Runners do
       )
 
       {:ok, %{jit: jit, pool: pool, runner_name: runner_name}}
+    end
+  end
+
+  # SharedWarm path: the calling Pod is a warm runner waiting for
+  # work. List Burst RunnerAssignments, find one that's unclaimed
+  # and ready to bind, atomically claim it via Update+resourceVersion,
+  # then mint a JIT for the Burst's customer pool. Retries on
+  # 409-conflict (another warm Pod won the race) up to a small cap;
+  # past that we tell the caller "no work yet" and the warm Pod
+  # keeps polling.
+  defp dispatch_shared_warm(namespace, sa_name, _warm_pool) do
+    case fetch_burst_candidates(namespace) do
+      {:ok, []} ->
+        {:error, :no_work_yet}
+
+      {:ok, candidates} ->
+        try_claim(namespace, sa_name, candidates, @max_claim_attempts)
+
+      {:error, reason} ->
+        Logger.warning("runners: shared-warm list_runner_assignments failed",
+          reason: inspect(reason)
+        )
+
+        {:error, :no_work_yet}
+    end
+  end
+
+  defp fetch_burst_candidates(namespace) do
+    case K8sClient.list_runner_assignments(namespace) do
+      {:ok, items} ->
+        {:ok,
+         items
+         |> Enum.filter(&unclaimed_burst?/1)
+         # Oldest first — fairness, and minimizes user-perceived
+         # queue latency.
+         |> Enum.sort_by(&Map.get(&1["metadata"], "creationTimestamp", ""))}
+
+      err ->
+        err
+    end
+  end
+
+  defp unclaimed_burst?(%{"spec" => %{"trigger" => "Burst"}, "metadata" => meta}) do
+    annotations = Map.get(meta, "annotations", %{}) || %{}
+    deletion_ts = Map.get(meta, "deletionTimestamp")
+    Map.get(annotations, @claim_annotation) in [nil, ""] and is_nil(deletion_ts)
+  end
+
+  defp unclaimed_burst?(_), do: false
+
+  defp try_claim(_namespace, _sa_name, [], _attempts), do: {:error, :no_work_yet}
+  defp try_claim(_namespace, _sa_name, _candidates, 0), do: {:error, :no_work_yet}
+
+  defp try_claim(namespace, sa_name, [candidate | rest], attempts) do
+    case claim(namespace, sa_name, candidate) do
+      {:ok, pool_name} ->
+        case find_pool(pool_name) do
+          {:ok, customer_pool} ->
+            dispatch_customer(customer_pool, sa_name)
+
+          {:error, :unknown_pool} ->
+            # Burst was claimed but its poolRef target is gone.
+            # Don't release the claim (the apiserver/CR cleanup
+            # will reap on terminal phase); skip to next candidate.
+            try_claim(namespace, sa_name, rest, attempts - 1)
+        end
+
+      {:error, :conflict} ->
+        # Another warm Pod claimed this Burst. Skip and try the next.
+        try_claim(namespace, sa_name, rest, attempts - 1)
+
+      {:error, :not_found} ->
+        # Burst was deleted in flight (controller GC race).
+        try_claim(namespace, sa_name, rest, attempts - 1)
+
+      {:error, reason} ->
+        Logger.warning("runners: shared-warm claim failed",
+          reason: inspect(reason)
+        )
+
+        try_claim(namespace, sa_name, rest, attempts - 1)
+    end
+  end
+
+  defp claim(namespace, sa_name, candidate) do
+    name = candidate["metadata"]["name"]
+    pool_ref = get_in(candidate, ["spec", "poolRef", "name"])
+
+    annotations =
+      Map.get(candidate["metadata"], "annotations", %{}) || %{}
+
+    updated = put_in(candidate, ["metadata", "annotations"], Map.put(annotations, @claim_annotation, sa_name))
+
+    case K8sClient.update_runner_assignment(namespace, name, updated) do
+      {:ok, _} ->
+        Logger.info("runners: shared-warm claimed burst",
+          burst: name,
+          claimer: sa_name,
+          pool: pool_ref
+        )
+
+        {:ok, pool_ref}
+
+      err ->
+        err
     end
   end
 

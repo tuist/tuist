@@ -42,6 +42,16 @@ defmodule Tuist.Runners.PoolConfig do
   end
 
   @doc """
+  Returns the first SharedWarm pool the chart declares, or nil. A
+  cluster declares at most one SharedWarm pool today (sized by
+  aggregate burst rate, not per-customer); the dispatch endpoint
+  uses it to amortize cold-start across customers.
+  """
+  def shared_warm do
+    Enum.find(pools(), fn pool -> pool.role == :shared_warm end)
+  end
+
+  @doc """
   Looks up a pool by its `name` field. Used by the dispatch flow
   to resolve a SA's `tuist.dev/runner-pool` label into the full
   pool record before minting a JIT.
@@ -72,7 +82,8 @@ defmodule Tuist.Runners.PoolConfig do
   event. Matches on `owner` (case-insensitive) — the org login
   parsed from the webhook's `repository.full_name` — and requires
   the pool's `dispatch_label/1` to be present in the requested
-  `runs-on` labels.
+  `runs-on` labels. SharedWarm pools are excluded — they're not
+  customer-facing and have no dispatch label.
 
   Generic labels like `self-hosted` aren't enough — without the
   pool's customer-scoped tag in the request we return
@@ -89,11 +100,13 @@ defmodule Tuist.Runners.PoolConfig do
     candidates = pools_override || pools()
 
     Enum.find_value(candidates, {:error, :no_match}, fn pool ->
-      pool_owner = String.downcase(pool.owner)
-      tag = pool |> dispatch_label() |> String.downcase()
+      if pool.role == :customer do
+        pool_owner = String.downcase(pool.owner)
+        tag = pool |> dispatch_label() |> String.downcase()
 
-      if pool_owner == needle and MapSet.member?(requested, tag) do
-        {:ok, pool}
+        if pool_owner == needle and MapSet.member?(requested, tag) do
+          {:ok, pool}
+        end
       end
     end)
   end
@@ -123,6 +136,7 @@ defmodule Tuist.Runners.PoolConfig do
   defp shape_pool(%{"metadata" => %{"name" => name}, "spec" => spec}) do
     %{
       name: name,
+      role: spec |> Map.get("role", "Customer") |> normalize_role(),
       owner: Map.get(spec, "owner", ""),
       labels: Map.get(spec, "labels", []),
       runner_group_id: spec |> Map.get("runnerGroupID") |> normalize_int(),
@@ -130,6 +144,9 @@ defmodule Tuist.Runners.PoolConfig do
       min_warm: Map.get(spec, "minWarm", 0)
     }
   end
+
+  defp normalize_role("SharedWarm"), do: :shared_warm
+  defp normalize_role(_), do: :customer
 
   defp normalize_int(nil), do: nil
   defp normalize_int(v) when is_integer(v), do: v

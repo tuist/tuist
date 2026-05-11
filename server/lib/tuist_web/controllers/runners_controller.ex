@@ -36,6 +36,13 @@ defmodule TuistWeb.RunnersController do
         owner: pool.owner
       })
     else
+      {:error, :no_work_yet} ->
+        # SharedWarm Pod polled but no Burst is pending. Tell it to
+        # keep polling — 204 No Content carries the "alive but
+        # nothing to do" semantics without forcing the VM to
+        # shut down.
+        send_resp(conn, :no_content, "")
+
       {:error, :missing_bearer} ->
         conn |> put_status(:unauthorized) |> json(%{error: "missing bearer token"})
 

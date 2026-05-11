@@ -21,6 +21,7 @@ or VM size.
 */}}
 {{- range $pool := .Values.runnerPools | default list }}
 ---
+{{- $role := $pool.role | default "Customer" }}
 apiVersion: tuist.dev/v1alpha1
 kind: RunnerPool
 metadata:
@@ -29,13 +30,23 @@ metadata:
   labels:
     {{- include "tuist.labels" $ | nindent 4 }}
     app.kubernetes.io/component: runners-controller
-    tuist.dev/runner-pool-owner: {{ required "runnerPools[].owner required" $pool.owner | quote }}
+    tuist.dev/runner-pool-role: {{ $role | quote }}
+    {{- if eq $role "Customer" }}
+    tuist.dev/runner-pool-owner: {{ required "runnerPools[].owner required for Customer role" $pool.owner | quote }}
+    {{- end }}
 spec:
+  role: {{ $role | quote }}
+  {{- if $pool.owner }}
   owner: {{ $pool.owner | quote }}
+  {{- end }}
+  {{- with $pool.labels }}
   labels:
-    {{- range $pool.labels }}
+    {{- range . }}
     - {{ . | quote }}
     {{- end }}
+  {{- else }}
+  labels: []
+  {{- end }}
   minWarm: {{ $pool.minWarm | default 0 }}
   {{- with $pool.runnerGroupID }}
   runnerGroupID: {{ . }}

@@ -48,11 +48,20 @@ spec:
           properties:
             spec:
               type: object
-              required: [owner, labels, image, fleetSelector]
+              required: [image, fleetSelector]
               properties:
+                role:
+                  type: string
+                  enum: [Customer, SharedWarm]
+                  default: Customer
+                  description: |-
+                    Customer pools register their runners with GitHub at boot for a
+                    specific org. SharedWarm pools stay anonymous and claim Burst
+                    RunnerAssignments at dispatch time, amortizing cold-start across
+                    customers.
                 owner:
                   type: string
-                  description: GitHub org/login this pool serves.
+                  description: GitHub org/login this pool serves. Required for Customer pools; SharedWarm pools leave empty.
                 labels:
                   type: array
                   items:
