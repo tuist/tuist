@@ -51,12 +51,26 @@ defmodule Tuist.Runners.Jobs do
 
   require Logger
 
-  # How long the verify-readback waits between INSERT and SELECT.
-  # ClickHouse synchronous inserts return after the row is written
-  # but parts may not be immediately visible across replicas. The
-  # sleep is a small budget for visibility to settle; on single-
-  # replica setups it's effectively wasted. Cheap insurance.
-  @verify_settle_ms 25
+  # Read-after-write visibility for the verify-readback. Today
+  # this is a no-op: Tuist's deployed ClickHouse runs as a
+  # single-replica StatefulSet with plain `MergeTree` /
+  # `ReplacingMergeTree` (not `Replicated*MergeTree`), so a
+  # synchronous `IngestRepo.insert_all/2` returns only after the
+  # row is written to the part, and the very next SELECT to the
+  # same node sees it. No replication, no lag.
+  #
+  # If we ever shard the runners-jobs table or move ClickHouse to
+  # a multi-replica replicated setup, the right primitives are:
+  #
+  #   * `insert_quorum_parallel = 0` + `insert_quorum = N` on the
+  #     INSERT so it waits for N replicas to ack.
+  #   * `select_sequential_consistency = 1` on the SELECT so the
+  #     read replica waits for the latest quorum-committed write.
+  #
+  # That would replace the assumption below with an actual ClickHouse
+  # linearisability guarantee. Until then we don't pay an extra ms
+  # of latency on every claim.
+
 
   @doc """
   Idempotent enqueue. Inserts a `status='queued'` row for the
@@ -122,11 +136,6 @@ defmodule Tuist.Runners.Jobs do
     row = Map.merge(candidate, %{status: "claimed", claimed_at: now, pod_name: pod_name, updated_at: now})
 
     insert_row!(row)
-
-    # Visibility settle. On single-replica setups this is a tax;
-    # on multi-replica it's the budget for the other poll's
-    # INSERT to become visible to our readback.
-    Process.sleep(@verify_settle_ms)
 
     case current_state(candidate.workflow_job_id) do
       %Job{status: "claimed", pod_name: ^pod_name} = job ->
