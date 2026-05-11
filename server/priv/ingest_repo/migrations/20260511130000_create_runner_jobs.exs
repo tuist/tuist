@@ -105,8 +105,14 @@ defmodule Tuist.IngestRepo.Migrations.CreateRunnerJobs do
         null: false,
         default: fragment("now64(6)")
 
-      add :claimed_at, :"DateTime64(6, 'UTC')", null: false, default: fragment("toDateTime64(0, 6)")
-      add :started_at, :"DateTime64(6, 'UTC')", null: false, default: fragment("toDateTime64(0, 6)")
+      add :claimed_at, :"DateTime64(6, 'UTC')",
+        null: false,
+        default: fragment("toDateTime64(0, 6)")
+
+      add :started_at, :"DateTime64(6, 'UTC')",
+        null: false,
+        default: fragment("toDateTime64(0, 6)")
+
       add :completed_at, :"DateTime64(6, 'UTC')",
         null: false,
         default: fragment("toDateTime64(0, 6)")
@@ -126,9 +132,7 @@ defmodule Tuist.IngestRepo.Migrations.CreateRunnerJobs do
     # Partial-projection-like indexes for the cap-count and
     # customer-facing queries. ClickHouse uses these as skip
     # indexes inside the parts; cheap to maintain on inserts.
-    execute(
-      "ALTER TABLE runner_jobs ADD INDEX idx_status (status) TYPE set(4) GRANULARITY 4"
-    )
+    execute("ALTER TABLE runner_jobs ADD INDEX idx_status (status) TYPE set(4) GRANULARITY 4")
 
     execute(
       "ALTER TABLE runner_jobs ADD INDEX idx_account (account_id) TYPE bloom_filter GRANULARITY 4"

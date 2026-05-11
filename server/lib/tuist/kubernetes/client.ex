@@ -150,9 +150,7 @@ defmodule Tuist.Kubernetes.Client do
   before claiming a queue entry, to enforce `max_concurrent`.
   """
   def list_pods(namespace, label_selector) when is_binary(namespace) and is_binary(label_selector) do
-    case request(:get, "/api/v1/namespaces/#{namespace}/pods",
-           query: %{"labelSelector" => label_selector}
-         ) do
+    case request(:get, "/api/v1/namespaces/#{namespace}/pods", query: %{"labelSelector" => label_selector}) do
       {:ok, %{"items" => items}} -> {:ok, items}
       {:error, _} = err -> err
     end
