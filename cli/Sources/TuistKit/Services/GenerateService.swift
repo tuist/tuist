@@ -1,5 +1,6 @@
 import FileSystem
 import Foundation
+import Mockable
 import Path
 import TuistAlert
 import TuistCache
@@ -29,8 +30,7 @@ public struct GenerateService {
     private let pluginService: PluginServicing
     private let configLoader: ConfigLoading
     private let installService: InstallServicing
-    private let manifestFilesLocator: ManifestFilesLocating
-    private let fileSystem: FileSysteming
+    private let outdatedDependenciesChecker: OutdatedDependenciesChecking
 
     public init(
         cacheStorageFactory: CacheStorageFactorying,
@@ -50,8 +50,7 @@ public struct GenerateService {
             pluginService: pluginService,
             configLoader: configLoader,
             installService: InstallService(),
-            manifestFilesLocator: ManifestFilesLocator(),
-            fileSystem: FileSystem()
+            outdatedDependenciesChecker: OutdatedDependenciesChecker()
         )
     }
 
@@ -64,8 +63,7 @@ public struct GenerateService {
         pluginService: PluginServicing = PluginService(),
         configLoader: ConfigLoading = ConfigLoader(),
         installService: InstallServicing,
-        manifestFilesLocator: ManifestFilesLocating,
-        fileSystem: FileSysteming
+        outdatedDependenciesChecker: OutdatedDependenciesChecking
     ) {
         self.generatorFactory = generatorFactory
         self.cacheStorageFactory = cacheStorageFactory
@@ -75,8 +73,7 @@ public struct GenerateService {
         self.pluginService = pluginService
         self.configLoader = configLoader
         self.installService = installService
-        self.manifestFilesLocator = manifestFilesLocator
-        self.fileSystem = fileSystem
+        self.outdatedDependenciesChecker = outdatedDependenciesChecker
     }
 
     public func run(
@@ -105,7 +102,7 @@ public struct GenerateService {
 
         if let generatedProject = config.project.generatedProject,
            generatedProject.generationOptions.autoInstallOutdatedDependencies,
-           try await packageDependenciesAreOutdated(at: path)
+           try await outdatedDependenciesChecker.packageDependenciesAreOutdated(at: path)
         {
             Logger.current.notice("Outdated dependencies detected. Running `tuist install`.", metadata: .section)
             try await installService.run(
@@ -146,8 +143,26 @@ public struct GenerateService {
     private func path(_ path: String?) async throws -> AbsolutePath {
         try await Environment.current.pathRelativeToWorkingDirectory(path)
     }
+}
 
-    private func packageDependenciesAreOutdated(at path: AbsolutePath) async throws -> Bool {
+@Mockable
+protocol OutdatedDependenciesChecking {
+    func packageDependenciesAreOutdated(at path: AbsolutePath) async throws -> Bool
+}
+
+struct OutdatedDependenciesChecker: OutdatedDependenciesChecking {
+    private let manifestFilesLocator: ManifestFilesLocating
+    private let fileSystem: FileSysteming
+
+    init(
+        manifestFilesLocator: ManifestFilesLocating = ManifestFilesLocator(),
+        fileSystem: FileSysteming = FileSystem()
+    ) {
+        self.manifestFilesLocator = manifestFilesLocator
+        self.fileSystem = fileSystem
+    }
+
+    func packageDependenciesAreOutdated(at path: AbsolutePath) async throws -> Bool {
         guard let packageManifestPath = try await manifestFilesLocator.locatePackageManifest(at: path) else {
             return false
         }

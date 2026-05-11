@@ -1,5 +1,3 @@
-import FileSystem
-import FileSystemTesting
 import Foundation
 import Mockable
 import Path
@@ -381,16 +379,14 @@ struct GenerateServiceTests {
     }
 }
 
-@Suite(.serialized)
 struct GenerateServiceAutoInstallTests {
-    private let fileSystem = FileSystem()
     private var subject: GenerateService!
     private var generator: MockGenerating!
     private var generatorFactory: MockGeneratorFactorying!
     private var cacheStorageFactory: MockCacheStorageFactorying!
     private var configLoader: MockConfigLoading!
     private var installService: MockInstallServicing!
-    private var manifestFilesLocator: MockManifestFilesLocating!
+    private var outdatedDependenciesChecker: MockOutdatedDependenciesChecking!
 
     init() {
         generator = .init()
@@ -398,7 +394,7 @@ struct GenerateServiceAutoInstallTests {
         cacheStorageFactory = .init()
         configLoader = .init()
         installService = .init()
-        manifestFilesLocator = .init()
+        outdatedDependenciesChecker = .init()
 
         given(generatorFactory)
             .generation(
@@ -418,41 +414,29 @@ struct GenerateServiceAutoInstallTests {
             generatorFactory: generatorFactory,
             configLoader: configLoader,
             installService: installService,
-            manifestFilesLocator: manifestFilesLocator,
-            fileSystem: fileSystem
+            outdatedDependenciesChecker: outdatedDependenciesChecker
         )
     }
 
-    @Test(.inTemporaryDirectory)
+    @Test
     func runs_install_when_auto_install_enabled_and_dependencies_are_outdated() async throws {
         // Given
-        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        let packageManifestPath = temporaryDirectory.appending(components: ["Tuist", "Package.swift"])
-        try await fileSystem.makeDirectory(at: packageManifestPath.parentDirectory)
-        try await fileSystem.touch(packageManifestPath)
-        try await fileSystem.writeText(
-            "current",
-            at: packageManifestPath.parentDirectory.appending(component: "Package.resolved")
-        )
-
-        given(manifestFilesLocator)
-            .locatePackageManifest(at: .any)
-            .willReturn(packageManifestPath)
-
-        let workspacePath = temporaryDirectory.appending(component: "test.xcworkspace")
         given(configLoader).loadConfig(path: .any).willReturn(
             .test(project: .generated(.test(generationOptions: .test(autoInstallOutdatedDependencies: true))))
         )
+        given(outdatedDependenciesChecker)
+            .packageDependenciesAreOutdated(at: .any)
+            .willReturn(true)
         given(generator)
             .generateWithGraph(path: .any, options: .any)
-            .willReturn((workspacePath, .test(), MapperEnvironment()))
+            .willReturn((try AbsolutePath(validating: "/test.xcworkspace"), .test(), MapperEnvironment()))
         given(installService)
             .run(path: .any, update: .any, passthroughArguments: .any)
             .willReturn()
 
         // When
         try await subject.run(
-            path: temporaryDirectory.pathString,
+            path: nil,
             includedTargets: [],
             noOpen: true,
             configuration: nil,
@@ -466,33 +450,19 @@ struct GenerateServiceAutoInstallTests {
             .called(1)
     }
 
-    @Test(.inTemporaryDirectory)
+    @Test
     func does_not_run_install_when_auto_install_disabled() async throws {
         // Given
-        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        let packageManifestPath = temporaryDirectory.appending(components: ["Tuist", "Package.swift"])
-        try await fileSystem.makeDirectory(at: packageManifestPath.parentDirectory)
-        try await fileSystem.touch(packageManifestPath)
-        try await fileSystem.writeText(
-            "current",
-            at: packageManifestPath.parentDirectory.appending(component: "Package.resolved")
-        )
-
-        given(manifestFilesLocator)
-            .locatePackageManifest(at: .any)
-            .willReturn(packageManifestPath)
-
-        let workspacePath = temporaryDirectory.appending(component: "test.xcworkspace")
         given(configLoader).loadConfig(path: .any).willReturn(
             .test(project: .generated(.test(generationOptions: .test(autoInstallOutdatedDependencies: false))))
         )
         given(generator)
             .generateWithGraph(path: .any, options: .any)
-            .willReturn((workspacePath, .test(), MapperEnvironment()))
+            .willReturn((try AbsolutePath(validating: "/test.xcworkspace"), .test(), MapperEnvironment()))
 
         // When
         try await subject.run(
-            path: temporaryDirectory.pathString,
+            path: nil,
             includedTargets: [],
             noOpen: true,
             configuration: nil,
@@ -504,37 +474,27 @@ struct GenerateServiceAutoInstallTests {
         verify(installService)
             .run(path: .any, update: .any, passthroughArguments: .any)
             .called(0)
+        verify(outdatedDependenciesChecker)
+            .packageDependenciesAreOutdated(at: .any)
+            .called(0)
     }
 
-    @Test(.inTemporaryDirectory)
+    @Test
     func does_not_run_install_when_dependencies_are_up_to_date() async throws {
         // Given
-        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        let packageDirectory = temporaryDirectory.appending(component: "Tuist")
-        let packageManifestPath = packageDirectory.appending(component: "Package.swift")
-        try await fileSystem.makeDirectory(at: packageDirectory)
-        try await fileSystem.touch(packageManifestPath)
-        let currentResolved = packageDirectory.appending(component: "Package.resolved")
-        let savedResolved = packageDirectory.appending(components: [".build", "Derived", "Package.resolved"])
-        try await fileSystem.writeText("resolved", at: currentResolved)
-        try await fileSystem.makeDirectory(at: savedResolved.parentDirectory)
-        try await fileSystem.writeText("resolved", at: savedResolved)
-
-        given(manifestFilesLocator)
-            .locatePackageManifest(at: .any)
-            .willReturn(packageManifestPath)
-
-        let workspacePath = temporaryDirectory.appending(component: "test.xcworkspace")
         given(configLoader).loadConfig(path: .any).willReturn(
             .test(project: .generated(.test(generationOptions: .test(autoInstallOutdatedDependencies: true))))
         )
+        given(outdatedDependenciesChecker)
+            .packageDependenciesAreOutdated(at: .any)
+            .willReturn(false)
         given(generator)
             .generateWithGraph(path: .any, options: .any)
-            .willReturn((workspacePath, .test(), MapperEnvironment()))
+            .willReturn((try AbsolutePath(validating: "/test.xcworkspace"), .test(), MapperEnvironment()))
 
         // When
         try await subject.run(
-            path: temporaryDirectory.pathString,
+            path: nil,
             includedTargets: [],
             noOpen: true,
             configuration: nil,
