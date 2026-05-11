@@ -1719,7 +1719,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
             let data = try encoder.encode(summary)
             try data.write(to: URL(fileURLWithPath: path.pathString), options: .atomic)
         } catch {
-            AlertController.current.warning(.alert("Failed to write test report to \(path.pathString): \(error.localizedDescription)"))
+            AlertController.current.warning(
+                .alert("Failed to write test report to \(path.pathString): \(error.localizedDescription)")
+            )
         }
     }
 
