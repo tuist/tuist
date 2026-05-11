@@ -318,6 +318,57 @@ jobs:
               echo "Release $HELM_RELEASE_NAME status is ${status:-not-installed}; no recovery needed."
               ;;
           esac
+      - name: Unstick kura namespace if Terminating
+        # The chart owns the `kura` namespace. If someone deleted it
+        # manually (or `helm uninstall` was attempted) while a
+        # KuraInstance CR was still present, the namespace gets pinned in
+        # Terminating because the Go controller's pod was torn down
+        # before it could drop its own finalizer
+        # (`kurainstances.kura.tuist.dev/finalizer`). Helm then fails the
+        # next N upgrades with `unable to create new content in namespace
+        # kura because it is being terminated`. Detect that state and
+        # clear the finalizer so the namespace can finish; the Tuist
+        # server's Kura reconciler will re-apply the CR from the
+        # kura_servers row in Postgres on its next tick, and the
+        # reborn controller will adopt the still-running regional
+        # StatefulSet.
+        run: |
+          set -euo pipefail
+
+          deletion_ts="$(
+            kubectl get ns kura -o jsonpath='{.metadata.deletionTimestamp}' 2>/dev/null || true
+          )"
+
+          if [ -z "$deletion_ts" ]; then
+            echo "kura namespace not Terminating; nothing to unstick."
+            exit 0
+          fi
+
+          echo "kura namespace has deletionTimestamp=$deletion_ts; clearing KuraInstance finalizers."
+          kubectl -n kura get kurainstances.kura.tuist.dev \
+            -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' |
+            while read -r name; do
+              [ -z "$name" ] && continue
+              echo "Clearing finalizers on kurainstance/$name"
+              kubectl -n kura patch kurainstance "$name" \
+                --type=merge -p '{"metadata":{"finalizers":[]}}' || true
+            done
+
+          # Helm's atomic upgrade fails fast on a Terminating namespace,
+          # so wait for the apiserver to garbage-collect it before
+          # handing control back. 2 min is well over the typical few
+          # seconds it takes once finalizers are clear.
+          for _ in $(seq 1 24); do
+            if ! kubectl get ns kura >/dev/null 2>&1; then
+              echo "kura namespace fully terminated."
+              exit 0
+            fi
+            sleep 5
+          done
+
+          echo "kura namespace still present after 2m; aborting so the next deploy can retry." >&2
+          kubectl get ns kura -o yaml >&2 || true
+          exit 1
       - name: Clean up stale migration Jobs
         # The chart's pre-upgrade migration hook is named
         # `tuist-tuist-server-migrate` (stable across revisions). Any
