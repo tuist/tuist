@@ -951,11 +951,6 @@ struct SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         generatedProjects: [AbsolutePath: GeneratedProject],
         rootPath: AbsolutePath
     ) throws -> XCScheme.ExecutionAction {
-        // The action's `target` populates `<EnvironmentBuildable>`. If the caller left it
-        // nil — or named a target that the final graph doesn't contain (focus pruned it,
-        // or the manifest had a typo) — emit the action without an `environmentBuildable`.
-        // Silently inventing one would mask user typos and expose env vars from a target
-        // the script never asked for.
         guard let targetReference = action.target,
               let graphTarget = graphTraverser.target(
                   path: targetReference.projectPath, name: targetReference.name

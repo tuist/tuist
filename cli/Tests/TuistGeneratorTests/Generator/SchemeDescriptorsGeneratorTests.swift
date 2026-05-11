@@ -294,8 +294,6 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         XCTAssertEqual(postBuildableReference?.buildableIdentifier, "primary")
     }
 
-    /// An action with `target: nil` produces no `environmentBuildable` — the caller asked
-    /// for no target build settings, and we don't second-guess them by inventing a fallback.
     func test_schemeBuildAction_execution_action_with_nil_target_does_not_synthesize_environmentBuildable() throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/somepath/Project")
@@ -329,10 +327,6 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         XCTAssertNil(got?.postActions.first?.environmentBuildable)
     }
 
-    /// An action that names a target not present in the final graph (focus pruned it, or
-    /// the manifest had a typo) emits no `environmentBuildable`. Silently substituting
-    /// another target's build settings would mask user typos and surprise scripts that
-    /// happened to read target-specific env vars.
     func test_schemeBuildAction_execution_action_with_unresolvable_target_does_not_synthesize_environmentBuildable() throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/somepath/Project")
