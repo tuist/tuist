@@ -71,6 +71,7 @@ class ProjectFileElements {
     // MARK: - Attributes
 
     var elements: [AbsolutePath: PBXFileElement] = [:]
+    var folderReferences: [AbsolutePath: PBXFileReference] = [:]
     var products: [String: PBXFileReference] = [:]
     var compiled: [AbsolutePath: PBXFileReference] = [:]
     var knownRegions: Set<String> = Set([])
@@ -416,7 +417,11 @@ class ProjectFileElements {
         sourceRootPath: AbsolutePath
     ) throws {
         // The file already exists
-        if elements[fileElement.path] != nil { return }
+        if elements[fileElement.path] != nil,
+           !(fileElement.isFolderReference && folderReferences[fileElement.path] == nil)
+        {
+            return
+        }
 
         let fileElementRelativeToSourceRoot = fileElement.path.relative(to: sourceRootPath)
         let closestRelativeRelativePath =
@@ -498,7 +503,16 @@ class ProjectFileElements {
         pbxproj: PBXProj
     ) -> (element: PBXFileElement, path: AbsolutePath)? {
         let absolutePath = from.appending(relativePath)
-        if elements[absolutePath] != nil {
+        let isFolderReferenceLeaf = if isLeaf,
+                                       case let GroupFileElement.folder(path: folderPath, _) = element,
+                                       folderPath == absolutePath
+        {
+            true
+        } else {
+            false
+        }
+
+        if !isFolderReferenceLeaf, elements[absolutePath] != nil {
             return (element: elements[absolutePath]!, path: from.appending(relativePath))
         }
 
@@ -552,6 +566,19 @@ class ProjectFileElements {
                 toGroup: toGroup,
                 pbxproj: pbxproj
             )
+        } else if isFolderReferenceLeaf {
+            if let fileReference = folderReferences[absolutePath] {
+                return (element: fileReference, path: absolutePath)
+            }
+            addFolderReferenceElementRelativeToGroup(
+                from: from,
+                folderAbsolutePath: absolutePath,
+                folderRelativePath: relativePath,
+                name: name,
+                toGroup: toGroup,
+                pbxproj: pbxproj
+            )
+            return nil
         } else {
             addFileElementRelativeToGroup(
                 from: from,
@@ -723,6 +750,24 @@ class ProjectFileElements {
         elements[fileAbsolutePath] = file
     }
 
+    func addFolderReferenceElementRelativeToGroup(
+        from _: AbsolutePath,
+        folderAbsolutePath: AbsolutePath,
+        folderRelativePath: RelativePath,
+        name: String?,
+        toGroup: PBXGroup,
+        pbxproj: PBXProj
+    ) {
+        let file = PBXFileReference(
+            sourceTree: .group,
+            name: name,
+            path: folderRelativePath.pathString
+        )
+        pbxproj.add(object: file)
+        toGroup.children.append(file)
+        folderReferences[folderAbsolutePath] = file
+    }
+
     @discardableResult
     func addFileElementWithAbsolutePath(
         from _: AbsolutePath,
@@ -799,7 +844,7 @@ class ProjectFileElements {
     }
 
     func file(path: AbsolutePath) -> PBXFileReference? {
-        elements[path] as? PBXFileReference
+        elements[path] as? PBXFileReference ?? folderReferences[path]
     }
 
     func isLocalized(path: AbsolutePath) -> Bool {
@@ -922,5 +967,12 @@ class ProjectFileElements {
         .flatMap { $0 }
 
         return gpxFiles
+    }
+}
+
+extension GroupFileElement {
+    fileprivate var isFolderReference: Bool {
+        if case .folder = self { return true }
+        return false
     }
 }

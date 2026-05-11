@@ -143,6 +143,29 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         ])
     }
 
+    func test_addElement_allowsFolderReferenceAndNestedFileToSharePath() throws {
+        // Given
+        let folderPath = try AbsolutePath(validating: "/path/Package/Tests/TargetTests")
+        let sourcePath = folderPath.appending(component: "TargetTests.swift")
+        let elements = [
+            GroupFileElement.file(path: sourcePath, group: .group(name: "Project")),
+            GroupFileElement.folder(path: folderPath, group: .group(name: "Project")),
+        ]
+
+        // When
+        try subject.generate(
+            files: elements,
+            groups: groups,
+            pbxproj: pbxproj,
+            sourceRootPath: "/path"
+        )
+
+        // Then
+        XCTAssertNotNil(subject.file(path: folderPath))
+        XCTAssertNotNil(subject.group(path: folderPath))
+        XCTAssertNotNil(subject.file(path: sourcePath))
+    }
+
     func test_addElement_parentDirectories() throws {
         // Given
         let element = GroupFileElement.file(
