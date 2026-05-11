@@ -53,18 +53,22 @@ jobs:
           # set by Tart and the host CPU model leaks via sysctl.
           sysctl -n machdep.cpu.brand_string
 
-      - name: Network reachability check
+      - name: Public reachability check
         run: |
           set -euo pipefail
           # Public GH should be reachable (the runner already
-          # registered, so this had better work).
+          # registered, so this had better work). This is the
+          # only network assertion the smoke covers; the
+          # negative-isolation test that used to live here was
+          # removed because the previous shape leaned on
+          # KUBERNETES_SERVICE_HOST being injected (it isn't —
+          # Tart VMs don't get the K8s env contract that Pods
+          # do) so the assertion passed vacuously via DNS
+          # failure. Tart VM egress isolation is not enforced
+          # by the runner-namespace NetworkPolicy (vmnet
+          # bypasses CNI) and there's no in-cluster endpoint we
+          # can dial from inside the VM as a proxy for "is the
+          # cluster reachable" — the perimeter gate lives on the
+          # Mac mini's security group at the IaaS layer, not
+          # somewhere we can curl from the workflow.
           curl -fsSL -o /dev/null -w "github.com → HTTP %{http_code}\n" https://github.com
-          # The cluster's API server should NOT be reachable from
-          # inside the VM. The host runs tart-kubelet on its own
-          # network namespace; runner Pods egress through Tart's
-          # NAT and don't need direct API-server access. If this
-          # *does* respond, the NetworkPolicy on tuist-runners or
-          # the host firewall slipped.
-          set +e
-          curl -fsSL -m 5 -o /dev/null -w "k8s API (negative test) → HTTP %{http_code}\n" \
-            "https://${KUBERNETES_SERVICE_HOST:-no-such-host}:443" 2>&1 || echo "k8s API unreachable from VM (expected)"

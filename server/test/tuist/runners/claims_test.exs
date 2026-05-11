@@ -34,7 +34,7 @@ defmodule Tuist.Runners.ClaimsTest do
       {:ok, claim} = Claims.attempt(2001, account.id, "fleet-a", "pod-1")
 
       assert :ok = Claims.release(claim.workflow_job_id, claim.claimed_at)
-      assert Claims.counts_per_account("fleet-a") == %{}
+      assert Claims.counts_per_account() == %{}
     end
 
     test "returns :stale_claim when claimed_at has moved on" do
@@ -47,7 +47,7 @@ defmodule Tuist.Runners.ClaimsTest do
 
       assert {:error, :stale_claim} = Claims.release(2002, stale_handle)
       # Original claim is still there.
-      assert Claims.counts_per_account("fleet-a") == %{account.id => 1}
+      assert Claims.counts_per_account() == %{account.id => 1}
     end
 
     test "returns :stale_claim when the row is gone" do
@@ -55,26 +55,25 @@ defmodule Tuist.Runners.ClaimsTest do
     end
   end
 
-  describe "counts_per_account/1" do
-    test "returns per-account inflight counts on a fleet" do
+  describe "counts_per_account/0" do
+    test "returns per-account inflight counts across ALL fleets" do
       a = account_fixture()
       b = account_fixture()
 
       {:ok, _} = Claims.attempt(3001, a.id, "fleet-cnt", "pod-1")
       {:ok, _} = Claims.attempt(3002, a.id, "fleet-cnt", "pod-2")
       {:ok, _} = Claims.attempt(3003, b.id, "fleet-cnt", "pod-3")
+      # Cap is account-level, so this fourth claim on a different
+      # fleet must still count toward account `a`'s total.
       {:ok, _} = Claims.attempt(3004, a.id, "fleet-other", "pod-4")
 
-      counts = Claims.counts_per_account("fleet-cnt")
-      assert Map.get(counts, a.id) == 2
+      counts = Claims.counts_per_account()
+      assert Map.get(counts, a.id) == 3
       assert Map.get(counts, b.id) == 1
-
-      other = Claims.counts_per_account("fleet-other")
-      assert Map.get(other, a.id) == 1
     end
 
     test "returns empty map when nothing is in flight" do
-      assert Claims.counts_per_account("fleet-empty") == %{}
+      assert Claims.counts_per_account() == %{}
     end
   end
 
@@ -84,7 +83,7 @@ defmodule Tuist.Runners.ClaimsTest do
       {:ok, _} = Claims.attempt(5001, account.id, "fleet-c", "pod-1")
 
       assert :ok = Claims.complete(5001)
-      assert Claims.counts_per_account("fleet-c") == %{}
+      assert Claims.counts_per_account() == %{}
     end
 
     test "is idempotent for unknown workflow_job_id" do
@@ -92,19 +91,21 @@ defmodule Tuist.Runners.ClaimsTest do
     end
   end
 
-  describe "release_stale/1" do
-    test "deletes claims older than the threshold and returns them" do
+  describe "list_stale/1" do
+    test "returns claims older than the threshold without deleting" do
       account = account_fixture()
       {:ok, _} = Claims.attempt(4001, account.id, "fleet-stale", "pod-1")
       {:ok, _} = Claims.attempt(4002, account.id, "fleet-stale", "pod-2")
 
       future = DateTime.add(DateTime.utc_now(), 3600, :second)
-      released = Claims.release_stale(future)
+      stale = Claims.list_stale(future)
 
-      assert length(released) == 2
-      ids = released |> Enum.map(& &1.workflow_job_id) |> Enum.sort()
+      assert length(stale) == 2
+      ids = stale |> Enum.map(& &1.workflow_job_id) |> Enum.sort()
       assert ids == [4001, 4002]
-      assert Claims.counts_per_account("fleet-stale") == %{}
+      # Rows are still in place — the caller will release each
+      # via Claims.release/2 after writing the CH transition.
+      assert Claims.counts_per_account() == %{account.id => 2}
     end
 
     test "leaves fresh claims alone" do
@@ -112,8 +113,8 @@ defmodule Tuist.Runners.ClaimsTest do
       {:ok, _} = Claims.attempt(4101, account.id, "fleet-fresh", "pod-1")
 
       past = DateTime.add(DateTime.utc_now(), -3600, :second)
-      assert [] = Claims.release_stale(past)
-      assert Claims.counts_per_account("fleet-fresh") == %{account.id => 1}
+      assert [] = Claims.list_stale(past)
+      assert Claims.counts_per_account() == %{account.id => 1}
     end
   end
 end

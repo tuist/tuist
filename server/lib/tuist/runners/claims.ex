@@ -13,10 +13,13 @@ defmodule Tuist.Runners.Claims do
        loser gets zero rows back and bails before any side
        effect (mint, runner registration).
 
-    2. **Per-account cap count.** `counts_per_account/1` is a
+    2. **Per-account cap count.** `counts_per_account/0` is a
        single indexed `GROUP BY account_id` against this table.
        Gives the dispatch path an authoritative inflight count
-       without querying ClickHouse or the K8s apiserver.
+       without querying ClickHouse or the K8s apiserver. The cap
+       is account-level (NOT fleet-level), so this query does not
+       filter by fleet — an account at cap=1 can't run one job
+       per pool.
 
   ClickHouse `runner_jobs` is the customer-facing view (queued,
   running, completed, history). The two stores stay in sync via a
@@ -24,16 +27,14 @@ defmodule Tuist.Runners.Claims do
   claimed and counted?" and every transition that flips that bit
   pairs the PG write with an INSERT to CH.
 
-  Recovery: `release_stale/1` deletes claims older than the
-  threshold and returns the released rows so the caller can
-  re-surface them in CH as `queued`. A server crash between PG
-  INSERT and CH INSERT leaves PG holding a claim that CH doesn't
-  show — self-correcting because the next candidate pick reads
-  CH, doesn't see the workflow_job, no double-claim. A crash
-  between PG DELETE (release/finalize) and CH INSERT leaves CH
-  showing a stale `claimed` state — visible to ops but not
-  functionally bad; the next state transition or the stale-claims
-  worker re-syncs.
+  Recovery: `list_stale/1` returns claims older than the
+  threshold WITHOUT deleting them; the stale-claims worker iterates
+  the result, writes `queued` to ClickHouse first, then calls
+  `release/2` to delete the PG row. CH-first is critical — if PG
+  were deleted first and we crashed, the CH row would stay
+  `claimed`, `Jobs.pick_queued` would skip it, and no PG claim
+  would remain for the next worker run to recover, stranding the
+  workflow_job permanently.
   """
 
   import Ecto.Query
@@ -122,13 +123,18 @@ defmodule Tuist.Runners.Claims do
   end
 
   @doc """
-  Counts active claims per account on `fleet_name`. Returns
+  Counts active claims per account **across all fleets**. Returns
   `%{account_id => count}`. Powers the cap_lookup the dispatch
   path builds before each claim attempt.
+
+  Cap is account-level — `accounts.runner_max_concurrent` is the
+  customer's total concurrent runner budget across every pool
+  they reach. If we filtered by fleet, an account at cap=1 could
+  run one job per pool simultaneously (one in `default`, one in
+  `xcode-15`, etc.), breaching the contract.
   """
-  def counts_per_account(fleet_name) when is_binary(fleet_name) do
+  def counts_per_account do
     from(c in Claim,
-      where: c.fleet_name == ^fleet_name,
       group_by: c.account_id,
       select: {c.account_id, count(c.workflow_job_id)}
     )
@@ -137,23 +143,26 @@ defmodule Tuist.Runners.Claims do
   end
 
   @doc """
-  Deletes claims older than `threshold` and returns the deleted
-  rows. The caller re-surfaces them as `queued` in ClickHouse
-  so the next poll can pick them up.
+  Returns claims older than `threshold` without deleting them.
+  The stale-claims worker uses this to recover row-by-row: for
+  each stale claim it FIRST writes `queued` to ClickHouse, THEN
+  calls `release/2` with the handle to delete the PG row.
+  Reversing that order would leave a window where the PG row is
+  gone but CH still shows `claimed` — `pick_queued` would skip
+  the row and no PG claim would remain for the next worker run
+  to recover, stranding the workflow_job permanently.
   """
-  def release_stale(%DateTime{} = threshold) do
-    {_count, rows} =
-      Repo.delete_all(
-        from(c in Claim,
-          where: c.claimed_at < ^threshold,
-          select: %{
-            workflow_job_id: c.workflow_job_id,
-            account_id: c.account_id,
-            fleet_name: c.fleet_name
-          }
-        )
+  def list_stale(%DateTime{} = threshold) do
+    Repo.all(
+      from(c in Claim,
+        where: c.claimed_at < ^threshold,
+        select: %{
+          workflow_job_id: c.workflow_job_id,
+          account_id: c.account_id,
+          fleet_name: c.fleet_name,
+          claimed_at: c.claimed_at
+        }
       )
-
-    rows
+    )
   end
 end

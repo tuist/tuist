@@ -151,7 +151,8 @@ config :logger, :console,
     :conclusion,
     :ours,
     :winner,
-    :observed_status
+    :observed_status,
+    :ch_error
   ]
 
 config :mime, :types, %{

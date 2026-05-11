@@ -83,7 +83,7 @@ defmodule Tuist.Runners do
   def dispatch_for_sa(namespace, sa_name) when is_binary(namespace) and is_binary(sa_name) do
     with {:ok, sa} <- K8sClient.get_service_account(namespace, sa_name),
          {:ok, fleet_name} <- pool_label(sa) do
-      ineligible = ineligible_accounts(fleet_name)
+      ineligible = ineligible_accounts()
 
       with {:ok, candidate} <- Jobs.pick_queued(fleet_name, ineligible),
            {:ok, claim} <-
@@ -148,31 +148,60 @@ defmodule Tuist.Runners do
     end
   end
 
+  # Order matters: write `queued` to CH BEFORE deleting the PG
+  # claim. If we deleted PG first and then crashed, the CH row
+  # would stay `claimed`, `pick_queued` would skip it, and no
+  # PG claim would remain for `StaleClaimsWorker` to recover —
+  # the workflow_job would be stranded permanently.
+  #
+  # With CH first:
+  #
+  #   * Both succeed → row back in the queued pool immediately.
+  #   * CH ok, PG delete fails / crash → CH says queued, PG
+  #     still claimed. The next poll picks the row, hits a PG
+  #     PK conflict on `Claims.attempt`, returns :lost_race
+  #     and bails — no double-mint. `StaleClaimsWorker` later
+  #     deletes the stale PG row (after 5 min) and the next
+  #     poll claims cleanly.
+  #   * CH fails → leave PG alone; the stale-worker will both
+  #     drop the PG row AND re-INSERT `queued` to CH on its
+  #     normal recovery path.
   defp release_safely(candidate, claim, reason) do
-    case Claims.release(candidate.workflow_job_id, claim.claimed_at) do
-      :ok ->
-        Jobs.record_queued(candidate.workflow_job_id)
-        :ok
+    Jobs.record_queued(candidate.workflow_job_id)
+  rescue
+    e ->
+      Logger.warning("runners: record_queued failed; leaving PG claim for stale-worker",
+        workflow_job_id: candidate.workflow_job_id,
+        original_reason: inspect(reason),
+        ch_error: Exception.message(e)
+      )
 
-      {:error, :stale_claim} ->
-        # Stale-claims worker already released this row and
-        # something else re-claimed it; leave it alone.
-        Logger.warning("runners: release skipped (claim went stale)",
-          workflow_job_id: candidate.workflow_job_id,
-          original_reason: inspect(reason)
-        )
+      :ok
+  else
+    :ok ->
+      case Claims.release(candidate.workflow_job_id, claim.claimed_at) do
+        :ok ->
+          :ok
 
-        :ok
-    end
+        {:error, :stale_claim} ->
+          # Stale-claims worker already released this row and
+          # something else re-claimed it; leave it alone.
+          Logger.warning("runners: release skipped (claim went stale)",
+            workflow_job_id: candidate.workflow_job_id,
+            original_reason: inspect(reason)
+          )
+
+          :ok
+      end
   end
 
   # Builds the at-cap account list for the candidate query. One
-  # indexed Postgres query against `runner_claims` for the
-  # inflight counts; a per-account lookup for the cap config.
-  defp ineligible_accounts(fleet_name) do
-    counts = Claims.counts_per_account(fleet_name)
-
-    counts
+  # indexed Postgres query across all fleets for the inflight
+  # counts (the cap is account-level, NOT fleet-level — a
+  # customer at cap=1 can't run one job per pool); a per-account
+  # lookup for the cap config.
+  defp ineligible_accounts do
+    Claims.counts_per_account()
     |> Enum.filter(&at_cap?/1)
     |> Enum.map(fn {account_id, _inflight} -> account_id end)
   end
