@@ -17,6 +17,9 @@ defmodule TuistWeb.WebhooksLive do
       socket
       |> assign(:selected_tab, "webhooks")
       |> assign(:head_title, "#{dgettext("dashboard_account", "Webhooks")} · #{selected_account.name} · Tuist")
+      # Constant decorative mask so the table can confirm "a secret is set" without
+      # revealing its length or content. Matches Stripe's destinations list.
+      |> assign(:masked_signing_secret, "whsec_" <> String.duplicate("•", 14))
       |> assign_endpoints()
       |> reset_create_form()
       |> reset_disclosure()

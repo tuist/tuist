@@ -163,6 +163,12 @@
         <:col :let={endpoint} label={dgettext("dashboard_account", "URL")}>
           <.text_cell label={endpoint.url} />
         </:col>
+        <:col label={dgettext("dashboard_account", "Signing secret")}>
+          <%!-- Per-endpoint secrets are only revealed once at creation or rotation. --%>
+          <%!-- We render a fixed-width mask to confirm one is configured, mirroring --%>
+          <%!-- Stripe's destinations list. --%>
+          <.text_cell label={@masked_signing_secret} />
+        </:col>
         <:col :let={endpoint} label={dgettext("dashboard_account", "Created")}>
           <.text_cell label={Tuist.Utilities.DateFormatter.from_now(endpoint.inserted_at)} />
         </:col>
@@ -186,8 +192,8 @@
             <:button>
               <.button
                 icon_only
+                variant="secondary"
                 size="small"
-                variant="destructive"
                 phx-click="delete_endpoint"
                 phx-value-id={endpoint.id}
                 aria-label={dgettext("dashboard_account", "Delete endpoint")}

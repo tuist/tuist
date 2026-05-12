@@ -92,19 +92,23 @@
     }
 
     & th:first-child {
-      width: 28%;
-    }
-
-    & th:nth-child(2) {
-      width: 38%;
-    }
-
-    & th:nth-child(3) {
       width: 18%;
     }
 
+    & th:nth-child(2) {
+      width: 26%;
+    }
+
+    & th:nth-child(3) {
+      width: 22%;
+    }
+
+    & th:nth-child(4) {
+      width: 12%;
+    }
+
     & th:last-child {
-      width: 16%;
+      width: 22%;
     }
 
     & td:last-child > [data-part="cell"][data-type="button"] {
@@ -131,7 +135,7 @@
     display: flex;
     flex-direction: column;
     gap: var(--noora-spacing-5);
-    padding: var(--noora-spacing-7);
+    padding: var(--noora-spacing-7) var(--noora-spacing-5);
 
     & [data-part="modal-message"] {
       display: flex;
