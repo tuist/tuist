@@ -432,8 +432,34 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
     end
   end
 
-  describe "send_webhook action modal" do
-    test "Send webhook in the trigger dropdown opens the modal in URL-input state", %{
+  describe "send_webhook action" do
+    test "appends a send_webhook action pre-filled with the first account endpoint", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      {:ok, endpoint, _secret} =
+        Tuist.Webhooks.create_endpoint(organization.account.id, %{
+          "name" => "Jira",
+          "url" => "https://example.com/hook"
+        })
+
+      {:ok, lv, _html} = open(conn, organization, project)
+      render_hook(lv, "open_create_automation_modal", %{})
+      render_hook(lv, "update_create_automation_form_metric", %{"data" => "test_updated"})
+      render_hook(lv, "update_create_automation_form_name", %{"value" => "Marked flaky → webhook"})
+      render_hook(lv, "add_create_automation_form_trigger_action", %{"data" => "send_webhook"})
+      render_hook(lv, "save_automation", %{})
+
+      assert [automation] = Automations.list_alerts(project.id)
+
+      assert [%{"type" => "send_webhook", "webhook_endpoint_id" => id}] =
+               automation.trigger_actions
+
+      assert id == endpoint.id
+    end
+
+    test "renders an empty-state CTA linking to account webhooks when no endpoints exist", %{
       conn: conn,
       organization: organization,
       project: project
@@ -443,130 +469,43 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
 
       html = render_hook(lv, "add_create_automation_form_trigger_action", %{"data" => "send_webhook"})
 
-      # URL form is rendered; secret disclosure is not yet.
-      assert html =~ "webhook-action-modal-url"
-      refute html =~ "new-webhook-signing-secret"
-      # The action is NOT yet in the form's trigger_actions list — it only
-      # gets appended after the user confirms the modal.
-      refute html =~ "Rotate secret"
+      assert html =~ "No webhook endpoints yet"
+      assert html =~ "/#{organization.account.name}/webhooks"
     end
 
-    test "create_webhook_action rejects a non-HTTPS URL", %{conn: conn, organization: organization, project: project} do
-      {:ok, lv, _html} = open(conn, organization, project)
-      render_hook(lv, "open_create_automation_modal", %{})
-      render_hook(lv, "add_create_automation_form_trigger_action", %{"data" => "send_webhook"})
-      render_hook(lv, "update_webhook_action_modal_url", %{"value" => "http://example.com/hook"})
-
-      html = render_hook(lv, "create_webhook_action", %{})
-
-      # Still in URL-input state, with an error and no generated secret.
-      assert html =~ "Must be a valid HTTPS URL"
-      refute html =~ "new-webhook-signing-secret"
-    end
-
-    test "create_webhook_action generates a secret and reveals it in the modal", %{
+    test "switching the endpoint via the dropdown updates the action", %{
       conn: conn,
       organization: organization,
       project: project
     } do
-      {:ok, lv, _html} = open(conn, organization, project)
-      render_hook(lv, "open_create_automation_modal", %{})
-      render_hook(lv, "add_create_automation_form_trigger_action", %{"data" => "send_webhook"})
-      render_hook(lv, "update_webhook_action_modal_url", %{"value" => "https://example.com/hook"})
+      {:ok, _first, _} =
+        Tuist.Webhooks.create_endpoint(organization.account.id, %{
+          "name" => "First",
+          "url" => "https://first.example/h"
+        })
 
-      html = render_hook(lv, "create_webhook_action", %{})
-
-      # Modal swapped to secret-disclosure state.
-      assert html =~ "new-webhook-signing-secret"
-      assert html =~ "whsec_"
-      assert html =~ "https://example.com/hook"
-    end
-
-    test "confirm_webhook_action appends a send_webhook action with the encrypted secret", %{
-      conn: conn,
-      organization: organization,
-      project: project
-    } do
-      {:ok, lv, _html} = open(conn, organization, project)
-      render_hook(lv, "open_create_automation_modal", %{})
-      render_hook(lv, "update_create_automation_form_metric", %{"data" => "test_updated"})
-      render_hook(lv, "update_create_automation_form_name", %{"value" => "Marked flaky → webhook"})
-      render_hook(lv, "add_create_automation_form_trigger_action", %{"data" => "send_webhook"})
-      render_hook(lv, "update_webhook_action_modal_url", %{"value" => "https://example.com/hook"})
-      render_hook(lv, "create_webhook_action", %{})
-      render_hook(lv, "confirm_webhook_action", %{})
-      render_hook(lv, "save_automation", %{})
-
-      assert [automation] = Automations.list_alerts(project.id)
-
-      # Switching to `test_updated` strips the seeded `add_label flaky` action,
-      # so the saved automation only carries the webhook the user added.
-      assert [%{"type" => "send_webhook", "url" => "https://example.com/hook"} = webhook] =
-               automation.trigger_actions
-
-      assert is_binary(webhook["signing_secret_encrypted"])
-      assert webhook["signing_secret_encrypted"] != ""
-      # The transient plaintext key must never leak into the persisted action.
-      refute Map.has_key?(webhook, "_signing_secret_plaintext")
-    end
-
-    test "cancel_webhook_action discards the in-progress webhook without appending an action", %{
-      conn: conn,
-      organization: organization,
-      project: project
-    } do
-      {:ok, lv, _html} = open(conn, organization, project)
-      render_hook(lv, "open_create_automation_modal", %{})
-      render_hook(lv, "update_create_automation_form_name", %{"value" => "Discarded"})
-      render_hook(lv, "add_create_automation_form_trigger_action", %{"data" => "send_webhook"})
-      render_hook(lv, "update_webhook_action_modal_url", %{"value" => "https://example.com/hook"})
-      render_hook(lv, "create_webhook_action", %{})
-      render_hook(lv, "cancel_webhook_action", %{})
-      render_hook(lv, "save_automation", %{})
-
-      assert [automation] = Automations.list_alerts(project.id)
-      refute Enum.any?(automation.trigger_actions, fn a -> a["type"] == "send_webhook" end)
-    end
-
-    test "open_webhook_action_rotate_modal opens directly in disclosure mode with a fresh secret", %{
-      conn: conn,
-      organization: organization,
-      project: project
-    } do
-      # Seed an existing automation with a send_webhook action so we can rotate it.
-      {:ok, automation} =
-        Automations.create_alert(%{
-          "project_id" => project.id,
-          "name" => "Existing",
-          "monitor_type" => "test_updated",
-          "trigger_config" => %{"events" => ["marked_flaky"]},
-          "trigger_actions" => [
-            %{
-              "type" => "send_webhook",
-              "url" => "https://example.com/hook",
-              "signing_secret_encrypted" => "ciphertext"
-            }
-          ]
+      {:ok, second, _} =
+        Tuist.Webhooks.create_endpoint(organization.account.id, %{
+          "name" => "Second",
+          "url" => "https://second.example/h"
         })
 
       {:ok, lv, _html} = open(conn, organization, project)
-      render_hook(lv, "edit_automation", %{"id" => automation.id})
+      render_hook(lv, "open_create_automation_modal", %{})
+      render_hook(lv, "update_create_automation_form_metric", %{"data" => "test_updated"})
+      render_hook(lv, "update_create_automation_form_name", %{"value" => "Webhook"})
+      render_hook(lv, "add_create_automation_form_trigger_action", %{"data" => "send_webhook"})
 
-      html =
-        render_hook(lv, "open_webhook_action_rotate_modal", %{"context" => "trigger", "index" => "0"})
+      render_hook(lv, "update_create_automation_form_trigger_action_webhook_endpoint_id", %{
+        "data" => second.id,
+        "index" => "0"
+      })
 
-      # Disclosure state: secret is shown immediately, no URL input.
-      assert html =~ "new-webhook-signing-secret"
-      assert html =~ "whsec_"
-      refute html =~ "webhook-action-modal-url"
-
-      render_hook(lv, "confirm_webhook_action", %{})
       render_hook(lv, "save_automation", %{})
 
-      {:ok, updated} = Automations.get_alert(automation.id)
-      [%{"signing_secret_encrypted" => new_secret} = action] = updated.trigger_actions
-      assert action["url"] == "https://example.com/hook"
-      assert new_secret != "ciphertext"
+      assert [automation] = Automations.list_alerts(project.id)
+      assert [%{"webhook_endpoint_id" => id}] = automation.trigger_actions
+      assert id == second.id
     end
   end
 end

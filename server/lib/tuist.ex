@@ -122,6 +122,7 @@ defmodule Tuist do
       Automations.Alerts.Alert,
       Webhooks,
       Webhooks.Signature,
+      Webhooks.WebhookEndpoint,
       Webhooks.Workers.DeliveryWorker,
       Slack,
       Slack.Client,

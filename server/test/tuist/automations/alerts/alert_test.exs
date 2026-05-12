@@ -503,7 +503,7 @@ defmodule Tuist.Automations.Alerts.AlertTest do
       refute changeset.valid?
     end
 
-    test "accepts a send_webhook action with HTTPS url and signing secret" do
+    test "accepts a send_webhook action that references a webhook_endpoint_id" do
       project = ProjectsFixtures.project_fixture()
 
       changeset =
@@ -511,11 +511,7 @@ defmodule Tuist.Automations.Alerts.AlertTest do
           %Alert{},
           valid_attrs(project, %{
             "trigger_actions" => [
-              %{
-                "type" => "send_webhook",
-                "url" => "https://example.com/hook",
-                "signing_secret_encrypted" => "ciphertext"
-              }
+              %{"type" => "send_webhook", "webhook_endpoint_id" => Ecto.UUID.generate()}
             ]
           })
         )
@@ -523,40 +519,14 @@ defmodule Tuist.Automations.Alerts.AlertTest do
       assert changeset.valid?
     end
 
-    test "rejects send_webhook action with non-HTTPS url" do
+    test "rejects send_webhook action with missing webhook_endpoint_id" do
       project = ProjectsFixtures.project_fixture()
 
       changeset =
         Alert.changeset(
           %Alert{},
           valid_attrs(project, %{
-            "trigger_actions" => [
-              %{
-                "type" => "send_webhook",
-                "url" => "http://example.com/hook",
-                "signing_secret_encrypted" => "ciphertext"
-              }
-            ]
-          })
-        )
-
-      refute changeset.valid?
-    end
-
-    test "rejects send_webhook action with missing signing secret" do
-      project = ProjectsFixtures.project_fixture()
-
-      changeset =
-        Alert.changeset(
-          %Alert{},
-          valid_attrs(project, %{
-            "trigger_actions" => [
-              %{
-                "type" => "send_webhook",
-                "url" => "https://example.com/hook",
-                "signing_secret_encrypted" => ""
-              }
-            ]
+            "trigger_actions" => [%{"type" => "send_webhook", "webhook_endpoint_id" => ""}]
           })
         )
 

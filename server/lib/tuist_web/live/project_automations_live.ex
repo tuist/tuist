@@ -10,6 +10,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
   alias Tuist.Automations.Alerts.Alert
   alias Tuist.Environment
   alias Tuist.Slack
+  alias Tuist.Webhooks
   alias TuistWeb.SlackOAuthController
 
   @impl true
@@ -32,6 +33,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
         :automation_channel_selection_url,
         SlackOAuthController.alert_channel_selection_url(selected_account.id)
       )
+      |> assign(:webhook_endpoints, Webhooks.list_endpoints(selected_account.id))
       |> assign_automations(selected_project)
       |> assign_create_automation_form_defaults()
 
@@ -67,21 +69,6 @@ defmodule TuistWeb.ProjectAutomationsLive do
     |> assign(create_automation_form_recovery_window: "14d")
     |> assign(create_automation_form_recovery_rolling_window_size: "100")
     |> assign(create_automation_form_recovery_actions: [default_remove_label_action()])
-    |> reset_webhook_action_modal()
-  end
-
-  # Webhook action modal — opened from the "Send webhook" entry in either the
-  # trigger or recovery action dropdown, or from "Rotate" on an existing row.
-  # `context` is `:trigger` or `:recovery`; `editing_index` is non-nil when
-  # rotating the secret of an already-added action.
-  defp reset_webhook_action_modal(socket) do
-    socket
-    |> assign(webhook_action_modal_context: nil)
-    |> assign(webhook_action_modal_url: "")
-    |> assign(webhook_action_modal_url_error: nil)
-    |> assign(webhook_action_modal_plaintext_secret: nil)
-    |> assign(webhook_action_modal_encrypted_secret: nil)
-    |> assign(webhook_action_modal_editing_index: nil)
   end
 
   @comparisons ~w(gte gt lt lte)
@@ -263,7 +250,11 @@ defmodule TuistWeb.ProjectAutomationsLive do
   end
 
   def handle_event("add_create_automation_form_trigger_action", %{"data" => "send_webhook"}, socket) do
-    {:noreply, open_webhook_action_modal(socket, :trigger, nil)}
+    actions =
+      socket.assigns.create_automation_form_trigger_actions ++
+        [default_send_webhook_action(socket.assigns.webhook_endpoints)]
+
+    {:noreply, assign(socket, create_automation_form_trigger_actions: actions)}
   end
 
   def handle_event("add_create_automation_form_trigger_action", %{"data" => type}, socket) do
@@ -349,7 +340,11 @@ defmodule TuistWeb.ProjectAutomationsLive do
   end
 
   def handle_event("add_create_automation_form_recovery_action", %{"data" => "send_webhook"}, socket) do
-    {:noreply, open_webhook_action_modal(socket, :recovery, nil)}
+    actions =
+      socket.assigns.create_automation_form_recovery_actions ++
+        [default_send_webhook_action(socket.assigns.webhook_endpoints)]
+
+    {:noreply, assign(socket, create_automation_form_recovery_actions: actions)}
   end
 
   def handle_event("add_create_automation_form_recovery_action", %{"data" => type}, socket) do
@@ -413,83 +408,35 @@ defmodule TuistWeb.ProjectAutomationsLive do
     {:noreply, assign(socket, create_automation_form_recovery_actions: actions)}
   end
 
-  # Webhook action modal handlers
-
-  def handle_event("open_webhook_action_rotate_modal", %{"context" => context, "index" => index}, socket)
-      when context in ["trigger", "recovery"] do
-    index = String.to_integer(index)
-    ctx = String.to_existing_atom(context)
-    action = current_webhook_action(socket, ctx, index)
-
-    if action do
-      %{plaintext: plaintext, encrypted: encrypted} = Tuist.Webhooks.generate_signing_secret()
-
-      socket =
+  def handle_event(
+        "update_create_automation_form_trigger_action_webhook_endpoint_id",
+        %{"data" => id, "index" => index},
         socket
-        |> assign(webhook_action_modal_context: ctx)
-        |> assign(webhook_action_modal_editing_index: index)
-        |> assign(webhook_action_modal_url: action["url"] || "")
-        |> assign(webhook_action_modal_url_error: nil)
-        |> assign(webhook_action_modal_plaintext_secret: plaintext)
-        |> assign(webhook_action_modal_encrypted_secret: encrypted)
-        |> push_event("open-modal", %{id: "webhook-action-modal"})
+      ) do
+    index = String.to_integer(index)
 
-      {:noreply, socket}
-    else
-      {:noreply, socket}
-    end
+    actions =
+      update_action_at(socket.assigns.create_automation_form_trigger_actions, index, fn action ->
+        Map.put(action, "webhook_endpoint_id", id)
+      end)
+
+    {:noreply, assign(socket, create_automation_form_trigger_actions: actions)}
   end
 
-  def handle_event("update_webhook_action_modal_url", %{"value" => url}, socket) do
-    {:noreply,
-     socket
-     |> assign(webhook_action_modal_url: url)
-     |> assign(webhook_action_modal_url_error: nil)}
+  def handle_event(
+        "update_create_automation_form_recovery_action_webhook_endpoint_id",
+        %{"data" => id, "index" => index},
+        socket
+      ) do
+    index = String.to_integer(index)
+
+    actions =
+      update_action_at(socket.assigns.create_automation_form_recovery_actions, index, fn action ->
+        Map.put(action, "webhook_endpoint_id", id)
+      end)
+
+    {:noreply, assign(socket, create_automation_form_recovery_actions: actions)}
   end
-
-  def handle_event("create_webhook_action", _params, socket) do
-    url = String.trim(socket.assigns.webhook_action_modal_url || "")
-
-    if Tuist.Webhooks.valid_webhook_url?(url) do
-      %{plaintext: plaintext, encrypted: encrypted} = Tuist.Webhooks.generate_signing_secret()
-
-      {:noreply,
-       socket
-       |> assign(webhook_action_modal_url: url)
-       |> assign(webhook_action_modal_url_error: nil)
-       |> assign(webhook_action_modal_plaintext_secret: plaintext)
-       |> assign(webhook_action_modal_encrypted_secret: encrypted)}
-    else
-      {:noreply,
-       assign(socket,
-         webhook_action_modal_url_error: dgettext("dashboard_projects", "Must be a valid HTTPS URL.")
-       )}
-    end
-  end
-
-  def handle_event("confirm_webhook_action", _params, socket) do
-    {:noreply,
-     socket
-     |> apply_webhook_modal_result()
-     |> reset_webhook_action_modal()
-     |> push_event("close-modal", %{id: "webhook-action-modal"})}
-  end
-
-  def handle_event("cancel_webhook_action", _params, socket) do
-    {:noreply,
-     socket
-     |> reset_webhook_action_modal()
-     |> push_event("close-modal", %{id: "webhook-action-modal"})}
-  end
-
-  # Catches close-on-Escape and close-on-interact-outside (Zag dialog state),
-  # neither of which triggers `on_dismiss`. We reset the modal state so a
-  # subsequent open lands on the blank URL form rather than the prior secret.
-  def handle_event("webhook_action_modal_open_change", %{"open" => false}, socket) do
-    {:noreply, reset_webhook_action_modal(socket)}
-  end
-
-  def handle_event("webhook_action_modal_open_change", _params, socket), do: {:noreply, socket}
 
   def handle_event("save_automation", _params, %{assigns: assigns} = socket) do
     attrs = build_automation_attrs(assigns.selected_project.id, assigns)
@@ -555,58 +502,17 @@ defmodule TuistWeb.ProjectAutomationsLive do
     end
   end
 
-  defp open_webhook_action_modal(socket, context, _opts) do
-    socket
-    |> reset_webhook_action_modal()
-    |> assign(webhook_action_modal_context: context)
-    |> push_event("open-modal", %{id: "webhook-action-modal"})
-  end
-
-  defp current_webhook_action(socket, :trigger, index),
-    do: Enum.at(socket.assigns.create_automation_form_trigger_actions, index)
-
-  defp current_webhook_action(socket, :recovery, index),
-    do: Enum.at(socket.assigns.create_automation_form_recovery_actions, index)
-
-  defp build_webhook_action(url, encrypted_secret) do
+  defp default_send_webhook_action(endpoints) do
     %{
       "type" => "send_webhook",
-      "url" => url,
-      "signing_secret_encrypted" => encrypted_secret
+      "webhook_endpoint_id" =>
+        endpoints
+        |> List.first()
+        |> case do
+          nil -> ""
+          endpoint -> endpoint.id
+        end
     }
-  end
-
-  defp apply_webhook_modal_result(%{assigns: %{webhook_action_modal_encrypted_secret: nil}} = socket), do: socket
-
-  defp apply_webhook_modal_result(socket) do
-    ctx = socket.assigns.webhook_action_modal_context
-    index = socket.assigns.webhook_action_modal_editing_index
-    url = socket.assigns.webhook_action_modal_url
-    encrypted = socket.assigns.webhook_action_modal_encrypted_secret
-
-    field = webhook_modal_actions_field(ctx)
-
-    if is_nil(field) do
-      socket
-    else
-      assign(socket, field, apply_webhook_to_actions(Map.fetch!(socket.assigns, field), index, url, encrypted))
-    end
-  end
-
-  defp webhook_modal_actions_field(:trigger), do: :create_automation_form_trigger_actions
-  defp webhook_modal_actions_field(:recovery), do: :create_automation_form_recovery_actions
-  defp webhook_modal_actions_field(_), do: nil
-
-  defp apply_webhook_to_actions(actions, nil, url, encrypted) do
-    actions ++ [build_webhook_action(url, encrypted)]
-  end
-
-  defp apply_webhook_to_actions(actions, index, url, encrypted) do
-    update_action_at(actions, index, fn action ->
-      action
-      |> Map.put("signing_secret_encrypted", encrypted)
-      |> Map.put("url", url)
-    end)
   end
 
   defp build_automation_attrs(project_id, assigns) do
@@ -797,6 +703,15 @@ defmodule TuistWeb.ProjectAutomationsLive do
   def action_type_label("remove_label"), do: dgettext("dashboard_projects", "Remove label")
   def action_type_label(_), do: dgettext("dashboard_projects", "Unknown")
 
+  def webhook_endpoint_label(endpoints, id) when is_binary(id) do
+    case Enum.find(endpoints, &(&1.id == id)) do
+      nil -> dgettext("dashboard_projects", "Select endpoint")
+      endpoint -> endpoint.name
+    end
+  end
+
+  def webhook_endpoint_label(_endpoints, _id), do: dgettext("dashboard_projects", "Select endpoint")
+
   def has_action_type?(actions, type) do
     Enum.any?(actions, fn action -> action["type"] == type end)
   end
@@ -813,8 +728,8 @@ defmodule TuistWeb.ProjectAutomationsLive do
 
   def action_row_summary(%{"type" => "send_slack"}), do: dgettext("dashboard_projects", "Slack: not configured")
 
-  def action_row_summary(%{"type" => "send_webhook", "url" => url}) when is_binary(url) and url != "",
-    do: "Webhook: #{url}"
+  def action_row_summary(%{"type" => "send_webhook", "webhook_endpoint_id" => id}) when is_binary(id) and id != "",
+    do: dgettext("dashboard_projects", "Webhook: %{id}", id: id)
 
   def action_row_summary(%{"type" => "send_webhook"}), do: dgettext("dashboard_projects", "Webhook: not configured")
 

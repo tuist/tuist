@@ -505,20 +505,59 @@
                           </div>
                         </div>
                       <% "send_webhook" -> %>
-                        <div data-part="webhook-action-summary">
+                        <%= if @webhook_endpoints == [] do %>
+                          <div data-part="webhook-action-empty">
+                            <span data-part="action-label">
+                              {dgettext("dashboard_projects", "Send webhook")}
+                            </span>
+                            <.alert
+                              status="information"
+                              type="secondary"
+                              size="small"
+                              title={
+                                dgettext(
+                                  "dashboard_projects",
+                                  "No webhook endpoints yet. Add one in the account-level Webhooks page first."
+                                )
+                              }
+                            >
+                              <:action>
+                                <.link_button
+                                  href={~p"/#{@selected_account.name}/webhooks"}
+                                  target="_blank"
+                                  label={dgettext("dashboard_projects", "Manage webhooks")}
+                                  variant="secondary"
+                                >
+                                  <:icon_right><.external_link /></:icon_right>
+                                </.link_button>
+                              </:action>
+                            </.alert>
+                          </div>
+                        <% else %>
                           <span data-part="action-label">
-                            {dgettext("dashboard_projects", "Send webhook")}
+                            {dgettext("dashboard_projects", "Send webhook to")}
                           </span>
-                          <.tag :if={(action["url"] || "") != ""} label={action["url"]} />
-                          <.button
-                            label={dgettext("dashboard_projects", "Rotate secret")}
-                            variant="secondary"
-                            size="medium"
-                            phx-click="open_webhook_action_rotate_modal"
-                            phx-value-context="trigger"
-                            phx-value-index={index}
-                          />
-                        </div>
+                          <.dropdown
+                            id={"create-automation-trigger-action-webhook-#{index}"}
+                            label={
+                              webhook_endpoint_label(
+                                @webhook_endpoints,
+                                action["webhook_endpoint_id"]
+                              )
+                            }
+                          >
+                            <.dropdown_item
+                              :for={endpoint <- @webhook_endpoints}
+                              value={endpoint.id}
+                              label={endpoint.name}
+                              on_click="update_create_automation_form_trigger_action_webhook_endpoint_id"
+                              phx-value-index={index}
+                              data-selected={action["webhook_endpoint_id"] == endpoint.id}
+                            >
+                              <:right_icon><.check /></:right_icon>
+                            </.dropdown_item>
+                          </.dropdown>
+                        <% end %>
                       <% "add_label" -> %>
                         <span data-part="action-label">
                           {dgettext("dashboard_projects", "Mark test as flaky")}
@@ -831,20 +870,59 @@
                           </div>
                         </div>
                       <% "send_webhook" -> %>
-                        <div data-part="webhook-action-summary">
+                        <%= if @webhook_endpoints == [] do %>
+                          <div data-part="webhook-action-empty">
+                            <span data-part="action-label">
+                              {dgettext("dashboard_projects", "Send webhook")}
+                            </span>
+                            <.alert
+                              status="information"
+                              type="secondary"
+                              size="small"
+                              title={
+                                dgettext(
+                                  "dashboard_projects",
+                                  "No webhook endpoints yet. Add one in the account-level Webhooks page first."
+                                )
+                              }
+                            >
+                              <:action>
+                                <.link_button
+                                  href={~p"/#{@selected_account.name}/webhooks"}
+                                  target="_blank"
+                                  label={dgettext("dashboard_projects", "Manage webhooks")}
+                                  variant="secondary"
+                                >
+                                  <:icon_right><.external_link /></:icon_right>
+                                </.link_button>
+                              </:action>
+                            </.alert>
+                          </div>
+                        <% else %>
                           <span data-part="action-label">
-                            {dgettext("dashboard_projects", "Send webhook")}
+                            {dgettext("dashboard_projects", "Send webhook to")}
                           </span>
-                          <.tag :if={(action["url"] || "") != ""} label={action["url"]} />
-                          <.button
-                            label={dgettext("dashboard_projects", "Rotate secret")}
-                            variant="secondary"
-                            size="medium"
-                            phx-click="open_webhook_action_rotate_modal"
-                            phx-value-context="recovery"
-                            phx-value-index={index}
-                          />
-                        </div>
+                          <.dropdown
+                            id={"create-automation-recovery-action-webhook-#{index}"}
+                            label={
+                              webhook_endpoint_label(
+                                @webhook_endpoints,
+                                action["webhook_endpoint_id"]
+                              )
+                            }
+                          >
+                            <.dropdown_item
+                              :for={endpoint <- @webhook_endpoints}
+                              value={endpoint.id}
+                              label={endpoint.name}
+                              on_click="update_create_automation_form_recovery_action_webhook_endpoint_id"
+                              phx-value-index={index}
+                              data-selected={action["webhook_endpoint_id"] == endpoint.id}
+                            >
+                              <:right_icon><.check /></:right_icon>
+                            </.dropdown_item>
+                          </.dropdown>
+                        <% end %>
                       <% "add_label" -> %>
                         <span data-part="action-label">
                           {dgettext("dashboard_projects", "Mark test as flaky")}
@@ -953,111 +1031,4 @@
       </.table>
     </div>
   </.card_section>
-
-  <%!-- Sibling modal opened from inside the automation modal when the user adds --%>
-  <%!-- a "Send webhook" action. Nested modals (modal within a modal) would --%>
-  <%!-- inherit the outer dialog's interact-outside dismissal, so we keep this one --%>
-  <%!-- at the page root and coordinate via push_event/open-modal. --%>
-  <.modal
-    id="webhook-action-modal"
-    title={
-      if @webhook_action_modal_editing_index,
-        do: dgettext("dashboard_projects", "Rotate webhook signing secret"),
-        else: dgettext("dashboard_projects", "Configure webhook")
-    }
-    header_size="large"
-    on_dismiss="cancel_webhook_action"
-    on_open_change="webhook_action_modal_open_change"
-  >
-    <:trigger :let={_attrs}>
-      <%!-- Always opened imperatively via push_event; no visible trigger button. --%>
-      <span hidden></span>
-    </:trigger>
-
-    <div data-part="modal-content-wrapper">
-      <.line_divider />
-
-      <%= if @webhook_action_modal_plaintext_secret do %>
-        <div data-part="modal-body">
-          <div data-part="modal-message">
-            <span data-part="title">
-              {dgettext("dashboard_projects", "Signing secret created")}
-            </span>
-            <span data-part="subtitle">
-              {dgettext(
-                "dashboard_projects",
-                "Copy it now — it will not be shown again after you close this dialog. Use it to verify the Tuist-Signature header on incoming webhooks."
-              )}
-            </span>
-          </div>
-          <div data-part="webhook-config-summary">
-            <span data-part="label">{dgettext("dashboard_projects", "Endpoint")}</span>
-            <code>{@webhook_action_modal_url}</code>
-          </div>
-          <div data-part="read-only-value">
-            <code id="new-webhook-signing-secret">{@webhook_action_modal_plaintext_secret}</code>
-            <.button
-              id="copy-webhook-signing-secret-button"
-              variant="secondary"
-              size="small"
-              icon_only
-              type="button"
-              phx-hook="Clipboard"
-              data-clipboard-value={@webhook_action_modal_plaintext_secret}
-              aria-label={dgettext("dashboard_projects", "Copy signing secret")}
-            >
-              <.copy />
-            </.button>
-          </div>
-        </div>
-      <% else %>
-        <div data-part="modal-body">
-          <.text_input
-            id="webhook-action-modal-url"
-            name="webhook_url"
-            type="basic"
-            label={dgettext("dashboard_projects", "Endpoint URL")}
-            sublabel={
-              dgettext(
-                "dashboard_projects",
-                "HTTPS only. Tuist will POST a signed JSON envelope to this URL."
-              )
-            }
-            value={@webhook_action_modal_url}
-            placeholder="https://example.com/tuist-webhook"
-            phx-keyup="update_webhook_action_modal_url"
-            phx-debounce="300"
-            error={@webhook_action_modal_url_error}
-          />
-        </div>
-      <% end %>
-
-      <.line_divider />
-    </div>
-
-    <:footer>
-      <.modal_footer>
-        <:action>
-          <%= if @webhook_action_modal_plaintext_secret do %>
-            <.button
-              label={dgettext("dashboard_projects", "Done")}
-              variant="primary"
-              phx-click="confirm_webhook_action"
-            />
-          <% else %>
-            <.button
-              label={dgettext("dashboard_projects", "Cancel")}
-              variant="secondary"
-              phx-click="cancel_webhook_action"
-            />
-            <.button
-              label={dgettext("dashboard_projects", "Create")}
-              variant="primary"
-              phx-click="create_webhook_action"
-            />
-          <% end %>
-        </:action>
-      </.modal_footer>
-    </:footer>
-  </.modal>
 </div>

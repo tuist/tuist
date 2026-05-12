@@ -941,6 +941,7 @@ defmodule TuistWeb.Router do
       live "/billing", BillingLive
       live "/integrations", IntegrationsLive
       live "/authentication", AuthenticationSettingsLive
+      live "/webhooks", WebhooksLive
       live "/settings", AccountSettingsLive
     end
   end

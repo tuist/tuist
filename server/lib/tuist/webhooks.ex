@@ -1,65 +1,95 @@
 defmodule Tuist.Webhooks do
   @moduledoc """
-  Outbound webhook delivery for automation actions.
+  Account-scoped webhook endpoints and outbound delivery.
 
-  Webhook actions live inside an automation's `trigger_actions` array (Stripe-
-  style envelope sent over HTTPS, HMAC-SHA256 signed). Each action stores
-  its destination URL in plaintext and its signing secret as Cloak-encrypted
-  ciphertext base64-encoded for JSON — Cloak's Ecto types don't apply to map
-  columns, so we encrypt by hand in the same shape used by
-  `Tuist.Slack.encrypt_webhook_url/1`.
-
-  The action itself is fired through `Tuist.Automations.Actions.SendWebhookAction`,
-  which enqueues a `Tuist.Webhooks.Workers.DeliveryWorker` Oban job. The
-  worker performs the actual POST with retries on the RFC schedule
-  (1m → 5m → 30m → 2h → 8h → 24h).
+  Endpoints are managed in one place per account and referenced by automation
+  `send_webhook` actions across that account's projects. The actual HTTPS POST
+  happens asynchronously through `Tuist.Webhooks.Workers.DeliveryWorker`,
+  which retries on the RFC schedule (1m → 5m → 30m → 2h → 8h → 24h).
   """
 
+  import Ecto.Query
+
+  alias Tuist.Repo
   alias Tuist.Webhooks.Signature
+  alias Tuist.Webhooks.WebhookEndpoint
 
   @doc """
-  Encrypts a signing secret for storage inside a JSON column. The result
-  is base64-encoded ciphertext.
+  Lists webhook endpoints for `account_id`, oldest-first so the order is
+  stable across renders.
   """
-  def encrypt_signing_secret(secret) when is_binary(secret) do
-    {:ok, ciphertext} = Tuist.Vault.encrypt(secret)
-    {:ok, Base.encode64(ciphertext)}
+  def list_endpoints(account_id) do
+    Repo.all(from(e in WebhookEndpoint, where: e.account_id == ^account_id, order_by: [asc: e.inserted_at]))
   end
 
   @doc """
-  Decrypts a signing secret produced by `encrypt_signing_secret/1`.
+  Loads a single endpoint by id, regardless of account. Callers that operate
+  inside an account scope must compare `account_id` themselves before acting.
   """
-  def decrypt_signing_secret(encoded) when is_binary(encoded) do
-    with {:ok, ciphertext} <- Base.decode64(encoded),
-         {:ok, plaintext} <- Tuist.Vault.decrypt(ciphertext) do
-      {:ok, plaintext}
-    else
-      _ -> {:error, :invalid_signing_secret}
+  def get_endpoint(id) do
+    case Repo.get(WebhookEndpoint, id) do
+      nil -> {:error, :not_found}
+      endpoint -> {:ok, endpoint}
     end
   end
 
-  def decrypt_signing_secret(_), do: {:error, :invalid_signing_secret}
+  @doc """
+  Loads an endpoint scoped to `account_id`, ensuring the caller can only
+  observe rows that belong to their account.
+  """
+  def get_account_endpoint(id, account_id) do
+    case Repo.one(from(e in WebhookEndpoint, where: e.id == ^id and e.account_id == ^account_id)) do
+      nil -> {:error, :not_found}
+      endpoint -> {:ok, endpoint}
+    end
+  end
 
   @doc """
-  Generates a fresh signing secret and returns it both in plaintext (to
-  show the user once) and encrypted (to persist).
+  Creates an endpoint. The plaintext signing secret is generated server-side
+  and returned alongside the persisted struct so the caller can show it to
+  the user exactly once.
   """
-  def generate_signing_secret do
+  def create_endpoint(account_id, attrs) do
+    plaintext_secret = Signature.generate_secret()
+
+    attrs =
+      attrs
+      |> normalize_keys()
+      |> Map.put("account_id", account_id)
+      |> Map.put("signing_secret", plaintext_secret)
+
+    case %WebhookEndpoint{} |> WebhookEndpoint.create_changeset(attrs) |> Repo.insert() do
+      {:ok, endpoint} -> {:ok, endpoint, plaintext_secret}
+      {:error, changeset} -> {:error, changeset}
+    end
+  end
+
+  def update_endpoint(%WebhookEndpoint{} = endpoint, attrs) do
+    endpoint
+    |> WebhookEndpoint.update_changeset(normalize_keys(attrs))
+    |> Repo.update()
+  end
+
+  def delete_endpoint(%WebhookEndpoint{} = endpoint), do: Repo.delete(endpoint)
+
+  @doc """
+  Replaces the endpoint's signing secret with a freshly generated one.
+  Returns `{:ok, endpoint, plaintext_secret}` so the caller can reveal it
+  once before it goes back to encrypted-at-rest.
+  """
+  def rotate_signing_secret(%WebhookEndpoint{} = endpoint) do
     plaintext = Signature.generate_secret()
-    {:ok, encrypted} = encrypt_signing_secret(plaintext)
-    %{plaintext: plaintext, encrypted: encrypted}
-  end
 
-  @doc """
-  Returns true when the URL is a syntactically valid HTTPS URL with a host
-  component. Used to validate user-supplied destinations before persisting.
-  """
-  def valid_webhook_url?(url) when is_binary(url) do
-    case URI.parse(url) do
-      %URI{scheme: "https", host: host} when is_binary(host) and host != "" -> true
-      _ -> false
+    case endpoint |> WebhookEndpoint.rotate_secret_changeset(plaintext) |> Repo.update() do
+      {:ok, endpoint} -> {:ok, endpoint, plaintext}
+      {:error, changeset} -> {:error, changeset}
     end
   end
 
-  def valid_webhook_url?(_), do: false
+  defp normalize_keys(attrs) when is_map(attrs) do
+    Map.new(attrs, fn
+      {k, v} when is_atom(k) -> {Atom.to_string(k), v}
+      {k, v} -> {k, v}
+    end)
+  end
 end
