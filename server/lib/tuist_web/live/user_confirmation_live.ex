@@ -93,8 +93,8 @@ defmodule TuistWeb.UserConfirmationLive do
 
   defp post_confirmation_path(user) do
     case Accounts.get_pending_invitation_by_email(user.email) do
-      nil -> ~p"/organizations/new"
-      invitation -> ~p"/auth/invitations/#{invitation.token}"
+      {:ok, invitation} -> ~p"/auth/invitations/#{invitation.token}"
+      {:error, :not_found} -> ~p"/organizations/new"
     end
   end
 end
