@@ -138,10 +138,35 @@ SSH_OPTS=(
 # If the fleet key is already on the host we can use it directly —
 # common case once the operator has registered the key at the
 # Scaleway project IAM level so newly-provisioned hosts have it
-# pre-baked, or on a re-run after a previous prep installed it.
+# pre-baked, on a re-run after a previous prep installed it, or
+# after a previous controller adoption that already installed it
+# before its bootstrap failed for other reasons (sudo / autologin).
 # BatchMode=yes refuses password fallback, so this probe doesn't
 # block on a prompt.
-if ssh -i "$PRIV_KEY" "${SSH_OPTS[@]}" -o BatchMode=yes "m1@$HOST_IP" true 2>/dev/null; then
+#
+# Retried up to 5 times with a 5s delay because Mac mini sshd can
+# take 30-60s to come back after a reboot — common case if the
+# operator just rebooted the host to drain a PAM lockout. We keep
+# stderr visible so a real failure surfaces clearly rather than
+# silently falling through to the sshpass branch (which then dies
+# with a confusing TTY error if sshpass is missing or broken).
+probe_ssh_key() {
+  local attempts=5
+  local i=1
+  while [ $i -le $attempts ]; do
+    if ssh -i "$PRIV_KEY" "${SSH_OPTS[@]}" -o BatchMode=yes "m1@$HOST_IP" true; then
+      return 0
+    fi
+    if [ $i -lt $attempts ]; then
+      printf '    ssh-key probe attempt %d/%d failed; retrying in 5s (host may still be booting)\n' "$i" "$attempts" >&2
+      sleep 5
+    fi
+    i=$((i + 1))
+  done
+  return 1
+}
+
+if probe_ssh_key; then
   printf '    transport: ssh key (fleet pubkey already on host)\n'
   SSH_CMD=(ssh -i "$PRIV_KEY" "${SSH_OPTS[@]}")
 else
@@ -149,7 +174,9 @@ else
   if ! command -v sshpass >/dev/null; then
     err "sshpass not installed. Either:"
     err "  * brew install hudochenkov/sshpass/sshpass"
-    err "  * or install the fleet pubkey on the host via VNC first,"
+    err "  * or install the fleet pubkey on the host first (Scaleway"
+    err "    console > Apple Silicon > server > Open remote desktop;"
+    err "    paste the pubkey from $PUB_KEY_FILE into ~/.ssh/authorized_keys),"
     err "    then re-run this script (it'll take the SSH-key transport path)."
     exit 1
   fi
