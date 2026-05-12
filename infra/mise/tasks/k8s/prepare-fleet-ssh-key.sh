@@ -159,7 +159,24 @@ PUB_KEY_CONTENT=$(cat "$PUB_KEY")
 
 cat <<EOF
 
-The Secret is staged. To finish the prep BEFORE the next deploy:
+The Secret is staged. Each pre-ordered Mac mini now needs three
+things in place BEFORE the next deploy so the CAPI controller can
+adopt it without needing the Scaleway-issued bootstrap password
+(which Scaleway only surfaces for ~hours after server creation —
+older pool hosts can no longer be bootstrapped via the API):
+
+  1. The SSH pubkey below in ~m1/.ssh/authorized_keys (so the
+     controller can dial in with the staged K8s Secret keypair).
+  2. /etc/sudoers.d/m1-nopasswd granting m1 passwordless sudo
+     (so the controller doesn't need the m1 password to run
+     sudo during bootstrap).
+  3. /etc/kcpassword + autoLoginUser preference configured so
+     macOS auto-logs-in the m1 user at boot. Tart's
+     Virtualization framework refuses to start guests without a
+     live Aqua session, and the controller can't write a usable
+     kcpassword without the password (kcpassword is the m1
+     password XOR'd with Apple's well-known cipher), so this
+     step lives operator-side too.
 
   ┌─ Public key to install on every pre-ordered Mac mini ─────────
   │
@@ -172,28 +189,69 @@ OPTION A — VNC (recommended for a handful of hosts):
   For each pre-ordered Mac mini in the $ENV Scaleway project:
 
     1. Open Scaleway console → Apple Silicon → click the server.
-    2. Click "Console" / "Open VNC" / "Remote access".
-    3. Once logged into macOS, open Terminal (Spotlight → Terminal).
-    4. Paste this one-liner (it appends to authorized_keys
-       idempotently — safe to run twice):
+    2. Reveal the m1 password (Access section → "Show" next to
+       Password) and copy it.
+    3. Click "Open remote desktop" to start a VNC session.
+    4. Once logged into macOS, open Terminal (Spotlight → Terminal).
+    5. Paste this block (idempotent — safe to re-run; will prompt
+       once for the m1 password you copied in step 2):
 
-       mkdir -p ~/.ssh && chmod 700 ~/.ssh && grep -qxF '$PUB_KEY_CONTENT' ~/.ssh/authorized_keys 2>/dev/null || echo '$PUB_KEY_CONTENT' >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys
+       read -rsp 'm1 password: ' SUDO_PW; echo
+       mkdir -p ~/.ssh && chmod 700 ~/.ssh
+       grep -qxF '$PUB_KEY_CONTENT' ~/.ssh/authorized_keys 2>/dev/null \\
+         || echo '$PUB_KEY_CONTENT' >> ~/.ssh/authorized_keys
+       chmod 600 ~/.ssh/authorized_keys
+       if [ ! -f /etc/sudoers.d/m1-nopasswd ]; then
+         printf '%s\n' "\$SUDO_PW" | sudo -S sh -c \\
+           "echo 'm1 ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/m1-nopasswd && chmod 440 /etc/sudoers.d/m1-nopasswd"
+       fi
+       python3 -c "import sys; key=bytes([0x7d,0x89,0x52,0x23,0xd2,0xbc,0xdd,0xea,0xa3,0xb9,0x1f]); pw=sys.argv[1].encode(); pad=len(key)-(len(pw)%len(key)); pw+=b'\\x00'*pad; sys.stdout.buffer.write(bytes(b ^ key[i%len(key)] for i,b in enumerate(pw)))" "\$SUDO_PW" \\
+         | sudo tee /etc/kcpassword > /dev/null
+       sudo chmod 600 /etc/kcpassword
+       sudo defaults write /Library/Preferences/com.apple.loginwindow autoLoginUser 'm1'
+       sudo killall -HUP loginwindow 2>/dev/null || true
+       unset SUDO_PW
+       echo "✓ Mac mini prepared"
 
-    5. Close the VNC session. The host is ready for the deploy.
+    6. (Optional sanity check) Verify the three artifacts are in
+       place:
+
+       test -f /etc/sudoers.d/m1-nopasswd && test -f /etc/kcpassword \\
+         && grep -qxF '$PUB_KEY_CONTENT' ~/.ssh/authorized_keys \\
+         && sudo -n true \\
+         && echo "✓ ready for adoption" \\
+         || echo "✗ one of {sudoers, kcpassword, authorized_keys, passwordless sudo} is missing — re-run step 5"
+
+    7. Close the VNC session. The host is ready for the deploy.
 
 OPTION B — SSH with the Scaleway bootstrap password (faster if
-you still have the order-time emails):
+the order-time password is still surfaced — typically only the
+first few hours after creation):
 
-  For each Mac mini, copy the password Scaleway emailed at order
-  time, then:
+  Set the password in your shell once:
 
-    sshpass -p '<bootstrap-password>' ssh -o StrictHostKeyChecking=accept-new \\
-      m1@<server-ip> \\
-      "mkdir -p ~/.ssh && chmod 700 ~/.ssh && echo '$PUB_KEY_CONTENT' >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys"
+    read -rsp 'm1 password: ' SUDO_PW; echo
+    export SSHPASS="\$SUDO_PW"
 
-  Scaleway stops surfacing that password ~hours after first boot,
-  so this option only works while the host is still in its
-  initial provisioning window. Older hosts → use Option A.
+  Then per host:
+
+    sshpass -e ssh -o StrictHostKeyChecking=accept-new m1@<server-ip> \\
+      "SUDO_PW='\$SUDO_PW' PUB_KEY='$PUB_KEY_CONTENT' bash -s" <<'REMOTE'
+    set -euo pipefail
+    mkdir -p ~/.ssh && chmod 700 ~/.ssh
+    grep -qxF "\$PUB_KEY" ~/.ssh/authorized_keys 2>/dev/null \\
+      || echo "\$PUB_KEY" >> ~/.ssh/authorized_keys
+    chmod 600 ~/.ssh/authorized_keys
+    if [ ! -f /etc/sudoers.d/m1-nopasswd ]; then
+      printf '%s\n' "\$SUDO_PW" | sudo -S sh -c \\
+        "echo 'm1 ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/m1-nopasswd && chmod 440 /etc/sudoers.d/m1-nopasswd"
+    fi
+    python3 -c "import sys; key=bytes([0x7d,0x89,0x52,0x23,0xd2,0xbc,0xdd,0xea,0xa3,0xb9,0x1f]); pw=sys.argv[1].encode(); pad=len(key)-(len(pw)%len(key)); pw+=b'\x00'*pad; sys.stdout.buffer.write(bytes(b ^ key[i%len(key)] for i,b in enumerate(pw)))" "\$SUDO_PW" \\
+      | sudo tee /etc/kcpassword > /dev/null
+    sudo chmod 600 /etc/kcpassword
+    sudo defaults write /Library/Preferences/com.apple.loginwindow autoLoginUser 'm1'
+    sudo killall -HUP loginwindow 2>/dev/null || true
+    REMOTE
 
 WHEN THE DEPLOY RUNS:
 
@@ -206,6 +264,11 @@ WHEN THE DEPLOY RUNS:
     the same key.
   * Adoption: rename a tuist-pool-* host → SSH dial with this
     private key → succeeds because YOU installed it above →
-    tart-kubelet bootstrap proceeds.
+    enablePasswordlessSudo no-ops (file exists) →
+    enableAutoLogin no-ops (controller has no password and bails
+    safely rather than overwriting your kcpassword) → the rest
+    of the bootstrap (Tart install, tart-kubelet binary,
+    kubeconfig, launchd plist) all run via the passwordless
+    sudo you seeded.
 
 EOF

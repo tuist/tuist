@@ -468,6 +468,13 @@ func waitForSSH(ctx context.Context, ip, user string, signer ssh.Signer, hk *hos
 // enablePasswordlessSudo writes a sudoers.d entry for the SSH user. We
 // authenticate the initial sudo with the SSH user's password supplied
 // by the caller; subsequent sudo calls don't need it.
+//
+// Pre-ordered hosts that sat in the pool longer than Scaleway's
+// password-disclosure window won't have a usable password — for those
+// the operator is expected to seed /etc/sudoers.d/<user>-nopasswd by
+// hand via the prep script's VNC instructions; the existence check
+// at the top of the script makes this branch a no-op when that's
+// already been done.
 func enablePasswordlessSudo(ctx context.Context, client *ssh.Client, user, password string) error {
 	script := fmt.Sprintf(`set -euo pipefail
 if [ -f /etc/sudoers.d/%[1]s-nopasswd ]; then exit 0; fi
@@ -489,6 +496,16 @@ sudo chmod 440 /etc/sudoers.d/%[1]s-nopasswd
 //   - /etc/kcpassword (XOR-encoded password with Apple's well-known key)
 //   - com.apple.loginwindow.autoLoginUser preference
 func enableAutoLogin(ctx context.Context, client *ssh.Client, user, password string) error {
+	// No password to XOR into /etc/kcpassword means we'd write a
+	// broken kcpassword (just the cipher key with no plaintext under
+	// it) and macOS would silently fail to auto-login the user. That
+	// path is hit on adopted pool hosts where Scaleway no longer
+	// surfaces the bootstrap password; the operator is expected to
+	// stage `/etc/kcpassword` + autoLoginUser by hand as part of the
+	// prep-script flow. Bail before doing damage.
+	if password == "" {
+		return nil
+	}
 	encoded := encodeKCPassword(password)
 	// Stage the binary kcpassword via base64 to avoid TTY issues.
 	//
