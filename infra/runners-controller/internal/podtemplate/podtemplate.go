@@ -84,6 +84,22 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL string) *corev
 								FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.name"},
 							},
 						},
+						{
+							// dispatch-poll.sh inside the runner VM
+							// keys cap-check + claim de-dup on the
+							// (pool, pod_uid) tuple so a Pod that's
+							// recreated under the same name gets a
+							// fresh claim slot. Without this the
+							// in-VM script bails before its first
+							// poll with `TUIST_RUNNER_POD_UID not
+							// set` (set -u), the dispatch endpoint
+							// never sees a runner check in, and the
+							// queued workflow_job stays unclaimed.
+							Name: "TUIST_RUNNER_POD_UID",
+							ValueFrom: &corev1.EnvVarSource{
+								FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.uid"},
+							},
+						},
 					},
 				},
 			},
