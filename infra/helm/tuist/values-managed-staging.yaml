@@ -184,7 +184,7 @@ macosFleet:
 # release-bump workflow.
 runnersFleet:
   enabled: true
-  hostCount: 2
+  hostCount: 1
   # Pre-ordered Mac mini pool. Operator orders Mac minis in the
   # Scaleway console with names starting with `tuist-pool-`
   # (e.g. `tuist-pool-001`, `tuist-pool-002`); the CAPI controller
