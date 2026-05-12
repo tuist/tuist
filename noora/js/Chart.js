@@ -100,10 +100,11 @@ export default {
       this.colorSchemeListener,
     );
   },
-  render() {
+  render({ animate = true } = {}) {
     if (this.chart) this.chart.dispose();
 
     const option = this.option();
+    if (!animate) option.animation = false;
     const theme = getTheme(option);
 
     echarts.registerTheme("noora", theme);
@@ -147,8 +148,9 @@ export default {
     window.addEventListener("phx:resize", this.resizeListener);
   },
   updated() {
-    // Re-render fully to update theme (including tooltip formatter)
-    this.render();
+    // Re-render fully to update theme (including tooltip formatter), but skip
+    // the entry animation so LiveView patches don't visibly re-animate charts.
+    this.render({ animate: false });
   },
   destroyed() {
     this.chart.dispose();
