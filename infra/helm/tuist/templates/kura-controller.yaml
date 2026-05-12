@@ -141,6 +141,10 @@ spec:
         {{- include "tuist.componentLabels" (dict "root" . "component" "kura-controller") | nindent 8 }}
     spec:
       serviceAccountName: {{ $name }}
+      {{- with .Values.kuraController.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: manager
           image: "{{ .Values.kuraController.image.repository }}:{{ $imageTag }}"
