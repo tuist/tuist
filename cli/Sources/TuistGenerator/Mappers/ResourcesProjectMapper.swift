@@ -63,7 +63,7 @@ public struct ResourcesProjectMapper: ProjectMapping {
         var sideEffects: [SideEffectDescriptor] = []
 
         if targetNeedsCompanionBundle(target) {
-            let companion = synthesizeCompanionBundle(for: target, project: project, bundleName: bundleName)
+            let companion = synthesizeCompanionBundle(for: target, bundleName: bundleName)
             modifiedTarget = companion.modifiedTarget
             additionalTargets.append(companion.bundleTarget)
         }
@@ -99,7 +99,7 @@ public struct ResourcesProjectMapper: ProjectMapping {
         // `.metal` files are declared by users as sources, but SwiftPM treats them as resources
         // (xcbuildFileTypes) and Xcode compiles them into `default.metallib` — which has to ship
         // inside the resource bundle for `Bundle.module` to resolve it at runtime.
-        if target.sources.contains(where: { $0.path.routesThroughResourceBundle }) { return true }
+        if target.sources.contains(where: \.path.routesThroughResourceBundle) { return true }
         if try await buildableFolderChecker.containsResources(target.buildableFolders) { return true }
         if buildableFoldersContainBundleResources(target: target, project: project) { return true }
         return false
@@ -151,7 +151,6 @@ public struct ResourcesProjectMapper: ProjectMapping {
 
     private func synthesizeCompanionBundle(
         for target: Target,
-        project: Project,
         bundleName: String
     ) -> CompanionBundleResult {
         let partition = partitioner.partition(target.buildableFolders)

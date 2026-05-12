@@ -161,7 +161,7 @@ extension BuildableFolder {
 /// References:
 /// - https://github.com/swiftlang/swift-package-manager/blob/main/Sources/PackageLoading/TargetSourcesBuilder.swift#L811-L865
 /// - https://github.com/swiftlang/swift-package-manager/blob/main/Sources/SwiftBuildSupport/PackagePIFProjectBuilder.swift#L274-L362
-fileprivate enum FilePartitionRouting {
+private enum FilePartitionRouting {
     /// File that compiles on the original target only — Swift, Obj-C, C, headers, …
     case originalTargetOnly
     /// File that must appear on *both* targets. Today: `.xcstrings` (main target's Resources
