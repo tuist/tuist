@@ -35,6 +35,8 @@ defmodule TuistWeb.RunDetailLive do
      |> assign(:project, project)
      |> assign(:head_title, "#{dgettext("dashboard_builds", "Run")} · #{slug} · Tuist")
      |> assign_initial_analytics_state()
+     |> assign(:binary_cache_available_filters, define_binary_cache_filters())
+     |> assign(:selective_testing_available_filters, define_selective_testing_filters())
      |> assign(:available_filters, define_binary_cache_filters())
      |> assign(:has_selective_testing_data, Xcode.has_selective_testing_data?(run))
      |> assign(:has_binary_cache_data, Xcode.has_binary_cache_data?(run))
@@ -51,10 +53,17 @@ defmodule TuistWeb.RunDetailLive do
     uri = build_uri(params)
     selected_tab = selected_tab(params)
 
+    available_filters =
+      case selected_tab do
+        "test-optimizations" -> socket.assigns.selective_testing_available_filters
+        _ -> socket.assigns.binary_cache_available_filters
+      end
+
     socket =
       socket
       |> assign(:selected_tab, selected_tab)
       |> assign(:uri, uri)
+      |> assign(:available_filters, available_filters)
       |> assign_tab_data(selected_tab, params)
 
     {:noreply, socket}
@@ -83,10 +92,12 @@ defmodule TuistWeb.RunDetailLive do
   end
 
   def handle_event("add_filter", %{"value" => filter_id}, socket) do
+    page_param = filter_page_param(filter_id)
+
     updated_params =
       filter_id
       |> Filter.Operations.add_filter_to_query(socket)
-      |> Map.put("binary-cache-page", "1")
+      |> Map.put(page_param, "1")
 
     {:noreply,
      socket
@@ -99,10 +110,12 @@ defmodule TuistWeb.RunDetailLive do
   end
 
   def handle_event("update_filter", params, socket) do
+    page_param = filter_page_param(params["payload_filter_id"])
+
     updated_query_params =
       params
       |> Filter.Operations.update_filters_in_query(socket)
-      |> Map.put("binary-cache-page", "1")
+      |> Map.put(page_param, "1")
 
     {:noreply,
      socket
@@ -163,11 +176,15 @@ defmodule TuistWeb.RunDetailLive do
     socket
     |> assign(:selective_testing_analytics, %{})
     |> assign(:selective_testing_page_count, 0)
+    |> assign(:selective_testing_active_filters, [])
     |> assign(:binary_cache_analytics, %{})
     |> assign(:binary_cache_page_count, 0)
     |> assign(:binary_cache_active_filters, [])
     |> assign(:expanded_target_names, MapSet.new())
   end
+
+  defp filter_page_param("selective_testing_hit"), do: "selective-testing-page"
+  defp filter_page_param(_), do: "binary-cache-page"
 
   defp build_uri(params) do
     URI.new!("?" <> URI.encode_query(params))
@@ -193,18 +210,23 @@ defmodule TuistWeb.RunDetailLive do
   end
 
   defp assign_selective_testing_data(socket, analytics, meta, params) do
+    filters =
+      Filter.Operations.decode_filters_from_query(params, socket.assigns.selective_testing_available_filters)
+
     socket
     |> assign(:selective_testing_analytics, analytics)
     |> assign(:selective_testing_meta, meta)
     |> assign(:selective_testing_page_count, meta.total_pages)
     |> assign(:selective_testing_filter, params["selective-testing-filter"] || "")
+    |> assign(:selective_testing_active_filters, filters)
     |> assign(:selective_testing_page, String.to_integer(params["selective-testing-page"] || "1"))
     |> assign(:selective_testing_sort_by, params["selective-testing-sort-by"] || "name")
     |> assign(:selective_testing_sort_order, params["selective-testing-sort-order"] || "asc")
   end
 
   defp assign_binary_cache_data(socket, analytics, meta, params) do
-    filters = Filter.Operations.decode_filters_from_query(params, socket.assigns.available_filters)
+    filters =
+      Filter.Operations.decode_filters_from_query(params, socket.assigns.binary_cache_available_filters)
 
     socket
     |> assign(:binary_cache_analytics, analytics)
@@ -221,6 +243,7 @@ defmodule TuistWeb.RunDetailLive do
     socket
     |> assign(:selective_testing_analytics, socket.assigns.selective_testing_analytics)
     |> assign(:selective_testing_page_count, socket.assigns.selective_testing_page_count)
+    |> assign(:selective_testing_active_filters, [])
   end
 
   defp assign_binary_cache_defaults(socket) do
@@ -231,10 +254,15 @@ defmodule TuistWeb.RunDetailLive do
   end
 
   defp assign_param_defaults(socket, params) do
-    binary_cache_filters = Filter.Operations.decode_filters_from_query(params, socket.assigns.available_filters)
+    binary_cache_filters =
+      Filter.Operations.decode_filters_from_query(params, socket.assigns.binary_cache_available_filters)
+
+    selective_testing_filters =
+      Filter.Operations.decode_filters_from_query(params, socket.assigns.selective_testing_available_filters)
 
     socket
     |> assign(:selective_testing_filter, params["selective-testing-filter"] || "")
+    |> assign(:selective_testing_active_filters, selective_testing_filters)
     |> assign(:selective_testing_page, String.to_integer(params["selective-testing-page"] || "1"))
     |> assign(:selective_testing_sort_by, params["selective-testing-sort-by"] || "name")
     |> assign(:selective_testing_sort_order, params["selective-testing-sort-order"] || "desc")
@@ -247,9 +275,13 @@ defmodule TuistWeb.RunDetailLive do
 
   defp load_selective_testing_data(run, params) do
     counts = Xcode.selective_testing_counts(run)
+    filters = Filter.Operations.decode_filters_from_query(params, define_selective_testing_filters())
+
+    text_filters = build_text_flop_filters(params["selective-testing-filter"])
+    filter_flop_filters = build_selective_testing_flop_filters(filters)
 
     flop_params = %{
-      filters: build_text_flop_filters(params["selective-testing-filter"]),
+      filters: text_filters ++ filter_flop_filters,
       page: String.to_integer(params["selective-testing-page"] || "1"),
       page_size: @table_page_size,
       order_by: [ensure_allowed_params("selective-testing-sort-by", params)],
@@ -307,6 +339,39 @@ defmodule TuistWeb.RunDetailLive do
     |> Enum.map(fn filter ->
       case filter.id do
         "binary_cache_hit" ->
+          %{filter | value: if(filter.value, do: Atom.to_string(filter.value))}
+
+        _ ->
+          filter
+      end
+    end)
+    |> Filter.Operations.convert_filters_to_flop()
+  end
+
+  defp define_selective_testing_filters do
+    [
+      %Filter.Filter{
+        id: "selective_testing_hit",
+        field: :selective_testing_hit,
+        display_name: dgettext("dashboard_builds", "Hit"),
+        type: :option,
+        options: [:local, :remote, :miss],
+        options_display_names: %{
+          remote: dgettext("dashboard_builds", "Remote"),
+          local: dgettext("dashboard_builds", "Local"),
+          miss: dgettext("dashboard_builds", "Missed")
+        },
+        operator: :==,
+        value: nil
+      }
+    ]
+  end
+
+  defp build_selective_testing_flop_filters(filters) do
+    filters
+    |> Enum.map(fn filter ->
+      case filter.id do
+        "selective_testing_hit" ->
           %{filter | value: if(filter.value, do: Atom.to_string(filter.value))}
 
         _ ->

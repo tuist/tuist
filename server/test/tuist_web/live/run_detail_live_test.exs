@@ -148,6 +148,76 @@ defmodule TuistWeb.RunDetailLiveTest do
       assert has_element?(lv, ".noora-button", "Download result")
     end
 
+    test "filters selective testing modules by hit", %{
+      conn: conn,
+      organization: organization,
+      project: project,
+      user: user
+    } do
+      # Given
+      test_run =
+        CommandEventsFixtures.command_event_fixture(
+          project: project,
+          name: "test",
+          command_arguments: ["test", "App"],
+          test_targets: ["AppTests", "FrameworkTests", "UtilsTests"],
+          user_id: user.id
+        )
+
+      xcode_graph = XcodeFixtures.xcode_graph_fixture(command_event_id: test_run.id)
+
+      xcode_project =
+        XcodeFixtures.xcode_project_fixture(xcode_graph_id: xcode_graph.id)
+
+      _local =
+        XcodeFixtures.xcode_target_fixture(
+          name: "AppTests",
+          xcode_project_id: xcode_project.id,
+          selective_testing_hash: "AppTests-hash",
+          selective_testing_hit: :local
+        )
+
+      _remote =
+        XcodeFixtures.xcode_target_fixture(
+          name: "FrameworkTests",
+          xcode_project_id: xcode_project.id,
+          selective_testing_hash: "FrameworkTests-hash",
+          selective_testing_hit: :remote
+        )
+
+      _miss =
+        XcodeFixtures.xcode_target_fixture(
+          name: "UtilsTests",
+          xcode_project_id: xcode_project.id,
+          selective_testing_hash: "UtilsTests-hash",
+          selective_testing_hit: :miss
+        )
+
+      # When (no filter)
+      {:ok, lv, _html} =
+        live(
+          conn,
+          ~p"/#{organization.account.name}/#{project.name}/runs/#{test_run.id}?tab=test-optimizations"
+        )
+
+      # Then all three modules are listed
+      assert has_element?(lv, "#selective-testing-table span", "AppTests")
+      assert has_element?(lv, "#selective-testing-table span", "FrameworkTests")
+      assert has_element?(lv, "#selective-testing-table span", "UtilsTests")
+
+      # When filtering by :miss
+      {:ok, lv, _html} =
+        live(
+          conn,
+          ~p"/#{organization.account.name}/#{project.name}/runs/#{test_run.id}?tab=test-optimizations&filter_selective_testing_hit_op===&filter_selective_testing_hit_val=miss"
+        )
+
+      # Then only the miss module is listed
+      refute has_element?(lv, "#selective-testing-table span", "AppTests")
+      refute has_element?(lv, "#selective-testing-table span", "FrameworkTests")
+      assert has_element?(lv, "#selective-testing-table span", "UtilsTests")
+    end
+
     test "does not show download result button when not available", %{
       conn: conn,
       organization: organization,
