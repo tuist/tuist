@@ -226,11 +226,17 @@ macosFleet:
 runnersController:
   image:
     repository: ghcr.io/tuist/tuist-runners-controller
-    # Bumped automatically by the release workflow when a
-    # runners-controller-scoped conventional commit lands on main;
-    # the workflow builds the new image, pushes the matching
-    # semver tag, and rewrites this line in the same auto-commit.
-    tag: "0.1.0"
+    # Tracks `:latest` from the runners-controller-image.yml build
+    # workflow until the release.yml pipeline owns this image and
+    # starts pinning a semver tag here on each release. Pre-release
+    # bring-up: every push to `main` (or the bring-up branch) on
+    # the runners-controller paths rebuilds and re-tags latest.
+    tag: "latest"
+    # `:latest` requires a forced re-pull on every Pod start —
+    # `IfNotPresent` would cache the first version a node sees
+    # forever, defeating the rolling-latest model. Will be removed
+    # once `tag` flips to a pinned semver.
+    pullPolicy: Always
 
 # Everything below = external. The managed deployment never runs embedded
 # Postgres / ClickHouse / object storage / observability stacks.
