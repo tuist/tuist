@@ -4411,7 +4411,10 @@ final class TestServiceTests: TuistUnitTestCase {
         // matching .xctestrun (i.e. selective testing pruned every target), so the test phase
         // skips xcodebuild entirely and uploads a synthesized "skipped" test summary. Before
         // this fix, uploadSkippedTestSummary hardcoded buildRunId: nil, which dropped the link
-        // back to the originating build run.
+        // back to the originating build run. The restore from a real snapshot file is covered
+        // by test_run_testWithoutBuilding_restoresRunMetadata_fromBundle; here we pre-populate
+        // RunMetadataStorage directly to keep the test focused on the skip path's buildRunId
+        // forwarding.
         let path = try temporaryPath()
         let testProductsPath = path.appending(component: "MyApp.xctestproducts")
         try await fileSystem.makeDirectory(at: testProductsPath)
@@ -4424,15 +4427,7 @@ final class TestServiceTests: TuistUnitTestCase {
         try JSONEncoder().encode(selectiveTestingGraph)
             .write(to: testProductsPath.appending(component: SelectiveTestingGraph.fileName).url)
 
-        let runMetadata = RunMetadata(
-            graph: nil,
-            binaryCacheItems: [:],
-            selectiveTestingCacheItems: [:],
-            targetContentHashSubhashes: [:],
-            buildRunId: "BUILD-RUN-ID"
-        )
-        try JSONEncoder().encode(runMetadata)
-            .write(to: testProductsPath.appending(component: RunMetadata.fileName).url)
+        await runMetadataStorage.update(buildRunId: "BUILD-RUN-ID")
 
         given(configLoader)
             .loadConfig(path: .any)
@@ -4443,6 +4438,9 @@ final class TestServiceTests: TuistUnitTestCase {
                     url: URL(string: "https://tuist.dev")!
                 )
             )
+        given(xcodebuildController)
+            .version()
+            .willReturn(nil)
         given(createTestService)
             .createTest(
                 fullHandle: .any,
@@ -4486,8 +4484,8 @@ final class TestServiceTests: TuistUnitTestCase {
             )
         }
 
-        // Then — the snapshot-restored buildRunId is forwarded to createTest so the test
-        // run record links back to the build run.
+        // Then — the buildRunId from RunMetadataStorage is forwarded to createTest so the
+        // test run record links back to the build run.
         verify(createTestService)
             .createTest(
                 fullHandle: .value("tuist/tuist"),
