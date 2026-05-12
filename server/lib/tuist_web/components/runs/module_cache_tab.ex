@@ -361,6 +361,7 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
 
   defp cache_chart_options do
     %{
+      animation: false,
       tooltip: %{
         trigger: "axis",
         axisPointer: %{
