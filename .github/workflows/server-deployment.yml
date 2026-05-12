@@ -422,24 +422,21 @@ jobs:
         # in-cluster ExternalSecret. Passing secrets through --set would
         # leak them into `helm get manifest`.
         #
-        # helm --timeout 90m is sized for first-time macOS-fleet bring-up:
-        # the operator's CreateServer call to Scaleway commonly takes ~50
-        # min for an Apple Silicon Mac mini to come online, plus ~5-8
-        # min for the Tart VM cold-boot on the host before xcresult-
-        # processor pods report Ready. Production rolls 2 Mac minis in
-        # parallel (helm waits on both via topology-spread), so worst-
-        # case provisioning runs the same ~50-min wall plus a small
-        # serialization overhead. 60m left no margin if Scaleway's
-        # queue ran slow. Steady-state deploys (Mac minis already
-        # allocated, the helm.sh/resource-policy: keep on the CR keeps
-        # them across rollbacks) finish in 5-15 min and never approach
-        # this ceiling.
+        # helm --timeout 30m is sized for the adoption path: Mac minis
+        # are pre-ordered by the operator under the `tuist-pool-` prefix
+        # and the CAPI controller claims them on demand. Adoption is
+        # cheap (rename + tart-kubelet bootstrap + Tart VM cold-boot)
+        # vs Scaleway CreateServer (~50 min). Steady-state deploys
+        # finish in 5-15 min once the Mac mini is already in the cluster.
+        # If we ever flip back to auto-order in an env, bump this back
+        # to ~90m to absorb a fresh Scaleway provisioning.
         #
-        # timeout-minutes: 120 leaves 30 min over helm's own --timeout
-        # for the in-process `--atomic` rollback. Five minutes was too
-        # tight for macOS-fleet rollbacks and could kill helm after it had
-        # already moved the release into pending-rollback.
-        timeout-minutes: 120
+        # timeout-minutes: 45 leaves 15 min over helm's own --timeout
+        # for the in-process `--atomic` rollback. The previous 5-min
+        # workflow timeout was too tight for macOS-fleet rollbacks
+        # and could kill helm after it had moved the release into
+        # pending-rollback.
+        timeout-minutes: 45
         run: |
           # Stream cluster state every 30s while helm waits. helm
           # --atomic --wait produces no stdout during the wait, so
@@ -465,7 +462,7 @@ jobs:
             --set server.image.tag="$IMAGE_TAG" \
             --set kuraController.image.tag="$IMAGE_TAG" \
             --set kuraRuntime.image.tag="$IMAGE_TAG" \
-            --atomic --timeout 90m --wait
+            --atomic --timeout 30m --wait
       - name: Deploy Kura regional controllers
         if: inputs.environment == 'production'
         env:

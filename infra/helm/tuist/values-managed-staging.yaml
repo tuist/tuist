@@ -224,7 +224,11 @@ runnersFleet:
       - "192.168.0.0/16"
   pools:
     - name: default
-      replicas: 2
+      # 1 warm runner per host. Pool replicas must equal `hostCount`
+      # while pods request the full host — over-provisioning the
+      # pool only produces unschedulable Pods that drag readiness
+      # gates without adding capacity.
+      replicas: 1
       runnerImage: "ghcr.io/tuist/tuist-runner@sha256:ac69458c53c86ad81fe6e90e89245da5b45b3969f87ad8d760870cb2c49d8e7b"
       dispatchLabel: "tuist-staging-macos"
       pod:
