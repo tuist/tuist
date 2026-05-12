@@ -157,9 +157,9 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
       render_hook(lv, "update_create_automation_form_name", %{"value" => "State subscriber"})
       render_hook(lv, "update_create_automation_form_metric", %{"data" => "test_updated"})
       # Default events = ["marked_flaky"]; subscribe to state_changed_to_muted too.
-      render_hook(lv, "toggle_create_automation_form_event", %{"event" => "state_changed_to_muted"})
+      render_hook(lv, "toggle_create_automation_form_event", %{"data" => "state_changed_to_muted"})
       # Unsubscribe from marked_flaky.
-      render_hook(lv, "toggle_create_automation_form_event", %{"event" => "marked_flaky"})
+      render_hook(lv, "toggle_create_automation_form_event", %{"data" => "marked_flaky"})
       render_hook(lv, "add_create_automation_form_trigger_action", %{"data" => "change_state"})
       render_hook(lv, "save_automation", %{})
 
@@ -183,9 +183,8 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
       refute html =~ "create-automation-window"
       refute html =~ "create-automation-recovery-days"
       refute html =~ "create-automation-recovery-toggle"
-      # The events multi-select renders instead.
-      assert html =~ "create-automation-events"
-      assert html =~ "create-automation-event-marked_flaky"
+      # The events multi-select dropdown renders instead.
+      assert html =~ "create-automation-events-dropdown"
     end
 
     test "switching to test_updated forces recovery off", %{conn: conn, organization: organization, project: project} do

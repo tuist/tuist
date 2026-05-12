@@ -198,7 +198,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
     {:noreply, assign(socket, create_automation_form_comparison: comparison)}
   end
 
-  def handle_event("toggle_create_automation_form_event", %{"event" => event}, socket) do
+  def handle_event("toggle_create_automation_form_event", %{"data" => event}, socket) do
     current = socket.assigns.create_automation_form_events
 
     next =
@@ -505,6 +505,12 @@ defmodule TuistWeb.ProjectAutomationsLive do
   def test_updated_event_label("state_changed_to_skipped"), do: dgettext("dashboard_projects", "State changed to Skipped")
 
   def test_updated_event_label(_), do: dgettext("dashboard_projects", "Unknown")
+
+  def events_dropdown_label([]), do: dgettext("dashboard_projects", "Select events")
+  def events_dropdown_label([event]), do: test_updated_event_label(event)
+
+  def events_dropdown_label(events) when is_list(events),
+    do: dgettext("dashboard_projects", "%{count} events selected", count: length(events))
 
   def comparison_label("gte"), do: dgettext("dashboard_projects", "Greater or equal")
   def comparison_label("gt"), do: dgettext("dashboard_projects", "Greater than")
