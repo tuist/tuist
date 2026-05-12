@@ -363,7 +363,6 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
             }
         }
     }
-
 }
 
 extension ProjectDescription.Platform {

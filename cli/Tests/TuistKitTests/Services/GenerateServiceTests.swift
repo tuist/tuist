@@ -379,9 +379,9 @@ struct GenerateServiceTests {
     }
 }
 
-// Kept separate from `GenerateServiceTests` because combining `MockInstallServicing` and
-// `MockOpening` in the same struct triggers a Swift Testing struct-destroy crash on parallel
-// execution. Until that's investigated upstream, the outdated-dependency cases live here.
+/// Kept separate from `GenerateServiceTests` because combining `MockInstallServicing` and
+/// `MockOpening` in the same struct triggers a Swift Testing struct-destroy crash on parallel
+/// execution. Until that's investigated upstream, the outdated-dependency cases live here.
 struct GenerateServiceOutdatedDependenciesTests {
     private var subject: GenerateService!
     private var generator: MockGenerating!
@@ -537,4 +537,3 @@ struct GenerateServiceOutdatedDependenciesTests {
             .called(0)
     }
 }
-

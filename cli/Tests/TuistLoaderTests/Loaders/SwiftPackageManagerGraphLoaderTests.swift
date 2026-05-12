@@ -453,5 +453,4 @@ struct SwiftPackageManagerGraphLoaderTests {
             got.externalProjects.values.map(\.hash) == [nil]
         )
     }
-
 }
