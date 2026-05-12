@@ -39,12 +39,15 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestCaseRunsRecentPerCaseMv do
 
   @max_window_size 1000
   # Chunk size for the backfill query: each INSERT covers this many
-  # `project_id` values within a partition. Per-query memory scales with
-  # the number of unique `(project_id, test_case_id)` groups it produces,
-  # so a small chunk keeps the worst-case aggregation memory well below
-  # ClickHouse Cloud's 18 GiB process ceiling regardless of how heavy any
-  # one project's test_case_id cardinality turns out to be.
-  @project_chunk_size 5
+  # `project_id` values within a partition. Production has projects whose
+  # `(project_id, test_case_id)` cardinality can exhaust ClickHouse Cloud's
+  # per-query cap even with a 5-project chunk, so keep this at one project
+  # and split each project further by test-case hash buckets below.
+  @project_chunk_size 1
+  # Hash buckets per project/partition. This keeps the worst-case aggregation
+  # state bounded for high-cardinality projects without relying on a larger
+  # ClickHouse memory profile during deployment.
+  @test_case_id_bucket_count 32
   # Throttle between chunks to give live ClickHouse traffic (background
   # merges, MV writes, automation queries) breathing room and avoid
   # piling concurrent allocations against the global memory ceiling.
@@ -114,18 +117,22 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestCaseRunsRecentPerCaseMv do
 
       Logger.info(
         "Backfilling partition #{partition} into test_case_runs_recent_per_case " <>
-          "(#{length(project_ids)} projects in #{div(length(project_ids) + @project_chunk_size - 1, @project_chunk_size)} chunk(s))"
+          "(#{length(project_ids)} projects in #{div(length(project_ids) + @project_chunk_size - 1, @project_chunk_size)} project chunk(s), " <>
+          "#{@test_case_id_bucket_count} test-case bucket(s) each)"
       )
 
       project_ids
       |> Enum.chunk_every(@project_chunk_size)
       |> Enum.with_index(1)
       |> Enum.each(fn {chunk, idx} ->
-        retry_on_transient_failure(fn ->
-          backfill_chunk(partition_int, chunk, idx)
-        end)
+        0..(@test_case_id_bucket_count - 1)
+        |> Enum.each(fn bucket ->
+          retry_on_transient_failure(fn ->
+            backfill_chunk(partition_int, chunk, idx, bucket)
+          end)
 
-        Process.sleep(@chunk_throttle_ms)
+          Process.sleep(@chunk_throttle_ms)
+        end)
       end)
     end
   end
@@ -158,15 +165,16 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestCaseRunsRecentPerCaseMv do
   # bounding memory to one in-flight state instead of per-thread hash
   # tables.
   #
-  # The `project_id IN (...)` chunking caps the size of the result the
-  # query has to produce regardless of how many unique test_case_ids the
-  # selected projects accumulate, and the explicit `max_memory_usage`
-  # makes the query fail fast on a budget overshoot rather than starving
-  # other ClickHouse activity against the 18 GiB process ceiling.
-  defp backfill_chunk(partition, project_ids, idx) do
+  # The `project_id IN (...)` chunking and `cityHash64(test_case_id)` bucketing
+  # cap the result set even when a single project has very high test-case
+  # cardinality. Keep `max_memory_usage` under the observed ClickHouse Cloud
+  # cap (~3.73 GiB in production) so the query fails predictably if a bucket is
+  # still too large.
+  defp backfill_chunk(partition, project_ids, idx, bucket) do
     Logger.debug(
       "Backfilling chunk #{idx} of partition #{partition} " <>
-        "(#{length(project_ids)} projects: #{Enum.at(project_ids, 0)}..#{List.last(project_ids)})"
+        "(#{length(project_ids)} projects: #{Enum.at(project_ids, 0)}..#{List.last(project_ids)}, " <>
+        "test-case bucket #{bucket + 1}/#{@test_case_id_bucket_count})"
     )
 
     IngestRepo.query!(
@@ -180,14 +188,15 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestCaseRunsRecentPerCaseMv do
       WHERE toYYYYMM(inserted_at) = {partition:UInt32}
         AND project_id IN {project_ids:Array(Int64)}
         AND test_case_id IS NOT NULL
+        AND modulo(cityHash64(assumeNotNull(test_case_id)), #{@test_case_id_bucket_count}) = {bucket:UInt64}
       GROUP BY project_id, test_case_id
       SETTINGS
         optimize_aggregation_in_order = 1,
         max_threads = 1,
-        max_memory_usage = 4000000000,
-        max_bytes_before_external_group_by = 1500000000
+        max_memory_usage = 3000000000,
+        max_bytes_before_external_group_by = 1000000000
       """,
-      %{partition: partition, project_ids: project_ids},
+      %{partition: partition, project_ids: project_ids, bucket: bucket},
       timeout: 1_200_000
     )
   end
