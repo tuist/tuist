@@ -160,9 +160,18 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestCaseRunsRecentPerCaseMv do
   #
   # The `project_id IN (...)` chunking caps the size of the result the
   # query has to produce regardless of how many unique test_case_ids the
-  # selected projects accumulate, and the explicit `max_memory_usage`
-  # makes the query fail fast on a budget overshoot rather than starving
-  # other ClickHouse activity against the 18 GiB process ceiling.
+  # selected projects accumulate.
+  #
+  # `max_memory_usage = 12 GiB` is the budget per backfill INSERT. The
+  # ClickHouse server itself has no `max_memory_usage` set
+  # (verified via `system.settings`), so this is purely a self-imposed
+  # ceiling. Prior attempts at 4 GiB OOM'd at ~3.74 GiB on the heaviest
+  # `(partition, chunk-of-5)` for partition 202602; the dominant cost
+  # is not the chunk size but `groupArrayLast(1000)`'s per-state
+  # capacity-preallocation, which barely changes between chunks of 5
+  # and chunks of 20. 12 GiB gives ~3× headroom over the observed peak
+  # while leaving ~6 GiB free under the cluster's 18 GiB process
+  # ceiling for live traffic during the brief (~6 s) burst per chunk.
   defp backfill_chunk(partition, project_ids, idx) do
     Logger.debug(
       "Backfilling chunk #{idx} of partition #{partition} " <>
@@ -184,8 +193,8 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestCaseRunsRecentPerCaseMv do
       SETTINGS
         optimize_aggregation_in_order = 1,
         max_threads = 1,
-        max_memory_usage = 4000000000,
-        max_bytes_before_external_group_by = 1500000000
+        max_memory_usage = 12000000000,
+        max_bytes_before_external_group_by = 5000000000
       """,
       %{partition: partition, project_ids: project_ids},
       timeout: 1_200_000
