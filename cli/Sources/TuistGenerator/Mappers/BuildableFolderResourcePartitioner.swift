@@ -147,24 +147,31 @@ extension BuildableFolder {
 // MARK: - Per-file routing rules
 
 /// Where a single file inside a buildable folder should end up when the target needs a companion
-/// resource bundle. Centralising the per-extension rules here avoids the predicate-chain pattern
-/// the partitioner used to spell across half a dozen properties.
-private enum FilePartitionRouting {
-    /// Source-like file that lives on the original target only (Swift, Obj-C, headers, …).
+/// resource bundle. The mental model mirrors SwiftPM's: source files compile on the original
+/// target, resource files (including a handful of extensions that look "source-like" but route
+/// through xcbuild's resource pipeline) compile on the bundle, and `.xcstrings` straddles both.
+///
+/// See `TargetSourcesBuilder` (where SwiftPM declares `xcbuildFileTypes`) and
+/// `PackagePIFProjectBuilder.processResources` (where those extensions are emitted to the
+/// resource bundle target):
+/// - https://github.com/swiftlang/swift-package-manager/blob/main/Sources/PackageLoading/TargetSourcesBuilder.swift#L811-L865
+/// - https://github.com/swiftlang/swift-package-manager/blob/main/Sources/SwiftBuildSupport/PackagePIFProjectBuilder.swift#L274-L362
+fileprivate enum FilePartitionRouting {
+    /// File that compiles on the original target only — Swift, Obj-C, C, headers, …
     case originalTargetOnly
-    /// File that must appear on both the original target's Resources phase (so Xcode runs
-    /// extraction / stale-string detection where the source references live) and the bundle's
-    /// Resources phase (so `Bundle.module` can resolve at runtime). Today: `.xcstrings`.
+    /// File that must appear on *both* targets — the original so Xcode runs extraction /
+    /// symbol generation with the Swift code, the bundle so `Bundle.module` can resolve the
+    /// compiled artifact at runtime. Today: `.xcstrings`.
     case sharedBetweenTargets
-    /// Everything else — pure resources, plus source-like extensions that Xcode compiles into a
-    /// resource (today: `.metal` → `default.metallib`).
+    /// File whose compiled output Xcode packages into the bundle — pure resources plus the
+    /// SwiftPM-style "source-y resources" (`.metal` → `default.metallib`).
     case bundleTargetOnly
 
     init(extension fileExtension: String?) {
-        let ext = fileExtension ?? ""
-        if Self.sharedExtensions.contains(ext) {
+        let ext = (fileExtension ?? "").lowercased()
+        if Self.sharedWithOriginalTarget.contains(ext) {
             self = .sharedBetweenTargets
-        } else if Self.bundleProducingSourceExtensions.contains(ext) {
+        } else if Self.routedToBundle.contains(ext) {
             self = .bundleTargetOnly
         } else if AbsolutePath.isSourceLikeExtension(ext) {
             self = .originalTargetOnly
@@ -173,18 +180,30 @@ private enum FilePartitionRouting {
         }
     }
 
-    /// Files that must live in *both* targets so Xcode can extract symbols on one side and
-    /// compile resources on the other.
-    private static let sharedExtensions: Set<String> = ["xcstrings"]
+    /// `.xcstrings` belongs on both targets. `PACKAGE_RESOURCE_BUNDLE_NAME` (set on the main
+    /// target) makes swift-build skip the duplicate compile, so Xcode runs extraction on the
+    /// main target while only the bundle actually compiles the catalog.
+    /// https://github.com/swiftlang/swift-build/blob/main/Sources/SWBApplePlatform/XCStringsCompiler.swift
+    private static let sharedWithOriginalTarget: Set<String> = ["xcstrings"]
 
-    /// Source extensions whose output Xcode treats as a resource (compiled into a file the
-    /// companion bundle must contain).
-    private static let bundleProducingSourceExtensions: Set<String> = ["metal"]
+    /// Extensions SwiftPM declares as `xcbuildFileTypes` (resources processed by xcbuild) that
+    /// also happen to be in Tuist's `validSourceExtensions`. Routing them to the bundle matches
+    /// SwiftPM's PIF builder, which adds these as source files of the resource bundle target so
+    /// the compiled output (e.g. `default.metallib`) lands inside `Bundle.module`.
+    static let routedToBundle: Set<String> = ["metal"]
 }
 
 // MARK: - Path predicates
 
 extension AbsolutePath {
+    /// True for file extensions that SwiftPM routes through the resource bundle even though
+    /// Tuist's domain model classifies them as sources (`.metal` today). Used both by the
+    /// resource mapper's early-return guard and by the per-file routing in the partitioner.
+    var routesThroughResourceBundle: Bool {
+        guard let `extension` else { return false }
+        return FilePartitionRouting.routedToBundle.contains(`extension`.lowercased())
+    }
+
     fileprivate static func isSourceLikeExtension(_ fileExtension: String) -> Bool {
         let valid = Target.validSourceExtensions
             + Target.validSourceCompatibleFolderExtensions

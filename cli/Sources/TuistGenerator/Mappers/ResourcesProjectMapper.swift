@@ -90,10 +90,12 @@ public struct ResourcesProjectMapper: ProjectMapping {
     private func targetNeedsBundleSynthesis(_ target: Target, project: Project) async throws -> Bool {
         if !target.resources.resources.isEmpty { return true }
         if !target.coreDataModels.isEmpty { return true }
-        if target.sources.contains(where: { $0.path.extension == "metal" }) { return true }
+        // `.metal` files are declared by users as sources, but SwiftPM treats them as resources
+        // (xcbuildFileTypes) and Xcode compiles them into `default.metallib` — which has to ship
+        // inside the resource bundle for `Bundle.module` to resolve it at runtime.
+        if target.sources.contains(where: { $0.path.routesThroughResourceBundle }) { return true }
         if try await buildableFolderChecker.containsResources(target.buildableFolders) { return true }
-        if buildableFoldersContainSynthesizedFiles(target: target, project: project) { return true }
-        if buildableFoldersContainMetalFiles(target.buildableFolders) { return true }
+        if buildableFoldersContainBundleResources(target: target, project: project) { return true }
         return false
     }
 
@@ -120,19 +122,17 @@ public struct ResourcesProjectMapper: ProjectMapping {
         return containsObjc && hasBundleResources && needsBundle
     }
 
-    private func buildableFoldersContainSynthesizedFiles(target: Target, project: Project) -> Bool {
-        let extensions = Set(project.resourceSynthesizers.flatMap(\.extensions))
+    /// Files inside buildable folders that should trip bundle synthesis but aren't caught by
+    /// `BuildableFolderChecker.containsResources` (which treats anything in `validSourceExtensions`
+    /// as a source): files declared as resource synthesizers, and source-like extensions that
+    /// SwiftPM routes through the resource bundle (today: `.metal`).
+    private func buildableFoldersContainBundleResources(target: Target, project: Project) -> Bool {
+        let synthesizerExtensions = Set(project.resourceSynthesizers.flatMap(\.extensions))
         return target.buildableFolders.contains(where: { folder in
-            folder.resolvedFiles.contains(where: { extensions.contains($0.path.extension ?? "") })
-        })
-    }
-
-    /// Xcode compiles `.metal` sources into a `default.metallib` resource. For static frameworks
-    /// and other targets that can't host their own resources, the metallib must live in the
-    /// companion bundle so `Bundle.module.makeDefaultLibrary(...)` can find it.
-    private func buildableFoldersContainMetalFiles(_ folders: [BuildableFolder]) -> Bool {
-        folders.contains(where: { folder in
-            folder.resolvedFiles.contains(where: { $0.path.extension == "metal" })
+            folder.resolvedFiles.contains(where: { file in
+                file.path.routesThroughResourceBundle
+                    || synthesizerExtensions.contains(file.path.extension ?? "")
+            })
         })
     }
 
@@ -158,9 +158,10 @@ public struct ResourcesProjectMapper: ProjectMapping {
 
         var modifiedTarget = target
 
-        // Source files: keep everything except `.metal` (which Xcode compiles into a resource
-        // that must live in the companion bundle alongside the buildable-folder partition).
-        modifiedTarget.sources = target.sources.filter { $0.path.extension != "metal" }
+        // Drop source-listed files that SwiftPM routes through the resource bundle (today:
+        // `.metal`). The bundle target's `sources` parameter, set in `makeBundleTarget`, picks
+        // them up so Xcode compiles them inside the bundle.
+        modifiedTarget.sources = target.sources.filter { !$0.path.routesThroughResourceBundle }
 
         // Asset catalogs (.xcassets) sit on the main target's Sources phase so Xcode generates
         // typed asset symbols, and on the companion bundle's Resources phase so the catalog is
@@ -239,7 +240,7 @@ public struct ResourcesProjectMapper: ProjectMapping {
                 ],
                 configurations: [:]
             ),
-            sources: target.sources.filter { $0.path.extension == "metal" },
+            sources: target.sources.filter(\.path.routesThroughResourceBundle),
             resources: target.resources,
             copyFiles: target.copyFiles,
             coreDataModels: target.coreDataModels,
