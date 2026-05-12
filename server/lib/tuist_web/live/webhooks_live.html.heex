@@ -167,7 +167,9 @@
           <%!-- Per-endpoint secrets are only revealed once at creation or rotation. --%>
           <%!-- The table shows a partial mask (suffix only) so users can match it --%>
           <%!-- against a value they've stored elsewhere without weakening the HMAC. --%>
-          <.text_cell label={masked_signing_secret(endpoint.signing_secret)} />
+          <%!-- Rendered in a monospace face so the bullet glyphs share a baseline --%>
+          <%!-- with `whsec_` and the trailing characters. --%>
+          <code data-part="signing-secret-cell">{masked_signing_secret(endpoint.signing_secret)}</code>
         </:col>
         <:col :let={endpoint} label={dgettext("dashboard_account", "Created")}>
           <.text_cell label={Tuist.Utilities.DateFormatter.from_now(endpoint.inserted_at)} />

@@ -85,6 +85,12 @@
     padding: var(--noora-spacing-6) var(--noora-spacing-8);
   }
 
+  & [data-part="signing-secret-cell"] {
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+    font-family: "Geist Mono", monospace;
+  }
+
   & #webhook-endpoints-table {
     & table {
       min-width: 0;
