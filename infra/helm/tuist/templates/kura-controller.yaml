@@ -3,8 +3,12 @@
 {{- $namespace := .Values.kuraController.namespace }}
 {{- $serverRoleName := printf "%s-server" $name }}
 {{- $imageTag := .Values.kuraController.image.tag }}
+{{- $tlsClusterIssuer := .Values.kuraController.tlsClusterIssuer | default .Values.kuraController.grpcClusterIssuer }}
 {{- if not $imageTag }}
 {{- fail "kuraController.image.tag is required — running the controller on :latest silently drifts and surfaces in production after the next push to ghcr." }}
+{{- end }}
+{{- if and .Values.kuraController.tlsClusterIssuer .Values.kuraController.grpcClusterIssuer (ne .Values.kuraController.tlsClusterIssuer .Values.kuraController.grpcClusterIssuer) }}
+{{- fail "kuraController.tlsClusterIssuer and deprecated kuraController.grpcClusterIssuer cannot both be set to different values" }}
 {{- end }}
 ---
 apiVersion: v1
@@ -146,8 +150,8 @@ spec:
             - --metrics-bind-address=:8080
             - --health-probe-bind-address=:8081
             - --watch-namespace={{ $namespace }}
-            {{- if .Values.kuraController.grpcClusterIssuer }}
-            - --grpc-cluster-issuer={{ .Values.kuraController.grpcClusterIssuer }}
+            {{- if $tlsClusterIssuer }}
+            - --grpc-cluster-issuer={{ $tlsClusterIssuer }}
             {{- end }}
           ports:
             - name: metrics
