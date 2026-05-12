@@ -118,6 +118,30 @@ if [ -z "$SUDO_PW" ]; then
   exit 1
 fi
 
+# Encode /etc/kcpassword locally and ship as base64. Doing this
+# on the operator's machine (vs the remote heredoc) sidesteps a
+# nested-heredoc shell-quoting bug: when `python3 - "$SUDO_PW"
+# <<'PY' ... PY` is the inner heredoc inside an outer `bash -s`
+# heredoc, the remote bash's heredoc parser doesn't reliably pass
+# the password through to python's sys.argv[1]; result is an
+# empty-string kcpassword (just the cipher key XOR'd with nulls),
+# macOS loginwindow auto-login fails, no Aqua session, Tart can't
+# start VMs. Encoding here keeps the only password-touching code
+# in a place we can validate without an SSH round trip.
+KCPW_B64=$(python3 -c "
+import sys, base64
+key = bytes([0x7d, 0x89, 0x52, 0x23, 0xd2, 0xbc, 0xdd, 0xea, 0xa3, 0xb9, 0x1f])
+pw = sys.stdin.buffer.read().rstrip(b'\\n')
+pad = len(key) - (len(pw) % len(key))
+pw += b'\\x00' * pad
+enc = bytes(b ^ key[i % len(key)] for i, b in enumerate(pw))
+sys.stdout.write(base64.b64encode(enc).decode())
+" <<<"$SUDO_PW")
+if [ -z "$KCPW_B64" ]; then
+  err "failed to encode kcpassword locally"
+  exit 1
+fi
+
 # ---------------------------------------------------------------------------
 log "Step 4/4: probe SSH transport, then run on-host prep"
 
@@ -127,6 +151,8 @@ SSH_OPTS=(
   -o UserKnownHostsFile=/dev/null
   -o LogLevel=ERROR
   -o ConnectTimeout=8
+  -o IdentitiesOnly=yes
+  -o IdentityAgent=none
 )
 # `-T` disables pseudo-TTY allocation. We feed the remote
 # `bash -s` body via a heredoc on stdin, so a TTY would
@@ -134,6 +160,14 @@ SSH_OPTS=(
 # `Failed to get a pseudo terminal: Device not configured`
 # (especially under sshpass, which doesn't have a controlling
 # terminal of its own to forward).
+#
+# `IdentitiesOnly=yes` + `IdentityAgent=none` force ssh to use
+# only the key we pass via `-i`, ignoring the operator's SSH
+# agent (1Password, ssh-add cache) and ~/.ssh/id_* defaults.
+# Without this, sshd hits MaxAuthTries (6) trying the agent and
+# default keys before it ever gets to ours, and the server cuts
+# off auth with `Permission denied (publickey)` even though our
+# key is correct.
 
 # If the fleet key is already on the host we can use it directly —
 # common case once the operator has registered the key at the
@@ -187,7 +221,7 @@ fi
 # inside the remote shell so we don't have to escape every `$`.
 # Operator-side `$PUB_KEY` / `$SUDO_PW` get passed through the
 # `bash -s` env declaration on the SSH command line.
-"${SSH_CMD[@]}" "m1@$HOST_IP" "PUB_KEY='$PUB_KEY' SUDO_PW='$SUDO_PW' bash -s" <<'REMOTE'
+"${SSH_CMD[@]}" "m1@$HOST_IP" "PUB_KEY='$PUB_KEY' SUDO_PW='$SUDO_PW' KCPW_B64='$KCPW_B64' bash -s" <<'REMOTE'
 set -euo pipefail
 
 # 1. Append the fleet pubkey to authorized_keys (idempotent).
@@ -210,25 +244,24 @@ else
 fi
 
 # 3. /etc/kcpassword (XOR-encoded m1 password) + autoLoginUser
-#    preference. Re-applied every run because there's no
-#    cheap idempotency check we trust on the encoded blob; sudo
-#    is passwordless from step 2 so this is a no-cost reapply.
-python3 - "$SUDO_PW" <<'PY' | sudo tee /etc/kcpassword > /dev/null
-import sys
-key = bytes([0x7d, 0x89, 0x52, 0x23, 0xd2, 0xbc, 0xdd, 0xea, 0xa3, 0xb9, 0x1f])
-pw = sys.argv[1].encode()
-pad = len(key) - (len(pw) % len(key))
-pw += b"\x00" * pad
-sys.stdout.buffer.write(bytes(b ^ key[i % len(key)] for i, b in enumerate(pw)))
-PY
+#    preference. The encoded blob is computed operator-side and
+#    arrives as $KCPW_B64; re-applied every run because there's
+#    no cheap idempotency check we trust on the encoded contents,
+#    and sudo is now passwordless so the write is free.
+printf '%s' "$KCPW_B64" | base64 -d | sudo tee /etc/kcpassword > /dev/null
 sudo chmod 600 /etc/kcpassword
 sudo defaults write /Library/Preferences/com.apple.loginwindow autoLoginUser 'm1'
 sudo killall -HUP loginwindow 2>/dev/null || true
 printf '  ✓ kcpassword + autoLoginUser: configured\n'
 
-# 4. Verify.
+# 4. Verify. macOS auto-login needs a full reboot on headless
+#    hosts before loginwindow honors the autoLoginUser preference
+#    and brings up an Aqua session — without that session Tart's
+#    VZ framework refuses to start guests. Surface that next
+#    step to the operator rather than calling it a success and
+#    moving on.
 if sudo -n true && test -f /etc/kcpassword; then
-  printf '\n  ✓ host is ready for adoption\n'
+  printf '\n  ✓ host prepped — reboot the Mac mini in the Scaleway console for auto-login to take effect\n'
 else
   printf '\n  ✗ verification failed — check the previous steps\n' >&2
   exit 1
