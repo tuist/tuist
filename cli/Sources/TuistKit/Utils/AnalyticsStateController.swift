@@ -43,6 +43,5 @@ public struct AnalyticsStateController {
         if try await fileSystem.exists(keyValueDirectory) {
             try await fileSystem.remove(keyValueDirectory)
         }
-
     }
 }
