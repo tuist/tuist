@@ -1,7 +1,9 @@
 <div id="ops-kura-deployment">
   <div data-part="header">
     <h1 data-part="title">
-      {dgettext("dashboard", "Kura deployment")} · {@deployment.cluster_id} · {@deployment.image_tag}
+      {dgettext("dashboard", "Kura deployment")} · {@deployment.cluster_id} · {Tuist.Kura.version_label(
+        @deployment.image_tag
+      )}
     </h1>
     <p data-part="subtitle">
       <.link navigate={~p"/ops/accounts/#{@account.id}"}>← {@account.name}</.link>

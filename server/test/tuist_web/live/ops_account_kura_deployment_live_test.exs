@@ -34,6 +34,7 @@ defmodule TuistWeb.OpsAccountKuraDeploymentLiveTest do
 
     assert html =~ "Kura deployment"
     assert html =~ "0.5.2"
+    refute html =~ "kura@0.5.2"
     assert html =~ "Grafana"
     assert html =~ "tuist.grafana.net/explore"
   end

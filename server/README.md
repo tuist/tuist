@@ -99,7 +99,7 @@ curl "http://localhost:${port}/up"
 
 Managed deployments expose the regions listed in `TUIST_KURA_AVAILABLE_REGIONS`. The production Helm overlay currently sets `eu-central,us-east,us-west`, so account settings can deploy one Kura server per account in any managed region that is not already occupied by that account.
 
-Server deploys build and push `ghcr.io/tuist/kura:<sha-tag>` alongside the Tuist server and Kura controller images. Helm passes that tag as `TUIST_KURA_RUNTIME_IMAGE_TAG`; the reconciler uses it to roll active Kura servers forward in lockstep with the server deploy.
+Managed deploys use the latest `kura@...` GitHub release as the visible Kura version. The reconciler rolls active Kura servers to the corresponding Docker tag, for example `kura@0.5.2` maps to `ghcr.io/tuist/kura:0.5.2`. Local development can still set `TUIST_KURA_RUNTIME_IMAGE_TAG=dev`.
 
 Production maps those product regions to Hetzner-backed workload clusters:
 

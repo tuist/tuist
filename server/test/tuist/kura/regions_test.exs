@@ -18,6 +18,7 @@ defmodule Tuist.Kura.RegionsTest do
 
       for id <- ["us-east", "us-west", "eu-central"] do
         assert %Regions{provisioner: KubernetesController, provisioner_config: config} = Regions.get(id)
+        refute Regions.get(id).display_name =~ "Hetzner"
         assert config.cluster_id == "#{id}-1"
         assert config.hetzner_location == hetzner_locations[id]
         assert config.storage_class == "hcloud-volumes"
