@@ -6,6 +6,7 @@ defmodule TuistWeb.AccountSettingsLiveTest do
   import Phoenix.LiveViewTest
 
   alias Tuist.Accounts
+  alias Tuist.Environment
   alias Tuist.Kura
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
@@ -120,10 +121,33 @@ defmodule TuistWeb.AccountSettingsLiveTest do
 
     assert html =~ "Active"
     assert html =~ server.url
-    assert html =~ "0.5.2"
+    assert html =~ "kura@0.5.2"
   end
 
-  test "shows Deploying when an active Kura server has an in-flight deployment", %{conn: conn, account: account} do
+  test "allows adding another managed Kura region when one is already deployed", %{conn: conn, account: account} do
+    FunWithFlags.enable(:kura, for_actor: account)
+    stub(Environment, :dev?, fn -> false end)
+    stub(Environment, :test?, fn -> false end)
+    stub(Environment, :kura_available_region_ids, fn -> ["eu-central", "us-east", "us-west"] end)
+    stub(Kura, :latest_versions, fn 1 -> [%{version: "kura@0.5.2", image_tag: "0.5.2", released_at: nil}] end)
+
+    {:ok, _server} =
+      Kura.create_server(%{
+        account_id: account.id,
+        region: "eu-central",
+        image_tag: "0.5.2"
+      })
+
+    {:ok, lv, html} = live(conn, ~p"/#{account.name}/settings")
+
+    assert html =~ "EU Central"
+    refute html =~ "Hetzner"
+    assert html =~ "US East"
+    assert html =~ "US West"
+    assert has_element?(lv, "button", "Deploy Kura server")
+  end
+
+  test "keeps an active Kura server active during an in-flight deployment", %{conn: conn, account: account} do
     FunWithFlags.enable(:kura, for_actor: account)
     stub(Kura, :latest_versions, fn 1 -> [%{version: "0.5.3", released_at: DateTime.utc_now(:second)}] end)
 
@@ -143,8 +167,8 @@ defmodule TuistWeb.AccountSettingsLiveTest do
 
     {:ok, _lv, html} = live(conn, ~p"/#{account.name}/settings")
 
-    assert html =~ "Deploying"
-    refute html =~ ">Active<"
+    assert html =~ "Active"
+    refute html =~ "Deploying"
   end
 
   test "deploys a Kura server from account settings", %{conn: conn, account: account} do

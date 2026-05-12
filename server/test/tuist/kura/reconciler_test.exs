@@ -56,6 +56,34 @@ defmodule Tuist.Kura.ReconcilerTest do
              Repo.get!(Server, server.id)
   end
 
+  test "keeps a deployment running until the public HTTPS endpoint is ready" do
+    {account, server, deployment} = create_server()
+    {:ok, deployment} = Kura.mark_running(deployment)
+
+    expect(Provisioner, :current_image_tag, fn %Server{id: id} ->
+      assert id == server.id
+      {:ok, deployment.image_tag}
+    end)
+
+    expect(Provisioner, :public_url, fn account_arg, %Server{id: id} ->
+      assert account_arg.id == account.id
+      assert id == server.id
+      "https://localhost:4100"
+    end)
+
+    expect(Req, :get, fn "https://localhost:4100/up", opts ->
+      assert opts[:finch] == Tuist.Finch
+      assert opts[:receive_timeout] == 5_000
+      assert opts[:connect_options] == [timeout: 5_000]
+      {:error, %Mint.TransportError{reason: {:tls_alert, ~c"unknown ca"}}}
+    end)
+
+    assert :ok = Reconciler.reconcile()
+
+    assert %Deployment{status: :running} = Repo.get!(Deployment, deployment.id)
+    assert %Server{status: :provisioning, current_image_tag: nil, url: nil} = Repo.get!(Server, server.id)
+  end
+
   test "schedules and applies runtime image drift for active servers" do
     {_account, server, deployment} = create_server()
     {:ok, server} = Kura.activate_server(server, deployment.image_tag)

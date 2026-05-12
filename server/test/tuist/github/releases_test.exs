@@ -401,4 +401,98 @@ defmodule Tuist.GitHub.ReleasesTest do
       assert release.html_url == "https://github.com/app-release"
     end
   end
+
+  describe "get_latest_kura_release/0" do
+    test "returns the latest Kura release" do
+      published_at = DateTime.utc_now()
+      releases_url = Releases.releases_url()
+
+      kura_release = %{
+        "published_at" => Timex.format!(published_at, "{ISO:Extended}"),
+        "name" => "Kura 0.5.2",
+        "tag_name" => "kura@0.5.2",
+        "html_url" => "https://github.com/tuist/tuist/releases/tag/kura@0.5.2",
+        "assets" => []
+      }
+
+      stub(
+        Req,
+        :get,
+        fn ^releases_url, _opts ->
+          {:ok,
+           %Req.Response{
+             status: 200,
+             body: [
+               %{
+                 "published_at" => Timex.format!(published_at, "{ISO:Extended}"),
+                 "name" => "App 0.25.0",
+                 "tag_name" => "app@0.25.0",
+                 "html_url" => "https://github.com/release",
+                 "assets" => []
+               },
+               kura_release
+             ],
+             headers: []
+           }}
+        end
+      )
+
+      release = Releases.get_latest_kura_release()
+
+      assert release.name == "Kura 0.5.2"
+      assert release.tag_name == "kura@0.5.2"
+      assert release.html_url == "https://github.com/tuist/tuist/releases/tag/kura@0.5.2"
+    end
+
+    test "returns Kura release when it is only available in the second page" do
+      published_at = DateTime.utc_now()
+      releases_url = Releases.releases_url()
+
+      stub(
+        Req,
+        :get,
+        fn url, _opts ->
+          cond do
+            url == releases_url ->
+              {:ok,
+               %Req.Response{
+                 status: 200,
+                 body: [
+                   %{
+                     "published_at" => Timex.format!(published_at, "{ISO:Extended}"),
+                     "name" => "App 0.25.0",
+                     "tag_name" => "app@0.25.0",
+                     "html_url" => "https://github.com/release",
+                     "assets" => []
+                   }
+                 ],
+                 headers: %{
+                   "link" => [
+                     "<https://api.github.com/repos/tuist/tuist/releases?page=2>; rel=\"next\""
+                   ]
+                 }
+               }}
+
+            url == "https://api.github.com/repos/tuist/tuist/releases?page=2" ->
+              {:ok,
+               %Req.Response{
+                 status: 200,
+                 body: [
+                   %{
+                     "published_at" => Timex.format!(published_at, "{ISO:Extended}"),
+                     "name" => "Kura 0.5.2",
+                     "tag_name" => "kura@0.5.2",
+                     "html_url" => "https://github.com/tuist/tuist/releases/tag/kura@0.5.2",
+                     "assets" => []
+                   }
+                 ],
+                 headers: []
+               }}
+          end
+        end
+      )
+
+      assert %{tag_name: "kura@0.5.2"} = Releases.get_latest_kura_release()
+    end
+  end
 end

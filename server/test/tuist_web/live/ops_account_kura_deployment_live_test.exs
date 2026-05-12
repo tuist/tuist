@@ -33,7 +33,7 @@ defmodule TuistWeb.OpsAccountKuraDeploymentLiveTest do
     {:ok, _lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}/kura/deployments/#{deployment.id}")
 
     assert html =~ "Kura deployment"
-    assert html =~ "0.5.2"
+    assert html =~ "kura@0.5.2"
     assert html =~ "Grafana"
     assert html =~ "tuist.grafana.net/explore"
   end

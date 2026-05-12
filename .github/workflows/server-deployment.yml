@@ -81,7 +81,6 @@ permissions:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: tuist/tuist
-  KURA_RUNTIME_IMAGE_NAME: tuist/kura
   KURA_CONTROLLER_IMAGE_NAME: tuist/kura-controller
   HELM_CHART_PATH: infra/helm/tuist
   HELM_RELEASE_NAME: tuist
@@ -132,15 +131,6 @@ jobs:
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.KURA_CONTROLLER_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
-      - uses: docker/build-push-action@v6
-        name: Build and push Kura runtime image
-        with:
-          context: ./kura
-          file: ./kura/Dockerfile
-          push: true
-          tags: |
-            ${{ env.REGISTRY }}/${{ env.KURA_RUNTIME_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
-
   observability-install:
     # Installs / upgrades the grafana/k8s-monitoring wrapper chart ahead of
     # the server rollout so the Alloy OTLP receiver is ready before the
@@ -396,7 +386,6 @@ jobs:
             -f "$HELM_CHART_PATH/values-managed-${{ inputs.environment }}.yaml" \
             --set server.image.tag="$IMAGE_TAG" \
             --set kuraController.image.tag="$IMAGE_TAG" \
-            --set kuraRuntime.image.tag="$IMAGE_TAG" \
             --atomic --timeout 90m --wait
       - name: Deploy Kura regional controllers
         if: inputs.environment == 'production'

@@ -1480,7 +1480,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "1 - avg by (instance) (rate(node_cpu_seconds_total{instance=~\"${instance:regex}\", mode=\"idle\"}[$__rate_interval]))",
+            "expr": "1 - avg by (instance) (rate(node_cpu_seconds_total{mode=\"idle\"}[$__rate_interval]) and on (instance) max by (instance) (kura_node_info{cluster=\"kura-tuist\", instance=~\"${instance:regex}\", region=~\"${region:regex}\"}))",
             "legendFormat": "{{instance}}",
             "refId": "A"
           }
@@ -1546,7 +1546,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "1 - (node_memory_MemAvailable_bytes{instance=~\"${instance:regex}\"} / node_memory_MemTotal_bytes{instance=~\"${instance:regex}\"})",
+            "expr": "1 - ((node_memory_MemAvailable_bytes and on (instance) max by (instance) (kura_node_info{cluster=\"kura-tuist\", instance=~\"${instance:regex}\", region=~\"${region:regex}\"})) / (node_memory_MemTotal_bytes and on (instance) max by (instance) (kura_node_info{cluster=\"kura-tuist\", instance=~\"${instance:regex}\", region=~\"${region:regex}\"})))",
             "legendFormat": "{{instance}}",
             "refId": "A"
           }
@@ -1620,7 +1620,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "1 - (node_filesystem_avail_bytes{instance=~\"${instance:regex}\", mountpoint=\"/\", fstype!~\"tmpfs|overlay\"} / node_filesystem_size_bytes{instance=~\"${instance:regex}\", mountpoint=\"/\", fstype!~\"tmpfs|overlay\"})",
+            "expr": "1 - ((node_filesystem_avail_bytes{mountpoint=\"/\", fstype!~\"tmpfs|overlay\"} and on (instance) max by (instance) (kura_node_info{cluster=\"kura-tuist\", instance=~\"${instance:regex}\", region=~\"${region:regex}\"})) / (node_filesystem_size_bytes{mountpoint=\"/\", fstype!~\"tmpfs|overlay\"} and on (instance) max by (instance) (kura_node_info{cluster=\"kura-tuist\", instance=~\"${instance:regex}\", region=~\"${region:regex}\"})))",
             "legendFormat": "{{instance}}",
             "refId": "A"
           }
@@ -1686,14 +1686,14 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum by (instance) (rate(node_network_receive_bytes_total{instance=~\"${instance:regex}\", device!~\"lo\"}[$__rate_interval]))",
+            "expr": "sum by (instance) (rate(node_network_receive_bytes_total{device!~\"lo\"}[$__rate_interval]) and on (instance) max by (instance) (kura_node_info{cluster=\"kura-tuist\", instance=~\"${instance:regex}\", region=~\"${region:regex}\"}))",
             "legendFormat": "{{instance}} rx",
             "refId": "A"
           },
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum by (instance) (rate(node_network_transmit_bytes_total{instance=~\"${instance:regex}\", device!~\"lo\"}[$__rate_interval]))",
+            "expr": "sum by (instance) (rate(node_network_transmit_bytes_total{device!~\"lo\"}[$__rate_interval]) and on (instance) max by (instance) (kura_node_info{cluster=\"kura-tuist\", instance=~\"${instance:regex}\", region=~\"${region:regex}\"}))",
             "legendFormat": "{{instance}} tx",
             "refId": "B"
           }
@@ -1759,7 +1759,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "node_filefd_allocated{instance=~\"${instance:regex}\"}",
+            "expr": "node_filefd_allocated and on (instance) max by (instance) (kura_node_info{cluster=\"kura-tuist\", instance=~\"${instance:regex}\", region=~\"${region:regex}\"})",
             "legendFormat": "{{instance}}",
             "refId": "A"
           }
@@ -1930,14 +1930,14 @@
             "value": "$__all"
           },
           "datasource": "$datasource",
-          "definition": "label_values(kura_http_requests_total_total{cluster=\"kura-tuist\"}, instance)",
+          "definition": "label_values(kura_node_info{cluster=\"kura-tuist\"}, instance)",
           "hide": 0,
           "includeAll": true,
           "label": "Instance",
           "multi": true,
           "name": "instance",
           "query": {
-            "query": "label_values(kura_http_requests_total_total{cluster=\"kura-tuist\"}, instance)",
+            "query": "label_values(kura_node_info{cluster=\"kura-tuist\"}, instance)",
             "refId": "PrometheusVariableQueryEditor-VariableQuery"
           },
           "refresh": 1,
@@ -1953,14 +1953,14 @@
             "value": "$__all"
           },
           "datasource": "$datasource",
-          "definition": "label_values(kura_http_requests_total_total{cluster=\"kura-tuist\"}, region)",
+          "definition": "label_values(kura_node_info{cluster=\"kura-tuist\"}, region)",
           "hide": 0,
           "includeAll": true,
           "label": "Region",
           "multi": true,
           "name": "region",
           "query": {
-            "query": "label_values(kura_http_requests_total_total{cluster=\"kura-tuist\"}, region)",
+            "query": "label_values(kura_node_info{cluster=\"kura-tuist\"}, region)",
             "refId": "PrometheusVariableQueryEditor-VariableQuery"
           },
           "refresh": 1,

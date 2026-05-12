@@ -22,6 +22,7 @@ defmodule Tuist.Kura do
   alias Phoenix.PubSub
   alias Tuist.Accounts
   alias Tuist.Accounts.AccountCacheEndpoint
+  alias Tuist.GitHub.Releases
   alias Tuist.Kura.Deployment
   alias Tuist.Kura.Provisioner
   alias Tuist.Kura.Reconciler
@@ -36,6 +37,7 @@ defmodule Tuist.Kura do
     "image_tag" => :image_tag
   }
   @create_server_atom_keys Map.values(@create_server_keys)
+  @public_endpoint_timeout 5_000
   @provisioner_node_ref_format ~r/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/
   @provisioner_node_ref_max_length 53
 
@@ -45,33 +47,45 @@ defmodule Tuist.Kura do
   ## Versions
 
   @doc """
-  Returns the Kura runtime image tag configured for the current Tuist
-  server deploy.
+  Returns the latest released Kura runtime version.
 
-  Managed deploys build the Kura runtime image with the same `sha-*` tag
-  as the server and controller images, then pass that tag through Helm as
-  `TUIST_KURA_RUNTIME_IMAGE_TAG`. Returning it through the older
-  `latest_versions/1` shape keeps the account settings UI and ops code
-  simple while making the deploy SHA, not GitHub Releases, the source of
-  truth.
+  Managed deploys use the latest `kura@...` GitHub release as the
+  customer-facing version, while rollout manifests use the corresponding
+  Docker tag without the `kura@` prefix.
   """
-  def latest_versions(limit \\ 20) when is_integer(limit) do
-    runtime_image_tag()
+  def latest_versions(limit \\ 20)
+
+  def latest_versions(limit) when is_integer(limit) and limit <= 0, do: []
+
+  def latest_versions(limit) when is_integer(limit) do
+    runtime_version()
     |> case do
       nil -> []
-      tag -> [%{version: tag, released_at: nil}]
+      version -> [version]
     end
     |> Enum.take(limit)
   end
 
+  def version_label(nil), do: nil
+
+  def version_label("sha-" <> _ = image_tag), do: image_tag
+
+  def version_label(image_tag) when is_binary(image_tag) do
+    if Regex.match?(~r/\A\d+\.\d+\.\d+(?:[-.][A-Za-z0-9][A-Za-z0-9_.-]*)?\z/, image_tag) do
+      "kura@#{image_tag}"
+    else
+      image_tag
+    end
+  end
+
   @doc """
   Creates deployments for active Kura servers that are behind the
-  Kura runtime image tag configured on the current Tuist server deploy.
+  latest released Kura runtime image tag.
 
   Each `(server, image_tag)` pair is scheduled at most once. A failed
   deployment for the configured image is intentionally not retried here;
   operators can inspect and re-trigger it manually, while the next Tuist
-  deploy SHA will be scheduled normally.
+  released Kura version will be scheduled normally.
   """
   def schedule_runtime_image_deployments do
     case runtime_image_tag() do
@@ -81,10 +95,43 @@ defmodule Tuist.Kura do
   end
 
   defp runtime_image_tag do
+    case runtime_version() do
+      nil -> nil
+      %{image_tag: image_tag} -> image_tag
+    end
+  end
+
+  defp runtime_version do
+    if Tuist.Environment.dev?() or Tuist.Environment.test?() do
+      local_runtime_version()
+    else
+      released_runtime_version()
+    end
+  end
+
+  defp released_runtime_version do
+    case Releases.get_latest_kura_release() do
+      %{tag_name: tag_name, published_at: released_at} when is_binary(tag_name) ->
+        case tag_name do
+          "kura@" <> image_tag -> %{version: tag_name, image_tag: image_tag, released_at: released_at}
+          _ -> nil
+        end
+
+      _ ->
+        nil
+    end
+  end
+
+  defp local_runtime_version do
     case Tuist.Environment.kura_runtime_image_tag() do
       tag when is_binary(tag) ->
         tag = String.trim(tag)
-        if tag == "", do: nil, else: tag
+
+        if tag == "" do
+          nil
+        else
+          %{version: version_label(tag), image_tag: tag, released_at: nil}
+        end
 
       _ ->
         nil
@@ -270,15 +317,15 @@ defmodule Tuist.Kura do
 
   @doc """
   Marks a server as `:active`, mirrors its URL into
-  `account_cache_endpoints`, and broadcasts. Public DNS is checked
-  first so the CLI doesn't see the URL before external-dns has
-  propagated; the reconciler retries on the next tick if DNS isn't
-  resolvable yet.
+  `account_cache_endpoints`, and broadcasts. The public endpoint is
+  checked first so the CLI doesn't see the URL before external-dns has
+  propagated and TLS is serving a valid certificate; the reconciler
+  retries on the next tick while the endpoint is not ready.
   """
   def activate_server(%Server{} = server, image_tag) when is_binary(image_tag) do
     with {:ok, account} <- Accounts.get_account_by_id(server.account_id),
          url when is_binary(url) <- Provisioner.public_url(account, server),
-         :ok <- ensure_public_host_resolves(url),
+         :ok <- ensure_public_endpoint_ready(url),
          {:ok, server} <- activate_server_transaction(server, account, url, image_tag) do
       broadcast_server(server, :updated)
       {:ok, server}
@@ -288,18 +335,50 @@ defmodule Tuist.Kura do
     end
   end
 
-  defp ensure_public_host_resolves(url) when is_binary(url) do
+  defp ensure_public_endpoint_ready(url) when is_binary(url) do
     case URI.parse(url) do
-      %URI{host: host} when is_binary(host) and host != "" ->
-        case :inet.gethostbyname(String.to_charlist(host)) do
-          {:ok, _} -> :ok
-          {:error, reason} -> {:error, {:public_host_not_resolvable, host, reason}}
+      %URI{scheme: scheme, host: host} = uri when scheme in ["http", "https"] and is_binary(host) and host != "" ->
+        with :ok <- ensure_public_host_resolves(host) do
+          ensure_public_https_up(uri)
         end
 
       _ ->
         {:error, :public_url_invalid}
     end
   end
+
+  defp ensure_public_host_resolves(host) do
+    case :inet.gethostbyname(String.to_charlist(host)) do
+      {:ok, _} -> :ok
+      {:error, reason} -> {:error, {:public_host_not_resolvable, host, reason}}
+    end
+  end
+
+  defp ensure_public_https_up(%URI{scheme: "https", host: host} = uri) do
+    url =
+      uri
+      |> Map.put(:path, "/up")
+      |> Map.put(:query, nil)
+      |> Map.put(:fragment, nil)
+      |> URI.to_string()
+
+    case Req.get(url,
+           finch: Tuist.Finch,
+           receive_timeout: @public_endpoint_timeout,
+           connect_options: [timeout: @public_endpoint_timeout]
+         ) do
+      {:ok, %Req.Response{status: status}} when status in 200..299 ->
+        :ok
+
+      {:ok, %Req.Response{status: status}} ->
+        {:error, {:public_endpoint_not_ready, host, {:http_status, status}}}
+
+      {:error, reason} ->
+        {:error, {:public_endpoint_not_ready, host, reason}}
+    end
+  end
+
+  defp ensure_public_https_up(_uri), do: :ok
 
   defp activate_server_transaction(server, account, url, image_tag) do
     Repo.transaction(fn ->

@@ -42,7 +42,7 @@ defmodule TuistWeb.OpsAccountLiveTest do
 
     {:ok, _lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
 
-    assert html =~ "0.5.2"
+    assert html =~ "kura@0.5.2"
     assert html =~ ~p"/ops/accounts/#{user.account.id}/kura/deployments/#{deployment.id}"
   end
 
