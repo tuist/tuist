@@ -39,13 +39,6 @@ RUN swift build -c release --replace-scm-with-registry && \
 # Stage 1: NPM dependencies
 # ========================================
 FROM node:22-slim AS npm-deps
-# Buildx populates TARGETARCH (`amd64` / `arm64`) for the current
-# stage's target platform. We thread it into the aube cache id so
-# linux/amd64 and linux/arm64 builds don't pollute each other —
-# esbuild ships per-arch binaries via optional deps and one
-# arch's binary running on the other surfaces as
-# `SyntaxError: Invalid or unexpected token` (the ELF header
-# being parsed as JS) inside the next `npx esbuild`.
 ARG TARGETARCH
 ENV CI=1
 ENV XDG_DATA_HOME="/aube-data"
@@ -59,8 +52,18 @@ RUN --mount=type=cache,id=aube-${TARGETARCH},target=/aube-data/aube aube install
 COPY noora /noora
 WORKDIR /noora
 RUN --mount=type=cache,id=aube-${TARGETARCH},target=/aube-data/aube aube install
-RUN npx esbuild js/index.js --bundle --minify --sourcemap --format=esm --outfile=./priv/static/noora.js && \
-    npx esbuild css/noora.css --bundle --minify --sourcemap --outfile=./priv/static/noora.css
+# Bypass aube for the esbuild binary. aube's content-addressable
+# store keys on the tarball, not on (tarball, arch), so the
+# platform-specific binary that esbuild's postinstall drops at
+# `node_modules/.aube/esbuild@*/node_modules/esbuild/bin/esbuild`
+# can carry over from a different-arch build and surface as
+# `SyntaxError: Invalid or unexpected token` (ELF parsed as JS).
+# `npm install -g esbuild` uses standard optional-dep `os`/`cpu`
+# filtering, which picks the correct `@esbuild/linux-{x64,arm64}`
+# binary for the current TARGETARCH every time.
+RUN npm install -g esbuild@0.27.7
+RUN esbuild js/index.js --bundle --minify --sourcemap --format=esm --outfile=./priv/static/noora.js && \
+    esbuild css/noora.css --bundle --minify --sourcemap --outfile=./priv/static/noora.css
 WORKDIR /app
 
 # ========================================
