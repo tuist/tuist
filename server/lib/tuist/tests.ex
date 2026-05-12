@@ -799,8 +799,13 @@ defmodule Tuist.Tests do
 
       event_types = determine_test_case_events(test_case, filtered_attrs)
       record_test_case_events(test_case_id, event_types, actor_id, automation_id)
-      dispatch_event_driven_automations(test_case, event_types, actor_id)
+      # Broadcast THIS call's update before fanning out to event-driven
+      # automations. An automation action (e.g. change_state) re-enters
+      # `update_test_case/3`, which will broadcast its own update; we want
+      # that nested broadcast to land LAST so the LiveView ends up with the
+      # automation-applied state, not our pre-automation snapshot.
       broadcast_test_case_update(updated_test_case, event_types)
+      dispatch_event_driven_automations(test_case, event_types, actor_id)
 
       {:ok, updated_test_case}
     end

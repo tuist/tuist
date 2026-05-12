@@ -13,6 +13,7 @@ defmodule Tuist.TestsTest do
   alias Tuist.Tests.TestCaseRun
   alias Tuist.Tests.TestRunDestination
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.AutomationsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
   alias TuistTestSupport.Fixtures.ShardsFixtures
@@ -7150,7 +7151,7 @@ defmodule Tuist.TestsTest do
       IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
 
       automation =
-        TuistTestSupport.Fixtures.AutomationsFixtures.automation_alert_fixture(
+        AutomationsFixtures.automation_alert_fixture(
           project: project,
           name: "Auto-quarantine"
         )
@@ -7170,6 +7171,34 @@ defmodule Tuist.TestsTest do
 
       # The preloaded automation gives the UI the name to attribute.
       assert muted_event.automation.name == "Auto-quarantine"
+    end
+
+    test "user-then-automation chain: the LAST broadcast carries the automation-applied state" do
+      # Regression: when a user action fires an automation that mutates the
+      # test case (e.g. user marks → automation mutes), the nested call's
+      # broadcast must arrive AFTER the outer call's broadcast so the
+      # LiveView ends up reflecting the muted state — not the pre-automation
+      # "enabled" snapshot captured by the outer call.
+      project = ProjectsFixtures.project_fixture()
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: false, state: "enabled")
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      AutomationsFixtures.automation_alert_fixture(
+        project: project,
+        monitor_type: "test_updated",
+        trigger_config: %{"events" => ["marked_flaky"]},
+        trigger_actions: [%{"type" => "change_state", "state" => "muted"}]
+      )
+
+      :ok = Tuist.PubSub.subscribe(Tests.test_case_topic(test_case.id))
+
+      {:ok, _updated} = Tests.update_test_case(test_case.id, %{is_flaky: true}, actor_id: user.account.id)
+
+      # First broadcast: the user's mark, with the pre-automation state.
+      assert_receive {:test_case_updated, %{is_flaky: true, state: "enabled", event_types: [:marked_flaky]}}, 500
+      # Second broadcast: the nested automation write, with state flipped.
+      assert_receive {:test_case_updated, %{state: "muted", event_types: [:muted]}}, 500
     end
 
     test "does not broadcast when neither is_flaky nor state changed" do
