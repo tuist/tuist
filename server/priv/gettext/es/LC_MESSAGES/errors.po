@@ -20,4 +20,4 @@ msgstr "Build no encontrado"
 #: lib/tuist_web/controllers/build_controller.ex:29
 #, elixir-autogen, elixir-format
 msgid "You are not authorized to access this build"
-msgstr "No estás autorizado para acceder a este build"
+msgstr "No está autorizado para acceder a este build"

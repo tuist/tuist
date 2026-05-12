@@ -9,7 +9,7 @@ msgstr ""
 #: lib/tuist_web/live/integrations_live.html.heex:90
 #, elixir-autogen, elixir-format
 msgid "Add new project connection"
-msgstr "Añadir nueva conexión de proyecto"
+msgstr "Agregar nueva conexión de proyecto"
 
 #: lib/tuist_web/live/integrations_live.html.heex:153
 #, elixir-autogen, elixir-format
@@ -19,17 +19,17 @@ msgstr "Cancelar"
 #: lib/tuist_web/live/integrations_live.html.heex:105
 #, elixir-autogen, elixir-format
 msgid "Choose Tuist project"
-msgstr "Elige proyecto Tuist"
+msgstr "Elegir proyecto Tuist"
 
 #: lib/tuist_web/live/integrations_live.html.heex:132
 #, elixir-autogen, elixir-format
 msgid "Choose a repository"
-msgstr "Elige un repositorio"
+msgstr "Elegir un repositorio"
 
 #: lib/tuist_web/live/integrations_live.html.heex:83
 #, elixir-autogen, elixir-format
 msgid "Choose repository to connect to"
-msgstr "Elige repositorio para conectar"
+msgstr "Elegir el repositorio para conectar"
 
 #: lib/tuist_web/live/integrations_live.html.heex:9
 #, elixir-autogen, elixir-format
@@ -85,7 +85,7 @@ msgstr "Eliminar conexión"
 #: lib/tuist_web/live/integrations_live.ex:17
 #, elixir-autogen, elixir-format
 msgid "You are not authorized to perform this action."
-msgstr "No estás autorizado para realizar esta acción."
+msgstr "No está autorizado para realizar esta acción."
 
 #: lib/tuist_web/live/integrations_live.html.heex:78
 #, elixir-autogen, elixir-format
@@ -115,7 +115,7 @@ msgstr "Slack"
 #: lib/tuist_web/live/integrations_live.ex:222
 #, elixir-autogen, elixir-format
 msgid "Invalid URL"
-msgstr "URL inválida"
+msgstr "URL no válida"
 
 #: lib/tuist_web/live/integrations_live.html.heex:46
 #, elixir-autogen, elixir-format
