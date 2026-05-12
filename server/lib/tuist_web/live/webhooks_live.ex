@@ -45,6 +45,9 @@ defmodule TuistWeb.WebhooksLive do
           |> assign_endpoints()
           |> reset_create_form()
           |> assign(:disclosure, %{endpoint: endpoint, plaintext_secret: plaintext_secret, mode: :created})
+          # Submitting the form doesn't change Zag's dialog state, so we have
+          # to nudge it open ourselves to keep the modal up for the reveal.
+          |> push_event("open-modal", %{id: "webhook-endpoint-modal"})
 
         {:noreply, socket}
 
@@ -60,6 +63,7 @@ defmodule TuistWeb.WebhooksLive do
         socket
         |> assign_endpoints()
         |> assign(:disclosure, %{endpoint: updated, plaintext_secret: plaintext, mode: :rotated})
+        |> push_event("open-modal", %{id: "webhook-endpoint-modal"})
 
       {:noreply, socket}
     else
@@ -76,7 +80,13 @@ defmodule TuistWeb.WebhooksLive do
     end
   end
 
-  def handle_event("dismiss_disclosure", _params, socket), do: {:noreply, reset_disclosure(socket)}
+  def handle_event("dismiss_disclosure", _params, socket) do
+    {:noreply,
+     socket
+     |> reset_create_form()
+     |> reset_disclosure()
+     |> push_event("close-modal", %{id: "webhook-endpoint-modal"})}
+  end
 
   # Catches close-on-Escape and close-on-interact-outside (Zag dialog state),
   # neither of which triggers `on_dismiss`. Resetting on every close keeps the
