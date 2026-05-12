@@ -226,7 +226,7 @@ macosFleet:
     # SHA-tagged build that the standalone
     # capi-provider-scaleway-applesilicon-image.yml workflow pushed
     # (manually dispatched from the bring-up branch).
-    tag: "25258c64"
+    tag: "af8204b1"
 
 runnersController:
   image:
