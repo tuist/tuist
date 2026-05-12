@@ -47,9 +47,12 @@ class Select extends Component {
   }
 
   renderItems() {
-    for (const item of this.el.querySelectorAll(
-      getPartSelector("positioner:content:item"),
-    )) {
+    const content = this.el.querySelector(
+      getPartSelector("positioner:content"),
+    );
+    if (!content) return;
+
+    for (const item of content.querySelectorAll("[data-part='item']")) {
       const value = item.dataset.value;
       const label = item.dataset.label;
       if (!value || !label) {

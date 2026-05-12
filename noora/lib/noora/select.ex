@@ -85,16 +85,18 @@ defmodule Noora.Select do
       </button>
       <div data-part="positioner">
         <div class="noora-dropdown-content" data-part="content">
-          <.dropdown_item
-            :for={item <- @item}
-            data-part="item"
-            value={item.value}
-            label={item.label}
-            class="noora-dropdown-item"
-          >
-            <:left_icon :if={Map.has_key?(item, :icon)}><.icon name={item.icon} /></:left_icon>
-            {item.label}
-          </.dropdown_item>
+          <div data-part="items">
+            <.dropdown_item
+              :for={item <- @item}
+              data-part="item"
+              value={item.value}
+              label={item.label}
+              class="noora-dropdown-item"
+            >
+              <:left_icon :if={Map.has_key?(item, :icon)}><.icon name={item.icon} /></:left_icon>
+              {item.label}
+            </.dropdown_item>
+          </div>
         </div>
       </div>
       <span :if={@hint} data-part="hint">
