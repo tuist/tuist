@@ -1,8 +1,18 @@
 defmodule Tuist.Runners.Workers.StaleClaimsWorker do
   @moduledoc """
-  Recovers Postgres `runner_claims` rows stuck past the recovery
-  threshold by re-INSERTing a `queued` state row into ClickHouse
-  `runner_jobs` and then DELETEing the matching PG row.
+  Recovers Postgres `runner_claims` rows **in `lifecycle_state =
+  'claimed'`** stuck past the recovery threshold by re-INSERTing
+  a `queued` state row into ClickHouse `runner_jobs` and then
+  DELETEing the matching PG row.
+
+  `running` claims are explicitly NOT in scope: a build that has
+  successfully minted a JIT and registered with GitHub holds its
+  cap slot for as long as the build runs (potentially hours).
+  Reaping those at the 5-min threshold would free the slot of an
+  actively-running runner and let another claim take its place,
+  pushing the account over cap. `Claims.list_stale/1` filters on
+  `lifecycle_state = 'claimed'` so a long-running build is
+  invisible to this worker.
 
   ## Why CH first
 
@@ -23,13 +33,14 @@ defmodule Tuist.Runners.Workers.StaleClaimsWorker do
     * CH fails → leave PG alone; next worker run retries the
       whole sequence.
 
-  A successful claim normally lives at most a few seconds —
-  claim → mint → start. If the server crashes between the PG
-  INSERT and the JIT-mint completion, the PG row stays stuck
-  and the customer's cap slot is consumed for a job that will
-  never run. Threshold is generous (5 min) because the happy
-  path is sub-second; anything stuck > 5 min is overwhelmingly a
-  real failure rather than an in-flight mint.
+  A successful `claimed → running` transition normally happens
+  within a few seconds — claim → mint → mark_running. If the
+  server crashes between the PG INSERT and the mint completion,
+  the PG row stays in `claimed` state and the customer's cap
+  slot is consumed for a job that will never run. Threshold is
+  generous (5 min) because the happy path is sub-second;
+  anything stuck > 5 min in `claimed` is overwhelmingly a real
+  failure rather than an in-flight mint.
   """
 
   use Oban.Worker, queue: :default, max_attempts: 1

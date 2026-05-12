@@ -357,37 +357,37 @@ defmodule Tuist.GitHub.Client do
 
   See: https://docs.github.com/en/rest/actions/self-hosted-runners#create-configuration-for-a-just-in-time-runner-for-an-organization
   """
-  def generate_jit_config(installation_id, org, attrs) do
-    case App.get_installation_token(installation_id) do
-      {:ok, %{token: token}} ->
-        body = %{
-          "name" => Map.fetch!(attrs, :name),
-          "runner_group_id" => Map.get(attrs, :runner_group_id, 1),
-          "labels" => Map.fetch!(attrs, :labels),
-          "work_folder" => Map.get(attrs, :work_folder, "_work")
-        }
+  def generate_jit_config(installation, org, attrs) do
+    api_url = installation_api_url(installation)
+    url = "#{api_url}/orgs/#{org}/actions/runners/generate-jitconfig"
 
-        req_opts =
-          [
-            url: "https://api.github.com/orgs/#{org}/actions/runners/generate-jitconfig",
-            json: body,
-            headers: default_headers(token),
-            finch: Tuist.Finch
-          ] ++ Retry.retry_options()
+    body = %{
+      "name" => Map.fetch!(attrs, :name),
+      "runner_group_id" => Map.get(attrs, :runner_group_id, 1),
+      "labels" => Map.fetch!(attrs, :labels),
+      "work_folder" => Map.get(attrs, :work_folder, "_work")
+    }
 
-        case Req.post(req_opts) do
-          {:ok, %{status: 201, body: %{"encoded_jit_config" => jit, "runner" => runner}}} ->
-            {:ok, %{encoded_jit_config: jit, runner_id: runner["id"], runner_name: runner["name"]}}
+    with {:ok, %{token: token}} <- App.get_installation_token(installation, api_url: api_url),
+         {:ok, request_url, ssrf_opts} <- pin_ghes_url(url, api_url) do
+      req_opts =
+        [
+          url: request_url,
+          json: body,
+          headers: default_headers(token),
+          finch: Tuist.Finch
+        ] ++ ssrf_opts ++ Retry.retry_options()
 
-          {:ok, %{status: status, body: body}} ->
-            {:error, {:http, status, body}}
+      case Req.post(req_opts) do
+        {:ok, %{status: 201, body: %{"encoded_jit_config" => jit, "runner" => runner}}} ->
+          {:ok, %{encoded_jit_config: jit, runner_id: runner["id"], runner_name: runner["name"]}}
 
-          {:error, reason} ->
-            {:error, {:transport, reason}}
-        end
+        {:ok, %{status: status, body: body}} ->
+          {:error, {:http, status, body}}
 
-      {:error, reason} ->
-        {:error, reason}
+        {:error, reason} ->
+          {:error, {:transport, reason}}
+      end
     end
   end
 

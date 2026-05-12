@@ -94,6 +94,15 @@ defmodule Tuist.Runners.Dispatch do
         Logger.error("runners: no RunnerPool CRs in cluster; ignoring", repo: full_name)
         :ignored
 
+      {:error, :ambiguous_pool} ->
+        # The chart's render-time check failed and two pools claim
+        # the same dispatchLabel. Surface as `:ignored` so the
+        # webhook handler still returns 200 (GitHub won't retry
+        # for us — fixing the chart is the operator action),
+        # but the loud Logger.error inside `match_pool/1` gives
+        # ops something to alert on.
+        :ignored
+
       {:error, reason} = err ->
         Logger.warning("runners: enqueue failed: #{inspect(reason)}", repo: full_name)
         err
@@ -176,12 +185,30 @@ defmodule Tuist.Runners.Dispatch do
         items
         |> Enum.map(&pool_summary/1)
         |> Enum.reject(&is_nil/1)
-        |> Enum.find(fn %{dispatch_label: label} ->
+        |> Enum.filter(fn %{dispatch_label: label} ->
           MapSet.member?(needle_set, String.downcase(label))
         end)
         |> case do
-          nil -> {:error, :no_matching_pool}
-          pool -> {:ok, pool}
+          [] ->
+            {:error, :no_matching_pool}
+
+          [pool] ->
+            {:ok, pool}
+
+          duplicates ->
+            # Two RunnerPools share the same `spec.dispatchLabel`.
+            # K8s list ordering isn't a routing contract — accepting
+            # the first match means a workflow_job could boot the
+            # wrong image depending on apiserver state. The chart
+            # is meant to enforce uniqueness at render time, so this
+            # is a misconfiguration; fail loud rather than serve a
+            # nondeterministic answer.
+            Logger.error("runners: duplicate dispatchLabel across RunnerPools — refusing to route",
+              labels: requested_labels,
+              pools: Enum.map(duplicates, & &1.name)
+            )
+
+            {:error, :ambiguous_pool}
         end
 
       {:error, _reason} ->

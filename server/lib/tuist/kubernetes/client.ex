@@ -79,12 +79,38 @@ defmodule Tuist.Kubernetes.Client do
 
   # ----- Runner dispatch helpers -----
 
+  # Audience the runner-issued SA token must claim AND the
+  # TokenReview must validate against. Tart-kubelet mints the
+  # token with `Audiences: [@dispatch_audience]`; the apiserver
+  # accepts the token only if it carries this audience (and any
+  # configured projected-volume audiences). A leaked guest token
+  # is therefore single-purpose: it can talk to this dispatch
+  # endpoint and nothing else — in particular, it is NOT a
+  # default-audience credential for the K8s API server.
+  @dispatch_audience "tuist-runners-dispatch"
+
+  @doc """
+  Returns the audience the runner ServiceAccount token must
+  carry. Kept as a single source of truth so tart-kubelet (which
+  reads this via a CLI flag baked into the controller) and the
+  dispatch endpoint always agree.
+  """
+  def runner_dispatch_audience, do: @dispatch_audience
+
   @doc """
   POSTs a TokenReview for `token` and returns
   `{:ok, %{namespace: ns, name: sa_name, uid: uid}}` when the
   apiserver authenticates the token AND the principal is a
   ServiceAccount (we reject user / node tokens here so a leaked
   kubeconfig can't impersonate a runner).
+
+  The TokenReview request carries an expected `audiences`
+  list so the apiserver rejects tokens that don't claim the
+  dispatch audience. Without this, a default-audience SA token
+  leaked from the guest VM (it lives on disk at
+  `/etc/tuist-sa-token`, readable by the customer-controlled
+  job) could be replayed against the K8s API. With it, the
+  token only validates here.
 
   Returns `{:error, :unauthenticated}` when TokenReview rejects
   the token, `{:error, :not_service_account}` when authenticated
@@ -95,13 +121,30 @@ defmodule Tuist.Kubernetes.Client do
       Jason.encode!(%{
         "apiVersion" => "authentication.k8s.io/v1",
         "kind" => "TokenReview",
-        "spec" => %{"token" => token}
+        "spec" => %{
+          "token" => token,
+          "audiences" => [@dispatch_audience]
+        }
       })
 
     case request(:post, "/apis/authentication.k8s.io/v1/tokenreviews",
            body: body,
            headers: [{"content-type", "application/json"}]
          ) do
+      {:ok, %{"status" => %{"authenticated" => true, "user" => user, "audiences" => audiences}}}
+      when is_list(audiences) ->
+        # Defense in depth: the apiserver already rejects tokens
+        # that don't claim our audience (returns authenticated:
+        # false), but if the request audience filtering is ever
+        # accidentally widened, the response carries the
+        # subset that did validate — fail-closed if our audience
+        # isn't in the list.
+        if @dispatch_audience in audiences do
+          parse_sa_principal(user)
+        else
+          {:error, :unauthenticated}
+        end
+
       {:ok, %{"status" => %{"authenticated" => true, "user" => user}}} ->
         parse_sa_principal(user)
 

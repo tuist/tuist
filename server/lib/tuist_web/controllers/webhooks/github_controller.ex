@@ -215,18 +215,40 @@ defmodule TuistWeb.Webhooks.GitHubController do
         _ -> nil
       end
 
-    if installation_id do
-      # Best-effort dispatch. We always 200 back to GH so it
-      # doesn't queue retries — `:no_idle_pod` and other
-      # operational failures are recoverable on the next event:
-      # GH's queue retains queued jobs and our watcher refills
-      # the warm pool the moment a Pod terminates.
-      _ = Dispatch.handle_webhook(params, installation_id)
-    end
+    result =
+      if installation_id do
+        Dispatch.handle_webhook(params, installation_id)
+      else
+        :ignored
+      end
 
-    conn
-    |> put_status(:ok)
-    |> json(%{status: "ok"})
+    case result do
+      # `:ok` shapes (`:queued` / `:completed`) and `:ignored`
+      # (a job we deliberately don't handle: no account match,
+      # cap=0, no matching pool, ambiguous pool) are terminal
+      # and return 200 so GitHub doesn't replay them. GitHub
+      # will not redeliver a `queued` event for the same job
+      # — the queue lives on its side until a runner claims it
+      # — so a permanent decision has to land here, not later.
+      {:ok, _} ->
+        conn |> put_status(:ok) |> json(%{status: "ok"})
+
+      :ignored ->
+        conn |> put_status(:ok) |> json(%{status: "ok"})
+
+      {:error, reason} ->
+        # Transient failure — e.g. the K8s LIST for RunnerPools
+        # raced a deploy, the ClickHouse INSERT timed out, or
+        # the account lookup blew up. Return 5xx so GitHub
+        # retries with backoff; without that, the job stays
+        # queued in GitHub indefinitely and no warm runner can
+        # claim it (our CH queue never got the row).
+        Logger.warning("runners: webhook returning 503 for retry", reason: inspect(reason))
+
+        conn
+        |> put_status(:service_unavailable)
+        |> json(%{status: "error", reason: "transient"})
+    end
   end
 
   defp handle_installation(conn, %{"action" => "deleted", "installation" => %{"id" => installation_id}} = params) do

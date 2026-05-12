@@ -18,6 +18,12 @@ defmodule Tuist.Runners.Claim do
     field :fleet_name, :string
     field :pod_name, :string
     field :claimed_at, :utc_datetime_usec
+    # `claimed` (post-INSERT, pre-mint) or `running` (mint OK).
+    # The stale reaper only targets `claimed`; a long-lived
+    # `running` row is the active cap slot for a healthy build
+    # and must not be reaped at the 5-min threshold.
+    field :lifecycle_state, :string, default: "claimed"
+    field :runner_name, :string, default: ""
 
     belongs_to :account, Account
   end

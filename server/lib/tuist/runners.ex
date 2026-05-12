@@ -51,12 +51,12 @@ defmodule Tuist.Runners do
   """
 
   alias Tuist.Accounts
-  alias Tuist.GitHub.App, as: GitHubApp
   alias Tuist.GitHub.Client, as: GitHubClient
   alias Tuist.Kubernetes.Client, as: K8sClient
   alias Tuist.Runners.Claims
   alias Tuist.Runners.Dispatch
   alias Tuist.Runners.Jobs
+  alias Tuist.VCS
 
   require Logger
 
@@ -83,6 +83,14 @@ defmodule Tuist.Runners do
   def dispatch_for_sa(namespace, sa_name) when is_binary(namespace) and is_binary(sa_name) do
     with {:ok, sa} <- K8sClient.get_service_account(namespace, sa_name),
          {:ok, fleet_name} <- pool_label(sa) do
+      # `ineligible_accounts/0` is a perf optimisation — skip
+      # candidates whose account already hit cap so we don't
+      # round-trip ClickHouse for a row we'd reject anyway. The
+      # authoritative gate is `Claims.attempt/4`, which re-checks
+      # the cap inside the same transaction as the INSERT and
+      # holds an advisory lock on the account for the duration.
+      # The pre-filter can be eventually-consistent without
+      # affecting correctness.
       ineligible = ineligible_accounts()
 
       with {:ok, candidate} <- Jobs.pick_queued(fleet_name, ineligible),
@@ -99,7 +107,17 @@ defmodule Tuist.Runners do
         {:error, :empty} ->
           {:error, :no_work_yet}
 
-        {:error, :lost_race} ->
+        {:error, reason} when reason in [:lost_race, :over_cap, :runners_disabled, :pod_in_use, :unknown_account] ->
+          # All transactional-claim outcomes that mean "this poll
+          # gets nothing right now" — collapsed for the caller.
+          # The candidate (if we had one) stays queued in CH for
+          # the next poll on this fleet to pick up.
+          Logger.debug("runners: claim attempt declined",
+            reason: reason,
+            fleet: fleet_name,
+            sa: sa_name
+          )
+
           {:error, :no_work_yet}
 
         {:error, reason} ->
@@ -121,6 +139,7 @@ defmodule Tuist.Runners do
         with {:ok, dispatch_label} <- Dispatch.dispatch_label_for_pool(fleet_name),
              :ok <- stamp_owner_labels(namespace, pod_name, account),
              {:ok, jit, runner_name} <- mint_jit(account, sa_name, dispatch_label),
+             :ok <- Claims.mark_running(candidate.workflow_job_id, runner_name),
              :ok <- Jobs.record_running(candidate.workflow_job_id, runner_name) do
           Logger.info("runners: dispatched",
             account: account.name,
@@ -246,14 +265,28 @@ defmodule Tuist.Runners do
   defp mint_jit(account, sa_name, dispatch_label) do
     runner_name = "tuist-#{account.name}-#{sa_name}"
 
-    with {:ok, installation_id} <- GitHubApp.get_installation_id_for_org(account.name),
+    # Resolve the full installation row (carries `installation_id`
+    # AND `client_url`) instead of just the integer id. The JIT
+    # mint must hit the same GitHub host the webhook arrived from
+    # — github.com for SaaS, the customer's GHES host otherwise.
+    # Without this we'd silently mint a github.com runner for a
+    # GHES org with the same login.
+    with {:ok, installation} <- VCS.get_github_app_installation_for_account(account.id),
          {:ok, %{encoded_jit_config: jit, runner_name: runner_name}} <-
-           GitHubClient.generate_jit_config(installation_id, account.name, %{
+           GitHubClient.generate_jit_config(installation, account.name, %{
              name: runner_name,
              labels: ["self-hosted", "macOS", "ARM64", dispatch_label]
            }) do
       {:ok, jit, runner_name}
     else
+      {:error, :not_found} ->
+        Logger.warning("runners: no GitHub App installation for account",
+          account: account.name,
+          account_id: account.id
+        )
+
+        {:error, :github_mint_failed}
+
       {:error, :not_installed} ->
         Logger.warning("runners: GitHub App not installed on org", account: account.name)
         {:error, :github_mint_failed}
