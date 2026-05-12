@@ -503,6 +503,66 @@ defmodule Tuist.Automations.Alerts.AlertTest do
       refute changeset.valid?
     end
 
+    test "accepts a send_webhook action with HTTPS url and signing secret" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "trigger_actions" => [
+              %{
+                "type" => "send_webhook",
+                "url" => "https://example.com/hook",
+                "signing_secret_encrypted" => "ciphertext"
+              }
+            ]
+          })
+        )
+
+      assert changeset.valid?
+    end
+
+    test "rejects send_webhook action with non-HTTPS url" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "trigger_actions" => [
+              %{
+                "type" => "send_webhook",
+                "url" => "http://example.com/hook",
+                "signing_secret_encrypted" => "ciphertext"
+              }
+            ]
+          })
+        )
+
+      refute changeset.valid?
+    end
+
+    test "rejects send_webhook action with missing signing secret" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "trigger_actions" => [
+              %{
+                "type" => "send_webhook",
+                "url" => "https://example.com/hook",
+                "signing_secret_encrypted" => ""
+              }
+            ]
+          })
+        )
+
+      refute changeset.valid?
+    end
+
     test "accepts add_label and remove_label actions" do
       project = ProjectsFixtures.project_fixture()
 

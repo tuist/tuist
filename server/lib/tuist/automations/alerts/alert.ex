@@ -123,6 +123,11 @@ defmodule Tuist.Automations.Alerts.Alert do
   defp valid_action?(%{"type" => "send_slack", "channel" => channel, "message" => message})
        when is_binary(channel) and channel != "" and is_binary(message) and message != "", do: true
 
+  defp valid_action?(%{"type" => "send_webhook", "url" => url, "signing_secret_encrypted" => secret})
+       when is_binary(url) and is_binary(secret) and secret != "" do
+    Tuist.Webhooks.valid_webhook_url?(url)
+  end
+
   defp valid_action?(%{"type" => "add_label", "label" => label}) when is_binary(label) and label != "", do: true
   defp valid_action?(%{"type" => "remove_label", "label" => label}) when is_binary(label) and label != "", do: true
 

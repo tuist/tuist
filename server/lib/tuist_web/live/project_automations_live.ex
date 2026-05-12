@@ -104,6 +104,17 @@ defmodule TuistWeb.ProjectAutomationsLive do
       "message" => @default_recovery_slack_message
     }
 
+  defp default_send_webhook_action do
+    %{plaintext: plaintext, encrypted: encrypted} = Tuist.Webhooks.generate_signing_secret()
+
+    %{
+      "type" => "send_webhook",
+      "url" => "",
+      "signing_secret_encrypted" => encrypted,
+      "_signing_secret_plaintext" => plaintext
+    }
+  end
+
   defp automation_to_form(automation) do
     %{
       name: automation.name,
@@ -308,6 +319,31 @@ defmodule TuistWeb.ProjectAutomationsLive do
     {:noreply, assign(socket, create_automation_form_trigger_actions: actions)}
   end
 
+  def handle_event("update_create_automation_form_trigger_action_url", %{"value" => url, "index" => index}, socket) do
+    index = String.to_integer(index)
+
+    actions =
+      update_action_at(socket.assigns.create_automation_form_trigger_actions, index, fn action ->
+        Map.put(action, "url", url)
+      end)
+
+    {:noreply, assign(socket, create_automation_form_trigger_actions: actions)}
+  end
+
+  def handle_event("rotate_create_automation_form_trigger_action_signing_secret", %{"index" => index}, socket) do
+    index = String.to_integer(index)
+    %{plaintext: plaintext, encrypted: encrypted} = Tuist.Webhooks.generate_signing_secret()
+
+    actions =
+      update_action_at(socket.assigns.create_automation_form_trigger_actions, index, fn action ->
+        action
+        |> Map.put("signing_secret_encrypted", encrypted)
+        |> Map.put("_signing_secret_plaintext", plaintext)
+      end)
+
+    {:noreply, assign(socket, create_automation_form_trigger_actions: actions)}
+  end
+
   def handle_event("toggle_create_automation_form_recovery", _params, socket) do
     {:noreply,
      assign(socket, create_automation_form_recovery_enabled: not socket.assigns.create_automation_form_recovery_enabled)}
@@ -373,6 +409,31 @@ defmodule TuistWeb.ProjectAutomationsLive do
 
   def handle_event("recovery_action_channel_selected", _params, socket) do
     {:noreply, socket}
+  end
+
+  def handle_event("update_create_automation_form_recovery_action_url", %{"value" => url, "index" => index}, socket) do
+    index = String.to_integer(index)
+
+    actions =
+      update_action_at(socket.assigns.create_automation_form_recovery_actions, index, fn action ->
+        Map.put(action, "url", url)
+      end)
+
+    {:noreply, assign(socket, create_automation_form_recovery_actions: actions)}
+  end
+
+  def handle_event("rotate_create_automation_form_recovery_action_signing_secret", %{"index" => index}, socket) do
+    index = String.to_integer(index)
+    %{plaintext: plaintext, encrypted: encrypted} = Tuist.Webhooks.generate_signing_secret()
+
+    actions =
+      update_action_at(socket.assigns.create_automation_form_recovery_actions, index, fn action ->
+        action
+        |> Map.put("signing_secret_encrypted", encrypted)
+        |> Map.put("_signing_secret_plaintext", plaintext)
+      end)
+
+    {:noreply, assign(socket, create_automation_form_recovery_actions: actions)}
   end
 
   def handle_event(
@@ -442,6 +503,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
   defp new_action("change_state", :trigger), do: default_change_state_action("muted")
   defp new_action("change_state", :recovery), do: default_change_state_action("enabled")
   defp new_action("send_slack", context), do: default_send_slack_action(context)
+  defp new_action("send_webhook", _context), do: default_send_webhook_action()
   defp new_action("add_label_flaky", _context), do: %{"type" => "add_label", "label" => "flaky"}
   defp new_action("remove_label_flaky", _context), do: %{"type" => "remove_label", "label" => "flaky"}
   defp new_action(_, :recovery), do: default_change_state_action("enabled")
@@ -462,17 +524,27 @@ defmodule TuistWeb.ProjectAutomationsLive do
       "name" => assigns.create_automation_form_name,
       "monitor_type" => metric,
       "trigger_config" => trigger_config_for(metric, assigns),
-      "trigger_actions" => assigns.create_automation_form_trigger_actions,
+      "trigger_actions" => strip_transient_action_fields(assigns.create_automation_form_trigger_actions),
       "recovery_enabled" => assigns.create_automation_form_recovery_enabled
     }
 
     if assigns.create_automation_form_recovery_enabled do
       base
       |> Map.put("recovery_config", recovery_config_for(metric, assigns))
-      |> Map.put("recovery_actions", assigns.create_automation_form_recovery_actions)
+      |> Map.put("recovery_actions", strip_transient_action_fields(assigns.create_automation_form_recovery_actions))
     else
       base
     end
+  end
+
+  # Fields prefixed with `_` are transient form-only state (e.g. the plaintext
+  # signing secret shown once after generation) and must never reach the DB.
+  defp strip_transient_action_fields(actions) do
+    Enum.map(actions, fn action ->
+      action
+      |> Enum.reject(fn {key, _} -> is_binary(key) and String.starts_with?(key, "_") end)
+      |> Map.new()
+    end)
   end
 
   defp trigger_config_for("test_updated", assigns) do
@@ -627,6 +699,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
 
   def action_type_label("change_state"), do: dgettext("dashboard_projects", "Change state")
   def action_type_label("send_slack"), do: dgettext("dashboard_projects", "Send Slack notification")
+  def action_type_label("send_webhook"), do: dgettext("dashboard_projects", "Send webhook")
   def action_type_label("add_label"), do: dgettext("dashboard_projects", "Add label")
   def action_type_label("remove_label"), do: dgettext("dashboard_projects", "Remove label")
   def action_type_label(_), do: dgettext("dashboard_projects", "Unknown")
@@ -646,6 +719,11 @@ defmodule TuistWeb.ProjectAutomationsLive do
   def action_row_summary(%{"type" => "send_slack", "channel" => channel}) when channel != "", do: "Slack: #{channel}"
 
   def action_row_summary(%{"type" => "send_slack"}), do: dgettext("dashboard_projects", "Slack: not configured")
+
+  def action_row_summary(%{"type" => "send_webhook", "url" => url}) when is_binary(url) and url != "",
+    do: "Webhook: #{url}"
+
+  def action_row_summary(%{"type" => "send_webhook"}), do: dgettext("dashboard_projects", "Webhook: not configured")
 
   def action_row_summary(%{"type" => "add_label", "label" => label}),
     do: dgettext("dashboard_projects", "Add label: %{label}", label: label)

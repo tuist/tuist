@@ -371,6 +371,11 @@
                       label={dgettext("dashboard_projects", "Send Slack notification")}
                       on_click="add_create_automation_form_trigger_action"
                     />
+                    <.dropdown_item
+                      value="send_webhook"
+                      label={dgettext("dashboard_projects", "Send webhook")}
+                      on_click="add_create_automation_form_trigger_action"
+                    />
                   </.dropdown>
                 </div>
                 <div data-part="form-section-body">
@@ -499,6 +504,69 @@
                             </div>
                           </div>
                         </div>
+                      <% "send_webhook" -> %>
+                        <div data-part="webhook-action">
+                          <div data-part="webhook-action-header">
+                            <span data-part="action-label">
+                              {dgettext("dashboard_projects", "Send webhook")}
+                            </span>
+                            <.button
+                              icon_only
+                              size="medium"
+                              variant="secondary"
+                              phx-click="delete_create_automation_form_trigger_action"
+                              phx-value-index={index}
+                            >
+                              <.icon name="trash_x" />
+                            </.button>
+                          </div>
+                          <.text_input
+                            id={"create-automation-trigger-action-url-#{index}"}
+                            name="url"
+                            type="basic"
+                            value={action["url"] || ""}
+                            placeholder="https://example.com/tuist-webhook"
+                            phx-keyup="update_create_automation_form_trigger_action_url"
+                            phx-value-index={index}
+                            phx-debounce="300"
+                          />
+                          <div data-part="signing-secret-row">
+                            <span data-part="label">
+                              {dgettext("dashboard_projects", "Signing secret")}
+                            </span>
+                            <%= if action["_signing_secret_plaintext"] do %>
+                              <code data-part="signing-secret">
+                                {action["_signing_secret_plaintext"]}
+                              </code>
+                              <span data-part="sublabel">
+                                {dgettext(
+                                  "dashboard_projects",
+                                  "Copy this value now — it will not be shown again."
+                                )}
+                              </span>
+                            <% else %>
+                              <span data-part="sublabel">
+                                {dgettext(
+                                  "dashboard_projects",
+                                  "Configured (hidden). Rotate to generate a new secret."
+                                )}
+                              </span>
+                            <% end %>
+                            <.button
+                              label={dgettext("dashboard_projects", "Rotate")}
+                              variant="secondary"
+                              size="medium"
+                              phx-click="rotate_create_automation_form_trigger_action_signing_secret"
+                              phx-value-index={index}
+                              data-confirm={
+                                dgettext(
+                                  "dashboard_projects",
+                                  "Rotating replaces the signing secret. Existing consumers will fail verification until updated."
+                                )
+                              }
+                            />
+                          </div>
+                        </div>
                       <% "add_label" -> %>
                         <span data-part="action-label">
                           {dgettext("dashboard_projects", "Mark test as flaky")}
@@ -508,7 +576,7 @@
                           {dgettext("dashboard_projects", "Unmark test as flaky")}
                         </span>
                     <% end %>
-                    <%= if action["type"] != "send_slack" do %>
+                    <%= if action["type"] not in ["send_slack", "send_webhook"] do %>
                       <.button
                         icon_only
                         variant="secondary"
@@ -598,6 +666,11 @@
                     <.dropdown_item
                       value="send_slack"
                       label={dgettext("dashboard_projects", "Send Slack notification")}
+                      on_click="add_create_automation_form_recovery_action"
+                    />
+                    <.dropdown_item
+                      value="send_webhook"
+                      label={dgettext("dashboard_projects", "Send webhook")}
                       on_click="add_create_automation_form_recovery_action"
                     />
                   </.dropdown>
@@ -805,6 +878,69 @@
                             </div>
                           </div>
                         </div>
+                      <% "send_webhook" -> %>
+                        <div data-part="webhook-action">
+                          <div data-part="webhook-action-header">
+                            <span data-part="action-label">
+                              {dgettext("dashboard_projects", "Send webhook")}
+                            </span>
+                            <.button
+                              icon_only
+                              size="medium"
+                              variant="secondary"
+                              phx-click="delete_create_automation_form_recovery_action"
+                              phx-value-index={index}
+                            >
+                              <.icon name="trash_x" />
+                            </.button>
+                          </div>
+                          <.text_input
+                            id={"create-automation-recovery-action-url-#{index}"}
+                            name="url"
+                            type="basic"
+                            value={action["url"] || ""}
+                            placeholder="https://example.com/tuist-webhook"
+                            phx-keyup="update_create_automation_form_recovery_action_url"
+                            phx-value-index={index}
+                            phx-debounce="300"
+                          />
+                          <div data-part="signing-secret-row">
+                            <span data-part="label">
+                              {dgettext("dashboard_projects", "Signing secret")}
+                            </span>
+                            <%= if action["_signing_secret_plaintext"] do %>
+                              <code data-part="signing-secret">
+                                {action["_signing_secret_plaintext"]}
+                              </code>
+                              <span data-part="sublabel">
+                                {dgettext(
+                                  "dashboard_projects",
+                                  "Copy this value now — it will not be shown again."
+                                )}
+                              </span>
+                            <% else %>
+                              <span data-part="sublabel">
+                                {dgettext(
+                                  "dashboard_projects",
+                                  "Configured (hidden). Rotate to generate a new secret."
+                                )}
+                              </span>
+                            <% end %>
+                            <.button
+                              label={dgettext("dashboard_projects", "Rotate")}
+                              variant="secondary"
+                              size="medium"
+                              phx-click="rotate_create_automation_form_recovery_action_signing_secret"
+                              phx-value-index={index}
+                              data-confirm={
+                                dgettext(
+                                  "dashboard_projects",
+                                  "Rotating replaces the signing secret. Existing consumers will fail verification until updated."
+                                )
+                              }
+                            />
+                          </div>
+                        </div>
                       <% "add_label" -> %>
                         <span data-part="action-label">
                           {dgettext("dashboard_projects", "Mark test as flaky")}
@@ -814,7 +950,7 @@
                           {dgettext("dashboard_projects", "Unmark test as flaky")}
                         </span>
                     <% end %>
-                    <%= if action["type"] != "send_slack" do %>
+                    <%= if action["type"] not in ["send_slack", "send_webhook"] do %>
                       <.button
                         icon_only
                         variant="secondary"

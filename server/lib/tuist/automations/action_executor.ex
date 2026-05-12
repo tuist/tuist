@@ -15,6 +15,7 @@ defmodule Tuist.Automations.ActionExecutor do
   observed them.
   """
   alias Tuist.Automations.Actions.SendSlackAction
+  alias Tuist.Automations.Actions.SendWebhookAction
   alias Tuist.Tests
 
   require Logger
@@ -81,6 +82,10 @@ defmodule Tuist.Automations.ActionExecutor do
 
   defp execute_action(%{"type" => "send_slack"} = action, automation, entity) do
     SendSlackAction.execute(automation, entity, action)
+  end
+
+  defp execute_action(%{"type" => "send_webhook"} = action, automation, entity) do
+    SendWebhookAction.execute(automation, entity, action)
   end
 
   defp execute_action(%{"type" => type}, _automation, _entity) when type in ["add_label", "remove_label"] do
