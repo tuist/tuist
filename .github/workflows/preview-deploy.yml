@@ -56,7 +56,6 @@ permissions:
   contents: read
   packages: write
   pull-requests: write
-  id-token: write
   deployments: write
 
 env:
