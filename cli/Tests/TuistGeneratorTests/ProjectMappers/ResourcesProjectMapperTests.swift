@@ -329,6 +329,88 @@ struct ResourcesProjectMapperTests {
     }
 
     @Test
+    func mapWhenStaticFrameworkBuildableFolderContainsMetalAndSwift() async throws {
+        // Given
+        let folderPath = try AbsolutePath(validating: "/Sources/Foo")
+        let metalPath = try AbsolutePath(validating: "/Sources/Foo/Shader.metal")
+        let swiftPath = try AbsolutePath(validating: "/Sources/Foo/Foo.swift")
+        let buildableFolder = BuildableFolder(
+            path: folderPath,
+            exceptions: BuildableFolderExceptions(exceptions: []),
+            resolvedFiles: [
+                BuildableFolderFile(path: metalPath, compilerFlags: nil),
+                BuildableFolderFile(path: swiftPath, compilerFlags: nil),
+            ]
+        )
+
+        let target = Target.test(
+            product: .staticFramework,
+            sources: [],
+            resources: ResourceFileElements([]),
+            buildableFolders: [buildableFolder]
+        )
+        let project = Project.test(targets: [target])
+        // Mirrors the production checker, which excludes source extensions (including `.metal`).
+        given(buildableFolderChecker).containsResources(.value([buildableFolder])).willReturn(false)
+        given(buildableFolderChecker).containsSources(.value([buildableFolder])).willReturn(true)
+
+        // When
+        let (gotProject, gotSideEffects) = try await subject.map(project: project)
+
+        // Then: a companion bundle target is synthesized so `Bundle.module` exists and Xcode can
+        // place the compiled `default.metallib` somewhere that `makeDefaultLibrary(bundle:)` can find.
+        #expect(gotProject.targets.count == 2)
+
+        let gotTarget = try #require(gotProject.targets.values.sorted().last)
+        #expect(gotTarget.name == target.name)
+        #expect(gotTarget.product == .staticFramework)
+        let expectedSwiftFolder = BuildableFolder(
+            path: folderPath,
+            exceptions: BuildableFolderExceptions(
+                exceptions: [
+                    BuildableFolderException(
+                        excluded: [metalPath],
+                        compilerFlags: [:],
+                        publicHeaders: [],
+                        privateHeaders: []
+                    ),
+                ]
+            ),
+            resolvedFiles: [
+                BuildableFolderFile(path: swiftPath, compilerFlags: nil),
+            ]
+        )
+        #expect(gotTarget.buildableFolders == [expectedSwiftFolder])
+        #expect(gotTarget.dependencies.contains(TargetDependency.target(
+            name: "\(project.name)_\(target.name)",
+            condition: .when([.ios])
+        )))
+
+        let resourcesTarget = try #require(gotProject.targets.values.sorted().first)
+        #expect(resourcesTarget.product == .bundle)
+        let expectedMetalFolder = BuildableFolder(
+            path: folderPath,
+            exceptions: BuildableFolderExceptions(
+                exceptions: [
+                    BuildableFolderException(
+                        excluded: [swiftPath],
+                        compilerFlags: [:],
+                        publicHeaders: [],
+                        privateHeaders: []
+                    ),
+                ]
+            ),
+            resolvedFiles: [
+                BuildableFolderFile(path: metalPath, compilerFlags: nil),
+            ]
+        )
+        #expect(resourcesTarget.buildableFolders == [expectedMetalFolder])
+
+        // The TuistBundle+ swift accessor is generated so user code can call `Bundle.module`.
+        #expect(gotSideEffects.count == 1)
+    }
+
+    @Test
     func mapWhenBuildableFolderContainsSourcesAndResources() async throws {
         // Given
         let sharedFolderPath = try AbsolutePath(validating: "/shared")

@@ -42,7 +42,8 @@ public struct ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this
         if target.resources.resources.isEmpty, target.coreDataModels.isEmpty,
            !target.sources.contains(where: { $0.path.extension == "metal" }),
            !(try await buildableFolderChecker.containsResources(target.buildableFolders)),
-           !containsSynthesizedFilesInBuildableFolders(target: target, project: project)
+           !containsSynthesizedFilesInBuildableFolders(target: target, project: project),
+           !containsMetalFilesInBuildableFolders(target.buildableFolders)
         { return (
             [target],
             []
@@ -204,6 +205,15 @@ public struct ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this
         let extensions = Set(project.resourceSynthesizers.flatMap(\.extensions))
         return target.buildableFolders.contains(where: { folder in
             folder.resolvedFiles.contains(where: { extensions.contains($0.path.extension ?? "") })
+        })
+    }
+
+    // Xcode compiles `.metal` sources into a `default.metallib` resource. For static frameworks and
+    // other targets that can't host their own resources, the metallib must live in the companion
+    // bundle so that `Bundle.module` can load it via `makeDefaultLibrary(bundle:)`.
+    private func containsMetalFilesInBuildableFolders(_ folders: [BuildableFolder]) -> Bool {
+        folders.contains(where: { folder in
+            folder.resolvedFiles.contains(where: { $0.path.extension == "metal" })
         })
     }
 
@@ -633,11 +643,20 @@ extension AbsolutePath {
     }
 
     fileprivate var shouldStayOnlyOnOriginalTargetWhenSplittingResources: Bool {
-        isSourceLike && !shouldBeSharedAcrossTargetsWhenSplittingResources
+        isSourceLike
+            && !shouldBeSharedAcrossTargetsWhenSplittingResources
+            && !shouldBeMovedToBundleWhenSplittingResources
     }
 
     fileprivate var shouldBeSharedAcrossTargetsWhenSplittingResources: Bool {
         matchesExtension(in: ["xcstrings"])
+    }
+
+    // `.metal` is a source extension, but for targets that need a companion resource bundle
+    // (e.g. static frameworks), the compiled `default.metallib` must live in that bundle so
+    // `Bundle.module` can resolve it. Treat it as resource-only when partitioning.
+    fileprivate var shouldBeMovedToBundleWhenSplittingResources: Bool {
+        matchesExtension(in: ["metal"])
     }
 }
 
