@@ -51,8 +51,7 @@ RUN --mount=type=cache,id=aube,target=/aube-data/aube aube install --frozen-lock
 COPY noora /noora
 WORKDIR /noora
 RUN --mount=type=cache,id=aube,target=/aube-data/aube aube install
-RUN npx esbuild js/index.js --bundle --minify --sourcemap --format=esm --outfile=./priv/static/noora.js && \
-    npx esbuild css/noora.css --bundle --minify --sourcemap --outfile=./priv/static/noora.css
+RUN aube run build
 WORKDIR /app
 
 # ========================================
