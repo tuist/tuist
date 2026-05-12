@@ -5,7 +5,6 @@ defmodule Tuist.KuraTest do
 
   alias Tuist.Accounts
   alias Tuist.Accounts.AccountCacheEndpoint
-  alias Tuist.GitHub.Releases
   alias Tuist.Kura
   alias Tuist.Kura.Deployment
   alias Tuist.Kura.Provisioner
@@ -34,17 +33,12 @@ defmodule Tuist.KuraTest do
       assert Kura.latest_versions(10) == []
     end
 
-    test "returns the latest Kura Git tag outside dev and test" do
-      published_at = DateTime.utc_now(:second)
-
+    test "returns the deploy-configured runtime image tag outside dev and test" do
       stub(Tuist.Environment, :dev?, fn -> false end)
       stub(Tuist.Environment, :test?, fn -> false end)
+      stub(Tuist.Environment, :kura_runtime_image_tag, fn -> "0.5.2" end)
 
-      stub(Releases, :get_latest_kura_release, fn ->
-        %{tag_name: "kura@0.5.2", published_at: published_at}
-      end)
-
-      assert [%{version: "kura@0.5.2", image_tag: "0.5.2", released_at: ^published_at}] = Kura.latest_versions(10)
+      assert [%{version: "0.5.2", image_tag: "0.5.2", released_at: nil}] = Kura.latest_versions(10)
     end
   end
 
@@ -124,7 +118,7 @@ defmodule Tuist.KuraTest do
       assert {:ok, []} = Kura.schedule_runtime_image_deployments()
     end
 
-    test "schedules the latest Kura release Docker tag outside dev and test" do
+    test "schedules the deploy-configured runtime image tag outside dev and test" do
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
 
@@ -139,10 +133,7 @@ defmodule Tuist.KuraTest do
 
       stub(Tuist.Environment, :dev?, fn -> false end)
       stub(Tuist.Environment, :test?, fn -> false end)
-
-      stub(Releases, :get_latest_kura_release, fn ->
-        %{tag_name: "kura@0.5.2", published_at: DateTime.utc_now(:second)}
-      end)
+      stub(Tuist.Environment, :kura_runtime_image_tag, fn -> "0.5.2" end)
 
       assert {:ok, [%Deployment{image_tag: "0.5.2"} = deployment]} =
                Kura.schedule_runtime_image_deployments()

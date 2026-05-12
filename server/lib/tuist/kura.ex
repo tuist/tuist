@@ -22,7 +22,6 @@ defmodule Tuist.Kura do
   alias Phoenix.PubSub
   alias Tuist.Accounts
   alias Tuist.Accounts.AccountCacheEndpoint
-  alias Tuist.GitHub.Releases
   alias Tuist.Kura.Deployment
   alias Tuist.Kura.Provisioner
   alias Tuist.Kura.Reconciler
@@ -47,11 +46,11 @@ defmodule Tuist.Kura do
   ## Versions
 
   @doc """
-  Returns the latest released Kura runtime version.
+  Returns the configured Kura runtime version.
 
-  Managed deploys use the latest `kura@...` GitHub release as the
-  source release, while rollout manifests use the corresponding
-  Docker tag without the `kura@` prefix.
+  Managed deploys use the runtime image tag declared by deploy
+  configuration. GitHub releases can be used as a discovery hint, but the
+  rollout source of truth stays in Helm/CI configuration.
   """
   def latest_versions(limit \\ 20)
 
@@ -96,27 +95,6 @@ defmodule Tuist.Kura do
   end
 
   defp runtime_version do
-    if Tuist.Environment.dev?() or Tuist.Environment.test?() do
-      local_runtime_version()
-    else
-      released_runtime_version()
-    end
-  end
-
-  defp released_runtime_version do
-    case Releases.get_latest_kura_release() do
-      %{tag_name: tag_name, published_at: released_at} when is_binary(tag_name) ->
-        case tag_name do
-          "kura@" <> image_tag -> %{version: tag_name, image_tag: image_tag, released_at: released_at}
-          _ -> nil
-        end
-
-      _ ->
-        nil
-    end
-  end
-
-  defp local_runtime_version do
     case Tuist.Environment.kura_runtime_image_tag() do
       tag when is_binary(tag) ->
         tag = String.trim(tag)

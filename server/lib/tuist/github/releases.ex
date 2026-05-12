@@ -189,6 +189,10 @@ defmodule Tuist.GitHub.Releases do
         Logger.error("Failed to fetch GitHub releases, status: #{status}")
         nil
 
+      {:ok, %Req.Response{status: status}} ->
+        Logger.error("Failed to fetch GitHub releases, status: #{status}")
+        nil
+
       {:error, reason} ->
         Logger.error("Failed to fetch GitHub releases, reason: #{inspect(reason)}")
         nil

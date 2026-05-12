@@ -473,6 +473,16 @@ defmodule Tuist.GitHub.ReleasesTest do
       assert release.html_url == "https://github.com/tuist/tuist/releases/tag/kura@0.5.2"
     end
 
+    test "returns nil when GitHub returns a non-200 response" do
+      releases_url = Releases.releases_url()
+
+      stub(Req, :get, fn ^releases_url, _opts ->
+        {:ok, %Req.Response{status: 429, body: %{}, headers: []}}
+      end)
+
+      assert Releases.get_latest_kura_release() == nil
+    end
+
     test "returns Kura release when it is only available in the second page" do
       published_at = DateTime.utc_now()
       releases_url = Releases.releases_url()
