@@ -379,6 +379,9 @@ struct GenerateServiceTests {
     }
 }
 
+// Kept separate from `GenerateServiceTests` because combining `MockInstallServicing` and
+// `MockOpening` in the same struct triggers a Swift Testing struct-destroy crash on parallel
+// execution. Until that's investigated upstream, the outdated-dependency cases live here.
 struct GenerateServiceOutdatedDependenciesTests {
     private var subject: GenerateService!
     private var generator: MockGenerating!
@@ -419,7 +422,7 @@ struct GenerateServiceOutdatedDependenciesTests {
     }
 
     @Test
-    func runs_install_when_install_action_and_dependencies_are_outdated() async throws {
+    func runs_install_when_action_is_install_and_dependencies_are_outdated() async throws {
         // Given
         given(configLoader).loadConfig(path: .any).willReturn(
             .test(project: .generated(.test(generationOptions: .test(onOutdatedDependencies: .install))))
@@ -451,11 +454,14 @@ struct GenerateServiceOutdatedDependenciesTests {
     }
 
     @Test
-    func does_not_check_dependencies_when_action_is_warn() async throws {
+    func does_not_run_install_when_action_is_warn_and_dependencies_are_outdated() async throws {
         // Given
         given(configLoader).loadConfig(path: .any).willReturn(
             .test(project: .generated(.test(generationOptions: .test(onOutdatedDependencies: .warn))))
         )
+        given(outdatedDependenciesChecker)
+            .packageDependenciesAreOutdated(at: .any)
+            .willReturn(true)
         given(generator)
             .generateWithGraph(path: .any, options: .any)
             .willReturn((try AbsolutePath(validating: "/test.xcworkspace"), .test(), MapperEnvironment()))
@@ -474,13 +480,10 @@ struct GenerateServiceOutdatedDependenciesTests {
         verify(installService)
             .run(path: .any, update: .any, passthroughArguments: .any)
             .called(0)
-        verify(outdatedDependenciesChecker)
-            .packageDependenciesAreOutdated(at: .any)
-            .called(0)
     }
 
     @Test
-    func does_not_run_install_when_dependencies_are_up_to_date() async throws {
+    func does_not_run_install_when_action_is_install_and_dependencies_are_up_to_date() async throws {
         // Given
         given(configLoader).loadConfig(path: .any).willReturn(
             .test(project: .generated(.test(generationOptions: .test(onOutdatedDependencies: .install))))
@@ -534,3 +537,4 @@ struct GenerateServiceOutdatedDependenciesTests {
             .called(0)
     }
 }
+

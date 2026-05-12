@@ -93,8 +93,6 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
         let workspaceState = try JSONDecoder()
             .decode(SwiftPackageManagerWorkspaceState.self, from: try await fileSystem.readFile(at: workspacePath))
 
-        let outdatedDependencyIssues = try await validatePackageResolved(at: packagePath.parentDirectory)
-
         let rootPackage = try await manifestLoader.loadPackage(at: packagePath.parentDirectory, disableSandbox: disableSandbox)
 
         var packageInfos: [
@@ -265,7 +263,7 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
                 externalDependencies: externalDependencies,
                 externalProjects: externalProjects
             ),
-            outdatedDependencyIssues
+            []
         )
     }
 
@@ -366,36 +364,6 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
         }
     }
 
-    private func validatePackageResolved(at path: AbsolutePath) async throws -> [LintingIssue] {
-        let savedPackageResolvedPath = path.appending(components: [
-            Constants.SwiftPackageManager.packageBuildDirectoryName,
-            Constants.DerivedDirectory.name,
-            Constants.SwiftPackageManager.packageResolvedName,
-        ])
-        let savedData: Data?
-        if try await fileSystem.exists(savedPackageResolvedPath) {
-            savedData = try await fileSystem.readFile(at: savedPackageResolvedPath)
-        } else {
-            savedData = nil
-        }
-
-        let currentPackageResolvedPath = path.appending(component: Constants.SwiftPackageManager.packageResolvedName)
-        let currentData: Data?
-        if try await fileSystem.exists(currentPackageResolvedPath) {
-            currentData = try await fileSystem.readFile(at: currentPackageResolvedPath)
-        } else {
-            currentData = nil
-        }
-
-        if currentData != savedData {
-            return [LintingIssue(
-                reason: "We detected outdated dependencies. Run `tuist install` to update them.",
-                severity: .warning,
-                category: .outdatedDependencies
-            )]
-        }
-        return []
-    }
 }
 
 extension ProjectDescription.Platform {
