@@ -4406,6 +4406,113 @@ final class TestServiceTests: TuistUnitTestCase {
             .called(1)
     }
 
+    func test_run_testWithoutBuilding_skippedSummary_propagatesRestoredBuildRunId() async throws {
+        // Given — a bundle whose selective testing graph attempts a test plan that has no
+        // matching .xctestrun (i.e. selective testing pruned every target), so the test phase
+        // skips xcodebuild entirely and uploads a synthesized "skipped" test summary. Before
+        // this fix, uploadSkippedTestSummary hardcoded buildRunId: nil, which dropped the link
+        // back to the originating build run.
+        let path = try temporaryPath()
+        let testProductsPath = path.appending(component: "MyApp.xctestproducts")
+        try await fileSystem.makeDirectory(at: testProductsPath)
+        let testPlan = "IntegrationTestSuite"
+
+        let selectiveTestingGraph = SelectiveTestingGraph(
+            testTargetHashes: ["IntegrationTests": "abc123"],
+            attemptedTestPlans: [testPlan]
+        )
+        try JSONEncoder().encode(selectiveTestingGraph)
+            .write(to: testProductsPath.appending(component: SelectiveTestingGraph.fileName).url)
+
+        let snapshot = RunMetadataSnapshot(
+            graph: nil,
+            binaryCacheItems: [:],
+            selectiveTestingCacheItems: [:],
+            targetContentHashSubhashes: [:],
+            buildRunId: "BUILD-RUN-ID"
+        )
+        try JSONEncoder().encode(snapshot)
+            .write(to: testProductsPath.appending(component: RunMetadataSnapshot.fileName).url)
+
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(
+                .test(
+                    project: .testGeneratedProject(),
+                    fullHandle: "tuist/tuist",
+                    url: URL(string: "https://tuist.dev")!
+                )
+            )
+        given(createTestService)
+            .createTest(
+                fullHandle: .any,
+                serverURL: .any,
+                id: .any,
+                testSummary: .any,
+                buildRunId: .any,
+                gitBranch: .any,
+                gitCommitSHA: .any,
+                gitRef: .any,
+                gitRemoteURLOrigin: .any,
+                isCI: .any,
+                modelIdentifier: .any,
+                macOSVersion: .any,
+                xcodeVersion: .any,
+                ciRunId: .any,
+                ciProjectHandle: .any,
+                ciHost: .any,
+                ciProvider: .any,
+                shardPlanId: .any,
+                shardIndex: .any
+            )
+            .willReturn(
+                Components.Schemas.RunsTest(
+                    duration: 0,
+                    id: "test-id",
+                    project_id: 1,
+                    test_case_runs: [],
+                    _type: .test,
+                    url: "https://tuist.dev/tuist/tuist/tests/test-runs/test-id"
+                )
+            )
+
+        // When
+        try await AlertController.$current.withValue(AlertController()) {
+            try await testRun(
+                path: path,
+                action: .testWithoutBuilding,
+                testPlanConfiguration: TestPlanConfiguration(testPlan: testPlan),
+                passthroughXcodeBuildArguments: ["-testProductsPath", testProductsPath.pathString]
+            )
+        }
+
+        // Then — the snapshot-restored buildRunId is forwarded to createTest so the test
+        // run record links back to the build run.
+        verify(createTestService)
+            .createTest(
+                fullHandle: .value("tuist/tuist"),
+                serverURL: .any,
+                id: .any,
+                testSummary: .any,
+                buildRunId: .value("BUILD-RUN-ID"),
+                gitBranch: .any,
+                gitCommitSHA: .any,
+                gitRef: .any,
+                gitRemoteURLOrigin: .any,
+                isCI: .any,
+                modelIdentifier: .any,
+                macOSVersion: .any,
+                xcodeVersion: .any,
+                ciRunId: .any,
+                ciProjectHandle: .any,
+                ciHost: .any,
+                ciProvider: .any,
+                shardPlanId: .any,
+                shardIndex: .any
+            )
+            .called(1)
+    }
+
     func test_run_testWithoutBuilding_skipsWhenRequestedTestPlanXCTestRunIsMissing() async throws {
         // Given
         let path = try temporaryPath()

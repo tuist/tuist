@@ -1867,13 +1867,14 @@ public struct TestService { // swiftlint:disable:this type_body_length
 
         let gitInfo = try await gitController.gitInfo(workingDirectory: gitInfoDirectory)
         let ciInfo = ciController.ciInfo()
+        let buildRunId = await RunMetadataStorage.current.buildRunId
 
         let test = try await createTestService.createTest(
             fullHandle: fullHandle,
             serverURL: serverURL,
             id: nil,
             testSummary: testSummary,
-            buildRunId: nil,
+            buildRunId: buildRunId,
             gitBranch: gitInfo.branch,
             gitCommitSHA: gitInfo.sha,
             gitRef: gitInfo.ref,
