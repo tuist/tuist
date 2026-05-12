@@ -256,11 +256,11 @@ defmodule TuistWeb.AccountSettingsLive do
          )
          |> push_event("close-modal", %{id: "add-kura-server-modal"})}
 
-      {region, %{version: image_tag}} ->
+      {region, version} ->
         attrs = %{
           account_id: socket.assigns.selected_account.id,
           region: region,
-          image_tag: image_tag
+          image_tag: kura_version_image_tag(version)
         }
 
         create_kura_server(socket, attrs)
@@ -351,6 +351,10 @@ defmodule TuistWeb.AccountSettingsLive do
 
   defp single_available_kura_region_id([region]), do: region.id
   defp single_available_kura_region_id(_regions), do: nil
+
+  defp kura_version_image_tag(%{image_tag: image_tag}), do: image_tag
+  defp kura_version_image_tag(%{version: "kura@" <> image_tag}), do: image_tag
+  defp kura_version_image_tag(%{version: image_tag}), do: image_tag
 
   defp present?(value), do: is_binary(value) and value != ""
 
@@ -547,7 +551,9 @@ defmodule TuistWeb.AccountSettingsLive do
             <.text_cell label={server.url || dgettext("dashboard_account", "Pending")} />
           </:col>
           <:col :let={server} label={dgettext("dashboard_account", "Version")}>
-            <.text_cell label={server.current_image_tag || dgettext("dashboard_account", "Pending")} />
+            <.text_cell label={
+              kura_version_label(server.current_image_tag) || dgettext("dashboard_account", "Pending")
+            } />
           </:col>
           <:col :let={server} label="">
             <.button
@@ -597,12 +603,7 @@ defmodule TuistWeb.AccountSettingsLive do
   def kura_server_status_color(:destroying), do: "warning"
   def kura_server_status_color(:destroyed), do: "neutral"
 
-  defp show_deploying?(%{status: status}) when status in [:destroying, :destroyed], do: false
-
-  defp show_deploying?(%{deployments: deployments}) when is_list(deployments) do
-    Enum.any?(deployments, &(&1.status in [:pending, :running]))
-  end
-
+  defp show_deploying?(%{status: :provisioning}), do: true
   defp show_deploying?(_), do: false
 
   defp kura_region_label(region_id) do
@@ -611,6 +612,8 @@ defmodule TuistWeb.AccountSettingsLive do
       region -> region.display_name
     end
   end
+
+  defp kura_version_label(image_tag), do: Kura.version_label(image_tag)
 
   attr(:preferred_locale_form, :any, required: true)
 

@@ -400,5 +400,15 @@ defmodule Tuist.GitHub.ReleasesTest do
       assert release.name == "app@1.0.0"
       assert release.html_url == "https://github.com/app-release"
     end
+
+    test "returns nil when GitHub returns a non-200 response" do
+      releases_url = Releases.releases_url()
+
+      stub(Req, :get, fn ^releases_url, _opts ->
+        {:ok, %Req.Response{status: 429, body: %{}, headers: []}}
+      end)
+
+      assert Releases.get_latest_app_release() == nil
+    end
   end
 end

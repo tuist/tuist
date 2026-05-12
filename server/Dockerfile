@@ -41,7 +41,7 @@ RUN swift build -c release --replace-scm-with-registry && \
 FROM node:22-slim AS npm-deps
 ENV CI=1
 ENV XDG_DATA_HOME="/aube-data"
-RUN npm install -g --ignore-scripts=false @endevco/aube
+RUN npm install -g --ignore-scripts=false @endevco/aube@1.6.2
 COPY server/package.json /app/package.json
 COPY server/pnpm-lock.yaml /app/pnpm-lock.yaml
 WORKDIR /app

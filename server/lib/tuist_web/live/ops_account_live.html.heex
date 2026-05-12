@@ -23,7 +23,9 @@
           <.text_cell label={server.url || dgettext("dashboard", "None")} />
         </:col>
         <:col :let={server} label={dgettext("dashboard", "Current version")}>
-          <.text_cell label={server.current_image_tag || dgettext("dashboard", "None")} />
+          <.text_cell label={
+            Tuist.Kura.version_label(server.current_image_tag) || dgettext("dashboard", "None")
+          } />
         </:col>
         <:col :let={server} label={dgettext("dashboard", "Latest deployment")}>
           <%= case List.first(server.deployments) do %>
@@ -31,7 +33,7 @@
               <.text_cell label={dgettext("dashboard", "None")} />
             <% deployment -> %>
               <.link navigate={~p"/ops/accounts/#{@account.id}/kura/deployments/#{deployment.id}"}>
-                {deployment.image_tag}
+                {Tuist.Kura.version_label(deployment.image_tag)}
               </.link>
           <% end %>
         </:col>

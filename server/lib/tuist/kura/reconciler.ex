@@ -3,7 +3,7 @@ defmodule Tuist.Kura.Reconciler do
   Primary reconciliation loop for Kura servers.
 
   Desired state lives in Postgres (`kura_servers` and `kura_deployments`)
-  plus the deploy-provided Kura runtime image tag. Actual state lives in
+  plus the latest released Kura runtime image tag. Actual state lives in
   `KuraInstance.status`, owned by the Go controller. This loop closes
   the gap periodically: it schedules image drift, applies pending
   deployments, mirrors observed readiness back into Postgres, and
@@ -138,6 +138,11 @@ defmodule Tuist.Kura.Reconciler do
         # `:running` so the next reconciler tick retries instead of
         # marking the server failed for what's a benign delay.
         Logger.info("[Kura.Reconciler] waiting on DNS for server #{server.id} (#{host}): #{inspect(reason)}")
+
+        :ok
+
+      {:error, {:public_endpoint_not_ready, host, reason}} ->
+        Logger.info("[Kura.Reconciler] waiting on public endpoint for server #{server.id} (#{host}): #{inspect(reason)}")
 
         :ok
 
