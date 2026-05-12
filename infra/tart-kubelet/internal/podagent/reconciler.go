@@ -183,23 +183,42 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	// If a previous reconcile recorded a RunHandle and the
-	// `tart run` process has since exited (e.g. the guest crashed
-	// 30s into a multi-minute boot, well past Run's 5s sanity
-	// window), surface it as a Pod failure right here. Without this
-	// check podStatus would just keep returning Pending on the IP
-	// poll forever and helm --wait would hang for the full
-	// --timeout. Marking the Pod Failed lets the owning ReplicaSet
-	// schedule a replacement Pod with a fresh VM.
+	// `tart run` process has since exited, surface the right
+	// terminal phase here. Two cases:
+	//
+	//   - `exitErr == nil` is the clean-shutdown path:
+	//     dispatch-poll.sh ran a single GitHub Actions job and
+	//     issued `shutdown -h now` in the guest, which propagates
+	//     back as a zero-status `tart run`. That's a successful
+	//     single-shot — PodSucceeded, not Failed. Counting it as
+	//     Failed pollutes the failure telemetry and feeds spurious
+	//     alerts.
+	//   - `exitErr != nil` is the genuine failure path: the guest
+	//     crashed 30s into a multi-minute boot, well past Run's 5s
+	//     sanity window, or `tart run` itself died. PodFailed so
+	//     the owning ReplicaSet schedules a replacement Pod with
+	//     a fresh VM.
+	//
+	// Either way the host-side teardown is the same (delete the
+	// Store entry); only the published Phase differs.
 	if entry := r.Store.Get(pod.Namespace, pod.Name); entry != nil && entry.Run != nil {
 		if exitErr, exited := entry.Run.Exited(); exited {
-			logger.Info("tart run exited; marking pod failed",
-				"vm", entry.VMName, "log", entry.Run.LogPath, "err", exitErr)
 			_ = r.deleteByKey(ctx, pod.Namespace, pod.Name)
-			_ = r.publishStatus(ctx, pod, &corev1.PodStatus{
-				Phase:   corev1.PodFailed,
-				Reason:  "TartRunExited",
-				Message: fmt.Sprintf("tart run exited: %v (see %s)", exitErr, entry.Run.LogPath),
-			})
+
+			status := &corev1.PodStatus{Reason: "TartRunExited"}
+			if exitErr == nil {
+				logger.Info("tart run exited cleanly; marking pod succeeded",
+					"vm", entry.VMName, "log", entry.Run.LogPath)
+				status.Phase = corev1.PodSucceeded
+				status.Message = fmt.Sprintf("tart run exited cleanly (see %s)", entry.Run.LogPath)
+			} else {
+				logger.Info("tart run exited with error; marking pod failed",
+					"vm", entry.VMName, "log", entry.Run.LogPath, "err", exitErr)
+				status.Phase = corev1.PodFailed
+				status.Message = fmt.Sprintf("tart run exited: %v (see %s)", exitErr, entry.Run.LogPath)
+			}
+
+			_ = r.publishStatus(ctx, pod, status)
 			return ctrl.Result{}, nil
 		}
 	}

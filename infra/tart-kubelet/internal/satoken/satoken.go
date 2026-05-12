@@ -16,6 +16,14 @@
 // matching kubelet's automount lifecycle. TTL is short (10 min); the
 // caller is responsible for re-running this on each reconcile if
 // the Pod is long-running.
+//
+// The token is also audience-bound. The dispatch endpoint passes
+// the same audience to its TokenReview, so a default-audience SA
+// token leaked from the guest VM filesystem can't be replayed
+// against the apiserver. See `DispatchAudience` for the value;
+// the server-side constant lives in
+// `Tuist.Kubernetes.Client.runner_dispatch_audience/0` and the
+// two must stay in sync.
 package satoken
 
 import (
@@ -27,6 +35,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 )
+
+// DispatchAudience is the audience claim the token carries.
+// Must match the server-side TokenReview audience expectation
+// (`Tuist.Kubernetes.Client.runner_dispatch_audience/0`).
+const DispatchAudience = "tuist-runners-dispatch"
 
 // Minter mints a token for a Pod's ServiceAccount and returns the
 // raw token bytes.
@@ -43,9 +56,15 @@ type ClientMinter struct {
 	// VM boot and don't rotate (the dispatch poll runs once,
 	// minutes after boot at most), so set this generously.
 	ExpirationSeconds int64
+
+	// Audiences scopes the token to specific consumers. Defaults
+	// to [DispatchAudience] on Mint() if unset. Operator override
+	// is supported (different dispatch endpoint name, future
+	// audiences for non-runner workloads on the same agent).
+	Audiences []string
 }
 
-// Mint produces a bound, audience-default TokenRequest for the SA
+// Mint produces a bound, audience-scoped TokenRequest for the SA
 // the Pod references in spec.ServiceAccountName. Returns
 // (token, nil) on success.
 func (m *ClientMinter) Mint(ctx context.Context, pod *corev1.Pod) (string, error) {
@@ -57,10 +76,21 @@ func (m *ClientMinter) Mint(ctx context.Context, pod *corev1.Pod) (string, error
 	if exp <= 0 {
 		exp = 3600
 	}
+	audiences := m.Audiences
+	if len(audiences) == 0 {
+		audiences = []string{DispatchAudience}
+	}
 
 	req := &authenticationv1.TokenRequest{
 		Spec: authenticationv1.TokenRequestSpec{
 			ExpirationSeconds: &exp,
+			// Audience-bind the token. The apiserver records this
+			// list in the JWT's `aud` claim and a TokenReview from
+			// the dispatch endpoint validates against the same
+			// audience. A token leaked from the guest filesystem
+			// is single-purpose; in particular, it isn't a
+			// default-audience credential for the K8s API server.
+			Audiences: audiences,
 			// Bind the token to this Pod. The apiserver invalidates
 			// the token the moment the Pod is deleted, so a leaked
 			// token can't outlive its issuing VM.
