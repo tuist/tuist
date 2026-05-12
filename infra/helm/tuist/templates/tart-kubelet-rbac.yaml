@@ -24,9 +24,13 @@ rules:
   - apiGroups: [""]
     resources: [nodes, nodes/status]
     verbs: [get, list, watch, create, update, patch]
-  # Watch + status-update Pods scheduled here.
+  # Watch + status-update Pods scheduled here, and force-complete
+  # object deletion after the backing Tart VM has been torn down.
   - apiGroups: [""]
-    resources: [pods, pods/status]
+    resources: [pods]
+    verbs: [get, list, watch, update, patch, delete]
+  - apiGroups: [""]
+    resources: [pods/status]
     verbs: [get, list, watch, update, patch]
   # The pod agent adds a finalizer before starting the Tart VM and
   # removes it only after VM teardown, so stale API Pods cannot

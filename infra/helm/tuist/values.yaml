@@ -12,6 +12,7 @@ kuraController:
   enabled: false
   namespace: kura
   replicaCount: 2
+  tolerations: []
   image:
     repository: ghcr.io/tuist/kura-controller
     tag: ""
