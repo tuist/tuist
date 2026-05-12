@@ -1231,20 +1231,13 @@ defmodule Tuist.Accounts do
     )
   end
 
-  def get_pending_invitation_by_email(invitee_email) do
-    invitation =
-      Repo.one(
-        from(i in Invitation,
-          where: i.invitee_email == ^invitee_email,
-          order_by: [asc: i.created_at],
-          limit: 1
-        )
+  def get_pending_invitations_by_email(invitee_email) do
+    Repo.all(
+      from(i in Invitation,
+        where: i.invitee_email == ^invitee_email,
+        order_by: [desc: i.created_at]
       )
-
-    case invitation do
-      nil -> {:error, :not_found}
-      invitation -> {:ok, invitation}
-    end
+    )
   end
 
   def cancel_invitation(%Invitation{} = invitation) do
