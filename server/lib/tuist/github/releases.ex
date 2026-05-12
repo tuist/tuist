@@ -61,20 +61,6 @@ defmodule Tuist.GitHub.Releases do
     end
   end
 
-  def get_latest_kura_release(opts \\ []) do
-    if Tuist.Environment.dev?() do
-      nil
-    else
-      KeyValueStore.get_or_update(
-        [__MODULE__, "github_latest_kura_release"],
-        [ttl: Keyword.get(opts, :ttl, @ttl)],
-        fn ->
-          fetch_latest_kura_release(opts)
-        end
-      )
-    end
-  end
-
   defp fetch_releases(opts) do
     KeyValueStore.get_or_update(
       [__MODULE__, "github_releases"],
@@ -146,24 +132,6 @@ defmodule Tuist.GitHub.Releases do
     end
   end
 
-  defp fetch_latest_kura_release(opts) do
-    url = Keyword.get(opts, :url, releases_url())
-
-    case release_page(url, opts) do
-      %{releases: releases, next_url: next_url} ->
-        case find_kura_release_from_releases(releases) do
-          nil when next_url != nil ->
-            fetch_latest_kura_release(Keyword.put(opts, :url, next_url))
-
-          result ->
-            result
-        end
-
-      nil ->
-        nil
-    end
-  end
-
   defp release_page(url, opts) do
     KeyValueStore.get_or_update(
       [__MODULE__, "github_releases_page", url],
@@ -203,12 +171,6 @@ defmodule Tuist.GitHub.Releases do
     Enum.find(releases, fn release ->
       String.starts_with?(release.tag_name, "app@") and
         Enum.find(release.assets, &String.ends_with?(&1.browser_download_url, "dmg"))
-    end)
-  end
-
-  defp find_kura_release_from_releases(releases) do
-    Enum.find(releases, fn release ->
-      String.starts_with?(release.tag_name || "", "kura@")
     end)
   end
 
