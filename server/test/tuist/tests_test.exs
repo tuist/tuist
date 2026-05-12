@@ -7116,6 +7116,47 @@ defmodule Tuist.TestsTest do
       # When / Then
       {:ok, _updated} = Tests.update_test_case(test_case.id, %{is_flaky: true})
     end
+
+    test "broadcasts {:test_case_updated, payload} on the test_case topic when state or is_flaky changes" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: false, state: "enabled")
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      :ok = Tuist.PubSub.subscribe(Tests.test_case_topic(test_case.id))
+      test_case_id = test_case.id
+
+      # When
+      {:ok, _updated} = Tests.update_test_case(test_case.id, %{is_flaky: true, state: "muted"})
+
+      # Then
+      assert_receive {:test_case_updated,
+                      %{
+                        id: ^test_case_id,
+                        is_flaky: true,
+                        state: "muted",
+                        event_types: event_types
+                      }},
+                     500
+
+      assert :marked_flaky in event_types
+      assert :muted in event_types
+    end
+
+    test "does not broadcast when neither is_flaky nor state changed" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: false, state: "enabled")
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      :ok = Tuist.PubSub.subscribe(Tests.test_case_topic(test_case.id))
+
+      # When — no-op update (same is_flaky, no state).
+      {:ok, _updated} = Tests.update_test_case(test_case.id, %{is_flaky: false})
+
+      # Then
+      refute_receive {:test_case_updated, _}, 100
+    end
   end
 
   describe "automation flow ↔ TestCase.state ⁄ test_case_events consistency invariant" do

@@ -794,12 +794,39 @@ defmodule Tuist.Tests do
 
       IngestRepo.insert_all(TestCase, [attrs])
 
+      updated_test_case = Map.merge(test_case, filtered_attrs)
+
       event_types = determine_test_case_events(test_case, filtered_attrs)
       record_test_case_events(test_case_id, event_types, actor_id)
       dispatch_event_driven_automations(test_case, event_types, actor_id)
+      broadcast_test_case_update(updated_test_case, event_types)
 
-      {:ok, Map.merge(test_case, filtered_attrs)}
+      {:ok, updated_test_case}
     end
+  end
+
+  @doc """
+  PubSub topic LiveViews can subscribe to for real-time updates on a
+  single test case (state / is_flaky flips). The matching broadcast
+  payload is `{:test_case_updated, %{id: id, is_flaky: bool, state: string, event_types: [atom]}}`.
+  """
+  def test_case_topic(test_case_id), do: "test_case:#{test_case_id}"
+
+  defp broadcast_test_case_update(_test_case, []), do: :ok
+
+  defp broadcast_test_case_update(test_case, event_types) do
+    payload = %{
+      id: test_case.id,
+      is_flaky: test_case.is_flaky,
+      state: test_case.state,
+      event_types: event_types
+    }
+
+    Phoenix.PubSub.broadcast(
+      Tuist.PubSub,
+      test_case_topic(test_case.id),
+      {:test_case_updated, payload}
+    )
   end
 
   defp record_test_case_events(_test_case_id, [], _actor_id), do: :ok
