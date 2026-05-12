@@ -93,7 +93,8 @@ final class ExternalDependencyPathWorkspaceMapperTests: TuistUnitTestCase {
                             ),
                         ]
                     ),
-                    type: .external(hash: nil)
+                    type: .external(hash: nil),
+                    swiftPackageManagerScratchDirectory: externalProjectBasePath
                 ),
             ]
         )
@@ -153,7 +154,8 @@ final class ExternalDependencyPathWorkspaceMapperTests: TuistUnitTestCase {
             sourceRootPath: externalProjectPath,
             xcodeProjPath: externalProjectPath.appending(component: "ExternalDependency.xcodeproj"),
             name: "ExternalDependency",
-            type: .external(hash: nil)
+            type: .external(hash: nil),
+            swiftPackageManagerScratchDirectory: externalProjectBasePath
         )
 
         // When
