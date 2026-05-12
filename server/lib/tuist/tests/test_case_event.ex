@@ -34,14 +34,20 @@ defmodule Tuist.Tests.TestCaseEvent do
     field :test_case_id, Ecto.UUID
     field :event_type, Ch, type: "LowCardinality(String)"
     field :actor_id, Ch, type: "Nullable(Int64)"
+    field :automation_id, Ch, type: "Nullable(UUID)"
     field :inserted_at, Ch, type: "DateTime64(6)"
 
     belongs_to :actor, Tuist.Accounts.Account, foreign_key: :actor_id, define_field: false
+
+    belongs_to :automation, Tuist.Automations.Alerts.Alert,
+      foreign_key: :automation_id,
+      define_field: false,
+      type: UUIDv7
   end
 
   def changeset(event, attrs) do
     event
-    |> cast(attrs, [:id, :test_case_id, :event_type, :actor_id, :inserted_at])
+    |> cast(attrs, [:id, :test_case_id, :event_type, :actor_id, :automation_id, :inserted_at])
     |> validate_required([:id, :test_case_id, :event_type])
   end
 

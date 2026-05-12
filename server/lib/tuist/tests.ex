@@ -783,6 +783,7 @@ defmodule Tuist.Tests do
     valid_keys = [:is_flaky, :state]
     filtered_attrs = Map.take(update_attrs, valid_keys)
     actor_id = Keyword.get(opts, :actor_id)
+    automation_id = Keyword.get(opts, :automation_id)
 
     with {:ok, test_case} <- get_test_case_by_id(test_case_id) do
       attrs =
@@ -797,7 +798,7 @@ defmodule Tuist.Tests do
       updated_test_case = Map.merge(test_case, filtered_attrs)
 
       event_types = determine_test_case_events(test_case, filtered_attrs)
-      record_test_case_events(test_case_id, event_types, actor_id)
+      record_test_case_events(test_case_id, event_types, actor_id, automation_id)
       dispatch_event_driven_automations(test_case, event_types, actor_id)
       broadcast_test_case_update(updated_test_case, event_types)
 
@@ -829,9 +830,9 @@ defmodule Tuist.Tests do
     )
   end
 
-  defp record_test_case_events(_test_case_id, [], _actor_id), do: :ok
+  defp record_test_case_events(_test_case_id, [], _actor_id, _automation_id), do: :ok
 
-  defp record_test_case_events(test_case_id, event_types, actor_id) do
+  defp record_test_case_events(test_case_id, event_types, actor_id, automation_id) do
     now = NaiveDateTime.utc_now()
 
     events =
@@ -841,6 +842,7 @@ defmodule Tuist.Tests do
           test_case_id: test_case_id,
           event_type: to_string(event_type),
           actor_id: actor_id,
+          automation_id: automation_id,
           inserted_at: now
         }
       end)
@@ -892,7 +894,7 @@ defmodule Tuist.Tests do
         for: TestCaseEvent
       )
 
-    events = Repo.preload(events, :actor)
+    events = Repo.preload(events, [:actor, :automation])
     {events, meta}
   end
 
@@ -1581,6 +1583,7 @@ defmodule Tuist.Tests do
             test_case_id: run.test_case_id,
             event_type: "first_run",
             actor_id: nil,
+            automation_id: nil,
             inserted_at: now
           }
         end)

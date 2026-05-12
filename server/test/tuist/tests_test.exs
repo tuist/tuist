@@ -7143,6 +7143,35 @@ defmodule Tuist.TestsTest do
       assert :muted in event_types
     end
 
+    test "records automation_id on the event when :automation_id is passed in opts" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id, state: "enabled")
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      automation =
+        TuistTestSupport.Fixtures.AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          name: "Auto-quarantine"
+        )
+
+      # When — simulate the automation calling update_test_case (no actor, but
+      # carrying automation_id for attribution).
+      {:ok, _updated} =
+        Tests.update_test_case(test_case.id, %{state: "muted"}, automation_id: automation.id)
+
+      # Then
+      {events, _meta} = Tests.list_test_case_events(test_case.id)
+      muted_event = Enum.find(events, &(&1.event_type == "muted"))
+
+      assert muted_event
+      assert muted_event.automation_id == automation.id
+      assert muted_event.actor_id == nil
+
+      # The preloaded automation gives the UI the name to attribute.
+      assert muted_event.automation.name == "Auto-quarantine"
+    end
+
     test "does not broadcast when neither is_flaky nor state changed" do
       # Given
       project = ProjectsFixtures.project_fixture()

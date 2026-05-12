@@ -479,6 +479,9 @@ defmodule TuistWeb.TestCaseLive do
 
   defp format_event_subtitle(%{event_type: "first_run"}), do: nil
 
+  defp format_event_subtitle(%{automation: %{name: name}}),
+    do: dgettext("dashboard_tests", "By automation %{name}", name: name)
+
   defp format_event_subtitle(%{actor: nil}), do: dgettext("dashboard_tests", "Automatically by Tuist")
 
   defp format_event_subtitle(%{actor: actor}), do: dgettext("dashboard_tests", "Manually by @%{name}", name: actor.name)
