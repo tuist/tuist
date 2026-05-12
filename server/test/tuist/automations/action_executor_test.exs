@@ -17,7 +17,11 @@ defmodule Tuist.Automations.ActionExecutorTest do
     test_case
   end
 
-  defp automation, do: %{name: "Auto", project_id: 1}
+  # Synthetic alert stand-in. `apply_merged_attrs/3` reads `automation.id`
+  # to stamp the resulting test_case_event with `automation_id`, so a real
+  # UUID is required even though we don't preload the alert in these
+  # tests.
+  defp automation, do: %{id: UUIDv7.generate(), name: "Auto", project_id: 1}
 
   defp event_types(test_case_id) do
     {events, _meta} = Tests.list_test_case_events(test_case_id)
