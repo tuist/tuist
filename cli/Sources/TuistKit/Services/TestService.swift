@@ -579,7 +579,10 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 )
                 try await fileSystem.writeAsJSON(selectiveTestingGraph, at: selectiveTestingGraphPath)
 
-                try await writeRunMetadata(at: testProductsPath)
+                await RunMetadataStorage.current.writeMetadata(
+                    to: testProductsPath,
+                    fileSystem: fileSystem
+                )
 
                 if isSharding,
                    let fullHandle = config.fullHandle
@@ -668,7 +671,10 @@ public struct TestService { // swiftlint:disable:this type_body_length
             )
         }
 
-        await restoreRunMetadataIfPresent(at: shard.testProductsPath)
+        await RunMetadataStorage.current.restoreMetadata(
+            from: shard.testProductsPath,
+            fileSystem: fileSystem
+        )
 
         var shardPassthroughArguments = passthroughXcodeBuildArguments
         if let xcTestRunPath = shard.xcTestRunPath {
@@ -767,7 +773,10 @@ public struct TestService { // swiftlint:disable:this type_body_length
             at: selectiveTestingGraphPath
         )
 
-        await restoreRunMetadataIfPresent(at: testProductsPath)
+        await RunMetadataStorage.current.restoreMetadata(
+            from: testProductsPath,
+            fileSystem: fileSystem
+        )
 
         let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
 
@@ -862,49 +871,6 @@ public struct TestService { // swiftlint:disable:this type_body_length
         }
 
         AlertController.current.success(.alert("The project tests ran successfully"))
-    }
-
-    private func writeRunMetadata(at testProductsPath: AbsolutePath) async throws {
-        let storage = RunMetadataStorage.current
-        let runMetadata = await RunMetadata(
-            graph: storage.graph,
-            binaryCacheItems: storage.binaryCacheItems,
-            selectiveTestingCacheItems: storage.selectiveTestingCacheItems,
-            targetContentHashSubhashes: storage.targetContentHashSubhashes,
-            buildRunId: storage.buildRunId
-        )
-        let runMetadataPath = testProductsPath.appending(component: RunMetadata.fileName)
-        do {
-            try await fileSystem.writeAsJSON(runMetadata, at: runMetadataPath)
-        } catch {
-            Logger.current.warning("Failed to persist run metadata: \(error.localizedDescription)")
-        }
-    }
-
-    private func restoreRunMetadataIfPresent(at testProductsPath: AbsolutePath) async {
-        let runMetadataPath = testProductsPath.appending(component: RunMetadata.fileName)
-        guard (try? await fileSystem.exists(runMetadataPath)) == true else { return }
-        do {
-            let runMetadata: RunMetadata = try await fileSystem.readJSONFile(at: runMetadataPath)
-            let storage = RunMetadataStorage.current
-            if let graph = runMetadata.graph {
-                await storage.update(graph: graph)
-            }
-            if !runMetadata.binaryCacheItems.isEmpty {
-                await storage.update(binaryCacheItems: runMetadata.binaryCacheItems)
-            }
-            if !runMetadata.selectiveTestingCacheItems.isEmpty {
-                await storage.update(selectiveTestingCacheItems: runMetadata.selectiveTestingCacheItems)
-            }
-            if !runMetadata.targetContentHashSubhashes.isEmpty {
-                await storage.update(targetContentHashSubhashes: runMetadata.targetContentHashSubhashes)
-            }
-            if let buildRunId = runMetadata.buildRunId {
-                await storage.update(buildRunId: buildRunId)
-            }
-        } catch {
-            Logger.current.warning("Failed to restore run metadata: \(error.localizedDescription)")
-        }
     }
 
     private func removeOption(_ option: String, from arguments: [String]) -> [String] {
