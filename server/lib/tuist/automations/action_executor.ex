@@ -50,7 +50,7 @@ defmodule Tuist.Automations.ActionExecutor do
   defp apply_merged_attrs(_entity, attrs, _automation) when map_size(attrs) == 0, do: :ok
 
   defp apply_merged_attrs(%{type: :test_case, id: id} = entity, attrs, automation) do
-    case Tests.update_test_case(id, attrs, automation_id: automation.id) do
+    case Tests.update_test_case(id, attrs, alert_id: automation.id) do
       {:ok, _} ->
         :ok
 

@@ -783,7 +783,7 @@ defmodule Tuist.Tests do
     valid_keys = [:is_flaky, :state]
     filtered_attrs = Map.take(update_attrs, valid_keys)
     actor_id = Keyword.get(opts, :actor_id)
-    automation_id = Keyword.get(opts, :automation_id)
+    alert_id = Keyword.get(opts, :alert_id)
 
     with {:ok, test_case} <- get_test_case_by_id(test_case_id) do
       attrs =
@@ -798,7 +798,7 @@ defmodule Tuist.Tests do
       updated_test_case = Map.merge(test_case, filtered_attrs)
 
       event_types = determine_test_case_events(test_case, filtered_attrs)
-      record_test_case_events(test_case_id, event_types, actor_id, automation_id)
+      record_test_case_events(test_case_id, event_types, actor_id, alert_id)
       # Broadcast THIS call's update before fanning out to event-driven
       # automations. An automation action (e.g. change_state) re-enters
       # `update_test_case/3`, which will broadcast its own update; we want
@@ -835,9 +835,9 @@ defmodule Tuist.Tests do
     )
   end
 
-  defp record_test_case_events(_test_case_id, [], _actor_id, _automation_id), do: :ok
+  defp record_test_case_events(_test_case_id, [], _actor_id, _alert_id), do: :ok
 
-  defp record_test_case_events(test_case_id, event_types, actor_id, automation_id) do
+  defp record_test_case_events(test_case_id, event_types, actor_id, alert_id) do
     now = NaiveDateTime.utc_now()
 
     events =
@@ -847,7 +847,7 @@ defmodule Tuist.Tests do
           test_case_id: test_case_id,
           event_type: to_string(event_type),
           actor_id: actor_id,
-          automation_id: automation_id,
+          alert_id: alert_id,
           inserted_at: now
         }
       end)
@@ -905,7 +905,7 @@ defmodule Tuist.Tests do
         for: TestCaseEvent
       )
 
-    events = Repo.preload(events, [:actor, :automation])
+    events = Repo.preload(events, [:actor, :alert])
     {events, meta}
   end
 
@@ -1594,7 +1594,7 @@ defmodule Tuist.Tests do
             test_case_id: run.test_case_id,
             event_type: "first_run",
             actor_id: nil,
-            automation_id: nil,
+            alert_id: nil,
             inserted_at: now
           }
         end)
