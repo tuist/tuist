@@ -122,11 +122,18 @@ fi
 log "Step 4/4: probe SSH transport, then run on-host prep"
 
 SSH_OPTS=(
+  -T
   -o StrictHostKeyChecking=accept-new
   -o UserKnownHostsFile=/dev/null
   -o LogLevel=ERROR
   -o ConnectTimeout=8
 )
+# `-T` disables pseudo-TTY allocation. We feed the remote
+# `bash -s` body via a heredoc on stdin, so a TTY would
+# fight with the heredoc and surface as
+# `Failed to get a pseudo terminal: Device not configured`
+# (especially under sshpass, which doesn't have a controlling
+# terminal of its own to forward).
 
 # If the fleet key is already on the host we can use it directly —
 # common case once the operator has registered the key at the
