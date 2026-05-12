@@ -114,6 +114,16 @@ extension Tuist {
         /// own `Package.swift` manifest, matching SPM's behavior.
         public var defaultSwiftVersion: String
 
+        /// Names of process environment variables that Tuist forwards to manifest evaluation
+        /// in addition to the default set (`TUIST_*`, `CI`, and `DEVELOPER_DIR`).
+        ///
+        /// Each entry is either a literal name (e.g. `OPENSWIFTUI_LIBRARY_TYPE`) or a name
+        /// ending in `*` for prefix matching (e.g. `OPENSWIFTUI_*`).
+        ///
+        /// Listed variables also participate in the manifest cache hash, so changes invalidate
+        /// the cache as expected.
+        public var manifestEnvironment: [String]
+
         public static func options(
             disablePackageVersionLocking: Bool = false,
             staticSideEffectsWarningTargets: StaticSideEffectsWarningTargets = .all,
@@ -127,7 +137,8 @@ extension Tuist {
             registryEnabled: Bool = false,
             additionalPackageResolutionArguments: [String] = [],
             warningsAsErrors: WarningsAsErrors = .none,
-            defaultSwiftVersion: String = "5"
+            defaultSwiftVersion: String = "5",
+            manifestEnvironment: [String] = []
         ) -> Self {
             self.init(
                 resolveDependenciesWithSystemScm: false,
@@ -145,7 +156,8 @@ extension Tuist {
                 enableCaching: enableCaching,
                 registryEnabled: registryEnabled,
                 warningsAsErrors: warningsAsErrors,
-                defaultSwiftVersion: defaultSwiftVersion
+                defaultSwiftVersion: defaultSwiftVersion,
+                manifestEnvironment: manifestEnvironment
             )
         }
 
@@ -184,7 +196,8 @@ extension Tuist {
                 enableCaching: enableCaching,
                 registryEnabled: false,
                 warningsAsErrors: .none,
-                defaultSwiftVersion: "5"
+                defaultSwiftVersion: "5",
+                manifestEnvironment: []
             )
         }
 
@@ -218,7 +231,8 @@ extension Tuist {
                 enableCaching: false,
                 registryEnabled: false,
                 warningsAsErrors: .none,
-                defaultSwiftVersion: "5"
+                defaultSwiftVersion: "5",
+                manifestEnvironment: []
             )
         }
     }

@@ -39,12 +39,12 @@ msgstr "GitHub 저장소를 프로젝트에 연결하세요"
 #: lib/tuist_web/live/integrations_live.ex:201
 #, elixir-autogen, elixir-format
 msgid "Connected %{time_ago}"
-msgstr "%{time_ago} 전에 연결함"
+msgstr "연결됨 %{time_ago}"
 
 #: lib/tuist_web/live/integrations_live.ex:203
 #, elixir-autogen, elixir-format
 msgid "Connected %{time_ago} by %{name}"
-msgstr "%{name}가 %{time_ago} 전에 연결함"
+msgstr "%{name}님이 %{time_ago}에 연결함"
 
 #: lib/tuist_web/live/integrations_live.html.heex:160
 #, elixir-autogen, elixir-format
@@ -80,7 +80,7 @@ msgstr "통합 관리"
 #: lib/tuist_web/live/integrations_live.html.heex:202
 #, elixir-autogen, elixir-format
 msgid "Remove connection"
-msgstr "연결 해제"
+msgstr "연결 제거"
 
 #: lib/tuist_web/live/integrations_live.ex:17
 #, elixir-autogen, elixir-format
@@ -90,7 +90,7 @@ msgstr "이 작업을 수행할 권한이 없습니다."
 #: lib/tuist_web/live/integrations_live.html.heex:78
 #, elixir-autogen, elixir-format
 msgid "Your access to repositories depends on your GitHub and Tuist integration setup."
-msgstr "저장소 접근 권한은 GitHub 및 Tuist 통합 설정에 따라 달라집니다."
+msgstr "저장소 접근 권한은 GitHub와 Tuist 통합 설정에 따라 달라집니다."
 
 #: lib/tuist_web/live/integrations_live.html.heex:230
 #, elixir-autogen, elixir-format
@@ -100,12 +100,12 @@ msgstr "Slack 연결"
 #: lib/tuist_web/live/integrations_live.html.heex:220
 #, elixir-autogen, elixir-format
 msgid "Connect Slack to receive project analytics reports"
-msgstr "프로젝트 분석 보고서를 받으려면 Slack을 연결하세요"
+msgstr "Slack을 연결하여 프로젝트 분석 보고서를 받아보세요"
 
 #: lib/tuist_web/live/integrations_live.html.heex:237
 #, elixir-autogen, elixir-format
 msgid "Disconnect from %{team_name}"
-msgstr "%{team_name}에서 연결 해제"
+msgstr "%{team_name} 연결 해제"
 
 #: lib/tuist_web/live/integrations_live.html.heex:217
 #, elixir-autogen, elixir-format

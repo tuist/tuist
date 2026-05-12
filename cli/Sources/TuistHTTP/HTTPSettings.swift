@@ -1,6 +1,6 @@
 import Foundation
 
-public struct HTTPSettings: Sendable {
+public struct HTTPSettings: Equatable, Sendable {
     public var useEnvironmentProxy: Bool
 
     private static let lock = NSLock()
@@ -18,9 +18,12 @@ public struct HTTPSettings: Sendable {
         }
         set {
             lock.lock()
+            let didChange = storedCurrent != newValue
             storedCurrent = newValue
             lock.unlock()
-            invalidateSharedTuistURLSession()
+            if didChange {
+                invalidateSharedTuistURLSession()
+            }
         }
     }
 }

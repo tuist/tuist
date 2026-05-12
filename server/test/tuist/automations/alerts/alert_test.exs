@@ -10,7 +10,7 @@ defmodule Tuist.Automations.Alerts.AlertTest do
         "project_id" => project.id,
         "name" => "Auto-quarantine flaky tests",
         "monitor_type" => "flakiness_rate",
-        "trigger_config" => %{"threshold" => 10, "window" => "30d"},
+        "trigger_config" => %{"threshold" => 10, "window_type" => "last_days", "window" => "30d"},
         "trigger_actions" => [%{"type" => "change_state", "state" => "muted"}]
       },
       overrides
@@ -49,7 +49,7 @@ defmodule Tuist.Automations.Alerts.AlertTest do
           %Alert{},
           valid_attrs(project, %{
             "monitor_type" => "flaky_run_count",
-            "trigger_config" => %{"threshold" => 3, "window" => "30d"}
+            "trigger_config" => %{"threshold" => 3, "window_type" => "last_days", "window" => "30d"}
           })
         )
 
@@ -64,7 +64,7 @@ defmodule Tuist.Automations.Alerts.AlertTest do
           %Alert{},
           valid_attrs(project, %{
             "monitor_type" => "flaky_run_count",
-            "trigger_config" => %{"threshold" => 1, "window" => "30d", "comparison" => "lt"},
+            "trigger_config" => %{"threshold" => 1, "window_type" => "last_days", "window" => "30d", "comparison" => "lt"},
             "trigger_actions" => [%{"type" => "remove_label", "label" => "flaky"}]
           })
         )
@@ -80,7 +80,12 @@ defmodule Tuist.Automations.Alerts.AlertTest do
           %Alert{},
           valid_attrs(project, %{
             "monitor_type" => "flakiness_rate",
-            "trigger_config" => %{"threshold" => 5, "window" => "30d", "comparison" => "lte"},
+            "trigger_config" => %{
+              "threshold" => 5,
+              "window_type" => "last_days",
+              "window" => "30d",
+              "comparison" => "lte"
+            },
             "trigger_actions" => [%{"type" => "remove_label", "label" => "flaky"}]
           })
         )
@@ -95,7 +100,12 @@ defmodule Tuist.Automations.Alerts.AlertTest do
         Alert.changeset(
           %Alert{},
           valid_attrs(project, %{
-            "trigger_config" => %{"threshold" => 5, "window" => "30d", "comparison" => "bogus"}
+            "trigger_config" => %{
+              "threshold" => 5,
+              "window_type" => "last_days",
+              "window" => "30d",
+              "comparison" => "bogus"
+            }
           })
         )
 
@@ -109,7 +119,9 @@ defmodule Tuist.Automations.Alerts.AlertTest do
       changeset =
         Alert.changeset(
           %Alert{},
-          valid_attrs(project, %{"trigger_config" => %{"threshold" => 200, "window" => "30d"}})
+          valid_attrs(project, %{
+            "trigger_config" => %{"threshold" => 200, "window_type" => "last_days", "window" => "30d"}
+          })
         )
 
       refute changeset.valid?
@@ -123,6 +135,96 @@ defmodule Tuist.Automations.Alerts.AlertTest do
         Alert.changeset(
           %Alert{},
           valid_attrs(project, %{"trigger_config" => %{"threshold" => 10}})
+        )
+
+      refute changeset.valid?
+      assert errors_on(changeset).trigger_config
+    end
+
+    test "accepts a flakiness_rate alert with rolling window_type" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "trigger_config" => %{
+              "threshold" => 10,
+              "window_type" => "rolling",
+              "rolling_window_size" => 100
+            }
+          })
+        )
+
+      assert changeset.valid?
+    end
+
+    test "accepts a flaky_run_count alert with rolling window_type" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "monitor_type" => "flaky_run_count",
+            "trigger_config" => %{
+              "threshold" => 3,
+              "window_type" => "rolling",
+              "rolling_window_size" => 50
+            }
+          })
+        )
+
+      assert changeset.valid?
+    end
+
+    test "rejects rolling window_type without rolling_window_size" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "trigger_config" => %{"threshold" => 10, "window_type" => "rolling"}
+          })
+        )
+
+      refute changeset.valid?
+      assert errors_on(changeset).trigger_config
+    end
+
+    test "rejects rolling window_type with rolling_window_size above the cap" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "trigger_config" => %{
+              "threshold" => 10,
+              "window_type" => "rolling",
+              "rolling_window_size" => 1_000_000
+            }
+          })
+        )
+
+      refute changeset.valid?
+      assert errors_on(changeset).trigger_config
+    end
+
+    test "rejects rolling window_type with non-positive rolling_window_size" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "trigger_config" => %{
+              "threshold" => 10,
+              "window_type" => "rolling",
+              "rolling_window_size" => 0
+            }
+          })
         )
 
       refute changeset.valid?
@@ -194,6 +296,122 @@ defmodule Tuist.Automations.Alerts.AlertTest do
 
       refute changeset.valid?
       assert errors_on(changeset).trigger_config
+    end
+
+    test "rejects unknown window_type" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "trigger_config" => %{
+              "threshold" => 10,
+              "window_type" => "weekly",
+              "window" => "30d"
+            }
+          })
+        )
+
+      refute changeset.valid?
+      assert errors_on(changeset).trigger_config
+    end
+
+    test "rejects trigger_config without an explicit window_type" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "trigger_config" => %{"threshold" => 10, "window" => "30d"}
+          })
+        )
+
+      refute changeset.valid?
+      assert errors_on(changeset).trigger_config
+    end
+
+    test "rejects rolling recovery_config with non-positive rolling_window_size" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "recovery_enabled" => true,
+            "recovery_config" => %{"window_type" => "rolling", "rolling_window_size" => 0},
+            "recovery_actions" => [%{"type" => "remove_label", "label" => "flaky"}]
+          })
+        )
+
+      refute changeset.valid?
+      assert errors_on(changeset).recovery_config
+    end
+
+    test "rejects rolling recovery_config without rolling_window_size" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "recovery_enabled" => true,
+            "recovery_config" => %{"window_type" => "rolling"},
+            "recovery_actions" => [%{"type" => "remove_label", "label" => "flaky"}]
+          })
+        )
+
+      refute changeset.valid?
+      assert errors_on(changeset).recovery_config
+    end
+
+    test "rejects last_days recovery_config without a window string" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "recovery_enabled" => true,
+            "recovery_config" => %{"window_type" => "last_days"},
+            "recovery_actions" => [%{"type" => "remove_label", "label" => "flaky"}]
+          })
+        )
+
+      refute changeset.valid?
+      assert errors_on(changeset).recovery_config
+    end
+
+    test "accepts rolling recovery_config with a positive rolling_window_size" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "recovery_enabled" => true,
+            "recovery_config" => %{"window_type" => "rolling", "rolling_window_size" => 50},
+            "recovery_actions" => [%{"type" => "remove_label", "label" => "flaky"}]
+          })
+        )
+
+      assert changeset.valid?
+    end
+
+    test "skips recovery validation when recovery is disabled" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "recovery_enabled" => false,
+            "recovery_config" => %{"window_type" => "rolling", "rolling_window_size" => 0}
+          })
+        )
+
+      assert changeset.valid?
     end
   end
 
@@ -294,7 +512,7 @@ defmodule Tuist.Automations.Alerts.AlertTest do
           valid_attrs(project, %{
             "trigger_actions" => [%{"type" => "add_label", "label" => "flaky"}],
             "recovery_enabled" => true,
-            "recovery_config" => %{"window" => "14d"},
+            "recovery_config" => %{"window_type" => "last_days", "window" => "14d"},
             "recovery_actions" => [%{"type" => "remove_label", "label" => "flaky"}]
           })
         )

@@ -152,4 +152,62 @@ struct EnvironmentTests {
         // Then
         #expect(result.pathString == "\(tuistPath)/tuist")
     }
+
+    // MARK: - manifestLoadingVariables
+
+    @Test() func manifestLoadingVariables_includesDefaults() throws {
+        let subject = Environment(variables: [
+            "TUIST_FOO": "1",
+            "CI": "true",
+            "DEVELOPER_DIR": "/some/xcode",
+            "OPENSWIFTUI_LIBRARY_TYPE": "dynamic",
+            "OTHER": "ignored",
+        ])
+
+        let result = subject.manifestLoadingVariables
+
+        #expect(result["TUIST_FOO"] == "1")
+        #expect(result["CI"] == "true")
+        #expect(result["DEVELOPER_DIR"] == "/some/xcode")
+        #expect(result["OPENSWIFTUI_LIBRARY_TYPE"] == nil)
+        #expect(result["OTHER"] == nil)
+    }
+
+    @Test() func manifestLoadingVariables_includesAdditionalKeysExactMatch() async throws {
+        let subject = Environment(variables: [
+            "TUIST_FOO": "1",
+            "OPENSWIFTUI_LIBRARY_TYPE": "dynamic",
+            "OPENSWIFTUI_USE_LOCAL_DEPS": "1",
+            "OTHER": "ignored",
+        ])
+
+        let result = await Environment.$additionalManifestEnvironmentKeys
+            .withValue(["OPENSWIFTUI_LIBRARY_TYPE"]) {
+                subject.manifestLoadingVariables
+            }
+
+        #expect(result["TUIST_FOO"] == "1")
+        #expect(result["OPENSWIFTUI_LIBRARY_TYPE"] == "dynamic")
+        #expect(result["OPENSWIFTUI_USE_LOCAL_DEPS"] == nil)
+        #expect(result["OTHER"] == nil)
+    }
+
+    @Test() func manifestLoadingVariables_includesAdditionalKeysPrefixMatch() async throws {
+        let subject = Environment(variables: [
+            "OPENSWIFTUI_LIBRARY_TYPE": "dynamic",
+            "OPENSWIFTUI_USE_LOCAL_DEPS": "1",
+            "OPENSWIFTUI": "ignored",
+            "OTHER": "ignored",
+        ])
+
+        let result = await Environment.$additionalManifestEnvironmentKeys
+            .withValue(["OPENSWIFTUI_*"]) {
+                subject.manifestLoadingVariables
+            }
+
+        #expect(result["OPENSWIFTUI_LIBRARY_TYPE"] == "dynamic")
+        #expect(result["OPENSWIFTUI_USE_LOCAL_DEPS"] == "1")
+        #expect(result["OPENSWIFTUI"] == nil)
+        #expect(result["OTHER"] == nil)
+    }
 }

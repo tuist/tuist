@@ -9,7 +9,7 @@ msgstr ""
 #: lib/tuist_web/components/chart_type_toggle.ex:39
 #, elixir-autogen, elixir-format
 msgid "Group by:"
-msgstr "分類："
+msgstr "分組方式："
 
 #: lib/tuist_web/components/chart_type_toggle.ex:53
 #, elixir-autogen, elixir-format

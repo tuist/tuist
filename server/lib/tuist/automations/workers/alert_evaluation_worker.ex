@@ -2,9 +2,13 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
   @moduledoc false
   use Oban.Worker, max_attempts: 3, queue: :default
 
+  import Ecto.Query
+
   alias Tuist.Automations
   alias Tuist.Automations.ActionExecutor
   alias Tuist.Automations.Monitors.FlakyTestsMonitor
+  alias Tuist.ClickHouseRepo
+  alias Tuist.Tests.TestCaseRun
 
   require Logger
 
@@ -86,17 +90,15 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
   defp handle_recovery(alert, currently_triggered_ids, active_events, all_ids) do
     currently_triggered_set = MapSet.new(currently_triggered_ids)
     all_ids_set = MapSet.new(all_ids)
-
     recovery_config = alert.recovery_config || %{}
-    seconds = parse_window(recovery_config["window"] || "#{recovery_config["days_without_trigger"] || 14}d")
-    cutoff = NaiveDateTime.add(NaiveDateTime.utc_now(), -seconds, :second)
 
-    recovered =
+    candidates =
       Enum.filter(active_events, fn event ->
         MapSet.member?(all_ids_set, event.test_case_id) and
-          not MapSet.member?(currently_triggered_set, event.test_case_id) and
-          NaiveDateTime.before?(event.triggered_at, cutoff)
+          not MapSet.member?(currently_triggered_set, event.test_case_id)
       end)
+
+    recovered = filter_recovered_candidates(alert, candidates, recovery_config)
 
     Enum.each(recovered, fn event ->
       entity = %{type: :test_case, id: event.test_case_id}
@@ -124,6 +126,76 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
       end
     end)
   end
+
+  # In `last_days` mode the recovery cooldown is "wait this long without a
+  # re-trigger." In `rolling` mode it's "wait for at least this many new runs
+  # of the test case without a re-trigger" — measured against the test_case's
+  # own run cadence rather than wall-clock time, which matches what the user
+  # picks in the trigger window.
+  defp filter_recovered_candidates(_alert, [], _recovery_config), do: []
+
+  defp filter_recovered_candidates(alert, candidates, %{"window_type" => "rolling"} = recovery_config) do
+    size = parse_rolling_size(recovery_config["rolling_window_size"])
+    counts = batch_runs_since_trigger(alert.project_id, candidates)
+
+    Enum.filter(candidates, fn event ->
+      Map.get(counts, event.test_case_id, 0) >= size
+    end)
+  end
+
+  defp filter_recovered_candidates(_alert, candidates, recovery_config) do
+    seconds = parse_window(recovery_config["window"] || "14d")
+    cutoff = NaiveDateTime.add(NaiveDateTime.utc_now(), -seconds, :second)
+
+    Enum.filter(candidates, fn event ->
+      NaiveDateTime.before?(event.triggered_at, cutoff)
+    end)
+  end
+
+  # Each candidate has its own `triggered_at` cutoff, so we can't push the
+  # per-candidate filter cleanly into a single SQL `GROUP BY` without a
+  # cross-join. Instead, one query pulls every run for the candidate test
+  # cases above the global minimum `triggered_at`, and the per-candidate
+  # cutoff is applied in Elixir. That trades a small over-fetch (rows
+  # between `min(triggered_at)` and each candidate's own `triggered_at`)
+  # for one round-trip instead of one-per-candidate.
+  #
+  # We don't use `FINAL` here for the same reason as in the rolling-window
+  # monitor: `test_case_runs` is a ReplacingMergeTree on a hot table where
+  # `is_flaky` updates re-insert rows, and `FINAL` multiplies the read by
+  # the duplicate factor. A re-inserted run can shift the recovery count by
+  # at most one, which is well within the threshold's natural slop.
+  defp batch_runs_since_trigger(_project_id, []), do: %{}
+
+  defp batch_runs_since_trigger(project_id, candidates) do
+    test_case_ids = Enum.map(candidates, & &1.test_case_id)
+    trigger_by_id = Map.new(candidates, &{&1.test_case_id, &1.triggered_at})
+    min_triggered_at = candidates |> Enum.map(& &1.triggered_at) |> Enum.min(NaiveDateTime)
+
+    from(r in TestCaseRun,
+      where: r.project_id == ^project_id,
+      where: r.test_case_id in ^test_case_ids,
+      where: r.ran_at > ^min_triggered_at,
+      select: {r.test_case_id, r.ran_at}
+    )
+    |> ClickHouseRepo.all()
+    |> Enum.reduce(%{}, fn {test_case_id, ran_at}, acc ->
+      case Map.get(trigger_by_id, test_case_id) do
+        nil ->
+          acc
+
+        triggered_at ->
+          if NaiveDateTime.after?(ran_at, triggered_at) do
+            Map.update(acc, test_case_id, 1, &(&1 + 1))
+          else
+            acc
+          end
+      end
+    end)
+  end
+
+  defp parse_rolling_size(size) when is_integer(size) and size > 0, do: size
+  defp parse_rolling_size(_), do: 100
 
   defp parse_window(window) when is_binary(window) do
     case Integer.parse(window) do

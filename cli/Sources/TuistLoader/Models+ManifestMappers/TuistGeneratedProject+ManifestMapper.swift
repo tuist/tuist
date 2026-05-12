@@ -40,7 +40,8 @@ extension TuistConfig.TuistGeneratedProjectOptions.GenerationOptions {
             registryEnabled: manifest.registryEnabled,
             warningsAsErrors: TuistConfig.TuistGeneratedProjectOptions.GenerationOptions.WarningsAsErrors
                 .from(manifest: manifest.warningsAsErrors),
-            defaultSwiftVersion: manifest.defaultSwiftVersion
+            defaultSwiftVersion: manifest.defaultSwiftVersion,
+            manifestEnvironment: manifest.manifestEnvironment
         )
     }
 }

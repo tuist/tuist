@@ -1231,6 +1231,15 @@ defmodule Tuist.Accounts do
     )
   end
 
+  def get_pending_invitations_by_email(invitee_email) do
+    Repo.all(
+      from(i in Invitation,
+        where: i.invitee_email == ^invitee_email,
+        order_by: [desc: i.created_at]
+      )
+    )
+  end
+
   def cancel_invitation(%Invitation{} = invitation) do
     {:ok, _} = Repo.delete(invitation)
     :ok

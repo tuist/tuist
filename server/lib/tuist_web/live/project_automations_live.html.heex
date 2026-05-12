@@ -98,7 +98,7 @@
                   </span>
                 </div>
                 <div data-part="form-row-inline">
-                  <div data-part="form-row" data-size="dropdown">
+                  <div data-part="form-row" data-size="dropdown-narrow">
                     <label data-part="label">
                       {dgettext("dashboard_projects", "When")}
                     </label>
@@ -199,10 +199,40 @@
                   <div
                     :if={not event_driven_monitor_type?(@create_automation_form_metric)}
                     data-part="form-row"
+                    data-size="dropdown-narrow"
+                  >
+                    <label data-part="label">
+                      {dgettext("dashboard_projects", "Over")}
+                    </label>
+                    <.dropdown
+                      id="create-automation-window-type-dropdown"
+                      label={window_type_label(@create_automation_form_window_type)}
+                    >
+                      <.dropdown_item
+                        value="last_days"
+                        label={dgettext("dashboard_projects", "Last days")}
+                        on_click="update_create_automation_form_window_type"
+                        data-selected={@create_automation_form_window_type == "last_days"}
+                      >
+                        <:right_icon><.check /></:right_icon>
+                      </.dropdown_item>
+                      <.dropdown_item
+                        value="rolling"
+                        label={dgettext("dashboard_projects", "Rolling window")}
+                        on_click="update_create_automation_form_window_type"
+                        data-selected={@create_automation_form_window_type == "rolling"}
+                      >
+                        <:right_icon><.check /></:right_icon>
+                      </.dropdown_item>
+                    </.dropdown>
+                  </div>
+                  <div
+                    :if={@create_automation_form_window_type == "last_days"}
+                    data-part="form-row"
                     data-size="compact"
                   >
                     <label data-part="label">
-                      {dgettext("dashboard_projects", "Over the last")}
+                      {dgettext("dashboard_projects", "Window")}
                     </label>
                     <.text_input
                       type="basic"
@@ -211,6 +241,33 @@
                       value={@create_automation_form_window}
                       placeholder="30d"
                       phx-keyup="update_create_automation_form_window"
+                      phx-debounce="300"
+                    />
+                  </div>
+                  <div
+                    :if={@create_automation_form_window_type == "rolling"}
+                    data-part="form-row"
+                    data-size="compact"
+                  >
+                    <label data-part="label">
+                      {dgettext("dashboard_projects", "Last N runs")}
+                    </label>
+                    <.text_input
+                      type="basic"
+                      input_type="number"
+                      id="create-automation-rolling-window-size"
+                      name="rolling_window_size"
+                      value={@create_automation_form_rolling_window_size}
+                      placeholder="100"
+                      min={1}
+                      max={Tuist.Automations.Alerts.Alert.max_rolling_window_size()}
+                      error={
+                        rolling_size_error(
+                          @create_automation_form_window_type,
+                          @create_automation_form_rolling_window_size
+                        )
+                      }
+                      phx-keyup="update_create_automation_form_rolling_window_size"
                       phx-debounce="300"
                     />
                   </div>
@@ -242,7 +299,7 @@
               <.line_divider />
 
               <div data-part="form-section">
-                <div data-part="form-section-header" data-inline>
+                <div data-part="form-section-header" data-with-action>
                   <div data-part="form-section-header-titles">
                     <span data-part="title">
                       {dgettext("dashboard_projects", "Action")}
@@ -254,63 +311,61 @@
                       )}
                     </span>
                   </div>
-                  <div data-part="form-section-header-action">
-                    <.dropdown
-                      id="create-automation-trigger-action-add-dropdown"
-                      label={dgettext("dashboard_projects", "Add action")}
-                    >
-                      <.dropdown_item
-                        :if={
-                          not has_action_type?(
-                            @create_automation_form_trigger_actions,
-                            "change_state"
-                          )
-                        }
-                        value="change_state"
-                        label={dgettext("dashboard_projects", "Change state")}
-                        on_click="add_create_automation_form_trigger_action"
-                      />
-                      <.dropdown_item
-                        :if={
-                          not has_label_action?(
-                            @create_automation_form_trigger_actions,
-                            "add_label",
-                            "flaky"
-                          ) and
-                            not has_label_action?(
-                              @create_automation_form_trigger_actions,
-                              "remove_label",
-                              "flaky"
-                            )
-                        }
-                        value="add_label_flaky"
-                        label={dgettext("dashboard_projects", "Mark as flaky")}
-                        on_click="add_create_automation_form_trigger_action"
-                      />
-                      <.dropdown_item
-                        :if={
+                  <.dropdown
+                    id="create-automation-trigger-action-add-dropdown"
+                    label={dgettext("dashboard_projects", "Add action")}
+                  >
+                    <.dropdown_item
+                      :if={
+                        not has_action_type?(
+                          @create_automation_form_trigger_actions,
+                          "change_state"
+                        )
+                      }
+                      value="change_state"
+                      label={dgettext("dashboard_projects", "Change state")}
+                      on_click="add_create_automation_form_trigger_action"
+                    />
+                    <.dropdown_item
+                      :if={
+                        not has_label_action?(
+                          @create_automation_form_trigger_actions,
+                          "add_label",
+                          "flaky"
+                        ) and
                           not has_label_action?(
                             @create_automation_form_trigger_actions,
                             "remove_label",
                             "flaky"
-                          ) and
-                            not has_label_action?(
-                              @create_automation_form_trigger_actions,
-                              "add_label",
-                              "flaky"
-                            )
-                        }
-                        value="remove_label_flaky"
-                        label={dgettext("dashboard_projects", "Unmark as flaky")}
-                        on_click="add_create_automation_form_trigger_action"
-                      />
-                      <.dropdown_item
-                        value="send_slack"
-                        label={dgettext("dashboard_projects", "Send Slack notification")}
-                        on_click="add_create_automation_form_trigger_action"
-                      />
-                    </.dropdown>
-                  </div>
+                          )
+                      }
+                      value="add_label_flaky"
+                      label={dgettext("dashboard_projects", "Mark as flaky")}
+                      on_click="add_create_automation_form_trigger_action"
+                    />
+                    <.dropdown_item
+                      :if={
+                        not has_label_action?(
+                          @create_automation_form_trigger_actions,
+                          "remove_label",
+                          "flaky"
+                        ) and
+                          not has_label_action?(
+                            @create_automation_form_trigger_actions,
+                            "add_label",
+                            "flaky"
+                          )
+                      }
+                      value="remove_label_flaky"
+                      label={dgettext("dashboard_projects", "Unmark as flaky")}
+                      on_click="add_create_automation_form_trigger_action"
+                    />
+                    <.dropdown_item
+                      value="send_slack"
+                      label={dgettext("dashboard_projects", "Send Slack notification")}
+                      on_click="add_create_automation_form_trigger_action"
+                    />
+                  </.dropdown>
                 </div>
                 <div data-part="form-section-body">
                   <div
@@ -467,7 +522,7 @@
                 :if={not event_driven_monitor_type?(@create_automation_form_metric)}
                 data-part="form-section"
               >
-                <div data-part="form-section-header" data-inline>
+                <div data-part="form-section-header" data-inline data-with-action>
                   <.toggle
                     id={"create-automation-recovery-toggle-#{@editing_automation_id || "new"}"}
                     checked={@create_automation_form_recovery_enabled}
@@ -484,85 +539,140 @@
                       )}
                     </span>
                   </div>
-                  <div
+                  <.dropdown
                     :if={@create_automation_form_recovery_enabled}
-                    data-part="form-section-header-action"
+                    id="create-automation-recovery-action-add-dropdown"
+                    label={dgettext("dashboard_projects", "Add recovery action")}
                   >
-                    <.dropdown
-                      id="create-automation-recovery-action-add-dropdown"
-                      label={dgettext("dashboard_projects", "Add recovery action")}
-                    >
-                      <.dropdown_item
-                        :if={
-                          not has_action_type?(
-                            @create_automation_form_recovery_actions,
-                            "change_state"
-                          )
-                        }
-                        value="change_state"
-                        label={dgettext("dashboard_projects", "Change state")}
-                        on_click="add_create_automation_form_recovery_action"
-                      />
-                      <.dropdown_item
-                        :if={
-                          not event_driven_monitor_type?(@create_automation_form_metric) and
-                            not has_label_action?(
-                              @create_automation_form_recovery_actions,
-                              "remove_label",
-                              "flaky"
-                            ) and
-                            not has_label_action?(
-                              @create_automation_form_recovery_actions,
-                              "add_label",
-                              "flaky"
-                            )
-                        }
-                        value="remove_label_flaky"
-                        label={dgettext("dashboard_projects", "Unmark as flaky")}
-                        on_click="add_create_automation_form_recovery_action"
-                      />
-                      <.dropdown_item
-                        :if={
+                    <.dropdown_item
+                      :if={
+                        not has_action_type?(
+                          @create_automation_form_recovery_actions,
+                          "change_state"
+                        )
+                      }
+                      value="change_state"
+                      label={dgettext("dashboard_projects", "Change state")}
+                      on_click="add_create_automation_form_recovery_action"
+                    />
+                    <.dropdown_item
+                      :if={
+                        not has_label_action?(
+                          @create_automation_form_recovery_actions,
+                          "remove_label",
+                          "flaky"
+                        ) and
                           not has_label_action?(
                             @create_automation_form_recovery_actions,
                             "add_label",
                             "flaky"
-                          ) and
-                            not has_label_action?(
-                              @create_automation_form_recovery_actions,
-                              "remove_label",
-                              "flaky"
-                            )
-                        }
-                        value="add_label_flaky"
-                        label={dgettext("dashboard_projects", "Mark as flaky")}
-                        on_click="add_create_automation_form_recovery_action"
-                      />
-                      <.dropdown_item
-                        value="send_slack"
-                        label={dgettext("dashboard_projects", "Send Slack notification")}
-                        on_click="add_create_automation_form_recovery_action"
-                      />
-                    </.dropdown>
-                  </div>
+                          )
+                      }
+                      value="remove_label_flaky"
+                      label={dgettext("dashboard_projects", "Unmark as flaky")}
+                      on_click="add_create_automation_form_recovery_action"
+                    />
+                    <.dropdown_item
+                      :if={
+                        not has_label_action?(
+                          @create_automation_form_recovery_actions,
+                          "add_label",
+                          "flaky"
+                        ) and
+                          not has_label_action?(
+                            @create_automation_form_recovery_actions,
+                            "remove_label",
+                            "flaky"
+                          )
+                      }
+                      value="add_label_flaky"
+                      label={dgettext("dashboard_projects", "Mark as flaky")}
+                      on_click="add_create_automation_form_recovery_action"
+                    />
+                    <.dropdown_item
+                      value="send_slack"
+                      label={dgettext("dashboard_projects", "Send Slack notification")}
+                      on_click="add_create_automation_form_recovery_action"
+                    />
+                  </.dropdown>
                 </div>
                 <div :if={@create_automation_form_recovery_enabled} data-part="form-section-body">
-                  <div
-                    :if={not event_driven_monitor_type?(@create_automation_form_metric)}
-                    data-part="form-row"
-                  >
-                    <label data-part="label">
-                      {dgettext("dashboard_projects", "Without trigger for")}
-                    </label>
-                    <.text_input
-                      type="basic"
-                      id="create-automation-recovery-days"
-                      name="recovery_days"
-                      value={@create_automation_form_recovery_window}
-                      placeholder="14d"
-                      phx-keyup="update_create_automation_form_recovery_window"
-                      phx-debounce="300"
-                    />
+                  <div data-part="form-row-inline">
+                    <div data-part="form-row" data-size="dropdown">
+                      <label data-part="label">
+                        {dgettext("dashboard_projects", "Without trigger for")}
+                      </label>
+                      <.dropdown
+                        id="create-automation-recovery-window-type-dropdown"
+                        label={window_type_label(@create_automation_form_recovery_window_type)}
+                      >
+                        <.dropdown_item
+                          value="last_days"
+                          label={dgettext("dashboard_projects", "Last days")}
+                          on_click="update_create_automation_form_recovery_window_type"
+                          data-selected={
+                            @create_automation_form_recovery_window_type == "last_days"
+                          }
+                        >
+                          <:right_icon><.check /></:right_icon>
+                        </.dropdown_item>
+                        <.dropdown_item
+                          value="rolling"
+                          label={dgettext("dashboard_projects", "Rolling window")}
+                          on_click="update_create_automation_form_recovery_window_type"
+                          data-selected={
+                            @create_automation_form_recovery_window_type == "rolling"
+                          }
+                        >
+                          <:right_icon><.check /></:right_icon>
+                        </.dropdown_item>
+                      </.dropdown>
+                    </div>
+                    <div
+                      :if={@create_automation_form_recovery_window_type == "last_days"}
+                      data-part="form-row"
+                      data-size="compact"
+                    >
+                      <label data-part="label">
+                        {dgettext("dashboard_projects", "Window")}
+                      </label>
+                      <.text_input
+                        type="basic"
+                        id="create-automation-recovery-days"
+                        name="recovery_days"
+                        value={@create_automation_form_recovery_window}
+                        placeholder="14d"
+                        phx-keyup="update_create_automation_form_recovery_window"
+                        phx-debounce="300"
+                      />
+                    </div>
+                    <div
+                      :if={@create_automation_form_recovery_window_type == "rolling"}
+                      data-part="form-row"
+                      data-size="compact"
+                    >
+                      <label data-part="label">
+                        {dgettext("dashboard_projects", "Last N runs")}
+                      </label>
+                      <.text_input
+                        type="basic"
+                        input_type="number"
+                        id="create-automation-recovery-rolling-window-size"
+                        name="recovery_rolling_window_size"
+                        value={@create_automation_form_recovery_rolling_window_size}
+                        placeholder="100"
+                        min={1}
+                        max={Tuist.Automations.Alerts.Alert.max_rolling_window_size()}
+                        error={
+                          rolling_size_error(
+                            @create_automation_form_recovery_window_type,
+                            @create_automation_form_recovery_rolling_window_size
+                          )
+                        }
+                        phx-keyup="update_create_automation_form_recovery_rolling_window_size"
+                        phx-debounce="300"
+                      />
+                    </div>
                   </div>
                   <div
                     :for={
@@ -734,7 +844,9 @@
                     else: dgettext("dashboard_projects", "Create")
                 }
                 variant="primary"
-                disabled={@create_automation_form_name == ""}
+                disabled={
+                  @create_automation_form_name == "" or not rolling_window_inputs_valid?(assigns)
+                }
                 phx-click="save_automation"
               />
             </:action>

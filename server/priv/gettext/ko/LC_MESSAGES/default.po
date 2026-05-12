@@ -14,7 +14,7 @@ msgstr "그룹 기준:"
 #: lib/tuist_web/components/chart_type_toggle.ex:53
 #, elixir-autogen, elixir-format
 msgid "Line"
-msgstr "선형"
+msgstr "라인"
 
 #: lib/tuist_web/components/chart_type_toggle.ex:59
 #, elixir-autogen, elixir-format

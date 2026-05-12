@@ -1,15 +1,23 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.192.4<!-- RELEASE NOTES START -->
+## What's Changed in 4.193.0<!-- RELEASE NOTES START -->
 
+### ⛰️  Features
+
+* allow forwarding extra env vars to manifest evaluation by [@pepicrft](https://github.com/pepicrft) in [#10705](https://github.com/tuist/tuist/pull/10705)
 ### 🐛 Bug Fixes
 
+* avoid invalidating shared URLSession on no-op HTTPSettings writes by [@fortmarek](https://github.com/fortmarek) in [#10727](https://github.com/tuist/tuist/pull/10727)
+* handle nested buildable folder xcstrings by [@pepicrft](https://github.com/pepicrft) in [#10721](https://github.com/tuist/tuist/pull/10721)
+* make metadata upload non-fatal by [@pepicrft](https://github.com/pepicrft) in [#10696](https://github.com/tuist/tuist/pull/10696)
+* rewrite dangling pre/post-action targets at prune time by [@fortmarek](https://github.com/fortmarek) in [#10654](https://github.com/tuist/tuist/pull/10654)
+* allow folder resources to overlap sources by [@pepicrft](https://github.com/pepicrft) in [#10692](https://github.com/tuist/tuist/pull/10692)
 * route static xcframeworks behind dynamic via search paths, not relink by [@pepicrft](https://github.com/pepicrft) in [#10704](https://github.com/tuist/tuist/pull/10704)
 
 
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.192.3...4.192.4
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.192.3...4.193.0
 
 ## What's Changed in 4.192.3<!-- RELEASE NOTES START -->
 
