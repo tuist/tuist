@@ -579,10 +579,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 )
                 try await fileSystem.writeAsJSON(selectiveTestingGraph, at: selectiveTestingGraphPath)
 
-                await RunMetadataStorage.current.writeMetadata(
-                    to: testProductsPath,
-                    fileSystem: fileSystem
-                )
+                await RunMetadataStorage.current.writeMetadata(to: testProductsPath)
 
                 if isSharding,
                    let fullHandle = config.fullHandle
@@ -671,10 +668,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             )
         }
 
-        await RunMetadataStorage.current.restoreMetadata(
-            from: shard.testProductsPath,
-            fileSystem: fileSystem
-        )
+        await RunMetadataStorage.current.restoreMetadata(from: shard.testProductsPath)
 
         var shardPassthroughArguments = passthroughXcodeBuildArguments
         if let xcTestRunPath = shard.xcTestRunPath {
@@ -773,10 +767,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             at: selectiveTestingGraphPath
         )
 
-        await RunMetadataStorage.current.restoreMetadata(
-            from: testProductsPath,
-            fileSystem: fileSystem
-        )
+        await RunMetadataStorage.current.restoreMetadata(from: testProductsPath)
 
         let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
 

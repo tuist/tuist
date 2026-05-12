@@ -10,7 +10,11 @@ import XcodeGraph
 public actor RunMetadataStorage {
     @TaskLocal public static var current: RunMetadataStorage = .init()
 
-    public init() {}
+    private let fileSystem: FileSysteming
+
+    public init(fileSystem: FileSysteming = FileSystem()) {
+        self.fileSystem = fileSystem
+    }
 
     /// A unique ID associated with a specific run
     public var runId: String { Environment.current.processId }
@@ -91,10 +95,7 @@ public actor RunMetadataStorage {
     ///
     /// Failures are logged as warnings; persistence is best-effort and never blocks the
     /// caller's run.
-    public func writeMetadata(
-        to testProductsPath: AbsolutePath,
-        fileSystem: FileSysteming = FileSystem()
-    ) async {
+    public func writeMetadata(to testProductsPath: AbsolutePath) async {
         let runMetadata = RunMetadata(
             graph: graph,
             binaryCacheItems: binaryCacheItems,
@@ -116,10 +117,7 @@ public actor RunMetadataStorage {
     ///
     /// No-op when the file is absent (bundles produced by older Tuist versions). Failures
     /// are logged as warnings and never block the caller's run.
-    public func restoreMetadata(
-        from testProductsPath: AbsolutePath,
-        fileSystem: FileSysteming = FileSystem()
-    ) async {
+    public func restoreMetadata(from testProductsPath: AbsolutePath) async {
         let runMetadataPath = testProductsPath.appending(component: RunMetadata.fileName)
         guard (try? await fileSystem.exists(runMetadataPath)) == true else { return }
         do {
