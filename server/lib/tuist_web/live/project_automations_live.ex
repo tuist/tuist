@@ -3,6 +3,8 @@ defmodule TuistWeb.ProjectAutomationsLive do
   use TuistWeb, :live_view
   use Noora
 
+  import Noora.CheckboxControl
+
   alias Tuist.Authorization
   alias Tuist.Automations
   alias Tuist.Environment
@@ -506,11 +508,22 @@ defmodule TuistWeb.ProjectAutomationsLive do
 
   def test_updated_event_label(_), do: dgettext("dashboard_projects", "Unknown")
 
-  def events_dropdown_label([]), do: dgettext("dashboard_projects", "Select events")
-  def events_dropdown_label([event]), do: test_updated_event_label(event)
+  def test_updated_event_description("marked_flaky"),
+    do: dgettext("dashboard_projects", "Fires when a test is manually flagged as flaky.")
 
-  def events_dropdown_label(events) when is_list(events),
-    do: dgettext("dashboard_projects", "%{count} events selected", count: length(events))
+  def test_updated_event_description("unmarked_flaky"),
+    do: dgettext("dashboard_projects", "Fires when the flaky flag is manually removed.")
+
+  def test_updated_event_description("state_changed_to_enabled"),
+    do: dgettext("dashboard_projects", "Fires when a test returns to the default enabled state.")
+
+  def test_updated_event_description("state_changed_to_muted"),
+    do: dgettext("dashboard_projects", "Fires when a test is muted (still runs, failures ignored).")
+
+  def test_updated_event_description("state_changed_to_skipped"),
+    do: dgettext("dashboard_projects", "Fires when a test is skipped entirely.")
+
+  def test_updated_event_description(_), do: ""
 
   def comparison_label("gte"), do: dgettext("dashboard_projects", "Greater or equal")
   def comparison_label("gt"), do: dgettext("dashboard_projects", "Greater than")

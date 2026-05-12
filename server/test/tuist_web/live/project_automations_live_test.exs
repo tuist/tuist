@@ -183,8 +183,9 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
       refute html =~ "create-automation-window"
       refute html =~ "create-automation-recovery-days"
       refute html =~ "create-automation-recovery-toggle"
-      # The events multi-select dropdown renders instead.
-      assert html =~ "create-automation-events-dropdown"
+      # The inline events multi-select renders instead.
+      assert html =~ "create-automation-events"
+      assert html =~ "create-automation-event-marked_flaky"
     end
 
     test "switching to test_updated forces recovery off", %{conn: conn, organization: organization, project: project} do

@@ -219,18 +219,23 @@
                   <label data-part="label">
                     {dgettext("dashboard_projects", "On these events")}
                   </label>
-                  <.dropdown
-                    id="create-automation-events-dropdown"
-                    label={events_dropdown_label(@create_automation_form_events)}
-                  >
-                    <.dropdown_item
+                  <div id="create-automation-events" data-part="event-checkbox-list">
+                    <label
                       :for={event <- Tuist.Automations.Alerts.Alert.test_updated_events()}
-                      value={event}
-                      label={test_updated_event_label(event)}
-                      on_click="toggle_create_automation_form_event"
-                      checked={event in @create_automation_form_events}
-                    />
-                  </.dropdown>
+                      id={"create-automation-event-#{event}"}
+                      data-part="event-checkbox"
+                      phx-click="toggle_create_automation_form_event"
+                      phx-value-data={event}
+                    >
+                      <.checkbox_control checked={event in @create_automation_form_events} />
+                      <div data-part="body">
+                        <span data-part="label">{test_updated_event_label(event)}</span>
+                        <span data-part="description">
+                          {test_updated_event_description(event)}
+                        </span>
+                      </div>
+                    </label>
+                  </div>
                 </div>
               </div>
 
