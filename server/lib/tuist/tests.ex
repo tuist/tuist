@@ -848,6 +848,12 @@ defmodule Tuist.Tests do
       end)
 
     TestCaseEvent.Buffer.insert_all(events)
+    # State-change events are rare and we want subscribers (e.g. the
+    # `TestCaseLive` PubSub handler that triggers a history refresh) to see
+    # them immediately rather than wait for the 5s buffer tick. Flushing is
+    # cheap here — these events are emitted at most a few times per second
+    # per test case.
+    TestCaseEvent.Buffer.flush()
   end
 
   defp dispatch_event_driven_automations(_test_case, _event_types, nil), do: :ok
