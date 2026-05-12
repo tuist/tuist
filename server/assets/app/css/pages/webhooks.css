@@ -149,29 +149,6 @@
       }
     }
 
-    & [data-part="endpoint-summary"] {
-      display: flex;
-      flex-direction: column;
-      gap: var(--noora-spacing-2);
-
-      & > [data-part="label"] {
-        color: var(--noora-surface-label-secondary);
-        font: var(--noora-font-weight-regular) var(--noora-font-body-small);
-      }
-
-      & > code {
-        border-radius: var(--noora-radius-3);
-        background: var(--noora-surface-background-tertiary);
-        padding: var(--noora-spacing-3) var(--noora-spacing-5);
-        overflow: hidden;
-        color: var(--noora-surface-label-primary);
-        font: var(--noora-font-weight-regular) var(--noora-font-body-small);
-        font-family: "Geist Mono", monospace;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-    }
-
     & .noora-text-input > .noora-label {
       flex-direction: column;
       align-items: flex-start;
