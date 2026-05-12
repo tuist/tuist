@@ -98,6 +98,13 @@ public enum PackageType {
         }
         return false
     }
+
+    fileprivate var isRemoteExternal: Bool {
+        if case .external(origin: .remote, artifactPaths: _) = self {
+            return true
+        }
+        return false
+    }
 }
 
 // MARK: - PackageInfo Mapper
@@ -609,10 +616,16 @@ public struct PackageInfoMapper: PackageInfoMapping {
             let effectiveName = PackageInfoMapper.effectiveModuleName(
                 targetName: target.name, products: products, packageTargets: packageInfo.targets
             )
+            let swiftPackageManagerScratchDirectory: AbsolutePath? = if packageType.isRemoteExternal {
+                SwiftPackageManagerPaths.scratchDirectory(containingCheckout: path)
+            } else {
+                nil
+            }
             moduleMap = try await moduleMapGenerator.generate(
                 packageDirectory: path,
                 moduleName: effectiveName,
-                publicHeadersPath: target.publicHeadersPath(packageFolder: path)
+                publicHeadersPath: target.publicHeadersPath(packageFolder: path),
+                swiftPackageManagerScratchDirectory: swiftPackageManagerScratchDirectory
             )
         default:
             moduleMap = nil

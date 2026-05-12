@@ -44,7 +44,8 @@ final class ExternalDependencyPathWorkspaceMapperTests: TuistUnitTestCase {
             sourceRootPath: externalProjectPath,
             xcodeProjPath: externalProjectPath.appending(component: "ExternalDependency.xcodeproj"),
             name: "ExternalDependency",
-            type: .external(hash: nil)
+            type: .external(hash: nil),
+            swiftPackageManagerScratchDirectory: externalProjectBasePath
         )
 
         let workspace = Workspace.test(
@@ -174,6 +175,34 @@ final class ExternalDependencyPathWorkspaceMapperTests: TuistUnitTestCase {
                     "ExternalDependency.xcodeproj",
                 ]
             )
+        )
+    }
+
+    func test_map_when_externalProjectPathContainsUnrelatedCheckoutsDirectory() throws {
+        // Given
+        let projectPath = try temporaryPath()
+            .appending(components: "checkouts", "ExternalDependency")
+        let externalProject = Project.test(
+            path: projectPath,
+            sourceRootPath: projectPath,
+            xcodeProjPath: projectPath.appending(component: "ExternalDependency.xcodeproj"),
+            name: "ExternalDependency",
+            type: .external(hash: nil),
+            swiftPackageManagerScratchDirectory: projectPath.parentDirectory.parentDirectory.appending(component: "custom-build")
+        )
+
+        // When
+        let (gotWorkspaceWithProjects, _) = try subject.map(
+            workspace: WorkspaceWithProjects(
+                workspace: .test(name: "A"),
+                projects: [externalProject]
+            )
+        )
+
+        // Then
+        XCTAssertEqual(
+            gotWorkspaceWithProjects.projects.first?.xcodeProjPath,
+            projectPath.appending(component: "ExternalDependency.xcodeproj")
         )
     }
 }

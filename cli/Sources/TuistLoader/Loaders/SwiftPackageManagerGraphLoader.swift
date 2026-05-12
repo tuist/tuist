@@ -285,9 +285,17 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
             .reduce(into: [:]) { result, item in
                 let (packageInfo, hash, projectManifest) = item
                 if let projectManifest {
+                    let swiftPackageManagerScratchDirectory: Path? = if Self.isLocalDependencyKind(packageInfo.kind) {
+                        nil
+                    } else {
+                        SwiftPackageManagerPaths
+                            .scratchDirectory(containingCheckout: packageInfo.folder)
+                            .map { Path.path($0.pathString) }
+                    }
                     result[.path(packageInfo.folder.pathString)] = DependenciesGraph.ExternalProject(
                         manifest: projectManifest,
-                        hash: hash
+                        hash: hash,
+                        swiftPackageManagerScratchDirectory: swiftPackageManagerScratchDirectory
                     )
                 }
             }

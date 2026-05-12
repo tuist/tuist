@@ -103,6 +103,67 @@ final class SwiftPackageManagerModuleMapGeneratorTests: TuistUnitTestCase {
         )
     }
 
+    func test_generate_when_externalPackageUsesCustomScratchDirectory() async throws {
+        // Given
+        let scratchDirectory = try temporaryPath()
+            .appending(component: "custom-build")
+        let packageDirectory = scratchDirectory.appending(components: "checkouts", "PackageDir")
+        let publicHeadersPath = packageDirectory.appending(components: "Sources", "Module", "include")
+        try await fileSystem.makeDirectory(at: publicHeadersPath)
+        try await fileSystem.touch(publicHeadersPath.appending(component: "Module.h"))
+
+        // When
+        let got = try await subject.generate(
+            packageDirectory: packageDirectory,
+            moduleName: "Module",
+            publicHeadersPath: publicHeadersPath,
+            swiftPackageManagerScratchDirectory: scratchDirectory
+        )
+
+        // Then
+        XCTAssertEqual(
+            got,
+            .header(
+                publicHeadersPath.appending(component: "Module.h"),
+                moduleMapPath: scratchDirectory.appending(
+                    components: [
+                        Constants.DerivedDirectory.dependenciesDerivedDirectory,
+                        Constants.DerivedDirectory.dependenciesModuleMapsDirectory,
+                        "Module",
+                        "Module.modulemap",
+                    ]
+                )
+            )
+        )
+    }
+
+    func test_generate_whenPathContainsUnrelatedCheckoutsDirectory() async throws {
+        // Given
+        let packageDirectory = try temporaryPath()
+            .appending(components: "checkouts", "PackageDir")
+        let publicHeadersPath = packageDirectory.appending(components: "Sources", "Module", "include")
+        let scratchDirectory = packageDirectory.parentDirectory.parentDirectory.appending(component: "custom-build")
+        try await fileSystem.makeDirectory(at: publicHeadersPath)
+        try await fileSystem.touch(publicHeadersPath.appending(component: "Module.h"))
+
+        // When
+        let got = try await subject.generate(
+            packageDirectory: packageDirectory,
+            moduleName: "Module",
+            publicHeadersPath: publicHeadersPath,
+            swiftPackageManagerScratchDirectory: scratchDirectory
+        )
+
+        // Then
+        XCTAssertEqual(
+            got,
+            .header(
+                publicHeadersPath.appending(component: "Module.h"),
+                moduleMapPath: packageDirectory.appending(components: "Derived", "Module.modulemap")
+            )
+        )
+    }
+
     func test_generate_when_moduleMap_already_exists_on_disk() async throws {
         // Given: an external package with an umbrella header
         let packageDirectory = try temporaryPath()

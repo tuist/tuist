@@ -77,6 +77,9 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
     /// It represents the type of project.
     public var type: ProjectType
 
+    /// SwiftPM scratch directory for external projects checked out by SwiftPM.
+    public var swiftPackageManagerScratchDirectory: AbsolutePath?
+
     // MARK: - Init
 
     /// Initializes the project with its attributes.
@@ -101,6 +104,7 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
     ///   - resourceSynthesizers: `ResourceSynthesizers` that will be applied on individual target's resources
     ///   - lastUpgradeCheck: The version in which a check happened related to recommended settings after updating Xcode.
     ///   - type: The type of project, either local or external. This attribute supersedes `isExternal`
+    ///   - swiftPackageManagerScratchDirectory: SwiftPM scratch directory for external projects checked out by SwiftPM.
     public init(
         path: AbsolutePath,
         sourceRootPath: AbsolutePath,
@@ -120,7 +124,8 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
         additionalFiles: [FileElement],
         resourceSynthesizers: [ResourceSynthesizer],
         lastUpgradeCheck: Version?,
-        type: ProjectType
+        type: ProjectType,
+        swiftPackageManagerScratchDirectory: AbsolutePath? = nil
     ) {
         self.path = path
         self.sourceRootPath = sourceRootPath
@@ -141,6 +146,7 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
         self.resourceSynthesizers = resourceSynthesizers
         self.lastUpgradeCheck = lastUpgradeCheck
         self.type = type
+        self.swiftPackageManagerScratchDirectory = swiftPackageManagerScratchDirectory
     }
 
     // MARK: - CustomStringConvertible
@@ -191,7 +197,8 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
             additionalFiles: [FileElement] = [],
             resourceSynthesizers: [ResourceSynthesizer] = [],
             lastUpgradeCheck: Version? = nil,
-            type: ProjectType = .local
+            type: ProjectType = .local,
+            swiftPackageManagerScratchDirectory: AbsolutePath? = nil
         ) -> Project {
             Project(
                 path: path,
@@ -212,7 +219,8 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
                 additionalFiles: additionalFiles,
                 resourceSynthesizers: resourceSynthesizers,
                 lastUpgradeCheck: lastUpgradeCheck,
-                type: type
+                type: type,
+                swiftPackageManagerScratchDirectory: swiftPackageManagerScratchDirectory
             )
         }
 
@@ -236,7 +244,8 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
             additionalFiles: [FileElement] = [],
             resourceSynthesizers: [ResourceSynthesizer] = [],
             lastUpgradeCheck: Version? = nil,
-            type: ProjectType = .external(hash: "project-hash")
+            type: ProjectType = .external(hash: "project-hash"),
+            swiftPackageManagerScratchDirectory: AbsolutePath? = nil
         ) -> Project {
             Project(
                 path: path,
@@ -257,7 +266,8 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
                 additionalFiles: additionalFiles,
                 resourceSynthesizers: resourceSynthesizers,
                 lastUpgradeCheck: lastUpgradeCheck,
-                type: type
+                type: type,
+                swiftPackageManagerScratchDirectory: swiftPackageManagerScratchDirectory
             )
         }
     #endif

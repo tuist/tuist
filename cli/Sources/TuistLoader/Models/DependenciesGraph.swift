@@ -10,10 +10,16 @@ public struct DependenciesGraph: Equatable, Codable { // swiftlint:disable:this 
     public struct ExternalProject: Equatable, Codable {
         public var manifest: ProjectDescription.Project
         public var hash: String?
+        public var swiftPackageManagerScratchDirectory: Path?
 
-        public init(manifest: ProjectDescription.Project, hash: String?) {
+        public init(
+            manifest: ProjectDescription.Project,
+            hash: String?,
+            swiftPackageManagerScratchDirectory: Path? = nil
+        ) {
             self.manifest = manifest
             self.hash = hash
+            self.swiftPackageManagerScratchDirectory = swiftPackageManagerScratchDirectory
         }
     }
 

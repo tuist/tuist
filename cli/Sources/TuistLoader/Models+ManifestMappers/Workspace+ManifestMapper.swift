@@ -18,7 +18,8 @@ extension XcodeGraph.Workspace {
         path: AbsolutePath,
         generatorPaths: GeneratorPaths,
         manifestLoader _: ManifestLoading,
-        fileSystem: FileSysteming
+        fileSystem: FileSysteming,
+        swiftPackageManagerScratchDirectory: AbsolutePath? = nil
     ) async throws -> XcodeGraph.Workspace {
         func globProjects(_ path: Path) async throws -> [AbsolutePath] {
             let resolvedPath = try generatorPaths.resolve(path: path)
@@ -31,7 +32,13 @@ extension XcodeGraph.Workspace {
             )
             .collect()
             .map(\.parentDirectory)
-            .filter { $0.basename != Constants.tuistDirectoryName && !$0.pathString.contains("/checkouts/") }
+            .filter {
+                $0.basename != Constants.tuistDirectoryName
+                    && !SwiftPackageManagerPaths.isPath(
+                        $0,
+                        inSwiftPackageManagerCheckoutsOf: swiftPackageManagerScratchDirectory
+                    )
+            }
             .uniqued()
 
             if projects.isEmpty {

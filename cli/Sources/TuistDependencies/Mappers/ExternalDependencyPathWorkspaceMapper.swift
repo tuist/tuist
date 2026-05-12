@@ -20,12 +20,17 @@ public struct ExternalDependencyPathWorkspaceMapper: WorkspaceMapping {
     // MARK: - Helpers
 
     private func map(project: Project) throws -> (Project, [SideEffectDescriptor]) {
+        let swiftPackageManagerScratchDirectory = SwiftPackageManagerPaths.scratchDirectory(
+            containingCheckout: project.path,
+            knownScratchDirectory: project.swiftPackageManagerScratchDirectory
+        )
         guard case .external = project.type,
-              project.path.parentDirectory.basename == "checkouts"
+              let swiftPackageManagerScratchDirectory,
+              SwiftPackageManagerPaths.isPath(project.path, inCheckoutsOf: swiftPackageManagerScratchDirectory)
         else { return (project, []) }
         var project = project
         let xcodeProjBasename = project.xcodeProjPath.basename
-        let derivedDirectory = project.path.parentDirectory.parentDirectory.appending(
+        let derivedDirectory = swiftPackageManagerScratchDirectory.appending(
             components: [
                 Constants.DerivedDirectory.dependenciesDerivedDirectory,
                 Constants.DerivedDirectory.dependenciesProjectDirectory,
