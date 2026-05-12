@@ -17,15 +17,31 @@ defmodule TuistWeb.WebhooksLive do
       socket
       |> assign(:selected_tab, "webhooks")
       |> assign(:head_title, "#{dgettext("dashboard_account", "Webhooks")} · #{selected_account.name} · Tuist")
-      # Constant decorative mask so the table can confirm "a secret is set" without
-      # revealing its length or content. Matches Stripe's destinations list.
-      |> assign(:masked_signing_secret, "whsec_" <> String.duplicate("•", 14))
       |> assign_endpoints()
       |> reset_create_form()
       |> reset_disclosure()
 
     {:ok, socket}
   end
+
+  @doc """
+  Renders a partial-mask preview of `signing_secret` for the endpoints table.
+
+  Format: `whsec_••••…••••<last 4>`. Revealing only the suffix lets users
+  compare against a secret they've stored elsewhere (env var, secret
+  manager) without exposing enough material to weaken HMAC verification.
+  """
+  def masked_signing_secret(signing_secret) when is_binary(signing_secret) do
+    tail =
+      case String.length(signing_secret) do
+        n when n > 4 -> String.slice(signing_secret, -4, 4)
+        _ -> signing_secret
+      end
+
+    "whsec_" <> String.duplicate("•", 10) <> tail
+  end
+
+  def masked_signing_secret(_), do: "whsec_" <> String.duplicate("•", 14)
 
   @impl true
   def handle_params(_params, _uri, socket), do: {:noreply, socket}

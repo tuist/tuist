@@ -163,11 +163,11 @@
         <:col :let={endpoint} label={dgettext("dashboard_account", "URL")}>
           <.text_cell label={endpoint.url} />
         </:col>
-        <:col label={dgettext("dashboard_account", "Signing secret")}>
+        <:col :let={endpoint} label={dgettext("dashboard_account", "Signing secret")}>
           <%!-- Per-endpoint secrets are only revealed once at creation or rotation. --%>
-          <%!-- We render a fixed-width mask to confirm one is configured, mirroring --%>
-          <%!-- Stripe's destinations list. --%>
-          <.text_cell label={@masked_signing_secret} />
+          <%!-- The table shows a partial mask (suffix only) so users can match it --%>
+          <%!-- against a value they've stored elsewhere without weakening the HMAC. --%>
+          <.text_cell label={masked_signing_secret(endpoint.signing_secret)} />
         </:col>
         <:col :let={endpoint} label={dgettext("dashboard_account", "Created")}>
           <.text_cell label={Tuist.Utilities.DateFormatter.from_now(endpoint.inserted_at)} />
