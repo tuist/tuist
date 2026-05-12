@@ -12,6 +12,8 @@ import (
 	"sigs.k8s.io/cluster-api/util/patch"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/api/v1alpha1"
 )
@@ -89,5 +91,41 @@ func (r *ScalewayAppleSiliconClusterReconciler) Reconcile(ctx context.Context, r
 func (r *ScalewayAppleSiliconClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&infrav1.ScalewayAppleSiliconCluster{}).
+		// Also reconcile when the parent Cluster changes (e.g. CAPI
+		// core stamps the InfrastructureRef OwnerRef on its first
+		// reconcile). Without this, the SASC reconcile that flips
+		// `ControlPlaneInitialized=True` would only fire on SASC
+		// CR mutations + the controller-runtime resync tick (~10
+		// min), leaving a window where MachineSet sees
+		// `InfrastructureReady=true` but the control-plane gate is
+		// still False — and on the very first deploy that window
+		// is where Machine/SASM creation has historically gone
+		// out of sync (Machines created, SASMs missing).
+		Watches(
+			&clusterv1.Cluster{},
+			handler.EnqueueRequestsFromMapFunc(r.clusterToInfraCluster),
+		).
 		Complete(r)
+}
+
+// clusterToInfraCluster maps a Cluster event to a reconcile request
+// for the SASC it references. Returns nothing if the Cluster's
+// InfrastructureRef points at a different infrastructure kind.
+func (r *ScalewayAppleSiliconClusterReconciler) clusterToInfraCluster(_ context.Context, obj client.Object) []reconcile.Request {
+	cluster, ok := obj.(*clusterv1.Cluster)
+	if !ok {
+		return nil
+	}
+	if cluster.Spec.InfrastructureRef == nil ||
+		cluster.Spec.InfrastructureRef.Kind != "ScalewayAppleSiliconCluster" {
+		return nil
+	}
+	return []reconcile.Request{
+		{
+			NamespacedName: client.ObjectKey{
+				Namespace: cluster.Spec.InfrastructureRef.Namespace,
+				Name:      cluster.Spec.InfrastructureRef.Name,
+			},
+		},
+	}
 }
