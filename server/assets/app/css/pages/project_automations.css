@@ -160,6 +160,29 @@
       }
     }
 
+    [data-part="event-checkbox-list"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-2);
+
+      & > [data-part="event-checkbox"] {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: var(--noora-spacing-3);
+        cursor: pointer;
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+
+        & > input[type="checkbox"] {
+          width: 16px;
+          height: 16px;
+          accent-color: var(--noora-surface-action-primary-rest);
+          cursor: pointer;
+        }
+      }
+    }
+
     [data-part="action-row"] {
       display: flex;
       flex-direction: row;

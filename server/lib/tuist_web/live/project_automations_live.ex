@@ -55,6 +55,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
     |> assign(create_automation_form_comparison: "gte")
     |> assign(create_automation_form_threshold: "10")
     |> assign(create_automation_form_window: "30d")
+    |> assign(create_automation_form_events: ["marked_flaky"])
     |> assign(create_automation_form_trigger_actions: [default_add_label_action()])
     |> assign(create_automation_form_recovery_enabled: false)
     |> assign(create_automation_form_recovery_window: "14d")
@@ -102,6 +103,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
       comparison: parse_comparison(automation.trigger_config["comparison"]),
       threshold: to_string(automation.trigger_config["threshold"] || ""),
       window: automation.trigger_config["window"] || "30d",
+      events: parse_events(automation.trigger_config["events"]),
       trigger_actions: automation.trigger_actions,
       recovery_enabled: automation.recovery_enabled,
       recovery_window:
@@ -112,6 +114,12 @@ defmodule TuistWeb.ProjectAutomationsLive do
       enabled: automation.enabled
     }
   end
+
+  defp parse_events(events) when is_list(events) do
+    Enum.filter(events, &(&1 in Tuist.Automations.Alerts.Alert.test_updated_events()))
+  end
+
+  defp parse_events(_), do: ["marked_flaky"]
 
   defp parse_comparison(comparison) when comparison in @comparisons, do: comparison
   defp parse_comparison(_), do: "gte"
@@ -142,6 +150,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
         |> assign(create_automation_form_comparison: form.comparison)
         |> assign(create_automation_form_threshold: form.threshold)
         |> assign(create_automation_form_window: form.window)
+        |> assign(create_automation_form_events: form.events)
         |> assign(create_automation_form_trigger_actions: form.trigger_actions)
         |> assign(create_automation_form_recovery_enabled: form.recovery_enabled)
         |> assign(create_automation_form_recovery_window: form.recovery_window)
@@ -187,6 +196,19 @@ defmodule TuistWeb.ProjectAutomationsLive do
 
   def handle_event("update_create_automation_form_comparison", %{"data" => comparison}, socket) do
     {:noreply, assign(socket, create_automation_form_comparison: comparison)}
+  end
+
+  def handle_event("toggle_create_automation_form_event", %{"event" => event}, socket) do
+    current = socket.assigns.create_automation_form_events
+
+    next =
+      if event in current do
+        List.delete(current, event)
+      else
+        current ++ [event]
+      end
+
+    {:noreply, assign(socket, create_automation_form_events: next)}
   end
 
   def handle_event("update_create_automation_form_threshold", %{"value" => value}, socket) do
@@ -413,16 +435,16 @@ defmodule TuistWeb.ProjectAutomationsLive do
     end
   end
 
+  defp trigger_config_for("test_updated", assigns) do
+    %{"events" => assigns.create_automation_form_events}
+  end
+
   defp trigger_config_for(metric, assigns) do
-    if event_driven_monitor_type?(metric) do
-      %{}
-    else
-      %{
-        "threshold" => parse_threshold(metric, assigns.create_automation_form_threshold),
-        "window" => assigns.create_automation_form_window,
-        "comparison" => assigns.create_automation_form_comparison
-      }
-    end
+    %{
+      "threshold" => parse_threshold(metric, assigns.create_automation_form_threshold),
+      "window" => assigns.create_automation_form_window,
+      "comparison" => assigns.create_automation_form_comparison
+    }
   end
 
   defp recovery_config_for(metric, assigns) do
@@ -433,13 +455,13 @@ defmodule TuistWeb.ProjectAutomationsLive do
     end
   end
 
-  # For mark/unmark event-driven triggers, both `add_label flaky` and
-  # `remove_label flaky` are nonsensical defaults — one is redundant (the
-  # label was just flipped) and the other fights the user (immediately
-  # undoing the flip they intentionally made). Strip both so the form
-  # starts clean. `test_state_changed` keeps them since they're valid
-  # responses to a state change.
-  defp strip_redundant_actions(actions, metric) when metric in ["manually_marked_flaky", "manually_unmarked_flaky"] do
+  # The default `add_label flaky` / `remove_label flaky` trigger actions
+  # presume the threshold-monitor mental model. For the event-driven
+  # `test_updated` trigger they're a confusing default — the user picks
+  # which sub-events to react to (mark / unmark / state change), and a
+  # blanket label flip tends to fight at least one of those sub-events.
+  # Strip them on switch; the user can opt back in via "Add action".
+  defp strip_redundant_actions(actions, "test_updated") do
     Enum.reject(actions, fn action ->
       action["label"] == "flaky" and action["type"] in ["add_label", "remove_label"]
     end)
@@ -447,9 +469,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
 
   defp strip_redundant_actions(actions, _), do: actions
 
-  def event_driven_monitor_type?(type)
-      when type in ["manually_marked_flaky", "manually_unmarked_flaky", "test_state_changed"], do: true
-
+  def event_driven_monitor_type?("test_updated"), do: true
   def event_driven_monitor_type?(_), do: false
 
   defp parse_threshold("flakiness_rate", value) do
@@ -472,10 +492,19 @@ defmodule TuistWeb.ProjectAutomationsLive do
 
   def metric_label("flakiness_rate"), do: dgettext("dashboard_projects", "Flakiness rate")
   def metric_label("flaky_run_count"), do: dgettext("dashboard_projects", "Flaky runs")
-  def metric_label("manually_marked_flaky"), do: dgettext("dashboard_projects", "Test marked as flaky")
-  def metric_label("manually_unmarked_flaky"), do: dgettext("dashboard_projects", "Test unmarked as flaky")
-  def metric_label("test_state_changed"), do: dgettext("dashboard_projects", "Test state changed")
+  def metric_label("test_updated"), do: dgettext("dashboard_projects", "Test updated")
   def metric_label(_), do: dgettext("dashboard_projects", "Unknown")
+
+  def test_updated_event_label("marked_flaky"), do: dgettext("dashboard_projects", "Marked as flaky")
+  def test_updated_event_label("unmarked_flaky"), do: dgettext("dashboard_projects", "Unmarked as flaky")
+
+  def test_updated_event_label("state_changed_to_enabled"), do: dgettext("dashboard_projects", "State changed to Enabled")
+
+  def test_updated_event_label("state_changed_to_muted"), do: dgettext("dashboard_projects", "State changed to Muted")
+
+  def test_updated_event_label("state_changed_to_skipped"), do: dgettext("dashboard_projects", "State changed to Skipped")
+
+  def test_updated_event_label(_), do: dgettext("dashboard_projects", "Unknown")
 
   def comparison_label("gte"), do: dgettext("dashboard_projects", "Greater or equal")
   def comparison_label("gt"), do: dgettext("dashboard_projects", "Greater than")
@@ -561,16 +590,17 @@ defmodule TuistWeb.ProjectAutomationsLive do
     )
   end
 
-  def automation_summary(%{monitor_type: "manually_marked_flaky"}) do
-    dgettext("dashboard_projects", "When a test is manually marked as flaky")
-  end
+  def automation_summary(%{monitor_type: "test_updated", trigger_config: trigger_config}) do
+    events = trigger_config["events"] || []
 
-  def automation_summary(%{monitor_type: "manually_unmarked_flaky"}) do
-    dgettext("dashboard_projects", "When a test is manually unmarked as flaky")
-  end
+    case events do
+      [] ->
+        dgettext("dashboard_projects", "When a test is updated")
 
-  def automation_summary(%{monitor_type: "test_state_changed"}) do
-    dgettext("dashboard_projects", "When a test case state changes")
+      _ ->
+        labels = Enum.map_join(events, ", ", &test_updated_event_label/1)
+        dgettext("dashboard_projects", "When a test is updated: %{events}", events: labels)
+    end
   end
 
   def automation_summary(_), do: ""

@@ -125,75 +125,7 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
       assert Automations.list_alerts(project.id) == []
     end
 
-    test "creates a manually_marked_flaky automation with empty trigger_config and strips the default add_label action",
-         %{conn: conn, organization: organization, project: project} do
-      {:ok, lv, _html} = open(conn, organization, project)
-
-      render_hook(lv, "open_create_automation_modal", %{})
-      render_hook(lv, "update_create_automation_form_name", %{"value" => "Quarantine on manual mark"})
-      render_hook(lv, "update_create_automation_form_metric", %{"data" => "manually_marked_flaky"})
-      # The default add_label action makes no sense once the user just marked
-      # the test as flaky, so the type switch should drop it. We then layer on
-      # an explicit change_state action.
-      render_hook(lv, "add_create_automation_form_trigger_action", %{"data" => "change_state"})
-      render_hook(lv, "save_automation", %{})
-
-      assert [automation] = Automations.list_alerts(project.id)
-      assert automation.monitor_type == "manually_marked_flaky"
-      assert automation.trigger_config == %{}
-      assert [%{"type" => "change_state", "state" => "muted"}] = automation.trigger_actions
-    end
-
-    test "creates a manually_unmarked_flaky automation", %{conn: conn, organization: organization, project: project} do
-      {:ok, lv, _html} = open(conn, organization, project)
-
-      render_hook(lv, "open_create_automation_modal", %{})
-      render_hook(lv, "update_create_automation_form_name", %{"value" => "Re-enable on unmark"})
-      render_hook(lv, "update_create_automation_form_metric", %{"data" => "manually_unmarked_flaky"})
-      render_hook(lv, "add_create_automation_form_trigger_action", %{"data" => "change_state"})
-      render_hook(lv, "save_automation", %{})
-
-      assert [automation] = Automations.list_alerts(project.id)
-      assert automation.monitor_type == "manually_unmarked_flaky"
-      assert automation.trigger_config == %{}
-      # change_state defaults to "muted" via new_action/2; user would adjust.
-      assert [%{"type" => "change_state"}] = automation.trigger_actions
-    end
-
-    test "creates a test_state_changed automation", %{conn: conn, organization: organization, project: project} do
-      {:ok, lv, _html} = open(conn, organization, project)
-
-      render_hook(lv, "open_create_automation_modal", %{})
-      render_hook(lv, "update_create_automation_form_name", %{"value" => "Notify on state change"})
-      render_hook(lv, "update_create_automation_form_metric", %{"data" => "test_state_changed"})
-      render_hook(lv, "save_automation", %{})
-
-      assert [automation] = Automations.list_alerts(project.id)
-      assert automation.monitor_type == "test_state_changed"
-      assert automation.trigger_config == %{}
-    end
-
-    for monitor_type <- ["manually_marked_flaky", "manually_unmarked_flaky", "test_state_changed"] do
-      test "hides threshold/window/recovery section for #{monitor_type}", %{
-        conn: conn,
-        organization: organization,
-        project: project
-      } do
-        {:ok, lv, _html} = open(conn, organization, project)
-
-        render_hook(lv, "open_create_automation_modal", %{})
-        # Toggle recovery on before switching — the type switch must force it off.
-        render_hook(lv, "toggle_create_automation_form_recovery", %{})
-        html = render_hook(lv, "update_create_automation_form_metric", %{"data" => unquote(monitor_type)})
-
-        refute html =~ "create-automation-threshold"
-        refute html =~ "create-automation-window"
-        refute html =~ "create-automation-recovery-days"
-        refute html =~ "create-automation-recovery-toggle"
-      end
-    end
-
-    test "switching to event-driven metric forces recovery off", %{
+    test "creates a test_updated automation subscribed to the default marked_flaky event", %{
       conn: conn,
       organization: organization,
       project: project
@@ -201,11 +133,68 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
       {:ok, lv, _html} = open(conn, organization, project)
 
       render_hook(lv, "open_create_automation_modal", %{})
+      render_hook(lv, "update_create_automation_form_name", %{"value" => "Quarantine on manual mark"})
+      render_hook(lv, "update_create_automation_form_metric", %{"data" => "test_updated"})
+      # Switching the metric stripped the default add_label trigger action;
+      # layer on an explicit change_state.
+      render_hook(lv, "add_create_automation_form_trigger_action", %{"data" => "change_state"})
+      render_hook(lv, "save_automation", %{})
+
+      assert [automation] = Automations.list_alerts(project.id)
+      assert automation.monitor_type == "test_updated"
+      assert automation.trigger_config == %{"events" => ["marked_flaky"]}
+      assert [%{"type" => "change_state", "state" => "muted"}] = automation.trigger_actions
+    end
+
+    test "toggle_create_automation_form_event adds and removes events from the subscription", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      {:ok, lv, _html} = open(conn, organization, project)
+
+      render_hook(lv, "open_create_automation_modal", %{})
+      render_hook(lv, "update_create_automation_form_name", %{"value" => "State subscriber"})
+      render_hook(lv, "update_create_automation_form_metric", %{"data" => "test_updated"})
+      # Default events = ["marked_flaky"]; subscribe to state_changed_to_muted too.
+      render_hook(lv, "toggle_create_automation_form_event", %{"event" => "state_changed_to_muted"})
+      # Unsubscribe from marked_flaky.
+      render_hook(lv, "toggle_create_automation_form_event", %{"event" => "marked_flaky"})
+      render_hook(lv, "add_create_automation_form_trigger_action", %{"data" => "change_state"})
+      render_hook(lv, "save_automation", %{})
+
+      assert [automation] = Automations.list_alerts(project.id)
+      assert automation.trigger_config["events"] == ["state_changed_to_muted"]
+    end
+
+    test "hides threshold/window/recovery section for test_updated", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      {:ok, lv, _html} = open(conn, organization, project)
+
+      render_hook(lv, "open_create_automation_modal", %{})
+      # Toggle recovery on before switching — the type switch must force it off.
       render_hook(lv, "toggle_create_automation_form_recovery", %{})
-      render_hook(lv, "update_create_automation_form_metric", %{"data" => "manually_marked_flaky"})
+      html = render_hook(lv, "update_create_automation_form_metric", %{"data" => "test_updated"})
+
+      refute html =~ "create-automation-threshold"
+      refute html =~ "create-automation-window"
+      refute html =~ "create-automation-recovery-days"
+      refute html =~ "create-automation-recovery-toggle"
+      # The events multi-select renders instead.
+      assert html =~ "create-automation-events"
+      assert html =~ "create-automation-event-marked_flaky"
+    end
+
+    test "switching to test_updated forces recovery off", %{conn: conn, organization: organization, project: project} do
+      {:ok, lv, _html} = open(conn, organization, project)
+
+      render_hook(lv, "open_create_automation_modal", %{})
+      render_hook(lv, "toggle_create_automation_form_recovery", %{})
+      render_hook(lv, "update_create_automation_form_metric", %{"data" => "test_updated"})
       render_hook(lv, "update_create_automation_form_name", %{"value" => "Mark trigger"})
-      # Switching the metric stripped the default add_label trigger action, so
-      # add an explicit one before saving (validation rejects empty list).
       render_hook(lv, "add_create_automation_form_trigger_action", %{"data" => "change_state"})
       render_hook(lv, "save_automation", %{})
 

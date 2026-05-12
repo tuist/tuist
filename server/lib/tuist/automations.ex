@@ -97,43 +97,68 @@ defmodule Tuist.Automations do
   @doc """
   Dispatches an event-driven test case automation trigger.
 
-  Event-driven monitors fire the moment a user-initiated change happens to
-  a test case, rather than waiting for the scheduled `AlertEvaluationWorker`.
-  They have no recovery semantics — each event is a discrete one-shot.
+  Event-driven monitors (`monitor_type: "test_updated"`) fire the moment a
+  user-initiated change happens to a test case, rather than waiting for the
+  scheduled `AlertEvaluationWorker`. They have no recovery semantics — each
+  event is a discrete one-shot.
 
-  Mapping:
-    * `:marked_flaky`   → enabled alerts with `monitor_type = "manually_marked_flaky"`
-    * `:unmarked_flaky` → enabled alerts with `monitor_type = "manually_unmarked_flaky"`
-    * `:muted` / `:unmuted` / `:skipped` / `:unskipped` →
-        enabled alerts with `monitor_type = "test_state_changed"`
+  Stripe-style subscription: each alert's `trigger_config["events"]` is a
+  list of subscribed event names. We translate the raw test-case event
+  (`:muted`, `:unmuted`, ...) into the user-facing event key and then fan
+  out to every alert whose `events` array contains that key.
+
+  Event mapping:
+    * `:marked_flaky`   → `"marked_flaky"`
+    * `:unmarked_flaky` → `"unmarked_flaky"`
+    * `:muted`          → `"state_changed_to_muted"`
+    * `:skipped`        → `"state_changed_to_skipped"`
+    * `:unmuted`        → `"state_changed_to_enabled"` (back to enabled from muted)
+    * `:unskipped`      → `"state_changed_to_enabled"` (back to enabled from skipped)
 
   Other events are ignored so this can be safely called for every test case
   event the caller produces.
   """
-  def dispatch_test_case_event(:marked_flaky, test_case), do: dispatch(test_case, "manually_marked_flaky")
-  def dispatch_test_case_event(:unmarked_flaky, test_case), do: dispatch(test_case, "manually_unmarked_flaky")
-  def dispatch_test_case_event(:muted, test_case), do: dispatch(test_case, "test_state_changed")
-  def dispatch_test_case_event(:unmuted, test_case), do: dispatch(test_case, "test_state_changed")
-  def dispatch_test_case_event(:skipped, test_case), do: dispatch(test_case, "test_state_changed")
-  def dispatch_test_case_event(:unskipped, test_case), do: dispatch(test_case, "test_state_changed")
-  def dispatch_test_case_event(_event, _test_case), do: :ok
+  def dispatch_test_case_event(event_type, test_case) do
+    case event_to_subscription_key(event_type) do
+      nil ->
+        :ok
 
-  defp dispatch(%{id: test_case_id, project_id: project_id}, monitor_type) do
-    project_id
-    |> event_driven_alerts(monitor_type)
-    |> Enum.each(fn alert -> run_event_actions(alert, test_case_id) end)
+      key ->
+        test_case
+        |> subscribed_alerts(key)
+        |> Enum.each(fn alert -> run_event_actions(alert, test_case.id) end)
 
-    :ok
+        :ok
+    end
   end
 
-  defp event_driven_alerts(project_id, monitor_type) do
+  defp event_to_subscription_key(:marked_flaky), do: "marked_flaky"
+  defp event_to_subscription_key(:unmarked_flaky), do: "unmarked_flaky"
+  defp event_to_subscription_key(:muted), do: "state_changed_to_muted"
+  defp event_to_subscription_key(:skipped), do: "state_changed_to_skipped"
+  defp event_to_subscription_key(:unmuted), do: "state_changed_to_enabled"
+  defp event_to_subscription_key(:unskipped), do: "state_changed_to_enabled"
+  defp event_to_subscription_key(_), do: nil
+
+  defp subscribed_alerts(%{project_id: project_id}, subscription_key) do
+    project_id
+    |> test_updated_alerts()
+    |> Enum.filter(&subscribed?(&1, subscription_key))
+  end
+
+  defp test_updated_alerts(project_id) do
     Repo.all(
       from(a in Alert,
         where: a.project_id == ^project_id,
-        where: a.monitor_type == ^monitor_type,
+        where: a.monitor_type == "test_updated",
         where: a.enabled == true
       )
     )
+  end
+
+  defp subscribed?(alert, subscription_key) do
+    events = Map.get(alert.trigger_config || %{}, "events", [])
+    is_list(events) and subscription_key in events
   end
 
   defp run_event_actions(alert, test_case_id) do

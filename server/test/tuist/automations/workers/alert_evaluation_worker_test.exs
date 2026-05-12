@@ -143,23 +143,21 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     assert :ok = run(automation.id)
   end
 
-  for monitor_type <- ["manually_marked_flaky", "manually_unmarked_flaky", "test_state_changed"] do
-    test "no-ops for event-driven #{monitor_type} alerts without invoking the monitor" do
-      automation =
-        AutomationsFixtures.automation_alert_fixture(
-          monitor_type: unquote(monitor_type),
-          trigger_config: %{}
-        )
+  test "no-ops for event-driven test_updated alerts without invoking the monitor" do
+    automation =
+      AutomationsFixtures.automation_alert_fixture(
+        monitor_type: "test_updated",
+        trigger_config: %{"events" => ["marked_flaky"]}
+      )
 
-      reject(&FlakyTestsMonitor.evaluate/1)
-      reject(&FlakyTestsMonitor.evaluate_by_run_count/1)
-      reject(&ActionExecutor.execute_actions/3)
-      reject(&Automations.create_alert_event/1)
+    reject(&FlakyTestsMonitor.evaluate/1)
+    reject(&FlakyTestsMonitor.evaluate_by_run_count/1)
+    reject(&ActionExecutor.execute_actions/3)
+    reject(&Automations.create_alert_event/1)
 
-      expect(Automations, :list_active_alert_events, fn _id -> [] end)
+    expect(Automations, :list_active_alert_events, fn _id -> [] end)
 
-      assert :ok = run(automation.id)
-    end
+    assert :ok = run(automation.id)
   end
 
   describe "baseline establishment" do

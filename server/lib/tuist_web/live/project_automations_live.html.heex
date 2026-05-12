@@ -123,28 +123,10 @@
                         <:right_icon><.check /></:right_icon>
                       </.dropdown_item>
                       <.dropdown_item
-                        value="manually_marked_flaky"
-                        label={dgettext("dashboard_projects", "Test marked as flaky")}
+                        value="test_updated"
+                        label={dgettext("dashboard_projects", "Test updated")}
                         on_click="update_create_automation_form_metric"
-                        data-selected={@create_automation_form_metric == "manually_marked_flaky"}
-                      >
-                        <:right_icon><.check /></:right_icon>
-                      </.dropdown_item>
-                      <.dropdown_item
-                        value="manually_unmarked_flaky"
-                        label={dgettext("dashboard_projects", "Test unmarked as flaky")}
-                        on_click="update_create_automation_form_metric"
-                        data-selected={
-                          @create_automation_form_metric == "manually_unmarked_flaky"
-                        }
-                      >
-                        <:right_icon><.check /></:right_icon>
-                      </.dropdown_item>
-                      <.dropdown_item
-                        value="test_state_changed"
-                        label={dgettext("dashboard_projects", "Test state changed")}
-                        on_click="update_create_automation_form_metric"
-                        data-selected={@create_automation_form_metric == "test_state_changed"}
+                        data-selected={@create_automation_form_metric == "test_updated"}
                       >
                         <:right_icon><.check /></:right_icon>
                       </.dropdown_item>
@@ -231,6 +213,28 @@
                       phx-keyup="update_create_automation_form_window"
                       phx-debounce="300"
                     />
+                  </div>
+                </div>
+                <div :if={@create_automation_form_metric == "test_updated"} data-part="form-row">
+                  <label data-part="label">
+                    {dgettext("dashboard_projects", "On these events")}
+                  </label>
+                  <div data-part="event-checkbox-list" id="create-automation-events">
+                    <label
+                      :for={event <- Tuist.Automations.Alerts.Alert.test_updated_events()}
+                      data-part="event-checkbox"
+                    >
+                      <input
+                        type="checkbox"
+                        id={"create-automation-event-#{event}"}
+                        name={"event[#{event}]"}
+                        value={event}
+                        checked={event in @create_automation_form_events}
+                        phx-click="toggle_create_automation_form_event"
+                        phx-value-event={event}
+                      />
+                      <span>{test_updated_event_label(event)}</span>
+                    </label>
                   </div>
                 </div>
               </div>
@@ -415,10 +419,7 @@
                       />
                       <.dropdown_item
                         :if={
-                          @create_automation_form_metric not in [
-                            "manually_marked_flaky",
-                            "manually_unmarked_flaky"
-                          ] and
+                          not event_driven_monitor_type?(@create_automation_form_metric) and
                             not has_label_action?(
                               @create_automation_form_trigger_actions,
                               "add_label",
