@@ -116,8 +116,13 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
             throw UploadResultBundleServiceError.missingFullHandle
         }
 
-        var buildRunId: String?
-        if let projectDerivedDataDirectory,
+        // Prefer the snapshot-restored buildRunId from RunMetadataStorage (set in the split
+        // build/test topology where the test phase reads the build phase's run-metadata
+        // snapshot). Fall back to the local activity log when the test phase shares
+        // DerivedData with the build phase.
+        var buildRunId: String? = await RunMetadataStorage.current.buildRunId
+        if buildRunId == nil,
+           let projectDerivedDataDirectory,
            let mostRecentActivityLogFile = try await xcActivityLogController.mostRecentActivityLogFile(
                projectDerivedDataDirectory: projectDerivedDataDirectory
            )
