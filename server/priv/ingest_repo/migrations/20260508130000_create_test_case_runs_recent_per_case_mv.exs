@@ -44,7 +44,7 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestCaseRunsRecentPerCaseMv do
   # so a small chunk keeps the worst-case aggregation memory well below
   # ClickHouse Cloud's 18 GiB process ceiling regardless of how heavy any
   # one project's test_case_id cardinality turns out to be.
-  @project_chunk_size 20
+  @project_chunk_size 5
   # Throttle between chunks to give live ClickHouse traffic (background
   # merges, MV writes, automation queries) breathing room and avoid
   # piling concurrent allocations against the global memory ceiling.
