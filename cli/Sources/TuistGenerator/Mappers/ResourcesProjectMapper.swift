@@ -18,11 +18,17 @@ import XcodeGraph
 public struct ResourcesProjectMapper: ProjectMapping {
     private let contentHasher: ContentHashing
     private let buildableFolderChecker: BuildableFolderChecking
+    private let bundleAccessorTemplate: BundleAccessorTemplating
     private let partitioner = BuildableFolderResourcePartitioner()
 
-    public init(contentHasher: ContentHashing, buildableFolderChecker: BuildableFolderChecking = BuildableFolderChecker()) {
+    public init(
+        contentHasher: ContentHashing,
+        buildableFolderChecker: BuildableFolderChecking = BuildableFolderChecker(),
+        bundleAccessorTemplate: BundleAccessorTemplating = BundleAccessorTemplate()
+    ) {
         self.contentHasher = contentHasher
         self.buildableFolderChecker = buildableFolderChecker
+        self.bundleAccessorTemplate = bundleAccessorTemplate
     }
 
     public func map(project: Project) async throws -> (Project, [SideEffectDescriptor]) {
@@ -259,7 +265,7 @@ public struct ResourcesProjectMapper: ProjectMapping {
         project: Project,
         bundleName: String
     ) throws {
-        let file = BundleAccessorTemplate.swiftAccessor(target: target, bundleName: bundleName, project: project)
+        let file = bundleAccessorTemplate.swiftAccessor(target: target, bundleName: bundleName, project: project)
         let hash = try file.contents.map(contentHasher.hash)
         modifiedTarget.sources.append(SourceFile(path: file.path, contentHash: hash))
         sideEffects.append(.file(.init(path: file.path, contents: file.contents, state: .present)))
@@ -272,8 +278,8 @@ public struct ResourcesProjectMapper: ProjectMapping {
         project: Project,
         bundleName: String
     ) throws {
-        let header = BundleAccessorTemplate.objcAccessorHeader(target: target, project: project)
-        let implementation = BundleAccessorTemplate.objcAccessorImplementation(
+        let header = bundleAccessorTemplate.objcAccessorHeader(target: target, project: project)
+        let implementation = bundleAccessorTemplate.objcAccessorImplementation(
             target: target,
             bundleName: bundleName,
             project: project

@@ -1,19 +1,34 @@
 import Foundation
+import Mockable
 import Path
 import TuistConstants
 import XcodeGraph
 
 /// A file Tuist writes into a target's Derived directory to expose `Bundle.module` (and the
 /// SwiftPM-compatible C entry point) to the target's own sources.
-struct SynthesizedBundleAccessorFile {
-    let path: AbsolutePath
-    let contents: Data?
+public struct SynthesizedBundleAccessorFile {
+    public let path: AbsolutePath
+    public let contents: Data?
+
+    public init(path: AbsolutePath, contents: Data?) {
+        self.path = path
+        self.contents = contents
+    }
 }
 
 /// Renders the Swift / Objective-C accessor files Tuist injects so that user code can reach the
 /// companion resource bundle via `Bundle.module` — mirroring the shape SwiftPM produces.
-enum BundleAccessorTemplate {
-    static func swiftAccessor(
+@Mockable
+public protocol BundleAccessorTemplating {
+    func swiftAccessor(target: Target, bundleName: String, project: Project) -> SynthesizedBundleAccessorFile
+    func objcAccessorHeader(target: Target, project: Project) -> SynthesizedBundleAccessorFile
+    func objcAccessorImplementation(target: Target, bundleName: String, project: Project) -> SynthesizedBundleAccessorFile
+}
+
+public struct BundleAccessorTemplate: BundleAccessorTemplating {
+    public init() {}
+
+    public func swiftAccessor(
         target: Target,
         bundleName: String,
         project: Project
@@ -21,27 +36,27 @@ enum BundleAccessorTemplate {
         let filename = "TuistBundle+\(target.name.toValidSwiftIdentifier()).swift"
         let path = project.derivedDirectoryPath(for: target)
             .appending(components: Constants.DerivedDirectory.sources, filename)
-        let contents = swiftAccessorContents(target: target, bundleName: bundleName, project: project)
+        let contents = Self.swiftAccessorContents(target: target, bundleName: bundleName, project: project)
         return SynthesizedBundleAccessorFile(path: path, contents: contents.data(using: .utf8))
     }
 
-    static func objcAccessorHeader(target: Target, project: Project) -> SynthesizedBundleAccessorFile {
-        let path = objcAccessorPath(target: target, project: project, fileExtension: "h")
+    public func objcAccessorHeader(target: Target, project: Project) -> SynthesizedBundleAccessorFile {
+        let path = Self.objcAccessorPath(target: target, project: project, fileExtension: "h")
         return SynthesizedBundleAccessorFile(
             path: path,
-            contents: objcHeaderContents(targetName: target.name).data(using: .utf8)
+            contents: Self.objcHeaderContents(targetName: target.name).data(using: .utf8)
         )
     }
 
-    static func objcAccessorImplementation(
+    public func objcAccessorImplementation(
         target: Target,
         bundleName: String,
         project: Project
     ) -> SynthesizedBundleAccessorFile {
-        let path = objcAccessorPath(target: target, project: project, fileExtension: "m")
+        let path = Self.objcAccessorPath(target: target, project: project, fileExtension: "m")
         return SynthesizedBundleAccessorFile(
             path: path,
-            contents: objcImplementationContents(targetName: target.name, bundleName: bundleName).data(using: .utf8)
+            contents: Self.objcImplementationContents(targetName: target.name, bundleName: bundleName).data(using: .utf8)
         )
     }
 
