@@ -154,6 +154,13 @@ xcresultProcessor:
 macosFleet:
   enabled: true
   replicas: 1
+  # Share the pre-ordered pool with runnersFleet (same prefix
+  # below). Both MachineDeployments draw from one Scaleway-side
+  # pool of `tuist-pool-*` hosts; the controller claims the first
+  # match per Machine. Avoids fragmenting capacity between the
+  # macos and runners fleets in staging where total hostCount
+  # (1 + 2) easily fits within one operator-managed pool.
+  adoptPoolPrefix: "tuist-pool-"
   machine:
     # Staging tracks the chart default (M2-L: M2 Pro / 12 CPU /
     # 32 GB). Drop to M2-M (8 CPU / 16 GB) if staging capacity

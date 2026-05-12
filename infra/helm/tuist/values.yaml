@@ -452,6 +452,15 @@ macosFleet:
   name: ""             # default: <release>-macos-fleet
   replicas: 1
   kubeletVersion: 1.32.1
+  # See `runnersFleet.adoptPoolPrefix` for the full operator
+  # workflow + adoption semantics. Empty (default) preserves
+  # auto-order behavior; set per-env to a Scaleway-name prefix to
+  # claim from a pre-ordered pool. Sharing the same prefix with
+  # `runnersFleet.adoptPoolPrefix` lets one pool of pre-ordered
+  # Mac minis serve both fleets — the controller claims the first
+  # match per Machine, so whichever MachineDeployment scales first
+  # gets the next host.
+  adoptPoolPrefix: ""
   controlPlane:
     host: ""           # API server endpoint Mac minis dial when joining
     port: 6443
