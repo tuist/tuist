@@ -481,6 +481,32 @@ jobs:
             kubectl -n "$NAMESPACE" logs "$pod" --all-containers --previous --tail=500 || true
           done
           echo "::endgroup::"
+          echo "::group::runners-controller deployment + pods"
+          kubectl -n "$NAMESPACE" describe deploy/tuist-tuist-runners-controller 2>&1 || true
+          for pod in $(kubectl -n "$NAMESPACE" get pods -l app.kubernetes.io/component=runners-controller -o name 2>/dev/null); do
+            echo "--- describe $pod ---"
+            kubectl -n "$NAMESPACE" describe "$pod" || true
+            echo "--- logs $pod (current) ---"
+            kubectl -n "$NAMESPACE" logs "$pod" --all-containers --tail=500 || true
+            echo "--- logs $pod (previous) ---"
+            kubectl -n "$NAMESPACE" logs "$pod" --all-containers --previous --tail=500 || true
+          done
+          echo "::endgroup::"
+          echo "::group::CAPI provider deployment + pods"
+          kubectl -n "$NAMESPACE" describe deploy/tuist-tuist-capi-scaleway-applesilicon 2>&1 || true
+          for pod in $(kubectl -n "$NAMESPACE" get pods -l app.kubernetes.io/component=capi-provider-scaleway-applesilicon -o name 2>/dev/null); do
+            echo "--- describe $pod ---"
+            kubectl -n "$NAMESPACE" describe "$pod" || true
+            echo "--- logs $pod (current) ---"
+            kubectl -n "$NAMESPACE" logs "$pod" --all-containers --tail=300 || true
+          done
+          echo "::endgroup::"
+          echo "::group::Scaleway Apple Silicon CRs (Machine adoption state)"
+          kubectl -n "$NAMESPACE" get scalewayapplesiliconmachines -o wide 2>&1 || true
+          kubectl -n "$NAMESPACE" get scalewayapplesiliconmachinetemplates -o wide 2>&1 || true
+          kubectl -n "$NAMESPACE" get machinedeployments.cluster.x-k8s.io -o wide 2>&1 || true
+          kubectl -n "$NAMESPACE" get machines.cluster.x-k8s.io -o wide 2>&1 || true
+          echo "::endgroup::"
           echo "::group::macOS fleet nodes"
           kubectl get nodes -l kubernetes.io/os=darwin,tuist.dev/runtime=tart -o wide || true
           for node in $(kubectl get nodes -l kubernetes.io/os=darwin,tuist.dev/runtime=tart -o name 2>/dev/null); do
