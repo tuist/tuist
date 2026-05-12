@@ -311,10 +311,17 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
       render_hook(lv, "open_create_automation_modal", %{})
       # Toggle recovery on before switching — the type switch must force it off.
       render_hook(lv, "toggle_create_automation_form_recovery", %{})
-      html = render_hook(lv, "update_create_automation_form_metric", %{"data" => "test_updated"})
+      render_hook(lv, "update_create_automation_form_metric", %{"data" => "test_updated"})
+
+      # Re-render explicitly so we assert against the full post-event DOM,
+      # not just the hook's reply payload. This catches stale window /
+      # threshold / recovery inputs that the gate would let through.
+      html = render(lv)
 
       refute html =~ "create-automation-threshold"
-      refute html =~ "create-automation-window"
+      refute html =~ ~s(id="create-automation-window")
+      refute html =~ ~s(id="create-automation-window-type-dropdown")
+      refute html =~ ~s(id="create-automation-rolling-window-size")
       refute html =~ "create-automation-recovery-days"
       refute html =~ "create-automation-recovery-toggle"
       # The inline events multi-select renders instead.
@@ -334,6 +341,32 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
 
       assert [automation] = Automations.list_alerts(project.id)
       refute automation.recovery_enabled
+    end
+
+    test "Save is disabled when switching to test_updated strips the only action", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # The new form starts with a single `add_label flaky` action. Switching to
+      # `test_updated` removes that default (the label flip fights the events
+      # the user picks), so the action list is empty and the changeset would
+      # reject the save with `trigger_actions can't be blank`. The Save button
+      # must reflect that and stay disabled until the user adds an action.
+      {:ok, lv, _html} = open(conn, organization, project)
+
+      render_hook(lv, "open_create_automation_modal", %{})
+      render_hook(lv, "update_create_automation_form_metric", %{"data" => "test_updated"})
+      render_hook(lv, "update_create_automation_form_name", %{"value" => "Mark trigger"})
+
+      assert render(lv) =~
+               ~s(<button class="noora-button" data-variant="primary" data-size="large" disabled="" type="button" phx-click="save_automation"><span>Create</span></button>)
+
+      # Adding an action re-enables Save.
+      render_hook(lv, "add_create_automation_form_trigger_action", %{"data" => "change_state"})
+
+      refute render(lv) =~
+               ~s(<button class="noora-button" data-variant="primary" data-size="large" disabled="" type="button" phx-click="save_automation"><span>Create</span></button>)
     end
   end
 

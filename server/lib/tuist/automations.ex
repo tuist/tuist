@@ -11,6 +11,13 @@ defmodule Tuist.Automations do
 
   require Logger
 
+  # Backstop for automation chains that accidentally form a cycle (e.g. an
+  # alert subscribed to `state_changed_to_muted` whose action mutes the test
+  # case). Tracked per-process so each `update_test_case/3` entry-point gets
+  # its own counter and concurrent updates don't interfere.
+  @max_dispatch_depth 10
+  @dispatch_depth_key :tuist_automation_dispatch_depth
+
   def list_alerts(project_id) do
     Alert
     |> where(project_id: ^project_id)
@@ -117,20 +124,41 @@ defmodule Tuist.Automations do
 
   Other events are ignored so this can be safely called for every test case
   event the caller produces.
+
+  Automation actions that mutate the test case re-enter this dispatcher, so
+  a chain like `marked_flaky → mute → state_changed_to_muted → ...` works
+  out of the box. A per-process depth counter (max `#{@max_dispatch_depth}`)
+  prevents accidental cycles from looping forever.
   """
   def dispatch_test_case_event(event_type, test_case) do
-    case event_to_subscription_key(event_type) do
-      nil ->
-        :ok
+    with key when not is_nil(key) <- event_to_subscription_key(event_type),
+         depth when depth < @max_dispatch_depth <- Process.get(@dispatch_depth_key, 0) do
+      Process.put(@dispatch_depth_key, depth + 1)
 
-      key ->
+      try do
         test_case
         |> subscribed_alerts(key)
         |> Enum.each(fn alert -> run_event_actions(alert, test_case.id) end)
 
         :ok
+      after
+        restore_dispatch_depth(depth)
+      end
+    else
+      nil ->
+        :ok
+
+      depth when is_integer(depth) ->
+        Logger.warning(
+          "Aborting automation dispatch: depth #{depth} reached for test case #{test_case.id} on event #{event_type}. Likely a cycle in automation actions."
+        )
+
+        :ok
     end
   end
+
+  defp restore_dispatch_depth(0), do: Process.delete(@dispatch_depth_key)
+  defp restore_dispatch_depth(depth), do: Process.put(@dispatch_depth_key, depth)
 
   defp event_to_subscription_key(:marked_flaky), do: "marked_flaky"
   defp event_to_subscription_key(:unmarked_flaky), do: "unmarked_flaky"

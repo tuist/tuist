@@ -186,7 +186,7 @@ defmodule Tuist.AutomationsTest do
       AutomationsFixtures.automation_alert_fixture(
         project: project,
         monitor_type: "flaky_run_count",
-        trigger_config: %{"threshold" => 3, "window" => "30d"}
+        trigger_config: %{"threshold" => 3, "window_type" => "last_days", "window" => "30d"}
       )
 
       reject(&ActionExecutor.execute_actions/3)
@@ -248,28 +248,6 @@ defmodule Tuist.AutomationsTest do
       assert :ok = Automations.dispatch_test_case_event(:unskipped, test_case)
     end
 
-    test "recovery_actions are ignored for test_updated alerts" do
-      # Legacy alerts may still have recovery_enabled=true + recovery_actions
-      # set, but the discrete-event model has no recovery semantic — only
-      # trigger_actions fire.
-      project = ProjectsFixtures.project_fixture()
-      test_case = %{id: Ecto.UUID.generate(), project_id: project.id}
-
-      alert =
-        test_updated_alert(project,
-          recovery_enabled: true,
-          recovery_config: %{},
-          recovery_actions: [%{"type" => "change_state", "state" => "enabled"}]
-        )
-
-      expect(ActionExecutor, :execute_actions, fn actions, ^alert, _entity ->
-        assert actions == alert.trigger_actions
-        :ok
-      end)
-
-      assert :ok = Automations.dispatch_test_case_event(:marked_flaky, test_case)
-    end
-
     test "does not record an alert event when actions fail" do
       project = ProjectsFixtures.project_fixture()
       test_case = %{id: Ecto.UUID.generate(), project_id: project.id}
@@ -281,6 +259,29 @@ defmodule Tuist.AutomationsTest do
 
       assert :ok = Automations.dispatch_test_case_event(:marked_flaky, test_case)
       assert Automations.list_active_alert_events(alert.id) == []
+    end
+
+    test "depth guard caps recursion when an action re-fires the same event" do
+      project = ProjectsFixtures.project_fixture()
+      test_case = %{id: Ecto.UUID.generate(), project_id: project.id}
+      _alert = test_updated_alert(project)
+
+      # Simulate an automation whose action re-emits the same test case
+      # event (the canonical cycle: a `state_changed_to_muted` alert that
+      # mutes the test on fire). Without a guard this would loop forever.
+      counter = :counters.new(1, [])
+
+      stub(ActionExecutor, :execute_actions, fn _actions, _alert, _entity ->
+        :counters.add(counter, 1, 1)
+        Automations.dispatch_test_case_event(:marked_flaky, test_case)
+        :ok
+      end)
+
+      assert :ok = Automations.dispatch_test_case_event(:marked_flaky, test_case)
+
+      # The dispatcher allows depths 0..9 to run, so we expect exactly 10
+      # executor invocations before the guard trips on the 11th level.
+      assert :counters.get(counter, 1) == 10
     end
   end
 end

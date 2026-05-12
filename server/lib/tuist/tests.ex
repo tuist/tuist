@@ -777,7 +777,8 @@ defmodule Tuist.Tests do
   ## Parameters
   - `test_case_id` - the test case UUID to update
   - `update_attrs` - map with `:is_flaky` boolean and/or `:state` (`"enabled"` | `"muted"` | `"skipped"`)
-  - `opts` - optional keyword list with `:actor_id` (account_id for user actions, nil for system)
+  - `opts` - optional keyword list with `:actor_id` (account_id for user actions, nil for system / automation)
+    and `:alert_id` (set by `ActionExecutor` so the event timeline can attribute the change to its automation)
   """
   def update_test_case(test_case_id, update_attrs, opts \\ []) when is_map(update_attrs) do
     valid_keys = [:is_flaky, :state]
@@ -805,7 +806,7 @@ defmodule Tuist.Tests do
       # that nested broadcast to land LAST so the LiveView ends up with the
       # automation-applied state, not our pre-automation snapshot.
       broadcast_test_case_update(updated_test_case, event_types)
-      dispatch_event_driven_automations(test_case, event_types, actor_id)
+      dispatch_event_driven_automations(test_case, event_types)
 
       {:ok, updated_test_case}
     end
@@ -861,9 +862,12 @@ defmodule Tuist.Tests do
     TestCaseEvent.Buffer.flush()
   end
 
-  defp dispatch_event_driven_automations(_test_case, _event_types, nil), do: :ok
-
-  defp dispatch_event_driven_automations(test_case, event_types, _actor_id) do
+  defp dispatch_event_driven_automations(test_case, event_types) do
+    # Automation-driven updates re-enter `update_test_case/3`, which calls
+    # back into this dispatcher: an automation reacting to `marked_flaky`
+    # by muting the test fires its own `:muted` event for any alert
+    # subscribed to `state_changed_to_muted`. Loop protection lives in
+    # `Tuist.Automations.dispatch_test_case_event/2` (depth guard).
     Enum.each(event_types, fn event_type ->
       Automations.dispatch_test_case_event(event_type, test_case)
     end)

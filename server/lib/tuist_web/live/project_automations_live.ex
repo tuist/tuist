@@ -7,6 +7,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
 
   alias Tuist.Authorization
   alias Tuist.Automations
+  alias Tuist.Automations.Alerts.Alert
   alias Tuist.Environment
   alias Tuist.Slack
   alias TuistWeb.SlackOAuthController
@@ -124,7 +125,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
   end
 
   defp parse_events(events) when is_list(events) do
-    Enum.filter(events, &(&1 in Tuist.Automations.Alerts.Alert.test_updated_events()))
+    Enum.filter(events, &(&1 in Alert.test_updated_events()))
   end
 
   defp parse_events(_), do: ["marked_flaky"]
@@ -740,7 +741,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
   disables Save is visible inline on the field.
   """
   def rolling_size_error("rolling", raw_size) do
-    max = Tuist.Automations.Alerts.Alert.max_rolling_window_size()
+    max = Alert.max_rolling_window_size()
 
     case Integer.parse(to_string(raw_size)) do
       {n, ""} when n >= 1 and n <= max -> nil

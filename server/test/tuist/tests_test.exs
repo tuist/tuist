@@ -7068,7 +7068,7 @@ defmodule Tuist.TestsTest do
       assert "muted" in event_types
     end
 
-    test "dispatches :marked_flaky to Automations when actor_id is set" do
+    test "dispatches :marked_flaky to Automations on user-driven updates" do
       # Given
       project = ProjectsFixtures.project_fixture()
       user = AccountsFixtures.user_fixture(preload: [:account])
@@ -7088,7 +7088,7 @@ defmodule Tuist.TestsTest do
         Tests.update_test_case(test_case.id, %{is_flaky: true}, actor_id: user.account.id)
     end
 
-    test "dispatches :unmarked_flaky to Automations when actor_id is set" do
+    test "dispatches :unmarked_flaky to Automations on user-driven updates" do
       # Given
       project = ProjectsFixtures.project_fixture()
       user = AccountsFixtures.user_fixture(preload: [:account])
@@ -7106,13 +7106,20 @@ defmodule Tuist.TestsTest do
         Tests.update_test_case(test_case.id, %{is_flaky: false}, actor_id: user.account.id)
     end
 
-    test "does not dispatch automation events when actor_id is nil (system update)" do
-      # Given
+    test "dispatches automation events even when actor_id is nil so automation chains compose" do
+      # Given an update with no actor_id (system / automation-driven), we
+      # still fan out to event-driven automations: a `flaky_run_count`
+      # alert that marks a test as flaky should be able to trigger a
+      # downstream `test_updated` alert subscribed to `marked_flaky`.
       project = ProjectsFixtures.project_fixture()
       test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: false)
       IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
 
-      reject(&Automations.dispatch_test_case_event/2)
+      expected_test_case_id = test_case.id
+
+      expect(Automations, :dispatch_test_case_event, fn :marked_flaky, %{id: ^expected_test_case_id} ->
+        :ok
+      end)
 
       # When / Then
       {:ok, _updated} = Tests.update_test_case(test_case.id, %{is_flaky: true})
@@ -7290,8 +7297,8 @@ defmodule Tuist.TestsTest do
 
       IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
 
-      expect(Tests, :update_test_case, 1, fn id, attrs ->
-        Mimic.call_original(Tests, :update_test_case, [id, attrs])
+      expect(Tests, :update_test_case, 1, fn id, attrs, opts ->
+        Mimic.call_original(Tests, :update_test_case, [id, attrs, opts])
       end)
 
       assert :ok =

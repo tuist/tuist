@@ -227,7 +227,10 @@
                     </.dropdown>
                   </div>
                   <div
-                    :if={@create_automation_form_window_type == "last_days"}
+                    :if={
+                      not event_driven_monitor_type?(@create_automation_form_metric) and
+                        @create_automation_form_window_type == "last_days"
+                    }
                     data-part="form-row"
                     data-size="compact"
                   >
@@ -245,7 +248,10 @@
                     />
                   </div>
                   <div
-                    :if={@create_automation_form_window_type == "rolling"}
+                    :if={
+                      not event_driven_monitor_type?(@create_automation_form_metric) and
+                        @create_automation_form_window_type == "rolling"
+                    }
                     data-part="form-row"
                     data-size="compact"
                   >
@@ -845,7 +851,9 @@
                 }
                 variant="primary"
                 disabled={
-                  @create_automation_form_name == "" or not rolling_window_inputs_valid?(assigns)
+                  @create_automation_form_name == "" or
+                    not rolling_window_inputs_valid?(assigns) or
+                    Enum.empty?(@create_automation_form_trigger_actions)
                 }
                 phx-click="save_automation"
               />
