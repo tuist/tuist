@@ -235,7 +235,7 @@ runnersFleet:
       # pool only produces unschedulable Pods that drag readiness
       # gates without adding capacity.
       replicas: 1
-      runnerImage: "ghcr.io/tuist/tuist-runner@sha256:ac69458c53c86ad81fe6e90e89245da5b45b3969f87ad8d760870cb2c49d8e7b"
+      runnerImage: "ghcr.io/tuist/tuist-runner:08e66c9b"
       dispatchLabel: "tuist-staging-macos"
       pod:
         # Pod request = host capacity. kube-scheduler bin-packs one
