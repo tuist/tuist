@@ -190,16 +190,18 @@ xcresultProcessor:
 macosFleet:
   replicas: 2
   machine:
-    # Production tracks the chart default — M2-L (M2 Pro):
-    # 12 CPU / 32 GB. Explicit here so the matching `hostCPU` /
-    # `hostMemoryMB` stay in sync if a future operator flips to
-    # a different SKU.
+    # Production tracks the chart default — M2-L on Scaleway:
+    # M2 Pro 10-core / 16 GB. Explicit here so the matching
+    # `hostCPU` / `hostMemoryMB` stay in sync if a future operator
+    # flips to a different SKU.
     type: M2-L
-    # 30720 leaves ~2 GB for the Apple Virtualization.framework
-    # reserve. Drop to 14336 + cpu=8 if we ever flip to an M4-S
-    # / 16 GB SKU.
-    hostCPU: 12
-    hostMemoryMB: 30720
+    # Leave 2 CPU + 2 GB for the macOS host + Apple
+    # Virtualization.framework reserve. Asking for the host's full
+    # 10 CPU / 16 GB on `tart run` fails with
+    # `memorySize > maximumAllowedMemorySize` (and the matching
+    # CPU-count check).
+    hostCPU: 8
+    hostMemoryMB: 14336
   controlPlane:
     host: api.tuist.dev
 

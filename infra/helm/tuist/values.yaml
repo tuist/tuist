@@ -489,10 +489,11 @@ macosFleet:
   # `macosFleet.image.tag` rolls a new kubelet.
   tartKubelet:
     # Capacity advertised by each Mac mini when it registers its Node.
-    # Matches the default `macosFleet.machine.type = M2-L` — M2 Pro
-    # chip, 12 vCPU, 32 GB RAM. 30720 leaves ~2 GB for the Apple
-    # Virtualization.framework reserve (asking for the full 32 GB on
-    # `tart run` fails with `memorySize > maximumAllowedMemorySize`).
+    # Matches the default `macosFleet.machine.type = M2-L` on Scaleway
+    # — M2 Pro chip, 12 vCPU, 16 GB RAM. 14336 leaves ~2 GB for the
+    # macOS host + Apple Virtualization.framework reserve (asking for
+    # the full 16 GB on `tart run` fails with
+    # `memorySize > maximumAllowedMemorySize`).
     # Override per-env if `machine.type` is bumped to a different SKU.
     #
     # maxPods=3 (not 2): Apple's macOS SLA caps virtualized macOS
@@ -509,8 +510,8 @@ macosFleet:
     # what the SLA actually allows. Tart itself still refuses to
     # start a third VM, so the SLA cap is enforced at the
     # virtualization layer regardless of what kubelet schedules.
-    hostCPU: 12
-    hostMemoryMB: 30720
+    hostCPU: 8
+    hostMemoryMB: 14336
     maxPods: 3
   scaleway:
     # Name of the Secret holding `access-key`, `secret-key`,

@@ -162,15 +162,19 @@ macosFleet:
   # (1 + 2) easily fits within one operator-managed pool.
   adoptPoolPrefix: "tuist-pool-"
   machine:
-    # Staging tracks the chart default (M2-L: M2 Pro / 12 CPU /
-    # 32 GB). Drop to M2-M (8 CPU / 16 GB) if staging capacity
-    # gets tight on inventory and we accept smaller hosts.
+    # Staging tracks the chart default (M2-L on Scaleway: M2 Pro
+    # 10-core / 16 GB). Drop to M2-M if staging capacity gets tight
+    # on inventory and we accept smaller hosts.
     type: M2-L
-    # M2-L capacity minus the ~2 GB Apple Virtualization.framework
-    # reserve. tart-kubelet advertises this so kube-scheduler packs
-    # Pods against the real budget.
-    hostCPU: 12
-    hostMemoryMB: 30720
+    # Leave 2 CPU + 2 GB for the macOS host + Apple
+    # Virtualization.framework reserve. tart-kubelet advertises
+    # `8 / 14336` so kube-scheduler packs Pods against the real VM
+    # budget. Asking for the host's full 10 CPU / 16 GB fails at
+    # `tart run` with
+    # `memorySize > maximumAllowedMemorySize` (and the matching
+    # CPU-count check).
+    hostCPU: 8
+    hostMemoryMB: 14336
 
 # Customer-runner Mac mini fleet. Sized to tuist/tuist's
 # concurrency tier (2 in staging; production keeps 5).
@@ -194,20 +198,22 @@ runnersFleet:
   # capacity is pre-ordered.
   adoptPoolPrefix: "tuist-pool-"
   machine:
-    # Chart default — M2-L: M2 Pro / 12 CPU / 32 GB. Explicit
-    # here so `hostCPU`/`hostMemoryMB` stay in sync if a future
-    # operator overrides the SKU per env. The operator's
+    # Chart default — M2-L on Scaleway: M2 Pro 10-core / 16 GB.
+    # Explicit here so `hostCPU`/`hostMemoryMB` stay in sync if a
+    # future operator overrides the SKU per env. The operator's
     # pre-ordered hosts MUST be M2-L (matching the controller's
     # adoption filter); other SKUs in the pool are skipped.
     type: M2-L
-    # Match the SKU's actual capacity so tart-kubelet advertises
-    # the right Node.Status.Capacity and kube-scheduler packs Pods
-    # against the real budget. 30720 leaves ~2 GB for the Apple
-    # Virtualization.framework reserve (32 GB - 2 GB = 30 GB);
-    # asking for 32 GB on a 32 GB host fails with `memorySize >
-    # maximumAllowedMemorySize` at `tart run`.
-    hostCPU: 12
-    hostMemoryMB: 30720
+    # Match the SKU's actual capacity less host overhead so
+    # tart-kubelet advertises the right Node.Status.Capacity and
+    # kube-scheduler packs Pods against the real VM budget.
+    # 14336 leaves ~2 GB for the macOS host + Apple
+    # Virtualization.framework reserve (16 GB - 2 GB = 14 GB);
+    # asking for the full 16 GB on a 16 GB host fails at
+    # `tart run` with `memorySize > maximumAllowedMemorySize`.
+    # `hostCPU: 8` leaves 2 cores for the host's system services.
+    hostCPU: 8
+    hostMemoryMB: 14336
   # Cluster-internal CIDR ranges the runner namespace's
   # NetworkPolicy blocks egress to. **Pod-network only** — the
   # Tart VM's traffic is not subject to this policy (vmnet bypasses
@@ -237,5 +243,5 @@ runnersFleet:
         # the host's full CPU/RAM. Mismatch with `machine.host*`
         # would either waste memory (Pod under-requests, VM is
         # smaller than host) or fail to schedule (over-requests).
-        cpuMilli: 12000
-        memoryMB: 30720
+        cpuMilli: 8000
+        memoryMB: 14336
