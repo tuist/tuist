@@ -981,6 +981,79 @@ defmodule Tuist.AccountsTest do
     end
   end
 
+  describe "get_pending_invitation_by_email/1" do
+    test "returns the invitation when one exists for the given email" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: user)
+
+      {:ok, invitation} =
+        Accounts.invite_user_to_organization("new@tuist.io", %{
+          inviter: user,
+          to: organization,
+          url: fn token -> token end
+        })
+
+      # When
+      {:ok, got} = Accounts.get_pending_invitation_by_email("new@tuist.io")
+
+      # Then
+      assert got.id == invitation.id
+    end
+
+    test "returns the oldest invitation when several exist for the same email" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+
+      {:ok, older} =
+        Accounts.invite_user_to_organization("new@tuist.io", %{
+          inviter: user,
+          to: AccountsFixtures.organization_fixture(creator: user),
+          url: fn token -> token end
+        })
+
+      {:ok, _newer} =
+        Accounts.invite_user_to_organization("new@tuist.io", %{
+          inviter: user,
+          to: AccountsFixtures.organization_fixture(creator: user),
+          url: fn token -> token end
+        })
+
+      # When
+      {:ok, got} = Accounts.get_pending_invitation_by_email("new@tuist.io")
+
+      # Then
+      assert got.id == older.id
+    end
+
+    test "returns :not_found when no invitation exists for the given email" do
+      # When
+      got = Accounts.get_pending_invitation_by_email("nobody@tuist.io")
+
+      # Then
+      assert got == {:error, :not_found}
+    end
+
+    test "does not match invitations for other emails" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: user)
+
+      {:ok, _invitation} =
+        Accounts.invite_user_to_organization("someone@tuist.io", %{
+          inviter: user,
+          to: organization,
+          url: fn token -> token end
+        })
+
+      # When
+      got = Accounts.get_pending_invitation_by_email("other@tuist.io")
+
+      # Then
+      assert got == {:error, :not_found}
+    end
+  end
+
   describe "accept_invitation/1" do
     test "accepts an invitation" do
       # Given
