@@ -4,7 +4,7 @@ import Path
 import TuistCASAnalytics
 
 /// Cleans up stale analytics state entries from the CAS analytics database
-/// and the legacy file-based directories and `logs/` directory.
+/// and the legacy file-based directories.
 public struct AnalyticsStateController {
     private let fileSystem: FileSystem
     private let database: CASAnalyticsDatabasing
@@ -42,11 +42,6 @@ public struct AnalyticsStateController {
         let keyValueDirectory = stateDirectory.appending(component: "keyvalue")
         if try await fileSystem.exists(keyValueDirectory) {
             try await fileSystem.remove(keyValueDirectory)
-        }
-
-        let logsDirectory = stateDirectory.appending(component: "logs")
-        if try await fileSystem.exists(logsDirectory) {
-            try await fileSystem.remove(logsDirectory)
         }
     }
 }
