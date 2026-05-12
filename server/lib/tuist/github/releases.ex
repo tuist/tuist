@@ -130,50 +130,60 @@ defmodule Tuist.GitHub.Releases do
 
   defp fetch_latest_app_release(opts \\ []) do
     url = Keyword.get(opts, :url, releases_url())
-    headers = github_auth_headers()
-    req_opts = [finch: Tuist.Finch, headers: headers] ++ Retry.retry_options()
 
-    case Req.get(url, req_opts) do
-      {:ok, %Req.Response{status: 200, body: releases, headers: headers}} ->
-        next_url = extract_next_url(headers)
-
-        releases = Enum.map(releases, &map_release/1)
-
+    case release_page(url, opts) do
+      %{releases: releases, next_url: next_url} ->
         case find_app_release_from_releases(releases) do
           nil when next_url != nil ->
-            fetch_latest_app_release(url: next_url)
+            fetch_latest_app_release(Keyword.put(opts, :url, next_url))
 
           result ->
             result
         end
 
-      {:ok, %Req.Response{status: status}} when status in 500..599 ->
-        Logger.error("Failed to fetch GitHub releases, status: #{status}")
-        nil
-
-      {:error, reason} ->
-        Logger.error("Failed to fetch GitHub releases, reason: #{inspect(reason)}")
+      nil ->
         nil
     end
   end
 
   defp fetch_latest_kura_release(opts) do
     url = Keyword.get(opts, :url, releases_url())
+
+    case release_page(url, opts) do
+      %{releases: releases, next_url: next_url} ->
+        case find_kura_release_from_releases(releases) do
+          nil when next_url != nil ->
+            fetch_latest_kura_release(Keyword.put(opts, :url, next_url))
+
+          result ->
+            result
+        end
+
+      nil ->
+        nil
+    end
+  end
+
+  defp release_page(url, opts) do
+    KeyValueStore.get_or_update(
+      [__MODULE__, "github_releases_page", url],
+      [ttl: Keyword.get(opts, :ttl, @ttl)],
+      fn ->
+        fetch_release_page(url)
+      end
+    )
+  end
+
+  defp fetch_release_page(url) do
     headers = github_auth_headers()
     req_opts = [finch: Tuist.Finch, headers: headers] ++ Retry.retry_options()
 
     case Req.get(url, req_opts) do
       {:ok, %Req.Response{status: 200, body: releases, headers: headers}} ->
-        next_url = extract_next_url(headers)
-        releases = Enum.map(releases, &map_release/1)
-
-        case find_kura_release_from_releases(releases) do
-          nil when next_url != nil ->
-            fetch_latest_kura_release(url: next_url)
-
-          result ->
-            result
-        end
+        %{
+          releases: Enum.map(releases, &map_release/1),
+          next_url: extract_next_url(headers)
+        }
 
       {:ok, %Req.Response{status: status}} when status in 500..599 ->
         Logger.error("Failed to fetch GitHub releases, status: #{status}")

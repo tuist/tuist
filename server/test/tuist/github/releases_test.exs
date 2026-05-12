@@ -403,6 +403,35 @@ defmodule Tuist.GitHub.ReleasesTest do
   end
 
   describe "get_latest_kura_release/0" do
+    test "caches GitHub release page responses" do
+      published_at = DateTime.utc_now()
+      releases_url = Releases.releases_url()
+
+      kura_release = %{
+        "published_at" => Timex.format!(published_at, "{ISO:Extended}"),
+        "name" => "Kura 0.5.2",
+        "tag_name" => "kura@0.5.2",
+        "html_url" => "https://github.com/tuist/tuist/releases/tag/kura@0.5.2",
+        "assets" => []
+      }
+
+      expect(Tuist.KeyValueStore, :get_or_update, fn [Releases, "github_latest_kura_release"], opts, func ->
+        assert opts[:ttl] == 1234
+        func.()
+      end)
+
+      expect(Tuist.KeyValueStore, :get_or_update, fn [Releases, "github_releases_page", ^releases_url], opts, func ->
+        assert opts[:ttl] == 1234
+        func.()
+      end)
+
+      expect(Req, :get, fn ^releases_url, _opts ->
+        {:ok, %Req.Response{status: 200, body: [kura_release], headers: []}}
+      end)
+
+      assert %{tag_name: "kura@0.5.2"} = Releases.get_latest_kura_release(ttl: 1234)
+    end
+
     test "returns the latest Kura release" do
       published_at = DateTime.utc_now()
       releases_url = Releases.releases_url()
