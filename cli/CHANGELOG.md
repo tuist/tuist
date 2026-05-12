@@ -8,6 +8,8 @@ All notable changes to this project will be documented in this file.
 * allow forwarding extra env vars to manifest evaluation by [@pepicrft](https://github.com/pepicrft) in [#10705](https://github.com/tuist/tuist/pull/10705)
 ### 🐛 Bug Fixes
 
+* coordinate SwiftPM graph reads by [@pepicrft](https://github.com/pepicrft) in [#10729](https://github.com/tuist/tuist/pull/10729)
+* propagate selective testing and module cache analytics across --build-only / --without-building by [@fortmarek](https://github.com/fortmarek) in [#10672](https://github.com/tuist/tuist/pull/10672)
 * avoid invalidating shared URLSession on no-op HTTPSettings writes by [@fortmarek](https://github.com/fortmarek) in [#10727](https://github.com/tuist/tuist/pull/10727)
 * handle nested buildable folder xcstrings by [@pepicrft](https://github.com/pepicrft) in [#10721](https://github.com/tuist/tuist/pull/10721)
 * make metadata upload non-fatal by [@pepicrft](https://github.com/pepicrft) in [#10696](https://github.com/tuist/tuist/pull/10696)
