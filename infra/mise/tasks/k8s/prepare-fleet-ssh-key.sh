@@ -61,16 +61,18 @@ case "$ENV" in
 esac
 
 # Map env -> 1Password vault + workload kubeconfig item. Matches
-# the convention used by infra/mise/tasks/k8s/bootstrap-workload.sh.
+# the convention used by infra/mise/tasks/k8s/bootstrap-workload.sh
+# and the `op document get "kubeconfig: tuist-${env}"` line in
+# .github/workflows/server-deployment.yml.
 case "$ENV" in
   staging)    VAULT_NAME="tuist-k8s-staging"    ;  KUBECONFIG_ITEM="kubeconfig: tuist-staging" ;;
   canary)     VAULT_NAME="tuist-k8s-canary"     ;  KUBECONFIG_ITEM="kubeconfig: tuist-canary" ;;
-  production) VAULT_NAME="tuist-k8s-production" ;  KUBECONFIG_ITEM="kubeconfig: tuist" ;;
+  production) VAULT_NAME="tuist-k8s-production" ;  KUBECONFIG_ITEM="kubeconfig: tuist-production" ;;
 esac
 
 # Namespace where the chart's CAPI provider deployment runs. Matches
-# the helm release's namespace (tuist-<env> for staging/canary,
-# tuist for production).
+# the helm release's namespace, which the deploy workflow maps as
+# `tuist-${env}` for staging/canary and bare `tuist` for production.
 case "$ENV" in
   staging)    NAMESPACE="tuist-staging" ;;
   canary)     NAMESPACE="tuist-canary" ;;
