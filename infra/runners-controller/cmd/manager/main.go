@@ -113,6 +113,12 @@ func envOr(key, fallback string) string {
 }
 
 // Compile-time check that we're not accidentally pulling unused
-// imports if the GC reconciler wires move around.
-var _ client.Client = (*controllers.RunnerPoolReconciler)(nil).Client
-var _ corev1.Pod
+// imports if the GC reconciler wires move around. The previous
+// form dereferenced a nil *RunnerPoolReconciler at package-init
+// time and segfaulted before main() ran; these versions are
+// type-only (no value evaluation, no nil deref).
+var (
+	_ client.Client = (client.Client)(nil)
+	_               = controllers.RunnerPoolReconciler{}
+	_               = corev1.Pod{}
+)
