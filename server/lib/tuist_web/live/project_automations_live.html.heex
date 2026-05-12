@@ -419,12 +419,11 @@
                       />
                       <.dropdown_item
                         :if={
-                          not event_driven_monitor_type?(@create_automation_form_metric) and
-                            not has_label_action?(
-                              @create_automation_form_trigger_actions,
-                              "add_label",
-                              "flaky"
-                            ) and
+                          not has_label_action?(
+                            @create_automation_form_trigger_actions,
+                            "add_label",
+                            "flaky"
+                          ) and
                             not has_label_action?(
                               @create_automation_form_trigger_actions,
                               "remove_label",
