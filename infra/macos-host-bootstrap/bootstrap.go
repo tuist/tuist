@@ -160,6 +160,9 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 	if err := installTart(ctx, client, cfg.TartTarball); err != nil {
 		return hk.observed(), fmt.Errorf("install tart: %w", err)
 	}
+	if err := installVMEgressFirewall(ctx, client); err != nil {
+		return hk.observed(), fmt.Errorf("install vm egress firewall: %w", err)
+	}
 	if err := writeKubeconfig(ctx, client, cfg.Kubeconfig); err != nil {
 		return hk.observed(), fmt.Errorf("write kubeconfig: %w", err)
 	}
@@ -616,6 +619,131 @@ sudo chmod 0755 /usr/local/bin/tart
 /usr/local/bin/tart --version
 `
 	return runCommandWithStdin(ctx, client, script, string(tarball))
+}
+
+// installVMEgressFirewall configures pfctl rules that drop egress
+// from the host's vmnet bridge to cluster-private destinations
+// (RFC1918 ranges) while allowing public-internet egress. Tart
+// VMs attach to vmnet (Apple's bridged-NAT networking for
+// Virtualization.framework) and inherit IPs in the 192.168.64.0/22
+// range; without these rules the customer-controlled workload
+// inside the VM can reach the K8s Pod/Service network, other
+// Mac minis on the same cluster's host network, and any RFC1918
+// peer the host can route to.
+//
+// The runner-namespace NetworkPolicy explicitly cannot help here:
+// vmnet bridges packets onto the host's L2 before they touch the
+// CNI's iptables chains, so Pod-level policies never see VM
+// traffic. The packet filter on the host is the only enforcement
+// point.
+//
+// What the rules allow:
+//   - vmnet→public internet egress (DNS, GitHub API, package
+//     registries) — the only thing the runner actually needs.
+//   - vmnet→vmnet local subnet (one-VM-per-host today; this is
+//     a no-op but avoids accidental breakage if we ever bin-pack).
+//
+// What the rules block:
+//   - vmnet→10.0.0.0/8 (typical Pod/Service CIDRs, K8s control
+//     plane, intra-VPC peers).
+//   - vmnet→172.16.0.0/12 (alt Pod CIDR space, some VPNs).
+//   - vmnet→169.254.0.0/16 (cloud metadata endpoints — VMs must
+//     never reach the host's IMDS, that's a credential leak).
+//
+// Why 192.168.0.0/16 isn't blocked wholesale: vmnet itself is on
+// 192.168.x. Blocking the entire /16 would also drop intra-VM
+// traffic and SSH from the operator network if that ever lives
+// on 192.168. Since cluster CIDRs in production are 10.x, the
+// blocklist is precise rather than maximal.
+//
+// Idempotent: writes the same anchor file on every call. Enables
+// pf if not already enabled. The launchd plist re-loads the
+// rules on every boot so a reboot doesn't drop the filter.
+func installVMEgressFirewall(ctx context.Context, client *ssh.Client) error {
+	script := `set -euo pipefail
+
+# Idempotent install of the pf anchor file. The anchor namespaces
+# our rules under "tuist.runners" so we don't collide with any
+# operator-added entries in /etc/pf.conf.
+sudo mkdir -p /etc/pf.anchors
+sudo tee /etc/pf.anchors/tuist.runners >/dev/null <<'PFCONF'
+# Tuist runner VM egress filter.
+#
+# vmnet places Tart VMs on 192.168.64.0/22 (Apple's documented
+# bridged-NAT range). Block customer-workload egress from those
+# source IPs to cluster-private destinations; allow everything
+# else (public internet is the workload's actual need).
+#
+# IMPORTANT: rules are evaluated last-match-wins; the explicit
+# block lines run AFTER the default pass via the 'quick' keyword.
+
+table <vm_sources> persist { 192.168.64.0/22 }
+table <blocked_dst> persist { 10.0.0.0/8, 172.16.0.0/12, 169.254.0.0/16 }
+
+# Drop VM→private destinations at the host edge.
+block drop out quick from <vm_sources> to <blocked_dst>
+
+# Belt-and-suspenders: explicitly block the AWS/cloud metadata
+# IP even on hosts where the routing table wouldn't normally
+# carry it. A static rule survives any future routing changes
+# from the cluster operator.
+block drop out quick from <vm_sources> to 169.254.169.254
+PFCONF
+
+# Splice the anchor into /etc/pf.conf if it isn't already there.
+# /etc/pf.conf is editable per-host (vs. /System/Library which is
+# SIP-protected); macOS's default pf.conf carries a marker line
+# we anchor our insert against.
+if ! sudo grep -q "anchor \"tuist.runners\"" /etc/pf.conf; then
+  sudo tee -a /etc/pf.conf >/dev/null <<'PFCONFENTRY'
+
+# Tuist runner VM egress filter — see /etc/pf.anchors/tuist.runners
+anchor "tuist.runners"
+load anchor "tuist.runners" from "/etc/pf.anchors/tuist.runners"
+PFCONFENTRY
+fi
+
+# Validate the ruleset before activating. -nf parses without
+# loading; if this fails we want a clear bootstrap error rather
+# than a half-loaded filter.
+sudo pfctl -nf /etc/pf.conf
+
+# Enable pf (no-op if already enabled) and reload the ruleset.
+# -E enables and pins the token so a subsequent disable from
+# elsewhere doesn't silently drop our rules; -f reloads.
+sudo pfctl -E 2>/dev/null || true
+sudo pfctl -f /etc/pf.conf
+
+# launchd job to re-arm pf on every boot. macOS doesn't persist
+# the -E enable across reboots in all configurations; an
+# explicit RunAtLoad agent makes the filter durable.
+sudo tee /Library/LaunchDaemons/dev.tuist.pfctl-runners.plist >/dev/null <<'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>dev.tuist.pfctl-runners</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/sbin/pfctl</string>
+    <string>-f</string>
+    <string>/etc/pf.conf</string>
+    <string>-E</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>StandardErrorPath</key>
+  <string>/var/log/tuist-pfctl-runners.log</string>
+</dict>
+</plist>
+PLIST
+sudo chown root:wheel /Library/LaunchDaemons/dev.tuist.pfctl-runners.plist
+sudo chmod 0644 /Library/LaunchDaemons/dev.tuist.pfctl-runners.plist
+sudo launchctl bootout system/dev.tuist.pfctl-runners 2>/dev/null || true
+sudo launchctl bootstrap system /Library/LaunchDaemons/dev.tuist.pfctl-runners.plist
+`
+	return runCommand(ctx, client, script)
 }
 
 // === SSH helpers ===========================================================

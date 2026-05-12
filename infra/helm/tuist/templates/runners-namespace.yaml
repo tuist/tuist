@@ -180,12 +180,15 @@ roleRef:
 # That gap is intentional for v1 — customer CI workflows
 # legitimately reach a long tail of third-party hosts, so any
 # closed allowlist would break real workloads. The real VM
-# egress gate lives at the cluster perimeter / per-node firewall
-# (CAPI-provisioned Mac mini security group), where we drop
-# RFC1918 destinations originating from VM IPs. An L7
-# domain-allowlist proxy is on the v2 hardening list; until
-# then assume the VM payload has unconstrained public-internet
-# egress.
+# egress gate lives on the Mac mini itself as a pfctl ruleset
+# installed by `macos-host-bootstrap`'s
+# `installVMEgressFirewall` step: it drops VM-source packets
+# (vmnet 192.168.64.0/22) destined for 10.0.0.0/8, 172.16.0.0/12,
+# and 169.254.0.0/16 (incl. cloud metadata 169.254.169.254). A
+# launchd daemon re-arms the ruleset at every host boot so the
+# filter survives reboots. An L7 domain-allowlist proxy is on
+# the v2 hardening list; until then VM egress is RFC1918-blocked
+# but otherwise unconstrained on the public internet.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
