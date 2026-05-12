@@ -4241,7 +4241,7 @@ final class TestServiceTests: TuistUnitTestCase {
             .called(1)
     }
 
-    func test_run_testWithoutBuilding_restoresRunMetadataSnapshot_fromBundle() async throws {
+    func test_run_testWithoutBuilding_restoresRunMetadata_fromBundle() async throws {
         // Given
         let path = try temporaryPath()
         let testProductsPath = path.appending(component: "MyApp.xctestproducts")
@@ -4280,15 +4280,15 @@ final class TestServiceTests: TuistUnitTestCase {
                 ),
             ],
         ]
-        let snapshot = RunMetadataSnapshot(
+        let runMetadata = RunMetadata(
             graph: graph,
             binaryCacheItems: binaryCacheItems,
             selectiveTestingCacheItems: selectiveTestingCacheItems,
             targetContentHashSubhashes: [:],
             buildRunId: "BUILD-RUN-ID"
         )
-        let snapshotPath = testProductsPath.appending(component: RunMetadataSnapshot.fileName)
-        try JSONEncoder().encode(snapshot).write(to: snapshotPath.url)
+        let runMetadataPath = testProductsPath.appending(component: RunMetadata.fileName)
+        try JSONEncoder().encode(runMetadata).write(to: runMetadataPath.url)
 
         given(configLoader)
             .loadConfig(path: .any)
@@ -4319,7 +4319,7 @@ final class TestServiceTests: TuistUnitTestCase {
         XCTAssertEqual(restoredGraph?.projects[projectPath]?.name, "Project")
     }
 
-    func test_run_testWithoutBuilding_skipsRunMetadataRestore_whenSnapshotMissing() async throws {
+    func test_run_testWithoutBuilding_skipsRunMetadataRestore_whenMissing() async throws {
         // Given
         let path = try temporaryPath()
         let testProductsPath = path.appending(component: "MyApp.xctestproducts")
@@ -4424,15 +4424,15 @@ final class TestServiceTests: TuistUnitTestCase {
         try JSONEncoder().encode(selectiveTestingGraph)
             .write(to: testProductsPath.appending(component: SelectiveTestingGraph.fileName).url)
 
-        let snapshot = RunMetadataSnapshot(
+        let runMetadata = RunMetadata(
             graph: nil,
             binaryCacheItems: [:],
             selectiveTestingCacheItems: [:],
             targetContentHashSubhashes: [:],
             buildRunId: "BUILD-RUN-ID"
         )
-        try JSONEncoder().encode(snapshot)
-            .write(to: testProductsPath.appending(component: RunMetadataSnapshot.fileName).url)
+        try JSONEncoder().encode(runMetadata)
+            .write(to: testProductsPath.appending(component: RunMetadata.fileName).url)
 
         given(configLoader)
             .loadConfig(path: .any)
