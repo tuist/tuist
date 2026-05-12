@@ -7,13 +7,13 @@ defmodule Mix.Tasks.Docs.ValidatePage do
   use Mix.Task
   use Boundary, classify_to: Tuist.Mix
 
-  alias Tuist.Docs.Loader
+  alias Tuist.Docs
 
   @impl Mix.Task
   def run([path]) do
     path
     |> Path.expand(File.cwd!())
-    |> Loader.validate_page!()
+    |> Docs.validate_page!()
 
     Mix.shell().info("Validated docs page #{path}")
   end
