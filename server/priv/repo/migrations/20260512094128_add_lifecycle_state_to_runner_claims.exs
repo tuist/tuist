@@ -19,12 +19,22 @@ defmodule Tuist.Repo.Migrations.AddLifecycleStateToRunnerClaims do
   # maybe a third later); plain :string with the partial index
   # below keeps the cap-counting query fast and the schema easy
   # to evolve.
+  # Adding a NOT NULL column with a default is the canonical
+  # excellent-migrations warning. Safe here for two reasons:
+  # `runner_claims` is the OLTP claim-lock table, steady-state row
+  # count is bounded by inflight workflow_jobs (~tens), and the
+  # only writers are the dispatch path + stale-claims worker —
+  # both already serialise via the workflow_job_id PK / advisory
+  # locks introduced in this PR. PG 11+ stores the default in
+  # pg_attribute, so the ALTER does NOT rewrite existing rows.
   def change do
     alter table(:runner_claims) do
+      # excellent_migrations:safety-assured-for-next-line column_added_with_default
       add :lifecycle_state, :string, null: false, default: "claimed"
       # The GH runner name we registered for this claim. Set when
       # `lifecycle_state` flips to `running`; lets ops correlate
       # a stuck PG row to the runner in the GitHub Actions UI.
+      # excellent_migrations:safety-assured-for-next-line column_added_with_default
       add :runner_name, :string, null: false, default: ""
     end
 
