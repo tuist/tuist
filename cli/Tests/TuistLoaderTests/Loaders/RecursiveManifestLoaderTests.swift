@@ -348,11 +348,88 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
             at: path.appending(try RelativePath(validating: "Some/Path/A")),
             disableSandbox: false
         )
-        manifests = try await subject.loadAndMergePackageProjects(in: manifests, packageSettings: .test(), disableSandbox: false)
+        manifests = try await subject.loadAndMergePackageProjects(
+            in: manifests,
+            packageSettings: .test(),
+            disableSandbox: false
+        )
 
         // Then
         XCTAssertEqual(withRelativePaths(manifests.projects), [
             "Some/Path/A": .test(name: "PackageA"),
+        ])
+    }
+
+    func test_loadSPM_Package_ignoresPackagesInCustomSwiftPMCheckouts() async throws {
+        // Given
+        let packageA = createPackage(name: "PackageA")
+        let checkoutPackage = createPackage(name: "CheckoutPackage")
+        try await stub(manifest: packageA, at: try RelativePath(validating: "Some/Path/A"))
+        try await stub(
+            manifest: checkoutPackage,
+            at: try RelativePath(validating: "Some/Path/A/custom-build/checkouts/CheckoutPackage")
+        )
+        given(packageInfoMapper).map(
+            packageInfo: .value(packageA),
+            path: .any,
+            packageType: .any,
+            packageSettings: .any,
+            packageModuleAliases: .any,
+            enabledTraits: .any
+        )
+        .willReturn(
+            .test(name: "PackageA")
+        )
+
+        // When
+        var manifests = try await subject.loadWorkspace(
+            at: path.appending(try RelativePath(validating: "Some/Path/A")),
+            disableSandbox: false
+        )
+        manifests = try await subject.loadAndMergePackageProjects(
+            in: manifests,
+            packageSettings: .test(),
+            disableSandbox: false,
+            swiftPackageManagerScratchDirectory: path.appending(try RelativePath(validating: "Some/Path/A/custom-build"))
+        )
+
+        // Then
+        XCTAssertEqual(withRelativePaths(manifests.projects), [
+            "Some/Path/A": .test(name: "PackageA"),
+        ])
+    }
+
+    func test_loadSPM_Package_whenPathContainsCheckouts_doesNotFilterItOut() async throws {
+        // Given
+        let packageA = createPackage(name: "PackageA")
+        try await stub(manifest: packageA, at: try RelativePath(validating: "Some/checkouts/A"))
+        given(packageInfoMapper).map(
+            packageInfo: .value(packageA),
+            path: .any,
+            packageType: .any,
+            packageSettings: .any,
+            packageModuleAliases: .any,
+            enabledTraits: .any
+        )
+        .willReturn(
+            .test(name: "PackageA")
+        )
+
+        // When
+        var manifests = try await subject.loadWorkspace(
+            at: path.appending(try RelativePath(validating: "Some/checkouts/A")),
+            disableSandbox: false
+        )
+        manifests = try await subject.loadAndMergePackageProjects(
+            in: manifests,
+            packageSettings: .test(),
+            disableSandbox: false,
+            swiftPackageManagerScratchDirectory: path.appending(try RelativePath(validating: "Some/custom-build"))
+        )
+
+        // Then
+        XCTAssertEqual(withRelativePaths(manifests.projects), [
+            "Some/checkouts/A": .test(name: "PackageA"),
         ])
     }
 

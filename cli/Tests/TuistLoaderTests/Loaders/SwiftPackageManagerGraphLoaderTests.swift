@@ -97,6 +97,7 @@ struct SwiftPackageManagerGraphLoaderTests {
                 given(packageInfoMapper)
                     .resolveExternalDependencies(
                         path: .any,
+                        packagePath: .any,
                         packageInfos: .any,
                         packageToFolder: .any,
                         packageToTargetsToArtifactPaths: .any,
@@ -123,6 +124,93 @@ struct SwiftPackageManagerGraphLoaderTests {
                 )
             }
         }
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
+    func load_when_scratchPathArgumentIsPresent_readsStateFromScratchDirectory() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let scratchDirectory = temporaryDirectory.appending(component: "custom-build")
+
+        // Given
+        let packageSettings = PackageSettings.test()
+
+        let workspacePath = scratchDirectory.appending(component: "workspace-state.json")
+        try await fileSystem.makeDirectory(at: workspacePath.parentDirectory)
+        try await fileSystem.writeText(
+            """
+            {
+              "object" : {
+                "artifacts" : [],
+                "dependencies" : [
+                  {
+                    "basedOn" : null,
+                    "packageRef" : {
+                      "identity" : "Alamofire.Alamofire",
+                      "kind" : "registry",
+                      "location" : "Alamofire.Alamofire",
+                      "name" : "Alamofire.Alamofire"
+                    },
+                    "state" : {
+                      "name" : "registryDownload",
+                      "version" : "5.10.2"
+                    },
+                    "subpath" : "Alamofire/Alamofire/5.10.2"
+                  }
+                ],
+              }
+            }
+            """,
+            at: workspacePath
+        )
+
+        try await fileSystem.makeDirectory(at: scratchDirectory.appending(component: "Derived"))
+        try await fileSystem.touch(
+            scratchDirectory.appending(components: [
+                "Derived", "Package.resolved",
+            ])
+        )
+        try await fileSystem.touch(
+            temporaryDirectory.appending(component: "Package.resolved")
+        )
+
+        given(packageInfoMapper)
+            .resolveExternalDependencies(
+                path: .any,
+                packagePath: .any,
+                packageInfos: .any,
+                packageToFolder: .any,
+                packageToTargetsToArtifactPaths: .any,
+                packageModuleAliases: .any,
+                packageSettings: .any
+            )
+            .willReturn([:])
+
+        // When
+        let (got, lintingIssues) = try await subject.load(
+            packagePath: temporaryDirectory.appending(component: "Package.swift"),
+            packageSettings: packageSettings,
+            disableSandbox: true,
+            swiftPackageManagerArguments: ["--scratch-path", scratchDirectory.pathString]
+        )
+
+        // Then
+        #expect(
+            got.externalProjects.values.map(\.hash) == [
+                "Alamofire.Alamofire-5.10.2",
+            ]
+        )
+        #expect(lintingIssues.isEmpty)
+        verify(packageInfoMapper)
+            .resolveExternalDependencies(
+                path: .value(scratchDirectory),
+                packagePath: .value(temporaryDirectory),
+                packageInfos: .any,
+                packageToFolder: .any,
+                packageToTargetsToArtifactPaths: .any,
+                packageModuleAliases: .any,
+                packageSettings: .any
+            )
+            .called(1)
     }
 
     @Test
@@ -196,6 +284,7 @@ struct SwiftPackageManagerGraphLoaderTests {
                 given(packageInfoMapper)
                     .resolveExternalDependencies(
                         path: .any,
+                        packagePath: .any,
                         packageInfos: .any,
                         packageToFolder: .any,
                         packageToTargetsToArtifactPaths: .any,
@@ -325,6 +414,7 @@ struct SwiftPackageManagerGraphLoaderTests {
         given(packageInfoMapper)
             .resolveExternalDependencies(
                 path: .any,
+                packagePath: .any,
                 packageInfos: .any,
                 packageToFolder: .any,
                 packageToTargetsToArtifactPaths: .any,
@@ -433,6 +523,7 @@ struct SwiftPackageManagerGraphLoaderTests {
         given(packageInfoMapper)
             .resolveExternalDependencies(
                 path: .any,
+                packagePath: .any,
                 packageInfos: .any,
                 packageToFolder: .any,
                 packageToTargetsToArtifactPaths: .any,
@@ -493,6 +584,7 @@ struct SwiftPackageManagerGraphLoaderTests {
                 given(packageInfoMapper)
                     .resolveExternalDependencies(
                         path: .any,
+                        packagePath: .any,
                         packageInfos: .any,
                         packageToFolder: .any,
                         packageToTargetsToArtifactPaths: .any,

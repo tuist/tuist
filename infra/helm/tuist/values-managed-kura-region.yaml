@@ -13,11 +13,18 @@ kuraController:
   namespace: kura
   image:
     tag: ""  # Set by CI to the commit SHA on each deploy.
-  # ClusterIssuer that fronts the gRPC public LoadBalancer with a
-  # Let's Encrypt certificate. Must already exist on the regional
+  # Some regional clusters run as single control-plane-only clusters.
+  # Tolerating the standard control-plane taint lets the controller
+  # schedule there, while worker-backed regions remain unaffected.
+  tolerations:
+    - key: node-role.kubernetes.io/control-plane
+      operator: Exists
+      effect: NoSchedule
+  # ClusterIssuer that fronts the public HTTPS and gRPC LoadBalancers
+  # with Let's Encrypt certificates. Must already exist on the regional
   # cluster (cert-manager + the issuer are bootstrapped via the
-  # mgmt-cluster pipeline). Leave empty to keep gRPC plaintext.
-  grpcClusterIssuer: "letsencrypt-prod"
+  # mgmt-cluster pipeline).
+  tlsClusterIssuer: "letsencrypt-prod"
   sharedSecrets:
     # In managed regions, kura-shared-secrets is populated by CI from
     # the same secret store as the Tuist server release.

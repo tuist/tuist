@@ -75,19 +75,26 @@ defmodule TuistWeb.UserConfirmationLive do
   def mount(%{"token" => token}, _session, socket) do
     if connected?(socket) do
       case Accounts.confirm_user(token) do
-        {:ok, _} ->
+        {:ok, user} ->
           Process.send_after(self(), :redirect, 5000)
-          {:ok, assign(socket, success: true)}
+          {:ok, assign(socket, success: true, redirect_to: post_confirmation_path(user))}
 
         :error ->
-          {:ok, assign(socket, success: false)}
+          {:ok, assign(socket, success: false, redirect_to: nil)}
       end
     else
-      {:ok, assign(socket, success: true)}
+      {:ok, assign(socket, success: true, redirect_to: nil)}
     end
   end
 
   def handle_info(:redirect, socket) do
-    {:noreply, redirect(socket, to: ~p"/organizations/new")}
+    {:noreply, redirect(socket, to: socket.assigns.redirect_to || ~p"/organizations/new")}
+  end
+
+  defp post_confirmation_path(user) do
+    case Accounts.get_pending_invitations_by_email(user.email) do
+      [invitation | _] -> ~p"/auth/invitations/#{invitation.token}"
+      [] -> ~p"/organizations/new"
+    end
   end
 end

@@ -144,22 +144,19 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	if !pod.DeletionTimestamp.IsZero() {
 		// Pod is being deleted. Run VM teardown, then drop our
-		// finalizer so the API server can complete deletion. Order
-		// matters: we must not remove the finalizer until the VM
-		// is gone, otherwise the Pod disappears from kubectl's view
+		// finalizer and force-complete the API object deletion. Order
+		// matters: the Pod must not disappear from kubectl's view
 		// while the VM is still running on the host.
 		if err := r.deletePod(ctx, pod); err != nil {
 			logger.Error(err, "delete failed; will retry")
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
-		if controllerutil.RemoveFinalizer(pod, PodFinalizer) {
-			if err := r.CachedClient.Update(ctx, pod); err != nil {
-				if apierrors.IsConflict(err) || apierrors.IsNotFound(err) {
-					return ctrl.Result{}, nil
-				}
-				logger.Error(err, "remove finalizer; will retry")
-				return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
+		if err := r.completePodDeletion(ctx, pod); err != nil {
+			if apierrors.IsConflict(err) || apierrors.IsNotFound(err) {
+				return ctrl.Result{}, nil
 			}
+			logger.Error(err, "complete pod deletion; will retry")
+			return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 		}
 		return ctrl.Result{}, nil
 	}
@@ -434,13 +431,23 @@ func contextWithTimeout(d time.Duration) (context.Context, context.CancelFunc) {
 }
 
 func (r *Reconciler) deletePod(ctx context.Context, pod *corev1.Pod) error {
-	// VM teardown only. The caller (Reconcile, on DeletionTimestamp)
-	// removes the finalizer afterward, which lets the API server
-	// complete deletion on its own — the controller-runtime-idiomatic
-	// shape. No `client.Delete` here: the chart's tart-kubelet
-	// ClusterRole grants update/patch on Pods (the real-kubelet
-	// surface) but not delete, and we don't need it.
+	// VM teardown only. The caller removes the finalizer and force-
+	// completes the API object deletion afterward.
 	return r.deleteByKey(ctx, pod.Namespace, pod.Name)
+}
+
+func (r *Reconciler) completePodDeletion(ctx context.Context, pod *corev1.Pod) error {
+	if controllerutil.RemoveFinalizer(pod, PodFinalizer) {
+		if err := r.CachedClient.Update(ctx, pod); err != nil {
+			return err
+		}
+	}
+
+	// The API server usually removes a terminating Pod once its
+	// finalizers are gone, but a stale object can keep the hostPort and
+	// topology slot occupied indefinitely. Make deletion explicit after
+	// VM cleanup so rollouts cannot get stuck behind old Pod objects.
+	return r.CachedClient.Delete(ctx, pod, client.GracePeriodSeconds(0))
 }
 
 func (r *Reconciler) deleteByKey(ctx context.Context, namespace, name string) error {

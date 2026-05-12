@@ -39,31 +39,19 @@ RUN swift build -c release --replace-scm-with-registry && \
 # Stage 1: NPM dependencies
 # ========================================
 FROM node:22-slim AS npm-deps
-ARG TARGETARCH
 ENV CI=1
 ENV XDG_DATA_HOME="/aube-data"
 RUN npm install -g --ignore-scripts=false @endevco/aube
 COPY server/package.json /app/package.json
 COPY server/pnpm-lock.yaml /app/pnpm-lock.yaml
 WORKDIR /app
-RUN --mount=type=cache,id=aube-${TARGETARCH},target=/aube-data/aube aube install --frozen-lockfile
+RUN --mount=type=cache,id=aube,target=/aube-data/aube aube install --frozen-lockfile
 
 # Build noora static assets (JS + CSS) from source
 COPY noora /noora
 WORKDIR /noora
-RUN --mount=type=cache,id=aube-${TARGETARCH},target=/aube-data/aube aube install
-# Bypass aube for the esbuild binary. aube's content-addressable
-# store keys on the tarball, not on (tarball, arch), so the
-# platform-specific binary that esbuild's postinstall drops at
-# `node_modules/.aube/esbuild@*/node_modules/esbuild/bin/esbuild`
-# can carry over from a different-arch build and surface as
-# `SyntaxError: Invalid or unexpected token` (ELF parsed as JS).
-# `npm install -g esbuild` uses standard optional-dep `os`/`cpu`
-# filtering, which picks the correct `@esbuild/linux-{x64,arm64}`
-# binary for the current TARGETARCH every time.
-RUN npm install -g esbuild@0.27.7
-RUN esbuild js/index.js --bundle --minify --sourcemap --format=esm --outfile=./priv/static/noora.js && \
-    esbuild css/noora.css --bundle --minify --sourcemap --outfile=./priv/static/noora.css
+RUN --mount=type=cache,id=aube,target=/aube-data/aube aube install
+RUN aube run build
 WORKDIR /app
 
 # ========================================

@@ -228,6 +228,60 @@ final class InstallServiceTests: TuistUnitTestCase {
         XCTAssertEqual(savedPackageResolvedContents, "resolved")
     }
 
+    func test_run_when_installing_dependencies_with_scratchPath_savesPackageResolvedInScratchDirectory() async throws {
+        // Given
+        let stubbedPath = try temporaryPath()
+        let scratchDirectory = try temporaryPath()
+        let expectedPackageResolvedPath = stubbedPath.appending(components: ["Tuist", "Package.resolved"])
+
+        given(manifestFilesLocator)
+            .locatePackageManifest(at: .any)
+            .willReturn(stubbedPath.appending(components: "Tuist", "Package.swift"))
+        given(swiftPackageManagerController)
+            .resolve(at: .any, arguments: .any, printOutput: .any)
+            .willReturn()
+
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(
+                Tuist.test(project: .generated(.test()))
+            )
+
+        pluginService.fetchRemotePluginsStub = { _ in }
+
+        try await fileSystem.touch(
+            stubbedPath.appending(
+                component: Manifest.package.fileName(stubbedPath)
+            )
+        )
+
+        try await fileSystem.makeDirectory(at: expectedPackageResolvedPath.parentDirectory)
+        try await fileSystem.writeText("resolved", at: expectedPackageResolvedPath)
+
+        // When
+        try await subject.run(
+            path: stubbedPath.pathString,
+            update: false,
+            passthroughArguments: ["--scratch-path", scratchDirectory.pathString]
+        )
+
+        let savedPackageResolvedPath = scratchDirectory.appending(components: [
+            "Derived",
+            "Package.resolved",
+        ])
+        let savedPackageResolvedContents = try await fileSystem.readTextFile(at: savedPackageResolvedPath)
+
+        // Then
+        verify(swiftPackageManagerController)
+            .resolve(
+                at: .any,
+                arguments: .value(["--scratch-path", scratchDirectory.pathString]),
+                printOutput: .any
+            )
+            .called(1)
+        XCTAssertEqual(savedPackageResolvedContents, "resolved")
+    }
+
     func test_install_when_from_a_tuist_project_directory() async throws {
         // Given
         let temporaryDirectory = try temporaryPath()
