@@ -429,7 +429,12 @@ public struct TestService { // swiftlint:disable:this type_body_length
                         testPlanConfiguration: testPlanConfiguration,
                         action: action
                     )
-                    try await outputEmptyShardMatrixIfNeeded(isSharding: isSharding, action: action)
+                    try await finishEarlyWithNoTests(
+                        isSharding: isSharding,
+                        action: action,
+                        schemeName: scheme.name,
+                        config: config
+                    )
                     return
                 } else {
                     throw TestServiceError.schemeNotFound(
@@ -458,14 +463,24 @@ public struct TestService { // swiftlint:disable:this type_body_length
                     level: .info,
                     "The scheme \(schemeName)'s test action has no tests to run, finishing early."
                 )
-                try await outputEmptyShardMatrixIfNeeded(isSharding: isSharding, action: action)
+                try await finishEarlyWithNoTests(
+                    isSharding: isSharding,
+                    action: action,
+                    schemeName: scheme.name,
+                    config: config
+                )
                 return
             case (_?, _, true), (_?, _, nil):
                 Logger.current.log(
                     level: .info,
                     "The scheme \(schemeName)'s test action has no test plans to run, finishing early."
                 )
-                try await outputEmptyShardMatrixIfNeeded(isSharding: isSharding, action: action)
+                try await finishEarlyWithNoTests(
+                    isSharding: isSharding,
+                    action: action,
+                    schemeName: testPlanConfiguration?.testPlan ?? scheme.name,
+                    config: config
+                )
                 return
             default:
                 break
@@ -491,16 +506,12 @@ public struct TestService { // swiftlint:disable:this type_body_length
             requestedTestTargets: testTargets,
             passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
         ) {
-            if action == .build {
-                try await outputEmptyShardMatrixIfNeeded(isSharding: isSharding, action: action)
-            } else {
-                let timer = clock.startTimer()
-                try await uploadSkippedTestSummary(
-                    schemeName: schemes.first?.name,
-                    config: config,
-                    timer: timer
-                )
-            }
+            try await finishEarlyWithNoTests(
+                isSharding: isSharding,
+                action: action,
+                schemeName: schemes.first?.name,
+                config: config
+            )
             return
         }
 
@@ -1282,6 +1293,24 @@ public struct TestService { // swiftlint:disable:this type_body_length
         }
     }
 
+    private func finishEarlyWithNoTests(
+        isSharding: Bool,
+        action: XcodeBuildTestAction,
+        schemeName: String?,
+        config: Tuist
+    ) async throws {
+        if action == .build {
+            try await outputEmptyShardMatrixIfNeeded(isSharding: isSharding, action: action)
+        } else {
+            let timer = clock.startTimer()
+            try await uploadSkippedTestSummary(
+                schemeName: schemeName,
+                config: config,
+                timer: timer
+            )
+        }
+    }
+
     private func shouldRunTest(
         for schemes: [Scheme],
         testPlanConfiguration: TestPlanConfiguration?,
@@ -1811,7 +1840,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
 
         let testSummary = TestSummary(
             testPlanName: schemeName,
-            status: .passed,
+            status: .skipped,
             duration: durationInMs,
             testModules: []
         )
