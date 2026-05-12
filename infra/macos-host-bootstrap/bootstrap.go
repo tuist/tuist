@@ -472,10 +472,24 @@ func waitForSSH(ctx context.Context, ip, user string, signer ssh.Signer, hk *hos
 // Pre-ordered hosts that sat in the pool longer than Scaleway's
 // password-disclosure window won't have a usable password — for those
 // the operator is expected to seed /etc/sudoers.d/<user>-nopasswd by
-// hand via the prep script's VNC instructions; the existence check
-// at the top of the script makes this branch a no-op when that's
-// already been done.
+// hand via the prep-fleet-host script. With no password to feed sudo,
+// hammering `sudo -S` every reconcile would consume PAM failure-tally
+// slots and lock the account in a loop the controller can never
+// escape (the lockout outlives the controller's retry window because
+// every retry re-arms it). When we don't have a password to use,
+// bail safely so the lockout can drain naturally and the operator's
+// out-of-band prep can land.
+//
+// File-existence check still short-circuits the common case where
+// the operator already staged the sudoers entry before adoption.
 func enablePasswordlessSudo(ctx context.Context, client *ssh.Client, user, password string) error {
+	if password == "" {
+		// Idempotency-only path: if the sudoers file is there, fine;
+		// if not, return without touching PAM so we don't ramp the
+		// lockout counter on every reconcile.
+		check := fmt.Sprintf(`test -f /etc/sudoers.d/%[1]s-nopasswd`, user)
+		return runCommand(ctx, client, check)
+	}
 	script := fmt.Sprintf(`set -euo pipefail
 if [ -f /etc/sudoers.d/%[1]s-nopasswd ]; then exit 0; fi
 echo '%[2]s' | sudo -S tee /etc/sudoers.d/%[1]s-nopasswd > /dev/null <<EOF
