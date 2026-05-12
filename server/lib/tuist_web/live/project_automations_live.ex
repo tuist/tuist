@@ -67,6 +67,21 @@ defmodule TuistWeb.ProjectAutomationsLive do
     |> assign(create_automation_form_recovery_window: "14d")
     |> assign(create_automation_form_recovery_rolling_window_size: "100")
     |> assign(create_automation_form_recovery_actions: [default_remove_label_action()])
+    |> reset_webhook_action_modal()
+  end
+
+  # Webhook action modal — opened from the "Send webhook" entry in either the
+  # trigger or recovery action dropdown, or from "Rotate" on an existing row.
+  # `context` is `:trigger` or `:recovery`; `editing_index` is non-nil when
+  # rotating the secret of an already-added action.
+  defp reset_webhook_action_modal(socket) do
+    socket
+    |> assign(webhook_action_modal_context: nil)
+    |> assign(webhook_action_modal_url: "")
+    |> assign(webhook_action_modal_url_error: nil)
+    |> assign(webhook_action_modal_plaintext_secret: nil)
+    |> assign(webhook_action_modal_encrypted_secret: nil)
+    |> assign(webhook_action_modal_editing_index: nil)
   end
 
   @comparisons ~w(gte gt lt lte)
@@ -103,17 +118,6 @@ defmodule TuistWeb.ProjectAutomationsLive do
       "webhook_url_encrypted" => "",
       "message" => @default_recovery_slack_message
     }
-
-  defp default_send_webhook_action do
-    %{plaintext: plaintext, encrypted: encrypted} = Tuist.Webhooks.generate_signing_secret()
-
-    %{
-      "type" => "send_webhook",
-      "url" => "",
-      "signing_secret_encrypted" => encrypted,
-      "_signing_secret_plaintext" => plaintext
-    }
-  end
 
   defp automation_to_form(automation) do
     %{
@@ -258,6 +262,10 @@ defmodule TuistWeb.ProjectAutomationsLive do
     {:noreply, assign(socket, create_automation_form_rolling_window_size: value)}
   end
 
+  def handle_event("add_create_automation_form_trigger_action", %{"data" => "send_webhook"}, socket) do
+    {:noreply, open_webhook_action_modal(socket, :trigger, nil)}
+  end
+
   def handle_event("add_create_automation_form_trigger_action", %{"data" => type}, socket) do
     actions = socket.assigns.create_automation_form_trigger_actions ++ [new_action(type, :trigger)]
     {:noreply, assign(socket, create_automation_form_trigger_actions: actions)}
@@ -319,31 +327,6 @@ defmodule TuistWeb.ProjectAutomationsLive do
     {:noreply, assign(socket, create_automation_form_trigger_actions: actions)}
   end
 
-  def handle_event("update_create_automation_form_trigger_action_url", %{"value" => url, "index" => index}, socket) do
-    index = String.to_integer(index)
-
-    actions =
-      update_action_at(socket.assigns.create_automation_form_trigger_actions, index, fn action ->
-        Map.put(action, "url", url)
-      end)
-
-    {:noreply, assign(socket, create_automation_form_trigger_actions: actions)}
-  end
-
-  def handle_event("rotate_create_automation_form_trigger_action_signing_secret", %{"index" => index}, socket) do
-    index = String.to_integer(index)
-    %{plaintext: plaintext, encrypted: encrypted} = Tuist.Webhooks.generate_signing_secret()
-
-    actions =
-      update_action_at(socket.assigns.create_automation_form_trigger_actions, index, fn action ->
-        action
-        |> Map.put("signing_secret_encrypted", encrypted)
-        |> Map.put("_signing_secret_plaintext", plaintext)
-      end)
-
-    {:noreply, assign(socket, create_automation_form_trigger_actions: actions)}
-  end
-
   def handle_event("toggle_create_automation_form_recovery", _params, socket) do
     {:noreply,
      assign(socket, create_automation_form_recovery_enabled: not socket.assigns.create_automation_form_recovery_enabled)}
@@ -363,6 +346,10 @@ defmodule TuistWeb.ProjectAutomationsLive do
 
   def handle_event("update_create_automation_form_recovery_rolling_window_size", %{"value" => value}, socket) do
     {:noreply, assign(socket, create_automation_form_recovery_rolling_window_size: value)}
+  end
+
+  def handle_event("add_create_automation_form_recovery_action", %{"data" => "send_webhook"}, socket) do
+    {:noreply, open_webhook_action_modal(socket, :recovery, nil)}
   end
 
   def handle_event("add_create_automation_form_recovery_action", %{"data" => type}, socket) do
@@ -411,31 +398,6 @@ defmodule TuistWeb.ProjectAutomationsLive do
     {:noreply, socket}
   end
 
-  def handle_event("update_create_automation_form_recovery_action_url", %{"value" => url, "index" => index}, socket) do
-    index = String.to_integer(index)
-
-    actions =
-      update_action_at(socket.assigns.create_automation_form_recovery_actions, index, fn action ->
-        Map.put(action, "url", url)
-      end)
-
-    {:noreply, assign(socket, create_automation_form_recovery_actions: actions)}
-  end
-
-  def handle_event("rotate_create_automation_form_recovery_action_signing_secret", %{"index" => index}, socket) do
-    index = String.to_integer(index)
-    %{plaintext: plaintext, encrypted: encrypted} = Tuist.Webhooks.generate_signing_secret()
-
-    actions =
-      update_action_at(socket.assigns.create_automation_form_recovery_actions, index, fn action ->
-        action
-        |> Map.put("signing_secret_encrypted", encrypted)
-        |> Map.put("_signing_secret_plaintext", plaintext)
-      end)
-
-    {:noreply, assign(socket, create_automation_form_recovery_actions: actions)}
-  end
-
   def handle_event(
         "update_create_automation_form_recovery_action_message",
         %{"value" => message, "index" => index},
@@ -450,6 +412,84 @@ defmodule TuistWeb.ProjectAutomationsLive do
 
     {:noreply, assign(socket, create_automation_form_recovery_actions: actions)}
   end
+
+  # Webhook action modal handlers
+
+  def handle_event("open_webhook_action_rotate_modal", %{"context" => context, "index" => index}, socket)
+      when context in ["trigger", "recovery"] do
+    index = String.to_integer(index)
+    ctx = String.to_existing_atom(context)
+    action = current_webhook_action(socket, ctx, index)
+
+    if action do
+      %{plaintext: plaintext, encrypted: encrypted} = Tuist.Webhooks.generate_signing_secret()
+
+      socket =
+        socket
+        |> assign(webhook_action_modal_context: ctx)
+        |> assign(webhook_action_modal_editing_index: index)
+        |> assign(webhook_action_modal_url: action["url"] || "")
+        |> assign(webhook_action_modal_url_error: nil)
+        |> assign(webhook_action_modal_plaintext_secret: plaintext)
+        |> assign(webhook_action_modal_encrypted_secret: encrypted)
+        |> push_event("open-modal", %{id: "webhook-action-modal"})
+
+      {:noreply, socket}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_event("update_webhook_action_modal_url", %{"value" => url}, socket) do
+    {:noreply,
+     socket
+     |> assign(webhook_action_modal_url: url)
+     |> assign(webhook_action_modal_url_error: nil)}
+  end
+
+  def handle_event("create_webhook_action", _params, socket) do
+    url = String.trim(socket.assigns.webhook_action_modal_url || "")
+
+    if Tuist.Webhooks.valid_webhook_url?(url) do
+      %{plaintext: plaintext, encrypted: encrypted} = Tuist.Webhooks.generate_signing_secret()
+
+      {:noreply,
+       socket
+       |> assign(webhook_action_modal_url: url)
+       |> assign(webhook_action_modal_url_error: nil)
+       |> assign(webhook_action_modal_plaintext_secret: plaintext)
+       |> assign(webhook_action_modal_encrypted_secret: encrypted)}
+    else
+      {:noreply,
+       assign(socket,
+         webhook_action_modal_url_error: dgettext("dashboard_projects", "Must be a valid HTTPS URL.")
+       )}
+    end
+  end
+
+  def handle_event("confirm_webhook_action", _params, socket) do
+    {:noreply,
+     socket
+     |> apply_webhook_modal_result()
+     |> reset_webhook_action_modal()
+     |> push_event("close-modal", %{id: "webhook-action-modal"})}
+  end
+
+  def handle_event("cancel_webhook_action", _params, socket) do
+    {:noreply,
+     socket
+     |> reset_webhook_action_modal()
+     |> push_event("close-modal", %{id: "webhook-action-modal"})}
+  end
+
+  # Catches close-on-Escape and close-on-interact-outside (Zag dialog state),
+  # neither of which triggers `on_dismiss`. We reset the modal state so a
+  # subsequent open lands on the blank URL form rather than the prior secret.
+  def handle_event("webhook_action_modal_open_change", %{"open" => false}, socket) do
+    {:noreply, reset_webhook_action_modal(socket)}
+  end
+
+  def handle_event("webhook_action_modal_open_change", _params, socket), do: {:noreply, socket}
 
   def handle_event("save_automation", _params, %{assigns: assigns} = socket) do
     attrs = build_automation_attrs(assigns.selected_project.id, assigns)
@@ -503,7 +543,6 @@ defmodule TuistWeb.ProjectAutomationsLive do
   defp new_action("change_state", :trigger), do: default_change_state_action("muted")
   defp new_action("change_state", :recovery), do: default_change_state_action("enabled")
   defp new_action("send_slack", context), do: default_send_slack_action(context)
-  defp new_action("send_webhook", _context), do: default_send_webhook_action()
   defp new_action("add_label_flaky", _context), do: %{"type" => "add_label", "label" => "flaky"}
   defp new_action("remove_label_flaky", _context), do: %{"type" => "remove_label", "label" => "flaky"}
   defp new_action(_, :recovery), do: default_change_state_action("enabled")
@@ -514,6 +553,60 @@ defmodule TuistWeb.ProjectAutomationsLive do
       nil -> actions
       action -> List.replace_at(actions, index, fun.(action))
     end
+  end
+
+  defp open_webhook_action_modal(socket, context, _opts) do
+    socket
+    |> reset_webhook_action_modal()
+    |> assign(webhook_action_modal_context: context)
+    |> push_event("open-modal", %{id: "webhook-action-modal"})
+  end
+
+  defp current_webhook_action(socket, :trigger, index),
+    do: Enum.at(socket.assigns.create_automation_form_trigger_actions, index)
+
+  defp current_webhook_action(socket, :recovery, index),
+    do: Enum.at(socket.assigns.create_automation_form_recovery_actions, index)
+
+  defp build_webhook_action(url, encrypted_secret) do
+    %{
+      "type" => "send_webhook",
+      "url" => url,
+      "signing_secret_encrypted" => encrypted_secret
+    }
+  end
+
+  defp apply_webhook_modal_result(%{assigns: %{webhook_action_modal_encrypted_secret: nil}} = socket), do: socket
+
+  defp apply_webhook_modal_result(socket) do
+    ctx = socket.assigns.webhook_action_modal_context
+    index = socket.assigns.webhook_action_modal_editing_index
+    url = socket.assigns.webhook_action_modal_url
+    encrypted = socket.assigns.webhook_action_modal_encrypted_secret
+
+    field = webhook_modal_actions_field(ctx)
+
+    if is_nil(field) do
+      socket
+    else
+      assign(socket, field, apply_webhook_to_actions(Map.fetch!(socket.assigns, field), index, url, encrypted))
+    end
+  end
+
+  defp webhook_modal_actions_field(:trigger), do: :create_automation_form_trigger_actions
+  defp webhook_modal_actions_field(:recovery), do: :create_automation_form_recovery_actions
+  defp webhook_modal_actions_field(_), do: nil
+
+  defp apply_webhook_to_actions(actions, nil, url, encrypted) do
+    actions ++ [build_webhook_action(url, encrypted)]
+  end
+
+  defp apply_webhook_to_actions(actions, index, url, encrypted) do
+    update_action_at(actions, index, fn action ->
+      action
+      |> Map.put("signing_secret_encrypted", encrypted)
+      |> Map.put("url", url)
+    end)
   end
 
   defp build_automation_attrs(project_id, assigns) do
