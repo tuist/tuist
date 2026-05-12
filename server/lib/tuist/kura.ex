@@ -50,7 +50,7 @@ defmodule Tuist.Kura do
   Returns the latest released Kura runtime version.
 
   Managed deploys use the latest `kura@...` GitHub release as the
-  customer-facing version, while rollout manifests use the corresponding
+  source release, while rollout manifests use the corresponding
   Docker tag without the `kura@` prefix.
   """
   def latest_versions(limit \\ 20)
@@ -68,15 +68,9 @@ defmodule Tuist.Kura do
 
   def version_label(nil), do: nil
 
-  def version_label("sha-" <> _ = image_tag), do: image_tag
+  def version_label("kura@" <> image_tag), do: image_tag
 
-  def version_label(image_tag) when is_binary(image_tag) do
-    if Regex.match?(~r/\A\d+\.\d+\.\d+(?:[-.][A-Za-z0-9][A-Za-z0-9_.-]*)?\z/, image_tag) do
-      "kura@#{image_tag}"
-    else
-      image_tag
-    end
-  end
+  def version_label(image_tag) when is_binary(image_tag), do: image_tag
 
   @doc """
   Creates deployments for active Kura servers that are behind the

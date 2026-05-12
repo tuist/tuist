@@ -121,7 +121,8 @@ defmodule TuistWeb.AccountSettingsLiveTest do
 
     assert html =~ "Active"
     assert html =~ server.url
-    assert html =~ "kura@0.5.2"
+    assert html =~ "0.5.2"
+    refute html =~ "kura@0.5.2"
   end
 
   test "allows adding another managed Kura region when one is already deployed", %{conn: conn, account: account} do

@@ -48,6 +48,17 @@ defmodule Tuist.KuraTest do
     end
   end
 
+  describe "version_label/1" do
+    test "strips the Kura release tag prefix" do
+      assert Kura.version_label("kura@0.5.2") == "0.5.2"
+    end
+
+    test "leaves runtime image tags unchanged" do
+      assert Kura.version_label("0.5.2") == "0.5.2"
+      assert Kura.version_label("sha-abcdef123456") == "sha-abcdef123456"
+    end
+  end
+
   describe "schedule_runtime_image_deployments/0" do
     test "creates deployments for active servers behind the runtime image tag" do
       user = AccountsFixtures.user_fixture()
