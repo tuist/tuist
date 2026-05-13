@@ -1,32 +1,26 @@
 <div id="account-webhooks">
-  <h1 data-part="title">{dgettext("dashboard_account", "Webhooks")}</h1>
+  <div data-part="page-header">
+    <h1 data-part="title">{dgettext("dashboard_account", "Webhooks")}</h1>
+    <span data-part="subtitle">
+      {dgettext(
+        "dashboard_account",
+        "Configure HTTPS endpoints where automations across projects in this account can send events. Each endpoint has its own signing secret that you can rotate when needed."
+      )}
+    </span>
+  </div>
 
-  <.card_section data-part="webhooks-card">
+  <.card_section data-part="endpoints-card">
     <div data-part="header">
-      <span data-part="title">
-        {dgettext("dashboard_account", "Webhook endpoints")}
-      </span>
-      <span data-part="subtitle">
-        {dgettext(
-          "dashboard_account",
-          "Define HTTPS destinations that automations across this account's projects can deliver events to. Each endpoint has its own signing secret that you can rotate when needed."
-        )}
-      </span>
-    </div>
-    <div data-part="content">
-      <div data-part="section" data-section="endpoints">
-        <div data-part="label">
-          <span data-part="title">
-            {dgettext("dashboard_account", "Endpoints")}
-          </span>
-          <span data-part="description">
-            {dgettext(
-              "dashboard_account",
-              "Tuist will POST signed JSON envelopes to each enabled endpoint. The signing secret is shown once when an endpoint is created or rotated."
-            )}
-          </span>
-        </div>
-        <div data-part="field">
+      <div data-part="title-group">
+        <span data-part="title">{dgettext("dashboard_account", "Endpoints")}</span>
+        <span data-part="subtitle">
+          {dgettext(
+            "dashboard_account",
+            "Tuist will POST signed JSON envelopes to each enabled endpoint. The signing secret is shown once when an endpoint is created or rotated."
+          )}
+        </span>
+      </div>
+      <div data-part="actions">
           <%!-- Noora's modal shell is `phx-update="ignore"`, so the title is --%>
           <%!-- frozen at first render. We keep it neutral and let the body --%>
           <%!-- swap between the form and the secret-disclosure step. --%>
@@ -208,16 +202,14 @@
               </.modal_footer>
             </:footer>
           </.modal>
-        </div>
       </div>
     </div>
 
-    <div data-part="endpoints-table">
-      <.table
-        id="webhook-endpoints-table"
-        rows={@endpoints}
-        row_navigate={fn endpoint -> ~p"/#{@selected_account.name}/webhooks/#{endpoint.id}" end}
-      >
+    <.table
+      id="webhook-endpoints-table"
+      rows={@endpoints}
+      row_navigate={fn endpoint -> ~p"/#{@selected_account.name}/webhooks/#{endpoint.id}" end}
+    >
         <:col :let={endpoint} label={dgettext("dashboard_account", "Name")}>
           <.text_cell label={endpoint.name} />
         </:col>
@@ -302,6 +294,5 @@
           />
         </:empty_state>
       </.table>
-    </div>
   </.card_section>
 </div>
