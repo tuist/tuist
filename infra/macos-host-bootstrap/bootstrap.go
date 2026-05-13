@@ -916,14 +916,16 @@ sudo chmod 0600 /etc/tuist/tailscale-auth-key`
 
 	// Stage 2: extract binaries, register daemon, bring up.
 	//
-	// `set -x` prints every command to stderr before execution so the
-	// controller's failureMessage on any failed step carries the
-	// exact command that died. SSH captures stderr; stdout goes to a
-	// discarded buffer, so any sub-command's diagnostic output that
-	// matters is explicitly redirected into log files we cat to
-	// stderr on failure.
-	script := fmt.Sprintf(`set -euxo pipefail
-PS4='+ '
+	// NB: explicitly NOT using `set -x` here. `set -x` prints commands
+	// after variable expansion, which would echo the `$(sudo cat
+	// /etc/tuist/tailscale-auth-key)` substitution as the literal key
+	// in the trace — and that trace ends up in the SSH stderr buffer
+	// that gets wrapped into the controller's error message, which is
+	// in turn written to Machine.status.failureMessage (visible via
+	// kubectl) and the controller log stream (which ships to Loki).
+	// Per-step diagnostics come from explicit log-file capture on the
+	// failure branches below.
+	script := fmt.Sprintf(`set -euo pipefail
 # Always remove the auth key file when this script exits — success
 # or failure. Set the trap first thing so a later abort still cleans
 # up.
@@ -962,12 +964,32 @@ sudo rm -f "$DAEMON_LOG"
 # initializing — without this wait, 'up' would fail immediately
 # with "Tailscale is not running" and set -e would abort the
 # script. 30s is generous; in practice the daemon is ready in <2s.
+DAEMON_READY=false
 for i in $(seq 1 30); do
   if sudo /usr/local/bin/tailscale status --self --json >/dev/null 2>&1; then
+    DAEMON_READY=true
     break
   fi
   sleep 1
 done
+if [ "$DAEMON_READY" != true ]; then
+  # tailscaled exists at /usr/local/bin/tailscaled and
+  # install-system-daemon returned 0 above, but the daemon never
+  # came up enough to answer IPC. Dump the launchd job state and
+  # the daemon's own log — the most likely failure modes are
+  # binary signature / quarantine rejection by macOS, or a runtime
+  # error inside tailscaled that crashes it on start.
+  echo "tailscaled never accepted IPC within 30s; diagnostics below:" >&2
+  echo "--- launchctl list | grep tailscale ---" >&2
+  sudo launchctl list 2>&1 | grep -i tailscale >&2 || echo "(no matching jobs)" >&2
+  echo "--- launchctl print system/com.tailscale.tailscaled ---" >&2
+  sudo launchctl print system/com.tailscale.tailscaled 2>&1 | head -n 40 >&2 || true
+  echo "--- tail -n 80 /var/log/tailscaled.log ---" >&2
+  sudo tail -n 80 /var/log/tailscaled.log 2>&1 >&2 || echo "(log file unreadable)" >&2
+  echo "--- ls -l /usr/local/bin/tailscaled /Library/LaunchDaemons/com.tailscale.tailscaled.plist ---" >&2
+  sudo ls -l /usr/local/bin/tailscaled /Library/LaunchDaemons/com.tailscale.tailscaled.plist 2>&1 >&2 || true
+  exit 1
+fi
 
 # Capture up's combined stdout+stderr so a failure surfaces
 # actionable diagnostics. The auth key is expanded by the remote
