@@ -28,6 +28,7 @@ defmodule TuistWeb.API.TestCaseRunsControllerTest do
           test_case_id: test_case_id,
           status: 0,
           is_flaky: true,
+          is_quarantined: true,
           git_branch: "main"
         )
 
@@ -51,6 +52,7 @@ defmodule TuistWeb.API.TestCaseRunsControllerTest do
       assert run["id"] == test_case_run.id
       assert run["status"] == "success"
       assert run["is_flaky"] == true
+      assert run["is_quarantined"] == true
       assert run["git_branch"] == "main"
     end
 
@@ -301,6 +303,7 @@ defmodule TuistWeb.API.TestCaseRunsControllerTest do
           suite_name: "MySuite",
           status: 1,
           is_flaky: true,
+          is_quarantined: true,
           git_branch: "main",
           git_commit_sha: "abc1234"
         )
@@ -335,7 +338,7 @@ defmodule TuistWeb.API.TestCaseRunsControllerTest do
       assert response["suite_name"] == "MySuite"
       assert response["status"] == "failure"
       assert response["is_flaky"] == true
-      assert response["is_quarantined"] == false
+      assert response["is_quarantined"] == true
       assert response["git_branch"] == "main"
       assert response["git_commit_sha"] == "abc1234"
       assert response["test_run_id"] == test_case_run.test_run_id
@@ -354,44 +357,6 @@ defmodule TuistWeb.API.TestCaseRunsControllerTest do
       assert repetition_response["repetition_number"] == 1
       assert repetition_response["status"] == "failure"
       assert repetition_response["duration"] == 50
-    end
-
-    test "returns is_quarantined on show and list when the run was quarantined", %{
-      conn: conn,
-      user: user,
-      project: project
-    } do
-      # Given
-      test_run_id = UUIDv7.generate()
-
-      quarantined_run =
-        RunsFixtures.test_case_run_fixture(
-          project_id: project.id,
-          test_run_id: test_run_id,
-          is_quarantined: true
-        )
-
-      # When: show endpoint
-      show_conn =
-        get(
-          conn,
-          "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases/runs/#{quarantined_run.id}"
-        )
-
-      # Then: show includes is_quarantined=true
-      show_response = json_response(show_conn, :ok)
-      assert show_response["is_quarantined"] == true
-
-      # When: list endpoint filtered to this run
-      list_conn =
-        get(
-          conn,
-          "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases/runs?test_run_id=#{test_run_id}"
-        )
-
-      # Then: list rows include is_quarantined=true
-      list_response = json_response(list_conn, :ok)
-      assert [%{"is_quarantined" => true}] = list_response["test_case_runs"]
     end
 
     test "returns 404 when test case run does not exist", %{
