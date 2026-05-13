@@ -6,9 +6,16 @@ defmodule Tuist.Automations.Alerts.Alert do
 
   alias Tuist.Projects.Project
 
-  @monitor_types ~w(flakiness_rate flaky_run_count)
+  @monitor_types ~w(flakiness_rate flaky_run_count test_updated)
   @comparisons ~w(gte gt lt lte)
   @valid_states ~w(enabled muted skipped)
+  @test_updated_events ~w(
+    marked_flaky
+    unmarked_flaky
+    state_changed_to_enabled
+    state_changed_to_muted
+    state_changed_to_skipped
+  )
   @window_types ~w(last_days rolling)
 
   # Cap on `rolling_window_size`. The monitor reads from
@@ -17,6 +24,13 @@ defmodule Tuist.Automations.Alerts.Alert do
   # without also bumping the MV's aggregate type would silently truncate
   # any window above the old N.
   @max_rolling_window_size 1000
+
+  @doc """
+  Subscription keys recognised on the `test_updated` monitor's
+  `trigger_config["events"]` array. Stripe-style: subscribe by name, no
+  threshold or content filter.
+  """
+  def test_updated_events, do: @test_updated_events
 
   @doc """
   Maximum value the `trigger_config.rolling_window_size` /
@@ -132,12 +146,33 @@ defmodule Tuist.Automations.Alerts.Alert do
       case monitor_type do
         "flakiness_rate" -> validate_flakiness_rate_config(changeset, trigger_config)
         "flaky_run_count" -> validate_flaky_run_count_config(changeset, trigger_config)
+        "test_updated" -> validate_test_updated_config(changeset, trigger_config)
         _ -> changeset
       end
 
     changeset
     |> validate_comparison(trigger_config)
     |> validate_recovery_config()
+  end
+
+  defp validate_test_updated_config(changeset, trigger_config) do
+    case Map.get(trigger_config, "events") do
+      events when is_list(events) and events != [] ->
+        invalid = Enum.reject(events, &(&1 in @test_updated_events))
+
+        if invalid == [] do
+          changeset
+        else
+          add_error(
+            changeset,
+            :trigger_config,
+            "events contains invalid values: #{Enum.join(invalid, ", ")}"
+          )
+        end
+
+      _ ->
+        add_error(changeset, :trigger_config, "events must be a non-empty list")
+    end
   end
 
   defp validate_comparison(changeset, trigger_config) do

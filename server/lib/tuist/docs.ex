@@ -7,10 +7,15 @@ defmodule Tuist.Docs do
   use Tuist.Docs.Content
 
   alias Tuist.Docs.CLI
+  alias Tuist.Docs.Loader
   alias Tuist.Docs.Paths
 
   def pages, do: static_pages() ++ cli_pages()
   def slugs, do: Enum.sort(static_slugs() ++ Enum.map(cli_pages(), & &1.slug))
+
+  def validate_page!(source_path) when is_binary(source_path) do
+    Loader.validate_page!(source_path)
+  end
 
   def get_page(path) when is_binary(path) do
     normalized = normalize_path(path)
