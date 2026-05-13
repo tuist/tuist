@@ -165,4 +165,39 @@ defmodule Tuist.Webhooks do
       pending: Map.get(counts, "available", 0) + Map.get(counts, "scheduled", 0)
     }
   end
+
+  @doc """
+  Daily delivery counts for the trailing `days` (default 7) — returns one
+  entry per day with `total` and `failed` columns, padded with zeros for
+  days that had no activity so the chart x-axis stays continuous.
+  """
+  def deliveries_timeseries(endpoint_id, opts \\ []) when is_binary(endpoint_id) do
+    days = Keyword.get(opts, :days, 7)
+    today = Date.utc_today()
+    since = Date.add(today, -(days - 1))
+    since_dt = DateTime.new!(since, ~T[00:00:00], "Etc/UTC")
+
+    rows =
+      Repo.all(
+        from(j in "oban_jobs",
+          where: j.worker == ^@delivery_worker,
+          where: fragment("?->>'webhook_endpoint_id' = ?", j.args, ^endpoint_id),
+          where: j.inserted_at >= ^since_dt,
+          group_by: fragment("date_trunc('day', ?)::date", j.inserted_at),
+          select: %{
+            date: fragment("date_trunc('day', ?)::date", j.inserted_at),
+            total: count(j.id),
+            failed: fragment("count(*) filter (where ? in ('discarded', 'cancelled'))", j.state)
+          }
+        )
+      )
+
+    by_date = Map.new(rows, fn %{date: d, total: t, failed: f} -> {d, %{total: t, failed: f}} end)
+
+    Enum.map(0..(days - 1), fn offset ->
+      date = Date.add(since, offset)
+      values = Map.get(by_date, date, %{total: 0, failed: 0})
+      %{date: date, total: values.total, failed: values.failed}
+    end)
+  end
 end

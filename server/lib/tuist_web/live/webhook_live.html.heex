@@ -38,33 +38,87 @@
     </div>
   </div>
 
-  <%!-- Delivery statistics: counts across all attempts, derived from the --%>
-  <%!-- Oban job log. Per-attempt latency would need a separate table, so --%>
-  <%!-- response-time charts are left for a follow-up. --%>
-  <.card_section data-part="stats-card">
+  <%!-- Performance: daily Total/Failed lines pulled from the Oban job log. --%>
+  <%!-- Per-attempt HTTP latency isn't recorded, so the Stripe-style --%>
+  <%!-- response-time chart is deferred to a follow-up. --%>
+  <.card_section data-part="performance-card">
     <div data-part="header">
-      <span data-part="title">{dgettext("dashboard_account", "Delivery statistics")}</span>
+      <span data-part="title">{dgettext("dashboard_account", "Performance")}</span>
       <span data-part="subtitle">
-        {dgettext("dashboard_account", "Counts across every delivery attempt for this endpoint.")}
+        {dgettext("dashboard_account", "Delivery attempts over the last 7 days.")}
       </span>
     </div>
-    <div data-part="content">
+    <div data-part="summary">
       <div data-part="stat">
         <span data-part="label">{dgettext("dashboard_account", "Total")}</span>
         <span data-part="value">{@delivery_stats.total}</span>
       </div>
       <div data-part="stat">
-        <span data-part="label">{dgettext("dashboard_account", "Delivered")}</span>
-        <span data-part="value" data-tone="success">{@delivery_stats.delivered}</span>
-      </div>
-      <div data-part="stat">
         <span data-part="label">{dgettext("dashboard_account", "Failed")}</span>
         <span data-part="value" data-tone="error">{@delivery_stats.failed}</span>
       </div>
-      <div data-part="stat">
-        <span data-part="label">{dgettext("dashboard_account", "Pending")}</span>
-        <span data-part="value">{@delivery_stats.pending}</span>
-      </div>
+    </div>
+    <div data-part="chart">
+      <.chart
+        id="webhook-deliveries-chart"
+        type="line"
+        colors={["var:noora-chart-primary", "var:noora-chart-destructive"]}
+        extra_options={
+          %{
+            grid: %{
+              width: "93%",
+              left: "0.4%",
+              right: "7%",
+              height: "82%",
+              top: "8%"
+            },
+            xAxis: %{
+              boundaryGap: false,
+              type: "category",
+              axisLabel: %{
+                color: "var:noora-surface-label-secondary",
+                formatter: "fn:toLocaleDate",
+                customValues: [
+                  @deliveries_timeseries |> List.first() |> Map.get(:date) |> Date.to_iso8601(),
+                  @deliveries_timeseries |> List.last() |> Map.get(:date) |> Date.to_iso8601()
+                ],
+                padding: [10, 0, 0, 0]
+              }
+            },
+            yAxis: %{
+              splitNumber: 4,
+              minInterval: 1,
+              splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
+              axisLabel: %{color: "var:noora-surface-label-secondary"}
+            },
+            legend: %{show: false},
+            tooltip: %{}
+          }
+        }
+        series={[
+          %{
+            name: dgettext("dashboard_account", "Total"),
+            type: "line",
+            smooth: 0.1,
+            symbol: "none",
+            data:
+              Enum.map(@deliveries_timeseries, fn point ->
+                [Date.to_iso8601(point.date), point.total]
+              end)
+          },
+          %{
+            name: dgettext("dashboard_account", "Failed"),
+            type: "line",
+            smooth: 0.1,
+            symbol: "none",
+            data:
+              Enum.map(@deliveries_timeseries, fn point ->
+                [Date.to_iso8601(point.date), point.failed]
+              end)
+          }
+        ]}
+        y_axis_min={0}
+      />
     </div>
   </.card_section>
 

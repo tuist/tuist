@@ -108,6 +108,7 @@ defmodule TuistWeb.WebhookLive do
     socket
     |> assign(:deliveries, Webhooks.list_deliveries(endpoint.id))
     |> assign(:delivery_stats, Webhooks.delivery_stats(endpoint.id))
+    |> assign(:deliveries_timeseries, Webhooks.deliveries_timeseries(endpoint.id))
   end
 
   defp reset_disclosure(socket), do: assign(socket, :disclosure, nil)

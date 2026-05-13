@@ -942,8 +942,17 @@ defmodule TuistWeb.Router do
       live "/integrations", IntegrationsLive
       live "/authentication", AuthenticationSettingsLive
       live "/webhooks", WebhooksLive
-      live "/webhooks/:id", WebhookLive
       live "/settings", AccountSettingsLive
+    end
+
+    live_session :webhook_detail,
+      layout: {TuistWeb.Layouts, :webhook},
+      on_mount: [
+        {TuistWeb.Authentication, :ensure_authenticated},
+        {TuistWeb.Locale, :assign_locale},
+        {TuistWeb.LayoutLive, :account}
+      ] do
+      live "/webhooks/:id", WebhookLive
     end
   end
 

@@ -347,7 +347,7 @@
     }
   }
 
-  & [data-part="stats-card"],
+  & [data-part="performance-card"],
   & [data-part="details-card"],
   & [data-part="deliveries-card"] {
     display: flex;
@@ -379,10 +379,11 @@
     }
   }
 
-  & [data-part="stats-card"] > [data-part="content"] {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: var(--noora-spacing-7);
+  & [data-part="performance-card"] > [data-part="summary"] {
+    display: flex;
+    flex-direction: row;
+    gap: var(--noora-spacing-9);
+    padding: var(--noora-spacing-7) var(--noora-spacing-8) var(--noora-spacing-5);
 
     & > [data-part="stat"] {
       display: flex;
@@ -398,16 +399,22 @@
 
       & > [data-part="value"] {
         color: var(--noora-surface-label-primary);
-        font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
-
-        &[data-tone="success"] {
-          color: var(--noora-surface-label-success, var(--noora-surface-label-primary));
-        }
+        font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
 
         &[data-tone="error"] {
           color: var(--noora-surface-label-error, var(--noora-surface-label-primary));
         }
       }
+    }
+  }
+
+  & [data-part="performance-card"] > [data-part="chart"] {
+    padding: 0 var(--noora-spacing-8) var(--noora-spacing-7);
+    height: 280px;
+
+    & .noora-chart {
+      width: 100%;
+      height: 100%;
     }
   }
 
@@ -452,8 +459,8 @@
   }
 
   @media (max-width: 768px) {
-    & [data-part="stats-card"] > [data-part="content"] {
-      grid-template-columns: repeat(2, 1fr);
+    & [data-part="performance-card"] > [data-part="summary"] {
+      flex-wrap: wrap;
     }
 
     & [data-part="details-card"] > [data-part="content"] > [data-part="row"] {
@@ -462,6 +469,31 @@
 
       & > [data-part="label"] {
         width: 100%;
+      }
+    }
+  }
+}
+
+.webhook-layout {
+  display: flex;
+  flex-grow: 1;
+  flex-direction: column;
+  background: var(--noora-surface-background-primary);
+  padding: var(--noora-spacing-15) var(--noora-spacing-5);
+  min-height: 100%;
+
+  @media (max-width: 768px) {
+    & {
+      padding: var(--noora-spacing-5) var(--noora-spacing-4);
+    }
+  }
+
+  & > #account-webhook {
+    padding: var(--noora-spacing-0) var(--noora-spacing-16);
+
+    @media (max-width: 768px) {
+      & {
+        padding: var(--noora-spacing-0) var(--noora-spacing-4);
       }
     }
   }
