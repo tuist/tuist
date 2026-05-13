@@ -66,7 +66,7 @@ defmodule Tuist.Webhooks.WebhookEndpoint do
   @primary_key {:id, UUIDv7, autogenerate: true}
   schema "webhook_endpoints" do
     field :name, :string
-    field :url, :string
+    field :url, Tuist.Vault.Binary
     field :signing_secret, Tuist.Vault.Binary
     field :event_types, {:array, :string}, default: []
 
