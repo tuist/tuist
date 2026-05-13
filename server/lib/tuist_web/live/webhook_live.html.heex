@@ -22,38 +22,36 @@
           <.icon name="pencil" />
         </:icon_left>
       </.button>
-      <.button
-        size="medium"
-        variant="secondary"
-        label={dgettext("dashboard_account", "Rotate secret")}
-        phx-click="rotate_endpoint_signing_secret"
-        data-confirm={
-          dgettext(
-            "dashboard_account",
-            "Rotating replaces the signing secret. Existing consumers will fail verification until updated."
-          )
-        }
-      >
-        <:icon_left>
-          <.icon name="reload" />
-        </:icon_left>
-      </.button>
-      <.button
-        size="medium"
-        variant="secondary"
-        label={dgettext("dashboard_account", "Delete endpoint")}
-        phx-click="delete_endpoint"
-        data-confirm={
-          dgettext(
-            "dashboard_account",
-            "Delete this endpoint? Automations referencing it will stop delivering."
-          )
-        }
-      >
-        <:icon_left>
-          <.icon name="trash" />
-        </:icon_left>
-      </.button>
+      <.dropdown id="webhook-endpoint-actions" icon_only>
+        <:icon><.dots_vertical /></:icon>
+
+        <.dropdown_item
+          label={dgettext("dashboard_account", "Rotate secret")}
+          value="rotate"
+          on_click="rotate_endpoint_signing_secret"
+          data-confirm={
+            dgettext(
+              "dashboard_account",
+              "Rotating replaces the signing secret. Existing consumers will fail verification until updated."
+            )
+          }
+        >
+          <:left_icon><.reload /></:left_icon>
+        </.dropdown_item>
+        <.dropdown_item
+          label={dgettext("dashboard_account", "Delete endpoint")}
+          value="delete"
+          on_click="delete_endpoint"
+          data-confirm={
+            dgettext(
+              "dashboard_account",
+              "Delete this endpoint? Automations referencing it will stop delivering."
+            )
+          }
+        >
+          <:left_icon><.trash /></:left_icon>
+        </.dropdown_item>
+      </.dropdown>
     </div>
   </div>
 

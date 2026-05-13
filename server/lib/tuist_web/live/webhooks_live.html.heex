@@ -234,10 +234,15 @@
             {masked_signing_secret(endpoint.signing_secret)}
           </code>
         </:col>
-        <:col :let={endpoint} label={dgettext("dashboard_account", "Events")}>
-          <div data-part="event-types-cell">
-            <.tag :for={event_type <- endpoint.event_types} label={event_type} />
-          </div>
+        <:col :let={endpoint} label={dgettext("dashboard_account", "Listening to")}>
+          <.text_cell label={
+            dngettext(
+              "dashboard_account",
+              "%{count} event",
+              "%{count} events",
+              length(endpoint.event_types)
+            )
+          } />
         </:col>
         <:col :let={endpoint} label={dgettext("dashboard_account", "Created")}>
           <.text_cell label={Tuist.Utilities.DateFormatter.from_now(endpoint.inserted_at)} />

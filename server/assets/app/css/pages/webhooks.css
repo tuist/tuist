@@ -457,7 +457,7 @@
   flex-grow: 1;
   flex-direction: column;
   background: var(--noora-surface-background-primary);
-  padding: var(--noora-spacing-15) var(--noora-spacing-5);
+  padding: var(--noora-spacing-9) var(--noora-spacing-5);
   min-height: 100%;
 
   @media (max-width: 768px) {
