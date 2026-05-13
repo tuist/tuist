@@ -1,9 +1,15 @@
 <div id="account-webhook">
-  <div data-part="breadcrumbs">
-    <.link data-part="back" navigate={~p"/#{@selected_account.name}/webhooks"}>
-      <.icon name="chevron_left" /> {dgettext("dashboard_account", "Webhooks")}
-    </.link>
-  </div>
+  <.button
+    label={dgettext("dashboard_account", "Webhooks")}
+    data-part="back-button"
+    variant="secondary"
+    size="medium"
+    navigate={~p"/#{@selected_account.name}/webhooks"}
+  >
+    <:icon_left>
+      <.icon name="arrow_left" />
+    </:icon_left>
+  </.button>
 
   <div data-part="page-header">
     <div data-part="title-group">
