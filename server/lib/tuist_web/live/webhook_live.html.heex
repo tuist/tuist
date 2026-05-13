@@ -1,18 +1,16 @@
 <div id="account-webhook">
-  <.button
-    label={dgettext("dashboard_account", "Webhooks")}
-    data-part="back-button"
-    variant="secondary"
-    size="medium"
-    navigate={~p"/#{@selected_account.name}/webhooks"}
-  >
-    <:icon_left>
-      <.icon name="arrow_left" />
-    </:icon_left>
-  </.button>
-
-  <div data-part="header">
-    <h1 data-part="title">{@endpoint.name}</h1>
+  <div data-part="action-buttons">
+    <.button
+      label={dgettext("dashboard_account", "Webhooks")}
+      data-part="back-button"
+      variant="secondary"
+      size="medium"
+      navigate={~p"/#{@selected_account.name}/webhooks"}
+    >
+      <:icon_left>
+        <.icon name="arrow_left" />
+      </:icon_left>
+    </.button>
     <div data-part="header-actions">
       <.button
         size="medium"
@@ -55,6 +53,10 @@
         </.dropdown_item>
       </.dropdown>
     </div>
+  </div>
+
+  <div data-part="header">
+    <h1 data-part="title">{@endpoint.name}</h1>
   </div>
 
   <.card
