@@ -68,24 +68,20 @@ public protocol SwiftPackageManagerControlling {
 public struct SwiftPackageManagerController: SwiftPackageManagerControlling {
     private let fileSystem: FileSysteming
     private let commandRunner: () -> CommandRunning
-    private let environment: () -> [String: String]
 
     public init() {
         self.init(
             fileSystem: FileSystem(),
-            commandRunner: { CommandRunner(logger: Logger.current) },
-            environment: { Environment.current.variables }
+            commandRunner: { CommandRunner(logger: Logger.current) }
         )
     }
 
     init(
         fileSystem: FileSysteming,
-        commandRunner: @escaping () -> CommandRunning,
-        environment: @escaping () -> [String: String] = { Environment.current.variables }
+        commandRunner: @escaping () -> CommandRunning
     ) {
         self.fileSystem = fileSystem
         self.commandRunner = commandRunner
-        self.environment = environment
     }
 
     public func resolve(at path: AbsolutePath, arguments: [String], printOutput: Bool) async throws {
@@ -252,12 +248,7 @@ public struct SwiftPackageManagerController: SwiftPackageManagerControlling {
     }
 
     private var usesFastPackageResolution: Bool {
-        isTruthy(environment()[Constants.EnvironmentVariables.useFastPackageResolution])
-    }
-
-    private func isTruthy(_ value: String?) -> Bool {
-        guard let value else { return false }
-        return ["1", "true", "TRUE", "yes", "YES"].contains(value)
+        Environment.current.isVariableTruthy(Constants.EnvironmentVariables.useFastPackageResolution)
     }
 
     private func swifterPMCommandPrefix() -> [String] {

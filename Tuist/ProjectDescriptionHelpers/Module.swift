@@ -1641,6 +1641,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.core.targetName),
                     .target(name: Module.testing.targetName),
                     .target(name: Module.environment.targetName),
+                    .target(name: Module.environmentTesting.targetName),
                     .target(name: Module.opener.targetName),
                     .target(name: Module.xcodeGraph.targetName),
                     .external(name: "SwiftToolsSupport"),

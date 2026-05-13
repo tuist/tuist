@@ -7,21 +7,16 @@ import XcodeGraph
 
 struct SwifterPMPackageInfoCacheLoader {
     private let fileSystem: FileSysteming
-    private let environment: () -> Environmenting
 
-    init(
-        fileSystem: FileSysteming,
-        environment: @escaping () -> Environmenting
-    ) {
+    init(fileSystem: FileSysteming) {
         self.fileSystem = fileSystem
-        self.environment = environment
     }
 
     func load(
         scratchDirectory: AbsolutePath,
         arguments: [String]
     ) async throws -> SwifterPMPackageInfoCache? {
-        guard environment().isVariableTruthy(Constants.EnvironmentVariables.useFastPackageResolution) else {
+        guard Environment.current.isVariableTruthy(Constants.EnvironmentVariables.useFastPackageResolution) else {
             return nil
         }
 
@@ -55,10 +50,14 @@ struct SwifterPMPackageInfoCacheLoader {
     }
 
     func loadPackageInfo(at path: String) async throws -> PackageInfo {
-        try JSONDecoder().decode(
-            PackageInfo.self,
-            from: try await fileSystem.readFile(at: try AbsolutePath(validating: path))
-        )
+        do {
+            return try JSONDecoder().decode(
+                PackageInfo.self,
+                from: try await fileSystem.readFile(at: try AbsolutePath(validating: path))
+            )
+        } catch {
+            throw SwifterPMPackageInfoCacheLoaderError.failedToLoadPackageInfo(path: path, error: error)
+        }
     }
 
     private func cacheDirectory(
@@ -94,5 +93,10 @@ struct SwifterPMPackageInfoCache: Decodable {
     struct Entry: Decodable {
         let identity: String
         let packageInfoPath: String
+
+        private enum CodingKeys: String, CodingKey {
+            case identity
+            case packageInfoPath = "package_info_path"
+        }
     }
 }

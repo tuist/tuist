@@ -1,37 +1,36 @@
-import Command
-import TSCUtility
+import FileSystem
+import FileSystemTesting
+import Foundation
+import Testing
+import struct TSCUtility.Version
 import TuistConstants
-import TuistCore
+import TuistEnvironment
+import TuistEnvironmentTesting
 import TuistTesting
-import XcodeGraph
-import XCTest
+
 @testable import TuistSupport
 
-final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
-    private var subject: SwiftPackageManagerController!
-    private var environment: [String: String] = [:]
+struct SwiftPackageManagerControllerTests {
+    private let fileSystem: FileSystem
+    private let commandRunner: MockCommandRunner
+    private let subject: SwiftPackageManagerController
 
-    override func setUp() {
-        super.setUp()
-
+    init() {
+        let fileSystem = FileSystem()
+        let commandRunner = MockCommandRunner()
+        self.fileSystem = fileSystem
+        self.commandRunner = commandRunner
         subject = SwiftPackageManagerController(
             fileSystem: fileSystem,
-            commandRunner: { self.mockCommandRunner },
-            environment: { self.environment }
+            commandRunner: { commandRunner }
         )
     }
 
-    override func tearDown() {
-        subject = nil
-        environment = [:]
-
-        super.tearDown()
-    }
-
-    func test_resolve() async throws {
+    @Test(.inTemporaryDirectory)
+    func resolve() async throws {
         // Given
-        let path = try temporaryPath()
-        mockCommandRunner.succeedCommand([
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        commandRunner.succeedCommand([
             "swift",
             "package",
             "--package-path",
@@ -48,12 +47,14 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
         )
     }
 
-    func test_resolve_when_fastPackageResolutionIsEnabled_usesFastPackageResolution() async throws {
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func resolve_when_fastPackageResolutionIsEnabled_usesFastPackageResolution() async throws {
         // Given
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let environment = try #require(Environment.mocked)
         try await fileSystem.touch(path.appending(component: "Package.resolved"))
-        environment[Constants.EnvironmentVariables.useFastPackageResolution] = "1"
-        mockCommandRunner.succeedCommand([
+        environment.variables[Constants.EnvironmentVariables.useFastPackageResolution] = "1"
+        commandRunner.succeedCommand([
             "mise",
             "x",
             "--",
@@ -78,11 +79,13 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
         )
     }
 
-    func test_resolve_when_fastPackageResolutionIsEnabled_usesMiseToLookUpSwifterPM() async throws {
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func resolve_when_fastPackageResolutionIsEnabled_usesMiseToLookUpSwifterPM() async throws {
         // Given
-        let path = try temporaryPath()
-        environment[Constants.EnvironmentVariables.useFastPackageResolution] = "yes"
-        mockCommandRunner.succeedCommand([
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let environment = try #require(Environment.mocked)
+        environment.variables[Constants.EnvironmentVariables.useFastPackageResolution] = "yes"
+        commandRunner.succeedCommand([
             "mise",
             "x",
             "--",
@@ -100,10 +103,11 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
         )
     }
 
-    func test_update() async throws {
+    @Test(.inTemporaryDirectory)
+    func update() async throws {
         // Given
-        let path = try temporaryPath()
-        mockCommandRunner.succeedCommand([
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        commandRunner.succeedCommand([
             "swift",
             "package",
             "--package-path",
@@ -120,11 +124,12 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
         )
     }
 
-    func test_setToolsVersion_specificVersion() async throws {
+    @Test(.inTemporaryDirectory)
+    func setToolsVersion_specificVersion() async throws {
         // Given
-        let path = try temporaryPath()
-        let version = Version("5.4.0")
-        mockCommandRunner.succeedCommand([
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let version = try #require(Version("5.4.0"))
+        commandRunner.succeedCommand([
             "swift",
             "package",
             "--package-path",
@@ -135,17 +140,19 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
         ])
 
         // When
-        try await subject.setToolsVersion(at: path, to: version!)
+        try await subject.setToolsVersion(at: path, to: version)
     }
 
-    func test_buildFatReleaseBinary() async throws {
+    @Test(.inTemporaryDirectory)
+    func buildFatReleaseBinary() async throws {
         // Given
-        let packagePath = try temporaryPath()
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let packagePath = temporaryDirectory.appending(component: "Package")
         let product = "my-product"
-        let buildPath = try temporaryPath()
-        let outputPath = try temporaryPath()
+        let buildPath = temporaryDirectory.appending(component: "Build")
+        let outputPath = temporaryDirectory.appending(component: "Output")
 
-        mockCommandRunner.succeedCommand([
+        commandRunner.succeedCommand([
             "swift", "build",
             "--configuration", "release",
             "--disable-sandbox",
@@ -154,7 +161,7 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
             "--build-path", buildPath.pathString,
             "--triple", "arm64-apple-macosx",
         ])
-        mockCommandRunner.succeedCommand([
+        commandRunner.succeedCommand([
             "swift", "build",
             "--configuration", "release",
             "--disable-sandbox",
@@ -164,7 +171,7 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
             "--triple", "x86_64-apple-macosx",
         ])
 
-        mockCommandRunner.succeedCommand([
+        commandRunner.succeedCommand([
             "lipo", "-create", "-output", outputPath.appending(component: product).pathString,
             buildPath.appending(components: "arm64-apple-macosx", "release", product).pathString,
             buildPath.appending(components: "x86_64-apple-macosx", "release", product).pathString,
@@ -179,12 +186,12 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
         )
 
         // Then
-        // Assert that `outputPath` was created
         let outputPathIsFolder = try await fileSystem.exists(outputPath, isDirectory: true)
-        XCTAssertTrue(outputPathIsFolder)
+        #expect(outputPathIsFolder)
     }
 
-    func test_package_registry_login() async throws {
+    @Test
+    func package_registry_login() async throws {
         // Given
         let command = [
             "/usr/bin/swift",
@@ -195,7 +202,7 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
             "package-token",
             "--no-confirm",
         ]
-        mockCommandRunner.succeedCommand(command)
+        commandRunner.succeedCommand(command)
 
         // When
         try await subject.packageRegistryLogin(
@@ -204,10 +211,11 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertTrue(mockCommandRunner.called(command))
+        #expect(commandRunner.called(command))
     }
 
-    func test_package_registry_logout() async throws {
+    @Test
+    func package_registry_logout() async throws {
         // Given
         let command = [
             "/usr/bin/swift",
@@ -215,7 +223,7 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
             "logout",
             URL.test().appending(path: "logout").absoluteString,
         ]
-        mockCommandRunner.succeedCommand(command)
+        commandRunner.succeedCommand(command)
 
         // When
         try await subject.packageRegistryLogout(
@@ -223,6 +231,6 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertTrue(mockCommandRunner.called(command))
+        #expect(commandRunner.called(command))
     }
 }
