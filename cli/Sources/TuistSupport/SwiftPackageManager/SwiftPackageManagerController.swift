@@ -239,8 +239,7 @@ public struct SwiftPackageManagerController: SwiftPackageManagerControlling {
         extraArguments: [String],
         command: String
     ) -> [String] {
-        [
-            swifterPMExecutable(),
+        swifterPMCommandPrefix() + [
             "--package-path",
             packagePath.pathString,
         ]
@@ -261,20 +260,15 @@ public struct SwiftPackageManagerController: SwiftPackageManagerControlling {
         return ["1", "true", "TRUE", "yes", "YES"].contains(value)
     }
 
-    private func swifterPMExecutable() -> String {
-        let variables = environment()
-        if let configuredPath = variables[Constants.EnvironmentVariables.fastPackageResolverPath], !configuredPath.isEmpty {
-            return configuredPath
-        }
-
+    private func swifterPMCommandPrefix() -> [String] {
         if let currentExecutablePath = Environment.current.currentExecutablePath() {
             let bundledPath = currentExecutablePath.parentDirectory.appending(component: "swifterpm")
             if FileManager.default.isExecutableFile(atPath: bundledPath.pathString) {
-                return bundledPath.pathString
+                return [bundledPath.pathString]
             }
         }
 
-        return "swifterpm"
+        return ["mise", "x", "--", "swifterpm"]
     }
 
     private func swifterPMArguments(

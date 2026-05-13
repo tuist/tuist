@@ -54,6 +54,9 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
         try await fileSystem.touch(path.appending(component: "Package.resolved"))
         environment[Constants.EnvironmentVariables.useFastPackageResolution] = "1"
         mockCommandRunner.succeedCommand([
+            "mise",
+            "x",
+            "--",
             "swifterpm",
             "--package-path",
             path.pathString,
@@ -75,13 +78,15 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
         )
     }
 
-    func test_resolve_when_fastPackageResolverPathIsConfigured_usesConfiguredExecutable() async throws {
+    func test_resolve_when_fastPackageResolutionIsEnabled_usesMiseToLookUpSwifterPM() async throws {
         // Given
         let path = try temporaryPath()
         environment[Constants.EnvironmentVariables.useFastPackageResolution] = "yes"
-        environment[Constants.EnvironmentVariables.fastPackageResolverPath] = "/opt/tools/swifterpm"
         mockCommandRunner.succeedCommand([
-            "/opt/tools/swifterpm",
+            "mise",
+            "x",
+            "--",
+            "swifterpm",
             "--package-path",
             path.pathString,
             "resolve",
