@@ -153,11 +153,26 @@
         colors={["var:noora-chart-primary", "var:noora-chart-destructive"]}
         extra_options={
           %{
-            legend: %{show: false},
+            legend: %{
+              left: "left",
+              top: "bottom",
+              orient: "horizontal",
+              textStyle: %{
+                color: "var:noora-surface-label-secondary",
+                fontFamily: "monospace",
+                fontWeight: 400,
+                fontSize: 10,
+                lineHeight: 12
+              },
+              icon:
+                "path://M0 6C0 4.89543 0.895431 4 2 4H6C7.10457 4 8 4.89543 8 6C8 7.10457 7.10457 8 6 8H2C0.895431 8 0 7.10457 0 6Z",
+              itemWidth: 8,
+              itemHeight: 4
+            },
             grid: %{
               width: "97%",
               left: "0.4%",
-              height: "85%",
+              height: "70%",
               top: "5%"
             },
             xAxis: %{
