@@ -530,8 +530,7 @@
             font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
           }
 
-          & > [data-part="label"],
-          & > [data-part="value"] {
+          & > [data-part="label"] {
             display: flex;
             flex-direction: row;
             align-items: center;
@@ -551,15 +550,6 @@
         }
       }
     }
-  }
-
-  & [data-part="error-card-section"] > [data-part="error-message"] {
-    margin: 0;
-    color: var(--noora-surface-label-error, var(--noora-surface-label-primary));
-    font: var(--noora-font-weight-regular) var(--noora-font-body-small);
-    font-family: "Geist Mono", monospace;
-    white-space: pre-wrap;
-    word-break: break-word;
   }
 
   & [data-part="request-card-section"],

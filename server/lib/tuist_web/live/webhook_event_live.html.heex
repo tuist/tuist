@@ -26,7 +26,7 @@
         <div data-part="metadata-row">
           <div data-part="metadata">
             <div data-part="title">{dgettext("dashboard_account", "Status")}</div>
-            <div data-part="value">
+            <div data-part="badge">
               <.status_badge
                 status={delivery_state_status(@attempt.status)}
                 label={delivery_state_label(@attempt.status)}
@@ -71,18 +71,6 @@
       </div>
     </.card_section>
   </.card>
-
-  <%= if @attempt.error do %>
-    <.card
-      data-part="error-card"
-      icon="alert_triangle"
-      title={dgettext("dashboard_account", "Error")}
-    >
-      <.card_section data-part="error-card-section">
-        <pre data-part="error-message">{@attempt.error}</pre>
-      </.card_section>
-    </.card>
-  <% end %>
 
   <.card
     data-part="request-card"
