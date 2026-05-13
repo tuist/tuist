@@ -135,9 +135,9 @@ jobs:
       - name: Setup Tuist
         if: github.event.pull_request.head.repo.fork != true
         run: tuist setup
-      - name: Install Tuist dependencies
+      - name: Resolve SwiftPM dependencies
         if: steps.cache.outputs.cache-hit != 'true'
-        run: tuist install
+        run: swift package resolve --disable-scm-to-registry-transformation
       - name: Build
         run: swift build --configuration debug --disable-scm-to-registry-transformation --force-resolved-versions
 

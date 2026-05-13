@@ -373,12 +373,12 @@ struct SwiftPackageManagerGraphLoaderTests {
             {
               "root": {
                 "identity": "root",
-                "packageInfoPath": "\(rootPackageInfoPath.pathString)"
+                "package_info_path": "\(rootPackageInfoPath.pathString)"
               },
               "packages": [
                 {
                   "identity": "Alamofire.Alamofire",
-                  "packageInfoPath": "\(alamofirePackageInfoPath.pathString)"
+                  "package_info_path": "\(alamofirePackageInfoPath.pathString)"
                 }
               ]
             }
