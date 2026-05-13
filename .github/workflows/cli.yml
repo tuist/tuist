@@ -144,7 +144,7 @@ jobs:
         if: steps.cache.outputs.cache-hit != 'true'
         run: tuist install
       - name: Build
-        run: swift build --configuration debug --replace-scm-with-registry --force-resolved-versions
+        run: swift build --configuration debug --disable-scm-to-registry-transformation --force-resolved-versions
 
   cli-cache:
     name: Cache
