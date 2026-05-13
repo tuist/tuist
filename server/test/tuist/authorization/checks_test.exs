@@ -523,4 +523,22 @@ defmodule Tuist.Authorization.ChecksTest do
       assert Checks.ops_access("string", nil) == false
     end
   end
+
+  describe "ops_write_access/2" do
+    test "returns true when user is in ops_user_handles", %{user: user} do
+      # Given
+      expect(Tuist.Environment, :ops_user_handles, fn -> [user.account.name] end)
+
+      # When/Then
+      assert Checks.ops_write_access(user, nil) == true
+    end
+
+    test "returns false when user is not in ops_user_handles", %{user: user} do
+      # Given
+      expect(Tuist.Environment, :ops_user_handles, fn -> ["other_user"] end)
+
+      # When/Then
+      assert Checks.ops_write_access(user, nil) == false
+    end
+  end
 end

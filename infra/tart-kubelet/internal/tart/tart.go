@@ -300,6 +300,27 @@ func (c *Client) IP(ctx context.Context, name string) (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
+// IsRunning checks whether a `tart run <name>` process is currently
+// executing on this host. Used as the canonical liveness signal —
+// `tart ip` keeps returning the last-leased address even after the
+// VM halts, and `tart list`'s State field is unreliable for
+// backgrounded VMs (the on-disk state file isn't updated on exit).
+// pgrep against the actual command line is the only reading that
+// flips the moment the VM exits.
+//
+// Returns false (no error) when no matching process exists; returns
+// an error only on unexpected pgrep failures.
+func (c *Client) IsRunning(ctx context.Context, name string) (bool, error) {
+	cmd := exec.CommandContext(ctx, "pgrep", "-f", fmt.Sprintf("tart run %s", name))
+	if err := cmd.Run(); err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
+			return false, nil
+		}
+		return false, fmt.Errorf("pgrep tart run %s: %w", name, err)
+	}
+	return true, nil
+}
+
 // StageEnvFile writes a Pod's resolved env into
 // <UserDataDir>/<vm>/tuist.env, ready to be shared into the guest as
 // the `env` directory. The directory is created with 0o700; the file
@@ -320,6 +341,27 @@ func (c *Client) StageEnvFile(name string, env map[string]string) (string, error
 		return "", fmt.Errorf("write env: %w", err)
 	}
 	return dir, nil
+}
+
+// StageServiceAccountToken writes a projected ServiceAccount token
+// to <UserDataDir>/<vm>/sa_token (0o600). The same directory the
+// env file lives in, so a single `tart run --dir env:<dir>:ro`
+// mount makes both available to the guest at
+// `/Volumes/My Shared Files/env/{tuist.env,sa_token}`.
+//
+// The VM's dispatch-poll script reads sa_token and uses it as the
+// Bearer credential against the Tuist server's dispatch endpoint,
+// which validates it via the Kubernetes TokenReview API.
+func (c *Client) StageServiceAccountToken(name, token string) error {
+	dir := filepath.Join(c.UserDataDir, name)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return fmt.Errorf("mkdir userdata: %w", err)
+	}
+	path := filepath.Join(dir, "sa_token")
+	if err := os.WriteFile(path, []byte(token), 0o600); err != nil {
+		return fmt.Errorf("write sa_token: %w", err)
+	}
+	return nil
 }
 
 // CleanupVMUserData removes <UserDataDir>/<vm>. Best-effort.

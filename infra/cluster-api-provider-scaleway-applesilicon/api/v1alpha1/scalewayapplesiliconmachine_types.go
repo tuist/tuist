@@ -13,10 +13,11 @@ type ScalewayAppleSiliconMachineSpec struct {
 	// +optional
 	ProviderID *string `json:"providerID,omitempty"`
 
-	// Type is Scaleway's Mac mini SKU (M1-M, M4-S, M4-M, etc.).
-	// Defaults to M4-S: only zone fr-par-1 currently carries M2/M4
-	// SKUs (fr-par-3 has M1-M only and it's been unstocked).
-	// +kubebuilder:default=M4-S
+	// Type is Scaleway's Mac mini SKU (M1-M, M2-L, M4-S, M4-M, etc.).
+	// Defaults to M2-L (M2 Pro, 12 vCPU, 32 GB RAM): most reliable
+	// inventory in fr-par-1 and the capacity we want for Tuist +
+	// customer workloads. fr-par-3 has M1-M only and it's been unstocked.
+	// +kubebuilder:default=M2-L
 	Type string `json:"type,omitempty"`
 
 	// Zone is the Scaleway zone (fr-par-1, fr-par-3, etc.).
@@ -41,6 +42,55 @@ type ScalewayAppleSiliconMachineSpec struct {
 	// chart-level value when empty.
 	// +optional
 	KubeletVersion string `json:"kubeletVersion,omitempty"`
+
+	// HostCPU is the CPU-core count the Mac mini's host advertises
+	// on the Node it registers (Node.Status.Capacity). Sets
+	// tart-kubelet's `--host-cpu` flag at bootstrap. Should match
+	// the Scaleway SKU — heterogeneous fleets (M2-M=8 / M2-L=12 /
+	// M4-S=8 etc.) need per-Machine values so kube-scheduler sees
+	// the real capacity. Falls back to the operator's
+	// `--tartkubelet-host-cpu` global default (8) when unset.
+	// +optional
+	HostCPU int `json:"hostCPU,omitempty"`
+
+	// HostMemoryMB is the memory advertised on the Node. Mirrors
+	// the Scaleway SKU's RAM minus the ~2 GB Apple
+	// Virtualization.framework reserves for the host (otherwise
+	// the VM's `tart run` fails with `memorySize >
+	// maximumAllowedMemorySize`). Falls back to the operator's
+	// `--tartkubelet-host-memory-mb` global default (16384) when
+	// unset.
+	// +optional
+	HostMemoryMB int `json:"hostMemoryMB,omitempty"`
+
+	// AdoptPoolPrefix switches the controller from `Scaleway CreateServer`
+	// (auto-order) to "claim a pre-ordered host whose Scaleway-side
+	// name starts with this prefix." Recommended for the customer-
+	// runner fleet because Scaleway Mac mini inventory is frequently
+	// out of stock and Apple's 24h licensing floor makes speculative
+	// auto-ordering expensive — pre-ordering days in advance and
+	// letting the controller adopt is the operationally sane path.
+	//
+	// Operator workflow:
+	//
+	//   1. Pre-order Mac minis in the Scaleway console with names
+	//      starting with this prefix (e.g. `tuist-pool-001`,
+	//      `tuist-pool-fr-par-1-a`). The exact suffix doesn't
+	//      matter — only the prefix is matched.
+	//   2. When CAPI creates a ScalewayAppleSiliconMachine, the
+	//      controller picks the first server matching `(Type, Zone,
+	//      OS)` whose name has this prefix, renames it to the
+	//      Machine's name via `UpdateServer`, and adopts it. The
+	//      rename IS the claim: the prefix is gone, so the next
+	//      reconcile won't double-claim.
+	//
+	// When no compatible pre-ordered host is available, reconcile
+	// requeues with a `NoAvailableHost` event. No auto-order
+	// fallback — the operator pre-orders, the controller adopts.
+	//
+	// Empty (default) preserves the legacy auto-order behavior.
+	// +optional
+	AdoptPoolPrefix string `json:"adoptPoolPrefix,omitempty"`
 }
 
 // ScalewayAppleSiliconMachineStatus is the observed state of the Machine.

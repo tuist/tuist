@@ -1004,6 +1004,17 @@ defmodule Tuist.Environment do
     get([:typesense, :host], secrets(), default_value: "https://search.tuist.dev")
   end
 
+  @doc """
+  Kubernetes namespace customer runner Pods live in. The
+  webhook handler writes RunnerAssignment CRs into this
+  namespace; the runners-controller reconciles them into Pods.
+  Defaults to `tuist-runners` (matches the chart's
+  `runnersFleet.namespace`).
+  """
+  def runners_namespace do
+    System.get_env("TUIST_RUNNERS_NAMESPACE", "tuist-runners")
+  end
+
   def typesense_search_api_key do
     get([:typesense, :search_api_key], secrets(), default_value: "RgIpKytJBtSQf9CoYKxIfVxh8ma5kzs6")
   end

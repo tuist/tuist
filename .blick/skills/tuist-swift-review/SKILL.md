@@ -32,8 +32,50 @@ semantics, identity, inheritance, or `deinit` are actually required.
   semantics.
 - Types that genuinely need reference identity (caches, long-lived
   coordinators, actors-with-state-shared-by-reference).
+- **`final class` declarations whose `Sendable` conformance is backed by
+  a stored `Synchronization.Mutex<State>` (or another `~Copyable`
+  synchronization primitive).** `Mutex` cannot be a stored property of a
+  `Copyable` struct — the compiler emits `stored property '...' of
+  'Copyable'-conforming struct '...' has non-Copyable type 'Mutex<...>'`
+  — and a `~Copyable` struct cannot be captured by a `@Sendable` closure.
+  A `final class` with the `Mutex` and `Sendable` conformance is the
+  correct expression of this pattern.
 
-## 2. Testing framework — Swift Testing, not XCTest
+## 2. Avoid `@unchecked Sendable`
+
+`@unchecked Sendable` opts out of the compiler's concurrency safety
+checks and shifts the burden of correctness onto every reader. Prefer
+proper synchronization primitives that the compiler can verify.
+
+### Flag
+
+- **A newly added `@unchecked Sendable` conformance** (whether on a
+  `final class`, a `struct`, or an extension). Recommend one of:
+  - `Mutex<State>` from `Synchronization` (Swift 6.0+) for shared
+    mutable state — wrap the state in a single `Mutex` and expose
+    `withLock { ... }` accessors.
+  - `OSAllocatedUnfairLock<State>` from `os` for Apple-only code where
+    `Mutex` is not yet available.
+  - An `actor` when the type can be reached only from `async` contexts.
+  - Make the type a value type with only `Sendable` stored properties so
+    the compiler can synthesize `Sendable` itself.
+
+  **Severity: medium.**
+
+### Do not flag
+
+- Existing `@unchecked Sendable` conformances the diff does not touch.
+- Types that bridge to a framework requirement the compiler genuinely
+  cannot reason about (e.g. wrapping a non-Sendable Objective-C class
+  whose thread-safety the author has verified). Require an explanatory
+  comment naming the invariant the author is asserting.
+
+When suggesting `Mutex`, point at
+`cli/Sources/TuistAppleArchiver/AppleArchiver.swift` for the in-tree
+usage pattern: `let state = Mutex(State())` plus
+`state.withLock { ... }`.
+
+## 3. Testing framework — Swift Testing, not XCTest
 
 New tests must be written with **Swift Testing** (`import Testing`,
 `@Test`, `#expect`, `#require`). XCTest is legacy in this repo.

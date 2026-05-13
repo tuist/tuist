@@ -110,6 +110,11 @@ defmodule TuistWeb.API.OIDCController do
         |> put_status(:unauthorized)
         |> json(%{message: "OIDC token has expired"})
 
+      {:error, :invalid_audience} ->
+        conn
+        |> put_status(:unauthorized)
+        |> json(%{message: "OIDC token audience is not valid for Tuist"})
+
       {:error, :jwks_fetch_failed, jwks_uri} ->
         conn
         |> put_status(:internal_server_error)

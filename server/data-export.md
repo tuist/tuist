@@ -44,6 +44,13 @@ Sensitive authentication data (passwords, tokens) are excluded from exports.
 - Automation alerts (`automation_alerts` table): per-project flaky-test automations, including name, enabled flag, monitor type (`flakiness_rate` / `flaky_run_count`), evaluation cadence, baseline established timestamp, and the trigger / recovery configuration as JSON. The configuration includes the comparison threshold, comparison operator, `window_type` (`last_days` for calendar windows or `rolling` for count-based windows), the day-string `window` (e.g. `30d`) used in `last_days` mode, and the integer `rolling_window_size` (e.g. `100` runs) used in `rolling` mode. Trigger and recovery action lists are stored alongside the configuration (state changes, label adds/removes, Slack channel references).
 - Automation alert events (`automation_alert_events` table): per-test-case trigger and recovery records produced by automation alerts (alert id, test case id, status, timestamps).
 
+### Managed GitHub Actions Runners
+- **Per-account configuration** (Postgres `accounts.runner_max_concurrent`): the customer's account-wide concurrent runner budget. `0` means runners are disabled for the account; `N > 0` is the active cap.
+- **Active claim coordination** (Postgres `runner_claims`): one row per currently-claimed workflow_job. Columns: `workflow_job_id` (GitHub's job id, PK), `account_id`, `fleet_name` (the RunnerPool name the claim is bound to), `pod_name` (the SA / Pod that won the claim), `claimed_at`. Rows are deleted on completion / release / stale recovery; steady-state size is bounded by the number of in-flight runners.
+- **Workflow_job lifecycle** (ClickHouse `runner_jobs`, ReplacingMergeTree on `workflow_job_id`): one logical row per workflow_job carrying the full lifecycle from `queued` → `claimed` → `running` → `completed`. Columns include the GitHub correlation fields (`workflow_job_id`, `workflow_run_id`, `run_attempt`, `job_name`, `head_branch`, `head_sha`, `repo`), lifecycle state (`status`, `conclusion`), timestamps (`enqueued_at`, `claimed_at`, `started_at`, `completed_at`, `updated_at`), and binding (`pod_name`, `runner_name`). Powers the customer-facing "queued / running / recent runs" surfaces.
+- **Kubernetes-side state** (`RunnerPool` CR + Pods / ServiceAccounts in the `tuist-runners` namespace): operational metadata only — pool name, dispatch label, image, replica count, owner labels on Pods. Reconciled by the runners-controller.
+- **JIT runner configs**: the GitHub-issued JIT credential the dispatch endpoint mints for each runner registration is an ephemeral authentication secret and is never persisted server-side. Only the resulting `runner_name` (the GitHub-side runner label) is recorded in `runner_jobs`.
+
 ### Slack Integration
 - Account-level Slack installation records (workspace id/name, bot user id; bot access tokens are excluded as authentication secrets)
 - Per-channel Slack webhook destinations stored on projects, alert rules, and project flaky-test settings (channel id, channel name; the encrypted webhook URL itself is excluded as an authentication secret)
@@ -68,7 +75,7 @@ The following data is stored in ClickHouse for analytics purposes:
 - **Test runs** (`test_runs` table): Includes `shard_plan_id` linking test results to their shard plan
 - **Bundles** (`bundles` table): App bundle metadata (name, app bundle id, version, install/download size, supported platforms, type, git ref/branch/commit).
 - **Bundle artifacts** (`artifacts` table): App bundle artifact tree (paths, sizes, SHA hashes, parent/child hierarchy) per uploaded bundle.
-- **Active test cases daily stats** (`test_case_runs_active_daily_stats` materialized view): Pre-aggregated `uniqExactState(test_case_id)` per (`project_id`, `date`, `is_ci`) derived from `test_case_runs`. Powers the Test Cases analytics chart; contains no data not already covered by the source `test_case_runs` table.
+- **Active test cases daily stats** (`test_case_runs_active_daily_stats` materialized view): Exact daily presence rows per (`project_id`, `date`, `is_ci`, `test_case_id`) derived from `test_case_runs`. Powers the Test Cases analytics chart; contains no data not already covered by the source `test_case_runs` table.
 - **Test case runs by commit** (`test_case_runs_by_commit` materialized view): Slim projection of `test_case_runs` ordered by (`project_id`, `git_commit_sha`, `scheme`, `is_ci`, `status`, `id`). Powers the cross-run flakiness lookup; contains no data not already covered by the source `test_case_runs` table.
 - **Per-test-case daily run stats** (`test_case_run_daily_stats_per_case` materialized view): AggregatingMergeTree keyed on (`project_id`, `date`, `test_case_id`) with `count` and `sumState(toUInt8(is_flaky))` aggregate states. Powers the flaky-test automation engine's per-test windowed comparisons; contains no data not already covered by the source `test_case_runs` table.
 - **Per-environment last-run timestamps** (`test_cases.last_ran_at_ci`, `test_cases.last_ran_at_local` columns): Denormalized timestamps tracking the most recent CI and local run per test case. Maintained by the ingestion path on every test run; contains no data not already covered by the source `test_case_runs` table.
@@ -84,6 +91,7 @@ The following data is stored in ClickHouse for analytics purposes:
 - Encrypted GitHub App credentials (`client_secret`, `private_key`, `webhook_secret` on `github_app_installations`)
 - Slack bot access tokens and incoming-webhook URLs (treated as bearer credentials)
 - Outbound webhook endpoint URLs and signing secrets on `webhook_endpoints` (treated as bearer credentials — path/query tokens often appear in destination URLs)
+- GitHub-issued JIT runner configs (minted on demand for runner Pods at dispatch time and never persisted server-side)
 
 ## Binary Files
 

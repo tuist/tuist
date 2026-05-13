@@ -25,6 +25,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/envresolver"
+	"github.com/tuist/tuist/infra/tart-kubelet/internal/satoken"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/tart"
 )
 
@@ -67,6 +68,12 @@ type Reconciler struct {
 	Tart     *tart.Client
 	Resolver *envresolver.Resolver
 	Store    *Store
+
+	// TokenMinter mints projected ServiceAccount tokens for Pods
+	// whose Spec.AutomountServiceAccountToken is true. Optional —
+	// when nil, no token is staged (the env file is the only file
+	// shared into the VM).
+	TokenMinter satoken.Minter
 
 	// GC reclaims disk when a Tart pull errors with no-space. Optional
 	// — when nil, the reconciler just surfaces the error.
@@ -123,6 +130,18 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, err
 	}
 
+	// Pod already moved to a terminal phase (we marked it Succeeded
+	// after the VM exited, or someone else marked it Failed). Do
+	// nothing here: re-running createPod would clone+boot a fresh
+	// VM for a Pod the workload controller is about to garbage-
+	// collect, and the watcher needs the Pod to stay in the
+	// terminal phase long enough to observe the transition. The
+	// finalizer comes off via the DeletionTimestamp branch below
+	// when the controller eventually deletes the Pod.
+	if pod.Status.Phase == corev1.PodSucceeded || pod.Status.Phase == corev1.PodFailed {
+		return ctrl.Result{}, nil
+	}
+
 	if !pod.DeletionTimestamp.IsZero() {
 		// Pod is being deleted. Run VM teardown, then drop our
 		// finalizer and force-complete the API object deletion. Order
@@ -161,23 +180,42 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	// If a previous reconcile recorded a RunHandle and the
-	// `tart run` process has since exited (e.g. the guest crashed
-	// 30s into a multi-minute boot, well past Run's 5s sanity
-	// window), surface it as a Pod failure right here. Without this
-	// check podStatus would just keep returning Pending on the IP
-	// poll forever and helm --wait would hang for the full
-	// --timeout. Marking the Pod Failed lets the owning ReplicaSet
-	// schedule a replacement Pod with a fresh VM.
+	// `tart run` process has since exited, surface the right
+	// terminal phase here. Two cases:
+	//
+	//   - `exitErr == nil` is the clean-shutdown path:
+	//     dispatch-poll.sh ran a single GitHub Actions job and
+	//     issued `shutdown -h now` in the guest, which propagates
+	//     back as a zero-status `tart run`. That's a successful
+	//     single-shot — PodSucceeded, not Failed. Counting it as
+	//     Failed pollutes the failure telemetry and feeds spurious
+	//     alerts.
+	//   - `exitErr != nil` is the genuine failure path: the guest
+	//     crashed 30s into a multi-minute boot, well past Run's 5s
+	//     sanity window, or `tart run` itself died. PodFailed so
+	//     the owning ReplicaSet schedules a replacement Pod with
+	//     a fresh VM.
+	//
+	// Either way the host-side teardown is the same (delete the
+	// Store entry); only the published Phase differs.
 	if entry := r.Store.Get(pod.Namespace, pod.Name); entry != nil && entry.Run != nil {
 		if exitErr, exited := entry.Run.Exited(); exited {
-			logger.Info("tart run exited; marking pod failed",
-				"vm", entry.VMName, "log", entry.Run.LogPath, "err", exitErr)
 			_ = r.deleteByKey(ctx, pod.Namespace, pod.Name)
-			_ = r.publishStatus(ctx, pod, &corev1.PodStatus{
-				Phase:   corev1.PodFailed,
-				Reason:  "TartRunExited",
-				Message: fmt.Sprintf("tart run exited: %v (see %s)", exitErr, entry.Run.LogPath),
-			})
+
+			status := &corev1.PodStatus{Reason: "TartRunExited"}
+			if exitErr == nil {
+				logger.Info("tart run exited cleanly; marking pod succeeded",
+					"vm", entry.VMName, "log", entry.Run.LogPath)
+				status.Phase = corev1.PodSucceeded
+				status.Message = fmt.Sprintf("tart run exited cleanly (see %s)", entry.Run.LogPath)
+			} else {
+				logger.Info("tart run exited with error; marking pod failed",
+					"vm", entry.VMName, "log", entry.Run.LogPath, "err", exitErr)
+				status.Phase = corev1.PodFailed
+				status.Message = fmt.Sprintf("tart run exited: %v (see %s)", exitErr, entry.Run.LogPath)
+			}
+
+			_ = r.publishStatus(ctx, pod, status)
 			return ctrl.Result{}, nil
 		}
 	}
@@ -228,6 +266,22 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 		return err
 	}
 
+	// Mint + stage a projected SA token alongside the env file when
+	// the Pod opts in via AutomountServiceAccountToken. The VM's
+	// dispatch-poll script reads it as the Bearer credential for
+	// the Tuist server's dispatch endpoint, which validates the
+	// token via TokenReview and reads the SA's `tuist.dev/runner-pool`
+	// label to resolve which pool to mint a JIT runner for.
+	if r.TokenMinter != nil && shouldAutomountSAToken(pod) {
+		token, err := r.TokenMinter.Mint(ctx, pod)
+		if err != nil {
+			return fmt.Errorf("mint sa token: %w", err)
+		}
+		if err := r.Tart.StageServiceAccountToken(vmName, token); err != nil {
+			return fmt.Errorf("stage sa token: %w", err)
+		}
+	}
+
 	// Reuse an existing local clone if one is on disk: a kubelet
 	// restart kills the running VM (launchctl bootout signals the
 	// process group) but the cloned image stays. Re-running it skips
@@ -252,6 +306,18 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 		}
 		if err := r.Tart.Clone(ctx, c.Image, vmName); err != nil {
 			return fmt.Errorf("tart clone: %w", err)
+		}
+	}
+
+	// Resize the cloned VM to match the Pod's resource requests.
+	// The image is built small (~4 vCPU / 8 GB) so it fits on a
+	// 16 GB image-builder host; at deploy time the host is bigger
+	// and the customer wants the VM to use whatever the Pod
+	// requested. `tart set` is a no-op when the VM already matches.
+	cpu, memMB := vmResourcesFromPod(c)
+	if cpu > 0 || memMB > 0 {
+		if err := r.Tart.Set(ctx, vmName, cpu, memMB); err != nil {
+			return fmt.Errorf("tart set: %w", err)
 		}
 	}
 
@@ -405,8 +471,26 @@ func (r *Reconciler) deleteByKey(ctx context.Context, namespace, name string) er
 }
 
 // podStatus reads the underlying VM and translates to a Pod status.
-// Tart 2.32's `get` doesn't update state for backgrounded VMs, so we
-// use `tart ip` as the liveness probe — non-empty IP ⇒ running.
+//
+// Liveness signal layering:
+//   - `tart ip` returns the last-leased address even *after* the VM
+//     halts — relying on it alone leaves a halted VM stuck Running
+//     forever (the runner image's dispatch-poll exits and shuts the
+//     guest down after one job; without a fresh signal the warm
+//     pool never refills).
+//   - `tart list`'s State field is unreliable for backgrounded VMs
+//     under Tart 2.32 — it stays "stopped" while the VM is running.
+//   - `pgrep tart run <name>` flips the moment the VM exits and is
+//     the only signal that does, so it's the canonical liveness
+//     probe. We still call `tart ip` afterwards to pick up the IP
+//     for the podIP field while the VM is up.
+//
+// PodSucceeded vs PodFailed: a clean shutdown (the runner image's
+// `shutdown -h now` after a successful job) is Succeeded; a `tart
+// run` exit caught in-flight (RunHandle.Exited at line 141 above)
+// is Failed because we caught the process error code. Both
+// transitions wake the watcher; the distinction is reflected in
+// `kubectl describe`.
 func (r *Reconciler) podStatus(ctx context.Context, pod *corev1.Pod) (*corev1.PodStatus, error) {
 	entry := r.Store.Get(pod.Namespace, pod.Name)
 	if entry == nil {
@@ -422,8 +506,27 @@ func (r *Reconciler) podStatus(ctx context.Context, pod *corev1.Pod) (*corev1.Po
 		HostIP:    hostIP,
 	}
 
-	ip, err := r.Tart.IP(ctx, entry.VMName)
-	if err == nil && ip != "" {
+	running, err := r.Tart.IsRunning(ctx, entry.VMName)
+	if err != nil {
+		// pgrep failed unexpectedly — leave the Pod Running on
+		// the optimistic read so we don't flap on a transient
+		// host hiccup. The next reconcile retries.
+		status.Phase = corev1.PodRunning
+		return status, nil
+	}
+
+	if !running {
+		// VM exited cleanly. Tear down the Tart clone + Store
+		// entry so the host state mirrors what the API server
+		// will see post-update, then mark the Pod Succeeded so
+		// the watcher refills the warm pool.
+		_ = r.deleteByKey(ctx, pod.Namespace, pod.Name)
+		status.Phase = corev1.PodSucceeded
+		status.Reason = "TartRunExited"
+		return status, nil
+	}
+
+	if ip, ipErr := r.Tart.IP(ctx, entry.VMName); ipErr == nil && ip != "" {
 		status.Phase = corev1.PodRunning
 		// For Pods that opt into scraping we report the host IP as
 		// the Pod IP so existing pod-IP-based discovery (Alloy's
@@ -451,6 +554,8 @@ func (r *Reconciler) podStatus(ctx context.Context, pod *corev1.Pod) (*corev1.Po
 			{Type: corev1.PodReady, Status: corev1.ConditionTrue},
 		}
 	} else {
+		// VM process is alive but IP isn't yet available — the
+		// guest is still booting. Pending is the right read.
 		status.Phase = corev1.PodPending
 	}
 	return status, nil
@@ -459,6 +564,19 @@ func (r *Reconciler) podStatus(ctx context.Context, pod *corev1.Pod) (*corev1.Po
 func (r *Reconciler) publishStatus(ctx context.Context, pod *corev1.Pod, status *corev1.PodStatus) error {
 	pod.Status = *status
 	return r.CachedClient.Status().Update(ctx, pod)
+}
+
+// shouldAutomountSAToken mirrors kubelet's automount logic: the
+// PodSpec's AutomountServiceAccountToken overrides the SA's
+// default, falling back to true when neither is set explicitly
+// (the apiserver's behavior). We only stage a token for Pods
+// that actually want one — most workloads on tart-kubelet today
+// don't, and minting + writing for them is wasted IO.
+func shouldAutomountSAToken(pod *corev1.Pod) bool {
+	if pod.Spec.AutomountServiceAccountToken != nil {
+		return *pod.Spec.AutomountServiceAccountToken
+	}
+	return false
 }
 
 // podIsHandled returns true for Pods that fit tart-kubelet's contract:
@@ -476,6 +594,47 @@ func podIsHandled(pod *corev1.Pod) bool {
 		return false
 	}
 	return true
+}
+
+// vmResourcesFromPod returns the (cpu_cores, memory_mb) the VM
+// should be sized to before `tart run`. Reads the first
+// container's resources, preferring `limits` (a hard cap, the
+// safer "this is the most we want this VM to consume") and
+// falling back to `requests` (used by kube-scheduler for
+// placement, often equal to limits in practice).
+//
+// Returns 0/0 when the Pod doesn't request anything specific —
+// the caller skips `tart set` and the VM keeps the image's baked
+// defaults. CPU is rounded down (millicores -> integer cores;
+// 4000m -> 4); memory is rounded down to whole megabytes
+// (Tart's `--memory` flag is integer MB).
+func vmResourcesFromPod(c corev1.Container) (cpu int, memoryMB int) {
+	cpu = pickIntCPU(c.Resources.Limits, c.Resources.Requests)
+	memoryMB = pickIntMemoryMB(c.Resources.Limits, c.Resources.Requests)
+	return cpu, memoryMB
+}
+
+func pickIntCPU(lists ...corev1.ResourceList) int {
+	for _, list := range lists {
+		if q, ok := list[corev1.ResourceCPU]; ok {
+			// MilliValue() returns millicores as int64; integer
+			// division by 1000 truncates toward zero. Quantity.Value()
+			// rounds half-up which would over-promise on fractional
+			// requests like 3500m -> 4 cores.
+			return int(q.MilliValue() / 1000)
+		}
+	}
+	return 0
+}
+
+func pickIntMemoryMB(lists ...corev1.ResourceList) int {
+	for _, list := range lists {
+		if q, ok := list[corev1.ResourceMemory]; ok {
+			// Value() returns bytes; convert to MB.
+			return int(q.Value() / (1024 * 1024))
+		}
+	}
+	return 0
 }
 
 // VMNameForPod produces a Tart-safe VM name. Tart accepts alphanum +

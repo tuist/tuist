@@ -225,7 +225,14 @@ macosFleet:
     # release.yml has run for this scope, pin to a known-good
     # SHA-tagged build that the standalone
     # capi-provider-scaleway-applesilicon-image.yml workflow pushed.
-    tag: "0.2.0"
+    tag: "af8204b1"
+
+runnersController:
+  image:
+    repository: ghcr.io/tuist/tuist-runners-controller
+    # SHA-tagged build from the runners-controller-image.yml
+    # workflow.
+    tag: "sha-08e66c9bf0e2"
 
 # Everything below = external. The managed deployment never runs embedded
 # Postgres / ClickHouse / object storage / observability stacks.

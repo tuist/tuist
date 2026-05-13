@@ -25,7 +25,7 @@ use crate::{
     failpoints::FailpointName,
     state::SharedState,
     store::{ArtifactApplyOutcome, ManifestPage, NamespaceTombstonePage},
-    telemetry::inject_current_trace_context,
+    telemetry::{inject_current_trace_context, record_trace_context},
     utils::{replication_target_label, temp_file_path, url_encode},
 };
 
@@ -74,26 +74,29 @@ where
     F: Fn(SharedState) -> Fut + Send + Sync + 'static,
     Fut: std::future::Future<Output = ()> + Send + 'static,
 {
-    tokio::spawn(async move {
-        loop {
-            let task_state = state.clone();
-            let handle = tokio::spawn(work(task_state));
-            match handle.await {
-                Ok(()) => return,
-                Err(error) if error.is_panic() => {
-                    state
-                        .metrics
-                        .record_memory_action(&format!("background_panic_{name}"));
-                    warn!("background task '{name}' panicked: {error:?}; respawning in 1s");
-                    sleep(Duration::from_secs(1)).await;
-                }
-                Err(error) => {
-                    warn!("background task '{name}' aborted: {error:?}");
-                    return;
+    tokio::spawn(
+        async move {
+            loop {
+                let task_state = state.clone();
+                let handle = tokio::spawn(work(task_state).in_current_span());
+                match handle.await {
+                    Ok(()) => return,
+                    Err(error) if error.is_panic() => {
+                        state
+                            .metrics
+                            .record_memory_action(&format!("background_panic_{name}"));
+                        warn!("background task '{name}' panicked: {error:?}; respawning in 1s");
+                        sleep(Duration::from_secs(1)).await;
+                    }
+                    Err(error) => {
+                        warn!("background task '{name}' aborted: {error:?}");
+                        return;
+                    }
                 }
             }
         }
-    });
+        .in_current_span(),
+    );
 }
 
 async fn membership_task_loop(state: SharedState) {
@@ -181,43 +184,47 @@ async fn maybe_spawn_bootstrap_task(state: SharedState, peer: String) {
     }
 
     let semaphore = state.bootstrap_semaphore.clone();
-    tokio::spawn(async move {
-        let _permit = match semaphore.acquire_owned().await {
-            Ok(permit) => permit,
-            Err(_) => {
-                state.note_bootstrap_failed(&peer).await;
-                return;
-            }
-        };
-        let started_at = std::time::Instant::now();
-        let timeout = Duration::from_millis(state.config.bootstrap_timeout_ms);
-        let result = match tokio::time::timeout(timeout, bootstrap_from_peer(&state, &peer)).await {
-            Ok(result) => result,
-            Err(_) => Err(format!(
-                "bootstrap timed out after {} ms",
-                state.config.bootstrap_timeout_ms
-            )),
-        };
-        match result {
-            Ok(stats) => {
-                state.note_bootstrap_succeeded(&peer).await;
-                state.metrics.record_bootstrap_run(
-                    "ok",
-                    started_at.elapsed(),
-                    stats.tombstones_applied,
-                    stats.artifacts_applied,
-                );
-                state.maybe_mark_serving().await;
-            }
-            Err(error) => {
-                warn!("bootstrap from {peer} failed: {error}");
-                state
-                    .metrics
-                    .record_bootstrap_run("error", started_at.elapsed(), 0, 0);
-                state.note_bootstrap_failed(&peer).await;
+    tokio::spawn(
+        async move {
+            let _permit = match semaphore.acquire_owned().await {
+                Ok(permit) => permit,
+                Err(_) => {
+                    state.note_bootstrap_failed(&peer).await;
+                    return;
+                }
+            };
+            let started_at = std::time::Instant::now();
+            let timeout = Duration::from_millis(state.config.bootstrap_timeout_ms);
+            let result =
+                match tokio::time::timeout(timeout, bootstrap_from_peer(&state, &peer)).await {
+                    Ok(result) => result,
+                    Err(_) => Err(format!(
+                        "bootstrap timed out after {} ms",
+                        state.config.bootstrap_timeout_ms
+                    )),
+                };
+            match result {
+                Ok(stats) => {
+                    state.note_bootstrap_succeeded(&peer).await;
+                    state.metrics.record_bootstrap_run(
+                        "ok",
+                        started_at.elapsed(),
+                        stats.tombstones_applied,
+                        stats.artifacts_applied,
+                    );
+                    state.maybe_mark_serving().await;
+                }
+                Err(error) => {
+                    warn!("bootstrap from {peer} failed: {error}");
+                    state
+                        .metrics
+                        .record_bootstrap_run("error", started_at.elapsed(), 0, 0);
+                    state.note_bootstrap_failed(&peer).await;
+                }
             }
         }
-    });
+        .in_current_span(),
+    );
 }
 
 async fn bootstrap_from_peer(state: &SharedState, peer: &str) -> Result<BootstrapStats, String> {
@@ -637,7 +644,10 @@ async fn replicate_message(state: &SharedState, message: &OutboxMessage) -> Resu
                 peer.service = %replication_target_label(&message.target),
                 http.response.status_code = field::Empty,
                 otel.status_code = field::Empty,
+                trace_id = field::Empty,
+                span_id = field::Empty,
             );
+            record_trace_context(&request_span);
             let response_span = request_span.clone();
 
             async {
@@ -688,7 +698,10 @@ async fn replicate_message(state: &SharedState, message: &OutboxMessage) -> Resu
                 peer.service = %replication_target_label(&message.target),
                 http.response.status_code = field::Empty,
                 otel.status_code = field::Empty,
+                trace_id = field::Empty,
+                span_id = field::Empty,
             );
+            record_trace_context(&request_span);
             let response_span = request_span.clone();
 
             async {

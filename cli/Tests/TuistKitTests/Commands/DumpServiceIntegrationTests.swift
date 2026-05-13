@@ -241,6 +241,7 @@ final class DumpServiceTests: TuistTestCase {
                     "manifestEnvironment": [
 
                     ],
+                    "onOutdatedDependencies": "warn",
                     "optionalAuthentication": false,
                     "registryEnabled": false,
                     "resolveDependenciesWithSystemScm": false,

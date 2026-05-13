@@ -120,6 +120,14 @@ spec:
             - name: TUIST_DELEGATE_PROCESS_XCRESULT
               value: "1"
             {{- end }}
+            {{- if .Values.runnersFleet.enabled }}
+            # Runners namespace. The server reads RunnerPool CRs at
+            # dispatch time to discover the fleet name; per-customer
+            # config is `accounts.runner_max_concurrent` and has no
+            # chart-level setting.
+            - name: TUIST_RUNNERS_NAMESPACE
+              value: {{ .Values.runnersFleet.namespace | default "tuist-runners" | quote }}
+            {{- end }}
             {{- include "tuist.licenseEnv" . | nindent 12 }}
             {{- include "tuist.githubEnv" . | nindent 12 }}
             {{- if or .Values.server.masterKey .Values.server.managedSecrets }}

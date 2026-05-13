@@ -335,6 +335,62 @@ defmodule Tuist.GitHub.Client do
     ]
   end
 
+  @doc """
+  Generates a just-in-time runner configuration for an ephemeral
+  GitHub Actions self-hosted runner registered at the org level.
+  The returned `encoded_jit_config` is what the in-VM
+  `./run.sh --jitconfig` consumes; runners registered this way
+  are single-shot and auto-cleaned by GitHub after they exit.
+
+  Org-scoped (vs. repo-scoped) intentionally — the repo-scoped
+  endpoint requires the GH App to hold `administration: write`
+  on the repo, which grants access to settings, secrets,
+  collaborators, and many other unrelated capabilities. The
+  org-scoped endpoint requires only
+  `organization_self_hosted_runners: write`, a targeted scope
+  that does only what the name implies.
+
+  Runners registered at the org level are usable by any repo in
+  the org subject to the runner-group's repo allowlist. The
+  default group ID is 1; pass a different `:runner_group_id` in
+  `attrs` to register the runner into a restricted group.
+
+  See: https://docs.github.com/en/rest/actions/self-hosted-runners#create-configuration-for-a-just-in-time-runner-for-an-organization
+  """
+  def generate_jit_config(installation, org, attrs) do
+    api_url = installation_api_url(installation)
+    url = "#{api_url}/orgs/#{org}/actions/runners/generate-jitconfig"
+
+    body = %{
+      "name" => Map.fetch!(attrs, :name),
+      "runner_group_id" => Map.get(attrs, :runner_group_id, 1),
+      "labels" => Map.fetch!(attrs, :labels),
+      "work_folder" => Map.get(attrs, :work_folder, "_work")
+    }
+
+    with {:ok, %{token: token}} <- App.get_installation_token(installation, api_url: api_url),
+         {:ok, request_url, ssrf_opts} <- pin_ghes_url(url, api_url) do
+      req_opts =
+        [
+          url: request_url,
+          json: body,
+          headers: default_headers(token),
+          finch: Tuist.Finch
+        ] ++ ssrf_opts ++ Retry.retry_options()
+
+      case Req.post(req_opts) do
+        {:ok, %{status: 201, body: %{"encoded_jit_config" => jit, "runner" => runner}}} ->
+          {:ok, %{encoded_jit_config: jit, runner_id: runner["id"], runner_name: runner["name"]}}
+
+        {:ok, %{status: status, body: body}} ->
+          {:error, {:http, status, body}}
+
+        {:error, reason} ->
+          {:error, {:transport, reason}}
+      end
+    end
+  end
+
   defp installation_api_url(%{client_url: client_url}), do: VCS.api_url(:github, client_url)
   defp installation_api_url(_), do: VCS.api_url(:github, nil)
 

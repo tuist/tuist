@@ -22,6 +22,16 @@ defmodule Tuist.OIDCTest do
       assert claims.repository == "tuist/tuist"
     end
 
+    test "returns error for GitHub Actions token with invalid audience" do
+      {token, jwks} = generate_test_token_and_jwks(claims: %{"aud" => "other-service"})
+
+      stub(Req, :get, fn _url, _opts ->
+        {:ok, %{status: 200, body: jwks}}
+      end)
+
+      assert {:error, :invalid_audience} = OIDC.claims(token)
+    end
+
     test "returns error for invalid token format" do
       assert {:error, :invalid_token} = OIDC.claims("not-a-valid-jwt")
       assert {:error, :invalid_token} = OIDC.claims("")
@@ -152,6 +162,7 @@ defmodule Tuist.OIDCTest do
     base_claims = %{
       "iss" => Keyword.get(opts, :issuer, "https://token.actions.githubusercontent.com"),
       "exp" => Keyword.get(opts, :exp, DateTime.utc_now() |> DateTime.add(3600) |> DateTime.to_unix()),
+      "aud" => "tuist",
       "repository" => Keyword.get(opts, :repository, "tuist/tuist")
     }
 
