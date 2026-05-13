@@ -1637,6 +1637,7 @@ public enum Module: String, CaseIterable {
                 ]
             case .support:
                 [
+                    .target(name: Module.constants.targetName),
                     .target(name: Module.core.targetName),
                     .target(name: Module.testing.targetName),
                     .target(name: Module.environment.targetName),
