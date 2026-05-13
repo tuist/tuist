@@ -61,6 +61,8 @@
     }
 
     & > #webhook-endpoints-table {
+      box-sizing: border-box;
+      width: calc(100% - 2 * var(--noora-spacing-8));
       margin: var(--noora-spacing-6) var(--noora-spacing-8);
     }
   }
