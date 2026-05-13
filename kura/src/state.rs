@@ -77,7 +77,7 @@ pub struct RolloutStatusReport {
 #[derive(Debug, PartialEq, Eq)]
 pub struct ClusterStatusReport {
     pub generation: u64,
-    pub members: Vec<String>,
+    pub peer_regions: Vec<String>,
     pub connected_nodes: Vec<String>,
 }
 
@@ -287,7 +287,7 @@ impl AppState {
         let snapshot = self.readiness_snapshot().await;
         ClusterStatusReport {
             generation: snapshot.generation,
-            members: snapshot.members,
+            peer_regions: snapshot.members,
             connected_nodes: snapshot.known_peers,
         }
     }

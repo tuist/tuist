@@ -28,6 +28,17 @@ extension Tuist {
             case only([GenerationWarning])
         }
 
+        /// How `tuist generate` reacts when it detects that dependencies are outdated
+        /// (i.e. `Package.resolved` has changed since the last `tuist install`).
+        public enum OutdatedDependenciesAction: String, Codable, Equatable, Sendable {
+            /// Print a warning and continue generation (default).
+            case warn
+            /// Run `tuist install` automatically and then continue generation.
+            case install
+            /// Fail generation, requiring the user to run `tuist install` first.
+            case fail
+        }
+
         /// This is now deprecated.
         ///
         /// To achieve the same behaviour, use `additionalPackageResolutionArguments` like so:
@@ -124,6 +135,9 @@ extension Tuist {
         /// the cache as expected.
         public var manifestEnvironment: [String]
 
+        /// Controls how `tuist generate` reacts to outdated dependencies. Defaults to `.warn`.
+        public var onOutdatedDependencies: OutdatedDependenciesAction
+
         public static func options(
             disablePackageVersionLocking: Bool = false,
             staticSideEffectsWarningTargets: StaticSideEffectsWarningTargets = .all,
@@ -138,7 +152,8 @@ extension Tuist {
             additionalPackageResolutionArguments: [String] = [],
             warningsAsErrors: WarningsAsErrors = .none,
             defaultSwiftVersion: String = "5",
-            manifestEnvironment: [String] = []
+            manifestEnvironment: [String] = [],
+            onOutdatedDependencies: OutdatedDependenciesAction = .warn
         ) -> Self {
             self.init(
                 resolveDependenciesWithSystemScm: false,
@@ -157,7 +172,8 @@ extension Tuist {
                 registryEnabled: registryEnabled,
                 warningsAsErrors: warningsAsErrors,
                 defaultSwiftVersion: defaultSwiftVersion,
-                manifestEnvironment: manifestEnvironment
+                manifestEnvironment: manifestEnvironment,
+                onOutdatedDependencies: onOutdatedDependencies
             )
         }
 
@@ -197,7 +213,8 @@ extension Tuist {
                 registryEnabled: false,
                 warningsAsErrors: .none,
                 defaultSwiftVersion: "5",
-                manifestEnvironment: []
+                manifestEnvironment: [],
+                onOutdatedDependencies: .warn
             )
         }
 
@@ -232,7 +249,8 @@ extension Tuist {
                 registryEnabled: false,
                 warningsAsErrors: .none,
                 defaultSwiftVersion: "5",
-                manifestEnvironment: []
+                manifestEnvironment: [],
+                onOutdatedDependencies: .warn
             )
         }
     }

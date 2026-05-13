@@ -252,6 +252,7 @@ KUBECONFIG="$WL_KUBECONFIG" helm upgrade --install platform "$REPO_ROOT/infra/he
   --namespace platform \
   -f "$REPO_ROOT/infra/helm/platform/values-hetzner.yaml" \
   --set "clusterIssuer.enabled=false" \
+  --set "external-dns.txtOwnerId=${CLUSTER_NAME}-platform" \
   --set "ingress-nginx.controller.service.annotations.load-balancer\.hetzner\.cloud/location=${REGION}" \
   --set "ingress-nginx.controller.service.annotations.load-balancer\.hetzner\.cloud/name=${CLUSTER_NAME}-ingress" \
   --wait --timeout 5m
@@ -261,6 +262,7 @@ KUBECONFIG="$WL_KUBECONFIG" kubectl wait --for=condition=Established crd/cluster
 KUBECONFIG="$WL_KUBECONFIG" helm upgrade --install platform "$REPO_ROOT/infra/helm/platform" \
   --namespace platform \
   -f "$REPO_ROOT/infra/helm/platform/values-hetzner.yaml" \
+  --set "external-dns.txtOwnerId=${CLUSTER_NAME}-platform" \
   --set "ingress-nginx.controller.service.annotations.load-balancer\.hetzner\.cloud/location=${REGION}" \
   --set "ingress-nginx.controller.service.annotations.load-balancer\.hetzner\.cloud/name=${CLUSTER_NAME}-ingress" \
   --wait --timeout 5m

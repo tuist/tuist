@@ -111,5 +111,17 @@ defmodule TuistWeb.API.OIDCControllerTest do
       response = json_response(conn, :unauthorized)
       assert response["message"] =~ "expired"
     end
+
+    test "returns 401 when OIDC token audience is invalid", %{conn: conn} do
+      stub(OIDC, :claims, fn _token -> {:error, :invalid_audience} end)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/auth/oidc/token", %{token: "wrong-audience-token"})
+
+      response = json_response(conn, :unauthorized)
+      assert response["message"] =~ "audience"
+    end
   end
 end

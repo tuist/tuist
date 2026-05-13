@@ -6,7 +6,6 @@ on:
       - main
 
 permissions:
-  id-token: write
   contents: write
   pull-requests: read
   statuses: write
@@ -72,9 +71,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: namespacelabs/nscloud-cache-action@v1
-        with:
-          cache: mise
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
@@ -899,6 +895,12 @@ jobs:
     if: needs.check-releases.outputs.cli-should-release == 'true'
     runs-on: namespace-profile-default-macos
     timeout-minutes: 50
+    permissions:
+      contents: write
+      id-token: write
+      pull-requests: read
+      statuses: write
+      packages: write
     env:
       GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
     outputs:
@@ -911,12 +913,6 @@ jobs:
           token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version-releases).app
-      - name: Restore cache
-        id: cache-restore
-        uses: actions/cache/restore@v4
-        with:
-          path: .build
-          key: ${{ runner.os }}-cli-release-${{ hashFiles('.xcode-version-releases') }}-${{ hashFiles('Package.swift') }}-${{ hashFiles('Package.resolved') }}
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
@@ -928,7 +924,6 @@ jobs:
       - name: Setup Tuist
         run: tuist setup
       - name: Install Tuist dependencies
-        if: steps.cache-restore.outputs.cache-matched-key == ''
         run: tuist install
       - name: Initialize TuistCacheEE submodule
         env:
@@ -960,13 +955,6 @@ jobs:
       - name: Update mise.toml
         run: |
           sed -i '' "s/tuist = \".*\"/tuist = \"${{ needs.check-releases.outputs.cli-next-version }}\"/" mise.toml
-
-      - name: Save cache
-        id: cache-save
-        uses: actions/cache/save@v4
-        with:
-          path: .build
-          key: ${{ steps.cache-restore.outputs.cache-primary-key }}
 
       - name: Upload CLI artifacts
         id: upload
@@ -1004,31 +992,12 @@ jobs:
         with:
           token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
 
-      - name: Cache Static Linux SDK
-        uses: actions/cache@v4
-        with:
-          path: ~/.swiftpm/swift-sdks
-          key: static-linux-sdk-swift-6.2.3-${{ matrix.arch }}
-
-      - name: Restore cache
-        id: cache-restore
-        uses: actions/cache/restore@v4
-        with:
-          path: .build
-          key: linux-${{ matrix.arch }}-cli-release-${{ hashFiles('Package.swift') }}-${{ hashFiles('Package.resolved') }}
-
       - name: Update version in Constants.swift
         run: |
           sed -i "s/@TaskLocal public static var version: String! = \".*\"/@TaskLocal public static var version: String! = \"${{ needs.check-releases.outputs.cli-next-version }}\"/" "cli/Sources/TuistConstants/Constants.swift"
 
       - name: Bundle CLI
         run: ./mise/tasks/cli/bundle-linux.sh
-
-      - name: Save cache
-        uses: actions/cache/save@v4
-        with:
-          path: .build
-          key: ${{ steps.cache-restore.outputs.cache-primary-key }}
 
       - name: Upload CLI Linux artifacts
         id: upload
@@ -1047,6 +1016,12 @@ jobs:
     if: needs.check-releases.outputs.app-should-release == 'true'
     runs-on: macos-26
     timeout-minutes: 50
+    permissions:
+      contents: write
+      id-token: write
+      pull-requests: read
+      statuses: write
+      packages: write
     env:
       GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
       OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
@@ -1143,6 +1118,12 @@ jobs:
     if: needs.check-releases.outputs.app-should-release == 'true'
     runs-on: namespace-profile-macos-xcode-26
     timeout-minutes: 30
+    permissions:
+      contents: write
+      id-token: write
+      pull-requests: read
+      statuses: write
+      packages: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -1163,12 +1144,6 @@ jobs:
         run: tuist auth login
       - name: Setup Tuist
         run: tuist setup
-      - name: Restore cache
-        id: cache-restore
-        uses: actions/cache/restore@v4
-        with:
-          path: .build
-          key: ${{ runner.os }}-app-${{ hashFiles('Package.swift') }}-${{ hashFiles('Package.resolved') }}
       - name: Update version
         working-directory: app
         run: |
@@ -1177,7 +1152,6 @@ jobs:
           sed -i '' -e "s/CFBundleShortVersionString.*/CFBundleShortVersionString\": \"$VERSION_NUMBER\",/g" "Project.swift"
           sed -i '' -e "s/CFBundleVersion.*/CFBundleVersion\": \"${{ github.run_number }}\",/g" "Project.swift"
       - name: Install Tuist dependencies
-        if: steps.cache-restore.outputs.cache-matched-key == ''
         run: tuist install
       - name: Generate TuistApp
         run: tuist generate TuistApp --no-binary-cache
@@ -1199,9 +1173,6 @@ jobs:
         with:
           token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
 
-      - uses: namespacelabs/nscloud-cache-action@v1
-        with:
-          cache: mise
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
@@ -1211,6 +1182,8 @@ jobs:
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-disabled: true
 
       - name: Update version
         working-directory: android
@@ -1248,9 +1221,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: namespacelabs/nscloud-cache-action@v1
-        with:
-          cache: mise
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
@@ -1335,9 +1305,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: namespacelabs/nscloud-cache-action@v1
-        with:
-          cache: mise
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
@@ -1418,9 +1385,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: namespacelabs/nscloud-cache-action@v1
-        with:
-          cache: mise
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
@@ -1506,12 +1470,6 @@ jobs:
           name: kura-release-metadata
           path: kura
 
-      - uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: kura-release-${{ runner.os }}
-          workspaces: |
-            kura -> target
-
       - name: Build Kura binary
         working-directory: kura
         run: |
@@ -1593,9 +1551,6 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
-      - uses: namespacelabs/nscloud-cache-action@v1
-        with:
-          cache: mise
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
@@ -1605,6 +1560,8 @@ jobs:
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-disabled: true
 
       - name: Get release notes
         id: release-notes
@@ -1706,9 +1663,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: namespacelabs/nscloud-cache-action@v1
-        with:
-          cache: mise
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
@@ -1783,9 +1737,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: namespacelabs/nscloud-cache-action@v1
-        with:
-          cache: mise
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
@@ -1866,9 +1817,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: namespacelabs/nscloud-cache-action@v1
-        with:
-          cache: mise
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
@@ -1943,9 +1891,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: namespacelabs/nscloud-cache-action@v1
-        with:
-          cache: mise
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
@@ -2444,9 +2389,6 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
 
-      - uses: namespacelabs/nscloud-cache-action@v1
-        with:
-          cache: mise
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}

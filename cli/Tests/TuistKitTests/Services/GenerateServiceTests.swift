@@ -378,3 +378,162 @@ struct GenerateServiceTests {
         }
     }
 }
+
+/// Kept separate from `GenerateServiceTests` because combining `MockInstallServicing` and
+/// `MockOpening` in the same struct triggers a Swift Testing struct-destroy crash on parallel
+/// execution. Until that's investigated upstream, the outdated-dependency cases live here.
+struct GenerateServiceOutdatedDependenciesTests {
+    private var subject: GenerateService!
+    private var generator: MockGenerating!
+    private var generatorFactory: MockGeneratorFactorying!
+    private var cacheStorageFactory: MockCacheStorageFactorying!
+    private var configLoader: MockConfigLoading!
+    private var installService: MockInstallServicing!
+    private var outdatedDependenciesChecker: MockOutdatedDependenciesChecking!
+
+    init() {
+        generator = .init()
+        generatorFactory = .init()
+        cacheStorageFactory = .init()
+        configLoader = .init()
+        installService = .init()
+        outdatedDependenciesChecker = .init()
+
+        given(generatorFactory)
+            .generation(
+                config: .any,
+                includedTargets: .any,
+                configuration: .any,
+                cacheProfile: .any,
+                cacheStorage: .any
+            )
+            .willReturn(generator)
+        given(cacheStorageFactory)
+            .cacheStorage(config: .any)
+            .willReturn(MockCacheStoring())
+
+        subject = GenerateService(
+            cacheStorageFactory: cacheStorageFactory,
+            generatorFactory: generatorFactory,
+            configLoader: configLoader,
+            installService: installService,
+            outdatedDependenciesChecker: outdatedDependenciesChecker
+        )
+    }
+
+    @Test
+    func runs_install_when_action_is_install_and_dependencies_are_outdated() async throws {
+        // Given
+        given(configLoader).loadConfig(path: .any).willReturn(
+            .test(project: .generated(.test(generationOptions: .test(onOutdatedDependencies: .install))))
+        )
+        given(outdatedDependenciesChecker)
+            .packageDependenciesAreOutdated(at: .any)
+            .willReturn(true)
+        given(generator)
+            .generateWithGraph(path: .any, options: .any)
+            .willReturn((try AbsolutePath(validating: "/test.xcworkspace"), .test(), MapperEnvironment()))
+        given(installService)
+            .run(path: .any, update: .any, passthroughArguments: .any)
+            .willReturn()
+
+        // When
+        try await subject.run(
+            path: nil,
+            includedTargets: [],
+            noOpen: true,
+            configuration: nil,
+            ignoreBinaryCache: false,
+            cacheProfile: nil
+        )
+
+        // Then
+        verify(installService)
+            .run(path: .any, update: .value(false), passthroughArguments: .value([]))
+            .called(1)
+    }
+
+    @Test
+    func does_not_run_install_when_action_is_warn_and_dependencies_are_outdated() async throws {
+        // Given
+        given(configLoader).loadConfig(path: .any).willReturn(
+            .test(project: .generated(.test(generationOptions: .test(onOutdatedDependencies: .warn))))
+        )
+        given(outdatedDependenciesChecker)
+            .packageDependenciesAreOutdated(at: .any)
+            .willReturn(true)
+        given(generator)
+            .generateWithGraph(path: .any, options: .any)
+            .willReturn((try AbsolutePath(validating: "/test.xcworkspace"), .test(), MapperEnvironment()))
+
+        // When
+        try await subject.run(
+            path: nil,
+            includedTargets: [],
+            noOpen: true,
+            configuration: nil,
+            ignoreBinaryCache: false,
+            cacheProfile: nil
+        )
+
+        // Then
+        verify(installService)
+            .run(path: .any, update: .any, passthroughArguments: .any)
+            .called(0)
+    }
+
+    @Test
+    func does_not_run_install_when_action_is_install_and_dependencies_are_up_to_date() async throws {
+        // Given
+        given(configLoader).loadConfig(path: .any).willReturn(
+            .test(project: .generated(.test(generationOptions: .test(onOutdatedDependencies: .install))))
+        )
+        given(outdatedDependenciesChecker)
+            .packageDependenciesAreOutdated(at: .any)
+            .willReturn(false)
+        given(generator)
+            .generateWithGraph(path: .any, options: .any)
+            .willReturn((try AbsolutePath(validating: "/test.xcworkspace"), .test(), MapperEnvironment()))
+
+        // When
+        try await subject.run(
+            path: nil,
+            includedTargets: [],
+            noOpen: true,
+            configuration: nil,
+            ignoreBinaryCache: false,
+            cacheProfile: nil
+        )
+
+        // Then
+        verify(installService)
+            .run(path: .any, update: .any, passthroughArguments: .any)
+            .called(0)
+    }
+
+    @Test
+    func throws_when_action_is_fail_and_dependencies_are_outdated() async throws {
+        // Given
+        given(configLoader).loadConfig(path: .any).willReturn(
+            .test(project: .generated(.test(generationOptions: .test(onOutdatedDependencies: .fail))))
+        )
+        given(outdatedDependenciesChecker)
+            .packageDependenciesAreOutdated(at: .any)
+            .willReturn(true)
+
+        // When / Then
+        await #expect(throws: GenerateServiceError.outdatedDependencies) {
+            try await subject.run(
+                path: nil,
+                includedTargets: [],
+                noOpen: true,
+                configuration: nil,
+                ignoreBinaryCache: false,
+                cacheProfile: nil
+            )
+        }
+        verify(installService)
+            .run(path: .any, update: .any, passthroughArguments: .any)
+            .called(0)
+    }
+}

@@ -44,7 +44,6 @@ on:
       - "Package.resolved"
 
 permissions:
-  id-token: write
   contents: read
 
 env:
@@ -70,6 +69,9 @@ jobs:
     name: Lint
     runs-on: macos-26
     timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -111,6 +113,9 @@ jobs:
     name: SwiftPM Build
     runs-on: macos-26
     timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
@@ -145,6 +150,9 @@ jobs:
     name: Cache
     runs-on: macos-26
     timeout-minutes: 60
+    permissions:
+      contents: read
+      id-token: write
     if: github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
@@ -190,6 +198,9 @@ jobs:
     name: Unit Tests
     runs-on: namespace-profile-macos-xcode-26
     timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
@@ -232,6 +243,9 @@ jobs:
     name: Build Acceptance Tests
     runs-on: namespace-profile-macos-xcode-26
     timeout-minutes: 60
+    permissions:
+      contents: read
+      id-token: write
     if: (github.event.pull_request.draft == false || github.event_name != 'pull_request') && github.event.pull_request.head.repo.fork != true
     outputs:
       matrix: ${{ steps.shard.outputs.matrix }}
@@ -284,6 +298,9 @@ jobs:
     runs-on: namespace-profile-macos-xcode-26
     timeout-minutes: 60
     needs: cli-acceptance-tests-build
+    permissions:
+      contents: read
+      id-token: write
     if: toJSON(fromJSON(needs.cli-acceptance-tests-build.outputs.matrix).shard) != '[]'
     strategy:
       fail-fast: false
