@@ -97,27 +97,21 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
         // Subprocess invocations of `swift package` happen outside the lock, since each
         // subprocess acquires its own scratch-directory lock — holding our lock around
         // a `swift package` invocation on the same scratch directory deadlocks.
-        let (workspaceState, outdatedDependencyIssues) = try await swiftPackageManagerLock
+        let workspaceState = try await swiftPackageManagerLock
             .withLock(scratchDirectory: scratchDirectory) {
                 let workspacePath = scratchDirectory.appending(component: "workspace-state.json")
                 if try await !fileSystem.exists(workspacePath) {
                     throw SwiftPackageManagerGraphGeneratorError.installRequired
                 }
-                let workspaceState = try JSONDecoder()
+                return try JSONDecoder()
                     .decode(SwiftPackageManagerWorkspaceState.self, from: try await fileSystem.readFile(at: workspacePath))
-                let outdatedDependencyIssues = try await validatePackageResolved(
-                    at: packagePath.parentDirectory,
-                    scratchDirectory: scratchDirectory
-                )
-                return (workspaceState, outdatedDependencyIssues)
             }
         return try await loadUnsafe(
             packagePath: packagePath,
             packageSettings: packageSettings,
             disableSandbox: disableSandbox,
             scratchDirectory: scratchDirectory,
-            workspaceState: workspaceState,
-            outdatedDependencyIssues: outdatedDependencyIssues
+            workspaceState: workspaceState
         )
     }
 
@@ -127,8 +121,7 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
         packageSettings: TuistCore.PackageSettings,
         disableSandbox: Bool,
         scratchDirectory: AbsolutePath,
-        workspaceState: SwiftPackageManagerWorkspaceState,
-        outdatedDependencyIssues: [LintingIssue]
+        workspaceState: SwiftPackageManagerWorkspaceState
     ) async throws -> (TuistLoader.DependenciesGraph, [LintingIssue]) {
         let path = scratchDirectory
         let checkoutsFolder = path.appending(component: "checkouts")
@@ -312,7 +305,7 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
                 externalDependencies: externalDependencies,
                 externalProjects: externalProjects
             ),
-            outdatedDependencyIssues
+            []
         )
     }
 
@@ -423,39 +416,6 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
             environment: Environment.current.variables,
             workingDirectory: try await Environment.current.currentWorkingDirectory()
         )
-    }
-
-    private func validatePackageResolved(
-        at path: AbsolutePath,
-        scratchDirectory: AbsolutePath
-    ) async throws -> [LintingIssue] {
-        let savedPackageResolvedPath = scratchDirectory.appending(components: [
-            Constants.DerivedDirectory.name,
-            Constants.SwiftPackageManager.packageResolvedName,
-        ])
-        let savedData: Data?
-        if try await fileSystem.exists(savedPackageResolvedPath) {
-            savedData = try await fileSystem.readFile(at: savedPackageResolvedPath)
-        } else {
-            savedData = nil
-        }
-
-        let currentPackageResolvedPath = path.appending(component: Constants.SwiftPackageManager.packageResolvedName)
-        let currentData: Data?
-        if try await fileSystem.exists(currentPackageResolvedPath) {
-            currentData = try await fileSystem.readFile(at: currentPackageResolvedPath)
-        } else {
-            currentData = nil
-        }
-
-        if currentData != savedData {
-            return [LintingIssue(
-                reason: "We detected outdated dependencies. Run `tuist install` to update them.",
-                severity: .warning,
-                category: .outdatedDependencies
-            )]
-        }
-        return []
     }
 }
 
