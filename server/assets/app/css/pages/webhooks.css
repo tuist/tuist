@@ -98,27 +98,27 @@
     }
 
     & th:first-child {
-      width: 14%;
+      width: 18%;
     }
 
     & th:nth-child(2) {
-      width: 22%;
+      width: 26%;
     }
 
     & th:nth-child(3) {
-      width: 18%;
+      width: 22%;
     }
 
     & th:nth-child(4) {
-      width: 18%;
+      width: 14%;
     }
 
     & th:nth-child(5) {
-      width: 10%;
+      width: 14%;
     }
 
     & th:last-child {
-      width: 18%;
+      width: 6%;
     }
 
     & td:last-child > [data-part="cell"][data-type="button"] {

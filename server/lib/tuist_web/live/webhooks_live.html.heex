@@ -250,37 +250,38 @@
         <:col :let={endpoint} label="">
           <.button_cell>
             <:button>
-              <.button
-                size="small"
-                variant="secondary"
-                label={dgettext("dashboard_account", "Rotate secret")}
-                phx-click="rotate_endpoint_signing_secret"
-                phx-value-id={endpoint.id}
-                data-confirm={
-                  dgettext(
-                    "dashboard_account",
-                    "Rotating replaces the signing secret. Existing consumers will fail verification until updated."
-                  )
-                }
-              />
-            </:button>
-            <:button>
-              <.button
-                icon_only
-                variant="secondary"
-                size="small"
-                phx-click="delete_endpoint"
-                phx-value-id={endpoint.id}
-                aria-label={dgettext("dashboard_account", "Delete endpoint")}
-                data-confirm={
-                  dgettext(
-                    "dashboard_account",
-                    "Delete this endpoint? Automations referencing it will stop delivering."
-                  )
-                }
-              >
-                <.icon name="trash" />
-              </.button>
+              <.dropdown id={"webhook-endpoint-actions-#{endpoint.id}"} icon_only>
+                <:icon><.dots_vertical /></:icon>
+
+                <.dropdown_item
+                  label={dgettext("dashboard_account", "Rotate secret")}
+                  value="rotate"
+                  on_click="rotate_endpoint_signing_secret"
+                  phx-value-id={endpoint.id}
+                  data-confirm={
+                    dgettext(
+                      "dashboard_account",
+                      "Rotating replaces the signing secret. Existing consumers will fail verification until updated."
+                    )
+                  }
+                >
+                  <:left_icon><.reload /></:left_icon>
+                </.dropdown_item>
+                <.dropdown_item
+                  label={dgettext("dashboard_account", "Delete endpoint")}
+                  value="delete"
+                  on_click="delete_endpoint"
+                  phx-value-id={endpoint.id}
+                  data-confirm={
+                    dgettext(
+                      "dashboard_account",
+                      "Delete this endpoint? Automations referencing it will stop delivering."
+                    )
+                  }
+                >
+                  <:left_icon><.trash /></:left_icon>
+                </.dropdown_item>
+              </.dropdown>
             </:button>
           </.button_cell>
         </:col>
