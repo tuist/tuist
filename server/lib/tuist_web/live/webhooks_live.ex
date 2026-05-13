@@ -20,7 +20,7 @@ defmodule TuistWeb.WebhooksLive do
       socket
       |> assign(:selected_tab, "webhooks")
       |> assign(:head_title, "#{dgettext("dashboard_account", "Webhooks")} · #{selected_account.name} · Tuist")
-      |> assign(:supported_event_types, WebhookEndpoint.supported_event_types())
+      |> assign(:event_groups, WebhookEndpoint.event_groups())
       |> assign_endpoints()
       |> reset_create_form()
       |> reset_disclosure()
@@ -29,23 +29,17 @@ defmodule TuistWeb.WebhooksLive do
   end
 
   @doc """
-  Human-readable label for `event_type`, used by both the form checkbox
-  list and the row-level summary cell.
+  Human-readable label for `event_type`, used by the row-level summary tag.
   """
-  def event_type_label("test_case.updated"), do: dgettext("dashboard_account", "Test case updated")
-  def event_type_label("automation.triggered"), do: dgettext("dashboard_account", "Automation triggered")
-  def event_type_label(other), do: other
-
-  @doc """
-  Short description shown under the checkbox label in the create form.
-  """
-  def event_type_description("test_case.updated"),
-    do: dgettext("dashboard_account", "A test case's attributes changed.")
-
-  def event_type_description("automation.triggered"),
-    do: dgettext("dashboard_account", "An automation alert evaluated as triggered for one of its monitored test cases.")
-
-  def event_type_description(_), do: ""
+  def event_type_label(event_type) do
+    WebhookEndpoint.event_groups()
+    |> Enum.flat_map(& &1.events)
+    |> Enum.find(&(&1.type == event_type))
+    |> case do
+      %{label: label} -> label
+      _ -> event_type
+    end
+  end
 
   @doc """
   Renders a partial-mask preview of `signing_secret` for the endpoints table.

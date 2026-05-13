@@ -15,14 +15,47 @@ defmodule Tuist.Webhooks.WebhookEndpoint do
 
   alias Tuist.Accounts.Account
 
-  @supported_event_types ~w(test_case.updated automation.triggered)
+  @event_groups [
+    %{
+      key: "test_cases",
+      label: "Test cases",
+      events: [
+        %{
+          type: "test_case.updated",
+          label: "Test case updated",
+          description: "A test case's attributes changed."
+        }
+      ]
+    },
+    %{
+      key: "previews",
+      label: "Previews",
+      events: [
+        %{
+          type: "preview.uploaded",
+          label: "Preview uploaded",
+          description: "An app build finished uploading to a preview in this account."
+        }
+      ]
+    }
+  ]
+
+  @supported_event_types Enum.flat_map(@event_groups, fn group ->
+                           Enum.map(group.events, & &1.type)
+                         end)
 
   @doc """
   Event types an endpoint can subscribe to. Used by the schema validator
-  and the LiveView form's checkbox list, so adding a new event here is
-  enough to expose it in both layers.
+  and (indirectly, via `event_groups/0`) by the LiveView form.
   """
   def supported_event_types, do: @supported_event_types
+
+  @doc """
+  Resource-grouped catalogue of subscribable events. The webhook modal
+  renders one section per group with its events as checkbox items; adding
+  an event here is enough to surface it in the form.
+  """
+  def event_groups, do: @event_groups
 
   @primary_key {:id, UUIDv7, autogenerate: true}
   schema "webhook_endpoints" do

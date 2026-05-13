@@ -98,30 +98,8 @@ defmodule Tuist.Automations do
       |> Map.put_new(:inserted_at, now)
 
     IngestRepo.insert_all(AlertEvent, [record])
-    dispatch_automation_triggered_webhook(record)
     :ok
   end
-
-  # Fan out to webhook endpoints subscribed to `automation.triggered` whenever
-  # an alert's status flips to triggered. Webhook delivery is best-effort; a
-  # failure here must not prevent the audit-log write that produced the event.
-  defp dispatch_automation_triggered_webhook(%{status: "triggered", alert_id: alert_id} = record) do
-    case Repo.get(Alert, alert_id) do
-      %Alert{} = alert ->
-        Tuist.Webhooks.Dispatcher.dispatch_automation_triggered(alert, Map.get(record, :test_case_id))
-
-      _ ->
-        :ok
-    end
-
-    :ok
-  rescue
-    error ->
-      Logger.warning("Webhook dispatch for automation.triggered failed: #{inspect(error)}")
-      :ok
-  end
-
-  defp dispatch_automation_triggered_webhook(_), do: :ok
 
   @doc """
   Dispatches an event-driven test case automation trigger.

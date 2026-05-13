@@ -10,7 +10,7 @@ defmodule Tuist.Webhooks.Dispatcher do
   scheduling delivery. Failures while enqueuing a single endpoint are
   swallowed so one bad subscriber can't block delivery to the others.
   """
-  alias Tuist.Automations.Alerts.Alert
+  alias Tuist.AppBuilds.Preview
   alias Tuist.Projects
   alias Tuist.Repo
   alias Tuist.Webhooks
@@ -52,32 +52,42 @@ defmodule Tuist.Webhooks.Dispatcher do
   end
 
   @doc """
-  Dispatches an `automation.triggered` event after an alert evaluation has
-  fired. Webhooks subscribed at the alert's account scope receive a snapshot
-  of the firing automation plus the affected test case id.
+  Dispatches a `preview.uploaded` event when an app build has finished
+  uploading to a preview. Receivers can drive workflows like "post to
+  Slack when QA builds are ready" without polling.
   """
-  def dispatch_automation_triggered(%Alert{} = alert, test_case_id) do
-    with %Projects.Project{account_id: account_id} <- Repo.get(Projects.Project, alert.project_id),
+  def dispatch_preview_uploaded(%Preview{} = preview) do
+    preview = Repo.preload(preview, :project)
+
+    with %Projects.Project{account_id: account_id} <- preview.project,
          [_ | _] = endpoints <-
-           Webhooks.list_endpoints_subscribed_to(account_id, "automation.triggered") do
-      object = %{
-        "automation" => %{
-          "id" => alert.id,
-          "name" => alert.name,
-          "monitor_type" => alert.monitor_type,
-          "project_id" => alert.project_id
-        },
-        "test_case_id" => test_case_id
-      }
+           Webhooks.list_endpoints_subscribed_to(account_id, "preview.uploaded") do
+      object = preview_snapshot(preview)
 
       Enum.each(endpoints, fn endpoint ->
-        enqueue(endpoint, "automation.triggered", %{"object" => object})
+        enqueue(endpoint, "preview.uploaded", %{"object" => object})
       end)
 
       :ok
     else
       _ -> :ok
     end
+  end
+
+  defp preview_snapshot(preview) do
+    %{
+      "id" => preview.id,
+      "display_name" => preview.display_name,
+      "bundle_identifier" => preview.bundle_identifier,
+      "version" => preview.version,
+      "project_id" => preview.project_id,
+      "supported_platforms" => Enum.map(preview.supported_platforms || [], &to_string/1),
+      "visibility" => to_string(preview.visibility),
+      "git_branch" => preview.git_branch,
+      "git_commit_sha" => preview.git_commit_sha,
+      "git_ref" => preview.git_ref,
+      "inserted_at" => format_datetime(preview.inserted_at)
+    }
   end
 
   defp enqueue(endpoint, event_type, body) do

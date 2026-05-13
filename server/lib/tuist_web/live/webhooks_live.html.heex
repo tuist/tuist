@@ -130,22 +130,23 @@
                         "Only the selected events trigger a delivery to this endpoint."
                       )}
                     </span>
-                    <div data-part="event-checkbox-list">
-                      <label
-                        :for={event_type <- @supported_event_types}
-                        id={"webhook-event-#{event_type}"}
-                        data-part="event-checkbox"
-                        phx-click="toggle_create_form_event_type"
-                        phx-value-data={event_type}
-                      >
-                        <.checkbox_control checked={event_type in @create_form_event_types} />
-                        <div data-part="body">
-                          <span data-part="label">{event_type_label(event_type)}</span>
-                          <span data-part="description">
-                            {event_type_description(event_type)}
-                          </span>
-                        </div>
-                      </label>
+                    <div :for={group <- @event_groups} data-part="event-group">
+                      <h3 data-part="event-group-label">{group.label}</h3>
+                      <div data-part="event-checkbox-list">
+                        <label
+                          :for={event <- group.events}
+                          id={"webhook-event-#{event.type}"}
+                          data-part="event-checkbox"
+                          phx-click="toggle_create_form_event_type"
+                          phx-value-data={event.type}
+                        >
+                          <.checkbox_control checked={event.type in @create_form_event_types} />
+                          <div data-part="body">
+                            <span data-part="label">{event.label}</span>
+                            <span data-part="description">{event.description}</span>
+                          </div>
+                        </label>
+                      </div>
                     </div>
                   </div>
                 </div>

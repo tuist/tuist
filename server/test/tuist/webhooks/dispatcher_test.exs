@@ -6,6 +6,7 @@ defmodule Tuist.Webhooks.DispatcherTest do
   alias Tuist.Webhooks
   alias Tuist.Webhooks.Dispatcher
   alias Tuist.Webhooks.Workers.DeliveryWorker
+  alias TuistTestSupport.Fixtures.AppBuildsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
 
@@ -95,36 +96,33 @@ defmodule Tuist.Webhooks.DispatcherTest do
     end
   end
 
-  describe "dispatch_automation_triggered/2" do
-    test "enqueues an automation.triggered delivery for each subscribed endpoint" do
-      alert = TuistTestSupport.Fixtures.AutomationsFixtures.automation_alert_fixture(name: "Flaky alert")
-      project = Tuist.Repo.get!(Tuist.Projects.Project, alert.project_id)
+  describe "dispatch_preview_uploaded/1" do
+    test "enqueues a preview.uploaded delivery for each subscribed endpoint" do
+      project = ProjectsFixtures.project_fixture()
+      preview = AppBuildsFixtures.preview_fixture(project: project)
 
       {:ok, subscribed, _} =
         Webhooks.create_endpoint(project.account_id, %{
           "name" => "Jira",
           "url" => "https://example.com/hook",
-          "event_types" => ["automation.triggered"]
+          "event_types" => ["preview.uploaded"]
         })
 
-      test_case_id = Ecto.UUID.generate()
-      assert :ok = Dispatcher.dispatch_automation_triggered(alert, test_case_id)
+      assert :ok = Dispatcher.dispatch_preview_uploaded(preview)
 
       [job] = Tuist.Repo.all(Oban.Job)
       assert job.args["webhook_endpoint_id"] == subscribed.id
-      assert job.args["event_type"] == "automation.triggered"
+      assert job.args["event_type"] == "preview.uploaded"
 
       payload = job.args["payload"]
-      assert payload["type"] == "automation.triggered"
-      assert payload["object"]["automation"]["id"] == alert.id
-      assert payload["object"]["automation"]["name"] == "Flaky alert"
-      assert payload["object"]["automation"]["monitor_type"] == alert.monitor_type
-      assert payload["object"]["test_case_id"] == test_case_id
+      assert payload["type"] == "preview.uploaded"
+      assert payload["object"]["id"] == preview.id
+      assert payload["object"]["project_id"] == project.id
     end
 
-    test "no-ops when no endpoints subscribe to automation.triggered" do
-      alert = TuistTestSupport.Fixtures.AutomationsFixtures.automation_alert_fixture()
-      project = Tuist.Repo.get!(Tuist.Projects.Project, alert.project_id)
+    test "no-ops when no endpoints subscribe to preview.uploaded" do
+      project = ProjectsFixtures.project_fixture()
+      preview = AppBuildsFixtures.preview_fixture(project: project)
 
       # A `test_case.updated` subscriber must be skipped here.
       {:ok, _other, _} =
@@ -134,7 +132,7 @@ defmodule Tuist.Webhooks.DispatcherTest do
           "event_types" => ["test_case.updated"]
         })
 
-      assert :ok = Dispatcher.dispatch_automation_triggered(alert, Ecto.UUID.generate())
+      assert :ok = Dispatcher.dispatch_preview_uploaded(preview)
       assert Tuist.Repo.aggregate(Oban.Job, :count) == 0
     end
   end
