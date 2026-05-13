@@ -472,7 +472,7 @@ func waitForSSH(ctx context.Context, ip, user string, signer ssh.Signer, hk *hos
 // Pre-ordered hosts that sat in the pool longer than Scaleway's
 // password-disclosure window won't have a usable password — for those
 // the operator is expected to seed /etc/sudoers.d/<user>-nopasswd by
-// hand via the prep-fleet-host script. With no password to feed sudo,
+// hand via the prepare-fleet-host script. With no password to feed sudo,
 // hammering `sudo -S` every reconcile would consume PAM failure-tally
 // slots and lock the account in a loop the controller can never
 // escape (the lockout outlives the controller's retry window because
