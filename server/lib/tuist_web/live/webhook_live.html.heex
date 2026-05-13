@@ -54,33 +54,21 @@
         {dgettext("dashboard_account", "Delivery attempts over the last 7 days.")}
       </span>
     </div>
-    <div data-part="widgets">
-      <.widget
-        id="widget-webhook-deliveries-total"
-        title={dgettext("dashboard_account", "Total")}
-        legend_color="primary"
-        value={Integer.to_string(@delivery_stats.total)}
-      />
-      <.widget
-        id="widget-webhook-deliveries-failed"
-        title={dgettext("dashboard_account", "Failed")}
-        legend_color="destructive"
-        value={Integer.to_string(@delivery_stats.failed)}
-      />
-    </div>
     <div data-part="chart">
       <.chart
         id="webhook-deliveries-chart"
         type="line"
         colors={["var:noora-chart-primary", "var:noora-chart-destructive"]}
+        show_legend={true}
+        legend_position="bottom"
         extra_options={
           %{
             grid: %{
               width: "93%",
               left: "0.4%",
               right: "7%",
-              height: "82%",
-              top: "8%"
+              height: "78%",
+              top: "5%"
             },
             xAxis: %{
               boundaryGap: false,
@@ -101,13 +89,20 @@
               splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
               axisLabel: %{color: "var:noora-surface-label-secondary"}
             },
-            legend: %{show: false},
+            legend: %{
+              bottom: "0",
+              left: "center",
+              icon: "circle",
+              itemWidth: 8,
+              itemHeight: 8,
+              textStyle: %{color: "var:noora-surface-label-secondary"}
+            },
             tooltip: %{}
           }
         }
         series={[
           %{
-            name: dgettext("dashboard_account", "Total"),
+            name: "#{dgettext("dashboard_account", "Total")} #{@delivery_stats.total}",
             type: "line",
             smooth: 0.1,
             symbol: "none",
@@ -117,7 +112,7 @@
               end)
           },
           %{
-            name: dgettext("dashboard_account", "Failed"),
+            name: "#{dgettext("dashboard_account", "Failed")} #{@delivery_stats.failed}",
             type: "line",
             smooth: 0.1,
             symbol: "none",

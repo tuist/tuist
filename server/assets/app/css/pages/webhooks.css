@@ -369,26 +369,9 @@
     }
   }
 
-  & [data-part="performance-card"] > [data-part="widgets"] {
-    display: flex;
-    flex-direction: row;
-    gap: var(--noora-spacing-4);
-    padding: var(--noora-spacing-7) var(--noora-spacing-8) var(--noora-spacing-5);
-
-    & > * {
-      flex: 1;
-    }
-
-    @media (max-width: 768px) {
-      & {
-        flex-direction: column;
-      }
-    }
-  }
-
   & [data-part="performance-card"] > [data-part="chart"] {
-    padding: 0 var(--noora-spacing-8) var(--noora-spacing-7);
-    height: 280px;
+    padding: var(--noora-spacing-7) var(--noora-spacing-8);
+    height: 320px;
 
     & .noora-chart {
       width: 100%;
