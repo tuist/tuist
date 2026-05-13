@@ -30,7 +30,14 @@ ARG TART_VERSION=2.32.1
 # -pkg`. Pinning the version here makes the tailnet client
 # reproducible across operator deploys — bumping is a deliberate
 # Dockerfile change, same convention as TART_VERSION.
-ARG TAILSCALE_VERSION=1.86.0
+#
+# Tailscale's CDN only serves the *current* stable .pkg at the
+# versioned URL — older versions return 404 once a new stable ships.
+# Bumping this ARG is required whenever upstream rolls a new
+# release; an out-of-sync value here breaks the build. Matches the
+# tailscale-operator chart's version pin in
+# infra/helm/tailscale-operator/Chart.yaml.
+ARG TAILSCALE_VERSION=1.96.5
 
 # node_exporter source revision pinned for the host-metrics binary
 # we cross-compile to darwin/arm64. Prometheus ships node_exporter
