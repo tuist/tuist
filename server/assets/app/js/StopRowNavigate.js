@@ -1,16 +1,18 @@
 // Noora's table wraps every cell — including action cells — in an
 // `<a phx-link="redirect">`. Without intervention, clicking a kebab
-// inside such a cell both opens the dropdown *and* navigates the row.
+// inside such a cell both opens the dropdown *and* navigates the row,
+// because the browser follows the link's `href` and LiveView also runs
+// its own window-level click handler.
 //
-// LiveView binds its link handler on `window` in the bubble phase
-// (see `LiveSocket.bindNav` in phoenix_live_view), so swallowing the
-// click on our wrapper in the bubble phase keeps the event from
-// reaching LiveView. By that point the click has already passed
-// through the target (Zag's onClick on the trigger), so the menu
-// opens normally.
+// Zag uses `pointerdown` to open the menu, so by the time the click
+// bubbles up to this wrapper the dropdown is already open. We then:
+//   - `preventDefault` to cancel the browser's follow-the-link action,
+//   - `stopPropagation` to keep the click from reaching LiveView's
+//     window-level link handler (`LiveSocket.bindNav`).
 export default {
   mounted() {
     this.handler = (event) => {
+      event.preventDefault();
       event.stopPropagation();
     };
     this.el.addEventListener("click", this.handler);
