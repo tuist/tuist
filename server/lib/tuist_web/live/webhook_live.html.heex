@@ -28,10 +28,14 @@
             "Rotating replaces the signing secret. Existing consumers will fail verification until updated."
           )
         }
-      />
+      >
+        <:icon_left>
+          <.icon name="reload" />
+        </:icon_left>
+      </.button>
       <.button
         size="medium"
-        variant="destructive"
+        variant="secondary"
         label={dgettext("dashboard_account", "Delete endpoint")}
         phx-click="delete_endpoint"
         data-confirm={
@@ -40,7 +44,11 @@
             "Delete this endpoint? Automations referencing it will stop delivering."
           )
         }
-      />
+      >
+        <:icon_left>
+          <.icon name="trash" />
+        </:icon_left>
+      </.button>
     </div>
   </div>
 
