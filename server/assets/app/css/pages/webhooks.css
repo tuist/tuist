@@ -287,8 +287,7 @@
   & > [data-part="deliveries-card"] > [data-part="deliveries-card-section"] {
     display: flex;
     flex-direction: column;
-    gap: var(--noora-spacing-5);
-    padding: var(--noora-spacing-7) var(--noora-spacing-8);
+    gap: var(--noora-spacing-8);
 
     & > [data-part="filters"] {
       display: flex;
@@ -307,10 +306,6 @@
       flex-direction: row;
       flex-wrap: wrap;
       gap: var(--noora-spacing-2);
-    }
-
-    & > #webhook-deliveries-table {
-      margin: 0 calc(var(--noora-spacing-8) * -1) calc(var(--noora-spacing-7) * -1);
     }
   }
 
