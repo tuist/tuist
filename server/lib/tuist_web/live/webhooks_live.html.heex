@@ -96,7 +96,7 @@
                     sublabel={
                       dgettext(
                         "dashboard_account",
-                        "How this endpoint will be listed in automation actions."
+                        "How this endpoint will be listed in the table."
                       )
                     }
                     value={@create_form_name}
@@ -120,6 +120,33 @@
                     phx-keyup="update_create_form_url"
                     phx-debounce="300"
                   />
+                  <div data-part="event-types">
+                    <span data-part="label">
+                      {dgettext("dashboard_account", "Events to listen for")}
+                    </span>
+                    <span data-part="sublabel">
+                      {dgettext(
+                        "dashboard_account",
+                        "Only the selected events trigger a delivery to this endpoint."
+                      )}
+                    </span>
+                    <label
+                      :for={event_type <- @supported_event_types}
+                      data-part="event-type-option"
+                    >
+                      <input
+                        type="checkbox"
+                        name={"event_types[#{event_type}]"}
+                        value={event_type}
+                        checked={event_type in @create_form_event_types}
+                        phx-click="toggle_create_form_event_type"
+                        phx-value-event_type={event_type}
+                      />
+                      <span data-part="event-type-label">
+                        {event_type_label(event_type)}
+                      </span>
+                    </label>
+                  </div>
                 </div>
               <% end %>
 
@@ -169,7 +196,14 @@
           <%!-- against a value they've stored elsewhere without weakening the HMAC. --%>
           <%!-- Rendered in a monospace face so the bullet glyphs share a baseline --%>
           <%!-- with `whsec_` and the trailing characters. --%>
-          <code data-part="signing-secret-cell">{masked_signing_secret(endpoint.signing_secret)}</code>
+          <code data-part="signing-secret-cell">
+            {masked_signing_secret(endpoint.signing_secret)}
+          </code>
+        </:col>
+        <:col :let={endpoint} label={dgettext("dashboard_account", "Events")}>
+          <div data-part="event-types-cell">
+            <.tag :for={event_type <- endpoint.event_types} label={event_type_label(event_type)} />
+          </div>
         </:col>
         <:col :let={endpoint} label={dgettext("dashboard_account", "Created")}>
           <.text_cell label={Tuist.Utilities.DateFormatter.from_now(endpoint.inserted_at)} />

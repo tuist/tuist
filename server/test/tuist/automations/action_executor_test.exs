@@ -4,7 +4,6 @@ defmodule Tuist.Automations.ActionExecutorTest do
 
   alias Tuist.Automations.ActionExecutor
   alias Tuist.Automations.Actions.SendSlackAction
-  alias Tuist.Automations.Actions.SendWebhookAction
   alias Tuist.IngestRepo
   alias Tuist.Tests
   alias Tuist.Tests.TestCase
@@ -60,25 +59,6 @@ defmodule Tuist.Automations.ActionExecutorTest do
     assert :ok =
              ActionExecutor.execute_actions(
                [%{"type" => "send_slack", "channel" => "C1", "message" => "hi"}],
-               automation(),
-               entity
-             )
-  end
-
-  test "dispatches send_webhook to SendWebhookAction" do
-    entity = %{type: :test_case, id: Ecto.UUID.generate()}
-
-    expect(SendWebhookAction, :execute, fn _automation, ^entity, %{"type" => "send_webhook"} -> :ok end)
-
-    assert :ok =
-             ActionExecutor.execute_actions(
-               [
-                 %{
-                   "type" => "send_webhook",
-                   "url" => "https://example.com/hook",
-                   "signing_secret_encrypted" => "ciphertext"
-                 }
-               ],
                automation(),
                entity
              )

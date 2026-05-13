@@ -5,6 +5,7 @@ defmodule TuistWeb.WebhooksLive do
 
   alias Tuist.Authorization
   alias Tuist.Webhooks
+  alias Tuist.Webhooks.WebhookEndpoint
 
   @impl true
   def mount(_params, _uri, %{assigns: %{selected_account: selected_account, current_user: current_user}} = socket) do
@@ -17,12 +18,20 @@ defmodule TuistWeb.WebhooksLive do
       socket
       |> assign(:selected_tab, "webhooks")
       |> assign(:head_title, "#{dgettext("dashboard_account", "Webhooks")} · #{selected_account.name} · Tuist")
+      |> assign(:supported_event_types, WebhookEndpoint.supported_event_types())
       |> assign_endpoints()
       |> reset_create_form()
       |> reset_disclosure()
 
     {:ok, socket}
   end
+
+  @doc """
+  Human-readable label for `event_type`, used by both the form checkbox
+  list and the row-level summary cell.
+  """
+  def event_type_label("test_case.updated"), do: dgettext("dashboard_account", "Test case updated")
+  def event_type_label(other), do: other
 
   @doc """
   Renders a partial-mask preview of `signing_secret` for the endpoints table.
@@ -53,10 +62,24 @@ defmodule TuistWeb.WebhooksLive do
   def handle_event("update_create_form_url", %{"value" => url}, socket),
     do: {:noreply, socket |> assign(:create_form_url, url) |> assign(:create_form_error, nil)}
 
+  def handle_event("toggle_create_form_event_type", %{"event_type" => event_type}, socket) do
+    selected = socket.assigns.create_form_event_types
+
+    next =
+      if event_type in selected do
+        List.delete(selected, event_type)
+      else
+        [event_type | selected]
+      end
+
+    {:noreply, socket |> assign(:create_form_event_types, next) |> assign(:create_form_error, nil)}
+  end
+
   def handle_event("create_endpoint", _params, %{assigns: assigns} = socket) do
     case Webhooks.create_endpoint(assigns.selected_account.id, %{
            "name" => assigns.create_form_name,
-           "url" => assigns.create_form_url
+           "url" => assigns.create_form_url,
+           "event_types" => assigns.create_form_event_types
          }) do
       {:ok, endpoint, plaintext_secret} ->
         socket =
@@ -123,6 +146,7 @@ defmodule TuistWeb.WebhooksLive do
     socket
     |> assign(:create_form_name, "")
     |> assign(:create_form_url, "")
+    |> assign(:create_form_event_types, [])
     |> assign(:create_form_error, nil)
   end
 

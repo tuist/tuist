@@ -11,7 +11,11 @@ defmodule Tuist.Webhooks.Workers.DeliveryWorkerTest do
     account = AccountsFixtures.user_fixture().account
 
     {:ok, endpoint, plaintext} =
-      Webhooks.create_endpoint(account.id, %{"name" => "Hook", "url" => "https://example.com/hook"})
+      Webhooks.create_endpoint(account.id, %{
+        "name" => "Hook",
+        "url" => "https://example.com/hook",
+        "event_types" => ["test_case.updated"]
+      })
 
     %{endpoint: endpoint, plaintext: plaintext}
   end

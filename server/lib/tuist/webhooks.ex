@@ -2,10 +2,10 @@ defmodule Tuist.Webhooks do
   @moduledoc """
   Account-scoped webhook endpoints and outbound delivery.
 
-  Endpoints are managed in one place per account and referenced by automation
-  `send_webhook` actions across that account's projects. The actual HTTPS POST
-  happens asynchronously through `Tuist.Webhooks.Workers.DeliveryWorker`,
-  which retries on the RFC schedule (1m → 5m → 30m → 2h → 8h → 24h).
+  Endpoints subscribe to one or more event types. When a domain event fires,
+  callers dispatch through `Tuist.Webhooks.Dispatcher`, which enqueues a
+  `Tuist.Webhooks.Workers.DeliveryWorker` job per subscribed endpoint;
+  retries follow the RFC schedule (1m → 5m → 30m → 2h → 8h → 24h).
   """
 
   import Ecto.Query
@@ -13,6 +13,18 @@ defmodule Tuist.Webhooks do
   alias Tuist.Repo
   alias Tuist.Webhooks.Signature
   alias Tuist.Webhooks.WebhookEndpoint
+
+  @doc """
+  Lists endpoints in `account_id` that subscribe to `event_type`.
+  """
+  def list_endpoints_subscribed_to(account_id, event_type) when is_binary(event_type) do
+    Repo.all(
+      from(e in WebhookEndpoint,
+        where: e.account_id == ^account_id,
+        where: ^event_type in e.event_types
+      )
+    )
+  end
 
   @doc """
   Lists webhook endpoints for `account_id`, oldest-first so the order is

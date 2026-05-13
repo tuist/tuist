@@ -371,11 +371,6 @@
                       label={dgettext("dashboard_projects", "Send Slack notification")}
                       on_click="add_create_automation_form_trigger_action"
                     />
-                    <.dropdown_item
-                      value="send_webhook"
-                      label={dgettext("dashboard_projects", "Send webhook")}
-                      on_click="add_create_automation_form_trigger_action"
-                    />
                   </.dropdown>
                 </div>
                 <div data-part="form-section-body">
@@ -504,60 +499,6 @@
                             </div>
                           </div>
                         </div>
-                      <% "send_webhook" -> %>
-                        <%= if @webhook_endpoints == [] do %>
-                          <div data-part="webhook-action-empty">
-                            <span data-part="action-label">
-                              {dgettext("dashboard_projects", "Send webhook")}
-                            </span>
-                            <.alert
-                              status="information"
-                              type="secondary"
-                              size="small"
-                              title={
-                                dgettext(
-                                  "dashboard_projects",
-                                  "No webhook endpoints yet. Add one in the account-level Webhooks page first."
-                                )
-                              }
-                            >
-                              <:action>
-                                <.link_button
-                                  href={~p"/#{@selected_account.name}/webhooks"}
-                                  target="_blank"
-                                  label={dgettext("dashboard_projects", "Manage webhooks")}
-                                  variant="secondary"
-                                >
-                                  <:icon_right><.external_link /></:icon_right>
-                                </.link_button>
-                              </:action>
-                            </.alert>
-                          </div>
-                        <% else %>
-                          <span data-part="action-label">
-                            {dgettext("dashboard_projects", "Send webhook to")}
-                          </span>
-                          <.dropdown
-                            id={"create-automation-trigger-action-webhook-#{index}"}
-                            label={
-                              webhook_endpoint_label(
-                                @webhook_endpoints,
-                                action["webhook_endpoint_id"]
-                              )
-                            }
-                          >
-                            <.dropdown_item
-                              :for={endpoint <- @webhook_endpoints}
-                              value={endpoint.id}
-                              label={endpoint.name}
-                              on_click="update_create_automation_form_trigger_action_webhook_endpoint_id"
-                              phx-value-index={index}
-                              data-selected={action["webhook_endpoint_id"] == endpoint.id}
-                            >
-                              <:right_icon><.check /></:right_icon>
-                            </.dropdown_item>
-                          </.dropdown>
-                        <% end %>
                       <% "add_label" -> %>
                         <span data-part="action-label">
                           {dgettext("dashboard_projects", "Mark test as flaky")}
@@ -657,11 +598,6 @@
                     <.dropdown_item
                       value="send_slack"
                       label={dgettext("dashboard_projects", "Send Slack notification")}
-                      on_click="add_create_automation_form_recovery_action"
-                    />
-                    <.dropdown_item
-                      value="send_webhook"
-                      label={dgettext("dashboard_projects", "Send webhook")}
                       on_click="add_create_automation_form_recovery_action"
                     />
                   </.dropdown>
@@ -869,60 +805,6 @@
                             </div>
                           </div>
                         </div>
-                      <% "send_webhook" -> %>
-                        <%= if @webhook_endpoints == [] do %>
-                          <div data-part="webhook-action-empty">
-                            <span data-part="action-label">
-                              {dgettext("dashboard_projects", "Send webhook")}
-                            </span>
-                            <.alert
-                              status="information"
-                              type="secondary"
-                              size="small"
-                              title={
-                                dgettext(
-                                  "dashboard_projects",
-                                  "No webhook endpoints yet. Add one in the account-level Webhooks page first."
-                                )
-                              }
-                            >
-                              <:action>
-                                <.link_button
-                                  href={~p"/#{@selected_account.name}/webhooks"}
-                                  target="_blank"
-                                  label={dgettext("dashboard_projects", "Manage webhooks")}
-                                  variant="secondary"
-                                >
-                                  <:icon_right><.external_link /></:icon_right>
-                                </.link_button>
-                              </:action>
-                            </.alert>
-                          </div>
-                        <% else %>
-                          <span data-part="action-label">
-                            {dgettext("dashboard_projects", "Send webhook to")}
-                          </span>
-                          <.dropdown
-                            id={"create-automation-recovery-action-webhook-#{index}"}
-                            label={
-                              webhook_endpoint_label(
-                                @webhook_endpoints,
-                                action["webhook_endpoint_id"]
-                              )
-                            }
-                          >
-                            <.dropdown_item
-                              :for={endpoint <- @webhook_endpoints}
-                              value={endpoint.id}
-                              label={endpoint.name}
-                              on_click="update_create_automation_form_recovery_action_webhook_endpoint_id"
-                              phx-value-index={index}
-                              data-selected={action["webhook_endpoint_id"] == endpoint.id}
-                            >
-                              <:right_icon><.check /></:right_icon>
-                            </.dropdown_item>
-                          </.dropdown>
-                        <% end %>
                       <% "add_label" -> %>
                         <span data-part="action-label">
                           {dgettext("dashboard_projects", "Mark test as flaky")}

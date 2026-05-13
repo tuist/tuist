@@ -10,7 +10,6 @@ defmodule TuistWeb.ProjectAutomationsLive do
   alias Tuist.Automations.Alerts.Alert
   alias Tuist.Environment
   alias Tuist.Slack
-  alias Tuist.Webhooks
   alias TuistWeb.SlackOAuthController
 
   @impl true
@@ -33,7 +32,6 @@ defmodule TuistWeb.ProjectAutomationsLive do
         :automation_channel_selection_url,
         SlackOAuthController.alert_channel_selection_url(selected_account.id)
       )
-      |> assign(:webhook_endpoints, Webhooks.list_endpoints(selected_account.id))
       |> assign_automations(selected_project)
       |> assign_create_automation_form_defaults()
 
@@ -249,14 +247,6 @@ defmodule TuistWeb.ProjectAutomationsLive do
     {:noreply, assign(socket, create_automation_form_rolling_window_size: value)}
   end
 
-  def handle_event("add_create_automation_form_trigger_action", %{"data" => "send_webhook"}, socket) do
-    actions =
-      socket.assigns.create_automation_form_trigger_actions ++
-        [default_send_webhook_action(socket.assigns.webhook_endpoints)]
-
-    {:noreply, assign(socket, create_automation_form_trigger_actions: actions)}
-  end
-
   def handle_event("add_create_automation_form_trigger_action", %{"data" => type}, socket) do
     actions = socket.assigns.create_automation_form_trigger_actions ++ [new_action(type, :trigger)]
     {:noreply, assign(socket, create_automation_form_trigger_actions: actions)}
@@ -339,14 +329,6 @@ defmodule TuistWeb.ProjectAutomationsLive do
     {:noreply, assign(socket, create_automation_form_recovery_rolling_window_size: value)}
   end
 
-  def handle_event("add_create_automation_form_recovery_action", %{"data" => "send_webhook"}, socket) do
-    actions =
-      socket.assigns.create_automation_form_recovery_actions ++
-        [default_send_webhook_action(socket.assigns.webhook_endpoints)]
-
-    {:noreply, assign(socket, create_automation_form_recovery_actions: actions)}
-  end
-
   def handle_event("add_create_automation_form_recovery_action", %{"data" => type}, socket) do
     actions = socket.assigns.create_automation_form_recovery_actions ++ [new_action(type, :recovery)]
     {:noreply, assign(socket, create_automation_form_recovery_actions: actions)}
@@ -403,36 +385,6 @@ defmodule TuistWeb.ProjectAutomationsLive do
     actions =
       update_action_at(socket.assigns.create_automation_form_recovery_actions, index, fn action ->
         Map.put(action, "message", message)
-      end)
-
-    {:noreply, assign(socket, create_automation_form_recovery_actions: actions)}
-  end
-
-  def handle_event(
-        "update_create_automation_form_trigger_action_webhook_endpoint_id",
-        %{"data" => id, "index" => index},
-        socket
-      ) do
-    index = String.to_integer(index)
-
-    actions =
-      update_action_at(socket.assigns.create_automation_form_trigger_actions, index, fn action ->
-        Map.put(action, "webhook_endpoint_id", id)
-      end)
-
-    {:noreply, assign(socket, create_automation_form_trigger_actions: actions)}
-  end
-
-  def handle_event(
-        "update_create_automation_form_recovery_action_webhook_endpoint_id",
-        %{"data" => id, "index" => index},
-        socket
-      ) do
-    index = String.to_integer(index)
-
-    actions =
-      update_action_at(socket.assigns.create_automation_form_recovery_actions, index, fn action ->
-        Map.put(action, "webhook_endpoint_id", id)
       end)
 
     {:noreply, assign(socket, create_automation_form_recovery_actions: actions)}
@@ -500,19 +452,6 @@ defmodule TuistWeb.ProjectAutomationsLive do
       nil -> actions
       action -> List.replace_at(actions, index, fun.(action))
     end
-  end
-
-  defp default_send_webhook_action(endpoints) do
-    %{
-      "type" => "send_webhook",
-      "webhook_endpoint_id" =>
-        endpoints
-        |> List.first()
-        |> case do
-          nil -> ""
-          endpoint -> endpoint.id
-        end
-    }
   end
 
   defp build_automation_attrs(project_id, assigns) do
@@ -698,19 +637,9 @@ defmodule TuistWeb.ProjectAutomationsLive do
 
   def action_type_label("change_state"), do: dgettext("dashboard_projects", "Change state")
   def action_type_label("send_slack"), do: dgettext("dashboard_projects", "Send Slack notification")
-  def action_type_label("send_webhook"), do: dgettext("dashboard_projects", "Send webhook")
   def action_type_label("add_label"), do: dgettext("dashboard_projects", "Add label")
   def action_type_label("remove_label"), do: dgettext("dashboard_projects", "Remove label")
   def action_type_label(_), do: dgettext("dashboard_projects", "Unknown")
-
-  def webhook_endpoint_label(endpoints, id) when is_binary(id) do
-    case Enum.find(endpoints, &(&1.id == id)) do
-      nil -> dgettext("dashboard_projects", "Select endpoint")
-      endpoint -> endpoint.name
-    end
-  end
-
-  def webhook_endpoint_label(_endpoints, _id), do: dgettext("dashboard_projects", "Select endpoint")
 
   def has_action_type?(actions, type) do
     Enum.any?(actions, fn action -> action["type"] == type end)
@@ -727,11 +656,6 @@ defmodule TuistWeb.ProjectAutomationsLive do
   def action_row_summary(%{"type" => "send_slack", "channel" => channel}) when channel != "", do: "Slack: #{channel}"
 
   def action_row_summary(%{"type" => "send_slack"}), do: dgettext("dashboard_projects", "Slack: not configured")
-
-  def action_row_summary(%{"type" => "send_webhook", "webhook_endpoint_id" => id}) when is_binary(id) and id != "",
-    do: dgettext("dashboard_projects", "Webhook: %{id}", id: id)
-
-  def action_row_summary(%{"type" => "send_webhook"}), do: dgettext("dashboard_projects", "Webhook: not configured")
 
   def action_row_summary(%{"type" => "add_label", "label" => label}),
     do: dgettext("dashboard_projects", "Add label: %{label}", label: label)

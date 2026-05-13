@@ -807,9 +807,24 @@ defmodule Tuist.Tests do
       # automation-applied state, not our pre-automation snapshot.
       broadcast_test_case_update(updated_test_case, event_types)
       dispatch_event_driven_automations(test_case, event_types)
+      dispatch_webhooks(updated_test_case, event_types, actor_id, alert_id)
 
       {:ok, updated_test_case}
     end
+  end
+
+  # Webhooks subscribe at the account-account level and fire on every state
+  # transition — both user-initiated and automation-driven — so receivers
+  # (e.g. a Jira ingest) see the full audit trail. Failures are swallowed
+  # inside the dispatcher; we don't want a webhook problem to abort the
+  # write that produced the event.
+  defp dispatch_webhooks(_test_case, [], _actor_id, _alert_id), do: :ok
+
+  defp dispatch_webhooks(test_case, event_types, actor_id, alert_id) do
+    Tuist.Webhooks.Dispatcher.dispatch_test_case_event(test_case, event_types,
+      actor_id: actor_id,
+      alert_id: alert_id
+    )
   end
 
   @doc """

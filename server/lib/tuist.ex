@@ -121,6 +121,7 @@ defmodule Tuist do
       Automations,
       Automations.Alerts.Alert,
       Webhooks,
+      Webhooks.Dispatcher,
       Webhooks.Signature,
       Webhooks.WebhookEndpoint,
       Webhooks.Workers.DeliveryWorker,

@@ -7,6 +7,13 @@ defmodule TuistWeb.WebhooksLiveTest do
   alias Tuist.Webhooks
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
+  defp valid_attrs(extras \\ %{}) do
+    Map.merge(
+      %{"name" => "Hook", "url" => "https://example.com/hook", "event_types" => ["test_case.updated"]},
+      extras
+    )
+  end
+
   setup %{conn: conn} do
     user = AccountsFixtures.user_fixture()
 
@@ -27,16 +34,18 @@ defmodule TuistWeb.WebhooksLiveTest do
 
     render_hook(lv, "update_create_form_name", %{"value" => "Jira"})
     render_hook(lv, "update_create_form_url", %{"value" => "https://example.com/hook"})
+    render_hook(lv, "toggle_create_form_event_type", %{"event_type" => "test_case.updated"})
     html = render_hook(lv, "create_endpoint", %{})
 
     # Disclosure state: plaintext secret is rendered, prefixed with whsec_
     assert html =~ "new-webhook-signing-secret"
     assert html =~ "whsec_"
 
-    # The endpoint is persisted and the signing secret column is non-empty.
+    # The endpoint is persisted with the selected event subscriptions.
     assert [endpoint] = Webhooks.list_endpoints(account.id)
     assert endpoint.name == "Jira"
     assert endpoint.url == "https://example.com/hook"
+    assert endpoint.event_types == ["test_case.updated"]
     assert is_binary(endpoint.signing_secret)
     assert String.starts_with?(endpoint.signing_secret, "whsec_")
 
@@ -50,9 +59,35 @@ defmodule TuistWeb.WebhooksLiveTest do
 
     render_hook(lv, "update_create_form_name", %{"value" => "Bad"})
     render_hook(lv, "update_create_form_url", %{"value" => "http://example.com/hook"})
+    render_hook(lv, "toggle_create_form_event_type", %{"event_type" => "test_case.updated"})
     html = render_hook(lv, "create_endpoint", %{})
 
     assert html =~ "must be a valid HTTPS URL"
+    assert Webhooks.list_endpoints(account.id) == []
+  end
+
+  test "rejects creation when no event types are selected", %{conn: conn, account: account} do
+    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/webhooks")
+
+    render_hook(lv, "update_create_form_name", %{"value" => "Empty"})
+    render_hook(lv, "update_create_form_url", %{"value" => "https://example.com/hook"})
+    html = render_hook(lv, "create_endpoint", %{})
+
+    assert html =~ "must subscribe to at least one event"
+    assert Webhooks.list_endpoints(account.id) == []
+  end
+
+  test "toggle_create_form_event_type unchecks a previously selected event", %{conn: conn, account: account} do
+    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/webhooks")
+
+    render_hook(lv, "update_create_form_name", %{"value" => "Toggle"})
+    render_hook(lv, "update_create_form_url", %{"value" => "https://example.com/hook"})
+    render_hook(lv, "toggle_create_form_event_type", %{"event_type" => "test_case.updated"})
+    # Toggle off; the empty-subscription validation should now reject the create.
+    render_hook(lv, "toggle_create_form_event_type", %{"event_type" => "test_case.updated"})
+    html = render_hook(lv, "create_endpoint", %{})
+
+    assert html =~ "must subscribe to at least one event"
     assert Webhooks.list_endpoints(account.id) == []
   end
 
@@ -60,8 +95,7 @@ defmodule TuistWeb.WebhooksLiveTest do
     conn: conn,
     account: account
   } do
-    {:ok, endpoint, original} =
-      Webhooks.create_endpoint(account.id, %{"name" => "Hook", "url" => "https://example.com/hook"})
+    {:ok, endpoint, original} = Webhooks.create_endpoint(account.id, valid_attrs())
 
     {:ok, lv, _html} = live(conn, ~p"/#{account.name}/webhooks")
     html = render_hook(lv, "rotate_endpoint_signing_secret", %{"id" => endpoint.id})
@@ -72,8 +106,7 @@ defmodule TuistWeb.WebhooksLiveTest do
   end
 
   test "delete_endpoint removes the endpoint", %{conn: conn, account: account} do
-    {:ok, endpoint, _} =
-      Webhooks.create_endpoint(account.id, %{"name" => "Hook", "url" => "https://example.com/hook"})
+    {:ok, endpoint, _} = Webhooks.create_endpoint(account.id, valid_attrs())
 
     {:ok, lv, _html} = live(conn, ~p"/#{account.name}/webhooks")
     render_hook(lv, "delete_endpoint", %{"id" => endpoint.id})
@@ -85,7 +118,7 @@ defmodule TuistWeb.WebhooksLiveTest do
     other_account = AccountsFixtures.user_fixture().account
 
     {:ok, other_endpoint, _} =
-      Webhooks.create_endpoint(other_account.id, %{"name" => "Other", "url" => "https://other.example/hook"})
+      Webhooks.create_endpoint(other_account.id, valid_attrs(%{"name" => "Other", "url" => "https://other.example/hook"}))
 
     {:ok, lv, _html} = live(conn, ~p"/#{account.name}/webhooks")
     render_hook(lv, "delete_endpoint", %{"id" => other_endpoint.id})

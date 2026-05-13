@@ -503,36 +503,6 @@ defmodule Tuist.Automations.Alerts.AlertTest do
       refute changeset.valid?
     end
 
-    test "accepts a send_webhook action that references a webhook_endpoint_id" do
-      project = ProjectsFixtures.project_fixture()
-
-      changeset =
-        Alert.changeset(
-          %Alert{},
-          valid_attrs(project, %{
-            "trigger_actions" => [
-              %{"type" => "send_webhook", "webhook_endpoint_id" => Ecto.UUID.generate()}
-            ]
-          })
-        )
-
-      assert changeset.valid?
-    end
-
-    test "rejects send_webhook action with missing webhook_endpoint_id" do
-      project = ProjectsFixtures.project_fixture()
-
-      changeset =
-        Alert.changeset(
-          %Alert{},
-          valid_attrs(project, %{
-            "trigger_actions" => [%{"type" => "send_webhook", "webhook_endpoint_id" => ""}]
-          })
-        )
-
-      refute changeset.valid?
-    end
-
     test "accepts add_label and remove_label actions" do
       project = ProjectsFixtures.project_fixture()
 
