@@ -116,6 +116,10 @@
                 .filter { dependency in
                     switch target.target.product {
                     case .app, .watch2AppContainer:
+                        if dependency.target.isEmbeddableWatchApplication() {
+                            return false
+                        }
+
                         switch dependency.target.product {
                         case .appExtension, .stickerPackExtension, .messagesExtension, .extensionKitExtension, .watch2App:
                             return false
