@@ -591,8 +591,13 @@ defmodule TuistWeb.AccountSettingsLive do
   end
 
   defp kura_server_rows(servers, available_regions) do
-    Enum.map(servers, &%{type: :server, region_id: &1.region, server: &1}) ++
-      Enum.map(available_regions, &%{type: :available_region, region_id: &1.id, region: &1})
+    Enum.map(servers, &%{id: "server-#{&1.id}", type: :server, region_id: &1.region, server: &1}) ++
+      Enum.map(available_regions, &%{
+        id: "available-region-#{&1.id}",
+        type: :available_region,
+        region_id: &1.id,
+        region: &1,
+      })
   end
 
   defp kura_row_region_id(row), do: row.region_id
