@@ -91,11 +91,42 @@
   <%!-- Per-attempt HTTP latency isn't recorded, so the Stripe-style --%>
   <%!-- response-time chart is deferred to a follow-up. --%>
   <.card
-    data-part="performance-card"
+    data-part="deliveries-chart-card"
     icon="chart_arcs"
-    title={dgettext("dashboard_account", "Performance")}
+    title={dgettext("dashboard_account", "Event deliveries")}
   >
-    <.card_section data-part="performance-card-section">
+    <:actions>
+      <.date_picker
+        id="webhook-deliveries-date-range-picker"
+        name="deliveries-date-range"
+        presets={date_picker_presets()}
+        selected_preset={@deliveries_preset}
+        period={@deliveries_period}
+        on_period_change="deliveries_period_changed"
+        max={Date.utc_today()}
+      >
+        <:actions>
+          <.button
+            label={dgettext("dashboard_account", "Cancel")}
+            variant="secondary"
+            phx-click={
+              JS.dispatch("phx:date-picker-cancel",
+                detail: %{id: "webhook-deliveries-date-range-picker"}
+              )
+            }
+          />
+          <.button
+            label={dgettext("dashboard_account", "Apply")}
+            phx-click={
+              JS.dispatch("phx:date-picker-apply",
+                detail: %{id: "webhook-deliveries-date-range-picker"}
+              )
+            }
+          />
+        </:actions>
+      </.date_picker>
+    </:actions>
+    <.card_section data-part="deliveries-chart-card-section">
       <div data-part="legends">
         <.legend
           title={dgettext("dashboard_account", "Total")}
@@ -114,26 +145,11 @@
         colors={["var:noora-chart-primary", "var:noora-chart-destructive"]}
         extra_options={
           %{
-            legend: %{
-              left: "left",
-              top: "bottom",
-              orient: "horizontal",
-              textStyle: %{
-                color: "var:noora-surface-label-secondary",
-                fontFamily: "monospace",
-                fontWeight: 400,
-                fontSize: 10,
-                lineHeight: 12
-              },
-              icon:
-                "path://M0 6C0 4.89543 0.895431 4 2 4H6C7.10457 4 8 4.89543 8 6C8 7.10457 7.10457 8 6 8H2C0.895431 8 0 7.10457 0 6Z",
-              itemWidth: 8,
-              itemHeight: 4
-            },
+            legend: %{show: false},
             grid: %{
               width: "97%",
               left: "0.4%",
-              height: "70%",
+              height: "85%",
               top: "5%"
             },
             xAxis: %{
@@ -143,8 +159,14 @@
                 color: "var:noora-surface-label-secondary",
                 formatter: "fn:toLocaleDate",
                 customValues: [
-                  @deliveries_timeseries |> List.first() |> Map.get(:date) |> Date.to_iso8601(),
-                  @deliveries_timeseries |> List.last() |> Map.get(:date) |> Date.to_iso8601()
+                  @deliveries_timeseries
+                  |> List.first()
+                  |> Map.get(:bucket)
+                  |> DateTime.to_iso8601(),
+                  @deliveries_timeseries
+                  |> List.last()
+                  |> Map.get(:bucket)
+                  |> DateTime.to_iso8601()
                 ],
                 padding: [10, 0, 0, 0]
               }
@@ -166,7 +188,7 @@
             symbol: "none",
             data:
               Enum.map(@deliveries_timeseries, fn point ->
-                [Date.to_iso8601(point.date), point.total]
+                [DateTime.to_iso8601(point.bucket), point.total]
               end)
           },
           %{
@@ -176,7 +198,7 @@
             symbol: "none",
             data:
               Enum.map(@deliveries_timeseries, fn point ->
-                [Date.to_iso8601(point.date), point.failed]
+                [DateTime.to_iso8601(point.bucket), point.failed]
               end)
           }
         ]}
@@ -191,7 +213,32 @@
     title={dgettext("dashboard_account", "Recent deliveries")}
   >
     <.card_section data-part="deliveries-card-section">
+      <div data-part="filters">
+        <.form for={%{}} phx-change="search_deliveries" phx-debounce="200">
+          <.text_input
+            type="search"
+            id="search-webhook-deliveries"
+            name="search"
+            placeholder={dgettext("dashboard_account", "Search by event ID...")}
+            show_suffix={false}
+            data-part="search"
+            value={@deliveries_search}
+          />
+        </.form>
+        <.filter_dropdown
+          id="webhook-deliveries-filter-dropdown"
+          label={dgettext("dashboard_account", "Filter")}
+          available_filters={@available_filters}
+          active_filters={@active_filters}
+        />
+      </div>
+      <div :if={Enum.any?(@active_filters)} data-part="active-filters">
+        <.active_filter :for={filter <- @active_filters} filter={filter} />
+      </div>
       <.table id="webhook-deliveries-table" rows={@deliveries}>
+        <:col :let={delivery} label={dgettext("dashboard_account", "Event ID")}>
+          <.text_cell label={delivery.event_id || ""} />
+        </:col>
         <:col :let={delivery} label={dgettext("dashboard_account", "Event")}>
           <.text_cell label={delivery.event_type || ""} />
         </:col>

@@ -313,8 +313,7 @@
   & > [data-part="header"] {
     display: flex;
     flex-direction: column;
-    align-items: center;
-    gap: var(--noora-spacing-3);
+    gap: var(--noora-spacing-2);
 
     & > [data-part="title"] {
       margin: 0;
@@ -386,15 +385,19 @@
     }
   }
 
-  & > [data-part="performance-card"] > [data-part="performance-card-section"] {
+  & > [data-part="deliveries-chart-card"] > [data-part="deliveries-chart-card-section"] {
     display: flex;
     flex-direction: column;
-    gap: var(--noora-spacing-5);
+    gap: var(--noora-spacing-7);
 
     & > [data-part="legends"] {
       display: flex;
       flex-direction: row;
-      gap: var(--noora-spacing-7);
+      gap: var(--noora-spacing-5);
+
+      & > * {
+        flex-grow: 1;
+      }
     }
 
     & .noora-chart {
@@ -404,7 +407,33 @@
   }
 
   & > [data-part="deliveries-card"] > [data-part="deliveries-card-section"] {
-    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-5);
+    padding: var(--noora-spacing-7) var(--noora-spacing-8);
+
+    & > [data-part="filters"] {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: var(--noora-spacing-3);
+
+      & > form {
+        flex-grow: 1;
+        max-width: 320px;
+      }
+    }
+
+    & > [data-part="active-filters"] {
+      display: flex;
+      flex-direction: row;
+      flex-wrap: wrap;
+      gap: var(--noora-spacing-2);
+    }
+
+    & > #webhook-deliveries-table {
+      margin: 0 calc(var(--noora-spacing-8) * -1) calc(var(--noora-spacing-7) * -1);
+    }
   }
 
   @media (max-width: 768px) {

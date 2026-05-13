@@ -107,19 +107,32 @@ defmodule Tuist.Webhooks do
 
   @delivery_worker "Tuist.Webhooks.Workers.DeliveryWorker"
 
+  # Maps user-facing delivery statuses (used by the detail-page filter and
+  # stats card) to the underlying Oban job states. Keep this as the single
+  # source of truth so the chart, the totals, and the table filter agree.
+  @status_buckets %{
+    delivered: ["completed"],
+    failed: ["discarded", "cancelled"],
+    retrying: ["retryable"],
+    pending: ["available", "scheduled", "executing"]
+  }
+
   @doc """
-  Recent delivery attempts for `endpoint_id`, newest first. Each row is a
-  flattened view of an Oban job — we don't persist a separate delivery log
-  yet, so retries and state collapse into a single record.
+  Recent delivery attempts for `endpoint_id`, newest first.
+
+  Supported `opts`:
+    * `:limit` — max rows (default 50)
+    * `:start_datetime` / `:end_datetime` — restrict by `inserted_at`
+    * `:status` — one of `:delivered | :failed | :retrying | :pending`
+    * `:event_id_search` — substring match on `event_id`
   """
   def list_deliveries(endpoint_id, opts \\ []) when is_binary(endpoint_id) do
     limit = Keyword.get(opts, :limit, 50)
-    endpoint_id_str = endpoint_id
 
     Repo.all(
       from(j in "oban_jobs",
         where: j.worker == ^@delivery_worker,
-        where: fragment("?->>'webhook_endpoint_id' = ?", j.args, ^endpoint_id_str),
+        where: fragment("?->>'webhook_endpoint_id' = ?", j.args, ^endpoint_id),
         order_by: [desc: j.inserted_at],
         limit: ^limit,
         select: %{
@@ -138,66 +151,212 @@ defmodule Tuist.Webhooks do
           errors: j.errors
         }
       )
+      |> apply_period(opts)
+      |> apply_status_filter(opts)
+      |> apply_event_id_search(opts)
     )
   end
 
   @doc """
-  Aggregate counters across the endpoint's delivery jobs. Used by the
-  detail page header. The pending bucket folds both `available` and
-  `scheduled` (waiting for retry) into one number.
+  Aggregate counters across the endpoint's delivery jobs for the given
+  time window. The pending bucket folds `available`, `scheduled` and
+  `executing` into one number.
   """
-  def delivery_stats(endpoint_id) when is_binary(endpoint_id) do
+  def delivery_stats(endpoint_id, opts \\ []) when is_binary(endpoint_id) do
     base =
       from(j in "oban_jobs",
         where: j.worker == ^@delivery_worker,
         where: fragment("?->>'webhook_endpoint_id' = ?", j.args, ^endpoint_id)
       )
+      |> apply_period(opts)
 
     rows =
       Repo.all(from j in base, group_by: j.state, select: {j.state, count(j.id)})
 
     counts = Map.new(rows)
+    count_in = fn states -> Enum.reduce(states, 0, &(&2 + Map.get(counts, &1, 0))) end
 
     %{
       total: Enum.reduce(rows, 0, fn {_, n}, acc -> acc + n end),
-      delivered: Map.get(counts, "completed", 0),
-      failed: Map.get(counts, "discarded", 0) + Map.get(counts, "cancelled", 0) + Map.get(counts, "retryable", 0),
-      pending: Map.get(counts, "available", 0) + Map.get(counts, "scheduled", 0)
+      delivered: count_in.(@status_buckets.delivered),
+      failed: count_in.(@status_buckets.failed),
+      pending: count_in.(@status_buckets.pending)
     }
   end
 
   @doc """
-  Daily delivery counts for the trailing `days` (default 7) — returns one
-  entry per day with `total` and `failed` columns, padded with zeros for
-  days that had no activity so the chart x-axis stays continuous.
+  Per-bucket delivery counts spanning the given window. The bucket size
+  is picked from the window length so the chart always renders a sensible
+  number of points: hour for ≤2 days, day for ≤90 days, month otherwise.
+  Empty buckets are padded with zeros.
   """
   def deliveries_timeseries(endpoint_id, opts \\ []) when is_binary(endpoint_id) do
-    days = Keyword.get(opts, :days, 7)
-    today = Date.utc_today()
-    since = Date.add(today, -(days - 1))
-    since_dt = DateTime.new!(since, ~T[00:00:00], "Etc/UTC")
+    {start_dt, end_dt} = period_from_opts(opts)
+    unit = bucket_unit_for(start_dt, end_dt)
+    rows = timeseries_rows(endpoint_id, start_dt, end_dt, unit)
 
-    rows =
-      Repo.all(
-        from(j in "oban_jobs",
-          where: j.worker == ^@delivery_worker,
-          where: fragment("?->>'webhook_endpoint_id' = ?", j.args, ^endpoint_id),
-          where: j.inserted_at >= ^since_dt,
-          group_by: fragment("date_trunc('day', ?)::date", j.inserted_at),
-          select: %{
-            date: fragment("date_trunc('day', ?)::date", j.inserted_at),
-            total: count(j.id),
-            failed: fragment("count(*) filter (where ? in ('discarded', 'cancelled'))", j.state)
-          }
-        )
+    by_bucket =
+      Map.new(rows, fn %{bucket: b, total: t, failed: f} ->
+        bucket =
+          b
+          |> DateTime.shift_zone!("Etc/UTC")
+          |> DateTime.truncate(:second)
+
+        {bucket, %{total: t, failed: f}}
+      end)
+
+    bucket_series(start_dt, end_dt, unit, by_bucket)
+  end
+
+  # date_trunc's first argument has to be inlined into the SQL or PostgreSQL
+  # can't match the GROUP BY expression to the SELECT expression — fragments
+  # with a bound parameter end up looking different at plan time.
+  defp timeseries_rows(endpoint_id, start_dt, end_dt, :hour) do
+    Repo.all(
+      from(j in "oban_jobs",
+        where: j.worker == ^@delivery_worker,
+        where: fragment("?->>'webhook_endpoint_id' = ?", j.args, ^endpoint_id),
+        where: j.inserted_at >= ^start_dt and j.inserted_at <= ^end_dt,
+        group_by: fragment("date_trunc('hour', ?)", j.inserted_at),
+        select: %{
+          bucket: fragment("date_trunc('hour', ?)", j.inserted_at),
+          total: count(j.id),
+          failed: fragment("count(*) filter (where ? in ('discarded', 'cancelled'))", j.state)
+        }
       )
+    )
+  end
 
-    by_date = Map.new(rows, fn %{date: d, total: t, failed: f} -> {d, %{total: t, failed: f}} end)
+  defp timeseries_rows(endpoint_id, start_dt, end_dt, :day) do
+    Repo.all(
+      from(j in "oban_jobs",
+        where: j.worker == ^@delivery_worker,
+        where: fragment("?->>'webhook_endpoint_id' = ?", j.args, ^endpoint_id),
+        where: j.inserted_at >= ^start_dt and j.inserted_at <= ^end_dt,
+        group_by: fragment("date_trunc('day', ?)", j.inserted_at),
+        select: %{
+          bucket: fragment("date_trunc('day', ?)", j.inserted_at),
+          total: count(j.id),
+          failed: fragment("count(*) filter (where ? in ('discarded', 'cancelled'))", j.state)
+        }
+      )
+    )
+  end
 
-    Enum.map(0..(days - 1), fn offset ->
-      date = Date.add(since, offset)
-      values = Map.get(by_date, date, %{total: 0, failed: 0})
-      %{date: date, total: values.total, failed: values.failed}
+  defp timeseries_rows(endpoint_id, start_dt, end_dt, :month) do
+    Repo.all(
+      from(j in "oban_jobs",
+        where: j.worker == ^@delivery_worker,
+        where: fragment("?->>'webhook_endpoint_id' = ?", j.args, ^endpoint_id),
+        where: j.inserted_at >= ^start_dt and j.inserted_at <= ^end_dt,
+        group_by: fragment("date_trunc('month', ?)", j.inserted_at),
+        select: %{
+          bucket: fragment("date_trunc('month', ?)", j.inserted_at),
+          total: count(j.id),
+          failed: fragment("count(*) filter (where ? in ('discarded', 'cancelled'))", j.state)
+        }
+      )
+    )
+  end
+
+  defp apply_period(query, opts) do
+    case period_from_opts_or_nil(opts) do
+      nil -> query
+      {start_dt, end_dt} -> from(j in query, where: j.inserted_at >= ^start_dt and j.inserted_at <= ^end_dt)
+    end
+  end
+
+  defp apply_status_filter(query, opts) do
+    case Keyword.get(opts, :status) do
+      nil ->
+        query
+
+      status when is_atom(status) ->
+        case Map.get(@status_buckets, status) do
+          nil -> query
+          states -> from(j in query, where: j.state in ^states)
+        end
+    end
+  end
+
+  defp apply_event_id_search(query, opts) do
+    case Keyword.get(opts, :event_id_search) do
+      nil ->
+        query
+
+      "" ->
+        query
+
+      term when is_binary(term) ->
+        pattern = "%#{term}%"
+        from(j in query, where: fragment("?->>'event_id' ilike ?", j.args, ^pattern))
+    end
+  end
+
+  defp period_from_opts(opts) do
+    case period_from_opts_or_nil(opts) do
+      nil ->
+        # Default window: trailing 7 days, ending now.
+        now = DateTime.truncate(DateTime.utc_now(), :second)
+        {DateTime.add(now, -7, :day), now}
+
+      pair ->
+        pair
+    end
+  end
+
+  defp period_from_opts_or_nil(opts) do
+    case {Keyword.get(opts, :start_datetime), Keyword.get(opts, :end_datetime)} do
+      {%DateTime{} = s, %DateTime{} = e} -> {s, e}
+      _ -> nil
+    end
+  end
+
+  # Pick `:hour`, `:day` or `:month` so the chart x-axis stays readable
+  # across the supported presets without forcing the caller to think
+  # about granularity.
+  defp bucket_unit_for(start_dt, end_dt) do
+    hours = DateTime.diff(end_dt, start_dt, :hour)
+
+    cond do
+      hours <= 48 -> :hour
+      hours <= 24 * 90 -> :day
+      true -> :month
+    end
+  end
+
+  defp bucket_series(start_dt, end_dt, unit, by_bucket) do
+    start_bucket = truncate_bucket(start_dt, unit)
+    end_bucket = truncate_bucket(end_dt, unit)
+    step = bucket_step(unit)
+
+    Stream.unfold(start_bucket, fn bucket ->
+      if DateTime.compare(bucket, end_bucket) == :gt do
+        nil
+      else
+        values = Map.get(by_bucket, bucket, %{total: 0, failed: 0})
+        {%{bucket: bucket, total: values.total, failed: values.failed}, step.(bucket)}
+      end
     end)
+    |> Enum.to_list()
+  end
+
+  defp truncate_bucket(%DateTime{} = dt, :hour),
+    do: %{dt | minute: 0, second: 0, microsecond: {0, 0}}
+
+  defp truncate_bucket(%DateTime{} = dt, :day),
+    do: %{dt | hour: 0, minute: 0, second: 0, microsecond: {0, 0}}
+
+  defp truncate_bucket(%DateTime{} = dt, :month),
+    do: %{dt | day: 1, hour: 0, minute: 0, second: 0, microsecond: {0, 0}}
+
+  defp bucket_step(:hour), do: &DateTime.add(&1, 1, :hour)
+  defp bucket_step(:day), do: &DateTime.add(&1, 1, :day)
+
+  defp bucket_step(:month) do
+    fn %DateTime{year: y, month: m} = dt ->
+      {ny, nm} = if m == 12, do: {y + 1, 1}, else: {y, m + 1}
+      %{dt | year: ny, month: nm}
+    end
   end
 end
