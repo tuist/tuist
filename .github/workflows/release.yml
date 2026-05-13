@@ -2023,12 +2023,6 @@ jobs:
             git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../../" --bump -o CHANGELOG.md 2>/dev/null
           fi
 
-      - name: Bump runners-controller image pin in chart values
-        run: |
-          sed -i '/repository: ghcr.io\/tuist\/tuist-runners-controller/,/tag:/{
-            s|tag: "[^"]*"|tag: "${{ needs.check-releases.outputs.runners-controller-next-version-number }}"|
-          }' infra/helm/tuist/values-managed-common.yaml
-
       - name: Set up Docker Buildx
         uses: namespacelabs/nscloud-setup-buildx-action@v0
 
@@ -2053,10 +2047,13 @@ jobs:
       - name: Upload runners-controller artifacts
         uses: actions/upload-artifact@v4
         with:
+          # values-managed-common.yaml is bumped by commit-and-release
+          # against its own checkout, not packaged here, so two parallel
+          # release-* jobs touching different `tag:` lines in the same
+          # file can't trample each other on artifact extract.
           name: runners-controller-artifacts
           path: |
             infra/runners-controller/CHANGELOG.md
-            infra/helm/tuist/values-managed-common.yaml
           retention-days: 1
 
   release-xcresult-processor-image:
@@ -2440,12 +2437,14 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: server-artifacts
+          path: server
 
       - name: Download Cache artifacts
         if: needs.check-releases.outputs.cache-should-release == 'true' && needs.release-cache.result == 'success'
         uses: actions/download-artifact@v4
         with:
           name: cache-artifacts
+          path: cache
 
       - name: Download Kura release metadata
         if: needs.check-releases.outputs.kura-should-release == 'true' && needs.release-kura-prepare.result == 'success'
@@ -2541,10 +2540,14 @@ jobs:
           path: infra/cluster-api-provider-scaleway-applesilicon
 
       - name: Download runners-controller artifacts
+        # The upload contains only files rooted at
+        # `infra/runners-controller`, so download into that directory
+        # for the later `git add infra/runners-controller/CHANGELOG.md`.
         if: needs.check-releases.outputs.runners-controller-should-release == 'true' && needs.release-runners-controller.result == 'success'
         uses: actions/download-artifact@v4
         with:
           name: runners-controller-artifacts
+          path: infra/runners-controller
 
       - name: Download xcresult-processor-image artifacts
         if: needs.check-releases.outputs.xcresult-processor-image-should-release == 'true' && needs.release-xcresult-processor-image.result == 'success'
@@ -2569,6 +2572,11 @@ jobs:
               s|tag: "[^"]*"|tag: "${{ needs.check-releases.outputs.capi-scaleway-next-version-number }}"|
             }' infra/helm/tuist/values-managed-common.yaml
           fi
+          if [ "${{ needs.check-releases.outputs.runners-controller-should-release }}" == "true" ] && [ "${{ needs.release-runners-controller.result }}" == "success" ]; then
+            sed -i '/repository: ghcr.io\/tuist\/tuist-runners-controller/,/tag:/{
+              s|tag: "[^"]*"|tag: "${{ needs.check-releases.outputs.runners-controller-next-version-number }}"|
+            }' infra/helm/tuist/values-managed-common.yaml
+          fi
           if [ "${{ needs.check-releases.outputs.xcresult-processor-image-should-release }}" == "true" ] && [ "${{ needs.release-xcresult-processor-image.result }}" == "success" ]; then
             sed -i '/repository: ghcr.io\/tuist\/tuist-xcresult-processor/,/tag:/{
               s|tag: "[^"]*"|tag: "${{ needs.check-releases.outputs.xcresult-processor-image-next-version-number }}"|
@@ -2576,10 +2584,13 @@ jobs:
           fi
 
       - name: Download runner-image artifacts
+        # The artifact's least-common archive root is `infra`, covering
+        # both runner-image/CHANGELOG.md and helm/tuist values files.
         if: needs.check-releases.outputs.runner-image-should-release == 'true' && needs.release-runner-image.result == 'success'
         uses: actions/download-artifact@v4
         with:
           name: runner-image-artifacts
+          path: infra
 
       - name: Create tags for successfully released components
         run: |
