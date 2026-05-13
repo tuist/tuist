@@ -1,22 +1,17 @@
 <div id="account-webhook">
-  <.button
-    label={dgettext("dashboard_account", "Webhooks")}
-    data-part="back-button"
-    variant="secondary"
-    size="medium"
-    navigate={~p"/#{@selected_account.name}/webhooks"}
-  >
-    <:icon_left>
-      <.icon name="arrow_left" />
-    </:icon_left>
-  </.button>
-
-  <div data-part="page-header">
-    <div data-part="title-group">
-      <h1 data-part="title">{@endpoint.name}</h1>
-      <code data-part="url">{@endpoint.url}</code>
-    </div>
-    <div data-part="actions">
+  <div data-part="action-buttons">
+    <.button
+      label={dgettext("dashboard_account", "Webhooks")}
+      data-part="back-button"
+      variant="secondary"
+      size="medium"
+      navigate={~p"/#{@selected_account.name}/webhooks"}
+    >
+      <:icon_left>
+        <.icon name="arrow_left" />
+      </:icon_left>
+    </.button>
+    <div data-part="header-actions">
       <.button
         size="medium"
         variant="secondary"
@@ -52,17 +47,55 @@
     </div>
   </div>
 
+  <div data-part="header">
+    <h1 data-part="title">{@endpoint.name}</h1>
+    <code data-part="url">{@endpoint.url}</code>
+  </div>
+
+  <.card
+    data-part="details-card"
+    icon="world"
+    title={dgettext("dashboard_account", "Destination details")}
+  >
+    <.card_section data-part="details-card-section">
+      <div data-part="metadata-grid">
+        <div data-part="metadata-row">
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_account", "Endpoint URL")}</div>
+            <code data-part="label">{@endpoint.url}</code>
+          </div>
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_account", "Signing secret")}</div>
+            <code data-part="label">{masked_signing_secret(@endpoint.signing_secret)}</code>
+          </div>
+        </div>
+        <div data-part="metadata-row">
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_account", "Listening to")}</div>
+            <div data-part="event-tags">
+              <.tag :for={event_type <- @endpoint.event_types} label={event_type} />
+            </div>
+          </div>
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_account", "Created")}</div>
+            <span data-part="label">
+              {Tuist.Utilities.DateFormatter.from_now(@endpoint.inserted_at)}
+            </span>
+          </div>
+        </div>
+      </div>
+    </.card_section>
+  </.card>
+
   <%!-- Performance: daily Total/Failed lines pulled from the Oban job log. --%>
   <%!-- Per-attempt HTTP latency isn't recorded, so the Stripe-style --%>
   <%!-- response-time chart is deferred to a follow-up. --%>
-  <.card_section data-part="performance-card">
-    <div data-part="header">
-      <span data-part="title">{dgettext("dashboard_account", "Performance")}</span>
-      <span data-part="subtitle">
-        {dgettext("dashboard_account", "Delivery attempts over the last 7 days.")}
-      </span>
-    </div>
-    <div data-part="chart">
+  <.card
+    data-part="performance-card"
+    icon="chart_arcs"
+    title={dgettext("dashboard_account", "Performance")}
+  >
+    <.card_section data-part="performance-card-section">
       <div data-part="legends">
         <.legend
           title={dgettext("dashboard_account", "Total")}
@@ -149,45 +182,15 @@
         ]}
         y_axis_min={0}
       />
-    </div>
-  </.card_section>
+    </.card_section>
+  </.card>
 
-  <.card_section data-part="details-card">
-    <div data-part="header">
-      <span data-part="title">{dgettext("dashboard_account", "Destination details")}</span>
-    </div>
-    <div data-part="content">
-      <div data-part="row">
-        <span data-part="label">{dgettext("dashboard_account", "Endpoint URL")}</span>
-        <code data-part="value">{@endpoint.url}</code>
-      </div>
-      <div data-part="row">
-        <span data-part="label">{dgettext("dashboard_account", "Signing secret")}</span>
-        <code data-part="value">{masked_signing_secret(@endpoint.signing_secret)}</code>
-      </div>
-      <div data-part="row">
-        <span data-part="label">{dgettext("dashboard_account", "Listening to")}</span>
-        <div data-part="value">
-          <.tag :for={event_type <- @endpoint.event_types} label={event_type} />
-        </div>
-      </div>
-      <div data-part="row">
-        <span data-part="label">{dgettext("dashboard_account", "Created")}</span>
-        <span data-part="value">
-          {Tuist.Utilities.DateFormatter.from_now(@endpoint.inserted_at)}
-        </span>
-      </div>
-    </div>
-  </.card_section>
-
-  <.card_section data-part="deliveries-card">
-    <div data-part="header">
-      <span data-part="title">{dgettext("dashboard_account", "Recent deliveries")}</span>
-      <span data-part="subtitle">
-        {dgettext("dashboard_account", "Up to the last 50 delivery attempts, newest first.")}
-      </span>
-    </div>
-    <div data-part="content">
+  <.card
+    data-part="deliveries-card"
+    icon="history"
+    title={dgettext("dashboard_account", "Recent deliveries")}
+  >
+    <.card_section data-part="deliveries-card-section">
       <.table id="webhook-deliveries-table" rows={@deliveries}>
         <:col :let={delivery} label={dgettext("dashboard_account", "Event")}>
           <.text_cell label={delivery.event_type || ""} />
@@ -216,8 +219,8 @@
           />
         </:empty_state>
       </.table>
-    </div>
-  </.card_section>
+    </.card_section>
+  </.card>
 
   <.modal
     id="webhook-signing-secret-modal"

@@ -294,86 +294,102 @@
 #account-webhook {
   display: flex;
   flex-direction: column;
-  gap: var(--noora-spacing-6);
+  gap: var(--noora-spacing-7);
 
-  & > [data-part="back-button"] {
-    align-self: flex-start;
-  }
-
-  & > [data-part="page-header"] {
+  & > [data-part="action-buttons"] {
     display: flex;
     flex-direction: row;
     justify-content: space-between;
-    align-items: flex-start;
-    gap: var(--noora-spacing-5);
+    align-items: center;
+    gap: var(--noora-spacing-3);
 
-    & > [data-part="title-group"] {
-      display: flex;
-      flex-direction: column;
-      gap: var(--noora-spacing-2);
-      min-width: 0;
-
-      & > [data-part="title"] {
-        margin: 0;
-        color: var(--noora-surface-label-primary);
-        font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
-      }
-
-      & > [data-part="url"] {
-        color: var(--noora-surface-label-secondary);
-        font: var(--noora-font-weight-regular) var(--noora-font-body-small);
-        font-family: "Geist Mono", monospace;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-    }
-
-    & > [data-part="actions"] {
+    & > [data-part="header-actions"] {
       display: flex;
       flex-direction: row;
       gap: var(--noora-spacing-3);
-      flex-shrink: 0;
     }
   }
 
-  & [data-part="performance-card"],
-  & [data-part="details-card"],
-  & [data-part="deliveries-card"] {
+  & > [data-part="header"] {
     display: flex;
     flex-direction: column;
-    gap: 0;
-    border-radius: var(--noora-radius-8);
-    padding: 0;
+    align-items: center;
+    gap: var(--noora-spacing-3);
 
-    & > [data-part="header"] {
-      display: flex;
-      flex-direction: column;
-      gap: var(--noora-spacing-2);
-      box-shadow: inset 0 -1px 0 0 var(--noora-surface-border-primary);
-      padding: var(--noora-spacing-7) var(--noora-spacing-8);
-
-      & > [data-part="title"] {
-        color: var(--noora-surface-label-primary);
-        font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
-      }
-
-      & > [data-part="subtitle"] {
-        color: var(--noora-surface-label-secondary);
-        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
-      }
+    & > [data-part="title"] {
+      margin: 0;
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
     }
 
-    & > [data-part="content"] {
-      padding: var(--noora-spacing-7) var(--noora-spacing-8);
+    & > [data-part="url"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+      font-family: "Geist Mono", monospace;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 100%;
     }
   }
 
-  & [data-part="performance-card"] > [data-part="chart"] {
+  & > [data-part="details-card"] > [data-part="details-card-section"] {
+    & > [data-part="metadata-grid"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-9);
+
+      & > [data-part="metadata-row"] {
+        display: flex;
+        flex-direction: row;
+        gap: var(--noora-spacing-7);
+
+        & > [data-part="metadata"] {
+          display: flex;
+          flex: 1;
+          flex-direction: column;
+          align-items: flex-start;
+          gap: var(--noora-spacing-4);
+          min-width: 0;
+
+          & > [data-part="title"] {
+            color: var(--noora-surface-label-secondary);
+            font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+          }
+
+          & > [data-part="label"] {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            gap: var(--noora-spacing-2);
+            max-width: 100%;
+            color: var(--noora-surface-label-primary);
+            font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+          }
+
+          & > code[data-part="label"] {
+            font-family: "Geist Mono", monospace;
+            font-size: 0.95em;
+          }
+
+          & > [data-part="event-tags"] {
+            display: flex;
+            flex-direction: row;
+            flex-wrap: wrap;
+            gap: var(--noora-spacing-2);
+          }
+        }
+      }
+    }
+  }
+
+  & > [data-part="performance-card"] > [data-part="performance-card-section"] {
     display: flex;
     flex-direction: column;
     gap: var(--noora-spacing-5);
-    padding: var(--noora-spacing-7) var(--noora-spacing-8);
 
     & > [data-part="legends"] {
       display: flex;
@@ -387,54 +403,16 @@
     }
   }
 
-  & [data-part="details-card"] > [data-part="content"] {
-    display: flex;
-    flex-direction: column;
-    gap: var(--noora-spacing-5);
-
-    & > [data-part="row"] {
-      display: flex;
-      flex-direction: row;
-      align-items: flex-start;
-      gap: var(--noora-spacing-5);
-
-      & > [data-part="label"] {
-        flex-shrink: 0;
-        width: 30%;
-        color: var(--noora-surface-label-secondary);
-        font: var(--noora-font-weight-regular) var(--noora-font-body-small);
-      }
-
-      & > [data-part="value"],
-      & > code[data-part="value"] {
-        flex-grow: 1;
-        display: flex;
-        flex-direction: row;
-        flex-wrap: wrap;
-        gap: var(--noora-spacing-2);
-        color: var(--noora-surface-label-primary);
-        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
-      }
-
-      & > code[data-part="value"] {
-        font-family: "Geist Mono", monospace;
-        font-size: 0.95em;
-      }
-    }
-  }
-
-  & [data-part="deliveries-card"] > [data-part="content"] {
+  & > [data-part="deliveries-card"] > [data-part="deliveries-card-section"] {
     padding: 0;
   }
 
   @media (max-width: 768px) {
-    & [data-part="details-card"] > [data-part="content"] > [data-part="row"] {
+    & > [data-part="details-card"]
+      > [data-part="details-card-section"]
+      > [data-part="metadata-grid"]
+      > [data-part="metadata-row"] {
       flex-direction: column;
-      gap: var(--noora-spacing-2);
-
-      & > [data-part="label"] {
-        width: 100%;
-      }
     }
   }
 }
