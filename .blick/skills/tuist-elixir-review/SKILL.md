@@ -1,6 +1,6 @@
 ---
 name: tuist-elixir-review
-description: Project-specific PR-review rules for the tuist/tuist Elixir codebases (server, cache, processor, xcode_processor, tuist_common, noora). Focuses on the things only this repo knows — authorization invariants, tenancy, write-only ClickHouse, Mimic placement, migration timestamptz, data-export updates, and i18n.
+description: Project-specific PR-review rules for the tuist/tuist Elixir codebases (server, cache, processor, xcode_processor, tuist_common, noora). Focuses on the things only this repo knows — authorization invariants, tenancy, write-only ClickHouse, Mimic placement, migration timestamptz, data-export updates, marketing changelog entries, and i18n.
 ---
 
 # Tuist Elixir Review
@@ -312,6 +312,44 @@ When suggesting a fix:
 
 ---
 
+## 11. Marketing changelog for user-facing server/dashboard features
+
+The human-authored product changelog lives in
+`server/priv/marketing/changelog/*.md`. Generated files such as
+`server/CHANGELOG.md` or root `CHANGELOG.md` must not be edited by
+authors.
+
+### Flag (Severity: medium)
+
+- A PR that adds or materially changes a user-facing server/dashboard
+  feature without also adding or updating a
+  `server/priv/marketing/changelog/*.md` entry.
+
+User-facing signals include changed dashboard routes, LiveViews,
+controllers, templates, page CSS, settings pages, integration flows,
+alerts, reports, previews, build/test/cache/bundle analytics, or public
+API behavior that customers can observe.
+
+When suggesting a fix, ask for a short marketing changelog entry with
+frontmatter like `title`, `category: "Product"`, and `pull_request`.
+Mention an accompanying image under
+`server/priv/static/marketing/images/changelog/` only when the feature
+has a visual dashboard/UI state worth showing.
+
+### Do not flag
+
+- Bug fixes with no new or materially changed user-facing behavior.
+- Refactors, performance work, infrastructure, ops/admin-only paths,
+  internal jobs, telemetry-only changes, tests, fixtures, or schema-only
+  plumbing whose effect is not directly visible to customers.
+- Documentation-only or marketing-only PRs.
+- CLI/app/cache/kura/noora-only changes. This rule is for
+  user-facing server/dashboard features.
+- PRs that already add or update a matching
+  `server/priv/marketing/changelog/*.md` entry.
+
+---
+
 ## Out of scope (handled elsewhere — do not flag)
 
 - Module / function naming, pipe-chain start, function ordering,
@@ -327,7 +365,7 @@ When suggesting a fix:
 For each finding, confirm:
 
 1. The `path:line` is real and the snippet appears in the diff.
-2. The category above is one of 1–10; if it isn't, downgrade to a
+2. The category above is one of 1–11; if it isn't, downgrade to a
    question (`uncertain: ...`) rather than asserting a finding.
 3. The severity is set: **critical** (auth bypass / cross-tenant read or
    write), **high** (likely security or correctness bug), **medium**
