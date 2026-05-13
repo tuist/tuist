@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
+* improve Grafana observability by [@pepicrft](https://github.com/pepicrft) in [#10772](https://github.com/tuist/tuist/pull/10772)
 * report up members as nodes by [@pepicrft](https://github.com/pepicrft) in [#10766](https://github.com/tuist/tuist/pull/10766)
 
 
