@@ -242,11 +242,14 @@ struct DependenciesAcceptanceTestAppWithSPMDependenciesWithoutInstall {
 /// while invoking `swift package dump-package` on the root `Tuist/Package.swift`. The
 /// child process tries to acquire the same lock and deadlocks. The fix releases the
 /// lock once the workspace state has been read so the manifest subprocess can run.
-struct DependenciesAcceptanceTestIosAppWithSPMDependenciesGenerate {
+///
+/// The fixture uses a local SPM package so the test does not require network access
+/// during `tuist install`.
+struct DependenciesAcceptanceTestIosAppWithLocalSPMPackageGenerate {
     @Test(
-        .withFixture("generated_ios_app_with_spm_dependencies"),
+        .withFixture("generated_ios_app_with_local_spm_package"),
         .inTemporaryDirectory,
-        .timeLimit(.minutes(3))
+        .timeLimit(.minutes(1))
     )
     func install_then_generate_does_not_deadlock() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
