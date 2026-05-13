@@ -167,6 +167,7 @@ macosFleet:
   # (xcresult VM) + node_exporter (host) over the tailnet.
   tailscale:
     enabled: true
+    tags: ["tag:tuist-macmini-staging"]
   machine:
     # Staging tracks the chart default (M2-L on Scaleway: M2 Pro
     # 10-core / 16 GB). Drop to M2-M if staging capacity gets tight

@@ -1,0 +1,15 @@
+# Overlay for the production cluster's tailscale-operator install.
+# Production has its own OAuth client + tag pair so a leaked
+# staging or canary credential can't enroll a device under the
+# production tag.
+
+tailscale-operator:
+  operatorConfig:
+    hostname: tuist-k8s-production
+    defaultTags:
+      - "tag:tuist-k8s-production"
+
+connector:
+  hostname: tuist-cluster-router-production
+  tags:
+    - "tag:tuist-k8s-production"

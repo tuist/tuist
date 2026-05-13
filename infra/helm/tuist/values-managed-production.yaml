@@ -194,6 +194,7 @@ macosFleet:
   # in the production 1Password vault under TAILSCALE/auth-key.
   tailscale:
     enabled: true
+    tags: ["tag:tuist-macmini-production"]
   machine:
     # Production tracks the chart default — M2-L on Scaleway:
     # M2 Pro 10-core / 16 GB. Explicit here so the matching

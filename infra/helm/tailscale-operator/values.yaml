@@ -48,10 +48,13 @@ tailscale-operator:
     hostname: tuist-k8s
     # Operator-managed tags applied to every device the operator
     # spins up (subnet router Pods, ProxyClass-backed proxies).
-    # `tag:tuist-k8s-operator` must be declared as an `tagOwner`
-    # in acls.json, with OAuth-client identity allowed to use it.
+    # Per-env overlays override to `tag:tuist-k8s-<env>` so each
+    # env's operator gets its own ACL identity. The tag must be
+    # declared in infra/tailscale/acls.json's tagOwners block, and
+    # the OAuth client used by this operator must list it under
+    # "Tags this client may apply".
     defaultTags:
-      - "tag:tuist-k8s-operator"
+      - "tag:tuist-k8s-staging"
 
 # Connector CR — the operator-managed `tailscaled` subnet router
 # that announces the macOS fleet's CGNAT range to the cluster CNI.
@@ -61,11 +64,13 @@ connector:
   enabled: true
   name: tuist-cluster-subnet-router
   hostname: tuist-cluster-router
-  # Single tag for the cluster-side subnet router. ACLs grant it
-  # dial access to `tag:tuist-macmini` on the scrape ports — see
-  # acls.json.
+  # Per-env tag for the cluster-side subnet router. Defaults to the
+  # staging tag so the chart-default install lands in staging; per-
+  # env values override to `tag:tuist-k8s-{canary,production}`.
+  # ACL grants this tag dial access to `tag:tuist-macmini-<env>` on
+  # the scrape ports — see acls.json.
   tags:
-    - "tag:tuist-k8s-operator"
+    - "tag:tuist-k8s-staging"
   # CGNAT range — every Mac mini joined under `tag:tuist-macmini`
   # gets an address in `100.64.0.0/10`. Advertising the full range
   # is simpler than per-host routes and the ACL boundary doesn't

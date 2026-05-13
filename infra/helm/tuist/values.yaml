@@ -547,6 +547,14 @@ macosFleet:
   # it on in their per-env values.
   tailscale:
     enabled: false
+    # Per-env ACL tag every Mac mini advertises at `tailscale up`.
+    # Per-env values override (e.g. `tag:tuist-macmini-staging`);
+    # the chart-default empty list lets the auth key's own tag
+    # binding apply if it carries one, but production deployments
+    # should always set this explicitly so the env boundary is
+    # load-bearing rather than auth-key-shape-derived. See
+    # infra/tailscale/acls.json for the full taxonomy.
+    tags: []
     # Name of the Secret with key `auth-key` holding the Tailscale
     # pre-auth key. ESO populates it from 1Password by default; set
     # to a manually-created Secret name to opt out.

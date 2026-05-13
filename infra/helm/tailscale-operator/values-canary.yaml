@@ -1,0 +1,14 @@
+# Overlay for the canary cluster's tailscale-operator install.
+# Canary has its own OAuth client + tag pair so a leaked canary
+# credential can't enroll a device under the production tag.
+
+tailscale-operator:
+  operatorConfig:
+    hostname: tuist-k8s-canary
+    defaultTags:
+      - "tag:tuist-k8s-canary"
+
+connector:
+  hostname: tuist-cluster-router-canary
+  tags:
+    - "tag:tuist-k8s-canary"

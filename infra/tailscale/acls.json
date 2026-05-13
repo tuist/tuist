@@ -13,55 +13,94 @@
 //                            (Talos node access, ops laptops).
 //                            Inherited from the tailnet's initial
 //                            setup.
-//   tag:tuist-macmini        Mac minis in any of Tuist's macOS
-//                            fleets (xcresult-processor, customer
+//   tag:tuist-macmini-<env>  Mac minis in a specific env's macOS
+//                            fleet (xcresult-processor, customer
 //                            runners, future fleets). Joined via
-//                            infra/macos-host-bootstrap.
-//   tag:tuist-k8s-operator   Tailscale K8s operator + the cluster-
+//                            infra/macos-host-bootstrap; the env
+//                            suffix is set by the operator-image
+//                            flag --tailscale-tags, which the chart
+//                            wires from macosFleet.tailscale.tags
+//                            per env values file.
+//   tag:tuist-k8s-<env>      Tailscale K8s operator + the cluster-
 //                            side subnet-router Connector it
-//                            provisions.
+//                            provisions, scoped to one env's
+//                            cluster. Each env runs its own
+//                            operator instance with its own OAuth
+//                            client, so a leaked staging credential
+//                            can't enroll a device under a prod
+//                            tag.
 //   tag:tuist-ops            Human operators with SSH access to
-//                            Mac minis. Assigned to user devices
-//                            via the "Users & groups" UI.
+//                            every macOS fleet, regardless of env.
+//                            Env-agnostic deliberately — humans
+//                            manage all envs, the tag-per-env
+//                            split is for credential isolation,
+//                            not human access boundaries.
 
 {
 	"tagOwners": {
-		"tag:tuist-mgmt":         ["autogroup:admin"],
-		"tag:tuist-macmini":      ["autogroup:admin"],
-		"tag:tuist-k8s-operator": ["autogroup:admin"],
-		"tag:tuist-ops":          ["autogroup:admin"],
+		"tag:tuist-mgmt":              ["autogroup:admin"],
+		"tag:tuist-ops":               ["autogroup:admin"],
+		"tag:tuist-k8s-staging":       ["autogroup:admin"],
+		"tag:tuist-k8s-canary":        ["autogroup:admin"],
+		"tag:tuist-k8s-production":    ["autogroup:admin"],
+		"tag:tuist-macmini-staging":   ["autogroup:admin"],
+		"tag:tuist-macmini-canary":    ["autogroup:admin"],
+		"tag:tuist-macmini-production":["autogroup:admin"],
 	},
 
 	"grants": [
 		// Catch-all wide-open rule inherited from the tailnet's
 		// initial setup. Kept until a separate audit narrows it
 		// without breaking management access (Talos node, ops
-		// laptops). The explicit rules below are subsumed by this
-		// today; they're documented so the macOS fleet keeps
-		// working when this rule is removed.
+		// laptops). The explicit env-pair rules below are subsumed
+		// by this today; they're documented so the macOS fleet
+		// keeps working when this rule is removed.
 		{"src": ["*"], "dst": ["*"], "ip": ["*"]},
 
-		// alloy-metrics dials the macOS fleet on three ports:
+		// Per-env operator → matching-env Mac mini fleet on the
+		// three scrape ports:
 		//   :8080  controller-runtime metrics on tart-kubelet
 		//          (reconcile counts, errors, and the
 		//          tart_kubelet_vm_boot_duration_seconds histogram).
 		//   :9091  PromEx on the xcresult-processor Tart VM,
 		//          fronted by tart-kubelet's host-side Forwarder.
 		//   :9100  node_exporter on the Mac mini host.
+		//
+		// Cross-env scraping (staging operator → prod macmini) is
+		// blocked at the tailnet layer once the wide-open rule
+		// above is removed. Today it's blocked in practice anyway
+		// because alloy-metrics in env X only discovers env X's
+		// Mac minis via k8s Node-role lookup, but the explicit
+		// per-pair grants make the boundary load-bearing rather
+		// than coincidental.
 		{
-			"src": ["tag:tuist-k8s-operator"],
-			"dst": ["tag:tuist-macmini"],
+			"src": ["tag:tuist-k8s-staging"],
+			"dst": ["tag:tuist-macmini-staging"],
+			"ip":  ["tcp:8080", "tcp:9091", "tcp:9100"],
+		},
+		{
+			"src": ["tag:tuist-k8s-canary"],
+			"dst": ["tag:tuist-macmini-canary"],
+			"ip":  ["tcp:8080", "tcp:9091", "tcp:9100"],
+		},
+		{
+			"src": ["tag:tuist-k8s-production"],
+			"dst": ["tag:tuist-macmini-production"],
 			"ip":  ["tcp:8080", "tcp:9091", "tcp:9100"],
 		},
 
-		// Humans SSH into Mac minis when the CAPI controller hits
-		// an edge case its drift loop can't resolve. Not load-
-		// bearing; the operator's per-fleet SSH key is the normal
-		// path the controller takes.
+		// Humans SSH into any Mac mini. Not load-bearing — the
+		// CAPI provider's per-fleet SSH key is the normal path the
+		// controller takes. tag:tuist-ops is env-agnostic because
+		// the same humans manage all envs.
 		{
 			"src": ["tag:tuist-ops"],
-			"dst": ["tag:tuist-macmini"],
-			"ip":  ["tcp:22"],
+			"dst": [
+				"tag:tuist-macmini-staging",
+				"tag:tuist-macmini-canary",
+				"tag:tuist-macmini-production",
+			],
+			"ip": ["tcp:22"],
 		},
 	],
 
@@ -79,21 +118,41 @@
 
 	// Tests run on every save in the console. With the wide-open
 	// rule above active, nothing is denied for any source, so these
-	// only assert that the explicit rules parse and accept the
-	// intended traffic. Add deny-side assertions when the catch-all
-	// is removed.
+	// only assert that the explicit env-pair grants parse and
+	// accept the intended traffic. Add cross-env deny assertions
+	// when the catch-all is removed.
 	"tests": [
 		{
-			"src": "tag:tuist-k8s-operator",
+			"src": "tag:tuist-k8s-staging",
 			"accept": [
-				"tag:tuist-macmini:8080",
-				"tag:tuist-macmini:9091",
-				"tag:tuist-macmini:9100",
+				"tag:tuist-macmini-staging:8080",
+				"tag:tuist-macmini-staging:9091",
+				"tag:tuist-macmini-staging:9100",
+			],
+		},
+		{
+			"src": "tag:tuist-k8s-canary",
+			"accept": [
+				"tag:tuist-macmini-canary:8080",
+				"tag:tuist-macmini-canary:9091",
+				"tag:tuist-macmini-canary:9100",
+			],
+		},
+		{
+			"src": "tag:tuist-k8s-production",
+			"accept": [
+				"tag:tuist-macmini-production:8080",
+				"tag:tuist-macmini-production:9091",
+				"tag:tuist-macmini-production:9100",
 			],
 		},
 		{
 			"src": "tag:tuist-ops",
-			"accept": ["tag:tuist-macmini:22"],
+			"accept": [
+				"tag:tuist-macmini-staging:22",
+				"tag:tuist-macmini-canary:22",
+				"tag:tuist-macmini-production:22",
+			],
 		},
 	],
 }

@@ -224,6 +224,16 @@ spec:
             # rotated key takes effect on the next reconcile without
             # the operator needing to restart.
             - --tailscale-auth-key-secret-name={{ .Values.macosFleet.tailscale.secretName | default (include "tuist.componentName" (dict "root" . "component" "capi-scaleway-applesilicon-tailscale")) }}
+            {{- with .Values.macosFleet.tailscale.tags }}
+            # Per-env ACL tags every Mac mini advertises at
+            # `tailscale up` time. Set in per-env values to one of
+            # `tag:tuist-macmini-{staging,canary,production}`. The
+            # auth key's tag binding must include this tag (set when
+            # the key is generated in the Tailscale admin console),
+            # and the tag must be declared in
+            # infra/tailscale/acls.json's tagOwners block.
+            - --tailscale-tags={{ join "," . }}
+            {{- end }}
             {{- end }}
             {{- if .Values.xcresultProcessor.enabled }}
             # Auto-roll the xcresult-processor Deployment whenever the

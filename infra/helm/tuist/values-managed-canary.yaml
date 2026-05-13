@@ -121,6 +121,7 @@ macosFleet:
   # a node to canary/prod.
   tailscale:
     enabled: true
+    tags: ["tag:tuist-macmini-canary"]
   controlPlane:
     host: api-canary.tuist.dev
 

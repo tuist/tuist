@@ -18,6 +18,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -66,6 +67,7 @@ func main() {
 		tailscalePkgPath             string
 		nodeExporterBinaryPath       string
 		tailscaleAuthKeySecretName   string
+		tailscaleTagsRaw             string
 		tartKubeletHostCPU           int
 		tartKubeletHostMemory        int
 		tartKubeletMaxPods           int
@@ -121,6 +123,15 @@ func main() {
 			"macos-fleet-tailscale-external-secrets.yaml. Empty disables the "+
 			"Tailscale step even when --tailscale-pkg-path is set, so a chart "+
 			"bring-up where ESO hasn't synced yet falls back cleanly.")
+	flag.StringVar(&tailscaleTagsRaw, "tailscale-tags",
+		envOrDefault("CAPI_TAILSCALE_TAGS", ""),
+		"Comma-separated Tailscale ACL tags every Mac mini in this env's "+
+			"fleet advertises at `tailscale up` time (e.g. "+
+			"`tag:tuist-macmini-staging`). Must be allowed by the auth key's "+
+			"tag binding and declared in the tailnet's tagOwners ACL block "+
+			"(see infra/tailscale/acls.json). Per-env values flow through "+
+			"macosFleet.tailscale.tags in the Helm values. Empty falls back "+
+			"to whatever default tag the auth key carries.")
 	flag.IntVar(&tartKubeletHostCPU, "tartkubelet-host-cpu", 8, "CPU cores tart-kubelet advertises on its Node")
 	flag.IntVar(&tartKubeletHostMemory, "tartkubelet-host-memory-mb", 16384, "Memory MB tart-kubelet advertises on its Node")
 	flag.IntVar(&tartKubeletMaxPods, "tartkubelet-max-pods", 2,
@@ -266,13 +277,13 @@ func main() {
 		TartTarball:          tartTarball,
 		TailscalePkg:         tailscalePkg,
 		NodeExporterBinary:   nodeExporterBinary,
-		// All macOS hosts on a Tuist cluster carry the single
-		// `tag:tuist-macmini` ACL tag — workload differentiation
-		// (xcresult vs runner) happens at the k8s nodeSelector layer,
-		// not at the tailnet layer. The cluster scraper's ACL grants
-		// it dial access to this tag on :9091 + :9100; nothing else
-		// on the tailnet has any reason to talk to a Mac mini.
-		TailscaleTags:                []string{"tag:tuist-macmini"},
+		// Per-env Tailscale tag, e.g. `tag:tuist-macmini-staging`.
+		// Flows in from the Helm chart's macosFleet.tailscale.tags
+		// via --tailscale-tags. ACL grants the matching env's
+		// `tag:tuist-k8s-<env>` dial access to this tag on the
+		// scrape ports; cross-env scraping is blocked once the
+		// wide-open catch-all is removed.
+		TailscaleTags:                parseTailscaleTags(tailscaleTagsRaw),
 		TartKubeletHostCPU:           tartKubeletHostCPU,
 		TartKubeletHostMemoryMB:      tartKubeletHostMemory,
 		TartKubeletMaxPods:           tartKubeletMaxPods,
@@ -322,6 +333,28 @@ func envOrDefault(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+// parseTailscaleTags splits a comma-separated --tailscale-tags
+// value into a slice. Empty input returns nil — the bootstrap then
+// falls back to whatever default tag the auth key carries.
+// Whitespace around each tag is trimmed; blank entries (e.g. a
+// trailing comma) are dropped.
+func parseTailscaleTags(raw string) []string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		out = append(out, p)
+	}
+	return out
 }
 
 func sha256Hex(b []byte) string {
