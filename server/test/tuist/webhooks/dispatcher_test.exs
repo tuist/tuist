@@ -96,6 +96,56 @@ defmodule Tuist.Webhooks.DispatcherTest do
     end
   end
 
+  describe "dispatch_test_case_created/2" do
+    test "enqueues one delivery per (endpoint, new test case) pair" do
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, _endpoint, _} =
+        Webhooks.create_endpoint(project.account_id, %{
+          "name" => "Hook",
+          "url" => "https://example.com/hook",
+          "event_types" => ["test_case.created"]
+        })
+
+      a = RunsFixtures.test_case_fixture(project_id: project.id)
+      b = RunsFixtures.test_case_fixture(project_id: project.id)
+
+      assert :ok = Dispatcher.dispatch_test_case_created(project.id, [a, b])
+
+      jobs = Tuist.Repo.all(Oban.Job)
+      assert length(jobs) == 2
+      assert Enum.all?(jobs, &(&1.args["event_type"] == "test_case.created"))
+      ids = jobs |> Enum.map(& &1.args["payload"]["object"]["id"]) |> Enum.sort()
+      assert ids == Enum.sort([a.id, b.id])
+    end
+
+    test "no-ops when the new-test-case list is empty" do
+      project = ProjectsFixtures.project_fixture()
+      assert :ok = Dispatcher.dispatch_test_case_created(project.id, [])
+      assert Tuist.Repo.aggregate(Oban.Job, :count) == 0
+    end
+  end
+
+  describe "dispatch_preview_deleted/1" do
+    test "enqueues a preview.deleted delivery for each subscribed endpoint" do
+      project = ProjectsFixtures.project_fixture()
+      preview = AppBuildsFixtures.preview_fixture(project: project)
+
+      {:ok, _endpoint, _} =
+        Webhooks.create_endpoint(project.account_id, %{
+          "name" => "Hook",
+          "url" => "https://example.com/hook",
+          "event_types" => ["preview.deleted"]
+        })
+
+      assert :ok = Dispatcher.dispatch_preview_deleted(preview)
+
+      [job] = Tuist.Repo.all(Oban.Job)
+      assert job.args["event_type"] == "preview.deleted"
+      assert job.args["payload"]["object"]["id"] == preview.id
+    end
+  end
+
   describe "dispatch_preview_uploaded/1" do
     test "enqueues a preview.uploaded delivery for each subscribed endpoint" do
       project = ProjectsFixtures.project_fixture()

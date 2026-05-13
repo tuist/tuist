@@ -134,6 +134,27 @@
                       <h3 data-part="event-group-label">{group.label}</h3>
                       <div data-part="event-checkbox-list">
                         <label
+                          id={"webhook-event-group-#{group.key}"}
+                          data-part="event-checkbox"
+                          data-role="select-all"
+                          phx-click="toggle_create_form_event_group"
+                          phx-value-data={group.key}
+                        >
+                          <.checkbox_control
+                            checked={all_group_events_selected?(group, @create_form_event_types)}
+                            indeterminate={
+                              group_partially_selected?(group, @create_form_event_types)
+                            }
+                          />
+                          <div data-part="body">
+                            <span data-part="label">
+                              {dgettext("dashboard_account", "Select all %{group} events",
+                                group: group.label
+                              )}
+                            </span>
+                          </div>
+                        </label>
+                        <label
                           :for={event <- group.events}
                           id={"webhook-event-#{event.type}"}
                           data-part="event-checkbox"

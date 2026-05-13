@@ -52,20 +52,58 @@ defmodule Tuist.Webhooks.Dispatcher do
   end
 
   @doc """
+  Dispatches a `test_case.created` event for each test case observed for
+  the first time during an ingestion. The caller passes the project id
+  (so we can resolve the account once for the batch) and the list of new
+  test case maps; one Oban job is enqueued per (endpoint, test case)
+  pair.
+  """
+  def dispatch_test_case_created(_project_id, []), do: :ok
+
+  def dispatch_test_case_created(project_id, test_cases) when is_list(test_cases) do
+    with %Projects.Project{account_id: account_id} <- Repo.get(Projects.Project, project_id),
+         [_ | _] = endpoints <-
+           Webhooks.list_endpoints_subscribed_to(account_id, "test_case.created") do
+      Enum.each(test_cases, fn test_case ->
+        object = test_case_snapshot(test_case)
+
+        Enum.each(endpoints, fn endpoint ->
+          enqueue(endpoint, "test_case.created", %{"object" => object})
+        end)
+      end)
+
+      :ok
+    else
+      _ -> :ok
+    end
+  end
+
+  @doc """
   Dispatches a `preview.uploaded` event when an app build has finished
   uploading to a preview. Receivers can drive workflows like "post to
   Slack when QA builds are ready" without polling.
   """
   def dispatch_preview_uploaded(%Preview{} = preview) do
+    dispatch_preview_lifecycle_event(preview, "preview.uploaded")
+  end
+
+  @doc """
+  Dispatches a `preview.deleted` event after a preview row is removed.
+  """
+  def dispatch_preview_deleted(%Preview{} = preview) do
+    dispatch_preview_lifecycle_event(preview, "preview.deleted")
+  end
+
+  defp dispatch_preview_lifecycle_event(%Preview{} = preview, event_type) do
     preview = Repo.preload(preview, :project)
 
     with %Projects.Project{account_id: account_id} <- preview.project,
          [_ | _] = endpoints <-
-           Webhooks.list_endpoints_subscribed_to(account_id, "preview.uploaded") do
+           Webhooks.list_endpoints_subscribed_to(account_id, event_type) do
       object = preview_snapshot(preview)
 
       Enum.each(endpoints, fn endpoint ->
-        enqueue(endpoint, "preview.uploaded", %{"object" => object})
+        enqueue(endpoint, event_type, %{"object" => object})
       end)
 
       :ok

@@ -21,6 +21,11 @@ defmodule Tuist.Webhooks.WebhookEndpoint do
       label: "Test cases",
       events: [
         %{
+          type: "test_case.created",
+          label: "Test case created",
+          description: "A test case was observed for the first time in this account."
+        },
+        %{
           type: "test_case.updated",
           label: "Test case updated",
           description: "A test case's attributes changed."
@@ -35,6 +40,11 @@ defmodule Tuist.Webhooks.WebhookEndpoint do
           type: "preview.uploaded",
           label: "Preview uploaded",
           description: "An app build finished uploading to a preview in this account."
+        },
+        %{
+          type: "preview.deleted",
+          label: "Preview deleted",
+          description: "A preview was deleted from this account."
         }
       ]
     }

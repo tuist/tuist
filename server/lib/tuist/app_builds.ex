@@ -364,6 +364,10 @@ defmodule Tuist.AppBuilds do
   end
 
   def delete_preview!(%Preview{} = preview) do
-    Repo.delete!(preview)
+    deleted = Repo.delete!(preview)
+    # `preview` retains its in-memory fields and project_id post-delete, so the
+    # dispatcher can resolve the owning account before the row is gone for good.
+    Tuist.Webhooks.Dispatcher.dispatch_preview_deleted(preview)
+    deleted
   end
 end

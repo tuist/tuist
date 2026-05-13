@@ -91,6 +91,35 @@ defmodule TuistWeb.WebhooksLiveTest do
     assert Webhooks.list_endpoints(account.id) == []
   end
 
+  test "toggle_create_form_event_group selects every event in the group at once", %{conn: conn, account: account} do
+    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/webhooks")
+
+    render_hook(lv, "update_create_form_name", %{"value" => "Bulk"})
+    render_hook(lv, "update_create_form_url", %{"value" => "https://example.com/hook"})
+    render_hook(lv, "toggle_create_form_event_group", %{"data" => "test_cases"})
+    render_hook(lv, "create_endpoint", %{})
+
+    assert [endpoint] = Webhooks.list_endpoints(account.id)
+    assert Enum.sort(endpoint.event_types) == Enum.sort(~w(test_case.created test_case.updated))
+  end
+
+  test "toggle_create_form_event_group deselects the group when every event is already selected", %{
+    conn: conn,
+    account: account
+  } do
+    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/webhooks")
+
+    render_hook(lv, "update_create_form_name", %{"value" => "Toggle off"})
+    render_hook(lv, "update_create_form_url", %{"value" => "https://example.com/hook"})
+    # Select all by group, then toggle the group again — should clear all.
+    render_hook(lv, "toggle_create_form_event_group", %{"data" => "test_cases"})
+    render_hook(lv, "toggle_create_form_event_group", %{"data" => "test_cases"})
+    html = render_hook(lv, "create_endpoint", %{})
+
+    assert html =~ "must subscribe to at least one event"
+    assert Webhooks.list_endpoints(account.id) == []
+  end
+
   test "rotate_endpoint_signing_secret replaces the secret and shows the new one", %{
     conn: conn,
     account: account

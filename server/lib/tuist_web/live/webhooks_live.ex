@@ -42,6 +42,24 @@ defmodule TuistWeb.WebhooksLive do
   end
 
   @doc """
+  Returns true if every event in `group` is in the `selected` list.
+  Drives the group-level "Select all" checkbox state.
+  """
+  def all_group_events_selected?(group, selected) do
+    Enum.all?(group.events, &(&1.type in selected))
+  end
+
+  @doc """
+  Returns true when some but not all events in `group` are selected — the
+  group checkbox renders in its indeterminate state.
+  """
+  def group_partially_selected?(group, selected) do
+    types = Enum.map(group.events, & &1.type)
+    selected_count = Enum.count(types, &(&1 in selected))
+    selected_count > 0 and selected_count < length(types)
+  end
+
+  @doc """
   Renders a partial-mask preview of `signing_secret` for the endpoints table.
 
   Format: `whsec_••••…••••<last 4>`. Revealing only the suffix lets users
@@ -81,6 +99,29 @@ defmodule TuistWeb.WebhooksLive do
       end
 
     {:noreply, socket |> assign(:create_form_event_types, next) |> assign(:create_form_error, nil)}
+  end
+
+  # Group-level "Select all" — toggles every event in the group. If all events
+  # are already selected, deselect them; otherwise add the missing ones (and
+  # leave any selections from other groups alone).
+  def handle_event("toggle_create_form_event_group", %{"data" => group_key}, socket) do
+    case Enum.find(socket.assigns.event_groups, &(&1.key == group_key)) do
+      nil ->
+        {:noreply, socket}
+
+      group ->
+        group_types = Enum.map(group.events, & &1.type)
+        selected = socket.assigns.create_form_event_types
+
+        next =
+          if Enum.all?(group_types, &(&1 in selected)) do
+            selected -- group_types
+          else
+            Enum.uniq(group_types ++ selected)
+          end
+
+        {:noreply, socket |> assign(:create_form_event_types, next) |> assign(:create_form_error, nil)}
+    end
   end
 
   def handle_event("create_endpoint", _params, %{assigns: assigns} = socket) do

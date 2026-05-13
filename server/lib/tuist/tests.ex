@@ -49,7 +49,9 @@ defmodule Tuist.Tests do
   alias Tuist.Tests.TestModuleRun
   alias Tuist.Tests.TestRunDestination
   alias Tuist.Tests.TestSuiteRun
+  alias Tuist.Webhooks.Dispatcher
 
+  require Logger
   require OpenTelemetry.Tracer
 
   # Number of days of run history used to decide whether a test case is "active"
@@ -662,12 +664,27 @@ defmodule Tuist.Tests do
 
     Tuist.Tasks.run_async(fn -> TestCase.Buffer.insert_all(test_cases) end)
 
+    # Webhook fan-out for newly-detected test cases — only the ones not
+    # already in `existing_data`, so re-ingesting the same suite doesn't
+    # re-fire the event.
+    dispatch_test_case_created_webhooks(project_id, test_cases, new_test_case_ids)
+
     test_case_id_map =
       Map.new(test_cases, fn tc ->
         {{tc.name, tc.module_name, tc.suite_name}, tc.id}
       end)
 
     {test_case_id_map, test_cases_with_flaky_run, new_test_case_ids}
+  end
+
+  defp dispatch_test_case_created_webhooks(project_id, test_cases, new_ids) do
+    new_test_cases = Enum.filter(test_cases, &MapSet.member?(new_ids, &1.id))
+    Dispatcher.dispatch_test_case_created(project_id, new_test_cases)
+    :ok
+  rescue
+    error ->
+      Logger.warning("Webhook dispatch for test_case.created failed: #{inspect(error)}")
+      :ok
   end
 
   defp collect_test_case_ids(project_id, test_modules) do
@@ -821,7 +838,7 @@ defmodule Tuist.Tests do
   defp dispatch_webhooks(_test_case, [], _actor_id, _alert_id), do: :ok
 
   defp dispatch_webhooks(test_case, event_types, actor_id, alert_id) do
-    Tuist.Webhooks.Dispatcher.dispatch_test_case_event(test_case, event_types,
+    Dispatcher.dispatch_test_case_event(test_case, event_types,
       actor_id: actor_id,
       alert_id: alert_id
     )
