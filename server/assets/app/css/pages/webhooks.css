@@ -67,7 +67,11 @@
     }
   }
 
-  & [data-part="signing-secret-cell"] > [data-part="label"] {
+  /* Render the masked signing secret in monospace so the bullet glyphs
+     share a baseline with the `whsec_` prefix and the trailing tail —
+     Noora's text_cell hardcodes `data-part="cell"` and ignores the
+     passed-through one, so we target the column via :nth-child instead. */
+  & #webhook-endpoints-table td:nth-child(3) [data-part="label"] {
     font-family: "Geist Mono", monospace;
   }
 
