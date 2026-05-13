@@ -1,6 +1,7 @@
 import FileSystem
 import Foundation
 import Mockable
+import Synchronization
 import Testing
 import TSCBasic
 import TuistCore
@@ -9,9 +10,23 @@ import TuistSupport
 import TuistTesting
 @testable import TuistLoader
 
-private final class SwiftPackageManagerLockObservation: @unchecked Sendable {
-    var heldDuringLoadPackage = false
-    var loadPackageCallCount = 0
+private final class SwiftPackageManagerLockObservation: Sendable {
+    private struct State {
+        var heldDuringLoadPackage = false
+        var loadPackageCallCount = 0
+    }
+
+    private let state = Mutex(State())
+
+    var heldDuringLoadPackage: Bool { state.withLock { $0.heldDuringLoadPackage } }
+    var loadPackageCallCount: Int { state.withLock { $0.loadPackageCallCount } }
+
+    func record(lockHeld: Bool) {
+        state.withLock {
+            $0.loadPackageCallCount += 1
+            if lockHeld { $0.heldDuringLoadPackage = true }
+        }
+    }
 }
 
 struct SwiftPackageManagerGraphLoaderTests {
@@ -158,16 +173,18 @@ struct SwiftPackageManagerGraphLoaderTests {
         given(manifestLoader)
             .loadPackage(at: .any, disableSandbox: .any)
             .willProduce { _, _ in
-                lockObservation.loadPackageCallCount += 1
                 let probe = try TSCBasic.FileLock.prepareLock(
                     fileToLock: try TSCBasic.AbsolutePath(validating: scratchDirectory.pathString)
                 )
+                let lockWasHeld: Bool
                 do {
                     try probe.lock(type: .exclusive, blocking: false)
                     probe.unlock()
+                    lockWasHeld = false
                 } catch {
-                    lockObservation.heldDuringLoadPackage = true
+                    lockWasHeld = true
                 }
+                lockObservation.record(lockHeld: lockWasHeld)
                 return .test()
             }
         let packageInfoMapper = MockPackageInfoMapping()
