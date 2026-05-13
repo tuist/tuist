@@ -160,8 +160,8 @@ defmodule Tuist.Authorization do
       desc("Allows the admin of an account to update its settings.")
       allow([:authenticated_as_user, user_role: :admin])
 
-      desc("Allows users with ops access to update any account's settings.")
-      allow([:authenticated_as_user, :ops_access])
+      desc("Allows users with ops write access to update any account's settings.")
+      allow([:authenticated_as_user, :ops_write_access])
     end
 
     action :delete do
