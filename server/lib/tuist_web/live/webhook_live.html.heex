@@ -55,19 +55,44 @@
       </span>
     </div>
     <div data-part="chart">
+      <div data-part="legends">
+        <.legend
+          title={dgettext("dashboard_account", "Total")}
+          value={Integer.to_string(@delivery_stats.total)}
+          style="primary"
+        />
+        <.legend
+          title={dgettext("dashboard_account", "Failed")}
+          value={Integer.to_string(@delivery_stats.failed)}
+          style="destructive"
+        />
+      </div>
       <.chart
         id="webhook-deliveries-chart"
         type="line"
         colors={["var:noora-chart-primary", "var:noora-chart-destructive"]}
-        show_legend={true}
-        legend_position="bottom"
         extra_options={
           %{
+            legend: %{
+              left: "left",
+              top: "bottom",
+              orient: "horizontal",
+              textStyle: %{
+                color: "var:noora-surface-label-secondary",
+                fontFamily: "monospace",
+                fontWeight: 400,
+                fontSize: 10,
+                lineHeight: 12
+              },
+              icon:
+                "path://M0 6C0 4.89543 0.895431 4 2 4H6C7.10457 4 8 4.89543 8 6C8 7.10457 7.10457 8 6 8H2C0.895431 8 0 7.10457 0 6Z",
+              itemWidth: 8,
+              itemHeight: 4
+            },
             grid: %{
-              width: "93%",
+              width: "97%",
               left: "0.4%",
-              right: "7%",
-              height: "78%",
+              height: "70%",
               top: "5%"
             },
             xAxis: %{
@@ -89,20 +114,12 @@
               splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
               axisLabel: %{color: "var:noora-surface-label-secondary"}
             },
-            legend: %{
-              bottom: "0",
-              left: "center",
-              icon: "circle",
-              itemWidth: 8,
-              itemHeight: 8,
-              textStyle: %{color: "var:noora-surface-label-secondary"}
-            },
             tooltip: %{}
           }
         }
         series={[
           %{
-            name: "#{dgettext("dashboard_account", "Total")} #{@delivery_stats.total}",
+            name: dgettext("dashboard_account", "Total"),
             type: "line",
             smooth: 0.1,
             symbol: "none",
@@ -112,7 +129,7 @@
               end)
           },
           %{
-            name: "#{dgettext("dashboard_account", "Failed")} #{@delivery_stats.failed}",
+            name: dgettext("dashboard_account", "Failed"),
             type: "line",
             smooth: 0.1,
             symbol: "none",
