@@ -334,6 +334,12 @@ controllers, templates, page CSS, settings pages, integration flows,
 alerts, reports, previews, build/test/cache/bundle analytics, or public
 API behavior that customers can observe.
 
+Do not treat a dashboard/UI change as announceable only because it lives
+in user-facing code. If the diff gates the behavior behind an
+account/org feature flag, ops/admin-only access, or an explicit internal
+rollout path, it is not ready for the product changelog unless the PR
+also makes that behavior broadly available to customers.
+
 When suggesting a fix, ask for a short marketing changelog entry with
 frontmatter like `title`, `category: "Product"`, and `pull_request`.
 Mention an accompanying image under
@@ -350,6 +356,9 @@ description or internal release notes instead.
 - Refactors, performance work, infrastructure, ops/admin-only paths,
   internal jobs, telemetry-only changes, tests, fixtures, or schema-only
   plumbing whose effect is not directly visible to customers.
+- Features gated behind account/org feature flags that are being used
+  for internal rollout or controlled access, unless the PR also makes
+  the feature generally available to customers.
 - Documentation-only or marketing-only PRs.
 - CLI/app/cache/kura/noora-only changes. This rule is for
   user-facing server/dashboard features.
