@@ -169,7 +169,22 @@
     & > [data-part="header-actions"] {
       display: flex;
       flex-direction: row;
+      align-items: center;
       gap: var(--noora-spacing-3);
+
+      /* Noora's icon-only dropdown renders smaller than a medium icon-only
+         button. Match the surrounding medium button height by bumping the
+         glyph size and padding. */
+      & .noora-dropdown > [data-part="trigger"][data-icon-only] {
+        padding: var(--noora-spacing-3);
+        width: var(--noora-icon-size-medium);
+        height: var(--noora-icon-size-medium);
+
+        & [data-part="icon"] {
+          width: var(--noora-icon-size-medium);
+          height: var(--noora-icon-size-medium);
+        }
+      }
     }
   }
 
