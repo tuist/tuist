@@ -214,6 +214,39 @@ k8s-monitoring:
         scrape_timeout = "10s"
       }
 
+      // Second job for tart-kubelet's own controller-runtime metrics
+      // endpoint on :8080 — same Node-role discovery, different
+      // port. Carries reconcile counters, errors, and the
+      // `tart_kubelet_vm_boot_duration_seconds` histogram. Bound to
+      // the tailnet interface when --node-ip-source=tailscale, so
+      // the source-CIDR ACL guards the same boundary the node-
+      // exporter scrape does.
+      discovery.relabel "tuist_macos_tart_kubelet" {
+        targets = discovery.kubernetes.tuist_macos_nodes.targets
+        rule {
+          source_labels = ["__meta_kubernetes_node_label_kubernetes_io_os"]
+          regex = "darwin"
+          action = "keep"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_node_address_InternalIP"]
+          target_label = "__address__"
+          replacement = "$1:8080"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_node_name"]
+          target_label = "instance"
+        }
+      }
+
+      prometheus.scrape "tuist_macos_tart_kubelet" {
+        targets = discovery.relabel.tuist_macos_tart_kubelet.output
+        forward_to = argument.metrics_destinations.value
+        job_name = "tuist-macos-tart-kubelet"
+        scrape_interval = "30s"
+        scrape_timeout = "10s"
+      }
+
   # OTLP gRPC receiver on :4317 for the managed Tuist server's span
   # exports. Preserves the contract the server expects today (only the
   # Service name changes — see README for the endpoint update).

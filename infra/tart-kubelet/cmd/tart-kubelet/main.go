@@ -143,6 +143,22 @@ func main() {
 		}
 	}
 
+	// Bind the controller-runtime metrics endpoint (PromEx-shaped
+	// /metrics on :8080 by default) to the same tailnet interface
+	// when source=tailscale and the operator left --metrics-bind-
+	// address at its default :8080. Without this, the endpoint
+	// listens on 0.0.0.0:8080 and on a Scaleway Mac mini that's a
+	// public address — the kubelet's reconcile-counters, error
+	// rates, and the new `tart_kubelet_vm_boot_duration_seconds`
+	// histogram would be exposed on the WAN. The tailnet bind
+	// inverts that: only `tag:tuist-k8s-operator` can dial 8080,
+	// gated by the Tailscale ACL.
+	if nodeIPSource == "tailscale" && nodeIP != "" && metricsAddr == ":8080" {
+		metricsAddr = fmt.Sprintf("%s:8080", nodeIP)
+		setupLog.Info("binding metrics endpoint to tailnet IP", "addr", metricsAddr)
+	}
+
+
 	// controller-runtime's GetConfigOrDie resolves config via (in order):
 	//   1. `--kubeconfig` flag value (set by launchd plist)
 	//   2. KUBECONFIG env
@@ -514,8 +530,15 @@ func recoverState(
 			startTS = &now
 		}
 		store.Put(pod.Namespace, pod.Name, &podagent.Entry{
-			VMName:  vmName,
-			StartTS: *startTS,
+			VMName: vmName,
+			// Pod.Status.StartTime is when the API server first saw the
+			// Pod, not when we started the clone — observing
+			// `tart_kubelet_vm_boot_duration_seconds` against it would
+			// fold kubelet downtime into the histogram and read as a
+			// boot-time spike across every recovered VM. Suppress the
+			// observation for recovered entries.
+			StartTS:      *startTS,
+			BootObserved: true,
 		})
 		matched++
 	}
