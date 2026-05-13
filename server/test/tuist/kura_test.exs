@@ -336,9 +336,10 @@ defmodule Tuist.KuraTest do
       end)
 
       expect(Req, :get, fn "https://localhost:4100/up", opts ->
-        assert opts[:finch] == Tuist.Finch
+        refute Keyword.has_key?(opts, :finch)
         assert opts[:receive_timeout] == 5_000
         assert opts[:connect_options] == [timeout: 5_000]
+        assert opts[:retry] == false
         {:error, %Mint.TransportError{reason: {:tls_alert, ~c"unknown ca"}}}
       end)
 
@@ -347,6 +348,29 @@ defmodule Tuist.KuraTest do
 
       assert %Server{status: :provisioning, current_image_tag: nil, url: nil} = Repo.get!(Server, server.id)
       assert Accounts.list_account_cache_endpoints(account, :kura) == []
+    end
+
+    test "returns endpoint not ready instead of raising when the HTTPS readiness probe cannot connect" do
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, server} =
+        Kura.create_server(%{
+          account_id: account.id,
+          region: "local-controller",
+          image_tag: "0.5.2"
+        })
+
+      expect(Provisioner, :public_url, fn account_arg, %Server{id: id} ->
+        assert account_arg.id == account.id
+        assert id == server.id
+        "https://localhost:65534"
+      end)
+
+      assert {:error, {:public_endpoint_not_ready, "localhost", reason}} =
+               Kura.activate_server(server, "0.5.2")
+
+      refute match?(%ArgumentError{}, reason)
     end
 
     test "reactivates a failed server when its cache endpoint already exists" do
