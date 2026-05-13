@@ -32,6 +32,14 @@ semantics, identity, inheritance, or `deinit` are actually required.
   semantics.
 - Types that genuinely need reference identity (caches, long-lived
   coordinators, actors-with-state-shared-by-reference).
+- **`final class` declarations whose `Sendable` conformance is backed by
+  a stored `Synchronization.Mutex<State>` (or another `~Copyable`
+  synchronization primitive).** `Mutex` cannot be a stored property of a
+  `Copyable` struct — the compiler emits `stored property '...' of
+  'Copyable'-conforming struct '...' has non-Copyable type 'Mutex<...>'`
+  — and a `~Copyable` struct cannot be captured by a `@Sendable` closure.
+  A `final class` with the `Mutex` and `Sendable` conformance is the
+  correct expression of this pattern.
 
 ## 2. Avoid `@unchecked Sendable`
 
