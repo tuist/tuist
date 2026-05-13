@@ -16,19 +16,19 @@ let package = Package(
         ),
     ],
     dependencies: [
-        .package(id: "tuist.Path", from: "0.3.8"),
-        .package(id: "tuist.FileSystem", .upToNextMajor(from: "0.16.2")),
-        .package(id: "tuist.Command", from: "0.12.0"),
-        .package(id: "kolos65.Mockable", from: "0.3.0"),
+        .package(url: "https://github.com/tuist/Path", from: "0.3.8"),
+        .package(url: "https://github.com/tuist/FileSystem", .upToNextMajor(from: "0.16.2")),
+        .package(url: "https://github.com/tuist/Command", from: "0.12.0"),
+        .package(url: "https://github.com/Kolos65/Mockable", from: "0.3.0"),
     ],
     targets: [
         .target(
             name: "XCResultParser",
             dependencies: [
-                .product(name: "Path", package: "tuist.Path"),
-                .product(name: "FileSystem", package: "tuist.FileSystem"),
-                .product(name: "Command", package: "tuist.Command"),
-                .product(name: "Mockable", package: "kolos65.Mockable"),
+                .product(name: "Path", package: "path"),
+                .product(name: "FileSystem", package: "filesystem"),
+                .product(name: "Command", package: "command"),
+                .product(name: "Mockable", package: "mockable"),
             ],
             swiftSettings: [
                 .define("MOCKING", .when(configuration: .debug)),
@@ -38,7 +38,7 @@ let package = Package(
             name: "XCResultNIF",
             dependencies: [
                 "XCResultParser",
-                .product(name: "Path", package: "tuist.Path"),
+                .product(name: "Path", package: "path"),
             ]
         ),
         .testTarget(

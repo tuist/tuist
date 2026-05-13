@@ -209,13 +209,33 @@ url = "https://github.com/tuist/blick/releases/download/0.8.0/blick-0.8.0-x86_64
 url_api = "https://api.github.com/repos/tuist/blick/releases/assets/412682236"
 
 [[tools."github:tuist/swifterpm"]]
-version = "0.2.5"
+version = "0.2.6"
 backend = "github:tuist/swifterpm"
 
+[tools."github:tuist/swifterpm"."platforms.linux-x64"]
+checksum = "sha256:a01efd1252304cef90158eabbecf0b0a65c2730381a29114d4e966c840013e97"
+url = "https://github.com/tuist/swifterpm/releases/download/0.2.6/swifterpm-0.2.6-x86_64-unknown-linux-gnu.tar.gz"
+url_api = "https://api.github.com/repos/tuist/swifterpm/releases/assets/419237164"
+
+[tools."github:tuist/swifterpm"."platforms.linux-x64-musl"]
+checksum = "sha256:a01efd1252304cef90158eabbecf0b0a65c2730381a29114d4e966c840013e97"
+url = "https://github.com/tuist/swifterpm/releases/download/0.2.6/swifterpm-0.2.6-x86_64-unknown-linux-gnu.tar.gz"
+url_api = "https://api.github.com/repos/tuist/swifterpm/releases/assets/419237164"
+
 [tools."github:tuist/swifterpm"."platforms.macos-arm64"]
-checksum = "sha256:3237d9d9234a2cb4bdeb6ebd2d557d624825015eb87cc558936e8e7942099a62"
-url = "https://github.com/tuist/swifterpm/releases/download/0.2.5/swifterpm-0.2.5-aarch64-apple-darwin.tar.gz"
-url_api = "https://api.github.com/repos/tuist/swifterpm/releases/assets/419225972"
+checksum = "sha256:ec31196e940c4eda2d69f5f7dc741931cf2e1c45a5c52b7ffb765d5c766ca376"
+url = "https://github.com/tuist/swifterpm/releases/download/0.2.6/swifterpm-0.2.6-aarch64-apple-darwin.tar.gz"
+url_api = "https://api.github.com/repos/tuist/swifterpm/releases/assets/419237153"
+
+[tools."github:tuist/swifterpm"."platforms.macos-x64"]
+checksum = "sha256:87a2cfd395bd278284eeec5cf00a55f0d19c04c55224f6e2f6eb6fe86aad4bc9"
+url = "https://github.com/tuist/swifterpm/releases/download/0.2.6/swifterpm-0.2.6-x86_64-apple-darwin.tar.gz"
+url_api = "https://api.github.com/repos/tuist/swifterpm/releases/assets/419237151"
+
+[tools."github:tuist/swifterpm"."platforms.windows-x64"]
+checksum = "sha256:7ab49ee122d3b9ea87f920533a93a50d90fceaae653b4956c137b4a2aca2da64"
+url = "https://github.com/tuist/swifterpm/releases/download/0.2.6/swifterpm-0.2.6-x86_64-pc-windows-msvc.tar.gz"
+url_api = "https://api.github.com/repos/tuist/swifterpm/releases/assets/419237154"
 
 [[tools.gradle]]
 version = "8.12.1"

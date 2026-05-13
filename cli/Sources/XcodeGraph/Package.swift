@@ -5,8 +5,8 @@ let targets: [Target] = [
     .target(
         name: "XcodeGraph",
         dependencies: [
-            .product(name: "AnyCodable", package: "flight-school.AnyCodable"),
-            .product(name: "Path", package: "tuist.Path"),
+            .product(name: "AnyCodable", package: "anycodable"),
+            .product(name: "Path", package: "path"),
         ],
         swiftSettings: [
             .enableExperimentalFeature("StrictConcurrency"),
@@ -15,9 +15,9 @@ let targets: [Target] = [
     .target(
         name: "XcodeMetadata",
         dependencies: [
-            .product(name: "FileSystem", package: "tuist.FileSystem"),
-            .product(name: "Mockable", package: "kolos65.Mockable"),
-            .product(name: "MachOKitC", package: "p-x9.MachOKit"),
+            .product(name: "FileSystem", package: "filesystem"),
+            .product(name: "Mockable", package: "mockable"),
+            .product(name: "MachOKitC", package: "machokit"),
             "XcodeGraph",
         ],
         swiftSettings: [
@@ -30,10 +30,10 @@ let targets: [Target] = [
         dependencies: [
             "XcodeGraph",
             "XcodeMetadata",
-            .product(name: "Command", package: "tuist.Command"),
-            .product(name: "FileSystem", package: "tuist.FileSystem"),
-            .product(name: "Path", package: "tuist.Path"),
-            .product(name: "XcodeProj", package: "tuist.XcodeProj"),
+            .product(name: "Command", package: "command"),
+            .product(name: "FileSystem", package: "filesystem"),
+            .product(name: "Path", package: "path"),
+            .product(name: "XcodeProj", package: "xcodeproj"),
         ],
         swiftSettings: [
             .enableExperimentalFeature("StrictConcurrency"),
@@ -54,14 +54,14 @@ let package = Package(
         .library(name: "XcodeGraphMapper", targets: ["XcodeGraphMapper"]),
     ],
     dependencies: [
-        .package(id: "flight-school.AnyCodable", .upToNextMajor(from: "0.6.7")),
-        .package(id: "tuist.Path", .upToNextMajor(from: "0.3.8")),
-        .package(id: "tuist.XcodeProj", .upToNextMajor(from: "9.9.0")),
-        .package(id: "tuist.Command", from: "0.13.0"),
-        .package(id: "tuist.FileSystem", .upToNextMajor(from: "0.16.2")),
-        .package(id: "kolos65.Mockable", .upToNextMajor(from: "0.6.1")),
-        .package(id: "p-x9.MachOKit", .upToNextMajor(from: "0.46.1")),
-        .package(id: "swiftlang.swift-docc-plugin", from: "1.4.6"),
+        .package(url: "https://github.com/Flight-School/AnyCodable", .upToNextMajor(from: "0.6.7")),
+        .package(url: "https://github.com/tuist/Path", .upToNextMajor(from: "0.3.8")),
+        .package(url: "https://github.com/tuist/XcodeProj", .upToNextMajor(from: "9.9.0")),
+        .package(url: "https://github.com/tuist/Command", from: "0.13.0"),
+        .package(url: "https://github.com/tuist/FileSystem", .upToNextMajor(from: "0.16.2")),
+        .package(url: "https://github.com/Kolos65/Mockable", .upToNextMajor(from: "0.6.1")),
+        .package(url: "https://github.com/p-x9/MachOKit", .upToNextMajor(from: "0.46.1")),
+        .package(url: "https://github.com/swiftlang/swift-docc-plugin", from: "1.4.6"),
     ],
     targets: targets
 )

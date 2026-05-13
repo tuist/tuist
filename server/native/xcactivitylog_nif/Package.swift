@@ -20,25 +20,25 @@ let package = Package(
         ),
     ],
     dependencies: [
-        .package(id: "MobileNativeFoundation.XCLogParser", from: "0.2.47"),
-        .package(id: "tuist.Path", from: "0.3.8"),
-        .package(id: "tuist.FileSystem", .upToNextMajor(from: "0.16.2")),
-        .package(id: "stephencelis.SQLite_swift", from: "0.16.0"),
+        .package(url: "https://github.com/MobileNativeFoundation/XCLogParser", from: "0.2.47"),
+        .package(url: "https://github.com/tuist/Path", from: "0.3.8"),
+        .package(url: "https://github.com/tuist/FileSystem", .upToNextMajor(from: "0.16.2")),
+        .package(url: "https://github.com/stephencelis/SQLite.swift", from: "0.16.0"),
     ],
     targets: [
         .target(
             name: "CASAnalyticsDatabase",
             dependencies: [
-                .product(name: "SQLite", package: "stephencelis.SQLite_swift"),
+                .product(name: "SQLite", package: "sqlite.swift"),
             ]
         ),
         .target(
             name: "XCActivityLogParser",
             dependencies: [
                 "CASAnalyticsDatabase",
-                .product(name: "XCLogParser", package: "MobileNativeFoundation.XCLogParser"),
-                .product(name: "Path", package: "tuist.Path"),
-                .product(name: "FileSystem", package: "tuist.FileSystem"),
+                .product(name: "XCLogParser", package: "xclogparser"),
+                .product(name: "Path", package: "path"),
+                .product(name: "FileSystem", package: "filesystem"),
             ]
         ),
         .target(
