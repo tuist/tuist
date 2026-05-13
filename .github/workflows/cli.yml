@@ -60,10 +60,9 @@ concurrency:
   group: cli-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
-# .build cache keys: restore-keys hashes Package.swift (not Package.resolved) so the
-# fallback never crosses structural changes. See #10510 / e8fa267 for the incidents
-# (stale workspace state pointing at moved local SPM paths; Linux linker failures
-# from partial-artifact reuse) that motivate the narrower scope.
+# .build cache keys include Package.resolved and Package.swift. Do not restore
+# broader .build fallbacks: SwiftPM workspace state is not stable across lockfile
+# changes when jobs run with --force-resolved-versions.
 jobs:
   cli-lint:
     name: Lint
@@ -86,8 +85,6 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
-          restore-keys: |
-            ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.swift') }}-
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
@@ -126,8 +123,6 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
-          restore-keys: |
-            ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.swift') }}-
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
@@ -169,8 +164,6 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
-          restore-keys: |
-            ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.swift') }}-
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
@@ -219,8 +212,6 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
-          restore-keys: |
-            ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.swift') }}-
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
@@ -266,8 +257,6 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
-          restore-keys: |
-            ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.swift') }}-
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
@@ -322,8 +311,6 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
-          restore-keys: |
-            ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.swift') }}-
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
@@ -371,8 +358,6 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
-          restore-keys: |
-            ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.swift') }}-
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
@@ -415,8 +400,6 @@ jobs:
         with:
           path: .build
           key: linux-cli-${{ hashFiles('Package.resolved', 'Package.swift') }}
-          restore-keys: |
-            linux-cli-${{ hashFiles('Package.swift') }}-
       - name: Resolve dependencies
         if: steps.cache-restore.outputs.cache-hit != 'true'
         run: swift package resolve --replace-scm-with-registry
@@ -445,8 +428,6 @@ jobs:
         with:
           path: .build
           key: linux-cli-${{ hashFiles('Package.resolved', 'Package.swift') }}
-          restore-keys: |
-            linux-cli-${{ hashFiles('Package.swift') }}-
       - name: Resolve dependencies
         if: steps.cache-restore.outputs.cache-hit != 'true'
         run: swift package resolve --replace-scm-with-registry
