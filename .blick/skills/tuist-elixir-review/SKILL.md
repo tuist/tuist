@@ -324,6 +324,10 @@ authors.
 - A PR that adds or materially changes a user-facing server/dashboard
   feature without also adding or updating a
   `server/priv/marketing/changelog/*.md` entry.
+- A PR that adds or updates a `server/priv/marketing/changelog/*.md`
+  entry for a feature that is ops-only, admin-only, feature-flagged only
+  for internal rollout, infrastructure-only, or otherwise not meant to
+  be announced to customers yet.
 
 User-facing signals include changed dashboard routes, LiveViews,
 controllers, templates, page CSS, settings pages, integration flows,
@@ -335,6 +339,10 @@ frontmatter like `title`, `category: "Product"`, and `pull_request`.
 Mention an accompanying image under
 `server/priv/static/marketing/images/changelog/` only when the feature
 has a visual dashboard/UI state worth showing.
+
+When flagging an inappropriate changelog entry, suggest removing the
+entry and, if the work still needs coordination, tracking it in the PR
+description or internal release notes instead.
 
 ### Do not flag
 
