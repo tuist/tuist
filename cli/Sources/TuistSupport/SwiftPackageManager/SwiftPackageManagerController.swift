@@ -5,6 +5,8 @@ import Logging
 import Mockable
 import Path
 import TSCUtility
+import TuistConstants
+import TuistEnvironment
 
 /// Protocol that defines an interface to interact with the Swift Package Manager.
 @Mockable
@@ -66,26 +68,31 @@ public protocol SwiftPackageManagerControlling {
 public struct SwiftPackageManagerController: SwiftPackageManagerControlling {
     private let fileSystem: FileSysteming
     private let commandRunner: () -> CommandRunning
+    private let environment: () -> [String: String]
 
     public init() {
         self.init(
             fileSystem: FileSystem(),
-            commandRunner: { CommandRunner(logger: Logger.current) }
+            commandRunner: { CommandRunner(logger: Logger.current) },
+            environment: { Environment.current.variables }
         )
     }
 
     init(
         fileSystem: FileSysteming,
-        commandRunner: @escaping () -> CommandRunning
+        commandRunner: @escaping () -> CommandRunning,
+        environment: @escaping () -> [String: String] = { Environment.current.variables }
     ) {
         self.fileSystem = fileSystem
         self.commandRunner = commandRunner
+        self.environment = environment
     }
 
     public func resolve(at path: AbsolutePath, arguments: [String], printOutput: Bool) async throws {
-        let command = buildSwiftPackageCommand(
+        let command = buildPackageManagerCommand(
             packagePath: path,
-            extraArguments: arguments + ["resolve"]
+            extraArguments: arguments,
+            command: "resolve"
         )
 
         printOutput ?
@@ -94,9 +101,10 @@ public struct SwiftPackageManagerController: SwiftPackageManagerControlling {
     }
 
     public func update(at path: AbsolutePath, arguments: [String], printOutput: Bool) async throws {
-        let command = buildSwiftPackageCommand(
+        let command = buildPackageManagerCommand(
             packagePath: path,
-            extraArguments: arguments + ["update"]
+            extraArguments: arguments,
+            command: "update"
         )
 
         printOutput ?
@@ -197,6 +205,25 @@ public struct SwiftPackageManagerController: SwiftPackageManagerControlling {
 
     // MARK: - Helpers
 
+    private func buildPackageManagerCommand(
+        packagePath: AbsolutePath,
+        extraArguments: [String],
+        command: String
+    ) -> [String] {
+        if usesFastPackageResolution {
+            return buildSwifterPMCommand(
+                packagePath: packagePath,
+                extraArguments: extraArguments,
+                command: command
+            )
+        } else {
+            return buildSwiftPackageCommand(
+                packagePath: packagePath,
+                extraArguments: extraArguments + [command]
+            )
+        }
+    }
+
     private func buildSwiftPackageCommand(packagePath: AbsolutePath, extraArguments: [String]) -> [String] {
         [
             "swift",
@@ -206,4 +233,74 @@ public struct SwiftPackageManagerController: SwiftPackageManagerControlling {
         ]
             + extraArguments
     }
+
+    private func buildSwifterPMCommand(
+        packagePath: AbsolutePath,
+        extraArguments: [String],
+        command: String
+    ) -> [String] {
+        [
+            swifterPMExecutable(),
+            "--package-path",
+            packagePath.pathString,
+        ]
+            + swifterPMArguments(
+                packagePath: packagePath,
+                extraArguments: extraArguments,
+                command: command
+            )
+            + [command]
+    }
+
+    private var usesFastPackageResolution: Bool {
+        isTruthy(environment()[Constants.EnvironmentVariables.useFastPackageResolution])
+    }
+
+    private func isTruthy(_ value: String?) -> Bool {
+        guard let value else { return false }
+        return ["1", "true", "TRUE", "yes", "YES"].contains(value)
+    }
+
+    private func swifterPMExecutable() -> String {
+        let variables = environment()
+        if let configuredPath = variables[Constants.EnvironmentVariables.fastPackageResolverPath], !configuredPath.isEmpty {
+            return configuredPath
+        }
+
+        if let currentExecutablePath = Environment.current.currentExecutablePath() {
+            let bundledPath = currentExecutablePath.parentDirectory.appending(component: "swifterpm")
+            if FileManager.default.isExecutableFile(atPath: bundledPath.pathString) {
+                return bundledPath.pathString
+            }
+        }
+
+        return "swifterpm"
+    }
+
+    private func swifterPMArguments(
+        packagePath: AbsolutePath,
+        extraArguments: [String],
+        command: String
+    ) -> [String] {
+        let arguments = extraArguments.filter { argument in
+            !Self.unsupportedSwifterPMArguments.contains(argument)
+        }
+
+        guard command == "resolve",
+              !arguments.contains("--force-resolved-versions"),
+              !arguments.contains("--disable-automatic-resolution"),
+              !arguments.contains("--only-use-versions-from-resolved-file"),
+              FileManager.default
+              .fileExists(atPath: packagePath.appending(component: Constants.SwiftPackageManager.packageResolvedName).pathString)
+        else {
+            return arguments
+        }
+
+        return arguments + ["--force-resolved-versions"]
+    }
+
+    private static let unsupportedSwifterPMArguments: Set<String> = [
+        "--replace-scm-with-registry",
+        "--disable-scm-to-registry-transformation",
+    ]
 }

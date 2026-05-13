@@ -71,6 +71,8 @@ public enum Constants {
         public static let token = "TUIST_TOKEN"
         public static let deprecatedToken = "TUIST_CONFIG_TOKEN"
         public static let quiet = "TUIST_CONFIG_QUIET"
+        public static let useFastPackageResolution = "TUIST_USE_FAST_PACKAGE_RESOLUTION"
+        public static let fastPackageResolverPath = "TUIST_FAST_PACKAGE_RESOLVER_PATH"
     }
 
     public enum URLs {

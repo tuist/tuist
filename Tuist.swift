@@ -1,5 +1,7 @@
 import ProjectDescription
 
+let useFastPackageResolution = Environment.useFastPackageResolution.getBoolean(default: false)
+
 let tuist = Tuist(
     fullHandle: "tuist/tuist",
     project: .tuist(
@@ -9,7 +11,7 @@ let tuist = Tuist(
             enableCaching: Environment.enableCaching.getBoolean(default: false)
         ),
         installOptions: .options(
-            passthroughSwiftPackageManagerArguments: [
+            passthroughSwiftPackageManagerArguments: useFastPackageResolution ? [] : [
                 "--replace-scm-with-registry",
             ]
         )

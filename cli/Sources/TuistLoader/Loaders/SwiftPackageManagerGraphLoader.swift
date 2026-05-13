@@ -19,14 +19,25 @@ enum SwiftPackageManagerGraphGeneratorError: FatalError, Equatable {
     case missingPathInLocalSwiftPackage(String)
     /// Thrown when dependencies were not installed before loading the graph SwiftPackageManagerGraph
     case installRequired
+    case failedToDecodeWorkspaceState(String)
+    case failedToLoadDependencyPackageInfo(name: String, message: String)
+    case failedToResolveExternalDependencies(String)
+    case failedToMapPackage(name: String, message: String)
+    case failedToLoadRootPackageInfo(String)
 
     /// Error type.
     var type: ErrorType {
         switch self {
         case .unsupportedDependencyKind, .missingPathInLocalSwiftPackage:
             return .bug
-        case .installRequired:
+        case .installRequired, .failedToDecodeWorkspaceState:
             return .abort
+        case .failedToLoadDependencyPackageInfo:
+            return .bug
+        case .failedToResolveExternalDependencies, .failedToMapPackage:
+            return .bug
+        case .failedToLoadRootPackageInfo:
+            return .bug
         }
     }
 
@@ -39,6 +50,16 @@ enum SwiftPackageManagerGraphGeneratorError: FatalError, Equatable {
             return "The local package \(name) does not contain the path in the generated `workspace-state.json` file."
         case .installRequired:
             return "We could not find external dependencies. Run `tuist install` before you continue."
+        case let .failedToDecodeWorkspaceState(message):
+            return "Failed to decode SwiftPM workspace state: \(message)"
+        case let .failedToLoadDependencyPackageInfo(name, message):
+            return "Failed to load SwiftPM package info for \(name): \(message)"
+        case let .failedToResolveExternalDependencies(message):
+            return "Failed to resolve SwiftPM external dependencies: \(message)"
+        case let .failedToMapPackage(name, message):
+            return "Failed to map SwiftPM package \(name): \(message)"
+        case let .failedToLoadRootPackageInfo(message):
+            return "Failed to load root SwiftPM package info: \(message)"
         }
     }
 }
@@ -63,6 +84,7 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
     private let contentHasher: ContentHashing
     private let swiftPackageManagerLock: SwiftPackageManagerLock
     private let swiftPackageManagerScratchDirectoryLocator: SwiftPackageManagerScratchDirectoryLocator
+    private let packageResolvedValidator: PackageResolvedValidator
 
     public init(
         swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(),
@@ -81,6 +103,7 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
         self.contentHasher = contentHasher
         self.swiftPackageManagerLock = swiftPackageManagerLock
         self.swiftPackageManagerScratchDirectoryLocator = swiftPackageManagerScratchDirectoryLocator
+        packageResolvedValidator = PackageResolvedValidator(fileSystem: fileSystem)
     }
 
     public func load(
@@ -97,21 +120,34 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
         // Subprocess invocations of `swift package` happen outside the lock, since each
         // subprocess acquires its own scratch-directory lock — holding our lock around
         // a `swift package` invocation on the same scratch directory deadlocks.
-        let workspaceState = try await swiftPackageManagerLock
+        let (workspaceState, outdatedDependencyIssues) = try await swiftPackageManagerLock
             .withLock(scratchDirectory: scratchDirectory) {
                 let workspacePath = scratchDirectory.appending(component: "workspace-state.json")
                 if try await !fileSystem.exists(workspacePath) {
                     throw SwiftPackageManagerGraphGeneratorError.installRequired
                 }
-                return try JSONDecoder()
-                    .decode(SwiftPackageManagerWorkspaceState.self, from: try await fileSystem.readFile(at: workspacePath))
+                let workspaceData = try await fileSystem.readFile(at: workspacePath)
+                let workspaceState: SwiftPackageManagerWorkspaceState
+                do {
+                    workspaceState = try JSONDecoder()
+                        .decode(SwiftPackageManagerWorkspaceState.self, from: workspaceData)
+                } catch {
+                    throw SwiftPackageManagerGraphGeneratorError.failedToDecodeWorkspaceState(error.localizedDescription)
+                }
+                let outdatedDependencyIssues = try await packageResolvedValidator.validate(
+                    at: packagePath.parentDirectory,
+                    scratchDirectory: scratchDirectory
+                )
+                return (workspaceState, outdatedDependencyIssues)
             }
         return try await loadUnsafe(
             packagePath: packagePath,
             packageSettings: packageSettings,
             disableSandbox: disableSandbox,
             scratchDirectory: scratchDirectory,
-            workspaceState: workspaceState
+            workspaceState: workspaceState,
+            outdatedDependencyIssues: outdatedDependencyIssues,
+            swiftPackageManagerArguments: swiftPackageManagerArguments
         )
     }
 
@@ -121,25 +157,32 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
         packageSettings: TuistCore.PackageSettings,
         disableSandbox: Bool,
         scratchDirectory: AbsolutePath,
-        workspaceState: SwiftPackageManagerWorkspaceState
+        workspaceState: SwiftPackageManagerWorkspaceState,
+        outdatedDependencyIssues: [LintingIssue],
+        swiftPackageManagerArguments: [String]
     ) async throws -> (TuistLoader.DependenciesGraph, [LintingIssue]) {
         let path = scratchDirectory
         let checkoutsFolder = path.appending(component: "checkouts")
+        let swifterPMPackageInfoCacheLoader = SwifterPMPackageInfoCacheLoader(fileSystem: fileSystem)
+        let swifterPMPackageInfoCache = try await swifterPMPackageInfoCacheLoader.load(
+            scratchDirectory: scratchDirectory,
+            arguments: swiftPackageManagerArguments
+        )
 
-        let rootPackage = try await manifestLoader.loadPackage(at: packagePath.parentDirectory, disableSandbox: disableSandbox)
+        let rootPackage: PackageInfo
+        do {
+            rootPackage = if let swifterPMPackageInfoCache {
+                try await swifterPMPackageInfoCacheLoader.loadPackageInfo(
+                    at: swifterPMPackageInfoCache.root.packageInfoPath
+                )
+            } else {
+                try await manifestLoader.loadPackage(at: packagePath.parentDirectory, disableSandbox: disableSandbox)
+            }
+        } catch {
+            throw SwiftPackageManagerGraphGeneratorError.failedToLoadRootPackageInfo(error.localizedDescription)
+        }
 
-        var packageInfos: [
-            // swiftlint:disable:next large_tuple
-            (
-                id: String,
-                name: String,
-                folder: AbsolutePath,
-                targetToArtifactPaths: [String: AbsolutePath],
-                info: PackageInfo,
-                hash: String?,
-                kind: String
-            )
-        ] = try await workspaceState.object.dependencies.concurrentMap { dependency in
+        var packageInfos: [SwiftPackageInfoEntry] = try await workspaceState.object.dependencies.concurrentMap { dependency in
             let name = dependency.packageRef.name
             let packageFolder: AbsolutePath
             let hash: String?
@@ -167,14 +210,29 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
                 throw SwiftPackageManagerGraphGeneratorError.unsupportedDependencyKind(dependency.packageRef.kind)
             }
 
-            let packageInfo = try await manifestLoader.loadPackage(at: packageFolder, disableSandbox: disableSandbox)
+            let packageInfo: PackageInfo
+            do {
+                packageInfo = if let cachedPackageInfo = try await swifterPMPackageInfoCacheLoader.cachedPackageInfo(
+                    for: dependency,
+                    in: swifterPMPackageInfoCache
+                ) {
+                    cachedPackageInfo
+                } else {
+                    try await manifestLoader.loadPackage(at: packageFolder, disableSandbox: disableSandbox)
+                }
+            } catch {
+                throw SwiftPackageManagerGraphGeneratorError.failedToLoadDependencyPackageInfo(
+                    name: name,
+                    message: error.localizedDescription
+                )
+            }
             let targetToArtifactPaths = try workspaceState.object.artifacts
                 .filter { $0.packageRef.identity == dependency.packageRef.identity }
                 .reduce(into: [:]) { result, artifact in
                     result[artifact.targetName] = try AbsolutePath(validating: artifact.path)
                 }
 
-            return (
+            return SwiftPackageInfoEntry(
                 id: dependency.packageRef.identity.lowercased(),
                 name: name,
                 folder: packageFolder,
@@ -185,37 +243,7 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
             )
         }
 
-        // When the same package appears from multiple sources (e.g. local path, registry, or source control),
-        // we keep a single entry to avoid duplicates. Selection is based on the following precedence:
-        //
-        //   1) Local (path-based)
-        //   2) Registry
-        //   3) Source Control (SCM)
-        //
-        // If multiple candidates exist, the highest-precedence source wins and the others are discarded.
-        //
-        // References:
-        // - https://github.com/tuist/tuist/pull/7518
-        // - https://community.tuist.dev/t/swift-package-registry-overriding-local-dependency-in-tuist-generated-project/902
-        packageInfos = Dictionary(grouping: packageInfos, by: {
-            if $0.kind == "registry" {
-                // A package is uniquely identified by a scoped identifier in the form scope.package-name.
-                return String($0.name.split(separator: ".").last ?? "").lowercased()
-            } else {
-                return $0.name.lowercased()
-            }
-        })
-        .compactMap { _, groupedPackageInfos in
-            if let localPackage = groupedPackageInfos.first(where: {
-                Self.isLocalDependencyKind($0.kind)
-            }) {
-                return localPackage
-            } else if let registryPackage = groupedPackageInfos.first(where: { $0.kind == "registry" }) {
-                return registryPackage
-            } else {
-                return groupedPackageInfos.first
-            }
-        }
+        packageInfos = SwiftPackageInfoDeduplicator.deduplicate(packageInfos)
 
         let packageInfoDictionary = Dictionary(uniqueKeysWithValues: packageInfos.map { ($0.name, $0.info) })
         let packageToFolder = Dictionary(uniqueKeysWithValues: packageInfos.map { ($0.name, $0.folder) })
@@ -247,15 +275,20 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
             }
         }
 
-        let externalDependencies = try await packageInfoMapper.resolveExternalDependencies(
-            path: path,
-            packagePath: packagePath.parentDirectory,
-            packageInfos: packageInfoDictionary,
-            packageToFolder: packageToFolder,
-            packageToTargetsToArtifactPaths: packageToTargetsToArtifactPaths,
-            packageModuleAliases: mutablePackageModuleAliases,
-            packageSettings: packageSettings
-        )
+        let externalDependencies: [String: [ProjectDescription.TargetDependency]]
+        do {
+            externalDependencies = try await packageInfoMapper.resolveExternalDependencies(
+                path: path,
+                packagePath: packagePath.parentDirectory,
+                packageInfos: packageInfoDictionary,
+                packageToFolder: packageToFolder,
+                packageToTargetsToArtifactPaths: packageToTargetsToArtifactPaths,
+                packageModuleAliases: mutablePackageModuleAliases,
+                packageSettings: packageSettings
+            )
+        } catch {
+            throw SwiftPackageManagerGraphGeneratorError.failedToResolveExternalDependencies(error.localizedDescription)
+        }
 
         let packageInfoDictionaryById = Dictionary(uniqueKeysWithValues: packageInfos.map { ($0.id, $0.info) })
         let enabledTraitsPerPackage = Self.enabledTraits(
@@ -265,21 +298,28 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
 
         let packageModuleAliases = mutablePackageModuleAliases
         let mappedPackageInfos = try await packageInfos.concurrentMap { packageInfo in
-            (
-                packageInfo: packageInfo,
-                hash: packageInfo.hash,
-                projectManifest: try await packageInfoMapper.map(
-                    packageInfo: packageInfo.info,
-                    path: packageInfo.folder,
-                    packageType: .external(
-                        origin: Self.packageOrigin(for: packageInfo.kind),
-                        artifactPaths: packageToTargetsToArtifactPaths[packageInfo.name] ?? [:]
-                    ),
-                    packageSettings: packageSettings,
-                    packageModuleAliases: packageModuleAliases,
-                    enabledTraits: enabledTraitsPerPackage[packageInfo.id] ?? []
+            do {
+                return (
+                    packageInfo: packageInfo,
+                    hash: packageInfo.hash,
+                    projectManifest: try await packageInfoMapper.map(
+                        packageInfo: packageInfo.info,
+                        path: packageInfo.folder,
+                        packageType: .external(
+                            origin: Self.packageOrigin(for: packageInfo.kind),
+                            artifactPaths: packageToTargetsToArtifactPaths[packageInfo.name] ?? [:]
+                        ),
+                        packageSettings: packageSettings,
+                        packageModuleAliases: packageModuleAliases,
+                        enabledTraits: enabledTraitsPerPackage[packageInfo.id] ?? []
+                    )
                 )
-            )
+            } catch {
+                throw SwiftPackageManagerGraphGeneratorError.failedToMapPackage(
+                    name: packageInfo.name,
+                    message: error.localizedDescription
+                )
+            }
         }
         let externalProjects: [Path: DependenciesGraph.ExternalProject] = mappedPackageInfos
             .reduce(into: [:]) { result, item in
@@ -305,18 +345,88 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
                 externalDependencies: externalDependencies,
                 externalProjects: externalProjects
             ),
-            []
+            outdatedDependencyIssues
         )
     }
 
     private static func isLocalDependencyKind(_ kind: String) -> Bool {
-        ["local", "fileSystem", "localSourceControl"].contains(kind)
+        SwiftPackageDependencyKind.isLocal(kind)
     }
 
     private static func packageOrigin(for kind: String) -> PackageType.ExternalOrigin {
-        isLocalDependencyKind(kind) ? .local : .remote
+        SwiftPackageDependencyKind.origin(for: kind)
     }
 
+    static func enabledTraits(
+        rootPackageInfo: PackageInfo,
+        packageInfos: [String: PackageInfo]
+    ) -> [String: Set<String>] {
+        SwiftPackageTraitsResolver.enabledTraits(
+            rootPackageInfo: rootPackageInfo,
+            packageInfos: packageInfos
+        )
+    }
+
+    private func swiftPackageManagerScratchDirectory(
+        packagePath: AbsolutePath,
+        arguments: [String]
+    ) async throws -> AbsolutePath {
+        try swiftPackageManagerScratchDirectoryLocator.locate(
+            packagePath: packagePath,
+            arguments: arguments,
+            environment: Environment.current.variables,
+            workingDirectory: try await Environment.current.currentWorkingDirectory()
+        )
+    }
+}
+
+private struct SwiftPackageInfoEntry {
+    let id: String
+    let name: String
+    let folder: AbsolutePath
+    let targetToArtifactPaths: [String: AbsolutePath]
+    let info: PackageInfo
+    let hash: String?
+    let kind: String
+}
+
+private enum SwiftPackageDependencyKind {
+    static func isLocal(_ kind: String) -> Bool {
+        ["local", "fileSystem", "localSourceControl"].contains(kind)
+    }
+
+    static func origin(for kind: String) -> PackageType.ExternalOrigin {
+        isLocal(kind) ? .local : .remote
+    }
+}
+
+private enum SwiftPackageInfoDeduplicator {
+    static func deduplicate(_ packageInfos: [SwiftPackageInfoEntry]) -> [SwiftPackageInfoEntry] {
+        Dictionary(grouping: packageInfos, by: { identity(for: $0) })
+            .compactMap { _, groupedPackageInfos in
+                if let localPackage = groupedPackageInfos.first(where: {
+                    SwiftPackageDependencyKind.isLocal($0.kind)
+                }) {
+                    return localPackage
+                } else if let registryPackage = groupedPackageInfos.first(where: { $0.kind == "registry" }) {
+                    return registryPackage
+                } else {
+                    return groupedPackageInfos.first
+                }
+            }
+    }
+
+    private static func identity(for packageInfo: SwiftPackageInfoEntry) -> String {
+        if packageInfo.kind == "registry" {
+            // A package is uniquely identified by a scoped identifier in the form scope.package-name.
+            return String(packageInfo.name.split(separator: ".").last ?? "").lowercased()
+        } else {
+            return packageInfo.name.lowercased()
+        }
+    }
+}
+
+private enum SwiftPackageTraitsResolver {
     static func enabledTraits(
         rootPackageInfo: PackageInfo,
         packageInfos: [String: PackageInfo]
@@ -405,17 +515,46 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
             }
         }
     }
+}
 
-    private func swiftPackageManagerScratchDirectory(
-        packagePath: AbsolutePath,
-        arguments: [String]
-    ) async throws -> AbsolutePath {
-        try swiftPackageManagerScratchDirectoryLocator.locate(
-            packagePath: packagePath,
-            arguments: arguments,
-            environment: Environment.current.variables,
-            workingDirectory: try await Environment.current.currentWorkingDirectory()
-        )
+private struct PackageResolvedValidator {
+    private let fileSystem: FileSysteming
+
+    init(fileSystem: FileSysteming) {
+        self.fileSystem = fileSystem
+    }
+
+    func validate(
+        at path: AbsolutePath,
+        scratchDirectory: AbsolutePath
+    ) async throws -> [LintingIssue] {
+        let savedPackageResolvedPath = scratchDirectory.appending(components: [
+            Constants.DerivedDirectory.name,
+            Constants.SwiftPackageManager.packageResolvedName,
+        ])
+        let savedData: Data?
+        if try await fileSystem.exists(savedPackageResolvedPath) {
+            savedData = try await fileSystem.readFile(at: savedPackageResolvedPath)
+        } else {
+            savedData = nil
+        }
+
+        let currentPackageResolvedPath = path.appending(component: Constants.SwiftPackageManager.packageResolvedName)
+        let currentData: Data?
+        if try await fileSystem.exists(currentPackageResolvedPath) {
+            currentData = try await fileSystem.readFile(at: currentPackageResolvedPath)
+        } else {
+            currentData = nil
+        }
+
+        if currentData != savedData {
+            return [LintingIssue(
+                reason: "We detected outdated dependencies. Run `tuist install` to update them.",
+                severity: .warning,
+                category: .outdatedDependencies
+            )]
+        }
+        return []
     }
 }
 

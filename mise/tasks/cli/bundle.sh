@@ -93,6 +93,10 @@ echo "$(format_section "Copying assets")"
 echo "$(format_subsection "Copying Tuist's templates")"
 cp -r $TUIST_DIR/cli/Templates $BUILD_DIRECTORY/Templates
 
+echo "$(format_subsection "Copying SwifterPM")"
+cp "$(command -v swifterpm)" $BUILD_DIRECTORY/swifterpm
+chmod +x $BUILD_DIRECTORY/swifterpm
+
 echo "$(format_section "Bundling")"
 
 (
@@ -100,10 +104,11 @@ echo "$(format_section "Bundling")"
 
     echo "$(format_subsection "Signing")"
     /usr/bin/codesign --sign "$CERTIFICATE_NAME" --timestamp --options runtime --verbose tuist
+    /usr/bin/codesign --sign "$CERTIFICATE_NAME" --timestamp --options runtime --verbose swifterpm
     /usr/bin/codesign --sign "$CERTIFICATE_NAME" --timestamp --options runtime --verbose ProjectDescription.framework
 
     echo "$(format_subsection "Notarizing")"
-    zip -q -r --symlinks "notarization-bundle.zip" tuist ProjectDescription.framework
+    zip -q -r --symlinks "notarization-bundle.zip" tuist swifterpm ProjectDescription.framework
 
     RAW_JSON=$(xcrun notarytool submit "notarization-bundle.zip" \
         --apple-id "$APPLE_ID" \
@@ -147,7 +152,7 @@ echo "$(format_section "Bundling")"
     rm "notarization-bundle.zip"
 
     echo "$(format_subsection "Bundling tuist.zip")"
-    zip -q -r --symlinks tuist.zip tuist ProjectDescription.framework ProjectDescription.framework.dSYM Templates vendor
+    zip -q -r --symlinks tuist.zip tuist swifterpm ProjectDescription.framework ProjectDescription.framework.dSYM Templates vendor
 
     echo "$(format_subsection "Bundling ProjectDescription.xcframework.zip")"
     xcodebuild -create-xcframework -framework ProjectDescription.framework -output ProjectDescription.xcframework
@@ -158,7 +163,7 @@ echo "$(format_section "Bundling")"
     ./tuist --experimental-dump-help --path "$SPEC_TMP_DIR" > tuist.spec.json
     rm -rf "$SPEC_TMP_DIR"
 
-    rm -rf tuist ProjectDescription.framework ProjectDescription.xcframework ProjectDescription.framework.dSYM Templates vendor
+    rm -rf tuist swifterpm ProjectDescription.framework ProjectDescription.xcframework ProjectDescription.framework.dSYM Templates vendor
 
     : > SHASUMS256.txt
     : > SHASUMS512.txt

@@ -1,5 +1,6 @@
 import Command
 import TSCUtility
+import TuistConstants
 import TuistCore
 import TuistTesting
 import XcodeGraph
@@ -8,18 +9,21 @@ import XCTest
 
 final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
     private var subject: SwiftPackageManagerController!
+    private var environment: [String: String] = [:]
 
     override func setUp() {
         super.setUp()
 
         subject = SwiftPackageManagerController(
             fileSystem: fileSystem,
-            commandRunner: { self.mockCommandRunner }
+            commandRunner: { self.mockCommandRunner },
+            environment: { self.environment }
         )
     }
 
     override func tearDown() {
         subject = nil
+        environment = [:]
 
         super.tearDown()
     }
@@ -40,6 +44,53 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
         try await subject.resolve(
             at: path,
             arguments: ["--replace-scm-with-registry"],
+            printOutput: false
+        )
+    }
+
+    func test_resolve_when_fastPackageResolutionIsEnabled_usesFastPackageResolution() async throws {
+        // Given
+        let path = try temporaryPath()
+        try await fileSystem.touch(path.appending(component: "Package.resolved"))
+        environment[Constants.EnvironmentVariables.useFastPackageResolution] = "1"
+        mockCommandRunner.succeedCommand([
+            "swifterpm",
+            "--package-path",
+            path.pathString,
+            "--scratch-path",
+            path.appending(component: ".build").pathString,
+            "--force-resolved-versions",
+            "resolve",
+        ])
+
+        // When
+        try await subject.resolve(
+            at: path,
+            arguments: [
+                "--replace-scm-with-registry",
+                "--scratch-path",
+                path.appending(component: ".build").pathString,
+            ],
+            printOutput: false
+        )
+    }
+
+    func test_resolve_when_fastPackageResolverPathIsConfigured_usesConfiguredExecutable() async throws {
+        // Given
+        let path = try temporaryPath()
+        environment[Constants.EnvironmentVariables.useFastPackageResolution] = "yes"
+        environment[Constants.EnvironmentVariables.fastPackageResolverPath] = "/opt/tools/swifterpm"
+        mockCommandRunner.succeedCommand([
+            "/opt/tools/swifterpm",
+            "--package-path",
+            path.pathString,
+            "resolve",
+        ])
+
+        // When
+        try await subject.resolve(
+            at: path,
+            arguments: [],
             printOutput: false
         )
     }
