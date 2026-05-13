@@ -236,6 +236,28 @@ struct DependenciesAcceptanceTestAppWithSPMDependenciesWithoutInstall {
     }
 }
 
+/// Regression test for https://github.com/tuist/tuist/issues/10754
+///
+/// `SwiftPackageManagerGraphLoader` used to hold SwiftPM's scratch-directory file lock
+/// while invoking `swift package dump-package` on the root `Tuist/Package.swift`. The
+/// child process tries to acquire the same lock and deadlocks. The fix releases the
+/// lock once the workspace state has been read so the manifest subprocess can run.
+///
+/// The fixture uses a local SPM package so the test does not require network access
+/// during `tuist install`.
+struct DependenciesAcceptanceTestIosAppWithLocalSPMPackageGenerate {
+    @Test(
+        .withFixture("generated_ios_app_with_local_spm_package"),
+        .inTemporaryDirectory,
+        .timeLimit(.minutes(1))
+    )
+    func install_then_generate_does_not_deadlock() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
+        try await TuistTest.run(GenerateCommand.self, ["--no-open", "--path", fixtureDirectory.pathString])
+    }
+}
+
 struct DependenciesAcceptanceTestAppAlamofire {
     @Test(.disabled(), .withFixture("generated_app_with_alamofire"), .inTemporaryDirectory)
     func app_with_alamofire() async throws {

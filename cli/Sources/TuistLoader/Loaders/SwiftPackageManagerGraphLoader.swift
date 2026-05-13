@@ -83,7 +83,6 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
         self.swiftPackageManagerScratchDirectoryLocator = swiftPackageManagerScratchDirectoryLocator
     }
 
-    // swiftlint:disable:next function_body_length
     public func load(
         packagePath: AbsolutePath,
         packageSettings: TuistCore.PackageSettings,
@@ -94,37 +93,45 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
             packagePath: packagePath.parentDirectory,
             arguments: swiftPackageManagerArguments
         )
-        return try await swiftPackageManagerLock.withLock(scratchDirectory: scratchDirectory) {
-            try await loadUnsafe(
-                packagePath: packagePath,
-                packageSettings: packageSettings,
-                disableSandbox: disableSandbox,
-                scratchDirectory: scratchDirectory
-            )
-        }
+        // The lock is held only while we read SwiftPM's state files directly.
+        // Subprocess invocations of `swift package` happen outside the lock, since each
+        // subprocess acquires its own scratch-directory lock — holding our lock around
+        // a `swift package` invocation on the same scratch directory deadlocks.
+        let (workspaceState, outdatedDependencyIssues) = try await swiftPackageManagerLock
+            .withLock(scratchDirectory: scratchDirectory) {
+                let workspacePath = scratchDirectory.appending(component: "workspace-state.json")
+                if try await !fileSystem.exists(workspacePath) {
+                    throw SwiftPackageManagerGraphGeneratorError.installRequired
+                }
+                let workspaceState = try JSONDecoder()
+                    .decode(SwiftPackageManagerWorkspaceState.self, from: try await fileSystem.readFile(at: workspacePath))
+                let outdatedDependencyIssues = try await validatePackageResolved(
+                    at: packagePath.parentDirectory,
+                    scratchDirectory: scratchDirectory
+                )
+                return (workspaceState, outdatedDependencyIssues)
+            }
+        return try await loadUnsafe(
+            packagePath: packagePath,
+            packageSettings: packageSettings,
+            disableSandbox: disableSandbox,
+            scratchDirectory: scratchDirectory,
+            workspaceState: workspaceState,
+            outdatedDependencyIssues: outdatedDependencyIssues
+        )
     }
 
+    // swiftlint:disable:next function_body_length
     private func loadUnsafe(
         packagePath: AbsolutePath,
         packageSettings: TuistCore.PackageSettings,
         disableSandbox: Bool,
-        scratchDirectory: AbsolutePath
+        scratchDirectory: AbsolutePath,
+        workspaceState: SwiftPackageManagerWorkspaceState,
+        outdatedDependencyIssues: [LintingIssue]
     ) async throws -> (TuistLoader.DependenciesGraph, [LintingIssue]) {
         let path = scratchDirectory
         let checkoutsFolder = path.appending(component: "checkouts")
-        let workspacePath = path.appending(component: "workspace-state.json")
-
-        if try await !fileSystem.exists(workspacePath) {
-            throw SwiftPackageManagerGraphGeneratorError.installRequired
-        }
-
-        let workspaceState = try JSONDecoder()
-            .decode(SwiftPackageManagerWorkspaceState.self, from: try await fileSystem.readFile(at: workspacePath))
-
-        let outdatedDependencyIssues = try await validatePackageResolved(
-            at: packagePath.parentDirectory,
-            scratchDirectory: scratchDirectory
-        )
 
         let rootPackage = try await manifestLoader.loadPackage(at: packagePath.parentDirectory, disableSandbox: disableSandbox)
 
