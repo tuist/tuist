@@ -143,18 +143,29 @@
   flex-direction: column;
   gap: var(--noora-spacing-7);
 
-  & > [data-part="action-buttons"] {
+  & > [data-part="back-button"] {
+    align-self: flex-start;
+  }
+
+  & > [data-part="header"] {
     display: flex;
     flex-direction: row;
-    justify-content: space-between;
     align-items: center;
-    gap: var(--noora-spacing-3);
+    gap: var(--noora-spacing-5);
+
+    & > [data-part="title"] {
+      flex-grow: 1;
+      margin: 0;
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+    }
 
     & > [data-part="header-actions"] {
       display: flex;
       flex-direction: row;
       align-items: center;
       gap: var(--noora-spacing-3);
+      flex-shrink: 0;
 
       /* Noora's icon-only dropdown renders smaller than a medium icon-only
          button. Match the surrounding medium button height by bumping the
@@ -169,28 +180,6 @@
           height: var(--noora-icon-size-medium);
         }
       }
-    }
-  }
-
-  & > [data-part="header"] {
-    display: flex;
-    flex-direction: column;
-    gap: var(--noora-spacing-2);
-
-    & > [data-part="title"] {
-      margin: 0;
-      color: var(--noora-surface-label-primary);
-      font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
-    }
-
-    & > [data-part="url"] {
-      color: var(--noora-surface-label-secondary);
-      font: var(--noora-font-weight-regular) var(--noora-font-body-small);
-      font-family: "Geist Mono", monospace;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      max-width: 100%;
     }
   }
 
