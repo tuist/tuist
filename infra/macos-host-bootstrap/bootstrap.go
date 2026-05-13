@@ -943,21 +943,54 @@ sudo launchctl bootout system/com.tailscale.tailscaled 2>/dev/null || true
 sudo tar -xzf - -C /usr/local/bin tailscale tailscaled
 sudo chmod 0755 /usr/local/bin/tailscale /usr/local/bin/tailscaled
 
-# Register tailscaled as a system-wide LaunchDaemon. The
-# open-source binary's install-system-daemon subcommand writes
-# /Library/LaunchDaemons/com.tailscale.tailscaled.plist itself,
-# pointing at /usr/local/bin/tailscaled, and launchctl-bootstraps
-# the job. Direct equivalent of systemd's "systemctl enable --now
-# tailscaled". Idempotent — re-running on an already-installed
-# host re-writes the plist and reloads.
-DAEMON_LOG=$(mktemp)
-if ! sudo /usr/local/bin/tailscaled install-system-daemon >"$DAEMON_LOG" 2>&1; then
-  echo "tailscaled install-system-daemon failed (output below):" >&2
-  sudo cat "$DAEMON_LOG" >&2
-  sudo rm -f "$DAEMON_LOG"
-  exit 1
-fi
-sudo rm -f "$DAEMON_LOG"
+# Make sure the state + socket directories exist before launchd
+# tries to spawn tailscaled. Without /var/lib/tailscale the daemon
+# exits with EX_CONFIG (78) before it can even write to its log.
+sudo mkdir -p /var/lib/tailscale /var/run
+
+# Write our own launchd plist instead of calling
+# 'tailscaled install-system-daemon'. The subcommand writes a
+# minimal plist with just the binary path — no flags, no
+# StandardErrorPath — so when tailscaled crashes early there's
+# nowhere to read what went wrong (we hit this in staging: the
+# subcommand-written plist exited with EX_CONFIG and the diagnostic
+# block found no log file). Our plist:
+#   - explicit --state / --socket / --port flags so the daemon
+#     never has to guess defaults
+#   - StandardErrorPath + StandardOutPath aimed at
+#     /var/log/tailscaled.log so the diagnostic block can always
+#     read crash logs on the next reconcile
+#   - KeepAlive=true + ThrottleInterval=10 so launchd restarts the
+#     daemon if it dies (same shape as our other launchd plists)
+# Direct equivalent of writing a systemd unit on Linux: we own the
+# unit, we know what it says, idempotent on bootout+bootstrap.
+sudo tee /Library/LaunchDaemons/com.tailscale.tailscaled.plist >/dev/null <<'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.tailscale.tailscaled</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/local/bin/tailscaled</string>
+    <string>--state=/var/lib/tailscale/tailscaled.state</string>
+    <string>--socket=/var/run/tailscaled.socket</string>
+    <string>--port=41641</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>ThrottleInterval</key><integer>10</integer>
+  <key>StandardOutPath</key><string>/var/log/tailscaled.log</string>
+  <key>StandardErrorPath</key><string>/var/log/tailscaled.log</string>
+</dict>
+</plist>
+PLIST
+sudo chown root:wheel /Library/LaunchDaemons/com.tailscale.tailscaled.plist
+sudo chmod 0644 /Library/LaunchDaemons/com.tailscale.tailscaled.plist
+# Reload via bootout+bootstrap so the new plist is picked up.
+sudo launchctl bootout system /Library/LaunchDaemons/com.tailscale.tailscaled.plist 2>/dev/null || true
+sudo launchctl bootstrap system /Library/LaunchDaemons/com.tailscale.tailscaled.plist
 
 # Wait for tailscaled to accept IPC before sending it 'up'.
 # install-system-daemon returns before the daemon finishes
