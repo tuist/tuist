@@ -323,6 +323,51 @@ jobs:
               echo "Release $HELM_RELEASE_NAME status is ${status:-not-installed}; no recovery needed."
               ;;
           esac
+      - name: Ensure CAPI core in workload cluster
+        # The chart renders nested CAPI CRs (Cluster + MachineDeployment +
+        # Machine) into the workload cluster for Mac mini fleet management
+        # (see infra/helm/tuist/templates/capi-cluster.yaml). CAPI core
+        # itself ships outside the chart (the ~7000-line components
+        # manifest doesn't carry as a subchart) and is installed once
+        # per workload cluster by infra/mise/tasks/k8s/bootstrap-workload.sh
+        # step 8. This self-heal step covers clusters bootstrapped before
+        # that step existed; it's a no-op once `clusterctl init` has run.
+        env:
+          CAPI_CORE_VERSION: v1.10.4
+        run: |
+          set -euo pipefail
+          echo "Ensuring CAPI core $CAPI_CORE_VERSION on $NAMESPACE's workload cluster"
+
+          # `kubectl apply` of CAPI's raw core-components.yaml fails
+          # because the manifest carries shell-style `${VAR:=default}`
+          # placeholders that the apiserver stores verbatim, so the
+          # controller refuses to start with
+          # `invalid argument "${CAPI_INSECURE_DIAGNOSTICS:=false}"`.
+          # `clusterctl init` is the supported install path.
+          clusterctl=/tmp/clusterctl
+          if [ ! -x "$clusterctl" ]; then
+            curl -fsSL -o "$clusterctl" \
+              "https://github.com/kubernetes-sigs/cluster-api/releases/download/${CAPI_CORE_VERSION}/clusterctl-linux-amd64"
+            chmod +x "$clusterctl"
+          fi
+
+          # `init` is idempotent: a second invocation against an
+          # already-installed core returns a "provider already exists"
+          # no-op. Swallow non-zero and verify via the deployment health
+          # check below.
+          "$clusterctl" init --core "cluster-api:${CAPI_CORE_VERSION}" 2>/dev/null || true
+
+          if ! kubectl -n capi-system wait --for=condition=Available \
+            deploy/capi-controller-manager --timeout=10m; then
+            echo "::group::capi-controller-manager not Available; diagnostics"
+            kubectl -n capi-system get pods -o wide || true
+            kubectl -n capi-system describe deploy/capi-controller-manager || true
+            kubectl -n capi-system describe pods -l cluster.x-k8s.io/provider=cluster-api || true
+            kubectl get certificates -A || true
+            kubectl get certificaterequests -A || true
+            echo "::endgroup::"
+            exit 1
+          fi
       - name: Clean up stale migration Jobs
         # The chart's pre-upgrade migration hook is named
         # `tuist-tuist-server-migrate` (stable across revisions). Any
