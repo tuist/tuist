@@ -15,11 +15,13 @@ defmodule Tuist.OIDC do
   @github_actions_issuer "https://token.actions.githubusercontent.com"
   @bitrise_issuer "https://token.builds.bitrise.io"
   @circleci_issuer_prefix "https://oidc.circleci.com/org/"
+  @audience "tuist"
 
   def claims(token) when is_binary(token) do
     with {:ok, issuer} <- peek_issuer(token),
          {:ok, jwks_uri} <- get_jwks_uri(issuer),
          {:ok, claims} <- verify(token, jwks_uri),
+         :ok <- validate_audience(claims, issuer),
          {:ok, repository} <- get_repository_from_claims(claims, issuer) do
       {:ok, %{repository: repository}}
     end
@@ -141,4 +143,23 @@ defmodule Tuist.OIDC do
   end
 
   defp validate_expiration(_), do: {:error, :token_expired}
+
+  defp validate_audience(%{"aud" => @audience}, issuer) when issuer in [@github_actions_issuer, @bitrise_issuer] do
+    :ok
+  end
+
+  defp validate_audience(%{"aud" => audiences}, issuer)
+       when is_list(audiences) and issuer in [@github_actions_issuer, @bitrise_issuer] do
+    if @audience in audiences do
+      :ok
+    else
+      {:error, :invalid_audience}
+    end
+  end
+
+  defp validate_audience(_claims, issuer) when issuer in [@github_actions_issuer, @bitrise_issuer] do
+    {:error, :invalid_audience}
+  end
+
+  defp validate_audience(_claims, _issuer), do: :ok
 end
