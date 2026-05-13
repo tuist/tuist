@@ -1010,7 +1010,9 @@ defmodule L10n.MarkdownTranslator do
     #{if locale_override != "", do: "## Locale-specific instructions for #{language}:\n#{locale_override}", else: ""}
     """
 
-    {protected_markdown_content, protected_segments} = protect_fenced_code_blocks(markdown_content)
+    {protected_markdown_content, protected_segments} =
+      protect_fenced_code_blocks(markdown_content)
+
     validation_attempts = normalize_validation_attempts(validation_attempts)
     validation_ref = make_ref()
 
@@ -1032,12 +1034,13 @@ defmodule L10n.MarkdownTranslator do
         Call validate_translation with the full translated markdown candidate before submitting.
         If validation fails, revise the candidate and call validate_translation again.
         Make at most #{validation_attempts} validation attempts.
-        When validation passes, return ONLY the final full markdown file. Do not wrap it in a markdown fence and do not add any explanation.
+        When validation passes, call submit_result with content set to the final full markdown file.
         """,
         model: L10n.Translator.resolve_model(model),
         system_prompt: system_prompt,
         input: %{source_markdown: protected_markdown_content},
         input_schema: markdown_input_schema(),
+        output: markdown_output_schema(),
         tools: [tool],
         cwd: validation_attrs.repo_root,
         thinking_level: nil,
@@ -1049,7 +1052,18 @@ defmodule L10n.MarkdownTranslator do
     validated_candidates = collect_validated_candidates(validation_ref)
 
     case result do
-      {:ok, translated_content} when is_binary(translated_content) ->
+      {:ok, %{content: translated_content}} when is_binary(translated_content) ->
+        finalize_translation(
+          markdown_content,
+          translated_content,
+          validation_command,
+          validation_attrs,
+          validated_candidates,
+          locale,
+          protected_segments
+        )
+
+      {:ok, %{"content" => translated_content}} when is_binary(translated_content) ->
         finalize_translation(
           markdown_content,
           translated_content,
@@ -1191,6 +1205,17 @@ defmodule L10n.MarkdownTranslator do
     }
   end
 
+  defp markdown_output_schema do
+    %{
+      type: "object",
+      properties: %{
+        content: %{type: "string"}
+      },
+      required: ["content"],
+      additionalProperties: false
+    }
+  end
+
   defp protect_fenced_code_blocks(content) do
     blocks = fenced_code_blocks(content)
 
@@ -1308,14 +1333,29 @@ defmodule L10n.MarkdownTranslator do
       |> restore_fenced_code_blocks(source_content)
       |> String.trim()
 
-    case validate_candidate(source_content, translated_content, validation_command, validation_attrs) do
+    case validate_candidate(
+           source_content,
+           translated_content,
+           validation_command,
+           validation_attrs
+         ) do
       :ok ->
         {:ok, translated_content}
 
       {:error, reason} ->
-        with {:ok, validated_candidate} <- last_validated_candidate(validated_candidates, translated_content),
-             :ok <- validate_candidate(source_content, validated_candidate, validation_command, validation_attrs) do
-          IO.puts("    #{locale}: submitted result failed final validation, using last validated candidate")
+        with {:ok, validated_candidate} <-
+               last_validated_candidate(validated_candidates, translated_content),
+             :ok <-
+               validate_candidate(
+                 source_content,
+                 validated_candidate,
+                 validation_command,
+                 validation_attrs
+               ) do
+          IO.puts(
+            "    #{locale}: submitted result failed final validation, using last validated candidate"
+          )
+
           {:ok, validated_candidate}
         else
           _ -> {:error, reason}
@@ -1323,7 +1363,8 @@ defmodule L10n.MarkdownTranslator do
     end
   end
 
-  defp last_validated_candidate([], _translated_content), do: {:error, :missing_validated_candidate}
+  defp last_validated_candidate([], _translated_content),
+    do: {:error, :missing_validated_candidate}
 
   defp last_validated_candidate(validated_candidates, translated_content) do
     validated_candidate = List.last(validated_candidates)

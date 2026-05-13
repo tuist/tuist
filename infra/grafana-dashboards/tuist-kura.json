@@ -690,7 +690,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum by (result) (rate(kura_artifact_reads_total_total{instance=~\"${instance:regex}\", region=~\"${region:regex}\"}[$__rate_interval]))",
+            "expr": "sum by (result) (rate(kura_artifact_reads_total_total{cluster=\"kura-tuist\", instance=~\"${instance:regex}\", region=~\"${region:regex}\"}[$__rate_interval]))",
             "legendFormat": "{{result}}",
             "refId": "A"
           }
@@ -756,7 +756,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum by (result) (rate(kura_artifact_writes_total_total{instance=~\"${instance:regex}\", region=~\"${region:regex}\"}[$__rate_interval]))",
+            "expr": "sum by (result) (rate(kura_artifact_writes_total_total{cluster=\"kura-tuist\", instance=~\"${instance:regex}\", region=~\"${region:regex}\"}[$__rate_interval])) or on() label_replace(vector(0), \"result\", \"no_writes\", \"__name__\", \".*\")",
             "legendFormat": "{{result}}",
             "refId": "A"
           }
@@ -822,7 +822,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum by (producer) (rate(kura_artifact_reads_total_total{instance=~\"${instance:regex}\", region=~\"${region:regex}\"}[$__rate_interval]))",
+            "expr": "sum by (producer) (rate(kura_artifact_reads_total_total{cluster=\"kura-tuist\", instance=~\"${instance:regex}\", region=~\"${region:regex}\"}[$__rate_interval]))",
             "legendFormat": "{{producer}}",
             "refId": "A"
           }
@@ -888,7 +888,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum by (producer) (rate(kura_artifact_writes_total_total{instance=~\"${instance:regex}\", region=~\"${region:regex}\"}[$__rate_interval]))",
+            "expr": "sum by (producer) (rate(kura_artifact_writes_total_total{cluster=\"kura-tuist\", instance=~\"${instance:regex}\", region=~\"${region:regex}\"}[$__rate_interval])) or on() label_replace(vector(0), \"producer\", \"no_writes\", \"__name__\", \".*\")",
             "legendFormat": "{{producer}}",
             "refId": "A"
           }
@@ -911,7 +911,7 @@
       },
       {
         "datasource": "$datasource",
-        "description": "Replication operations per second grouped by outcome and instance.",
+        "description": "Receiver and bootstrap apply operations per second grouped by outcome and instance.",
         "fieldConfig": {
           "defaults": {
             "color": {
@@ -967,17 +967,17 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum by (outcome, instance) (rate(kura_replication_apply_results_total_total{instance=~\"${instance:regex}\", region=~\"${region:regex}\"}[$__rate_interval]))",
+            "expr": "sum by (outcome, instance) (rate(kura_replication_apply_results_total_total{cluster=\"kura-tuist\", instance=~\"${instance:regex}\", region=~\"${region:regex}\"}[$__rate_interval]))",
             "legendFormat": "{{instance}} {{outcome}}",
             "refId": "A"
           }
         ],
-        "title": "Replication Operations by Outcome",
+        "title": "Replication Applies by Outcome",
         "type": "timeseries"
       },
       {
         "datasource": "$datasource",
-        "description": "Replication round-trip latency percentiles.",
+        "description": "Outbound outbox replication request round-trip latency percentiles.",
         "fieldConfig": {
           "defaults": {
             "color": {
@@ -1033,26 +1033,26 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "histogram_quantile(0.50, sum by (le) (rate(kura_replication_request_duration_seconds_bucket{instance=~\"${instance:regex}\", region=~\"${region:regex}\"}[$__rate_interval])))",
+            "expr": "histogram_quantile(0.50, sum by (le) (rate(kura_replication_request_duration_seconds_bucket{cluster=\"kura-tuist\", instance=~\"${instance:regex}\", region=~\"${region:regex}\"}[$__rate_interval]))) or on() vector(0)",
             "legendFormat": "p50",
             "refId": "A"
           },
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "histogram_quantile(0.95, sum by (le) (rate(kura_replication_request_duration_seconds_bucket{instance=~\"${instance:regex}\", region=~\"${region:regex}\"}[$__rate_interval])))",
+            "expr": "histogram_quantile(0.95, sum by (le) (rate(kura_replication_request_duration_seconds_bucket{cluster=\"kura-tuist\", instance=~\"${instance:regex}\", region=~\"${region:regex}\"}[$__rate_interval]))) or on() vector(0)",
             "legendFormat": "p95",
             "refId": "B"
           },
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "histogram_quantile(0.99, sum by (le) (rate(kura_replication_request_duration_seconds_bucket{instance=~\"${instance:regex}\", region=~\"${region:regex}\"}[$__rate_interval])))",
+            "expr": "histogram_quantile(0.99, sum by (le) (rate(kura_replication_request_duration_seconds_bucket{cluster=\"kura-tuist\", instance=~\"${instance:regex}\", region=~\"${region:regex}\"}[$__rate_interval]))) or on() vector(0)",
             "legendFormat": "p99",
             "refId": "C"
           }
         ],
-        "title": "Replication Latency p50 / p95 / p99",
+        "title": "Outbound Replication Latency p50 / p95 / p99",
         "type": "timeseries"
       },
       {
@@ -1782,7 +1782,7 @@
       },
       {
         "datasource": "$traces_datasource",
-        "description": "Kura traces from mesh nodes. Filter by service name, duration, or status in Explore for deeper inspection.",
+        "description": "Recent Kura cache endpoint traces from mesh nodes. Internal health checks and scrape traffic are intentionally excluded.",
         "fieldConfig": {
           "defaults": {
             "custom": {
@@ -1809,14 +1809,14 @@
         "targets": [
           {
             "datasource": "$traces_datasource",
-            "limit": 20,
-            "query": "{ resource.service.namespace = \"kura\" }",
+            "limit": 50,
+            "query": "{ resource.service.namespace = \"kura\" && span.http.route =~ \"/api/cache.*|/api/metro/cache.*|/v1/cache.*\" } with (most_recent=true)",
             "queryType": "traceql",
             "refId": "A",
             "tableType": "traces"
           }
         ],
-        "title": "Kura Traces",
+        "title": "Cache Endpoint Traces",
         "type": "table"
       },
       {
@@ -1834,7 +1834,7 @@
       },
       {
         "datasource": "$logs_datasource",
-        "description": "Live log stream from selected Kura nodes.",
+        "description": "Structured Kura runtime logs from selected Kura containers.",
         "fieldConfig": {
           "defaults": {},
           "overrides": []
@@ -1861,7 +1861,7 @@
         "targets": [
           {
             "datasource": "$logs_datasource",
-            "expr": "{cluster=\"kura-tuist\", instance=~\"${instance:regex}\"}",
+            "expr": "{cluster=\"kura-tuist\", container=\"kura\", instance=~\"${instance:regex}\"} | json",
             "refId": "A"
           }
         ],

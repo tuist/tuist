@@ -3,6 +3,9 @@ on:
   pull_request:
     types: [opened, edited]
 
+permissions:
+  pull-requests: read
+
 concurrency:
   group: conventional-pr-${{ github.head_ref }}
   cancel-in-progress: true

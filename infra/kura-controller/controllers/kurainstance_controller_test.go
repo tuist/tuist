@@ -79,8 +79,11 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	if _, ok := service.Annotations["load-balancer.hetzner.cloud/certificate-type"]; ok {
 		t.Fatal("expected managed-cert annotations to be dropped now that cert-manager issues the public cert")
 	}
-	if got := service.Annotations["load-balancer.hetzner.cloud/health-check-port"]; got != "4000" {
-		t.Fatalf("expected health check to target the plain HTTP port, got %q", got)
+	if got := service.Annotations["load-balancer.hetzner.cloud/health-check-protocol"]; got != "tcp" {
+		t.Fatalf("expected health check to use TCP against the passthrough NodePort, got %q", got)
+	}
+	if _, ok := service.Annotations["load-balancer.hetzner.cloud/health-check-port"]; ok {
+		t.Fatal("expected health check port annotation to be omitted so Hetzner probes the Service NodePort")
 	}
 
 	publicCert := &unstructured.Unstructured{}
@@ -248,6 +251,22 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	if got := policy.Spec.PodSelector.MatchLabels["app.kubernetes.io/instance"]; got != instance.Name {
 		t.Fatalf("expected NetworkPolicy to select this instance's pods, got %q", got)
 	}
+	if len(policy.Spec.Ingress) != 3 {
+		t.Fatalf("expected NetworkPolicy to have 3 ingress rules, got %d", len(policy.Spec.Ingress))
+	}
+	publicPorts := policy.Spec.Ingress[2].Ports
+	if len(policy.Spec.Ingress[2].From) != 0 {
+		t.Fatalf("expected public NetworkPolicy rule to allow all sources, got %v", policy.Spec.Ingress[2].From)
+	}
+	if len(publicPorts) != 2 {
+		t.Fatalf("expected public NetworkPolicy rule to expose HTTPS and gRPC, got %d ports", len(publicPorts))
+	}
+	if got := publicPorts[0].Port.StrVal; got != "https" {
+		t.Fatalf("expected public NetworkPolicy rule to expose https, got %q", got)
+	}
+	if got := publicPorts[1].Port.StrVal; got != "grpc" {
+		t.Fatalf("expected public NetworkPolicy rule to expose grpc, got %q", got)
+	}
 }
 
 func TestKuraInstanceReconcileExposesGRPCWhenHostSet(t *testing.T) {
@@ -292,6 +311,9 @@ func TestKuraInstanceReconcileExposesGRPCWhenHostSet(t *testing.T) {
 	}
 	if grpcService.Annotations["load-balancer.hetzner.cloud/protocol"] != "tcp" {
 		t.Fatalf("expected Hetzner LB tcp passthrough for gRPC, got %q", grpcService.Annotations["load-balancer.hetzner.cloud/protocol"])
+	}
+	if got := grpcService.Annotations["load-balancer.hetzner.cloud/health-check-protocol"]; got != "tcp" {
+		t.Fatalf("expected gRPC health check to use TCP against the passthrough NodePort, got %q", got)
 	}
 	if grpcService.Annotations["external-dns.alpha.kubernetes.io/hostname"] != "grpc.tuist-eu-1.kura.tuist.dev" {
 		t.Fatalf("expected gRPC external-dns hostname, got %q", grpcService.Annotations["external-dns.alpha.kubernetes.io/hostname"])

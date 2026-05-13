@@ -140,7 +140,7 @@ defmodule Tuist.Runners do
              :ok <- stamp_owner_labels(namespace, pod_name, account),
              {:ok, jit, runner_name} <- mint_jit(account, sa_name, dispatch_label),
              :ok <- Claims.mark_running(candidate.workflow_job_id, runner_name),
-             :ok <- Jobs.record_running(candidate.workflow_job_id, runner_name) do
+             :ok <- record_running_safe(candidate.workflow_job_id, runner_name) do
           Logger.info("runners: dispatched",
             account: account.name,
             sa: sa_name,
@@ -165,6 +165,29 @@ defmodule Tuist.Runners do
         release_safely(candidate, claim, :unknown_account)
         {:error, :unknown_account}
     end
+  end
+
+  # `Jobs.record_running` can raise on ClickHouse connectivity
+  # failures (Tuist.IngestRepo is :async by default but the
+  # underlying connection pool surfaces hard errors). A raise
+  # after `Claims.mark_running/2` would leave PG in `running`
+  # (which `Claims.list_stale/1` skips), the cap consumed
+  # forever, and the runner stranded because no JIT ever
+  # reached the VM. Catch it, surface as `{:error, _}` so the
+  # `with`'s `else` runs `release_safely` and the
+  # `workflow_job` returns to the queued pool.
+  defp record_running_safe(workflow_job_id, runner_name) do
+    Jobs.record_running(workflow_job_id, runner_name)
+    :ok
+  rescue
+    e ->
+      Logger.warning("runners: record_running raised; releasing claim",
+        workflow_job_id: workflow_job_id,
+        runner: runner_name,
+        ch_error: Exception.message(e)
+      )
+
+      {:error, :record_running_failed}
   end
 
   # Order matters: write `queued` to CH BEFORE deleting the PG

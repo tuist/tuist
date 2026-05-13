@@ -376,8 +376,8 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "sum by (region, kind, result) (rate(kura_artifact_write_bytes_total[5m]))",
-          "legendFormat": "{{region}} {{kind}} {{result}}",
+          "expr": "sum by (region, producer, result) (rate(kura_artifact_write_bytes_total[5m]))",
+          "legendFormat": "{{region}} {{producer}} {{result}}",
           "refId": "A"
         }
       ],
@@ -414,8 +414,8 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "sum by (region, kind, result) (rate(kura_artifact_read_bytes_total[5m]))",
-          "legendFormat": "{{region}} {{kind}} {{result}}",
+          "expr": "sum by (region, producer, result) (rate(kura_artifact_read_bytes_total[5m]))",
+          "legendFormat": "{{region}} {{producer}} {{result}}",
           "refId": "A"
         }
       ],
@@ -819,8 +819,8 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "sum by (region, kind, result) (rate(kura_segment_refreshes_total[5m]))",
-          "legendFormat": "{{region}} {{kind}} {{result}}",
+          "expr": "sum by (region, producer, result) (rate(kura_segment_refreshes_total[5m]))",
+          "legendFormat": "{{region}} {{producer}} {{result}}",
           "refId": "A"
         }
       ],
@@ -859,8 +859,8 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "sum by (region, kind, generation) (kura_segment_generation_count)",
-          "legendFormat": "{{region}} {{kind}} {{generation}}",
+          "expr": "sum by (region, generation) (kura_segment_generation_count)",
+          "legendFormat": "{{region}} {{generation}}",
           "refId": "A"
         }
       ],
@@ -890,7 +890,7 @@
       },
       "targets": [
         {
-          "expr": "{service=~\"kura-us|kura-eu|kura-ap\"}",
+          "expr": "{service=~\"kura-us|kura-eu|kura-ap\"} | json",
           "queryType": "range",
           "refId": "A"
         }

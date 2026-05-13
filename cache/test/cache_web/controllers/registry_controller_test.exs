@@ -923,6 +923,80 @@ defmodule CacheWeb.RegistryControllerTest do
       assert link_header =~ "swift-version=5.9"
     end
 
+    test "serves two-component manifest from disk when three-component swift-version is requested", %{conn: conn} do
+      scope = "pointfreeco"
+      name = "swift-custom-dump"
+      version = "1.3.3"
+
+      stub(Registry.Disk, :exists?, fn
+        ^scope, ^name, ^version, "Package@swift-6.0.0.swift" -> false
+        ^scope, ^name, ^version, "Package@swift-6.0.swift" -> true
+        ^scope, ^name, ^version, "Package@swift-6.swift" -> false
+      end)
+
+      stub(S3, :exists?, fn _key, _opts -> false end)
+
+      expect(Registry.Disk, :local_accel_path, fn ^scope, ^name, ^version, "Package@swift-6.0.swift" ->
+        "/internal/local/registry/swift/pointfreeco/swift-custom-dump/1.3.3/Package@swift-6.0.swift"
+      end)
+
+      conn =
+        conn
+        |> registry_swift_conn()
+        |> get("/api/registry/swift/#{scope}/#{name}/#{version}/Package.swift?swift-version=6.0.0")
+
+      assert conn.status == 200
+      assert get_resp_header(conn, "content-version") == ["1"]
+
+      assert get_resp_header(conn, "x-accel-redirect") == [
+               "/internal/local/registry/swift/pointfreeco/swift-custom-dump/1.3.3/Package@swift-6.0.swift"
+             ]
+
+      assert get_resp_header(conn, "link") == []
+    end
+
+    test "serves two-component manifest from S3 when three-component swift-version is requested", %{conn: conn} do
+      scope = "pointfreeco"
+      name = "swift-custom-dump"
+      version = "1.3.3"
+
+      stub(Registry.Disk, :exists?, fn
+        ^scope, ^name, ^version, "Package@swift-6.0.0.swift" -> false
+        ^scope, ^name, ^version, "Package@swift-6.0.swift" -> false
+        ^scope, ^name, ^version, "Package@swift-6.swift" -> false
+      end)
+
+      stub(S3, :exists?, fn
+        key, _opts when is_binary(key) ->
+          String.ends_with?(key, "/Package@swift-6.0.swift")
+      end)
+
+      expect(S3Transfers, :enqueue_registry_download, fn _key -> {:ok, %{}} end)
+
+      expect(S3, :presign_download_url, fn _key, _opts ->
+        {:ok,
+         "https://s3.example.com/registry/swift/pointfreeco/swift-custom-dump/1.3.3/Package@swift-6.0.swift?signed=true"}
+      end)
+
+      expect(S3, :remote_accel_path, fn _url ->
+        "/internal/remote/https://s3.example.com/registry/swift/pointfreeco/swift-custom-dump/1.3.3/Package@swift-6.0.swift?signed=true"
+      end)
+
+      conn =
+        conn
+        |> registry_swift_conn()
+        |> get("/api/registry/swift/#{scope}/#{name}/#{version}/Package.swift?swift-version=6.0.0")
+
+      assert conn.status == 200
+      assert get_resp_header(conn, "content-version") == ["1"]
+
+      assert get_resp_header(conn, "x-accel-redirect") == [
+               "/internal/remote/https://s3.example.com/registry/swift/pointfreeco/swift-custom-dump/1.3.3/Package@swift-6.0.swift?signed=true"
+             ]
+
+      assert get_resp_header(conn, "link") == []
+    end
+
     test "redirects to default manifest when swift-version specified but not found", %{conn: conn} do
       scope = "apple"
       name = "swift-argument-parser"

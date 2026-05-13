@@ -33,6 +33,10 @@ permissions:
   contents: read
   packages: write
 
+permissions:
+  contents: read
+  packages: write
+
 jobs:
   build:
     runs-on: [self-hosted, macos, bare-metal, vm-image-builder]

@@ -25,7 +25,6 @@ on:
   workflow_dispatch:
 
 permissions:
-  id-token: write
   contents: read
 
 env:
@@ -83,6 +82,9 @@ jobs:
     runs-on: macos-26
     timeout-minutes: 30
     needs: [check-team-membership]
+    permissions:
+      contents: read
+      id-token: write
     if: |
       always() &&
       !cancelled() &&
@@ -140,6 +142,9 @@ jobs:
     runs-on: macos-26
     timeout-minutes: 30
     needs: [check-team-membership]
+    permissions:
+      contents: read
+      id-token: write
     if: |
       always() &&
       !cancelled() &&
@@ -186,6 +191,9 @@ jobs:
     runs-on: macos-26
     timeout-minutes: 30
     needs: [check-team-membership]
+    permissions:
+      contents: read
+      id-token: write
     if: |
       always() &&
       !cancelled() &&

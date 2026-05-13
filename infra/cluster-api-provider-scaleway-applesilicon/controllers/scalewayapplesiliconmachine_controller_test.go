@@ -173,4 +173,3 @@ func backdateBootstrappedCondition(machine *infrav1.ScalewayAppleSiliconMachine,
 		}
 	}
 }
-

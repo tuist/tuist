@@ -401,10 +401,12 @@ defmodule Tuist.Application do
   end
 
   # Reconciles Kura deployments stranded in `:running` after a crash or
-  # rolling deploy. Web mode only; processor mode doesn't run Kura
-  # rollout jobs and so never produces orphans.
+  # rolling deploy. Mirrors the gate on the `Tuist.Kura.Reconciler` cron
+  # in `Tuist.Oban.RuntimeConfig.crontab/3`: web mode, prod-like env,
+  # Tuist-hosted. Anywhere else (dev, test, self-hosted, non-web pods)
+  # Kura is not provisioned and the reconciler has nothing to do.
   defp kura_children do
-    if Environment.web?() and not Environment.test?() do
+    if Environment.web?() and Environment.env() in [:prod, :stag, :can] and Environment.tuist_hosted?() do
       [
         Supervisor.child_spec(
           {Task, &Kura.reconcile_orphaned_deployments/0},

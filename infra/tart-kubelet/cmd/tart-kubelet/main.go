@@ -158,7 +158,6 @@ func main() {
 		setupLog.Info("binding metrics endpoint to tailnet IP", "addr", metricsAddr)
 	}
 
-
 	// controller-runtime's GetConfigOrDie resolves config via (in order):
 	//   1. `--kubeconfig` flag value (set by launchd plist)
 	//   2. KUBECONFIG env

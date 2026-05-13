@@ -20,7 +20,7 @@ ARG RUNNER_IMAGE="debian:${DEBIAN_VERSION}"
 
 FROM node:24-slim AS npm-deps
 ENV CI=1
-RUN npm install -g --ignore-scripts=false @endevco/aube
+RUN npm install -g --ignore-scripts=false @endevco/aube@1.6.2
 
 COPY package.json aube-lock.yaml /app/noora/
 COPY js/ /app/noora/js/

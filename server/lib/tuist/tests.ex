@@ -24,7 +24,9 @@ defmodule Tuist.Tests do
   alias Tuist.Accounts.Account
   alias Tuist.Automations
   alias Tuist.ClickHouseRepo
+  alias Tuist.Environment
   alias Tuist.IngestRepo
+  alias Tuist.KeyValueStore
   alias Tuist.Projects.Project
   alias Tuist.Repo
   alias Tuist.Shards
@@ -56,12 +58,22 @@ defmodule Tuist.Tests do
   # (i.e. still part of the suite). Used by `list_test_cases/2` and by the Test
   # Cases / Flaky Tests analytics charts so they stay in sync.
   @active_window_days 14
+  @short_cache_ttl to_timeout(second: 10)
+  @unscoped_test_suite_runs_lookback_days 7
 
   @doc """
   Number of trailing days used across the product to decide whether a test case
   is still considered part of the suite.
   """
   def active_window_days, do: @active_window_days
+
+  defp cached_count(key, fun) do
+    if Environment.test?() do
+      fun.()
+    else
+      KeyValueStore.get_or_update([:tests, key], [ttl: @short_cache_ttl], fun)
+    end
+  end
 
   # State-change events emitted by `update_test_case` use the `muted` /
   # `unmuted` names. Pre-rename rows have already been backfilled to these
@@ -133,11 +145,14 @@ defmodule Tuist.Tests do
   end
 
   def last_24h_test_run_count do
+    cached_count(:last_24h_test_run_count, &last_24h_test_run_count_query/0)
+  end
+
+  defp last_24h_test_run_count_query do
     twenty_four_hours_ago = DateTime.add(DateTime.utc_now(), -24, :hour)
 
     ClickHouseRepo.one(
       from(t in Test,
-        hints: ["FINAL"],
         where: t.inserted_at >= ^twenty_four_hours_ago,
         select: count()
       )
@@ -146,6 +161,10 @@ defmodule Tuist.Tests do
   end
 
   def last_24h_test_case_run_count do
+    cached_count(:last_24h_test_case_run_count, &last_24h_test_case_run_count_query/0)
+  end
+
+  defp last_24h_test_case_run_count_query do
     yesterday = Date.add(Date.utc_today(), -1)
 
     ClickHouseRepo.one(
@@ -157,6 +176,10 @@ defmodule Tuist.Tests do
   end
 
   def last_24h_flaky_test_case_run_count do
+    cached_count(:last_24h_flaky_test_case_run_count, &last_24h_flaky_test_case_run_count_query/0)
+  end
+
+  defp last_24h_flaky_test_case_run_count_query do
     yesterday = Date.add(Date.utc_today(), -1)
 
     ClickHouseRepo.one(
@@ -290,12 +313,33 @@ defmodule Tuist.Tests do
   end
 
   def list_test_suite_runs(attrs) do
-    Tuist.ClickHouseFlop.validate_and_run!(TestSuiteRun, attrs, for: TestSuiteRun)
+    base_query =
+      if scoped_test_suite_run_attrs?(attrs) do
+        TestSuiteRun
+      else
+        seven_days_ago = DateTime.add(DateTime.utc_now(), -@unscoped_test_suite_runs_lookback_days, :day)
+        from(tsr in TestSuiteRun, where: tsr.inserted_at >= ^seven_days_ago)
+      end
+
+    Tuist.ClickHouseFlop.validate_and_run!(base_query, attrs, for: TestSuiteRun)
   end
 
   def list_test_module_runs(attrs) do
     Tuist.ClickHouseFlop.validate_and_run!(TestModuleRun, attrs, for: TestModuleRun)
   end
+
+  defp scoped_test_suite_run_attrs?(attrs) do
+    attrs
+    |> flop_filters()
+    |> Enum.any?(fn
+      %{field: field} when field in [:test_run_id, :test_module_run_id, :shard_id] -> true
+      _ -> false
+    end)
+  end
+
+  defp flop_filters(%Flop{filters: filters}), do: List.wrap(filters)
+  defp flop_filters(%{filters: filters}) when is_list(filters), do: filters
+  defp flop_filters(_attrs), do: []
 
   @doc """
   Constructs a CI run URL for a test run based on the CI provider and metadata.
@@ -991,15 +1035,38 @@ defmodule Tuist.Tests do
     ids = Enum.map(slim_results, & &1.id)
     project_ids = slim_results |> Enum.map(& &1.project_id) |> Enum.uniq()
     test_case_ids = slim_results |> Enum.map(& &1.test_case_id) |> Enum.uniq()
+    {min_ran_at, max_ran_at} = ran_at_bounds(slim_results)
 
     ClickHouseRepo.all(
       from(tcr in TestCaseRun,
         hints: ["FINAL"],
         where: tcr.project_id in ^project_ids,
         where: tcr.test_case_id in ^test_case_ids,
+        where: tcr.ran_at >= ^min_ran_at,
+        where: tcr.ran_at <= ^max_ran_at,
         where: tcr.id in ^ids
       )
     )
+  end
+
+  defp ran_at_bounds([first | rest]) do
+    Enum.reduce(rest, {first.ran_at, first.ran_at}, fn run, {min_ran_at, max_ran_at} ->
+      min_ran_at =
+        if NaiveDateTime.before?(run.ran_at, min_ran_at) do
+          run.ran_at
+        else
+          min_ran_at
+        end
+
+      max_ran_at =
+        if NaiveDateTime.after?(run.ran_at, max_ran_at) do
+          run.ran_at
+        else
+          max_ran_at
+        end
+
+      {min_ran_at, max_ran_at}
+    end)
   end
 
   defp extract_mv_scope_filter(%{filters: filters}) when is_list(filters) do

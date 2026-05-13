@@ -9,7 +9,7 @@ use axum_server::Handle;
 use hyper_util::rt::TokioTimer;
 use tokio::sync::{Notify, Semaphore, oneshot};
 use tokio::{task::JoinHandle, time::Instant};
-use tracing::{info, warn};
+use tracing::{Instrument, info, warn};
 
 use crate::{
     analytics::Analytics,
@@ -25,7 +25,7 @@ use crate::{
     runtime::{DataDirLock, RuntimeState},
     state::{AppState, ReadinessState},
     store::Store,
-    telemetry::init_tracing,
+    telemetry::{init_tracing, log_context_span},
 };
 
 #[derive(Clone, Copy, Debug)]
@@ -48,7 +48,14 @@ impl ShutdownBudget {
 pub async fn run() -> Result<(), String> {
     let config = Config::from_env().map_err(|error| format!("invalid configuration: {error}"))?;
     let telemetry = init_tracing(&config);
+    let log_context = log_context_span(&config);
+    let result = run_with_config(config).instrument(log_context).await;
 
+    telemetry.shutdown();
+    result
+}
+
+async fn run_with_config(config: Config) -> Result<(), String> {
     if let Err(error) = raise_nofile_soft_to_hard() {
         tracing::warn!("failed to raise RLIMIT_NOFILE soft limit: {error}");
     }
@@ -136,23 +143,26 @@ pub async fn run() -> Result<(), String> {
     let (shutdown_budget_tx, shutdown_budget_rx) = oneshot::channel::<ShutdownBudget>();
     let grpc_shutdown_rx = shutdown_rx.clone();
     let grpc_state = state.clone();
-    let grpc_handle = tokio::spawn(async move {
-        let grpc_shutdown = async move {
-            let mut shutdown_rx = grpc_shutdown_rx;
-            if shutdown_rx.borrow().is_some() {
-                return;
-            }
-            while shutdown_rx.changed().await.is_ok() {
+    let grpc_handle = tokio::spawn(
+        async move {
+            let grpc_shutdown = async move {
+                let mut shutdown_rx = grpc_shutdown_rx;
                 if shutdown_rx.borrow().is_some() {
                     return;
                 }
-            }
-        };
+                while shutdown_rx.changed().await.is_ok() {
+                    if shutdown_rx.borrow().is_some() {
+                        return;
+                    }
+                }
+            };
 
-        if let Err(error) = reapi::serve(grpc_listener, grpc_state, grpc_shutdown).await {
-            tracing::error!("gRPC server failed: {error}");
+            if let Err(error) = reapi::serve(grpc_listener, grpc_state, grpc_shutdown).await {
+                tracing::error!("gRPC server failed: {error}");
+            }
         }
-    });
+        .in_current_span(),
+    );
 
     let internal_handle = if let Some(peer_tls) = state.config.peer_tls.clone() {
         let tls_config = build_internal_rustls_config(&peer_tls).await?;
@@ -160,53 +170,65 @@ pub async fn run() -> Result<(), String> {
         let mut internal_shutdown_rx = shutdown_rx.clone();
         let handle = Handle::new();
         let shutdown_handle = handle.clone();
-        tokio::spawn(async move {
-            if let Some(budget) = *internal_shutdown_rx.borrow() {
-                shutdown_handle.graceful_shutdown(Some(budget.remaining()));
-                return;
-            }
-            while internal_shutdown_rx.changed().await.is_ok() {
+        tokio::spawn(
+            async move {
                 if let Some(budget) = *internal_shutdown_rx.borrow() {
                     shutdown_handle.graceful_shutdown(Some(budget.remaining()));
                     return;
                 }
+                while internal_shutdown_rx.changed().await.is_ok() {
+                    if let Some(budget) = *internal_shutdown_rx.borrow() {
+                        shutdown_handle.graceful_shutdown(Some(budget.remaining()));
+                        return;
+                    }
+                }
             }
-        });
-        Some(tokio::spawn(async move {
-            if let Err(error) = axum_server::bind_rustls(internal_address, tls_config)
-                .handle(handle)
-                .serve(internal_router.into_make_service())
-                .await
-            {
-                tracing::error!("internal mTLS server failed: {error}");
+            .in_current_span(),
+        );
+        Some(tokio::spawn(
+            async move {
+                if let Err(error) = axum_server::bind_rustls(internal_address, tls_config)
+                    .handle(handle)
+                    .serve(internal_router.into_make_service())
+                    .await
+                {
+                    tracing::error!("internal mTLS server failed: {error}");
+                }
             }
-        }))
+            .in_current_span(),
+        ))
     } else {
         let internal_router = http::internal_router(state.clone());
         let mut internal_shutdown_rx = shutdown_rx.clone();
         let handle = Handle::new();
         let shutdown_handle = handle.clone();
-        tokio::spawn(async move {
-            if let Some(budget) = *internal_shutdown_rx.borrow() {
-                shutdown_handle.graceful_shutdown(Some(budget.remaining()));
-                return;
-            }
-            while internal_shutdown_rx.changed().await.is_ok() {
+        tokio::spawn(
+            async move {
                 if let Some(budget) = *internal_shutdown_rx.borrow() {
                     shutdown_handle.graceful_shutdown(Some(budget.remaining()));
                     return;
                 }
+                while internal_shutdown_rx.changed().await.is_ok() {
+                    if let Some(budget) = *internal_shutdown_rx.borrow() {
+                        shutdown_handle.graceful_shutdown(Some(budget.remaining()));
+                        return;
+                    }
+                }
             }
-        });
-        Some(tokio::spawn(async move {
-            if let Err(error) = axum_server::bind(internal_address)
-                .handle(handle)
-                .serve(internal_router.into_make_service())
-                .await
-            {
-                tracing::error!("internal server failed: {error}");
+            .in_current_span(),
+        );
+        Some(tokio::spawn(
+            async move {
+                if let Err(error) = axum_server::bind(internal_address)
+                    .handle(handle)
+                    .serve(internal_router.into_make_service())
+                    .await
+                {
+                    tracing::error!("internal server failed: {error}");
+                }
             }
-        }))
+            .in_current_span(),
+        ))
     };
 
     let router = http::public_router(state.clone());
@@ -215,32 +237,38 @@ pub async fn run() -> Result<(), String> {
     let public_shutdown_handle = public_handle.clone();
     let https_shutdown_handle = https_handle.clone();
     let public_shutdown_state = state.clone();
-    tokio::spawn(async move {
-        shutdown_signal().await;
-        let budget = ShutdownBudget::new(drain_completion_timeout);
-        let _ = shutdown_budget_tx.send(budget);
-        let _ = public_shutdown_state.enter_draining();
-        public_shutdown_state.sync_runtime_metrics().await;
-        public_shutdown_handle.graceful_shutdown(Some(budget.remaining()));
-        https_shutdown_handle.graceful_shutdown(Some(budget.remaining()));
-    });
+    tokio::spawn(
+        async move {
+            shutdown_signal().await;
+            let budget = ShutdownBudget::new(drain_completion_timeout);
+            let _ = shutdown_budget_tx.send(budget);
+            let _ = public_shutdown_state.enter_draining();
+            public_shutdown_state.sync_runtime_metrics().await;
+            public_shutdown_handle.graceful_shutdown(Some(budget.remaining()));
+            https_shutdown_handle.graceful_shutdown(Some(budget.remaining()));
+        }
+        .in_current_span(),
+    );
 
     let https_handle_task = if let Some(public_tls) = state.config.public_tls.clone() {
         let tls_config = build_public_rustls_config(&public_tls).await?;
         let https_router = http::public_router(state.clone());
-        Some(tokio::spawn(async move {
-            let mut server =
-                axum_server::bind_rustls(https_address, tls_config).handle(https_handle);
-            server
-                .http_builder()
-                .http1()
-                .keep_alive(true)
-                .timer(TokioTimer::new())
-                .header_read_timeout(Some(Duration::from_secs(30)));
-            if let Err(error) = server.serve(https_router.into_make_service()).await {
-                tracing::error!("public HTTPS server failed: {error}");
+        Some(tokio::spawn(
+            async move {
+                let mut server =
+                    axum_server::bind_rustls(https_address, tls_config).handle(https_handle);
+                server
+                    .http_builder()
+                    .http1()
+                    .keep_alive(true)
+                    .timer(TokioTimer::new())
+                    .header_read_timeout(Some(Duration::from_secs(30)));
+                if let Err(error) = server.serve(https_router.into_make_service()).await {
+                    tracing::error!("public HTTPS server failed: {error}");
+                }
             }
-        }))
+            .in_current_span(),
+        ))
     } else {
         None
     };
@@ -278,8 +306,6 @@ pub async fn run() -> Result<(), String> {
         wait_for_task_shutdown(https_handle_task, "public HTTPS", shutdown_budget).await;
     }
 
-    telemetry.shutdown();
-
     Ok(())
 }
 
@@ -302,128 +328,142 @@ async fn shutdown_signal() {
 }
 
 fn spawn_snapshot_task(state: Arc<AppState>) {
-    tokio::spawn(async move {
-        loop {
-            let worker_state = state.clone();
-            match tokio::task::spawn_blocking(move || {
-                let snapshot = worker_state.store.snapshot();
-                let memory = process_memory_snapshot();
-                (snapshot, memory)
-            })
-            .await
-            {
-                Ok((Ok(snapshot), memory)) => {
-                    state
-                        .metrics
-                        .update_outbox_messages(snapshot.outbox_messages);
-                    state.runtime.update_outbox_depth(snapshot.outbox_messages);
-                    state
-                        .metrics
-                        .update_multipart_uploads(snapshot.multipart_uploads);
-                    for (generation, count) in snapshot.segment_counts {
+    tokio::spawn(
+        async move {
+            loop {
+                let worker_state = state.clone();
+                match tokio::task::spawn_blocking(move || {
+                    let snapshot = worker_state.store.snapshot();
+                    let memory = process_memory_snapshot();
+                    (snapshot, memory)
+                })
+                .await
+                {
+                    Ok((Ok(snapshot), memory)) => {
                         state
                             .metrics
-                            .update_segment_generation_count(generation, count);
-                    }
-                    state.metrics.update_rocksdb_memory(
-                        snapshot.rocksdb_block_cache_usage_bytes,
-                        snapshot.rocksdb_block_cache_pinned_usage_bytes,
-                        snapshot.rocksdb_block_cache_capacity_bytes,
-                        snapshot.rocksdb_write_buffer_usage_bytes,
-                        snapshot.rocksdb_write_buffer_capacity_bytes,
-                    );
-                    if let Some(memory) = memory {
+                            .update_outbox_messages(snapshot.outbox_messages);
+                        state.runtime.update_outbox_depth(snapshot.outbox_messages);
                         state
                             .metrics
-                            .update_process_memory(memory.resident_bytes, memory.virtual_bytes);
-                        let pressure = state.memory.observe(memory.resident_bytes);
-                        let target_bytes = state
-                            .memory
-                            .manifest_cache_target_bytes(state.config.manifest_cache_max_bytes);
-                        let evicted = state.store.trim_manifest_cache_to(target_bytes, "pressure");
-                        if evicted > 0 {
-                            state.metrics.record_memory_action("manifest_cache_trim");
+                            .update_multipart_uploads(snapshot.multipart_uploads);
+                        for (generation, count) in snapshot.segment_counts {
+                            state
+                                .metrics
+                                .update_segment_generation_count(generation, count);
                         }
-                        state
-                            .metrics
-                            .update_background_work_paused("outbox", state.memory.pause_outbox());
-                        state.metrics.update_background_work_paused(
-                            "segment_refresh",
-                            !state.memory.allow_segment_refresh(),
+                        state.metrics.update_rocksdb_memory(
+                            snapshot.rocksdb_block_cache_usage_bytes,
+                            snapshot.rocksdb_block_cache_pinned_usage_bytes,
+                            snapshot.rocksdb_block_cache_capacity_bytes,
+                            snapshot.rocksdb_write_buffer_usage_bytes,
+                            snapshot.rocksdb_write_buffer_capacity_bytes,
                         );
-                        state
-                            .metrics
-                            .update_memory_pressure_state(pressure.as_i64());
+                        if let Some(memory) = memory {
+                            state
+                                .metrics
+                                .update_process_memory(memory.resident_bytes, memory.virtual_bytes);
+                            let pressure = state.memory.observe(memory.resident_bytes);
+                            let target_bytes = state
+                                .memory
+                                .manifest_cache_target_bytes(state.config.manifest_cache_max_bytes);
+                            let evicted =
+                                state.store.trim_manifest_cache_to(target_bytes, "pressure");
+                            if evicted > 0 {
+                                state.metrics.record_memory_action("manifest_cache_trim");
+                            }
+                            state.metrics.update_background_work_paused(
+                                "outbox",
+                                state.memory.pause_outbox(),
+                            );
+                            state.metrics.update_background_work_paused(
+                                "segment_refresh",
+                                !state.memory.allow_segment_refresh(),
+                            );
+                            state
+                                .metrics
+                                .update_memory_pressure_state(pressure.as_i64());
+                        }
+                    }
+                    Ok((Err(error), _)) => {
+                        tracing::warn!("failed to collect store snapshot metrics: {error}");
+                    }
+                    Err(error) => {
+                        tracing::warn!("snapshot metrics task failed: {error}");
                     }
                 }
-                Ok((Err(error), _)) => {
-                    tracing::warn!("failed to collect store snapshot metrics: {error}");
-                }
-                Err(error) => {
-                    tracing::warn!("snapshot metrics task failed: {error}");
-                }
-            }
 
-            tokio::time::sleep(Duration::from_secs(5)).await;
+                tokio::time::sleep(Duration::from_secs(5)).await;
+            }
         }
-    });
+        .in_current_span(),
+    );
 }
 
 fn spawn_runtime_metrics_task(state: Arc<AppState>) {
-    tokio::spawn(async move {
-        loop {
-            state.sync_runtime_metrics().await;
-            tokio::time::sleep(Duration::from_secs(1)).await;
+    tokio::spawn(
+        async move {
+            loop {
+                state.sync_runtime_metrics().await;
+                tokio::time::sleep(Duration::from_secs(1)).await;
+            }
         }
-    });
+        .in_current_span(),
+    );
 }
 
 fn spawn_multipart_janitor_task(state: Arc<AppState>) {
     let interval = Duration::from_millis(state.config.multipart_janitor_interval_ms);
     let ttl_ms = state.config.multipart_upload_ttl_ms;
-    tokio::spawn(async move {
-        loop {
-            tokio::time::sleep(interval).await;
-            let now = crate::utils::now_ms();
-            let cutoff_ms = now.saturating_sub(ttl_ms);
-            let stale = match state.store.multipart_uploads_older_than(cutoff_ms) {
-                Ok(stale) => stale,
-                Err(error) => {
-                    warn!("multipart janitor scan failed: {error}");
+    tokio::spawn(
+        async move {
+            loop {
+                tokio::time::sleep(interval).await;
+                let now = crate::utils::now_ms();
+                let cutoff_ms = now.saturating_sub(ttl_ms);
+                let stale = match state.store.multipart_uploads_older_than(cutoff_ms) {
+                    Ok(stale) => stale,
+                    Err(error) => {
+                        warn!("multipart janitor scan failed: {error}");
+                        continue;
+                    }
+                };
+                if stale.is_empty() {
                     continue;
                 }
-            };
-            if stale.is_empty() {
-                continue;
-            }
-            for upload_id in &stale {
-                if let Err(error) = state.store.abort_multipart_upload(upload_id).await {
-                    warn!("multipart janitor failed to expire {upload_id}: {error}");
+                for upload_id in &stale {
+                    if let Err(error) = state.store.abort_multipart_upload(upload_id).await {
+                        warn!("multipart janitor failed to expire {upload_id}: {error}");
+                    }
                 }
+                state
+                    .metrics
+                    .record_memory_action("multipart_janitor_pruned");
+                info!(
+                    ttl_ms,
+                    expired = stale.len(),
+                    "multipart janitor pruned stale uploads"
+                );
             }
-            state
-                .metrics
-                .record_memory_action("multipart_janitor_pruned");
-            info!(
-                ttl_ms,
-                expired = stale.len(),
-                "multipart janitor pruned stale uploads"
-            );
         }
-    });
+        .in_current_span(),
+    );
 }
 
 fn spawn_tmp_dir_metrics_task(state: Arc<AppState>) {
-    tokio::spawn(async move {
-        loop {
-            tokio::time::sleep(Duration::from_secs(30)).await;
-            let tmp_dir = state.config.tmp_dir.clone();
-            let bytes = tokio::task::spawn_blocking(move || directory_size_bytes(&tmp_dir))
-                .await
-                .unwrap_or(0);
-            state.metrics.update_tmp_dir_bytes(bytes);
+    tokio::spawn(
+        async move {
+            loop {
+                tokio::time::sleep(Duration::from_secs(30)).await;
+                let tmp_dir = state.config.tmp_dir.clone();
+                let bytes = tokio::task::spawn_blocking(move || directory_size_bytes(&tmp_dir))
+                    .await
+                    .unwrap_or(0);
+                state.metrics.update_tmp_dir_bytes(bytes);
+            }
         }
-    });
+        .in_current_span(),
+    );
 }
 
 #[cfg(unix)]
@@ -490,20 +530,23 @@ fn directory_size_bytes(path: &std::path::Path) -> u64 {
 
 #[cfg(unix)]
 fn spawn_drain_signal_task(state: Arc<AppState>) {
-    tokio::spawn(async move {
-        let mut signal =
-            tokio::signal::unix::signal(tokio::signal::unix::SignalKind::user_defined1())
-                .expect("failed to install SIGUSR1 handler");
-        loop {
-            if signal.recv().await.is_none() {
-                return;
-            }
-            if state.enter_draining() {
-                state.sync_runtime_metrics().await;
-                info!("received SIGUSR1, entering draining state");
+    tokio::spawn(
+        async move {
+            let mut signal =
+                tokio::signal::unix::signal(tokio::signal::unix::SignalKind::user_defined1())
+                    .expect("failed to install SIGUSR1 handler");
+            loop {
+                if signal.recv().await.is_none() {
+                    return;
+                }
+                if state.enter_draining() {
+                    state.sync_runtime_metrics().await;
+                    info!("received SIGUSR1, entering draining state");
+                }
             }
         }
-    });
+        .in_current_span(),
+    );
 }
 
 #[cfg(not(unix))]

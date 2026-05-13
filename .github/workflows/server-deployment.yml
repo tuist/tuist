@@ -78,15 +78,14 @@ on:
       kura_runtime_image_tag:
         description: >-
           Pre-built Kura runtime image tag to deploy. When unset, the
-          deploy job resolves the latest kura@ release and strips the
-          release prefix before passing it to Helm.
+          deploy job resolves the latest kura@ release tag and strips the
+          tag prefix before passing it to Helm.
         required: false
         type: string
 
 permissions:
   contents: read
   packages: write
-  id-token: write
 
 env:
   REGISTRY: ghcr.io
@@ -98,6 +97,7 @@ env:
   OBSERVABILITY_RELEASE_NAME: k8s-monitoring
   OBSERVABILITY_NAMESPACE: observability
   DEPLOY_SHA: ${{ inputs.commit_sha || github.sha }}
+  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN || github.token }}
 
 jobs:
   build:
@@ -418,7 +418,7 @@ jobs:
             kubectl -n "$NAMESPACE" get jobs \
               -l app.kubernetes.io/component=server-migration \
               -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' |
-              grep -E '-[0-9]+$' || true
+              grep -E -- '-[0-9]+$' || true
           )"
 
           if [ -z "$stale_jobs" ]; then
@@ -434,8 +434,6 @@ jobs:
           echo "$stale_jobs" | xargs -r kubectl -n "$NAMESPACE" delete job \
             --ignore-not-found --cascade=foreground --timeout=2m
       - name: Resolve Kura runtime image tag
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
 
@@ -444,36 +442,23 @@ jobs:
             exit 0
           fi
 
-          page=1
-          while true; do
-            response="$(
-              curl --fail --silent --show-error \
-                --header "Accept: application/vnd.github+json" \
-                --header "Authorization: Bearer $GITHUB_TOKEN" \
-                "https://api.github.com/repos/tuist/tuist/releases?per_page=100&page=$page"
-            )"
+          refs="$(git ls-remote --tags --refs origin 'refs/tags/kura@*')"
+          tag="$(
+            printf '%s\n' "$refs" |
+              awk -F'refs/tags/kura@' 'NF == 2 { print $2 }' |
+              grep -E '^[0-9]+[.][0-9]+[.][0-9]+$' |
+              sort -V |
+              tail -n 1 ||
+              true
+          )"
 
-            tag="$(
-              printf '%s' "$response" | python3 -c 'import json, sys; print(next((release["tag_name"].removeprefix("kura@") for release in json.load(sys.stdin) if release.get("tag_name", "").startswith("kura@")), ""), end="")'
-            )"
+          if [ -z "$tag" ]; then
+            echo "No kura@ release tag found."
+            exit 1
+          fi
 
-            if [ -n "$tag" ]; then
-              echo "KURA_RUNTIME_IMAGE_TAG=$tag" >> "$GITHUB_ENV"
-              echo "Resolved Kura runtime image tag $tag"
-              exit 0
-            fi
-
-            count="$(
-              printf '%s' "$response" | python3 -c 'import json, sys; print(len(json.load(sys.stdin)))'
-            )"
-
-            if [ "$count" -lt 100 ]; then
-              echo "No kura@ release found in GitHub releases."
-              exit 1
-            fi
-
-            page=$((page + 1))
-          done
+          echo "KURA_RUNTIME_IMAGE_TAG=$tag" >> "$GITHUB_ENV"
+          echo "Resolved Kura runtime image tag $tag"
       - name: helm upgrade --install
         # App secrets never pass through --set: the chart runs in
         # `server.managedSecrets: true` mode, which reads DATABASE_URL /

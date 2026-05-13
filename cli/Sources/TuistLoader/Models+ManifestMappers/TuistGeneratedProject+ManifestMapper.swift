@@ -41,7 +41,9 @@ extension TuistConfig.TuistGeneratedProjectOptions.GenerationOptions {
             warningsAsErrors: TuistConfig.TuistGeneratedProjectOptions.GenerationOptions.WarningsAsErrors
                 .from(manifest: manifest.warningsAsErrors),
             defaultSwiftVersion: manifest.defaultSwiftVersion,
-            manifestEnvironment: manifest.manifestEnvironment
+            manifestEnvironment: manifest.manifestEnvironment,
+            onOutdatedDependencies: TuistConfig.TuistGeneratedProjectOptions.GenerationOptions.OutdatedDependenciesAction
+                .from(manifest: manifest.onOutdatedDependencies)
         )
     }
 }
@@ -85,6 +87,16 @@ extension TuistConfig.TuistGeneratedProjectOptions.GenerationOptions.GenerationW
         case .schemeTargetNotFound: return .schemeTargetNotFound
         case .mismatchedConfigurations: return .mismatchedConfigurations
         case .duplicateProductNames: return .duplicateProductNames
+        }
+    }
+}
+
+extension TuistConfig.TuistGeneratedProjectOptions.GenerationOptions.OutdatedDependenciesAction {
+    static func from(manifest: ProjectDescription.Config.GenerationOptions.OutdatedDependenciesAction) -> Self {
+        switch manifest {
+        case .warn: return .warn
+        case .install: return .install
+        case .fail: return .fail
         }
     }
 }

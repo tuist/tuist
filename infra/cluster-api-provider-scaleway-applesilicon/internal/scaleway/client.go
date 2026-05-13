@@ -226,10 +226,10 @@ var ErrNoAvailableHost = errors.New("no available Apple Silicon host in pool")
 // The "claim by rename" model relies on the operator's naming
 // convention as the single source of truth for "available":
 //
-//   * Operator pre-orders a Mac mini in the Scaleway console and
+//   - Operator pre-orders a Mac mini in the Scaleway console and
 //     names it `<poolPrefix>-<anything>` (e.g. the chart default
 //     `tuist-pool-001`, `tuist-pool-fr-par-1-a`, etc.).
-//   * Controller picks the first one whose `(type, os, status)`
+//   - Controller picks the first one whose `(type, os, status)`
 //     match this Machine and renames it. Two concurrent
 //     reconciles racing for the same host both call UpdateServer
 //     with the same `claimName`; Scaleway returns a name
@@ -244,6 +244,19 @@ var ErrNoAvailableHost = errors.New("no available Apple Silicon host in pool")
 func (c *Client) AdoptByPrefix(ctx context.Context, claimName, zone, serverType, osName, poolPrefix string) (*Server, error) {
 	if poolPrefix == "" {
 		return nil, fmt.Errorf("poolPrefix is required for adoption")
+	}
+
+	// Idempotent rediscovery: if a previous reconcile renamed a
+	// pool host to `claimName` but its `status.serverID` patch was
+	// lost (process crash, conflicted optimistic write), the host
+	// no longer carries `poolPrefix` and the scan below would
+	// return ErrNoAvailableHost — leaving the renamed server
+	// orphaned outside the pool. Check by name first so the next
+	// reconcile picks the already-claimed host back up.
+	if existing, err := c.findServerByName(ctx, claimName, zone); err != nil {
+		return nil, fmt.Errorf("lookup existing claim %q: %w", claimName, err)
+	} else if existing != nil {
+		return scalewayServerToServer(existing), nil
 	}
 
 	page := int32(1)
