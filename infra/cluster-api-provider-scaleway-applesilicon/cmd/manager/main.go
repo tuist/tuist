@@ -63,6 +63,9 @@ func main() {
 		nodeIdentityClusterRole      string
 		tartKubeletBinaryPath        string
 		tartTarballPath              string
+		tailscalePkgPath             string
+		nodeExporterBinaryPath       string
+		tailscaleAuthKeySecretName   string
 		tartKubeletHostCPU           int
 		tartKubeletHostMemory        int
 		tartKubeletMaxPods           int
@@ -96,6 +99,28 @@ func main() {
 		envOrDefault("CAPI_TART_TARBALL_PATH", "/opt/tart/tart.tar.gz"),
 		"Local path of the upstream tart.app tarball baked into this image. "+
 			"Pinned by Dockerfile ARG; bumping it is a deliberate operator-image change.")
+	flag.StringVar(&tailscalePkgPath, "tailscale-pkg-path",
+		envOrDefault("CAPI_TAILSCALE_PKG_PATH", ""),
+		"Local path of the macOS Tailscale .pkg installer baked into this image "+
+			"(/opt/tailscale/tailscale.pkg by default). Empty disables the "+
+			"Tailscale bootstrap step — the operator ships kubelet on the "+
+			"public interface, with host-level metrics scraping off. Set in "+
+			"managed envs where the tailnet is the metrics path.")
+	flag.StringVar(&nodeExporterBinaryPath, "node-exporter-binary-path",
+		envOrDefault("CAPI_NODE_EXPORTER_BINARY_PATH", ""),
+		"Local path of the darwin/arm64 node_exporter binary baked into this "+
+			"image (/opt/node-exporter/node_exporter-darwin-arm64 by default). "+
+			"Empty disables the host-metrics step. Paired with "+
+			"--tailscale-pkg-path: node_exporter without Tailscale would bind "+
+			"to a public interface, which the bootstrap step actively refuses.")
+	flag.StringVar(&tailscaleAuthKeySecretName, "tailscale-auth-key-secret-name",
+		envOrDefault("CAPI_TAILSCALE_AUTH_KEY_SECRET_NAME", ""),
+		"Name of the operator-namespace Secret (key `auth-key`) holding the "+
+			"Tailscale pre-auth key the bootstrap uses for `tailscale up`. "+
+			"Synced from 1Password via ESO — see the chart's "+
+			"macos-fleet-tailscale-external-secrets.yaml. Empty disables the "+
+			"Tailscale step even when --tailscale-pkg-path is set, so a chart "+
+			"bring-up where ESO hasn't synced yet falls back cleanly.")
 	flag.IntVar(&tartKubeletHostCPU, "tartkubelet-host-cpu", 8, "CPU cores tart-kubelet advertises on its Node")
 	flag.IntVar(&tartKubeletHostMemory, "tartkubelet-host-memory-mb", 16384, "Memory MB tart-kubelet advertises on its Node")
 	flag.IntVar(&tartKubeletMaxPods, "tartkubelet-max-pods", 2,
@@ -160,6 +185,30 @@ func main() {
 	tartTarballSHA := sha256Hex(tartTarball)
 	setupLog.Info("loaded tart tarball", "path", tartTarballPath, "bytes", len(tartTarball), "sha", tartTarballSHA)
 
+	// Tailscale .pkg and node_exporter binary are both optional —
+	// empty path means the chart didn't wire the tailnet into this
+	// release. We read on startup (not per reconcile) because the
+	// operator image pins both versions; a bump goes through an
+	// operator-image roll, not a hot reload.
+	var tailscalePkg []byte
+	if tailscalePkgPath != "" {
+		tailscalePkg, err = os.ReadFile(tailscalePkgPath)
+		if err != nil {
+			setupLog.Error(err, "read tailscale pkg", "path", tailscalePkgPath)
+			os.Exit(1)
+		}
+		setupLog.Info("loaded tailscale pkg", "path", tailscalePkgPath, "bytes", len(tailscalePkg), "sha", sha256Hex(tailscalePkg))
+	}
+	var nodeExporterBinary []byte
+	if nodeExporterBinaryPath != "" {
+		nodeExporterBinary, err = os.ReadFile(nodeExporterBinaryPath)
+		if err != nil {
+			setupLog.Error(err, "read node_exporter binary", "path", nodeExporterBinaryPath)
+			os.Exit(1)
+		}
+		setupLog.Info("loaded node_exporter binary", "path", nodeExporterBinaryPath, "bytes", len(nodeExporterBinary), "sha", sha256Hex(nodeExporterBinary))
+	}
+
 	restConfig := ctrl.GetConfigOrDie()
 
 	if apiServerURL == "" {
@@ -194,10 +243,11 @@ func main() {
 	}
 
 	credsManager := &credentials.Manager{
-		Client:                  mgr.GetClient(),
-		Scaleway:                scwClient,
-		Namespace:               secretsNamespace,
-		NodeIdentityClusterRole: nodeIdentityClusterRole,
+		Client:                     mgr.GetClient(),
+		Scaleway:                   scwClient,
+		Namespace:                  secretsNamespace,
+		NodeIdentityClusterRole:    nodeIdentityClusterRole,
+		TailscaleAuthKeySecretName: tailscaleAuthKeySecretName,
 	}
 
 	kubeconfigBuilder := &kubeconfig.Builder{
@@ -205,15 +255,24 @@ func main() {
 	}
 
 	if err := (&controllers.ScalewayAppleSiliconMachineReconciler{
-		Client:                       mgr.GetClient(),
-		Scheme:                       mgr.GetScheme(),
-		ScalewayClient:               scwClient,
-		CredentialsManager:           credsManager,
-		Recorder:                     mgr.GetEventRecorderFor("scalewayapplesiliconmachine-controller"),
-		Kubeconfig:                   kubeconfigBuilder,
-		TartKubeletBinary:            tartKubeletBinary,
-		TartKubeletBinarySHA:         binarySHA,
-		TartTarball:                  tartTarball,
+		Client:               mgr.GetClient(),
+		Scheme:               mgr.GetScheme(),
+		ScalewayClient:       scwClient,
+		CredentialsManager:   credsManager,
+		Recorder:             mgr.GetEventRecorderFor("scalewayapplesiliconmachine-controller"),
+		Kubeconfig:           kubeconfigBuilder,
+		TartKubeletBinary:    tartKubeletBinary,
+		TartKubeletBinarySHA: binarySHA,
+		TartTarball:          tartTarball,
+		TailscalePkg:         tailscalePkg,
+		NodeExporterBinary:   nodeExporterBinary,
+		// All macOS hosts on a Tuist cluster carry the single
+		// `tag:tuist-macmini` ACL tag — workload differentiation
+		// (xcresult vs runner) happens at the k8s nodeSelector layer,
+		// not at the tailnet layer. The cluster scraper's ACL grants
+		// it dial access to this tag on :9091 + :9100; nothing else
+		// on the tailnet has any reason to talk to a Mac mini.
+		TailscaleTags:                []string{"tag:tuist-macmini"},
 		TartKubeletHostCPU:           tartKubeletHostCPU,
 		TartKubeletHostMemoryMB:      tartKubeletHostMemory,
 		TartKubeletMaxPods:           tartKubeletMaxPods,

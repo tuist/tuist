@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -53,6 +54,7 @@ func main() {
 	var (
 		nodeName           string
 		nodeIP             string
+		nodeIPSource       string
 		scrapeAllowedCIDRs cidrList
 		nodeLabelsRaw      string
 		hostCPU            int
@@ -65,6 +67,12 @@ func main() {
 	flag.StringVar(&nodeName, "node-name", envOr("TART_KUBELET_NODE_NAME", ""), "Node name to register as. Defaults to os.Hostname() when empty.")
 	flag.StringVar(&nodeIP, "node-ip", envOr("TART_KUBELET_NODE_IP", ""),
 		"Routable IP of this Mac mini. Pods that opt into Prometheus scraping advertise it as their PodIP and run a host-side forwarder on the host port. Defaults to the first non-loopback IPv4 address on a UP interface.")
+	flag.StringVar(&nodeIPSource, "node-ip-source", envOr("TART_KUBELET_NODE_IP_SOURCE", "auto"),
+		"Where to learn this Mac mini's routable IP from. "+
+			"`auto` (default) walks UP interfaces. `tailscale` shells out to `tailscale ip -4` "+
+			"and is fatal on failure — used when the cluster's scraper path is the tailnet and "+
+			"falling back to a public interface would expose the host-side metrics forwarder on "+
+			"the open internet. `--node-ip` overrides this in either mode.")
 	flag.Var(&scrapeAllowedCIDRs, "scrape-allowed-cidr",
 		"CIDR (IPv4 or IPv6) allowed to reach the per-Pod metrics forwarder. May be repeated. Defaults to RFC1918 / IPv6 ULA / loopback / link-local — covers any realistic cluster Pod or Node CIDR while clamping out the public WAN. The Mac mini's bind address can in practice be a public IP, so this allowlist (not the bind interface) is the load-bearing security boundary.")
 	flag.StringVar(&nodeLabelsRaw, "node-labels", envOr("TART_KUBELET_NODE_LABELS", ""),
@@ -102,15 +110,36 @@ func main() {
 	}
 
 	if nodeIP == "" {
-		ip, err := defaultNodeIP()
-		if err != nil {
-			// Non-fatal: scraping is opt-in per Pod, and the
-			// reconciler's PodIP rewrite is gated on NodeIP being
-			// set. Everything else (Pod ↔ VM management) keeps
-			// working without a known host IP.
-			setupLog.Info("no --node-ip and auto-detect failed; metrics scraping for VM Pods will be disabled", "err", err.Error())
-		} else {
+		switch nodeIPSource {
+		case "tailscale":
+			// Fatal on failure: the only reason an operator pins
+			// source=tailscale is that the tailnet IP is the
+			// load-bearing boundary for in-cluster scrapers. Silently
+			// falling back to a public interface would expose the
+			// metrics forwarder on the WAN and bypass the source-CIDR
+			// allowlist (which is RFC1918 + CGNAT — public IPs
+			// outside the RFC1918 set would still match a cluster
+			// egress NAT if the operator override loosened it).
+			ip, err := tailscaleNodeIP()
+			if err != nil {
+				setupLog.Error(err, "resolve tailnet node-ip via `tailscale ip -4`")
+				os.Exit(1)
+			}
 			nodeIP = ip
+		case "auto", "":
+			ip, err := defaultNodeIP()
+			if err != nil {
+				// Non-fatal: scraping is opt-in per Pod, and the
+				// reconciler's PodIP rewrite is gated on NodeIP being
+				// set. Everything else (Pod ↔ VM management) keeps
+				// working without a known host IP.
+				setupLog.Info("no --node-ip and auto-detect failed; metrics scraping for VM Pods will be disabled", "err", err.Error())
+			} else {
+				nodeIP = ip
+			}
+		default:
+			setupLog.Error(fmt.Errorf("unknown --node-ip-source %q (want one of: auto, tailscale)", nodeIPSource), "parse flag")
+			os.Exit(1)
 		}
 	}
 
@@ -210,6 +239,7 @@ func main() {
 	if err := mgr.Add(&nodeagent.Maintainer{
 		Client:     mgr.GetClient(),
 		NodeName:   nodeName,
+		NodeIP:     nodeIP,
 		NodeLabels: nodeLabels,
 		CPU:        hostCPU,
 		MemoryMB:   hostMemoryMB,
@@ -332,6 +362,40 @@ type noNodeIPError struct{}
 
 func (*noNodeIPError) Error() string {
 	return "no non-loopback IPv4 address found on any UP interface"
+}
+
+// tailscaleNodeIP shells out to `tailscale ip -4` and returns the
+// first IPv4 address the daemon advertises. macOS's CLI lives at
+// /usr/local/bin/tailscale after the .pkg installer + install-
+// system-daemon step (see macos-host-bootstrap.installTailscale).
+// /usr/bin/env-style PATH lookup is fine here too — the launchd job
+// already exports /usr/local/bin first — but pinning the absolute
+// path keeps the failure mode explicit when the .pkg's CLI symlink
+// is missing.
+//
+// Why not parse the utun interface address ourselves: macOS picks an
+// arbitrary utunN index for Tailscale (varies by boot order with
+// other VPN clients), and the daemon's CGNAT address can be IPv4-
+// only, IPv6-only, or both depending on tailnet config. Asking the
+// daemon is the only stable source of truth.
+func tailscaleNodeIP() (string, error) {
+	const tailscaleCLI = "/usr/local/bin/tailscale"
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, tailscaleCLI, "ip", "-4").Output()
+	if err != nil {
+		return "", fmt.Errorf("exec %s ip -4: %w", tailscaleCLI, err)
+	}
+	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		if ip := net.ParseIP(line); ip != nil && ip.To4() != nil {
+			return ip.String(), nil
+		}
+	}
+	return "", fmt.Errorf("tailscale ip -4 returned no IPv4 address")
 }
 
 // cidrList implements flag.Value for repeated --scrape-allowed-cidr.

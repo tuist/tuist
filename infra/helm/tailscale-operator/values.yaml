@@ -1,0 +1,74 @@
+# Tuist wrapper for the Tailscale Kubernetes operator. Per-env
+# overlays set `tailscale-operator.operatorConfig.hostname` and the
+# `Connector.spec.subnetRouter.advertiseRoutes` set (typically the
+# tailnet's `100.64.0.0/10` CGNAT range, optionally narrowed). The
+# OAuth client credentials are synced by ESO — see
+# `templates/externalsecret.yaml`.
+
+externalSecrets:
+  enabled: true
+  refreshInterval: "1h"
+  storeRef:
+    kind: ClusterSecretStore
+    name: onepassword
+  # Single 1Password item holding the operator's OAuth client ID +
+  # secret. Tailscale's chart consumes them as env vars on the
+  # operator Pod via secretRef. Per-env naming convention matches
+  # the SCALEWAY_API / TAILSCALE items (`tuist-k8s-<env>` vault).
+  item: TAILSCALE_OPERATOR
+  fields:
+    clientID: client-id
+    clientSecret: client-secret
+  # Name of the resulting K8s Secret. Tailscale's upstream chart
+  # defaults to `operator-oauth` — keep that name so we don't have
+  # to override the chart's secretName.
+  secretName: operator-oauth
+
+# Upstream tailscale-operator chart values. Everything under this
+# key is passed verbatim to the subchart — see
+# https://github.com/tailscale/tailscale/tree/main/cmd/k8s-operator/deploy/chart
+# for the full schema.
+tailscale-operator:
+  # Use the ESO-synced Secret instead of letting the chart create
+  # one from inline values (which is the chart's default).
+  oauthSecretVolumeName: operator-oauth
+
+  # OAuth client credentials live in a separate Secret. Don't
+  # let the upstream chart try to create the Secret itself from
+  # inline values — `installCRDs` + ESO does the work.
+  oauth:
+    clientId: ""
+    clientSecret: ""
+
+  operatorConfig:
+    # Hostname the operator registers under in the Tailscale admin
+    # console. Per-env overlays override (e.g. `k8s-staging`,
+    # `k8s-production`) so the admin UI distinguishes which
+    # operator manages which cluster.
+    hostname: tuist-k8s
+    # Operator-managed tags applied to every device the operator
+    # spins up (subnet router Pods, ProxyClass-backed proxies).
+    # `tag:tuist-k8s-operator` must be declared as an `tagOwner`
+    # in acls.json, with OAuth-client identity allowed to use it.
+    defaultTags:
+      - "tag:tuist-k8s-operator"
+
+# Connector CR — the operator-managed `tailscaled` subnet router
+# that announces the macOS fleet's CGNAT range to the cluster CNI.
+# Once Ready, any cluster Pod can dial a Mac mini at its tailnet
+# IPv4 without joining the tailnet itself.
+connector:
+  enabled: true
+  name: tuist-cluster-subnet-router
+  hostname: tuist-cluster-router
+  # Single tag for the cluster-side subnet router. ACLs grant it
+  # dial access to `tag:tuist-macmini` on the scrape ports — see
+  # acls.json.
+  tags:
+    - "tag:tuist-k8s-operator"
+  # CGNAT range — every Mac mini joined under `tag:tuist-macmini`
+  # gets an address in `100.64.0.0/10`. Advertising the full range
+  # is simpler than per-host routes and the ACL boundary doesn't
+  # care which IP a request lands on — it gates by tag identity.
+  advertiseRoutes:
+    - "100.64.0.0/10"

@@ -28,10 +28,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/api/v1alpha1"
-	"github.com/tuist/tuist/infra/macos-host-bootstrap"
 	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/internal/credentials"
 	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/internal/kubeconfig"
 	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/internal/scaleway"
+	"github.com/tuist/tuist/infra/macos-host-bootstrap"
 )
 
 const (
@@ -83,6 +83,29 @@ type ScalewayAppleSiliconMachineReconciler struct {
 	// upgrading Tart fleet-wide goes through Machine replacement (the
 	// new Mac mini gets the operator-image-pinned Tart on bootstrap).
 	TartTarball []byte
+
+	// TailscalePkg is the macOS .pkg installer for Tailscale baked
+	// into the operator image. Same drift policy as TartTarball:
+	// version bumps roll via Machine replacement, not in-place
+	// updates (the running tailnet connection doesn't tolerate a
+	// daemon swap mid-flight). Empty disables the Tailscale step.
+	TailscalePkg []byte
+
+	// NodeExporterBinary is the darwin/arm64 node_exporter binary,
+	// cross-compiled in the operator image. Installed on each Mac
+	// mini at bootstrap and supervised by launchd; scraped over the
+	// tailnet at <node-ip>:9100. Empty disables the host-metrics
+	// step (paired with TailscalePkg — node_exporter without
+	// Tailscale would bind to a public interface, which is the kind
+	// of mistake we don't want a chart-level toggle to make easy).
+	NodeExporterBinary []byte
+
+	// TailscaleTags are the Tailscale ACL tags every Mac mini in
+	// the fleet advertises at `tailscale up` time (e.g.
+	// `["tag:tuist-macmini"]`). Bound to the operator-namespace
+	// auth key — see acls.json's tagOwners block. Empty means the
+	// minis use whatever default tag the auth key carries.
+	TailscaleTags []string
 
 	// TartKubelet host advertising — passed into bootstrap which bakes
 	// them into the launchd plist on each Mac mini.
@@ -324,6 +347,13 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
 
+		tailscaleAuthKey, err := r.CredentialsManager.GetTailscaleAuthKey(ctx)
+		if err != nil {
+			conditions.MarkFalse(machine, BootstrappedCondition, "TailscaleAuthKeyUnavailable",
+				clusterv1.ConditionSeverityWarning, "%v", err)
+			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+		}
+
 		fingerprint, err := bootstrap.Run(ctx, bootstrap.Config{
 			IP:                   ip,
 			SSHUser:              bootstrapCreds.SSHUsername,
@@ -333,6 +363,10 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			Kubeconfig:           kubeconfigYAML,
 			TartKubeletBinary:    r.TartKubeletBinary,
 			TartTarball:          r.TartTarball,
+			TailscalePkg:         r.TailscalePkg,
+			TailscaleAuthKey:     tailscaleAuthKey,
+			TailscaleTags:        r.TailscaleTags,
+			NodeExporterBinary:   r.NodeExporterBinary,
 			HostCPU:              hostCPUFor(machine, r.TartKubeletHostCPU),
 			HostMemoryMB:         hostMemoryMBFor(machine, r.TartKubeletHostMemoryMB),
 			MaxPods:              r.TartKubeletMaxPods,
@@ -403,6 +437,21 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			}
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
+		// On the drift-update path the auth key is read to drive the
+		// kubelet's --node-ip-source decision in the regenerated
+		// launchd plist — without it, a re-render would drop the
+		// `--node-ip-source=tailscale` arg and silently flip kubelet
+		// back to the public IP. Fetching the key here is the cheap
+		// way to keep the plist render correct.
+		tailscaleAuthKey, err := r.CredentialsManager.GetTailscaleAuthKey(ctx)
+		if err != nil {
+			recordUpdateFailure(machine, fmt.Errorf("get tailscale auth key: %w", err), r.TartKubeletMaxUpdateAttempts, logger, r.Recorder)
+			if machine.Status.FailureReason != nil {
+				return ctrl.Result{}, nil
+			}
+			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+		}
+
 		fingerprint, err := bootstrap.UpdateTartKubelet(ctx, bootstrap.Config{
 			IP:                   ip,
 			SSHUser:              bootstrapCreds.SSHUsername,
@@ -410,6 +459,8 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			NodeName:             machine.Name,
 			Kubeconfig:           kubeconfigYAML,
 			TartKubeletBinary:    r.TartKubeletBinary,
+			TailscalePkg:         r.TailscalePkg,
+			TailscaleAuthKey:     tailscaleAuthKey,
 			HostCPU:              hostCPUFor(machine, r.TartKubeletHostCPU),
 			HostMemoryMB:         hostMemoryMBFor(machine, r.TartKubeletHostMemoryMB),
 			MaxPods:              r.TartKubeletMaxPods,
@@ -443,7 +494,6 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 	machine.Status.Phase = "Ready"
 	return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
 }
-
 
 func (r *ScalewayAppleSiliconMachineReconciler) reconcileDelete(
 	ctx context.Context,
@@ -724,4 +774,3 @@ func scalewayMachineForCAPIMachine(_ context.Context, o client.Object) []reconci
 		},
 	}}
 }
-

@@ -1,0 +1,24 @@
+{{- if .Values.connector.enabled }}
+apiVersion: tailscale.com/v1alpha1
+kind: Connector
+metadata:
+  name: {{ .Values.connector.name | default "tuist-cluster-subnet-router" }}
+  labels:
+    app.kubernetes.io/name: tuist-tailscale-operator
+    app.kubernetes.io/component: connector
+spec:
+  # Advertise the Mac mini fleet's CGNAT range to the cluster so any
+  # Pod (alloy-metrics is the first consumer) can dial a Mac mini at
+  # its tailnet IPv4 without joining the tailnet itself. The
+  # Connector Pod runs `tailscaled` in subnet-router mode and writes
+  # routes for the advertised CIDRs onto the cluster's CNI overlay.
+  # The Tailscale ACLs (see infra/tailscale/acls.json) restrict who
+  # can dial which tag on which port — the route advertising itself
+  # is not the authorization boundary.
+  hostname: {{ .Values.connector.hostname | default "tuist-cluster-router" }}
+  tags:
+    {{- toYaml .Values.connector.tags | nindent 4 }}
+  subnetRouter:
+    advertiseRoutes:
+      {{- toYaml .Values.connector.advertiseRoutes | nindent 6 }}
+{{- end }}

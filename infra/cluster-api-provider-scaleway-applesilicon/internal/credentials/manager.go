@@ -6,16 +6,16 @@
 // done. Everything else — SSH keys, bootstrap tokens, CA bundles — is
 // derived in-cluster:
 //
-//   * SSH key: generated on first reconcile, public half registered
+//   - SSH key: generated on first reconcile, public half registered
 //     with Scaleway via the IAM API, private half stashed in a
 //     Secret the operator alone reads.
-//   * API server URL: read from the in-cluster pod's environment
+//   - API server URL: read from the in-cluster pod's environment
 //     (KUBERNETES_SERVICE_HOST + PORT), which always reflects the
 //     cluster the operator is running in.
-//   * CA cert: read from the operator pod's mounted service-account
+//   - CA cert: read from the operator pod's mounted service-account
 //     token (/var/run/secrets/kubernetes.io/serviceaccount/ca.crt),
 //     same CA every kubelet must trust.
-//   * Bootstrap token: minted on each Machine reconcile via the
+//   - Bootstrap token: minted on each Machine reconcile via the
 //     standard `bootstrap.kubernetes.io/token` Secret pattern, with
 //     a short TTL so leaked tokens expire fast.
 package credentials
@@ -71,6 +71,46 @@ type Manager struct {
 	// `--node-identity-cluster-role` flag (defaulted to the chart's
 	// rendered name in the chart's deployment template).
 	NodeIdentityClusterRole string
+
+	// TailscaleAuthKeySecretName is the name of the operator-namespace
+	// Secret holding the Tailscale pre-auth key under key `auth-key`
+	// (synced from 1Password via ESO — see the chart's
+	// macos-fleet-tailscale-external-secrets.yaml). Empty disables
+	// the Tailscale step: bootstrap installs neither Tailscale nor
+	// node_exporter, the kubelet falls back to public-interface IP,
+	// and host-level metrics scraping is off. Set to enable.
+	TailscaleAuthKeySecretName string
+}
+
+// GetTailscaleAuthKey returns the Tailscale pre-auth key from the
+// operator-namespace Secret. Empty (returns "") when
+// TailscaleAuthKeySecretName isn't configured — the bootstrap step
+// treats that as "don't install Tailscale on this machine."
+//
+// Re-read per machine reconcile (not cached at operator startup) so
+// a rotated auth key (ESO re-syncs after a 1Password change) takes
+// effect on the next bootstrap without an operator restart. The
+// underlying Get hits controller-runtime's cache, so it's a memory
+// read, not an API call.
+func (m *Manager) GetTailscaleAuthKey(ctx context.Context) (string, error) {
+	if m.TailscaleAuthKeySecretName == "" {
+		return "", nil
+	}
+	secret := &corev1.Secret{}
+	err := m.Client.Get(ctx, types.NamespacedName{Namespace: m.Namespace, Name: m.TailscaleAuthKeySecretName}, secret)
+	switch {
+	case apierrors.IsNotFound(err):
+		// ESO hasn't synced yet on a fresh chart install. Treat as
+		// "not ready" — bootstrap step no-ops, next reconcile retries.
+		return "", nil
+	case err != nil:
+		return "", fmt.Errorf("get tailscale secret %s/%s: %w", m.Namespace, m.TailscaleAuthKeySecretName, err)
+	}
+	key, ok := secret.Data["auth-key"]
+	if !ok {
+		return "", fmt.Errorf("secret %s/%s missing auth-key", m.Namespace, m.TailscaleAuthKeySecretName)
+	}
+	return strings.TrimSpace(string(key)), nil
 }
 
 // EnsureFleetSSHKey returns the private SSH key bytes for `fleet`,

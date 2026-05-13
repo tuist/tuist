@@ -536,6 +536,35 @@ macosFleet:
         accessKey: access-key
         secretKey: secret-key
         projectID: project-id
+  # Tailscale wiring for the Mac mini fleet. When enabled the CAPI
+  # provider's bootstrap installs Tailscale on each mini, joins it
+  # to the tailnet under `tag:tuist-macmini`, and tart-kubelet
+  # advertises the tailnet IPv4 as the Node's InternalIP — which is
+  # what alloy-metrics dials for both VM-Pod scrapes (PromEx on the
+  # xcresult-processor) and Node-role scrapes (node_exporter on the
+  # host). Off by default: the chart is self-hostable and most
+  # operators don't have a tailnet to join. Tuist-managed envs flip
+  # it on in their per-env values.
+  tailscale:
+    enabled: false
+    # Name of the Secret with key `auth-key` holding the Tailscale
+    # pre-auth key. ESO populates it from 1Password by default; set
+    # to a manually-created Secret name to opt out.
+    secretName: ""
+    externalSecrets:
+      enabled: true
+      refreshInterval: "1h"
+      storeRef:
+        kind: ClusterSecretStore
+        name: onepassword
+      # Same per-env convention as the Scaleway item: one TAILSCALE
+      # entry in each env's `tuist-k8s-<env>` vault with the
+      # pre-auth key for that env's tailnet. We don't share an auth
+      # key across envs so a leaked staging key can't add a node
+      # to the production tailnet.
+      item: TAILSCALE
+      fields:
+        authKey: auth-key
   machine:
     # M2-L (M2 Pro chip, 12 vCPU, 32 GB RAM) is our default SKU:
     # it has the most reliable inventory in fr-par-1 and the

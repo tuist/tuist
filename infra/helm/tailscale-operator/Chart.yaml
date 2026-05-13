@@ -1,0 +1,20 @@
+apiVersion: v2
+name: tuist-tailscale-operator
+description: >
+  Wraps Tailscale's official Kubernetes operator chart and adds an
+  ExternalSecret that syncs the operator's OAuth client credentials
+  from 1Password via external-secrets-operator. The operator joins
+  the workload cluster to a Tuist tailnet so in-cluster scrapers
+  (alloy-metrics) can reach the macOS fleet's tart-kubelet hosts on
+  their CGNAT addresses. The operator runs as a subnet router
+  advertising the tailnet's 100.64.0.0/10 CGNAT range, so any Pod
+  in the cluster can dial a Mac mini's tailnet IP without joining
+  the tailnet individually.
+type: application
+version: 0.1.0
+appVersion: "1.96.5"
+
+dependencies:
+  - name: tailscale-operator
+    version: 1.96.5
+    repository: https://pkgs.tailscale.com/helmcharts

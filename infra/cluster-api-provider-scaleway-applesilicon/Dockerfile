@@ -24,6 +24,20 @@ ARG ALPINE_VERSION=3.22
 # until they're replaced.
 ARG TART_VERSION=2.32.1
 
+# Tailscale .pkg pinned at image build time. macOS-only artifact;
+# downloaded from pkgs.tailscale.com (Tailscale's own CDN). The
+# bootstrap step `scp`s this onto the Mac mini and runs `installer
+# -pkg`. Pinning the version here makes the tailnet client
+# reproducible across operator deploys — bumping is a deliberate
+# Dockerfile change, same convention as TART_VERSION.
+ARG TAILSCALE_VERSION=1.86.0
+
+# node_exporter source revision pinned for the host-metrics binary
+# we cross-compile to darwin/arm64. Prometheus ships node_exporter
+# release binaries linux-only; we build the darwin variant ourselves
+# from the upstream source tag. Bump is deliberate.
+ARG NODE_EXPORTER_VERSION=1.8.2
+
 FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-alpine${ALPINE_VERSION} AS manager-builder
 
 # The operator's go.mod has `replace ../macos-host-bootstrap`, so both
@@ -84,11 +98,49 @@ RUN curl -fsSL -o tart.tar.gz \
     "https://github.com/cirruslabs/tart/releases/download/${TART_VERSION}/tart.tar.gz"
 
 
+FROM --platform=$BUILDPLATFORM alpine:${ALPINE_VERSION} AS tailscale-fetcher
+
+# Tailscale's macOS .pkg installer. Drops Tailscale.app under
+# /Applications and ships the system-daemon variant — the bootstrap
+# runs `Tailscale install-system-daemon` to enable headless operation
+# (the default per-user GUI agent doesn't survive the auto-login
+# session reshuffling Virtualization.framework demands).
+ARG TAILSCALE_VERSION
+RUN apk add --no-cache curl
+WORKDIR /out
+RUN curl -fsSL -o tailscale.pkg \
+    "https://pkgs.tailscale.com/stable/Tailscale-${TAILSCALE_VERSION}-macos.pkg"
+
+
+FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-alpine${ALPINE_VERSION} AS node-exporter-builder
+
+# Cross-compile prometheus/node_exporter to darwin/arm64 from the
+# upstream source tag. Prometheus's release pipeline only ships
+# linux/* binaries, so we build the macOS variant ourselves. The
+# resulting binary is statically linked (CGO_ENABLED=0) — no
+# Homebrew dependency on the target.
+ARG NODE_EXPORTER_VERSION
+RUN apk add --no-cache git
+WORKDIR /src
+RUN git clone --depth 1 --branch "v${NODE_EXPORTER_VERSION}" \
+    https://github.com/prometheus/node_exporter .
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    --mount=type=cache,target=/go/pkg/mod \
+    GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 \
+    go build -trimpath \
+    -ldflags="-s -w \
+        -X github.com/prometheus/common/version.Version=${NODE_EXPORTER_VERSION} \
+        -X github.com/prometheus/common/version.Revision=tuist-build" \
+    -o /out/node_exporter-darwin-arm64 .
+
+
 FROM gcr.io/distroless/static-debian12:nonroot
 
 COPY --from=manager-builder /out/manager /usr/local/bin/manager
 COPY --from=kubelet-builder /out/tart-kubelet-darwin-arm64 /opt/tart-kubelet/tart-kubelet-darwin-arm64
 COPY --from=tart-fetcher /out/tart.tar.gz /opt/tart/tart.tar.gz
+COPY --from=tailscale-fetcher /out/tailscale.pkg /opt/tailscale/tailscale.pkg
+COPY --from=node-exporter-builder /out/node_exporter-darwin-arm64 /opt/node-exporter/node_exporter-darwin-arm64
 
 USER nonroot:nonroot
 

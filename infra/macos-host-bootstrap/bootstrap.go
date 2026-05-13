@@ -22,12 +22,18 @@
 //  4. Set the macOS hostname to NodeName.
 //  5. Install Tart by extracting the operator-pinned tart.app tarball
 //     to /usr/local/lib/tart.app + wrapper at /usr/local/bin/tart.
-//  6. Drop the kubeconfig the controller built for this host.
-//  7. Upload the tart-kubelet binary.
-//  8. Write the launchd plist with this host's flags + load it.
+//  6. Install Tailscale from the operator-pinned .pkg, register as
+//     a system daemon, and `tailscale up` with the per-fleet auth
+//     key — host joins the tailnet before kubelet so the tailnet IP
+//     is the only routable address kubelet ever advertises.
+//  7. Install node_exporter for host-level (CPU, mem, disk, network)
+//     metrics, scraped over the tailnet on :9100.
+//  8. Drop the kubeconfig the controller built for this host.
+//  9. Upload the tart-kubelet binary.
+//  10. Write the launchd plist with this host's flags + load it.
 //
-// After step 8 the agent on the host registers a Node and starts
-// reconciling Pods. The provider's MachineReconciler flips
+// After the last step the agent on the host registers a Node and
+// starts reconciling Pods. The provider's MachineReconciler flips
 // Machine.Status.Ready when this returns nil.
 package bootstrap
 
@@ -85,6 +91,40 @@ type Config struct {
 	// reproducible across reboots and re-provisions; bumping it is a
 	// deliberate Dockerfile change.
 	TartTarball []byte
+
+	// TailscalePkg is the macOS .pkg installer for Tailscale, baked
+	// into the operator image at build time (downloaded from
+	// pkgs.tailscale.com). Empty disables the Tailscale step entirely
+	// — kubelet then falls back to the public interface as NodeIP,
+	// which is fine for clusters where the in-cluster scrapers can
+	// reach the Mac mini directly (rare). Production deployments
+	// always set this so the tailnet is the metrics path.
+	TailscalePkg []byte
+
+	// TailscaleAuthKey is a per-fleet Tailscale pre-auth key (from
+	// 1Password via ESO). Reusable + ephemeral-tagged so each Mac
+	// mini in the fleet authenticates without a separate key, and
+	// stale node records age out automatically. Empty disables the
+	// Tailscale step even when TailscalePkg is present — covers
+	// chart bring-up where the key hasn't been provisioned yet.
+	TailscaleAuthKey string
+
+	// TailscaleTags are the Tailscale ACL tags advertised on this
+	// node at `tailscale up` time. Drives which ACL groups can dial
+	// it — e.g. `tag:tuist-macmini-xcresult` is reachable from the
+	// cluster's `tag:cluster-scraper` group on :9091 + :9100. Empty
+	// uses the auth key's default tag.
+	TailscaleTags []string
+
+	// NodeExporterBinary is the darwin/arm64 node_exporter binary
+	// (cross-compiled in the operator image from
+	// github.com/prometheus/node_exporter at build time). Installed
+	// at /usr/local/bin/node_exporter under a launchd plist that
+	// binds it to the tailnet interface on :9100. Empty disables
+	// the host-metrics step — paired with TailscalePkg so that a
+	// chart without tailnet plumbing doesn't ship node_exporter
+	// listening on a public IP.
+	NodeExporterBinary []byte
 
 	// HostCPU / HostMemoryMB / MaxPods are advertised on the Node.
 	HostCPU      int
@@ -162,6 +202,12 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 	}
 	if err := installVMEgressFirewall(ctx, client); err != nil {
 		return hk.observed(), fmt.Errorf("install vm egress firewall: %w", err)
+	}
+	if err := installTailscale(ctx, client, cfg); err != nil {
+		return hk.observed(), fmt.Errorf("install tailscale: %w", err)
+	}
+	if err := installNodeExporter(ctx, client, cfg); err != nil {
+		return hk.observed(), fmt.Errorf("install node_exporter: %w", err)
 	}
 	if err := writeKubeconfig(ctx, client, cfg.Kubeconfig); err != nil {
 		return hk.observed(), fmt.Errorf("write kubeconfig: %w", err)
@@ -340,6 +386,19 @@ func renderLaunchdPlist(cfg Config) string {
 		}
 		nodeLabelsArg = fmt.Sprintf("\n    <string>--node-labels=%s</string>", strings.Join(pairs, ","))
 	}
+	// Switch tart-kubelet's NodeIP resolution to the Tailscale CLI
+	// whenever the operator wired Tailscale into this host. Without
+	// the flag kubelet would pick the first non-loopback interface,
+	// which on a Scaleway Mac mini is the public IP — Pods' PodIP
+	// rewrite would then advertise an unauthenticated host:port to
+	// the cluster scrapers, defeating the tailnet boundary. We gate
+	// on the auth key (not just the pkg) so a chart bring-up where
+	// the key hasn't been provisioned yet falls back cleanly rather
+	// than wedging kubelet on a missing `tailscale ip` lookup.
+	nodeIPSourceArg := ""
+	if len(cfg.TailscalePkg) > 0 && cfg.TailscaleAuthKey != "" {
+		nodeIPSourceArg = "\n    <string>--node-ip-source=tailscale</string>"
+	}
 	// Run tart-kubelet as the SSH user (m1). Apple's
 	// Virtualization.framework requires the calling process to be the
 	// same user that holds the live GUI console session — Tart's
@@ -362,7 +421,7 @@ func renderLaunchdPlist(cfg Config) string {
     <string>--kubeconfig=/etc/tart-kubelet/kubeconfig</string>
     <string>--host-cpu=%[2]d</string>
     <string>--host-memory-mb=%[3]d</string>
-    <string>--max-pods=%[4]d</string>%[6]s
+    <string>--max-pods=%[4]d</string>%[6]s%[7]s
   </array>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
@@ -376,7 +435,7 @@ func renderLaunchdPlist(cfg Config) string {
   </dict>
 </dict>
 </plist>
-`, cfg.NodeName, cpu, mem, maxPods, user, nodeLabelsArg)
+`, cfg.NodeName, cpu, mem, maxPods, user, nodeLabelsArg, nodeIPSourceArg)
 }
 
 func shellQuote(s string) string {
@@ -775,6 +834,161 @@ sudo launchctl bootout system/dev.tuist.pfctl-runners 2>/dev/null || true
 sudo launchctl bootstrap system /Library/LaunchDaemons/dev.tuist.pfctl-runners.plist
 `
 	return runCommand(ctx, client, script)
+}
+
+// installTailscale joins the Mac mini to the cluster's tailnet. Three
+// stages, each idempotent:
+//
+//  1. Install Tailscale.app from the operator-baked .pkg if absent.
+//     The .pkg drops both the GUI app and the `tailscaled` daemon
+//     binary under /Applications/Tailscale.app — we use the daemon
+//     binary, not the GUI.
+//  2. Register tailscaled as a system-wide LaunchDaemon via Tailscale's
+//     own `install-system-daemon` subcommand. macOS's default path
+//     (per-user GUI agent) doesn't survive auto-login session
+//     reshuffling, so headless Macs need the system daemon variant.
+//     See https://tailscale.com/kb/1107/mac-headless-installation.
+//  3. `tailscale up` with the per-fleet pre-auth key. Reusable+ephemeral
+//     keys mean every Mac mini in the fleet uses the same key and
+//     stale node records age out automatically — exactly the shape
+//     for a CAPI-managed fleet where machines come and go.
+//
+// No-op when TailscalePkg or TailscaleAuthKey is empty: the chart's
+// per-env values gate the tailnet end-to-end, and a partial config
+// (pkg without key, or vice versa) shouldn't half-bring-up a node.
+func installTailscale(ctx context.Context, client *ssh.Client, cfg Config) error {
+	if len(cfg.TailscalePkg) == 0 || cfg.TailscaleAuthKey == "" {
+		return nil
+	}
+	tagsArg := ""
+	if len(cfg.TailscaleTags) > 0 {
+		// Tailscale accepts a comma-separated list — auth-key-bound
+		// tags must already be allowed by the tailnet's tagOwners
+		// ACL, which lives in infra/tailscale/acls.json.
+		tagsArg = fmt.Sprintf(" --advertise-tags=%s", shellQuote(strings.Join(cfg.TailscaleTags, ",")))
+	}
+	hostnameArg := ""
+	if cfg.NodeName != "" {
+		hostnameArg = fmt.Sprintf(" --hostname=%s", shellQuote(cfg.NodeName))
+	}
+	// Stage the pkg via base64 — same pattern as kcpassword + the
+	// node_exporter binary. macOS's `installer(8)` is no-op when the
+	// package is already at the same version, so re-running this
+	// step on every reconcile is cheap.
+	script := fmt.Sprintf(`set -euo pipefail
+TS_PKG=/tmp/tailscale-bootstrap.pkg
+sudo tee "$TS_PKG" >/dev/null
+if [ ! -x /Applications/Tailscale.app/Contents/MacOS/Tailscale ]; then
+  sudo installer -pkg "$TS_PKG" -target / >/dev/null
+fi
+sudo rm -f "$TS_PKG"
+# Register tailscaled as a system daemon if not already loaded. The
+# subcommand is idempotent on Tailscale 1.50+ but older builds error
+# out on a second run; ignore that failure and verify via launchctl.
+if ! sudo launchctl list | grep -q com.tailscale.tailscaled; then
+  sudo /Applications/Tailscale.app/Contents/MacOS/Tailscale install-system-daemon
+fi
+# 'tailscale up' is idempotent on the same auth key; advertised tags
+# and hostname are reconciled to the new values on each call so
+# re-bootstraps pick up ACL-tag renames without manual intervention.
+# --ssh=false because we don't run Tailscale SSH on the minis (the
+# CAPI controller already has fleet-scoped SSH credentials via the
+# operator's per-fleet Ed25519 key).
+sudo /usr/local/bin/tailscale up \
+  --authkey=%[1]s \
+  --reset \
+  --ssh=false%[2]s%[3]s
+# Block until the daemon advertises a tailnet IPv4 — the kubelet
+# launchd job that boots next reads 'tailscale ip -4' to populate
+# its --node-ip. A 'tailscale up' that returns before the IP is
+# announced would race the kubelet startup and leave it without a
+# NodeIP. 30s is generous; in practice the IP lands in <2s.
+for i in $(seq 1 30); do
+  if sudo /usr/local/bin/tailscale ip -4 2>/dev/null | grep -qE '^100\.'; then
+    exit 0
+  fi
+  sleep 1
+done
+echo "tailscale up returned but no tailnet IPv4 within 30s" >&2
+exit 1
+`, shellQuote(cfg.TailscaleAuthKey), hostnameArg, tagsArg)
+	return runCommandWithStdin(ctx, client, script, string(cfg.TailscalePkg))
+}
+
+// installNodeExporter drops the cross-compiled darwin/arm64 binary,
+// binds it to the tailnet IP on :9100, and supervises it via launchd.
+//
+// Bind interface (not 0.0.0.0): the public interface on a Scaleway
+// Mac mini is internet-reachable, and `:9100` is the kind of port
+// scanners actively probe. The launchd plist resolves the tailnet
+// IP at job-start time via `tailscale ip -4`, identical to how
+// tart-kubelet resolves its NodeIP — same fail mode, same recovery.
+//
+// No-op when either Tailscale isn't wired (NodeExporterBinary empty
+// implies the operator didn't ship one) or the auth key is missing
+// (no tailnet to bind to). Either case falls through cleanly.
+func installNodeExporter(ctx context.Context, client *ssh.Client, cfg Config) error {
+	if len(cfg.NodeExporterBinary) == 0 || cfg.TailscaleAuthKey == "" {
+		return nil
+	}
+	script := `set -euo pipefail
+sudo mkdir -p /usr/local/bin
+sudo tee /usr/local/bin/node_exporter >/dev/null
+sudo chmod 0755 /usr/local/bin/node_exporter
+sudo tee /usr/local/bin/tuist-node-exporter-wrapper >/dev/null <<'WRAPPER'
+#!/bin/sh
+# Resolve the Mac mini's tailnet IPv4 fresh on every (re)start so
+# Tailscale daemon restarts that re-allocate the address still leave
+# node_exporter bound somewhere useful. Block briefly for the daemon
+# to settle if launchd raced us during boot.
+for i in 1 2 3 4 5; do
+  TAILSCALE_IP="$(/usr/local/bin/tailscale ip -4 2>/dev/null | head -1)"
+  if [ -n "$TAILSCALE_IP" ]; then break; fi
+  sleep 2
+done
+if [ -z "$TAILSCALE_IP" ]; then
+  echo "tailscale ip -4 returned empty; node_exporter cannot bind safely" >&2
+  exit 1
+fi
+exec /usr/local/bin/node_exporter \
+  --web.listen-address="${TAILSCALE_IP}:9100" \
+  --collector.disable-defaults \
+  --collector.cpu \
+  --collector.diskstats \
+  --collector.filesystem \
+  --collector.loadavg \
+  --collector.meminfo \
+  --collector.netdev \
+  --collector.os \
+  --collector.time \
+  --collector.uname
+WRAPPER
+sudo chmod 0755 /usr/local/bin/tuist-node-exporter-wrapper
+sudo tee /Library/LaunchDaemons/dev.tuist.node-exporter.plist >/dev/null <<'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>dev.tuist.node-exporter</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/local/bin/tuist-node-exporter-wrapper</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>ThrottleInterval</key><integer>10</integer>
+  <key>StandardOutPath</key><string>/var/log/tuist-node-exporter.log</string>
+  <key>StandardErrorPath</key><string>/var/log/tuist-node-exporter.log</string>
+</dict>
+</plist>
+PLIST
+sudo chown root:wheel /Library/LaunchDaemons/dev.tuist.node-exporter.plist
+sudo chmod 0644 /Library/LaunchDaemons/dev.tuist.node-exporter.plist
+sudo launchctl bootout system /Library/LaunchDaemons/dev.tuist.node-exporter.plist 2>/dev/null || true
+sudo launchctl bootstrap system /Library/LaunchDaemons/dev.tuist.node-exporter.plist
+`
+	return runCommandWithStdin(ctx, client, script, string(cfg.NodeExporterBinary))
 }
 
 // === SSH helpers ===========================================================

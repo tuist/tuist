@@ -154,6 +154,66 @@ k8s-monitoring:
       metricsPath: "prometheus.io/path"
       metricsScheme: "prometheus.io/scheme"
 
+  # Custom scrape job for the macOS fleet's node_exporter, running
+  # on each Mac mini at :9100 (bound to the tailnet interface — see
+  # macos-host-bootstrap.installNodeExporter). Kubernetes Node-role
+  # discovery filters to `kubernetes.io/os=darwin`; the target
+  # address comes from each Node's `status.addresses[InternalIP]`,
+  # which tart-kubelet populates with the Mac mini's tailnet IPv4
+  # when launched with `--node-ip-source=tailscale`.
+  #
+  # Reachability from alloy-metrics → CGNAT depends on the Tailscale
+  # K8s operator's Connector in subnet-router mode plus
+  # `accept-routes` on the cluster Nodes — see
+  # infra/helm/tailscale-operator/values.yaml. The operator
+  # advertises 100.64.0.0/10 to the cluster CNI, after which any
+  # Pod can dial the Mac mini's CGNAT address.
+  #
+  # The job is disabled by default — the chart is shared with self-
+  # hosters who don't have a tailnet — and turned on in Tuist-
+  # managed per-env overlays via `extraConfig.alloy-metrics`.
+  extraConfig:
+    alloy-metrics: |
+      // Node-role discovery for the Mac mini fleet. Watches every
+      // Node in the cluster and emits one target per Node;
+      // downstream relabel rules drop everything that isn't a
+      // tart-kubelet Mac mini.
+      discovery.kubernetes "tuist_macos_nodes" {
+        role = "node"
+      }
+
+      discovery.relabel "tuist_macos_nodes" {
+        targets = discovery.kubernetes.tuist_macos_nodes.targets
+        // Keep only nodes whose `kubernetes.io/os` label is `darwin`
+        // — the rest of the cluster is Linux and node_exporter from
+        // the standard hostMetrics feature already covers them.
+        rule {
+          source_labels = ["__meta_kubernetes_node_label_kubernetes_io_os"]
+          regex = "darwin"
+          action = "keep"
+        }
+        // Use the Node's InternalIP (which tart-kubelet sets to
+        // the tailnet IPv4 under --node-ip-source=tailscale) and
+        // splice the node_exporter port.
+        rule {
+          source_labels = ["__meta_kubernetes_node_address_InternalIP"]
+          target_label = "__address__"
+          replacement = "$1:9100"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_node_name"]
+          target_label = "instance"
+        }
+      }
+
+      prometheus.scrape "tuist_macos_node_exporter" {
+        targets = discovery.relabel.tuist_macos_nodes.output
+        forward_to = argument.metrics_destinations.value
+        job_name = "tuist-macos-node-exporter"
+        scrape_interval = "30s"
+        scrape_timeout = "10s"
+      }
+
   # OTLP gRPC receiver on :4317 for the managed Tuist server's span
   # exports. Preserves the contract the server expects today (only the
   # Service name changes — see README for the endpoint update).

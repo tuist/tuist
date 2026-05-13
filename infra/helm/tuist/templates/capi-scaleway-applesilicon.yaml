@@ -210,6 +210,21 @@ spec:
             - --tartkubelet-host-cpu={{ .Values.macosFleet.tartKubelet.hostCPU | default 8 }}
             - --tartkubelet-host-memory-mb={{ .Values.macosFleet.tartKubelet.hostMemoryMB | default 16384 }}
             - --tartkubelet-max-pods={{ .Values.macosFleet.tartKubelet.maxPods | default 3 }}
+            {{- if .Values.macosFleet.tailscale.enabled }}
+            # Tailscale + node_exporter artifact paths. Both are
+            # baked into the operator image at the Dockerfile-pinned
+            # versions — see TAILSCALE_VERSION / NODE_EXPORTER_VERSION
+            # there. When the chart's macosFleet.tailscale.enabled is
+            # off, both flags stay empty and the bootstrap step
+            # short-circuits.
+            - --tailscale-pkg-path=/opt/tailscale/tailscale.pkg
+            - --node-exporter-binary-path=/opt/node-exporter/node_exporter-darwin-arm64
+            # The bootstrap reads this Secret per Machine reconcile
+            # (controller-runtime cache hit, no API round-trip) so a
+            # rotated key takes effect on the next reconcile without
+            # the operator needing to restart.
+            - --tailscale-auth-key-secret-name={{ .Values.macosFleet.tailscale.secretName | default (include "tuist.componentName" (dict "root" . "component" "capi-scaleway-applesilicon-tailscale")) }}
+            {{- end }}
             {{- if .Values.xcresultProcessor.enabled }}
             # Auto-roll the xcresult-processor Deployment whenever the
             # set of Ready Mac minis changes, so Pods spread across new

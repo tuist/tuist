@@ -189,6 +189,11 @@ xcresultProcessor:
 # xcresult capacity offline.
 macosFleet:
   replicas: 2
+  # Production tailnet — alloy-metrics scrapes PromEx (xcresult VM)
+  # + node_exporter (host) over the tailnet. The pre-auth key lives
+  # in the production 1Password vault under TAILSCALE/auth-key.
+  tailscale:
+    enabled: true
   machine:
     # Production tracks the chart default — M2-L on Scaleway:
     # M2 Pro 10-core / 16 GB. Explicit here so the matching
