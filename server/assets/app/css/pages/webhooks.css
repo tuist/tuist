@@ -59,6 +59,11 @@
         flex-shrink: 0;
       }
     }
+
+    & > #webhook-endpoints-table {
+      box-shadow: inset 0 1px 0 0 var(--noora-surface-border-primary);
+      padding: var(--noora-spacing-6) var(--noora-spacing-8);
+    }
   }
 
   & [data-part="signing-secret-cell"] > [data-part="label"] {
