@@ -928,16 +928,31 @@ PS4='+ '
 trap 'sudo rm -f /etc/tuist/tailscale-auth-key' EXIT
 TS_PKG=/tmp/tailscale-bootstrap.pkg
 sudo tee "$TS_PKG" >/dev/null
-# macOS installer(8) writes its operation log to STDOUT (success
-# messages, failure detail, signature errors, etc), not stderr.
-# Capture both into a tempfile and dump on non-zero so the
-# controller's failureMessage carries actionable info — previously
-# we redirected stdout to /dev/null and silent failures gave the
-# operator nothing to act on.
+# Stop any already-running tailscaled before the installer runs.
+# On a re-bootstrap (or after a previous half-failed install), the
+# system daemon still holds open the binaries the .pkg's
+# postinstall script tries to replace, and the upgrade fails with
+# "An error occurred while running scripts from the package". A
+# clean stop releases the file handles; we re-install the daemon
+# below anyway. launchctl bootout is the modern API; both the
+# pre-1.50 LaunchDaemons path and the install-system-daemon path
+# register under com.tailscale.tailscaled. Failure is fine — the
+# job may simply not be loaded yet on a fresh host.
+sudo launchctl bootout system/com.tailscale.tailscaled 2>/dev/null || true
+# Capture installer(8)'s combined stdout+stderr — installer writes
+# its operation log to stdout (not stderr), and the SSH session
+# captures stderr only. Without redirection both streams vanish
+# into a discarded buffer and silent failures give the operator
+# nothing to act on. On non-zero, also dump the tail of
+# /var/log/install.log because installer's stdout only carries the
+# generic "scripts failed" message — the postinstall script's
+# actual error lands in install.log via macOS's logging machinery.
 INSTALLER_LOG=$(mktemp)
 if ! sudo installer -pkg "$TS_PKG" -target / >"$INSTALLER_LOG" 2>&1; then
   echo "installer -pkg failed (output below):" >&2
   sudo cat "$INSTALLER_LOG" >&2
+  echo "--- tail /var/log/install.log ---" >&2
+  sudo tail -n 60 /var/log/install.log >&2 || true
   sudo rm -f "$INSTALLER_LOG"
   exit 1
 fi
