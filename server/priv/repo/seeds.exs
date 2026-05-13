@@ -3259,8 +3259,19 @@ webhook_endpoints_with_events =
     {endpoint, event_types}
   end)
 
-# 88% of attempts succeed; the rest fail with realistic HTTP statuses so
-# the detail page has both happy-path and error rows to show.
+# Wipe any prior attempts for the seeded endpoints first so re-seeding
+# produces a deterministic mix instead of accumulating on top of the
+# previous run (or of real failures the dev cron generates against the
+# placeholder URLs).
+Repo.delete_all(
+  from(a in Tuist.Webhooks.DeliveryAttempt,
+    where: a.webhook_endpoint_id in ^Enum.map(webhook_endpoints_with_events, fn {ep, _} -> ep.id end)
+  )
+)
+
+# Healthy endpoints sit around the high 90s in success rate; reserve the
+# leftover 3% for transient upstream errors and the occasional timeout
+# so the chart and error states have something to render.
 webhook_attempt_outcomes = [
   {:delivered, 200, "\"OK\""},
   {:delivered, 204, ""},
@@ -3270,7 +3281,7 @@ webhook_attempt_outcomes = [
 ]
 
 weighted_outcome = fn ->
-  weights = [44, 44, 6, 4, 2]
+  weights = [80, 17, 1, 1, 1]
   total = Enum.sum(weights)
   roll = :rand.uniform(total)
 
@@ -3283,7 +3294,7 @@ end
 
 webhook_attempts =
   Enum.flat_map(webhook_endpoints_with_events, fn {endpoint, event_types} ->
-    Enum.map(1..150, fn _ ->
+    Enum.map(1..1500, fn _ ->
       {result, response_status, response_body} = weighted_outcome.()
       event_type = Enum.random(event_types)
       event_id = Ecto.UUID.generate()
