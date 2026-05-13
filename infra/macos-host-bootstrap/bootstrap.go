@@ -877,6 +877,22 @@ func installTailscale(ctx context.Context, client *ssh.Client, cfg Config) error
 	if len(cfg.TailscalePkg) == 0 || cfg.TailscaleAuthKey == "" {
 		return nil
 	}
+
+	// Stage 1: write the auth key to a chmod-0600 file on the host
+	// via a separate SSH command whose body doesn't reference the
+	// key. The key flows via the SSH session's stdin stream into
+	// `sudo tee` and lands on disk; the script string passed to
+	// session.Run() never contains the literal key, so the
+	// runCommand error formatter (which surfaces the cmd on failure)
+	// can't leak it. Cleanup is the install script's `trap … EXIT`.
+	keyScript := `set -euo pipefail
+sudo mkdir -p /etc/tuist
+sudo tee /etc/tuist/tailscale-auth-key >/dev/null
+sudo chmod 0600 /etc/tuist/tailscale-auth-key`
+	if err := runCommandWithStdin(ctx, client, keyScript, cfg.TailscaleAuthKey); err != nil {
+		return fmt.Errorf("stage tailscale auth key: %w", err)
+	}
+
 	tagsArg := ""
 	if len(cfg.TailscaleTags) > 0 {
 		// Tailscale accepts a comma-separated list — auth-key-bound
@@ -888,11 +904,20 @@ func installTailscale(ctx context.Context, client *ssh.Client, cfg Config) error
 	if cfg.NodeName != "" {
 		hostnameArg = fmt.Sprintf(" --hostname=%s", shellQuote(cfg.NodeName))
 	}
-	// Stage the pkg via base64 — same pattern as kcpassword + the
-	// node_exporter binary. macOS's `installer(8)` is no-op when the
-	// package is already at the same version, so re-running this
-	// step on every reconcile is cheap.
+
+	// Stage 2: install the .pkg (via stdin), make sure tailscaled is
+	// running as a system daemon, wait for the daemon to accept IPC,
+	// then `tailscale up` reading the auth key from the file written
+	// in Stage 1 (the `$(sudo cat …)` is expanded by the remote
+	// shell, so the key never appears in the formatted script body
+	// or in any error message). Capture `up`'s combined output and
+	// surface it on failure — previously `set -e` aborted with an
+	// empty stderr, leaving zero actionable signal.
 	script := fmt.Sprintf(`set -euo pipefail
+# Always remove the auth key file when this script exits — success
+# or failure. Set the trap first thing so a later abort still
+# cleans up.
+trap 'sudo rm -f /etc/tuist/tailscale-auth-key' EXIT
 TS_PKG=/tmp/tailscale-bootstrap.pkg
 sudo tee "$TS_PKG" >/dev/null
 # Always run installer(8) — macOS's installer is itself idempotent
@@ -908,30 +933,45 @@ sudo rm -f "$TS_PKG"
 if ! sudo launchctl list | grep -q com.tailscale.tailscaled; then
   sudo /Applications/Tailscale.app/Contents/MacOS/Tailscale install-system-daemon
 fi
-# 'tailscale up' is idempotent on the same auth key; advertised tags
-# and hostname are reconciled to the new values on each call so
-# re-bootstraps pick up ACL-tag renames without manual intervention.
-# --ssh=false because we don't run Tailscale SSH on the minis (the
-# CAPI controller already has fleet-scoped SSH credentials via the
-# operator's per-fleet Ed25519 key).
-sudo /usr/local/bin/tailscale up \
-  --authkey=%[1]s \
-  --reset \
-  --ssh=false%[2]s%[3]s
+# Wait for tailscaled to accept IPC before sending it 'up'.
+# install-system-daemon returns before the daemon finishes
+# initializing — without this wait, 'up' fails immediately with
+# "Tailscale is not running" and set -e aborts the script. 30s is
+# generous; in practice the daemon is ready in <2s.
+for i in $(seq 1 30); do
+  if sudo /usr/local/bin/tailscale status --self --json >/dev/null 2>&1; then
+    break
+  fi
+  sleep 1
+done
+# Capture up's combined stdout+stderr so a failure surfaces
+# actionable diagnostics. Auth key is expanded on this side via
+# $(sudo cat …); the formatted script body sent over SSH never
+# contains the literal key.
+TS_UP_LOG=$(mktemp)
+trap 'sudo rm -f /etc/tuist/tailscale-auth-key "$TS_UP_LOG"' EXIT
+if ! sudo /usr/local/bin/tailscale up \
+    --authkey="$(sudo cat /etc/tuist/tailscale-auth-key)" \
+    --reset \
+    --ssh=false%[1]s%[2]s >"$TS_UP_LOG" 2>&1; then
+  echo "tailscale up failed (output below):" >&2
+  sudo cat "$TS_UP_LOG" >&2
+  exit 1
+fi
 # Block until the daemon advertises a tailnet IPv4 — the kubelet
 # launchd job that boots next reads 'tailscale ip -4' to populate
-# its --node-ip. A 'tailscale up' that returns before the IP is
-# announced would race the kubelet startup and leave it without a
-# NodeIP. 30s is generous; in practice the IP lands in <2s.
+# its --node-ip. A 'tailscale up' that returned 0 but hasn't
+# announced an IP yet would race the kubelet startup.
 for i in $(seq 1 30); do
   if sudo /usr/local/bin/tailscale ip -4 2>/dev/null | grep -qE '^100\.'; then
     exit 0
   fi
   sleep 1
 done
-echo "tailscale up returned but no tailnet IPv4 within 30s" >&2
+echo "tailscale up returned but no tailnet IPv4 within 30s; current status:" >&2
+sudo /usr/local/bin/tailscale status >&2 || true
 exit 1
-`, shellQuote(cfg.TailscaleAuthKey), hostnameArg, tagsArg)
+`, hostnameArg, tagsArg)
 	return runCommandWithStdin(ctx, client, script, string(cfg.TailscalePkg))
 }
 
