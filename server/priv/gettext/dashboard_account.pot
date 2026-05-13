@@ -72,7 +72,7 @@ msgstr ""
 msgid "All members"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:662
+#: lib/tuist_web/live/account_settings_live.ex:682
 #, elixir-autogen, elixir-format
 msgid "All regions"
 msgstr ""
@@ -100,8 +100,8 @@ msgid "Billing email"
 msgstr ""
 
 #: lib/tuist_web/live/account_settings_live.ex:500
-#: lib/tuist_web/live/account_settings_live.ex:734
-#: lib/tuist_web/live/account_settings_live.ex:821
+#: lib/tuist_web/live/account_settings_live.ex:754
+#: lib/tuist_web/live/account_settings_live.ex:841
 #: lib/tuist_web/live/account_settings_live.html.heex:76
 #: lib/tuist_web/live/account_settings_live.html.heex:150
 #: lib/tuist_web/live/account_settings_live.html.heex:232
@@ -124,7 +124,7 @@ msgstr ""
 msgid "Change your subscription to fit your needs."
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:646
+#: lib/tuist_web/live/account_settings_live.ex:666
 #, elixir-autogen, elixir-format
 msgid "Choose where your artifacts, like module cache binaries, are stored for legal compliance."
 msgstr ""
@@ -211,9 +211,9 @@ msgstr ""
 msgid "Decline"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:795
-#: lib/tuist_web/live/account_settings_live.ex:829
-#: lib/tuist_web/live/account_settings_live.ex:841
+#: lib/tuist_web/live/account_settings_live.ex:815
+#: lib/tuist_web/live/account_settings_live.ex:849
+#: lib/tuist_web/live/account_settings_live.ex:861
 #: lib/tuist_web/live/account_settings_live.html.heex:158
 #: lib/tuist_web/live/account_settings_live.html.heex:312
 #, elixir-autogen, elixir-format
@@ -355,7 +355,7 @@ msgstr ""
 msgid "Enterprise"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:663
+#: lib/tuist_web/live/account_settings_live.ex:683
 #, elixir-autogen, elixir-format
 msgid "Europe"
 msgstr ""
@@ -615,7 +615,7 @@ msgstr ""
 #: lib/tuist_web/live/account_settings_live.ex:455
 #: lib/tuist_web/live/account_settings_live.ex:468
 #: lib/tuist_web/live/account_settings_live.ex:536
-#: lib/tuist_web/live/account_settings_live.ex:659
+#: lib/tuist_web/live/account_settings_live.ex:679
 #, elixir-autogen, elixir-format
 msgid "Region"
 msgstr ""
@@ -700,7 +700,7 @@ msgstr ""
 msgid "Search members..."
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:654
+#: lib/tuist_web/live/account_settings_live.ex:674
 #, elixir-autogen, elixir-format
 msgid "Select region"
 msgstr ""
@@ -737,7 +737,7 @@ msgstr ""
 msgid "Status"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:643
+#: lib/tuist_web/live/account_settings_live.ex:663
 #, elixir-autogen, elixir-format
 msgid "Storage region"
 msgstr ""
@@ -779,7 +779,7 @@ msgstr ""
 msgid "Tuist Logo"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:664
+#: lib/tuist_web/live/account_settings_live.ex:684
 #, elixir-autogen, elixir-format
 msgid "United States"
 msgstr ""
@@ -966,57 +966,57 @@ msgstr ""
 msgid "xxxx xxxx xxxx %{card_number}"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:742
+#: lib/tuist_web/live/account_settings_live.ex:762
 #, elixir-autogen, elixir-format
 msgid "Add"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:704
+#: lib/tuist_web/live/account_settings_live.ex:724
 #, elixir-autogen, elixir-format
 msgid "Add cache endpoint"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:711
+#: lib/tuist_web/live/account_settings_live.ex:731
 #, elixir-autogen, elixir-format
 msgid "Add endpoint"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:724
+#: lib/tuist_web/live/account_settings_live.ex:744
 #, elixir-autogen, elixir-format
 msgid "Endpoint URL"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:781
+#: lib/tuist_web/live/account_settings_live.ex:801
 #, elixir-autogen, elixir-format
 msgid "URL"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:788
+#: lib/tuist_web/live/account_settings_live.ex:808
 #, elixir-autogen, elixir-format
 msgid "Delete last cache endpoint?"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:808
+#: lib/tuist_web/live/account_settings_live.ex:828
 #, elixir-autogen, elixir-format
 msgid "Removing the last custom cache endpoint will switch your organization back to Tuist-hosted caching. This affects all builds across your organization."
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:686
+#: lib/tuist_web/live/account_settings_live.ex:706
 #, elixir-autogen, elixir-format
 msgid "Cache endpoints"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:690
+#: lib/tuist_web/live/account_settings_live.ex:710
 #, elixir-autogen, elixir-format
 msgid "Configure custom cache endpoints for self-hosted cache setups. When enabled, Tuist will read from and write to these endpoints instead of the default Tuist-hosted cache."
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:758
+#: lib/tuist_web/live/account_settings_live.ex:778
 #, elixir-autogen, elixir-format
 msgid "Custom cache endpoints are disabled. Tuist will use the default Tuist-hosted cache."
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:770
+#: lib/tuist_web/live/account_settings_live.ex:790
 #, elixir-autogen, elixir-format
 msgid "No custom cache endpoints configured. Tuist will use the default Tuist-hosted cache until endpoints are added."
 msgstr ""
@@ -1159,23 +1159,23 @@ msgstr ""
 msgid "What's the name of your company or team? You can change this later in the settings"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:598
+#: lib/tuist_web/live/account_settings_live.ex:618
 #, elixir-autogen, elixir-format
 msgid "Browser default"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:608
+#: lib/tuist_web/live/account_settings_live.ex:628
 #, elixir-autogen, elixir-format
 msgid "Choose your preferred dashboard language."
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:605
+#: lib/tuist_web/live/account_settings_live.ex:625
 #, elixir-autogen, elixir-format
 msgid "Dashboard language"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:613
-#: lib/tuist_web/live/account_settings_live.ex:618
+#: lib/tuist_web/live/account_settings_live.ex:633
+#: lib/tuist_web/live/account_settings_live.ex:638
 #, elixir-autogen, elixir-format
 msgid "Language"
 msgstr ""
@@ -1376,7 +1376,7 @@ msgstr ""
 msgid "Revoke token"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:577
+#: lib/tuist_web/live/account_settings_live.ex:589
 #, elixir-autogen, elixir-format
 msgid "Active"
 msgstr ""
@@ -1398,7 +1398,8 @@ msgstr ""
 msgid "Deploy regional Kura cache servers for this account. Each region can have at most one server."
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:576
+#: lib/tuist_web/live/account_settings_live.ex:578
+#: lib/tuist_web/live/account_settings_live.ex:588
 #, elixir-autogen, elixir-format
 msgid "Deploying"
 msgstr ""
@@ -1418,12 +1419,12 @@ msgstr ""
 msgid "Destroy the Kura server in %{region}? This removes the account's Kura cache endpoint for that region."
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:580
+#: lib/tuist_web/live/account_settings_live.ex:592
 #, elixir-autogen, elixir-format
 msgid "Destroyed"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:579
+#: lib/tuist_web/live/account_settings_live.ex:591
 #, elixir-autogen, elixir-format
 msgid "Destroying"
 msgstr ""
@@ -1438,7 +1439,7 @@ msgstr ""
 msgid "Domain"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:578
+#: lib/tuist_web/live/account_settings_live.ex:590
 #, elixir-autogen, elixir-format
 msgid "Failed"
 msgstr ""

@@ -231,6 +231,73 @@ defmodule Tuist.Automations.Alerts.AlertTest do
       assert errors_on(changeset).trigger_config
     end
 
+    test "accepts test_updated monitor with a non-empty events list" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "monitor_type" => "test_updated",
+            "trigger_config" => %{"events" => ["marked_flaky", "state_changed_to_muted"]},
+            "trigger_actions" => [%{"type" => "change_state", "state" => "muted"}]
+          })
+        )
+
+      assert changeset.valid?
+    end
+
+    test "rejects test_updated monitor with an empty events list" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "monitor_type" => "test_updated",
+            "trigger_config" => %{"events" => []},
+            "trigger_actions" => [%{"type" => "change_state", "state" => "muted"}]
+          })
+        )
+
+      refute changeset.valid?
+      assert errors_on(changeset).trigger_config
+    end
+
+    test "rejects test_updated monitor without an events key" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "monitor_type" => "test_updated",
+            "trigger_config" => %{},
+            "trigger_actions" => [%{"type" => "change_state", "state" => "muted"}]
+          })
+        )
+
+      refute changeset.valid?
+      assert errors_on(changeset).trigger_config
+    end
+
+    test "rejects test_updated monitor with unknown event names" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "monitor_type" => "test_updated",
+            "trigger_config" => %{"events" => ["marked_flaky", "fly_to_moon"]},
+            "trigger_actions" => [%{"type" => "change_state", "state" => "muted"}]
+          })
+        )
+
+      refute changeset.valid?
+      assert errors_on(changeset).trigger_config
+    end
+
     test "rejects unknown window_type" do
       project = ProjectsFixtures.project_fixture()
 

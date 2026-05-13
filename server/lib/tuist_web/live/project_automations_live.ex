@@ -3,8 +3,11 @@ defmodule TuistWeb.ProjectAutomationsLive do
   use TuistWeb, :live_view
   use Noora
 
+  import Noora.CheckboxControl
+
   alias Tuist.Authorization
   alias Tuist.Automations
+  alias Tuist.Automations.Alerts.Alert
   alias Tuist.Environment
   alias Tuist.Slack
   alias TuistWeb.SlackOAuthController
@@ -57,6 +60,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
     |> assign(create_automation_form_window_type: "last_days")
     |> assign(create_automation_form_window: "30d")
     |> assign(create_automation_form_rolling_window_size: "100")
+    |> assign(create_automation_form_events: ["marked_flaky"])
     |> assign(create_automation_form_trigger_actions: [default_add_label_action()])
     |> assign(create_automation_form_recovery_enabled: false)
     |> assign(create_automation_form_recovery_window_type: "last_days")
@@ -109,6 +113,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
       window_type: parse_window_type(automation.trigger_config["window_type"]),
       window: automation.trigger_config["window"] || "30d",
       rolling_window_size: to_string(automation.trigger_config["rolling_window_size"] || 100),
+      events: parse_events(automation.trigger_config["events"]),
       trigger_actions: automation.trigger_actions,
       recovery_enabled: automation.recovery_enabled,
       recovery_window_type: parse_window_type(automation.recovery_config["window_type"]),
@@ -118,6 +123,12 @@ defmodule TuistWeb.ProjectAutomationsLive do
       enabled: automation.enabled
     }
   end
+
+  defp parse_events(events) when is_list(events) do
+    Enum.filter(events, &(&1 in Alert.test_updated_events()))
+  end
+
+  defp parse_events(_), do: ["marked_flaky"]
 
   defp parse_comparison(comparison) when comparison in @comparisons, do: comparison
   defp parse_comparison(_), do: "gte"
@@ -153,6 +164,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
         |> assign(create_automation_form_window_type: form.window_type)
         |> assign(create_automation_form_window: form.window)
         |> assign(create_automation_form_rolling_window_size: form.rolling_window_size)
+        |> assign(create_automation_form_events: form.events)
         |> assign(create_automation_form_trigger_actions: form.trigger_actions)
         |> assign(create_automation_form_recovery_enabled: form.recovery_enabled)
         |> assign(create_automation_form_recovery_window_type: form.recovery_window_type)
@@ -176,14 +188,43 @@ defmodule TuistWeb.ProjectAutomationsLive do
   end
 
   def handle_event("update_create_automation_form_metric", %{"data" => metric}, socket) do
+    event_driven? = event_driven_monitor_type?(metric)
+
+    trigger_actions = strip_redundant_actions(socket.assigns.create_automation_form_trigger_actions, metric)
+
+    # Event-driven monitors are discrete one-shots — there's no "condition no
+    # longer holds" semantic, so we force recovery off when switching to one.
+    {recovery_enabled, recovery_actions} =
+      if event_driven? do
+        {false, socket.assigns.create_automation_form_recovery_actions}
+      else
+        {socket.assigns.create_automation_form_recovery_enabled, socket.assigns.create_automation_form_recovery_actions}
+      end
+
     {:noreply,
      socket
      |> assign(create_automation_form_metric: metric)
-     |> assign(create_automation_form_threshold: default_threshold(metric))}
+     |> assign(create_automation_form_threshold: default_threshold(metric))
+     |> assign(create_automation_form_trigger_actions: trigger_actions)
+     |> assign(create_automation_form_recovery_enabled: recovery_enabled)
+     |> assign(create_automation_form_recovery_actions: recovery_actions)}
   end
 
   def handle_event("update_create_automation_form_comparison", %{"data" => comparison}, socket) do
     {:noreply, assign(socket, create_automation_form_comparison: comparison)}
+  end
+
+  def handle_event("toggle_create_automation_form_event", %{"data" => event}, socket) do
+    current = socket.assigns.create_automation_form_events
+
+    next =
+      if event in current do
+        List.delete(current, event)
+      else
+        current ++ [event]
+      end
+
+    {:noreply, assign(socket, create_automation_form_events: next)}
   end
 
   def handle_event("update_create_automation_form_threshold", %{"value" => value}, socket) do
@@ -414,38 +455,48 @@ defmodule TuistWeb.ProjectAutomationsLive do
   end
 
   defp build_automation_attrs(project_id, assigns) do
-    threshold = parse_threshold(assigns.create_automation_form_metric, assigns.create_automation_form_threshold)
+    metric = assigns.create_automation_form_metric
 
     base = %{
       "project_id" => project_id,
       "name" => assigns.create_automation_form_name,
-      "monitor_type" => assigns.create_automation_form_metric,
-      "trigger_config" =>
-        build_trigger_config(
-          threshold,
-          assigns.create_automation_form_comparison,
-          assigns.create_automation_form_window_type,
-          assigns.create_automation_form_window,
-          assigns.create_automation_form_rolling_window_size
-        ),
+      "monitor_type" => metric,
+      "trigger_config" => trigger_config_for(metric, assigns),
       "trigger_actions" => assigns.create_automation_form_trigger_actions,
       "recovery_enabled" => assigns.create_automation_form_recovery_enabled
     }
 
     if assigns.create_automation_form_recovery_enabled do
       base
-      |> Map.put(
-        "recovery_config",
-        build_recovery_config(
-          assigns.create_automation_form_recovery_window_type,
-          assigns.create_automation_form_recovery_window,
-          assigns.create_automation_form_recovery_rolling_window_size
-        )
-      )
+      |> Map.put("recovery_config", recovery_config_for(metric, assigns))
       |> Map.put("recovery_actions", assigns.create_automation_form_recovery_actions)
     else
       base
     end
+  end
+
+  defp trigger_config_for("test_updated", assigns) do
+    %{"events" => assigns.create_automation_form_events}
+  end
+
+  defp trigger_config_for(metric, assigns) do
+    build_trigger_config(
+      parse_threshold(metric, assigns.create_automation_form_threshold),
+      assigns.create_automation_form_comparison,
+      assigns.create_automation_form_window_type,
+      assigns.create_automation_form_window,
+      assigns.create_automation_form_rolling_window_size
+    )
+  end
+
+  defp recovery_config_for("test_updated", _assigns), do: %{}
+
+  defp recovery_config_for(_metric, assigns) do
+    build_recovery_config(
+      assigns.create_automation_form_recovery_window_type,
+      assigns.create_automation_form_recovery_window,
+      assigns.create_automation_form_recovery_rolling_window_size
+    )
   end
 
   defp build_trigger_config(threshold, comparison, "rolling", _window, rolling_window_size) do
@@ -480,6 +531,23 @@ defmodule TuistWeb.ProjectAutomationsLive do
     }
   end
 
+  # The default `add_label flaky` / `remove_label flaky` trigger actions
+  # presume the threshold-monitor mental model. For the event-driven
+  # `test_updated` trigger they're a confusing default — the user picks
+  # which sub-events to react to (mark / unmark / state change), and a
+  # blanket label flip tends to fight at least one of those sub-events.
+  # Strip them on switch; the user can opt back in via "Add action".
+  defp strip_redundant_actions(actions, "test_updated") do
+    Enum.reject(actions, fn action ->
+      action["label"] == "flaky" and action["type"] in ["add_label", "remove_label"]
+    end)
+  end
+
+  defp strip_redundant_actions(actions, _), do: actions
+
+  def event_driven_monitor_type?("test_updated"), do: true
+  def event_driven_monitor_type?(_), do: false
+
   defp parse_threshold("flakiness_rate", value) do
     case Float.parse(value) do
       {n, _} -> n
@@ -500,7 +568,36 @@ defmodule TuistWeb.ProjectAutomationsLive do
 
   def metric_label("flakiness_rate"), do: dgettext("dashboard_projects", "Flakiness rate")
   def metric_label("flaky_run_count"), do: dgettext("dashboard_projects", "Flaky runs")
+  def metric_label("test_updated"), do: dgettext("dashboard_projects", "Test updated")
   def metric_label(_), do: dgettext("dashboard_projects", "Unknown")
+
+  def test_updated_event_label("marked_flaky"), do: dgettext("dashboard_projects", "Marked as flaky")
+  def test_updated_event_label("unmarked_flaky"), do: dgettext("dashboard_projects", "Unmarked as flaky")
+
+  def test_updated_event_label("state_changed_to_enabled"), do: dgettext("dashboard_projects", "State changed to Enabled")
+
+  def test_updated_event_label("state_changed_to_muted"), do: dgettext("dashboard_projects", "State changed to Muted")
+
+  def test_updated_event_label("state_changed_to_skipped"), do: dgettext("dashboard_projects", "State changed to Skipped")
+
+  def test_updated_event_label(_), do: dgettext("dashboard_projects", "Unknown")
+
+  def test_updated_event_description("marked_flaky"),
+    do: dgettext("dashboard_projects", "Fires when a test is manually flagged as flaky.")
+
+  def test_updated_event_description("unmarked_flaky"),
+    do: dgettext("dashboard_projects", "Fires when the flaky flag is manually removed.")
+
+  def test_updated_event_description("state_changed_to_enabled"),
+    do: dgettext("dashboard_projects", "Fires when a test returns to the default enabled state.")
+
+  def test_updated_event_description("state_changed_to_muted"),
+    do: dgettext("dashboard_projects", "Fires when a test is muted (still runs, failures ignored).")
+
+  def test_updated_event_description("state_changed_to_skipped"),
+    do: dgettext("dashboard_projects", "Fires when a test is skipped entirely.")
+
+  def test_updated_event_description(_), do: ""
 
   def comparison_label("gte"), do: dgettext("dashboard_projects", "Greater or equal")
   def comparison_label("gt"), do: dgettext("dashboard_projects", "Greater than")
@@ -584,6 +681,19 @@ defmodule TuistWeb.ProjectAutomationsLive do
     )
   end
 
+  def automation_summary(%{monitor_type: "test_updated", trigger_config: trigger_config}) do
+    events = trigger_config["events"] || []
+
+    case events do
+      [] ->
+        dgettext("dashboard_projects", "When a test is updated")
+
+      _ ->
+        labels = Enum.map_join(events, ", ", &test_updated_event_label/1)
+        dgettext("dashboard_projects", "When a test is updated: %{events}", events: labels)
+    end
+  end
+
   def automation_summary(_), do: ""
 
   defp window_summary(%{"window_type" => "rolling"} = trigger_config) do
@@ -631,7 +741,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
   disables Save is visible inline on the field.
   """
   def rolling_size_error("rolling", raw_size) do
-    max = Tuist.Automations.Alerts.Alert.max_rolling_window_size()
+    max = Alert.max_rolling_window_size()
 
     case Integer.parse(to_string(raw_size)) do
       {n, ""} when n >= 1 and n <= max -> nil

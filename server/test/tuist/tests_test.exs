@@ -2,6 +2,7 @@ defmodule Tuist.TestsTest do
   use TuistTestSupport.Cases.DataCase
   use Mimic
 
+  alias Tuist.Automations
   alias Tuist.Automations.ActionExecutor
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
@@ -12,6 +13,7 @@ defmodule Tuist.TestsTest do
   alias Tuist.Tests.TestCaseRun
   alias Tuist.Tests.TestRunDestination
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.AutomationsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
   alias TuistTestSupport.Fixtures.ShardsFixtures
@@ -7065,6 +7067,161 @@ defmodule Tuist.TestsTest do
       assert "marked_flaky" in event_types
       assert "muted" in event_types
     end
+
+    test "dispatches :marked_flaky to Automations on user-driven updates" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: false)
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      expected_test_case_id = test_case.id
+      expected_project_id = project.id
+
+      expect(Automations, :dispatch_test_case_event, fn :marked_flaky,
+                                                        %{id: ^expected_test_case_id, project_id: ^expected_project_id} ->
+        :ok
+      end)
+
+      # When / Then
+      {:ok, _updated} =
+        Tests.update_test_case(test_case.id, %{is_flaky: true}, actor_id: user.account.id)
+    end
+
+    test "dispatches :unmarked_flaky to Automations on user-driven updates" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: true)
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      expected_test_case_id = test_case.id
+
+      expect(Automations, :dispatch_test_case_event, fn :unmarked_flaky, %{id: ^expected_test_case_id} ->
+        :ok
+      end)
+
+      # When / Then
+      {:ok, _updated} =
+        Tests.update_test_case(test_case.id, %{is_flaky: false}, actor_id: user.account.id)
+    end
+
+    test "dispatches automation events even when actor_id is nil so automation chains compose" do
+      # Given an update with no actor_id (system / automation-driven), we
+      # still fan out to event-driven automations: a `flaky_run_count`
+      # alert that marks a test as flaky should be able to trigger a
+      # downstream `test_updated` alert subscribed to `marked_flaky`.
+      project = ProjectsFixtures.project_fixture()
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: false)
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      expected_test_case_id = test_case.id
+
+      expect(Automations, :dispatch_test_case_event, fn :marked_flaky, %{id: ^expected_test_case_id} ->
+        :ok
+      end)
+
+      # When / Then
+      {:ok, _updated} = Tests.update_test_case(test_case.id, %{is_flaky: true})
+    end
+
+    test "broadcasts {:test_case_updated, payload} on the test_case topic when state or is_flaky changes" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: false, state: "enabled")
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      :ok = Tuist.PubSub.subscribe(Tests.test_case_topic(test_case.id))
+      test_case_id = test_case.id
+
+      # When
+      {:ok, _updated} = Tests.update_test_case(test_case.id, %{is_flaky: true, state: "muted"})
+
+      # Then
+      assert_receive {:test_case_updated,
+                      %{
+                        id: ^test_case_id,
+                        is_flaky: true,
+                        state: "muted",
+                        event_types: event_types
+                      }},
+                     500
+
+      assert :marked_flaky in event_types
+      assert :muted in event_types
+    end
+
+    test "records alert_id on the event when :alert_id is passed in opts" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id, state: "enabled")
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      alert =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          name: "Auto-quarantine"
+        )
+
+      # When — simulate the automation calling update_test_case (no actor, but
+      # carrying alert_id for attribution).
+      {:ok, _updated} =
+        Tests.update_test_case(test_case.id, %{state: "muted"}, alert_id: alert.id)
+
+      # Then
+      {events, _meta} = Tests.list_test_case_events(test_case.id)
+      muted_event = Enum.find(events, &(&1.event_type == "muted"))
+
+      assert muted_event
+      assert muted_event.alert_id == alert.id
+      assert muted_event.actor_id == nil
+
+      # The preloaded alert gives the UI the name to attribute.
+      assert muted_event.alert.name == "Auto-quarantine"
+    end
+
+    test "user-then-automation chain: the LAST broadcast carries the automation-applied state" do
+      # Regression: when a user action fires an automation that mutates the
+      # test case (e.g. user marks → automation mutes), the nested call's
+      # broadcast must arrive AFTER the outer call's broadcast so the
+      # LiveView ends up reflecting the muted state — not the pre-automation
+      # "enabled" snapshot captured by the outer call.
+      project = ProjectsFixtures.project_fixture()
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: false, state: "enabled")
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      AutomationsFixtures.automation_alert_fixture(
+        project: project,
+        monitor_type: "test_updated",
+        trigger_config: %{"events" => ["marked_flaky"]},
+        trigger_actions: [%{"type" => "change_state", "state" => "muted"}]
+      )
+
+      :ok = Tuist.PubSub.subscribe(Tests.test_case_topic(test_case.id))
+
+      {:ok, _updated} = Tests.update_test_case(test_case.id, %{is_flaky: true}, actor_id: user.account.id)
+
+      # First broadcast: the user's mark, with the pre-automation state.
+      assert_receive {:test_case_updated, %{is_flaky: true, state: "enabled", event_types: [:marked_flaky]}}, 500
+      # Second broadcast: the nested automation write, with state flipped.
+      assert_receive {:test_case_updated, %{state: "muted", event_types: [:muted]}}, 500
+    end
+
+    test "does not broadcast when neither is_flaky nor state changed" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: false, state: "enabled")
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      :ok = Tuist.PubSub.subscribe(Tests.test_case_topic(test_case.id))
+
+      # When — no-op update (same is_flaky, no state).
+      {:ok, _updated} = Tests.update_test_case(test_case.id, %{is_flaky: false})
+
+      # Then
+      refute_receive {:test_case_updated, _}, 100
+    end
   end
 
   describe "automation flow ↔ TestCase.state ⁄ test_case_events consistency invariant" do
@@ -7140,8 +7297,8 @@ defmodule Tuist.TestsTest do
 
       IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
 
-      expect(Tests, :update_test_case, 1, fn id, attrs ->
-        Mimic.call_original(Tests, :update_test_case, [id, attrs])
+      expect(Tests, :update_test_case, 1, fn id, attrs, opts ->
+        Mimic.call_original(Tests, :update_test_case, [id, attrs, opts])
       end)
 
       assert :ok =

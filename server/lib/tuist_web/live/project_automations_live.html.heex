@@ -122,9 +122,21 @@
                       >
                         <:right_icon><.check /></:right_icon>
                       </.dropdown_item>
+                      <.dropdown_item
+                        value="test_updated"
+                        label={dgettext("dashboard_projects", "Test updated")}
+                        on_click="update_create_automation_form_metric"
+                        data-selected={@create_automation_form_metric == "test_updated"}
+                      >
+                        <:right_icon><.check /></:right_icon>
+                      </.dropdown_item>
                     </.dropdown>
                   </div>
-                  <div data-part="form-row" data-size="dropdown">
+                  <div
+                    :if={not event_driven_monitor_type?(@create_automation_form_metric)}
+                    data-part="form-row"
+                    data-size="dropdown"
+                  >
                     <label data-part="label">
                       {dgettext("dashboard_projects", "Comparison")}
                     </label>
@@ -166,7 +178,11 @@
                       </.dropdown_item>
                     </.dropdown>
                   </div>
-                  <div data-part="form-row" data-size="compact">
+                  <div
+                    :if={not event_driven_monitor_type?(@create_automation_form_metric)}
+                    data-part="form-row"
+                    data-size="compact"
+                  >
                     <label data-part="label">
                       {threshold_label(@create_automation_form_metric)}
                     </label>
@@ -180,7 +196,11 @@
                       phx-debounce="300"
                     />
                   </div>
-                  <div data-part="form-row" data-size="dropdown-narrow">
+                  <div
+                    :if={not event_driven_monitor_type?(@create_automation_form_metric)}
+                    data-part="form-row"
+                    data-size="dropdown-narrow"
+                  >
                     <label data-part="label">
                       {dgettext("dashboard_projects", "Over")}
                     </label>
@@ -207,7 +227,10 @@
                     </.dropdown>
                   </div>
                   <div
-                    :if={@create_automation_form_window_type == "last_days"}
+                    :if={
+                      not event_driven_monitor_type?(@create_automation_form_metric) and
+                        @create_automation_form_window_type == "last_days"
+                    }
                     data-part="form-row"
                     data-size="compact"
                   >
@@ -225,7 +248,10 @@
                     />
                   </div>
                   <div
-                    :if={@create_automation_form_window_type == "rolling"}
+                    :if={
+                      not event_driven_monitor_type?(@create_automation_form_metric) and
+                        @create_automation_form_window_type == "rolling"
+                    }
                     data-part="form-row"
                     data-size="compact"
                   >
@@ -250,6 +276,28 @@
                       phx-keyup="update_create_automation_form_rolling_window_size"
                       phx-debounce="300"
                     />
+                  </div>
+                </div>
+                <div :if={@create_automation_form_metric == "test_updated"} data-part="form-row">
+                  <label data-part="label">
+                    {dgettext("dashboard_projects", "On these events")}
+                  </label>
+                  <div id="create-automation-events" data-part="event-checkbox-list">
+                    <label
+                      :for={event <- Tuist.Automations.Alerts.Alert.test_updated_events()}
+                      id={"create-automation-event-#{event}"}
+                      data-part="event-checkbox"
+                      phx-click="toggle_create_automation_form_event"
+                      phx-value-data={event}
+                    >
+                      <.checkbox_control checked={event in @create_automation_form_events} />
+                      <div data-part="body">
+                        <span data-part="label">{test_updated_event_label(event)}</span>
+                        <span data-part="description">
+                          {test_updated_event_description(event)}
+                        </span>
+                      </div>
+                    </label>
                   </div>
                 </div>
               </div>
@@ -340,7 +388,6 @@
                         <.dropdown
                           id={"create-automation-trigger-action-#{index}"}
                           label={trigger_action_label(action["state"])}
-                          size="medium"
                         >
                           <.dropdown_item
                             value="muted"
@@ -464,7 +511,6 @@
                     <%= if action["type"] != "send_slack" do %>
                       <.button
                         icon_only
-                        size="medium"
                         variant="secondary"
                         phx-click="delete_create_automation_form_trigger_action"
                         phx-value-index={index}
@@ -476,9 +522,12 @@
                 </div>
               </div>
 
-              <.line_divider />
+              <.line_divider :if={not event_driven_monitor_type?(@create_automation_form_metric)} />
 
-              <div data-part="form-section">
+              <div
+                :if={not event_driven_monitor_type?(@create_automation_form_metric)}
+                data-part="form-section"
+              >
                 <div data-part="form-section-header" data-inline data-with-action>
                   <.toggle
                     id={"create-automation-recovery-toggle-#{@editing_automation_id || "new"}"}
@@ -645,7 +694,6 @@
                         <.dropdown
                           id={"create-automation-recovery-action-#{index}"}
                           label={trigger_action_label(action["state"])}
-                          size="medium"
                         >
                           <.dropdown_item
                             value="enabled"
@@ -769,7 +817,6 @@
                     <%= if action["type"] != "send_slack" do %>
                       <.button
                         icon_only
-                        size="medium"
                         variant="secondary"
                         phx-click="delete_create_automation_form_recovery_action"
                         phx-value-index={index}
@@ -804,7 +851,9 @@
                 }
                 variant="primary"
                 disabled={
-                  @create_automation_form_name == "" or not rolling_window_inputs_valid?(assigns)
+                  @create_automation_form_name == "" or
+                    not rolling_window_inputs_valid?(assigns) or
+                    Enum.empty?(@create_automation_form_trigger_actions)
                 }
                 phx-click="save_automation"
               />

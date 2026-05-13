@@ -22,6 +22,7 @@ defmodule Tuist.Tests do
   import Ecto.Query
 
   alias Tuist.Accounts.Account
+  alias Tuist.Automations
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
   alias Tuist.Projects.Project
@@ -776,12 +777,14 @@ defmodule Tuist.Tests do
   ## Parameters
   - `test_case_id` - the test case UUID to update
   - `update_attrs` - map with `:is_flaky` boolean and/or `:state` (`"enabled"` | `"muted"` | `"skipped"`)
-  - `opts` - optional keyword list with `:actor_id` (account_id for user actions, nil for system)
+  - `opts` - optional keyword list with `:actor_id` (account_id for user actions, nil for system / automation)
+    and `:alert_id` (set by `ActionExecutor` so the event timeline can attribute the change to its automation)
   """
   def update_test_case(test_case_id, update_attrs, opts \\ []) when is_map(update_attrs) do
     valid_keys = [:is_flaky, :state]
     filtered_attrs = Map.take(update_attrs, valid_keys)
     actor_id = Keyword.get(opts, :actor_id)
+    alert_id = Keyword.get(opts, :alert_id)
 
     with {:ok, test_case} <- get_test_case_by_id(test_case_id) do
       attrs =
@@ -793,31 +796,81 @@ defmodule Tuist.Tests do
 
       IngestRepo.insert_all(TestCase, [attrs])
 
-      create_events_for_test_case_changes(test_case_id, test_case, filtered_attrs, actor_id)
+      updated_test_case = Map.merge(test_case, filtered_attrs)
 
-      {:ok, Map.merge(test_case, filtered_attrs)}
+      event_types = determine_test_case_events(test_case, filtered_attrs)
+      record_test_case_events(test_case_id, event_types, actor_id, alert_id)
+      # Broadcast THIS call's update before fanning out to event-driven
+      # automations. An automation action (e.g. change_state) re-enters
+      # `update_test_case/3`, which will broadcast its own update; we want
+      # that nested broadcast to land LAST so the LiveView ends up with the
+      # automation-applied state, not our pre-automation snapshot.
+      broadcast_test_case_update(updated_test_case, event_types)
+      dispatch_event_driven_automations(test_case, event_types)
+
+      {:ok, updated_test_case}
     end
   end
 
-  defp create_events_for_test_case_changes(test_case_id, old_test_case, new_attrs, actor_id) do
-    event_types = determine_test_case_events(old_test_case, new_attrs)
+  @doc """
+  PubSub topic LiveViews can subscribe to for real-time updates on a
+  single test case (state / is_flaky flips). The matching broadcast
+  payload is `{:test_case_updated, %{id: id, is_flaky: bool, state: string, event_types: [atom]}}`.
+  """
+  def test_case_topic(test_case_id), do: "test_case:#{test_case_id}"
 
-    if Enum.any?(event_types) do
-      now = NaiveDateTime.utc_now()
+  defp broadcast_test_case_update(_test_case, []), do: :ok
 
-      events =
-        Enum.map(event_types, fn event_type ->
-          %{
-            id: UUIDv7.generate(),
-            test_case_id: test_case_id,
-            event_type: to_string(event_type),
-            actor_id: actor_id,
-            inserted_at: now
-          }
-        end)
+  defp broadcast_test_case_update(test_case, event_types) do
+    payload = %{
+      id: test_case.id,
+      is_flaky: test_case.is_flaky,
+      state: test_case.state,
+      event_types: event_types
+    }
 
-      TestCaseEvent.Buffer.insert_all(events)
-    end
+    Phoenix.PubSub.broadcast(
+      Tuist.PubSub,
+      test_case_topic(test_case.id),
+      {:test_case_updated, payload}
+    )
+  end
+
+  defp record_test_case_events(_test_case_id, [], _actor_id, _alert_id), do: :ok
+
+  defp record_test_case_events(test_case_id, event_types, actor_id, alert_id) do
+    now = NaiveDateTime.utc_now()
+
+    events =
+      Enum.map(event_types, fn event_type ->
+        %{
+          id: UUIDv7.generate(),
+          test_case_id: test_case_id,
+          event_type: to_string(event_type),
+          actor_id: actor_id,
+          alert_id: alert_id,
+          inserted_at: now
+        }
+      end)
+
+    TestCaseEvent.Buffer.insert_all(events)
+    # State-change events are rare and we want subscribers (e.g. the
+    # `TestCaseLive` PubSub handler that triggers a history refresh) to see
+    # them immediately rather than wait for the 5s buffer tick. Flushing is
+    # cheap here — these events are emitted at most a few times per second
+    # per test case.
+    TestCaseEvent.Buffer.flush()
+  end
+
+  defp dispatch_event_driven_automations(test_case, event_types) do
+    # Automation-driven updates re-enter `update_test_case/3`, which calls
+    # back into this dispatcher: an automation reacting to `marked_flaky`
+    # by muting the test fires its own `:muted` event for any alert
+    # subscribed to `state_changed_to_muted`. Loop protection lives in
+    # `Tuist.Automations.dispatch_test_case_event/2` (depth guard).
+    Enum.each(event_types, fn event_type ->
+      Automations.dispatch_test_case_event(event_type, test_case)
+    end)
   end
 
   defp determine_test_case_events(old_test_case, new_attrs) do
@@ -856,7 +909,7 @@ defmodule Tuist.Tests do
         for: TestCaseEvent
       )
 
-    events = Repo.preload(events, :actor)
+    events = Repo.preload(events, [:actor, :alert])
     {events, meta}
   end
 
@@ -1545,6 +1598,7 @@ defmodule Tuist.Tests do
             test_case_id: run.test_case_id,
             event_type: "first_run",
             actor_id: nil,
+            alert_id: nil,
             inserted_at: now
           }
         end)
