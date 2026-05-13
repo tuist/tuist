@@ -8,11 +8,13 @@ defmodule TuistWeb.WebhookLive do
   use TuistWeb, :live_view
   use Noora
 
+  import Noora.CheckboxControl
   import Noora.Filter
 
   alias Noora.Filter
   alias Tuist.Authorization
   alias Tuist.Webhooks
+  alias Tuist.Webhooks.WebhookEndpoint
   alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Utilities.Query
 
@@ -32,7 +34,9 @@ defmodule TuistWeb.WebhookLive do
          |> assign(:selected_tab, "webhooks")
          |> assign(:endpoint, endpoint)
          |> assign(:head_title, "#{endpoint.name} · #{dgettext("dashboard_account", "Webhooks")} · Tuist")
+         |> assign(:event_groups, WebhookEndpoint.event_groups())
          |> assign(:available_filters, available_filters(endpoint))
+         |> reset_edit_form()
          |> reset_disclosure()}
 
       {:error, :not_found} ->
@@ -83,6 +87,90 @@ defmodule TuistWeb.WebhookLive do
     {:ok, _} = Webhooks.delete_endpoint(endpoint)
     {:noreply, push_navigate(socket, to: ~p"/#{account.name}/webhooks")}
   end
+
+  # Prime the form with the endpoint's current values before showing the
+  # modal so it feels like a true edit instead of a freshly filled form.
+  def handle_event("open_edit_form", _params, %{assigns: %{endpoint: endpoint}} = socket) do
+    {:noreply,
+     socket
+     |> assign(:edit_form_name, endpoint.name)
+     |> assign(:edit_form_url, endpoint.url)
+     |> assign(:edit_form_event_types, endpoint.event_types)
+     |> assign(:edit_form_error, nil)
+     |> push_event("open-modal", %{id: "webhook-edit-endpoint-modal"})}
+  end
+
+  def handle_event("update_edit_form_name", %{"value" => name}, socket),
+    do: {:noreply, socket |> assign(:edit_form_name, name) |> assign(:edit_form_error, nil)}
+
+  def handle_event("update_edit_form_url", %{"value" => url}, socket),
+    do: {:noreply, socket |> assign(:edit_form_url, url) |> assign(:edit_form_error, nil)}
+
+  def handle_event("toggle_edit_form_event_type", %{"data" => event_type}, socket) do
+    selected = socket.assigns.edit_form_event_types
+
+    next =
+      if event_type in selected do
+        List.delete(selected, event_type)
+      else
+        [event_type | selected]
+      end
+
+    {:noreply, socket |> assign(:edit_form_event_types, next) |> assign(:edit_form_error, nil)}
+  end
+
+  def handle_event("toggle_edit_form_event_group", %{"data" => group_key}, socket) do
+    case Enum.find(socket.assigns.event_groups, &(&1.key == group_key)) do
+      nil ->
+        {:noreply, socket}
+
+      group ->
+        group_types = Enum.map(group.events, & &1.type)
+        selected = socket.assigns.edit_form_event_types
+
+        next =
+          if Enum.all?(group_types, &(&1 in selected)) do
+            selected -- group_types
+          else
+            Enum.uniq(group_types ++ selected)
+          end
+
+        {:noreply, socket |> assign(:edit_form_event_types, next) |> assign(:edit_form_error, nil)}
+    end
+  end
+
+  def handle_event("update_endpoint", _params, %{assigns: assigns} = socket) do
+    attrs = %{
+      "name" => assigns.edit_form_name,
+      "url" => assigns.edit_form_url,
+      "event_types" => assigns.edit_form_event_types
+    }
+
+    case Webhooks.update_endpoint(assigns.endpoint, attrs) do
+      {:ok, endpoint} ->
+        {:noreply,
+         socket
+         |> assign(:endpoint, endpoint)
+         |> assign(:available_filters, available_filters(endpoint))
+         |> reset_edit_form()
+         |> push_event("close-modal", %{id: "webhook-edit-endpoint-modal"})}
+
+      {:error, %Ecto.Changeset{} = changeset} ->
+        {:noreply, assign(socket, :edit_form_error, humanize_errors(changeset))}
+    end
+  end
+
+  def handle_event("dismiss_edit_form", _params, socket) do
+    {:noreply,
+     socket
+     |> reset_edit_form()
+     |> push_event("close-modal", %{id: "webhook-edit-endpoint-modal"})}
+  end
+
+  def handle_event("edit_modal_open_change", %{"open" => false}, socket),
+    do: {:noreply, reset_edit_form(socket)}
+
+  def handle_event("edit_modal_open_change", _params, socket), do: {:noreply, socket}
 
   def handle_event(
         "deliveries_period_changed",
@@ -245,6 +333,41 @@ defmodule TuistWeb.WebhookLive do
       :deliveries_timeseries,
       Webhooks.deliveries_timeseries(endpoint.id, start_datetime: start_datetime, end_datetime: end_datetime)
     )
+  end
+
+  @doc """
+  Returns true if every event in `group` is in the `selected` list.
+  Drives the group-level "Select all" checkbox state.
+  """
+  def all_group_events_selected?(group, selected),
+    do: Enum.all?(group.events, &(&1.type in selected))
+
+  @doc """
+  Returns true when some but not all events in `group` are selected — the
+  group checkbox renders in its indeterminate state.
+  """
+  def group_partially_selected?(group, selected) do
+    types = Enum.map(group.events, & &1.type)
+    selected_count = Enum.count(types, &(&1 in selected))
+    selected_count > 0 and selected_count < length(types)
+  end
+
+  defp reset_edit_form(socket) do
+    socket
+    |> assign(:edit_form_name, "")
+    |> assign(:edit_form_url, "")
+    |> assign(:edit_form_event_types, [])
+    |> assign(:edit_form_error, nil)
+  end
+
+  defp humanize_errors(%Ecto.Changeset{} = changeset) do
+    changeset
+    |> Ecto.Changeset.traverse_errors(fn {msg, opts} ->
+      Enum.reduce(opts, msg, fn {key, value}, acc ->
+        String.replace(acc, "%{#{key}}", to_string(value))
+      end)
+    end)
+    |> Enum.map_join(". ", fn {field, errs} -> "#{field}: #{Enum.join(errs, ", ")}" end)
   end
 
   defp filter_value(filters, id) do
