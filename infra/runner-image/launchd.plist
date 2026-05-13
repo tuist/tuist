@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Boots the Tuist runner image. The wrapper:
+    1. Runs /opt/tuist/inject-env.sh — materializes /etc/tuist.env
+       from the tart-kubelet env mount.
+    2. Sources /etc/tuist.env so the dispatch-poll script sees
+       the per-Pod TUIST_RUNNER_* vars.
+    3. Execs /opt/tuist/dispatch-poll.sh — polls the Tuist server
+       for a JIT config and execs ./run.sh on first 200.
+
+  KeepAlive=false: the runner image is single-shot. After the GH
+  Actions job finishes, dispatch-poll.sh halts the VM so `tart
+  run` returns and tart-kubelet transitions the Pod to Succeeded;
+  the watcher then reconciles a fresh warm Pod into its place.
+  Restarting the wrapper would just re-poll for a JIT config
+  that's already been claimed.
+
+  RunAsUser is implicit (root via LaunchDaemon) — the runner
+  binary handles its own user dropping if needed.
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>dev.tuist.runner</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>-c</string>
+        <string>/opt/tuist/inject-env.sh &amp;&amp; source /etc/tuist.env &amp;&amp; exec /opt/tuist/dispatch-poll.sh</string>
+    </array>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <false/>
+
+    <key>WorkingDirectory</key>
+    <string>/opt/actions-runner</string>
+
+    <key>StandardOutPath</key>
+    <string>/var/log/tuist-runner/stdout.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/var/log/tuist-runner/stderr.log</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <!--
+          The GitHub Actions runner aborts on startup when uid=0
+          unless RUNNER_ALLOW_RUNASROOT is set, on the assumption
+          that runner-as-root is a security mistake. Inside our
+          ephemeral Tart VM the entire OS is the customer's job
+          environment — there's no separation gain from dropping
+          privileges, and the inject-env.sh + dispatch-poll.sh
+          chain assumes root for /etc writes. Bypass the check.
+        -->
+        <key>RUNNER_ALLOW_RUNASROOT</key>
+        <string>1</string>
+    </dict>
+
+    <key>ProcessType</key>
+    <string>Interactive</string>
+</dict>
+</plist>

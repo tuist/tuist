@@ -4,6 +4,7 @@ package controllers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -12,15 +13,19 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	"sigs.k8s.io/cluster-api/util"
 	"sigs.k8s.io/cluster-api/util/conditions"
 	"sigs.k8s.io/cluster-api/util/patch"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/api/v1alpha1"
 	"github.com/tuist/tuist/infra/macos-host-bootstrap"
@@ -144,6 +149,19 @@ func (r *ScalewayAppleSiliconMachineReconciler) Reconcile(ctx context.Context, r
 		}
 	}()
 
+	// Resolve the parent CAPI Machine, if there is one. The chart
+	// renders MachineDeployment → MachineSet → Machine →
+	// ScalewayAppleSiliconMachine; CAPI core stamps an OwnerRef on
+	// our CR pointing at the Machine, and we drive most lifecycle
+	// off the parent's spec / status. Standalone CRs (no parent
+	// Machine) are still reconciled normally — useful for tests
+	// and for any operator-side bring-up before MachineDeployment
+	// adoption completes.
+	ownerMachine, ownerErr := util.GetOwnerMachine(ctx, r.Client, machine.ObjectMeta)
+	if ownerErr != nil {
+		return ctrl.Result{}, fmt.Errorf("get owner Machine: %w", ownerErr)
+	}
+
 	// Handle deletion.
 	if !machine.DeletionTimestamp.IsZero() {
 		return r.reconcileDelete(ctx, machine)
@@ -153,6 +171,34 @@ func (r *ScalewayAppleSiliconMachineReconciler) Reconcile(ctx context.Context, r
 	// release the Scaleway server before the CR disappears.
 	if !controllerutil.ContainsFinalizer(machine, MachineFinalizer) {
 		controllerutil.AddFinalizer(machine, MachineFinalizer)
+	}
+
+	if ownerMachine != nil {
+		// CAPI's Machine controller waits for the InfrastructureCluster's
+		// Status.Ready before stamping our CR's OwnerRef, but we still
+		// gate on the parent Machine's Cluster being ready before
+		// touching Scaleway — covers the brief window where a Machine
+		// exists but the cluster's not provisioned. Cluster.Spec.Paused
+		// also pauses us.
+		clusterName := ownerMachine.Spec.ClusterName
+		if clusterName != "" {
+			cluster := &clusterv1.Cluster{}
+			if err := r.Get(ctx, types.NamespacedName{Namespace: machine.Namespace, Name: clusterName}, cluster); err != nil {
+				if apierrors.IsNotFound(err) {
+					logger.Info("parent Cluster not found; requeueing", "cluster", clusterName)
+					return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+				}
+				return ctrl.Result{}, err
+			}
+			if cluster.Spec.Paused {
+				logger.Info("parent Cluster paused; skipping reconcile")
+				return ctrl.Result{}, nil
+			}
+			if !cluster.Status.InfrastructureReady {
+				logger.Info("parent Cluster InfrastructureReady=false; requeueing")
+				return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+			}
+		}
 	}
 
 	return r.reconcileNormal(ctx, machine)
@@ -183,22 +229,14 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 
 	// Stage 1: ensure the Scaleway server exists.
 	if machine.Status.ServerID == "" {
-		machine.Status.Phase = "Provisioning"
-		r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Provisioning",
-			"Ordering %s Mac mini in zone %s", machine.Spec.Type, machine.Spec.Zone)
-		srv, err := r.ScalewayClient.CreateServer(
-			ctx,
-			machine.Name,
-			machine.Spec.Zone,
-			machine.Spec.Type,
-			machine.Spec.OS,
-		)
+		srv, requeue, err := r.acquireServer(ctx, machine)
 		if err != nil {
-			conditions.MarkFalse(machine, ProvisionedCondition, "ScalewayCreateFailed",
-				clusterv1.ConditionSeverityError, "%v", err)
-			r.Recorder.Eventf(machine, corev1.EventTypeWarning, "ProvisioningFailed",
-				"Scaleway CreateServer: %v", err)
-			return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
+			return ctrl.Result{RequeueAfter: requeue}, nil
+		}
+		if srv == nil {
+			// Adoption path with no available host. Requeue and
+			// keep the operator-visible event/condition state.
+			return ctrl.Result{RequeueAfter: requeue}, nil
 		}
 
 		machine.Status.ServerID = srv.ID
@@ -222,7 +260,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 		}
 		conditions.MarkTrue(machine, ProvisionedCondition)
 		r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Provisioned",
-			"Mac mini %s ordered, IP=%s", srv.ID, srv.IP)
+			"Mac mini %s ready, IP=%s", srv.ID, srv.IP)
 		logger.Info("provisioned Scaleway Mac mini", "id", srv.ID, "ip", srv.IP)
 	}
 
@@ -295,9 +333,10 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			Kubeconfig:           kubeconfigYAML,
 			TartKubeletBinary:    r.TartKubeletBinary,
 			TartTarball:          r.TartTarball,
-			HostCPU:              r.TartKubeletHostCPU,
-			HostMemoryMB:         r.TartKubeletHostMemoryMB,
+			HostCPU:              hostCPUFor(machine, r.TartKubeletHostCPU),
+			HostMemoryMB:         hostMemoryMBFor(machine, r.TartKubeletHostMemoryMB),
 			MaxPods:              r.TartKubeletMaxPods,
+			NodeLabels:           machineNodeLabels(machine),
 			KnownHostFingerprint: bootstrapCreds.HostFingerprint,
 		})
 		// Persist whatever fingerprint Run captured even on the error
@@ -371,9 +410,10 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			NodeName:             machine.Name,
 			Kubeconfig:           kubeconfigYAML,
 			TartKubeletBinary:    r.TartKubeletBinary,
-			HostCPU:              r.TartKubeletHostCPU,
-			HostMemoryMB:         r.TartKubeletHostMemoryMB,
+			HostCPU:              hostCPUFor(machine, r.TartKubeletHostCPU),
+			HostMemoryMB:         hostMemoryMBFor(machine, r.TartKubeletHostMemoryMB),
 			MaxPods:              r.TartKubeletMaxPods,
+			NodeLabels:           machineNodeLabels(machine),
 			KnownHostFingerprint: bootstrapCreds.HostFingerprint,
 		})
 		if fingerprint != "" && fingerprint != bootstrapCreds.HostFingerprint {
@@ -498,6 +538,74 @@ func recordUpdateFailure(machine *infrav1.ScalewayAppleSiliconMachine, err error
 		machine.Status.TartKubeletUpdateAttempts, maxAttempts, err)
 }
 
+// acquireServer either claims a pre-ordered host from the pool
+// (when `Spec.AdoptPoolPrefix` is set) or orders a new one. The
+// adoption path returns (nil, requeue, nil) on
+// `ErrNoAvailableHost` — that's a transient "wait for operator
+// pre-order" state, not a failure; surfaces a `NoAvailableHost`
+// event so the operator sees the queue. On any other error the
+// caller requeues and the condition message carries the detail.
+func (r *ScalewayAppleSiliconMachineReconciler) acquireServer(
+	ctx context.Context,
+	machine *infrav1.ScalewayAppleSiliconMachine,
+) (*scaleway.Server, time.Duration, error) {
+	if machine.Spec.AdoptPoolPrefix != "" {
+		machine.Status.Phase = "Adopting"
+		r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Adopting",
+			"Searching pool %q for an unclaimed %s Mac mini in zone %s",
+			machine.Spec.AdoptPoolPrefix, machine.Spec.Type, machine.Spec.Zone)
+		srv, err := r.ScalewayClient.AdoptByPrefix(
+			ctx,
+			machine.Name,
+			machine.Spec.Zone,
+			machine.Spec.Type,
+			machine.Spec.OS,
+			machine.Spec.AdoptPoolPrefix,
+		)
+		if errors.Is(err, scaleway.ErrNoAvailableHost) {
+			conditions.MarkFalse(machine, ProvisionedCondition, "NoAvailableHost",
+				clusterv1.ConditionSeverityWarning,
+				"no server with prefix %q matching %s/%s/%s in zone %s; pre-order more capacity",
+				machine.Spec.AdoptPoolPrefix, machine.Spec.Type, machine.Spec.OS,
+				"ready", machine.Spec.Zone)
+			r.Recorder.Eventf(machine, corev1.EventTypeWarning, "NoAvailableHost",
+				"No pre-ordered Mac mini matching pool=%q type=%s os=%s zone=%s; waiting for operator to pre-order more capacity",
+				machine.Spec.AdoptPoolPrefix, machine.Spec.Type, machine.Spec.OS, machine.Spec.Zone)
+			return nil, 60 * time.Second, nil
+		}
+		if err != nil {
+			conditions.MarkFalse(machine, ProvisionedCondition, "ScalewayAdoptFailed",
+				clusterv1.ConditionSeverityError, "%v", err)
+			r.Recorder.Eventf(machine, corev1.EventTypeWarning, "ProvisioningFailed",
+				"Scaleway AdoptByPrefix: %v", err)
+			return nil, 30 * time.Second, err
+		}
+		r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Adopted",
+			"Claimed Mac mini %s from pool %q (renamed to %s)",
+			srv.ID, machine.Spec.AdoptPoolPrefix, machine.Name)
+		return srv, 0, nil
+	}
+
+	machine.Status.Phase = "Provisioning"
+	r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Provisioning",
+		"Ordering %s Mac mini in zone %s", machine.Spec.Type, machine.Spec.Zone)
+	srv, err := r.ScalewayClient.CreateServer(
+		ctx,
+		machine.Name,
+		machine.Spec.Zone,
+		machine.Spec.Type,
+		machine.Spec.OS,
+	)
+	if err != nil {
+		conditions.MarkFalse(machine, ProvisionedCondition, "ScalewayCreateFailed",
+			clusterv1.ConditionSeverityError, "%v", err)
+		r.Recorder.Eventf(machine, corev1.EventTypeWarning, "ProvisioningFailed",
+			"Scaleway CreateServer: %v", err)
+		return nil, 60 * time.Second, err
+	}
+	return srv, 0, nil
+}
+
 // nodeBootstrapGrace is how long after BootstrappedCondition flips to
 // True we tolerate a missing Node before deciding it's drift. tart-
 // kubelet's launchd job typically registers within ~30s of bootstrap
@@ -543,6 +651,39 @@ func machineIP(m *infrav1.ScalewayAppleSiliconMachine) string {
 	return ""
 }
 
+// hostCPUFor / hostMemoryMBFor select the per-Machine capacity
+// override when set on the spec, falling back to the operator-
+// global flag default. Lets a single operator instance manage
+// heterogeneous fleets (e.g. xcresult-fleet on M2-M and
+// runners-fleet on M2-L) without spawning a deployment per fleet
+// or under-advertising on the larger SKU.
+func hostCPUFor(m *infrav1.ScalewayAppleSiliconMachine, fallback int) int {
+	if m.Spec.HostCPU > 0 {
+		return m.Spec.HostCPU
+	}
+	return fallback
+}
+
+func hostMemoryMBFor(m *infrav1.ScalewayAppleSiliconMachine, fallback int) int {
+	if m.Spec.HostMemoryMB > 0 {
+		return m.Spec.HostMemoryMB
+	}
+	return fallback
+}
+
+// machineNodeLabels returns the labels tart-kubelet will stamp on
+// the Node it registers. v1 sets only `tuist.dev/fleet=<FleetName>`
+// — the fleet membership label that workloads pin to via
+// nodeSelector. Adding more labels (e.g. instance-type for multi-
+// profile pre-warming) is a one-line change here; bootstrap +
+// tart-kubelet already accept arbitrary maps.
+func machineNodeLabels(m *infrav1.ScalewayAppleSiliconMachine) map[string]string {
+	if m.Spec.FleetName == "" {
+		return nil
+	}
+	return map[string]string{"tuist.dev/fleet": m.Spec.FleetName}
+}
+
 func (r *ScalewayAppleSiliconMachineReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	concurrency := r.MaxConcurrentReconciles
 	if concurrency <= 0 {
@@ -551,6 +692,36 @@ func (r *ScalewayAppleSiliconMachineReconciler) SetupWithManager(mgr ctrl.Manage
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&infrav1.ScalewayAppleSiliconMachine{}).
 		WithOptions(controller.Options{MaxConcurrentReconciles: concurrency}).
+		// Wake up on parent CAPI Machine events so a change in the
+		// Machine (e.g. Cluster.InfrastructureReady flipping, the
+		// bootstrap data secret landing, the parent being deleted)
+		// reconciles the infra Machine immediately instead of
+		// waiting for our own resync window.
+		Watches(
+			&clusterv1.Machine{},
+			handler.EnqueueRequestsFromMapFunc(scalewayMachineForCAPIMachine),
+		).
 		Complete(r)
+}
+
+// scalewayMachineForCAPIMachine maps a CAPI Machine event to a
+// reconcile request for the ScalewayAppleSiliconMachine it owns
+// (if any). Machines with `infrastructureRef.Kind` other than ours
+// are silently ignored — the same controller may run alongside
+// other infrastructure providers.
+func scalewayMachineForCAPIMachine(_ context.Context, o client.Object) []reconcile.Request {
+	m, ok := o.(*clusterv1.Machine)
+	if !ok {
+		return nil
+	}
+	if m.Spec.InfrastructureRef.Kind != "ScalewayAppleSiliconMachine" {
+		return nil
+	}
+	return []reconcile.Request{{
+		NamespacedName: types.NamespacedName{
+			Namespace: m.Spec.InfrastructureRef.Namespace,
+			Name:      m.Spec.InfrastructureRef.Name,
+		},
+	}}
 }
 

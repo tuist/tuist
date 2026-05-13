@@ -17,5 +17,6 @@ use (
 	./infra/cluster-api-provider-scaleway-applesilicon
 	./infra/kura-controller
 	./infra/macos-host-bootstrap
+	./infra/runners-controller
 	./infra/tart-kubelet
 )

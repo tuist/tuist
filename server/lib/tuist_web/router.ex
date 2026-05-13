@@ -685,6 +685,18 @@ defmodule TuistWeb.Router do
     post "/auth/oidc/token", OIDCController, :exchange_token
   end
 
+  # Runner Pod dispatch endpoint. Authenticated by a per-Pod
+  # token in env (validated against the SHA-256 hash persisted in
+  # `runner_assignments`), not by the user-auth flow. Lives under
+  # `/api/internal` to make the boundary explicit — these
+  # endpoints are for our own infrastructure, not for SDK / CLI
+  # consumers.
+  scope "/api/internal", TuistWeb do
+    pipe_through [:non_authenticated_api]
+
+    post "/runners/dispatch", RunnersController, :dispatch
+  end
+
   scope "/oauth2", TuistWeb.Oauth do
     pipe_through [:browser_app, :fetch_current_user]
 

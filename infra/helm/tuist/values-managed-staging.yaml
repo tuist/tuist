@@ -154,7 +154,94 @@ xcresultProcessor:
 macosFleet:
   enabled: true
   replicas: 1
+  # Share the pre-ordered pool with runnersFleet (same prefix
+  # below). Both MachineDeployments draw from one Scaleway-side
+  # pool of `tuist-pool-*` hosts; the controller claims the first
+  # match per Machine. Avoids fragmenting capacity between the
+  # macos and runners fleets in staging where total hostCount
+  # (1 + 2) easily fits within one operator-managed pool.
+  adoptPoolPrefix: "tuist-pool-"
   machine:
-    # M4-S is normally what we'd pick (smallest M4); falls back to
-    # M2-M when M4-S is no_stock. Override per Scaleway capacity.
-    type: M2-M
+    # Staging tracks the chart default (M2-L on Scaleway: M2 Pro
+    # 10-core / 16 GB). Drop to M2-M if staging capacity gets tight
+    # on inventory and we accept smaller hosts.
+    type: M2-L
+    # Leave 2 CPU + 2 GB for the macOS host + Apple
+    # Virtualization.framework reserve. tart-kubelet advertises
+    # `8 / 14336` so kube-scheduler packs Pods against the real VM
+    # budget. Asking for the host's full 10 CPU / 16 GB fails at
+    # `tart run` with
+    # `memorySize > maximumAllowedMemorySize` (and the matching
+    # CPU-count check).
+    hostCPU: 8
+    hostMemoryMB: 14336
+
+# Customer-runner Mac mini fleet. Sized to tuist/tuist's
+# concurrency tier (2 in staging; production keeps 5).
+# Workloads that target this fleet schedule via
+# `nodeSelector: tuist.dev/fleet=tuist-tuist-runners-fleet`.
+#
+# Image digest pinned to the artifact built by the most recent
+# successful run of .github/workflows/runner-image.yml. Bumped
+# manually for now (one digest per runner-image release);
+# automation lands when the image flow gets its own
+# release-bump workflow.
+runnersFleet:
+  enabled: true
+  hostCount: 1
+  # Pre-ordered Mac mini pool. Operator orders Mac minis in the
+  # Scaleway console with names starting with `tuist-pool-`
+  # (e.g. `tuist-pool-001`, `tuist-pool-002`); the CAPI controller
+  # claims the first matching one for each new Machine. No
+  # auto-order fallback — if the pool runs dry the new Machine
+  # stays in `Provisioning` with `NoAvailableHost` events until
+  # capacity is pre-ordered.
+  adoptPoolPrefix: "tuist-pool-"
+  machine:
+    # Chart default — M2-L on Scaleway: M2 Pro 10-core / 16 GB.
+    # Explicit here so `hostCPU`/`hostMemoryMB` stay in sync if a
+    # future operator overrides the SKU per env. The operator's
+    # pre-ordered hosts MUST be M2-L (matching the controller's
+    # adoption filter); other SKUs in the pool are skipped.
+    type: M2-L
+    # Match the SKU's actual capacity less host overhead so
+    # tart-kubelet advertises the right Node.Status.Capacity and
+    # kube-scheduler packs Pods against the real VM budget.
+    # 14336 leaves ~2 GB for the macOS host + Apple
+    # Virtualization.framework reserve (16 GB - 2 GB = 14 GB);
+    # asking for the full 16 GB on a 16 GB host fails at
+    # `tart run` with `memorySize > maximumAllowedMemorySize`.
+    # `hostCPU: 8` leaves 2 cores for the host's system services.
+    hostCPU: 8
+    hostMemoryMB: 14336
+  # Cluster-internal CIDR ranges the runner namespace's
+  # NetworkPolicy blocks egress to. **Pod-network only** — the
+  # Tart VM's traffic is not subject to this policy (vmnet bypasses
+  # CNI). Use the cluster-perimeter firewall on the Mac mini's
+  # security group to gate VM egress. The ranges below match the
+  # staging cluster's Pod + Service CIDRs; double-check with
+  # `kubectl cluster-info dump | grep -i cidr` before bumping
+  # these on a fresh cluster.
+  networkPolicy:
+    enabled: true
+    exceptCIDRs:
+      - "10.0.0.0/8"
+      - "172.16.0.0/12"
+      - "192.168.0.0/16"
+  pools:
+    - name: default
+      # 1 warm runner per host. Pool replicas must equal `hostCount`
+      # while pods request the full host — over-provisioning the
+      # pool only produces unschedulable Pods that drag readiness
+      # gates without adding capacity.
+      replicas: 1
+      runnerImage: "ghcr.io/tuist/tuist-runner:08e66c9b"
+      dispatchLabel: "tuist-staging-macos"
+      pod:
+        # Pod request = host capacity. kube-scheduler bin-packs one
+        # Pod per host AND tart-kubelet's `tart set` gives the VM
+        # the host's full CPU/RAM. Mismatch with `machine.host*`
+        # would either waste memory (Pod under-requests, VM is
+        # smaller than host) or fail to schedule (over-requests).
+        cpuMilli: 8000
+        memoryMB: 14336

@@ -2,6 +2,7 @@ defmodule TuistWeb.Webhooks.GitHubController do
   use TuistWeb, :controller
 
   alias Tuist.Environment
+  alias Tuist.Runners.Dispatch
   alias Tuist.VCS
 
   require Logger
@@ -197,10 +198,56 @@ defmodule TuistWeb.Webhooks.GitHubController do
       "check_run" ->
         handle_check_run(conn, params)
 
+      "workflow_job" ->
+        handle_workflow_job(conn, params)
+
       _ ->
         conn
         |> put_status(:ok)
         |> json(%{status: "ok"})
+    end
+  end
+
+  defp handle_workflow_job(conn, params) do
+    installation_id =
+      case params do
+        %{"installation" => %{"id" => id}} when is_integer(id) -> id
+        _ -> nil
+      end
+
+    result =
+      if installation_id do
+        Dispatch.handle_webhook(params, installation_id)
+      else
+        :ignored
+      end
+
+    case result do
+      # `:ok` shapes (`:queued` / `:completed`) and `:ignored`
+      # (a job we deliberately don't handle: no account match,
+      # cap=0, no matching pool, ambiguous pool) are terminal
+      # and return 200 so GitHub doesn't replay them. GitHub
+      # will not redeliver a `queued` event for the same job
+      # — the queue lives on its side until a runner claims it
+      # — so a permanent decision has to land here, not later.
+      {:ok, _} ->
+        conn |> put_status(:ok) |> json(%{status: "ok"})
+
+      :ignored ->
+        conn |> put_status(:ok) |> json(%{status: "ok"})
+
+      {:error, reason} ->
+        # Transient failure — e.g. the K8s LIST for RunnerPools
+        # raced a deploy, the ClickHouse INSERT timed out, or
+        # the account lookup blew up. Return 5xx so GitHub
+        # retries with backoff; without that, the job stays
+        # queued in GitHub indefinitely and no warm runner can
+        # claim it (our CH queue never got the row).
+        Logger.warning("runners: webhook returning 503 for retry", reason: inspect(reason))
+
+        conn
+        |> put_status(:service_unavailable)
+        |> json(%{status: "error", reason: "transient"})
     end
   end
 

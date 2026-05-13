@@ -1,16 +1,32 @@
 defmodule Tuist.Kubernetes.Client do
   @moduledoc """
-  Small Kubernetes API client for server-owned control-plane writes.
+  Small Kubernetes API client used by two unrelated subsystems on
+  the server:
 
-  Production uses the pod ServiceAccount projected by Kubernetes for the
-  cluster the server runs in. Cross-region and local-controller Kura operations
-  use kubeconfigs loaded from the runtime environment or local kubeconfig files.
+    * **Kura provisioner / Kura controller**: generic verbs
+      (`get/2`, `replace/3`, `patch/3`, `delete/2`, `apply/2`) +
+      Kura-instance helpers, with both in-cluster ServiceAccount
+      auth and cross-cluster kubeconfig support.
+
+    * **Runner dispatch**: domain-specific helpers
+      (`create_token_review/1`, `get_service_account/2`,
+      `get_runner_pool/2`, `list_runner_pools/1`, `list_pods/2`,
+      `patch_pod/3`) that drive the SA-token-authenticated
+      dispatch endpoint and stamp owner labels at claim time.
+
+  Both surfaces share the same auth + request infrastructure
+  (`request/3` + `config/1`). In-cluster auth uses the projected
+  ServiceAccount mount at `/var/run/secrets/kubernetes.io/serviceaccount`;
+  cross-cluster paths (Kura) load a kubeconfig from the runtime
+  environment or local files via `opts[:mode] = :kubeconfig`.
   """
 
   @service_account_dir "/var/run/secrets/kubernetes.io/serviceaccount"
   @token_path Path.join(@service_account_dir, "token")
   @ca_path Path.join(@service_account_dir, "ca.crt")
   @field_manager "tuist-server"
+
+  # ----- Generic verbs (used by Kura) -----
 
   def get(path, opts \\ []) when is_binary(path) do
     request(:get, path, opts: opts)
@@ -61,6 +77,143 @@ defmodule Tuist.Kubernetes.Client do
     delete("/apis/kura.tuist.dev/v1alpha1/namespaces/#{namespace}/kurainstances/#{name}", opts)
   end
 
+  # ----- Runner dispatch helpers -----
+
+  # Audience the runner-issued SA token must claim AND the
+  # TokenReview must validate against. Tart-kubelet mints the
+  # token with `Audiences: [@dispatch_audience]`; the apiserver
+  # accepts the token only if it carries this audience (and any
+  # configured projected-volume audiences). A leaked guest token
+  # is therefore single-purpose: it can talk to this dispatch
+  # endpoint and nothing else — in particular, it is NOT a
+  # default-audience credential for the K8s API server.
+  @dispatch_audience "tuist-runners-dispatch"
+
+  @doc """
+  Returns the audience the runner ServiceAccount token must
+  carry. Kept as a single source of truth so tart-kubelet (which
+  reads this via a CLI flag baked into the controller) and the
+  dispatch endpoint always agree.
+  """
+  def runner_dispatch_audience, do: @dispatch_audience
+
+  @doc """
+  POSTs a TokenReview for `token` and returns
+  `{:ok, %{namespace: ns, name: sa_name, uid: uid}}` when the
+  apiserver authenticates the token AND the principal is a
+  ServiceAccount (we reject user / node tokens here so a leaked
+  kubeconfig can't impersonate a runner).
+
+  The TokenReview request carries an expected `audiences`
+  list so the apiserver rejects tokens that don't claim the
+  dispatch audience. Without this, a default-audience SA token
+  leaked from the guest VM (it lives on disk at
+  `/etc/tuist-sa-token`, readable by the customer-controlled
+  job) could be replayed against the K8s API. With it, the
+  token only validates here.
+
+  Returns `{:error, :unauthenticated}` when TokenReview rejects
+  the token, `{:error, :not_service_account}` when authenticated
+  but not an SA, or `{:error, _}` on transport / non-2xx errors.
+  """
+  def create_token_review(token) when is_binary(token) do
+    body =
+      Jason.encode!(%{
+        "apiVersion" => "authentication.k8s.io/v1",
+        "kind" => "TokenReview",
+        "spec" => %{
+          "token" => token,
+          "audiences" => [@dispatch_audience]
+        }
+      })
+
+    case request(:post, "/apis/authentication.k8s.io/v1/tokenreviews",
+           body: body,
+           headers: [{"content-type", "application/json"}]
+         ) do
+      {:ok, %{"status" => %{"authenticated" => true, "user" => user, "audiences" => audiences}}}
+      when is_list(audiences) ->
+        # Defense in depth: the apiserver already rejects tokens
+        # that don't claim our audience (returns authenticated:
+        # false), but if the request audience filtering is ever
+        # accidentally widened, the response carries the
+        # subset that did validate — fail-closed if our audience
+        # isn't in the list.
+        if @dispatch_audience in audiences do
+          parse_sa_principal(user)
+        else
+          {:error, :unauthenticated}
+        end
+
+      {:ok, %{"status" => %{"authenticated" => true, "user" => user}}} ->
+        parse_sa_principal(user)
+
+      {:ok, %{"status" => %{"authenticated" => false}}} ->
+        {:error, :unauthenticated}
+
+      {:error, _} = err ->
+        err
+    end
+  end
+
+  @doc """
+  GETs a ServiceAccount by name from `namespace`. The dispatch
+  endpoint reads `metadata.labels["tuist.dev/runner-pool"]` to
+  resolve which pool the SA-as-caller is authorized for.
+  """
+  def get_service_account(namespace, name) when is_binary(namespace) and is_binary(name) do
+    get("/api/v1/namespaces/#{namespace}/serviceaccounts/#{name}")
+  end
+
+  @doc """
+  GETs a single RunnerPool CR by name. Returns the decoded JSON map
+  on success; the caller pulls `spec.dispatchLabel` (and other
+  spec fields) to drive the JIT mint.
+  """
+  def get_runner_pool(namespace, name) when is_binary(namespace) and is_binary(name) do
+    get("/apis/tuist.dev/v1alpha1/namespaces/#{namespace}/runnerpools/#{name}")
+  end
+
+  @doc """
+  LISTs RunnerPool CRs in `namespace`. The dispatch webhook
+  handler iterates the result to find a pool whose
+  `spec.dispatchLabel` matches the incoming workflow_job's labels.
+  """
+  def list_runner_pools(namespace) when is_binary(namespace) do
+    case get("/apis/tuist.dev/v1alpha1/namespaces/#{namespace}/runnerpools") do
+      {:ok, %{"items" => items}} -> {:ok, items}
+      {:error, _} = err -> err
+    end
+  end
+
+  @doc """
+  LISTs Pods in `namespace` matching `label_selector`. Used by
+  `Tuist.Runners.dispatch_for_sa` to count in-flight Pods per
+  customer (Pods labeled `tuist.dev/runner-pool-owner=<owner>`)
+  before claiming a queue entry, to enforce `max_concurrent`.
+  """
+  def list_pods(namespace, label_selector) when is_binary(namespace) and is_binary(label_selector) do
+    case request(:get, "/api/v1/namespaces/#{namespace}/pods", query: %{"labelSelector" => label_selector}) do
+      {:ok, %{"items" => items}} -> {:ok, items}
+      {:error, _} = err -> err
+    end
+  end
+
+  @doc """
+  Strategic-merge PATCHes a Pod. The dispatch endpoint uses this
+  to stamp owner labels on a polling Pod at the moment it claims
+  a queue entry, so subsequent `max_concurrent` counts include
+  the Pod immediately.
+  """
+  def patch_pod(namespace, name, patch_body) when is_binary(namespace) and is_binary(name) and is_map(patch_body) do
+    request(:patch, "/api/v1/namespaces/#{namespace}/pods/#{name}",
+      body: Jason.encode!(patch_body),
+      headers: [{"content-type", "application/strategic-merge-patch+json"}]
+    )
+  end
+
+  # ----- Manifest dispatch -----
+
   defp manifest_path(%{
          "apiVersion" => "kura.tuist.dev/v1alpha1",
          "kind" => "KuraInstance",
@@ -71,6 +224,8 @@ defmodule Tuist.Kubernetes.Client do
 
   defp manifest_path(%{"kind" => kind}), do: {:error, "unsupported Kubernetes manifest kind #{kind}"}
   defp manifest_path(_), do: {:error, "unsupported Kubernetes manifest"}
+
+  # ----- Request infrastructure -----
 
   defp request(method, path, options) do
     opts = Keyword.get(options, :opts, [])
@@ -335,4 +490,16 @@ defmodule Tuist.Kubernetes.Client do
 
   defp format_body(body) when is_binary(body), do: String.slice(body, 0, 500)
   defp format_body(body), do: inspect(body, limit: 20)
+
+  defp parse_sa_principal(%{"username" => "system:serviceaccount:" <> rest, "uid" => uid}) do
+    case String.split(rest, ":", parts: 2) do
+      [namespace, name] when namespace != "" and name != "" ->
+        {:ok, %{namespace: namespace, name: name, uid: uid}}
+
+      _ ->
+        {:error, :not_service_account}
+    end
+  end
+
+  defp parse_sa_principal(_), do: {:error, :not_service_account}
 end

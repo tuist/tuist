@@ -15,12 +15,14 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/kubernetes"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -34,6 +36,7 @@ import (
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/envresolver"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/nodeagent"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/podagent"
+	"github.com/tuist/tuist/infra/tart-kubelet/internal/satoken"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/tart"
 )
 
@@ -51,6 +54,7 @@ func main() {
 		nodeName           string
 		nodeIP             string
 		scrapeAllowedCIDRs cidrList
+		nodeLabelsRaw      string
 		hostCPU            int
 		hostMemoryMB       int
 		maxPods            int
@@ -63,6 +67,12 @@ func main() {
 		"Routable IP of this Mac mini. Pods that opt into Prometheus scraping advertise it as their PodIP and run a host-side forwarder on the host port. Defaults to the first non-loopback IPv4 address on a UP interface.")
 	flag.Var(&scrapeAllowedCIDRs, "scrape-allowed-cidr",
 		"CIDR (IPv4 or IPv6) allowed to reach the per-Pod metrics forwarder. May be repeated. Defaults to RFC1918 / IPv6 ULA / loopback / link-local — covers any realistic cluster Pod or Node CIDR while clamping out the public WAN. The Mac mini's bind address can in practice be a public IP, so this allowlist (not the bind interface) is the load-bearing security boundary.")
+	flag.StringVar(&nodeLabelsRaw, "node-labels", envOr("TART_KUBELET_NODE_LABELS", ""),
+		"Comma-separated key=value pairs the Node carries as labels (e.g. "+
+			"`tuist.dev/fleet=runners,tuist.dev/instance-type=large`). Workloads use "+
+			"these via nodeSelector to pin to specific Mac minis. Mirrors kubelet's "+
+			"--node-labels flag. Empty omits the labels; tart-kubelet prunes any "+
+			"`tuist.dev/*` labels it previously set on the Node but no longer carries.")
 	flag.IntVar(&hostCPU, "host-cpu", 8, "CPU cores to advertise on the Node.")
 	flag.IntVar(&hostMemoryMB, "host-memory-mb", 16384, "Memory MB to advertise on the Node.")
 	flag.IntVar(&maxPods, "max-pods", 2,
@@ -166,6 +176,16 @@ func main() {
 		setupLog.Error(err, "state recovery failed; reconciles may treat existing VMs as stale")
 	}
 
+	// Typed kubernetes.Interface for TokenRequest — the
+	// controller-runtime client doesn't expose CreateToken on
+	// ServiceAccounts because TokenRequest is a subresource that
+	// doesn't fit the generic resource shape.
+	typedClient, err := kubernetes.NewForConfig(cfg)
+	if err != nil {
+		setupLog.Error(err, "create typed kubernetes client")
+		os.Exit(1)
+	}
+
 	if err := (&podagent.Reconciler{
 		CachedClient:       mgr.GetClient(),
 		NodeName:           nodeName,
@@ -174,19 +194,27 @@ func main() {
 		Tart:               tartClient,
 		Resolver:           resolver,
 		Store:              store,
+		TokenMinter:        &satoken.ClientMinter{Client: typedClient, ExpirationSeconds: 3600},
 		GC:                 gcCollector,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup pod reconciler")
 		os.Exit(1)
 	}
 
+	nodeLabels, err := parseNodeLabels(nodeLabelsRaw)
+	if err != nil {
+		setupLog.Error(err, "parse --node-labels")
+		os.Exit(1)
+	}
+
 	if err := mgr.Add(&nodeagent.Maintainer{
-		Client:    mgr.GetClient(),
-		NodeName:  nodeName,
-		CPU:       hostCPU,
-		MemoryMB:  hostMemoryMB,
-		MaxPods:   maxPods,
-		Heartbeat: 30 * time.Second,
+		Client:     mgr.GetClient(),
+		NodeName:   nodeName,
+		NodeLabels: nodeLabels,
+		CPU:        hostCPU,
+		MemoryMB:   hostMemoryMB,
+		MaxPods:    maxPods,
+		Heartbeat:  30 * time.Second,
 	}); err != nil {
 		setupLog.Error(err, "add node maintainer")
 		os.Exit(1)
@@ -213,6 +241,34 @@ func envOr(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+// parseNodeLabels parses kubelet's --node-labels=k=v,k=v form. Empty
+// input yields a nil map (no labels stamped, prune-only mode). Used
+// by the Maintainer to populate the Node's labels at registration.
+func parseNodeLabels(raw string) (map[string]string, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil, nil
+	}
+	out := map[string]string{}
+	for _, pair := range strings.Split(raw, ",") {
+		pair = strings.TrimSpace(pair)
+		if pair == "" {
+			continue
+		}
+		k, v, ok := strings.Cut(pair, "=")
+		if !ok {
+			return nil, fmt.Errorf("invalid label pair %q (expected key=value)", pair)
+		}
+		k = strings.TrimSpace(k)
+		v = strings.TrimSpace(v)
+		if k == "" {
+			return nil, fmt.Errorf("invalid label pair %q (empty key)", pair)
+		}
+		out[k] = v
+	}
+	return out, nil
 }
 
 // defaultNodeIP picks the first non-loopback IPv4 address bound to a

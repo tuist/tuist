@@ -4,6 +4,7 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"net"
+	"strings"
 	"testing"
 
 	"golang.org/x/crypto/ssh"
@@ -14,6 +15,41 @@ func TestEncodeKCPasswordPadsToTwelveBytes(t *testing.T) {
 	// encodeKCPassword returns base64 — decode to inspect ciphertext.
 	if len(out) == 0 {
 		t.Fatalf("expected non-empty output")
+	}
+}
+
+func TestRenderLaunchdPlist_OmitsNodeLabelsWhenEmpty(t *testing.T) {
+	out := renderLaunchdPlist(Config{NodeName: "n1", SSHUser: "m1"})
+	if strings.Contains(out, "--node-labels") {
+		t.Fatalf("expected --node-labels to be absent when NodeLabels is empty\n%s", out)
+	}
+}
+
+func TestRenderLaunchdPlist_RendersFleetLabel(t *testing.T) {
+	out := renderLaunchdPlist(Config{
+		NodeName:   "n1",
+		SSHUser:    "m1",
+		NodeLabels: map[string]string{"tuist.dev/fleet": "tuist-runners"},
+	})
+	if !strings.Contains(out, "--node-labels=tuist.dev/fleet=tuist-runners") {
+		t.Fatalf("expected --node-labels=tuist.dev/fleet=tuist-runners in plist\n%s", out)
+	}
+}
+
+func TestRenderLaunchdPlist_RendersMultipleLabelsSorted(t *testing.T) {
+	out := renderLaunchdPlist(Config{
+		NodeName: "n1",
+		SSHUser:  "m1",
+		NodeLabels: map[string]string{
+			"tuist.dev/fleet":         "tuist-runners",
+			"tuist.dev/instance-type": "large",
+		},
+	})
+	// Sorted alphabetically — deterministic plist rendering keeps the
+	// host fingerprint stable across reconciles.
+	want := "--node-labels=tuist.dev/fleet=tuist-runners,tuist.dev/instance-type=large"
+	if !strings.Contains(out, want) {
+		t.Fatalf("expected %q in plist\n%s", want, out)
 	}
 }
 

@@ -1,17 +1,37 @@
-name: Build Runner Image
+name: Runner Image
+
+# Builds the Tart VM image hosted on the customer-runner Mac mini
+# fleet. Pushes to ghcr.io/tuist/tuist-runner:<git-sha>.
+#
+# Runs on the same self-hosted bare-metal Mac mini as the
+# xcresult-processor image — Tart needs a live GUI session for
+# Virtualization.framework, so this can't run on hosted runners.
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - infra/runner-image/**
+      - .github/workflows/runner-image.yml
   workflow_dispatch:
     inputs:
       base_image:
-        description: "Base Tart image (e.g. ghcr.io/cirruslabs/macos-tahoe-xcode:26.4)"
-        required: true
-      output_image:
-        description: "Output image name (e.g. tuist-runner-xcode-26.4)"
-        required: true
+        description: "Base Tart image"
+        required: false
+        default: "ghcr.io/cirruslabs/macos-tahoe-xcode:26.4"
       runner_version:
-        description: "GitHub Actions runner version (e.g. 2.325.0)"
-        required: true
+        description: "GitHub Actions runner version"
+        required: false
+        default: "2.334.0"
+
+concurrency:
+  group: runner-image
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
 
 permissions:
   contents: read
@@ -19,31 +39,55 @@ permissions:
 
 jobs:
   build:
-    runs-on: namespace-profile-macos-xcode-26
+    runs-on: [self-hosted, macos, bare-metal, vm-image-builder]
+    timeout-minutes: 60
+    env:
+      PATH: /opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Tart
-        run: brew install cirruslabs/cli/tart
-
-      - name: Install Packer
-        run: brew install hashicorp/tap/packer
-
       - name: Initialize Packer
-        working-directory: infra/runner-images
+        working-directory: infra/runner-image
         run: packer init runner.pkr.hcl
 
+      # Same anonymous-pull dance as xcresult-processor-image.yml:
+      # the bare-metal runner has tuist-bot creds cached for ghcr.io
+      # which don't authorize ghcr.io/cirruslabs/* pulls.
+      - name: Drop cached ghcr.io credentials
+        run: tart logout ghcr.io || true
+
+      - name: Reclaim Tart disk
+        run: |
+          set -uo pipefail
+          tart list --format json || true
+          df -h /
+          tart stop tuist-runner 2>/dev/null || true
+          tart delete tuist-runner 2>/dev/null || true
+          tart prune --entries caches --older-than 0
+          tart prune --entries vms --older-than 1
+          df -h /
+
       - name: Build image
-        working-directory: infra/runner-images
+        working-directory: infra/runner-image
         run: |
           packer build \
-            -var "base_image=${{ inputs.base_image }}" \
-            -var "output_image=${{ inputs.output_image }}" \
-            -var "runner_version=${{ inputs.runner_version }}" \
+            -var "base_image=${{ inputs.base_image || 'ghcr.io/cirruslabs/macos-tahoe-xcode:26.4' }}" \
+            -var "output_image=tuist-runner" \
+            -var "runner_version=${{ inputs.runner_version || '2.334.0' }}" \
             runner.pkr.hcl
 
       - name: Log in to GHCR
-        run: tart login ghcr.io --username tuist-bot --password-stdin <<< "${{ secrets.GITHUB_TOKEN }}"
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | tart login ghcr.io --username tuist-bot --password-stdin
 
       - name: Push image to GHCR
-        run: tart push ${{ inputs.output_image }} ghcr.io/tuist/${{ inputs.output_image }}:latest
+        id: push
+        run: |
+          set -euo pipefail
+          GIT_SHA="${GITHUB_SHA::8}"
+          tart push tuist-runner "ghcr.io/tuist/tuist-runner:${GIT_SHA}"
+          echo "Pushed ghcr.io/tuist/tuist-runner:${GIT_SHA}"
+          echo "tag=${GIT_SHA}" >> "$GITHUB_OUTPUT"
+
+      - name: Cleanup
+        if: always()
+        run: tart delete tuist-runner 2>/dev/null || true
