@@ -15,7 +15,7 @@ defmodule Tuist.Webhooks.WebhookEndpoint do
 
   alias Tuist.Accounts.Account
 
-  @supported_event_types ~w(test_case.updated)
+  @supported_event_types ~w(test_case.updated automation.triggered)
 
   @doc """
   Event types an endpoint can subscribe to. Used by the schema validator

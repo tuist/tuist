@@ -34,7 +34,7 @@ defmodule TuistWeb.WebhooksLiveTest do
 
     render_hook(lv, "update_create_form_name", %{"value" => "Jira"})
     render_hook(lv, "update_create_form_url", %{"value" => "https://example.com/hook"})
-    render_hook(lv, "toggle_create_form_event_type", %{"event_type" => "test_case.updated"})
+    render_hook(lv, "toggle_create_form_event_type", %{"data" => "test_case.updated"})
     html = render_hook(lv, "create_endpoint", %{})
 
     # Disclosure state: plaintext secret is rendered, prefixed with whsec_
@@ -59,7 +59,7 @@ defmodule TuistWeb.WebhooksLiveTest do
 
     render_hook(lv, "update_create_form_name", %{"value" => "Bad"})
     render_hook(lv, "update_create_form_url", %{"value" => "http://example.com/hook"})
-    render_hook(lv, "toggle_create_form_event_type", %{"event_type" => "test_case.updated"})
+    render_hook(lv, "toggle_create_form_event_type", %{"data" => "test_case.updated"})
     html = render_hook(lv, "create_endpoint", %{})
 
     assert html =~ "must be a valid HTTPS URL"
@@ -82,9 +82,9 @@ defmodule TuistWeb.WebhooksLiveTest do
 
     render_hook(lv, "update_create_form_name", %{"value" => "Toggle"})
     render_hook(lv, "update_create_form_url", %{"value" => "https://example.com/hook"})
-    render_hook(lv, "toggle_create_form_event_type", %{"event_type" => "test_case.updated"})
+    render_hook(lv, "toggle_create_form_event_type", %{"data" => "test_case.updated"})
     # Toggle off; the empty-subscription validation should now reject the create.
-    render_hook(lv, "toggle_create_form_event_type", %{"event_type" => "test_case.updated"})
+    render_hook(lv, "toggle_create_form_event_type", %{"data" => "test_case.updated"})
     html = render_hook(lv, "create_endpoint", %{})
 
     assert html =~ "must subscribe to at least one event"

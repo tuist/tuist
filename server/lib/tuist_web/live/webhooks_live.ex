@@ -3,6 +3,8 @@ defmodule TuistWeb.WebhooksLive do
   use TuistWeb, :live_view
   use Noora
 
+  import Noora.CheckboxControl
+
   alias Tuist.Authorization
   alias Tuist.Webhooks
   alias Tuist.Webhooks.WebhookEndpoint
@@ -31,7 +33,23 @@ defmodule TuistWeb.WebhooksLive do
   list and the row-level summary cell.
   """
   def event_type_label("test_case.updated"), do: dgettext("dashboard_account", "Test case updated")
+  def event_type_label("automation.triggered"), do: dgettext("dashboard_account", "Automation triggered")
   def event_type_label(other), do: other
+
+  @doc """
+  Short description shown under the checkbox label in the create form.
+  """
+  def event_type_description("test_case.updated"),
+    do:
+      dgettext(
+        "dashboard_account",
+        "A test case's flakiness or quarantine state changed (manually or via an automation)."
+      )
+
+  def event_type_description("automation.triggered"),
+    do: dgettext("dashboard_account", "An automation alert evaluated as triggered for one of its monitored test cases.")
+
+  def event_type_description(_), do: ""
 
   @doc """
   Renders a partial-mask preview of `signing_secret` for the endpoints table.
@@ -62,7 +80,7 @@ defmodule TuistWeb.WebhooksLive do
   def handle_event("update_create_form_url", %{"value" => url}, socket),
     do: {:noreply, socket |> assign(:create_form_url, url) |> assign(:create_form_error, nil)}
 
-  def handle_event("toggle_create_form_event_type", %{"event_type" => event_type}, socket) do
+  def handle_event("toggle_create_form_event_type", %{"data" => event_type}, socket) do
     selected = socket.assigns.create_form_event_types
 
     next =

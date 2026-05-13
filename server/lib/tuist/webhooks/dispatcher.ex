@@ -10,6 +10,7 @@ defmodule Tuist.Webhooks.Dispatcher do
   scheduling delivery. Failures while enqueuing a single endpoint are
   swallowed so one bad subscriber can't block delivery to the others.
   """
+  alias Tuist.Automations.Alerts.Alert
   alias Tuist.Projects
   alias Tuist.Repo
   alias Tuist.Webhooks
@@ -42,6 +43,35 @@ defmodule Tuist.Webhooks.Dispatcher do
           "actor_id" => actor_id,
           "alert_id" => alert_id
         })
+      end)
+
+      :ok
+    else
+      _ -> :ok
+    end
+  end
+
+  @doc """
+  Dispatches an `automation.triggered` event after an alert evaluation has
+  fired. Webhooks subscribed at the alert's account scope receive a snapshot
+  of the firing automation plus the affected test case id.
+  """
+  def dispatch_automation_triggered(%Alert{} = alert, test_case_id) do
+    with %Projects.Project{account_id: account_id} <- Repo.get(Projects.Project, alert.project_id),
+         [_ | _] = endpoints <-
+           Webhooks.list_endpoints_subscribed_to(account_id, "automation.triggered") do
+      object = %{
+        "automation" => %{
+          "id" => alert.id,
+          "name" => alert.name,
+          "monitor_type" => alert.monitor_type,
+          "project_id" => alert.project_id
+        },
+        "test_case_id" => test_case_id
+      }
+
+      Enum.each(endpoints, fn endpoint ->
+        enqueue(endpoint, "automation.triggered", %{"object" => object})
       end)
 
       :ok

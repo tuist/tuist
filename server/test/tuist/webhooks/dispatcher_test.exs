@@ -94,4 +94,48 @@ defmodule Tuist.Webhooks.DispatcherTest do
       assert job.args["payload"]["alert_id"] == alert_id
     end
   end
+
+  describe "dispatch_automation_triggered/2" do
+    test "enqueues an automation.triggered delivery for each subscribed endpoint" do
+      alert = TuistTestSupport.Fixtures.AutomationsFixtures.automation_alert_fixture(name: "Flaky alert")
+      project = Tuist.Repo.get!(Tuist.Projects.Project, alert.project_id)
+
+      {:ok, subscribed, _} =
+        Webhooks.create_endpoint(project.account_id, %{
+          "name" => "Jira",
+          "url" => "https://example.com/hook",
+          "event_types" => ["automation.triggered"]
+        })
+
+      test_case_id = Ecto.UUID.generate()
+      assert :ok = Dispatcher.dispatch_automation_triggered(alert, test_case_id)
+
+      [job] = Tuist.Repo.all(Oban.Job)
+      assert job.args["webhook_endpoint_id"] == subscribed.id
+      assert job.args["event_type"] == "automation.triggered"
+
+      payload = job.args["payload"]
+      assert payload["type"] == "automation.triggered"
+      assert payload["object"]["automation"]["id"] == alert.id
+      assert payload["object"]["automation"]["name"] == "Flaky alert"
+      assert payload["object"]["automation"]["monitor_type"] == alert.monitor_type
+      assert payload["object"]["test_case_id"] == test_case_id
+    end
+
+    test "no-ops when no endpoints subscribe to automation.triggered" do
+      alert = TuistTestSupport.Fixtures.AutomationsFixtures.automation_alert_fixture()
+      project = Tuist.Repo.get!(Tuist.Projects.Project, alert.project_id)
+
+      # A `test_case.updated` subscriber must be skipped here.
+      {:ok, _other, _} =
+        Webhooks.create_endpoint(project.account_id, %{
+          "name" => "Other",
+          "url" => "https://example.com/hook",
+          "event_types" => ["test_case.updated"]
+        })
+
+      assert :ok = Dispatcher.dispatch_automation_triggered(alert, Ecto.UUID.generate())
+      assert Tuist.Repo.aggregate(Oban.Job, :count) == 0
+    end
+  end
 end

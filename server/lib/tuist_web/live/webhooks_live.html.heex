@@ -100,7 +100,7 @@
                       )
                     }
                     value={@create_form_name}
-                    placeholder={dgettext("dashboard_account", "e.g. Jira ingest")}
+                    placeholder={dgettext("dashboard_account", "Webhook name")}
                     phx-keyup="update_create_form_name"
                     phx-debounce="300"
                   />
@@ -130,22 +130,23 @@
                         "Only the selected events trigger a delivery to this endpoint."
                       )}
                     </span>
-                    <label
-                      :for={event_type <- @supported_event_types}
-                      data-part="event-type-option"
-                    >
-                      <input
-                        type="checkbox"
-                        name={"event_types[#{event_type}]"}
-                        value={event_type}
-                        checked={event_type in @create_form_event_types}
+                    <div data-part="event-checkbox-list">
+                      <label
+                        :for={event_type <- @supported_event_types}
+                        id={"webhook-event-#{event_type}"}
+                        data-part="event-checkbox"
                         phx-click="toggle_create_form_event_type"
-                        phx-value-event_type={event_type}
-                      />
-                      <span data-part="event-type-label">
-                        {event_type_label(event_type)}
-                      </span>
-                    </label>
+                        phx-value-data={event_type}
+                      >
+                        <.checkbox_control checked={event_type in @create_form_event_types} />
+                        <div data-part="body">
+                          <span data-part="label">{event_type_label(event_type)}</span>
+                          <span data-part="description">
+                            {event_type_description(event_type)}
+                          </span>
+                        </div>
+                      </label>
+                    </div>
                   </div>
                 </div>
               <% end %>
@@ -155,25 +156,29 @@
 
             <:footer>
               <.modal_footer>
-                <:action>
-                  <%= if @disclosure do %>
-                    <.button
-                      label={dgettext("dashboard_account", "Done")}
-                      variant="primary"
-                      phx-click="dismiss_disclosure"
-                    />
-                  <% else %>
-                    <.button
-                      label={dgettext("dashboard_account", "Cancel")}
-                      variant="secondary"
-                      phx-click="dismiss_disclosure"
-                    />
-                    <.button
-                      label={dgettext("dashboard_account", "Create endpoint")}
-                      variant="primary"
-                      phx-click="create_endpoint"
-                    />
-                  <% end %>
+                <%!-- Each :action slot lives in its own wrapper div, so the --%>
+                <%!-- spacing-5 gap on `[data-part="actions"]` only kicks in --%>
+                <%!-- when buttons are split across slots. --%>
+                <:action :if={@disclosure}>
+                  <.button
+                    label={dgettext("dashboard_account", "Done")}
+                    variant="primary"
+                    phx-click="dismiss_disclosure"
+                  />
+                </:action>
+                <:action :if={is_nil(@disclosure)}>
+                  <.button
+                    label={dgettext("dashboard_account", "Cancel")}
+                    variant="secondary"
+                    phx-click="dismiss_disclosure"
+                  />
+                </:action>
+                <:action :if={is_nil(@disclosure)}>
+                  <.button
+                    label={dgettext("dashboard_account", "Create endpoint")}
+                    variant="primary"
+                    phx-click="create_endpoint"
+                  />
                 </:action>
               </.modal_footer>
             </:footer>
