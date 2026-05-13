@@ -216,14 +216,11 @@ jobs:
     concurrency:
       group: server-deploy-${{ inputs.environment }}
       cancel-in-progress: false
-    # Sized to the helm-upgrade step (45m) plus setup/teardown +
-    # the optional Kura-regional fan-out (~10m on production).
-    # Previously 130m, scaled for the worst-case Scaleway Mac mini
-    # provisioning that helm waited on; that's now an adoption from
-    # a pre-ordered pool (10-15 min) and the wider ceiling does
-    # nothing except keep cancelled runs stuck for hours when helm
-    # ignores SIGTERM.
-    timeout-minutes: 75
+    # helm-upgrade waits up to 30m, setup/teardown adds ~5m, the
+    # optional Kura-regional fan-out runs ~10m on production. 60m
+    # leaves a ~15m buffer for that worst-case stack and keeps a
+    # SIGTERM-stuck helm from holding the slot indefinitely.
+    timeout-minutes: 60
     env:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
       NAMESPACE: ${{ inputs.environment == 'production' && 'tuist' || format('tuist-{0}', inputs.environment) }}
@@ -412,12 +409,11 @@ jobs:
         # If we ever flip back to auto-order in an env, bump this back
         # to ~90m to absorb a fresh Scaleway provisioning.
         #
-        # timeout-minutes: 45 leaves 15 min over helm's own --timeout
-        # for the in-process `--atomic` rollback. The previous 5-min
-        # workflow timeout was too tight for macOS-fleet rollbacks
-        # and could kill helm after it had moved the release into
-        # pending-rollback.
-        timeout-minutes: 45
+        # 35 min = helm's `--timeout 30m` plus a 5-min cushion for the
+        # in-process `--atomic` rollback. A workflow-side timeout under
+        # 35 min risks killing helm after it has moved the release into
+        # pending-rollback, leaving the cluster wedged for the next run.
+        timeout-minutes: 35
         run: |
           # Stream cluster state every 30s while helm waits. helm
           # --atomic --wait produces no stdout during the wait, so
