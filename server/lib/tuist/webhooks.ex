@@ -124,6 +124,7 @@ defmodule Tuist.Webhooks do
     * `:limit` — max rows (default 50)
     * `:start_datetime` / `:end_datetime` — restrict by `inserted_at`
     * `:status` — one of `:delivered | :failed | :retrying | :pending`
+    * `:event_type` — exact match on `event_type`
     * `:event_id_search` — substring match on `event_id`
   """
   def list_deliveries(endpoint_id, opts \\ []) when is_binary(endpoint_id) do
@@ -153,6 +154,7 @@ defmodule Tuist.Webhooks do
       )
       |> apply_period(opts)
       |> apply_status_filter(opts)
+      |> apply_event_type_filter(opts)
       |> apply_event_id_search(opts)
     )
   end
@@ -276,6 +278,14 @@ defmodule Tuist.Webhooks do
           nil -> query
           states -> from(j in query, where: j.state in ^states)
         end
+    end
+  end
+
+  defp apply_event_type_filter(query, opts) do
+    case Keyword.get(opts, :event_type) do
+      nil -> query
+      "" -> query
+      event_type when is_binary(event_type) -> from(j in query, where: fragment("?->>'event_type' = ?", j.args, ^event_type))
     end
   end
 

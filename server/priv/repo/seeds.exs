@@ -3225,6 +3225,122 @@ SeedHelpers.insert_bulk_ch(gradle_machine_metrics, BuildMachineMetric, IngestRep
 IO.puts("  - Xcode machine metrics: #{length(xcode_machine_metrics)} data points")
 IO.puts("  - Gradle machine metrics: #{length(gradle_machine_metrics)} data points")
 
+# =============================================================================
+# Webhook endpoints and deliveries
+# =============================================================================
+#
+# Two account-level endpoints on the tuist organization, each subscribing to a
+# different slice of events so the index table demonstrates the per-endpoint
+# subscription model. We then forge a week of Oban delivery jobs so the chart,
+# stats, and table on the detail page have data the moment you log in.
+
+webhook_endpoints_with_events =
+  [
+    {"Notion automation", "https://example.com/notion/tuist", ["test_case.created", "test_case.updated"]},
+    {"Slack relay", "https://example.com/slack/tuist", ["preview.uploaded", "preview.deleted"]}
+  ]
+  |> Enum.map(fn {name, url, event_types} ->
+    endpoint =
+      case Repo.get_by(Tuist.Webhooks.WebhookEndpoint, account_id: organization.account.id, name: name) do
+        nil ->
+          {:ok, endpoint, _secret} =
+            Tuist.Webhooks.create_endpoint(organization.account.id, %{
+              "name" => name,
+              "url" => url,
+              "event_types" => event_types
+            })
+
+          endpoint
+
+        endpoint ->
+          endpoint
+      end
+
+    {endpoint, event_types}
+  end)
+
+# Match the user-facing buckets the detail page exposes so the seeded data
+# exercises every status in the filter dropdown (Delivered / Failed / Retrying
+# / Pending) instead of just the happy path.
+delivery_state_distribution = [
+  {"completed", 70},
+  {"discarded", 12},
+  {"retryable", 8},
+  {"available", 6},
+  {"scheduled", 4}
+]
+
+weighted_state = fn ->
+  total = Enum.reduce(delivery_state_distribution, 0, fn {_, w}, acc -> acc + w end)
+  roll = :rand.uniform(total)
+
+  Enum.reduce_while(delivery_state_distribution, roll, fn {state, weight}, remaining ->
+    if remaining <= weight, do: {:halt, state}, else: {:cont, remaining - weight}
+  end)
+end
+
+webhook_deliveries =
+  Enum.flat_map(webhook_endpoints_with_events, fn {endpoint, event_types} ->
+    Enum.map(1..150, fn _ ->
+      state = weighted_state.()
+      event_type = Enum.random(event_types)
+      # Spread inserted_at uniformly across the trailing 7 days. Oban's
+      # schema uses :utc_datetime_usec, so we keep DateTime structs with
+      # microsecond precision.
+      offset_seconds = :rand.uniform(7 * 24 * 60 * 60)
+      inserted_at = DateTime.add(DateTime.utc_now(), -offset_seconds, :second)
+
+      attempt =
+        case state do
+          "completed" -> 1
+          "discarded" -> 5
+          "retryable" -> Enum.random(2..4)
+          _ -> 0
+        end
+
+      attempted_at = if attempt > 0, do: DateTime.add(inserted_at, attempt * 30, :second), else: nil
+      completed_at = if state == "completed", do: attempted_at, else: nil
+      discarded_at = if state == "discarded", do: attempted_at, else: nil
+      scheduled_at = if state == "scheduled", do: DateTime.add(inserted_at, 60, :second), else: inserted_at
+
+      %Oban.Job{
+        state: state,
+        queue: "webhooks",
+        worker: "Tuist.Webhooks.Workers.DeliveryWorker",
+        args: %{
+          "webhook_endpoint_id" => endpoint.id,
+          "event_id" => Ecto.UUID.generate(),
+          "event_type" => event_type,
+          "occurred_at" => DateTime.to_iso8601(inserted_at),
+          "data" => %{}
+        },
+        errors:
+          if state == "discarded" do
+            [%{"attempt" => attempt, "error" => "** (Mix) HTTP 500 from upstream"}]
+          else
+            []
+          end,
+        attempt: attempt,
+        max_attempts: 5,
+        inserted_at: inserted_at,
+        scheduled_at: scheduled_at,
+        attempted_at: attempted_at,
+        completed_at: completed_at,
+        discarded_at: discarded_at,
+        priority: 0,
+        tags: [],
+        meta: %{}
+      }
+    end)
+  end)
+
+if webhook_deliveries != [] do
+  Enum.each(webhook_deliveries, &Repo.insert!/1)
+end
+
+IO.puts("  - webhook endpoints: #{length(webhook_endpoints_with_events)}")
+IO.puts("  - webhook deliveries: #{length(webhook_deliveries)}")
+
 IO.puts("")
 IO.puts("=== Seed Complete (scale: #{seed_scale}) ===")
 IO.puts("Generated:")

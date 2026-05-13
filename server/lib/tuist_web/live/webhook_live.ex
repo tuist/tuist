@@ -32,7 +32,7 @@ defmodule TuistWeb.WebhookLive do
          |> assign(:selected_tab, "webhooks")
          |> assign(:endpoint, endpoint)
          |> assign(:head_title, "#{endpoint.name} · #{dgettext("dashboard_account", "Webhooks")} · Tuist")
-         |> assign(:available_filters, available_filters())
+         |> assign(:available_filters, available_filters(endpoint))
          |> reset_disclosure()}
 
       {:error, :not_found} ->
@@ -181,7 +181,10 @@ defmodule TuistWeb.WebhookLive do
     ]
   end
 
-  defp available_filters do
+  # Event-type options are scoped to the types this endpoint subscribes to —
+  # other types could never appear in its delivery log, so they'd just be
+  # dead choices in the dropdown.
+  defp available_filters(endpoint) do
     [
       %Filter.Filter{
         id: "status",
@@ -197,6 +200,16 @@ defmodule TuistWeb.WebhookLive do
         },
         operator: :==,
         value: nil
+      },
+      %Filter.Filter{
+        id: "event_type",
+        field: "event_type",
+        display_name: dgettext("dashboard_account", "Event"),
+        type: :option,
+        options: endpoint.event_types,
+        options_display_names: Map.new(endpoint.event_types, &{&1, &1}),
+        operator: :==,
+        value: nil
       }
     ]
   end
@@ -207,12 +220,14 @@ defmodule TuistWeb.WebhookLive do
 
     active_filters = Filter.Operations.decode_filters_from_query(params, available)
     status = filter_value(active_filters, "status")
+    event_type = filter_value(active_filters, "event_type")
     search = params["search"] || ""
 
     list_opts = [
       start_datetime: start_datetime,
       end_datetime: end_datetime,
       status: status && String.to_existing_atom(status),
+      event_type: event_type,
       event_id_search: search
     ]
 
