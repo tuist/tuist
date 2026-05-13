@@ -40,11 +40,7 @@ defmodule TuistWeb.WebhooksLive do
   Short description shown under the checkbox label in the create form.
   """
   def event_type_description("test_case.updated"),
-    do:
-      dgettext(
-        "dashboard_account",
-        "A test case's flakiness or quarantine state changed (manually or via an automation)."
-      )
+    do: dgettext("dashboard_account", "A test case's attributes changed.")
 
   def event_type_description("automation.triggered"),
     do: dgettext("dashboard_account", "An automation alert evaluated as triggered for one of its monitored test cases.")
