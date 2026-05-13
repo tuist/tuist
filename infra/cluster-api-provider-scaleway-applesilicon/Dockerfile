@@ -39,11 +39,18 @@ ARG TART_VERSION=2.32.1
 # infra/helm/tailscale-operator/Chart.yaml.
 ARG TAILSCALE_VERSION=1.96.5
 
-# node_exporter source revision pinned for the host-metrics binary
-# we cross-compile to darwin/arm64. Prometheus ships node_exporter
-# release binaries linux-only; we build the darwin variant ourselves
-# from the upstream source tag. Bump is deliberate.
-ARG NODE_EXPORTER_VERSION=1.8.2
+# NOTE: node_exporter for darwin/arm64 was previously built here.
+# Removed because upstream's 1.8.2 darwin support fails to
+# cross-compile with CGO_ENABLED=0 (collector/diskstats_darwin.go +
+# meminfo.go + powersupplyclass.go reference symbols that aren't
+# defined in CGO-off builds). Host-level metrics are deferred to
+# a follow-up PR with a darwin-friendly tool — most likely Grafana
+# Alloy in push mode (Alloy ships darwin/arm64 binaries first-
+# class and supports hostMetrics out of the box without CGO).
+# tart-kubelet's own controller-runtime :8080 endpoint still
+# carries the VM-boot histogram, reconcile counts, and error
+# rates over the tailnet, so this PR isn't blind on the macOS
+# fleet — just without the OS-level CPU/mem/disk series.
 
 FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-alpine${ALPINE_VERSION} AS manager-builder
 
@@ -119,35 +126,12 @@ RUN curl -fsSL -o tailscale.pkg \
     "https://pkgs.tailscale.com/stable/Tailscale-${TAILSCALE_VERSION}-macos.pkg"
 
 
-FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-alpine${ALPINE_VERSION} AS node-exporter-builder
-
-# Cross-compile prometheus/node_exporter to darwin/arm64 from the
-# upstream source tag. Prometheus's release pipeline only ships
-# linux/* binaries, so we build the macOS variant ourselves. The
-# resulting binary is statically linked (CGO_ENABLED=0) — no
-# Homebrew dependency on the target.
-ARG NODE_EXPORTER_VERSION
-RUN apk add --no-cache git
-WORKDIR /src
-RUN git clone --depth 1 --branch "v${NODE_EXPORTER_VERSION}" \
-    https://github.com/prometheus/node_exporter .
-RUN --mount=type=cache,target=/root/.cache/go-build \
-    --mount=type=cache,target=/go/pkg/mod \
-    GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 \
-    go build -trimpath \
-    -ldflags="-s -w \
-        -X github.com/prometheus/common/version.Version=${NODE_EXPORTER_VERSION} \
-        -X github.com/prometheus/common/version.Revision=tuist-build" \
-    -o /out/node_exporter-darwin-arm64 .
-
-
 FROM gcr.io/distroless/static-debian12:nonroot
 
 COPY --from=manager-builder /out/manager /usr/local/bin/manager
 COPY --from=kubelet-builder /out/tart-kubelet-darwin-arm64 /opt/tart-kubelet/tart-kubelet-darwin-arm64
 COPY --from=tart-fetcher /out/tart.tar.gz /opt/tart/tart.tar.gz
 COPY --from=tailscale-fetcher /out/tailscale.pkg /opt/tailscale/tailscale.pkg
-COPY --from=node-exporter-builder /out/node_exporter-darwin-arm64 /opt/node-exporter/node_exporter-darwin-arm64
 
 USER nonroot:nonroot
 

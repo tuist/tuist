@@ -26,11 +26,9 @@
 //     a system daemon, and `tailscale up` with the per-fleet auth
 //     key — host joins the tailnet before kubelet so the tailnet IP
 //     is the only routable address kubelet ever advertises.
-//  7. Install node_exporter for host-level (CPU, mem, disk, network)
-//     metrics, scraped over the tailnet on :9100.
-//  8. Drop the kubeconfig the controller built for this host.
-//  9. Upload the tart-kubelet binary.
-//  10. Write the launchd plist with this host's flags + load it.
+//  7. Drop the kubeconfig the controller built for this host.
+//  8. Upload the tart-kubelet binary.
+//  9. Write the launchd plist with this host's flags + load it.
 //
 // After the last step the agent on the host registers a Node and
 // starts reconciling Pods. The provider's MachineReconciler flips
@@ -222,16 +220,27 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 }
 
 // UpdateTartKubelet rolls a new tart-kubelet binary onto an
-// already-bootstrapped Mac mini. Refreshes the kubeconfig (token
-// rotation, server-URL changes, or hosts that were bootstrapped before
-// tart-kubelet existed at all), uploads the latest binary, and reloads
-// the launchd job.
+// already-bootstrapped Mac mini, plus any operator-managed host
+// artifacts whose drift-tracked SHA changed since the last reconcile.
+// Today that's tart-kubelet itself and Tailscale; future host-side
+// installs hook in here by adding their step + their SHA tracking on
+// the Machine status.
 //
-// Skips the one-shot host prep (sudo, auto-login, hostname, Tart) —
-// those don't change between updates. The launchd `bootout`+`bootstrap`
-// cycle runs unconditionally — it's a ~1-second agent restart and Tart
-// VMs survive `nohup`-detached, so workloads are unaffected. The
-// kubelet's startup state-recovery pass re-binds them on the new agent.
+// Refreshes the kubeconfig (token rotation, server-URL changes, or
+// hosts bootstrapped before tart-kubelet existed at all), uploads the
+// latest binary, re-runs installTailscale when the host has the
+// Tailscale .pkg + auth key wired (idempotent at the installer(8)
+// layer, so re-running is safe and lets a mini bootstrapped before
+// this PR pick up Tailscale on first drift reconcile without a
+// manual SSH-and-rebootstrap), and reloads the launchd job.
+//
+// Skips one-shot host prep (sudo, auto-login, hostname, Tart, pf
+// firewall) — those don't change between updates and re-running them
+// would either be wasted SSH work or risk disrupting the running VMs
+// (Tart). The launchd `bootout`+`bootstrap` cycle runs unconditionally
+// — it's a ~1-second agent restart and Tart VMs survive
+// `nohup`-detached, so workloads are unaffected. The kubelet's startup
+// state-recovery pass re-binds them on the new agent.
 //
 // Returns the observed host fingerprint for the same reason Run does.
 // On the update path KnownHostFingerprint is normally already set (the
@@ -254,6 +263,9 @@ func UpdateTartKubelet(ctx context.Context, cfg Config) (string, error) {
 	}
 	if err := installTartKubelet(ctx, client, cfg.TartKubeletBinary); err != nil {
 		return hk.observed(), fmt.Errorf("install tart-kubelet: %w", err)
+	}
+	if err := installTailscale(ctx, client, cfg); err != nil {
+		return hk.observed(), fmt.Errorf("install tailscale: %w", err)
 	}
 	if err := loadTartKubeletLaunchd(ctx, client, cfg); err != nil {
 		return hk.observed(), fmt.Errorf("reload launchd job: %w", err)
@@ -878,9 +890,12 @@ func installTailscale(ctx context.Context, client *ssh.Client, cfg Config) error
 	script := fmt.Sprintf(`set -euo pipefail
 TS_PKG=/tmp/tailscale-bootstrap.pkg
 sudo tee "$TS_PKG" >/dev/null
-if [ ! -x /Applications/Tailscale.app/Contents/MacOS/Tailscale ]; then
-  sudo installer -pkg "$TS_PKG" -target / >/dev/null
-fi
+# Always run installer(8) — macOS's installer is itself idempotent
+# for same-version .pkgs and applies an upgrade when the version
+# differs. Dropping the "if not installed" gate lets the operator's
+# drift loop re-run this step on every UpdateTartKubelet without
+# special-casing first-bootstrap vs upgrade.
+sudo installer -pkg "$TS_PKG" -target / >/dev/null
 sudo rm -f "$TS_PKG"
 # Register tailscaled as a system daemon if not already loaded. The
 # subcommand is idempotent on Tailscale 1.50+ but older builds error

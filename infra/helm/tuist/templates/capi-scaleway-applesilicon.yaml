@@ -211,14 +211,18 @@ spec:
             - --tartkubelet-host-memory-mb={{ .Values.macosFleet.tartKubelet.hostMemoryMB | default 16384 }}
             - --tartkubelet-max-pods={{ .Values.macosFleet.tartKubelet.maxPods | default 3 }}
             {{- if .Values.macosFleet.tailscale.enabled }}
-            # Tailscale + node_exporter artifact paths. Both are
-            # baked into the operator image at the Dockerfile-pinned
-            # versions — see TAILSCALE_VERSION / NODE_EXPORTER_VERSION
-            # there. When the chart's macosFleet.tailscale.enabled is
-            # off, both flags stay empty and the bootstrap step
-            # short-circuits.
+            # Tailscale .pkg path baked into the operator image at
+            # the Dockerfile-pinned TAILSCALE_VERSION. When the
+            # chart's macosFleet.tailscale.enabled is off, the flag
+            # stays empty and the bootstrap step short-circuits.
+            #
+            # Host-level metrics (node_exporter on the macOS host)
+            # are deferred to a follow-up — see Dockerfile note for
+            # the cross-compile gap. tart-kubelet's own
+            # controller-runtime :8080 endpoint still carries the
+            # VM-boot histogram + reconcile counters + error rates
+            # over the tailnet.
             - --tailscale-pkg-path=/opt/tailscale/tailscale.pkg
-            - --node-exporter-binary-path=/opt/node-exporter/node_exporter-darwin-arm64
             # The bootstrap reads this Secret per Machine reconcile
             # (controller-runtime cache hit, no API round-trip) so a
             # rotated key takes effect on the next reconcile without
