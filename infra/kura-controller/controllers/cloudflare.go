@@ -142,16 +142,20 @@ func (c *cloudflareClient) reconcileKuraLoadBalancer(ctx context.Context, instan
 		return nil
 	}
 
-	return c.upsertLoadBalancer(ctx, cloudflareLoadBalancer{
+	return c.upsertLoadBalancer(ctx, desiredCloudflareLoadBalancer(globalHost, protocol, poolIDs))
+}
+
+func desiredCloudflareLoadBalancer(globalHost, protocol string, poolIDs []string) cloudflareLoadBalancer {
+	return cloudflareLoadBalancer{
 		Name:           globalHost,
-		Description:    fmt.Sprintf("Kura global %s endpoint for %s", protocol, globalHost),
+		Description:    fmt.Sprintf("Kura global DNS-routed %s endpoint for %s", protocol, globalHost),
 		Enabled:        true,
-		Proxied:        true,
+		Proxied:        false,
 		TTL:            30,
 		FallbackPool:   poolIDs[0],
 		DefaultPools:   poolIDs,
 		SteeringPolicy: "proximity",
-	})
+	}
 }
 
 func (c *cloudflareClient) removeKuraPool(ctx context.Context, instance *kurav1alpha1.KuraInstance, globalHost, protocol string) error {
@@ -184,6 +188,9 @@ func (c *cloudflareClient) removeKuraPool(ctx context.Context, instance *kurav1a
 		} else {
 			loadBalancer.DefaultPools = poolIDs
 			loadBalancer.FallbackPool = poolIDs[0]
+			loadBalancer.Proxied = false
+			loadBalancer.TTL = 30
+			loadBalancer.SteeringPolicy = "proximity"
 			if err := c.updateLoadBalancer(ctx, *loadBalancer); err != nil {
 				return err
 			}

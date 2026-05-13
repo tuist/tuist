@@ -42,9 +42,9 @@ func main() {
 	flag.BoolVar(&enableLeaderElection, "leader-elect", true, "Single-leader election")
 	flag.StringVar(&watchNamespace, "watch-namespace", "", "Namespace to watch for KuraInstance resources")
 	flag.StringVar(&grpcClusterIssuer, "grpc-cluster-issuer", "", "cert-manager ClusterIssuer to use for gRPC TLS certificates (leaves gRPC plaintext when empty)")
-	flag.StringVar(&cloudflareAccountID, "cloudflare-account-id", "", "Cloudflare account ID for Kura global load balancing")
-	flag.StringVar(&cloudflareZoneID, "cloudflare-zone-id", "", "Cloudflare zone ID for Kura global load balancing")
-	flag.StringVar(&cloudflareAPIToken, "cloudflare-api-token", "", "Cloudflare API token for Kura global load balancing")
+	flag.StringVar(&cloudflareAccountID, "cloudflare-account-id", "", "Cloudflare account ID for Kura global DNS steering")
+	flag.StringVar(&cloudflareZoneID, "cloudflare-zone-id", "", "Cloudflare zone ID for Kura global DNS steering")
+	flag.StringVar(&cloudflareAPIToken, "cloudflare-api-token", "", "Cloudflare API token for Kura global DNS steering")
 
 	opts := zap.Options{Development: false}
 	opts.BindFlags(flag.CommandLine)
