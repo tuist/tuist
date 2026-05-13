@@ -1,15 +1,19 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.193.4<!-- RELEASE NOTES START -->
+## What's Changed in 4.194.0<!-- RELEASE NOTES START -->
 
+### ⛰️  Features
+
+* add onOutdatedDependencies action to GenerationOptions by [@freak4pc](https://github.com/freak4pc) in [#10715](https://github.com/tuist/tuist/pull/10715)
 ### 🐛 Bug Fixes
 
+* synthesize Bundle.module for static frameworks with .metal in buildable folders by [@pepicrft](https://github.com/pepicrft) in [#10746](https://github.com/tuist/tuist/pull/10746)
 * release SwiftPM lock before invoking manifest subprocesses by [@fortmarek](https://github.com/fortmarek) in [#10758](https://github.com/tuist/tuist/pull/10758)
 
 
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.193.3...4.193.4
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.193.3...4.194.0
 
 ## What's Changed in 4.193.3<!-- RELEASE NOTES START -->
 
