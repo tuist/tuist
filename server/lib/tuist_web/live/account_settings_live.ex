@@ -10,6 +10,7 @@ defmodule TuistWeb.AccountSettingsLive do
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.AccountCacheEndpoint
   alias Tuist.Authorization
+  alias Tuist.Environment
   alias Tuist.Kura
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
@@ -29,7 +30,7 @@ defmodule TuistWeb.AccountSettingsLive do
     add_cache_endpoint_form = to_form(AccountCacheEndpoint.create_changeset(%{}))
     cache_endpoints = Accounts.list_account_cache_endpoints(selected_account)
     custom_cache_endpoints_available = Accounts.custom_cache_endpoints_available?(selected_account)
-    kura_enabled = kura_enabled?(current_user)
+    kura_enabled = kura_enabled?(selected_account)
     if connected?(socket) and kura_enabled, do: Kura.subscribe_to_account(selected_account.id)
 
     preferred_locale_form =
@@ -327,8 +328,8 @@ defmodule TuistWeb.AccountSettingsLive do
     |> assign(:add_kura_server_form, default_kura_server_form(available_regions))
   end
 
-  defp kura_enabled?(current_user) do
-    Authorization.authorize(:ops_read, current_user) == :ok
+  defp kura_enabled?(account) do
+    Environment.dev?() or FunWithFlags.enabled?(:kura, for: account)
   end
 
   defp available_kura_regions(regions, servers) do
@@ -592,12 +593,15 @@ defmodule TuistWeb.AccountSettingsLive do
 
   defp kura_server_rows(servers, available_regions) do
     Enum.map(servers, &%{id: "server-#{&1.id}", type: :server, region_id: &1.region, server: &1}) ++
-      Enum.map(available_regions, &%{
-        id: "available-region-#{&1.id}",
-        type: :available_region,
-        region_id: &1.id,
-        region: &1,
-      })
+      Enum.map(
+        available_regions,
+        &%{
+          id: "available-region-#{&1.id}",
+          type: :available_region,
+          region_id: &1.id,
+          region: &1
+        }
+      )
   end
 
   defp kura_row_region_id(row), do: row.region_id

@@ -92,17 +92,18 @@ defmodule TuistWeb.AccountSettingsLiveTest do
     assert has_element?(lv, "button", "Update username")
   end
 
-  test "does not render Kura controls for non-ops users", %{conn: conn, account: account} do
-    FunWithFlags.enable(:kura, for_actor: account)
+  test "does not render Kura controls when the account does not have Kura enabled", %{conn: conn, account: account} do
     stub(Environment, :ops_user_handles, fn -> [] end)
+    stub(Environment, :dev?, fn -> false end)
 
     {:ok, _lv, html} = live(conn, ~p"/#{account.name}/settings")
 
     refute html =~ "Kura cache servers"
   end
 
-  test "renders Kura controls for ops users", %{conn: conn, user: user, account: account} do
-    enable_ops_for(user)
+  test "renders Kura controls for Kura-enabled accounts", %{conn: conn, account: account} do
+    FunWithFlags.enable(:kura, for_actor: account)
+    stub(Environment, :dev?, fn -> false end)
     stub(Kura, :latest_versions, fn 1 -> [%{version: "0.5.2", released_at: DateTime.utc_now(:second)}] end)
 
     {:ok, lv, html} = live(conn, ~p"/#{account.name}/settings")
@@ -120,6 +121,8 @@ defmodule TuistWeb.AccountSettingsLiveTest do
 
   test "shows Kura server state, domain, and version", %{conn: conn, user: user, account: account} do
     enable_ops_for(user)
+    FunWithFlags.enable(:kura, for_actor: account)
+    stub(Environment, :dev?, fn -> false end)
     stub(Kura, :latest_versions, fn 1 -> [%{version: "0.5.3", released_at: DateTime.utc_now(:second)}] end)
 
     {:ok, server} =
@@ -149,6 +152,7 @@ defmodule TuistWeb.AccountSettingsLiveTest do
     account: account
   } do
     enable_ops_for(user)
+    FunWithFlags.enable(:kura, for_actor: account)
     stub(Environment, :dev?, fn -> false end)
     stub(Environment, :test?, fn -> false end)
     stub(Environment, :kura_available_region_ids, fn -> ["eu-central", "us-east", "us-west"] end)
@@ -175,6 +179,8 @@ defmodule TuistWeb.AccountSettingsLiveTest do
 
   test "keeps an active Kura server active during an in-flight deployment", %{conn: conn, user: user, account: account} do
     enable_ops_for(user)
+    FunWithFlags.enable(:kura, for_actor: account)
+    stub(Environment, :dev?, fn -> false end)
     stub(Kura, :latest_versions, fn 1 -> [%{version: "0.5.3", released_at: DateTime.utc_now(:second)}] end)
 
     {:ok, server} =
@@ -199,6 +205,8 @@ defmodule TuistWeb.AccountSettingsLiveTest do
 
   test "deploys a Kura server from account settings", %{conn: conn, user: user, account: account} do
     enable_ops_for(user)
+    FunWithFlags.enable(:kura, for_actor: account)
+    stub(Environment, :dev?, fn -> false end)
     stub(Kura, :latest_versions, fn 1 -> [%{version: "0.5.2", released_at: DateTime.utc_now(:second)}] end)
 
     {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings")
@@ -218,6 +226,8 @@ defmodule TuistWeb.AccountSettingsLiveTest do
     account: account
   } do
     enable_ops_for(user)
+    FunWithFlags.enable(:kura, for_actor: account)
+    stub(Environment, :dev?, fn -> false end)
     stub(Kura, :latest_versions, fn 1 -> [%{version: "0.5.2", released_at: DateTime.utc_now(:second)}] end)
 
     {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings")
