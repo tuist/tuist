@@ -212,11 +212,10 @@ macosFleet:
 # customer runs. Apple's SLA permits up to two VMs per host; v1
 # runs one VM per host to keep capacity reasoning simple. Bump
 # this once the operational story for two-per-host is in place.
-# Production gates on staging + canary proving the substrate and
-# the dispatch flow first; this block is inert until
-# `runnersFleet.pools[].runnerImage` is pinned to a built image SHA.
+# Runner images are digest-pinned so subsequent runner-image
+# releases can safely bump all enabled managed environments.
 runnersFleet:
-  enabled: false
+  enabled: true
   hostCount: 5
   # Pre-ordered pool. Operator orders M2-L hosts in the Scaleway
   # console with names starting with `tuist-pool-` ahead of
@@ -233,7 +232,7 @@ runnersFleet:
   pools:
     - name: default
       replicas: 5
-      runnerImage: ""
+      runnerImage: "ghcr.io/tuist/tuist-runner@sha256:666cf1180bab17d5b6f5cb800a6b21ecb5b078183a532bcc7a1c040711a295df"
       dispatchLabel: "tuist-macos"
 
 # In-cluster Valkey backs the auth rate limiter (Hammer.Redis). The
