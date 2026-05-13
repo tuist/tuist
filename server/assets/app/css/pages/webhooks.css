@@ -369,31 +369,19 @@
     }
   }
 
-  & [data-part="performance-card"] > [data-part="summary"] {
+  & [data-part="performance-card"] > [data-part="widgets"] {
     display: flex;
     flex-direction: row;
-    gap: var(--noora-spacing-9);
+    gap: var(--noora-spacing-4);
     padding: var(--noora-spacing-7) var(--noora-spacing-8) var(--noora-spacing-5);
 
-    & > [data-part="stat"] {
-      display: flex;
-      flex-direction: column;
-      gap: var(--noora-spacing-1);
+    & > * {
+      flex: 1;
+    }
 
-      & > [data-part="label"] {
-        color: var(--noora-surface-label-secondary);
-        font: var(--noora-font-weight-regular) var(--noora-font-body-small);
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
-      }
-
-      & > [data-part="value"] {
-        color: var(--noora-surface-label-primary);
-        font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
-
-        &[data-tone="error"] {
-          color: var(--noora-surface-label-error, var(--noora-surface-label-primary));
-        }
+    @media (max-width: 768px) {
+      & {
+        flex-direction: column;
       }
     }
   }
@@ -449,10 +437,6 @@
   }
 
   @media (max-width: 768px) {
-    & [data-part="performance-card"] > [data-part="summary"] {
-      flex-wrap: wrap;
-    }
-
     & [data-part="details-card"] > [data-part="content"] > [data-part="row"] {
       flex-direction: column;
       gap: var(--noora-spacing-2);

@@ -54,15 +54,19 @@
         {dgettext("dashboard_account", "Delivery attempts over the last 7 days.")}
       </span>
     </div>
-    <div data-part="summary">
-      <div data-part="stat">
-        <span data-part="label">{dgettext("dashboard_account", "Total")}</span>
-        <span data-part="value">{@delivery_stats.total}</span>
-      </div>
-      <div data-part="stat">
-        <span data-part="label">{dgettext("dashboard_account", "Failed")}</span>
-        <span data-part="value" data-tone="error">{@delivery_stats.failed}</span>
-      </div>
+    <div data-part="widgets">
+      <.widget
+        id="widget-webhook-deliveries-total"
+        title={dgettext("dashboard_account", "Total")}
+        legend_color="primary"
+        value={Integer.to_string(@delivery_stats.total)}
+      />
+      <.widget
+        id="widget-webhook-deliveries-failed"
+        title={dgettext("dashboard_account", "Failed")}
+        legend_color="destructive"
+        value={Integer.to_string(@delivery_stats.failed)}
+      />
     </div>
     <div data-part="chart">
       <.chart
