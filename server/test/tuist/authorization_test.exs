@@ -10,6 +10,26 @@ defmodule Tuist.AuthorizationTest do
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
+  test "can.update.account when the subject has ops access" do
+    # Given
+    user = AccountsFixtures.user_fixture()
+    account = AccountsFixtures.organization_fixture(preload: [:account]).account
+    stub(Environment, :ops_user_handles, fn -> [user.account.name] end)
+
+    # When
+    assert Authorization.authorize(:account_update, user, account) == :ok
+  end
+
+  test "cannot.update.account when the subject is not an admin or ops user" do
+    # Given
+    user = AccountsFixtures.user_fixture()
+    account = AccountsFixtures.organization_fixture(preload: [:account]).account
+    stub(Environment, :ops_user_handles, fn -> [] end)
+
+    # When
+    assert Authorization.authorize(:account_update, user, account) == {:error, :forbidden}
+  end
+
   test "can.update.account.billing when the subject is the same account being read and it's on-premise" do
     # Given
     user = AccountsFixtures.user_fixture()
