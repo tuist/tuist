@@ -39,18 +39,15 @@ ARG TART_VERSION=2.32.1
 # infra/helm/tailscale-operator/Chart.yaml.
 ARG TAILSCALE_VERSION=1.96.5
 
-# NOTE: node_exporter for darwin/arm64 was previously built here.
-# Removed because upstream's 1.8.2 darwin support fails to
-# cross-compile with CGO_ENABLED=0 (collector/diskstats_darwin.go +
-# meminfo.go + powersupplyclass.go reference symbols that aren't
-# defined in CGO-off builds). Host-level metrics are deferred to
-# a follow-up PR with a darwin-friendly tool — most likely Grafana
-# Alloy in push mode (Alloy ships darwin/arm64 binaries first-
-# class and supports hostMetrics out of the box without CGO).
-# tart-kubelet's own controller-runtime :8080 endpoint still
-# carries the VM-boot histogram, reconcile counts, and error
-# rates over the tailnet, so this PR isn't blind on the macOS
-# fleet — just without the OS-level CPU/mem/disk series.
+# node_exporter version, pulled as a pre-built darwin/arm64 binary
+# from upstream's GitHub release. Prometheus publishes per-OS/arch
+# tarballs for every release; we skip the cross-compile dance
+# (which needs Apple SDK headers for IOKit/Mach CGo bindings used
+# by the diskstats/meminfo/powersupplyclass collectors) and pull
+# the upstream-built artifact directly. Same convention as
+# TART_VERSION and TAILSCALE_VERSION: deliberate bump via the
+# Dockerfile.
+ARG NODE_EXPORTER_VERSION=1.8.2
 
 FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-alpine${ALPINE_VERSION} AS manager-builder
 
@@ -126,12 +123,35 @@ RUN curl -fsSL -o tailscale.pkg \
     "https://pkgs.tailscale.com/stable/Tailscale-${TAILSCALE_VERSION}-macos.pkg"
 
 
+FROM --platform=$BUILDPLATFORM alpine:${ALPINE_VERSION} AS node-exporter-fetcher
+
+# Upstream's pre-built darwin/arm64 binary. Prometheus publishes
+# per-OS/arch tarballs (`node_exporter-<v>.darwin-arm64.tar.gz`)
+# for every release — pulls the binary built on their own CI with
+# the Apple SDK in scope, so we get the full collector set
+# (diskstats, meminfo, powersupplyclass) that a CGO_ENABLED=0
+# cross-compile from Linux can't produce.
+#
+# Tarball layout: `node_exporter-<v>.darwin-arm64/node_exporter`.
+# We strip the version-dir on extraction so the binary lands at
+# /out/node_exporter-darwin-arm64 regardless of which version is
+# pinned.
+ARG NODE_EXPORTER_VERSION
+RUN apk add --no-cache curl tar
+WORKDIR /out
+RUN curl -fsSL \
+    "https://github.com/prometheus/node_exporter/releases/download/v${NODE_EXPORTER_VERSION}/node_exporter-${NODE_EXPORTER_VERSION}.darwin-arm64.tar.gz" \
+    | tar -xz --strip-components=1 "node_exporter-${NODE_EXPORTER_VERSION}.darwin-arm64/node_exporter" \
+    && mv node_exporter node_exporter-darwin-arm64
+
+
 FROM gcr.io/distroless/static-debian12:nonroot
 
 COPY --from=manager-builder /out/manager /usr/local/bin/manager
 COPY --from=kubelet-builder /out/tart-kubelet-darwin-arm64 /opt/tart-kubelet/tart-kubelet-darwin-arm64
 COPY --from=tart-fetcher /out/tart.tar.gz /opt/tart/tart.tar.gz
 COPY --from=tailscale-fetcher /out/tailscale.pkg /opt/tailscale/tailscale.pkg
+COPY --from=node-exporter-fetcher /out/node_exporter-darwin-arm64 /opt/node-exporter/node_exporter-darwin-arm64
 
 USER nonroot:nonroot
 

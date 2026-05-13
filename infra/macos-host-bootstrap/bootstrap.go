@@ -26,9 +26,11 @@
 //     a system daemon, and `tailscale up` with the per-fleet auth
 //     key — host joins the tailnet before kubelet so the tailnet IP
 //     is the only routable address kubelet ever advertises.
-//  7. Drop the kubeconfig the controller built for this host.
-//  8. Upload the tart-kubelet binary.
-//  9. Write the launchd plist with this host's flags + load it.
+//  7. Install node_exporter for host-level (CPU, mem, disk, network,
+//     thermal) metrics, scraped over the tailnet on :9100.
+//  8. Drop the kubeconfig the controller built for this host.
+//  9. Upload the tart-kubelet binary.
+//  10. Write the launchd plist with this host's flags + load it.
 //
 // After the last step the agent on the host registers a Node and
 // starts reconciling Pods. The provider's MachineReconciler flips
@@ -266,6 +268,9 @@ func UpdateTartKubelet(ctx context.Context, cfg Config) (string, error) {
 	}
 	if err := installTailscale(ctx, client, cfg); err != nil {
 		return hk.observed(), fmt.Errorf("install tailscale: %w", err)
+	}
+	if err := installNodeExporter(ctx, client, cfg); err != nil {
+		return hk.observed(), fmt.Errorf("install node_exporter: %w", err)
 	}
 	if err := loadTartKubeletLaunchd(ctx, client, cfg); err != nil {
 		return hk.observed(), fmt.Errorf("reload launchd job: %w", err)
