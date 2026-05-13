@@ -10,7 +10,6 @@ defmodule TuistWeb.AccountSettingsLive do
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.AccountCacheEndpoint
   alias Tuist.Authorization
-  alias Tuist.Environment
   alias Tuist.Kura
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
@@ -30,7 +29,7 @@ defmodule TuistWeb.AccountSettingsLive do
     add_cache_endpoint_form = to_form(AccountCacheEndpoint.create_changeset(%{}))
     cache_endpoints = Accounts.list_account_cache_endpoints(selected_account)
     custom_cache_endpoints_available = Accounts.custom_cache_endpoints_available?(selected_account)
-    kura_enabled = kura_enabled?(selected_account)
+    kura_enabled = kura_enabled?(current_user)
     if connected?(socket) and kura_enabled, do: Kura.subscribe_to_account(selected_account.id)
 
     preferred_locale_form =
@@ -328,8 +327,8 @@ defmodule TuistWeb.AccountSettingsLive do
     |> assign(:add_kura_server_form, default_kura_server_form(available_regions))
   end
 
-  defp kura_enabled?(account) do
-    Environment.dev?() or FunWithFlags.enabled?(:kura, for: account)
+  defp kura_enabled?(current_user) do
+    Authorization.authorize(:ops_read, current_user) == :ok
   end
 
   defp available_kura_regions(regions, servers) do
@@ -536,41 +535,53 @@ defmodule TuistWeb.AccountSettingsLive do
         </.modal>
       </div>
       <div data-part="content">
-        <.table :if={Enum.any?(@kura_servers)} id="kura-servers-table" rows={@kura_servers}>
-          <:col :let={server} label={dgettext("dashboard_account", "Region")}>
-            <.text_cell label={kura_region_label(server.region)} />
+        <.table
+          :if={Enum.any?(@kura_servers) or Enum.any?(@available_kura_regions)}
+          id="kura-servers-table"
+          rows={kura_server_rows(@kura_servers, @available_kura_regions)}
+        >
+          <:col :let={row} label={dgettext("dashboard_account", "Region")}>
+            <.text_cell label={kura_region_label(kura_row_region_id(row))} />
           </:col>
-          <:col :let={server} label={dgettext("dashboard_account", "Status")}>
+          <:col :let={row} label={dgettext("dashboard_account", "Status")}>
             <.badge_cell
-              label={kura_display_status_label(server)}
-              color={kura_display_status_color(server)}
+              label={kura_row_status_label(row)}
+              color={kura_row_status_color(row)}
               style="light-fill"
             />
           </:col>
-          <:col :let={server} label={dgettext("dashboard_account", "Domain")}>
-            <.text_cell label={server.url || dgettext("dashboard_account", "Pending")} />
+          <:col :let={row} label={dgettext("dashboard_account", "Domain")}>
+            <.text_cell label={kura_row_domain_label(row)} />
           </:col>
-          <:col :let={server} label={dgettext("dashboard_account", "Version")}>
-            <.text_cell label={
-              kura_version_label(server.current_image_tag) || dgettext("dashboard_account", "Pending")
-            } />
+          <:col :let={row} label={dgettext("dashboard_account", "Version")}>
+            <.text_cell label={kura_row_version_label(row)} />
           </:col>
-          <:col :let={server} label="">
+          <:col :let={row} label="">
             <.button
-              :if={server.status not in [:destroying, :destroyed]}
+              :if={kura_row_server?(row) and row.server.status not in [:destroying, :destroyed]}
               type="button"
               label={dgettext("dashboard_account", "Destroy")}
               variant="destructive"
               size="small"
               phx-click="destroy_kura_server"
-              phx-value-id={server.id}
+              phx-value-id={row.server.id}
               data-confirm={
                 dgettext(
                   "dashboard_account",
                   "Destroy the Kura server in %{region}? This removes the account's Kura cache endpoint for that region.",
-                  region: server.region
+                  region: row.server.region
                 )
               }
+            />
+            <.button
+              :if={kura_row_available_region?(row)}
+              type="button"
+              label={dgettext("dashboard_account", "Deploy")}
+              variant="primary"
+              size="small"
+              phx-click="create_kura_server"
+              phx-value-region={row.region.id}
+              disabled={is_nil(@latest_kura_version)}
             />
           </:col>
         </.table>
@@ -578,6 +589,37 @@ defmodule TuistWeb.AccountSettingsLive do
     </.card_section>
     """
   end
+
+  defp kura_server_rows(servers, available_regions) do
+    Enum.map(servers, &%{type: :server, region_id: &1.region, server: &1}) ++
+      Enum.map(available_regions, &%{type: :available_region, region_id: &1.id, region: &1})
+  end
+
+  defp kura_row_region_id(row), do: row.region_id
+
+  defp kura_row_server?(%{type: :server}), do: true
+  defp kura_row_server?(_row), do: false
+
+  defp kura_row_available_region?(%{type: :available_region}), do: true
+  defp kura_row_available_region?(_row), do: false
+
+  defp kura_row_status_label(%{type: :server, server: server}), do: kura_display_status_label(server)
+  defp kura_row_status_label(%{type: :available_region}), do: dgettext("dashboard_account", "Not deployed")
+
+  defp kura_row_status_color(%{type: :server, server: server}), do: kura_display_status_color(server)
+  defp kura_row_status_color(%{type: :available_region}), do: "neutral"
+
+  defp kura_row_domain_label(%{type: :server, server: server}) do
+    server.url || dgettext("dashboard_account", "Pending")
+  end
+
+  defp kura_row_domain_label(%{type: :available_region}), do: dgettext("dashboard_account", "Pending")
+
+  defp kura_row_version_label(%{type: :server, server: server}) do
+    kura_version_label(server.current_image_tag) || dgettext("dashboard_account", "Pending")
+  end
+
+  defp kura_row_version_label(%{type: :available_region}), do: dgettext("dashboard_account", "Pending")
 
   def kura_display_status_label(server) do
     if show_deploying?(server),
