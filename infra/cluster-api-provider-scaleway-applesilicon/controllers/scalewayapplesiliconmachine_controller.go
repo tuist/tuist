@@ -84,18 +84,18 @@ type ScalewayAppleSiliconMachineReconciler struct {
 	// new Mac mini gets the operator-image-pinned Tart on bootstrap).
 	TartTarball []byte
 
-	// TailscalePkg is the macOS .pkg installer for Tailscale baked
+	// TailscaleBinaries is the macOS .pkg installer for Tailscale baked
 	// into the operator image. Same drift policy as TartTarball:
 	// version bumps roll via Machine replacement, not in-place
 	// updates (the running tailnet connection doesn't tolerate a
 	// daemon swap mid-flight). Empty disables the Tailscale step.
-	TailscalePkg []byte
+	TailscaleBinaries []byte
 
 	// NodeExporterBinary is the darwin/arm64 node_exporter binary,
 	// cross-compiled in the operator image. Installed on each Mac
 	// mini at bootstrap and supervised by launchd; scraped over the
 	// tailnet at <node-ip>:9100. Empty disables the host-metrics
-	// step (paired with TailscalePkg — node_exporter without
+	// step (paired with TailscaleBinaries — node_exporter without
 	// Tailscale would bind to a public interface, which is the kind
 	// of mistake we don't want a chart-level toggle to make easy).
 	NodeExporterBinary []byte
@@ -363,7 +363,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			Kubeconfig:           kubeconfigYAML,
 			TartKubeletBinary:    r.TartKubeletBinary,
 			TartTarball:          r.TartTarball,
-			TailscalePkg:         r.TailscalePkg,
+			TailscaleBinaries:    r.TailscaleBinaries,
 			TailscaleAuthKey:     tailscaleAuthKey,
 			TailscaleTags:        r.TailscaleTags,
 			NodeExporterBinary:   r.NodeExporterBinary,
@@ -459,7 +459,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			NodeName:             machine.Name,
 			Kubeconfig:           kubeconfigYAML,
 			TartKubeletBinary:    r.TartKubeletBinary,
-			TailscalePkg:         r.TailscalePkg,
+			TailscaleBinaries:    r.TailscaleBinaries,
 			TailscaleAuthKey:     tailscaleAuthKey,
 			HostCPU:              hostCPUFor(machine, r.TartKubeletHostCPU),
 			HostMemoryMB:         hostMemoryMBFor(machine, r.TartKubeletHostMemoryMB),

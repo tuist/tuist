@@ -217,7 +217,7 @@ spec:
             # When the chart's macosFleet.tailscale.enabled is off,
             # both flags stay empty and the bootstrap steps
             # short-circuit.
-            - --tailscale-pkg-path=/opt/tailscale/tailscale.pkg
+            - --tailscale-binaries-path=/opt/tailscale/tailscale-darwin-arm64.tar.gz
             - --node-exporter-binary-path=/opt/node-exporter/node_exporter-darwin-arm64
             # The bootstrap reads this Secret per Machine reconcile
             # (controller-runtime cache hit, no API round-trip) so a

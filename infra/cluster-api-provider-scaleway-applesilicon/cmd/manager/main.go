@@ -64,7 +64,7 @@ func main() {
 		nodeIdentityClusterRole      string
 		tartKubeletBinaryPath        string
 		tartTarballPath              string
-		tailscalePkgPath             string
+		tailscaleBinariesPath        string
 		nodeExporterBinaryPath       string
 		tailscaleAuthKeySecretName   string
 		tailscaleTagsRaw             string
@@ -101,19 +101,21 @@ func main() {
 		envOrDefault("CAPI_TART_TARBALL_PATH", "/opt/tart/tart.tar.gz"),
 		"Local path of the upstream tart.app tarball baked into this image. "+
 			"Pinned by Dockerfile ARG; bumping it is a deliberate operator-image change.")
-	flag.StringVar(&tailscalePkgPath, "tailscale-pkg-path",
-		envOrDefault("CAPI_TAILSCALE_PKG_PATH", ""),
-		"Local path of the macOS Tailscale .pkg installer baked into this image "+
-			"(/opt/tailscale/tailscale.pkg by default). Empty disables the "+
-			"Tailscale bootstrap step — the operator ships kubelet on the "+
-			"public interface, with host-level metrics scraping off. Set in "+
-			"managed envs where the tailnet is the metrics path.")
+	flag.StringVar(&tailscaleBinariesPath, "tailscale-binaries-path",
+		envOrDefault("CAPI_TAILSCALE_BINARIES_PATH", ""),
+		"Local path of the gzipped tarball containing the darwin/arm64 "+
+			"tailscale + tailscaled binaries baked into this image "+
+			"(/opt/tailscale/tailscale-darwin-arm64.tar.gz by default). The "+
+			"bootstrap extracts to /usr/local/bin and calls `tailscaled "+
+			"install-system-daemon` — the open-source variant per Tailscale's "+
+			"own headless-server docs. Empty disables the Tailscale bootstrap "+
+			"step; kubelet then falls back to the public interface as NodeIP.")
 	flag.StringVar(&nodeExporterBinaryPath, "node-exporter-binary-path",
 		envOrDefault("CAPI_NODE_EXPORTER_BINARY_PATH", ""),
 		"Local path of the darwin/arm64 node_exporter binary baked into this "+
 			"image (/opt/node-exporter/node_exporter-darwin-arm64 by default). "+
 			"Empty disables the host-metrics step. Paired with "+
-			"--tailscale-pkg-path: node_exporter without Tailscale would bind "+
+			"--tailscale-binaries-path: node_exporter without Tailscale would bind "+
 			"to a public interface, which the bootstrap step actively refuses.")
 	flag.StringVar(&tailscaleAuthKeySecretName, "tailscale-auth-key-secret-name",
 		envOrDefault("CAPI_TAILSCALE_AUTH_KEY_SECRET_NAME", ""),
@@ -121,7 +123,7 @@ func main() {
 			"Tailscale pre-auth key the bootstrap uses for `tailscale up`. "+
 			"Synced from 1Password via ESO — see the chart's "+
 			"macos-fleet-tailscale-external-secrets.yaml. Empty disables the "+
-			"Tailscale step even when --tailscale-pkg-path is set, so a chart "+
+			"Tailscale step even when --tailscale-binaries-path is set, so a chart "+
 			"bring-up where ESO hasn't synced yet falls back cleanly.")
 	flag.StringVar(&tailscaleTagsRaw, "tailscale-tags",
 		envOrDefault("CAPI_TAILSCALE_TAGS", ""),
@@ -201,14 +203,14 @@ func main() {
 	// release. We read on startup (not per reconcile) because the
 	// operator image pins both versions; a bump goes through an
 	// operator-image roll, not a hot reload.
-	var tailscalePkg []byte
-	if tailscalePkgPath != "" {
-		tailscalePkg, err = os.ReadFile(tailscalePkgPath)
+	var tailscaleBinaries []byte
+	if tailscaleBinariesPath != "" {
+		tailscaleBinaries, err = os.ReadFile(tailscaleBinariesPath)
 		if err != nil {
-			setupLog.Error(err, "read tailscale pkg", "path", tailscalePkgPath)
+			setupLog.Error(err, "read tailscale binaries", "path", tailscaleBinariesPath)
 			os.Exit(1)
 		}
-		setupLog.Info("loaded tailscale pkg", "path", tailscalePkgPath, "bytes", len(tailscalePkg), "sha", sha256Hex(tailscalePkg))
+		setupLog.Info("loaded tailscale binaries", "path", tailscaleBinariesPath, "bytes", len(tailscaleBinaries), "sha", sha256Hex(tailscaleBinaries))
 	}
 	var nodeExporterBinary []byte
 	if nodeExporterBinaryPath != "" {
@@ -275,7 +277,7 @@ func main() {
 		TartKubeletBinary:    tartKubeletBinary,
 		TartKubeletBinarySHA: binarySHA,
 		TartTarball:          tartTarball,
-		TailscalePkg:         tailscalePkg,
+		TailscaleBinaries:    tailscaleBinaries,
 		NodeExporterBinary:   nodeExporterBinary,
 		// Per-env Tailscale tag, e.g. `tag:tuist-macmini-staging`.
 		// Flows in from the Helm chart's macosFleet.tailscale.tags

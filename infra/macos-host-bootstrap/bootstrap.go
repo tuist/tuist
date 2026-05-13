@@ -22,10 +22,12 @@
 //  4. Set the macOS hostname to NodeName.
 //  5. Install Tart by extracting the operator-pinned tart.app tarball
 //     to /usr/local/lib/tart.app + wrapper at /usr/local/bin/tart.
-//  6. Install Tailscale from the operator-pinned .pkg, register as
-//     a system daemon, and `tailscale up` with the per-fleet auth
-//     key — host joins the tailnet before kubelet so the tailnet IP
-//     is the only routable address kubelet ever advertises.
+//  6. Install Tailscale's open-source tailscaled (extracted from the
+//     operator-baked binaries tarball), register it as a system
+//     daemon via `tailscaled install-system-daemon`, and `tailscale
+//     up` with the per-fleet auth key — host joins the tailnet
+//     before kubelet so the tailnet IP is the only routable address
+//     kubelet ever advertises.
 //  7. Install node_exporter for host-level (CPU, mem, disk, network,
 //     thermal) metrics, scraped over the tailnet on :9100.
 //  8. Drop the kubeconfig the controller built for this host.
@@ -92,20 +94,25 @@ type Config struct {
 	// deliberate Dockerfile change.
 	TartTarball []byte
 
-	// TailscalePkg is the macOS .pkg installer for Tailscale, baked
-	// into the operator image at build time (downloaded from
-	// pkgs.tailscale.com). Empty disables the Tailscale step entirely
-	// — kubelet then falls back to the public interface as NodeIP,
-	// which is fine for clusters where the in-cluster scrapers can
-	// reach the Mac mini directly (rare). Production deployments
-	// always set this so the tailnet is the metrics path.
-	TailscalePkg []byte
+	// TailscaleBinaries is the gzipped tar of the `tailscale` and
+	// `tailscaled` darwin/arm64 binaries cross-compiled from the
+	// upstream Go source at the operator-image-pinned version. The
+	// open-source "tailscaled" variant (per Tailscale's own docs at
+	// https://github.com/tailscale/tailscale/wiki/Tailscaled-on-macOS)
+	// is the canonical headless-server install path on macOS — no GUI
+	// app, no .pkg postinstall scripts, just two static binaries plus
+	// a launchd plist that `tailscaled install-system-daemon` writes
+	// itself. Empty disables the Tailscale step entirely — kubelet
+	// then falls back to the public interface as NodeIP, which is fine
+	// for clusters where the in-cluster scrapers can reach the Mac
+	// mini directly (rare). Production deployments always set this.
+	TailscaleBinaries []byte
 
 	// TailscaleAuthKey is a per-fleet Tailscale pre-auth key (from
 	// 1Password via ESO). Reusable + ephemeral-tagged so each Mac
 	// mini in the fleet authenticates without a separate key, and
 	// stale node records age out automatically. Empty disables the
-	// Tailscale step even when TailscalePkg is present — covers
+	// Tailscale step even when TailscaleBinaries is present — covers
 	// chart bring-up where the key hasn't been provisioned yet.
 	TailscaleAuthKey string
 
@@ -121,7 +128,7 @@ type Config struct {
 	// github.com/prometheus/node_exporter at build time). Installed
 	// at /usr/local/bin/node_exporter under a launchd plist that
 	// binds it to the tailnet interface on :9100. Empty disables
-	// the host-metrics step — paired with TailscalePkg so that a
+	// the host-metrics step — paired with TailscaleBinaries so that a
 	// chart without tailnet plumbing doesn't ship node_exporter
 	// listening on a public IP.
 	NodeExporterBinary []byte
@@ -231,10 +238,11 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 // Refreshes the kubeconfig (token rotation, server-URL changes, or
 // hosts bootstrapped before tart-kubelet existed at all), uploads the
 // latest binary, re-runs installTailscale when the host has the
-// Tailscale .pkg + auth key wired (idempotent at the installer(8)
-// layer, so re-running is safe and lets a mini bootstrapped before
-// this PR pick up Tailscale on first drift reconcile without a
-// manual SSH-and-rebootstrap), and reloads the launchd job.
+// Tailscale binaries + auth key wired (the install step is itself
+// idempotent — it bootouts the running daemon, swaps binaries, and
+// re-registers — so re-running is safe; also handles future version
+// bumps via the same operator-image-bump → drift-reconcile path),
+// and reloads the launchd job.
 //
 // Skips one-shot host prep (sudo, auto-login, hostname, Tart, pf
 // firewall) — those don't change between updates and re-running them
@@ -413,7 +421,7 @@ func renderLaunchdPlist(cfg Config) string {
 	// the key hasn't been provisioned yet falls back cleanly rather
 	// than wedging kubelet on a missing `tailscale ip` lookup.
 	nodeIPSourceArg := ""
-	if len(cfg.TailscalePkg) > 0 && cfg.TailscaleAuthKey != "" {
+	if len(cfg.TailscaleBinaries) > 0 && cfg.TailscaleAuthKey != "" {
 		nodeIPSourceArg = "\n    <string>--node-ip-source=tailscale</string>"
 	}
 	// Run tart-kubelet as the SSH user (m1). Apple's
@@ -853,38 +861,39 @@ sudo launchctl bootstrap system /Library/LaunchDaemons/dev.tuist.pfctl-runners.p
 	return runCommand(ctx, client, script)
 }
 
-// installTailscale joins the Mac mini to the cluster's tailnet. Three
-// stages, each idempotent:
+// installTailscale joins the Mac mini to the cluster's tailnet using
+// Tailscale's open-source `tailscaled` variant — the canonical
+// headless-server install path per
+// https://github.com/tailscale/tailscale/wiki/Tailscaled-on-macOS.
+// Three stages, each idempotent:
 //
-//  1. Install Tailscale.app from the operator-baked .pkg if absent.
-//     The .pkg drops both the GUI app and the `tailscaled` daemon
-//     binary under /Applications/Tailscale.app — we use the daemon
-//     binary, not the GUI.
-//  2. Register tailscaled as a system-wide LaunchDaemon via Tailscale's
-//     own `install-system-daemon` subcommand. macOS's default path
-//     (per-user GUI agent) doesn't survive auto-login session
-//     reshuffling, so headless Macs need the system daemon variant.
-//     See https://tailscale.com/kb/1107/mac-headless-installation.
-//  3. `tailscale up` with the per-fleet pre-auth key. Reusable+ephemeral
-//     keys mean every Mac mini in the fleet uses the same key and
-//     stale node records age out automatically — exactly the shape
-//     for a CAPI-managed fleet where machines come and go.
+//  1. Write the auth key to a chmod-0600 file on the host via a
+//     dedicated SSH session whose script body doesn't reference the
+//     key. The key flows via stdin; the install script reads it back
+//     with `$(sudo cat …)` so the formatted script (and any error
+//     wrapping it) never contains the literal key.
+//  2. Extract the operator-baked `tailscale`+`tailscaled` darwin/arm64
+//     binaries to /usr/local/bin and call `tailscaled
+//     install-system-daemon`, which writes its own
+//     /Library/LaunchDaemons/com.tailscale.tailscaled.plist and starts
+//     the daemon. Direct equivalent of `systemctl enable --now
+//     tailscaled` on Linux. Idempotent on re-runs (we bootout the old
+//     job first so new binaries aren't held open).
+//  3. `tailscale up` with the per-fleet pre-auth key. Reusable+
+//     ephemeral keys mean every Mac mini in the fleet uses the same
+//     key and stale node records age out automatically — the right
+//     shape for a CAPI-managed fleet where machines come and go.
 //
-// No-op when TailscalePkg or TailscaleAuthKey is empty: the chart's
-// per-env values gate the tailnet end-to-end, and a partial config
-// (pkg without key, or vice versa) shouldn't half-bring-up a node.
+// No-op when TailscaleBinaries or TailscaleAuthKey is empty: the
+// chart's per-env values gate the tailnet end-to-end, and a partial
+// config shouldn't half-bring-up a node.
 func installTailscale(ctx context.Context, client *ssh.Client, cfg Config) error {
-	if len(cfg.TailscalePkg) == 0 || cfg.TailscaleAuthKey == "" {
+	if len(cfg.TailscaleBinaries) == 0 || cfg.TailscaleAuthKey == "" {
 		return nil
 	}
 
-	// Stage 1: write the auth key to a chmod-0600 file on the host
-	// via a separate SSH command whose body doesn't reference the
-	// key. The key flows via the SSH session's stdin stream into
-	// `sudo tee` and lands on disk; the script string passed to
-	// session.Run() never contains the literal key, so the
-	// runCommand error formatter (which surfaces the cmd on failure)
-	// can't leak it. Cleanup is the install script's `trap … EXIT`.
+	// Stage 1: write the auth key. See function-level comment for the
+	// security rationale.
 	keyScript := `set -euo pipefail
 sudo mkdir -p /etc/tuist
 sudo tee /etc/tuist/tailscale-auth-key >/dev/null
@@ -905,89 +914,65 @@ sudo chmod 0600 /etc/tuist/tailscale-auth-key`
 		hostnameArg = fmt.Sprintf(" --hostname=%s", shellQuote(cfg.NodeName))
 	}
 
-	// Stage 2: install the .pkg (via stdin), make sure tailscaled is
-	// running as a system daemon, wait for the daemon to accept IPC,
-	// then `tailscale up` reading the auth key from the file written
-	// in Stage 1 (the `$(sudo cat …)` is expanded by the remote
-	// shell, so the key never appears in the formatted script body
-	// or in any error message). Capture `up`'s combined output and
-	// surface it on failure — previously `set -e` aborted with an
-	// empty stderr, leaving zero actionable signal.
+	// Stage 2: extract binaries, register daemon, bring up.
 	//
-	// `set -x` prints every command before execution to stderr; the
-	// SSH helper captures stderr into the returned error, so when a
-	// step fails the controller's failureMessage carries the exact
-	// command that died (plus its output). PS4 narrows the trace
-	// prefix from bash's noisy default to a single '+' so logs stay
-	// readable. Comments aren't traced — only executed commands.
+	// `set -x` prints every command to stderr before execution so the
+	// controller's failureMessage on any failed step carries the
+	// exact command that died. SSH captures stderr; stdout goes to a
+	// discarded buffer, so any sub-command's diagnostic output that
+	// matters is explicitly redirected into log files we cat to
+	// stderr on failure.
 	script := fmt.Sprintf(`set -euxo pipefail
 PS4='+ '
 # Always remove the auth key file when this script exits — success
-# or failure. Set the trap first thing so a later abort still
-# cleans up.
+# or failure. Set the trap first thing so a later abort still cleans
+# up.
 trap 'sudo rm -f /etc/tuist/tailscale-auth-key' EXIT
-TS_PKG=/tmp/tailscale-bootstrap.pkg
-sudo tee "$TS_PKG" >/dev/null
-# Stop any already-running tailscaled before the installer runs.
-# On a re-bootstrap (or after a previous half-failed install), the
-# system daemon still holds open the binaries the .pkg's
-# postinstall script tries to replace, and the upgrade fails with
-# "An error occurred while running scripts from the package". A
-# clean stop releases the file handles; we re-install the daemon
-# below anyway. launchctl bootout is the modern API; both the
-# pre-1.50 LaunchDaemons path and the install-system-daemon path
-# register under com.tailscale.tailscaled. Failure is fine — the
-# job may simply not be loaded yet on a fresh host.
+
+# Stop any running tailscaled before swapping binaries — a running
+# daemon holds file handles on the old executable and replacing it
+# while loaded is undefined behaviour. bootout is idempotent; the
+# job may not be loaded yet on a fresh host.
 sudo launchctl bootout system/com.tailscale.tailscaled 2>/dev/null || true
-# Capture installer(8)'s combined stdout+stderr — installer writes
-# its operation log to stdout (not stderr), and the SSH session
-# captures stderr only. Without redirection both streams vanish
-# into a discarded buffer and silent failures give the operator
-# nothing to act on. On non-zero, also dump the tail of
-# /var/log/install.log because installer's stdout only carries the
-# generic "scripts failed" message — the postinstall script's
-# actual error lands in install.log via macOS's logging machinery.
-INSTALLER_LOG=$(mktemp)
-if ! sudo installer -pkg "$TS_PKG" -target / >"$INSTALLER_LOG" 2>&1; then
-  echo "installer -pkg failed (output below):" >&2
-  sudo cat "$INSTALLER_LOG" >&2
-  echo "--- tail /var/log/install.log ---" >&2
-  sudo tail -n 60 /var/log/install.log >&2 || true
-  sudo rm -f "$INSTALLER_LOG"
+
+# Extract tailscale + tailscaled into /usr/local/bin. The operator
+# image's tarball contains exactly these two files at the top
+# level. Same shape as how installTartKubelet ships its binary.
+sudo tar -xzf - -C /usr/local/bin tailscale tailscaled
+sudo chmod 0755 /usr/local/bin/tailscale /usr/local/bin/tailscaled
+
+# Register tailscaled as a system-wide LaunchDaemon. The
+# open-source binary's install-system-daemon subcommand writes
+# /Library/LaunchDaemons/com.tailscale.tailscaled.plist itself,
+# pointing at /usr/local/bin/tailscaled, and launchctl-bootstraps
+# the job. Direct equivalent of systemd's "systemctl enable --now
+# tailscaled". Idempotent — re-running on an already-installed
+# host re-writes the plist and reloads.
+DAEMON_LOG=$(mktemp)
+if ! sudo /usr/local/bin/tailscaled install-system-daemon >"$DAEMON_LOG" 2>&1; then
+  echo "tailscaled install-system-daemon failed (output below):" >&2
+  sudo cat "$DAEMON_LOG" >&2
+  sudo rm -f "$DAEMON_LOG"
   exit 1
 fi
-sudo rm -f "$INSTALLER_LOG" "$TS_PKG"
-# Register tailscaled as a system daemon if not already loaded. The
-# subcommand is idempotent on Tailscale 1.50+ but older builds error
-# out on a second run; ignore that failure and verify via launchctl.
-# Same output-capture pattern as installer above: install-system-
-# daemon's diagnostics go to stdout/stderr in mixed proportions and
-# we want both visible if anything goes wrong.
-if ! sudo launchctl list | grep -q com.tailscale.tailscaled; then
-  TS_DAEMON_LOG=$(mktemp)
-  if ! sudo /Applications/Tailscale.app/Contents/MacOS/Tailscale install-system-daemon >"$TS_DAEMON_LOG" 2>&1; then
-    echo "install-system-daemon failed (output below):" >&2
-    sudo cat "$TS_DAEMON_LOG" >&2
-    sudo rm -f "$TS_DAEMON_LOG"
-    exit 1
-  fi
-  sudo rm -f "$TS_DAEMON_LOG"
-fi
+sudo rm -f "$DAEMON_LOG"
+
 # Wait for tailscaled to accept IPC before sending it 'up'.
 # install-system-daemon returns before the daemon finishes
-# initializing — without this wait, 'up' fails immediately with
-# "Tailscale is not running" and set -e aborts the script. 30s is
-# generous; in practice the daemon is ready in <2s.
+# initializing — without this wait, 'up' would fail immediately
+# with "Tailscale is not running" and set -e would abort the
+# script. 30s is generous; in practice the daemon is ready in <2s.
 for i in $(seq 1 30); do
   if sudo /usr/local/bin/tailscale status --self --json >/dev/null 2>&1; then
     break
   fi
   sleep 1
 done
+
 # Capture up's combined stdout+stderr so a failure surfaces
-# actionable diagnostics. Auth key is expanded on this side via
-# $(sudo cat …); the formatted script body sent over SSH never
-# contains the literal key.
+# actionable diagnostics. The auth key is expanded by the remote
+# shell from the file Stage 1 wrote; the formatted script body
+# sent over SSH never contains the literal key.
 TS_UP_LOG=$(mktemp)
 trap 'sudo rm -f /etc/tuist/tailscale-auth-key "$TS_UP_LOG"' EXIT
 if ! sudo /usr/local/bin/tailscale up \
@@ -998,6 +983,7 @@ if ! sudo /usr/local/bin/tailscale up \
   sudo cat "$TS_UP_LOG" >&2
   exit 1
 fi
+
 # Block until the daemon advertises a tailnet IPv4 — the kubelet
 # launchd job that boots next reads 'tailscale ip -4' to populate
 # its --node-ip. A 'tailscale up' that returned 0 but hasn't
@@ -1012,7 +998,7 @@ echo "tailscale up returned but no tailnet IPv4 within 30s; current status:" >&2
 sudo /usr/local/bin/tailscale status >&2 || true
 exit 1
 `, hostnameArg, tagsArg)
-	return runCommandWithStdin(ctx, client, script, string(cfg.TailscalePkg))
+	return runCommandWithStdin(ctx, client, script, string(cfg.TailscaleBinaries))
 }
 
 // installNodeExporter drops the cross-compiled darwin/arm64 binary,

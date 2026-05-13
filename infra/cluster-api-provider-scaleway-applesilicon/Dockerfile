@@ -109,18 +109,39 @@ RUN curl -fsSL -o tart.tar.gz \
     "https://github.com/cirruslabs/tart/releases/download/${TART_VERSION}/tart.tar.gz"
 
 
-FROM --platform=$BUILDPLATFORM alpine:${ALPINE_VERSION} AS tailscale-fetcher
+FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-alpine${ALPINE_VERSION} AS tailscale-builder
 
-# Tailscale's macOS .pkg installer. Drops Tailscale.app under
-# /Applications and ships the system-daemon variant — the bootstrap
-# runs `Tailscale install-system-daemon` to enable headless operation
-# (the default per-user GUI agent doesn't survive the auto-login
-# session reshuffling Virtualization.framework demands).
+# Tailscale's open-source `tailscaled` variant — what Tailscale's own
+# docs designate as the headless-server path on macOS (see
+# https://github.com/tailscale/tailscale/wiki/Tailscaled-on-macOS).
+# We build the two upstream Go binaries (tailscale, tailscaled) for
+# darwin/arm64 from a pinned source tag and ship them as a tarball.
+# The bootstrap step extracts to /usr/local/bin and calls
+# `tailscaled install-system-daemon`, which writes its own launchd
+# plist — the canonical install path for unattended Mac mini servers.
+#
+# Why not the .pkg installer at pkgs.tailscale.com: that ships the
+# GUI Tailscale.app, and its postinstall script runs GUI lifecycle
+# work (osascript hooks, etc) that fails on headless hosts when the
+# previously-running daemon holds open the binaries being replaced.
+# This variant has no GUI app, no postinstall scripts — just the
+# daemon, the CLI, and a launchd plist.
+#
+# CGO_ENABLED=0: tailscaled's darwin backend uses
+# golang.org/x/sys/unix for utun device allocation, no Apple SDK
+# headers needed.
 ARG TAILSCALE_VERSION
-RUN apk add --no-cache curl
-WORKDIR /out
-RUN curl -fsSL -o tailscale.pkg \
-    "https://pkgs.tailscale.com/stable/Tailscale-${TAILSCALE_VERSION}-macos.pkg"
+RUN apk add --no-cache git
+WORKDIR /src
+RUN git clone --depth 1 --branch "v${TAILSCALE_VERSION}" \
+    https://github.com/tailscale/tailscale .
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    --mount=type=cache,target=/go/pkg/mod \
+    GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 \
+    go build -trimpath -ldflags="-s -w" -o /out/tailscale ./cmd/tailscale && \
+    GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 \
+    go build -trimpath -ldflags="-s -w" -o /out/tailscaled ./cmd/tailscaled
+RUN cd /out && tar czf tailscale-darwin-arm64.tar.gz tailscale tailscaled
 
 
 FROM --platform=$BUILDPLATFORM alpine:${ALPINE_VERSION} AS node-exporter-fetcher
@@ -150,7 +171,7 @@ FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=manager-builder /out/manager /usr/local/bin/manager
 COPY --from=kubelet-builder /out/tart-kubelet-darwin-arm64 /opt/tart-kubelet/tart-kubelet-darwin-arm64
 COPY --from=tart-fetcher /out/tart.tar.gz /opt/tart/tart.tar.gz
-COPY --from=tailscale-fetcher /out/tailscale.pkg /opt/tailscale/tailscale.pkg
+COPY --from=tailscale-builder /out/tailscale-darwin-arm64.tar.gz /opt/tailscale/tailscale-darwin-arm64.tar.gz
 COPY --from=node-exporter-fetcher /out/node_exporter-darwin-arm64 /opt/node-exporter/node_exporter-darwin-arm64
 
 USER nonroot:nonroot
