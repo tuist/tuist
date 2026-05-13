@@ -16,8 +16,9 @@ defmodule Tuist.Webhooks.Workers.DeliveryWorker do
   dashboard. The Oban job stays the unit of "deliver this event"; the row
   is the unit of "we tried, here's what happened".
   """
-  use Oban.Worker, queue: :default, max_attempts: 7
+  use Oban.Worker, queue: :webhooks, max_attempts: 7
 
+  alias Tuist.OAuth2.SSRFGuard
   alias Tuist.Repo
   alias Tuist.Webhooks
   alias Tuist.Webhooks.DeliveryAttempt
@@ -71,15 +72,30 @@ defmodule Tuist.Webhooks.Workers.DeliveryWorker do
     ]
 
     started_at = System.monotonic_time(:millisecond)
-    response = Req.post(endpoint.url, headers: headers, body: body, receive_timeout: @request_timeout_ms, retry: false)
-    duration_ms = System.monotonic_time(:millisecond) - started_at
 
-    result =
-      case response do
-        {:ok, %Req.Response{status: status}} when status in 200..299 -> :ok
-        {:ok, %Req.Response{status: status}} -> {:error, "HTTP #{status}"}
-        {:error, reason} -> {:error, reason}
+    {response, result} =
+      case SSRFGuard.pin(endpoint.url) do
+        {:ok, pinned_url, hostname} ->
+          resp =
+            Req.post(pinned_url,
+              headers: headers,
+              body: body,
+              receive_timeout: @request_timeout_ms,
+              retry: false,
+              connect_options: SSRFGuard.connect_options(hostname)
+            )
+
+          {resp, classify(resp)}
+
+        {:error, reason} ->
+          # Reject before the request leaves the process — an account
+          # owner can't point a webhook at localhost, RFC1918, link-local
+          # metadata IPs, etc. The attempt is still recorded so the
+          # dashboard surfaces *why* the delivery never happened.
+          {{:error, reason}, {:error, "blocked: #{reason}"}}
       end
+
+    duration_ms = System.monotonic_time(:millisecond) - started_at
 
     record_attempt(endpoint, %{
       event_id: event_id,
@@ -94,6 +110,10 @@ defmodule Tuist.Webhooks.Workers.DeliveryWorker do
 
     result
   end
+
+  defp classify({:ok, %Req.Response{status: status}}) when status in 200..299, do: :ok
+  defp classify({:ok, %Req.Response{status: status}}), do: {:error, "HTTP #{status}"}
+  defp classify({:error, reason}), do: {:error, reason}
 
   defp record_attempt(endpoint, fields) do
     %{response: response, result: result} = fields
