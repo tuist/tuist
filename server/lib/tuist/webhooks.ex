@@ -199,16 +199,17 @@ defmodule Tuist.Webhooks do
 
     by_bucket =
       Map.new(rows, fn %{bucket: b, total: t, failed: f} ->
-        bucket =
-          b
-          |> DateTime.shift_zone!("Etc/UTC")
-          |> DateTime.truncate(:second)
-
-        {bucket, %{total: t, failed: f}}
+        {to_utc_datetime(b), %{total: t, failed: f}}
       end)
 
     bucket_series(start_dt, end_dt, unit, by_bucket)
   end
+
+  # `oban_jobs.inserted_at` is `timestamp without time zone`, so
+  # `date_trunc(...)` returns a NaiveDateTime. We standardise on UTC
+  # DateTime so the keys match what `bucket_series/4` generates.
+  defp to_utc_datetime(%DateTime{} = dt), do: DateTime.truncate(dt, :second)
+  defp to_utc_datetime(%NaiveDateTime{} = ndt), do: ndt |> DateTime.from_naive!("Etc/UTC") |> DateTime.truncate(:second)
 
   # date_trunc's first argument has to be inlined into the SQL or PostgreSQL
   # can't match the GROUP BY expression to the SELECT expression — fragments
