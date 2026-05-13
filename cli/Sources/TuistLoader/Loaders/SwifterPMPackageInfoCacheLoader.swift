@@ -2,15 +2,16 @@ import FileSystem
 import Foundation
 import Path
 import TuistConstants
+import TuistEnvironment
 import XcodeGraph
 
 struct SwifterPMPackageInfoCacheLoader {
     private let fileSystem: FileSysteming
-    private let environment: () -> [String: String]
+    private let environment: () -> Environmenting
 
     init(
         fileSystem: FileSysteming,
-        environment: @escaping () -> [String: String]
+        environment: @escaping () -> Environmenting
     ) {
         self.fileSystem = fileSystem
         self.environment = environment
@@ -20,7 +21,7 @@ struct SwifterPMPackageInfoCacheLoader {
         scratchDirectory: AbsolutePath,
         arguments: [String]
     ) async throws -> SwifterPMPackageInfoCache? {
-        guard isTruthy(environment()[Constants.EnvironmentVariables.useFastPackageResolution]) else {
+        guard environment().isVariableTruthy(Constants.EnvironmentVariables.useFastPackageResolution) else {
             return nil
         }
 
@@ -83,11 +84,6 @@ struct SwifterPMPackageInfoCacheLoader {
             return nil
         }
         return arguments[valueIndex]
-    }
-
-    private func isTruthy(_ value: String?) -> Bool {
-        guard let value else { return false }
-        return ["1", "true", "TRUE", "yes", "YES"].contains(value)
     }
 }
 
