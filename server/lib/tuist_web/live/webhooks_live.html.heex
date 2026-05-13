@@ -225,14 +225,12 @@
           <.text_cell label={endpoint.url} />
         </:col>
         <:col :let={endpoint} label={dgettext("dashboard_account", "Signing secret")}>
-          <%!-- Per-endpoint secrets are only revealed once at creation or rotation. --%>
-          <%!-- The table shows a partial mask (suffix only) so users can match it --%>
-          <%!-- against a value they've stored elsewhere without weakening the HMAC. --%>
-          <%!-- Rendered in a monospace face so the bullet glyphs share a baseline --%>
-          <%!-- with `whsec_` and the trailing characters. --%>
-          <code data-part="signing-secret-cell">
-            {masked_signing_secret(endpoint.signing_secret)}
-          </code>
+          <%!-- Partial-mask preview (suffix only) so users can match the value --%>
+          <%!-- against a secret they've stored elsewhere without weakening HMAC. --%>
+          <.text_cell
+            data-part="signing-secret-cell"
+            label={masked_signing_secret(endpoint.signing_secret)}
+          />
         </:col>
         <:col :let={endpoint} label={dgettext("dashboard_account", "Listening to")}>
           <.text_cell label={
