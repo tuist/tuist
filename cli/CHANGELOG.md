@@ -1,7 +1,17 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.193.0<!-- RELEASE NOTES START -->
+## What's Changed in 4.193.4<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* release SwiftPM lock before invoking manifest subprocesses by [@fortmarek](https://github.com/fortmarek) in [#10758](https://github.com/tuist/tuist/pull/10758)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.193.3...4.193.4
+
+## What's Changed in 4.193.3<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
 
@@ -19,7 +29,7 @@ All notable changes to this project will be documented in this file.
 
 
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.192.3...4.193.0
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.192.3...4.193.3
 
 ## What's Changed in 4.192.3<!-- RELEASE NOTES START -->
 
