@@ -69,6 +69,8 @@ type KuraInstanceReconciler struct {
 	// The name is historical; the controller uses the same issuer for
 	// every cert it asks cert-manager to mint.
 	GRPCClusterIssuer string
+
+	CloudflareLoadBalancing CloudflareLoadBalancingConfig
 }
 
 func certificateGVK() schema.GroupVersionKind {
@@ -112,6 +114,11 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	}
 
 	if !instance.DeletionTimestamp.IsZero() {
+		if r.CloudflareLoadBalancing.Enabled() {
+			if err := newCloudflareClient(r.CloudflareLoadBalancing).deleteKuraLoadBalancers(ctx, instance); err != nil {
+				return ctrl.Result{}, err
+			}
+		}
 		controllerutil.RemoveFinalizer(instance, KuraInstanceFinalizer)
 		return ctrl.Result{}, r.Update(ctx, instance)
 	}
@@ -152,6 +159,11 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	}
 	if err := r.reconcileStatefulSet(ctx, instance); err != nil {
 		return ctrl.Result{}, err
+	}
+	if r.CloudflareLoadBalancing.Enabled() {
+		if err := newCloudflareClient(r.CloudflareLoadBalancing).reconcileKuraLoadBalancers(ctx, instance); err != nil {
+			return ctrl.Result{}, err
+		}
 	}
 
 	rollout, err := r.rolloutStatus(ctx, instance)

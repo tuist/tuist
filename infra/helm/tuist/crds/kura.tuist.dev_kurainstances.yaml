@@ -82,6 +82,22 @@ spec:
                 grpcPublicHost:
                   type: string
                   maxLength: 253
+                globalPublicHost:
+                  type: string
+                  maxLength: 253
+                globalGrpcPublicHost:
+                  type: string
+                  maxLength: 253
+                cloudflarePoolLatitude:
+                  type: number
+                  format: double
+                  minimum: -90
+                  maximum: 90
+                cloudflarePoolLongitude:
+                  type: number
+                  format: double
+                  minimum: -180
+                  maximum: 180
                 storageClassName:
                   type: string
                 storageSize:

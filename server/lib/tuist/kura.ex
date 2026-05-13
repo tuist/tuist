@@ -21,9 +21,11 @@ defmodule Tuist.Kura do
 
   alias Phoenix.PubSub
   alias Tuist.Accounts
+  alias Tuist.Accounts.Account
   alias Tuist.Accounts.AccountCacheEndpoint
   alias Tuist.Kura.Deployment
   alias Tuist.Kura.Provisioner
+  alias Tuist.Kura.Provisioner.KubernetesController
   alias Tuist.Kura.Reconciler
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
@@ -63,6 +65,16 @@ defmodule Tuist.Kura do
       version -> [version]
     end
     |> Enum.take(limit)
+  end
+
+  def global_cache_endpoint_url(%Account{name: handle}) do
+    if global_cache_endpoint_enabled?() do
+      Enum.find_value(Regions.all(), fn region -> KubernetesController.global_public_url(handle, region) end)
+    end
+  end
+
+  defp global_cache_endpoint_enabled? do
+    Tuist.Environment.tuist_hosted?() and not Tuist.Environment.dev?() and not Tuist.Environment.test?()
   end
 
   def version_label(nil), do: nil

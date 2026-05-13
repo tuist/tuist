@@ -134,6 +134,10 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           "image" => "ghcr.io/tuist/kura:#{image_tag}",
           "publicHost" => public_host(account.name, region),
           "grpcPublicHost" => grpc_public_host(account.name, region),
+          "globalPublicHost" => global_public_host(account.name, region),
+          "globalGrpcPublicHost" => global_grpc_public_host(account.name, region),
+          "cloudflarePoolLatitude" => cloudflare_pool_latitude(region),
+          "cloudflarePoolLongitude" => cloudflare_pool_longitude(region),
           "storageClassName" => storage_class(region),
           "storageSize" => storage_size(region),
           "replicas" => replicas(region),
@@ -157,6 +161,33 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   end
 
   defp grpc_public_host(_handle, _region), do: nil
+
+  def global_public_url(handle, %Regions{} = region) do
+    case global_public_host(handle, region) do
+      nil -> nil
+      host -> "https://" <> host
+    end
+  end
+
+  defp global_public_host(handle, %Regions{provisioner_config: %{global_public_host_template: template} = config}) do
+    interpolate_host(template, dns_handle(handle), config)
+  end
+
+  defp global_public_host(_handle, _region), do: nil
+
+  defp global_grpc_public_host(handle, %Regions{
+         provisioner_config: %{global_grpc_public_host_template: template} = config
+       }) do
+    interpolate_host(template, dns_handle(handle), config)
+  end
+
+  defp global_grpc_public_host(_handle, _region), do: nil
+
+  defp cloudflare_pool_latitude(%Regions{provisioner_config: %{cloudflare_pool_latitude: latitude}}), do: latitude
+  defp cloudflare_pool_latitude(_), do: nil
+
+  defp cloudflare_pool_longitude(%Regions{provisioner_config: %{cloudflare_pool_longitude: longitude}}), do: longitude
+  defp cloudflare_pool_longitude(_), do: nil
 
   # Tuist-platform-wide secrets (license signing key, JWT verifier) are
   # mounted into the Kura pod from the shared kura-shared-secrets

@@ -322,6 +322,7 @@ defmodule TuistWeb.AccountSettingsLive do
     |> assign(:kura_regions, [])
     |> assign(:available_kura_regions, [])
     |> assign(:latest_kura_version, nil)
+    |> assign(:kura_global_endpoint_url, nil)
     |> assign(:add_kura_server_form, default_kura_server_form([]))
   end
 
@@ -337,6 +338,7 @@ defmodule TuistWeb.AccountSettingsLive do
     |> assign(:kura_regions, regions)
     |> assign(:available_kura_regions, available_regions)
     |> assign(:latest_kura_version, latest)
+    |> assign(:kura_global_endpoint_url, Kura.global_cache_endpoint_url(account))
     |> assign(:add_kura_server_form, default_kura_server_form(available_regions))
   end
 
@@ -427,6 +429,7 @@ defmodule TuistWeb.AccountSettingsLive do
   attr(:available_kura_regions, :list, required: true)
   attr(:add_kura_server_form, Form, required: true)
   attr(:latest_kura_version, :map, default: nil)
+  attr(:global_endpoint_url, :string, default: nil)
 
   def kura_servers_section(assigns) do
     ~H"""
@@ -548,6 +551,19 @@ defmodule TuistWeb.AccountSettingsLive do
         </.modal>
       </div>
       <div data-part="content">
+        <.alert
+          :if={@global_endpoint_url && Enum.any?(@kura_servers)}
+          status="information"
+          type="secondary"
+          size="small"
+          title={
+            dgettext(
+              "dashboard_account",
+              "Clients use the global Kura endpoint %{url}; Cloudflare DNS steers it to the nearest healthy region.",
+              url: @global_endpoint_url
+            )
+          }
+        />
         <.table
           :if={Enum.any?(@kura_servers) or Enum.any?(@available_kura_regions)}
           id="kura-servers-table"

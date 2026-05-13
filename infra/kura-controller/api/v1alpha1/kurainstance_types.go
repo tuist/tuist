@@ -6,18 +6,22 @@ import (
 )
 
 type KuraInstanceSpec struct {
-	AccountHandle    string            `json:"accountHandle"`
-	TenantID         string            `json:"tenantID"`
-	Region           string            `json:"region"`
-	Image            string            `json:"image"`
-	Replicas         *int32            `json:"replicas,omitempty"`
-	PublicHost       string            `json:"publicHost,omitempty"`
-	GRPCPublicHost   string            `json:"grpcPublicHost,omitempty"`
-	StorageClassName string            `json:"storageClassName,omitempty"`
-	StorageSize      string            `json:"storageSize,omitempty"`
-	NodeSelector     map[string]string `json:"nodeSelector,omitempty"`
-	ExtraEnv         []corev1.EnvVar   `json:"extraEnv,omitempty"`
-	ExtensionScript  string            `json:"extensionScript,omitempty"`
+	AccountHandle           string            `json:"accountHandle"`
+	TenantID                string            `json:"tenantID"`
+	Region                  string            `json:"region"`
+	Image                   string            `json:"image"`
+	Replicas                *int32            `json:"replicas,omitempty"`
+	PublicHost              string            `json:"publicHost,omitempty"`
+	GRPCPublicHost          string            `json:"grpcPublicHost,omitempty"`
+	GlobalPublicHost        string            `json:"globalPublicHost,omitempty"`
+	GlobalGRPCPublicHost    string            `json:"globalGrpcPublicHost,omitempty"`
+	CloudflarePoolLatitude  *float64          `json:"cloudflarePoolLatitude,omitempty"`
+	CloudflarePoolLongitude *float64          `json:"cloudflarePoolLongitude,omitempty"`
+	StorageClassName        string            `json:"storageClassName,omitempty"`
+	StorageSize             string            `json:"storageSize,omitempty"`
+	NodeSelector            map[string]string `json:"nodeSelector,omitempty"`
+	ExtraEnv                []corev1.EnvVar   `json:"extraEnv,omitempty"`
+	ExtensionScript         string            `json:"extensionScript,omitempty"`
 }
 
 type KuraInstanceStatus struct {

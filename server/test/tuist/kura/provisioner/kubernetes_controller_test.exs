@@ -87,6 +87,10 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       expect(Client, :apply, fn manifest ->
         assert manifest["metadata"]["name"] == "kura-tuist-eu-central-1"
         assert manifest["spec"]["image"] == "ghcr.io/tuist/kura:0.5.2"
+        assert manifest["spec"]["globalPublicHost"] == "tuist.kura.tuist.dev"
+        assert manifest["spec"]["globalGrpcPublicHost"] == "grpc.tuist.kura.tuist.dev"
+        assert manifest["spec"]["cloudflarePoolLatitude"] == 50.4779
+        assert manifest["spec"]["cloudflarePoolLongitude"] == 12.3713
         {:ok, manifest}
       end)
 
@@ -156,6 +160,17 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
     end
   end
 
+  describe "global_public_url/2" do
+    test "interpolates the account-level production host template with the account handle" do
+      assert KubernetesController.global_public_url("TUIST", eu_region()) ==
+               "https://tuist.kura.tuist.dev"
+    end
+
+    test "returns nil when the region has no global host configured" do
+      assert KubernetesController.global_public_url("TUIST", local_controller_region()) == nil
+    end
+  end
+
   describe "current_image_tag/2" do
     test "passes local Kubernetes client options through" do
       expect(Client, :get_kura_instance, fn "kura", "kura-tuist-local-controller", opts ->
@@ -206,6 +221,10 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
         cluster_id: "eu-central-1",
         public_host_template: "{account_handle}-{cluster_id}.kura.tuist.dev",
         grpc_public_host_template: "grpc.{account_handle}-{cluster_id}.kura.tuist.dev",
+        global_public_host_template: "{account_handle}.kura.tuist.dev",
+        global_grpc_public_host_template: "grpc.{account_handle}.kura.tuist.dev",
+        cloudflare_pool_latitude: 50.4779,
+        cloudflare_pool_longitude: 12.3713,
         storage_class: "hcloud-volumes"
       }
     }
