@@ -2374,12 +2374,18 @@ jobs:
             infra/helm/tuist/values-managed-staging.yaml \
             infra/helm/tuist/values-managed-canary.yaml \
             infra/helm/tuist/values-managed-production.yaml; do
-            # Only rewrite if the file already has a non-empty digest pin
-            # — values-managed-{canary,production}.yaml ship with
-            # runnerImage: "" until canary/production are flipped on, and
+            # Only rewrite if the file already has a non-empty pin to the
+            # runner image — values-managed-{canary,production}.yaml ship
+            # with `runnerImage: ""` until those envs are flipped on, and
             # we don't want to populate them silently from the release flow.
-            if grep -qE '^\s*runnerImage:\s*"ghcr\.io/tuist/tuist-runner@sha256:' "$f"; then
-              sed -i '' "s|^\([[:space:]]*runnerImage:[[:space:]]*\"\)ghcr\.io/tuist/tuist-runner@sha256:[a-f0-9]*\(\".*\)|\1ghcr.io/tuist/tuist-runner@${DIGEST}\2|" "$f"
+            # The match accepts both pin styles the chart has used: a
+            # digest (`@sha256:...`) and a tag (`:<short-sha>` or
+            # `:<semver>`). Staging is on `:08e66c9b` during bring-up;
+            # narrowing the guard to `@sha256:` would skip it on every
+            # release and leave the only enabled env on the previous
+            # image.
+            if grep -qE '^\s*runnerImage:\s*"ghcr\.io/tuist/tuist-runner[@:]' "$f"; then
+              sed -i '' -E "s|^([[:space:]]*runnerImage:[[:space:]]*\")ghcr\.io/tuist/tuist-runner[@:][^\"]*(\".*)|\1ghcr.io/tuist/tuist-runner@${DIGEST}\2|" "$f"
             fi
           done
 

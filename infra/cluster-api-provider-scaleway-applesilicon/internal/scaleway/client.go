@@ -246,6 +246,19 @@ func (c *Client) AdoptByPrefix(ctx context.Context, claimName, zone, serverType,
 		return nil, fmt.Errorf("poolPrefix is required for adoption")
 	}
 
+	// Idempotent rediscovery: if a previous reconcile renamed a
+	// pool host to `claimName` but its `status.serverID` patch was
+	// lost (process crash, conflicted optimistic write), the host
+	// no longer carries `poolPrefix` and the scan below would
+	// return ErrNoAvailableHost — leaving the renamed server
+	// orphaned outside the pool. Check by name first so the next
+	// reconcile picks the already-claimed host back up.
+	if existing, err := c.findServerByName(ctx, claimName, zone); err != nil {
+		return nil, fmt.Errorf("lookup existing claim %q: %w", claimName, err)
+	} else if existing != nil {
+		return scalewayServerToServer(existing), nil
+	}
+
 	page := int32(1)
 	pageSize := uint32(100)
 	for {
