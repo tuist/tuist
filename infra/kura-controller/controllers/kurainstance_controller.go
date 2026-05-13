@@ -29,11 +29,11 @@ import (
 const (
 	KuraInstanceFinalizer = "kurainstances.kura.tuist.dev/finalizer"
 
-	httpPort          int32 = 4000
-	httpsPort         int32 = 443
-	httpsTargetPort   int32 = 4443
-	grpcPort          int32 = 50051
-	peerPort          int32 = 7443
+	httpPort        int32 = 4000
+	httpsPort       int32 = 443
+	httpsTargetPort int32 = 4443
+	grpcPort        int32 = 50051
+	peerPort        int32 = 7443
 
 	// drainCompletionTimeoutMs and preStopDelaySeconds together set how
 	// long a Kura pod is given to bleed connections off before SIGTERM.
@@ -476,15 +476,15 @@ func podTemplate(instance *kurav1alpha1.KuraInstance) corev1.PodTemplateSpec {
 				Name:            "kura",
 				Image:           instance.Spec.Image,
 				ImagePullPolicy: corev1.PullIfNotPresent,
-				Ports: containerPorts(instance),
-				Env:            append(baseEnv(instance), instance.Spec.ExtraEnv...),
-				EnvFrom:        sharedSecretsEnvFrom(),
-				Resources:      defaultResources(),
-				VolumeMounts:   volumeMounts(instance),
-				Lifecycle:      preStopLifecycle(),
-				ReadinessProbe: httpProbe("/ready", 5, 10),
-				LivenessProbe:  httpProbe("/up", 20, 20),
-				StartupProbe:   httpProbe("/up", 0, 10),
+				Ports:           containerPorts(instance),
+				Env:             append(baseEnv(instance), instance.Spec.ExtraEnv...),
+				EnvFrom:         sharedSecretsEnvFrom(),
+				Resources:       defaultResources(),
+				VolumeMounts:    volumeMounts(instance),
+				Lifecycle:       preStopLifecycle(),
+				ReadinessProbe:  httpProbe("/ready", 5, 10),
+				LivenessProbe:   httpProbe("/up", 20, 20),
+				StartupProbe:    httpProbe("/up", 0, 10),
 			}},
 			Volumes: volumes(instance),
 		},
@@ -540,25 +540,21 @@ func defaultResources() corev1.ResourceRequirements {
 // publicServiceAnnotations returns the Hetzner Cloud LoadBalancer
 // annotations for the public Service. The LB runs in tcp-passthrough
 // mode and TLS is terminated inside the Kura pod from a cert-manager-
-// issued Secret. Health checks talk plain HTTP to the pod's HTTP port
-// because cluster DNS for kura.tuist.dev sits on Cloudflare and the
-// previous Hetzner-managed-certificate flow could not validate against
-// a zone Hetzner does not own.
+// issued Secret. Health checks use TCP against the Service NodePort
+// because Hetzner targets nodes, not pods; HTTP health checks would
+// speak cleartext to the TLS passthrough port.
 func publicServiceAnnotations(instance *kurav1alpha1.KuraInstance) map[string]string {
 	if instance.Spec.PublicHost == "" {
 		return nil
 	}
 
 	return map[string]string{
-		"external-dns.alpha.kubernetes.io/hostname":          instance.Spec.PublicHost,
-		"load-balancer.hetzner.cloud/name":                   instance.Name,
-		"load-balancer.hetzner.cloud/protocol":               "tcp",
-		"load-balancer.hetzner.cloud/algorithm-type":         "least_connections",
-		"load-balancer.hetzner.cloud/node-selector":          "node.cluster.x-k8s.io/pool=kura",
-		"load-balancer.hetzner.cloud/health-check-protocol":  "http",
-		"load-balancer.hetzner.cloud/health-check-port":      strconv.Itoa(int(httpPort)),
-		"load-balancer.hetzner.cloud/health-check-http-path": "/ready",
-		"load-balancer.hetzner.cloud/http-status-codes":      "200",
+		"external-dns.alpha.kubernetes.io/hostname":         instance.Spec.PublicHost,
+		"load-balancer.hetzner.cloud/name":                  instance.Name,
+		"load-balancer.hetzner.cloud/protocol":              "tcp",
+		"load-balancer.hetzner.cloud/algorithm-type":        "least_connections",
+		"load-balancer.hetzner.cloud/node-selector":         "node.cluster.x-k8s.io/pool=kura",
+		"load-balancer.hetzner.cloud/health-check-protocol": "tcp",
 	}
 }
 
@@ -568,15 +564,12 @@ func grpcServiceAnnotations(instance *kurav1alpha1.KuraInstance) map[string]stri
 	}
 
 	return map[string]string{
-		"external-dns.alpha.kubernetes.io/hostname":            instance.Spec.GRPCPublicHost,
-		"load-balancer.hetzner.cloud/name":                     grpcServiceName(instance),
-		"load-balancer.hetzner.cloud/protocol":                 "tcp",
-		"load-balancer.hetzner.cloud/algorithm-type":           "least_connections",
-		"load-balancer.hetzner.cloud/node-selector":            "node.cluster.x-k8s.io/pool=kura",
-		"load-balancer.hetzner.cloud/health-check-protocol":    "http",
-		"load-balancer.hetzner.cloud/health-check-port":        strconv.Itoa(int(httpPort)),
-		"load-balancer.hetzner.cloud/health-check-http-path":   "/ready",
-		"load-balancer.hetzner.cloud/http-status-codes":        "200",
+		"external-dns.alpha.kubernetes.io/hostname":         instance.Spec.GRPCPublicHost,
+		"load-balancer.hetzner.cloud/name":                  grpcServiceName(instance),
+		"load-balancer.hetzner.cloud/protocol":              "tcp",
+		"load-balancer.hetzner.cloud/algorithm-type":        "least_connections",
+		"load-balancer.hetzner.cloud/node-selector":         "node.cluster.x-k8s.io/pool=kura",
+		"load-balancer.hetzner.cloud/health-check-protocol": "tcp",
 	}
 }
 
@@ -604,15 +597,24 @@ func (r *KuraInstanceReconciler) reconcileNetworkPolicy(ctx context.Context, ins
 				},
 			},
 			{
-				// LoadBalancer / Hetzner LB health probes and the
-				// Tuist server's pod-list calls. Limit to in-cluster
-				// peers without further restriction; the JWT layer in
-				// the runtime is the auth boundary.
+				// Tuist server pod-list calls and internal health
+				// checks. Limit plain HTTP and plaintext gRPC to
+				// in-cluster peers; the JWT layer in the runtime is
+				// the auth boundary.
 				From: []networkingv1.NetworkPolicyPeer{
 					{NamespaceSelector: &metav1.LabelSelector{}},
 				},
 				Ports: []networkingv1.NetworkPolicyPort{
 					{Port: ptr(intstr.FromString("http")), Protocol: ptr(corev1.ProtocolTCP)},
+					{Port: ptr(intstr.FromString("grpc")), Protocol: ptr(corev1.ProtocolTCP)},
+				},
+			},
+			{
+				// Public LoadBalancer traffic. With externalTrafficPolicy=Local
+				// the original client/LB source IP is preserved, so these ports
+				// need an explicit all-sources rule.
+				Ports: []networkingv1.NetworkPolicyPort{
+					{Port: ptr(intstr.FromString("https")), Protocol: ptr(corev1.ProtocolTCP)},
 					{Port: ptr(intstr.FromString("grpc")), Protocol: ptr(corev1.ProtocolTCP)},
 				},
 			},

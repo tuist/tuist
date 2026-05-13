@@ -21,6 +21,23 @@ env:
   IMAGE_NAME: tuist/kura-controller
 
 jobs:
+  format:
+    runs-on: namespace-profile-default
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: infra/kura-controller/go.mod
+          cache-dependency-path: infra/kura-controller/go.sum
+      - name: Check formatting
+        working-directory: infra/kura-controller
+        run: |
+          files="$(gofmt -l .)"
+          if [ -n "$files" ]; then
+            echo "$files"
+            exit 1
+          fi
+
   test:
     runs-on: namespace-profile-default
     steps:
@@ -37,7 +54,9 @@ jobs:
         run: go vet ./...
 
   build:
-    needs: test
+    needs:
+      - format
+      - test
     if: github.event_name != 'pull_request'
     runs-on: namespace-profile-default
     steps:
