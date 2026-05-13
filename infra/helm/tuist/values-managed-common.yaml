@@ -231,8 +231,7 @@ runnersController:
   image:
     repository: ghcr.io/tuist/tuist-runners-controller
     # SHA-tagged build from the runners-controller-image.yml
-    # workflow. Replaced by release.yml's semver tag once the
-    # release pipeline owns this image.
+    # workflow.
     tag: "sha-08e66c9bf0e2"
 
 # Everything below = external. The managed deployment never runs embedded
