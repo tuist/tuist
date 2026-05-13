@@ -205,13 +205,14 @@
       </div>
     </div>
 
-    <.table
-      id="webhook-endpoints-table"
-      rows={@endpoints}
-      row_navigate={fn endpoint -> ~p"/#{@selected_account.name}/webhooks/#{endpoint.id}" end}
-    >
+    <.table id="webhook-endpoints-table" rows={@endpoints}>
         <:col :let={endpoint} label={dgettext("dashboard_account", "Name")}>
-          <.text_cell label={endpoint.name} />
+          <.link
+            data-part="endpoint-name-link"
+            navigate={~p"/#{@selected_account.name}/webhooks/#{endpoint.id}"}
+          >
+            <.text_cell label={endpoint.name} />
+          </.link>
         </:col>
         <:col :let={endpoint} label={dgettext("dashboard_account", "URL")}>
           <.text_cell label={endpoint.url} />
@@ -240,48 +241,38 @@
         <:col :let={endpoint} label="">
           <.button_cell>
             <:button>
-              <%!-- The kebab lives inside the row's `<.link navigate>` because --%>
-              <%!-- Noora's table wraps every cell. The `phx-no-navigate` hook --%>
-              <%!-- swallows the click on the wrapper so opening the dropdown --%>
-              <%!-- doesn't also navigate to the endpoint detail page. --%>
-              <div
-                data-part="row-actions"
-                id={"webhook-endpoint-row-actions-#{endpoint.id}"}
-                phx-hook="StopRowNavigate"
-              >
-                <.dropdown id={"webhook-endpoint-actions-#{endpoint.id}"} icon_only>
-                  <:icon><.dots_vertical /></:icon>
+              <.dropdown id={"webhook-endpoint-actions-#{endpoint.id}"} icon_only>
+                <:icon><.dots_vertical /></:icon>
 
-                  <.dropdown_item
-                    label={dgettext("dashboard_account", "Rotate secret")}
-                    value="rotate"
-                    on_click="rotate_endpoint_signing_secret"
-                    phx-value-id={endpoint.id}
-                    data-confirm={
-                      dgettext(
-                        "dashboard_account",
-                        "Rotating replaces the signing secret. Existing consumers will fail verification until updated."
-                      )
-                    }
-                  >
-                    <:left_icon><.reload /></:left_icon>
-                  </.dropdown_item>
-                  <.dropdown_item
-                    label={dgettext("dashboard_account", "Delete endpoint")}
-                    value="delete"
-                    on_click="delete_endpoint"
-                    phx-value-id={endpoint.id}
-                    data-confirm={
-                      dgettext(
-                        "dashboard_account",
-                        "Delete this endpoint? Automations referencing it will stop delivering."
-                      )
-                    }
-                  >
-                    <:left_icon><.trash /></:left_icon>
-                  </.dropdown_item>
-                </.dropdown>
-              </div>
+                <.dropdown_item
+                  label={dgettext("dashboard_account", "Rotate secret")}
+                  value="rotate"
+                  on_click="rotate_endpoint_signing_secret"
+                  phx-value-id={endpoint.id}
+                  data-confirm={
+                    dgettext(
+                      "dashboard_account",
+                      "Rotating replaces the signing secret. Existing consumers will fail verification until updated."
+                    )
+                  }
+                >
+                  <:left_icon><.reload /></:left_icon>
+                </.dropdown_item>
+                <.dropdown_item
+                  label={dgettext("dashboard_account", "Delete endpoint")}
+                  value="delete"
+                  on_click="delete_endpoint"
+                  phx-value-id={endpoint.id}
+                  data-confirm={
+                    dgettext(
+                      "dashboard_account",
+                      "Delete this endpoint? Automations referencing it will stop delivering."
+                    )
+                  }
+                >
+                  <:left_icon><.trash /></:left_icon>
+                </.dropdown_item>
+              </.dropdown>
             </:button>
           </.button_cell>
         </:col>
