@@ -211,6 +211,23 @@ defmodule Tuist.BuildsTest do
       assert got.id == build_id
     end
 
+    test "falls back to the unbounded lookup for older builds" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          inserted_at: DateTime.utc_now() |> DateTime.add(-120, :day) |> DateTime.to_naive()
+        )
+
+      # When
+      {:ok, got} = Builds.get_build(build.id, project_id: project.id)
+
+      # Then
+      assert got.id == build.id
+    end
+
     test "returns {:error, :not_found} when build does not exist" do
       # Given
       non_existent_build_id = UUIDv7.generate()
