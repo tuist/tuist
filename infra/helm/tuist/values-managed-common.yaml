@@ -230,17 +230,10 @@ macosFleet:
 runnersController:
   image:
     repository: ghcr.io/tuist/tuist-runners-controller
-    # Tracks `:latest` from the runners-controller-image.yml build
-    # workflow until the release.yml pipeline owns this image and
-    # starts pinning a semver tag here on each release. Pre-release
-    # bring-up: every push to `main` (or the bring-up branch) on
-    # the runners-controller paths rebuilds and re-tags latest.
-    tag: "latest"
-    # `:latest` requires a forced re-pull on every Pod start —
-    # `IfNotPresent` would cache the first version a node sees
-    # forever, defeating the rolling-latest model. Will be removed
-    # once `tag` flips to a pinned semver.
-    pullPolicy: Always
+    # SHA-tagged build from the runners-controller-image.yml
+    # workflow. Replaced by release.yml's semver tag once the
+    # release pipeline owns this image.
+    tag: "sha-08e66c9bf0e2"
 
 # Everything below = external. The managed deployment never runs embedded
 # Postgres / ClickHouse / object storage / observability stacks.
