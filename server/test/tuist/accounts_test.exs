@@ -8,6 +8,7 @@ defmodule Tuist.AccountsTest do
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.AccountToken
+  alias Tuist.Accounts.Invitation
   alias Tuist.Accounts.Organization
   alias Tuist.Accounts.Role
   alias Tuist.Accounts.User
@@ -978,6 +979,90 @@ defmodule Tuist.AccountsTest do
 
       # Then
       assert got == Repo.preload(invitation, inviter: :account)
+    end
+  end
+
+  describe "get_pending_invitations_by_email/1" do
+    test "returns invitations for the given email" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: user)
+
+      {:ok, invitation} =
+        Accounts.invite_user_to_organization("new@tuist.io", %{
+          inviter: user,
+          to: organization,
+          url: fn token -> token end
+        })
+
+      # When
+      got = Accounts.get_pending_invitations_by_email("new@tuist.io")
+
+      # Then
+      assert [%{id: id}] = got
+      assert id == invitation.id
+    end
+
+    test "orders invitations by most recent first" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+
+      {:ok, older} =
+        Accounts.invite_user_to_organization("new@tuist.io", %{
+          inviter: user,
+          to: AccountsFixtures.organization_fixture(creator: user),
+          url: fn token -> token end
+        })
+
+      {:ok, newer} =
+        Accounts.invite_user_to_organization("new@tuist.io", %{
+          inviter: user,
+          to: AccountsFixtures.organization_fixture(creator: user),
+          url: fn token -> token end
+        })
+
+      Tuist.Repo.update_all(
+        from(i in Invitation, where: i.id == ^older.id),
+        set: [created_at: ~N[2026-01-01 00:00:00]]
+      )
+
+      Tuist.Repo.update_all(
+        from(i in Invitation, where: i.id == ^newer.id),
+        set: [created_at: ~N[2026-02-01 00:00:00]]
+      )
+
+      # When
+      got = Accounts.get_pending_invitations_by_email("new@tuist.io")
+
+      # Then
+      assert Enum.map(got, & &1.id) == [newer.id, older.id]
+    end
+
+    test "returns an empty list when no invitations exist for the given email" do
+      # When
+      got = Accounts.get_pending_invitations_by_email("nobody@tuist.io")
+
+      # Then
+      assert got == []
+    end
+
+    test "does not return invitations for other emails" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: user)
+
+      {:ok, _invitation} =
+        Accounts.invite_user_to_organization("someone@tuist.io", %{
+          inviter: user,
+          to: organization,
+          url: fn token -> token end
+        })
+
+      # When
+      got = Accounts.get_pending_invitations_by_email("other@tuist.io")
+
+      # Then
+      assert got == []
     end
   end
 

@@ -746,9 +746,10 @@ fn status_from_u16(status: u16) -> StatusCode {
 
 async fn up(State(state): State<SharedState>) -> impl IntoResponse {
     let cluster = state.cluster_status_report().await;
-    let mut all_members = cluster.members;
-    all_members.push(state.config.region.clone());
-    all_members.sort();
+    let mut regions = cluster.peer_regions;
+    regions.push(state.config.region.clone());
+    regions.sort();
+    regions.dedup();
     let mut nodes = cluster.connected_nodes.clone();
     nodes.push(state.config.node_url.clone());
     nodes.sort();
@@ -762,7 +763,8 @@ async fn up(State(state): State<SharedState>) -> impl IntoResponse {
         "node_url": state.config.node_url.clone(),
         "connected_nodes": cluster.connected_nodes,
         "ring_members": nodes.len(),
-        "members": all_members.into_iter().collect::<Vec<_>>(),
+        "members": nodes.clone(),
+        "regions": regions,
         "nodes": nodes,
     }))
 }
@@ -1836,12 +1838,59 @@ mod tests {
         assert_eq!(body["ring_members"], 2);
         assert_eq!(body["generation"], 1);
         assert_eq!(body["region"], "us-east");
-        assert!(body["members"].to_string().contains("eu-west"));
+        assert_eq!(
+            body["members"],
+            serde_json::json!(["http://127.0.0.1:7443", "http://peer.kura.internal:4000"])
+        );
+        assert_eq!(body["regions"], serde_json::json!(["eu-west", "us-east"]));
         assert!(
             body["connected_nodes"]
                 .to_string()
                 .contains("http://peer.kura.internal:4000")
         );
+    }
+
+    #[tokio::test]
+    async fn up_reports_unique_regions_separately_from_node_members() {
+        let context = test_context(|config| {
+            config.region = "eu-central".into();
+        })
+        .await;
+        context
+            .state
+            .apply_membership_view(
+                std::collections::BTreeSet::from(["eu-central".to_string()]),
+                std::collections::BTreeMap::from([
+                    (
+                        "http://kura-1.kura-headless.kura.svc.cluster.local:7443".to_string(),
+                        "eu-central".to_string(),
+                    ),
+                    (
+                        "http://kura-2.kura-headless.kura.svc.cluster.local:7443".to_string(),
+                        "eu-central".to_string(),
+                    ),
+                ]),
+                true,
+            )
+            .await;
+
+        let response = router(context.state.clone())
+            .oneshot(
+                Request::builder()
+                    .uri("/up")
+                    .body(Body::empty())
+                    .expect("failed to build request"),
+            )
+            .await
+            .expect("request failed");
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body: Value = serde_json::from_str(&response_text(response).await)
+            .expect("failed to decode up response");
+        assert_eq!(body["ring_members"], 3);
+        assert_eq!(body["regions"], serde_json::json!(["eu-central"]));
+        assert_eq!(body["members"].as_array().expect("members array").len(), 3);
+        assert_eq!(body["nodes"].as_array().expect("nodes array").len(), 3);
     }
 
     #[tokio::test]

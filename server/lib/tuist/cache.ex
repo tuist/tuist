@@ -4,7 +4,11 @@ defmodule Tuist.Cache do
   """
 
   alias Tuist.Cache.CASEvent
-  alias Tuist.IngestRepo
+  alias Tuist.ClickHouseRepo
+  alias Tuist.Environment
+  alias Tuist.KeyValueStore
+
+  @short_cache_ttl to_timeout(second: 10)
 
   @doc """
   Creates multiple CAS analytics events in a batch.
@@ -34,14 +38,26 @@ defmodule Tuist.Cache do
   end
 
   def last_24h_artifacts_count do
+    cached_count(:last_24h_artifacts_count, &last_24h_artifacts_count_query/0)
+  end
+
+  defp last_24h_artifacts_count_query do
     yesterday = Date.to_string(Date.add(Date.utc_today(), -1))
 
-    case IngestRepo.query(
+    case ClickHouseRepo.query(
            "SELECT sum(event_count) FROM cas_events_daily_stats WHERE date >= {since:Date}",
            %{"since" => yesterday}
          ) do
       {:ok, %{rows: [[count]]}} when not is_nil(count) -> count
       _ -> 0
+    end
+  end
+
+  defp cached_count(key, fun) do
+    if Environment.test?() do
+      fun.()
+    else
+      KeyValueStore.get_or_update([:cache, key], [ttl: @short_cache_ttl], fun)
     end
   end
 end

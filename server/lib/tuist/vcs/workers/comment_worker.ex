@@ -5,7 +5,9 @@ defmodule Tuist.VCS.Workers.CommentWorker do
   This worker processes VCS comment generation asynchronously to improve
   API response times for the runs endpoint.
   """
-  use Oban.Worker
+  use Oban.Worker,
+    queue: :vcs_comments,
+    unique: [keys: [:project_id, :git_ref], states: [:available], period: :infinity]
 
   use Phoenix.VerifiedRoutes,
     endpoint: TuistWeb.Endpoint,

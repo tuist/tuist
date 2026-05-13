@@ -62,20 +62,21 @@ split_commits = false
 commit_preprocessors = [
     { pattern = '\((\w+\s)?#([0-9]+)\)', replace = "" },
 ]
-# Match commits scoped to xcresult-processor-image. Component covers the
-# Tart VM image (Packer template, launchd plist, env injector) plus
-# the server release pieces it bakes in (the xcresult NIF + the
-# server's release entry points run by TUIST_MODE=xcresult_processor).
+# The release workflow already passes path filters for the Tart VM image,
+# the xcresult NIF, and the server code baked into the macOS release. Match
+# any conventional commit that survives those path filters; otherwise
+# `fix(server)` changes to the worker/parser are silently ignored and the
+# deployed xcresult-processor image stays pinned to an older release.
 commit_parsers = [
-    { message = "^feat\\([^)]*\\bxcresult-processor-image\\b[^)]*\\)", group = "<!-- 0 -->⛰️  Features" },
-    { message = "^fix\\([^)]*\\bxcresult-processor-image\\b[^)]*\\)", group = "<!-- 1 -->🐛 Bug Fixes" },
-    { message = "^docs?\\([^)]*\\bxcresult-processor-image\\b[^)]*\\)", group = "<!-- 3 -->📚 Documentation" },
-    { message = "^perf\\([^)]*\\bxcresult-processor-image\\b[^)]*\\)", group = "<!-- 4 -->⚡ Performance" },
-    { message = "^refactor\\([^)]*\\bxcresult-processor-image\\b[^)]*\\)", group = "<!-- 2 -->🚜 Refactor" },
-    { message = "^style\\([^)]*\\bxcresult-processor-image\\b[^)]*\\)", group = "<!-- 5 -->🎨 Styling" },
-    { message = "^test\\([^)]*\\bxcresult-processor-image\\b[^)]*\\)", group = "<!-- 6 -->🧪 Testing" },
-    { message = "^chore\\([^)]*\\bxcresult-processor-image\\b[^)]*\\)", skip = true },
-    { message = "^ci\\([^)]*\\bxcresult-processor-image\\b[^)]*\\)", skip = true },
+    { message = "^feat(\\([^)]*\\))?", group = "<!-- 0 -->⛰️  Features" },
+    { message = "^fix(\\([^)]*\\))?", group = "<!-- 1 -->🐛 Bug Fixes" },
+    { message = "^docs?(\\([^)]*\\))?", group = "<!-- 3 -->📚 Documentation" },
+    { message = "^perf(\\([^)]*\\))?", group = "<!-- 4 -->⚡ Performance" },
+    { message = "^refactor(\\([^)]*\\))?", group = "<!-- 2 -->🚜 Refactor" },
+    { message = "^style(\\([^)]*\\))?", group = "<!-- 5 -->🎨 Styling" },
+    { message = "^test(\\([^)]*\\))?", group = "<!-- 6 -->🧪 Testing" },
+    { message = "^chore(\\([^)]*\\))?", skip = true },
+    { message = "^ci(\\([^)]*\\))?", skip = true },
     { message = "^[a-z]+\\([^)]+\\)", skip = true },
 ]
 protect_breaking_commits = false

@@ -124,6 +124,250 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
 
       assert Automations.list_alerts(project.id) == []
     end
+
+    test "defaults to last_days window_type with the existing window string", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      {:ok, lv, _html} = open(conn, organization, project)
+
+      render_hook(lv, "open_create_automation_modal", %{})
+      render_hook(lv, "update_create_automation_form_name", %{"value" => "Default"})
+      render_hook(lv, "save_automation", %{})
+
+      assert [automation] = Automations.list_alerts(project.id)
+      assert automation.trigger_config["window_type"] == "last_days"
+      assert automation.trigger_config["window"] == "30d"
+      refute Map.has_key?(automation.trigger_config, "rolling_window_size")
+    end
+
+    test "switching to rolling window persists rolling_window_size and drops the days window", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      {:ok, lv, _html} = open(conn, organization, project)
+
+      render_hook(lv, "open_create_automation_modal", %{})
+      render_hook(lv, "update_create_automation_form_name", %{"value" => "Rolling"})
+      render_hook(lv, "update_create_automation_form_window_type", %{"data" => "rolling"})
+      render_hook(lv, "update_create_automation_form_rolling_window_size", %{"value" => "50"})
+      render_hook(lv, "save_automation", %{})
+
+      assert [automation] = Automations.list_alerts(project.id)
+      assert automation.trigger_config["window_type"] == "rolling"
+      assert automation.trigger_config["rolling_window_size"] == 50
+      refute Map.has_key?(automation.trigger_config, "window")
+    end
+
+    test "ignores window_type values that are not in the allowlist", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      {:ok, lv, _html} = open(conn, organization, project)
+
+      render_hook(lv, "open_create_automation_modal", %{})
+      render_hook(lv, "update_create_automation_form_name", %{"value" => "Bogus"})
+      render_hook(lv, "update_create_automation_form_window_type", %{"data" => "weekly"})
+      render_hook(lv, "save_automation", %{})
+
+      assert [automation] = Automations.list_alerts(project.id)
+      assert automation.trigger_config["window_type"] == "last_days"
+    end
+
+    test "disables Save when rolling_window_size is above the cap", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      {:ok, lv, _html} = open(conn, organization, project)
+
+      render_hook(lv, "open_create_automation_modal", %{})
+      render_hook(lv, "update_create_automation_form_name", %{"value" => "Over cap"})
+      render_hook(lv, "update_create_automation_form_window_type", %{"data" => "rolling"})
+      render_hook(lv, "update_create_automation_form_rolling_window_size", %{"value" => "100000"})
+
+      # The Save button itself is rendered as disabled, so the user can't
+      # click it and the changeset's cap is never exercised silently.
+      assert render(lv) =~
+               ~s(<button class="noora-button" data-variant="primary" data-size="large" disabled="" type="button" phx-click="save_automation"><span>Create</span></button>)
+
+      # And even if we force the click, no alert is created.
+      render_hook(lv, "save_automation", %{})
+      assert Automations.list_alerts(project.id) == []
+    end
+
+    test "re-enables Save when rolling_window_size is brought within the cap", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      {:ok, lv, _html} = open(conn, organization, project)
+
+      render_hook(lv, "open_create_automation_modal", %{})
+      render_hook(lv, "update_create_automation_form_name", %{"value" => "Within cap"})
+      render_hook(lv, "update_create_automation_form_window_type", %{"data" => "rolling"})
+      render_hook(lv, "update_create_automation_form_rolling_window_size", %{"value" => "100000"})
+      render_hook(lv, "update_create_automation_form_rolling_window_size", %{"value" => "500"})
+
+      render_hook(lv, "save_automation", %{})
+      assert [automation] = Automations.list_alerts(project.id)
+      assert automation.trigger_config["rolling_window_size"] == 500
+    end
+
+    test "rolling recovery window persists rolling_window_size and drops the days window", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      {:ok, lv, _html} = open(conn, organization, project)
+
+      render_hook(lv, "open_create_automation_modal", %{})
+      render_hook(lv, "update_create_automation_form_name", %{"value" => "Rolling recovery"})
+      render_hook(lv, "toggle_create_automation_form_recovery", %{})
+      render_hook(lv, "update_create_automation_form_recovery_window_type", %{"data" => "rolling"})
+
+      render_hook(lv, "update_create_automation_form_recovery_rolling_window_size", %{
+        "value" => "25"
+      })
+
+      render_hook(lv, "save_automation", %{})
+
+      assert [automation] = Automations.list_alerts(project.id)
+      assert automation.recovery_config["window_type"] == "rolling"
+      assert automation.recovery_config["rolling_window_size"] == 25
+      refute Map.has_key?(automation.recovery_config, "window")
+    end
+
+    test "last_days recovery window persists window string", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      {:ok, lv, _html} = open(conn, organization, project)
+
+      render_hook(lv, "open_create_automation_modal", %{})
+      render_hook(lv, "update_create_automation_form_name", %{"value" => "Days recovery"})
+      render_hook(lv, "toggle_create_automation_form_recovery", %{})
+      render_hook(lv, "save_automation", %{})
+
+      assert [automation] = Automations.list_alerts(project.id)
+      assert automation.recovery_config["window_type"] == "last_days"
+      assert automation.recovery_config["window"] == "14d"
+      refute Map.has_key?(automation.recovery_config, "rolling_window_size")
+    end
+
+    test "creates a test_updated automation subscribed to the default marked_flaky event", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      {:ok, lv, _html} = open(conn, organization, project)
+
+      render_hook(lv, "open_create_automation_modal", %{})
+      render_hook(lv, "update_create_automation_form_name", %{"value" => "Quarantine on manual mark"})
+      render_hook(lv, "update_create_automation_form_metric", %{"data" => "test_updated"})
+      # Switching the metric stripped the default add_label trigger action;
+      # layer on an explicit change_state.
+      render_hook(lv, "add_create_automation_form_trigger_action", %{"data" => "change_state"})
+      render_hook(lv, "save_automation", %{})
+
+      assert [automation] = Automations.list_alerts(project.id)
+      assert automation.monitor_type == "test_updated"
+      assert automation.trigger_config == %{"events" => ["marked_flaky"]}
+      assert [%{"type" => "change_state", "state" => "muted"}] = automation.trigger_actions
+    end
+
+    test "toggle_create_automation_form_event adds and removes events from the subscription", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      {:ok, lv, _html} = open(conn, organization, project)
+
+      render_hook(lv, "open_create_automation_modal", %{})
+      render_hook(lv, "update_create_automation_form_name", %{"value" => "State subscriber"})
+      render_hook(lv, "update_create_automation_form_metric", %{"data" => "test_updated"})
+      # Default events = ["marked_flaky"]; subscribe to state_changed_to_muted too.
+      render_hook(lv, "toggle_create_automation_form_event", %{"data" => "state_changed_to_muted"})
+      # Unsubscribe from marked_flaky.
+      render_hook(lv, "toggle_create_automation_form_event", %{"data" => "marked_flaky"})
+      render_hook(lv, "add_create_automation_form_trigger_action", %{"data" => "change_state"})
+      render_hook(lv, "save_automation", %{})
+
+      assert [automation] = Automations.list_alerts(project.id)
+      assert automation.trigger_config["events"] == ["state_changed_to_muted"]
+    end
+
+    test "hides threshold/window/recovery section for test_updated", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      {:ok, lv, _html} = open(conn, organization, project)
+
+      render_hook(lv, "open_create_automation_modal", %{})
+      # Toggle recovery on before switching — the type switch must force it off.
+      render_hook(lv, "toggle_create_automation_form_recovery", %{})
+      render_hook(lv, "update_create_automation_form_metric", %{"data" => "test_updated"})
+
+      # Re-render explicitly so we assert against the full post-event DOM,
+      # not just the hook's reply payload. This catches stale window /
+      # threshold / recovery inputs that the gate would let through.
+      html = render(lv)
+
+      refute html =~ "create-automation-threshold"
+      refute html =~ ~s(id="create-automation-window")
+      refute html =~ ~s(id="create-automation-window-type-dropdown")
+      refute html =~ ~s(id="create-automation-rolling-window-size")
+      refute html =~ "create-automation-recovery-days"
+      refute html =~ "create-automation-recovery-toggle"
+      # The inline events multi-select renders instead.
+      assert html =~ "create-automation-events"
+      assert html =~ "create-automation-event-marked_flaky"
+    end
+
+    test "switching to test_updated forces recovery off", %{conn: conn, organization: organization, project: project} do
+      {:ok, lv, _html} = open(conn, organization, project)
+
+      render_hook(lv, "open_create_automation_modal", %{})
+      render_hook(lv, "toggle_create_automation_form_recovery", %{})
+      render_hook(lv, "update_create_automation_form_metric", %{"data" => "test_updated"})
+      render_hook(lv, "update_create_automation_form_name", %{"value" => "Mark trigger"})
+      render_hook(lv, "add_create_automation_form_trigger_action", %{"data" => "change_state"})
+      render_hook(lv, "save_automation", %{})
+
+      assert [automation] = Automations.list_alerts(project.id)
+      refute automation.recovery_enabled
+    end
+
+    test "Save is disabled when switching to test_updated strips the only action", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # The new form starts with a single `add_label flaky` action. Switching to
+      # `test_updated` removes that default (the label flip fights the events
+      # the user picks), so the action list is empty and the changeset would
+      # reject the save with `trigger_actions can't be blank`. The Save button
+      # must reflect that and stay disabled until the user adds an action.
+      {:ok, lv, _html} = open(conn, organization, project)
+
+      render_hook(lv, "open_create_automation_modal", %{})
+      render_hook(lv, "update_create_automation_form_metric", %{"data" => "test_updated"})
+      render_hook(lv, "update_create_automation_form_name", %{"value" => "Mark trigger"})
+
+      assert render(lv) =~
+               ~s(<button class="noora-button" data-variant="primary" data-size="large" disabled="" type="button" phx-click="save_automation"><span>Create</span></button>)
+
+      # Adding an action re-enables Save.
+      render_hook(lv, "add_create_automation_form_trigger_action", %{"data" => "change_state"})
+
+      refute render(lv) =~
+               ~s(<button class="noora-button" data-variant="primary" data-size="large" disabled="" type="button" phx-click="save_automation"><span>Create</span></button>)
+    end
   end
 
   describe "editing an automation" do

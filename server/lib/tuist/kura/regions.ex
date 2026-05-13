@@ -10,7 +10,7 @@ defmodule Tuist.Kura.Regions do
       `"us-west"`, `"local-controller"`).
       Stored on `kura_servers.region`. Never renamed once published
       because URLs and `account_cache_endpoints` reference it.
-    * `display_name` — what the /ops UI renders.
+    * `display_name` — the customer-facing region label.
     * `provisioner` — the `Tuist.Kura.Provisioner` implementation that
       actually provisions, rolls, and destroys Kura servers here. The
       customer never sees this.
@@ -80,7 +80,7 @@ defmodule Tuist.Kura.Regions do
   defp us_east_region do
     %__MODULE__{
       id: "us-east",
-      display_name: "US East (Hetzner Ashburn)",
+      display_name: "US East",
       provisioner: KubernetesController,
       provisioner_config: %{
         cluster_id: "us-east-1",
@@ -96,7 +96,7 @@ defmodule Tuist.Kura.Regions do
   defp us_west_region do
     %__MODULE__{
       id: "us-west",
-      display_name: "US West (Hetzner Hillsboro)",
+      display_name: "US West",
       provisioner: KubernetesController,
       provisioner_config: %{
         cluster_id: "us-west-1",
@@ -112,7 +112,7 @@ defmodule Tuist.Kura.Regions do
   defp eu_central_region do
     %__MODULE__{
       id: "eu-central",
-      display_name: "EU Central (Hetzner Falkenstein)",
+      display_name: "EU Central",
       provisioner: KubernetesController,
       provisioner_config: %{
         cluster_id: "eu-central-1",

@@ -5,7 +5,6 @@ import TuistLogging
 
 public struct RetryMiddleware: ClientMiddleware {
     private let maxRetries: Int
-    private static let retryableStatusCodes: Set<Int> = [429, 500, 502, 503, 504]
 
     public init(maxRetries: Int = 3) {
         self.maxRetries = maxRetries
@@ -29,7 +28,7 @@ public struct RetryMiddleware: ClientMiddleware {
             let replayBody = bodyData.map { HTTPBody($0) }
             do {
                 let (response, responseBody) = try await next(request, replayBody, baseURL)
-                guard Self.retryableStatusCodes.contains(response.status.code) else {
+                guard Self.isRetryableStatusCode(response.status.code) else {
                     return (response, responseBody)
                 }
                 Logger.current.debug(
@@ -54,5 +53,9 @@ public struct RetryMiddleware: ClientMiddleware {
         let baseInterval = TimeInterval(100_000_000) // 100ms
         let jitter = Double.random(in: 0 ... 100_000_000) // 0-100ms jitter
         return UInt64(baseInterval * pow(2, Double(retry)) + jitter)
+    }
+
+    private static func isRetryableStatusCode(_ statusCode: Int) -> Bool {
+        statusCode == 408 || statusCode == 429 || (500 ..< 600).contains(statusCode)
     }
 }

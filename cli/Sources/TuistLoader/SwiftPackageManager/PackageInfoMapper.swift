@@ -98,6 +98,13 @@ public enum PackageType {
         }
         return false
     }
+
+    fileprivate var isRemoteExternal: Bool {
+        if case .external(origin: .remote, artifactPaths: _) = self {
+            return true
+        }
+        return false
+    }
 }
 
 // MARK: - PackageInfo Mapper
@@ -109,6 +116,7 @@ public protocol PackageInfoMapping {
     /// - Returns: Mapped project
     func resolveExternalDependencies(
         path: AbsolutePath,
+        packagePath: AbsolutePath?,
         packageInfos: [String: PackageInfo],
         packageToFolder: [String: AbsolutePath],
         packageToTargetsToArtifactPaths: [String: [String: AbsolutePath]],
@@ -159,6 +167,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
     /// - Returns: Mapped project
     public func resolveExternalDependencies(
         path: AbsolutePath,
+        packagePath: AbsolutePath? = nil,
         packageInfos: [String: PackageInfo],
         packageToFolder: [String: AbsolutePath],
         packageToTargetsToArtifactPaths: [String: [String: AbsolutePath]],
@@ -233,9 +242,10 @@ public struct PackageInfoMapper: PackageInfoMapping {
                 }
             }
         // Include dependencies added as binary targets
+        let packageName = (packagePath ?? path.parentDirectory).basename.lowercased()
         let remoteXcframeworksPath = path.appending(components: [
             "artifacts",
-            path.removingLastComponent().url.lastPathComponent.lowercased(),
+            packageName,
         ])
         let remoteXcframeworks = try await fileSystem.glob(directory: remoteXcframeworksPath, include: ["**/*.xcframework"])
             .collect()
@@ -243,8 +253,9 @@ public struct PackageInfoMapper: PackageInfoMapping {
             .filter { $0.parentDirectory.basenameWithoutExt != "__MACOSX" }
         for xcframework in remoteXcframeworks {
             let dependencyName = xcframework.relative(to: remoteXcframeworksPath).basenameWithoutExt
+            let rootDirectory: AbsolutePath = try await rootDirectoryLocator.locate(from: packagePath ?? path)
             let xcframeworkPath = Path
-                .relativeToRoot(xcframework.relative(to: try await rootDirectoryLocator.locate(from: path)).pathString)
+                .relativeToRoot(xcframework.relative(to: rootDirectory).pathString)
             let signature = packageSettings.expectedSignatures[dependencyName]
                 .map(ProjectDescription.XCFrameworkSignature.from)
             externalDependencies[dependencyName] = [.xcframework(path: xcframeworkPath, expectedSignature: signature)]
@@ -605,10 +616,16 @@ public struct PackageInfoMapper: PackageInfoMapping {
             let effectiveName = PackageInfoMapper.effectiveModuleName(
                 targetName: target.name, products: products, packageTargets: packageInfo.targets
             )
+            let swiftPackageManagerScratchDirectory: AbsolutePath? = if packageType.isRemoteExternal {
+                SwiftPackageManagerPaths.scratchDirectory(containingCheckout: path)
+            } else {
+                nil
+            }
             moduleMap = try await moduleMapGenerator.generate(
                 packageDirectory: path,
                 moduleName: effectiveName,
-                publicHeadersPath: target.publicHeadersPath(packageFolder: path)
+                publicHeadersPath: target.publicHeadersPath(packageFolder: path),
+                swiftPackageManagerScratchDirectory: swiftPackageManagerScratchDirectory
             )
         default:
             moduleMap = nil

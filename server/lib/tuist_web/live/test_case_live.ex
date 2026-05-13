@@ -40,6 +40,7 @@ defmodule TuistWeb.TestCaseLive do
 
     if connected?(socket) do
       Tuist.PubSub.subscribe("#{account.name}/#{project.name}")
+      Tuist.PubSub.subscribe(Tests.test_case_topic(test_case_id))
     end
 
     socket =
@@ -320,6 +321,19 @@ defmodule TuistWeb.TestCaseLive do
     {:noreply, socket}
   end
 
+  def handle_info(
+        {:test_case_updated, %{id: id} = payload},
+        %{assigns: %{test_case_id: test_case_id, test_case_detail: test_case_detail}} = socket
+      )
+      when id == test_case_id do
+    # Reflect server-pushed state changes (e.g. from an automation acting on
+    # this test case) without waiting for a refresh.
+    {:noreply,
+     socket
+     |> assign(:test_case_detail, %{test_case_detail | is_flaky: payload.is_flaky, state: payload.state})
+     |> refresh_history_events()}
+  end
+
   def handle_info(_event, socket) do
     {:noreply, socket}
   end
@@ -464,6 +478,9 @@ defmodule TuistWeb.TestCaseLive do
   defp event_title(_), do: dgettext("dashboard_tests", "Event")
 
   defp format_event_subtitle(%{event_type: "first_run"}), do: nil
+
+  defp format_event_subtitle(%{alert: %{name: name}}),
+    do: dgettext("dashboard_tests", "By automation %{name}", name: name)
 
   defp format_event_subtitle(%{actor: nil}), do: dgettext("dashboard_tests", "Automatically by Tuist")
 

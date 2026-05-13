@@ -12,6 +12,7 @@ kuraController:
   enabled: false
   namespace: kura
   replicaCount: 2
+  tolerations: []
   image:
     repository: ghcr.io/tuist/kura-controller
     tag: ""
@@ -23,9 +24,12 @@ kuraController:
     limits:
       cpu: "500m"
       memory: "512Mi"
-  # cert-manager ClusterIssuer to use for the per-instance gRPC TLS
-  # Certificate. Leave empty to expose gRPC plaintext (no public LB
-  # certificate) — recommended only for kind/dev clusters.
+  # cert-manager ClusterIssuer to use for the per-instance public HTTPS
+  # and gRPC TLS Certificates. Leave empty only when the runtime does not
+  # mount public TLS certificates, for example kind/dev clusters.
+  tlsClusterIssuer: ""
+  # Deprecated alias for tlsClusterIssuer. Kept so existing overlays do
+  # not break while the controller flag is still named grpc-cluster-issuer.
   grpcClusterIssuer: ""
   sharedSecrets:
     # Renders the kura-shared-secrets Kubernetes Secret in the

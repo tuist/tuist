@@ -2,6 +2,7 @@ import Foundation
 import Mockable
 import Path
 import ProjectDescription
+import TuistConfig
 import TuistConfigLoader
 import TuistCore
 import TuistDependencies
@@ -107,14 +108,15 @@ public struct ManifestGraphLoader: ManifestGraphLoading {
         let config = try await configLoader.loadConfig(path: path)
         let manifestEnvironment = config.project.generatedProject?.generationOptions.manifestEnvironment ?? []
         return try await Environment.$additionalManifestEnvironmentKeys.withValue(manifestEnvironment) {
-            try await loadInternal(path: path, disableSandbox: disableSandbox)
+            try await loadInternal(path: path, disableSandbox: disableSandbox, config: config)
         }
     }
 
     // swiftlint:disable:next function_body_length
     private func loadInternal(
         path: AbsolutePath,
-        disableSandbox: Bool
+        disableSandbox: Bool,
+        config: TuistConfig.Tuist
     ) async throws -> (Graph, [SideEffectDescriptor], MapperEnvironment, [LintingIssue]) { // swiftlint:disable:this large_tuple
         try await manifestLoader.validateHasRootManifest(at: path)
 
@@ -130,12 +132,19 @@ public struct ManifestGraphLoader: ManifestGraphLoading {
 
         let dependenciesGraph: XcodeGraph.DependenciesGraph
         let packageSettings: TuistCore.PackageSettings?
+        let swiftPackageManagerScratchDirectory: AbsolutePath?
         var spmLintingIssues: [LintingIssue] = []
 
         // Load SPM graph only if is SPM Project only or the workspace is using external dependencies
         if let packagePath = try await manifestFilesLocator.locatePackageManifest(at: path),
            isSPMProjectOnly || hasExternalDependencies
         {
+            let swiftPackageManagerArguments = config.project.generatedProject?.installOptions
+                .passthroughSwiftPackageManagerArguments ?? []
+            swiftPackageManagerScratchDirectory = try await self.swiftPackageManagerScratchDirectory(
+                packagePath: packagePath.parentDirectory,
+                arguments: swiftPackageManagerArguments
+            )
             let loadedPackageSettings = try await packageSettingsLoader.loadPackageSettings(
                 at: packagePath.parentDirectory,
                 with: plugins,
@@ -145,13 +154,15 @@ public struct ManifestGraphLoader: ManifestGraphLoading {
             let (manifestsDependencyGraph, loadedSpmLintingIssues) = try await swiftPackageManagerGraphLoader.load(
                 packagePath: packagePath,
                 packageSettings: loadedPackageSettings,
-                disableSandbox: disableSandbox
+                disableSandbox: disableSandbox,
+                swiftPackageManagerArguments: swiftPackageManagerArguments
             )
             spmLintingIssues = loadedSpmLintingIssues
             dependenciesGraph = try await converter.convert(dependenciesGraph: manifestsDependencyGraph, path: path)
             packageSettings = loadedPackageSettings
         } else {
             packageSettings = nil
+            swiftPackageManagerScratchDirectory = nil
             dependenciesGraph = .none
         }
 
@@ -160,12 +171,17 @@ public struct ManifestGraphLoader: ManifestGraphLoading {
             allManifests = try await recursiveManifestLoader.loadAndMergePackageProjects(
                 in: allManifests,
                 packageSettings: packageSettings,
-                disableSandbox: disableSandbox
+                disableSandbox: disableSandbox,
+                swiftPackageManagerScratchDirectory: swiftPackageManagerScratchDirectory
             )
         }
 
         let (workspaceModels, manifestProjects) = (
-            try await converter.convert(manifest: allManifests.workspace, path: allManifests.path),
+            try await converter.convert(
+                manifest: allManifests.workspace,
+                path: allManifests.path,
+                swiftPackageManagerScratchDirectory: swiftPackageManagerScratchDirectory
+            ),
             allManifests.projects
         )
 
@@ -213,6 +229,18 @@ public struct ManifestGraphLoader: ManifestGraphLoading {
             modelMapperSideEffects + graphMapperSideEffects,
             environment,
             lintingIssues
+        )
+    }
+
+    private func swiftPackageManagerScratchDirectory(
+        packagePath: AbsolutePath,
+        arguments: [String]
+    ) async throws -> AbsolutePath {
+        try SwiftPackageManagerScratchDirectoryLocator().locate(
+            packagePath: packagePath,
+            arguments: arguments,
+            environment: Environment.current.variables,
+            workingDirectory: try await Environment.current.currentWorkingDirectory()
         )
     }
 

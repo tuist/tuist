@@ -41,7 +41,8 @@ public protocol SwiftPackageManagerModuleMapGenerating {
     func generate(
         packageDirectory: AbsolutePath,
         moduleName: String,
-        publicHeadersPath: AbsolutePath
+        publicHeadersPath: AbsolutePath,
+        swiftPackageManagerScratchDirectory: AbsolutePath?
     ) async throws -> ModuleMap
 }
 
@@ -61,7 +62,8 @@ public struct SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerModuleMa
     public func generate(
         packageDirectory: AbsolutePath,
         moduleName: String,
-        publicHeadersPath: AbsolutePath
+        publicHeadersPath: AbsolutePath,
+        swiftPackageManagerScratchDirectory: AbsolutePath? = nil
     ) async throws -> ModuleMap {
         let sanitizedModuleName = moduleName.sanitizedModuleName
         let umbrellaHeaderPath = publicHeadersPath.appending(component: sanitizedModuleName + ".h")
@@ -70,10 +72,14 @@ public struct SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerModuleMa
         let customModuleMapPath = try await customModuleMapPath(publicHeadersPath: publicHeadersPath)
         let generatedModuleMapPath: AbsolutePath
 
-        if publicHeadersPath.pathString.contains("\(Constants.SwiftPackageManager.packageBuildDirectoryName)/checkouts") {
-            generatedModuleMapPath = packageDirectory
-                .parentDirectory
-                .parentDirectory
+        let resolvedSwiftPackageManagerScratchDirectory = SwiftPackageManagerPaths.scratchDirectory(
+            containingCheckout: publicHeadersPath,
+            knownScratchDirectory: swiftPackageManagerScratchDirectory
+        )
+        if let resolvedSwiftPackageManagerScratchDirectory,
+           SwiftPackageManagerPaths.isPath(publicHeadersPath, inCheckoutsOf: resolvedSwiftPackageManagerScratchDirectory)
+        {
+            generatedModuleMapPath = resolvedSwiftPackageManagerScratchDirectory
                 .appending(
                     components: Constants.DerivedDirectory.dependenciesDerivedDirectory,
                     Constants.DerivedDirectory.dependenciesModuleMapsDirectory,

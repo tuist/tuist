@@ -101,5 +101,22 @@
                     == "proxy.tuist.dev"
             )
         }
+
+        @Test(.withMockedEnvironment())
+        func tuistShared_preserves_the_shared_session_when_runtime_settings_are_rewritten_with_the_same_value() async throws {
+            let environment = try #require(Environment.mocked)
+            environment.variables["HTTPS_PROXY"] = "http://proxy.tuist.dev:8080"
+
+            let previousSettings = HTTPSettings.current
+            defer { HTTPSettings.current = previousSettings }
+
+            HTTPSettings.current = .init(useEnvironmentProxy: true)
+            let firstSession = URLSession.tuistShared
+
+            HTTPSettings.current = .init(useEnvironmentProxy: true)
+            let secondSession = URLSession.tuistShared
+
+            #expect(firstSession === secondSession)
+        }
     }
 #endif

@@ -109,7 +109,7 @@ defmodule Tuist.VCS.Workers.CommentWorkerTest do
       # Insert a competing job and set it to "executing" state
       {:ok, competing_job} =
         competing_job_args
-        |> CommentWorker.new(queue: "default")
+        |> CommentWorker.new()
         |> Tuist.Repo.insert()
 
       {:ok, competing_job} =

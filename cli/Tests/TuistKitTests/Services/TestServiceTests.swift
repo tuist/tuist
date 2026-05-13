@@ -4241,6 +4241,122 @@ final class TestServiceTests: TuistUnitTestCase {
             .called(1)
     }
 
+    func test_run_testWithoutBuilding_restoresRunMetadata_fromBundle() async throws {
+        // Given
+        let path = try temporaryPath()
+        let testProductsPath = path.appending(component: "MyApp.xctestproducts")
+        try await fileSystem.makeDirectory(at: testProductsPath)
+
+        let selectiveTestingGraph = SelectiveTestingGraph(
+            testTargetHashes: ["MyTests": "abc123"]
+        )
+        let graphPath = testProductsPath.appending(component: SelectiveTestingGraph.fileName)
+        try JSONEncoder().encode(selectiveTestingGraph).write(to: graphPath.url)
+
+        let projectPath = try AbsolutePath(validating: "/tmp/Project")
+        let project = Project.test(
+            path: projectPath,
+            name: "Project",
+            targets: [.test(name: "MyTests")]
+        )
+        let graph = Graph.test(
+            name: "MyApp",
+            path: projectPath,
+            workspace: .test(),
+            projects: [projectPath: project]
+        )
+        let binaryCacheItems: [AbsolutePath: [String: CacheItem]] = [
+            projectPath: [
+                "MyTests": CacheItem.test(name: "MyTests", hash: "binary-hash", source: .remote, cacheCategory: .binaries),
+            ],
+        ]
+        let selectiveTestingCacheItems: [AbsolutePath: [String: CacheItem]] = [
+            projectPath: [
+                "MyTests": CacheItem.test(
+                    name: "MyTests",
+                    hash: "selective-hash",
+                    source: .remote,
+                    cacheCategory: .selectiveTests
+                ),
+            ],
+        ]
+        let runMetadata = RunMetadata(
+            graph: graph,
+            binaryCacheItems: binaryCacheItems,
+            selectiveTestingCacheItems: selectiveTestingCacheItems,
+            targetContentHashSubhashes: [:],
+            buildRunId: "BUILD-RUN-ID"
+        )
+        let runMetadataPath = testProductsPath.appending(component: RunMetadata.fileName)
+        try JSONEncoder().encode(runMetadata).write(to: runMetadataPath.url)
+
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
+
+        given(xcodebuildController)
+            .run(arguments: .any)
+            .willReturn(())
+
+        // When
+        try await AlertController.$current.withValue(AlertController()) {
+            try await testRun(
+                path: path,
+                action: .testWithoutBuilding,
+                passthroughXcodeBuildArguments: ["-testProductsPath", testProductsPath.pathString]
+            )
+        }
+
+        // Then — RunMetadataStorage should be populated from the snapshot
+        let restoredBuildRunId = await runMetadataStorage.buildRunId
+        XCTAssertEqual(restoredBuildRunId, "BUILD-RUN-ID")
+        let restoredBinaryCacheItems = await runMetadataStorage.binaryCacheItems
+        XCTAssertEqual(restoredBinaryCacheItems, binaryCacheItems)
+        let restoredSelectiveTestingCacheItems = await runMetadataStorage.selectiveTestingCacheItems
+        XCTAssertEqual(restoredSelectiveTestingCacheItems, selectiveTestingCacheItems)
+        let restoredGraph = await runMetadataStorage.graph
+        XCTAssertEqual(restoredGraph?.name, "MyApp")
+        XCTAssertEqual(restoredGraph?.projects[projectPath]?.name, "Project")
+    }
+
+    func test_run_testWithoutBuilding_skipsRunMetadataRestore_whenMissing() async throws {
+        // Given
+        let path = try temporaryPath()
+        let testProductsPath = path.appending(component: "MyApp.xctestproducts")
+        try await fileSystem.makeDirectory(at: testProductsPath)
+
+        let selectiveTestingGraph = SelectiveTestingGraph(
+            testTargetHashes: ["MyTests": "abc123"]
+        )
+        let graphPath = testProductsPath.appending(component: SelectiveTestingGraph.fileName)
+        try JSONEncoder().encode(selectiveTestingGraph).write(to: graphPath.url)
+
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
+
+        given(xcodebuildController)
+            .run(arguments: .any)
+            .willReturn(())
+
+        // When
+        try await AlertController.$current.withValue(AlertController()) {
+            try await testRun(
+                path: path,
+                action: .testWithoutBuilding,
+                passthroughXcodeBuildArguments: ["-testProductsPath", testProductsPath.pathString]
+            )
+        }
+
+        // Then — RunMetadataStorage stays untouched (no snapshot file present)
+        let buildRunId = await runMetadataStorage.buildRunId
+        XCTAssertNil(buildRunId)
+        let binaryCacheItems = await runMetadataStorage.binaryCacheItems
+        XCTAssertTrue(binaryCacheItems.isEmpty)
+        let selectiveTestingCacheItems = await runMetadataStorage.selectiveTestingCacheItems
+        XCTAssertTrue(selectiveTestingCacheItems.isEmpty)
+    }
+
     func test_run_testWithoutBuilding_fallsBackToGeneration_whenNoSelectiveTestingGraph() async throws {
         // Given
         givenGenerator()
@@ -4286,6 +4402,111 @@ final class TestServiceTests: TuistUnitTestCase {
                 cacheStorage: .any,
                 destination: .any,
                 schemeName: .any
+            )
+            .called(1)
+    }
+
+    func test_run_testWithoutBuilding_skippedSummary_propagatesRestoredBuildRunId() async throws {
+        // Given — a bundle whose selective testing graph attempts a test plan that has no
+        // matching .xctestrun (i.e. selective testing pruned every target), so the test phase
+        // skips xcodebuild entirely and uploads a synthesized "skipped" test summary. Before
+        // this fix, uploadSkippedTestSummary hardcoded buildRunId: nil, which dropped the link
+        // back to the originating build run. The restore from a real snapshot file is covered
+        // by test_run_testWithoutBuilding_restoresRunMetadata_fromBundle; here we pre-populate
+        // RunMetadataStorage directly to keep the test focused on the skip path's buildRunId
+        // forwarding.
+        let path = try temporaryPath()
+        let testProductsPath = path.appending(component: "MyApp.xctestproducts")
+        try await fileSystem.makeDirectory(at: testProductsPath)
+        let testPlan = "IntegrationTestSuite"
+
+        let selectiveTestingGraph = SelectiveTestingGraph(
+            testTargetHashes: ["IntegrationTests": "abc123"],
+            attemptedTestPlans: [testPlan]
+        )
+        try JSONEncoder().encode(selectiveTestingGraph)
+            .write(to: testProductsPath.appending(component: SelectiveTestingGraph.fileName).url)
+
+        await runMetadataStorage.update(buildRunId: "BUILD-RUN-ID")
+
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(
+                .test(
+                    project: .testGeneratedProject(),
+                    fullHandle: "tuist/tuist",
+                    url: URL(string: "https://tuist.dev")!
+                )
+            )
+        given(xcodebuildController)
+            .version()
+            .willReturn(nil)
+        given(createTestService)
+            .createTest(
+                fullHandle: .any,
+                serverURL: .any,
+                id: .any,
+                testSummary: .any,
+                buildRunId: .any,
+                gitBranch: .any,
+                gitCommitSHA: .any,
+                gitRef: .any,
+                gitRemoteURLOrigin: .any,
+                isCI: .any,
+                modelIdentifier: .any,
+                macOSVersion: .any,
+                xcodeVersion: .any,
+                ciRunId: .any,
+                ciProjectHandle: .any,
+                ciHost: .any,
+                ciProvider: .any,
+                shardPlanId: .any,
+                shardIndex: .any
+            )
+            .willReturn(
+                Components.Schemas.RunsTest(
+                    duration: 0,
+                    id: "test-id",
+                    project_id: 1,
+                    test_case_runs: [],
+                    _type: .test,
+                    url: "https://tuist.dev/tuist/tuist/tests/test-runs/test-id"
+                )
+            )
+
+        // When
+        try await AlertController.$current.withValue(AlertController()) {
+            try await testRun(
+                path: path,
+                action: .testWithoutBuilding,
+                testPlanConfiguration: TestPlanConfiguration(testPlan: testPlan),
+                passthroughXcodeBuildArguments: ["-testProductsPath", testProductsPath.pathString]
+            )
+        }
+
+        // Then — the buildRunId from RunMetadataStorage is forwarded to createTest so the
+        // test run record links back to the build run.
+        verify(createTestService)
+            .createTest(
+                fullHandle: .value("tuist/tuist"),
+                serverURL: .any,
+                id: .any,
+                testSummary: .any,
+                buildRunId: .value("BUILD-RUN-ID"),
+                gitBranch: .any,
+                gitCommitSHA: .any,
+                gitRef: .any,
+                gitRemoteURLOrigin: .any,
+                isCI: .any,
+                modelIdentifier: .any,
+                macOSVersion: .any,
+                xcodeVersion: .any,
+                ciRunId: .any,
+                ciProjectHandle: .any,
+                ciHost: .any,
+                ciProvider: .any,
+                shardPlanId: .any,
+                shardIndex: .any
             )
             .called(1)
     }

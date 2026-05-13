@@ -294,6 +294,71 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         XCTAssertEqual(postBuildableReference?.buildableIdentifier, "primary")
     }
 
+    func test_schemeBuildAction_execution_action_with_nil_target_does_not_synthesize_environmentBuildable() throws {
+        // Given
+        let projectPath = try AbsolutePath(validating: "/somepath/Project")
+        let xcodeProjPath = projectPath.appending(component: "Project.xcodeproj")
+        let target = Target.test(name: "App", product: .app)
+
+        let postAction = ExecutionAction(
+            title: "Custom post-action",
+            scriptText: "echo hi",
+            target: nil,
+            shellPath: nil
+        )
+        let buildAction = BuildAction.test(
+            targets: [TargetReference(projectPath: projectPath, name: "App")],
+            postActions: [postAction]
+        )
+        let scheme = Scheme.test(name: "App", shared: true, buildAction: buildAction)
+        let project = Project.test(path: projectPath, xcodeProjPath: xcodeProjPath, targets: [target])
+        let graph = Graph.test(projects: [project.path: project])
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let got = try subject.schemeBuildAction(
+            scheme: scheme,
+            graphTraverser: graphTraverser,
+            rootPath: projectPath,
+            generatedProjects: createGeneratedProjects(projects: [project])
+        )
+
+        // Then
+        XCTAssertNil(got?.postActions.first?.environmentBuildable)
+    }
+
+    func test_schemeBuildAction_execution_action_with_unresolvable_target_does_not_synthesize_environmentBuildable() throws {
+        // Given
+        let projectPath = try AbsolutePath(validating: "/somepath/Project")
+        let xcodeProjPath = projectPath.appending(component: "Project.xcodeproj")
+        let app = Target.test(name: "App", product: .app)
+        let postAction = ExecutionAction(
+            title: "Post Action",
+            scriptText: "echo bye",
+            target: TargetReference(projectPath: projectPath, name: "DoesNotExist"),
+            shellPath: nil
+        )
+        let buildAction = BuildAction.test(
+            targets: [TargetReference(projectPath: projectPath, name: "App")],
+            postActions: [postAction]
+        )
+        let scheme = Scheme.test(name: "App", shared: true, buildAction: buildAction)
+        let project = Project.test(path: projectPath, xcodeProjPath: xcodeProjPath, targets: [app])
+        let graph = Graph.test(projects: [project.path: project])
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let got = try subject.schemeBuildAction(
+            scheme: scheme,
+            graphTraverser: graphTraverser,
+            rootPath: projectPath,
+            generatedProjects: createGeneratedProjects(projects: [project])
+        )
+
+        // Then
+        XCTAssertNil(got?.postActions.first?.environmentBuildable)
+    }
+
     func test_buildAction_parallelizedBuild() throws {
         // Given
         let schemeA = Scheme(

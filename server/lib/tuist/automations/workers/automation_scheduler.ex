@@ -1,6 +1,9 @@
 defmodule Tuist.Automations.Workers.AutomationScheduler do
   @moduledoc false
-  use Oban.Worker, max_attempts: 1, queue: :default
+  use Oban.Worker,
+    max_attempts: 1,
+    queue: :default,
+    unique: [fields: [:worker], period: :infinity, states: [:available, :scheduled, :executing]]
 
   import Ecto.Query
 

@@ -579,6 +579,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 )
                 try await fileSystem.writeAsJSON(selectiveTestingGraph, at: selectiveTestingGraphPath)
 
+                await RunMetadataStorage.current.writeMetadata(to: testProductsPath)
+
                 if isSharding,
                    let fullHandle = config.fullHandle
                 {
@@ -665,6 +667,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 relativeTo: shardCurrentPath
             )
         }
+
+        await RunMetadataStorage.current.restoreMetadata(from: shard.testProductsPath)
 
         var shardPassthroughArguments = passthroughXcodeBuildArguments
         if let xcTestRunPath = shard.xcTestRunPath {
@@ -762,6 +766,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
         let selectiveTestingGraph: SelectiveTestingGraph = try await fileSystem.readJSONFile(
             at: selectiveTestingGraphPath
         )
+
+        await RunMetadataStorage.current.restoreMetadata(from: testProductsPath)
 
         let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
 
@@ -1818,13 +1824,14 @@ public struct TestService { // swiftlint:disable:this type_body_length
 
         let gitInfo = try await gitController.gitInfo(workingDirectory: gitInfoDirectory)
         let ciInfo = ciController.ciInfo()
+        let buildRunId = await RunMetadataStorage.current.buildRunId
 
         let test = try await createTestService.createTest(
             fullHandle: fullHandle,
             serverURL: serverURL,
             id: nil,
             testSummary: testSummary,
-            buildRunId: nil,
+            buildRunId: buildRunId,
             gitBranch: gitInfo.branch,
             gitCommitSHA: gitInfo.sha,
             gitRef: gitInfo.ref,

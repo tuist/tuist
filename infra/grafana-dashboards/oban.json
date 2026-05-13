@@ -121,7 +121,7 @@
         "pluginVersion": "7.1.3",
         "targets": [
           {
-            "expr": "tuist_oban_queue_length_count{job=\"$job\", instance=\"$instance\", name=\"$oban\", state=\"available\"}",
+            "expr": "sum by (queue) (tuist_oban_queue_length_count{job=\"$job\", env=\"$env\", name=\"$oban\", state=\"available\"})",
             "instant": true,
             "interval": "",
             "legendFormat": "{{ queue }}",
@@ -178,7 +178,7 @@
         "pluginVersion": "7.1.3",
         "targets": [
           {
-            "expr": "round(sum(increase(tuist_oban_job_processing_duration_milliseconds_count{instance=\"$instance\", job=\"$job\", name=\"$oban\"}[$interval])))",
+            "expr": "round(sum(increase(tuist_oban_job_processing_duration_milliseconds_count{env=\"$env\", job=\"$job\", name=\"$oban\"}[$interval])))",
             "interval": "",
             "legendFormat": "",
             "refId": "A",
@@ -235,7 +235,7 @@
         "pluginVersion": "7.1.3",
         "targets": [
           {
-            "expr": "round(sum(increase(tuist_oban_job_exception_duration_milliseconds_count{instance=\"$instance\", job=\"$job\", name=\"$oban\"}[$interval])))",
+            "expr": "round(sum(increase(tuist_oban_job_exception_duration_milliseconds_count{env=\"$env\", job=\"$job\", name=\"$oban\"}[$interval])))",
             "interval": "",
             "legendFormat": "",
             "refId": "A",
@@ -292,7 +292,7 @@
         "pluginVersion": "7.1.3",
         "targets": [
           {
-            "expr": "round(sum(increase(tuist_oban_producer_dispatched_count_count{instance=\"$instance\", job=\"$job\", name=\"$oban\"}[$interval])))",
+            "expr": "round(sum(increase(tuist_oban_producer_dispatched_count_count{env=\"$env\", job=\"$job\", name=\"$oban\"}[$interval])))",
             "interval": "",
             "legendFormat": "",
             "refId": "A",
@@ -356,7 +356,7 @@
         "reverseYBuckets": false,
         "targets": [
           {
-            "expr": "sum(irate(tuist_oban_job_processing_duration_milliseconds_bucket{job=\"$job\", instance=\"$instance\", name=\"$oban\"}[$interval])) by (le)",
+            "expr": "sum(irate(tuist_oban_job_processing_duration_milliseconds_bucket{job=\"$job\", env=\"$env\", name=\"$oban\"}[$interval])) by (le)",
             "format": "heatmap",
             "hide": false,
             "interval": "",
@@ -428,7 +428,7 @@
         "reverseYBuckets": false,
         "targets": [
           {
-            "expr": "sum(irate(tuist_oban_job_queue_time_milliseconds_bucket{job=\"$job\", instance=\"$instance\", name=\"$oban\"}[$interval])) by (le)",
+            "expr": "sum(irate(tuist_oban_job_queue_time_milliseconds_bucket{job=\"$job\", env=\"$env\", name=\"$oban\"}[$interval])) by (le)",
             "format": "heatmap",
             "hide": false,
             "interval": "",
@@ -512,7 +512,7 @@
         "steppedLine": false,
         "targets": [
           {
-            "expr": "irate(tuist_oban_job_processing_duration_milliseconds_sum{job=\"$job\", instance=\"$instance\", name=\"$oban\"}[$interval]) / irate(tuist_oban_job_processing_duration_milliseconds_count{job=\"$job\", instance=\"$instance\", name=\"$oban\"}[$interval])",
+            "expr": "irate(tuist_oban_job_processing_duration_milliseconds_sum{job=\"$job\", env=\"$env\", name=\"$oban\"}[$interval]) / irate(tuist_oban_job_processing_duration_milliseconds_count{job=\"$job\", env=\"$env\", name=\"$oban\"}[$interval])",
             "interval": "",
             "legendFormat": "({{ state }}) {{ name }} :: {{ worker }}",
             "refId": "A"
@@ -609,7 +609,7 @@
         "steppedLine": false,
         "targets": [
           {
-            "expr": "irate(tuist_oban_job_queue_time_milliseconds_sum{job=\"$job\", instance=\"$instance\", name=\"$oban\"}[$interval]) / irate(tuist_oban_job_queue_time_milliseconds_count{job=\"$job\", instance=\"$instance\", name=\"$oban\"}[$interval])",
+            "expr": "irate(tuist_oban_job_queue_time_milliseconds_sum{job=\"$job\", env=\"$env\", name=\"$oban\"}[$interval]) / irate(tuist_oban_job_queue_time_milliseconds_count{job=\"$job\", env=\"$env\", name=\"$oban\"}[$interval])",
             "interval": "",
             "legendFormat": "({{ state }}) {{ name }} :: {{ worker }}",
             "refId": "A"
@@ -706,7 +706,7 @@
         "steppedLine": false,
         "targets": [
           {
-            "expr": "irate(tuist_oban_job_complete_attempts_sum{job=\"$job\", instance=\"$instance\", name=\"$oban\"}[$interval]) / irate(tuist_oban_job_complete_attempts_count{job=\"$job\", instance=\"$instance\", name=\"$oban\"}[$interval])",
+            "expr": "irate(tuist_oban_job_complete_attempts_sum{job=\"$job\", env=\"$env\", name=\"$oban\"}[$interval]) / irate(tuist_oban_job_complete_attempts_count{job=\"$job\", env=\"$env\", name=\"$oban\"}[$interval])",
             "interval": "",
             "legendFormat": "({{ state }}) {{ name }} :: {{ worker }}",
             "refId": "A"
@@ -805,7 +805,7 @@
         "reverseYBuckets": false,
         "targets": [
           {
-            "expr": "sum(irate(tuist_oban_job_exception_duration_milliseconds_bucket{job=\"$job\", instance=\"$instance\", name=\"$oban\"}[$interval])) by (le)",
+            "expr": "sum(irate(tuist_oban_job_exception_duration_milliseconds_bucket{job=\"$job\", env=\"$env\", name=\"$oban\"}[$interval])) by (le)",
             "format": "heatmap",
             "hide": false,
             "interval": "",
@@ -877,7 +877,7 @@
         "reverseYBuckets": false,
         "targets": [
           {
-            "expr": "sum(irate(tuist_oban_job_exception_queue_time_milliseconds_bucket{job=\"$job\", instance=\"$instance\", name=\"$oban\"}[$interval])) by (le)",
+            "expr": "sum(irate(tuist_oban_job_exception_queue_time_milliseconds_bucket{job=\"$job\", env=\"$env\", name=\"$oban\"}[$interval])) by (le)",
             "format": "heatmap",
             "hide": false,
             "interval": "",
@@ -961,7 +961,7 @@
         "steppedLine": false,
         "targets": [
           {
-            "expr": "irate(tuist_oban_job_exception_duration_milliseconds_sum{job=\"$job\", instance=\"$instance\", name=\"$oban\"}[$interval]) / irate(tuist_oban_job_exception_duration_milliseconds_count{job=\"$job\", instance=\"$instance\", name=\"$oban\"}[$interval])",
+            "expr": "irate(tuist_oban_job_exception_duration_milliseconds_sum{job=\"$job\", env=\"$env\", name=\"$oban\"}[$interval]) / irate(tuist_oban_job_exception_duration_milliseconds_count{job=\"$job\", env=\"$env\", name=\"$oban\"}[$interval])",
             "interval": "",
             "legendFormat": "({{ error }}) {{ name }} :: {{ worker }}",
             "refId": "A"
@@ -1058,7 +1058,7 @@
         "steppedLine": false,
         "targets": [
           {
-            "expr": "irate(tuist_oban_job_exception_queue_time_milliseconds_sum{job=\"$job\", instance=\"$instance\", name=\"$oban\"}[$interval]) / irate(tuist_oban_job_exception_queue_time_milliseconds_count{job=\"$job\", instance=\"$instance\", name=\"$oban\"}[$interval])",
+            "expr": "irate(tuist_oban_job_exception_queue_time_milliseconds_sum{job=\"$job\", env=\"$env\", name=\"$oban\"}[$interval]) / irate(tuist_oban_job_exception_queue_time_milliseconds_count{job=\"$job\", env=\"$env\", name=\"$oban\"}[$interval])",
             "interval": "",
             "legendFormat": "({{ error }}) {{ name }} :: {{ worker }}",
             "refId": "A"
@@ -1155,7 +1155,7 @@
         "steppedLine": false,
         "targets": [
           {
-            "expr": "irate(tuist_oban_job_exception_attempts_sum{job=\"$job\", instance=\"$instance\", name=\"$oban\"}[$interval]) / irate(tuist_oban_job_exception_attempts_count{job=\"$job\", instance=\"$instance\", name=\"$oban\"}[$interval])",
+            "expr": "irate(tuist_oban_job_exception_attempts_sum{job=\"$job\", env=\"$env\", name=\"$oban\"}[$interval]) / irate(tuist_oban_job_exception_attempts_count{job=\"$job\", env=\"$env\", name=\"$oban\"}[$interval])",
             "interval": "",
             "legendFormat": "({{ state }}) {{ name }} :: {{ worker }}",
             "refId": "A"
@@ -1264,7 +1264,7 @@
         "steppedLine": false,
         "targets": [
           {
-            "expr": "tuist_oban_queue_length_count{job=\"$job\", instance=\"$instance\", name=\"$oban\", state=\"available\"}",
+            "expr": "sum by (queue) (tuist_oban_queue_length_count{job=\"$job\", env=\"$env\", name=\"$oban\", state=\"available\"})",
             "interval": "",
             "legendFormat": "{{ queue }}",
             "refId": "A"
@@ -1359,7 +1359,7 @@
         "steppedLine": false,
         "targets": [
           {
-            "expr": "tuist_oban_queue_length_count{job=\"$job\", instance=\"$instance\", name=\"$oban\", state=\"completed\"}",
+            "expr": "sum by (queue) (tuist_oban_queue_length_count{job=\"$job\", env=\"$env\", name=\"$oban\", state=\"completed\"})",
             "interval": "",
             "legendFormat": "{{ queue }}",
             "refId": "A"
@@ -1454,7 +1454,7 @@
         "steppedLine": false,
         "targets": [
           {
-            "expr": "tuist_oban_queue_length_count{job=\"$job\", instance=\"$instance\", name=\"$oban\", state=\"executing\"}",
+            "expr": "sum by (queue) (tuist_oban_queue_length_count{job=\"$job\", env=\"$env\", name=\"$oban\", state=\"executing\"})",
             "interval": "",
             "legendFormat": "{{ queue }}",
             "refId": "A"
@@ -1549,7 +1549,7 @@
         "steppedLine": false,
         "targets": [
           {
-            "expr": "tuist_oban_queue_length_count{job=\"$job\", instance=\"$instance\", name=\"$oban\", state=\"retryable\"}",
+            "expr": "sum by (queue) (tuist_oban_queue_length_count{job=\"$job\", env=\"$env\", name=\"$oban\", state=\"retryable\"})",
             "interval": "",
             "legendFormat": "{{ queue }}",
             "refId": "A"
@@ -1648,7 +1648,7 @@
         "reverseYBuckets": false,
         "targets": [
           {
-            "expr": "sum(irate(tuist_oban_producer_duration_milliseconds_bucket{job=\"$job\", instance=\"$instance\", name=\"$oban\"}[$interval])) by (le)",
+            "expr": "sum(irate(tuist_oban_producer_duration_milliseconds_bucket{job=\"$job\", env=\"$env\", name=\"$oban\"}[$interval])) by (le)",
             "format": "heatmap",
             "hide": false,
             "interval": "",
@@ -1720,7 +1720,7 @@
         "reverseYBuckets": false,
         "targets": [
           {
-            "expr": "sum(irate(tuist_oban_producer_dispatched_count_bucket{job=\"$job\", instance=\"$instance\", name=\"$oban\"}[$interval])) by (le)",
+            "expr": "sum(irate(tuist_oban_producer_dispatched_count_bucket{job=\"$job\", env=\"$env\", name=\"$oban\"}[$interval])) by (le)",
             "format": "heatmap",
             "hide": false,
             "interval": "",
@@ -1800,7 +1800,7 @@
         "steppedLine": false,
         "targets": [
           {
-            "expr": "irate(tuist_oban_producer_duration_milliseconds_sum{job=\"$job\", instance=\"$instance\", name=\"$oban\"}[$interval]) / irate(tuist_oban_producer_duration_milliseconds_count{job=\"$job\", instance=\"$instance\", name=\"$oban\"}[$interval])",
+            "expr": "irate(tuist_oban_producer_duration_milliseconds_sum{job=\"$job\", env=\"$env\", name=\"$oban\"}[$interval]) / irate(tuist_oban_producer_duration_milliseconds_count{job=\"$job\", env=\"$env\", name=\"$oban\"}[$interval])",
             "interval": "",
             "legendFormat": "{{ queue }}",
             "refId": "A"
@@ -1893,7 +1893,7 @@
         "steppedLine": false,
         "targets": [
           {
-            "expr": "irate(tuist_oban_producer_dispatched_count_sum{job=\"$job\", instance=\"$instance\", name=\"$oban\"}[$interval]) / irate(tuist_oban_producer_dispatched_count_count{job=\"$job\", instance=\"$instance\", name=\"$oban\"}[$interval])",
+            "expr": "irate(tuist_oban_producer_dispatched_count_sum{job=\"$job\", env=\"$env\", name=\"$oban\"}[$interval]) / irate(tuist_oban_producer_dispatched_count_count{job=\"$job\", env=\"$env\", name=\"$oban\"}[$interval])",
             "interval": "",
             "legendFormat": "{{ queue }}",
             "refId": "A"
@@ -1986,7 +1986,7 @@
         "steppedLine": false,
         "targets": [
           {
-            "expr": "irate(tuist_oban_producer_exception_duration_milliseconds_sum{job=\"$job\", instance=\"$instance\", name=\"$oban\"}[$interval]) / irate(tuist_oban_producer_exception_duration_milliseconds_count{job=\"$job\", instance=\"$instance\", name=\"$oban\"}[$interval])",
+            "expr": "irate(tuist_oban_producer_exception_duration_milliseconds_sum{job=\"$job\", env=\"$env\", name=\"$oban\"}[$interval]) / irate(tuist_oban_producer_exception_duration_milliseconds_count{job=\"$job\", env=\"$env\", name=\"$oban\"}[$interval])",
             "interval": "",
             "legendFormat": "{{ queue }}",
             "refId": "A"
@@ -2096,7 +2096,7 @@
         "pluginVersion": "7.1.3",
         "targets": [
           {
-            "expr": "increase(tuist_oban_circuit_trip_total{job=\"$job\", instance=\"$instance\", name=\"$oban\"}[1h])",
+            "expr": "sum(increase(tuist_oban_circuit_trip_total{job=\"$job\", env=\"$env\", name=\"$oban\"}[1h]))",
             "interval": "",
             "legendFormat": "",
             "refId": "A"
@@ -2156,7 +2156,7 @@
         "pluginVersion": "7.1.3",
         "targets": [
           {
-            "expr": "tuist_oban_circuit_trip_total{job=\"$job\", instance=\"$instance\", name=\"$oban\"}",
+            "expr": "sum(tuist_oban_circuit_trip_total{job=\"$job\", env=\"$env\", name=\"$oban\"})",
             "interval": "",
             "legendFormat": "",
             "refId": "A"
@@ -2216,7 +2216,7 @@
         "pluginVersion": "7.1.3",
         "targets": [
           {
-            "expr": "increase(tuist_oban_circuit_open_total{job=\"$job\", instance=\"$instance\", name=\"$oban\"}[1h])",
+            "expr": "sum(increase(tuist_oban_circuit_open_total{job=\"$job\", env=\"$env\", name=\"$oban\"}[1h]))",
             "interval": "",
             "legendFormat": "",
             "refId": "A"
@@ -2276,7 +2276,7 @@
         "pluginVersion": "7.1.3",
         "targets": [
           {
-            "expr": "tuist_oban_circuit_open_total{job=\"$job\", instance=\"$instance\", name=\"$oban\"}",
+            "expr": "sum(tuist_oban_circuit_open_total{job=\"$job\", env=\"$env\", name=\"$oban\"})",
             "interval": "",
             "legendFormat": "",
             "refId": "A"
@@ -2333,7 +2333,7 @@
         "steppedLine": false,
         "targets": [
           {
-            "expr": "increase(tuist_oban_circuit_trip_total{job=\"$job\", instance=\"$instance\", name=\"$oban\"}[$interval])",
+            "expr": "sum by (circuit_breaker) (increase(tuist_oban_circuit_trip_total{job=\"$job\", env=\"$env\", name=\"$oban\"}[$interval]))",
             "interval": "",
             "legendFormat": "{{ circuit_breaker }}",
             "refId": "A"
@@ -2426,7 +2426,7 @@
         "steppedLine": false,
         "targets": [
           {
-            "expr": "increase(tuist_oban_circuit_open_total{job=\"$job\", instance=\"$instance\", name=\"$oban\"}[$interval])",
+            "expr": "sum by (circuit_breaker) (increase(tuist_oban_circuit_open_total{job=\"$job\", env=\"$env\", name=\"$oban\"}[$interval]))",
             "interval": "",
             "legendFormat": "{{ circuit_breaker }}",
             "refId": "A"
@@ -2514,22 +2514,22 @@
           "allValue": null,
           "current": {
             "selected": false,
-            "text": "elixir_app_one:4000",
-            "value": "elixir_app_one:4000"
+            "text": "production",
+            "value": "production"
           },
           "datasource": "grafanacloud-tuist-prom",
-          "definition": "label_values(tuist_oban_queue_length_count, instance)",
+          "definition": "label_values(tuist_oban_queue_length_count{job=\"$job\"}, env)",
           "hide": 0,
           "includeAll": false,
-          "label": "Application Instance",
+          "label": "Environment",
           "multi": false,
-          "name": "instance",
+          "name": "env",
           "options": [],
-          "query": "label_values(tuist_oban_queue_length_count{job=\"$job\"}, instance)",
+          "query": "label_values(tuist_oban_queue_length_count{job=\"$job\"}, env)",
           "refresh": 2,
           "regex": "",
           "skipUrlSync": false,
-          "sort": 0,
+          "sort": 1,
           "tagValuesQuery": "",
           "tags": [],
           "tagsQuery": "",

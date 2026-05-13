@@ -1,7 +1,9 @@
 defmodule Tuist.AutomationsTest do
   use TuistTestSupport.Cases.DataCase, async: false
+  use Mimic
 
   alias Tuist.Automations
+  alias Tuist.Automations.ActionExecutor
   alias Tuist.Automations.Alerts.Alert
   alias TuistTestSupport.Fixtures.AutomationsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
@@ -49,7 +51,7 @@ defmodule Tuist.AutomationsTest do
         "project_id" => project.id,
         "name" => "Quarantine flaky tests",
         "monitor_type" => "flakiness_rate",
-        "trigger_config" => %{"threshold" => 5, "window" => "30d"},
+        "trigger_config" => %{"threshold" => 5, "window_type" => "last_days", "window" => "30d"},
         "trigger_actions" => [%{"type" => "change_state", "state" => "muted"}]
       }
 
@@ -120,6 +122,166 @@ defmodule Tuist.AutomationsTest do
 
       events = Automations.list_active_alert_events(alert.id)
       refute Enum.any?(events, &(&1.test_case_id == test_case_id))
+    end
+  end
+
+  describe "dispatch_test_case_event/2" do
+    defp test_updated_alert(project, opts \\ []) do
+      AutomationsFixtures.automation_alert_fixture(
+        Keyword.merge(
+          [
+            project: project,
+            monitor_type: "test_updated",
+            trigger_config: %{"events" => ["marked_flaky"]},
+            trigger_actions: [%{"type" => "change_state", "state" => "muted"}]
+          ],
+          opts
+        )
+      )
+    end
+
+    test "runs trigger actions for an alert subscribed to :marked_flaky" do
+      project = ProjectsFixtures.project_fixture()
+      test_case = %{id: Ecto.UUID.generate(), project_id: project.id}
+      alert = test_updated_alert(project)
+
+      expected_entity = %{type: :test_case, id: test_case.id}
+
+      expect(ActionExecutor, :execute_actions, fn actions, ^alert, ^expected_entity ->
+        assert actions == alert.trigger_actions
+        :ok
+      end)
+
+      assert :ok = Automations.dispatch_test_case_event(:marked_flaky, test_case)
+
+      events = Automations.list_active_alert_events(alert.id)
+      assert Enum.any?(events, &(&1.test_case_id == test_case.id))
+    end
+
+    test "skips disabled alerts" do
+      project = ProjectsFixtures.project_fixture()
+      test_case = %{id: Ecto.UUID.generate(), project_id: project.id}
+      test_updated_alert(project, enabled: false)
+
+      reject(&ActionExecutor.execute_actions/3)
+
+      assert :ok = Automations.dispatch_test_case_event(:marked_flaky, test_case)
+    end
+
+    test "skips alerts from other projects" do
+      project = ProjectsFixtures.project_fixture()
+      other_project = ProjectsFixtures.project_fixture()
+      test_case = %{id: Ecto.UUID.generate(), project_id: project.id}
+      test_updated_alert(other_project)
+
+      reject(&ActionExecutor.execute_actions/3)
+
+      assert :ok = Automations.dispatch_test_case_event(:marked_flaky, test_case)
+    end
+
+    test "skips alerts whose monitor_type isn't test_updated" do
+      project = ProjectsFixtures.project_fixture()
+      test_case = %{id: Ecto.UUID.generate(), project_id: project.id}
+
+      AutomationsFixtures.automation_alert_fixture(
+        project: project,
+        monitor_type: "flaky_run_count",
+        trigger_config: %{"threshold" => 3, "window_type" => "last_days", "window" => "30d"}
+      )
+
+      reject(&ActionExecutor.execute_actions/3)
+
+      assert :ok = Automations.dispatch_test_case_event(:marked_flaky, test_case)
+    end
+
+    test "skips alerts not subscribed to the firing event" do
+      project = ProjectsFixtures.project_fixture()
+      test_case = %{id: Ecto.UUID.generate(), project_id: project.id}
+      # Subscribed only to unmarked_flaky.
+      test_updated_alert(project, trigger_config: %{"events" => ["unmarked_flaky"]})
+
+      reject(&ActionExecutor.execute_actions/3)
+
+      assert :ok = Automations.dispatch_test_case_event(:marked_flaky, test_case)
+    end
+
+    test ":unmarked_flaky fires an alert subscribed to unmarked_flaky" do
+      project = ProjectsFixtures.project_fixture()
+      test_case = %{id: Ecto.UUID.generate(), project_id: project.id}
+      alert = test_updated_alert(project, trigger_config: %{"events" => ["unmarked_flaky"]})
+
+      expect(ActionExecutor, :execute_actions, fn _actions, ^alert, _entity -> :ok end)
+
+      assert :ok = Automations.dispatch_test_case_event(:unmarked_flaky, test_case)
+    end
+
+    test "an alert can subscribe to multiple events and fires on each" do
+      project = ProjectsFixtures.project_fixture()
+      test_case = %{id: Ecto.UUID.generate(), project_id: project.id}
+
+      alert =
+        test_updated_alert(project,
+          trigger_config: %{
+            "events" => ["marked_flaky", "state_changed_to_muted", "state_changed_to_enabled"]
+          }
+        )
+
+      # Three matching firings: :marked_flaky, :muted, :unmuted.
+      expect(ActionExecutor, :execute_actions, 3, fn _actions, ^alert, _entity -> :ok end)
+
+      assert :ok = Automations.dispatch_test_case_event(:marked_flaky, test_case)
+      assert :ok = Automations.dispatch_test_case_event(:muted, test_case)
+      # :unmuted maps to state_changed_to_enabled (subscribed).
+      assert :ok = Automations.dispatch_test_case_event(:unmuted, test_case)
+      # :skipped is NOT in the subscription, so this is a no-op.
+      assert :ok = Automations.dispatch_test_case_event(:skipped, test_case)
+    end
+
+    test ":unmuted and :unskipped both map to state_changed_to_enabled" do
+      project = ProjectsFixtures.project_fixture()
+      test_case = %{id: Ecto.UUID.generate(), project_id: project.id}
+      alert = test_updated_alert(project, trigger_config: %{"events" => ["state_changed_to_enabled"]})
+
+      expect(ActionExecutor, :execute_actions, 2, fn _actions, ^alert, _entity -> :ok end)
+
+      assert :ok = Automations.dispatch_test_case_event(:unmuted, test_case)
+      assert :ok = Automations.dispatch_test_case_event(:unskipped, test_case)
+    end
+
+    test "does not record an alert event when actions fail" do
+      project = ProjectsFixtures.project_fixture()
+      test_case = %{id: Ecto.UUID.generate(), project_id: project.id}
+      alert = test_updated_alert(project)
+
+      expect(ActionExecutor, :execute_actions, fn _actions, _alert, _entity ->
+        {:error, :boom}
+      end)
+
+      assert :ok = Automations.dispatch_test_case_event(:marked_flaky, test_case)
+      assert Automations.list_active_alert_events(alert.id) == []
+    end
+
+    test "depth guard caps recursion when an action re-fires the same event" do
+      project = ProjectsFixtures.project_fixture()
+      test_case = %{id: Ecto.UUID.generate(), project_id: project.id}
+      _alert = test_updated_alert(project)
+
+      # Simulate an automation whose action re-emits the same test case
+      # event (the canonical cycle: a `state_changed_to_muted` alert that
+      # mutes the test on fire). Without a guard this would loop forever.
+      counter = :counters.new(1, [])
+
+      stub(ActionExecutor, :execute_actions, fn _actions, _alert, _entity ->
+        :counters.add(counter, 1, 1)
+        Automations.dispatch_test_case_event(:marked_flaky, test_case)
+        :ok
+      end)
+
+      assert :ok = Automations.dispatch_test_case_event(:marked_flaky, test_case)
+
+      # The dispatcher allows depths 0..9 to run, so we expect exactly 10
+      # executor invocations before the guard trips on the 11th level.
+      assert :counters.get(counter, 1) == 10
     end
   end
 end

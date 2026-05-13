@@ -63,6 +63,9 @@ external-dns:
   sources:
     - service
     - ingress
+  # Must be unique per workload cluster because several managed clusters
+  # write records under tuist.dev. The bootstrap task overrides this with
+  # "<cluster-name>-platform".
   txtOwnerId: tuist-platform
   # Limit which records external-dns will touch; be explicit for prod safety.
   domainFilters:

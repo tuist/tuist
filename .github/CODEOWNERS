@@ -1,0 +1,31 @@
+# CI and release control planes
+/.github/workflows/ @tuist/engineering
+/.github/actions/ @tuist/engineering
+/mise/tasks/ @tuist/engineering
+
+# Dependency manifests and lockfiles
+/mise.toml @tuist/engineering
+/mise.lock @tuist/engineering
+/server/mise.toml @tuist/engineering
+/cache/mise.toml @tuist/engineering
+/noora/.mise.toml @tuist/engineering
+/handbook/mise.toml @tuist/engineering
+/status/mise.toml @tuist/engineering
+/infra/mise.toml @tuist/engineering
+/Package.swift @tuist/engineering
+/Package.resolved @tuist/engineering
+/package.json @tuist/engineering
+/package-lock.json @tuist/engineering
+/server/package.json @tuist/engineering
+/server/pnpm-lock.yaml @tuist/engineering
+/noora/package.json @tuist/engineering
+/noora/aube-lock.yaml @tuist/engineering
+/handbook/package.json @tuist/engineering
+/handbook/aube-lock.yaml @tuist/engineering
+/status/package.json @tuist/engineering
+/status/aube-lock.yaml @tuist/engineering
+/infra/registry-router/package.json @tuist/engineering
+/infra/registry-router/package-lock.json @tuist/engineering
+/gradle/settings.gradle.kts @tuist/engineering
+/gradle/build.gradle.kts @tuist/engineering
+/gradle/gradle.lockfile @tuist/engineering

@@ -55,6 +55,9 @@ on:
       image_tag:
         description: Pre-built image tag to deploy instead of building
         required: false
+      kura_runtime_image_tag:
+        description: Pre-built Kura runtime image tag to deploy
+        required: false
   workflow_call:
     inputs:
       environment:
@@ -72,16 +75,21 @@ on:
           the workflow builds + pushes an image tagged sha-<commit_sha>.
         required: false
         type: string
+      kura_runtime_image_tag:
+        description: >-
+          Pre-built Kura runtime image tag to deploy. When unset, the
+          deploy job resolves the latest kura@ release and strips the
+          release prefix before passing it to Helm.
+        required: false
+        type: string
 
 permissions:
   contents: read
   packages: write
-  id-token: write
 
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: tuist/tuist
-  KURA_RUNTIME_IMAGE_NAME: tuist/kura
   KURA_CONTROLLER_IMAGE_NAME: tuist/kura-controller
   HELM_CHART_PATH: infra/helm/tuist
   HELM_RELEASE_NAME: tuist
@@ -132,15 +140,6 @@ jobs:
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.KURA_CONTROLLER_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
-      - uses: docker/build-push-action@v6
-        name: Build and push Kura runtime image
-        with:
-          context: ./kura
-          file: ./kura/Dockerfile
-          push: true
-          tags: |
-            ${{ env.REGISTRY }}/${{ env.KURA_RUNTIME_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
-
   observability-install:
     # Installs / upgrades the grafana/k8s-monitoring wrapper chart ahead of
     # the server rollout so the Alloy OTLP receiver is ready before the
@@ -221,6 +220,7 @@ jobs:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
       NAMESPACE: ${{ inputs.environment == 'production' && 'tuist' || format('tuist-{0}', inputs.environment) }}
       IMAGE_TAG: ${{ inputs.image_tag != '' && inputs.image_tag || needs.build.outputs.image_tag }}
+      KURA_RUNTIME_IMAGE_TAG: ${{ inputs.kura_runtime_image_tag }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -346,6 +346,47 @@ jobs:
           # so dependent pods (Pending or otherwise) go with the Job.
           echo "$stale_jobs" | xargs -r kubectl -n "$NAMESPACE" delete job \
             --ignore-not-found --cascade=foreground --timeout=2m
+      - name: Resolve Kura runtime image tag
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          if [ -n "${KURA_RUNTIME_IMAGE_TAG:-}" ]; then
+            echo "Using configured Kura runtime image tag $KURA_RUNTIME_IMAGE_TAG"
+            exit 0
+          fi
+
+          page=1
+          while true; do
+            response="$(
+              curl --fail --silent --show-error \
+                --header "Accept: application/vnd.github+json" \
+                --header "Authorization: Bearer $GITHUB_TOKEN" \
+                "https://api.github.com/repos/tuist/tuist/releases?per_page=100&page=$page"
+            )"
+
+            tag="$(
+              printf '%s' "$response" | python3 -c 'import json, sys; print(next((release["tag_name"].removeprefix("kura@") for release in json.load(sys.stdin) if release.get("tag_name", "").startswith("kura@")), ""), end="")'
+            )"
+
+            if [ -n "$tag" ]; then
+              echo "KURA_RUNTIME_IMAGE_TAG=$tag" >> "$GITHUB_ENV"
+              echo "Resolved Kura runtime image tag $tag"
+              exit 0
+            fi
+
+            count="$(
+              printf '%s' "$response" | python3 -c 'import json, sys; print(len(json.load(sys.stdin)))'
+            )"
+
+            if [ "$count" -lt 100 ]; then
+              echo "No kura@ release found in GitHub releases."
+              exit 1
+            fi
+
+            page=$((page + 1))
+          done
       - name: helm upgrade --install
         # App secrets never pass through --set: the chart runs in
         # `server.managedSecrets: true` mode, which reads DATABASE_URL /
@@ -396,7 +437,7 @@ jobs:
             -f "$HELM_CHART_PATH/values-managed-${{ inputs.environment }}.yaml" \
             --set server.image.tag="$IMAGE_TAG" \
             --set kuraController.image.tag="$IMAGE_TAG" \
-            --set kuraRuntime.image.tag="$IMAGE_TAG" \
+            --set kuraRuntime.image.tag="$KURA_RUNTIME_IMAGE_TAG" \
             --atomic --timeout 90m --wait
       - name: Deploy Kura regional controllers
         if: inputs.environment == 'production'

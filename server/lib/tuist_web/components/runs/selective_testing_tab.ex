@@ -18,6 +18,8 @@ defmodule TuistWeb.Runs.SelectiveTestingTab do
   attr :expanded_target_names, :any, required: true
   attr :uri, :any, required: true
   attr :run, :any, required: true
+  attr :available_filters, :list, required: true
+  attr :selective_testing_active_filters, :list, required: true
 
   def selective_testing_tab(assigns) do
     assigns = assign(assigns, :selective_testing_json, selective_testing_targets_json(assigns.run))
@@ -87,17 +89,31 @@ defmodule TuistWeb.Runs.SelectiveTestingTab do
           </.button>
         </:actions>
         <.card_section data-part="selective-testing-section">
-          <.form for={%{}} phx-change="search-selective-testing" phx-debounce="200">
-            <.text_input
-              type="search"
-              id="search-selective-testing"
-              name="search"
-              placeholder={dgettext("dashboard_tests", "Search...")}
-              show_suffix={false}
-              data-part="search"
-              value={@selective_testing_filter}
+          <div data-part="filters">
+            <.form for={%{}} phx-change="search-selective-testing" phx-debounce="200">
+              <.text_input
+                type="search"
+                id="search-selective-testing"
+                name="search"
+                placeholder={dgettext("dashboard_tests", "Search...")}
+                show_suffix={false}
+                data-part="search"
+                value={@selective_testing_filter}
+              />
+            </.form>
+            <.filter_dropdown
+              id="selective-testing-filter-dropdown"
+              label={dgettext("dashboard_tests", "Filter")}
+              available_filters={@available_filters}
+              active_filters={@selective_testing_active_filters}
             />
-          </.form>
+          </div>
+          <div
+            :if={Enum.any?(@selective_testing_active_filters)}
+            data-part="active-filters"
+          >
+            <.active_filter :for={filter <- @selective_testing_active_filters} filter={filter} />
+          </div>
           <.table
             id="selective-testing-table"
             rows={@selective_testing_analytics.test_modules}
