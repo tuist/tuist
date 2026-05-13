@@ -2,11 +2,17 @@ import FileSystem
 import Foundation
 import Mockable
 import Testing
+import TSCBasic
 import TuistCore
 import TuistNooraTesting
 import TuistSupport
 import TuistTesting
 @testable import TuistLoader
+
+private final class SwiftPackageManagerLockObservation: @unchecked Sendable {
+    var heldDuringLoadPackage = false
+    var loadPackageCallCount = 0
+}
 
 struct SwiftPackageManagerGraphLoaderTests {
     private let swiftPackageManagerController = MockSwiftPackageManagerControlling()
@@ -124,6 +130,76 @@ struct SwiftPackageManagerGraphLoaderTests {
                 )
             }
         }
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
+    func load_doesNotHoldSwiftPackageManagerLock_whenLoadingManifests() async throws {
+        // The Swift package manager scratch-directory lock is acquired by every
+        // `swift package` subprocess. Holding the lock around manifest-loading
+        // subprocesses deadlocks the parent and child on the same lock file
+        // (https://github.com/tuist/tuist/issues/10754).
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let scratchDirectory = temporaryDirectory.appending(component: ".build")
+
+        // Given
+        let packageSettings = PackageSettings.test()
+        let workspacePath = scratchDirectory.appending(component: "workspace-state.json")
+        try await fileSystem.makeDirectory(at: workspacePath.parentDirectory)
+        try await fileSystem.writeText(
+            #"{ "object" : { "artifacts" : [], "dependencies" : [] } }"#,
+            at: workspacePath
+        )
+        try await fileSystem.makeDirectory(at: scratchDirectory.appending(component: "Derived"))
+        try await fileSystem.touch(scratchDirectory.appending(components: "Derived", "Package.resolved"))
+        try await fileSystem.touch(temporaryDirectory.appending(component: "Package.resolved"))
+
+        let lockObservation = SwiftPackageManagerLockObservation()
+        let manifestLoader = MockManifestLoading()
+        given(manifestLoader)
+            .loadPackage(at: .any, disableSandbox: .any)
+            .willProduce { _, _ in
+                lockObservation.loadPackageCallCount += 1
+                let probe = try TSCBasic.FileLock.prepareLock(
+                    fileToLock: try TSCBasic.AbsolutePath(validating: scratchDirectory.pathString)
+                )
+                do {
+                    try probe.lock(type: .exclusive, blocking: false)
+                    probe.unlock()
+                } catch {
+                    lockObservation.heldDuringLoadPackage = true
+                }
+                return .test()
+            }
+        let packageInfoMapper = MockPackageInfoMapping()
+        given(packageInfoMapper)
+            .resolveExternalDependencies(
+                path: .any,
+                packagePath: .any,
+                packageInfos: .any,
+                packageToFolder: .any,
+                packageToTargetsToArtifactPaths: .any,
+                packageModuleAliases: .any,
+                packageSettings: .any
+            )
+            .willReturn([:])
+        let subject = SwiftPackageManagerGraphLoader(
+            swiftPackageManagerController: swiftPackageManagerController,
+            packageInfoMapper: packageInfoMapper,
+            manifestLoader: manifestLoader,
+            fileSystem: fileSystem,
+            contentHasher: contentHasher
+        )
+
+        // When
+        _ = try await subject.load(
+            packagePath: temporaryDirectory.appending(component: "Package.swift"),
+            packageSettings: packageSettings,
+            disableSandbox: true
+        )
+
+        // Then
+        #expect(lockObservation.loadPackageCallCount > 0)
+        #expect(lockObservation.heldDuringLoadPackage == false)
     }
 
     @Test(.inTemporaryDirectory, .withMockedDependencies())
