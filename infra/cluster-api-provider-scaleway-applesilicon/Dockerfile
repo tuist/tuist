@@ -12,7 +12,7 @@
 #     under /usr/local/lib/tart.app.
 # One image, one URL pin in the chart, no separate release artifact.
 
-ARG GO_VERSION=1.25
+ARG GO_VERSION=1.26
 ARG ALPINE_VERSION=3.22
 
 # Tart version pinned for reproducibility. Bump deliberately — Tart 2.x
