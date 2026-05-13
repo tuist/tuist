@@ -74,6 +74,24 @@ server:
   # each one in values.yaml.
   extraEnvFrom: []
   appUrl: http://tuist.local
+  ops:
+    # Optional absolute URL for the human ops surface. When set, the app
+    # renders ops links against this URL and only serves /ops on the hosts
+    # configured below (or the host parsed from this URL).
+    url: ""
+    # Optional comma-equivalent allowlist for Host headers that may serve
+    # /ops. Leave empty to derive the single host from ops.url. Self-hosted
+    # installs with no ops.url keep the historical same-host /ops behavior.
+    hosts: []
+    # Optional dedicated ingress for the ops host. Use an internal-only
+    # ingress class such as tailscale; a public nginx ingress would make the
+    # host reachable from the internet.
+    ingress:
+      enabled: false
+      className: ""
+      host: ""
+      tlsSecretName: ""
+      annotations: {}
   logLevel: info
   hosted: false
   skipEmailConfirmation: true

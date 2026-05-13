@@ -87,6 +87,14 @@ spec:
             {{- end }}
             - name: TUIST_APP_URL
               value: {{ .Values.server.appUrl | quote }}
+            {{- with .Values.server.ops.url }}
+            - name: TUIST_OPS_URL
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.server.ops.hosts }}
+            - name: TUIST_OPS_HOSTS
+              value: {{ join "," . | quote }}
+            {{- end }}
             - name: TUIST_HOSTED
               value: {{ .Values.server.hosted | ternary "1" "0" | quote }}
             - name: TUIST_SELF_HOSTING_DEVELOPMENT_MODE

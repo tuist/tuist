@@ -219,4 +219,52 @@ defmodule Tuist.EnvironmentTest do
       end
     end
   end
+
+  describe "ops_url/2" do
+    test "uses the configured ops URL with the requested path" do
+      secrets = %{
+        "ops" => %{
+          "url" => "https://ops.tuist.dev"
+        }
+      }
+
+      assert Environment.ops_url([path: "/ops/accounts"], secrets) == "https://ops.tuist.dev/ops/accounts"
+    end
+
+    test "falls back to the app URL when no ops URL is configured" do
+      secrets = %{
+        "app" => %{
+          "url" => "https://tuist.dev"
+        }
+      }
+
+      assert Environment.ops_url([path: "/ops"], secrets) == "https://tuist.dev/ops"
+    end
+  end
+
+  describe "ops_hosts/1" do
+    test "returns normalized configured ops hosts" do
+      secrets = %{
+        "ops" => %{
+          "hosts" => "ops.tuist.dev, Ops.Canary.Tuist.Dev, "
+        }
+      }
+
+      assert Environment.ops_hosts(secrets) == ["ops.tuist.dev", "ops.canary.tuist.dev"]
+    end
+
+    test "derives the host from the ops URL when explicit hosts are not configured" do
+      secrets = %{
+        "ops" => %{
+          "url" => "https://ops.tuist.dev"
+        }
+      }
+
+      assert Environment.ops_hosts(secrets) == ["ops.tuist.dev"]
+    end
+
+    test "returns an empty list when ops host restrictions are not configured" do
+      assert Environment.ops_hosts(%{}) == []
+    end
+  end
 end

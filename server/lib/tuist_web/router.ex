@@ -721,6 +721,7 @@ defmodule TuistWeb.Router do
 
   # Ops Routes
   pipeline :ops do
+    plug TuistWeb.Plugs.OpsHostPlug
     plug TuistWeb.Authorization, [:current_user, :read, :ops]
     plug :assign_current_path
     plug :skip_csrf_for_fun_with_flags_assets

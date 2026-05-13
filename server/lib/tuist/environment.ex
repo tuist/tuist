@@ -890,6 +890,37 @@ defmodule Tuist.Environment do
     end
   end
 
+  def ops_url(opts \\ [], secrets \\ secrets()) do
+    path = opts |> Keyword.get(:path, "/ops") |> String.trim_trailing("/")
+    base_url = get([:ops, :url], secrets) || app_base_url(secrets)
+
+    URI.to_string(%{URI.parse(base_url) | path: path})
+  end
+
+  def ops_hosts(secrets \\ secrets()) do
+    case get([:ops, :hosts], secrets) do
+      hosts when is_binary(hosts) ->
+        hosts
+        |> String.split(",")
+        |> Enum.map(&String.trim/1)
+        |> Enum.reject(&(&1 == ""))
+        |> Enum.map(&String.downcase/1)
+
+      _ ->
+        case get([:ops, :url], secrets) do
+          url when is_binary(url) and url != "" ->
+            url
+            |> URI.parse()
+            |> Map.get(:host)
+            |> List.wrap()
+            |> Enum.map(&String.downcase/1)
+
+          _ ->
+            []
+        end
+    end
+  end
+
   defp app_base_url(secrets) do
     if dev?() do
       System.get_env("TUIST_SERVER_URL") || get([:app, :url], secrets) || "http://localhost:8080"
