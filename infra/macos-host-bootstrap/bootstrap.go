@@ -928,18 +928,35 @@ PS4='+ '
 trap 'sudo rm -f /etc/tuist/tailscale-auth-key' EXIT
 TS_PKG=/tmp/tailscale-bootstrap.pkg
 sudo tee "$TS_PKG" >/dev/null
-# Always run installer(8) — macOS's installer is itself idempotent
-# for same-version .pkgs and applies an upgrade when the version
-# differs. Dropping the "if not installed" gate lets the operator's
-# drift loop re-run this step on every UpdateTartKubelet without
-# special-casing first-bootstrap vs upgrade.
-sudo installer -pkg "$TS_PKG" -target / >/dev/null
-sudo rm -f "$TS_PKG"
+# macOS installer(8) writes its operation log to STDOUT (success
+# messages, failure detail, signature errors, etc), not stderr.
+# Capture both into a tempfile and dump on non-zero so the
+# controller's failureMessage carries actionable info — previously
+# we redirected stdout to /dev/null and silent failures gave the
+# operator nothing to act on.
+INSTALLER_LOG=$(mktemp)
+if ! sudo installer -pkg "$TS_PKG" -target / >"$INSTALLER_LOG" 2>&1; then
+  echo "installer -pkg failed (output below):" >&2
+  sudo cat "$INSTALLER_LOG" >&2
+  sudo rm -f "$INSTALLER_LOG"
+  exit 1
+fi
+sudo rm -f "$INSTALLER_LOG" "$TS_PKG"
 # Register tailscaled as a system daemon if not already loaded. The
 # subcommand is idempotent on Tailscale 1.50+ but older builds error
 # out on a second run; ignore that failure and verify via launchctl.
+# Same output-capture pattern as installer above: install-system-
+# daemon's diagnostics go to stdout/stderr in mixed proportions and
+# we want both visible if anything goes wrong.
 if ! sudo launchctl list | grep -q com.tailscale.tailscaled; then
-  sudo /Applications/Tailscale.app/Contents/MacOS/Tailscale install-system-daemon
+  TS_DAEMON_LOG=$(mktemp)
+  if ! sudo /Applications/Tailscale.app/Contents/MacOS/Tailscale install-system-daemon >"$TS_DAEMON_LOG" 2>&1; then
+    echo "install-system-daemon failed (output below):" >&2
+    sudo cat "$TS_DAEMON_LOG" >&2
+    sudo rm -f "$TS_DAEMON_LOG"
+    exit 1
+  fi
+  sudo rm -f "$TS_DAEMON_LOG"
 fi
 # Wait for tailscaled to accept IPC before sending it 'up'.
 # install-system-daemon returns before the daemon finishes
