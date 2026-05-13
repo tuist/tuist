@@ -26,7 +26,7 @@ use crate::{
     replication::replication_targets,
     state::SharedState,
     store::is_disk_full_error,
-    telemetry::attach_parent_context,
+    telemetry::{attach_parent_context, record_trace_context},
     utils::{BodyReadError, action_cache_key, blob_key, module_key, read_request_to_temp},
 };
 
@@ -358,8 +358,11 @@ async fn track_http_metrics(
         url.path = %uri_path,
         http.response.status_code = field::Empty,
         otel.status_code = field::Empty,
+        trace_id = field::Empty,
+        span_id = field::Empty,
     );
     attach_parent_context(&request_span, req.headers());
+    record_trace_context(&request_span);
 
     let response = next.run(req).instrument(request_span.clone()).await;
     request_span.record("http.response.status_code", response.status().as_u16());

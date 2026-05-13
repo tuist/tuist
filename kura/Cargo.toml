@@ -37,7 +37,7 @@ tokio-util = { version = "0.7.17", features = ["io"] }
 tonic = { version = "0.14.2", features = ["tls-ring"] }
 tracing = "0.1.41"
 tracing-opentelemetry = "0.32.1"
-tracing-subscriber = { version = "0.3.20", features = ["env-filter", "fmt"] }
+tracing-subscriber = { version = "0.3.20", features = ["env-filter", "fmt", "json"] }
 uuid = { version = "1.18.1", features = ["serde", "v7"] }
 
 [target.'cfg(not(target_env = "msvc"))'.dependencies]
