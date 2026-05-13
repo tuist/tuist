@@ -243,7 +243,15 @@
       <div :if={Enum.any?(@active_filters)} data-part="active-filters">
         <.active_filter :for={filter <- @active_filters} filter={filter} />
       </div>
-      <.table id="webhook-deliveries-table" rows={@deliveries}>
+      <.table
+        id="webhook-deliveries-table"
+        rows={@deliveries}
+        row_navigate={
+          fn delivery ->
+            ~p"/#{@selected_account.name}/webhooks/#{@endpoint.id}/events/#{delivery.id}"
+          end
+        }
+      >
         <:col :let={delivery} label={dgettext("dashboard_account", "Event ID")}>
           <.text_cell label={delivery.event_id || ""} />
         </:col>
@@ -252,15 +260,15 @@
         </:col>
         <:col :let={delivery} label={dgettext("dashboard_account", "Status")}>
           <.status_badge_cell
-            status={delivery_state_status(delivery.state)}
-            label={delivery_state_label(delivery.state)}
+            status={delivery_state_status(delivery.status)}
+            label={delivery_state_label(delivery.status)}
           />
         </:col>
-        <:col :let={delivery} label={dgettext("dashboard_account", "Attempts")}>
-          <.text_cell label={"#{delivery.attempt}/#{delivery.max_attempts}"} />
+        <:col :let={delivery} label={dgettext("dashboard_account", "Attempt")}>
+          <.text_cell label={Integer.to_string(delivery.attempt)} />
         </:col>
-        <:col :let={delivery} label={dgettext("dashboard_account", "Last activity")}>
-          <.text_cell label={Tuist.Utilities.DateFormatter.from_now(last_activity_at(delivery))} />
+        <:col :let={delivery} label={dgettext("dashboard_account", "Sent")}>
+          <.text_cell label={Tuist.Utilities.DateFormatter.from_now(delivery.inserted_at)} />
         </:col>
         <:empty_state>
           <.table_empty_state

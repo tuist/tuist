@@ -105,25 +105,18 @@ defmodule Tuist.Webhooks do
     end)
   end
 
-  @delivery_worker "Tuist.Webhooks.Workers.DeliveryWorker"
-
-  # Maps user-facing delivery statuses (used by the detail-page filter and
-  # stats card) to the underlying Oban job states. Keep this as the single
-  # source of truth so the chart, the totals, and the table filter agree.
-  @status_buckets %{
-    delivered: ["completed"],
-    failed: ["discarded", "cancelled"],
-    retrying: ["retryable"],
-    pending: ["available", "scheduled", "executing"]
-  }
+  alias Tuist.Webhooks.DeliveryAttempt
 
   @doc """
   Recent delivery attempts for `endpoint_id`, newest first.
 
+  Each row is one HTTP attempt against the endpoint — initial send and
+  every retry — pulled from `webhook_delivery_attempts`.
+
   Supported `opts`:
     * `:limit` — max rows (default 50)
     * `:start_datetime` / `:end_datetime` — restrict by `inserted_at`
-    * `:status` — one of `:delivered | :failed | :retrying | :pending`
+    * `:status` — one of `:delivered | :failed`
     * `:event_type` — exact match on `event_type`
     * `:event_id_search` — substring match on `event_id`
   """
@@ -131,26 +124,10 @@ defmodule Tuist.Webhooks do
     limit = Keyword.get(opts, :limit, 50)
 
     Repo.all(
-      from(j in "oban_jobs",
-        where: j.worker == ^@delivery_worker,
-        where: fragment("?->>'webhook_endpoint_id' = ?", j.args, ^endpoint_id),
-        order_by: [desc: j.inserted_at],
-        limit: ^limit,
-        select: %{
-          id: j.id,
-          state: j.state,
-          attempt: j.attempt,
-          max_attempts: j.max_attempts,
-          inserted_at: j.inserted_at,
-          scheduled_at: j.scheduled_at,
-          attempted_at: j.attempted_at,
-          completed_at: j.completed_at,
-          discarded_at: j.discarded_at,
-          cancelled_at: j.cancelled_at,
-          event_id: fragment("?->>'event_id'", j.args),
-          event_type: fragment("?->>'event_type'", j.args),
-          errors: j.errors
-        }
+      from(a in DeliveryAttempt,
+        where: a.webhook_endpoint_id == ^endpoint_id,
+        order_by: [desc: a.inserted_at],
+        limit: ^limit
       )
       |> apply_period(opts)
       |> apply_status_filter(opts)
@@ -160,34 +137,37 @@ defmodule Tuist.Webhooks do
   end
 
   @doc """
-  Aggregate counters across the endpoint's delivery jobs for the given
-  time window. The pending bucket folds `available`, `scheduled` and
-  `executing` into one number.
+  Returns one `DeliveryAttempt` scoped to `endpoint_id`, or `{:error, :not_found}`.
+  Used by the event detail page.
+  """
+  def get_delivery_attempt(endpoint_id, attempt_id) when is_binary(endpoint_id) and is_binary(attempt_id) do
+    case Repo.one(from(a in DeliveryAttempt, where: a.id == ^attempt_id and a.webhook_endpoint_id == ^endpoint_id)) do
+      nil -> {:error, :not_found}
+      attempt -> {:ok, attempt}
+    end
+  end
+
+  @doc """
+  Aggregate counters across the endpoint's delivery attempts for the
+  given time window.
   """
   def delivery_stats(endpoint_id, opts \\ []) when is_binary(endpoint_id) do
     base =
-      from(j in "oban_jobs",
-        where: j.worker == ^@delivery_worker,
-        where: fragment("?->>'webhook_endpoint_id' = ?", j.args, ^endpoint_id)
-      )
+      from(a in DeliveryAttempt, where: a.webhook_endpoint_id == ^endpoint_id)
       |> apply_period(opts)
 
-    rows =
-      Repo.all(from j in base, group_by: j.state, select: {j.state, count(j.id)})
-
+    rows = Repo.all(from a in base, group_by: a.status, select: {a.status, count(a.id)})
     counts = Map.new(rows)
-    count_in = fn states -> Enum.reduce(states, 0, &(&2 + Map.get(counts, &1, 0))) end
 
     %{
       total: Enum.reduce(rows, 0, fn {_, n}, acc -> acc + n end),
-      delivered: count_in.(@status_buckets.delivered),
-      failed: count_in.(@status_buckets.failed),
-      pending: count_in.(@status_buckets.pending)
+      delivered: Map.get(counts, "delivered", 0),
+      failed: Map.get(counts, "failed", 0)
     }
   end
 
   @doc """
-  Per-bucket delivery counts spanning the given window. The bucket size
+  Per-bucket attempt counts spanning the given window. The bucket size
   is picked from the window length so the chart always renders a sensible
   number of points: hour for ≤2 days, day for ≤90 days, month otherwise.
   Empty buckets are padded with zeros.
@@ -205,9 +185,6 @@ defmodule Tuist.Webhooks do
     bucket_series(start_dt, end_dt, unit, by_bucket)
   end
 
-  # `oban_jobs.inserted_at` is `timestamp without time zone`, so
-  # `date_trunc(...)` returns a NaiveDateTime. We standardise on UTC
-  # DateTime so the keys match what `bucket_series/4` generates.
   defp to_utc_datetime(%DateTime{} = dt), do: DateTime.truncate(dt, :second)
   defp to_utc_datetime(%NaiveDateTime{} = ndt), do: ndt |> DateTime.from_naive!("Etc/UTC") |> DateTime.truncate(:second)
 
@@ -216,15 +193,14 @@ defmodule Tuist.Webhooks do
   # with a bound parameter end up looking different at plan time.
   defp timeseries_rows(endpoint_id, start_dt, end_dt, :hour) do
     Repo.all(
-      from(j in "oban_jobs",
-        where: j.worker == ^@delivery_worker,
-        where: fragment("?->>'webhook_endpoint_id' = ?", j.args, ^endpoint_id),
-        where: j.inserted_at >= ^start_dt and j.inserted_at <= ^end_dt,
-        group_by: fragment("date_trunc('hour', ?)", j.inserted_at),
+      from(a in DeliveryAttempt,
+        where: a.webhook_endpoint_id == ^endpoint_id,
+        where: a.inserted_at >= ^start_dt and a.inserted_at <= ^end_dt,
+        group_by: fragment("date_trunc('hour', ?)", a.inserted_at),
         select: %{
-          bucket: fragment("date_trunc('hour', ?)", j.inserted_at),
-          total: count(j.id),
-          failed: fragment("count(*) filter (where ? in ('discarded', 'cancelled'))", j.state)
+          bucket: fragment("date_trunc('hour', ?)", a.inserted_at),
+          total: count(a.id),
+          failed: fragment("count(*) filter (where ? = 'failed')", a.status)
         }
       )
     )
@@ -232,15 +208,14 @@ defmodule Tuist.Webhooks do
 
   defp timeseries_rows(endpoint_id, start_dt, end_dt, :day) do
     Repo.all(
-      from(j in "oban_jobs",
-        where: j.worker == ^@delivery_worker,
-        where: fragment("?->>'webhook_endpoint_id' = ?", j.args, ^endpoint_id),
-        where: j.inserted_at >= ^start_dt and j.inserted_at <= ^end_dt,
-        group_by: fragment("date_trunc('day', ?)", j.inserted_at),
+      from(a in DeliveryAttempt,
+        where: a.webhook_endpoint_id == ^endpoint_id,
+        where: a.inserted_at >= ^start_dt and a.inserted_at <= ^end_dt,
+        group_by: fragment("date_trunc('day', ?)", a.inserted_at),
         select: %{
-          bucket: fragment("date_trunc('day', ?)", j.inserted_at),
-          total: count(j.id),
-          failed: fragment("count(*) filter (where ? in ('discarded', 'cancelled'))", j.state)
+          bucket: fragment("date_trunc('day', ?)", a.inserted_at),
+          total: count(a.id),
+          failed: fragment("count(*) filter (where ? = 'failed')", a.status)
         }
       )
     )
@@ -248,15 +223,14 @@ defmodule Tuist.Webhooks do
 
   defp timeseries_rows(endpoint_id, start_dt, end_dt, :month) do
     Repo.all(
-      from(j in "oban_jobs",
-        where: j.worker == ^@delivery_worker,
-        where: fragment("?->>'webhook_endpoint_id' = ?", j.args, ^endpoint_id),
-        where: j.inserted_at >= ^start_dt and j.inserted_at <= ^end_dt,
-        group_by: fragment("date_trunc('month', ?)", j.inserted_at),
+      from(a in DeliveryAttempt,
+        where: a.webhook_endpoint_id == ^endpoint_id,
+        where: a.inserted_at >= ^start_dt and a.inserted_at <= ^end_dt,
+        group_by: fragment("date_trunc('month', ?)", a.inserted_at),
         select: %{
-          bucket: fragment("date_trunc('month', ?)", j.inserted_at),
-          total: count(j.id),
-          failed: fragment("count(*) filter (where ? in ('discarded', 'cancelled'))", j.state)
+          bucket: fragment("date_trunc('month', ?)", a.inserted_at),
+          total: count(a.id),
+          failed: fragment("count(*) filter (where ? = 'failed')", a.status)
         }
       )
     )
@@ -265,20 +239,16 @@ defmodule Tuist.Webhooks do
   defp apply_period(query, opts) do
     case period_from_opts_or_nil(opts) do
       nil -> query
-      {start_dt, end_dt} -> from(j in query, where: j.inserted_at >= ^start_dt and j.inserted_at <= ^end_dt)
+      {start_dt, end_dt} -> from(a in query, where: a.inserted_at >= ^start_dt and a.inserted_at <= ^end_dt)
     end
   end
 
   defp apply_status_filter(query, opts) do
     case Keyword.get(opts, :status) do
-      nil ->
-        query
-
-      status when is_atom(status) ->
-        case Map.get(@status_buckets, status) do
-          nil -> query
-          states -> from(j in query, where: j.state in ^states)
-        end
+      nil -> query
+      :delivered -> from(a in query, where: a.status == "delivered")
+      :failed -> from(a in query, where: a.status == "failed")
+      status when status in [:retrying, :pending] -> query
     end
   end
 
@@ -286,7 +256,7 @@ defmodule Tuist.Webhooks do
     case Keyword.get(opts, :event_type) do
       nil -> query
       "" -> query
-      event_type when is_binary(event_type) -> from(j in query, where: fragment("?->>'event_type' = ?", j.args, ^event_type))
+      event_type when is_binary(event_type) -> from(a in query, where: a.event_type == ^event_type)
     end
   end
 
@@ -300,7 +270,7 @@ defmodule Tuist.Webhooks do
 
       term when is_binary(term) ->
         pattern = "%#{term}%"
-        from(j in query, where: fragment("?->>'event_id' ilike ?", j.args, ^pattern))
+        from(a in query, where: ilike(a.event_id, ^pattern))
     end
   end
 

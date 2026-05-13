@@ -1,0 +1,136 @@
+<div id="account-webhook-event">
+  <.button
+    label={@endpoint.name}
+    data-part="back-button"
+    variant="secondary"
+    size="medium"
+    navigate={~p"/#{@selected_account.name}/webhooks/#{@endpoint.id}"}
+  >
+    <:icon_left>
+      <.icon name="arrow_left" />
+    </:icon_left>
+  </.button>
+
+  <div data-part="header">
+    <h1 data-part="title">{@attempt.event_type}</h1>
+    <code data-part="event-id">{@attempt.event_id}</code>
+  </div>
+
+  <.card
+    data-part="summary-card"
+    icon="info_circle"
+    title={dgettext("dashboard_account", "Delivery attempt")}
+  >
+    <.card_section data-part="summary-card-section">
+      <div data-part="metadata-grid">
+        <div data-part="metadata-row">
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_account", "Status")}</div>
+            <div data-part="value">
+              <.status_badge
+                status={delivery_state_status(@attempt.status)}
+                label={delivery_state_label(@attempt.status)}
+              />
+            </div>
+          </div>
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_account", "Response code")}</div>
+            <span data-part="label">
+              {@attempt.response_status || dgettext("dashboard_account", "—")}
+            </span>
+          </div>
+        </div>
+        <div data-part="metadata-row">
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_account", "Attempt")}</div>
+            <span data-part="label">{@attempt.attempt}</span>
+          </div>
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_account", "Duration")}</div>
+            <span data-part="label">
+              <%= if @attempt.duration_ms do %>
+                {@attempt.duration_ms}ms
+              <% else %>
+                {dgettext("dashboard_account", "—")}
+              <% end %>
+            </span>
+          </div>
+        </div>
+        <div data-part="metadata-row">
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_account", "Sent at")}</div>
+            <span data-part="label">
+              {Tuist.Utilities.DateFormatter.from_now(@attempt.inserted_at)}
+            </span>
+          </div>
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_account", "Destination")}</div>
+            <code data-part="label">{@endpoint.url}</code>
+          </div>
+        </div>
+      </div>
+    </.card_section>
+  </.card>
+
+  <%= if @attempt.error do %>
+    <.card
+      data-part="error-card"
+      icon="alert_triangle"
+      title={dgettext("dashboard_account", "Error")}
+    >
+      <.card_section data-part="error-card-section">
+        <pre data-part="error-message">{@attempt.error}</pre>
+      </.card_section>
+    </.card>
+  <% end %>
+
+  <.card
+    data-part="request-card"
+    icon="cube_send"
+    title={dgettext("dashboard_account", "Request")}
+  >
+    <.card_section data-part="request-card-section">
+      <div data-part="subheading">
+        <span data-part="label">{dgettext("dashboard_account", "Headers")}</span>
+      </div>
+      <div data-part="headers">
+        <div :for={{name, value} <- header_list(@attempt.request_headers)} data-part="header">
+          <code data-part="name">{name}</code>
+          <code data-part="value">{value}</code>
+        </div>
+      </div>
+      <div data-part="subheading">
+        <span data-part="label">{dgettext("dashboard_account", "Body")}</span>
+      </div>
+      <pre data-part="body">{format_body(@attempt.request_body)}</pre>
+    </.card_section>
+  </.card>
+
+  <.card
+    data-part="response-card"
+    icon="download"
+    title={dgettext("dashboard_account", "Response")}
+  >
+    <.card_section data-part="response-card-section">
+      <%= if @attempt.response_status do %>
+        <div data-part="subheading">
+          <span data-part="label">{dgettext("dashboard_account", "Headers")}</span>
+        </div>
+        <div data-part="headers">
+          <div :for={{name, value} <- header_list(@attempt.response_headers)} data-part="header">
+            <code data-part="name">{name}</code>
+            <code data-part="value">{value}</code>
+          </div>
+        </div>
+        <div data-part="subheading">
+          <span data-part="label">{dgettext("dashboard_account", "Body")}</span>
+        </div>
+        <pre data-part="body">{format_body(@attempt.response_body)}</pre>
+      <% else %>
+        <p data-part="empty-state">
+          {dgettext("dashboard_account", "The request didn't reach the destination.")}
+        </p>
+      <% end %>
+    </.card_section>
+  </.card>
+</div>

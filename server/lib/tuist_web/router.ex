@@ -953,6 +953,7 @@ defmodule TuistWeb.Router do
         {TuistWeb.LayoutLive, :account}
       ] do
       live "/webhooks/:id", WebhookLive
+      live "/webhooks/:id/events/:attempt_id", WebhookEventLive
     end
   end
 

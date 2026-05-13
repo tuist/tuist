@@ -9,10 +9,18 @@ defmodule Tuist.Webhooks.Workers.DeliveryWorker do
   Retries follow the RFC schedule (1m, 5m, 30m, 2h, 8h, 24h) implemented in
   `backoff/1`; `max_attempts: 7` covers the initial send plus those six
   retries.
+
+  Each HTTP call writes a row to `webhook_delivery_attempts` capturing the
+  request body, response status, response headers, response body and
+  duration — that's what powers the per-event detail page on the
+  dashboard. The Oban job stays the unit of "deliver this event"; the row
+  is the unit of "we tried, here's what happened".
   """
   use Oban.Worker, queue: :default, max_attempts: 7
 
+  alias Tuist.Repo
   alias Tuist.Webhooks
+  alias Tuist.Webhooks.DeliveryAttempt
   alias Tuist.Webhooks.Signature
 
   require Logger
@@ -31,6 +39,7 @@ defmodule Tuist.Webhooks.Workers.DeliveryWorker do
 
   @impl Oban.Worker
   def perform(%Oban.Job{
+        attempt: attempt,
         args: %{
           "webhook_endpoint_id" => endpoint_id,
           "event_id" => event_id,
@@ -40,7 +49,7 @@ defmodule Tuist.Webhooks.Workers.DeliveryWorker do
       }) do
     case Webhooks.get_endpoint(endpoint_id) do
       {:ok, endpoint} ->
-        post(endpoint, event_id, event_type, payload)
+        post(endpoint, event_id, event_type, payload, attempt)
 
       {:error, :not_found} ->
         Logger.warning("Webhook delivery skipped: endpoint #{endpoint_id} not found for event #{event_id}")
@@ -48,7 +57,7 @@ defmodule Tuist.Webhooks.Workers.DeliveryWorker do
     end
   end
 
-  defp post(endpoint, event_id, event_type, payload) do
+  defp post(endpoint, event_id, event_type, payload, attempt) do
     body = JSON.encode!(payload)
     timestamp = System.system_time(:second)
     signature = Signature.sign(body, endpoint.signing_secret, timestamp)
@@ -61,15 +70,88 @@ defmodule Tuist.Webhooks.Workers.DeliveryWorker do
       {"Tuist-Event-Type", event_type}
     ]
 
-    case Req.post(endpoint.url, headers: headers, body: body, receive_timeout: @request_timeout_ms, retry: false) do
-      {:ok, %Req.Response{status: status}} when status in 200..299 ->
-        :ok
+    started_at = System.monotonic_time(:millisecond)
+    response = Req.post(endpoint.url, headers: headers, body: body, receive_timeout: @request_timeout_ms, retry: false)
+    duration_ms = System.monotonic_time(:millisecond) - started_at
 
-      {:ok, %Req.Response{status: status}} ->
-        {:error, "HTTP #{status}"}
+    result =
+      case response do
+        {:ok, %Req.Response{status: status}} when status in 200..299 -> :ok
+        {:ok, %Req.Response{status: status}} -> {:error, "HTTP #{status}"}
+        {:error, reason} -> {:error, reason}
+      end
 
-      {:error, reason} ->
-        {:error, reason}
-    end
+    record_attempt(endpoint, %{
+      event_id: event_id,
+      event_type: event_type,
+      attempt: attempt,
+      request_body: body,
+      request_headers: headers_to_map(headers),
+      response: response,
+      result: result,
+      duration_ms: duration_ms
+    })
+
+    result
+  end
+
+  defp record_attempt(endpoint, fields) do
+    %{response: response, result: result} = fields
+
+    %DeliveryAttempt{}
+    |> Ecto.Changeset.change(%{
+      webhook_endpoint_id: endpoint.id,
+      event_id: fields.event_id,
+      event_type: fields.event_type,
+      attempt: fields.attempt,
+      status: if(result == :ok, do: "delivered", else: "failed"),
+      request_body: fields.request_body,
+      request_headers: fields.request_headers,
+      response_status: response_status(response),
+      response_headers: response_headers_map(response),
+      response_body: response_body(response),
+      error: error_message(result),
+      duration_ms: fields.duration_ms
+    })
+    |> Repo.insert()
+  rescue
+    e ->
+      # We never want bookkeeping to take down a delivery. Surface the
+      # failure as a log entry; the underlying delivery result still
+      # propagates to Oban via the return value.
+      Logger.error("Failed to record webhook delivery attempt: #{inspect(e)}")
+      :ok
+  end
+
+  defp response_status({:ok, %Req.Response{status: status}}), do: status
+  defp response_status(_), do: nil
+
+  defp response_headers_map({:ok, %Req.Response{headers: headers}}) when is_map(headers), do: headers
+
+  defp response_headers_map({:ok, %Req.Response{headers: headers}}) when is_list(headers),
+    do: Map.new(headers, fn {k, v} -> {k, v} end)
+
+  defp response_headers_map(_), do: nil
+
+  defp response_body({:ok, %Req.Response{body: body}}) when is_binary(body), do: truncate(body)
+  defp response_body({:ok, %Req.Response{body: body}}), do: body |> inspect() |> truncate()
+  defp response_body(_), do: nil
+
+  defp error_message({:error, reason}) when is_binary(reason), do: reason
+  defp error_message({:error, reason}), do: inspect(reason)
+  defp error_message(:ok), do: nil
+
+  # Cap response bodies so a chatty upstream can't bloat the row. The
+  # dashboard surfaces a "response truncated" hint when this kicks in.
+  @max_response_body_bytes 64 * 1024
+  defp truncate(binary) when is_binary(binary) and byte_size(binary) > @max_response_body_bytes,
+    do: binary_part(binary, 0, @max_response_body_bytes)
+
+  defp truncate(binary), do: binary
+
+  defp headers_to_map(headers) do
+    Enum.reduce(headers, %{}, fn {key, value}, acc ->
+      Map.update(acc, key, value, fn existing -> "#{existing}, #{value}" end)
+    end)
   end
 end

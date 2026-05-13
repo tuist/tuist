@@ -225,35 +225,18 @@ defmodule TuistWeb.WebhookLive do
   def masked_signing_secret(secret), do: TuistWeb.WebhooksLive.masked_signing_secret(secret)
 
   @doc """
-  Human label for a delivery row's state, taken straight from Oban so the
-  status badge stays meaningful even as new states get introduced.
+  Human label for a delivery attempt's status.
   """
-  def delivery_state_label("completed"), do: dgettext("dashboard_account", "Delivered")
-  def delivery_state_label("discarded"), do: dgettext("dashboard_account", "Failed")
-  def delivery_state_label("cancelled"), do: dgettext("dashboard_account", "Cancelled")
-  def delivery_state_label("retryable"), do: dgettext("dashboard_account", "Retrying")
-  def delivery_state_label("scheduled"), do: dgettext("dashboard_account", "Scheduled")
-  def delivery_state_label("available"), do: dgettext("dashboard_account", "Queued")
-  def delivery_state_label("executing"), do: dgettext("dashboard_account", "Sending")
+  def delivery_state_label("delivered"), do: dgettext("dashboard_account", "Delivered")
+  def delivery_state_label("failed"), do: dgettext("dashboard_account", "Failed")
   def delivery_state_label(other), do: other
 
   @doc """
-  Maps the Oban state to a Noora status-badge color.
+  Maps a delivery attempt's status to a Noora status-badge color.
   """
-  def delivery_state_status("completed"), do: "success"
-  def delivery_state_status(state) when state in ["discarded", "cancelled"], do: "error"
-  def delivery_state_status("retryable"), do: "warning"
+  def delivery_state_status("delivered"), do: "success"
+  def delivery_state_status("failed"), do: "error"
   def delivery_state_status(_), do: "information"
-
-  @doc """
-  Most recent timestamp on the job, used as the "Last attempt" column.
-  Falls back to `inserted_at` for jobs that haven't run yet.
-  """
-  def last_activity_at(%{completed_at: ts}) when not is_nil(ts), do: ts
-  def last_activity_at(%{discarded_at: ts}) when not is_nil(ts), do: ts
-  def last_activity_at(%{cancelled_at: ts}) when not is_nil(ts), do: ts
-  def last_activity_at(%{attempted_at: ts}) when not is_nil(ts), do: ts
-  def last_activity_at(%{inserted_at: ts}), do: ts
 
   @doc """
   Presets exposed by the chart's date picker. Hard-coded to a small set
@@ -279,12 +262,10 @@ defmodule TuistWeb.WebhookLive do
         field: "status",
         display_name: dgettext("dashboard_account", "Status"),
         type: :option,
-        options: ["delivered", "failed", "retrying", "pending"],
+        options: ["delivered", "failed"],
         options_display_names: %{
           "delivered" => dgettext("dashboard_account", "Delivered"),
-          "failed" => dgettext("dashboard_account", "Failed"),
-          "retrying" => dgettext("dashboard_account", "Retrying"),
-          "pending" => dgettext("dashboard_account", "Pending")
+          "failed" => dgettext("dashboard_account", "Failed")
         },
         operator: :==,
         value: nil
