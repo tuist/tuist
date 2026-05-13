@@ -5,7 +5,7 @@ use std::{
 
 use reqwest::Client;
 use tokio::{
-    sync::{Mutex, Notify},
+    sync::{Mutex, Notify, Semaphore},
     time::{Duration, Instant},
 };
 
@@ -35,6 +35,7 @@ pub struct AppState {
     pub client: Client,
     pub notify: Notify,
     pub readiness: Mutex<ReadinessState>,
+    pub bootstrap_semaphore: Arc<Semaphore>,
 }
 
 pub type SharedState = Arc<AppState>;
@@ -76,7 +77,7 @@ pub struct RolloutStatusReport {
 #[derive(Debug, PartialEq, Eq)]
 pub struct ClusterStatusReport {
     pub generation: u64,
-    pub members: Vec<String>,
+    pub peer_regions: Vec<String>,
     pub connected_nodes: Vec<String>,
 }
 
@@ -286,7 +287,7 @@ impl AppState {
         let snapshot = self.readiness_snapshot().await;
         ClusterStatusReport {
             generation: snapshot.generation,
-            members: snapshot.members,
+            peer_regions: snapshot.members,
             connected_nodes: snapshot.known_peers,
         }
     }

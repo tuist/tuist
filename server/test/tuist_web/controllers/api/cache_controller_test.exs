@@ -190,6 +190,46 @@ defmodule TuistWeb.API.CacheControllerTest do
                Enum.sort(["https://kura-cache-1.example.com", "https://kura-cache-2.example.com"])
     end
 
+    test "returns the tuist account Kura endpoints when the client sends the KURA feature flag", %{
+      conn: conn
+    } do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(name: "tuist", creator: user)
+      account = organization.account
+
+      {:ok, _} =
+        Accounts.create_account_cache_endpoint(account, %{
+          url: "https://default-cache.example.com"
+        })
+
+      {:ok, _} =
+        Accounts.create_account_cache_endpoint(account, %{
+          url: "https://kura-cache-1.example.com",
+          technology: :kura
+        })
+
+      {:ok, _} =
+        Accounts.create_account_cache_endpoint(account, %{
+          url: "https://kura-cache-2.example.com",
+          technology: :kura
+        })
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> Plug.Conn.put_req_header(Headers.client_feature_flags_header(), "KURA")
+
+      # When
+      conn = get(conn, ~p"/api/cache/endpoints?account_handle=tuist")
+
+      # Then
+      response = json_response(conn, 200)
+
+      assert Enum.sort(response["endpoints"]) ==
+               Enum.sort(["https://kura-cache-1.example.com", "https://kura-cache-2.example.com"])
+    end
+
     test "returns empty list when Kura is requested without account-specific endpoints", %{
       conn: conn
     } do

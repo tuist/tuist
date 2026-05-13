@@ -1,0 +1,445 @@
+msgid ""
+msgstr ""
+"Language: ka\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=n != 1;\n"
+
+#: lib/tuist_web/live/user_confirmation_live.ex:27
+#, elixir-autogen, elixir-format
+msgid "Account confirmed!"
+msgstr "ანგარიში დადასტურდა!"
+
+#: lib/tuist_web/live/user_registration_live.ex:295
+#, elixir-autogen, elixir-format
+msgid "Account created successfully! Please log in."
+msgstr "ანგარიში წარმატებით შეიქმნა! გთხოვთ, შეხვიდეთ."
+
+#: lib/tuist_web/live/user_registration_live.ex:307
+#, elixir-autogen, elixir-format
+msgid "Account name is already taken"
+msgstr "ანგარიშის სახელი უკვე დაკავებულია"
+
+#: lib/tuist_web/live/user_registration_live.ex:188
+#, elixir-autogen, elixir-format
+msgid "Already have an account?"
+msgstr "უკვე გაქვთ ანგარიში?"
+
+#: lib/tuist_web/live/connect_live.ex:97
+#, elixir-autogen, elixir-format
+msgid "Already set up your Tuist project? Skip setup and go to the dashboard."
+msgstr "უკვე დააყენეთ თქვენი Tuist პროექტი? დაამყარეთ დაყენების გარეშე და გადახვიდეთ Dashboard-ზე."
+
+#: lib/tuist_web/live/user_forgot_password_live.ex:74
+#, elixir-autogen, elixir-format
+msgid "Back to log in"
+msgstr "დაბრუნება შემოსვლაზე"
+
+#: lib/tuist_web/live/user_registration_live.ex:39
+#, elixir-autogen, elixir-format
+msgid "Binary caching"
+msgstr "ბინარული ქეშირება"
+
+#: lib/tuist_web/live/user_reset_password_live.ex:32
+#, elixir-autogen, elixir-format
+msgid "Change your password"
+msgstr "პაროლის შეცვლა"
+
+#: lib/tuist_web/live/user_forgot_password_live.ex:42
+#, elixir-autogen, elixir-format
+msgid "Check your email"
+msgstr "შეამოწმეთ თქვენი ელ.ფოსტა"
+
+#: lib/tuist_web/live/user_registration_live.ex:221
+#, elixir-autogen, elixir-format
+msgid "Check your inbox for a confirmation email and click the link to continue."
+msgstr "შეამოწმეთ თქვენი პირადი წერილები დადასტურების გზავნილისათვის და დააჭირეთ ბმულს გაგრძელებისთვის."
+
+#: lib/tuist_web/live/choose_username_live.ex:50
+#, elixir-autogen, elixir-format
+msgid "Choose a username"
+msgstr "აირჩიეთ მომხმარებლის სახელი"
+
+#: lib/tuist_web/live/user_reset_password_live.ex:53
+#, elixir-autogen, elixir-format
+msgid "Confirm password"
+msgstr "დაადასტურეთ პაროლი"
+
+#: lib/tuist_web/live/user_registration_live.ex:219
+#, elixir-autogen, elixir-format
+msgid "Confirm your account"
+msgstr "დაადასტურეთ თქვენი ანგარიში"
+
+#: lib/tuist_web/live/user_confirmation_live.ex:46
+#, elixir-autogen, elixir-format
+msgid "Confirmation failed"
+msgstr "დადასტურება შეჩერდა"
+
+#: lib/tuist_web/live/connect_live.ex:12
+#, elixir-autogen, elixir-format
+msgid "Connect"
+msgstr "დაკავშირება"
+
+#: lib/tuist_web/live/connect_live.ex:55
+#, elixir-autogen, elixir-format
+msgid "Connect your project"
+msgstr "დაკავშირდით თქვენს პროექტს"
+
+#: lib/tuist_web/live/connect_live.ex:37
+#, elixir-autogen, elixir-format
+msgid "Connect your project to the dashboard"
+msgstr "დაკავშირეთ თქვენი პროექტი Dashboard-თან"
+
+#: lib/tuist_web/live/connect_live.ex:33
+#, elixir-autogen, elixir-format
+msgid "Connection successful"
+msgstr "კავშირი წარმატებულია"
+
+#: lib/tuist_web/live/sso_login_live.ex:105
+#, elixir-autogen, elixir-format
+msgid "Contact us"
+msgstr "დაგვიკავშირდით"
+
+#: lib/tuist_web/live/choose_username_live.ex:75
+#, elixir-autogen, elixir-format
+msgid "Continue"
+msgstr "გაგრძელება"
+
+#: lib/tuist_web/live/device_codes_success_live.ex:61
+#, elixir-autogen, elixir-format
+msgid "Dashboard"
+msgstr "Dashboard"
+
+#: lib/tuist_web/live/user_registration_live.ex:30
+#, elixir-autogen, elixir-format
+msgid "Discover how selective testing is reducing your test time."
+msgstr "გაიგეთ, როგორ ამცირებს სელექტიური ტესტირება თქვენს ტესტირების დროს."
+
+#: lib/tuist_web/live/user_login_live.ex:202
+#, elixir-autogen, elixir-format
+msgid "Don't have an account?"
+msgstr "არ გაქვთ ანგარიში?"
+
+#: lib/tuist_web/live/sso_login_live.ex:88
+#: lib/tuist_web/live/user_forgot_password_live.ex:54
+#: lib/tuist_web/live/user_login_live.ex:139
+#: lib/tuist_web/live/user_registration_live.ex:148
+#, elixir-autogen, elixir-format
+msgid "Email address"
+msgstr "ელ. ფოსტა"
+
+#: lib/tuist_web/live/user_registration_live.ex:310
+#, elixir-autogen, elixir-format
+msgid "Email is already taken"
+msgstr "ელ.ფოსტა უკვე დაკავებულია"
+
+#: lib/tuist_web/live/connect_live.ex:75
+#, elixir-autogen, elixir-format
+msgid "Explore Tuist features like binary caching and selective testing to speed up your development."
+msgstr "აღმოაჩინეთ Tuist-ის ფუნქციები, როგორიცაა ბინარული ქეშირება და სელექტიური ტესტირება თქვენი განვითარების დასაჩქარებლად."
+
+#: lib/tuist_web/live/user_registration_live.ex:42
+#, elixir-autogen, elixir-format
+msgid "Explore how binary caching is enhancing your build times."
+msgstr "გამოიკვლიეთ, როგორ აუმჯობესებს ბინარული ქეშირება თქვენი აწყობის დროებს."
+
+#: lib/tuist_web/live/user_login_live.ex:171
+#, elixir-autogen, elixir-format
+msgid "Forgot password?"
+msgstr "პაროლი დამავიწყდა?"
+
+#: lib/tuist_web/live/user_forgot_password_live.ex:31
+#, elixir-autogen, elixir-format
+msgid "Forgot your password?"
+msgstr "პაროლის დამავიწყდა?"
+
+#: lib/tuist_web/live/user_forgot_password_live.ex:44
+#, elixir-autogen, elixir-format
+msgid "If your email exists in our records, you'll receive reset instructions shortly."
+msgstr "თუ თქვენი ელ.ფოსტა გვაქვს ჩვენს ჩანაწერებში, მალე მიიღებთ პაროლის აღსადგენ ინსტრუქციებს."
+
+#: lib/tuist_web/live/connect_live.ex:41
+#, elixir-autogen, elixir-format
+msgid "Install Tuist CLI"
+msgstr "დააინსტალირეთ Tuist CLI"
+
+#: lib/tuist_web/live/user_registration_live.ex:54
+#, elixir-autogen, elixir-format
+msgid "Instantly share your app using a URL."
+msgstr "მომენტალურად გაუზიარეთ თქვენი აპლიკაცია URL-ით."
+
+#: lib/tuist_web/live/sso_login_live.ex:100
+#, elixir-autogen, elixir-format
+msgid "Interested in SSO?"
+msgstr "გაინტერესებთ SSO?"
+
+#: lib/tuist_web/live/user_login_live.ex:164
+#, elixir-autogen, elixir-format
+msgid "Keep me logged in"
+msgstr "დამიკავშირდი ავტომატურად"
+
+#: lib/tuist_web/live/sso_login_live.ex:96
+#: lib/tuist_web/live/user_login_live.ex:17
+#: lib/tuist_web/live/user_login_live.ex:177
+#: lib/tuist_web/live/user_registration_live.ex:193
+#, elixir-autogen, elixir-format
+msgid "Log in"
+msgstr "შესვლა"
+
+#: lib/tuist_web/live/sso_login_live.ex:71
+#: lib/tuist_web/live/user_login_live.ex:48
+#, elixir-autogen, elixir-format
+msgid "Log in to Tuist"
+msgstr "შესვლა Tuist-ში"
+
+#: lib/tuist_web/live/sso_login_live.ex:73
+#, elixir-autogen, elixir-format
+msgid "Log in to your enterprise account via SSO"
+msgstr "შესვლა თქვენი საწარმოს ანგარიშზე SSO-ის მეშვეობით"
+
+#: lib/tuist_web/live/user_reset_password_live.ex:45
+#, elixir-autogen, elixir-format
+msgid "New password"
+msgstr "ახალი პაროლი"
+
+#: lib/tuist_web/live/connect_live.ex:73
+#, elixir-autogen, elixir-format
+msgid "Next steps"
+msgstr "შემდგომი ნაბიჯები"
+
+#: lib/tuist_web/live/connect_live.ex:91
+#, elixir-autogen, elixir-format
+msgid "OR"
+msgstr "ან"
+
+#: lib/tuist_web/live/user_login_live.ex:150
+#: lib/tuist_web/live/user_registration_live.ex:158
+#, elixir-autogen, elixir-format
+msgid "Password"
+msgstr "პაროლი"
+
+#: lib/tuist_web/live/user_reset_password_live.ex:97
+#, elixir-autogen, elixir-format
+msgid "Password reset successfully."
+msgstr "პაროლის შეცვლა წარმატებით შესრულდა."
+
+#: lib/tuist_web/live/user_registration_live.ex:51
+#, elixir-autogen, elixir-format
+msgid "Previews"
+msgstr "წინასწარი ჩვენებები"
+
+#: lib/tuist_web/live/connect_live.ex:94
+#, elixir-autogen, elixir-format
+msgid "Project Ready? Proceed to dashboard"
+msgstr "პროექტი მზადაა? გადადით Dashboard-ზე"
+
+#: lib/tuist_web/live/user_forgot_password_live.ex:63
+#: lib/tuist_web/live/user_reset_password_live.ex:60
+#, elixir-autogen, elixir-format
+msgid "Reset password"
+msgstr "პაროლის აღდგენა"
+
+#: lib/tuist_web/live/connect_live.ex:43
+#, elixir-autogen, elixir-format
+msgid "Run the following command to install Tuist CLI."
+msgstr "გაატარეთ ქვემოთ მოყვანილი ბრძანება Tuist CLI-ის დასაყენებლად."
+
+#: lib/tuist_web/live/connect_live.ex:57
+#, elixir-autogen, elixir-format
+msgid "Run this command to link your project to the dashboard."
+msgstr "გაატარეთ ეს ბრძანება თქვენი პროექტის Dashboard-თან დაკავშირებისთვის."
+
+#: lib/tuist_web/live/user_registration_live.ex:27
+#, elixir-autogen, elixir-format
+msgid "Selective testing"
+msgstr "სელექტიური ტესტირება"
+
+#: lib/tuist_web/live/user_login_live.ex:207
+#: lib/tuist_web/live/user_registration_live.ex:182
+#: lib/tuist_web/live/user_registration_live.ex:265
+#, elixir-autogen, elixir-format
+msgid "Sign up"
+msgstr "რეგისტრაცია"
+
+#: lib/tuist_web/live/user_registration_live.ex:75
+#, elixir-autogen, elixir-format
+msgid "Sign up for Tuist"
+msgstr "დარეგისტრირდით Tuist-ისთვის"
+
+#: lib/tuist_web/live/choose_username_live.ex:117
+#, elixir-autogen, elixir-format
+msgid "This username has already been taken"
+msgstr "ეს მომხმარებლის სახელი უკვე დაკავებულია"
+
+#: lib/tuist_web/live/device_codes_success_live.ex:41
+#, elixir-autogen, elixir-format
+msgid "Tuist CLI is connected!"
+msgstr "Tuist CLI დაკავშირებულია!"
+
+#: lib/tuist_web/live/choose_username_live.ex:42
+#: lib/tuist_web/live/device_codes_success_live.ex:28
+#: lib/tuist_web/live/sso_login_live.ex:63
+#: lib/tuist_web/live/user_confirmation_live.ex:18
+#: lib/tuist_web/live/user_forgot_password_live.ex:23
+#: lib/tuist_web/live/user_login_live.ex:40
+#: lib/tuist_web/live/user_registration_live.ex:67
+#: lib/tuist_web/live/user_registration_live.ex:211
+#: lib/tuist_web/live/user_reset_password_live.ex:24
+#, elixir-autogen, elixir-format
+msgid "Tuist Logo"
+msgstr "Tuist ლოგო"
+
+#: lib/tuist_web/live/device_codes_success_live.ex:39
+#, elixir-autogen, elixir-format
+msgid "Tuist app is connected!"
+msgstr "Tuist აპლიკაცია დაკავშირებულია!"
+
+#: lib/tuist_web/live/connect_live.ex:104
+#, elixir-autogen, elixir-format
+msgid "Tuist dashboard"
+msgstr "Tuist Dashboard"
+
+#: lib/tuist_web/live/connect_live.ex:82
+#, elixir-autogen, elixir-format
+msgid "Tuist documentation"
+msgstr "Tuist დოკუმენტაცია"
+
+#: lib/tuist_web/live/device_codes_success_live.ex:43
+#, elixir-autogen, elixir-format
+msgid "Tuist is connected!"
+msgstr "Tuist დაკავშირებულია!"
+
+#: lib/tuist_web/live/user_confirmation_live.ex:57
+#, elixir-autogen, elixir-format
+msgid "User confirmation link is invalid or it has expired."
+msgstr "მომხმარებლის დადასტურების ბმული არასწორია ან ვადა ამოიწურა."
+
+#: lib/tuist_web/live/choose_username_live.ex:65
+#: lib/tuist_web/live/user_registration_live.ex:170
+#, elixir-autogen, elixir-format
+msgid "Username"
+msgstr "მომხმარებლის სახელი"
+
+#: lib/tuist_web/live/choose_username_live.ex:66
+#: lib/tuist_web/live/user_registration_live.ex:173
+#, elixir-autogen, elixir-format
+msgid "Username may only contain alphanumeric characters"
+msgstr "მომხმარებლის სახელი შეიძლება შეიცავდეს მხოლოდ ალფანუმერიკულ სიმბოლოებს"
+
+#: lib/tuist_web/live/connect_live.ex:28
+#, elixir-autogen, elixir-format
+msgid "Waiting for connection"
+msgstr "კავშირის მოლოდინი"
+
+#: lib/tuist_web/live/user_forgot_password_live.ex:33
+#, elixir-autogen, elixir-format
+msgid "We'll send a password reset link to your inbox"
+msgstr "გაგიგზავნით პაროლის აღდგენი ბმულს თქვენს პირად წერილებში"
+
+#: lib/tuist_web/live/user_login_live.ex:50
+#, elixir-autogen, elixir-format
+msgid "Welcome back! Please log in to continue"
+msgstr "კეთილი დაბრუნება! გთხოვთ, შესვლით გააგრძელოთ"
+
+#: lib/tuist_web/live/user_registration_live.ex:77
+#, elixir-autogen, elixir-format
+msgid "Welcome! Create an account to continue"
+msgstr "კეთილი იყოს თქვენი მობრძანება! რეგისტრირდით გაგრძელებისთვის"
+
+#: lib/tuist_web/live/device_codes_success_live.ex:53
+#, elixir-autogen, elixir-format
+msgid "You can close the tab and continue"
+msgstr "შეგიძლიათ დახუროთ ტაბი და გააგრძელოთ"
+
+#: lib/tuist_web/live/device_codes_success_live.ex:49
+#, elixir-autogen, elixir-format
+msgid "You can close the tab and continue in the app"
+msgstr "შეგიძლიათ დახუროთ ტაბი და გააგრძელოთ აპლიკაციაში"
+
+#: lib/tuist_web/live/device_codes_success_live.ex:51
+#, elixir-autogen, elixir-format
+msgid "You can close the tab and continue in the terminal"
+msgstr "შეგიძლიათ დახუროთ ტაბი და გააგრძელოთ ტერმინალში"
+
+#: lib/tuist_web/live/user_confirmation_live.ex:48
+#, elixir-autogen, elixir-format
+msgid "Your account could not be confirmed."
+msgstr "თქვენი ანგარიში ვერ დადასტურდა."
+
+#: lib/tuist_web/live/user_confirmation_live.ex:29
+#, elixir-autogen, elixir-format
+msgid "Your account has been confirmed."
+msgstr "თქვენი ანგარიში დადასტურდა."
+
+#: lib/tuist_web/live/user_confirmation_live.ex:38
+#, elixir-autogen, elixir-format
+msgid "Your account has been confirmed. You will be redirected shortly..."
+msgstr "თქვენი ანგარიში დადასტურდა. მალე ავტომატურად გადაგიყვანთ..."
+
+#: lib/tuist_web/live/user_reset_password_live.ex:34
+#, elixir-autogen, elixir-format
+msgid "Your new password must be different to previously used passwords."
+msgstr "თქვენი ახალი პაროლი უნდა განსხვავდებოდეს წინა გამოყენებული პაროლებისგან."
+
+#: lib/tuist_web/live/connect_live.ex:49
+#: lib/tuist_web/live/connect_live.ex:67
+#, elixir-autogen, elixir-format
+msgid "homebrew"
+msgstr "homebrew"
+
+#: lib/tuist_web/live/connect_live.ex:46
+#: lib/tuist_web/live/connect_live.ex:62
+#, elixir-autogen, elixir-format
+msgid "mise"
+msgstr "mise"
+
+#: lib/tuist_web/live/connect_live.ex:37
+#, elixir-autogen, elixir-format
+msgid "using CLI"
+msgstr "CLI-ს გამოყენებით"
+
+#: lib/tuist_web/components/app_auth_components.ex:13
+#, elixir-autogen, elixir-format
+msgid "By continuing, you agree to Tuist's"
+msgstr "გაგრძელებით, თქვენ ეთანხმებით Tuist-ის"
+
+#: lib/tuist_web/components/app_auth_components.ex:19
+#, elixir-autogen, elixir-format
+msgid "Privacy Policy"
+msgstr "კონფიდენციალობის პოლიტიკას"
+
+#: lib/tuist_web/components/app_auth_components.ex:15
+#, elixir-autogen, elixir-format
+msgid "Terms of Service"
+msgstr "მომსახურების პირობებს"
+
+#: lib/tuist_web/components/app_auth_components.ex:17
+#, elixir-autogen, elixir-format
+msgid "and"
+msgstr "და"
+
+#: lib/tuist_web/live/user_login_live.ex:197
+#, elixir-autogen, elixir-format
+msgid "Log in as test user"
+msgstr "შესვლა როგორც ტესტ მომხმარებელი"
+
+#: lib/tuist_web/live/choose_username_live.ex:52
+#, elixir-autogen, elixir-format
+msgid "Choose a username for your account"
+msgstr "აირჩიეთ მომხმარებლის სახელი თქვენს ანგარიშზე"
+
+#: lib/tuist_web/live/user_login_live.ex:104
+#, elixir-autogen, elixir-format
+msgid "Log in with SSO"
+msgstr "შესვლა SSO-ით"
+
+#: lib/tuist_web/live/sso_login_live.ex:46
+#, elixir-autogen, elixir-format
+msgid "No SSO organization is configured for this email. Check the address and ask your organization admin to verify the SSO domain setup."
+msgstr "ამ ელ.ფოსტისთვის არ არის ჩართული SSO ორგანიზაცია. შეამოწმეთ მისამართი და მიმართეთ თქვენი ორგანიზაციის ადმინს SSO დომენის კონფიგურაციის დასამოწმებლად."
+
+#: lib/tuist_web/controllers/auth_controller.ex:332
+#, elixir-autogen, elixir-format
+msgid "An account with this email already exists. Please log in instead."
+msgstr "ეს ელ.ფოსტა უკვე დაკავშირებულია ანგარიშთან. გთხოვთ, შეიყვანეთ სისტემაში."

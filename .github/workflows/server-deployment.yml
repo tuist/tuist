@@ -29,6 +29,10 @@ name: Server Deployment
 #     as a Document item named `kubeconfig: tuist-<env>`. Each
 #     environment's secret value is the SA token for that environment's
 #     vault — staging deploys can't read canary/production kubeconfigs.
+#     Production also reads the Kura regional workload kubeconfigs from
+#     `kubeconfig: kura-us-east-1` and `kubeconfig: kura-us-west-1` in
+#     the production vault so the server can write KuraInstance CRs to
+#     the us-east and us-west clusters.
 # App secrets live inside the cluster (MASTER_KEY via ESO, DATABASE_URL /
 # ClickHouse / Tigris keys in priv/secrets/<env>.yml.enc baked into the
 # image).
@@ -51,6 +55,9 @@ on:
       image_tag:
         description: Pre-built image tag to deploy instead of building
         required: false
+      kura_runtime_image_tag:
+        description: Pre-built Kura runtime image tag to deploy
+        required: false
   workflow_call:
     inputs:
       environment:
@@ -68,21 +75,29 @@ on:
           the workflow builds + pushes an image tagged sha-<commit_sha>.
         required: false
         type: string
+      kura_runtime_image_tag:
+        description: >-
+          Pre-built Kura runtime image tag to deploy. When unset, the
+          deploy job resolves the latest kura@ release tag and strips the
+          tag prefix before passing it to Helm.
+        required: false
+        type: string
 
 permissions:
   contents: read
   packages: write
-  id-token: write
 
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: tuist/tuist
+  KURA_CONTROLLER_IMAGE_NAME: tuist/kura-controller
   HELM_CHART_PATH: infra/helm/tuist
   HELM_RELEASE_NAME: tuist
   OBSERVABILITY_CHART_PATH: infra/helm/k8s-monitoring
   OBSERVABILITY_RELEASE_NAME: k8s-monitoring
   OBSERVABILITY_NAMESPACE: observability
   DEPLOY_SHA: ${{ inputs.commit_sha || github.sha }}
+  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN || github.token }}
 
 jobs:
   build:
@@ -106,6 +121,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - uses: docker/build-push-action@v6
+        name: Build and push server image
         with:
           context: .
           file: ./server/Dockerfile
@@ -117,7 +133,14 @@ jobs:
             TUIST_HOSTED=1
             MIX_ENV=prod
             APT_CACHE_BUST=${{ env.DEPLOY_SHA }}
-
+      - uses: docker/build-push-action@v6
+        name: Build and push Kura controller image
+        with:
+          context: .
+          file: ./infra/kura-controller/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.KURA_CONTROLLER_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
   observability-install:
     # Installs / upgrades the grafana/k8s-monitoring wrapper chart ahead of
     # the server rollout so the Alloy OTLP receiver is ready before the
@@ -193,11 +216,16 @@ jobs:
     concurrency:
       group: server-deploy-${{ inputs.environment }}
       cancel-in-progress: false
-    timeout-minutes: 105
+    # helm-upgrade waits up to 30m, setup/teardown adds ~5m, the
+    # optional Kura-regional fan-out runs ~10m on production. 60m
+    # leaves a ~15m buffer for that worst-case stack and keeps a
+    # SIGTERM-stuck helm from holding the slot indefinitely.
+    timeout-minutes: 60
     env:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
       NAMESPACE: ${{ inputs.environment == 'production' && 'tuist' || format('tuist-{0}', inputs.environment) }}
       IMAGE_TAG: ${{ inputs.image_tag != '' && inputs.image_tag || needs.build.outputs.image_tag }}
+      KURA_RUNTIME_IMAGE_TAG: ${{ inputs.kura_runtime_image_tag }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -225,6 +253,27 @@ jobs:
           API="$(kubectl config view --minify --raw -o jsonpath='{.clusters[0].cluster.server}')"
           echo "Reaching apiserver at $API"
           kubectl --request-timeout=10s get --raw /version >/dev/null
+      - name: Sync Kura regional kubeconfigs
+        if: inputs.environment == 'production'
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          dir="$RUNNER_TEMP/kura-kubeconfigs"
+          mkdir -p "$dir"
+
+          op document get "kubeconfig: kura-us-east-1" \
+            --vault "tuist-k8s-production" --output "$dir/us-east-1.yaml"
+          op document get "kubeconfig: kura-us-west-1" \
+            --vault "tuist-k8s-production" --output "$dir/us-west-1.yaml"
+          chmod 600 "$dir/us-east-1.yaml" "$dir/us-west-1.yaml"
+
+          kubectl create namespace "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
+          kubectl -n "$NAMESPACE" create secret generic tuist-kura-kubeconfigs \
+            --from-file=TUIST_KURA_KUBECONFIG_US_EAST_1="$dir/us-east-1.yaml" \
+            --from-file=TUIST_KURA_KUBECONFIG_US_WEST_1="$dir/us-west-1.yaml" \
+            --dry-run=client -o yaml | kubectl apply -f -
       - name: kubectl apply CRDs
         # Helm 3 installs `crds/*.yaml` on `helm install` and skips
         # them on `helm upgrade` (intentional — Helm refuses to manage
@@ -257,8 +306,18 @@ jobs:
                 exit 1
               fi
 
+              # This is a metadata recovery path, not the real health gate.
+              # An interrupted atomic rollback can leave the latest Helm
+              # revision in pending-rollback even when the last deployed
+              # revision is the only viable base for the next deploy. Waiting
+              # here replays the old manifest's readiness problems and can
+              # strand this recovery step before the current chart gets a
+              # chance to fix them. The following helm upgrade owns the full
+              # --wait/--atomic rollout with richer diagnostics.
               helm rollback "$HELM_RELEASE_NAME" "$deployed_revision" \
-                --namespace "$NAMESPACE" --wait --timeout 10m
+                --namespace "$NAMESPACE" --timeout 5m
+
+              helm status "$HELM_RELEASE_NAME" -n "$NAMESPACE"
               ;;
             *)
               echo "Release $HELM_RELEASE_NAME status is ${status:-not-installed}; no recovery needed."
@@ -277,7 +336,7 @@ jobs:
             kubectl -n "$NAMESPACE" get jobs \
               -l app.kubernetes.io/component=server-migration \
               -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' |
-              grep -E '-[0-9]+$' || true
+              grep -E -- '-[0-9]+$' || true
           )"
 
           if [ -z "$stale_jobs" ]; then
@@ -292,6 +351,32 @@ jobs:
           # so dependent pods (Pending or otherwise) go with the Job.
           echo "$stale_jobs" | xargs -r kubectl -n "$NAMESPACE" delete job \
             --ignore-not-found --cascade=foreground --timeout=2m
+      - name: Resolve Kura runtime image tag
+        run: |
+          set -euo pipefail
+
+          if [ -n "${KURA_RUNTIME_IMAGE_TAG:-}" ]; then
+            echo "Using configured Kura runtime image tag $KURA_RUNTIME_IMAGE_TAG"
+            exit 0
+          fi
+
+          refs="$(git ls-remote --tags --refs origin 'refs/tags/kura@*')"
+          tag="$(
+            printf '%s\n' "$refs" |
+              awk -F'refs/tags/kura@' 'NF == 2 { print $2 }' |
+              grep -E '^[0-9]+[.][0-9]+[.][0-9]+$' |
+              sort -V |
+              tail -n 1 ||
+              true
+          )"
+
+          if [ -z "$tag" ]; then
+            echo "No kura@ release tag found."
+            exit 1
+          fi
+
+          echo "KURA_RUNTIME_IMAGE_TAG=$tag" >> "$GITHUB_ENV"
+          echo "Resolved Kura runtime image tag $tag"
       - name: helm upgrade --install
         # App secrets never pass through --set: the chart runs in
         # `server.managedSecrets: true` mode, which reads DATABASE_URL /
@@ -300,35 +385,74 @@ jobs:
         # in-cluster ExternalSecret. Passing secrets through --set would
         # leak them into `helm get manifest`.
         #
-        # helm --timeout 90m is sized for first-time macOS-fleet bring-up:
-        # the operator's CreateServer call to Scaleway commonly takes ~50
-        # min for an Apple Silicon Mac mini to come online, plus ~5-8
-        # min for the Tart VM cold-boot on the host before xcresult-
-        # processor pods report Ready. Production rolls 2 Mac minis in
-        # parallel (helm waits on both via topology-spread), so worst-
-        # case provisioning runs the same ~50-min wall plus a small
-        # serialization overhead. 60m left no margin if Scaleway's
-        # queue ran slow. Steady-state deploys (Mac minis already
-        # allocated, the helm.sh/resource-policy: keep on the CR keeps
-        # them across rollbacks) finish in 5-15 min and never approach
-        # this ceiling.
+        # helm --timeout 30m is sized for the adoption path: Mac minis
+        # are pre-ordered by the operator under the `tuist-pool-` prefix
+        # and the CAPI controller claims them on demand. Adoption is
+        # cheap (rename + tart-kubelet bootstrap + Tart VM cold-boot)
+        # vs Scaleway CreateServer (~50 min). Steady-state deploys
+        # finish in 5-15 min once the Mac mini is already in the cluster.
+        # If we ever flip back to auto-order in an env, bump this back
+        # to ~90m to absorb a fresh Scaleway provisioning.
         #
-        # timeout-minutes: 95 is the runner-level kill ceiling — 5 min
-        # over helm's own --timeout. Without it, the only kill semantic
-        # for a hung helm is the job-level timeout; helm under
-        # `--atomic --wait` ignores SIGINT/SIGTERM until its in-process
-        # rollback completes, so a manual `gh run cancel` doesn't free
-        # the concurrency lock for ~90 min. With this in place the
-        # runner SIGKILLs helm 5 min after its own timeout would have
-        # fired, bounding the recovery window.
-        timeout-minutes: 95
+        # 35 min = helm's `--timeout 30m` plus a 5-min cushion for the
+        # in-process `--atomic` rollback. A workflow-side timeout under
+        # 35 min risks killing helm after it has moved the release into
+        # pending-rollback, leaving the cluster wedged for the next run.
+        timeout-minutes: 35
         run: |
+          # Stream cluster state every 30s while helm waits. helm
+          # --atomic --wait produces no stdout during the wait, so
+          # without this the action log shows nothing for up to 90 min.
+          # The watcher dies via trap when helm exits (either way).
+          (
+            while true; do
+              sleep 30
+              echo "::group::cluster snapshot $(date -u +%H:%M:%SZ)"
+              kubectl -n "$NAMESPACE" get pods -o wide 2>&1 | tail -40 || true
+              echo "--- recent events ---"
+              kubectl -n "$NAMESPACE" get events --sort-by=.lastTimestamp 2>&1 | tail -20 || true
+              echo "::endgroup::"
+            done
+          ) &
+          watcher_pid=$!
+          trap 'kill "$watcher_pid" 2>/dev/null || true; wait "$watcher_pid" 2>/dev/null || true' EXIT
+
           helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
             --namespace "$NAMESPACE" --create-namespace \
             -f "$HELM_CHART_PATH/values-managed-common.yaml" \
             -f "$HELM_CHART_PATH/values-managed-${{ inputs.environment }}.yaml" \
             --set server.image.tag="$IMAGE_TAG" \
-            --atomic --timeout 90m --wait
+            --set kuraController.image.tag="$IMAGE_TAG" \
+            --set kuraRuntime.image.tag="$KURA_RUNTIME_IMAGE_TAG" \
+            --atomic --timeout 30m --wait
+      - name: Deploy Kura regional controllers
+        if: inputs.environment == 'production'
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          declare -A kubeconfig_items=(
+            ["us-east-1"]="kubeconfig: kura-us-east-1"
+            ["us-west-1"]="kubeconfig: kura-us-west-1"
+          )
+
+          for region in us-east-1 us-west-1; do
+            kubeconfig="$RUNNER_TEMP/kura-${region}.yaml"
+            op document get "${kubeconfig_items[$region]}" \
+              --vault "tuist-k8s-production" --output "$kubeconfig"
+            chmod 600 "$kubeconfig"
+
+            api="$(KUBECONFIG="$kubeconfig" kubectl config view --minify --raw -o jsonpath='{.clusters[0].cluster.server}')"
+            echo "Deploying Kura controller to $region at $api"
+            KUBECONFIG="$kubeconfig" kubectl --request-timeout=10s get --raw /version >/dev/null
+            KUBECONFIG="$kubeconfig" kubectl apply -f "$HELM_CHART_PATH/crds/"
+            KUBECONFIG="$kubeconfig" helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
+              --namespace tuist-kura-controller --create-namespace \
+              -f "$HELM_CHART_PATH/values-managed-kura-region.yaml" \
+              --set kuraController.image.tag="$IMAGE_TAG" \
+              --atomic --timeout 10m --wait
+          done
       - name: Diagnostics on failure
         # `--atomic` rolls back the release on timeout, so `helm history` and
         # most cluster state reflect the rolled-back revision rather than the
@@ -367,6 +491,50 @@ jobs:
             kubectl -n "$NAMESPACE" logs "$pod" --all-containers --tail=500 || true
             echo "--- logs $pod (previous) ---"
             kubectl -n "$NAMESPACE" logs "$pod" --all-containers --previous --tail=500 || true
+          done
+          echo "::endgroup::"
+          echo "::group::xcresult processor deployment + pods"
+          kubectl -n "$NAMESPACE" describe deploy/tuist-tuist-xcresult-processor || true
+          for pod in $(kubectl -n "$NAMESPACE" get pods -l app.kubernetes.io/component=xcresult-processor -o name 2>/dev/null); do
+            echo "--- describe $pod ---"
+            kubectl -n "$NAMESPACE" describe "$pod" || true
+            echo "--- logs $pod (current) ---"
+            kubectl -n "$NAMESPACE" logs "$pod" --all-containers --tail=500 || true
+            echo "--- logs $pod (previous) ---"
+            kubectl -n "$NAMESPACE" logs "$pod" --all-containers --previous --tail=500 || true
+          done
+          echo "::endgroup::"
+          echo "::group::runners-controller deployment + pods"
+          kubectl -n "$NAMESPACE" describe deploy/tuist-tuist-runners-controller 2>&1 || true
+          for pod in $(kubectl -n "$NAMESPACE" get pods -l app.kubernetes.io/component=runners-controller -o name 2>/dev/null); do
+            echo "--- describe $pod ---"
+            kubectl -n "$NAMESPACE" describe "$pod" || true
+            echo "--- logs $pod (current) ---"
+            kubectl -n "$NAMESPACE" logs "$pod" --all-containers --tail=500 || true
+            echo "--- logs $pod (previous) ---"
+            kubectl -n "$NAMESPACE" logs "$pod" --all-containers --previous --tail=500 || true
+          done
+          echo "::endgroup::"
+          echo "::group::CAPI provider deployment + pods"
+          kubectl -n "$NAMESPACE" describe deploy/tuist-tuist-capi-scaleway-applesilicon 2>&1 || true
+          for pod in $(kubectl -n "$NAMESPACE" get pods -l app.kubernetes.io/component=capi-provider-scaleway-applesilicon -o name 2>/dev/null); do
+            echo "--- describe $pod ---"
+            kubectl -n "$NAMESPACE" describe "$pod" || true
+            echo "--- logs $pod (current) ---"
+            kubectl -n "$NAMESPACE" logs "$pod" --all-containers --tail=300 || true
+          done
+          echo "::endgroup::"
+          echo "::group::Scaleway Apple Silicon CRs (Machine adoption state)"
+          kubectl -n "$NAMESPACE" get scalewayapplesiliconmachines -o wide 2>&1 || true
+          kubectl -n "$NAMESPACE" get scalewayapplesiliconmachinetemplates -o wide 2>&1 || true
+          kubectl -n "$NAMESPACE" get machinedeployments.cluster.x-k8s.io -o wide 2>&1 || true
+          kubectl -n "$NAMESPACE" get machines.cluster.x-k8s.io -o wide 2>&1 || true
+          echo "::endgroup::"
+          echo "::group::macOS fleet nodes"
+          kubectl get nodes -l kubernetes.io/os=darwin,tuist.dev/runtime=tart -o wide || true
+          for node in $(kubectl get nodes -l kubernetes.io/os=darwin,tuist.dev/runtime=tart -o name 2>/dev/null); do
+            echo "--- describe $node ---"
+            kubectl describe "$node" || true
           done
           echo "::endgroup::"
           echo "::group::external secrets"

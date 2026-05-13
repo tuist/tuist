@@ -402,33 +402,42 @@ defmodule Tuist.CommandEvents do
   # second `tuist test` that short-circuits before building picks up the
   # previous log). We return the most recent event until we can source the
   # build_run_id independently of the activity log.
-  def get_command_event_by_build_run_id(build_run_id) do
-    query =
-      from(e in Event,
-        where: e.build_run_id == ^build_run_id,
-        order_by: [desc: e.ran_at, desc: e.created_at],
-        limit: 1
-      )
+  #
+  # Pass `project_id:` when known so the lookup hits the
+  # `(project_id, name, ran_at)` primary key instead of relying solely on
+  # the `idx_build_run_id` / `idx_test_run_id` bloom filter to skip granules.
+  def get_command_event_by_build_run_id(build_run_id, opts \\ []) do
+    project_id = Keyword.get(opts, :project_id)
 
-    case ClickHouseRepo.one(query) do
+    Event
+    |> scope_to_project(project_id)
+    |> where([e], e.build_run_id == ^build_run_id)
+    |> order_by([e], desc: e.ran_at, desc: e.created_at)
+    |> limit(1)
+    |> ClickHouseRepo.one()
+    |> case do
       nil -> {:error, :not_found}
       event -> {:ok, Event.normalize_enums(event)}
     end
   end
 
-  def get_command_event_by_test_run_id(test_run_id) do
-    query =
-      from(e in Event,
-        where: e.test_run_id == ^test_run_id,
-        order_by: [desc: e.ran_at, desc: e.created_at],
-        limit: 1
-      )
+  def get_command_event_by_test_run_id(test_run_id, opts \\ []) do
+    project_id = Keyword.get(opts, :project_id)
 
-    case ClickHouseRepo.one(query) do
+    Event
+    |> scope_to_project(project_id)
+    |> where([e], e.test_run_id == ^test_run_id)
+    |> order_by([e], desc: e.ran_at, desc: e.created_at)
+    |> limit(1)
+    |> ClickHouseRepo.one()
+    |> case do
       nil -> {:error, :not_found}
       event -> {:ok, Event.normalize_enums(event)}
     end
   end
+
+  defp scope_to_project(query, nil), do: query
+  defp scope_to_project(query, project_id), do: where(query, [e], e.project_id == ^project_id)
 
   def run_events(project_id, start_datetime, end_datetime, opts) do
     query =

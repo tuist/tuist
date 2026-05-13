@@ -7,17 +7,17 @@ msgstr ""
 "Plural-Forms: nplurals=1; plural=0;\n"
 
 #: lib/tuist_web/live/docs_live.ex:63
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:667
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:681
 #, elixir-autogen, elixir-format
 msgid "Page not found"
-msgstr "頁面未找到"
+msgstr "找不到頁面"
 
 #: lib/tuist_web/controllers/build_controller.ex:33
 #, elixir-autogen, elixir-format
 msgid "Build not found"
-msgstr "未找到建置"
+msgstr "找不到此 Build"
 
 #: lib/tuist_web/controllers/build_controller.ex:29
 #, elixir-autogen, elixir-format
 msgid "You are not authorized to access this build"
-msgstr "您無權訪問此建置"
+msgstr "您無權訪問此 Build"

@@ -57,7 +57,7 @@ msgstr "詳細"
 #: lib/tuist_web/live/preview_live.html.heex:10
 #, elixir-autogen, elixir-format
 msgid "Don't have the Tuist app installed?"
-msgstr "Tuistアプリをインストールしていませんか？"
+msgstr "Tuistアプリがインストールされていませんか？"
 
 #: lib/tuist_web/live/preview_live.html.heex:23
 #: lib/tuist_web/live/preview_live.html.heex:87
@@ -154,7 +154,7 @@ msgstr "対応プラットフォーム"
 #: lib/tuist_web/live/preview_live.html.heex:269
 #, elixir-autogen, elixir-format
 msgid "This preview is only supported on simulators and can't be installed on a physical device"
-msgstr "このプレビューはシミュレーターのみ対応しており、物理デバイスにはインストールできません"
+msgstr "このプレビューはシミュレーターのみに対応しており、実機にはインストールできません"
 
 #: lib/tuist_web/live/preview_live.html.heex:263
 #, elixir-autogen, elixir-format
@@ -179,7 +179,7 @@ msgstr "フィルター"
 #: lib/tuist_web/live/previews_live.html.heex:44
 #, elixir-autogen, elixir-format
 msgid "Search..."
-msgstr "検索..."
+msgstr "検索…"
 
 #: lib/tuist_web/live/preview_live.html.heex:167
 #: lib/tuist_web/live/previews_live.ex:166
@@ -196,7 +196,7 @@ msgstr "パッケージ名"
 #: lib/tuist_web/live/preview_live.html.heex:193
 #, elixir-autogen, elixir-format
 msgid "Scan this QR code on your Android device to download and install this version of the app"
-msgstr "このQRコードをAndroidデバイスでスキャンして、このバージョンのアプリをダウンロードおよびインストールしてください"
+msgstr "このQRコードをAndroidデバイスでスキャンして、このバージョンのアプリをダウンロード・インストールしてください"
 
 #: lib/tuist_web/live/preview_live.html.heex:221
 #, elixir-autogen, elixir-format

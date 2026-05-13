@@ -6,9 +6,38 @@ defmodule Tuist.Automations.Alerts.Alert do
 
   alias Tuist.Projects.Project
 
-  @monitor_types ~w(flakiness_rate flaky_run_count)
+  @monitor_types ~w(flakiness_rate flaky_run_count test_updated)
   @comparisons ~w(gte gt lt lte)
   @valid_states ~w(enabled muted skipped)
+  @test_updated_events ~w(
+    marked_flaky
+    unmarked_flaky
+    state_changed_to_enabled
+    state_changed_to_muted
+    state_changed_to_skipped
+  )
+  @window_types ~w(last_days rolling)
+
+  # Cap on `rolling_window_size`. The monitor reads from
+  # `test_case_runs_recent_per_case`, an AggregatingMergeTree MV whose
+  # `groupArrayLast(N)` state is sized at this value, so raising the cap
+  # without also bumping the MV's aggregate type would silently truncate
+  # any window above the old N.
+  @max_rolling_window_size 1000
+
+  @doc """
+  Subscription keys recognised on the `test_updated` monitor's
+  `trigger_config["events"]` array. Stripe-style: subscribe by name, no
+  threshold or content filter.
+  """
+  def test_updated_events, do: @test_updated_events
+
+  @doc """
+  Maximum value the `trigger_config.rolling_window_size` /
+  `recovery_config.rolling_window_size` field accepts. Surfaced so the UI
+  can apply the same constraint at the input level.
+  """
+  def max_rolling_window_size, do: @max_rolling_window_size
 
   @primary_key {:id, UUIDv7, autogenerate: true}
   @foreign_key_type UUIDv7
@@ -117,10 +146,33 @@ defmodule Tuist.Automations.Alerts.Alert do
       case monitor_type do
         "flakiness_rate" -> validate_flakiness_rate_config(changeset, trigger_config)
         "flaky_run_count" -> validate_flaky_run_count_config(changeset, trigger_config)
+        "test_updated" -> validate_test_updated_config(changeset, trigger_config)
         _ -> changeset
       end
 
-    validate_comparison(changeset, trigger_config)
+    changeset
+    |> validate_comparison(trigger_config)
+    |> validate_recovery_config()
+  end
+
+  defp validate_test_updated_config(changeset, trigger_config) do
+    case Map.get(trigger_config, "events") do
+      events when is_list(events) and events != [] ->
+        invalid = Enum.reject(events, &(&1 in @test_updated_events))
+
+        if invalid == [] do
+          changeset
+        else
+          add_error(
+            changeset,
+            :trigger_config,
+            "events contains invalid values: #{Enum.join(invalid, ", ")}"
+          )
+        end
+
+      _ ->
+        add_error(changeset, :trigger_config, "events must be a non-empty list")
+    end
   end
 
   defp validate_comparison(changeset, trigger_config) do
@@ -133,35 +185,80 @@ defmodule Tuist.Automations.Alerts.Alert do
 
   defp validate_flakiness_rate_config(changeset, trigger_config) do
     threshold = trigger_config["threshold"]
-    window = trigger_config["window"]
 
-    cond do
-      !is_number(threshold) or threshold <= 0 or threshold > 100 ->
-        add_error(changeset, :trigger_config, "threshold must be a number between 0 and 100")
-
-      !valid_window?(window) ->
-        add_error(changeset, :trigger_config, "window must be a string like '30d' (day-level only)")
-
-      true ->
-        changeset
+    if !is_number(threshold) or threshold <= 0 or threshold > 100 do
+      add_error(changeset, :trigger_config, "threshold must be a number between 0 and 100")
+    else
+      validate_window_config(changeset, trigger_config)
     end
   end
 
   defp validate_flaky_run_count_config(changeset, trigger_config) do
     threshold = trigger_config["threshold"]
-    window = trigger_config["window"]
 
-    cond do
-      !is_integer(threshold) or threshold <= 0 ->
-        add_error(changeset, :trigger_config, "threshold must be a positive integer")
-
-      !valid_window?(window) ->
-        add_error(changeset, :trigger_config, "window must be a string like '30d' (day-level only)")
-
-      true ->
-        changeset
+    if !is_integer(threshold) or threshold <= 0 do
+      add_error(changeset, :trigger_config, "threshold must be a positive integer")
+    else
+      validate_window_config(changeset, trigger_config)
     end
   end
+
+  # `window_type` selects between a calendar window ("last_days", configured
+  # via `window: "30d"`) and a count-based rolling window ("rolling",
+  # configured via `rolling_window_size: 100`). Every persisted row carries an
+  # explicit `window_type` after the backfill migration, so missing values are
+  # rejected here instead of inferred.
+  defp validate_window_config(changeset, trigger_config) do
+    case validate_window_shape(trigger_config) do
+      :ok -> changeset
+      {:error, message} -> add_error(changeset, :trigger_config, message)
+    end
+  end
+
+  # Recovery is only validated when the user opts in. The shape mirrors
+  # `trigger_config` so a `rolling_window_size: 0` can't sneak past and have
+  # the worker silently fall back to its default.
+  defp validate_recovery_config(changeset) do
+    if get_field(changeset, :recovery_enabled) do
+      recovery_config = get_field(changeset, :recovery_config) || %{}
+
+      case validate_window_shape(recovery_config) do
+        :ok -> changeset
+        {:error, message} -> add_error(changeset, :recovery_config, message)
+      end
+    else
+      changeset
+    end
+  end
+
+  defp validate_window_shape(config) do
+    case window_type(config) do
+      "last_days" ->
+        if valid_window?(config["window"]),
+          do: :ok,
+          else: {:error, "window must be a string like '30d' (day-level only)"}
+
+      "rolling" ->
+        size = config["rolling_window_size"]
+
+        cond do
+          not (is_integer(size) and size > 0) ->
+            {:error, "rolling_window_size must be a positive integer"}
+
+          size > @max_rolling_window_size ->
+            {:error, "rolling_window_size must be at most #{@max_rolling_window_size}"}
+
+          true ->
+            :ok
+        end
+
+      _ ->
+        {:error, "window_type must be one of: #{Enum.join(@window_types, ", ")}"}
+    end
+  end
+
+  defp window_type(%{"window_type" => type}) when type in @window_types, do: type
+  defp window_type(_), do: :invalid
 
   # The flaky-test monitor evaluates against a per-day-aggregated MV, so
   # sub-day windows would silently round to a full day and look broken.

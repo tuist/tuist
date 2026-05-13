@@ -44,6 +44,13 @@ defmodule Tuist do
       Cache,
       Cache.Analytics,
       CacheEndpoints,
+      Kubernetes.Client,
+      Kura,
+      Kura.Deployment,
+      Kura.Server,
+      Kura.Provisioner,
+      Kura.Provisioner.KubernetesController,
+      Kura.Regions,
       Gradle,
       Gradle.Analytics,
       Gradle.Build,
@@ -101,6 +108,7 @@ defmodule Tuist do
       OIDC,
       Authorization.Checks,
       Billing,
+      Billing.Entitlements,
       Billing.Subscription,
       AppBuilds,
       AppBuilds.Preview,
@@ -163,6 +171,19 @@ defmodule Tuist do
       OAuth2.SSRFGuard,
       SCIM,
       SCIM.Filter,
-      SCIM.Resource
+      SCIM.Resource,
+      # Customer-runner pool. The Tuist GitHub App fires
+      # `workflow_job: queued` events into the webhook controller,
+      # which delegates to Tuist.Runners.Dispatch; the
+      # runners-controller (separate Go process) owns Pod + SA
+      # lifecycle via the RunnerPool CRD. Workflow_job lifecycle
+      # rows live in ClickHouse (`runner_jobs`).
+      Runners,
+      Runners.Dispatch,
+      Runners.Claims,
+      Runners.Claim,
+      Runners.Jobs,
+      Runners.Job,
+      Kubernetes.Client
     ]
 end

@@ -5,6 +5,17 @@ defmodule Tuist.GitHub.AppTest do
 
   alias Tuist.GitHub.App
   alias Tuist.KeyValueStore
+  alias Tuist.OAuth2.SSRFGuard
+  alias Tuist.VCS
+
+  @creds %{
+    app_name: "tuist",
+    app_id: "test-app-id",
+    client_id: "test-client-id",
+    client_secret: "test-client-secret",
+    private_key: "-----BEGIN RSA PRIVATE KEY-----\ntest\n-----END RSA PRIVATE KEY-----",
+    webhook_secret: "test-webhook-secret"
+  }
 
   setup do
     stub(JOSE.JWK, :from_pem, fn _ -> "pem" end)
@@ -12,6 +23,8 @@ defmodule Tuist.GitHub.AppTest do
     stub(JOSE.JWS, :compact, fn _ -> {%{}, "jwt"} end)
     stub(Tuist.Time, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
     stub(KeyValueStore, :get_or_update, fn _, _, func -> func.() end)
+    stub(VCS, :github_app_credentials, fn -> @creds end)
+    stub(VCS, :github_app_credentials, fn _ -> @creds end)
     :ok
   end
 
@@ -97,6 +110,55 @@ defmodule Tuist.GitHub.AppTest do
       assert {:error, error_message} = result
       assert error_message =~ "Unexpected error getting installation token"
       assert error_message =~ "timeout"
+    end
+
+    test "uses the GitHub Enterprise Server API URL when api_url is provided" do
+      # Given
+      installation_id = "12345"
+      ghes_api_url = "https://github.example.com/api/v3"
+      pinned_url = "https://198.51.100.10/api/v3/app/installations/#{installation_id}/access_tokens"
+      token = "ghs_ghes_token"
+      expires_at = "2024-04-30T11:20:30Z"
+
+      stub(SSRFGuard, :pin, fn url ->
+        assert url == "#{ghes_api_url}/app/installations/#{installation_id}/access_tokens"
+        {:ok, pinned_url, "github.example.com"}
+      end)
+
+      stub(SSRFGuard, :connect_options, fn "github.example.com" -> [hostname: "github.example.com"] end)
+
+      stub(Req, :post, fn opts ->
+        # The Req call uses the IP-pinned URL with TLS hostname preserved
+        assert Keyword.get(opts, :url) == pinned_url
+        assert Keyword.get(opts, :connect_options) == [hostname: "github.example.com"]
+
+        {:ok,
+         %Req.Response{
+           status: 201,
+           body: %{
+             "token" => token,
+             "expires_at" => expires_at
+           }
+         }}
+      end)
+
+      # When
+      result = App.get_installation_token(installation_id, api_url: ghes_api_url)
+
+      # Then
+      assert {:ok, %{token: ^token}} = result
+    end
+
+    test "rejects requests to GitHub Enterprise hosts that resolve to private IPs" do
+      installation_id = "12345"
+      ghes_api_url = "https://internal.example.com/api/v3"
+
+      stub(SSRFGuard, :pin, fn _url -> {:error, :private_ip_resolved} end)
+
+      result = App.get_installation_token(installation_id, api_url: ghes_api_url)
+
+      assert {:error, message} = result
+      assert message =~ "SSRF"
     end
   end
 end

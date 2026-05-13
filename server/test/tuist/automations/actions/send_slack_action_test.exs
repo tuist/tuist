@@ -4,8 +4,8 @@ defmodule Tuist.Automations.Actions.SendSlackActionTest do
 
   alias Tuist.Automations.Actions.SendSlackAction
   alias Tuist.Projects
+  alias Tuist.Slack
   alias Tuist.Slack.Client
-  alias Tuist.Slack.Installation
   alias Tuist.Tests
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
@@ -13,7 +13,6 @@ defmodule Tuist.Automations.Actions.SendSlackActionTest do
 
   defp setup_project(_) do
     %{account: account} = AccountsFixtures.user_fixture(preload: [:account])
-    SlackFixtures.slack_installation_fixture(account_id: account.id)
     project = ProjectsFixtures.project_fixture(account_id: account.id)
     %{project: project, account: account}
   end
@@ -31,15 +30,17 @@ defmodule Tuist.Automations.Actions.SendSlackActionTest do
   end
 
   describe "execute/3" do
-    test "posts a message with interpolated variables to the configured channel", %{project: project} do
+    test "decrypts the webhook URL and posts the message to it", %{project: project} do
       automation = %{name: "Quarantine", project_id: project.id}
       tc = test_case(project.id)
+      webhook_url = "https://hooks.slack.com/services/T0/B0/abc"
+      {:ok, encrypted} = Slack.encrypt_webhook_url(webhook_url)
 
       expect(Tests, :get_test_case_by_id, fn _id -> {:ok, tc} end)
 
-      expect(Client, :post_message, fn access_token, channel, blocks ->
-        assert is_binary(access_token)
-        assert channel == "C123"
+      expect(Client, :post_to_webhook, fn url, blocks ->
+        assert url == webhook_url
+
         # The header block should contain the automation name.
         assert Enum.any?(blocks, fn block ->
                  get_in(block, [:text, :text]) == ":robot_face: Quarantine"
@@ -62,7 +63,34 @@ defmodule Tuist.Automations.Actions.SendSlackActionTest do
       action = %{
         "type" => "send_slack",
         "channel" => "C123",
+        "channel_name" => "general",
+        "webhook_url_encrypted" => encrypted,
         "message" => "Test {{test_case.name}} in {{test_case.module_name}} matched {{automation.name}}"
+      }
+
+      assert :ok = SendSlackAction.execute(automation, %{type: :test_case, id: tc.id}, action)
+    end
+
+    test "falls back to chat.postMessage with the legacy bot token when no encrypted URL is set",
+         %{project: project, account: account} do
+      installation = SlackFixtures.slack_installation_fixture(account_id: account.id)
+      automation = %{name: "Auto", project_id: project.id}
+      tc = test_case(project.id)
+
+      expect(Tests, :get_test_case_by_id, fn _id -> {:ok, tc} end)
+      reject(&Client.post_to_webhook/2)
+
+      expect(Client, :post_message, fn token, channel, _blocks ->
+        assert token == installation.access_token
+        assert channel == "C-LEGACY"
+        :ok
+      end)
+
+      action = %{
+        "type" => "send_slack",
+        "channel" => "C-LEGACY",
+        "webhook_url_encrypted" => "",
+        "message" => "hi"
       }
 
       assert :ok = SendSlackAction.execute(automation, %{type: :test_case, id: tc.id}, action)
@@ -77,6 +105,7 @@ defmodule Tuist.Automations.Actions.SendSlackActionTest do
 
       expect(Projects, :get_project_by_id, fn _id -> nil end)
 
+      reject(&Client.post_to_webhook/2)
       reject(&Client.post_message/3)
 
       assert :ok =
@@ -87,27 +116,32 @@ defmodule Tuist.Automations.Actions.SendSlackActionTest do
                )
     end
 
-    test "no-ops when the project has no Slack installation" do
-      project = ProjectsFixtures.project_fixture()
+    test "no-ops when the encrypted URL fails to decrypt", %{project: project} do
       automation = %{id: Ecto.UUID.generate(), name: "Auto", project_id: project.id}
       tc = test_case(project.id)
 
       expect(Tests, :get_test_case_by_id, fn _id -> {:ok, tc} end)
+      reject(&Client.post_to_webhook/2)
       reject(&Client.post_message/3)
 
       assert :ok =
                SendSlackAction.execute(
                  automation,
                  %{type: :test_case, id: tc.id},
-                 %{"type" => "send_slack", "channel" => "C1", "message" => "hi"}
+                 %{
+                   "type" => "send_slack",
+                   "channel" => "C1",
+                   "webhook_url_encrypted" => "not-real-ciphertext",
+                   "message" => "hi"
+                 }
                )
     end
 
     test "no-ops when the test case is not found" do
-      _project = %{}
       automation = %{id: Ecto.UUID.generate(), name: "Auto", project_id: 1}
 
       expect(Tests, :get_test_case_by_id, fn _id -> {:error, :not_found} end)
+      reject(&Client.post_to_webhook/2)
       reject(&Client.post_message/3)
 
       assert :ok =
@@ -116,11 +150,6 @@ defmodule Tuist.Automations.Actions.SendSlackActionTest do
                  %{type: :test_case, id: Ecto.UUID.generate()},
                  %{"type" => "send_slack", "channel" => "C1", "message" => "hi"}
                )
-    end
-
-    # Suppress unused alias warnings when the helpers above don't reference all aliases in every test.
-    test "Installation alias is referenced", _ctx do
-      assert Installation.__schema__(:source) == "slack_installations"
     end
   end
 end

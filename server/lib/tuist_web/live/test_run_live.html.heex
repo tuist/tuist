@@ -122,6 +122,19 @@
         <:icon_left><.download /></:icon_left>
       </.button>
       <.button
+        :if={
+          @run.status != "processing" && @has_session.ok? && @has_session.result && @command_event
+        }
+        href={
+          ~p"/#{@selected_project.account.name}/#{@selected_project.name}/runs/#{@command_event.id}/download_session"
+        }
+        label={dgettext("dashboard_tests", "Download session")}
+        variant="secondary"
+        size="medium"
+      >
+        <:icon_left><.download /></:icon_left>
+      </.button>
+      <.button
         :if={@run.status != "processing" && Tuist.Tests.test_ci_run_url(@run)}
         href={Tuist.Tests.test_ci_run_url(@run)}
         label={dgettext("dashboard_tests", "CI Run")}
@@ -180,7 +193,7 @@
     />
     <.tab_menu_horizontal_item
       :if={@has_selective_testing_data}
-      label={dgettext("dashboard_tests", "Test Optimizations")}
+      label={dgettext("dashboard_tests", "Selective Testing")}
       selected={@selected_tab == "test-optimizations"}
       patch={"?#{Query.put(@uri.query, "tab", "test-optimizations")}"}
       replace={true}
@@ -1685,129 +1698,19 @@
   </div>
 
   <div :if={@selected_tab == "test-optimizations" && @has_selective_testing_data}>
-    <.card
-      title={dgettext("dashboard_tests", "Optimization Summary")}
-      icon="chart_arcs"
-      data-part="optimization-summary"
-    >
-      <.card_section data-part="optimization-summary-section">
-        <.widget
-          title={dgettext("dashboard_tests", "Total modules")}
-          description={
-            dgettext(
-              "dashboard_tests",
-              "Total modules represents the total number of testable modules."
-            )
-          }
-          value={@selective_testing_analytics.total_modules_count}
-          id="widget-optimization-summary-total-modules"
-        />
-        <.widget
-          title={dgettext("dashboard_tests", "Selective test hits")}
-          description={
-            dgettext(
-              "dashboard_tests",
-              "Selective test hits represents the number of test modules that were skipped thanks to the selective testing."
-            )
-          }
-          value={
-            @selective_testing_analytics.selective_testing_local_hits_count +
-              @selective_testing_analytics.selective_testing_remote_hits_count
-          }
-          id="widget-optimization-summary-selective-test-hits"
-        />
-        <.widget
-          title={dgettext("dashboard_tests", "Selective test misses")}
-          description={
-            dgettext(
-              "dashboard_tests",
-              "Selective test misses represents the number of test modules that were run as they were not successfully run before."
-            )
-          }
-          value={@selective_testing_analytics.selective_testing_misses_count}
-          id="widget-optimization-summary-selective-test-misses"
-        />
-      </.card_section>
-    </.card>
-    <.card
-      title={dgettext("dashboard_tests", "Selective Testing")}
-      icon="history_toggle"
-      data-part="selective-testing"
-    >
-      <.card_section data-part="selective-testing-section">
-        <.form for={%{}} phx-change="search-selective-testing" phx-debounce="200">
-          <.text_input
-            type="search"
-            id="search-selective-testing"
-            name="search"
-            placeholder={dgettext("dashboard_tests", "Search...")}
-            show_suffix={false}
-            data-part="search"
-            value={@selective_testing_filter}
-          />
-        </.form>
-        <.table id="selective-testing-table" rows={@selective_testing_analytics.test_modules}>
-          <:col
-            :let={test_module}
-            label={dgettext("dashboard_tests", "Module")}
-            patch={
-              "?#{@uri.query
-              |> Query.put("selective-testing-sort-by", "name")
-              |> Query.put("selective-testing-sort-order", sort_order_patch_value("name", @selective_testing_sort_by, @selective_testing_sort_order))
-              |> Query.drop("selective-testing-page")}"
-            }
-            icon={
-              @selective_testing_sort_by == "name" &&
-                sort_icon(@selective_testing_sort_order)
-            }
-          >
-            <.text_and_description_cell label={test_module.name} />
-          </:col>
-          <:col :let={test_module} label={dgettext("dashboard_tests", "Hit")}>
-            <.badge_cell
-              :if={test_module.selective_testing_hit == :remote}
-              label={dgettext("dashboard_tests", "Remote")}
-              color="focus"
-              style="light-fill"
-            />
-            <.badge_cell
-              :if={test_module.selective_testing_hit == :local}
-              label={dgettext("dashboard_tests", "Local")}
-              color="secondary"
-              style="light-fill"
-            />
-            <.badge_cell
-              :if={test_module.selective_testing_hit == :miss}
-              label={dgettext("dashboard_tests", "Missed")}
-              color="warning"
-              style="light-fill"
-            />
-          </:col>
-          <:col :let={test_module} label={dgettext("dashboard_tests", "Hash")}>
-            <.text_cell label={
-              test_module.selective_testing_hash || dgettext("dashboard_tests", "Unknown")
-            } />
-          </:col>
-          <:empty_state>
-            <.table_empty_state
-              icon="history_toggle"
-              title={dgettext("dashboard_tests", "No modules found")}
-              subtitle={dgettext("dashboard_tests", "Try changing your search term")}
-            />
-          </:empty_state>
-        </.table>
-        <.pagination_group
-          :if={@selective_testing_page_count > 1}
-          current_page={@selective_testing_page}
-          number_of_pages={@selective_testing_page_count}
-          page_patch={
-            fn page ->
-              "?#{Query.put(@uri.query, "selective-testing-page", page)}"
-            end
-          }
-        />
-      </.card_section>
-    </.card>
+    <.selective_testing_tab
+      selective_testing_analytics={@selective_testing_analytics}
+      selective_testing_filter={@selective_testing_filter}
+      selective_testing_page={@selective_testing_page}
+      selective_testing_page_count={@selective_testing_page_count}
+      selective_testing_sort_by={@selective_testing_sort_by}
+      selective_testing_sort_order={@selective_testing_sort_order}
+      expanded_target_names={@expanded_target_names}
+      uri={@uri}
+      run={@command_event}
+      available_filters={@selective_testing_available_filters}
+      selective_testing_active_filters={@selective_testing_active_filters}
+    />
   </div>
 
   <div :if={@selected_tab == "module-cache" && @has_binary_cache_data}>

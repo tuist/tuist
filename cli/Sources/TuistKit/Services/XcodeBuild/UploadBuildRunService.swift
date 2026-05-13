@@ -96,7 +96,7 @@ public struct UploadBuildRunService: UploadBuildRunServicing {
                 filePath: archivePath
             )
 
-            let gitInfo = try gitController.gitInfo(workingDirectory: projectPath)
+            let gitInfo = try await gitController.gitInfo(workingDirectory: projectPath)
             let ciInfo = ciController.ciInfo()
             let customMetadata = readCustomMetadata()
             return try await createBuildService.createBuild(
@@ -118,7 +118,7 @@ public struct UploadBuildRunService: UploadBuildRunServicing {
                 macOSVersion: machineEnvironment.macOSVersion,
                 scheme: scheme ?? Environment.current.schemeName,
                 targets: [],
-                xcodeCacheUploadEnabled: config.cache.upload,
+                xcodeCacheUploadEnabled: config.xcodeCache.upload,
                 xcodeVersion: try await xcodeBuildController.version()?.description,
                 status: .processing,
                 ciRunId: ciInfo?.runId,

@@ -50,9 +50,9 @@ public struct TemplateGitLoader: TemplateGitLoading {
         try await fileSystem.runInTemporaryDirectory(prefix: "TemplateGit") { temporaryPath in
             let templatePath = temporaryPath.appending(component: "Template")
             try await fileSystem.makeDirectory(at: templatePath)
-            try gitController.clone(url: repoURL, to: templatePath)
+            try await gitController.clone(url: repoURL, to: templatePath)
             if let repoBranch {
-                try gitController.checkout(id: repoBranch, in: templatePath)
+                try await gitController.checkout(id: repoBranch, in: templatePath)
             }
             let template = try await templateLoader.loadTemplate(at: templatePath, plugins: .none)
             try await closure(template)

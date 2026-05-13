@@ -2,6 +2,7 @@ defmodule Tuist.TestsTest do
   use TuistTestSupport.Cases.DataCase
   use Mimic
 
+  alias Tuist.Automations
   alias Tuist.Automations.ActionExecutor
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
@@ -12,6 +13,7 @@ defmodule Tuist.TestsTest do
   alias Tuist.Tests.TestCaseRun
   alias Tuist.Tests.TestRunDestination
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.AutomationsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
   alias TuistTestSupport.Fixtures.ShardsFixtures
@@ -4969,7 +4971,7 @@ defmodule Tuist.TestsTest do
     end
   end
 
-  describe "get_flaky_runs_groups_count_for_test_case/1" do
+  describe "get_flaky_runs_groups_count_for_test_case/2" do
     test "returns 0 when no flaky runs exist" do
       project = ProjectsFixtures.project_fixture()
 
@@ -4990,7 +4992,7 @@ defmodule Tuist.TestsTest do
 
       {[test_case], _} = Tests.list_test_cases(project.id, %{})
 
-      count = Tests.get_flaky_runs_groups_count_for_test_case(test_case.id)
+      count = Tests.get_flaky_runs_groups_count_for_test_case(project.id, test_case.id)
       assert count == 0
     end
 
@@ -5058,16 +5060,17 @@ defmodule Tuist.TestsTest do
       RunsFixtures.optimize_test_case_runs()
 
       {[test_case], _} = Tests.list_test_cases(project.id, %{})
-      count = Tests.get_flaky_runs_groups_count_for_test_case(test_case.id)
+      count = Tests.get_flaky_runs_groups_count_for_test_case(project.id, test_case.id)
 
       # 2 groups: (default_scheme, commit1) and (default_scheme, commit2)
       assert count == 2
     end
   end
 
-  describe "get_flaky_runs_groups_counts_for_test_cases/1" do
+  describe "get_flaky_runs_groups_counts_for_test_cases/2" do
     test "returns empty map for empty list" do
-      result = Tests.get_flaky_runs_groups_counts_for_test_cases([])
+      project = ProjectsFixtures.project_fixture()
+      result = Tests.get_flaky_runs_groups_counts_for_test_cases(project.id, [])
       assert result == %{}
     end
 
@@ -5092,7 +5095,7 @@ defmodule Tuist.TestsTest do
       {[test_case_run | _], _} =
         Tests.list_test_case_runs(%{filters: [%{field: :test_run_id, op: :==, value: test.id}]})
 
-      result = Tests.get_flaky_runs_groups_counts_for_test_cases([test_case_run.test_case_id])
+      result = Tests.get_flaky_runs_groups_counts_for_test_cases(project.id, [test_case_run.test_case_id])
       assert result == %{}
     end
 
@@ -5198,7 +5201,7 @@ defmodule Tuist.TestsTest do
         Tests.list_test_case_runs(%{filters: [%{field: :test_run_id, op: :==, value: test2.id}]})
 
       result =
-        Tests.get_flaky_runs_groups_counts_for_test_cases([
+        Tests.get_flaky_runs_groups_counts_for_test_cases(project.id, [
           test_case_run_1.test_case_id,
           test_case_run_2.test_case_id
         ])
@@ -5272,7 +5275,7 @@ defmodule Tuist.TestsTest do
         Tests.list_test_case_runs(%{filters: [%{field: :test_run_id, op: :==, value: non_flaky_test.id}]})
 
       result =
-        Tests.get_flaky_runs_groups_counts_for_test_cases([
+        Tests.get_flaky_runs_groups_counts_for_test_cases(project.id, [
           flaky_run.test_case_id,
           non_flaky_run.test_case_id
         ])
@@ -5283,7 +5286,7 @@ defmodule Tuist.TestsTest do
     end
   end
 
-  describe "list_flaky_runs_for_test_case/2" do
+  describe "list_flaky_runs_for_test_case/3" do
     test "returns empty list with meta when no flaky runs exist" do
       project = ProjectsFixtures.project_fixture()
 
@@ -5304,7 +5307,7 @@ defmodule Tuist.TestsTest do
 
       {[test_case], _} = Tests.list_test_cases(project.id, %{})
 
-      {groups, meta} = Tests.list_flaky_runs_for_test_case(test_case.id)
+      {groups, meta} = Tests.list_flaky_runs_for_test_case(project.id, test_case.id)
 
       assert groups == []
       assert meta.total_count == 0
@@ -5351,7 +5354,7 @@ defmodule Tuist.TestsTest do
       RunsFixtures.optimize_test_case_runs()
 
       {[test_case], _} = Tests.list_test_cases(project.id, %{})
-      {groups, meta} = Tests.list_flaky_runs_for_test_case(test_case.id)
+      {groups, meta} = Tests.list_flaky_runs_for_test_case(project.id, test_case.id)
 
       assert length(groups) == 1
       assert meta.total_count == 1
@@ -5407,13 +5410,13 @@ defmodule Tuist.TestsTest do
 
       {[test_case], _} = Tests.list_test_cases(project.id, %{})
 
-      {page1, meta1} = Tests.list_flaky_runs_for_test_case(test_case.id, %{page: 1, page_size: 2})
+      {page1, meta1} = Tests.list_flaky_runs_for_test_case(project.id, test_case.id, %{page: 1, page_size: 2})
       assert length(page1) == 2
       assert meta1.total_count == 3
       assert meta1.total_pages == 2
       assert meta1.current_page == 1
 
-      {page2, meta2} = Tests.list_flaky_runs_for_test_case(test_case.id, %{page: 2, page_size: 2})
+      {page2, meta2} = Tests.list_flaky_runs_for_test_case(project.id, test_case.id, %{page: 2, page_size: 2})
       assert length(page2) == 1
       assert meta2.current_page == 2
     end
@@ -5482,7 +5485,7 @@ defmodule Tuist.TestsTest do
       RunsFixtures.optimize_test_case_runs()
 
       {[test_case], _} = Tests.list_test_cases(project.id, %{})
-      {groups, _} = Tests.list_flaky_runs_for_test_case(test_case.id)
+      {groups, _} = Tests.list_flaky_runs_for_test_case(project.id, test_case.id)
 
       assert length(groups) == 2
       assert Enum.at(groups, 0).git_commit_sha == "newer_commit"
@@ -5976,6 +5979,94 @@ defmodule Tuist.TestsTest do
       result_second = Tests.get_flaky_runs_for_test_run(second_run.id)
       assert length(result_second) == 1
       assert length(hd(result_second).runs) == 1
+    end
+
+    # Regression: when batching the cross-run lookup, each test_run's
+    # slice must be re-filtered against its OWN per-axis IN sets — not
+    # against the union of every test_run's keys. Otherwise A flaky on
+    # (Foo, sha1) would see B's flaky `(Bar, sha2)` row appear in its
+    # group, inflating the per-run flaky count in PR comments.
+    test "batched form does not cross-contaminate flaky keys across test_runs" do
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, run_a} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: project.account_id,
+          duration: 1000,
+          status: "success",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600),
+          is_ci: true,
+          test_modules: [
+            %{
+              name: "ModA",
+              status: "success",
+              duration: 500,
+              test_cases: [
+                %{
+                  name: "testFooFlaky",
+                  status: "success",
+                  duration: 250,
+                  repetitions: [
+                    %{repetition_number: 1, name: "First Run", status: "failure", duration: 100},
+                    %{repetition_number: 2, name: "Retry", status: "success", duration: 150}
+                  ]
+                }
+              ]
+            }
+          ]
+        })
+
+      {:ok, run_b} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: project.account_id,
+          duration: 1000,
+          status: "success",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          test_modules: [
+            %{
+              name: "ModB",
+              status: "success",
+              duration: 500,
+              test_cases: [
+                %{
+                  name: "testBarFlaky",
+                  status: "success",
+                  duration: 250,
+                  repetitions: [
+                    %{repetition_number: 1, name: "First Run", status: "failure", duration: 100},
+                    %{repetition_number: 2, name: "Retry", status: "success", duration: 150}
+                  ]
+                }
+              ]
+            }
+          ]
+        })
+
+      RunsFixtures.optimize_test_case_runs()
+
+      result = Tests.get_flaky_runs_for_test_runs([run_a.id, run_b.id])
+
+      group_a = Map.fetch!(result, run_a.id)
+      group_b = Map.fetch!(result, run_b.id)
+
+      assert [%{name: "testFooFlaky"} = group] = group_a
+      assert length(group.runs) == 1
+
+      assert [%{name: "testBarFlaky"} = group] = group_b
+      assert length(group.runs) == 1
     end
   end
 
@@ -6976,6 +7067,161 @@ defmodule Tuist.TestsTest do
       assert "marked_flaky" in event_types
       assert "muted" in event_types
     end
+
+    test "dispatches :marked_flaky to Automations on user-driven updates" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: false)
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      expected_test_case_id = test_case.id
+      expected_project_id = project.id
+
+      expect(Automations, :dispatch_test_case_event, fn :marked_flaky,
+                                                        %{id: ^expected_test_case_id, project_id: ^expected_project_id} ->
+        :ok
+      end)
+
+      # When / Then
+      {:ok, _updated} =
+        Tests.update_test_case(test_case.id, %{is_flaky: true}, actor_id: user.account.id)
+    end
+
+    test "dispatches :unmarked_flaky to Automations on user-driven updates" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: true)
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      expected_test_case_id = test_case.id
+
+      expect(Automations, :dispatch_test_case_event, fn :unmarked_flaky, %{id: ^expected_test_case_id} ->
+        :ok
+      end)
+
+      # When / Then
+      {:ok, _updated} =
+        Tests.update_test_case(test_case.id, %{is_flaky: false}, actor_id: user.account.id)
+    end
+
+    test "dispatches automation events even when actor_id is nil so automation chains compose" do
+      # Given an update with no actor_id (system / automation-driven), we
+      # still fan out to event-driven automations: a `flaky_run_count`
+      # alert that marks a test as flaky should be able to trigger a
+      # downstream `test_updated` alert subscribed to `marked_flaky`.
+      project = ProjectsFixtures.project_fixture()
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: false)
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      expected_test_case_id = test_case.id
+
+      expect(Automations, :dispatch_test_case_event, fn :marked_flaky, %{id: ^expected_test_case_id} ->
+        :ok
+      end)
+
+      # When / Then
+      {:ok, _updated} = Tests.update_test_case(test_case.id, %{is_flaky: true})
+    end
+
+    test "broadcasts {:test_case_updated, payload} on the test_case topic when state or is_flaky changes" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: false, state: "enabled")
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      :ok = Tuist.PubSub.subscribe(Tests.test_case_topic(test_case.id))
+      test_case_id = test_case.id
+
+      # When
+      {:ok, _updated} = Tests.update_test_case(test_case.id, %{is_flaky: true, state: "muted"})
+
+      # Then
+      assert_receive {:test_case_updated,
+                      %{
+                        id: ^test_case_id,
+                        is_flaky: true,
+                        state: "muted",
+                        event_types: event_types
+                      }},
+                     500
+
+      assert :marked_flaky in event_types
+      assert :muted in event_types
+    end
+
+    test "records alert_id on the event when :alert_id is passed in opts" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id, state: "enabled")
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      alert =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          name: "Auto-quarantine"
+        )
+
+      # When — simulate the automation calling update_test_case (no actor, but
+      # carrying alert_id for attribution).
+      {:ok, _updated} =
+        Tests.update_test_case(test_case.id, %{state: "muted"}, alert_id: alert.id)
+
+      # Then
+      {events, _meta} = Tests.list_test_case_events(test_case.id)
+      muted_event = Enum.find(events, &(&1.event_type == "muted"))
+
+      assert muted_event
+      assert muted_event.alert_id == alert.id
+      assert muted_event.actor_id == nil
+
+      # The preloaded alert gives the UI the name to attribute.
+      assert muted_event.alert.name == "Auto-quarantine"
+    end
+
+    test "user-then-automation chain: the LAST broadcast carries the automation-applied state" do
+      # Regression: when a user action fires an automation that mutates the
+      # test case (e.g. user marks → automation mutes), the nested call's
+      # broadcast must arrive AFTER the outer call's broadcast so the
+      # LiveView ends up reflecting the muted state — not the pre-automation
+      # "enabled" snapshot captured by the outer call.
+      project = ProjectsFixtures.project_fixture()
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: false, state: "enabled")
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      AutomationsFixtures.automation_alert_fixture(
+        project: project,
+        monitor_type: "test_updated",
+        trigger_config: %{"events" => ["marked_flaky"]},
+        trigger_actions: [%{"type" => "change_state", "state" => "muted"}]
+      )
+
+      :ok = Tuist.PubSub.subscribe(Tests.test_case_topic(test_case.id))
+
+      {:ok, _updated} = Tests.update_test_case(test_case.id, %{is_flaky: true}, actor_id: user.account.id)
+
+      # First broadcast: the user's mark, with the pre-automation state.
+      assert_receive {:test_case_updated, %{is_flaky: true, state: "enabled", event_types: [:marked_flaky]}}, 500
+      # Second broadcast: the nested automation write, with state flipped.
+      assert_receive {:test_case_updated, %{state: "muted", event_types: [:muted]}}, 500
+    end
+
+    test "does not broadcast when neither is_flaky nor state changed" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: false, state: "enabled")
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      :ok = Tuist.PubSub.subscribe(Tests.test_case_topic(test_case.id))
+
+      # When — no-op update (same is_flaky, no state).
+      {:ok, _updated} = Tests.update_test_case(test_case.id, %{is_flaky: false})
+
+      # Then
+      refute_receive {:test_case_updated, _}, 100
+    end
   end
 
   describe "automation flow ↔ TestCase.state ⁄ test_case_events consistency invariant" do
@@ -7051,8 +7297,8 @@ defmodule Tuist.TestsTest do
 
       IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
 
-      expect(Tests, :update_test_case, 1, fn id, attrs ->
-        Mimic.call_original(Tests, :update_test_case, [id, attrs])
+      expect(Tests, :update_test_case, 1, fn id, attrs, opts ->
+        Mimic.call_original(Tests, :update_test_case, [id, attrs, opts])
       end)
 
       assert :ok =
@@ -8047,7 +8293,7 @@ defmodule Tuist.TestsTest do
       :ok = Tests.expire_stale_in_progress_test_runs()
 
       [run] =
-        IngestRepo.all(from(t in Tests.Test, hints: ["FINAL"], where: t.id == ^stale_id))
+        ClickHouseRepo.all(from(t in Tests.Test, hints: ["FINAL"], where: t.id == ^stale_id))
 
       assert run.status == "failure"
     end
@@ -8082,7 +8328,7 @@ defmodule Tuist.TestsTest do
       :ok = Tests.expire_stale_in_progress_test_runs()
 
       [run] =
-        IngestRepo.all(from(t in Tests.Test, hints: ["FINAL"], where: t.id == ^recent_id))
+        ClickHouseRepo.all(from(t in Tests.Test, hints: ["FINAL"], where: t.id == ^recent_id))
 
       assert run.status == "in_progress"
     end
@@ -8116,7 +8362,7 @@ defmodule Tuist.TestsTest do
       :ok = Tests.expire_stale_in_progress_test_runs()
 
       [run] =
-        IngestRepo.all(from(t in Tests.Test, hints: ["FINAL"], where: t.id == ^completed_id))
+        ClickHouseRepo.all(from(t in Tests.Test, hints: ["FINAL"], where: t.id == ^completed_id))
 
       assert run.status == "success"
     end

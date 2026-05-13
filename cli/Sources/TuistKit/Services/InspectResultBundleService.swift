@@ -20,12 +20,16 @@ import XCResultParser
 
 public enum UploadResultBundleServiceError: Equatable, LocalizedError {
     case missingFullHandle
+    case bundleMissingInfoPlist(AbsolutePath)
 
     public var errorDescription: String? {
         switch self {
         case .missingFullHandle:
             return
                 "The 'Tuist.swift' file is missing a fullHandle. See how to set up a Tuist project at: https://tuist.dev/en/docs/guides/server/accounts-and-projects#projects"
+        case let .bundleMissingInfoPlist(path):
+            return
+                "The xcresult bundle at \(path.pathString) is missing 'Info.plist' — xcodebuild did not finish populating it (the test action was likely interrupted or failed before producing results). Skipping upload."
         }
     }
 }
@@ -112,8 +116,13 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
             throw UploadResultBundleServiceError.missingFullHandle
         }
 
-        var buildRunId: String?
-        if let projectDerivedDataDirectory,
+        // Prefer the snapshot-restored buildRunId from RunMetadataStorage (set in the split
+        // build/test topology where the test phase reads the build phase's run-metadata
+        // snapshot). Fall back to the local activity log when the test phase shares
+        // DerivedData with the build phase.
+        var buildRunId: String? = await RunMetadataStorage.current.buildRunId
+        if buildRunId == nil,
+           let projectDerivedDataDirectory,
            let mostRecentActivityLogFile = try await xcActivityLogController.mostRecentActivityLogFile(
                projectDerivedDataDirectory: projectDerivedDataDirectory
            )
@@ -121,7 +130,7 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
             buildRunId = mostRecentActivityLogFile.path.basenameWithoutExt
         }
 
-        let gitInfo = try gitController.gitInfo(workingDirectory: gitInfoDirectory)
+        let gitInfo = try await gitController.gitInfo(workingDirectory: gitInfoDirectory)
         let ciInfo = ciController.ciInfo()
         let test = try await createTestService.createTest(
             fullHandle: fullHandle,
@@ -177,6 +186,15 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
         // so we resolve it to ensure the archiver zips the actual directory.
         let resolvedResultBundlePath = try await fileSystem.resolveSymbolicLink(resultBundlePath)
 
+        // A populated xcresult bundle has Info.plist at its root. If it's
+        // missing, xcodebuild was interrupted before writing results — uploading
+        // the empty skeleton just produces a 5-attempt failure on the server side
+        // and a Sentry alert for nothing actionable.
+        let infoPlistPath = resolvedResultBundlePath.appending(component: "Info.plist")
+        if !(try await fileSystem.exists(infoPlistPath)) {
+            throw UploadResultBundleServiceError.bundleMissingInfoPlist(resolvedResultBundlePath)
+        }
+
         if !quarantinedTests.isEmpty {
             try await writeQuarantinedTests(quarantinedTests, to: resolvedResultBundlePath)
         }
@@ -186,7 +204,7 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
         let rootDirectory = try await rootDirectory()
         let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
         let gitInfoDirectory = rootDirectory ?? currentWorkingDirectory
-        let gitInfo = try gitController.gitInfo(workingDirectory: gitInfoDirectory)
+        let gitInfo = try await gitController.gitInfo(workingDirectory: gitInfoDirectory)
         let ciInfo = ciController.ciInfo()
 
         let testRunId = UUID().uuidString.lowercased()
@@ -243,7 +261,7 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
         )
         guard let run = testCaseRunsByIdentity[identityKey] else { return }
 
-        await testCase.attachments.forEach(context: .concurrent) { attachment in
+        await testCase.attachments.forEach(context: .serial) { attachment in
             do {
                 let argumentId: String? = attachment.argumentName.flatMap { argName in
                     run.arguments?.first(where: { $0.name == argName })?.id
@@ -311,8 +329,8 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
     private func rootDirectory() async throws -> AbsolutePath? {
         let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
         let workingDirectory = Environment.current.workspacePath ?? currentWorkingDirectory
-        if gitController.isInGitRepository(workingDirectory: workingDirectory) {
-            return try gitController.topLevelGitDirectory(workingDirectory: workingDirectory)
+        if await gitController.isInGitRepository(workingDirectory: workingDirectory) {
+            return try await gitController.topLevelGitDirectory(workingDirectory: workingDirectory)
         } else {
             return try await rootDirectoryLocator.locate(from: workingDirectory)
         }

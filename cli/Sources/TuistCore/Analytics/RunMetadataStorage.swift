@@ -1,6 +1,8 @@
+import FileSystem
 import Foundation
 import Path
 import TuistEnvironment
+import TuistLogging
 import TuistSupport
 import XcodeGraph
 
@@ -8,7 +10,11 @@ import XcodeGraph
 public actor RunMetadataStorage {
     @TaskLocal public static var current: RunMetadataStorage = .init()
 
-    public init() {}
+    private let fileSystem: FileSysteming
+
+    public init(fileSystem: FileSysteming = FileSystem()) {
+        self.fileSystem = fileSystem
+    }
 
     /// A unique ID associated with a specific run
     public var runId: String { Environment.current.processId }
@@ -37,10 +43,12 @@ public actor RunMetadataStorage {
         self.selectiveTestingCacheItems = selectiveTestingCacheItems
     }
 
-    /// Target content hash subhashes keyed by hash
+    /// Target content hash subhashes keyed by hash. Multiple graph mappers (binary cache, selective
+    /// testing, cache warm) each contribute their own entries, so updates merge into the existing
+    /// dictionary rather than replacing it.
     public private(set) var targetContentHashSubhashes: [String: TargetContentHashSubhashes] = [:]
     public func update(targetContentHashSubhashes: [String: TargetContentHashSubhashes]) {
-        self.targetContentHashSubhashes = targetContentHashSubhashes
+        self.targetContentHashSubhashes.merge(targetContentHashSubhashes, uniquingKeysWith: { _, new in new })
     }
 
     /// Preview associated with the current run
@@ -78,5 +86,59 @@ public actor RunMetadataStorage {
     public private(set) var cacheEndpoint: String = ""
     public func update(cacheEndpoint: String) {
         self.cacheEndpoint = cacheEndpoint
+    }
+
+    /// Writes a `RunMetadata` snapshot of the current storage to the `.xctestproducts`
+    /// bundle at `testProductsPath`. Used by the build phase of the split build/test
+    /// topology (`tuist test --build-only`) so the test phase can restore the same
+    /// analytics state when it runs as a separate process.
+    ///
+    /// Failures are logged as warnings; persistence is best-effort and never blocks the
+    /// caller's run.
+    public func writeMetadata(to testProductsPath: AbsolutePath) async {
+        let runMetadata = RunMetadata(
+            graph: graph,
+            binaryCacheItems: binaryCacheItems,
+            selectiveTestingCacheItems: selectiveTestingCacheItems,
+            targetContentHashSubhashes: targetContentHashSubhashes,
+            buildRunId: buildRunId
+        )
+        let runMetadataPath = testProductsPath.appending(component: RunMetadata.fileName)
+        do {
+            try await fileSystem.writeAsJSON(runMetadata, at: runMetadataPath)
+        } catch {
+            Logger.current.warning("Failed to persist run metadata: \(error.localizedDescription)")
+        }
+    }
+
+    /// Restores run metadata from a `RunMetadata` JSON file previously written to the
+    /// `.xctestproducts` bundle at `testProductsPath`. Used by the test phase of the split
+    /// build/test topology (`tuist test --without-building -testProductsPath …`).
+    ///
+    /// No-op when the file is absent (bundles produced by older Tuist versions). Failures
+    /// are logged as warnings and never block the caller's run.
+    public func restoreMetadata(from testProductsPath: AbsolutePath) async {
+        let runMetadataPath = testProductsPath.appending(component: RunMetadata.fileName)
+        guard (try? await fileSystem.exists(runMetadataPath)) == true else { return }
+        do {
+            let runMetadata: RunMetadata = try await fileSystem.readJSONFile(at: runMetadataPath)
+            if let graph = runMetadata.graph {
+                update(graph: graph)
+            }
+            if !runMetadata.binaryCacheItems.isEmpty {
+                update(binaryCacheItems: runMetadata.binaryCacheItems)
+            }
+            if !runMetadata.selectiveTestingCacheItems.isEmpty {
+                update(selectiveTestingCacheItems: runMetadata.selectiveTestingCacheItems)
+            }
+            if !runMetadata.targetContentHashSubhashes.isEmpty {
+                update(targetContentHashSubhashes: runMetadata.targetContentHashSubhashes)
+            }
+            if let buildRunId = runMetadata.buildRunId {
+                update(buildRunId: buildRunId)
+            }
+        } catch {
+            Logger.current.warning("Failed to restore run metadata: \(error.localizedDescription)")
+        }
     }
 }

@@ -14,8 +14,13 @@ defmodule Tuist.Builds do
   alias Tuist.Builds.CASOutput
   alias Tuist.ClickHouseFlop
   alias Tuist.ClickHouseRepo
+  alias Tuist.Environment
+  alias Tuist.KeyValueStore
   alias Tuist.Projects.Project
   alias Tuist.Repo
+
+  @short_cache_ttl to_timeout(second: 10)
+  @build_lookup_recent_window_days 90
 
   def valid_ci_providers, do: ["github", "gitlab", "bitrise", "circleci", "buildkite", "codemagic"]
 
@@ -30,28 +35,73 @@ defmodule Tuist.Builds do
   end
 
   def last_24h_build_count do
+    cached_count(:last_24h_build_count, &last_24h_build_count_query/0)
+  end
+
+  defp last_24h_build_count_query do
     twenty_four_hours_ago = DateTime.add(DateTime.utc_now(), -24, :hour)
 
     ClickHouseRepo.one(from(b in Build, where: b.inserted_at >= ^twenty_four_hours_ago, select: count())) || 0
   end
 
   # `ORDER BY inserted_at DESC LIMIT 1` picks the latest version of the row
-  # without the multi-part merge `FINAL` would force; the `proj_by_id`
-  # projection lets the lookup binary-search to a single granule.
-  def get_build(id) do
-    with {:ok, uuid} <- Ecto.UUID.cast(id),
-         build when not is_nil(build) <-
-           ClickHouseRepo.one(
-             from(b in Build,
-               where: b.id == ^uuid,
-               order_by: [desc: b.inserted_at],
-               limit: 1
-             )
-           ) do
-      {:ok, build}
-    else
-      _ -> {:error, :not_found}
+  # without the multi-part merge `FINAL` would force. The recent lookup adds an
+  # inserted_at bound so ClickHouse can prune monthly partitions for common
+  # detail-page/callback traffic, then falls back to the unbounded lookup for
+  # older build URLs.
+  def get_build(id, opts \\ []) do
+    project_id = Keyword.get(opts, :project_id)
+
+    case Ecto.UUID.cast(id) do
+      {:ok, uuid} ->
+        build =
+          ClickHouseRepo.one(get_build_query(uuid, project_id, recent_build_lookup_floor())) ||
+            ClickHouseRepo.one(get_build_query(uuid, project_id))
+
+        case build do
+          nil -> {:error, :not_found}
+          build -> {:ok, build}
+        end
+
+      _ ->
+        {:error, :not_found}
     end
+  end
+
+  defp recent_build_lookup_floor do
+    DateTime.add(DateTime.utc_now(), -@build_lookup_recent_window_days, :day)
+  end
+
+  defp get_build_query(uuid, nil) do
+    from(b in Build,
+      where: b.id == ^uuid,
+      order_by: [desc: b.inserted_at],
+      limit: 1
+    )
+  end
+
+  defp get_build_query(uuid, project_id) do
+    from(b in Build,
+      where: b.project_id == ^project_id and b.id == ^uuid,
+      order_by: [desc: b.inserted_at],
+      limit: 1
+    )
+  end
+
+  defp get_build_query(uuid, nil, inserted_at_floor) do
+    from(b in Build,
+      where: b.id == ^uuid and b.inserted_at >= ^inserted_at_floor,
+      order_by: [desc: b.inserted_at],
+      limit: 1
+    )
+  end
+
+  defp get_build_query(uuid, project_id, inserted_at_floor) do
+    from(b in Build,
+      where: b.project_id == ^project_id and b.id == ^uuid and b.inserted_at >= ^inserted_at_floor,
+      order_by: [desc: b.inserted_at],
+      limit: 1
+    )
   end
 
   def create_build(attrs) do
@@ -431,6 +481,14 @@ defmodule Tuist.Builds do
   end
 
   def recent_build_status_counts(project_id, opts \\ []) do
+    cache_key = [:builds, :recent_build_status_counts, project_id, :erlang.phash2(opts)]
+
+    cached_count_map(cache_key, fn ->
+      recent_build_status_counts_query(project_id, opts)
+    end)
+  end
+
+  defp recent_build_status_counts_query(project_id, opts) do
     limit = Keyword.get(opts, :limit, 40)
     order_direction = if Keyword.get(opts, :order, :desc) == :desc, do: "DESC", else: "ASC"
 
@@ -454,6 +512,22 @@ defmodule Tuist.Builds do
       successful_count: successful_count,
       failed_count: failed_count
     }
+  end
+
+  defp cached_count(key, fun) do
+    if Environment.test?() do
+      fun.()
+    else
+      KeyValueStore.get_or_update([:builds, key], [ttl: @short_cache_ttl], fun)
+    end
+  end
+
+  defp cached_count_map(key, fun) do
+    if Environment.test?() do
+      fun.()
+    else
+      KeyValueStore.get_or_update(key, [ttl: @short_cache_ttl], fun)
+    end
   end
 
   def project_build_schemes(%Project{} = project) do

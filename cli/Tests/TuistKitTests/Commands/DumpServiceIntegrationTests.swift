@@ -184,9 +184,6 @@ final class DumpServiceTests: TuistTestCase {
             try await subject.run(path: tmpDir.pathString, manifest: .config)
             let expected = """
             {
-              "cache": {
-                "upload": true
-              },
               "fullHandle": "tuist/tuist",
               "inspectOptions": {
                 "redundantDependencies": {
@@ -241,6 +238,10 @@ final class DumpServiceTests: TuistTestCase {
                     "enableCaching": false,
                     "enforceExplicitDependencies": false,
                     "includeGenerateScheme": true,
+                    "manifestEnvironment": [
+
+                    ],
+                    "onOutdatedDependencies": "warn",
                     "optionalAuthentication": false,
                     "registryEnabled": false,
                     "resolveDependenciesWithSystemScm": false,
@@ -266,7 +267,10 @@ final class DumpServiceTests: TuistTestCase {
                   ]
                 }
               },
-              "url": "https://tuist.dev"
+              "url": "https://tuist.dev",
+              "xcodeCache": {
+                "upload": true
+              }
             }
             """
 

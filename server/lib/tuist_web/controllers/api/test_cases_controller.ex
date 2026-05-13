@@ -8,6 +8,7 @@ defmodule TuistWeb.API.TestCasesController do
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.PaginationMetadata
   alias TuistWeb.API.Schemas.TestCase
+  alias TuistWeb.Authentication
 
   plug(TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
@@ -16,6 +17,8 @@ defmodule TuistWeb.API.TestCasesController do
 
   plug(TuistWeb.Plugs.LoaderPlug)
   plug(TuistWeb.API.Authorization.AuthorizationPlug, :test)
+
+  @valid_states ["enabled", "muted", "skipped"]
 
   tags ["Test Cases"]
 
@@ -283,6 +286,162 @@ defmodule TuistWeb.API.TestCasesController do
             failed_runs: analytics.failed_count,
             url: ~p"/#{selected_project.account.name}/#{selected_project.name}/tests/test-cases/#{test_case.id}"
           })
+        else
+          conn
+          |> put_status(:not_found)
+          |> json(%{message: "Test case not found."})
+        end
+
+      {:error, :not_found} ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{message: "Test case not found."})
+    end
+  end
+
+  operation(:update,
+    summary: "Update a test case.",
+    description:
+      "Updates mutable fields on a test case. Supports changing `state` (currently one of `enabled`, `muted`, " <>
+        "or `skipped`; the field is left as an open string so adding new states in the future doesn't break " <>
+        "clients pinned to the older spec) and toggling `is_flaky`. Corresponding events " <>
+        "(`muted`/`unmuted`, `skipped`/`unskipped`, `marked_flaky`/`unmarked_flaky`) are recorded " <>
+        "automatically when values transition.",
+    operation_id: "updateTestCase",
+    parameters: [
+      account_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The handle of the account."
+      ],
+      project_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The handle of the project."
+      ],
+      test_case_id: [
+        in: :path,
+        schema: %Schema{type: :string, format: :uuid},
+        required: true,
+        description: "The ID of the test case."
+      ]
+    ],
+    request_body:
+      {"Test case update params", "application/json",
+       %Schema{
+         type: :object,
+         properties: %{
+           state: %Schema{
+             type: :string,
+             description:
+               "The new state of the test case. Currently one of `enabled`, `muted`, or `skipped`; the field is left as an open string so adding new states in the future doesn't break clients pinned to the older spec."
+           },
+           is_flaky: %Schema{
+             type: :boolean,
+             description: "Whether to mark the test case as flaky."
+           }
+         }
+       }},
+    responses: %{
+      ok:
+        {"The updated test case", "application/json",
+         %Schema{
+           type: :object,
+           properties: %{
+             id: %Schema{type: :string, format: :uuid, description: "The test case ID."},
+             name: %Schema{type: :string, description: "Name of the test case."},
+             module: %Schema{
+               type: :object,
+               required: [:id, :name],
+               properties: %{
+                 id: %Schema{type: :string, description: "ID of the module."},
+                 name: %Schema{type: :string, description: "Name of the module."}
+               }
+             },
+             suite: %Schema{
+               type: :object,
+               nullable: true,
+               required: [:id, :name],
+               properties: %{
+                 id: %Schema{type: :string, description: "ID of the suite."},
+                 name: %Schema{type: :string, description: "Name of the suite."}
+               }
+             },
+             is_flaky: %Schema{type: :boolean, description: "Whether the test case is marked as flaky."},
+             is_quarantined: %Schema{
+               type: :boolean,
+               deprecated: true,
+               description:
+                 "Whether the test case is quarantined (either `muted` or `skipped`). Deprecated: use `state` instead."
+             },
+             state: %Schema{
+               type: :string,
+               description:
+                 "The state of the test case. Currently one of `enabled`, `muted`, or `skipped`; the field is left as an open string so adding new states in the future doesn't break clients pinned to the older spec."
+             },
+             url: %Schema{type: :string, description: "URL to view the test case in the dashboard."}
+           },
+           required: [:id, :name, :module, :is_flaky, :is_quarantined, :state, :url]
+         }},
+      bad_request: {"Invalid update params (empty body or malformed field values)", "application/json", Error},
+      not_found: {"Test case not found", "application/json", Error},
+      forbidden: {"You don't have permission to update this resource", "application/json", Error}
+    }
+  )
+
+  def update(
+        %{assigns: %{selected_project: selected_project}, params: %{test_case_id: test_case_id}, body_params: body_params} =
+          conn,
+        _params
+      ) do
+    attrs = Map.take(body_params, [:state, :is_flaky])
+
+    cond do
+      map_size(attrs) == 0 ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{message: "Provide at least one of `state` or `is_flaky`."})
+
+      Map.has_key?(attrs, :state) and attrs.state not in @valid_states ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{message: "`state` must be one of `enabled`, `muted`, or `skipped`."})
+
+      true ->
+        update_test_case(conn, selected_project, test_case_id, attrs)
+    end
+  end
+
+  defp update_test_case(conn, selected_project, test_case_id, attrs) do
+    case Tests.get_test_case_by_id(test_case_id) do
+      {:ok, test_case} ->
+        if test_case.project_id == selected_project.id do
+          actor_id = Authentication.authenticated_subject_account(conn).id
+
+          case Tests.update_test_case(test_case_id, attrs, actor_id: actor_id) do
+            {:ok, updated_test_case} ->
+              json(conn, %{
+                id: updated_test_case.id,
+                name: updated_test_case.name,
+                module: %{
+                  id: updated_test_case.module_name,
+                  name: updated_test_case.module_name
+                },
+                suite: build_suite(updated_test_case.suite_name),
+                is_flaky: updated_test_case.is_flaky,
+                is_quarantined: quarantined?(updated_test_case.state),
+                state: updated_test_case.state || "enabled",
+                url:
+                  ~p"/#{selected_project.account.name}/#{selected_project.name}/tests/test-cases/#{updated_test_case.id}"
+              })
+
+            {:error, :not_found} ->
+              conn
+              |> put_status(:not_found)
+              |> json(%{message: "Test case not found."})
+          end
         else
           conn
           |> put_status(:not_found)

@@ -36,7 +36,7 @@ defmodule TuistWeb.BuildRunLive do
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   defp mount_xcode(params, _session, %{assigns: %{selected_project: project}} = socket) do
     run =
-      case Builds.get_build(params["build_run_id"]) do
+      case Builds.get_build(params["build_run_id"], project_id: project.id) do
         {:ok, run} ->
           run
 
@@ -48,7 +48,7 @@ defmodule TuistWeb.BuildRunLive do
 
     run =
       run
-      |> Tuist.Repo.preload([:ran_by_account, project: :vcs_connection])
+      |> Tuist.Repo.preload([:ran_by_account, project: [vcs_connection: :github_app_installation]])
       |> Tuist.ClickHouseRepo.preload([:issues, :machine_metrics])
 
     if run.project.id != project.id do
@@ -83,7 +83,7 @@ defmodule TuistWeb.BuildRunLive do
 
   defp assign_build_data(socket, run) do
     command_event =
-      case CommandEvents.get_command_event_by_build_run_id(run.id) do
+      case CommandEvents.get_command_event_by_build_run_id(run.id, project_id: run.project_id) do
         {:ok, event} -> event
         {:error, :not_found} -> nil
       end
@@ -125,11 +125,11 @@ defmodule TuistWeb.BuildRunLive do
   @impl true
   def handle_info({:xcode_build_created, build}, socket) do
     if build.id == socket.assigns.run.id do
-      {:ok, run} = Builds.get_build(build.id)
+      {:ok, run} = Builds.get_build(build.id, project_id: build.project_id)
 
       run =
         run
-        |> Tuist.Repo.preload([:ran_by_account, project: :vcs_connection])
+        |> Tuist.Repo.preload([:ran_by_account, project: [vcs_connection: :github_app_installation]])
         |> Tuist.ClickHouseRepo.preload([:issues])
 
       {:noreply, socket |> assign(:run, run) |> assign_build_data(run)}
@@ -219,11 +219,11 @@ defmodule TuistWeb.BuildRunLive do
 
   @impl true
   def handle_event("refresh_build", _params, %{assigns: %{run: run}} = socket) do
-    {:ok, refreshed_run} = Builds.get_build(run.id)
+    {:ok, refreshed_run} = Builds.get_build(run.id, project_id: run.project_id)
 
     refreshed_run =
       refreshed_run
-      |> Tuist.Repo.preload([:ran_by_account, project: :vcs_connection])
+      |> Tuist.Repo.preload([:ran_by_account, project: [vcs_connection: :github_app_installation]])
       |> Tuist.ClickHouseRepo.preload([:issues, :machine_metrics])
 
     {:noreply,

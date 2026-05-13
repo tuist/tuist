@@ -60,7 +60,7 @@ struct ProjectEditorMapper: ProjectEditorMapping {
         projectDescriptionSearchPath: AbsolutePath
     ) async throws -> Graph {
         Logger.current.notice("Building the editable project graph")
-        let swiftVersion = try SwiftVersionProvider.current.swiftVersion()
+        let swiftVersion = try await SwiftVersionProvider.current.swiftVersion()
 
         let pluginsProject = try await mapPluginsProject(
             pluginManifests: editablePluginManifests,
@@ -244,9 +244,9 @@ struct ProjectEditorMapper: ProjectEditorMapping {
         let helperTargetDependencies = helpersTarget.map { [TargetDependency.target(name: $0.name)] } ?? []
         let helperAndPluginDependencies = helperTargetDependencies + editablePluginTargetDependencies
 
-        let packagesTarget: Target? = try {
+        let packagesTarget: Target? = try await {
             guard let packageManifestPath else { return nil }
-            let packageVersion = try swiftPackageManagerController.getToolsVersion(at: packageManifestPath.parentDirectory)
+            let packageVersion = try await swiftPackageManagerController.getToolsVersion(at: packageManifestPath.parentDirectory)
 
             var packagesSettings = targetBaseSettings(
                 projectFrameworkPath: projectDescriptionPath,

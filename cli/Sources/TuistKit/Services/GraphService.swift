@@ -1,3 +1,4 @@
+import Command
 import DOT
 import FileSystem
 import Foundation
@@ -24,6 +25,7 @@ struct GraphService {
     private let manifestLoader: ManifestLoading
     private let xcodeGraphMapper: XcodeGraphMapping
     private let configLoader: ConfigLoading
+    private let commandRunner: CommandRunning
 
     init() {
         let manifestLoader = ManifestLoader.current
@@ -48,7 +50,8 @@ struct GraphService {
         manifestLoader: ManifestLoading,
         xcodeGraphMapper: XcodeGraphMapping = XcodeGraphMapper(),
         fileSystem: FileSystem = FileSystem(),
-        configLoader: ConfigLoading
+        configLoader: ConfigLoading,
+        commandRunner: CommandRunning = CommandRunner()
     ) {
         graphVizMapper = graphVizGenerator
         self.manifestGraphLoader = manifestGraphLoader
@@ -56,6 +59,7 @@ struct GraphService {
         self.xcodeGraphMapper = xcodeGraphMapper
         self.fileSystem = fileSystem
         self.configLoader = configLoader
+        self.commandRunner = commandRunner
     }
 
     func run(
@@ -126,9 +130,21 @@ struct GraphService {
         case .dot:
             try await exportDOTRepresentation(from: graph, at: filePath)
         case .png:
-            try exportImageRepresentation(from: graph, at: filePath, layoutAlgorithm: layoutAlgorithm, format: .png, open: open)
+            try await exportImageRepresentation(
+                from: graph,
+                at: filePath,
+                layoutAlgorithm: layoutAlgorithm,
+                format: .png,
+                open: open
+            )
         case .svg:
-            try exportImageRepresentation(from: graph, at: filePath, layoutAlgorithm: layoutAlgorithm, format: .svg, open: open)
+            try await exportImageRepresentation(
+                from: graph,
+                at: filePath,
+                layoutAlgorithm: layoutAlgorithm,
+                format: .svg,
+                open: open
+            )
         case .json:
             throw GraphServiceError.jsonNotValidForVisualExport
         case .legacyJSON:
@@ -162,26 +178,26 @@ struct GraphService {
         layoutAlgorithm: LayoutAlgorithm,
         format: GraphViz.Format,
         open: Bool
-    ) throws {
-        if !isGraphVizInstalled() {
-            try installGraphViz()
+    ) async throws {
+        if await !isGraphVizInstalled() {
+            try await installGraphViz()
         }
 
         let data = try Renderer(layout: layoutAlgorithm).render(graph: graph, to: format)
         FileManager.default.createFile(atPath: filePath.pathString, contents: data, attributes: nil)
         if open {
-            try System.shared.async(["open", filePath.pathString])
+            try await commandRunner.runAndWait(arguments: ["open", filePath.pathString])
         }
     }
 
-    private func isGraphVizInstalled() -> Bool {
-        System.shared.commandExists("dot")
+    private func isGraphVizInstalled() async -> Bool {
+        await commandRunner.commandExists("dot")
     }
 
-    private func installGraphViz() throws {
+    private func installGraphViz() async throws {
         Logger.current.notice("Installing GraphViz...")
         var env = Environment.current.variables
         env["HOMEBREW_NO_AUTO_UPDATE"] = "1"
-        try System.shared.runAndPrint(["brew", "install", "graphviz"], verbose: false, environment: env)
+        try await commandRunner.runAndPrint(arguments: ["brew", "install", "graphviz"], environment: env)
     }
 }

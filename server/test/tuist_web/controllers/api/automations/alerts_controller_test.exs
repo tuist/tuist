@@ -39,7 +39,7 @@ defmodule TuistWeb.API.Automations.AlertsControllerTest do
       body = %{
         "name" => "Auto-quarantine",
         "monitor_type" => "flakiness_rate",
-        "trigger_config" => %{"threshold" => 10, "window" => "30d"},
+        "trigger_config" => %{"threshold" => 10, "window_type" => "last_days", "window" => "30d"},
         "trigger_actions" => [%{"type" => "change_state", "state" => "muted"}]
       }
 
@@ -58,7 +58,7 @@ defmodule TuistWeb.API.Automations.AlertsControllerTest do
       body = %{
         "name" => "",
         "monitor_type" => "flakiness_rate",
-        "trigger_config" => %{"threshold" => 10, "window" => "30d"},
+        "trigger_config" => %{"threshold" => 10, "window_type" => "last_days", "window" => "30d"},
         "trigger_actions" => [%{"type" => "change_state", "state" => "muted"}]
       }
 

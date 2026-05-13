@@ -1,0 +1,161 @@
+/* /ops/accounts/:id — the account detail page (and the linked Kura
+   deployment-log page). Both share the same wrapper styling so the
+   header, card spacing, and action rows match the rest of /ops. */
+#ops-account,
+#ops-kura-deployment {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-9);
+  padding: var(--noora-spacing-7) var(--noora-spacing-5);
+
+  & > [data-part="header"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-2);
+
+    & > [data-part="title"] {
+      margin: var(--noora-spacing-0);
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+    }
+
+    & > [data-part="subtitle"] {
+      margin: var(--noora-spacing-0);
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-body-medium);
+    }
+  }
+
+  /* Horizontal row of action buttons inside a card section. Used by
+     the Plan & billing card (Manage on Stripe / Upgrade / Cancel) and
+     the deployment trigger card. */
+  & [data-part="actions"] {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--noora-spacing-3);
+  }
+
+  /* "Latest version + Poll now" header row inside the deployments card. */
+  & [data-part="row"] {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--noora-spacing-4);
+  }
+
+  /* Trigger-deployment form: stack labels vertically with consistent
+     spacing, mirroring the search filter rhythm used elsewhere. */
+  & [data-part="deploy-form"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-4);
+    max-width: 480px;
+  }
+}
+
+/* Deployment detail page — metadata grid + terminal-style log viewer.
+   The page-wrapper rules (header, padding, gap) are already shared
+   with #ops-account in the block at the top of this file. */
+#ops-kura-deployment {
+  & [data-part="metadata-grid"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-5);
+  }
+
+  & [data-part="metadata-row"] {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: var(--noora-spacing-5);
+  }
+
+  & [data-part="metadata"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-1);
+
+    & > [data-part="title"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-body-small);
+    }
+
+    & > [data-part="label"] {
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-body-medium);
+      word-break: break-word;
+    }
+  }
+
+  & [data-part="empty-logs"] {
+    margin: var(--noora-spacing-0);
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-medium);
+  }
+
+  & [data-part="terminal"] {
+    border-radius: var(--noora-radius-medium);
+    background: var(--noora-surface-background-secondary, #0b0d12);
+    padding: var(--noora-spacing-4);
+    max-height: 60vh;
+    overflow: auto;
+    color: var(--noora-surface-label-on-dark, #e6e6e6);
+    font-size: 12px;
+    line-height: 1.5;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+    & [data-part="line"] {
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+  }
+}
+
+/* Add Kura server modal — Noora portals it out of #ops-account, so
+   styles live at the top level and target the form class. Mirrors the
+   enterprise-upgrade form: vertical stack, consistent gap, and pairs
+   each <.label> with the field below it. */
+.add-server-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-4);
+  min-width: 420px;
+
+  & .select-field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-2);
+
+    /* Plain <select> elements (not Noora's <.select>) inside the form
+       — Noora's select doesn't serialize through the form submit, so
+       we use a native select and style it to roughly match. */
+    & > select {
+      appearance: auto;
+      border: 1px solid var(--noora-surface-border-primary);
+      border-radius: var(--noora-radius-medium);
+      background: var(--noora-surface-background-primary);
+      padding: var(--noora-spacing-3) var(--noora-spacing-4);
+      width: 100%;
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-body-medium);
+    }
+  }
+
+  & [data-part="hint"] {
+    margin: var(--noora-spacing-0);
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-small);
+  }
+
+  /* Cancel + Provision row pinned to the bottom-right. We render the
+     buttons inline at the end of the form (instead of using Noora's
+     <:footer> slot) because the modal portals its footer to a
+     separate DOM subtree, which orphans the inputs from the form. */
+  & > [data-part="actions"] {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--noora-spacing-3);
+    margin-top: var(--noora-spacing-2);
+  }
+}

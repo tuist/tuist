@@ -37,6 +37,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -90,6 +91,20 @@ type Config struct {
 	HostMemoryMB int
 	MaxPods      int
 
+	// NodeLabels is the set of labels tart-kubelet stamps on the
+	// Node it registers. The bootstrap layer is generic — fleet
+	// membership is just one entry the caller adds (typically
+	// `{"tuist.dev/fleet": <fleetName>}`). Empty map omits the
+	// flag entirely; the Node carries no operator-set labels.
+	//
+	// Why bootstrap-time and not a post-registration patch: the
+	// label has to land atomically with kubelet registration, or
+	// there's a race window where a Node is `Ready` but unlabeled
+	// and Pods with `nodeSelector: tuist.dev/fleet=<name>` fail to
+	// schedule on it. Same convention CAPI bootstrap providers
+	// follow with `kubeadm`'s `kubeletExtraArgs.node-labels`.
+	NodeLabels map[string]string
+
 	// KnownHostFingerprint is the SHA256 fingerprint of the SSH
 	// server's host key, persisted by the controller after the first
 	// successful bootstrap. When empty (first reconcile, fleet
@@ -134,6 +149,9 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 	if err := enableAutoLogin(ctx, client, cfg.SSHUser, cfg.UserPassword); err != nil {
 		return hk.observed(), fmt.Errorf("auto-login: %w", err)
 	}
+	if err := disableIdleSleep(ctx, client); err != nil {
+		return hk.observed(), fmt.Errorf("disable idle sleep: %w", err)
+	}
 	if cfg.NodeName != "" {
 		if err := setHostname(ctx, client, cfg.NodeName); err != nil {
 			return hk.observed(), fmt.Errorf("set hostname: %w", err)
@@ -141,6 +159,9 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 	}
 	if err := installTart(ctx, client, cfg.TartTarball); err != nil {
 		return hk.observed(), fmt.Errorf("install tart: %w", err)
+	}
+	if err := installVMEgressFirewall(ctx, client); err != nil {
+		return hk.observed(), fmt.Errorf("install vm egress firewall: %w", err)
 	}
 	if err := writeKubeconfig(ctx, client, cfg.Kubeconfig); err != nil {
 		return hk.observed(), fmt.Errorf("write kubeconfig: %w", err)
@@ -296,6 +317,29 @@ func renderLaunchdPlist(cfg Config) string {
 	if user == "" {
 		user = "m1"
 	}
+	// `--node-labels` is rendered conditionally so a host bootstrapped
+	// without any labels (or one whose operator wants to retire
+	// labels) renders an identical plist. tart-kubelet treats an
+	// absent flag as "operator-managed labels = ∅" and drops any
+	// labels it previously set, giving us a clean retire path.
+	//
+	// k=v,k=v,... form (kubelet's --node-labels convention).
+	// Sorted for deterministic plist rendering — otherwise map
+	// iteration order would dirty the host fingerprint and
+	// trigger needless plist rewrites.
+	nodeLabelsArg := ""
+	if len(cfg.NodeLabels) > 0 {
+		keys := make([]string, 0, len(cfg.NodeLabels))
+		for k := range cfg.NodeLabels {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		pairs := make([]string, 0, len(keys))
+		for _, k := range keys {
+			pairs = append(pairs, fmt.Sprintf("%s=%s", k, cfg.NodeLabels[k]))
+		}
+		nodeLabelsArg = fmt.Sprintf("\n    <string>--node-labels=%s</string>", strings.Join(pairs, ","))
+	}
 	// Run tart-kubelet as the SSH user (m1). Apple's
 	// Virtualization.framework requires the calling process to be the
 	// same user that holds the live GUI console session — Tart's
@@ -318,7 +362,7 @@ func renderLaunchdPlist(cfg Config) string {
     <string>--kubeconfig=/etc/tart-kubelet/kubeconfig</string>
     <string>--host-cpu=%[2]d</string>
     <string>--host-memory-mb=%[3]d</string>
-    <string>--max-pods=%[4]d</string>
+    <string>--max-pods=%[4]d</string>%[6]s
   </array>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
@@ -332,7 +376,7 @@ func renderLaunchdPlist(cfg Config) string {
   </dict>
 </dict>
 </plist>
-`, cfg.NodeName, cpu, mem, maxPods, user)
+`, cfg.NodeName, cpu, mem, maxPods, user, nodeLabelsArg)
 }
 
 func shellQuote(s string) string {
@@ -424,7 +468,28 @@ func waitForSSH(ctx context.Context, ip, user string, signer ssh.Signer, hk *hos
 // enablePasswordlessSudo writes a sudoers.d entry for the SSH user. We
 // authenticate the initial sudo with the SSH user's password supplied
 // by the caller; subsequent sudo calls don't need it.
+//
+// Pre-ordered hosts that sat in the pool longer than Scaleway's
+// password-disclosure window won't have a usable password — for those
+// the operator is expected to seed /etc/sudoers.d/<user>-nopasswd by
+// hand via the prepare-fleet-host script. With no password to feed sudo,
+// hammering `sudo -S` every reconcile would consume PAM failure-tally
+// slots and lock the account in a loop the controller can never
+// escape (the lockout outlives the controller's retry window because
+// every retry re-arms it). When we don't have a password to use,
+// bail safely so the lockout can drain naturally and the operator's
+// out-of-band prep can land.
+//
+// File-existence check still short-circuits the common case where
+// the operator already staged the sudoers entry before adoption.
 func enablePasswordlessSudo(ctx context.Context, client *ssh.Client, user, password string) error {
+	if password == "" {
+		// Idempotency-only path: if the sudoers file is there, fine;
+		// if not, return without touching PAM so we don't ramp the
+		// lockout counter on every reconcile.
+		check := fmt.Sprintf(`test -f /etc/sudoers.d/%[1]s-nopasswd`, user)
+		return runCommand(ctx, client, check)
+	}
 	script := fmt.Sprintf(`set -euo pipefail
 if [ -f /etc/sudoers.d/%[1]s-nopasswd ]; then exit 0; fi
 echo '%[2]s' | sudo -S tee /etc/sudoers.d/%[1]s-nopasswd > /dev/null <<EOF
@@ -445,6 +510,16 @@ sudo chmod 440 /etc/sudoers.d/%[1]s-nopasswd
 //   - /etc/kcpassword (XOR-encoded password with Apple's well-known key)
 //   - com.apple.loginwindow.autoLoginUser preference
 func enableAutoLogin(ctx context.Context, client *ssh.Client, user, password string) error {
+	// No password to XOR into /etc/kcpassword means we'd write a
+	// broken kcpassword (just the cipher key with no plaintext under
+	// it) and macOS would silently fail to auto-login the user. That
+	// path is hit on adopted pool hosts where Scaleway no longer
+	// surfaces the bootstrap password; the operator is expected to
+	// stage `/etc/kcpassword` + autoLoginUser by hand as part of the
+	// prep-script flow. Bail before doing damage.
+	if password == "" {
+		return nil
+	}
 	encoded := encodeKCPassword(password)
 	// Stage the binary kcpassword via base64 to avoid TTY issues.
 	//
@@ -482,6 +557,49 @@ for i in $(seq 1 30); do
   sleep 1
 done
 `, user, encoded)
+	return runCommand(ctx, client, script)
+}
+
+// disableIdleSleep stops macOS from tearing the user's Aqua session
+// down out from under tart-kubelet. Apple's Virtualization framework
+// needs the auto-login user to hold a live console session at the
+// moment of `tart run`; if the host idle-sleeps, the screensaver
+// triggers an auto-logout, or display-sleep flushes WindowServer,
+// the session goes away and every subsequent VM start fails with
+// `VZErrorDomain Code=-9 / Failed to create new HostKey` until
+// something kicks loginwindow again. tart-kubelet has a runtime
+// preflight that re-establishes the session on demand, but
+// preventing the teardown in the first place avoids the sub-30s
+// reanimation latency on every cold-start Pod and keeps the kubelet
+// from spamming sudo against loginwindow under load.
+//
+// Settings applied:
+//   - `pmset -a sleep 0 displaysleep 0 disksleep 0`: disable host
+//     idle sleep + display blank-out + disk spindown. These are
+//     `-a` (all power sources) because Mac mini servers are AC-only
+//     but we don't trust the default profile selection.
+//   - `com.apple.screensaver idleTime 0`: disable the screensaver.
+//     Without this, even with `displaysleep 0`, the screensaver
+//     timer fires and (depending on host policy) can trigger
+//     auto-logout.
+//   - `com.apple.screensaver askForPassword 0`: don't lock the
+//     screen. Locking destroys the GUI/Aqua session in the same way
+//     a logout does on Tahoe.
+//   - `com.apple.autologout.AutoLogOutDelay 0`: disable auto-logout
+//     after inactivity. This is the policy Apple uses for managed
+//     fleets; off-by-default on consumer Macs but Scaleway-baked
+//     macOS images sometimes ship with it on.
+//
+// Idempotent: every call writes the same values regardless of prior
+// state. Failures here are fatal because there's no point shipping
+// a host that will silently fall over an hour after bootstrap.
+func disableIdleSleep(ctx context.Context, client *ssh.Client) error {
+	script := `set -euo pipefail
+sudo pmset -a sleep 0 displaysleep 0 disksleep 0
+sudo defaults write /Library/Preferences/com.apple.screensaver idleTime -int 0
+sudo defaults write /Library/Preferences/com.apple.screensaver askForPassword -int 0
+sudo defaults write /Library/Preferences/.GlobalPreferences com.apple.autologout.AutoLogOutDelay -int 0
+`
 	return runCommand(ctx, client, script)
 }
 
@@ -532,6 +650,131 @@ sudo chmod 0755 /usr/local/bin/tart
 /usr/local/bin/tart --version
 `
 	return runCommandWithStdin(ctx, client, script, string(tarball))
+}
+
+// installVMEgressFirewall configures pfctl rules that drop egress
+// from the host's vmnet bridge to cluster-private destinations
+// (RFC1918 ranges) while allowing public-internet egress. Tart
+// VMs attach to vmnet (Apple's bridged-NAT networking for
+// Virtualization.framework) and inherit IPs in the 192.168.64.0/22
+// range; without these rules the customer-controlled workload
+// inside the VM can reach the K8s Pod/Service network, other
+// Mac minis on the same cluster's host network, and any RFC1918
+// peer the host can route to.
+//
+// The runner-namespace NetworkPolicy explicitly cannot help here:
+// vmnet bridges packets onto the host's L2 before they touch the
+// CNI's iptables chains, so Pod-level policies never see VM
+// traffic. The packet filter on the host is the only enforcement
+// point.
+//
+// What the rules allow:
+//   - vmnet→public internet egress (DNS, GitHub API, package
+//     registries) — the only thing the runner actually needs.
+//   - vmnet→vmnet local subnet (one-VM-per-host today; this is
+//     a no-op but avoids accidental breakage if we ever bin-pack).
+//
+// What the rules block:
+//   - vmnet→10.0.0.0/8 (typical Pod/Service CIDRs, K8s control
+//     plane, intra-VPC peers).
+//   - vmnet→172.16.0.0/12 (alt Pod CIDR space, some VPNs).
+//   - vmnet→169.254.0.0/16 (cloud metadata endpoints — VMs must
+//     never reach the host's IMDS, that's a credential leak).
+//
+// Why 192.168.0.0/16 isn't blocked wholesale: vmnet itself is on
+// 192.168.x. Blocking the entire /16 would also drop intra-VM
+// traffic and SSH from the operator network if that ever lives
+// on 192.168. Since cluster CIDRs in production are 10.x, the
+// blocklist is precise rather than maximal.
+//
+// Idempotent: writes the same anchor file on every call. Enables
+// pf if not already enabled. The launchd plist re-loads the
+// rules on every boot so a reboot doesn't drop the filter.
+func installVMEgressFirewall(ctx context.Context, client *ssh.Client) error {
+	script := `set -euo pipefail
+
+# Idempotent install of the pf anchor file. The anchor namespaces
+# our rules under "tuist.runners" so we don't collide with any
+# operator-added entries in /etc/pf.conf.
+sudo mkdir -p /etc/pf.anchors
+sudo tee /etc/pf.anchors/tuist.runners >/dev/null <<'PFCONF'
+# Tuist runner VM egress filter.
+#
+# vmnet places Tart VMs on 192.168.64.0/22 (Apple's documented
+# bridged-NAT range). Block customer-workload egress from those
+# source IPs to cluster-private destinations; allow everything
+# else (public internet is the workload's actual need).
+#
+# IMPORTANT: rules are evaluated last-match-wins; the explicit
+# block lines run AFTER the default pass via the 'quick' keyword.
+
+table <vm_sources> persist { 192.168.64.0/22 }
+table <blocked_dst> persist { 10.0.0.0/8, 172.16.0.0/12, 169.254.0.0/16 }
+
+# Drop VM→private destinations at the host edge.
+block drop out quick from <vm_sources> to <blocked_dst>
+
+# Belt-and-suspenders: explicitly block the AWS/cloud metadata
+# IP even on hosts where the routing table wouldn't normally
+# carry it. A static rule survives any future routing changes
+# from the cluster operator.
+block drop out quick from <vm_sources> to 169.254.169.254
+PFCONF
+
+# Splice the anchor into /etc/pf.conf if it isn't already there.
+# /etc/pf.conf is editable per-host (vs. /System/Library which is
+# SIP-protected); macOS's default pf.conf carries a marker line
+# we anchor our insert against.
+if ! sudo grep -q "anchor \"tuist.runners\"" /etc/pf.conf; then
+  sudo tee -a /etc/pf.conf >/dev/null <<'PFCONFENTRY'
+
+# Tuist runner VM egress filter — see /etc/pf.anchors/tuist.runners
+anchor "tuist.runners"
+load anchor "tuist.runners" from "/etc/pf.anchors/tuist.runners"
+PFCONFENTRY
+fi
+
+# Validate the ruleset before activating. -nf parses without
+# loading; if this fails we want a clear bootstrap error rather
+# than a half-loaded filter.
+sudo pfctl -nf /etc/pf.conf
+
+# Enable pf (no-op if already enabled) and reload the ruleset.
+# -E enables and pins the token so a subsequent disable from
+# elsewhere doesn't silently drop our rules; -f reloads.
+sudo pfctl -E 2>/dev/null || true
+sudo pfctl -f /etc/pf.conf
+
+# launchd job to re-arm pf on every boot. macOS doesn't persist
+# the -E enable across reboots in all configurations; an
+# explicit RunAtLoad agent makes the filter durable.
+sudo tee /Library/LaunchDaemons/dev.tuist.pfctl-runners.plist >/dev/null <<'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>dev.tuist.pfctl-runners</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/sbin/pfctl</string>
+    <string>-f</string>
+    <string>/etc/pf.conf</string>
+    <string>-E</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>StandardErrorPath</key>
+  <string>/var/log/tuist-pfctl-runners.log</string>
+</dict>
+</plist>
+PLIST
+sudo chown root:wheel /Library/LaunchDaemons/dev.tuist.pfctl-runners.plist
+sudo chmod 0644 /Library/LaunchDaemons/dev.tuist.pfctl-runners.plist
+sudo launchctl bootout system/dev.tuist.pfctl-runners 2>/dev/null || true
+sudo launchctl bootstrap system /Library/LaunchDaemons/dev.tuist.pfctl-runners.plist
+`
+	return runCommand(ctx, client, script)
 }
 
 // === SSH helpers ===========================================================

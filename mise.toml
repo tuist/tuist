@@ -1,6 +1,8 @@
 [tools]
     aube = "1.6.2"
-    tuist = "4.191.8"
+    # Temporarily pinned to 4.192.4 until the SwiftPM deadlock from PR #10729 is released.
+    # See https://github.com/tuist/tuist/issues/10754.
+    tuist = "4.194.0"
     swiftlint = "0.59.1"
     "elixir" = "1.19.5"
     "erlang" = "28.4.3"
@@ -17,6 +19,8 @@
     java = "21"
     gradle = "8.12"
     caddy = "2.11.2"
+    "github:tuist/blick" = "0.8.0"
+    "npm:opencode-ai" = "1.14.39"
 
 [hooks]
     postinstall = "{{config_root}}/mise/tasks/install.sh"
@@ -29,6 +33,7 @@
     # Elixir recommends half of the number of cores: https://elixir-lang.org/blog/2025/10/16/elixir-v1-19-0-released/
     MIX_OS_DEPS_COMPILE_PARTITION_COUNT=4
     TUIST_INSPECT_TEST_MODE = "remote"
+    TUIST_FEATURE_FLAG_KURA = "1"
     TUIST_HOSTED = "1"
     TUIST_S3_VIRTUAL_HOST = "1"
     TUIST_S3_BUCKET_AS_HOST = "1"

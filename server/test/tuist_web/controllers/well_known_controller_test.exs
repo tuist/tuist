@@ -129,6 +129,18 @@ defmodule TuistWeb.WellKnownControllerTest do
       assert get_resp_header(conn, "content-type") == ["text/plain; charset=utf-8"]
     end
 
+    test "returns the OpenAI Apps challenge token when the Accept header is text/plain", %{conn: conn} do
+      expect(Environment, :tuist_hosted?, fn -> true end)
+
+      conn =
+        conn
+        |> put_req_header("accept", "text/plain")
+        |> get("/.well-known/openai-apps-challenge")
+
+      assert response(conn, 200) == "YoBqoSMoA-RuEX8RMuCKrLnPCXDYUsYtKg-yjFBHmDQ"
+      assert get_resp_header(conn, "content-type") == ["text/plain; charset=utf-8"]
+    end
+
     test "returns not found for on-premise deployments", %{conn: conn} do
       expect(Environment, :tuist_hosted?, fn -> false end)
 

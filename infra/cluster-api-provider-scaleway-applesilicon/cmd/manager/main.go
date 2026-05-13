@@ -67,6 +67,11 @@ func main() {
 		tartKubeletHostMemory        int
 		tartKubeletMaxPods           int
 		tartKubeletMaxUpdateAttempts int
+
+		machineMaxConcurrentReconciles int
+
+		fleetSpreadDeployment string
+		fleetSpreadNamespace  string
 	)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "Prometheus metrics endpoint")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "Liveness/readiness probe endpoint")
@@ -100,6 +105,32 @@ func main() {
 	flag.IntVar(&tartKubeletMaxUpdateAttempts, "tartkubelet-max-update-attempts", 5,
 		"Drift-loop retries before transitioning the CR to a terminal Failed state. "+
 			"Set to 0 to disable the cap (not recommended for production).")
+	flag.IntVar(&machineMaxConcurrentReconciles, "machine-max-concurrent-reconciles", 4,
+		"How many ScalewayAppleSiliconMachine reconciles run in parallel. The "+
+			"default of 1 (controller-runtime's default) serializes the whole "+
+			"fleet behind one worker — first-time bring-up of N Mac minis takes "+
+			"N × bootstrap time because each CreateServer + SSH bootstrap "+
+			"blocks the worker for ~50 min. Bumping this lets distinct machines "+
+			"provision in parallel; reconciles for the same machine remain "+
+			"serialized by controller-runtime's per-key locking. 4 covers the "+
+			"production fleet size with headroom; raise if fleets grow.")
+	flag.StringVar(&fleetSpreadDeployment, "fleet-spread-deployment",
+		envOrDefault("CAPI_FLEET_SPREAD_DEPLOYMENT", ""),
+		"Deployment name to roll on fleet-shape change (typically "+
+			"the xcresult-processor). When set, the operator stamps a hash of "+
+			"the Ready Mac mini set onto the Deployment's pod template "+
+			"annotation, forcing a new ReplicaSet whenever the fleet grows or "+
+			"shrinks — the rolling update then redistributes Pods across hosts "+
+			"via the Deployment's existing topologySpreadConstraints. The "+
+			"scheduler doesn't rebalance running Pods on its own, so without "+
+			"this we'd need a manual `kubectl rollout restart` every time a "+
+			"Mac mini joins or leaves. Empty disables the controller (OSS "+
+			"deployments without a workload to spread).")
+	flag.StringVar(&fleetSpreadNamespace, "fleet-spread-namespace",
+		envOrDefault("CAPI_FLEET_SPREAD_NAMESPACE", ""),
+		"Namespace of the Deployment named by --fleet-spread-deployment. "+
+			"Defaults to --secrets-namespace, which matches the chart's "+
+			"single-namespace install layout.")
 
 	opts := zap.Options{Development: false}
 	opts.BindFlags(flag.CommandLine)
@@ -187,9 +218,28 @@ func main() {
 		TartKubeletHostMemoryMB:      tartKubeletHostMemory,
 		TartKubeletMaxPods:           tartKubeletMaxPods,
 		TartKubeletMaxUpdateAttempts: int32(tartKubeletMaxUpdateAttempts),
+		MaxConcurrentReconciles:      machineMaxConcurrentReconciles,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup MachineReconciler")
 		os.Exit(1)
+	}
+
+	if fleetSpreadDeployment != "" {
+		ns := fleetSpreadNamespace
+		if ns == "" {
+			ns = secretsNamespace
+		}
+		if err := (&controllers.FleetSpreadReconciler{
+			Client:         mgr.GetClient(),
+			APIReader:      mgr.GetAPIReader(),
+			DeploymentName: fleetSpreadDeployment,
+			Namespace:      ns,
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "setup FleetSpreadReconciler")
+			os.Exit(1)
+		}
+		setupLog.Info("fleet-spread controller enabled",
+			"deployment", fleetSpreadDeployment, "namespace", ns)
 	}
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {

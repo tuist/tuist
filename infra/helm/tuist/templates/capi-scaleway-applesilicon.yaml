@@ -1,4 +1,4 @@
-{{- if .Values.macosFleet.enabled }}
+{{- if and .Values.capi.enabled .Values.macosFleet.enabled }}
 {{- $name := include "tuist.componentName" (dict "root" . "component" "capi-scaleway-applesilicon") }}
 ---
 # Cluster API infrastructure provider for Scaleway Apple Silicon Mac
@@ -38,6 +38,16 @@ rules:
   - apiGroups: ["cluster.x-k8s.io"]
     resources: [machines, machinesets, machinedeployments, clusters]
     verbs: [get, list, watch]
+  # The SASC reconciler marks the parent Cluster's
+  # ControlPlaneInitialized condition True (externally-managed
+  # control plane: Mac minis join an existing Hetzner cluster, so
+  # there is no CAPI control-plane Machine that could ever set
+  # this otherwise — the gate stays False forever and CAPI core
+  # never creates ScalewayAppleSiliconMachines). The condition
+  # lives under `clusters/status`, so we need patch there too.
+  - apiGroups: ["cluster.x-k8s.io"]
+    resources: [clusters/status]
+    verbs: [get, update, patch]
   - apiGroups: [""]
     # `delete` is needed at Machine teardown so the Node object the
     # tart-kubelet registered doesn't linger as NotReady after the
@@ -97,6 +107,50 @@ rules:
     resources: [configmaps]
     resourceNames: [cluster-info]
     verbs: [get]
+{{- if .Values.xcresultProcessor.enabled }}
+---
+# Namespaced Role for the fleet-spread controller's one operation:
+# patching the xcresult-processor Deployment's pod-template
+# annotation to roll a new ReplicaSet on fleet-shape change. Done
+# as a Role (not a ClusterRole rule with resourceNames) because
+# RBAC's resourceNames matches across all namespaces — a
+# ClusterRole granting `get,patch` on `deployments/xcresult-
+# processor` would let the operator patch any same-named Deployment
+# anywhere in the cluster, not just the one in this release. A
+# namespace-scoped Role caps the blast radius at the release
+# namespace where the operator actually needs to operate.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $name }}-fleet-spread
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: capi-scaleway-applesilicon
+rules:
+  - apiGroups: ["apps"]
+    resources: [deployments]
+    resourceNames:
+      - {{ include "tuist.componentName" (dict "root" . "component" "xcresult-processor") }}
+    verbs: [get, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $name }}-fleet-spread
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: capi-scaleway-applesilicon
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $name }}-fleet-spread
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -156,6 +210,16 @@ spec:
             - --tartkubelet-host-cpu={{ .Values.macosFleet.tartKubelet.hostCPU | default 8 }}
             - --tartkubelet-host-memory-mb={{ .Values.macosFleet.tartKubelet.hostMemoryMB | default 16384 }}
             - --tartkubelet-max-pods={{ .Values.macosFleet.tartKubelet.maxPods | default 3 }}
+            {{- if .Values.xcresultProcessor.enabled }}
+            # Auto-roll the xcresult-processor Deployment whenever the
+            # set of Ready Mac minis changes, so Pods spread across new
+            # hosts without a manual `kubectl rollout restart`. The
+            # Deployment's existing topologySpreadConstraints handle
+            # the placement; this just forces a new ReplicaSet on
+            # fleet-shape change. See controllers/fleetspread_controller.go.
+            - --fleet-spread-deployment={{ include "tuist.componentName" (dict "root" . "component" "xcresult-processor") }}
+            - --fleet-spread-namespace={{ .Release.Namespace }}
+            {{- end }}
           env:
             # Scaleway credentials. ESO syncs them from 1Password into
             # this Secret automatically (see

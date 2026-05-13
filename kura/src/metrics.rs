@@ -64,6 +64,7 @@ pub struct Metrics {
     manifest_index_rebuild_duration: Histogram,
     outbox_messages: Gauge,
     multipart_uploads: Gauge,
+    tmp_dir_bytes: Gauge,
     discovered_peer_nodes: Gauge,
     bootstrap_known_peers: Gauge,
     bootstrap_completed_peers: Gauge,
@@ -176,6 +177,7 @@ impl Metrics {
         let manifest_index_rebuild_duration = Histogram::new(exponential_buckets(0.0005, 2.0, 16));
         let outbox_messages = Gauge::default();
         let multipart_uploads = Gauge::default();
+        let tmp_dir_bytes = Gauge::default();
         let discovered_peer_nodes = Gauge::default();
         let bootstrap_known_peers = Gauge::default();
         let bootstrap_completed_peers = Gauge::default();
@@ -430,6 +432,11 @@ impl Metrics {
             multipart_uploads.clone(),
         );
         registry.register(
+            "kura_tmp_dir_bytes",
+            "Bytes currently held under the staging tmp directory",
+            tmp_dir_bytes.clone(),
+        );
+        registry.register(
             "kura_discovered_peer_nodes",
             "Peer nodes currently discovered through health checks and DNS",
             discovered_peer_nodes.clone(),
@@ -663,6 +670,7 @@ impl Metrics {
             manifest_index_rebuild_duration,
             outbox_messages,
             multipart_uploads,
+            tmp_dir_bytes,
             discovered_peer_nodes,
             bootstrap_known_peers,
             bootstrap_completed_peers,
@@ -990,6 +998,10 @@ impl Metrics {
 
     pub fn update_multipart_uploads(&self, count: usize) {
         self.multipart_uploads.set(count as i64);
+    }
+
+    pub fn update_tmp_dir_bytes(&self, bytes: u64) {
+        self.tmp_dir_bytes.set(bytes as i64);
     }
 
     pub fn update_discovered_peer_nodes(&self, count: usize) {
@@ -1491,6 +1503,7 @@ mod tests {
         assert!(rendered.contains("kura_manifest_index_rebuilds_total"));
         assert!(rendered.contains("kura_outbox_messages"));
         assert!(rendered.contains("kura_multipart_uploads"));
+        assert!(rendered.contains("kura_tmp_dir_bytes"));
         assert!(rendered.contains("kura_discovered_peer_nodes"));
         assert!(rendered.contains("kura_bootstrap_known_peers"));
         assert!(rendered.contains("kura_bootstrap_completed_peers"));

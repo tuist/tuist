@@ -4,11 +4,9 @@ defmodule TuistWeb.OpsAccountsLive do
   use Noora
 
   import Ecto.Query, only: [from: 2]
+  import TuistWeb.OpsAccountHelpers
 
-  alias Phoenix.LiveView.JS
   alias Tuist.Accounts
-  alias Tuist.Accounts.Account
-  alias Tuist.Billing
   alias Tuist.Billing.Subscription
   alias Tuist.Repo
   alias TuistWeb.Utilities.Query
@@ -17,11 +15,7 @@ defmodule TuistWeb.OpsAccountsLive do
 
   @impl true
   def mount(_params, _session, socket) do
-    {:ok,
-     socket
-     |> assign(:head_title, "Accounts · Tuist Ops")
-     |> assign(:upgrade_target_account, nil)
-     |> assign(:upgrade_target_customer, nil)}
+    {:ok, assign(socket, :head_title, "#{dgettext("dashboard", "Accounts")} · Tuist Ops")}
   end
 
   @impl true
@@ -73,149 +67,6 @@ defmodule TuistWeb.OpsAccountsLive do
     {:noreply, push_patch(socket, to: ~p"/ops/accounts?#{params}")}
   end
 
-  @impl true
-  def handle_event("initiate_enterprise_upgrade", %{"id" => id}, socket) do
-    case Accounts.get_account_by_id(String.to_integer(id)) do
-      {:ok, account} ->
-        account = Accounts.create_customer_when_absent(account)
-        customer = fetch_stripe_customer(account.customer_id)
-
-        if customer_has_billing_details?(customer) do
-          # Customer already has name/email/address on Stripe — upgrade in
-          # one click without prompting ops to re-enter anything.
-          {:ok, _sub} = Billing.upgrade_to_enterprise(account, %{cadence: "monthly"})
-
-          {:noreply,
-           socket
-           |> put_flash(
-             :info,
-             "#{account.name} upgraded to Enterprise. Stripe will send an invoice for the first period."
-           )
-           |> push_patch(to: ~p"/ops/accounts?#{socket.assigns.query_params}")}
-        else
-          # Missing billing details — point the shared modal at this account
-          # and open it client-side. The customer struct (if any) is passed
-          # along so partially-filled details pre-populate the form.
-          {:noreply,
-           socket
-           |> assign(:upgrade_target_account, account)
-           |> assign(:upgrade_target_customer, customer)
-           |> push_event("open-modal", %{id: "enterprise-modal"})}
-        end
-
-      {:error, :not_found} ->
-        {:noreply, put_flash(socket, :error, "Account not found.")}
-    end
-  end
-
-  @impl true
-  def handle_event("submit_enterprise_upgrade", params, socket) do
-    case Accounts.get_account_by_id(String.to_integer(params["account_id"])) do
-      {:ok, account} ->
-        {:ok, _sub} = Billing.upgrade_to_enterprise(account, parse_upgrade_params(params))
-
-        {:noreply,
-         socket
-         |> assign(:upgrade_target_account, nil)
-         |> assign(:upgrade_target_customer, nil)
-         |> put_flash(
-           :info,
-           "#{account.name} upgraded to Enterprise. Stripe will send an invoice for the first period."
-         )
-         |> push_event("close-modal", %{id: "enterprise-modal"})
-         |> push_patch(to: ~p"/ops/accounts?#{socket.assigns.query_params}")}
-
-      {:error, :not_found} ->
-        {:noreply, put_flash(socket, :error, "Account not found.")}
-    end
-  end
-
-  @impl true
-  def handle_event("cancel_plan", %{"id" => id}, socket) do
-    with {:ok, account} <- Accounts.get_account_by_id(String.to_integer(id)),
-         %_{} = subscription <- Billing.get_current_active_subscription(account),
-         {:ok, _} <- Billing.cancel_subscription_at_period_end(subscription) do
-      {:noreply,
-       socket
-       |> put_flash(:info, "#{account.name} plan set to cancel at the end of the current period.")
-       |> push_patch(to: ~p"/ops/accounts?#{socket.assigns.query_params}")}
-    else
-      nil -> {:noreply, put_flash(socket, :error, "No active subscription to cancel.")}
-      {:error, :not_found} -> {:noreply, put_flash(socket, :error, "Account not found.")}
-      {:error, reason} -> {:noreply, put_flash(socket, :error, "Cancel failed: #{inspect(reason)}")}
-    end
-  end
-
-  @impl true
-  def handle_event("close_enterprise_modal", _params, socket) do
-    # Noora's modal dismiss (X) fires this as a plain `phx-click` because
-    # `on_dismiss` is a string. Close the modal client-side and clear the
-    # assigns so the modal node leaves the DOM.
-    {:noreply,
-     socket
-     |> assign(:upgrade_target_account, nil)
-     |> assign(:upgrade_target_customer, nil)
-     |> push_event("close-modal", %{id: "enterprise-modal"})}
-  end
-
-  # Fetches the Stripe customer for pre-filling the upgrade form. Returns
-  # an empty map if the account has no customer id yet or the API call fails.
-  defp fetch_stripe_customer(nil), do: %{}
-
-  defp fetch_stripe_customer(customer_id) do
-    case Stripe.Customer.retrieve(customer_id) do
-      {:ok, customer} -> customer
-      _ -> %{}
-    end
-  end
-
-  # Required to start an invoice-billed Enterprise subscription on Stripe.
-  defp customer_has_billing_details?(%{address: %{} = address} = customer) do
-    Enum.all?(
-      [
-        Map.get(customer, :name),
-        Map.get(customer, :email),
-        address.line1,
-        address.city,
-        address.postal_code,
-        address.country
-      ],
-      &(is_binary(&1) and &1 != "")
-    )
-  end
-
-  defp customer_has_billing_details?(_), do: false
-
-  # Pre-fill helpers — look up a field from the Stripe customer first, then
-  # fall back to whatever we have locally.
-  def prefill(customer, field, fallback \\ "")
-  def prefill(nil, _field, fallback), do: fallback
-  def prefill(%{} = customer, field, fallback), do: Map.get(customer, field) || fallback
-
-  def prefill_address(nil, _field), do: ""
-
-  def prefill_address(%{address: %{} = address}, field) do
-    Map.get(address, field) || ""
-  end
-
-  def prefill_address(_, _), do: ""
-
-  defp parse_upgrade_params(params) do
-    %{
-      name: params["name"],
-      billing_email: params["billing_email"],
-      cadence: params["cadence"] || "monthly",
-      address: %{
-        line1: params["address_line1"],
-        line2: params["address_line2"],
-        city: params["address_city"],
-        state: params["address_state"],
-        postal_code: params["address_postal_code"],
-        country: String.upcase(params["address_country"] || "")
-      }
-    }
-  end
-
   defp parse_page(nil), do: 1
 
   defp parse_page(value) do
@@ -224,104 +75,4 @@ defmodule TuistWeb.OpsAccountsLive do
       _ -> 1
     end
   end
-
-  def account_type(%Account{organization_id: organization_id}) when not is_nil(organization_id), do: "Organization"
-  def account_type(%Account{user_id: user_id}) when not is_nil(user_id), do: "User"
-  def account_type(_), do: "Unknown"
-
-  def current_plan(%Account{subscriptions: [%{plan: plan} | _]}), do: plan
-  def current_plan(_), do: :air
-
-  def plan_label(:air), do: "Air"
-  def plan_label(:pro), do: "Pro"
-  def plan_label(:enterprise), do: "Enterprise"
-  def plan_label(:open_source), do: "Open Source"
-  def plan_label(_), do: "Unknown"
-
-  def plan_color(:air), do: "neutral"
-  def plan_color(:pro), do: "primary"
-  def plan_color(:enterprise), do: "success"
-  def plan_color(:open_source), do: "information"
-  def plan_color(_), do: "neutral"
-
-  # `cancel_at_period_end` takes priority — a subscription flagged for
-  # cancellation still reports `status: "active"` until the period ends.
-  # Accounts without a subscription are on the Air plan, which is always
-  # active (there's nothing to cancel).
-  def subscription_status(%Account{subscriptions: [%{cancel_at_period_end: true} | _]}), do: :cancelled
-  def subscription_status(%Account{subscriptions: [%{status: "trialing"} | _]}), do: :trialing
-  def subscription_status(_), do: :active
-
-  def status_label(:active), do: "Active"
-  def status_label(:trialing), do: "Trialing"
-  def status_label(:cancelled), do: "Cancelled"
-
-  def status_color(:active), do: "success"
-  def status_color(:trialing), do: "information"
-  def status_color(:cancelled), do: "warning"
-
-  # ISO 3166-1 alpha-2 codes for the countries most likely to appear on
-  # Enterprise invoices. Extend as needed. Sorted alphabetically by name.
-  @countries [
-    {"AR", "Argentina"},
-    {"AU", "Australia"},
-    {"AT", "Austria"},
-    {"BE", "Belgium"},
-    {"BR", "Brazil"},
-    {"BG", "Bulgaria"},
-    {"CA", "Canada"},
-    {"CL", "Chile"},
-    {"CN", "China"},
-    {"CO", "Colombia"},
-    {"HR", "Croatia"},
-    {"CY", "Cyprus"},
-    {"CZ", "Czechia"},
-    {"DK", "Denmark"},
-    {"EE", "Estonia"},
-    {"FI", "Finland"},
-    {"FR", "France"},
-    {"DE", "Germany"},
-    {"GR", "Greece"},
-    {"HK", "Hong Kong"},
-    {"HU", "Hungary"},
-    {"IS", "Iceland"},
-    {"IN", "India"},
-    {"ID", "Indonesia"},
-    {"IE", "Ireland"},
-    {"IL", "Israel"},
-    {"IT", "Italy"},
-    {"JP", "Japan"},
-    {"LV", "Latvia"},
-    {"LT", "Lithuania"},
-    {"LU", "Luxembourg"},
-    {"MY", "Malaysia"},
-    {"MT", "Malta"},
-    {"MX", "Mexico"},
-    {"NL", "Netherlands"},
-    {"NZ", "New Zealand"},
-    {"NO", "Norway"},
-    {"PH", "Philippines"},
-    {"PL", "Poland"},
-    {"PT", "Portugal"},
-    {"RO", "Romania"},
-    {"SG", "Singapore"},
-    {"SK", "Slovakia"},
-    {"SI", "Slovenia"},
-    {"ZA", "South Africa"},
-    {"KR", "South Korea"},
-    {"ES", "Spain"},
-    {"SE", "Sweden"},
-    {"CH", "Switzerland"},
-    {"TW", "Taiwan"},
-    {"TH", "Thailand"},
-    {"TR", "Turkey"},
-    {"UA", "Ukraine"},
-    {"AE", "United Arab Emirates"},
-    {"GB", "United Kingdom"},
-    {"US", "United States"},
-    {"UY", "Uruguay"},
-    {"VN", "Vietnam"}
-  ]
-
-  def countries, do: @countries
 end

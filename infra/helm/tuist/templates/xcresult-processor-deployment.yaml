@@ -23,29 +23,54 @@ spec:
         {{- with .Values.global.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
+      annotations:
+        # tart-kubelet honours these by spinning up a host-side HTTP
+        # reverse proxy on <node_ip>:9091 → <vm_ip>:9091 for the Tart
+        # VM and rewriting Pod.Status.PodIP to the Mac mini's host
+        # IP, so the in-cluster Linux Alloy DaemonSet's annotation
+        # autodiscovery works without a route into the VM's NAT-
+        # private network. See infra/tart-kubelet/internal/podagent.
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9091"
+        # Pairs with the metricsPortName mapping in
+        # helm/k8s-monitoring/values.yaml so Alloy's keepequal filter
+        # only retains the metrics target — keeps targets stable when
+        # the container declares more than one named port.
+        prometheus.io/port-name: metrics
     spec:
-      # Schedule onto a real macOS node — a Mac mini running
-      # tart-kubelet. The taint `tuist.dev/macos=true:NoSchedule` is
-      # set by tart-kubelet at registration so stray Linux Pods don't
+      # Schedule onto a Mac mini in the xcresult fleet specifically —
+      # not the customer-runner fleet. tart-kubelet stamps each Node
+      # with `tuist.dev/fleet=<fleetName>` from the --fleet flag the
+      # CAPI provider's bootstrap step renders into the launchd
+      # plist. Pinning the nodeSelector to the xcresult fleet's name
+      # is the load-bearing isolation primitive: customer-runner
+      # Pods (which live in the tuist-runners namespace and select
+      # on `tuist.dev/fleet=<runnersFleetName>`) physically can't
+      # land on the same Mac mini, so a runaway customer build can't
+      # preempt the xcresult queue consumer.
+      #
+      # The taint `tuist.dev/macos=true:NoSchedule` is set by
+      # tart-kubelet at Node registration so stray Linux Pods don't
       # land here.
       nodeSelector:
         kubernetes.io/os: darwin
         tuist.dev/runtime: tart
+        tuist.dev/fleet: {{ include "tuist.macosFleetName" . | quote }}
       tolerations:
         - key: tuist.dev/macos
           operator: Exists
           effect: NoSchedule
       # When replicaCount > 1, force replicas onto distinct hosts.
-      # Without this, two replicas can land on the same Mac mini and a
-      # single host reboot drops the queue consumer count to zero.
-      # ScheduleAnyway (rather than DoNotSchedule) so a fleet that
-      # temporarily can't satisfy the spread (e.g. one mini being
-      # replaced) still schedules — burst capacity beats strict
-      # anti-collocation.
+      # DoNotSchedule (not ScheduleAnyway) here because two scrape-
+      # opted-in Pods on the same Mac mini would race to bind the
+      # host-side metrics forwarder on hostPort 9091 — see
+      # infra/tart-kubelet/internal/podagent. Spread + hostPort + the
+      # rollout strategy below all lean on the same invariant: at
+      # most one xcresult-processor Pod per Node at any moment.
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
-          whenUnsatisfiable: ScheduleAnyway
+          whenUnsatisfiable: DoNotSchedule
           labelSelector:
             matchLabels:
               {{- include "tuist.componentLabels" (dict "root" . "component" "xcresult-processor") | nindent 14 }}
@@ -59,6 +84,21 @@ spec:
         - name: xcresult-processor
           image: "{{ .Values.xcresultProcessor.image.repository }}:{{ .Values.xcresultProcessor.image.tag | default "latest" }}"
           imagePullPolicy: {{ .Values.xcresultProcessor.image.pullPolicy }}
+          # Declared so the kube-scheduler enforces hostPort
+          # uniqueness across Pods on the same Mac mini Node — two
+          # xcresult-processor Pods can't land on the same host
+          # because the second wouldn't be able to reserve hostPort
+          # 9091. tart-kubelet doesn't implement port forwarding for
+          # containerPort itself (Pods talk to the host via NAT, not
+          # via kube-proxy); the hostPort declaration is purely a
+          # scheduler constraint here, paired with the Deployment
+          # rollout strategy below (maxSurge=0) so a deploy doesn't
+          # try to surge a Pod onto an already-occupied host.
+          ports:
+            - name: metrics
+              containerPort: 9091
+              hostPort: 9091
+              protocol: TCP
           env:
             # Boot mode: queue-only consumer for :process_xcresult.
             # Tuist.Environment.mode/0 reads TUIST_MODE (collapse-

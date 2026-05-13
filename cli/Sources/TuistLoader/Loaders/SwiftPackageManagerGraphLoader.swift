@@ -5,6 +5,7 @@ import ProjectDescription
 import TSCUtility
 import TuistConstants
 import TuistCore
+import TuistEnvironment
 import TuistLogging
 import TuistSupport
 import XcodeGraph
@@ -49,7 +50,8 @@ public protocol SwiftPackageManagerGraphLoading {
     func load(
         packagePath: AbsolutePath,
         packageSettings: TuistCore.PackageSettings,
-        disableSandbox: Bool
+        disableSandbox: Bool,
+        swiftPackageManagerArguments: [String]
     ) async throws -> (TuistLoader.DependenciesGraph, [LintingIssue])
 }
 
@@ -59,41 +61,70 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
     private let manifestLoader: ManifestLoading
     private let fileSystem: FileSysteming
     private let contentHasher: ContentHashing
+    private let swiftPackageManagerLock: SwiftPackageManagerLock
+    private let swiftPackageManagerScratchDirectoryLocator: SwiftPackageManagerScratchDirectoryLocator
 
     public init(
         swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(),
         packageInfoMapper: PackageInfoMapping = PackageInfoMapper(),
         manifestLoader: ManifestLoading = ManifestLoader.current,
         fileSystem: FileSysteming = FileSystem(),
-        contentHasher: ContentHashing = ContentHasher()
+        contentHasher: ContentHashing = ContentHasher(),
+        swiftPackageManagerLock: SwiftPackageManagerLock = SwiftPackageManagerLock(),
+        swiftPackageManagerScratchDirectoryLocator: SwiftPackageManagerScratchDirectoryLocator =
+            SwiftPackageManagerScratchDirectoryLocator()
     ) {
         self.swiftPackageManagerController = swiftPackageManagerController
         self.packageInfoMapper = packageInfoMapper
         self.manifestLoader = manifestLoader
         self.fileSystem = fileSystem
         self.contentHasher = contentHasher
+        self.swiftPackageManagerLock = swiftPackageManagerLock
+        self.swiftPackageManagerScratchDirectoryLocator = swiftPackageManagerScratchDirectoryLocator
     }
 
-    // swiftlint:disable:next function_body_length
     public func load(
         packagePath: AbsolutePath,
         packageSettings: TuistCore.PackageSettings,
-        disableSandbox: Bool
+        disableSandbox: Bool,
+        swiftPackageManagerArguments: [String] = []
     ) async throws -> (TuistLoader.DependenciesGraph, [LintingIssue]) {
-        let path = packagePath.parentDirectory.appending(
-            component: Constants.SwiftPackageManager.packageBuildDirectoryName
+        let scratchDirectory = try await swiftPackageManagerScratchDirectory(
+            packagePath: packagePath.parentDirectory,
+            arguments: swiftPackageManagerArguments
         )
+        // The lock is held only while we read SwiftPM's state files directly.
+        // Subprocess invocations of `swift package` happen outside the lock, since each
+        // subprocess acquires its own scratch-directory lock — holding our lock around
+        // a `swift package` invocation on the same scratch directory deadlocks.
+        let workspaceState = try await swiftPackageManagerLock
+            .withLock(scratchDirectory: scratchDirectory) {
+                let workspacePath = scratchDirectory.appending(component: "workspace-state.json")
+                if try await !fileSystem.exists(workspacePath) {
+                    throw SwiftPackageManagerGraphGeneratorError.installRequired
+                }
+                return try JSONDecoder()
+                    .decode(SwiftPackageManagerWorkspaceState.self, from: try await fileSystem.readFile(at: workspacePath))
+            }
+        return try await loadUnsafe(
+            packagePath: packagePath,
+            packageSettings: packageSettings,
+            disableSandbox: disableSandbox,
+            scratchDirectory: scratchDirectory,
+            workspaceState: workspaceState
+        )
+    }
+
+    // swiftlint:disable:next function_body_length
+    private func loadUnsafe(
+        packagePath: AbsolutePath,
+        packageSettings: TuistCore.PackageSettings,
+        disableSandbox: Bool,
+        scratchDirectory: AbsolutePath,
+        workspaceState: SwiftPackageManagerWorkspaceState
+    ) async throws -> (TuistLoader.DependenciesGraph, [LintingIssue]) {
+        let path = scratchDirectory
         let checkoutsFolder = path.appending(component: "checkouts")
-        let workspacePath = path.appending(component: "workspace-state.json")
-
-        if try await !fileSystem.exists(workspacePath) {
-            throw SwiftPackageManagerGraphGeneratorError.installRequired
-        }
-
-        let workspaceState = try JSONDecoder()
-            .decode(SwiftPackageManagerWorkspaceState.self, from: try await fileSystem.readFile(at: workspacePath))
-
-        let outdatedDependencyIssues = try await validatePackageResolved(at: packagePath.parentDirectory)
 
         let rootPackage = try await manifestLoader.loadPackage(at: packagePath.parentDirectory, disableSandbox: disableSandbox)
 
@@ -218,6 +249,7 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
 
         let externalDependencies = try await packageInfoMapper.resolveExternalDependencies(
             path: path,
+            packagePath: packagePath.parentDirectory,
             packageInfos: packageInfoDictionary,
             packageToFolder: packageToFolder,
             packageToTargetsToArtifactPaths: packageToTargetsToArtifactPaths,
@@ -253,9 +285,17 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
             .reduce(into: [:]) { result, item in
                 let (packageInfo, hash, projectManifest) = item
                 if let projectManifest {
+                    let swiftPackageManagerScratchDirectory: Path? = if Self.isLocalDependencyKind(packageInfo.kind) {
+                        nil
+                    } else {
+                        SwiftPackageManagerPaths
+                            .scratchDirectory(containingCheckout: packageInfo.folder)
+                            .map { Path.path($0.pathString) }
+                    }
                     result[.path(packageInfo.folder.pathString)] = DependenciesGraph.ExternalProject(
                         manifest: projectManifest,
-                        hash: hash
+                        hash: hash,
+                        swiftPackageManagerScratchDirectory: swiftPackageManagerScratchDirectory
                     )
                 }
             }
@@ -265,7 +305,7 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
                 externalDependencies: externalDependencies,
                 externalProjects: externalProjects
             ),
-            outdatedDependencyIssues
+            []
         )
     }
 
@@ -366,35 +406,16 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
         }
     }
 
-    private func validatePackageResolved(at path: AbsolutePath) async throws -> [LintingIssue] {
-        let savedPackageResolvedPath = path.appending(components: [
-            Constants.SwiftPackageManager.packageBuildDirectoryName,
-            Constants.DerivedDirectory.name,
-            Constants.SwiftPackageManager.packageResolvedName,
-        ])
-        let savedData: Data?
-        if try await fileSystem.exists(savedPackageResolvedPath) {
-            savedData = try await fileSystem.readFile(at: savedPackageResolvedPath)
-        } else {
-            savedData = nil
-        }
-
-        let currentPackageResolvedPath = path.appending(component: Constants.SwiftPackageManager.packageResolvedName)
-        let currentData: Data?
-        if try await fileSystem.exists(currentPackageResolvedPath) {
-            currentData = try await fileSystem.readFile(at: currentPackageResolvedPath)
-        } else {
-            currentData = nil
-        }
-
-        if currentData != savedData {
-            return [LintingIssue(
-                reason: "We detected outdated dependencies. Run `tuist install` to update them.",
-                severity: .warning,
-                category: .outdatedDependencies
-            )]
-        }
-        return []
+    private func swiftPackageManagerScratchDirectory(
+        packagePath: AbsolutePath,
+        arguments: [String]
+    ) async throws -> AbsolutePath {
+        try swiftPackageManagerScratchDirectoryLocator.locate(
+            packagePath: packagePath,
+            arguments: arguments,
+            environment: Environment.current.variables,
+            workingDirectory: try await Environment.current.currentWorkingDirectory()
+        )
     }
 }
 

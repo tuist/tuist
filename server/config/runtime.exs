@@ -17,6 +17,8 @@ import Config
 #     `:process_build` queue.
 #
 # See `Tuist.Environment.mode/0` for the full list.
+alias Tuist.Oban.RuntimeConfig
+
 if Tuist.Environment.web?() do
   config :tuist, TuistWeb.Endpoint, server: true
 end
@@ -40,10 +42,36 @@ if Enum.member?([:prod, :stag, :can], env) do
   parsed_url = URI.parse(database_url)
   [username, password] = String.split(parsed_url.userinfo, ":")
 
+  # `{:keepalive, true}` enables SO_KEEPALIVE but inherits the OS default
+  # `tcp_keepalive_time` (7200s on Linux), so the pool keeps handing out
+  # half-dead sockets long after a cloud-egress NAT drops the idle TCP
+  # connection — surfaced as `DBConnection.ConnectionError: ssl recv
+  # (idle): closed`, fired ~14k times from `Oban.Met.Reporter` after the
+  # Render→K8s migration added NAT hops on the Supabase egress path.
+  # Postgres-side `tcp_keepalives_idle: "60"` only helps when those
+  # probes actually reach the client across the new path; mirror the
+  # same 60s/15s/4-probe cadence on the client socket so dead idles
+  # get reaped within ~2 min, well under any cloud NAT timeout.
+  # Postgrex hands `socket_options` straight to `:gen_tcp` / `:ssl`,
+  # so the `{:raw, _, _, _}` 4-tuples work here (unlike Mint, whose
+  # `Keyword.merge/2` normalization rejects them — see commit d803ae28cd).
+  tcp_keepalive_raw_opts =
+    case :os.type() do
+      {:unix, :linux} ->
+        [
+          {:raw, 6, 4, <<60::native-32>>},
+          {:raw, 6, 5, <<15::native-32>>},
+          {:raw, 6, 6, <<4::native-32>>}
+        ]
+
+      _ ->
+        []
+    end
+
   socket_opts =
     if Tuist.Environment.use_ipv6?(secrets) in ~w(true 1),
-      do: [:inet6, {:keepalive, true}],
-      else: [{:keepalive, true}]
+      do: [:inet6, {:keepalive, true}] ++ tcp_keepalive_raw_opts,
+      else: [{:keepalive, true}] ++ tcp_keepalive_raw_opts
 
   # Picks the connection shape based on `TUIST_DATABASE_POOLED` (set by the
   # chart on processor pods, unset on server pods). Direct Postgres keeps
@@ -339,25 +367,15 @@ if Tuist.Environment.env() not in [:test] do
   config :ex_aws, :s3, s3_config
 
   config :ex_aws,
+         Tuist.AWS.S3AuthenticationConfig.ex_aws_config(
+           Tuist.Environment.s3_authentication_method(secrets),
+           secrets
+         )
+
+  config :ex_aws,
     http_client: TuistCommon.AWS.Client
 
   config :tuist_common, finch_name: Tuist.Finch
-
-  case Tuist.Environment.s3_authentication_method(secrets) do
-    :env_access_key_id_and_secret_access_key ->
-      config :ex_aws,
-        secret_access_key: Tuist.Environment.s3_secret_access_key(secrets),
-        access_key_id: Tuist.Environment.s3_access_key_id(secrets)
-
-    :aws_web_identity_token_from_env_vars ->
-      config :ex_aws,
-        secret_access_key: [{:awscli, "profile_name", 30}],
-        access_key_id: [{:awscli, "profile_name", 30}],
-        awscli_auth_adapter: ExAws.STS.AuthCache.AssumeRoleWebIdentityAdapter
-
-    _ ->
-      nil
-  end
 end
 
 # Stripe config
@@ -421,7 +439,7 @@ otel_endpoint = Tuist.Environment.get([:otel, :exporter, :otlp, :endpoint])
 #     flags the server would race the processors on SKIP LOCKED, and
 #     on Linux the xcresult parse would crash because the macOS-only
 #     NIF isn't loaded.
-base_queues = [default: 10]
+base_queues = [default: 10, vcs_comments: 20]
 process_build_queue = {:process_build, Tuist.Environment.process_build_queue_concurrency()}
 process_xcresult_queue = {:process_xcresult, Tuist.Environment.process_xcresult_queue_concurrency()}
 registry_sync_queue = {:registry_sync, 1}
@@ -448,58 +466,58 @@ oban_queues =
       if Tuist.Environment.delegate_process_xcresult?(), do: base, else: base ++ [process_xcresult_queue]
   end
 
-# Leader-only Oban work (Cron, Pruner, Lifeline, Oban.Met.Reporter) runs on
-# whichever node wins the peer election. Server pods are always running and
-# carry the full DB role, so we make them the only leader-eligible nodes by
-# setting `peer: false` on processor pods. Oban normalises that to the
-# Isolated peer with `leader?: false`, so leader-only plugins start there but
-# stay idle.
+# Leader-only Oban work (Cron, Pruner, Lifeline, Oban.Met.Reporter) runs
+# on whichever node wins the peer election. Web pods are the only leader-
+# eligible nodes; every other role gets `peer: false` (Oban normalises
+# that to the Isolated peer with `leader?: false`, so leader-only plugins
+# start there but stay idle). The crontab and the peer rule are derived
+# by `Tuist.Oban.RuntimeConfig`, which is unit-tested against every value
+# of `Tuist.Environment.modes/0` so a future denylist regression — like
+# the one where `:xcresult_processor` shipped leader-eligible with an
+# empty crontab and silently halted every cron job — fails CI before it
+# lands in prod.
 #
-# Why not let the processor become leader? The tuist_processor role is
-# least-privilege (USAGE only on schema public, see
-# infra/supabase/tuist-processor-role.sql). Oban.Met.Reporter's leader path
-# runs `CREATE OR REPLACE FUNCTION public.oban_count_estimate(...)` on every
-# checkpoint, which the role can't execute and which crashes the Reporter
-# repeatedly when the processor wins the election.
-registry_cron_entries =
-  if Tuist.Environment.registry_population_mode?() and Tuist.Environment.registry_population_enabled?() do
+# The registry sync cron is appended separately so the RuntimeConfig
+# invariants (empty crontab off `:web`, single source of truth for
+# leader-only entries) stay intact while still allowing the SyncWorker
+# to fan-out from the web pod into the dedicated `:registry_sync` queue
+# the registry-population pod consumes. The cron is gated on
+# `registry_enabled?` so self-hosted installs without a bucket / GitHub
+# token don't accumulate no-op jobs in `oban_jobs`.
+mode = Tuist.Environment.mode()
+
+base_crontab = RuntimeConfig.crontab(mode, env, Tuist.Environment.tuist_hosted?())
+
+registry_crontab =
+  if mode == :web and env in [:prod, :stag, :can] and
+       Tuist.Environment.registry_population_enabled?() do
     [{"*/10 * * * *", Tuist.Registry.SyncWorker}]
   else
     []
   end
 
-base_cron_entries =
-  if not Tuist.Environment.processor_mode?() and not Tuist.Environment.xcresult_processor_mode?() and
-       Tuist.Environment.tuist_hosted?() and env in [:prod, :stag, :can] do
-    [
-      {"0 10 * * 1-5", Tuist.Ops.DailySlackReportWorker},
-      {"0 * * * 1-5", Tuist.Ops.HourlySlackReportWorker},
-      {"@hourly", Tuist.Slack.Workers.ReportWorker},
-      {"*/10 * * * *", Tuist.Alerts.Workers.AlertWorker},
-      {"@daily", Tuist.Billing.Workers.SyncStripeMetersWorker},
-      {"@daily", Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker},
-      {"@hourly", Tuist.Tests.Workers.ExpireStaleTestRunsWorker},
-      {"* * * * *", Tuist.Automations.Workers.AutomationScheduler}
-    ]
-  else
-    []
-  end
+crontab = base_crontab ++ registry_crontab
 
 config :tuist, Oban,
   queues: oban_queues,
   plugins: [
     {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 7},
     {Oban.Plugins.Lifeline, rescue_after: to_timeout(minute: 30)},
-    {Oban.Plugins.Cron, crontab: base_cron_entries ++ registry_cron_entries}
+    {Oban.Plugins.Cron, crontab: crontab}
   ]
 
-if Tuist.Environment.processor_mode?() or Tuist.Environment.xcresult_processor_mode?() or
-     Tuist.Environment.registry_serving_mode?() do
-  # Processors and registry-serving pods should not become Oban leaders.
-  # Only :web and :registry_population pods carry the role privileges
-  # required for the leader-only plugins (Cron, Pruner, Met.Reporter).
+if !RuntimeConfig.peer_eligible?(mode) do
   config :tuist, Oban, peer: false
 end
+
+# Kura controller rollout assets. Each env is enumerated explicitly so a
+# new one fails loudly rather than silently picking the wrong hook path.
+kura_hook_path =
+  case env do
+    e when e in [:prod, :stag, :can] -> Application.app_dir(:tuist, "priv/kura/hooks/tuist.lua")
+    e when e in [:dev, :test] -> Path.expand("../kura/ops/helm/kura/hooks/tuist.lua", File.cwd!())
+    other -> raise "unknown env #{inspect(other)} for :kura_hook_path; add it to runtime.exs"
+  end
 
 # Guardian
 config :tuist, Tuist.Guardian,
@@ -517,6 +535,8 @@ config :tuist, Tuist.PromEx,
     port: 9091,
     auth_strategy: :none
   ]
+
+config :tuist, :kura_hook_path, kura_hook_path
 
 if otel_endpoint do
   config :opentelemetry,

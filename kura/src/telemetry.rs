@@ -4,7 +4,7 @@ use axum::http::HeaderMap;
 use opentelemetry::{
     KeyValue, global,
     propagation::{Extractor, Injector},
-    trace::TracerProvider as _,
+    trace::{TraceContextExt, TracerProvider as _},
 };
 use opentelemetry_otlp::{Protocol, WithExportConfig};
 use opentelemetry_sdk::{
@@ -13,7 +13,7 @@ use opentelemetry_sdk::{
     trace::{Sampler, SdkTracerProvider},
 };
 use sentry::{ClientInitGuard, ClientOptions};
-use tracing::{Span, warn};
+use tracing::{Span, field, warn};
 use tracing_opentelemetry::OpenTelemetrySpanExt;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -41,10 +41,20 @@ pub fn init_tracing(config: &Config) -> TelemetryGuards {
 
     let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| "kura=info".into());
-    let fmt_layer = tracing_subscriber::fmt::layer();
+    let fmt_layer = tracing_subscriber::fmt::layer()
+        .json()
+        .flatten_event(true)
+        .with_current_span(true)
+        .with_span_list(true)
+        .with_ansi(false);
     let sentry_guard = init_sentry(config);
 
-    match build_tracer_provider(config, &config.otlp_traces_endpoint) {
+    let tracer_result = match config.otlp_traces_endpoint.as_deref() {
+        Some(endpoint) => build_tracer_provider(config, endpoint),
+        None => Err("OTLP tracing disabled (no endpoint configured)".to_owned()),
+    };
+
+    match tracer_result {
         Ok(tracer_provider) => {
             let tracer = tracer_provider.tracer("kura");
             if sentry_guard.is_some() {
@@ -67,9 +77,6 @@ pub fn init_tracing(config: &Config) -> TelemetryGuards {
             }
         }
         Err(error) => {
-            eprintln!(
-                "failed to initialize OTLP tracing, continuing without OTLP exporter: {error}"
-            );
             if sentry_guard.is_some() {
                 tracing_subscriber::registry()
                     .with(env_filter)
@@ -82,11 +89,50 @@ pub fn init_tracing(config: &Config) -> TelemetryGuards {
                     .with(fmt_layer)
                     .init();
             }
-            TelemetryGuards {
+            let guards = TelemetryGuards {
                 tracer_provider: None,
                 sentry_guard,
-            }
+            };
+            warn!(
+                error = %error,
+                service.name = %config.otel_service_name,
+                service.namespace = "kura",
+                service.version = env!("CARGO_PKG_VERSION"),
+                deployment.environment.name = %config.otel_deployment_environment,
+                kura.region = %config.region,
+                kura.tenant_id = %config.tenant_id,
+                service.instance.id = %config.node_url,
+                "OTLP tracing not active"
+            );
+            guards
         }
+    }
+}
+
+pub fn log_context_span(config: &Config) -> Span {
+    let span = tracing::info_span!(
+        "kura.runtime",
+        service.name = %config.otel_service_name,
+        service.namespace = "kura",
+        service.version = env!("CARGO_PKG_VERSION"),
+        deployment.environment.name = %config.otel_deployment_environment,
+        kura.region = %config.region,
+        kura.tenant_id = %config.tenant_id,
+        service.instance.id = %config.node_url,
+        trace_id = field::Empty,
+        span_id = field::Empty,
+    );
+    record_trace_context(&span);
+    span
+}
+
+pub fn record_trace_context(span: &Span) {
+    let context = span.context();
+    let span_ref = context.span();
+    let span_context = span_ref.span_context();
+    if span_context.is_valid() {
+        span.record("trace_id", field::display(span_context.trace_id()));
+        span.record("span_id", field::display(span_context.span_id()));
     }
 }
 

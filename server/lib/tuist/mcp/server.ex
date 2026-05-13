@@ -3,8 +3,11 @@ defmodule Tuist.MCP.Server do
 
   use EMCP.Server,
     name: "tuist",
-    version: "1.6.1",
+    version: "1.7.0",
     tools: [
+      Tuist.MCP.Components.Tools.CreateOrganization,
+      Tuist.MCP.Components.Tools.CreateProject,
+      Tuist.MCP.Components.Tools.AddOrganizationMember,
       Tuist.MCP.Components.Tools.ListXcodeBuilds,
       Tuist.MCP.Components.Tools.GetXcodeBuild,
       Tuist.MCP.Components.Tools.ListXcodeBuildTargets,
@@ -22,6 +25,7 @@ defmodule Tuist.MCP.Server do
       Tuist.MCP.Components.Tools.ListTestCases,
       Tuist.MCP.Components.Tools.ListTestCaseEvents,
       Tuist.MCP.Components.Tools.GetTestCase,
+      Tuist.MCP.Components.Tools.UpdateTestCase,
       Tuist.MCP.Components.Tools.GetTestRun,
       Tuist.MCP.Components.Tools.GetTestCaseRun,
       Tuist.MCP.Components.Tools.ListTestCaseRunAttachments,
@@ -44,6 +48,8 @@ defmodule Tuist.MCP.Server do
       Tuist.MCP.Components.Prompts.CompareTestCase,
       Tuist.MCP.Components.Prompts.CompareGenerations,
       Tuist.MCP.Components.Prompts.CompareCacheRuns,
-      Tuist.MCP.Components.Prompts.AnalyzeSelectiveTesting
+      Tuist.MCP.Components.Prompts.AnalyzeSelectiveTesting,
+      Tuist.MCP.Components.Prompts.IntegrateGradleProject,
+      Tuist.MCP.Components.Prompts.IntegrateXcodeProject
     ]
 end

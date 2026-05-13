@@ -12,6 +12,11 @@ import XcodeGraph
 public protocol ManifestModelConverting {
     func convert(manifest: ProjectDescription.Workspace, path: AbsolutePath) async throws -> XcodeGraph.Workspace
     func convert(
+        manifest: ProjectDescription.Workspace,
+        path: AbsolutePath,
+        swiftPackageManagerScratchDirectory: AbsolutePath?
+    ) async throws -> XcodeGraph.Workspace
+    func convert(
         manifest: ProjectDescription.Project,
         path: AbsolutePath,
         plugins: Plugins,
@@ -90,6 +95,14 @@ public struct ManifestModelConverter: ManifestModelConverting {
         manifest: ProjectDescription.Workspace,
         path: AbsolutePath
     ) async throws -> XcodeGraph.Workspace {
+        try await convert(manifest: manifest, path: path, swiftPackageManagerScratchDirectory: nil)
+    }
+
+    public func convert(
+        manifest: ProjectDescription.Workspace,
+        path: AbsolutePath,
+        swiftPackageManagerScratchDirectory: AbsolutePath?
+    ) async throws -> XcodeGraph.Workspace {
         let rootDirectory: AbsolutePath = try await rootDirectoryLocator.locate(from: path)
         let generatorPaths = GeneratorPaths(
             manifestDirectory: path,
@@ -100,7 +113,8 @@ public struct ManifestModelConverter: ManifestModelConverting {
             path: path,
             generatorPaths: generatorPaths,
             manifestLoader: manifestLoader,
-            fileSystem: fileSystem
+            fileSystem: fileSystem,
+            swiftPackageManagerScratchDirectory: swiftPackageManagerScratchDirectory
         )
         return workspace
     }
@@ -128,6 +142,8 @@ public struct ManifestModelConverter: ManifestModelConverting {
             uniqueKeysWithValues: dependenciesGraph.externalProjects
                 .concurrentMap { path, project in
                     let projectPath = try AbsolutePath(validating: path.pathString)
+                    let swiftPackageManagerScratchDirectory = try project.swiftPackageManagerScratchDirectory
+                        .map { try AbsolutePath(validating: $0.pathString) }
                     var project = try await convert(
                         manifest: project.manifest,
                         path: projectPath,
@@ -135,6 +151,7 @@ public struct ManifestModelConverter: ManifestModelConverting {
                         externalDependencies: externalDependencies,
                         type: .external(hash: project.hash)
                     )
+                    project.swiftPackageManagerScratchDirectory = swiftPackageManagerScratchDirectory
                     // Disable all lastUpgradeCheck related warnings on projects generated from dependencies
                     project.lastUpgradeCheck = Version(99, 9, 9)
                     return (projectPath, project)

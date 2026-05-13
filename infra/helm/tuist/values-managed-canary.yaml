@@ -119,6 +119,28 @@ macosFleet:
   controlPlane:
     host: api-canary.tuist.dev
 
+# Customer-runner Mac mini fleet — sibling of macosFleet.
+# Canary runs the same concurrency tier as staging (1 host) so
+# we can de-risk the production roll on canary first.
+runnersFleet:
+  enabled: false
+  hostCount: 1
+  # Pre-ordered pool. Operator pre-orders Mac minis named with the
+  # `tuist-pool-` prefix; the CAPI controller adopts them on demand.
+  # No auto-order fallback — see values.yaml for the full workflow.
+  adoptPoolPrefix: "tuist-pool-"
+  networkPolicy:
+    enabled: true
+    exceptCIDRs:
+      - "10.0.0.0/8"
+      - "172.16.0.0/12"
+      - "192.168.0.0/16"
+  pools:
+    - name: default
+      replicas: 2
+      runnerImage: ""
+      dispatchLabel: "tuist-canary-macos"
+
 registryPopulation:
   database:
     host: db.thapckmapmffdgaiarvu.supabase.co

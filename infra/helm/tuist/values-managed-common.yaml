@@ -12,6 +12,16 @@ global:
     tuist.dev/service: server
     tuist.dev/stack: managed
 
+kuraController:
+  enabled: true
+  namespace: kura
+  image:
+    tag: ""  # Set by CI to the commit SHA on each deploy.
+  # Managed app clusters bootstrap this ClusterIssuer via the platform
+  # chart. The controller uses it for the per-Kura public HTTPS and gRPC
+  # certificates mounted into each runtime pod.
+  tlsClusterIssuer: "letsencrypt-cloudflare"
+
 server:
   serviceAccount:
     create: true
@@ -62,6 +72,13 @@ server:
       item: MASTER_KEY
       # Default `password` field for items of category Password.
       field: password
+
+  # ESO-synced GitHub App + bot PATs. The PEM file attachment name
+  # differs per env (production.pem / staging.pem / canary.pem) and is
+  # set in each values-managed-<env>.yaml. Everything else is shared
+  # across envs.
+  github:
+    managedSecrets: true
 
   database:
     ssl: true
@@ -184,14 +201,14 @@ xcresultProcessor:
   queueConcurrency: 4
   image:
     repository: ghcr.io/tuist/tuist-xcresult-processor
-    # Bumped automatically by the release workflow when an
-    # xcresult-processor-image-scoped conventional commit lands on
+    # Bumped automatically by the release workflow when a relevant
+    # server, xcresult NIF, or xcresult-processor-image change lands on
     # main; the workflow rebuilds the Tart VM image on the bare-metal
-    # Mac mini, pushes the matching semver tag, and rewrites this
-    # line in the same auto-commit. Until release.yml has run for
-    # this scope, pin to a known-good SHA-tagged build that the
-    # standalone xcresult-processor-image.yml workflow pushed.
-    tag: "e38122ec"
+    # Mac mini, pushes the matching semver tag, and rewrites this line
+    # in the same auto-commit. Until release.yml has run for this
+    # component, pin to a known-good SHA-tagged build that the standalone
+    # xcresult-processor-image.yml workflow pushed.
+    tag: "0.3.0"
 
 # Mac mini fleet provisioned declaratively via the Cluster API
 # Scaleway-Apple-Silicon provider. Scaling is `kubectl scale
@@ -208,7 +225,14 @@ macosFleet:
     # release.yml has run for this scope, pin to a known-good
     # SHA-tagged build that the standalone
     # capi-provider-scaleway-applesilicon-image.yml workflow pushed.
-    tag: "97abdeb5"
+    tag: "af8204b1"
+
+runnersController:
+  image:
+    repository: ghcr.io/tuist/tuist-runners-controller
+    # SHA-tagged build from the runners-controller-image.yml
+    # workflow.
+    tag: "sha-08e66c9bf0e2"
 
 # Single-replica registry sync pod. Enabled across managed envs; per-env
 # bucket name comes from objectStorage.external.buckets.registry below.

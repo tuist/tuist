@@ -339,6 +339,18 @@ public protocol GraphTraversing {
         name: String
     ) -> Set<GraphDependency>
 
+    /// Given a target's project path and name, it returns all static XCFramework
+    /// dependencies with Swift modules that are reached through a dynamic XCFramework.
+    /// These need module visibility (FRAMEWORK_SEARCH_PATHS) at the consumer level
+    /// but must NOT be relinked, since the dynamic xcframework already absorbed them.
+    /// - Parameters:
+    ///   - path: Project path.
+    ///   - name: Target name.
+    func staticXCFrameworksLinkedByDynamicXCFrameworkDependencies(
+        path: AbsolutePath,
+        name: String
+    ) -> Set<GraphDependency>
+
     /// Given a scheme, it returns the runnable target.
     /// - Parameter scheme: Scheme to check against.
     /// - Returns: The runnable target if any.

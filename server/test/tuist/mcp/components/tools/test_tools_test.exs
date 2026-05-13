@@ -14,6 +14,7 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
   alias Tuist.MCP.Components.Tools.ListTestRuns
   alias Tuist.MCP.Components.Tools.ListTestSuiteRuns
   alias Tuist.MCP.Components.Tools.ListXcodeTestTargets
+  alias Tuist.MCP.Components.Tools.UpdateTestCase
   alias Tuist.Projects
   alias Tuist.Tests
   alias Tuist.Tests.Analytics
@@ -403,6 +404,57 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
     end
   end
 
+  describe "update_test_case" do
+    test "requires :test_update authorization" do
+      project = %{id: "project-id", name: "project-name"}
+      project_id = project.id
+      stub(Tests, :get_test_case_by_id, fn "test-case-id" -> {:ok, %{project_id: project.id}} end)
+      stub(Projects, :get_project_by_id, fn ^project_id -> project end)
+
+      expect(Tuist.Authorization, :authorize, fn :test_update, :subject, ^project ->
+        {:error, :forbidden}
+      end)
+
+      conn = %Plug.Conn{assigns: %{current_subject: :subject}}
+
+      assert %{"content" => [%{"type" => "text", "text" => text}], "isError" => true} =
+               UpdateTestCase.call(conn, %{"test_case_id" => "test-case-id", "state" => "muted"})
+
+      assert text =~ "You do not have access to this resource."
+    end
+
+    test "returns error without state or is_flaky" do
+      conn = %Plug.Conn{assigns: %{current_subject: :subject}}
+
+      assert %{"content" => [%{"type" => "text", "text" => text}], "isError" => true} =
+               UpdateTestCase.call(conn, %{"test_case_id" => "test-case-id"})
+
+      assert text =~ "Provide at least one of `state` or `is_flaky`."
+    end
+
+    test "returns error for invalid state value" do
+      conn = %Plug.Conn{assigns: %{current_subject: :subject}}
+
+      assert %{"content" => [%{"type" => "text", "text" => text}], "isError" => true} =
+               UpdateTestCase.call(conn, %{
+                 "test_case_id" => "test-case-id",
+                 "state" => "invalid"
+               })
+
+      assert text =~ "`state` must be one of `enabled`, `muted`, or `skipped`."
+    end
+
+    test "returns error without test_case_id or identifier" do
+      conn = %Plug.Conn{assigns: %{current_subject: :subject}}
+
+      assert %{"content" => [%{"type" => "text", "text" => text}], "isError" => true} =
+               UpdateTestCase.call(conn, %{"state" => "muted"})
+
+      assert text =~
+               "Provide either test_case_id, or identifier with account_handle and project_handle."
+    end
+  end
+
   describe "get_test_run" do
     test "returns test run with metrics" do
       project = %{id: 1, name: "app"}
@@ -588,7 +640,7 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
         {:ok, %{id: "run-1", project_id: 1}}
       end)
 
-      stub(CommandEvents, :get_command_event_by_test_run_id, fn "run-1" ->
+      stub(CommandEvents, :get_command_event_by_test_run_id, fn "run-1", [project_id: 1] ->
         {:ok, command_event}
       end)
 
@@ -657,7 +709,7 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
         {:ok, %{id: "run-1", project_id: 1}}
       end)
 
-      stub(CommandEvents, :get_command_event_by_test_run_id, fn "run-1" ->
+      stub(CommandEvents, :get_command_event_by_test_run_id, fn "run-1", [project_id: 1] ->
         {:error, :not_found}
       end)
 

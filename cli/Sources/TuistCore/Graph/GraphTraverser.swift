@@ -516,9 +516,18 @@ public class GraphTraverser: GraphTraversing {
     public func searchablePathDependencies(path: Path.AbsolutePath, name: String) throws -> Set<
         GraphDependencyReference
     > {
-        try linkableDependencies(path: path, name: name, shouldExcludeHostAppDependencies: false)
+        let staticXCFrameworksBehindDynamic = staticXCFrameworksLinkedByDynamicXCFrameworkDependencies(
+            path: path,
+            name: name
+        )
+        let staticReferences = staticXCFrameworksBehindDynamic.compactMap {
+            dependencyReference(to: $0, from: .target(name: name, path: path))
+        }
+
+        return try linkableDependencies(path: path, name: name, shouldExcludeHostAppDependencies: false)
             .union(staticPrecompiledFrameworksDependencies(path: path, name: name))
             .union(transitiveStaticDependenciesOfDynamicFrameworkDependencies(path: path, name: name))
+            .union(staticReferences)
     }
 
     public func linkableDependencies(path: Path.AbsolutePath, name: String) throws -> Set<
@@ -590,13 +599,14 @@ public class GraphTraverser: GraphTraversing {
             name: name
         )
 
-        let staticXCFrameworksLinkedByDynamicXCFrameworkDependencies = filterDependencies(
-            from: Set(precompiledDynamicLibrariesAndFrameworks).filter { $0.xcframeworkDependency != nil },
-            test: {
-                $0.xcframeworkDependency?.linking == .static &&
-                    $0.xcframeworkDependency?.swiftModules.isEmpty == false
-            },
-            skip: { $0.xcframeworkDependency == nil }
+        // Static xcframeworks reached through a dynamic xcframework are intentionally NOT
+        // linked at the consumer level. The dynamic xcframework already absorbed their symbols
+        // during its build; relinking here causes duplicate symbols and breaks libraries with
+        // global state (e.g. FirebaseApp's singleton registry). Module visibility for these
+        // statics is provided through `searchablePathDependencies` instead.
+        let staticXCFrameworksLinkedByDynamicXCFrameworkDependencies = staticXCFrameworksLinkedByDynamicXCFrameworkDependencies(
+            path: path,
+            name: name
         )
 
         let libraryDependenciesLinkedByStaticXCFrameworks =
@@ -610,7 +620,6 @@ public class GraphTraverser: GraphTraversing {
         let precompiledLibrariesAndFrameworks =
             (
                 precompiledDynamicLibrariesAndFrameworks
-                    + staticXCFrameworksLinkedByDynamicXCFrameworkDependencies
                     + libraryDependenciesLinkedByStaticXCFrameworks
             )
             .compactMap { dependencyReference(to: $0, from: targetGraphDependency) }
@@ -712,6 +721,25 @@ public class GraphTraverser: GraphTraversing {
                 $0.xcframeworkDependency?.linking == .static &&
                     $0.xcframeworkDependency?.swiftModules.isEmpty == true &&
                     $0.xcframeworkDependency?.moduleMaps.isEmpty == false
+            },
+            skip: { $0.xcframeworkDependency == nil }
+        )
+    }
+
+    public func staticXCFrameworksLinkedByDynamicXCFrameworkDependencies(
+        path: Path.AbsolutePath,
+        name: String
+    ) -> Set<GraphDependency> {
+        filterDependencies(
+            from: Set(
+                precompiledDynamicLibrariesAndFrameworks(
+                    path: path,
+                    name: name
+                )
+            ).filter { $0.xcframeworkDependency != nil },
+            test: {
+                $0.xcframeworkDependency?.linking == .static &&
+                    $0.xcframeworkDependency?.swiftModules.isEmpty == false
             },
             skip: { $0.xcframeworkDependency == nil }
         )

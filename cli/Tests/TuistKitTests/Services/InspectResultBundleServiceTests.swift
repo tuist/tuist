@@ -325,6 +325,78 @@ struct UploadResultBundleServiceTests {
     }
 
     @Test(.withMockedEnvironment())
+    func inspectResultBundle_prefersRunMetadataStorageBuildRunIdOverActivityLog() async throws {
+        // Given
+        let mockedEnvironment = try #require(Environment.mocked)
+        let currentWorkingDirectory = try await mockedEnvironment.currentWorkingDirectory()
+        let derivedDataDirectory = currentWorkingDirectory.appending(component: "DerivedData")
+        let activityLogPath = derivedDataDirectory.appending(components: "Logs", "Build", "stale-build.xcactivitylog")
+
+        let testSummary = TestSummary(testPlanName: nil, status: .passed, duration: 100, testModules: [])
+
+        gitController.reset()
+        given(gitController)
+            .isInGitRepository(workingDirectory: .any)
+            .willReturn(true)
+        given(gitController)
+            .topLevelGitDirectory(workingDirectory: .any)
+            .willReturn(currentWorkingDirectory)
+        given(gitController)
+            .gitInfo(workingDirectory: .any)
+            .willReturn(.test())
+
+        xcActivityLogController.reset()
+        given(xcActivityLogController)
+            .mostRecentActivityLogFile(projectDerivedDataDirectory: .value(derivedDataDirectory), filter: .any)
+            .willReturn(
+                XCActivityLogFile(
+                    path: activityLogPath,
+                    timeStoppedRecording: Date(),
+                    signature: "Build"
+                )
+            )
+
+        let storage = RunMetadataStorage()
+        await storage.update(buildRunId: "snapshot-build-run")
+
+        // When
+        try await RunMetadataStorage.$current.withValue(storage) {
+            _ = try await subject.uploadTestSummary(
+                testSummary: testSummary,
+                projectDerivedDataDirectory: derivedDataDirectory,
+                config: .test(fullHandle: "tuist/tuist"),
+                shardPlanId: nil,
+                shardIndex: nil
+            )
+        }
+
+        // Then — snapshot-restored buildRunId wins over the local activity log.
+        verify(createTestService)
+            .createTest(
+                fullHandle: .any,
+                serverURL: .any,
+                id: .any,
+                testSummary: .any,
+                buildRunId: .value("snapshot-build-run"),
+                gitBranch: .any,
+                gitCommitSHA: .any,
+                gitRef: .any,
+                gitRemoteURLOrigin: .any,
+                isCI: .any,
+                modelIdentifier: .any,
+                macOSVersion: .any,
+                xcodeVersion: .any,
+                ciRunId: .any,
+                ciProjectHandle: .any,
+                ciHost: .any,
+                ciProvider: .any,
+                shardPlanId: .any,
+                shardIndex: .any
+            )
+            .called(1)
+    }
+
+    @Test(.withMockedEnvironment())
     func inspectResultBundle_passesCIMetadata() async throws {
         // Given
         let mockedEnvironment = try #require(Environment.mocked)
@@ -739,6 +811,7 @@ struct UploadResultBundleServiceTests {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let xcresultPath = temporaryDirectory.appending(component: "Test.xcresult")
         try await fileSystem.makeDirectory(at: xcresultPath)
+        try await fileSystem.writeText("", at: xcresultPath.appending(component: "Info.plist"))
 
         given(analyticsArtifactUploadService)
             .uploadResultBundle(
@@ -798,6 +871,7 @@ struct UploadResultBundleServiceTests {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let xcresultPath = temporaryDirectory.appending(component: "Test.xcresult")
         try await fileSystem.makeDirectory(at: xcresultPath)
+        try await fileSystem.writeText("", at: xcresultPath.appending(component: "Info.plist"))
 
         given(analyticsArtifactUploadService)
             .uploadResultBundle(
@@ -838,6 +912,7 @@ struct UploadResultBundleServiceTests {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let xcresultPath = temporaryDirectory.appending(component: "result-bundle.xcresult")
         try await fileSystem.makeDirectory(at: xcresultPath)
+        try await fileSystem.writeText("", at: xcresultPath.appending(component: "Info.plist"))
         let symlinkPath = temporaryDirectory.appending(component: "result-bundle")
         try FileManager.default.createSymbolicLink(
             atPath: symlinkPath.pathString,
@@ -884,5 +959,33 @@ struct UploadResultBundleServiceTests {
                 shardIndex: nil
             )
         }
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func uploadResultBundle_throwsWhenInfoPlistMissing() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let xcresultPath = temporaryDirectory.appending(component: "Test.xcresult")
+        try await fileSystem.makeDirectory(at: xcresultPath)
+
+        await #expect(
+            throws: UploadResultBundleServiceError.bundleMissingInfoPlist(xcresultPath)
+        ) {
+            try await subject.uploadResultBundle(
+                resultBundlePath: xcresultPath,
+                config: .test(fullHandle: "tuist/tuist"),
+                quarantinedTests: [],
+                shardPlanId: nil,
+                shardIndex: nil
+            )
+        }
+
+        verify(analyticsArtifactUploadService)
+            .uploadResultBundle(
+                .any,
+                fullHandle: .any,
+                commandEventId: .any,
+                serverURL: .any
+            )
+            .called(0)
     }
 }

@@ -21,14 +21,31 @@
 
     struct TargetImportsScanner: TargetImportsScanning {
         private let importSourceCodeScanner: ImportSourceCodeScanner
-        private let fileSystem: FileSystem
+        private let maxConcurrentFileScans: Int
+        private let sourceCodeReader: (AbsolutePath) async throws -> String?
 
         init(
             importSourceCodeScanner: ImportSourceCodeScanner = ImportSourceCodeScanner(),
-            fileSystem: FileSystem = FileSystem()
+            fileSystem: FileSysteming = FileSystem(),
+            maxConcurrentFileScans: Int = 100
+        ) {
+            self.init(
+                importSourceCodeScanner: importSourceCodeScanner,
+                maxConcurrentFileScans: maxConcurrentFileScans
+            ) { path in
+                guard try await fileSystem.exists(path) else { return nil }
+                return try await fileSystem.readTextFile(at: path)
+            }
+        }
+
+        init(
+            importSourceCodeScanner: ImportSourceCodeScanner = ImportSourceCodeScanner(),
+            maxConcurrentFileScans: Int = 100,
+            sourceCodeReader: @escaping (AbsolutePath) async throws -> String?
         ) {
             self.importSourceCodeScanner = importSourceCodeScanner
-            self.fileSystem = fileSystem
+            self.maxConcurrentFileScans = max(1, maxConcurrentFileScans)
+            self.sourceCodeReader = sourceCodeReader
         }
 
         func imports(
@@ -43,7 +60,7 @@
                 filesToScan.append(contentsOf: headers.project)
             }
             var imports = Set(
-                try await filesToScan.concurrentMap { file in
+                try await filesToScan.concurrentMap(maxConcurrentTasks: maxConcurrentFileScans) { file in
                     try await matchPattern(at: file, reachableModules: reachableModules)
                 }
                 .flatMap { $0 }
@@ -66,16 +83,15 @@
                 return []
             }
 
-            if try await fileSystem.exists(path) {
-                let sourceCode = try await fileSystem.readTextFile(at: path)
-                return try importSourceCodeScanner.extractImports(
-                    from: sourceCode,
-                    language: language,
-                    reachableModules: reachableModules
-                )
-            } else {
+            guard let sourceCode = try await sourceCodeReader(path) else {
                 return Set()
             }
+
+            return try importSourceCodeScanner.extractImports(
+                from: sourceCode,
+                language: language,
+                reachableModules: reachableModules
+            )
         }
     }
 #endif

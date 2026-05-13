@@ -97,6 +97,14 @@ defmodule Tuist.Docs.Loader do
     end)
   end
 
+  def validate_page!(source_path) do
+    source_path
+    |> Path.expand()
+    |> build_page!()
+
+    :ok
+  end
+
   defp build_page!(source_path) do
     relative_path = Path.relative_to(source_path, @docs_root)
     slug = source_to_slug(relative_path)

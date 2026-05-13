@@ -64,6 +64,38 @@ tolerations:
 {{- end }}
 {{- end }}
 
+{{/*
+Mac mini fleet names. "Fleet" stays as the human-facing label
+for "a logical group of identical Mac minis" — CAPI doesn't ship
+a Fleet primitive, but the concept is real, and it ties together
+every resource that needs to share an identity:
+
+  - the MachineDeployment + MachineSet + Machines that own host
+    lifecycle
+  - the ScalewayAppleSiliconMachineTemplate the deployment clones
+    from
+  - the per-fleet SSH-key Secret (`<fleetName>-ssh`)
+  - the Node label `tuist.dev/fleet=<name>` and the Pod
+    nodeSelector that pins workloads to the right fleet
+
+Centralizing the name in this helper keeps macos-fleet.yaml,
+runners-fleet.yaml, and the workload Deployments pinned to the
+same value without copy-paste drift.
+
+Defaults pin the existing xcresult fleet to its release-name-
+derived value so a chart upgrade doesn't rename Mac minis (which
+would otherwise force the operator to re-order hosts under
+Scaleway's 24h-floor). Override `macosFleet.name` only on a
+green-field cluster.
+*/}}
+{{- define "tuist.macosFleetName" -}}
+{{- .Values.macosFleet.name | default (include "tuist.componentName" (dict "root" . "component" "macos-fleet")) -}}
+{{- end -}}
+
+{{- define "tuist.runnersFleetName" -}}
+{{- .Values.runnersFleet.name | default (include "tuist.componentName" (dict "root" . "component" "runners-fleet")) -}}
+{{- end -}}
+
 {{- define "tuist.objectStorageEndpoint" -}}
 {{- if eq .Values.objectStorage.mode "embedded" -}}
 http://{{ include "tuist.componentName" (dict "root" . "component" "object-storage") }}:9000
@@ -256,4 +288,50 @@ License env vars. Resolves to (in order):
 
 {{- define "tuist.serverHeadlessServiceName" -}}
 {{- include "tuist.componentName" (dict "root" . "component" "server-headless") -}}
+{{- end -}}
+
+{{- define "tuist.githubEnv" -}}
+{{- if and .Values.server.enabled .Values.server.github.managedSecrets }}
+{{- $secret := include "tuist.componentName" (dict "root" . "component" "github-external-secrets") -}}
+- name: TUIST_GITHUB_APP_NAME
+  valueFrom:
+    secretKeyRef:
+      name: {{ $secret | quote }}
+      key: app-name
+- name: TUIST_GITHUB_APP_ID
+  valueFrom:
+    secretKeyRef:
+      name: {{ $secret | quote }}
+      key: app-id
+- name: TUIST_GITHUB_APP_CLIENT_ID
+  valueFrom:
+    secretKeyRef:
+      name: {{ $secret | quote }}
+      key: app-client-id
+- name: TUIST_GITHUB_APP_CLIENT_SECRET
+  valueFrom:
+    secretKeyRef:
+      name: {{ $secret | quote }}
+      key: app-client-secret
+- name: TUIST_GITHUB_APP_WEBHOOK_SECRET
+  valueFrom:
+    secretKeyRef:
+      name: {{ $secret | quote }}
+      key: app-webhook-secret
+- name: TUIST_GITHUB_APP_PRIVATE_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ $secret | quote }}
+      key: app-private-key
+- name: TUIST_GITHUB_TOKEN_UPDATE_PACKAGE_RELEASES
+  valueFrom:
+    secretKeyRef:
+      name: {{ $secret | quote }}
+      key: token-update-package-releases
+- name: TUIST_GITHUB_TOKEN_UPDATE_PACKAGES
+  valueFrom:
+    secretKeyRef:
+      name: {{ $secret | quote }}
+      key: token-update-packages
+{{- end }}
 {{- end -}}

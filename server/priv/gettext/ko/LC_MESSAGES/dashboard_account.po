@@ -10,12 +10,12 @@ msgstr ""
 #: lib/tuist_web/live/billing_live.ex:219
 #, elixir-autogen, elixir-format
 msgid "$0"
-msgstr "$0"
+msgstr "₩0"
 
 #: lib/tuist_web/live/billing_live.html.heex:220
 #, elixir-autogen, elixir-format
 msgid "$0.50"
-msgstr "$0.50"
+msgstr "₩0.50"
 
 #: lib/tuist_web/live/accept_invitation_live.ex:136
 #, elixir-autogen, elixir-format
@@ -25,7 +25,7 @@ msgstr "%{inviter}님이 %{organization} 조직에 초대했습니다"
 #: lib/tuist_web/live/billing_live.html.heex:294
 #, elixir-autogen, elixir-format
 msgid "%{month}/%{year}"
-msgstr "%{month}/%{year}"
+msgstr "%{year}.%{month}"
 
 #: lib/tuist/accounts/user_notifier.ex:175
 #: lib/tuist_web/live/accept_invitation_live.ex:148
@@ -54,34 +54,34 @@ msgstr "Air"
 #: lib/tuist_web/live/billing_live.html.heex:317
 #, elixir-autogen, elixir-format
 msgid "All billing correspondence will go to this email"
-msgstr "청구 관련 모든 연락은 이 이메일로 발송됩니다"
+msgstr "모든 결제 관련 연락은 이 이메일로 발송됩니다"
 
 #: lib/tuist/billing.ex:46
 #: lib/tuist_web/live/billing_live.ex:194
 #, elixir-autogen, elixir-format
 msgid "All features, no credit card required"
-msgstr "모든 기능이 제공되며, 신용카드가 필요 없습니다"
+msgstr "모든 기능 제공, 신용카드 불필요"
 
 #: lib/tuist_web/live/members_live.ex:59
 #, elixir-autogen, elixir-format
 msgid "All members"
 msgstr "모든 멤버"
 
-#: lib/tuist_web/live/account_settings_live.ex:307
+#: lib/tuist_web/live/account_settings_live.ex:662
 #, elixir-autogen, elixir-format
 msgid "All regions"
 msgstr "모든 지역"
 
-#: lib/tuist_web/live/account_settings_live.html.heex:105
-#: lib/tuist_web/live/account_settings_live.html.heex:254
+#: lib/tuist_web/live/account_settings_live.html.heex:112
+#: lib/tuist_web/live/account_settings_live.html.heex:268
 #, elixir-autogen, elixir-format
 msgid "Are you sure you want to delete this?"
-msgstr "정말로 삭제하시겠습니까?"
+msgstr "정말 삭제하시겠습니까?"
 
 #: lib/tuist_web/live/members_live.ex:196
 #, elixir-autogen, elixir-format
 msgid "Are you sure you want to remove %{name} from this organization?"
-msgstr "정말로 %{name}님을 이 조직에서 제거하시겠습니까?"
+msgstr "%{name}님을 이 조직에서 제거하시겠습니까?"
 
 #: lib/tuist_web/live/billing_live.ex:73
 #: lib/tuist_web/live/billing_live.html.heex:3
@@ -94,13 +94,14 @@ msgstr "청구"
 msgid "Billing email"
 msgstr "청구 이메일"
 
-#: lib/tuist_web/live/account_settings_live.ex:379
-#: lib/tuist_web/live/account_settings_live.ex:466
-#: lib/tuist_web/live/account_settings_live.html.heex:69
-#: lib/tuist_web/live/account_settings_live.html.heex:143
-#: lib/tuist_web/live/account_settings_live.html.heex:218
-#: lib/tuist_web/live/account_settings_live.html.heex:290
-#: lib/tuist_web/live/authentication_settings_live.html.heex:512
+#: lib/tuist_web/live/account_settings_live.ex:500
+#: lib/tuist_web/live/account_settings_live.ex:734
+#: lib/tuist_web/live/account_settings_live.ex:821
+#: lib/tuist_web/live/account_settings_live.html.heex:76
+#: lib/tuist_web/live/account_settings_live.html.heex:150
+#: lib/tuist_web/live/account_settings_live.html.heex:232
+#: lib/tuist_web/live/account_settings_live.html.heex:304
+#: lib/tuist_web/live/authentication_settings_live.html.heex:513
 #: lib/tuist_web/live/create_organization_live.ex:83
 #: lib/tuist_web/live/members_live.ex:157
 #: lib/tuist_web/live/members_live.ex:206
@@ -118,10 +119,10 @@ msgstr "구독 플랜 변경"
 msgid "Change your subscription to fit your needs."
 msgstr "필요에 맞게 구독을 변경하세요."
 
-#: lib/tuist_web/live/account_settings_live.ex:291
+#: lib/tuist_web/live/account_settings_live.ex:646
 #, elixir-autogen, elixir-format
 msgid "Choose where your artifacts, like module cache binaries, are stored for legal compliance."
-msgstr "모듈 캐시 바이너리와 같은 아티팩트를 법적 준수를 위해 저장할 위치를 선택하세요."
+msgstr "법적 준수를 위해 모듈 캐시 바이너리 같은 산출물이 저장될 위치를 선택하세요."
 
 #: lib/tuist/billing.ex:47
 #, elixir-autogen, elixir-format
@@ -141,7 +142,7 @@ msgstr "커뮤니티 지원: 커뮤니티 포럼을 통한 지원"
 #: lib/tuist_web/live/billing_live.html.heex:147
 #, elixir-autogen, elixir-format
 msgid "Completely free for open source projects"
-msgstr "오픈 소스 프로젝트에 완전 무료 제공"
+msgstr "오픈소스 프로젝트에 완전 무료"
 
 #: lib/tuist/accounts/user_notifier.ex:113
 #, elixir-autogen, elixir-format
@@ -167,13 +168,13 @@ msgstr "조직 생성"
 #: lib/tuist_web/live/billing_live.ex:246
 #, elixir-autogen, elixir-format
 msgid "Create your plan or self-host your instance"
-msgstr "플랜을 만들거나 인스턴스를 직접 호스팅하세요"
+msgstr "플랜을 만들거나 인스턴스를 자체 호스팅하세요"
 
 #: lib/tuist/billing.ex:77
 #: lib/tuist_web/live/billing_live.html.heex:88
 #, elixir-autogen, elixir-format
 msgid "Create your plan or self-host your instance."
-msgstr "플랜을 만들거나 인스턴스를 직접 호스팅하세요."
+msgstr "플랜을 만들거나 인스턴스를 자체 호스팅하세요."
 
 #: lib/tuist_web/live/billing_live.ex:201
 #: lib/tuist_web/live/billing_live.ex:230
@@ -198,24 +199,24 @@ msgstr "맞춤 조건"
 #: lib/tuist_web/live/billing_live.html.heex:133
 #, elixir-autogen, elixir-format
 msgid "Custom terms: Tailored agreements to meet your specific needs"
-msgstr "맞춤 조건: 귀하의 특정 요구에 맞춘 계약"
+msgstr "맞춤 조건: 특정 요구에 맞춘 계약"
 
 #: lib/tuist_web/live/accept_invitation_live.ex:154
 #, elixir-autogen, elixir-format
 msgid "Decline"
 msgstr "거절"
 
-#: lib/tuist_web/live/account_settings_live.ex:440
-#: lib/tuist_web/live/account_settings_live.ex:474
-#: lib/tuist_web/live/account_settings_live.ex:486
-#: lib/tuist_web/live/account_settings_live.html.heex:151
-#: lib/tuist_web/live/account_settings_live.html.heex:298
+#: lib/tuist_web/live/account_settings_live.ex:795
+#: lib/tuist_web/live/account_settings_live.ex:829
+#: lib/tuist_web/live/account_settings_live.ex:841
+#: lib/tuist_web/live/account_settings_live.html.heex:158
+#: lib/tuist_web/live/account_settings_live.html.heex:312
 #, elixir-autogen, elixir-format
 msgid "Delete"
 msgstr "삭제"
 
-#: lib/tuist_web/live/account_settings_live.html.heex:239
-#: lib/tuist_web/live/account_settings_live.html.heex:260
+#: lib/tuist_web/live/account_settings_live.html.heex:253
+#: lib/tuist_web/live/account_settings_live.html.heex:274
 #, elixir-autogen, elixir-format
 msgid "Delete account"
 msgstr "계정 삭제"
@@ -228,12 +229,12 @@ msgstr "OAuth2 애플리케이션 클라이언트 ID"
 #: lib/tuist_web/live/authentication_settings_live.html.heex:153
 #, elixir-autogen, elixir-format
 msgid "Configure your OAuth2 provider to redirect users back to Tuist after authentication."
-msgstr "OAuth2 공급자를 구성하여 인증 후 사용자를 Tuist로 다시 리디렉션하도록 설정하세요."
+msgstr "OAuth2 공급자를 설정하여 인증 후 사용자를 Tuist로 리디렉션하세요."
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:163
 #, elixir-autogen, elixir-format
 msgid "Create an OAuth2 application in your identity provider."
-msgstr "ID 공급자에서 OAuth2 애플리케이션을 생성하세요."
+msgstr "신원 공급자에 OAuth2 애플리케이션을 만드세요."
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:177
 #, elixir-autogen, elixir-format
@@ -248,7 +249,7 @@ msgstr "공급자 URL"
 #: lib/tuist_web/live/authentication_settings_live.html.heex:227
 #, elixir-autogen, elixir-format
 msgid "The base URL of your identity provider, for example https://auth.example.com."
-msgstr "ID 공급자의 기본 URL, 예: https://auth.example.com."
+msgstr "신원 공급자의 기본 URL 예: https://auth.example.com."
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:246
 #, elixir-autogen, elixir-format
@@ -258,7 +259,7 @@ msgstr "승인 URL"
 #: lib/tuist_web/live/authentication_settings_live.html.heex:249
 #, elixir-autogen, elixir-format
 msgid "The full authorization endpoint URL used to start the OAuth2 flow."
-msgstr "OAuth2 흐름 시작에 사용하는 전체 승인 엔드포인트 URL."
+msgstr "OAuth2 플로우 시작에 사용되는 전체 승인 엔드포인트 URL."
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:268
 #, elixir-autogen, elixir-format
@@ -268,7 +269,7 @@ msgstr "토큰 URL"
 #: lib/tuist_web/live/authentication_settings_live.html.heex:271
 #, elixir-autogen, elixir-format
 msgid "The full token endpoint URL used to exchange the authorization code."
-msgstr "승인 코드를 교환하는 데 사용하는 전체 토큰 엔드포인트 URL."
+msgstr "승인 코드를 교환하는 데 사용되는 전체 토큰 엔드포인트 URL."
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:290
 #, elixir-autogen, elixir-format
@@ -290,31 +291,31 @@ msgstr "OAuth2 애플리케이션의 클라이언트 ID."
 msgid "The client secret from your OAuth2 application."
 msgstr "OAuth2 애플리케이션의 클라이언트 시크릿."
 
-#: lib/tuist_web/live/account_settings_live.html.heex:90
-#: lib/tuist_web/live/account_settings_live.html.heex:111
+#: lib/tuist_web/live/account_settings_live.html.heex:97
+#: lib/tuist_web/live/account_settings_live.html.heex:118
 #, elixir-autogen, elixir-format
 msgid "Delete organization"
 msgstr "조직 삭제"
 
-#: lib/tuist_web/live/account_settings_live.html.heex:124
+#: lib/tuist_web/live/account_settings_live.html.heex:131
 #, elixir-autogen, elixir-format
 msgid "Deleting the organization will delete all of its projects"
-msgstr "조직을 삭제하면 해당 조직의 모든 프로젝트가 삭제됩니다"
+msgstr "조직을 삭제하면 모든 프로젝트가 삭제됩니다"
 
-#: lib/tuist_web/live/account_settings_live.html.heex:272
+#: lib/tuist_web/live/account_settings_live.html.heex:286
 #, elixir-autogen, elixir-format
 msgid "Deleting your account will also delete all the projects that belong to it"
-msgstr "계정을 삭제하면 해당 계정에 속한 모든 프로젝트도 삭제됩니다"
+msgstr "계정을 삭제하면 해당 계정의 모든 프로젝트도 함께 삭제됩니다"
 
 #: lib/tuist/accounts/user_notifier.ex:137
 #, elixir-autogen, elixir-format
 msgid "Did you request to reset your password?"
-msgstr "비밀번호 재설정을 요청하셨습니까?"
+msgstr "비밀번호 재설정을 요청하셨나요?"
 
 #: lib/tuist_web/live/billing_live.ex:207
 #, elixir-autogen, elixir-format
 msgid "Downgrade"
-msgstr "다운그레이드"
+msgstr "하향 조정"
 
 #: lib/tuist_web/live/members_live.ex:90
 #, elixir-autogen, elixir-format
@@ -332,12 +333,12 @@ msgstr "이메일"
 msgid "Email address"
 msgstr "이메일 주소"
 
-#: lib/tuist_web/live/account_settings_live.html.heex:131
+#: lib/tuist_web/live/account_settings_live.html.heex:138
 #, elixir-autogen, elixir-format
 msgid "Enter this organization's name to confirm"
 msgstr "확인을 위해 이 조직 이름을 입력하세요"
 
-#: lib/tuist_web/live/account_settings_live.html.heex:279
+#: lib/tuist_web/live/account_settings_live.html.heex:293
 #, elixir-autogen, elixir-format
 msgid "Enter your username to confirm"
 msgstr "확인을 위해 사용자 이름을 입력하세요"
@@ -349,7 +350,7 @@ msgstr "확인을 위해 사용자 이름을 입력하세요"
 msgid "Enterprise"
 msgstr "엔터프라이즈"
 
-#: lib/tuist_web/live/account_settings_live.ex:308
+#: lib/tuist_web/live/account_settings_live.ex:663
 #, elixir-autogen, elixir-format
 msgid "Europe"
 msgstr "유럽"
@@ -365,32 +366,32 @@ msgstr "무료"
 #: lib/tuist_web/live/billing_live.html.heex:25
 #, elixir-autogen, elixir-format
 msgid "Free tier exceeded"
-msgstr "무료 티어 한도 초과"
+msgstr "무료 한도 초과"
 
 #: lib/tuist_web/live/billing_live.ex:193
 #, elixir-autogen, elixir-format
 msgid "Free under tier limits"
-msgstr "티어 한도 내 무료"
+msgstr "무료 한도 이내"
 
 #: lib/tuist/billing.ex:63
 #, elixir-autogen, elixir-format
 msgid "Generous base price"
-msgstr "관대한 기본 요금"
+msgstr "후한 기본 가격"
 
 #: lib/tuist_web/live/billing_live.html.heex:116
 #, elixir-autogen, elixir-format
 msgid "Generous base price: Pay nothing if below free tier limits"
-msgstr "관대한 기본 요금: 무료 티어 한도 이하이면 요금 없음"
+msgstr "후한 기본 가격: 무료 한도 이하일 경우 요금 없음"
 
 #: lib/tuist/billing.ex:43
 #, elixir-autogen, elixir-format
 msgid "Generous free monthly tier"
-msgstr "관대한 무료 월간 티어"
+msgstr "후한 무료 월간 한도"
 
 #: lib/tuist_web/live/billing_live.html.heex:99
 #, elixir-autogen, elixir-format
 msgid "Generous free monthly tier: Usage capped at free tier limits"
-msgstr "관대한 무료 월간 티어: 사용량이 무료 티어 한도로 제한됨"
+msgstr "후한 무료 월간 한도: 사용량은 무료 한도 내로 제한됨"
 
 #: lib/tuist/billing.ex:41
 #: lib/tuist/billing.ex:61
@@ -401,44 +402,44 @@ msgstr "시작하기"
 #: lib/tuist_web/live/billing_live.ex:190
 #, elixir-autogen, elixir-format
 msgid "Get started with no credit card required"
-msgstr "신용카드 없이 시작할 수 있습니다"
+msgstr "신용카드 없이 시작하기"
 
 #: lib/tuist/billing.ex:39
 #: lib/tuist_web/live/billing_live.html.heex:79
 #, elixir-autogen, elixir-format
 msgid "Get started with no credit card required—try with no commitment."
-msgstr "신용카드 없이 시작하세요 - 약정 없이 사용해보세요."
+msgstr "신용카드 불필요 - 부담 없이 시도해보세요."
 
 #: lib/tuist/accounts/user_notifier.ex:172
 #, elixir-autogen, elixir-format
 msgid "Hola %{invitee_email}, you can join the organization by clicking the button below:"
-msgstr "Hola %{invitee_email}님, 아래 버튼을 클릭하여 조직에 참여할 수 있습니다:"
+msgstr "Hola %{invitee_email}, 아래 버튼을 클릭해 조직에 참여할 수 있습니다:"
 
 #: lib/tuist/accounts/user_notifier.ex:139
 #, elixir-autogen, elixir-format
 msgid "Hola %{name}, you can reset your password by clicking the button below:"
-msgstr "Hola %{name}님, 아래 버튼을 클릭하여 비밀번호를 재설정할 수 있습니다:"
+msgstr "Hola %{name}, 아래 버튼을 클릭하여 비밀번호를 재설정할 수 있습니다:"
 
 #: lib/tuist/accounts/user_notifier.ex:118
 #: lib/tuist/accounts/user_notifier.ex:147
 #, elixir-autogen, elixir-format
 msgid "If you didn't make this request, feel free to ignore this email."
-msgstr "본인이 요청하지 않았다면 이 이메일을 무시하셔도 됩니다."
+msgstr "요청하지 않았다면 이 이메일을 무시하셔도 됩니다."
 
 #: lib/tuist_web/live/accept_invitation_live.ex:174
 #, elixir-autogen, elixir-format
 msgid "Invitation not found"
-msgstr "초대를 찾을 수 없습니다"
+msgstr "초대장을 찾을 수 없습니다"
 
 #: lib/tuist/accounts/user_notifier.ex:166
 #, elixir-autogen, elixir-format
 msgid "Invitation to %{organization_name}"
-msgstr "%{organization_name} 조직 초대"
+msgstr "초대: %{organization_name}"
 
 #: lib/tuist_web/live/members_live.ex:66
 #, elixir-autogen, elixir-format
 msgid "Invitations"
-msgstr "초대"
+msgstr "초대 목록"
 
 #: lib/tuist_web/live/members_live.ex:324
 #, elixir-autogen, elixir-format
@@ -448,12 +449,12 @@ msgstr "멤버 초대"
 #: lib/tuist_web/live/members_live.ex:328
 #, elixir-autogen, elixir-format
 msgid "Invite members"
-msgstr "멤버 초대"
+msgstr "멤버 초대하기"
 
 #: lib/tuist_web/live/members_live.ex:306
 #, elixir-autogen, elixir-format
 msgid "Invite members to your organization"
-msgstr "조직에 멤버를 초대하세요"
+msgstr "조직에 멤버 초대하기"
 
 #: lib/tuist_web/live/billing_live.html.heex:40
 #, elixir-autogen, elixir-format
@@ -468,7 +469,7 @@ msgstr "완전 무료"
 #: lib/tuist_web/live/billing_live.html.heex:105
 #, elixir-autogen, elixir-format
 msgid "Like, totally free: All features, no credit card required"
-msgstr "완전 무료: 모든 기능 제공, 신용카드 불필요"
+msgstr "완전 무료: 모든 기능 포함, 신용카드 불필요"
 
 #: lib/tuist_web/live/members_live.ex:99
 #: lib/tuist_web/live/members_live.ex:236
@@ -479,7 +480,7 @@ msgstr "역할 관리"
 #: lib/tuist_web/live/billing_live.html.heex:5
 #, elixir-autogen, elixir-format
 msgid "Manage your billing and payment details"
-msgstr "청구 및 결제 세부정보 관리"
+msgstr "청구 및 결제 정보를 관리하세요"
 
 #: lib/tuist_web/live/members_live.ex:78
 #, elixir-autogen, elixir-format
@@ -490,14 +491,14 @@ msgstr "멤버"
 #: lib/tuist_web/live/members_live.ex:36
 #, elixir-autogen, elixir-format
 msgid "Members"
-msgstr "멤버"
+msgstr "멤버 목록"
 
 #: lib/tuist_web/live/billing_live.ex:151
 #, elixir-autogen, elixir-format
 msgid "Most Popular"
-msgstr "가장 인기있는"
+msgstr "가장 인기 있는"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:532
+#: lib/tuist_web/live/authentication_settings_live.html.heex:533
 #: lib/tuist_web/live/create_organization_live.ex:65
 #, elixir-autogen, elixir-format
 msgid "Name"
@@ -506,17 +507,17 @@ msgstr "이름"
 #: lib/tuist/billing.ex:51
 #, elixir-autogen, elixir-format
 msgid "No credit card required"
-msgstr "신용카드 필요 없음"
+msgstr "신용카드 불필요"
 
 #: lib/tuist_web/live/members_live.ex:303
 #, elixir-autogen, elixir-format
 msgid "No invitations created"
-msgstr "생성된 초대가 없습니다"
+msgstr "생성된 초대 없음"
 
 #: lib/tuist_web/live/members_live.ex:260
 #, elixir-autogen, elixir-format
 msgid "No members found"
-msgstr "멤버가 없습니다"
+msgstr "멤버를 찾을 수 없습니다"
 
 #: lib/tuist/billing.ex:83
 #: lib/tuist_web/live/billing_live.ex:250
@@ -527,15 +528,15 @@ msgstr "온프레미스"
 #: lib/tuist_web/live/billing_live.html.heex:139
 #, elixir-autogen, elixir-format
 msgid "On-premise: Self-host your instance of Tuist"
-msgstr "온프레미스: Tuist 인스턴스를 직접 호스팅하세요"
+msgstr "온프레미스: Tuist를 자체 호스팅하세요"
 
 #: lib/tuist_web/live/billing_live.html.heex:59
 #, elixir-autogen, elixir-format
 msgid "Open source"
-msgstr "오픈 소스"
+msgstr "오픈소스"
 
-#: lib/tuist_web/live/account_settings_live.html.heex:60
-#: lib/tuist_web/live/account_settings_live.html.heex:134
+#: lib/tuist_web/live/account_settings_live.html.heex:67
+#: lib/tuist_web/live/account_settings_live.html.heex:141
 #, elixir-autogen, elixir-format
 msgid "Organization name"
 msgstr "조직 이름"
@@ -549,13 +550,13 @@ msgstr "비밀번호가 일치하지 않습니다"
 #: lib/tuist_web/live/billing_live.ex:222
 #, elixir-autogen, elixir-format
 msgid "Pay nothing if below free tier limits"
-msgstr "무료 티어 한도 이하면 비용 없음"
+msgstr "무료 한도 이하일 경우 요금 없음"
 
 #: lib/tuist/billing.ex:66
 #: lib/tuist_web/live/billing_live.ex:223
 #, elixir-autogen, elixir-format
 msgid "Pay only for what you use per feature"
-msgstr "기능별 사용량에 대해서만 비용 지불"
+msgstr "기능별 사용한 만큼만 지불하세요"
 
 #: lib/tuist_web/live/billing_live.html.heex:243
 #, elixir-autogen, elixir-format
@@ -565,8 +566,10 @@ msgstr "결제 수단"
 #: lib/tuist_web/live/billing_live.html.heex:246
 #, elixir-autogen, elixir-format
 msgid "Payments for your subscription are made using the default card."
-msgstr "구독 결제는 기본 카드로 이루어집니다."
+msgstr "구독 결제는 기본 카드로 청구됩니다."
 
+#: lib/tuist_web/live/account_settings_live.ex:547
+#: lib/tuist_web/live/account_settings_live.ex:550
 #: lib/tuist_web/live/members_live.ex:279
 #, elixir-autogen, elixir-format
 msgid "Pending"
@@ -580,7 +583,7 @@ msgstr "가격"
 #: lib/tuist_web/live/billing_live.html.heex:172
 #, elixir-autogen, elixir-format
 msgid "Pricing details"
-msgstr "가격 세부정보"
+msgstr "요금 상세"
 
 #: lib/tuist/billing.ex:85
 #, elixir-autogen, elixir-format
@@ -595,7 +598,7 @@ msgstr "공유 Slack 채널을 통한 우선 지원"
 #: lib/tuist_web/live/billing_live.html.heex:142
 #, elixir-autogen, elixir-format
 msgid "Priority support: Via shared Slack channel"
-msgstr "우선 지원: 공유 Slack 채널을 통해"
+msgstr "우선 지원: 공유 Slack 채널 이용"
 
 #: lib/tuist/billing.ex:56
 #: lib/tuist_web/live/billing_live.ex:217
@@ -604,7 +607,10 @@ msgstr "우선 지원: 공유 Slack 채널을 통해"
 msgid "Pro"
 msgstr "프로"
 
-#: lib/tuist_web/live/account_settings_live.ex:304
+#: lib/tuist_web/live/account_settings_live.ex:455
+#: lib/tuist_web/live/account_settings_live.ex:468
+#: lib/tuist_web/live/account_settings_live.ex:536
+#: lib/tuist_web/live/account_settings_live.ex:659
 #, elixir-autogen, elixir-format
 msgid "Region"
 msgstr "지역"
@@ -630,33 +636,33 @@ msgstr "제거"
 msgid "Remove member"
 msgstr "멤버 제거"
 
-#: lib/tuist_web/live/account_settings_live.html.heex:77
-#: lib/tuist_web/live/account_settings_live.html.heex:226
+#: lib/tuist_web/live/account_settings_live.html.heex:84
+#: lib/tuist_web/live/account_settings_live.html.heex:240
 #, elixir-autogen, elixir-format
 msgid "Rename"
 msgstr "이름 변경"
 
-#: lib/tuist_web/live/account_settings_live.html.heex:19
-#: lib/tuist_web/live/account_settings_live.html.heex:43
+#: lib/tuist_web/live/account_settings_live.html.heex:26
+#: lib/tuist_web/live/account_settings_live.html.heex:50
 #, elixir-autogen, elixir-format
 msgid "Rename organization"
 msgstr "조직 이름 변경"
 
-#: lib/tuist_web/live/account_settings_live.html.heex:37
+#: lib/tuist_web/live/account_settings_live.html.heex:44
 #, elixir-autogen, elixir-format
 msgid "Rename your organization?"
 msgstr "조직 이름을 변경하시겠습니까?"
 
-#: lib/tuist_web/live/account_settings_live.html.heex:55
-#: lib/tuist_web/live/account_settings_live.html.heex:205
+#: lib/tuist_web/live/account_settings_live.html.heex:62
+#: lib/tuist_web/live/account_settings_live.html.heex:219
 #, elixir-autogen, elixir-format
 msgid "Renaming can have unexpected consequences"
-msgstr "이름 변경은 예기치 못한 결과를 초래할 수 있습니다"
+msgstr "이름 변경은 예기치 않은 결과를 초래할 수 있습니다"
 
-#: lib/tuist_web/live/account_settings_live.html.heex:22
+#: lib/tuist_web/live/account_settings_live.html.heex:29
 #, elixir-autogen, elixir-format
 msgid "Renaming your organization can have unintended side effects."
-msgstr "조직 이름 변경은 의도치 않은 부작용을 일으킬 수 있습니다."
+msgstr "조직 이름 변경은 의도하지 않은 부작용을 일으킬 수 있습니다."
 
 #: lib/tuist/accounts/user_notifier.ex:133
 #, elixir-autogen, elixir-format
@@ -689,7 +695,7 @@ msgstr "저장"
 msgid "Search members..."
 msgstr "멤버 검색..."
 
-#: lib/tuist_web/live/account_settings_live.ex:299
+#: lib/tuist_web/live/account_settings_live.ex:654
 #, elixir-autogen, elixir-format
 msgid "Select region"
 msgstr "지역 선택"
@@ -697,9 +703,9 @@ msgstr "지역 선택"
 #: lib/tuist/billing.ex:84
 #, elixir-autogen, elixir-format
 msgid "Self-host your instance of Tuist"
-msgstr "Tuist 인스턴스를 직접 호스팅하세요"
+msgstr "Tuist 인스턴스를 자체 호스팅하세요"
 
-#: lib/tuist_web/live/account_settings_live.ex:44
+#: lib/tuist_web/live/account_settings_live.ex:51
 #: lib/tuist_web/live/account_settings_live.html.heex:3
 #, elixir-autogen, elixir-format
 msgid "Settings"
@@ -713,19 +719,20 @@ msgstr "표준 지원"
 #: lib/tuist_web/live/billing_live.ex:224
 #, elixir-autogen, elixir-format
 msgid "Standard support via Slack and email"
-msgstr "Slack 및 이메일을 통한 표준 지원"
+msgstr "Slack과 이메일을 통한 표준 지원"
 
 #: lib/tuist_web/live/billing_live.html.heex:128
 #, elixir-autogen, elixir-format
 msgid "Standard support: Via Slack and email"
-msgstr "표준 지원: Slack 및 이메일로 제공"
+msgstr "표준 지원: Slack과 이메일을 통해"
 
+#: lib/tuist_web/live/account_settings_live.ex:539
 #: lib/tuist_web/live/members_live.ex:277
 #, elixir-autogen, elixir-format
 msgid "Status"
 msgstr "상태"
 
-#: lib/tuist_web/live/account_settings_live.ex:288
+#: lib/tuist_web/live/account_settings_live.ex:643
 #, elixir-autogen, elixir-format
 msgid "Storage region"
 msgstr "저장 지역"
@@ -740,26 +747,26 @@ msgstr "커뮤니티 포럼을 통한 지원"
 msgid "Tailored agreements to meet your specific needs"
 msgstr "특정 요구에 맞춘 맞춤 계약"
 
-#: lib/tuist_web/live/account_settings_live.html.heex:93
-#: lib/tuist_web/live/account_settings_live.html.heex:242
+#: lib/tuist_web/live/account_settings_live.html.heex:100
+#: lib/tuist_web/live/account_settings_live.html.heex:256
 #, elixir-autogen, elixir-format
 msgid "This action cannot be undone."
-msgstr "이 작업은 되돌릴 수 없습니다."
+msgstr "이 작업은 취소할 수 없습니다."
 
 #: lib/tuist/accounts/user_notifier.ex:110
 #, elixir-autogen, elixir-format
 msgid "To start using Tuist, verify your email and you are good to go:"
-msgstr "Tuist 사용을 시작하려면 이메일을 확인하세요."
+msgstr "Tuist 사용을 시작하려면 이메일을 확인하세요:"
 
 #: lib/tuist_web/live/billing_live.html.heex:234
 #, elixir-autogen, elixir-format
 msgid "Total"
-msgstr "총합"
+msgstr "총계"
 
 #: lib/tuist_web/live/members_live.ex:261
 #, elixir-autogen, elixir-format
 msgid "Try changing your search term"
-msgstr "검색어를 변경해 보세요"
+msgstr "검색어를 변경해보세요"
 
 #: lib/tuist_web/live/accept_invitation_live.ex:73
 #: lib/tuist_web/live/create_organization_live.ex:39
@@ -767,12 +774,12 @@ msgstr "검색어를 변경해 보세요"
 msgid "Tuist Logo"
 msgstr "Tuist 로고"
 
-#: lib/tuist_web/live/account_settings_live.ex:309
+#: lib/tuist_web/live/account_settings_live.ex:664
 #, elixir-autogen, elixir-format
 msgid "United States"
 msgstr "미국"
 
-#: lib/tuist/vcs.ex:500
+#: lib/tuist/vcs.ex:639
 #, elixir-autogen, elixir-format
 msgid "Unknown"
 msgstr "알 수 없음"
@@ -792,21 +799,21 @@ msgstr "청구 이메일 업데이트"
 msgid "Update payment method"
 msgstr "결제 수단 업데이트"
 
-#: lib/tuist_web/live/account_settings_live.html.heex:170
-#: lib/tuist_web/live/account_settings_live.html.heex:194
+#: lib/tuist_web/live/account_settings_live.html.heex:184
+#: lib/tuist_web/live/account_settings_live.html.heex:208
 #, elixir-autogen, elixir-format
 msgid "Update username"
 msgstr "사용자 이름 업데이트"
 
-#: lib/tuist_web/live/account_settings_live.html.heex:188
+#: lib/tuist_web/live/account_settings_live.html.heex:202
 #, elixir-autogen, elixir-format
 msgid "Update your username?"
-msgstr "사용자 이름을 업데이트하시겠습니까?"
+msgstr "사용자 이름을 변경하시겠습니까?"
 
-#: lib/tuist_web/live/account_settings_live.html.heex:173
+#: lib/tuist_web/live/account_settings_live.html.heex:187
 #, elixir-autogen, elixir-format
 msgid "Updating your username can have unintended consequences."
-msgstr "사용자 이름 업데이트는 의도치 않은 결과를 초래할 수 있습니다."
+msgstr "사용자 이름 변경은 의도하지 않은 결과를 초래할 수 있습니다."
 
 #: lib/tuist_web/live/billing_live.ex:236
 #, elixir-autogen, elixir-format
@@ -826,12 +833,12 @@ msgstr "사용량"
 #: lib/tuist/billing.ex:44
 #, elixir-autogen, elixir-format
 msgid "Usage capped at free tier limits"
-msgstr "사용량은 무료 티어 한도로 제한됩니다"
+msgstr "사용량은 무료 한도 내로 제한됨"
 
 #: lib/tuist_web/live/billing_live.html.heex:22
 #, elixir-autogen, elixir-format
 msgid "Usage details"
-msgstr "사용량 세부정보"
+msgstr "사용 내역"
 
 #: lib/tuist_web/live/billing_live.html.heex:69
 #, elixir-autogen, elixir-format
@@ -841,28 +848,28 @@ msgstr "사용량 기반"
 #: lib/tuist/billing.ex:65
 #, elixir-autogen, elixir-format
 msgid "Usage-based pricing"
-msgstr "사용량 기반 가격 정책"
+msgstr "사용량 기반 요금제"
 
 #: lib/tuist_web/live/billing_live.ex:218
 #, elixir-autogen, elixir-format
 msgid "Usage-based pricing after free tier"
-msgstr "무료 티어 초과 시 사용량 기반 가격 정책"
+msgstr "무료 한도 이후 사용량 기반 요금제"
 
 #: lib/tuist/billing.ex:58
 #: lib/tuist_web/live/billing_live.html.heex:85
 #, elixir-autogen, elixir-format
 msgid "Usage-based pricing after free tier."
-msgstr "무료 티어 이후 사용량 기반 가격 정책."
+msgstr "무료 한도 이후 사용량 기반 요금제."
 
 #: lib/tuist_web/live/billing_live.html.heex:122
 #, elixir-autogen, elixir-format
 msgid "Usage-based pricing: Pay only for what you use per feature"
-msgstr "사용량 기반 가격 정책: 기능별 사용량에 대해서만 비용 지불"
+msgstr "사용량 기반 요금제: 기능별 사용한 만큼만 지불"
 
 #: lib/tuist_web/live/billing_live.html.heex:91
 #, elixir-autogen, elixir-format
 msgid "Use all Tuist features as long as you stay open source."
-msgstr "오픈 소스 상태인 동안 모든 Tuist 기능을 사용하세요."
+msgstr "오픈소스 상태인 동안 모든 Tuist 기능을 사용할 수 있습니다."
 
 #: lib/tuist_web/live/members_live.ex:123
 #: lib/tuist_web/live/members_live.ex:130
@@ -870,8 +877,8 @@ msgstr "오픈 소스 상태인 동안 모든 Tuist 기능을 사용하세요."
 msgid "User"
 msgstr "사용자"
 
-#: lib/tuist_web/live/account_settings_live.html.heex:210
-#: lib/tuist_web/live/account_settings_live.html.heex:282
+#: lib/tuist_web/live/account_settings_live.html.heex:224
+#: lib/tuist_web/live/account_settings_live.html.heex:296
 #, elixir-autogen, elixir-format
 msgid "Username"
 msgstr "사용자 이름"
@@ -879,14 +886,14 @@ msgstr "사용자 이름"
 #: lib/tuist/billing.ex:67
 #, elixir-autogen, elixir-format
 msgid "Via Slack and email"
-msgstr "Slack 및 이메일 통해"
+msgstr "Slack 및 이메일로 제공"
 
 #: lib/tuist/billing.ex:85
 #, elixir-autogen, elixir-format
 msgid "Via shared Slack channel"
-msgstr "공유 Slack 채널 통해"
+msgstr "공유 Slack 채널로 제공"
 
-#: lib/tuist_web/live/account_settings_live.ex:19
+#: lib/tuist_web/live/account_settings_live.ex:23
 #: lib/tuist_web/live/authentication_settings_live.ex:17
 #: lib/tuist_web/live/billing_live.ex:13
 #, elixir-autogen, elixir-format
@@ -896,12 +903,12 @@ msgstr "이 작업을 수행할 권한이 없습니다."
 #: lib/tuist_web/live/accept_invitation_live.ex:133
 #, elixir-autogen, elixir-format
 msgid "You have been invited"
-msgstr "초대를 받았습니다"
+msgstr "초대되었습니다"
 
 #: lib/tuist/accounts/user_notifier.ex:116
 #, elixir-autogen, elixir-format
 msgid "You received this email because you recently signed up for a Tuist account."
-msgstr "최근 Tuist 계정에 가입하여 이 이메일을 받았습니다."
+msgstr "최근에 Tuist 계정을 등록해서 이 이메일을 받으셨습니다."
 
 #: lib/tuist/accounts/user_notifier.ex:145
 #, elixir-autogen, elixir-format
@@ -921,7 +928,7 @@ msgstr "거의 완료되었습니다!"
 #: lib/tuist_web/live/billing_live.html.heex:210
 #, elixir-autogen, elixir-format
 msgid "You’ve exceeded your free tier quota and will incur charges for additional usage."
-msgstr "무료 티어 한도를 초과하여 추가 사용에 대해 요금이 부과됩니다."
+msgstr "무료 한도를 초과하여 추가 사용에 요금이 부과됩니다."
 
 #: lib/tuist_web/live/billing_live.html.heex:47
 #, elixir-autogen, elixir-format
@@ -931,18 +938,18 @@ msgstr "원격 캐시 적중에 대하여"
 #: lib/tuist_web/live/billing_live.html.heex:228
 #, elixir-autogen, elixir-format
 msgid "above free tier"
-msgstr "무료 티어 초과"
+msgstr "무료 한도 이상"
 
 #: lib/tuist/billing.ex:60
 #: lib/tuist_web/live/billing_live.ex:220
 #, elixir-autogen, elixir-format
 msgid "and up"
-msgstr "이상"
+msgstr "부터"
 
 #: lib/tuist_web/live/billing_live.ex:36
 #, elixir-autogen, elixir-format
 msgid "charged /per month"
-msgstr "월별 요금 부과"
+msgstr "월별 청구"
 
 #: lib/tuist_web/live/billing_live.ex:38
 #, elixir-autogen, elixir-format
@@ -954,60 +961,60 @@ msgstr "%{next_charge_date}에 청구됨"
 msgid "xxxx xxxx xxxx %{card_number}"
 msgstr "xxxx xxxx xxxx %{card_number}"
 
-#: lib/tuist_web/live/account_settings_live.ex:387
+#: lib/tuist_web/live/account_settings_live.ex:742
 #, elixir-autogen, elixir-format
 msgid "Add"
 msgstr "추가"
 
-#: lib/tuist_web/live/account_settings_live.ex:349
+#: lib/tuist_web/live/account_settings_live.ex:704
 #, elixir-autogen, elixir-format
 msgid "Add cache endpoint"
 msgstr "캐시 엔드포인트 추가"
 
-#: lib/tuist_web/live/account_settings_live.ex:356
+#: lib/tuist_web/live/account_settings_live.ex:711
 #, elixir-autogen, elixir-format
 msgid "Add endpoint"
 msgstr "엔드포인트 추가"
 
-#: lib/tuist_web/live/account_settings_live.ex:369
+#: lib/tuist_web/live/account_settings_live.ex:724
 #, elixir-autogen, elixir-format
 msgid "Endpoint URL"
 msgstr "엔드포인트 URL"
 
-#: lib/tuist_web/live/account_settings_live.ex:426
+#: lib/tuist_web/live/account_settings_live.ex:781
 #, elixir-autogen, elixir-format
 msgid "URL"
 msgstr "URL"
 
-#: lib/tuist_web/live/account_settings_live.ex:433
+#: lib/tuist_web/live/account_settings_live.ex:788
 #, elixir-autogen, elixir-format
 msgid "Delete last cache endpoint?"
 msgstr "마지막 캐시 엔드포인트를 삭제하시겠습니까?"
 
-#: lib/tuist_web/live/account_settings_live.ex:453
+#: lib/tuist_web/live/account_settings_live.ex:808
 #, elixir-autogen, elixir-format
 msgid "Removing the last custom cache endpoint will switch your organization back to Tuist-hosted caching. This affects all builds across your organization."
-msgstr "마지막 맞춤 캐시 엔드포인트를 제거하면 조직의 캐시가 Tuist 호스팅 캐시로 전환됩니다. 이는 조직 내 모든 빌드에 영향을 미칩니다."
+msgstr "마지막 맞춤 캐시 엔드포인트를 제거하면 조직은 Tuist 호스팅 캐시로 전환됩니다. 이는 조직 전체 빌드에 영향을 미칩니다."
 
-#: lib/tuist_web/live/account_settings_live.ex:331
+#: lib/tuist_web/live/account_settings_live.ex:686
 #, elixir-autogen, elixir-format
 msgid "Cache endpoints"
 msgstr "캐시 엔드포인트"
 
-#: lib/tuist_web/live/account_settings_live.ex:335
+#: lib/tuist_web/live/account_settings_live.ex:690
 #, elixir-autogen, elixir-format
 msgid "Configure custom cache endpoints for self-hosted cache setups. When enabled, Tuist will read from and write to these endpoints instead of the default Tuist-hosted cache."
-msgstr "셀프 호스팅 캐시 설정을 위한 맞춤 캐시 엔드포인트를 구성하세요. 활성화하면 Tuist는 기본 Tuist 호스팅 캐시 대신 이 엔드포인트에서 읽고 씁니다."
+msgstr "자체 호스팅 캐시 설정을 위해 맞춤 캐시 엔드포인트를 구성하세요. 활성화하면 Tuist가 기본 Tuist 호스팅 캐시 대신 이 엔드포인트들을 사용합니다."
 
-#: lib/tuist_web/live/account_settings_live.ex:403
+#: lib/tuist_web/live/account_settings_live.ex:758
 #, elixir-autogen, elixir-format
 msgid "Custom cache endpoints are disabled. Tuist will use the default Tuist-hosted cache."
 msgstr "맞춤 캐시 엔드포인트가 비활성화되었습니다. Tuist는 기본 Tuist 호스팅 캐시를 사용합니다."
 
-#: lib/tuist_web/live/account_settings_live.ex:415
+#: lib/tuist_web/live/account_settings_live.ex:770
 #, elixir-autogen, elixir-format
 msgid "No custom cache endpoints configured. Tuist will use the default Tuist-hosted cache until endpoints are added."
-msgstr "설정된 맞춤 캐시 엔드포인트가 없습니다. 엔드포인트가 추가될 때까지 Tuist는 기본 Tuist 호스팅 캐시를 사용합니다."
+msgstr "맞춤 캐시 엔드포인트가 구성되지 않았습니다. 엔드포인트 추가 전까지 Tuist는 기본 Tuist 호스팅 캐시를 사용합니다."
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:312
 #, elixir-autogen, elixir-format
@@ -1022,7 +1029,7 @@ msgstr "클라이언트 시크릿"
 #: lib/tuist_web/live/authentication_settings_live.html.heex:126
 #, elixir-autogen, elixir-format
 msgid "Copy the Client ID and Client Secret from the application settings"
-msgstr "애플리케이션 설정에서 클라이언트 ID와 클라이언트 시크릿을 복사하세요"
+msgstr "애플리케이션 설정에서 클라이언트 ID와 시크릿을 복사하세요"
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:108
 #, elixir-autogen, elixir-format
@@ -1047,22 +1054,22 @@ msgstr "공급자"
 #: lib/tuist_web/live/authentication_settings_live.html.heex:114
 #, elixir-autogen, elixir-format
 msgid "Select \"OIDC - OpenID Connect\" and \"Web Application\""
-msgstr "\"OIDC - OpenID Connect\" 및 \"Web Application\"을 선택하세요"
+msgstr "\"OIDC - OpenID Connect\"와 \"웹 애플리케이션\"을 선택하세요"
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:21
 #, elixir-autogen, elixir-format
 msgid "Single Sign-On"
 msgstr "싱글 사인온"
 
-#: lib/tuist_web/live/authentication_settings_live.ex:346
+#: lib/tuist_web/live/authentication_settings_live.ex:343
 #, elixir-autogen, elixir-format
 msgid "You must be authenticated with Google using an email tied to this domain. Please sign in with Google first."
-msgstr "이 도메인에 연결된 이메일로 Google 인증이 필요합니다. 먼저 Google로 로그인하세요."
+msgstr "이 도메인에 연결된 이메일로 Google 인증을 받아야 합니다. 먼저 Google로 로그인하세요."
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:98
 #, elixir-autogen, elixir-format
 msgid "Create an OIDC Web Application in your Okta admin dashboard before configuring the fields below."
-msgstr "아래 필드를 구성하기 전에 Okta 관리자 대시보드에서 OIDC 웹 애플리케이션을 생성하세요."
+msgstr "아래 필드를 설정하기 전에 Okta 관리자 대시보드에서 OIDC 웹 애플리케이션을 생성하세요."
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:51
 #, elixir-autogen, elixir-format
@@ -1072,12 +1079,12 @@ msgstr "SSO 공급자"
 #: lib/tuist_web/live/authentication_settings_live.html.heex:377
 #, elixir-autogen, elixir-format
 msgid "Save changes"
-msgstr "변경사항 저장"
+msgstr "변경 사항 저장"
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:54
 #, elixir-autogen, elixir-format
 msgid "Select an SSO provider to allow users to sign in to Tuist and automatically join this organization."
-msgstr "사용자가 Tuist에 로그인하고 자동으로 이 조직에 합류할 수 있도록 SSO 공급자를 선택하세요."
+msgstr "사용자가 Tuist에 로그인하고 자동으로 이 조직에 가입할 수 있도록 SSO 공급자를 선택하세요."
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:95
 #: lib/tuist_web/live/authentication_settings_live.html.heex:150
@@ -1125,17 +1132,17 @@ msgstr "SSO 강제 적용"
 #: lib/tuist_web/live/authentication_settings_live.html.heex:365
 #, elixir-autogen, elixir-format
 msgid "When enabled, organization members will not be able to log in with email and password. They must use SSO instead."
-msgstr "활성화 시, 조직 멤버는 이메일과 비밀번호로 로그인할 수 없으며 반드시 SSO를 사용해야 합니다."
+msgstr "활성화 시 조직 멤버는 이메일 및 비밀번호로 로그인할 수 없으며 SSO를 사용해야 합니다."
 
-#: lib/tuist_web/live/authentication_settings_live.ex:332
+#: lib/tuist_web/live/authentication_settings_live.ex:329
 #, elixir-autogen, elixir-format
 msgid "You must authenticate with the SSO provider before enforcing SSO. Please sign in with your SSO provider first."
-msgstr "SSO를 강제 적용하려면 먼저 SSO 공급자에서 인증해야 합니다. 먼저 SSO 공급자로 로그인하세요."
+msgstr "SSO를 강제 적용하기 전에 SSO 공급자로 인증해야 합니다. 먼저 SSO 공급자로 로그인하세요."
 
 #: lib/tuist_web/live/create_organization_live.ex:77
 #, elixir-autogen, elixir-format
 msgid "Continue"
-msgstr "계속"
+msgstr "계속하기"
 
 #: lib/tuist_web/live/create_organization_live.ex:49
 #, elixir-autogen, elixir-format
@@ -1145,25 +1152,25 @@ msgstr "계속하려면 조직을 생성하세요. 조직은 관련 프로젝트
 #: lib/tuist_web/live/create_organization_live.ex:67
 #, elixir-autogen, elixir-format
 msgid "What's the name of your company or team? You can change this later in the settings"
-msgstr "회사나 팀 이름은 무엇인가요? 나중에 설정에서 변경할 수 있습니다."
+msgstr "회사 또는 팀 이름은 무엇인가요? 나중에 설정에서 변경할 수 있습니다."
 
-#: lib/tuist_web/live/account_settings_live.ex:243
+#: lib/tuist_web/live/account_settings_live.ex:598
 #, elixir-autogen, elixir-format
 msgid "Browser default"
 msgstr "브라우저 기본값"
 
-#: lib/tuist_web/live/account_settings_live.ex:253
+#: lib/tuist_web/live/account_settings_live.ex:608
 #, elixir-autogen, elixir-format
 msgid "Choose your preferred dashboard language."
 msgstr "선호하는 대시보드 언어를 선택하세요."
 
-#: lib/tuist_web/live/account_settings_live.ex:250
+#: lib/tuist_web/live/account_settings_live.ex:605
 #, elixir-autogen, elixir-format
 msgid "Dashboard language"
 msgstr "대시보드 언어"
 
-#: lib/tuist_web/live/account_settings_live.ex:258
-#: lib/tuist_web/live/account_settings_live.ex:263
+#: lib/tuist_web/live/account_settings_live.ex:613
+#: lib/tuist_web/live/account_settings_live.ex:618
 #, elixir-autogen, elixir-format
 msgid "Language"
 msgstr "언어"
@@ -1176,12 +1183,12 @@ msgstr "OAuth2"
 #: lib/tuist_web/live/accept_invitation_live.ex:164
 #, elixir-autogen, elixir-format
 msgid "This invitation is addressed to %{email}. Log out and sign in with that account to accept it."
-msgstr "이 초대는 %{email}님께 발송되었습니다. 로그아웃 후 해당 계정으로 로그인하여 수락하세요."
+msgstr "이 초대장은 %{email}용입니다. 로그아웃 후 해당 계정으로 로그인하여 수락하세요."
 
 #: lib/tuist_web/live/accept_invitation_live.ex:183
 #, elixir-autogen, elixir-format
 msgid "We could not find the invitation you are trying to accept. Please ask the inviter to send a new invitation."
-msgstr "수락하려는 초대를 찾을 수 없습니다. 초대자에게 새 초대를 요청하세요."
+msgstr "수락하려는 초대장을 찾을 수 없습니다. 초대한 사람에게 새 초대를 요청하세요."
 
 #: lib/tuist_web/live/accept_invitation_live.ex:161
 #, elixir-autogen, elixir-format
@@ -1191,7 +1198,7 @@ msgstr "잘못된 계정"
 #: lib/tuist_web/live/authentication_settings_live.html.heex:24
 #, elixir-autogen, elixir-format
 msgid "Allow members to sign in to Tuist through your identity provider."
-msgstr "멤버가 ID 공급자를 통해 Tuist에 로그인할 수 있도록 허용하세요."
+msgstr "멤버가 신원 공급자를 통해 Tuist에 로그인하도록 허용하세요."
 
 #: lib/tuist_web/live/authentication_settings_live.ex:44
 #: lib/tuist_web/live/authentication_settings_live.html.heex:3
@@ -1202,7 +1209,7 @@ msgstr "인증"
 #: lib/tuist_web/live/authentication_settings_live.ex:22
 #, elixir-autogen, elixir-format
 msgid "Authentication settings are only available for organizations."
-msgstr "인증 설정은 조직에서만 사용할 수 있습니다."
+msgstr "인증 설정은 조직에만 제공됩니다."
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:405
 #, elixir-autogen, elixir-format
@@ -1214,12 +1221,12 @@ msgstr "SCIM 엔드포인트 URL"
 msgid "Copy it now — it will not be shown again after you close this dialog."
 msgstr "지금 복사하세요 — 이 대화상자를 닫으면 다시 표시되지 않습니다."
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:468
+#: lib/tuist_web/live/authentication_settings_live.html.heex:469
 #, elixir-autogen, elixir-format
 msgid "Copy token"
 msgstr "토큰 복사"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:535
+#: lib/tuist_web/live/authentication_settings_live.html.heex:536
 #, elixir-autogen, elixir-format
 msgid "Created"
 msgstr "생성됨"
@@ -1229,12 +1236,12 @@ msgstr "생성됨"
 msgid "Dashboard"
 msgstr "대시보드"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:506
+#: lib/tuist_web/live/authentication_settings_live.html.heex:507
 #, elixir-autogen, elixir-format
 msgid "Done"
 msgstr "완료"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:517
+#: lib/tuist_web/live/authentication_settings_live.html.heex:518
 #, elixir-autogen, elixir-format
 msgid "Generate"
 msgstr "생성"
@@ -1244,10 +1251,10 @@ msgstr "생성"
 msgid "Generate SCIM token"
 msgstr "SCIM 토큰 생성"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:571
+#: lib/tuist_web/live/authentication_settings_live.html.heex:572
 #, elixir-autogen, elixir-format
 msgid "Generate one above to start provisioning from your IdP."
-msgstr "위에서 하나를 생성하여 IdP에서 프로비저닝을 시작하세요."
+msgstr "IdP에서 프로비저닝을 시작하려면 위 토큰을 생성하세요."
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:436
 #, elixir-autogen, elixir-format
@@ -1257,19 +1264,19 @@ msgstr "토큰 생성"
 #: lib/tuist_web/live/accept_invitation_live.ex:84
 #, elixir-autogen, elixir-format
 msgid "Invitation accepted!"
-msgstr "초대가 수락되었습니다!"
+msgstr "초대를 수락했습니다!"
 
 #: lib/tuist_web/live/accept_invitation_live.ex:109
 #, elixir-autogen, elixir-format
 msgid "Invitation rejected"
-msgstr "초대가 거절되었습니다"
+msgstr "초대 거부됨"
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:421
 #, elixir-autogen, elixir-format
 msgid "Issue one bearer token per IdP. Revoke a token if it leaks or is no longer needed."
-msgstr "IdP별로 하나의 베어러 토큰을 발급하세요. 유출되었거나 더 이상 필요 없으면 토큰을 취소하세요."
+msgstr "IdP별로 토큰을 발급하세요. 누출되거나 필요 없으면 토큰을 취소하세요."
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:538
+#: lib/tuist_web/live/authentication_settings_live.html.heex:539
 #, elixir-autogen, elixir-format
 msgid "Last used"
 msgstr "마지막 사용"
@@ -1277,24 +1284,24 @@ msgstr "마지막 사용"
 #: lib/tuist_web/live/authentication_settings_live.html.heex:395
 #, elixir-autogen, elixir-format
 msgid "Let your IdP (Okta, Azure AD/Entra, JumpCloud, etc.) provision users into this organization at the SCIM endpoint URL below using a bearer token."
-msgstr "IdP(Okta, Azure AD/Entra, JumpCloud 등)가 아래 SCIM 엔드포인트 URL에서 베어러 토큰을 사용해 사용자를 이 조직에 프로비저닝하도록 허용하세요."
+msgstr "IdP(Okta, Azure AD/Entra, JumpCloud 등)가 아래 SCIM 엔드포인트 URL에서 토큰으로 이 조직에 사용자를 프로비저닝하도록 허용하세요."
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:486
+#: lib/tuist_web/live/authentication_settings_live.html.heex:487
 #, elixir-autogen, elixir-format
 msgid "Name this token so you can identify it later (for example: \"Okta\")."
-msgstr "나중에 식별할 수 있도록 이 토큰에 이름을 지정하세요(예: \"Okta\")."
+msgstr "이 토큰의 이름을 지정하여 나중에 식별할 수 있도록 하세요 (예: \"Okta\")."
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:542
+#: lib/tuist_web/live/authentication_settings_live.html.heex:543
 #, elixir-autogen, elixir-format
 msgid "Never"
 msgstr "없음"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:569
+#: lib/tuist_web/live/authentication_settings_live.html.heex:570
 #, elixir-autogen, elixir-format
 msgid "No SCIM tokens yet"
-msgstr "SCIM 토큰이 아직 없습니다"
+msgstr "생성된 SCIM 토큰이 없습니다"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:556
+#: lib/tuist_web/live/authentication_settings_live.html.heex:557
 #, elixir-autogen, elixir-format
 msgid "Revoke this token? This action cannot be undone."
 msgstr "이 토큰을 취소하시겠습니까? 이 작업은 되돌릴 수 없습니다."
@@ -1304,17 +1311,12 @@ msgstr "이 토큰을 취소하시겠습니까? 이 작업은 되돌릴 수 없�
 msgid "SCIM provisioning"
 msgstr "SCIM 프로비저닝"
 
-#: lib/tuist_web/live/authentication_settings_live.ex:177
-#, elixir-autogen, elixir-format
-msgid "SCIM token revoked."
-msgstr "SCIM 토큰이 취소되었습니다."
-
 #: lib/tuist_web/live/authentication_settings_live.html.heex:450
 #, elixir-autogen, elixir-format
 msgid "Token created"
 msgstr "토큰 생성됨"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:484
+#: lib/tuist_web/live/authentication_settings_live.html.heex:485
 #, elixir-autogen, elixir-format
 msgid "Token name"
 msgstr "토큰 이름"
@@ -1324,7 +1326,7 @@ msgstr "토큰 이름"
 msgid "Token name is required."
 msgstr "토큰 이름은 필수입니다."
 
-#: lib/tuist_web/live/authentication_settings_live.ex:180
+#: lib/tuist_web/live/authentication_settings_live.ex:177
 #, elixir-autogen, elixir-format
 msgid "Token not found."
 msgstr "토큰을 찾을 수 없습니다."
@@ -1332,9 +1334,9 @@ msgstr "토큰을 찾을 수 없습니다."
 #: lib/tuist_web/live/authentication_settings_live.html.heex:418
 #, elixir-autogen, elixir-format
 msgid "Tokens"
-msgstr "토큰"
+msgstr "토큰 목록"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:533
+#: lib/tuist_web/live/authentication_settings_live.html.heex:534
 #, elixir-autogen, elixir-format
 msgid "Unnamed"
 msgstr "이름 없음"
@@ -1342,7 +1344,7 @@ msgstr "이름 없음"
 #: lib/tuist_web/live/accept_invitation_live.ex:99
 #, elixir-autogen, elixir-format
 msgid "You are now a part of %{organization} organization"
-msgstr "이제 %{organization} 조직의 일부입니다"
+msgstr "이제 %{organization} 조직의 일원입니다"
 
 #: lib/tuist_web/live/accept_invitation_live.ex:87
 #, elixir-autogen, elixir-format
@@ -1352,19 +1354,128 @@ msgstr "조직 초대를 수락했습니다"
 #: lib/tuist_web/live/accept_invitation_live.ex:112
 #, elixir-autogen, elixir-format
 msgid "You have rejected the invite to join the organization"
-msgstr "조직 초대를 거절했습니다"
+msgstr "조직 초대를 거부했습니다"
 
 #: lib/tuist_web/live/accept_invitation_live.ex:124
 #, elixir-autogen, elixir-format
 msgid "You won’t be able to access this organization unless invited again."
 msgstr "다시 초대받지 않으면 이 조직에 접근할 수 없습니다."
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:491
+#: lib/tuist_web/live/authentication_settings_live.html.heex:492
 #, elixir-autogen, elixir-format
 msgid "e.g. Okta"
 msgstr "예: Okta"
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:554
+#: lib/tuist_web/live/authentication_settings_live.html.heex:555
 #, elixir-autogen, elixir-format
 msgid "Revoke token"
 msgstr "토큰 취소"
+
+#: lib/tuist_web/live/account_settings_live.ex:577
+#, elixir-autogen, elixir-format
+msgid "Active"
+msgstr "활성"
+
+#: lib/tuist_web/live/account_settings_live.ex:518
+#: lib/tuist_web/live/account_settings_live.ex:524
+#, elixir-autogen, elixir-format
+msgid "Deploy"
+msgstr "배포"
+
+#: lib/tuist_web/live/account_settings_live.ex:432
+#: lib/tuist_web/live/account_settings_live.ex:439
+#, elixir-autogen, elixir-format
+msgid "Deploy Kura server"
+msgstr "Kura 서버 배포"
+
+#: lib/tuist_web/live/account_settings_live.ex:423
+#, elixir-autogen, elixir-format
+msgid "Deploy regional Kura cache servers for this account. Each region can have at most one server."
+msgstr "이 계정에 대해 지역별 Kura 캐시 서버를 배포하세요. 지역당 최대 한 대만 배포할 수 있습니다."
+
+#: lib/tuist_web/live/account_settings_live.ex:576
+#, elixir-autogen, elixir-format
+msgid "Deploying"
+msgstr "배포 중"
+
+#: lib/tuist_web/live/account_settings_live.ex:370
+#, elixir-autogen, elixir-format
+msgid "Deploying Kura in %{region}..."
+msgstr "%{region}에 Kura 배포 중..."
+
+#: lib/tuist_web/live/account_settings_live.ex:556
+#, elixir-autogen, elixir-format
+msgid "Destroy"
+msgstr "삭제"
+
+#: lib/tuist_web/live/account_settings_live.ex:562
+#, elixir-autogen, elixir-format
+msgid "Destroy the Kura server in %{region}? This removes the account's Kura cache endpoint for that region."
+msgstr "%{region}의 Kura 서버를 삭제하시겠습니까? 해당 지역의 Kura 캐시 엔드포인트가 제거됩니다."
+
+#: lib/tuist_web/live/account_settings_live.ex:580
+#, elixir-autogen, elixir-format
+msgid "Destroyed"
+msgstr "삭제됨"
+
+#: lib/tuist_web/live/account_settings_live.ex:579
+#, elixir-autogen, elixir-format
+msgid "Destroying"
+msgstr "삭제 중"
+
+#: lib/tuist_web/live/account_settings_live.ex:282
+#, elixir-autogen, elixir-format
+msgid "Destroying Kura server..."
+msgstr "Kura 서버 삭제 중..."
+
+#: lib/tuist_web/live/account_settings_live.ex:546
+#, elixir-autogen, elixir-format
+msgid "Domain"
+msgstr "도메인"
+
+#: lib/tuist_web/live/account_settings_live.ex:578
+#, elixir-autogen, elixir-format
+msgid "Failed"
+msgstr "실패"
+
+#: lib/tuist_web/live/account_settings_live.ex:380
+#: lib/tuist_web/live/account_settings_live.ex:389
+#, elixir-autogen, elixir-format
+msgid "Failed to deploy Kura: %{reason}"
+msgstr "Kura 배포 실패: %{reason}"
+
+#: lib/tuist_web/live/account_settings_live.ex:420
+#, elixir-autogen, elixir-format
+msgid "Kura cache servers"
+msgstr "Kura 캐시 서버"
+
+#: lib/tuist_web/live/account_settings_live.ex:275
+#, elixir-autogen, elixir-format
+msgid "Kura server not found."
+msgstr "Kura 서버를 찾을 수 없습니다."
+
+#: lib/tuist_web/live/account_settings_live.ex:487
+#, elixir-autogen, elixir-format
+msgid "New servers start on Kura"
+msgstr "새 서버가 Kura에서 시작됩니다"
+
+#: lib/tuist_web/live/account_settings_live.ex:549
+#, elixir-autogen, elixir-format
+msgid "Version"
+msgstr "버전"
+
+#: lib/tuist_web/live/account_settings_live.ex:489
+#, elixir-autogen, elixir-format
+msgid "(current deploy)."
+msgstr "(현재 배포)."
+
+#: lib/tuist_web/live/account_settings_live.ex:252
+#: lib/tuist_web/live/account_settings_live.ex:482
+#, elixir-autogen, elixir-format
+msgid "No Kura runtime image is configured right now. Try again after the next server deploy."
+msgstr "현재 Kura 런타임 이미지가 구성되어 있지 않습니다. 다음 서버 배포 후 다시 시도하세요."
+
+#: lib/tuist_web/live/account_settings_live.ex:244
+#, elixir-autogen, elixir-format
+msgid "Select a Kura region before deploying."
+msgstr "배포 전에 Kura 지역을 선택하세요."

@@ -3,14 +3,10 @@ defmodule Tuist.Tests.TestCaseRunActiveDailyStat do
   Ecto schema for the `test_case_runs_active_daily_stats` ClickHouse
   materialized view.
 
-  Stores `uniqExactState(test_case_id)` per (project_id, date, is_ci) so the
-  Test Cases analytics chart can answer "how many distinct test cases ran in
-  the last 14 days?" by merging at most ~28 daily states instead of scanning
-  the source `test_case_runs` table.
-
-  The aggregate state column (`test_case_ids_state`) is accessed through
-  `fragment("uniqExactMerge(test_case_ids_state)")` because Ecto has no type
-  mapping for ClickHouse's `AggregateFunction` types.
+  Stores exact daily presence rows keyed by (project_id, date, is_ci,
+  test_case_id) so the Test Cases analytics chart can answer "how many
+  distinct test cases ran in the last 14 days?" without merging large exact
+  aggregate-state blobs or scanning the source `test_case_runs` table.
   """
 
   use Ecto.Schema
@@ -20,5 +16,6 @@ defmodule Tuist.Tests.TestCaseRunActiveDailyStat do
     field :project_id, Ch, type: "Int64"
     field :date, :date
     field :is_ci, :boolean
+    field :test_case_id, Ecto.UUID
   end
 end

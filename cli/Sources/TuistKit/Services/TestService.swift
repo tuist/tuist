@@ -488,9 +488,19 @@ public struct TestService { // swiftlint:disable:this type_body_length
             mapperEnvironment: mapperEnvironment,
             graph: graph,
             action: action,
+            requestedTestTargets: testTargets,
             passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
-        ), action == .build {
-            try await outputEmptyShardMatrixIfNeeded(isSharding: isSharding, action: action)
+        ) {
+            if action == .build {
+                try await outputEmptyShardMatrixIfNeeded(isSharding: isSharding, action: action)
+            } else {
+                let timer = clock.startTimer()
+                try await uploadSkippedTestSummary(
+                    schemeName: schemes.first?.name,
+                    config: config,
+                    timer: timer
+                )
+            }
             return
         }
 
@@ -568,6 +578,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
                     component: SelectiveTestingGraph.fileName
                 )
                 try await fileSystem.writeAsJSON(selectiveTestingGraph, at: selectiveTestingGraphPath)
+
+                await RunMetadataStorage.current.writeMetadata(to: testProductsPath)
 
                 if isSharding,
                    let fullHandle = config.fullHandle
@@ -655,6 +667,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 relativeTo: shardCurrentPath
             )
         }
+
+        await RunMetadataStorage.current.restoreMetadata(from: shard.testProductsPath)
 
         var shardPassthroughArguments = passthroughXcodeBuildArguments
         if let xcTestRunPath = shard.xcTestRunPath {
@@ -752,6 +766,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
         let selectiveTestingGraph: SelectiveTestingGraph = try await fileSystem.readJSONFile(
             at: selectiveTestingGraphPath
         )
+
+        await RunMetadataStorage.current.restoreMetadata(from: testProductsPath)
 
         let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
 
@@ -1121,21 +1137,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                     ).isEmpty
                 }
 
-        if !shouldRunTest(
-            for: schemes,
-            testPlanConfiguration: testPlanConfiguration,
-            mapperEnvironment: mapperEnvironment,
-            graph: graph,
-            action: action,
-            passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
-        ) {
-            if action != .build {
-                try await uploadSkippedTestSummary(
-                    schemeName: schemes.first?.name,
-                    config: config,
-                    timer: timer
-                )
-            }
+        guard !testSchemes.isEmpty else {
             return
         }
 
@@ -1292,6 +1294,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         mapperEnvironment: MapperEnvironment,
         graph: Graph,
         action: XcodeBuildTestAction,
+        requestedTestTargets: [TestIdentifier] = [],
         passthroughXcodeBuildArguments: [String] = []
     ) -> Bool {
         let testActionTargets = testActionTargets(
@@ -1301,18 +1304,6 @@ public struct TestService { // swiftlint:disable:this type_body_length
             action: action
         )
         .map(\.target)
-
-        let skippedTestTargets = initialTestTargets(
-            mapperEnvironment: mapperEnvironment,
-            schemes: schemes,
-            testPlanConfiguration: testPlanConfiguration,
-            action: action
-        )
-        .filter { target in
-            !testActionTargets.contains(where: {
-                $0.bundleId == target.target.bundleId
-            })
-        }
 
         let testSchemes =
             schemes
@@ -1327,10 +1318,26 @@ public struct TestService { // swiftlint:disable:this type_body_length
             return false
         }
 
-        if !skippedTestTargets.isEmpty {
+        let requestedTargetNames = Set(requestedTestTargets.map(\.target))
+        let skippedBySelectiveTesting = initialTestTargets(
+            mapperEnvironment: mapperEnvironment,
+            schemes: schemes,
+            testPlanConfiguration: testPlanConfiguration,
+            action: action
+        )
+        .filter { target in
+            !testActionTargets.contains(where: {
+                $0.bundleId == target.target.bundleId
+            })
+        }
+        .filter { target in
+            requestedTargetNames.isEmpty || requestedTargetNames.contains(target.target.name)
+        }
+
+        if !skippedBySelectiveTesting.isEmpty {
             Logger.current
                 .notice(
-                    "The following targets have not changed since the last successful run and will be skipped: \(skippedTestTargets.map(\.target.name).sorted().joined(separator: ", "))"
+                    "The following targets have not changed since the last successful run and will be skipped: \(skippedBySelectiveTesting.map(\.target.name).sorted().joined(separator: ", "))"
                 )
         }
 
@@ -1787,8 +1794,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
     private func rootDirectory() async throws -> AbsolutePath? {
         let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
         let workingDirectory = Environment.current.workspacePath ?? currentWorkingDirectory
-        if gitController.isInGitRepository(workingDirectory: workingDirectory) {
-            return try gitController.topLevelGitDirectory(workingDirectory: workingDirectory)
+        if await gitController.isInGitRepository(workingDirectory: workingDirectory) {
+            return try await gitController.topLevelGitDirectory(workingDirectory: workingDirectory)
         } else {
             return try await rootDirectoryLocator.locate(from: workingDirectory)
         }
@@ -1815,15 +1822,16 @@ public struct TestService { // swiftlint:disable:this type_body_length
             testModules: []
         )
 
-        let gitInfo = try gitController.gitInfo(workingDirectory: gitInfoDirectory)
+        let gitInfo = try await gitController.gitInfo(workingDirectory: gitInfoDirectory)
         let ciInfo = ciController.ciInfo()
+        let buildRunId = await RunMetadataStorage.current.buildRunId
 
         let test = try await createTestService.createTest(
             fullHandle: fullHandle,
             serverURL: serverURL,
             id: nil,
             testSummary: testSummary,
-            buildRunId: nil,
+            buildRunId: buildRunId,
             gitBranch: gitInfo.branch,
             gitCommitSHA: gitInfo.sha,
             gitRef: gitInfo.ref,

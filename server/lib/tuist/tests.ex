@@ -22,8 +22,11 @@ defmodule Tuist.Tests do
   import Ecto.Query
 
   alias Tuist.Accounts.Account
+  alias Tuist.Automations
   alias Tuist.ClickHouseRepo
+  alias Tuist.Environment
   alias Tuist.IngestRepo
+  alias Tuist.KeyValueStore
   alias Tuist.Projects.Project
   alias Tuist.Repo
   alias Tuist.Shards
@@ -55,12 +58,22 @@ defmodule Tuist.Tests do
   # (i.e. still part of the suite). Used by `list_test_cases/2` and by the Test
   # Cases / Flaky Tests analytics charts so they stay in sync.
   @active_window_days 14
+  @short_cache_ttl to_timeout(second: 10)
+  @unscoped_test_suite_runs_lookback_days 7
 
   @doc """
   Number of trailing days used across the product to decide whether a test case
   is still considered part of the suite.
   """
   def active_window_days, do: @active_window_days
+
+  defp cached_count(key, fun) do
+    if Environment.test?() do
+      fun.()
+    else
+      KeyValueStore.get_or_update([:tests, key], [ttl: @short_cache_ttl], fun)
+    end
+  end
 
   # State-change events emitted by `update_test_case` use the `muted` /
   # `unmuted` names. Pre-rename rows have already been backfilled to these
@@ -132,11 +145,14 @@ defmodule Tuist.Tests do
   end
 
   def last_24h_test_run_count do
+    cached_count(:last_24h_test_run_count, &last_24h_test_run_count_query/0)
+  end
+
+  defp last_24h_test_run_count_query do
     twenty_four_hours_ago = DateTime.add(DateTime.utc_now(), -24, :hour)
 
     ClickHouseRepo.one(
       from(t in Test,
-        hints: ["FINAL"],
         where: t.inserted_at >= ^twenty_four_hours_ago,
         select: count()
       )
@@ -145,6 +161,10 @@ defmodule Tuist.Tests do
   end
 
   def last_24h_test_case_run_count do
+    cached_count(:last_24h_test_case_run_count, &last_24h_test_case_run_count_query/0)
+  end
+
+  defp last_24h_test_case_run_count_query do
     yesterday = Date.add(Date.utc_today(), -1)
 
     ClickHouseRepo.one(
@@ -156,6 +176,10 @@ defmodule Tuist.Tests do
   end
 
   def last_24h_flaky_test_case_run_count do
+    cached_count(:last_24h_flaky_test_case_run_count, &last_24h_flaky_test_case_run_count_query/0)
+  end
+
+  defp last_24h_flaky_test_case_run_count_query do
     yesterday = Date.add(Date.utc_today(), -1)
 
     ClickHouseRepo.one(
@@ -289,12 +313,33 @@ defmodule Tuist.Tests do
   end
 
   def list_test_suite_runs(attrs) do
-    Tuist.ClickHouseFlop.validate_and_run!(TestSuiteRun, attrs, for: TestSuiteRun)
+    base_query =
+      if scoped_test_suite_run_attrs?(attrs) do
+        TestSuiteRun
+      else
+        seven_days_ago = DateTime.add(DateTime.utc_now(), -@unscoped_test_suite_runs_lookback_days, :day)
+        from(tsr in TestSuiteRun, where: tsr.inserted_at >= ^seven_days_ago)
+      end
+
+    Tuist.ClickHouseFlop.validate_and_run!(base_query, attrs, for: TestSuiteRun)
   end
 
   def list_test_module_runs(attrs) do
     Tuist.ClickHouseFlop.validate_and_run!(TestModuleRun, attrs, for: TestModuleRun)
   end
+
+  defp scoped_test_suite_run_attrs?(attrs) do
+    attrs
+    |> flop_filters()
+    |> Enum.any?(fn
+      %{field: field} when field in [:test_run_id, :test_module_run_id, :shard_id] -> true
+      _ -> false
+    end)
+  end
+
+  defp flop_filters(%Flop{filters: filters}), do: List.wrap(filters)
+  defp flop_filters(%{filters: filters}) when is_list(filters), do: filters
+  defp flop_filters(_attrs), do: []
 
   @doc """
   Constructs a CI run URL for a test run based on the CI provider and metadata.
@@ -776,12 +821,14 @@ defmodule Tuist.Tests do
   ## Parameters
   - `test_case_id` - the test case UUID to update
   - `update_attrs` - map with `:is_flaky` boolean and/or `:state` (`"enabled"` | `"muted"` | `"skipped"`)
-  - `opts` - optional keyword list with `:actor_id` (account_id for user actions, nil for system)
+  - `opts` - optional keyword list with `:actor_id` (account_id for user actions, nil for system / automation)
+    and `:alert_id` (set by `ActionExecutor` so the event timeline can attribute the change to its automation)
   """
   def update_test_case(test_case_id, update_attrs, opts \\ []) when is_map(update_attrs) do
     valid_keys = [:is_flaky, :state]
     filtered_attrs = Map.take(update_attrs, valid_keys)
     actor_id = Keyword.get(opts, :actor_id)
+    alert_id = Keyword.get(opts, :alert_id)
 
     with {:ok, test_case} <- get_test_case_by_id(test_case_id) do
       attrs =
@@ -793,31 +840,81 @@ defmodule Tuist.Tests do
 
       IngestRepo.insert_all(TestCase, [attrs])
 
-      create_events_for_test_case_changes(test_case_id, test_case, filtered_attrs, actor_id)
+      updated_test_case = Map.merge(test_case, filtered_attrs)
 
-      {:ok, Map.merge(test_case, filtered_attrs)}
+      event_types = determine_test_case_events(test_case, filtered_attrs)
+      record_test_case_events(test_case_id, event_types, actor_id, alert_id)
+      # Broadcast THIS call's update before fanning out to event-driven
+      # automations. An automation action (e.g. change_state) re-enters
+      # `update_test_case/3`, which will broadcast its own update; we want
+      # that nested broadcast to land LAST so the LiveView ends up with the
+      # automation-applied state, not our pre-automation snapshot.
+      broadcast_test_case_update(updated_test_case, event_types)
+      dispatch_event_driven_automations(test_case, event_types)
+
+      {:ok, updated_test_case}
     end
   end
 
-  defp create_events_for_test_case_changes(test_case_id, old_test_case, new_attrs, actor_id) do
-    event_types = determine_test_case_events(old_test_case, new_attrs)
+  @doc """
+  PubSub topic LiveViews can subscribe to for real-time updates on a
+  single test case (state / is_flaky flips). The matching broadcast
+  payload is `{:test_case_updated, %{id: id, is_flaky: bool, state: string, event_types: [atom]}}`.
+  """
+  def test_case_topic(test_case_id), do: "test_case:#{test_case_id}"
 
-    if Enum.any?(event_types) do
-      now = NaiveDateTime.utc_now()
+  defp broadcast_test_case_update(_test_case, []), do: :ok
 
-      events =
-        Enum.map(event_types, fn event_type ->
-          %{
-            id: UUIDv7.generate(),
-            test_case_id: test_case_id,
-            event_type: to_string(event_type),
-            actor_id: actor_id,
-            inserted_at: now
-          }
-        end)
+  defp broadcast_test_case_update(test_case, event_types) do
+    payload = %{
+      id: test_case.id,
+      is_flaky: test_case.is_flaky,
+      state: test_case.state,
+      event_types: event_types
+    }
 
-      TestCaseEvent.Buffer.insert_all(events)
-    end
+    Phoenix.PubSub.broadcast(
+      Tuist.PubSub,
+      test_case_topic(test_case.id),
+      {:test_case_updated, payload}
+    )
+  end
+
+  defp record_test_case_events(_test_case_id, [], _actor_id, _alert_id), do: :ok
+
+  defp record_test_case_events(test_case_id, event_types, actor_id, alert_id) do
+    now = NaiveDateTime.utc_now()
+
+    events =
+      Enum.map(event_types, fn event_type ->
+        %{
+          id: UUIDv7.generate(),
+          test_case_id: test_case_id,
+          event_type: to_string(event_type),
+          actor_id: actor_id,
+          alert_id: alert_id,
+          inserted_at: now
+        }
+      end)
+
+    TestCaseEvent.Buffer.insert_all(events)
+    # State-change events are rare and we want subscribers (e.g. the
+    # `TestCaseLive` PubSub handler that triggers a history refresh) to see
+    # them immediately rather than wait for the 5s buffer tick. Flushing is
+    # cheap here — these events are emitted at most a few times per second
+    # per test case.
+    TestCaseEvent.Buffer.flush()
+  end
+
+  defp dispatch_event_driven_automations(test_case, event_types) do
+    # Automation-driven updates re-enter `update_test_case/3`, which calls
+    # back into this dispatcher: an automation reacting to `marked_flaky`
+    # by muting the test fires its own `:muted` event for any alert
+    # subscribed to `state_changed_to_muted`. Loop protection lives in
+    # `Tuist.Automations.dispatch_test_case_event/2` (depth guard).
+    Enum.each(event_types, fn event_type ->
+      Automations.dispatch_test_case_event(event_type, test_case)
+    end)
   end
 
   defp determine_test_case_events(old_test_case, new_attrs) do
@@ -856,7 +953,7 @@ defmodule Tuist.Tests do
         for: TestCaseEvent
       )
 
-    events = Repo.preload(events, :actor)
+    events = Repo.preload(events, [:actor, :alert])
     {events, meta}
   end
 
@@ -938,15 +1035,38 @@ defmodule Tuist.Tests do
     ids = Enum.map(slim_results, & &1.id)
     project_ids = slim_results |> Enum.map(& &1.project_id) |> Enum.uniq()
     test_case_ids = slim_results |> Enum.map(& &1.test_case_id) |> Enum.uniq()
+    {min_ran_at, max_ran_at} = ran_at_bounds(slim_results)
 
     ClickHouseRepo.all(
       from(tcr in TestCaseRun,
         hints: ["FINAL"],
         where: tcr.project_id in ^project_ids,
         where: tcr.test_case_id in ^test_case_ids,
+        where: tcr.ran_at >= ^min_ran_at,
+        where: tcr.ran_at <= ^max_ran_at,
         where: tcr.id in ^ids
       )
     )
+  end
+
+  defp ran_at_bounds([first | rest]) do
+    Enum.reduce(rest, {first.ran_at, first.ran_at}, fn run, {min_ran_at, max_ran_at} ->
+      min_ran_at =
+        if NaiveDateTime.before?(run.ran_at, min_ran_at) do
+          run.ran_at
+        else
+          min_ran_at
+        end
+
+      max_ran_at =
+        if NaiveDateTime.after?(run.ran_at, max_ran_at) do
+          run.ran_at
+        else
+          max_ran_at
+        end
+
+      {min_ran_at, max_ran_at}
+    end)
   end
 
   defp extract_mv_scope_filter(%{filters: filters}) when is_list(filters) do
@@ -1545,6 +1665,7 @@ defmodule Tuist.Tests do
             test_case_id: run.test_case_id,
             event_type: "first_run",
             actor_id: nil,
+            alert_id: nil,
             inserted_at: now
           }
         end)
@@ -2233,9 +2354,10 @@ defmodule Tuist.Tests do
   @doc """
   Returns the count of unique flaky run groups (scheme + commit_sha) for a test case.
   """
-  def get_flaky_runs_groups_count_for_test_case(test_case_id) do
+  def get_flaky_runs_groups_count_for_test_case(project_id, test_case_id) do
     query =
       from(tcr in TestCaseRun,
+        where: tcr.project_id == ^project_id,
         where: tcr.test_case_id == ^test_case_id,
         where: tcr.is_flaky == true,
         select: fragment("count(DISTINCT (scheme, git_commit_sha))")
@@ -2247,11 +2369,12 @@ defmodule Tuist.Tests do
   @doc """
   Returns a map of test_case_id => count of unique flaky run groups for multiple test cases.
   """
-  def get_flaky_runs_groups_counts_for_test_cases([]), do: %{}
+  def get_flaky_runs_groups_counts_for_test_cases(_project_id, []), do: %{}
 
-  def get_flaky_runs_groups_counts_for_test_cases(test_case_ids) do
+  def get_flaky_runs_groups_counts_for_test_cases(project_id, test_case_ids) do
     query =
       from(tcr in TestCaseRun,
+        where: tcr.project_id == ^project_id,
         where: tcr.test_case_id in ^test_case_ids,
         where: tcr.is_flaky == true,
         group_by: tcr.test_case_id,
@@ -2267,13 +2390,14 @@ defmodule Tuist.Tests do
   Fetches flaky runs for a specific test case, grouped by scheme and commit SHA.
   Returns paginated groups, each containing all runs with their failures.
   """
-  def list_flaky_runs_for_test_case(test_case_id, params \\ %{}) do
+  def list_flaky_runs_for_test_case(project_id, test_case_id, params \\ %{}) do
     page = Map.get(params, :page, 1)
     page_size = Map.get(params, :page_size, 20)
     offset = (page - 1) * page_size
 
     groups_query =
       from(tcr in TestCaseRun,
+        where: tcr.project_id == ^project_id,
         where: tcr.test_case_id == ^test_case_id,
         where: tcr.is_flaky == true,
         group_by: [tcr.scheme, tcr.git_commit_sha],
@@ -2292,6 +2416,7 @@ defmodule Tuist.Tests do
 
     flaky_runs_query =
       from(tcr in TestCaseRun,
+        where: tcr.project_id == ^project_id,
         where: tcr.test_case_id == ^test_case_id,
         where: tcr.is_flaky == true,
         order_by: [desc: tcr.ran_at]
@@ -2343,7 +2468,7 @@ defmodule Tuist.Tests do
         }
       end)
 
-    total_count = get_flaky_runs_groups_count_for_test_case(test_case_id)
+    total_count = get_flaky_runs_groups_count_for_test_case(project_id, test_case_id)
 
     meta = %{
       total_count: total_count,
@@ -2358,6 +2483,7 @@ defmodule Tuist.Tests do
   def get_flaky_run_group_for_test_case_run(test_case_run) do
     flaky_runs_query =
       from(tcr in TestCaseRun,
+        where: tcr.project_id == ^test_case_run.project_id,
         where: tcr.test_case_id == ^test_case_run.test_case_id,
         where: tcr.git_commit_sha == ^test_case_run.git_commit_sha,
         where: tcr.scheme == ^test_case_run.scheme,
@@ -2426,21 +2552,49 @@ defmodule Tuist.Tests do
   Returns a list of groups, each containing runs with their failures.
   """
   def get_flaky_runs_for_test_run(test_run_id) do
-    current_flaky_runs = fetch_flaky_runs_for_test_run(test_run_id)
+    [test_run_id]
+    |> get_flaky_runs_for_test_runs()
+    |> Map.get(test_run_id, [])
+  end
 
-    cross_run_counterparts =
-      get_cross_run_flaky_runs(test_run_id, current_flaky_runs)
+  @doc """
+  Batched form of `get_flaky_runs_for_test_run/1`. Returns a map keyed by
+  `test_run_id`. The CommentWorker fan-out path resolves N test runs per PR
+  comment; using this avoids N round-trips against `test_case_runs_by_test_run`
+  during the post-CI burst.
+  """
+  def get_flaky_runs_for_test_runs([]), do: %{}
 
-    flaky_runs = current_flaky_runs ++ cross_run_counterparts
+  def get_flaky_runs_for_test_runs(test_run_ids) when is_list(test_run_ids) do
+    current_by_test_run = fetch_flaky_runs_for_test_runs(test_run_ids)
 
-    run_ids = Enum.map(flaky_runs, & &1.id)
+    cross_by_test_run =
+      fetch_cross_run_flaky_runs(test_run_ids, current_by_test_run)
 
-    failures = get_failures_for_runs(run_ids)
-    failures_by_run_id = Enum.group_by(failures, & &1.test_case_run_id)
+    flaky_runs_by_test_run =
+      Map.new(test_run_ids, fn test_run_id ->
+        current = Map.get(current_by_test_run, test_run_id, [])
+        cross = Map.get(cross_by_test_run, test_run_id, [])
+        {test_run_id, current ++ cross}
+      end)
 
-    repetitions = get_repetitions_for_runs(run_ids)
-    repetitions_by_run_id = Enum.group_by(repetitions, & &1.test_case_run_id)
+    all_run_ids =
+      flaky_runs_by_test_run
+      |> Map.values()
+      |> Enum.flat_map(fn runs -> Enum.map(runs, & &1.id) end)
 
+    failures_by_run_id =
+      all_run_ids |> get_failures_for_runs() |> Enum.group_by(& &1.test_case_run_id)
+
+    repetitions_by_run_id =
+      all_run_ids |> get_repetitions_for_runs() |> Enum.group_by(& &1.test_case_run_id)
+
+    Map.new(flaky_runs_by_test_run, fn {test_run_id, flaky_runs} ->
+      {test_run_id, group_flaky_runs(flaky_runs, failures_by_run_id, repetitions_by_run_id)}
+    end)
+  end
+
+  defp group_flaky_runs(flaky_runs, failures_by_run_id, repetitions_by_run_id) do
     flaky_runs
     |> Enum.group_by(fn run -> {run.test_case_id, run.name, run.module_name, run.suite_name} end)
     |> Enum.map(fn {{test_case_id, name, module_name, suite_name}, runs} ->
@@ -2476,24 +2630,115 @@ defmodule Tuist.Tests do
     |> Enum.sort_by(& &1.latest_ran_at, {:desc, NaiveDateTime})
   end
 
-  defp fetch_flaky_runs_for_test_run(test_run_id) do
+  # Avoids `FINAL` (which forces a cross-part merge of the entire matched
+  # range). Aggregating with `argMax(...inserted_at)` deduplicates only the
+  # rows that already pass the `test_run_id` primary-key filter, then
+  # `HAVING` checks the *latest* version of `is_flaky` for each test case.
+  # Returns a map keyed by `test_run_id` so callers can preserve per-run
+  # grouping after the batched query.
+  defp fetch_flaky_runs_for_test_runs(test_run_ids) do
     slim_query =
       from(mv in TestCaseRunByTestRun,
-        hints: ["FINAL"],
-        where: mv.test_run_id == ^test_run_id and mv.is_flaky == true,
-        order_by: [desc: mv.ran_at]
+        where: mv.test_run_id in ^test_run_ids,
+        group_by: [mv.test_run_id, mv.id],
+        having: fragment("argMax(?, ?) = ?", mv.is_flaky, mv.inserted_at, true),
+        select: %{
+          id: mv.id,
+          test_run_id: mv.test_run_id,
+          project_id: fragment("argMax(?, ?)", mv.project_id, mv.inserted_at),
+          test_case_id: fragment("argMax(?, ?)", mv.test_case_id, mv.inserted_at),
+          ran_at: fragment("argMax(?, ?)", mv.ran_at, mv.inserted_at)
+        }
       )
 
     slim_results = ClickHouseRepo.all(slim_query)
-    ids = Enum.map(slim_results, & &1.id)
-    full_results = fetch_full_test_case_runs(slim_results)
-    ordered_by_id = Map.new(full_results, &{&1.id, &1})
-    ids |> Enum.map(&Map.get(ordered_by_id, &1)) |> Enum.reject(&is_nil/1)
+    full_by_id = slim_results |> fetch_full_test_case_runs() |> Map.new(&{&1.id, &1})
+
+    slim_results
+    |> Enum.group_by(& &1.test_run_id)
+    |> Map.new(fn {test_run_id, slim_rows} ->
+      ordered =
+        slim_rows
+        |> Enum.sort_by(& &1.ran_at, {:desc, NaiveDateTime})
+        |> Enum.map(&Map.get(full_by_id, &1.id))
+        |> Enum.reject(&is_nil/1)
+
+      {test_run_id, ordered}
+    end)
   end
 
-  defp get_cross_run_flaky_runs(_test_run_id, []), do: []
+  # Resolves the "same test_case_id flaked on the same commit in OTHER
+  # test_runs" lookup for an entire batch of test_run_ids in one query.
+  #
+  # The single ClickHouse query is filtered against the *union* of
+  # per-axis IN sets across the batch, but each test_run's slice of the
+  # result is then re-filtered in Elixir against THAT test_run's own
+  # per-axis sets. This preserves the per-call semantics — run A only
+  # sees matches that satisfy A's own (project, test_case, commit) IN
+  # filters — without inflating its set with runs that only matched
+  # because run B contributed an unrelated key to the union. Without
+  # this re-filter, A flaky on `(Foo, sha1)` and B flaky on
+  # `(Bar, sha2)` would mistakenly cross-link Bar@sha2 into A's flaky
+  # group in the PR comment.
+  defp fetch_cross_run_flaky_runs(test_run_ids, current_by_test_run) do
+    per_run_keys =
+      Map.new(test_run_ids, fn test_run_id ->
+        {test_run_id, current_by_test_run |> Map.get(test_run_id, []) |> collect_cross_run_keys()}
+      end)
 
-  defp get_cross_run_flaky_runs(test_run_id, current_flaky_runs) do
+    {project_ids, test_case_ids, commit_shas} =
+      current_by_test_run
+      |> Map.values()
+      |> List.flatten()
+      |> collect_cross_run_keys()
+
+    cond do
+      Enum.empty?(test_run_ids) ->
+        %{}
+
+      Enum.empty?(commit_shas) or Enum.empty?(test_case_ids) ->
+        Map.new(test_run_ids, &{&1, []})
+
+      true ->
+        all_matches =
+          ClickHouseRepo.all(
+            from(tcr in TestCaseRun,
+              where: tcr.project_id in ^project_ids,
+              where: tcr.test_case_id in ^test_case_ids,
+              where: tcr.git_commit_sha in ^commit_shas,
+              where: tcr.is_flaky == true,
+              order_by: [desc: tcr.ran_at]
+            )
+          )
+
+        Map.new(test_run_ids, fn test_run_id ->
+          {test_run_id, scope_cross_run_matches(all_matches, test_run_id, per_run_keys)}
+        end)
+    end
+  end
+
+  defp scope_cross_run_matches(all_matches, test_run_id, per_run_keys) do
+    {own_projects, own_test_cases, own_commits} =
+      Map.get(per_run_keys, test_run_id, {[], [], []})
+
+    if Enum.empty?(own_commits) or Enum.empty?(own_test_cases) do
+      []
+    else
+      project_set = MapSet.new(own_projects)
+      test_case_set = MapSet.new(own_test_cases)
+      commit_set = MapSet.new(own_commits)
+
+      Enum.filter(all_matches, fn match ->
+        match.test_run_id != test_run_id and
+          MapSet.member?(project_set, match.project_id) and
+          MapSet.member?(test_case_set, match.test_case_id) and
+          MapSet.member?(commit_set, match.git_commit_sha)
+      end)
+    end
+  end
+
+  defp collect_cross_run_keys(current_flaky_runs) do
+    project_ids = current_flaky_runs |> Enum.map(& &1.project_id) |> Enum.uniq()
     test_case_ids = current_flaky_runs |> Enum.map(& &1.test_case_id) |> Enum.uniq()
 
     commit_shas =
@@ -2502,20 +2747,7 @@ defmodule Tuist.Tests do
       |> Enum.reject(&(&1 == "" or is_nil(&1)))
       |> Enum.uniq()
 
-    if Enum.empty?(commit_shas) do
-      []
-    else
-      query =
-        from(tcr in TestCaseRun,
-          where: tcr.test_run_id != ^test_run_id,
-          where: tcr.git_commit_sha in ^commit_shas,
-          where: tcr.test_case_id in ^test_case_ids,
-          where: tcr.is_flaky == true,
-          order_by: [desc: tcr.ran_at]
-        )
-
-      ClickHouseRepo.all(query)
-    end
+    {project_ids, test_case_ids, commit_shas}
   end
 
   defp get_failures_for_runs([]), do: []

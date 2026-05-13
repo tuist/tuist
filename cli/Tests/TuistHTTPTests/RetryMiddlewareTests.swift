@@ -24,7 +24,7 @@ struct RetryMiddlewareTests {
         #expect(callCount == 1)
     }
 
-    @Test(arguments: [429, 500, 502, 503, 504])
+    @Test(arguments: [408, 429, 500, 502, 503, 504, 525])
     func retries_on_retryable_status_code(statusCode: Int) async throws {
         let subject = RetryMiddleware(maxRetries: 2)
         var callCount = 0

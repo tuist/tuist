@@ -1,19 +1,19 @@
 {
-  "hash": "8cb2451cdcef63cfe60531be8dd1ada2a22b13ed0a9db71b302603eb0e85dfd1",
+  "hash": "6ebece615e5dac5f794c49a79277876347df88750254b13f52375fc5ffd4323e",
   "hash_tree": {
     "context": {
       "child": {
         "file": "server/L10N.md",
-        "hash": "0879bdf5dc534e1a0d665bfee7247bc56bdf5c07163f270a05bd2666a07536e6"
+        "hash": "4b6d469c7014caa6766970af517055bd43685866b230e2545cce3b06044cec87"
       },
       "file": "L10N.md",
       "hash": "5d5910c58a27c289d172b18f0bca28176bf6b6a74bd894e27273f55199cd2816"
     },
     "source": {
       "file": "server/priv/gettext/dashboard_account.pot",
-      "hash": "f9b4cde51b468518be9cf8e03f36ab0270d0e05ccbff85fe076a6765bfd68701"
+      "hash": "cbed2cf77d1117f4b77883ebc9a112f7dbd7d2f7a99d23ff94ce432d9a280e5d"
     }
   },
   "model": "openai:gpt-4.1-mini",
-  "translated_at": "2026-05-05T07:05:14.133031Z"
+  "translated_at": "2026-05-11T14:08:39.642964Z"
 }

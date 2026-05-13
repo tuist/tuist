@@ -1051,12 +1051,14 @@ flaky_test_case_updates =
 # Track which test cases are quarantined (muted or skipped) vs enabled for event generation.
 quarantined_states = ["muted", "skipped"]
 
-{quarantined_ids, unquarantined_ids} =
+{quarantined_with_state, unquarantined_ids} =
   flaky_test_case_defs
   |> Enum.split_with(fn {_def, _id, state} -> state in quarantined_states end)
   |> then(fn {quarantined, enabled} ->
-    {Enum.map(quarantined, fn {_def, id, _} -> id end), Enum.map(enabled, fn {_def, id, _} -> id end)}
+    {Enum.map(quarantined, fn {_def, id, state} -> {id, state} end), Enum.map(enabled, fn {_def, id, _} -> id end)}
   end)
+
+quarantined_ids = Enum.map(quarantined_with_state, fn {id, _state} -> id end)
 
 muted_count = Enum.count(flaky_test_case_defs, fn {_def, _id, state} -> state == "muted" end)
 skipped_count = Enum.count(flaky_test_case_defs, fn {_def, _id, state} -> state == "skipped" end)
@@ -1727,19 +1729,25 @@ create_xcode_data_for_events = fn events, label ->
           hit_value = rem(idx, 3)
           is_external = rem(idx, 7) == 0
           hash_idx = rem(idx, 100)
+          is_test_target = String.ends_with?(target_name, "Tests")
+
+          product =
+            if is_test_target,
+              do: "unit_tests",
+              else: Enum.at(product_types, rem(idx, length(product_types)))
 
           %{
             id: UUIDv7.generate(),
             name: "#{project.name}_#{target_name}",
-            binary_cache_hash: Enum.at(hash_pool, hash_idx),
-            binary_cache_hit: hit_value,
+            binary_cache_hash: if(is_test_target, do: nil, else: Enum.at(hash_pool, hash_idx)),
+            binary_cache_hit: if(is_test_target, do: 0, else: hit_value),
             binary_build_duration: 5000 + rem(idx * 17, 25_000),
-            selective_testing_hash: nil,
-            selective_testing_hit: 0,
+            selective_testing_hash: if(is_test_target, do: Enum.at(hash_pool, rem(hash_idx + 50, 100))),
+            selective_testing_hit: if(is_test_target, do: hit_value, else: 0),
             xcode_project_id: project.id,
             command_event_id: project.command_event_id,
             inserted_at: project.inserted_at,
-            product: Enum.at(product_types, rem(idx, length(product_types))),
+            product: product,
             bundle_id: "com.tuist.#{String.downcase(project.name)}.#{String.downcase(target_name)}",
             product_name: target_name,
             destinations: Enum.at(dest_pool, rem(idx, length(dest_pool))),
@@ -2000,10 +2008,17 @@ end
 
 IO.puts("Generating test case events for quarantine history...")
 
-# Generate events for quarantined test cases (odd number of events, ending with "muted")
+# Generate events for quarantined test cases (odd number of events, ending with the
+# test's current state — "muted" or "skipped" — so analytics matches the table).
 quarantined_events =
-  Enum.flat_map(quarantined_ids, fn test_case_id ->
-    # Odd number of events so it ends with "muted"
+  Enum.flat_map(quarantined_with_state, fn {test_case_id, state} ->
+    {active_event, inverse_event} =
+      case state do
+        "muted" -> {"muted", "unmuted"}
+        "skipped" -> {"skipped", "unskipped"}
+      end
+
+    # Odd number of events so it ends with the active event
     num_events = Enum.random([1, 3, 5, 7])
     base_date = DateTime.utc_now()
 
@@ -2018,7 +2033,7 @@ quarantined_events =
     event_timestamps
     |> Enum.with_index()
     |> Enum.map(fn {inserted_at, index} ->
-      event_type = if rem(index, 2) == 0, do: "muted", else: "unmuted"
+      event_type = if rem(index, 2) == 0, do: active_event, else: inverse_event
       actor_id = if Enum.random(1..10) <= 7, do: nil, else: user_account_id
 
       %{

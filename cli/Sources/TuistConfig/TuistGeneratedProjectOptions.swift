@@ -44,7 +44,8 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
                 enableCaching: false,
                 registryEnabled: false,
                 warningsAsErrors: .none,
-                defaultSwiftVersion: GenerationOptions.defaultSwiftVersionValue
+                defaultSwiftVersion: GenerationOptions.defaultSwiftVersionValue,
+                onOutdatedDependencies: .warn
             ),
             installOptions: .init(passthroughSwiftPackageManagerArguments: []),
             cacheOptions: CacheOptions(
@@ -85,6 +86,12 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
             }
         }
 
+        public enum OutdatedDependenciesAction: String, Codable, Hashable, Equatable, Sendable {
+            case warn
+            case install
+            case fail
+        }
+
         @available(*, deprecated, message: "Use `additionalPackageResolutionArguments` instead.")
         public let resolveDependenciesWithSystemScm: Bool
         public let disablePackageVersionLocking: Bool
@@ -103,6 +110,8 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
         public let registryEnabled: Bool
         public let warningsAsErrors: WarningsAsErrors
         public let defaultSwiftVersion: String
+        public let manifestEnvironment: [String]
+        public let onOutdatedDependencies: OutdatedDependenciesAction
 
         public init(
             resolveDependenciesWithSystemScm: Bool,
@@ -120,7 +129,9 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
             enableCaching: Bool = false,
             registryEnabled: Bool = false,
             warningsAsErrors: WarningsAsErrors = .none,
-            defaultSwiftVersion: String = GenerationOptions.defaultSwiftVersionValue
+            defaultSwiftVersion: String = GenerationOptions.defaultSwiftVersionValue,
+            manifestEnvironment: [String] = [],
+            onOutdatedDependencies: OutdatedDependenciesAction = .warn
         ) {
             self.resolveDependenciesWithSystemScm = resolveDependenciesWithSystemScm
             self.disablePackageVersionLocking = disablePackageVersionLocking
@@ -138,6 +149,8 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
             self.registryEnabled = registryEnabled
             self.warningsAsErrors = warningsAsErrors
             self.defaultSwiftVersion = defaultSwiftVersion
+            self.manifestEnvironment = manifestEnvironment
+            self.onOutdatedDependencies = onOutdatedDependencies
         }
 
         #if DEBUG
@@ -158,7 +171,9 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
                 enableCaching: Bool = false,
                 registryEnabled: Bool = false,
                 warningsAsErrors: TuistGeneratedProjectOptions.GenerationOptions.WarningsAsErrors = .none,
-                defaultSwiftVersion: String = GenerationOptions.defaultSwiftVersionValue
+                defaultSwiftVersion: String = GenerationOptions.defaultSwiftVersionValue,
+                manifestEnvironment: [String] = [],
+                onOutdatedDependencies: TuistGeneratedProjectOptions.GenerationOptions.OutdatedDependenciesAction = .warn
             ) -> Self {
                 .init(
                     resolveDependenciesWithSystemScm: resolveDependenciesWithSystemScm,
@@ -176,7 +191,9 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
                     enableCaching: enableCaching,
                     registryEnabled: registryEnabled,
                     warningsAsErrors: warningsAsErrors,
-                    defaultSwiftVersion: defaultSwiftVersion
+                    defaultSwiftVersion: defaultSwiftVersion,
+                    manifestEnvironment: manifestEnvironment,
+                    onOutdatedDependencies: onOutdatedDependencies
                 )
             }
         #endif

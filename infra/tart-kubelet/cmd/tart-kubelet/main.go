@@ -12,13 +12,17 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
+	"net"
 	"os"
+	"strings"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/kubernetes"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -32,6 +36,7 @@ import (
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/envresolver"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/nodeagent"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/podagent"
+	"github.com/tuist/tuist/infra/tart-kubelet/internal/satoken"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/tart"
 )
 
@@ -46,15 +51,28 @@ func init() {
 
 func main() {
 	var (
-		nodeName     string
-		hostCPU      int
-		hostMemoryMB int
-		maxPods      int
-		metricsAddr  string
-		probeAddr    string
-		tartBinary   string
+		nodeName           string
+		nodeIP             string
+		scrapeAllowedCIDRs cidrList
+		nodeLabelsRaw      string
+		hostCPU            int
+		hostMemoryMB       int
+		maxPods            int
+		metricsAddr        string
+		probeAddr          string
+		tartBinary         string
 	)
 	flag.StringVar(&nodeName, "node-name", envOr("TART_KUBELET_NODE_NAME", ""), "Node name to register as. Defaults to os.Hostname() when empty.")
+	flag.StringVar(&nodeIP, "node-ip", envOr("TART_KUBELET_NODE_IP", ""),
+		"Routable IP of this Mac mini. Pods that opt into Prometheus scraping advertise it as their PodIP and run a host-side forwarder on the host port. Defaults to the first non-loopback IPv4 address on a UP interface.")
+	flag.Var(&scrapeAllowedCIDRs, "scrape-allowed-cidr",
+		"CIDR (IPv4 or IPv6) allowed to reach the per-Pod metrics forwarder. May be repeated. Defaults to RFC1918 / IPv6 ULA / loopback / link-local — covers any realistic cluster Pod or Node CIDR while clamping out the public WAN. The Mac mini's bind address can in practice be a public IP, so this allowlist (not the bind interface) is the load-bearing security boundary.")
+	flag.StringVar(&nodeLabelsRaw, "node-labels", envOr("TART_KUBELET_NODE_LABELS", ""),
+		"Comma-separated key=value pairs the Node carries as labels (e.g. "+
+			"`tuist.dev/fleet=runners,tuist.dev/instance-type=large`). Workloads use "+
+			"these via nodeSelector to pin to specific Mac minis. Mirrors kubelet's "+
+			"--node-labels flag. Empty omits the labels; tart-kubelet prunes any "+
+			"`tuist.dev/*` labels it previously set on the Node but no longer carries.")
 	flag.IntVar(&hostCPU, "host-cpu", 8, "CPU cores to advertise on the Node.")
 	flag.IntVar(&hostMemoryMB, "host-memory-mb", 16384, "Memory MB to advertise on the Node.")
 	flag.IntVar(&maxPods, "max-pods", 2,
@@ -81,6 +99,19 @@ func main() {
 			os.Exit(1)
 		}
 		nodeName = hostname
+	}
+
+	if nodeIP == "" {
+		ip, err := defaultNodeIP()
+		if err != nil {
+			// Non-fatal: scraping is opt-in per Pod, and the
+			// reconciler's PodIP rewrite is gated on NodeIP being
+			// set. Everything else (Pod ↔ VM management) keeps
+			// working without a known host IP.
+			setupLog.Info("no --node-ip and auto-detect failed; metrics scraping for VM Pods will be disabled", "err", err.Error())
+		} else {
+			nodeIP = ip
+		}
 	}
 
 	// controller-runtime's GetConfigOrDie resolves config via (in order):
@@ -145,25 +176,45 @@ func main() {
 		setupLog.Error(err, "state recovery failed; reconciles may treat existing VMs as stale")
 	}
 
+	// Typed kubernetes.Interface for TokenRequest — the
+	// controller-runtime client doesn't expose CreateToken on
+	// ServiceAccounts because TokenRequest is a subresource that
+	// doesn't fit the generic resource shape.
+	typedClient, err := kubernetes.NewForConfig(cfg)
+	if err != nil {
+		setupLog.Error(err, "create typed kubernetes client")
+		os.Exit(1)
+	}
+
 	if err := (&podagent.Reconciler{
-		CachedClient: mgr.GetClient(),
-		NodeName:     nodeName,
-		Tart:         tartClient,
-		Resolver:     resolver,
-		Store:        store,
-		GC:           gcCollector,
+		CachedClient:       mgr.GetClient(),
+		NodeName:           nodeName,
+		NodeIP:             nodeIP,
+		ScrapeAllowedCIDRs: scrapeAllowedCIDRs.Value(),
+		Tart:               tartClient,
+		Resolver:           resolver,
+		Store:              store,
+		TokenMinter:        &satoken.ClientMinter{Client: typedClient, ExpirationSeconds: 3600},
+		GC:                 gcCollector,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup pod reconciler")
 		os.Exit(1)
 	}
 
+	nodeLabels, err := parseNodeLabels(nodeLabelsRaw)
+	if err != nil {
+		setupLog.Error(err, "parse --node-labels")
+		os.Exit(1)
+	}
+
 	if err := mgr.Add(&nodeagent.Maintainer{
-		Client:    mgr.GetClient(),
-		NodeName:  nodeName,
-		CPU:       hostCPU,
-		MemoryMB:  hostMemoryMB,
-		MaxPods:   maxPods,
-		Heartbeat: 30 * time.Second,
+		Client:     mgr.GetClient(),
+		NodeName:   nodeName,
+		NodeLabels: nodeLabels,
+		CPU:        hostCPU,
+		MemoryMB:   hostMemoryMB,
+		MaxPods:    maxPods,
+		Heartbeat:  30 * time.Second,
 	}); err != nil {
 		setupLog.Error(err, "add node maintainer")
 		os.Exit(1)
@@ -190,6 +241,138 @@ func envOr(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+// parseNodeLabels parses kubelet's --node-labels=k=v,k=v form. Empty
+// input yields a nil map (no labels stamped, prune-only mode). Used
+// by the Maintainer to populate the Node's labels at registration.
+func parseNodeLabels(raw string) (map[string]string, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil, nil
+	}
+	out := map[string]string{}
+	for _, pair := range strings.Split(raw, ",") {
+		pair = strings.TrimSpace(pair)
+		if pair == "" {
+			continue
+		}
+		k, v, ok := strings.Cut(pair, "=")
+		if !ok {
+			return nil, fmt.Errorf("invalid label pair %q (expected key=value)", pair)
+		}
+		k = strings.TrimSpace(k)
+		v = strings.TrimSpace(v)
+		if k == "" {
+			return nil, fmt.Errorf("invalid label pair %q (empty key)", pair)
+		}
+		out[k] = v
+	}
+	return out, nil
+}
+
+// defaultNodeIP picks the first non-loopback IPv4 address bound to a
+// UP, non-loopback, non-VM-bridge interface. Mirrors what real
+// kubelet does when --node-ip isn't set, with one extra exclusion:
+// Tart spins up `bridge*` interfaces for the VM NAT network
+// (192.168.64.0/24 by default) on first `tart run`, and after a
+// kubelet restart with a running VM those would be the first
+// candidate the naive walker picked — handing back the host-side
+// gateway of the VM network instead of the routable host IP.
+// Returns an error if no candidate is found — the caller treats
+// that as "scraping disabled" rather than fatal.
+func defaultNodeIP() (string, error) {
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return "", err
+	}
+	for _, iface := range ifaces {
+		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
+			continue
+		}
+		if isVMBridge(iface.Name) {
+			continue
+		}
+		addrs, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+		for _, a := range addrs {
+			ip, _, err := net.ParseCIDR(a.String())
+			if err != nil {
+				continue
+			}
+			if ip.IsLoopback() || ip.IsLinkLocalUnicast() {
+				continue
+			}
+			ip4 := ip.To4()
+			if ip4 == nil {
+				continue
+			}
+			return ip4.String(), nil
+		}
+	}
+	return "", &noNodeIPError{}
+}
+
+// isVMBridge matches the interface-name patterns macOS uses for
+// virtualization NAT bridges — Tart's `bridge100+` and the more
+// generic `vmnet*` (Hypervisor.framework's reserved prefix).
+func isVMBridge(name string) bool {
+	if len(name) >= 6 && name[:6] == "bridge" {
+		return true
+	}
+	if len(name) >= 5 && name[:5] == "vmnet" {
+		return true
+	}
+	return false
+}
+
+type noNodeIPError struct{}
+
+func (*noNodeIPError) Error() string {
+	return "no non-loopback IPv4 address found on any UP interface"
+}
+
+// cidrList implements flag.Value for repeated --scrape-allowed-cidr.
+// Each invocation appends one CIDR; no value at all means "fall
+// back to DefaultScrapeAllowedCIDRs in the reconciler" rather than
+// "deny everything", because an empty allowlist would silently lock
+// out every scraper.
+type cidrList []*net.IPNet
+
+func (c *cidrList) String() string {
+	if c == nil || len(*c) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(*c))
+	for _, n := range *c {
+		parts = append(parts, n.String())
+	}
+	return joinComma(parts)
+}
+
+func (c *cidrList) Set(value string) error {
+	_, n, err := net.ParseCIDR(value)
+	if err != nil {
+		return fmt.Errorf("parse cidr %q: %w", value, err)
+	}
+	*c = append(*c, n)
+	return nil
+}
+
+// Value returns the parsed CIDRs, or nil when none were passed.
+func (c cidrList) Value() []*net.IPNet { return []*net.IPNet(c) }
+
+func joinComma(s []string) string {
+	out := ""
+	for i, v := range s {
+		if i > 0 {
+			out += ","
+		}
+		out += v
+	}
+	return out
 }
 
 // pickPodsForNode narrows the Pod informer with a server-side field

@@ -7,7 +7,7 @@ defmodule Tuist.CacheTest do
   describe "last_24h_artifacts_count/0" do
     test "returns the count from the daily stats view" do
       # Given
-      stub(Tuist.IngestRepo, :query, fn _query, _params ->
+      stub(Tuist.ClickHouseRepo, :query, fn _query, _params ->
         {:ok, %{rows: [[42]]}}
       end)
 
@@ -20,7 +20,7 @@ defmodule Tuist.CacheTest do
 
     test "returns 0 when the query returns nil" do
       # Given
-      stub(Tuist.IngestRepo, :query, fn _query, _params ->
+      stub(Tuist.ClickHouseRepo, :query, fn _query, _params ->
         {:ok, %{rows: [[nil]]}}
       end)
 
@@ -33,7 +33,7 @@ defmodule Tuist.CacheTest do
 
     test "returns 0 when the query fails" do
       # Given
-      stub(Tuist.IngestRepo, :query, fn _query, _params ->
+      stub(Tuist.ClickHouseRepo, :query, fn _query, _params ->
         {:error, :timeout}
       end)
 

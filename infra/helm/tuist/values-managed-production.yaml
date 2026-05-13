@@ -29,6 +29,22 @@ server:
       value: "15"
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
+    # Exposes the managed Kura regions in account settings. Each region
+    # maps to a controller-backed Kura cluster_id in Tuist.Kura.Regions.
+    - name: TUIST_KURA_AVAILABLE_REGIONS
+      value: eu-central,us-east,us-west
+    # Kubeconfigs for regional Kura clusters. CI syncs this Secret from
+    # 1Password before Helm upgrades the production server release.
+    - name: TUIST_KURA_KUBECONFIG_US_EAST_1
+      valueFrom:
+        secretKeyRef:
+          name: tuist-kura-kubeconfigs
+          key: TUIST_KURA_KUBECONFIG_US_EAST_1
+    - name: TUIST_KURA_KUBECONFIG_US_WEST_1
+      valueFrom:
+        secretKeyRef:
+          name: tuist-kura-kubeconfigs
+          key: TUIST_KURA_KUBECONFIG_US_WEST_1
 
   autoscaling:
     enabled: true
@@ -182,8 +198,49 @@ xcresultProcessor:
 # xcresult capacity offline.
 macosFleet:
   replicas: 2
+  machine:
+    # Production tracks the chart default — M2-L on Scaleway:
+    # M2 Pro 10-core / 16 GB. Explicit here so the matching
+    # `hostCPU` / `hostMemoryMB` stay in sync if a future operator
+    # flips to a different SKU.
+    type: M2-L
+    # Leave 2 CPU + 2 GB for the macOS host + Apple
+    # Virtualization.framework reserve. Asking for the host's full
+    # 10 CPU / 16 GB on `tart run` fails with
+    # `memorySize > maximumAllowedMemorySize` (and the matching
+    # CPU-count check).
+    hostCPU: 8
+    hostMemoryMB: 14336
   controlPlane:
     host: api.tuist.dev
+
+# Customer-runner Mac mini fleet. Sized to 5 hosts = 5 concurrent
+# customer runs. Apple's SLA permits up to two VMs per host; v1
+# runs one VM per host to keep capacity reasoning simple. Bump
+# this once the operational story for two-per-host is in place.
+# Production gates on staging + canary proving the substrate and
+# the dispatch flow first; this block is inert until
+# `runnersFleet.pools[].runnerImage` is pinned to a built image SHA.
+runnersFleet:
+  enabled: false
+  hostCount: 5
+  # Pre-ordered pool. Operator orders M2-L hosts in the Scaleway
+  # console with names starting with `tuist-pool-` ahead of
+  # bringing this block live (Mac mini lead times can stretch
+  # several days). The CAPI controller claims them on demand;
+  # there is no auto-order fallback.
+  adoptPoolPrefix: "tuist-pool-"
+  networkPolicy:
+    enabled: true
+    exceptCIDRs:
+      - "10.0.0.0/8"
+      - "172.16.0.0/12"
+      - "192.168.0.0/16"
+  pools:
+    - name: default
+      replicas: 5
+      runnerImage: ""
+      dispatchLabel: "tuist-macos"
 
 # Registry population: same Supabase project as the rest of the
 # production stack, scoped to the `tuist_registry` role provisioned via

@@ -32,13 +32,6 @@ jobs:
     environment: status-production
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
-      - name: Restore Aube Cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.local/share/aube
-            ~/.cache/aube
-          key: aube-${{ hashFiles('status/aube-lock.yaml') }}
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
