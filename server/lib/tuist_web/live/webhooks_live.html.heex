@@ -213,14 +213,13 @@
     </div>
 
     <div data-part="endpoints-table">
-      <.table id="webhook-endpoints-table" rows={@endpoints}>
+      <.table
+        id="webhook-endpoints-table"
+        rows={@endpoints}
+        row_navigate={fn endpoint -> ~p"/#{@selected_account.name}/webhooks/#{endpoint.id}" end}
+      >
         <:col :let={endpoint} label={dgettext("dashboard_account", "Name")}>
-          <.link
-            data-part="endpoint-name-link"
-            navigate={~p"/#{@selected_account.name}/webhooks/#{endpoint.id}"}
-          >
-            <.text_cell label={endpoint.name} />
-          </.link>
+          <.text_cell label={endpoint.name} />
         </:col>
         <:col :let={endpoint} label={dgettext("dashboard_account", "URL")}>
           <.text_cell label={endpoint.url} />
