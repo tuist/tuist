@@ -913,7 +913,15 @@ sudo chmod 0600 /etc/tuist/tailscale-auth-key`
 	// or in any error message). Capture `up`'s combined output and
 	// surface it on failure — previously `set -e` aborted with an
 	// empty stderr, leaving zero actionable signal.
-	script := fmt.Sprintf(`set -euo pipefail
+	//
+	// `set -x` prints every command before execution to stderr; the
+	// SSH helper captures stderr into the returned error, so when a
+	// step fails the controller's failureMessage carries the exact
+	// command that died (plus its output). PS4 narrows the trace
+	// prefix from bash's noisy default to a single '+' so logs stay
+	// readable. Comments aren't traced — only executed commands.
+	script := fmt.Sprintf(`set -euxo pipefail
+PS4='+ '
 # Always remove the auth key file when this script exits — success
 # or failure. Set the trap first thing so a later abort still
 # cleans up.
