@@ -104,4 +104,65 @@ defmodule Tuist.Webhooks do
       {k, v} -> {k, v}
     end)
   end
+
+  @delivery_worker "Tuist.Webhooks.Workers.DeliveryWorker"
+
+  @doc """
+  Recent delivery attempts for `endpoint_id`, newest first. Each row is a
+  flattened view of an Oban job — we don't persist a separate delivery log
+  yet, so retries and state collapse into a single record.
+  """
+  def list_deliveries(endpoint_id, opts \\ []) when is_binary(endpoint_id) do
+    limit = Keyword.get(opts, :limit, 50)
+    endpoint_id_str = endpoint_id
+
+    Repo.all(
+      from(j in "oban_jobs",
+        where: j.worker == ^@delivery_worker,
+        where: fragment("?->>'webhook_endpoint_id' = ?", j.args, ^endpoint_id_str),
+        order_by: [desc: j.inserted_at],
+        limit: ^limit,
+        select: %{
+          id: j.id,
+          state: j.state,
+          attempt: j.attempt,
+          max_attempts: j.max_attempts,
+          inserted_at: j.inserted_at,
+          scheduled_at: j.scheduled_at,
+          attempted_at: j.attempted_at,
+          completed_at: j.completed_at,
+          discarded_at: j.discarded_at,
+          cancelled_at: j.cancelled_at,
+          event_id: fragment("?->>'event_id'", j.args),
+          event_type: fragment("?->>'event_type'", j.args),
+          errors: j.errors
+        }
+      )
+    )
+  end
+
+  @doc """
+  Aggregate counters across the endpoint's delivery jobs. Used by the
+  detail page header. The pending bucket folds both `available` and
+  `scheduled` (waiting for retry) into one number.
+  """
+  def delivery_stats(endpoint_id) when is_binary(endpoint_id) do
+    base =
+      from(j in "oban_jobs",
+        where: j.worker == ^@delivery_worker,
+        where: fragment("?->>'webhook_endpoint_id' = ?", j.args, ^endpoint_id)
+      )
+
+    rows =
+      Repo.all(from j in base, group_by: j.state, select: {j.state, count(j.id)})
+
+    counts = Map.new(rows)
+
+    %{
+      total: Enum.reduce(rows, 0, fn {_, n}, acc -> acc + n end),
+      delivered: Map.get(counts, "completed", 0),
+      failed: Map.get(counts, "discarded", 0) + Map.get(counts, "cancelled", 0) + Map.get(counts, "retryable", 0),
+      pending: Map.get(counts, "available", 0) + Map.get(counts, "scheduled", 0)
+    }
+  end
 end

@@ -29,19 +29,6 @@ defmodule TuistWeb.WebhooksLive do
   end
 
   @doc """
-  Human-readable label for `event_type`, used by the row-level summary tag.
-  """
-  def event_type_label(event_type) do
-    WebhookEndpoint.event_groups()
-    |> Enum.flat_map(& &1.events)
-    |> Enum.find(&(&1.type == event_type))
-    |> case do
-      %{label: label} -> label
-      _ -> event_type
-    end
-  end
-
-  @doc """
   Returns true if every event in `group` is in the `selected` list.
   Drives the group-level "Select all" checkbox state.
   """

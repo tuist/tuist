@@ -1,0 +1,191 @@
+<div id="account-webhook">
+  <div data-part="breadcrumbs">
+    <.link data-part="back" navigate={~p"/#{@selected_account.name}/webhooks"}>
+      <.icon name="chevron_left" /> {dgettext("dashboard_account", "Webhooks")}
+    </.link>
+  </div>
+
+  <div data-part="page-header">
+    <div data-part="title-group">
+      <h1 data-part="title">{@endpoint.name}</h1>
+      <code data-part="url">{@endpoint.url}</code>
+    </div>
+    <div data-part="actions">
+      <.button
+        size="medium"
+        variant="secondary"
+        label={dgettext("dashboard_account", "Rotate secret")}
+        phx-click="rotate_endpoint_signing_secret"
+        data-confirm={
+          dgettext(
+            "dashboard_account",
+            "Rotating replaces the signing secret. Existing consumers will fail verification until updated."
+          )
+        }
+      />
+      <.button
+        size="medium"
+        variant="destructive"
+        label={dgettext("dashboard_account", "Delete endpoint")}
+        phx-click="delete_endpoint"
+        data-confirm={
+          dgettext(
+            "dashboard_account",
+            "Delete this endpoint? Automations referencing it will stop delivering."
+          )
+        }
+      />
+    </div>
+  </div>
+
+  <%!-- Delivery statistics: counts across all attempts, derived from the --%>
+  <%!-- Oban job log. Per-attempt latency would need a separate table, so --%>
+  <%!-- response-time charts are left for a follow-up. --%>
+  <.card_section data-part="stats-card">
+    <div data-part="header">
+      <span data-part="title">{dgettext("dashboard_account", "Delivery statistics")}</span>
+      <span data-part="subtitle">
+        {dgettext("dashboard_account", "Counts across every delivery attempt for this endpoint.")}
+      </span>
+    </div>
+    <div data-part="content">
+      <div data-part="stat">
+        <span data-part="label">{dgettext("dashboard_account", "Total")}</span>
+        <span data-part="value">{@delivery_stats.total}</span>
+      </div>
+      <div data-part="stat">
+        <span data-part="label">{dgettext("dashboard_account", "Delivered")}</span>
+        <span data-part="value" data-tone="success">{@delivery_stats.delivered}</span>
+      </div>
+      <div data-part="stat">
+        <span data-part="label">{dgettext("dashboard_account", "Failed")}</span>
+        <span data-part="value" data-tone="error">{@delivery_stats.failed}</span>
+      </div>
+      <div data-part="stat">
+        <span data-part="label">{dgettext("dashboard_account", "Pending")}</span>
+        <span data-part="value">{@delivery_stats.pending}</span>
+      </div>
+    </div>
+  </.card_section>
+
+  <.card_section data-part="details-card">
+    <div data-part="header">
+      <span data-part="title">{dgettext("dashboard_account", "Destination details")}</span>
+    </div>
+    <div data-part="content">
+      <div data-part="row">
+        <span data-part="label">{dgettext("dashboard_account", "Endpoint URL")}</span>
+        <code data-part="value">{@endpoint.url}</code>
+      </div>
+      <div data-part="row">
+        <span data-part="label">{dgettext("dashboard_account", "Signing secret")}</span>
+        <code data-part="value">{masked_signing_secret(@endpoint.signing_secret)}</code>
+      </div>
+      <div data-part="row">
+        <span data-part="label">{dgettext("dashboard_account", "Listening to")}</span>
+        <div data-part="value">
+          <.tag :for={event_type <- @endpoint.event_types} label={event_type} />
+        </div>
+      </div>
+      <div data-part="row">
+        <span data-part="label">{dgettext("dashboard_account", "Created")}</span>
+        <span data-part="value">
+          {Tuist.Utilities.DateFormatter.from_now(@endpoint.inserted_at)}
+        </span>
+      </div>
+    </div>
+  </.card_section>
+
+  <.card_section data-part="deliveries-card">
+    <div data-part="header">
+      <span data-part="title">{dgettext("dashboard_account", "Recent deliveries")}</span>
+      <span data-part="subtitle">
+        {dgettext("dashboard_account", "Up to the last 50 delivery attempts, newest first.")}
+      </span>
+    </div>
+    <div data-part="content">
+      <.table id="webhook-deliveries-table" rows={@deliveries}>
+        <:col :let={delivery} label={dgettext("dashboard_account", "Event")}>
+          <.text_cell label={delivery.event_type || ""} />
+        </:col>
+        <:col :let={delivery} label={dgettext("dashboard_account", "Status")}>
+          <.status_badge_cell
+            status={delivery_state_status(delivery.state)}
+            label={delivery_state_label(delivery.state)}
+          />
+        </:col>
+        <:col :let={delivery} label={dgettext("dashboard_account", "Attempts")}>
+          <.text_cell label={"#{delivery.attempt}/#{delivery.max_attempts}"} />
+        </:col>
+        <:col :let={delivery} label={dgettext("dashboard_account", "Last activity")}>
+          <.text_cell label={Tuist.Utilities.DateFormatter.from_now(last_activity_at(delivery))} />
+        </:col>
+        <:empty_state>
+          <.table_empty_state
+            title={dgettext("dashboard_account", "No deliveries yet")}
+            subtitle={
+              dgettext(
+                "dashboard_account",
+                "Once a matching event fires, attempts will show up here."
+              )
+            }
+          />
+        </:empty_state>
+      </.table>
+    </div>
+  </.card_section>
+
+  <.modal
+    id="webhook-signing-secret-modal"
+    title={dgettext("dashboard_account", "Signing secret")}
+    on_dismiss="dismiss_disclosure"
+    on_open_change="disclosure_modal_open_change"
+  >
+    <:trigger :let={_attrs}>
+      <span hidden></span>
+    </:trigger>
+
+    <div :if={@disclosure} data-part="modal-content-wrapper">
+      <.line_divider />
+      <div data-part="modal-body">
+        <div data-part="modal-message">
+          <span data-part="title">{dgettext("dashboard_account", "Signing secret rotated")}</span>
+          <span data-part="subtitle">
+            {dgettext(
+              "dashboard_account",
+              "Copy it now — it will not be shown again after you close this dialog."
+            )}
+          </span>
+        </div>
+        <div data-part="read-only-value">
+          <code id="rotated-webhook-signing-secret">{@disclosure.plaintext_secret}</code>
+          <.button
+            id="copy-rotated-webhook-signing-secret-button"
+            variant="secondary"
+            size="small"
+            icon_only
+            type="button"
+            phx-hook="Clipboard"
+            data-clipboard-value={@disclosure.plaintext_secret}
+            aria-label={dgettext("dashboard_account", "Copy signing secret")}
+          >
+            <.copy />
+          </.button>
+        </div>
+      </div>
+      <.line_divider />
+    </div>
+
+    <:footer>
+      <.modal_footer>
+        <:action :if={@disclosure}>
+          <.button
+            label={dgettext("dashboard_account", "Done")}
+            variant="primary"
+            phx-click="dismiss_disclosure"
+          />
+        </:action>
+      </.modal_footer>
+    </:footer>
+  </.modal>
+</div>

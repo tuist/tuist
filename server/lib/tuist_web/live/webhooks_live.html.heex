@@ -163,7 +163,10 @@
                         >
                           <.checkbox_control checked={event.type in @create_form_event_types} />
                           <div data-part="body">
-                            <span data-part="label">{event.label}</span>
+                            <%!-- Render the canonical event type as the label — same string --%>
+                            <%!-- that lands in the `type` field of the webhook payload, so --%>
+                            <%!-- the UI and receiver code stay in sync. --%>
+                            <code data-part="label">{event.type}</code>
                             <span data-part="description">{event.description}</span>
                           </div>
                         </label>
@@ -212,7 +215,12 @@
     <div data-part="endpoints-table">
       <.table id="webhook-endpoints-table" rows={@endpoints}>
         <:col :let={endpoint} label={dgettext("dashboard_account", "Name")}>
-          <.text_cell label={endpoint.name} />
+          <.link
+            data-part="endpoint-name-link"
+            navigate={~p"/#{@selected_account.name}/webhooks/#{endpoint.id}"}
+          >
+            <.text_cell label={endpoint.name} />
+          </.link>
         </:col>
         <:col :let={endpoint} label={dgettext("dashboard_account", "URL")}>
           <.text_cell label={endpoint.url} />
@@ -229,7 +237,7 @@
         </:col>
         <:col :let={endpoint} label={dgettext("dashboard_account", "Events")}>
           <div data-part="event-types-cell">
-            <.tag :for={event_type <- endpoint.event_types} label={event_type_label(event_type)} />
+            <.tag :for={event_type <- endpoint.event_types} label={event_type} />
           </div>
         </:col>
         <:col :let={endpoint} label={dgettext("dashboard_account", "Created")}>

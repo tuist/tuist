@@ -290,3 +290,179 @@
     }
   }
 }
+
+#account-webhook {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-6);
+
+  & > [data-part="breadcrumbs"] > [data-part="back"] {
+    display: inline-flex;
+    flex-direction: row;
+    align-items: center;
+    gap: var(--noora-spacing-2);
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+    text-decoration: none;
+
+    &:hover {
+      color: var(--noora-surface-label-primary);
+    }
+  }
+
+  & > [data-part="page-header"] {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--noora-spacing-5);
+
+    & > [data-part="title-group"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-2);
+      min-width: 0;
+
+      & > [data-part="title"] {
+        margin: 0;
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+      }
+
+      & > [data-part="url"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+        font-family: "Geist Mono", monospace;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+    }
+
+    & > [data-part="actions"] {
+      display: flex;
+      flex-direction: row;
+      gap: var(--noora-spacing-3);
+      flex-shrink: 0;
+    }
+  }
+
+  & [data-part="stats-card"],
+  & [data-part="details-card"],
+  & [data-part="deliveries-card"] {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    border-radius: var(--noora-radius-8);
+    padding: 0;
+
+    & > [data-part="header"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-2);
+      box-shadow: inset 0 -1px 0 0 var(--noora-surface-border-primary);
+      padding: var(--noora-spacing-7) var(--noora-spacing-8);
+
+      & > [data-part="title"] {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
+      }
+
+      & > [data-part="subtitle"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+      }
+    }
+
+    & > [data-part="content"] {
+      padding: var(--noora-spacing-7) var(--noora-spacing-8);
+    }
+  }
+
+  & [data-part="stats-card"] > [data-part="content"] {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--noora-spacing-7);
+
+    & > [data-part="stat"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-1);
+
+      & > [data-part="label"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+
+      & > [data-part="value"] {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+
+        &[data-tone="success"] {
+          color: var(--noora-surface-label-success, var(--noora-surface-label-primary));
+        }
+
+        &[data-tone="error"] {
+          color: var(--noora-surface-label-error, var(--noora-surface-label-primary));
+        }
+      }
+    }
+  }
+
+  & [data-part="details-card"] > [data-part="content"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-5);
+
+    & > [data-part="row"] {
+      display: flex;
+      flex-direction: row;
+      align-items: flex-start;
+      gap: var(--noora-spacing-5);
+
+      & > [data-part="label"] {
+        flex-shrink: 0;
+        width: 30%;
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+      }
+
+      & > [data-part="value"],
+      & > code[data-part="value"] {
+        flex-grow: 1;
+        display: flex;
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: var(--noora-spacing-2);
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+      }
+
+      & > code[data-part="value"] {
+        font-family: "Geist Mono", monospace;
+        font-size: 0.95em;
+      }
+    }
+  }
+
+  & [data-part="deliveries-card"] > [data-part="content"] {
+    padding: 0;
+  }
+
+  @media (max-width: 768px) {
+    & [data-part="stats-card"] > [data-part="content"] {
+      grid-template-columns: repeat(2, 1fr);
+    }
+
+    & [data-part="details-card"] > [data-part="content"] > [data-part="row"] {
+      flex-direction: column;
+      gap: var(--noora-spacing-2);
+
+      & > [data-part="label"] {
+        width: 100%;
+      }
+    }
+  }
+}
