@@ -275,6 +275,27 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 		return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 	}
 
+	// Refuse to bootstrap with an empty sudo password. The bootstrap
+	// path stages `/etc/kcpassword` from `UserPassword`; an empty
+	// value XORs to just the cipher key padding, loginwindow rejects
+	// the auto-login, and Aqua never comes up — `tart run` then fails
+	// on every Pod with a 30s SIGHUP timeout for the lifetime of the
+	// host. Fail loudly here so the Machine stays in a visible state
+	// the operator can drain rather than joining the cluster as a
+	// permanently-broken Node. Stage 1's vnc_url fallback in
+	// `scalewayServerToServer` is what's expected to fill this in
+	// for adopted hosts; if it still came through empty, something
+	// upstream is wrong and a silent re-bootstrap won't fix it.
+	if bootstrapCreds.SudoPassword == "" {
+		conditions.MarkFalse(machine, BootstrappedCondition, "MissingSudoPassword",
+			clusterv1.ConditionSeverityError,
+			"bootstrap secret has no sudo password; refusing to bootstrap a host without auto-login credentials")
+		r.Recorder.Eventf(machine, corev1.EventTypeWarning, "MissingSudoPassword",
+			"Bootstrap secret for %s has no sudo password — verify Scaleway returned credentials at provisioning time (CreateServer response or vnc_url for adopted hosts)",
+			machine.Name)
+		return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
+	}
+
 	// Detect Node drift: bootstrap previously succeeded
 	// (BootstrappedCondition=True) but the Node tart-kubelet
 	// registered no longer exists in the cluster. Causes seen in
