@@ -314,7 +314,16 @@ defmodule Tuist.Runners do
   end
 
   defp mint_jit(account, sa_name, dispatch_label, runner_labels) do
-    runner_name = "tuist-#{account.name}-#{sa_name}"
+    # GitHub's `create JIT config` API caps `name` at 64 characters.
+    # Earlier versions prefixed `tuist-<account.name>-` — for macOS
+    # pools that fit, but the Linux pool name is longer
+    # (`<release>-tuist-runner-pool-linux-ubuntu-22-04`), so the
+    # combined string overshoots and GitHub returns 422. The SA
+    # name is already unique within the cluster and contains the
+    # chart's release + pool prefix, and the runner is registered
+    # under `account.name` via the API URL — so dropping the
+    # redundant prefix is safe.
+    runner_name = sa_name
 
     # Resolve the full installation row (carries `installation_id`
     # AND `client_url`) instead of just the integer id. The JIT
