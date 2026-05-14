@@ -24,19 +24,15 @@ ARG ALPINE_VERSION=3.22
 # until they're replaced.
 ARG TART_VERSION=2.32.1
 
-# Tailscale .pkg pinned at image build time. macOS-only artifact;
-# downloaded from pkgs.tailscale.com (Tailscale's own CDN). The
-# bootstrap step `scp`s this onto the Mac mini and runs `installer
-# -pkg`. Pinning the version here makes the tailnet client
-# reproducible across operator deploys — bumping is a deliberate
-# Dockerfile change, same convention as TART_VERSION.
-#
-# Tailscale's CDN only serves the *current* stable .pkg at the
-# versioned URL — older versions return 404 once a new stable ships.
-# Bumping this ARG is required whenever upstream rolls a new
-# release; an out-of-sync value here breaks the build. Matches the
-# tailscale-operator chart's version pin in
-# infra/helm/tailscale-operator/Chart.yaml.
+# Tailscale upstream tag to cross-build from. The tailscale-builder
+# stage below clones github.com/tailscale/tailscale at this tag and
+# produces darwin/arm64 `tailscale` + `tailscaled` binaries. Pinning
+# here makes the tailnet client reproducible across operator
+# deploys; bumping is a deliberate Dockerfile change, same
+# convention as TART_VERSION. Matches the tailscale-operator
+# chart's version pin in infra/helm/tailscale-operator/Chart.yaml so
+# the cluster-side operator and the host-side daemons stay in
+# lockstep.
 ARG TAILSCALE_VERSION=1.96.5
 
 # node_exporter version, pulled as a pre-built darwin/arm64 binary

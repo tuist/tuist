@@ -229,11 +229,11 @@ func main() {
 	tartTarballSHA := sha256Hex(tartTarball)
 	setupLog.Info("loaded tart tarball", "path", tartTarballPath, "bytes", len(tartTarball), "sha", tartTarballSHA)
 
-	// Tailscale .pkg and node_exporter binary are both optional —
-	// empty path means the chart didn't wire the tailnet into this
-	// release. We read on startup (not per reconcile) because the
-	// operator image pins both versions; a bump goes through an
-	// operator-image roll, not a hot reload.
+	// Tailscale binaries tarball and node_exporter binary are both
+	// optional: an empty path means the chart didn't wire the tailnet
+	// into this release. We read on startup (not per reconcile)
+	// because the operator image pins both versions; a bump goes
+	// through an operator-image roll, not a hot reload.
 	var tailscaleBinaries []byte
 	if tailscaleBinariesPath != "" {
 		tailscaleBinaries, err = os.ReadFile(tailscaleBinariesPath)

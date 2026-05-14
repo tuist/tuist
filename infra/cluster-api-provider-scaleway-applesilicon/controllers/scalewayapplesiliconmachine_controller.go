@@ -84,11 +84,13 @@ type ScalewayAppleSiliconMachineReconciler struct {
 	// new Mac mini gets the operator-image-pinned Tart on bootstrap).
 	TartTarball []byte
 
-	// TailscaleBinaries is the macOS .pkg installer for Tailscale baked
-	// into the operator image. Same drift policy as TartTarball:
-	// version bumps roll via Machine replacement, not in-place
-	// updates (the running tailnet connection doesn't tolerate a
-	// daemon swap mid-flight). Empty disables the Tailscale step.
+	// TailscaleBinaries is the gzipped tarball of darwin/arm64
+	// `tailscale` + `tailscaled` cross-built from upstream source at
+	// the operator-image-pinned tag (TAILSCALE_VERSION in the
+	// Dockerfile). Same drift policy as TartTarball: version bumps
+	// roll via operator-image replacement, not in-place updates of
+	// running hosts (the running tailnet connection doesn't tolerate
+	// a daemon swap mid-flight). Empty disables the Tailscale step.
 	TailscaleBinaries []byte
 
 	// NodeExporterBinary is the darwin/arm64 node_exporter binary,

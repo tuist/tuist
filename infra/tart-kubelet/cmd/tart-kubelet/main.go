@@ -381,12 +381,12 @@ func (*noNodeIPError) Error() string {
 
 // tailscaleNodeIP shells out to `tailscale ip -4` and returns the
 // first IPv4 address the daemon advertises. macOS's CLI lives at
-// /usr/local/bin/tailscale after the .pkg installer + install-
-// system-daemon step (see macos-host-bootstrap.installTailscale).
-// /usr/bin/env-style PATH lookup is fine here too — the launchd job
-// already exports /usr/local/bin first — but pinning the absolute
-// path keeps the failure mode explicit when the .pkg's CLI symlink
-// is missing.
+// /usr/local/bin/tailscale after macos-host-bootstrap.installTailscale
+// extracts the operator-baked binaries there and `tailscaled
+// install-system-daemon` registers the launchd job.
+// /usr/bin/env-style PATH lookup would work too (the launchd job
+// already exports /usr/local/bin first), but pinning the absolute
+// path keeps the failure mode explicit when the binary is missing.
 //
 // Why not parse the utun interface address ourselves: macOS picks an
 // arbitrary utunN index for Tailscale (varies by boot order with
