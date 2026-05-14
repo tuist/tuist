@@ -275,6 +275,62 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 		return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 	}
 
+	// Refuse to bootstrap with an empty sudo password. The bootstrap
+	// path stages `/etc/kcpassword` from `UserPassword`; an empty
+	// value XORs to just the cipher key padding, loginwindow rejects
+	// the auto-login, and Aqua never comes up — `tart run` then fails
+	// on every Pod with a 30s SIGHUP timeout for the lifetime of the
+	// host.
+	//
+	// Before refusing, attempt to reclaim the password from Scaleway.
+	// Machines that hit the pre-fix failure mode still have
+	// Status.ServerID set and a bootstrap Secret with an empty
+	// sudo-password, so this reconcile pass would skip Stage 1 (which
+	// is where the vnc_url fallback runs) and loop on
+	// MissingSudoPassword forever. A fresh GetServer goes through
+	// scalewayServerToServer, which now reads the password out of
+	// vnc_url; if that produces a non-empty value, persist it to the
+	// Secret and proceed with bootstrap. Only surface
+	// MissingSudoPassword when even the refresh comes back empty (the
+	// host genuinely has no recoverable credentials).
+	if bootstrapCreds.SudoPassword == "" && machine.Status.ServerID != "" {
+		srv, refreshErr := r.ScalewayClient.GetServer(ctx, machine.Status.ServerID, machine.Spec.Zone)
+		switch {
+		case refreshErr != nil:
+			// Transient Scaleway error (network blip, 5xx, throttle).
+			// Don't bury it as `MissingSudoPassword` with a 5-minute
+			// backoff — that condition is reserved for a definitive
+			// "Scaleway says there's no password". Surface a
+			// retryable condition and requeue soon so the refresh
+			// gets another chance on the next reconcile tick.
+			conditions.MarkFalse(machine, BootstrappedCondition, "CredentialsRefreshFailed",
+				clusterv1.ConditionSeverityWarning, "%v", refreshErr)
+			r.Recorder.Eventf(machine, corev1.EventTypeWarning, "CredentialsRefreshFailed",
+				"Scaleway GetServer for %s failed while trying to recover sudo password: %v",
+				machine.Name, refreshErr)
+			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+		case srv != nil && srv.SudoPassword != "":
+			if writeErr := r.CredentialsManager.SetMachineCredentials(ctx, machine.Name, srv.SudoPassword, srv.SSHUsername); writeErr != nil {
+				logger.Error(writeErr, "refresh bootstrap secret from Scaleway")
+				return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+			}
+			r.Recorder.Eventf(machine, corev1.EventTypeNormal, "CredentialsReclaimed",
+				"Recovered sudo password for %s from Scaleway vnc_url; bootstrap will resume",
+				machine.Name)
+			bootstrapCreds.SudoPassword = srv.SudoPassword
+			bootstrapCreds.SSHUsername = srv.SSHUsername
+		}
+	}
+	if bootstrapCreds.SudoPassword == "" {
+		conditions.MarkFalse(machine, BootstrappedCondition, "MissingSudoPassword",
+			clusterv1.ConditionSeverityError,
+			"bootstrap secret has no sudo password and Scaleway did not surface one; refusing to bootstrap a host without auto-login credentials")
+		r.Recorder.Eventf(machine, corev1.EventTypeWarning, "MissingSudoPassword",
+			"Bootstrap secret for %s has no sudo password and the Scaleway refresh did not recover one — verify credentials at the source",
+			machine.Name)
+		return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
+	}
+
 	// Detect Node drift: bootstrap previously succeeded
 	// (BootstrappedCondition=True) but the Node tart-kubelet
 	// registered no longer exists in the cluster. Causes seen in
