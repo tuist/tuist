@@ -1,10 +1,4 @@
-use std::{
-    io::Read,
-    net::IpAddr,
-    path::Path,
-    sync::RwLock,
-    time::Duration,
-};
+use std::{io::Read, net::IpAddr, path::Path, sync::RwLock, time::Duration};
 
 use flate2::read::GzDecoder;
 use maxminddb::{Reader, geoip2};
