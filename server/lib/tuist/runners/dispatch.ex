@@ -94,10 +94,10 @@ defmodule Tuist.Runners.Dispatch do
         # `spec.dispatchLabel`. Could be a different runner
         # provider in the same org, or a typo in `runs-on` —
         # either way, not ours to handle.
-        Logger.info("runners: workflow_job has no matching pool; ignoring",
+        Logger.info(
+          "runners: workflow_job has no matching pool; ignoring (labels=#{inspect(requested)})",
           owner: owner,
-          repo: full_name,
-          requested_labels: requested
+          repo: full_name
         )
 
         :ignored
