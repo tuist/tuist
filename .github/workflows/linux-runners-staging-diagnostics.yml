@@ -131,8 +131,11 @@ jobs:
           kubectl -n tuist-staging get pods -l app.kubernetes.io/component=server -o wide
           echo "::endgroup::"
           for pod in $(kubectl -n tuist-staging get pods -l app.kubernetes.io/component=server -o name 2>/dev/null); do
-            echo "::group::logs $pod (filter: runners / dispatch / mint)"
-            kubectl -n tuist-staging logs "$pod" --tail=600 2>&1 | grep -iE 'runners|dispatch|github_mint|tokenreview|jit|scaling' | tail -80 || true
+            echo "::group::logs $pod (webhooks)"
+            kubectl -n tuist-staging logs "$pod" --tail=600 2>&1 | grep -iE 'POST /webhooks|workflow_job|runners: enqueued|runners: account|runners: no RunnerPool|installation_id' | tail -40 || true
+            echo "::endgroup::"
+            echo "::group::logs $pod (runners-related)"
+            kubectl -n tuist-staging logs "$pod" --tail=600 2>&1 | grep -iE 'runners|dispatch|github_mint|tokenreview|jit|scaling' | tail -40 || true
             echo "::endgroup::"
           done
 
