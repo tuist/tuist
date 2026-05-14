@@ -68,11 +68,8 @@ impl GeoIp {
 
     pub fn country_code(&self, ip: IpAddr) -> Option<String> {
         let reader = self.reader.read().ok()?;
-        let country: Option<geoip2::Country> = reader.lookup(ip).ok().flatten();
-        country
-            .and_then(|record| record.country)
-            .and_then(|c| c.iso_code)
-            .map(|code| code.to_owned())
+        let record: geoip2::Country = reader.lookup(ip).ok()?.decode().ok().flatten()?;
+        record.country.iso_code.map(|code| code.to_owned())
     }
 
     pub async fn refresh(&self, http: &Client) -> RefreshOutcome {
