@@ -21,6 +21,7 @@ import (
 	"strings"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -31,6 +32,8 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
@@ -263,13 +266,33 @@ func main() {
 		setupLog.Info("auto-discovered api server url", "source", "kube-public/cluster-info", "url", apiServerURL)
 	}
 
-	mgr, err := ctrl.NewManager(restConfig, ctrl.Options{
+	mgrOptions := ctrl.Options{
 		Scheme:                 scheme,
 		Metrics:                metricsserver.Options{BindAddress: metricsAddr},
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
 		LeaderElectionID:       "scaleway-applesilicon.infrastructure.cluster.x-k8s.io",
-	})
+	}
+	// When the egress reconciler is wired, scope the Services
+	// informer to the egress namespace. The cache's default is a
+	// cluster-wide LIST/WATCH on every Get'd GVK; without this
+	// scoping the controller demands cluster-scoped `services` read
+	// (and the namespaced Role + RoleBinding in the egress
+	// namespace can't satisfy that). The reconciler only ever
+	// touches Services there, so narrowing the cache matches both
+	// the RBAC shape and the actual access pattern.
+	if egressProxyGroup != "" && egressNamespace != "" {
+		mgrOptions.Cache = cache.Options{
+			ByObject: map[client.Object]cache.ByObject{
+				&corev1.Service{}: {
+					Namespaces: map[string]cache.Config{
+						egressNamespace: {},
+					},
+				},
+			},
+		}
+	}
+	mgr, err := ctrl.NewManager(restConfig, mgrOptions)
 	if err != nil {
 		setupLog.Error(err, "create manager")
 		os.Exit(1)
