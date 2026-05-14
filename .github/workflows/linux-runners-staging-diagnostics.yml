@@ -126,3 +126,71 @@ jobs:
             kubectl -n tuist-staging logs "$pod" --tail=400 || true
             echo "::endgroup::"
           done
+
+  mgmt:
+    # Hits the management cluster where CAPI Cluster / MachineDeployment
+    # / Machine CRs live (the workload-cluster job above sees only what
+    # caph has already propagated downstream — Nodes, etc.).
+    runs-on: namespace-profile-default
+    environment:
+      name: mgmt-cluster-apply
+    timeout-minutes: 10
+    env:
+      KUBECONFIG: ${{ github.workspace }}/.kube/config
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "kubectl"
+          cache: "false"
+      - uses: 1password/install-cli-action@v2
+      - name: Load mgmt kubeconfig from 1Password
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          op document get "kubeconfig: tuist-mgmt" \
+            --vault tuist-k8s-mgmt --output "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
+      - name: Staging CAPI state
+        run: |
+          set +e
+          echo "::group::Cluster tuist-staging"
+          kubectl -n org-tuist get cluster tuist-staging -o wide
+          kubectl -n org-tuist describe cluster tuist-staging | head -120
+          echo "::endgroup::"
+          echo "::group::MachineDeployments under tuist-staging"
+          kubectl -n org-tuist get machinedeployments -l cluster.x-k8s.io/cluster-name=tuist-staging -o wide
+          echo "::endgroup::"
+          echo "::group::Machines under tuist-staging"
+          kubectl -n org-tuist get machines -l cluster.x-k8s.io/cluster-name=tuist-staging -o wide
+          echo "::endgroup::"
+          echo "::group::HCloudMachines"
+          kubectl -n org-tuist get hcloudmachines -l cluster.x-k8s.io/cluster-name=tuist-staging -o wide 2>&1 | head -50
+          echo "::endgroup::"
+          echo "::group::describe runners-linux MachineDeployment"
+          md=$(kubectl -n org-tuist get machinedeployments -l cluster.x-k8s.io/cluster-name=tuist-staging -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' | grep runners-linux | head -1)
+          if [ -n "$md" ]; then
+            echo "Found: $md"
+            kubectl -n org-tuist describe machinedeployment "$md"
+          else
+            echo "ERROR: runners-linux MD not present yet"
+          fi
+          echo "::endgroup::"
+          echo "::group::Machines specifically for runners-linux"
+          for m in $(kubectl -n org-tuist get machines -l cluster.x-k8s.io/cluster-name=tuist-staging -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' | grep runners-linux); do
+            echo "--- describe $m ---"
+            kubectl -n org-tuist describe machine "$m"
+          done
+          echo "::endgroup::"
+          echo "::group::Recent Machine events"
+          kubectl -n org-tuist get events --field-selector involvedObject.kind=Machine --sort-by=.lastTimestamp 2>&1 | tail -40
+          echo "::endgroup::"
+          echo "::group::caph provider pod logs (last 200 lines)"
+          for pod in $(kubectl get pods -A -l control-plane=controller-manager -o jsonpath='{range .items[?(@.metadata.namespace=="caph-system")]}{.metadata.namespace}/{.metadata.name}{"\n"}{end}'); do
+            ns=$(echo "$pod" | cut -d/ -f1)
+            name=$(echo "$pod" | cut -d/ -f2)
+            echo "--- $ns/$name ---"
+            kubectl -n "$ns" logs "$name" --tail=200 | tail -200 || true
+          done
+          echo "::endgroup::"
