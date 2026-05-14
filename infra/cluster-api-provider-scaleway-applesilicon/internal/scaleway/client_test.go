@@ -131,11 +131,17 @@ type fakeAppleSiliconAPI struct {
 	// between phase 1's UpdateServer and phase 1's verify GET.
 	beforeGet func(serverID string)
 
-	// updateErrors maps `<update-call-index> -> error`. The first
-	// UpdateServer call is index 1. Lets a test force a phase-2
-	// failure without affecting phase 1.
+	// updateErrors / getErrors map `<call-index> -> error`. Call
+	// indices are 1-based per method (the first UpdateServer call is
+	// 1, regardless of how many GetServer calls precede it). Lets a
+	// test force a specific phase or step to fail — including with a
+	// scw.ResourceNotFoundError, to exercise the IsNotFound branch
+	// where the caller treats the candidate as race-lost rather than
+	// propagating the error.
 	updateErrors map[int]error
 	updateCalls  int
+	getErrors    map[int]error
+	getCalls     int
 }
 
 func (f *fakeAppleSiliconAPI) ListServers(req *applesilicon.ListServersRequest, _ ...scw.RequestOption) (*applesilicon.ListServersResponse, error) {
@@ -149,6 +155,10 @@ func (f *fakeAppleSiliconAPI) ListServers(req *applesilicon.ListServersRequest, 
 }
 
 func (f *fakeAppleSiliconAPI) GetServer(req *applesilicon.GetServerRequest, _ ...scw.RequestOption) (*applesilicon.Server, error) {
+	f.getCalls++
+	if err, ok := f.getErrors[f.getCalls]; ok {
+		return nil, err
+	}
 	if f.beforeGet != nil {
 		f.beforeGet(req.ServerID)
 	}
@@ -435,5 +445,114 @@ func TestAdoptByPrefix_RequiresPoolPrefix(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "poolPrefix") {
 		t.Fatalf("expected error to mention poolPrefix, got %v", err)
+	}
+}
+
+func TestAdoptByPrefix_Phase1Update404SkipsCandidate(t *testing.T) {
+	// A 404 on phase 1 UpdateServer means the candidate was deleted
+	// out from under us between list and UpdateServer (concurrent
+	// operator action). The function should treat that as a per-
+	// candidate race-lost and let the outer loop move on to the
+	// next eligible host, NOT propagate as a real error.
+	api := &fakeAppleSiliconAPI{
+		servers: []*applesilicon.Server{
+			readyServer("srv-1", "tuist-pool-001"),
+			readyServer("srv-2", "tuist-pool-002"),
+		},
+		// First UpdateServer call (phase 1 against srv-1) returns
+		// the Scaleway-typed NotFound error; the remaining calls
+		// (phase 1 + phase 2 against srv-2) succeed.
+		updateErrors: map[int]error{
+			1: &scw.ResourceNotFoundError{Resource: "server", ResourceID: "srv-1"},
+		},
+	}
+	c := newTestClient(api)
+
+	srv, err := c.AdoptByPrefix(context.Background(),
+		"tuist-tuist-runners-fleet-x", "fr-par-1", "M2-L", "macos-tahoe-26.0", "tuist-pool-")
+	if err != nil {
+		t.Fatalf("phase 1 404 should be race-lost, not error; got %v", err)
+	}
+	if srv.ID != "srv-2" {
+		t.Fatalf("expected fallthrough to srv-2, got %q", srv.ID)
+	}
+}
+
+func TestAdoptByPrefix_Phase1UpdateNon404SurfacesError(t *testing.T) {
+	// Any non-NotFound Scaleway error (403 auth, 5xx outage,
+	// validation error) is operational and must propagate as a real
+	// failure. The pre-fix behavior swallowed every UpdateServer
+	// error as "race lost" and let the outer loop downgrade it to
+	// ErrNoAvailableHost — telling operators to pre-order capacity
+	// they already have.
+	api := &fakeAppleSiliconAPI{
+		servers: []*applesilicon.Server{
+			readyServer("srv-1", "tuist-pool-001"),
+		},
+		updateErrors: map[int]error{
+			1: errors.New("scaleway: 403 forbidden"),
+		},
+	}
+	c := newTestClient(api)
+
+	_, err := c.AdoptByPrefix(context.Background(),
+		"tuist-tuist-runners-fleet-x", "fr-par-1", "M2-L", "macos-tahoe-26.0", "tuist-pool-")
+	if err == nil {
+		t.Fatalf("expected non-404 phase 1 error to be surfaced")
+	}
+	if errors.Is(err, ErrNoAvailableHost) {
+		t.Fatalf("non-404 phase 1 error must not be downgraded to ErrNoAvailableHost, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "phase 1 rename") {
+		t.Fatalf("expected error to identify phase 1 rename, got %v", err)
+	}
+}
+
+func TestAdoptByPrefix_Phase1Verify404SkipsCandidate(t *testing.T) {
+	// 404 on the verify GET (server deleted between phase 1 and
+	// verify) is recoverable per-candidate, same handling as a phase
+	// 1 update 404.
+	api := &fakeAppleSiliconAPI{
+		servers: []*applesilicon.Server{
+			readyServer("srv-1", "tuist-pool-001"),
+			readyServer("srv-2", "tuist-pool-002"),
+		},
+		getErrors: map[int]error{
+			1: &scw.ResourceNotFoundError{Resource: "server", ResourceID: "srv-1"},
+		},
+	}
+	c := newTestClient(api)
+
+	srv, err := c.AdoptByPrefix(context.Background(),
+		"tuist-tuist-runners-fleet-x", "fr-par-1", "M2-L", "macos-tahoe-26.0", "tuist-pool-")
+	if err != nil {
+		t.Fatalf("verify 404 should be race-lost, not error; got %v", err)
+	}
+	if srv.ID != "srv-2" {
+		t.Fatalf("expected fallthrough to srv-2, got %q", srv.ID)
+	}
+}
+
+func TestAdoptByPrefix_Phase1VerifyNon404SurfacesError(t *testing.T) {
+	api := &fakeAppleSiliconAPI{
+		servers: []*applesilicon.Server{
+			readyServer("srv-1", "tuist-pool-001"),
+		},
+		getErrors: map[int]error{
+			1: errors.New("scaleway: 502 bad gateway"),
+		},
+	}
+	c := newTestClient(api)
+
+	_, err := c.AdoptByPrefix(context.Background(),
+		"tuist-tuist-runners-fleet-x", "fr-par-1", "M2-L", "macos-tahoe-26.0", "tuist-pool-")
+	if err == nil {
+		t.Fatalf("expected non-404 verify error to be surfaced")
+	}
+	if errors.Is(err, ErrNoAvailableHost) {
+		t.Fatalf("non-404 verify error must not be downgraded to ErrNoAvailableHost, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "phase 1 verify") {
+		t.Fatalf("expected error to identify phase 1 verify, got %v", err)
 	}
 }

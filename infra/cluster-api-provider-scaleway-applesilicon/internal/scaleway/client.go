@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 
 	"github.com/google/uuid"
 	applesilicon "github.com/scaleway/scaleway-sdk-go/api/applesilicon/v1alpha1"
@@ -50,6 +51,19 @@ type AppleSiliconAPI interface {
 type Client struct {
 	API AppleSiliconAPI
 	IAM *iam.API
+
+	// adoptMu serializes AdoptByPrefix across all goroutines in this
+	// process. Scaleway's UpdateServer is not conditional — two
+	// concurrent rename calls against the same server both succeed,
+	// last-write-wins — so per-call optimistic read-after-write
+	// verification can't establish a "we own this server" invariant.
+	// The controller is single-replica via leader election, so a
+	// process-local mutex is sufficient: only the leader runs, and
+	// the leader doesn't race itself once adoptions are serialized.
+	// Adoption is rare (one acquisition per Machine bring-up) and
+	// short (a few API calls); serializing it has no meaningful
+	// throughput cost.
+	adoptMu sync.Mutex
 }
 
 // NewClient initializes a Scaleway client from the standard environment
@@ -248,27 +262,29 @@ var ErrNoAvailableHost = errors.New("no available Apple Silicon host in pool")
 // and makes the host findable on future reconciles via the existing
 // name-based idempotency path (`findServerByName`).
 //
-// Concurrent reconciles racing the same pool host are resolved via
-// a two-phase claim:
+// Concurrent claims are resolved by a process-local mutex
+// (`adoptMu`). Scaleway's UpdateServer is not conditional — two
+// renames to different target names against the same server both
+// succeed, last-write-wins — so optimistic read-after-write
+// verification alone can't prevent two reconciles from walking
+// away with the same ServerID. The controller is single-replica
+// via leader election, so serializing adoption inside the leader
+// is sufficient; only one goroutine at a time enters this function.
 //
-//  1. Pick a candidate. UpdateServer renames it to a per-reconcile
-//     marker `tuist-claim-pending-<uuid>`. Each reconcile generates
-//     its own uuid, so two reconciles racing the same host write
-//     two distinct names — one of the two writes lands last.
-//  2. GetServer the candidate immediately. If `Name` still matches
-//     OUR marker, no one else's rename has landed after ours and we
-//     have the only outstanding claim. Promote with a second
-//     UpdateServer to `claimName`. If `Name` reflects somebody
-//     else's marker (or any unexpected value), the race is lost —
-//     skip the candidate and let the loop pick another.
+// Within that serialized section, a two-phase rename also runs as
+// defense-in-depth against external mutation (operator-driven
+// rename via the Scaleway console mid-adoption, or a future
+// multi-replica deployment that loses leader election between
+// reconciles):
 //
-// Why two phases instead of renaming straight to `claimName`: every
-// concurrent UpdateServer with a *different* target name succeeds
-// against Scaleway (no name-conflict response on differing targets),
-// so a single-step rename allows two Machines to both walk away with
-// the same ServerID, which is what we hit on the May 14 production
-// roll (multiple ScalewayAppleSiliconMachine CRs sharing one
-// ProviderID).
+//  1. Pick a candidate. UpdateServer renames it to a per-call
+//     marker `tuist-claim-pending-<uuid>`. GetServer the candidate
+//     and confirm the marker survived.
+//  2. UpdateServer to the final `claimName`.
+//
+// If between phase 1 and phase 2 some external actor renames the
+// server, the verify GET reveals the foreign name and the
+// candidate is skipped.
 //
 // Recovery from a crash between phases: if the controller exits
 // after phase 1, the server is stuck at `tuist-claim-pending-<uuid>`
@@ -283,6 +299,9 @@ func (c *Client) AdoptByPrefix(ctx context.Context, claimName, zone, serverType,
 	if poolPrefix == "" {
 		return nil, fmt.Errorf("poolPrefix is required for adoption")
 	}
+
+	c.adoptMu.Lock()
+	defer c.adoptMu.Unlock()
 
 	// Idempotent rediscovery: if a previous reconcile completed phase 2
 	// for this Machine but its `status.serverID` patch was lost (process
@@ -354,38 +373,51 @@ func (c *Client) AdoptByPrefix(ctx context.Context, claimName, zone, serverType,
 //
 // Returns:
 //
-//   - (*Server, nil)   — we won the race and promoted to claimName.
-//   - (nil, nil)       — lost the race; caller should try another
-//     candidate. Phase 1 either failed transiently or our pending
-//     marker was overwritten before phase 2.
-//   - (nil, error)     — phase 2 promotion failed after phase 1
-//     succeeded, which leaves the server in pendingName. The caller
-//     should requeue; on the next reconcile this server is matched
-//     as a claim-pending orphan and re-adopted.
+//   - (*Server, nil)   — we won and promoted to claimName.
+//   - (nil, nil)       — race lost or candidate vanished (404).
+//     Caller should try another candidate. Triggered by a server
+//     that disappears (deleted by an operator mid-scan) or whose
+//     pending marker is overwritten between phase 1 and verify.
+//   - (nil, error)     — Scaleway returned a non-404 error on
+//     phase 1 / verify, or phase 2 promotion failed. The caller
+//     should surface it as a real provisioning failure rather
+//     than rolling on to "no available capacity" — a 403, 500, or
+//     validation error means something operational is wrong and
+//     pre-ordering more hosts won't help.
 func (c *Client) tryTwoPhaseClaim(ctx context.Context, serverID, zone, pendingName, claimName string) (*Server, error) {
-	// Phase 1: stake the candidate with our per-reconcile marker.
+	// Phase 1: stake the candidate with our per-call marker.
 	if _, err := c.API.UpdateServer(&applesilicon.UpdateServerRequest{
 		ServerID: serverID,
 		Zone:     scw.Zone(zone),
 		Name:     &pendingName,
 	}, scw.WithContext(ctx)); err != nil {
-		// Treat a 404 as race-lost (someone else claimed and then we
-		// raced a delete; rare but recoverable). All other errors
-		// abort the candidate — the caller's outer loop will move on.
-		return nil, nil
+		// 404 means the candidate was deleted out from under us
+		// between the list and our UpdateServer call (concurrent
+		// operator action). That's recoverable — try the next
+		// candidate. Every other Scaleway error (auth, validation,
+		// outage) is operational and must surface, otherwise the
+		// outer loop quietly downgrades it to ErrNoAvailableHost
+		// and tells operators to pre-order capacity they already have.
+		if IsNotFound(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("phase 1 rename of server %s to pending marker: %w", serverID, err)
 	}
 
-	// Verify the marker survived. A concurrent reconcile that also
-	// wrote a pending name for this serverID after ours would show
-	// its own marker here; if so we lost the race.
+	// Verify the marker survived. With adoptMu held we won't race
+	// ourselves, but an external rename (operator console, future
+	// multi-replica deployment that lost leader election) can still
+	// overwrite the marker — bail in that case rather than promote a
+	// name we may not actually hold.
 	verified, err := c.API.GetServer(&applesilicon.GetServerRequest{
 		ServerID: serverID,
 		Zone:     scw.Zone(zone),
 	}, scw.WithContext(ctx))
 	if err != nil {
-		// Can't confirm we own the marker — safest is to skip rather
-		// than promote a name we may not actually hold.
-		return nil, nil
+		if IsNotFound(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("phase 1 verify of server %s: %w", serverID, err)
 	}
 	if verified.Name != pendingName {
 		return nil, nil
