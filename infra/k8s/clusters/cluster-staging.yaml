@@ -50,13 +50,17 @@ spec:
         # processor pool already uses.
         - class: hcloud-worker
           name: runners-linux
-          replicas: 0
+          # `replicas` matches `cluster-autoscaler-node-group-min-size`
+          # so the topology controller and CA agree on the floor.
+          # min=1 (not 0) keeps one node warm during bring-up; once
+          # we're confident CA scales this group correctly, drop to 0.
+          replicas: 1
           failureDomain: fsn1
           metadata:
             labels:
               node.cluster.x-k8s.io/pool: runners-linux
             annotations:
-              cluster.x-k8s.io/cluster-autoscaler-node-group-min-size: "0"
+              cluster.x-k8s.io/cluster-autoscaler-node-group-min-size: "1"
               cluster.x-k8s.io/cluster-autoscaler-node-group-max-size: "10"
           variables:
             overrides:
