@@ -10,7 +10,7 @@
   "spec": {
     "title": "Tuist Runners",
     "uid": "tuist-runners",
-    "description": "Customer-runner Mac mini fleet — VM boot time today, more product/ops telemetry (dispatch latency, claim outcomes, queued age, JIT mint failures, RunnerPool desired vs observed, cap saturation) lands in follow-up commits. VM boot time is what the tailnet transport unlocked first since it's emitted from tart-kubelet on the Mac mini itself.",
+    "description": "VM boot duration for the customer-runner Mac mini fleet, emitted by tart-kubelet on each Mac mini and scraped over the tailnet.",
     "schemaVersion": 39,
     "refresh": "30s",
     "tags": ["tuist", "runners", "macos"],
@@ -76,7 +76,7 @@
       },
       {
         "datasource": "$datasource",
-        "description": "Mac minis where tart-kubelet's controller-runtime metrics endpoint is reachable. Bound to the tailnet IP when --node-ip-source=tailscale, scraped via the Tailscale K8s operator's subnet router. A drop here is a routing failure (Connector down, ACL drift) before it's a host failure — the node_exporter scrape on :9100 is the second sanity check.",
+        "description": "Mac minis where tart-kubelet's controller-runtime metrics endpoint is reachable. Bound to the tailnet IP when --node-ip-source=tailscale, scraped through the Tailscale operator's egress ProxyGroup. A drop here is a routing failure (ProxyGroup pod down, ACL drift, missing egress Service) before it's a host failure; the node_exporter scrape on :9100 is the second sanity check.",
         "fieldConfig": {
           "defaults": {
             "color": { "mode": "thresholds" },
