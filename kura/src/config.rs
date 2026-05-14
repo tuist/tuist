@@ -63,6 +63,7 @@ const KURA_OTEL_DEPLOYMENT_ENVIRONMENT: &str = "KURA_OTEL_DEPLOYMENT_ENVIRONMENT
 const KURA_SENTRY_DSN: &str = "KURA_SENTRY_DSN";
 const KURA_GEOIP_REFRESH_INTERVAL_SECS: &str = "KURA_GEOIP_REFRESH_INTERVAL_SECS";
 const DEFAULT_GEOIP_REFRESH_INTERVAL_SECS: u64 = 86_400;
+const KURA_NODE_COUNTRY: &str = "KURA_NODE_COUNTRY";
 
 const BYTES_PER_MIB: u64 = 1024 * 1024;
 const DEFAULT_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS: u64 = 5_000;
@@ -116,6 +117,10 @@ pub struct Config {
     /// upstream DB-IP Lite dump. `0` disables background refresh — the
     /// container-image copy is then used for the pod's lifetime.
     pub geoip_refresh_interval_secs: u64,
+    /// Operator-provided ISO 3166-1 alpha-2 country code for the node.
+    /// When set, it short-circuits the egress-IP probe used to stamp
+    /// `kura.country` on OTel traces.
+    pub node_country_override: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -849,6 +854,9 @@ impl Config {
             },
         )
         .unwrap_or(DEFAULT_GEOIP_REFRESH_INTERVAL_SECS);
+        let node_country_override = lookup(KURA_NODE_COUNTRY)
+            .map(|value| value.trim().to_owned())
+            .filter(|value| !value.is_empty());
         let otlp_traces_endpoint = lookup(KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT)
             .map(|value| value.trim().to_owned())
             .filter(|value| !value.is_empty());
@@ -988,6 +996,7 @@ impl Config {
             ),
             sentry_dsn,
             geoip_refresh_interval_secs,
+            node_country_override,
         })
     }
 

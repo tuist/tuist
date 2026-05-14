@@ -20,6 +20,7 @@ use crate::{
     io::IoController,
     memory::MemoryController,
     metrics::Metrics,
+    node_location::resolve_node_country,
     peer_tls::{build_internal_rustls_config, build_peer_client, build_public_rustls_config},
     reapi,
     replication::{spawn_membership_task, spawn_outbox_task},
@@ -48,15 +49,22 @@ impl ShutdownBudget {
 
 pub async fn run() -> Result<(), String> {
     let config = Config::from_env().map_err(|error| format!("invalid configuration: {error}"))?;
-    let telemetry = init_tracing(&config);
-    let log_context = log_context_span(&config);
-    let result = run_with_config(config).instrument(log_context).await;
+    let geoip = GeoIp::open();
+    let node_country = resolve_node_country(
+        config.node_country_override.as_deref(),
+        geoip.as_ref(),
+        &config.region,
+    )
+    .await;
+    let telemetry = init_tracing(&config, node_country.as_deref());
+    let log_context = log_context_span(&config, node_country.as_deref());
+    let result = run_with_config(config, geoip).instrument(log_context).await;
 
     telemetry.shutdown();
     result
 }
 
-async fn run_with_config(config: Config) -> Result<(), String> {
+async fn run_with_config(config: Config, geoip: Option<GeoIp>) -> Result<(), String> {
     if let Err(error) = raise_nofile_soft_to_hard() {
         tracing::warn!("failed to raise RLIMIT_NOFILE soft limit: {error}");
     }
@@ -76,7 +84,6 @@ async fn run_with_config(config: Config) -> Result<(), String> {
     let analytics =
         Analytics::from_config(config.analytics.as_ref(), &config.node_url, metrics.clone())
             .map_err(|error| format!("failed to initialize analytics: {error}"))?;
-    let geoip = GeoIp::open();
     let io = IoController::new(
         metrics.clone(),
         config.file_descriptor_pool_size,

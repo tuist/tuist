@@ -299,6 +299,18 @@ A background task refreshes the in-memory database from `https://download.db-ip.
 
 DB-IP data is © DB-IP, released under CC BY 4.0.
 
+### Node geographic attribution
+
+Each pod resolves its own ISO 3166-1 alpha-2 country once at startup and stamps it on every exported OTel span as the `kura.country` Resource attribute, alongside the existing `kura.region` and `kura.tenant_id`. Combined with `client.country` on each request span, traces carry both endpoints of the request and Grafana can compute geographic distance directly off Tempo data.
+
+Resolution chain, tried in order:
+
+1. `KURA_NODE_COUNTRY` env var (operator override; must be a 2-letter ISO code).
+2. Public egress IP discovered via `https://api.ipify.org` (3-second timeout, best-effort), looked up against the vendored GeoIP database.
+3. First two ASCII letters of `KURA_REGION` uppercased (handles common naming conventions like `fr-par`, `us-east`, `nl-ams`).
+
+If all three fail (air-gapped deploy with no vendored DB and an unrecognised region name), `kura.country` is simply not stamped.
+
 ### Disabling OTLP tracing
 
 OTLP tracing is optional. Leaving `KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` unset (or empty) makes Kura skip exporter initialization and run without distributed traces — useful in environments without a collector (local kind, isolated edge nodes). Helm operators control it by setting `config.telemetry.otlpTracesEndpoint: ""` in a values overlay; the chart only renders the env when the value is non-empty, so an empty overlay disables tracing without crashlooping the pod.

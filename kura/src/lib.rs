@@ -11,6 +11,7 @@ mod io;
 mod memory;
 mod metrics;
 mod multipart;
+mod node_location;
 mod peer_tls;
 mod reapi;
 mod replication;
