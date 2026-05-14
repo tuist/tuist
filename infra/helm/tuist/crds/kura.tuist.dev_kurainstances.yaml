@@ -122,6 +122,10 @@ spec:
                   type: string
                 grpcPublicURL:
                   type: string
+                globalPublicURL:
+                  type: string
+                globalGrpcPublicURL:
+                  type: string
                 observedImage:
                   type: string
                 readyReplicas:

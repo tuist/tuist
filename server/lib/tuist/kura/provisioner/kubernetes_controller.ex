@@ -74,6 +74,15 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   end
 
   @impl true
+  def global_public_url(name, %Regions{} = region) do
+    case client_get_kura_instance(@namespace, name, region) do
+      {:ok, %{"status" => %{"globalPublicURL" => url}}} when is_binary(url) and url != "" -> url
+      {:ok, _} -> nil
+      {:error, _reason} -> nil
+    end
+  end
+
+  @impl true
   def current_image_tag(name, %Regions{} = region) do
     case client_get_kura_instance(@namespace, name, region) do
       {:ok, %{"status" => %{"observedImage" => image}}} -> {:ok, image_tag_from_image(image)}
@@ -162,7 +171,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   defp grpc_public_host(_handle, _region), do: nil
 
-  def global_public_url(handle, %Regions{} = region) do
+  def global_public_url_for_handle(handle, %Regions{} = region) do
     case global_public_host(handle, region) do
       nil -> nil
       host -> "https://" <> host

@@ -25,13 +25,15 @@ type KuraInstanceSpec struct {
 }
 
 type KuraInstanceStatus struct {
-	Phase            string       `json:"phase,omitempty"`
-	PublicURL        string       `json:"publicURL,omitempty"`
-	GRPCPublicURL    string       `json:"grpcPublicURL,omitempty"`
-	ObservedImage    string       `json:"observedImage,omitempty"`
-	ReadyReplicas    int32        `json:"readyReplicas,omitempty"`
-	Message          string       `json:"message,omitempty"`
-	LastReconciledAt *metav1.Time `json:"lastReconciledAt,omitempty"`
+	Phase               string       `json:"phase,omitempty"`
+	PublicURL           string       `json:"publicURL,omitempty"`
+	GRPCPublicURL       string       `json:"grpcPublicURL,omitempty"`
+	GlobalPublicURL     string       `json:"globalPublicURL,omitempty"`
+	GlobalGRPCPublicURL string       `json:"globalGrpcPublicURL,omitempty"`
+	ObservedImage       string       `json:"observedImage,omitempty"`
+	ReadyReplicas       int32        `json:"readyReplicas,omitempty"`
+	Message             string       `json:"message,omitempty"`
+	LastReconciledAt    *metav1.Time `json:"lastReconciledAt,omitempty"`
 }
 
 // +kubebuilder:object:root=true

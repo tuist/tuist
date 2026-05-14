@@ -67,10 +67,19 @@ defmodule Tuist.Kura do
     |> Enum.take(limit)
   end
 
-  def global_cache_endpoint_url(%Account{name: handle}) do
-    if global_cache_endpoint_enabled?() do
-      Enum.find_value(Regions.all(), fn region -> KubernetesController.global_public_url(handle, region) end)
+  def global_cache_endpoint_url(%Account{} = account) do
+    with url when is_binary(url) <- global_cache_endpoint_candidate_url(account),
+         true <- global_cache_endpoint_active?(account, url) do
+      url
+    else
+      _ -> nil
     end
+  end
+
+  def global_cache_endpoint_candidate_url(%Account{name: handle}) do
+    if global_cache_endpoint_enabled?(),
+      do:
+        Enum.find_value(Regions.all(), fn region -> KubernetesController.global_public_url_for_handle(handle, region) end)
   end
 
   defp global_cache_endpoint_enabled? do
@@ -95,7 +104,14 @@ defmodule Tuist.Kura do
   def schedule_runtime_image_deployments do
     case runtime_image_tag() do
       nil -> {:ok, []}
-      image_tag -> schedule_version_deployments(image_tag)
+      image_tag -> schedule_runtime_image_deployments(image_tag)
+    end
+  end
+
+  defp schedule_runtime_image_deployments(image_tag) do
+    with {:ok, version_deployments} <- schedule_version_deployments(image_tag),
+         {:ok, global_endpoint_deployments} <- schedule_global_endpoint_deployments(image_tag) do
+      {:ok, version_deployments ++ global_endpoint_deployments}
     end
   end
 
@@ -135,6 +151,20 @@ defmodule Tuist.Kura do
     end
   end
 
+  def schedule_global_endpoint_deployments(image_tag) when is_binary(image_tag) do
+    deployments =
+      image_tag
+      |> servers_needing_global_endpoint_query()
+      |> Repo.all()
+      |> Enum.filter(&server_needs_global_endpoint?/1)
+      |> Enum.map(&create_deployment(&1, image_tag))
+
+    case Enum.find(deployments, &match?({:error, _}, &1)) do
+      nil -> {:ok, Enum.map(deployments, fn {:ok, deployment} -> deployment end)}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
   defp servers_needing_version_query(image_tag) do
     deployment_exists_query =
       from(d in Deployment,
@@ -148,6 +178,41 @@ defmodule Tuist.Kura do
       where: s.current_image_tag != ^image_tag,
       where: not exists(deployment_exists_query)
     )
+  end
+
+  defp servers_needing_global_endpoint_query(image_tag) do
+    open_deployment_exists_query =
+      from(d in Deployment,
+        where: parent_as(:server).id == d.kura_server_id and d.status in ^[:pending, :running],
+        select: 1
+      )
+
+    from(s in Server,
+      as: :server,
+      join: a in assoc(s, :account),
+      where: s.status == :active,
+      where: s.current_image_tag == ^image_tag,
+      where: not exists(open_deployment_exists_query),
+      preload: [account: a]
+    )
+  end
+
+  def server_needs_global_endpoint?(%Server{account: %Account{} = account} = server) do
+    is_nil(global_cache_endpoint_url(account)) and region_has_global_endpoint?(server.region)
+  end
+
+  def server_global_endpoint_observed?(%Server{} = server) do
+    case Provisioner.global_public_url(server) do
+      url when is_binary(url) and url != "" -> true
+      _ -> false
+    end
+  end
+
+  defp region_has_global_endpoint?(region_id) do
+    case Regions.fetch(region_id) do
+      {:ok, %Regions{provisioner_config: config}} -> is_binary(config[:global_public_host_template])
+      _ -> false
+    end
   end
 
   ## Servers
@@ -310,7 +375,8 @@ defmodule Tuist.Kura do
     with {:ok, account} <- Accounts.get_account_by_id(server.account_id),
          url when is_binary(url) <- Provisioner.public_url(account, server),
          :ok <- ensure_public_endpoint_ready(url),
-         {:ok, server} <- activate_server_transaction(server, account, url, image_tag) do
+         {:ok, global_url} <- ready_global_public_url(server),
+         {:ok, server} <- activate_server_transaction(server, account, url, global_url, image_tag) do
       broadcast_server(server, :updated)
       {:ok, server}
     else
@@ -364,7 +430,19 @@ defmodule Tuist.Kura do
 
   defp ensure_public_https_up(_uri), do: :ok
 
-  defp activate_server_transaction(server, account, url, image_tag) do
+  defp ready_global_public_url(%Server{} = server) do
+    case Provisioner.global_public_url(server) do
+      url when is_binary(url) and url != "" ->
+        with :ok <- ensure_public_endpoint_ready(url) do
+          {:ok, url}
+        end
+
+      _ ->
+        {:ok, nil}
+    end
+  end
+
+  defp activate_server_transaction(server, account, url, global_url, image_tag) do
     Repo.transaction(fn ->
       case lock_server(server.id, server.account_id) do
         nil ->
@@ -381,7 +459,8 @@ defmodule Tuist.Kura do
                  server
                  |> Server.status_changeset(%{status: :active, url: url, current_image_tag: image_tag})
                  |> Repo.update(),
-               :ok <- ensure_cache_endpoint(account, url) do
+               :ok <- ensure_cache_endpoint(account, url),
+               :ok <- ensure_cache_endpoint(account, global_url) do
             server
           else
             {:error, reason} -> Repo.rollback(reason)
@@ -489,6 +568,8 @@ defmodule Tuist.Kura do
     {:ok, server}
   end
 
+  defp ensure_cache_endpoint(_account, nil), do: :ok
+
   defp ensure_cache_endpoint(account, url) do
     # Kura URLs are deterministic for `(account, region)`, so this
     # derived endpoint row survives destroy/re-create cycles without
@@ -499,6 +580,22 @@ defmodule Tuist.Kura do
       {:ok, _} -> :ok
       {:error, reason} -> {:error, reason}
     end
+  end
+
+  defp global_cache_endpoint_active?(%Account{} = account, url) do
+    regional_endpoint_exists =
+      from(e in AccountCacheEndpoint,
+        where: e.account_id == ^account.id and e.technology == :kura and e.url != ^url,
+        select: 1
+      )
+
+    global_endpoint_exists =
+      from(e in AccountCacheEndpoint,
+        where: e.account_id == ^account.id and e.technology == :kura and e.url == ^url,
+        select: 1
+      )
+
+    Repo.exists?(regional_endpoint_exists) and Repo.exists?(global_endpoint_exists)
   end
 
   defp remove_cache_endpoint(%Server{url: nil}), do: :ok

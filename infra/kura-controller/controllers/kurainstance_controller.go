@@ -160,10 +160,14 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if err := r.reconcileStatefulSet(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
+	statusGlobalPublicURL := ""
+	statusGlobalGRPCPublicURL := ""
 	if r.CloudflareLoadBalancing.Enabled() {
 		if err := newCloudflareClient(r.CloudflareLoadBalancing).reconcileKuraLoadBalancers(ctx, instance); err != nil {
 			return ctrl.Result{}, err
 		}
+		statusGlobalPublicURL = globalPublicURL(instance)
+		statusGlobalGRPCPublicURL = globalGRPCPublicURL(instance)
 	}
 
 	rollout, err := r.rolloutStatus(ctx, instance)
@@ -174,6 +178,8 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	instance.Status.Phase = rollout.phase
 	instance.Status.PublicURL = publicURL(instance)
 	instance.Status.GRPCPublicURL = grpcPublicURL(instance)
+	instance.Status.GlobalPublicURL = statusGlobalPublicURL
+	instance.Status.GlobalGRPCPublicURL = statusGlobalGRPCPublicURL
 	instance.Status.ObservedImage = rollout.observedImage
 	instance.Status.ReadyReplicas = rollout.readyReplicas
 	instance.Status.Message = rollout.message
@@ -850,6 +856,20 @@ func grpcPublicURL(instance *kurav1alpha1.KuraInstance) string {
 		return ""
 	}
 	return "grpcs://" + instance.Spec.GRPCPublicHost
+}
+
+func globalPublicURL(instance *kurav1alpha1.KuraInstance) string {
+	if instance.Spec.GlobalPublicHost == "" {
+		return ""
+	}
+	return "https://" + instance.Spec.GlobalPublicHost
+}
+
+func globalGRPCPublicURL(instance *kurav1alpha1.KuraInstance) string {
+	if instance.Spec.GlobalGRPCPublicHost == "" {
+		return ""
+	}
+	return "grpcs://" + instance.Spec.GlobalGRPCPublicHost
 }
 
 func labels(instance *kurav1alpha1.KuraInstance) map[string]string {

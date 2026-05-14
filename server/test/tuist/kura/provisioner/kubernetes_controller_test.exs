@@ -160,14 +160,35 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
     end
   end
 
-  describe "global_public_url/2" do
+  describe "global_public_url_for_handle/2" do
     test "interpolates the account-level production host template with the account handle" do
-      assert KubernetesController.global_public_url("TUIST", eu_region()) ==
+      assert KubernetesController.global_public_url_for_handle("TUIST", eu_region()) ==
                "https://tuist.kura.tuist.dev"
     end
 
     test "returns nil when the region has no global host configured" do
-      assert KubernetesController.global_public_url("TUIST", local_controller_region()) == nil
+      assert KubernetesController.global_public_url_for_handle("TUIST", local_controller_region()) == nil
+    end
+  end
+
+  describe "global_public_url/2" do
+    test "returns the controller-observed global public URL" do
+      expect(Client, :get_kura_instance, fn "kura", "kura-tuist-eu-central-1", opts ->
+        assert opts == []
+
+        {:ok, %{"status" => %{"globalPublicURL" => "https://tuist.kura.tuist.dev"}}}
+      end)
+
+      assert KubernetesController.global_public_url("kura-tuist-eu-central-1", eu_region()) ==
+               "https://tuist.kura.tuist.dev"
+    end
+
+    test "returns nil before the controller reports a global public URL" do
+      expect(Client, :get_kura_instance, fn "kura", "kura-tuist-eu-central-1", _opts ->
+        {:ok, %{"status" => %{}}}
+      end)
+
+      assert KubernetesController.global_public_url("kura-tuist-eu-central-1", eu_region()) == nil
     end
   end
 
