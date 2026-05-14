@@ -245,3 +245,49 @@ runnersFleet:
         # smaller than host) or fail to schedule (over-requests).
         cpuMilli: 8000
         memoryMB: 14336
+
+# Linux runner fleet on Hetzner Cloud. Host substrate is owned by the
+# workload cluster's ClusterClass topology — see the
+# `runners-linux` entry under `spec.topology.workers.machineDeployments`
+# in `infra/k8s/clusters/cluster-staging.yaml` (`hcloud-worker` class
+# with `node.cluster.x-k8s.io/pool: runners-linux` and a ccx23
+# machine-type override). cluster-autoscaler bounds the elastic
+# range via its node-group annotations; the runners-controller's
+# autoscaler reconciler patches `RunnerPool.spec.replicas` based on
+# queue depth + rolling p95, and Pods that don't fit on current
+# nodes go Pending so CA bumps the MD's replicas to match.
+runnersFleetLinux:
+  enabled: true
+  # Matches `cluster-staging.yaml`'s `node.cluster.x-k8s.io/pool` label.
+  name: runners-linux
+  # Single bring-up pool. `runnerImage` points at the floating
+  # `:latest` tag during staging bring-up — once the
+  # release-linux-runner-image job lands in `release.yml`, switch to
+  # a digest pin and let Renovate own the bumps.
+  pools:
+    - name: ubuntu-22-04
+      runnerImage: "ghcr.io/tuist/tuist-linux-runner:latest"
+      dispatchLabel: "tuist-staging-linux"
+      runnerLabels:
+        - self-hosted
+        - Linux
+        - X64
+      pod:
+        # 4 vCPU / 16 GiB matches the ccx23 node's full budget so
+        # one Pod per node bin-packs cleanly. cluster-autoscaler
+        # registers nodes as candidates for scale-down only when
+        # they're empty, so Pod-per-host keeps the scale-down math
+        # transparent.
+        cpuMilli: 4000
+        memoryMB: 16384
+      # Queue-depth driven autoscaling. minWarmPoolFloor=1 keeps
+      # one Pod ready at all times (cold-start budget on staging is
+      # noise during bring-up); maxReplicas=10 mirrors the
+      # cluster-autoscaler's node-group max in cluster-staging.yaml
+      # so the autoscaler can't request more Pods than the node
+      # group can grow to.
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 1
+        maxReplicas: 10
+        scaleDownCooldownSeconds: 300

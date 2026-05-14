@@ -48,6 +48,17 @@ func TestBuild_LinuxScheduling(t *testing.T) {
 	if got, want := pod.Spec.NodeSelector["kubernetes.io/arch"], "amd64"; got != want {
 		t.Errorf("nodeSelector arch = %q, want %q", got, want)
 	}
+	// CAPI label-sync propagates the `node.cluster.x-k8s.io/pool`
+	// label from the MachineDeployment to the Node; the Pod's
+	// nodeSelector must use the same key to pin to the runners
+	// MD. `tuist.dev/fleet=` is the macOS-only convention because
+	// tart-kubelet sets it outside the standard label-sync.
+	if got, want := pod.Spec.NodeSelector["node.cluster.x-k8s.io/pool"], "fleet-x"; got != want {
+		t.Errorf("nodeSelector pool = %q, want %q", got, want)
+	}
+	if _, present := pod.Spec.NodeSelector["tuist.dev/fleet"]; present {
+		t.Errorf("nodeSelector should NOT carry tuist.dev/fleet on Linux pools (label-sync prefix rejected)")
+	}
 	if _, present := pod.Spec.NodeSelector["tuist.dev/runtime"]; present {
 		t.Errorf("nodeSelector should NOT carry tuist.dev/runtime on Linux pools")
 	}

@@ -97,21 +97,24 @@ green-field cluster.
 {{- end -}}
 
 {{/*
-Linux runner fleet — analog of the Mac mini fleet but provisioned
-on Hetzner Cloud via caph. Same "Fleet" semantics (one logical
-group of identical hosts; MachineDeployment + MachineSet + Machines
-share an identity); different infra provider underneath.
+Linux runner fleet name — the value of the
+`node.cluster.x-k8s.io/pool=` label CAPI's label-sync propagates from
+the runner MachineDeployment to each runner Node. The chart's Linux
+RunnerPool CRs render this as `spec.fleetSelector`; the
+runners-controller's podtemplate uses it as the Pod's nodeSelector
+on the `node.cluster.x-k8s.io/pool=` key.
 
-The name flows into:
+Cluster team-managed: the matching entry must exist in
+`infra/k8s/clusters/cluster-<env>.yaml` under
+`spec.topology.workers.machineDeployments[]` with
+`metadata.labels.node.cluster.x-k8s.io/pool: <this value>`.
 
-  - HCloudMachineTemplate.metadata.name
-  - MachineDeployment.metadata.name + spec.selector
-  - Pod nodeSelector `tuist.dev/fleet=<name>` (Linux pools set this
-    via RunnerPool.spec.fleetSelector)
-  - Node label the bootstrap provider stamps so the selector matches
+Defaults to `runners-linux` to match the convention in
+`cluster-staging.yaml`. Override via `runnersFleetLinux.name` only
+if the cluster topology uses a different pool name.
 */}}
 {{- define "tuist.runnersFleetLinuxName" -}}
-{{- .Values.runnersFleetLinux.name | default (include "tuist.componentName" (dict "root" . "component" "runners-fleet-linux")) -}}
+{{- .Values.runnersFleetLinux.name | default "runners-linux" -}}
 {{- end -}}
 
 {{- define "tuist.objectStorageEndpoint" -}}

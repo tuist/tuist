@@ -678,68 +678,40 @@ runnersFleet:
     #     maxReplicas: 0
     #     scaleDownCooldownSeconds: 300
 
-# Linux runner fleet — Hetzner Cloud VMs managed by caph
-# (cluster-api-provider-hetzner). Sibling of `runnersFleet` (the
-# Scaleway Apple Silicon Mac mini fleet). Disabled by default; the
-# chart only renders the CAPI machinery when both this block AND
-# `capi.enabled` are true.
+# Linux runner fleet — Hetzner Cloud VMs provisioned and lifecycled
+# by the workload cluster's ClusterClass (`tuist-hcloud` in
+# `infra/k8s/clusters/clusterclass-tuist.yaml`) via a
+# `machineDeployments[]` entry of class `hcloud-worker` named
+# `runners-linux`. The chart does NOT render any CAPI resources for
+# this fleet — the cluster team owns "what kinds of nodes exist;"
+# the chart owns "what workloads run on them" (RunnerPool CRs whose
+# `fleetSelector` matches the `node.cluster.x-k8s.io/pool=<name>`
+# label CAPI's label-sync stamps on each runner node).
 #
-# Prerequisites the operator owns:
-#   * caph infra provider installed in the cluster
-#   * CAPI's kubeadm bootstrap provider installed
-#   * Hetzner Cloud token Secret the provider can read
-#
-# Sized for the v1 "cloud-only" decision: hourly-billed Hetzner
-# Cloud VMs (no Hetzner bare-metal yet). Each VM hosts one runner
-# Pod (one-Pod-per-host model, mirroring macOS). When sustained
-# load justifies it, migrating to bare-metal via the same CAPI
-# primitives is a SKU swap, not a re-architecture.
+# To enable a runner fleet on a new env:
+#   1. Add a `machineDeployments[]` entry to the env's
+#      `infra/k8s/clusters/cluster-<env>.yaml` (class `hcloud-worker`,
+#      `metadata.labels.node.cluster.x-k8s.io/pool: <name>`,
+#      cluster-autoscaler min/max annotations, ccx23 type override).
+#      `mgmt-cluster-apply.yml` reconciles this on push to main.
+#   2. Flip `runnersFleetLinux.enabled: true` here, set `name` to
+#      match the pool label value, point `pools[].runnerImage` at a
+#      digest-pinned `ghcr.io/tuist/tuist-linux-runner` build.
 runnersFleetLinux:
   enabled: false
-  # Defaults to <release>-runners-fleet-linux. CAPI MachineDeployment
-  # name; also the value of the Pods' `tuist.dev/fleet=` nodeSelector.
+  # Value of the `node.cluster.x-k8s.io/pool=` label CAPI's
+  # label-sync propagates from the runner MachineDeployment to
+  # each runner Node. Must match the
+  # `metadata.labels.node.cluster.x-k8s.io/pool` entry on the
+  # matching `machineDeployments[]` in
+  # `infra/k8s/clusters/cluster-<env>.yaml`. Defaults to
+  # `runners-linux` (the convention used in
+  # `cluster-staging.yaml`).
   name: ""
   # Namespace for the rendered RunnerPool CRs. Falls back to the
   # macOS fleet's namespace when unset so a single chart install
   # can share infra (RBAC, NetworkPolicy) across both fleets.
   namespace: ""
-  # Number of Hetzner Cloud VMs the CAPI MachineDeployment
-  # provisions. Sum of `pools[*].replicas` must fit within this.
-  # When autoscaling is enabled on the pool, this is the upper
-  # bound the autoscaler may grow the underlying fleet to — note
-  # that fleet scaling vs Pod scaling is currently independent,
-  # so an operator with autoscaling should set hostCount to the
-  # `maxReplicas` of the largest pool.
-  hostCount: 0
-  # Hetzner Cloud machine config the HCloudMachineTemplate flows
-  # into. `ccx23` (4 vCPU dedicated, 16 GB) matches Namespace's
-  # 4c/16GB shape that Tuist customers already target — same UX
-  # without retraining workflows.
-  machine:
-    type: ccx23
-    imageName: ubuntu-22.04
-    # Optional placement group keeps the fleet's VMs on distinct
-    # physical hosts in Hetzner Cloud — useful only if a customer
-    # workflow requires noisy-neighbor isolation; otherwise let
-    # Hetzner schedule freely.
-    placementGroupName: ""
-    # SSH keys (by name in Hetzner Cloud's account) for emergency
-    # access. Keep empty unless an operator explicitly needs SSH
-    # — the runner workflow is fully cluster-managed.
-    sshKeys: []
-  # Kubernetes version the KubeadmConfigTemplate joins on. Should
-  # match the workload cluster's control plane.
-  kubernetesVersion: v1.30.0
-  # Bootstrap commands threaded into the cloud-init the
-  # KubeadmConfigTemplate generates. Use these to install
-  # containerd + kubelet on a stock Ubuntu image. The exact
-  # shape is operator-dependent (CNI, container runtime version,
-  # apt repos) so the chart ships an empty default — fill in per
-  # cluster.
-  bootstrap:
-    preKubeadmCommands: []
-    postKubeadmCommands: []
-    files: []
   # RunnerPool CRs rendered into `runnersFleetLinux.namespace`.
   # One entry per image variant. Required when
   # `runnersFleetLinux.enabled` is true.

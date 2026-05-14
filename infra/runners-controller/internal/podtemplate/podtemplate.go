@@ -129,18 +129,31 @@ func ptr[T any](v T) *T {
 }
 
 // schedulingFor returns the nodeSelector + tolerations for a pool's
-// substrate. `darwin` is the v1 default and targets Mac mini nodes
-// running tart-kubelet; `linux` targets standard Linux nodes (no
-// extra runtime label, no taint to tolerate). Anything else falls
-// back to the darwin shape so a misconfigured CR still produces a
-// schedulable Pod against the macOS fleet.
+// substrate.
+//
+//   - `darwin` (v1 default): Mac mini nodes running tart-kubelet.
+//     `tuist.dev/fleet=<value>` is the chart-managed selector; tart-kubelet
+//     sets the label itself outside the CAPI label-sync path. Tolerates
+//     `tuist.dev/macos:NoSchedule` so only runner Pods land on Mac minis.
+//   - `linux`: standard Linux nodes provisioned by CAPI/caph via the
+//     workload cluster's ClusterClass topology. Selects on
+//     `node.cluster.x-k8s.io/pool=<value>` — the only label prefix CAPI
+//     propagates from `MachineDeployment.metadata.labels` to the Node
+//     (alongside `node-role.kubernetes.io/` and
+//     `node-restriction.kubernetes.io/`). Same convention as the existing
+//     `node.cluster.x-k8s.io/pool=processor` workload nodes; no taint to
+//     tolerate by default (runner Pods bin-pack onto runner-pool nodes
+//     via the nodeSelector alone).
+//
+// Anything else falls back to the darwin shape so a misconfigured CR
+// still produces a schedulable Pod against the macOS fleet.
 func schedulingFor(pool *tuistv1.RunnerPool) (map[string]string, []corev1.Toleration) {
 	switch pool.Spec.OS {
 	case "linux":
 		return map[string]string{
-				"kubernetes.io/os":   "linux",
-				"kubernetes.io/arch": "amd64",
-				"tuist.dev/fleet":    pool.Spec.FleetSelector,
+				"kubernetes.io/os":             "linux",
+				"kubernetes.io/arch":           "amd64",
+				"node.cluster.x-k8s.io/pool":   pool.Spec.FleetSelector,
 			}, nil
 	default:
 		return map[string]string{
