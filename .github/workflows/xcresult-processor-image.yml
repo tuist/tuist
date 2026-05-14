@@ -104,14 +104,21 @@ jobs:
       # The bare-metal runner has tuist-bot ghcr.io creds cached from
       # earlier image-push jobs. Those creds don't authorize pulls
       # from ghcr.io/cirruslabs/*, so Tart's token-fetch returns 403.
-      # Tart also consults Docker credential helpers, so clear both
-      # stores before the public anonymous pull.
+      # Tart also consults Docker credential helpers, and this runner
+      # can have the macOS helper installed without the Docker CLI.
+      # Clear both stores before the public anonymous pull.
       - name: Drop cached ghcr.io credentials
         run: |
           tart logout ghcr.io || true
           if command -v docker >/dev/null 2>&1; then
             docker logout ghcr.io || true
           fi
+          for helper in docker-credential-osxkeychain docker-credential-desktop; do
+            if command -v "$helper" >/dev/null 2>&1; then
+              printf 'ghcr.io' | "$helper" erase || true
+              printf 'https://ghcr.io' | "$helper" erase || true
+            fi
+          done
 
       # Reclaim disk before the Cirrus pull. macos-tahoe-xcode:26.4 is
       # ~70GB on disk; the bare-metal Mac mini accumulates older Tart
@@ -131,7 +138,7 @@ jobs:
       - name: Build image
         working-directory: infra/xcresult-processor-image
         run: |
-          packer build \
+          env -u GITHUB_TOKEN packer build \
             -var "base_image=${{ inputs.base_image || 'ghcr.io/cirruslabs/macos-tahoe-xcode:26.4' }}" \
             -var "output_image=tuist-xcresult-processor" \
             -var "release_tarball=/tmp/release.tar.gz" \

@@ -2147,14 +2147,21 @@ jobs:
         run: packer init xcresult-processor.pkr.hcl
 
       # Keep the Cirrus base-image pull anonymous. Tart also consults
-      # Docker credential helpers, so clear both stores before Packer
-      # clones ghcr.io/cirruslabs/*.
+      # Docker credential helpers, and this runner can have the macOS
+      # helper installed without the Docker CLI. Clear both stores
+      # before Packer clones ghcr.io/cirruslabs/*.
       - name: Drop cached ghcr.io credentials
         run: |
           tart logout ghcr.io || true
           if command -v docker >/dev/null 2>&1; then
             docker logout ghcr.io || true
           fi
+          for helper in docker-credential-osxkeychain docker-credential-desktop; do
+            if command -v "$helper" >/dev/null 2>&1; then
+              printf 'ghcr.io' | "$helper" erase || true
+              printf 'https://ghcr.io' | "$helper" erase || true
+            fi
+          done
 
       - name: Reclaim Tart disk
         run: |
@@ -2170,7 +2177,7 @@ jobs:
       - name: Build image
         working-directory: infra/xcresult-processor-image
         run: |
-          packer build \
+          env -u GITHUB_TOKEN packer build \
             -var "output_image=tuist-xcresult-processor" \
             -var "release_tarball=/tmp/release.tar.gz" \
             xcresult-processor.pkr.hcl
