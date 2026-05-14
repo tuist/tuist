@@ -1,0 +1,128 @@
+name: Linux Runners Staging Diagnostics
+
+# One-shot diagnostic workflow used during Linux-runner bring-up.
+# Dumps the state of the runners-linux MachineDeployment, the
+# Linux RunnerPool, the Pods + their events + logs, and the
+# runners-controller's logs (so the autoscaler reconciler's
+# error trail is visible).
+#
+# Delete this workflow once the Linux fleet is stable — it
+# accesses the staging cluster via the same 1Password-backed
+# kubeconfig pattern as server-deployment.yml.
+
+on:
+  workflow_dispatch: {}
+  # Also fires on push of this workflow file itself. Used during
+  # bring-up to re-run diagnostics without manual dispatch every
+  # iteration; remove (along with this whole file) once the Linux
+  # fleet is stable.
+  push:
+    branches:
+      - claude/priceless-wozniak-85daf8
+    paths:
+      - .github/workflows/linux-runners-staging-diagnostics.yml
+
+permissions:
+  contents: read
+
+jobs:
+  dump:
+    runs-on: namespace-profile-default
+    environment:
+      name: server-k8s-staging
+    timeout-minutes: 10
+    env:
+      KUBECONFIG: ${{ github.workspace }}/.kube/config
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "kubectl"
+          cache: "false"
+      - uses: 1password/install-cli-action@v2
+      - name: Load kubeconfig from 1Password
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          op document get "kubeconfig: tuist-staging" \
+            --vault tuist-k8s-staging --output "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
+
+      - name: CAPI machine layer (Hetzner side)
+        run: |
+          set +e
+          echo "::group::MachineDeployments matching the staging workload cluster"
+          kubectl -n org-tuist get machinedeployments -l cluster.x-k8s.io/cluster-name=tuist-staging -o wide
+          echo "::endgroup::"
+          echo "::group::Machines for the staging cluster"
+          kubectl -n org-tuist get machines -l cluster.x-k8s.io/cluster-name=tuist-staging -o wide
+          echo "::endgroup::"
+          echo "::group::HCloudMachines"
+          kubectl -n org-tuist get hcloudmachines -o wide 2>&1 | head -50
+          echo "::endgroup::"
+          echo "::group::describe runners-linux MachineDeployment"
+          md=$(kubectl -n org-tuist get machinedeployments -l cluster.x-k8s.io/cluster-name=tuist-staging,topology.cluster.x-k8s.io/deployment-name=runners-linux -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+          if [ -z "$md" ]; then
+            echo "No runners-linux MachineDeployment found via topology label; trying name match"
+            md=$(kubectl -n org-tuist get machinedeployments -l cluster.x-k8s.io/cluster-name=tuist-staging -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' | grep runners-linux | head -1)
+          fi
+          if [ -n "$md" ]; then
+            echo "Found: $md"
+            kubectl -n org-tuist describe machinedeployment "$md"
+          else
+            echo "ERROR: no runners-linux MD; topology may not have reconciled yet"
+          fi
+          echo "::endgroup::"
+          echo "::group::CAPI events on the runners-linux machineset"
+          kubectl -n org-tuist get events --field-selector involvedObject.kind=Machine --sort-by=.lastTimestamp 2>&1 | tail -30
+          echo "::endgroup::"
+
+      - name: Workload cluster — nodes
+        run: |
+          set +e
+          echo "::group::Linux nodes (kubernetes.io/os=linux)"
+          kubectl get nodes -l kubernetes.io/os=linux -o wide
+          echo "::endgroup::"
+          echo "::group::runners-linux pool nodes specifically"
+          kubectl get nodes -l node.cluster.x-k8s.io/pool=runners-linux -o wide
+          echo "::endgroup::"
+
+      - name: RunnerPool CRs + Pods
+        run: |
+          set +e
+          echo "::group::RunnerPool CRs in tuist-runners"
+          kubectl -n tuist-runners get runnerpools -o wide
+          echo "::endgroup::"
+          echo "::group::Linux RunnerPool spec (full)"
+          rp=$(kubectl -n tuist-runners get runnerpools -o jsonpath='{range .items[?(@.spec.os=="linux")]}{.metadata.name}{"\n"}{end}' | head -1)
+          if [ -n "$rp" ]; then
+            kubectl -n tuist-runners get runnerpool "$rp" -o yaml
+          else
+            echo "ERROR: no Linux RunnerPool found"
+          fi
+          echo "::endgroup::"
+          echo "::group::Pods in tuist-runners"
+          kubectl -n tuist-runners get pods -o wide
+          echo "::endgroup::"
+          echo "::group::Pods events sorted"
+          kubectl -n tuist-runners get events --sort-by=.lastTimestamp 2>&1 | tail -50
+          echo "::endgroup::"
+          echo "::group::describe non-running Pods"
+          for pod in $(kubectl -n tuist-runners get pods --field-selector=status.phase!=Running -o name 2>/dev/null); do
+            echo "--- $pod ---"
+            kubectl -n tuist-runners describe "$pod"
+          done
+          echo "::endgroup::"
+
+      - name: runners-controller logs (autoscaler reconciler)
+        run: |
+          set +e
+          echo "::group::runners-controller pods"
+          kubectl -n tuist-staging get pods -l app.kubernetes.io/component=runners-controller -o wide
+          echo "::endgroup::"
+          for pod in $(kubectl -n tuist-staging get pods -l app.kubernetes.io/component=runners-controller -o name 2>/dev/null); do
+            echo "::group::logs $pod (last 400 lines)"
+            kubectl -n tuist-staging logs "$pod" --tail=400 || true
+            echo "::endgroup::"
+          done
