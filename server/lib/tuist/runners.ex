@@ -65,6 +65,33 @@ defmodule Tuist.Runners do
   @account_label "tuist.dev/runner-account"
 
   @doc """
+  Returns the raw load signals the runners-controller's autoscaler
+  uses to compute the desired replica count for `fleet_name`:
+
+    * `claimed` — Pods currently running or in the process of
+      claiming (Postgres `runner_claims` grouped by `fleet_name`).
+    * `queued` — workflow_jobs still in `runner_jobs.status =
+      'queued'` for this fleet (ClickHouse).
+    * `p95_concurrent_last_hour` — rolling p95 of concurrent
+      claimed/running jobs over the last 60 one-minute buckets
+      (ClickHouse). Smooths out single-spike noise while keeping
+      the warm pool sized for typical peak load.
+
+  The controller composes these into a desired-replica value
+  using its CRD-bound knobs (`minWarmPoolFloor`, `maxReplicas`)
+  — keeping the policy on the controller side and the signal
+  source on the server side.
+  """
+  def scaling_signals_for_fleet(fleet_name) when is_binary(fleet_name) do
+    %{
+      fleet: fleet_name,
+      claimed: Claims.counts_per_fleet() |> Map.get(fleet_name, 0),
+      queued: Jobs.queued_count_by_fleet(fleet_name),
+      p95_concurrent_last_hour: Jobs.p95_concurrent_last_hour(fleet_name)
+    }
+  end
+
+  @doc """
   Claims the next eligible queued workflow_job for the SA's fleet
   and mints a JIT for the workflow_job's account.
 

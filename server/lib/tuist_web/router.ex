@@ -695,6 +695,7 @@ defmodule TuistWeb.Router do
     pipe_through [:non_authenticated_api]
 
     post "/runners/dispatch", RunnersController, :dispatch
+    get "/runners/desired_replicas", RunnersController, :desired_replicas
   end
 
   scope "/oauth2", TuistWeb.Oauth do

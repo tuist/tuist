@@ -231,6 +231,82 @@ defmodule Tuist.Runners.Jobs do
   end
 
   @doc """
+  Counts `queued` rows for `fleet_name`. Used by the autoscaler
+  to size the warm pool — every queued workflow_job needs a Pod
+  to claim it, so the desired replica count grows with this
+  value. Uses RMT `FINAL` so we read the merged latest state per
+  workflow_job_id (no double-counting of jobs that have since
+  transitioned out of `queued`).
+  """
+  def queued_count_by_fleet(fleet_name) when is_binary(fleet_name) do
+    Job
+    |> from(hints: ["FINAL"])
+    |> where([j], j.fleet_name == ^fleet_name and j.status == "queued")
+    |> select([j], count(j.workflow_job_id))
+    |> ClickHouseRepo.one()
+    |> Kernel.||(0)
+  end
+
+  @doc """
+  Computes the rolling p95 of concurrent (claimed + running) jobs
+  on `fleet_name` over the last 60 minutes, in one-minute buckets.
+
+  How: bucket the last 60 minutes; for each minute, count
+  workflow_jobs whose `[claimed_at, completed_at]` interval covers
+  the bucket. Take `quantile(0.95)` over the 60 counts.
+
+  Powers the autoscaler's "lead the demand" behavior — when load
+  ebbs after a peak, the warm pool floor stays at p95 for another
+  hour so the *next* peak feels instant. Without it, every peak
+  pays the full cold-start tax.
+
+  Returns 0 on an empty fleet (no rows) or a brand-new fleet (no
+  history yet) — both are the same as "no signal, use the
+  configured static floor."
+
+  Note on RMT semantics: rows for completed jobs carry
+  `completed_at` set to the completion timestamp; rows still in
+  flight carry `completed_at = epoch`, so the interval check
+  matches on `completed_at > bucket OR completed_at = epoch`. The
+  2-hour scan window bounds the work — jobs that completed more
+  than two hours ago can't overlap any bucket inside the last
+  60 minutes, so excluding them is a free perf win.
+  """
+  def p95_concurrent_last_hour(fleet_name) when is_binary(fleet_name) do
+    query = """
+    SELECT toUInt64(quantile(0.95)(concurrent_count)) AS p95
+    FROM (
+      SELECT
+        b.bucket AS bucket,
+        countIf(
+          j.claimed_at <= b.bucket
+          AND (
+            j.completed_at > b.bucket
+            OR j.completed_at = toDateTime64('1970-01-01 00:00:00.000', 6, 'UTC')
+          )
+        ) AS concurrent_count
+      FROM (
+        SELECT toStartOfMinute(now() - toIntervalMinute(number)) AS bucket
+        FROM numbers(60)
+      ) AS b
+      CROSS JOIN (
+        SELECT claimed_at, completed_at
+        FROM runner_jobs FINAL
+        WHERE fleet_name = {fleet:String}
+          AND claimed_at >= now() - toIntervalHour(2)
+          AND claimed_at != toDateTime64('1970-01-01 00:00:00.000', 6, 'UTC')
+      ) AS j
+      GROUP BY b.bucket
+    )
+    """
+
+    case ClickHouseRepo.query(query, %{fleet: fleet_name}) do
+      {:ok, %{rows: [[p95]]}} when is_integer(p95) -> p95
+      _ -> 0
+    end
+  end
+
+  @doc """
   Counts jobs in each lifecycle state for an account. Useful for
   customer dashboards.
   """
