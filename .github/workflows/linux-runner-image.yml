@@ -1,0 +1,83 @@
+name: Linux Runner Image
+
+# Builds the Tuist Linux runner OCI image consumed by
+# `runnersFleetLinux.pools[].runnerImage` in the helm chart.
+# Pushes to ghcr.io/tuist/tuist-linux-runner:sha-<git-sha> and
+# :latest.
+#
+# Mirrors the shape of .github/workflows/runners-controller-image.yml
+# — Linux substrate, hosted GitHub runner is sufficient (no Tart /
+# Mac mini required like the macOS runner image).
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - infra/linux-runner-image/**
+      - .github/workflows/linux-runner-image.yml
+  pull_request:
+    paths:
+      - infra/linux-runner-image/**
+      - .github/workflows/linux-runner-image.yml
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: tuist/tuist-linux-runner
+
+jobs:
+  build:
+    runs-on: namespace-profile-default
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Syntax-check dispatch-poll.sh
+        run: bash -n infra/linux-runner-image/dispatch-poll.sh
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        if: github.event_name != 'pull_request'
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute tags
+        id: tags
+        run: |
+          set -euo pipefail
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
+          GIT_SHA="${GITHUB_SHA::12}"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            # PRs build but don't push; tag with the merge SHA for
+            # log clarity. The push: false flag below makes this a
+            # build-only validation.
+            echo "tags=${IMAGE}:pr-${GIT_SHA}" >> "$GITHUB_OUTPUT"
+          else
+            {
+              echo "tags<<EOF"
+              echo "${IMAGE}:sha-${GIT_SHA}"
+              echo "${IMAGE}:latest"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: infra/linux-runner-image
+          file: infra/linux-runner-image/Dockerfile
+          # Linux runners run on Hetzner Cloud x86 VMs at v1. arm64
+          # is a future option (Ampere-based Hetzner SKUs) and can
+          # land as an additive `platforms:` entry.
+          platforms: linux/amd64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.tags.outputs.tags }}
+          cache-from: type=gha,scope=linux-runner-image
+          cache-to: type=gha,mode=max,scope=linux-runner-image
