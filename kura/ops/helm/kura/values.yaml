@@ -105,17 +105,13 @@ config:
     deploymentEnvironment: production
   discovery:
     enabled: true
-  # Resolve client IPs to ISO 3166-1 alpha-2 country codes for the
-  # `client_country` Prometheus label and the `client.country` OTel
-  # span attribute. Disabled by default in the base chart; the managed
-  # overlay flips it on using the DB-IP Lite Country MMDB baked into
-  # the image at /opt/geoip/dbip-country-lite.mmdb.
+  # The Kura image vendors a DB-IP Lite Country MMDB at
+  # `/opt/geoip/dbip-country-lite.mmdb`, so client country attribution
+  # is on whenever that file is present (Kura soft-fails if it isn't).
   # `refreshIntervalSecs` controls how often the pod re-downloads the
-  # database in the background. Set it to 0 to pin to the image-baked
+  # monthly dump in the background. Set to 0 to pin to the vendored
   # copy for the pod lifetime.
   geoip:
-    enabled: false
-    databasePath: /opt/geoip/dbip-country-lite.mmdb
     refreshIntervalSecs: 86400
 
 # Use extraEnv or extraEnvFrom to inject optional secrets such as KURA_SENTRY_DSN.

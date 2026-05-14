@@ -76,8 +76,7 @@ async fn run_with_config(config: Config) -> Result<(), String> {
     let analytics =
         Analytics::from_config(config.analytics.as_ref(), &config.node_url, metrics.clone())
             .map_err(|error| format!("failed to initialize analytics: {error}"))?;
-    let geoip = GeoIp::from_config(config.geoip.as_ref())
-        .map_err(|error| format!("failed to initialize GeoIP: {error}"))?;
+    let geoip = GeoIp::open();
     let io = IoController::new(
         metrics.clone(),
         config.file_descriptor_pool_size,
@@ -472,13 +471,11 @@ fn spawn_tmp_dir_metrics_task(state: Arc<AppState>) {
 }
 
 fn spawn_geoip_refresh_task(state: Arc<AppState>) {
-    let Some(geoip) = state.geoip.clone() else {
+    if state.geoip.is_none() {
         return;
-    };
-    let Some(config) = state.config.geoip.clone() else {
-        return;
-    };
-    if config.refresh_interval_secs == 0 {
+    }
+    let interval_secs = state.config.geoip_refresh_interval_secs;
+    if interval_secs == 0 {
         info!("GeoIP background refresh disabled");
         return;
     }
@@ -493,11 +490,14 @@ fn spawn_geoip_refresh_task(state: Arc<AppState>) {
             return;
         }
     };
-    let interval = Duration::from_secs(config.refresh_interval_secs);
+    let interval = Duration::from_secs(interval_secs);
     tokio::spawn(
         async move {
             loop {
                 tokio::time::sleep(interval).await;
+                let Some(geoip) = state.geoip.as_ref() else {
+                    return;
+                };
                 let outcome = geoip.refresh(&http).await;
                 state.metrics.record_geoip_refresh(outcome.as_str());
                 if matches!(outcome, crate::geoip::RefreshOutcome::Updated) {

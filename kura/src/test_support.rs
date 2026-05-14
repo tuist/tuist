@@ -78,7 +78,7 @@ where
         otel_service_name: "kura-test".into(),
         otel_deployment_environment: "test".into(),
         sentry_dsn: None,
-        geoip: None,
+        geoip_refresh_interval_secs: 0,
     };
     override_config(&mut config);
     config

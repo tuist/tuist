@@ -288,16 +288,16 @@ Kura also exports:
 
 ### GeoIP enrichment
 
-Setting `KURA_GEOIP_DATABASE_PATH` to a [DB-IP IP-to-Country Lite](https://db-ip.com/db/download/ip-to-country-lite) MMDB enables client country attribution. The country is resolved from the first hop in `X-Forwarded-For` (or `X-Real-IP`) and surfaces as:
+The Kura container image vendors a [DB-IP IP-to-Country Lite](https://db-ip.com/db/download/ip-to-country-lite) MMDB at `/opt/geoip/dbip-country-lite.mmdb`, so client country attribution is on by default. The country is resolved from the first hop in `X-Forwarded-For` (or `X-Real-IP`) and surfaces as:
 
 - the `client_country` Prometheus label on `kura_http_requests_total`
 - the `client.country` OTel span attribute on `http.request` spans
 
-Lookups that miss (no header, private IP, or feature disabled) fall back to `client_country="unknown"`. Leaving `KURA_GEOIP_DATABASE_PATH` unset turns the feature off; no IP is recorded anywhere.
+Lookups that miss (no header, private IP, feature disabled, or DB missing) fall back to `client_country="unknown"`. If the vendored database is absent (custom image builds), Kura logs a startup warning and quietly runs without country attribution.
 
-The managed Helm chart bakes the DB-IP Lite Country DB into the image at `/opt/geoip/dbip-country-lite.mmdb` and enables the feature via `config.geoip.enabled: true`. DB-IP data is © DB-IP, released under CC BY 4.0.
+A background task refreshes the in-memory database from `https://download.db-ip.com/free/dbip-country-lite-YYYY-MM.mmdb.gz` every `KURA_GEOIP_REFRESH_INTERVAL_SECS` seconds (default `86400`). Set the interval to `0` to keep the vendored copy for the pod's lifetime. The swap takes the in-process `RwLock` write guard for the few microseconds needed to replace the reader; concurrent lookups never observe a partial state. Each download is bounded to 16 MiB compressed / 32 MiB decompressed with a 60-second timeout, in line with Kura's other resource limits. Outcomes are tracked in `kura_geoip_refresh_total{result="ok|http_error|parse_error"}`.
 
-A background task refreshes the in-memory database from `https://download.db-ip.com/free/dbip-country-lite-YYYY-MM.mmdb.gz` every `KURA_GEOIP_REFRESH_INTERVAL_SECS` seconds (default `86400`). Set the interval to `0` to keep the image-baked copy for the pod's lifetime. The swap is atomic — concurrent lookups continue against the old copy until their `Arc` clone drops — and outcomes are tracked in `kura_geoip_refresh_total{result="ok|http_error|parse_error"}`.
+DB-IP data is © DB-IP, released under CC BY 4.0.
 
 ### Disabling OTLP tracing
 

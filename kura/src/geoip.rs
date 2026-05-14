@@ -1,7 +1,8 @@
 use std::{
     io::Read,
     net::IpAddr,
-    sync::{Arc, Mutex},
+    path::Path,
+    sync::RwLock,
     time::Duration,
 };
 
@@ -10,15 +11,27 @@ use maxminddb::{Reader, geoip2};
 use reqwest::Client;
 use time::{Month, OffsetDateTime};
 
-use crate::config::GeoIpConfig;
+/// Path of the DB-IP Lite Country MMDB vendored into the Kura container
+/// image. The Dockerfile downloads the monthly dump at build time and
+/// drops it here, so the database is always available at startup in
+/// official deployments. Self-built images that omit this file degrade
+/// gracefully — [`GeoIp::open`] returns `None` and country attribution
+/// is silently skipped.
+pub const GEOIP_DATABASE_PATH: &str = "/opt/geoip/dbip-country-lite.mmdb";
 
 const DBIP_URL_TEMPLATE: &str = "https://download.db-ip.com/free/dbip-country-lite-{ym}.mmdb.gz";
 const REFRESH_DOWNLOAD_TIMEOUT: Duration = Duration::from_secs(60);
-const REFRESH_MAX_BYTES: usize = 64 * 1024 * 1024;
+/// Hard ceiling on the compressed body the refresher will accept from
+/// DB-IP. Recent DB-IP Lite Country dumps are ~7 MiB compressed; 16 MiB
+/// gives ample headroom while keeping refresh memory predictably bounded.
+const MAX_COMPRESSED_BYTES: usize = 16 * 1024 * 1024;
+/// Hard ceiling on the decompressed payload the refresher will accept.
+/// Country-level MMDB dumps land around ~10 MiB decompressed today;
+/// 32 MiB leaves room for organic growth without unbounded allocation.
+const MAX_DECOMPRESSED_BYTES: u64 = 32 * 1024 * 1024;
 
-#[derive(Clone)]
 pub struct GeoIp {
-    reader: Arc<Mutex<Arc<Reader<Vec<u8>>>>>,
+    reader: RwLock<Reader<Vec<u8>>>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -39,23 +52,28 @@ impl RefreshOutcome {
 }
 
 impl GeoIp {
-    pub fn from_config(config: Option<&GeoIpConfig>) -> Result<Option<Self>, String> {
-        let Some(config) = config else {
-            return Ok(None);
-        };
-        let reader = Reader::open_readfile(&config.database_path).map_err(|error| {
-            format!(
-                "failed to open GeoIP database at {}: {error}",
-                config.database_path.display()
-            )
-        })?;
-        Ok(Some(Self {
-            reader: Arc::new(Mutex::new(Arc::new(reader))),
-        }))
+    pub fn open() -> Option<Self> {
+        Self::open_at(Path::new(GEOIP_DATABASE_PATH))
+    }
+
+    fn open_at(path: &Path) -> Option<Self> {
+        match Reader::open_readfile(path) {
+            Ok(reader) => Some(Self {
+                reader: RwLock::new(reader),
+            }),
+            Err(error) => {
+                tracing::warn!(
+                    path = %path.display(),
+                    %error,
+                    "GeoIP database not loaded; client country attribution disabled"
+                );
+                None
+            }
+        }
     }
 
     pub fn country_code(&self, ip: IpAddr) -> Option<String> {
-        let reader = self.snapshot()?;
+        let reader = self.reader.read().ok()?;
         let country: Option<geoip2::Country> = reader.lookup(ip).ok().flatten();
         country
             .and_then(|record| record.country)
@@ -73,7 +91,9 @@ impl GeoIp {
             match fetch_gzipped(http, &url).await {
                 Ok(bytes) => match Reader::from_source(bytes) {
                     Ok(reader) => {
-                        self.install(Arc::new(reader));
+                        if let Ok(mut guard) = self.reader.write() {
+                            *guard = reader;
+                        }
                         return RefreshOutcome::Updated;
                     }
                     Err(error) => {
@@ -97,17 +117,6 @@ impl GeoIp {
             RefreshOutcome::HttpError
         }
     }
-
-    fn snapshot(&self) -> Option<Arc<Reader<Vec<u8>>>> {
-        let guard = self.reader.lock().ok()?;
-        Some(Arc::clone(&*guard))
-    }
-
-    fn install(&self, reader: Arc<Reader<Vec<u8>>>) {
-        if let Ok(mut guard) = self.reader.lock() {
-            *guard = reader;
-        }
-    }
 }
 
 async fn fetch_gzipped(http: &Client, url: &str) -> Result<Vec<u8>, String> {
@@ -123,15 +132,22 @@ async fn fetch_gzipped(http: &Client, url: &str) -> Result<Vec<u8>, String> {
         .bytes()
         .await
         .map_err(|error| format!("body: {error}"))?;
-    if compressed.len() > REFRESH_MAX_BYTES {
-        return Err(format!("compressed body exceeds {REFRESH_MAX_BYTES} bytes"));
+    if compressed.len() > MAX_COMPRESSED_BYTES {
+        return Err(format!(
+            "compressed body exceeds {MAX_COMPRESSED_BYTES} bytes"
+        ));
     }
     let decoder = GzDecoder::new(&compressed[..]);
-    let mut decompressed = Vec::with_capacity(compressed.len() * 4);
+    let mut decompressed = Vec::new();
     decoder
-        .take(REFRESH_MAX_BYTES as u64)
+        .take(MAX_DECOMPRESSED_BYTES)
         .read_to_end(&mut decompressed)
         .map_err(|error| format!("gunzip: {error}"))?;
+    if decompressed.len() as u64 >= MAX_DECOMPRESSED_BYTES {
+        return Err(format!(
+            "decompressed payload reached {MAX_DECOMPRESSED_BYTES} byte ceiling"
+        ));
+    }
     Ok(decompressed)
 }
 
@@ -170,19 +186,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn from_config_returns_none_when_disabled() {
-        let geoip = GeoIp::from_config(None).expect("from_config should succeed");
+    fn open_at_returns_none_when_database_missing() {
+        let geoip = GeoIp::open_at(Path::new("/tmp/does-not-exist-kura-geoip.mmdb"));
         assert!(geoip.is_none());
-    }
-
-    #[test]
-    fn from_config_returns_error_for_missing_database() {
-        let config = GeoIpConfig {
-            database_path: "/tmp/does-not-exist-kura-geoip.mmdb".into(),
-            refresh_interval_secs: 0,
-        };
-        let result = GeoIp::from_config(Some(&config));
-        assert!(result.is_err());
     }
 
     #[test]
