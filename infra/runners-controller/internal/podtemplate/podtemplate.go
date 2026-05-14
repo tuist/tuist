@@ -22,15 +22,24 @@ import (
 )
 
 // Build returns the Pod manifest the controller stamps on the API
-// server. `dispatchURL` is the customer-server's runner-dispatch
-// endpoint (`/api/internal/runners/dispatch`). Sourced from
-// helm at deploy time and threaded through the RunnerPool spec
-// or the controller's flag.
-func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL string) *corev1.Pod {
+// server. `dispatchURL` is the externally-reachable dispatch URL
+// the Pod uses (`/api/internal/runners/dispatch`); macOS Tart VMs
+// bypass cluster networking via vmnet and need this public path.
+// `dispatchInternalURL`, when non-empty, overrides for `linux`
+// pools — those Pods live on the cluster's CNI and hit Hetzner
+// Cloud LB hairpin when they try to reach the public ingress IP
+// from inside the cluster, so they must use the in-cluster
+// Service URL instead.
+func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInternalURL string) *corev1.Pod {
 	cpu := resource.NewMilliQuantity(int64(pool.Spec.PodCPUMilli), resource.DecimalSI)
 	mem := resource.NewQuantity(int64(pool.Spec.PodMemoryMB)*1024*1024, resource.BinarySI)
 
 	nodeSelector, tolerations := schedulingFor(pool)
+
+	effectiveDispatchURL := dispatchURL
+	if pool.Spec.OS == "linux" && dispatchInternalURL != "" {
+		effectiveDispatchURL = dispatchInternalURL
+	}
 
 	return &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -70,7 +79,7 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL string) *corev
 						},
 					},
 					Env: []corev1.EnvVar{
-						{Name: "TUIST_RUNNER_DISPATCH_URL", Value: dispatchURL},
+						{Name: "TUIST_RUNNER_DISPATCH_URL", Value: effectiveDispatchURL},
 						{Name: "TUIST_RUNNER_POOL", Value: pool.Name},
 						{
 							Name: "TUIST_RUNNER_POD_NAME",

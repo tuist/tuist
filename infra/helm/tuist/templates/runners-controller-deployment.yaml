@@ -164,8 +164,16 @@ spec:
             - --metrics-bind-address=:8080
             - --health-probe-bind-address=:8081
             - --namespace={{ $namespace }}
+            # External dispatch URL for macOS Tart VMs (vmnet
+            # bypasses CNI; they reach the public ingress directly).
             - --dispatch-url={{ .Values.server.appUrl }}/api/internal/runners/dispatch
-            - --scaling-signals-url={{ .Values.server.appUrl }}/api/internal/runners/desired_replicas
+            # In-cluster dispatch URL for Linux Pods (CNI-attached;
+            # Hetzner Cloud LB has no hairpin, so they can't reach
+            # the public ingress from inside the cluster).
+            - --dispatch-internal-url=http://{{ include "tuist.componentName" (dict "root" . "component" "server") }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.server.service.port | default 80 }}/api/internal/runners/dispatch
+            # Autoscaler reconciler runs in the cluster; always use
+            # the in-cluster Service URL for the same reason.
+            - --scaling-signals-url=http://{{ include "tuist.componentName" (dict "root" . "component" "server") }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.server.service.port | default 80 }}/api/internal/runners/desired_replicas
           ports:
             - name: metrics
               containerPort: 8080

@@ -23,7 +23,7 @@ func basePool(os string) *tuistv1.RunnerPool {
 }
 
 func TestBuild_MacOSScheduling(t *testing.T) {
-	pod := Build(basePool(""), "pod-name", "sa-name", "http://dispatch")
+	pod := Build(basePool(""), "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch")
 
 	if got, want := pod.Spec.NodeSelector["kubernetes.io/os"], "darwin"; got != want {
 		t.Errorf("nodeSelector os = %q, want %q", got, want)
@@ -40,7 +40,16 @@ func TestBuild_MacOSScheduling(t *testing.T) {
 }
 
 func TestBuild_LinuxScheduling(t *testing.T) {
-	pod := Build(basePool("linux"), "pod-name", "sa-name", "http://dispatch")
+	pod := Build(basePool("linux"), "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch")
+	// Linux pools must use the in-cluster URL — the public path
+	// hits Hetzner Cloud LB hairpin and silently times out.
+	for _, env := range pod.Spec.Containers[0].Env {
+		if env.Name == "TUIST_RUNNER_DISPATCH_URL" {
+			if env.Value != "http://internal-dispatch" {
+				t.Errorf("Linux dispatch URL = %q, want http://internal-dispatch", env.Value)
+			}
+		}
+	}
 
 	if got, want := pod.Spec.NodeSelector["kubernetes.io/os"], "linux"; got != want {
 		t.Errorf("nodeSelector os = %q, want %q", got, want)
@@ -70,7 +79,7 @@ func TestBuild_LinuxScheduling(t *testing.T) {
 func TestBuild_UnknownOSFallsBackToMacOS(t *testing.T) {
 	// A misconfigured OS field should still produce a schedulable
 	// Pod against the macOS fleet rather than fail open.
-	pod := Build(basePool("solaris"), "pod-name", "sa-name", "http://dispatch")
+	pod := Build(basePool("solaris"), "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch")
 	if got, want := pod.Spec.NodeSelector["kubernetes.io/os"], "darwin"; got != want {
 		t.Errorf("nodeSelector os = %q, want darwin fallback", got)
 	}

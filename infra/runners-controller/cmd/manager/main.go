@@ -41,14 +41,17 @@ func main() {
 	var (
 		metricsAddr       string
 		probeAddr         string
-		dispatchURL       string
-		scalingSignalsURL string
+		dispatchURL         string
+		dispatchInternalURL string
+		scalingSignalsURL   string
 		watchedNS         string
 	)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "Prometheus metrics endpoint")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "Liveness/readiness probe endpoint")
 	flag.StringVar(&dispatchURL, "dispatch-url", envOr("TUIST_RUNNER_DISPATCH_URL", ""),
-		"URL the runner Pod's VM polls for its JIT config. Threaded into every Pod via env. Required.")
+		"Externally-reachable dispatch URL the runner Pod's VM polls for its JIT config. Used by macOS Tart VMs (bypass CNI via vmnet). Required.")
+	flag.StringVar(&dispatchInternalURL, "dispatch-internal-url", envOr("TUIST_RUNNER_DISPATCH_INTERNAL_URL", ""),
+		"In-cluster (Service-based) dispatch URL injected into Linux pool Pods. Linux Pods can't reach the public ingress IP from inside the cluster (Hetzner Cloud LB has no hairpin). Optional; falls back to --dispatch-url when empty.")
 	flag.StringVar(&scalingSignalsURL, "scaling-signals-url", envOr("TUIST_SCALING_SIGNALS_URL", ""),
 		"URL the autoscaler reconciler GETs for fleet load signals (`?fleet=<name>` appended). Optional; if empty, autoscaling is silently disabled (existing macOS pools work unchanged).")
 	flag.StringVar(&watchedNS, "namespace", envOr("TUIST_RUNNERS_NAMESPACE", "tuist-runners"),
@@ -85,9 +88,10 @@ func main() {
 	}
 
 	if err := (&controllers.RunnerPoolReconciler{
-		Client:      mgr.GetClient(),
-		Scheme:      mgr.GetScheme(),
-		DispatchURL: dispatchURL,
+		Client:              mgr.GetClient(),
+		Scheme:              mgr.GetScheme(),
+		DispatchURL:         dispatchURL,
+		DispatchInternalURL: dispatchInternalURL,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup RunnerPool reconciler")
 		os.Exit(1)

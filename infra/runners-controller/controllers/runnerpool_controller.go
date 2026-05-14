@@ -35,8 +35,17 @@ type RunnerPoolReconciler struct {
 
 	// DispatchURL is the customer-server's runner dispatch endpoint
 	// threaded into every Pod via env. Set from the manager's
-	// --dispatch-url flag.
+	// --dispatch-url flag. Used as-is for macOS pools (Tart VMs
+	// bypass CNI and reach the public ingress via vmnet/NAT).
 	DispatchURL string
+
+	// DispatchInternalURL is the in-cluster (Service-based)
+	// dispatch endpoint, used for Linux pools whose Pods live on
+	// the cluster's CNI and can't reach the public ingress IP
+	// from inside (Hetzner Cloud LB has no hairpin). Optional;
+	// when empty, Linux pools fall back to DispatchURL — which
+	// will silently fail to reach the server in the hairpin case.
+	DispatchInternalURL string
 }
 
 // +kubebuilder:rbac:groups=tuist.dev,resources=runnerpools,verbs=get;list;watch;update;patch
@@ -168,7 +177,7 @@ func (r *RunnerPoolReconciler) createRunner(ctx context.Context, pool *tuistv1.R
 		return fmt.Errorf("create sa: %w", err)
 	}
 
-	pod := podtemplate.Build(pool, name, name, r.DispatchURL)
+	pod := podtemplate.Build(pool, name, name, r.DispatchURL, r.DispatchInternalURL)
 	if err := controllerutil.SetControllerReference(pool, pod, r.Scheme); err != nil {
 		return fmt.Errorf("pod owner ref: %w", err)
 	}
