@@ -293,20 +293,32 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 	// Secret and proceed with bootstrap. Only surface
 	// MissingSudoPassword when even the refresh comes back empty (the
 	// host genuinely has no recoverable credentials).
-	if bootstrapCreds.SudoPassword == "" {
-		if machine.Status.ServerID != "" {
-			srv, refreshErr := r.ScalewayClient.GetServer(ctx, machine.Status.ServerID, machine.Spec.Zone)
-			if refreshErr == nil && srv != nil && srv.SudoPassword != "" {
-				if writeErr := r.CredentialsManager.SetMachineCredentials(ctx, machine.Name, srv.SudoPassword, srv.SSHUsername); writeErr != nil {
-					logger.Error(writeErr, "refresh bootstrap secret from Scaleway")
-					return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
-				}
-				r.Recorder.Eventf(machine, corev1.EventTypeNormal, "CredentialsReclaimed",
-					"Recovered sudo password for %s from Scaleway vnc_url; bootstrap will resume",
-					machine.Name)
-				bootstrapCreds.SudoPassword = srv.SudoPassword
-				bootstrapCreds.SSHUsername = srv.SSHUsername
+	if bootstrapCreds.SudoPassword == "" && machine.Status.ServerID != "" {
+		srv, refreshErr := r.ScalewayClient.GetServer(ctx, machine.Status.ServerID, machine.Spec.Zone)
+		switch {
+		case refreshErr != nil:
+			// Transient Scaleway error (network blip, 5xx, throttle).
+			// Don't bury it as `MissingSudoPassword` with a 5-minute
+			// backoff — that condition is reserved for a definitive
+			// "Scaleway says there's no password". Surface a
+			// retryable condition and requeue soon so the refresh
+			// gets another chance on the next reconcile tick.
+			conditions.MarkFalse(machine, BootstrappedCondition, "CredentialsRefreshFailed",
+				clusterv1.ConditionSeverityWarning, "%v", refreshErr)
+			r.Recorder.Eventf(machine, corev1.EventTypeWarning, "CredentialsRefreshFailed",
+				"Scaleway GetServer for %s failed while trying to recover sudo password: %v",
+				machine.Name, refreshErr)
+			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+		case srv != nil && srv.SudoPassword != "":
+			if writeErr := r.CredentialsManager.SetMachineCredentials(ctx, machine.Name, srv.SudoPassword, srv.SSHUsername); writeErr != nil {
+				logger.Error(writeErr, "refresh bootstrap secret from Scaleway")
+				return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 			}
+			r.Recorder.Eventf(machine, corev1.EventTypeNormal, "CredentialsReclaimed",
+				"Recovered sudo password for %s from Scaleway vnc_url; bootstrap will resume",
+				machine.Name)
+			bootstrapCreds.SudoPassword = srv.SudoPassword
+			bootstrapCreds.SSHUsername = srv.SSHUsername
 		}
 	}
 	if bootstrapCreds.SudoPassword == "" {
