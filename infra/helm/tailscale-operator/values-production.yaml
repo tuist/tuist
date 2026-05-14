@@ -13,3 +13,13 @@ connector:
   hostname: tuist-cluster-router-production
   tags:
     - "tag:tuist-k8s-production"
+
+macminiEgress:
+  enabled: true
+  proxyGroup:
+    tags:
+      - "tag:tuist-k8s-production"
+  # Per-machine Services are created dynamically by the CAPI
+  # provider — see macosFleet.tailscaleEgress in the main tuist
+  # chart's values-managed-common.yaml.
+  machines: []

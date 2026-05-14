@@ -84,14 +84,24 @@ type Manager struct {
 
 // GetTailscaleAuthKey returns the Tailscale pre-auth key from the
 // operator-namespace Secret. Empty (returns "") when
-// TailscaleAuthKeySecretName isn't configured — the bootstrap step
-// treats that as "don't install Tailscale on this machine."
+// TailscaleAuthKeySecretName isn't configured: the bootstrap step
+// treats that as "don't install Tailscale on this machine" and the
+// OSS path keeps working untouched.
+//
+// When the secret name IS configured but the Secret hasn't synced
+// yet (or its auth-key field is empty), this returns an error so
+// the caller requeues instead of completing bootstrap without
+// Tailscale. Without this, a fresh-install race against ESO ends
+// with the Machine flipping to Bootstrapped=true on the public
+// interface; the drift loop won't re-run installTailscale because
+// the kubelet binary SHA hasn't changed, and there's no other
+// signal to retry. The Machine stays permanently off the tailnet
+// until an operator-image bump forces a drift.
 //
 // Re-read per machine reconcile (not cached at operator startup) so
-// a rotated auth key (ESO re-syncs after a 1Password change) takes
-// effect on the next bootstrap without an operator restart. The
-// underlying Get hits controller-runtime's cache, so it's a memory
-// read, not an API call.
+// a rotated auth key takes effect on the next bootstrap without an
+// operator restart. The underlying Get hits controller-runtime's
+// cache, so it's a memory read, not an API call.
 func (m *Manager) GetTailscaleAuthKey(ctx context.Context) (string, error) {
 	if m.TailscaleAuthKeySecretName == "" {
 		return "", nil
@@ -100,9 +110,7 @@ func (m *Manager) GetTailscaleAuthKey(ctx context.Context) (string, error) {
 	err := m.Client.Get(ctx, types.NamespacedName{Namespace: m.Namespace, Name: m.TailscaleAuthKeySecretName}, secret)
 	switch {
 	case apierrors.IsNotFound(err):
-		// ESO hasn't synced yet on a fresh chart install. Treat as
-		// "not ready" — bootstrap step no-ops, next reconcile retries.
-		return "", nil
+		return "", fmt.Errorf("tailscale secret %s/%s not found yet (ESO sync pending?); will retry", m.Namespace, m.TailscaleAuthKeySecretName)
 	case err != nil:
 		return "", fmt.Errorf("get tailscale secret %s/%s: %w", m.Namespace, m.TailscaleAuthKeySecretName, err)
 	}
@@ -110,7 +118,11 @@ func (m *Manager) GetTailscaleAuthKey(ctx context.Context) (string, error) {
 	if !ok {
 		return "", fmt.Errorf("secret %s/%s missing auth-key", m.Namespace, m.TailscaleAuthKeySecretName)
 	}
-	return strings.TrimSpace(string(key)), nil
+	trimmed := strings.TrimSpace(string(key))
+	if trimmed == "" {
+		return "", fmt.Errorf("secret %s/%s has empty auth-key (ESO mid-sync?); will retry", m.Namespace, m.TailscaleAuthKeySecretName)
+	}
+	return trimmed, nil
 }
 
 // EnsureFleetSSHKey returns the private SSH key bytes for `fleet`,
