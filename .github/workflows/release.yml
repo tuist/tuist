@@ -2146,8 +2146,15 @@ jobs:
         working-directory: infra/xcresult-processor-image
         run: packer init xcresult-processor.pkr.hcl
 
+      # Keep the Cirrus base-image pull anonymous. Tart also consults
+      # Docker credential helpers, so clear both stores before Packer
+      # clones ghcr.io/cirruslabs/*.
       - name: Drop cached ghcr.io credentials
-        run: tart logout ghcr.io || true
+        run: |
+          tart logout ghcr.io || true
+          if command -v docker >/dev/null 2>&1; then
+            docker logout ghcr.io || true
+          fi
 
       - name: Reclaim Tart disk
         run: |
