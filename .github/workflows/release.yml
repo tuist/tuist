@@ -2142,9 +2142,16 @@ jobs:
           tar -czf /tmp/release.tar.gz -C "${{ steps.release.outputs.dir }}" .
           ls -lh /tmp/release.tar.gz
 
+      - name: Update Tart
+        run: |
+          set -euo pipefail
+          brew update
+          brew upgrade cirruslabs/cli/tart || brew install cirruslabs/cli/tart
+          tart --version
+
       - name: Initialize Packer
         working-directory: infra/xcresult-processor-image
-        run: packer init xcresult-processor.pkr.hcl
+        run: packer init -upgrade xcresult-processor.pkr.hcl
 
       # Keep the Cirrus base-image pull anonymous. Tart also consults
       # Docker credential helpers, and this runner can have the macOS

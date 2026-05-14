@@ -96,10 +96,17 @@ jobs:
           tar -czf /tmp/release.tar.gz -C "${{ steps.release.outputs.dir }}" .
           ls -lh /tmp/release.tar.gz
 
+      - name: Update Tart
+        run: |
+          set -euo pipefail
+          brew update
+          brew upgrade cirruslabs/cli/tart || brew install cirruslabs/cli/tart
+          tart --version
+
       # 2. Bake the tarball into a Tart image.
       - name: Initialize Packer
         working-directory: infra/xcresult-processor-image
-        run: packer init xcresult-processor.pkr.hcl
+        run: packer init -upgrade xcresult-processor.pkr.hcl
 
       # The bare-metal runner has tuist-bot ghcr.io creds cached from
       # earlier image-push jobs. Those creds don't authorize pulls
