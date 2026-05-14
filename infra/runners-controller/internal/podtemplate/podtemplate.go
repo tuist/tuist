@@ -41,6 +41,42 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 		effectiveDispatchURL = dispatchInternalURL
 	}
 
+	// macOS Pods use tart-kubelet's audience-scoped token projection
+	// (mounted inside the Tart VM at /etc/tuist-sa-token). Linux
+	// Pods need the controller to project the audience-scoped token
+	// explicitly — without it, the default-mounted SA token has the
+	// kube-apiserver audience and the server's strict TokenReview
+	// rejects it with 401. We disable the default automount on the
+	// Pod and replace it with a projected volume mounting only the
+	// dispatch-audience token at a fixed path the dispatch-poll
+	// script reads.
+	linuxPod := pool.Spec.OS == "linux"
+	var extraVolumes []corev1.Volume
+	var extraVolumeMounts []corev1.VolumeMount
+	automount := true
+	if linuxPod {
+		automount = false
+		extraVolumes = []corev1.Volume{{
+			Name: "tuist-runner-token",
+			VolumeSource: corev1.VolumeSource{
+				Projected: &corev1.ProjectedVolumeSource{
+					Sources: []corev1.VolumeProjection{{
+						ServiceAccountToken: &corev1.ServiceAccountTokenProjection{
+							Audience:          "tuist-runners-dispatch",
+							ExpirationSeconds: ptr(int64(3600)),
+							Path:              "token",
+						},
+					}},
+				},
+			},
+		}}
+		extraVolumeMounts = []corev1.VolumeMount{{
+			Name:      "tuist-runner-token",
+			MountPath: "/var/run/secrets/tuist-runner",
+			ReadOnly:  true,
+		}}
+	}
+
 	return &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      podName,
@@ -56,12 +92,15 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 		},
 		Spec: corev1.PodSpec{
 			ServiceAccountName: saName,
-			// projected SA token is auto-mounted at
-			// /var/run/secrets/kubernetes.io/serviceaccount/token by
-			// default; explicit `true` for clarity.
-			AutomountServiceAccountToken: ptr(true),
+			// macOS: default automount (tart-kubelet projects the
+			// audience-scoped token separately into the VM).
+			// Linux: disable automount and project the
+			// dispatch-audience token explicitly — see `extraVolumes`
+			// below.
+			AutomountServiceAccountToken: ptr(automount),
 			NodeSelector:                 nodeSelector,
 			Tolerations:                  tolerations,
+			Volumes:                      extraVolumes,
 			// No restart: ephemeral runner. macOS Pods halt the
 			// underlying Tart VM via the EXIT trap in dispatch-poll;
 			// Linux containers just exit, kubelet flips the Pod to
@@ -78,6 +117,7 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 							corev1.ResourceMemory: *mem,
 						},
 					},
+					VolumeMounts: extraVolumeMounts,
 					Env: []corev1.EnvVar{
 						{Name: "TUIST_RUNNER_DISPATCH_URL", Value: effectiveDispatchURL},
 						{Name: "TUIST_RUNNER_POOL", Value: pool.Name},

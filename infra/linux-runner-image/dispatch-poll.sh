@@ -30,7 +30,13 @@ set -uo pipefail
 
 : "${TUIST_RUNNER_DISPATCH_URL:?TUIST_RUNNER_DISPATCH_URL not set}"
 
-SA_TOKEN_PATH=/var/run/secrets/kubernetes.io/serviceaccount/token
+# Audience-scoped projected token (the controller wires this in via
+# a projected volume with audience=tuist-runners-dispatch). Default
+# automount is off on Linux runner Pods so this is the only token
+# in the container. If a customer workflow exfiltrates the token,
+# the apiserver accepts it ONLY against the dispatch audience — no
+# replay against the Kubernetes API.
+SA_TOKEN_PATH=${TUIST_RUNNER_SA_TOKEN_PATH:-/var/run/secrets/tuist-runner/token}
 if [ ! -f "${SA_TOKEN_PATH}" ]; then
   echo "$(date -u +%FT%TZ) dispatch-poll: ${SA_TOKEN_PATH} missing; aborting"
   exit 1
