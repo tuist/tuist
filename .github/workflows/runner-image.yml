@@ -42,15 +42,35 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Update Tart
+        run: |
+          set -euo pipefail
+          brew update
+          brew upgrade cirruslabs/cli/tart || brew install cirruslabs/cli/tart
+          tart --version
+
       - name: Initialize Packer
         working-directory: infra/runner-image
-        run: packer init runner.pkr.hcl
+        run: packer init -upgrade runner.pkr.hcl
 
       # Same anonymous-pull dance as xcresult-processor-image.yml:
       # the bare-metal runner has tuist-bot creds cached for ghcr.io
-      # which don't authorize ghcr.io/cirruslabs/* pulls.
+      # which don't authorize ghcr.io/cirruslabs/* pulls. Tart also
+      # consults Docker credential helpers, and this runner can have
+      # the macOS helper installed without the Docker CLI — clear
+      # both stores before Packer clones ghcr.io/cirruslabs/*.
       - name: Drop cached ghcr.io credentials
-        run: tart logout ghcr.io || true
+        run: |
+          tart logout ghcr.io || true
+          if command -v docker >/dev/null 2>&1; then
+            docker logout ghcr.io || true
+          fi
+          for helper in docker-credential-osxkeychain docker-credential-desktop; do
+            if command -v "$helper" >/dev/null 2>&1; then
+              printf 'ghcr.io' | "$helper" erase || true
+              printf 'https://ghcr.io' | "$helper" erase || true
+            fi
+          done
 
       - name: Reclaim Tart disk
         run: |
@@ -66,7 +86,26 @@ jobs:
       - name: Build image
         working-directory: infra/runner-image
         run: |
-          packer build \
+          set -euo pipefail
+          docker_config="$HOME/.docker/config.json"
+          docker_config_backup=""
+          restore_docker_config() {
+            if [ -n "$docker_config_backup" ] && [ -f "$docker_config_backup" ]; then
+              mkdir -p "$HOME/.docker"
+              mv "$docker_config_backup" "$docker_config"
+            fi
+          }
+          trap restore_docker_config EXIT
+
+          # Tart hardcodes ~/.docker/config.json when looking up Docker
+          # credential helpers. Move it aside so the public Cirrus image is
+          # pulled anonymously instead of through stale ghcr.io credentials.
+          if [ -f "$docker_config" ]; then
+            docker_config_backup="$(mktemp "${RUNNER_TEMP:-/tmp}/docker-config.XXXXXX")"
+            mv "$docker_config" "$docker_config_backup"
+          fi
+
+          env -u GITHUB_TOKEN -u MISE_GITHUB_TOKEN packer build \
             -var "base_image=${{ inputs.base_image || 'ghcr.io/cirruslabs/macos-tahoe-xcode:26.4' }}" \
             -var "output_image=tuist-runner" \
             -var "runner_version=${{ inputs.runner_version || '2.334.0' }}" \
@@ -77,6 +116,10 @@ jobs:
 
       - name: Push image to GHCR
         id: push
+        env:
+          TART_REGISTRY_HOSTNAME: ghcr.io
+          TART_REGISTRY_USERNAME: tuist-bot
+          TART_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           GIT_SHA="${GITHUB_SHA::8}"
