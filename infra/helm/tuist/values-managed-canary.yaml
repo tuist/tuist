@@ -119,10 +119,10 @@ macosFleet:
     host: api-canary.tuist.dev
 
 # Customer-runner Mac mini fleet — sibling of macosFleet.
-# Canary runs the same concurrency tier as staging (1 host) so
-# we can de-risk the production roll on canary first.
+# Canary keeps one warm runner so the production rollout can be
+# validated on the same substrate first.
 runnersFleet:
-  enabled: false
+  enabled: true
   hostCount: 1
   # Pre-ordered pool. Operator pre-orders Mac minis named with the
   # `tuist-pool-` prefix; the CAPI controller adopts them on demand.
@@ -136,8 +136,8 @@ runnersFleet:
       - "192.168.0.0/16"
   pools:
     - name: default
-      replicas: 2
-      runnerImage: ""
+      replicas: 1
+      runnerImage: "ghcr.io/tuist/tuist-runner@sha256:666cf1180bab17d5b6f5cb800a6b21ecb5b078183a532bcc7a1c040711a295df"
       dispatchLabel: "tuist-canary-macos"
 
 # In-cluster Valkey backs the auth rate limiter (Hammer.Redis). The
