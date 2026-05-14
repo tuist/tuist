@@ -61,6 +61,9 @@ const KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: &str = "KURA_OTEL_EXPORTER_OTLP_T
 const KURA_OTEL_SERVICE_NAME: &str = "KURA_OTEL_SERVICE_NAME";
 const KURA_OTEL_DEPLOYMENT_ENVIRONMENT: &str = "KURA_OTEL_DEPLOYMENT_ENVIRONMENT";
 const KURA_SENTRY_DSN: &str = "KURA_SENTRY_DSN";
+const KURA_GEOIP_DATABASE_PATH: &str = "KURA_GEOIP_DATABASE_PATH";
+const KURA_GEOIP_REFRESH_INTERVAL_SECS: &str = "KURA_GEOIP_REFRESH_INTERVAL_SECS";
+const DEFAULT_GEOIP_REFRESH_INTERVAL_SECS: u64 = 86_400;
 
 const BYTES_PER_MIB: u64 = 1024 * 1024;
 const DEFAULT_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS: u64 = 5_000;
@@ -110,6 +113,7 @@ pub struct Config {
     pub otel_service_name: String,
     pub otel_deployment_environment: String,
     pub sentry_dsn: Option<String>,
+    pub geoip: Option<GeoIpConfig>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -129,6 +133,14 @@ pub struct GrpcTlsConfig {
 pub struct PublicTlsConfig {
     pub cert_path: PathBuf,
     pub key_path: PathBuf,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct GeoIpConfig {
+    pub database_path: PathBuf,
+    /// Refresh interval in seconds. `0` disables background refresh — the
+    /// in-image database is then used for the full pod lifetime.
+    pub refresh_interval_secs: u64,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -832,6 +844,24 @@ impl Config {
                 None
             }
         };
+        let geoip_refresh_interval_secs = optional_parsed_value(
+            &mut lookup,
+            KURA_GEOIP_REFRESH_INTERVAL_SECS,
+            &mut invalid,
+            |value| {
+                value.parse::<u64>().map_err(|_| {
+                    format!("{KURA_GEOIP_REFRESH_INTERVAL_SECS} must be a valid u64")
+                })
+            },
+        )
+        .unwrap_or(DEFAULT_GEOIP_REFRESH_INTERVAL_SECS);
+        let geoip = lookup(KURA_GEOIP_DATABASE_PATH)
+            .map(|value| value.trim().to_owned())
+            .filter(|value| !value.is_empty())
+            .map(|value| GeoIpConfig {
+                database_path: PathBuf::from(value),
+                refresh_interval_secs: geoip_refresh_interval_secs,
+            });
         let otlp_traces_endpoint = lookup(KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT)
             .map(|value| value.trim().to_owned())
             .filter(|value| !value.is_empty());
@@ -970,6 +1000,7 @@ impl Config {
                 "otel_deployment_environment should be present when configuration is valid",
             ),
             sentry_dsn,
+            geoip,
         })
     }
 
@@ -1293,6 +1324,37 @@ mod tests {
         assert_eq!(config.otel_service_name, "kura-eu");
         assert_eq!(config.otel_deployment_environment, "staging");
         assert_eq!(config.sentry_dsn, None);
+        assert_eq!(config.geoip, None);
+    }
+
+    #[test]
+    fn from_lookup_parses_geoip_database_path() {
+        let config = config_from(&[
+            (KURA_PORT, "4500"),
+            (KURA_GRPC_PORT, "5500"),
+            (KURA_TENANT_ID, "acme"),
+            (KURA_REGION, "eu_west"),
+            (KURA_TMP_DIR, "/tmp/kura"),
+            (KURA_DATA_DIR, "/tmp/kura-data"),
+            (KURA_NODE_URL, "http://kura.example.com:7443"),
+            (KURA_PEERS, "http://kura-a.example.com:7443"),
+            (KURA_GEOIP_DATABASE_PATH, "/etc/kura/geoip/dbip-country-lite.mmdb"),
+            (
+                KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
+                "https://otel.example.com/v1/traces",
+            ),
+            (KURA_OTEL_SERVICE_NAME, "kura-eu"),
+            (KURA_OTEL_DEPLOYMENT_ENVIRONMENT, "staging"),
+        ])
+        .expect("expected geoip config to parse");
+
+        assert_eq!(
+            config.geoip,
+            Some(GeoIpConfig {
+                database_path: PathBuf::from("/etc/kura/geoip/dbip-country-lite.mmdb"),
+                refresh_interval_secs: DEFAULT_GEOIP_REFRESH_INTERVAL_SECS,
+            })
+        );
     }
 
     #[test]

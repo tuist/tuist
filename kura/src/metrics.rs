@@ -96,6 +96,7 @@ pub struct Metrics {
     memory_pressure_transitions: Family<MemoryPressureTransitionLabels, Counter>,
     background_work_paused: Family<BackgroundWorkerLabels, Gauge>,
     memory_actions: Family<MemoryActionLabels, Counter>,
+    geoip_refresh: Family<GeoIpRefreshLabels, Counter>,
     traffic_state: Gauge,
     ready_state: Gauge,
     drain_state: Gauge,
@@ -217,6 +218,7 @@ impl Metrics {
             Family::<MemoryPressureTransitionLabels, Counter>::default();
         let background_work_paused = Family::<BackgroundWorkerLabels, Gauge>::default();
         let memory_actions = Family::<MemoryActionLabels, Counter>::default();
+        let geoip_refresh = Family::<GeoIpRefreshLabels, Counter>::default();
         let traffic_state = Gauge::default();
         let ready_state = Gauge::default();
         let drain_state = Gauge::default();
@@ -592,6 +594,11 @@ impl Metrics {
             memory_actions.clone(),
         );
         registry.register(
+            "kura_geoip_refresh_total",
+            "Outcomes of background refreshes of the in-process GeoIP database",
+            geoip_refresh.clone(),
+        );
+        registry.register(
             "kura_traffic_state",
             "Current traffic state for this node: 0=joining, 1=serving, 2=draining",
             traffic_state.clone(),
@@ -702,6 +709,7 @@ impl Metrics {
             memory_pressure_transitions,
             background_work_paused,
             memory_actions,
+            geoip_refresh,
             traffic_state,
             ready_state,
             drain_state,
@@ -723,6 +731,7 @@ impl Metrics {
         route: String,
         method: String,
         status: StatusCode,
+        client_country: Option<String>,
         duration: Duration,
     ) {
         self.http_requests
@@ -730,6 +739,7 @@ impl Metrics {
                 route: route.clone(),
                 method,
                 status: status.as_u16(),
+                client_country: client_country.unwrap_or_else(|| "unknown".to_owned()),
             })
             .inc();
         self.http_request_duration
@@ -1183,6 +1193,14 @@ impl Metrics {
             .inc();
     }
 
+    pub fn record_geoip_refresh(&self, result: &str) {
+        self.geoip_refresh
+            .get_or_create(&GeoIpRefreshLabels {
+                result: result.to_owned(),
+            })
+            .inc();
+    }
+
     pub fn update_runtime_state(
         &self,
         traffic_state: i64,
@@ -1230,6 +1248,7 @@ struct HttpRequestLabels {
     route: String,
     method: String,
     status: u16,
+    client_country: String,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
@@ -1397,6 +1416,11 @@ struct MemoryActionLabels {
     action: String,
 }
 
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct GeoIpRefreshLabels {
+    result: String,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1408,12 +1432,14 @@ mod tests {
             "/up".into(),
             "GET".into(),
             StatusCode::OK,
+            Some("US".into()),
             Duration::from_millis(10),
         );
         metrics.record_http(
             "/api/cache/keyvalue".into(),
             "PUT".into(),
             StatusCode::INTERNAL_SERVER_ERROR,
+            None,
             Duration::from_millis(20),
         );
         metrics.record_artifact_read(ArtifactProducer::Xcode, "ok", 5);

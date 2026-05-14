@@ -68,3 +68,11 @@ config:
   telemetry:
     otlpTracesEndpoint: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4318/v1/traces
     deploymentEnvironment: production
+  # The DB-IP Lite Country MMDB is baked into ghcr.io/tuist/kura at image
+  # build time. The background refresher re-downloads the monthly dump
+  # daily so the in-memory copy never trails the image release for more
+  # than 24 hours. Country attribution lives in src/geoip.rs.
+  geoip:
+    enabled: true
+    databasePath: /opt/geoip/dbip-country-lite.mmdb
+    refreshIntervalSecs: 86400

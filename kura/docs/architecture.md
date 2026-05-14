@@ -152,6 +152,7 @@ Each node exposes:
 
 - Prometheus metrics on `/metrics` (replication latency, FD pressure, manifest cache, RocksDB internals, outbox depth, traffic state, rollout-relevant counters).
 - OpenTelemetry traces for replication and request handling.
+- Optional client country attribution on HTTP metrics and spans, sourced from the `X-Forwarded-For` header and resolved against an in-process DB-IP Lite MMDB (`src/geoip.rs`). Enabled when `KURA_GEOIP_DATABASE_PATH` is set; the managed image bakes the DB in and flips it on by default.
 - Structured logs intended for Loki/Promtail.
 - Optional Sentry forwarding for panics and `tracing::error!` events.
 

@@ -5,6 +5,7 @@ mod config;
 mod constants;
 mod extension;
 mod failpoints;
+mod geoip;
 mod http;
 mod io;
 mod memory;

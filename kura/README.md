@@ -286,6 +286,19 @@ Kura also exports:
 - 💾 file descriptor pool pressure metrics
 - 🧠 manifest cache occupancy and admission metrics
 
+### GeoIP enrichment
+
+Setting `KURA_GEOIP_DATABASE_PATH` to a [DB-IP IP-to-Country Lite](https://db-ip.com/db/download/ip-to-country-lite) MMDB enables client country attribution. The country is resolved from the first hop in `X-Forwarded-For` (or `X-Real-IP`) and surfaces as:
+
+- the `client_country` Prometheus label on `kura_http_requests_total`
+- the `client.country` OTel span attribute on `http.request` spans
+
+Lookups that miss (no header, private IP, or feature disabled) fall back to `client_country="unknown"`. Leaving `KURA_GEOIP_DATABASE_PATH` unset turns the feature off; no IP is recorded anywhere.
+
+The managed Helm chart bakes the DB-IP Lite Country DB into the image at `/opt/geoip/dbip-country-lite.mmdb` and enables the feature via `config.geoip.enabled: true`. DB-IP data is © DB-IP, released under CC BY 4.0.
+
+A background task refreshes the in-memory database from `https://download.db-ip.com/free/dbip-country-lite-YYYY-MM.mmdb.gz` every `KURA_GEOIP_REFRESH_INTERVAL_SECS` seconds (default `86400`). Set the interval to `0` to keep the image-baked copy for the pod's lifetime. The swap is atomic — concurrent lookups continue against the old copy until their `Arc` clone drops — and outcomes are tracked in `kura_geoip_refresh_total{result="ok|http_error|parse_error"}`.
+
 ### Disabling OTLP tracing
 
 OTLP tracing is optional. Leaving `KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` unset (or empty) makes Kura skip exporter initialization and run without distributed traces — useful in environments without a collector (local kind, isolated edge nodes). Helm operators control it by setting `config.telemetry.otlpTracesEndpoint: ""` in a values overlay; the chart only renders the env when the value is non-empty, so an empty overlay disables tracing without crashlooping the pod.

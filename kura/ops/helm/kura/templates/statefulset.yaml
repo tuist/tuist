@@ -116,6 +116,14 @@ spec:
             - name: KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
               value: {{ .Values.config.telemetry.otlpTracesEndpoint | quote }}
             {{- end }}
+            {{- if and .Values.config.geoip .Values.config.geoip.enabled }}
+            - name: KURA_GEOIP_DATABASE_PATH
+              value: {{ .Values.config.geoip.databasePath | quote }}
+            {{- if .Values.config.geoip.refreshIntervalSecs }}
+            - name: KURA_GEOIP_REFRESH_INTERVAL_SECS
+              value: {{ printf "%d" (int64 .Values.config.geoip.refreshIntervalSecs) | quote }}
+            {{- end }}
+            {{- end }}
             - name: KURA_OTEL_SERVICE_NAME
               value: $(POD_NAME)
             - name: KURA_OTEL_DEPLOYMENT_ENVIRONMENT

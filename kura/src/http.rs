@@ -1,4 +1,7 @@
-use std::collections::{BTreeMap, HashMap};
+use std::{
+    collections::{BTreeMap, HashMap},
+    net::IpAddr,
+};
 
 use axum::{
     Json, Router,
@@ -348,6 +351,10 @@ async fn track_http_metrics(
         .unwrap_or_else(|| req.uri().path().to_owned());
     let method = req.method().to_string();
     let uri_path = req.uri().path().to_owned();
+    let client_country = state
+        .geoip
+        .as_ref()
+        .and_then(|geoip| client_ip_from_headers(req.headers()).and_then(|ip| geoip.country_code(ip)));
 
     let request_span = tracing::info_span!(
         "http.request",
@@ -356,11 +363,15 @@ async fn track_http_metrics(
         http.request.method = %method,
         http.route = %route,
         url.path = %uri_path,
+        client.country = field::Empty,
         http.response.status_code = field::Empty,
         otel.status_code = field::Empty,
         trace_id = field::Empty,
         span_id = field::Empty,
     );
+    if let Some(country) = client_country.as_deref() {
+        request_span.record("client.country", country);
+    }
     attach_parent_context(&request_span, req.headers());
     record_trace_context(&request_span);
 
@@ -370,11 +381,32 @@ async fn track_http_metrics(
         request_span.record("otel.status_code", "ERROR");
     }
 
-    state
-        .metrics
-        .record_http(route, method, response.status(), start.elapsed());
+    state.metrics.record_http(
+        route,
+        method,
+        response.status(),
+        client_country,
+        start.elapsed(),
+    );
 
     response
+}
+
+fn client_ip_from_headers(headers: &axum::http::HeaderMap) -> Option<IpAddr> {
+    if let Some(value) = headers.get("x-forwarded-for")
+        && let Ok(text) = value.to_str()
+        && let Some(first) = text.split(',').next()
+        && let Ok(ip) = first.trim().parse::<IpAddr>()
+    {
+        return Some(ip);
+    }
+    if let Some(value) = headers.get("x-real-ip")
+        && let Ok(text) = value.to_str()
+        && let Ok(ip) = text.trim().parse::<IpAddr>()
+    {
+        return Some(ip);
+    }
+    None
 }
 
 async fn reject_draining_public_requests(

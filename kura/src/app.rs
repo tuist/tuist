@@ -15,6 +15,7 @@ use crate::{
     analytics::Analytics,
     config::Config,
     extension::ExtensionEngine,
+    geoip::GeoIp,
     http,
     io::IoController,
     memory::MemoryController,
@@ -75,6 +76,8 @@ async fn run_with_config(config: Config) -> Result<(), String> {
     let analytics =
         Analytics::from_config(config.analytics.as_ref(), &config.node_url, metrics.clone())
             .map_err(|error| format!("failed to initialize analytics: {error}"))?;
+    let geoip = GeoIp::from_config(config.geoip.as_ref())
+        .map_err(|error| format!("failed to initialize GeoIP: {error}"))?;
     let io = IoController::new(
         metrics.clone(),
         config.file_descriptor_pool_size,
@@ -101,6 +104,7 @@ async fn run_with_config(config: Config) -> Result<(), String> {
         runtime: RuntimeState::new(),
         extension,
         analytics,
+        geoip,
         client,
         notify,
         readiness: tokio::sync::Mutex::new(ReadinessState::new(Instant::now())),
@@ -116,6 +120,7 @@ async fn run_with_config(config: Config) -> Result<(), String> {
     spawn_drain_signal_task(state.clone());
     spawn_multipart_janitor_task(state.clone());
     spawn_tmp_dir_metrics_task(state.clone());
+    spawn_geoip_refresh_task(state.clone());
 
     let address = SocketAddr::from((Ipv4Addr::UNSPECIFIED, state.config.port));
     let grpc_address = SocketAddr::from((Ipv4Addr::UNSPECIFIED, state.config.grpc_port));
@@ -460,6 +465,44 @@ fn spawn_tmp_dir_metrics_task(state: Arc<AppState>) {
                     .await
                     .unwrap_or(0);
                 state.metrics.update_tmp_dir_bytes(bytes);
+            }
+        }
+        .in_current_span(),
+    );
+}
+
+fn spawn_geoip_refresh_task(state: Arc<AppState>) {
+    let Some(geoip) = state.geoip.clone() else {
+        return;
+    };
+    let Some(config) = state.config.geoip.clone() else {
+        return;
+    };
+    if config.refresh_interval_secs == 0 {
+        info!("GeoIP background refresh disabled");
+        return;
+    }
+    let http = match reqwest::Client::builder()
+        .connect_timeout(Duration::from_secs(10))
+        .timeout(Duration::from_secs(60))
+        .build()
+    {
+        Ok(client) => client,
+        Err(error) => {
+            warn!("failed to build GeoIP refresh client: {error}");
+            return;
+        }
+    };
+    let interval = Duration::from_secs(config.refresh_interval_secs);
+    tokio::spawn(
+        async move {
+            loop {
+                tokio::time::sleep(interval).await;
+                let outcome = geoip.refresh(&http).await;
+                state.metrics.record_geoip_refresh(outcome.as_str());
+                if matches!(outcome, crate::geoip::RefreshOutcome::Updated) {
+                    info!("GeoIP database refreshed");
+                }
             }
         }
         .in_current_span(),
