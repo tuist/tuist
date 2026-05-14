@@ -2184,6 +2184,25 @@ jobs:
       - name: Build image
         working-directory: infra/xcresult-processor-image
         run: |
+          set -euo pipefail
+          docker_config="$HOME/.docker/config.json"
+          docker_config_backup=""
+          restore_docker_config() {
+            if [ -n "$docker_config_backup" ] && [ -f "$docker_config_backup" ]; then
+              mkdir -p "$HOME/.docker"
+              mv "$docker_config_backup" "$docker_config"
+            fi
+          }
+          trap restore_docker_config EXIT
+
+          # Tart hardcodes ~/.docker/config.json when looking up Docker
+          # credential helpers. Move it aside so the public Cirrus image is
+          # pulled anonymously instead of through stale ghcr.io credentials.
+          if [ -f "$docker_config" ]; then
+            docker_config_backup="$(mktemp "${RUNNER_TEMP:-/tmp}/docker-config.XXXXXX")"
+            mv "$docker_config" "$docker_config_backup"
+          fi
+
           env -u GITHUB_TOKEN -u MISE_GITHUB_TOKEN packer build \
             -var "output_image=tuist-xcresult-processor" \
             -var "release_tarball=/tmp/release.tar.gz" \
