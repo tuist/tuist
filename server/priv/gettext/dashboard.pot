@@ -1282,7 +1282,7 @@ msgstr ""
 
 #: lib/tuist_web/controllers/github_app_manifest_controller.ex:276
 #, elixir-autogen, elixir-format
-msgid "%{url} resolves to a non-public IP address, so Tuist Cloud refuses to connect to it. Self-host Tuist inside your network to integrate with an internal GitHub Enterprise Server."
+msgid "%{url} resolves to a non-public IP address, so Tuist refuses to connect to it. Self-host Tuist inside your network to integrate with an internal GitHub Enterprise Server."
 msgstr ""
 
 #: lib/tuist_web/controllers/github_app_manifest_controller.ex:336
