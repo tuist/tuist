@@ -58,6 +58,20 @@
         -->
         <key>RUNNER_ALLOW_RUNASROOT</key>
         <string>1</string>
+
+        <!--
+          LaunchDaemons start with a minimal environment — no HOME,
+          no PATH beyond the daemon defaults. The Actions runner
+          forwards its own env to every step shell, so an unset
+          HOME here propagates into customer workflows where any
+          tool that reads `$HOME/.gitconfig` (git, mise, gh) errors
+          out with `fatal: $HOME not set` before doing anything.
+          `/var/root` is the canonical home for uid 0 on macOS;
+          set it so step shells inherit a working HOME that matches
+          the user the runner is actually running as.
+        -->
+        <key>HOME</key>
+        <string>/var/root</string>
     </dict>
 
     <key>ProcessType</key>
