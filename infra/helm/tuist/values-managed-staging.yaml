@@ -273,13 +273,13 @@ runnersFleetLinux:
         - Linux
         - X64
       pod:
-        # 4 vCPU / 16 GiB matches the ccx23 node's full budget so
-        # one Pod per node bin-packs cleanly. cluster-autoscaler
-        # registers nodes as candidates for scale-down only when
-        # they're empty, so Pod-per-host keeps the scale-down math
-        # transparent.
+        # Sized to fit on a cpx42 node (8 vCPU / 16 GiB shared)
+        # alongside system DaemonSets (~1-2 GiB overhead). On
+        # production with ccx23 dedicated nodes (16 GiB total)
+        # we'd request closer to the full host — staging just
+        # needs comfortable headroom.
         cpuMilli: 4000
-        memoryMB: 16384
+        memoryMB: 12288
       # Queue-depth driven autoscaling. minWarmPoolFloor=1 keeps
       # one Pod ready at all times (cold-start budget on staging is
       # noise during bring-up); maxReplicas=10 mirrors the
