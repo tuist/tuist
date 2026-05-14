@@ -9,7 +9,12 @@
 #     --set server.image.tag=$GIT_SHA
 
 server:
-  replicaCount: 1
+  # 2 replicas so a webhook burst (workflow_job queued + completed) doesn't
+  # all queue behind one BEAM scheduler while concurrent dispatch + scaling
+  # polls hammer the same pod. Cloudflare's edge timeout on the webhook path
+  # is short enough that a saturated single replica produces 502s and GitHub
+  # marks the delivery failed.
+  replicaCount: 2
 
   # Non-secret runtime config. Traces go to the in-cluster Alloy receiver
   # (deployed by infra/helm/k8s-monitoring) via OTLP gRPC; Alloy forwards
