@@ -124,6 +124,18 @@ jobs:
           done
           echo "::endgroup::"
 
+      - name: Tuist server logs (dispatch path)
+        run: |
+          set +e
+          echo "::group::server pods"
+          kubectl -n tuist-staging get pods -l app.kubernetes.io/component=server -o wide
+          echo "::endgroup::"
+          for pod in $(kubectl -n tuist-staging get pods -l app.kubernetes.io/component=server -o name 2>/dev/null); do
+            echo "::group::logs $pod (filter: runners / dispatch / mint)"
+            kubectl -n tuist-staging logs "$pod" --tail=600 2>&1 | grep -iE 'runners|dispatch|github_mint|tokenreview|jit|scaling' | tail -80 || true
+            echo "::endgroup::"
+          done
+
       - name: runners-controller logs (autoscaler reconciler)
         run: |
           set +e
