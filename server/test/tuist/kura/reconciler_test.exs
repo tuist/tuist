@@ -72,9 +72,10 @@ defmodule Tuist.Kura.ReconcilerTest do
     end)
 
     expect(Req, :get, fn "https://localhost:4100/up", opts ->
-      assert opts[:finch] == Tuist.Finch
+      refute Keyword.has_key?(opts, :finch)
       assert opts[:receive_timeout] == 5_000
       assert opts[:connect_options] == [timeout: 5_000]
+      assert opts[:retry] == false
       {:error, %Mint.TransportError{reason: {:tls_alert, ~c"unknown ca"}}}
     end)
 

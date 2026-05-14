@@ -335,9 +335,9 @@ defmodule Tuist.Kura do
       |> URI.to_string()
 
     case Req.get(url,
-           finch: Tuist.Finch,
            receive_timeout: @public_endpoint_timeout,
-           connect_options: [timeout: @public_endpoint_timeout]
+           connect_options: [timeout: @public_endpoint_timeout],
+           retry: false
          ) do
       {:ok, %Req.Response{status: status}} when status in 200..299 ->
         :ok
