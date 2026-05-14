@@ -73,6 +73,45 @@ type RunnerPoolSpec struct {
 	PodCPUMilli int32 `json:"podCPUMilli,omitempty"`
 	// +kubebuilder:default=14336
 	PodMemoryMB int32 `json:"podMemoryMB,omitempty"`
+
+	// Autoscaling is the optional queue-depth-driven autoscaling
+	// config for this pool. When `Enabled` is true the
+	// runners-controller patches `spec.replicas` (and the bound
+	// CAPI MachineDeployment's `spec.replicas`) on a 15 s cadence
+	// using the Tuist server's desired-replicas endpoint. Disabled
+	// pools stay at a static `Replicas` value (the v1 macOS shape).
+	// +optional
+	Autoscaling *RunnerPoolAutoscaling `json:"autoscaling,omitempty"`
+}
+
+// RunnerPoolAutoscaling carries the autoscaling knobs. Lives in
+// its own struct so an absent block (the v1 default) keeps
+// `RunnerPoolSpec` byte-identical to its pre-autoscaling shape on
+// the wire — no `autoscaling: null` noise on every macOS pool.
+type RunnerPoolAutoscaling struct {
+	// Enabled flips the autoscaling reconciler on for this pool.
+	// When false, the controller leaves `spec.replicas` alone.
+	// +optional
+	Enabled bool `json:"enabled,omitempty"`
+
+	// MinWarmPoolFloor is the lower bound for the desired warm
+	// pool size. The server's rolling p95 of concurrent claims
+	// can lift the effective floor higher; this value only floors
+	// the floor.
+	// +optional
+	MinWarmPoolFloor int32 `json:"minWarmPoolFloor,omitempty"`
+
+	// MaxReplicas is the hard ceiling on the autoscaler-driven
+	// `spec.replicas` value. 0 disables autoscaling-driven scale
+	// changes (the static `spec.replicas` still applies).
+	// +optional
+	MaxReplicas int32 `json:"maxReplicas,omitempty"`
+
+	// ScaleDownCooldownSeconds is the minimum time the controller
+	// waits between successive scale-down actions for this pool.
+	// Anti-thrash guard.
+	// +optional
+	ScaleDownCooldownSeconds int32 `json:"scaleDownCooldownSeconds,omitempty"`
 }
 
 // RunnerPoolStatus is the observed state of the pool.
@@ -86,6 +125,12 @@ type RunnerPoolStatus struct {
 	// reconcile pass for this pool.
 	// +optional
 	LastReconcile metav1.Time `json:"lastReconcile,omitempty"`
+
+	// LastScaleDownAt is the timestamp of the last autoscaler
+	// scale-down action. The controller's cooldown gate reads
+	// this to avoid scaling down twice in quick succession.
+	// +optional
+	LastScaleDownAt *metav1.Time `json:"lastScaleDownAt,omitempty"`
 }
 
 // +kubebuilder:object:root=true

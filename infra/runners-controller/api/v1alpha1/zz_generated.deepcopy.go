@@ -9,7 +9,10 @@
 
 package v1alpha1
 
-import "k8s.io/apimachinery/pkg/runtime"
+import (
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+)
 
 // DeepCopyInto for RunnerPool.
 func (in *RunnerPool) DeepCopyInto(out *RunnerPool) {
@@ -74,9 +77,17 @@ func (in *RunnerPoolSpec) DeepCopyInto(out *RunnerPoolSpec) {
 		out.RunnerLabels = make([]string, len(in.RunnerLabels))
 		copy(out.RunnerLabels, in.RunnerLabels)
 	}
+	if in.Autoscaling != nil {
+		out.Autoscaling = new(RunnerPoolAutoscaling)
+		*out.Autoscaling = *in.Autoscaling
+	}
 }
 
 func (in *RunnerPoolStatus) DeepCopyInto(out *RunnerPoolStatus) {
 	*out = *in
 	in.LastReconcile.DeepCopyInto(&out.LastReconcile)
+	if in.LastScaleDownAt != nil {
+		out.LastScaleDownAt = new(metav1.Time)
+		in.LastScaleDownAt.DeepCopyInto(out.LastScaleDownAt)
+	}
 }

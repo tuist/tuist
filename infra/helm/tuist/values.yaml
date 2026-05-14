@@ -667,6 +667,16 @@ runnersFleet:
     #   pod:
     #     cpuMilli: 8000
     #     memoryMB: 14336
+    #   # Optional queue-depth-driven autoscaling. When `enabled`, the
+    #   # runners-controller patches `spec.replicas` (and the bound
+    #   # CAPI MachineDeployment) every 15 s using the desired-replicas
+    #   # endpoint on the Tuist server. Omit the block (or leave
+    #   # `enabled: false`) for a static-replicas pool.
+    #   autoscaling:
+    #     enabled: false
+    #     minWarmPoolFloor: 1
+    #     maxReplicas: 0
+    #     scaleDownCooldownSeconds: 300
 
 # runners-controller: standalone Go reconciler that owns Pod + SA
 # materialization for the RunnerPool CRD. The controller watches

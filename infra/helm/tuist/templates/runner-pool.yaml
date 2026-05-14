@@ -38,6 +38,7 @@ MachineDeployment, set the pool's `fleetSelector` to its name).
 {{- $podCPU := dig "pod" "cpuMilli" 8000 $pool }}
 {{- $podMem := dig "pod" "memoryMB" 14336 $pool }}
 {{- $runnerLabels := $pool.runnerLabels | default $defaultRunnerLabels }}
+{{- $autoscaling := $pool.autoscaling }}
 {{- $poolName := printf "%s-%s" (include "tuist.componentName" (dict "root" $ "component" "runner-pool")) $name }}
 ---
 apiVersion: tuist.dev/v1alpha1
@@ -61,5 +62,12 @@ spec:
     {{- end }}
   podCPUMilli: {{ $podCPU }}
   podMemoryMB: {{ $podMem }}
+  {{- if $autoscaling }}
+  autoscaling:
+    enabled: {{ dig "enabled" false $autoscaling }}
+    minWarmPoolFloor: {{ dig "minWarmPoolFloor" 1 $autoscaling }}
+    maxReplicas: {{ dig "maxReplicas" 0 $autoscaling }}
+    scaleDownCooldownSeconds: {{ dig "scaleDownCooldownSeconds" 300 $autoscaling }}
+  {{- end }}
 {{- end }}
 {{- end }}
