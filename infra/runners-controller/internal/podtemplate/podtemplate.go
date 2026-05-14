@@ -30,6 +30,8 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL string) *corev
 	cpu := resource.NewMilliQuantity(int64(pool.Spec.PodCPUMilli), resource.DecimalSI)
 	mem := resource.NewQuantity(int64(pool.Spec.PodMemoryMB)*1024*1024, resource.BinarySI)
 
+	nodeSelector, tolerations := schedulingFor(pool)
+
 	return &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      podName,
@@ -49,21 +51,13 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL string) *corev
 			// /var/run/secrets/kubernetes.io/serviceaccount/token by
 			// default; explicit `true` for clarity.
 			AutomountServiceAccountToken: ptr(true),
-			NodeSelector: map[string]string{
-				"kubernetes.io/os":  "darwin",
-				"tuist.dev/runtime": "tart",
-				"tuist.dev/fleet":   pool.Spec.FleetSelector,
-			},
-			Tolerations: []corev1.Toleration{
-				{
-					Key:      "tuist.dev/macos",
-					Operator: corev1.TolerationOpExists,
-					Effect:   corev1.TaintEffectNoSchedule,
-				},
-			},
-			// No restart: ephemeral runner. After `./run.sh
-			// --jitconfig` exits, the dispatch-poll EXIT trap halts
-			// the VM and tart-kubelet flips the Pod to Succeeded.
+			NodeSelector:                 nodeSelector,
+			Tolerations:                  tolerations,
+			// No restart: ephemeral runner. macOS Pods halt the
+			// underlying Tart VM via the EXIT trap in dispatch-poll;
+			// Linux containers just exit, kubelet flips the Pod to
+			// Succeeded, the reconciler reaps it. Same lifecycle,
+			// substrate-specific exit mechanics.
 			RestartPolicy: corev1.RestartPolicyNever,
 			Containers: []corev1.Container{
 				{
@@ -132,4 +126,33 @@ func BuildServiceAccount(pool *tuistv1.RunnerPool, saName string) *corev1.Servic
 
 func ptr[T any](v T) *T {
 	return &v
+}
+
+// schedulingFor returns the nodeSelector + tolerations for a pool's
+// substrate. `darwin` is the v1 default and targets Mac mini nodes
+// running tart-kubelet; `linux` targets standard Linux nodes (no
+// extra runtime label, no taint to tolerate). Anything else falls
+// back to the darwin shape so a misconfigured CR still produces a
+// schedulable Pod against the macOS fleet.
+func schedulingFor(pool *tuistv1.RunnerPool) (map[string]string, []corev1.Toleration) {
+	switch pool.Spec.OS {
+	case "linux":
+		return map[string]string{
+				"kubernetes.io/os":   "linux",
+				"kubernetes.io/arch": "amd64",
+				"tuist.dev/fleet":    pool.Spec.FleetSelector,
+			}, nil
+	default:
+		return map[string]string{
+				"kubernetes.io/os":  "darwin",
+				"tuist.dev/runtime": "tart",
+				"tuist.dev/fleet":   pool.Spec.FleetSelector,
+			}, []corev1.Toleration{
+				{
+					Key:      "tuist.dev/macos",
+					Operator: corev1.TolerationOpExists,
+					Effect:   corev1.TaintEffectNoSchedule,
+				},
+			}
+	}
 }

@@ -65,10 +65,21 @@ type RunnerPoolSpec struct {
 	// +optional
 	RunnerLabels []string `json:"runnerLabels,omitempty"`
 
+	// OS is the host OS for this pool's Pods. Drives nodeSelector
+	// and tolerations on the controller side. `darwin` (default,
+	// for backward compat with v1 macOS pools) targets Mac mini
+	// nodes running tart-kubelet; `linux` targets standard Linux
+	// nodes on the Hetzner Cloud fleet.
+	// +kubebuilder:default=darwin
+	// +optional
+	OS string `json:"os,omitempty"`
+
 	// PodCPUMilli + PodMemoryMB shape the runner Pod's
-	// resources.requests so kube-scheduler bin-packs one Pod per
-	// host AND tart-kubelet's `tart set` between clone and run
-	// gives the VM the host's full budget.
+	// resources.requests. For macOS pools the values are tied to
+	// Mac mini host capacity minus VZ overhead so tart-kubelet's
+	// `tart set` lines up with the host budget. For Linux pools
+	// the values are standard cgroup requests against the Hetzner
+	// Cloud VM's vCPU/RAM.
 	// +kubebuilder:default=8000
 	PodCPUMilli int32 `json:"podCPUMilli,omitempty"`
 	// +kubebuilder:default=14336

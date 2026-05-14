@@ -96,6 +96,24 @@ green-field cluster.
 {{- .Values.runnersFleet.name | default (include "tuist.componentName" (dict "root" . "component" "runners-fleet")) -}}
 {{- end -}}
 
+{{/*
+Linux runner fleet — analog of the Mac mini fleet but provisioned
+on Hetzner Cloud via caph. Same "Fleet" semantics (one logical
+group of identical hosts; MachineDeployment + MachineSet + Machines
+share an identity); different infra provider underneath.
+
+The name flows into:
+
+  - HCloudMachineTemplate.metadata.name
+  - MachineDeployment.metadata.name + spec.selector
+  - Pod nodeSelector `tuist.dev/fleet=<name>` (Linux pools set this
+    via RunnerPool.spec.fleetSelector)
+  - Node label the bootstrap provider stamps so the selector matches
+*/}}
+{{- define "tuist.runnersFleetLinuxName" -}}
+{{- .Values.runnersFleetLinux.name | default (include "tuist.componentName" (dict "root" . "component" "runners-fleet-linux")) -}}
+{{- end -}}
+
 {{- define "tuist.objectStorageEndpoint" -}}
 {{- if eq .Values.objectStorage.mode "embedded" -}}
 http://{{ include "tuist.componentName" (dict "root" . "component" "object-storage") }}:9000

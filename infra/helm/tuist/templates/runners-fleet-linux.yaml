@@ -1,0 +1,130 @@
+{{- if and .Values.capi.enabled .Values.runnersFleetLinux.enabled }}
+{{- $fleetName := include "tuist.runnersFleetLinuxName" . }}
+{{- $clusterName := include "tuist.componentName" (dict "root" . "component" "capi") }}
+{{- /*
+Linux runner fleet — Hetzner Cloud VMs provisioned by caph
+(cluster-api-provider-hetzner). Sibling of `runners-fleet.yaml`
+(Scaleway Apple Silicon Mac minis); uses standard CAPI primitives
+because Linux substrate has no special licensing or VM-shape
+requirements.
+
+Prerequisites (NOT installed by this chart):
+  * `caph` infra provider, watching `infrastructure.cluster.x-k8s.io`
+    for `HCloudMachineTemplate` + `HCloudMachine`.
+  * CAPI's `kubeadm` bootstrap provider, watching
+    `bootstrap.cluster.x-k8s.io` for `KubeadmConfigTemplate`.
+  * Hetzner Cloud token in a Secret the caph provider can read
+    (out-of-band; see the provider's docs).
+
+Bootstrap shape: a `KubeadmConfigTemplate` produces per-machine
+cloud-init that installs containerd + kubelet on a stock Hetzner
+Ubuntu 22.04 image, joins the workload cluster, and stamps the
+`tuist.dev/fleet=<name>` node label so RunnerPool Pods (with the
+matching `nodeSelector`) bin-pack onto the fresh nodes. The
+`KubeadmConfigTemplate` ships as a placeholder here — operators
+override `runnersFleetLinux.bootstrap.commands` to match their
+cluster's kubeadm + CNI shape.
+
+For the Pod scheduling shape on the consumer side see
+`infra/runners-controller/internal/podtemplate/podtemplate.go`
+(`schedulingFor` switches on `RunnerPool.spec.os`).
+*/ -}}
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+kind: HCloudMachineTemplate
+metadata:
+  name: {{ $fleetName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: runners-fleet-linux
+    tuist.dev/fleet: {{ $fleetName }}
+spec:
+  template:
+    spec:
+      type: {{ .Values.runnersFleetLinux.machine.type | default "ccx23" | quote }}
+      imageName: {{ .Values.runnersFleetLinux.machine.imageName | default "ubuntu-22.04" | quote }}
+      {{- with .Values.runnersFleetLinux.machine.sshKeys }}
+      sshKeys:
+        {{- range . }}
+        - name: {{ . | quote }}
+        {{- end }}
+      {{- end }}
+      {{- with .Values.runnersFleetLinux.machine.placementGroupName }}
+      placementGroupName: {{ . | quote }}
+      {{- end }}
+---
+apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
+kind: KubeadmConfigTemplate
+metadata:
+  name: {{ $fleetName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: runners-fleet-linux
+    tuist.dev/fleet: {{ $fleetName }}
+spec:
+  template:
+    spec:
+      joinConfiguration:
+        nodeRegistration:
+          kubeletExtraArgs:
+            # Stamps the fleet label kube-scheduler uses to place
+            # RunnerPool Pods on this fleet's nodes. The Pod's
+            # nodeSelector (`tuist.dev/fleet=<name>`) matches it.
+            node-labels: "tuist.dev/fleet={{ $fleetName }},kubernetes.io/os=linux,kubernetes.io/arch=amd64"
+      {{- with .Values.runnersFleetLinux.bootstrap.preKubeadmCommands }}
+      preKubeadmCommands:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.runnersFleetLinux.bootstrap.postKubeadmCommands }}
+      postKubeadmCommands:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.runnersFleetLinux.bootstrap.files }}
+      files:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: MachineDeployment
+metadata:
+  name: {{ $fleetName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: runners-fleet-linux
+    tuist.dev/fleet: {{ $fleetName }}
+    cluster.x-k8s.io/cluster-name: {{ $clusterName }}
+spec:
+  clusterName: {{ $clusterName }}
+  replicas: {{ .Values.runnersFleetLinux.hostCount | default 0 }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      # Cloud VMs spin up in ~30-60s; rolling adds one before
+      # killing one so the autoscaler-driven floor never dips
+      # during an image bump.
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      cluster.x-k8s.io/cluster-name: {{ $clusterName }}
+      tuist.dev/fleet: {{ $fleetName }}
+  template:
+    metadata:
+      labels:
+        cluster.x-k8s.io/cluster-name: {{ $clusterName }}
+        tuist.dev/fleet: {{ $fleetName }}
+    spec:
+      clusterName: {{ $clusterName }}
+      version: {{ .Values.runnersFleetLinux.kubernetesVersion | default "v1.30.0" | quote }}
+      bootstrap:
+        configRef:
+          apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
+          kind: KubeadmConfigTemplate
+          name: {{ $fleetName }}
+      infrastructureRef:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+        kind: HCloudMachineTemplate
+        name: {{ $fleetName }}
+{{- end }}

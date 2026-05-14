@@ -79,14 +79,25 @@ spec:
                     Conventionally `["self-hosted", "<os>", "<arch>"]`. Empty falls
                     back to `["self-hosted", "macOS", "ARM64"]` for backward compat
                     with v1 macOS-only pools.
+                os:
+                  type: string
+                  default: darwin
+                  enum: [darwin, linux]
+                  description: |
+                    Host OS the runner runs on. Drives Pod scheduling
+                    (nodeSelector + tolerations) on the controller side.
+                    `darwin` (the v1 default) selects Mac mini nodes
+                    running tart-kubelet and tolerates the
+                    `tuist.dev/macos` taint. `linux` selects standard
+                    Linux nodes (no Tart layer); no extra tolerations.
                 podCPUMilli:
                   type: integer
                   default: 8000
-                  description: Pod request shape so kube-scheduler bin-packs one Pod per host AND tart-kubelet's `tart set` matches host capacity minus VZ overhead.
+                  description: Pod request shape so kube-scheduler bin-packs one Pod per host AND tart-kubelet's `tart set` matches host capacity minus VZ overhead (macOS) — for Linux pools, just a standard cgroup request matching the host VM's vCPU.
                 podMemoryMB:
                   type: integer
                   default: 14336
-                  description: Pod memory request matching the Mac mini SKU's capacity minus VZ overhead.
+                  description: Pod memory request matching the host's capacity minus substrate overhead.
                 autoscaling:
                   type: object
                   description: |
