@@ -108,10 +108,19 @@ jobs:
           echo "::group::Pods events sorted"
           kubectl -n tuist-runners get events --sort-by=.lastTimestamp 2>&1 | tail -50
           echo "::endgroup::"
-          echo "::group::describe non-running Pods"
-          for pod in $(kubectl -n tuist-runners get pods --field-selector=status.phase!=Running -o name 2>/dev/null); do
+          echo "::group::describe non-running Linux Pods"
+          for pod in $(kubectl -n tuist-runners get pods --field-selector=status.phase!=Running -o name 2>/dev/null | grep linux); do
             echo "--- $pod ---"
             kubectl -n tuist-runners describe "$pod"
+          done
+          echo "::endgroup::"
+          echo "::group::Linux runner Pod logs (current + previous)"
+          for pod in $(kubectl -n tuist-runners get pods -o name 2>/dev/null | grep linux); do
+            echo "--- $pod ---"
+            echo "  current:"
+            kubectl -n tuist-runners logs "$pod" --all-containers --tail=200 2>&1 | sed 's/^/    /' || true
+            echo "  previous:"
+            kubectl -n tuist-runners logs "$pod" --all-containers --previous --tail=100 2>&1 | sed 's/^/    /' || true
           done
           echo "::endgroup::"
 
