@@ -88,23 +88,6 @@ jobs:
           kubectl get nodes -l node.cluster.x-k8s.io/pool=runners-linux -o wide
           echo "::endgroup::"
 
-      - name: Delete stale Pending Linux runner Pods
-        # The RunnerPoolReconciler counts Pending Pods as alive,
-        # so a chart change that shrinks the Pod request doesn't
-        # automatically force a respin — the stale Pending Pods
-        # keep the gap=0 and the new spec never materializes.
-        # Sweep any Linux-pool Pods that are stuck Pending so the
-        # reconciler creates fresh ones at the updated spec.
-        run: |
-          set +e
-          for pod in $(kubectl -n tuist-runners get pods \
-              --field-selector=status.phase=Pending \
-              -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' \
-              | grep '^tuist-tuist-runner-pool-linux-' || true); do
-            echo "deleting Pending Pod $pod"
-            kubectl -n tuist-runners delete pod "$pod" --wait=false || true
-          done
-
       - name: RunnerPool CRs + Pods
         run: |
           set +e
