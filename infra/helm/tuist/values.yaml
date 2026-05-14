@@ -538,13 +538,24 @@ macosFleet:
         projectID: project-id
   # Tailscale wiring for the Mac mini fleet. When enabled the CAPI
   # provider's bootstrap installs Tailscale on each mini, joins it
-  # to the tailnet under `tag:tuist-macmini`, and tart-kubelet
-  # advertises the tailnet IPv4 as the Node's InternalIP — which is
-  # what alloy-metrics dials for both VM-Pod scrapes (PromEx on the
-  # xcresult-processor) and Node-role scrapes (node_exporter on the
-  # host). Off by default: the chart is self-hostable and most
-  # operators don't have a tailnet to join. Tuist-managed envs flip
-  # it on in their per-env values.
+  # to the tailnet under `tag:tuist-macmini-<env>`, and tart-kubelet
+  # advertises the tailnet IPv4 as the Node's InternalIP.
+  #
+  # Two scrape paths consume this:
+  #   - VM-Pod scrapes (PromEx on the xcresult-processor) ride the
+  #     standard annotationAutodiscovery pipeline: alloy-metrics
+  #     reads the Pod's IP from the cluster Pod object, which
+  #     tart-kubelet rewrites to the tailnet address.
+  #   - Host-level scrapes (node_exporter :9100, tart-kubelet's own
+  #     controller-runtime metrics :8080) go through the Tailscale
+  #     K8s operator's egress ProxyGroup. See `tailscaleEgress`
+  #     below for the cluster-Pod-to-tailnet plumbing; subnet-router
+  #     mode advertises cluster IPs INTO the tailnet, not the other
+  #     way round, so an egress proxy is the missing half.
+  #
+  # Off by default: the chart is self-hostable and most operators
+  # don't have a tailnet to join. Tuist-managed envs flip it on in
+  # their per-env values.
   tailscale:
     enabled: false
     # Per-env ACL tag every Mac mini advertises at `tailscale up`.

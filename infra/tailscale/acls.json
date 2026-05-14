@@ -69,10 +69,13 @@
 		// Cross-env scraping (staging operator → prod macmini) is
 		// blocked at the tailnet layer once the wide-open rule
 		// above is removed. Today it's blocked in practice anyway
-		// because alloy-metrics in env X only discovers env X's
-		// Mac minis via k8s Node-role lookup, but the explicit
-		// per-pair grants make the boundary load-bearing rather
-		// than coincidental.
+		// because the CAPI controller in env X only materialises
+		// per-mini egress Services for env X's Mac minis (each
+		// cluster runs its own controller against its own set of
+		// ScalewayAppleSiliconMachines), so alloy-metrics never
+		// gets a cross-env target to dial. The explicit per-pair
+		// grants here make the boundary load-bearing rather than
+		// coincidental.
 		{
 			"src": ["tag:tuist-k8s-staging"],
 			"dst": ["tag:tuist-macmini-staging"],
