@@ -273,12 +273,15 @@ runnersFleetLinux:
         - Linux
         - X64
       pod:
-        # ccx23 = 4 vCPU dedicated / 16 GiB. One Pod per host with
-        # ~2 GiB headroom for kubelet + DaemonSets matches the
-        # production-target spec and lets the smoke validate the
-        # exact shape customers will see.
-        cpuMilli: 4000
-        memoryMB: 14336
+        # Sized to fit on a ccx23 (4 vCPU dedicated / 16 GiB) after
+        # kubelet reserves + DaemonSets (cilium-agent, hccm,
+        # hcloud-csi, etc.) eat ~500m CPU and ~3 GiB RAM. Trying
+        # 4000m / 14336 MiB schedules Pending with
+        # `Insufficient cpu, Insufficient memory` — kube-scheduler
+        # sees allocatable, not capacity. Production may run wider
+        # if its DaemonSet footprint differs.
+        cpuMilli: 3000
+        memoryMB: 12288
       # Queue-depth driven autoscaling. minWarmPoolFloor=1 keeps
       # one Pod ready at all times (cold-start budget on staging is
       # noise during bring-up); maxReplicas=10 mirrors the
