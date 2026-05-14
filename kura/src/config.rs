@@ -849,9 +849,9 @@ impl Config {
             KURA_GEOIP_REFRESH_INTERVAL_SECS,
             &mut invalid,
             |value| {
-                value.parse::<u64>().map_err(|_| {
-                    format!("{KURA_GEOIP_REFRESH_INTERVAL_SECS} must be a valid u64")
-                })
+                value
+                    .parse::<u64>()
+                    .map_err(|_| format!("{KURA_GEOIP_REFRESH_INTERVAL_SECS} must be a valid u64"))
             },
         )
         .unwrap_or(DEFAULT_GEOIP_REFRESH_INTERVAL_SECS);
@@ -1338,7 +1338,10 @@ mod tests {
             (KURA_DATA_DIR, "/tmp/kura-data"),
             (KURA_NODE_URL, "http://kura.example.com:7443"),
             (KURA_PEERS, "http://kura-a.example.com:7443"),
-            (KURA_GEOIP_DATABASE_PATH, "/etc/kura/geoip/dbip-country-lite.mmdb"),
+            (
+                KURA_GEOIP_DATABASE_PATH,
+                "/etc/kura/geoip/dbip-country-lite.mmdb",
+            ),
             (
                 KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
                 "https://otel.example.com/v1/traces",

@@ -124,9 +124,7 @@ async fn fetch_gzipped(http: &Client, url: &str) -> Result<Vec<u8>, String> {
         .await
         .map_err(|error| format!("body: {error}"))?;
     if compressed.len() > REFRESH_MAX_BYTES {
-        return Err(format!(
-            "compressed body exceeds {REFRESH_MAX_BYTES} bytes"
-        ));
+        return Err(format!("compressed body exceeds {REFRESH_MAX_BYTES} bytes"));
     }
     let decoder = GzDecoder::new(&compressed[..]);
     let mut decompressed = Vec::with_capacity(compressed.len() * 4);

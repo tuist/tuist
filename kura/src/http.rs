@@ -351,10 +351,9 @@ async fn track_http_metrics(
         .unwrap_or_else(|| req.uri().path().to_owned());
     let method = req.method().to_string();
     let uri_path = req.uri().path().to_owned();
-    let client_country = state
-        .geoip
-        .as_ref()
-        .and_then(|geoip| client_ip_from_headers(req.headers()).and_then(|ip| geoip.country_code(ip)));
+    let client_country = state.geoip.as_ref().and_then(|geoip| {
+        client_ip_from_headers(req.headers()).and_then(|ip| geoip.country_code(ip))
+    });
 
     let request_span = tracing::info_span!(
         "http.request",
