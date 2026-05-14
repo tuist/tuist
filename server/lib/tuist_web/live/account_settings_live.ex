@@ -559,7 +559,7 @@ defmodule TuistWeb.AccountSettingsLive do
           title={
             dgettext(
               "dashboard_account",
-              "Clients use the global Kura endpoint %{url}; Cloudflare DNS steers it to the nearest healthy region.",
+              "Use the global Kura endpoint %{url} to connect clients to the nearest healthy region.",
               url: @global_endpoint_url
             )
           }

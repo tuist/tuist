@@ -1521,7 +1521,7 @@ msgstr ""
 
 #: lib/tuist_web/live/account_settings_live.ex:550
 #, elixir-autogen, elixir-format
-msgid "Clients use the global Kura endpoint %{url}; Cloudflare DNS steers it to the nearest healthy region."
+msgid "Use the global Kura endpoint %{url} to connect clients to the nearest healthy region."
 msgstr ""
 
 #: lib/tuist_web/live/account_settings_live.ex:632
