@@ -659,6 +659,11 @@ runnersFleet:
     #   replicas: 0            # spec.replicas — number of Pods the controller maintains.
     #   runnerImage: ""        # Required. Digest-pinned in production.
     #   dispatchLabel: ""      # Required. The label customers put in `runs-on`.
+    #   # GitHub runner labels stamped at JIT-mint time, in addition
+    #   # to `dispatchLabel` (always appended). Default
+    #   # `["self-hosted", "macOS", "ARM64"]` for backward compat;
+    #   # set explicitly for Linux pools.
+    #   runnerLabels: ["self-hosted", "macOS", "ARM64"]
     #   pod:
     #     cpuMilli: 8000
     #     memoryMB: 14336

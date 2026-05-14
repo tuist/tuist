@@ -3,18 +3,20 @@ package v1alpha1
 import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 // RunnerPoolSpec is the operator-facing declarative shape for a
-// fleet of macOS runners. The chart renders one RunnerPool CR per
-// entry in `runnersFleet.pools`; the controller maintains
-// `Replicas` Pods + per-Pod ServiceAccounts on hosts matching
-// `FleetSelector`.
+// fleet of runners (macOS on Scaleway Mac minis, or Linux on
+// Hetzner Cloud). The chart renders one RunnerPool CR per entry in
+// `runnersFleet.pools` / `runnersFleetLinux.pools`; the controller
+// maintains `Replicas` Pods + per-Pod ServiceAccounts on hosts
+// matching `FleetSelector`.
 //
 // Multiple RunnerPools coexist in the same namespace so different
-// runner images (e.g. Xcode versions, base macOS releases) can be
-// surfaced as distinct fleets. Customers route to a fleet by
-// putting its `DispatchLabel` in their workflow's `runs-on`; the
-// Tuist server's webhook handler matches the workflow_job's
-// labels against every pool's `DispatchLabel` and enqueues
-// against the matching fleet.
+// runner images (e.g. Xcode versions, base macOS releases, Linux
+// distros) can be surfaced as distinct fleets. Customers route to
+// a fleet by putting its `DispatchLabel` in their workflow's
+// `runs-on`; the Tuist server's webhook handler matches the
+// workflow_job's labels against every pool's `DispatchLabel` and
+// enqueues against the matching fleet. `RunnerLabels` carry the
+// OS/arch triple stamped on the GitHub runner at JIT mint time.
 //
 // No customer fields here — customers are not modeled on the K8s
 // side. Per-customer config lives in `accounts.runner_max_concurrent`.
@@ -52,6 +54,16 @@ type RunnerPoolSpec struct {
 	// One-per-fleet is enforced by the server-side webhook (two
 	// pools with the same label would non-deterministically route).
 	DispatchLabel string `json:"dispatchLabel"`
+
+	// RunnerLabels are stamped on the GitHub Actions runner at
+	// JIT-mint time, in addition to DispatchLabel which is always
+	// appended. Conventionally `["self-hosted", "<os>", "<arch>"]`
+	// (e.g. macOS pool: `["self-hosted", "macOS", "ARM64"]`; Linux
+	// pool: `["self-hosted", "Linux", "X64"]`). Empty falls back
+	// to the macOS triple on the server for backward compat with
+	// v1 macOS-only pools.
+	// +optional
+	RunnerLabels []string `json:"runnerLabels,omitempty"`
 
 	// PodCPUMilli + PodMemoryMB shape the runner Pod's
 	// resources.requests so kube-scheduler bin-packs one Pod per

@@ -70,6 +70,10 @@ func (in *RunnerPoolSpec) DeepCopyInto(out *RunnerPoolSpec) {
 		out.Labels = make([]string, len(in.Labels))
 		copy(out.Labels, in.Labels)
 	}
+	if in.RunnerLabels != nil {
+		out.RunnerLabels = make([]string, len(in.RunnerLabels))
+		copy(out.RunnerLabels, in.RunnerLabels)
+	}
 }
 
 func (in *RunnerPoolStatus) DeepCopyInto(out *RunnerPoolStatus) {

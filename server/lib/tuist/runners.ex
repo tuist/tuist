@@ -136,9 +136,10 @@ defmodule Tuist.Runners do
       {:ok, account} ->
         pod_name = pod_name_from_sa(sa_name)
 
-        with {:ok, dispatch_label} <- Dispatch.dispatch_label_for_pool(fleet_name),
+        with {:ok, %{dispatch_label: dispatch_label, runner_labels: runner_labels}} <-
+               Dispatch.pool_summary_by_name(fleet_name),
              :ok <- stamp_owner_labels(namespace, pod_name, account),
-             {:ok, jit, runner_name} <- mint_jit(account, sa_name, dispatch_label),
+             {:ok, jit, runner_name} <- mint_jit(account, sa_name, dispatch_label, runner_labels),
              :ok <- Claims.mark_running(candidate.workflow_job_id, runner_name),
              :ok <- record_running_safe(candidate.workflow_job_id, runner_name) do
           Logger.info("runners: dispatched",
@@ -285,7 +286,7 @@ defmodule Tuist.Runners do
     end
   end
 
-  defp mint_jit(account, sa_name, dispatch_label) do
+  defp mint_jit(account, sa_name, dispatch_label, runner_labels) do
     runner_name = "tuist-#{account.name}-#{sa_name}"
 
     # Resolve the full installation row (carries `installation_id`
@@ -294,11 +295,18 @@ defmodule Tuist.Runners do
     # — github.com for SaaS, the customer's GHES host otherwise.
     # Without this we'd silently mint a github.com runner for a
     # GHES org with the same login.
+    #
+    # `runner_labels` carries the OS/arch identification triple
+    # (e.g. `["self-hosted", "macOS", "ARM64"]` for the Mac fleet,
+    # `["self-hosted", "Linux", "X64"]` for the Hetzner Cloud
+    # fleet); `dispatch_label` is appended so the customer's
+    # `runs-on` matches and GitHub binds the workflow_job to this
+    # specific pool's runner.
     with {:ok, installation} <- VCS.get_github_app_installation_for_account(account.id),
          {:ok, %{encoded_jit_config: jit, runner_name: runner_name}} <-
            GitHubClient.generate_jit_config(installation, account.name, %{
              name: runner_name,
-             labels: ["self-hosted", "macOS", "ARM64", dispatch_label]
+             labels: runner_labels ++ [dispatch_label]
            }) do
       {:ok, jit, runner_name}
     else

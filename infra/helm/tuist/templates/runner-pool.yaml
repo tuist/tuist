@@ -6,6 +6,7 @@
   {{- fail "runnersFleet.pools must contain at least one entry when runnersFleet.enabled is true" }}
 {{- end }}
 {{- $labels := include "tuist.labels" . }}
+{{- $defaultRunnerLabels := list "self-hosted" "macOS" "ARM64" }}
 {{- /*
 RunnerPool CRs — one per entry in `runnersFleet.pools`. Each
 pool is a runner image variant (Xcode version, base OS,
@@ -36,6 +37,7 @@ MachineDeployment, set the pool's `fleetSelector` to its name).
 {{- $replicas := $pool.replicas | default 0 }}
 {{- $podCPU := dig "pod" "cpuMilli" 8000 $pool }}
 {{- $podMem := dig "pod" "memoryMB" 14336 $pool }}
+{{- $runnerLabels := $pool.runnerLabels | default $defaultRunnerLabels }}
 {{- $poolName := printf "%s-%s" (include "tuist.componentName" (dict "root" $ "component" "runner-pool")) $name }}
 ---
 apiVersion: tuist.dev/v1alpha1
@@ -53,6 +55,10 @@ spec:
   image: {{ $image | quote }}
   fleetSelector: {{ $hostFleetName | quote }}
   dispatchLabel: {{ $dispatchLabel | quote }}
+  runnerLabels:
+    {{- range $runnerLabels }}
+    - {{ . | quote }}
+    {{- end }}
   podCPUMilli: {{ $podCPU }}
   podMemoryMB: {{ $podMem }}
 {{- end }}

@@ -69,6 +69,16 @@ spec:
                 dispatchLabel:
                   type: string
                   description: GitHub Actions runner label customers put in `runs-on` to target this fleet. Webhook handler matches against `workflow_job.labels`; dispatch endpoint includes it in the JIT mint.
+                runnerLabels:
+                  type: array
+                  items:
+                    type: string
+                  description: |
+                    GitHub Actions runner labels stamped on the runner at JIT-mint
+                    time (in addition to `dispatchLabel`, which is always appended).
+                    Conventionally `["self-hosted", "<os>", "<arch>"]`. Empty falls
+                    back to `["self-hosted", "macOS", "ARM64"]` for backward compat
+                    with v1 macOS-only pools.
                 podCPUMilli:
                   type: integer
                   default: 8000

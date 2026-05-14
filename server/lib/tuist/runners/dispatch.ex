@@ -217,15 +217,17 @@ defmodule Tuist.Runners.Dispatch do
   end
 
   @doc """
-  GETs the RunnerPool by name and returns its dispatch label.
-  Used by the JIT mint path so the runner registers with the
-  label customers used in `runs-on`.
+  GETs the RunnerPool by name and returns its dispatch label +
+  the OS/arch runner labels to stamp at JIT-mint time. Used by
+  the dispatch path so the runner registers with both the
+  customer-routing label (`dispatch_label`) and the
+  platform-identification labels GitHub's UI surfaces.
   """
-  def dispatch_label_for_pool(pool_name) when is_binary(pool_name) do
+  def pool_summary_by_name(pool_name) when is_binary(pool_name) do
     case Client.get_runner_pool(namespace(), pool_name) do
       {:ok, cr} ->
         case pool_summary(cr) do
-          %{dispatch_label: label} -> {:ok, label}
+          %{} = summary -> {:ok, summary}
           nil -> {:error, :no_dispatch_label}
         end
 
@@ -252,12 +254,28 @@ defmodule Tuist.Runners.Dispatch do
 
   defp fetch_enabled_account(_), do: {:error, :no_account}
 
-  defp pool_summary(%{"metadata" => %{"name" => name}, "spec" => %{"dispatchLabel" => label}})
+  defp pool_summary(%{"metadata" => %{"name" => name}, "spec" => %{"dispatchLabel" => label} = spec})
        when is_binary(name) and is_binary(label) and label != "" do
-    %{name: name, dispatch_label: label}
+    %{name: name, dispatch_label: label, runner_labels: extract_runner_labels(spec)}
   end
 
   defp pool_summary(_), do: nil
+
+  # Default to the macOS triple when `runnerLabels` is absent or
+  # empty so existing v1 macOS-only pools keep working after the
+  # CRD evolves; new Linux pools set the field explicitly via the
+  # helm `pools[].runnerLabels` knob.
+  @default_runner_labels ["self-hosted", "macOS", "ARM64"]
+
+  defp extract_runner_labels(%{"runnerLabels" => labels}) when is_list(labels) and labels != [] do
+    Enum.filter(labels, &(is_binary(&1) and &1 != ""))
+    |> case do
+      [] -> @default_runner_labels
+      filtered -> filtered
+    end
+  end
+
+  defp extract_runner_labels(_), do: @default_runner_labels
 
   defp namespace, do: Environment.runners_namespace()
 
