@@ -165,6 +165,7 @@ spec:
             - --health-probe-bind-address=:8081
             - --namespace={{ $namespace }}
             - --dispatch-url={{ .Values.server.appUrl }}/api/internal/runners/dispatch
+            - --scaling-signals-url={{ .Values.server.appUrl }}/api/internal/runners/desired_replicas
           ports:
             - name: metrics
               containerPort: 8080

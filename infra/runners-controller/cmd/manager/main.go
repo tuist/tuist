@@ -24,6 +24,7 @@ import (
 
 	tuistv1 "github.com/tuist/tuist/infra/runners-controller/api/v1alpha1"
 	"github.com/tuist/tuist/infra/runners-controller/controllers"
+	"github.com/tuist/tuist/infra/runners-controller/internal/scaling"
 )
 
 var (
@@ -38,15 +39,18 @@ func init() {
 
 func main() {
 	var (
-		metricsAddr string
-		probeAddr   string
-		dispatchURL string
-		watchedNS   string
+		metricsAddr       string
+		probeAddr         string
+		dispatchURL       string
+		scalingSignalsURL string
+		watchedNS         string
 	)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "Prometheus metrics endpoint")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "Liveness/readiness probe endpoint")
 	flag.StringVar(&dispatchURL, "dispatch-url", envOr("TUIST_RUNNER_DISPATCH_URL", ""),
 		"URL the runner Pod's VM polls for its JIT config. Threaded into every Pod via env. Required.")
+	flag.StringVar(&scalingSignalsURL, "scaling-signals-url", envOr("TUIST_SCALING_SIGNALS_URL", ""),
+		"URL the autoscaler reconciler GETs for fleet load signals (`?fleet=<name>` appended). Optional; if empty, autoscaling is silently disabled (existing macOS pools work unchanged).")
 	flag.StringVar(&watchedNS, "namespace", envOr("TUIST_RUNNERS_NAMESPACE", "tuist-runners"),
 		"Namespace the controller watches. Defaults to tuist-runners.")
 
@@ -89,6 +93,21 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Autoscaler reconciler runs alongside the primary one. When
+	// the scaling URL isn't configured (the v1 macOS-only chart
+	// shape) we skip wiring it up — autoscaling pools fail open
+	// (no scaling-driven changes), static pools work as before.
+	if scalingSignalsURL != "" {
+		if err := (&controllers.AutoscalerReconciler{
+			Client:        mgr.GetClient(),
+			Scheme:        mgr.GetScheme(),
+			SignalsClient: scaling.NewClient(scalingSignalsURL),
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "setup Autoscaler reconciler")
+			os.Exit(1)
+		}
+	}
+
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 		setupLog.Error(err, "set up health check")
 		os.Exit(1)
@@ -120,5 +139,6 @@ func envOr(key, fallback string) string {
 var (
 	_ client.Client = (client.Client)(nil)
 	_               = controllers.RunnerPoolReconciler{}
+	_               = controllers.AutoscalerReconciler{}
 	_               = corev1.Pod{}
 )

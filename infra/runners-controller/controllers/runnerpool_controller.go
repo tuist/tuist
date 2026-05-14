@@ -69,11 +69,15 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 	alive := 0
 	reaped := 0
+	var idleAlive []*corev1.Pod
 	for i := range pods.Items {
 		p := &pods.Items[i]
 		switch {
 		case isAlive(p):
 			alive++
+			if isIdle(p) {
+				idleAlive = append(idleAlive, p)
+			}
 		case p.DeletionTimestamp.IsZero():
 			// Terminal Pod (Succeeded/Failed) with no deletion in
 			// flight. Reap the Pod and its sibling ServiceAccount —
@@ -92,7 +96,9 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	}
 
 	gap := int(pool.Spec.Replicas) - alive
+	overflow := 0
 	if gap < 0 {
+		overflow = -gap
 		gap = 0
 	}
 
@@ -101,6 +107,8 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		"observed", alive,
 		"reaped", reaped,
 		"gap", gap,
+		"overflow", overflow,
+		"idleAlive", len(idleAlive),
 	)
 
 	for i := 0; i < gap; i++ {
@@ -110,7 +118,24 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		}
 	}
 
-	pool.Status.ObservedReplicas = int32(alive + gap)
+	// Scale-down: alive > target. Delete IDLE Pods first — those
+	// without `tuist.dev/runner-pool-owner` are warm-polling and
+	// not currently running a customer job, so terminating them is
+	// safe. Owned Pods (currently running a job) are never deleted
+	// by the reconciler; the autoscaler's targets must be reached
+	// over time, as owned Pods finish their jobs and exit.
+	scaledDown := 0
+	for i := 0; i < overflow && i < len(idleAlive); i++ {
+		p := idleAlive[i]
+		if err := r.reapAlivePod(ctx, p); err != nil {
+			logger.Error(err, "scale-down delete; will retry", "pod", p.Name)
+			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+		}
+		scaledDown++
+	}
+
+	observed := alive - scaledDown + gap
+	pool.Status.ObservedReplicas = int32(observed)
 	pool.Status.LastReconcile = metav1.Now()
 	if err := r.Status().Update(ctx, pool); err != nil {
 		if !apierrors.IsConflict(err) && !apierrors.IsNotFound(err) {
@@ -176,6 +201,15 @@ func (r *RunnerPoolReconciler) reapTerminalRunner(ctx context.Context, pod *core
 	return nil
 }
 
+// reapAlivePod is the scale-down path. Same shape as
+// reapTerminalRunner (delete Pod + sibling SA) but we hit it from
+// the autoscaler-driven branch where the Pod is still alive and
+// merely idle. kubelet handles graceful container shutdown for us
+// once Pod.DeletionTimestamp is set.
+func (r *RunnerPoolReconciler) reapAlivePod(ctx context.Context, pod *corev1.Pod) error {
+	return r.reapTerminalRunner(ctx, pod)
+}
+
 // isAlive returns true for Pods that should count toward `replicas`:
 // not in a terminal phase, not pending deletion.
 func isAlive(pod *corev1.Pod) bool {
@@ -188,6 +222,17 @@ func isAlive(pod *corev1.Pod) bool {
 	default:
 		return true
 	}
+}
+
+// isIdle returns true for alive Pods that have NOT yet claimed a
+// customer's workflow_job. The Tuist server stamps
+// `tuist.dev/runner-pool-owner=<account>` on the Pod at the
+// moment it claims a queue entry; absent label means the Pod is
+// warm-polling. Scale-down deletes idle Pods first so we never
+// kill a runner mid-job.
+func isIdle(pod *corev1.Pod) bool {
+	v, ok := pod.Labels["tuist.dev/runner-pool-owner"]
+	return !ok || v == ""
 }
 
 // runnerLabelPredicate filters the Pod watch down to Pods carrying
