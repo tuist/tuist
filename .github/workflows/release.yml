@@ -2184,7 +2184,7 @@ jobs:
       - name: Build image
         working-directory: infra/xcresult-processor-image
         run: |
-          env -u GITHUB_TOKEN packer build \
+          env -u GITHUB_TOKEN -u MISE_GITHUB_TOKEN packer build \
             -var "output_image=tuist-xcresult-processor" \
             -var "release_tarball=/tmp/release.tar.gz" \
             xcresult-processor.pkr.hcl
