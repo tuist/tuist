@@ -29,10 +29,26 @@ import (
 // from a controller crash between the two phases.
 const claimPendingPrefix = "tuist-claim-pending-"
 
+// AppleSiliconAPI is the slice of the Scaleway SDK's
+// `applesilicon.API` surface the CAPI provider touches. Declared as
+// an interface so tests can drop in a fake without needing the real
+// SDK + HTTP client. The concrete `*applesilicon.API` satisfies it
+// via Go's structural typing — no adapter required.
+type AppleSiliconAPI interface {
+	CreateServer(req *applesilicon.CreateServerRequest, opts ...scw.RequestOption) (*applesilicon.Server, error)
+	GetServer(req *applesilicon.GetServerRequest, opts ...scw.RequestOption) (*applesilicon.Server, error)
+	ListServers(req *applesilicon.ListServersRequest, opts ...scw.RequestOption) (*applesilicon.ListServersResponse, error)
+	UpdateServer(req *applesilicon.UpdateServerRequest, opts ...scw.RequestOption) (*applesilicon.Server, error)
+	DeleteServer(req *applesilicon.DeleteServerRequest, opts ...scw.RequestOption) error
+	WaitForServer(req *applesilicon.WaitForServerRequest, opts ...scw.RequestOption) (*applesilicon.Server, error)
+	ListOS(req *applesilicon.ListOSRequest, opts ...scw.RequestOption) (*applesilicon.ListOSResponse, error)
+}
+
 // Client talks to Scaleway's Apple Silicon + IAM APIs. Construct with
-// NewClient; in tests, the API fields can be replaced with fakes.
+// NewClient; in tests, the API fields can be replaced with fakes
+// (see AppleSiliconAPI).
 type Client struct {
-	API *applesilicon.API
+	API AppleSiliconAPI
 	IAM *iam.API
 }
 
