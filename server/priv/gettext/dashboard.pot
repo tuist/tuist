@@ -110,7 +110,7 @@ msgid "Emails"
 msgstr ""
 
 #: lib/tuist_web/controllers/error_html.ex:133
-#: lib/tuist_web/live/ops_account_kura_deployment_live.html.heex:40
+#: lib/tuist_web/live/ops_account_kura_deployment_live.html.heex:42
 #, elixir-autogen, elixir-format
 msgid "Error"
 msgstr ""
@@ -137,7 +137,7 @@ msgid "Go to dashboard"
 msgstr ""
 
 #: lib/tuist_web/components/app_layout_components.ex:428
-#: lib/tuist_web/live/ops_account_kura_deployment_live.html.heex:50
+#: lib/tuist_web/live/ops_account_kura_deployment_live.html.heex:52
 #, elixir-autogen, elixir-format
 msgid "Grafana"
 msgstr ""
@@ -664,12 +664,12 @@ msgstr ""
 msgid "Active"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:150
+#: lib/tuist_web/live/ops_account_live.html.heex:152
 #, elixir-autogen, elixir-format
 msgid "Address line 1"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:158
+#: lib/tuist_web/live/ops_account_live.html.heex:160
 #, elixir-autogen, elixir-format
 msgid "Address line 2 (optional)"
 msgstr ""
@@ -699,13 +699,13 @@ msgstr ""
 msgid "Belgium"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:196
+#: lib/tuist_web/live/ops_account_live.html.heex:198
 #, elixir-autogen, elixir-format
 msgid "Billing cadence"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:59
-#: lib/tuist_web/live/ops_account_live.html.heex:142
+#: lib/tuist_web/live/ops_account_live.html.heex:61
+#: lib/tuist_web/live/ops_account_live.html.heex:144
 #: lib/tuist_web/live/ops_accounts_live.html.heex:30
 #, elixir-autogen, elixir-format
 msgid "Billing email"
@@ -726,12 +726,12 @@ msgstr ""
 msgid "Canada"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:213
+#: lib/tuist_web/live/ops_account_live.html.heex:215
 #, elixir-autogen, elixir-format
 msgid "Cancel"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:92
+#: lib/tuist_web/live/ops_account_live.html.heex:94
 #, elixir-autogen, elixir-format
 msgid "Cancel %{account}'s subscription at the end of the current billing period? Access is kept until then."
 msgstr ""
@@ -741,7 +741,7 @@ msgstr ""
 msgid "Cancel failed: %{reason}"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:89
+#: lib/tuist_web/live/ops_account_live.html.heex:91
 #, elixir-autogen, elixir-format
 msgid "Cancel plan"
 msgstr ""
@@ -762,7 +762,7 @@ msgstr ""
 msgid "China"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:164
+#: lib/tuist_web/live/ops_account_live.html.heex:166
 #, elixir-autogen, elixir-format
 msgid "City"
 msgstr ""
@@ -772,12 +772,12 @@ msgstr ""
 msgid "Colombia"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:184
+#: lib/tuist_web/live/ops_account_live.html.heex:186
 #, elixir-autogen, elixir-format
 msgid "Country"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:112
+#: lib/tuist_web/live/ops_account_live.html.heex:114
 #, elixir-autogen, elixir-format
 msgid "Creates a Stripe customer (if missing), sets the billing address, and starts an invoice-billed Enterprise subscription. The customer receives an invoice by email; no card is collected here."
 msgstr ""
@@ -832,7 +832,7 @@ msgstr ""
 msgid "Failed"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_kura_deployment_live.html.heex:31
+#: lib/tuist_web/live/ops_account_kura_deployment_live.html.heex:33
 #, elixir-autogen, elixir-format
 msgid "Finished"
 msgstr ""
@@ -912,7 +912,7 @@ msgstr ""
 msgid "Kura deployment"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:28
+#: lib/tuist_web/live/ops_account_live.html.heex:30
 #, elixir-autogen, elixir-format
 msgid "Latest deployment"
 msgstr ""
@@ -942,7 +942,7 @@ msgstr ""
 msgid "Malta"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:72
+#: lib/tuist_web/live/ops_account_live.html.heex:74
 #, elixir-autogen, elixir-format
 msgid "Manage on Stripe"
 msgstr ""
@@ -952,8 +952,8 @@ msgstr ""
 msgid "Mexico"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:199
-#: lib/tuist_web/live/ops_account_live.html.heex:203
+#: lib/tuist_web/live/ops_account_live.html.heex:201
+#: lib/tuist_web/live/ops_account_live.html.heex:205
 #, elixir-autogen, elixir-format
 msgid "Monthly"
 msgstr ""
@@ -963,7 +963,7 @@ msgstr ""
 msgid "Name"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:134
+#: lib/tuist_web/live/ops_account_live.html.heex:136
 #, elixir-autogen, elixir-format
 msgid "Name on invoice"
 msgstr ""
@@ -995,9 +995,9 @@ msgstr ""
 
 #: lib/tuist_web/live/ops_account_kura_deployment_live.ex:85
 #: lib/tuist_web/live/ops_account_live.html.heex:23
-#: lib/tuist_web/live/ops_account_live.html.heex:26
-#: lib/tuist_web/live/ops_account_live.html.heex:31
-#: lib/tuist_web/live/ops_account_live.html.heex:60
+#: lib/tuist_web/live/ops_account_live.html.heex:27
+#: lib/tuist_web/live/ops_account_live.html.heex:33
+#: lib/tuist_web/live/ops_account_live.html.heex:62
 #: lib/tuist_web/live/ops_accounts_live.html.heex:31
 #, elixir-autogen, elixir-format
 msgid "None"
@@ -1008,7 +1008,7 @@ msgstr ""
 msgid "Norway"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:63
+#: lib/tuist_web/live/ops_account_live.html.heex:65
 #: lib/tuist_web/live/ops_accounts_live.html.heex:48
 #, elixir-autogen, elixir-format
 msgid "Not created"
@@ -1034,13 +1034,13 @@ msgstr ""
 msgid "Philippines"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:45
+#: lib/tuist_web/live/ops_account_live.html.heex:47
 #: lib/tuist_web/live/ops_accounts_live.html.heex:33
 #, elixir-autogen, elixir-format
 msgid "Plan"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:42
+#: lib/tuist_web/live/ops_account_live.html.heex:44
 #, elixir-autogen, elixir-format
 msgid "Plan & billing"
 msgstr ""
@@ -1055,7 +1055,7 @@ msgstr ""
 msgid "Portugal"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:178
+#: lib/tuist_web/live/ops_account_live.html.heex:180
 #, elixir-autogen, elixir-format
 msgid "Postal code"
 msgstr ""
@@ -1085,7 +1085,7 @@ msgstr ""
 msgid "Search by name"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:187
+#: lib/tuist_web/live/ops_account_live.html.heex:189
 #, elixir-autogen, elixir-format
 msgid "Select a country"
 msgstr ""
@@ -1120,26 +1120,26 @@ msgstr ""
 msgid "Spain"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_kura_deployment_live.html.heex:27
+#: lib/tuist_web/live/ops_account_kura_deployment_live.html.heex:29
 #, elixir-autogen, elixir-format
 msgid "Started"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:172
+#: lib/tuist_web/live/ops_account_live.html.heex:174
 #, elixir-autogen, elixir-format
 msgid "State / region (optional)"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_kura_deployment_live.html.heex:11
-#: lib/tuist_web/live/ops_account_kura_deployment_live.html.heex:16
+#: lib/tuist_web/live/ops_account_kura_deployment_live.html.heex:13
+#: lib/tuist_web/live/ops_account_kura_deployment_live.html.heex:18
 #: lib/tuist_web/live/ops_account_live.html.heex:15
-#: lib/tuist_web/live/ops_account_live.html.heex:52
+#: lib/tuist_web/live/ops_account_live.html.heex:54
 #: lib/tuist_web/live/ops_accounts_live.html.heex:40
 #, elixir-autogen, elixir-format
 msgid "Status"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:62
+#: lib/tuist_web/live/ops_account_live.html.heex:64
 #: lib/tuist_web/live/ops_accounts_live.html.heex:47
 #, elixir-autogen, elixir-format
 msgid "Stripe customer"
@@ -1210,13 +1210,13 @@ msgstr ""
 msgid "United States"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:107
+#: lib/tuist_web/live/ops_account_live.html.heex:109
 #, elixir-autogen, elixir-format
 msgid "Upgrade %{account} to Enterprise"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:80
-#: lib/tuist_web/live/ops_account_live.html.heex:221
+#: lib/tuist_web/live/ops_account_live.html.heex:82
+#: lib/tuist_web/live/ops_account_live.html.heex:223
 #, elixir-autogen, elixir-format
 msgid "Upgrade to Enterprise"
 msgstr ""
@@ -1236,13 +1236,12 @@ msgstr ""
 msgid "Vietnam"
 msgstr ""
 
-#: lib/tuist_web/live/ops_account_live.html.heex:204
+#: lib/tuist_web/live/ops_account_live.html.heex:206
 #, elixir-autogen, elixir-format
 msgid "Yearly"
 msgstr ""
 
-#: lib/tuist_web/controllers/github_app_manifest_controller.ex:106
-#: lib/tuist_web/controllers/github_app_manifest_controller.ex:110
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:290
 #, elixir-autogen, elixir-format
 msgid "Could not complete the GitHub App registration."
 msgstr ""
@@ -1253,15 +1252,15 @@ msgid "GitHub Enterprise Server installations must go through the App registrati
 msgstr ""
 
 #: lib/tuist_web/controllers/github_app_manifest_controller.ex:99
-#: lib/tuist_web/controllers/github_app_manifest_controller.ex:125
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:120
 #, elixir-autogen, elixir-format
 msgid "GitHub Enterprise Server is only available on the Enterprise plan."
 msgstr ""
 
 #: lib/tuist_web/controllers/github_app_manifest_controller.ex:66
 #: lib/tuist_web/controllers/github_app_manifest_controller.ex:85
-#: lib/tuist_web/controllers/github_app_manifest_controller.ex:115
-#: lib/tuist_web/controllers/github_app_manifest_controller.ex:131
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:110
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:126
 #, elixir-autogen, elixir-format
 msgid "Invalid manifest registration request."
 msgstr ""
@@ -1279,4 +1278,34 @@ msgstr ""
 #: lib/tuist_web/controllers/github_app_manifest_controller.ex:92
 #, elixir-autogen, elixir-format
 msgid "This account already has a GitHub app installation. Uninstall it before registering a new one."
+msgstr ""
+
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:276
+#, elixir-autogen, elixir-format
+msgid "%{url} resolves to a non-public IP address, so Tuist refuses to connect to it. Either expose the GitHub Enterprise Server API on a public address (allowlisting Tuist's egress IPs is enough), or self-host Tuist inside your network."
+msgstr ""
+
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:336
+#, elixir-autogen, elixir-format
+msgid "GitHub Enterprise Server rejected the manifest with HTTP %{status}. The registration code is no longer usable — start the flow again from the integrations page."
+msgstr ""
+
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:330
+#, elixir-autogen, elixir-format
+msgid "GitHub Enterprise Server returned 404 when converting the manifest. The temporary registration code may have expired (it's valid for one hour) — start the flow again from the integrations page."
+msgstr ""
+
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:343
+#, elixir-autogen, elixir-format
+msgid "GitHub Enterprise Server returned HTTP %{status} when converting the manifest. Check the server logs for the request body and retry."
+msgstr ""
+
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:305
+#, elixir-autogen, elixir-format
+msgid "Tuist could not reach %{url}. Confirm the instance is reachable from the public internet, or self-host Tuist if it's internal-only."
+msgstr ""
+
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:283
+#, elixir-autogen, elixir-format
+msgid "Tuist could not resolve %{url}. Double-check the GitHub Enterprise Server URL is correct and publicly resolvable."
 msgstr ""
