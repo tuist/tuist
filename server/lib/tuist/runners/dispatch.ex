@@ -73,6 +73,12 @@ defmodule Tuist.Runners.Dispatch do
       {:ok, :queued}
     else
       {:error, :no_account} ->
+        Logger.info("runners: no account match for webhook owner; ignoring",
+          owner: owner,
+          repo: full_name,
+          requested_labels: requested
+        )
+
         :ignored
 
       {:error, :runners_disabled} ->
@@ -88,6 +94,12 @@ defmodule Tuist.Runners.Dispatch do
         # `spec.dispatchLabel`. Could be a different runner
         # provider in the same org, or a typo in `runs-on` —
         # either way, not ours to handle.
+        Logger.info("runners: workflow_job has no matching pool; ignoring",
+          owner: owner,
+          repo: full_name,
+          requested_labels: requested
+        )
+
         :ignored
 
       {:error, :no_pools} ->
