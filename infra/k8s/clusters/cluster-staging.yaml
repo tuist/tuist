@@ -64,11 +64,9 @@ spec:
               cluster.x-k8s.io/cluster-autoscaler-node-group-max-size: "10"
           variables:
             overrides:
-              # cpx42 = 8 vCPU shared / 16 GB. We'd prefer ccx23
-              # (dedicated, matches Namespace's customer spec) but
-              # the staging Hetzner project has no dedicated-core
-              # quota — caph fails the provision with
-              # `dedicated core limit exceeded`. Production runs
-              # with quota in place and uses dedicated SKUs.
+              # ccx23 = 4 vCPU dedicated / 16 GB. Matches Namespace's
+              # customer-facing spec one-to-one. Requires the staging
+              # Hetzner project's dedicated-core quota to permit at
+              # least `4 * max-size` cores (40 cores for max-size=10).
               - name: hcloudWorkerMachineType
-                value: cpx42
+                value: ccx23
