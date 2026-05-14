@@ -55,6 +55,11 @@
           environment — there's no separation gain from dropping
           privileges, and the inject-env.sh + dispatch-poll.sh
           chain assumes root for /etc writes. Bypass the check.
+
+          The HOME entry below sets the matching home directory for
+          that root user; both keys exist because macOS LaunchDaemons
+          start with a near-empty environment — see the HOME comment
+          for the full failure mode.
         -->
         <key>RUNNER_ALLOW_RUNASROOT</key>
         <string>1</string>
