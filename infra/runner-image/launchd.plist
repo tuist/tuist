@@ -69,6 +69,13 @@
           `/var/root` is the canonical home for uid 0 on macOS;
           set it so step shells inherit a working HOME that matches
           the user the runner is actually running as.
+
+          actions/checkout briefly sets a temporary HOME during its
+          own git invocations and restores the prior value on exit,
+          so the symptom only shows up on the *next* step after
+          checkout (the first step that reads `$HOME/.gitconfig`
+          with no actions/checkout-managed override in scope). See
+          #10797 for the first observation in production.
         -->
         <key>HOME</key>
         <string>/var/root</string>
