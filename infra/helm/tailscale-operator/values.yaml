@@ -98,11 +98,19 @@ macminiEgress:
     # cluster-env tag dialing the matching `tag:tuist-macmini-<env>`.
     tags:
       - "tag:tuist-k8s-staging"
-  # Per-mini ExternalName Services. Each entry produces one Service
-  # in the release namespace. The list is hand-maintained today;
-  # when the fleet grows past a handful, lift this into the CAPI
-  # controller so each `ScalewayAppleSiliconMachine` reconcile
-  # materialises its own egress Service.
+  # Per-mini ExternalName Services. The standard path is to leave
+  # this list empty: the CAPI provider's
+  # ScalewayAppleSiliconMachine reconciler materialises one
+  # Service per Mac mini in this chart's release namespace,
+  # labelled `tuist.dev/macmini-egress=true` so alloy-metrics
+  # picks them up via Service-role discovery. See
+  # `macosFleet.tailscaleEgress` in the main tuist chart for the
+  # operator-side knobs.
+  #
+  # This list is an escape hatch for Mac minis that aren't
+  # managed by CAPI (e.g. a one-off bare-metal host that joined
+  # the tailnet manually). Entries are static counterparts to
+  # the controller-managed Services and follow the same shape.
   #
   # Schema:
   #   - name:        Service name (must be a valid DNS-1123 label)

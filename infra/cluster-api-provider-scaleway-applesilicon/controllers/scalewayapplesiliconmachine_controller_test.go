@@ -10,6 +10,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/cluster-api/util/conditions"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -171,5 +172,128 @@ func backdateBootstrappedCondition(machine *infrav1.ScalewayAppleSiliconMachine,
 			machine.Status.Conditions[i].LastTransitionTime = metav1.NewTime(time.Now().Add(-by))
 			return
 		}
+	}
+}
+
+// reconcileTailscaleEgressService contract:
+//   - empty EgressProxyGroup short-circuits (OSS shape unaffected)
+//   - missing MagicDNSSuffix when proxy-group is set returns an error
+//     instead of writing a malformed FQDN annotation
+//   - create path stamps name, namespace, labels, annotations, ports
+//   - update path is idempotent: re-running with no spec change is a
+//     noop, and the operator's externalName rewrite isn't clobbered
+
+func TestReconcileTailscaleEgressService_Disabled(t *testing.T) {
+	r := newReconciler(t)
+	// EgressProxyGroup unset → short-circuit, no Service created.
+	machine := &infrav1.ScalewayAppleSiliconMachine{ObjectMeta: metav1.ObjectMeta{Name: "m1"}}
+	if err := r.reconcileTailscaleEgressService(context.Background(), machine); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	svcs := &corev1.ServiceList{}
+	if err := r.Client.List(context.Background(), svcs); err != nil {
+		t.Fatalf("list services: %v", err)
+	}
+	if len(svcs.Items) != 0 {
+		t.Fatalf("expected no services created when egress disabled, got %d", len(svcs.Items))
+	}
+}
+
+func TestReconcileTailscaleEgressService_MissingSuffix(t *testing.T) {
+	r := newReconciler(t)
+	r.EgressProxyGroup = "macmini-egress"
+	r.EgressNamespace = "tailscale-operator"
+	// MagicDNSSuffix deliberately left empty: would produce
+	// `<machine>.` as the FQDN, which the Tailscale operator
+	// silently rejects. Fail loudly instead.
+	machine := &infrav1.ScalewayAppleSiliconMachine{ObjectMeta: metav1.ObjectMeta{Name: "m1"}}
+	if err := r.reconcileTailscaleEgressService(context.Background(), machine); err == nil {
+		t.Fatal("expected error when MagicDNSSuffix is empty but proxy-group is set")
+	}
+}
+
+func TestReconcileTailscaleEgressService_Create(t *testing.T) {
+	r := newReconciler(t)
+	r.EgressProxyGroup = "macmini-egress"
+	r.EgressNamespace = "tailscale-operator"
+	r.EgressMagicDNSSuffix = "taild6d7bb.ts.net"
+	machine := &infrav1.ScalewayAppleSiliconMachine{ObjectMeta: metav1.ObjectMeta{Name: "macmini-1"}}
+	if err := r.reconcileTailscaleEgressService(context.Background(), machine); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	got := &corev1.Service{}
+	if err := r.Client.Get(context.Background(),
+		types.NamespacedName{Namespace: "tailscale-operator", Name: "macmini-1"}, got); err != nil {
+		t.Fatalf("get created service: %v", err)
+	}
+	if got.Spec.Type != corev1.ServiceTypeExternalName {
+		t.Errorf("Spec.Type = %q, want ExternalName", got.Spec.Type)
+	}
+	if got.Annotations["tailscale.com/tailnet-fqdn"] != "macmini-1.taild6d7bb.ts.net" {
+		t.Errorf("tailnet-fqdn = %q, want macmini-1.taild6d7bb.ts.net",
+			got.Annotations["tailscale.com/tailnet-fqdn"])
+	}
+	if got.Annotations["tailscale.com/proxy-group"] != "macmini-egress" {
+		t.Errorf("proxy-group = %q, want macmini-egress",
+			got.Annotations["tailscale.com/proxy-group"])
+	}
+	if got.Labels["tuist.dev/macmini-egress"] != "true" {
+		t.Errorf("macmini-egress label = %q, want true", got.Labels["tuist.dev/macmini-egress"])
+	}
+	if len(got.Spec.Ports) != 2 {
+		t.Fatalf("Spec.Ports len = %d, want 2", len(got.Spec.Ports))
+	}
+	// Ports must include node-exporter:9100 and tart-kubelet:8080 —
+	// the named ports alloy-metrics filters on.
+	portByName := map[string]int32{}
+	for _, p := range got.Spec.Ports {
+		portByName[p.Name] = p.Port
+	}
+	if portByName["node-exporter"] != 9100 {
+		t.Errorf("node-exporter port = %d, want 9100", portByName["node-exporter"])
+	}
+	if portByName["tart-kubelet"] != 8080 {
+		t.Errorf("tart-kubelet port = %d, want 8080", portByName["tart-kubelet"])
+	}
+}
+
+func TestReconcileTailscaleEgressService_IdempotentAndPreservesOperatorRewrite(t *testing.T) {
+	r := newReconciler(t)
+	r.EgressProxyGroup = "macmini-egress"
+	r.EgressNamespace = "tailscale-operator"
+	r.EgressMagicDNSSuffix = "taild6d7bb.ts.net"
+	machine := &infrav1.ScalewayAppleSiliconMachine{ObjectMeta: metav1.ObjectMeta{Name: "macmini-1"}}
+
+	// First reconcile creates the Service with the placeholder
+	// externalName.
+	if err := r.reconcileTailscaleEgressService(context.Background(), machine); err != nil {
+		t.Fatalf("first reconcile: %v", err)
+	}
+
+	// Simulate the Tailscale operator rewriting externalName to point
+	// at the ClusterIP fronting the ProxyGroup — this is what happens
+	// in a real cluster moments after the Service is admitted.
+	got := &corev1.Service{}
+	key := types.NamespacedName{Namespace: "tailscale-operator", Name: "macmini-1"}
+	if err := r.Client.Get(context.Background(), key, got); err != nil {
+		t.Fatalf("get after create: %v", err)
+	}
+	got.Spec.ExternalName = "ts-macmini-egress.tailscale-operator.svc.cluster.local"
+	if err := r.Client.Update(context.Background(), got); err != nil {
+		t.Fatalf("simulate operator rewrite: %v", err)
+	}
+
+	// Second reconcile must NOT clobber externalName — otherwise the
+	// operator and the CAPI controller fight forever, each
+	// re-stamping their own value every reconcile cycle.
+	if err := r.reconcileTailscaleEgressService(context.Background(), machine); err != nil {
+		t.Fatalf("second reconcile: %v", err)
+	}
+	if err := r.Client.Get(context.Background(), key, got); err != nil {
+		t.Fatalf("get after re-reconcile: %v", err)
+	}
+	if got.Spec.ExternalName != "ts-macmini-egress.tailscale-operator.svc.cluster.local" {
+		t.Errorf("re-reconcile clobbered operator's externalName rewrite (now %q)",
+			got.Spec.ExternalName)
 	}
 }

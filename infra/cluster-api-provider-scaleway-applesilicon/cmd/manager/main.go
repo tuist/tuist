@@ -77,6 +77,10 @@ func main() {
 
 		fleetSpreadDeployment string
 		fleetSpreadNamespace  string
+
+		egressNamespace      string
+		egressProxyGroup     string
+		egressMagicDNSSuffix string
 	)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "Prometheus metrics endpoint")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "Liveness/readiness probe endpoint")
@@ -169,6 +173,30 @@ func main() {
 		"Namespace of the Deployment named by --fleet-spread-deployment. "+
 			"Defaults to --secrets-namespace, which matches the chart's "+
 			"single-namespace install layout.")
+
+	flag.StringVar(&egressProxyGroup, "tailscale-egress-proxy-group",
+		envOrDefault("CAPI_TAILSCALE_EGRESS_PROXY_GROUP", ""),
+		"Name of the Tailscale ProxyGroup (type: egress) that fronts "+
+			"per-machine ExternalName Services. When set, the reconciler "+
+			"materialises one Service per Mac mini in --tailscale-egress-namespace, "+
+			"annotated with tailscale.com/tailnet-fqdn + tailscale.com/proxy-group, "+
+			"so cluster Pods (alloy-metrics) can dial the mini at its MagicDNS "+
+			"FQDN. Empty disables the behavior — the OSS shape (no tailnet) is "+
+			"untouched.")
+	flag.StringVar(&egressNamespace, "tailscale-egress-namespace",
+		envOrDefault("CAPI_TAILSCALE_EGRESS_NAMESPACE", "tailscale-operator"),
+		"Namespace where per-machine egress Services live. Must match the "+
+			"namespace the tailscale-operator wrapper chart installs the "+
+			"ProxyGroup into. The operator needs `services` get/list/watch/"+
+			"create/update/patch/delete here — granted via a namespaced Role "+
+			"+ RoleBinding rendered by the main tuist chart.")
+	flag.StringVar(&egressMagicDNSSuffix, "tailscale-egress-magicdns-suffix",
+		envOrDefault("CAPI_TAILSCALE_EGRESS_MAGICDNS_SUFFIX", ""),
+		"MagicDNS suffix of the tailnet the Mac minis register under "+
+			"(e.g. `taild6d7bb.ts.net`). Per-machine egress Service's "+
+			"tailnet-fqdn annotation is `<machine.Name>.<suffix>`. Read from "+
+			"`tailscale status --json | .MagicDNSSuffix` on any tailnet "+
+			"device. Required when --tailscale-egress-proxy-group is set.")
 
 	opts := zap.Options{Development: false}
 	opts.BindFlags(flag.CommandLine)
@@ -291,6 +319,9 @@ func main() {
 		TartKubeletMaxPods:           tartKubeletMaxPods,
 		TartKubeletMaxUpdateAttempts: int32(tartKubeletMaxUpdateAttempts),
 		MaxConcurrentReconciles:      machineMaxConcurrentReconciles,
+		EgressNamespace:              egressNamespace,
+		EgressProxyGroup:             egressProxyGroup,
+		EgressMagicDNSSuffix:         egressMagicDNSSuffix,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup MachineReconciler")
 		os.Exit(1)

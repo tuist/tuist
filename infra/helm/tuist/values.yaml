@@ -573,6 +573,30 @@ macosFleet:
       item: TAILSCALE
       fields:
         authKey: auth-key
+  # Tailscale egress Services. When enabled, the CAPI operator
+  # creates one ExternalName Service per Mac mini in
+  # `.namespace` (matching the tailscale-operator wrapper chart's
+  # Release.Namespace), annotated to bind to the named
+  # ProxyGroup. alloy-metrics' Service-role discovery then scrapes
+  # those Services and the Tailscale operator bridges to the
+  # tailnet.
+  #
+  # Off by default — self-hosters without a tailnet never need this
+  # plumbing. When tailscale.enabled is on, flip this on too.
+  tailscaleEgress:
+    enabled: false
+    # Where the per-machine Services land. Must match the
+    # tailscale-operator wrapper chart's release namespace.
+    namespace: tailscale-operator
+    # Name of the ProxyGroup the Services bind to. Matches the
+    # tailscale-operator wrapper chart's `macminiEgress.proxyGroup.name`.
+    proxyGroup: macmini-egress
+    # MagicDNS suffix of the tailnet the Mac minis register
+    # under. Required when enabled — derived from
+    # `tailscale status --json | .MagicDNSSuffix` on any tailnet
+    # device, e.g. `taild6d7bb.ts.net`. Per-env overlays set the
+    # actual value.
+    magicDNSSuffix: ""
   machine:
     # M2-L (M2 Pro chip, 12 vCPU, 32 GB RAM) is our default SKU:
     # it has the most reliable inventory in fr-par-1 and the
