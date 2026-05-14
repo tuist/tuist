@@ -30,7 +30,7 @@ defmodule TuistWeb.RunnersControllerTest do
 
       {:ok, _} = Claims.attempt(7_100_002, account.id, "fleet-scale", "pod-scale-1")
 
-      stub(K8sClient, :create_token_review, fn "valid-token" ->
+      stub(K8sClient, :create_controller_token_review, fn "valid-token" ->
         {:ok, %{namespace: "tuist-runners-controller", name: "runners-controller"}}
       end)
 
@@ -47,7 +47,7 @@ defmodule TuistWeb.RunnersControllerTest do
     end
 
     test "returns zeros for an unknown fleet", %{conn: conn} do
-      stub(K8sClient, :create_token_review, fn "valid-token" ->
+      stub(K8sClient, :create_controller_token_review, fn "valid-token" ->
         {:ok, %{namespace: "tuist-runners-controller", name: "runners-controller"}}
       end)
 
@@ -78,7 +78,7 @@ defmodule TuistWeb.RunnersControllerTest do
     end
 
     test "returns 401 when TokenReview rejects the token", %{conn: conn} do
-      stub(K8sClient, :create_token_review, fn _ -> {:error, :unauthenticated} end)
+      stub(K8sClient, :create_controller_token_review, fn _ -> {:error, :unauthenticated} end)
 
       conn =
         conn
@@ -89,7 +89,7 @@ defmodule TuistWeb.RunnersControllerTest do
     end
 
     test "returns 503 when not in cluster", %{conn: conn} do
-      stub(K8sClient, :create_token_review, fn _ -> {:error, :not_in_cluster} end)
+      stub(K8sClient, :create_controller_token_review, fn _ -> {:error, :not_in_cluster} end)
 
       conn =
         conn

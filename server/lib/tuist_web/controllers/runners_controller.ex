@@ -91,7 +91,7 @@ defmodule TuistWeb.RunnersController do
   """
   def desired_replicas(conn, %{"fleet" => fleet}) when is_binary(fleet) and fleet != "" do
     with {:ok, token} <- bearer_token(conn),
-         {:ok, _} <- K8sClient.create_token_review(token) do
+         {:ok, _} <- K8sClient.create_controller_token_review(token) do
       signals = Runners.scaling_signals_for_fleet(fleet)
       json(conn, signals)
     else
