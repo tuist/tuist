@@ -218,6 +218,86 @@ defmodule Tuist.Kubernetes.ClientTest do
     end
   end
 
+  describe "create_token_review/2" do
+    @tag :tmp_dir
+    test "returns the SA principal when the token is authenticated and audience-bound", %{tmp_dir: tmp_dir} do
+      opts = in_cluster_opts(tmp_dir)
+
+      expect(Req, :request, fn request_opts ->
+        assert request_opts[:method] == :post
+
+        assert request_opts[:url] ==
+                 "https://kubernetes.default.svc:443/apis/authentication.k8s.io/v1/tokenreviews"
+
+        body = JSON.decode!(request_opts[:body])
+        assert body["spec"]["audiences"] == ["tuist-runners-dispatch"]
+        assert body["spec"]["token"] == "runner-token"
+
+        {:ok,
+         %Req.Response{
+           status: 201,
+           body: %{
+             "status" => %{
+               "authenticated" => true,
+               "audiences" => ["tuist-runners-dispatch"],
+               "user" => %{
+                 "username" => "system:serviceaccount:tuist-runners:tuist-runner-pool-default-runner-abc",
+                 "uid" => "uid-1"
+               }
+             }
+           }
+         }}
+      end)
+
+      assert {:ok, %{namespace: "tuist-runners", name: "tuist-runner-pool-default-runner-abc", uid: "uid-1"}} =
+               Client.create_token_review("runner-token", opts)
+    end
+
+    @tag :tmp_dir
+    test "returns :unauthenticated when the apiserver rejects the token", %{tmp_dir: tmp_dir} do
+      opts = in_cluster_opts(tmp_dir)
+
+      expect(Req, :request, fn _opts ->
+        {:ok, %Req.Response{status: 201, body: %{"status" => %{"authenticated" => false}}}}
+      end)
+
+      assert {:error, :unauthenticated} = Client.create_token_review("runner-token", opts)
+    end
+
+    @tag :tmp_dir
+    test "returns :unauthenticated when the token validation errors out (e.g. expired SA token)", %{tmp_dir: tmp_dir} do
+      # Reproduces the apiserver response when a projected SA token
+      # outlives its TTL: `status` carries an `error` field with no
+      # `authenticated` key. tart-kubelet mints the dispatch-audience
+      # token once at VM boot and doesn't rotate; warm-pool Pods that
+      # sit idle past the TTL hit this path on their next poll.
+      opts = in_cluster_opts(tmp_dir)
+
+      expect(Req, :request, fn _opts ->
+        {:ok,
+         %Req.Response{
+           status: 201,
+           body: %{
+             "status" => %{
+               "error" => "[invalid bearer token, service account token has expired]",
+               "user" => %{}
+             }
+           }
+         }}
+      end)
+
+      assert {:error, :unauthenticated} = Client.create_token_review("expired-token", opts)
+    end
+  end
+
+  defp in_cluster_opts(tmp_dir) do
+    token_path = Path.join(tmp_dir, "token")
+    ca_path = Path.join(tmp_dir, "ca.crt")
+    File.write!(token_path, "in-cluster-token\n")
+    File.write!(ca_path, "test-ca")
+    [env: Env, token_path: token_path, ca_path: ca_path]
+  end
+
   defp kubeconfig(%{token: token}) do
     kubeconfig_user("token: #{token}")
   end
