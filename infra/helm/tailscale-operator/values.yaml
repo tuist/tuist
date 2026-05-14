@@ -57,9 +57,10 @@ tailscale-operator:
       - "tag:tuist-k8s-staging"
 
 # Connector CR — the operator-managed `tailscaled` subnet router
-# that announces the macOS fleet's CGNAT range to the cluster CNI.
-# Once Ready, any cluster Pod can dial a Mac mini at its tailnet
-# IPv4 without joining the tailnet itself.
+# that announces the cluster's reachability to the tailnet's
+# 100.64.0.0/10 range. Lets tailnet devices dial in-cluster Services
+# through the Connector. Does NOT make tailnet IPs reachable from
+# arbitrary cluster Pods — that's what `macminiEgress` below is for.
 connector:
   enabled: true
   name: tuist-cluster-subnet-router
@@ -77,3 +78,37 @@ connector:
   # care which IP a request lands on — it gates by tag identity.
   advertiseRoutes:
     - "100.64.0.0/10"
+
+# Egress plumbing so cluster Pods (specifically alloy-metrics) can
+# reach each Mac mini at its MagicDNS FQDN. Materialised by
+# templates/macmini-egress.yaml — see that file's header for why a
+# ProxyGroup + per-target ExternalName is necessary on top of the
+# Connector subnet router.
+macminiEgress:
+  enabled: false
+  proxyGroup:
+    name: macmini-egress
+    # 2 replicas gives HA without burning a lot of pods; the proxy
+    # holds no state per scrape, so a restart drops one in-flight
+    # scrape interval at worst.
+    replicas: 2
+    # Tailscale identity the egress proxy registers under. Per-env
+    # overlays override to `tag:tuist-k8s-<env>` for the same reason
+    # the Connector tag is per-env: ACL grants are scoped to the
+    # cluster-env tag dialing the matching `tag:tuist-macmini-<env>`.
+    tags:
+      - "tag:tuist-k8s-staging"
+  # Per-mini ExternalName Services. Each entry produces one Service
+  # in the release namespace. The list is hand-maintained today;
+  # when the fleet grows past a handful, lift this into the CAPI
+  # controller so each `ScalewayAppleSiliconMachine` reconcile
+  # materialises its own egress Service.
+  #
+  # Schema:
+  #   - name:        Service name (must be a valid DNS-1123 label)
+  #     tailnetFQDN: MagicDNS hostname of the Mac mini (matches
+  #                  the `--hostname` passed to `tailscale up` in
+  #                  infra/macos-host-bootstrap/bootstrap.go, which
+  #                  is the CR/Node name). Suffix is the tailnet's
+  #                  MagicDNS domain, e.g. `<tailnet>.ts.net`.
+  machines: []

@@ -22,14 +22,15 @@ metadata:
     helm.sh/hook-weight: "5"
     helm.sh/hook-delete-policy: before-hook-creation
 spec:
-  # Advertise the Mac mini fleet's CGNAT range to the cluster so any
-  # Pod (alloy-metrics is the first consumer) can dial a Mac mini at
-  # its tailnet IPv4 without joining the tailnet itself. The
-  # Connector Pod runs `tailscaled` in subnet-router mode and writes
-  # routes for the advertised CIDRs onto the cluster's CNI overlay.
-  # The Tailscale ACLs (see infra/tailscale/acls.json) restrict who
-  # can dial which tag on which port — the route advertising itself
-  # is not the authorization boundary.
+  # Advertise the cluster's reachability to the tailnet's 100.64.0.0/10
+  # range *into the tailnet*, so tailnet devices can dial in-cluster
+  # Services through the Connector. The Tailscale ACLs (see
+  # infra/tailscale/acls.json) gate who can use this path.
+  #
+  # This does NOT make 100.x.y.z addresses reachable from arbitrary
+  # cluster Pods — only the Connector Pod's own `tailscaled` learns
+  # the routes. For the reverse direction (cluster Pod → Mac mini),
+  # see templates/macmini-egress.yaml.
   hostname: {{ .Values.connector.hostname | default "tuist-cluster-router" }}
   tags:
     {{- toYaml .Values.connector.tags | nindent 4 }}

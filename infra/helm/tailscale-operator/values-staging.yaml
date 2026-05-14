@@ -13,3 +13,19 @@ connector:
   hostname: tuist-cluster-router-staging
   tags:
     - "tag:tuist-k8s-staging"
+
+macminiEgress:
+  enabled: true
+  proxyGroup:
+    tags:
+      - "tag:tuist-k8s-staging"
+  # CAPI generates these names from the MachineDeployment template +
+  # a hash; expect them to change when a machine is replaced. The
+  # ProxyGroup itself is stable, only the per-Service mapping needs
+  # to be refreshed. Long-term fix: have the CAPI controller create
+  # the Service alongside each ScalewayAppleSiliconMachine.
+  machines:
+    - name: macos-fleet-lzx4r
+      tailnetFQDN: tuist-tuist-macos-fleet-5ps8c-lzx4r.taild6d7bb.ts.net
+    - name: runners-fleet-96spw
+      tailnetFQDN: tuist-tuist-runners-fleet-fkbr5-96spw.taild6d7bb.ts.net
