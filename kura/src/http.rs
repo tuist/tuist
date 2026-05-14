@@ -2592,4 +2592,65 @@ mod tests {
             });
         StatusCode::ACCEPTED
     }
+
+    mod client_ip {
+        use axum::http::{HeaderMap, HeaderValue};
+
+        use super::super::client_ip_from_headers;
+
+        #[test]
+        fn returns_first_hop_from_x_forwarded_for() {
+            let mut headers = HeaderMap::new();
+            headers.insert(
+                "x-forwarded-for",
+                HeaderValue::from_static("203.0.113.5, 10.0.0.1, 198.51.100.7"),
+            );
+            assert_eq!(
+                client_ip_from_headers(&headers)
+                    .expect("first hop should parse")
+                    .to_string(),
+                "203.0.113.5"
+            );
+        }
+
+        #[test]
+        fn trims_surrounding_whitespace_in_x_forwarded_for() {
+            let mut headers = HeaderMap::new();
+            headers.insert(
+                "x-forwarded-for",
+                HeaderValue::from_static("  203.0.113.5  , 10.0.0.1"),
+            );
+            assert_eq!(
+                client_ip_from_headers(&headers)
+                    .expect("trimmed first hop should parse")
+                    .to_string(),
+                "203.0.113.5"
+            );
+        }
+
+        #[test]
+        fn falls_back_to_x_real_ip_when_x_forwarded_for_is_missing() {
+            let mut headers = HeaderMap::new();
+            headers.insert("x-real-ip", HeaderValue::from_static("198.51.100.7"));
+            assert_eq!(
+                client_ip_from_headers(&headers)
+                    .expect("x-real-ip should parse")
+                    .to_string(),
+                "198.51.100.7"
+            );
+        }
+
+        #[test]
+        fn returns_none_when_no_address_headers_are_present() {
+            let headers = HeaderMap::new();
+            assert!(client_ip_from_headers(&headers).is_none());
+        }
+
+        #[test]
+        fn returns_none_when_first_hop_is_malformed() {
+            let mut headers = HeaderMap::new();
+            headers.insert("x-forwarded-for", HeaderValue::from_static("not-an-ip"));
+            assert!(client_ip_from_headers(&headers).is_none());
+        }
+    }
 }

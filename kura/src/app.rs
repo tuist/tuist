@@ -495,9 +495,10 @@ fn spawn_geoip_refresh_task(state: Arc<AppState>) {
         async move {
             loop {
                 tokio::time::sleep(interval).await;
-                let Some(geoip) = state.geoip.as_ref() else {
-                    return;
-                };
+                let geoip = state
+                    .geoip
+                    .as_ref()
+                    .expect("geoip presence checked before spawning the refresh task");
                 let outcome = geoip.refresh(&http).await;
                 state.metrics.record_geoip_refresh(outcome.as_str());
                 if matches!(outcome, crate::geoip::RefreshOutcome::Updated) {
