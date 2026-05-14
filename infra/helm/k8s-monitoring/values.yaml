@@ -174,6 +174,78 @@ k8s-monitoring:
     node-exporter:
       deploy: true
 
+  # ───── Service integrations ─────
+  #
+  # The `alloy` integration scrapes each Alloy collector's own /metrics
+  # endpoint with a curated allow-list (build_info, component health,
+  # WAL stats, clustering). The chart-default allow-list does NOT
+  # include `alloy_config_last_load_successful` — we override
+  # `tuning.includeMetrics` to keep that one + the success-timestamp.
+  #
+  # Why we care about config-load success:
+  # Alloy's reload model is "hot-swap if valid, keep serving previous
+  # config if invalid." A broken config landing in the ConfigMap (via
+  # `kubectl apply`, `helm upgrade`, or extraConfig drift) is silent —
+  # the config-reloader sidecar logs `400 Bad Request` every 5s, but
+  # the pod stays Ready and serves stale config until someone restarts
+  # it. Bringing the success flag to Grafana Cloud lets us alert on
+  # it instead of finding out hours later when a fresh pod crashloops.
+  #
+  # Alert to create in Grafana Cloud (PromQL):
+  #
+  #   min by (cluster, instance, job) (alloy_config_last_load_successful) == 0
+  #
+  # Recommended config:
+  #   - For: 5m   (absorb the legitimate "pod restarted between scrapes" gap;
+  #                must be ≥ 2× the 60s scrape interval below + a buffer)
+  #   - Severity: critical
+  #   - Summary: "Alloy {{ $labels.instance }} ({{ $labels.cluster }})
+  #              is running stale config — last reload failed"
+  #   - Runbook: kubectl logs <pod> -c alloy to find the parse error;
+  #              fix the config in the values overlay, re-deploy, restart pod.
+  integrations:
+    collector: alloy-metrics
+    alloy:
+      # One instance entry per Alloy collector role. Targets are
+      # discovered by the operator-managed Service the chart renders
+      # for each role (matched on `app.kubernetes.io/name`). The
+      # tuning override is identical across roles — kept inlined for
+      # clarity rather than yaml-anchored, since the chart's
+      # values.schema.json validates per-entry.
+      instances:
+        - name: alloy-metrics
+          labelSelectors:
+            app.kubernetes.io/name: alloy-metrics
+          metrics:
+            tuning:
+              includeMetrics:
+                - alloy_config_last_load_successful
+                - alloy_config_last_load_success_timestamp_seconds
+        - name: alloy-logs
+          labelSelectors:
+            app.kubernetes.io/name: alloy-logs
+          metrics:
+            tuning:
+              includeMetrics:
+                - alloy_config_last_load_successful
+                - alloy_config_last_load_success_timestamp_seconds
+        - name: alloy-singleton
+          labelSelectors:
+            app.kubernetes.io/name: alloy-singleton
+          metrics:
+            tuning:
+              includeMetrics:
+                - alloy_config_last_load_successful
+                - alloy_config_last_load_success_timestamp_seconds
+        - name: alloy-receiver
+          labelSelectors:
+            app.kubernetes.io/name: alloy-receiver
+          metrics:
+            tuning:
+              includeMetrics:
+                - alloy_config_last_load_successful
+                - alloy_config_last_load_success_timestamp_seconds
+
   # ───── Collectors (Alloy instances) ─────
   #
   # k8s-monitoring splits Alloy into four roles so each one can be scaled
