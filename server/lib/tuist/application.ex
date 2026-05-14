@@ -4,6 +4,7 @@ defmodule Tuist.Application do
   use Application
   use Boundary, top_level?: true, deps: [Tuist, TuistWeb]
 
+  alias Tuist.Application.RuntimeChildren
   alias Tuist.Builds.Build
   alias Tuist.Builds.BuildFile
   alias Tuist.Builds.BuildIssue
@@ -312,7 +313,7 @@ defmodule Tuist.Application do
         {TuistWeb.RateLimit.InMemory, [clean_period: to_timeout(hour: 1)]},
         {Tuist.API.Pipeline, []},
         TuistWeb.Telemetry
-      ] ++ guardian_db_sweeper_children() ++ dev_content_children() ++ [TuistWeb.Endpoint]
+      ] ++ RuntimeChildren.guardian_db_sweeper(Environment.mode()) ++ dev_content_children() ++ [TuistWeb.Endpoint]
 
     children
     |> Kernel.++(
@@ -394,18 +395,6 @@ defmodule Tuist.Application do
           id: Tuist.Marketing.ContentFileWatcher
         )
       ]
-    else
-      []
-    end
-  end
-
-  # Guardian refresh tokens are only issued and verified by the Phoenix
-  # endpoint, and the `:processor` / `:xcresult_processor` pods connect
-  # with a DB role that lacks privileges on `guardian_tokens`. Running
-  # the sweeper there fails every interval with `permission denied`.
-  defp guardian_db_sweeper_children do
-    if Environment.web?() do
-      [{Guardian.DB.Sweeper, [interval: 60 * 60 * 1000]}]
     else
       []
     end
