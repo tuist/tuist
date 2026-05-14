@@ -480,6 +480,15 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			TartKubeletBinary:    r.TartKubeletBinary,
 			TailscaleBinaries:    r.TailscaleBinaries,
 			TailscaleAuthKey:     tailscaleAuthKey,
+			// node_exporter is re-installed on every drift-loop run,
+			// not just on first bootstrap, so a chart-driven binary
+			// bump (NODE_EXPORTER_VERSION ARG in the operator
+			// Dockerfile) lands on running minis the next time the
+			// tart-kubelet binary drifts. Forgetting this here made
+			// node_exporter silently skip on every drift update —
+			// installNodeExporter short-circuits when its binary is
+			// empty.
+			NodeExporterBinary:   r.NodeExporterBinary,
 			HostCPU:              hostCPUFor(machine, r.TartKubeletHostCPU),
 			HostMemoryMB:         hostMemoryMBFor(machine, r.TartKubeletHostMemoryMB),
 			MaxPods:              r.TartKubeletMaxPods,
@@ -512,6 +521,16 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 	// Tailscale operator pends the ExternalName rewrite until the
 	// FQDN resolves and reconciles transparently when it does.
 	if err := r.reconcileTailscaleEgressService(ctx, machine); err != nil {
+		// Conflicts are benign: the Tailscale operator and this
+		// reconciler write to the same Service (it owns the
+		// externalName rewrite + ts-condition annotations, we own
+		// the tailnet-fqdn + ports). When they race, one Update
+		// loses the resourceVersion check. Requeue immediately so
+		// the next reconcile reads the fresh version; don't log an
+		// error or surface an Event for the noise.
+		if apierrors.IsConflict(err) {
+			return ctrl.Result{Requeue: true}, nil
+		}
 		// Don't fail the whole reconcile: bootstrap already succeeded
 		// and the egress Service is the scrape boundary, not the
 		// workload boundary. Surface the failure as an Event and
