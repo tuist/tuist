@@ -279,7 +279,7 @@ defmodule TuistWeb.GitHubAppManifestController do
         :private_ip_resolved ->
           dgettext(
             "dashboard",
-            "%{url} resolves to a non-public IP address, so Tuist refuses to connect to it. Self-host Tuist inside your network to integrate with an internal GitHub Enterprise Server.",
+            "%{url} resolves to a non-public IP address, so Tuist refuses to connect to it. Either expose the GitHub Enterprise Server API on a public address (allowlisting Tuist's egress IPs is enough), or self-host Tuist inside your network.",
             url: client_url
           )
 

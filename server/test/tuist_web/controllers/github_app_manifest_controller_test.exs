@@ -140,7 +140,7 @@ defmodule TuistWeb.GitHubAppManifestControllerTest do
 
       stub(SSRFGuard, :pin, fn _url -> {:error, :private_ip_resolved} end)
 
-      assert_raise BadRequestError, ~r/non-public IP address.*Self-host Tuist/s, fn ->
+      assert_raise BadRequestError, ~r/non-public IP address.*self-host Tuist/si, fn ->
         get(conn, ~p"/integrations/github/manifest/callback", %{
           "code" => "tmpcode",
           "state" => state_token
