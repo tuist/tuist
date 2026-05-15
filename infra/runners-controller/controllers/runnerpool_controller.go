@@ -55,6 +55,18 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, err
 	}
 
+	// Track image rolls. The server-side drain endpoint reads
+	// `status.imageRolledAt` and gates HTTP 410 on a per-Pod time
+	// slot derived from the Pod name, so stale Pods halt in waves
+	// rather than all on the first poll after a digest-pin bump.
+	// Setting on first reconcile (when `ObservedImage` is empty) is
+	// fine — there are no stale Pods yet, and the timestamp just
+	// establishes the t=0 baseline for any future roll.
+	if pool.Status.ObservedImage != pool.Spec.Image {
+		pool.Status.ObservedImage = pool.Spec.Image
+		pool.Status.ImageRolledAt = metav1.Now()
+	}
+
 	// Count Pods owned by this pool that are alive (not in a
 	// terminal phase, not being deleted). Terminal Pods aren't
 	// counted toward `replicas` — they're on their way out and a

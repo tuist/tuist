@@ -3,6 +3,7 @@ package controllers
 import (
 	"context"
 	"testing"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -214,6 +215,120 @@ func TestReconcile_NoDeletionWhenImageMatches(t *testing.T) {
 	}
 	if len(pods.Items) != 1 || pods.Items[0].Name != "p-runner-current" {
 		t.Fatalf("expected current-image pod to survive reconcile untouched, got %v", podNames(pods.Items))
+	}
+}
+
+// TestReconcile_StampsImageRolledAtOnFirstReconcile establishes
+// the baseline the server-side drain endpoint reads. Without this
+// stamp, the server can't compute a per-Pod drain slot — every
+// stale Pod would either drain immediately (thundering herd) or
+// never (depending on the fallback). The first reconcile of a
+// fresh pool must set both `ObservedImage` and `ImageRolledAt`.
+func TestReconcile_StampsImageRolledAtOnFirstReconcile(t *testing.T) {
+	scheme := mustScheme(t)
+	pool := newPool("p", "ghcr.io/tuist/tuist-runner@sha256:initial", 0)
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+
+	r := &RunnerPoolReconciler{Client: c, Scheme: scheme, DispatchURL: "http://dispatch"}
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{
+		NamespacedName: nn(pool.Namespace, pool.Name),
+	}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	updated := &tuistv1.RunnerPool{}
+	if err := c.Get(context.Background(), nn(pool.Namespace, pool.Name), updated); err != nil {
+		t.Fatalf("get pool: %v", err)
+	}
+	if updated.Status.ObservedImage != pool.Spec.Image {
+		t.Fatalf("ObservedImage = %q, want %q", updated.Status.ObservedImage, pool.Spec.Image)
+	}
+	if updated.Status.ImageRolledAt.IsZero() {
+		t.Fatalf("ImageRolledAt is zero, expected stamp on first reconcile")
+	}
+}
+
+// TestReconcile_BumpsImageRolledAtOnSpecImageChange covers the
+// digest-pin bump path. When `spec.image` flips to a new value,
+// the controller must overwrite `ObservedImage` and reset
+// `ImageRolledAt` to the moment of observation — that timestamp is
+// the t=0 the server uses to compute per-Pod drain slots, so a
+// stale ImageRolledAt would cause Pods to drain at the wrong
+// moment relative to the actual roll.
+func TestReconcile_BumpsImageRolledAtOnSpecImageChange(t *testing.T) {
+	scheme := mustScheme(t)
+	oldImage := "ghcr.io/tuist/tuist-runner@sha256:old"
+	newImage := "ghcr.io/tuist/tuist-runner@sha256:new"
+
+	previousRoll := metav1.NewTime(metav1.Now().Add(-time.Hour))
+	pool := newPool("p", newImage, 0)
+	pool.Status.ObservedImage = oldImage
+	pool.Status.ImageRolledAt = previousRoll
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+
+	r := &RunnerPoolReconciler{Client: c, Scheme: scheme, DispatchURL: "http://dispatch"}
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{
+		NamespacedName: nn(pool.Namespace, pool.Name),
+	}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	updated := &tuistv1.RunnerPool{}
+	if err := c.Get(context.Background(), nn(pool.Namespace, pool.Name), updated); err != nil {
+		t.Fatalf("get pool: %v", err)
+	}
+	if updated.Status.ObservedImage != newImage {
+		t.Fatalf("ObservedImage = %q, want %q", updated.Status.ObservedImage, newImage)
+	}
+	if !updated.Status.ImageRolledAt.After(previousRoll.Time) {
+		t.Fatalf("ImageRolledAt = %v, expected to be after previous %v", updated.Status.ImageRolledAt, previousRoll)
+	}
+}
+
+// TestReconcile_LeavesImageRolledAtAloneWhenImageUnchanged is the
+// regression test: a steady-state reconcile (no image change) must
+// not bump the timestamp, or the staggered drain schedule would
+// keep resetting and stale Pods would never become slot-eligible.
+func TestReconcile_LeavesImageRolledAtAloneWhenImageUnchanged(t *testing.T) {
+	scheme := mustScheme(t)
+	image := "ghcr.io/tuist/tuist-runner@sha256:steady"
+	// JSON round-trip truncates to second precision; mint the
+	// fixture at second precision so the equality assert is stable.
+	priorRoll := metav1.NewTime(metav1.Now().Add(-10 * time.Minute).Truncate(time.Second))
+
+	pool := newPool("p", image, 0)
+	pool.Status.ObservedImage = image
+	pool.Status.ImageRolledAt = priorRoll
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+
+	r := &RunnerPoolReconciler{Client: c, Scheme: scheme, DispatchURL: "http://dispatch"}
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{
+		NamespacedName: nn(pool.Namespace, pool.Name),
+	}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	updated := &tuistv1.RunnerPool{}
+	if err := c.Get(context.Background(), nn(pool.Namespace, pool.Name), updated); err != nil {
+		t.Fatalf("get pool: %v", err)
+	}
+	if !updated.Status.ImageRolledAt.Equal(&priorRoll) {
+		t.Fatalf("ImageRolledAt = %v, expected unchanged %v", updated.Status.ImageRolledAt, priorRoll)
 	}
 }
 
