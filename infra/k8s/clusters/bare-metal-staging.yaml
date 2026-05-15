@@ -1,6 +1,6 @@
 # Bare-metal substrate for the staging workload cluster.
 #
-# Owns three things:
+# Owns two things:
 #
 #   1. `HetznerBareMetalHost` CRs — one per physical AX42-U we have
 #      provisioned through the Hetzner Robot panel. caph claims these,
@@ -15,12 +15,26 @@
 #      partition layout, and where the SSH credentials + install
 #      script live.
 #
-#   3. ExternalSecret for the Robot webservice credentials — caph
-#      reads these to drive the Robot API during rescue boot. The
-#      1Password item lives in the `tuist-k8s-staging` vault as
-#      `HETZNER_WEBSERVICE` (matches the user the operator created in
-#      the Robot panel; per-env vault scoping keeps staging and
-#      production credentials independently revocable).
+# Prerequisite Secrets (created manually on the mgmt cluster, see
+# `infra/runners-controller/AGENTS.md` for the bring-up runbook):
+#
+#   - `hetzner-robot-credentials` in `org-tuist` — keys
+#     `hetznerRobotUser` + `hetznerRobotPassword`. caph reads these
+#     via the HetznerClusterTemplate's `hetznerSecretRef` to drive
+#     the Robot API during rescue boot.
+#
+#   - `hetzner-bare-metal-ssh-key` in `org-tuist` — keys
+#     `sshkey-name` + `ssh-publickey` + `ssh-privatekey`. Referenced
+#     by `HetznerBareMetalMachineTemplate.spec.template.spec.sshSpec`
+#     below.
+#
+# Both Secrets are sourced from the `tuist-k8s-staging` 1Password
+# vault (items `HETZNER_WEBSERVICE` and `HETZNER_BARE_METAL_SSH_KEY`)
+# but the mgmt cluster's ESO ClusterSecretStore is scoped to the
+# `tuist-k8s-mgmt` vault, so the operator pulls these out-of-band
+# with `op read` + `kubectl create secret` rather than via
+# ExternalSecret. Per-env vault scoping keeps staging and production
+# Robot credentials independently revocable.
 #
 # Schema note: the caph bare-metal CR fields below track caph >=v1.0.
 # If the running caph version differs, the operator may need to
@@ -28,75 +42,6 @@
 # overall structure — `HetznerBareMetalHost` per server, claimed by
 # a `HetznerBareMetalMachineTemplate`, fed from a Secret named in
 # `sshSpec.secretRef` — is stable across versions.
-
----
-# Sync the Robot webservice user + password from 1Password into a
-# Secret caph reads via the HetznerCluster spec's
-# `hetznerSecretRef` (already wired into the existing tuist-staging
-# Cluster, but the credentials are added here on top of the existing
-# HCloud token so caph's Robot client can authenticate too).
-apiVersion: external-secrets.io/v1
-kind: ExternalSecret
-metadata:
-  name: hetzner-robot-credentials
-  namespace: org-tuist
-  labels:
-    app.kubernetes.io/component: caph
-    app.kubernetes.io/managed-by: tuist-bootstrap
-spec:
-  refreshInterval: "1h"
-  secretStoreRef:
-    name: onepassword
-    kind: ClusterSecretStore
-  target:
-    name: hetzner-robot-credentials
-    creationPolicy: Owner
-  data:
-    # caph expects two keys under the same Secret as its existing
-    # `HCLOUD_TOKEN`: `hetznerRobotUser` and `hetznerRobotPassword`.
-    # The 1Password item `HETZNER_WEBSERVICE` holds them in
-    # `username` and `password` fields respectively.
-    - secretKey: hetznerRobotUser
-      remoteRef:
-        key: "HETZNER_WEBSERVICE/username"
-    - secretKey: hetznerRobotPassword
-      remoteRef:
-        key: "HETZNER_WEBSERVICE/password"
-
----
-# SSH key caph SSHes in with during the rescue-system → installimage
-# transition. The same key is the one the operator pastes into the
-# Robot order form when provisioning a new AX-class host, so caph
-# can sign in to rescue mode out-of-the-box.
-apiVersion: external-secrets.io/v1
-kind: ExternalSecret
-metadata:
-  name: hetzner-bare-metal-ssh-key
-  namespace: org-tuist
-  labels:
-    app.kubernetes.io/component: caph
-    app.kubernetes.io/managed-by: tuist-bootstrap
-spec:
-  refreshInterval: "1h"
-  secretStoreRef:
-    name: onepassword
-    kind: ClusterSecretStore
-  target:
-    name: hetzner-bare-metal-ssh-key
-    creationPolicy: Owner
-  data:
-    - secretKey: sshkey-name
-      remoteRef:
-        # The display name set in the Robot panel when this key was
-        # uploaded (`hetzner-bm-staging` per the order flow). caph
-        # matches the key by name when configuring the host.
-        key: "HETZNER_BARE_METAL_SSH_KEY/public-key-name"
-    - secretKey: ssh-publickey
-      remoteRef:
-        key: "HETZNER_BARE_METAL_SSH_KEY/public-key"
-    - secretKey: ssh-privatekey
-      remoteRef:
-        key: "HETZNER_BARE_METAL_SSH_KEY/private-key"
 
 ---
 # Per-host CR. One entry per AX-class machine provisioned via Robot.
@@ -130,10 +75,12 @@ spec:
   rootDeviceHints:
     raid:
       wwn: []
-  # Robot credentials. The Secret is synced by ESO above; caph reads
-  # `hetznerRobotUser` + `hetznerRobotPassword` keys.
-  hetznerRobotCredentialsRef:
-    name: hetzner-robot-credentials
+  # Robot credentials are read from the same Secret the
+  # HetznerClusterTemplate's `hetznerSecretRef` already names (key
+  # additions wired below — keys `hetznerRobotUser` +
+  # `hetznerRobotPassword`). Per-host credentials override isn't
+  # supported on this CR in caph >=v1.0; the fleet-wide secret is
+  # the only path.
 
 ---
 # Infrastructure template for the bare-metal-worker MachineDeployment

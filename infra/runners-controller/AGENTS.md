@@ -177,6 +177,40 @@ Node ready to schedule runner Pods (which carry
 `runtimeClassName: kata-fc`, so each Pod becomes a microVM)
 ```
 
+### One-time mgmt-cluster Secret bootstrap
+
+The two Secrets caph needs (`hetzner-robot-credentials` and
+`hetzner-bare-metal-ssh-key` in `org-tuist`) live in the
+`tuist-k8s-staging` 1Password vault, but the mgmt cluster's ESO
+ClusterSecretStore is scoped to `tuist-k8s-mgmt`. So the operator
+creates these Secrets manually once per env, rather than via
+ExternalSecret:
+
+```bash
+# Robot webservice credentials — caph drives the Robot API with these
+op read "op://tuist-k8s-staging/HETZNER_WEBSERVICE/username" > /tmp/robot-user
+op read "op://tuist-k8s-staging/HETZNER_WEBSERVICE/password" > /tmp/robot-pass
+kubectl --kubeconfig "$MGMT_KUBECONFIG" -n org-tuist create secret generic \
+  hetzner-robot-credentials \
+  --from-file=hetznerRobotUser=/tmp/robot-user \
+  --from-file=hetznerRobotPassword=/tmp/robot-pass
+shred -u /tmp/robot-user /tmp/robot-pass
+
+# SSH key — caph SSHes into rescue mode with this
+op read "op://tuist-k8s-staging/HETZNER_BARE_METAL_SSH_KEY/public-key-name" > /tmp/sshname
+op read "op://tuist-k8s-staging/HETZNER_BARE_METAL_SSH_KEY/public-key"      > /tmp/sshpub
+op read "op://tuist-k8s-staging/HETZNER_BARE_METAL_SSH_KEY/private-key"     > /tmp/sshpriv
+kubectl --kubeconfig "$MGMT_KUBECONFIG" -n org-tuist create secret generic \
+  hetzner-bare-metal-ssh-key \
+  --from-file=sshkey-name=/tmp/sshname \
+  --from-file=ssh-publickey=/tmp/sshpub \
+  --from-file=ssh-privatekey=/tmp/sshpriv
+shred -u /tmp/sshname /tmp/sshpub /tmp/sshpriv
+```
+
+To rotate either Secret, `kubectl delete secret <name> -n org-tuist`
+on the mgmt cluster and re-run the matching block above.
+
 ### Bringing up a new bare-metal host (operator workflow)
 
 1. **Order an AX-class server from [robot.hetzner.com](https://robot.hetzner.com)**.
@@ -189,8 +223,9 @@ Node ready to schedule runner Pods (which carry
 2. **Add a `HetznerBareMetalHost` CR** to
    `infra/k8s/clusters/bare-metal-staging.yaml`, modeled on the
    existing `bm-staging-2986829` entry. Set `serverID` to the new
-   number; everything else (Robot credentials secret reference,
-   `rootDeviceHints`) stays the same.
+   number; `rootDeviceHints` stays the same. The Secrets the host
+   references must already exist on the mgmt cluster (see "One-time
+   mgmt-cluster Secret bootstrap" above).
 
 3. **Bump `replicas` on the `runners-linux` MachineDeployment** in
    `infra/k8s/clusters/cluster-staging.yaml` to match the number of
