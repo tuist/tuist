@@ -1,21 +1,22 @@
 name: Linux Runner Image
 
-# Builds the Tuist Linux runner OCI image consumed by
-# `runnersFleetLinux.pools[].runnerImage` in the helm chart.
-# Pushes to ghcr.io/tuist/tuist-linux-runner:sha-<git-sha> and
-# :latest.
+# PR validation + on-demand build of the Tuist Linux runner OCI image
+# consumed by `runnersFleetLinux.pools[].runnerImage` in the helm
+# chart. PR runs build only (no push); workflow_dispatch pushes
+# `:sha-<git-sha>` + `:latest` for branch validation / bring-up.
 #
-# Mirrors the shape of .github/workflows/runners-controller-image.yml
-# — Linux substrate, hosted GitHub runner is sufficient (no Tart /
-# Mac mini required like the macOS runner image).
+# The push-on-main flow lives in release.yml's release-linux-runner-image
+# job — that's the path that produces semver-tagged images, resolves
+# the digest, and rewrites `runnersFleetLinux.pools[].runnerImage` in
+# managed-env values files. This workflow's `:sha-<sha>` tag is for
+# pre-release iteration only and not consumed by the chart from
+# release-relevant commits.
+#
+# Mirrors the shape of .github/workflows/runner-image.yml — Linux
+# substrate, hosted GitHub runner is sufficient (no Tart / Mac mini
+# required like the macOS runner image).
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - infra/linux-runner-image/**
-      - .github/workflows/linux-runner-image.yml
   pull_request:
     paths:
       - infra/linux-runner-image/**
@@ -61,12 +62,11 @@ jobs:
             # build-only validation.
             echo "tags=${IMAGE}:pr-${GIT_SHA}" >> "$GITHUB_OUTPUT"
           else
-            {
-              echo "tags<<EOF"
-              echo "${IMAGE}:sha-${GIT_SHA}"
-              echo "${IMAGE}:latest"
-              echo "EOF"
-            } >> "$GITHUB_OUTPUT"
+            # workflow_dispatch: push a per-SHA tag for branch
+            # validation / bring-up. The release flow owns `:latest`
+            # and the semver tags, so we deliberately don't touch
+            # `:latest` here.
+            echo "tags=${IMAGE}:sha-${GIT_SHA}" >> "$GITHUB_OUTPUT"
           fi
 
       - uses: docker/build-push-action@v6

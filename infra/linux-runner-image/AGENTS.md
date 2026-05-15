@@ -39,15 +39,20 @@ release-pipeline digest rewrite, same shape as the macOS image.
 ## CI
 
 The release pipeline mirrors `release-runner-image` for macOS but
-runs on a standard GitHub-hosted Linux runner (no Tart / GUI
-session needed). Steady-state: `feat(linux-runner-image)` /
+runs on a standard cloud Linux runner (no Tart / GUI session
+needed). Steady-state: `feat(linux-runner-image)` /
 `fix(linux-runner-image)` conventional commits on `main` trigger
 a `release-linux-runner-image` job that builds, pushes
-`ghcr.io/tuist/tuist-linux-runner:<semver>` + `:latest`, resolves
-the digest with `crane digest`, and rewrites
+`ghcr.io/tuist/tuist-linux-runner:<semver>` + `:latest`, takes the
+digest from the build-push-action's own output, and rewrites
 `runnersFleetLinux.pools[*].runnerImage` across managed-env
-values files. Ad-hoc rebuilds via `.github/workflows/linux-runner-image.yml`
-on push-to-main or `workflow_dispatch`.
+values files (those whose pin is already non-empty — canary /
+production stay empty until the env is flipped on). Ad-hoc
+rebuilds for branch validation go through
+`.github/workflows/linux-runner-image.yml`: `pull_request` builds
+without pushing, `workflow_dispatch` pushes `:sha-<git-sha>` only
+(`:latest` and semver tags belong exclusively to the release
+flow).
 
 ## How it ends up serving traffic
 

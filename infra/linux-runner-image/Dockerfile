@@ -18,6 +18,7 @@
 
 FROM ubuntu:22.04
 
+# renovate: datasource=github-releases depName=actions/runner
 ARG RUNNER_VERSION=2.334.0
 ARG RUNNER_ARCH=x64
 
