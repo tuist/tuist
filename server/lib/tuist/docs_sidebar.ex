@@ -357,6 +357,7 @@ defmodule Tuist.Docs.Sidebar do
             ]
           },
           %Item{label: "Slack", slug: "/en/guides/integrations/slack"},
+          %Item{label: "Webhooks", slug: "/en/guides/integrations/webhooks"},
           %Item{
             label: "Git forges",
             items: [
