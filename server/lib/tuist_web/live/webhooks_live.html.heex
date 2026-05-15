@@ -75,98 +75,19 @@
                 </div>
               <% else %>
                 <div data-part="modal-body">
-                  <.alert
-                    :if={@create_form_error}
-                    status="error"
-                    type="secondary"
-                    size="small"
-                    title={@create_form_error}
+                  <.webhook_endpoint_form
+                    id_prefix="webhook"
+                    event_groups={@event_groups}
+                    name={@create_form_name}
+                    url={@create_form_url}
+                    event_types={@create_form_event_types}
+                    error={@create_form_error}
+                    events_label={dgettext("dashboard_account", "Events to listen for")}
+                    on_name_change="update_create_form_name"
+                    on_url_change="update_create_form_url"
+                    on_toggle_event_type="toggle_create_form_event_type"
+                    on_toggle_event_group="toggle_create_form_event_group"
                   />
-                  <.text_input
-                    id="webhook-endpoint-name"
-                    name="name"
-                    type="basic"
-                    label={dgettext("dashboard_account", "Name")}
-                    sublabel={
-                      dgettext(
-                        "dashboard_account",
-                        "How this endpoint will be listed in the table."
-                      )
-                    }
-                    value={@create_form_name}
-                    placeholder={dgettext("dashboard_account", "Webhook name")}
-                    phx-keyup="update_create_form_name"
-                    phx-debounce="300"
-                  />
-                  <.text_input
-                    id="webhook-endpoint-url"
-                    name="url"
-                    type="basic"
-                    label={dgettext("dashboard_account", "Endpoint URL")}
-                    sublabel={
-                      dgettext(
-                        "dashboard_account",
-                        "HTTPS only. Tuist will POST signed JSON envelopes here."
-                      )
-                    }
-                    value={@create_form_url}
-                    placeholder="https://example.com/tuist-webhook"
-                    phx-keyup="update_create_form_url"
-                    phx-debounce="300"
-                  />
-                  <div data-part="event-types">
-                    <span data-part="label">
-                      {dgettext("dashboard_account", "Events to listen for")}
-                    </span>
-                    <span data-part="sublabel">
-                      {dgettext(
-                        "dashboard_account",
-                        "Only the selected events trigger a delivery to this endpoint."
-                      )}
-                    </span>
-                    <div :for={group <- @event_groups} data-part="event-group">
-                      <h3 data-part="event-group-label">{group.label}</h3>
-                      <div data-part="event-checkbox-list">
-                        <label
-                          id={"webhook-event-group-#{group.key}"}
-                          data-part="event-checkbox"
-                          data-role="select-all"
-                          phx-click="toggle_create_form_event_group"
-                          phx-value-data={group.key}
-                        >
-                          <.checkbox_control
-                            checked={all_group_events_selected?(group, @create_form_event_types)}
-                            indeterminate={
-                              group_partially_selected?(group, @create_form_event_types)
-                            }
-                          />
-                          <div data-part="body">
-                            <span data-part="label">
-                              {dgettext("dashboard_account", "Select all %{group} events",
-                                group: group.label
-                              )}
-                            </span>
-                          </div>
-                        </label>
-                        <label
-                          :for={event <- group.events}
-                          id={"webhook-event-#{event.type}"}
-                          data-part="event-checkbox"
-                          phx-click="toggle_create_form_event_type"
-                          phx-value-data={event.type}
-                        >
-                          <.checkbox_control checked={event.type in @create_form_event_types} />
-                          <div data-part="body">
-                            <%!-- Render the canonical event type as the label — same string --%>
-                            <%!-- that lands in the `type` field of the webhook payload, so --%>
-                            <%!-- the UI and receiver code stay in sync. --%>
-                            <code data-part="label">{event.type}</code>
-                            <span data-part="description">{event.description}</span>
-                          </div>
-                        </label>
-                      </div>
-                    </div>
-                  </div>
                 </div>
               <% end %>
 

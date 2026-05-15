@@ -8,8 +8,8 @@ defmodule TuistWeb.WebhookLive do
   use TuistWeb, :live_view
   use Noora
 
-  import Noora.CheckboxControl
   import Noora.Filter
+  import TuistWeb.Components.WebhookEndpointForm
 
   alias Noora.Filter
   alias Tuist.Authorization
@@ -314,23 +314,6 @@ defmodule TuistWeb.WebhookLive do
       :deliveries_timeseries,
       Webhooks.deliveries_timeseries(endpoint.id, start_datetime: start_datetime, end_datetime: end_datetime)
     )
-  end
-
-  @doc """
-  Returns true if every event in `group` is in the `selected` list.
-  Drives the group-level "Select all" checkbox state.
-  """
-  def all_group_events_selected?(group, selected),
-    do: Enum.all?(group.events, &(&1.type in selected))
-
-  @doc """
-  Returns true when some but not all events in `group` are selected — the
-  group checkbox renders in its indeterminate state.
-  """
-  def group_partially_selected?(group, selected) do
-    types = Enum.map(group.events, & &1.type)
-    selected_count = Enum.count(types, &(&1 in selected))
-    selected_count > 0 and selected_count < length(types)
   end
 
   defp reset_edit_form(socket) do

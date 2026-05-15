@@ -3,7 +3,7 @@ defmodule TuistWeb.WebhooksLive do
   use TuistWeb, :live_view
   use Noora
 
-  import Noora.CheckboxControl
+  import TuistWeb.Components.WebhookEndpointForm
 
   alias Tuist.Authorization
   alias Tuist.Webhooks
@@ -26,24 +26,6 @@ defmodule TuistWeb.WebhooksLive do
       |> reset_disclosure()
 
     {:ok, socket}
-  end
-
-  @doc """
-  Returns true if every event in `group` is in the `selected` list.
-  Drives the group-level "Select all" checkbox state.
-  """
-  def all_group_events_selected?(group, selected) do
-    Enum.all?(group.events, &(&1.type in selected))
-  end
-
-  @doc """
-  Returns true when some but not all events in `group` are selected — the
-  group checkbox renders in its indeterminate state.
-  """
-  def group_partially_selected?(group, selected) do
-    types = Enum.map(group.events, & &1.type)
-    selected_count = Enum.count(types, &(&1 in selected))
-    selected_count > 0 and selected_count < length(types)
   end
 
   @doc """
