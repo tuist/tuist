@@ -184,7 +184,8 @@ defmodule Tuist.RunnersTest do
   # (kept in lockstep with `@drain_slots` in lib/tuist/runners.ex);
   # bumping that constant means revisiting this helper.
   defp pick_pod_in_nonzero_slot do
-    Enum.find(0..1000, fn i ->
+    0..1000
+    |> Enum.find(fn i ->
       :erlang.phash2("pod-#{i}", 8) != 0
     end)
     |> then(&"pod-#{&1}")
