@@ -13,6 +13,10 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     AlertEvaluationWorker.perform(%Oban.Job{args: %{"alert_id" => alert_id}})
   end
 
+  defp run_scoped(alert_id, test_case_ids) do
+    AlertEvaluationWorker.perform(%Oban.Job{args: %{"alert_id" => alert_id, "test_case_ids" => test_case_ids}})
+  end
+
   test "no-op when automation is missing" do
     reject(&FlakyTestsMonitor.evaluate/1)
     assert :ok = run(UUIDv7.generate())
@@ -50,6 +54,39 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     end)
 
     assert :ok = run(automation.id)
+  end
+
+  test "scoped jobs evaluate and diff only the affected test cases" do
+    automation =
+      AutomationsFixtures.automation_alert_fixture(trigger_actions: [%{"type" => "change_state", "state" => "muted"}])
+
+    affected_id = Ecto.UUID.generate()
+
+    reject(&FlakyTestsMonitor.evaluate/1)
+
+    expect(FlakyTestsMonitor, :evaluate, fn ^automation, [^affected_id] ->
+      %{triggered: [affected_id], all: [affected_id]}
+    end)
+
+    expect(Automations, :list_active_alert_events, fn id, [^affected_id] ->
+      assert id == automation.id
+      []
+    end)
+
+    expected_entity = %{type: :test_case, id: affected_id}
+
+    expect(ActionExecutor, :execute_actions, fn actions, ^automation, ^expected_entity ->
+      assert actions == automation.trigger_actions
+      :ok
+    end)
+
+    expect(Automations, :create_alert_event, fn %{alert_id: id, test_case_id: tc, status: "triggered"} ->
+      assert id == automation.id
+      assert tc == affected_id
+      :ok
+    end)
+
+    assert :ok = run_scoped(automation.id, [affected_id, "not-a-uuid", affected_id])
   end
 
   test "skips test cases that already have an active alert" do

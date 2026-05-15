@@ -13,6 +13,41 @@ defmodule Tuist.Automations.Workers.AutomationSchedulerTest do
     assert_enqueued(worker: AlertEvaluationWorker, args: %{alert_id: alert.id})
   end
 
+  test "does not schedule established rolling alerts" do
+    AutomationsFixtures.automation_alert_fixture(
+      monitor_type: "flaky_run_count",
+      trigger_config: %{"threshold" => 1, "window_type" => "rolling", "rolling_window_size" => 100}
+    )
+
+    assert :ok = AutomationScheduler.perform(%Oban.Job{args: %{}})
+
+    assert [] = all_enqueued(worker: AlertEvaluationWorker)
+  end
+
+  test "schedules rolling alerts until their baseline is established" do
+    alert =
+      AutomationsFixtures.automation_alert_fixture(
+        baseline_established_at: nil,
+        monitor_type: "flaky_run_count",
+        trigger_config: %{"threshold" => 1, "window_type" => "rolling", "rolling_window_size" => 100}
+      )
+
+    assert :ok = AutomationScheduler.perform(%Oban.Job{args: %{}})
+
+    assert_enqueued(worker: AlertEvaluationWorker, args: %{alert_id: alert.id})
+  end
+
+  test "does not schedule event-driven test_updated alerts" do
+    AutomationsFixtures.automation_alert_fixture(
+      monitor_type: "test_updated",
+      trigger_config: %{"events" => ["marked_flaky"]}
+    )
+
+    assert :ok = AutomationScheduler.perform(%Oban.Job{args: %{}})
+
+    assert [] = all_enqueued(worker: AlertEvaluationWorker)
+  end
+
   test "does not enqueue overlapping scheduler jobs" do
     assert {:ok, %Oban.Job{conflict?: false}} =
              %{}

@@ -5,7 +5,9 @@ defmodule Tuist.Automations do
   alias Tuist.Automations.ActionExecutor
   alias Tuist.Automations.Alerts.Alert
   alias Tuist.Automations.Alerts.Event, as: AlertEvent
+  alias Tuist.Automations.Workers.AlertEvaluationWorker
   alias Tuist.ClickHouseRepo
+  alias Tuist.Environment
   alias Tuist.IngestRepo
   alias Tuist.Repo
 
@@ -17,6 +19,8 @@ defmodule Tuist.Automations do
   # its own counter and concurrent updates don't interfere.
   @max_dispatch_depth 10
   @dispatch_depth_key :tuist_automation_dispatch_depth
+  @flaky_monitor_types ~w(flakiness_rate flaky_run_count)
+  @alert_evaluation_chunk_size 1000
 
   def list_alerts(project_id) do
     Alert
@@ -59,9 +63,48 @@ defmodule Tuist.Automations do
   end
 
   def update_alert(%Alert{} = alert, attrs) do
+    attrs = maybe_reset_baseline(alert, attrs)
+
     alert
     |> Alert.changeset(attrs)
     |> Repo.update()
+  end
+
+  defp maybe_reset_baseline(alert, attrs) do
+    if monitor_definition_changed?(alert, attrs) do
+      reset_baseline(attrs)
+    else
+      attrs
+    end
+  end
+
+  defp reset_baseline(attrs) do
+    if Enum.any?(Map.keys(attrs), &is_binary/1) do
+      Map.put(attrs, "baseline_established_at", nil)
+    else
+      Map.put(attrs, :baseline_established_at, nil)
+    end
+  end
+
+  defp monitor_definition_changed?(alert, attrs) do
+    changed_attr?(alert, attrs, :monitor_type) or changed_attr?(alert, attrs, :trigger_config)
+  end
+
+  defp changed_attr?(alert, attrs, key) do
+    case fetch_attr(attrs, key) do
+      {:ok, value} -> Map.fetch!(alert, key) != value
+      :error -> false
+    end
+  end
+
+  defp fetch_attr(attrs, key) do
+    string_key = Atom.to_string(key)
+
+    cond do
+      Map.has_key?(attrs, key) -> {:ok, Map.fetch!(attrs, key)}
+      Map.has_key?(attrs, string_key) -> {:ok, Map.fetch!(attrs, string_key)}
+      true -> :error
+    end
   end
 
   def delete_alert(%Alert{} = alert) do
@@ -72,18 +115,65 @@ defmodule Tuist.Automations do
   Returns currently active alert events for an alert (latest status = "triggered").
   Uses argMax to find the most recent status per test_case_id from the append-only log.
   """
-  def list_active_alert_events(alert_id) do
-    ClickHouseRepo.all(
-      from(e in AlertEvent,
-        where: e.alert_id == ^alert_id,
-        group_by: e.test_case_id,
-        having: fragment("argMax(?, ?) = 'triggered'", e.status, e.inserted_at),
-        select: %{
-          test_case_id: e.test_case_id,
-          triggered_at: fragment("argMax(?, ?)", e.triggered_at, e.inserted_at)
-        }
-      )
-    )
+  def list_active_alert_events(alert_id, test_case_ids \\ nil) do
+    AlertEvent
+    |> where(alert_id: ^alert_id)
+    |> filter_alert_events_by_test_case_ids(test_case_ids)
+    |> group_by([e], e.test_case_id)
+    |> having([e], fragment("argMax(?, ?) = 'triggered'", e.status, e.inserted_at))
+    |> select([e], %{
+      test_case_id: e.test_case_id,
+      triggered_at: fragment("argMax(?, ?)", e.triggered_at, e.inserted_at)
+    })
+    |> ClickHouseRepo.all()
+  end
+
+  defp filter_alert_events_by_test_case_ids(query, nil), do: query
+  defp filter_alert_events_by_test_case_ids(query, []), do: where(query, false)
+
+  defp filter_alert_events_by_test_case_ids(query, test_case_ids) do
+    where(query, [e], e.test_case_id in ^test_case_ids)
+  end
+
+  def enqueue_flaky_alert_evaluations(_project_id, []), do: :ok
+
+  def enqueue_flaky_alert_evaluations(project_id, test_case_ids) do
+    test_case_ids =
+      test_case_ids
+      |> Enum.reject(&is_nil/1)
+      |> Enum.uniq()
+
+    if test_case_ids == [] do
+      :ok
+    else
+      alerts =
+        Repo.all(
+          from(a in Alert,
+            where: a.project_id == ^project_id,
+            where: a.enabled == true,
+            where: a.monitor_type in ^@flaky_monitor_types
+          )
+        )
+
+      jobs =
+        for alert <- alerts,
+            chunk <- Enum.chunk_every(test_case_ids, @alert_evaluation_chunk_size) do
+          AlertEvaluationWorker.new(%{alert_id: alert.id, test_case_ids: chunk},
+            schedule_in: alert_evaluation_schedule_in()
+          )
+        end
+
+      case jobs do
+        [] -> :ok
+        jobs -> Oban.insert_all(jobs)
+      end
+
+      :ok
+    end
+  end
+
+  defp alert_evaluation_schedule_in do
+    div(Environment.clickhouse_flush_interval_ms(), 1000) + 1
   end
 
   @doc """

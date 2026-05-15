@@ -5,6 +5,7 @@ defmodule Tuist.AutomationsTest do
   alias Tuist.Automations
   alias Tuist.Automations.ActionExecutor
   alias Tuist.Automations.Alerts.Alert
+  alias Tuist.Automations.Workers.AlertEvaluationWorker
   alias TuistTestSupport.Fixtures.AutomationsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
@@ -71,6 +72,25 @@ defmodule Tuist.AutomationsTest do
       assert {:ok, updated} = Automations.update_alert(automation, %{"enabled" => false})
       refute updated.enabled
     end
+
+    test "resets the baseline when the monitor definition changes" do
+      automation = AutomationsFixtures.automation_alert_fixture()
+
+      assert {:ok, updated} =
+               Automations.update_alert(automation, %{
+                 "trigger_config" => %{"threshold" => 20, "window_type" => "last_days", "window" => "30d"}
+               })
+
+      assert updated.baseline_established_at == nil
+    end
+
+    test "keeps the baseline when only enabled changes" do
+      automation = AutomationsFixtures.automation_alert_fixture()
+
+      assert {:ok, updated} = Automations.update_alert(automation, %{"enabled" => false})
+
+      assert updated.baseline_established_at == automation.baseline_established_at
+    end
   end
 
   describe "delete_alert/1" do
@@ -122,6 +142,49 @@ defmodule Tuist.AutomationsTest do
 
       events = Automations.list_active_alert_events(alert.id)
       refute Enum.any?(events, &(&1.test_case_id == test_case_id))
+    end
+  end
+
+  describe "enqueue_flaky_alert_evaluations/2" do
+    test "enqueues scoped jobs for enabled flaky monitors only" do
+      project = ProjectsFixtures.project_fixture()
+      other_project = ProjectsFixtures.project_fixture()
+
+      flakiness_alert =
+        AutomationsFixtures.automation_alert_fixture(project: project, monitor_type: "flakiness_rate")
+
+      count_alert =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "flaky_run_count",
+          trigger_config: %{"threshold" => 1, "window_type" => "last_days", "window" => "30d"}
+        )
+
+      _disabled =
+        AutomationsFixtures.automation_alert_fixture(project: project, monitor_type: "flaky_run_count", enabled: false)
+
+      _event_driven =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "test_updated",
+          trigger_config: %{"events" => ["marked_flaky"]}
+        )
+
+      _other_project =
+        AutomationsFixtures.automation_alert_fixture(project: other_project, monitor_type: "flakiness_rate")
+
+      test_case_ids = [Ecto.UUID.generate(), Ecto.UUID.generate()]
+
+      assert :ok = Automations.enqueue_flaky_alert_evaluations(project.id, test_case_ids)
+
+      jobs = all_enqueued(worker: AlertEvaluationWorker)
+
+      assert length(jobs) == 2
+
+      args_by_alert_id = Map.new(jobs, fn job -> {job.args["alert_id"], job.args["test_case_ids"]} end)
+
+      assert args_by_alert_id[flakiness_alert.id] == test_case_ids
+      assert args_by_alert_id[count_alert.id] == test_case_ids
     end
   end
 

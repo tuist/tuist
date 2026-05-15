@@ -6,6 +6,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
 
   alias Tuist.Automations
   alias Tuist.Automations.ActionExecutor
+  alias Tuist.Automations.Alerts.Alert
   alias Tuist.Automations.Monitors.FlakyTestsMonitor
   alias Tuist.ClickHouseRepo
   alias Tuist.Tests.TestCaseRun
@@ -13,11 +14,11 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
   require Logger
 
   @impl Oban.Worker
-  def perform(%Oban.Job{args: %{"alert_id" => alert_id}}) do
+  def perform(%Oban.Job{args: %{"alert_id" => alert_id} = args}) do
     case Automations.get_alert(alert_id) do
       {:ok, alert} ->
         if alert.enabled do
-          evaluate_and_execute(alert)
+          evaluate_and_execute(alert, scoped_test_case_ids(args))
         else
           :ok
         end
@@ -27,13 +28,13 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
     end
   end
 
-  defp evaluate_and_execute(alert) do
-    %{triggered: triggered_ids, all: all_ids} = evaluate_monitor(alert)
-
+  defp evaluate_and_execute(alert, test_case_ids) do
     if alert.baseline_established_at == nil do
+      %{triggered: triggered_ids} = evaluate_monitor(alert, nil)
       establish_baseline(alert, triggered_ids)
     else
-      run_transitions(alert, triggered_ids, all_ids)
+      %{triggered: triggered_ids, all: all_ids} = evaluate_monitor(alert, test_case_ids)
+      run_transitions(alert, triggered_ids, all_ids, test_case_ids)
     end
 
     :ok
@@ -59,8 +60,8 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
     {:ok, _} = Automations.update_alert(alert, %{baseline_established_at: DateTime.utc_now()})
   end
 
-  defp run_transitions(alert, triggered_ids, all_ids) do
-    active_events = Automations.list_active_alert_events(alert.id)
+  defp run_transitions(alert, triggered_ids, all_ids, scoped_test_case_ids) do
+    active_events = active_alert_events(alert, scoped_test_case_ids)
     already_triggered_ids = MapSet.new(active_events, & &1.test_case_id)
 
     newly_triggered = Enum.reject(triggered_ids, &MapSet.member?(already_triggered_ids, &1))
@@ -86,6 +87,9 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
       handle_recovery(alert, triggered_ids, active_events, all_ids)
     end
   end
+
+  defp active_alert_events(alert, nil), do: Automations.list_active_alert_events(alert.id)
+  defp active_alert_events(alert, all_ids), do: Automations.list_active_alert_events(alert.id, all_ids)
 
   defp handle_recovery(alert, currently_triggered_ids, active_events, all_ids) do
     currently_triggered_set = MapSet.new(currently_triggered_ids)
@@ -194,7 +198,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
     end)
   end
 
-  defp parse_rolling_size(size) when is_integer(size) and size > 0, do: size
+  defp parse_rolling_size(size) when is_integer(size) and size > 0, do: min(size, Alert.max_rolling_window_size())
   defp parse_rolling_size(_), do: 100
 
   defp parse_window(window) when is_binary(window) do
@@ -209,23 +213,39 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
 
   defp parse_window(_), do: 14 * 86_400
 
-  defp evaluate_monitor(%{monitor_type: "flakiness_rate"} = alert) do
+  defp evaluate_monitor(%{monitor_type: "flakiness_rate"} = alert, nil) do
     FlakyTestsMonitor.evaluate(alert)
   end
 
-  defp evaluate_monitor(%{monitor_type: "flaky_run_count"} = alert) do
+  defp evaluate_monitor(%{monitor_type: "flakiness_rate"} = alert, test_case_ids) do
+    FlakyTestsMonitor.evaluate(alert, test_case_ids)
+  end
+
+  defp evaluate_monitor(%{monitor_type: "flaky_run_count"} = alert, nil) do
     FlakyTestsMonitor.evaluate_by_run_count(alert)
+  end
+
+  defp evaluate_monitor(%{monitor_type: "flaky_run_count"} = alert, test_case_ids) do
+    FlakyTestsMonitor.evaluate_by_run_count(alert, test_case_ids)
   end
 
   # Event-driven monitors are dispatched directly from the originating event
   # (see `Tuist.Automations.dispatch_test_case_event/2`), so the scheduled
   # evaluator has nothing to do for them.
-  defp evaluate_monitor(%{monitor_type: "test_updated"}) do
+  defp evaluate_monitor(%{monitor_type: "test_updated"}, _test_case_ids) do
     %{triggered: [], all: []}
   end
 
-  defp evaluate_monitor(alert) do
+  defp evaluate_monitor(alert, _test_case_ids) do
     Logger.warning("Unknown monitor type: #{alert.monitor_type}")
     %{triggered: [], all: []}
   end
+
+  defp scoped_test_case_ids(%{"test_case_ids" => test_case_ids}) when is_list(test_case_ids) do
+    test_case_ids
+    |> Enum.filter(&match?({:ok, _}, Ecto.UUID.cast(&1)))
+    |> Enum.uniq()
+  end
+
+  defp scoped_test_case_ids(_args), do: nil
 end

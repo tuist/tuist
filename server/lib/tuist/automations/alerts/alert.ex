@@ -18,11 +18,10 @@ defmodule Tuist.Automations.Alerts.Alert do
   )
   @window_types ~w(last_days rolling)
 
-  # Cap on `rolling_window_size`. The monitor reads from
-  # `test_case_runs_recent_per_case`, an AggregatingMergeTree MV whose
-  # `groupArrayLast(N)` state is sized at this value, so raising the cap
-  # without also bumping the MV's aggregate type would silently truncate
-  # any window above the old N.
+  # Product cap on `rolling_window_size`. The monitor has a smaller
+  # materialized-view fast path for common rolling windows and falls back to
+  # the 1000-run aggregate above that fast-path size so larger windows stay
+  # exact instead of being silently truncated.
   @max_rolling_window_size 1000
 
   @doc """
