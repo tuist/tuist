@@ -713,13 +713,6 @@ defmodule Tuist.Tests do
         {{tc.name, tc.module_name, tc.suite_name}, tc.id}
       end)
 
-    # `test_cases` is returned so the caller can fire the
-    # `test_case.created` webhook on exactly the same set of test cases
-    # that gets a `first_run` TestCaseEvent row. The webhook isn't
-    # dispatched here because the "is this really the first time we've
-    # seen this test case" decision also takes the per-run `is_new`
-    # signal into account, which only exists once `test_case_runs` are
-    # built.
     {test_case_id_map, test_cases_with_flaky_run, new_test_case_ids, test_cases}
   end
 
