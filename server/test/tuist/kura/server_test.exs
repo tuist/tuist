@@ -187,6 +187,7 @@ defmodule Tuist.Kura.ServerTest do
         {:provisioning, :active},
         {:provisioning, :failed},
         {:provisioning, :destroying},
+        {:provisioning, :destroyed},
         {:active, :active},
         {:active, :failed},
         {:active, :destroying},
@@ -208,7 +209,6 @@ defmodule Tuist.Kura.ServerTest do
 
     test "rejects skipped and terminal status transitions" do
       transitions = [
-        {:provisioning, :destroyed},
         {:active, :provisioning},
         {:failed, :provisioning},
         {:destroying, :active},

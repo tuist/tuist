@@ -8,8 +8,14 @@ defmodule Tuist.Kura.Server do
   Lifecycle:
 
       provisioning → active      ↘
-                     ↓              destroying → destroyed
-                   failed
+                ↓     ↓              destroying → destroyed
+                ↓   failed                ↑
+                └──────────────── destroyed
+
+  A first-time deploy that fails before reaching `:active` skips
+  `:destroying` and transitions straight to `:destroyed`: nothing was
+  ever serving traffic, and the UI surfaces the row as "Not deployed"
+  so the operator can redeploy.
 
   `url` and `current_image_tag` are populated when the server first
   reaches `:active` and updated on subsequent successful deployments.
@@ -33,7 +39,7 @@ defmodule Tuist.Kura.Server do
   @status_mappings [provisioning: 0, active: 1, failed: 2, destroying: 3, destroyed: 4]
   @statuses Keyword.keys(@status_mappings)
   @allowed_status_transitions %{
-    provisioning: [:provisioning, :active, :failed, :destroying],
+    provisioning: [:provisioning, :active, :failed, :destroying, :destroyed],
     active: [:active, :failed, :destroying],
     failed: [:failed, :active, :destroying],
     destroying: [:destroying, :destroyed],

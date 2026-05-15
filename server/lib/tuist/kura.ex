@@ -29,6 +29,8 @@ defmodule Tuist.Kura do
   alias Tuist.Kura.Server
   alias Tuist.Repo
 
+  require Logger
+
   @pubsub Tuist.PubSub
   @create_server_keys %{
     "account_id" => :account_id,
@@ -427,6 +429,37 @@ defmodule Tuist.Kura do
 
       {:error, reason} ->
         {:error, reason}
+    end
+  end
+
+  @doc """
+  Resets a server back to "Not deployed" after a first-time deploy
+  failure. Best-effort destroys any backing resource that the rollout
+  may have already created, marks the row `:destroyed`, removes any
+  derived cache endpoint, and broadcasts. Errors from the backing
+  destroy are logged and ignored so the UI always recovers. A leaked
+  resource is acceptable here because the server never reached
+  `:active`, so no traffic depends on it.
+  """
+  def reset_server(%Server{} = server) do
+    best_effort_destroy(server)
+
+    {:ok, server} =
+      server |> Server.status_changeset(%{status: :destroyed, url: nil}) |> Repo.update()
+
+    remove_cache_endpoint(server)
+    broadcast_server(server, :destroyed)
+    {:ok, server}
+  end
+
+  defp best_effort_destroy(server) do
+    case Provisioner.destroy(server) do
+      :ok ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("[Kura] reset_server backing destroy failed for #{server.id}: #{inspect(reason)}")
+        :ok
     end
   end
 

@@ -229,43 +229,7 @@ KUBECONFIG="$WL_KUBECONFIG" kubectl wait --for=condition=Ready nodes --all --tim
 # ---------------------------------------------------------------------------
 log "Step 7/13: install platform chart (cert-manager, ESO, ingress-nginx)"
 
-helm dependency update "$REPO_ROOT/infra/helm/platform" >/dev/null
-
-# Cloudflare API token for cert-manager DNS-01 challenge.
-CF_TOKEN=$(op read --account tuist.1password.com "op://Founders/cloudflare-tuist-dns/credential")
-
-KUBECONFIG="$WL_KUBECONFIG" kubectl create namespace platform --dry-run=client -o yaml | \
-  KUBECONFIG="$WL_KUBECONFIG" kubectl apply -f -
-KUBECONFIG="$WL_KUBECONFIG" kubectl -n platform create secret generic cloudflare-api-token \
-  --from-literal=api-token="$CF_TOKEN" \
-  --dry-run=client -o yaml | KUBECONFIG="$WL_KUBECONFIG" kubectl apply -f -
-unset CF_TOKEN
-
-# Two-step install: cert-manager's ClusterIssuer CRD is templated as
-# part of the cert-manager subchart, so it's registered alongside
-# our ClusterIssuer template — helm rejects that race with
-# "no matches for kind ClusterIssuer in version cert-manager.io/v1".
-# Step 7a: install everything EXCEPT our ClusterIssuer; cert-manager
-# subchart applies its CRDs.
-# Step 7b: re-apply with the ClusterIssuer enabled (default).
-KUBECONFIG="$WL_KUBECONFIG" helm upgrade --install platform "$REPO_ROOT/infra/helm/platform" \
-  --namespace platform \
-  -f "$REPO_ROOT/infra/helm/platform/values-hetzner.yaml" \
-  --set "clusterIssuer.enabled=false" \
-  --set "external-dns.txtOwnerId=${CLUSTER_NAME}-platform" \
-  --set "ingress-nginx.controller.service.annotations.load-balancer\.hetzner\.cloud/location=${REGION}" \
-  --set "ingress-nginx.controller.service.annotations.load-balancer\.hetzner\.cloud/name=${CLUSTER_NAME}-ingress" \
-  --wait --timeout 5m
-
-KUBECONFIG="$WL_KUBECONFIG" kubectl wait --for=condition=Established crd/clusterissuers.cert-manager.io --timeout=2m
-
-KUBECONFIG="$WL_KUBECONFIG" helm upgrade --install platform "$REPO_ROOT/infra/helm/platform" \
-  --namespace platform \
-  -f "$REPO_ROOT/infra/helm/platform/values-hetzner.yaml" \
-  --set "external-dns.txtOwnerId=${CLUSTER_NAME}-platform" \
-  --set "ingress-nginx.controller.service.annotations.load-balancer\.hetzner\.cloud/location=${REGION}" \
-  --set "ingress-nginx.controller.service.annotations.load-balancer\.hetzner\.cloud/name=${CLUSTER_NAME}-ingress" \
-  --wait --timeout 5m
+mise run k8s:install-platform "$WL_KUBECONFIG" "$CLUSTER_NAME"
 
 # ---------------------------------------------------------------------------
 log "Step 8/13: install Cluster API core (Mac mini fleet substrate)"

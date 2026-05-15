@@ -437,6 +437,11 @@ jobs:
             ["us-west-1"]="kubeconfig: kura-us-west-1"
           )
 
+          # Cloudflare DNS-01 token for cert-manager. Resolved here once
+          # so the install-platform script can stay credential-agnostic.
+          CLOUDFLARE_API_TOKEN="$(op read "op://Founders/cloudflare-tuist-dns/credential")"
+          export CLOUDFLARE_API_TOKEN
+
           for region in us-east-1 us-west-1; do
             kubeconfig="$RUNNER_TEMP/kura-${region}.yaml"
             op document get "${kubeconfig_items[$region]}" \
@@ -446,6 +451,15 @@ jobs:
             api="$(KUBECONFIG="$kubeconfig" kubectl config view --minify --raw -o jsonpath='{.clusters[0].cluster.server}')"
             echo "Deploying Kura controller to $region at $api"
             KUBECONFIG="$kubeconfig" kubectl --request-timeout=10s get --raw /version >/dev/null
+
+            # Bring the cluster's platform layer (cert-manager + the
+            # letsencrypt ClusterIssuer, ingress-nginx, external-dns,
+            # ESO) to chart HEAD before installing the kura-controller,
+            # whose StatefulSet reconcile depends on cert-manager.io/v1
+            # Certificate. Idempotent: a no-op on clusters already at
+            # head, a self-heal on half-bootstrapped ones.
+            mise run k8s:install-platform "$kubeconfig" "tuist-kura-${region}"
+
             KUBECONFIG="$kubeconfig" kubectl apply -f "$HELM_CHART_PATH/crds/"
             KUBECONFIG="$kubeconfig" helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
               --namespace tuist-kura-controller --create-namespace \

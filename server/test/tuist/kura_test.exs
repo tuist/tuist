@@ -447,6 +447,67 @@ defmodule Tuist.KuraTest do
     end
   end
 
+  describe "reset_server/1" do
+    test "marks a never-active server destroyed and best-effort destroys the backing resource" do
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, server} =
+        Kura.create_server(%{
+          account_id: account.id,
+          region: "local-controller",
+          image_tag: "0.5.2"
+        })
+
+      expect(Provisioner, :destroy, fn %Server{id: id} ->
+        assert id == server.id
+        :ok
+      end)
+
+      assert {:ok, %Server{status: :destroyed, url: nil}} = Kura.reset_server(server)
+      assert %Server{status: :destroyed} = Repo.get!(Server, server.id)
+      assert Accounts.list_account_cache_endpoints(account, :kura) == []
+    end
+
+    test "still marks the server destroyed when the backing destroy fails" do
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, server} =
+        Kura.create_server(%{
+          account_id: account.id,
+          region: "local-controller",
+          image_tag: "0.5.2"
+        })
+
+      expect(Provisioner, :destroy, fn %Server{} -> {:error, "kubeconfig missing"} end)
+
+      assert {:ok, %Server{status: :destroyed}} = Kura.reset_server(server)
+      assert %Server{status: :destroyed} = Repo.get!(Server, server.id)
+    end
+
+    test "broadcasts a :destroyed event" do
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      :ok = Kura.subscribe_to_account(account.id)
+
+      {:ok, server} =
+        Kura.create_server(%{
+          account_id: account.id,
+          region: "local-controller",
+          image_tag: "0.5.2"
+        })
+
+      assert_receive {:kura_server, :created, _}
+
+      stub(Provisioner, :destroy, fn _server -> :ok end)
+
+      {:ok, _} = Kura.reset_server(server)
+
+      assert_receive {:kura_server, :destroyed, %{status: :destroyed}}
+    end
+  end
+
   describe "subscribe_to_account/1" do
     test "broadcasts created/updated/destroyed events to the account topic" do
       user = AccountsFixtures.user_fixture()
