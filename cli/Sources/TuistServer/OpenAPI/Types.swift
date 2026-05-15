@@ -4512,6 +4512,7 @@ public enum Components {
                 @frozen public enum scopesPayloadPayload: String, Codable, Hashable, Sendable, CaseIterable {
                     case ci = "ci"
                     case mcp = "mcp"
+                    case account_colon_scim_colon_write = "account:scim:write"
                     case account_colon_members_colon_read = "account:members:read"
                     case account_colon_members_colon_write = "account:members:write"
                     case account_colon_registry_colon_read = "account:registry:read"
@@ -10293,6 +10294,7 @@ public enum Components {
             @frozen public enum scopesPayloadPayload: String, Codable, Hashable, Sendable, CaseIterable {
                 case ci = "ci"
                 case mcp = "mcp"
+                case account_colon_scim_colon_write = "account:scim:write"
                 case account_colon_members_colon_read = "account:members:read"
                 case account_colon_members_colon_write = "account:members:write"
                 case account_colon_registry_colon_read = "account:registry:read"
@@ -31256,6 +31258,7 @@ public enum Operations {
                             @frozen public enum scopesPayloadPayload: String, Codable, Hashable, Sendable, CaseIterable {
                                 case ci = "ci"
                                 case mcp = "mcp"
+                                case account_colon_scim_colon_write = "account:scim:write"
                                 case account_colon_members_colon_read = "account:members:read"
                                 case account_colon_members_colon_write = "account:members:write"
                                 case account_colon_registry_colon_read = "account:registry:read"
@@ -31633,6 +31636,7 @@ public enum Operations {
                     @frozen public enum scopesPayloadPayload: String, Codable, Hashable, Sendable, CaseIterable {
                         case ci = "ci"
                         case mcp = "mcp"
+                        case account_colon_scim_colon_write = "account:scim:write"
                         case account_colon_members_colon_read = "account:members:read"
                         case account_colon_members_colon_write = "account:members:write"
                         case account_colon_registry_colon_read = "account:registry:read"
@@ -36771,19 +36775,19 @@ public enum Operations {
     public enum updateTestCase {
         public static let id: Swift.String = "updateTestCase"
         public struct Input: Sendable, Hashable {
-            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PUT/path`.
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PATCH/path`.
             public struct Path: Sendable, Hashable {
                 /// The handle of the account.
                 ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PUT/path/account_handle`.
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PATCH/path/account_handle`.
                 public var account_handle: Swift.String
                 /// The handle of the project.
                 ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PUT/path/project_handle`.
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PATCH/path/project_handle`.
                 public var project_handle: Swift.String
                 /// The ID of the test case.
                 ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PUT/path/test_case_id`.
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PATCH/path/test_case_id`.
                 public var test_case_id: Swift.String
                 /// Creates a new `Path`.
                 ///
@@ -36802,7 +36806,7 @@ public enum Operations {
                 }
             }
             public var path: Operations.updateTestCase.Input.Path
-            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PUT/header`.
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PATCH/header`.
             public struct Headers: Sendable, Hashable {
                 public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.updateTestCase.AcceptableContentType>]
                 /// Creates a new `Headers`.
@@ -36814,17 +36818,17 @@ public enum Operations {
                 }
             }
             public var headers: Operations.updateTestCase.Input.Headers
-            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PUT/requestBody`.
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PATCH/requestBody`.
             @frozen public enum Body: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PUT/requestBody/json`.
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PATCH/requestBody/json`.
                 public struct jsonPayload: Codable, Hashable, Sendable {
                     /// Whether to mark the test case as flaky.
                     ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PUT/requestBody/json/is_flaky`.
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PATCH/requestBody/json/is_flaky`.
                     public var is_flaky: Swift.Bool?
                     /// The new state of the test case. Currently one of `enabled`, `muted`, or `skipped`; the field is left as an open string so adding new states in the future doesn't break clients pinned to the older spec.
                     ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PUT/requestBody/json/state`.
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PATCH/requestBody/json/state`.
                     public var state: Swift.String?
                     /// Creates a new `jsonPayload`.
                     ///
@@ -36843,7 +36847,7 @@ public enum Operations {
                         case state
                     }
                 }
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PUT/requestBody/content/application\/json`.
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PATCH/requestBody/content/application\/json`.
                 case json(Operations.updateTestCase.Input.Body.jsonPayload)
             }
             public var body: Operations.updateTestCase.Input.Body?
@@ -36865,32 +36869,32 @@ public enum Operations {
         }
         @frozen public enum Output: Sendable, Hashable {
             public struct Ok: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PUT/responses/200/content`.
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PATCH/responses/200/content`.
                 @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PUT/responses/200/content/json`.
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PATCH/responses/200/content/json`.
                     public struct jsonPayload: Codable, Hashable, Sendable {
                         /// The test case ID.
                         ///
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PUT/responses/200/content/json/id`.
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PATCH/responses/200/content/json/id`.
                         public var id: Swift.String
                         /// Whether the test case is marked as flaky.
                         ///
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PUT/responses/200/content/json/is_flaky`.
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PATCH/responses/200/content/json/is_flaky`.
                         public var is_flaky: Swift.Bool
                         /// Whether the test case is quarantined (either `muted` or `skipped`). Deprecated: use `state` instead.
                         ///
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PUT/responses/200/content/json/is_quarantined`.
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PATCH/responses/200/content/json/is_quarantined`.
                         @available(*, deprecated)
                         public var is_quarantined: Swift.Bool
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PUT/responses/200/content/json/module`.
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PATCH/responses/200/content/json/module`.
                         public struct modulePayload: Codable, Hashable, Sendable {
                             /// ID of the module.
                             ///
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PUT/responses/200/content/json/module/id`.
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PATCH/responses/200/content/json/module/id`.
                             public var id: Swift.String
                             /// Name of the module.
                             ///
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PUT/responses/200/content/json/module/name`.
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PATCH/responses/200/content/json/module/name`.
                             public var name: Swift.String
                             /// Creates a new `modulePayload`.
                             ///
@@ -36909,25 +36913,25 @@ public enum Operations {
                                 case name
                             }
                         }
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PUT/responses/200/content/json/module`.
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PATCH/responses/200/content/json/module`.
                         public var module: Operations.updateTestCase.Output.Ok.Body.jsonPayload.modulePayload
                         /// Name of the test case.
                         ///
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PUT/responses/200/content/json/name`.
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PATCH/responses/200/content/json/name`.
                         public var name: Swift.String
                         /// The state of the test case. Currently one of `enabled`, `muted`, or `skipped`; the field is left as an open string so adding new states in the future doesn't break clients pinned to the older spec.
                         ///
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PUT/responses/200/content/json/state`.
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PATCH/responses/200/content/json/state`.
                         public var state: Swift.String
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PUT/responses/200/content/json/suite`.
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PATCH/responses/200/content/json/suite`.
                         public struct suitePayload: Codable, Hashable, Sendable {
                             /// ID of the suite.
                             ///
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PUT/responses/200/content/json/suite/id`.
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PATCH/responses/200/content/json/suite/id`.
                             public var id: Swift.String
                             /// Name of the suite.
                             ///
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PUT/responses/200/content/json/suite/name`.
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PATCH/responses/200/content/json/suite/name`.
                             public var name: Swift.String
                             /// Creates a new `suitePayload`.
                             ///
@@ -36946,11 +36950,11 @@ public enum Operations {
                                 case name
                             }
                         }
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PUT/responses/200/content/json/suite`.
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PATCH/responses/200/content/json/suite`.
                         public var suite: Operations.updateTestCase.Output.Ok.Body.jsonPayload.suitePayload?
                         /// URL to view the test case in the dashboard.
                         ///
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PUT/responses/200/content/json/url`.
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PATCH/responses/200/content/json/url`.
                         public var url: Swift.String
                         /// Creates a new `jsonPayload`.
                         ///
@@ -36993,7 +36997,7 @@ public enum Operations {
                             case url
                         }
                     }
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PUT/responses/200/content/application\/json`.
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PATCH/responses/200/content/application\/json`.
                     case json(Operations.updateTestCase.Output.Ok.Body.jsonPayload)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
@@ -37042,9 +37046,9 @@ public enum Operations {
                 }
             }
             public struct BadRequest: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PUT/responses/400/content`.
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PATCH/responses/400/content`.
                 @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PUT/responses/400/content/application\/json`.
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PATCH/responses/400/content/application\/json`.
                     case json(Components.Schemas._Error)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
@@ -37093,9 +37097,9 @@ public enum Operations {
                 }
             }
             public struct Forbidden: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PUT/responses/403/content`.
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PATCH/responses/403/content`.
                 @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PUT/responses/403/content/application\/json`.
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PATCH/responses/403/content/application\/json`.
                     case json(Components.Schemas._Error)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
@@ -37144,9 +37148,9 @@ public enum Operations {
                 }
             }
             public struct NotFound: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PUT/responses/404/content`.
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PATCH/responses/404/content`.
                 @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PUT/responses/404/content/application\/json`.
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/PATCH/responses/404/content/application\/json`.
                     case json(Components.Schemas._Error)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///

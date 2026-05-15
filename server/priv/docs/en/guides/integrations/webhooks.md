@@ -50,30 +50,7 @@ When you save, Tuist generates a fresh signing secret and displays it once. Copy
 
 ## The payload {#payload}
 
-Every delivery is a single JSON object. The envelope wraps the resource snapshot in metadata you can use to deduplicate, route, and audit deliveries:
-
-```json
-{
-  "id": "f4d4ea3a-1d9e-4e64-9a8d-9d8b6f1b0d12",
-  "type": "preview.created",
-  "created": 1747322830,
-  "object": {
-    "id": "3a1c9e8b-...",
-    "display_name": "Acme",
-    "bundle_identifier": "dev.tuist.acme",
-    "version": "1.2.0",
-    "project_id": 11,
-    "supported_platforms": ["ios"],
-    "visibility": "private",
-    "git_branch": "main",
-    "git_commit_sha": "0f1e2d...",
-    "git_ref": null,
-    "inserted_at": "2026-05-15T10:47:10Z"
-  }
-}
-```
-
-Fields you can rely on across event types:
+Every delivery is a single JSON object. The envelope wraps an event-specific resource snapshot in metadata you can use to deduplicate, route, and audit deliveries:
 
 | Field     | Description                                                              |
 | --------- | ------------------------------------------------------------------------ |
@@ -82,7 +59,9 @@ Fields you can rely on across event types:
 | `created` | Unix timestamp (seconds) at which Tuist enqueued the delivery.           |
 | `object`  | The resource snapshot. The shape depends on the event type.              |
 
-The `test_case.updated` event includes an extra `events` array with the canonical transitions that caused the write (`marked_flaky`, `muted`, `unskipped`, …), plus `actor_id` and `alert_id` so receivers can distinguish manual edits from automation-driven changes.
+The exact payload schema for each event type is documented in the [Tuist API reference](https://tuist.dev/api/docs#section/Webhook-events) under **Webhook events** — every event has a matching `WebhookXxxEvent` schema under `components.schemas` you can `$ref` from a code generator.
+
+A `test_case.updated` payload, for example, also carries an `events` array listing the canonical transitions that caused the write (`marked_flaky`, `muted`, `unskipped`, …), plus `actor_id` and `alert_id` so receivers can distinguish manual edits from automation-driven changes.
 
 Each request also carries these HTTP headers:
 
