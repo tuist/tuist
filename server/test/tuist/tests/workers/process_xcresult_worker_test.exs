@@ -501,6 +501,40 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
     end
   end
 
+  describe "concurrent shard workers" do
+    test "writes each shard to a distinct temp path", %{account: account, project: project} do
+      # Two workers for the same merged test_run_id (one per shard) must
+      # not race on the same temp file. Otherwise a concurrent download
+      # can clobber the bundle another worker is still reading.
+      test_run_id = Ecto.UUID.generate()
+
+      stub(Tuist.Accounts, :get_account_by_id, fn _id -> {:ok, account} end)
+
+      paths = :ets.new(:paths, [:set, :public])
+
+      stub(Tuist.Storage, :download_to_file, fn _key, path, _account ->
+        :ets.insert(paths, {path, true})
+        {:ok, :done}
+      end)
+
+      stub(XCResultProcessor, :process_local, fn _path, _opts -> {:ok, parsed_data()} end)
+      stub(Tuist.Tests, :create_test, fn _attrs -> {:ok, %{id: test_run_id}} end)
+
+      args_0 =
+        job_args(test_run_id, account.id, project.id, extra: %{"shard_index" => 0})
+
+      args_1 =
+        job_args(test_run_id, account.id, project.id, extra: %{"shard_index" => 1})
+
+      assert :ok == ProcessXcresultWorker.perform(oban_job(args_0))
+      assert :ok == ProcessXcresultWorker.perform(oban_job(args_1))
+
+      keys = paths |> :ets.tab2list() |> Enum.map(&elem(&1, 0))
+      assert length(keys) == 2
+      assert length(Enum.uniq(keys)) == 2
+    end
+  end
+
   describe "uniqueness across shards" do
     test "different shard_index values are treated as distinct jobs" do
       test_run_id = Ecto.UUID.generate()

@@ -73,7 +73,21 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
 
   defp process_xcresult(test_run_id, storage_key, account_id, args) do
     with {:ok, account} <- Accounts.get_account_by_id(account_id) do
-      temp_path = Path.join(System.tmp_dir!(), "xcresult_#{test_run_id}.zip")
+      # For sharded runs, multiple workers share the same merged test_run_id
+      # and can run concurrently. Suffix the temp path with the shard index
+      # (and a unique integer as a safety net) so they never clobber each
+      # other's download mid-parse.
+      shard_suffix =
+        case Map.get(args, "shard_index") do
+          nil -> "x"
+          index -> "s#{index}"
+        end
+
+      temp_path =
+        Path.join(
+          System.tmp_dir!(),
+          "xcresult_#{test_run_id}_#{shard_suffix}_#{:erlang.unique_integer([:positive, :monotonic])}.zip"
+        )
 
       try do
         case Storage.download_to_file(storage_key, temp_path, account) do

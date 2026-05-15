@@ -528,7 +528,12 @@ defmodule TuistWeb.API.TestsController do
           project_id: selected_project.id
         }
 
-        if test_run.status == "processing" do
+        # Trigger off the request status, not the merged Test row's status:
+        # for sharded runs, create_or_update_sharded_test rewrites the row
+        # to "in_progress" while it waits for the other shards, so
+        # test_run.status is never "processing" even though the CLI is
+        # uploading an xcresult that still needs parsing.
+        if Map.get(body_params, :status) == "processing" do
           # The CLI uploads each shard's xcresult to S3 keyed on the UUID
           # it generated locally (body_params.id). For sharded runs, the
           # server merges all shards into a single Test row, so test_run.id

@@ -686,8 +686,10 @@ defmodule TuistWeb.API.TestsControllerTest do
       stub(Tests, :get_test, fn _id, _opts -> {:error, :not_found} end)
 
       stub(Tests, :create_test, fn attrs ->
-        # Simulate the sharded merge: the returned id is the first shard's
-        # merged Test row id, not the request body's id for this shard.
+        # Simulate the real sharded merge: create_or_update_sharded_test
+        # rewrites status to "in_progress" while it waits for the other
+        # shards, even though the CLI uploaded with status="processing".
+        # The merged id is the first shard's, not this shard's body id.
         {:ok,
          %Test{
            id: existing_merged_id,
@@ -698,7 +700,7 @@ defmodule TuistWeb.API.TestsControllerTest do
            scheme: nil,
            shard_plan_id: shard_plan_id,
            build_system: "xcode",
-           status: "processing",
+           status: "in_progress",
            test_case_runs: []
          }}
       end)
