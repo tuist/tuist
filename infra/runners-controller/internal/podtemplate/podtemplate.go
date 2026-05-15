@@ -184,15 +184,14 @@ func ptr[T any](v T) *T {
 //     `tuist.dev/fleet=<value>` is the chart-managed selector; tart-kubelet
 //     sets the label itself outside the CAPI label-sync path. Tolerates
 //     `tuist.dev/macos:NoSchedule` so only runner Pods land on Mac minis.
-//   - `linux`: standard Linux nodes provisioned by CAPI/caph via the
-//     workload cluster's ClusterClass topology. Selects on
-//     `node.cluster.x-k8s.io/pool=<value>` — the only label prefix CAPI
-//     propagates from `MachineDeployment.metadata.labels` to the Node
-//     (alongside `node-role.kubernetes.io/` and
-//     `node-restriction.kubernetes.io/`). Same convention as the existing
-//     `node.cluster.x-k8s.io/pool=processor` workload nodes; no taint to
-//     tolerate by default (runner Pods bin-pack onto runner-pool nodes
-//     via the nodeSelector alone).
+//   - `linux`: Hetzner Robot bare-metal hosts joined to the workload
+//     cluster as worker Nodes out-of-band (kubeadm join during host
+//     bring-up, not CAPI-managed in v1). The hosts are labeled
+//     `node.cluster.x-k8s.io/pool=<FleetSelector>` and tainted
+//     `tuist.dev/runner-tier=bare-metal:NoSchedule` so that only runner
+//     Pods land on them; everything else (server, system DaemonSets,
+//     etc.) stays on the elastic Hetzner Cloud `md-0` pool. Pods
+//     tolerate the runner-tier taint and select on the pool label.
 //
 // Anything else falls back to the darwin shape so a misconfigured CR
 // still produces a schedulable Pod against the macOS fleet.
@@ -200,10 +199,17 @@ func schedulingFor(pool *tuistv1.RunnerPool) (map[string]string, []corev1.Tolera
 	switch pool.Spec.OS {
 	case "linux":
 		return map[string]string{
-				"kubernetes.io/os":             "linux",
-				"kubernetes.io/arch":           "amd64",
-				"node.cluster.x-k8s.io/pool":   pool.Spec.FleetSelector,
-			}, nil
+				"kubernetes.io/os":           "linux",
+				"kubernetes.io/arch":         "amd64",
+				"node.cluster.x-k8s.io/pool": pool.Spec.FleetSelector,
+			}, []corev1.Toleration{
+				{
+					Key:      "tuist.dev/runner-tier",
+					Operator: corev1.TolerationOpEqual,
+					Value:    "bare-metal",
+					Effect:   corev1.TaintEffectNoSchedule,
+				},
+			}
 	default:
 		return map[string]string{
 				"kubernetes.io/os":  "darwin",

@@ -678,25 +678,36 @@ runnersFleet:
     #     maxReplicas: 0
     #     scaleDownCooldownSeconds: 300
 
-# Linux runner fleet — Hetzner Cloud VMs provisioned and lifecycled
-# by the workload cluster's ClusterClass (`tuist-hcloud` in
-# `infra/k8s/clusters/clusterclass-tuist.yaml`) via a
-# `machineDeployments[]` entry of class `hcloud-worker` named
-# `runners-linux`. The chart does NOT render any CAPI resources for
-# this fleet — the cluster team owns "what kinds of nodes exist;"
-# the chart owns "what workloads run on them" (RunnerPool CRs whose
-# `fleetSelector` matches the `node.cluster.x-k8s.io/pool=<name>`
-# label CAPI's label-sync stamps on each runner node).
+# Linux runner fleet — Hetzner Robot bare-metal hosts (AX42-U class,
+# 8c/16t Zen 4 Ryzen, 64 GB DDR5, 2x512 GB NVMe) joined to the
+# workload cluster as worker Nodes via `kubeadm join`. The hosts
+# are labeled `node.cluster.x-k8s.io/pool=<runnersFleetLinux.name>`
+# and tainted `tuist.dev/runner-tier=bare-metal:NoSchedule` so that
+# only runner Pods land on them.
+#
+# In v1 the hosts are NOT CAPI-managed — operator provisions each
+# AX42-U from the Robot panel, runs the `kubeadm join` flow
+# documented in `infra/runners-controller/AGENTS.md`, applies the
+# pool label + tier taint, and the node is ready. `caph`'s
+# `HetznerBareMetalHost` flow (rescue boot + installimage +
+# cloud-init kubeadm join) is the eventual production path but
+# adds enough machinery to live in its own follow-up.
 #
 # To enable a runner fleet on a new env:
-#   1. Add a `machineDeployments[]` entry to the env's
-#      `infra/k8s/clusters/cluster-<env>.yaml` (class `hcloud-worker`,
-#      `metadata.labels.node.cluster.x-k8s.io/pool: <name>`,
-#      cluster-autoscaler min/max annotations, ccx23 type override).
-#      `mgmt-cluster-apply.yml` reconciles this on push to main.
-#   2. Flip `runnersFleetLinux.enabled: true` here, set `name` to
+#   1. Order one or more AX42-U boxes from
+#      [robot.hetzner.com](https://robot.hetzner.com) (FSN1 if the
+#      Cloud cluster is in FSN1; co-location keeps cross-substrate
+#      latency to ~5-10ms over public internet, ~1ms via vSwitch).
+#   2. Run the kubeadm-join procedure in
+#      `infra/runners-controller/AGENTS.md` to register each host
+#      as a worker Node with the right label + taint.
+#   3. Flip `runnersFleetLinux.enabled: true` here, set `name` to
 #      match the pool label value, point `pools[].runnerImage` at a
-#      digest-pinned `ghcr.io/tuist/tuist-linux-runner` build.
+#      digest-pinned `ghcr.io/tuist/tuist-linux-runner` build, and
+#      set `pools[].autoscaling.maxReplicas` to the number of hosts
+#      you provisioned (the autoscaler won't request more Pods than
+#      the operator-provisioned host count can accommodate; Pending
+#      Pods are the signal to provision more hosts).
 runnersFleetLinux:
   enabled: false
   # Value of the `node.cluster.x-k8s.io/pool=` label CAPI's

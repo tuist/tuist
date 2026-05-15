@@ -276,19 +276,31 @@ runnersFleet:
         cpuMilli: 8000
         memoryMB: 14336
 
-# Linux runner fleet on Hetzner Cloud. Host substrate is owned by the
-# workload cluster's ClusterClass topology — see the
-# `runners-linux` entry under `spec.topology.workers.machineDeployments`
-# in `infra/k8s/clusters/cluster-staging.yaml` (`hcloud-worker` class
-# with `node.cluster.x-k8s.io/pool: runners-linux` and a ccx23
-# machine-type override). cluster-autoscaler bounds the elastic
-# range via its node-group annotations; the runners-controller's
-# autoscaler reconciler patches `RunnerPool.spec.replicas` based on
-# queue depth + rolling p95, and Pods that don't fit on current
-# nodes go Pending so CA bumps the MD's replicas to match.
+# Linux runner fleet on Hetzner Robot bare-metal hosts.
+#
+# Substrate: AX42-U class boxes (8c/16t Zen 4 Ryzen, 64 GB DDR5,
+# 2x512 GB NVMe) joined to the workload cluster as worker Nodes via
+# `kubeadm join`, labeled `node.cluster.x-k8s.io/pool=runners-linux`
+# and tainted `tuist.dev/runner-tier=bare-metal:NoSchedule` so only
+# runner Pods land on them.
+#
+# The hosts are NOT CAPI-managed in v1: caph's HetznerBareMetalHost
+# flow (rescue boot + installimage + cloud-init kubeadm join) is the
+# eventual target for production scale-up, but for staging bring-up
+# we manage the box manually. See `infra/runners-controller/AGENTS.md`
+# for the kubeadm join + label + taint procedure.
+#
+# Autoscaling: the runners-controller's autoscaler still drives
+# `RunnerPool.spec.replicas` based on queue depth + p95, but the
+# `machineDeployment` ref is omitted because the bare-metal host
+# count is operator-managed (you order more AX42-Us when load
+# justifies, you don't autoscale ahead of demand). Pods that can't
+# fit on current bare-metal capacity stay Pending; operator sees
+# this as a signal to provision more hosts.
 runnersFleetLinux:
   enabled: true
-  # Matches `cluster-staging.yaml`'s `node.cluster.x-k8s.io/pool` label.
+  # Matches the `node.cluster.x-k8s.io/pool` label stamped on the
+  # bare-metal Nodes during kubeadm join.
   name: runners-linux
   # Single bring-up pool. `runnerImage` is pinned to the SHA tag
   # the `linux-runner-image.yml` workflow pushed; bump manually
@@ -303,35 +315,22 @@ runnersFleetLinux:
         - Linux
         - X64
       pod:
-        # Sized to fit on a ccx23 (4 vCPU dedicated / 16 GiB) after
-        # kubelet reserves + DaemonSets (cilium-agent, hccm,
-        # hcloud-csi, etc.) eat ~500m CPU and ~3 GiB RAM. Trying
-        # 4000m / 14336 MiB schedules Pending with
-        # `Insufficient cpu, Insufficient memory` — kube-scheduler
-        # sees allocatable, not capacity. Production may run wider
-        # if its DaemonSet footprint differs.
-        cpuMilli: 3000
-        memoryMB: 12288
-      # Queue-depth driven autoscaling. minWarmPoolFloor=1 keeps
-      # one Pod ready at all times (cold-start budget on staging is
-      # noise during bring-up); maxReplicas=10 mirrors the
-      # cluster-autoscaler's node-group max in cluster-staging.yaml
-      # so the autoscaler can't request more Pods than the node
-      # group can grow to.
-      #
-      # `machineDeployment` points at the CAPI MD that backs this
-      # pool's nodes. The autoscaler patches the MD's `spec.replicas`
-      # alongside the RunnerPool's, so the node count tracks the Pod
-      # count without a separate cluster-autoscaler in the workload
-      # cluster. See `runnersController.mgmtCluster` for the
-      # kubeconfig the controller needs to reach the management
-      # cluster's API.
+        # AX42-U has 16 vCPUs (8 physical + SMT) and 64 GB RAM. With
+        # kubelet reserves + system DaemonSets eating ~1 CPU and
+        # ~3 GiB, allocatable lands at ~14000 millicpu and ~61 GiB.
+        # One Pod per host while we're container-mode + single-tenant;
+        # the Pod takes most of the host capacity. Multi-tenancy via
+        # Firecracker microVMs lands in a follow-up PR and will resize
+        # this down to per-tenant slices.
+        cpuMilli: 12000
+        memoryMB: 57344
+      # Queue-depth driven autoscaling. minWarmPoolFloor=1 keeps one
+      # Pod warm on the (single) bare-metal host. maxReplicas=1
+      # caps the autoscaler at the operator-provisioned host count;
+      # raise this when more AX42-Us are ordered. Pods that need to
+      # exceed this stay Pending and serve as a procurement signal.
       autoscaling:
         enabled: true
         minWarmPoolFloor: 1
-        maxReplicas: 10
+        maxReplicas: 1
         scaleDownCooldownSeconds: 300
-        machineDeployment:
-          namespace: org-tuist
-          clusterName: tuist-staging
-          deploymentName: runners-linux

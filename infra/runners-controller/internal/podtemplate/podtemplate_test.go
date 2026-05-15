@@ -57,22 +57,28 @@ func TestBuild_LinuxScheduling(t *testing.T) {
 	if got, want := pod.Spec.NodeSelector["kubernetes.io/arch"], "amd64"; got != want {
 		t.Errorf("nodeSelector arch = %q, want %q", got, want)
 	}
-	// CAPI label-sync propagates the `node.cluster.x-k8s.io/pool`
-	// label from the MachineDeployment to the Node; the Pod's
-	// nodeSelector must use the same key to pin to the runners
-	// MD. `tuist.dev/fleet=` is the macOS-only convention because
-	// tart-kubelet sets it outside the standard label-sync.
+	// Hetzner Robot bare-metal hosts join the workload cluster via
+	// kubeadm out-of-band (not CAPI-managed in v1), and the operator
+	// labels them `node.cluster.x-k8s.io/pool=<FleetSelector>` so the
+	// Pod's nodeSelector pins to the runner-tier hosts.
 	if got, want := pod.Spec.NodeSelector["node.cluster.x-k8s.io/pool"], "fleet-x"; got != want {
 		t.Errorf("nodeSelector pool = %q, want %q", got, want)
 	}
 	if _, present := pod.Spec.NodeSelector["tuist.dev/fleet"]; present {
-		t.Errorf("nodeSelector should NOT carry tuist.dev/fleet on Linux pools (label-sync prefix rejected)")
+		t.Errorf("nodeSelector should NOT carry tuist.dev/fleet on Linux pools (that's the macOS-only key)")
 	}
 	if _, present := pod.Spec.NodeSelector["tuist.dev/runtime"]; present {
 		t.Errorf("nodeSelector should NOT carry tuist.dev/runtime on Linux pools")
 	}
-	if len(pod.Spec.Tolerations) != 0 {
-		t.Errorf("Tolerations = %+v, want none on Linux pools", pod.Spec.Tolerations)
+	// Linux bare-metal hosts are tainted `tuist.dev/runner-tier=bare-metal:NoSchedule`
+	// so only runner Pods land on them; everything else (server, system
+	// DaemonSets, etc.) stays on the elastic Hetzner Cloud `md-0` pool.
+	if len(pod.Spec.Tolerations) != 1 {
+		t.Fatalf("Tolerations = %+v, want exactly 1 (bare-metal runner-tier)", pod.Spec.Tolerations)
+	}
+	tol := pod.Spec.Tolerations[0]
+	if tol.Key != "tuist.dev/runner-tier" || tol.Value != "bare-metal" || tol.Effect != "NoSchedule" {
+		t.Errorf("Toleration = %+v, want {Key:tuist.dev/runner-tier Value:bare-metal Effect:NoSchedule}", tol)
 	}
 }
 

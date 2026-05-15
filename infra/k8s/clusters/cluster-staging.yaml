@@ -1,6 +1,12 @@
 # Staging workload Cluster, topology mode against tuist-hcloud.
-# 3× cpx22 control plane + 2× cpx32 workers in fsn1, plus an
-# autoscaled ccx23 pool for Linux GitHub Actions runners.
+# 3× cpx22 control plane + 2× cpx32 workers in fsn1.
+#
+# Linux GitHub Actions runners run on Hetzner Robot bare-metal hosts
+# (AX42-U class), joined to this workload cluster as worker Nodes.
+# The bare-metal hosts are NOT managed by this ClusterClass — they
+# join out-of-band via `kubeadm join` and are taint+labeled to host
+# runner Pods exclusively. See `infra/runners-controller/AGENTS.md`
+# for the bare-metal bring-up procedure.
 apiVersion: cluster.x-k8s.io/v1beta2
 kind: Cluster
 metadata:
@@ -35,38 +41,10 @@ spec:
     workers:
       machineDeployments:
         # General-purpose pool: Phoenix server, system DaemonSets.
+        # Stays on Hetzner Cloud (cpx32) since these workloads don't
+        # benefit from bare metal and the elastic scaling matters
+        # more than per-host cost.
         - class: hcloud-worker
           name: md-0
           replicas: 2
           failureDomain: fsn1
-        # Linux runner pool: customer GitHub Actions workloads.
-        # ccx23 (4 dedicated vCPU / 16 GiB) matches Namespace's
-        # spec one-to-one. cluster-autoscaler annotations bound
-        # the elastic range; runners-controller's autoscaler
-        # patches RunnerPool.spec.replicas based on queue depth +
-        # rolling p95 and any Pod that can't land on the current
-        # node count goes Pending → CA bumps this MD's replicas
-        # via the same node-group registration the production
-        # processor pool already uses.
-        - class: hcloud-worker
-          name: runners-linux
-          # `replicas` matches `cluster-autoscaler-node-group-min-size`
-          # so the topology controller and CA agree on the floor.
-          # min=1 (not 0) keeps one node warm during bring-up; once
-          # we're confident CA scales this group correctly, drop to 0.
-          replicas: 1
-          failureDomain: fsn1
-          metadata:
-            labels:
-              node.cluster.x-k8s.io/pool: runners-linux
-            annotations:
-              cluster.x-k8s.io/cluster-autoscaler-node-group-min-size: "1"
-              cluster.x-k8s.io/cluster-autoscaler-node-group-max-size: "10"
-          variables:
-            overrides:
-              # ccx23 = 4 vCPU dedicated / 16 GB. Matches Namespace's
-              # customer-facing spec one-to-one. Requires the staging
-              # Hetzner project's dedicated-core quota to permit at
-              # least `4 * max-size` cores (40 cores for max-size=10).
-              - name: hcloudWorkerMachineType
-                value: ccx23
