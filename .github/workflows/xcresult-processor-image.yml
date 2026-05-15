@@ -104,9 +104,14 @@ jobs:
       # The bare-metal runner has tuist-bot ghcr.io creds cached from
       # earlier image-push jobs. Those creds don't authorize pulls
       # from ghcr.io/cirruslabs/*, so Tart's token-fetch returns 403.
-      # Log out so Tart falls back to anonymous (public) for the pull.
+      # Tart also consults Docker credential helpers, so clear both
+      # stores before the public anonymous pull.
       - name: Drop cached ghcr.io credentials
-        run: tart logout ghcr.io || true
+        run: |
+          tart logout ghcr.io || true
+          if command -v docker >/dev/null 2>&1; then
+            docker logout ghcr.io || true
+          fi
 
       # Reclaim disk before the Cirrus pull. macos-tahoe-xcode:26.4 is
       # ~70GB on disk; the bare-metal Mac mini accumulates older Tart

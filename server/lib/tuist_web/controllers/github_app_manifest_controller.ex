@@ -75,7 +75,7 @@ defmodule TuistWeb.GitHubAppManifestController do
     with {:ok, %{account_id: account_id, client_url: client_url}} <- VCS.verify_github_state_token(state_token),
          :ok <- ensure_entitled(account_id),
          {:ok, account} <- Accounts.get_account_by_id(account_id),
-         {:ok, app} <- exchange_manifest_code(client_url, code),
+         {:ok, app} <- exchange_manifest_code(account_id, client_url, code),
          {:ok, installation} <- upsert_installation(account, client_url, app) do
       install_state = VCS.generate_github_state_token(account.id, client_url)
       install_url = "#{client_url}/apps/#{installation.app_slug}/installations/new?state=#{install_state}"
@@ -101,13 +101,8 @@ defmodule TuistWeb.GitHubAppManifestController do
                 "GitHub Enterprise Server is only available on the Enterprise plan."
               )
 
-      {:error, reason} when is_binary(reason) ->
-        Logger.error("GitHub App manifest exchange failed: #{reason}")
-        raise BadRequestError, dgettext("dashboard", "Could not complete the GitHub App registration.")
-
-      {:error, reason} ->
-        Logger.error("GitHub App manifest exchange failed: #{inspect(reason)}")
-        raise BadRequestError, dgettext("dashboard", "Could not complete the GitHub App registration.")
+      {:error, {:exchange_failed, ctx}} ->
+        handle_exchange_failure(ctx)
     end
   end
 
@@ -233,29 +228,130 @@ defmodule TuistWeb.GitHubAppManifestController do
     """
   end
 
-  defp exchange_manifest_code(client_url, code) do
+  defp exchange_manifest_code(account_id, client_url, code) do
     api_url = VCS.api_url(:github, client_url)
     url = "#{api_url}/app-manifests/#{code}/conversions"
+    base_ctx = %{account_id: account_id, client_url: client_url}
 
-    with {:ok, pinned_url, hostname} <- SSRFGuard.pin(url) do
-      case Req.post(
-             url: pinned_url,
-             headers: [
-               {"Accept", "application/vnd.github+json"},
-               {"X-GitHub-Api-Version", "2022-11-28"}
-             ],
-             connect_options: SSRFGuard.connect_options(hostname)
-           ) do
-        {:ok, %Req.Response{status: status, body: %{"id" => _} = body}} when status in 200..299 ->
-          {:ok, body}
+    case SSRFGuard.pin(url) do
+      {:ok, pinned_url, hostname} ->
+        post_manifest_exchange(base_ctx, pinned_url, hostname)
 
-        {:ok, %Req.Response{status: status, body: body}} ->
-          {:error, "Manifest conversion failed (HTTP #{status}): #{redact_secrets(body)}"}
-
-        {:error, reason} ->
-          {:error, "Manifest conversion request failed: #{inspect(reason)}"}
-      end
+      {:error, reason} ->
+        {:error, {:exchange_failed, Map.merge(base_ctx, %{stage: :ssrf, reason: reason})}}
     end
+  end
+
+  defp post_manifest_exchange(base_ctx, pinned_url, hostname) do
+    # `body: ""` forces a `Content-Length: 0` header. GitHub Enterprise
+    # Server rejects this POST with HTTP 411 otherwise; github.com's API
+    # tolerates the missing header.
+    case Req.post(
+           url: pinned_url,
+           body: "",
+           headers: [
+             {"Accept", "application/vnd.github+json"},
+             {"X-GitHub-Api-Version", "2022-11-28"}
+           ],
+           connect_options: SSRFGuard.connect_options(hostname)
+         ) do
+      {:ok, %Req.Response{status: status, body: %{"id" => _} = body}} when status in 200..299 ->
+        {:ok, body}
+
+      {:ok, %Req.Response{status: status, body: body}} ->
+        {:error, {:exchange_failed, Map.merge(base_ctx, %{stage: :http, status: status, body: redact_secrets(body)})}}
+
+      {:error, reason} ->
+        {:error, {:exchange_failed, Map.merge(base_ctx, %{stage: :transport, reason: inspect(reason)})}}
+    end
+  end
+
+  defp handle_exchange_failure(%{stage: :ssrf, client_url: client_url, account_id: account_id, reason: reason}) do
+    Logger.error("GitHub App manifest exchange blocked by SSRF guard",
+      stage: :ssrf,
+      client_url: client_url,
+      account_id: account_id,
+      reason: inspect(reason)
+    )
+
+    message =
+      case reason do
+        :private_ip_resolved ->
+          dgettext(
+            "dashboard",
+            "%{url} resolves to a non-public IP address, so Tuist refuses to connect to it. Either expose the GitHub Enterprise Server API on a public address (allowlisting Tuist's egress IPs is enough), or self-host Tuist inside your network.",
+            url: client_url
+          )
+
+        :dns_failure ->
+          dgettext(
+            "dashboard",
+            "Tuist could not resolve %{url}. Double-check the GitHub Enterprise Server URL is correct and publicly resolvable.",
+            url: client_url
+          )
+
+        _ ->
+          dgettext("dashboard", "Could not complete the GitHub App registration.")
+      end
+
+    raise BadRequestError, message
+  end
+
+  defp handle_exchange_failure(%{stage: :transport, client_url: client_url, account_id: account_id, reason: reason}) do
+    Logger.error("GitHub App manifest exchange request failed",
+      stage: :transport,
+      client_url: client_url,
+      account_id: account_id,
+      reason: reason
+    )
+
+    raise BadRequestError,
+          dgettext(
+            "dashboard",
+            "Tuist could not reach %{url}. Confirm the instance is reachable from the public internet, or self-host Tuist if it's internal-only.",
+            url: client_url
+          )
+  end
+
+  defp handle_exchange_failure(%{
+         stage: :http,
+         client_url: client_url,
+         account_id: account_id,
+         status: status,
+         body: body
+       }) do
+    Logger.error("GitHub App manifest exchange returned non-success",
+      stage: :http,
+      client_url: client_url,
+      account_id: account_id,
+      status: status,
+      body: body
+    )
+
+    message =
+      case status do
+        404 ->
+          dgettext(
+            "dashboard",
+            "GitHub Enterprise Server returned 404 when converting the manifest. The temporary registration code may have expired (it's valid for one hour) — start the flow again from the integrations page."
+          )
+
+        s when s in [410, 422] ->
+          dgettext(
+            "dashboard",
+            "GitHub Enterprise Server rejected the manifest with HTTP %{status}. The registration code is no longer usable — start the flow again from the integrations page.",
+            status: s
+          )
+
+        s ->
+          dgettext(
+            "dashboard",
+            "GitHub Enterprise Server returned HTTP %{status} when converting the manifest. Check the server logs for the request body and retry.",
+            status: s
+          )
+      end
+
+    raise BadRequestError, message
   end
 
   defp upsert_installation(account, client_url, app) do
