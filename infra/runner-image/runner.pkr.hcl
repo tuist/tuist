@@ -117,18 +117,36 @@ build {
     ]
   }
 
-  # Cirrus' macos-tahoe-xcode:26.4.1 image ships Xcode at
-  # /Applications/Xcode_26.4.1.app. GitHub's actions/runner-images
-  # exposes each Xcode under BOTH the full and major-minor path
-  # (see images/macos/macos-26-arm64-Readme.md#xcode) so customer
-  # workflows that pin `.xcode-version=26.4` work the same as ones
-  # pinning `.xcode-version=26.4.1`. Mirror that convention here so
-  # repos don't have to switch their `.xcode-version` file each
-  # time the patch component rolls.
+  # GitHub's actions/runner-images exposes each Xcode under BOTH
+  # the full and the major-minor path (see images/macos/macos-26-
+  # arm64-Readme.md#xcode) so customer workflows that pin
+  # `.xcode-version=26.4` work the same as ones pinning
+  # `.xcode-version=26.4.1`. Mirror that here so repos don't have
+  # to switch their `.xcode-version` file each time the patch
+  # component rolls.
+  #
+  # We don't hardcode the on-disk path because Cirrus' xcode
+  # provisioner installs at `Xcode_${version}.app` where ${version}
+  # is whatever they configured at image-build time — and that
+  # doesn't always match the OCI tag (the :26.4.1 image observed
+  # in production didn't carry a literal `/Applications/Xcode_26.4.1.app`).
+  # Discover the real Xcode app at build time and symlink both
+  # versioned names at it. `xcode-select -p` is the authoritative
+  # source: it returns `<APP>/Contents/Developer`, which we walk
+  # back to the bundle root.
   provisioner "shell" {
     inline = [
-      "echo 'admin' | sudo -S ln -sfn /Applications/Xcode_26.4.1.app /Applications/Xcode_26.4.app",
-      "test -d /Applications/Xcode_26.4.app && test -d /Applications/Xcode_26.4.1.app"
+      "set -euo pipefail",
+      "developer=$(xcode-select -p)",
+      "real_xcode=$(cd \"$developer/../..\" && pwd -P)",
+      "echo \"Discovered Xcode bundle at $real_xcode\"",
+      "for alias in /Applications/Xcode_26.4.1.app /Applications/Xcode_26.4.app; do",
+      "  if [ \"$alias\" = \"$real_xcode\" ]; then continue; fi",
+      "  echo 'admin' | sudo -S ln -sfn \"$real_xcode\" \"$alias\"",
+      "done",
+      "test -d /Applications/Xcode_26.4.app",
+      "test -d /Applications/Xcode_26.4.1.app",
+      "ls -ld /Applications/Xcode_26.4*.app"
     ]
   }
 
