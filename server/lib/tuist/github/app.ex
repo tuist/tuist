@@ -142,8 +142,7 @@ defmodule Tuist.GitHub.App do
       req_opts =
         [
           url: pinned_url,
-          headers: headers,
-          finch: Tuist.Finch
+          headers: headers
         ] ++ ssrf_opts ++ Retry.retry_options()
 
       case Req.post(req_opts) do
@@ -165,7 +164,11 @@ defmodule Tuist.GitHub.App do
 
   # Skip SSRF pinning for the canonical github.com REST host; pin every
   # GHES instance, since their hostnames are user-controlled.
-  defp pin_for_request(url, "https://api.github.com"), do: {:ok, url, []}
+  #
+  # github.com uses the shared `Tuist.Finch` pool. GHES uses Req's default
+  # pool because the per-host `:connect_options` (SNI / cert hostname) are
+  # mutually exclusive with a user-supplied `:finch` pool.
+  defp pin_for_request(url, "https://api.github.com"), do: {:ok, url, [finch: Tuist.Finch]}
 
   defp pin_for_request(url, _api_url) do
     case SSRFGuard.pin(url) do
