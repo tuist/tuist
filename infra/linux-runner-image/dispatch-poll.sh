@@ -83,25 +83,7 @@ while true; do
       # pipeline turns into a fresh image + digest bump in helm
       # values. Auto-update would silently swap the runner mid-Pod
       # and race with GitHub's deprecation cadence on cold boot.
-      #
-      # NOT `exec` during bring-up: we capture rc and dump _diag/*.log
-      # to stdout afterwards so kubectl logs sees whatever the runner
-      # said before exiting. Then sleep so the Pod isn't reaped before
-      # diagnostics can read it. Revert to `exec` once Linux pool is
-      # stable.
-      export ACTIONS_RUNNER_DEBUG=true
-      ./run.sh --jitconfig "${jit}" --disableupdate
-      rc=$?
-      echo "$(date -u +%FT%TZ) dispatch-poll: ./run.sh exited rc=$rc"
-      echo "$(date -u +%FT%TZ) dispatch-poll: dumping _diag logs"
-      for f in _diag/Runner_*.log _diag/Worker_*.log; do
-        [ -f "$f" ] || continue
-        echo "===== $f ====="
-        cat "$f" || true
-      done
-      echo "$(date -u +%FT%TZ) dispatch-poll: holding pod open 300s for inspection"
-      sleep 300
-      exit $rc
+      exec ./run.sh --jitconfig "${jit}" --disableupdate
       ;;
     204)
       # No work yet. Quiet log every 30th attempt (~once per
