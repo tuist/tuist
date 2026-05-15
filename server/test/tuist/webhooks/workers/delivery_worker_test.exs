@@ -2,10 +2,25 @@ defmodule Tuist.Webhooks.Workers.DeliveryWorkerTest do
   use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
+  alias Tuist.OAuth2.SSRFGuard
   alias Tuist.Webhooks
   alias Tuist.Webhooks.Signature
   alias Tuist.Webhooks.Workers.DeliveryWorker
   alias TuistTestSupport.Fixtures.AccountsFixtures
+
+  setup do
+    # SSRFGuard.pin/1 does live DNS — tests assert against `endpoint.url`
+    # directly, so we stub the guard to return the URL untouched. The
+    # SSRF behaviour itself has its own coverage in `ssrf_guard_test.exs`.
+    stub(SSRFGuard, :pin, fn url ->
+      %URI{host: host} = URI.parse(url)
+      {:ok, url, host}
+    end)
+
+    stub(SSRFGuard, :connect_options, fn _hostname -> [] end)
+
+    :ok
+  end
 
   defp build_endpoint do
     account = AccountsFixtures.user_fixture().account
