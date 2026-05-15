@@ -132,111 +132,124 @@ If `--mgmt-kubeconfig` is unset or the kubeconfig is invalid, the
 controller logs at warning level and the MD-scaling path is a
 no-op; the Pod-layer autoscaler still works.
 
-## Linux runner substrate: Hetzner Robot bare-metal hosts
+## Linux runner substrate: Hetzner Robot bare-metal hosts (caph)
 
-Linux runner Pods run on Hetzner Robot dedicated servers (AX42-U
-class, FSN1 datacenter). The hosts join the staging workload cluster
-as worker Nodes via `kubeadm join` and are taint+labeled so that only
-runner Pods land on them.
+Linux runner Pods run as Firecracker microVMs (via Kata Containers)
+on Hetzner Robot dedicated servers (AX42-U class for staging,
+AX162-R for production). The hosts are adopted by `caph` from
+pre-ordered Robot inventory through the standard CAPI bare-metal
+flow:
 
-In v1 they are **not CAPI-managed** — `caph`'s `HetznerBareMetalHost`
-flow (rescue-boot + `installimage` + cloud-init `kubeadm join`) is
-the eventual target for production scale-up, but for staging
-bring-up the operator drives this manually. Each host is ordered
-via the Robot panel, joined once, and lives for as long as it makes
-economic sense.
+```
+operator orders AX42-U via Robot panel
+        │
+        │ (operator records server ID, adds a HetznerBareMetalHost CR
+        │  in `infra/k8s/clusters/bare-metal-staging.yaml` referencing
+        │  that server ID)
+        ▼
+HetznerBareMetalHost (mgmt cluster, org-tuist namespace)
+        │
+        │ (caph sees the new CR, reads Robot credentials from
+        │  `hetzner-robot-credentials` Secret, contacts Robot API to
+        │  reboot the box into rescue mode)
+        ▼
+Box boots Hetzner rescue system; caph SSHes in via the shared key
+from `hetzner-bare-metal-ssh-key` Secret
+        │
+        │ (caph runs `installimage` per the HetznerBareMetalMachineTemplate
+        │  spec — writes Ubuntu 24.04 LTS to RAID 1 across both NVMes)
+        ▼
+Box reboots into the freshly installed OS
+        │
+        │ (cloud-init runs the bare-metal worker KubeadmConfigTemplate:
+        │  installs containerd + kubeadm + kubelet, then `kubeadm join`s
+        │  the workload cluster with the runner-tier taint)
+        ▼
+Node registers in workload cluster, labeled
+`node.cluster.x-k8s.io/pool=runners-linux` (from MD `metadata.labels`)
+and `tuist.dev/kata-runtime=true` (from the post-kubeadm script)
+        │
+        │ (kata-deploy DaemonSet sees the kata-runtime label, installs
+        │  Kata Containers + Firecracker binaries, configures
+        │  containerd, restarts containerd)
+        ▼
+Node ready to schedule runner Pods (which carry
+`runtimeClassName: kata-fc`, so each Pod becomes a microVM)
+```
 
-### Bringing up a new bare-metal host
+### Bringing up a new bare-metal host (operator workflow)
 
-Prerequisites:
-- Host has been ordered from [robot.hetzner.com](https://robot.hetzner.com),
-  provisioned, and is reachable via SSH using the shared key in
-  1Password (`tuist-k8s-staging/HETZNER_BARE_METAL_SSH_KEY`).
-- The workload cluster control plane is healthy and reachable on the
-  cluster's API server endpoint.
+1. **Order an AX-class server from [robot.hetzner.com](https://robot.hetzner.com)**.
+   FSN1 for staging (matches the Cloud cluster region). Paste the
+   shared SSH public key from
+   `tuist-k8s-staging/HETZNER_BARE_METAL_SSH_KEY` (1Password,
+   `public-key` field) into the order form. Wait for the email with
+   the server ID and IP.
 
-Steps (run from a workstation that has both the workload-cluster
-kubeconfig and SSH access to the new bare-metal host):
+2. **Add a `HetznerBareMetalHost` CR** to
+   `infra/k8s/clusters/bare-metal-staging.yaml`, modeled on the
+   existing `bm-staging-2986829` entry. Set `serverID` to the new
+   number; everything else (Robot credentials secret reference,
+   `rootDeviceHints`) stays the same.
+
+3. **Bump `replicas` on the `runners-linux` MachineDeployment** in
+   `infra/k8s/clusters/cluster-staging.yaml` to match the number of
+   `HetznerBareMetalHost` CRs you now have. caph won't satisfy more
+   replicas than there are host CRs, so the MD-replicas count is the
+   "how many of our pre-ordered hosts do we want active right now"
+   knob.
+
+4. **Apply the management-cluster manifests** (the
+   `mgmt-cluster-apply.yml` workflow reconciles
+   `infra/k8s/clusters/` on push to `main`).
+
+5. **Watch caph adopt the host**:
+
+   ```bash
+   kubectl --kubeconfig "$MGMT_KUBECONFIG" \
+     -n org-tuist get hetznerbaremetalhost -w
+   ```
+
+   Status goes through `available` → `preparing` → `image-installing`
+   → `provisioned` → `kubeadm-joined`. Total ~8-15 minutes for an
+   AX42-U.
+
+6. **Verify the Node registered** in the workload cluster:
+
+   ```bash
+   kubectl --kubeconfig "$STAGING_KUBECONFIG" get nodes \
+     -l node.cluster.x-k8s.io/pool=runners-linux
+   ```
+
+   The kata-deploy DaemonSet auto-installs on this node (it watches
+   for `tuist.dev/kata-runtime=true`). Wait for it to mark the node
+   `katacontainers.io/kata-runtime=true` before runner Pods will
+   schedule:
+
+   ```bash
+   kubectl --kubeconfig "$STAGING_KUBECONFIG" \
+     -n tuist-staging get pods -l app.kubernetes.io/name=kata-deploy
+   ```
+
+7. **Bump `runnersFleetLinux.pools[].autoscaling.maxReplicas`** in
+   `values-managed-staging.yaml` to match the new host density (16
+   microVMs per AX42-U at the standard 1vCPU/4GB slot size). Then
+   re-deploy the workload cluster's `tuist` helm release.
+
+### Emergency SSH access
+
+If a bare-metal host misbehaves and caph isn't responding, the
+operator can SSH in directly using the shared key from
+`tuist-k8s-staging/HETZNER_BARE_METAL_SSH_KEY`:
 
 ```bash
-HOST_IP=188.40.215.109   # IP of the new bare-metal box
-POOL_NAME=runners-linux  # matches runnersFleetLinux.name in values
-
-# 1. Generate a fresh bootstrap join token from a control-plane node
-#    of the workload cluster. The KUBECONFIG path is the staging
-#    workload cluster's kubeconfig (`kubeconfig: tuist-staging` in
-#    1P, vault: tuist-k8s-staging).
-JOIN_CMD=$(kubectl --kubeconfig "$STAGING_KUBECONFIG" \
-  --namespace kube-system \
-  exec -i $(kubectl --kubeconfig "$STAGING_KUBECONFIG" \
-    --namespace kube-system get pods -l component=kube-apiserver \
-    -o name | head -1) \
-  -- kubeadm token create --print-join-command --ttl 1h)
-
-# 2. Pull the shared SSH private key from 1P (terminal-only, never
-#    to a permanent file)
 op read "op://tuist-k8s-staging/HETZNER_BARE_METAL_SSH_KEY/private-key" \
   --account=tuist.1password.com > /tmp/hbm
 chmod 600 /tmp/hbm
-
-# 3. SSH in and run the join procedure
-ssh -i /tmp/hbm -o StrictHostKeyChecking=no root@"$HOST_IP" "
-  set -euo pipefail
-
-  # Install containerd + kubeadm + kubelet matching the workload
-  # cluster's k8s version. Adjust K8S_VERSION to track the value in
-  # cluster-staging.yaml's spec.topology.version (currently v1.34.6).
-  K8S_VERSION=v1.34
-  curl -fsSL https://pkgs.k8s.io/core:/stable:/\${K8S_VERSION}/deb/Release.key | \
-    gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
-  echo \"deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/\${K8S_VERSION}/deb/ /\" | \
-    tee /etc/apt/sources.list.d/kubernetes.list
-
-  apt-get update
-  apt-get install -y containerd kubeadm kubelet
-  systemctl enable --now containerd
-  systemctl enable kubelet
-
-  # Pre-pull the pause image to keep first-Pod start tight.
-  containerd-config-default | tee /etc/containerd/config.toml
-  systemctl restart containerd
-
-  # Run the join command captured in step 1.
-  $JOIN_CMD
-
-  # Wait for the node to register, then apply runner-tier label +
-  # taint. Without these, runner Pods don't schedule here and other
-  # workloads might.
-"
-
-# 4. From the workstation, apply the pool label + tier taint
-kubectl --kubeconfig "$STAGING_KUBECONFIG" \
-  label node "<node-name>" \
-  "node.cluster.x-k8s.io/pool=$POOL_NAME"
-
-kubectl --kubeconfig "$STAGING_KUBECONFIG" \
-  taint node "<node-name>" \
-  "tuist.dev/runner-tier=bare-metal:NoSchedule"
-
-# 5. Shred the local key
-shred -u /tmp/hbm
+ssh -i /tmp/hbm root@<host-ip>
+# remember to: shred -u /tmp/hbm afterwards
 ```
 
-The host now hosts runner Pods exclusively (the `bare-metal:NoSchedule`
-taint repels everything that doesn't tolerate it; the runners-controller
-podtemplate stamps the matching toleration on Linux Pods).
-
-### Future: CAPI-managed bare metal (`caph` adoption)
-
-For production scale-up the manual flow above is replaced by:
-
-1. `HetznerBareMetalHost` CR per box, referencing the Robot
-   webservice credentials in 1P (`tuist-k8s-staging/HETZNER_WEBSERVICE`).
-2. `HetznerBareMetalMachineTemplate` referencing the host pool.
-3. A `bare-metal-worker` MachineDeployment class added to the
-   `tuist-hcloud` ClusterClass.
-4. `installimage` cloud-init that runs `kubeadm join` automatically.
-
-This is intentionally deferred — staging bring-up doesn't need
-automated lifecycle management, and the CAPI integration is its own
-focused piece of work once the substrate is proven.
+The key remains valid through reinstalls because caph configures it
+into `/root/.ssh/authorized_keys` as part of the cloud-init
+bootstrap.

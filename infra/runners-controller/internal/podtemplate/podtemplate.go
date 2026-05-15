@@ -101,6 +101,14 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 			NodeSelector:                 nodeSelector,
 			Tolerations:                  tolerations,
 			Volumes:                      extraVolumes,
+			// RuntimeClassName, when set, routes the Pod through a
+			// non-default container runtime. Linux bare-metal pools
+			// use `kata-fc` (Kata Containers + Firecracker) so each
+			// Pod becomes a microVM with its own kernel for real
+			// per-tenant isolation. Empty falls back to runc on
+			// containerd — fine for macOS (tart-kubelet) and for
+			// single-tenant bare-metal during bring-up.
+			RuntimeClassName: runtimeClassName(pool),
 			// No restart: ephemeral runner. macOS Pods halt the
 			// underlying Tart VM via the EXIT trap in dispatch-poll;
 			// Linux containers just exit, kubelet flips the Pod to
@@ -175,6 +183,20 @@ func BuildServiceAccount(pool *tuistv1.RunnerPool, saName string) *corev1.Servic
 
 func ptr[T any](v T) *T {
 	return &v
+}
+
+// runtimeClassName returns a non-nil *string to stamp on
+// `Pod.spec.runtimeClassName` when the pool has `spec.runtimeClass`
+// set, or nil for the cluster default runtime. We never set an empty
+// string — kube-apiserver treats empty as "no class specified" but
+// downstream tooling sometimes treats an empty pointer differently
+// from a nil one. Use nil for cleanliness.
+func runtimeClassName(pool *tuistv1.RunnerPool) *string {
+	if pool.Spec.RuntimeClass == "" {
+		return nil
+	}
+	rc := pool.Spec.RuntimeClass
+	return &rc
 }
 
 // schedulingFor returns the nodeSelector + tolerations for a pool's

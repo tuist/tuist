@@ -1,0 +1,243 @@
+# Bare-metal substrate for the staging workload cluster.
+#
+# Owns three things:
+#
+#   1. `HetznerBareMetalHost` CRs — one per physical AX42-U we have
+#      provisioned through the Hetzner Robot panel. caph claims these,
+#      rescue-boots the box, runs `installimage` to write a known-clean
+#      Ubuntu 24.04 LTS, and the bootstrap cloud-init runs `kubeadm
+#      join` to register the host as a worker Node in the workload
+#      cluster.
+#
+#   2. `HetznerBareMetalMachineTemplate` — claimed by the
+#      `bare-metal-worker` MachineDeployment class in the ClusterClass
+#      (see `clusterclass-tuist.yaml`). Specifies the OS image, the
+#      partition layout, and where the SSH credentials + install
+#      script live.
+#
+#   3. ExternalSecret for the Robot webservice credentials — caph
+#      reads these to drive the Robot API during rescue boot. The
+#      1Password item lives in the `tuist-k8s-staging` vault as
+#      `HETZNER_WEBSERVICE` (matches the user the operator created in
+#      the Robot panel; per-env vault scoping keeps staging and
+#      production credentials independently revocable).
+#
+# Schema note: the caph bare-metal CR fields below track caph >=v1.0.
+# If the running caph version differs, the operator may need to
+# adjust field names (especially the `installImage` shape). The
+# overall structure — `HetznerBareMetalHost` per server, claimed by
+# a `HetznerBareMetalMachineTemplate`, fed from a Secret named in
+# `sshSpec.secretRef` — is stable across versions.
+
+---
+# Sync the Robot webservice user + password from 1Password into a
+# Secret caph reads via the HetznerCluster spec's
+# `hetznerSecretRef` (already wired into the existing tuist-staging
+# Cluster, but the credentials are added here on top of the existing
+# HCloud token so caph's Robot client can authenticate too).
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: hetzner-robot-credentials
+  namespace: org-tuist
+  labels:
+    app.kubernetes.io/component: caph
+    app.kubernetes.io/managed-by: tuist-bootstrap
+spec:
+  refreshInterval: "1h"
+  secretStoreRef:
+    name: onepassword
+    kind: ClusterSecretStore
+  target:
+    name: hetzner-robot-credentials
+    creationPolicy: Owner
+  data:
+    # caph expects two keys under the same Secret as its existing
+    # `HCLOUD_TOKEN`: `hetznerRobotUser` and `hetznerRobotPassword`.
+    # The 1Password item `HETZNER_WEBSERVICE` holds them in
+    # `username` and `password` fields respectively.
+    - secretKey: hetznerRobotUser
+      remoteRef:
+        key: "HETZNER_WEBSERVICE/username"
+    - secretKey: hetznerRobotPassword
+      remoteRef:
+        key: "HETZNER_WEBSERVICE/password"
+
+---
+# SSH key caph SSHes in with during the rescue-system → installimage
+# transition. The same key is the one the operator pastes into the
+# Robot order form when provisioning a new AX-class host, so caph
+# can sign in to rescue mode out-of-the-box.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: hetzner-bare-metal-ssh-key
+  namespace: org-tuist
+  labels:
+    app.kubernetes.io/component: caph
+    app.kubernetes.io/managed-by: tuist-bootstrap
+spec:
+  refreshInterval: "1h"
+  secretStoreRef:
+    name: onepassword
+    kind: ClusterSecretStore
+  target:
+    name: hetzner-bare-metal-ssh-key
+    creationPolicy: Owner
+  data:
+    - secretKey: sshkey-name
+      remoteRef:
+        # The display name set in the Robot panel when this key was
+        # uploaded (`hetzner-bm-staging` per the order flow). caph
+        # matches the key by name when configuring the host.
+        key: "HETZNER_BARE_METAL_SSH_KEY/public-key-name"
+    - secretKey: ssh-publickey
+      remoteRef:
+        key: "HETZNER_BARE_METAL_SSH_KEY/public-key"
+    - secretKey: ssh-privatekey
+      remoteRef:
+        key: "HETZNER_BARE_METAL_SSH_KEY/private-key"
+
+---
+# Per-host CR. One entry per AX-class machine provisioned via Robot.
+# Add a new HetznerBareMetalHost when the operator provisions another
+# AX42-U / AX102-U / AX162-R box; the bare-metal-worker MD will claim
+# the next available one when scaled up.
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+kind: HetznerBareMetalHost
+metadata:
+  # Naming: `bm-<env>-<server-id>` so operators can map between Robot
+  # panel server numbers and these CRs at a glance.
+  name: bm-staging-2986829
+  namespace: org-tuist
+  labels:
+    cluster.x-k8s.io/cluster-name: tuist-staging
+    node.cluster.x-k8s.io/pool: runners-linux
+spec:
+  # Hetzner Robot server ID. Found in the Robot panel under
+  # Servers → <hostname> → "#<id>".
+  serverID: 2986829
+  # Don't rescue/reinstall this box right now. Flip to false when
+  # the bare-metal-worker MD scales up and is ready to claim it.
+  maintenanceMode: false
+  # NVMe device hints so installimage knows which disks to partition.
+  # The AX42-U has two 512 GB NVMe drives in software RAID 1. WWN
+  # identifiers are stable across reboots; the operator runs
+  # `ls -l /dev/disk/by-id/nvme-* | grep wwn` after the first SSH and
+  # pastes them here. Empty `wwn:` is acceptable for now — caph will
+  # use the first eligible NVMe pair — but pinning by WWN is the
+  # safer long-term shape.
+  rootDeviceHints:
+    raid:
+      wwn: []
+  # Robot credentials. The Secret is synced by ESO above; caph reads
+  # `hetznerRobotUser` + `hetznerRobotPassword` keys.
+  hetznerRobotCredentialsRef:
+    name: hetzner-robot-credentials
+
+---
+# Infrastructure template for the bare-metal-worker MachineDeployment
+# class. The class definition lives in `clusterclass-tuist.yaml`.
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+kind: HetznerBareMetalMachineTemplate
+metadata:
+  name: tuist-bare-metal-machinetemplate
+  namespace: org-tuist
+spec:
+  template:
+    spec:
+      installImage:
+        # Path inside the rescue system's filesystem to the OS tarball
+        # to install. Hetzner mounts an NFS share at /root/.oldroot/nfs
+        # inside the rescue system with images for each supported
+        # distribution.
+        image:
+          path: /root/.oldroot/nfs/install/../images/Ubuntu-2404-noble-amd64-base.tar.gz
+        # Partition layout — match the default Hetzner installimage
+        # for AX-class boxes: RAID1 across both NVMes, ESP for UEFI
+        # boot, /boot, /, and (no) swap on bare metal.
+        partitions:
+          - mount: /boot/efi
+            fileSystem: vfat
+            size: 256M
+          - mount: /boot
+            fileSystem: ext4
+            size: 1024M
+          - mount: /
+            fileSystem: ext4
+            size: all
+        # post-install script runs on the freshly installed OS before
+        # the first reboot. Used to install containerd + the
+        # tuist.dev/kata-runtime label so kata-deploy picks it up on
+        # first kubelet check-in.
+        postInstallScript: |
+          #!/bin/bash
+          set -euo pipefail
+          # Label the node for the kata-deploy DaemonSet on first boot.
+          # The bare-metal-worker `KubeadmConfigTemplate` runs the
+          # actual kubeadm join + label apply via cloud-init; this
+          # file just stages the marker.
+          mkdir -p /etc/tuist
+          echo 'kata-runtime=true' > /etc/tuist/node-labels
+      sshSpec:
+        # The same SSH key the operator pastes into the Robot order
+        # form when provisioning, so caph can SSH into rescue mode
+        # without needing a separate credential set.
+        secretRef:
+          name: hetzner-bare-metal-ssh-key
+          key:
+            name: sshkey-name
+            publicKey: ssh-publickey
+            privateKey: ssh-privatekey
+        portAfterInstallImage: 22
+        portAfterCloudInit: 22
+
+---
+# Bootstrap template for the bare-metal-worker MachineDeployment.
+# cloud-init drops the kubelet config + containerd config files, runs
+# kubeadm join, and applies the labels + taints that route runner
+# Pods exclusively to this node and opt into kata-deploy.
+apiVersion: bootstrap.cluster.x-k8s.io/v1beta2
+kind: KubeadmConfigTemplate
+metadata:
+  name: tuist-bare-metal-worker-bootstraptemplate
+  namespace: org-tuist
+spec:
+  template:
+    spec:
+      joinConfiguration:
+        nodeRegistration:
+          name: '{{ ds.meta_data.local_hostname }}'
+          kubeletExtraArgs:
+            - name: cloud-provider
+              value: external
+            - name: provider-id
+              value: 'hcloud://{{ ds.meta_data.instance_id }}'
+          taints:
+            # Only runner Pods land on bare-metal nodes; everything
+            # else stays on the elastic cloud `md-0` pool.
+            - key: tuist.dev/runner-tier
+              value: bare-metal
+              effect: NoSchedule
+      preKubeadmCommands:
+        - set -euo pipefail
+        # Container runtime + kubeadm install. Matches what the
+        # cloud worker template installs so the worker bootstrap is
+        # consistent across substrates; the actual containerd version
+        # tracks the K8s version the cluster runs at.
+        - apt-get update
+        - apt-get install -y apt-transport-https ca-certificates curl gpg
+        - curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.34/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+        - 'echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.34/deb/ /" > /etc/apt/sources.list.d/kubernetes.list'
+        - apt-get update
+        - apt-get install -y containerd kubeadm kubelet
+        - systemctl enable --now containerd
+        - systemctl enable kubelet
+      postKubeadmCommands:
+        # Stamp the runner-pool + kata-runtime labels on the Node
+        # after kubeadm join completes. The MachineDeployment also
+        # carries these in `metadata.labels`, but CAPI's label-sync
+        # only propagates `node.cluster.x-k8s.io/*` and
+        # `node-role.kubernetes.io/*`; the tuist.dev/* labels have to
+        # be applied directly.
+        - 'kubectl --kubeconfig /etc/kubernetes/kubelet.conf label node "$(hostname)" tuist.dev/kata-runtime=true --overwrite'

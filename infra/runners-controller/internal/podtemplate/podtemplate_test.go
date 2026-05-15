@@ -90,3 +90,27 @@ func TestBuild_UnknownOSFallsBackToMacOS(t *testing.T) {
 		t.Errorf("nodeSelector os = %q, want darwin fallback", got)
 	}
 }
+
+func TestBuild_RuntimeClassNameStampedWhenSet(t *testing.T) {
+	pool := basePool("linux")
+	pool.Spec.RuntimeClass = "kata-fc"
+	pod := Build(pool, "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch")
+	if pod.Spec.RuntimeClassName == nil {
+		t.Fatalf("RuntimeClassName = nil, want \"kata-fc\"")
+	}
+	if got := *pod.Spec.RuntimeClassName; got != "kata-fc" {
+		t.Errorf("RuntimeClassName = %q, want \"kata-fc\"", got)
+	}
+}
+
+func TestBuild_RuntimeClassNameNilWhenUnset(t *testing.T) {
+	// Empty `runtimeClass` must produce a nil *string, not an empty
+	// pointer. kube-apiserver accepts both as "default runtime" but
+	// nil is the canonical absence; some downstream tooling treats
+	// the two cases differently.
+	pool := basePool("linux") // no RuntimeClass set
+	pod := Build(pool, "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch")
+	if pod.Spec.RuntimeClassName != nil {
+		t.Errorf("RuntimeClassName = %v, want nil for default runtime", *pod.Spec.RuntimeClassName)
+	}
+}

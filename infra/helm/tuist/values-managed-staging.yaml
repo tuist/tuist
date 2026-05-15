@@ -276,36 +276,40 @@ runnersFleet:
         cpuMilli: 8000
         memoryMB: 14336
 
+# Kata Containers + Firecracker runtime for Linux bare-metal nodes.
+# The `kataContainers` block above defaults to disabled; staging
+# flips it on so the kata-deploy DaemonSet installs the runtime on
+# every bare-metal worker that joins the workload cluster.
+kataContainers:
+  enabled: true
+
 # Linux runner fleet on Hetzner Robot bare-metal hosts.
 #
 # Substrate: AX42-U class boxes (8c/16t Zen 4 Ryzen, 64 GB DDR5,
-# 2x512 GB NVMe) joined to the workload cluster as worker Nodes via
-# `kubeadm join`, labeled `node.cluster.x-k8s.io/pool=runners-linux`
-# and tainted `tuist.dev/runner-tier=bare-metal:NoSchedule` so only
-# runner Pods land on them.
+# 2x512 GB NVMe) provisioned and lifecycled by caph from the workload
+# cluster's `bare-metal-worker` MachineDeployment class. caph claims
+# `HetznerBareMetalHost` CRs in the management cluster (one per
+# pre-ordered Robot server number), rescue-boots them, runs
+# `installimage` to write Ubuntu 24.04 LTS, and the bootstrap
+# cloud-init runs `kubeadm join` automatically.
 #
-# The hosts are NOT CAPI-managed in v1: caph's HetznerBareMetalHost
-# flow (rescue boot + installimage + cloud-init kubeadm join) is the
-# eventual target for production scale-up, but for staging bring-up
-# we manage the box manually. See `infra/runners-controller/AGENTS.md`
-# for the kubeadm join + label + taint procedure.
+# Each node carries:
+#   - `node.cluster.x-k8s.io/pool=runners-linux` (selector for runner Pods)
+#   - `tuist.dev/kata-runtime=true` (opts the node into the kata-deploy
+#     DaemonSet's install path)
+#   - taint `tuist.dev/runner-tier=bare-metal:NoSchedule` (only Pods that
+#     tolerate it land here; everything else stays on the cloud `md-0`
+#     pool)
 #
-# Autoscaling: the runners-controller's autoscaler still drives
-# `RunnerPool.spec.replicas` based on queue depth + p95, but the
-# `machineDeployment` ref is omitted because the bare-metal host
-# count is operator-managed (you order more AX42-Us when load
-# justifies, you don't autoscale ahead of demand). Pods that can't
-# fit on current bare-metal capacity stay Pending; operator sees
-# this as a signal to provision more hosts.
+# Runner Pods use `runtimeClass: kata-fc`, so each Pod becomes a
+# Firecracker microVM with its own kernel and snapshot-thaw cold
+# start. Density: ~16 microVMs per AX42-U at the 1vCPU / 4 GB slot
+# size (the typical "small runner" tier).
 runnersFleetLinux:
   enabled: true
-  # Matches the `node.cluster.x-k8s.io/pool` label stamped on the
-  # bare-metal Nodes during kubeadm join.
+  # Matches the `node.cluster.x-k8s.io/pool` label stamped on each
+  # bare-metal Node by the CAPI MachineDeployment.
   name: runners-linux
-  # Single bring-up pool. `runnerImage` is pinned to the SHA tag
-  # the `linux-runner-image.yml` workflow pushed; bump manually
-  # until `release-linux-runner-image` lands in `release.yml` and
-  # Renovate owns the rewrites.
   pools:
     - name: ubuntu-22-04
       runnerImage: "ghcr.io/tuist/tuist-linux-runner:sha-112c45d9c509"
@@ -314,23 +318,29 @@ runnersFleetLinux:
         - self-hosted
         - Linux
         - X64
+      # Each Pod is a Firecracker microVM (Kata Containers under
+      # containerd). Per-tenant kernel, ~5 MiB snapshot overhead when
+      # idle, sub-second thaw on burst. Disable to fall back to runc
+      # on the host (no tenant isolation, single-Pod-per-host).
+      runtimeClass: kata-fc
       pod:
-        # AX42-U has 16 vCPUs (8 physical + SMT) and 64 GB RAM. With
-        # kubelet reserves + system DaemonSets eating ~1 CPU and
-        # ~3 GiB, allocatable lands at ~14000 millicpu and ~61 GiB.
-        # One Pod per host while we're container-mode + single-tenant;
-        # the Pod takes most of the host capacity. Multi-tenancy via
-        # Firecracker microVMs lands in a follow-up PR and will resize
-        # this down to per-tenant slices.
-        cpuMilli: 12000
-        memoryMB: 57344
-      # Queue-depth driven autoscaling. minWarmPoolFloor=1 keeps one
-      # Pod warm on the (single) bare-metal host. maxReplicas=1
-      # caps the autoscaler at the operator-provisioned host count;
-      # raise this when more AX42-Us are ordered. Pods that need to
-      # exceed this stay Pending and serve as a procurement signal.
+        # Per-tenant slot, ccx23-equivalent. AX42-U fits ~16 of these
+        # cleanly with 2:1 CPU oversub + a small reserve for kubelet
+        # / kata-deploy / hcloud-csi-node on the host. Production
+        # AX162-R doubles this density.
+        cpuMilli: 1000
+        memoryMB: 4096
+      # Queue-depth driven autoscaling. minWarmPoolFloor keeps a
+      # baseline of warm microVMs ready (Kata snapshot-thaw makes
+      # this cheap — see runtimeClass above). maxReplicas caps at
+      # the host's microVM density; pending Pods past that signal
+      # operator to provision more bare-metal hosts.
       autoscaling:
         enabled: true
-        minWarmPoolFloor: 1
-        maxReplicas: 1
+        minWarmPoolFloor: 2
+        maxReplicas: 16
         scaleDownCooldownSeconds: 300
+        machineDeployment:
+          namespace: org-tuist
+          clusterName: tuist-staging
+          deploymentName: runners-linux

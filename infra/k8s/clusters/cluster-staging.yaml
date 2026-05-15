@@ -1,12 +1,16 @@
 # Staging workload Cluster, topology mode against tuist-hcloud.
-# 3× cpx22 control plane + 2× cpx32 workers in fsn1.
+# 3× cpx22 control plane + 2× cpx32 workers in fsn1, plus a
+# `bare-metal-worker` MachineDeployment that claims Hetzner Robot
+# AX42-U boxes for the Linux runner fleet.
 #
-# Linux GitHub Actions runners run on Hetzner Robot bare-metal hosts
-# (AX42-U class), joined to this workload cluster as worker Nodes.
-# The bare-metal hosts are NOT managed by this ClusterClass — they
-# join out-of-band via `kubeadm join` and are taint+labeled to host
-# runner Pods exclusively. See `infra/runners-controller/AGENTS.md`
-# for the bare-metal bring-up procedure.
+# Linux GitHub Actions runners run as Firecracker microVMs (via Kata
+# Containers) on the bare-metal nodes. The HetznerBareMetalHost CRs
+# the bare-metal MD claims live in `bare-metal-staging.yaml`; caph
+# rescue-boots each AX42-U, runs `installimage` to write Ubuntu
+# 24.04 LTS, and the cloud-init in
+# `tuist-bare-metal-worker-bootstraptemplate` (in
+# `clusterclass-tuist.yaml`-via-`bare-metal-staging.yaml`) runs
+# `kubeadm join` automatically.
 apiVersion: cluster.x-k8s.io/v1beta2
 kind: Cluster
 metadata:
@@ -48,3 +52,25 @@ spec:
           name: md-0
           replicas: 2
           failureDomain: fsn1
+        # Linux runner pool on Hetzner Robot bare metal. Each
+        # MD-replica claims one `HetznerBareMetalHost` CR (see
+        # `bare-metal-staging.yaml`); caph runs the rescue +
+        # installimage + cloud-init kubeadm-join flow to register
+        # the host as a worker Node. Each node ends up labeled
+        # `node.cluster.x-k8s.io/pool=runners-linux` +
+        # `tuist.dev/kata-runtime=true` and tainted
+        # `tuist.dev/runner-tier=bare-metal:NoSchedule`.
+        #
+        # `replicas` MUST match the number of pre-ordered
+        # `HetznerBareMetalHost` CRs in `bare-metal-staging.yaml`;
+        # caph can't satisfy more replicas than there are hosts.
+        # When the operator orders another AX42-U, add the
+        # corresponding `HetznerBareMetalHost` CR AND bump replicas
+        # here in the same change.
+        - class: bare-metal-worker
+          name: runners-linux
+          replicas: 1
+          failureDomain: fsn1
+          metadata:
+            labels:
+              node.cluster.x-k8s.io/pool: runners-linux

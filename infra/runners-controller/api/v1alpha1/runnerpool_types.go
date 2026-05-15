@@ -78,12 +78,24 @@ type RunnerPoolSpec struct {
 	// resources.requests. For macOS pools the values are tied to
 	// Mac mini host capacity minus VZ overhead so tart-kubelet's
 	// `tart set` lines up with the host budget. For Linux pools
-	// the values are standard cgroup requests against the Hetzner
-	// Cloud VM's vCPU/RAM.
+	// the values are standard cgroup requests against the bare-metal
+	// host's vCPU/RAM (or per-microVM allocations when running
+	// behind a Kata + Firecracker `RuntimeClass`).
 	// +kubebuilder:default=8000
 	PodCPUMilli int32 `json:"podCPUMilli,omitempty"`
 	// +kubebuilder:default=14336
 	PodMemoryMB int32 `json:"podMemoryMB,omitempty"`
+
+	// RuntimeClass, when set, is stamped on the runner Pod's
+	// `spec.runtimeClassName`. The chart's `kata-fc` RuntimeClass
+	// routes Pod containers through Kata Containers + Firecracker
+	// so each runner Pod becomes a microVM with its own kernel,
+	// real per-tenant isolation, and ~5 MiB snapshot overhead. Empty
+	// (the v1 default) uses the cluster default runtime (runc on
+	// containerd), which is fine for macOS pools and single-tenant
+	// bare-metal Linux pools.
+	// +optional
+	RuntimeClass string `json:"runtimeClass,omitempty"`
 
 	// Autoscaling is the optional queue-depth-driven autoscaling
 	// config for this pool. When `Enabled` is true the

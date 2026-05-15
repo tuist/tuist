@@ -1,0 +1,180 @@
+{{- if .Values.kataContainers.enabled }}
+# Kata Containers + Firecracker runtime for Linux runner Pods.
+#
+# Each runner Pod becomes a microVM: separate kernel, real per-tenant
+# kernel isolation, ~5 MiB memory overhead when snapshot-thawed. The
+# `kata-fc` RuntimeClass below is what `pools[].runtimeClass: kata-fc`
+# in `values-*.yaml` resolves to, and what the runners-controller's
+# podtemplate stamps onto `Pod.spec.runtimeClassName` for linux pools.
+#
+# Install model: a single kata-deploy DaemonSet targets nodes labeled
+# `tuist.dev/kata-runtime=true`. The DaemonSet's container shells into
+# the host filesystem and:
+#   1. Drops Kata + Firecracker binaries under /opt/kata
+#   2. Appends `kata-fc` and friends to containerd's
+#      `/etc/containerd/config.toml`
+#   3. Restarts containerd
+#
+# Steady state is just `Running` Pods; the install completes ~once
+# per node when it first joins. Nodes without the
+# `tuist.dev/kata-runtime=true` label are unaffected (cluster
+# default runtime keeps serving them).
+#
+# To disable Kata cluster-wide (e.g. dev environments without bare
+# metal), set `kataContainers.enabled: false` in values. The
+# `runtimeClass` field on a pool resolves to nil at the controller
+# and Pods fall back to the cluster default runtime.
+---
+apiVersion: node.k8s.io/v1
+kind: RuntimeClass
+metadata:
+  name: kata-fc
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kata-containers
+handler: kata-fc
+# Pods using this RuntimeClass schedule only onto nodes that have the
+# kata-deploy DaemonSet installed (it labels the node
+# `katacontainers.io/kata-runtime=true` after a successful install).
+# Failing closed here means an unconfigured node never silently runs
+# a Pod under runc when the operator asked for kata-fc.
+scheduling:
+  nodeSelector:
+    katacontainers.io/kata-runtime: "true"
+overhead:
+  podFixed:
+    cpu: "50m"
+    memory: "100Mi"
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "kata-deploy") }}
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kata-containers
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "kata-deploy") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kata-containers
+rules:
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list", "patch", "update"]
+  - apiGroups: ["node.k8s.io"]
+    resources: ["runtimeclasses"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "kata-deploy") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kata-containers
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "tuist.componentName" (dict "root" . "component" "kata-deploy") }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "tuist.componentName" (dict "root" . "component" "kata-deploy") }}
+    namespace: {{ .Release.Namespace | quote }}
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "kata-deploy") }}
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kata-containers
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: kata-containers
+      app.kubernetes.io/name: kata-deploy
+  template:
+    metadata:
+      labels:
+        {{- include "tuist.labels" . | nindent 8 }}
+        app.kubernetes.io/component: kata-containers
+        app.kubernetes.io/name: kata-deploy
+    spec:
+      serviceAccountName: {{ include "tuist.componentName" (dict "root" . "component" "kata-deploy") }}
+      # Only target nodes the operator has explicitly opted into Kata
+      # on. The bare-metal-worker MachineDeployment in
+      # `cluster-staging.yaml` sets this label automatically; macOS
+      # and cloud nodes never carry it, so kata-deploy doesn't try
+      # (and fail) to install on them.
+      nodeSelector:
+        tuist.dev/kata-runtime: "true"
+      # Run-as-root + host mount necessary: kata-deploy needs to
+      # write to the node's filesystem and restart containerd.
+      hostPID: true
+      tolerations:
+        - operator: Exists
+      containers:
+        - name: kata-deploy
+          image: {{ .Values.kataContainers.image.repository }}:{{ .Values.kataContainers.image.tag }}
+          imagePullPolicy: {{ .Values.kataContainers.image.pullPolicy | default "IfNotPresent" }}
+          command: ["bash", "-c", "/opt/kata-artifacts/scripts/kata-deploy.sh install && sleep infinity"]
+          lifecycle:
+            preStop:
+              exec:
+                command: ["bash", "-c", "/opt/kata-artifacts/scripts/kata-deploy.sh cleanup"]
+          env:
+            # Pin the containerd config snippet to install just the
+            # Firecracker-backed shim, not every Kata variant. Keeps
+            # the resulting containerd config minimal and avoids
+            # accidentally enabling QEMU/CLH paths we don't want.
+            - name: SHIMS
+              value: "fc"
+            - name: DEFAULT_SHIM
+              value: "fc"
+            - name: CREATE_RUNTIMECLASSES
+              # We render our own RuntimeClass above so kata-deploy
+              # doesn't fight us. The DaemonSet just installs binaries.
+              value: "false"
+            - name: CREATE_DEFAULT_RUNTIMECLASS
+              value: "false"
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - name: crio-conf
+              mountPath: /etc/crio
+            - name: containerd-conf
+              mountPath: /etc/containerd
+            - name: kata-artifacts
+              mountPath: /opt/kata
+            - name: dbus
+              mountPath: /var/run/dbus
+            - name: systemd
+              mountPath: /run/systemd
+            - name: local-bin
+              mountPath: /usr/local/bin
+      volumes:
+        - name: crio-conf
+          hostPath:
+            path: /etc/crio
+        - name: containerd-conf
+          hostPath:
+            path: /etc/containerd
+        - name: kata-artifacts
+          hostPath:
+            path: /opt/kata
+        - name: dbus
+          hostPath:
+            path: /var/run/dbus
+        - name: systemd
+          hostPath:
+            path: /run/systemd
+        - name: local-bin
+          hostPath:
+            path: /usr/local/bin
+{{- end }}

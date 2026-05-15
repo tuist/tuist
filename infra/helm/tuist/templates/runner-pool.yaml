@@ -89,6 +89,7 @@ spec:
 {{- $podMem := dig "pod" "memoryMB" 16384 $pool }}
 {{- $runnerLabels := $pool.runnerLabels | default $defaultRunnerLabels }}
 {{- $autoscaling := $pool.autoscaling }}
+{{- $runtimeClass := $pool.runtimeClass | default "" }}
 {{- $poolName := printf "%s-%s" (include "tuist.componentName" (dict "root" $ "component" "runner-pool-linux")) $name }}
 ---
 apiVersion: tuist.dev/v1alpha1
@@ -113,6 +114,9 @@ spec:
     {{- end }}
   podCPUMilli: {{ $podCPU }}
   podMemoryMB: {{ $podMem }}
+  {{- if $runtimeClass }}
+  runtimeClass: {{ $runtimeClass | quote }}
+  {{- end }}
   {{- if $autoscaling }}
   autoscaling:
     enabled: {{ dig "enabled" false $autoscaling }}

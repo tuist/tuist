@@ -753,6 +753,39 @@ runnersFleetLinux:
 # and its sibling SA and boots a replacement. The Pod's projected
 # SA token is the dispatch-endpoint authentication anchor (server
 # validates it via TokenReview).
+# Kata Containers + Firecracker runtime installer. When enabled,
+# the chart renders:
+#   1. A `kata-fc` RuntimeClass routed through the kata Firecracker
+#      shim, with a `katacontainers.io/kata-runtime=true` nodeSelector
+#      so Pods that opt in fail to schedule until the install
+#      completes on a target node.
+#   2. A `kata-deploy` DaemonSet that targets nodes labeled
+#      `tuist.dev/kata-runtime=true`, drops Kata + Firecracker
+#      binaries to `/opt/kata`, snippets the runtime into
+#      containerd's config, and restarts containerd. Once finished
+#      it labels the node `katacontainers.io/kata-runtime=true` so
+#      kata-fc Pods can schedule.
+#
+# Target nodes: bare-metal Linux worker Nodes ordered through the
+# `bare-metal-worker` MachineDeployment in
+# `infra/k8s/clusters/cluster-<env>.yaml`. Hetzner Cloud / Mac mini
+# nodes don't carry the opt-in label and are unaffected.
+#
+# Disable (`enabled: false`) for dev clusters without bare metal —
+# pools that set `runtimeClass: kata-fc` simply won't get the
+# matching RuntimeClass and will fail at schedule time, which is the
+# correct behavior (fail loud rather than silently fall back to runc
+# in an environment that asked for microVM isolation).
+kataContainers:
+  enabled: false
+  image:
+    # kata-containers project's official installer image. Pinned to
+    # a specific release tag in env values so we don't roll on the
+    # `stable` floating tag.
+    repository: quay.io/kata-containers/kata-deploy
+    tag: "3.13.0"
+    pullPolicy: IfNotPresent
+
 runnersController:
   replicaCount: 1
   image:
