@@ -1,0 +1,29 @@
+/* Slim chrome layout used by the webhook endpoint detail page and the
+   webhook event detail page (`lib/tuist_web/components/layouts/webhook.html.heex`).
+   Both pages render inside `.webhook-layout` and add their own horizontal
+   padding so the content stays centered on wide viewports. */
+.webhook-layout {
+  display: flex;
+  flex-grow: 1;
+  flex-direction: column;
+  background: var(--noora-surface-background-primary);
+  padding: var(--noora-spacing-9) var(--noora-spacing-5);
+  min-height: 100%;
+
+  @media (max-width: 768px) {
+    & {
+      padding: var(--noora-spacing-5) var(--noora-spacing-4);
+    }
+  }
+
+  & > #account-webhook,
+  & > #account-webhook-event {
+    padding: var(--noora-spacing-0) var(--noora-spacing-16);
+
+    @media (max-width: 768px) {
+      & {
+        padding: var(--noora-spacing-0) var(--noora-spacing-4);
+      }
+    }
+  }
+}
