@@ -229,7 +229,10 @@ KUBECONFIG="$WL_KUBECONFIG" kubectl wait --for=condition=Ready nodes --all --tim
 # ---------------------------------------------------------------------------
 log "Step 7/13: install platform chart (cert-manager, ESO, ingress-nginx)"
 
-mise run k8s:install-platform "$WL_KUBECONFIG" "$CLUSTER_NAME"
+# `mise -C "$REPO_ROOT/infra"` so the nested task resolves regardless
+# of where the caller ran bootstrap-workload from; k8s:* tasks live in
+# infra/mise.toml scope, not the repo root.
+mise -C "$REPO_ROOT/infra" run k8s:install-platform "$WL_KUBECONFIG" "$CLUSTER_NAME"
 
 # ---------------------------------------------------------------------------
 log "Step 8/13: install Cluster API core (Mac mini fleet substrate)"
