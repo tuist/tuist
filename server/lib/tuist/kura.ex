@@ -335,9 +335,9 @@ defmodule Tuist.Kura do
       |> URI.to_string()
 
     case Req.get(url,
-           finch: Tuist.Finch,
            receive_timeout: @public_endpoint_timeout,
-           connect_options: [timeout: @public_endpoint_timeout]
+           connect_options: [timeout: @public_endpoint_timeout],
+           retry: false
          ) do
       {:ok, %Req.Response{status: status}} when status in 200..299 ->
         :ok
@@ -429,6 +429,44 @@ defmodule Tuist.Kura do
         {:error, reason}
     end
   end
+
+  @doc """
+  Retries a failed first-time deploy in place: flips the `Server` back
+  to `:provisioning` and appends a fresh `Deployment` so the
+  reconciler picks the retry up on its next tick.
+
+  Only failed servers that never reached `:active` are eligible.
+  Retrying a drift failure on a previously-active server would
+  trample the cache endpoint that's still serving the old image,
+  so the operator has to explicitly destroy those instead.
+
+  The server row, ID, and `provisioner_node_ref` stay the same; the
+  prior failed `Deployment` rows stay attached so the failure
+  history is visible in /ops alongside the retry.
+  """
+  def retry_server(%Server{status: :failed, current_image_tag: nil} = server, image_tag) when is_binary(image_tag) do
+    with {:ok, region} <- Regions.fetch(server.region) do
+      case Repo.transaction(fn ->
+             with {:ok, server} <-
+                    server |> Server.status_changeset(%{status: :provisioning}) |> Repo.update(),
+                  {:ok, _deployment} <- insert_initial_deployment(server, region, image_tag) do
+               server
+             else
+               {:error, reason} -> Repo.rollback(reason)
+             end
+           end) do
+        {:ok, server} ->
+          server = Repo.preload(server, :deployments, force: true)
+          broadcast_server(server, :updated)
+          {:ok, server}
+
+        {:error, reason} ->
+          {:error, reason}
+      end
+    end
+  end
+
+  def retry_server(%Server{}, _image_tag), do: {:error, :not_retryable}
 
   @doc "Marks a server as `:destroyed` after the reconciler observes teardown."
   def mark_destroyed(%Server{} = server) do

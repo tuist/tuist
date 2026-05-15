@@ -193,6 +193,25 @@ type RunnerPoolStatus struct {
 	// this to avoid scaling down twice in quick succession.
 	// +optional
 	LastScaleDownAt *metav1.Time `json:"lastScaleDownAt,omitempty"`
+
+	// ObservedImage is the `spec.image` value the controller last
+	// recorded an `ImageRolledAt` for. The reconciler updates this
+	// (and bumps `ImageRolledAt`) on every reconcile where it differs
+	// from the live spec, including the very first reconcile of a
+	// freshly-created pool.
+	// +optional
+	ObservedImage string `json:"observedImage,omitempty"`
+
+	// ImageRolledAt is when the controller most recently observed
+	// `spec.image` changing. The server-side dispatch endpoint reads
+	// this to stagger stale-Pod drains across a rolling window —
+	// without it, every idle warm Pod would receive HTTP 410 on the
+	// same poll tick and the warm pool would briefly drop to zero
+	// before replacements boot. Each Pod's slot is a deterministic
+	// hash of its name, so the schedule is stateless across server
+	// replicas and survives a restart mid-rollout.
+	// +optional
+	ImageRolledAt metav1.Time `json:"imageRolledAt,omitempty"`
 }
 
 // +kubebuilder:object:root=true

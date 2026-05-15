@@ -7,6 +7,7 @@ import TuistLogging
 /// A middleware that outputs in debug mode the request and responses sent and received from the server
 public struct VerboseLoggingMiddleware: ClientMiddleware {
     private let serviceName: String
+    private let maxBodyBytesToLog: Int64
 
     private static let sensitiveHeaders: Set<String> = [
         "authorization",
@@ -21,8 +22,9 @@ public struct VerboseLoggingMiddleware: ClientMiddleware {
         "x-amz-credential",
     ]
 
-    public init(serviceName: String = "Tuist") {
+    public init(serviceName: String = "Tuist", maxBodyBytesToLog: Int64 = 64 * 1024) {
         self.serviceName = serviceName
+        self.maxBodyBytesToLog = maxBodyBytesToLog
     }
 
     public func intercept(
@@ -97,6 +99,9 @@ public struct VerboseLoggingMiddleware: ClientMiddleware {
         case .none: return (.none, body)
         case .unknown: return (.unknownLength, body)
         case let .known(length):
+            guard length <= maxBodyBytesToLog else {
+                return (.tooManyBytesToLog(length), body)
+            }
             let bodyData = try await Data(collecting: body!, upTo: Int(length))
             return (.complete(bodyData), HTTPBody(bodyData))
         }

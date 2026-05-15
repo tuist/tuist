@@ -2023,12 +2023,6 @@ jobs:
             git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../../" --bump -o CHANGELOG.md 2>/dev/null
           fi
 
-      - name: Bump runners-controller image pin in chart values
-        run: |
-          sed -i '/repository: ghcr.io\/tuist\/tuist-runners-controller/,/tag:/{
-            s|tag: "[^"]*"|tag: "${{ needs.check-releases.outputs.runners-controller-next-version-number }}"|
-          }' infra/helm/tuist/values-managed-common.yaml
-
       - name: Set up Docker Buildx
         uses: namespacelabs/nscloud-setup-buildx-action@v0
 
@@ -2053,10 +2047,13 @@ jobs:
       - name: Upload runners-controller artifacts
         uses: actions/upload-artifact@v4
         with:
+          # values-managed-common.yaml is bumped by commit-and-release
+          # against its own checkout, not packaged here, so two parallel
+          # release-* jobs touching different `tag:` lines in the same
+          # file can't trample each other on artifact extract.
           name: runners-controller-artifacts
           path: |
             infra/runners-controller/CHANGELOG.md
-            infra/helm/tuist/values-managed-common.yaml
           retention-days: 1
 
   release-xcresult-processor-image:
@@ -2145,12 +2142,33 @@ jobs:
           tar -czf /tmp/release.tar.gz -C "${{ steps.release.outputs.dir }}" .
           ls -lh /tmp/release.tar.gz
 
+      - name: Update Tart
+        run: |
+          set -euo pipefail
+          brew update
+          brew upgrade cirruslabs/cli/tart || brew install cirruslabs/cli/tart
+          tart --version
+
       - name: Initialize Packer
         working-directory: infra/xcresult-processor-image
-        run: packer init xcresult-processor.pkr.hcl
+        run: packer init -upgrade xcresult-processor.pkr.hcl
 
+      # Keep the Cirrus base-image pull anonymous. Tart also consults
+      # Docker credential helpers, and this runner can have the macOS
+      # helper installed without the Docker CLI. Clear both stores
+      # before Packer clones ghcr.io/cirruslabs/*.
       - name: Drop cached ghcr.io credentials
-        run: tart logout ghcr.io || true
+        run: |
+          tart logout ghcr.io || true
+          if command -v docker >/dev/null 2>&1; then
+            docker logout ghcr.io || true
+          fi
+          for helper in docker-credential-osxkeychain docker-credential-desktop; do
+            if command -v "$helper" >/dev/null 2>&1; then
+              printf 'ghcr.io' | "$helper" erase || true
+              printf 'https://ghcr.io' | "$helper" erase || true
+            fi
+          done
 
       - name: Reclaim Tart disk
         run: |
@@ -2166,7 +2184,26 @@ jobs:
       - name: Build image
         working-directory: infra/xcresult-processor-image
         run: |
-          packer build \
+          set -euo pipefail
+          docker_config="$HOME/.docker/config.json"
+          docker_config_backup=""
+          restore_docker_config() {
+            if [ -n "$docker_config_backup" ] && [ -f "$docker_config_backup" ]; then
+              mkdir -p "$HOME/.docker"
+              mv "$docker_config_backup" "$docker_config"
+            fi
+          }
+          trap restore_docker_config EXIT
+
+          # Tart hardcodes ~/.docker/config.json when looking up Docker
+          # credential helpers. Move it aside so the public Cirrus image is
+          # pulled anonymously instead of through stale ghcr.io credentials.
+          if [ -f "$docker_config" ]; then
+            docker_config_backup="$(mktemp "${RUNNER_TEMP:-/tmp}/docker-config.XXXXXX")"
+            mv "$docker_config" "$docker_config_backup"
+          fi
+
+          env -u GITHUB_TOKEN -u MISE_GITHUB_TOKEN packer build \
             -var "output_image=tuist-xcresult-processor" \
             -var "release_tarball=/tmp/release.tar.gz" \
             xcresult-processor.pkr.hcl
@@ -2175,6 +2212,10 @@ jobs:
         run: echo "${{ secrets.GITHUB_TOKEN }}" | tart login ghcr.io --username tuist-bot --password-stdin
 
       - name: Push image to GHCR
+        env:
+          TART_REGISTRY_HOSTNAME: ghcr.io
+          TART_REGISTRY_USERNAME: tuist-bot
+          TART_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           VERSION="${{ needs.check-releases.outputs.xcresult-processor-image-next-version-number }}"
@@ -2257,15 +2298,35 @@ jobs:
             git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../../" --bump -o CHANGELOG.md 2>/dev/null
           fi
 
+      - name: Update Tart
+        run: |
+          set -euo pipefail
+          brew update
+          brew upgrade cirruslabs/cli/tart || brew install cirruslabs/cli/tart
+          tart --version
+
       - name: Initialize Packer
         working-directory: infra/runner-image
-        run: packer init runner.pkr.hcl
+        run: packer init -upgrade runner.pkr.hcl
 
       - name: Drop cached ghcr.io credentials
         # Same anonymous-pull dance as xcresult-processor-image: the
         # bare-metal runner has tuist-bot creds cached for ghcr.io
-        # which don't authorize ghcr.io/cirruslabs/* pulls.
-        run: tart logout ghcr.io || true
+        # which don't authorize ghcr.io/cirruslabs/* pulls. Tart also
+        # consults Docker credential helpers, and this runner can have
+        # the macOS helper installed without the Docker CLI — clear
+        # both stores before Packer clones ghcr.io/cirruslabs/*.
+        run: |
+          tart logout ghcr.io || true
+          if command -v docker >/dev/null 2>&1; then
+            docker logout ghcr.io || true
+          fi
+          for helper in docker-credential-osxkeychain docker-credential-desktop; do
+            if command -v "$helper" >/dev/null 2>&1; then
+              printf 'ghcr.io' | "$helper" erase || true
+              printf 'https://ghcr.io' | "$helper" erase || true
+            fi
+          done
 
       - name: Reclaim Tart disk
         run: |
@@ -2281,7 +2342,26 @@ jobs:
       - name: Build image
         working-directory: infra/runner-image
         run: |
-          packer build \
+          set -euo pipefail
+          docker_config="$HOME/.docker/config.json"
+          docker_config_backup=""
+          restore_docker_config() {
+            if [ -n "$docker_config_backup" ] && [ -f "$docker_config_backup" ]; then
+              mkdir -p "$HOME/.docker"
+              mv "$docker_config_backup" "$docker_config"
+            fi
+          }
+          trap restore_docker_config EXIT
+
+          # Tart hardcodes ~/.docker/config.json when looking up Docker
+          # credential helpers. Move it aside so the public Cirrus image is
+          # pulled anonymously instead of through stale ghcr.io credentials.
+          if [ -f "$docker_config" ]; then
+            docker_config_backup="$(mktemp "${RUNNER_TEMP:-/tmp}/docker-config.XXXXXX")"
+            mv "$docker_config" "$docker_config_backup"
+          fi
+
+          env -u GITHUB_TOKEN -u MISE_GITHUB_TOKEN packer build \
             -var "output_image=tuist-runner" \
             runner.pkr.hcl
 
@@ -2296,6 +2376,10 @@ jobs:
 
       - name: Push image to GHCR + resolve digest
         id: push
+        env:
+          TART_REGISTRY_HOSTNAME: ghcr.io
+          TART_REGISTRY_USERNAME: tuist-bot
+          TART_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           VERSION="${{ needs.check-releases.outputs.runner-image-next-version-number }}"
@@ -2440,12 +2524,14 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: server-artifacts
+          path: server
 
       - name: Download Cache artifacts
         if: needs.check-releases.outputs.cache-should-release == 'true' && needs.release-cache.result == 'success'
         uses: actions/download-artifact@v4
         with:
           name: cache-artifacts
+          path: cache
 
       - name: Download Kura release metadata
         if: needs.check-releases.outputs.kura-should-release == 'true' && needs.release-kura-prepare.result == 'success'
@@ -2541,10 +2627,14 @@ jobs:
           path: infra/cluster-api-provider-scaleway-applesilicon
 
       - name: Download runners-controller artifacts
+        # The upload contains only files rooted at
+        # `infra/runners-controller`, so download into that directory
+        # for the later `git add infra/runners-controller/CHANGELOG.md`.
         if: needs.check-releases.outputs.runners-controller-should-release == 'true' && needs.release-runners-controller.result == 'success'
         uses: actions/download-artifact@v4
         with:
           name: runners-controller-artifacts
+          path: infra/runners-controller
 
       - name: Download xcresult-processor-image artifacts
         if: needs.check-releases.outputs.xcresult-processor-image-should-release == 'true' && needs.release-xcresult-processor-image.result == 'success'
@@ -2569,6 +2659,11 @@ jobs:
               s|tag: "[^"]*"|tag: "${{ needs.check-releases.outputs.capi-scaleway-next-version-number }}"|
             }' infra/helm/tuist/values-managed-common.yaml
           fi
+          if [ "${{ needs.check-releases.outputs.runners-controller-should-release }}" == "true" ] && [ "${{ needs.release-runners-controller.result }}" == "success" ]; then
+            sed -i '/repository: ghcr.io\/tuist\/tuist-runners-controller/,/tag:/{
+              s|tag: "[^"]*"|tag: "${{ needs.check-releases.outputs.runners-controller-next-version-number }}"|
+            }' infra/helm/tuist/values-managed-common.yaml
+          fi
           if [ "${{ needs.check-releases.outputs.xcresult-processor-image-should-release }}" == "true" ] && [ "${{ needs.release-xcresult-processor-image.result }}" == "success" ]; then
             sed -i '/repository: ghcr.io\/tuist\/tuist-xcresult-processor/,/tag:/{
               s|tag: "[^"]*"|tag: "${{ needs.check-releases.outputs.xcresult-processor-image-next-version-number }}"|
@@ -2576,10 +2671,13 @@ jobs:
           fi
 
       - name: Download runner-image artifacts
+        # The artifact's least-common archive root is `infra`, covering
+        # both runner-image/CHANGELOG.md and helm/tuist values files.
         if: needs.check-releases.outputs.runner-image-should-release == 'true' && needs.release-runner-image.result == 'success'
         uses: actions/download-artifact@v4
         with:
           name: runner-image-artifacts
+          path: infra
 
       - name: Create tags for successfully released components
         run: |

@@ -35,8 +35,7 @@ defmodule Tuist.GitHub.Client do
       req_opts =
         [
           url: request_url,
-          headers: default_headers(token),
-          finch: Tuist.Finch
+          headers: default_headers(token)
         ] ++ ssrf_opts ++ Retry.retry_options()
 
       case Req.get(req_opts) do
@@ -222,7 +221,6 @@ defmodule Tuist.GitHub.Client do
           {"Accept", "application/vnd.github.v3+json"},
           {"Authorization", "token #{token}"}
         ])
-        |> Keyword.put(:finch, Tuist.Finch)
         |> Keyword.merge(ssrf_opts)
         |> Keyword.merge(Retry.retry_options())
         |> Keyword.delete(:installation)
@@ -374,8 +372,7 @@ defmodule Tuist.GitHub.Client do
         [
           url: request_url,
           json: body,
-          headers: default_headers(token),
-          finch: Tuist.Finch
+          headers: default_headers(token)
         ] ++ ssrf_opts ++ Retry.retry_options()
 
       case Req.post(req_opts) do
@@ -396,7 +393,11 @@ defmodule Tuist.GitHub.Client do
 
   # Pin GHES URLs to a public IP to defend against DNS rebinding /
   # SSRF; github.com is treated as a known public host and skips the pin.
-  defp pin_ghes_url(url, "https://api.github.com"), do: {:ok, url, []}
+  #
+  # github.com uses the shared `Tuist.Finch` pool. GHES uses Req's default
+  # pool because the per-host `:connect_options` (SNI / cert hostname) are
+  # mutually exclusive with a user-supplied `:finch` pool.
+  defp pin_ghes_url(url, "https://api.github.com"), do: {:ok, url, [finch: Tuist.Finch]}
 
   defp pin_ghes_url(url, _api_url) do
     case SSRFGuard.pin(url) do

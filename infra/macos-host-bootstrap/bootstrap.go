@@ -734,6 +734,16 @@ load anchor "tuist.runners" from "/etc/pf.anchors/tuist.runners"
 PFCONFENTRY
 fi
 
+# Flush any state already loaded under our anchor before validating.
+# The 'persist' tables defined in the anchor file (vm_sources,
+# blocked_dst) survive across 'pfctl -f' invocations once loaded;
+# without flushing, a re-run on an already-bootstrapped host fails
+# the validation step below with 'cannot define table vm_sources:
+# Resource busy'. Flushing only our own anchor leaves the system's
+# main ruleset untouched. Tolerate failure here — on a first-run
+# host the anchor doesn't exist yet, and pfctl returns non-zero.
+sudo pfctl -a tuist.runners -F all 2>/dev/null || true
+
 # Validate the ruleset before activating. -nf parses without
 # loading; if this fails we want a clear bootstrap error rather
 # than a half-loaded filter.

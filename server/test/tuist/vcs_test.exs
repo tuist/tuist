@@ -3272,6 +3272,22 @@ defmodule Tuist.VCSTest do
 
       assert {:ok, %{client_url: "https://github.example.com"}} = VCS.verify_github_state_token(state_token)
     end
+
+    test "carries a separate GitHub App owner in the manifest state" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = user.account
+      ghes_url = "https://github.example.com"
+
+      # When
+      result = VCS.get_github_app_installation_url(account, client_url: ghes_url, github_app_owner: "ios")
+
+      # Then
+      state_token = result |> String.split("state=") |> List.last() |> URI.decode_www_form()
+
+      assert {:ok, %{client_url: ^ghes_url, github_app_owner: "ios"}} =
+               VCS.verify_github_state_token(state_token)
+    end
   end
 
   describe "account deletion cascades" do
@@ -3345,6 +3361,32 @@ defmodule Tuist.VCSTest do
 
       # Then
       assert {:ok, %{account_id: ^account_id, client_url: ^ghes_url}} = result
+    end
+
+    test "round-trips a GitHub App owner for organization-owned manifest registration" do
+      # Given
+      account_id = 321
+      ghes_url = "https://github.example.com"
+      token = VCS.generate_github_state_token(account_id, ghes_url, "ios")
+
+      # When
+      result = VCS.verify_github_state_token(token)
+
+      # Then
+      assert {:ok, %{account_id: ^account_id, client_url: ^ghes_url, github_app_owner: "ios"}} = result
+    end
+
+    test "accepts tokens generated before github_app_owner was introduced" do
+      # Given
+      account_id = 321
+      ghes_url = "https://github.example.com"
+      token = Phoenix.Token.sign(TuistWeb.Endpoint, "github_state", {account_id, ghes_url})
+
+      # When
+      result = VCS.verify_github_state_token(token)
+
+      # Then
+      assert {:ok, %{account_id: ^account_id, client_url: ^ghes_url, github_app_owner: nil}} = result
     end
 
     test "returns error for invalid token format" do

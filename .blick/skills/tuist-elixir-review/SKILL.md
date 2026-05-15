@@ -340,6 +340,13 @@ account/org feature flag, ops/admin-only access, or an explicit internal
 rollout path, it is not ready for the product changelog unless the PR
 also makes that behavior broadly available to customers.
 
+Do not request a product changelog for fix PRs. This includes fixes that
+add or adjust dashboard fields, copy, validation, or settings controls
+when those UI changes are part of making an already-announced or already
+shipped flow work correctly. Only ask for a changelog when the PR's
+primary purpose is to launch a new customer-facing capability, not when
+the PR is repairing or completing a broken flow.
+
 When suggesting a fix, ask for a short marketing changelog entry with
 frontmatter like `title`, `category: "Product"`, and `pull_request`.
 Mention an accompanying image under
@@ -353,6 +360,8 @@ description or internal release notes instead.
 ### Do not flag
 
 - Bug fixes with no new or materially changed user-facing behavior.
+- Fix PRs, even when the fix includes small user-facing UI changes needed
+  to make an already-shipped flow work correctly.
 - Refactors, performance work, infrastructure, ops/admin-only paths,
   internal jobs, telemetry-only changes, tests, fixtures, or schema-only
   plumbing whose effect is not directly visible to customers.

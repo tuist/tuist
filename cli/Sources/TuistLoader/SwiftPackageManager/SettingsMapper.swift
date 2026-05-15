@@ -68,12 +68,13 @@ struct SettingsMapper {
         for setting in settings {
             switch (setting.tool, setting.name) {
             case (.swift, .defaultIsolation):
-                // Map SPM defaultIsolation to SWIFT_DEFAULT_ACTOR_ISOLATION
-                // nil -> "nonisolated", MainActor.self -> "main-actor"
-                if setting.value == ["nonisolated"] || setting.value == ["nil"] {
+                switch setting.value {
+                case ["nonisolated"], ["nil"]:
                     settingsDictionary["SWIFT_DEFAULT_ACTOR_ISOLATION"] = "nonisolated"
-                } else if setting.value.contains("MainActor") || setting.value == ["main-actor"] {
-                    settingsDictionary["SWIFT_DEFAULT_ACTOR_ISOLATION"] = "main-actor"
+                case ["MainActor"], ["MainActor.self"], ["main-actor"]:
+                    settingsDictionary["SWIFT_DEFAULT_ACTOR_ISOLATION"] = "MainActor"
+                default:
+                    break
                 }
             case (_, .defaultIsolation):
                 break

@@ -29,15 +29,29 @@
             data-selected={@show_github_enterprise_input}
           />
         </.button_group>
-        <form :if={@show_github_enterprise_input} phx-change="update-github-client-url">
+        <form
+          :if={@show_github_enterprise_input}
+          phx-change="update-github-client-url"
+          data-part="github-enterprise-form"
+        >
           <.text_input
             id="github-client-url"
             name="github_client_url"
             type="basic"
             value={@github_client_url}
             label={dgettext("dashboard_integrations", "Server URL")}
-            placeholder="https://github.example.com"
+            placeholder="https://github.company.com"
             error={@github_client_url_error}
+            phx-debounce="300"
+          />
+          <.text_input
+            id="github-app-owner"
+            name="github_app_owner"
+            type="basic"
+            value={@github_app_owner}
+            label={dgettext("dashboard", "Organization")}
+            placeholder="my-organization"
+            error={@github_app_owner_error}
             phx-debounce="300"
           />
         </form>
@@ -48,7 +62,10 @@
           label={dgettext("dashboard_integrations", "Install GitHub App")}
           variant="primary"
           href={
-            VCS.get_github_app_installation_url(@selected_account, client_url: @github_client_url)
+            VCS.get_github_app_installation_url(@selected_account,
+              client_url: @github_client_url,
+              github_app_owner: @github_app_owner
+            )
           }
           disabled={install_button_disabled?(assigns)}
         />

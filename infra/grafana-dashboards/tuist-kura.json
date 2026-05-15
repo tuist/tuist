@@ -1861,7 +1861,7 @@
         "targets": [
           {
             "datasource": "$logs_datasource",
-            "expr": "{cluster=\"kura-tuist\", container=\"kura\", instance=~\"${instance:regex}\"} | json",
+            "expr": "{namespace=\"kura\", container=\"kura\", app_kubernetes_io_instance=~\"${instance:regex}\"} | json",
             "refId": "A"
           }
         ],
@@ -1930,14 +1930,37 @@
             "value": "$__all"
           },
           "datasource": "$datasource",
-          "definition": "label_values(kura_node_info{cluster=\"kura-tuist\"}, instance)",
+          "definition": "label_values(kura_node_info{cluster=\"kura-tuist\"}, tenant_id)",
+          "hide": 0,
+          "includeAll": true,
+          "label": "Tenant",
+          "multi": true,
+          "name": "tenant",
+          "query": {
+            "query": "label_values(kura_node_info{cluster=\"kura-tuist\"}, tenant_id)",
+            "refId": "PrometheusVariableQueryEditor-VariableQuery"
+          },
+          "refresh": 1,
+          "regex": "",
+          "sort": 1,
+          "type": "query"
+        },
+        {
+          "allValue": null,
+          "current": {
+            "selected": true,
+            "text": "All",
+            "value": "$__all"
+          },
+          "datasource": "$datasource",
+          "definition": "label_values(kura_node_info{cluster=\"kura-tuist\", tenant_id=~\"${tenant:regex}\"}, instance)",
           "hide": 0,
           "includeAll": true,
           "label": "Instance",
           "multi": true,
           "name": "instance",
           "query": {
-            "query": "label_values(kura_node_info{cluster=\"kura-tuist\"}, instance)",
+            "query": "label_values(kura_node_info{cluster=\"kura-tuist\", tenant_id=~\"${tenant:regex}\"}, instance)",
             "refId": "PrometheusVariableQueryEditor-VariableQuery"
           },
           "refresh": 1,
@@ -1946,21 +1969,21 @@
           "type": "query"
         },
         {
-          "allValue": ".*",
+          "allValue": null,
           "current": {
             "selected": true,
             "text": "All",
             "value": "$__all"
           },
           "datasource": "$datasource",
-          "definition": "label_values(kura_node_info{cluster=\"kura-tuist\"}, region)",
+          "definition": "label_values(kura_node_info{cluster=\"kura-tuist\", tenant_id=~\"${tenant:regex}\"}, region)",
           "hide": 0,
           "includeAll": true,
           "label": "Region",
           "multi": true,
           "name": "region",
           "query": {
-            "query": "label_values(kura_node_info{cluster=\"kura-tuist\"}, region)",
+            "query": "label_values(kura_node_info{cluster=\"kura-tuist\", tenant_id=~\"${tenant:regex}\"}, region)",
             "refId": "PrometheusVariableQueryEditor-VariableQuery"
           },
           "refresh": 1,
@@ -1976,14 +1999,14 @@
             "value": "$__all"
           },
           "datasource": "$datasource",
-          "definition": "label_values(kura_http_requests_total_total{cluster=\"kura-tuist\"}, route)",
+          "definition": "label_values(kura_http_requests_total_total{cluster=\"kura-tuist\", instance=~\"${instance:regex}\", region=~\"${region:regex}\"}, route)",
           "hide": 0,
           "includeAll": true,
           "label": "Route",
           "multi": true,
           "name": "route",
           "query": {
-            "query": "label_values(kura_http_requests_total_total{cluster=\"kura-tuist\"}, route)",
+            "query": "label_values(kura_http_requests_total_total{cluster=\"kura-tuist\", instance=~\"${instance:regex}\", region=~\"${region:regex}\"}, route)",
             "refId": "PrometheusVariableQueryEditor-VariableQuery"
           },
           "refresh": 1,
@@ -1999,14 +2022,14 @@
             "value": "$__all"
           },
           "datasource": "$datasource",
-          "definition": "label_values(kura_http_requests_total_total{cluster=\"kura-tuist\"}, status)",
+          "definition": "label_values(kura_http_requests_total_total{cluster=\"kura-tuist\", instance=~\"${instance:regex}\", region=~\"${region:regex}\"}, status)",
           "hide": 0,
           "includeAll": true,
           "label": "Status",
           "multi": true,
           "name": "status",
           "query": {
-            "query": "label_values(kura_http_requests_total_total{cluster=\"kura-tuist\"}, status)",
+            "query": "label_values(kura_http_requests_total_total{cluster=\"kura-tuist\", instance=~\"${instance:regex}\", region=~\"${region:regex}\"}, status)",
             "refId": "PrometheusVariableQueryEditor-VariableQuery"
           },
           "refresh": 1,

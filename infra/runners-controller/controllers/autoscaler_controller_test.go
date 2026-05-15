@@ -66,7 +66,7 @@ func setupReconciler(t *testing.T, pool *tuistv1.RunnerPool, signals scaling.Sig
 	}, server
 }
 
-func newPool(name string, replicas int32, autoscaling *tuistv1.RunnerPoolAutoscaling) *tuistv1.RunnerPool {
+func newAutoscalerPool(name string, replicas int32, autoscaling *tuistv1.RunnerPoolAutoscaling) *tuistv1.RunnerPool {
 	return &tuistv1.RunnerPool{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -94,7 +94,7 @@ func reconcileOnce(t *testing.T, r *AutoscalerReconciler, name string) ctrl.Resu
 }
 
 func TestAutoscaler_DisabledPoolIsNoOp(t *testing.T) {
-	pool := newPool("linux", 3, nil)
+	pool := newAutoscalerPool("linux", 3, nil)
 	r, server := setupReconciler(t, pool, scaling.Signals{})
 	defer server.Close()
 
@@ -110,7 +110,7 @@ func TestAutoscaler_DisabledPoolIsNoOp(t *testing.T) {
 }
 
 func TestAutoscaler_ScalesUp(t *testing.T) {
-	pool := newPool("linux", 1, &tuistv1.RunnerPoolAutoscaling{
+	pool := newAutoscalerPool("linux", 1, &tuistv1.RunnerPoolAutoscaling{
 		Enabled:                  true,
 		MinWarmPoolFloor:         1,
 		MaxReplicas:              30,
@@ -141,7 +141,7 @@ func TestAutoscaler_ScalesUp(t *testing.T) {
 }
 
 func TestAutoscaler_ScalesDownAfterCooldown(t *testing.T) {
-	pool := newPool("linux", 10, &tuistv1.RunnerPoolAutoscaling{
+	pool := newAutoscalerPool("linux", 10, &tuistv1.RunnerPoolAutoscaling{
 		Enabled:                  true,
 		MinWarmPoolFloor:         1,
 		MaxReplicas:              30,
@@ -175,7 +175,7 @@ func TestAutoscaler_ScalesDownAfterCooldown(t *testing.T) {
 
 func TestAutoscaler_DefersScaleDownDuringCooldown(t *testing.T) {
 	tenSecondsAgo := metav1.NewTime(time.Date(2026, 5, 14, 11, 59, 50, 0, time.UTC))
-	pool := newPool("linux", 10, &tuistv1.RunnerPoolAutoscaling{
+	pool := newAutoscalerPool("linux", 10, &tuistv1.RunnerPoolAutoscaling{
 		Enabled:                  true,
 		MinWarmPoolFloor:         1,
 		MaxReplicas:              30,
@@ -206,7 +206,7 @@ func TestAutoscaler_DefersScaleDownDuringCooldown(t *testing.T) {
 }
 
 func TestAutoscaler_NoOpAtTarget(t *testing.T) {
-	pool := newPool("linux", 6, &tuistv1.RunnerPoolAutoscaling{
+	pool := newAutoscalerPool("linux", 6, &tuistv1.RunnerPoolAutoscaling{
 		Enabled:                  true,
 		MinWarmPoolFloor:         1,
 		MaxReplicas:              30,
@@ -233,7 +233,7 @@ func TestAutoscaler_NoOpAtTarget(t *testing.T) {
 }
 
 func TestAutoscaler_ServerErrorLeavesReplicasUnchanged(t *testing.T) {
-	pool := newPool("linux", 5, &tuistv1.RunnerPoolAutoscaling{
+	pool := newAutoscalerPool("linux", 5, &tuistv1.RunnerPoolAutoscaling{
 		Enabled:                  true,
 		MinWarmPoolFloor:         1,
 		MaxReplicas:              30,
@@ -333,7 +333,7 @@ func mgmtFakeClient(t *testing.T, mds ...*unstructured.Unstructured) client.Clie
 }
 
 func TestAutoscaler_ScalesMachineDeployment_UpAlongsidePool(t *testing.T) {
-	pool := newPool("linux", 1, newAutoscalingWithMDRef())
+	pool := newAutoscalerPool("linux", 1, newAutoscalingWithMDRef())
 	r, server := setupReconciler(t, pool, scaling.Signals{
 		Fleet:                 "linux",
 		Claimed:               5,
@@ -372,7 +372,7 @@ func TestAutoscaler_SyncsMachineDeploymentEvenOnSteadyState(t *testing.T) {
 	// branch — but the MD has drifted (someone scaled it manually).
 	// The reconciler should still nudge it back so MD stays in
 	// lockstep with the source-of-truth RunnerPool.
-	pool := newPool("linux", 5, newAutoscalingWithMDRef())
+	pool := newAutoscalerPool("linux", 5, newAutoscalingWithMDRef())
 	r, server := setupReconciler(t, pool, scaling.Signals{
 		Fleet:                 "linux",
 		Claimed:               2,
@@ -409,7 +409,7 @@ func TestAutoscaler_SyncsMachineDeploymentEvenOnSteadyState(t *testing.T) {
 }
 
 func TestAutoscaler_NoMgmtClient_PoolScalesButMDStays(t *testing.T) {
-	pool := newPool("linux", 1, newAutoscalingWithMDRef())
+	pool := newAutoscalerPool("linux", 1, newAutoscalingWithMDRef())
 	r, server := setupReconciler(t, pool, scaling.Signals{
 		Fleet:                 "linux",
 		Claimed:               5,
@@ -432,7 +432,7 @@ func TestAutoscaler_NoMgmtClient_PoolScalesButMDStays(t *testing.T) {
 }
 
 func TestAutoscaler_NoMatchingMachineDeployment_FailsOpen(t *testing.T) {
-	pool := newPool("linux", 1, newAutoscalingWithMDRef())
+	pool := newAutoscalerPool("linux", 1, newAutoscalingWithMDRef())
 	r, server := setupReconciler(t, pool, scaling.Signals{
 		Fleet:                 "linux",
 		Claimed:               5,
