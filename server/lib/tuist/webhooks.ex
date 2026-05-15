@@ -118,7 +118,7 @@ defmodule Tuist.Webhooks do
   / `meta.end_cursor`.
 
   Supported `opts`:
-    * `:page_size` — max rows per page (default 50)
+    * `:page_size` — max rows per page (default 20)
     * `:after` / `:before` — Flop cursor strings (mutually exclusive)
     * `:start_datetime` / `:end_datetime` — restrict by `inserted_at`
     * `:status` — one of `:delivered | :failed`
@@ -137,7 +137,7 @@ defmodule Tuist.Webhooks do
   end
 
   defp flop_params(opts) do
-    page_size = Keyword.get(opts, :page_size, 50)
+    page_size = Keyword.get(opts, :page_size, 20)
     base = %{order_by: [:inserted_at], order_directions: [:desc]}
 
     cond do
