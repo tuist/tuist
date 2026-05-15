@@ -66,34 +66,52 @@ HELM_SET_ARGS=(
 # minute and exit as soon as helm finds nothing to roll out.
 HELM_TIMEOUT="15m"
 
-# First-install ordering: our ClusterIssuer template depends on the
-# cert-manager.io/v1 CRD that the cert-manager subchart ships. On a
-# cluster that already has the CRD, a single pass is enough. On a
-# fresh cluster we install the subcharts first with our ClusterIssuer
-# disabled, wait for the CRD, then re-apply with it enabled — flipping
-# clusterIssuer.enabled on a steady-state cluster would prune and
-# re-create the resource, briefly blocking new cert issuance.
-if KUBECONFIG="$WL_KUBECONFIG" kubectl get crd clusterissuers.cert-manager.io >/dev/null 2>&1; then
-  KUBECONFIG="$WL_KUBECONFIG" helm upgrade --install platform "$CHART_PATH" \
-    --namespace platform \
-    -f "$CHART_PATH/values-hetzner.yaml" \
-    "${HELM_SET_ARGS[@]}" \
-    --wait --timeout "$HELM_TIMEOUT"
-else
-  log "ClusterIssuer CRD missing; running two-pass install"
-  KUBECONFIG="$WL_KUBECONFIG" helm upgrade --install platform "$CHART_PATH" \
-    --namespace platform \
-    -f "$CHART_PATH/values-hetzner.yaml" \
-    --set "clusterIssuer.enabled=false" \
-    "${HELM_SET_ARGS[@]}" \
-    --wait --timeout "$HELM_TIMEOUT"
+# Helm installs chart CRDs only on `install`, not on `upgrade`. Some
+# regional clusters predate the platform chart's cert-manager wiring, so
+# an upgrade can see `clusterissuers.cert-manager.io` missing forever.
+# Apply the cert-manager chart CRDs explicitly before templating our
+# ClusterIssuer.
+if ! KUBECONFIG="$WL_KUBECONFIG" kubectl get crd clusterissuers.cert-manager.io >/dev/null 2>&1; then
+  log "ClusterIssuer CRD missing; applying cert-manager CRDs"
 
+  cert_manager_chart="$(
+    find "$CHART_PATH/charts" -maxdepth 1 -name 'cert-manager-*.tgz' |
+      sort |
+      tail -n 1
+  )"
+
+  if [ -z "$cert_manager_chart" ]; then
+    echo "ERROR: cert-manager chart dependency not found under $CHART_PATH/charts" >&2
+    exit 1
+  fi
+
+  helm template platform "$cert_manager_chart" \
+    --namespace platform \
+    --set crds.enabled=true \
+    --show-only templates/crds.yaml | KUBECONFIG="$WL_KUBECONFIG" kubectl apply -f -
   KUBECONFIG="$WL_KUBECONFIG" kubectl wait \
     --for=condition=Established crd/clusterissuers.cert-manager.io --timeout=2m
-
-  KUBECONFIG="$WL_KUBECONFIG" helm upgrade --install platform "$CHART_PATH" \
-    --namespace platform \
-    -f "$CHART_PATH/values-hetzner.yaml" \
-    "${HELM_SET_ARGS[@]}" \
-    --wait --timeout "$HELM_TIMEOUT"
 fi
+
+# The ingress-nginx admission cert jobs are Helm hooks. Re-running them on
+# every server deploy makes the deploy path depend on a short-lived certgen
+# Job even when ingress-nginx is already installed. Clean up a hook Job
+# stranded by an interrupted/failed upgrade, then skip hooks only when the
+# platform release and admission Secret already exist; fresh installs still
+# run hooks so the Secret and webhook CA bundle are created normally.
+KUBECONFIG="$WL_KUBECONFIG" kubectl -n platform delete job \
+  -l app.kubernetes.io/name=ingress-nginx,app.kubernetes.io/component=admission-webhook \
+  --ignore-not-found --cascade=foreground --timeout=2m || true
+
+HELM_EXTRA_ARGS=()
+if KUBECONFIG="$WL_KUBECONFIG" helm status platform --namespace platform >/dev/null 2>&1 &&
+  KUBECONFIG="$WL_KUBECONFIG" kubectl -n platform get secret platform-ingress-nginx-admission >/dev/null 2>&1; then
+  HELM_EXTRA_ARGS+=(--no-hooks)
+fi
+
+KUBECONFIG="$WL_KUBECONFIG" helm upgrade --install platform "$CHART_PATH" \
+  --namespace platform \
+  -f "$CHART_PATH/values-hetzner.yaml" \
+  "${HELM_SET_ARGS[@]}" \
+  "${HELM_EXTRA_ARGS[@]}" \
+  --wait --timeout "$HELM_TIMEOUT"
