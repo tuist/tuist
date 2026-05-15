@@ -84,6 +84,15 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		// they may be mid-job, and single-shot lifecycle will turn
 		// them over to Succeeded on exit, where the reap path below
 		// replaces them with a current-image Pod.
+		//
+		// Idle Running stale Pods are picked up by the server-side
+		// drain signal in Tuist.Runners.dispatch_for_sa: on the next
+		// idle poll, the server compares the Pod's image to the
+		// RunnerPool's and returns HTTP 410, which the in-VM
+		// dispatch-poll script treats as a clean-exit. The reap
+		// path then replaces the Pod with a current-image one.
+		// In-flight customer jobs aren't disrupted because the 410
+		// check fires only on idle polls (before claim).
 		if isAlive(p) && p.Status.Phase == corev1.PodPending && isStaleImage(p, pool) {
 			if err := r.Delete(ctx, p); err != nil && !apierrors.IsNotFound(err) {
 				logger.Error(err, "delete stale pending pod; will retry", "pod", p.Name)
