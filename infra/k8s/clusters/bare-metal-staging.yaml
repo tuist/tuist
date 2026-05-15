@@ -66,16 +66,16 @@ spec:
   # Don't rescue/reinstall this box right now. Flip to false when
   # the bare-metal-worker MD scales up and is ready to claim it.
   maintenanceMode: false
-  # NVMe device hints so installimage knows which disks to partition.
-  # The AX42-U has two 512 GB Samsung NVMe drives in software RAID 1.
-  # WWNs are read from caph's hardwareDetails on first registration
-  # (caph SSHes into the rescue system and inspects `/dev/disk/by-id/`);
-  # empty wwn is rejected by caph >=v1.0.
+  # Single-disk install on the first 512 GB Samsung NVMe. Runner
+  # Pods are stateless single-shot microVMs, so RAID-1's redundancy
+  # buys nothing the substrate doesn't already provide via Pod
+  # rescheduling; RAID-0's throughput might help long-term but
+  # isn't worth the install-flow complexity right now. The WWN is
+  # read from caph's hardwareDetails after the first registration
+  # SSH; the second NVMe (eui.002538b751b1b591) sits idle.
+  # Re-evaluate the substrate choice when we see real I/O bottlenecks.
   rootDeviceHints:
-    raid:
-      wwn:
-        - eui.002538b751b1b58c
-        - eui.002538b751b1b591
+    wwn: eui.002538b751b1b58c
   # Robot credentials are read from the same Secret the
   # HetznerClusterTemplate's `hetznerSecretRef` already names (key
   # additions wired below — keys `hetznerRobotUser` +
