@@ -53,7 +53,7 @@ defmodule TuistWeb.WebhookEventLive do
   def format_body(""), do: ""
 
   def format_body(body) when is_binary(body) do
-    case Jason.decode(body) do
+    case JSON.decode(body) do
       {:ok, decoded} -> Jason.encode!(decoded, pretty: true)
       {:error, _} -> body
     end
@@ -75,7 +75,7 @@ defmodule TuistWeb.WebhookEventLive do
   def header_list(""), do: []
 
   def header_list(headers) when is_binary(headers) do
-    case Jason.decode(headers) do
+    case JSON.decode(headers) do
       {:ok, map} when is_map(map) -> map |> Enum.to_list() |> Enum.sort_by(fn {k, _} -> k end)
       _ -> []
     end

@@ -3262,11 +3262,13 @@ webhook_endpoints_with_events =
 # Wipe any prior attempts for the seeded endpoints first so re-seeding
 # produces a deterministic mix instead of accumulating on top of the
 # previous run (or of real failures the dev cron generates against the
-# placeholder URLs).
-Repo.delete_all(
-  from(a in Tuist.Webhooks.DeliveryAttempt,
-    where: a.webhook_endpoint_id in ^Enum.map(webhook_endpoints_with_events, fn {ep, _} -> ep.id end)
-  )
+# placeholder URLs). Uses CH lightweight DELETE so the rows are gone
+# before we start inserting the new batch.
+seeded_endpoint_ids = Enum.map(webhook_endpoints_with_events, fn {ep, _} -> ep.id end)
+
+Tuist.ClickHouseRepo.query!(
+  "DELETE FROM webhook_delivery_attempts WHERE webhook_endpoint_id IN {ids:Array(UUID)}",
+  %{ids: seeded_endpoint_ids}
 )
 
 # Healthy endpoints sit around the high 90s in success rate; reserve the
@@ -3309,33 +3311,38 @@ webhook_attempts =
         "occurred_at" => DateTime.to_iso8601(inserted_at)
       }
 
-      %Tuist.Webhooks.DeliveryAttempt{
+      %{
+        id: Ecto.UUID.generate(),
         webhook_endpoint_id: endpoint.id,
         event_id: event_id,
         event_type: event_type,
         attempt: if(result == :failed, do: Enum.random(1..3), else: 1),
         status: Atom.to_string(result),
-        request_body: Jason.encode!(request_payload),
-        request_headers: %{
-          "Content-Type" => "application/json",
-          "User-Agent" => "Tuist-Webhooks/1.0",
-          "Tuist-Event-Id" => event_id,
-          "Tuist-Event-Type" => event_type
-        },
+        request_body: JSON.encode!(request_payload),
+        request_headers:
+          JSON.encode!(%{
+            "Content-Type" => "application/json",
+            "User-Agent" => "Tuist-Webhooks/1.0",
+            "Tuist-Event-Id" => event_id,
+            "Tuist-Event-Type" => event_type
+          }),
         response_status: response_status,
-        response_headers: %{"content-type" => "application/json"},
+        response_headers: JSON.encode!(%{"content-type" => "application/json"}),
         response_body: response_body,
-        error: if(result == :failed, do: "HTTP #{response_status}", else: nil),
+        error: if(result == :failed, do: "HTTP #{response_status}", else: ""),
         duration_ms: Enum.random(40..650),
-        inserted_at: inserted_at,
-        updated_at: inserted_at
+        inserted_at: inserted_at
       }
     end)
   end)
 
-if webhook_attempts != [] do
-  Enum.each(webhook_attempts, &Repo.insert!/1)
-end
+# Batch the inserts to keep CH parts merge-friendly — same chunking
+# convention as the rest of the CH inserts in this file.
+webhook_attempts
+|> Enum.chunk_every(500)
+|> Enum.each(fn chunk ->
+  Tuist.IngestRepo.insert_all(Tuist.Webhooks.DeliveryAttempt, chunk, timeout: 120_000)
+end)
 
 IO.puts("  - webhook endpoints: #{length(webhook_endpoints_with_events)}")
 IO.puts("  - webhook delivery attempts: #{length(webhook_attempts)}")
