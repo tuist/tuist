@@ -462,27 +462,17 @@ defmodule TuistWeb.ProjectAutomationsLive do
       "name" => assigns.create_automation_form_name,
       "monitor_type" => metric,
       "trigger_config" => trigger_config_for(metric, assigns),
-      "trigger_actions" => strip_transient_action_fields(assigns.create_automation_form_trigger_actions),
+      "trigger_actions" => assigns.create_automation_form_trigger_actions,
       "recovery_enabled" => assigns.create_automation_form_recovery_enabled
     }
 
     if assigns.create_automation_form_recovery_enabled do
       base
       |> Map.put("recovery_config", recovery_config_for(metric, assigns))
-      |> Map.put("recovery_actions", strip_transient_action_fields(assigns.create_automation_form_recovery_actions))
+      |> Map.put("recovery_actions", assigns.create_automation_form_recovery_actions)
     else
       base
     end
-  end
-
-  # Fields prefixed with `_` are transient form-only state (e.g. the plaintext
-  # signing secret shown once after generation) and must never reach the DB.
-  defp strip_transient_action_fields(actions) do
-    Enum.map(actions, fn action ->
-      action
-      |> Enum.reject(fn {key, _} -> is_binary(key) and String.starts_with?(key, "_") end)
-      |> Map.new()
-    end)
   end
 
   defp trigger_config_for("test_updated", assigns) do
