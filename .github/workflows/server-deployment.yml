@@ -449,9 +449,6 @@ jobs:
 
           # Cloudflare DNS-01 token for cert-manager. Resolved here once
           # so the install-platform script can stay credential-agnostic.
-          # The CI service account (OP_SERVICE_ACCOUNT_TOKEN) is scoped to
-          # per-env vaults, not Founders — mirror the same item used by
-          # operators locally into tuist-k8s-production.
           CLOUDFLARE_API_TOKEN="$(op read "op://tuist-k8s-production/cloudflare-tuist-dns/credential")"
           export CLOUDFLARE_API_TOKEN
 
