@@ -13,7 +13,9 @@
 #   POST <url> with header `Authorization: Bearer <sa_token>`
 #     200 with body { encoded_jit_config: "...", pool: "...", owner: "..." }
 #       -> exec ./run.sh --jitconfig <jit> --disableupdate
+#     204  -> no work yet, keep polling
 #     401  -> auth failed, abort (the SA was likely GCed already)
+#     403  -> server-side authz refused the SA, abort
 #     5xx  -> transient; sleep + retry
 #
 # Once the runner exits, the EXIT trap halts the VM. tart-kubelet
