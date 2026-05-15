@@ -177,46 +177,45 @@ Node ready to schedule runner Pods (which carry
 `runtimeClassName: kata-fc`, so each Pod becomes a microVM)
 ```
 
-### One-time mgmt-cluster Secret bootstrap
+### Fleet credentials
 
-The two Secrets caph needs (`hetzner-robot-credentials` and
-`hetzner-bare-metal-ssh-key` in `org-tuist`) live in the
-`tuist-k8s-staging` 1Password vault, but the mgmt cluster's ESO
-ClusterSecretStore is scoped to `tuist-k8s-mgmt`. So the operator
-creates these Secrets manually once per env, rather than via
-ExternalSecret:
+Robot user/pass and the shared SSH key are fleet-level — one
+Hetzner Robot account spans every AX-class host across staging /
+canary / production — so both 1P items live in the mgmt cluster's
+own vault and the mgmt cluster's ESO ClusterSecretStore syncs
+them automatically:
+
+| 1Password item (vault: `tuist-k8s-mgmt`) | Synced to (`org-tuist` ns)         | Consumer                                                  |
+| ---------------------------------------- | ---------------------------------- | --------------------------------------------------------- |
+| `HETZNER_WEBSERVICE`                     | Secret `hetzner-robot-credentials` | caph (Robot API for rescue / installimage)                |
+| `HETZNER_BARE_METAL_SSH_KEY`             | Secret `hetzner-bare-metal-ssh-key`| caph (SSH into the rescue system)                         |
+
+caph wants the Robot user/pass in the **same** Secret as the
+hcloud token (the one HetznerClusterTemplate's `hetznerSecretRef`
+names, today `org-tuist/hetzner`). The first time this branch is
+applied, the operator does a one-time merge of the ESO-synced
+keys into that Secret:
 
 ```bash
-# Robot webservice credentials — caph drives the Robot API with these
-op read "op://tuist-k8s-staging/HETZNER_WEBSERVICE/username" > /tmp/robot-user
-op read "op://tuist-k8s-staging/HETZNER_WEBSERVICE/password" > /tmp/robot-pass
-kubectl --kubeconfig "$MGMT_KUBECONFIG" -n org-tuist create secret generic \
-  hetzner-robot-credentials \
-  --from-file=hetznerRobotUser=/tmp/robot-user \
-  --from-file=hetznerRobotPassword=/tmp/robot-pass
-shred -u /tmp/robot-user /tmp/robot-pass
-
-# SSH key — caph SSHes into rescue mode with this
-op read "op://tuist-k8s-staging/HETZNER_BARE_METAL_SSH_KEY/public-key-name" > /tmp/sshname
-op read "op://tuist-k8s-staging/HETZNER_BARE_METAL_SSH_KEY/public-key"      > /tmp/sshpub
-op read "op://tuist-k8s-staging/HETZNER_BARE_METAL_SSH_KEY/private-key"     > /tmp/sshpriv
-kubectl --kubeconfig "$MGMT_KUBECONFIG" -n org-tuist create secret generic \
-  hetzner-bare-metal-ssh-key \
-  --from-file=sshkey-name=/tmp/sshname \
-  --from-file=ssh-publickey=/tmp/sshpub \
-  --from-file=ssh-privatekey=/tmp/sshpriv
-shred -u /tmp/sshname /tmp/sshpub /tmp/sshpriv
+ROBOT_USER=$(kubectl --kubeconfig "$MGMT_KUBECONFIG" -n org-tuist \
+  get secret hetzner-robot-credentials -o jsonpath='{.data.hetznerRobotUser}')
+ROBOT_PASS=$(kubectl --kubeconfig "$MGMT_KUBECONFIG" -n org-tuist \
+  get secret hetzner-robot-credentials -o jsonpath='{.data.hetznerRobotPassword}')
+kubectl --kubeconfig "$MGMT_KUBECONFIG" -n org-tuist patch secret hetzner \
+  --type=merge -p "{\"data\":{\"hetznerRobotUser\":\"${ROBOT_USER}\",\"hetznerRobotPassword\":\"${ROBOT_PASS}\"}}"
 ```
 
-To rotate either Secret, `kubectl delete secret <name> -n org-tuist`
-on the mgmt cluster and re-run the matching block above.
+After this, ESO refreshes `hetzner-robot-credentials` from 1P
+hourly. The `hetzner` Secret only needs another patch if the
+Robot creds rotate (rare); the SSH key path is fully declarative
+since caph reads it from its own Secret.
 
 ### Bringing up a new bare-metal host (operator workflow)
 
 1. **Order an AX-class server from [robot.hetzner.com](https://robot.hetzner.com)**.
    FSN1 for staging (matches the Cloud cluster region). Paste the
    shared SSH public key from
-   `tuist-k8s-staging/HETZNER_BARE_METAL_SSH_KEY` (1Password,
+   `tuist-k8s-mgmt/HETZNER_BARE_METAL_SSH_KEY` (1Password,
    `public-key` field) into the order form. Wait for the email with
    the server ID and IP.
 
@@ -224,8 +223,8 @@ on the mgmt cluster and re-run the matching block above.
    `infra/k8s/clusters/bare-metal-staging.yaml`, modeled on the
    existing `bm-staging-2986829` entry. Set `serverID` to the new
    number; `rootDeviceHints` stays the same. The Secrets the host
-   references must already exist on the mgmt cluster (see "One-time
-   mgmt-cluster Secret bootstrap" above).
+   references are ESO-synced from the mgmt vault on apply, so no
+   per-env bootstrap is needed.
 
 3. **Bump `replicas` on the `runners-linux` MachineDeployment** in
    `infra/k8s/clusters/cluster-staging.yaml` to match the number of
@@ -275,10 +274,10 @@ on the mgmt cluster and re-run the matching block above.
 
 If a bare-metal host misbehaves and caph isn't responding, the
 operator can SSH in directly using the shared key from
-`tuist-k8s-staging/HETZNER_BARE_METAL_SSH_KEY`:
+`tuist-k8s-mgmt/HETZNER_BARE_METAL_SSH_KEY`:
 
 ```bash
-op read "op://tuist-k8s-staging/HETZNER_BARE_METAL_SSH_KEY/private-key" \
+op read "op://tuist-k8s-mgmt/HETZNER_BARE_METAL_SSH_KEY/private-key" \
   --account=tuist.1password.com > /tmp/hbm
 chmod 600 /tmp/hbm
 ssh -i /tmp/hbm root@<host-ip>
