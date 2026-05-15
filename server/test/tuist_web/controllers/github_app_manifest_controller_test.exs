@@ -34,6 +34,19 @@ defmodule TuistWeb.GitHubAppManifestControllerTest do
       assert body =~ "document.getElementById('manifest-form').submit()"
     end
 
+    test "renders an organization-owned manifest registration form when the state carries a GitHub owner", %{conn: conn} do
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      ghes_url = "https://github.example.com"
+      state_token = VCS.generate_github_state_token(account.id, ghes_url, "ios")
+
+      conn = get(conn, ~p"/integrations/github/manifest/start", %{"state" => state_token})
+
+      assert conn.status == 200
+      body = response(conn, 200)
+      assert body =~ "#{ghes_url}/organizations/ios/settings/apps/new"
+      refute body =~ "#{ghes_url}/ios/settings/apps/new"
+    end
+
     test "scopes the CSP so the inline submit and cross-origin form action are allowed", %{conn: conn} do
       account = AccountsFixtures.user_fixture(preload: [:account]).account
       ghes_url = "https://github.example.com"
@@ -105,6 +118,15 @@ defmodule TuistWeb.GitHubAppManifestControllerTest do
         # emits the header when an explicit body is passed, so guard the
         # call shape here.
         assert Keyword.fetch!(opts, :body) == ""
+        assert Keyword.fetch!(opts, :finch) == Tuist.Finch
+
+        assert Keyword.fetch!(opts, :headers) == [
+                 {"Accept", "application/vnd.github+json"},
+                 {"Content-Type", "application/json"},
+                 {"User-Agent", "Tuist"},
+                 {"X-GitHub-Api-Version", "2022-11-28"}
+               ]
+
         {:ok, %Req.Response{status: 201, body: app_payload}}
       end)
 

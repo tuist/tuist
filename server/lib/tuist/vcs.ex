@@ -1412,7 +1412,8 @@ defmodule Tuist.VCS do
   Get GitHub app installation URL with encrypted state parameter for account-specific installation.
 
   Accepts an optional `:client_url` to target a self-hosted GitHub Enterprise Server instance,
-  defaulting to https://github.com.
+  defaulting to https://github.com. Accepts an optional `:github_app_owner`
+  to register the manifest-owned App under a GitHub organization.
 
   For github.com, returns the direct installation URL of the
   globally-configured Tuist App. For a GHES `client_url`, returns an
@@ -1424,7 +1425,8 @@ defmodule Tuist.VCS do
   """
   def get_github_app_installation_url(%Account{id: account_id}, opts \\ []) do
     client_url = normalize_client_url(Keyword.get(opts, :client_url))
-    state_token = generate_github_state_token(account_id, client_url)
+    github_app_owner = normalize_github_app_owner(Keyword.get(opts, :github_app_owner))
+    state_token = generate_github_state_token(account_id, client_url, github_app_owner)
 
     if client_url == default_client_url() do
       app_name = Environment.github_app_name()
@@ -1437,7 +1439,18 @@ defmodule Tuist.VCS do
   defp normalize_client_url(nil), do: default_client_url()
   defp normalize_client_url(""), do: default_client_url()
 
-  defp normalize_client_url(url) when is_binary(url), do: url |> String.trim() |> String.trim_trailing("/")
+  defp normalize_client_url(url) when is_binary(url) do
+    url |> String.trim() |> String.trim_trailing("/")
+  end
+
+  defp normalize_github_app_owner(nil), do: nil
+
+  defp normalize_github_app_owner(owner) when is_binary(owner) do
+    case String.trim(owner) do
+      "" -> nil
+      owner -> owner
+    end
+  end
 
   # GitHub State Token functions
 
@@ -1446,25 +1459,53 @@ defmodule Tuist.VCS do
   client URL. The token round-trips through GitHub's installation flow so we
   know which GitHub instance the resulting installation belongs to.
   """
-  def generate_github_state_token(account_id, client_url \\ default_client_url()) do
-    Phoenix.Token.sign(TuistWeb.Endpoint, "github_state", {account_id, normalize_client_url(client_url)})
+  def generate_github_state_token(account_id, client_url \\ default_client_url(), github_app_owner \\ nil) do
+    Phoenix.Token.sign(
+      TuistWeb.Endpoint,
+      "github_state",
+      {
+        account_id,
+        normalize_client_url(client_url),
+        normalize_github_app_owner(github_app_owner)
+      }
+    )
   end
 
   @doc """
-  Verifies the state token. Returns `{:ok, %{account_id: id, client_url: url}}`
-  on success, `{:error, reason}` otherwise. Tokens generated before client_url
-  was introduced are accepted with the default github.com URL.
+  Verifies the state token. Returns
+  `{:ok, %{account_id: id, client_url: url, github_app_owner: owner}}` on
+  success, `{:error, reason}` otherwise. Tokens generated before client_url or
+  github_app_owner were introduced are accepted with the available defaults.
   """
   def verify_github_state_token(token) do
     # 90 days
     token_max_age_seconds = 7_776_000
 
-    case Phoenix.Token.verify(TuistWeb.Endpoint, "github_state", token, max_age: token_max_age_seconds) do
+    case Phoenix.Token.verify(
+           TuistWeb.Endpoint,
+           "github_state",
+           token,
+           max_age: token_max_age_seconds
+         ) do
+      {:ok, {account_id, client_url, github_app_owner}}
+      when is_integer(account_id) and is_binary(client_url) ->
+        {:ok,
+         %{
+           account_id: account_id,
+           client_url: normalize_client_url(client_url),
+           github_app_owner: normalize_github_app_owner(github_app_owner)
+         }}
+
       {:ok, {account_id, client_url}} when is_integer(account_id) and is_binary(client_url) ->
-        {:ok, %{account_id: account_id, client_url: normalize_client_url(client_url)}}
+        {:ok,
+         %{
+           account_id: account_id,
+           client_url: normalize_client_url(client_url),
+           github_app_owner: nil
+         }}
 
       {:ok, account_id} when is_integer(account_id) ->
-        {:ok, %{account_id: account_id, client_url: default_client_url()}}
+        {:ok, %{account_id: account_id, client_url: default_client_url(), github_app_owner: nil}}
 
       {:ok, _} ->
         {:error, :invalid}
