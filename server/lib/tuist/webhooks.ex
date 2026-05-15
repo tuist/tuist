@@ -69,7 +69,6 @@ defmodule Tuist.Webhooks do
 
     attrs =
       attrs
-      |> normalize_keys()
       |> Map.put("account_id", account_id)
       |> Map.put("signing_secret", plaintext_secret)
 
@@ -81,7 +80,7 @@ defmodule Tuist.Webhooks do
 
   def update_endpoint(%WebhookEndpoint{} = endpoint, attrs) do
     endpoint
-    |> WebhookEndpoint.update_changeset(normalize_keys(attrs))
+    |> WebhookEndpoint.update_changeset(attrs)
     |> Repo.update()
   end
 
@@ -99,13 +98,6 @@ defmodule Tuist.Webhooks do
       {:ok, endpoint} -> {:ok, endpoint, plaintext}
       {:error, changeset} -> {:error, changeset}
     end
-  end
-
-  defp normalize_keys(attrs) when is_map(attrs) do
-    Map.new(attrs, fn
-      {k, v} when is_atom(k) -> {Atom.to_string(k), v}
-      {k, v} -> {k, v}
-    end)
   end
 
   @doc """
