@@ -87,6 +87,7 @@ The following data is stored in ClickHouse for analytics purposes:
 - Encrypted GitHub App credentials (`client_secret`, `private_key`, `webhook_secret` on `github_app_installations`)
 - Slack bot access tokens and incoming-webhook URLs (treated as bearer credentials)
 - GitHub-issued JIT runner configs (minted on demand for runner Pods at dispatch time and never persisted server-side)
+- Kura geographic attribution telemetry: the ISO 3166-1 country derived from a request's client IP (`client_country` Prometheus label on `kura_http_requests_total`, `client.country` OTel span attribute) and the serving node's own country (`kura.country` OTel resource attribute). This is coarse, aggregate operational telemetry used for capacity and node-placement decisions. Raw client IP addresses are never persisted: the IP is resolved to a country in-process and immediately discarded, so there is no per-account or per-user record to export.
 
 ## Binary Files
 

@@ -1,6 +1,7 @@
 use std::{io::Read, net::IpAddr, path::Path, sync::RwLock, time::Duration};
 
 use flate2::read::GzDecoder;
+use futures_util::StreamExt;
 use maxminddb::{Reader, geoip2};
 use reqwest::Client;
 use time::{Month, OffsetDateTime};
@@ -119,14 +120,16 @@ async fn fetch_gzipped(http: &Client, url: &str) -> Result<Vec<u8>, String> {
         .map_err(|error| format!("send: {error}"))?
         .error_for_status()
         .map_err(|error| format!("status: {error}"))?;
-    let compressed = response
-        .bytes()
-        .await
-        .map_err(|error| format!("body: {error}"))?;
-    if compressed.len() > MAX_COMPRESSED_BYTES {
-        return Err(format!(
-            "compressed body exceeds {MAX_COMPRESSED_BYTES} bytes"
-        ));
+    let mut compressed = Vec::new();
+    let mut stream = response.bytes_stream();
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk.map_err(|error| format!("body: {error}"))?;
+        if compressed.len() + chunk.len() > MAX_COMPRESSED_BYTES {
+            return Err(format!(
+                "compressed body exceeds {MAX_COMPRESSED_BYTES} bytes"
+            ));
+        }
+        compressed.extend_from_slice(&chunk);
     }
     let decoder = GzDecoder::new(&compressed[..]);
     let mut decompressed = Vec::new();
