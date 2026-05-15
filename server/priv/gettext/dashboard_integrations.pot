@@ -102,6 +102,11 @@ msgstr ""
 msgid "Invalid URL"
 msgstr ""
 
+#: lib/tuist_web/live/integrations_live.ex:287
+#, elixir-autogen, elixir-format
+msgid "Invalid organization"
+msgstr ""
+
 #: lib/tuist_web/live/integrations_live.html.heex:38
 #, elixir-autogen, elixir-format
 msgid "Server URL"
