@@ -1,6 +1,6 @@
 defmodule TuistWeb.Plugs.OpsHostPlug do
   @moduledoc """
-  Restricts ops routes to the configured ops host when one is set.
+  Restricts ops routes to the configured ops host.
   """
 
   alias Tuist.Environment
@@ -11,10 +11,15 @@ defmodule TuistWeb.Plugs.OpsHostPlug do
   def call(conn, _opts) do
     ops_hosts = Environment.ops_hosts()
 
-    if ops_hosts == [] or String.downcase(conn.host) in ops_hosts do
-      conn
-    else
-      raise NotFoundError, "The page you are looking for doesn't exist or has been moved."
+    cond do
+      String.downcase(conn.host) in ops_hosts ->
+        conn
+
+      ops_hosts == [] and not Environment.tuist_hosted?() ->
+        conn
+
+      true ->
+        raise NotFoundError, "The page you are looking for doesn't exist or has been moved."
     end
   end
 end
