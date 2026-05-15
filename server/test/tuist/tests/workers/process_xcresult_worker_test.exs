@@ -530,6 +530,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
       assert :ok == ProcessXcresultWorker.perform(oban_job(args_1))
 
       keys = paths |> :ets.tab2list() |> Enum.map(&elem(&1, 0))
+
       assert Path.basename(Enum.at(keys, 0)) in [
                "xcresult_#{test_run_id}_s0.zip",
                "xcresult_#{test_run_id}_s1.zip"
