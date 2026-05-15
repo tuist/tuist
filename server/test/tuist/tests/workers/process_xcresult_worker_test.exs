@@ -500,4 +500,29 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
       assert {:error, _} = ProcessXcresultWorker.perform(oban_job(args, 3, 3))
     end
   end
+
+  describe "uniqueness across shards" do
+    test "different shard_index values are treated as distinct jobs" do
+      test_run_id = Ecto.UUID.generate()
+
+      shard_0 =
+        ProcessXcresultWorker.new(%{
+          "test_run_id" => test_run_id,
+          "storage_key" => "runs/shard-0/result_bundle.zip",
+          "account_id" => 1,
+          "shard_index" => 0
+        })
+
+      shard_1 =
+        ProcessXcresultWorker.new(%{
+          "test_run_id" => test_run_id,
+          "storage_key" => "runs/shard-1/result_bundle.zip",
+          "account_id" => 1,
+          "shard_index" => 1
+        })
+
+      assert shard_0.changes.unique.keys == [:test_run_id, :shard_index]
+      assert shard_1.changes.unique.keys == [:test_run_id, :shard_index]
+    end
+  end
 end

@@ -5,6 +5,7 @@ defmodule TuistWeb.API.TestsControllerTest do
   alias Tuist.Tests
   alias Tuist.Tests.Analytics
   alias Tuist.Tests.Test
+  alias Tuist.Tests.Workers.ProcessXcresultWorker
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.Authentication
@@ -656,7 +657,7 @@ defmodule TuistWeb.API.TestsControllerTest do
       )
 
       assert_enqueued(
-        worker: Tuist.Tests.Workers.ProcessXcresultWorker,
+        worker: ProcessXcresultWorker,
         args: %{
           "vcs_comment_params" => %{
             "git_commit_sha" => "abc123",
@@ -664,6 +665,71 @@ defmodule TuistWeb.API.TestsControllerTest do
             "git_remote_url_origin" => "https://github.com/tuist/tuist.git",
             "project_id" => project.id
           }
+        }
+      )
+    end
+
+    test "uses the request body id (not the merged run id) for storage_key on sharded runs", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      # The CLI uploads each shard's xcresult to S3 keyed on the UUID
+      # it generated locally; for sharded runs the merged test run id
+      # belongs to the first shard, so the worker must read from the
+      # request body's id key, not from the merged Test row's id.
+      requested_id = UUIDv7.generate()
+      existing_merged_id = UUIDv7.generate()
+      shard_plan_id = UUIDv7.generate()
+
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      stub(Tests, :get_test, fn _id, _opts -> {:error, :not_found} end)
+
+      stub(Tests, :create_test, fn attrs ->
+        # Simulate the sharded merge: the returned id is the first shard's
+        # merged Test row id, not the request body's id for this shard.
+        {:ok,
+         %Test{
+           id: existing_merged_id,
+           duration: attrs.duration,
+           project_id: project.id,
+           account_id: attrs.account_id,
+           is_ci: true,
+           scheme: nil,
+           shard_plan_id: shard_plan_id,
+           build_system: "xcode",
+           status: "processing",
+           test_case_runs: []
+         }}
+      end)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          "/api/projects/#{user.account.name}/#{project.name}/tests",
+          %{
+            id: requested_id,
+            duration: 0,
+            is_ci: true,
+            status: "processing",
+            shard_plan_id: shard_plan_id,
+            shard_index: 1,
+            test_modules: []
+          }
+        )
+
+      assert json_response(conn, 200)
+
+      expected_key =
+        "#{user.account.name}/#{project.name}/runs/#{requested_id}/result_bundle.zip"
+
+      assert_enqueued(
+        worker: ProcessXcresultWorker,
+        args: %{
+          "test_run_id" => existing_merged_id,
+          "storage_key" => expected_key,
+          "shard_index" => 1
         }
       )
     end

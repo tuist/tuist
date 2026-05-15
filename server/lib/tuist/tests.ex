@@ -511,7 +511,11 @@ defmodule Tuist.Tests do
 
           merged_duration = max(existing_test.duration, shard_duration)
 
-          updated_test = %{existing_test | status: merged_status, duration: merged_duration}
+          updated_test =
+            existing_test
+            |> Map.put(:status, merged_status)
+            |> Map.put(:duration, merged_duration)
+            |> merge_shard_metadata(attrs)
 
           update_attrs =
             updated_test
@@ -550,6 +554,44 @@ defmodule Tuist.Tests do
       {:ok, test}
     end
   end
+
+  # Carry forward metadata fields when a later shard report has them and
+  # the existing Test row left them blank. The first shard often arrives
+  # with status=processing before xcresult parsing has populated `scheme`
+  # and friends; without this merge the dashboard's title stays "Unknown"
+  # for the lifetime of the run.
+  @shard_mergeable_fields [
+    :scheme,
+    :macos_version,
+    :xcode_version,
+    :model_identifier,
+    :git_branch,
+    :git_commit_sha,
+    :git_ref,
+    :ci_run_id,
+    :ci_project_handle,
+    :ci_host,
+    :ci_provider,
+    :build_run_id,
+    :gradle_build_id
+  ]
+
+  defp merge_shard_metadata(existing_test, attrs) do
+    Enum.reduce(@shard_mergeable_fields, existing_test, fn field, acc ->
+      incoming = Map.get(attrs, field)
+      current = Map.get(acc, field)
+
+      if blank?(current) and not blank?(incoming) do
+        Map.put(acc, field, incoming)
+      else
+        acc
+      end
+    end)
+  end
+
+  defp blank?(nil), do: true
+  defp blank?(""), do: true
+  defp blank?(_), do: false
 
   defp count_reported_shards(test_run_id) do
     ClickHouseRepo.one(

@@ -14,7 +14,10 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
   Hetzner-backed k8s cluster on Scaleway Mac minis.
   """
 
-  use Oban.Worker, queue: :process_xcresult, max_attempts: 5, unique: [keys: [:test_run_id]]
+  use Oban.Worker,
+    queue: :process_xcresult,
+    max_attempts: 5,
+    unique: [keys: [:test_run_id, :shard_index]]
 
   alias Tuist.Accounts
   alias Tuist.Storage
