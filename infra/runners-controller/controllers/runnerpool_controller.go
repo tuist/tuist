@@ -106,7 +106,12 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		// In-flight customer jobs aren't disrupted because the 410
 		// check fires only on idle polls (before claim).
 		if isAlive(p) && p.Status.Phase == corev1.PodPending && isStaleImage(p, pool) {
-			if err := r.Delete(ctx, p); err != nil && !apierrors.IsNotFound(err) {
+			// Reuse the reap path so the sibling SA goes with the
+			// Pod. Pod and SA are owned by the RunnerPool as
+			// siblings (not parent/child), so deleting the Pod
+			// alone leaves the SA behind to accumulate on every
+			// image roll.
+			if err := r.reapRunner(ctx, p); err != nil {
 				logger.Error(err, "delete stale pending pod; will retry", "pod", p.Name)
 				return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 			}
@@ -119,14 +124,12 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			alive++
 		case p.DeletionTimestamp.IsZero():
 			// Terminal Pod (Succeeded/Failed) with no deletion in
-			// flight. Reap the Pod and its sibling ServiceAccount —
-			// both are owned by this RunnerPool, but they're
-			// siblings (not parent/child), so Pod deletion does not
-			// cascade to the SA. Without explicit cleanup the
-			// namespace fills with stopped Pods + orphaned SAs,
-			// and the projected-token cache in tart-kubelet keeps
-			// re-validating SAs whose Pods are already gone.
-			if err := r.reapTerminalRunner(ctx, p); err != nil {
+			// flight. Reap the Pod and its sibling ServiceAccount.
+			// Without explicit cleanup the namespace fills with
+			// stopped Pods + orphaned SAs, and the projected-token
+			// cache in tart-kubelet keeps re-validating SAs whose
+			// Pods are already gone.
+			if err := r.reapRunner(ctx, p); err != nil {
 				logger.Error(err, "reap terminal runner; will retry", "pod", p.Name)
 				return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 			}
@@ -198,13 +201,17 @@ func (r *RunnerPoolReconciler) createRunner(ctx context.Context, pool *tuistv1.R
 	return nil
 }
 
-// reapTerminalRunner deletes a terminal Pod and its same-named
-// ServiceAccount. Both are owned by the RunnerPool as siblings —
-// deleting the Pod alone leaves the SA behind. Pod and SA share a
-// name by construction (see createRunner), so we issue both
-// deletes by name. NotFound on either is treated as success: the
-// goal is "nothing left," not "I'm the one that deleted it."
-func (r *RunnerPoolReconciler) reapTerminalRunner(ctx context.Context, pod *corev1.Pod) error {
+// reapRunner deletes a Pod and its same-named ServiceAccount.
+// Both are owned by the RunnerPool as siblings — deleting the
+// Pod alone leaves the SA behind. Pod and SA share a name by
+// construction (see createRunner), so we issue both deletes by
+// name. NotFound on either is treated as success: the goal is
+// "nothing left," not "I'm the one that deleted it."
+//
+// Called for both terminal Pods (Succeeded/Failed → natural
+// turnover) and stale Pending Pods (image roll → recycle on
+// current image). The cleanup contract is the same.
+func (r *RunnerPoolReconciler) reapRunner(ctx context.Context, pod *corev1.Pod) error {
 	if err := r.Delete(ctx, pod); err != nil && !apierrors.IsNotFound(err) {
 		return fmt.Errorf("delete pod %s: %w", pod.Name, err)
 	}

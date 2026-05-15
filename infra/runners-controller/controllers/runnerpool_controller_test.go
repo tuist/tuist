@@ -108,10 +108,22 @@ func TestReconcile_DeletesStalePendingPodAndCreatesReplacement(t *testing.T) {
 	scheme := mustScheme(t)
 	pool := newPool("p", "ghcr.io/tuist/tuist-runner@sha256:new", 1)
 	stalePod := newRunnerPod("p-runner-stale", "ghcr.io/tuist/tuist-runner@sha256:old", corev1.PodPending, "p")
+	// Pod + SA are created as siblings by `createRunner`; if the
+	// recycle path forgot to delete the SA, every image roll would
+	// leak runner SAs into the namespace and tart-kubelet's
+	// projected-token cache would keep re-validating SAs whose
+	// Pods are already gone. Seed the sibling SA so the test
+	// catches that regression.
+	staleSA := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "p-runner-stale",
+			Namespace: "tuist-runners",
+		},
+	}
 
 	c := fake.NewClientBuilder().
 		WithScheme(scheme).
-		WithObjects(pool, stalePod).
+		WithObjects(pool, stalePod, staleSA).
 		WithStatusSubresource(&tuistv1.RunnerPool{}).
 		Build()
 
@@ -140,6 +152,14 @@ func TestReconcile_DeletesStalePendingPodAndCreatesReplacement(t *testing.T) {
 	}
 	if got := pods.Items[0].Spec.Containers[0].Image; got != pool.Spec.Image {
 		t.Fatalf("replacement pod image = %q, want %q", got, pool.Spec.Image)
+	}
+
+	// Sibling SA must be deleted alongside the Pod; the replacement
+	// flow recreates a fresh SA with the same name as the new Pod.
+	sa := &corev1.ServiceAccount{}
+	err = c.Get(context.Background(), nn("tuist-runners", "p-runner-stale"), sa)
+	if err == nil {
+		t.Fatalf("expected stale SA p-runner-stale to be deleted, still present")
 	}
 }
 
