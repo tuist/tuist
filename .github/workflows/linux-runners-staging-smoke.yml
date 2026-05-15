@@ -28,15 +28,6 @@ name: Linux Runners Staging Smoke Test
 
 on:
   workflow_dispatch:
-  # Also fires when this workflow file itself changes during
-  # bring-up so we re-validate against the live pool without
-  # manual dispatch every iteration. The `paths` filter keeps
-  # this from running on every push to the branch.
-  push:
-    branches:
-      - claude/priceless-wozniak-85daf8
-    paths:
-      - .github/workflows/linux-runners-staging-smoke.yml
 
 # Smoke runs a public curl + a few uname-style assertions; never
 # reads or mutates repo state, so GITHUB_TOKEN needs zero scopes.
