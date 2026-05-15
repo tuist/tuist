@@ -118,7 +118,13 @@ defmodule TuistWeb.GitHubAppManifestControllerTest do
         # emits the header when an explicit body is passed, so guard the
         # call shape here.
         assert Keyword.fetch!(opts, :body) == ""
-        assert Keyword.fetch!(opts, :finch) == Tuist.Finch
+
+        # Req refuses `:finch` alongside `:connect_options` because the
+        # named pool's connect options are frozen at boot. The manifest
+        # exchange must carry per-GHES TLS settings via `:connect_options`,
+        # so it has to use Req's default pool.
+        refute Keyword.has_key?(opts, :finch)
+        assert Keyword.fetch!(opts, :connect_options) == [hostname: "github.example.com"]
 
         assert Keyword.fetch!(opts, :headers) == [
                  {"Accept", "application/vnd.github+json"},

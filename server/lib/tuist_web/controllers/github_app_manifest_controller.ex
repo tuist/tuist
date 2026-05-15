@@ -256,6 +256,12 @@ defmodule TuistWeb.GitHubAppManifestController do
     # `body: ""` forces a `Content-Length: 0` header. GitHub Enterprise
     # Server rejects this POST with HTTP 411 otherwise; github.com's API
     # tolerates the missing header.
+    #
+    # No `finch:` here: Req refuses `:finch` alongside `:connect_options`
+    # because a user-supplied Finch pool's connect options are frozen at
+    # boot and can't be overridden per-request. The SSRF-pinned call needs
+    # per-request TLS settings (SNI / cert hostname) for the customer's
+    # GHES host, so Req's default pool is the only option.
     case Req.post(
            url: pinned_url,
            body: "",
@@ -265,7 +271,6 @@ defmodule TuistWeb.GitHubAppManifestController do
              {"User-Agent", "Tuist"},
              {"X-GitHub-Api-Version", "2022-11-28"}
            ],
-           finch: Tuist.Finch,
            connect_options: SSRFGuard.connect_options(hostname)
          ) do
       {:ok, %Req.Response{status: status, body: %{"id" => _} = body}} when status in 200..299 ->
