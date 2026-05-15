@@ -2,6 +2,22 @@
   <h1 data-part="title">
     {dgettext("dashboard_account", "Settings")}
   </h1>
+  <.alert
+    :if={Phoenix.Flash.get(@flash, :info)}
+    id="account-settings-flash-info"
+    type="secondary"
+    status="information"
+    size="small"
+    title={Phoenix.Flash.get(@flash, :info)}
+  />
+  <.alert
+    :if={Phoenix.Flash.get(@flash, :error)}
+    id="account-settings-flash-error"
+    type="secondary"
+    status="error"
+    size="small"
+    title={Phoenix.Flash.get(@flash, :error)}
+  />
   <%= if is_nil(@selected_account.user_id) do %>
     <.region_selection_section
       region_form={@region_form}
