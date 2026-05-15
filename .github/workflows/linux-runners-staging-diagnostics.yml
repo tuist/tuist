@@ -148,13 +148,13 @@ jobs:
           server=$(kubectl -n tuist-staging get pods -l app.kubernetes.io/component=server -o name 2>/dev/null | head -1)
           if [ -n "$server" ]; then
             echo "::group::tuist account runner_max_concurrent"
-            kubectl -n tuist-staging exec "$server" -- bin/tuist eval '
+            kubectl -n tuist-staging exec "$server" -- bin/tuist rpc '
               acc = Tuist.Accounts.get_account_by_handle("tuist")
               IO.puts("runner_max_concurrent=#{inspect(acc && acc.runner_max_concurrent)}")
             ' 2>&1 | tail -10
             echo "::endgroup::"
             echo "::group::active claims (PG)"
-            kubectl -n tuist-staging exec "$server" -- bin/tuist eval '
+            kubectl -n tuist-staging exec "$server" -- bin/tuist rpc '
               import Ecto.Query
               claims = Tuist.Repo.all(from c in Tuist.Runners.Claim, select: %{workflow_job_id: c.workflow_job_id, fleet_name: c.fleet_name, lifecycle_state: c.lifecycle_state, claimed_at: c.claimed_at, pod_name: c.pod_name, runner_name: c.runner_name})
               IO.inspect(claims, label: "claims", limit: 50, printable_limit: 4000)
