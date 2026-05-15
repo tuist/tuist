@@ -234,9 +234,6 @@
             )
           } />
         </:col>
-        <:col :let={endpoint} label={dgettext("dashboard_account", "Created")}>
-          <.text_cell label={Tuist.Utilities.DateFormatter.from_now(endpoint.inserted_at)} />
-        </:col>
         <:col :let={endpoint} label="">
           <.button_cell>
             <:button>

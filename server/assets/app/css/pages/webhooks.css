@@ -82,23 +82,19 @@
     }
 
     & th:first-child {
-      width: 18%;
+      width: 20%;
     }
 
     & th:nth-child(2) {
-      width: 26%;
+      width: 30%;
     }
 
     & th:nth-child(3) {
-      width: 22%;
+      width: 28%;
     }
 
     & th:nth-child(4) {
-      width: 14%;
-    }
-
-    & th:nth-child(5) {
-      width: 14%;
+      width: 16%;
     }
 
     & th:last-child {
