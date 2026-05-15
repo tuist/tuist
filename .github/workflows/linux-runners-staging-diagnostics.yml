@@ -131,16 +131,36 @@ jobs:
           kubectl -n tuist-staging get pods -l app.kubernetes.io/component=server -o wide
           echo "::endgroup::"
           for pod in $(kubectl -n tuist-staging get pods -l app.kubernetes.io/component=server -o name 2>/dev/null); do
-            echo "::group::logs $pod (all tuist-staging-linux hits, last 1h)"
-            kubectl -n tuist-staging logs "$pod" --since=1h 2>&1 | grep -i 'tuist-staging-linux' || true
+            echo "::group::logs $pod (claim/dispatch outcomes, last 1h)"
+            kubectl -n tuist-staging logs "$pod" --since=1h 2>&1 | grep -iE 'runners: dispatched|runners: GitHub jit|github_mint_failed|runners: dispatch_for_sa failed|runners: claimed entry|runners: release|runners: record_running|runners: SA |runners: tokenreview|claim attempt' | tail -100 || true
             echo "::endgroup::"
-            echo "::group::logs $pod (webhooks, last 30m)"
-            kubectl -n tuist-staging logs "$pod" --since=30m 2>&1 | grep -iE 'POST /webhooks|workflow_job|runners: enqueued|runners: account|runners: no RunnerPool|installation_id' | tail -80 || true
+            echo "::group::logs $pod (enqueue, last 30m)"
+            kubectl -n tuist-staging logs "$pod" --since=30m 2>&1 | grep -iE 'runners: enqueued|runners: workflow_job|runners: account' | tail -40 || true
             echo "::endgroup::"
-            echo "::group::logs $pod (runners-related)"
-            kubectl -n tuist-staging logs "$pod" --tail=600 2>&1 | grep -iE 'runners|dispatch|github_mint|tokenreview|jit|scaling' | tail -40 || true
+            echo "::group::logs $pod (dispatch endpoint hits, last 5m)"
+            kubectl -n tuist-staging logs "$pod" --since=5m 2>&1 | grep -iE 'POST /api/internal/runners/dispatch' | wc -l
             echo "::endgroup::"
           done
+
+      - name: Tuist account cap + claim rows (one-shot iex)
+        run: |
+          set +e
+          server=$(kubectl -n tuist-staging get pods -l app.kubernetes.io/component=server -o name 2>/dev/null | head -1)
+          if [ -n "$server" ]; then
+            echo "::group::tuist account runner_max_concurrent"
+            kubectl -n tuist-staging exec "$server" -- bin/tuist eval '
+              acc = Tuist.Accounts.get_account_by_handle("tuist")
+              IO.puts("runner_max_concurrent=#{inspect(acc && acc.runner_max_concurrent)}")
+            ' 2>&1 | tail -10
+            echo "::endgroup::"
+            echo "::group::active claims (PG)"
+            kubectl -n tuist-staging exec "$server" -- bin/tuist eval '
+              import Ecto.Query
+              claims = Tuist.Repo.all(from c in Tuist.Runners.Claim, select: %{workflow_job_id: c.workflow_job_id, fleet_name: c.fleet_name, lifecycle_state: c.lifecycle_state, claimed_at: c.claimed_at, pod_name: c.pod_name, runner_name: c.runner_name})
+              IO.inspect(claims, label: "claims", limit: 50, printable_limit: 4000)
+            ' 2>&1 | tail -30
+            echo "::endgroup::"
+          fi
 
       - name: runners-controller logs (autoscaler reconciler)
         run: |
