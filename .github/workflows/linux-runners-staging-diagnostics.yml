@@ -49,6 +49,24 @@ jobs:
             --vault tuist-k8s-staging --output "$KUBECONFIG"
           chmod 600 "$KUBECONFIG"
 
+      - name: Rollover Running Linux Pods (force fresh image pull)
+        run: |
+          set +e
+          # Delete Running Linux Pods so the RunnerPool reconciler
+          # replaces them with fresh ones that re-pull :latest. Used
+          # during bring-up after `linux-runner-image.yml` pushes a
+          # new image — kubelet's default for :latest is Always, so
+          # a fresh Pod gets the new code. Pending Pods inherit the
+          # same image string and pick up the new bits the moment
+          # they schedule, so no extra action needed for them.
+          for pod in $(kubectl -n tuist-runners get pods --field-selector=status.phase=Running -o name 2>/dev/null | grep linux); do
+            echo "deleting $pod"
+            kubectl -n tuist-runners delete "$pod" --wait=false
+          done
+          # Give the reconciler a moment to create replacements
+          # before downstream steps inspect Pod state.
+          sleep 30
+
       - name: CAPI machine layer (Hetzner side)
         run: |
           set +e
