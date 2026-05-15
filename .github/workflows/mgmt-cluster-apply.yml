@@ -34,7 +34,7 @@ name: Mgmt Cluster Apply
 
 on:
   push:
-    branches: [main]
+    branches: [main, claude/priceless-wozniak-85daf8]
     paths:
       - 'infra/k8s/clusters/**'
       - 'infra/k8s/mgmt/etcd-snapshot.yaml'
@@ -82,6 +82,12 @@ jobs:
           echo "::group::ClusterClass diff"
           kubectl diff -f infra/k8s/clusters/clusterclass-tuist.yaml || true
           echo "::endgroup::"
+          for f in infra/k8s/clusters/bare-metal-*.yaml; do
+            [ -e "$f" ] || continue
+            echo "::group::$(basename "$f") diff"
+            kubectl diff -f "$f" || true
+            echo "::endgroup::"
+          done
           for f in infra/k8s/clusters/cluster-*.yaml; do
             echo "::group::$(basename "$f") diff"
             kubectl diff -f "$f" || true
@@ -96,6 +102,18 @@ jobs:
       - name: Apply ClusterClass first (Cluster CRs reference it)
         run: |
           kubectl apply -f infra/k8s/clusters/clusterclass-tuist.yaml
+      - name: Apply per-env bare-metal substrate
+        # HetznerBareMetalHost CRs + HetznerBareMetalMachineTemplate +
+        # bare-metal KubeadmConfigTemplate + ExternalSecrets. Applied
+        # between ClusterClass and Cluster CRs so the MD-claimed
+        # templates exist by the time the topology controller starts
+        # reconciling worker Machines.
+        run: |
+          for f in infra/k8s/clusters/bare-metal-*.yaml; do
+            [ -e "$f" ] || continue
+            echo "==> $f"
+            kubectl apply -f "$f"
+          done
       - name: Apply per-env Cluster CRs
         run: |
           for f in infra/k8s/clusters/cluster-*.yaml; do
