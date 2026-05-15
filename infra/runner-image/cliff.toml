@@ -62,21 +62,25 @@ split_commits = false
 commit_preprocessors = [
     { pattern = '\((\w+\s)?#([0-9]+)\)', replace = "" },
 ]
-# Match commits scoped to runner-image. Component covers the Tart
-# VM image hosting the customer-facing GitHub Actions runners
-# (Packer template, dispatch-poll script, launchd plist, env
-# injector). Distinct from xcresult-processor-image, which bakes
-# in the server release.
+# Type-only parsers, path filtering via `--include-path
+# "infra/runner-image/**/*"` in release.yml. Any conventional-commit
+# touching the runner-image path triggers a bump regardless of the
+# commit's scope tag — a `feat(infra):` PR that changes the Packer
+# template or dispatch-poll script still releases the image.
+# Component covers the Tart VM image hosting the customer-facing
+# GitHub Actions runners (Packer template, dispatch-poll script,
+# launchd plist, env injector). Distinct from xcresult-processor-
+# image, which bakes in the server release.
 commit_parsers = [
-    { message = "^feat\\([^)]*\\brunner-image\\b[^)]*\\)", group = "<!-- 0 -->⛰️  Features" },
-    { message = "^fix\\([^)]*\\brunner-image\\b[^)]*\\)", group = "<!-- 1 -->🐛 Bug Fixes" },
-    { message = "^docs?\\([^)]*\\brunner-image\\b[^)]*\\)", group = "<!-- 3 -->📚 Documentation" },
-    { message = "^perf\\([^)]*\\brunner-image\\b[^)]*\\)", group = "<!-- 4 -->⚡ Performance" },
-    { message = "^refactor\\([^)]*\\brunner-image\\b[^)]*\\)", group = "<!-- 2 -->🚜 Refactor" },
-    { message = "^style\\([^)]*\\brunner-image\\b[^)]*\\)", group = "<!-- 5 -->🎨 Styling" },
-    { message = "^test\\([^)]*\\brunner-image\\b[^)]*\\)", group = "<!-- 6 -->🧪 Testing" },
-    { message = "^chore\\([^)]*\\brunner-image\\b[^)]*\\)", skip = true },
-    { message = "^ci\\([^)]*\\brunner-image\\b[^)]*\\)", skip = true },
+    { message = "^feat(\\([^)]*\\))?", group = "<!-- 0 -->⛰️  Features" },
+    { message = "^fix(\\([^)]*\\))?", group = "<!-- 1 -->🐛 Bug Fixes" },
+    { message = "^docs?(\\([^)]*\\))?", group = "<!-- 3 -->📚 Documentation" },
+    { message = "^perf(\\([^)]*\\))?", group = "<!-- 4 -->⚡ Performance" },
+    { message = "^refactor(\\([^)]*\\))?", group = "<!-- 2 -->🚜 Refactor" },
+    { message = "^style(\\([^)]*\\))?", group = "<!-- 5 -->🎨 Styling" },
+    { message = "^test(\\([^)]*\\))?", group = "<!-- 6 -->🧪 Testing" },
+    { message = "^chore(\\([^)]*\\))?", skip = true },
+    { message = "^ci(\\([^)]*\\))?", skip = true },
     { message = "^[a-z]+\\([^)]+\\)", skip = true },
 ]
 protect_breaking_commits = false
