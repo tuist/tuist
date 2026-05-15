@@ -55,9 +55,35 @@
           environment — there's no separation gain from dropping
           privileges, and the inject-env.sh + dispatch-poll.sh
           chain assumes root for /etc writes. Bypass the check.
+
+          The HOME entry below sets the matching home directory for
+          that root user; both keys exist because macOS LaunchDaemons
+          start with a near-empty environment — see the HOME comment
+          for the full failure mode.
         -->
         <key>RUNNER_ALLOW_RUNASROOT</key>
         <string>1</string>
+
+        <!--
+          LaunchDaemons start with a minimal environment — no HOME,
+          no PATH beyond the daemon defaults. The Actions runner
+          forwards its own env to every step shell, so an unset
+          HOME here propagates into customer workflows where any
+          tool that reads `$HOME/.gitconfig` (git, mise, gh) errors
+          out with `fatal: $HOME not set` before doing anything.
+          `/var/root` is the canonical home for uid 0 on macOS;
+          set it so step shells inherit a working HOME that matches
+          the user the runner is actually running as.
+
+          actions/checkout briefly sets a temporary HOME during its
+          own git invocations and restores the prior value on exit,
+          so the symptom only shows up on the *next* step after
+          checkout (the first step that reads `$HOME/.gitconfig`
+          with no actions/checkout-managed override in scope). See
+          #10797 for the first observation in production.
+        -->
+        <key>HOME</key>
+        <string>/var/root</string>
     </dict>
 
     <key>ProcessType</key>

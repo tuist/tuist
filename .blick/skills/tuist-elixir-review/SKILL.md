@@ -324,11 +324,21 @@ authors.
 - A PR that adds or materially changes a user-facing server/dashboard
   feature without also adding or updating a
   `server/priv/marketing/changelog/*.md` entry.
+- A PR that adds or updates a `server/priv/marketing/changelog/*.md`
+  entry for a feature that is ops-only, admin-only, feature-flagged only
+  for internal rollout, infrastructure-only, or otherwise not meant to
+  be announced to customers yet.
 
 User-facing signals include changed dashboard routes, LiveViews,
 controllers, templates, page CSS, settings pages, integration flows,
 alerts, reports, previews, build/test/cache/bundle analytics, or public
 API behavior that customers can observe.
+
+Do not treat a dashboard/UI change as announceable only because it lives
+in user-facing code. If the diff gates the behavior behind an
+account/org feature flag, ops/admin-only access, or an explicit internal
+rollout path, it is not ready for the product changelog unless the PR
+also makes that behavior broadly available to customers.
 
 When suggesting a fix, ask for a short marketing changelog entry with
 frontmatter like `title`, `category: "Product"`, and `pull_request`.
@@ -336,12 +346,19 @@ Mention an accompanying image under
 `server/priv/static/marketing/images/changelog/` only when the feature
 has a visual dashboard/UI state worth showing.
 
+When flagging an inappropriate changelog entry, suggest removing the
+entry and, if the work still needs coordination, tracking it in the PR
+description or internal release notes instead.
+
 ### Do not flag
 
 - Bug fixes with no new or materially changed user-facing behavior.
 - Refactors, performance work, infrastructure, ops/admin-only paths,
   internal jobs, telemetry-only changes, tests, fixtures, or schema-only
   plumbing whose effect is not directly visible to customers.
+- Features gated behind account/org feature flags that are being used
+  for internal rollout or controlled access, unless the PR also makes
+  the feature generally available to customers.
 - Documentation-only or marketing-only PRs.
 - CLI/app/cache/kura/noora-only changes. This rule is for
   user-facing server/dashboard features.

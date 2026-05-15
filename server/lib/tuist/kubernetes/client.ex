@@ -116,7 +116,7 @@ defmodule Tuist.Kubernetes.Client do
   the token, `{:error, :not_service_account}` when authenticated
   but not an SA, or `{:error, _}` on transport / non-2xx errors.
   """
-  def create_token_review(token) when is_binary(token) do
+  def create_token_review(token, opts \\ []) when is_binary(token) do
     body =
       Jason.encode!(%{
         "apiVersion" => "authentication.k8s.io/v1",
@@ -128,6 +128,7 @@ defmodule Tuist.Kubernetes.Client do
       })
 
     case request(:post, "/apis/authentication.k8s.io/v1/tokenreviews",
+           opts: opts,
            body: body,
            headers: [{"content-type", "application/json"}]
          ) do
@@ -149,6 +150,12 @@ defmodule Tuist.Kubernetes.Client do
         parse_sa_principal(user)
 
       {:ok, %{"status" => %{"authenticated" => false}}} ->
+        {:error, :unauthenticated}
+
+      {:ok, %{"status" => %{"error" => _}}} ->
+        # Apiserver omits `authenticated` when validation itself
+        # fails (expired SA token, rotated signing key, malformed
+        # JWT). Fail closed: treat as unauthenticated.
         {:error, :unauthenticated}
 
       {:error, _} = err ->

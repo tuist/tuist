@@ -5,7 +5,8 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* report up members as nodes by [@pepicrft](https://github.com/pepicrft) in [#10766](https://github.com/tuist/tuist/pull/10766)
+* improve Grafana observability
+* report up members as nodes
 
 
 
