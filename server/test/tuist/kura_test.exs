@@ -448,35 +448,39 @@ defmodule Tuist.KuraTest do
   end
 
   describe "retry_server/2" do
-    test "tombstones the failed row and creates a fresh server in the same region" do
+    test "flips the failed row back to :provisioning and appends a new deployment" do
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
 
-      {:ok, failed} =
+      {:ok, server} =
         Kura.create_server(%{
           account_id: account.id,
           region: "local-controller",
           image_tag: "0.5.2"
         })
 
-      {:ok, failed} = Kura.fail_server(failed)
+      {:ok, failed} = Kura.fail_server(server)
 
-      assert {:ok, %Server{status: :provisioning, region: "local-controller"} = new_server} =
+      assert {:ok, %Server{id: id, status: :provisioning, region: "local-controller"} = retried} =
                Kura.retry_server(failed, "0.5.3")
 
-      refute new_server.id == failed.id
-      assert %Server{status: :destroyed} = Repo.get!(Server, failed.id)
+      assert id == server.id
+      assert %Server{status: :provisioning} = Repo.get!(Server, server.id)
 
-      new_server = Repo.preload(new_server, :deployments)
-      assert [%Deployment{status: :pending, image_tag: "0.5.3"}] = new_server.deployments
+      image_tags =
+        retried.deployments
+        |> Enum.map(& &1.image_tag)
+        |> Enum.sort()
+
+      assert image_tags == ["0.5.2", "0.5.3"]
     end
 
-    test "broadcasts :destroyed for the old row and :created for the new one" do
+    test "broadcasts :updated for the retried row" do
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
       :ok = Kura.subscribe_to_account(account.id)
 
-      {:ok, failed} =
+      {:ok, server} =
         Kura.create_server(%{
           account_id: account.id,
           region: "local-controller",
@@ -485,11 +489,11 @@ defmodule Tuist.KuraTest do
 
       assert_receive {:kura_server, :created, _}
 
-      {:ok, failed} = Kura.fail_server(failed)
-      {:ok, _new_server} = Kura.retry_server(failed, "0.5.3")
+      {:ok, failed} = Kura.fail_server(server)
+      {:ok, _retried} = Kura.retry_server(failed, "0.5.3")
 
-      assert_receive {:kura_server, :destroyed, %{status: :destroyed}}
-      assert_receive {:kura_server, :created, %{status: :provisioning}}
+      assert_receive {:kura_server, :updated, %{id: id, status: :provisioning}}
+      assert id == server.id
     end
 
     test "refuses to retry a previously-active server" do

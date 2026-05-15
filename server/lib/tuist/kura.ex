@@ -431,46 +431,34 @@ defmodule Tuist.Kura do
   end
 
   @doc """
-  Retries a failed first-time deploy: atomically tombstones the failed
-  `Server` row, removes its derived cache endpoint, and inserts a
-  fresh `Server` + `Deployment` for the same `(account, region)` using
-  the supplied image tag.
+  Retries a failed first-time deploy in place: flips the `Server` back
+  to `:provisioning` and appends a fresh `Deployment` so the
+  reconciler picks the retry up on its next tick.
 
-  Only failed servers that never reached `:active` are eligible —
-  retrying a drift failure on a previously-active server would tear
-  down the working cache endpoint mid-flight, so the operator has to
-  explicitly destroy those instead.
+  Only failed servers that never reached `:active` are eligible.
+  Retrying a drift failure on a previously-active server would
+  trample the cache endpoint that's still serving the old image,
+  so the operator has to explicitly destroy those instead.
 
-  The new server's `provisioner_node_ref` is deterministic from
-  `(account_handle, region)`, so it points at the same backing
-  resource. Whatever the previous reconcile left in the cluster is
-  reused; the reconciler re-applies the manifest idempotently on its
-  next tick.
+  The server row, ID, and `provisioner_node_ref` stay the same; the
+  prior failed `Deployment` rows stay attached so the failure
+  history is visible in /ops alongside the retry.
   """
-  def retry_server(%Server{status: :failed, current_image_tag: nil} = old_server, image_tag) when is_binary(image_tag) do
-    with {:ok, region} <- Regions.fetch(old_server.region),
-         {:ok, account} <- Accounts.get_account_by_id(old_server.account_id),
-         {:ok, ref} <- region.provisioner.provision(account, region, server_stub(%{})),
-         :ok <- validate_provisioner_node_ref(account, ref) do
-      attrs = %{account_id: account.id, region: old_server.region, provisioner_node_ref: ref}
-
+  def retry_server(%Server{status: :failed, current_image_tag: nil} = server, image_tag) when is_binary(image_tag) do
+    with {:ok, region} <- Regions.fetch(server.region) do
       case Repo.transaction(fn ->
-             with {:ok, old_destroyed} <-
-                    old_server
-                    |> Server.status_changeset(%{status: :destroyed, url: nil})
-                    |> Repo.update(),
-                  :ok <- remove_cache_endpoint(old_destroyed),
-                  {:ok, new_server} <- attrs |> Server.create_changeset() |> Repo.insert(),
-                  {:ok, _deployment} <- insert_initial_deployment(new_server, region, image_tag) do
-               {old_destroyed, Repo.preload(new_server, :deployments)}
+             with {:ok, server} <-
+                    server |> Server.status_changeset(%{status: :provisioning}) |> Repo.update(),
+                  {:ok, _deployment} <- insert_initial_deployment(server, region, image_tag) do
+               server
              else
                {:error, reason} -> Repo.rollback(reason)
              end
            end) do
-        {:ok, {old_destroyed, new_server}} ->
-          broadcast_server(old_destroyed, :destroyed)
-          broadcast_server(new_server, :created)
-          {:ok, new_server}
+        {:ok, server} ->
+          server = Repo.preload(server, :deployments, force: true)
+          broadcast_server(server, :updated)
+          {:ok, server}
 
         {:error, reason} ->
           {:error, reason}

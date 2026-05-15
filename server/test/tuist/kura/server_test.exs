@@ -191,9 +191,9 @@ defmodule Tuist.Kura.ServerTest do
         {:active, :failed},
         {:active, :destroying},
         {:failed, :failed},
+        {:failed, :provisioning},
         {:failed, :active},
         {:failed, :destroying},
-        {:failed, :destroyed},
         {:destroying, :destroying},
         {:destroying, :destroyed},
         {:destroyed, :destroyed}
@@ -212,7 +212,7 @@ defmodule Tuist.Kura.ServerTest do
         {:provisioning, :destroyed},
         {:active, :provisioning},
         {:active, :destroyed},
-        {:failed, :provisioning},
+        {:failed, :destroyed},
         {:destroying, :active},
         {:destroyed, :active}
       ]
