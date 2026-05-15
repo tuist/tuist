@@ -891,8 +891,10 @@ defmodule Tuist.Environment do
   end
 
   def ops_url(opts \\ [], secrets \\ secrets()) do
-    path = opts |> Keyword.get(:path, "/ops") |> String.trim_trailing("/")
-    base_url = get([:ops, :url], secrets) || app_base_url(secrets)
+    configured_ops_url = non_empty_value(get([:ops, :url], secrets))
+    default_path = if is_nil(configured_ops_url), do: "/ops", else: "/"
+    path = opts |> Keyword.get(:path, default_path) |> String.trim_trailing("/")
+    base_url = configured_ops_url || app_base_url(secrets)
 
     URI.to_string(%{URI.parse(base_url) | path: path})
   end
@@ -928,6 +930,12 @@ defmodule Tuist.Environment do
       get([:app, :url], secrets) || "http://localhost:8080"
     end
   end
+
+  defp non_empty_value(value) when is_binary(value) do
+    if value == "", do: nil, else: value
+  end
+
+  defp non_empty_value(value), do: value
 
   defp get_route_info(path) do
     case Phoenix.Router.route_info(TuistWeb.Router, "GET", path, "") do

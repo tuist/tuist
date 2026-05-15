@@ -108,5 +108,6 @@ defmodule TuistWeb.Endpoint do
   plug Plug.MethodOverride
   plug Plug.Head
   plug Plug.Session, @session_options
+  plug TuistWeb.Plugs.OpsRootRedirectPlug
   plug TuistWeb.Router
 end

@@ -221,6 +221,16 @@ defmodule Tuist.EnvironmentTest do
   end
 
   describe "ops_url/2" do
+    test "uses the configured ops URL root by default" do
+      secrets = %{
+        "ops" => %{
+          "url" => "https://ops.tuist.dev"
+        }
+      }
+
+      assert Environment.ops_url([], secrets) == "https://ops.tuist.dev"
+    end
+
     test "uses the configured ops URL with the requested path" do
       secrets = %{
         "ops" => %{
@@ -239,6 +249,16 @@ defmodule Tuist.EnvironmentTest do
       }
 
       assert Environment.ops_url([path: "/ops"], secrets) == "https://tuist.dev/ops"
+    end
+
+    test "falls back to the app ops path by default when no ops URL is configured" do
+      secrets = %{
+        "app" => %{
+          "url" => "https://tuist.dev"
+        }
+      }
+
+      assert Environment.ops_url([], secrets) == "https://tuist.dev/ops"
     end
   end
 

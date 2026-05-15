@@ -77,7 +77,7 @@ defmodule TuistWeb.AccountDropdown do
               </.button>
               <.button
                 :if={Authorization.authorize(:ops_read, @current_user) == :ok}
-                href={Tuist.Environment.ops_url(path: ~p"/ops")}
+                href={Tuist.Environment.ops_url()}
                 label={dgettext("dashboard", "Operations")}
                 variant="secondary"
               >
