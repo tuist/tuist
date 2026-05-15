@@ -207,6 +207,17 @@ defmodule Tuist.Kubernetes.Client do
   end
 
   @doc """
+  GETs a single Pod by name from `namespace`. The dispatch endpoint
+  reads `spec.containers[0].image` to compare the polling Pod's
+  image against the RunnerPool's spec.image — when the chart bumps
+  the digest pin, idle Running Pods on the old image return 410
+  Gone to drain themselves.
+  """
+  def get_pod(namespace, name) when is_binary(namespace) and is_binary(name) do
+    get("/api/v1/namespaces/#{namespace}/pods/#{name}")
+  end
+
+  @doc """
   Strategic-merge PATCHes a Pod. The dispatch endpoint uses this
   to stamp owner labels on a polling Pod at the moment it claims
   a queue entry, so subsequent `max_concurrent` counts include

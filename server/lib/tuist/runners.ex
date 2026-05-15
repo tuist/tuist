@@ -79,10 +79,19 @@ defmodule Tuist.Runners do
       went away.
     * `{:error, :github_mint_failed}` — GitHub refused the JIT.
     * `{:error, :not_in_cluster}` — server not running in-cluster.
+    * `{:error, :drain}` — the polling Pod's image no longer
+      matches its RunnerPool's `spec.image`. The Pod is idle
+      and stale, so the web layer returns HTTP 410 to signal
+      the Pod's dispatch-poll script to exit cleanly; the
+      single-shot lifecycle then halts the VM and the runner-
+      pool reconciler replaces the Pod with one on the current
+      image. In-flight customer jobs are unaffected because
+      the check runs only on idle polls (before claim attempt).
   """
   def dispatch_for_sa(namespace, sa_name) when is_binary(namespace) and is_binary(sa_name) do
     with {:ok, sa} <- K8sClient.get_service_account(namespace, sa_name),
-         {:ok, fleet_name} <- pool_label(sa) do
+         {:ok, fleet_name} <- pool_label(sa),
+         :ok <- check_not_stale(namespace, sa_name, fleet_name) do
       # `ineligible_accounts/0` is a perf optimisation — skip
       # candidates whose account already hit cap so we don't
       # round-trip ClickHouse for a row we'd reject anyway. The
@@ -336,4 +345,42 @@ defmodule Tuist.Runners do
   # The polling Pod's name. The controller's podtemplate stamps
   # Pods + SAs with the same name, so the SA name IS the Pod name.
   defp pod_name_from_sa(sa_name), do: sa_name
+
+  # Compare the polling Pod's runner-container image to the
+  # RunnerPool's `spec.image`. When the chart bumps the digest pin,
+  # idle Running Pods that are still on the old image return
+  # `{:error, :drain}` here, which the web layer translates to HTTP
+  # 410. The Pod's `dispatch-poll.sh` handles 410 by exiting cleanly;
+  # the EXIT trap halts the VM and the runner-pool reconciler reaps
+  # the Pod and creates a replacement on the current image.
+  #
+  # Guarded by `K8sClient` lookups that may fail (Pod / RunnerPool
+  # gone, in-cluster client misconfigured). Any lookup failure is
+  # downgraded to `:ok` — refusing dispatch on a transient k8s blip
+  # would stall the whole pool. The drain check is opportunistic
+  # cleanup, not a correctness gate; the reconciler's
+  # Pending-stale path catches the unhappy long-tail.
+  defp check_not_stale(namespace, sa_name, fleet_name) do
+    pod_name = pod_name_from_sa(sa_name)
+
+    with {:ok, %{"spec" => %{"image" => pool_image}}} when is_binary(pool_image) and pool_image != "" <-
+           K8sClient.get_runner_pool(namespace, fleet_name),
+         {:ok, %{"spec" => %{"containers" => [%{"image" => pod_image} | _]}}} when is_binary(pod_image) <-
+           K8sClient.get_pod(namespace, pod_name) do
+      if pod_image == pool_image do
+        :ok
+      else
+        Logger.info("runners: draining stale pod",
+          pod: pod_name,
+          fleet: fleet_name,
+          pod_image: pod_image,
+          pool_image: pool_image
+        )
+
+        {:error, :drain}
+      end
+    else
+      _ -> :ok
+    end
+  end
 end
