@@ -66,12 +66,14 @@ spec:
   # Don't rescue/reinstall this box right now. Flip to false when
   # the bare-metal-worker MD scales up and is ready to claim it.
   maintenanceMode: false
-  # RAID 1 mirror across both 512 GB Samsung NVMes. We don't need
-  # the redundancy for stateless single-shot runner Pods, but caph's
-  # `DetectLinuxOnAnotherDisk` safety check refuses a single-disk
-  # install while the OTHER NVMe carries a Linux EFI partition
-  # (Hetzner factory state). RAID covers both disks → caph wipes
-  # both → safety check passes. WWNs come from caph's
+  # RAID 0 stripe across both 512 GB Samsung NVMes. Runner Pods
+  # are stateless single-shot microVMs, so disk-layer redundancy
+  # (RAID 1) buys ~nothing — Pod rescheduling and the multi-node
+  # fleet already cover single-disk failure. The throughput
+  # doubling matters: OCI image pulls and microVM rootfs cloning
+  # are the hot path on this Node. Striping also satisfies caph's
+  # `DetectLinuxOnAnotherDisk` safety check (both disks under the
+  # install) without paying the mirror tax. WWNs come from caph's
   # hardwareDetails after the first rescue-SSH.
   rootDeviceHints:
     raid:
@@ -103,11 +105,13 @@ spec:
         # distribution.
         image:
           path: /root/.oldroot/nfs/install/../images/Ubuntu-2404-noble-amd64-base.tar.gz
-        # Software RAID 1 across both NVMes. Match Hetzner's default
-        # installimage shape for AX-class boxes and pair with the
-        # `rootDeviceHints.raid.wwn` block on each HetznerBareMetalHost.
+        # Software RAID 0 stripe across both NVMes. Pairs with the
+        # host's `rootDeviceHints.raid.wwn` block. Picked for
+        # throughput on microVM rootfs cloning and OCI image pulls;
+        # the workload is stateless so disk redundancy buys nothing
+        # that Pod rescheduling doesn't already cover.
         swraid: 1
-        swraidLevel: 1
+        swraidLevel: 0
         # Partition layout — match the default Hetzner installimage
         # for AX-class boxes: ESP for UEFI boot, /boot, /, and
         # (no) swap on bare metal.
