@@ -10,16 +10,16 @@ defmodule Tuist.Webhooks.Workers.DeliveryWorker do
   `backoff/1`; `max_attempts: 7` covers the initial send plus those six
   retries.
 
-  Each HTTP call writes a row to `webhook_delivery_attempts` capturing the
-  request body, response status, response headers, response body and
-  duration — that's what powers the per-event detail page on the
-  dashboard. The Oban job stays the unit of "deliver this event"; the row
-  is the unit of "we tried, here's what happened".
+  Each HTTP call writes a row to the ClickHouse `webhook_delivery_attempts`
+  table capturing the request body, response status, response headers,
+  response body and duration — that's what powers the per-event detail
+  page on the dashboard. The Oban job stays the unit of "deliver this
+  event"; the row is the unit of "we tried, here's what happened".
   """
   use Oban.Worker, queue: :webhooks, max_attempts: 7
 
+  alias Tuist.IngestRepo
   alias Tuist.OAuth2.SSRFGuard
-  alias Tuist.Repo
   alias Tuist.Webhooks
   alias Tuist.Webhooks.DeliveryAttempt
   alias Tuist.Webhooks.Signature
@@ -118,22 +118,28 @@ defmodule Tuist.Webhooks.Workers.DeliveryWorker do
   defp record_attempt(endpoint, fields) do
     %{response: response, result: result} = fields
 
-    %DeliveryAttempt{}
-    |> Ecto.Changeset.change(%{
+    # ClickHouse `insert_all` skips changesets — we provide the raw row
+    # map directly. Map-shaped headers are stored as JSON-encoded
+    # strings; `response_status: 0` is the sentinel for "no HTTP
+    # response received", which the dashboard already branches on.
+    row = %{
+      id: Ecto.UUID.generate(),
       webhook_endpoint_id: endpoint.id,
       event_id: fields.event_id,
       event_type: fields.event_type,
       attempt: fields.attempt,
       status: if(result == :ok, do: "delivered", else: "failed"),
       request_body: fields.request_body,
-      request_headers: fields.request_headers,
+      request_headers: encode_headers(fields.request_headers),
       response_status: response_status(response),
-      response_headers: response_headers_map(response),
+      response_headers: encode_headers(response_headers_map(response)),
       response_body: response_body(response),
       error: error_message(result),
-      duration_ms: fields.duration_ms
-    })
-    |> Repo.insert()
+      duration_ms: fields.duration_ms,
+      inserted_at: DateTime.utc_now()
+    }
+
+    IngestRepo.insert_all(DeliveryAttempt, [row])
   rescue
     e ->
       # We never want bookkeeping to take down a delivery. Surface the
@@ -144,22 +150,26 @@ defmodule Tuist.Webhooks.Workers.DeliveryWorker do
   end
 
   defp response_status({:ok, %Req.Response{status: status}}), do: status
-  defp response_status(_), do: nil
+  defp response_status(_), do: 0
 
   defp response_headers_map({:ok, %Req.Response{headers: headers}}) when is_map(headers), do: headers
 
   defp response_headers_map({:ok, %Req.Response{headers: headers}}) when is_list(headers),
     do: Map.new(headers, fn {k, v} -> {k, v} end)
 
-  defp response_headers_map(_), do: nil
+  defp response_headers_map(_), do: %{}
 
   defp response_body({:ok, %Req.Response{body: body}}) when is_binary(body), do: truncate(body)
   defp response_body({:ok, %Req.Response{body: body}}), do: body |> inspect() |> truncate()
-  defp response_body(_), do: nil
+  defp response_body(_), do: ""
 
   defp error_message({:error, reason}) when is_binary(reason), do: reason
   defp error_message({:error, reason}), do: inspect(reason)
-  defp error_message(:ok), do: nil
+  defp error_message(:ok), do: ""
+
+  defp encode_headers(headers) when headers == %{}, do: ""
+  defp encode_headers(headers) when is_map(headers), do: JSON.encode!(headers)
+  defp encode_headers(_), do: ""
 
   # Cap response bodies so a chatty upstream can't bloat the row. The
   # dashboard surfaces a "response truncated" hint when this kicks in.

@@ -36,7 +36,11 @@
           <div data-part="metadata">
             <div data-part="title">{dgettext("dashboard_account", "Response code")}</div>
             <span data-part="label">
-              {@attempt.response_status || dgettext("dashboard_account", "—")}
+              <%= if response_received?(@attempt) do %>
+                {@attempt.response_status}
+              <% else %>
+                {dgettext("dashboard_account", "—")}
+              <% end %>
             </span>
           </div>
         </div>
@@ -48,7 +52,7 @@
           <div data-part="metadata">
             <div data-part="title">{dgettext("dashboard_account", "Duration")}</div>
             <span data-part="label">
-              <%= if @attempt.duration_ms do %>
+              <%= if is_integer(@attempt.duration_ms) and @attempt.duration_ms > 0 do %>
                 {@attempt.duration_ms}ms
               <% else %>
                 {dgettext("dashboard_account", "—")}
@@ -100,7 +104,7 @@
     title={dgettext("dashboard_account", "Response")}
   >
     <.card_section data-part="response-card-section">
-      <%= if @attempt.response_status do %>
+      <%= if response_received?(@attempt) do %>
         <div data-part="subheading">
           <span data-part="label">{dgettext("dashboard_account", "Headers")}</span>
         </div>

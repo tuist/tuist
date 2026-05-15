@@ -1,38 +1,44 @@
 defmodule Tuist.Webhooks.DeliveryAttempt do
   @moduledoc """
-  One HTTP attempt at delivering a webhook event to an endpoint.
+  One HTTP attempt at delivering a webhook event to an endpoint, stored
+  in ClickHouse (`webhook_delivery_attempts`).
 
-  An event delivered via the `DeliveryWorker` produces one row per HTTP
-  call — the initial send and each retry — capturing what we sent and
-  what came back so the dashboard can show the request body, response
-  headers, and error inline.
+  An event delivered via `Tuist.Webhooks.Workers.DeliveryWorker` produces
+  one row per HTTP call — the initial send and each retry — capturing
+  what we sent and what came back so the dashboard can show the request
+  body, response headers, and error inline.
 
   The `status` field collapses each row to either `"delivered"` (2xx) or
-  `"failed"` (non-2xx or transport error). Higher-level lifecycle states
-  like "pending" or "retrying" live on the Oban job, not on individual
-  attempts.
+  `"failed"` (non-2xx, transport error, SSRF reject). Higher-level
+  lifecycle states like "pending" or "retrying" live on the Oban job,
+  not on individual attempts.
+
+  See `Tuist.IngestRepo.Migrations.CreateWebhookDeliveryAttemptsTable`
+  for the engine / partition / TTL rationale.
   """
   use Ecto.Schema
 
-  alias Tuist.Webhooks.WebhookEndpoint
-
-  @primary_key {:id, UUIDv7, autogenerate: true}
-  @foreign_key_type :binary_id
+  @primary_key false
   schema "webhook_delivery_attempts" do
-    field :event_id, :string
-    field :event_type, :string
-    field :attempt, :integer
-    field :status, :string
-    field :request_body, :string
-    field :request_headers, :map
-    field :response_status, :integer
-    field :response_headers, :map
-    field :response_body, :string
-    field :error, :string
-    field :duration_ms, :integer
-
-    belongs_to :webhook_endpoint, WebhookEndpoint
-
-    timestamps(type: :utc_datetime_usec)
+    field :id, Ch, type: "UUID"
+    field :webhook_endpoint_id, Ch, type: "UUID"
+    field :event_id, Ch, type: "String"
+    field :event_type, Ch, type: "LowCardinality(String)"
+    field :attempt, Ch, type: "UInt8"
+    field :status, Ch, type: "LowCardinality(String)"
+    field :request_body, Ch, type: "String", default: ""
+    # Headers are stored JSON-encoded; the dashboard decodes once per
+    # render. Using CH's `Map` would force a stricter type contract for
+    # values we treat as opaque strings.
+    field :request_headers, Ch, type: "String", default: ""
+    # `0` is the sentinel for "no HTTP response received" (network
+    # error, SSRF reject, timeout). The dashboard checks `> 0` before
+    # rendering the response code.
+    field :response_status, Ch, type: "UInt16", default: 0
+    field :response_headers, Ch, type: "String", default: ""
+    field :response_body, Ch, type: "String", default: ""
+    field :error, Ch, type: "String", default: ""
+    field :duration_ms, Ch, type: "UInt32", default: 0
+    field :inserted_at, Ch, type: "DateTime64(6, 'UTC')"
   end
 end

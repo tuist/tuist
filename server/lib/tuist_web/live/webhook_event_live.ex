@@ -47,9 +47,10 @@ defmodule TuistWeb.WebhookEventLive do
   Pretty-prints a JSON request body for the dashboard. The worker stores
   the exact bytes we sent, so a re-encode keeps timing identical without
   rewriting the schema. Falls back to the raw string if the body isn't
-  JSON.
+  JSON, and to an empty string for the empty-body sentinel.
   """
   def format_body(nil), do: ""
+  def format_body(""), do: ""
 
   def format_body(body) when is_binary(body) do
     case Jason.decode(body) do
@@ -62,10 +63,33 @@ defmodule TuistWeb.WebhookEventLive do
   def delivery_state_status(status), do: TuistWeb.WebhookLive.delivery_state_status(status)
 
   @doc """
-  Returns request and response headers as a sorted list of {name, value}
+  Returns request and response headers as a sorted list of `{name, value}`
   tuples so the table renders deterministically.
+
+  Headers are persisted as JSON-encoded strings in ClickHouse — the
+  delivery worker encodes them at write time so we don't depend on a
+  CH `Map` type. Empty string is the sentinel for "no headers" (e.g.
+  the response side of a delivery that never got an HTTP response).
   """
   def header_list(nil), do: []
+  def header_list(""), do: []
+
+  def header_list(headers) when is_binary(headers) do
+    case Jason.decode(headers) do
+      {:ok, map} when is_map(map) -> map |> Enum.to_list() |> Enum.sort_by(fn {k, _} -> k end)
+      _ -> []
+    end
+  end
+
   def header_list(headers) when is_map(headers), do: headers |> Enum.to_list() |> Enum.sort_by(fn {k, _} -> k end)
   def header_list(_), do: []
+
+  @doc """
+  Returns true when the worker captured an HTTP response code for this
+  attempt. `0` is the sentinel for "no response received" (network
+  error, SSRF reject, timeout), so the dashboard branches on `> 0`
+  instead of plain truthiness.
+  """
+  def response_received?(%{response_status: status}) when is_integer(status) and status > 0, do: true
+  def response_received?(_), do: false
 end

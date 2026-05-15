@@ -10,7 +10,9 @@ defmodule Tuist.Webhooks do
 
   import Ecto.Query
 
+  alias Tuist.ClickHouseRepo
   alias Tuist.Repo
+  alias Tuist.Webhooks.DeliveryAttempt
   alias Tuist.Webhooks.Signature
   alias Tuist.Webhooks.WebhookEndpoint
 
@@ -105,13 +107,12 @@ defmodule Tuist.Webhooks do
     end)
   end
 
-  alias Tuist.Webhooks.DeliveryAttempt
-
   @doc """
   Recent delivery attempts for `endpoint_id`, newest first.
 
   Each row is one HTTP attempt against the endpoint — initial send and
-  every retry — pulled from `webhook_delivery_attempts`.
+  every retry — pulled from the ClickHouse `webhook_delivery_attempts`
+  table.
 
   Supported `opts`:
     * `:limit` — max rows (default 50)
@@ -123,25 +124,29 @@ defmodule Tuist.Webhooks do
   def list_deliveries(endpoint_id, opts \\ []) when is_binary(endpoint_id) do
     limit = Keyword.get(opts, :limit, 50)
 
-    Repo.all(
-      from(a in DeliveryAttempt,
-        where: a.webhook_endpoint_id == ^endpoint_id,
-        order_by: [desc: a.inserted_at],
-        limit: ^limit
-      )
-      |> apply_period(opts)
-      |> apply_status_filter(opts)
-      |> apply_event_type_filter(opts)
-      |> apply_event_id_search(opts)
+    from(a in DeliveryAttempt,
+      where: a.webhook_endpoint_id == ^endpoint_id,
+      order_by: [desc: a.inserted_at],
+      limit: ^limit
     )
+    |> apply_period(opts)
+    |> apply_status_filter(opts)
+    |> apply_event_type_filter(opts)
+    |> apply_event_id_search(opts)
+    |> ClickHouseRepo.all()
   end
 
   @doc """
-  Returns one `DeliveryAttempt` scoped to `endpoint_id`, or `{:error, :not_found}`.
-  Used by the event detail page.
+  Returns one `DeliveryAttempt` scoped to `endpoint_id`, or
+  `{:error, :not_found}`. Used by the event detail page.
   """
   def get_delivery_attempt(endpoint_id, attempt_id) when is_binary(endpoint_id) and is_binary(attempt_id) do
-    case Repo.one(from(a in DeliveryAttempt, where: a.id == ^attempt_id and a.webhook_endpoint_id == ^endpoint_id)) do
+    case ClickHouseRepo.one(
+           from(a in DeliveryAttempt,
+             where: a.id == ^attempt_id and a.webhook_endpoint_id == ^endpoint_id,
+             limit: 1
+           )
+         ) do
       nil -> {:error, :not_found}
       attempt -> {:ok, attempt}
     end
@@ -149,21 +154,24 @@ defmodule Tuist.Webhooks do
 
   @doc """
   Aggregate counters across the endpoint's delivery attempts for the
-  given time window.
+  given time window. Single-pass scan in ClickHouse via `countIf`.
   """
   def delivery_stats(endpoint_id, opts \\ []) when is_binary(endpoint_id) do
-    base =
-      from(a in DeliveryAttempt, where: a.webhook_endpoint_id == ^endpoint_id)
+    row =
+      from(a in DeliveryAttempt,
+        where: a.webhook_endpoint_id == ^endpoint_id,
+        select: %{
+          total: count(a.id),
+          failed: fragment("countIf(? = 'failed')", a.status)
+        }
+      )
       |> apply_period(opts)
+      |> ClickHouseRepo.one()
 
-    rows = Repo.all(from a in base, group_by: a.status, select: {a.status, count(a.id)})
-    counts = Map.new(rows)
-
-    %{
-      total: Enum.reduce(rows, 0, fn {_, n}, acc -> acc + n end),
-      delivered: Map.get(counts, "delivered", 0),
-      failed: Map.get(counts, "failed", 0)
-    }
+    case row do
+      nil -> %{total: 0, delivered: 0, failed: 0}
+      %{total: total, failed: failed} -> %{total: total, delivered: total - failed, failed: failed}
+    end
   end
 
   @doc """
@@ -188,49 +196,52 @@ defmodule Tuist.Webhooks do
   defp to_utc_datetime(%DateTime{} = dt), do: DateTime.truncate(dt, :second)
   defp to_utc_datetime(%NaiveDateTime{} = ndt), do: ndt |> DateTime.from_naive!("Etc/UTC") |> DateTime.truncate(:second)
 
-  # date_trunc's first argument has to be inlined into the SQL or PostgreSQL
-  # can't match the GROUP BY expression to the SELECT expression — fragments
-  # with a bound parameter end up looking different at plan time.
+  # Ecto's `fragment/1` requires a literal string as the first argument,
+  # so each bucket unit gets its own function clause with the CH
+  # `toStartOf...` function inlined.
   defp timeseries_rows(endpoint_id, start_dt, end_dt, :hour) do
-    Repo.all(
+    ClickHouseRepo.all(
       from(a in DeliveryAttempt,
         where: a.webhook_endpoint_id == ^endpoint_id,
         where: a.inserted_at >= ^start_dt and a.inserted_at <= ^end_dt,
-        group_by: fragment("date_trunc('hour', ?)", a.inserted_at),
+        group_by: fragment("toStartOfHour(?)", a.inserted_at),
+        order_by: fragment("toStartOfHour(?)", a.inserted_at),
         select: %{
-          bucket: fragment("date_trunc('hour', ?)", a.inserted_at),
+          bucket: fragment("toStartOfHour(?)", a.inserted_at),
           total: count(a.id),
-          failed: fragment("count(*) filter (where ? = 'failed')", a.status)
+          failed: fragment("countIf(? = 'failed')", a.status)
         }
       )
     )
   end
 
   defp timeseries_rows(endpoint_id, start_dt, end_dt, :day) do
-    Repo.all(
+    ClickHouseRepo.all(
       from(a in DeliveryAttempt,
         where: a.webhook_endpoint_id == ^endpoint_id,
         where: a.inserted_at >= ^start_dt and a.inserted_at <= ^end_dt,
-        group_by: fragment("date_trunc('day', ?)", a.inserted_at),
+        group_by: fragment("toStartOfDay(?)", a.inserted_at),
+        order_by: fragment("toStartOfDay(?)", a.inserted_at),
         select: %{
-          bucket: fragment("date_trunc('day', ?)", a.inserted_at),
+          bucket: fragment("toStartOfDay(?)", a.inserted_at),
           total: count(a.id),
-          failed: fragment("count(*) filter (where ? = 'failed')", a.status)
+          failed: fragment("countIf(? = 'failed')", a.status)
         }
       )
     )
   end
 
   defp timeseries_rows(endpoint_id, start_dt, end_dt, :month) do
-    Repo.all(
+    ClickHouseRepo.all(
       from(a in DeliveryAttempt,
         where: a.webhook_endpoint_id == ^endpoint_id,
         where: a.inserted_at >= ^start_dt and a.inserted_at <= ^end_dt,
-        group_by: fragment("date_trunc('month', ?)", a.inserted_at),
+        group_by: fragment("toStartOfMonth(?)", a.inserted_at),
+        order_by: fragment("toStartOfMonth(?)", a.inserted_at),
         select: %{
-          bucket: fragment("date_trunc('month', ?)", a.inserted_at),
+          bucket: fragment("toStartOfMonth(?)", a.inserted_at),
           total: count(a.id),
-          failed: fragment("count(*) filter (where ? = 'failed')", a.status)
+          failed: fragment("countIf(? = 'failed')", a.status)
         }
       )
     )
@@ -269,8 +280,7 @@ defmodule Tuist.Webhooks do
         query
 
       term when is_binary(term) ->
-        pattern = "%#{term}%"
-        from(a in query, where: ilike(a.event_id, ^pattern))
+        from(a in query, where: fragment("positionCaseInsensitive(?, ?) > 0", a.event_id, ^term))
     end
   end
 
