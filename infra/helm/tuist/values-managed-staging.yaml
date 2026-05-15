@@ -265,13 +265,13 @@ runnersFleetLinux:
   enabled: true
   # Matches `cluster-staging.yaml`'s `node.cluster.x-k8s.io/pool` label.
   name: runners-linux
-  # Single bring-up pool. `runnerImage` points at the floating
-  # `:latest` tag during staging bring-up — once the
-  # release-linux-runner-image job lands in `release.yml`, switch to
-  # a digest pin and let Renovate own the bumps.
+  # Single bring-up pool. `runnerImage` is pinned to the SHA tag
+  # the `linux-runner-image.yml` workflow pushed; bump manually
+  # until `release-linux-runner-image` lands in `release.yml` and
+  # Renovate owns the rewrites.
   pools:
     - name: ubuntu-22-04
-      runnerImage: "ghcr.io/tuist/tuist-linux-runner:latest"
+      runnerImage: "ghcr.io/tuist/tuist-linux-runner:sha-112c45d9c509"
       dispatchLabel: "tuist-staging-linux"
       runnerLabels:
         - self-hosted
