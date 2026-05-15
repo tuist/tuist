@@ -8,6 +8,7 @@ All notable changes to this project will be documented in this file.
 * add onOutdatedDependencies action to GenerationOptions by [@freak4pc](https://github.com/freak4pc) in [#10715](https://github.com/tuist/tuist/pull/10715)
 ### 🐛 Bug Fixes
 
+* deduplicate conditioned xcframework search paths by [@fortmarek](https://github.com/fortmarek) in [#10813](https://github.com/tuist/tuist/pull/10813)
 * bind shard reference across split build/test jobs by [@fortmarek](https://github.com/fortmarek) in [#10805](https://github.com/tuist/tuist/pull/10805)
 * avoid collecting large verbose HTTP bodies by [@fortmarek](https://github.com/fortmarek) in [#10795](https://github.com/tuist/tuist/pull/10795)
 * map default actor isolation to MainActor by [@fortmarek](https://github.com/fortmarek) in [#10779](https://github.com/tuist/tuist/pull/10779)
