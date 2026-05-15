@@ -21,7 +21,7 @@ defmodule Tuist.WebhooksTest do
       assert endpoint.name == "Jira ingest"
       assert endpoint.url == "https://example.com/hook"
       assert endpoint.event_types == ["test_case.updated"]
-      assert String.starts_with?(secret, "whsec_")
+      assert String.starts_with?(secret, "tuist_webhook_")
       # Cloak decrypts the column transparently on read.
       assert endpoint.signing_secret == secret
     end

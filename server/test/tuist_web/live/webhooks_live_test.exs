@@ -37,9 +37,9 @@ defmodule TuistWeb.WebhooksLiveTest do
     render_hook(lv, "toggle_create_form_event_type", %{"data" => "test_case.updated"})
     html = render_hook(lv, "create_endpoint", %{})
 
-    # Disclosure state: plaintext secret is rendered, prefixed with whsec_
+    # Disclosure state: plaintext secret is rendered, prefixed with tuist_webhook_
     assert html =~ "new-webhook-signing-secret"
-    assert html =~ "whsec_"
+    assert html =~ "tuist_webhook_"
 
     # The endpoint is persisted with the selected event subscriptions.
     assert [endpoint] = Webhooks.list_endpoints(account.id)
@@ -47,7 +47,7 @@ defmodule TuistWeb.WebhooksLiveTest do
     assert endpoint.url == "https://example.com/hook"
     assert endpoint.event_types == ["test_case.updated"]
     assert is_binary(endpoint.signing_secret)
-    assert String.starts_with?(endpoint.signing_secret, "whsec_")
+    assert String.starts_with?(endpoint.signing_secret, "tuist_webhook_")
 
     # After dismissing, the secret is no longer in the rendered HTML.
     html = render_hook(lv, "dismiss_disclosure", %{})

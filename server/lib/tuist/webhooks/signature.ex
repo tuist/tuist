@@ -88,9 +88,12 @@ defmodule Tuist.Webhooks.Signature do
 
   @doc """
   Generates a fresh signing secret — 32 random bytes encoded as a
-  `whsec_`-prefixed base64url string (Stripe-style).
+  `tuist_webhook_`-prefixed base64url string.
+
+  Matches the `tuist_<scope>_<random>` convention used by other tokens
+  in this codebase (project tokens, SCIM tokens, account tokens).
   """
   def generate_secret do
-    "whsec_" <> (32 |> :crypto.strong_rand_bytes() |> Base.url_encode64(padding: false))
+    "tuist_webhook_" <> (32 |> :crypto.strong_rand_bytes() |> Base.url_encode64(padding: false))
   end
 end

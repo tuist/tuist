@@ -31,9 +31,10 @@ defmodule TuistWeb.WebhooksLive do
   @doc """
   Renders a partial-mask preview of `signing_secret` for the endpoints table.
 
-  Format: `whsec_••••…••••<last 4>`. Revealing only the suffix lets users
-  compare against a secret they've stored elsewhere (env var, secret
-  manager) without exposing enough material to weaken HMAC verification.
+  Format: `tuist_webhook_••••…••••<last 4>`. Revealing only the suffix
+  lets users compare against a secret they've stored elsewhere (env
+  var, secret manager) without exposing enough material to weaken HMAC
+  verification.
   """
   def masked_signing_secret(signing_secret) when is_binary(signing_secret) do
     tail =
@@ -42,10 +43,10 @@ defmodule TuistWeb.WebhooksLive do
         _ -> signing_secret
       end
 
-    "whsec_" <> String.duplicate("•", 10) <> tail
+    "tuist_webhook_" <> String.duplicate("•", 10) <> tail
   end
 
-  def masked_signing_secret(_), do: "whsec_" <> String.duplicate("•", 14)
+  def masked_signing_secret(_), do: "tuist_webhook_" <> String.duplicate("•", 14)
 
   @impl true
   def handle_params(_params, _uri, socket), do: {:noreply, socket}
