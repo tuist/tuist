@@ -67,15 +67,15 @@ spec:
   # the bare-metal-worker MD scales up and is ready to claim it.
   maintenanceMode: false
   # NVMe device hints so installimage knows which disks to partition.
-  # The AX42-U has two 512 GB NVMe drives in software RAID 1. WWN
-  # identifiers are stable across reboots; the operator runs
-  # `ls -l /dev/disk/by-id/nvme-* | grep wwn` after the first SSH and
-  # pastes them here. Empty `wwn:` is acceptable for now — caph will
-  # use the first eligible NVMe pair — but pinning by WWN is the
-  # safer long-term shape.
+  # The AX42-U has two 512 GB Samsung NVMe drives in software RAID 1.
+  # WWNs are read from caph's hardwareDetails on first registration
+  # (caph SSHes into the rescue system and inspects `/dev/disk/by-id/`);
+  # empty wwn is rejected by caph >=v1.0.
   rootDeviceHints:
     raid:
-      wwn: []
+      wwn:
+        - eui.002538b751b1b58c
+        - eui.002538b751b1b591
   # Robot credentials are read from the same Secret the
   # HetznerClusterTemplate's `hetznerSecretRef` already names (key
   # additions wired below — keys `hetznerRobotUser` +
