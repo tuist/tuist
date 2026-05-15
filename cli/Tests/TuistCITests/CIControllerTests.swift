@@ -106,6 +106,33 @@ struct CIControllerTests {
             "CIRCLECI": "true",
             "CIRCLE_PROJECT_USERNAME": "owner",
             "CIRCLE_PROJECT_REPONAME": "repo",
+            "CIRCLE_WORKFLOW_ID": "workflow-abc",
+            "CIRCLE_BUILD_NUM": "42",
+        ]
+
+        // When
+        let ciInfo = subject.ciInfo()
+
+        // Then
+        #expect(ciInfo == CIInfo(
+            provider: .circleci,
+            runId: "42",
+            projectHandle: "owner/repo",
+            host: nil,
+            pipelineId: "workflow-abc"
+        ))
+        // Shard reference prefers the workflow id so it binds across jobs in a workflow.
+        #expect(ciInfo?.shardReference == "circleci-workflow-abc")
+    }
+
+    @Test(.withMockedEnvironment())
+    func ciInfo_returns_circleci_info_without_workflow_id() throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.variables = [
+            "CIRCLECI": "true",
+            "CIRCLE_PROJECT_USERNAME": "owner",
+            "CIRCLE_PROJECT_REPONAME": "repo",
             "CIRCLE_BUILD_NUM": "42",
         ]
 
@@ -119,6 +146,8 @@ struct CIControllerTests {
             projectHandle: "owner/repo",
             host: nil
         ))
+        // Falls back to runId when no workflow id is present.
+        #expect(ciInfo?.shardReference == "circleci-42")
     }
 
     @Test(.withMockedEnvironment()) func ciInfo_returns_buildkite_info() throws {
