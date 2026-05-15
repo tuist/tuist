@@ -2,8 +2,8 @@ defmodule TuistWeb.WebhookLive do
   @moduledoc """
   Detail page for a single webhook endpoint. Surfaces overview info
   (URL, signing secret, subscribed events), the daily delivery chart,
-  and a filterable list of recent delivery attempts pulled from the Oban
-  jobs table.
+  and a filterable list of recent delivery attempts read from the
+  ClickHouse `webhook_delivery_attempts` table.
   """
   use TuistWeb, :live_view
   use Noora
@@ -242,9 +242,9 @@ defmodule TuistWeb.WebhookLive do
   def delivery_state_status(_), do: "information"
 
   @doc """
-  Presets exposed by the chart's date picker. Hard-coded to a small set
-  because oban_jobs are pruned aggressively; charting further back would
-  show mostly empty buckets.
+  Presets exposed by the chart's date picker. Capped at 30 days because
+  the `webhook_delivery_attempts` table has a 7-day TTL — anything
+  beyond that would render mostly empty buckets.
   """
   def date_picker_presets do
     [
