@@ -106,6 +106,30 @@ struct CIControllerTests {
             "CIRCLECI": "true",
             "CIRCLE_PROJECT_USERNAME": "owner",
             "CIRCLE_PROJECT_REPONAME": "repo",
+            "CIRCLE_WORKFLOW_ID": "workflow-abc",
+            "CIRCLE_BUILD_NUM": "42",
+        ]
+
+        // When
+        let ciInfo = subject.ciInfo()
+
+        // Then
+        #expect(ciInfo == CIInfo(
+            provider: .circleci,
+            runId: "workflow-abc",
+            projectHandle: "owner/repo",
+            host: nil
+        ))
+    }
+
+    @Test(.withMockedEnvironment())
+    func ciInfo_returns_circleci_info_falls_back_to_build_num_when_no_workflow() throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.variables = [
+            "CIRCLECI": "true",
+            "CIRCLE_PROJECT_USERNAME": "owner",
+            "CIRCLE_PROJECT_REPONAME": "repo",
             "CIRCLE_BUILD_NUM": "42",
         ]
 

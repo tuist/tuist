@@ -53,9 +53,13 @@ public struct CIController: CIControlling {
             } else {
                 nil
             }
+            // CIRCLE_WORKFLOW_ID is stable across jobs in a workflow (e.g. a `build-for-testing`
+            // job and downstream `test-without-building` shard jobs), so it lets the derived
+            // shard reference bind across them. Fall back to CIRCLE_BUILD_NUM for environments
+            // where workflows aren't in use.
             return CIInfo(
                 provider: .circleci,
-                runId: env["CIRCLE_BUILD_NUM"],
+                runId: env["CIRCLE_WORKFLOW_ID"] ?? env["CIRCLE_BUILD_NUM"],
                 projectHandle: projectHandle
             )
         }

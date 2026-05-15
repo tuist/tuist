@@ -4835,6 +4835,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 shardIndex: .any,
                 fullHandle: .any,
                 serverURL: .any,
+                reference: .any,
                 testProductsPath: .any,
                 testProductsArchivePath: .any
             )
@@ -4869,6 +4870,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 shardIndex: .value(1),
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .any,
+                reference: .any,
                 testProductsPath: .value(nil),
                 testProductsArchivePath: .value(shardArchivePath)
             )
