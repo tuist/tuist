@@ -96,22 +96,36 @@ jobs:
           tar -czf /tmp/release.tar.gz -C "${{ steps.release.outputs.dir }}" .
           ls -lh /tmp/release.tar.gz
 
+      - name: Update Tart
+        run: |
+          set -euo pipefail
+          brew update
+          brew upgrade cirruslabs/cli/tart || brew install cirruslabs/cli/tart
+          tart --version
+
       # 2. Bake the tarball into a Tart image.
       - name: Initialize Packer
         working-directory: infra/xcresult-processor-image
-        run: packer init xcresult-processor.pkr.hcl
+        run: packer init -upgrade xcresult-processor.pkr.hcl
 
       # The bare-metal runner has tuist-bot ghcr.io creds cached from
       # earlier image-push jobs. Those creds don't authorize pulls
       # from ghcr.io/cirruslabs/*, so Tart's token-fetch returns 403.
-      # Tart also consults Docker credential helpers, so clear both
-      # stores before the public anonymous pull.
+      # Tart also consults Docker credential helpers, and this runner
+      # can have the macOS helper installed without the Docker CLI.
+      # Clear both stores before the public anonymous pull.
       - name: Drop cached ghcr.io credentials
         run: |
           tart logout ghcr.io || true
           if command -v docker >/dev/null 2>&1; then
             docker logout ghcr.io || true
           fi
+          for helper in docker-credential-osxkeychain docker-credential-desktop; do
+            if command -v "$helper" >/dev/null 2>&1; then
+              printf 'ghcr.io' | "$helper" erase || true
+              printf 'https://ghcr.io' | "$helper" erase || true
+            fi
+          done
 
       # Reclaim disk before the Cirrus pull. macos-tahoe-xcode:26.4 is
       # ~70GB on disk; the bare-metal Mac mini accumulates older Tart
@@ -131,7 +145,26 @@ jobs:
       - name: Build image
         working-directory: infra/xcresult-processor-image
         run: |
-          packer build \
+          set -euo pipefail
+          docker_config="$HOME/.docker/config.json"
+          docker_config_backup=""
+          restore_docker_config() {
+            if [ -n "$docker_config_backup" ] && [ -f "$docker_config_backup" ]; then
+              mkdir -p "$HOME/.docker"
+              mv "$docker_config_backup" "$docker_config"
+            fi
+          }
+          trap restore_docker_config EXIT
+
+          # Tart hardcodes ~/.docker/config.json when looking up Docker
+          # credential helpers. Move it aside so the public Cirrus image is
+          # pulled anonymously instead of through stale ghcr.io credentials.
+          if [ -f "$docker_config" ]; then
+            docker_config_backup="$(mktemp "${RUNNER_TEMP:-/tmp}/docker-config.XXXXXX")"
+            mv "$docker_config" "$docker_config_backup"
+          fi
+
+          env -u GITHUB_TOKEN -u MISE_GITHUB_TOKEN packer build \
             -var "base_image=${{ inputs.base_image || 'ghcr.io/cirruslabs/macos-tahoe-xcode:26.4' }}" \
             -var "output_image=tuist-xcresult-processor" \
             -var "release_tarball=/tmp/release.tar.gz" \
@@ -141,6 +174,10 @@ jobs:
         run: echo "${{ secrets.GITHUB_TOKEN }}" | tart login ghcr.io --username tuist-bot --password-stdin
 
       - name: Push image to GHCR
+        env:
+          TART_REGISTRY_HOSTNAME: ghcr.io
+          TART_REGISTRY_USERNAME: tuist-bot
+          TART_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # SHA-tagged builds for ad-hoc deploys; semver tags + `:latest`
           # are owned by release.yml's release-xcresult-processor job.
