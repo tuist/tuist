@@ -69,8 +69,30 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 	alive := 0
 	reaped := 0
+	staleDeleted := 0
 	for i := range pods.Items {
 		p := &pods.Items[i]
+
+		// Drop stale Pending Pods immediately so the gap-fill below
+		// can create replacements on the current spec.image. Stale
+		// here means the Pod's image differs from the RunnerPool's,
+		// which happens whenever `runnerImage` in the chart rolls
+		// to a new digest. Pending is the safe phase to delete: the
+		// VM isn't running a customer job yet (and may never get
+		// scheduled, since the controller's gap math fills replicas
+		// based on alive count). Running stale Pods are left alone —
+		// they may be mid-job, and single-shot lifecycle will turn
+		// them over to Succeeded on exit, where the reap path below
+		// replaces them with a current-image Pod.
+		if isAlive(p) && p.Status.Phase == corev1.PodPending && isStaleImage(p, pool) {
+			if err := r.Delete(ctx, p); err != nil && !apierrors.IsNotFound(err) {
+				logger.Error(err, "delete stale pending pod; will retry", "pod", p.Name)
+				return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+			}
+			staleDeleted++
+			continue
+		}
+
 		switch {
 		case isAlive(p):
 			alive++
@@ -100,6 +122,7 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		"target", pool.Spec.Replicas,
 		"observed", alive,
 		"reaped", reaped,
+		"staleDeleted", staleDeleted,
 		"gap", gap,
 	)
 
@@ -188,6 +211,18 @@ func isAlive(pod *corev1.Pod) bool {
 	default:
 		return true
 	}
+}
+
+// isStaleImage returns true when the Pod's runner container image
+// no longer matches the RunnerPool's spec.image — i.e., the chart
+// has rolled the image pin since this Pod was created. Used to
+// recycle Pending Pods on the next reconcile so a fresh image rolls
+// out without an operator-driven `kubectl delete pod` dance.
+func isStaleImage(pod *corev1.Pod, pool *tuistv1.RunnerPool) bool {
+	if len(pod.Spec.Containers) == 0 {
+		return false
+	}
+	return pod.Spec.Containers[0].Image != pool.Spec.Image
 }
 
 // runnerLabelPredicate filters the Pod watch down to Pods carrying
