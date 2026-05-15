@@ -29,8 +29,6 @@ defmodule Tuist.Kura do
   alias Tuist.Kura.Server
   alias Tuist.Repo
 
-  require Logger
-
   @pubsub Tuist.PubSub
   @create_server_keys %{
     "account_id" => :account_id,
@@ -433,35 +431,54 @@ defmodule Tuist.Kura do
   end
 
   @doc """
-  Resets a server back to "Not deployed" after a first-time deploy
-  failure. Best-effort destroys any backing resource that the rollout
-  may have already created, marks the row `:destroyed`, removes any
-  derived cache endpoint, and broadcasts. Errors from the backing
-  destroy are logged and ignored so the UI always recovers. A leaked
-  resource is acceptable here because the server never reached
-  `:active`, so no traffic depends on it.
+  Retries a failed first-time deploy: atomically tombstones the failed
+  `Server` row, removes its derived cache endpoint, and inserts a
+  fresh `Server` + `Deployment` for the same `(account, region)` using
+  the supplied image tag.
+
+  Only failed servers that never reached `:active` are eligible —
+  retrying a drift failure on a previously-active server would tear
+  down the working cache endpoint mid-flight, so the operator has to
+  explicitly destroy those instead.
+
+  The new server's `provisioner_node_ref` is deterministic from
+  `(account_handle, region)`, so it points at the same backing
+  resource. Whatever the previous reconcile left in the cluster is
+  reused; the reconciler re-applies the manifest idempotently on its
+  next tick.
   """
-  def reset_server(%Server{} = server) do
-    best_effort_destroy(server)
+  def retry_server(%Server{status: :failed, current_image_tag: nil} = old_server, image_tag) when is_binary(image_tag) do
+    with {:ok, region} <- Regions.fetch(old_server.region),
+         {:ok, account} <- Accounts.get_account_by_id(old_server.account_id),
+         {:ok, ref} <- region.provisioner.provision(account, region, server_stub(%{})),
+         :ok <- validate_provisioner_node_ref(account, ref) do
+      attrs = %{account_id: account.id, region: old_server.region, provisioner_node_ref: ref}
 
-    {:ok, server} =
-      server |> Server.status_changeset(%{status: :destroyed, url: nil}) |> Repo.update()
+      case Repo.transaction(fn ->
+             with {:ok, old_destroyed} <-
+                    old_server
+                    |> Server.status_changeset(%{status: :destroyed, url: nil})
+                    |> Repo.update(),
+                  :ok <- remove_cache_endpoint(old_destroyed),
+                  {:ok, new_server} <- attrs |> Server.create_changeset() |> Repo.insert(),
+                  {:ok, _deployment} <- insert_initial_deployment(new_server, region, image_tag) do
+               {old_destroyed, Repo.preload(new_server, :deployments)}
+             else
+               {:error, reason} -> Repo.rollback(reason)
+             end
+           end) do
+        {:ok, {old_destroyed, new_server}} ->
+          broadcast_server(old_destroyed, :destroyed)
+          broadcast_server(new_server, :created)
+          {:ok, new_server}
 
-    remove_cache_endpoint(server)
-    broadcast_server(server, :destroyed)
-    {:ok, server}
-  end
-
-  defp best_effort_destroy(server) do
-    case Provisioner.destroy(server) do
-      :ok ->
-        :ok
-
-      {:error, reason} ->
-        Logger.warning("[Kura] reset_server backing destroy failed for #{server.id}: #{inspect(reason)}")
-        :ok
+        {:error, reason} ->
+          {:error, reason}
+      end
     end
   end
+
+  def retry_server(%Server{}, _image_tag), do: {:error, :not_retryable}
 
   @doc "Marks a server as `:destroyed` after the reconciler observes teardown."
   def mark_destroyed(%Server{} = server) do

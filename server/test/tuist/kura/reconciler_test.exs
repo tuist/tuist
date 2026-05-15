@@ -146,7 +146,7 @@ defmodule Tuist.Kura.ReconcilerTest do
     assert %Server{status: :destroying} = Repo.get!(Server, server.id)
   end
 
-  test "resets a first-time-deploy server and reports to Sentry when apply fails" do
+  test "marks a first-time-deploy server :failed and reports to Sentry when apply fails" do
     {_account, server, deployment} = create_server()
 
     expect(Provisioner, :current_image_tag, fn %Server{id: id} ->
@@ -157,11 +157,6 @@ defmodule Tuist.Kura.ReconcilerTest do
     expect(Provisioner, :rollout, fn %Server{id: id}, _inputs ->
       assert id == server.id
       {:error, "apply failed"}
-    end)
-
-    expect(Provisioner, :destroy, fn %Server{id: id} ->
-      assert id == server.id
-      :ok
     end)
 
     expect(Sentry, :capture_message, fn "Kura deploy failed", opts ->
@@ -177,18 +172,13 @@ defmodule Tuist.Kura.ReconcilerTest do
     assert :ok = Reconciler.reconcile()
 
     assert %Deployment{status: :failed, error_message: "apply failed"} = Repo.get!(Deployment, deployment.id)
-    assert %Server{status: :destroyed, url: nil} = Repo.get!(Server, server.id)
+    assert %Server{status: :failed, current_image_tag: nil} = Repo.get!(Server, server.id)
   end
 
-  test "resets a first-time-deploy server and reports to Sentry when the cluster is unreachable" do
+  test "marks a first-time-deploy server :failed and reports to Sentry when the cluster is unreachable" do
     {_account, server, deployment} = create_server()
 
     expect(Provisioner, :current_image_tag, fn %Server{id: id} ->
-      assert id == server.id
-      {:error, "missing Kubernetes kubeconfig for Kura cluster us-east-1"}
-    end)
-
-    expect(Provisioner, :destroy, fn %Server{id: id} ->
       assert id == server.id
       {:error, "missing Kubernetes kubeconfig for Kura cluster us-east-1"}
     end)
@@ -206,10 +196,10 @@ defmodule Tuist.Kura.ReconcilerTest do
              error_message: "missing Kubernetes kubeconfig for Kura cluster us-east-1"
            } = Repo.get!(Deployment, deployment.id)
 
-    assert %Server{status: :destroyed} = Repo.get!(Server, server.id)
+    assert %Server{status: :failed, current_image_tag: nil} = Repo.get!(Server, server.id)
   end
 
-  test "keeps an active server at :failed (not :destroyed) when a drift rollout fails" do
+  test "keeps an active server at :failed when a drift rollout fails so the working endpoint stays up" do
     {_account, server, deployment} = create_server()
     {:ok, server} = Kura.activate_server(server, deployment.image_tag)
     mark_deployment_succeeded(deployment)

@@ -447,51 +447,36 @@ defmodule Tuist.KuraTest do
     end
   end
 
-  describe "reset_server/1" do
-    test "marks a never-active server destroyed and best-effort destroys the backing resource" do
+  describe "retry_server/2" do
+    test "tombstones the failed row and creates a fresh server in the same region" do
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
 
-      {:ok, server} =
+      {:ok, failed} =
         Kura.create_server(%{
           account_id: account.id,
           region: "local-controller",
           image_tag: "0.5.2"
         })
 
-      expect(Provisioner, :destroy, fn %Server{id: id} ->
-        assert id == server.id
-        :ok
-      end)
+      {:ok, failed} = Kura.fail_server(failed)
 
-      assert {:ok, %Server{status: :destroyed, url: nil}} = Kura.reset_server(server)
-      assert %Server{status: :destroyed} = Repo.get!(Server, server.id)
-      assert Accounts.list_account_cache_endpoints(account, :kura) == []
+      assert {:ok, %Server{status: :provisioning, region: "local-controller"} = new_server} =
+               Kura.retry_server(failed, "0.5.3")
+
+      refute new_server.id == failed.id
+      assert %Server{status: :destroyed} = Repo.get!(Server, failed.id)
+
+      new_server = Repo.preload(new_server, :deployments)
+      assert [%Deployment{status: :pending, image_tag: "0.5.3"}] = new_server.deployments
     end
 
-    test "still marks the server destroyed when the backing destroy fails" do
-      user = AccountsFixtures.user_fixture()
-      account = Accounts.get_account_from_user(user)
-
-      {:ok, server} =
-        Kura.create_server(%{
-          account_id: account.id,
-          region: "local-controller",
-          image_tag: "0.5.2"
-        })
-
-      expect(Provisioner, :destroy, fn %Server{} -> {:error, "kubeconfig missing"} end)
-
-      assert {:ok, %Server{status: :destroyed}} = Kura.reset_server(server)
-      assert %Server{status: :destroyed} = Repo.get!(Server, server.id)
-    end
-
-    test "broadcasts a :destroyed event" do
+    test "broadcasts :destroyed for the old row and :created for the new one" do
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
       :ok = Kura.subscribe_to_account(account.id)
 
-      {:ok, server} =
+      {:ok, failed} =
         Kura.create_server(%{
           account_id: account.id,
           region: "local-controller",
@@ -500,11 +485,43 @@ defmodule Tuist.KuraTest do
 
       assert_receive {:kura_server, :created, _}
 
-      stub(Provisioner, :destroy, fn _server -> :ok end)
-
-      {:ok, _} = Kura.reset_server(server)
+      {:ok, failed} = Kura.fail_server(failed)
+      {:ok, _new_server} = Kura.retry_server(failed, "0.5.3")
 
       assert_receive {:kura_server, :destroyed, %{status: :destroyed}}
+      assert_receive {:kura_server, :created, %{status: :provisioning}}
+    end
+
+    test "refuses to retry a previously-active server" do
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, server} =
+        Kura.create_server(%{
+          account_id: account.id,
+          region: "local-controller",
+          image_tag: "0.5.2"
+        })
+
+      {:ok, server} = Kura.activate_server(server, "0.5.2")
+      {:ok, server} = Kura.fail_server(server)
+
+      assert {:error, :not_retryable} = Kura.retry_server(server, "0.5.3")
+      assert %Server{status: :failed, current_image_tag: "0.5.2"} = Repo.get!(Server, server.id)
+    end
+
+    test "refuses to retry a server that's not in :failed state" do
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, server} =
+        Kura.create_server(%{
+          account_id: account.id,
+          region: "local-controller",
+          image_tag: "0.5.2"
+        })
+
+      assert {:error, :not_retryable} = Kura.retry_server(server, "0.5.3")
     end
   end
 
