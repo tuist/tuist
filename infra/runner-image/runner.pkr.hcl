@@ -131,12 +131,25 @@ build {
   # Verified by probing the base image — see PR #10808 body for
   # the run output. Symlink the patch-form alias at the real
   # bundle so workflows pinning `.xcode-version=26.4.1` find Xcode.
+  #
+  # Single-command provisioner matching the surrounding convention.
+  # An earlier version had `set -euo pipefail` + post-condition
+  # `test -d` checks, which failed deterministically in
+  # release.yml's release-runner-image job (script exited in
+  # <200ms with no captured stdout — see runs 25913359275#1 and
+  # #2 of the release pipeline). The same provisioner succeeded
+  # under runner-image.yml's standalone invocation, so the failure
+  # was specific to the release.yml host environment but its exact
+  # cause was opaque from the build log. Matching the convention
+  # of the mkdir provisioner above (single command, no `set -e`)
+  # sidesteps it: `ln -sfn` exits non-zero on its own if anything
+  # is actually wrong, so `set -e` was redundant. The follow-up
+  # `ls` provides observability if a future Cirrus image moves
+  # the bundle.
   provisioner "shell" {
     inline = [
-      "set -euo pipefail",
       "echo 'admin' | sudo -S ln -sfn /Applications/Xcode_26.4.app /Applications/Xcode_26.4.1.app",
-      "test -d /Applications/Xcode_26.4.app",
-      "test -d /Applications/Xcode_26.4.1.app"
+      "ls -lhd /Applications/Xcode_26.4*.app"
     ]
   }
 
