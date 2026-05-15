@@ -119,8 +119,7 @@ defmodule Tuist.Kura.Reconciler do
         apply_deployment(deployment, server)
 
       {:error, reason} ->
-        Logger.warning("[Kura.Reconciler] could not observe deployment #{deployment.id}: #{inspect(reason)}")
-        :ok
+        fail(deployment, server, reason)
     end
   end
 
@@ -182,9 +181,26 @@ defmodule Tuist.Kura.Reconciler do
 
   defp fail(deployment, server, reason) do
     message = if is_binary(reason), do: reason, else: inspect(reason)
+
+    capture_deploy_failure(deployment, server, message)
+
     {:ok, _} = Kura.mark_failed(deployment, message)
     if server, do: Kura.fail_server(server)
     :ok
+  end
+
+  defp capture_deploy_failure(deployment, server, message) do
+    Sentry.capture_message("Kura deploy failed",
+      level: :error,
+      extra: %{
+        deployment_id: deployment.id,
+        image_tag: deployment.image_tag,
+        server_id: server && server.id,
+        account_id: server && server.account_id,
+        region: server && server.region,
+        reason: message
+      }
+    )
   end
 
   defp server_status(:server_destroying), do: "destroying"
