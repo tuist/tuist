@@ -117,18 +117,26 @@ build {
     ]
   }
 
-  # Cirrus' macos-tahoe-xcode:26.4.1 image ships Xcode at
-  # /Applications/Xcode_26.4.1.app. GitHub's actions/runner-images
-  # exposes each Xcode under BOTH the full and major-minor path
-  # (see images/macos/macos-26-arm64-Readme.md#xcode) so customer
-  # workflows that pin `.xcode-version=26.4` work the same as ones
-  # pinning `.xcode-version=26.4.1`. Mirror that convention here so
-  # repos don't have to switch their `.xcode-version` file each
-  # time the patch component rolls.
+  # GitHub's actions/runner-images exposes each Xcode under BOTH
+  # the full and the major-minor path (see images/macos/macos-26-
+  # arm64-Readme.md#xcode) so customer workflows that pin
+  # `.xcode-version=26.4` work the same as ones pinning
+  # `.xcode-version=26.4.1`. Mirror that here so repos don't have
+  # to switch their `.xcode-version` file each time the patch
+  # component rolls.
+  #
+  # The Cirrus :26.4.1 image ships the real bundle at
+  # `/Applications/Xcode_26.4.app` (major-minor only, no patch);
+  # `/Applications/Xcode_26.4.1.app` doesn't exist on the base.
+  # Verified by probing the base image — see PR #10808 body for
+  # the run output. Symlink the patch-form alias at the real
+  # bundle so workflows pinning `.xcode-version=26.4.1` find Xcode.
   provisioner "shell" {
     inline = [
-      "echo 'admin' | sudo -S ln -sfn /Applications/Xcode_26.4.1.app /Applications/Xcode_26.4.app",
-      "test -d /Applications/Xcode_26.4.app && test -d /Applications/Xcode_26.4.1.app"
+      "set -euo pipefail",
+      "echo 'admin' | sudo -S ln -sfn /Applications/Xcode_26.4.app /Applications/Xcode_26.4.1.app",
+      "test -d /Applications/Xcode_26.4.app",
+      "test -d /Applications/Xcode_26.4.1.app"
     ]
   }
 
