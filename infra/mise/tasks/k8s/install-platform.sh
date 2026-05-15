@@ -59,6 +59,13 @@ HELM_SET_ARGS=(
   --set "ingress-nginx.controller.service.annotations.load-balancer\.hetzner\.cloud/name=${CLUSTER_NAME}-ingress"
 )
 
+# Sized for a cold cluster: ingress-nginx ships a pre-install admission
+# Job whose image pull + cert generation, combined with the Hetzner LB
+# provision for the controller Service, can take several minutes. 15m
+# absorbs that with headroom; steady-state runs finish in under a
+# minute and exit as soon as helm finds nothing to roll out.
+HELM_TIMEOUT="15m"
+
 # First-install ordering: our ClusterIssuer template depends on the
 # cert-manager.io/v1 CRD that the cert-manager subchart ships. On a
 # cluster that already has the CRD, a single pass is enough. On a
@@ -71,7 +78,7 @@ if KUBECONFIG="$WL_KUBECONFIG" kubectl get crd clusterissuers.cert-manager.io >/
     --namespace platform \
     -f "$CHART_PATH/values-hetzner.yaml" \
     "${HELM_SET_ARGS[@]}" \
-    --wait --timeout 5m
+    --wait --timeout "$HELM_TIMEOUT"
 else
   log "ClusterIssuer CRD missing; running two-pass install"
   KUBECONFIG="$WL_KUBECONFIG" helm upgrade --install platform "$CHART_PATH" \
@@ -79,7 +86,7 @@ else
     -f "$CHART_PATH/values-hetzner.yaml" \
     --set "clusterIssuer.enabled=false" \
     "${HELM_SET_ARGS[@]}" \
-    --wait --timeout 5m
+    --wait --timeout "$HELM_TIMEOUT"
 
   KUBECONFIG="$WL_KUBECONFIG" kubectl wait \
     --for=condition=Established crd/clusterissuers.cert-manager.io --timeout=2m
@@ -88,5 +95,5 @@ else
     --namespace platform \
     -f "$CHART_PATH/values-hetzner.yaml" \
     "${HELM_SET_ARGS[@]}" \
-    --wait --timeout 5m
+    --wait --timeout "$HELM_TIMEOUT"
 fi
