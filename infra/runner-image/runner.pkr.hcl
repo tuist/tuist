@@ -170,18 +170,73 @@ build {
     ]
   }
 
+  # Passwordless sudo for admin. The runner agent runs as admin in
+  # a real user session (LaunchAgent + auto-login), not as root, so
+  # the few privileged operations the agent needs — installing
+  # /etc/tuist.env from the kubelet env mount, halting the VM at
+  # job exit — go through sudo. Passwordless because the VM is
+  # ephemeral and single-tenant; the entire OS is the customer's
+  # job environment.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "echo 'admin ALL=(ALL) NOPASSWD: ALL' > /tmp/admin-nopasswd",
+      "echo 'admin' | sudo -S install -m 0440 -o root -g wheel /tmp/admin-nopasswd /etc/sudoers.d/admin-nopasswd",
+      "rm -f /tmp/admin-nopasswd",
+      "sudo -n true"
+    ]
+  }
+
+  # Auto-login as admin so a desktop session exists at boot and
+  # loginwindow loads /Users/admin/Library/LaunchAgents agents.
+  # macOS implements auto-login via /etc/kcpassword (XOR-encoded
+  # password using Apple's well-known key) + the autoLoginUser
+  # preference. The encoded payload for password "admin":
+  # bytes 0x1c, 0xed, 0x3f, 0x4a, 0xbc, 0xbc, 0xdd, 0xea, 0xa3,
+  # 0xb9, 0x1f (admin XOR key, padded to one key-length block).
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "printf '\\x1c\\xed\\x3f\\x4a\\xbc\\xbc\\xdd\\xea\\xa3\\xb9\\x1f' > /tmp/kcpassword",
+      "sudo install -m 0600 -o root -g wheel /tmp/kcpassword /etc/kcpassword",
+      "rm -f /tmp/kcpassword",
+      "sudo defaults write /Library/Preferences/com.apple.loginwindow autoLoginUser admin"
+    ]
+  }
+
   provisioner "file" {
     source      = "${path.root}/launchd.plist"
     destination = "/tmp/dev.tuist.runner.plist"
   }
 
+  # Install as a LaunchAgent under admin's home so it loads inside
+  # admin's user session (auto-login above guarantees the session
+  # exists at boot). User-owned (admin:staff, 0644) per Apple's
+  # LaunchAgent ownership rules.
   provisioner "shell" {
     inline = [
-      "echo 'admin' | sudo -S install -m 0644 /tmp/dev.tuist.runner.plist /Library/LaunchDaemons/dev.tuist.runner.plist",
+      "set -euo pipefail",
+      "sudo -u admin mkdir -p /Users/admin/Library/LaunchAgents",
+      "sudo install -m 0644 -o admin -g staff /tmp/dev.tuist.runner.plist /Users/admin/Library/LaunchAgents/dev.tuist.runner.plist",
       "rm -f /tmp/dev.tuist.runner.plist",
-      "echo 'admin' | sudo -S chown root:wheel /Library/LaunchDaemons/dev.tuist.runner.plist",
-      "echo 'admin' | sudo -S mkdir -p /var/log/tuist-runner",
-      "echo 'admin' | sudo -S chown admin:staff /var/log/tuist-runner"
+      "sudo mkdir -p /var/log/tuist-runner",
+      "sudo chown admin:staff /var/log/tuist-runner"
+    ]
+  }
+
+  # Sanity check: tools customers expect on a GitHub-parity macOS
+  # runner have to be reachable from the agent's runtime
+  # environment. The agent wraps its entrypoint in `zsh -lc`, so
+  # ~/.zprofile is sourced (Homebrew shellenv, rbenv init, Android
+  # SDK / Flutter / openjdk PATH). A future base-image bump that
+  # moves Homebrew's prefix or drops a formula would silently make
+  # tools unreachable from step shells; resolve each tool against
+  # the same login-shell environment so image-build CI fails
+  # loudly instead of customer workflows.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "sudo -u admin /bin/zsh -lc 'for tool in brew mise tuist gh git-lfs jq yq swiftlint swiftformat xcbeautify fastlane pod carthage; do command -v \"$tool\" >/dev/null 2>&1 || { echo \"sanity check: $tool not reachable in admin login shell — base image regression\" >&2; exit 1; }; done'"
     ]
   }
 }

@@ -34,7 +34,7 @@ exec >>"${LOG}" 2>&1
 # refilling. The trap fires once on EXIT so the happy path
 # (clean ./run.sh exit) and every error path halt the VM the
 # same way.
-trap '_rc=$?; echo "$(date -u +%FT%TZ) dispatch-poll: exiting (rc=${_rc}); halting VM"; /sbin/shutdown -h now || true; exit "${_rc}"' EXIT
+trap '_rc=$?; echo "$(date -u +%FT%TZ) dispatch-poll: exiting (rc=${_rc}); halting VM"; sudo /sbin/shutdown -h now || true; exit "${_rc}"' EXIT
 
 if [ ! -f /etc/tuist.env ]; then
   echo "$(date -u +%FT%TZ) dispatch-poll: /etc/tuist.env missing; aborting"

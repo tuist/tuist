@@ -8,15 +8,30 @@
     3. Execs /opt/tuist/dispatch-poll.sh — polls the Tuist server
        for a JIT config and execs ./run.sh on first 200.
 
-  KeepAlive=false: the runner image is single-shot. After the GH
-  Actions job finishes, dispatch-poll.sh halts the VM so `tart
-  run` returns and tart-kubelet transitions the Pod to Succeeded;
-  the watcher then reconciles a fresh warm Pod into its place.
-  Restarting the wrapper would just re-poll for a JIT config
-  that's already been claimed.
+  This is a LaunchAgent loaded from
+  /Users/admin/Library/LaunchAgents/. The Packer build configures
+  admin auto-login + passwordless sudo, so the VM boots into a
+  real desktop session for admin, loginwindow loads this agent,
+  and the agent process inherits the user session.
 
-  RunAsUser is implicit (root via LaunchDaemon) — the runner
-  binary handles its own user dropping if needed.
+  Why an agent and not a daemon: LaunchDaemons start with a
+  near-empty environment (no HOME, no PATH past launchd's
+  defaults, locale = C) and the Actions runner forwards its env
+  to every step shell. Customer workflows that read $HOME or
+  invoke a Homebrew-installed tool break before the first step
+  runs. Wrapping the entrypoint in `/bin/zsh -lc` here makes it
+  a login shell, which sources the cirruslabs base's ~/.zprofile
+  (Homebrew shellenv, rbenv init, LANG=en_US.UTF-8, PATH
+  additions for Android SDK + Flutter + openjdk + Node). Step
+  shells inherit the same environment an interactive SSH session
+  on the same VM would see. Supersedes the per-var workarounds
+  layered on top of the prior LaunchDaemon (#10797, #10800).
+
+  KeepAlive=false: the runner image is single-shot. After the
+  GitHub Actions job finishes, dispatch-poll.sh halts the VM so
+  `tart run` returns and tart-kubelet transitions the Pod to
+  Succeeded. Restarting would just re-poll for a JIT config
+  that's already been claimed.
 -->
 <plist version="1.0">
 <dict>
@@ -25,9 +40,21 @@
 
     <key>ProgramArguments</key>
     <array>
-        <string>/bin/bash</string>
-        <string>-c</string>
-        <string>/opt/tuist/inject-env.sh &amp;&amp; source /etc/tuist.env &amp;&amp; exec /opt/tuist/dispatch-poll.sh</string>
+        <string>/bin/zsh</string>
+        <string>-lc</string>
+        <!--
+          inject-env.sh runs under sudo. tart-kubelet stages the
+          shared env directory at /Volumes/My Shared Files/env/ as
+          0700 root, with tuist.env / sa_token inside at 0600 root.
+          The agent runs as admin, so without elevation admin can't
+          even stat the directory: inject-env.sh's `[ ! -f ENV_SRC ]`
+          test returns true, the script exits 0 ("no env source"),
+          and dispatch-poll.sh boots with an empty /etc/tuist.env
+          (no TUIST_RUNNER_DISPATCH_URL, no SA token). Elevate only
+          the injector; dispatch-poll runs as admin so the GitHub
+          runner stays non-root.
+        -->
+        <string>sudo /opt/tuist/inject-env.sh &amp;&amp; source /etc/tuist.env &amp;&amp; exec /opt/tuist/dispatch-poll.sh</string>
     </array>
 
     <key>RunAtLoad</key>
@@ -44,47 +71,6 @@
 
     <key>StandardErrorPath</key>
     <string>/var/log/tuist-runner/stderr.log</string>
-
-    <key>EnvironmentVariables</key>
-    <dict>
-        <!--
-          The GitHub Actions runner aborts on startup when uid=0
-          unless RUNNER_ALLOW_RUNASROOT is set, on the assumption
-          that runner-as-root is a security mistake. Inside our
-          ephemeral Tart VM the entire OS is the customer's job
-          environment — there's no separation gain from dropping
-          privileges, and the inject-env.sh + dispatch-poll.sh
-          chain assumes root for /etc writes. Bypass the check.
-
-          The HOME entry below sets the matching home directory for
-          that root user; both keys exist because macOS LaunchDaemons
-          start with a near-empty environment — see the HOME comment
-          for the full failure mode.
-        -->
-        <key>RUNNER_ALLOW_RUNASROOT</key>
-        <string>1</string>
-
-        <!--
-          LaunchDaemons start with a minimal environment — no HOME,
-          no PATH beyond the daemon defaults. The Actions runner
-          forwards its own env to every step shell, so an unset
-          HOME here propagates into customer workflows where any
-          tool that reads `$HOME/.gitconfig` (git, mise, gh) errors
-          out with `fatal: $HOME not set` before doing anything.
-          `/var/root` is the canonical home for uid 0 on macOS;
-          set it so step shells inherit a working HOME that matches
-          the user the runner is actually running as.
-
-          actions/checkout briefly sets a temporary HOME during its
-          own git invocations and restores the prior value on exit,
-          so the symptom only shows up on the *next* step after
-          checkout (the first step that reads `$HOME/.gitconfig`
-          with no actions/checkout-managed override in scope). See
-          #10797 for the first observation in production.
-        -->
-        <key>HOME</key>
-        <string>/var/root</string>
-    </dict>
 
     <key>ProcessType</key>
     <string>Interactive</string>
