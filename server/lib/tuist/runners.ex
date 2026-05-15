@@ -64,6 +64,17 @@ defmodule Tuist.Runners do
   @owner_label "tuist.dev/runner-pool-owner"
   @account_label "tuist.dev/runner-account"
 
+  # Drain stagger: stale Pods are partitioned into `@drain_slots`
+  # buckets keyed by `phash2(pod_name)`. Slot N becomes drain-
+  # eligible `N * @drain_interval_seconds` after the controller
+  # records the image roll. Total rollout time is
+  # `(@drain_slots - 1) * @drain_interval_seconds` (~3.5 min at
+  # the current values). Stateless and deterministic across
+  # server replicas — every instance computes the same slot for
+  # the same Pod without coordination.
+  @drain_slots 8
+  @drain_interval_seconds 30
+
   @doc """
   Claims the next eligible queued workflow_job for the SA's fleet
   and mints a JIT for the workflow_job's account.
@@ -79,10 +90,19 @@ defmodule Tuist.Runners do
       went away.
     * `{:error, :github_mint_failed}` — GitHub refused the JIT.
     * `{:error, :not_in_cluster}` — server not running in-cluster.
+    * `{:error, :drain}` — the polling Pod's image no longer
+      matches its RunnerPool's `spec.image`. The Pod is idle
+      and stale, so the web layer returns HTTP 410 to signal
+      the Pod's dispatch-poll script to exit cleanly; the
+      single-shot lifecycle then halts the VM and the runner-
+      pool reconciler replaces the Pod with one on the current
+      image. In-flight customer jobs are unaffected because
+      the check runs only on idle polls (before claim attempt).
   """
   def dispatch_for_sa(namespace, sa_name) when is_binary(namespace) and is_binary(sa_name) do
     with {:ok, sa} <- K8sClient.get_service_account(namespace, sa_name),
-         {:ok, fleet_name} <- pool_label(sa) do
+         {:ok, fleet_name} <- pool_label(sa),
+         :ok <- check_not_stale(namespace, sa_name, fleet_name) do
       # `ineligible_accounts/0` is a perf optimisation — skip
       # candidates whose account already hit cap so we don't
       # round-trip ClickHouse for a row we'd reject anyway. The
@@ -336,4 +356,93 @@ defmodule Tuist.Runners do
   # The polling Pod's name. The controller's podtemplate stamps
   # Pods + SAs with the same name, so the SA name IS the Pod name.
   defp pod_name_from_sa(sa_name), do: sa_name
+
+  # Compare the polling Pod's runner-container image to the
+  # RunnerPool's `spec.image`. When the chart bumps the digest pin,
+  # idle Running Pods that are still on the old image return
+  # `{:error, :drain}` here, which the web layer translates to HTTP
+  # 410. The Pod's `dispatch-poll.sh` handles 410 by exiting cleanly;
+  # the EXIT trap halts the VM and the runner-pool reconciler reaps
+  # the Pod and creates a replacement on the current image.
+  #
+  # Drains are staggered by a per-Pod time slot computed from
+  # `status.imageRolledAt` (recorded by the controller on every
+  # observed `spec.image` change) so the warm pool doesn't drop to
+  # zero on every digest bump. See `slot_active?/2`.
+  #
+  # Guarded by `K8sClient` lookups that may fail (Pod / RunnerPool
+  # gone, in-cluster client misconfigured). Any lookup failure is
+  # downgraded to `:ok` — refusing dispatch on a transient k8s blip
+  # would stall the whole pool. The drain check is opportunistic
+  # cleanup, not a correctness gate; the reconciler's
+  # Pending-stale path catches the unhappy long-tail.
+  defp check_not_stale(namespace, sa_name, fleet_name) do
+    pod_name = pod_name_from_sa(sa_name)
+
+    with {:ok, pool} <- K8sClient.get_runner_pool(namespace, fleet_name),
+         {:ok, pool_image} <- pool_image(pool),
+         {:ok, pod} <- K8sClient.get_pod(namespace, pod_name),
+         {:ok, pod_image} <- pod_image(pod) do
+      cond do
+        pod_image == pool_image ->
+          :ok
+
+        not slot_active?(pool, pod_name) ->
+          # Stale, but this Pod's drain slot hasn't opened yet.
+          # Let it keep polling — it'll receive 410 on a later
+          # tick once its slot becomes eligible.
+          :ok
+
+        true ->
+          Logger.info("runners: draining stale pod",
+            pod: pod_name,
+            fleet: fleet_name,
+            pod_image: pod_image,
+            pool_image: pool_image
+          )
+
+          {:error, :drain}
+      end
+    else
+      _ -> :ok
+    end
+  end
+
+  defp pool_image(%{"spec" => %{"image" => image}}) when is_binary(image) and image != "", do: {:ok, image}
+  defp pool_image(_), do: :error
+
+  defp pod_image(%{"spec" => %{"containers" => [%{"image" => image} | _]}}) when is_binary(image) and image != "",
+    do: {:ok, image}
+
+  defp pod_image(_), do: :error
+
+  # `slot_active?/2` returns true when enough time has elapsed
+  # since `status.imageRolledAt` for this specific Pod's drain
+  # slot to fire. Slot is `phash2(pod_name) rem @drain_slots`; the
+  # slot's drain window opens `slot * @drain_interval_seconds`
+  # after the roll. When the controller hasn't yet recorded a roll
+  # (status.imageRolledAt absent or unparseable), we defer the
+  # drain rather than fire eagerly — the controller catches up
+  # within one reconcile tick (≤60s) and the Pending-stale
+  # recycler in the controller covers the Pending half meanwhile.
+  defp slot_active?(pool, pod_name) do
+    case rolled_at(pool) do
+      {:ok, %DateTime{} = t} ->
+        slot = :erlang.phash2(pod_name, @drain_slots)
+        elapsed = DateTime.diff(Tuist.Time.utc_now(), t, :second)
+        elapsed >= slot * @drain_interval_seconds
+
+      :error ->
+        false
+    end
+  end
+
+  defp rolled_at(%{"status" => %{"imageRolledAt" => ts}}) when is_binary(ts) and ts != "" do
+    case DateTime.from_iso8601(ts) do
+      {:ok, dt, _} -> {:ok, dt}
+      _ -> :error
+    end
+  end
+
+  defp rolled_at(_), do: :error
 end

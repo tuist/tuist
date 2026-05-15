@@ -75,4 +75,5 @@ func (in *RunnerPoolSpec) DeepCopyInto(out *RunnerPoolSpec) {
 func (in *RunnerPoolStatus) DeepCopyInto(out *RunnerPoolStatus) {
 	*out = *in
 	in.LastReconcile.DeepCopyInto(&out.LastReconcile)
+	in.ImageRolledAt.DeepCopyInto(&out.ImageRolledAt)
 }
