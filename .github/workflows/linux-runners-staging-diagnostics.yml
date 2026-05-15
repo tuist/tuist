@@ -11,7 +11,16 @@ name: Linux Runners Staging Diagnostics
 # kubeconfig pattern as server-deployment.yml.
 
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      rollover:
+        description: "Delete Running Linux Pods (force fresh image pull). Pending Pods pick up :latest on schedule, so usually unnecessary."
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
   # Also fires on push of this workflow file itself. Used during
   # bring-up to re-run diagnostics without manual dispatch every
   # iteration; remove (along with this whole file) once the Linux
@@ -50,21 +59,18 @@ jobs:
           chmod 600 "$KUBECONFIG"
 
       - name: Rollover Running Linux Pods (force fresh image pull)
+        # Opt-in. Workflow_dispatch input `rollover=true` deletes the
+        # currently-Running Linux Pod so the reconciler creates a
+        # fresh one that re-pulls :latest. Disabled by default so
+        # follow-up diagnostics can read a dispatched Pod's logs
+        # without taking it down.
+        if: github.event.inputs.rollover == 'true'
         run: |
           set +e
-          # Delete Running Linux Pods so the RunnerPool reconciler
-          # replaces them with fresh ones that re-pull :latest. Used
-          # during bring-up after `linux-runner-image.yml` pushes a
-          # new image — kubelet's default for :latest is Always, so
-          # a fresh Pod gets the new code. Pending Pods inherit the
-          # same image string and pick up the new bits the moment
-          # they schedule, so no extra action needed for them.
           for pod in $(kubectl -n tuist-runners get pods --field-selector=status.phase=Running -o name 2>/dev/null | grep linux); do
             echo "deleting $pod"
             kubectl -n tuist-runners delete "$pod" --wait=false
           done
-          # Give the reconciler a moment to create replacements
-          # before downstream steps inspect Pod state.
           sleep 30
 
       - name: CAPI machine layer (Hetzner side)
