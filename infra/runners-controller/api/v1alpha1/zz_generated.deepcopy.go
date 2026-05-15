@@ -79,7 +79,15 @@ func (in *RunnerPoolSpec) DeepCopyInto(out *RunnerPoolSpec) {
 	}
 	if in.Autoscaling != nil {
 		out.Autoscaling = new(RunnerPoolAutoscaling)
-		*out.Autoscaling = *in.Autoscaling
+		in.Autoscaling.DeepCopyInto(out.Autoscaling)
+	}
+}
+
+func (in *RunnerPoolAutoscaling) DeepCopyInto(out *RunnerPoolAutoscaling) {
+	*out = *in
+	if in.MachineDeployment != nil {
+		out.MachineDeployment = new(MachineDeploymentRef)
+		*out.MachineDeployment = *in.MachineDeployment
 	}
 }
 

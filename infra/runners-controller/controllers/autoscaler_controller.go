@@ -7,7 +7,9 @@ import (
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -15,6 +17,17 @@ import (
 	tuistv1 "github.com/tuist/tuist/infra/runners-controller/api/v1alpha1"
 	"github.com/tuist/tuist/infra/runners-controller/internal/scaling"
 )
+
+// machineDeploymentGVK is the CAPI MachineDeployment type the
+// autoscaler patches in the management cluster. We use unstructured
+// here rather than pulling the full `sigs.k8s.io/cluster-api` module
+// (heavy) just to read/write `spec.replicas` (int32) and match on
+// two labels.
+var machineDeploymentGVK = schema.GroupVersionKind{
+	Group:   "cluster.x-k8s.io",
+	Version: "v1beta1",
+	Kind:    "MachineDeployment",
+}
 
 // AutoscalerReconciler reconciles autoscaling-enabled RunnerPools.
 // On a 5-second cadence (RequeueAfter), it:
@@ -47,6 +60,15 @@ type AutoscalerReconciler struct {
 	// disappears under the dispatch-poll traffic. Tests override
 	// to milliseconds to keep them fast.
 	PollInterval time.Duration
+
+	// MgmtClient, when non-nil, is a client.Client against the
+	// management cluster's API (the one running CAPI controllers and
+	// holding the `MachineDeployment` CRs). When a RunnerPool has
+	// `spec.autoscaling.machineDeployment` set the reconciler also
+	// patches the bound MD's `spec.replicas` here. nil disables the
+	// MD-scaling path; pools that reference an MD log a warning and
+	// the RunnerPool scaling still proceeds.
+	MgmtClient client.Client
 
 	// Now defaults to time.Now; overridable for deterministic
 	// cooldown tests.
@@ -144,7 +166,87 @@ func (r *AutoscalerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			"signals", signals, "minWarm", knobs.MinWarmPoolFloor)
 	}
 
+	// Sync the bound CAPI MachineDeployment's spec.replicas (in the
+	// management cluster) to the value we just locked in on the
+	// RunnerPool. Idempotent on equality, so a no-op reconcile still
+	// nudges drift back. RunnerPool scaling already succeeded above;
+	// MD scaling failure is non-fatal and retried on the next tick.
+	//
+	// Order matters on scale-down: RunnerPool first (idle Pods get
+	// deleted by RunnerPoolReconciler), MD second (CAPI drains the
+	// now-empty node and releases the cloud server). On scale-up the
+	// order is harmless — Pods schedule Pending until the new node
+	// joins.
+	if pool.Spec.Autoscaling.MachineDeployment != nil {
+		if r.MgmtClient == nil {
+			logger.V(1).Info("MachineDeployment ref set but management-cluster kubeconfig is not configured; skipping MD scaling")
+		} else if err := r.scaleMachineDeployment(ctx, pool, desired); err != nil {
+			logger.Error(err, "scale MachineDeployment; leaving MD replicas unchanged",
+				"clusterName", pool.Spec.Autoscaling.MachineDeployment.ClusterName,
+				"deploymentName", pool.Spec.Autoscaling.MachineDeployment.DeploymentName)
+		}
+	}
+
 	return ctrl.Result{RequeueAfter: r.pollInterval()}, nil
+}
+
+// scaleMachineDeployment patches the bound CAPI MachineDeployment's
+// `spec.replicas` in the management cluster. Uses unstructured to
+// avoid pulling the full `sigs.k8s.io/cluster-api` module (heavy)
+// just to set one int field.
+func (r *AutoscalerReconciler) scaleMachineDeployment(ctx context.Context, pool *tuistv1.RunnerPool, desired int32) error {
+	ref := pool.Spec.Autoscaling.MachineDeployment
+
+	mdList := &unstructured.UnstructuredList{}
+	mdList.SetGroupVersionKind(schema.GroupVersionKind{
+		Group:   machineDeploymentGVK.Group,
+		Version: machineDeploymentGVK.Version,
+		Kind:    machineDeploymentGVK.Kind + "List",
+	})
+	if err := r.MgmtClient.List(ctx, mdList,
+		client.InNamespace(ref.Namespace),
+		client.MatchingLabels{
+			"cluster.x-k8s.io/cluster-name":             ref.ClusterName,
+			"topology.cluster.x-k8s.io/deployment-name": ref.DeploymentName,
+		}); err != nil {
+		return fmt.Errorf("list MachineDeployments: %w", err)
+	}
+
+	if len(mdList.Items) == 0 {
+		return fmt.Errorf("no MachineDeployment matches cluster=%s deployment=%s in %s",
+			ref.ClusterName, ref.DeploymentName, ref.Namespace)
+	}
+	if len(mdList.Items) > 1 {
+		// Ambiguous match — refuse to act. The CAPI topology should
+		// render exactly one MD per (cluster-name, deployment-name)
+		// pair; more than one means a topology bug we shouldn't paper
+		// over with an arbitrary pick.
+		names := make([]string, 0, len(mdList.Items))
+		for i := range mdList.Items {
+			names = append(names, mdList.Items[i].GetName())
+		}
+		return fmt.Errorf("ambiguous MachineDeployment match (%d found): %v", len(mdList.Items), names)
+	}
+
+	md := &mdList.Items[0]
+	currentReplicas, found, err := unstructured.NestedInt64(md.Object, "spec", "replicas")
+	if err != nil {
+		return fmt.Errorf("read MD spec.replicas: %w", err)
+	}
+	desired64 := int64(desired)
+	if found && currentReplicas == desired64 {
+		return nil
+	}
+
+	original := md.DeepCopy()
+	if err := unstructured.SetNestedField(md.Object, desired64, "spec", "replicas"); err != nil {
+		return fmt.Errorf("set MD spec.replicas: %w", err)
+	}
+	if err := r.MgmtClient.Patch(ctx, md, client.MergeFrom(original)); err != nil {
+		return fmt.Errorf("patch MD: %w", err)
+	}
+
+	return nil
 }
 
 func (r *AutoscalerReconciler) applyReplicas(ctx context.Context, pool *tuistv1.RunnerPool, desired int32) error {

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -275,5 +276,183 @@ func TestAutoscaler_ServerErrorLeavesReplicasUnchanged(t *testing.T) {
 	}
 	if got.Spec.Replicas != 5 {
 		t.Errorf("Replicas = %d, want 5 (server error must not change replicas)", got.Spec.Replicas)
+	}
+}
+
+// --- MachineDeployment scaling (Option B: autoscaler reaches into
+//     the management cluster's CAPI MD instead of relying on a
+//     separately-installed cluster-autoscaler) ---
+
+func mdLabelSelector() map[string]string {
+	return map[string]string{
+		"cluster.x-k8s.io/cluster-name":             "tuist-staging",
+		"topology.cluster.x-k8s.io/deployment-name": "runners-linux",
+	}
+}
+
+func newMachineDeployment(replicas int64) *unstructured.Unstructured {
+	md := &unstructured.Unstructured{}
+	md.SetGroupVersionKind(machineDeploymentGVK)
+	md.SetNamespace("org-tuist")
+	md.SetName("tuist-staging-runners-linux-abc12")
+	md.SetLabels(mdLabelSelector())
+	_ = unstructured.SetNestedField(md.Object, replicas, "spec", "replicas")
+	return md
+}
+
+func newAutoscalingWithMDRef() *tuistv1.RunnerPoolAutoscaling {
+	return &tuistv1.RunnerPoolAutoscaling{
+		Enabled:                  true,
+		MinWarmPoolFloor:         1,
+		MaxReplicas:              30,
+		ScaleDownCooldownSeconds: 300,
+		MachineDeployment: &tuistv1.MachineDeploymentRef{
+			Namespace:      "org-tuist",
+			ClusterName:    "tuist-staging",
+			DeploymentName: "runners-linux",
+		},
+	}
+}
+
+func mgmtFakeClient(t *testing.T, mds ...*unstructured.Unstructured) client.Client {
+	t.Helper()
+	// Use the default clientgoscheme — unstructured objects don't
+	// need explicit scheme registration with the fake builder.
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatalf("add clientgo scheme: %v", err)
+	}
+	objs := make([]client.Object, len(mds))
+	for i, md := range mds {
+		objs[i] = md
+	}
+	return fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(objs...).
+		Build()
+}
+
+func TestAutoscaler_ScalesMachineDeployment_UpAlongsidePool(t *testing.T) {
+	pool := newPool("linux", 1, newAutoscalingWithMDRef())
+	r, server := setupReconciler(t, pool, scaling.Signals{
+		Fleet:                 "linux",
+		Claimed:               5,
+		Queued:                3,
+		P95ConcurrentLastHour: 5,
+	})
+	defer server.Close()
+	md := newMachineDeployment(1)
+	r.MgmtClient = mgmtFakeClient(t, md)
+
+	reconcileOnce(t, r, "linux")
+
+	// Pool replicas updated (same math as the existing scale-up test).
+	got := &tuistv1.RunnerPool{}
+	if err := r.Get(context.Background(), client.ObjectKeyFromObject(pool), got); err != nil {
+		t.Fatalf("get pool: %v", err)
+	}
+	if got.Spec.Replicas != 9 {
+		t.Errorf("pool.Replicas = %d, want 9", got.Spec.Replicas)
+	}
+
+	// MD replicas also updated to match.
+	gotMD := &unstructured.Unstructured{}
+	gotMD.SetGroupVersionKind(machineDeploymentGVK)
+	if err := r.MgmtClient.Get(context.Background(), client.ObjectKey{Namespace: "org-tuist", Name: md.GetName()}, gotMD); err != nil {
+		t.Fatalf("get MD: %v", err)
+	}
+	mdReplicas, _, _ := unstructured.NestedInt64(gotMD.Object, "spec", "replicas")
+	if mdReplicas != 9 {
+		t.Errorf("MD.spec.replicas = %d, want 9 (pool scaled up but MD did not follow)", mdReplicas)
+	}
+}
+
+func TestAutoscaler_SyncsMachineDeploymentEvenOnSteadyState(t *testing.T) {
+	// Pool is already at desired size — the switch hits the "no-op"
+	// branch — but the MD has drifted (someone scaled it manually).
+	// The reconciler should still nudge it back so MD stays in
+	// lockstep with the source-of-truth RunnerPool.
+	pool := newPool("linux", 5, newAutoscalingWithMDRef())
+	r, server := setupReconciler(t, pool, scaling.Signals{
+		Fleet:                 "linux",
+		Claimed:               2,
+		Queued:                1,
+		P95ConcurrentLastHour: 2,
+	})
+	defer server.Close()
+	md := newMachineDeployment(99) // drifted
+	r.MgmtClient = mgmtFakeClient(t, md)
+
+	reconcileOnce(t, r, "linux")
+
+	// Pool: floor=2, target=max(3,2)=3, desired=3+1=4 → scaled DOWN
+	// from 5 to 4. (Tests RunnerPool scale-down + MD sync in one
+	// pass, also relevant: even if pool stayed steady, the MD path
+	// runs regardless.)
+	got := &tuistv1.RunnerPool{}
+	if err := r.Get(context.Background(), client.ObjectKeyFromObject(pool), got); err != nil {
+		t.Fatalf("get pool: %v", err)
+	}
+	if got.Spec.Replicas != 4 {
+		t.Errorf("pool.Replicas = %d, want 4", got.Spec.Replicas)
+	}
+
+	gotMD := &unstructured.Unstructured{}
+	gotMD.SetGroupVersionKind(machineDeploymentGVK)
+	if err := r.MgmtClient.Get(context.Background(), client.ObjectKey{Namespace: "org-tuist", Name: md.GetName()}, gotMD); err != nil {
+		t.Fatalf("get MD: %v", err)
+	}
+	mdReplicas, _, _ := unstructured.NestedInt64(gotMD.Object, "spec", "replicas")
+	if mdReplicas != 4 {
+		t.Errorf("MD.spec.replicas = %d, want 4 (drift not corrected)", mdReplicas)
+	}
+}
+
+func TestAutoscaler_NoMgmtClient_PoolScalesButMDStays(t *testing.T) {
+	pool := newPool("linux", 1, newAutoscalingWithMDRef())
+	r, server := setupReconciler(t, pool, scaling.Signals{
+		Fleet:                 "linux",
+		Claimed:               5,
+		Queued:                3,
+		P95ConcurrentLastHour: 5,
+	})
+	defer server.Close()
+	// r.MgmtClient stays nil — simulates an env without
+	// management-cluster credentials configured.
+
+	reconcileOnce(t, r, "linux")
+
+	got := &tuistv1.RunnerPool{}
+	if err := r.Get(context.Background(), client.ObjectKeyFromObject(pool), got); err != nil {
+		t.Fatalf("get pool: %v", err)
+	}
+	if got.Spec.Replicas != 9 {
+		t.Errorf("pool.Replicas = %d, want 9 (RunnerPool must still scale even when MD scaling is disabled)", got.Spec.Replicas)
+	}
+}
+
+func TestAutoscaler_NoMatchingMachineDeployment_FailsOpen(t *testing.T) {
+	pool := newPool("linux", 1, newAutoscalingWithMDRef())
+	r, server := setupReconciler(t, pool, scaling.Signals{
+		Fleet:                 "linux",
+		Claimed:               5,
+		Queued:                3,
+		P95ConcurrentLastHour: 5,
+	})
+	defer server.Close()
+	// MgmtClient is set but has zero MDs matching the selector.
+	r.MgmtClient = mgmtFakeClient(t)
+
+	reconcileOnce(t, r, "linux")
+
+	// Pool scaling must still succeed. The reconcile result is
+	// non-error (we log + carry on); only the MD-side scaling is
+	// skipped on this tick.
+	got := &tuistv1.RunnerPool{}
+	if err := r.Get(context.Background(), client.ObjectKeyFromObject(pool), got); err != nil {
+		t.Fatalf("get pool: %v", err)
+	}
+	if got.Spec.Replicas != 9 {
+		t.Errorf("pool.Replicas = %d, want 9 (missing MD must not block pool scaling)", got.Spec.Replicas)
 	}
 }

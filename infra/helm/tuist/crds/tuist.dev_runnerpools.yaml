@@ -102,11 +102,12 @@ spec:
                   type: object
                   description: |
                     Optional queue-depth-driven autoscaling. When `enabled`,
-                    the runners-controller patches `spec.replicas` (and the
-                    bound CAPI MachineDeployment's `spec.replicas`) every 15 s
-                    using the desired-replicas endpoint on the Tuist server.
-                    Disabled by default — pools default to a static `replicas`
-                    value, which is what every v1 macOS pool uses today.
+                    the runners-controller patches `spec.replicas` (and, when
+                    `machineDeployment` is set, the bound CAPI MachineDeployment's
+                    `spec.replicas` in the management cluster) every 5 s using
+                    the desired-replicas endpoint on the Tuist server. Disabled
+                    by default; pools default to a static `replicas` value,
+                    which is what every v1 macOS pool uses today.
                   properties:
                     enabled:
                       type: boolean
@@ -137,6 +138,42 @@ spec:
                         demand before scaling down. Anti-thrash guard so a
                         single brief idle window doesn't deprovision warm
                         capacity that's about to be reused.
+                    machineDeployment:
+                      type: object
+                      description: |
+                        Optional pointer to a CAPI MachineDeployment whose
+                        `spec.replicas` the autoscaler also patches in the
+                        management cluster after each pool scale event. Lets
+                        the runner-Pod layer drive the node layer through one
+                        source of truth so a separately-installed
+                        cluster-autoscaler isn't required. Match is by labels
+                        (CAPI generates MD names from the topology and a
+                        random suffix, so a name pin would break across cluster
+                        recreations).
+
+                        Requires the runners-controller to be started with
+                        `--mgmt-kubeconfig`. Without it, this field is a no-op
+                        and the autoscaler logs at warning level.
+                      required:
+                        - namespace
+                        - clusterName
+                        - deploymentName
+                      properties:
+                        namespace:
+                          type: string
+                          description: Namespace of the MD in the management cluster (e.g. `org-tuist`).
+                        clusterName:
+                          type: string
+                          description: |
+                            Matches `cluster.x-k8s.io/cluster-name` on the MD
+                            (the CAPI Cluster's name, e.g. `tuist-staging`).
+                        deploymentName:
+                          type: string
+                          description: |
+                            Matches `topology.cluster.x-k8s.io/deployment-name`
+                            on the MD (the `name` of the
+                            `spec.topology.workers.machineDeployments[]` entry,
+                            e.g. `runners-linux`).
             status:
               type: object
               properties:

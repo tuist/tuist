@@ -87,10 +87,12 @@ type RunnerPoolSpec struct {
 
 	// Autoscaling is the optional queue-depth-driven autoscaling
 	// config for this pool. When `Enabled` is true the
-	// runners-controller patches `spec.replicas` (and the bound
-	// CAPI MachineDeployment's `spec.replicas`) on a 15 s cadence
-	// using the Tuist server's desired-replicas endpoint. Disabled
-	// pools stay at a static `Replicas` value (the v1 macOS shape).
+	// runners-controller patches `spec.replicas` (and, when
+	// `Autoscaling.MachineDeployment` is set, the bound CAPI
+	// MachineDeployment's `spec.replicas` in the management cluster)
+	// on a 5 s cadence using the Tuist server's desired-replicas
+	// endpoint. Disabled pools stay at a static `Replicas` value
+	// (the v1 macOS shape).
 	// +optional
 	Autoscaling *RunnerPoolAutoscaling `json:"autoscaling,omitempty"`
 }
@@ -123,6 +125,43 @@ type RunnerPoolAutoscaling struct {
 	// Anti-thrash guard.
 	// +optional
 	ScaleDownCooldownSeconds int32 `json:"scaleDownCooldownSeconds,omitempty"`
+
+	// MachineDeployment, when set, is the CAPI
+	// `cluster.x-k8s.io/v1beta1.MachineDeployment` whose
+	// `spec.replicas` the autoscaler also patches in the management
+	// cluster after patching this pool's `spec.replicas`. Lets the
+	// runner-Pod layer drive the node layer through one source of
+	// truth so we don't need a separate cluster-autoscaler. Lookup is
+	// by labels on the MD (CAPI generates the MD name from the
+	// topology and a random suffix, so a name pin would break across
+	// cluster recreations); the controller filters for
+	// `cluster.x-k8s.io/cluster-name=<ClusterName>` AND
+	// `topology.cluster.x-k8s.io/deployment-name=<DeploymentName>`,
+	// and refuses to act if the match isn't unique.
+	//
+	// Requires the runners-controller to be configured with a
+	// kubeconfig for the management cluster. When the kubeconfig
+	// isn't provided (e.g. dev clusters without CAPI) the field is
+	// a no-op and the autoscaler logs at warning level.
+	// +optional
+	MachineDeployment *MachineDeploymentRef `json:"machineDeployment,omitempty"`
+}
+
+// MachineDeploymentRef is a label-selector pointer to a CAPI
+// MachineDeployment in the management cluster.
+type MachineDeploymentRef struct {
+	// Namespace in the management cluster (e.g. `org-tuist`).
+	Namespace string `json:"namespace"`
+
+	// ClusterName matches `cluster.x-k8s.io/cluster-name` on the MD
+	// (the CAPI Cluster's name, e.g. `tuist-staging`).
+	ClusterName string `json:"clusterName"`
+
+	// DeploymentName matches
+	// `topology.cluster.x-k8s.io/deployment-name` on the MD (the
+	// `name` field of the `spec.topology.workers.machineDeployments[]`
+	// entry in the Cluster CR, e.g. `runners-linux`).
+	DeploymentName string `json:"deploymentName"`
 }
 
 // RunnerPoolStatus is the observed state of the pool.

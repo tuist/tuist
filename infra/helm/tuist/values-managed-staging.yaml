@@ -152,6 +152,31 @@ xcresultProcessor:
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
 
+# runners-controller picks up `mgmtCluster.enabled` to mount a
+# kubeconfig and pass `--mgmt-kubeconfig`. The autoscaler then
+# patches the CAPI `MachineDeployment.spec.replicas` in the
+# management cluster alongside `RunnerPool.spec.replicas`, so node
+# count tracks Pod count without installing a separate
+# cluster-autoscaler. The `tuist-runners-controller-mgmt-kubeconfig`
+# Secret is synced from 1Password by ESO. See
+# `infra/runners-controller/AGENTS.md` for the mgmt-side SA + RBAC
+# + kubeconfig minting steps.
+runnersController:
+  mgmtCluster:
+    enabled: true
+    externalSecrets:
+      enabled: true
+      refreshInterval: "1h"
+      storeRef:
+        name: onepassword
+        kind: ClusterSecretStore
+      # 1Password item name in the staging vault. The item carries
+      # the kubeconfig as a single field; the chart globs it into a
+      # one-key Secret the controller mounts at
+      # /etc/tuist-runners-controller/mgmt-kubeconfig/kubeconfig.
+      item: MGMT_CLUSTER_KUBECONFIG
+      field: kubeconfig
+
 # Mac mini fleet. The chart renders one ScalewayAppleSiliconMachine
 # CR per replica; the cluster-api-provider-scaleway-applesilicon
 # operator orders each Mac mini, then SSH-bootstraps it with
@@ -293,8 +318,20 @@ runnersFleetLinux:
       # cluster-autoscaler's node-group max in cluster-staging.yaml
       # so the autoscaler can't request more Pods than the node
       # group can grow to.
+      #
+      # `machineDeployment` points at the CAPI MD that backs this
+      # pool's nodes. The autoscaler patches the MD's `spec.replicas`
+      # alongside the RunnerPool's, so the node count tracks the Pod
+      # count without a separate cluster-autoscaler in the workload
+      # cluster. See `runnersController.mgmtCluster` for the
+      # kubeconfig the controller needs to reach the management
+      # cluster's API.
       autoscaling:
         enabled: true
         minWarmPoolFloor: 1
         maxReplicas: 10
         scaleDownCooldownSeconds: 300
+        machineDeployment:
+          namespace: org-tuist
+          clusterName: tuist-staging
+          deploymentName: runners-linux

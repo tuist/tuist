@@ -755,6 +755,24 @@ runnersController:
     limits:
       cpu: 500m
       memory: 256Mi
+  # Management-cluster access for the autoscaler. When enabled the
+  # controller mounts a kubeconfig and passes `--mgmt-kubeconfig` so
+  # the autoscaler reconciler can also patch the bound CAPI
+  # `MachineDeployment.spec.replicas` in the management cluster
+  # whenever it scales a `RunnerPool`. Without this, the Pod-layer
+  # autoscaler works fine but the node count stays static at the MD's
+  # topology spec (or whatever cluster-autoscaler does, if anything).
+  #
+  # The Secret named below must already exist in the runners-controller
+  # release namespace with a key holding a kubeconfig that authenticates
+  # against the management cluster and has GET/LIST/PATCH on
+  # `machinedeployments.cluster.x-k8s.io` in the target namespace. See
+  # `infra/runners-controller/AGENTS.md` for the ops bring-up (mgmt-side
+  # ServiceAccount + RoleBinding + kubeconfig minting).
+  mgmtCluster:
+    enabled: false
+    kubeconfigSecretName: tuist-runners-controller-mgmt-kubeconfig
+    kubeconfigSecretKey: kubeconfig
 
 cache:
   enabled: true
