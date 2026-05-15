@@ -18,7 +18,6 @@ defmodule Tuist.Webhooks.Workers.DeliveryWorker do
   """
   use Oban.Worker, queue: :webhooks, max_attempts: 7
 
-  alias Tuist.IngestRepo
   alias Tuist.OAuth2.SSRFGuard
   alias Tuist.Webhooks
   alias Tuist.Webhooks.DeliveryAttempt
@@ -139,7 +138,7 @@ defmodule Tuist.Webhooks.Workers.DeliveryWorker do
       inserted_at: DateTime.utc_now()
     }
 
-    IngestRepo.insert_all(DeliveryAttempt, [row])
+    DeliveryAttempt.Buffer.insert(row)
   rescue
     e ->
       # We never want bookkeeping to take down a delivery. Surface the
