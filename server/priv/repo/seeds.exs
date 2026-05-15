@@ -1001,7 +1001,7 @@ test_case_definitions =
     }
   end
 
-{test_case_id_map, _test_cases_with_flaky_run, _new_test_case_ids} =
+{test_case_id_map, _test_cases_with_flaky_run, _new_test_case_ids, _test_cases} =
   Tuist.Tests.create_test_cases(tuist_project.id, test_case_definitions, %{})
 
 # Update flaky test cases to be marked as is_flaky.
