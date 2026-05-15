@@ -177,14 +177,16 @@ defmodule TuistWeb.WebhookLive do
         %{"value" => %{"start" => start_date, "end" => end_date}, "preset" => preset},
         socket
       ) do
+    base = drop_cursors(socket.assigns.uri.query)
+
     query =
       if preset == "custom" do
-        socket.assigns.uri.query
+        base
         |> Query.put("#{@date_picker_prefix}-date-range", "custom")
         |> Query.put("#{@date_picker_prefix}-start-date", start_date)
         |> Query.put("#{@date_picker_prefix}-end-date", end_date)
       else
-        Query.put(socket.assigns.uri.query, "#{@date_picker_prefix}-date-range", preset)
+        Query.put(base, "#{@date_picker_prefix}-date-range", preset)
       end
 
     {:noreply, push_patch(socket, to: detail_path(socket, query))}
@@ -193,13 +195,14 @@ defmodule TuistWeb.WebhookLive do
   def handle_event("search_deliveries", %{"search" => search}, socket) do
     query =
       socket.assigns.uri.query
+      |> drop_cursors()
       |> Query.put("search", search)
 
     {:noreply, push_patch(socket, to: detail_path(socket, query), replace: true)}
   end
 
   def handle_event("add_filter", %{"value" => filter_id}, socket) do
-    updated_params = Filter.Operations.add_filter_to_query(filter_id, socket)
+    updated_params = filter_id |> Filter.Operations.add_filter_to_query(socket) |> Query.clear_cursors()
 
     {:noreply,
      socket
@@ -209,7 +212,7 @@ defmodule TuistWeb.WebhookLive do
   end
 
   def handle_event("update_filter", params, socket) do
-    updated_params = Filter.Operations.update_filters_in_query(params, socket)
+    updated_params = params |> Filter.Operations.update_filters_in_query(socket) |> Query.clear_cursors()
 
     {:noreply,
      socket
@@ -292,20 +295,26 @@ defmodule TuistWeb.WebhookLive do
     event_type = filter_value(active_filters, "event_type")
     search = params["search"] || ""
 
-    list_opts = [
-      start_datetime: start_datetime,
-      end_datetime: end_datetime,
-      status: status && String.to_existing_atom(status),
-      event_type: event_type,
-      event_id_search: search
-    ]
+    list_opts =
+      [
+        start_datetime: start_datetime,
+        end_datetime: end_datetime,
+        status: status && String.to_existing_atom(status),
+        event_type: event_type,
+        event_id_search: search
+      ]
+      |> maybe_put(:after, params["after"])
+      |> maybe_put(:before, params["before"])
+
+    {deliveries, deliveries_meta} = Webhooks.list_deliveries(endpoint.id, list_opts)
 
     socket
     |> assign(:deliveries_preset, preset)
     |> assign(:deliveries_period, period)
     |> assign(:active_filters, active_filters)
     |> assign(:deliveries_search, search)
-    |> assign(:deliveries, Webhooks.list_deliveries(endpoint.id, list_opts))
+    |> assign(:deliveries, deliveries)
+    |> assign(:deliveries_meta, deliveries_meta)
     |> assign(
       :delivery_stats,
       Webhooks.delivery_stats(endpoint.id, start_datetime: start_datetime, end_datetime: end_datetime)
@@ -322,6 +331,18 @@ defmodule TuistWeb.WebhookLive do
     |> assign(:edit_form_url, "")
     |> assign(:edit_form_event_types, [])
     |> assign(:edit_form_error, nil)
+  end
+
+  defp maybe_put(opts, _key, nil), do: opts
+  defp maybe_put(opts, _key, ""), do: opts
+  defp maybe_put(opts, key, value), do: Keyword.put(opts, key, value)
+
+  # Cursors are bound to a specific filter snapshot — when the filters
+  # change, the cursor points to an arbitrary row inside the previous
+  # result set and would jump the user into a confusing spot. Drop them
+  # so the new filter starts on page 1.
+  defp drop_cursors(query) do
+    query |> Query.drop("after") |> Query.drop("before")
   end
 
   defp humanize_errors(%Ecto.Changeset{} = changeset) do

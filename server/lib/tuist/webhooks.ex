@@ -10,6 +10,7 @@ defmodule Tuist.Webhooks do
 
   import Ecto.Query
 
+  alias Tuist.ClickHouseFlop
   alias Tuist.ClickHouseRepo
   alias Tuist.Repo
   alias Tuist.Webhooks.DeliveryAttempt
@@ -112,28 +113,43 @@ defmodule Tuist.Webhooks do
 
   Each row is one HTTP attempt against the endpoint — initial send and
   every retry — pulled from the ClickHouse `webhook_delivery_attempts`
-  table.
+  table. Pagination is cursor-based via Flop and returns `{rows, meta}`
+  so callers can wire previous/next buttons against `meta.start_cursor`
+  / `meta.end_cursor`.
 
   Supported `opts`:
-    * `:limit` — max rows (default 50)
+    * `:page_size` — max rows per page (default 50)
+    * `:after` / `:before` — Flop cursor strings (mutually exclusive)
     * `:start_datetime` / `:end_datetime` — restrict by `inserted_at`
     * `:status` — one of `:delivered | :failed`
     * `:event_type` — exact match on `event_type`
     * `:event_id_search` — substring match on `event_id`
   """
   def list_deliveries(endpoint_id, opts \\ []) when is_binary(endpoint_id) do
-    limit = Keyword.get(opts, :limit, 50)
+    base_query =
+      from(a in DeliveryAttempt, where: a.webhook_endpoint_id == ^endpoint_id)
+      |> apply_period(opts)
+      |> apply_status_filter(opts)
+      |> apply_event_type_filter(opts)
+      |> apply_event_id_search(opts)
 
-    from(a in DeliveryAttempt,
-      where: a.webhook_endpoint_id == ^endpoint_id,
-      order_by: [desc: a.inserted_at],
-      limit: ^limit
-    )
-    |> apply_period(opts)
-    |> apply_status_filter(opts)
-    |> apply_event_type_filter(opts)
-    |> apply_event_id_search(opts)
-    |> ClickHouseRepo.all()
+    ClickHouseFlop.validate_and_run!(base_query, flop_params(opts), for: DeliveryAttempt)
+  end
+
+  defp flop_params(opts) do
+    page_size = Keyword.get(opts, :page_size, 50)
+    base = %{order_by: [:inserted_at], order_directions: [:desc]}
+
+    cond do
+      after_cursor = Keyword.get(opts, :after) ->
+        Map.merge(base, %{first: page_size, after: after_cursor})
+
+      before_cursor = Keyword.get(opts, :before) ->
+        Map.merge(base, %{last: page_size, before: before_cursor})
+
+      true ->
+        Map.put(base, :first, page_size)
+    end
   end
 
   @doc """

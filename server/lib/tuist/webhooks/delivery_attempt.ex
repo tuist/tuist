@@ -25,9 +25,22 @@ defmodule Tuist.Webhooks.DeliveryAttempt do
   use Ecto.Schema
   use Tuist.Ingestion.Bufferable
 
-  @primary_key false
+  # Flop drives cursor pagination on the per-endpoint deliveries table.
+  # Only `inserted_at` needs to be sortable — the table is always shown
+  # newest-first, and the microsecond resolution of `DateTime64(6)` is
+  # unique enough in practice. No filters go through Flop; the context
+  # composes them onto the queryable directly so the CH-native
+  # `positionCaseInsensitive` substring search stays available.
+  @derive {
+    Flop.Schema,
+    filterable: [],
+    sortable: [:inserted_at],
+    default_pagination_type: :first,
+    default_order: %{order_by: [:inserted_at], order_directions: [:desc]}
+  }
+
+  @primary_key {:id, Ch, type: "UUID", autogenerate: false}
   schema "webhook_delivery_attempts" do
-    field :id, Ch, type: "UUID"
     field :webhook_endpoint_id, Ch, type: "UUID"
     field :event_id, Ch, type: "String"
     field :event_type, Ch, type: "LowCardinality(String)"

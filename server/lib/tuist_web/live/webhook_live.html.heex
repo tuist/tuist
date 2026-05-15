@@ -296,6 +296,14 @@
           />
         </:empty_state>
       </.table>
+      <.pagination
+        :if={Enum.any?(@deliveries)}
+        uri={@uri}
+        has_previous_page={@deliveries_meta.has_previous_page?}
+        has_next_page={@deliveries_meta.has_next_page?}
+        start_cursor={@deliveries_meta.start_cursor}
+        end_cursor={@deliveries_meta.end_cursor}
+      />
     </.card_section>
   </.card>
 
