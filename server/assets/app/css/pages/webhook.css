@@ -1,7 +1,19 @@
 #account-webhook {
   display: flex;
   flex-direction: column;
+  flex-grow: 1;
   gap: var(--noora-spacing-7);
+  background: var(--noora-surface-background-primary);
+  /* Outer frame around the page, plus an inner indent that keeps the
+     body centered on wide viewports. */
+  padding: var(--noora-spacing-9) calc(var(--noora-spacing-5) + var(--noora-spacing-16));
+  min-height: 100%;
+
+  @media (max-width: 768px) {
+    & {
+      padding: var(--noora-spacing-5) calc(var(--noora-spacing-4) + var(--noora-spacing-4));
+    }
+  }
 
   & > [data-part="action-buttons"] {
     display: flex;

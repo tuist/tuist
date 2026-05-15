@@ -1,6 +1,5 @@
 @import "./layouts/header_bar.css";
 @import "./layouts/account.css";
-@import "./layouts/webhook.css";
 
 .layout {
   display: flex;
