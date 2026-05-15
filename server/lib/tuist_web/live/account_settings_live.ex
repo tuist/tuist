@@ -287,51 +287,12 @@ defmodule TuistWeb.AccountSettingsLive do
   def handle_event("destroy_kura_server", _params, socket), do: {:noreply, socket}
 
   def handle_event("retry_kura_server", %{"id" => id}, %{assigns: %{kura_enabled: true}} = socket) do
-    case {Kura.get_server(socket.assigns.selected_account.id, id), socket.assigns.latest_kura_version} do
-      {nil, _} ->
-        {:noreply, put_flash(socket, :error, dgettext("dashboard_account", "Kura server not found."))}
-
-      {_server, nil} ->
-        {:noreply,
-         put_flash(
-           socket,
-           :error,
-           dgettext(
-             "dashboard_account",
-             "No Kura runtime image is configured right now. Try again after the next server deploy."
-           )
-         )}
-
-      {%Server{} = server, version} ->
-        case Kura.retry_server(server, kura_version_image_tag(version)) do
-          {:ok, new_server} ->
-            {:noreply,
-             socket
-             |> put_flash(
-               :info,
-               dgettext("dashboard_account", "Retrying Kura in %{region}...", region: new_server.region)
-             )
-             |> load_kura_state()}
-
-          {:error, :not_retryable} ->
-            {:noreply,
-             put_flash(
-               socket,
-               :error,
-               dgettext(
-                 "dashboard_account",
-                 "This Kura server is not retryable from here; destroy it and redeploy instead."
-               )
-             )}
-
-          {:error, reason} ->
-            {:noreply,
-             put_flash(
-               socket,
-               :error,
-               dgettext("dashboard_account", "Failed to retry Kura: %{reason}", reason: inspect(reason))
-             )}
-        end
+    with %Server{} = server <- Kura.get_server(socket.assigns.selected_account.id, id),
+         version when not is_nil(version) <- socket.assigns.latest_kura_version,
+         {:ok, _} <- Kura.retry_server(server, kura_version_image_tag(version)) do
+      {:noreply, load_kura_state(socket)}
+    else
+      _ -> {:noreply, socket}
     end
   end
 
