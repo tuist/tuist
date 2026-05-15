@@ -29,7 +29,7 @@ Tuist groups events by the resource they describe. The `type` field in the envel
 | --------------------- | ---------------------------------------------------------------------------------------------- |
 | `test_case.created`   | A test case was observed for the first time in this account.                                   |
 | `test_case.updated`   | A test case's attributes changed — flakiness flag, state transition (muted, skipped), etc.     |
-| `preview.uploaded`    | An app build finished uploading to a preview.                                                  |
+| `preview.created`     | A new preview was created (fires once the app build finishes uploading).                       |
 | `preview.deleted`     | A preview was deleted from this account.                                                       |
 
 More event types will follow. If you need one we don't yet emit, let us know and we'll add it to the catalog.
@@ -55,7 +55,7 @@ Every delivery is a single JSON object. The envelope wraps the resource snapshot
 ```json
 {
   "id": "f4d4ea3a-1d9e-4e64-9a8d-9d8b6f1b0d12",
-  "type": "preview.uploaded",
+  "type": "preview.created",
   "created": 1747322830,
   "account": { "id": 42 },
   "endpoint": { "id": 7, "name": "Notion automation" },

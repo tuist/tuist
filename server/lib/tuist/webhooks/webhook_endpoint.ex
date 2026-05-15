@@ -35,8 +35,8 @@ defmodule Tuist.Webhooks.WebhookEndpoint do
       label: "Previews",
       events: [
         %{
-          type: "preview.uploaded",
-          description: "An app build finished uploading to a preview in this account."
+          type: "preview.created",
+          description: "A new preview was created in this account."
         },
         %{
           type: "preview.deleted",

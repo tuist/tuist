@@ -3237,7 +3237,7 @@ IO.puts("  - Gradle machine metrics: #{length(gradle_machine_metrics)} data poin
 webhook_endpoints_with_events =
   [
     {"Notion automation", "https://example.com/notion/tuist", ["test_case.created", "test_case.updated"]},
-    {"Slack relay", "https://example.com/slack/tuist", ["preview.uploaded", "preview.deleted"]}
+    {"Slack relay", "https://example.com/slack/tuist", ["preview.created", "preview.deleted"]}
   ]
   |> Enum.map(fn {name, url, event_types} ->
     endpoint =

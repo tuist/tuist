@@ -386,11 +386,11 @@ defmodule TuistWeb.API.PreviewsController do
             preload: [:app_builds, :created_by_account]
           )
 
-        # Fire a `preview.uploaded` webhook for any account-scoped endpoint
+        # Fire a `preview.created` webhook for any account-scoped endpoint
         # subscribed to that event. Best-effort: the dispatcher swallows
         # missing-project or no-subscriber paths so a webhook problem can't
         # block the upload response.
-        Tuist.Webhooks.Dispatcher.dispatch_preview_uploaded(preview)
+        Tuist.Webhooks.Dispatcher.dispatch_preview_created(preview)
 
         conn
         |> put_status(:ok)

@@ -146,8 +146,8 @@ defmodule Tuist.Webhooks.DispatcherTest do
     end
   end
 
-  describe "dispatch_preview_uploaded/1" do
-    test "enqueues a preview.uploaded delivery for each subscribed endpoint" do
+  describe "dispatch_preview_created/1" do
+    test "enqueues a preview.created delivery for each subscribed endpoint" do
       project = ProjectsFixtures.project_fixture()
       preview = AppBuildsFixtures.preview_fixture(project: project)
 
@@ -155,22 +155,22 @@ defmodule Tuist.Webhooks.DispatcherTest do
         Webhooks.create_endpoint(project.account_id, %{
           "name" => "Jira",
           "url" => "https://example.com/hook",
-          "event_types" => ["preview.uploaded"]
+          "event_types" => ["preview.created"]
         })
 
-      assert :ok = Dispatcher.dispatch_preview_uploaded(preview)
+      assert :ok = Dispatcher.dispatch_preview_created(preview)
 
       [job] = Tuist.Repo.all(Oban.Job)
       assert job.args["webhook_endpoint_id"] == subscribed.id
-      assert job.args["event_type"] == "preview.uploaded"
+      assert job.args["event_type"] == "preview.created"
 
       payload = job.args["payload"]
-      assert payload["type"] == "preview.uploaded"
+      assert payload["type"] == "preview.created"
       assert payload["object"]["id"] == preview.id
       assert payload["object"]["project_id"] == project.id
     end
 
-    test "no-ops when no endpoints subscribe to preview.uploaded" do
+    test "no-ops when no endpoints subscribe to preview.created" do
       project = ProjectsFixtures.project_fixture()
       preview = AppBuildsFixtures.preview_fixture(project: project)
 
@@ -182,7 +182,7 @@ defmodule Tuist.Webhooks.DispatcherTest do
           "event_types" => ["test_case.updated"]
         })
 
-      assert :ok = Dispatcher.dispatch_preview_uploaded(preview)
+      assert :ok = Dispatcher.dispatch_preview_created(preview)
       assert Tuist.Repo.aggregate(Oban.Job, :count) == 0
     end
   end

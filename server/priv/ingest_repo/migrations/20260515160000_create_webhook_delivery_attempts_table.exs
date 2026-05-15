@@ -44,7 +44,7 @@ defmodule Tuist.IngestRepo.Migrations.CreateWebhookDeliveryAttemptsTable do
       add :event_id, :string, null: false
 
       # `LowCardinality(String)` — small fixed catalog (`test_case.created`,
-      # `test_case.updated`, `preview.uploaded`, `preview.deleted`). Cheap
+      # `test_case.updated`, `preview.created`, `preview.deleted`). Cheap
       # to introduce a new event type without a schema migration.
       add :event_type, :"LowCardinality(String)", null: false
 

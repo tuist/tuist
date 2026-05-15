@@ -79,12 +79,13 @@ defmodule Tuist.Webhooks.Dispatcher do
   end
 
   @doc """
-  Dispatches a `preview.uploaded` event when an app build has finished
-  uploading to a preview. Receivers can drive workflows like "post to
-  Slack when QA builds are ready" without polling.
+  Dispatches a `preview.created` event when a new preview has been
+  created in the account. Fires once the app build has finished
+  uploading, so receivers can drive workflows like "post to Slack when
+  QA builds are ready" without polling.
   """
-  def dispatch_preview_uploaded(%Preview{} = preview) do
-    dispatch_preview_lifecycle_event(preview, "preview.uploaded")
+  def dispatch_preview_created(%Preview{} = preview) do
+    dispatch_preview_lifecycle_event(preview, "preview.created")
   end
 
   @doc """
