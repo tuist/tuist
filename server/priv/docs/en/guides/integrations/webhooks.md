@@ -9,7 +9,7 @@
 
 Webhooks let your systems react to changes inside Tuist the moment they happen. Whenever a relevant event occurs — a new test case is observed, a preview finishes uploading, a flaky test gets remediated — Tuist makes an HTTP POST to every endpoint you have subscribed to that event type. The request body is a JSON envelope, and each delivery carries a signature header you can verify with the endpoint's signing secret.
 
-If you've integrated with Stripe-style webhooks before, the model will feel familiar: you register a destination URL, pick the events you want, and Tuist takes care of signing, retries, and the delivery audit log.
+You register a destination URL, pick the events you want, and Tuist takes care of signing, retries, and the delivery audit log.
 
 ## Steps to receive webhooks {#steps}
 
