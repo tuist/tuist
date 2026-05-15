@@ -71,6 +71,7 @@ defmodule Tuist.Webhooks do
       attrs
       |> Map.put("account_id", account_id)
       |> Map.put("signing_secret", plaintext_secret)
+      |> Map.put("signing_secret_last_four", WebhookEndpoint.last_four(plaintext_secret))
 
     case %WebhookEndpoint{} |> WebhookEndpoint.create_changeset(attrs) |> Repo.insert() do
       {:ok, endpoint} -> {:ok, endpoint, plaintext_secret}

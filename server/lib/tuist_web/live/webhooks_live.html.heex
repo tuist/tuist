@@ -142,7 +142,7 @@
           <%!-- against a secret they've stored elsewhere without weakening HMAC. --%>
           <.text_cell
             data-part="signing-secret-cell"
-            label={masked_signing_secret(endpoint.signing_secret)}
+            label={masked_signing_secret(endpoint.signing_secret_last_four)}
           />
         </:col>
         <:col :let={endpoint} label={dgettext("dashboard_account", "Listening to")}>

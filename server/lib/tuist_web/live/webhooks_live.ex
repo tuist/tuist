@@ -29,22 +29,16 @@ defmodule TuistWeb.WebhooksLive do
   end
 
   @doc """
-  Renders a partial-mask preview of `signing_secret` for the endpoints table.
+  Renders a partial-mask preview of an endpoint's signing secret for the
+  endpoints table.
 
-  Format: `tuist_webhook_••••…••••<last 4>`. Revealing only the suffix
-  lets users compare against a secret they've stored elsewhere (env
-  var, secret manager) without exposing enough material to weaken HMAC
-  verification.
+  Format: `tuist_webhook_••••…••••<last 4>`. The last four characters
+  are read from the dedicated `signing_secret_last_four` cleartext
+  column so we don't decrypt the full secret on every dashboard render
+  — only the delivery worker needs the plaintext blob.
   """
-  def masked_signing_secret(signing_secret) when is_binary(signing_secret) do
-    tail =
-      case String.length(signing_secret) do
-        n when n > 4 -> String.slice(signing_secret, -4, 4)
-        _ -> signing_secret
-      end
-
-    "tuist_webhook_" <> String.duplicate("•", 10) <> tail
-  end
+  def masked_signing_secret(tail) when is_binary(tail) and tail != "",
+    do: "tuist_webhook_" <> String.duplicate("•", 10) <> tail
 
   def masked_signing_secret(_), do: "tuist_webhook_" <> String.duplicate("•", 14)
 

@@ -8,6 +8,12 @@ defmodule Tuist.Webhooks.WebhookEndpoint do
   event and enqueues a delivery worker. `signing_secret` is Cloak-encrypted
   at rest via `Tuist.Vault.Binary`; reading the field transparently decrypts
   it for the delivery worker.
+
+  `signing_secret_last_four` mirrors the last four characters of the
+  plaintext secret in cleartext so the dashboard can render a masked
+  preview (`tuist_webhook_••••…••••XYZ`) without invoking Cloak on every
+  endpoint row. The tail is set whenever the secret is generated or
+  rotated; the encrypted blob remains the source of truth for HMAC.
   """
   use Ecto.Schema
 
@@ -68,6 +74,7 @@ defmodule Tuist.Webhooks.WebhookEndpoint do
     field :name, :string
     field :url, Tuist.Vault.Binary
     field :signing_secret, Tuist.Vault.Binary
+    field :signing_secret_last_four, :string
     field :event_types, {:array, :string}, default: []
 
     belongs_to :account, Account
@@ -77,8 +84,15 @@ defmodule Tuist.Webhooks.WebhookEndpoint do
 
   def create_changeset(endpoint, attrs) do
     endpoint
-    |> cast(attrs, [:account_id, :name, :url, :signing_secret, :event_types])
-    |> validate_required([:account_id, :name, :url, :signing_secret])
+    |> cast(attrs, [
+      :account_id,
+      :name,
+      :url,
+      :signing_secret,
+      :signing_secret_last_four,
+      :event_types
+    ])
+    |> validate_required([:account_id, :name, :url, :signing_secret, :signing_secret_last_four])
     |> validate_length(:name, min: 1, max: 100)
     |> validate_https_url()
     |> validate_event_types()
@@ -94,7 +108,20 @@ defmodule Tuist.Webhooks.WebhookEndpoint do
   end
 
   def rotate_secret_changeset(endpoint, secret) when is_binary(secret) do
-    change(endpoint, %{signing_secret: secret})
+    change(endpoint, %{signing_secret: secret, signing_secret_last_four: last_four(secret)})
+  end
+
+  @doc """
+  Returns the last four characters of `secret`, used as the cleartext
+  mirror persisted alongside the Cloak-encrypted blob. Falls back to the
+  whole secret for inputs shorter than the prefix it would normally
+  carry — only ever happens in tests.
+  """
+  def last_four(secret) when is_binary(secret) do
+    case String.length(secret) do
+      n when n > 4 -> String.slice(secret, -4, 4)
+      _ -> secret
+    end
   end
 
   defp validate_https_url(changeset) do
