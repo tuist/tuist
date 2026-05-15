@@ -63,7 +63,7 @@ CI:
 Both flows run on the bare-metal `vm-image-builder` Mac mini
 that also builds xcresult-processor — Tart needs a live GUI
 session for Virtualization.framework, so this can't run on
-hosted runners.
+hosted runners. Host-prep runbook: [`../vm-image-builder.md`](../vm-image-builder.md).
 
 ## How it ends up serving traffic
 
