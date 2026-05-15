@@ -43,7 +43,7 @@ packer {
 variable "base_image" {
   type        = string
   description = "Base Tart image. Cirrus Labs ships macOS images with Xcode preinstalled, which is what most iOS/macOS workflows expect."
-  default     = "ghcr.io/cirruslabs/macos-tahoe-xcode:26.4"
+  default     = "ghcr.io/cirruslabs/macos-tahoe-xcode:26.4.1"
 }
 
 variable "output_image" {
@@ -114,6 +114,21 @@ build {
     inline = [
       "echo 'admin' | sudo -S mkdir -p /opt/actions-runner /opt/tuist /etc/tuist",
       "echo 'admin' | sudo -S chown admin:staff /opt/actions-runner /opt/tuist"
+    ]
+  }
+
+  # Cirrus' macos-tahoe-xcode:26.4.1 image ships Xcode at
+  # /Applications/Xcode_26.4.1.app. GitHub's actions/runner-images
+  # exposes each Xcode under BOTH the full and major-minor path
+  # (see images/macos/macos-26-arm64-Readme.md#xcode) so customer
+  # workflows that pin `.xcode-version=26.4` work the same as ones
+  # pinning `.xcode-version=26.4.1`. Mirror that convention here so
+  # repos don't have to switch their `.xcode-version` file each
+  # time the patch component rolls.
+  provisioner "shell" {
+    inline = [
+      "echo 'admin' | sudo -S ln -sfn /Applications/Xcode_26.4.1.app /Applications/Xcode_26.4.app",
+      "test -d /Applications/Xcode_26.4.app && test -d /Applications/Xcode_26.4.1.app"
     ]
   }
 
