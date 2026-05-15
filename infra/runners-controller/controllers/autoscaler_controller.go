@@ -17,7 +17,7 @@ import (
 )
 
 // AutoscalerReconciler reconciles autoscaling-enabled RunnerPools.
-// On a 15-second cadence (RequeueAfter), it:
+// On a 5-second cadence (RequeueAfter), it:
 //
 //  1. fetches load signals from the Tuist server for the pool's
 //     fleet name,
@@ -41,7 +41,11 @@ type AutoscalerReconciler struct {
 	SignalsClient *scaling.Client
 
 	// PollInterval is the RequeueAfter for autoscaling-enabled
-	// pools. Default 15s; tests override to keep them fast.
+	// pools. Default 5s — fast enough that a queued workflow_job
+	// lands on a freshly scaled Pod within one tick, low enough on
+	// server load (one signals query per pool per tick) that it
+	// disappears under the dispatch-poll traffic. Tests override
+	// to milliseconds to keep them fast.
 	PollInterval time.Duration
 
 	// Now defaults to time.Now; overridable for deterministic
@@ -153,7 +157,7 @@ func (r *AutoscalerReconciler) pollInterval() time.Duration {
 	if r.PollInterval > 0 {
 		return r.PollInterval
 	}
-	return 15 * time.Second
+	return 5 * time.Second
 }
 
 func (r *AutoscalerReconciler) now() time.Time {
