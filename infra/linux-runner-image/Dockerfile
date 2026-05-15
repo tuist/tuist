@@ -18,7 +18,7 @@
 
 FROM ubuntu:22.04
 
-ARG RUNNER_VERSION=2.319.1
+ARG RUNNER_VERSION=2.334.0
 ARG RUNNER_ARCH=x64
 
 # Set runtime defaults so customer workflows see UTF-8 locales out
