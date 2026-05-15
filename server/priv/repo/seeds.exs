@@ -3306,8 +3306,6 @@ webhook_attempts =
       request_payload = %{
         "id" => event_id,
         "type" => event_type,
-        "account" => %{"id" => endpoint.account_id},
-        "endpoint" => %{"id" => endpoint.id, "name" => endpoint.name},
         "occurred_at" => DateTime.to_iso8601(inserted_at)
       }
 

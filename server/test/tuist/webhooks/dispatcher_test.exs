@@ -42,8 +42,8 @@ defmodule Tuist.Webhooks.DispatcherTest do
       assert payload["object"]["id"] == test_case.id
       assert payload["object"]["is_flaky"] == true
       assert payload["object"]["state"] == "muted"
-      assert payload["endpoint"]["id"] == subscribed.id
-      assert payload["account"]["id"] == project.account_id
+      refute Map.has_key?(payload, "account")
+      refute Map.has_key?(payload, "endpoint")
     end
 
     test "skips endpoints in other accounts" do

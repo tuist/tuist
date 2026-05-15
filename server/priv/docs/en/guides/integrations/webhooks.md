@@ -57,8 +57,6 @@ Every delivery is a single JSON object. The envelope wraps the resource snapshot
   "id": "f4d4ea3a-1d9e-4e64-9a8d-9d8b6f1b0d12",
   "type": "preview.created",
   "created": 1747322830,
-  "account": { "id": 42 },
-  "endpoint": { "id": 7, "name": "Notion automation" },
   "object": {
     "id": "3a1c9e8b-...",
     "display_name": "Acme",
@@ -77,14 +75,12 @@ Every delivery is a single JSON object. The envelope wraps the resource snapshot
 
 Fields you can rely on across event types:
 
-| Field      | Description                                                                                |
-| ---------- | ------------------------------------------------------------------------------------------ |
-| `id`       | A UUID unique to this delivery. Use it to deduplicate when retries fire.                   |
-| `type`     | The dotted event type, e.g. `test_case.updated`.                                           |
-| `created`  | Unix timestamp (seconds) at which Tuist enqueued the delivery.                             |
-| `account`  | The Tuist account that owns the endpoint.                                                  |
-| `endpoint` | The endpoint that received this delivery (useful when you fan one webhook into many URLs). |
-| `object`   | The resource snapshot. The shape depends on the event type.                                |
+| Field     | Description                                                              |
+| --------- | ------------------------------------------------------------------------ |
+| `id`      | A UUID unique to this delivery. Use it to deduplicate when retries fire. |
+| `type`    | The dotted event type, e.g. `test_case.updated`.                         |
+| `created` | Unix timestamp (seconds) at which Tuist enqueued the delivery.           |
+| `object`  | The resource snapshot. The shape depends on the event type.              |
 
 The `test_case.updated` event includes an extra `events` array with the canonical transitions that caused the write (`marked_flaky`, `muted`, `unskipped`, …), plus `actor_id` and `alert_id` so receivers can distinguish manual edits from automation-driven changes.
 

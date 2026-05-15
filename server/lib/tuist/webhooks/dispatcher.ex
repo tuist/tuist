@@ -136,9 +136,7 @@ defmodule Tuist.Webhooks.Dispatcher do
       Map.merge(body, %{
         "id" => event_id,
         "type" => event_type,
-        "created" => System.system_time(:second),
-        "account" => %{"id" => endpoint.account_id},
-        "endpoint" => %{"id" => endpoint.id, "name" => endpoint.name}
+        "created" => System.system_time(:second)
       })
 
     case %{
