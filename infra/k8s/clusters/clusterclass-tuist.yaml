@@ -350,6 +350,14 @@ spec:
       hetznerSecretRef:
         key:
           hcloudToken: hcloud
+          # Robot webservice credentials for bare-metal substrate
+          # (see `bare-metal-staging.yaml`). caph reads these from
+          # the same Secret as the hcloud token; per-host overrides
+          # aren't supported on `HetznerBareMetalHost` in caph >=v1.0.
+          # The keys are merged into this Secret by the mgmt-cluster
+          # operator bootstrap step in `infra/runners-controller/AGENTS.md`.
+          hetznerRobotUser: hetznerRobotUser
+          hetznerRobotPassword: hetznerRobotPassword
         name: hetzner
       sshKeys:
         hcloud: []
