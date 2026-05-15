@@ -127,6 +127,16 @@ while true; do
       echo "$(date -u +%FT%TZ) dispatch-poll: ${http} unauthorized; aborting"
       exit 1
       ;;
+    410)
+      # Server signalled drain — this Pod's image no longer matches
+      # the RunnerPool's spec.image (chart digest-pin rolled). Exit
+      # cleanly so the EXIT trap halts the VM and tart-kubelet flips
+      # the Pod to Succeeded; the reconciler then replaces it with
+      # one on the current image. The check only runs on idle polls,
+      # so in-flight customer work is never interrupted.
+      echo "$(date -u +%FT%TZ) dispatch-poll: 410 drain — stale image, exiting cleanly"
+      exit 0
+      ;;
     *)
       echo "$(date -u +%FT%TZ) dispatch-poll: HTTP ${http} (attempt=${attempt}); retrying"
       sleep "${interval}"
