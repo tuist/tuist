@@ -379,6 +379,122 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
         XCTAssertEmpty(gotSideEffects)
     }
 
+    func test_map_when_static_swift_xcframework_is_reached_through_multiple_paths_deduplicates_search_paths(
+    ) async throws {
+        // Given
+        let projectPath = try temporaryPath()
+            .appending(component: "Project")
+        given(manifestFilesLocator)
+            .locatePackageManifest(at: .any)
+            .willReturn(
+                projectPath.appending(components: Constants.tuistDirectoryName, Constants.SwiftPackageManager.packageSwiftName)
+            )
+
+        let dynamicXCFrameworkPath = projectPath
+            .parentDirectory
+            .appending(component: "DynamicFramework.xcframework")
+        let staticSwiftXCFrameworkPath = projectPath
+            .parentDirectory
+            .appending(component: "StaticSwift.xcframework")
+        let dynamicXCFramework: GraphDependency = .testXCFramework(
+            path: dynamicXCFrameworkPath,
+            linking: .dynamic
+        )
+        let staticSwiftXCFramework: GraphDependency = .testXCFramework(
+            path: staticSwiftXCFrameworkPath,
+            infoPlist: .test(
+                libraries: [
+                    .test(
+                        identifier: "ios-arm64",
+                        path: try RelativePath(validating: "StaticSwift.framework/StaticSwift")
+                    ),
+                ]
+            ),
+            linking: .static,
+            swiftModules: [
+                staticSwiftXCFrameworkPath.appending(
+                    components: "ios-arm64",
+                    "StaticSwift.framework",
+                    "Modules",
+                    "StaticSwift.swiftmodule"
+                ),
+            ]
+        )
+
+        let graph: Graph = .test(
+            name: "App",
+            path: projectPath,
+            projects: [
+                projectPath: .test(
+                    path: projectPath,
+                    targets: [
+                        .test(
+                            name: "App"
+                        ),
+                        .test(
+                            name: "Feature"
+                        ),
+                        .test(
+                            name: "Leaf"
+                        ),
+                    ]
+                ),
+            ],
+            dependencies: [
+                .target(name: "App", path: projectPath): [
+                    .target(name: "Feature", path: projectPath),
+                    .target(name: "Leaf", path: projectPath),
+                ],
+                .target(name: "Feature", path: projectPath): [
+                    .target(name: "Leaf", path: projectPath),
+                ],
+                .target(name: "Leaf", path: projectPath): [
+                    dynamicXCFramework,
+                ],
+                dynamicXCFramework: [
+                    staticSwiftXCFramework,
+                ],
+            ]
+        )
+
+        let expectedSettings: SettingsDictionary = [
+            "FRAMEWORK_SEARCH_PATHS[sdk=iphoneos*]": [
+                "$(inherited)",
+                "\"$(SRCROOT)/../StaticSwift.xcframework/ios-arm64\"",
+            ],
+        ]
+        var expectedGraph = graph
+        expectedGraph.projects = [
+            projectPath: .test(
+                path: projectPath,
+                targets: [
+                    .test(
+                        name: "App",
+                        settings: .test(base: expectedSettings)
+                    ),
+                    .test(
+                        name: "Feature",
+                        settings: .test(base: expectedSettings)
+                    ),
+                    .test(
+                        name: "Leaf",
+                        settings: .test(base: expectedSettings)
+                    ),
+                ]
+            ),
+        ]
+
+        // When
+        let (gotGraph, gotSideEffects, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
+
+        // Then
+        XCTAssertBetterEqual(
+            expectedGraph,
+            gotGraph
+        )
+        XCTAssertEmpty(gotSideEffects)
+    }
+
     func test_map_when_static_xcframework_without_umbrella_header_linked_via_dynamic_xcframework() async throws {
         // Given
         let projectPath = try temporaryPath()
@@ -1525,6 +1641,39 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                         "-enable-upcoming-feature", "NonfrozenEnumExhaustivity",
                         "-enable-experimental-feature", "StrictConcurrency",
                         "-enable-experimental-feature", "TypedThrows",
+                    ]
+                ),
+            ]
+        )
+    }
+
+    func test_removeOtherSwiftDuplicates_when_conditioned_key() {
+        // Given
+        let settings: SettingsDictionary = [
+            "OTHER_SWIFT_FLAGS[sdk=iphoneos*]": .array(
+                [
+                    "-Xcc", "value-one",
+                    "-Xcc", "value-one",
+                    "-enable-upcoming-feature", "DeprecateApplicationMain",
+                    "-enable-upcoming-feature", "DeprecateApplicationMain",
+                    "value-two",
+                    "value-two",
+                ]
+            ),
+        ]
+
+        // When
+        let got = settings.removeOtherSwiftFlagsDuplicates()
+
+        // Then
+        XCTAssertEqual(
+            got,
+            [
+                "OTHER_SWIFT_FLAGS[sdk=iphoneos*]": .array(
+                    [
+                        "-Xcc", "value-one",
+                        "-enable-upcoming-feature", "DeprecateApplicationMain",
+                        "value-two",
                     ]
                 ),
             ]
