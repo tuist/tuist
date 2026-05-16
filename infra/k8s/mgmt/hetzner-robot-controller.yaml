@@ -102,10 +102,13 @@ spec:
           type: RuntimeDefault
       containers:
         - name: manager
-          # Bumped by release.yml's release-hetzner-robot-controller
-          # flow on every `feat(hetzner-robot-controller): …` or
-          # `fix(hetzner-robot-controller): …` commit on main.
-          image: ghcr.io/tuist/tuist-hetzner-robot-controller:0.1.0
+          # SHA-tagged build from the hetzner-robot-controller-image
+          # workflow during pre-release iteration. Once
+          # release.yml's release-hetzner-robot-controller has run
+          # for the first time, the bump-chart-image-pins step
+          # rewrites this line to a semver tag (`0.1.0`, `0.2.0`,
+          # …) and from there it's owned by the release pipeline.
+          image: ghcr.io/tuist/tuist-hetzner-robot-controller:sha-ccd0ab30d4a6
           imagePullPolicy: IfNotPresent
           args:
             - --leader-elect=true
