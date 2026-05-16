@@ -101,8 +101,8 @@ pub fn init_tracing(config: &Config, node_location: &NodeLocation) -> TelemetryG
                 deployment.environment.name = %config.otel_deployment_environment,
                 kura.region = %config.region,
                 kura.tenant_id = %config.tenant_id,
-                kura.country = node_location.country.as_deref().unwrap_or("unknown"),
-                kura.subdivision = node_location.subdivision.as_deref().unwrap_or("unknown"),
+                geo.country.iso_code = node_location.country.as_deref().unwrap_or("unknown"),
+                geo.region.iso_code = node_location.subdivision.as_deref().unwrap_or("unknown"),
                 service.instance.id = %config.node_url,
                 "OTLP tracing not active"
             );
@@ -120,17 +120,17 @@ pub fn log_context_span(config: &Config, node_location: &NodeLocation) -> Span {
         deployment.environment.name = %config.otel_deployment_environment,
         kura.region = %config.region,
         kura.tenant_id = %config.tenant_id,
-        kura.country = field::Empty,
-        kura.subdivision = field::Empty,
+        geo.country.iso_code = field::Empty,
+        geo.region.iso_code = field::Empty,
         service.instance.id = %config.node_url,
         trace_id = field::Empty,
         span_id = field::Empty,
     );
     if let Some(country) = node_location.country.as_deref() {
-        span.record("kura.country", country);
+        span.record("geo.country.iso_code", country);
     }
     if let Some(subdivision) = node_location.subdivision.as_deref() {
-        span.record("kura.subdivision", subdivision);
+        span.record("geo.region.iso_code", subdivision);
     }
     record_trace_context(&span);
     span
@@ -187,10 +187,10 @@ fn build_tracer_provider(
         KeyValue::new("service.instance.id", config.node_url.clone()),
     ];
     if let Some(country) = node_location.country.as_deref() {
-        attributes.push(KeyValue::new("kura.country", country.to_owned()));
+        attributes.push(KeyValue::new("geo.country.iso_code", country.to_owned()));
     }
     if let Some(subdivision) = node_location.subdivision.as_deref() {
-        attributes.push(KeyValue::new("kura.subdivision", subdivision.to_owned()));
+        attributes.push(KeyValue::new("geo.region.iso_code", subdivision.to_owned()));
     }
     let resource = Resource::builder_empty()
         .with_attributes(attributes)

@@ -120,11 +120,11 @@ pub struct Config {
     pub geoip_refresh_interval_secs: u64,
     /// Operator-provided ISO 3166-1 alpha-2 country code for the node.
     /// When set, it short-circuits the egress-IP probe used to stamp
-    /// `kura.country` on OTel traces.
+    /// `geo.country.iso_code` on the OTel Resource.
     pub node_country_override: Option<String>,
     /// Operator-provided ISO 3166-2 subdivision code for the node (e.g.
     /// `US-CA`). When set, it short-circuits the egress-IP probe used to
-    /// stamp `kura.subdivision` on OTel traces.
+    /// stamp `geo.region.iso_code` on the OTel Resource.
     pub node_subdivision_override: Option<String>,
 }
 

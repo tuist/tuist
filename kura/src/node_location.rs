@@ -14,12 +14,15 @@ const EGRESS_IP_ENDPOINT: &str = "https://api.ipify.org";
 const PROBE_TIMEOUT: Duration = Duration::from_secs(3);
 
 /// The serving node's own coarse location, stamped once at startup onto
-/// the OTel Resource so every exported span carries it.
+/// the OTel Resource (using the `geo.*` semantic conventions) so every
+/// exported span carries it.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct NodeLocation {
-    /// ISO 3166-1 alpha-2 country code, e.g. `FR`.
+    /// ISO 3166-1 alpha-2 country code, e.g. `FR`. Emitted as
+    /// `geo.country.iso_code`.
     pub country: Option<String>,
-    /// ISO 3166-2 subdivision code, e.g. `US-CA`.
+    /// ISO 3166-2 subdivision code, e.g. `US-CA`. Emitted as
+    /// `geo.region.iso_code`.
     pub subdivision: Option<String>,
 }
 

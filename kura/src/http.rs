@@ -369,18 +369,18 @@ async fn track_http_metrics(
         http.request.method = %method,
         http.route = %route,
         url.path = %uri_path,
-        client.country = field::Empty,
-        client.subdivision = field::Empty,
+        geo.country.iso_code = field::Empty,
+        geo.region.iso_code = field::Empty,
         http.response.status_code = field::Empty,
         otel.status_code = field::Empty,
         trace_id = field::Empty,
         span_id = field::Empty,
     );
     if let Some(country) = client_country.as_deref() {
-        request_span.record("client.country", country);
+        request_span.record("geo.country.iso_code", country);
     }
     if let Some(subdivision) = client_subdivision.as_deref() {
-        request_span.record("client.subdivision", subdivision);
+        request_span.record("geo.region.iso_code", subdivision);
     }
     attach_parent_context(&request_span, req.headers());
     record_trace_context(&request_span);
