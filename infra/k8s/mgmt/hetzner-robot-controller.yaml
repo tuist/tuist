@@ -1,0 +1,159 @@
+# hetzner-robot-controller deployment on the mgmt cluster.
+#
+# Two reconcile loops (see `infra/hetzner-robot-controller/`):
+#
+#   1. InventorySyncer — polls Robot's webservice every 60s and
+#      keeps `HetznerBareMetalHost` CRs in sync with the
+#      `tuist-bm-*` server inventory. Operator orders a box in
+#      the Robot panel with that naming convention, controller
+#      creates the matching CR. Cancels delete it.
+#
+#   2. WWNFillReconciler — watches CRs and patches
+#      `spec.rootDeviceHints.raid.wwn` once caph populates
+#      `spec.status.hardwareDetails` on first rescue boot.
+#      Without this, caph stalls forever at `registering` with
+#      "rootDeviceHints empty".
+#
+# Result: the operator never hand-authors a `HetznerBareMetalHost`
+# CR or copies disk WWNs. Matches the Scaleway Mac mini flow
+# where the operator just bumps replicas.
+#
+# Reads Robot creds from the existing `org-tuist/hetzner` Secret
+# (the same one caph reads), keys `hetzner-robot-user` /
+# `hetzner-robot-password`. Operator-managed today; future PR
+# could move it to ESO once the mgmt cluster has ESO installed.
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: hetzner-robot-controller
+  namespace: org-tuist
+  labels:
+    app.kubernetes.io/name: hetzner-robot-controller
+    app.kubernetes.io/managed-by: tuist-bootstrap
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: hetzner-robot-controller
+  labels:
+    app.kubernetes.io/name: hetzner-robot-controller
+    app.kubernetes.io/managed-by: tuist-bootstrap
+rules:
+  - apiGroups: ["infrastructure.cluster.x-k8s.io"]
+    resources: ["hetznerbaremetalhosts"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["infrastructure.cluster.x-k8s.io"]
+    resources: ["hetznerbaremetalhosts/status"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: hetzner-robot-controller
+  labels:
+    app.kubernetes.io/name: hetzner-robot-controller
+    app.kubernetes.io/managed-by: tuist-bootstrap
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: hetzner-robot-controller
+subjects:
+  - kind: ServiceAccount
+    name: hetzner-robot-controller
+    namespace: org-tuist
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hetzner-robot-controller
+  namespace: org-tuist
+  labels:
+    app.kubernetes.io/name: hetzner-robot-controller
+    app.kubernetes.io/managed-by: tuist-bootstrap
+spec:
+  # Two replicas for HA via leader election. The InventorySyncer
+  # is gated on `NeedLeaderElection: true`, so the follower
+  # doesn't double-poll Robot or race on CR creation.
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: hetzner-robot-controller
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: hetzner-robot-controller
+    spec:
+      serviceAccountName: hetzner-robot-controller
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: manager
+          # Bumped by release.yml's release-hetzner-robot-controller
+          # flow on every `feat(hetzner-robot-controller): …` or
+          # `fix(hetzner-robot-controller): …` commit on main.
+          image: ghcr.io/tuist/tuist-hetzner-robot-controller:0.1.0
+          imagePullPolicy: IfNotPresent
+          args:
+            - --leader-elect=true
+            - --metrics-bind-address=:8080
+            - --health-probe-bind-address=:8081
+            - --host-namespace=org-tuist
+            - --name-prefix=tuist-bm-
+            - --poll-interval=60s
+            - --robot-user-path=/etc/hetzner-robot-controller/robot-user
+            - --robot-pass-path=/etc/hetzner-robot-controller/robot-pass
+          ports:
+            - name: metrics
+              containerPort: 8080
+            - name: probe
+              containerPort: 8081
+          livenessProbe:
+            httpGet: { path: /healthz, port: probe }
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet: { path: /readyz, port: probe }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "256Mi"
+          volumeMounts:
+            - name: robot-creds
+              mountPath: /etc/hetzner-robot-controller
+              readOnly: true
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+      volumes:
+        - name: robot-creds
+          # caph reads from the same Secret; we re-use the same
+          # keys (`hetzner-robot-user` + `hetzner-robot-password`)
+          # so credential rotation only happens in one place.
+          secret:
+            secretName: hetzner
+            items:
+              - key: hetzner-robot-user
+                path: robot-user
+              - key: hetzner-robot-password
+                path: robot-pass
