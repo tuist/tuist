@@ -98,6 +98,13 @@ spec:
       serviceAccountName: hetzner-robot-controller
       securityContext:
         runAsNonRoot: true
+        # 65532 is the UID of the `nonroot` user in
+        # gcr.io/distroless/static-debian12:nonroot. kubelet can't
+        # verify the symbolic "nonroot" name when `runAsNonRoot` is
+        # set, so we pin the numeric UID here.
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
         seccompProfile:
           type: RuntimeDefault
       containers:
