@@ -109,12 +109,20 @@ spec:
         # so set the level explicitly to avoid the surprise.
         swraid: 1
         swraidLevel: 1
-        # Partition layout — match the default Hetzner installimage
-        # for AX-class boxes with SWRAID 1: just /boot and /, no
-        # separate vfat ESP (Hetzner's installimage rejects an ESP
-        # inside a SWRAID 1 array, and GRUB handles EFI binaries
-        # from /boot directly anyway). No swap on bare metal.
+        # Partition layout — match Hetzner's default installimage
+        # for UEFI AX-class boxes with SWRAID 1. The ESP uses
+        # `fileSystem: esp` (Hetzner installimage keyword, not the
+        # caph-documented `ext*`/`btrfs`/`xfs` list — caph's schema
+        # is an unconstrained string and passes the value through to
+        # the autosetup file). `esp` tells installimage to mark the
+        # partition as EFI System Partition, format it as FAT32,
+        # and place it OUTSIDE the RAID array — `vfat` makes
+        # installimage reject it as malformed inside SWRAID. No
+        # swap on bare metal.
         partitions:
+          - mount: /boot/efi
+            fileSystem: esp
+            size: 256M
           - mount: /boot
             fileSystem: ext4
             size: 1024M
