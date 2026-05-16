@@ -39,6 +39,7 @@ on:
       - 'infra/k8s/clusters/**'
       - 'infra/k8s/mgmt/etcd-snapshot.yaml'
       - 'infra/k8s/mgmt/tailscale.yaml'
+      - 'infra/k8s/mgmt/hetzner-robot-controller.yaml'
       - '.github/workflows/mgmt-cluster-apply.yml'
   workflow_dispatch:
 
@@ -99,6 +100,9 @@ jobs:
           echo "::group::tailscale.yaml diff"
           kubectl diff -f infra/k8s/mgmt/tailscale.yaml || true
           echo "::endgroup::"
+          echo "::group::hetzner-robot-controller.yaml diff"
+          kubectl diff -f infra/k8s/mgmt/hetzner-robot-controller.yaml || true
+          echo "::endgroup::"
       - name: Apply ClusterClass first (Cluster CRs reference it)
         run: |
           kubectl apply -f infra/k8s/clusters/clusterclass-tuist.yaml
@@ -124,5 +128,6 @@ jobs:
         # These are mgmt-cluster Deployments / CronJobs, not Cluster
         # CRs. Independent of the CAPI manifests above.
         run: |
+          kubectl apply -f infra/k8s/mgmt/hetzner-robot-controller.yaml
           kubectl apply -f infra/k8s/mgmt/etcd-snapshot.yaml
           kubectl apply -f infra/k8s/mgmt/tailscale.yaml

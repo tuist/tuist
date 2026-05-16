@@ -1,93 +1,49 @@
 # Bare-metal substrate for the staging workload cluster.
 #
-# Owns two things:
-#
-#   1. `HetznerBareMetalHost` CRs — one per physical AX42-U we have
-#      provisioned through the Hetzner Robot panel. caph claims these,
-#      rescue-boots the box, runs `installimage` to write a known-clean
-#      Ubuntu 24.04 LTS, and the bootstrap cloud-init runs `kubeadm
-#      join` to register the host as a worker Node in the workload
-#      cluster.
-#
-#   2. `HetznerBareMetalMachineTemplate` — claimed by the
-#      `bare-metal-worker` MachineDeployment class in the ClusterClass
-#      (see `clusterclass-tuist.yaml`). Specifies the OS image, the
-#      partition layout, and where the SSH credentials + install
-#      script live.
+# Owns one thing here: the `HetznerBareMetalMachineTemplate` that
+# the `bare-metal-worker` MachineDeployment class (see
+# `clusterclass-tuist.yaml`) claims through. Per-host
+# `HetznerBareMetalHost` CRs are NOT in this file — they're managed
+# by `hetzner-robot-controller`, which reflects Robot's inventory
+# (servers named `tuist-bm-*`) into the cluster and auto-fills disk
+# WWNs once caph populates `hardwareDetails`. See
+# `infra/hetzner-robot-controller/AGENTS.md`.
 #
 # Prerequisite Secrets (created manually on the mgmt cluster — see
 # `infra/runners-controller/AGENTS.md` for the bring-up runbook):
 #
-#   - `hetzner-robot-credentials` in `org-tuist` — keys
-#     `hetznerRobotUser` + `hetznerRobotPassword`. caph reads these
-#     via the HetznerClusterTemplate's `hetznerSecretRef` to drive
-#     the Robot API during rescue boot.
+#   - `hetzner` Secret in `org-tuist` — extended with
+#     `hetzner-robot-user` + `hetzner-robot-password` keys alongside
+#     the existing `hcloud` token. caph reads all three from the
+#     same Secret via the HetznerClusterTemplate's `hetznerSecretRef`
+#     (per-host credential override isn't supported in caph >=v1.0).
+#     The hetzner-robot-controller also reads `hetzner-robot-user` /
+#     `hetzner-robot-password` from this same Secret.
 #
 #   - `hetzner-bare-metal-ssh-key` in `org-tuist` — keys
 #     `sshkey-name` + `ssh-publickey` + `ssh-privatekey`. Referenced
 #     by `HetznerBareMetalMachineTemplate.spec.template.spec.sshSpec`
-#     below.
+#     below, AND from `HetznerCluster.spec.sshKeys.robotRescueSecretRef`
+#     (a one-time patch on the live HetznerCluster — the template is
+#     immutable, so the field can't be propagated through GitOps).
 #
 # Both items are fleet-level (one Hetzner Robot account spans every
 # AX-class host across staging / canary / production), so they live
-# in the `tuist-k8s-mgmt` 1Password vault. They're created manually
-# via `op read` + `kubectl create secret` rather than via
-# ExternalSecret because external-secrets-operator isn't yet
-# installed on the mgmt cluster (it's deployed to workload clusters
-# via the platform helm chart). Once ESO lands on mgmt, the manual
-# step goes away and these Secrets become ESO-synced.
+# in the `tuist-k8s-mgmt` 1Password vault. Once ESO lands on the
+# mgmt cluster the manual Secret-creation step goes away and these
+# become ESO-synced.
 #
 # Schema note: the caph bare-metal CR fields below track caph >=v1.0.
-# If the running caph version differs, the operator may need to
-# adjust field names (especially the `installImage` shape). The
-# overall structure — `HetznerBareMetalHost` per server, claimed by
-# a `HetznerBareMetalMachineTemplate`, fed from a Secret named in
-# `sshSpec.secretRef` — is stable across versions.
-
----
-# Per-host CR. One entry per AX-class machine provisioned via Robot.
-# Add a new HetznerBareMetalHost when the operator provisions another
-# AX42-U / AX102-U / AX162-R box; the bare-metal-worker MD will claim
-# the next available one when scaled up.
-apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
-kind: HetznerBareMetalHost
-metadata:
-  # Naming: `bm-<env>-<server-id>` so operators can map between Robot
-  # panel server numbers and these CRs at a glance.
-  name: bm-staging-2986829
-  namespace: org-tuist
-  labels:
-    cluster.x-k8s.io/cluster-name: tuist-staging
-    node.cluster.x-k8s.io/pool: runners-linux
-spec:
-  # Hetzner Robot server ID. Found in the Robot panel under
-  # Servers → <hostname> → "#<id>".
-  serverID: 2986829
-  # Don't rescue/reinstall this box right now. Flip to false when
-  # the bare-metal-worker MD scales up and is ready to claim it.
-  maintenanceMode: false
-  # RAID 1 mirror across both 512 GB Samsung NVMes. We tried RAID 0
-  # for throughput, but caph silently rewrites `swraidLevel: 0` →
-  # `SWRAIDLEVEL 1` in the installimage wrapper (its minimum level
-  # appears to be 1, undocumented). The mirror tax is what it is;
-  # RAID still satisfies `DetectLinuxOnAnotherDisk` (caph wipes both
-  # disks). WWNs come from caph's hardwareDetails on first
-  # registration SSH.
-  rootDeviceHints:
-    raid:
-      wwn:
-        - eui.002538b751b1b58c
-        - eui.002538b751b1b591
-  # Robot credentials are read from the same Secret the
-  # HetznerClusterTemplate's `hetznerSecretRef` already names (key
-  # additions wired below — keys `hetznerRobotUser` +
-  # `hetznerRobotPassword`). Per-host credentials override isn't
-  # supported on this CR in caph >=v1.0; the fleet-wide secret is
-  # the only path.
 
 ---
 # Infrastructure template for the bare-metal-worker MachineDeployment
 # class. The class definition lives in `clusterclass-tuist.yaml`.
+# Selects hosts via `hostSelector.matchLabels` so we only claim
+# hetzner-robot-controller-managed hosts (the controller stamps
+# `app.kubernetes.io/managed-by=hetzner-robot-controller` on each CR
+# it creates). Without this gate, caph would also claim any
+# operator-hand-authored `HetznerBareMetalHost` in the namespace,
+# defeating the convention's safety property.
 apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
 kind: HetznerBareMetalMachineTemplate
 metadata:
@@ -142,6 +98,16 @@ spec:
           # file just stages the marker.
           mkdir -p /etc/tuist
           echo 'kata-runtime=true' > /etc/tuist/node-labels
+      # Only claim hosts the hetzner-robot-controller created. The
+      # controller stamps both labels on every CR it owns:
+      # `app.kubernetes.io/managed-by=hetzner-robot-controller` is the
+      # ownership gate, `robot.hetzner.com/server-name` carries the
+      # Robot panel name so future per-env selectors (e.g.
+      # `tuist-bm-staging-*`) can route. The current shape is single-
+      # env / single-pool, so we match only the managed-by label.
+      hostSelector:
+        matchLabels:
+          app.kubernetes.io/managed-by: hetzner-robot-controller
       sshSpec:
         # The same SSH key the operator pastes into the Robot order
         # form when provisioning, so caph can SSH into rescue mode
