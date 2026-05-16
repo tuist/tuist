@@ -43,7 +43,7 @@ defaults:
 jobs:
   swift-test:
     name: Swift Tests (XCActivityLogParser)
-    runs-on: namespace-profile-macos-xcode-26
+    runs-on: tuist-macos
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     defaults:
