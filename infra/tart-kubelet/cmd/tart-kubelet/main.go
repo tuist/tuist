@@ -87,7 +87,14 @@ func main() {
 		"Max concurrent Pods (= concurrent Tart VMs) on this Node. Capped at 2 "+
 			"by Apple's macOS SLA (no more than two simultaneous virtualized macOS "+
 			"instances per host); Tart refuses to start a third VM.")
-	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "Prometheus metrics endpoint.")
+	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080",
+		"Prometheus metrics endpoint. When --node-ip-source=tailscale and "+
+			"this is left at the default `:8080`, the bind address is "+
+			"rewritten to `<tailnet-ip>:8080` so the controller-runtime "+
+			"metrics never listen on a public interface. Any explicit "+
+			"override (including an explicit `:8080`) opts out of that "+
+			"rewrite — the operator is then responsible for not exposing "+
+			"the endpoint on the WAN.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "Liveness/readiness probe endpoint.")
 	flag.StringVar(&tartBinary, "tart-binary", "/usr/local/bin/tart", "Path to the local tart CLI.")
 
