@@ -66,15 +66,13 @@ spec:
   # Don't rescue/reinstall this box right now. Flip to false when
   # the bare-metal-worker MD scales up and is ready to claim it.
   maintenanceMode: false
-  # RAID 0 stripe across both 512 GB Samsung NVMes. Runner Pods
-  # are stateless single-shot microVMs, so disk-layer redundancy
-  # (RAID 1) buys ~nothing — Pod rescheduling and the multi-node
-  # fleet already cover single-disk failure. The throughput
-  # doubling matters: OCI image pulls and microVM rootfs cloning
-  # are the hot path on this Node. Striping also satisfies caph's
-  # `DetectLinuxOnAnotherDisk` safety check (both disks under the
-  # install) without paying the mirror tax. WWNs come from caph's
-  # hardwareDetails after the first rescue-SSH.
+  # RAID 1 mirror across both 512 GB Samsung NVMes. We tried RAID 0
+  # for throughput, but caph silently rewrites `swraidLevel: 0` →
+  # `SWRAIDLEVEL 1` in the installimage wrapper (its minimum level
+  # appears to be 1, undocumented). The mirror tax is what it is;
+  # RAID still satisfies `DetectLinuxOnAnotherDisk` (caph wipes both
+  # disks). WWNs come from caph's hardwareDetails on first
+  # registration SSH.
   rootDeviceHints:
     raid:
       wwn:
@@ -105,20 +103,18 @@ spec:
         # distribution.
         image:
           path: /root/.oldroot/nfs/install/../images/Ubuntu-2404-noble-amd64-base.tar.gz
-        # Software RAID 0 stripe across both NVMes. Pairs with the
-        # host's `rootDeviceHints.raid.wwn` block. Picked for
-        # throughput on microVM rootfs cloning and OCI image pulls;
-        # the workload is stateless so disk redundancy buys nothing
-        # that Pod rescheduling doesn't already cover.
+        # Software RAID 1 mirror across both NVMes. caph silently
+        # rewrites `swraidLevel: 0` → `SWRAIDLEVEL 1` in the
+        # installimage wrapper (RAID 0 isn't supported via its API),
+        # so set the level explicitly to avoid the surprise.
         swraid: 1
-        swraidLevel: 0
+        swraidLevel: 1
         # Partition layout — match the default Hetzner installimage
-        # for AX-class boxes: ESP for UEFI boot, /boot, /, and
-        # (no) swap on bare metal.
+        # for AX-class boxes with SWRAID 1: just /boot and /, no
+        # separate vfat ESP (Hetzner's installimage rejects an ESP
+        # inside a SWRAID 1 array, and GRUB handles EFI binaries
+        # from /boot directly anyway). No swap on bare metal.
         partitions:
-          - mount: /boot/efi
-            fileSystem: vfat
-            size: 256M
           - mount: /boot
             fileSystem: ext4
             size: 1024M
