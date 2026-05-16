@@ -20,6 +20,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -136,6 +137,22 @@ func (s *InventorySyncer) Start(ctx context.Context) error {
 // sync does one full pass: list Robot servers, compare against
 // existing CRs, create/delete as needed. Idempotent — running it
 // twice in a row is a no-op when the state matches.
+//
+// Asymmetric selection (intentional):
+//
+//   - **Creation** filters by name prefix. Only servers freshly
+//     named `tuist-bm-*` in the Robot panel get an initial CR.
+//     This keeps the controller from claiming random servers in
+//     the account.
+//
+//   - **Deletion** filters by serverID present in Robot at all
+//     (regardless of name). caph rewrites `server_name` to the
+//     `HetznerBareMetalMachine` name as part of its provisioning
+//     flow, which would otherwise drop our prefix-match and cause
+//     the controller to reap a perfectly healthy CR every time a
+//     host gets provisioned. Once we've created a CR, we keep it
+//     as long as the underlying physical server still exists in
+//     the account.
 func (s *InventorySyncer) sync(ctx context.Context) error {
 	logger := log.FromContext(ctx)
 
@@ -144,25 +161,27 @@ func (s *InventorySyncer) sync(ctx context.Context) error {
 		return fmt.Errorf("list robot servers: %w", err)
 	}
 
-	desired := map[string]robot.Server{} // CR name → server
+	// `eligibleForCreation` — name prefix matches AND not cancelled.
+	// `liveServerNumbers` — every non-cancelled server in the account,
+	// regardless of name. Used for the deletion gate so caph's rename
+	// doesn't cause us to reap a live host.
+	eligibleForCreation := map[string]robot.Server{} // CR name → server
+	liveServerNumbers := map[int]struct{}{}
 	for _, srv := range servers {
+		if srv.Cancelled {
+			continue
+		}
+		liveServerNumbers[srv.Number] = struct{}{}
 		if !strings.HasPrefix(srv.Name, s.NamePrefix) {
 			continue
 		}
-		if srv.Cancelled {
-			// Cancelled servers are scheduled for retirement;
-			// don't keep a CR for them. The matching live CR (if
-			// any) gets reaped in the delete pass below.
-			continue
-		}
 		name := crNameForServer(srv.Number)
-		desired[name] = srv
+		eligibleForCreation[name] = srv
 	}
 
 	// Current state from the cluster: every HBMH we own (matched
 	// by ManagedByLabel). We deliberately don't look at CRs we
-	// don't own, so a human-added HBMH won't be reaped if it
-	// happens to fall outside the desired set.
+	// don't own, so a human-added HBMH won't be reaped.
 	list := &unstructured.UnstructuredList{}
 	list.SetGroupVersionKind(hetznerBareMetalHostGVK)
 	if err := s.Client.List(ctx, list,
@@ -178,7 +197,7 @@ func (s *InventorySyncer) sync(ctx context.Context) error {
 	}
 
 	createdCount := 0
-	for name, srv := range desired {
+	for name, srv := range eligibleForCreation {
 		if _, exists := owned[name]; exists {
 			continue
 		}
@@ -194,7 +213,16 @@ func (s *InventorySyncer) sync(ctx context.Context) error {
 
 	deletedCount := 0
 	for name, obj := range owned {
-		if _, stillDesired := desired[name]; stillDesired {
+		// A CR is stale only if its underlying Robot server has
+		// vanished from the inventory (cancelled / removed). caph
+		// rewriting `server_name` doesn't count — the physical
+		// box is still there.
+		serverNumber, ok := serverNumberFromCR(obj)
+		if !ok {
+			logger.Info("skipping delete; CR has no robot server-number label", "name", name)
+			continue
+		}
+		if _, stillInRobot := liveServerNumbers[serverNumber]; stillInRobot {
 			continue
 		}
 		// Cascade safety: refuse to delete a CR that caph has
@@ -214,14 +242,32 @@ func (s *InventorySyncer) sync(ctx context.Context) error {
 			logger.Error(err, "delete HetznerBareMetalHost", "name", name)
 			continue
 		}
-		logger.Info("deleted HetznerBareMetalHost (server no longer in Robot inventory)", "name", name)
+		logger.Info("deleted HetznerBareMetalHost (server no longer in Robot inventory)",
+			"name", name, "server", serverNumber)
 		deletedCount++
 	}
 
 	logger.V(1).Info("sync complete",
-		"robotServers", len(servers), "matchingPrefix", len(desired),
-		"created", createdCount, "deleted", deletedCount, "unchanged", len(owned)-deletedCount)
+		"robotServers", len(servers), "eligibleForCreation", len(eligibleForCreation),
+		"created", createdCount, "deleted", deletedCount, "owned", len(owned))
 	return nil
+}
+
+// serverNumberFromCR reads the Robot server number from the
+// label the controller stamps on creation. Returns ok=false if
+// the label is missing or unparseable — the caller treats that
+// as "leave the CR alone" since we can't safely diff it against
+// Robot inventory.
+func serverNumberFromCR(obj *unstructured.Unstructured) (int, bool) {
+	raw := obj.GetLabels()[ServerNumberLabel]
+	if raw == "" {
+		return 0, false
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil {
+		return 0, false
+	}
+	return n, true
 }
 
 // createHost emits a minimal HetznerBareMetalHost CR. WWNs stay

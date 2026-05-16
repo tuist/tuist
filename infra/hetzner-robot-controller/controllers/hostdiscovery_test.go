@@ -161,6 +161,38 @@ func TestSync_DeletesStaleHosts(t *testing.T) {
 	}
 }
 
+func TestSync_KeepsHostWhenRobotRenamedAwayFromPrefix(t *testing.T) {
+	// Regression: caph rewrites `server_name` to the
+	// HetznerBareMetalMachine name as part of its provisioning
+	// flow. After that rewrite, the server stops matching the
+	// `tuist-bm-*` prefix the controller uses for creation, but
+	// the physical box is still there. Before this fix, the
+	// controller treated the renamed server as "stale" and
+	// reaped the CR every sync tick, defeating the entire
+	// adoption flow.
+	//
+	// Now: the deletion gate checks "is the serverID still in
+	// Robot at all?", not "does the name still match the
+	// prefix?". This test asserts a managed CR for a server
+	// that's been renamed away from the prefix is preserved.
+	existing := makeHost("bm-1", 1, "", true /* managed */)
+	syncer := newSyncer(t, []robot.Server{
+		{Number: 1, Name: "tuist-staging-runners-linux-abc123-def456-ghi789" /* caph's rename */},
+	}, existing)
+
+	if err := syncer.sync(context.Background()); err != nil {
+		t.Fatalf("sync: %v", err)
+	}
+
+	hosts := listHosts(t, syncer)
+	if got, want := len(hosts), 1; got != want {
+		t.Fatalf("hosts: got %d want %d (renamed-by-caph host must be kept)", got, want)
+	}
+	if hosts[0].GetName() != "bm-1" {
+		t.Errorf("expected bm-1; got %q", hosts[0].GetName())
+	}
+}
+
 func TestSync_DoesNotDeleteClaimedHosts(t *testing.T) {
 	// Existing CR for server 99 is claimed by a caph
 	// HetznerBareMetalMachine; Robot no longer reports it. We
