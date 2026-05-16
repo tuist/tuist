@@ -9,10 +9,11 @@
        for a JIT config and execs ./run.sh on first 200.
 
   This is a LaunchAgent loaded from
-  /Users/admin/Library/LaunchAgents/. The Packer build configures
-  admin auto-login + passwordless sudo, so the VM boots into a
-  real desktop session for admin, loginwindow loads this agent,
-  and the agent process inherits the user session.
+  /Users/runner/Library/LaunchAgents/. The Packer build configures
+  runner auto-login + passwordless sudo, so the VM boots into a
+  real desktop session for the `runner` user (matching GitHub-
+  hosted's runtime account), loginwindow loads this agent, and
+  the agent process inherits the user session.
 
   Why an agent and not a daemon: LaunchDaemons start with a
   near-empty environment (no HOME, no PATH past launchd's
@@ -46,13 +47,13 @@
           inject-env.sh runs under sudo. tart-kubelet stages the
           shared env directory at /Volumes/My Shared Files/env/ as
           0700 root, with tuist.env / sa_token inside at 0600 root.
-          The agent runs as admin, so without elevation admin can't
-          even stat the directory: inject-env.sh's `[ ! -f ENV_SRC ]`
-          test returns true, the script exits 0 ("no env source"),
-          and dispatch-poll.sh boots with an empty /etc/tuist.env
-          (no TUIST_RUNNER_DISPATCH_URL, no SA token). Elevate only
-          the injector; dispatch-poll runs as admin so the GitHub
-          runner stays non-root.
+          The agent runs as the `runner` user, so without elevation
+          runner can't even stat the directory: inject-env.sh's
+          `[ ! -f ENV_SRC ]` test returns true, the script exits 0
+          ("no env source"), and dispatch-poll.sh boots with an
+          empty /etc/tuist.env (no TUIST_RUNNER_DISPATCH_URL, no
+          SA token). Elevate only the injector; dispatch-poll runs
+          as runner so the GitHub runner stays non-root.
         -->
         <string>sudo /opt/tuist/inject-env.sh &amp;&amp; source /etc/tuist.env &amp;&amp; exec /opt/tuist/dispatch-poll.sh</string>
     </array>
@@ -64,7 +65,7 @@
     <false/>
 
     <key>WorkingDirectory</key>
-    <string>/opt/actions-runner</string>
+    <string>/Users/runner/actions-runner</string>
 
     <key>StandardOutPath</key>
     <string>/var/log/tuist-runner/stdout.log</string>

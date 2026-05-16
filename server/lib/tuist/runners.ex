@@ -358,11 +358,25 @@ defmodule Tuist.Runners do
     # fleet); `dispatch_label` is appended so the customer's
     # `runs-on` matches and GitHub binds the workflow_job to this
     # specific pool's runner.
+    # Match GitHub-hosted's workspace path so on-disk artifacts
+    # that bake absolute paths (SwiftPM `.build/checkouts/`,
+    # DerivedData, `actions/cache` payloads) work interchangeably
+    # between hosted and self-hosted runs. The runner images
+    # create a `runner` user with the corresponding HOME on each
+    # OS — `/Users/runner` on macOS, `/home/runner` on Linux.
+    work_folder =
+      if "macOS" in runner_labels do
+        "/Users/runner/work"
+      else
+        "/home/runner/work"
+      end
+
     with {:ok, installation} <- VCS.get_github_app_installation_for_account(account.id),
          {:ok, %{encoded_jit_config: jit, runner_name: runner_name}} <-
            GitHubClient.generate_jit_config(installation, account.name, %{
              name: runner_name,
-             labels: runner_labels ++ [dispatch_label]
+             labels: runner_labels ++ [dispatch_label],
+             work_folder: work_folder
            }) do
       {:ok, jit, runner_name}
     else
