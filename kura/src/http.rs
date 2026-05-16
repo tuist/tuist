@@ -351,9 +351,16 @@ async fn track_http_metrics(
         .unwrap_or_else(|| req.uri().path().to_owned());
     let method = req.method().to_string();
     let uri_path = req.uri().path().to_owned();
-    let client_country = state.geoip.as_ref().and_then(|geoip| {
-        client_ip_from_headers(req.headers()).and_then(|ip| geoip.country_code(ip))
-    });
+    let client_location = state
+        .geoip
+        .as_ref()
+        .and_then(|geoip| client_ip_from_headers(req.headers()).and_then(|ip| geoip.locate(ip)));
+    let client_country = client_location
+        .as_ref()
+        .and_then(|location| location.country.clone());
+    let client_subdivision = client_location
+        .as_ref()
+        .and_then(|location| location.subdivision.clone());
 
     let request_span = tracing::info_span!(
         "http.request",
@@ -363,6 +370,7 @@ async fn track_http_metrics(
         http.route = %route,
         url.path = %uri_path,
         client.country = field::Empty,
+        client.subdivision = field::Empty,
         http.response.status_code = field::Empty,
         otel.status_code = field::Empty,
         trace_id = field::Empty,
@@ -370,6 +378,9 @@ async fn track_http_metrics(
     );
     if let Some(country) = client_country.as_deref() {
         request_span.record("client.country", country);
+    }
+    if let Some(subdivision) = client_subdivision.as_deref() {
+        request_span.record("client.subdivision", subdivision);
     }
     attach_parent_context(&request_span, req.headers());
     record_trace_context(&request_span);

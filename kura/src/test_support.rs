@@ -80,6 +80,7 @@ where
         sentry_dsn: None,
         geoip_refresh_interval_secs: 0,
         node_country_override: None,
+        node_subdivision_override: None,
     };
     override_config(&mut config);
     config

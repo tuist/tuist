@@ -6,30 +6,65 @@ use crate::geoip::GeoIp;
 
 /// Public IP discovery endpoint used to derive the node's geographic
 /// location at startup. The endpoint returns the caller's egress IP
-/// as plain text. We only hit it once per pod lifetime — the result
+/// as plain text. We only hit it once per pod lifetime; the result
 /// becomes a Resource attribute on every exported span, so a slow or
 /// failed probe degrades to the region-prefix fallback rather than
 /// holding up startup beyond [`PROBE_TIMEOUT`].
 const EGRESS_IP_ENDPOINT: &str = "https://api.ipify.org";
 const PROBE_TIMEOUT: Duration = Duration::from_secs(3);
 
-pub async fn resolve_node_country(
-    override_value: Option<&str>,
+/// The serving node's own coarse location, stamped once at startup onto
+/// the OTel Resource so every exported span carries it.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct NodeLocation {
+    /// ISO 3166-1 alpha-2 country code, e.g. `FR`.
+    pub country: Option<String>,
+    /// ISO 3166-2 subdivision code, e.g. `US-CA`.
+    pub subdivision: Option<String>,
+}
+
+/// Resolves the node's own country and subdivision once at startup. The
+/// egress-IP probe and GeoIP lookup happen at most once and feed both
+/// fields. Country falls back to the region prefix; subdivision has no
+/// region-derived fallback and is simply omitted when unknown.
+pub async fn resolve_node_location(
+    country_override: Option<&str>,
+    subdivision_override: Option<&str>,
     geoip: Option<&GeoIp>,
     region: &str,
-) -> Option<String> {
-    if let Some(country) = override_value
-        && !country.trim().is_empty()
-    {
-        return Some(country.trim().to_ascii_uppercase());
+) -> NodeLocation {
+    let probed = match geoip {
+        Some(geoip) => match fetch_egress_ip().await {
+            Some(ip) => geoip.locate(ip),
+            None => None,
+        },
+        None => None,
+    };
+
+    let country = normalized_override(country_override)
+        .or_else(|| {
+            probed
+                .as_ref()
+                .and_then(|location| location.country.clone())
+        })
+        .or_else(|| iso_prefix_from_region(region));
+    let subdivision = normalized_override(subdivision_override).or_else(|| {
+        probed
+            .as_ref()
+            .and_then(|location| location.subdivision.clone())
+    });
+
+    NodeLocation {
+        country,
+        subdivision,
     }
-    if let Some(geoip) = geoip
-        && let Some(ip) = fetch_egress_ip().await
-        && let Some(country) = geoip.country_code(ip)
-    {
-        return Some(country);
-    }
-    iso_prefix_from_region(region)
+}
+
+fn normalized_override(value: Option<&str>) -> Option<String> {
+    value
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(|value| value.to_ascii_uppercase())
 }
 
 async fn fetch_egress_ip() -> Option<IpAddr> {
@@ -72,20 +107,29 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn resolve_uses_override_when_provided() {
-        let country = resolve_node_country(Some(" de "), None, "fr-par").await;
-        assert_eq!(country.as_deref(), Some("DE"));
+    async fn resolve_uses_country_override_when_provided() {
+        let location = resolve_node_location(Some(" de "), None, None, "fr-par").await;
+        assert_eq!(location.country.as_deref(), Some("DE"));
+        assert_eq!(location.subdivision, None);
+    }
+
+    #[tokio::test]
+    async fn resolve_uses_subdivision_override_alongside_region_country() {
+        let location = resolve_node_location(None, Some(" us-ca "), None, "fr-par").await;
+        assert_eq!(location.country.as_deref(), Some("FR"));
+        assert_eq!(location.subdivision.as_deref(), Some("US-CA"));
     }
 
     #[tokio::test]
     async fn resolve_falls_back_to_region_prefix_when_geoip_absent() {
-        let country = resolve_node_country(None, None, "us-east").await;
-        assert_eq!(country.as_deref(), Some("US"));
+        let location = resolve_node_location(None, None, None, "us-east").await;
+        assert_eq!(location.country.as_deref(), Some("US"));
+        assert_eq!(location.subdivision, None);
     }
 
     #[tokio::test]
-    async fn resolve_returns_none_when_everything_fails() {
-        let country = resolve_node_country(None, None, "??").await;
-        assert!(country.is_none());
+    async fn resolve_returns_empty_when_everything_fails() {
+        let location = resolve_node_location(None, None, None, "??").await;
+        assert_eq!(location, NodeLocation::default());
     }
 }

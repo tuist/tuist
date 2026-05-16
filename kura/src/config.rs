@@ -64,6 +64,7 @@ const KURA_SENTRY_DSN: &str = "KURA_SENTRY_DSN";
 const KURA_GEOIP_REFRESH_INTERVAL_SECS: &str = "KURA_GEOIP_REFRESH_INTERVAL_SECS";
 const DEFAULT_GEOIP_REFRESH_INTERVAL_SECS: u64 = 86_400;
 const KURA_NODE_COUNTRY: &str = "KURA_NODE_COUNTRY";
+const KURA_NODE_SUBDIVISION: &str = "KURA_NODE_SUBDIVISION";
 
 const BYTES_PER_MIB: u64 = 1024 * 1024;
 const DEFAULT_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS: u64 = 5_000;
@@ -121,6 +122,10 @@ pub struct Config {
     /// When set, it short-circuits the egress-IP probe used to stamp
     /// `kura.country` on OTel traces.
     pub node_country_override: Option<String>,
+    /// Operator-provided ISO 3166-2 subdivision code for the node (e.g.
+    /// `US-CA`). When set, it short-circuits the egress-IP probe used to
+    /// stamp `kura.subdivision` on OTel traces.
+    pub node_subdivision_override: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -857,6 +862,9 @@ impl Config {
         let node_country_override = lookup(KURA_NODE_COUNTRY)
             .map(|value| value.trim().to_owned())
             .filter(|value| !value.is_empty());
+        let node_subdivision_override = lookup(KURA_NODE_SUBDIVISION)
+            .map(|value| value.trim().to_owned())
+            .filter(|value| !value.is_empty());
         let otlp_traces_endpoint = lookup(KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT)
             .map(|value| value.trim().to_owned())
             .filter(|value| !value.is_empty());
@@ -997,6 +1005,7 @@ impl Config {
             sentry_dsn,
             geoip_refresh_interval_secs,
             node_country_override,
+            node_subdivision_override,
         })
     }
 
@@ -1348,6 +1357,32 @@ mod tests {
         .expect("expected geoip config to parse");
 
         assert_eq!(config.geoip_refresh_interval_secs, 3_600);
+    }
+
+    #[test]
+    fn from_lookup_parses_node_location_overrides() {
+        let config = config_from(&[
+            (KURA_PORT, "4500"),
+            (KURA_GRPC_PORT, "5500"),
+            (KURA_TENANT_ID, "acme"),
+            (KURA_REGION, "eu_west"),
+            (KURA_TMP_DIR, "/tmp/kura"),
+            (KURA_DATA_DIR, "/tmp/kura-data"),
+            (KURA_NODE_URL, "http://kura.example.com:7443"),
+            (KURA_PEERS, "http://kura-a.example.com:7443"),
+            (KURA_NODE_COUNTRY, " fr "),
+            (KURA_NODE_SUBDIVISION, " fr-idf "),
+            (
+                KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
+                "https://otel.example.com/v1/traces",
+            ),
+            (KURA_OTEL_SERVICE_NAME, "kura-eu"),
+            (KURA_OTEL_DEPLOYMENT_ENVIRONMENT, "staging"),
+        ])
+        .expect("expected node location config to parse");
+
+        assert_eq!(config.node_country_override.as_deref(), Some("fr"));
+        assert_eq!(config.node_subdivision_override.as_deref(), Some("fr-idf"));
     }
 
     #[test]

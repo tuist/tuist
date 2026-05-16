@@ -21,23 +21,25 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends ca-certificates curl gzip && \
     rm -rf /var/lib/apt/lists/*
 
-# DB-IP IP-to-Country Lite by DB-IP (https://db-ip.com) is licensed under
+# DB-IP IP-to-City Lite by DB-IP (https://db-ip.com) is licensed under
 # Creative Commons Attribution 4.0 International (CC BY 4.0). The free
 # monthly dump is published at a predictable URL keyed by year-month; we
 # fall back to the previous month if the current one has not been cut yet.
+# The City dump carries the ISO 3166-2 subdivision used for finer-grained
+# geographic attribution on traces.
 RUN set -eux; \
     mkdir -p /opt/geoip; \
     year_month="$(date -u +%Y-%m)"; \
     previous="$(date -u -d 'last month' +%Y-%m 2>/dev/null || date -u -v-1m +%Y-%m)"; \
     for candidate in "$year_month" "$previous"; do \
-      url="https://download.db-ip.com/free/dbip-country-lite-${candidate}.mmdb.gz"; \
+      url="https://download.db-ip.com/free/dbip-city-lite-${candidate}.mmdb.gz"; \
       if curl -fsSL "$url" -o /tmp/dbip.mmdb.gz; then \
-        gunzip -c /tmp/dbip.mmdb.gz > /opt/geoip/dbip-country-lite.mmdb; \
+        gunzip -c /tmp/dbip.mmdb.gz > /opt/geoip/dbip-city-lite.mmdb; \
         rm -f /tmp/dbip.mmdb.gz; \
         break; \
       fi; \
     done; \
-    test -s /opt/geoip/dbip-country-lite.mmdb
+    test -s /opt/geoip/dbip-city-lite.mmdb
 
 FROM debian:bookworm-slim
 
@@ -54,7 +56,7 @@ ENV RUST_LOG=info
 WORKDIR /app
 
 COPY --from=build /app/target/release/kura /usr/local/bin/kura
-COPY --from=geoip /opt/geoip/dbip-country-lite.mmdb /opt/geoip/dbip-country-lite.mmdb
+COPY --from=geoip /opt/geoip/dbip-city-lite.mmdb /opt/geoip/dbip-city-lite.mmdb
 
 EXPOSE 4000
 

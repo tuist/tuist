@@ -105,12 +105,13 @@ config:
     deploymentEnvironment: production
   discovery:
     enabled: true
-  # The Kura image vendors a DB-IP Lite Country MMDB at
-  # `/opt/geoip/dbip-country-lite.mmdb`, so client country attribution
-  # is on whenever that file is present (Kura soft-fails if it isn't).
-  # `refreshIntervalSecs` controls how often the pod re-downloads the
-  # monthly dump in the background. Set to 0 to pin to the vendored
-  # copy for the pod lifetime.
+  # The Kura image vendors a DB-IP Lite City MMDB at
+  # `/opt/geoip/dbip-city-lite.mmdb`, so client geographic attribution
+  # (country + ISO 3166-2 subdivision) is on whenever that file is
+  # present (Kura soft-fails if it isn't). `refreshIntervalSecs`
+  # controls how often the pod re-downloads the monthly dump in the
+  # background. Set to 0 to pin to the vendored copy for the pod
+  # lifetime.
   geoip:
     refreshIntervalSecs: 86400
 

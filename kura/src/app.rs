@@ -20,7 +20,7 @@ use crate::{
     io::IoController,
     memory::MemoryController,
     metrics::Metrics,
-    node_location::resolve_node_country,
+    node_location::resolve_node_location,
     peer_tls::{build_internal_rustls_config, build_peer_client, build_public_rustls_config},
     reapi,
     replication::{spawn_membership_task, spawn_outbox_task},
@@ -50,14 +50,15 @@ impl ShutdownBudget {
 pub async fn run() -> Result<(), String> {
     let config = Config::from_env().map_err(|error| format!("invalid configuration: {error}"))?;
     let geoip = GeoIp::open();
-    let node_country = resolve_node_country(
+    let node_location = resolve_node_location(
         config.node_country_override.as_deref(),
+        config.node_subdivision_override.as_deref(),
         geoip.as_ref(),
         &config.region,
     )
     .await;
-    let telemetry = init_tracing(&config, node_country.as_deref());
-    let log_context = log_context_span(&config, node_country.as_deref());
+    let telemetry = init_tracing(&config, &node_location);
+    let log_context = log_context_span(&config, &node_location);
     let result = run_with_config(config, geoip).instrument(log_context).await;
 
     telemetry.shutdown();
