@@ -85,17 +85,27 @@ spec:
           - mount: /
             fileSystem: ext4
             size: all
-        # post-install script runs on the freshly installed OS before
-        # the first reboot. Used to install containerd + the
-        # tuist.dev/kata-runtime label so kata-deploy picks it up on
-        # first kubelet check-in.
+        # post-install script runs CHROOTed into the freshly
+        # installed OS before the first reboot. Two jobs:
+        #
+        #   1. Install cloud-init. Hetzner's Ubuntu-2404-noble
+        #      base tarball doesn't include it, but caph's
+        #      `ensure-provisioned` step SSHes back into the box
+        #      after reboot and runs `cloud-init status` to verify
+        #      the OS is healthy. Without this package, caph hangs
+        #      at `ensure-provisioned` with
+        #      `bash: line 1: cloud-init: command not found`.
+        #
+        #   2. Stage the kata-runtime marker so kata-deploy picks
+        #      this Node on its first kubelet check-in. The bare-
+        #      metal worker `KubeadmConfigTemplate` runs the actual
+        #      kubeadm join + label apply via cloud-init.
         postInstallScript: |
           #!/bin/bash
           set -euo pipefail
-          # Label the node for the kata-deploy DaemonSet on first boot.
-          # The bare-metal-worker `KubeadmConfigTemplate` runs the
-          # actual kubeadm join + label apply via cloud-init; this
-          # file just stages the marker.
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update
+          apt-get install -y cloud-init
           mkdir -p /etc/tuist
           echo 'kata-runtime=true' > /etc/tuist/node-labels
       # Only claim hosts the hetzner-robot-controller created. The
