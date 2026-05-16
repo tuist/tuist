@@ -138,7 +138,19 @@ Linux runner Pods run as Firecracker microVMs (via Kata Containers)
 on Hetzner Robot dedicated servers (AX42-U class for staging,
 AX162-R for production). The hosts are adopted by `caph` from
 pre-ordered Robot inventory through the standard CAPI bare-metal
-flow:
+flow.
+
+> **Future state — `hetzner-robot-controller`** (follow-up PR).
+> Today, adopting a host requires the operator to manually add a
+> `HetznerBareMetalHost` CR with the Robot server ID + disk WWNs.
+> A small Tuist-built controller will replace that step: it polls
+> Robot's server list (any name matching `tuist-bm-*`), creates the
+> CR for each match, and auto-fills `rootDeviceHints` from caph's
+> `status.hardwareDetails` after the first rescue boot. After it
+> lands, the operator workflow is: order in Robot panel with the
+> naming convention → bump nothing (scale intent already lives in
+> the workload-cluster chart) → controller + caph do the rest.
+> Mirrors the Scaleway Apple Silicon flow.
 
 ```
 operator orders AX42-U via Robot panel

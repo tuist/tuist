@@ -53,23 +53,23 @@ spec:
           replicas: 2
           failureDomain: fsn1
         # Linux runner pool on Hetzner Robot bare metal. Each
-        # MD-replica claims one `HetznerBareMetalHost` CR (see
-        # `bare-metal-staging.yaml`); caph runs the rescue +
-        # installimage + cloud-init kubeadm-join flow to register
-        # the host as a worker Node. Each node ends up labeled
-        # `node.cluster.x-k8s.io/pool=runners-linux` +
+        # claimable `HetznerBareMetalHost` CR (see
+        # `bare-metal-staging.yaml`) gets picked up by caph, which
+        # runs the rescue + installimage + cloud-init kubeadm-join
+        # flow to register the host as a worker Node. Each node ends
+        # up labeled `node.cluster.x-k8s.io/pool=runners-linux` +
         # `tuist.dev/kata-runtime=true` and tainted
         # `tuist.dev/runner-tier=bare-metal:NoSchedule`.
         #
-        # `replicas` MUST match the number of pre-ordered
-        # `HetznerBareMetalHost` CRs in `bare-metal-staging.yaml`;
-        # caph can't satisfy more replicas than there are hosts.
-        # When the operator orders another AX42-U, add the
-        # corresponding `HetznerBareMetalHost` CR AND bump replicas
-        # here in the same change.
+        # No `replicas:` here — scale intent for this pool lives in
+        # the workload cluster's `values-managed-<env>.yaml` under
+        # `runnersFleetLinux.pools[].autoscaling`, and the
+        # workload-side runners-controller autoscaler patches this
+        # MD's `spec.replicas` at runtime via `--mgmt-kubeconfig`.
+        # Omitting replicas opts this MD out of topology-managed
+        # replicas, so CAPI won't fight the autoscaler.
         - class: bare-metal-worker
           name: runners-linux
-          replicas: 1
           failureDomain: fsn1
           metadata:
             labels:
