@@ -106,6 +106,20 @@ spec:
           export DEBIAN_FRONTEND=noninteractive
           apt-get update
           apt-get install -y cloud-init
+          # Hetzner's installimage leaves cloud-init service
+          # disabled (the base tarball is configured for a
+          # static-image use case where cloud-init isn't wanted).
+          # caph polls `cloud-init status` after the post-install
+          # reboot and reboot-loops when the answer is `disabled`.
+          # Enable the systemd unit explicitly, clean any state
+          # the installimage might have seeded, and remove the
+          # disabled marker if installimage left one.
+          rm -f /etc/cloud/cloud-init.disabled
+          systemctl enable cloud-init.service
+          systemctl enable cloud-init-local.service
+          systemctl enable cloud-config.service
+          systemctl enable cloud-final.service
+          cloud-init clean --logs --machine-id || true
           mkdir -p /etc/tuist
           echo 'kata-runtime=true' > /etc/tuist/node-labels
       # Only claim hosts the hetzner-robot-controller created. The
