@@ -85,17 +85,9 @@ jobs:
         id: cache
         with:
           path: .build
-          # `runner.environment` differentiates `github-hosted` from
-          # `self-hosted`. Both runner kinds report `runner.os == macOS`,
-          # so without this segment a self-hosted Pod restores caches
-          # that GitHub-hosted runs wrote — and `.build/checkouts/...`
-          # carries absolute paths like `/Users/runner/work/...` that
-          # don't exist on the self-hosted Pod (where the checkout is
-          # at `/opt/actions-runner/_work/...`). Tuist's graph load
-          # then dies on `Package.swift not found at path /Users/runner/…`.
-          key: ${{ runner.os }}-${{ runner.environment }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
           restore-keys: |
-            ${{ runner.os }}-${{ runner.environment }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.swift') }}-
+            ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.swift') }}-
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
