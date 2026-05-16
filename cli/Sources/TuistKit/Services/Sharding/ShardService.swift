@@ -25,6 +25,7 @@ public protocol ShardServicing {
         shardIndex: Int,
         fullHandle: String,
         serverURL: URL,
+        reference: String?,
         testProductsPath: AbsolutePath?,
         testProductsArchivePath: AbsolutePath?
     ) async throws -> Shard
@@ -76,10 +77,11 @@ public struct ShardService: ShardServicing {
         shardIndex: Int,
         fullHandle: String,
         serverURL: URL,
+        reference: String? = nil,
         testProductsPath: AbsolutePath? = nil,
         testProductsArchivePath: AbsolutePath? = nil
     ) async throws -> Shard {
-        guard let reference = ciController.ciInfo()?.shardReference else {
+        guard let reference = reference ?? ciController.ciInfo()?.shardReference else {
             throw ShardServiceError.cannotDeriveReference
         }
 

@@ -93,7 +93,7 @@ defmodule TuistWeb.WellKnownController do
   Returns OAuth Authorization Server metadata.
   """
   def oauth_authorization_server(conn, _params) do
-    issuer = Environment.app_url()
+    issuer = RequestOrigin.from_conn(conn)
 
     configuration = %{
       issuer: issuer,

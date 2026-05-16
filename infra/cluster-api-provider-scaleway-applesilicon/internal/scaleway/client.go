@@ -12,18 +12,58 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
+	"sync"
 
+	"github.com/google/uuid"
 	applesilicon "github.com/scaleway/scaleway-sdk-go/api/applesilicon/v1alpha1"
 	iam "github.com/scaleway/scaleway-sdk-go/api/iam/v1alpha1"
 	"github.com/scaleway/scaleway-sdk-go/scw"
 )
 
+// claimPendingPrefix marks a server that's mid-adoption — it has been
+// renamed out of the operator's pool prefix but not yet to the final
+// per-Machine `claimName`. Used by AdoptByPrefix's two-phase claim to
+// detect race losers (their pending name has been overwritten by
+// someone else's) and to let subsequent reconciles re-adopt orphans
+// from a controller crash between the two phases.
+const claimPendingPrefix = "tuist-claim-pending-"
+
+// AppleSiliconAPI is the slice of the Scaleway SDK's
+// `applesilicon.API` surface the CAPI provider touches. Declared as
+// an interface so tests can drop in a fake without needing the real
+// SDK + HTTP client. The concrete `*applesilicon.API` satisfies it
+// via Go's structural typing — no adapter required.
+type AppleSiliconAPI interface {
+	CreateServer(req *applesilicon.CreateServerRequest, opts ...scw.RequestOption) (*applesilicon.Server, error)
+	GetServer(req *applesilicon.GetServerRequest, opts ...scw.RequestOption) (*applesilicon.Server, error)
+	ListServers(req *applesilicon.ListServersRequest, opts ...scw.RequestOption) (*applesilicon.ListServersResponse, error)
+	UpdateServer(req *applesilicon.UpdateServerRequest, opts ...scw.RequestOption) (*applesilicon.Server, error)
+	DeleteServer(req *applesilicon.DeleteServerRequest, opts ...scw.RequestOption) error
+	WaitForServer(req *applesilicon.WaitForServerRequest, opts ...scw.RequestOption) (*applesilicon.Server, error)
+	ListOS(req *applesilicon.ListOSRequest, opts ...scw.RequestOption) (*applesilicon.ListOSResponse, error)
+}
+
 // Client talks to Scaleway's Apple Silicon + IAM APIs. Construct with
-// NewClient; in tests, the API fields can be replaced with fakes.
+// NewClient; in tests, the API fields can be replaced with fakes
+// (see AppleSiliconAPI).
 type Client struct {
-	API *applesilicon.API
+	API AppleSiliconAPI
 	IAM *iam.API
+
+	// adoptMu serializes AdoptByPrefix across all goroutines in this
+	// process. Scaleway's UpdateServer is not conditional — two
+	// concurrent rename calls against the same server both succeed,
+	// last-write-wins — so per-call optimistic read-after-write
+	// verification can't establish a "we own this server" invariant.
+	// The controller is single-replica via leader election, so a
+	// process-local mutex is sufficient: only the leader runs, and
+	// the leader doesn't race itself once adoptions are serialized.
+	// Adoption is rare (one acquisition per Machine bring-up) and
+	// short (a few API calls); serializing it has no meaningful
+	// throughput cost.
+	adoptMu sync.Mutex
 }
 
 // NewClient initializes a Scaleway client from the standard environment
@@ -217,26 +257,40 @@ var ErrNoAvailableHost = errors.New("no available Apple Silicon host in pool")
 // AdoptByPrefix claims a pre-ordered server in `zone` whose
 // Scaleway-side name starts with `poolPrefix`, matches
 // (`serverType`, `osName`), and is `Delivered=true` +
-// `Status=ready`. It renames the chosen server to `claimName` via
-// UpdateServer; that rename IS the claim — it both removes the
-// pool prefix (so the host no longer appears available) and
-// makes the host findable on future reconciles via the existing
+// `Status=ready`. The rename to `claimName` IS the claim — it both
+// removes the pool prefix (so the host no longer appears available)
+// and makes the host findable on future reconciles via the existing
 // name-based idempotency path (`findServerByName`).
 //
-// The "claim by rename" model relies on the operator's naming
-// convention as the single source of truth for "available":
+// Concurrent claims are resolved by a process-local mutex
+// (`adoptMu`). Scaleway's UpdateServer is not conditional — two
+// renames to different target names against the same server both
+// succeed, last-write-wins — so optimistic read-after-write
+// verification alone can't prevent two reconciles from walking
+// away with the same ServerID. The controller is single-replica
+// via leader election, so serializing adoption inside the leader
+// is sufficient; only one goroutine at a time enters this function.
 //
-//   * Operator pre-orders a Mac mini in the Scaleway console and
-//     names it `<poolPrefix>-<anything>` (e.g. the chart default
-//     `tuist-pool-001`, `tuist-pool-fr-par-1-a`, etc.).
-//   * Controller picks the first one whose `(type, os, status)`
-//     match this Machine and renames it. Two concurrent
-//     reconciles racing for the same host both call UpdateServer
-//     with the same `claimName`; Scaleway returns a name
-//     conflict on the losing call, which we surface and let the
-//     parent reconcile retry — the renamed host is no longer in
-//     the pool prefix on the next ListServers, so the retry
-//     picks a different one (or hits ErrNoAvailableHost).
+// Within that serialized section, a two-phase rename also runs as
+// defense-in-depth against external mutation (operator-driven
+// rename via the Scaleway console mid-adoption, or a future
+// multi-replica deployment that loses leader election between
+// reconciles):
+//
+//  1. Pick a candidate. UpdateServer renames it to a per-call
+//     marker `tuist-claim-pending-<uuid>`. GetServer the candidate
+//     and confirm the marker survived.
+//  2. UpdateServer to the final `claimName`.
+//
+// If between phase 1 and phase 2 some external actor renames the
+// server, the verify GET reveals the foreign name and the
+// candidate is skipped.
+//
+// Recovery from a crash between phases: if the controller exits
+// after phase 1, the server is stuck at `tuist-claim-pending-<uuid>`
+// outside any pool prefix. Subsequent scans treat any name carrying
+// `claimPendingPrefix` as eligible — same two-phase dance applies,
+// so the next reconcile re-adopts the orphan cleanly.
 //
 // Why a rename and not a Scaleway tag? The Apple Silicon API
 // doesn't expose tags. Naming is the only mutable, queryable
@@ -246,18 +300,21 @@ func (c *Client) AdoptByPrefix(ctx context.Context, claimName, zone, serverType,
 		return nil, fmt.Errorf("poolPrefix is required for adoption")
 	}
 
-	// Idempotent rediscovery: if a previous reconcile renamed a
-	// pool host to `claimName` but its `status.serverID` patch was
-	// lost (process crash, conflicted optimistic write), the host
-	// no longer carries `poolPrefix` and the scan below would
-	// return ErrNoAvailableHost — leaving the renamed server
-	// orphaned outside the pool. Check by name first so the next
-	// reconcile picks the already-claimed host back up.
+	c.adoptMu.Lock()
+	defer c.adoptMu.Unlock()
+
+	// Idempotent rediscovery: if a previous reconcile completed phase 2
+	// for this Machine but its `status.serverID` patch was lost (process
+	// crash, conflicted optimistic write), the host already has the
+	// final claimName. Check by name first so the next reconcile picks
+	// the already-claimed host back up without burning a second host.
 	if existing, err := c.findServerByName(ctx, claimName, zone); err != nil {
 		return nil, fmt.Errorf("lookup existing claim %q: %w", claimName, err)
 	} else if existing != nil {
 		return scalewayServerToServer(existing), nil
 	}
+
+	pendingName := claimPendingPrefix + uuid.NewString()
 
 	page := int32(1)
 	pageSize := uint32(100)
@@ -272,7 +329,14 @@ func (c *Client) AdoptByPrefix(ctx context.Context, claimName, zone, serverType,
 		}
 
 		for _, s := range resp.Servers {
-			if !strings.HasPrefix(s.Name, poolPrefix) {
+			// Eligible candidates: untouched pool hosts AND
+			// claim-pending orphans from a prior crashed reconcile.
+			// Orphans are safe to re-adopt because the two-phase dance
+			// below guarantees only one reconcile can promote the
+			// pending name.
+			eligible := strings.HasPrefix(s.Name, poolPrefix) ||
+				strings.HasPrefix(s.Name, claimPendingPrefix)
+			if !eligible {
 				continue
 			}
 			if !s.Delivered || s.Status != applesilicon.ServerStatusReady {
@@ -285,15 +349,16 @@ func (c *Client) AdoptByPrefix(ctx context.Context, claimName, zone, serverType,
 				continue
 			}
 
-			renamed, err := c.API.UpdateServer(&applesilicon.UpdateServerRequest{
-				ServerID: s.ID,
-				Zone:     scw.Zone(zone),
-				Name:     &claimName,
-			}, scw.WithContext(ctx))
+			claimed, err := c.tryTwoPhaseClaim(ctx, s.ID, zone, pendingName, claimName)
 			if err != nil {
-				return nil, fmt.Errorf("claim server %s via rename: %w", s.ID, err)
+				return nil, err
 			}
-			return scalewayServerToServer(renamed), nil
+			if claimed == nil {
+				// Lost the phase-1 race; another reconcile got there
+				// after us. Try the next candidate.
+				continue
+			}
+			return claimed, nil
 		}
 
 		if len(resp.Servers) < int(pageSize) {
@@ -301,6 +366,74 @@ func (c *Client) AdoptByPrefix(ctx context.Context, claimName, zone, serverType,
 		}
 		page++
 	}
+}
+
+// tryTwoPhaseClaim attempts to claim `serverID` via the two-phase
+// rename described in AdoptByPrefix.
+//
+// Returns:
+//
+//   - (*Server, nil)   — we won and promoted to claimName.
+//   - (nil, nil)       — race lost or candidate vanished (404).
+//     Caller should try another candidate. Triggered by a server
+//     that disappears (deleted by an operator mid-scan) or whose
+//     pending marker is overwritten between phase 1 and verify.
+//   - (nil, error)     — Scaleway returned a non-404 error on
+//     phase 1 / verify, or phase 2 promotion failed. The caller
+//     should surface it as a real provisioning failure rather
+//     than rolling on to "no available capacity" — a 403, 500, or
+//     validation error means something operational is wrong and
+//     pre-ordering more hosts won't help.
+func (c *Client) tryTwoPhaseClaim(ctx context.Context, serverID, zone, pendingName, claimName string) (*Server, error) {
+	// Phase 1: stake the candidate with our per-call marker.
+	if _, err := c.API.UpdateServer(&applesilicon.UpdateServerRequest{
+		ServerID: serverID,
+		Zone:     scw.Zone(zone),
+		Name:     &pendingName,
+	}, scw.WithContext(ctx)); err != nil {
+		// 404 means the candidate was deleted out from under us
+		// between the list and our UpdateServer call (concurrent
+		// operator action). That's recoverable — try the next
+		// candidate. Every other Scaleway error (auth, validation,
+		// outage) is operational and must surface, otherwise the
+		// outer loop quietly downgrades it to ErrNoAvailableHost
+		// and tells operators to pre-order capacity they already have.
+		if IsNotFound(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("phase 1 rename of server %s to pending marker: %w", serverID, err)
+	}
+
+	// Verify the marker survived. With adoptMu held we won't race
+	// ourselves, but an external rename (operator console, future
+	// multi-replica deployment that lost leader election) can still
+	// overwrite the marker — bail in that case rather than promote a
+	// name we may not actually hold.
+	verified, err := c.API.GetServer(&applesilicon.GetServerRequest{
+		ServerID: serverID,
+		Zone:     scw.Zone(zone),
+	}, scw.WithContext(ctx))
+	if err != nil {
+		if IsNotFound(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("phase 1 verify of server %s: %w", serverID, err)
+	}
+	if verified.Name != pendingName {
+		return nil, nil
+	}
+
+	// Phase 2: promote pending marker to the final claimName.
+	promoted, err := c.API.UpdateServer(&applesilicon.UpdateServerRequest{
+		ServerID: serverID,
+		Zone:     scw.Zone(zone),
+		Name:     &claimName,
+	}, scw.WithContext(ctx))
+	if err != nil {
+		return nil, fmt.Errorf("promote claim from %q to %q on server %s: %w",
+			pendingName, claimName, serverID, err)
+	}
+	return scalewayServerToServer(promoted), nil
 }
 
 // GetServer fetches the current state of an existing server.
@@ -409,5 +542,44 @@ func scalewayServerToServer(s *applesilicon.Server) *Server {
 	if s.IP != nil {
 		out.IP = s.IP.String()
 	}
+	// Scaleway only populates `sudo_password` on the CreateServer
+	// response — once that one-time window closes, every subsequent
+	// GET/list returns an empty `sudo_password`. Hosts adopted from
+	// the pre-ordered pool never go through CreateServer, so without
+	// this fallback the controller stages an empty password into the
+	// bootstrap Secret and `enableAutoLogin` either silently skips
+	// (writing nothing) or writes a kcpassword whose plaintext is
+	// just the cipher key padding — either way Aqua never comes up
+	// and `tart run` fails forever.
+	//
+	// The `vnc_url` field embeds the same OS-default credentials as
+	// `vnc://<ssh_username>:<password>@<ip>:<port>`. It's surfaced on
+	// every GET, including for adopted servers, and verified out-of-
+	// band to authenticate the m1 macOS user. Pull the password from
+	// there when `sudo_password` is empty.
+	if out.SudoPassword == "" {
+		out.SudoPassword = passwordFromVncURL(s.VncURL)
+	}
 	return out
+}
+
+// passwordFromVncURL extracts the password embedded in a Scaleway
+// Apple Silicon `vnc_url` of the form
+// `vnc://<user>:<password>@<host>:<port>`. Returns "" if the URL is
+// empty, malformed, or doesn't carry user-info. Special characters in
+// the password are percent-decoded by `url.Parse` so callers receive
+// the raw plaintext.
+func passwordFromVncURL(raw string) string {
+	if raw == "" {
+		return ""
+	}
+	u, err := url.Parse(raw)
+	if err != nil || u.User == nil {
+		return ""
+	}
+	pwd, ok := u.User.Password()
+	if !ok {
+		return ""
+	}
+	return pwd
 }

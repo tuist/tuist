@@ -142,5 +142,41 @@ defmodule TuistWeb.TestCaseLiveTest do
       {:ok, fetched} = Tuist.Tests.get_test_case_by_id(test_case_run.test_case_id)
       assert fetched.state == "enabled"
     end
+
+    test "shows exact event dates in overview and history tooltips", %{
+      conn: conn,
+      account: account,
+      project: project
+    } do
+      {:ok, test_run} = RunsFixtures.test_fixture(project_id: project.id, account_id: account.id)
+      test_run = Tuist.ClickHouseRepo.preload(test_run, :test_case_runs)
+      [test_case_run | _] = test_run.test_case_runs
+
+      inserted_at = ~N[2024-01-15 14:30:25.000000]
+
+      event =
+        RunsFixtures.test_case_event_fixture(
+          test_case_id: test_case_run.test_case_id,
+          event_type: "skipped",
+          inserted_at: inserted_at
+        )
+
+      conn =
+        conn
+        |> put_req_cookie("user_timezone", "America/New_York")
+        |> put_session("user_timezone", "America/New_York")
+
+      {:ok, _lv, overview_html} =
+        live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_run.test_case_id}")
+
+      assert overview_html =~ "overview-history-event-#{event.id}-time-tooltip"
+      assert overview_html =~ "Mon 15 Jan 2024 at 09:30"
+
+      {:ok, _lv, history_html} =
+        live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_run.test_case_id}?tab=history")
+
+      assert history_html =~ "test-history-event-#{event.id}-time-tooltip"
+      assert history_html =~ "Mon 15 Jan 2024 at 09:30"
+    end
   end
 end

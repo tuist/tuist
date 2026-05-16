@@ -146,7 +146,7 @@ defmodule Tuist.Kura.ReconcilerTest do
     assert %Server{status: :destroying} = Repo.get!(Server, server.id)
   end
 
-  test "marks the deployment and server failed when apply fails" do
+  test "marks a first-time-deploy server :failed and reports to Sentry when apply fails" do
     {_account, server, deployment} = create_server()
 
     expect(Provisioner, :current_image_tag, fn %Server{id: id} ->
@@ -159,10 +159,71 @@ defmodule Tuist.Kura.ReconcilerTest do
       {:error, "apply failed"}
     end)
 
+    expect(Sentry, :capture_message, fn "Kura deploy failed", opts ->
+      assert opts[:level] == :error
+      extra = opts[:extra]
+      assert extra.deployment_id == deployment.id
+      assert extra.server_id == server.id
+      assert extra.region == server.region
+      assert extra.reason == "apply failed"
+      :ignored
+    end)
+
     assert :ok = Reconciler.reconcile()
 
     assert %Deployment{status: :failed, error_message: "apply failed"} = Repo.get!(Deployment, deployment.id)
-    assert %Server{status: :failed} = Repo.get!(Server, server.id)
+    assert %Server{status: :failed, current_image_tag: nil} = Repo.get!(Server, server.id)
+  end
+
+  test "marks a first-time-deploy server :failed and reports to Sentry when the cluster is unreachable" do
+    {_account, server, deployment} = create_server()
+
+    expect(Provisioner, :current_image_tag, fn %Server{id: id} ->
+      assert id == server.id
+      {:error, "missing Kubernetes kubeconfig for Kura cluster us-east-1"}
+    end)
+
+    expect(Sentry, :capture_message, fn "Kura deploy failed", opts ->
+      assert opts[:level] == :error
+      assert opts[:extra].reason == "missing Kubernetes kubeconfig for Kura cluster us-east-1"
+      :ignored
+    end)
+
+    assert :ok = Reconciler.reconcile()
+
+    assert %Deployment{
+             status: :failed,
+             error_message: "missing Kubernetes kubeconfig for Kura cluster us-east-1"
+           } = Repo.get!(Deployment, deployment.id)
+
+    assert %Server{status: :failed, current_image_tag: nil} = Repo.get!(Server, server.id)
+  end
+
+  test "keeps an active server at :failed when a drift rollout fails so the working endpoint stays up" do
+    {_account, server, deployment} = create_server()
+    {:ok, server} = Kura.activate_server(server, deployment.image_tag)
+    mark_deployment_succeeded(deployment)
+
+    stub(Tuist.Environment, :kura_runtime_image_tag, fn -> "sha-abcdef123456" end)
+
+    expect(Provisioner, :current_image_tag, fn %Server{id: id} ->
+      assert id == server.id
+      {:ok, "0.5.2"}
+    end)
+
+    expect(Provisioner, :rollout, fn %Server{id: id}, _inputs ->
+      assert id == server.id
+      {:error, "apply failed"}
+    end)
+
+    expect(Sentry, :capture_message, fn "Kura deploy failed", _opts -> :ignored end)
+
+    assert :ok = Reconciler.reconcile()
+
+    drift_deployment = Repo.get_by!(Deployment, kura_server_id: server.id, image_tag: "sha-abcdef123456")
+    assert drift_deployment.status == :failed
+    assert %Server{status: :failed, url: url, current_image_tag: "0.5.2"} = Repo.get!(Server, server.id)
+    assert is_binary(url)
   end
 
   defp create_server do

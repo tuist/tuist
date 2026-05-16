@@ -2173,6 +2173,211 @@ defmodule Tuist.TestsTest do
       assert is_nil(test.build_run_id)
       assert is_nil(test.gradle_build_id)
     end
+
+    test "second shard fills in scheme when first shard left it empty" do
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+
+      {:ok, first_test} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 0,
+          status: "processing",
+          scheme: nil,
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 0
+        })
+
+      assert first_test.scheme in [nil, ""]
+
+      {:ok, updated_test} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 800,
+          status: "success",
+          scheme: "TuistAcceptanceTests",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 1
+        })
+
+      assert updated_test.id == first_test.id
+      assert updated_test.scheme == "TuistAcceptanceTests"
+    end
+
+    test "preserves scheme when a later shard reports without one" do
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+
+      {:ok, first_test} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 500,
+          status: "success",
+          scheme: "TuistAcceptanceTests",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 0
+        })
+
+      assert first_test.scheme == "TuistAcceptanceTests"
+
+      {:ok, updated_test} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 800,
+          status: "success",
+          scheme: nil,
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 1
+        })
+
+      assert updated_test.scheme == "TuistAcceptanceTests"
+    end
+
+    test "stays in_progress while every shard is still processing its xcresult" do
+      # When the CLI uploads xcresults for parsing, each shard's controller
+      # call lands with status="processing" before the worker has parsed
+      # anything. The merged Test row must not flip to a final status just
+      # because the controller has heard from every shard — otherwise the
+      # dashboard reports "Passed" with zero test cases and zero duration.
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+
+      {:ok, _first_test} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 0,
+          status: "processing",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 0
+        })
+
+      {:ok, second_test} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 0,
+          status: "processing",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 1
+        })
+
+      assert second_test.status == "in_progress"
+    end
+
+    test "counts each shard once even when the controller and worker both record it" do
+      # ShardRun is a MergeTree — both the controller's status=processing
+      # upload and the worker's parsed status="success" row coexist for
+      # the same shard_index. The completion check must not treat those
+      # as two separate shards, otherwise a 2-shard plan can finalize
+      # after a single shard's full lifecycle.
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+
+      shard_0_id = UUIDv7.generate()
+
+      {:ok, _processing_test} =
+        Tests.create_test(%{
+          id: shard_0_id,
+          project_id: project.id,
+          account_id: account.id,
+          duration: 0,
+          status: "processing",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 0
+        })
+
+      {:ok, parsed_test} =
+        Tests.create_test(%{
+          id: shard_0_id,
+          project_id: project.id,
+          account_id: account.id,
+          duration: 1000,
+          status: "success",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 0,
+          test_modules: [
+            %{
+              name: "ModuleA",
+              status: "success",
+              duration: 1000,
+              test_cases: [%{name: "testA", status: "success", duration: 500}]
+            }
+          ]
+        })
+
+      assert parsed_test.status == "in_progress"
+    end
+
+    test "fills in macos_version, xcode_version and model_identifier from later shards" do
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+
+      {:ok, _first_test} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 0,
+          status: "processing",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 0
+        })
+
+      {:ok, updated_test} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 800,
+          status: "success",
+          scheme: "TuistAcceptanceTests",
+          macos_version: "26.4.1",
+          xcode_version: "26.4",
+          model_identifier: "VirtualMac2,1",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 1
+        })
+
+      assert updated_test.macos_version == "26.4.1"
+      assert updated_test.xcode_version == "26.4"
+      assert updated_test.model_identifier == "VirtualMac2,1"
+    end
   end
 
   describe "upload_crash_report/1" do

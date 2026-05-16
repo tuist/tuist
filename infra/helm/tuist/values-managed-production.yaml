@@ -208,7 +208,7 @@ macosFleet:
   controlPlane:
     host: api.tuist.dev
 
-# Customer-runner Mac mini fleet. Sized to 5 hosts = 5 concurrent
+# Customer-runner Mac mini fleet. Sized to 9 hosts = 9 concurrent
 # customer runs. Apple's SLA permits up to two VMs per host; v1
 # runs one VM per host to keep capacity reasoning simple. Bump
 # this once the operational story for two-per-host is in place.
@@ -216,7 +216,7 @@ macosFleet:
 # releases can safely bump all enabled managed environments.
 runnersFleet:
   enabled: true
-  hostCount: 5
+  hostCount: 9
   # Pre-ordered pool. Operator orders M2-L hosts in the Scaleway
   # console with names starting with `tuist-pool-` ahead of
   # bringing this block live (Mac mini lead times can stretch
@@ -231,8 +231,8 @@ runnersFleet:
       - "192.168.0.0/16"
   pools:
     - name: default
-      replicas: 5
-      runnerImage: "ghcr.io/tuist/tuist-runner@sha256:666cf1180bab17d5b6f5cb800a6b21ecb5b078183a532bcc7a1c040711a295df"
+      replicas: 9
+      runnerImage: "ghcr.io/tuist/tuist-runner@sha256:528164596e4e533f5f884a7b9bb7733aec56990df92f18a1d480e13385aa0c30"
       dispatchLabel: "tuist-macos"
 
 # In-cluster Valkey backs the auth rate limiter (Hammer.Redis). The
