@@ -318,7 +318,14 @@ defmodule Tuist.Runners do
          {:ok, %{encoded_jit_config: jit, runner_name: runner_name}} <-
            GitHubClient.generate_jit_config(installation, account.name, %{
              name: runner_name,
-             labels: ["self-hosted", "macOS", "ARM64", dispatch_label]
+             labels: ["self-hosted", "macOS", "ARM64", dispatch_label],
+             # Match GitHub-hosted's workspace path so on-disk
+             # artifacts that bake absolute paths (SwiftPM
+             # `.build/checkouts/`, DerivedData, `actions/cache`
+             # payloads) work interchangeably between hosted and
+             # self-hosted runs. The runner image creates a `runner`
+             # user with home `/Users/runner` to match.
+             work_folder: "/Users/runner/work"
            }) do
       {:ok, jit, runner_name}
     else

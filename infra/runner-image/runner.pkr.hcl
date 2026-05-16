@@ -22,23 +22,37 @@ packer {
 #  4. Once the server returns 200 with `encoded_jit_config`, the
 #     script writes the JIT to a temp file and execs
 #     `./run.sh --jitconfig $JIT` against the GitHub Actions
-#     runner under /opt/actions-runner.
+#     runner under /Users/runner/actions-runner.
 #  5. The runner accepts a single queued job (JIT config implies
 #     ephemeral=true), runs the workflow, and exits.
 #  6. tart-kubelet observes the VM stop, transitions the Pod to
 #     Completed, and the next reconcile tick creates a fresh Pod.
 #
-# Image layout:
-#   /opt/actions-runner/        <- GitHub Actions runner binary
-#   /opt/tuist/dispatch-poll.sh <- the dispatch poll loop
-#   /opt/tuist/inject-env.sh    <- reads kubelet env mount → /etc/tuist.env
-#   /Library/LaunchDaemons/dev.tuist.runner.plist
+# Image layout (mirrors GitHub-hosted macOS paths so on-disk
+# artifacts that bake absolute paths — SwiftPM `.build/checkouts/`,
+# Xcode DerivedData, `actions/cache` payloads — work interchangeably
+# between hosted and self-hosted runs without per-environment cache
+# keys):
+#   /Users/runner/                              <- runtime user
+#   /Users/runner/actions-runner/               <- GitHub Actions runner binary
+#   /Users/runner/work/<owner>/<repo>           <- workspace, set via JIT work_folder
+#   /Users/runner/Library/LaunchAgents/         <- dev.tuist.runner.plist
+#   /opt/tuist/dispatch-poll.sh                 <- the dispatch poll loop (root-owned)
+#   /opt/tuist/inject-env.sh                    <- reads kubelet env mount → /etc/tuist.env
+#
+# The Cirrus base image ships with an `admin` user; we keep admin
+# around as Packer's SSH provisioning identity but create a
+# dedicated `runner` user as the runtime account, mirroring
+# `/Users/runner` on GitHub-hosted images. Auto-login + LaunchAgent
+# target runner, not admin.
 #
 # Note that the runner is registered with GitHub at *job* time,
 # not image-build time — the image carries the runner binary but
 # no credentials. The JIT config delivered via dispatch is the
 # only piece that authenticates this VM as a runner for any
-# specific repo.
+# specific repo. The matching `Tuist.Runners.mint_jit` call passes
+# `work_folder: "/Users/runner/work"` so the agent's workspace
+# lands at the same absolute path GitHub-hosted runners use.
 
 variable "base_image" {
   type        = string
@@ -110,10 +124,18 @@ source "tart-cli" "runner" {
 build {
   sources = ["source.tart-cli.runner"]
 
+  # Create the `runner` user (Cirrus base image ships with `admin`
+  # only). `-admin` adds the user to the admin GROUP, which is
+  # what `/etc/sudoers.d/%admin` and `inject-env.sh`'s `root:admin`
+  # file ownership reference. Password "runner" is encoded into
+  # /etc/kcpassword below so the auto-login flow can unlock the
+  # account at boot.
   provisioner "shell" {
     inline = [
-      "echo 'admin' | sudo -S mkdir -p /opt/actions-runner /opt/tuist /etc/tuist",
-      "echo 'admin' | sudo -S chown admin:staff /opt/actions-runner /opt/tuist"
+      "set -euo pipefail",
+      "echo 'admin' | sudo -S sysadminctl -addUser runner -fullName 'GitHub Actions Runner' -password runner -admin",
+      "echo 'admin' | sudo -S mkdir -p /opt/tuist /etc/tuist",
+      "echo 'admin' | sudo -S chown root:wheel /opt/tuist"
     ]
   }
 
@@ -139,13 +161,21 @@ build {
     ]
   }
 
+  # Install the Actions runner agent under runner's home so the
+  # binary, its `_diag` logs, and any side data it writes land
+  # under `/Users/runner/...` — matching GitHub-hosted's layout
+  # (their agent installs at `/Users/runner/runners/<version>/`).
+  # `--work` for the workspace is set at JIT-generation time
+  # (`work_folder: "/Users/runner/work"`), so the actual checkout
+  # ends up at the GH-parity path regardless of the agent's home.
   provisioner "shell" {
     inline = [
       "set -euo pipefail",
-      "cd /opt/actions-runner",
-      "curl -sSL -o actions-runner.tar.gz https://github.com/actions/runner/releases/download/v${var.runner_version}/actions-runner-osx-arm64-${var.runner_version}.tar.gz",
-      "tar xzf actions-runner.tar.gz",
-      "rm actions-runner.tar.gz",
+      "sudo -u runner mkdir -p /Users/runner/actions-runner /Users/runner/work",
+      "cd /Users/runner/actions-runner",
+      "sudo -u runner curl -sSL -o actions-runner.tar.gz https://github.com/actions/runner/releases/download/v${var.runner_version}/actions-runner-osx-arm64-${var.runner_version}.tar.gz",
+      "sudo -u runner tar xzf actions-runner.tar.gz",
+      "sudo -u runner rm actions-runner.tar.gz",
       # Sanity check: configure script exists. We don't run
       # ./config.sh — JIT config is provided at runtime.
       "test -x ./run.sh"
@@ -170,37 +200,38 @@ build {
     ]
   }
 
-  # Passwordless sudo for admin. The runner agent runs as admin in
-  # a real user session (LaunchAgent + auto-login), not as root, so
-  # the few privileged operations the agent needs — installing
-  # /etc/tuist.env from the kubelet env mount, halting the VM at
-  # job exit — go through sudo. Passwordless because the VM is
-  # ephemeral and single-tenant; the entire OS is the customer's
-  # job environment.
+  # Passwordless sudo for runner. The agent runs as the `runner`
+  # user in a real desktop session (LaunchAgent + auto-login),
+  # not as root, so the few privileged operations the agent needs
+  # — installing /etc/tuist.env from the kubelet env mount,
+  # halting the VM at job exit — go through sudo. Passwordless
+  # because the VM is ephemeral and single-tenant; the entire OS
+  # is the customer's job environment.
   provisioner "shell" {
     inline = [
       "set -euo pipefail",
-      "echo 'admin ALL=(ALL) NOPASSWD: ALL' > /tmp/admin-nopasswd",
-      "echo 'admin' | sudo -S install -m 0440 -o root -g wheel /tmp/admin-nopasswd /etc/sudoers.d/admin-nopasswd",
-      "rm -f /tmp/admin-nopasswd",
-      "sudo -n true"
+      "echo 'admin' | sudo -S sh -c 'echo \"runner ALL=(ALL) NOPASSWD: ALL\" > /etc/sudoers.d/runner-nopasswd'",
+      "echo 'admin' | sudo -S chmod 0440 /etc/sudoers.d/runner-nopasswd",
+      "echo 'admin' | sudo -S chown root:wheel /etc/sudoers.d/runner-nopasswd",
+      "sudo -u runner sudo -n true"
     ]
   }
 
-  # Auto-login as admin so a desktop session exists at boot and
-  # loginwindow loads /Users/admin/Library/LaunchAgents agents.
+  # Auto-login as runner so a desktop session exists at boot and
+  # loginwindow loads /Users/runner/Library/LaunchAgents agents.
   # macOS implements auto-login via /etc/kcpassword (XOR-encoded
   # password using Apple's well-known key) + the autoLoginUser
-  # preference. The encoded payload for password "admin":
-  # bytes 0x1c, 0xed, 0x3f, 0x4a, 0xbc, 0xbc, 0xdd, 0xea, 0xa3,
-  # 0xb9, 0x1f (admin XOR key, padded to one key-length block).
+  # preference. The encoded payload for password "runner" is the
+  # 6 password bytes followed by 6 zero-pad bytes, each XOR'd
+  # against the 12-byte Apple key — total 12 bytes (one full
+  # key-length block).
   provisioner "shell" {
     inline = [
       "set -euo pipefail",
-      "printf '\\x1c\\xed\\x3f\\x4a\\xbc\\xbc\\xdd\\xea\\xa3\\xb9\\x1f' > /tmp/kcpassword",
+      "printf '\\x0f\\xfc\\x3c\\x4d\\xb7\\xce\\xdd\\xea\\xa3\\xb9\\x1f\\xb5' > /tmp/kcpassword",
       "sudo install -m 0600 -o root -g wheel /tmp/kcpassword /etc/kcpassword",
       "rm -f /tmp/kcpassword",
-      "sudo defaults write /Library/Preferences/com.apple.loginwindow autoLoginUser admin"
+      "sudo defaults write /Library/Preferences/com.apple.loginwindow autoLoginUser runner"
     ]
   }
 
@@ -209,18 +240,18 @@ build {
     destination = "/tmp/dev.tuist.runner.plist"
   }
 
-  # Install as a LaunchAgent under admin's home so it loads inside
-  # admin's user session (auto-login above guarantees the session
-  # exists at boot). User-owned (admin:staff, 0644) per Apple's
-  # LaunchAgent ownership rules.
+  # Install as a LaunchAgent under runner's home so it loads
+  # inside runner's user session (auto-login above guarantees the
+  # session exists at boot). User-owned (runner:staff, 0644) per
+  # Apple's LaunchAgent ownership rules.
   provisioner "shell" {
     inline = [
       "set -euo pipefail",
-      "sudo -u admin mkdir -p /Users/admin/Library/LaunchAgents",
-      "sudo install -m 0644 -o admin -g staff /tmp/dev.tuist.runner.plist /Users/admin/Library/LaunchAgents/dev.tuist.runner.plist",
+      "sudo -u runner mkdir -p /Users/runner/Library/LaunchAgents",
+      "sudo install -m 0644 -o runner -g staff /tmp/dev.tuist.runner.plist /Users/runner/Library/LaunchAgents/dev.tuist.runner.plist",
       "rm -f /tmp/dev.tuist.runner.plist",
       "sudo mkdir -p /var/log/tuist-runner",
-      "sudo chown admin:staff /var/log/tuist-runner"
+      "sudo chown runner:staff /var/log/tuist-runner"
     ]
   }
 
@@ -236,7 +267,7 @@ build {
   provisioner "shell" {
     inline = [
       "set -euo pipefail",
-      "sudo -u admin /bin/zsh -lc 'for tool in brew mise tuist gh git-lfs jq yq swiftlint swiftformat xcbeautify fastlane pod carthage; do command -v \"$tool\" >/dev/null 2>&1 || { echo \"sanity check: $tool not reachable in admin login shell — base image regression\" >&2; exit 1; }; done'"
+      "sudo -u runner /bin/zsh -lc 'for tool in brew mise tuist gh git-lfs jq yq swiftlint swiftformat xcbeautify fastlane pod carthage; do command -v \"$tool\" >/dev/null 2>&1 || { echo \"sanity check: $tool not reachable in runner login shell — base image regression\" >&2; exit 1; }; done'"
     ]
   }
 }
