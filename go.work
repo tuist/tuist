@@ -19,4 +19,5 @@ use (
 	./infra/macos-host-bootstrap
 	./infra/runners-controller
 	./infra/tart-kubelet
+	./infra/vm-image-builder-bootstrap
 )
