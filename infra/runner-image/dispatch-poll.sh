@@ -100,7 +100,7 @@ while true; do
         continue
       fi
       echo "$(date -u +%FT%TZ) dispatch-poll: dispatched, starting runner"
-      cd /opt/actions-runner
+      cd /Users/runner/actions-runner
       # `--jitconfig` implies ephemeral: the runner accepts one job
       # and exits. `--disableupdate` pins the runner to whatever
       # version is baked into the image; we bump that via Renovate
