@@ -75,7 +75,8 @@ These steps happen once per operator, not per host:
    ssh-keygen -t ed25519 -C "vm-image-builder" -f ~/.ssh/scaleway_mac_builder_ed25519
    ```
 
-   Save the private half in 1Password (`tuist-infra` vault, item
+   Save the private half in 1Password under whatever vault your team
+   uses for non-env-specific infra credentials (item suggestion:
    `vm-image-builder-fleet`, field `ssh-private-key`).
 
 2. **Register the public half with Scaleway IAM**: Scaleway console
@@ -97,7 +98,11 @@ These steps happen once per operator, not per host:
 
 ### 1. Order the Mac mini
 
-- **Provider:** Scaleway Apple Silicon, project `tuist-mac-builders`.
+- **Provider:** Scaleway Apple Silicon, in the same Tuist organization
+  project that hosts the in-cluster macOS fleet. The CAPI provider's
+  per-env IAM tokens are scoped to that project, so it's the natural
+  home for the builders too (the `project-id` is in 1Password under
+  `op://tuist-k8s-production/SCALEWAY_API/project-id` if you need it).
 - **SKU:** **M2-L** (M2 Pro, 12 vCPU, 32 GB RAM, 256 GB SSD). Same
   default the CAPI provider uses for in-cluster hosts.
 - **OS image:** the Scaleway **macOS + Xcode preinstalled** image
