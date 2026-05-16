@@ -111,7 +111,7 @@ jobs:
 
   cli-spm-build:
     name: SwiftPM Build
-    runs-on: macos-26
+    runs-on: tuist-macos
     timeout-minutes: 30
     permissions:
       contents: read
@@ -148,7 +148,7 @@ jobs:
 
   cli-cache:
     name: Cache
-    runs-on: macos-26
+    runs-on: tuist-macos
     timeout-minutes: 60
     permissions:
       contents: read
@@ -350,7 +350,7 @@ jobs:
 
   cli-acceptance-tests-fork:
     name: Acceptance Tests (Fork)
-    runs-on: macos-26
+    runs-on: tuist-macos
     timeout-minutes: 60
     if: (github.event.pull_request.draft == false || github.event_name != 'pull_request') && github.event.pull_request.head.repo.fork == true
     steps:

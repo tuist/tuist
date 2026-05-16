@@ -1014,7 +1014,7 @@ jobs:
     name: Release App
     needs: check-releases
     if: needs.check-releases.outputs.app-should-release == 'true'
-    runs-on: macos-26
+    runs-on: tuist-macos
     timeout-minutes: 50
     permissions:
       contents: write
