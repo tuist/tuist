@@ -155,6 +155,14 @@
       }
     },
     {
+      "identity" : "kolos65.Mockable",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "0.6.2"
+      }
+    },
+    {
       "identity" : "komondor",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/shibapm/Komondor.git",
@@ -170,6 +178,14 @@
       "state" : {
         "revision" : "ff3c258b4b676cbd873b03ee3f11e3bc2b11d5af",
         "version" : "0.49.0"
+      }
+    },
+    {
+      "identity" : "MobileNativeFoundation.XCLogParser",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "0.2.47"
       }
     },
     {
@@ -323,6 +339,14 @@
       "state" : {
         "revision" : "20e2de5322c83df005939d9d9300fab130b49f97",
         "version" : "2.10.1"
+      }
+    },
+    {
+      "identity" : "stephencelis.SQLite_swift",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "0.16.0"
       }
     },
     {
@@ -665,6 +689,30 @@
       "state" : {
         "revision" : "fa1103a62b1c08cc08eabc58dda8b55887ff1622",
         "version" : "0.4.4"
+      }
+    },
+    {
+      "identity" : "tuist.Command",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "0.14.4"
+      }
+    },
+    {
+      "identity" : "tuist.FileSystem",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "0.18.0"
+      }
+    },
+    {
+      "identity" : "tuist.Path",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "0.3.8"
       }
     },
     {
