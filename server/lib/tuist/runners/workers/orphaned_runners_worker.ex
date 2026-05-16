@@ -137,10 +137,25 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
          pod_name: pod_name
        }) do
     with {:ok, account} <- Accounts.get_account_by_id(account_id),
-         {:ok, installation} <- VCS.get_github_app_installation_for_account(account.id),
-         {:ok, %{status: gh_status}} <-
-           GitHubClient.get_workflow_job(installation, repo, workflow_job_id) do
-      handle_gh_status(gh_status, workflow_job_id, claimed_at, pod_name, account)
+         {:ok, installation} <- VCS.get_github_app_installation_for_account(account.id) do
+      case GitHubClient.get_workflow_job(installation, repo, workflow_job_id) do
+        {:ok, %{status: gh_status, conclusion: conclusion}} ->
+          handle_gh_status(gh_status, conclusion, workflow_job_id, claimed_at, pod_name, account)
+
+        {:error, :not_found} ->
+          # GH pruned the workflow_job (90-day retention by default).
+          # The job can't be live; treat as completed so the PG cap
+          # slot doesn't leak forever.
+          handle_gh_status("completed", "", workflow_job_id, claimed_at, pod_name, account)
+
+        {:error, reason} ->
+          Logger.warning("runners: orphan worker GH lookup failed; will retry next tick",
+            workflow_job_id: workflow_job_id,
+            reason: inspect(reason)
+          )
+
+          false
+      end
     else
       {:error, :not_found} ->
         # Account row gone (rare). Leave the orphan; cap accounting
@@ -157,7 +172,7 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
     end
   end
 
-  defp handle_gh_status("queued", workflow_job_id, claimed_at, pod_name, account) do
+  defp handle_gh_status("queued", _conclusion, workflow_job_id, claimed_at, pod_name, account) do
     Logger.warning("runners: orphaned running row — GH still queued, recovering",
       workflow_job_id: workflow_job_id,
       account: account.name,
@@ -172,15 +187,39 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
     end
   end
 
-  defp handle_gh_status("in_progress", _wfid, _claimed_at, _pod, _account), do: false
+  defp handle_gh_status("in_progress", _conclusion, _wfid, _claimed_at, _pod, _account), do: false
 
-  defp handle_gh_status(other, workflow_job_id, _claimed_at, _pod, _account) do
-    # `completed` / `cancelled` / etc. — terminal state on GH but
-    # not handled here. The completed-webhook path is the right
-    # place to mark these locally.
-    Logger.debug("runners: orphan worker skipping terminal GH state",
+  defp handle_gh_status("completed", conclusion, workflow_job_id, _claimed_at, pod_name, account) do
+    # GH has a terminal status but we never saw the corresponding
+    # `workflow_job.completed` webhook (or it was retry-exhausted
+    # before reaching us). Without releasing here, the PG claim
+    # stays in `lifecycle_state='running'` forever — StaleClaimsWorker
+    # excludes `running`, and this worker would see the same row
+    # every minute. The GH lookup already proves the job is not
+    # live, so free the cap slot ourselves.
+    #
+    # PG-first matches the webhook path (`Tuist.Runners.Dispatch.mark_completed`):
+    # frees the slot the instant we know, CH state is best-effort
+    # customer visibility.
+    Logger.warning("runners: orphaned running row — GH completed, freeing claim",
       workflow_job_id: workflow_job_id,
-      gh_status: other
+      account: account.name,
+      pod: pod_name,
+      conclusion: conclusion || ""
+    )
+
+    safe_complete_pg(workflow_job_id)
+    safe_complete_ch(workflow_job_id, conclusion || "")
+    true
+  end
+
+  defp handle_gh_status(other, _conclusion, workflow_job_id, _claimed_at, _pod, _account) do
+    # Unknown / future GH status. Log and skip; if it's actually
+    # terminal we'll catch it on a later tick once GitHub-side
+    # state settles or the 404 fallback above handles retention.
+    Logger.debug("runners: orphan worker skipping unrecognised GH state",
+      workflow_job_id: workflow_job_id,
+      status: other
     )
 
     false
@@ -212,5 +251,40 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
         # our re-queue won't disturb it. Treat as a no-op.
         :error
     end
+  end
+
+  # `Claims.complete/1` is idempotent and deletes the PG row
+  # regardless of the claim handle. Used here because the GH-side
+  # job is already terminal — we don't care about handle races, we
+  # just want the cap slot back.
+  defp safe_complete_pg(workflow_job_id) do
+    :ok = Claims.complete(workflow_job_id)
+  rescue
+    e ->
+      Logger.warning("runners: Claims.complete failed in orphan worker; will retry next tick",
+        workflow_job_id: workflow_job_id,
+        release_error: Exception.message(e)
+      )
+
+      :error
+  end
+
+  # CH state transition for customer visibility. `Jobs.complete`
+  # returns `{:error, :not_found}` when there's no CH row to update
+  # (already merged out, schema migration in flight) — fine, the PG
+  # claim is already freed by `safe_complete_pg/1`.
+  defp safe_complete_ch(workflow_job_id, conclusion) do
+    case Jobs.complete(workflow_job_id, conclusion) do
+      {:ok, _} -> :ok
+      {:error, :not_found} -> :ok
+    end
+  rescue
+    e ->
+      Logger.warning("runners: Jobs.complete failed in orphan worker; CH row will resolve on next webhook",
+        workflow_job_id: workflow_job_id,
+        ch_error: Exception.message(e)
+      )
+
+      :error
   end
 end

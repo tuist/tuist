@@ -83,7 +83,13 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
       assert :ok = OrphanedRunnersWorker.perform(%Oban.Job{})
     end
 
-    test "no-op when GitHub reports completed — webhook redelivery handles those" do
+    test "frees the claim when GitHub reports completed but we missed the webhook" do
+      # Webhook delivery can be dropped (GitHub retries exhaust, our
+      # endpoint 5xx'd, etc.). Without this branch, the PG claim
+      # would stay in lifecycle_state='running' forever — the
+      # StaleClaimsWorker excludes running, and this worker would
+      # see the same row every minute. Since the GH lookup proves
+      # the job is no longer live, free the cap slot ourselves.
       account = account_fixture()
       orphan = candidate(account_id: account.id)
 
@@ -96,6 +102,48 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
       expect(GitHubClient, :get_workflow_job, fn _i, _r, _wfid ->
         {:ok, %{status: "completed", conclusion: "success", runner_name: "runner-x"}}
       end)
+
+      expect(Claims, :complete, fn wfid ->
+        assert wfid == orphan.workflow_job_id
+        :ok
+      end)
+
+      expect(Jobs, :complete, fn wfid, conclusion ->
+        assert wfid == orphan.workflow_job_id
+        assert conclusion == "success"
+        {:ok, %{}}
+      end)
+
+      reject(&Jobs.record_queued/1)
+      reject(&Claims.release/2)
+
+      assert :ok = OrphanedRunnersWorker.perform(%Oban.Job{})
+    end
+
+    test "frees the claim when GitHub returns 404 (workflow_job pruned past retention)" do
+      # GitHub retains workflow_jobs for 90 days. If our PG claim
+      # outlives that window (catastrophic outage), the GET returns
+      # 404. The job cannot be live; treat as completed so we don't
+      # leak the cap slot.
+      account = account_fixture()
+      orphan = candidate(account_id: account.id)
+
+      expect(Jobs, :list_orphaned_running, fn _ -> [orphan] end)
+
+      expect(Tuist.VCS, :get_github_app_installation_for_account, fn _id ->
+        {:ok, %{installation_id: 1, client_url: "https://github.com"}}
+      end)
+
+      expect(GitHubClient, :get_workflow_job, fn _i, _r, _wfid ->
+        {:error, :not_found}
+      end)
+
+      expect(Claims, :complete, fn wfid ->
+        assert wfid == orphan.workflow_job_id
+        :ok
+      end)
+
+      expect(Jobs, :complete, fn _wfid, "" -> {:ok, %{}} end)
 
       reject(&Jobs.record_queued/1)
       reject(&Claims.release/2)
