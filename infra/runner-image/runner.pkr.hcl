@@ -179,6 +179,16 @@ build {
   # (`work_folder: "/Users/runner/work"`), so the actual checkout
   # ends up at the GH-parity path regardless of the agent's home.
   #
+  # Wipe `/Users/runner/actions-runner` if the base already
+  # populated it. The Cirrus macos-tahoe-xcode base ships its own
+  # GitHub Actions runner under that exact path (bin/*.dll owned by
+  # admin), so `tar xzf` of our pinned version blows up with
+  # `Can't unlink already-existing object: Permission denied` for
+  # every file the archive overwrites. Removing the dir before
+  # recreating it lands an empty, runner-owned tree that the
+  # extract can populate without fighting the base image's
+  # leftovers.
+  #
   # Create the subdirectories as root + chown to runner instead of
   # `sudo -u runner mkdir` — see the runner-user creation block for
   # why mkdir directly under the pre-staged /Users/runner fails
@@ -186,6 +196,7 @@ build {
   provisioner "shell" {
     inline = [
       "set -euo pipefail",
+      "sudo rm -rf /Users/runner/actions-runner",
       "sudo mkdir -p /Users/runner/actions-runner /Users/runner/work",
       "sudo chown runner:staff /Users/runner/actions-runner /Users/runner/work",
       "cd /Users/runner/actions-runner",
