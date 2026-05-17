@@ -12,14 +12,14 @@ func TestConfigValidate_ReportsAllMissing(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected error for empty config")
 	}
-	for _, name := range []string{"IP", "SSHUser", "SSHPrivateKey", "Hostname", "GHRepo", "GHToken"} {
+	for _, name := range []string{"IP", "SSHUser", "Hostname", "GHRepo", "GHToken"} {
 		if !strings.Contains(err.Error(), name) {
 			t.Errorf("expected error to mention %s, got: %v", name, err)
 		}
 	}
 }
 
-func TestConfigValidate_AcceptsFullConfig(t *testing.T) {
+func TestConfigValidate_AcceptsKeyBytes(t *testing.T) {
 	cfg := Config{
 		IP:            "1.2.3.4",
 		SSHUser:       "m1",
@@ -30,6 +30,50 @@ func TestConfigValidate_AcceptsFullConfig(t *testing.T) {
 	}
 	if err := cfg.validate(); err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestConfigValidate_AcceptsSSHAgent(t *testing.T) {
+	cfg := Config{
+		IP:          "1.2.3.4",
+		SSHUser:     "m1",
+		UseSSHAgent: true,
+		Hostname:    "vm-image-builder-2",
+		GHRepo:      "tuist/tuist",
+		GHToken:     "AAAAA",
+	}
+	if err := cfg.validate(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestConfigValidate_RejectsBothAuthMethods(t *testing.T) {
+	cfg := Config{
+		IP:            "1.2.3.4",
+		SSHUser:       "m1",
+		SSHPrivateKey: []byte("dummy"),
+		UseSSHAgent:   true,
+		Hostname:      "vm-image-builder-2",
+		GHRepo:        "tuist/tuist",
+		GHToken:       "AAAAA",
+	}
+	err := cfg.validate()
+	if err == nil || !strings.Contains(err.Error(), "mutually exclusive") {
+		t.Fatalf("expected mutually-exclusive error, got: %v", err)
+	}
+}
+
+func TestConfigValidate_RejectsNoAuthMethod(t *testing.T) {
+	cfg := Config{
+		IP:       "1.2.3.4",
+		SSHUser:  "m1",
+		Hostname: "vm-image-builder-2",
+		GHRepo:   "tuist/tuist",
+		GHToken:  "AAAAA",
+	}
+	err := cfg.validate()
+	if err == nil || !strings.Contains(err.Error(), "is required") {
+		t.Fatalf("expected required-auth error, got: %v", err)
 	}
 }
 

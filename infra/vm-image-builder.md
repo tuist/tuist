@@ -10,10 +10,17 @@ The bootstrap is a single command:
 mise run vm-image-builder:bootstrap -- \
   --ip <scaleway-ipv4> \
   --hostname vm-image-builder-<n> \
-  --ssh-key ~/.ssh/scaleway_mac_builder_ed25519 \
+  --use-ssh-agent \
   --gh-token "$(gh api -X POST /repos/tuist/tuist/actions/runners/registration-token --jq .token)"
 # Prompts for the m1 password from the Scaleway provisioning email.
 ```
+
+`--use-ssh-agent` sources the SSH signers from `$SSH_AUTH_SOCK`, so
+the private key never lands on disk; 1Password's SSH agent serves
+the fleet keypair (stored in the `Founders` vault as item
+`vm-image-builder-fleet`) on demand. Pass `--ssh-key <path>` instead
+if you've materialised the key to a file for some reason; the two
+flags are mutually exclusive.
 
 Behind it lives
 [`infra/vm-image-builder-bootstrap/`](vm-image-builder-bootstrap/),
@@ -65,28 +72,67 @@ bootstrap is identical to the in-cluster fleet (auto-login, sudoers,
 idle-sleep), so that code is shared via
 [`infra/macos-host-bootstrap/`](macos-host-bootstrap/).
 
-## One-time setup (operator account)
+## One-time fleet setup
 
-These steps happen once per operator, not per host:
+The fleet keypair lives in 1Password (vault `Founders`, item
+`vm-image-builder-fleet`, category `SSH Key`); it's shared across
+operators and hosts. The public half is registered as a project SSH
+key in Scaleway named `vm-image-builder-fleet`, alongside the
+auto-generated `tuist-tuist-runners-fleet` and
+`tuist-tuist-macos-fleet` keys the CAPI provider manages.
 
-1. **Generate an SSH keypair** for the builder fleet:
+These steps happen once per fleet, not per host. If 1Password
+already has the item and Scaleway already has the project key, skip
+to "Per-host steps".
+
+1. **Generate the keypair** (locally, in `/tmp`):
 
    ```bash
-   ssh-keygen -t ed25519 -C "vm-image-builder" -f ~/.ssh/scaleway_mac_builder_ed25519
+   ssh-keygen -t ed25519 -C "vm-image-builder-fleet" -f /tmp/vm-image-builder-fleet -N ""
    ```
 
-   Save the private half in 1Password under whatever vault your team
-   uses for non-env-specific infra credentials (item suggestion:
-   `vm-image-builder-fleet`, field `ssh-private-key`).
+2. **Upload the private half to 1Password.** Via `op` CLI v2.33+:
 
-2. **Register the public half with Scaleway IAM**: Scaleway console
-   -> IAM -> SSH keys -> Add key, paste the contents of
-   `scaleway_mac_builder_ed25519.pub`. Every Apple Silicon Mac mini
-   ordered from then on comes up with this public key already in
-   `m1`'s authorized_keys, so the bootstrap's first SSH dial works
-   without password auth.
+   ```bash
+   jq --arg key "$(cat /tmp/vm-image-builder-fleet)" '.title="vm-image-builder-fleet" | .fields[1].value=$key' \
+     <(op item template get "SSH Key") \
+     | op item create --vault=Founders --tags=infra,vm-image-builder
+   ```
 
-3. **Confirm `gh` is authenticated** against `tuist/tuist` with at
+   Older `op` CLI versions can't read SSH Key fields back, so verify
+   from the 1Password GUI that the `private key` field is populated
+   with the BEGIN/END OPENSSH PRIVATE KEY block.
+
+3. **Register the public half with Scaleway.** Console -> the Tuist
+   project -> Project Settings -> SSH keys -> Add an SSH key. Paste
+   `cat /tmp/vm-image-builder-fleet.pub`, name it
+   `vm-image-builder-fleet`. From then on every Apple Silicon Mac
+   mini ordered in this project comes up with this public key in
+   `m1`'s `authorized_keys`.
+
+4. **Shred the on-disk copies:**
+
+   ```bash
+   rm -P /tmp/vm-image-builder-fleet /tmp/vm-image-builder-fleet.pub
+   ```
+
+## One-time operator setup
+
+Once per operator, not per host:
+
+1. **Enable the fleet key for 1Password's SSH agent.** Open the
+   `vm-image-builder-fleet` item in 1Password, click the "Enable
+   key for SSH agent" banner, follow the prompt to add the agent
+   socket path to `~/.ssh/config`. Confirm:
+
+   ```bash
+   ssh-add -l | grep vm-image-builder-fleet
+   ```
+
+   This is what makes `--use-ssh-agent` work; without it the
+   bootstrap CLI has no way to reach the private key.
+
+2. **Confirm `gh` is authenticated** against `tuist/tuist` with at
    least `admin:org` scope (needed to mint runner registration
    tokens):
 
@@ -135,7 +181,7 @@ need to re-run, mint a fresh token first.
 mise run vm-image-builder:bootstrap -- \
   --ip <scaleway-ipv4> \
   --hostname vm-image-builder-<n> \
-  --ssh-key ~/.ssh/scaleway_mac_builder_ed25519 \
+  --use-ssh-agent \
   --gh-token "$(gh api -X POST /repos/tuist/tuist/actions/runners/registration-token --jq .token)"
 ```
 

@@ -42,10 +42,13 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
+	"os"
 	"strings"
 
 	common "github.com/tuist/tuist/infra/macos-host-bootstrap"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
 )
 
 // DefaultRunnerVersion mirrors infra/runner-image/runner.pkr.hcl's
@@ -93,7 +96,18 @@ type Config struct {
 	// public key registered with Scaleway IAM. Scaleway preloads the
 	// IAM public key into m1's authorized_keys at order time, so the
 	// first SSH dial works without password auth.
+	//
+	// Mutually exclusive with UseSSHAgent: exactly one auth source
+	// must be set.
 	SSHPrivateKey []byte
+
+	// UseSSHAgent, when true, sources signers from $SSH_AUTH_SOCK
+	// instead of an in-process private key. The recommended path when
+	// the fleet keypair lives in 1Password: enable the SSH Key item
+	// for 1Password's SSH agent in the GUI, set SSH_AUTH_SOCK to
+	// 1Password's agent socket, and run with --use-ssh-agent. The
+	// private key bytes never touch the operator's filesystem.
+	UseSSHAgent bool
 
 	// Hostname is set via scutil. Convention:
 	// `vm-image-builder-<n>` for the nth host.
@@ -145,16 +159,20 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 	}
 	cfg.applyDefaults()
 
-	signer, err := ssh.ParsePrivateKey(cfg.SSHPrivateKey)
+	auth, agentCloser, err := buildAuth(cfg)
 	if err != nil {
-		return "", fmt.Errorf("parse ssh key: %w", err)
-	}
-	hk := common.NewHostKeyState(cfg.KnownHostFingerprint)
-
-	if err := common.WaitForSSH(ctx, cfg.IP, cfg.SSHUser, signer, hk); err != nil {
 		return "", err
 	}
-	client, err := common.Dial(cfg.IP, cfg.SSHUser, signer, hk)
+	if agentCloser != nil {
+		defer agentCloser.Close()
+	}
+
+	hk := common.NewHostKeyState(cfg.KnownHostFingerprint)
+
+	if err := common.WaitForSSHAuth(ctx, cfg.IP, cfg.SSHUser, auth, hk); err != nil {
+		return "", err
+	}
+	client, err := common.DialAuth(cfg.IP, cfg.SSHUser, auth, hk)
 	if err != nil {
 		return "", err
 	}
@@ -198,9 +216,6 @@ func (cfg *Config) validate() error {
 	if cfg.SSHUser == "" {
 		missing = append(missing, "SSHUser")
 	}
-	if len(cfg.SSHPrivateKey) == 0 {
-		missing = append(missing, "SSHPrivateKey")
-	}
 	if cfg.Hostname == "" {
 		missing = append(missing, "Hostname")
 	}
@@ -213,7 +228,38 @@ func (cfg *Config) validate() error {
 	if len(missing) > 0 {
 		return fmt.Errorf("missing required config: %s", strings.Join(missing, ", "))
 	}
+	switch {
+	case cfg.UseSSHAgent && len(cfg.SSHPrivateKey) > 0:
+		return fmt.Errorf("SSHPrivateKey and UseSSHAgent are mutually exclusive")
+	case !cfg.UseSSHAgent && len(cfg.SSHPrivateKey) == 0:
+		return fmt.Errorf("one of SSHPrivateKey / UseSSHAgent is required")
+	}
 	return nil
+}
+
+// buildAuth turns Config.SSHPrivateKey / Config.UseSSHAgent into the
+// ssh.AuthMethod list to hand to DialAuth. Returns a closer for the
+// SSH agent socket (or nil when using in-process keys); the caller
+// defers Close to avoid leaking the unix-socket fd across long-running
+// dials.
+func buildAuth(cfg Config) ([]ssh.AuthMethod, io.Closer, error) {
+	if cfg.UseSSHAgent {
+		sock := os.Getenv("SSH_AUTH_SOCK")
+		if sock == "" {
+			return nil, nil, fmt.Errorf("--use-ssh-agent set but SSH_AUTH_SOCK is empty; enable 1Password's SSH agent and re-run")
+		}
+		conn, err := net.Dial("unix", sock)
+		if err != nil {
+			return nil, nil, fmt.Errorf("dial ssh agent at %s: %w", sock, err)
+		}
+		ag := agent.NewClient(conn)
+		return []ssh.AuthMethod{ssh.PublicKeysCallback(ag.Signers)}, conn, nil
+	}
+	signer, err := ssh.ParsePrivateKey(cfg.SSHPrivateKey)
+	if err != nil {
+		return nil, nil, fmt.Errorf("parse ssh key: %w", err)
+	}
+	return []ssh.AuthMethod{ssh.PublicKeys(signer)}, nil, nil
 }
 
 func (cfg *Config) applyDefaults() {

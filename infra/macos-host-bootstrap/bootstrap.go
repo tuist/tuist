@@ -437,9 +437,18 @@ func (h *HostKeyState) Callback() ssh.HostKeyCallback {
 }
 
 func Dial(ip, user string, signer ssh.Signer, hk *HostKeyState) (*ssh.Client, error) {
+	return DialAuth(ip, user, []ssh.AuthMethod{ssh.PublicKeys(signer)}, hk)
+}
+
+// DialAuth is Dial parameterised over the auth method list. Use it
+// when the caller wants something other than a single in-process
+// signer, e.g. SSH agent auth where the keys live in 1Password and
+// the agent socket signs on demand. Same host-key TOFU semantics as
+// Dial.
+func DialAuth(ip, user string, auth []ssh.AuthMethod, hk *HostKeyState) (*ssh.Client, error) {
 	cfg := &ssh.ClientConfig{
 		User:            user,
-		Auth:            []ssh.AuthMethod{ssh.PublicKeys(signer)},
+		Auth:            auth,
 		HostKeyCallback: hk.Callback(),
 		Timeout:         15 * time.Second,
 	}
@@ -447,12 +456,18 @@ func Dial(ip, user string, signer ssh.Signer, hk *HostKeyState) (*ssh.Client, er
 }
 
 func WaitForSSH(ctx context.Context, ip, user string, signer ssh.Signer, hk *HostKeyState) error {
+	return WaitForSSHAuth(ctx, ip, user, []ssh.AuthMethod{ssh.PublicKeys(signer)}, hk)
+}
+
+// WaitForSSHAuth is WaitForSSH parameterised over the auth method
+// list. Same semantics as DialAuth.
+func WaitForSSHAuth(ctx context.Context, ip, user string, auth []ssh.AuthMethod, hk *HostKeyState) error {
 	deadline := time.Now().Add(5 * time.Minute)
 	for {
 		if time.Now().After(deadline) {
 			return fmt.Errorf("SSH not available after 5m at %s", ip)
 		}
-		client, err := Dial(ip, user, signer, hk)
+		client, err := DialAuth(ip, user, auth, hk)
 		if err == nil {
 			client.Close()
 			return nil

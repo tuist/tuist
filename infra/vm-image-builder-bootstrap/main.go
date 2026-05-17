@@ -16,7 +16,8 @@ func main() {
 	ip := flag.String("ip", "", "Public IPv4 of the freshly-ordered Mac mini.")
 	hostname := flag.String("hostname", "", "Hostname to set on the host (e.g. vm-image-builder-2).")
 	sshUser := flag.String("ssh-user", "m1", "SSH user on the host. Scaleway Apple Silicon defaults to m1.")
-	sshKey := flag.String("ssh-key", "", "Path to the SSH private key registered with Scaleway IAM.")
+	sshKey := flag.String("ssh-key", "", "Path to the SSH private key registered with Scaleway IAM. Mutually exclusive with --use-ssh-agent.")
+	useSSHAgent := flag.Bool("use-ssh-agent", false, "Source the SSH signers from $SSH_AUTH_SOCK instead of a key file. Recommended path when the fleet keypair lives in 1Password: enable the SSH Key item for 1Password's SSH agent in the GUI, then run with this flag.")
 	ghRepo := flag.String("gh-repo", "tuist/tuist", "owner/repo to register the Actions runner against.")
 	ghToken := flag.String("gh-token", "", "Actions runner registration token. Mint via:\n  gh api -X POST /repos/<owner>/<repo>/actions/runners/registration-token --jq .token")
 	runnerName := flag.String("runner-name", "", "Runner name to register. Defaults to --hostname.")
@@ -30,25 +31,38 @@ func main() {
 	if err := requireFlags(map[string]string{
 		"--ip":       *ip,
 		"--hostname": *hostname,
-		"--ssh-key":  *sshKey,
 		"--gh-token": *ghToken,
 	}); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		flag.Usage()
 		os.Exit(2)
 	}
+	switch {
+	case *useSSHAgent && *sshKey != "":
+		fmt.Fprintln(os.Stderr, "--ssh-key and --use-ssh-agent are mutually exclusive")
+		os.Exit(2)
+	case !*useSSHAgent && *sshKey == "":
+		fmt.Fprintln(os.Stderr, "one of --ssh-key or --use-ssh-agent is required")
+		flag.Usage()
+		os.Exit(2)
+	}
 
-	keyBytes, err := os.ReadFile(*sshKey)
-	if err != nil {
-		fatalf("read ssh key: %v", err)
+	var keyBytes []byte
+	if *sshKey != "" {
+		b, err := os.ReadFile(*sshKey)
+		if err != nil {
+			fatalf("read ssh key: %v", err)
+		}
+		keyBytes = b
 	}
 
 	var password string
 	if !*noPasswordPrompt {
-		password, err = promptPassword("m1 password (from Scaleway email): ")
+		p, err := promptPassword("m1 password (from Scaleway email): ")
 		if err != nil {
 			fatalf("read m1 password: %v", err)
 		}
+		password = p
 	}
 
 	cfg := Config{
@@ -56,6 +70,7 @@ func main() {
 		SSHUser:              *sshUser,
 		UserPassword:         password,
 		SSHPrivateKey:        keyBytes,
+		UseSSHAgent:          *useSSHAgent,
 		Hostname:             *hostname,
 		KnownHostFingerprint: *knownFingerprint,
 		TuistMixBuildRoot:    *buildCacheRoot,
