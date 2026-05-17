@@ -163,7 +163,15 @@ xcresultProcessor:
 # + kubeconfig minting steps.
 runnersController:
   mgmtCluster:
-    enabled: true
+    # Disabled until the operator mints the mgmt-cluster
+    # kubeconfig + uploads it to 1P as MGMT_CLUSTER_KUBECONFIG
+    # per the runbook in infra/runners-controller/AGENTS.md.
+    # Without that 1P item the ESO sync fails and the
+    # runners-controller pod hangs in ContainerCreating on the
+    # missing Secret volume. Pod-layer autoscaling still works;
+    # only the MD-replicas patching path is a no-op while this
+    # is off.
+    enabled: false
     externalSecrets:
       enabled: true
       refreshInterval: "1h"
