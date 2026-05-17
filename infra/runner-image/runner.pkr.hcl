@@ -103,7 +103,15 @@ source "tart-cli" "runner" {
   memory_gb    = var.memory_gb
   ssh_username = "admin"
   ssh_password = "admin"
-  ssh_timeout  = "120s"
+  # First boot of a freshly-cloned Tart base image runs macOS first-time
+  # setup (kextcache rebuild, Spotlight indexing, APFS expansion) and
+  # routinely needs >2 min to reach an SSH-ready state. Cached re-clones
+  # (the state of long-lived builder hosts) skip that work and answer in
+  # ~30s, which is why the previous 120s value held for years on the
+  # original Mac mini but reliably timed out on newly-onboarded hosts.
+  # 5m matches the upstream packer-plugin-tart default; vm-image-builder-2's
+  # onboarding is what surfaced that we need it.
+  ssh_timeout  = "5m"
   headless     = true
 }
 
