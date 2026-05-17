@@ -85,35 +85,32 @@ These steps happen once per fleet, not per host. If 1Password
 already has the item and Scaleway already has the project key, skip
 to "Per-host steps".
 
-1. **Generate the keypair** (locally, in `/tmp`):
+1. **Generate the keypair inside 1Password.** Open the desktop app,
+   `Founders` vault, **New Item -> SSH Key**, title
+   `vm-image-builder-fleet`, tags `infra` + `vm-image-builder`. In
+   the SSH key field choose **Generate -> Ed25519** so the private
+   half is born inside 1Password's secure storage and never touches
+   disk. The item ends up with auto-derived `public key`,
+   `fingerprint`, `key type`, and a hidden `private key` (same
+   shape as the `Hetzner` SSH key item if you have one for
+   comparison).
 
-   ```bash
-   ssh-keygen -t ed25519 -C "vm-image-builder-fleet" -f /tmp/vm-image-builder-fleet -N ""
-   ```
+   Why not the `op item create` route: the CLI's SSH Key category
+   support doesn't run the OpenSSH parser, so a key uploaded via
+   `op item create --category=ssh` ends up as a string field rather
+   than a properly-typed SSHKEY field. The 1Password SSH agent then
+   refuses to serve it. GUI generation is the only reliable shape
+   today.
 
-2. **Upload the private half to 1Password.** Via `op` CLI v2.33+:
-
-   ```bash
-   jq --arg key "$(cat /tmp/vm-image-builder-fleet)" '.title="vm-image-builder-fleet" | .fields[1].value=$key' \
-     <(op item template get "SSH Key") \
-     | op item create --vault=Founders --tags=infra,vm-image-builder
-   ```
-
-   Older `op` CLI versions can't read SSH Key fields back, so verify
-   from the 1Password GUI that the `private key` field is populated
-   with the BEGIN/END OPENSSH PRIVATE KEY block.
-
-3. **Register the public half with Scaleway.** Console -> the Tuist
-   project -> Project Settings -> SSH keys -> Add an SSH key. Paste
-   `cat /tmp/vm-image-builder-fleet.pub`, name it
+2. **Register the public half with Scaleway.** Pull it from
+   1Password and paste into Scaleway -> the Tuist project ->
+   Project Settings -> SSH keys -> Add an SSH key. Name it
    `vm-image-builder-fleet`. From then on every Apple Silicon Mac
    mini ordered in this project comes up with this public key in
    `m1`'s `authorized_keys`.
 
-4. **Shred the on-disk copies:**
-
    ```bash
-   rm -P /tmp/vm-image-builder-fleet /tmp/vm-image-builder-fleet.pub
+   op read 'op://Founders/vm-image-builder-fleet/public key'
    ```
 
 ## One-time operator setup
