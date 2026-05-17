@@ -225,7 +225,7 @@ macosFleet:
     # release.yml has run for this scope, pin to a known-good
     # SHA-tagged build that the standalone
     # capi-provider-scaleway-applesilicon-image.yml workflow pushed.
-    tag: "af8204b1"
+    tag: "0.3.0"
 
 runnersController:
   image:
