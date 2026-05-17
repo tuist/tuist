@@ -232,7 +232,7 @@ runnersFleet:
   pools:
     - name: default
       replicas: 9
-      runnerImage: "ghcr.io/tuist/tuist-runner@sha256:528164596e4e533f5f884a7b9bb7733aec56990df92f18a1d480e13385aa0c30"
+      runnerImage: "ghcr.io/tuist/tuist-runner@sha256:13f45853f4153f6717dff0aad23e7c896e46bc48cc41df4be314605adeadb5ff"
       dispatchLabel: "tuist-macos"
 
 # In-cluster Valkey backs the auth rate limiter (Hammer.Redis). The
