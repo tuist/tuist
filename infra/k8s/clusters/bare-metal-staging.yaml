@@ -111,15 +111,27 @@ spec:
           # static-image use case where cloud-init isn't wanted).
           # caph polls `cloud-init status` after the post-install
           # reboot and reboot-loops when the answer is `disabled`.
-          # Enable the systemd unit explicitly, clean any state
-          # the installimage might have seeded, and remove the
-          # disabled marker if installimage left one.
           rm -f /etc/cloud/cloud-init.disabled
           systemctl enable cloud-init.service
           systemctl enable cloud-init-local.service
           systemctl enable cloud-config.service
           systemctl enable cloud-final.service
           cloud-init clean --logs --machine-id || true
+          # Disable cloud-inits network handling. Hetzner
+          # installimage already wrote /etc/netplan/01-netcfg.yaml
+          # with the static IPv4/IPv6 assignment for this box.
+          # Default cloud-init writes a 50-cloud-init.yaml with
+          # dhcp4/dhcp6 enabled on the same interface, which
+          # netplan merges as override — and DHCP fails on Hetzner
+          # since they assign static IPs. Net effect on a fresh
+          # install: the box boots, snapd/cron/etc. run, but the
+          # network is broken so neither caph nor the operator can
+          # reach it. Pin cloud-init off the network surface.
+          mkdir -p /etc/cloud/cloud.cfg.d
+          cat > /etc/cloud/cloud.cfg.d/99-disable-network-config.cfg <<'CICFG'
+          network: {config: disabled}
+          CICFG
+          rm -f /etc/netplan/50-cloud-init.yaml
           mkdir -p /etc/tuist
           echo 'kata-runtime=true' > /etc/tuist/node-labels
       # Only claim hosts the hetzner-robot-controller created. The
