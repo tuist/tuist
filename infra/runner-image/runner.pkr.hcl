@@ -124,8 +124,14 @@ source "tart-cli" "runner" {
 build {
   sources = ["source.tart-cli.runner"]
 
-  # Create the `runner` user (Cirrus base image ships with `admin`
-  # only). `-admin` adds the user to the admin GROUP, which is
+  # Create the `runner` user. The Cirrus base image ships with
+  # `admin` as its working user but pre-stages `/Users/runner` as a
+  # placeholder owned by admin (sysadminctl logs `Directory at
+  # path:/Users/runner already exists` and assigns the new user a
+  # fresh UID without re-owning the home). Without an explicit
+  # chown, the subsequent `sudo -u runner mkdir` calls fail with
+  # `Permission denied` because runner doesn't own its own home.
+  # The `-admin` flag adds the user to the admin GROUP, which is
   # what `/etc/sudoers.d/%admin` and `inject-env.sh`'s `root:admin`
   # file ownership reference. Password "runner" is encoded into
   # /etc/kcpassword below so the auto-login flow can unlock the
@@ -134,6 +140,7 @@ build {
     inline = [
       "set -euo pipefail",
       "echo 'admin' | sudo -S sysadminctl -addUser runner -fullName 'GitHub Actions Runner' -password runner -admin",
+      "echo 'admin' | sudo -S chown -R runner:staff /Users/runner",
       "echo 'admin' | sudo -S mkdir -p /opt/tuist /etc/tuist",
       "echo 'admin' | sudo -S chown root:wheel /opt/tuist"
     ]
