@@ -208,9 +208,7 @@ spec:
         # cloud-init `runcmd` step, which runs via `/bin/sh`
         # (dash on Ubuntu). Dash doesn't know `set -o pipefail`,
         # so the whole runcmd block aborts on the first line
-        # and kubeadm-join never runs. Each command below is its
-        # own subshell anyway; `set -e` semantics come from
-        # cloud-init invoking each step with `sh -e`.
+        # and kubeadm-join never runs.
         - mkdir -p /etc/apt/keyrings
         # Container runtime + kubeadm install. Matches what the
         # cloud worker template installs so the worker bootstrap is
@@ -221,7 +219,22 @@ spec:
         - curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.34/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
         - 'echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.34/deb/ /" > /etc/apt/sources.list.d/kubernetes.list'
         - apt-get update
-        - apt-get install -y containerd kubeadm kubelet
+        # `kubectl` is needed by the post-kubeadm `label node`
+        # command; without it the runcmd block fails at the last
+        # step with `kubectl: not found`.
+        - apt-get install -y containerd kubeadm kubelet kubectl
+        # kubeadm preflight rejects with
+        # `FileContent--proc-sys-net-ipv4-ip_forward contents are
+        # not set to 1` on Hetzner's stock Ubuntu image, which
+        # ships ip_forward=0. Also load the bridge netfilter
+        # module so the matching bridge sysctls become writable
+        # (br_netfilter creates `/proc/sys/net/bridge/*`). Set
+        # both persistently for after-reboot survival.
+        - modprobe overlay
+        - modprobe br_netfilter
+        - 'printf "overlay\nbr_netfilter\n" > /etc/modules-load.d/k8s.conf'
+        - 'printf "net.bridge.bridge-nf-call-iptables = 1\nnet.bridge.bridge-nf-call-ip6tables = 1\nnet.ipv4.ip_forward = 1\n" > /etc/sysctl.d/k8s.conf'
+        - sysctl --system
         - systemctl enable --now containerd
         - systemctl enable kubelet
       postKubeadmCommands:
