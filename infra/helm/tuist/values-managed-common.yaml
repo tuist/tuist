@@ -230,9 +230,12 @@ macosFleet:
 runnersController:
   image:
     repository: ghcr.io/tuist/tuist-runners-controller
-    # Bumped by release.yml's release-runners-controller flow when
-    # a runners-controller-scoped conventional commit lands on main.
-    tag: "0.2.0"
+    # SHA-tagged build from this PR until it merges + the release
+    # pipeline cuts a runners-controller@0.3.0 with the
+    # --dispatch-internal-url flag the chart now passes. The
+    # previously-pinned 0.2.0 image rejects that flag on startup
+    # (`flag provided but not defined`) and crashloops.
+    tag: "sha-b4cc4ab7551b"
 
 # Everything below = external. The managed deployment never runs embedded
 # Postgres / ClickHouse / object storage / observability stacks.
