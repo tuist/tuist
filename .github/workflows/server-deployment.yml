@@ -521,6 +521,21 @@ jobs:
             ["us-east-1"]="kubeconfig: kura-us-east-1"
             ["us-west-1"]="kubeconfig: kura-us-west-1"
           )
+          # Cluster names match the CAPI Cluster CR names in
+          # infra/k8s/clusters/cluster-production-us-{east,west}.yaml.
+          # They drive external-dns.txtOwnerId and the Hetzner ingress
+          # LB annotation set by k8s:install-platform; drifting these
+          # values would churn TXT records and rename LBs on every
+          # deploy, so they must match what bootstrap-workload uses.
+          declare -A cluster_names=(
+            ["us-east-1"]="tuist-kura-us-east"
+            ["us-west-1"]="tuist-kura-us-west"
+          )
+
+          # Cloudflare DNS-01 token for cert-manager. Resolved here once
+          # so the install-platform script can stay credential-agnostic.
+          CLOUDFLARE_API_TOKEN="$(op read "op://tuist-k8s-production/cloudflare-tuist-dns/credential")"
+          export CLOUDFLARE_API_TOKEN
 
           for region in us-east-1 us-west-1; do
             kubeconfig="$RUNNER_TEMP/kura-${region}.yaml"
@@ -531,6 +546,18 @@ jobs:
             api="$(KUBECONFIG="$kubeconfig" kubectl config view --minify --raw -o jsonpath='{.clusters[0].cluster.server}')"
             echo "Deploying Kura controller to $region at $api"
             KUBECONFIG="$kubeconfig" kubectl --request-timeout=10s get --raw /version >/dev/null
+
+            # Bring the cluster's platform layer (cert-manager + the
+            # letsencrypt ClusterIssuer, ingress-nginx, external-dns,
+            # ESO) to chart HEAD before installing the kura-controller,
+            # whose StatefulSet reconcile depends on cert-manager.io/v1
+            # Certificate. Idempotent: a no-op on clusters already at
+            # head, a self-heal on half-bootstrapped ones. The mise -C
+            # is required because k8s:* tasks live in infra/mise.toml
+            # scope, not the repo root.
+            mise -C "$GITHUB_WORKSPACE/infra" run k8s:install-platform \
+              "$kubeconfig" "${cluster_names[$region]}"
+
             KUBECONFIG="$kubeconfig" kubectl apply -f "$HELM_CHART_PATH/crds/"
             KUBECONFIG="$kubeconfig" helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
               --namespace tuist-kura-controller --create-namespace \

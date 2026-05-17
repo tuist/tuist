@@ -35,6 +35,13 @@ public struct XcodeBuildTestWithoutBuildingCommand: AsyncParsableCommand, Tracka
 
     @Option(
         name: .long,
+        help: "Explicit shard reference. Derived from environment variables for supported CI providers.",
+        envKey: .testShardReference
+    )
+    var shardReference: String?
+
+    @Option(
+        name: .long,
         help: "Path to a locally managed shard archive. Tuist extracts this archive instead of downloading test products from remote storage.",
         completion: .file(),
         envKey: .testShardArchivePath
@@ -60,6 +67,7 @@ public struct XcodeBuildTestWithoutBuildingCommand: AsyncParsableCommand, Tracka
                 passthroughXcodebuildArguments: ["test-without-building"] + passthroughXcodebuildArguments,
                 skipQuarantine: skipQuarantine,
                 shardIndex: shardIndex ?? EnvKey.testShardIndex.envValue(),
+                shardReference: shardReference,
                 shardArchivePath: shardArchivePath,
                 mode: inspectMode
             )

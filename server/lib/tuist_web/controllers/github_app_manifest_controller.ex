@@ -46,7 +46,7 @@ defmodule TuistWeb.GitHubAppManifestController do
 
   def start(conn, %{"state" => state_token}) when is_binary(state_token) do
     case VCS.verify_github_state_token(state_token) do
-      {:ok, %{account_id: account_id, client_url: client_url}} ->
+      {:ok, %{account_id: account_id, client_url: client_url} = state} ->
         if client_url == VCS.default_client_url() do
           raise BadRequestError, dgettext("dashboard", "Manifest flow is only available for GitHub Enterprise Server.")
         end
@@ -55,7 +55,8 @@ defmodule TuistWeb.GitHubAppManifestController do
 
         manifest = manifest_payload()
         nonce = CSP.get_csp_nonce()
-        body = render_auto_submit(client_url, manifest, state_token, nonce)
+        github_app_owner = Map.get(state, :github_app_owner)
+        body = render_auto_submit(client_url, github_app_owner, manifest, state_token, nonce)
 
         conn
         |> override_csp_for_manifest_post(client_url, nonce)
@@ -174,8 +175,8 @@ defmodule TuistWeb.GitHubAppManifestController do
   #     policy already allows `'nonce'`, but we restate it scoped to
   #     this response so a future global tightening doesn't silently
   #     break the flow.
-  #   * `form-action` whitelists the customer's GHES origin (the
-  #     manifest must be POSTed to `<ghes>/settings/apps/new`); without
+  #   * `form-action` whitelists the customer's GHES origin (the manifest
+  #     must be POSTed to the GHES app registration page); without
   #     this, the browser falls back to `default-src 'self'` and blocks
   #     the cross-origin form submission.
   defp override_csp_for_manifest_post(conn, client_url, nonce) do
@@ -197,9 +198,11 @@ defmodule TuistWeb.GitHubAppManifestController do
     put_resp_header(conn, "content-security-policy", csp)
   end
 
-  defp render_auto_submit(client_url, manifest, state_token, nonce) do
+  defp render_auto_submit(client_url, github_app_owner, manifest, state_token, nonce) do
     manifest_json = Jason.encode!(manifest)
-    action = "#{client_url}/settings/apps/new?state=#{URI.encode_www_form(state_token)}"
+
+    action =
+      "#{manifest_registration_url(client_url, github_app_owner)}?state=#{URI.encode_www_form(state_token)}"
 
     redirecting_text =
       dgettext("dashboard_integrations", "Redirecting to GitHub Enterprise Server to register the Tuist app…")
@@ -228,6 +231,13 @@ defmodule TuistWeb.GitHubAppManifestController do
     """
   end
 
+  defp manifest_registration_url(client_url, nil), do: "#{client_url}/settings/apps/new"
+
+  defp manifest_registration_url(client_url, github_app_owner) when is_binary(github_app_owner) do
+    encoded_owner = URI.encode(github_app_owner, &URI.char_unreserved?/1)
+    "#{client_url}/organizations/#{encoded_owner}/settings/apps/new"
+  end
+
   defp exchange_manifest_code(account_id, client_url, code) do
     api_url = VCS.api_url(:github, client_url)
     url = "#{api_url}/app-manifests/#{code}/conversions"
@@ -246,11 +256,19 @@ defmodule TuistWeb.GitHubAppManifestController do
     # `body: ""` forces a `Content-Length: 0` header. GitHub Enterprise
     # Server rejects this POST with HTTP 411 otherwise; github.com's API
     # tolerates the missing header.
+    #
+    # No `finch:` here: Req refuses `:finch` alongside `:connect_options`
+    # because a user-supplied Finch pool's connect options are frozen at
+    # boot and can't be overridden per-request. The SSRF-pinned call needs
+    # per-request TLS settings (SNI / cert hostname) for the customer's
+    # GHES host, so Req's default pool is the only option.
     case Req.post(
            url: pinned_url,
            body: "",
            headers: [
              {"Accept", "application/vnd.github+json"},
+             {"Content-Type", "application/json"},
+             {"User-Agent", "Tuist"},
              {"X-GitHub-Api-Version", "2022-11-28"}
            ],
            connect_options: SSRFGuard.connect_options(hostname)

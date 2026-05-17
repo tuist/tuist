@@ -288,6 +288,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 testPlanConfiguration: testPlanConfiguration,
                 passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
                 runId: runId,
+                shardReference: shardReference,
                 shardArchivePath: shardArchivePath,
                 mode: mode
             )
@@ -630,6 +631,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         testPlanConfiguration: TestPlanConfiguration?,
         passthroughXcodeBuildArguments: [String],
         runId: String,
+        shardReference: String?,
         shardArchivePath: AbsolutePath?,
         mode: TestProcessingMode
     ) async throws {
@@ -643,6 +645,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             shardIndex: shardIndex,
             fullHandle: fullHandle,
             serverURL: serverURL,
+            reference: shardReference,
             testProductsPath: localTestProductsPath,
             testProductsArchivePath: shardArchivePath
         )

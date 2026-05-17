@@ -500,7 +500,15 @@ defmodule Tuist.Tests do
               create_test_modules(existing_test, test_modules, shard_index, shard_plan)
             end
 
-          reported_count = count_reported_shards(existing_test.id) + 1
+          # Each shard can have multiple ShardRun rows (the controller
+          # inserts one with status=processing when the CLI is still
+          # uploading, the worker inserts another after parsing). Count
+          # distinct shard indexes that have already produced a non-
+          # processing row, and only count the current shard if its own
+          # status is non-processing too.
+          reported_count =
+            count_completed_shards(existing_test.id, shard_index) +
+              if shard_status == "processing", do: 0, else: 1
 
           merged_status =
             if reported_count >= expected_shard_count do
@@ -511,7 +519,11 @@ defmodule Tuist.Tests do
 
           merged_duration = max(existing_test.duration, shard_duration)
 
-          updated_test = %{existing_test | status: merged_status, duration: merged_duration}
+          updated_test =
+            existing_test
+            |> Map.put(:status, merged_status)
+            |> Map.put(:duration, merged_duration)
+            |> merge_shard_metadata(attrs)
 
           update_attrs =
             updated_test
@@ -551,11 +563,54 @@ defmodule Tuist.Tests do
     end
   end
 
-  defp count_reported_shards(test_run_id) do
+  # Carry forward metadata fields when a later shard report has them and
+  # the existing Test row left them blank. The first shard often arrives
+  # with status=processing before xcresult parsing has populated `scheme`
+  # and friends; without this merge the dashboard's title stays "Unknown"
+  # for the lifetime of the run.
+  @shard_mergeable_fields [
+    :scheme,
+    :macos_version,
+    :xcode_version,
+    :model_identifier,
+    :git_branch,
+    :git_commit_sha,
+    :git_ref,
+    :ci_run_id,
+    :ci_project_handle,
+    :ci_host,
+    :ci_provider,
+    :build_run_id,
+    :gradle_build_id
+  ]
+
+  defp merge_shard_metadata(existing_test, attrs) do
+    Enum.reduce(@shard_mergeable_fields, existing_test, fn field, acc ->
+      incoming = Map.get(attrs, field)
+      current = Map.get(acc, field)
+
+      if blank?(current) and not blank?(incoming) do
+        Map.put(acc, field, incoming)
+      else
+        acc
+      end
+    end)
+  end
+
+  defp blank?(nil), do: true
+  defp blank?(""), do: true
+  defp blank?(_), do: false
+
+  defp count_completed_shards(test_run_id, current_shard_index) do
+    # A shard counts as completed once any ShardRun row for it carries a
+    # non-processing status. The current shard is excluded because the
+    # caller decides whether to add it based on the incoming attrs.
     ClickHouseRepo.one(
       from(sr in ShardRun,
         where: sr.test_run_id == ^test_run_id,
-        select: count()
+        where: sr.status != "processing",
+        where: sr.shard_index != ^(current_shard_index || -1),
+        select: fragment("uniqExact(?)", sr.shard_index)
       )
     ) || 0
   end

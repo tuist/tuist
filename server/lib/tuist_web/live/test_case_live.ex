@@ -13,6 +13,7 @@ defmodule TuistWeb.TestCaseLive do
   alias Tuist.Accounts
   alias Tuist.Tests
   alias Tuist.Tests.Analytics
+  alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Utilities.Query
 
@@ -62,6 +63,23 @@ defmodule TuistWeb.TestCaseLive do
 
   defp failure_message_span(assigns) do
     ~H[<span data-part="repetition-failure">{format_failure_message(@failure, @context)}</span>]
+  end
+
+  attr :id, :string, required: true
+  attr :part, :string, required: true
+  attr :time, :any, required: true
+  attr :timezone, :any, default: nil
+
+  defp relative_time_with_tooltip(assigns) do
+    ~H"""
+    <div data-part={@part}>
+      <.tooltip id={@id} title={DateFormatter.format_with_timezone_short(@time, @timezone)}>
+        <:trigger :let={attrs}>
+          <span {attrs}>{Timex.from_now(@time)}</span>
+        </:trigger>
+      </.tooltip>
+    </div>
+    """
   end
 
   defp define_filters(project) do

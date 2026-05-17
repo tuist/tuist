@@ -291,6 +291,9 @@ defmodule TuistWeb.TestsLive do
     filters =
       [
         %{field: :project_id, op: :==, value: project.id},
+        %{field: :status, op: :!=, value: "in_progress"},
+        %{field: :status, op: :!=, value: "processing"},
+        %{field: :status, op: :!=, value: "failed_processing"},
         %{field: :ran_at, op: :>=, value: start_datetime},
         %{field: :ran_at, op: :<=, value: end_datetime}
       ]
