@@ -129,26 +129,42 @@ spec:
               exec:
                 command: ["bash", "-c", "/opt/kata-artifacts/scripts/kata-deploy.sh cleanup"]
           env:
-            # kata-deploy.sh reads NODE_NAME for labeling / lookups;
-            # without it the script aborts on `unbound variable` at
-            # line 770. Standard downward-API plumbing.
+            # kata-deploy.sh (3.13.0) runs with `set -u` and echoes
+            # every supported env var at startup — any one of them
+            # being unbound aborts the script. The Kata project's
+            # own DaemonSet manifest declares them all even when
+            # blank; we mirror that, but pin SHIMS=DEFAULT_SHIM=fc
+            # (we only want Firecracker) and CREATE_*RUNTIMECLASS=false
+            # (we ship our own RuntimeClass above).
             - name: NODE_NAME
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
-            # Pin the containerd config snippet to install just the
-            # Firecracker-backed shim, not every Kata variant. Keeps
-            # the resulting containerd config minimal and avoids
-            # accidentally enabling QEMU/CLH paths we don't want.
+            - name: DEBUG
+              value: "false"
             - name: SHIMS
               value: "fc"
             - name: DEFAULT_SHIM
               value: "fc"
             - name: CREATE_RUNTIMECLASSES
-              # We render our own RuntimeClass above so kata-deploy
-              # doesn't fight us. The DaemonSet just installs binaries.
               value: "false"
             - name: CREATE_DEFAULT_RUNTIMECLASS
+              value: "false"
+            - name: ALLOWED_HYPERVISOR_ANNOTATIONS
+              value: ""
+            - name: SNAPSHOTTER_HANDLER_MAPPING
+              value: ""
+            - name: AGENT_HTTPS_PROXY
+              value: ""
+            - name: AGENT_NO_PROXY
+              value: ""
+            - name: PULL_TYPE_MAPPING
+              value: ""
+            - name: INSTALLATION_PREFIX
+              value: ""
+            - name: MULTI_INSTALL_SUFFIX
+              value: ""
+            - name: HELM_POST_DELETE_HOOK
               value: "false"
           securityContext:
             privileged: true
