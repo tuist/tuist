@@ -126,13 +126,17 @@ build {
 
   # Create the `runner` user. The Cirrus base image ships with
   # `admin` as its working user but pre-stages `/Users/runner` as a
-  # placeholder owned by admin (sysadminctl logs `Directory at
-  # path:/Users/runner already exists` and assigns the new user a
-  # fresh UID without re-owning the home). Without an explicit
-  # chown, the subsequent `sudo -u runner mkdir` calls fail with
-  # `Permission denied` because runner doesn't own its own home.
-  # The `-admin` flag adds the user to the admin GROUP, which is
-  # what `/etc/sudoers.d/%admin` and `inject-env.sh`'s `root:admin`
+  # placeholder (sysadminctl logs `Directory at path:/Users/runner
+  # already exists; Assigning UID: 502 GID: 20`). Whatever the base
+  # left there carries ACLs / flags / SIP attributes that survive
+  # `chown -R` — empirically a follow-up `sudo -u runner mkdir
+  # /Users/runner/work` still hits `Permission denied`. Every later
+  # write under `/Users/runner` is therefore done as root and then
+  # chown'd to runner per-subdirectory, sidestepping whatever
+  # protects the placeholder home itself.
+  #
+  # `-admin` adds the user to the admin GROUP, which is what
+  # `/etc/sudoers.d/%admin` and `inject-env.sh`'s `root:admin`
   # file ownership reference. Password "runner" is encoded into
   # /etc/kcpassword below so the auto-login flow can unlock the
   # account at boot.
@@ -140,7 +144,6 @@ build {
     inline = [
       "set -euo pipefail",
       "echo 'admin' | sudo -S sysadminctl -addUser runner -fullName 'GitHub Actions Runner' -password runner -admin",
-      "echo 'admin' | sudo -S chown -R runner:staff /Users/runner",
       "echo 'admin' | sudo -S mkdir -p /opt/tuist /etc/tuist",
       "echo 'admin' | sudo -S chown root:wheel /opt/tuist"
     ]
@@ -175,10 +178,27 @@ build {
   # `--work` for the workspace is set at JIT-generation time
   # (`work_folder: "/Users/runner/work"`), so the actual checkout
   # ends up at the GH-parity path regardless of the agent's home.
+  #
+  # Wipe `/Users/runner/actions-runner` if the base already
+  # populated it. The Cirrus macos-tahoe-xcode base ships its own
+  # GitHub Actions runner under that exact path (bin/*.dll owned by
+  # admin), so `tar xzf` of our pinned version blows up with
+  # `Can't unlink already-existing object: Permission denied` for
+  # every file the archive overwrites. Removing the dir before
+  # recreating it lands an empty, runner-owned tree that the
+  # extract can populate without fighting the base image's
+  # leftovers.
+  #
+  # Create the subdirectories as root + chown to runner instead of
+  # `sudo -u runner mkdir` — see the runner-user creation block for
+  # why mkdir directly under the pre-staged /Users/runner fails
+  # even after a recursive chown.
   provisioner "shell" {
     inline = [
       "set -euo pipefail",
-      "sudo -u runner mkdir -p /Users/runner/actions-runner /Users/runner/work",
+      "sudo rm -rf /Users/runner/actions-runner",
+      "sudo mkdir -p /Users/runner/actions-runner /Users/runner/work",
+      "sudo chown runner:staff /Users/runner/actions-runner /Users/runner/work",
       "cd /Users/runner/actions-runner",
       "sudo -u runner curl -sSL -o actions-runner.tar.gz https://github.com/actions/runner/releases/download/v${var.runner_version}/actions-runner-osx-arm64-${var.runner_version}.tar.gz",
       "sudo -u runner tar xzf actions-runner.tar.gz",
@@ -251,10 +271,15 @@ build {
   # inside runner's user session (auto-login above guarantees the
   # session exists at boot). User-owned (runner:staff, 0644) per
   # Apple's LaunchAgent ownership rules.
+  #
+  # Same root-create + chown pattern as the actions-runner block:
+  # `/Users/runner/Library` is part of the placeholder home and
+  # rejects writes from the runner UID even after `chown -R`.
   provisioner "shell" {
     inline = [
       "set -euo pipefail",
-      "sudo -u runner mkdir -p /Users/runner/Library/LaunchAgents",
+      "sudo mkdir -p /Users/runner/Library/LaunchAgents",
+      "sudo chown runner:staff /Users/runner/Library /Users/runner/Library/LaunchAgents",
       "sudo install -m 0644 -o runner -g staff /tmp/dev.tuist.runner.plist /Users/runner/Library/LaunchAgents/dev.tuist.runner.plist",
       "rm -f /tmp/dev.tuist.runner.plist",
       "sudo mkdir -p /var/log/tuist-runner",
