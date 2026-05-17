@@ -41,8 +41,25 @@ The local build:
 1. Compiles the xcresult Swift NIF (macOS host needs Xcode + Erlang).
 2. Builds the server release with `MIX_ENV=prod mix release tuist`.
 3. Packages the release as a tarball.
-4. Calls Packer with the tarball as a `release_tarball` var.
+4. Calls Packer with the tarball as `release_tarball`.
 5. Bakes the result into a Tart image named `tuist-xcresult-processor`.
+
+## Layer 1 dependency
+
+This is **Layer 2** on top of `ghcr.io/tuist/macos-tahoe-xcode:<major>-<minor>`
+(built by `infra/macos-xcode-image`). Xcode itself lives in Layer 1
+because the NIF shells out to `/usr/bin/xcrun xcresulttool`, which
+only ships in full Xcode (not the Command Line Tools).
+
+Bumping the Xcode the processor runs against is a two-step:
+
+1. Publish a Layer 1 image with the new Xcode — `gh workflow run
+   macos-xcode-image.yml -f xcode_version=26.X.Y`. See
+   `infra/macos-xcode-image/AGENTS.md` for the runbook (including
+   the quarterly `xcodes signin` re-mint).
+2. Bump `XCODE_VERSION` in `.github/workflows/release.yml`'s env
+   block so the next release-xcresult-processor-image run builds
+   against `ghcr.io/tuist/macos-tahoe-xcode:<major>-<minor>`.
 
 ## Env injection at runtime
 

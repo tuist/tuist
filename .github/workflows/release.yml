@@ -20,6 +20,13 @@ env:
   MISE_GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
   TUIST_ENABLE_CACHING: "true"
   MISE_GITHUB_ATTESTATIONS: 0
+  # Xcode version installed into the macOS Tart images
+  # (xcresult-processor + runner). Consumed by the release-runner-image
+  # and release-xcresult-processor-image jobs to pull
+  # `ghcr.io/tuist/xcode-xip:<XCODE_VERSION>` and pass it to Packer.
+  # Bump in lock-step with the .xip uploaded to GHCR — see
+  # `infra/runner-image/AGENTS.md` for the upload runbook.
+  XCODE_VERSION: "26.4.1"
 
 jobs:
   check-releases:
@@ -2149,26 +2156,15 @@ jobs:
           brew upgrade cirruslabs/cli/tart || brew install cirruslabs/cli/tart
           tart --version
 
+      # Log in BEFORE Packer build so Tart's clone of the Layer 1
+      # base (a private ghcr.io/tuist/* image) authenticates with
+      # the tuist-bot token.
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | tart login ghcr.io --username tuist-bot --password-stdin
+
       - name: Initialize Packer
         working-directory: infra/xcresult-processor-image
         run: packer init -upgrade xcresult-processor.pkr.hcl
-
-      # Keep the Cirrus base-image pull anonymous. Tart also consults
-      # Docker credential helpers, and this runner can have the macOS
-      # helper installed without the Docker CLI. Clear both stores
-      # before Packer clones ghcr.io/cirruslabs/*.
-      - name: Drop cached ghcr.io credentials
-        run: |
-          tart logout ghcr.io || true
-          if command -v docker >/dev/null 2>&1; then
-            docker logout ghcr.io || true
-          fi
-          for helper in docker-credential-osxkeychain docker-credential-desktop; do
-            if command -v "$helper" >/dev/null 2>&1; then
-              printf 'ghcr.io' | "$helper" erase || true
-              printf 'https://ghcr.io' | "$helper" erase || true
-            fi
-          done
 
       - name: Reclaim Tart disk
         run: |
@@ -2185,31 +2181,18 @@ jobs:
         working-directory: infra/xcresult-processor-image
         run: |
           set -euo pipefail
-          docker_config="$HOME/.docker/config.json"
-          docker_config_backup=""
-          restore_docker_config() {
-            if [ -n "$docker_config_backup" ] && [ -f "$docker_config_backup" ]; then
-              mkdir -p "$HOME/.docker"
-              mv "$docker_config_backup" "$docker_config"
-            fi
-          }
-          trap restore_docker_config EXIT
-
-          # Tart hardcodes ~/.docker/config.json when looking up Docker
-          # credential helpers. Move it aside so the public Cirrus image is
-          # pulled anonymously instead of through stale ghcr.io credentials.
-          if [ -f "$docker_config" ]; then
-            docker_config_backup="$(mktemp "${RUNNER_TEMP:-/tmp}/docker-config.XXXXXX")"
-            mv "$docker_config" "$docker_config_backup"
-          fi
-
+          # Layer 1 base derived from XCODE_VERSION's major-minor.
+          # Bumping XCODE_VERSION in the workflow env is how we roll
+          # the processor onto a new Xcode — assumes the matching
+          # Layer 1 tag has already been published by
+          # macos-xcode-image.yml.
+          MAJOR_MINOR=$(echo "${XCODE_VERSION}" | sed -E 's/^([0-9]+\.[0-9]+).*/\1/' | tr '.' '-')
+          BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode:${MAJOR_MINOR}"
           env -u GITHUB_TOKEN -u MISE_GITHUB_TOKEN packer build \
+            -var "base_image=${BASE_IMAGE}" \
             -var "output_image=tuist-xcresult-processor" \
             -var "release_tarball=/tmp/release.tar.gz" \
             xcresult-processor.pkr.hcl
-
-      - name: Log in to GHCR
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | tart login ghcr.io --username tuist-bot --password-stdin
 
       - name: Push image to GHCR
         env:
@@ -2246,7 +2229,7 @@ jobs:
     needs: check-releases
     if: needs.check-releases.outputs.runner-image-should-release == 'true'
     runs-on: [self-hosted, macos, bare-metal, vm-image-builder]
-    timeout-minutes: 60
+    timeout-minutes: 30
     env:
       PATH: /opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
       MISE_GITHUB_TOKEN: ${{ github.token }}
@@ -2305,28 +2288,20 @@ jobs:
           brew upgrade cirruslabs/cli/tart || brew install cirruslabs/cli/tart
           tart --version
 
+      # Log in BEFORE Packer build so Tart's clone of the Layer 1
+      # base (a private ghcr.io/tuist/* image) authenticates with
+      # the tuist-bot token. Both tart and crane keep their own
+      # credential stores — tart to push, crane to read the
+      # manifest back via `crane digest`.
+      - name: Log in to GHCR (tart + crane)
+        run: |
+          set -euo pipefail
+          echo "${{ secrets.GITHUB_TOKEN }}" | tart login ghcr.io --username tuist-bot --password-stdin
+          echo "${{ secrets.GITHUB_TOKEN }}" | crane auth login --username tuist-bot --password-stdin ghcr.io
+
       - name: Initialize Packer
         working-directory: infra/runner-image
         run: packer init -upgrade runner.pkr.hcl
-
-      - name: Drop cached ghcr.io credentials
-        # Same anonymous-pull dance as xcresult-processor-image: the
-        # bare-metal runner has tuist-bot creds cached for ghcr.io
-        # which don't authorize ghcr.io/cirruslabs/* pulls. Tart also
-        # consults Docker credential helpers, and this runner can have
-        # the macOS helper installed without the Docker CLI — clear
-        # both stores before Packer clones ghcr.io/cirruslabs/*.
-        run: |
-          tart logout ghcr.io || true
-          if command -v docker >/dev/null 2>&1; then
-            docker logout ghcr.io || true
-          fi
-          for helper in docker-credential-osxkeychain docker-credential-desktop; do
-            if command -v "$helper" >/dev/null 2>&1; then
-              printf 'ghcr.io' | "$helper" erase || true
-              printf 'https://ghcr.io' | "$helper" erase || true
-            fi
-          done
 
       - name: Reclaim Tart disk
         run: |
@@ -2339,40 +2314,22 @@ jobs:
           tart prune --entries vms --older-than 1
           df -h /
 
-      - name: Build image
+      - name: Build image + resolve base tag
+        id: build
         working-directory: infra/runner-image
         run: |
           set -euo pipefail
-          docker_config="$HOME/.docker/config.json"
-          docker_config_backup=""
-          restore_docker_config() {
-            if [ -n "$docker_config_backup" ] && [ -f "$docker_config_backup" ]; then
-              mkdir -p "$HOME/.docker"
-              mv "$docker_config_backup" "$docker_config"
-            fi
-          }
-          trap restore_docker_config EXIT
-
-          # Tart hardcodes ~/.docker/config.json when looking up Docker
-          # credential helpers. Move it aside so the public Cirrus image is
-          # pulled anonymously instead of through stale ghcr.io credentials.
-          if [ -f "$docker_config" ]; then
-            docker_config_backup="$(mktemp "${RUNNER_TEMP:-/tmp}/docker-config.XXXXXX")"
-            mv "$docker_config" "$docker_config_backup"
-          fi
-
+          # Layer 1 base derived from XCODE_VERSION's major-minor.
+          # Bumping XCODE_VERSION in the workflow env is how we roll
+          # the fleet onto a new Xcode — assumes the matching Layer
+          # 1 tag has already been published by macos-xcode-image.yml.
+          MAJOR_MINOR=$(echo "${XCODE_VERSION}" | sed -E 's/^([0-9]+\.[0-9]+).*/\1/' | tr '.' '-')
+          BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode:${MAJOR_MINOR}"
           env -u GITHUB_TOKEN -u MISE_GITHUB_TOKEN packer build \
+            -var "base_image=${BASE_IMAGE}" \
             -var "output_image=tuist-runner" \
             runner.pkr.hcl
-
-      - name: Log in to GHCR (tart + crane)
-        # `tart` and `crane` keep their own credential stores, so
-        # both need a login here: tart to push, crane to read the
-        # manifest back via `crane digest`.
-        run: |
-          set -euo pipefail
-          echo "${{ secrets.GITHUB_TOKEN }}" | tart login ghcr.io --username tuist-bot --password-stdin
-          echo "${{ secrets.GITHUB_TOKEN }}" | crane auth login --username tuist-bot --password-stdin ghcr.io
+          echo "profile=macos-${MAJOR_MINOR}" >> "$GITHUB_OUTPUT"
 
       - name: Push image to GHCR + resolve digest
         id: push
@@ -2383,13 +2340,22 @@ jobs:
         run: |
           set -euo pipefail
           VERSION="${{ needs.check-releases.outputs.runner-image-next-version-number }}"
-          tart push tuist-runner "ghcr.io/tuist/tuist-runner:${VERSION}"
-          tart push tuist-runner "ghcr.io/tuist/tuist-runner:latest"
+          PROFILE="${{ steps.build.outputs.profile }}"
+          # Per-Xcode-profile tagging. PROFILE (`macos-26-4`) is the
+          # rolling "latest in that profile" tag — the chart pin
+          # references this profile via the digest. PROFILE-VERSION
+          # (`macos-26-4-1.0.5`) is the immutable point-in-time tag,
+          # useful for rollbacks and traceability. No `:latest` —
+          # under the multi-profile model the concept of a single
+          # latest doesn't map.
+          tart push tuist-runner "ghcr.io/tuist/tuist-runner:${PROFILE}-${VERSION}"
+          tart push tuist-runner "ghcr.io/tuist/tuist-runner:${PROFILE}"
           # The chart pins runners by digest, not tag (server-deployment.yaml
-          # `required` rejects non-digest values), so resolve the tag to its
-          # immutable @sha256:… form right after push.
-          DIGEST=$(crane digest "ghcr.io/tuist/tuist-runner:${VERSION}")
-          echo "Pushed ghcr.io/tuist/tuist-runner:${VERSION} (digest: ${DIGEST})"
+          # `required` rejects non-digest values), so resolve the
+          # profile tag to its immutable @sha256:… form right after
+          # push.
+          DIGEST=$(crane digest "ghcr.io/tuist/tuist-runner:${PROFILE}")
+          echo "Pushed ghcr.io/tuist/tuist-runner:${PROFILE}-${VERSION} + :${PROFILE} (digest: ${DIGEST})"
           echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
 
       - name: Bump runner image digest pin in chart values

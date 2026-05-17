@@ -15,21 +15,29 @@ packer {
 # (TUIST_XCRESULT_PROCESSOR_MODE=1, TUIST_WEB=0) under launchd,
 # draining the `:process_xcresult` Oban queue.
 #
+# Layer split: this is Layer 2 on top of
+# `ghcr.io/tuist/macos-tahoe-xcode:<major>-<minor>` (built by
+# `infra/macos-xcode-image`). Xcode lives in Layer 1 — the NIF
+# shells out to `/usr/bin/xcrun xcresulttool`, which only ships in
+# full Xcode (not the Command Line Tools), so the base must carry
+# the bundle. This layer just lays the Erlang release and the
+# launchd unit on top.
+#
 # Image layout:
 #   /opt/tuist/release/        <- Erlang release (built upstream by CI)
 #   /opt/tuist/inject-env.sh   <- reads kubelet env mount into /etc/tuist.env
 #   /Library/LaunchDaemons/dev.tuist.xcresult-processor.plist
+#   /Applications/Xcode_<version>.app <- inherited from Layer 1
 #
-# Env injection: tart-kubelet stages the Pod's env vars (MASTER_KEY,
-# DATABASE_URL, TUIST_DEPLOY_ENV, ...) under `--dir env:<host-path>:ro`,
-# which the guest sees at /Volumes/My Shared Files/env/tuist.env.
-# inject-env.sh runs at boot, materializes /etc/tuist.env, and
-# launchd's plist sources it.
+# Env injection: tart-kubelet stages the Pod's env vars under
+# `--dir env:<host-path>:ro`, which the guest sees at
+# `/Volumes/My Shared Files/env/tuist.env`. inject-env.sh runs at boot,
+# materializes /etc/tuist.env, and launchd's plist sources it.
 
 variable "base_image" {
   type        = string
-  description = "Base Tart image. Defaults to Cirrus Labs' macOS+Xcode image so xcresulttool is preinstalled."
-  default     = "ghcr.io/cirruslabs/macos-tahoe-xcode:26.4"
+  description = "Base Tart image (Layer 1: ghcr.io/tuist/macos-tahoe-xcode:<major>-<minor>). Bump to roll onto a new Xcode."
+  default     = "ghcr.io/tuist/macos-tahoe-xcode:26-4"
 }
 
 variable "output_image" {
@@ -71,6 +79,17 @@ build {
     inline = [
       "echo 'admin' | sudo -S mkdir -p /opt/tuist /etc/tuist",
       "echo 'admin' | sudo -S chown admin:staff /opt/tuist"
+    ]
+  }
+
+  # Sanity check: xcresulttool has to be reachable before the
+  # processor ever calls it. Layer 1 installs Xcode + xcode-select's
+  # it; a regression there would silently break ingestion at
+  # runtime. Fail loudly here so the image build catches it.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "/usr/bin/xcrun xcresulttool version || (echo 'xcresulttool not reachable — Layer 1 (macos-tahoe-xcode) base image regression' >&2 && exit 1)"
     ]
   }
 

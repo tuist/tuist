@@ -61,9 +61,11 @@ packer build runner.pkr.hcl
 CI:
 - **Steady state.** `feat(runner-image)` / `fix(runner-image)`
   conventional commits on `main` trigger `release.yml`'s
-  `release-runner-image` job: builds, pushes
-  `ghcr.io/tuist/tuist-runner:<semver>` + `:latest`, resolves the
-  digest with `crane digest`, rewrites
+  `release-runner-image` job: builds against the Layer 1 base
+  resolved from `XCODE_VERSION`, pushes
+  `ghcr.io/tuist/tuist-runner:macos-<major>-<minor>-<semver>`
+  + `:macos-<major>-<minor>` (the rolling profile tag), resolves
+  the digest with `crane digest`, rewrites
   `runnersFleet.runnerImage` across managed-env values files
   that already have a digest pin, tags `runner-image@x.y.z`,
   opens a GitHub Release, commits.
@@ -78,6 +80,36 @@ Both flows run on the bare-metal `vm-image-builder` Mac mini
 that also builds xcresult-processor — Tart needs a live GUI
 session for Virtualization.framework, so this can't run on
 hosted runners.
+
+## Layer 1 dependency
+
+This is **Layer 2** on top of `ghcr.io/tuist/macos-tahoe-xcode:<major>-<minor>`
+(built by `infra/macos-xcode-image`). Xcode + dev tools + WWDR
+certs all live in Layer 1; this layer just adds the GitHub
+Actions runner agent + dispatch loop + runner user / launchd
+wiring on top. A Layer 2 rebuild on every runner-image commit
+costs ~2 min instead of the ~30 min an all-in-one rebuild used
+to cost.
+
+Bumping the Xcode customers see on their runners is a two-step:
+
+1. Publish a Layer 1 image with the new Xcode — `gh workflow run
+   macos-xcode-image.yml -f xcode_version=26.X.Y`. See
+   `infra/macos-xcode-image/AGENTS.md` for the runbook (including
+   the quarterly `xcodes signin` re-mint).
+2. Bump `XCODE_VERSION` in `.github/workflows/release.yml`'s env
+   block so the next release-runner-image run builds against
+   `ghcr.io/tuist/macos-tahoe-xcode:<major>-<minor>` and rewrites
+   the chart's `runnersFleet.runnerImage` digest pin.
+
+## Profile tagging
+
+Push tags are per-Xcode-profile: `:macos-26-4` (rolling, latest
+in that profile) plus `:macos-26-4-<semver>` (immutable, for
+rollbacks and traceability). The chart pins by digest, not tag,
+so multiple Xcode profiles can coexist in GHCR — the runner-fleet
+config currently selects one as the default but the structure is
+ready for the future customer-facing profile selection.
 
 ## How it ends up serving traffic
 

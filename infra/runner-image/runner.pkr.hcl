@@ -28,6 +28,15 @@ packer {
 #  6. tart-kubelet observes the VM stop, transitions the Pod to
 #     Completed, and the next reconcile tick creates a fresh Pod.
 #
+# Layer split: this is Layer 2 on top of
+# `ghcr.io/tuist/macos-tahoe-xcode:<major>-<minor>` (built by
+# `infra/macos-xcode-image`). Xcode + dev tools + WWDR certs all
+# live in the Layer 1 base; this layer just adds the GitHub Actions
+# runner agent, the dispatch loop, and the runner user / launchd
+# wiring. Splitting the slow Xcode install out means a Layer 2
+# rebuild on every runner-image commit costs ~2 min instead of
+# ~30 min.
+#
 # Image layout (mirrors GitHub-hosted macOS paths so on-disk
 # artifacts that bake absolute paths — SwiftPM `.build/checkouts/`,
 # Xcode DerivedData, `actions/cache` payloads — work interchangeably
@@ -39,12 +48,16 @@ packer {
 #   /Users/runner/Library/LaunchAgents/         <- dev.tuist.runner.plist
 #   /opt/tuist/dispatch-poll.sh                 <- the dispatch poll loop (root-owned)
 #   /opt/tuist/inject-env.sh                    <- reads kubelet env mount → /etc/tuist.env
+#   /Applications/Xcode_<version>.app           <- inherited from Layer 1
 #
-# The Cirrus base image ships with an `admin` user; we keep admin
-# around as Packer's SSH provisioning identity but create a
-# dedicated `runner` user as the runtime account, mirroring
-# `/Users/runner` on GitHub-hosted images. Auto-login + LaunchAgent
-# target runner, not admin.
+# The Layer 1 base inherits macos-tahoe-base's `admin` user with a
+# `/Users/runner` symlink to `/Users/admin` plus a configured
+# `~/.zprofile` (brew shellenv, mise, rbenv init). Our flow creates
+# a real `runner` user that *also* points at `/Users/runner` —
+# sysadminctl can't overwrite the existing path, so it assigns a
+# fresh UID against the symlinked home. Both users end up sharing
+# `.zprofile`, which is how the runner's login shell sees the
+# brew-installed tools from Layer 1.
 #
 # Note that the runner is registered with GitHub at *job* time,
 # not image-build time — the image carries the runner binary but
@@ -56,8 +69,8 @@ packer {
 
 variable "base_image" {
   type        = string
-  description = "Base Tart image. Cirrus Labs ships macOS images with Xcode preinstalled, which is what most iOS/macOS workflows expect."
-  default     = "ghcr.io/cirruslabs/macos-tahoe-xcode:26.4.1"
+  description = "Base Tart image (Layer 1: ghcr.io/tuist/macos-tahoe-xcode:<major>-<minor>). Bump this to roll the fleet onto a new Xcode."
+  default     = "ghcr.io/tuist/macos-tahoe-xcode:26-4"
 }
 
 variable "output_image" {
@@ -124,18 +137,17 @@ source "tart-cli" "runner" {
 build {
   sources = ["source.tart-cli.runner"]
 
-  # Create the `runner` user. The Cirrus base image ships with
-  # `admin` as its working user but pre-stages `/Users/runner` as a
-  # placeholder owned by admin (sysadminctl logs `Directory at
-  # path:/Users/runner already exists` and assigns the new user a
-  # fresh UID without re-owning the home). Without an explicit
-  # chown, the subsequent `sudo -u runner mkdir` calls fail with
-  # `Permission denied` because runner doesn't own its own home.
-  # The `-admin` flag adds the user to the admin GROUP, which is
-  # what `/etc/sudoers.d/%admin` and `inject-env.sh`'s `root:admin`
-  # file ownership reference. Password "runner" is encoded into
-  # /etc/kcpassword below so the auto-login flow can unlock the
-  # account at boot.
+  # Create the `runner` user. The base image symlinks
+  # /Users/runner → /Users/admin; sysadminctl can't replace the
+  # symlinked path, so it logs `Directory at path:/Users/runner
+  # already exists` and assigns runner a fresh UID against the
+  # symlinked home. Both users end up sharing /Users/admin (and
+  # therefore .zprofile, which is why the brew shellenv applies
+  # to runner's login shell too). The `-admin` flag adds the user
+  # to the admin GROUP, which is what `/etc/sudoers.d/%admin` and
+  # `inject-env.sh`'s `root:admin` file ownership reference.
+  # Password "runner" is encoded into /etc/kcpassword below so the
+  # auto-login flow can unlock the account at boot.
   provisioner "shell" {
     inline = [
       "set -euo pipefail",
@@ -146,28 +158,6 @@ build {
     ]
   }
 
-  # GitHub's actions/runner-images exposes each Xcode under BOTH
-  # the full and the major-minor path (see images/macos/macos-26-
-  # arm64-Readme.md#xcode) so customer workflows that pin
-  # `.xcode-version=26.4` work the same as ones pinning
-  # `.xcode-version=26.4.1`. Mirror that here so repos don't have
-  # to switch their `.xcode-version` file each time the patch
-  # component rolls.
-  #
-  # The Cirrus :26.4.1 image ships the real bundle at
-  # `/Applications/Xcode_26.4.app` (major-minor only, no patch);
-  # `/Applications/Xcode_26.4.1.app` doesn't exist on the base.
-  # Symlink the patch-form alias at the real bundle so workflows
-  # pinning `.xcode-version=26.4.1` find Xcode. The trailing `ls`
-  # prints the resulting layout — useful build-log baseline if a
-  # future Cirrus image moves the bundle.
-  provisioner "shell" {
-    inline = [
-      "echo 'admin' | sudo -S ln -sfn /Applications/Xcode_26.4.app /Applications/Xcode_26.4.1.app",
-      "ls -lhd /Applications/Xcode_26.4*.app"
-    ]
-  }
-
   # Install the Actions runner agent under runner's home so the
   # binary, its `_diag` logs, and any side data it writes land
   # under `/Users/runner/...` — matching GitHub-hosted's layout
@@ -175,11 +165,17 @@ build {
   # `--work` for the workspace is set at JIT-generation time
   # (`work_folder: "/Users/runner/work"`), so the actual checkout
   # ends up at the GH-parity path regardless of the agent's home.
+  #
+  # macos-tahoe-base installs *some* version of the runner under
+  # /Users/admin/actions-runner via its install-actions-runner.sh
+  # script. Since /Users/runner → /Users/admin, our mkdir + curl
+  # below overwrite that with our pinned version.
   provisioner "shell" {
     inline = [
       "set -euo pipefail",
       "sudo -u runner mkdir -p /Users/runner/actions-runner /Users/runner/work",
       "cd /Users/runner/actions-runner",
+      "sudo -u runner rm -rf ./*",
       "sudo -u runner curl -sSL -o actions-runner.tar.gz https://github.com/actions/runner/releases/download/v${var.runner_version}/actions-runner-osx-arm64-${var.runner_version}.tar.gz",
       "sudo -u runner tar xzf actions-runner.tar.gz",
       "sudo -u runner rm actions-runner.tar.gz",
@@ -265,16 +261,22 @@ build {
   # Sanity check: tools customers expect on a GitHub-parity macOS
   # runner have to be reachable from the agent's runtime
   # environment. The agent wraps its entrypoint in `zsh -lc`, so
-  # ~/.zprofile is sourced (Homebrew shellenv, rbenv init, Android
-  # SDK / Flutter / openjdk PATH). A future base-image bump that
-  # moves Homebrew's prefix or drops a formula would silently make
-  # tools unreachable from step shells; resolve each tool against
-  # the same login-shell environment so image-build CI fails
-  # loudly instead of customer workflows.
+  # ~/.zprofile is sourced (Homebrew shellenv, mise, rbenv init,
+  # PATH additions for the Layer 1 base's pre-installed tools).
+  # A future base-image bump that moves Homebrew's prefix or drops
+  # a formula would silently make tools unreachable from step
+  # shells; resolve each tool against the same login-shell
+  # environment so image-build CI fails loudly instead of customer
+  # workflows. xcrun + xcresulttool double as the proof that Layer
+  # 1's Xcode install + `xcode-select -s` propagated.
+  #
+  # Tuist itself isn't in the list — customer workflows install it
+  # via mise / brew so they own the version pin.
   provisioner "shell" {
     inline = [
       "set -euo pipefail",
-      "sudo -u runner /bin/zsh -lc 'for tool in brew mise tuist gh git-lfs jq yq swiftlint swiftformat xcbeautify fastlane pod carthage; do command -v \"$tool\" >/dev/null 2>&1 || { echo \"sanity check: $tool not reachable in runner login shell — base image regression\" >&2; exit 1; }; done'"
+      "sudo -u runner /bin/zsh -lc 'for tool in brew mise gh git-lfs jq yq swiftlint swiftformat xcbeautify fastlane pod carthage xcodes xcrun xcresulttool; do command -v \"$tool\" >/dev/null 2>&1 || { echo \"sanity check: $tool not reachable in runner login shell — base image regression\" >&2; exit 1; }; done'",
+      "sudo -u runner /bin/zsh -lc '/usr/bin/xcrun xcresulttool version'"
     ]
   }
 }

@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 #MISE description "Build the Tuist xcresult-processor Tart image locally"
 #MISE raw=true
-#USAGE arg "[base_image]" help="Base Tart image (default: ghcr.io/cirruslabs/macos-tahoe-xcode:26.0)"
+#USAGE arg "[base_image]" help="Layer 1 base Tart image (default: ghcr.io/tuist/macos-tahoe-xcode:26-4). Must already be present in GHCR or your local Tart store."
 
 set -euo pipefail
 
-BASE_IMAGE="${usage_base_image:-ghcr.io/cirruslabs/macos-tahoe-xcode:26.0}"
+BASE_IMAGE="${usage_base_image:-ghcr.io/tuist/macos-tahoe-xcode:26-4}"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 SERVER_DIR="${REPO_ROOT}/server"
 PACKER_DIR="${REPO_ROOT}/infra/xcresult-processor-image"

@@ -1,0 +1,185 @@
+name: macOS + Xcode Image
+
+# Build the in-house macOS + Xcode Tart image — our replacement for
+# `ghcr.io/cirruslabs/macos-tahoe-xcode:N`. Triggered on-demand when
+# Apple ships a new Xcode (or when we want to test a beta).
+#
+# The two Layer 2 images (`tuist-runner`, `tuist-xcresult-processor`)
+# inherit from the result and add Tuist-specific runtime. Splitting
+# the slow Xcode install out of those builds means a runner-image
+# commit doesn't pay the ~30 min Xcode-install tax on every CI
+# rebuild — just re-clones this image and lays the runner agent on
+# top in ~2 min.
+#
+# Auth model: the bare-metal `vm-image-builder` Mac mini has a
+# logged-in xcodes session in its login keychain. A maintainer runs
+# `xcodes signin <apple-id>` over SSH once per quarter (or whenever
+# the session expires) and approves 2FA from a trusted device. After
+# that, `xcodes download` on the builder authenticates silently
+# against developer.apple.com — no Apple ID secrets in GitHub, no
+# manual upload per Xcode release. See
+# `infra/macos-xcode-image/AGENTS.md` for the runbook.
+
+on:
+  workflow_dispatch:
+    inputs:
+      xcode_version:
+        description: "Xcode version to install (e.g. 26.4.1). Must be available on developer.apple.com."
+        required: true
+      base_image:
+        description: "Base Tart image to layer Xcode onto"
+        required: false
+        default: "ghcr.io/cirruslabs/macos-tahoe-base:latest"
+
+concurrency:
+  # Different Xcode versions can build in parallel (different push
+  # tags, no shared state). Same Xcode dispatched twice serialises.
+  group: macos-xcode-image-${{ inputs.xcode_version }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    runs-on: [self-hosted, macos, bare-metal, vm-image-builder]
+    timeout-minutes: 180
+    env:
+      PATH: /opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Update Tart
+        run: |
+          set -euo pipefail
+          brew update
+          brew upgrade cirruslabs/cli/tart || brew install cirruslabs/cli/tart
+          tart --version
+
+      - name: Ensure xcodes is installed
+        # The CLI is also baked into the resulting Tart image (Layer
+        # 1's brew install), but here we need it on the *host* to
+        # drive the .xip download before Packer boots a VM.
+        run: |
+          set -euo pipefail
+          if ! command -v xcodes >/dev/null 2>&1; then
+            brew install xcodes aria2
+          fi
+          xcodes version
+
+      - name: Download Xcode from Apple
+        id: xcode_xip
+        # Uses the xcodes session cached in the builder's login
+        # keychain by the quarterly `xcodes signin` runbook. If the
+        # session has expired, `xcodes download` returns non-zero
+        # because Apple's auth challenge can't be answered
+        # non-interactively — the failure here is the signal to
+        # re-mint the session.
+        run: |
+          set -euo pipefail
+          XCODE_CACHE="${RUNNER_TEMP:-/tmp}/xcode-xip"
+          mkdir -p "$XCODE_CACHE"
+          # Reuse the .xip across runs if xcodes has it cached; only
+          # download when absent. `xcodes download` is idempotent but
+          # always re-verifies the signature, which takes minutes for
+          # a 10 GB file we already verified.
+          if ! ls "$XCODE_CACHE"/Xcode-${XCODE_VERSION}*.xip >/dev/null 2>&1; then
+            xcodes download "${XCODE_VERSION}" --directory "$XCODE_CACHE"
+          fi
+          XCODE_XIP=$(ls "$XCODE_CACHE"/Xcode-${XCODE_VERSION}*.xip | head -n1)
+          test -f "$XCODE_XIP"
+          echo "Have $(basename "$XCODE_XIP") ($(du -h "$XCODE_XIP" | awk '{print $1}'))"
+          echo "path=${XCODE_XIP}" >> "$GITHUB_OUTPUT"
+        env:
+          XCODE_VERSION: ${{ inputs.xcode_version }}
+
+      - name: Initialize Packer
+        working-directory: infra/macos-xcode-image
+        run: packer init -upgrade macos-xcode.pkr.hcl
+
+      # Same anonymous-pull dance as the other image workflows: the
+      # bare-metal runner has tuist-bot creds cached for ghcr.io
+      # which don't authorize ghcr.io/cirruslabs/* pulls. Tart also
+      # consults Docker credential helpers, and this runner can have
+      # the macOS helper installed without the Docker CLI — clear
+      # both stores before Packer clones the public base.
+      - name: Drop cached ghcr.io credentials
+        run: |
+          tart logout ghcr.io || true
+          if command -v docker >/dev/null 2>&1; then
+            docker logout ghcr.io || true
+          fi
+          for helper in docker-credential-osxkeychain docker-credential-desktop; do
+            if command -v "$helper" >/dev/null 2>&1; then
+              printf 'ghcr.io' | "$helper" erase || true
+              printf 'https://ghcr.io' | "$helper" erase || true
+            fi
+          done
+
+      - name: Reclaim Tart disk
+        run: |
+          set -uo pipefail
+          tart list --format json || true
+          df -h /
+          tart stop macos-tahoe-xcode 2>/dev/null || true
+          tart delete macos-tahoe-xcode 2>/dev/null || true
+          tart prune --entries caches --older-than 0
+          tart prune --entries vms --older-than 1
+          df -h /
+
+      - name: Build image
+        id: build
+        working-directory: infra/macos-xcode-image
+        env:
+          XCODE_VERSION: ${{ inputs.xcode_version }}
+        run: |
+          set -euo pipefail
+          docker_config="$HOME/.docker/config.json"
+          docker_config_backup=""
+          restore_docker_config() {
+            if [ -n "$docker_config_backup" ] && [ -f "$docker_config_backup" ]; then
+              mkdir -p "$HOME/.docker"
+              mv "$docker_config_backup" "$docker_config"
+            fi
+          }
+          trap restore_docker_config EXIT
+
+          if [ -f "$docker_config" ]; then
+            docker_config_backup="$(mktemp "${RUNNER_TEMP:-/tmp}/docker-config.XXXXXX")"
+            mv "$docker_config" "$docker_config_backup"
+          fi
+
+          env -u GITHUB_TOKEN -u MISE_GITHUB_TOKEN packer build \
+            -var "base_image=${{ inputs.base_image || 'ghcr.io/cirruslabs/macos-tahoe-base:latest' }}" \
+            -var "output_image=macos-tahoe-xcode" \
+            -var "xcode_xip_path=${{ steps.xcode_xip.outputs.path }}" \
+            -var "xcode_version=${XCODE_VERSION}" \
+            macos-xcode.pkr.hcl
+
+          # Tag is major-minor (e.g. "26-4") — matches Cirrus's
+          # public macos-tahoe-xcode:N convention. Downstream Layer 2
+          # images reference this tag, not the patch-level version,
+          # so a 26.4.0 → 26.4.1 Apple bump can replace the image
+          # under the same tag without touching the runner-image /
+          # xcresult-processor packer files.
+          MAJOR_MINOR=$(echo "${XCODE_VERSION}" | sed -E 's/^([0-9]+\.[0-9]+).*/\1/' | tr '.' '-')
+          echo "tag=${MAJOR_MINOR}" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | tart login ghcr.io --username tuist-bot --password-stdin
+
+      - name: Push image to GHCR
+        env:
+          TART_REGISTRY_HOSTNAME: ghcr.io
+          TART_REGISTRY_USERNAME: tuist-bot
+          TART_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="${{ steps.build.outputs.tag }}"
+          tart push macos-tahoe-xcode "ghcr.io/tuist/macos-tahoe-xcode:${TAG}"
+          echo "Pushed ghcr.io/tuist/macos-tahoe-xcode:${TAG}"
+
+      - name: Cleanup
+        if: always()
+        run: tart delete macos-tahoe-xcode 2>/dev/null || true
