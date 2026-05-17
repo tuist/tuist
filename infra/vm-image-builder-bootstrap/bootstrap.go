@@ -121,12 +121,14 @@ type Config struct {
 	// TuistMixBuildRoot defaults to DefaultTuistMixBuildRoot.
 	TuistMixBuildRoot string
 
-	// GHRepo is the owner/repo to register the runner against,
-	// e.g. "tuist/tuist".
-	GHRepo string
+	// GHOrg is the GitHub organization to register the runner
+	// against, e.g. "tuist". The runner is registered at organization
+	// scope (not repository scope) so the shared fleet can serve any
+	// repo in the org without re-registration per repo.
+	GHOrg string
 
 	// GHToken is the short-lived registration token minted via
-	//   gh api -X POST /repos/<owner>/<repo>/actions/runners/registration-token --jq .token
+	//   gh api -X POST /orgs/<org>/actions/runners/registration-token --jq .token
 	// Tokens have ~1h TTL; mint immediately before running this CLI.
 	GHToken string
 
@@ -219,8 +221,8 @@ func (cfg *Config) validate() error {
 	if cfg.Hostname == "" {
 		missing = append(missing, "Hostname")
 	}
-	if cfg.GHRepo == "" {
-		missing = append(missing, "GHRepo")
+	if cfg.GHOrg == "" {
+		missing = append(missing, "GHOrg")
 	}
 	if cfg.GHToken == "" {
 		missing = append(missing, "GHToken")
@@ -374,7 +376,7 @@ fi
 
 // installActionsRunner downloads the actions/runner tarball into
 // /opt/actions-runner (m1-owned so config.sh can write its state
-// files), configures it for cfg.GHRepo with the operator-supplied
+// files), configures it for cfg.GHOrg with the operator-supplied
 // short-lived registration token, and installs it as a launchd
 // LaunchAgent under m1.
 //
@@ -405,6 +407,22 @@ if [ ! -f "$RUNNER_DIR/config.sh" ]; then
 fi
 
 cd "$RUNNER_DIR"
+# Stop any existing service first; we need a quiescent agent before
+# ./config.sh tries to swap registrations.
+./svc.sh stop 2>/dev/null || true
+./svc.sh uninstall 2>/dev/null || true
+
+# When re-registering an already-configured runner, ./config.sh will
+# refuse with "A runner exists with the same name" unless we pre-clear
+# its local state. The clean shape is "./config.sh remove", but that
+# needs a removal token; we drop the .runner / .credentials files
+# directly so the next ./config.sh sees a fresh checkout. The
+# server-side registration of the previous runner is the operator's
+# job to clean up (gh api -X DELETE /orgs/<org>/actions/runners/<id>);
+# we don't want to do it implicitly because the previous runner may
+# legitimately exist with the same name (e.g. mid-rotation).
+rm -f .runner .credentials .credentials_rsaparams
+
 ./config.sh \
   --url https://github.com/%[3]s \
   --token %[4]s \
@@ -413,16 +431,13 @@ cd "$RUNNER_DIR"
   --work _work \
   --unattended \
   --replace
-
-./svc.sh stop 2>/dev/null || true
-./svc.sh uninstall 2>/dev/null || true
 ./svc.sh install %[2]s
 ./svc.sh start
 ./svc.sh status
 `,
 		shellQuote(cfg.RunnerVersion),
 		shellQuote(cfg.SSHUser),
-		shellQuote(cfg.GHRepo),
+		shellQuote(cfg.GHOrg),
 		shellQuote(cfg.GHToken),
 		shellQuote(cfg.RunnerName),
 		shellQuote(cfg.RunnerLabels),

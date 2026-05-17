@@ -18,8 +18,8 @@ func main() {
 	sshUser := flag.String("ssh-user", "m1", "SSH user on the host. Scaleway Apple Silicon defaults to m1.")
 	sshKey := flag.String("ssh-key", "", "Path to the SSH private key registered with Scaleway IAM. Mutually exclusive with --use-ssh-agent.")
 	useSSHAgent := flag.Bool("use-ssh-agent", false, "Source the SSH signers from $SSH_AUTH_SOCK instead of a key file. Recommended path when the fleet keypair lives in 1Password: enable the SSH Key item for 1Password's SSH agent in the GUI, then run with this flag.")
-	ghRepo := flag.String("gh-repo", "tuist/tuist", "owner/repo to register the Actions runner against.")
-	ghToken := flag.String("gh-token", "", "Actions runner registration token. Mint via:\n  gh api -X POST /repos/<owner>/<repo>/actions/runners/registration-token --jq .token")
+	ghOrg := flag.String("gh-org", "tuist", "GitHub organization to register the Actions runner against. Org-scope matches the rest of the bare-metal vm-image-builder fleet so any repo in the org can use these runners without per-repo registration.")
+	ghToken := flag.String("gh-token", "", "Actions runner registration token. Mint via:\n  gh api -X POST /orgs/<org>/actions/runners/registration-token --jq .token")
 	runnerName := flag.String("runner-name", "", "Runner name to register. Defaults to --hostname.")
 	runnerLabels := flag.String("runner-labels", DefaultRunnerLabels, "Comma-separated runner labels.")
 	runnerVersion := flag.String("runner-version", DefaultRunnerVersion, "actions/runner release to install.")
@@ -85,7 +85,7 @@ func main() {
 		Hostname:             *hostname,
 		KnownHostFingerprint: *knownFingerprint,
 		TuistMixBuildRoot:    *buildCacheRoot,
-		GHRepo:               *ghRepo,
+		GHOrg:                *ghOrg,
 		GHToken:              *ghToken,
 		RunnerName:           *runnerName,
 		RunnerLabels:         *runnerLabels,

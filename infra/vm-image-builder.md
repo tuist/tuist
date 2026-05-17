@@ -11,7 +11,7 @@ mise run vm-image-builder:bootstrap -- \
   --ip <scaleway-ipv4> \
   --hostname vm-image-builder-<n> \
   --use-ssh-agent \
-  --gh-token "$(gh api -X POST /repos/tuist/tuist/actions/runners/registration-token --jq .token)"
+  --gh-token "$(gh api -X POST /orgs/tuist/actions/runners/registration-token --jq .token)"
 # Prompts for the m1 password from the Scaleway provisioning email.
 ```
 
@@ -153,9 +153,11 @@ Once per operator, not per host:
    "Authorize key use with" to a longer window (1h is safest)
    before kicking off the bootstrap.
 
-3. **Confirm `gh` is authenticated** against `tuist/tuist` with at
-   least `admin:org` scope (needed to mint runner registration
-   tokens):
+3. **Confirm `gh` is authenticated** with `admin:org` scope (needed
+   to mint **organization-level** runner registration tokens). The
+   bootstrap registers each host at the `tuist` org so the runner
+   is visible alongside the existing `vm-image-builder-01`, not
+   only inside `tuist/tuist`:
 
    ```bash
    gh auth status
@@ -229,7 +231,7 @@ Tokens have a ~1h TTL. Mint immediately before running the
 bootstrap:
 
 ```bash
-gh api -X POST /repos/tuist/tuist/actions/runners/registration-token --jq .token
+gh api -X POST /orgs/tuist/actions/runners/registration-token --jq .token
 ```
 
 If the bootstrap fails after the GitHub Actions runner step and you
@@ -242,7 +244,7 @@ mise run vm-image-builder:bootstrap -- \
   --ip <scaleway-ipv4> \
   --hostname vm-image-builder-<n> \
   --use-ssh-agent \
-  --gh-token "$(gh api -X POST /repos/tuist/tuist/actions/runners/registration-token --jq .token)"
+  --gh-token "$(gh api -X POST /orgs/tuist/actions/runners/registration-token --jq .token)"
 ```
 
 The command prompts for the `m1` password (paste from the Scaleway

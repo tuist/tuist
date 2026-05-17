@@ -12,7 +12,7 @@ func TestConfigValidate_ReportsAllMissing(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected error for empty config")
 	}
-	for _, name := range []string{"IP", "SSHUser", "Hostname", "GHRepo", "GHToken"} {
+	for _, name := range []string{"IP", "SSHUser", "Hostname", "GHOrg", "GHToken"} {
 		if !strings.Contains(err.Error(), name) {
 			t.Errorf("expected error to mention %s, got: %v", name, err)
 		}
@@ -25,7 +25,7 @@ func TestConfigValidate_AcceptsKeyBytes(t *testing.T) {
 		SSHUser:       "m1",
 		SSHPrivateKey: []byte("dummy"),
 		Hostname:      "vm-image-builder-2",
-		GHRepo:        "tuist/tuist",
+		GHOrg:         "tuist",
 		GHToken:       "AAAAA",
 	}
 	if err := cfg.validate(); err != nil {
@@ -39,7 +39,7 @@ func TestConfigValidate_AcceptsSSHAgent(t *testing.T) {
 		SSHUser:     "m1",
 		UseSSHAgent: true,
 		Hostname:    "vm-image-builder-2",
-		GHRepo:      "tuist/tuist",
+		GHOrg:       "tuist",
 		GHToken:     "AAAAA",
 	}
 	if err := cfg.validate(); err != nil {
@@ -54,7 +54,7 @@ func TestConfigValidate_RejectsBothAuthMethods(t *testing.T) {
 		SSHPrivateKey: []byte("dummy"),
 		UseSSHAgent:   true,
 		Hostname:      "vm-image-builder-2",
-		GHRepo:        "tuist/tuist",
+		GHOrg:         "tuist",
 		GHToken:       "AAAAA",
 	}
 	err := cfg.validate()
@@ -68,7 +68,7 @@ func TestConfigValidate_RejectsNoAuthMethod(t *testing.T) {
 		IP:       "1.2.3.4",
 		SSHUser:  "m1",
 		Hostname: "vm-image-builder-2",
-		GHRepo:   "tuist/tuist",
+		GHOrg:    "tuist",
 		GHToken:  "AAAAA",
 	}
 	err := cfg.validate()
