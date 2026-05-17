@@ -109,6 +109,44 @@ if KUBECONFIG="$WL_KUBECONFIG" helm status platform --namespace platform >/dev/n
   HELM_EXTRA_ARGS+=(--no-hooks)
 fi
 
+# Dump platform-namespace state when helm exits non-zero. The caller's
+# workflow-level diagnostics step targets the main tuist cluster, so a
+# failure here would otherwise produce no actionable signal about the
+# regional workload cluster (stuck certgen hook, image pull, RBAC, …).
+dump_diagnostics() {
+  local rc=$?
+  if [ "$rc" -eq 0 ]; then
+    return 0
+  fi
+  echo "::group::platform install diagnostics ($CLUSTER_NAME)"
+  echo "--- helm history platform ---"
+  KUBECONFIG="$WL_KUBECONFIG" helm history platform -n platform --max 5 2>&1 || true
+  echo "--- jobs in platform ns ---"
+  KUBECONFIG="$WL_KUBECONFIG" kubectl -n platform get jobs -o wide 2>&1 || true
+  echo "--- pods in platform ns ---"
+  KUBECONFIG="$WL_KUBECONFIG" kubectl -n platform get pods -o wide 2>&1 || true
+  echo "--- recent events (last 50) ---"
+  KUBECONFIG="$WL_KUBECONFIG" kubectl -n platform get events \
+    --sort-by=.lastTimestamp 2>&1 | tail -50 || true
+  echo "--- ingress-nginx admission hook jobs ---"
+  for job in $(KUBECONFIG="$WL_KUBECONFIG" kubectl -n platform get jobs \
+    -l app.kubernetes.io/name=ingress-nginx -o name 2>/dev/null); do
+    echo "--- describe $job ---"
+    KUBECONFIG="$WL_KUBECONFIG" kubectl -n platform describe "$job" 2>&1 || true
+    for pod in $(KUBECONFIG="$WL_KUBECONFIG" kubectl -n platform get pods \
+      -l "job-name=${job##*/}" -o name 2>/dev/null); do
+      echo "--- describe $pod ---"
+      KUBECONFIG="$WL_KUBECONFIG" kubectl -n platform describe "$pod" 2>&1 || true
+      echo "--- logs $pod ---"
+      KUBECONFIG="$WL_KUBECONFIG" kubectl -n platform logs "$pod" \
+        --all-containers --tail=200 2>&1 || true
+    done
+  done
+  echo "::endgroup::"
+  return "$rc"
+}
+trap dump_diagnostics EXIT
+
 KUBECONFIG="$WL_KUBECONFIG" helm upgrade --install platform "$CHART_PATH" \
   --namespace platform \
   -f "$CHART_PATH/values-hetzner.yaml" \
