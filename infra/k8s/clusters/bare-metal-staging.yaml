@@ -123,15 +123,33 @@ spec:
           # Default cloud-init writes a 50-cloud-init.yaml with
           # dhcp4/dhcp6 enabled on the same interface, which
           # netplan merges as override — and DHCP fails on Hetzner
-          # since they assign static IPs. Net effect on a fresh
-          # install: the box boots, snapd/cron/etc. run, but the
-          # network is broken so neither caph nor the operator can
-          # reach it. Pin cloud-init off the network surface.
+          # since they assign static IPs. Pin cloud-init off the
+          # network surface so Hetzner's static config stays
+          # authoritative.
           mkdir -p /etc/cloud/cloud.cfg.d
           cat > /etc/cloud/cloud.cfg.d/99-disable-network-config.cfg <<'CICFG'
           network: {config: disabled}
           CICFG
           rm -f /etc/netplan/50-cloud-init.yaml
+          # Disable DHCPv6 + accept-ra on Hetzner's netplan
+          # interface. Hetzner's 01-netcfg.yaml omits both, and
+          # networkd in Ubuntu 24.04 implicitly tries DHCPv6 when
+          # an IPv6 address is configured. The implicit DHCPv6
+          # client fails ("Failed to configure DHCPv6 client: No
+          # such file or directory"), networkd marks the entire
+          # interface Failed, the static IPv4 never gets bound —
+          # box ends up unreachable post-install. Augment with a
+          # higher-priority netplan drop-in (netplan merges in
+          # alphabetical order, 99 wins).
+          cat > /etc/netplan/99-tuist-disable-dhcp6.yaml <<'NETPLAN'
+          network:
+            version: 2
+            ethernets:
+              enp3s0:
+                dhcp6: false
+                accept-ra: false
+          NETPLAN
+          chmod 600 /etc/netplan/99-tuist-disable-dhcp6.yaml
           mkdir -p /etc/tuist
           echo 'kata-runtime=true' > /etc/tuist/node-labels
       # Only claim hosts the hetzner-robot-controller created. The
@@ -185,7 +203,15 @@ spec:
               value: bare-metal
               effect: NoSchedule
       preKubeadmCommands:
-        - set -euo pipefail
+        # No `set -euo pipefail` here — CAPI's kubeadm-bootstrap
+        # renders each `preKubeadmCommands` entry as its own
+        # cloud-init `runcmd` step, which runs via `/bin/sh`
+        # (dash on Ubuntu). Dash doesn't know `set -o pipefail`,
+        # so the whole runcmd block aborts on the first line
+        # and kubeadm-join never runs. Each command below is its
+        # own subshell anyway; `set -e` semantics come from
+        # cloud-init invoking each step with `sh -e`.
+        - mkdir -p /etc/apt/keyrings
         # Container runtime + kubeadm install. Matches what the
         # cloud worker template installs so the worker bootstrap is
         # consistent across substrates; the actual containerd version
