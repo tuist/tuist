@@ -302,13 +302,20 @@ fi
 // gets the formula present so the first job has something to upgrade.
 //
 // mise is required because jdx/mise-action shells out to a mise
-// binary already on PATH. Packer drives the Tart image bake. The
-// cirruslabs/cli tap hosts the Tart formula.
+// binary already on PATH. Packer drives the Tart image bake.
+//
+// Taps:
+//   - cirruslabs/cli hosts the Tart formula.
+//   - hashicorp/tap hosts Packer. HashiCorp pulled Packer (and the
+//     rest of the BSL-licensed tools) from Homebrew core when they
+//     relicensed, so `brew install packer` now fails with
+//     "No available formula". The tap is the supported install path.
 func installBrewPackages(ctx context.Context, client *ssh.Client, cfg Config) error {
 	const script = `set -euo pipefail
 eval "$(/opt/homebrew/bin/brew shellenv)"
 brew tap cirruslabs/cli
-brew install mise packer tart
+brew tap hashicorp/tap
+brew install mise tart hashicorp/tap/packer
 brew --version
 tart --version
 packer --version

@@ -123,13 +123,37 @@ Once per operator, not per host:
    socket path to `~/.ssh/config`. Confirm:
 
    ```bash
-   ssh-add -l | grep vm-image-builder-fleet
+   SSH_AUTH_SOCK=~/Library/Group\ Containers/2BUA8C4S2C.com.1password/t/agent.sock \
+     ssh-add -l | grep vm-image-builder-fleet
    ```
 
    This is what makes `--use-ssh-agent` work; without it the
    bootstrap CLI has no way to reach the private key.
 
-2. **Confirm `gh` is authenticated** against `tuist/tuist` with at
+   **Gotcha: malformed `~/.config/1Password/ssh/agent.toml`.** If
+   the key item exists in 1Password but `ssh-add -l` doesn't list
+   it, open `~/.config/1Password/ssh/agent.toml` and make sure
+   each `[[ssh-keys]]` block has exactly one `vault =` line.
+   Stacking two `vault =` lines in one block is invalid TOML; in
+   that case 1Password silently drops all but one, and the
+   missing-vault case is the failure shape. One vault per block:
+
+   ```toml
+   [[ssh-keys]]
+   vault = "Private"
+
+   [[ssh-keys]]
+   vault = "Founders"
+   ```
+
+2. **Bump the SSH agent's biometric-approval window.** The
+   bootstrap opens many SSH sessions in sequence; an "Always
+   ask" setting in 1Password -> Settings -> Developer -> SSH
+   Agent will require a Touch ID prompt on every dial. Set
+   "Authorize key use with" to a longer window (1h is safest)
+   before kicking off the bootstrap.
+
+3. **Confirm `gh` is authenticated** against `tuist/tuist` with at
    least `admin:org` scope (needed to mint runner registration
    tokens):
 
@@ -160,7 +184,46 @@ only needed for the bootstrap's two password-consuming steps
 bootstrap, SSH is key-based and sudo is passwordless, so the password
 is not stored anywhere persistent.
 
-### 2. Mint a runner registration token
+### 2. Verify the fleet key reached `authorized_keys`
+
+In theory, Scaleway preloads every key currently in the project's
+SSH-keys list into `m1`'s `authorized_keys` at provision time. In
+practice we have seen freshly-ordered hosts come up without the
+fleet key (`Permission denied (publickey)` on a key the agent is
+demonstrably offering). Cause unclear; likely either an order-time
+key-picker default we missed, or a race between adding the key to
+the project and the order's provisioning step.
+
+Smoke-test from your workstation:
+
+```bash
+SSH_AUTH_SOCK=~/Library/Group\ Containers/2BUA8C4S2C.com.1password/t/agent.sock \
+  ssh -o BatchMode=yes m1@<scaleway-ipv4> hostname
+```
+
+If that succeeds, skip to step 3.
+
+If it fails with `Permission denied (publickey,...)`, push the key
+in manually via password SSH (one-time, the bootstrap takes over
+key management afterwards):
+
+```bash
+ssh -o PreferredAuthentications=password \
+    -o PubkeyAuthentication=no \
+    -o IdentityAgent=none \
+    m1@<scaleway-ipv4>
+# Paste the m1 password from the Scaleway email, then:
+mkdir -p ~/.ssh && chmod 700 ~/.ssh
+op read 'op://Founders/vm-image-builder-fleet/public key' \
+  | pbcopy   # on your workstation; then paste the pubkey:
+echo '<paste>' >> ~/.ssh/authorized_keys
+chmod 600 ~/.ssh/authorized_keys
+exit
+```
+
+Re-run the smoke-test; it should pass now.
+
+### 3. Mint a runner registration token
 
 Tokens have a ~1h TTL. Mint immediately before running the
 bootstrap:
@@ -172,7 +235,7 @@ gh api -X POST /repos/tuist/tuist/actions/runners/registration-token --jq .token
 If the bootstrap fails after the GitHub Actions runner step and you
 need to re-run, mint a fresh token first.
 
-### 3. Run the bootstrap
+### 4. Run the bootstrap
 
 ```bash
 mise run vm-image-builder:bootstrap -- \
@@ -200,8 +263,10 @@ What the bootstrap does, in order:
    with `VZErrorDomain Code=-9` unless this succeeds.
 4. Disable idle sleep, display sleep, screensaver, and auto-logout.
 5. Set the macOS hostname.
-6. Install Homebrew (NONINTERACTIVE), then `tap cirruslabs/cli` and
-   `brew install mise packer tart`.
+6. Install Homebrew (NONINTERACTIVE), then tap `cirruslabs/cli` +
+   `hashicorp/tap` and `brew install mise tart hashicorp/tap/packer`.
+   Packer lives in HashiCorp's tap, not core, because HashiCorp's
+   BSL relicense pulled it from Homebrew core.
 7. Verify a full Xcode is present and the license is accepted.
 8. Append `export TUIST_MIX_BUILD_ROOT=/opt/tuist-build-cache` to
    `/etc/zshenv`. The xcresult-processor build workflow shares the

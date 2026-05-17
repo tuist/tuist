@@ -26,6 +26,7 @@ func main() {
 	buildCacheRoot := flag.String("build-cache-root", DefaultTuistMixBuildRoot, "TUIST_MIX_BUILD_ROOT to set in /etc/zshenv.")
 	knownFingerprint := flag.String("known-fingerprint", "", "Persisted SHA256 host key. Empty on first bootstrap; the CLI prints the captured value.")
 	noPasswordPrompt := flag.Bool("no-password-prompt", false, "Skip the m1-password TTY prompt. Use when re-bootstrapping a host past Scaleway's password-disclosure window: the upstream helpers' idempotency-only path skips sudo+kcpassword when their artefacts already exist.")
+	m1PasswordEnv := flag.String("m1-password-env", "", "Name of an env var holding the m1 password. Use instead of the TTY prompt when driving the bootstrap non-interactively (e.g. from another script). Mutually exclusive with --no-password-prompt.")
 	flag.Parse()
 
 	if err := requireFlags(map[string]string{
@@ -56,8 +57,18 @@ func main() {
 		keyBytes = b
 	}
 
+	if *noPasswordPrompt && *m1PasswordEnv != "" {
+		fmt.Fprintln(os.Stderr, "--no-password-prompt and --m1-password-env are mutually exclusive")
+		os.Exit(2)
+	}
 	var password string
-	if !*noPasswordPrompt {
+	switch {
+	case *m1PasswordEnv != "":
+		password = os.Getenv(*m1PasswordEnv)
+		if password == "" {
+			fatalf("--m1-password-env=%s but the env var is empty", *m1PasswordEnv)
+		}
+	case !*noPasswordPrompt:
 		p, err := promptPassword("m1 password (from Scaleway email): ")
 		if err != nil {
 			fatalf("read m1 password: %v", err)
