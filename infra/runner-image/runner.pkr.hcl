@@ -126,14 +126,17 @@ build {
 
   # Create the `runner` user. The Cirrus base image ships with
   # `admin` as its working user but pre-stages `/Users/runner` as a
-  # placeholder (sysadminctl logs `Directory at path:/Users/runner
-  # already exists; Assigning UID: 502 GID: 20`). Whatever the base
-  # left there carries ACLs / flags / SIP attributes that survive
-  # `chown -R` — empirically a follow-up `sudo -u runner mkdir
-  # /Users/runner/work` still hits `Permission denied`. Every later
-  # write under `/Users/runner` is therefore done as root and then
-  # chown'd to runner per-subdirectory, sidestepping whatever
-  # protects the placeholder home itself.
+  # placeholder carrying ACLs / flags that survive `chown -R`. If
+  # we leave it in place, `sysadminctl -addUser runner` logs
+  # `Directory at path:/Users/runner already exists` and skips home
+  # creation, so the new user never owns its own home and runtime
+  # mkdirs like `~/.local/share/mise` blow up with EACCES the first
+  # time any step tries to create a top-level subdir we didn't
+  # pre-chown.
+  #
+  # Wipe the placeholder before sysadminctl so it creates a fresh
+  # home from scratch with the correct POSIX ownership and the
+  # default macOS-user ACLs — no Cirrus residue to fight.
   #
   # `-admin` adds the user to the admin GROUP, which is what
   # `/etc/sudoers.d/%admin` and `inject-env.sh`'s `root:admin`
@@ -143,6 +146,7 @@ build {
   provisioner "shell" {
     inline = [
       "set -euo pipefail",
+      "echo 'admin' | sudo -S rm -rf /Users/runner",
       "echo 'admin' | sudo -S sysadminctl -addUser runner -fullName 'GitHub Actions Runner' -password runner -admin",
       "echo 'admin' | sudo -S mkdir -p /opt/tuist /etc/tuist",
       "echo 'admin' | sudo -S chown root:wheel /opt/tuist"
