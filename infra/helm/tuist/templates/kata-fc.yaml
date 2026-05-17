@@ -129,6 +129,13 @@ spec:
               exec:
                 command: ["bash", "-c", "/opt/kata-artifacts/scripts/kata-deploy.sh cleanup"]
           env:
+            # kata-deploy.sh reads NODE_NAME for labeling / lookups;
+            # without it the script aborts on `unbound variable` at
+            # line 770. Standard downward-API plumbing.
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
             # Pin the containerd config snippet to install just the
             # Firecracker-backed shim, not every Kata variant. Keeps
             # the resulting containerd config minimal and avoids
