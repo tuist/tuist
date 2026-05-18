@@ -18,10 +18,15 @@ use prometheus_client::{
     registry::Registry,
 };
 
-use crate::{artifact::producer::ArtifactProducer, utils::replication_target_label};
+use crate::{
+    artifact::producer::ArtifactProducer, node_location::NodeLocation,
+    utils::replication_target_label,
+};
 
 #[derive(Clone)]
 pub struct Metrics {
+    region: String,
+    tenant_id: String,
     registry: Arc<Mutex<Registry>>,
     rollout_snapshot: Arc<RolloutSnapshot>,
     http_requests: Family<HttpRequestLabels, Counter>,
@@ -40,6 +45,7 @@ pub struct Metrics {
     replication_apply_results: Family<ReplicationApplyLabels, Counter>,
     multipart_parts: Family<MultipartLabels, Counter>,
     node_info: Family<NodeInfoLabels, Gauge>,
+    node_geo: Family<NodeGeoLabels, Gauge>,
     file_descriptor_wait: Family<FileDescriptorWaitLabels, Histogram>,
     file_operations: Family<FileOperationLabels, Counter>,
     file_operation_duration: Family<FileOperationRouteLabels, Histogram>,
@@ -96,6 +102,7 @@ pub struct Metrics {
     memory_pressure_transitions: Family<MemoryPressureTransitionLabels, Counter>,
     background_work_paused: Family<BackgroundWorkerLabels, Gauge>,
     memory_actions: Family<MemoryActionLabels, Counter>,
+    geoip_refresh: Family<GeoIpRefreshLabels, Counter>,
     traffic_state: Gauge,
     ready_state: Gauge,
     drain_state: Gauge,
@@ -146,6 +153,7 @@ impl Metrics {
         let replication_apply_results = Family::<ReplicationApplyLabels, Counter>::default();
         let multipart_parts = Family::<MultipartLabels, Counter>::default();
         let node_info = Family::<NodeInfoLabels, Gauge>::default();
+        let node_geo = Family::<NodeGeoLabels, Gauge>::default();
         let file_descriptor_wait =
             Family::<FileDescriptorWaitLabels, Histogram>::new_with_constructor(|| {
                 Histogram::new(exponential_buckets(0.0005, 2.0, 16))
@@ -217,6 +225,7 @@ impl Metrics {
             Family::<MemoryPressureTransitionLabels, Counter>::default();
         let background_work_paused = Family::<BackgroundWorkerLabels, Gauge>::default();
         let memory_actions = Family::<MemoryActionLabels, Counter>::default();
+        let geoip_refresh = Family::<GeoIpRefreshLabels, Counter>::default();
         let traffic_state = Gauge::default();
         let ready_state = Gauge::default();
         let drain_state = Gauge::default();
@@ -310,6 +319,11 @@ impl Metrics {
             "kura_node_info",
             "Node info labels for each Kura region",
             node_info.clone(),
+        );
+        registry.register(
+            "kura_node_geo_info",
+            "Node geographic labels for each Kura region",
+            node_geo.clone(),
         );
         registry.register(
             "kura_file_descriptor_wait_seconds",
@@ -592,6 +606,11 @@ impl Metrics {
             memory_actions.clone(),
         );
         registry.register(
+            "kura_geoip_refresh_total",
+            "Outcomes of background refreshes of the in-process GeoIP database",
+            geoip_refresh.clone(),
+        );
+        registry.register(
             "kura_traffic_state",
             "Current traffic state for this node: 0=joining, 1=serving, 2=draining",
             traffic_state.clone(),
@@ -628,6 +647,8 @@ impl Metrics {
         );
 
         let metrics = Self {
+            region: region.clone(),
+            tenant_id: tenant_id.clone(),
             registry: Arc::new(Mutex::new(registry)),
             rollout_snapshot,
             http_requests,
@@ -646,6 +667,7 @@ impl Metrics {
             replication_apply_results,
             multipart_parts,
             node_info,
+            node_geo,
             file_descriptor_wait,
             file_operations,
             file_operation_duration,
@@ -702,6 +724,7 @@ impl Metrics {
             memory_pressure_transitions,
             background_work_paused,
             memory_actions,
+            geoip_refresh,
             traffic_state,
             ready_state,
             drain_state,
@@ -718,11 +741,26 @@ impl Metrics {
         metrics
     }
 
+    pub fn record_node_geo(&self, location: &NodeLocation) {
+        self.node_geo
+            .get_or_create(&NodeGeoLabels {
+                region: self.region.clone(),
+                tenant_id: self.tenant_id.clone(),
+                country: location
+                    .country
+                    .clone()
+                    .unwrap_or_else(|| "unknown".to_owned()),
+                subdivision: location.subdivision.clone().unwrap_or_default(),
+            })
+            .set(1);
+    }
+
     pub fn record_http(
         &self,
         route: String,
         method: String,
         status: StatusCode,
+        client_country: Option<String>,
         duration: Duration,
     ) {
         self.http_requests
@@ -730,6 +768,7 @@ impl Metrics {
                 route: route.clone(),
                 method,
                 status: status.as_u16(),
+                client_country: client_country.unwrap_or_else(|| "unknown".to_owned()),
             })
             .inc();
         self.http_request_duration
@@ -1183,6 +1222,14 @@ impl Metrics {
             .inc();
     }
 
+    pub fn record_geoip_refresh(&self, result: &str) {
+        self.geoip_refresh
+            .get_or_create(&GeoIpRefreshLabels {
+                result: result.to_owned(),
+            })
+            .inc();
+    }
+
     pub fn update_runtime_state(
         &self,
         traffic_state: i64,
@@ -1230,6 +1277,7 @@ struct HttpRequestLabels {
     route: String,
     method: String,
     status: u16,
+    client_country: String,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
@@ -1299,6 +1347,14 @@ struct FileOperationRouteLabels {
 struct NodeInfoLabels {
     region: String,
     tenant_id: String,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct NodeGeoLabels {
+    region: String,
+    tenant_id: String,
+    country: String,
+    subdivision: String,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
@@ -1397,6 +1453,11 @@ struct MemoryActionLabels {
     action: String,
 }
 
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct GeoIpRefreshLabels {
+    result: String,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1408,12 +1469,14 @@ mod tests {
             "/up".into(),
             "GET".into(),
             StatusCode::OK,
+            Some("US".into()),
             Duration::from_millis(10),
         );
         metrics.record_http(
             "/api/cache/keyvalue".into(),
             "PUT".into(),
             StatusCode::INTERNAL_SERVER_ERROR,
+            None,
             Duration::from_millis(20),
         );
         metrics.record_artifact_read(ArtifactProducer::Xcode, "ok", 5);
@@ -1466,6 +1529,10 @@ mod tests {
         metrics.record_memory_action("manifest_cache_trim");
         metrics.update_runtime_state(1, true, false, true, true);
         metrics.record_writer_lock_acquire_failure();
+        metrics.record_node_geo(&NodeLocation {
+            country: Some("US".into()),
+            subdivision: Some("US-VA".into()),
+        });
 
         let rendered = metrics.render();
 
@@ -1485,6 +1552,7 @@ mod tests {
         assert!(rendered.contains("outcome=\"ignored_older\""));
         assert!(rendered.contains("kura_multipart_parts_total"));
         assert!(rendered.contains("kura_node_info"));
+        assert!(rendered.contains("kura_node_geo_info"));
         assert!(rendered.contains("kura_file_descriptor_wait_seconds"));
         assert!(rendered.contains("kura_file_operations_total"));
         assert!(rendered.contains("kura_file_descriptor_in_use"));
@@ -1538,5 +1606,7 @@ mod tests {
         assert!(rendered.contains("kura_process_start_time_seconds"));
         assert!(rendered.contains("region=\"eu-west\""));
         assert!(rendered.contains("tenant_id=\"acme\""));
+        assert!(rendered.contains("country=\"US\""));
+        assert!(rendered.contains("subdivision=\"US-VA\""));
     }
 }

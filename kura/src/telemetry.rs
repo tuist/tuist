@@ -17,7 +17,7 @@ use tracing::{Span, field, warn};
 use tracing_opentelemetry::OpenTelemetrySpanExt;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
-use crate::config::Config;
+use crate::{config::Config, node_location::NodeLocation};
 
 pub struct TelemetryGuards {
     tracer_provider: Option<SdkTracerProvider>,
@@ -36,7 +36,7 @@ impl TelemetryGuards {
     }
 }
 
-pub fn init_tracing(config: &Config) -> TelemetryGuards {
+pub fn init_tracing(config: &Config, node_location: &NodeLocation) -> TelemetryGuards {
     global::set_text_map_propagator(TraceContextPropagator::new());
 
     let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
@@ -50,7 +50,7 @@ pub fn init_tracing(config: &Config) -> TelemetryGuards {
     let sentry_guard = init_sentry(config);
 
     let tracer_result = match config.otlp_traces_endpoint.as_deref() {
-        Some(endpoint) => build_tracer_provider(config, endpoint),
+        Some(endpoint) => build_tracer_provider(config, endpoint, node_location),
         None => Err("OTLP tracing disabled (no endpoint configured)".to_owned()),
     };
 
@@ -101,6 +101,8 @@ pub fn init_tracing(config: &Config) -> TelemetryGuards {
                 deployment.environment.name = %config.otel_deployment_environment,
                 kura.region = %config.region,
                 kura.tenant_id = %config.tenant_id,
+                geo.country.iso_code = node_location.country.as_deref().unwrap_or("unknown"),
+                geo.region.iso_code = node_location.subdivision.as_deref().unwrap_or("unknown"),
                 service.instance.id = %config.node_url,
                 "OTLP tracing not active"
             );
@@ -109,7 +111,7 @@ pub fn init_tracing(config: &Config) -> TelemetryGuards {
     }
 }
 
-pub fn log_context_span(config: &Config) -> Span {
+pub fn log_context_span(config: &Config, node_location: &NodeLocation) -> Span {
     let span = tracing::info_span!(
         "kura.runtime",
         service.name = %config.otel_service_name,
@@ -118,10 +120,18 @@ pub fn log_context_span(config: &Config) -> Span {
         deployment.environment.name = %config.otel_deployment_environment,
         kura.region = %config.region,
         kura.tenant_id = %config.tenant_id,
+        geo.country.iso_code = field::Empty,
+        geo.region.iso_code = field::Empty,
         service.instance.id = %config.node_url,
         trace_id = field::Empty,
         span_id = field::Empty,
     );
+    if let Some(country) = node_location.country.as_deref() {
+        span.record("geo.country.iso_code", country);
+    }
+    if let Some(subdivision) = node_location.subdivision.as_deref() {
+        span.record("geo.region.iso_code", subdivision);
+    }
     record_trace_context(&span);
     span
 }
@@ -151,7 +161,11 @@ fn init_sentry(config: &Config) -> Option<ClientInitGuard> {
     }))
 }
 
-fn build_tracer_provider(config: &Config, endpoint: &str) -> Result<SdkTracerProvider, String> {
+fn build_tracer_provider(
+    config: &Config,
+    endpoint: &str,
+    node_location: &NodeLocation,
+) -> Result<SdkTracerProvider, String> {
     let exporter = opentelemetry_otlp::SpanExporter::builder()
         .with_http()
         .with_endpoint(endpoint)
@@ -160,19 +174,26 @@ fn build_tracer_provider(config: &Config, endpoint: &str) -> Result<SdkTracerPro
         .build()
         .map_err(|error| format!("failed to build OTLP exporter: {error}"))?;
 
+    let mut attributes = vec![
+        KeyValue::new("service.name", config.otel_service_name.clone()),
+        KeyValue::new("service.namespace", "kura"),
+        KeyValue::new("service.version", env!("CARGO_PKG_VERSION")),
+        KeyValue::new(
+            "deployment.environment.name",
+            config.otel_deployment_environment.clone(),
+        ),
+        KeyValue::new("kura.region", config.region.clone()),
+        KeyValue::new("kura.tenant_id", config.tenant_id.clone()),
+        KeyValue::new("service.instance.id", config.node_url.clone()),
+    ];
+    if let Some(country) = node_location.country.as_deref() {
+        attributes.push(KeyValue::new("geo.country.iso_code", country.to_owned()));
+    }
+    if let Some(subdivision) = node_location.subdivision.as_deref() {
+        attributes.push(KeyValue::new("geo.region.iso_code", subdivision.to_owned()));
+    }
     let resource = Resource::builder_empty()
-        .with_attributes([
-            KeyValue::new("service.name", config.otel_service_name.clone()),
-            KeyValue::new("service.namespace", "kura"),
-            KeyValue::new("service.version", env!("CARGO_PKG_VERSION")),
-            KeyValue::new(
-                "deployment.environment.name",
-                config.otel_deployment_environment.clone(),
-            ),
-            KeyValue::new("kura.region", config.region.clone()),
-            KeyValue::new("kura.tenant_id", config.tenant_id.clone()),
-            KeyValue::new("service.instance.id", config.node_url.clone()),
-        ])
+        .with_attributes(attributes)
         .build();
 
     Ok(SdkTracerProvider::builder()

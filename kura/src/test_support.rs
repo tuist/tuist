@@ -78,6 +78,9 @@ where
         otel_service_name: "kura-test".into(),
         otel_deployment_environment: "test".into(),
         sentry_dsn: None,
+        geoip_refresh_interval_secs: 0,
+        node_country_override: None,
+        node_subdivision_override: None,
     };
     override_config(&mut config);
     config
@@ -120,6 +123,7 @@ where
         runtime: RuntimeState::new(),
         extension,
         analytics,
+        geoip: None,
         client,
         notify: Notify::new(),
         readiness: tokio::sync::Mutex::new(ReadinessState::new(Instant::now())),
