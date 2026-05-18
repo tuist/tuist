@@ -172,14 +172,24 @@ fi
 // name, which is the path the reconciler takes when re-bootstrapping
 // the same host after a config change.
 //
-// The .runner / .credentials / .credentials_rsaparams files are
-// cleared before ./config.sh so a host that's been re-registered
-// at a different URL doesn't trip "A runner exists with the same
-// name" on subsequent config.sh calls. The server-side cleanup of
-// the previous runner is the operator's job
-// (gh api -X DELETE /orgs/<org>/actions/runners/<id>); we don't do
-// it implicitly because the previous runner may legitimately exist
-// with the same name (e.g. mid-rotation).
+// Idempotency on rerun: a host that's already healthy (the
+// .runner + .credentials files exist locally and the launchd
+// LaunchAgent for this runner name is loaded) is left alone. This
+// avoids the failure mode where the reconciler re-bootstraps a
+// previously-healthy host with a now-stale Secret token: a fresh
+// `./config.sh --token <expired>` would 401 and leave the host
+// with no runner at all, since we've already torn down the old
+// registration before trying to install the new one. To force a
+// re-registration the operator clears `/opt/actions-runner/.runner`
+// out of band; that drops the host through the config.sh path.
+//
+// The registration token is piped via stdin rather than embedded
+// in the script string. RunCommandWithStdin's error wraps the
+// script literal, which flows through K8s events and Conditions on
+// `BootstrappedCondition`; a `./config.sh --token <inline>` failure
+// would leak the still-valid org runner registration token to
+// anyone with read access to events on the management cluster.
+// Stdin keeps the token out of the script text.
 func installActionsRunner(ctx context.Context, client *ssh.Client, sshUser, runnerName string, cfg GHActionsRunnerConfig) error {
 	if cfg.GHRunnerRegistrationToken == "" {
 		return fmt.Errorf("GHRunnerRegistrationToken is empty; the caller must resolve the registration-token Secret before calling InstallActionsRunner")
@@ -192,6 +202,30 @@ URL=https://github.com/actions/runner/releases/download/v${RUNNER_VERSION}/${TAR
 
 sudo mkdir -p "$RUNNER_DIR"
 sudo chown %[2]s:staff "$RUNNER_DIR"
+
+# Read the registration token from stdin so a config.sh failure
+# doesn't leak it through this script's text into K8s events. The
+# token still appears in config.sh's argv on the host during its
+# brief runtime (out of K8s reach); only the inline embedding in
+# the script literal is what we needed to avoid.
+REG_TOKEN=$(cat)
+
+# Skip the whole config.sh + svc-install dance if the runner is
+# already registered locally and the launchd agent is loaded for
+# this runner name. The alternative — tear down and reconfigure on
+# every reconcile — means a stale registration token (the Secret
+# rotates on an operator schedule, while the reconciler may re-run
+# for unrelated drift reasons) leaves a previously-healthy builder
+# with no runner at all. Operators can force re-registration by
+# removing /opt/actions-runner/.runner out of band, which falls
+# through to the config.sh path below.
+RUNNER_LABEL=actions.runner.%[3]s.%[5]s
+if [ -f "$RUNNER_DIR/.runner" ] && [ -f "$RUNNER_DIR/.credentials" ]; then
+  if launchctl list 2>/dev/null | awk '{print $3}' | grep -qxF "$RUNNER_LABEL"; then
+    echo "actions-runner already healthy (label=$RUNNER_LABEL); skipping reconfigure"
+    exit 0
+  fi
+fi
 
 if [ ! -f "$RUNNER_DIR/config.sh" ]; then
   curl -fsSL -o "/tmp/${TARBALL}" "$URL"
@@ -206,9 +240,9 @@ rm -f .runner .credentials .credentials_rsaparams
 
 ./config.sh \
   --url https://github.com/%[3]s \
-  --token %[4]s \
+  --token "$REG_TOKEN" \
   --name %[5]s \
-  --labels %[6]s \
+  --labels %[4]s \
   --work _work \
   --unattended \
   --replace
@@ -219,11 +253,10 @@ rm -f .runner .credentials .credentials_rsaparams
 		shellQuote(cfg.GHRunnerVersion),
 		shellQuote(sshUser),
 		shellQuote(cfg.GHOrg),
-		shellQuote(cfg.GHRunnerRegistrationToken),
-		shellQuote(runnerName),
 		shellQuote(cfg.GHRunnerLabels),
+		shellQuote(runnerName),
 	)
-	return RunCommand(ctx, client, script)
+	return RunCommandWithStdin(ctx, client, script, cfg.GHRunnerRegistrationToken)
 }
 
 // runActionsRunnerInstall is the public entrypoint Run() calls when
