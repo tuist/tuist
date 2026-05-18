@@ -18,10 +18,15 @@ use prometheus_client::{
     registry::Registry,
 };
 
-use crate::{artifact::producer::ArtifactProducer, utils::replication_target_label};
+use crate::{
+    artifact::producer::ArtifactProducer, node_location::NodeLocation,
+    utils::replication_target_label,
+};
 
 #[derive(Clone)]
 pub struct Metrics {
+    region: String,
+    tenant_id: String,
     registry: Arc<Mutex<Registry>>,
     rollout_snapshot: Arc<RolloutSnapshot>,
     http_requests: Family<HttpRequestLabels, Counter>,
@@ -40,6 +45,7 @@ pub struct Metrics {
     replication_apply_results: Family<ReplicationApplyLabels, Counter>,
     multipart_parts: Family<MultipartLabels, Counter>,
     node_info: Family<NodeInfoLabels, Gauge>,
+    node_geo: Family<NodeGeoLabels, Gauge>,
     file_descriptor_wait: Family<FileDescriptorWaitLabels, Histogram>,
     file_operations: Family<FileOperationLabels, Counter>,
     file_operation_duration: Family<FileOperationRouteLabels, Histogram>,
@@ -147,6 +153,7 @@ impl Metrics {
         let replication_apply_results = Family::<ReplicationApplyLabels, Counter>::default();
         let multipart_parts = Family::<MultipartLabels, Counter>::default();
         let node_info = Family::<NodeInfoLabels, Gauge>::default();
+        let node_geo = Family::<NodeGeoLabels, Gauge>::default();
         let file_descriptor_wait =
             Family::<FileDescriptorWaitLabels, Histogram>::new_with_constructor(|| {
                 Histogram::new(exponential_buckets(0.0005, 2.0, 16))
@@ -312,6 +319,11 @@ impl Metrics {
             "kura_node_info",
             "Node info labels for each Kura region",
             node_info.clone(),
+        );
+        registry.register(
+            "kura_node_geo_info",
+            "Node geographic labels for each Kura region",
+            node_geo.clone(),
         );
         registry.register(
             "kura_file_descriptor_wait_seconds",
@@ -635,6 +647,8 @@ impl Metrics {
         );
 
         let metrics = Self {
+            region: region.clone(),
+            tenant_id: tenant_id.clone(),
             registry: Arc::new(Mutex::new(registry)),
             rollout_snapshot,
             http_requests,
@@ -653,6 +667,7 @@ impl Metrics {
             replication_apply_results,
             multipart_parts,
             node_info,
+            node_geo,
             file_descriptor_wait,
             file_operations,
             file_operation_duration,
@@ -724,6 +739,20 @@ impl Metrics {
             .set(1);
 
         metrics
+    }
+
+    pub fn record_node_geo(&self, location: &NodeLocation) {
+        self.node_geo
+            .get_or_create(&NodeGeoLabels {
+                region: self.region.clone(),
+                tenant_id: self.tenant_id.clone(),
+                country: location
+                    .country
+                    .clone()
+                    .unwrap_or_else(|| "unknown".to_owned()),
+                subdivision: location.subdivision.clone().unwrap_or_default(),
+            })
+            .set(1);
     }
 
     pub fn record_http(
@@ -1321,6 +1350,14 @@ struct NodeInfoLabels {
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct NodeGeoLabels {
+    region: String,
+    tenant_id: String,
+    country: String,
+    subdivision: String,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
 struct ManifestIndexResultLabels {
     result: String,
 }
@@ -1492,6 +1529,10 @@ mod tests {
         metrics.record_memory_action("manifest_cache_trim");
         metrics.update_runtime_state(1, true, false, true, true);
         metrics.record_writer_lock_acquire_failure();
+        metrics.record_node_geo(&NodeLocation {
+            country: Some("US".into()),
+            subdivision: Some("US-VA".into()),
+        });
 
         let rendered = metrics.render();
 
@@ -1511,6 +1552,7 @@ mod tests {
         assert!(rendered.contains("outcome=\"ignored_older\""));
         assert!(rendered.contains("kura_multipart_parts_total"));
         assert!(rendered.contains("kura_node_info"));
+        assert!(rendered.contains("kura_node_geo_info"));
         assert!(rendered.contains("kura_file_descriptor_wait_seconds"));
         assert!(rendered.contains("kura_file_operations_total"));
         assert!(rendered.contains("kura_file_descriptor_in_use"));
@@ -1564,5 +1606,7 @@ mod tests {
         assert!(rendered.contains("kura_process_start_time_seconds"));
         assert!(rendered.contains("region=\"eu-west\""));
         assert!(rendered.contains("tenant_id=\"acme\""));
+        assert!(rendered.contains("country=\"US\""));
+        assert!(rendered.contains("subdivision=\"US-VA\""));
     }
 }

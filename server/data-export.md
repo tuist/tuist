@@ -84,6 +84,7 @@ The following data is stored in ClickHouse for analytics purposes:
 - Encrypted SSO client secrets for Okta and custom OAuth2 providers
 - Internal replication bookkeeping (e.g., `bundles.artifacts_replicated_to_ch`) used to drive the PG → ClickHouse artifacts backfill
 - Internal Kura shared secrets used by the control plane and Kura runtime extensions
+- Managed Kura operational traces retained in Tempo: service/resource metadata (including `kura.tenant_id`, `kura.region`, serving-node `geo.country.iso_code` / `geo.region.iso_code`) and request spans (including route, status, duration, and best-effort client `geo.country.iso_code` / `geo.region.iso_code`). This telemetry is used for platform observability and incident response, and is not part of the customer export archive today.
 - Encrypted GitHub App credentials (`client_secret`, `private_key`, `webhook_secret` on `github_app_installations`)
 - Slack bot access tokens and incoming-webhook URLs (treated as bearer credentials)
 - GitHub-issued JIT runner configs (minted on demand for runner Pods at dispatch time and never persisted server-side)

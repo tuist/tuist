@@ -59,13 +59,19 @@ pub async fn run() -> Result<(), String> {
     .await;
     let telemetry = init_tracing(&config, &node_location);
     let log_context = log_context_span(&config, &node_location);
-    let result = run_with_config(config, geoip).instrument(log_context).await;
+    let result = run_with_config(config, geoip, node_location)
+        .instrument(log_context)
+        .await;
 
     telemetry.shutdown();
     result
 }
 
-async fn run_with_config(config: Config, geoip: Option<GeoIp>) -> Result<(), String> {
+async fn run_with_config(
+    config: Config,
+    geoip: Option<GeoIp>,
+    node_location: crate::node_location::NodeLocation,
+) -> Result<(), String> {
     if let Err(error) = raise_nofile_soft_to_hard() {
         tracing::warn!("failed to raise RLIMIT_NOFILE soft limit: {error}");
     }
@@ -76,6 +82,7 @@ async fn run_with_config(config: Config, geoip: Option<GeoIp>) -> Result<(), Str
         .map_err(|error| format!("failed to create directories: {error}"))?;
 
     let metrics = Metrics::new(config.region.clone(), config.tenant_id.clone());
+    metrics.record_node_geo(&node_location);
     let data_dir_lock = DataDirLock::acquire(&config.data_dir).inspect_err(|_| {
         metrics.record_writer_lock_acquire_failure();
     })?;
