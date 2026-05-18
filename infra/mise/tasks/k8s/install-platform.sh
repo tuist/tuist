@@ -121,6 +121,15 @@ dump_diagnostics() {
   echo "::group::platform install diagnostics ($CLUSTER_NAME)"
   echo "--- helm history platform ---"
   KUBECONFIG="$WL_KUBECONFIG" helm history platform -n platform --max 5 2>&1 || true
+  echo "--- nodes ---"
+  KUBECONFIG="$WL_KUBECONFIG" kubectl get nodes -o wide 2>&1 || true
+  # Surface taints separately: kubectl get nodes -o wide hides taints, and
+  # the most common reason for a stuck certgen hook is a Pending pod that
+  # tolerates none of the taints on the cluster's only schedulable node
+  # (e.g. a half-bootstrapped cluster with just the control-plane node).
+  echo "--- node taints ---"
+  KUBECONFIG="$WL_KUBECONFIG" kubectl get nodes \
+    -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.spec.taints}{"\n"}{end}' 2>&1 || true
   echo "--- jobs in platform ns ---"
   KUBECONFIG="$WL_KUBECONFIG" kubectl -n platform get jobs -o wide 2>&1 || true
   echo "--- pods in platform ns ---"
