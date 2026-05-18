@@ -58,16 +58,27 @@ type GHActionsRunnerConfig struct {
 }
 
 // installBuilderTooling lays down the host-level dependencies the
-// image-bake workflows expect to find on PATH: Homebrew, mise (the
-// jdx/mise-action step shells out to it), Tart from the
-// cirruslabs/cli tap (the same one tart-kubelet would use, but the
-// workflows expect a brew-managed install they can `brew upgrade`
-// before each bake), and Packer from hashicorp/tap.
+// image-bake workflows expect to find on PATH: Homebrew, Packer
+// from `hashicorp/tap`, and `crane` (for GHCR auth before
+// `tart push`).
 //
 // `hashicorp/tap` instead of Homebrew core because HashiCorp pulled
 // Packer (and the rest of the BSL-licensed tools) from core when
 // they relicensed; `brew install packer` returns "No available
 // formula" now and the tap is the supported install path.
+//
+// mise is intentionally not installed here. The
+// xcresult-processor-image workflow uses `jdx/mise-action`, which
+// self-installs the pinned mise version into the runner's temp dir
+// every run and shadows whatever the host has anyway. The
+// runner-image workflow doesn't use mise at all.
+//
+// Tart also isn't installed here. The Node-bootstrap path above
+// (installTart) already extracted the operator-image-baked
+// tart.app to /usr/local/bin/tart, version-pinned by the operator
+// image. Same binary the macosFleet and runnersFleet hosts use,
+// explicit version control rather than tracking whatever the
+// cirruslabs/cli Homebrew formula points to.
 //
 // Idempotent across reruns: `brew install` is a no-op when the
 // formula is already at the latest version, and the Homebrew
@@ -79,7 +90,7 @@ if ! command -v brew >/dev/null 2>&1; then
 fi
 eval "$(/opt/homebrew/bin/brew shellenv)"
 brew tap hashicorp/tap
-brew install mise hashicorp/tap/packer crane
+brew install hashicorp/tap/packer crane
 
 # Pin Packer so subsequent ` + "`brew upgrade`" + ` calls are no-ops.
 # Stable binary signatures matter on macOS Tahoe: the Local Network
@@ -88,17 +99,10 @@ brew install mise hashicorp/tap/packer crane
 # revokes the grant. Pinning keeps the grant stable across rebuilds;
 # intentional Packer upgrades become an explicit operator action
 # that pairs with re-running the Allow click out of band.
-#
-# Tart isn't installed via Homebrew here. The Node-bootstrap path
-# above (installTart) already extracted the operator-image-baked
-# tart.app to /usr/local/bin/tart, version-pinned by the operator
-# image. Same binary the macosFleet and runnersFleet hosts use,
-# explicit version control rather than tracking whatever the
-# cirruslabs/cli Homebrew formula points to.
 brew pin packer
 
 packer --version
-mise --version
+crane version
 `
 	return RunCommand(ctx, client, script)
 }
