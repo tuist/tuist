@@ -235,6 +235,60 @@ runnersFleet:
       runnerImage: "ghcr.io/tuist/tuist-runner@sha256:528164596e4e533f5f884a7b9bb7733aec56990df92f18a1d480e13385aa0c30"
       dispatchLabel: "tuist-macos"
 
+# Kata Containers + QEMU runtime for the Linux runner microVM pool.
+kataContainers:
+  enabled: true
+
+# Linux runner fleet on Hetzner Robot AX162-R hosts (FSN1).
+#
+# Substrate sizing: 2× AX162-R (48c/96t EPYC Genoa, 256 GB ECC,
+# 2x1.92 TB NVMe DC Edition). Each host fits ~64 microVM slots at
+# the 1 vCPU / 4 GB shape (RAM-bound at 256 GB ÷ 4 GB; CPU
+# undersubscribed at 96 threads / 64 vCPU = 1.5× headroom). Two
+# hosts = 128 steady-state slots; single-host failure leaves 64
+# slots online, which matches the current Namespace.so Linux CPU
+# ceiling (64 concurrent / 128 GiB) the fleet is sized to replace.
+#
+# When to add a 3rd host: the autoscaler exposes whether it's
+# hitting `maxReplicas` via `RunnerPool.status` and the
+# `/api/internal/runners/desired_replicas` rolling-P95 signal.
+# If sustained P95 climbs over ~50 concurrent for a two-week
+# window, order `tuist-bm-production-3` (~€395/mo + €295 setup).
+# The hetzner-robot-controller picks it up automatically once it
+# carries the `tuist-bm-production-*` naming convention.
+runnersFleetLinux:
+  enabled: true
+  name: runners-linux
+  pools:
+    - name: ubuntu-22-04
+      runnerImage: "ghcr.io/tuist/tuist-linux-runner:sha-112c45d9c509"
+      dispatchLabel: "tuist-production-linux"
+      runnerLabels:
+        - self-hosted
+        - Linux
+        - X64
+      runtimeClass: kata-qemu
+      pod:
+        cpuMilli: 1000
+        memoryMB: 4096
+      # Tuned against Namespace.so 7-day baseline (peak ~60
+      # concurrent Linux CPU, ~144 GiB Linux memory — both at or
+      # over the current Namespace ceiling).
+      autoscaling:
+        enabled: true
+        # ~50% of P95: keeps warm runners pre-thawed without
+        # paying for steady-state idle capacity equal to peak.
+        minWarmPoolFloor: 30
+        # 2 hosts × 64 raw slots = 128, minus ~4 slots per host
+        # reserved for system DaemonSets (Cilium agent, kube-proxy
+        # replacement, node-exporter) and per-Pod kata overhead.
+        maxReplicas: 120
+        scaleDownCooldownSeconds: 300
+        machineDeployment:
+          namespace: org-tuist
+          clusterName: tuist-production
+          deploymentName: runners-linux
+
 # In-cluster Valkey backs the auth rate limiter (Hammer.Redis). The
 # chart wires TUIST_REDIS_URL to the embedded Service; without it the
 # rate limiter falls back to the per-pod InMemory bucket.

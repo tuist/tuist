@@ -336,9 +336,11 @@ runnersFleetLinux:
       runtimeClass: kata-qemu
       pod:
         # Per-tenant slot, ccx23-equivalent. AX42-U fits ~16 of these
-        # cleanly with 2:1 CPU oversub + a small reserve for kubelet
-        # and other system DaemonSets on the host. Production
-        # AX162-R doubles this density.
+        # cleanly with 1:1 CPU + a small RAM reserve for kubelet and
+        # other system DaemonSets on the host. Production AX162-R
+        # quadruples this density (64 slots — 256 GB / 4 GB cap, with
+        # CPU undersubscribed at 96 threads / 64 vCPU = 1.5× headroom
+        # for noisy-neighbor protection).
         cpuMilli: 1000
         memoryMB: 4096
       # Queue-depth driven autoscaling. minWarmPoolFloor keeps a

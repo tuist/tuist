@@ -140,6 +140,42 @@ runnersFleet:
       runnerImage: "ghcr.io/tuist/tuist-runner@sha256:528164596e4e533f5f884a7b9bb7733aec56990df92f18a1d480e13385aa0c30"
       dispatchLabel: "tuist-canary-macos"
 
+# Kata Containers + QEMU runtime for the Linux runner microVM pool.
+kataContainers:
+  enabled: true
+
+# Linux runner fleet on a single bare-metal AX42-U host (FSN1).
+# Canary mirrors staging's substrate exactly so the deploy pipeline
+# catches regressions on a production-shape cluster before they hit
+# production. One host is sufficient — canary is a pre-prod gate,
+# not an HA tier. Operator bring-up: order `tuist-bm-canary-1`,
+# bump `runners-linux` MD replicas in `cluster-canary.yaml`,
+# hetzner-robot-controller + caph do the rest.
+runnersFleetLinux:
+  enabled: true
+  name: runners-linux
+  pools:
+    - name: ubuntu-22-04
+      runnerImage: "ghcr.io/tuist/tuist-linux-runner:sha-112c45d9c509"
+      dispatchLabel: "tuist-canary-linux"
+      runnerLabels:
+        - self-hosted
+        - Linux
+        - X64
+      runtimeClass: kata-qemu
+      pod:
+        cpuMilli: 1000
+        memoryMB: 4096
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 2
+        maxReplicas: 14
+        scaleDownCooldownSeconds: 300
+        machineDeployment:
+          namespace: org-tuist
+          clusterName: tuist-canary
+          deploymentName: runners-linux
+
 # In-cluster Valkey backs the auth rate limiter (Hammer.Redis). The
 # chart wires TUIST_REDIS_URL to the embedded Service; without it the
 # rate limiter falls back to the per-pod InMemory bucket.
