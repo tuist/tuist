@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
+* expose is_quarantined on test case run API by [@justine-acorns](https://github.com/justine-acorns) in [#10785](https://github.com/tuist/tuist/pull/10785)
 * add onOutdatedDependencies action to GenerationOptions by [@freak4pc](https://github.com/freak4pc) in [#10715](https://github.com/tuist/tuist/pull/10715)
 ### 🐛 Bug Fixes
 
