@@ -363,8 +363,9 @@ defmodule Tuist.Webhooks do
     end_bucket = truncate_bucket(end_dt, unit)
     step = bucket_step(unit)
 
-    Stream.unfold(start_bucket, fn bucket ->
-      if DateTime.compare(bucket, end_bucket) == :gt do
+    start_bucket
+    |> Stream.unfold(fn bucket ->
+      if DateTime.after?(bucket, end_bucket) do
         nil
       else
         values = Map.get(by_bucket, bucket, %{total: 0, failed: 0})
@@ -374,14 +375,11 @@ defmodule Tuist.Webhooks do
     |> Enum.to_list()
   end
 
-  defp truncate_bucket(%DateTime{} = dt, :hour),
-    do: %{dt | minute: 0, second: 0, microsecond: {0, 0}}
+  defp truncate_bucket(%DateTime{} = dt, :hour), do: %{dt | minute: 0, second: 0, microsecond: {0, 0}}
 
-  defp truncate_bucket(%DateTime{} = dt, :day),
-    do: %{dt | hour: 0, minute: 0, second: 0, microsecond: {0, 0}}
+  defp truncate_bucket(%DateTime{} = dt, :day), do: %{dt | hour: 0, minute: 0, second: 0, microsecond: {0, 0}}
 
-  defp truncate_bucket(%DateTime{} = dt, :month),
-    do: %{dt | day: 1, hour: 0, minute: 0, second: 0, microsecond: {0, 0}}
+  defp truncate_bucket(%DateTime{} = dt, :month), do: %{dt | day: 1, hour: 0, minute: 0, second: 0, microsecond: {0, 0}}
 
   defp bucket_step(:hour), do: &DateTime.add(&1, 1, :hour)
   defp bucket_step(:day), do: &DateTime.add(&1, 1, :day)

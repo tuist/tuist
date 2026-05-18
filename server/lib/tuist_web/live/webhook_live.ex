@@ -167,8 +167,7 @@ defmodule TuistWeb.WebhookLive do
      |> push_event("close-modal", %{id: "webhook-edit-endpoint-modal"})}
   end
 
-  def handle_event("edit_modal_open_change", %{"open" => false}, socket),
-    do: {:noreply, reset_edit_form(socket)}
+  def handle_event("edit_modal_open_change", %{"open" => false}, socket), do: {:noreply, reset_edit_form(socket)}
 
   def handle_event("edit_modal_open_change", _params, socket), do: {:noreply, socket}
 

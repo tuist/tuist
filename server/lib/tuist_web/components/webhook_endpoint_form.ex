@@ -20,7 +20,7 @@ defmodule TuistWeb.Components.WebhookEndpointForm do
 
   attr :id_prefix, :string,
     required: true,
-    doc: "Prefix used for the input and checkbox DOM ids (e.g. \"webhook\" or \"webhook-edit\")."
+    doc: ~s{Prefix used for the input and checkbox DOM ids (e.g. "webhook" or "webhook-edit").}
 
   attr :event_groups, :list, required: true, doc: "The event catalog, grouped by resource."
   attr :name, :string, required: true, doc: "Current value of the name input."
@@ -34,7 +34,7 @@ defmodule TuistWeb.Components.WebhookEndpointForm do
 
   attr :events_label, :string,
     required: true,
-    doc: "Label above the event checkboxes (e.g. \"Events to listen for\" or \"Selected events\")."
+    doc: ~s{Label above the event checkboxes (e.g. "Events to listen for" or "Selected events").}
 
   attr :on_name_change, :string, required: true, doc: "phx-keyup event for the name input."
   attr :on_url_change, :string, required: true, doc: "phx-keyup event for the URL input."
@@ -73,7 +73,9 @@ defmodule TuistWeb.Components.WebhookEndpointForm do
         name="url"
         type="basic"
         label={dgettext("dashboard_account", "Endpoint URL")}
-        sublabel={dgettext("dashboard_account", "HTTPS only. Tuist will POST signed JSON envelopes here.")}
+        sublabel={
+          dgettext("dashboard_account", "HTTPS only. Tuist will POST signed JSON envelopes here.")
+        }
         value={@url}
         placeholder="https://example.com/tuist-webhook"
         phx-keyup={@on_url_change}
@@ -134,8 +136,7 @@ defmodule TuistWeb.Components.WebhookEndpointForm do
   Returns true if every event in `group` is in the `selected` list.
   Drives the group-level "Select all" checkbox state.
   """
-  def all_group_events_selected?(group, selected),
-    do: Enum.all?(group.events, &(&1.type in selected))
+  def all_group_events_selected?(group, selected), do: Enum.all?(group.events, &(&1.type in selected))
 
   @doc """
   Returns true when some but not all events in `group` are selected — the

@@ -6,9 +6,11 @@ defmodule Tuist.Webhooks.Dispatcher do
 
   Each call site builds the event payload (the `object` snapshot plus any
   additional context) and hands it off here; the dispatcher is responsible
-  for adding the envelope metadata (`id`, `type`, `created`, `account`) and
-  scheduling delivery. Failures while enqueuing a single endpoint are
-  swallowed so one bad subscriber can't block delivery to the others.
+  for adding the envelope metadata (`id`, `type`, `created`) and scheduling
+  delivery. Fan-out goes through a single `Oban.insert_all/1` per dispatch
+  call so one event with N subscribers is a single DB round-trip; the
+  batch is wrapped in try/rescue so a DB-level failure logs and returns
+  `:ok` instead of crashing the upstream write.
   """
   alias Tuist.AppBuilds.Preview
   alias Tuist.Projects
@@ -36,16 +38,16 @@ defmodule Tuist.Webhooks.Dispatcher do
            Webhooks.list_endpoints_subscribed_to(account_id, "test_case.updated") do
       object = test_case_snapshot(test_case)
 
-      Enum.each(endpoints, fn endpoint ->
-        enqueue(endpoint, "test_case.updated", %{
-          "object" => object,
-          "events" => Enum.map(event_types, &Atom.to_string/1),
-          "actor_id" => actor_id,
-          "alert_id" => alert_id
-        })
-      end)
+      body = %{
+        "object" => object,
+        "events" => Enum.map(event_types, &Atom.to_string/1),
+        "actor_id" => actor_id,
+        "alert_id" => alert_id
+      }
 
-      :ok
+      endpoints
+      |> Enum.map(&build_job(&1, "test_case.updated", body))
+      |> insert_jobs()
     else
       _ -> :ok
     end
@@ -64,15 +66,11 @@ defmodule Tuist.Webhooks.Dispatcher do
     with %Projects.Project{account_id: account_id} <- Repo.get(Projects.Project, project_id),
          [_ | _] = endpoints <-
            Webhooks.list_endpoints_subscribed_to(account_id, "test_case.created") do
-      Enum.each(test_cases, fn test_case ->
-        object = test_case_snapshot(test_case)
-
-        Enum.each(endpoints, fn endpoint ->
-          enqueue(endpoint, "test_case.created", %{"object" => object})
-        end)
-      end)
-
-      :ok
+      for test_case <- test_cases,
+          endpoint <- endpoints do
+        build_job(endpoint, "test_case.created", %{"object" => test_case_snapshot(test_case)})
+      end
+      |> insert_jobs()
     else
       _ -> :ok
     end
@@ -101,13 +99,11 @@ defmodule Tuist.Webhooks.Dispatcher do
     with %Projects.Project{account_id: account_id} <- preview.project,
          [_ | _] = endpoints <-
            Webhooks.list_endpoints_subscribed_to(account_id, event_type) do
-      object = preview_snapshot(preview)
+      body = %{"object" => preview_snapshot(preview)}
 
-      Enum.each(endpoints, fn endpoint ->
-        enqueue(endpoint, event_type, %{"object" => object})
-      end)
-
-      :ok
+      endpoints
+      |> Enum.map(&build_job(&1, event_type, body))
+      |> insert_jobs()
     else
       _ -> :ok
     end
@@ -129,7 +125,7 @@ defmodule Tuist.Webhooks.Dispatcher do
     }
   end
 
-  defp enqueue(endpoint, event_type, body) do
+  defp build_job(endpoint, event_type, body) do
     event_id = Ecto.UUID.generate()
 
     payload =
@@ -139,21 +135,27 @@ defmodule Tuist.Webhooks.Dispatcher do
         "created" => System.system_time(:second)
       })
 
-    case %{
-           "webhook_endpoint_id" => endpoint.id,
-           "event_id" => event_id,
-           "event_type" => event_type,
-           "payload" => payload
-         }
-         |> DeliveryWorker.new()
-         |> Oban.insert() do
-      {:ok, _job} ->
-        :ok
+    DeliveryWorker.new(%{
+      "webhook_endpoint_id" => endpoint.id,
+      "event_id" => event_id,
+      "event_type" => event_type,
+      "payload" => payload
+    })
+  end
 
-      {:error, reason} ->
-        Logger.warning("Webhook dispatch failed to enqueue for endpoint #{endpoint.id}: #{inspect(reason)}")
-        :ok
-    end
+  # Single-batch insert so an event with N subscribers is one round-trip
+  # to `oban_jobs` instead of N. A DB-level failure is logged and
+  # swallowed — the upstream domain write shouldn't be torn down by a
+  # webhook bookkeeping problem.
+  defp insert_jobs([]), do: :ok
+
+  defp insert_jobs(jobs) do
+    _ = Oban.insert_all(jobs)
+    :ok
+  rescue
+    error ->
+      Logger.warning("Webhook dispatch failed to enqueue batch of #{length(jobs)} jobs: #{inspect(error)}")
+      :ok
   end
 
   defp test_case_snapshot(test_case) do
@@ -178,8 +180,7 @@ defmodule Tuist.Webhooks.Dispatcher do
   # by convention here. Promote to `%DateTime{}` so the serialized
   # output carries the `Z` offset RFC 3339 requires — without it the
   # documented `date-time` schema rejects the value.
-  defp format_datetime(%NaiveDateTime{} = dt),
-    do: dt |> DateTime.from_naive!("Etc/UTC") |> DateTime.to_iso8601()
+  defp format_datetime(%NaiveDateTime{} = dt), do: dt |> DateTime.from_naive!("Etc/UTC") |> DateTime.to_iso8601()
 
   defp format_datetime(other), do: to_string(other)
 

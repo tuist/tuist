@@ -73,7 +73,9 @@
           </div>
           <div data-part="metadata">
             <div data-part="title">{dgettext("dashboard_account", "Signing secret")}</div>
-            <code data-part="label">{masked_signing_secret(@endpoint.signing_secret_last_four)}</code>
+            <code data-part="label">
+              {masked_signing_secret(@endpoint.signing_secret_last_four)}
+            </code>
           </div>
         </div>
         <div data-part="metadata-row">

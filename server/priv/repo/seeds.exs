@@ -3235,29 +3235,31 @@ IO.puts("  - Gradle machine metrics: #{length(gradle_machine_metrics)} data poin
 # stats, and table on the detail page have data the moment you log in.
 
 webhook_endpoints_with_events =
-  [
-    {"Notion automation", "https://example.com/notion/tuist", ["test_case.created", "test_case.updated"]},
-    {"Slack relay", "https://example.com/slack/tuist", ["preview.created", "preview.deleted"]}
-  ]
-  |> Enum.map(fn {name, url, event_types} ->
-    endpoint =
-      case Repo.get_by(Tuist.Webhooks.WebhookEndpoint, account_id: organization.account.id, name: name) do
-        nil ->
-          {:ok, endpoint, _secret} =
-            Tuist.Webhooks.create_endpoint(organization.account.id, %{
-              "name" => name,
-              "url" => url,
-              "event_types" => event_types
-            })
+  Enum.map(
+    [
+      {"Notion automation", "https://example.com/notion/tuist", ["test_case.created", "test_case.updated"]},
+      {"Slack relay", "https://example.com/slack/tuist", ["preview.created", "preview.deleted"]}
+    ],
+    fn {name, url, event_types} ->
+      endpoint =
+        case Repo.get_by(Tuist.Webhooks.WebhookEndpoint, account_id: organization.account.id, name: name) do
+          nil ->
+            {:ok, endpoint, _secret} =
+              Tuist.Webhooks.create_endpoint(organization.account.id, %{
+                "name" => name,
+                "url" => url,
+                "event_types" => event_types
+              })
 
-          endpoint
+            endpoint
 
-        endpoint ->
-          endpoint
-      end
+          endpoint ->
+            endpoint
+        end
 
-    {endpoint, event_types}
-  end)
+      {endpoint, event_types}
+    end
+  )
 
 # Wipe any prior attempts for the seeded endpoints first so re-seeding
 # produces a deterministic mix instead of accumulating on top of the
@@ -3277,9 +3279,9 @@ Tuist.ClickHouseRepo.query!(
 webhook_attempt_outcomes = [
   {:delivered, 200, "\"OK\""},
   {:delivered, 204, ""},
-  {:failed, 500, "{\"error\":\"internal_server_error\"}"},
+  {:failed, 500, ~s({"error":"internal_server_error"})},
   {:failed, 502, "<html><body>Bad Gateway</body></html>"},
-  {:failed, 408, "{\"error\":\"timeout\"}"}
+  {:failed, 408, ~s({"error":"timeout"})}
 ]
 
 weighted_outcome = fn ->
@@ -3339,7 +3341,7 @@ webhook_attempts =
 webhook_attempts
 |> Enum.chunk_every(500)
 |> Enum.each(fn chunk ->
-  Tuist.IngestRepo.insert_all(Tuist.Webhooks.DeliveryAttempt, chunk, timeout: 120_000)
+  IngestRepo.insert_all(Tuist.Webhooks.DeliveryAttempt, chunk, timeout: 120_000)
 end)
 
 IO.puts("  - webhook endpoints: #{length(webhook_endpoints_with_events)}")

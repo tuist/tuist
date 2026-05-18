@@ -60,8 +60,7 @@ defmodule TuistWeb.API.Schemas.Webhook.Preview do
       git_ref: %Schema{
         type: :string,
         nullable: true,
-        description:
-          "Git ref the preview was uploaded from (typically only populated on CI runs from a pull request)."
+        description: "Git ref the preview was uploaded from (typically only populated on CI runs from a pull request)."
       },
       inserted_at: %Schema{
         type: :string,
