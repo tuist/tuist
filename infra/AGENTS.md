@@ -37,8 +37,8 @@ Go controller for `KuraInstance` CRs (`kura.tuist.dev/v1alpha1`). It reconciles 
 ### `registry-router/` — Cloudflare Worker for `registry.tuist.dev`
 Geo-routes cache registry requests to the nearest healthy cache origin based on the requester's continent. Unrelated to the Kubernetes migration.
 
-### `vm-image-builder.md` + `vm-image-builder-bootstrap/` — bare-metal Mac mini onboarding
-End-to-end runbook for standing up a new `vm-image-builder` Mac mini that builds the runner and xcresult-processor Tart images, plus the `mise run vm-image-builder:bootstrap` CLI that drives it. The fleet is intentionally bare-metal and outside CAPI; see the doc for why. Re-uses the SSH/sudo/auto-login/idle-sleep helpers from `macos-host-bootstrap/` (the same substrate the Scaleway CAPI provider runs on cluster nodes).
+### `vm-image-builder.md` — bare-metal builder fleet operator runbook
+End-to-end runbook for the bare-metal Mac mini fleet that bakes our Tart VM images (runner-image, xcresult-processor-image). Cluster-managed via the same CAPI provider that runs the other macOS fleets; hosts are regular Nodes with tart-kubelet idle plus a GitHub Actions self-hosted runner installed on top via the `ScalewayAppleSiliconMachineSpec.GHActionsRunner` sub-spec. Scale by editing `buildersFleet.replicas` or `kubectl scale machinedeployment`.
 
 ### `grafana-dashboards/` — Grafana Cloud dashboards (managed only)
 Dashboard definitions synced with Grafana Cloud via [Git Sync](https://grafana.com/docs/grafana-cloud/as-code/observability-as-code/git-sync/). The `Tuist Dashboards` folder in Grafana Cloud is bound to this directory; changes propagate in both directions.

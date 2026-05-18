@@ -28,9 +28,10 @@ old ones.
 
 CI: `.github/workflows/xcresult-processor-image.yml` runs on every push to
 `main` that touches `server/lib/**`, the xcresult NIF, or this directory.
-Builds on the bare-metal `vm-image-builder` Mac mini (Tart needs a live
-GUI session for Virtualization.framework — hosted runners can't do this).
-Host-prep runbook: [`../vm-image-builder.md`](../vm-image-builder.md).
+Builds on the bare-metal `vm-image-builder` Mac mini fleet (Tart
+needs a live GUI session for Virtualization.framework, so hosted
+runners can't do this). Builder fleet operator runbook:
+[`../vm-image-builder.md`](../vm-image-builder.md).
 
 Locally:
 
