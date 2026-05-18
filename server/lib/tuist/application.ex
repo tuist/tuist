@@ -30,6 +30,7 @@ defmodule Tuist.Application do
   alias Tuist.Tests.TestCaseRunRepetition
   alias Tuist.Tests.TestModuleRun
   alias Tuist.Tests.TestSuiteRun
+  alias Tuist.Webhooks.DeliveryAttempt
   alias Tuist.Xcode.XcodeGraph
   alias Tuist.Xcode.XcodeProject
   alias Tuist.Xcode.XcodeTarget
@@ -305,6 +306,7 @@ defmodule Tuist.Application do
         Supervisor.child_spec(TestCaseRunAttachment.Buffer, id: TestCaseRunAttachment.Buffer),
         Supervisor.child_spec(TestCaseEvent.Buffer, id: TestCaseEvent.Buffer),
         Supervisor.child_spec(CASEvent.Buffer, id: CASEvent.Buffer),
+        Supervisor.child_spec(DeliveryAttempt.Buffer, id: DeliveryAttempt.Buffer),
         Tuist.Vault,
         {Oban, Application.fetch_env!(:tuist, Oban)},
         {Cachex, [:tuist, []]},

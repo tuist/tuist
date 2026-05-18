@@ -63,6 +63,9 @@ SERVER_URL=https://tuist.dev
 S3_BUCKET=your-cache-bucket
 S3_HOST=s3.us-east-1.amazonaws.com
 S3_REGION=us-east-1
+# Optional: PEM-encoded CA certificate for internal or self-signed S3 endpoints.
+# Also accepted as TUIST_S3_CA_CERT_PEM for parity with the server release.
+# S3_CA_CERT_PEM=-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----
 
 # Optional: dedicated Xcode cache bucket.
 # Useful when you want separate retention policies, storage classes,
@@ -102,6 +105,7 @@ KEY_VALUE_DATABASE_PATH=/data/key_value.sqlite
 | `S3_ACCESS_KEY_ID` | Conditional | | S3 access key. Required when using static credentials. Also accepted as `AWS_ACCESS_KEY_ID`. See [S3 authentication](#s3-authentication). |
 | `S3_SECRET_ACCESS_KEY` | Conditional | | S3 secret key. Required when using static credentials. Also accepted as `AWS_SECRET_ACCESS_KEY`. See [S3 authentication](#s3-authentication). |
 | `S3_ENDPOINT` | No | | Full S3 endpoint URL. When set, overrides `S3_HOST` with the parsed host and scheme. Useful for S3-compatible providers. |
+| `S3_CA_CERT_PEM` | No | System CA bundle | PEM-encoded CA certificate for verifying S3 HTTPS connections. Useful for internal Certificate Authorities or self-signed S3 endpoints. Also accepted as `TUIST_S3_CA_CERT_PEM`. |
 | `AWS_WEB_IDENTITY_TOKEN_FILE` | No | | Path to a web identity token file for IAM role authentication. See [S3 authentication](#s3-authentication). |
 | `AWS_ROLE_ARN` | No | | IAM role ARN to assume when using web identity token authentication. |
 | `DISK_HIGH_WATERMARK_PERCENT` | No | `85` | Disk usage percentage that triggers LRU eviction. |

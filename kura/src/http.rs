@@ -1,4 +1,7 @@
-use std::collections::{BTreeMap, HashMap};
+use std::{
+    collections::{BTreeMap, HashMap},
+    net::IpAddr,
+};
 
 use axum::{
     Json, Router,
@@ -348,6 +351,16 @@ async fn track_http_metrics(
         .unwrap_or_else(|| req.uri().path().to_owned());
     let method = req.method().to_string();
     let uri_path = req.uri().path().to_owned();
+    let client_location = state
+        .geoip
+        .as_ref()
+        .and_then(|geoip| client_ip_from_headers(req.headers()).and_then(|ip| geoip.locate(ip)));
+    let client_country = client_location
+        .as_ref()
+        .and_then(|location| location.country.clone());
+    let client_subdivision = client_location
+        .as_ref()
+        .and_then(|location| location.subdivision.clone());
 
     let request_span = tracing::info_span!(
         "http.request",
@@ -356,11 +369,19 @@ async fn track_http_metrics(
         http.request.method = %method,
         http.route = %route,
         url.path = %uri_path,
+        geo.country.iso_code = field::Empty,
+        geo.region.iso_code = field::Empty,
         http.response.status_code = field::Empty,
         otel.status_code = field::Empty,
         trace_id = field::Empty,
         span_id = field::Empty,
     );
+    if let Some(country) = client_country.as_deref() {
+        request_span.record("geo.country.iso_code", country);
+    }
+    if let Some(subdivision) = client_subdivision.as_deref() {
+        request_span.record("geo.region.iso_code", subdivision);
+    }
     attach_parent_context(&request_span, req.headers());
     record_trace_context(&request_span);
 
@@ -370,11 +391,32 @@ async fn track_http_metrics(
         request_span.record("otel.status_code", "ERROR");
     }
 
-    state
-        .metrics
-        .record_http(route, method, response.status(), start.elapsed());
+    state.metrics.record_http(
+        route,
+        method,
+        response.status(),
+        client_country,
+        start.elapsed(),
+    );
 
     response
+}
+
+fn client_ip_from_headers(headers: &axum::http::HeaderMap) -> Option<IpAddr> {
+    if let Some(value) = headers.get("x-forwarded-for")
+        && let Ok(text) = value.to_str()
+        && let Some(first) = text.split(',').next()
+        && let Ok(ip) = first.trim().parse::<IpAddr>()
+    {
+        return Some(ip);
+    }
+    if let Some(value) = headers.get("x-real-ip")
+        && let Ok(text) = value.to_str()
+        && let Ok(ip) = text.trim().parse::<IpAddr>()
+    {
+        return Some(ip);
+    }
+    None
 }
 
 async fn reject_draining_public_requests(
@@ -2560,5 +2602,66 @@ mod tests {
                 body: body.to_vec(),
             });
         StatusCode::ACCEPTED
+    }
+
+    mod client_ip {
+        use axum::http::{HeaderMap, HeaderValue};
+
+        use super::super::client_ip_from_headers;
+
+        #[test]
+        fn returns_first_hop_from_x_forwarded_for() {
+            let mut headers = HeaderMap::new();
+            headers.insert(
+                "x-forwarded-for",
+                HeaderValue::from_static("203.0.113.5, 10.0.0.1, 198.51.100.7"),
+            );
+            assert_eq!(
+                client_ip_from_headers(&headers)
+                    .expect("first hop should parse")
+                    .to_string(),
+                "203.0.113.5"
+            );
+        }
+
+        #[test]
+        fn trims_surrounding_whitespace_in_x_forwarded_for() {
+            let mut headers = HeaderMap::new();
+            headers.insert(
+                "x-forwarded-for",
+                HeaderValue::from_static("  203.0.113.5  , 10.0.0.1"),
+            );
+            assert_eq!(
+                client_ip_from_headers(&headers)
+                    .expect("trimmed first hop should parse")
+                    .to_string(),
+                "203.0.113.5"
+            );
+        }
+
+        #[test]
+        fn falls_back_to_x_real_ip_when_x_forwarded_for_is_missing() {
+            let mut headers = HeaderMap::new();
+            headers.insert("x-real-ip", HeaderValue::from_static("198.51.100.7"));
+            assert_eq!(
+                client_ip_from_headers(&headers)
+                    .expect("x-real-ip should parse")
+                    .to_string(),
+                "198.51.100.7"
+            );
+        }
+
+        #[test]
+        fn returns_none_when_no_address_headers_are_present() {
+            let headers = HeaderMap::new();
+            assert!(client_ip_from_headers(&headers).is_none());
+        }
+
+        #[test]
+        fn returns_none_when_first_hop_is_malformed() {
+            let mut headers = HeaderMap::new();
+            headers.insert("x-forwarded-for", HeaderValue::from_static("not-an-ip"));
+            assert!(client_ip_from_headers(&headers).is_none());
+        }
     }
 }

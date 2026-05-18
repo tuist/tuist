@@ -9,6 +9,7 @@ defmodule Cache.Finch.PoolsTest do
   describe "config/0 S3 pool protocols" do
     setup do
       stub(Cache.Config, :server_url, fn -> "https://tuist.dev" end)
+      stub(Cache.Config, :s3_ca_cert_pem, fn -> nil end)
 
       stub(Cache.Config, :s3_config, fn ->
         {:ok, [scheme: "https://", host: "s3.example.com", region: "us-east-1"]}
@@ -53,6 +54,22 @@ defmodule Cache.Finch.PoolsTest do
       s3_pool = Map.get(config, "https://s3.example.com")
 
       assert Keyword.get(s3_pool, :protocols) == [:http2, :http1]
+    end
+
+    test "uses the configured CA bundle for S3 TLS" do
+      pem = File.read!(CAStore.file_path())
+
+      stub(Cache.Config, :s3_ca_cert_pem, fn -> pem end)
+
+      config = Pools.config()
+      s3_pool = Map.get(config, "https://s3.example.com")
+      transport_opts = Keyword.fetch!(s3_pool[:conn_opts], :transport_opts)
+
+      refute Keyword.has_key?(transport_opts, :cacertfile)
+
+      cacerts = Keyword.fetch!(transport_opts, :cacerts)
+      assert is_list(cacerts) and cacerts != []
+      assert Enum.all?(cacerts, &is_binary/1)
     end
   end
 end
