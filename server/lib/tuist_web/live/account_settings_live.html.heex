@@ -2,6 +2,11 @@
   <h1 data-part="title">
     {dgettext("dashboard_account", "Settings")}
   </h1>
+  <TuistWeb.AppLayoutComponents.settings_tab_menu
+    selected_account={@selected_account}
+    current_path={@current_path}
+    current_user={@current_user}
+  />
   <%= if is_nil(@selected_account.user_id) do %>
     <.region_selection_section
       region_form={@region_form}

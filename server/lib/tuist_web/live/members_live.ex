@@ -18,7 +18,6 @@ defmodule TuistWeb.MembersLive do
       )
       |> assign(
         form: to_form(%{}, as: :invitation),
-        selected_tab: "members",
         selected_inner_tab: "members",
         managing_member: nil
         # invite_role: :user,

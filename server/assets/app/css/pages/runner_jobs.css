@@ -1,0 +1,108 @@
+#runner-jobs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-6);
+  padding: var(--noora-spacing-7) var(--noora-spacing-5);
+
+  & [data-part="filters"] {
+    display: flex;
+    gap: var(--noora-spacing-6);
+  }
+
+  & [data-part="active-filters"] {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--noora-spacing-4);
+  }
+
+  & [data-part="runner-jobs-card-section"] {
+    gap: var(--noora-spacing-8);
+  }
+}
+
+#runner-job {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-6);
+  padding: var(--noora-spacing-7) var(--noora-spacing-5);
+
+  & [data-part="back"] {
+    display: flex;
+  }
+
+  & [data-part="metadata-grid"] {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: var(--noora-spacing-5) var(--noora-spacing-6);
+  }
+
+  & [data-part="metadata-item"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-1);
+
+    & > [data-part="label"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+    }
+
+    & > [data-part="value"] {
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+  }
+
+  & [data-part="timeline-grid"] {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: var(--noora-spacing-5) var(--noora-spacing-6);
+    padding-bottom: var(--noora-spacing-6);
+    border-bottom: 1px solid var(--noora-surface-border-secondary);
+  }
+
+  & [data-part="timeline-item"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-1);
+
+    & > [data-part="label"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+    }
+
+    & > [data-part="value"] {
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-heading-small);
+    }
+  }
+
+  & [data-part="timestamps-grid"] {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: var(--noora-spacing-5) var(--noora-spacing-6);
+    padding-top: var(--noora-spacing-6);
+  }
+
+  & [data-part="timestamp-item"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-1);
+
+    & > [data-part="label"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+    }
+
+    & > [data-part="primary"] {
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+    }
+
+    & > [data-part="secondary"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+    }
+  }
+}

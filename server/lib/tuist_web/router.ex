@@ -949,11 +949,13 @@ defmodule TuistWeb.Router do
       ] do
       live "/", ProjectsLive
       live "/projects", ProjectsLive
+      live "/runners/jobs", RunnerJobsLive
+      live "/runners/jobs/:workflow_job_id", RunnerJobLive
       live "/members", MembersLive
-      live "/billing", BillingLive
-      live "/integrations", IntegrationsLive
-      live "/authentication", AuthenticationSettingsLive
       live "/settings", AccountSettingsLive
+      live "/settings/integrations", IntegrationsLive
+      live "/settings/billing", BillingLive
+      live "/settings/authentication", AuthenticationSettingsLive
     end
   end
 

@@ -7,6 +7,8 @@ defmodule TuistWeb.AppLayoutComponents do
 
   import TuistWeb.AccountDropdown
 
+  alias Tuist.Accounts
+  alias Tuist.Authorization
   alias Tuist.Projects.Project
 
   attr(:selected_project, :map, required: true)
@@ -361,6 +363,100 @@ defmodule TuistWeb.AppLayoutComponents do
         }
       />
     </.sidebar>
+    """
+  end
+
+  attr(:selected_account, :map, required: true)
+  attr(:current_path, :string, required: true)
+  attr(:current_user, :map, required: true)
+
+  def account_sidebar(assigns) do
+    ~H"""
+    <.sidebar>
+      <% projects_path = ~p"/#{@selected_account.name}/projects" %>
+      <% runner_jobs_path = ~p"/#{@selected_account.name}/runners/jobs" %>
+      <.sidebar_item
+        label={dgettext("dashboard", "Projects")}
+        icon="folders"
+        navigate={projects_path}
+        selected={
+          @current_path == ~p"/#{@selected_account.name}" or
+            String.starts_with?(@current_path, projects_path)
+        }
+      />
+      <.sidebar_group
+        id="sidebar-runners"
+        label={dgettext("dashboard", "Runners")}
+        icon="server"
+        navigate={@current_path != runner_jobs_path && runner_jobs_path}
+        selected={String.starts_with?(@current_path, ~p"/#{@selected_account.name}/runners")}
+        disabled={false}
+        default_open={String.starts_with?(@current_path, ~p"/#{@selected_account.name}/runners")}
+        phx-update="ignore"
+      >
+        <.sidebar_item
+          label={dgettext("dashboard", "Jobs")}
+          icon="stack_2"
+          navigate={runner_jobs_path}
+          selected={String.starts_with?(@current_path, runner_jobs_path)}
+        />
+      </.sidebar_group>
+      <.sidebar_item
+        :if={Accounts.organization?(@selected_account)}
+        label={dgettext("dashboard", "Members")}
+        icon="users"
+        navigate={~p"/#{@selected_account.name}/members"}
+        selected={String.starts_with?(@current_path, ~p"/#{@selected_account.name}/members")}
+      />
+      <.sidebar_item
+        :if={Authorization.authorize(:account_update, @current_user, @selected_account) == :ok}
+        label={dgettext("dashboard", "Settings")}
+        icon="settings"
+        navigate={~p"/#{@selected_account.name}/settings"}
+        selected={String.starts_with?(@current_path, ~p"/#{@selected_account.name}/settings")}
+      />
+    </.sidebar>
+    """
+  end
+
+  attr(:selected_account, :map, required: true)
+  attr(:current_path, :string, required: true)
+  attr(:current_user, :map, required: true)
+
+  def settings_tab_menu(assigns) do
+    ~H"""
+    <.tab_menu_horizontal>
+      <% general_path = ~p"/#{@selected_account.name}/settings" %>
+      <% integrations_path = ~p"/#{@selected_account.name}/settings/integrations" %>
+      <% billing_path = ~p"/#{@selected_account.name}/settings/billing" %>
+      <% authentication_path = ~p"/#{@selected_account.name}/settings/authentication" %>
+      <.tab_menu_horizontal_item
+        label={dgettext("dashboard", "General")}
+        selected={@current_path == general_path}
+        navigate={general_path}
+      />
+      <.tab_menu_horizontal_item
+        :if={Authorization.authorize(:account_update, @current_user, @selected_account) == :ok}
+        label={dgettext("dashboard", "Integrations")}
+        selected={String.starts_with?(@current_path, integrations_path)}
+        navigate={integrations_path}
+      />
+      <.tab_menu_horizontal_item
+        :if={Authorization.authorize(:account_update, @current_user, @selected_account) == :ok}
+        label={dgettext("dashboard", "Billing")}
+        selected={String.starts_with?(@current_path, billing_path)}
+        navigate={billing_path}
+      />
+      <.tab_menu_horizontal_item
+        :if={
+          Accounts.organization?(@selected_account) and
+            Authorization.authorize(:account_update, @current_user, @selected_account) == :ok
+        }
+        label={dgettext("dashboard", "Authentication")}
+        selected={String.starts_with?(@current_path, authentication_path)}
+        navigate={authentication_path}
+      />
+    </.tab_menu_horizontal>
     """
   end
 

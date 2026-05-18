@@ -1,0 +1,176 @@
+<div id="runner-jobs">
+  <.card
+    title={dgettext("dashboard_runners", "Jobs")}
+    icon="stack_2"
+    data-part="runner-jobs-card"
+  >
+    <.card_section data-part="runner-jobs-card-section">
+      <div data-part="filters">
+        <.dropdown
+          id="runner-jobs-status-filter"
+          label={
+            case @selected_status do
+              "queued" -> dgettext("dashboard_runners", "Queued")
+              "claimed" -> dgettext("dashboard_runners", "Claimed")
+              "running" -> dgettext("dashboard_runners", "Running")
+              "completed" -> dgettext("dashboard_runners", "Completed")
+              _ -> dgettext("dashboard_runners", "All statuses")
+            end
+          }
+          secondary_text={dgettext("dashboard_runners", "Status:")}
+        >
+          <.dropdown_item
+            value="all"
+            label={dgettext("dashboard_runners", "All statuses")}
+            patch={~p"/#{@selected_account.name}/runners/jobs"}
+            data-selected={is_nil(@selected_status)}
+          >
+            <:right_icon><.check /></:right_icon>
+          </.dropdown_item>
+          <.dropdown_item
+            value="queued"
+            label={dgettext("dashboard_runners", "Queued")}
+            patch={~p"/#{@selected_account.name}/runners/jobs?status=queued"}
+            data-selected={@selected_status == "queued"}
+          >
+            <:right_icon><.check /></:right_icon>
+          </.dropdown_item>
+          <.dropdown_item
+            value="claimed"
+            label={dgettext("dashboard_runners", "Claimed")}
+            patch={~p"/#{@selected_account.name}/runners/jobs?status=claimed"}
+            data-selected={@selected_status == "claimed"}
+          >
+            <:right_icon><.check /></:right_icon>
+          </.dropdown_item>
+          <.dropdown_item
+            value="running"
+            label={dgettext("dashboard_runners", "Running")}
+            patch={~p"/#{@selected_account.name}/runners/jobs?status=running"}
+            data-selected={@selected_status == "running"}
+          >
+            <:right_icon><.check /></:right_icon>
+          </.dropdown_item>
+          <.dropdown_item
+            value="completed"
+            label={dgettext("dashboard_runners", "Completed")}
+            patch={~p"/#{@selected_account.name}/runners/jobs?status=completed"}
+            data-selected={@selected_status == "completed"}
+          >
+            <:right_icon><.check /></:right_icon>
+          </.dropdown_item>
+        </.dropdown>
+        <.filter_dropdown
+          id="filter-dropdown"
+          label={dgettext("dashboard_runners", "Filter")}
+          available_filters={@available_filters}
+          active_filters={@active_filters}
+        />
+      </div>
+      <div :if={Enum.any?(@active_filters)} data-part="active-filters">
+        <.active_filter :for={filter <- @active_filters} filter={filter} />
+      </div>
+      <div :if={not Enum.empty?(@jobs)} data-part="runner-jobs-table">
+        <.table
+          id="runner-jobs-table"
+          rows={@jobs}
+          row_key={fn job -> "runner-jobs-row-#{job.workflow_job_id}" end}
+          row_navigate={
+            fn job ->
+              url(~p"/#{@selected_account.name}/runners/jobs/#{job.workflow_job_id}")
+            end
+          }
+        >
+          <:col :let={job} label={dgettext("dashboard_runners", "Status")}>
+            <% props =
+              cond do
+                job.status == "completed" and (job.conclusion || "") != "" ->
+                  TuistWeb.RunnerJobsLive.conclusion_badge_props(job.conclusion)
+
+                true ->
+                  TuistWeb.RunnerJobsLive.status_badge_props(job.status)
+              end %>
+            <.status_badge_cell label={props.label} status={props.status} />
+          </:col>
+          <:col :let={job} label={dgettext("dashboard_runners", "Workflow")}>
+            <.text_cell
+              label={
+                if(job.workflow_name == "",
+                  do: dgettext("dashboard_runners", "Unknown"),
+                  else: job.workflow_name
+                )
+              }
+            />
+          </:col>
+          <:col :let={job} label={dgettext("dashboard_runners", "Job")}>
+            <.text_cell
+              label={if(job.job_name == "", do: "–", else: job.job_name)}
+            />
+          </:col>
+          <:col :let={job} label={dgettext("dashboard_runners", "Repository")}>
+            <.text_cell
+              label={if(job.repo == "", do: dgettext("dashboard_runners", "Unknown"), else: job.repo)}
+            />
+          </:col>
+          <:col :let={job} label={dgettext("dashboard_runners", "Branch")}>
+            <.text_cell
+              icon="git_branch"
+              label={
+                if(job.head_branch == "",
+                  do: dgettext("dashboard_runners", "Unknown"),
+                  else: job.head_branch
+                )
+              }
+            />
+          </:col>
+          <:col :let={job} label={dgettext("dashboard_runners", "Commit")}>
+            <.text_cell
+              icon="git_commit"
+              label={TuistWeb.RunnerJobsLive.short_sha(job.head_sha)}
+            />
+          </:col>
+          <:col :let={job} label={dgettext("dashboard_runners", "Fleet")}>
+            <.badge_cell
+              label={
+                if(job.fleet_name == "",
+                  do: dgettext("dashboard_runners", "Unknown"),
+                  else: job.fleet_name
+                )
+              }
+              style="light-fill"
+            />
+          </:col>
+          <:col :let={job} label={dgettext("dashboard_runners", "Duration")}>
+            <.text_cell
+              icon="history"
+              label={
+                TuistWeb.RunnerJobsLive.format_duration(TuistWeb.RunnerJobsLive.duration_ms(job))
+              }
+            />
+          </:col>
+          <:col :let={job} label={dgettext("dashboard_runners", "Updated")}>
+            <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(job.updated_at)} />
+          </:col>
+        </.table>
+      </div>
+      <div :if={Enum.empty?(@jobs)} data-part="empty-runner-jobs">
+        <.empty_card_section
+          title={
+            if is_nil(@selected_status) and Enum.empty?(@active_filters) do
+              dgettext("dashboard_runners", "No jobs yet")
+            else
+              dgettext("dashboard_runners", "No jobs match the current filters")
+            end
+          }
+          get_started_href="https://tuist.dev/en/docs"
+          data-part="empty-runner-jobs-card-section"
+        >
+          <:image>
+            <img src="/images/empty_table_light.png" data-theme="light" />
+            <img src="/images/empty_table_dark.png" data-theme="dark" />
+          </:image>
+        </.empty_card_section>
+      </div>
+    </.card_section>
+  </.card>
+</div>

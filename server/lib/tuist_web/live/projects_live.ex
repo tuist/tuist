@@ -29,7 +29,6 @@ defmodule TuistWeb.ProjectsLive do
     {:ok,
      socket
      |> assign(:form, form)
-     |> assign(:selected_tab, "projects")
      |> assign(:selected_build_system, "xcode")
      |> assign(:head_title, "#{dgettext("dashboard_projects", "Projects")} · #{selected_account.name} · Tuist")
      |> assign(:pagination_threshold, @pagination_threshold)}

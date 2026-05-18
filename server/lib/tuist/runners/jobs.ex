@@ -99,6 +99,7 @@ defmodule Tuist.Runners.Jobs do
       fleet_name: j.fleet_name,
       repo: j.repo,
       workflow_run_id: j.workflow_run_id,
+      workflow_name: j.workflow_name,
       run_attempt: j.run_attempt,
       job_name: j.job_name,
       head_branch: j.head_branch,
@@ -227,6 +228,93 @@ defmodule Tuist.Runners.Jobs do
            completed_at: now,
            updated_at: now
          })}
+    end
+  end
+
+  @doc """
+  Lists jobs for an account, ordered so the most recently updated
+  rows come first. Used by the customer-facing Jobs dashboard.
+
+  Options:
+    * `:limit` — page size, default 50
+    * `:status` — restrict to one of `"queued" | "claimed" | "running" | "completed"`
+    * `:conclusion` — restrict completed jobs to a conclusion
+      (e.g. `"success" | "failure" | "cancelled" | "skipped"`)
+    * `:repo` — substring match on `repo`
+    * `:workflow_name` — substring match on `workflow_name`
+    * `:job_name` — substring match on `job_name`
+    * `:head_branch` — substring match on `head_branch`
+
+  RMT `FINAL` is used so callers see the merged latest-state row
+  per workflow_job even before background merges run.
+  """
+  def list_for_account(account_id, opts \\ []) when is_integer(account_id) and is_list(opts) do
+    limit = Keyword.get(opts, :limit, 50)
+
+    Job
+    |> from(hints: ["FINAL"])
+    |> where([j], j.account_id == ^account_id)
+    |> maybe_filter_status(Keyword.get(opts, :status))
+    |> maybe_filter_conclusion(Keyword.get(opts, :conclusion))
+    |> maybe_filter_like(:repo, Keyword.get(opts, :repo))
+    |> maybe_filter_like(:workflow_name, Keyword.get(opts, :workflow_name))
+    |> maybe_filter_like(:job_name, Keyword.get(opts, :job_name))
+    |> maybe_filter_like(:head_branch, Keyword.get(opts, :head_branch))
+    |> order_by([j], desc: j.updated_at, desc: j.workflow_job_id)
+    |> limit(^limit)
+    |> ClickHouseRepo.all()
+  end
+
+  defp maybe_filter_status(query, nil), do: query
+
+  defp maybe_filter_status(query, status) when is_binary(status) do
+    where(query, [j], j.status == ^status)
+  end
+
+  defp maybe_filter_conclusion(query, nil), do: query
+
+  defp maybe_filter_conclusion(query, conclusion) when is_binary(conclusion) do
+    where(query, [j], j.conclusion == ^conclusion)
+  end
+
+  defp maybe_filter_like(query, _field, nil), do: query
+  defp maybe_filter_like(query, _field, ""), do: query
+
+  defp maybe_filter_like(query, :repo, value) when is_binary(value) do
+    pattern = "%#{value}%"
+    where(query, [j], ilike(j.repo, ^pattern))
+  end
+
+  defp maybe_filter_like(query, :workflow_name, value) when is_binary(value) do
+    pattern = "%#{value}%"
+    where(query, [j], ilike(j.workflow_name, ^pattern))
+  end
+
+  defp maybe_filter_like(query, :job_name, value) when is_binary(value) do
+    pattern = "%#{value}%"
+    where(query, [j], ilike(j.job_name, ^pattern))
+  end
+
+  defp maybe_filter_like(query, :head_branch, value) when is_binary(value) do
+    pattern = "%#{value}%"
+    where(query, [j], ilike(j.head_branch, ^pattern))
+  end
+
+  @doc """
+  Returns the merged current state for a single `workflow_job_id`
+  belonging to `account_id`. Used by the detail page so the URL
+  can't be tampered with to view another customer's run.
+  """
+  def get_for_account(account_id, workflow_job_id)
+      when is_integer(account_id) and is_integer(workflow_job_id) do
+    Job
+    |> from(hints: ["FINAL"])
+    |> where([j], j.account_id == ^account_id and j.workflow_job_id == ^workflow_job_id)
+    |> limit(1)
+    |> ClickHouseRepo.one()
+    |> case do
+      nil -> {:error, :not_found}
+      job -> {:ok, job}
     end
   end
 

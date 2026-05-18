@@ -38,7 +38,6 @@ defmodule TuistWeb.AccountSettingsLive do
 
     socket =
       socket
-      |> assign(selected_tab: "settings")
       |> assign(rename_account_form: rename_account_form)
       |> assign(delete_organization_form: delete_organization_form)
       |> assign(delete_user_form: delete_user_form)

@@ -154,6 +154,7 @@ defmodule Tuist.Runners.Dispatch do
       fleet_name: fleet_name,
       repo: full_name,
       workflow_run_id: get_integer(job, "run_id"),
+      workflow_name: get_string(job, "workflow_name"),
       run_attempt: get_integer(job, "run_attempt", 1),
       job_name: get_string(job, "name"),
       head_branch: get_string(job, "head_branch"),
