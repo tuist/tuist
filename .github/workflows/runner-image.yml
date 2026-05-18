@@ -43,9 +43,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Tart
-        run: brew install cirruslabs/cli/tart
-
       - name: Initialize Packer
         working-directory: infra/runner-image
         run: packer init -upgrade runner.pkr.hcl

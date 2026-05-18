@@ -78,26 +78,25 @@ if ! command -v brew >/dev/null 2>&1; then
   NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 fi
 eval "$(/opt/homebrew/bin/brew shellenv)"
-brew tap cirruslabs/cli
 brew tap hashicorp/tap
-brew install mise tart hashicorp/tap/packer
+brew install mise hashicorp/tap/packer
 
-# Pin Tart + Packer so subsequent ` + "`brew upgrade`" + ` calls (whether
-# triggered by an operator typing 'brew upgrade' interactively, or by
-# a workflow step that called it defensively) are no-ops. Stable
-# binary signatures are load-bearing on macOS Tahoe: the Local
-# Network access TCC grant is keyed on the binary's code-signature,
-# and an upgrade replaces the binary with a new signature, which
-# silently revokes the grant. Packer's ` + "`tart-cli.runner: Waiting for SSH`" + `
-# then hangs forever because the host can no longer open TCP to the
-# guest at 192.168.64.x, and the only way to re-grant is a VNC
-# session and a manual "Allow" click. Pinning keeps the grant stable
-# across rebuilds; intentional Tart/Packer upgrades become an
-# explicit operator action that pairs with re-running the Allow
-# click out of band.
-brew pin tart packer
+# Pin Packer so subsequent ` + "`brew upgrade`" + ` calls are no-ops.
+# Stable binary signatures matter on macOS Tahoe: the Local Network
+# access TCC grant is keyed on the binary's code-signature, and an
+# upgrade replaces the binary with a new signature, which silently
+# revokes the grant. Pinning keeps the grant stable across rebuilds;
+# intentional Packer upgrades become an explicit operator action
+# that pairs with re-running the Allow click out of band.
+#
+# Tart isn't installed via Homebrew here. The Node-bootstrap path
+# above (installTart) already extracted the operator-image-baked
+# tart.app to /usr/local/bin/tart, version-pinned by the operator
+# image. Same binary the macosFleet and runnersFleet hosts use,
+# explicit version control rather than tracking whatever the
+# cirruslabs/cli Homebrew formula points to.
+brew pin packer
 
-tart --version
 packer --version
 mise --version
 `

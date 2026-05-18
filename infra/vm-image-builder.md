@@ -124,25 +124,36 @@ operator has to grant it once per host:
 3. Click **Allow**. The grant persists across reboots and across
    re-runs of the workflow.
 
-**Grants are keyed on the binary's code-signature.** A `brew
-upgrade` that replaces `tart` or `packer` with a new build of the
-same version (or any version bump) silently revokes the grant and
-the prompt re-fires next time the host tries to reach a guest. To
-avoid this, the bootstrap pins both formulae with
-`brew pin tart packer`, and the image-build workflows no longer
-run `brew upgrade tart` defensively. Upgrading Tart or Packer
-becomes an explicit operator action that pairs with VNC-ing in
-and clicking Allow again:
+**Grants are keyed on the binary's code-signature.** A binary swap
+(e.g. `brew upgrade` replacing `packer` with a new build, or
+re-installing Tart) silently revokes the grant and the prompt
+re-fires next time the host tries to reach a guest. Two host-side
+mitigations live in the bootstrap:
 
-```bash
-ssh m1@<host> '
-  eval "$(/opt/homebrew/bin/brew shellenv)"
-  brew unpin tart packer
-  brew upgrade tart packer
-  brew pin tart packer
-'
-# Then VNC in, dispatch any image workflow, click Allow when prompted.
-```
+  - **Tart is installed via the operator image's baked tart.app
+    tarball**, the same path the macosFleet and runnersFleet
+    hosts use. The version is pinned by what the operator image
+    ships; a Tart upgrade is a deliberate operator-image bump,
+    not a Homebrew side-effect. The workflows no longer touch
+    Tart at all; they expect it on PATH at `/usr/local/bin/tart`.
+
+  - **Packer is installed via Homebrew (hashicorp/tap) and
+    `brew pin`'d** so subsequent `brew upgrade` calls are no-ops.
+    Packer upgrades are an explicit operator action:
+
+    ```bash
+    ssh m1@<host> '
+      eval "$(/opt/homebrew/bin/brew shellenv)"
+      brew unpin packer
+      brew upgrade hashicorp/tap/packer
+      brew pin packer
+    '
+    # Then VNC in, dispatch any image workflow, click Allow when prompted.
+    ```
+
+A future cleanup will bake Packer into the operator image the
+same way Tart is, eliminating Homebrew from the builder bootstrap
+entirely.
 
 The same fragility hits the cluster's runners-fleet hosts; look
 there for any process improvements that land later.

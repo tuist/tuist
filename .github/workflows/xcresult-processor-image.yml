@@ -95,9 +95,6 @@ jobs:
           tar -czf /tmp/release.tar.gz -C "${{ steps.release.outputs.dir }}" .
           ls -lh /tmp/release.tar.gz
 
-      - name: Install Tart
-        run: brew install cirruslabs/cli/tart
-
       # 2. Bake the tarball into a Tart image.
       - name: Initialize Packer
         working-directory: infra/xcresult-processor-image
