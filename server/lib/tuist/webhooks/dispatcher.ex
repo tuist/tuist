@@ -78,10 +78,10 @@ defmodule Tuist.Webhooks.Dispatcher do
   end
 
   @doc """
-  Dispatches a `preview.created` event when a new preview has been
-  created in the account. Fires once the app build has finished
-  uploading, so receivers can drive workflows like "post to Slack when
-  QA builds are ready" without polling.
+  Dispatches a `preview.created` event when a new preview row has been
+  inserted in the account. The caller gates this to the create branch of
+  `AppBuilds.find_or_create_preview/1` so reused previews don't redeliver
+  the event for an already-known resource.
   """
   def dispatch_preview_created(%Preview{} = preview) do
     dispatch_preview_lifecycle_event(preview, "preview.created")

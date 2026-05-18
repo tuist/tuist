@@ -22,8 +22,13 @@ defmodule Tuist.WebhooksTest do
       assert endpoint.url == "https://example.com/hook"
       assert endpoint.event_types == ["test_case.updated"]
       assert String.starts_with?(secret, "tuist_webhook_")
-      # Cloak decrypts the column transparently on read.
-      assert endpoint.signing_secret == secret
+      # Scrubbed from the returned struct so callers don't accidentally
+      # park the plaintext key in LiveView assigns.
+      assert endpoint.signing_secret == nil
+      # The worker-path load (`get_endpoint/1`) decrypts and returns the
+      # full struct, proving the persisted value matches what was returned.
+      assert {:ok, full} = Webhooks.get_endpoint(endpoint.id)
+      assert full.signing_secret == secret
     end
 
     test "rejects non-HTTPS URLs" do
@@ -102,7 +107,11 @@ defmodule Tuist.WebhooksTest do
       assert {:ok, rotated, new_plaintext} = Webhooks.rotate_signing_secret(endpoint)
       assert rotated.id == endpoint.id
       assert new_plaintext != original
-      assert rotated.signing_secret == new_plaintext
+      # Scrubbed from the returned struct; the worker path holds the
+      # decrypted value.
+      assert rotated.signing_secret == nil
+      assert {:ok, full} = Webhooks.get_endpoint(endpoint.id)
+      assert full.signing_secret == new_plaintext
     end
   end
 

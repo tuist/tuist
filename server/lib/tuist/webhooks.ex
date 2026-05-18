@@ -95,7 +95,9 @@ defmodule Tuist.Webhooks do
   @doc """
   Creates an endpoint. The plaintext signing secret is generated server-side
   and returned alongside the persisted struct so the caller can show it to
-  the user exactly once.
+  the user exactly once. The returned struct has `signing_secret` scrubbed
+  to `nil` so dashboard-facing callers can store it in LiveView assigns
+  without leaking the plaintext key into process state.
   """
   def create_endpoint(account_id, attrs) do
     plaintext_secret = Signature.generate_secret()
@@ -107,7 +109,7 @@ defmodule Tuist.Webhooks do
       |> Map.put("signing_secret_last_four", WebhookEndpoint.last_four(plaintext_secret))
 
     case %WebhookEndpoint{} |> WebhookEndpoint.create_changeset(attrs) |> Repo.insert() do
-      {:ok, endpoint} -> {:ok, endpoint, plaintext_secret}
+      {:ok, endpoint} -> {:ok, scrub_secret(endpoint), plaintext_secret}
       {:error, changeset} -> {:error, changeset}
     end
   end
@@ -123,16 +125,19 @@ defmodule Tuist.Webhooks do
   @doc """
   Replaces the endpoint's signing secret with a freshly generated one.
   Returns `{:ok, endpoint, plaintext_secret}` so the caller can reveal it
-  once before it goes back to encrypted-at-rest.
+  once before it goes back to encrypted-at-rest. As with `create_endpoint/2`,
+  the returned struct has `signing_secret` scrubbed to `nil`.
   """
   def rotate_signing_secret(%WebhookEndpoint{} = endpoint) do
     plaintext = Signature.generate_secret()
 
     case endpoint |> WebhookEndpoint.rotate_secret_changeset(plaintext) |> Repo.update() do
-      {:ok, endpoint} -> {:ok, endpoint, plaintext}
+      {:ok, endpoint} -> {:ok, scrub_secret(endpoint), plaintext}
       {:error, changeset} -> {:error, changeset}
     end
   end
+
+  defp scrub_secret(%WebhookEndpoint{} = endpoint), do: %{endpoint | signing_secret: nil}
 
   @doc """
   Recent delivery attempts for `endpoint_id`, newest first.

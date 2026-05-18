@@ -142,9 +142,10 @@ defmodule Tuist.AppBuildsTest do
       }
 
       # When
-      {:ok, preview} = AppBuilds.find_or_create_preview(attrs)
+      {:ok, preview, status} = AppBuilds.find_or_create_preview(attrs)
 
       # Then
+      assert status == :created
       assert preview.project_id == project.id
       assert preview.bundle_identifier == "com.example.app"
       assert preview.version == "1.0.0"
@@ -173,9 +174,10 @@ defmodule Tuist.AppBuildsTest do
       {:ok, existing_preview} = AppBuilds.create_preview(attrs)
 
       # When
-      {:ok, found_preview} = AppBuilds.find_or_create_preview(attrs)
+      {:ok, found_preview, status} = AppBuilds.find_or_create_preview(attrs)
 
       # Then
+      assert status == :reused
       assert found_preview.id == existing_preview.id
       # Ensure only one preview exists
       assert length(Repo.all(Preview)) == 1
@@ -198,9 +200,10 @@ defmodule Tuist.AppBuildsTest do
       AppBuilds.create_preview(attrs)
 
       # When
-      {:ok, found_preview} = AppBuilds.find_or_create_preview(attrs)
+      {:ok, found_preview, status} = AppBuilds.find_or_create_preview(attrs)
 
       # Then
+      assert status == :reused
       assert found_preview.bundle_identifier == attrs.bundle_identifier
     end
 
@@ -223,9 +226,10 @@ defmodule Tuist.AppBuildsTest do
       {:ok, _existing_preview} = AppBuilds.create_preview(attrs1)
 
       # When
-      {:ok, new_preview} = AppBuilds.find_or_create_preview(attrs2)
+      {:ok, new_preview, status} = AppBuilds.find_or_create_preview(attrs2)
 
       # Then
+      assert status == :created
       assert new_preview.project_id == project2.id
       # Ensure two previews exist
       assert length(Repo.all(Preview)) == 2
@@ -249,9 +253,10 @@ defmodule Tuist.AppBuildsTest do
       {:ok, _existing_preview} = AppBuilds.create_preview(attrs1)
 
       # When
-      {:ok, new_preview} = AppBuilds.find_or_create_preview(attrs2)
+      {:ok, new_preview, status} = AppBuilds.find_or_create_preview(attrs2)
 
       # Then
+      assert status == :created
       assert new_preview.bundle_identifier == "com.example.app2"
       # Ensure two previews exist
       assert length(Repo.all(Preview)) == 2
@@ -273,9 +278,10 @@ defmodule Tuist.AppBuildsTest do
       {:ok, existing_preview} = AppBuilds.create_preview(attrs)
 
       # When
-      {:ok, found_preview} = AppBuilds.find_or_create_preview(attrs)
+      {:ok, found_preview, status} = AppBuilds.find_or_create_preview(attrs)
 
       # Then
+      assert status == :reused
       assert found_preview.id == existing_preview.id
       # Ensure only one preview exists
       assert length(Repo.all(Preview)) == 1
@@ -296,9 +302,10 @@ defmodule Tuist.AppBuildsTest do
       }
 
       # When
-      {:ok, preview} = AppBuilds.find_or_create_preview(attrs)
+      {:ok, preview, status} = AppBuilds.find_or_create_preview(attrs)
 
       # Then
+      assert status == :created
       assert preview.track == "beta"
     end
 
@@ -319,9 +326,10 @@ defmodule Tuist.AppBuildsTest do
       {:ok, existing_preview} = AppBuilds.create_preview(attrs)
 
       # When
-      {:ok, found_preview} = AppBuilds.find_or_create_preview(attrs)
+      {:ok, found_preview, status} = AppBuilds.find_or_create_preview(attrs)
 
       # Then
+      assert status == :reused
       assert found_preview.id == existing_preview.id
       assert found_preview.track == "beta"
       assert length(Repo.all(Preview)) == 1
@@ -346,9 +354,10 @@ defmodule Tuist.AppBuildsTest do
       {:ok, _existing_preview} = AppBuilds.create_preview(attrs_beta)
 
       # When
-      {:ok, new_preview} = AppBuilds.find_or_create_preview(attrs_nightly)
+      {:ok, new_preview, status} = AppBuilds.find_or_create_preview(attrs_nightly)
 
       # Then
+      assert status == :created
       assert new_preview.track == "nightly"
       assert length(Repo.all(Preview)) == 2
     end
@@ -371,9 +380,10 @@ defmodule Tuist.AppBuildsTest do
       {:ok, preview_no_track} = AppBuilds.create_preview(attrs_no_track)
 
       # When
-      {:ok, preview_with_track} = AppBuilds.find_or_create_preview(attrs_with_track)
+      {:ok, preview_with_track, status} = AppBuilds.find_or_create_preview(attrs_with_track)
 
       # Then
+      assert status == :created
       assert preview_no_track.track == ""
       assert preview_with_track.track == "beta"
       assert preview_no_track.id != preview_with_track.id
@@ -400,9 +410,10 @@ defmodule Tuist.AppBuildsTest do
       {:ok, _preview_with_track} = AppBuilds.create_preview(attrs_with_track)
 
       # When
-      {:ok, found_preview} = AppBuilds.find_or_create_preview(attrs)
+      {:ok, found_preview, status} = AppBuilds.find_or_create_preview(attrs)
 
       # Then
+      assert status == :reused
       assert found_preview.id == existing_preview.id
       assert found_preview.track == ""
     end
