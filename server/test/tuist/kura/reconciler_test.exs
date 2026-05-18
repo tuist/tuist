@@ -300,6 +300,39 @@ defmodule Tuist.Kura.ReconcilerTest do
     assert %Server{status: :failed, current_image_tag: nil, url: nil} = Repo.get!(Server, server.id)
   end
 
+  test "heals a failed server and applies drift to an active server in the same tick" do
+    {_account_a, active_server, active_deployment} = create_server()
+    {:ok, active_server} = Kura.activate_server(active_server, active_deployment.image_tag)
+    mark_deployment_succeeded(active_deployment)
+
+    {_account_b, failed_server, failed_deployment} = create_server()
+    {:ok, _deployment} = Kura.mark_failed(failed_deployment, "apply failed")
+    {:ok, failed_server} = Kura.fail_server(failed_server)
+
+    stub(Tuist.Environment, :kura_runtime_image_tag, fn -> "sha-abcdef123456" end)
+
+    stub(Provisioner, :current_image_tag, fn %Server{id: id} ->
+      assert id in [active_server.id, failed_server.id]
+      {:ok, "0.5.2"}
+    end)
+
+    expect(Provisioner, :rollout, fn %Server{id: id}, inputs ->
+      assert id == active_server.id
+      assert inputs.image_tag == "sha-abcdef123456"
+      :ok
+    end)
+
+    assert :ok = Reconciler.reconcile()
+
+    assert %Deployment{status: :running} =
+             Repo.get_by!(Deployment, kura_server_id: active_server.id, image_tag: "sha-abcdef123456")
+
+    assert %Server{status: :active, current_image_tag: "0.5.2"} = Repo.get!(Server, active_server.id)
+
+    assert %Server{status: :active, current_image_tag: "0.5.2"} = Repo.get!(Server, failed_server.id)
+    assert %Deployment{status: :failed} = Repo.get!(Deployment, failed_deployment.id)
+  end
+
   defp create_server do
     user = AccountsFixtures.user_fixture()
     account = Accounts.get_account_from_user(user)
