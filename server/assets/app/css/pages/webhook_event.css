@@ -1,0 +1,153 @@
+#account-webhook-event {
+  display: flex;
+  flex-grow: 1;
+  flex-direction: column;
+  gap: var(--noora-spacing-7);
+  background: var(--noora-surface-background-primary);
+  padding: var(--noora-spacing-9) calc(var(--noora-spacing-5) + var(--noora-spacing-16));
+  min-height: 100%;
+
+  @media (max-width: 768px) {
+    & {
+      padding: var(--noora-spacing-5) calc(var(--noora-spacing-4) + var(--noora-spacing-4));
+    }
+  }
+
+  & > [data-part="back-button"] {
+    align-self: flex-start;
+  }
+
+  & > [data-part="header"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-2);
+
+    & > [data-part="title"] {
+      margin: 0;
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+      font-family: "Geist Mono", monospace;
+    }
+
+    & > [data-part="event-id"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+      font-family: "Geist Mono", monospace;
+    }
+  }
+
+  & > [data-part="summary-card"] > [data-part="summary-card-section"] {
+    & > [data-part="metadata-grid"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-9);
+
+      & > [data-part="metadata-row"] {
+        display: flex;
+        flex-direction: row;
+        gap: var(--noora-spacing-7);
+
+        & > [data-part="metadata"] {
+          display: flex;
+          flex: 1;
+          flex-direction: column;
+          align-items: flex-start;
+          gap: var(--noora-spacing-4);
+          min-width: 0;
+
+          & > [data-part="title"] {
+            color: var(--noora-surface-label-secondary);
+            font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+          }
+
+          & > [data-part="label"] {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            gap: var(--noora-spacing-2);
+            max-width: 100%;
+            overflow: hidden;
+            color: var(--noora-surface-label-primary);
+            font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+            text-overflow: ellipsis;
+            white-space: nowrap;
+          }
+
+          & > code[data-part="label"] {
+            font-size: 0.95em;
+            font-family: "Geist Mono", monospace;
+          }
+        }
+      }
+    }
+  }
+
+  & [data-part="request-card-section"],
+  & [data-part="response-card-section"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-4);
+
+    & > [data-part="subheading"] > [data-part="label"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    & > [data-part="headers"] {
+      display: grid;
+      grid-template-columns: max-content 1fr;
+      gap: var(--noora-spacing-2) var(--noora-spacing-5);
+
+      & > [data-part="header"] {
+        display: contents;
+
+        & > [data-part="name"],
+        & > [data-part="value"] {
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+          font-family: "Geist Mono", monospace;
+        }
+
+        & > [data-part="name"] {
+          color: var(--noora-surface-label-secondary);
+        }
+
+        & > [data-part="value"] {
+          overflow-wrap: anywhere;
+        }
+      }
+    }
+
+    & > [data-part="body"] {
+      margin: 0;
+      border-radius: var(--noora-radius-3);
+      background: var(--noora-surface-background-tertiary);
+      padding: var(--noora-spacing-5);
+      max-height: 480px;
+      overflow: auto;
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+      font-family: "Geist Mono", monospace;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    & > [data-part="empty-state"] {
+      margin: 0;
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+    }
+  }
+
+  @media (max-width: 768px) {
+    &
+      > [data-part="summary-card"]
+      > [data-part="summary-card-section"]
+      > [data-part="metadata-grid"]
+      > [data-part="metadata-row"] {
+      flex-direction: column;
+    }
+  }
+}
