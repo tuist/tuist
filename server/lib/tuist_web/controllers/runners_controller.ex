@@ -36,6 +36,15 @@ defmodule TuistWeb.RunnersController do
       {:error, :no_work_yet} ->
         send_resp(conn, :no_content, "")
 
+      {:error, :drain} ->
+        # 410 Gone: the polling Pod's image no longer matches its
+        # RunnerPool's spec.image. dispatch-poll.sh on the Pod side
+        # treats this as a clean-exit signal — exits 0, the EXIT
+        # trap halts the VM, tart-kubelet transitions the Pod to
+        # Succeeded, and the runner-pool reconciler replaces it
+        # with one on the current image.
+        conn |> put_status(:gone) |> json(%{error: "drain", reason: "image stale"})
+
       {:error, :missing_bearer} ->
         conn |> put_status(:unauthorized) |> json(%{error: "missing bearer token"})
 

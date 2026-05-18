@@ -85,3 +85,10 @@ spec:
                 lastReconcile:
                   type: string
                   format: date-time
+                observedImage:
+                  type: string
+                  description: spec.image value the controller last recorded an imageRolledAt for. Bumped together on every image change.
+                imageRolledAt:
+                  type: string
+                  format: date-time
+                  description: Timestamp the controller last observed spec.image change. The server-side dispatch endpoint uses this to stagger HTTP 410 drain responses across a rolling window so the warm pool doesn't drop to zero on every digest-pin bump.

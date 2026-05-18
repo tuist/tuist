@@ -430,6 +430,7 @@ defmodule TuistWeb.AppLayoutComponents do
       <% integrations_path = ~p"/#{@selected_account.name}/settings/integrations" %>
       <% billing_path = ~p"/#{@selected_account.name}/settings/billing" %>
       <% authentication_path = ~p"/#{@selected_account.name}/settings/authentication" %>
+      <% webhooks_path = ~p"/#{@selected_account.name}/settings/webhooks" %>
       <.tab_menu_horizontal_item
         label={dgettext("dashboard", "General")}
         selected={@current_path == general_path}
@@ -455,6 +456,12 @@ defmodule TuistWeb.AppLayoutComponents do
         label={dgettext("dashboard", "Authentication")}
         selected={String.starts_with?(@current_path, authentication_path)}
         navigate={authentication_path}
+      />
+      <.tab_menu_horizontal_item
+        :if={Authorization.authorize(:account_update, @current_user, @selected_account) == :ok}
+        label={dgettext("dashboard", "Webhooks")}
+        selected={String.starts_with?(@current_path, webhooks_path)}
+        navigate={webhooks_path}
       />
     </.tab_menu_horizontal>
     """

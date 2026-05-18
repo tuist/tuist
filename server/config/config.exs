@@ -135,6 +135,8 @@ config :logger, :console,
     :observed,
     :gap,
     :image,
+    :pod_image,
+    :pool_image,
     :fleet,
     :reason,
     :changeset_errors,
@@ -154,7 +156,11 @@ config :logger, :console,
     :ours,
     :winner,
     :observed_status,
-    :ch_error
+    :ch_error,
+    :stage,
+    :client_url,
+    :status,
+    :body
   ]
 
 config :mime, :types, %{

@@ -14,7 +14,10 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
   Hetzner-backed k8s cluster on Scaleway Mac minis.
   """
 
-  use Oban.Worker, queue: :process_xcresult, max_attempts: 5, unique: [keys: [:test_run_id]]
+  use Oban.Worker,
+    queue: :process_xcresult,
+    max_attempts: 5,
+    unique: [keys: [:test_run_id, :shard_index]]
 
   alias Tuist.Accounts
   alias Tuist.Storage
@@ -70,7 +73,18 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
 
   defp process_xcresult(test_run_id, storage_key, account_id, args) do
     with {:ok, account} <- Accounts.get_account_by_id(account_id) do
-      temp_path = Path.join(System.tmp_dir!(), "xcresult_#{test_run_id}.zip")
+      # For sharded runs, multiple workers share the same merged
+      # test_run_id and can run concurrently. Suffix the temp path with
+      # the shard index so they never clobber each other's download
+      # mid-parse. Oban's unique constraint already keeps a given
+      # (test_run_id, shard_index) pair from running in parallel.
+      filename =
+        case Map.get(args, "shard_index") do
+          nil -> "xcresult_#{test_run_id}.zip"
+          index -> "xcresult_#{test_run_id}_s#{index}.zip"
+        end
+
+      temp_path = Path.join(System.tmp_dir!(), filename)
 
       try do
         case Storage.download_to_file(storage_key, temp_path, account) do

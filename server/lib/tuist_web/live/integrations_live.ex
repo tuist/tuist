@@ -45,6 +45,8 @@ defmodule TuistWeb.IntegrationsLive do
       |> assign(selected_repository_full_handle: nil)
       |> assign(github_client_url: if(default_to_enterprise?, do: "", else: VCS.default_client_url()))
       |> assign(github_client_url_error: nil)
+      |> assign(github_app_owner: "")
+      |> assign(github_app_owner_error: nil)
       |> assign(show_github_enterprise_input: default_to_enterprise?)
       |> assign(github_enterprise_available?: github_enterprise_available?)
       |> assign(github_card_visible?: github_card_visible?(selected_account, github_installation))
@@ -71,13 +73,18 @@ defmodule TuistWeb.IntegrationsLive do
   end
 
   @impl true
-  def handle_event("update-github-client-url", %{"github_client_url" => raw_url}, socket) do
+  def handle_event("update-github-client-url", params, socket) do
+    raw_url = Map.get(params, "github_client_url", socket.assigns.github_client_url)
+    raw_owner = Map.get(params, "github_app_owner", socket.assigns.github_app_owner)
     {url, error} = validate_github_client_url(raw_url, socket.assigns.show_github_enterprise_input)
+    {github_app_owner, github_app_owner_error} = validate_github_app_owner(raw_owner)
 
     socket =
       socket
       |> assign(github_client_url: url)
       |> assign(github_client_url_error: error)
+      |> assign(github_app_owner: github_app_owner)
+      |> assign(github_app_owner_error: github_app_owner_error)
 
     {:noreply, socket}
   end
@@ -89,6 +96,8 @@ defmodule TuistWeb.IntegrationsLive do
       |> assign(show_github_enterprise_input: false)
       |> assign(github_client_url: VCS.default_client_url())
       |> assign(github_client_url_error: nil)
+      |> assign(github_app_owner: "")
+      |> assign(github_app_owner_error: nil)
 
     {:noreply, socket}
   end
@@ -105,6 +114,8 @@ defmodule TuistWeb.IntegrationsLive do
         # github.com App, which is exactly the wrong target.
         |> assign(github_client_url: "")
         |> assign(github_client_url_error: nil)
+        |> assign(github_app_owner: "")
+        |> assign(github_app_owner_error: nil)
 
       {:noreply, socket}
     else
@@ -227,6 +238,7 @@ defmodule TuistWeb.IntegrationsLive do
   #     state would silently target github.com from inside the GHES tab.
   defp install_button_disabled?(assigns) do
     not is_nil(assigns.github_client_url_error) or
+      not is_nil(assigns.github_app_owner_error) or
       (assigns.show_github_enterprise_input and
          (assigns.github_client_url in ["", nil] or
             assigns.github_client_url == VCS.default_client_url()))
@@ -236,23 +248,79 @@ defmodule TuistWeb.IntegrationsLive do
     trimmed = raw_url |> to_string() |> String.trim()
 
     cond do
-      trimmed == "" and enterprise_tab? ->
-        # On the Enterprise tab the URL is required and must not silently
-        # collapse to the github.com default — that would let the Install
-        # button target github.com from inside the GHES tab.
-        {"", dgettext("dashboard_integrations", "Required")}
-
       trimmed == "" ->
-        {VCS.default_client_url(), nil}
+        validate_empty_github_client_url(enterprise_tab?)
 
-      enterprise_tab? and trimmed == VCS.default_client_url() ->
+      enterprise_tab? and github_com_url?(trimmed) ->
         {trimmed, dgettext("dashboard_integrations", "Use a GitHub Enterprise Server URL")}
 
       true ->
-        case VCS.validate_client_url(trimmed) do
-          {:ok, url} -> {url, nil}
-          {:error, _} -> {trimmed, dgettext("dashboard_integrations", "Invalid URL")}
-        end
+        validate_non_empty_github_client_url(trimmed, enterprise_tab?)
+    end
+  end
+
+  defp validate_empty_github_client_url(true) do
+    # On the Enterprise tab the URL is required and must not silently
+    # collapse to the github.com default — that would let the Install
+    # button target github.com from inside the GHES tab.
+    {"", dgettext("dashboard_integrations", "Required")}
+  end
+
+  defp validate_empty_github_client_url(false) do
+    {VCS.default_client_url(), nil}
+  end
+
+  defp validate_non_empty_github_client_url(trimmed, enterprise_tab?) do
+    case VCS.validate_client_url(trimmed) do
+      {:ok, url} ->
+        validate_enterprise_github_client_url(url, enterprise_tab?)
+
+      {:error, _} ->
+        {trimmed, dgettext("dashboard_integrations", "Invalid URL")}
+    end
+  end
+
+  defp validate_enterprise_github_client_url(url, true) do
+    if github_enterprise_base_url?(url) do
+      {url, nil}
+    else
+      {url, dgettext("dashboard_integrations", "Use a GitHub Enterprise Server URL")}
+    end
+  end
+
+  defp validate_enterprise_github_client_url(url, false) do
+    {url, nil}
+  end
+
+  defp validate_github_app_owner(raw_owner) do
+    trimmed = raw_owner |> to_string() |> String.trim()
+
+    cond do
+      trimmed == "" ->
+        {"", nil}
+
+      Regex.match?(~r/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/, trimmed) ->
+        {trimmed, nil}
+
+      true ->
+        {trimmed, dgettext("dashboard_integrations", "Invalid organization")}
+    end
+  end
+
+  defp github_com_url?(url) do
+    case URI.parse(url) do
+      %URI{scheme: "https", host: "github.com"} -> true
+      _ -> false
+    end
+  end
+
+  defp github_enterprise_base_url?(url) do
+    case URI.parse(url) do
+      %URI{host: host, path: path, query: nil, fragment: nil} when is_binary(host) ->
+        path in [nil, "", "/"]
+
+      _ ->
+        false
     end
   end
 

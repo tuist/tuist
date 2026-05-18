@@ -189,6 +189,9 @@ xcresultProcessor:
 # xcresult capacity offline.
 macosFleet:
   replicas: 2
+  # Claim pre-ordered Mac minis during the CAPI MachineDeployment
+  # cutover instead of auto-ordering fresh production hosts.
+  adoptPoolPrefix: "tuist-pool-"
   machine:
     # Production tracks the chart default — M2-L on Scaleway:
     # M2 Pro 10-core / 16 GB. Explicit here so the matching
@@ -205,16 +208,15 @@ macosFleet:
   controlPlane:
     host: api.tuist.dev
 
-# Customer-runner Mac mini fleet. Sized to 5 hosts = 5 concurrent
+# Customer-runner Mac mini fleet. Sized to 9 hosts = 9 concurrent
 # customer runs. Apple's SLA permits up to two VMs per host; v1
 # runs one VM per host to keep capacity reasoning simple. Bump
 # this once the operational story for two-per-host is in place.
-# Production gates on staging + canary proving the substrate and
-# the dispatch flow first; this block is inert until
-# `runnersFleet.pools[].runnerImage` is pinned to a built image SHA.
+# Runner images are digest-pinned so subsequent runner-image
+# releases can safely bump all enabled managed environments.
 runnersFleet:
-  enabled: false
-  hostCount: 5
+  enabled: true
+  hostCount: 9
   # Pre-ordered pool. Operator orders M2-L hosts in the Scaleway
   # console with names starting with `tuist-pool-` ahead of
   # bringing this block live (Mac mini lead times can stretch
@@ -229,8 +231,8 @@ runnersFleet:
       - "192.168.0.0/16"
   pools:
     - name: default
-      replicas: 5
-      runnerImage: ""
+      replicas: 9
+      runnerImage: "ghcr.io/tuist/tuist-runner@sha256:d4824d8b6a8c7b6d1c2e87dda7f4c4b751ef87f03f87a9c409cfa15756fb198c"
       dispatchLabel: "tuist-macos"
 
 # In-cluster Valkey backs the auth rate limiter (Hammer.Redis). The

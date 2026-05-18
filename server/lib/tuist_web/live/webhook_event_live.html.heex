@@ -1,0 +1,154 @@
+<div id="account-webhook-event">
+  <.button
+    label={@endpoint.name}
+    data-part="back-button"
+    variant="secondary"
+    size="medium"
+    navigate={~p"/#{@selected_account.name}/settings/webhooks/#{@endpoint.id}"}
+  >
+    <:icon_left>
+      <.icon name="arrow_left" />
+    </:icon_left>
+  </.button>
+
+  <div data-part="header">
+    <h1 data-part="title">{@attempt.event_type}</h1>
+    <code data-part="event-id">{@attempt.event_id}</code>
+  </div>
+
+  <.card
+    data-part="summary-card"
+    icon="chart_arcs"
+    title={dgettext("dashboard_account", "Summary")}
+  >
+    <.card_section data-part="summary-card-section">
+      <div data-part="metadata-grid">
+        <div data-part="metadata-row">
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_account", "Status")}</div>
+            <div data-part="badge">
+              <.status_badge
+                status={delivery_state_status(@attempt.status)}
+                label={delivery_state_label(@attempt.status)}
+              />
+            </div>
+          </div>
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_account", "Response code")}</div>
+            <span data-part="label">
+              <%= if response_received?(@attempt) do %>
+                {@attempt.response_status}
+              <% else %>
+                {dgettext("dashboard_account", "—")}
+              <% end %>
+            </span>
+          </div>
+        </div>
+        <div data-part="metadata-row">
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_account", "Attempt")}</div>
+            <span data-part="label">{@attempt.attempt}</span>
+          </div>
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_account", "Duration")}</div>
+            <span data-part="label">
+              <%= if is_integer(@attempt.duration_ms) and @attempt.duration_ms > 0 do %>
+                {@attempt.duration_ms}ms
+              <% else %>
+                {dgettext("dashboard_account", "—")}
+              <% end %>
+            </span>
+          </div>
+        </div>
+        <div data-part="metadata-row">
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_account", "Sent at")}</div>
+            <span data-part="label">
+              {Tuist.Utilities.DateFormatter.from_now(@attempt.inserted_at)}
+            </span>
+          </div>
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_account", "Destination")}</div>
+            <code data-part="label">{@endpoint.url}</code>
+          </div>
+        </div>
+      </div>
+    </.card_section>
+  </.card>
+
+  <.card
+    data-part="request-card"
+    icon="cube_send"
+    title={dgettext("dashboard_account", "Request")}
+  >
+    <:actions>
+      <.button
+        id="copy-request-body"
+        variant="secondary"
+        label={dgettext("dashboard_account", "Copy payload")}
+        size="medium"
+        phx-hook="Clipboard"
+        data-clipboard-value={format_body(@attempt.request_body)}
+        disabled={@attempt.request_body in [nil, ""]}
+      >
+        <:icon_left><.copy /></:icon_left>
+      </.button>
+    </:actions>
+    <.card_section data-part="request-card-section">
+      <div data-part="subheading">
+        <span data-part="label">{dgettext("dashboard_account", "Headers")}</span>
+      </div>
+      <div data-part="headers">
+        <div :for={{name, value} <- header_list(@attempt.request_headers)} data-part="header">
+          <code data-part="name">{name}</code>
+          <code data-part="value">{value}</code>
+        </div>
+      </div>
+      <div data-part="subheading">
+        <span data-part="label">{dgettext("dashboard_account", "Body")}</span>
+      </div>
+      <pre data-part="body">{format_body(@attempt.request_body)}</pre>
+    </.card_section>
+  </.card>
+
+  <.card
+    data-part="response-card"
+    icon="download"
+    title={dgettext("dashboard_account", "Response")}
+  >
+    <:actions :if={response_received?(@attempt)}>
+      <.button
+        id="copy-response-body"
+        variant="secondary"
+        label={dgettext("dashboard_account", "Copy body")}
+        size="medium"
+        phx-hook="Clipboard"
+        data-clipboard-value={format_body(@attempt.response_body)}
+        disabled={@attempt.response_body in [nil, ""]}
+      >
+        <:icon_left><.copy /></:icon_left>
+      </.button>
+    </:actions>
+    <.card_section data-part="response-card-section">
+      <%= if response_received?(@attempt) do %>
+        <div data-part="subheading">
+          <span data-part="label">{dgettext("dashboard_account", "Headers")}</span>
+        </div>
+        <div data-part="headers">
+          <div :for={{name, value} <- header_list(@attempt.response_headers)} data-part="header">
+            <code data-part="name">{name}</code>
+            <code data-part="value">{value}</code>
+          </div>
+        </div>
+        <div data-part="subheading">
+          <span data-part="label">{dgettext("dashboard_account", "Body")}</span>
+        </div>
+        <pre data-part="body">{format_body(@attempt.response_body)}</pre>
+      <% else %>
+        <p data-part="empty-state">
+          {dgettext("dashboard_account", "The request didn't reach the destination.")}
+        </p>
+      <% end %>
+    </.card_section>
+  </.card>
+</div>

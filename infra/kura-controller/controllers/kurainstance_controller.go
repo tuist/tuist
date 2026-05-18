@@ -69,6 +69,8 @@ type KuraInstanceReconciler struct {
 	// The name is historical; the controller uses the same issuer for
 	// every cert it asks cert-manager to mint.
 	GRPCClusterIssuer string
+
+	CloudflareLoadBalancing CloudflareLoadBalancingConfig
 }
 
 func certificateGVK() schema.GroupVersionKind {
@@ -112,6 +114,11 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	}
 
 	if !instance.DeletionTimestamp.IsZero() {
+		if r.CloudflareLoadBalancing.Enabled() {
+			if err := newCloudflareClient(r.CloudflareLoadBalancing).deleteKuraLoadBalancers(ctx, instance); err != nil {
+				return ctrl.Result{}, err
+			}
+		}
 		controllerutil.RemoveFinalizer(instance, KuraInstanceFinalizer)
 		return ctrl.Result{}, r.Update(ctx, instance)
 	}
@@ -153,6 +160,15 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if err := r.reconcileStatefulSet(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
+	statusGlobalPublicURL := ""
+	statusGlobalGRPCPublicURL := ""
+	if r.CloudflareLoadBalancing.Enabled() {
+		if err := newCloudflareClient(r.CloudflareLoadBalancing).reconcileKuraLoadBalancers(ctx, instance); err != nil {
+			return ctrl.Result{}, err
+		}
+		statusGlobalPublicURL = globalPublicURL(instance)
+		statusGlobalGRPCPublicURL = globalGRPCPublicURL(instance)
+	}
 
 	rollout, err := r.rolloutStatus(ctx, instance)
 	if err != nil {
@@ -162,6 +178,8 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	instance.Status.Phase = rollout.phase
 	instance.Status.PublicURL = publicURL(instance)
 	instance.Status.GRPCPublicURL = grpcPublicURL(instance)
+	instance.Status.GlobalPublicURL = statusGlobalPublicURL
+	instance.Status.GlobalGRPCPublicURL = statusGlobalGRPCPublicURL
 	instance.Status.ObservedImage = rollout.observedImage
 	instance.Status.ReadyReplicas = rollout.readyReplicas
 	instance.Status.Message = rollout.message
@@ -273,9 +291,12 @@ func (r *KuraInstanceReconciler) reconcileGRPCService(ctx context.Context, insta
 // reconcilePublicCertificate provisions a cert-manager Certificate so
 // the runtime can terminate TLS for the public HTTPS LoadBalancer. The
 // LB is configured as TCP-passthrough; TLS termination happens in the
-// Kura pod from a cert-manager-issued Secret. No-ops when either
-// GRPCClusterIssuer or spec.publicHost is unset. cert-manager must be
-// installed in the cluster before --grpc-cluster-issuer is set.
+// Kura pod from a cert-manager-issued Secret. When DNS-only global
+// steering is enabled, the global hostname is added as a SAN because
+// clients connect directly to this regional origin with the global SNI.
+// No-ops when either GRPCClusterIssuer or spec.publicHost is unset.
+// cert-manager must be installed in the cluster before
+// --grpc-cluster-issuer is set.
 func (r *KuraInstanceReconciler) reconcilePublicCertificate(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
 	cert := &unstructured.Unstructured{}
 	cert.SetGroupVersionKind(certificateGVK())
@@ -296,7 +317,7 @@ func (r *KuraInstanceReconciler) reconcilePublicCertificate(ctx context.Context,
 		cert.SetLabels(labels(instance))
 		spec := map[string]any{
 			"secretName": publicTLSSecretName(instance),
-			"dnsNames":   []any{instance.Spec.PublicHost},
+			"dnsNames":   dnsNames(instance.Spec.PublicHost, instance.Spec.GlobalPublicHost),
 			"issuerRef": map[string]any{
 				"name": r.GRPCClusterIssuer,
 				"kind": "ClusterIssuer",
@@ -313,7 +334,8 @@ func (r *KuraInstanceReconciler) reconcilePublicCertificate(ctx context.Context,
 }
 
 // reconcileGRPCCertificate provisions a cert-manager Certificate so the
-// runtime can terminate TLS for the gRPC LoadBalancer. No-ops when
+// runtime can terminate TLS for the gRPC LoadBalancer. The global gRPC
+// hostname is added as a SAN for DNS-only global steering. No-ops when
 // either GRPCClusterIssuer or spec.grpcPublicHost is unset. cert-manager
 // must be installed in the cluster before --grpc-cluster-issuer is set.
 func (r *KuraInstanceReconciler) reconcileGRPCCertificate(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
@@ -336,7 +358,7 @@ func (r *KuraInstanceReconciler) reconcileGRPCCertificate(ctx context.Context, i
 		cert.SetLabels(labels(instance))
 		spec := map[string]any{
 			"secretName": grpcTLSSecretName(instance),
-			"dnsNames":   []any{instance.Spec.GRPCPublicHost},
+			"dnsNames":   dnsNames(instance.Spec.GRPCPublicHost, instance.Spec.GlobalGRPCPublicHost),
 			"issuerRef": map[string]any{
 				"name": r.GRPCClusterIssuer,
 				"kind": "ClusterIssuer",
@@ -350,6 +372,19 @@ func (r *KuraInstanceReconciler) reconcileGRPCCertificate(ctx context.Context, i
 		return unstructured.SetNestedField(cert.Object, spec, "spec")
 	})
 	return err
+}
+
+func dnsNames(names ...string) []any {
+	seen := map[string]bool{}
+	result := make([]any, 0, len(names))
+	for _, name := range names {
+		if name == "" || seen[name] {
+			continue
+		}
+		seen[name] = true
+		result = append(result, name)
+	}
+	return result
 }
 
 func (r *KuraInstanceReconciler) deleteLegacyIngress(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
@@ -821,6 +856,20 @@ func grpcPublicURL(instance *kurav1alpha1.KuraInstance) string {
 		return ""
 	}
 	return "grpcs://" + instance.Spec.GRPCPublicHost
+}
+
+func globalPublicURL(instance *kurav1alpha1.KuraInstance) string {
+	if instance.Spec.GlobalPublicHost == "" {
+		return ""
+	}
+	return "https://" + instance.Spec.GlobalPublicHost
+}
+
+func globalGRPCPublicURL(instance *kurav1alpha1.KuraInstance) string {
+	if instance.Spec.GlobalGRPCPublicHost == "" {
+		return ""
+	}
+	return "grpcs://" + instance.Spec.GlobalGRPCPublicHost
 }
 
 func labels(instance *kurav1alpha1.KuraInstance) map[string]string {

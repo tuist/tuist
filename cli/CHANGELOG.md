@@ -1,19 +1,34 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.194.0<!-- RELEASE NOTES START -->
+## What's Changed in 4.195.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* retry run metadata upload on transient errors by [@fortmarek](https://github.com/fortmarek) in [#10842](https://github.com/tuist/tuist/pull/10842)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.195.0...4.195.1
+
+## What's Changed in 4.195.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
 
+* expose is_quarantined on test case run API by [@justine-acorns](https://github.com/justine-acorns) in [#10785](https://github.com/tuist/tuist/pull/10785)
 * add onOutdatedDependencies action to GenerationOptions by [@freak4pc](https://github.com/freak4pc) in [#10715](https://github.com/tuist/tuist/pull/10715)
 ### 🐛 Bug Fixes
 
+* deduplicate conditioned xcframework search paths by [@fortmarek](https://github.com/fortmarek) in [#10813](https://github.com/tuist/tuist/pull/10813)
+* bind shard reference across split build/test jobs by [@fortmarek](https://github.com/fortmarek) in [#10805](https://github.com/tuist/tuist/pull/10805)
+* avoid collecting large verbose HTTP bodies by [@fortmarek](https://github.com/fortmarek) in [#10795](https://github.com/tuist/tuist/pull/10795)
+* map default actor isolation to MainActor by [@fortmarek](https://github.com/fortmarek) in [#10779](https://github.com/tuist/tuist/pull/10779)
 * synthesize Bundle.module for static frameworks with .metal in buildable folders by [@pepicrft](https://github.com/pepicrft) in [#10746](https://github.com/tuist/tuist/pull/10746)
 * release SwiftPM lock before invoking manifest subprocesses by [@fortmarek](https://github.com/fortmarek) in [#10758](https://github.com/tuist/tuist/pull/10758)
 
 
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.193.3...4.194.0
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.193.3...4.195.0
 
 ## What's Changed in 4.193.3<!-- RELEASE NOTES START -->
 

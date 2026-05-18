@@ -31,20 +31,16 @@ defmodule Cache.Finch.Pools do
             port -> "#{s3_config[:scheme]}#{s3_config[:host]}:#{port}"
           end
 
-        Map.put(pools, s3_url,
-          conn_opts: [
-            log: true,
+        {_s3_url, s3_pool_opts} =
+          TuistCommon.FinchPools.s3_pool(
+            endpoint: s3_url,
+            size: 128,
+            count: 8,
             protocols: s3_protocols,
-            transport_opts: [
-              cacertfile: CAStore.file_path(),
-              verify: :verify_peer
-            ]
-          ],
-          size: 128,
-          count: 8,
-          protocols: s3_protocols,
-          start_pool_metrics?: true
-        )
+            ca_cert_pem: Cache.Config.s3_ca_cert_pem()
+          )
+
+        Map.put(pools, s3_url, s3_pool_opts)
 
       :error ->
         pools

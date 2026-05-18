@@ -1,0 +1,82 @@
+.webhook-endpoint-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-5);
+
+  /* Stack the input label, sublabel, and field vertically — the modal
+     form is narrow and we want the labels to read top-down. */
+  & .noora-text-input > .noora-label {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--noora-spacing-2);
+  }
+
+  & [data-part="event-types"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-2);
+
+    & > [data-part="label"] {
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+    }
+
+    & > [data-part="sublabel"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+    }
+
+    & [data-part="event-group"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-3);
+      margin-top: var(--noora-spacing-5);
+
+      & > [data-part="event-group-label"] {
+        margin: 0;
+        box-shadow: inset 0 -1px 0 0 var(--noora-surface-border-primary);
+        padding-bottom: var(--noora-spacing-2);
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+    }
+
+    & [data-part="event-checkbox-list"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-4);
+      margin-top: var(--noora-spacing-2);
+
+      & > [data-part="event-checkbox"] {
+        display: flex;
+        flex-direction: row;
+        align-items: flex-start;
+        gap: var(--noora-spacing-3);
+        cursor: pointer;
+
+        & > .noora-checkbox-control {
+          flex-shrink: 0;
+          margin-top: 2px;
+        }
+
+        & > [data-part="body"] {
+          display: flex;
+          flex-direction: column;
+          gap: var(--noora-spacing-1);
+
+          & > [data-part="label"] {
+            color: var(--noora-surface-label-primary);
+            font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+          }
+
+          & > [data-part="description"] {
+            color: var(--noora-surface-label-secondary);
+            font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+          }
+        }
+      }
+    }
+  }
+}

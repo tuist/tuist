@@ -87,6 +87,7 @@ defmodule TuistWeb.IntegrationsLiveTest do
 
     html = render_click(lv, "select-github-enterprise")
     assert html =~ "Server URL"
+    assert html =~ "Organization"
   end
 
   test "shows a validation error and disables the install button for malformed URLs", %{
@@ -109,6 +110,99 @@ defmodule TuistWeb.IntegrationsLiveTest do
       |> render_change()
 
     assert html =~ "Invalid URL"
+  end
+
+  test "rejects github.com URLs on the Enterprise server tab", %{
+    conn: conn,
+    organization: organization
+  } do
+    stub(VCS, :get_github_app_installation_url, fn _account, _opts ->
+      "https://github.com/apps/test-app/installations/new"
+    end)
+
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/integrations")
+
+    render_click(lv, "select-github-enterprise")
+
+    html =
+      lv
+      |> form("form[phx-change=update-github-client-url]", %{
+        "github_client_url" => "https://github.com/tuist/tuist"
+      })
+      |> render_change()
+
+    assert html =~ "Use a GitHub Enterprise Server URL"
+  end
+
+  test "rejects repository URLs in the GitHub Enterprise Server URL field", %{
+    conn: conn,
+    organization: organization
+  } do
+    stub(VCS, :get_github_app_installation_url, fn _account, _opts ->
+      "https://tuist.dev/integrations/github/manifest/start?state=test"
+    end)
+
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/integrations")
+
+    render_click(lv, "select-github-enterprise")
+
+    html =
+      lv
+      |> form("form[phx-change=update-github-client-url]", %{
+        "github_client_url" => "https://github.example.com/ios/app"
+      })
+      |> render_change()
+
+    assert html =~ "Use a GitHub Enterprise Server URL"
+  end
+
+  test "passes the optional GitHub organization to the manifest flow", %{
+    conn: conn,
+    organization: organization
+  } do
+    stub(VCS, :get_github_app_installation_url, fn _account, opts ->
+      case Keyword.get(opts, :github_app_owner) do
+        "ios" -> "https://tuist.dev/integrations/github/manifest/start?state=with-org"
+        _ -> "https://tuist.dev/integrations/github/manifest/start?state=without-org"
+      end
+    end)
+
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/integrations")
+
+    render_click(lv, "select-github-enterprise")
+
+    html =
+      lv
+      |> form("form[phx-change=update-github-client-url]", %{
+        "github_client_url" => "https://github.example.com",
+        "github_app_owner" => "ios"
+      })
+      |> render_change()
+
+    assert html =~ "state=with-org"
+  end
+
+  test "shows a validation error for malformed GitHub organization names", %{
+    conn: conn,
+    organization: organization
+  } do
+    stub(VCS, :get_github_app_installation_url, fn _account, _opts ->
+      "https://tuist.dev/integrations/github/manifest/start?state=test"
+    end)
+
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/integrations")
+
+    render_click(lv, "select-github-enterprise")
+
+    html =
+      lv
+      |> form("form[phx-change=update-github-client-url]", %{
+        "github_client_url" => "https://github.example.com",
+        "github_app_owner" => "ios/bumble"
+      })
+      |> render_change()
+
+    assert html =~ "Invalid organization"
   end
 
   test "switching back to github.com hides the input and clears the URL", %{

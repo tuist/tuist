@@ -285,6 +285,18 @@ defmodule TuistWeb.AccountSettingsLive do
 
   def handle_event("destroy_kura_server", _params, socket), do: {:noreply, socket}
 
+  def handle_event("retry_kura_server", %{"id" => id}, %{assigns: %{kura_enabled: true}} = socket) do
+    with %Server{} = server <- Kura.get_server(socket.assigns.selected_account.id, id),
+         version when not is_nil(version) <- socket.assigns.latest_kura_version,
+         {:ok, _} <- Kura.retry_server(server, kura_version_image_tag(version)) do
+      {:noreply, load_kura_state(socket)}
+    else
+      _ -> {:noreply, socket}
+    end
+  end
+
+  def handle_event("retry_kura_server", _params, socket), do: {:noreply, socket}
+
   def handle_event(
         "toggle_custom_cache_endpoints",
         %{"checked" => checked},
@@ -309,6 +321,7 @@ defmodule TuistWeb.AccountSettingsLive do
     |> assign(:kura_regions, [])
     |> assign(:available_kura_regions, [])
     |> assign(:latest_kura_version, nil)
+    |> assign(:kura_global_endpoint_url, nil)
     |> assign(:add_kura_server_form, default_kura_server_form([]))
   end
 
@@ -324,6 +337,7 @@ defmodule TuistWeb.AccountSettingsLive do
     |> assign(:kura_regions, regions)
     |> assign(:available_kura_regions, available_regions)
     |> assign(:latest_kura_version, latest)
+    |> assign(:kura_global_endpoint_url, Kura.global_cache_endpoint_url(account))
     |> assign(:add_kura_server_form, default_kura_server_form(available_regions))
   end
 
@@ -414,6 +428,7 @@ defmodule TuistWeb.AccountSettingsLive do
   attr(:available_kura_regions, :list, required: true)
   attr(:add_kura_server_form, Form, required: true)
   attr(:latest_kura_version, :map, default: nil)
+  attr(:global_endpoint_url, :string, default: nil)
 
   def kura_servers_section(assigns) do
     ~H"""
@@ -535,41 +550,76 @@ defmodule TuistWeb.AccountSettingsLive do
         </.modal>
       </div>
       <div data-part="content">
-        <.table :if={Enum.any?(@kura_servers)} id="kura-servers-table" rows={@kura_servers}>
-          <:col :let={server} label={dgettext("dashboard_account", "Region")}>
-            <.text_cell label={kura_region_label(server.region)} />
+        <.alert
+          :if={@global_endpoint_url && Enum.any?(@kura_servers)}
+          status="information"
+          type="secondary"
+          size="small"
+          title={
+            dgettext(
+              "dashboard_account",
+              "Use the global Kura endpoint %{url} to connect clients to the nearest healthy region.",
+              url: @global_endpoint_url
+            )
+          }
+        />
+        <.table
+          :if={Enum.any?(@kura_servers) or Enum.any?(@available_kura_regions)}
+          id="kura-servers-table"
+          rows={kura_server_rows(@kura_servers, @available_kura_regions)}
+        >
+          <:col :let={row} label={dgettext("dashboard_account", "Region")}>
+            <.text_cell label={kura_region_label(kura_row_region_id(row))} />
           </:col>
-          <:col :let={server} label={dgettext("dashboard_account", "Status")}>
+          <:col :let={row} label={dgettext("dashboard_account", "Status")}>
             <.badge_cell
-              label={kura_display_status_label(server)}
-              color={kura_display_status_color(server)}
+              label={kura_row_status_label(row)}
+              color={kura_row_status_color(row)}
               style="light-fill"
             />
           </:col>
-          <:col :let={server} label={dgettext("dashboard_account", "Domain")}>
-            <.text_cell label={server.url || dgettext("dashboard_account", "Pending")} />
+          <:col :let={row} label={dgettext("dashboard_account", "Domain")}>
+            <.text_cell label={kura_row_domain_label(row)} />
           </:col>
-          <:col :let={server} label={dgettext("dashboard_account", "Version")}>
-            <.text_cell label={
-              kura_version_label(server.current_image_tag) || dgettext("dashboard_account", "Pending")
-            } />
+          <:col :let={row} label={dgettext("dashboard_account", "Version")}>
+            <.text_cell label={kura_row_version_label(row)} />
           </:col>
-          <:col :let={server} label="">
+          <:col :let={row} label="">
             <.button
-              :if={server.status not in [:destroying, :destroyed]}
+              :if={kura_row_retry?(row)}
+              type="button"
+              label={dgettext("dashboard_account", "Retry")}
+              variant="primary"
+              size="small"
+              phx-click="retry_kura_server"
+              phx-value-id={row.server.id}
+              disabled={is_nil(@latest_kura_version)}
+            />
+            <.button
+              :if={kura_row_server?(row) and row.server.status not in [:destroying, :destroyed]}
               type="button"
               label={dgettext("dashboard_account", "Destroy")}
               variant="destructive"
               size="small"
               phx-click="destroy_kura_server"
-              phx-value-id={server.id}
+              phx-value-id={row.server.id}
               data-confirm={
                 dgettext(
                   "dashboard_account",
                   "Destroy the Kura server in %{region}? This removes the account's Kura cache endpoint for that region.",
-                  region: server.region
+                  region: row.server.region
                 )
               }
+            />
+            <.button
+              :if={kura_row_available_region?(row)}
+              type="button"
+              label={dgettext("dashboard_account", "Deploy")}
+              variant="primary"
+              size="small"
+              phx-click="create_kura_server"
+              phx-value-region={row.region.id}
+              disabled={is_nil(@latest_kura_version)}
             />
           </:col>
         </.table>
@@ -577,6 +627,53 @@ defmodule TuistWeb.AccountSettingsLive do
     </.card_section>
     """
   end
+
+  defp kura_server_rows(servers, available_regions) do
+    Enum.map(servers, &%{id: "server-#{&1.id}", type: :server, region_id: &1.region, server: &1}) ++
+      Enum.map(
+        available_regions,
+        &%{
+          id: "available-region-#{&1.id}",
+          type: :available_region,
+          region_id: &1.id,
+          region: &1
+        }
+      )
+  end
+
+  defp kura_row_region_id(row), do: row.region_id
+
+  defp kura_row_server?(%{type: :server}), do: true
+  defp kura_row_server?(_row), do: false
+
+  defp kura_row_available_region?(%{type: :available_region}), do: true
+  defp kura_row_available_region?(_row), do: false
+
+  # Retry is offered only on first-time deploys that never reached
+  # `:active` (current_image_tag is nil): no traffic depends on the row,
+  # so atomically tombstoning it and starting fresh is safe. Drift
+  # failures on a previously-active server skip this — retrying would
+  # tear down the cache endpoint that's still serving the old image.
+  defp kura_row_retry?(%{type: :server, server: %{status: :failed, current_image_tag: nil}}), do: true
+  defp kura_row_retry?(_row), do: false
+
+  defp kura_row_status_label(%{type: :server, server: server}), do: kura_display_status_label(server)
+  defp kura_row_status_label(%{type: :available_region}), do: dgettext("dashboard_account", "Not deployed")
+
+  defp kura_row_status_color(%{type: :server, server: server}), do: kura_display_status_color(server)
+  defp kura_row_status_color(%{type: :available_region}), do: "neutral"
+
+  defp kura_row_domain_label(%{type: :server, server: server}) do
+    server.url || dgettext("dashboard_account", "Pending")
+  end
+
+  defp kura_row_domain_label(%{type: :available_region}), do: dgettext("dashboard_account", "Pending")
+
+  defp kura_row_version_label(%{type: :server, server: server}) do
+    kura_version_label(server.current_image_tag) || dgettext("dashboard_account", "Pending")
+  end
+
+  defp kura_row_version_label(%{type: :available_region}), do: dgettext("dashboard_account", "Pending")
 
   def kura_display_status_label(server) do
     if show_deploying?(server),

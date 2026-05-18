@@ -129,6 +129,13 @@ defmodule Cache.Config do
     end
   end
 
+  def s3_ca_cert_pem(s3_config \\ Application.get_env(:cache, :s3, [])) do
+    case Keyword.get(s3_config, :ca_cert_pem) do
+      pem when is_binary(pem) and pem != "" -> pem
+      _ -> nil
+    end
+  end
+
   def s3_virtual_host do
     !!Application.get_env(:ex_aws, :s3)[:virtual_host]
   end

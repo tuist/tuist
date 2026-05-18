@@ -41,5 +41,8 @@
 @import "./pages/quarantined_tests.css";
 @import "./pages/shards.css";
 @import "./pages/authentication_settings.css";
+@import "./pages/webhooks.css";
+@import "./pages/webhook.css";
+@import "./pages/webhook_event.css";
 @import "./pages/machine_metrics.css";
 @import "./pages/xcode_cache.css";

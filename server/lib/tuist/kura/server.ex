@@ -7,9 +7,17 @@ defmodule Tuist.Kura.Server do
 
   Lifecycle:
 
-      provisioning → active      ↘
-                     ↓              destroying → destroyed
-                   failed
+      provisioning ⇄ failed
+            ↓         ↑
+            └→ active ┘
+                      ↓
+                  destroying → destroyed
+
+  `:failed` → `:provisioning` is the retry path: a first-time deploy
+  that never reached `:active` flips back to `:provisioning` in place
+  when the operator clicks Retry, and the new deployment is appended
+  to the same row so the failure history stays attached. `:destroyed`
+  is reserved for operator-driven teardown.
 
   `url` and `current_image_tag` are populated when the server first
   reaches `:active` and updated on subsequent successful deployments.
@@ -35,7 +43,7 @@ defmodule Tuist.Kura.Server do
   @allowed_status_transitions %{
     provisioning: [:provisioning, :active, :failed, :destroying],
     active: [:active, :failed, :destroying],
-    failed: [:failed, :active, :destroying],
+    failed: [:failed, :provisioning, :active, :destroying],
     destroying: [:destroying, :destroyed],
     destroyed: [:destroyed]
   }
