@@ -427,20 +427,10 @@ jobs:
             --atomic --timeout 30m --wait
       - name: Deploy Kura regional controllers
         if: inputs.environment == 'production'
-        # A broken regional Kura cluster (e.g. workers that never joined)
-        # must not gate the main tuist deploy: tuist.dev serves customers
-        # from the main cluster, while regional Kura controllers serve an
-        # opt-in cache feature that can run on its previously deployed
-        # image until the regional cluster is recovered. Per-region
-        # failures are captured below and reported as a workflow warning
-        # so the cascade (canary -> acceptance -> production) can still
-        # promote the main service. The step itself stays green; the
-        # ::warning:: annotations surface stuck regions for follow-up.
-        continue-on-error: true
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
         run: |
-          set -uo pipefail
+          set -euo pipefail
 
           declare -A kubeconfig_items=(
             ["us-east-1"]="kubeconfig: kura-us-east-1"
@@ -462,70 +452,34 @@ jobs:
           CLOUDFLARE_API_TOKEN="$(op read "op://tuist-k8s-production/cloudflare-tuist-dns/credential")"
           export CLOUDFLARE_API_TOKEN
 
-          failed_regions=()
           for region in us-east-1 us-west-1; do
-            # Per-region subshell so `set -e` semantics don't blow up the
-            # entire loop on the first failure: us-east being broken must
-            # not skip us-west.
-            (
-              set -e
-              kubeconfig="$RUNNER_TEMP/kura-${region}.yaml"
-              op document get "${kubeconfig_items[$region]}" \
-                --vault "tuist-k8s-production" --output "$kubeconfig"
-              chmod 600 "$kubeconfig"
+            kubeconfig="$RUNNER_TEMP/kura-${region}.yaml"
+            op document get "${kubeconfig_items[$region]}" \
+              --vault "tuist-k8s-production" --output "$kubeconfig"
+            chmod 600 "$kubeconfig"
 
-              api="$(KUBECONFIG="$kubeconfig" kubectl config view --minify --raw -o jsonpath='{.clusters[0].cluster.server}')"
-              echo "Deploying Kura controller to $region at $api"
-              KUBECONFIG="$kubeconfig" kubectl --request-timeout=10s get --raw /version >/dev/null
+            api="$(KUBECONFIG="$kubeconfig" kubectl config view --minify --raw -o jsonpath='{.clusters[0].cluster.server}')"
+            echo "Deploying Kura controller to $region at $api"
+            KUBECONFIG="$kubeconfig" kubectl --request-timeout=10s get --raw /version >/dev/null
 
-              # Bring the cluster's platform layer (cert-manager + the
-              # letsencrypt ClusterIssuer, ingress-nginx, external-dns,
-              # ESO) to chart HEAD before installing the kura-controller,
-              # whose StatefulSet reconcile depends on cert-manager.io/v1
-              # Certificate. Idempotent: a no-op on clusters already at
-              # head, a self-heal on half-bootstrapped ones. The mise -C
-              # is required because k8s:* tasks live in infra/mise.toml
-              # scope, not the repo root.
-              mise -C "$GITHUB_WORKSPACE/infra" run k8s:install-platform \
-                "$kubeconfig" "${cluster_names[$region]}"
+            # Bring the cluster's platform layer (cert-manager + the
+            # letsencrypt ClusterIssuer, ingress-nginx, external-dns,
+            # ESO) to chart HEAD before installing the kura-controller,
+            # whose StatefulSet reconcile depends on cert-manager.io/v1
+            # Certificate. Idempotent: a no-op on clusters already at
+            # head, a self-heal on half-bootstrapped ones. The mise -C
+            # is required because k8s:* tasks live in infra/mise.toml
+            # scope, not the repo root.
+            mise -C "$GITHUB_WORKSPACE/infra" run k8s:install-platform \
+              "$kubeconfig" "${cluster_names[$region]}"
 
-              KUBECONFIG="$kubeconfig" kubectl apply -f "$HELM_CHART_PATH/crds/"
-              KUBECONFIG="$kubeconfig" helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
-                --namespace tuist-kura-controller --create-namespace \
-                -f "$HELM_CHART_PATH/values-managed-kura-region.yaml" \
-                --set kuraController.image.tag="$IMAGE_TAG" \
-                --atomic --timeout 10m --wait
-            )
-            rc=$?
-            if [ "$rc" -ne 0 ]; then
-              echo "::warning::Kura regional deploy failed for $region (exit $rc); main tuist deploy already succeeded, region keeps serving the previously deployed image."
-              failed_regions+=("$region")
-              # install-platform.sh dumps its own diagnostics on failure
-              # via an EXIT trap; this block covers the path where the
-              # platform install succeeded but the kura-controller helm
-              # upgrade failed (e.g. atomic rollback), so we still see
-              # the kura-controller namespace state for the dead region.
-              kubeconfig="$RUNNER_TEMP/kura-${region}.yaml"
-              if [ -r "$kubeconfig" ]; then
-                echo "::group::kura-controller diagnostics ($region)"
-                KUBECONFIG="$kubeconfig" helm history "$HELM_RELEASE_NAME" \
-                  -n tuist-kura-controller --max 5 2>&1 || true
-                KUBECONFIG="$kubeconfig" kubectl -n tuist-kura-controller \
-                  get pods,jobs -o wide 2>&1 || true
-                KUBECONFIG="$kubeconfig" kubectl -n tuist-kura-controller \
-                  get events --sort-by=.lastTimestamp 2>&1 | tail -30 || true
-                echo "::endgroup::"
-              fi
-            fi
+            KUBECONFIG="$kubeconfig" kubectl apply -f "$HELM_CHART_PATH/crds/"
+            KUBECONFIG="$kubeconfig" helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
+              --namespace tuist-kura-controller --create-namespace \
+              -f "$HELM_CHART_PATH/values-managed-kura-region.yaml" \
+              --set kuraController.image.tag="$IMAGE_TAG" \
+              --atomic --timeout 10m --wait
           done
-
-          if [ "${#failed_regions[@]}" -gt 0 ]; then
-            echo "Regions with failed Kura controller deploys: ${failed_regions[*]}" >&2
-            # Non-zero exit so the step is visibly red in the workflow
-            # summary; `continue-on-error: true` above keeps the job
-            # green so smoke tests and the production cascade proceed.
-            exit 1
-          fi
       - name: Diagnostics on failure
         # `--atomic` rolls back the release on timeout, so `helm history` and
         # most cluster state reflect the rolled-back revision rather than the
