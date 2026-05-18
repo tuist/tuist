@@ -36,8 +36,8 @@
 
       & > [data-part="title-group"] {
         display: flex;
-        flex-direction: column;
         flex-grow: 1;
+        flex-direction: column;
         gap: var(--noora-spacing-2);
         min-width: 0;
 
@@ -54,16 +54,16 @@
 
       & > [data-part="actions"] {
         display: flex;
+        flex-shrink: 0;
         flex-direction: row;
         align-items: center;
-        flex-shrink: 0;
       }
     }
 
     & > #webhook-endpoints-table {
       box-sizing: border-box;
-      width: calc(100% - 2 * var(--noora-spacing-8));
       margin: 0 var(--noora-spacing-8) var(--noora-spacing-6);
+      width: calc(100% - 2 * var(--noora-spacing-8));
     }
   }
 

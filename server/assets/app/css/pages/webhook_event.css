@@ -1,7 +1,7 @@
 #account-webhook-event {
   display: flex;
-  flex-direction: column;
   flex-grow: 1;
+  flex-direction: column;
   gap: var(--noora-spacing-7);
   background: var(--noora-surface-background-primary);
   /* Outer frame around the page, plus an inner indent that keeps the
@@ -68,16 +68,16 @@
             align-items: center;
             gap: var(--noora-spacing-2);
             max-width: 100%;
+            overflow: hidden;
             color: var(--noora-surface-label-primary);
             font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
-            overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
           }
 
           & > code[data-part="label"] {
-            font-family: "Geist Mono", monospace;
             font-size: 0.95em;
+            font-family: "Geist Mono", monospace;
           }
         }
       }
@@ -93,8 +93,8 @@
     & > [data-part="subheading"] > [data-part="label"] {
       color: var(--noora-surface-label-secondary);
       font: var(--noora-font-weight-medium) var(--noora-font-body-small);
-      text-transform: uppercase;
       letter-spacing: 0.04em;
+      text-transform: uppercase;
     }
 
     & > [data-part="headers"] {
@@ -127,13 +127,13 @@
       border-radius: var(--noora-radius-3);
       background: var(--noora-surface-background-tertiary);
       padding: var(--noora-spacing-5);
+      max-height: 480px;
+      overflow: auto;
       color: var(--noora-surface-label-primary);
       font: var(--noora-font-weight-regular) var(--noora-font-body-small);
       font-family: "Geist Mono", monospace;
       white-space: pre-wrap;
       word-break: break-word;
-      max-height: 480px;
-      overflow: auto;
     }
 
     & > [data-part="empty-state"] {
@@ -144,7 +144,8 @@
   }
 
   @media (max-width: 768px) {
-    & > [data-part="summary-card"]
+    &
+      > [data-part="summary-card"]
       > [data-part="summary-card-section"]
       > [data-part="metadata-grid"]
       > [data-part="metadata-row"] {

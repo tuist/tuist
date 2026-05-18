@@ -1,7 +1,7 @@
 #account-webhook {
   display: flex;
-  flex-direction: column;
   flex-grow: 1;
+  flex-direction: column;
   gap: var(--noora-spacing-7);
   background: var(--noora-surface-background-primary);
   /* Outer frame around the page, plus an inner indent that keeps the
@@ -82,16 +82,16 @@
             align-items: center;
             gap: var(--noora-spacing-2);
             max-width: 100%;
+            overflow: hidden;
             color: var(--noora-surface-label-primary);
             font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
-            overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
           }
 
           & > code[data-part="label"] {
-            font-family: "Geist Mono", monospace;
             font-size: 0.95em;
+            font-family: "Geist Mono", monospace;
           }
 
           & > [data-part="event-tags"] {
@@ -152,7 +152,8 @@
   }
 
   @media (max-width: 768px) {
-    & > [data-part="details-card"]
+    &
+      > [data-part="details-card"]
       > [data-part="details-card-section"]
       > [data-part="metadata-grid"]
       > [data-part="metadata-row"] {
