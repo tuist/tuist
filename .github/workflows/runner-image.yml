@@ -112,8 +112,14 @@ jobs:
             -var "runner_version=${{ inputs.runner_version || '2.334.0' }}" \
             runner.pkr.hcl
 
-      - name: Log in to GHCR
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | tart login ghcr.io --username tuist-bot --password-stdin
+      # Note: no `tart login ghcr.io` step. Tart's login writes to the
+      # macOS keychain, which on Tahoe-host LaunchAgents is gated by a
+      # "User interaction is not allowed" prompt the headless runner
+      # can't satisfy. The Push step below uses TART_REGISTRY_USERNAME
+      # / TART_REGISTRY_PASSWORD env-vars instead, which bypass
+      # keychain entirely. (The earlier "Drop cached ghcr.io
+      # credentials" step similarly works around stale keychain creds
+      # that would 403 anonymous Cirruslabs base-image pulls.)
 
       - name: Push image to GHCR
         id: push

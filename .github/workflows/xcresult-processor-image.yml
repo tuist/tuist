@@ -169,8 +169,12 @@ jobs:
             -var "release_tarball=/tmp/release.tar.gz" \
             xcresult-processor.pkr.hcl
 
-      - name: Log in to GHCR
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | tart login ghcr.io --username tuist-bot --password-stdin
+      # Note: no `tart login ghcr.io` step. Tart's login writes to the
+      # macOS keychain, which on Tahoe-host LaunchAgents is gated by a
+      # "User interaction is not allowed" prompt the headless runner
+      # can't satisfy. The Push step below uses TART_REGISTRY_USERNAME
+      # / TART_REGISTRY_PASSWORD env-vars instead, which bypass
+      # keychain entirely.
 
       - name: Push image to GHCR
         env:

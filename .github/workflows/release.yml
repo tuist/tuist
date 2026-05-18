@@ -2208,8 +2208,11 @@ jobs:
             -var "release_tarball=/tmp/release.tar.gz" \
             xcresult-processor.pkr.hcl
 
-      - name: Log in to GHCR
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | tart login ghcr.io --username tuist-bot --password-stdin
+      # Note: no `tart login ghcr.io` step. Tart's login writes to the
+      # macOS keychain, which on Tahoe-host LaunchAgents fails with
+      # "User interaction is not allowed". The Push step below uses
+      # TART_REGISTRY_USERNAME / TART_REGISTRY_PASSWORD env-vars
+      # instead, which bypass keychain entirely.
 
       - name: Push image to GHCR
         env:
@@ -2365,13 +2368,17 @@ jobs:
             -var "output_image=tuist-runner" \
             runner.pkr.hcl
 
-      - name: Log in to GHCR (tart + crane)
-        # `tart` and `crane` keep their own credential stores, so
-        # both need a login here: tart to push, crane to read the
-        # manifest back via `crane digest`.
+      - name: Log in to GHCR (crane only)
+        # `tart login` would write to the macOS keychain, which on
+        # Tahoe-host LaunchAgents fails with "User interaction is not
+        # allowed". The Push step below uses TART_REGISTRY_USERNAME /
+        # TART_REGISTRY_PASSWORD env-vars instead, which bypass
+        # keychain entirely. `crane` keeps its own credential store
+        # (~/.docker/config.json), which is not subject to keychain
+        # gating, so crane still needs an explicit login for the
+        # `crane digest` step that reads the manifest back.
         run: |
           set -euo pipefail
-          echo "${{ secrets.GITHUB_TOKEN }}" | tart login ghcr.io --username tuist-bot --password-stdin
           echo "${{ secrets.GITHUB_TOKEN }}" | crane auth login --username tuist-bot --password-stdin ghcr.io
 
       - name: Push image to GHCR + resolve digest

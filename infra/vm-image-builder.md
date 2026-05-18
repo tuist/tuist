@@ -102,6 +102,43 @@ gh api /orgs/tuist/actions/runners --jq '.runners[] | select(.status == "offline
   | xargs -I{} gh api -X DELETE /orgs/tuist/actions/runners/{}
 ```
 
+## One-time per-host: grant Local Network access
+
+macOS Tahoe gates `bridge100`/`192.168.64.0/22` (the vmnet subnet
+Tart hands its guests) behind the **Local Network access**
+permission. Until granted, the host can route to the guest at L2
+(DHCP works, the guest gets an IP) but the host can't open TCP to
+the guest. Packer's `tart-cli.runner: Waiting for SSH to become
+available...` hangs forever, then times out.
+
+TCC is SIP-protected on Tahoe, so the permission can't be granted
+programmatically without MDM. The reconciler can't fix this; the
+operator has to grant it once per host:
+
+1. Open a VNC session to the host (Scaleway console -> the
+   machine -> "Open VNC" / "Console"). Uses the auto-login Aqua
+   session our bootstrap configures.
+2. Trigger a workflow run on the host (or any `tart`/`packer`
+   invocation). The first invocation that needs vmnet access pops
+   a "wants to access devices on your local network" dialog.
+3. Click **Allow**. The grant persists across reboots, but if
+   the binary that asked changes (e.g. `brew upgrade tart`
+   reinstalls Tart with a new signature) the prompt re-fires and
+   needs another Allow.
+
+This is the same fragility the cluster's runners-fleet hosts hit;
+look there for any process improvements that land later.
+
+## Keychain access for `tart login`
+
+For the same family of reasons, `tart login ghcr.io` fails on
+Tahoe-host LaunchAgents with `Keychain failed to add item: User
+interaction is not allowed`. The workflows in this repo work
+around this by using `TART_REGISTRY_USERNAME` /
+`TART_REGISTRY_PASSWORD` env-vars on the `tart push` step instead
+of writing to keychain; no `tart login` is needed. If you add a
+new workflow that pushes to GHCR, follow the same pattern.
+
 ## Workflow `runs-on:` selector
 
 Both image-build workflows pin
