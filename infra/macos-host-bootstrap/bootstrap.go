@@ -740,9 +740,9 @@ fi
 # that previously ran a 'persist'-flagged version of this script
 # carry the tables in kernel state until something explicitly
 # destroys them — 'pfctl -F all' on the anchor flushes entries and
-# rules but NOT persist tables, so subsequent `pfctl -nf` parses
+# rules but NOT persist tables, so subsequent 'pfctl -nf' parses
 # still die on 'cannot define table vm_sources: Resource busy'.
-# `-T kill` actually removes the table from kernel state.
+# '-T kill' actually removes the table from kernel state.
 # Tolerate failure here on first-run hosts where the tables don't
 # yet exist.
 sudo pfctl -a tuist.runners -t vm_sources -T kill 2>/dev/null || true
