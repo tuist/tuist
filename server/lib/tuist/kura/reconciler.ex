@@ -2,26 +2,38 @@ defmodule Tuist.Kura.Reconciler do
   @moduledoc """
   Primary reconciliation loop for Kura servers.
 
-  Desired state lives in Postgres (`kura_servers` and `kura_deployments`)
-  plus the latest released Kura runtime image tag. Actual state lives in
-  `KuraInstance.status`, owned by the Go controller. This loop closes
-  the gap periodically: it schedules image drift, applies pending
-  deployments, mirrors observed readiness back into Postgres, heals
-  `:failed` servers forward once the cluster recovers, and finalises
-  destroys after the custom resource disappears.
+  Postgres owns intent (`kura_servers` rows for which regions a server
+  should exist, `kura_deployments` for the deployment history and
+  audit) plus the latest released Kura runtime image tag. The backing
+  `KuraInstance`, owned by the Go controller, owns observed runtime
+  state.
 
-  Postgres stays the source of truth for intent, ownership, and audit
-  history. The cluster is the source of truth for observed runtime
-  state. A server marked `:failed` after a rollout error is not
-  terminal: when the backing `KuraInstance` later reports the image the
-  server should be running and its public endpoint is serving, the heal
-  pass transitions the row back to `:active` in place. No new deployment
-  row is appended and no manifest is re-applied, so a recovered but
-  still-serving endpoint is never trampled. Re-rolling a server onto a
-  different image stays the operator's explicit retry/destroy decision.
+  `kura_servers.status` is a **projection of observed state**, not an
+  independently-mutated state machine. Each tick:
 
-  User actions only mutate Postgres. If a BEAM dies mid-action, this
-  loop observes the same rows on the next tick and converges again.
+    1. schedule runtime-image drift for active servers,
+    2. finalise destroys after the custom resource disappears,
+    3. apply open deployments (the rollout fast path), and
+    4. project every other present-intent server: observe the backing
+       `KuraInstance`, record the observation
+       (`observed_image_tag` / `observed_ready_at` / `last_observed_at`),
+       and re-derive `status` from
+       `(latest deployment intent, observed image, endpoint readiness)`.
+
+  Because step 4 re-derives `status` from observation every tick,
+  `:failed` is never a sticky terminal sink: a server whose backing
+  resource recovers and reports the intended image with a serving
+  endpoint heals back to `:active` in place, with no new deployment row
+  and no manifest re-apply, so a still-serving endpoint is never
+  trampled. The desired image is the latest deployment's image (the
+  recorded intent), so a rollout the controller eventually applied
+  heals even though it differs from what the server used to serve.
+  `Kura.fail_server/1` is only a same-tick fast path for the UI; this
+  projection is the authority. Re-rolling onto a different image stays
+  the operator's explicit retry/destroy decision.
+
+  User actions only mutate Postgres intent. If a BEAM dies mid-action,
+  this loop observes the same rows on the next tick and converges again.
   """
 
   use Oban.Worker, queue: :default, max_attempts: 3
@@ -53,8 +65,8 @@ defmodule Tuist.Kura.Reconciler do
     with {:ok, scheduled} <- Kura.schedule_runtime_image_deployments() do
       log_scheduled_deployments(scheduled)
       reconcile_destroying_servers()
-      reconcile_deployments()
-      reconcile_failed_servers()
+      handled = reconcile_deployments()
+      reconcile_observed_servers(handled)
     end
   end
 
@@ -98,9 +110,15 @@ defmodule Tuist.Kura.Reconciler do
     end
   end
 
+  # Returns the set of server ids whose open deployment was processed
+  # this tick. The projection pass skips them so a server is observed
+  # at most once per tick (keeps the rollout fast path and the
+  # projection from racing or double-probing the same server).
   defp reconcile_deployments do
-    Enum.each(latest_open_deployments(), &reconcile_deployment/1)
-    :ok
+    MapSet.new(latest_open_deployments(), fn deployment ->
+      reconcile_deployment(deployment)
+      deployment.kura_server_id
+    end)
   end
 
   defp latest_open_deployments do
@@ -190,90 +208,122 @@ defmodule Tuist.Kura.Reconciler do
   defp ensure_running(%Deployment{status: :running} = deployment), do: {:ok, deployment}
   defp ensure_running(%Deployment{} = deployment), do: Kura.mark_running(deployment)
 
-  # Heals servers that are `:failed` in Postgres but whose backing
-  # KuraInstance has since recovered. Failed servers have no open
-  # deployment, so the deployment loop never revisits them and infra
-  # recovery underneath would otherwise leave the row stuck at
-  # `:failed`. Bounded by the same converge ceiling as the rest of the
-  # loop; the remainder is picked up on the next tick.
-  defp reconcile_failed_servers do
+  @present_intent_statuses [:provisioning, :active, :failed]
+  @open_deployment_statuses [:pending, :running]
+
+  # Projects observed cluster state onto present-intent servers the
+  # deployment loop did not already handle this tick (servers with no
+  # open deployment: failed ones to heal, active ones to refresh the
+  # observation and surface drift). Bounded by the same converge
+  # ceiling as the rest of the loop; the remainder is picked up next
+  # tick.
+  defp reconcile_observed_servers(handled_server_ids) do
     Server
-    |> where([s], s.status == :failed)
+    |> where([s], s.status in ^@present_intent_statuses)
     |> order_by([s], asc: s.updated_at, asc: s.id)
     |> limit(^@reconcile_batch_size)
     |> Repo.all()
-    |> Enum.each(&reconcile_failed_server/1)
+    |> Enum.reject(&MapSet.member?(handled_server_ids, &1.id))
+    |> Enum.each(&project_server/1)
 
     :ok
   end
 
-  defp reconcile_failed_server(%Server{} = server) do
-    case heal_target_image_tag(server) do
-      nil -> :ok
-      target -> heal_failed_server(server, target)
+  defp project_server(%Server{} = server) do
+    case latest_deployment(server) do
+      nil ->
+        :ok
+
+      %Deployment{status: status} when status in @open_deployment_statuses ->
+        # An open deployment exists but wasn't in this tick's batch
+        # (ceiling/uniq). The rollout fast path owns it; don't race.
+        :ok
+
+      %Deployment{image_tag: desired, status: latest_status} ->
+        observe_and_project(server, desired, latest_status)
     end
   end
 
-  # The image the server should be running. A server that was active
-  # before drifting to `:failed` heals back to what it was serving; the
-  # drift scheduler bumps it to the latest runtime image once it is
-  # `:active` again. A first-time deploy that never reached `:active`
-  # heals to the image its latest deployment attempt targeted.
-  defp heal_target_image_tag(%Server{current_image_tag: tag}) when is_binary(tag), do: tag
-
-  defp heal_target_image_tag(%Server{} = server) do
+  defp latest_deployment(%Server{} = server) do
     Deployment
     |> where([d], d.kura_server_id == ^server.id)
     |> order_by([d], desc: d.inserted_at, desc: d.id)
     |> limit(1)
-    |> select([d], d.image_tag)
     |> Repo.one()
   end
 
-  defp heal_failed_server(%Server{} = server, target) do
+  defp observe_and_project(%Server{} = server, desired, latest_status) do
     case Provisioner.current_image_tag(server) do
-      {:ok, observed} when observed == target ->
-        heal_observed_server(server, target)
+      {:ok, observed} when observed == desired ->
+        converge(server, desired)
 
-      {:ok, _other_image_tag} ->
-        :ok
+      {:ok, observed} ->
+        record(server, derived_status(server, latest_status), observed, now())
 
       {:error, :not_found} ->
-        :ok
+        record(server, derived_status(server, latest_status), nil, now())
 
       {:error, reason} ->
-        Logger.warning("[Kura.Reconciler] could not observe failed server #{server.id}: #{inspect(reason)}")
+        Logger.warning("[Kura.Reconciler] could not observe server #{server.id}: #{inspect(reason)}")
         :ok
     end
   end
 
-  defp heal_observed_server(%Server{} = server, target) do
-    case Kura.activate_server(server, target) do
+  # The backing resource reports the intended image. Already-serving
+  # servers only refresh the cheap observation; everything else goes
+  # through the endpoint-gated activation so a recovered server heals
+  # forward in place.
+  defp converge(%Server{status: :active, current_image_tag: tag, observed_image_tag: tag} = server, tag) do
+    record(server, :active, tag, now())
+  end
+
+  defp converge(%Server{} = server, desired) do
+    case Kura.activate_server(server, desired) do
       {:ok, _server} ->
-        Logger.info("[Kura.Reconciler] healed failed server #{server.id} forward to #{target}")
+        Logger.info("[Kura.Reconciler] converged server #{server.id} to #{desired}")
         :ok
 
       {:error, status} when status in [:server_destroying, :server_destroyed] ->
         :ok
 
       {:error, {:public_host_not_resolvable, host, reason}} ->
-        Logger.info("[Kura.Reconciler] heal waiting on DNS for server #{server.id} (#{host}): #{inspect(reason)}")
-
-        :ok
+        Logger.info("[Kura.Reconciler] waiting on DNS for server #{server.id} (#{host}): #{inspect(reason)}")
+        record(server, server.status, desired, now())
 
       {:error, {:public_endpoint_not_ready, host, reason}} ->
-        Logger.info(
-          "[Kura.Reconciler] heal waiting on public endpoint for server #{server.id} (#{host}): #{inspect(reason)}"
-        )
+        Logger.info("[Kura.Reconciler] waiting on public endpoint for server #{server.id} (#{host}): #{inspect(reason)}")
 
+        record(server, server.status, desired, now())
+
+      {:error, reason} ->
+        Logger.warning("[Kura.Reconciler] could not converge server #{server.id}: #{inspect(reason)}")
+        record(server, server.status, desired, now())
+    end
+  end
+
+  # `:failed` reflects a failed latest deployment. A serving `:active`
+  # server is kept `:active` for transient observation gaps and
+  # in-flight drift so its working endpoint is not flapped. Otherwise
+  # the stored status stands.
+  defp derived_status(%Server{}, :failed), do: :failed
+  defp derived_status(%Server{status: :active}, _latest_status), do: :active
+  defp derived_status(%Server{status: status}, _latest_status), do: status
+
+  defp record(%Server{} = server, status, observed_image_tag, observed_at) do
+    attrs = %{status: status, observed_image_tag: observed_image_tag, last_observed_at: observed_at}
+
+    case Kura.record_observation(server, attrs) do
+      {:ok, _server} ->
         :ok
 
       {:error, reason} ->
-        Logger.warning("[Kura.Reconciler] could not heal failed server #{server.id}: #{inspect(reason)}")
+        Logger.warning("[Kura.Reconciler] could not record observation for server #{server.id}: #{inspect(reason)}")
 
         :ok
     end
   end
+
+  defp now, do: DateTime.truncate(DateTime.utc_now(), :second)
 
   defp cancel(deployment, message) do
     {:ok, _} = Kura.mark_cancelled(deployment, message)
