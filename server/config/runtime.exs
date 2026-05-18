@@ -293,6 +293,9 @@ if Enum.member?([:prod, :stag, :can, :dev], env) do
     http: [
       ip: http_ip,
       port: port,
+      http_options: [
+        log_protocol_errors: :verbose
+      ],
       thousand_island_options: [
         read_timeout: to_timeout(second: 15)
       ]
