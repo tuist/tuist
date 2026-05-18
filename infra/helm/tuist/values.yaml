@@ -783,7 +783,7 @@ kataContainers:
     # a specific release tag in env values so we don't roll on the
     # `stable` floating tag.
     repository: quay.io/kata-containers/kata-deploy
-    tag: "3.13.0"
+    tag: "3.30.0"
     pullPolicy: IfNotPresent
 
 runnersController:

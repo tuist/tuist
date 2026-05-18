@@ -129,12 +129,12 @@ spec:
               exec:
                 command: ["bash", "-c", "/opt/kata-artifacts/scripts/kata-deploy.sh cleanup"]
           env:
-            # kata-deploy.sh (3.13.0) runs with `set -u` and echoes
-            # every supported env var at startup — any one of them
-            # being unbound aborts the script. The Kata project's
-            # own DaemonSet manifest declares them all even when
-            # blank; we mirror that, but pin SHIMS=DEFAULT_SHIM=fc
-            # (we only want Firecracker) and CREATE_*RUNTIMECLASS=false
+            # kata-deploy.sh runs with `set -u` and echoes every
+            # supported env var at startup — any one of them being
+            # unbound aborts the script. The Kata project's own
+            # DaemonSet manifest declares them all even when blank;
+            # we mirror that, but pin SHIMS=DEFAULT_SHIM=fc (we
+            # only want Firecracker) and CREATE_*RUNTIMECLASS=false
             # (we ship our own RuntimeClass above).
             - name: NODE_NAME
               valueFrom:
