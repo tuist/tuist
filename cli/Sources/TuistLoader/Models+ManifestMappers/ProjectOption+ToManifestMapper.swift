@@ -29,17 +29,24 @@ extension ProjectDescription.Project.Options.AutomaticSchemesOptions {
         case let .enabled(
             targetSchemesGrouping,
             codeCoverageEnabled,
-            testingOptions,
+            parallelization,
+            randomExecutionOrdering,
             testLanguage,
             testRegion,
             testScreenCaptureFormat,
             runLanguage,
             runRegion
         ):
+            let manifestParallelization: ProjectDescription.TestableTarget.Parallelization = switch parallelization {
+            case .none: .disabled
+            case .swiftTestingOnly: .swiftTestingOnly
+            case .all: .enabled
+            }
             return .enabled(
                 targetSchemesGrouping: .from(manifest: targetSchemesGrouping),
                 codeCoverageEnabled: codeCoverageEnabled,
-                testingOptions: .from(manifest: testingOptions),
+                parallelization: manifestParallelization,
+                randomExecutionOrdering: randomExecutionOrdering,
                 testLanguage: testLanguage.map { .init(identifier: $0) },
                 testRegion: testRegion,
                 testScreenCaptureFormat: testScreenCaptureFormat.map { .from(manifest: $0) },
