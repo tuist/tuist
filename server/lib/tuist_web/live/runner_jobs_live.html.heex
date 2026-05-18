@@ -27,17 +27,6 @@
             end
           }
         >
-          <:col :let={job} label={dgettext("dashboard_runners", "Status")}>
-            <% props =
-              cond do
-                job.status == "completed" and (job.conclusion || "") != "" ->
-                  TuistWeb.RunnerJobsLive.conclusion_badge_props(job.conclusion)
-
-                true ->
-                  TuistWeb.RunnerJobsLive.status_badge_props(job.status)
-              end %>
-            <.status_badge_cell label={props.label} status={props.status} />
-          </:col>
           <:col :let={job} label={dgettext("dashboard_runners", "Workflow")}>
             <.text_cell
               label={
@@ -52,6 +41,17 @@
             <.text_cell
               label={if(job.job_name == "", do: "–", else: job.job_name)}
             />
+          </:col>
+          <:col :let={job} label={dgettext("dashboard_runners", "Status")}>
+            <% props =
+              cond do
+                job.status == "completed" and (job.conclusion || "") != "" ->
+                  TuistWeb.RunnerJobsLive.conclusion_badge_props(job.conclusion)
+
+                true ->
+                  TuistWeb.RunnerJobsLive.status_badge_props(job.status)
+              end %>
+            <.status_badge_cell label={props.label} status={props.status} />
           </:col>
           <:col :let={job} label={dgettext("dashboard_runners", "Repository")}>
             <.text_cell
