@@ -161,6 +161,13 @@ macosFleet:
   # macos and runners fleets in staging where total hostCount
   # (1 + 2) easily fits within one operator-managed pool.
   adoptPoolPrefix: "tuist-pool-"
+  # Enable Tailscale for the staging fleet — every Mac mini joins
+  # the staging tailnet, tart-kubelet advertises the tailnet IPv4
+  # as the Node's InternalIP, and alloy-metrics scrapes PromEx
+  # (xcresult VM) + node_exporter (host) over the tailnet.
+  tailscale:
+    enabled: true
+    tags: ["tag:tuist-macmini-staging"]
   machine:
     # Staging tracks the chart default (M2-L on Scaleway: M2 Pro
     # 10-core / 16 GB). Drop to M2-M if staging capacity gets tight
@@ -235,7 +242,7 @@ runnersFleet:
       # pool only produces unschedulable Pods that drag readiness
       # gates without adding capacity.
       replicas: 1
-      runnerImage: "ghcr.io/tuist/tuist-runner@sha256:13f45853f4153f6717dff0aad23e7c896e46bc48cc41df4be314605adeadb5ff"
+      runnerImage: "ghcr.io/tuist/tuist-runner@sha256:d4824d8b6a8c7b6d1c2e87dda7f4c4b751ef87f03f87a9c409cfa15756fb198c"
       dispatchLabel: "tuist-staging-macos"
       pod:
         # Pod request = host capacity. kube-scheduler bin-packs one

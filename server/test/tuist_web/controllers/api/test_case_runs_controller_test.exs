@@ -28,6 +28,7 @@ defmodule TuistWeb.API.TestCaseRunsControllerTest do
           test_case_id: test_case_id,
           status: 0,
           is_flaky: true,
+          is_quarantined: true,
           git_branch: "main"
         )
 
@@ -51,6 +52,7 @@ defmodule TuistWeb.API.TestCaseRunsControllerTest do
       assert run["id"] == test_case_run.id
       assert run["status"] == "success"
       assert run["is_flaky"] == true
+      assert run["is_quarantined"] == true
       assert run["git_branch"] == "main"
     end
 
@@ -301,6 +303,7 @@ defmodule TuistWeb.API.TestCaseRunsControllerTest do
           suite_name: "MySuite",
           status: 1,
           is_flaky: true,
+          is_quarantined: true,
           git_branch: "main",
           git_commit_sha: "abc1234"
         )
@@ -335,6 +338,7 @@ defmodule TuistWeb.API.TestCaseRunsControllerTest do
       assert response["suite_name"] == "MySuite"
       assert response["status"] == "failure"
       assert response["is_flaky"] == true
+      assert response["is_quarantined"] == true
       assert response["git_branch"] == "main"
       assert response["git_commit_sha"] == "abc1234"
       assert response["test_run_id"] == test_case_run.test_run_id

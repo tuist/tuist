@@ -12,7 +12,7 @@
 #     under /usr/local/lib/tart.app.
 # One image, one URL pin in the chart, no separate release artifact.
 
-ARG GO_VERSION=1.25
+ARG GO_VERSION=1.26
 ARG ALPINE_VERSION=3.22
 
 # Tart version pinned for reproducibility. Bump deliberately — Tart 2.x
@@ -23,6 +23,27 @@ ARG ALPINE_VERSION=3.22
 # version on first bootstrap; existing ones keep their installed Tart
 # until they're replaced.
 ARG TART_VERSION=2.32.1
+
+# Tailscale upstream tag to cross-build from. The tailscale-builder
+# stage below clones github.com/tailscale/tailscale at this tag and
+# produces darwin/arm64 `tailscale` + `tailscaled` binaries. Pinning
+# here makes the tailnet client reproducible across operator
+# deploys; bumping is a deliberate Dockerfile change, same
+# convention as TART_VERSION. Matches the tailscale-operator
+# chart's version pin in infra/helm/tailscale-operator/Chart.yaml so
+# the cluster-side operator and the host-side daemons stay in
+# lockstep.
+ARG TAILSCALE_VERSION=1.96.5
+
+# node_exporter version, pulled as a pre-built darwin/arm64 binary
+# from upstream's GitHub release. Prometheus publishes per-OS/arch
+# tarballs for every release; we skip the cross-compile dance
+# (which needs Apple SDK headers for IOKit/Mach CGo bindings used
+# by the diskstats/meminfo/powersupplyclass collectors) and pull
+# the upstream-built artifact directly. Same convention as
+# TART_VERSION and TAILSCALE_VERSION: deliberate bump via the
+# Dockerfile.
+ARG NODE_EXPORTER_VERSION=1.8.2
 
 FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-alpine${ALPINE_VERSION} AS manager-builder
 
@@ -84,11 +105,70 @@ RUN curl -fsSL -o tart.tar.gz \
     "https://github.com/cirruslabs/tart/releases/download/${TART_VERSION}/tart.tar.gz"
 
 
+FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-alpine${ALPINE_VERSION} AS tailscale-builder
+
+# Tailscale's open-source `tailscaled` variant — what Tailscale's own
+# docs designate as the headless-server path on macOS (see
+# https://github.com/tailscale/tailscale/wiki/Tailscaled-on-macOS).
+# We build the two upstream Go binaries (tailscale, tailscaled) for
+# darwin/arm64 from a pinned source tag and ship them as a tarball.
+# The bootstrap step extracts to /usr/local/bin and calls
+# `tailscaled install-system-daemon`, which writes its own launchd
+# plist — the canonical install path for unattended Mac mini servers.
+#
+# Why not the .pkg installer at pkgs.tailscale.com: that ships the
+# GUI Tailscale.app, and its postinstall script runs GUI lifecycle
+# work (osascript hooks, etc) that fails on headless hosts when the
+# previously-running daemon holds open the binaries being replaced.
+# This variant has no GUI app, no postinstall scripts — just the
+# daemon, the CLI, and a launchd plist.
+#
+# CGO_ENABLED=0: tailscaled's darwin backend uses
+# golang.org/x/sys/unix for utun device allocation, no Apple SDK
+# headers needed.
+ARG TAILSCALE_VERSION
+RUN apk add --no-cache git
+WORKDIR /src
+RUN git clone --depth 1 --branch "v${TAILSCALE_VERSION}" \
+    https://github.com/tailscale/tailscale .
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    --mount=type=cache,target=/go/pkg/mod \
+    GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 \
+    go build -trimpath -ldflags="-s -w" -o /out/tailscale ./cmd/tailscale && \
+    GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 \
+    go build -trimpath -ldflags="-s -w" -o /out/tailscaled ./cmd/tailscaled
+RUN cd /out && tar czf tailscale-darwin-arm64.tar.gz tailscale tailscaled
+
+
+FROM --platform=$BUILDPLATFORM alpine:${ALPINE_VERSION} AS node-exporter-fetcher
+
+# Upstream's pre-built darwin/arm64 binary. Prometheus publishes
+# per-OS/arch tarballs (`node_exporter-<v>.darwin-arm64.tar.gz`)
+# for every release — pulls the binary built on their own CI with
+# the Apple SDK in scope, so we get the full collector set
+# (diskstats, meminfo, powersupplyclass) that a CGO_ENABLED=0
+# cross-compile from Linux can't produce.
+#
+# Tarball layout: `node_exporter-<v>.darwin-arm64/node_exporter`.
+# We strip the version-dir on extraction so the binary lands at
+# /out/node_exporter-darwin-arm64 regardless of which version is
+# pinned.
+ARG NODE_EXPORTER_VERSION
+RUN apk add --no-cache curl tar
+WORKDIR /out
+RUN curl -fsSL \
+    "https://github.com/prometheus/node_exporter/releases/download/v${NODE_EXPORTER_VERSION}/node_exporter-${NODE_EXPORTER_VERSION}.darwin-arm64.tar.gz" \
+    | tar -xz --strip-components=1 "node_exporter-${NODE_EXPORTER_VERSION}.darwin-arm64/node_exporter" \
+    && mv node_exporter node_exporter-darwin-arm64
+
+
 FROM gcr.io/distroless/static-debian12:nonroot
 
 COPY --from=manager-builder /out/manager /usr/local/bin/manager
 COPY --from=kubelet-builder /out/tart-kubelet-darwin-arm64 /opt/tart-kubelet/tart-kubelet-darwin-arm64
 COPY --from=tart-fetcher /out/tart.tar.gz /opt/tart/tart.tar.gz
+COPY --from=tailscale-builder /out/tailscale-darwin-arm64.tar.gz /opt/tailscale/tailscale-darwin-arm64.tar.gz
+COPY --from=node-exporter-fetcher /out/node_exporter-darwin-arm64 /opt/node-exporter/node_exporter-darwin-arm64
 
 USER nonroot:nonroot
 

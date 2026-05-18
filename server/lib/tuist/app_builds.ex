@@ -15,6 +15,13 @@ defmodule Tuist.AppBuilds do
     |> Repo.insert()
   end
 
+  @doc """
+  Finds an existing preview with matching identifying metadata or creates
+  a new one. Returns `{:ok, preview, :created}` when a new row was
+  inserted and `{:ok, preview, :reused}` when an existing one was
+  returned, so callers (e.g. webhook dispatch) can differentiate the two
+  cases.
+  """
   def find_or_create_preview(
         %{
           project_id: project_id,
@@ -55,9 +62,11 @@ defmodule Tuist.AppBuilds do
       |> Repo.one()
 
     if is_nil(preview) do
-      create_preview(Map.put(attrs, :track, track))
+      with {:ok, created} <- create_preview(Map.put(attrs, :track, track)) do
+        {:ok, created, :created}
+      end
     else
-      {:ok, preview}
+      {:ok, preview, :reused}
     end
   end
 
@@ -364,6 +373,10 @@ defmodule Tuist.AppBuilds do
   end
 
   def delete_preview!(%Preview{} = preview) do
-    Repo.delete!(preview)
+    deleted = Repo.delete!(preview)
+    # `preview` retains its in-memory fields and project_id post-delete, so the
+    # dispatcher can resolve the owning account before the row is gone for good.
+    Tuist.Webhooks.Dispatcher.dispatch_preview_deleted(preview)
+    deleted
   end
 end

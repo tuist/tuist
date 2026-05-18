@@ -129,7 +129,7 @@ jobs:
   acceptance-tests:
     name: Acceptance Tests
     needs: canary
-    runs-on: namespace-profile-macos-xcode-26
+    runs-on: tuist-macos
     timeout-minutes: 15
     environment: server-k8s-canary
     permissions:

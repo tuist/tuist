@@ -46,6 +46,69 @@ components:
       type: object
       x-struct:
       x-validate:
+    WebhookTestCaseUpdatedEvent:
+      description: Fires when a test case's attributes change — flakiness flag flipped, state transitioned to `muted` or `skipped`, etc. The `events` array tells you exactly which transitions caused the write.
+      properties:
+        actor_id:
+          description: Identifier of the account that performed the change, when initiated by a user. `null` for system / automation writes.
+          nullable: true
+          type: integer
+          x-struct:
+          x-validate:
+        alert_id:
+          description: Identifier of the automation alert whose action produced the change, when triggered by an automation. `null` otherwise.
+          format: uuid
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        created:
+          description: Unix timestamp (seconds) at which Tuist enqueued the delivery.
+          format: int64
+          type: integer
+          x-struct:
+          x-validate:
+        events:
+          description: Canonical transitions that caused the write. Receivers can branch on this without diffing the snapshot.
+          items:
+            enum:
+              - marked_flaky
+              - unmarked_flaky
+              - muted
+              - unmuted
+              - skipped
+              - unskipped
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        id:
+          description: UUID unique to this delivery. Use it to deduplicate when retries fire.
+          format: uuid
+          type: string
+          x-struct:
+          x-validate:
+        object:
+          $ref: '#/components/schemas/WebhookTestCase'
+        type:
+          description: Discriminator for the event type.
+          enum:
+            - test_case.updated
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - id
+        - type
+        - created
+        - object
+        - events
+      title: WebhookTestCaseUpdatedEvent
+      type: object
+      x-struct: Elixir.TuistWeb.API.Schemas.Webhook.TestCaseUpdatedEvent
+      x-validate:
     CacheActionItem:
       description: Represents an action item stored in the cache.
       properties:
@@ -259,6 +322,154 @@ components:
       title: AutomationAlert
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.AutomationAlert
+      x-validate:
+    WebhookPreview:
+      description: Snapshot of the preview that triggered the webhook event.
+      properties:
+        bundle_identifier:
+          description: App bundle identifier, when known.
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        display_name:
+          description: App display name, when known.
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        git_branch:
+          description: Git branch the preview was uploaded from.
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        git_commit_sha:
+          description: Git commit SHA the preview was uploaded from.
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        git_ref:
+          description: Git ref the preview was uploaded from (typically only populated on CI runs from a pull request).
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        id:
+          description: Identifier of the preview.
+          type: string
+          x-struct:
+          x-validate:
+        inserted_at:
+          description: ISO-8601 timestamp at which the preview was created.
+          format: date-time
+          type: string
+          x-struct:
+          x-validate:
+        project_id:
+          description: Identifier of the project the preview belongs to.
+          type: integer
+          x-struct:
+          x-validate:
+        supported_platforms:
+          description: Platforms the preview can run on (e.g. `ios`, `ios_simulator`, `macos`). Empty when not yet detected.
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        version:
+          description: App version string, when known.
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        visibility:
+          description: Sharing visibility of the preview. `null` for previews uploaded before the account had a default visibility configured.
+          enum:
+            - public
+            - private
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - id
+        - project_id
+        - supported_platforms
+        - inserted_at
+      title: WebhookPreview
+      type: object
+      x-struct: Elixir.TuistWeb.API.Schemas.Webhook.Preview
+      x-validate:
+    WebhookPreviewDeletedEvent:
+      description: Fires after a preview is removed from the account. The `object` is a snapshot of the preview as it existed immediately before deletion.
+      properties:
+        created:
+          description: Unix timestamp (seconds) at which Tuist enqueued the delivery.
+          format: int64
+          type: integer
+          x-struct:
+          x-validate:
+        id:
+          description: UUID unique to this delivery. Use it to deduplicate when retries fire.
+          format: uuid
+          type: string
+          x-struct:
+          x-validate:
+        object:
+          $ref: '#/components/schemas/WebhookPreview'
+        type:
+          description: Discriminator for the event type.
+          enum:
+            - preview.deleted
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - id
+        - type
+        - created
+        - object
+      title: WebhookPreviewDeletedEvent
+      type: object
+      x-struct: Elixir.TuistWeb.API.Schemas.Webhook.PreviewDeletedEvent
+      x-validate:
+    WebhookTestCaseCreatedEvent:
+      description: Fires the first time Tuist observes a test case in the account. The `object` is a snapshot of that newly-seen test case.
+      properties:
+        created:
+          description: Unix timestamp (seconds) at which Tuist enqueued the delivery.
+          format: int64
+          type: integer
+          x-struct:
+          x-validate:
+        id:
+          description: UUID unique to this delivery. Use it to deduplicate when retries fire — the same `id` is sent on every retry of the same event.
+          format: uuid
+          type: string
+          x-struct:
+          x-validate:
+        object:
+          $ref: '#/components/schemas/WebhookTestCase'
+        type:
+          description: Discriminator for the event type.
+          enum:
+            - test_case.created
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - id
+        - type
+        - created
+        - object
+      title: WebhookTestCaseCreatedEvent
+      type: object
+      x-struct: Elixir.TuistWeb.API.Schemas.Webhook.TestCaseCreatedEvent
       x-validate:
     ArtifactUploadID:
       description: The upload has been initiated and a ID is returned to upload the various parts using multi-part uploads
@@ -569,6 +780,77 @@ components:
       title: ArtifactMultipartUploadPart
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.ArtifactMultipartUploadPart
+      x-validate:
+    WebhookTestCase:
+      description: Snapshot of the test case that triggered the webhook event. Identified by `id`; the surrounding event envelope tells you which transition produced the snapshot.
+      properties:
+        id:
+          description: Stable identifier of the test case.
+          type: string
+          x-struct:
+          x-validate:
+        is_flaky:
+          description: True when Tuist (or an operator) has flagged the test case as flaky.
+          type: boolean
+          x-struct:
+          x-validate:
+        last_ran_at:
+          description: ISO-8601 timestamp of the most recent run, when one exists.
+          format: date-time
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        last_status:
+          description: Result of the most recent run, when one exists.
+          enum:
+            - success
+            - failure
+            - skipped
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        module_name:
+          description: Name of the module the test case belongs to.
+          type: string
+          x-struct:
+          x-validate:
+        name:
+          description: Test case name (the method name).
+          type: string
+          x-struct:
+          x-validate:
+        project_id:
+          description: Identifier of the project the test case belongs to.
+          type: integer
+          x-struct:
+          x-validate:
+        state:
+          description: Current lifecycle state of the test case.
+          enum:
+            - enabled
+            - muted
+            - skipped
+          type: string
+          x-struct:
+          x-validate:
+        suite_name:
+          description: Name of the test suite the test case belongs to.
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - id
+        - name
+        - module_name
+        - suite_name
+        - project_id
+        - is_flaky
+        - state
+      title: WebhookTestCase
+      type: object
+      x-struct: Elixir.TuistWeb.API.Schemas.Webhook.TestCase
       x-validate:
     ProjectFullToken:
       description: A new project token.
@@ -1584,6 +1866,7 @@ components:
                   enum:
                     - ci
                     - mcp
+                    - account:scim:write
                     - account:members:read
                     - account:members:write
                     - account:registry:read
@@ -1721,6 +2004,39 @@ components:
       title: CommandEventArtifact
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.CommandEventArtifact
+      x-validate:
+    WebhookPreviewCreatedEvent:
+      description: Fires when a new preview is created in the account (once the app build has finished uploading). The `object` is a snapshot of the newly-created preview.
+      properties:
+        created:
+          description: Unix timestamp (seconds) at which Tuist enqueued the delivery.
+          format: int64
+          type: integer
+          x-struct:
+          x-validate:
+        id:
+          description: UUID unique to this delivery. Use it to deduplicate when retries fire.
+          format: uuid
+          type: string
+          x-struct:
+          x-validate:
+        object:
+          $ref: '#/components/schemas/WebhookPreview'
+        type:
+          description: Discriminator for the event type.
+          enum:
+            - preview.created
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - id
+        - type
+        - created
+        - object
+      title: WebhookPreviewCreatedEvent
+      type: object
+      x-struct: Elixir.TuistWeb.API.Schemas.Webhook.PreviewCreatedEvent
       x-validate:
     TestCase:
       description: The schema for a test case.
@@ -4408,6 +4724,11 @@ components:
           type: boolean
           x-struct:
           x-validate:
+        is_quarantined:
+          description: Whether the test case was quarantined at the time of the run.
+          type: boolean
+          x-struct:
+          x-validate:
         module_name:
           description: Module name.
           type: string
@@ -4455,6 +4776,7 @@ components:
         - is_ci
         - is_flaky
         - is_new
+        - is_quarantined
       title: TestCaseRun
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Tests.TestCaseRun
@@ -5591,6 +5913,7 @@ components:
             enum:
               - ci
               - mcp
+              - account:scim:write
               - account:members:read
               - account:members:write
               - account:registry:read
@@ -7889,6 +8212,11 @@ paths:
                     type: boolean
                     x-struct:
                     x-validate:
+                  is_quarantined:
+                    description: Whether the test case was quarantined at the time of the run.
+                    type: boolean
+                    x-struct:
+                    x-validate:
                   module_name:
                     description: Module name.
                     type: string
@@ -7982,6 +8310,7 @@ paths:
                   - is_ci
                   - is_flaky
                   - is_new
+                  - is_quarantined
                   - failures
                   - repetitions
                   - attachments
@@ -8017,6 +8346,14 @@ paths:
             type: integer
             x-struct:
             x-validate:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
         - description: Number of items per page.
           in: query
           name: page_size
@@ -8029,14 +8366,6 @@ paths:
           in: query
           name: git_branch
           required: false
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-        - description: The handle of the account.
-          in: path
-          name: account_handle
-          required: true
           schema:
             type: string
             x-struct:
@@ -12442,6 +12771,7 @@ paths:
                             enum:
                               - ci
                               - mcp
+                              - account:scim:write
                               - account:members:read
                               - account:members:write
                               - account:registry:read
@@ -12555,6 +12885,7 @@ paths:
                     enum:
                       - ci
                       - mcp
+                      - account:scim:write
                       - account:members:read
                       - account:members:write
                       - account:registry:read
@@ -19963,4 +20294,24 @@ security:
   - authorization: []
   - cookie: []
 servers: []
-tags: []
+tags:
+  - description: |
+      Tuist can POST event notifications to HTTPS endpoints you register on your
+      account. Each delivery is a JSON envelope with `id`, `type`, `created`, and
+      an event-specific `object` payload, signed via the `Tuist-Signature` header.
+      See the [webhooks integration guide](https://tuist.dev/en/docs/guides/integrations/webhooks)
+      for the full payload, signature verification, and retry rules.
+
+      The supported event types and their payload shapes:
+
+      | Event type | When it fires | Payload schema |
+      | --- | --- | --- |
+      | `test_case.created` | A test case was observed for the first time in this account. | [`WebhookTestCaseCreatedEvent`](#section/Schemas/WebhookTestCaseCreatedEvent) |
+      | `test_case.updated` | A test case's attributes changed. | [`WebhookTestCaseUpdatedEvent`](#section/Schemas/WebhookTestCaseUpdatedEvent) |
+      | `preview.created` | A new preview was created in this account. | [`WebhookPreviewCreatedEvent`](#section/Schemas/WebhookPreviewCreatedEvent) |
+      | `preview.deleted` | A preview was deleted from this account. | [`WebhookPreviewDeletedEvent`](#section/Schemas/WebhookPreviewDeletedEvent) |
+
+      Each payload schema is registered under `components.schemas` so you can
+      `$ref` it from any client generator. The envelope shape is stable across
+      event types — only the `object` differs.
+    name: Webhook events

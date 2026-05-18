@@ -153,7 +153,7 @@ defmodule TuistWeb.API.PreviewsController do
     supported_platforms = Map.get(body_params, :supported_platforms, [])
     type = body_params |> Map.get(:type) |> String.to_atom()
 
-    {:ok, preview} =
+    {:ok, preview, preview_status} =
       AppBuilds.find_or_create_preview(%{
         project_id: selected_project.id,
         bundle_identifier: Map.get(body_params, :bundle_identifier),
@@ -166,6 +166,14 @@ defmodule TuistWeb.API.PreviewsController do
         supported_platforms: [],
         track: Map.get(body_params, :track)
       })
+
+    # `preview.created` fires here — at the moment the preview row is
+    # actually inserted — instead of on `multipart_complete`, so uploads
+    # tied to a reused preview don't redeliver the event for an
+    # already-known resource.
+    if preview_status == :created do
+      Tuist.Webhooks.Dispatcher.dispatch_preview_created(preview)
+    end
 
     binary_id = Map.get(body_params, :binary_id)
     build_version = Map.get(body_params, :build_version)

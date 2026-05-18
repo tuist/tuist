@@ -28,6 +28,15 @@ import (
 type Maintainer struct {
 	Client   client.Client
 	NodeName string
+	// NodeIP is the address advertised as the Node's InternalIP so
+	// in-cluster scrapers (alloy-metrics) targeting the Node role
+	// (host-level node_exporter at :9100, or any future host-bound
+	// endpoint) land on the right host. Same value tart-kubelet
+	// rewrites Pod.Status.PodIP to for the per-Pod metrics
+	// forwarder; surfacing it on the Node object too lets cluster-
+	// wide Node discovery use it without having to peek at a Pod.
+	// Empty leaves Node.Status.Addresses untouched.
+	NodeIP string
 	// NodeLabels are operator-set labels published on the Node at
 	// registration time. The chart populates this with at least
 	// `tuist.dev/fleet=<name>` so workloads (xcresult-processor,
@@ -190,6 +199,18 @@ func (m *Maintainer) configureNode(node *corev1.Node) {
 	node.Status.NodeInfo.Architecture = "arm64"
 	node.Status.NodeInfo.KubeletVersion = "tart-kubelet-v0"
 	node.Status.NodeInfo.ContainerRuntimeVersion = "tart"
+
+	if m.NodeIP != "" {
+		// Replace, not merge: a kubelet restart with a new NodeIP
+		// (Tailscale daemon reassigns the CGNAT slot, operator flips
+		// --node-ip-source, etc.) must overwrite the stale entry so
+		// kube-state-metrics + Node-role scrapers don't keep dialing
+		// the previous address.
+		node.Status.Addresses = []corev1.NodeAddress{
+			{Type: corev1.NodeInternalIP, Address: m.NodeIP},
+			{Type: corev1.NodeHostName, Address: m.NodeName},
+		}
+	}
 }
 
 func hasTaint(taints []corev1.Taint, key string) bool {
