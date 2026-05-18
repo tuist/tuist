@@ -24,14 +24,18 @@ defmodule TuistWeb.API.SpecTest do
       end
     end
 
-    test "info.description lists every supported event type" do
-      description = Spec.spec().info.description
+    test "the Webhook events tag description lists every supported event type" do
+      tag =
+        Spec.spec().tags
+        |> Enum.find(&(&1.name == Spec.webhook_events_tag()))
+
+      assert tag, "expected a `#{Spec.webhook_events_tag()}` tag on the spec"
 
       for %{events: events} <- WebhookEndpoint.event_groups(),
           %{type: type} <- events do
-        assert description =~ "`#{type}`",
-               "webhook event #{inspect(type)} is missing from the API spec's " <>
-                 "info.description block — the docs portal won't list it"
+        assert tag.description =~ "`#{type}`",
+               "webhook event #{inspect(type)} is missing from the " <>
+                 "`#{Spec.webhook_events_tag()}` tag description — the docs portal won't list it"
       end
     end
   end

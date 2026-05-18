@@ -2427,6 +2427,92 @@ public enum Components {
                 case token
             }
         }
+        /// Fires when a test case's attributes change — flakiness flag flipped, state transitioned to `muted` or `skipped`, etc. The `events` array tells you exactly which transitions caused the write.
+        ///
+        /// - Remark: Generated from `#/components/schemas/WebhookTestCaseUpdatedEvent`.
+        public struct WebhookTestCaseUpdatedEvent: Codable, Hashable, Sendable {
+            /// Identifier of the account that performed the change, when initiated by a user. `null` for system / automation writes.
+            ///
+            /// - Remark: Generated from `#/components/schemas/WebhookTestCaseUpdatedEvent/actor_id`.
+            public var actor_id: Swift.Int?
+            /// Identifier of the automation alert whose action produced the change, when triggered by an automation. `null` otherwise.
+            ///
+            /// - Remark: Generated from `#/components/schemas/WebhookTestCaseUpdatedEvent/alert_id`.
+            public var alert_id: Swift.String?
+            /// Unix timestamp (seconds) at which Tuist enqueued the delivery.
+            ///
+            /// - Remark: Generated from `#/components/schemas/WebhookTestCaseUpdatedEvent/created`.
+            public var created: Swift.Int64
+            /// - Remark: Generated from `#/components/schemas/WebhookTestCaseUpdatedEvent/eventsPayload`.
+            @frozen public enum eventsPayloadPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case marked_flaky = "marked_flaky"
+                case unmarked_flaky = "unmarked_flaky"
+                case muted = "muted"
+                case unmuted = "unmuted"
+                case skipped = "skipped"
+                case unskipped = "unskipped"
+            }
+            /// Canonical transitions that caused the write. Receivers can branch on this without diffing the snapshot.
+            ///
+            /// - Remark: Generated from `#/components/schemas/WebhookTestCaseUpdatedEvent/events`.
+            public typealias eventsPayload = [Components.Schemas.WebhookTestCaseUpdatedEvent.eventsPayloadPayload]
+            /// Canonical transitions that caused the write. Receivers can branch on this without diffing the snapshot.
+            ///
+            /// - Remark: Generated from `#/components/schemas/WebhookTestCaseUpdatedEvent/events`.
+            public var events: Components.Schemas.WebhookTestCaseUpdatedEvent.eventsPayload
+            /// UUID unique to this delivery. Use it to deduplicate when retries fire.
+            ///
+            /// - Remark: Generated from `#/components/schemas/WebhookTestCaseUpdatedEvent/id`.
+            public var id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/WebhookTestCaseUpdatedEvent/object`.
+            public var object: Components.Schemas.WebhookTestCase
+            /// Discriminator for the event type.
+            ///
+            /// - Remark: Generated from `#/components/schemas/WebhookTestCaseUpdatedEvent/type`.
+            @frozen public enum _typePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case test_case_period_updated = "test_case.updated"
+            }
+            /// Discriminator for the event type.
+            ///
+            /// - Remark: Generated from `#/components/schemas/WebhookTestCaseUpdatedEvent/type`.
+            public var _type: Components.Schemas.WebhookTestCaseUpdatedEvent._typePayload
+            /// Creates a new `WebhookTestCaseUpdatedEvent`.
+            ///
+            /// - Parameters:
+            ///   - actor_id: Identifier of the account that performed the change, when initiated by a user. `null` for system / automation writes.
+            ///   - alert_id: Identifier of the automation alert whose action produced the change, when triggered by an automation. `null` otherwise.
+            ///   - created: Unix timestamp (seconds) at which Tuist enqueued the delivery.
+            ///   - events: Canonical transitions that caused the write. Receivers can branch on this without diffing the snapshot.
+            ///   - id: UUID unique to this delivery. Use it to deduplicate when retries fire.
+            ///   - object:
+            ///   - _type: Discriminator for the event type.
+            public init(
+                actor_id: Swift.Int? = nil,
+                alert_id: Swift.String? = nil,
+                created: Swift.Int64,
+                events: Components.Schemas.WebhookTestCaseUpdatedEvent.eventsPayload,
+                id: Swift.String,
+                object: Components.Schemas.WebhookTestCase,
+                _type: Components.Schemas.WebhookTestCaseUpdatedEvent._typePayload
+            ) {
+                self.actor_id = actor_id
+                self.alert_id = alert_id
+                self.created = created
+                self.events = events
+                self.id = id
+                self.object = object
+                self._type = _type
+            }
+            public enum CodingKeys: String, CodingKey {
+                case actor_id
+                case alert_id
+                case created
+                case events
+                case id
+                case object
+                case _type = "type"
+            }
+        }
         /// Represents an action item stored in the cache.
         ///
         /// - Remark: Generated from `#/components/schemas/CacheActionItem`.
@@ -2691,6 +2777,212 @@ public enum Components {
                 case recovery_enabled
                 case trigger_actions
                 case trigger_config
+            }
+        }
+        /// Snapshot of the preview that triggered the webhook event.
+        ///
+        /// - Remark: Generated from `#/components/schemas/WebhookPreview`.
+        public struct WebhookPreview: Codable, Hashable, Sendable {
+            /// App bundle identifier, when known.
+            ///
+            /// - Remark: Generated from `#/components/schemas/WebhookPreview/bundle_identifier`.
+            public var bundle_identifier: Swift.String?
+            /// App display name, when known.
+            ///
+            /// - Remark: Generated from `#/components/schemas/WebhookPreview/display_name`.
+            public var display_name: Swift.String?
+            /// Git branch the preview was uploaded from.
+            ///
+            /// - Remark: Generated from `#/components/schemas/WebhookPreview/git_branch`.
+            public var git_branch: Swift.String?
+            /// Git commit SHA the preview was uploaded from.
+            ///
+            /// - Remark: Generated from `#/components/schemas/WebhookPreview/git_commit_sha`.
+            public var git_commit_sha: Swift.String?
+            /// Git ref the preview was uploaded from (typically only populated on CI runs from a pull request).
+            ///
+            /// - Remark: Generated from `#/components/schemas/WebhookPreview/git_ref`.
+            public var git_ref: Swift.String?
+            /// Identifier of the preview.
+            ///
+            /// - Remark: Generated from `#/components/schemas/WebhookPreview/id`.
+            public var id: Swift.String
+            /// ISO-8601 timestamp at which the preview was created.
+            ///
+            /// - Remark: Generated from `#/components/schemas/WebhookPreview/inserted_at`.
+            public var inserted_at: Foundation.Date
+            /// Identifier of the project the preview belongs to.
+            ///
+            /// - Remark: Generated from `#/components/schemas/WebhookPreview/project_id`.
+            public var project_id: Swift.Int
+            /// Platforms the preview can run on (e.g. `ios`, `ios_simulator`, `macos`). Empty when not yet detected.
+            ///
+            /// - Remark: Generated from `#/components/schemas/WebhookPreview/supported_platforms`.
+            public var supported_platforms: [Swift.String]
+            /// App version string, when known.
+            ///
+            /// - Remark: Generated from `#/components/schemas/WebhookPreview/version`.
+            public var version: Swift.String?
+            /// Sharing visibility of the preview. `null` for previews uploaded before the account had a default visibility configured.
+            ///
+            /// - Remark: Generated from `#/components/schemas/WebhookPreview/visibility`.
+            @frozen public enum visibilityPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case _public = "public"
+                case _private = "private"
+            }
+            /// Sharing visibility of the preview. `null` for previews uploaded before the account had a default visibility configured.
+            ///
+            /// - Remark: Generated from `#/components/schemas/WebhookPreview/visibility`.
+            public var visibility: Components.Schemas.WebhookPreview.visibilityPayload?
+            /// Creates a new `WebhookPreview`.
+            ///
+            /// - Parameters:
+            ///   - bundle_identifier: App bundle identifier, when known.
+            ///   - display_name: App display name, when known.
+            ///   - git_branch: Git branch the preview was uploaded from.
+            ///   - git_commit_sha: Git commit SHA the preview was uploaded from.
+            ///   - git_ref: Git ref the preview was uploaded from (typically only populated on CI runs from a pull request).
+            ///   - id: Identifier of the preview.
+            ///   - inserted_at: ISO-8601 timestamp at which the preview was created.
+            ///   - project_id: Identifier of the project the preview belongs to.
+            ///   - supported_platforms: Platforms the preview can run on (e.g. `ios`, `ios_simulator`, `macos`). Empty when not yet detected.
+            ///   - version: App version string, when known.
+            ///   - visibility: Sharing visibility of the preview. `null` for previews uploaded before the account had a default visibility configured.
+            public init(
+                bundle_identifier: Swift.String? = nil,
+                display_name: Swift.String? = nil,
+                git_branch: Swift.String? = nil,
+                git_commit_sha: Swift.String? = nil,
+                git_ref: Swift.String? = nil,
+                id: Swift.String,
+                inserted_at: Foundation.Date,
+                project_id: Swift.Int,
+                supported_platforms: [Swift.String],
+                version: Swift.String? = nil,
+                visibility: Components.Schemas.WebhookPreview.visibilityPayload? = nil
+            ) {
+                self.bundle_identifier = bundle_identifier
+                self.display_name = display_name
+                self.git_branch = git_branch
+                self.git_commit_sha = git_commit_sha
+                self.git_ref = git_ref
+                self.id = id
+                self.inserted_at = inserted_at
+                self.project_id = project_id
+                self.supported_platforms = supported_platforms
+                self.version = version
+                self.visibility = visibility
+            }
+            public enum CodingKeys: String, CodingKey {
+                case bundle_identifier
+                case display_name
+                case git_branch
+                case git_commit_sha
+                case git_ref
+                case id
+                case inserted_at
+                case project_id
+                case supported_platforms
+                case version
+                case visibility
+            }
+        }
+        /// Fires after a preview is removed from the account. The `object` is a snapshot of the preview as it existed immediately before deletion.
+        ///
+        /// - Remark: Generated from `#/components/schemas/WebhookPreviewDeletedEvent`.
+        public struct WebhookPreviewDeletedEvent: Codable, Hashable, Sendable {
+            /// Unix timestamp (seconds) at which Tuist enqueued the delivery.
+            ///
+            /// - Remark: Generated from `#/components/schemas/WebhookPreviewDeletedEvent/created`.
+            public var created: Swift.Int64
+            /// UUID unique to this delivery. Use it to deduplicate when retries fire.
+            ///
+            /// - Remark: Generated from `#/components/schemas/WebhookPreviewDeletedEvent/id`.
+            public var id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/WebhookPreviewDeletedEvent/object`.
+            public var object: Components.Schemas.WebhookPreview
+            /// Discriminator for the event type.
+            ///
+            /// - Remark: Generated from `#/components/schemas/WebhookPreviewDeletedEvent/type`.
+            @frozen public enum _typePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case preview_period_deleted = "preview.deleted"
+            }
+            /// Discriminator for the event type.
+            ///
+            /// - Remark: Generated from `#/components/schemas/WebhookPreviewDeletedEvent/type`.
+            public var _type: Components.Schemas.WebhookPreviewDeletedEvent._typePayload
+            /// Creates a new `WebhookPreviewDeletedEvent`.
+            ///
+            /// - Parameters:
+            ///   - created: Unix timestamp (seconds) at which Tuist enqueued the delivery.
+            ///   - id: UUID unique to this delivery. Use it to deduplicate when retries fire.
+            ///   - object:
+            ///   - _type: Discriminator for the event type.
+            public init(
+                created: Swift.Int64,
+                id: Swift.String,
+                object: Components.Schemas.WebhookPreview,
+                _type: Components.Schemas.WebhookPreviewDeletedEvent._typePayload
+            ) {
+                self.created = created
+                self.id = id
+                self.object = object
+                self._type = _type
+            }
+            public enum CodingKeys: String, CodingKey {
+                case created
+                case id
+                case object
+                case _type = "type"
+            }
+        }
+        /// Fires the first time Tuist observes a test case in the account. The `object` is a snapshot of that newly-seen test case.
+        ///
+        /// - Remark: Generated from `#/components/schemas/WebhookTestCaseCreatedEvent`.
+        public struct WebhookTestCaseCreatedEvent: Codable, Hashable, Sendable {
+            /// Unix timestamp (seconds) at which Tuist enqueued the delivery.
+            ///
+            /// - Remark: Generated from `#/components/schemas/WebhookTestCaseCreatedEvent/created`.
+            public var created: Swift.Int64
+            /// UUID unique to this delivery. Use it to deduplicate when retries fire — the same `id` is sent on every retry of the same event.
+            ///
+            /// - Remark: Generated from `#/components/schemas/WebhookTestCaseCreatedEvent/id`.
+            public var id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/WebhookTestCaseCreatedEvent/object`.
+            public var object: Components.Schemas.WebhookTestCase
+            /// Discriminator for the event type.
+            ///
+            /// - Remark: Generated from `#/components/schemas/WebhookTestCaseCreatedEvent/type`.
+            @frozen public enum _typePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case test_case_period_created = "test_case.created"
+            }
+            /// Discriminator for the event type.
+            ///
+            /// - Remark: Generated from `#/components/schemas/WebhookTestCaseCreatedEvent/type`.
+            public var _type: Components.Schemas.WebhookTestCaseCreatedEvent._typePayload
+            /// Creates a new `WebhookTestCaseCreatedEvent`.
+            ///
+            /// - Parameters:
+            ///   - created: Unix timestamp (seconds) at which Tuist enqueued the delivery.
+            ///   - id: UUID unique to this delivery. Use it to deduplicate when retries fire — the same `id` is sent on every retry of the same event.
+            ///   - object:
+            ///   - _type: Discriminator for the event type.
+            public init(
+                created: Swift.Int64,
+                id: Swift.String,
+                object: Components.Schemas.WebhookTestCase,
+                _type: Components.Schemas.WebhookTestCaseCreatedEvent._typePayload
+            ) {
+                self.created = created
+                self.id = id
+                self.object = object
+                self._type = _type
+            }
+            public enum CodingKeys: String, CodingKey {
+                case created
+                case id
+                case object
+                case _type = "type"
             }
         }
         /// The upload has been initiated and a ID is returned to upload the various parts using multi-part uploads
@@ -3072,6 +3364,106 @@ public enum Components {
                 case content_length
                 case part_number
                 case upload_id
+            }
+        }
+        /// Snapshot of the test case that triggered the webhook event. Identified by `id`; the surrounding event envelope tells you which transition produced the snapshot.
+        ///
+        /// - Remark: Generated from `#/components/schemas/WebhookTestCase`.
+        public struct WebhookTestCase: Codable, Hashable, Sendable {
+            /// Stable identifier of the test case.
+            ///
+            /// - Remark: Generated from `#/components/schemas/WebhookTestCase/id`.
+            public var id: Swift.String
+            /// True when Tuist (or an operator) has flagged the test case as flaky.
+            ///
+            /// - Remark: Generated from `#/components/schemas/WebhookTestCase/is_flaky`.
+            public var is_flaky: Swift.Bool
+            /// ISO-8601 timestamp of the most recent run, when one exists.
+            ///
+            /// - Remark: Generated from `#/components/schemas/WebhookTestCase/last_ran_at`.
+            public var last_ran_at: Foundation.Date?
+            /// Result of the most recent run, when one exists.
+            ///
+            /// - Remark: Generated from `#/components/schemas/WebhookTestCase/last_status`.
+            @frozen public enum last_statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case success = "success"
+                case failure = "failure"
+            }
+            /// Result of the most recent run, when one exists.
+            ///
+            /// - Remark: Generated from `#/components/schemas/WebhookTestCase/last_status`.
+            public var last_status: Components.Schemas.WebhookTestCase.last_statusPayload?
+            /// Name of the module the test case belongs to.
+            ///
+            /// - Remark: Generated from `#/components/schemas/WebhookTestCase/module_name`.
+            public var module_name: Swift.String
+            /// Test case name (the method name).
+            ///
+            /// - Remark: Generated from `#/components/schemas/WebhookTestCase/name`.
+            public var name: Swift.String
+            /// Identifier of the project the test case belongs to.
+            ///
+            /// - Remark: Generated from `#/components/schemas/WebhookTestCase/project_id`.
+            public var project_id: Swift.Int
+            /// Current lifecycle state of the test case.
+            ///
+            /// - Remark: Generated from `#/components/schemas/WebhookTestCase/state`.
+            @frozen public enum statePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case enabled = "enabled"
+                case muted = "muted"
+                case skipped = "skipped"
+            }
+            /// Current lifecycle state of the test case.
+            ///
+            /// - Remark: Generated from `#/components/schemas/WebhookTestCase/state`.
+            public var state: Components.Schemas.WebhookTestCase.statePayload
+            /// Name of the test suite the test case belongs to.
+            ///
+            /// - Remark: Generated from `#/components/schemas/WebhookTestCase/suite_name`.
+            public var suite_name: Swift.String
+            /// Creates a new `WebhookTestCase`.
+            ///
+            /// - Parameters:
+            ///   - id: Stable identifier of the test case.
+            ///   - is_flaky: True when Tuist (or an operator) has flagged the test case as flaky.
+            ///   - last_ran_at: ISO-8601 timestamp of the most recent run, when one exists.
+            ///   - last_status: Result of the most recent run, when one exists.
+            ///   - module_name: Name of the module the test case belongs to.
+            ///   - name: Test case name (the method name).
+            ///   - project_id: Identifier of the project the test case belongs to.
+            ///   - state: Current lifecycle state of the test case.
+            ///   - suite_name: Name of the test suite the test case belongs to.
+            public init(
+                id: Swift.String,
+                is_flaky: Swift.Bool,
+                last_ran_at: Foundation.Date? = nil,
+                last_status: Components.Schemas.WebhookTestCase.last_statusPayload? = nil,
+                module_name: Swift.String,
+                name: Swift.String,
+                project_id: Swift.Int,
+                state: Components.Schemas.WebhookTestCase.statePayload,
+                suite_name: Swift.String
+            ) {
+                self.id = id
+                self.is_flaky = is_flaky
+                self.last_ran_at = last_ran_at
+                self.last_status = last_status
+                self.module_name = module_name
+                self.name = name
+                self.project_id = project_id
+                self.state = state
+                self.suite_name = suite_name
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case is_flaky
+                case last_ran_at
+                case last_status
+                case module_name
+                case name
+                case project_id
+                case state
+                case suite_name
             }
         }
         /// A new project token.
@@ -4692,6 +5084,55 @@ public enum Components {
             }
             public enum CodingKeys: String, CodingKey {
                 case name
+                case _type = "type"
+            }
+        }
+        /// Fires when a new preview is created in the account (once the app build has finished uploading). The `object` is a snapshot of the newly-created preview.
+        ///
+        /// - Remark: Generated from `#/components/schemas/WebhookPreviewCreatedEvent`.
+        public struct WebhookPreviewCreatedEvent: Codable, Hashable, Sendable {
+            /// Unix timestamp (seconds) at which Tuist enqueued the delivery.
+            ///
+            /// - Remark: Generated from `#/components/schemas/WebhookPreviewCreatedEvent/created`.
+            public var created: Swift.Int64
+            /// UUID unique to this delivery. Use it to deduplicate when retries fire.
+            ///
+            /// - Remark: Generated from `#/components/schemas/WebhookPreviewCreatedEvent/id`.
+            public var id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/WebhookPreviewCreatedEvent/object`.
+            public var object: Components.Schemas.WebhookPreview
+            /// Discriminator for the event type.
+            ///
+            /// - Remark: Generated from `#/components/schemas/WebhookPreviewCreatedEvent/type`.
+            @frozen public enum _typePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case preview_period_created = "preview.created"
+            }
+            /// Discriminator for the event type.
+            ///
+            /// - Remark: Generated from `#/components/schemas/WebhookPreviewCreatedEvent/type`.
+            public var _type: Components.Schemas.WebhookPreviewCreatedEvent._typePayload
+            /// Creates a new `WebhookPreviewCreatedEvent`.
+            ///
+            /// - Parameters:
+            ///   - created: Unix timestamp (seconds) at which Tuist enqueued the delivery.
+            ///   - id: UUID unique to this delivery. Use it to deduplicate when retries fire.
+            ///   - object:
+            ///   - _type: Discriminator for the event type.
+            public init(
+                created: Swift.Int64,
+                id: Swift.String,
+                object: Components.Schemas.WebhookPreview,
+                _type: Components.Schemas.WebhookPreviewCreatedEvent._typePayload
+            ) {
+                self.created = created
+                self.id = id
+                self.object = object
+                self._type = _type
+            }
+            public enum CodingKeys: String, CodingKey {
+                case created
+                case id
+                case object
                 case _type = "type"
             }
         }
