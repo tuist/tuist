@@ -43,29 +43,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Ensure Tart
-        # Install-if-missing, never upgrade. The host's Tart install
-        # is pinned at bootstrap time
-        # (infra/macos-host-bootstrap installBuilderTooling runs
-        # `brew pin tart packer`) because the Local Network access
-        # TCC grant on macOS Tahoe is keyed on the binary's code-
-        # signature. A `brew upgrade tart` replaces the binary with a
-        # new signature, silently revokes the grant, and the next
-        # `tart-cli.runner: Waiting for SSH...` step hangs until an
-        # operator VNC's in and clicks "Allow" again. Tart upgrades
-        # are an explicit operator action (`brew unpin tart && brew
-        # upgrade tart && brew pin tart`) that pairs with re-granting
-        # Local Network access out of band. The install fallback
-        # below is a safety net for hosts that somehow lost Tart
-        # (e.g. an operator `brew uninstall`); it does not run on a
-        # host that already has tart on PATH.
-        run: |
-          set -euo pipefail
-          if ! command -v tart >/dev/null 2>&1; then
-            brew tap cirruslabs/cli
-            brew install cirruslabs/cli/tart
-          fi
-          tart --version
+      - name: Install Tart
+        run: brew install cirruslabs/cli/tart
 
       - name: Initialize Packer
         working-directory: infra/runner-image

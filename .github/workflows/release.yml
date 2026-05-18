@@ -2142,19 +2142,8 @@ jobs:
           tar -czf /tmp/release.tar.gz -C "${{ steps.release.outputs.dir }}" .
           ls -lh /tmp/release.tar.gz
 
-      - name: Ensure Tart
-        # Install-if-missing, never upgrade. See runner-image.yml's
-        # "Ensure Tart" step for the long explanation: Tart upgrades
-        # change the binary signature, which silently revokes the
-        # Tahoe Local Network access TCC grant. Tart is pinned at
-        # bootstrap; upgrades are explicit operator actions.
-        run: |
-          set -euo pipefail
-          if ! command -v tart >/dev/null 2>&1; then
-            brew tap cirruslabs/cli
-            brew install cirruslabs/cli/tart
-          fi
-          tart --version
+      - name: Install Tart
+        run: brew install cirruslabs/cli/tart
 
       - name: Initialize Packer
         working-directory: infra/xcresult-processor-image
