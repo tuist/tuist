@@ -271,10 +271,6 @@ runnersFleetLinux:
       # Pod-level autoscaling only. Bare-metal host count is operator-
       # managed via the cluster topology — see staging values for the
       # rationale.
-      #
-      # Tuned against Namespace.so 7-day baseline (peak ~60 concurrent
-      # Linux CPU, ~144 GiB Linux memory — both at or over the current
-      # Namespace ceiling).
       autoscaling:
         enabled: true
         # ~50% of P95: keeps warm runners pre-thawed without paying
