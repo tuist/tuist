@@ -62,7 +62,7 @@ CI:
 - **Steady state.** `feat(runner-image)` / `fix(runner-image)`
   conventional commits on `main` trigger `release.yml`'s
   `release-runner-image` job: builds against the Layer 1 base
-  resolved from `XCODE_VERSION`, pushes
+  resolved from `infra/runner-image/XCODE_VERSION`, pushes
   `ghcr.io/tuist/tuist-runner:macos-<major>-<minor>-<semver>`
   + `:macos-<major>-<minor>` (the rolling profile tag), resolves
   the digest with `crane digest`, rewrites
@@ -97,8 +97,10 @@ Bumping the Xcode customers see on their runners is a two-step:
    macos-xcode-image.yml -f xcode_version=26.X.Y`. See
    `infra/macos-xcode-image/AGENTS.md` for the runbook (including
    the quarterly `xcodes signin` re-mint).
-2. Bump `XCODE_VERSION` in `.github/workflows/release.yml`'s env
-   block so the next release-runner-image run builds against
+2. Bump the version pin in `infra/runner-image/XCODE_VERSION` and
+   commit with a `feat(runner-image): bump to Xcode X.Y.Z`
+   message. The file lives under this image's release-include-path
+   so check-releases triggers a rebuild against
    `ghcr.io/tuist/macos-tahoe-xcode:<major>-<minor>` and rewrites
    the chart's `runnersFleet.runnerImage` digest pin.
 

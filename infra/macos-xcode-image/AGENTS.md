@@ -105,12 +105,15 @@ automatically roll customer runners to Xcode 26.5. To promote:
 
 1. Trigger this workflow with the new `xcode_version`. Verify the
    tag appears in GHCR.
-2. Bump `XCODE_VERSION` in `.github/workflows/release.yml` (env
-   block) so subsequent runner-image releases build against the
-   new base. Merge.
-3. The next `release-runner-image` run rebuilds
+2. Bump `infra/runner-image/XCODE_VERSION` and
+   `infra/xcresult-processor-image/XCODE_VERSION` to the same
+   value. Commit with a `feat(runner-image): bump to Xcode X.Y.Z`
+   (and a parallel `feat(xcresult-processor-image): ...`) message
+   so check-releases picks it up — each file lives under its
+   image's release-include-path, so a touch is what triggers the
+   Layer 2 rebuild.
+3. After merge, `release-runner-image` rebuilds
    `tuist-runner:macos-<major>-<minor>` against the new base and
-   rewrites the chart's `runnersFleet.runnerImage` digest pin.
-
-The xcresult-processor release flow picks up the new base on its
-next server release the same way.
+   rewrites the chart's `runnersFleet.runnerImage` digest pin;
+   `release-xcresult-processor-image` does the same on the next
+   server release.

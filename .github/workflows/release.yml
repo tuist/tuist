@@ -20,13 +20,6 @@ env:
   MISE_GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
   TUIST_ENABLE_CACHING: "true"
   MISE_GITHUB_ATTESTATIONS: 0
-  # Xcode version installed into the macOS Tart images
-  # (xcresult-processor + runner). Consumed by the release-runner-image
-  # and release-xcresult-processor-image jobs to pull
-  # `ghcr.io/tuist/xcode-xip:<XCODE_VERSION>` and pass it to Packer.
-  # Bump in lock-step with the .xip uploaded to GHCR — see
-  # `infra/runner-image/AGENTS.md` for the upload runbook.
-  XCODE_VERSION: "26.4.1"
 
 jobs:
   check-releases:
@@ -2181,11 +2174,15 @@ jobs:
         working-directory: infra/xcresult-processor-image
         run: |
           set -euo pipefail
-          # Layer 1 base derived from XCODE_VERSION's major-minor.
-          # Bumping XCODE_VERSION in the workflow env is how we roll
-          # the processor onto a new Xcode — assumes the matching
-          # Layer 1 tag has already been published by
+          # Layer 1 base derived from the image's pinned XCODE_VERSION
+          # file. Lives under this dir so check-releases (which
+          # filters commits by `infra/xcresult-processor-image/**`
+          # paths) catches Xcode bumps as a release trigger — without
+          # the file in the include-path, a commit that only rolls
+          # the Xcode pin would leave this job skipped. Assumes the
+          # matching Layer 1 tag has already been published by
           # macos-xcode-image.yml.
+          XCODE_VERSION=$(cat XCODE_VERSION | tr -d '[:space:]')
           MAJOR_MINOR=$(echo "${XCODE_VERSION}" | sed -E 's/^([0-9]+\.[0-9]+).*/\1/' | tr '.' '-')
           BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode:${MAJOR_MINOR}"
           env -u GITHUB_TOKEN -u MISE_GITHUB_TOKEN packer build \
@@ -2236,6 +2233,8 @@ jobs:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     outputs:
       release-notes: ${{ steps.release-notes.outputs.RELEASE_NOTES }}
+      profile: ${{ steps.build.outputs.profile }}
+      digest: ${{ steps.push.outputs.digest }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -2319,10 +2318,14 @@ jobs:
         working-directory: infra/runner-image
         run: |
           set -euo pipefail
-          # Layer 1 base derived from XCODE_VERSION's major-minor.
-          # Bumping XCODE_VERSION in the workflow env is how we roll
-          # the fleet onto a new Xcode — assumes the matching Layer
+          # Layer 1 base derived from the image's pinned XCODE_VERSION
+          # file. Lives under this dir so check-releases (which
+          # filters commits by `infra/runner-image/**` paths) catches
+          # Xcode bumps as a release trigger — without the file in
+          # the include-path, a commit that only rolls the Xcode pin
+          # would leave this job skipped. Assumes the matching Layer
           # 1 tag has already been published by macos-xcode-image.yml.
+          XCODE_VERSION=$(cat XCODE_VERSION | tr -d '[:space:]')
           MAJOR_MINOR=$(echo "${XCODE_VERSION}" | sed -E 's/^([0-9]+\.[0-9]+).*/\1/' | tr '.' '-')
           BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode:${MAJOR_MINOR}"
           env -u GITHUB_TOKEN -u MISE_GITHUB_TOKEN packer build \
@@ -2831,7 +2834,8 @@ jobs:
           name: Runner Image ${{ needs.check-releases.outputs.runner-image-next-version-number }}
           tag_name: ${{ needs.check-releases.outputs.runner-image-next-version }}
           body: |
-            Tart image: `ghcr.io/tuist/tuist-runner:${{ needs.check-releases.outputs.runner-image-next-version-number }}`
+            Tart image: `ghcr.io/tuist/tuist-runner:${{ needs.release-runner-image.outputs.profile }}-${{ needs.check-releases.outputs.runner-image-next-version-number }}`
+            Digest: `ghcr.io/tuist/tuist-runner@${{ needs.release-runner-image.outputs.digest }}`
 
             ${{ needs.release-runner-image.outputs.release-notes }}
 

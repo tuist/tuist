@@ -133,11 +133,17 @@ build {
   # simulator runtimes at image build so the first job on a fresh VM
   # doesn't pay the runtime download cost. Matches what GitHub-hosted's
   # macos-26 image ships.
+  #
+  # `echo 'admin' | sudo -S` on the first sudo call primes the
+  # admin sudo timestamp cache; subsequent bare `sudo` calls in the
+  # same SSH session ride that cache. Packer shell provisioners are
+  # non-interactive — without this, the first `sudo xcodes install`
+  # would hang on a password prompt.
   provisioner "shell" {
     inline = [
       "set -euo pipefail",
       "source ~/.zprofile",
-      "sudo xcodes install ${var.xcode_version} --experimental-unxip --path /Users/admin/Downloads/Xcode.xip --select --empty-trash",
+      "echo 'admin' | sudo -S xcodes install ${var.xcode_version} --experimental-unxip --path /Users/admin/Downloads/Xcode.xip --select --empty-trash",
       "INSTALLED_PATH=$(xcodes select -p)",
       "CONTENTS_DIR=$(dirname \"$INSTALLED_PATH\")",
       "APP_DIR=$(dirname \"$CONTENTS_DIR\")",
@@ -157,7 +163,7 @@ build {
   provisioner "shell" {
     inline = [
       "set -euo pipefail",
-      "if [ \"${var.xcode_version}\" != \"${local.xcode_major_minor}\" ]; then sudo ln -sfn /Applications/Xcode_${var.xcode_version}.app /Applications/Xcode_${local.xcode_major_minor}.app; fi",
+      "if [ \"${var.xcode_version}\" != \"${local.xcode_major_minor}\" ]; then echo 'admin' | sudo -S ln -sfn /Applications/Xcode_${var.xcode_version}.app /Applications/Xcode_${local.xcode_major_minor}.app; fi",
       "ls -lhd /Applications/Xcode_${local.xcode_major_minor}*.app /Applications/Xcode_${var.xcode_version}*.app"
     ]
   }
@@ -202,7 +208,7 @@ build {
       "curl -fsSL -o DeveloperIDG2CA.cer https://www.apple.com/certificateauthority/DeveloperIDG2CA.cer",
       "curl -fsSL -o add-certificate.swift https://raw.githubusercontent.com/actions/runner-images/fb3b6fd69957772c1596848e2daaec69eabca1bb/images/macos/provision/configuration/add-certificate.swift",
       "swiftc -suppress-warnings add-certificate.swift",
-      "sudo ./add-certificate AppleWWDRCAG3.cer",
+      "echo 'admin' | sudo -S ./add-certificate AppleWWDRCAG3.cer",
       "sudo ./add-certificate DeveloperIDG2CA.cer",
       "rm -f add-certificate add-certificate.swift AppleWWDRCAG3.cer DeveloperIDG2CA.cer"
     ]

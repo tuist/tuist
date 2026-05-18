@@ -57,8 +57,10 @@ Bumping the Xcode the processor runs against is a two-step:
    macos-xcode-image.yml -f xcode_version=26.X.Y`. See
    `infra/macos-xcode-image/AGENTS.md` for the runbook (including
    the quarterly `xcodes signin` re-mint).
-2. Bump `XCODE_VERSION` in `.github/workflows/release.yml`'s env
-   block so the next release-xcresult-processor-image run builds
+2. Bump the version pin in `infra/xcresult-processor-image/XCODE_VERSION`
+   and commit with a `feat(xcresult-processor-image): bump to
+   Xcode X.Y.Z` message. The file lives under this image's
+   release-include-path so check-releases triggers a rebuild
    against `ghcr.io/tuist/macos-tahoe-xcode:<major>-<minor>`.
 
 ## Env injection at runtime
