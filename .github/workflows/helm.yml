@@ -100,8 +100,19 @@ jobs:
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
-      - name: Install helm + kubeconform
-        run: mise use -g "helm@${HELM_VERSION}" "kubeconform@${KUBECONFORM_VERSION}"
+      - name: Install helm
+        run: mise use -g "helm@${HELM_VERSION}"
+      - name: Install kubeconform
+        run: |
+          set -euo pipefail
+          archive="kubeconform-linux-amd64.tar.gz"
+          curl -fsSL \
+            "https://github.com/yannh/kubeconform/releases/download/v${KUBECONFORM_VERSION}/${archive}" \
+            -o "$archive"
+          mkdir -p "$HOME/.local/bin"
+          tar -xzf "$archive" kubeconform
+          install -m 0755 kubeconform "$HOME/.local/bin/kubeconform"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: helm template + kubeconform
         # Each entry: name|chart|release|values (values is space-separated;
         # the tuist umbrella layers values-managed-common.yaml under the
