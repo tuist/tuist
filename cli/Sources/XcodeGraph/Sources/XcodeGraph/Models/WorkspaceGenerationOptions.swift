@@ -30,6 +30,33 @@ extension Workspace {
                 testScreenCaptureFormat: ScreenCaptureFormat? = nil
             )
 
+            public var codeCoverageMode: CodeCoverageMode {
+                switch self {
+                case let .enabled(codeCoverageMode, _, _, _, _, _):
+                    return codeCoverageMode
+                case .disabled:
+                    return .disabled
+                }
+            }
+
+            public var parallelization: TestableTarget.Parallelization {
+                switch self {
+                case let .enabled(_, parallelization, _, _, _, _):
+                    return parallelization
+                case .disabled:
+                    return .none
+                }
+            }
+
+            public var randomExecutionOrdering: Bool {
+                switch self {
+                case let .enabled(_, _, randomExecutionOrdering, _, _, _):
+                    return randomExecutionOrdering
+                case .disabled:
+                    return false
+                }
+            }
+
             public var testLanguage: String? {
                 switch self {
                 case let .enabled(_, _, _, language, _, _):
