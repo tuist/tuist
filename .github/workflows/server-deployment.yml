@@ -464,15 +464,17 @@ jobs:
 
             # Surface a missing regional Kura worker pool up front. The
             # controller deployment itself can still succeed without any
-            # Ready `node.cluster.x-k8s.io/pool=kura` nodes, but the
-            # tenant StatefulSets it reconciles will remain Pending.
+            # Ready `node.cluster.x-k8s.io/pool=kura` nodes. The runtime
+            # now falls back to control-plane nodes when needed, but the
+            # region is still degraded until dedicated worker capacity
+            # returns.
             kura_ready_nodes="$(
               KUBECONFIG="$kubeconfig" kubectl get nodes \
                 -l node.cluster.x-k8s.io/pool=kura \
                 -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{range .status.conditions[?(@.type=="Ready")]}{.status}{end}{"\n"}{end}'
             )"
             if ! printf '%s\n' "$kura_ready_nodes" | awk 'NF && $2 == "True" { found=1 } END { exit(found ? 0 : 1) }'; then
-              echo "::warning::No Ready kura pool nodes detected in $region; existing Kura StatefulSets may stay Pending until regional worker capacity is restored."
+              echo "::warning::No Ready kura pool nodes detected in $region; Kura can fall back to control-plane nodes, but the region remains degraded until dedicated worker capacity is restored."
               echo "::group::kura $region capacity snapshot"
               KUBECONFIG="$kubeconfig" kubectl get nodes -L node.cluster.x-k8s.io/pool -o wide 2>&1 || true
               echo "--- node taints ---"
