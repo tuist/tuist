@@ -74,20 +74,6 @@ defmodule TuistWeb.API.Spec do
     |> OpenApiSpex.add_schemas(@webhook_event_schemas)
   end
 
-  @doc """
-  The list of webhook event schema modules registered under
-  `components.schemas`. Exposed so the spec test can cross-check the
-  set against `Tuist.Webhooks.WebhookEndpoint.event_groups/0`.
-  """
-  def webhook_event_schemas, do: @webhook_event_schemas
-
-  @doc """
-  The name of the OpenAPI tag that carries the webhook events
-  description. Exposed so the spec test can locate it without
-  hard-coding the string.
-  """
-  def webhook_events_tag, do: @webhook_events_tag
-
   # Lives on a top-level OpenAPI tag (not on `info.description`)
   # because Swift OpenAPI Generator splats `info.description` onto
   # the generated `Client.swift` as a leading docblock — which makes
