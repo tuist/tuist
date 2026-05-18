@@ -376,6 +376,37 @@ defmodule Tuist.Kura.ReconcilerTest do
     assert server.last_observed_at
   end
 
+  test "does not project a server active until the Cloudflare-fronted global endpoint serves" do
+    {_account, server, deployment} = create_server()
+    {:ok, _deployment} = Kura.mark_failed(deployment, "apply failed")
+    {:ok, server} = Kura.fail_server(server)
+
+    stub(Provisioner, :current_image_tag, fn %Server{id: id} ->
+      assert id == server.id
+      {:ok, "0.5.2"}
+    end)
+
+    # Workload reports the intended image, but the Cloudflare DNS-only
+    # global endpoint is not serving yet, so the projection must keep
+    # the server out of :active until the proximity-steered record
+    # actually resolves and answers.
+    stub(Provisioner, :global_public_url, fn %Server{id: id} ->
+      assert id == server.id
+      "https://localhost:4100"
+    end)
+
+    expect(Req, :get, fn "https://localhost:4100/up", _opts ->
+      {:error, %Mint.TransportError{reason: :econnrefused}}
+    end)
+
+    assert :ok = Reconciler.reconcile()
+
+    server = Repo.get!(Server, server.id)
+    assert server.status == :failed
+    assert server.observed_image_tag == "0.5.2"
+    assert server.last_observed_at
+  end
+
   defp create_server do
     user = AccountsFixtures.user_fixture()
     account = Accounts.get_account_from_user(user)
