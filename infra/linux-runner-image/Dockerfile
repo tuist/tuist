@@ -30,9 +30,32 @@ ENV DEBIAN_FRONTEND=noninteractive \
     LC_ALL=C.UTF-8 \
     RUNNER_ALLOW_RUNASROOT=0
 
-# Baseline tooling. The runner binary itself needs libicu70 + libssl3
-# + libkrb5; the rest is the minimum a typical CI workflow expects
-# to find on Ubuntu (git, build tools, archivers, curl, jq).
+# Tooling layer. Closes most of the gap against GitHub's
+# Ubuntu hosted-runner image without going to the multi-language
+# multi-version-toolchain extreme (see PR description for what
+# stays deferred to a `tuist-linux-runner-fat` variant).
+#
+# Categorized for readability:
+#   - actions/runner runtime: libicu70 + libssl3 + libkrb5
+#   - baseline shell + transfer: bash, ca-certificates, curl, wget,
+#     gnupg, jq, locales, lsb-release, sudo, tar, unzip, xz-utils
+#   - build toolchain: build-essential pulls gcc/g++/make/libc6-dev;
+#     autoconf/automake/libtool/pkg-config/cmake/ninja/m4/bison/flex/
+#     gettext cover the long tail of NIF + extension builds
+#     (bcrypt_elixir, native Python wheels, native gems, etc.)
+#   - dev headers: -dev packages most native modules link against
+#     when actions/setup-{node,python,ruby,...} compiles them
+#   - archive: zip + bzip2 + p7zip-full (unzip + xz-utils already
+#     covered above)
+#   - VCS extras: git-lfs (assumed present by many CI workflows)
+#   - DB clients: client-only — services land in containers in
+#     workflows that need them
+#   - common CLI utilities: ripgrep, fd-find, tree, less, vim,
+#     httpie, netcat, dnsutils, iputils-ping, file
+#   - python3 toolchain: python3 + pip + venv so actions/setup-*
+#     can bootstrap pip-based tooling without re-installing the
+#     interpreter
+#
 # `actions/runner` registers under a non-root user by default —
 # `RUNNER_ALLOW_RUNASROOT=0` enforces it, and the explicit `runner`
 # user is created below.
@@ -54,6 +77,50 @@ RUN apt-get update \
         unzip \
         wget \
         xz-utils \
+        build-essential \
+        autoconf \
+        automake \
+        libtool \
+        pkg-config \
+        cmake \
+        ninja-build \
+        m4 \
+        bison \
+        flex \
+        gettext \
+        libssl-dev \
+        libffi-dev \
+        zlib1g-dev \
+        libbz2-dev \
+        libreadline-dev \
+        libsqlite3-dev \
+        libncurses-dev \
+        libxml2-dev \
+        libxslt1-dev \
+        libyaml-dev \
+        libcurl4-openssl-dev \
+        uuid-dev \
+        zip \
+        bzip2 \
+        p7zip-full \
+        file \
+        git-lfs \
+        postgresql-client \
+        mariadb-client \
+        redis-tools \
+        sqlite3 \
+        ripgrep \
+        fd-find \
+        tree \
+        less \
+        vim-tiny \
+        httpie \
+        netcat-openbsd \
+        dnsutils \
+        iputils-ping \
+        python3 \
+        python3-pip \
+        python3-venv \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
