@@ -53,7 +53,6 @@ defmodule Tuist.Tests do
   alias Tuist.Tests.TestSuiteRun
   alias Tuist.Webhooks.Dispatcher
 
-  require Logger
   require OpenTelemetry.Tracer
 
   # Number of days of run history used to decide whether a test case is "active"
@@ -1704,8 +1703,10 @@ defmodule Tuist.Tests do
   end
 
   # Webhook fan-out for the same set of test cases that get a `first_run`
-  # audit-log row. Best-effort: failures don't abort the write that
-  # produced the event.
+  # audit-log row. The dispatcher swallows resolver / no-subscriber paths
+  # and wraps the `Oban.insert_all/1` call in its own try/rescue, so this
+  # function doesn't need an outer rescue — surfacing a real failure here
+  # is more useful than silently logging it.
   defp dispatch_test_case_created_webhooks(_project_id, _test_cases, []), do: :ok
 
   defp dispatch_test_case_created_webhooks(project_id, test_cases, first_run_test_case_runs) do
@@ -1713,10 +1714,6 @@ defmodule Tuist.Tests do
     new_test_cases = Enum.filter(test_cases, &MapSet.member?(first_run_ids, &1.id))
     Dispatcher.dispatch_test_case_created(project_id, new_test_cases)
     :ok
-  rescue
-    error ->
-      Logger.warning("Webhook dispatch for test_case.created failed: #{inspect(error)}")
-      :ok
   end
 
   defp calculate_avg_test_case_duration(test_cases) do

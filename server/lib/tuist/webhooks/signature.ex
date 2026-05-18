@@ -5,9 +5,13 @@ defmodule Tuist.Webhooks.Signature do
 
   The signed string is `"\#{unix_timestamp}.\#{raw_json_payload}"`. The header
   value is `"t=\#{timestamp},v1=\#{hex_signature}"`. Consumers verify by
-  recomputing the HMAC over the same string and comparing in constant time;
-  they should reject anything older than `tolerance_seconds` (default 5
-  minutes) to prevent replay.
+  recomputing the HMAC over the same string and comparing in constant time.
+
+  The `tolerance_seconds` check (default 5 minutes) only *bounds* the
+  replay window — a captured request can still be replayed within it.
+  For full replay defense, receivers must dedupe deliveries on the
+  payload `id` (also surfaced as the `Tuist-Event-Id` header), which is
+  stable across the retry schedule.
   """
 
   @default_tolerance_seconds 300

@@ -81,6 +81,19 @@
     icon="cube_send"
     title={dgettext("dashboard_account", "Request")}
   >
+    <:actions>
+      <.button
+        id="copy-request-body"
+        variant="secondary"
+        label={dgettext("dashboard_account", "Copy payload")}
+        size="medium"
+        phx-hook="Clipboard"
+        data-clipboard-value={format_body(@attempt.request_body)}
+        disabled={@attempt.request_body in [nil, ""]}
+      >
+        <:icon_left><.copy /></:icon_left>
+      </.button>
+    </:actions>
     <.card_section data-part="request-card-section">
       <div data-part="subheading">
         <span data-part="label">{dgettext("dashboard_account", "Headers")}</span>
@@ -103,6 +116,19 @@
     icon="download"
     title={dgettext("dashboard_account", "Response")}
   >
+    <:actions :if={response_received?(@attempt)}>
+      <.button
+        id="copy-response-body"
+        variant="secondary"
+        label={dgettext("dashboard_account", "Copy body")}
+        size="medium"
+        phx-hook="Clipboard"
+        data-clipboard-value={format_body(@attempt.response_body)}
+        disabled={@attempt.response_body in [nil, ""]}
+      >
+        <:icon_left><.copy /></:icon_left>
+      </.button>
+    </:actions>
     <.card_section data-part="response-card-section">
       <%= if response_received?(@attempt) do %>
         <div data-part="subheading">

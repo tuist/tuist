@@ -4,6 +4,7 @@ defmodule Tuist.Webhooks.Workers.DeliveryWorkerTest do
 
   alias Tuist.OAuth2.SSRFGuard
   alias Tuist.Webhooks
+  alias Tuist.Webhooks.DeliveryAttempt
   alias Tuist.Webhooks.Signature
   alias Tuist.Webhooks.Workers.DeliveryWorker
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -19,10 +20,6 @@ defmodule Tuist.Webhooks.Workers.DeliveryWorkerTest do
 
     stub(SSRFGuard, :connect_options, fn _hostname -> [] end)
 
-    :ok
-  end
-
-  defp build_endpoint do
     account = AccountsFixtures.user_fixture().account
 
     {:ok, endpoint, plaintext} =
@@ -32,21 +29,24 @@ defmodule Tuist.Webhooks.Workers.DeliveryWorkerTest do
         "event_types" => ["test_case.updated"]
       })
 
-    %{endpoint: endpoint, plaintext: plaintext}
-  end
+    event_id = Ecto.UUID.generate()
 
-  defp job_args(endpoint, opts \\ []) do
-    %{
+    args = %{
       "webhook_endpoint_id" => endpoint.id,
-      "event_id" => Keyword.get(opts, :event_id, Ecto.UUID.generate()),
-      "event_type" => Keyword.get(opts, :event_type, "test_case.updated"),
-      "payload" => Keyword.get(opts, :payload, %{"foo" => "bar"})
+      "event_id" => event_id,
+      "event_type" => "test_case.updated",
+      "payload" => %{"foo" => "bar"}
     }
+
+    %{endpoint: endpoint, plaintext: plaintext, event_id: event_id, args: args}
   end
 
-  test "POSTs the JSON envelope with HMAC headers on a 2xx" do
-    %{endpoint: endpoint, plaintext: secret} = build_endpoint()
-    args = job_args(endpoint, payload: %{"id" => "evt_1"})
+  test "POSTs the JSON envelope with HMAC headers on a 2xx", %{
+    endpoint: endpoint,
+    plaintext: secret,
+    args: args
+  } do
+    args = put_in(args["payload"], %{"id" => "evt_1"})
 
     expect(Req, :post, fn url, opts ->
       assert url == endpoint.url
@@ -68,32 +68,34 @@ defmodule Tuist.Webhooks.Workers.DeliveryWorkerTest do
     assert :ok = DeliveryWorker.perform(%Oban.Job{args: args, attempt: 1})
   end
 
-  test "returns {:error, _} on a non-2xx response so Oban retries" do
-    %{endpoint: endpoint} = build_endpoint()
-
+  test "returns {:error, _} on a non-2xx response so Oban retries", %{args: args} do
     expect(Req, :post, fn _url, _opts ->
       {:ok, %Req.Response{status: 503, body: "unavailable"}}
     end)
 
-    assert {:error, "HTTP 503"} = DeliveryWorker.perform(%Oban.Job{args: job_args(endpoint), attempt: 1})
+    assert {:error, "HTTP 503"} = DeliveryWorker.perform(%Oban.Job{args: args, attempt: 1})
   end
 
-  test "returns {:error, _} on a network error" do
-    %{endpoint: endpoint} = build_endpoint()
+  test "returns {:error, _} on a network error", %{args: args} do
     expect(Req, :post, fn _url, _opts -> {:error, :timeout} end)
-    assert {:error, :timeout} = DeliveryWorker.perform(%Oban.Job{args: job_args(endpoint), attempt: 1})
+    assert {:error, :timeout} = DeliveryWorker.perform(%Oban.Job{args: args, attempt: 1})
   end
 
-  test "discards the job when the endpoint no longer exists" do
-    %{endpoint: endpoint} = build_endpoint()
+  test "discards the job when the endpoint no longer exists", %{
+    endpoint: endpoint,
+    args: args
+  } do
     {:ok, _} = Webhooks.delete_endpoint(endpoint)
 
     assert {:discard, :endpoint_not_found} =
-             DeliveryWorker.perform(%Oban.Job{args: job_args(endpoint), attempt: 1})
+             DeliveryWorker.perform(%Oban.Job{args: args, attempt: 1})
   end
 
-  test "re-reads the endpoint per attempt so secret rotations take effect" do
-    %{endpoint: endpoint, plaintext: original} = build_endpoint()
+  test "re-reads the endpoint per attempt so secret rotations take effect", %{
+    endpoint: endpoint,
+    plaintext: original,
+    args: args
+  } do
     {:ok, _rotated, new_secret} = Webhooks.rotate_signing_secret(endpoint)
     refute original == new_secret
 
@@ -107,7 +109,119 @@ defmodule Tuist.Webhooks.Workers.DeliveryWorkerTest do
       {:ok, %Req.Response{status: 200, body: ""}}
     end)
 
-    assert :ok = DeliveryWorker.perform(%Oban.Job{args: job_args(endpoint), attempt: 2})
+    assert :ok = DeliveryWorker.perform(%Oban.Job{args: args, attempt: 2})
+  end
+
+  describe "attempt persistence" do
+    test "buffers a delivered row carrying the attempt number on the retry path", %{
+      endpoint: endpoint,
+      event_id: event_id,
+      args: args
+    } do
+      expect(Req, :post, fn _url, _opts ->
+        {:ok, %Req.Response{status: 200, body: "ok"}}
+      end)
+
+      expect(DeliveryAttempt.Buffer, :insert, fn row ->
+        assert row.webhook_endpoint_id == endpoint.id
+        assert row.event_id == event_id
+        assert row.event_type == "test_case.updated"
+        # Retry attempts persist with the matching counter so the
+        # dashboard can show the per-attempt history.
+        assert row.attempt == 4
+        assert row.status == "delivered"
+        assert row.response_status == 200
+        assert row.error == ""
+        :ok
+      end)
+
+      assert :ok = DeliveryWorker.perform(%Oban.Job{args: args, attempt: 4})
+    end
+
+    test "records the upstream status and error message on a non-2xx response", %{
+      endpoint: endpoint,
+      event_id: event_id,
+      args: args
+    } do
+      expect(Req, :post, fn _url, _opts ->
+        {:ok, %Req.Response{status: 503, body: "unavailable"}}
+      end)
+
+      expect(DeliveryAttempt.Buffer, :insert, fn row ->
+        assert row.webhook_endpoint_id == endpoint.id
+        assert row.event_id == event_id
+        assert row.attempt == 2
+        assert row.status == "failed"
+        assert row.response_status == 503
+        assert row.error == "HTTP 503"
+        :ok
+      end)
+
+      assert {:error, "HTTP 503"} = DeliveryWorker.perform(%Oban.Job{args: args, attempt: 2})
+    end
+
+    test "records a network error with `response_status: 0`", %{
+      endpoint: endpoint,
+      event_id: event_id,
+      args: args
+    } do
+      expect(Req, :post, fn _url, _opts -> {:error, :timeout} end)
+
+      expect(DeliveryAttempt.Buffer, :insert, fn row ->
+        assert row.webhook_endpoint_id == endpoint.id
+        assert row.event_id == event_id
+        assert row.attempt == 3
+        assert row.status == "failed"
+        assert row.response_status == 0
+        assert row.error == ":timeout"
+        :ok
+      end)
+
+      assert {:error, :timeout} = DeliveryWorker.perform(%Oban.Job{args: args, attempt: 3})
+    end
+
+    test "redacts the Tuist-Signature header from the persisted row", %{args: args} do
+      expect(Req, :post, fn _url, _opts ->
+        {:ok, %Req.Response{status: 200, body: ""}}
+      end)
+
+      expect(DeliveryAttempt.Buffer, :insert, fn row ->
+        headers = JSON.decode!(row.request_headers)
+        assert headers["Tuist-Signature"] == "[redacted]"
+        # Non-sensitive headers are kept intact so the dashboard remains useful.
+        assert headers["Content-Type"] == "application/json"
+        assert headers["User-Agent"] == "Tuist-Webhooks/1.0"
+        :ok
+      end)
+
+      assert :ok = DeliveryWorker.perform(%Oban.Job{args: args, attempt: 1})
+    end
+
+    test "redacts sensitive response headers (set-cookie, authorization, …)", %{args: args} do
+      expect(Req, :post, fn _url, _opts ->
+        {:ok,
+         %Req.Response{
+           status: 200,
+           headers: %{
+             "set-cookie" => "session=secret",
+             "authorization" => "Bearer abc",
+             "X-Trace-Id" => "tr-1"
+           },
+           body: ""
+         }}
+      end)
+
+      expect(DeliveryAttempt.Buffer, :insert, fn row ->
+        headers = JSON.decode!(row.response_headers)
+        assert headers["set-cookie"] == "[redacted]"
+        assert headers["authorization"] == "[redacted]"
+        # Non-sensitive headers pass through unchanged.
+        assert headers["X-Trace-Id"] == "tr-1"
+        :ok
+      end)
+
+      assert :ok = DeliveryWorker.perform(%Oban.Job{args: args, attempt: 1})
+    end
   end
 
   describe "backoff/1" do

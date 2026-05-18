@@ -25,12 +25,7 @@ You can start receiving event notifications in your app with these steps:
 
 Tuist groups events by the resource they describe. The `type` field in the envelope uses dotted notation (`{resource}.{action}`) — same as the value you'd subscribe to in the dashboard.
 
-| Type                  | When it fires                                                                                  |
-| --------------------- | ---------------------------------------------------------------------------------------------- |
-| `test_case.created`   | A test case was observed for the first time in this account.                                   |
-| `test_case.updated`   | A test case's attributes changed — flakiness flag, state transition (muted, skipped), etc.     |
-| `preview.created`     | A new preview was created (fires once the app build finishes uploading).                       |
-| `preview.deleted`     | A preview was deleted from this account.                                                       |
+{{webhook_events_table}}
 
 More event types will follow. If you need one we don't yet emit, let us know and we'll add it to the catalog.
 
@@ -39,7 +34,7 @@ More event types will follow. If you need one we don't yet emit, let us know and
 Endpoints are configured per account. Open **Webhooks** from your account settings, click **Add endpoint**, and provide:
 
 - **Name** — how the endpoint appears in the listing.
-- **Endpoint URL** — must use `https://`. Private network destinations (loopback, RFC1918, link-local, cloud metadata addresses) are rejected at delivery time so a misconfigured webhook can't be used to probe internal services.
+- **Endpoint URL** — must use `https://`.
 - **Events to listen for** — pick the specific events, or use **Select all** at the group level. Tuist only POSTs to the endpoint when one of the subscribed events fires.
 
 ![The Endpoints listing with two webhook endpoints subscribed to two events each](/images/guides/integrations/webhooks/endpoints.png)
@@ -75,7 +70,7 @@ Each request also carries these HTTP headers:
 
 ## Responding to a webhook {#responding}
 
-To acknowledge a delivery, your endpoint should return any `2xx` status code. Tuist treats anything else (3xx, 4xx, 5xx) — along with connection failures and timeouts — as a delivery failure and will retry.
+To acknowledge a delivery, your endpoint should return any `2xx` status code. Anything outside the `2xx` range — along with connection failures and timeouts — is treated as a delivery failure and retried. Tuist doesn't follow `3xx` responses, so respond at the canonical URL directly rather than redirecting.
 
 Keep your handler **fast**: Tuist waits up to **10 seconds** for the response. If you have heavy work to do (calling another API, updating a database, sending notifications), accept the request and process it asynchronously. Returning early also makes you resilient to transient slowness in your downstream services.
 
@@ -94,8 +89,9 @@ header         = "t={timestamp},v1={hex(signature)}"
 To verify on your side:
 
 1. Read the `Tuist-Signature` header and split it into the `t=` (timestamp) and `v1=` (hex digest) parts.
-2. Reject the request if the timestamp is more than **5 minutes** away from your server's current time. This prevents replay attacks.
+2. Reject the request if the timestamp is more than **5 minutes** away from your server's current time. This *bounds* the replay window but doesn't close it — pair it with idempotency below.
 3. Recompute `HMAC-SHA256(signing_secret, "{timestamp}.{raw_body}")` and compare it to the digest in **constant time**.
+4. Dedupe deliveries on the payload `id` (also surfaced as the `Tuist-Event-Id` header). It's stable across retries, so persisting the IDs you've already processed prevents a captured request from being replayed within the tolerance window and shields you from double-processing on a retry.
 
 > [!IMPORTANT] USE THE RAW BODY
 > The signature is computed over the bytes Tuist sent. If your web framework reparses and re-serializes the JSON before you verify, the digest won't match. Capture the raw body (e.g. `request.body.read` in Rack, the raw `Buffer` in Express) and pass that to your verifier.

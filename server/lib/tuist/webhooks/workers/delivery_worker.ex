@@ -28,6 +28,18 @@ defmodule Tuist.Webhooks.Workers.DeliveryWorker do
   @request_timeout_ms 10_000
   @user_agent "Tuist-Webhooks/1.0"
 
+  # Stripped from persisted request rows because the value is a valid HMAC
+  # over the body; surfacing it in the dashboard would let anyone with
+  # read access replay the request to the receiver within the tolerance
+  # window.
+  @redacted_request_headers ["Tuist-Signature"]
+
+  # Customer-controlled response headers that may carry secrets — auth
+  # tokens, session cookies, internal tracing IDs. Redacted before the
+  # row hits ClickHouse so the dashboard can't leak them back. The names
+  # are matched case-insensitively because HTTP is.
+  @sensitive_response_headers ~w(set-cookie cookie authorization proxy-authorization x-auth-token)
+
   # Seconds: 1m, 5m, 30m, 2h, 8h, 24h. Applied between attempt N and N+1, so
   # six values pair with max_attempts: 7 (initial + 6 retries).
   @backoff_seconds [60, 300, 1800, 7200, 28_800, 86_400]
@@ -72,7 +84,7 @@ defmodule Tuist.Webhooks.Workers.DeliveryWorker do
 
     started_at = System.monotonic_time(:millisecond)
 
-    {response, result} =
+    {result, response} =
       case SSRFGuard.pin(endpoint.url) do
         {:ok, pinned_url, hostname} ->
           resp =
@@ -90,14 +102,14 @@ defmodule Tuist.Webhooks.Workers.DeliveryWorker do
               connect_options: SSRFGuard.connect_options(hostname)
             )
 
-          {resp, classify(resp)}
+          {classify(resp), resp}
 
         {:error, reason} ->
           # Reject before the request leaves the process — an account
           # owner can't point a webhook at localhost, RFC1918, link-local
           # metadata IPs, etc. The attempt is still recorded so the
           # dashboard surfaces *why* the delivery never happened.
-          {{:error, reason}, {:error, "blocked: #{reason}"}}
+          {{:error, "blocked: #{reason}"}, {:error, reason}}
       end
 
     duration_ms = System.monotonic_time(:millisecond) - started_at
@@ -135,9 +147,9 @@ defmodule Tuist.Webhooks.Workers.DeliveryWorker do
       attempt: fields.attempt,
       status: if(result == :ok, do: "delivered", else: "failed"),
       request_body: fields.request_body,
-      request_headers: encode_headers(fields.request_headers),
+      request_headers: encode_headers(redact_request_headers(fields.request_headers)),
       response_status: response_status(response),
-      response_headers: encode_headers(response_headers_map(response)),
+      response_headers: encode_headers(redact_response_headers(response_headers_map(response))),
       response_body: response_body(response),
       error: error_message(result),
       duration_ms: fields.duration_ms,
@@ -145,13 +157,6 @@ defmodule Tuist.Webhooks.Workers.DeliveryWorker do
     }
 
     DeliveryAttempt.Buffer.insert(row)
-  rescue
-    e ->
-      # We never want bookkeeping to take down a delivery. Surface the
-      # failure as a log entry; the underlying delivery result still
-      # propagates to Oban via the return value.
-      Logger.error("Failed to record webhook delivery attempt: #{inspect(e)}")
-      :ok
   end
 
   defp response_status({:ok, %Req.Response{status: status}}), do: status
@@ -187,6 +192,20 @@ defmodule Tuist.Webhooks.Workers.DeliveryWorker do
   defp headers_to_map(headers) do
     Enum.reduce(headers, %{}, fn {key, value}, acc ->
       Map.update(acc, key, value, fn existing -> "#{existing}, #{value}" end)
+    end)
+  end
+
+  defp redact_request_headers(headers) when is_map(headers) do
+    Map.new(headers, fn {key, value} ->
+      if key in @redacted_request_headers, do: {key, "[redacted]"}, else: {key, value}
+    end)
+  end
+
+  defp redact_response_headers(headers) when is_map(headers) do
+    Map.new(headers, fn {key, value} ->
+      if String.downcase(to_string(key)) in @sensitive_response_headers,
+        do: {key, "[redacted]"},
+        else: {key, value}
     end)
   end
 end
