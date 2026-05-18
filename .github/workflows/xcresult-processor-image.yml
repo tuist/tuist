@@ -95,11 +95,19 @@ jobs:
           tar -czf /tmp/release.tar.gz -C "${{ steps.release.outputs.dir }}" .
           ls -lh /tmp/release.tar.gz
 
-      - name: Update Tart
+      - name: Verify Tart
+        # No upgrade. See runner-image.yml's "Verify Tart" step for
+        # the long explanation: Tart upgrades change the binary
+        # signature, which silently revokes the macOS Tahoe Local
+        # Network access TCC grant the builder host needs to reach
+        # Tart-managed VMs at 192.168.64.x. Tart is pinned at
+        # bootstrap; upgrades are explicit operator actions.
         run: |
           set -euo pipefail
-          brew update
-          brew upgrade cirruslabs/cli/tart || brew install cirruslabs/cli/tart
+          if ! command -v tart >/dev/null 2>&1; then
+            echo "ERROR: tart not on PATH. Re-run the builder bootstrap on this host." >&2
+            exit 1
+          fi
           tart --version
 
       # 2. Bake the tarball into a Tart image.

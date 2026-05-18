@@ -121,13 +121,31 @@ operator has to grant it once per host:
 2. Trigger a workflow run on the host (or any `tart`/`packer`
    invocation). The first invocation that needs vmnet access pops
    a "wants to access devices on your local network" dialog.
-3. Click **Allow**. The grant persists across reboots, but if
-   the binary that asked changes (e.g. `brew upgrade tart`
-   reinstalls Tart with a new signature) the prompt re-fires and
-   needs another Allow.
+3. Click **Allow**. The grant persists across reboots and across
+   re-runs of the workflow.
 
-This is the same fragility the cluster's runners-fleet hosts hit;
-look there for any process improvements that land later.
+**Grants are keyed on the binary's code-signature.** A `brew
+upgrade` that replaces `tart` or `packer` with a new build of the
+same version (or any version bump) silently revokes the grant and
+the prompt re-fires next time the host tries to reach a guest. To
+avoid this, the bootstrap pins both formulae with
+`brew pin tart packer`, and the image-build workflows no longer
+run `brew upgrade tart` defensively. Upgrading Tart or Packer
+becomes an explicit operator action that pairs with VNC-ing in
+and clicking Allow again:
+
+```bash
+ssh m1@<host> '
+  eval "$(/opt/homebrew/bin/brew shellenv)"
+  brew unpin tart packer
+  brew upgrade tart packer
+  brew pin tart packer
+'
+# Then VNC in, dispatch any image workflow, click Allow when prompted.
+```
+
+The same fragility hits the cluster's runners-fleet hosts; look
+there for any process improvements that land later.
 
 ## Keychain access for `tart login`
 

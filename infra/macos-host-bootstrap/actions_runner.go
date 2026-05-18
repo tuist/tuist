@@ -81,6 +81,22 @@ eval "$(/opt/homebrew/bin/brew shellenv)"
 brew tap cirruslabs/cli
 brew tap hashicorp/tap
 brew install mise tart hashicorp/tap/packer
+
+# Pin Tart + Packer so subsequent ` + "`brew upgrade`" + ` calls (whether
+# triggered by an operator typing 'brew upgrade' interactively, or by
+# a workflow step that called it defensively) are no-ops. Stable
+# binary signatures are load-bearing on macOS Tahoe: the Local
+# Network access TCC grant is keyed on the binary's code-signature,
+# and an upgrade replaces the binary with a new signature, which
+# silently revokes the grant. Packer's ` + "`tart-cli.runner: Waiting for SSH`" + `
+# then hangs forever because the host can no longer open TCP to the
+# guest at 192.168.64.x, and the only way to re-grant is a VNC
+# session and a manual "Allow" click. Pinning keeps the grant stable
+# across rebuilds; intentional Tart/Packer upgrades become an
+# explicit operator action that pairs with re-running the Allow
+# click out of band.
+brew pin tart packer
+
 tart --version
 packer --version
 mise --version
