@@ -2,26 +2,38 @@ name: Linux Runner Image
 
 # PR validation + on-demand build of the Tuist Linux runner OCI image
 # consumed by `runnersFleetLinux.pools[].runnerImage` in the helm
-# chart. PR runs build only (no push); workflow_dispatch pushes
-# `:sha-<git-sha>` + `:latest` for branch validation / bring-up.
+# chart.
 #
-# The push-on-main flow lives in release.yml's release-linux-runner-image
-# job — that's the path that produces semver-tagged images, resolves
-# the digest, and rewrites `runnersFleetLinux.pools[].runnerImage` in
-# managed-env values files. This workflow's `:sha-<sha>` tag is for
-# pre-release iteration only and not consumed by the chart from
-# release-relevant commits.
+# PR: builds without pushing — catches Dockerfile / shell-syntax
+#     breakage before merge.
+# workflow_dispatch: builds and pushes a `:sha-<git-sha>` tag so a
+#     branch can be validated against a real cluster before merging.
 #
-# Mirrors the shape of .github/workflows/runner-image.yml — Linux
-# substrate, hosted GitHub runner is sufficient (no Tart / Mac mini
-# required like the macOS runner image).
+# The semver / `:latest` / chart-digest-rewrite flow lives in
+# release.yml's `release-linux-runner-image` job — pushed on main.
+# This workflow deliberately doesn't touch `:latest` or any semver
+# tag; only the release job does.
+#
+# Mirrors the shape of .github/workflows/runner-image.yml (macOS
+# Tart image) minus the PR trigger — Tart builds are expensive
+# enough that PR-on-change validation isn't worth it for macOS;
+# Linux Docker builds are cheap on hosted runners.
 
 on:
   pull_request:
     paths:
       - infra/linux-runner-image/**
       - .github/workflows/linux-runner-image.yml
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      runner_version:
+        description: |
+          Override the `RUNNER_VERSION` build-arg in the Dockerfile
+          to bump-test a new `actions/runner` release before
+          opening the Renovate PR. Leave empty to use the
+          Dockerfile's pinned default (currently 2.334.0).
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -73,11 +85,16 @@ jobs:
         with:
           context: infra/linux-runner-image
           file: infra/linux-runner-image/Dockerfile
-          # Linux runners run on Hetzner Cloud x86 VMs at v1. arm64
-          # is a future option (Ampere-based Hetzner SKUs) and can
-          # land as an additive `platforms:` entry.
+          # Linux runners run on Hetzner Robot bare-metal x86 boxes
+          # at v1. arm64 is a future option (Ampere-based SKUs) and
+          # can land as an additive `platforms:` entry.
           platforms: linux/amd64
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.tags.outputs.tags }}
+          # Only forwarded when explicitly set via workflow_dispatch
+          # input; empty leaves the Dockerfile's `ARG RUNNER_VERSION`
+          # default in place (Renovate-managed).
+          build-args: |
+            ${{ inputs.runner_version && format('RUNNER_VERSION={0}', inputs.runner_version) || '' }}
           cache-from: type=gha,scope=linux-runner-image
           cache-to: type=gha,mode=max,scope=linux-runner-image
