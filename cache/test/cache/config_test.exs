@@ -8,4 +8,15 @@ defmodule Cache.ConfigTest do
       refute String.contains?(cache_endpoint, "@")
     end
   end
+
+  describe "s3_ca_cert_pem/1" do
+    test "returns the configured PEM bundle" do
+      assert Cache.Config.s3_ca_cert_pem(ca_cert_pem: "pem-content") == "pem-content"
+    end
+
+    test "returns nil when unset or blank" do
+      assert Cache.Config.s3_ca_cert_pem([]) == nil
+      assert Cache.Config.s3_ca_cert_pem(ca_cert_pem: "") == nil
+    end
+  end
 end
