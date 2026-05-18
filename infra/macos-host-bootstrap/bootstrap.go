@@ -708,8 +708,8 @@ sudo tee /etc/pf.anchors/tuist.runners >/dev/null <<'PFCONF'
 # IMPORTANT: rules are evaluated last-match-wins; the explicit
 # block lines run AFTER the default pass via the 'quick' keyword.
 
-table <vm_sources> persist { 192.168.64.0/22 }
-table <blocked_dst> persist { 10.0.0.0/8, 172.16.0.0/12, 169.254.0.0/16 }
+table <vm_sources> { 192.168.64.0/22 }
+table <blocked_dst> { 10.0.0.0/8, 172.16.0.0/12, 169.254.0.0/16 }
 
 # Drop VM→private destinations at the host edge.
 block drop out quick from <vm_sources> to <blocked_dst>
@@ -734,14 +734,19 @@ load anchor "tuist.runners" from "/etc/pf.anchors/tuist.runners"
 PFCONFENTRY
 fi
 
-# Flush any state already loaded under our anchor before validating.
-# The 'persist' tables defined in the anchor file (vm_sources,
-# blocked_dst) survive across 'pfctl -f' invocations once loaded;
-# without flushing, a re-run on an already-bootstrapped host fails
-# the validation step below with 'cannot define table vm_sources:
-# Resource busy'. Flushing only our own anchor leaves the system's
-# main ruleset untouched. Tolerate failure here — on a first-run
-# host the anchor doesn't exist yet, and pfctl returns non-zero.
+# Kill any kernel-resident tables from a previous bootstrap pass
+# before the validate. The tables are declared in the anchor file
+# without 'persist' so a clean ruleset load drops them, but hosts
+# that previously ran a 'persist'-flagged version of this script
+# carry the tables in kernel state until something explicitly
+# destroys them — 'pfctl -F all' on the anchor flushes entries and
+# rules but NOT persist tables, so subsequent `pfctl -nf` parses
+# still die on 'cannot define table vm_sources: Resource busy'.
+# `-T kill` actually removes the table from kernel state.
+# Tolerate failure here on first-run hosts where the tables don't
+# yet exist.
+sudo pfctl -a tuist.runners -t vm_sources -T kill 2>/dev/null || true
+sudo pfctl -a tuist.runners -t blocked_dst -T kill 2>/dev/null || true
 sudo pfctl -a tuist.runners -F all 2>/dev/null || true
 
 # Validate the ruleset before activating. -nf parses without
