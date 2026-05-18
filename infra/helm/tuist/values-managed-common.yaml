@@ -230,11 +230,6 @@ macosFleet:
 runnersController:
   image:
     repository: ghcr.io/tuist/tuist-runners-controller
-    # SHA-tagged build from this PR until it merges + the release
-    # pipeline cuts a runners-controller@0.3.0 with the
-    # --dispatch-internal-url flag the chart now passes. The
-    # previously-pinned 0.2.0 image rejects that flag on startup
-    # (`flag provided but not defined`) and crashloops.
     tag: "sha-b4cc4ab7551b"
 
 # Everything below = external. The managed deployment never runs embedded
