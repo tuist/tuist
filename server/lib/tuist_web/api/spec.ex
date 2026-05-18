@@ -16,36 +16,42 @@ defmodule TuistWeb.API.Spec do
 
   @webhook_events_tag "Webhook events"
 
-  # Webhook event schemas aren't reachable from any HTTP route, so the
-  # router-driven `resolve_schema_modules/1` walk doesn't pick them up.
-  # `add_schemas/2` is the documented escape hatch for this exact shape
-  # — see `OpenApiSpex.add_schemas/2`.
-  @webhook_event_schemas [
-    Webhook.TestCase,
-    Webhook.Preview,
-    Webhook.TestCaseCreatedEvent,
-    Webhook.TestCaseUpdatedEvent,
-    Webhook.PreviewCreatedEvent,
-    Webhook.PreviewDeletedEvent
-  ]
+  # Authoritative mapping from event-type string to envelope schema module.
+  # Adding a new event means adding it here AND to
+  # `WebhookEndpoint.event_groups/0`; the compile-time assertion below
+  # tightens that link so the two lists can't drift.
+  @webhook_event_schemas %{
+    "test_case.created" => Webhook.TestCaseCreatedEvent,
+    "test_case.updated" => Webhook.TestCaseUpdatedEvent,
+    "preview.created" => Webhook.PreviewCreatedEvent,
+    "preview.deleted" => Webhook.PreviewDeletedEvent
+  }
+
+  # Supporting types referenced from the event envelopes via `object:`.
+  # Listed explicitly so `add_schemas/2` registers them alongside the
+  # events — they aren't reachable from any HTTP route either.
+  @webhook_supporting_schemas [Webhook.TestCase, Webhook.Preview]
+
+  @catalog_event_types WebhookEndpoint.event_groups()
+                       |> Enum.flat_map(& &1.events)
+                       |> Enum.map(& &1.type)
+
+  if MapSet.new(@catalog_event_types) != MapSet.new(Map.keys(@webhook_event_schemas)) do
+    raise """
+    `@webhook_event_schemas` in #{__MODULE__} is out of sync with
+    `Tuist.Webhooks.WebhookEndpoint.event_groups/0`. Catalog: #{inspect(@catalog_event_types)}, schemas: #{inspect(Map.keys(@webhook_event_schemas))}.
+    """
+  end
 
   # Built at compile time from `Tuist.Webhooks.WebhookEndpoint.event_groups/0`
-  # so the docs table can't drift from the event catalog. Touching the
-  # catalog forces `WebhookEndpoint` to recompile, which forces this
-  # module to recompile and the bundled description to refresh.
+  # so the docs table can't drift from the event catalog. The schema title
+  # is read from each module's `schema().title` rather than mangled from
+  # the event-type string, so renaming a schema only requires touching
+  # the schema module itself.
   @webhook_events_table_rows WebhookEndpoint.event_groups()
                              |> Enum.flat_map(& &1.events)
                              |> Enum.map_join("\n", fn %{type: type, description: description} ->
-                               title =
-                                 type
-                                 |> String.split(".")
-                                 |> Enum.map_join("", fn part ->
-                                   part
-                                   |> String.split("_")
-                                   |> Enum.map_join("", &String.capitalize/1)
-                                 end)
-                                 |> then(&"Webhook#{&1}Event")
-
+                               title = Map.fetch!(@webhook_event_schemas, type).schema().title
                                "| `#{type}` | #{description} | [`#{title}`](#section/Schemas/#{title}) |"
                              end)
 
@@ -110,6 +116,6 @@ defmodule TuistWeb.API.Spec do
       paths: Paths.from_router(Router)
     }
     |> OpenApiSpex.resolve_schema_modules()
-    |> OpenApiSpex.add_schemas(@webhook_event_schemas)
+    |> OpenApiSpex.add_schemas(Map.values(@webhook_event_schemas) ++ @webhook_supporting_schemas)
   end
 end

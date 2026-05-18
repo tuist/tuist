@@ -1,7 +1,7 @@
 defmodule TuistWeb.API.Schemas.Webhook.PreviewCreatedEvent do
   @moduledoc """
-  Envelope schema for the `preview.created` webhook event. Fires once
-  the app build for a new preview has finished uploading.
+  Envelope schema for the `preview.created` webhook event. Fires when a
+  new preview row is created in the account.
   """
   alias OpenApiSpex.Schema
   alias TuistWeb.API.Schemas.Webhook.Preview
@@ -11,7 +11,7 @@ defmodule TuistWeb.API.Schemas.Webhook.PreviewCreatedEvent do
   OpenApiSpex.schema(%{
     title: "WebhookPreviewCreatedEvent",
     description:
-      "Fires when a new preview is created in the account (once the app build has finished uploading). The `object` is a snapshot of the newly-created preview.",
+      "Fires when a new preview row is created in the account. The `object` is a snapshot of the newly-created preview.",
     type: :object,
     required: [:id, :type, :created, :object],
     properties: %{
