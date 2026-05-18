@@ -112,11 +112,32 @@ jobs:
         # between ClusterClass and Cluster CRs so the MD-claimed
         # templates exist by the time the topology controller starts
         # reconciling worker Machines.
+        #
+        # HetznerBareMetalMachineTemplate's spec is immutable by CAPI
+        # convention (every infrastructure template across providers
+        # works this way — the spec is a definitional snapshot that
+        # gets cloned by reference at Machine creation, not mutated in
+        # place). When the PR changes the template, plain `kubectl
+        # apply` fails with `Invalid value: ... is immutable`. Fall
+        # back to delete + apply, which is safe because:
+        # (a) deleting an unreferenced template is a no-op for caph
+        # (b) existing Machines hold a snapshot of the template's
+        #     spec in their own object and aren't affected by the
+        #     template going away.
         run: |
+          set -o pipefail
           for f in infra/k8s/clusters/bare-metal-*.yaml; do
             [ -e "$f" ] || continue
             echo "==> $f"
-            kubectl apply -f "$f"
+            if ! kubectl apply -f "$f" 2>&1 | tee /tmp/apply.out; then
+              if grep -q 'is immutable' /tmp/apply.out; then
+                echo "Immutable spec detected, retrying as delete + apply..."
+                kubectl delete -f "$f" --ignore-not-found --wait=true
+                kubectl apply -f "$f"
+              else
+                exit 1
+              fi
+            fi
           done
       - name: Apply per-env Cluster CRs
         run: |
