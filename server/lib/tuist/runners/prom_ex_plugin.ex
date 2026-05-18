@@ -44,8 +44,6 @@ defmodule Tuist.Runners.PromExPlugin do
   alias Tuist.Runners.Telemetry
   alias TuistCommon.Repo.PoolMetrics
 
-  require Logger
-
   @metric_prefix [:tuist, :runners]
 
   # The bounded universe of lifecycle states a `runner_claims` row
@@ -294,10 +292,6 @@ defmodule Tuist.Runners.PromExPlugin do
     query
     |> ClickHouseRepo.all()
     |> Map.new(fn {fleet, count} -> {fleet || "", count} end)
-  rescue
-    e ->
-      Logger.debug("runners: queue_length poll failed", reason: Exception.message(e))
-      %{}
   end
 
   @doc false
@@ -330,10 +324,6 @@ defmodule Tuist.Runners.PromExPlugin do
     query
     |> Repo.all()
     |> Map.new(fn {fleet, state, count} -> {{fleet || "", state || ""}, count} end)
-  rescue
-    e ->
-      Logger.debug("runners: claims poll failed", reason: Exception.message(e))
-      %{}
   end
 
   # Union of (RunnerPool CRs currently in the cluster) and any
@@ -357,7 +347,7 @@ defmodule Tuist.Runners.PromExPlugin do
   defp ensure_list(list) when is_list(list), do: list
 
   defp active_fleets do
-    case safe_list_runner_pools() do
+    case K8sClient.list_runner_pools(Environment.runners_namespace()) do
       {:ok, items} ->
         items
         |> Enum.map(&pool_name/1)
@@ -374,7 +364,7 @@ defmodule Tuist.Runners.PromExPlugin do
 
   @doc false
   def execute_pool_replicas_telemetry_event do
-    case safe_list_runner_pools() do
+    case K8sClient.list_runner_pools(Environment.runners_namespace()) do
       {:ok, items} ->
         Enum.each(items, &emit_pool_replicas/1)
 
@@ -387,18 +377,12 @@ defmodule Tuist.Runners.PromExPlugin do
   def execute_accounts_enabled_telemetry_event do
     if PoolMetrics.running?(Repo) do
       count =
-        try do
-          Repo.one(
-            from(a in Account,
-              where: not is_nil(a.runner_max_concurrent) and a.runner_max_concurrent > 0,
-              select: count(a.id)
-            )
-          ) || 0
-        rescue
-          e ->
-            Logger.debug("runners: accounts_enabled poll failed", reason: Exception.message(e))
-            0
-        end
+        Repo.one(
+          from(a in Account,
+            where: not is_nil(a.runner_max_concurrent) and a.runner_max_concurrent > 0,
+            select: count(a.id)
+          )
+        ) || 0
 
       :telemetry.execute(
         Telemetry.event_name_accounts_enabled(),
@@ -406,14 +390,6 @@ defmodule Tuist.Runners.PromExPlugin do
         %{}
       )
     end
-  end
-
-  defp safe_list_runner_pools do
-    K8sClient.list_runner_pools(Environment.runners_namespace())
-  rescue
-    e ->
-      Logger.debug("runners: pool replicas poll failed", reason: Exception.message(e))
-      :error
   end
 
   defp emit_pool_replicas(%{"metadata" => %{"name" => name}} = pool) do
