@@ -171,13 +171,17 @@ spec:
           # 3.13.0's was what kicked off this PR's debugging saga).
           KATA_VERSION=3.30.0
           NYDUS_VERSION=v0.15.6
+          # Kata 3.30 ships as zstd-compressed tarball; install zstd
+          # so GNU tar can decompress via `--zstd`. Hetzner's base
+          # Ubuntu image doesn't include zstd.
+          apt-get install -y zstd
           # 1. kata-static under /opt/kata. The tarball expands with a
           # top-level `opt/` so extracting at / lands binaries at
           # /opt/kata/{bin,libexec,share}/...
-          curl -fsSL -o /tmp/kata.tar.xz \
-            "https://github.com/kata-containers/kata-containers/releases/download/${KATA_VERSION}/kata-static-${KATA_VERSION}-amd64.tar.xz"
-          tar -xf /tmp/kata.tar.xz -C /
-          rm /tmp/kata.tar.xz
+          curl -fsSL -o /tmp/kata.tar.zst \
+            "https://github.com/kata-containers/kata-containers/releases/download/${KATA_VERSION}/kata-static-${KATA_VERSION}-amd64.tar.zst"
+          tar --zstd -xf /tmp/kata.tar.zst -C /
+          rm /tmp/kata.tar.zst
           # 2. nydus-snapshotter binary + config + systemd unit.
           # The snapshotter speaks the containerd "proxy snapshotter"
           # protocol over a unix socket and serves OCI image layers
