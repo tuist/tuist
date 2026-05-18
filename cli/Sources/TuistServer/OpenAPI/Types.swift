@@ -8652,6 +8652,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/TestCaseRun/is_new`.
             public var is_new: Swift.Bool
+            /// Whether the test case was quarantined at the time of the run.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestCaseRun/is_quarantined`.
+            public var is_quarantined: Swift.Bool
             /// Module name.
             ///
             /// - Remark: Generated from `#/components/schemas/TestCaseRun/module_name`.
@@ -8694,6 +8698,7 @@ public enum Components {
             ///   - is_ci: Whether the run was on CI.
             ///   - is_flaky: Whether the run was flaky.
             ///   - is_new: Whether this was a new test case.
+            ///   - is_quarantined: Whether the test case was quarantined at the time of the run.
             ///   - module_name: Module name.
             ///   - name: Name of the test case.
             ///   - ran_at: ISO 8601 timestamp when the run executed.
@@ -8708,6 +8713,7 @@ public enum Components {
                 is_ci: Swift.Bool,
                 is_flaky: Swift.Bool,
                 is_new: Swift.Bool,
+                is_quarantined: Swift.Bool,
                 module_name: Swift.String,
                 name: Swift.String,
                 ran_at: Foundation.Date? = nil,
@@ -8722,6 +8728,7 @@ public enum Components {
                 self.is_ci = is_ci
                 self.is_flaky = is_flaky
                 self.is_new = is_new
+                self.is_quarantined = is_quarantined
                 self.module_name = module_name
                 self.name = name
                 self.ran_at = ran_at
@@ -8737,6 +8744,7 @@ public enum Components {
                 case is_ci
                 case is_flaky
                 case is_new
+                case is_quarantined
                 case module_name
                 case name
                 case ran_at
@@ -16280,6 +16288,10 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/GET/responses/200/content/json/is_new`.
                         public var is_new: Swift.Bool
+                        /// Whether the test case was quarantined at the time of the run.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/GET/responses/200/content/json/is_quarantined`.
+                        public var is_quarantined: Swift.Bool
                         /// Module name.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/GET/responses/200/content/json/module_name`.
@@ -16380,6 +16392,7 @@ public enum Operations {
                         ///   - is_ci: Whether the run was on CI.
                         ///   - is_flaky: Whether the run was flaky.
                         ///   - is_new: Whether this was a new test case.
+                        ///   - is_quarantined: Whether the test case was quarantined at the time of the run.
                         ///   - module_name: Module name.
                         ///   - name: Name of the test case.
                         ///   - ran_at: ISO 8601 timestamp when the run executed.
@@ -16400,6 +16413,7 @@ public enum Operations {
                             is_ci: Swift.Bool,
                             is_flaky: Swift.Bool,
                             is_new: Swift.Bool,
+                            is_quarantined: Swift.Bool,
                             module_name: Swift.String,
                             name: Swift.String,
                             ran_at: Foundation.Date? = nil,
@@ -16420,6 +16434,7 @@ public enum Operations {
                             self.is_ci = is_ci
                             self.is_flaky = is_flaky
                             self.is_new = is_new
+                            self.is_quarantined = is_quarantined
                             self.module_name = module_name
                             self.name = name
                             self.ran_at = ran_at
@@ -16441,6 +16456,7 @@ public enum Operations {
                             case is_ci
                             case is_flaky
                             case is_new
+                            case is_quarantined
                             case module_name
                             case name
                             case ran_at

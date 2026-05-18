@@ -4408,6 +4408,11 @@ components:
           type: boolean
           x-struct:
           x-validate:
+        is_quarantined:
+          description: Whether the test case was quarantined at the time of the run.
+          type: boolean
+          x-struct:
+          x-validate:
         module_name:
           description: Module name.
           type: string
@@ -4455,6 +4460,7 @@ components:
         - is_ci
         - is_flaky
         - is_new
+        - is_quarantined
       title: TestCaseRun
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Tests.TestCaseRun
@@ -7889,6 +7895,11 @@ paths:
                     type: boolean
                     x-struct:
                     x-validate:
+                  is_quarantined:
+                    description: Whether the test case was quarantined at the time of the run.
+                    type: boolean
+                    x-struct:
+                    x-validate:
                   module_name:
                     description: Module name.
                     type: string
@@ -7982,6 +7993,7 @@ paths:
                   - is_ci
                   - is_flaky
                   - is_new
+                  - is_quarantined
                   - failures
                   - repetitions
                   - attachments
