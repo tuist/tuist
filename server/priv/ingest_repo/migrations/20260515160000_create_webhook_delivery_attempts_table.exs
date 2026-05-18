@@ -17,11 +17,12 @@ defmodule Tuist.IngestRepo.Migrations.CreateWebhookDeliveryAttemptsTable do
   # part.
   #
   # PARTITION BY toYYYYMM(inserted_at) matches every other CH table in
-  # this codebase and pairs with the TTL clause.
+  # this codebase.
   #
-  # TTL inserted_at + INTERVAL 7 DAY DELETE matches the retention policy
-  # documented in `server/data-export.md`. CH drops expired parts during
-  # merges so we don't pay for a separate sweeper job.
+  # No TTL: this is a customer-facing audit log, in line with the
+  # retention model on `build_runs`, `test_case_runs`, `runner_jobs`,
+  # etc. CH compression makes long-tail retention cheap and operators
+  # benefit from being able to look back when debugging an integration.
   def up do
     create table(:webhook_delivery_attempts,
              primary_key: false,
@@ -29,7 +30,6 @@ defmodule Tuist.IngestRepo.Migrations.CreateWebhookDeliveryAttemptsTable do
              options: """
              PARTITION BY toYYYYMM(inserted_at)
              ORDER BY (webhook_endpoint_id, inserted_at)
-             TTL inserted_at + INTERVAL 7 DAY DELETE
              """
            ) do
       # Stable row identifier; the per-event detail page navigates by it.

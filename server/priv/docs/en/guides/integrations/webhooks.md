@@ -157,7 +157,7 @@ Click an event to see the full request and response from that attempt — the ex
 
 ![A webhook event detail page showing the summary, the request headers and body, and the upstream response](/images/guides/integrations/webhooks/event-detail.png)
 
-Delivery records are retained for **7 days**. If you need a longer audit trail, capture the deliveries on your own infrastructure as they arrive.
+Delivery records are retained indefinitely so you can look back when debugging an integration. If your downstream system needs durable copies (e.g. for compliance), capture the deliveries on your own infrastructure as they arrive.
 
 ## Rotate or delete an endpoint {#rotate-or-delete}
 

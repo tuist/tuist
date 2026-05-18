@@ -242,9 +242,9 @@ defmodule TuistWeb.WebhookLive do
   def delivery_state_status(_), do: "information"
 
   @doc """
-  Presets exposed by the chart's date picker. Capped at 30 days because
-  the `webhook_delivery_attempts` table has a 7-day TTL — anything
-  beyond that would render mostly empty buckets.
+  Presets exposed by the chart's date picker. The "Custom" option lets
+  operators page back further when they need to debug historical
+  deliveries — `webhook_delivery_attempts` is retained indefinitely.
   """
   def date_picker_presets do
     [
