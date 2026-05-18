@@ -162,6 +162,33 @@ spec:
               value: "fc"
             - name: DEFAULT_SHIM_X86_64
               value: "fc"
+            # Firecracker doesn't speak 9pfs, so the default overlayfs
+            # snapshotter can't deliver the container rootfs to the
+            # microVM (the kata-fc shim looks for a block source at
+            # /run/kata-containers/shared/containers/<id>/rootfs and
+            # finds nothing). The nydus snapshotter — bundled in the
+            # kata-deploy image at /opt/nydus-snapshotter — produces a
+            # virtio-blk-compatible rootfs instead. The kata-deploy
+            # binary installs nydus on the host when
+            # EXPERIMENTAL_SETUP_SNAPSHOTTER is set, and routes kata-fc
+            # workloads through it via the snapshotter handler mapping.
+            - name: EXPERIMENTAL_SETUP_SNAPSHOTTER
+              value: "nydus"
+            - name: SNAPSHOTTER_HANDLER_MAPPING_X86_64
+              value: "fc:nydus"
+            # guest-pull mode hands the OCI image reference straight to
+            # the kata-agent inside the microVM, which pulls from the
+            # registry itself. The host never unpacks customer image
+            # layers — eliminates the historic tar-parser CVE surface
+            # area for cross-tenant attacks. Requires the microVM to
+            # have egress to GHCR (the runners namespace NetworkPolicy
+            # already allows that for the runner Pod itself; the
+            # kata-shim tunnels guest registry traffic through the same
+            # host-network path).
+            - name: PULL_TYPE_MAPPING_X86_64
+              value: "fc:guest-pull"
+            - name: EXPERIMENTAL_FORCE_GUEST_PULL_X86_64
+              value: "true"
           securityContext:
             privileged: true
           volumeMounts:
