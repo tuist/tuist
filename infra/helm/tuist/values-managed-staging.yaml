@@ -309,10 +309,13 @@ kataContainers:
 #     tolerate it land here; everything else stays on the cloud `md-0`
 #     pool)
 #
-# Runner Pods use `runtimeClass: kata-fc`, so each Pod becomes a
-# Firecracker microVM with its own kernel and snapshot-thaw cold
-# start. Density: ~16 microVMs per AX42-U at the 1vCPU / 4 GB slot
-# size (the typical "small runner" tier).
+# Runner Pods use `runtimeClass: kata-qemu`, so each Pod becomes a
+# QEMU microVM with its own kernel. Density: ~16 microVMs per AX42-U
+# at the 1vCPU / 4 GB slot size. Kata-qemu over kata-fc because
+# Firecracker has no 9pfs/virtio-fs support — kata-fc on a stock
+# overlayfs snapshotter needs nydus + nydusd packaging to deliver
+# rootfs to the microVM. kata-qemu reads overlayfs directly via
+# virtio-fs.
 runnersFleetLinux:
   enabled: true
   # Matches the `node.cluster.x-k8s.io/pool` label stamped on each
@@ -326,22 +329,21 @@ runnersFleetLinux:
         - self-hosted
         - Linux
         - X64
-      # Each Pod is a Firecracker microVM (Kata Containers under
-      # containerd). Per-tenant kernel, ~5 MiB snapshot overhead when
-      # idle, sub-second thaw on burst. Disable to fall back to runc
-      # on the host (no tenant isolation, single-Pod-per-host).
-      runtimeClass: kata-fc
+      # Each Pod is a QEMU microVM (Kata Containers under containerd).
+      # Per-tenant kernel boundary, ~50 MiB hypervisor overhead per
+      # Pod. Disable to fall back to runc on the host (no tenant
+      # isolation, single-Pod-per-host).
+      runtimeClass: kata-qemu
       pod:
         # Per-tenant slot, ccx23-equivalent. AX42-U fits ~16 of these
         # cleanly with 2:1 CPU oversub + a small reserve for kubelet
-        # / kata-deploy / hcloud-csi-node on the host. Production
+        # and other system DaemonSets on the host. Production
         # AX162-R doubles this density.
         cpuMilli: 1000
         memoryMB: 4096
       # Queue-depth driven autoscaling. minWarmPoolFloor keeps a
-      # baseline of warm microVMs ready (Kata snapshot-thaw makes
-      # this cheap — see runtimeClass above). maxReplicas caps at
-      # the host's microVM density; pending Pods past that signal
+      # baseline of warm microVMs ready. maxReplicas caps at the
+      # host's microVM density; pending Pods past that signal
       # operator to provision more bare-metal hosts.
       autoscaling:
         enabled: true

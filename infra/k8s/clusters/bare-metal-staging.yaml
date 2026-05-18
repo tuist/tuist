@@ -100,18 +100,18 @@ spec:
         #      static netplan as authoritative (DHCPv6 fights the
         #      static assignment otherwise).
         #
-        #   3. Pre-bake Kata Containers 3.30 + nydus snapshotter +
-        #      Firecracker. Binaries land at /opt/kata, the
-        #      nydus-snapshotter systemd unit gets installed and
-        #      enabled, and the containerd kata-fc runtime drop-in
-        #      lives at /etc/containerd/conf.d/kata-fc.toml — all
-        #      written before containerd ever starts. When kubelet
-        #      brings containerd up via preKubeadmCommands the
-        #      kata-fc handler is already registered. No runtime
-        #      DaemonSet, no containerd restart loop, no Cilium
-        #      disruption (the runtime kata-deploy DaemonSet was
-        #      this PR's earlier approach and proved unworkable on
-        #      a 64 GB bare-metal Node where every containerd
+        #   3. Pre-bake Kata Containers 3.30 + QEMU. Binaries land at
+        #      /opt/kata (including /opt/kata/bin/qemu-system-x86_64
+        #      which kata-static bundles), and the containerd kata-qemu
+        #      runtime drop-in lives at /etc/containerd/conf.d/
+        #      kata-qemu.toml — all written before containerd ever
+        #      starts. When kubelet brings containerd up via
+        #      preKubeadmCommands the kata-qemu handler is already
+        #      registered. No runtime DaemonSet, no containerd restart
+        #      loop, no Cilium disruption (the runtime kata-deploy
+        #      DaemonSet was this PR's earlier approach and proved
+        #      unworkable on a 64 GB bare-metal Node where every
+        #      containerd
         #      restart bounced Cilium for ~5 min).
         postInstallScript: |
           #!/bin/bash
@@ -181,35 +181,35 @@ spec:
             "https://github.com/kata-containers/kata-containers/releases/download/${KATA_VERSION}/kata-static-${KATA_VERSION}-amd64.tar.zst"
           tar --zstd -xf /tmp/kata.tar.zst -C /
           rm /tmp/kata.tar.zst
-          # containerd config drop-in for kata-fc. The drop-in registers
-          # the kata-fc runtime handler and points at kata's bundled
-          # configuration-fc.toml. The main /etc/containerd/config.toml
-          # is set up here too so the imports line is in place before
-          # containerd ever starts — apt-installed containerd respects
-          # an existing config.toml.
+          # containerd config drop-in for kata-qemu. The drop-in
+          # registers the kata-qemu runtime handler and points at
+          # kata's bundled configuration-qemu.toml (which in turn
+          # references /opt/kata/bin/qemu-system-x86_64, also bundled
+          # in the kata-static tarball). The main /etc/containerd/
+          # config.toml is set up here too so the imports line is in
+          # place before containerd ever starts — apt-installed
+          # containerd respects an existing config.toml.
           #
           # No snapshotter override: we stay on containerd's default
-          # overlayfs. Firecracker's lack of 9pfs is handled by kata's
-          # default Firecracker config (rootfs_type = "ext4" +
-          # block_device_driver = "virtio-mmio") — kata stages a block
-          # image of the container rootfs under /run/kata-containers/
-          # for the microVM to mount. If this proves insufficient on
-          # real workloads, the next iteration adds the nydus
-          # snapshotter (its packaging is more involved — needs nydusd
-          # binary + JSON config the snapshotter validates at startup).
+          # overlayfs. QEMU supports virtio-fs and 9pfs natively, so
+          # kata-qemu mounts the overlay directory into the microVM
+          # directly — no block-device snapshotter (nydus) required.
+          # (kata-fc would need nydus here because Firecracker has no
+          # 9pfs/virtio-fs; that combination is the kata + FC + k8s
+          # rabbit hole we deliberately stepped out of.)
           mkdir -p /etc/containerd/conf.d
           cat > /etc/containerd/config.toml <<'CONTAINERDCFG'
           version = 3
           imports = ["/etc/containerd/conf.d/*.toml"]
           CONTAINERDCFG
-          cat > /etc/containerd/conf.d/kata-fc.toml <<'DROPIN'
-          [plugins."io.containerd.cri.v1.runtime".containerd.runtimes.kata-fc]
-          runtime_type = "io.containerd.kata-fc.v2"
+          cat > /etc/containerd/conf.d/kata-qemu.toml <<'DROPIN'
+          [plugins."io.containerd.cri.v1.runtime".containerd.runtimes.kata-qemu]
+          runtime_type = "io.containerd.kata-qemu.v2"
           runtime_path = "/opt/kata/bin/containerd-shim-kata-v2"
           privileged_without_host_devices = true
           pod_annotations = ["io.katacontainers.*"]
-          [plugins."io.containerd.cri.v1.runtime".containerd.runtimes.kata-fc.options]
-          ConfigPath = "/opt/kata/share/defaults/kata-containers/configuration-fc.toml"
+          [plugins."io.containerd.cri.v1.runtime".containerd.runtimes.kata-qemu.options]
+          ConfigPath = "/opt/kata/share/defaults/kata-containers/configuration-qemu.toml"
           DROPIN
       # Only claim hosts the hetzner-robot-controller created. The
       # controller stamps both labels on every CR it owns:
@@ -303,7 +303,7 @@ spec:
         # only propagates `node.cluster.x-k8s.io/*` and
         # `node-role.kubernetes.io/*`; the tuist.dev/* and
         # katacontainers.io/* labels have to be applied directly.
-        # `katacontainers.io/kata-runtime` is what the kata-fc
+        # `katacontainers.io/kata-runtime` is what the kata-qemu
         # RuntimeClass' nodeSelector matches — its old applier was
         # the kata-deploy DaemonSet, which we removed once Kata
         # moved into the OS install path (see postInstallScript).

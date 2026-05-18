@@ -753,23 +753,23 @@ runnersFleetLinux:
 # and its sibling SA and boots a replacement. The Pod's projected
 # SA token is the dispatch-endpoint authentication anchor (server
 # validates it via TokenReview).
-# Kata Containers + Firecracker support. When enabled, the chart
-# renders a `kata-fc` RuntimeClass routed through the kata Firecracker
-# shim, with a `katacontainers.io/kata-runtime=true` nodeSelector so
-# Pods that opt in fail to schedule until a Node carrying the label
-# is available.
+# Kata Containers + QEMU support. When enabled, the chart renders a
+# `kata-qemu` RuntimeClass routed through the kata QEMU shim, with a
+# `katacontainers.io/kata-runtime=true` nodeSelector so Pods that opt
+# in fail to schedule until a Node carrying the label is available.
 #
 # Install model: Kata is baked into the bare-metal Node at OS install
 # time via the `postInstallScript` in
 # `infra/k8s/clusters/bare-metal-staging.yaml`. The script unpacks
-# `kata-static` under `/opt/kata`, installs the nydus snapshotter as
-# a systemd unit, and writes the containerd drop-in for the kata-fc
-# handler — all chrooted in the freshly-installed OS before the first
-# boot. When the Node joins, containerd starts with kata-fc already
-# registered; the bootstrap `postKubeadmCommands` stamps the
-# `katacontainers.io/kata-runtime=true` label, and kata-fc Pods can
-# schedule immediately. No runtime DaemonSet runs, no containerd
-# restart happens after the Node is up.
+# `kata-static` under `/opt/kata` (which bundles
+# `qemu-system-x86_64`) and writes the containerd drop-in for the
+# kata-qemu handler — all chrooted in the freshly-installed OS
+# before the first boot. When the Node joins, containerd starts
+# with kata-qemu already registered; the bootstrap
+# `postKubeadmCommands` stamps the
+# `katacontainers.io/kata-runtime=true` label, and kata-qemu Pods
+# can schedule immediately. No runtime DaemonSet runs, no
+# containerd restart happens after the Node is up.
 #
 # Target nodes: bare-metal Linux worker Nodes ordered through the
 # `bare-metal-worker` MachineDeployment in
@@ -778,7 +778,7 @@ runnersFleetLinux:
 # nodeSelector excludes them automatically.
 #
 # Disable (`enabled: false`) for dev clusters without bare metal —
-# pools that set `runtimeClass: kata-fc` simply won't get the
+# pools that set `runtimeClass: kata-qemu` simply won't get the
 # matching RuntimeClass and will fail at schedule time, which is the
 # correct behavior (fail loud rather than silently fall back to runc
 # in an environment that asked for microVM isolation).

@@ -103,12 +103,11 @@ spec:
                   description: |
                     Optional `Pod.spec.runtimeClassName`. When set, Pods route
                     through the named RuntimeClass instead of the cluster
-                    default. The chart's `kata-fc` RuntimeClass runs each Pod
-                    as a Kata Containers + Firecracker microVM (per-tenant
-                    kernel, real isolation, snapshot-thaw cold start). Empty
-                    keeps the default runtime (runc on containerd), which is
-                    fine for macOS pools and single-tenant bare-metal Linux
-                    pools during bring-up.
+                    default. The chart's `kata-qemu` RuntimeClass runs each
+                    Pod as a Kata Containers + QEMU microVM (per-tenant
+                    kernel, real isolation). Empty keeps the default runtime
+                    (runc on containerd), which is fine for macOS pools and
+                    single-tenant bare-metal Linux pools during bring-up.
                 autoscaling:
                   type: object
                   description: |
