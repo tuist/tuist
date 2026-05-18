@@ -29,17 +29,24 @@ extension XcodeGraph.Project.Options.AutomaticSchemesOptions {
         case let .enabled(
             targetSchemesGrouping,
             codeCoverageEnabled,
-            testingOptions,
+            parallelization,
+            randomExecutionOrdering,
             testLanguage,
             testRegion,
             testScreenCaptureFormat,
             runLanguage,
             runRegion
         ):
+            let resolvedParallelization: XcodeGraph.TestableTarget.Parallelization = switch parallelization {
+            case .disabled: .none
+            case .swiftTestingOnly: .swiftTestingOnly
+            case .enabled: .all
+            }
             return .enabled(
                 targetSchemesGrouping: .from(manifest: targetSchemesGrouping),
                 codeCoverageEnabled: codeCoverageEnabled,
-                testingOptions: .from(manifest: testingOptions),
+                parallelization: resolvedParallelization,
+                randomExecutionOrdering: randomExecutionOrdering,
                 testLanguage: testLanguage?.identifier,
                 testRegion: testRegion,
                 testScreenCaptureFormat: testScreenCaptureFormat.map { .from(manifest: $0) },
