@@ -462,32 +462,6 @@ jobs:
             echo "Deploying Kura controller to $region at $api"
             KUBECONFIG="$kubeconfig" kubectl --request-timeout=10s get --raw /version >/dev/null
 
-            # Surface a missing regional Kura worker pool up front. The
-            # controller deployment itself can still succeed without any
-            # Ready `node.cluster.x-k8s.io/pool=kura` nodes. The runtime
-            # now falls back to control-plane nodes when needed, but the
-            # region is still degraded until dedicated worker capacity
-            # returns.
-            kura_ready_nodes="$(
-              KUBECONFIG="$kubeconfig" kubectl get nodes \
-                -l node.cluster.x-k8s.io/pool=kura \
-                -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{range .status.conditions[?(@.type=="Ready")]}{.status}{end}{"\n"}{end}'
-            )"
-            if ! printf '%s\n' "$kura_ready_nodes" | awk 'NF && $2 == "True" { found=1 } END { exit(found ? 0 : 1) }'; then
-              echo "::warning::No Ready kura pool nodes detected in $region; Kura can fall back to control-plane nodes, but the region remains degraded until dedicated worker capacity is restored."
-              echo "::group::kura $region capacity snapshot"
-              KUBECONFIG="$kubeconfig" kubectl get nodes -L node.cluster.x-k8s.io/pool -o wide 2>&1 || true
-              echo "--- node taints ---"
-              KUBECONFIG="$kubeconfig" kubectl get nodes \
-                -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.spec.taints}{"\n"}{end}' 2>&1 || true
-              echo "--- kura namespace ---"
-              KUBECONFIG="$kubeconfig" kubectl -n kura get statefulsets,pods -o wide 2>&1 || true
-              echo "--- kura events ---"
-              KUBECONFIG="$kubeconfig" kubectl -n kura get events \
-                --sort-by=.lastTimestamp 2>&1 | tail -50 || true
-              echo "::endgroup::"
-            fi
-
             # Bring the cluster's shared platform layer (cert-manager +
             # the letsencrypt ClusterIssuer, external-dns, ESO, and
             # ingress-nginx only where it is actually needed) to chart
