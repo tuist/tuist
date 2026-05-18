@@ -4,7 +4,7 @@
     <span data-part="subtitle">
       {dgettext(
         "dashboard_account",
-        "Configure HTTPS endpoints that receive event notifications from projects in this account."
+        "Configure HTTPS endpoints that receive events from projects in this account."
       )}
     </span>
   </div>
@@ -192,7 +192,7 @@
                   data-confirm={
                     dgettext(
                       "dashboard_account",
-                      "Delete this endpoint? It will stop receiving event notifications."
+                      "Delete this endpoint? It will stop receiving events."
                     )
                   }
                 >
@@ -207,7 +207,7 @@
         <.table_empty_state
           title={dgettext("dashboard_account", "No webhook endpoints yet")}
           subtitle={
-            dgettext("dashboard_account", "Add one to start receiving event notifications.")
+            dgettext("dashboard_account", "Add one to start receiving events.")
           }
         />
       </:empty_state>
