@@ -68,7 +68,22 @@ rules:
     verbs: ["get", "list", "patch", "update"]
   - apiGroups: ["node.k8s.io"]
     resources: ["runtimeclasses"]
+    verbs: ["get", "list", "patch"]
+  # 3.30's binary lists CRDs at startup to detect whether
+  # node-feature-discovery is installed; without this rule the install
+  # crashloops on the very first list call. We don't run NFD, but the
+  # detection probe runs unconditionally.
+  - apiGroups: ["apiextensions.k8s.io"]
+    resources: ["customresourcedefinitions"]
     verbs: ["get", "list"]
+  # Required only when NFD's CRD is present; harmless otherwise. Mirrors
+  # upstream's chart so we don't have to special-case NFD on/off.
+  - apiGroups: ["nfd.k8s-sigs.io"]
+    resources: ["nodefeaturerules"]
+    verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["daemonsets"]
+    verbs: ["get", "list", "watch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
