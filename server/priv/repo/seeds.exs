@@ -3268,7 +3268,7 @@ webhook_endpoints_with_events =
 # before we start inserting the new batch.
 seeded_endpoint_ids = Enum.map(webhook_endpoints_with_events, fn {ep, _} -> ep.id end)
 
-Tuist.IngestRepo.query!(
+IngestRepo.query!(
   "DELETE FROM webhook_delivery_attempts WHERE webhook_endpoint_id IN {ids:Array(UUID)}",
   %{ids: seeded_endpoint_ids}
 )
