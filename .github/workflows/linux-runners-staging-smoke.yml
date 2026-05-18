@@ -85,3 +85,20 @@ jobs:
             exit 1
           fi
           echo "Cluster-internal egress correctly denied."
+
+      # ---- TEMPORARY: representative server.yml workload ----
+      # The trivial checks above prove the dispatch chain; this block
+      # adds a real Elixir toolchain run (mise → erlang/elixir → mix
+      # deps.get → mix credo) to validate the kata-qemu microVM Pool
+      # is ready for actual server CI jobs. Mirrors `credo` from
+      # server.yml. Delete once the Linux pool's been confirmed
+      # working for representative workloads.
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-server-mix
+        with:
+          mise-version: "2026.4.18"
+        env:
+          MISE_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
+      - name: Run Credo (representative server.yml workload)
+        working-directory: server
+        run: mix credo
