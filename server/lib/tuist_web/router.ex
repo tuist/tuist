@@ -958,7 +958,7 @@ defmodule TuistWeb.Router do
     end
 
     live_session :webhook_detail,
-      layout: {TuistWeb.Layouts, :webhook},
+      layout: {TuistWeb.Layouts, :headerbar},
       on_mount: [
         {TuistWeb.Authentication, :ensure_authenticated},
         {TuistWeb.Locale, :assign_locale},

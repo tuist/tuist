@@ -1,4 +1,4 @@
-defmodule TuistWeb.Components.WebhookEndpointForm do
+defmodule TuistWeb.WebhookEndpointForm do
   @moduledoc """
   Shared form body for creating and editing a webhook endpoint.
 

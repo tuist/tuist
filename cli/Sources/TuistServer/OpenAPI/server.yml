@@ -806,6 +806,7 @@ components:
           enum:
             - success
             - failure
+            - skipped
           nullable: true
           type: string
           x-struct:
@@ -20286,17 +20287,17 @@ tags:
       Tuist can POST event notifications to HTTPS endpoints you register on your
       account. Each delivery is a JSON envelope with `id`, `type`, `created`, and
       an event-specific `object` payload, signed via the `Tuist-Signature` header.
-      See the [webhooks integration guide](https://docs.tuist.dev/en/guides/integrations/webhooks)
+      See the [webhooks integration guide](https://tuist.dev/en/docs/guides/integrations/webhooks)
       for the full payload, signature verification, and retry rules.
 
       The supported event types and their payload shapes:
 
-      | Event type            | When it fires                                                              | Payload schema |
-      | --------------------- | -------------------------------------------------------------------------- | -------------- |
-      | `test_case.created`   | A test case is observed for the first time in the account.                 | [`WebhookTestCaseCreatedEvent`](#section/Schemas/WebhookTestCaseCreatedEvent) |
-      | `test_case.updated`   | A test case's attributes change — flakiness, state transitions, etc.       | [`WebhookTestCaseUpdatedEvent`](#section/Schemas/WebhookTestCaseUpdatedEvent) |
-      | `preview.created`     | A new preview is created in the account (after the build finishes upload). | [`WebhookPreviewCreatedEvent`](#section/Schemas/WebhookPreviewCreatedEvent) |
-      | `preview.deleted`     | A preview is removed from the account.                                     | [`WebhookPreviewDeletedEvent`](#section/Schemas/WebhookPreviewDeletedEvent) |
+      | Event type | When it fires | Payload schema |
+      | --- | --- | --- |
+      | `test_case.created` | A test case was observed for the first time in this account. | [`WebhookTestCaseCreatedEvent`](#section/Schemas/WebhookTestCaseCreatedEvent) |
+      | `test_case.updated` | A test case's attributes changed. | [`WebhookTestCaseUpdatedEvent`](#section/Schemas/WebhookTestCaseUpdatedEvent) |
+      | `preview.created` | A new preview was created in this account. | [`WebhookPreviewCreatedEvent`](#section/Schemas/WebhookPreviewCreatedEvent) |
+      | `preview.deleted` | A preview was deleted from this account. | [`WebhookPreviewDeletedEvent`](#section/Schemas/WebhookPreviewDeletedEvent) |
 
       Each payload schema is registered under `components.schemas` so you can
       `$ref` it from any client generator. The envelope shape is stable across

@@ -3,7 +3,7 @@ defmodule TuistWeb.WebhooksLive do
   use TuistWeb, :live_view
   use Noora
 
-  import TuistWeb.Components.WebhookEndpointForm
+  import TuistWeb.WebhookEndpointForm
 
   alias Tuist.Authorization
   alias Tuist.Webhooks

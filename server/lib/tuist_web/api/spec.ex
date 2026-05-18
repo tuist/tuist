@@ -10,6 +10,7 @@ defmodule TuistWeb.API.Spec do
   alias OpenApiSpex.Paths
   alias OpenApiSpex.SecurityScheme
   alias OpenApiSpex.Tag
+  alias Tuist.Webhooks.WebhookEndpoint
   alias TuistWeb.API.Schemas.Webhook
   alias TuistWeb.Router
 
@@ -28,6 +29,44 @@ defmodule TuistWeb.API.Spec do
     Webhook.PreviewDeletedEvent
   ]
 
+  # Built at compile time from `Tuist.Webhooks.WebhookEndpoint.event_groups/0`
+  # so the docs table can't drift from the event catalog. Touching the
+  # catalog forces `WebhookEndpoint` to recompile, which forces this
+  # module to recompile and the bundled description to refresh.
+  @webhook_events_table_rows WebhookEndpoint.event_groups()
+                             |> Enum.flat_map(& &1.events)
+                             |> Enum.map_join("\n", fn %{type: type, description: description} ->
+                               title =
+                                 type
+                                 |> String.split(".")
+                                 |> Enum.map_join("", fn part ->
+                                   part
+                                   |> String.split("_")
+                                   |> Enum.map_join("", &String.capitalize/1)
+                                 end)
+                                 |> then(&"Webhook#{&1}Event")
+
+                               "| `#{type}` | #{description} | [`#{title}`](#section/Schemas/#{title}) |"
+                             end)
+
+  @webhook_events_description """
+  Tuist can POST event notifications to HTTPS endpoints you register on your
+  account. Each delivery is a JSON envelope with `id`, `type`, `created`, and
+  an event-specific `object` payload, signed via the `Tuist-Signature` header.
+  See the [webhooks integration guide](https://tuist.dev/en/docs/guides/integrations/webhooks)
+  for the full payload, signature verification, and retry rules.
+
+  The supported event types and their payload shapes:
+
+  | Event type | When it fires | Payload schema |
+  | --- | --- | --- |
+  #{@webhook_events_table_rows}
+
+  Each payload schema is registered under `components.schemas` so you can
+  `$ref` it from any client generator. The envelope shape is stable across
+  event types — only the `object` differs.
+  """
+
   @impl OpenApi
   def spec do
     %OpenApi{
@@ -45,7 +84,7 @@ defmodule TuistWeb.API.Spec do
       tags: [
         %Tag{
           name: @webhook_events_tag,
-          description: webhook_events_description()
+          description: @webhook_events_description
         }
       ],
       components: %Components{
@@ -72,33 +111,5 @@ defmodule TuistWeb.API.Spec do
     }
     |> OpenApiSpex.resolve_schema_modules()
     |> OpenApiSpex.add_schemas(@webhook_event_schemas)
-  end
-
-  # Lives on a top-level OpenAPI tag (not on `info.description`)
-  # because Swift OpenAPI Generator splats `info.description` onto
-  # the generated `Client.swift` as a leading docblock — which makes
-  # no sense on an HTTP client struct. Redoc still renders this
-  # block as a sidebar section.
-  defp webhook_events_description do
-    """
-    Tuist can POST event notifications to HTTPS endpoints you register on your
-    account. Each delivery is a JSON envelope with `id`, `type`, `created`, and
-    an event-specific `object` payload, signed via the `Tuist-Signature` header.
-    See the [webhooks integration guide](https://docs.tuist.dev/en/guides/integrations/webhooks)
-    for the full payload, signature verification, and retry rules.
-
-    The supported event types and their payload shapes:
-
-    | Event type            | When it fires                                                              | Payload schema |
-    | --------------------- | -------------------------------------------------------------------------- | -------------- |
-    | `test_case.created`   | A test case is observed for the first time in the account.                 | [`WebhookTestCaseCreatedEvent`](#section/Schemas/WebhookTestCaseCreatedEvent) |
-    | `test_case.updated`   | A test case's attributes change — flakiness, state transitions, etc.       | [`WebhookTestCaseUpdatedEvent`](#section/Schemas/WebhookTestCaseUpdatedEvent) |
-    | `preview.created`     | A new preview is created in the account (after the build finishes upload). | [`WebhookPreviewCreatedEvent`](#section/Schemas/WebhookPreviewCreatedEvent) |
-    | `preview.deleted`     | A preview is removed from the account.                                     | [`WebhookPreviewDeletedEvent`](#section/Schemas/WebhookPreviewDeletedEvent) |
-
-    Each payload schema is registered under `components.schemas` so you can
-    `$ref` it from any client generator. The envelope shape is stable across
-    event types — only the `object` differs.
-    """
   end
 end

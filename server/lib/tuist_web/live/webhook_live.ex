@@ -9,7 +9,7 @@ defmodule TuistWeb.WebhookLive do
   use Noora
 
   import Noora.Filter
-  import TuistWeb.Components.WebhookEndpointForm
+  import TuistWeb.WebhookEndpointForm
 
   alias Noora.Filter
   alias Tuist.Authorization

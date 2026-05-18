@@ -3388,6 +3388,7 @@ public enum Components {
             @frozen public enum last_statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
                 case success = "success"
                 case failure = "failure"
+                case skipped = "skipped"
             }
             /// Result of the most recent run, when one exists.
             ///
