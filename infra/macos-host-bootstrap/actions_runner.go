@@ -67,13 +67,7 @@ type GHActionsRunnerConfig struct {
 // they relicensed; `brew install packer` returns "No available
 // formula" now and the tap is the supported install path.
 //
-// mise is intentionally not installed here. The
-// xcresult-processor-image workflow uses `jdx/mise-action`, which
-// self-installs the pinned mise version into the runner's temp dir
-// every run and shadows whatever the host has anyway. The
-// runner-image workflow doesn't use mise at all.
-//
-// Tart also isn't installed here. The Node-bootstrap path above
+// Tart isn't installed here. The Node-bootstrap path above
 // (installTart) already extracted the operator-image-baked
 // tart.app to /usr/local/bin/tart, version-pinned by the operator
 // image. Same binary the macosFleet and runnersFleet hosts use,
