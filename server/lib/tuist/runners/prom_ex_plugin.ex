@@ -17,12 +17,13 @@ defmodule Tuist.Runners.PromExPlugin do
 
     * **Polling metrics.** Three poll loops at a coarse 30s cadence
       query authoritative state and emit gauges: queue length per
-      fleet from CH, inflight claim counts per fleet / lifecycle
-      state from PG, RunnerPool desired-vs-observed replica counts
-      from the K8s apiserver. Polled gauges are deliberately
-      separate from the event counters — `runner_pool_replicas` is
-      a level (current capacity), not a flux (boot/teardown rate
-      already covered by tart-kubelet's boot duration histogram).
+      fleet from ClickHouse, inflight claim counts per fleet /
+      lifecycle state from Postgres, RunnerPool desired-vs-observed
+      replica counts from the K8s apiserver. Polled gauges are
+      deliberately separate from the event counters —
+      `runner_pool_replicas` is a level (current capacity), not a
+      flux (boot/teardown rate already covered by tart-kubelet's
+      boot duration histogram).
 
   Cardinality budget: `fleet` is bounded by the number of
   RunnerPool CRs (currently 1 — `default`). Per-account fan-out is
@@ -34,7 +35,6 @@ defmodule Tuist.Runners.PromExPlugin do
 
   import Ecto.Query, only: [from: 2]
 
-  alias Tuist.Accounts.Account
   alias Tuist.ClickHouseRepo
   alias Tuist.Environment
   alias Tuist.Kubernetes.Client, as: K8sClient
@@ -246,19 +246,6 @@ defmodule Tuist.Runners.PromExPlugin do
             tags: [:fleet, :dispatch_label]
           )
         ]
-      ),
-      Polling.build(
-        :tuist_runners_accounts_enabled_metrics,
-        poll_rate,
-        {__MODULE__, :execute_accounts_enabled_telemetry_event, []},
-        [
-          last_value(
-            @metric_prefix ++ [:accounts, :enabled],
-            event_name: Telemetry.event_name_accounts_enabled(),
-            description: "Accounts with runner_max_concurrent > 0.",
-            measurement: :count
-          )
-        ]
       )
     ]
   end
@@ -370,25 +357,6 @@ defmodule Tuist.Runners.PromExPlugin do
 
       _ ->
         :ok
-    end
-  end
-
-  @doc false
-  def execute_accounts_enabled_telemetry_event do
-    if PoolMetrics.running?(Repo) do
-      count =
-        Repo.one(
-          from(a in Account,
-            where: not is_nil(a.runner_max_concurrent) and a.runner_max_concurrent > 0,
-            select: count(a.id)
-          )
-        ) || 0
-
-      :telemetry.execute(
-        Telemetry.event_name_accounts_enabled(),
-        %{count: count},
-        %{}
-      )
     end
   end
 

@@ -158,19 +158,4 @@ defmodule Tuist.Runners.PromExPluginTest do
       refute_receive {:telemetry_event, [:tuist, :runners, :pool, :replicas], _, _}, 200
     end
   end
-
-  describe "execute_accounts_enabled_telemetry_event/0" do
-    test "emits the count of accounts with runner_max_concurrent > 0", %{handler_id: handler_id} do
-      attach_collector(handler_id, Telemetry.event_name_accounts_enabled())
-
-      _ = enabled_account_fixture()
-      _ = enabled_account_fixture()
-      _ = account_fixture()
-
-      PromExPlugin.execute_accounts_enabled_telemetry_event()
-
-      assert_receive {:telemetry_event, [:tuist, :runners, :accounts, :enabled], %{count: count}, _}, 500
-      assert count >= 2
-    end
-  end
 end

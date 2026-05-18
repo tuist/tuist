@@ -27,5 +27,4 @@ defmodule Tuist.Runners.Telemetry do
   def event_name_queue_length, do: [:tuist, :runners, :queue, :length]
   def event_name_claims_count, do: [:tuist, :runners, :claims, :count]
   def event_name_pool_replicas, do: [:tuist, :runners, :pool, :replicas]
-  def event_name_accounts_enabled, do: [:tuist, :runners, :accounts, :enabled]
 end

@@ -41,7 +41,7 @@
         {
           "current": { "selected": false, "text": "All", "value": "$__all" },
           "datasource": "$datasource",
-          "definition": "label_values(tuist_runners_accounts_enabled, job)",
+          "definition": "label_values(tuist_runners_pool_replicas_desired, job)",
           "hide": 0,
           "includeAll": true,
           "label": "Server job",
@@ -50,7 +50,7 @@
           "options": [],
           "query": {
             "qryType": 1,
-            "query": "label_values(tuist_runners_accounts_enabled, job)",
+            "query": "label_values(tuist_runners_pool_replicas_desired, job)",
             "refId": "PrometheusVariableQueryEditor-VariableQuery"
           },
           "refresh": 1,
@@ -266,43 +266,6 @@
       },
       {
         "datasource": "$datasource",
-        "description": "Accounts with `runner_max_concurrent > 0` — the tenant base actively eligible to receive dispatched work. Flat day-over-day is healthy; a sudden drop probably means a billing-side flag flipped a cohort to 0.",
-        "fieldConfig": {
-          "defaults": {
-            "color": { "mode": "thresholds" },
-            "thresholds": {
-              "mode": "absolute",
-              "steps": [
-                { "color": "blue", "value": null }
-              ]
-            },
-            "unit": "short"
-          }
-        },
-        "gridPos": { "h": 4, "w": 4, "x": 16, "y": 1 },
-        "id": 114,
-        "options": {
-          "colorMode": "background",
-          "graphMode": "none",
-          "justifyMode": "center",
-          "orientation": "horizontal",
-          "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
-          "textMode": "auto"
-        },
-        "targets": [
-          {
-            "datasource": "$datasource",
-            "editorMode": "code",
-            "expr": "max(tuist_runners_accounts_enabled{job=~\"$server_job\"})",
-            "instant": true,
-            "refId": "A"
-          }
-        ],
-        "title": "Accounts enabled",
-        "type": "stat"
-      },
-      {
-        "datasource": "$datasource",
         "description": "Mac minis where tart-kubelet's controller-runtime metrics endpoint is reachable. Bound to the tailnet IP when --node-ip-source=tailscale, scraped through the Tailscale operator's egress ProxyGroup. A drop here is a routing failure (ProxyGroup pod down, ACL drift, missing egress Service) before it's a host failure; the node_exporter scrape on :9100 is the second sanity check.",
         "fieldConfig": {
           "defaults": {
@@ -319,7 +282,7 @@
             "unit": "none"
           }
         },
-        "gridPos": { "h": 4, "w": 4, "x": 20, "y": 1 },
+        "gridPos": { "h": 4, "w": 4, "x": 16, "y": 1 },
         "id": 1,
         "options": {
           "colorMode": "background",
