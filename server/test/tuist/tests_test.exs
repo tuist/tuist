@@ -1370,9 +1370,12 @@ defmodule Tuist.TestsTest do
           "event_types" => ["test_case.updated"]
         })
 
+      runner_account = AccountsFixtures.user_fixture(preload: [:account]).account
+
       test_attrs = %{
         id: UUIDv7.generate(),
         project_id: project.id,
+        account_id: runner_account.id,
         duration: 1000,
         status: "success",
         ran_at: NaiveDateTime.utc_now(),
