@@ -114,90 +114,59 @@ spec:
       # (and fail) to install on them.
       nodeSelector:
         tuist.dev/kata-runtime: "true"
-      # Run-as-root + host mount necessary: kata-deploy needs to
-      # write to the node's filesystem and restart containerd.
       hostPID: true
       tolerations:
         - operator: Exists
+      # 3.30 cleanup restarts the CRI runtime and waits for the node
+      # to be Ready again before terminating; needs room above the
+      # default 30s grace.
+      terminationGracePeriodSeconds: 600
       containers:
         - name: kata-deploy
           image: {{ .Values.kataContainers.image.repository }}:{{ .Values.kataContainers.image.tag }}
           imagePullPolicy: {{ .Values.kataContainers.image.pullPolicy | default "IfNotPresent" }}
-          command: ["bash", "-c", "/opt/kata-artifacts/scripts/kata-deploy.sh install && sleep infinity"]
-          lifecycle:
-            preStop:
-              exec:
-                command: ["bash", "-c", "/opt/kata-artifacts/scripts/kata-deploy.sh cleanup"]
+          # 3.30 ships a distroless image with a single Go binary entrypoint
+          # (`/usr/bin/kata-deploy install`). No shell, no kata-deploy.sh,
+          # no `&& sleep infinity` — the binary blocks after install.
+          command: ["/usr/bin/kata-deploy", "install"]
           env:
-            # kata-deploy.sh runs with `set -u` and echoes every
-            # supported env var at startup — any one of them being
-            # unbound aborts the script. The Kata project's own
-            # DaemonSet manifest declares them all even when blank;
-            # we mirror that, but pin SHIMS=DEFAULT_SHIM=fc (we
-            # only want Firecracker) and CREATE_*RUNTIMECLASS=false
-            # (we ship our own RuntimeClass above).
             - name: NODE_NAME
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
+            - name: DAEMONSET_NAME
+              value: {{ include "tuist.componentName" (dict "root" . "component" "kata-deploy") | quote }}
             - name: DEBUG
               value: "false"
-            - name: SHIMS
+            # 3.30 split SHIMS/DEFAULT_SHIM into per-arch variants so a single
+            # DaemonSet can target heterogeneous node pools. We only run on
+            # x86_64 AX42-U / AX162-R hosts, so just the X86_64 vars apply.
+            # `fc` selects the Firecracker shim, which is what the
+            # `kata-fc` RuntimeClass above is pinned to.
+            - name: SHIMS_X86_64
               value: "fc"
-            - name: DEFAULT_SHIM
+            - name: DEFAULT_SHIM_X86_64
               value: "fc"
-            - name: CREATE_RUNTIMECLASSES
-              value: "false"
-            - name: CREATE_DEFAULT_RUNTIMECLASS
-              value: "false"
-            - name: ALLOWED_HYPERVISOR_ANNOTATIONS
-              value: ""
-            - name: SNAPSHOTTER_HANDLER_MAPPING
-              value: ""
-            - name: AGENT_HTTPS_PROXY
-              value: ""
-            - name: AGENT_NO_PROXY
-              value: ""
-            - name: PULL_TYPE_MAPPING
-              value: ""
-            - name: INSTALLATION_PREFIX
-              value: ""
-            - name: MULTI_INSTALL_SUFFIX
-              value: ""
-            - name: HELM_POST_DELETE_HOOK
-              value: "false"
           securityContext:
             privileged: true
           volumeMounts:
             - name: crio-conf
-              mountPath: /etc/crio
+              mountPath: /etc/crio/
             - name: containerd-conf
-              mountPath: /etc/containerd
-            - name: kata-artifacts
-              mountPath: /opt/kata
-            - name: dbus
-              mountPath: /var/run/dbus
-            - name: systemd
-              mountPath: /run/systemd
-            - name: local-bin
-              mountPath: /usr/local/bin
+              mountPath: /etc/containerd/
+            # 3.30 mounts the host root at /host/ and reaches everything
+            # else (/opt/kata, /var/run/dbus, /run/systemd, /usr/local/bin)
+            # through this single mount instead of one HostPath per dir.
+            - name: host
+              mountPath: /host/
       volumes:
         - name: crio-conf
           hostPath:
-            path: /etc/crio
+            path: /etc/crio/
         - name: containerd-conf
           hostPath:
-            path: /etc/containerd
-        - name: kata-artifacts
+            path: /etc/containerd/
+        - name: host
           hostPath:
-            path: /opt/kata
-        - name: dbus
-          hostPath:
-            path: /var/run/dbus
-        - name: systemd
-          hostPath:
-            path: /run/systemd
-        - name: local-bin
-          hostPath:
-            path: /usr/local/bin
+            path: /
 {{- end }}
