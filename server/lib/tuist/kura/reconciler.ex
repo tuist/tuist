@@ -15,9 +15,8 @@ defmodule Tuist.Kura.Reconciler do
     2. finalise destroys after the custom resource disappears,
     3. apply open deployments (the rollout fast path), and
     4. project every other present-intent server: observe the backing
-       `KuraInstance`, record the observation
-       (`observed_image_tag` / `observed_ready_at` / `last_observed_at`),
-       and re-derive `status` from
+       `KuraInstance`, record the observation (`observed_image_tag` /
+       `last_observed_at`), and re-derive `status` from
        `(latest deployment intent, observed image, endpoint readiness)`.
 
   Because step 4 re-derives `status` from observation every tick,
@@ -31,6 +30,17 @@ defmodule Tuist.Kura.Reconciler do
   `Kura.fail_server/1` is only a same-tick fast path for the UI; this
   projection is the authority. Re-rolling onto a different image stays
   the operator's explicit retry/destroy decision.
+
+  Endpoint readiness is end-to-end: `Kura.activate_server/2` only marks
+  a server `:active` after the regional public endpoint *and* the
+  Cloudflare-fronted global endpoint answer `/up`. The controller's
+  `status.phase` attests workload readiness only, not public
+  reachability, so the projection deliberately keeps the live probe as
+  the readiness authority. This is what reconciles the Cloudflare
+  DNS-only load balancer: a server is not projected `:active` until the
+  proximity-steered DNS-only record actually resolves and serves, so
+  TTL/propagation of the new LB is respected without the projection
+  needing to know about Cloudflare at all.
 
   User actions only mutate Postgres intent. If a BEAM dies mid-action,
   this loop observes the same rows on the next tick and converges again.
@@ -212,47 +222,47 @@ defmodule Tuist.Kura.Reconciler do
   @open_deployment_statuses [:pending, :running]
 
   # Projects observed cluster state onto present-intent servers the
-  # deployment loop did not already handle this tick (servers with no
-  # open deployment: failed ones to heal, active ones to refresh the
-  # observation and surface drift). Bounded by the same converge
-  # ceiling as the rest of the loop; the remainder is picked up next
-  # tick.
+  # deployment loop did not handle this tick: failed servers heal,
+  # drifted ones surface the drift. Bounded by the same converge
+  # ceiling as the rest of the loop; the rest is picked up next tick.
   defp reconcile_observed_servers(handled_server_ids) do
-    Server
-    |> where([s], s.status in ^@present_intent_statuses)
-    |> order_by([s], asc: s.updated_at, asc: s.id)
-    |> limit(^@reconcile_batch_size)
-    |> Repo.all()
-    |> Enum.reject(&MapSet.member?(handled_server_ids, &1.id))
-    |> Enum.each(&project_server/1)
+    servers =
+      Server
+      |> where([s], s.status in ^@present_intent_statuses)
+      |> order_by([s], asc: s.updated_at, asc: s.id)
+      |> limit(^@reconcile_batch_size)
+      |> Repo.all()
+      |> Enum.reject(&MapSet.member?(handled_server_ids, &1.id))
+
+    latest = latest_deployments(Enum.map(servers, & &1.id))
+
+    Enum.each(servers, &project_server(&1, Map.get(latest, &1.id)))
 
     :ok
   end
 
-  defp project_server(%Server{} = server) do
-    case latest_deployment(server) do
-      nil ->
-        :ok
+  # Newest deployment per server in one query; the
+  # (kura_server_id, inserted_at) index backs the DISTINCT ON.
+  defp latest_deployments([]), do: %{}
 
-      %Deployment{status: status} when status in @open_deployment_statuses ->
-        # An open deployment exists but wasn't in this tick's batch
-        # (ceiling/uniq). The rollout fast path owns it; don't race.
-        :ok
-
-      %Deployment{image_tag: desired, status: latest_status} ->
-        observe_and_project(server, desired, latest_status)
-    end
-  end
-
-  defp latest_deployment(%Server{} = server) do
+  defp latest_deployments(server_ids) do
     Deployment
-    |> where([d], d.kura_server_id == ^server.id)
-    |> order_by([d], desc: d.inserted_at, desc: d.id)
-    |> limit(1)
-    |> Repo.one()
+    |> where([d], d.kura_server_id in ^server_ids)
+    |> distinct([d], d.kura_server_id)
+    |> order_by([d], asc: d.kura_server_id, desc: d.inserted_at, desc: d.id)
+    |> Repo.all()
+    |> Map.new(&{&1.kura_server_id, &1})
   end
 
-  defp observe_and_project(%Server{} = server, desired, latest_status) do
+  defp project_server(%Server{}, nil), do: :ok
+
+  defp project_server(%Server{}, %Deployment{status: status}) when status in @open_deployment_statuses do
+    # Open deployment not in this tick's batch (ceiling/uniq). The
+    # rollout fast path owns it; don't race.
+    :ok
+  end
+
+  defp project_server(%Server{} = server, %Deployment{image_tag: desired, status: latest_status}) do
     case Provisioner.current_image_tag(server) do
       {:ok, observed} when observed == desired ->
         converge(server, desired)
@@ -269,13 +279,11 @@ defmodule Tuist.Kura.Reconciler do
     end
   end
 
-  # The backing resource reports the intended image. Already-serving
-  # servers only refresh the cheap observation; everything else goes
-  # through the endpoint-gated activation so a recovered server heals
-  # forward in place.
-  defp converge(%Server{status: :active, current_image_tag: tag, observed_image_tag: tag} = server, tag) do
-    record(server, :active, tag, now())
-  end
+  # Already active on the observed image: a no-op. Skip the write and
+  # broadcast so a healthy server is not re-locked, re-written, and
+  # pushed to every open settings LiveView every tick. Anything else
+  # heals through the endpoint-gated activation.
+  defp converge(%Server{status: :active, current_image_tag: tag, observed_image_tag: tag}, tag), do: :ok
 
   defp converge(%Server{} = server, desired) do
     case Kura.activate_server(server, desired) do
@@ -301,12 +309,10 @@ defmodule Tuist.Kura.Reconciler do
     end
   end
 
-  # `:failed` reflects a failed latest deployment. A serving `:active`
-  # server is kept `:active` for transient observation gaps and
-  # in-flight drift so its working endpoint is not flapped. Otherwise
-  # the stored status stands.
+  # A failed latest deployment projects to `:failed`; otherwise the
+  # stored status stands, so a serving server is not flapped by a
+  # transient observation gap.
   defp derived_status(%Server{}, :failed), do: :failed
-  defp derived_status(%Server{status: :active}, _latest_status), do: :active
   defp derived_status(%Server{status: status}, _latest_status), do: status
 
   defp record(%Server{} = server, status, observed_image_tag, observed_at) do

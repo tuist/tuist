@@ -12,7 +12,6 @@ defmodule Tuist.Repo.Migrations.AddKuraServerObservedState do
   def up do
     alter table(:kura_servers) do
       add :observed_image_tag, :string
-      add :observed_ready_at, :timestamptz
       add :last_observed_at, :timestamptz
     end
   end
@@ -21,8 +20,6 @@ defmodule Tuist.Repo.Migrations.AddKuraServerObservedState do
     alter table(:kura_servers) do
       # excellent_migrations:safety-assured-for-next-line column_removed
       remove_if_exists :observed_image_tag, :string
-      # excellent_migrations:safety-assured-for-next-line column_removed
-      remove_if_exists :observed_ready_at, :timestamptz
       # excellent_migrations:safety-assured-for-next-line column_removed
       remove_if_exists :last_observed_at, :timestamptz
     end

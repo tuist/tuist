@@ -19,8 +19,8 @@ defmodule Tuist.Kura.Server do
   the backing `KuraInstance` owns observed runtime state. Every
   reconciler tick re-derives `status` for present-intent servers from
   `(latest deployment intent, observed image, endpoint readiness)` and
-  records the observation in `observed_image_tag` / `observed_ready_at`
-  / `last_observed_at`. Nothing pins a sticky `:failed`: a failed
+  records the observation in `observed_image_tag` / `last_observed_at`.
+  Nothing pins a sticky `:failed`: a failed
   deploy is recorded on the `kura_deployments` row (audit) and the
   server `status` is whatever the next projection derives, so infra
   recovery is reflected without an out-of-band retry. The deliberate
@@ -76,13 +76,9 @@ defmodule Tuist.Kura.Server do
     field :provisioner_node_ref, :string
 
     # Observed-state projection. Written only by the reconciler from the
-    # backing KuraInstance, never by user actions. `observed_image_tag`
-    # is the image the cluster reports running; `observed_ready_at` is
-    # when it was last confirmed serving the intended image;
-    # `last_observed_at` is the last successful observation regardless
-    # of readiness.
+    # backing KuraInstance, never by user actions: the image the cluster
+    # reports running and when it was last successfully observed.
     field :observed_image_tag, :string
-    field :observed_ready_at, :utc_datetime
     field :last_observed_at, :utc_datetime
 
     belongs_to :account, Account
@@ -127,11 +123,7 @@ defmodule Tuist.Kura.Server do
       :current_image_tag,
       :provisioner_node_ref
     ])
-    |> validate_required([:status])
-    |> validate_format(:current_image_tag, @image_tag_format, message: @image_tag_message)
-    |> validate_length(:current_image_tag, max: 128)
-    |> validate_active_fields()
-    |> validate_status_transition()
+    |> validate_status_and_image()
   end
 
   @doc """
@@ -147,14 +139,18 @@ defmodule Tuist.Kura.Server do
       :url,
       :current_image_tag,
       :observed_image_tag,
-      :observed_ready_at,
       :last_observed_at
     ])
+    |> validate_format(:observed_image_tag, @image_tag_format, message: @image_tag_message)
+    |> validate_length(:observed_image_tag, max: 128)
+    |> validate_status_and_image()
+  end
+
+  defp validate_status_and_image(changeset) do
+    changeset
     |> validate_required([:status])
     |> validate_format(:current_image_tag, @image_tag_format, message: @image_tag_message)
     |> validate_length(:current_image_tag, max: 128)
-    |> validate_format(:observed_image_tag, @image_tag_format, message: @image_tag_message)
-    |> validate_length(:observed_image_tag, max: 128)
     |> validate_active_fields()
     |> validate_status_transition()
   end

@@ -467,8 +467,6 @@ defmodule Tuist.Kura do
           Repo.rollback(:server_destroyed)
 
         %Server{} = server ->
-          now = now_truncated()
-
           with {:ok, server} <-
                  server
                  |> Server.observation_changeset(%{
@@ -476,8 +474,7 @@ defmodule Tuist.Kura do
                    url: url,
                    current_image_tag: image_tag,
                    observed_image_tag: image_tag,
-                   observed_ready_at: now,
-                   last_observed_at: now
+                   last_observed_at: now_truncated()
                  })
                  |> Repo.update(),
                :ok <- ensure_cache_endpoint(account, url),
