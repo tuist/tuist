@@ -1,30 +1,36 @@
 {{- if .Values.kataContainers.enabled }}
-# Kata Containers + Firecracker runtime for Linux runner Pods.
+# Kata Containers + Firecracker RuntimeClass for Linux runner Pods.
 #
 # Each runner Pod becomes a microVM: separate kernel, real per-tenant
-# kernel isolation, ~5 MiB memory overhead when snapshot-thawed. The
-# `kata-fc` RuntimeClass below is what `pools[].runtimeClass: kata-fc`
-# in `values-*.yaml` resolves to, and what the runners-controller's
-# podtemplate stamps onto `Pod.spec.runtimeClassName` for linux pools.
+# kernel isolation. The `kata-fc` RuntimeClass below is what
+# `pools[].runtimeClass: kata-fc` in `values-*.yaml` resolves to, and
+# what the runners-controller's podtemplate stamps onto
+# `Pod.spec.runtimeClassName` for linux pools.
 #
-# Install model: a single kata-deploy DaemonSet targets nodes labeled
-# `tuist.dev/kata-runtime=true`. The DaemonSet's container shells into
-# the host filesystem and:
-#   1. Drops Kata + Firecracker binaries under /opt/kata
-#   2. Appends `kata-fc` and friends to containerd's
-#      `/etc/containerd/config.toml`
-#   3. Restarts containerd
+# Install model: Kata + nydus-snapshotter + Firecracker are baked into
+# the bare-metal Node at OS install time via the `postInstallScript`
+# in `infra/k8s/clusters/bare-metal-staging.yaml`. The script runs
+# chrooted in the freshly-installed Ubuntu image before any reboot,
+# unpacks `kata-static` under `/opt/kata`, installs the nydus
+# snapshotter as a systemd unit, writes the kata-fc containerd
+# drop-in to `/etc/containerd/conf.d/`, and seeds
+# `/etc/containerd/config.toml` to import drop-ins. When the Node
+# boots, containerd starts with the kata-fc handler already
+# registered — no runtime DaemonSet, no containerd restart, no
+# disruption to Cilium / CNI.
 #
-# Steady state is just `Running` Pods; the install completes ~once
-# per node when it first joins. Nodes without the
-# `tuist.dev/kata-runtime=true` label are unaffected (cluster
-# default runtime keeps serving them).
+# The `katacontainers.io/kata-runtime=true` label below is applied to
+# the Node by `postKubeadmCommands` in the bare-metal worker
+# `KubeadmConfigTemplate`, so the RuntimeClass scheduling rule binds
+# immediately after kubeadm-join. Nodes without the label never
+# match this RuntimeClass and fail to schedule kata-fc Pods (the
+# correct behavior — fail loud rather than silently fall back to runc
+# when an operator asked for microVM isolation).
 #
 # To disable Kata cluster-wide (e.g. dev environments without bare
 # metal), set `kataContainers.enabled: false` in values. The
 # `runtimeClass` field on a pool resolves to nil at the controller
 # and Pods fall back to the cluster default runtime.
----
 apiVersion: node.k8s.io/v1
 kind: RuntimeClass
 metadata:
@@ -33,11 +39,6 @@ metadata:
     {{- include "tuist.labels" . | nindent 4 }}
     app.kubernetes.io/component: kata-containers
 handler: kata-fc
-# Pods using this RuntimeClass schedule only onto nodes that have the
-# kata-deploy DaemonSet installed (it labels the node
-# `katacontainers.io/kata-runtime=true` after a successful install).
-# Failing closed here means an unconfigured node never silently runs
-# a Pod under runc when the operator asked for kata-fc.
 scheduling:
   nodeSelector:
     katacontainers.io/kata-runtime: "true"
@@ -45,170 +46,4 @@ overhead:
   podFixed:
     cpu: "50m"
     memory: "100Mi"
----
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: {{ include "tuist.componentName" (dict "root" . "component" "kata-deploy") }}
-  namespace: {{ .Release.Namespace | quote }}
-  labels:
-    {{- include "tuist.labels" . | nindent 4 }}
-    app.kubernetes.io/component: kata-containers
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: {{ include "tuist.componentName" (dict "root" . "component" "kata-deploy") }}
-  labels:
-    {{- include "tuist.labels" . | nindent 4 }}
-    app.kubernetes.io/component: kata-containers
-rules:
-  - apiGroups: [""]
-    resources: ["nodes"]
-    verbs: ["get", "list", "patch", "update"]
-  - apiGroups: ["node.k8s.io"]
-    resources: ["runtimeclasses"]
-    verbs: ["get", "list", "patch"]
-  # 3.30's binary lists CRDs at startup to detect whether
-  # node-feature-discovery is installed; without this rule the install
-  # crashloops on the very first list call. We don't run NFD, but the
-  # detection probe runs unconditionally.
-  - apiGroups: ["apiextensions.k8s.io"]
-    resources: ["customresourcedefinitions"]
-    verbs: ["get", "list"]
-  # Required only when NFD's CRD is present; harmless otherwise. Mirrors
-  # upstream's chart so we don't have to special-case NFD on/off.
-  - apiGroups: ["nfd.k8s-sigs.io"]
-    resources: ["nodefeaturerules"]
-    verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
-  - apiGroups: ["apps"]
-    resources: ["daemonsets"]
-    verbs: ["get", "list", "watch"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: {{ include "tuist.componentName" (dict "root" . "component" "kata-deploy") }}
-  labels:
-    {{- include "tuist.labels" . | nindent 4 }}
-    app.kubernetes.io/component: kata-containers
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: {{ include "tuist.componentName" (dict "root" . "component" "kata-deploy") }}
-subjects:
-  - kind: ServiceAccount
-    name: {{ include "tuist.componentName" (dict "root" . "component" "kata-deploy") }}
-    namespace: {{ .Release.Namespace | quote }}
----
-apiVersion: apps/v1
-kind: DaemonSet
-metadata:
-  name: {{ include "tuist.componentName" (dict "root" . "component" "kata-deploy") }}
-  namespace: {{ .Release.Namespace | quote }}
-  labels:
-    {{- include "tuist.labels" . | nindent 4 }}
-    app.kubernetes.io/component: kata-containers
-spec:
-  selector:
-    matchLabels:
-      app.kubernetes.io/component: kata-containers
-      app.kubernetes.io/name: kata-deploy
-  template:
-    metadata:
-      labels:
-        {{- include "tuist.labels" . | nindent 8 }}
-        app.kubernetes.io/component: kata-containers
-        app.kubernetes.io/name: kata-deploy
-    spec:
-      serviceAccountName: {{ include "tuist.componentName" (dict "root" . "component" "kata-deploy") }}
-      # Only target nodes the operator has explicitly opted into Kata
-      # on. The bare-metal-worker MachineDeployment in
-      # `cluster-staging.yaml` sets this label automatically; macOS
-      # and cloud nodes never carry it, so kata-deploy doesn't try
-      # (and fail) to install on them.
-      nodeSelector:
-        tuist.dev/kata-runtime: "true"
-      hostPID: true
-      tolerations:
-        - operator: Exists
-      # 3.30 cleanup restarts the CRI runtime and waits for the node
-      # to be Ready again before terminating; needs room above the
-      # default 30s grace.
-      terminationGracePeriodSeconds: 600
-      containers:
-        - name: kata-deploy
-          image: {{ .Values.kataContainers.image.repository }}:{{ .Values.kataContainers.image.tag }}
-          imagePullPolicy: {{ .Values.kataContainers.image.pullPolicy | default "IfNotPresent" }}
-          # 3.30 ships a distroless image with a single Go binary entrypoint
-          # (`/usr/bin/kata-deploy install`). No shell, no kata-deploy.sh,
-          # no `&& sleep infinity` — the binary blocks after install.
-          command: ["/usr/bin/kata-deploy", "install"]
-          env:
-            - name: NODE_NAME
-              valueFrom:
-                fieldRef:
-                  fieldPath: spec.nodeName
-            - name: DAEMONSET_NAME
-              value: {{ include "tuist.componentName" (dict "root" . "component" "kata-deploy") | quote }}
-            - name: DEBUG
-              value: "false"
-            # 3.30 split SHIMS/DEFAULT_SHIM into per-arch variants so a single
-            # DaemonSet can target heterogeneous node pools. We only run on
-            # x86_64 AX42-U / AX162-R hosts, so just the X86_64 vars apply.
-            # `fc` selects the Firecracker shim, which is what the
-            # `kata-fc` RuntimeClass above is pinned to.
-            - name: SHIMS_X86_64
-              value: "fc"
-            - name: DEFAULT_SHIM_X86_64
-              value: "fc"
-            # Firecracker doesn't speak 9pfs, so the default overlayfs
-            # snapshotter can't deliver the container rootfs to the
-            # microVM (the kata-fc shim looks for a block source at
-            # /run/kata-containers/shared/containers/<id>/rootfs and
-            # finds nothing). The nydus snapshotter — bundled in the
-            # kata-deploy image at /opt/nydus-snapshotter — produces a
-            # virtio-blk-compatible rootfs instead. The kata-deploy
-            # binary installs nydus on the host when
-            # EXPERIMENTAL_SETUP_SNAPSHOTTER is set, and routes kata-fc
-            # workloads through it via the snapshotter handler mapping.
-            - name: EXPERIMENTAL_SETUP_SNAPSHOTTER
-              value: "nydus"
-            - name: SNAPSHOTTER_HANDLER_MAPPING_X86_64
-              value: "fc:nydus"
-            # guest-pull mode hands the OCI image reference straight to
-            # the kata-agent inside the microVM, which pulls from the
-            # registry itself. The host never unpacks customer image
-            # layers — eliminates the historic tar-parser CVE surface
-            # area for cross-tenant attacks. Requires the microVM to
-            # have egress to GHCR (the runners namespace NetworkPolicy
-            # already allows that for the runner Pod itself; the
-            # kata-shim tunnels guest registry traffic through the same
-            # host-network path).
-            - name: PULL_TYPE_MAPPING_X86_64
-              value: "fc:guest-pull"
-            - name: EXPERIMENTAL_FORCE_GUEST_PULL_X86_64
-              value: "true"
-          securityContext:
-            privileged: true
-          volumeMounts:
-            - name: crio-conf
-              mountPath: /etc/crio/
-            - name: containerd-conf
-              mountPath: /etc/containerd/
-            # 3.30 mounts the host root at /host/ and reaches everything
-            # else (/opt/kata, /var/run/dbus, /run/systemd, /usr/local/bin)
-            # through this single mount instead of one HostPath per dir.
-            - name: host
-              mountPath: /host/
-      volumes:
-        - name: crio-conf
-          hostPath:
-            path: /etc/crio/
-        - name: containerd-conf
-          hostPath:
-            path: /etc/containerd/
-        - name: host
-          hostPath:
-            path: /
 {{- end }}

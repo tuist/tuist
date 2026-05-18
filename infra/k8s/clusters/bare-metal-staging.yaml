@@ -86,7 +86,7 @@ spec:
             fileSystem: ext4
             size: all
         # post-install script runs CHROOTed into the freshly
-        # installed OS before the first reboot. Two jobs:
+        # installed OS before the first reboot. Three jobs:
         #
         #   1. Install cloud-init. Hetzner's Ubuntu-2404-noble
         #      base tarball doesn't include it, but caph's
@@ -96,10 +96,23 @@ spec:
         #      at `ensure-provisioned` with
         #      `bash: line 1: cloud-init: command not found`.
         #
-        #   2. Stage the kata-runtime marker so kata-deploy picks
-        #      this Node on its first kubelet check-in. The bare-
-        #      metal worker `KubeadmConfigTemplate` runs the actual
-        #      kubeadm join + label apply via cloud-init.
+        #   2. Disable cloud-init's network config and pin Hetzner's
+        #      static netplan as authoritative (DHCPv6 fights the
+        #      static assignment otherwise).
+        #
+        #   3. Pre-bake Kata Containers 3.30 + nydus snapshotter +
+        #      Firecracker. Binaries land at /opt/kata, the
+        #      nydus-snapshotter systemd unit gets installed and
+        #      enabled, and the containerd kata-fc runtime drop-in
+        #      lives at /etc/containerd/conf.d/kata-fc.toml — all
+        #      written before containerd ever starts. When kubelet
+        #      brings containerd up via preKubeadmCommands the
+        #      kata-fc handler is already registered. No runtime
+        #      DaemonSet, no containerd restart loop, no Cilium
+        #      disruption (the runtime kata-deploy DaemonSet was
+        #      this PR's earlier approach and proved unworkable on
+        #      a 64 GB bare-metal Node where every containerd
+        #      restart bounced Cilium for ~5 min).
         postInstallScript: |
           #!/bin/bash
           set -euo pipefail
@@ -152,6 +165,91 @@ spec:
           chmod 600 /etc/netplan/99-tuist-disable-dhcp6.yaml
           mkdir -p /etc/tuist
           echo 'kata-runtime=true' > /etc/tuist/node-labels
+          # ---- Kata Containers 3.30 + nydus pre-bake ----
+          # Pinned versions; bump intentionally via PR (kata releases
+          # have historically shipped install-script regressions —
+          # 3.13.0's was what kicked off this PR's debugging saga).
+          KATA_VERSION=3.30.0
+          NYDUS_VERSION=v0.15.6
+          # 1. kata-static under /opt/kata. The tarball expands with a
+          # top-level `opt/` so extracting at / lands binaries at
+          # /opt/kata/{bin,libexec,share}/...
+          curl -fsSL -o /tmp/kata.tar.xz \
+            "https://github.com/kata-containers/kata-containers/releases/download/${KATA_VERSION}/kata-static-${KATA_VERSION}-amd64.tar.xz"
+          tar -xf /tmp/kata.tar.xz -C /
+          rm /tmp/kata.tar.xz
+          # 2. nydus-snapshotter binary + config + systemd unit.
+          # The snapshotter speaks the containerd "proxy snapshotter"
+          # protocol over a unix socket and serves OCI image layers
+          # as block devices the Firecracker microVM can mount —
+          # default overlayfs gives a directory rootfs that
+          # Firecracker can't consume (no 9pfs support).
+          curl -fsSL -o /tmp/nydus.tar.gz \
+            "https://github.com/containerd/nydus-snapshotter/releases/download/${NYDUS_VERSION}/nydus-snapshotter-${NYDUS_VERSION}-linux-amd64.tar.gz"
+          mkdir -p /tmp/nydus
+          tar -xf /tmp/nydus.tar.gz -C /tmp/nydus
+          install -m 0755 /tmp/nydus/bin/containerd-nydus-grpc /usr/local/bin/
+          rm -rf /tmp/nydus.tar.gz /tmp/nydus
+          mkdir -p /etc/nydus /var/lib/containerd-nydus /run/containerd-nydus
+          cat > /etc/nydus/config.toml <<'NYDUSCFG'
+          version = 1
+          root = "/var/lib/containerd-nydus"
+          address = "/run/containerd-nydus/containerd-nydus-grpc.sock"
+          daemon_mode = "none"
+          enable_system_controller = false
+          [snapshot]
+          enable_kata_volume = true
+          NYDUSCFG
+          cat > /etc/systemd/system/nydus-snapshotter.service <<'UNIT'
+          [Unit]
+          Description=Nydus snapshotter for containerd
+          After=network-online.target containerd.service
+          Wants=network-online.target
+
+          [Service]
+          ExecStart=/usr/local/bin/containerd-nydus-grpc --config /etc/nydus/config.toml --log-to-stdout
+          Restart=always
+          RestartSec=5
+
+          [Install]
+          WantedBy=multi-user.target
+          UNIT
+          systemctl enable nydus-snapshotter.service
+          # 3. containerd config drop-in for kata-fc. The drop-in
+          # registers the kata-fc runtime handler and tells
+          # containerd to route kata-fc workloads through the nydus
+          # snapshotter (the only path that gives Firecracker a
+          # rootfs it can actually mount). The main /etc/containerd/
+          # config.toml is set up here too so the imports line is in
+          # place before containerd ever starts — apt-installed
+          # containerd respects an existing config.toml.
+          mkdir -p /etc/containerd/conf.d
+          cat > /etc/containerd/config.toml <<'CONTAINERDCFG'
+          version = 3
+          imports = ["/etc/containerd/conf.d/*.toml"]
+          CONTAINERDCFG
+          cat > /etc/containerd/conf.d/kata-fc.toml <<'DROPIN'
+          [plugins."io.containerd.cri.v1.runtime".containerd.runtimes.kata-fc]
+          runtime_type = "io.containerd.kata-fc.v2"
+          runtime_path = "/opt/kata/bin/containerd-shim-kata-v2"
+          privileged_without_host_devices = true
+          pod_annotations = ["io.katacontainers.*"]
+          snapshotter = "nydus"
+          [plugins."io.containerd.cri.v1.runtime".containerd.runtimes.kata-fc.options]
+          ConfigPath = "/opt/kata/share/defaults/kata-containers/runtimes/fc/configuration-fc.toml"
+          [proxy_plugins.nydus]
+          type = "snapshot"
+          address = "/run/containerd-nydus/containerd-nydus-grpc.sock"
+          DROPIN
+          # 4. Enable guest-pull in kata's per-shim config so the
+          # microVM's kata-agent pulls images from the registry
+          # itself. The host never unpacks customer image layers —
+          # eliminates the historic tar-parser CVE surface area for
+          # cross-tenant attacks.
+          KATA_FC_CFG=/opt/kata/share/defaults/kata-containers/runtimes/fc/configuration-fc.toml
+          if [ -f "$KATA_FC_CFG" ] && ! grep -q '^service_offload' "$KATA_FC_CFG"; then
+            printf '\n[runtime]\nservice_offload = true\n' >> "$KATA_FC_CFG"
+          fi
       # Only claim hosts the hetzner-robot-controller created. The
       # controller stamps both labels on every CR it owns:
       # `app.kubernetes.io/managed-by=hetzner-robot-controller` is the
@@ -242,6 +340,11 @@ spec:
         # after kubeadm join completes. The MachineDeployment also
         # carries these in `metadata.labels`, but CAPI's label-sync
         # only propagates `node.cluster.x-k8s.io/*` and
-        # `node-role.kubernetes.io/*`; the tuist.dev/* labels have to
-        # be applied directly.
+        # `node-role.kubernetes.io/*`; the tuist.dev/* and
+        # katacontainers.io/* labels have to be applied directly.
+        # `katacontainers.io/kata-runtime` is what the kata-fc
+        # RuntimeClass' nodeSelector matches — its old applier was
+        # the kata-deploy DaemonSet, which we removed once Kata
+        # moved into the OS install path (see postInstallScript).
         - 'kubectl --kubeconfig /etc/kubernetes/kubelet.conf label node "$(hostname)" tuist.dev/kata-runtime=true --overwrite'
+        - 'kubectl --kubeconfig /etc/kubernetes/kubelet.conf label node "$(hostname)" katacontainers.io/kata-runtime=true --overwrite'
