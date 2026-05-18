@@ -17,6 +17,23 @@ defmodule Tuist.Webhooks do
   alias Tuist.Webhooks.Signature
   alias Tuist.Webhooks.WebhookEndpoint
 
+  # Dashboard / dispatcher reads omit `signing_secret` so Cloak doesn't
+  # decrypt the plaintext HMAC key just to render a masked preview or
+  # fan out a delivery job — the worker path (`get_endpoint/1`) keeps
+  # the full load. `url` stays in the projection because the index
+  # renders it plaintext and the encryption is specifically for
+  # path-based bearer tokens carried inside the URL.
+  @dashboard_fields [
+    :id,
+    :account_id,
+    :name,
+    :url,
+    :signing_secret_last_four,
+    :event_types,
+    :inserted_at,
+    :updated_at
+  ]
+
   @doc """
   Lists endpoints in `account_id` that subscribe to `event_type`.
   """
@@ -24,7 +41,8 @@ defmodule Tuist.Webhooks do
     Repo.all(
       from(e in WebhookEndpoint,
         where: e.account_id == ^account_id,
-        where: ^event_type in e.event_types
+        where: ^event_type in e.event_types,
+        select: struct(e, ^@dashboard_fields)
       )
     )
   end
@@ -34,12 +52,21 @@ defmodule Tuist.Webhooks do
   stable across renders.
   """
   def list_endpoints(account_id) do
-    Repo.all(from(e in WebhookEndpoint, where: e.account_id == ^account_id, order_by: [asc: e.inserted_at]))
+    Repo.all(
+      from(e in WebhookEndpoint,
+        where: e.account_id == ^account_id,
+        order_by: [asc: e.inserted_at],
+        select: struct(e, ^@dashboard_fields)
+      )
+    )
   end
 
   @doc """
   Loads a single endpoint by id, regardless of account. Callers that operate
   inside an account scope must compare `account_id` themselves before acting.
+
+  Returns the full struct, including the decrypted `signing_secret` —
+  this is the read path the delivery worker uses.
   """
   def get_endpoint(id) do
     case Repo.get(WebhookEndpoint, id) do
@@ -50,10 +77,16 @@ defmodule Tuist.Webhooks do
 
   @doc """
   Loads an endpoint scoped to `account_id`, ensuring the caller can only
-  observe rows that belong to their account.
+  observe rows that belong to their account. Dashboard-facing — omits
+  `signing_secret` so the plaintext key never enters LiveView assigns.
   """
   def get_account_endpoint(id, account_id) do
-    case Repo.one(from(e in WebhookEndpoint, where: e.id == ^id and e.account_id == ^account_id)) do
+    case Repo.one(
+           from(e in WebhookEndpoint,
+             where: e.id == ^id and e.account_id == ^account_id,
+             select: struct(e, ^@dashboard_fields)
+           )
+         ) do
       nil -> {:error, :not_found}
       endpoint -> {:ok, endpoint}
     end

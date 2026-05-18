@@ -33,7 +33,7 @@ defmodule TuistWeb.API.Schemas.Webhook.TestCase do
       last_status: %Schema{
         type: :string,
         nullable: true,
-        enum: ["success", "failure"],
+        enum: ["success", "failure", "skipped"],
         description: "Result of the most recent run, when one exists."
       },
       last_ran_at: %Schema{

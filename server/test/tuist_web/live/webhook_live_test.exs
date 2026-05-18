@@ -46,7 +46,9 @@ defmodule TuistWeb.WebhookLiveTest do
     html = render_hook(lv, "rotate_endpoint_signing_secret", %{})
 
     assert html =~ "rotated-webhook-signing-secret"
-    {:ok, reloaded} = Webhooks.get_account_endpoint(endpoint.id, account.id)
+    # Verify via the worker read path — the dashboard projection
+    # omits the encrypted secret on purpose.
+    {:ok, reloaded} = Webhooks.get_endpoint(endpoint.id)
     refute reloaded.signing_secret == original
   end
 

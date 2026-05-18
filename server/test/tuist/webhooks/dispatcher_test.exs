@@ -257,6 +257,29 @@ defmodule Tuist.Webhooks.DispatcherTest do
       assert_payload_matches_schema!(job.args["payload"], "WebhookTestCaseUpdatedEvent")
     end
 
+    # `last_status` is `Enum8('success' = 0, 'failure' = 1, 'skipped' = 2)`
+    # in `Tuist.Tests.TestCase` — the dispatcher forwards whatever's on
+    # the row, so the webhook schema needs to admit all three. Pins
+    # `"skipped"` here so a future enum narrowing fails CI.
+    test "test_case.updated with last_status=skipped" do
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, _, _} =
+        Webhooks.create_endpoint(project.account_id, %{
+          "name" => "Hook",
+          "url" => "https://example.com/hook",
+          "event_types" => ["test_case.updated"]
+        })
+
+      test_case = insert_test_case(project, last_status: "skipped", state: "skipped")
+
+      assert :ok = Dispatcher.dispatch_test_case_event(test_case, [:skipped])
+
+      [job] = Tuist.Repo.all(Oban.Job)
+      assert job.args["payload"]["object"]["last_status"] == "skipped"
+      assert_payload_matches_schema!(job.args["payload"], "WebhookTestCaseUpdatedEvent")
+    end
+
     test "preview.created" do
       project = ProjectsFixtures.project_fixture()
       preview = AppBuildsFixtures.preview_fixture(project: project)

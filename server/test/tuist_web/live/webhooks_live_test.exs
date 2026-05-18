@@ -42,12 +42,16 @@ defmodule TuistWeb.WebhooksLiveTest do
     assert html =~ "tuist_webhook_"
 
     # The endpoint is persisted with the selected event subscriptions.
-    assert [endpoint] = Webhooks.list_endpoints(account.id)
+    # `list_endpoints/1` skips the encrypted secret (defense-in-depth on
+    # dashboard reads), so we verify the persisted plaintext via
+    # `get_endpoint/1` — the same read path the delivery worker uses.
+    assert [%{id: endpoint_id} = endpoint] = Webhooks.list_endpoints(account.id)
     assert endpoint.name == "Jira"
     assert endpoint.url == "https://example.com/hook"
     assert endpoint.event_types == ["test_case.updated"]
-    assert is_binary(endpoint.signing_secret)
-    assert String.starts_with?(endpoint.signing_secret, "tuist_webhook_")
+    assert {:ok, full_endpoint} = Webhooks.get_endpoint(endpoint_id)
+    assert is_binary(full_endpoint.signing_secret)
+    assert String.starts_with?(full_endpoint.signing_secret, "tuist_webhook_")
 
     # After dismissing, the secret is no longer in the rendered HTML.
     html = render_hook(lv, "dismiss_disclosure", %{})
@@ -130,7 +134,9 @@ defmodule TuistWeb.WebhooksLiveTest do
     html = render_hook(lv, "rotate_endpoint_signing_secret", %{"id" => endpoint.id})
 
     assert html =~ "new-webhook-signing-secret"
-    {:ok, reloaded} = Webhooks.get_account_endpoint(endpoint.id, account.id)
+    # Verify via the worker read path — the dashboard projection
+    # omits the encrypted secret on purpose.
+    {:ok, reloaded} = Webhooks.get_endpoint(endpoint.id)
     refute reloaded.signing_secret == original
   end
 

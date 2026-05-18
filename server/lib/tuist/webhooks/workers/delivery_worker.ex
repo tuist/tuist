@@ -81,6 +81,12 @@ defmodule Tuist.Webhooks.Workers.DeliveryWorker do
               body: body,
               receive_timeout: @request_timeout_ms,
               retry: false,
+              # SSRFGuard.pin/1 only validates the first hop. Following
+              # a 3xx would bypass the guard if the upstream redirects
+              # to a private / metadata address, so we treat redirects
+              # as a failed delivery and let the receiver land on the
+              # canonical URL themselves.
+              redirect: false,
               connect_options: SSRFGuard.connect_options(hostname)
             )
 
