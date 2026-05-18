@@ -48,6 +48,13 @@ defmodule Tuist.Runners.PromExPlugin do
 
   @metric_prefix [:tuist, :runners]
 
+  # The bounded universe of lifecycle states a `runner_claims` row
+  # can carry. The poll iterates this list so a fleet whose final
+  # `claimed` row was just released drains the gauge to zero on the
+  # next tick instead of `last_value` keeping a phantom non-zero
+  # series until process restart.
+  @lifecycle_states ~w(claimed running)
+
   # Buckets cover the realistic wall-clock range for each duration.
   # `queue_time` and `queue_to_running` are sub-minute on the happy
   # path; `run_time` / `total_time` span seconds to the GH-side
@@ -261,60 +268,109 @@ defmodule Tuist.Runners.PromExPlugin do
   @doc false
   def execute_queue_length_telemetry_event do
     if PoolMetrics.running?(ClickHouseRepo) do
-      query =
-        from(j in Job,
-          hints: ["FINAL"],
-          where: j.status == "queued",
-          group_by: j.fleet_name,
-          select: {j.fleet_name, count(j.workflow_job_id)}
-        )
+      counts = fetch_queue_counts()
 
-      try_result =
-        try do
-          ClickHouseRepo.all(query)
-        rescue
-          e ->
-            Logger.debug("runners: queue_length poll failed", reason: Exception.message(e))
-            []
-        end
-
-      Enum.each(try_result, fn {fleet, count} ->
+      counts
+      |> universe_fleets()
+      |> Enum.each(fn fleet ->
         :telemetry.execute(
           Telemetry.event_name_queue_length(),
-          %{count: count},
-          %{fleet: fleet || ""}
+          %{count: Map.get(counts, fleet, 0)},
+          %{fleet: fleet}
         )
       end)
     end
+  end
+
+  defp fetch_queue_counts do
+    query =
+      from(j in Job,
+        hints: ["FINAL"],
+        where: j.status == "queued",
+        group_by: j.fleet_name,
+        select: {j.fleet_name, count(j.workflow_job_id)}
+      )
+
+    query
+    |> ClickHouseRepo.all()
+    |> Map.new(fn {fleet, count} -> {fleet || "", count} end)
+  rescue
+    e ->
+      Logger.debug("runners: queue_length poll failed", reason: Exception.message(e))
+      %{}
   end
 
   @doc false
   def execute_claims_telemetry_event do
     if PoolMetrics.running?(Repo) do
-      query =
-        from(c in Claim,
-          group_by: [c.fleet_name, c.lifecycle_state],
-          select: {c.fleet_name, c.lifecycle_state, count(c.workflow_job_id)}
-        )
+      counts = fetch_claim_counts()
+      observed_fleets = counts |> Map.keys() |> Enum.map(&elem(&1, 0))
 
-      try_result =
-        try do
-          Repo.all(query)
-        rescue
-          e ->
-            Logger.debug("runners: claims poll failed", reason: Exception.message(e))
-            []
-        end
-
-      Enum.each(try_result, fn {fleet, state, count} ->
-        :telemetry.execute(
-          Telemetry.event_name_claims_count(),
-          %{count: count},
-          %{fleet: fleet || "", lifecycle_state: state || ""}
-        )
+      observed_fleets
+      |> universe_fleets()
+      |> Enum.each(fn fleet ->
+        Enum.each(@lifecycle_states, fn state ->
+          :telemetry.execute(
+            Telemetry.event_name_claims_count(),
+            %{count: Map.get(counts, {fleet, state}, 0)},
+            %{fleet: fleet, lifecycle_state: state}
+          )
+        end)
       end)
     end
   end
+
+  defp fetch_claim_counts do
+    query =
+      from(c in Claim,
+        group_by: [c.fleet_name, c.lifecycle_state],
+        select: {c.fleet_name, c.lifecycle_state, count(c.workflow_job_id)}
+      )
+
+    query
+    |> Repo.all()
+    |> Map.new(fn {fleet, state, count} -> {{fleet || "", state || ""}, count} end)
+  rescue
+    e ->
+      Logger.debug("runners: claims poll failed", reason: Exception.message(e))
+      %{}
+  end
+
+  # Union of (RunnerPool CRs currently in the cluster) and any
+  # fleets observed in the source-of-truth query. The cluster set
+  # ensures we emit a `0` for a fleet that just drained — otherwise
+  # `last_value` would keep the previous non-zero sample
+  # indefinitely. The observed set covers the edge case where a
+  # RunnerPool was deleted with leftover queued / claimed rows; we
+  # still surface those until the rows are cleared.
+  defp universe_fleets(observed) when is_list(observed) or is_map(observed) do
+    cluster_fleets = active_fleets()
+    observed_set = observed |> ensure_list() |> MapSet.new()
+
+    cluster_fleets
+    |> MapSet.union(observed_set)
+    |> MapSet.delete(nil)
+    |> MapSet.to_list()
+  end
+
+  defp ensure_list(map) when is_map(map), do: Map.keys(map)
+  defp ensure_list(list) when is_list(list), do: list
+
+  defp active_fleets do
+    case safe_list_runner_pools() do
+      {:ok, items} ->
+        items
+        |> Enum.map(&pool_name/1)
+        |> Enum.reject(&is_nil/1)
+        |> MapSet.new()
+
+      _ ->
+        MapSet.new()
+    end
+  end
+
+  defp pool_name(%{"metadata" => %{"name" => name}}) when is_binary(name) and name != "", do: name
+  defp pool_name(_), do: nil
 
   @doc false
   def execute_pool_replicas_telemetry_event do

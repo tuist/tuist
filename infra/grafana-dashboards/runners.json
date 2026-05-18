@@ -71,7 +71,7 @@
           "options": [],
           "query": {
             "qryType": 1,
-            "query": "label_values(tuist_runners_pool_replicas_desired, pool)",
+            "query": "label_values(tuist_runners_pool_replicas_desired, fleet)",
             "refId": "PrometheusVariableQueryEditor-VariableQuery"
           },
           "refresh": 1,
