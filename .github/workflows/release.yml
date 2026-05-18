@@ -2210,12 +2210,7 @@ jobs:
       # env-var-only push hangs at "Error: The request timed out.",
       # and `crane auth login` writes ~/.docker/config.json which
       # `tart push` reads via the Docker credential-helper protocol.
-      - name: Ensure crane is installed
-        run: |
-          if ! command -v crane >/dev/null 2>&1; then
-            brew install crane
-          fi
-
+      # `crane` is installed by the builder bootstrap.
       - name: Log in to GHCR (crane)
         run: |
           set -euo pipefail
@@ -2273,14 +2268,10 @@ jobs:
           version: ${{ env.MISE_VERSION }}
           install_args: "git-cliff"
 
-      - name: Ensure crane is installed
-        # `crane digest` resolves the just-pushed tag to its
-        # immutable @sha256:… form for the chart pin. Not on the
-        # bare-metal runner by default; brew is.
-        run: |
-          if ! command -v crane >/dev/null 2>&1; then
-            brew install crane
-          fi
+      # `crane` is installed by the builder bootstrap; the
+      # release-runner-image leg uses `crane digest` further down
+      # to resolve a pushed tag to its immutable @sha256:… form
+      # for the chart pin, plus `crane auth login` for GHCR auth.
 
       - name: Get release notes
         id: release-notes

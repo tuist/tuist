@@ -117,24 +117,14 @@ jobs:
             -var "runner_version=${{ inputs.runner_version || '2.334.0' }}" \
             runner.pkr.hcl
 
-      # Two-step GHCR auth, mirroring release.yml's runner-image leg.
-      #
-      # No `tart login ghcr.io`: that writes to the macOS keychain,
-      # which on Tahoe-host LaunchAgents fails with "User interaction
-      # is not allowed". Tart 2.32.1's TART_REGISTRY_USERNAME /
-      # TART_REGISTRY_PASSWORD env-vars alone hang at `tart push`
-      # with "Error: The request timed out." (cause not investigated;
-      # crane login is the known-working alternative).
-      #
-      # `crane auth login` writes ~/.docker/config.json. Tart's push
-      # reads from there via the Docker credential-helper protocol,
-      # bypassing keychain entirely.
-      - name: Ensure crane is installed
-        run: |
-          if ! command -v crane >/dev/null 2>&1; then
-            brew install crane
-          fi
-
+      # GHCR auth for the Push step below. `crane` (installed by the
+      # builder bootstrap, alongside Tart and Packer) writes creds
+      # to ~/.docker/config.json; Tart's push reads from there via
+      # the Docker credential-helper protocol. Bypasses both the
+      # keychain (which `tart login` would use, and which gates on a
+      # Tahoe-LaunchAgent-incompatible "User interaction" prompt)
+      # and Tart 2.32.1's env-var-only push path (which hangs with
+      # "Error: The request timed out" — cause not investigated).
       - name: Log in to GHCR (crane)
         run: |
           set -euo pipefail

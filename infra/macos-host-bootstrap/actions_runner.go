@@ -79,7 +79,7 @@ if ! command -v brew >/dev/null 2>&1; then
 fi
 eval "$(/opt/homebrew/bin/brew shellenv)"
 brew tap hashicorp/tap
-brew install mise hashicorp/tap/packer
+brew install mise hashicorp/tap/packer crane
 
 # Pin Packer so subsequent ` + "`brew upgrade`" + ` calls are no-ops.
 # Stable binary signatures matter on macOS Tahoe: the Local Network

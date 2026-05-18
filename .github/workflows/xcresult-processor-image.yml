@@ -167,18 +167,8 @@ jobs:
             -var "release_tarball=/tmp/release.tar.gz" \
             xcresult-processor.pkr.hcl
 
-      # Two-step GHCR auth, mirroring release.yml's runner-image leg.
-      # See runner-image.yml's matching step for the long
-      # explanation: keychain is gated on Tahoe LaunchAgents,
-      # env-var-only push hangs at "Error: The request timed out.",
-      # and `crane auth login` writes ~/.docker/config.json which
-      # `tart push` reads via the Docker credential-helper protocol.
-      - name: Ensure crane is installed
-        run: |
-          if ! command -v crane >/dev/null 2>&1; then
-            brew install crane
-          fi
-
+      # GHCR auth for the Push step below. See runner-image.yml's
+      # matching step for the long explanation.
       - name: Log in to GHCR (crane)
         run: |
           set -euo pipefail
