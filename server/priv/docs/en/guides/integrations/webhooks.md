@@ -100,7 +100,7 @@ To verify on your side:
 > [!IMPORTANT] USE THE RAW BODY
 > The signature is computed over the bytes Tuist sent. If your web framework reparses and re-serializes the JSON before you verify, the digest won't match. Capture the raw body (e.g. `request.body.read` in Rack, the raw `Buffer` in Express) and pass that to your verifier.
 
-### Node.js example {#node-example}
+A reference verifier in Node.js — translate the same four steps (parse the header, check the timestamp drift, recompute the HMAC, compare in constant time) to whatever language your receiver is written in:
 
 ```javascript
 import crypto from "node:crypto";
@@ -125,27 +125,6 @@ function verifyTuistSignature(rawBody, header, secret, toleranceSeconds = 300) {
   const b = Buffer.from(signature, "hex");
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
-```
-
-### Python example {#python-example}
-
-```python
-import hmac, hashlib, time
-
-def verify_tuist_signature(raw_body: bytes, header: str, secret: str, tolerance: int = 300) -> bool:
-    parts = dict(part.split("=", 1) for part in header.split(","))
-    try:
-        timestamp = int(parts["t"])
-        signature = parts["v1"]
-    except (KeyError, ValueError):
-        return False
-
-    if abs(int(time.time()) - timestamp) > tolerance:
-        return False
-
-    signed_payload = f"{timestamp}.".encode() + raw_body
-    expected = hmac.new(secret.encode(), signed_payload, hashlib.sha256).hexdigest()
-    return hmac.compare_digest(expected, signature)
 ```
 
 ## Retries {#retries}
