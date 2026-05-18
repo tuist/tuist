@@ -9,11 +9,36 @@ defmodule Tuist.Webhooks.DispatcherTest do
   alias TuistTestSupport.Fixtures.AppBuildsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
+  alias TuistWeb.API.Spec, as: ApiSpec
 
   defp insert_test_case(project, attrs \\ []) do
     test_case = RunsFixtures.test_case_fixture([project_id: project.id] ++ attrs)
     IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
     test_case
+  end
+
+  # Pulls the named schema out of the resolved API spec and casts the
+  # payload against it. Using the resolved spec (not the bare module's
+  # `.schema/0`) means nested `$ref`s to component schemas — e.g. the
+  # event envelopes reference `WebhookTestCase` / `WebhookPreview` —
+  # resolve against `components.schemas` instead of failing the cast.
+  defp assert_payload_matches_schema!(payload, schema_title) do
+    spec = ApiSpec.spec()
+    schema = Map.fetch!(spec.components.schemas, schema_title)
+
+    case OpenApiSpex.cast_value(payload, schema, spec) do
+      {:ok, _} ->
+        :ok
+
+      {:error, errors} ->
+        flunk("""
+        Dispatcher payload doesn't conform to #{schema_title}:
+
+        #{errors |> List.wrap() |> Enum.map_join("\n", &OpenApiSpex.Cast.Error.message/1)}
+
+        Payload: #{inspect(payload, pretty: true, limit: :infinity)}
+        """)
+    end
   end
 
   describe "dispatch_test_case_event/3" do
@@ -184,6 +209,86 @@ defmodule Tuist.Webhooks.DispatcherTest do
 
       assert :ok = Dispatcher.dispatch_preview_created(preview)
       assert Tuist.Repo.aggregate(Oban.Job, :count) == 0
+    end
+  end
+
+  # Cross-checks: every event the dispatcher emits in production must
+  # conform to the matching `WebhookXxxEvent` schema documented on
+  # `/api/docs`. Drift here (snapshot fields renamed, types changed,
+  # required fields dropped) fails CI instead of confusing customers
+  # who decode against the schema.
+  describe "payload conformance with the documented OpenAPI schemas" do
+    test "test_case.created" do
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, _, _} =
+        Webhooks.create_endpoint(project.account_id, %{
+          "name" => "Hook",
+          "url" => "https://example.com/hook",
+          "event_types" => ["test_case.created"]
+        })
+
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id)
+      assert :ok = Dispatcher.dispatch_test_case_created(project.id, [test_case])
+
+      [job] = Tuist.Repo.all(Oban.Job)
+      assert_payload_matches_schema!(job.args["payload"], "WebhookTestCaseCreatedEvent")
+    end
+
+    test "test_case.updated" do
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, _, _} =
+        Webhooks.create_endpoint(project.account_id, %{
+          "name" => "Hook",
+          "url" => "https://example.com/hook",
+          "event_types" => ["test_case.updated"]
+        })
+
+      test_case = insert_test_case(project, is_flaky: true, state: "muted")
+
+      assert :ok =
+               Dispatcher.dispatch_test_case_event(test_case, [:marked_flaky, :muted],
+                 actor_id: 42,
+                 alert_id: Ecto.UUID.generate()
+               )
+
+      [job] = Tuist.Repo.all(Oban.Job)
+      assert_payload_matches_schema!(job.args["payload"], "WebhookTestCaseUpdatedEvent")
+    end
+
+    test "preview.created" do
+      project = ProjectsFixtures.project_fixture()
+      preview = AppBuildsFixtures.preview_fixture(project: project)
+
+      {:ok, _, _} =
+        Webhooks.create_endpoint(project.account_id, %{
+          "name" => "Hook",
+          "url" => "https://example.com/hook",
+          "event_types" => ["preview.created"]
+        })
+
+      assert :ok = Dispatcher.dispatch_preview_created(preview)
+
+      [job] = Tuist.Repo.all(Oban.Job)
+      assert_payload_matches_schema!(job.args["payload"], "WebhookPreviewCreatedEvent")
+    end
+
+    test "preview.deleted" do
+      project = ProjectsFixtures.project_fixture()
+      preview = AppBuildsFixtures.preview_fixture(project: project)
+
+      {:ok, _, _} =
+        Webhooks.create_endpoint(project.account_id, %{
+          "name" => "Hook",
+          "url" => "https://example.com/hook",
+          "event_types" => ["preview.deleted"]
+        })
+
+      assert :ok = Dispatcher.dispatch_preview_deleted(preview)
+
+      [job] = Tuist.Repo.all(Oban.Job)
+      assert_payload_matches_schema!(job.args["payload"], "WebhookPreviewDeletedEvent")
     end
   end
 end

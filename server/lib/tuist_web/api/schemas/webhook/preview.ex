@@ -15,7 +15,7 @@ defmodule TuistWeb.API.Schemas.Webhook.Preview do
     title: "WebhookPreview",
     description: "Snapshot of the preview that triggered the webhook event.",
     type: :object,
-    required: [:id, :project_id, :supported_platforms, :visibility, :inserted_at],
+    required: [:id, :project_id, :supported_platforms, :inserted_at],
     properties: %{
       id: %Schema{type: :string, description: "Identifier of the preview."},
       display_name: %Schema{
@@ -42,8 +42,10 @@ defmodule TuistWeb.API.Schemas.Webhook.Preview do
       },
       visibility: %Schema{
         type: :string,
+        nullable: true,
         enum: ["public", "private"],
-        description: "Sharing visibility of the preview."
+        description:
+          "Sharing visibility of the preview. `null` for previews uploaded before the account had a default visibility configured."
       },
       git_branch: %Schema{
         type: :string,

@@ -121,7 +121,7 @@ defmodule Tuist.Webhooks.Dispatcher do
       "version" => preview.version,
       "project_id" => preview.project_id,
       "supported_platforms" => Enum.map(preview.supported_platforms || [], &to_string/1),
-      "visibility" => to_string(preview.visibility),
+      "visibility" => maybe_to_string(preview.visibility),
       "git_branch" => preview.git_branch,
       "git_commit_sha" => preview.git_commit_sha,
       "git_ref" => preview.git_ref,
@@ -172,6 +172,17 @@ defmodule Tuist.Webhooks.Dispatcher do
 
   defp format_datetime(nil), do: nil
   defp format_datetime(%DateTime{} = dt), do: DateTime.to_iso8601(dt)
-  defp format_datetime(%NaiveDateTime{} = dt), do: NaiveDateTime.to_iso8601(dt)
+
+  # NaiveDateTime sources (CH `DateTime64(6, 'UTC')` columns Ecto
+  # decodes as naive, PG `:utc_datetime` denormalized fields) are UTC
+  # by convention here. Promote to `%DateTime{}` so the serialized
+  # output carries the `Z` offset RFC 3339 requires — without it the
+  # documented `date-time` schema rejects the value.
+  defp format_datetime(%NaiveDateTime{} = dt),
+    do: dt |> DateTime.from_naive!("Etc/UTC") |> DateTime.to_iso8601()
+
   defp format_datetime(other), do: to_string(other)
+
+  defp maybe_to_string(nil), do: nil
+  defp maybe_to_string(value), do: to_string(value)
 end
