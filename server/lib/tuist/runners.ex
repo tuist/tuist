@@ -56,6 +56,7 @@ defmodule Tuist.Runners do
   alias Tuist.Runners.Claims
   alias Tuist.Runners.Dispatch
   alias Tuist.Runners.Jobs
+  alias Tuist.Runners.Telemetry
   alias Tuist.VCS
 
   require Logger
@@ -100,6 +101,15 @@ defmodule Tuist.Runners do
       the check runs only on idle polls (before claim attempt).
   """
   def dispatch_for_sa(namespace, sa_name) when is_binary(namespace) and is_binary(sa_name) do
+    start_time = System.monotonic_time()
+
+    result = do_dispatch_for_sa(namespace, sa_name)
+    duration_ms = System.convert_time_unit(System.monotonic_time() - start_time, :native, :millisecond)
+    emit_dispatch_telemetry(result, duration_ms)
+    result
+  end
+
+  defp do_dispatch_for_sa(namespace, sa_name) do
     with {:ok, sa} <- K8sClient.get_service_account(namespace, sa_name),
          {:ok, fleet_name} <- pool_label(sa),
          :ok <- check_not_stale(namespace, sa_name, fleet_name) do
@@ -150,6 +160,18 @@ defmodule Tuist.Runners do
       end
     end
   end
+
+  defp emit_dispatch_telemetry(result, duration_ms) do
+    :telemetry.execute(
+      Telemetry.event_name_dispatch_request(),
+      %{count: 1, duration_ms: duration_ms},
+      %{outcome: dispatch_outcome(result)}
+    )
+  end
+
+  defp dispatch_outcome({:ok, _}), do: "served"
+  defp dispatch_outcome({:error, reason}) when is_atom(reason), do: Atom.to_string(reason)
+  defp dispatch_outcome(_), do: "unknown"
 
   defp serve_claim(namespace, sa_name, fleet_name, candidate, claim) do
     case Accounts.get_account_by_id(candidate.account_id) do
