@@ -343,16 +343,17 @@ runnersFleetLinux:
         # for noisy-neighbor protection).
         cpuMilli: 1000
         memoryMB: 4096
-      # Queue-depth driven autoscaling. minWarmPoolFloor keeps a
-      # baseline of warm microVMs ready. maxReplicas caps at the
-      # host's microVM density; pending Pods past that signal
-      # operator to provision more bare-metal hosts.
+      # Queue-depth driven autoscaling. Pod-level only — the operator
+      # manages bare-metal Host count manually via the cluster topology
+      # in `infra/k8s/clusters/cluster-staging.yaml`. Bare-metal hosts
+      # are monthly-billed in Hetzner Robot; auto-scaling them via the
+      # autoscaler's `machineDeployment` field would (a) silently
+      # provision unused capacity at non-trivial cost, and (b) mis-size
+      # because the autoscaler doesn't know slots-per-host. Pending
+      # Pods past `maxReplicas` are the operator's signal to order
+      # another `tuist-bm-*` host.
       autoscaling:
         enabled: true
         minWarmPoolFloor: 2
-        maxReplicas: 16
+        maxReplicas: 14
         scaleDownCooldownSeconds: 300
-        machineDeployment:
-          namespace: org-tuist
-          clusterName: tuist-staging
-          deploymentName: runners-linux

@@ -34,6 +34,13 @@ name: Mgmt Cluster Apply
 
 on:
   push:
+    # PRE-MERGE TODO: drop `claude/priceless-wozniak-85daf8` from this
+    # list before merging — that branch is the bring-up branch for this
+    # PR and needs to apply mgmt-cluster state during development.
+    # Leaving it in after merge would let any push to the bring-up
+    # branch (or any branch named exactly that) mutate the management
+    # cluster, which breaks the main-only deployment posture every
+    # other workflow holds.
     branches: [main, claude/priceless-wozniak-85daf8]
     paths:
       - 'infra/k8s/clusters/**'

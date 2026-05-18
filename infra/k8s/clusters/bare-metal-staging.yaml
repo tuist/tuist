@@ -14,11 +14,15 @@
 #
 #   - `hetzner` Secret in `org-tuist` — extended with
 #     `hetzner-robot-user` + `hetzner-robot-password` keys alongside
-#     the existing `hcloud` token. caph reads all three from the
-#     same Secret via the HetznerClusterTemplate's `hetznerSecretRef`
-#     (per-host credential override isn't supported in caph >=v1.0).
-#     The hetzner-robot-controller also reads `hetzner-robot-user` /
-#     `hetzner-robot-password` from this same Secret.
+#     the existing `hcloud` token. The HetznerClusterTemplate's
+#     `hetznerSecretRef.key.hcloudToken` only maps the hcloud
+#     token (CAPH's HetznerCluster spec doesn't take Robot keys —
+#     that's a frequent misread of the CRD). The Robot credentials
+#     are consumed by the caph controller deployment itself via
+#     `HROBOT_USERNAME` / `HROBOT_PASSWORD` env vars sourced from
+#     these same Secret keys, and by the hetzner-robot-controller
+#     Deployment (`infra/k8s/mgmt/hetzner-robot-controller.yaml`)
+#     for its Robot-inventory reconciliation loop.
 #
 #   - `hetzner-bare-metal-ssh-key` in `org-tuist` — keys
 #     `sshkey-name` + `ssh-publickey` + `ssh-privatekey`. Referenced
@@ -250,11 +254,25 @@ spec:
       joinConfiguration:
         nodeRegistration:
           name: '{{ ds.meta_data.local_hostname }}'
-          kubeletExtraArgs:
-            - name: cloud-provider
-              value: external
-            - name: provider-id
-              value: 'hcloud://{{ ds.meta_data.instance_id }}'
+          # No `--provider-id` here: the cloud-init NoCloud datasource
+          # we're booted under doesn't expose Hetzner Robot's server
+          # number through `ds.meta_data.instance_id` (it resolves to
+          # the literal string `nocloud`, leaving the Node with the
+          # wrong `spec.providerID`). caph's bare-metal machine
+          # controller already stamps the correct providerID
+          # (`hcloud://bm-<serverNumber>`) on the
+          # HetznerBareMetalMachine; CAPI's machine controller then
+          # patches the matching Node.spec.providerID once the Node
+          # joins. Letting them do the binding is what every other
+          # caph + bare-metal deployment does.
+          #
+          # Also no `--cloud-provider=external`: there's no CCM for
+          # Hetzner Robot bare-metal hosts (HCCM only knows about
+          # hcloud VMs, not Robot servers). Setting it would add the
+          # `node.cloudprovider.kubernetes.io/uninitialized=true`
+          # NoSchedule taint that nothing would ever remove, blocking
+          # all Pods. CAPI's machine controller still removes its own
+          # `node.cluster.x-k8s.io/uninitialized` taint after binding.
           taints:
             # Only runner Pods land on bare-metal nodes; everything
             # else stays on the elastic cloud `md-0` pool.

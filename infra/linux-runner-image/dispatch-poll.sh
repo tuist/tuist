@@ -96,6 +96,16 @@ while true; do
       echo "$(date -u +%FT%TZ) dispatch-poll: ${http} unauthorized; aborting"
       exit 1
       ;;
+    410)
+      # Server tells us this Pod is on a stale image and should
+      # exit so the RunnerPoolReconciler can replace it with one
+      # carrying the current `runnerImage` digest. Exit clean (0)
+      # so kubelet records Completed, not Failed — the controller
+      # treats both as "drained, recreate" but Completed avoids
+      # the misleading CrashLoopBackOff backoff window.
+      echo "$(date -u +%FT%TZ) dispatch-poll: 410 stale image; exiting for replacement"
+      exit 0
+      ;;
     *)
       echo "$(date -u +%FT%TZ) dispatch-poll: HTTP ${http} (attempt=${attempt}); retrying"
       sleep "${interval}"

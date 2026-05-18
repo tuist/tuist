@@ -172,6 +172,19 @@ func (r *AutoscalerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	// nudges drift back. RunnerPool scaling already succeeded above;
 	// MD scaling failure is non-fatal and retried on the next tick.
 	//
+	// IMPORTANT: this path assumes Pod replicas == Host replicas
+	// (one Pod per Node). That holds for pools where each Pod
+	// consumes the whole Node — e.g. macOS Tart VMs. It does NOT
+	// hold for pools using a Kata RuntimeClass on multi-slot
+	// bare-metal hosts (kata-qemu microVMs are sized so ~16 fit
+	// on an AX42-U, ~64 on an AX162-R); for those pools, leave
+	// `Spec.Autoscaling.MachineDeployment` unset so the autoscaler
+	// only manages Pod replicas and the operator manages Host count
+	// manually via the cluster topology. Bare-metal hosts are
+	// monthly-billed in Hetzner Robot — auto-scaling Host count
+	// would silently provision unused capacity even if we were
+	// correctly dividing Pod-count by slots-per-host.
+	//
 	// Order matters on scale-down: RunnerPool first (idle Pods get
 	// deleted by RunnerPoolReconciler), MD second (CAPI drains the
 	// now-empty node and releases the cloud server). On scale-up the

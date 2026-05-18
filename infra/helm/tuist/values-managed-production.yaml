@@ -271,23 +271,23 @@ runnersFleetLinux:
       pod:
         cpuMilli: 1000
         memoryMB: 4096
-      # Tuned against Namespace.so 7-day baseline (peak ~60
-      # concurrent Linux CPU, ~144 GiB Linux memory — both at or
-      # over the current Namespace ceiling).
+      # Pod-level autoscaling only. Bare-metal host count is operator-
+      # managed via the cluster topology — see staging values for the
+      # rationale.
+      #
+      # Tuned against Namespace.so 7-day baseline (peak ~60 concurrent
+      # Linux CPU, ~144 GiB Linux memory — both at or over the current
+      # Namespace ceiling).
       autoscaling:
         enabled: true
-        # ~50% of P95: keeps warm runners pre-thawed without
-        # paying for steady-state idle capacity equal to peak.
+        # ~50% of P95: keeps warm runners pre-thawed without paying
+        # for steady-state idle capacity equal to peak.
         minWarmPoolFloor: 30
         # 2 hosts × 64 raw slots = 128, minus ~4 slots per host
         # reserved for system DaemonSets (Cilium agent, kube-proxy
         # replacement, node-exporter) and per-Pod kata overhead.
         maxReplicas: 120
         scaleDownCooldownSeconds: 300
-        machineDeployment:
-          namespace: org-tuist
-          clusterName: tuist-production
-          deploymentName: runners-linux
 
 # In-cluster Valkey backs the auth rate limiter (Hammer.Redis). The
 # chart wires TUIST_REDIS_URL to the embedded Service; without it the

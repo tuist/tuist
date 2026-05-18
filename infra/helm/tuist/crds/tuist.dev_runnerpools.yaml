@@ -164,6 +164,18 @@ spec:
                         Requires the runners-controller to be started with
                         `--mgmt-kubeconfig`. Without it, this field is a no-op
                         and the autoscaler logs at warning level.
+
+                        IMPORTANT — only set this for pools where one Pod
+                        consumes one whole Node (e.g. macOS Tart VMs). For
+                        pools using a Kata RuntimeClass on multi-slot
+                        bare-metal hosts (kata-qemu microVMs share a Node
+                        with ~16–64 siblings), leave this unset: the
+                        autoscaler doesn't know slots-per-host, so it would
+                        try to scale the MD to one host per Pod and either
+                        leave Machines Pending against missing HBHs or, in
+                        cloud-provider scenarios, silently provision unused
+                        capacity. For bare-metal pools, the operator manages
+                        host count manually via the cluster topology.
                       required:
                         - namespace
                         - clusterName

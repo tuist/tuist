@@ -166,15 +166,14 @@ runnersFleetLinux:
       pod:
         cpuMilli: 1000
         memoryMB: 4096
+      # Pod-level autoscaling only. Bare-metal host count is operator-
+      # managed via the cluster topology — see staging values for the
+      # rationale.
       autoscaling:
         enabled: true
         minWarmPoolFloor: 2
         maxReplicas: 14
         scaleDownCooldownSeconds: 300
-        machineDeployment:
-          namespace: org-tuist
-          clusterName: tuist-canary
-          deploymentName: runners-linux
 
 # In-cluster Valkey backs the auth rate limiter (Hammer.Redis). The
 # chart wires TUIST_REDIS_URL to the embedded Service; without it the
