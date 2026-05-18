@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-#MISE description="Install or upgrade the Tuist platform chart (cert-manager, ESO, ingress-nginx, external-dns) on a workload cluster. Idempotent — safe to run on every deploy."
+#MISE description="Install or upgrade the Tuist platform chart (cert-manager, ESO, external-dns, and optionally ingress-nginx) on a workload cluster. Idempotent — safe to run on every deploy."
 #USAGE arg "<kubeconfig>" help="Path to the workload cluster kubeconfig"
-#USAGE arg "<cluster_name>" help="Cluster name, used for the ingress LoadBalancer Hetzner name and the external-dns owner ID (e.g. tuist-kura-us-east)"
+#USAGE arg "<cluster_name>" help="Cluster name, used for the external-dns owner ID and, for app clusters, the ingress LoadBalancer name"
 
 # Brings a workload cluster to the desired state of the platform chart
-# at HEAD: cert-manager + ClusterIssuer, ingress-nginx, external-dns,
-# external-secrets. Designed to run from CI on every deploy so a
+# at HEAD: cert-manager + ClusterIssuer + external-dns +
+# external-secrets, plus ingress-nginx on app-serving clusters.
+# Designed to run from CI on every deploy so a
 # half-bootstrapped cluster self-heals instead of silently breaking
 # downstream installs that depend on cert-manager.io/v1 Certificate.
 #
@@ -19,6 +20,11 @@ WL_KUBECONFIG="$1"
 CLUSTER_NAME="$2"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 CHART_PATH="$REPO_ROOT/infra/helm/platform"
+IS_KURA_REGIONAL_CLUSTER=false
+
+if [[ "$CLUSTER_NAME" == tuist-kura-* ]]; then
+  IS_KURA_REGIONAL_CLUSTER=true
+fi
 
 log() { printf '\n\033[1;34m==> %s\033[0m\n' "$*"; }
 
@@ -55,15 +61,24 @@ unset CLOUDFLARE_API_TOKEN
 
 HELM_SET_ARGS=(
   --set "external-dns.txtOwnerId=${CLUSTER_NAME}-platform"
-  --set "ingress-nginx.controller.service.annotations.load-balancer\.hetzner\.cloud/location=${REGION}"
-  --set "ingress-nginx.controller.service.annotations.load-balancer\.hetzner\.cloud/name=${CLUSTER_NAME}-ingress"
 )
+HELM_VALUES_ARGS=(-f "$CHART_PATH/values-hetzner.yaml")
 
-# Sized for a cold cluster: ingress-nginx ships a pre-install admission
-# Job whose image pull + cert generation, combined with the Hetzner LB
-# provision for the controller Service, can take several minutes. 15m
-# absorbs that with headroom; steady-state runs finish in under a
-# minute and exit as soon as helm finds nothing to roll out.
+if [ "$IS_KURA_REGIONAL_CLUSTER" = true ]; then
+  log "Regional Kura cluster detected; skipping ingress-nginx install"
+  HELM_VALUES_ARGS+=(-f "$CHART_PATH/values-kura-region.yaml")
+else
+  HELM_SET_ARGS+=(
+    --set "ingress-nginx.controller.service.annotations.load-balancer\.hetzner\.cloud/location=${REGION}"
+    --set "ingress-nginx.controller.service.annotations.load-balancer\.hetzner\.cloud/name=${CLUSTER_NAME}-ingress"
+  )
+fi
+
+# Sized for a cold cluster: cert-manager CRDs, webhooks, and, on app
+# clusters, ingress-nginx admission hooks and LB provision can take
+# several minutes. 15m absorbs that with headroom; steady-state runs
+# finish in under a minute and exit as soon as helm finds nothing to
+# roll out.
 HELM_TIMEOUT="15m"
 
 # Helm installs chart CRDs only on `install`, not on `upgrade`. Some
@@ -104,7 +119,8 @@ KUBECONFIG="$WL_KUBECONFIG" kubectl -n platform delete job \
   --ignore-not-found --cascade=foreground --timeout=2m || true
 
 HELM_EXTRA_ARGS=()
-if KUBECONFIG="$WL_KUBECONFIG" helm status platform --namespace platform >/dev/null 2>&1 &&
+if [ "$IS_KURA_REGIONAL_CLUSTER" = false ] &&
+  KUBECONFIG="$WL_KUBECONFIG" helm status platform --namespace platform >/dev/null 2>&1 &&
   KUBECONFIG="$WL_KUBECONFIG" kubectl -n platform get secret platform-ingress-nginx-admission >/dev/null 2>&1; then
   HELM_EXTRA_ARGS+=(--no-hooks)
 fi
@@ -158,7 +174,7 @@ trap dump_diagnostics EXIT
 
 KUBECONFIG="$WL_KUBECONFIG" helm upgrade --install platform "$CHART_PATH" \
   --namespace platform \
-  -f "$CHART_PATH/values-hetzner.yaml" \
+  "${HELM_VALUES_ARGS[@]}" \
   "${HELM_SET_ARGS[@]}" \
   "${HELM_EXTRA_ARGS[@]}" \
   --wait --timeout "$HELM_TIMEOUT"

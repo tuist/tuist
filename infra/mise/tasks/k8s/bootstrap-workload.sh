@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#MISE description="Bootstrap a freshly-provisioned workload cluster end-to-end (CNI, CCM, CSI, platform, monitoring, app). Idempotent."
+#MISE description="Bootstrap a freshly-provisioned workload cluster end-to-end (CNI, CCM, CSI, platform, monitoring, and app bits when needed). Idempotent."
 #USAGE arg "<cluster_name>" help="Cluster name (e.g. tuist-staging-2, tuist-canary, tuist, tuist-preview)"
 #USAGE arg "<env>" help="Helm values overlay (staging | canary | production | preview)"
 #USAGE arg "[kubeconfig_item]" help="Optional 1Password document title for the workload kubeconfig"
@@ -18,15 +18,17 @@
 #      enables LoadBalancer Services).
 #   5. Install hcloud-csi-driver (for parity; no PVCs use it today).
 #   6. Wait for nodes to go Ready (CNI- and CCM-dependent).
-#   7. Install the platform chart (cert-manager, ESO, ingress-nginx,
-#      external-dns).
+#   7. Install the platform chart (cert-manager, ESO, external-dns,
+#      and ingress-nginx only for app-serving clusters).
 #   8. Install Cluster API core for the Mac mini fleet substrate.
 #   9. Create the `onepassword` namespace + service-account-token
 #      Secret + ClusterSecretStore so ESO can pull from 1Password.
 #  10. Install the monitoring chart (Grafana Cloud agent).
-#  11. Pre-create the app namespace.
-#  12. Install the Cloudflare origin cert TLS Secret.
-#  13. Smoke ingress + upload workload kubeconfig to 1Password.
+#  11. App-serving clusters: pre-create the app namespace.
+#  12. App-serving clusters: install the Cloudflare origin cert TLS Secret.
+#  13. App-serving clusters: smoke ingress. Kura regional clusters
+#      instead verify the shared platform bits, then upload the workload
+#      kubeconfig to 1Password.
 #
 # Idempotent: re-running is safe; helm upgrades in-place, kubectl
 # create | apply uses --dry-run + apply.
@@ -49,6 +51,11 @@ REPO_ROOT="$(git rev-parse --show-toplevel)"
 BOOTSTRAP_DIR="$REPO_ROOT/infra/k8s/mgmt/bootstrap"
 MGMT_KUBECONFIG="${MGMT_KUBECONFIG:-$HOME/.kube/tuist-mgmt.yaml}"
 WL_KUBECONFIG="$HOME/.kube/${CLUSTER_NAME}.yaml"
+IS_KURA_REGIONAL_CLUSTER=false
+
+if [[ "$CLUSTER_NAME" == tuist-kura-* ]]; then
+  IS_KURA_REGIONAL_CLUSTER=true
+fi
 
 case "$ENV" in
   staging|canary|production|preview) ;;
@@ -67,6 +74,20 @@ esac
 
 log() { printf '\n\033[1;34m==> %s\033[0m\n' "$*"; }
 err() { printf '\n\033[1;31mERROR: %s\033[0m\n' "$*" >&2; }
+
+upload_workload_kubeconfig() {
+  local kubeconfig_vault="tuist-k8s-${ENV}"
+
+  if op item get "$KUBECONFIG_ITEM" --account tuist.1password.com --vault "$kubeconfig_vault" >/dev/null 2>&1; then
+    echo "Existing 1P item found; replacing the document"
+    existing_id=$(op item get "$KUBECONFIG_ITEM" --account tuist.1password.com --vault "$kubeconfig_vault" --format json | jq -r '.id')
+    op item delete "$existing_id" --account tuist.1password.com --vault "$kubeconfig_vault" --archive
+  fi
+
+  op document create "$WL_KUBECONFIG" \
+    --title "$KUBECONFIG_ITEM" \
+    --account tuist.1password.com --vault "$kubeconfig_vault"
+}
 
 # ---------------------------------------------------------------------------
 log "Step 1/13: extract workload kubeconfig + API endpoint from mgmt"
@@ -334,6 +355,36 @@ KUBECONFIG="$WL_KUBECONFIG" helm upgrade --install k8s-monitoring "$REPO_ROOT/in
   -f "$REPO_ROOT/infra/helm/k8s-monitoring/values-${ENV}.yaml" \
   --wait --timeout 5m || echo "WARN: monitoring chart didn't go Ready in 5min; continuing (not blocking the cluster)"
 
+if [ "$IS_KURA_REGIONAL_CLUSTER" = true ]; then
+  # ---------------------------------------------------------------------------
+  log "Step 11/11: verify Kura regional platform + upload workload kubeconfig to 1Password"
+
+  KUBECONFIG="$WL_KUBECONFIG" kubectl wait \
+    --for=condition=Ready clusterissuer/letsencrypt-cloudflare --timeout=2m
+  KUBECONFIG="$WL_KUBECONFIG" kubectl -n platform wait \
+    --for=condition=Available deploy -l app.kubernetes.io/name=external-dns --timeout=2m
+
+  upload_workload_kubeconfig
+
+  echo
+
+  cat <<DONE
+
+================================================================
+Bootstrap of $CLUSTER_NAME complete.
+
+  Workload kubeconfig: $WL_KUBECONFIG
+
+Kura regional clusters do not get an app ingress or Cloudflare origin
+certificate. Their per-account LoadBalancer Services carry
+external-dns annotations and publish hosts like
+{account}-{cluster_id}.kura.tuist.dev after the controller deploys.
+================================================================
+DONE
+
+  exit 0
+fi
+
 # ---------------------------------------------------------------------------
 log "Step 11/13: pre-create the app namespace (CI deploys the app itself)"
 
@@ -441,24 +492,15 @@ echo "ingress LB responded HTTP $SMOKE_HTTP. Routing is healthy."
 
 # Stash the freshly-minted workload kubeconfig in the per-env vault
 # so CI (server-deployment.yml) can read it via the per-env
-# OP_SERVICE_ACCOUNT_TOKEN. Idempotent: if the item exists, replace
-# the file contents; if not, create. Only runs after the smoke above
-# passes, so a stale kubeconfig never overwrites a working one when
-# bootstrap is invoked against a half-built cluster.
+# OP_SERVICE_ACCOUNT_TOKEN. Only runs after the smoke above passes, so
+# a stale kubeconfig never overwrites a working one when bootstrap is
+# invoked against a half-built cluster.
 # By default, app cluster document names follow env, not cluster_name,
 # so the deploy workflow can look up `kubeconfig: tuist-${env}`
 # uniformly across all environments. Regional Kura production clusters
 # pass an explicit title such as `kubeconfig: kura-us-east-1`, matching
 # the product cluster_id consumed by TUIST_KURA_KUBECONFIG_*.
-KUBECONFIG_VAULT="tuist-k8s-${ENV}"
-if op item get "$KUBECONFIG_ITEM" --account tuist.1password.com --vault "$KUBECONFIG_VAULT" >/dev/null 2>&1; then
-  echo "Existing 1P item found; replacing the document"
-  EXISTING_ID=$(op item get "$KUBECONFIG_ITEM" --account tuist.1password.com --vault "$KUBECONFIG_VAULT" --format json | jq -r '.id')
-  op item delete "$EXISTING_ID" --account tuist.1password.com --vault "$KUBECONFIG_VAULT" --archive
-fi
-op document create "$WL_KUBECONFIG" \
-  --title "$KUBECONFIG_ITEM" \
-  --account tuist.1password.com --vault "$KUBECONFIG_VAULT"
+upload_workload_kubeconfig
 
 echo
 

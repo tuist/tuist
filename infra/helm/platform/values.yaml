@@ -36,13 +36,6 @@ ingress-nginx:
   enabled: true
   controller:
     replicaCount: 2
-    # Regional Kura clusters can temporarily be single-node control-plane-only
-    # clusters during bootstrap or recovery. Allow the controller and its
-    # admission hook Jobs to land there so platform upgrades do not deadlock.
-    tolerations:
-      - key: node-role.kubernetes.io/control-plane
-        operator: Exists
-        effect: NoSchedule
     publishService:
       enabled: true
     service:
@@ -61,12 +54,6 @@ ingress-nginx:
       use-forwarded-headers: "true"
       use-proxy-protocol: "true"
       compute-full-forwarded-for: "true"
-    admissionWebhooks:
-      patch:
-        tolerations:
-          - key: node-role.kubernetes.io/control-plane
-            operator: Exists
-            effect: NoSchedule
     metrics:
       enabled: true
 
