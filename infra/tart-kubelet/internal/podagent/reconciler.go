@@ -528,6 +528,22 @@ func (r *Reconciler) podStatus(ctx context.Context, pod *corev1.Pod) (*corev1.Po
 
 	if ip, ipErr := r.Tart.IP(ctx, entry.VMName); ipErr == nil && ip != "" {
 		status.Phase = corev1.PodRunning
+		// First time we see an IP for this VM is the
+		// Pending→Running transition — observe the boot duration
+		// once per VM. recoverState-materialised entries set
+		// StartTS to "now" rather than the original clone time,
+		// so an entry without an original StartTS lookalike
+		// (BootObserved already true after recovery) is suppressed
+		// — observing a "boot" we never witnessed would skew the
+		// histogram toward zero.
+		if !entry.BootObserved && !entry.StartTS.IsZero() {
+			pool := pod.Labels["tuist.dev/runner-pool"]
+			if pool == "" {
+				pool = "unknown"
+			}
+			vmBootDurationSeconds.WithLabelValues(pool).Observe(time.Since(entry.StartTS.Time).Seconds())
+			entry.BootObserved = true
+		}
 		// For Pods that opt into scraping we report the host IP as
 		// the Pod IP so existing pod-IP-based discovery (Alloy's
 		// annotationAutodiscovery, Service endpoints, kube-state-
@@ -675,9 +691,16 @@ func VMNameForPod(pod *corev1.Pod) string {
 // annotation and for entries materialised by recoverState — the
 // next reconcile-and-restart cycle will set one up.
 type Entry struct {
-	VMName           string
-	StartTS          metav1.Time
-	Run              *tart.RunHandle
+	VMName  string
+	StartTS metav1.Time
+	Run     *tart.RunHandle
+	// BootObserved is true after we've recorded
+	// `tart_kubelet_vm_boot_duration_seconds` for this VM. The
+	// histogram observes once per VM (at the Pending→Running
+	// transition), not per reconcile — observing on every
+	// podStatus would skew the distribution toward `0` for
+	// long-lived VMs that get reconciled hundreds of times.
+	BootObserved     bool
 	MetricsForwarder *Forwarder
 }
 

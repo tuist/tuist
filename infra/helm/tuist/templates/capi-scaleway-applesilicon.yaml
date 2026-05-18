@@ -107,6 +107,44 @@ rules:
     resources: [configmaps]
     resourceNames: [cluster-info]
     verbs: [get]
+{{- if .Values.macosFleet.tailscaleEgress.enabled }}
+---
+# Namespaced Role + RoleBinding granting the operator's SA the
+# ability to maintain one ExternalName Service per Mac mini in the
+# tailscale-operator namespace. Scoped to that one namespace (rather
+# than baked into the cluster-wide role) so a compromised operator
+# can't materialise Services anywhere else in the cluster. Same
+# pattern as the fleet-spread Role below.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $name }}-tailscale-egress
+  namespace: {{ .Values.macosFleet.tailscaleEgress.namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: capi-scaleway-applesilicon
+rules:
+  - apiGroups: [""]
+    resources: [services]
+    verbs: [get, list, watch, create, update, patch, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $name }}-tailscale-egress
+  namespace: {{ .Values.macosFleet.tailscaleEgress.namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: capi-scaleway-applesilicon
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $name }}-tailscale-egress
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}
 {{- if .Values.xcresultProcessor.enabled }}
 ---
 # Namespaced Role for the fleet-spread controller's one operation:
@@ -210,6 +248,31 @@ spec:
             - --tartkubelet-host-cpu={{ .Values.macosFleet.tartKubelet.hostCPU | default 8 }}
             - --tartkubelet-host-memory-mb={{ .Values.macosFleet.tartKubelet.hostMemoryMB | default 16384 }}
             - --tartkubelet-max-pods={{ .Values.macosFleet.tartKubelet.maxPods | default 3 }}
+            {{- if .Values.macosFleet.tailscale.enabled }}
+            # Tailscale + node_exporter artifact paths. Both are
+            # baked into the operator image at the Dockerfile-pinned
+            # versions (TAILSCALE_VERSION / NODE_EXPORTER_VERSION).
+            # When the chart's macosFleet.tailscale.enabled is off,
+            # both flags stay empty and the bootstrap steps
+            # short-circuit.
+            - --tailscale-binaries-path=/opt/tailscale/tailscale-darwin-arm64.tar.gz
+            - --node-exporter-binary-path=/opt/node-exporter/node_exporter-darwin-arm64
+            # The bootstrap reads this Secret per Machine reconcile
+            # (controller-runtime cache hit, no API round-trip) so a
+            # rotated key takes effect on the next reconcile without
+            # the operator needing to restart.
+            - --tailscale-auth-key-secret-name={{ .Values.macosFleet.tailscale.secretName | default (include "tuist.componentName" (dict "root" . "component" "capi-scaleway-applesilicon-tailscale")) }}
+            {{- with .Values.macosFleet.tailscale.tags }}
+            # Per-env ACL tags every Mac mini advertises at
+            # `tailscale up` time. Set in per-env values to one of
+            # `tag:tuist-macmini-{staging,canary,production}`. The
+            # auth key's tag binding must include this tag (set when
+            # the key is generated in the Tailscale admin console),
+            # and the tag must be declared in
+            # infra/tailscale/acls.json's tagOwners block.
+            - --tailscale-tags={{ join "," . }}
+            {{- end }}
+            {{- end }}
             {{- if .Values.xcresultProcessor.enabled }}
             # Auto-roll the xcresult-processor Deployment whenever the
             # set of Ready Mac minis changes, so Pods spread across new
@@ -219,6 +282,17 @@ spec:
             # fleet-shape change. See controllers/fleetspread_controller.go.
             - --fleet-spread-deployment={{ include "tuist.componentName" (dict "root" . "component" "xcresult-processor") }}
             - --fleet-spread-namespace={{ .Release.Namespace }}
+            {{- end }}
+            {{- if .Values.macosFleet.tailscaleEgress.enabled }}
+            # Materialise one ExternalName Service per Mac mini in
+            # the tailscale-operator namespace so cluster Pods
+            # (alloy-metrics) can scrape the host at its MagicDNS
+            # FQDN. The ProxyGroup the Services reference is
+            # rendered by the tailscale-operator wrapper chart
+            # (infra/helm/tailscale-operator/templates/macmini-egress.yaml).
+            - --tailscale-egress-proxy-group={{ .Values.macosFleet.tailscaleEgress.proxyGroup }}
+            - --tailscale-egress-namespace={{ .Values.macosFleet.tailscaleEgress.namespace }}
+            - --tailscale-egress-magicdns-suffix={{ required "macosFleet.tailscaleEgress.magicDNSSuffix is required when tailscaleEgress.enabled" .Values.macosFleet.tailscaleEgress.magicDNSSuffix }}
             {{- end }}
           env:
             # Scaleway credentials. ESO syncs them from 1Password into

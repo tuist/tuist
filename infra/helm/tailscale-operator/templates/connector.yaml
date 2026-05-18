@@ -1,0 +1,40 @@
+{{- if .Values.connector.enabled }}
+apiVersion: tailscale.com/v1alpha1
+kind: Connector
+metadata:
+  name: {{ .Values.connector.name | default "tuist-cluster-subnet-router" }}
+  labels:
+    app.kubernetes.io/name: tuist-tailscale-operator
+    app.kubernetes.io/component: connector
+  annotations:
+    # post-install / post-upgrade so the Connector CR is applied
+    # AFTER the upstream tailscale-operator subchart's CRDs land
+    # and the apiserver's discovery cache picks them up.
+    # Templating the CR as a normal manifest races: the Connector
+    # CRD is in the subchart's templates/ dir (not crds/), so it
+    # ships in the same manifest batch as our CR. Helm orders
+    # CRDs first inside one manifest, but discovery-cache lag
+    # surfaces as "no matches for kind Connector in version
+    # tailscale.com/v1alpha1" on the very next apply. Hook
+    # ordering decouples them — main release applies the CRD,
+    # then post-install applies the CR.
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "5"
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  # Advertise the cluster's reachability to the tailnet's 100.64.0.0/10
+  # range *into the tailnet*, so tailnet devices can dial in-cluster
+  # Services through the Connector. The Tailscale ACLs (see
+  # infra/tailscale/acls.json) gate who can use this path.
+  #
+  # This does NOT make 100.x.y.z addresses reachable from arbitrary
+  # cluster Pods — only the Connector Pod's own `tailscaled` learns
+  # the routes. For the reverse direction (cluster Pod → Mac mini),
+  # see templates/macmini-egress.yaml.
+  hostname: {{ .Values.connector.hostname | default "tuist-cluster-router" }}
+  tags:
+    {{- toYaml .Values.connector.tags | nindent 4 }}
+  subnetRouter:
+    advertiseRoutes:
+      {{- toYaml .Values.connector.advertiseRoutes | nindent 6 }}
+{{- end }}

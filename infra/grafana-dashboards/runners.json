@@ -1,0 +1,283 @@
+{
+  "apiVersion": "dashboard.grafana.app/v1",
+  "kind": "Dashboard",
+  "metadata": {
+    "name": "tuist-runners",
+    "annotations": {
+      "grafana.app/folder": "tuist"
+    }
+  },
+  "spec": {
+    "title": "Tuist Runners",
+    "uid": "tuist-runners",
+    "description": "VM boot duration for the customer-runner Mac mini fleet, emitted by tart-kubelet on each Mac mini and scraped over the tailnet.",
+    "schemaVersion": 39,
+    "refresh": "30s",
+    "tags": ["tuist", "runners", "macos"],
+    "time": {
+      "from": "now-6h",
+      "to": "now"
+    },
+    "templating": {
+      "list": [
+        {
+          "current": {
+            "selected": false,
+            "text": "grafanacloud-prom",
+            "value": "grafanacloud-prom"
+          },
+          "hide": 0,
+          "includeAll": false,
+          "label": "Data Source",
+          "multi": false,
+          "name": "datasource",
+          "options": [],
+          "query": "prometheus",
+          "refresh": 1,
+          "regex": "",
+          "skipUrlSync": false,
+          "type": "datasource"
+        },
+        {
+          "current": {
+            "selected": false,
+            "text": "All",
+            "value": "$__all"
+          },
+          "datasource": "$datasource",
+          "definition": "label_values(tart_kubelet_vm_boot_duration_seconds_count, pool)",
+          "hide": 0,
+          "includeAll": true,
+          "label": "Pool",
+          "multi": true,
+          "name": "pool",
+          "options": [],
+          "query": {
+            "qryType": 1,
+            "query": "label_values(tart_kubelet_vm_boot_duration_seconds_count, pool)",
+            "refId": "PrometheusVariableQueryEditor-VariableQuery"
+          },
+          "refresh": 1,
+          "regex": "",
+          "skipUrlSync": false,
+          "sort": 1,
+          "type": "query"
+        }
+      ]
+    },
+    "panels": [
+      {
+        "collapsed": false,
+        "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+        "id": 100,
+        "panels": [],
+        "title": "Overview",
+        "type": "row"
+      },
+      {
+        "datasource": "$datasource",
+        "description": "Mac minis where tart-kubelet's controller-runtime metrics endpoint is reachable. Bound to the tailnet IP when --node-ip-source=tailscale, scraped through the Tailscale operator's egress ProxyGroup. A drop here is a routing failure (ProxyGroup pod down, ACL drift, missing egress Service) before it's a host failure; the node_exporter scrape on :9100 is the second sanity check.",
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "thresholds" },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "color": "red", "value": null },
+                { "color": "yellow", "value": 1 },
+                { "color": "green", "value": 2 }
+              ]
+            },
+            "unit": "none"
+          }
+        },
+        "gridPos": { "h": 4, "w": 6, "x": 0, "y": 1 },
+        "id": 1,
+        "options": {
+          "colorMode": "background",
+          "graphMode": "none",
+          "justifyMode": "center",
+          "orientation": "horizontal",
+          "reduceOptions": {
+            "calcs": ["lastNotNull"],
+            "fields": "",
+            "values": false
+          },
+          "textMode": "auto"
+        },
+        "pluginVersion": "11.0.0",
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "count(up{job=\"tuist-macos-tart-kubelet\"} == 1)",
+            "instant": true,
+            "refId": "A"
+          }
+        ],
+        "title": "Mac minis reporting",
+        "type": "stat"
+      },
+      {
+        "collapsed": false,
+        "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+        "id": 200,
+        "panels": [],
+        "title": "VM boot time",
+        "type": "row"
+      },
+      {
+        "datasource": "$datasource",
+        "description": "Wall-clock time from `tart clone` start to first non-empty `tart ip` for a freshly-created VM. Dominated by the OCI pull when the image isn't cached on the host (first time a new runner image rolls), by virtualization-framework startup afterwards. Spikes correlate with image bumps or Scaleway network slowness; sustained drift suggests a Mac mini's APFS cache is full and `tart clone` is repulling.",
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "palette-classic" },
+            "custom": {
+              "axisCenteredZero": false,
+              "axisColorMode": "text",
+              "axisLabel": "",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "gradientMode": "none",
+              "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+              "lineInterpolation": "linear",
+              "lineWidth": 2,
+              "pointSize": 5,
+              "scaleDistribution": { "type": "linear" },
+              "showPoints": "never",
+              "spanNulls": false,
+              "stacking": { "group": "A", "mode": "none" },
+              "thresholdsStyle": { "mode": "off" }
+            },
+            "unit": "s"
+          }
+        },
+        "gridPos": { "h": 10, "w": 16, "x": 0, "y": 6 },
+        "id": 2,
+        "options": {
+          "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "right" },
+          "tooltip": { "mode": "multi", "sort": "desc" }
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "histogram_quantile(0.50, sum by (le) (rate(tart_kubelet_vm_boot_duration_seconds_bucket{pool=~\"$pool\"}[5m])))",
+            "legendFormat": "p50",
+            "refId": "A"
+          },
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "histogram_quantile(0.95, sum by (le) (rate(tart_kubelet_vm_boot_duration_seconds_bucket{pool=~\"$pool\"}[5m])))",
+            "legendFormat": "p95",
+            "refId": "B"
+          },
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "histogram_quantile(0.99, sum by (le) (rate(tart_kubelet_vm_boot_duration_seconds_bucket{pool=~\"$pool\"}[5m])))",
+            "legendFormat": "p99",
+            "refId": "C"
+          }
+        ],
+        "title": "Boot time (p50 / p95 / p99)",
+        "type": "timeseries"
+      },
+      {
+        "datasource": "$datasource",
+        "description": "Boots per minute, by pool. Hits zero when no new VMs are being created — for the warm-pool runner shape, that means every replica is either polling for work or running a job. A flatline at zero for hours is healthy load; a spike correlates with a fleet-shape change (RunnerPool replica bump, host rolling, mass terminal-Pod reaping by the controller).",
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "palette-classic" },
+            "custom": {
+              "axisCenteredZero": false,
+              "axisColorMode": "text",
+              "axisLabel": "",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "gradientMode": "none",
+              "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+              "lineInterpolation": "linear",
+              "lineWidth": 2,
+              "pointSize": 5,
+              "scaleDistribution": { "type": "linear" },
+              "showPoints": "never",
+              "spanNulls": false,
+              "stacking": { "group": "A", "mode": "none" },
+              "thresholdsStyle": { "mode": "off" }
+            },
+            "unit": "ops"
+          }
+        },
+        "gridPos": { "h": 10, "w": 8, "x": 16, "y": 6 },
+        "id": 3,
+        "options": {
+          "legend": { "calcs": ["mean"], "displayMode": "table", "placement": "bottom" },
+          "tooltip": { "mode": "multi", "sort": "desc" }
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum by (pool) (rate(tart_kubelet_vm_boot_duration_seconds_count{pool=~\"$pool\"}[5m]))",
+            "legendFormat": "{{pool}}",
+            "refId": "A"
+          }
+        ],
+        "title": "Boots / sec by pool",
+        "type": "timeseries"
+      },
+      {
+        "datasource": "$datasource",
+        "description": "Distribution of boot durations as a heatmap — surfaces multi-modal patterns the quantile lines hide (e.g. a cache-hit population at ~30s overlapping a cache-miss population at ~120s). When a new runner image rolls, expect the bands to shift right for several minutes until every Mac mini has the new image in its local Tart cache.",
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+              "scaleDistribution": { "type": "linear" }
+            }
+          }
+        },
+        "gridPos": { "h": 10, "w": 24, "x": 0, "y": 16 },
+        "id": 4,
+        "options": {
+          "calculate": false,
+          "cellGap": 1,
+          "color": {
+            "exponent": 0.5,
+            "fill": "dark-orange",
+            "mode": "scheme",
+            "reverse": false,
+            "scale": "exponential",
+            "scheme": "Oranges",
+            "steps": 64
+          },
+          "exemplars": { "color": "rgba(255,0,255,0.7)" },
+          "filterValues": { "le": 1e-9 },
+          "legend": { "show": true },
+          "rowsFrame": { "layout": "auto" },
+          "tooltip": { "show": true, "yHistogram": false },
+          "yAxis": { "axisPlacement": "left", "reverse": false, "unit": "s" }
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum by (le) (rate(tart_kubelet_vm_boot_duration_seconds_bucket{pool=~\"$pool\"}[5m]))",
+            "format": "heatmap",
+            "legendFormat": "{{le}}",
+            "refId": "A"
+          }
+        ],
+        "title": "Boot time distribution (heatmap)",
+        "type": "heatmap"
+      }
+    ]
+  }
+}

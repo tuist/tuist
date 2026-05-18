@@ -201,12 +201,97 @@ jobs:
             -f "$OBSERVABILITY_CHART_PATH/values-${{ inputs.environment }}.yaml" \
             --timeout 10m --wait
 
+  tailscale-operator-install:
+    # Installs / upgrades the tailscale-operator wrapper chart ahead of
+    # the server rollout so the Connector subnet router that announces
+    # the macOS fleet's CGNAT range is Ready before the CAPI provider
+    # starts bootstrapping Mac minis. Idempotent: a no-op if Chart.lock
+    # + values haven't changed.
+    #
+    # All three Tuist-managed envs (staging, canary, production) ship
+    # their own values-<env>.yaml under infra/helm/tailscale-operator/,
+    # so this skip path is reachable only when the workflow is forked
+    # by a self-hoster who hasn't authored one. Keeps the workflow
+    # usable downstream without a hard dependency on Tailscale; the
+    # main server deploy continues either way.
+    #
+    # Shares the `server-deploy-<env>` concurrency lane with the deploy
+    # job, same reasoning as observability-install: the chart and the
+    # workloads it gates must never interleave with a stale rollout.
+    name: Tailscale operator chart (${{ inputs.environment }})
+    needs: build
+    if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped')
+    runs-on: namespace-profile-default
+    environment:
+      name: server-k8s-${{ inputs.environment }}
+    concurrency:
+      group: server-deploy-${{ inputs.environment }}
+      cancel-in-progress: false
+    timeout-minutes: 15
+    env:
+      KUBECONFIG: ${{ github.workspace }}/.kube/config
+      TAILSCALE_CHART_PATH: infra/helm/tailscale-operator
+      TAILSCALE_RELEASE_NAME: tailscale-operator
+      TAILSCALE_NAMESPACE: tailscale-operator
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+      - id: check-values
+        name: Check for env values file
+        run: |
+          set -euo pipefail
+          VALUES="$TAILSCALE_CHART_PATH/values-${{ inputs.environment }}.yaml"
+          if [ -f "$VALUES" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "$VALUES present; proceeding with install."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "$VALUES not present; skipping tailscale-operator install for this env."
+          fi
+      - if: steps.check-values.outputs.exists == 'true'
+        uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "helm kubectl"
+          cache: "false"
+      - if: steps.check-values.outputs.exists == 'true'
+        uses: 1password/install-cli-action@v2
+      - if: steps.check-values.outputs.exists == 'true'
+        name: Load kubeconfig from 1Password
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          op document get "kubeconfig: tuist-${{ inputs.environment }}" \
+            --vault "tuist-k8s-${{ inputs.environment }}" --output "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
+      - if: steps.check-values.outputs.exists == 'true'
+        name: Verify cluster reachability
+        run: |
+          set -euo pipefail
+          API="$(kubectl config view --minify --raw -o jsonpath='{.clusters[0].cluster.server}')"
+          echo "Reaching apiserver at $API"
+          kubectl --request-timeout=10s get --raw /version >/dev/null
+      - if: steps.check-values.outputs.exists == 'true'
+        name: helm dependency update
+        run: helm dependency update "$TAILSCALE_CHART_PATH"
+      - if: steps.check-values.outputs.exists == 'true'
+        name: helm upgrade --install tailscale-operator
+        run: |
+          helm upgrade --install "$TAILSCALE_RELEASE_NAME" "$TAILSCALE_CHART_PATH" \
+            --namespace "$TAILSCALE_NAMESPACE" --create-namespace \
+            -f "$TAILSCALE_CHART_PATH/values-${{ inputs.environment }}.yaml" \
+            --timeout 10m --wait
+
   deploy:
     name: Deploy to ${{ inputs.environment == 'production' && 'tuist' || format('tuist-{0}', inputs.environment) }}
-    needs: [build, observability-install]
+    needs: [build, observability-install, tailscale-operator-install]
     # `build` may be skipped when image_tag is passed in - keep running.
     # `observability-install` always runs, so it must be a plain success.
-    if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped') && needs.observability-install.result == 'success'
+    # `tailscale-operator-install` runs the install for managed envs and
+    # short-circuits when a forked workflow has no env values file; either
+    # way it must complete cleanly before the chart deploy.
+    if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped') && needs.observability-install.result == 'success' && needs.tailscale-operator-install.result == 'success'
     runs-on: namespace-profile-default
     environment:
       name: server-k8s-${{ inputs.environment }}

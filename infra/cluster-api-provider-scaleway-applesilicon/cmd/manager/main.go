@@ -18,8 +18,10 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -30,6 +32,8 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
@@ -63,6 +67,10 @@ func main() {
 		nodeIdentityClusterRole      string
 		tartKubeletBinaryPath        string
 		tartTarballPath              string
+		tailscaleBinariesPath        string
+		nodeExporterBinaryPath       string
+		tailscaleAuthKeySecretName   string
+		tailscaleTagsRaw             string
 		tartKubeletHostCPU           int
 		tartKubeletHostMemory        int
 		tartKubeletMaxPods           int
@@ -72,6 +80,10 @@ func main() {
 
 		fleetSpreadDeployment string
 		fleetSpreadNamespace  string
+
+		egressNamespace      string
+		egressProxyGroup     string
+		egressMagicDNSSuffix string
 	)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "Prometheus metrics endpoint")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "Liveness/readiness probe endpoint")
@@ -96,6 +108,39 @@ func main() {
 		envOrDefault("CAPI_TART_TARBALL_PATH", "/opt/tart/tart.tar.gz"),
 		"Local path of the upstream tart.app tarball baked into this image. "+
 			"Pinned by Dockerfile ARG; bumping it is a deliberate operator-image change.")
+	flag.StringVar(&tailscaleBinariesPath, "tailscale-binaries-path",
+		envOrDefault("CAPI_TAILSCALE_BINARIES_PATH", ""),
+		"Local path of the gzipped tarball containing the darwin/arm64 "+
+			"tailscale + tailscaled binaries baked into this image "+
+			"(/opt/tailscale/tailscale-darwin-arm64.tar.gz by default). The "+
+			"bootstrap extracts to /usr/local/bin and calls `tailscaled "+
+			"install-system-daemon` — the open-source variant per Tailscale's "+
+			"own headless-server docs. Empty disables the Tailscale bootstrap "+
+			"step; kubelet then falls back to the public interface as NodeIP.")
+	flag.StringVar(&nodeExporterBinaryPath, "node-exporter-binary-path",
+		envOrDefault("CAPI_NODE_EXPORTER_BINARY_PATH", ""),
+		"Local path of the darwin/arm64 node_exporter binary baked into this "+
+			"image (/opt/node-exporter/node_exporter-darwin-arm64 by default). "+
+			"Empty disables the host-metrics step. Paired with "+
+			"--tailscale-binaries-path: node_exporter without Tailscale would bind "+
+			"to a public interface, which the bootstrap step actively refuses.")
+	flag.StringVar(&tailscaleAuthKeySecretName, "tailscale-auth-key-secret-name",
+		envOrDefault("CAPI_TAILSCALE_AUTH_KEY_SECRET_NAME", ""),
+		"Name of the operator-namespace Secret (key `auth-key`) holding the "+
+			"Tailscale pre-auth key the bootstrap uses for `tailscale up`. "+
+			"Synced from 1Password via ESO — see the chart's "+
+			"macos-fleet-tailscale-external-secrets.yaml. Empty disables the "+
+			"Tailscale step even when --tailscale-binaries-path is set, so a chart "+
+			"bring-up where ESO hasn't synced yet falls back cleanly.")
+	flag.StringVar(&tailscaleTagsRaw, "tailscale-tags",
+		envOrDefault("CAPI_TAILSCALE_TAGS", ""),
+		"Comma-separated Tailscale ACL tags every Mac mini in this env's "+
+			"fleet advertises at `tailscale up` time (e.g. "+
+			"`tag:tuist-macmini-staging`). Must be allowed by the auth key's "+
+			"tag binding and declared in the tailnet's tagOwners ACL block "+
+			"(see infra/tailscale/acls.json). Per-env values flow through "+
+			"macosFleet.tailscale.tags in the Helm values. Empty falls back "+
+			"to whatever default tag the auth key carries.")
 	flag.IntVar(&tartKubeletHostCPU, "tartkubelet-host-cpu", 8, "CPU cores tart-kubelet advertises on its Node")
 	flag.IntVar(&tartKubeletHostMemory, "tartkubelet-host-memory-mb", 16384, "Memory MB tart-kubelet advertises on its Node")
 	flag.IntVar(&tartKubeletMaxPods, "tartkubelet-max-pods", 2,
@@ -132,6 +177,30 @@ func main() {
 			"Defaults to --secrets-namespace, which matches the chart's "+
 			"single-namespace install layout.")
 
+	flag.StringVar(&egressProxyGroup, "tailscale-egress-proxy-group",
+		envOrDefault("CAPI_TAILSCALE_EGRESS_PROXY_GROUP", ""),
+		"Name of the Tailscale ProxyGroup (type: egress) that fronts "+
+			"per-machine ExternalName Services. When set, the reconciler "+
+			"materialises one Service per Mac mini in --tailscale-egress-namespace, "+
+			"annotated with tailscale.com/tailnet-fqdn + tailscale.com/proxy-group, "+
+			"so cluster Pods (alloy-metrics) can dial the mini at its MagicDNS "+
+			"FQDN. Empty disables the behavior — the OSS shape (no tailnet) is "+
+			"untouched.")
+	flag.StringVar(&egressNamespace, "tailscale-egress-namespace",
+		envOrDefault("CAPI_TAILSCALE_EGRESS_NAMESPACE", "tailscale-operator"),
+		"Namespace where per-machine egress Services live. Must match the "+
+			"namespace the tailscale-operator wrapper chart installs the "+
+			"ProxyGroup into. The operator needs `services` get/list/watch/"+
+			"create/update/patch/delete here — granted via a namespaced Role "+
+			"+ RoleBinding rendered by the main tuist chart.")
+	flag.StringVar(&egressMagicDNSSuffix, "tailscale-egress-magicdns-suffix",
+		envOrDefault("CAPI_TAILSCALE_EGRESS_MAGICDNS_SUFFIX", ""),
+		"MagicDNS suffix of the tailnet the Mac minis register under "+
+			"(e.g. `taild6d7bb.ts.net`). Per-machine egress Service's "+
+			"tailnet-fqdn annotation is `<machine.Name>.<suffix>`. Read from "+
+			"`tailscale status --json | .MagicDNSSuffix` on any tailnet "+
+			"device. Required when --tailscale-egress-proxy-group is set.")
+
 	opts := zap.Options{Development: false}
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
@@ -160,6 +229,30 @@ func main() {
 	tartTarballSHA := sha256Hex(tartTarball)
 	setupLog.Info("loaded tart tarball", "path", tartTarballPath, "bytes", len(tartTarball), "sha", tartTarballSHA)
 
+	// Tailscale binaries tarball and node_exporter binary are both
+	// optional: an empty path means the chart didn't wire the tailnet
+	// into this release. We read on startup (not per reconcile)
+	// because the operator image pins both versions; a bump goes
+	// through an operator-image roll, not a hot reload.
+	var tailscaleBinaries []byte
+	if tailscaleBinariesPath != "" {
+		tailscaleBinaries, err = os.ReadFile(tailscaleBinariesPath)
+		if err != nil {
+			setupLog.Error(err, "read tailscale binaries", "path", tailscaleBinariesPath)
+			os.Exit(1)
+		}
+		setupLog.Info("loaded tailscale binaries", "path", tailscaleBinariesPath, "bytes", len(tailscaleBinaries), "sha", sha256Hex(tailscaleBinaries))
+	}
+	var nodeExporterBinary []byte
+	if nodeExporterBinaryPath != "" {
+		nodeExporterBinary, err = os.ReadFile(nodeExporterBinaryPath)
+		if err != nil {
+			setupLog.Error(err, "read node_exporter binary", "path", nodeExporterBinaryPath)
+			os.Exit(1)
+		}
+		setupLog.Info("loaded node_exporter binary", "path", nodeExporterBinaryPath, "bytes", len(nodeExporterBinary), "sha", sha256Hex(nodeExporterBinary))
+	}
+
 	restConfig := ctrl.GetConfigOrDie()
 
 	if apiServerURL == "" {
@@ -173,13 +266,33 @@ func main() {
 		setupLog.Info("auto-discovered api server url", "source", "kube-public/cluster-info", "url", apiServerURL)
 	}
 
-	mgr, err := ctrl.NewManager(restConfig, ctrl.Options{
+	mgrOptions := ctrl.Options{
 		Scheme:                 scheme,
 		Metrics:                metricsserver.Options{BindAddress: metricsAddr},
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
 		LeaderElectionID:       "scaleway-applesilicon.infrastructure.cluster.x-k8s.io",
-	})
+	}
+	// When the egress reconciler is wired, scope the Services
+	// informer to the egress namespace. The cache's default is a
+	// cluster-wide LIST/WATCH on every Get'd GVK; without this
+	// scoping the controller demands cluster-scoped `services` read
+	// (and the namespaced Role + RoleBinding in the egress
+	// namespace can't satisfy that). The reconciler only ever
+	// touches Services there, so narrowing the cache matches both
+	// the RBAC shape and the actual access pattern.
+	if egressProxyGroup != "" && egressNamespace != "" {
+		mgrOptions.Cache = cache.Options{
+			ByObject: map[client.Object]cache.ByObject{
+				&corev1.Service{}: {
+					Namespaces: map[string]cache.Config{
+						egressNamespace: {},
+					},
+				},
+			},
+		}
+	}
+	mgr, err := ctrl.NewManager(restConfig, mgrOptions)
 	if err != nil {
 		setupLog.Error(err, "create manager")
 		os.Exit(1)
@@ -194,10 +307,11 @@ func main() {
 	}
 
 	credsManager := &credentials.Manager{
-		Client:                  mgr.GetClient(),
-		Scaleway:                scwClient,
-		Namespace:               secretsNamespace,
-		NodeIdentityClusterRole: nodeIdentityClusterRole,
+		Client:                     mgr.GetClient(),
+		Scaleway:                   scwClient,
+		Namespace:                  secretsNamespace,
+		NodeIdentityClusterRole:    nodeIdentityClusterRole,
+		TailscaleAuthKeySecretName: tailscaleAuthKeySecretName,
 	}
 
 	kubeconfigBuilder := &kubeconfig.Builder{
@@ -205,20 +319,32 @@ func main() {
 	}
 
 	if err := (&controllers.ScalewayAppleSiliconMachineReconciler{
-		Client:                       mgr.GetClient(),
-		Scheme:                       mgr.GetScheme(),
-		ScalewayClient:               scwClient,
-		CredentialsManager:           credsManager,
-		Recorder:                     mgr.GetEventRecorderFor("scalewayapplesiliconmachine-controller"),
-		Kubeconfig:                   kubeconfigBuilder,
-		TartKubeletBinary:            tartKubeletBinary,
-		TartKubeletBinarySHA:         binarySHA,
-		TartTarball:                  tartTarball,
+		Client:               mgr.GetClient(),
+		Scheme:               mgr.GetScheme(),
+		ScalewayClient:       scwClient,
+		CredentialsManager:   credsManager,
+		Recorder:             mgr.GetEventRecorderFor("scalewayapplesiliconmachine-controller"),
+		Kubeconfig:           kubeconfigBuilder,
+		TartKubeletBinary:    tartKubeletBinary,
+		TartKubeletBinarySHA: binarySHA,
+		TartTarball:          tartTarball,
+		TailscaleBinaries:    tailscaleBinaries,
+		NodeExporterBinary:   nodeExporterBinary,
+		// Per-env Tailscale tag, e.g. `tag:tuist-macmini-staging`.
+		// Flows in from the Helm chart's macosFleet.tailscale.tags
+		// via --tailscale-tags. ACL grants the matching env's
+		// `tag:tuist-k8s-<env>` dial access to this tag on the
+		// scrape ports; cross-env scraping is blocked once the
+		// wide-open catch-all is removed.
+		TailscaleTags:                parseTailscaleTags(tailscaleTagsRaw),
 		TartKubeletHostCPU:           tartKubeletHostCPU,
 		TartKubeletHostMemoryMB:      tartKubeletHostMemory,
 		TartKubeletMaxPods:           tartKubeletMaxPods,
 		TartKubeletMaxUpdateAttempts: int32(tartKubeletMaxUpdateAttempts),
 		MaxConcurrentReconciles:      machineMaxConcurrentReconciles,
+		EgressNamespace:              egressNamespace,
+		EgressProxyGroup:             egressProxyGroup,
+		EgressMagicDNSSuffix:         egressMagicDNSSuffix,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup MachineReconciler")
 		os.Exit(1)
@@ -263,6 +389,28 @@ func envOrDefault(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+// parseTailscaleTags splits a comma-separated --tailscale-tags
+// value into a slice. Empty input returns nil — the bootstrap then
+// falls back to whatever default tag the auth key carries.
+// Whitespace around each tag is trimmed; blank entries (e.g. a
+// trailing comma) are dropped.
+func parseTailscaleTags(raw string) []string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		out = append(out, p)
+	}
+	return out
 }
 
 func sha256Hex(b []byte) string {

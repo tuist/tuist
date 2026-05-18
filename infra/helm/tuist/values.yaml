@@ -545,6 +545,78 @@ macosFleet:
         accessKey: access-key
         secretKey: secret-key
         projectID: project-id
+  # Tailscale wiring for the Mac mini fleet. When enabled the CAPI
+  # provider's bootstrap installs Tailscale on each mini, joins it
+  # to the tailnet under `tag:tuist-macmini-<env>`, and tart-kubelet
+  # advertises the tailnet IPv4 as the Node's InternalIP.
+  #
+  # Two scrape paths consume this:
+  #   - VM-Pod scrapes (PromEx on the xcresult-processor) ride the
+  #     standard annotationAutodiscovery pipeline: alloy-metrics
+  #     reads the Pod's IP from the cluster Pod object, which
+  #     tart-kubelet rewrites to the tailnet address.
+  #   - Host-level scrapes (node_exporter :9100, tart-kubelet's own
+  #     controller-runtime metrics :8080) go through the Tailscale
+  #     K8s operator's egress ProxyGroup. See `tailscaleEgress`
+  #     below for the cluster-Pod-to-tailnet plumbing; subnet-router
+  #     mode advertises cluster IPs INTO the tailnet, not the other
+  #     way round, so an egress proxy is the missing half.
+  #
+  # Off by default: the chart is self-hostable and most operators
+  # don't have a tailnet to join. Tuist-managed envs flip it on in
+  # their per-env values.
+  tailscale:
+    enabled: false
+    # Per-env ACL tag every Mac mini advertises at `tailscale up`.
+    # Per-env values override (e.g. `tag:tuist-macmini-staging`);
+    # the chart-default empty list lets the auth key's own tag
+    # binding apply if it carries one, but production deployments
+    # should always set this explicitly so the env boundary is
+    # load-bearing rather than auth-key-shape-derived. See
+    # infra/tailscale/acls.json for the full taxonomy.
+    tags: []
+    # Name of the Secret with key `auth-key` holding the Tailscale
+    # pre-auth key. ESO populates it from 1Password by default; set
+    # to a manually-created Secret name to opt out.
+    secretName: ""
+    externalSecrets:
+      enabled: true
+      refreshInterval: "1h"
+      storeRef:
+        kind: ClusterSecretStore
+        name: onepassword
+      # Same per-env convention as the Scaleway item: one TAILSCALE
+      # entry in each env's `tuist-k8s-<env>` vault with the
+      # pre-auth key for that env's tailnet. We don't share an auth
+      # key across envs so a leaked staging key can't add a node
+      # to the production tailnet.
+      item: TAILSCALE
+      fields:
+        authKey: auth-key
+  # Tailscale egress Services. When enabled, the CAPI operator
+  # creates one ExternalName Service per Mac mini in
+  # `.namespace` (matching the tailscale-operator wrapper chart's
+  # Release.Namespace), annotated to bind to the named
+  # ProxyGroup. alloy-metrics' Service-role discovery then scrapes
+  # those Services and the Tailscale operator bridges to the
+  # tailnet.
+  #
+  # Off by default — self-hosters without a tailnet never need this
+  # plumbing. When tailscale.enabled is on, flip this on too.
+  tailscaleEgress:
+    enabled: false
+    # Where the per-machine Services land. Must match the
+    # tailscale-operator wrapper chart's release namespace.
+    namespace: tailscale-operator
+    # Name of the ProxyGroup the Services bind to. Matches the
+    # tailscale-operator wrapper chart's `macminiEgress.proxyGroup.name`.
+    proxyGroup: macmini-egress
+    # MagicDNS suffix of the tailnet the Mac minis register
+    # under. Required when enabled — derived from
+    # `tailscale status --json | .MagicDNSSuffix` on any tailnet
+    # device, e.g. `taild6d7bb.ts.net`. Per-env overlays set the
+    # actual value.
+    magicDNSSuffix: ""
   machine:
     # M2-L (M2 Pro chip, 12 vCPU, 32 GB RAM) is our default SKU:
     # it has the most reliable inventory in fr-par-1 and the

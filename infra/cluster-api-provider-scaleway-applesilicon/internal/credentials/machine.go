@@ -39,8 +39,8 @@ const (
 	// operator's RBAC grant on Secrets covers both.
 	machineBootstrapSecretSuffix = "-bootstrap"
 
-	machineSudoPasswordKey   = "sudo-password"
-	machineSSHUsernameKey    = "ssh-username"
+	machineSudoPasswordKey    = "sudo-password"
+	machineSSHUsernameKey     = "ssh-username"
 	machineHostFingerprintKey = "host-fingerprint"
 )
 

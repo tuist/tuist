@@ -28,10 +28,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/api/v1alpha1"
-	"github.com/tuist/tuist/infra/macos-host-bootstrap"
 	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/internal/credentials"
 	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/internal/kubeconfig"
 	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/internal/scaleway"
+	"github.com/tuist/tuist/infra/macos-host-bootstrap"
 )
 
 const (
@@ -84,6 +84,31 @@ type ScalewayAppleSiliconMachineReconciler struct {
 	// new Mac mini gets the operator-image-pinned Tart on bootstrap).
 	TartTarball []byte
 
+	// TailscaleBinaries is the gzipped tarball of darwin/arm64
+	// `tailscale` + `tailscaled` cross-built from upstream source at
+	// the operator-image-pinned tag (TAILSCALE_VERSION in the
+	// Dockerfile). Same drift policy as TartTarball: version bumps
+	// roll via operator-image replacement, not in-place updates of
+	// running hosts (the running tailnet connection doesn't tolerate
+	// a daemon swap mid-flight). Empty disables the Tailscale step.
+	TailscaleBinaries []byte
+
+	// NodeExporterBinary is the darwin/arm64 node_exporter binary,
+	// cross-compiled in the operator image. Installed on each Mac
+	// mini at bootstrap and supervised by launchd; scraped over the
+	// tailnet at <node-ip>:9100. Empty disables the host-metrics
+	// step (paired with TailscaleBinaries — node_exporter without
+	// Tailscale would bind to a public interface, which is the kind
+	// of mistake we don't want a chart-level toggle to make easy).
+	NodeExporterBinary []byte
+
+	// TailscaleTags are the Tailscale ACL tags every Mac mini in
+	// the fleet advertises at `tailscale up` time (e.g.
+	// `["tag:tuist-macmini"]`). Bound to the operator-namespace
+	// auth key — see acls.json's tagOwners block. Empty means the
+	// minis use whatever default tag the auth key carries.
+	TailscaleTags []string
+
 	// TartKubelet host advertising — passed into bootstrap which bakes
 	// them into the launchd plist on each Mac mini.
 	TartKubeletHostCPU      int
@@ -106,6 +131,24 @@ type ScalewayAppleSiliconMachineReconciler struct {
 	// machine are still serialized by controller-runtime's per-key
 	// locking — bumping this only parallelizes across distinct CRs.
 	MaxConcurrentReconciles int
+
+	// Tailscale egress Service materialisation. When EgressProxyGroup
+	// is non-empty, the reconciler maintains one ExternalName Service
+	// per Mac mini in EgressNamespace, annotated so the Tailscale K8s
+	// operator binds it to the named ProxyGroup. The Service lets
+	// alloy-metrics (and any other in-cluster Pod) scrape the Mac
+	// mini at its MagicDNS FQDN without joining the tailnet itself —
+	// see infra/helm/tailscale-operator/templates/macmini-egress.yaml
+	// for the ProxyGroup side.
+	//
+	// Empty EgressProxyGroup disables the whole behavior; the OSS /
+	// self-hosted shape (no tailnet) keeps working untouched.
+	//
+	// Cross-namespace OwnerRef isn't allowed, so reconcileDelete
+	// explicitly removes the Service rather than relying on cascade.
+	EgressNamespace      string
+	EgressProxyGroup     string
+	EgressMagicDNSSuffix string
 }
 
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=scalewayapplesiliconmachines,verbs=get;list;watch;create;update;patch;delete
@@ -117,6 +160,7 @@ type ScalewayAppleSiliconMachineReconciler struct {
 // +kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch;delete
 // +kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list;watch;create;update;delete
 // +kubebuilder:rbac:groups="",resources=configmaps,resourceNames=cluster-info,verbs=get
+// +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=clusterrolebindings,verbs=get;list;watch;create;update;delete
 
 // Reconcile uses named returns so the deferred patchHelper.Patch can
@@ -380,6 +424,13 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
 
+		tailscaleAuthKey, err := r.CredentialsManager.GetTailscaleAuthKey(ctx)
+		if err != nil {
+			conditions.MarkFalse(machine, BootstrappedCondition, "TailscaleAuthKeyUnavailable",
+				clusterv1.ConditionSeverityWarning, "%v", err)
+			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+		}
+
 		fingerprint, err := bootstrap.Run(ctx, bootstrap.Config{
 			IP:                   ip,
 			SSHUser:              bootstrapCreds.SSHUsername,
@@ -389,6 +440,10 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			Kubeconfig:           kubeconfigYAML,
 			TartKubeletBinary:    r.TartKubeletBinary,
 			TartTarball:          r.TartTarball,
+			TailscaleBinaries:    r.TailscaleBinaries,
+			TailscaleAuthKey:     tailscaleAuthKey,
+			TailscaleTags:        r.TailscaleTags,
+			NodeExporterBinary:   r.NodeExporterBinary,
 			HostCPU:              hostCPUFor(machine, r.TartKubeletHostCPU),
 			HostMemoryMB:         hostMemoryMBFor(machine, r.TartKubeletHostMemoryMB),
 			MaxPods:              r.TartKubeletMaxPods,
@@ -459,6 +514,21 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			}
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
+		// On the drift-update path the auth key is read to drive the
+		// kubelet's --node-ip-source decision in the regenerated
+		// launchd plist — without it, a re-render would drop the
+		// `--node-ip-source=tailscale` arg and silently flip kubelet
+		// back to the public IP. Fetching the key here is the cheap
+		// way to keep the plist render correct.
+		tailscaleAuthKey, err := r.CredentialsManager.GetTailscaleAuthKey(ctx)
+		if err != nil {
+			recordUpdateFailure(machine, fmt.Errorf("get tailscale auth key: %w", err), r.TartKubeletMaxUpdateAttempts, logger, r.Recorder)
+			if machine.Status.FailureReason != nil {
+				return ctrl.Result{}, nil
+			}
+			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+		}
+
 		fingerprint, err := bootstrap.UpdateTartKubelet(ctx, bootstrap.Config{
 			IP:                   ip,
 			SSHUser:              bootstrapCreds.SSHUsername,
@@ -466,6 +536,17 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			NodeName:             machine.Name,
 			Kubeconfig:           kubeconfigYAML,
 			TartKubeletBinary:    r.TartKubeletBinary,
+			TailscaleBinaries:    r.TailscaleBinaries,
+			TailscaleAuthKey:     tailscaleAuthKey,
+			// node_exporter is re-installed on every drift-loop run,
+			// not just on first bootstrap, so a chart-driven binary
+			// bump (NODE_EXPORTER_VERSION ARG in the operator
+			// Dockerfile) lands on running minis the next time the
+			// tart-kubelet binary drifts. Forgetting this here made
+			// node_exporter silently skip on every drift update —
+			// installNodeExporter short-circuits when its binary is
+			// empty.
+			NodeExporterBinary:   r.NodeExporterBinary,
 			HostCPU:              hostCPUFor(machine, r.TartKubeletHostCPU),
 			HostMemoryMB:         hostMemoryMBFor(machine, r.TartKubeletHostMemoryMB),
 			MaxPods:              r.TartKubeletMaxPods,
@@ -491,6 +572,33 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 		logger.Info("rolled new tart-kubelet", "host", ip, "sha", r.TartKubeletBinarySHA)
 	}
 
+	// Stage 4: materialise the per-machine Tailscale egress Service
+	// (when wired by the chart). Doesn't gate on bootstrap success —
+	// the FQDN is deterministic (`<machine.Name>.<suffix>`), so the
+	// Service can exist before the host has joined the tailnet; the
+	// Tailscale operator pends the ExternalName rewrite until the
+	// FQDN resolves and reconciles transparently when it does.
+	if err := r.reconcileTailscaleEgressService(ctx, machine); err != nil {
+		// Conflicts are benign: the Tailscale operator and this
+		// reconciler write to the same Service (it owns the
+		// externalName rewrite + ts-condition annotations, we own
+		// the tailnet-fqdn + ports). When they race, one Update
+		// loses the resourceVersion check. Requeue immediately so
+		// the next reconcile reads the fresh version; don't log an
+		// error or surface an Event for the noise.
+		if apierrors.IsConflict(err) {
+			return ctrl.Result{Requeue: true}, nil
+		}
+		// Don't fail the whole reconcile: bootstrap already succeeded
+		// and the egress Service is the scrape boundary, not the
+		// workload boundary. Surface the failure as an Event and
+		// requeue.
+		logger.Error(err, "reconcile tailscale egress Service; will retry")
+		r.Recorder.Eventf(machine, corev1.EventTypeWarning, "EgressServiceFailed",
+			"reconcile tailscale egress Service: %v (will retry)", err)
+		return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
+	}
+
 	// Mac mini is now running tart-kubelet and registering itself as a
 	// real Node. From CAPI's perspective the Machine is Ready as soon
 	// as bootstrap returns; whether the Node has reported Ready yet is
@@ -499,7 +607,6 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 	machine.Status.Phase = "Ready"
 	return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
 }
-
 
 func (r *ScalewayAppleSiliconMachineReconciler) reconcileDelete(
 	ctx context.Context,
@@ -558,11 +665,103 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileDelete(
 		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 	}
 
+	// Stage 5: drop the per-machine Tailscale egress Service if the
+	// chart wired it up. Cross-namespace OwnerRef isn't allowed
+	// (Service lives in the tailscale-operator namespace, this CR
+	// lives in the operator's), so we delete explicitly.
+	if r.EgressProxyGroup != "" {
+		svc := &corev1.Service{ObjectMeta: metav1.ObjectMeta{
+			Name:      machine.Name,
+			Namespace: r.EgressNamespace,
+		}}
+		if err := r.Client.Delete(ctx, svc); err != nil && !apierrors.IsNotFound(err) {
+			logger.Error(err, "delete egress Service; will retry")
+			r.Recorder.Eventf(machine, corev1.EventTypeWarning, "DeleteFailed",
+				"delete egress Service %s/%s: %v (will retry)", r.EgressNamespace, machine.Name, err)
+			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+		}
+	}
+
 	controllerutil.RemoveFinalizer(machine, MachineFinalizer)
 	return ctrl.Result{}, nil
 }
 
 // === helpers ================================================================
+
+// reconcileTailscaleEgressService maintains one ExternalName Service
+// per Mac mini in the egress namespace. The Tailscale K8s operator
+// detects the `tailscale.com/tailnet-fqdn` annotation and rewrites
+// the Service's externalName to point at a ClusterIP fronting the
+// named ProxyGroup; from then on any cluster Pod that resolves the
+// Service DNS gets routed through the ProxyGroup's tailnet identity
+// to the Mac mini.
+//
+// Idempotent via CreateOrUpdate: a re-reconcile with no spec change
+// is a noop on the apiserver. Empty EgressProxyGroup short-circuits
+// the whole thing for OSS/self-hosted clusters.
+func (r *ScalewayAppleSiliconMachineReconciler) reconcileTailscaleEgressService(
+	ctx context.Context,
+	machine *infrav1.ScalewayAppleSiliconMachine,
+) error {
+	if r.EgressProxyGroup == "" {
+		return nil
+	}
+	if r.EgressMagicDNSSuffix == "" {
+		return fmt.Errorf("EgressMagicDNSSuffix empty but EgressProxyGroup=%q set", r.EgressProxyGroup)
+	}
+	if r.EgressNamespace == "" {
+		return fmt.Errorf("EgressNamespace empty but EgressProxyGroup=%q set", r.EgressProxyGroup)
+	}
+
+	// FQDN is the tailnet hostname (= machine.Name; see
+	// bootstrap.go's `tailscale up --hostname=$NodeName`) suffixed
+	// with the tailnet's MagicDNS domain (operator flag, set per
+	// env in the chart).
+	fqdn := machine.Name + "." + r.EgressMagicDNSSuffix
+
+	svc := &corev1.Service{ObjectMeta: metav1.ObjectMeta{
+		Name:      machine.Name,
+		Namespace: r.EgressNamespace,
+	}}
+	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, svc, func() error {
+		if svc.Labels == nil {
+			svc.Labels = map[string]string{}
+		}
+		// Label alloy-metrics' Service-role discovery filters on. The
+		// label values stay stable across reconciles so the same
+		// Service is reused; only its Spec/annotations get patched.
+		svc.Labels["app.kubernetes.io/managed-by"] = "capi-scaleway-applesilicon"
+		svc.Labels["app.kubernetes.io/component"] = "macmini-egress"
+		svc.Labels["tuist.dev/macmini-egress"] = "true"
+		svc.Labels["tuist.dev/macmini-machine"] = machine.Name
+
+		if svc.Annotations == nil {
+			svc.Annotations = map[string]string{}
+		}
+		svc.Annotations["tailscale.com/tailnet-fqdn"] = fqdn
+		svc.Annotations["tailscale.com/proxy-group"] = r.EgressProxyGroup
+
+		svc.Spec.Type = corev1.ServiceTypeExternalName
+		// On first create, seed externalName with a syntactically
+		// valid placeholder. The Tailscale operator rewrites it at
+		// admission time to a ClusterIP Service fronting the
+		// ProxyGroup; on re-reconcile we don't stamp it back, so the
+		// operator's rewrite sticks.
+		if svc.Spec.ExternalName == "" {
+			svc.Spec.ExternalName = "placeholder." + r.EgressNamespace + ".svc.cluster.local"
+		}
+		// Two named ports — alloy-metrics filters on port_name to
+		// dispatch each to the right scrape job (see
+		// infra/helm/k8s-monitoring/values.yaml's
+		// collectors.alloy-metrics.extraConfig).
+		svc.Spec.Ports = []corev1.ServicePort{
+			{Name: "node-exporter", Port: 9100, Protocol: corev1.ProtocolTCP},
+			{Name: "tart-kubelet", Port: 8080, Protocol: corev1.ProtocolTCP},
+		}
+		return nil
+	})
+	return err
+}
 
 // recordUpdateFailure increments the drift-loop retry counter and,
 // once it crosses maxAttempts, flips the CR into a terminal Failed
@@ -780,4 +979,3 @@ func scalewayMachineForCAPIMachine(_ context.Context, o client.Object) []reconci
 		},
 	}}
 }
-
