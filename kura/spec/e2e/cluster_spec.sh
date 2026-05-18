@@ -23,7 +23,7 @@ Describe 'core cluster behaviour'
     setup_suite_tmpdir
 
     dc down -v --remove-orphans >/dev/null 2>&1 || true
-    dc up --build -d >/dev/null 2>&1
+    compose_up || return 1
 
     wait_for_http "${KURA_US_URL}/up"
     wait_for_http "${KURA_EU_URL}/up"
@@ -121,8 +121,10 @@ Describe 'core cluster behaviour'
       -d '{"parts":[1,2]}')"
     The variable complete_status should eq 204
 
-    head_status="$(status_only -I \
-      "${KURA_EU_URL}/api/cache/module/module-1?tenant_id=acme&namespace_id=ios&hash=hash-1&name=Module.framework&cache_category=builds")"
+    capture_into head_status \
+      wait_for_head_status \
+      "${KURA_EU_URL}/api/cache/module/module-1?tenant_id=acme&namespace_id=ios&hash=hash-1&name=Module.framework&cache_category=builds" \
+      204 || return 1
     The variable head_status should eq 204
 
     capture_into module_body \
