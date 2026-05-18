@@ -333,6 +333,49 @@ defmodule Tuist.Kura.ReconcilerTest do
     assert %Deployment{status: :failed} = Repo.get!(Deployment, failed_deployment.id)
   end
 
+  test "heals a previously-active server forward to the drift image the controller eventually applied" do
+    {_account, server, deployment} = create_server()
+    {:ok, server} = Kura.activate_server(server, deployment.image_tag)
+    mark_deployment_succeeded(deployment)
+
+    {:ok, drift} = Kura.create_deployment(server, "sha-newimage123")
+    {:ok, drift} = Kura.mark_running(drift)
+    {:ok, _drift} = Kura.mark_failed(drift, "apply failed")
+    {:ok, server} = Kura.fail_server(server)
+
+    # The controller recovered and is now serving the drift image, not
+    # the image the server used to serve. The projection's desired
+    # image is the latest deployment's, so it heals forward to it.
+    stub(Provisioner, :current_image_tag, fn %Server{id: id} ->
+      assert id == server.id
+      {:ok, "sha-newimage123"}
+    end)
+
+    assert :ok = Reconciler.reconcile()
+
+    assert %Server{status: :active, current_image_tag: "sha-newimage123", observed_image_tag: "sha-newimage123"} =
+             Repo.get!(Server, server.id)
+  end
+
+  test "records the observed image without flipping status while the cluster has not converged" do
+    {_account, server, deployment} = create_server()
+    {:ok, _deployment} = Kura.mark_failed(deployment, "apply failed")
+    {:ok, server} = Kura.fail_server(server)
+
+    stub(Provisioner, :current_image_tag, fn %Server{id: id} ->
+      assert id == server.id
+      {:ok, "0.4.0"}
+    end)
+
+    assert :ok = Reconciler.reconcile()
+
+    server = Repo.get!(Server, server.id)
+    assert server.status == :failed
+    assert server.current_image_tag == nil
+    assert server.observed_image_tag == "0.4.0"
+    assert server.last_observed_at
+  end
+
   defp create_server do
     user = AccountsFixtures.user_fixture()
     account = Accounts.get_account_from_user(user)
