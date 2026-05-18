@@ -2308,16 +2308,14 @@ jobs:
             git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../../" --bump -o CHANGELOG.md 2>/dev/null
           fi
 
-      - name: Verify Tart
-        # No upgrade. See runner-image.yml's "Verify Tart" step for
-        # the long explanation.
-        run: |
-          set -euo pipefail
-          if ! command -v tart >/dev/null 2>&1; then
-            echo "ERROR: tart not on PATH. Re-run the builder bootstrap on this host." >&2
-            exit 1
-          fi
-          tart --version
+      # Tart isn't installed by this workflow. The builder host's
+      # bootstrap path (infra/macos-host-bootstrap.installTart, run
+      # by the Scaleway CAPI provider on every Mac mini Node)
+      # extracts the operator-image-baked tart.app tarball to
+      # /usr/local/bin/tart. Same install path the in-cluster
+      # macosFleet / runnersFleet hosts use; the workflow's PATH
+      # picks it up and `packer init` / Packer's tart-cli plugin
+      # fail loudly if it's missing.
 
       - name: Initialize Packer
         working-directory: infra/runner-image

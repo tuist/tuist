@@ -29,6 +29,25 @@ The `tuist.dev/macos=true:NoSchedule` taint tart-kubelet auto-applies
 keeps stray Linux Pods off; the per-fleet `tuist.dev/fleet`
 NodeLabel scopes Pod selection away from this fleet.
 
+### Where the build tools come from
+
+The host's `tart`, `packer`, and the Actions runner agent are all
+installed by the CAPI reconciler at bootstrap time, never by the
+workflows. The workflows assume each tool is on PATH and fail fast
+if not:
+
+| Tool                | Install path | Source |
+|---|---|---|
+| `tart`              | `/usr/local/bin/tart`             | Operator-image-baked `tart.app` tarball (`installTart` in `macos-host-bootstrap`). Same install path the macosFleet and runnersFleet hosts use; Tart's version is pinned by what the operator image ships. |
+| `packer`            | `/opt/homebrew/bin/packer`        | Homebrew (`hashicorp/tap/packer`) installed by the builder tail (`installBuilderTooling`) and `brew pin`'d. A follow-up will bake Packer into the operator image too, dropping Homebrew from the bootstrap entirely. |
+| Actions runner      | `/opt/actions-runner/`            | Downloaded directly from `actions/runner`'s GitHub releases by `installActionsRunner` and registered as a launchd LaunchAgent under `m1`. |
+
+Nothing in the workflow yaml installs or upgrades any of these.
+Implicit `brew upgrade` was the cause of multiple macOS Tahoe TCC
+grant invalidations during this fleet's onboarding (see "Local
+Network access" below); keeping installs centralized in the
+bootstrap is what makes the grants stable across re-runs.
+
 ## One-time setup (per env)
 
 1. **Mint a GitHub Actions runner registration token** and stash it
