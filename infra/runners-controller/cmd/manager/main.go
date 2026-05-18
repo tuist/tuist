@@ -14,7 +14,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
-	"k8s.io/client-go/tools/clientcmd"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -46,7 +45,6 @@ func main() {
 		dispatchInternalURL string
 		scalingSignalsURL   string
 		watchedNS           string
-		mgmtKubeconfig      string
 	)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "Prometheus metrics endpoint")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "Liveness/readiness probe endpoint")
@@ -58,8 +56,6 @@ func main() {
 		"URL the autoscaler reconciler GETs for fleet load signals (`?fleet=<name>` appended). Optional; if empty, autoscaling is silently disabled (existing macOS pools work unchanged).")
 	flag.StringVar(&watchedNS, "namespace", envOr("TUIST_RUNNERS_NAMESPACE", "tuist-runners"),
 		"Namespace the controller watches. Defaults to tuist-runners.")
-	flag.StringVar(&mgmtKubeconfig, "mgmt-kubeconfig", envOr("TUIST_MGMT_KUBECONFIG", ""),
-		"Path to a kubeconfig file for the management cluster (the one running CAPI controllers). When set, the autoscaler also patches the bound `MachineDeployment.spec.replicas` after each pool scale event. Optional; without it, pools that reference an MD log a warning and the MD layer stays static.")
 
 	opts := zap.Options{Development: false}
 	opts.BindFlags(flag.CommandLine)
@@ -106,21 +102,10 @@ func main() {
 	// shape) we skip wiring it up — autoscaling pools fail open
 	// (no scaling-driven changes), static pools work as before.
 	if scalingSignalsURL != "" {
-		var mgmtClient client.Client
-		if mgmtKubeconfig != "" {
-			mc, err := buildMgmtClient(mgmtKubeconfig)
-			if err != nil {
-				setupLog.Error(err, "build management-cluster client; MD scaling will be disabled")
-			} else {
-				mgmtClient = mc
-				setupLog.Info("management-cluster kubeconfig loaded; MD scaling enabled")
-			}
-		}
 		if err := (&controllers.AutoscalerReconciler{
 			Client:        mgr.GetClient(),
 			Scheme:        mgr.GetScheme(),
 			SignalsClient: scaling.NewClient(scalingSignalsURL),
-			MgmtClient:    mgmtClient,
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "setup Autoscaler reconciler")
 			os.Exit(1)
@@ -148,21 +133,6 @@ func envOr(key, fallback string) string {
 		return v
 	}
 	return fallback
-}
-
-// buildMgmtClient constructs a controller-runtime client.Client
-// against the management cluster's API server, given the path to a
-// kubeconfig file mounted on the Pod. We use the default scheme
-// (clientgoscheme) since the only management-cluster type we touch
-// (`cluster.x-k8s.io/v1beta1.MachineDeployment`) is handled via
-// unstructured — pulling the full CAPI module to set one int field
-// isn't worth the dep cost.
-func buildMgmtClient(kubeconfigPath string) (client.Client, error) {
-	cfg, err := clientcmd.BuildConfigFromFlags("", kubeconfigPath)
-	if err != nil {
-		return nil, err
-	}
-	return client.New(cfg, client.Options{Scheme: scheme})
 }
 
 // Compile-time check that we're not accidentally pulling unused

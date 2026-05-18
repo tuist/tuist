@@ -147,39 +147,6 @@ xcresultProcessor:
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
 
-# runners-controller picks up `mgmtCluster.enabled` to mount a
-# kubeconfig and pass `--mgmt-kubeconfig`. The autoscaler then
-# patches the CAPI `MachineDeployment.spec.replicas` in the
-# management cluster alongside `RunnerPool.spec.replicas`, so node
-# count tracks Pod count without installing a separate
-# cluster-autoscaler. The `tuist-runners-controller-mgmt-kubeconfig`
-# Secret is synced from 1Password by ESO. See
-# `infra/runners-controller/AGENTS.md` for the mgmt-side SA + RBAC
-# + kubeconfig minting steps.
-runnersController:
-  mgmtCluster:
-    # Disabled until the operator mints the mgmt-cluster
-    # kubeconfig + uploads it to 1P as MGMT_CLUSTER_KUBECONFIG
-    # per the runbook in infra/runners-controller/AGENTS.md.
-    # Without that 1P item the ESO sync fails and the
-    # runners-controller pod hangs in ContainerCreating on the
-    # missing Secret volume. Pod-layer autoscaling still works;
-    # only the MD-replicas patching path is a no-op while this
-    # is off.
-    enabled: false
-    externalSecrets:
-      enabled: true
-      refreshInterval: "1h"
-      storeRef:
-        name: onepassword
-        kind: ClusterSecretStore
-      # 1Password item name in the staging vault. The item carries
-      # the kubeconfig as a single field; the chart globs it into a
-      # one-key Secret the controller mounts at
-      # /etc/tuist-runners-controller/mgmt-kubeconfig/kubeconfig.
-      item: MGMT_CLUSTER_KUBECONFIG
-      field: kubeconfig
-
 # Mac mini fleet. The chart renders one ScalewayAppleSiliconMachine
 # CR per replica; the cluster-api-provider-scaleway-applesilicon
 # operator orders each Mac mini, then SSH-bootstraps it with

@@ -174,20 +174,6 @@ spec:
             # Autoscaler reconciler runs in the cluster; always use
             # the in-cluster Service URL for the same reason.
             - --scaling-signals-url=http://{{ include "tuist.componentName" (dict "root" . "component" "server") }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.server.service.port | default 80 }}/api/internal/runners/desired_replicas
-            {{- if .Values.runnersController.mgmtCluster.enabled }}
-            # Path to a kubeconfig for the management cluster (the one
-            # running CAPI controllers and holding the MachineDeployment
-            # CRs). When set, the autoscaler also patches the bound MD's
-            # `spec.replicas` after each pool scale event, removing the
-            # need to install a separate cluster-autoscaler.
-            - --mgmt-kubeconfig=/etc/tuist-runners-controller/mgmt-kubeconfig/kubeconfig
-            {{- end }}
-          {{- if .Values.runnersController.mgmtCluster.enabled }}
-          volumeMounts:
-            - name: mgmt-kubeconfig
-              mountPath: /etc/tuist-runners-controller/mgmt-kubeconfig
-              readOnly: true
-          {{- end }}
           ports:
             - name: metrics
               containerPort: 8080
@@ -214,13 +200,4 @@ spec:
             readOnlyRootFilesystem: true
             runAsNonRoot: true
             runAsUser: 65532
-      {{- if .Values.runnersController.mgmtCluster.enabled }}
-      volumes:
-        - name: mgmt-kubeconfig
-          secret:
-            secretName: {{ .Values.runnersController.mgmtCluster.kubeconfigSecretName | default "tuist-runners-controller-mgmt-kubeconfig" }}
-            items:
-              - key: {{ .Values.runnersController.mgmtCluster.kubeconfigSecretKey | default "kubeconfig" }}
-                path: kubeconfig
-      {{- end }}
 {{- end }}

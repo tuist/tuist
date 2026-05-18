@@ -85,10 +85,6 @@ func (in *RunnerPoolSpec) DeepCopyInto(out *RunnerPoolSpec) {
 
 func (in *RunnerPoolAutoscaling) DeepCopyInto(out *RunnerPoolAutoscaling) {
 	*out = *in
-	if in.MachineDeployment != nil {
-		out.MachineDeployment = new(MachineDeploymentRef)
-		*out.MachineDeployment = *in.MachineDeployment
-	}
 }
 
 func (in *RunnerPoolStatus) DeepCopyInto(out *RunnerPoolStatus) {
