@@ -28,6 +28,7 @@ defmodule Tuist.Repo.Migrations.AddWebhookEndpointsTable do
       timestamps(type: :timestamptz)
     end
 
+    # excellent_migrations:safety-assured-for-next-line index_not_concurrently
     create index(:webhook_endpoints, [:account_id])
   end
 end

@@ -20,6 +20,7 @@ defmodule Tuist.Webhooks.WebhookEndpoint do
   import Ecto.Changeset
 
   alias Tuist.Accounts.Account
+  alias Tuist.Vault.Binary
 
   @event_groups [
     %{
@@ -72,8 +73,8 @@ defmodule Tuist.Webhooks.WebhookEndpoint do
   @primary_key {:id, UUIDv7, autogenerate: true}
   schema "webhook_endpoints" do
     field :name, :string
-    field :url, Tuist.Vault.Binary
-    field :signing_secret, Tuist.Vault.Binary
+    field :url, Binary
+    field :signing_secret, Binary
     field :signing_secret_last_four, :string
     field :event_types, {:array, :string}, default: []
 
