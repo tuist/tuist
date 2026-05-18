@@ -99,7 +99,7 @@ defmodule TuistWeb.RunnerJobsLiveTest do
     refute html =~ "server-job"
   end
 
-  test "filters by status via the ?status= query param", %{conn: conn, account: account} do
+  test "filters by status via the status filter", %{conn: conn, account: account} do
     :ok =
       Jobs.enqueue(%{
         workflow_job_id: 99_101,
@@ -130,7 +130,10 @@ defmodule TuistWeb.RunnerJobsLiveTest do
     :ok = Jobs.record_claimed(candidate, "pod-1", DateTime.utc_now())
 
     {:ok, _lv, html} =
-      live(conn, ~p"/#{account.name}/runners/jobs?status=queued")
+      live(
+        conn,
+        ~p"/#{account.name}/runners/jobs?#{[{"filter_status_op", "=="}, {"filter_status_val", "queued"}]}"
+      )
 
     assert html =~ "claimed-job"
     refute html =~ "queued-job"

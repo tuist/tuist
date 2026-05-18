@@ -6,60 +6,6 @@
   >
     <.card_section data-part="runner-jobs-card-section">
       <div data-part="filters">
-        <.dropdown
-          id="runner-jobs-status-filter"
-          label={
-            case @selected_status do
-              "queued" -> dgettext("dashboard_runners", "Queued")
-              "claimed" -> dgettext("dashboard_runners", "Claimed")
-              "running" -> dgettext("dashboard_runners", "Running")
-              "completed" -> dgettext("dashboard_runners", "Completed")
-              _ -> dgettext("dashboard_runners", "All statuses")
-            end
-          }
-          secondary_text={dgettext("dashboard_runners", "Status:")}
-        >
-          <.dropdown_item
-            value="all"
-            label={dgettext("dashboard_runners", "All statuses")}
-            patch={~p"/#{@selected_account.name}/runners/jobs"}
-            data-selected={is_nil(@selected_status)}
-          >
-            <:right_icon><.check /></:right_icon>
-          </.dropdown_item>
-          <.dropdown_item
-            value="queued"
-            label={dgettext("dashboard_runners", "Queued")}
-            patch={~p"/#{@selected_account.name}/runners/jobs?status=queued"}
-            data-selected={@selected_status == "queued"}
-          >
-            <:right_icon><.check /></:right_icon>
-          </.dropdown_item>
-          <.dropdown_item
-            value="claimed"
-            label={dgettext("dashboard_runners", "Claimed")}
-            patch={~p"/#{@selected_account.name}/runners/jobs?status=claimed"}
-            data-selected={@selected_status == "claimed"}
-          >
-            <:right_icon><.check /></:right_icon>
-          </.dropdown_item>
-          <.dropdown_item
-            value="running"
-            label={dgettext("dashboard_runners", "Running")}
-            patch={~p"/#{@selected_account.name}/runners/jobs?status=running"}
-            data-selected={@selected_status == "running"}
-          >
-            <:right_icon><.check /></:right_icon>
-          </.dropdown_item>
-          <.dropdown_item
-            value="completed"
-            label={dgettext("dashboard_runners", "Completed")}
-            patch={~p"/#{@selected_account.name}/runners/jobs?status=completed"}
-            data-selected={@selected_status == "completed"}
-          >
-            <:right_icon><.check /></:right_icon>
-          </.dropdown_item>
-        </.dropdown>
         <.filter_dropdown
           id="filter-dropdown"
           label={dgettext("dashboard_runners", "Filter")}
@@ -156,7 +102,7 @@
       <div :if={Enum.empty?(@jobs)} data-part="empty-runner-jobs">
         <.empty_card_section
           title={
-            if is_nil(@selected_status) and Enum.empty?(@active_filters) do
+            if Enum.empty?(@active_filters) do
               dgettext("dashboard_runners", "No jobs yet")
             else
               dgettext("dashboard_runners", "No jobs match the current filters")

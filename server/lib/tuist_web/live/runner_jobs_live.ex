@@ -31,12 +31,10 @@ defmodule TuistWeb.RunnerJobsLive do
 
   @impl true
   def handle_params(params, _uri, socket) do
-    status = parse_status(params["status"])
     filters = Filter.Operations.decode_filters_from_query(params, socket.assigns.available_filters)
 
     {:noreply,
      socket
-     |> assign(:selected_status, status)
      |> assign(:active_filters, filters)
      |> assign_jobs()}
   end
@@ -63,25 +61,22 @@ defmodule TuistWeb.RunnerJobsLive do
      |> push_event("close-popover", %{id: "all", all: true})}
   end
 
-  defp parse_status(s) when s in ["queued", "claimed", "running", "completed"], do: s
-  defp parse_status(_), do: nil
-
   defp assign_jobs(
          %{
            assigns: %{
              selected_account: account,
-             selected_status: status,
              active_filters: filters
            }
          } = socket
        ) do
     opts =
-      [limit: @page_size, status: status]
+      [limit: @page_size]
       |> add_filter_opt(filters, "repository", :repo)
       |> add_filter_opt(filters, "workflow", :workflow_name)
       |> add_filter_opt(filters, "job", :job_name)
       |> add_filter_opt(filters, "branch", :head_branch)
-      |> add_conclusion_opt(filters)
+      |> add_option_opt(filters, "status", :status)
+      |> add_option_opt(filters, "conclusion", :conclusion)
 
     jobs = Jobs.list_for_account(account.id, opts)
     counts = Jobs.status_counts(account.id)
@@ -98,10 +93,10 @@ defmodule TuistWeb.RunnerJobsLive do
     end
   end
 
-  defp add_conclusion_opt(opts, filters) do
-    case Enum.find(filters, &(&1.id == "conclusion")) do
+  defp add_option_opt(opts, filters, filter_id, opt_key) do
+    case Enum.find(filters, &(&1.id == filter_id)) do
       %{value: value} when not is_nil(value) ->
-        Keyword.put(opts, :conclusion, to_string(value))
+        Keyword.put(opts, opt_key, to_string(value))
 
       _ ->
         opts
@@ -110,6 +105,21 @@ defmodule TuistWeb.RunnerJobsLive do
 
   defp available_filters do
     [
+      %Filter.Filter{
+        id: "status",
+        field: :status,
+        display_name: dgettext("dashboard_runners", "Status"),
+        type: :option,
+        options: [:queued, :claimed, :running, :completed],
+        options_display_names: %{
+          queued: dgettext("dashboard_runners", "Queued"),
+          claimed: dgettext("dashboard_runners", "Claimed"),
+          running: dgettext("dashboard_runners", "Running"),
+          completed: dgettext("dashboard_runners", "Completed")
+        },
+        operator: :==,
+        value: nil
+      },
       %Filter.Filter{
         id: "repository",
         field: :repo,
