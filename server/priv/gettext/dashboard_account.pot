@@ -1538,7 +1538,7 @@ msgstr[1] ""
 
 #: lib/tuist_web/live/webhooks_live.html.heex:292
 #, elixir-autogen, elixir-format
-msgid "Add one to make it available to automation actions."
+msgid "Add one to start receiving events."
 msgstr ""
 
 #: lib/tuist_web/live/webhook_live.html.heex:126
@@ -1560,7 +1560,7 @@ msgstr ""
 
 #: lib/tuist_web/live/webhooks_live.html.heex:5
 #, elixir-autogen, elixir-format
-msgid "Configure HTTPS endpoints where automations across projects in this account can send events."
+msgid "Configure HTTPS endpoints that receive events from projects in this account."
 msgstr ""
 
 #: lib/tuist_web/live/webhooks_live.html.heex:52
@@ -1588,7 +1588,7 @@ msgstr ""
 #: lib/tuist_web/live/webhook_live.html.heex:46
 #: lib/tuist_web/live/webhooks_live.html.heex:275
 #, elixir-autogen, elixir-format
-msgid "Delete this endpoint? Automations referencing it will stop delivering."
+msgid "Delete this endpoint? It will stop receiving events."
 msgstr ""
 
 #: lib/tuist_web/live/webhook_live.ex:230
