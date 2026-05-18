@@ -165,68 +165,38 @@ spec:
           chmod 600 /etc/netplan/99-tuist-disable-dhcp6.yaml
           mkdir -p /etc/tuist
           echo 'kata-runtime=true' > /etc/tuist/node-labels
-          # ---- Kata Containers 3.30 + nydus pre-bake ----
+          # ---- Kata Containers 3.30 pre-bake ----
           # Pinned versions; bump intentionally via PR (kata releases
           # have historically shipped install-script regressions —
           # 3.13.0's was what kicked off this PR's debugging saga).
           KATA_VERSION=3.30.0
-          NYDUS_VERSION=v0.15.6
           # Kata 3.30 ships as zstd-compressed tarball; install zstd
           # so GNU tar can decompress via `--zstd`. Hetzner's base
           # Ubuntu image doesn't include zstd.
           apt-get install -y zstd
-          # 1. kata-static under /opt/kata. The tarball expands with a
+          # kata-static under /opt/kata. The tarball expands with a
           # top-level `opt/` so extracting at / lands binaries at
           # /opt/kata/{bin,libexec,share}/...
           curl -fsSL -o /tmp/kata.tar.zst \
             "https://github.com/kata-containers/kata-containers/releases/download/${KATA_VERSION}/kata-static-${KATA_VERSION}-amd64.tar.zst"
           tar --zstd -xf /tmp/kata.tar.zst -C /
           rm /tmp/kata.tar.zst
-          # 2. nydus-snapshotter binary + config + systemd unit.
-          # The snapshotter speaks the containerd "proxy snapshotter"
-          # protocol over a unix socket and serves OCI image layers
-          # as block devices the Firecracker microVM can mount —
-          # default overlayfs gives a directory rootfs that
-          # Firecracker can't consume (no 9pfs support).
-          curl -fsSL -o /tmp/nydus.tar.gz \
-            "https://github.com/containerd/nydus-snapshotter/releases/download/${NYDUS_VERSION}/nydus-snapshotter-${NYDUS_VERSION}-linux-amd64.tar.gz"
-          mkdir -p /tmp/nydus
-          tar -xf /tmp/nydus.tar.gz -C /tmp/nydus
-          install -m 0755 /tmp/nydus/bin/containerd-nydus-grpc /usr/local/bin/
-          rm -rf /tmp/nydus.tar.gz /tmp/nydus
-          mkdir -p /etc/nydus /var/lib/containerd-nydus /run/containerd-nydus
-          cat > /etc/nydus/config.toml <<'NYDUSCFG'
-          version = 1
-          root = "/var/lib/containerd-nydus"
-          address = "/run/containerd-nydus/containerd-nydus-grpc.sock"
-          daemon_mode = "none"
-          enable_system_controller = false
-          [snapshot]
-          enable_kata_volume = true
-          NYDUSCFG
-          cat > /etc/systemd/system/nydus-snapshotter.service <<'UNIT'
-          [Unit]
-          Description=Nydus snapshotter for containerd
-          After=network-online.target containerd.service
-          Wants=network-online.target
-
-          [Service]
-          ExecStart=/usr/local/bin/containerd-nydus-grpc --config /etc/nydus/config.toml --log-to-stdout
-          Restart=always
-          RestartSec=5
-
-          [Install]
-          WantedBy=multi-user.target
-          UNIT
-          systemctl enable nydus-snapshotter.service
-          # 3. containerd config drop-in for kata-fc. The drop-in
-          # registers the kata-fc runtime handler and tells
-          # containerd to route kata-fc workloads through the nydus
-          # snapshotter (the only path that gives Firecracker a
-          # rootfs it can actually mount). The main /etc/containerd/
-          # config.toml is set up here too so the imports line is in
-          # place before containerd ever starts — apt-installed
-          # containerd respects an existing config.toml.
+          # containerd config drop-in for kata-fc. The drop-in registers
+          # the kata-fc runtime handler and points at kata's bundled
+          # configuration-fc.toml. The main /etc/containerd/config.toml
+          # is set up here too so the imports line is in place before
+          # containerd ever starts — apt-installed containerd respects
+          # an existing config.toml.
+          #
+          # No snapshotter override: we stay on containerd's default
+          # overlayfs. Firecracker's lack of 9pfs is handled by kata's
+          # default Firecracker config (rootfs_type = "ext4" +
+          # block_device_driver = "virtio-mmio") — kata stages a block
+          # image of the container rootfs under /run/kata-containers/
+          # for the microVM to mount. If this proves insufficient on
+          # real workloads, the next iteration adds the nydus
+          # snapshotter (its packaging is more involved — needs nydusd
+          # binary + JSON config the snapshotter validates at startup).
           mkdir -p /etc/containerd/conf.d
           cat > /etc/containerd/config.toml <<'CONTAINERDCFG'
           version = 3
@@ -238,22 +208,9 @@ spec:
           runtime_path = "/opt/kata/bin/containerd-shim-kata-v2"
           privileged_without_host_devices = true
           pod_annotations = ["io.katacontainers.*"]
-          snapshotter = "nydus"
           [plugins."io.containerd.cri.v1.runtime".containerd.runtimes.kata-fc.options]
-          ConfigPath = "/opt/kata/share/defaults/kata-containers/runtimes/fc/configuration-fc.toml"
-          [proxy_plugins.nydus]
-          type = "snapshot"
-          address = "/run/containerd-nydus/containerd-nydus-grpc.sock"
+          ConfigPath = "/opt/kata/share/defaults/kata-containers/configuration-fc.toml"
           DROPIN
-          # 4. Enable guest-pull in kata's per-shim config so the
-          # microVM's kata-agent pulls images from the registry
-          # itself. The host never unpacks customer image layers —
-          # eliminates the historic tar-parser CVE surface area for
-          # cross-tenant attacks.
-          KATA_FC_CFG=/opt/kata/share/defaults/kata-containers/runtimes/fc/configuration-fc.toml
-          if [ -f "$KATA_FC_CFG" ] && ! grep -q '^service_offload' "$KATA_FC_CFG"; then
-            printf '\n[runtime]\nservice_offload = true\n' >> "$KATA_FC_CFG"
-          fi
       # Only claim hosts the hetzner-robot-controller created. The
       # controller stamps both labels on every CR it owns:
       # `app.kubernetes.io/managed-by=hetzner-robot-controller` is the
