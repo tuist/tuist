@@ -156,64 +156,13 @@ defmodule Tuist.Kura do
       image_tag
       |> servers_needing_global_endpoint_query()
       |> Repo.all()
-      |> servers_requiring_global_endpoint_deployments()
+      |> Enum.filter(&server_needs_global_endpoint?/1)
       |> Enum.map(&create_deployment(&1, image_tag))
 
     case Enum.find(deployments, &match?({:error, _}, &1)) do
       nil -> {:ok, Enum.map(deployments, fn {:ok, deployment} -> deployment end)}
       {:error, reason} -> {:error, reason}
     end
-  end
-
-  defp servers_requiring_global_endpoint_deployments(servers) do
-    account_ids_needing_global_endpoint =
-      servers
-      |> Enum.filter(&region_has_global_endpoint?(&1.region))
-      |> Enum.uniq_by(& &1.account_id)
-      |> Enum.map(& &1.account)
-      |> account_ids_needing_global_endpoint()
-
-    Enum.filter(servers, fn server ->
-      region_has_global_endpoint?(server.region) and
-        MapSet.member?(account_ids_needing_global_endpoint, server.account_id)
-    end)
-  end
-
-  defp account_ids_needing_global_endpoint(accounts) do
-    {account_ids_without_candidate_url, candidate_urls_by_account_id} =
-      Enum.reduce(accounts, {MapSet.new(), %{}}, fn account, {account_ids, candidate_urls} ->
-        case global_cache_endpoint_candidate_url(account) do
-          url when is_binary(url) ->
-            {account_ids, Map.put(candidate_urls, account.id, url)}
-
-          _ ->
-            {MapSet.put(account_ids, account.id), candidate_urls}
-        end
-      end)
-
-    endpoints_by_account_id =
-      from(e in AccountCacheEndpoint,
-        where: e.account_id in ^Map.keys(candidate_urls_by_account_id) and e.technology == :kura,
-        select: {e.account_id, e.url}
-      )
-      |> Repo.all()
-      |> Enum.group_by(fn {account_id, _url} -> account_id end, fn {_account_id, url} -> url end)
-
-    account_ids_needing_candidate_url =
-      Enum.reduce(candidate_urls_by_account_id, MapSet.new(), fn {account_id, candidate_url}, account_ids ->
-        account_urls = Map.get(endpoints_by_account_id, account_id, [])
-
-        has_global_endpoint = candidate_url in account_urls
-        has_regional_endpoint = Enum.any?(account_urls, &(&1 != candidate_url))
-
-        if has_global_endpoint and has_regional_endpoint do
-          account_ids
-        else
-          MapSet.put(account_ids, account_id)
-        end
-      end)
-
-    MapSet.union(account_ids_without_candidate_url, account_ids_needing_candidate_url)
   end
 
   defp servers_needing_version_query(image_tag) do
@@ -238,13 +187,19 @@ defmodule Tuist.Kura do
         select: 1
       )
 
+    cache_endpoints_query =
+      from(e in AccountCacheEndpoint,
+        where: e.technology == :kura
+      )
+
     from(s in Server,
       as: :server,
       join: a in assoc(s, :account),
+      where: s.region in ^region_ids_with_global_endpoint(),
       where: s.status == :active,
       where: s.current_image_tag == ^image_tag,
       where: not exists(open_deployment_exists_query),
-      preload: [account: a]
+      preload: [account: {a, cache_endpoints: ^cache_endpoints_query}]
     )
   end
 
@@ -264,6 +219,12 @@ defmodule Tuist.Kura do
       {:ok, %Regions{provisioner_config: config}} -> is_binary(config[:global_public_host_template])
       _ -> false
     end
+  end
+
+  defp region_ids_with_global_endpoint do
+    Regions.all()
+    |> Enum.filter(fn %Regions{provisioner_config: config} -> is_binary(config[:global_public_host_template]) end)
+    |> Enum.map(& &1.id)
   end
 
   ## Servers
@@ -631,6 +592,15 @@ defmodule Tuist.Kura do
       {:ok, _} -> :ok
       {:error, reason} -> {:error, reason}
     end
+  end
+
+  defp global_cache_endpoint_active?(%Account{cache_endpoints: cache_endpoints}, url) when is_list(cache_endpoints) do
+    kura_urls =
+      cache_endpoints
+      |> Enum.filter(&(&1.technology == :kura))
+      |> Enum.map(& &1.url)
+
+    Enum.any?(kura_urls, &(&1 != url)) and url in kura_urls
   end
 
   defp global_cache_endpoint_active?(%Account{} = account, url) do
