@@ -670,8 +670,13 @@ defmodule TuistWeb.AccountSettingsLive do
 
   defp kura_row_domain_label(%{type: :available_region}), do: dgettext("dashboard_account", "Pending")
 
+  # Prefer the image the cluster actually reports running
+  # (`observed_image_tag`) over the last activated image, so a rollout
+  # in flight or drift is visible; fall back while nothing has been
+  # observed yet.
   defp kura_row_version_label(%{type: :server, server: server}) do
-    kura_version_label(server.current_image_tag) || dgettext("dashboard_account", "Pending")
+    kura_version_label(server.observed_image_tag || server.current_image_tag) ||
+      dgettext("dashboard_account", "Pending")
   end
 
   defp kura_row_version_label(%{type: :available_region}), do: dgettext("dashboard_account", "Pending")
