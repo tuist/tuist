@@ -226,6 +226,80 @@ defmodule Tuist.Kura.ReconcilerTest do
     assert is_binary(url)
   end
 
+  test "heals a failed first-time-deploy server forward once the controller reports the target image" do
+    {_account, server, deployment} = create_server()
+    {:ok, _deployment} = Kura.mark_failed(deployment, "apply failed")
+    {:ok, server} = Kura.fail_server(server)
+
+    expect(Provisioner, :current_image_tag, fn %Server{id: id} ->
+      assert id == server.id
+      {:ok, deployment.image_tag}
+    end)
+
+    assert :ok = Reconciler.reconcile()
+
+    assert %Server{status: :active, current_image_tag: "0.5.2", url: "http://localhost:4100"} =
+             Repo.get!(Server, server.id)
+
+    assert %Deployment{status: :failed} = Repo.get!(Deployment, deployment.id)
+  end
+
+  test "heals a previously-active failed server forward once the controller recovers" do
+    {_account, server, deployment} = create_server()
+    {:ok, server} = Kura.activate_server(server, deployment.image_tag)
+    mark_deployment_succeeded(deployment)
+    {:ok, server} = Kura.fail_server(server)
+
+    expect(Provisioner, :current_image_tag, fn %Server{id: id} ->
+      assert id == server.id
+      {:ok, "0.5.2"}
+    end)
+
+    assert :ok = Reconciler.reconcile()
+
+    assert %Server{status: :active, current_image_tag: "0.5.2"} = Repo.get!(Server, server.id)
+  end
+
+  test "leaves a failed server failed while the controller has not converged on the target image" do
+    {_account, server, deployment} = create_server()
+    {:ok, _deployment} = Kura.mark_failed(deployment, "apply failed")
+    {:ok, server} = Kura.fail_server(server)
+
+    expect(Provisioner, :current_image_tag, fn %Server{id: id} ->
+      assert id == server.id
+      {:error, :not_found}
+    end)
+
+    assert :ok = Reconciler.reconcile()
+
+    assert %Server{status: :failed, current_image_tag: nil, url: nil} = Repo.get!(Server, server.id)
+  end
+
+  test "leaves a failed server failed while its public endpoint is not yet serving" do
+    {account, server, deployment} = create_server()
+    {:ok, _deployment} = Kura.mark_failed(deployment, "apply failed")
+    {:ok, server} = Kura.fail_server(server)
+
+    expect(Provisioner, :current_image_tag, fn %Server{id: id} ->
+      assert id == server.id
+      {:ok, deployment.image_tag}
+    end)
+
+    expect(Provisioner, :public_url, fn account_arg, %Server{id: id} ->
+      assert account_arg.id == account.id
+      assert id == server.id
+      "https://localhost:4100"
+    end)
+
+    expect(Req, :get, fn "https://localhost:4100/up", _opts ->
+      {:error, %Mint.TransportError{reason: {:tls_alert, ~c"unknown ca"}}}
+    end)
+
+    assert :ok = Reconciler.reconcile()
+
+    assert %Server{status: :failed, current_image_tag: nil, url: nil} = Repo.get!(Server, server.id)
+  end
+
   defp create_server do
     user = AccountsFixtures.user_fixture()
     account = Accounts.get_account_from_user(user)

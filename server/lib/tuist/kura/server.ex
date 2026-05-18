@@ -19,6 +19,13 @@ defmodule Tuist.Kura.Server do
   to the same row so the failure history stays attached. `:destroyed`
   is reserved for operator-driven teardown.
 
+  `:failed` → `:active` is the heal-forward path: the reconciler
+  observes that the backing resource has recovered and is reporting
+  the image the server should be running, with a serving public
+  endpoint, and transitions the row back in place. No deployment is
+  appended and no manifest is re-applied, so a still-serving endpoint
+  is never trampled. See `Tuist.Kura.Reconciler`.
+
   `url` and `current_image_tag` are populated when the server first
   reaches `:active` and updated on subsequent successful deployments.
 
