@@ -79,6 +79,7 @@ upload_workload_kubeconfig() {
   local kubeconfig_vault="tuist-k8s-${ENV}"
 
   if op item get "$KUBECONFIG_ITEM" --account tuist.1password.com --vault "$kubeconfig_vault" >/dev/null 2>&1; then
+    local existing_id
     echo "Existing 1P item found; replacing the document"
     existing_id=$(op item get "$KUBECONFIG_ITEM" --account tuist.1password.com --vault "$kubeconfig_vault" --format json | jq -r '.id')
     op item delete "$existing_id" --account tuist.1password.com --vault "$kubeconfig_vault" --archive
@@ -248,7 +249,7 @@ fi
 KUBECONFIG="$WL_KUBECONFIG" kubectl wait --for=condition=Ready nodes --all --timeout=5m
 
 # ---------------------------------------------------------------------------
-log "Step 7/13: install platform chart (cert-manager, ESO, ingress-nginx)"
+log "Step 7/13: install shared platform chart"
 
 # `mise -C "$REPO_ROOT/infra"` so the nested task resolves regardless
 # of where the caller ran bootstrap-workload from; k8s:* tasks live in
