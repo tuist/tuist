@@ -1,0 +1,115 @@
+# Retries Hetzner placement for Kura regional Machines stuck on
+# `resource_unavailable`. caph treats that create failure as
+# irrecoverable and won't retry until the Machine object is deleted.
+#
+# Scope this self-heal tightly:
+#   - only Machine objects in org-tuist
+#   - only clusters named tuist-kura-*
+#   - only InfrastructureReady=False with
+#     reason=ServerCreateFailedIrrecoverableError
+#   - only messages containing resource_unavailable
+#
+# That keeps real configuration bugs loud everywhere else while letting
+# the Kura regional pools recover automatically once Hetzner stock
+# returns in the target location.
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kura-capacity-retry
+  namespace: mgmt-system
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: kura-capacity-retry
+  namespace: org-tuist
+rules:
+  - apiGroups: ["cluster.x-k8s.io"]
+    resources: ["machines"]
+    verbs: ["get", "list", "delete"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: kura-capacity-retry
+  namespace: org-tuist
+subjects:
+  - kind: ServiceAccount
+    name: kura-capacity-retry
+    namespace: mgmt-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: kura-capacity-retry
+
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: kura-capacity-retry
+  namespace: mgmt-system
+spec:
+  schedule: "*/30 * * * *"
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 300
+      template:
+        spec:
+          serviceAccountName: kura-capacity-retry
+          restartPolicy: OnFailure
+          tolerations:
+            - key: node-role.kubernetes.io/control-plane
+              operator: Exists
+              effect: NoSchedule
+          nodeSelector:
+            node-role.kubernetes.io/control-plane: ""
+          containers:
+            - name: retry
+              image: bitnami/kubectl:1.34.1
+              command:
+                - /bin/sh
+                - -c
+              args:
+                - |
+                  set -eu
+
+                  tmpfile="$(mktemp)"
+                  trap 'rm -f "$tmpfile"' EXIT
+
+                  kubectl -n org-tuist get machines.cluster.x-k8s.io \
+                    -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.metadata.labels.cluster\.x-k8s\.io/cluster-name}{"\t"}{.status.nodeRef.name}{"\t"}{range .status.conditions[?(@.type=="InfrastructureReady")]}{.status}{"\t"}{.reason}{"\t"}{.message}{"\n"}{end}{end}' \
+                    >"$tmpfile"
+
+                  deleted=0
+                  tab="$(printf '\t')"
+                  while IFS="$tab" read -r name cluster node_ref status reason message; do
+                    [ -n "${name:-}" ] || continue
+                    case "${cluster:-}" in
+                      tuist-kura-*) ;;
+                      *) continue ;;
+                    esac
+                    [ -z "${node_ref:-}" ] || continue
+                    [ "${status:-}" = "False" ] || continue
+                    [ "${reason:-}" = "ServerCreateFailedIrrecoverableError" ] || continue
+                    case "${message:-}" in
+                      *resource_unavailable*)
+                        echo "Deleting Machine ${name} from ${cluster} so CAPI retries Hetzner placement"
+                        kubectl -n org-tuist delete machine.cluster.x-k8s.io "$name" --wait=false
+                        deleted=$((deleted + 1))
+                        ;;
+                    esac
+                  done <"$tmpfile"
+
+                  if [ "$deleted" -eq 0 ]; then
+                    echo "No capacity-starved Kura regional Machines found."
+                    exit 0
+                  fi
+
+                  echo "Deleted ${deleted} Machine(s) for retry."

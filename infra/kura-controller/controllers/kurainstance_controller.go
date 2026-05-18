@@ -3,9 +3,7 @@ package controllers
 import (
 	"context"
 	"fmt"
-	"sort"
 	"strconv"
-	"strings"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -472,10 +470,8 @@ func podTemplate(instance *kurav1alpha1.KuraInstance) corev1.PodTemplateSpec {
 		ObjectMeta: metav1.ObjectMeta{Labels: labels(instance)},
 		Spec: corev1.PodSpec{
 			TerminationGracePeriodSeconds: ptr(terminationGracePeriodSeconds()),
-			Affinity:                      affinity(instance),
 			NodeSelector:                  nodeSelector(instance),
 			TopologySpreadConstraints:     topologySpreadConstraints(instance),
-			Tolerations:                   tolerations(),
 			Containers: []corev1.Container{{
 				Name:            "kura",
 				Image:           instance.Spec.Image,
@@ -546,27 +542,20 @@ func defaultResources() corev1.ResourceRequirements {
 // mode and TLS is terminated inside the Kura pod from a cert-manager-
 // issued Secret. Health checks use TCP against the Service NodePort
 // because Hetzner targets nodes, not pods; HTTP health checks would
-// speak cleartext to the TLS passthrough port. When a KuraInstance
-// explicitly pins itself with spec.nodeSelector, mirror that selector
-// into the LB so only matching nodes are enrolled. The default path
-// deliberately avoids a hard LB node selector so a degraded regional
-// cluster can fall back to control-plane nodes.
+// speak cleartext to the TLS passthrough port.
 func publicServiceAnnotations(instance *kurav1alpha1.KuraInstance) map[string]string {
 	if instance.Spec.PublicHost == "" {
 		return nil
 	}
 
-	annotations := map[string]string{
+	return map[string]string{
 		"external-dns.alpha.kubernetes.io/hostname":         instance.Spec.PublicHost,
 		"load-balancer.hetzner.cloud/name":                  instance.Name,
 		"load-balancer.hetzner.cloud/protocol":              "tcp",
 		"load-balancer.hetzner.cloud/algorithm-type":        "least_connections",
+		"load-balancer.hetzner.cloud/node-selector":         "node.cluster.x-k8s.io/pool=kura",
 		"load-balancer.hetzner.cloud/health-check-protocol": "tcp",
 	}
-	if selector := loadBalancerNodeSelector(instance); selector != "" {
-		annotations["load-balancer.hetzner.cloud/node-selector"] = selector
-	}
-	return annotations
 }
 
 func grpcServiceAnnotations(instance *kurav1alpha1.KuraInstance) map[string]string {
@@ -574,17 +563,14 @@ func grpcServiceAnnotations(instance *kurav1alpha1.KuraInstance) map[string]stri
 		return nil
 	}
 
-	annotations := map[string]string{
+	return map[string]string{
 		"external-dns.alpha.kubernetes.io/hostname":         instance.Spec.GRPCPublicHost,
 		"load-balancer.hetzner.cloud/name":                  grpcServiceName(instance),
 		"load-balancer.hetzner.cloud/protocol":              "tcp",
 		"load-balancer.hetzner.cloud/algorithm-type":        "least_connections",
+		"load-balancer.hetzner.cloud/node-selector":         "node.cluster.x-k8s.io/pool=kura",
 		"load-balancer.hetzner.cloud/health-check-protocol": "tcp",
 	}
-	if selector := loadBalancerNodeSelector(instance); selector != "" {
-		annotations["load-balancer.hetzner.cloud/node-selector"] = selector
-	}
-	return annotations
 }
 
 // reconcileNetworkPolicy keeps inter-tenant traffic off the Kura pods on
@@ -638,81 +624,19 @@ func (r *KuraInstanceReconciler) reconcileNetworkPolicy(ctx context.Context, ins
 	return err
 }
 
-func defaultAffinity() *corev1.Affinity {
-	return &corev1.Affinity{
-		NodeAffinity: &corev1.NodeAffinity{
-			RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{
-				NodeSelectorTerms: []corev1.NodeSelectorTerm{{
-					MatchExpressions: []corev1.NodeSelectorRequirement{{
-						Key:      "kubernetes.io/os",
-						Operator: corev1.NodeSelectorOpIn,
-						Values:   []string{"linux"},
-					}},
-				}},
-			},
-			PreferredDuringSchedulingIgnoredDuringExecution: []corev1.PreferredSchedulingTerm{{
-				Weight: 100,
-				Preference: corev1.NodeSelectorTerm{
-					MatchExpressions: []corev1.NodeSelectorRequirement{{
-						Key:      "node.cluster.x-k8s.io/pool",
-						Operator: corev1.NodeSelectorOpIn,
-						Values:   []string{"kura"},
-					}},
-				},
-			}},
-		},
-	}
+func defaultNodeSelector() map[string]string {
+	return map[string]string{"node.cluster.x-k8s.io/pool": "kura"}
 }
 
 func nodeSelector(instance *kurav1alpha1.KuraInstance) map[string]string {
 	if len(instance.Spec.NodeSelector) == 0 {
-		return nil
+		return defaultNodeSelector()
 	}
 	selector := make(map[string]string, len(instance.Spec.NodeSelector))
 	for key, value := range instance.Spec.NodeSelector {
 		selector[key] = value
 	}
 	return selector
-}
-
-func affinity(instance *kurav1alpha1.KuraInstance) *corev1.Affinity {
-	if len(instance.Spec.NodeSelector) != 0 {
-		return nil
-	}
-	return defaultAffinity()
-}
-
-func tolerations() []corev1.Toleration {
-	return []corev1.Toleration{
-		{
-			Key:      "node-role.kubernetes.io/control-plane",
-			Operator: corev1.TolerationOpExists,
-			Effect:   corev1.TaintEffectNoSchedule,
-		},
-		{
-			Key:      "node-role.kubernetes.io/master",
-			Operator: corev1.TolerationOpExists,
-			Effect:   corev1.TaintEffectNoSchedule,
-		},
-	}
-}
-
-func loadBalancerNodeSelector(instance *kurav1alpha1.KuraInstance) string {
-	if len(instance.Spec.NodeSelector) == 0 {
-		return ""
-	}
-
-	keys := make([]string, 0, len(instance.Spec.NodeSelector))
-	for key := range instance.Spec.NodeSelector {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-
-	pairs := make([]string, 0, len(keys))
-	for _, key := range keys {
-		pairs = append(pairs, key+"="+instance.Spec.NodeSelector[key])
-	}
-	return strings.Join(pairs, ",")
 }
 
 func topologySpreadConstraints(instance *kurav1alpha1.KuraInstance) []corev1.TopologySpreadConstraint {

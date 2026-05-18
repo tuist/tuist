@@ -76,9 +76,6 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	if got := service.Annotations["load-balancer.hetzner.cloud/protocol"]; got != "tcp" {
 		t.Fatalf("expected Hetzner LB tcp passthrough so Kura terminates TLS, got %q", got)
 	}
-	if _, ok := service.Annotations["load-balancer.hetzner.cloud/node-selector"]; ok {
-		t.Fatal("expected default public LB to avoid a hard node selector so regional clusters can fall back to control-plane nodes")
-	}
 	if _, ok := service.Annotations["load-balancer.hetzner.cloud/certificate-type"]; ok {
 		t.Fatal("expected managed-cert annotations to be dropped now that cert-manager issues the public cert")
 	}
@@ -199,29 +196,8 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	if _, ok := sts.Spec.Template.Annotations["kubernetes.io/ingress-bandwidth"]; ok {
 		t.Fatal("expected no default ingress bandwidth annotation")
 	}
-	if got := len(sts.Spec.Template.Spec.NodeSelector); got != 0 {
-		t.Fatalf("expected default scheduling to avoid a hard node selector, got %v", sts.Spec.Template.Spec.NodeSelector)
-	}
-	if sts.Spec.Template.Spec.Affinity == nil || sts.Spec.Template.Spec.Affinity.NodeAffinity == nil {
-		t.Fatal("expected default node affinity to prefer the kura pool")
-	}
-	preferred := sts.Spec.Template.Spec.Affinity.NodeAffinity.PreferredDuringSchedulingIgnoredDuringExecution
-	if len(preferred) != 1 {
-		t.Fatalf("expected one preferred node affinity rule, got %d", len(preferred))
-	}
-	expressions := preferred[0].Preference.MatchExpressions
-	if len(expressions) != 1 || expressions[0].Key != "node.cluster.x-k8s.io/pool" || len(expressions[0].Values) != 1 || expressions[0].Values[0] != "kura" {
-		t.Fatalf("expected default affinity to prefer the kura pool, got %+v", expressions)
-	}
-	tolerations := map[string]corev1.TaintEffect{}
-	for _, toleration := range sts.Spec.Template.Spec.Tolerations {
-		tolerations[toleration.Key] = toleration.Effect
-	}
-	if tolerations["node-role.kubernetes.io/control-plane"] != corev1.TaintEffectNoSchedule {
-		t.Fatalf("expected control-plane toleration, got %+v", sts.Spec.Template.Spec.Tolerations)
-	}
-	if tolerations["node-role.kubernetes.io/master"] != corev1.TaintEffectNoSchedule {
-		t.Fatalf("expected legacy master toleration, got %+v", sts.Spec.Template.Spec.Tolerations)
+	if got := sts.Spec.Template.Spec.NodeSelector["node.cluster.x-k8s.io/pool"]; got != "kura" {
+		t.Fatalf("expected kura node pool selector, got %q", got)
 	}
 	if got := len(sts.Spec.Template.Spec.TopologySpreadConstraints); got != 1 {
 		t.Fatalf("expected one topology spread constraint, got %d", got)
@@ -336,9 +312,6 @@ func TestKuraInstanceReconcileExposesGRPCWhenHostSet(t *testing.T) {
 	if grpcService.Annotations["load-balancer.hetzner.cloud/protocol"] != "tcp" {
 		t.Fatalf("expected Hetzner LB tcp passthrough for gRPC, got %q", grpcService.Annotations["load-balancer.hetzner.cloud/protocol"])
 	}
-	if _, ok := grpcService.Annotations["load-balancer.hetzner.cloud/node-selector"]; ok {
-		t.Fatal("expected default gRPC LB to avoid a hard node selector so regional clusters can fall back to control-plane nodes")
-	}
 	if got := grpcService.Annotations["load-balancer.hetzner.cloud/health-check-protocol"]; got != "tcp" {
 		t.Fatalf("expected gRPC health check to use TCP against the passthrough NodePort, got %q", got)
 	}
@@ -452,57 +425,10 @@ func TestKuraInstanceSpecSupportsLocalWorkloadOverrides(t *testing.T) {
 	if _, ok := stsTemplate.Spec.NodeSelector["node.cluster.x-k8s.io/pool"]; ok {
 		t.Fatalf("expected custom node selector to replace managed default")
 	}
-	if stsTemplate.Spec.Affinity != nil {
-		t.Fatalf("expected custom node selector to disable default affinity fallback, got %+v", stsTemplate.Spec.Affinity)
-	}
 
 	pvc := dataVolumeClaim(instance)
 	if got := pvc.Spec.Resources.Requests.Storage().String(); got != "10Gi" {
 		t.Fatalf("expected local PVC size, got %q", got)
-	}
-}
-
-func TestKuraInstanceExplicitNodeSelectorNarrowsLoadBalancerTargets(t *testing.T) {
-	ctx := context.Background()
-	scheme := runtime.NewScheme()
-	if err := clientgoscheme.AddToScheme(scheme); err != nil {
-		t.Fatal(err)
-	}
-	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
-		t.Fatal(err)
-	}
-
-	instance := &kurav1alpha1.KuraInstance{
-		ObjectMeta: metav1.ObjectMeta{Name: "kura-tuist-eu-1", Namespace: "kura"},
-		Spec: kurav1alpha1.KuraInstanceSpec{
-			AccountHandle: "tuist",
-			TenantID:      "tuist",
-			Region:        "eu",
-			Image:         "ghcr.io/tuist/kura:0.5.2",
-			PublicHost:    "tuist-eu-1.kura.tuist.dev",
-			NodeSelector: map[string]string{
-				"example.com/role": "kura",
-				"kubernetes.io/os": "linux",
-			},
-		},
-	}
-
-	reconciler := &KuraInstanceReconciler{
-		Client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance).WithStatusSubresource(instance).Build(),
-		Scheme: scheme,
-	}
-
-	if _, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}}); err != nil {
-		t.Fatal(err)
-	}
-
-	service := &corev1.Service{}
-	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, service); err != nil {
-		t.Fatal(err)
-	}
-
-	if got := service.Annotations["load-balancer.hetzner.cloud/node-selector"]; got != "example.com/role=kura,kubernetes.io/os=linux" {
-		t.Fatalf("expected explicit node selector to narrow LB targets, got %q", got)
 	}
 }
 

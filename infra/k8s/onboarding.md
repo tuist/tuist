@@ -201,6 +201,8 @@ Most often a bad `hetzner` Secret in `org-tuist` (token typo, missing permission
 **`HCloudMachine` stuck with `ServerCreateFailedIrrecoverableError` / "unsupported location"**
 Hetzner per-DC capacity or server-type stock. Pick a different machine type (patch the Cluster CR's relevant variable) and `kubectl delete machine` the stuck ones so caph reconciles. For account-level limits, check `https://console.hetzner.cloud/your-account/limits`.
 
+For the production Kura regional clusters (`tuist-kura-*`), `infra/k8s/mgmt/kura-capacity-retry.yaml` automatically deletes `resource_unavailable` Machines so caph retries when Hetzner stock returns. Use the manual patch/delete path when the fix is a type or location change rather than waiting for capacity.
+
 **LoadBalancer stuck in `<pending>`**
 HCCM needs the `load-balancer.hetzner.cloud/location` annotation on the Service to pick a DC. The platform chart sets it; verify with `kubectl describe svc`. CCM logs:
 ```bash

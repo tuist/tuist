@@ -1,7 +1,8 @@
 name: Mgmt Cluster Apply
 
 # Auto-applies CAPI manifests (ClusterClass + per-env Cluster CRs) and
-# mgmt-cluster workloads (etcd-snapshot CronJob, Tailscale daemon) to
+# mgmt-cluster workloads (etcd-snapshot CronJob, Tailscale daemon, Kura
+# regional capacity retry CronJob) to
 # our self-hosted CAPI mgmt cluster on push to main when the relevant
 # paths change.
 #
@@ -15,8 +16,8 @@ name: Mgmt Cluster Apply
 #
 # Order matters: the ClusterClass is applied before the Cluster CRs
 # because the topology controller resolves `topology.classRef.name`
-# at admission time. Mgmt-side workloads (etcd-snapshot, tailscale)
-# are independent and applied last.
+# at admission time. Mgmt-side workloads (etcd-snapshot, tailscale,
+# Kura regional capacity retry) are independent and applied last.
 #
 # Known limitation: KubeadmControlPlaneTemplate spec is immutable.
 # When the ClusterClass changes anything in the KCT, kubectl apply
@@ -39,6 +40,7 @@ on:
       - 'infra/k8s/clusters/**'
       - 'infra/k8s/mgmt/etcd-snapshot.yaml'
       - 'infra/k8s/mgmt/tailscale.yaml'
+      - 'infra/k8s/mgmt/kura-capacity-retry.yaml'
       - '.github/workflows/mgmt-cluster-apply.yml'
   workflow_dispatch:
 
@@ -93,6 +95,9 @@ jobs:
           echo "::group::tailscale.yaml diff"
           kubectl diff -f infra/k8s/mgmt/tailscale.yaml || true
           echo "::endgroup::"
+          echo "::group::kura-capacity-retry.yaml diff"
+          kubectl diff -f infra/k8s/mgmt/kura-capacity-retry.yaml || true
+          echo "::endgroup::"
       - name: Apply ClusterClass first (Cluster CRs reference it)
         run: |
           kubectl apply -f infra/k8s/clusters/clusterclass-tuist.yaml
@@ -108,3 +113,4 @@ jobs:
         run: |
           kubectl apply -f infra/k8s/mgmt/etcd-snapshot.yaml
           kubectl apply -f infra/k8s/mgmt/tailscale.yaml
+          kubectl apply -f infra/k8s/mgmt/kura-capacity-retry.yaml
