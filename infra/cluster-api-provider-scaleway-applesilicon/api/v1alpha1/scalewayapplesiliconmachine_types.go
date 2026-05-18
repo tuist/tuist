@@ -14,11 +14,24 @@ type ScalewayAppleSiliconMachineSpec struct {
 	ProviderID *string `json:"providerID,omitempty"`
 
 	// Type is Scaleway's Mac mini SKU (M1-M, M2-L, M4-S, M4-M, etc.).
-	// Defaults to M2-L (M2 Pro, 12 vCPU, 32 GB RAM): most reliable
-	// inventory in fr-par-1 and the capacity we want for Tuist +
-	// customer workloads. fr-par-3 has M1-M only and it's been unstocked.
+	// Defaults to M2-L: despite its name, Scaleway's M2-L is M2 Pro
+	// 10-core / 16 GB RAM (not the 12-core/32 GB variant). Most
+	// reliable inventory in fr-par-1; fr-par-3 has M1-M only and it's
+	// been unstocked.
 	// +kubebuilder:default=M2-L
 	Type string `json:"type,omitempty"`
+
+	// GHActionsRunner, when set, installs a GitHub Actions self-hosted
+	// runner agent on the host as the last step of bootstrap, alongside
+	// the usual tart-kubelet install. Used for the bare-metal
+	// vm-image-builder fleet: hosts register as Nodes (with a
+	// `tuist.dev/role=builder:NoSchedule` taint so no Pods land on
+	// them) and serve image-bake workflow jobs that run Packer
+	// directly against the host's Tart daemon. Independent of
+	// tart-kubelet; both can run on the same host without
+	// interference because no Pods are ever scheduled.
+	// +optional
+	GHActionsRunner *GHActionsRunnerConfig `json:"ghActionsRunner,omitempty"`
 
 	// Zone is the Scaleway zone (fr-par-1, fr-par-3, etc.).
 	// +kubebuilder:default=fr-par-1
@@ -91,6 +104,57 @@ type ScalewayAppleSiliconMachineSpec struct {
 	// Empty (default) preserves the legacy auto-order behavior.
 	// +optional
 	AdoptPoolPrefix string `json:"adoptPoolPrefix,omitempty"`
+}
+
+// GHActionsRunnerConfig tells the reconciler what GitHub Actions
+// self-hosted runner agent to install on the host. The agent runs
+// as a launchd LaunchAgent under the host's SSH user (m1), picks up
+// queued jobs from GitHub, and shells out to whatever tooling the
+// job needs — typically Packer driving the host's Tart daemon.
+//
+// The agent registration token rotates independently of the
+// Machine CR; see GHRunnerRegistrationTokenSecretName.
+type GHActionsRunnerConfig struct {
+	// GHOrg is the GitHub organization to register the Actions
+	// runner against. Org-scope so any repo in the org can use the
+	// runner without per-repo registration.
+	// +kubebuilder:default=tuist
+	GHOrg string `json:"ghOrg,omitempty"`
+
+	// GHRunnerLabels is the comma-separated label set the runner
+	// advertises to GitHub. Must include every label the workflows
+	// that schedule onto this fleet pin in `runs-on:` (today
+	// runner-image.yml and xcresult-processor-image.yml both pin
+	// `[self-hosted, macos, bare-metal, vm-image-builder]`). Drift
+	// here makes the host invisible to the GitHub scheduler.
+	// +kubebuilder:default="self-hosted,macos,bare-metal,vm-image-builder"
+	GHRunnerLabels string `json:"ghRunnerLabels,omitempty"`
+
+	// GHRunnerVersion pins the actions/runner release the
+	// reconciler downloads onto the host. Keep in sync with
+	// `runner_version` in infra/runner-image/runner.pkr.hcl so the
+	// runner agent baked into the runner-image guest matches the
+	// agent running on the host that bakes that image.
+	// +kubebuilder:default="2.334.0"
+	GHRunnerVersion string `json:"ghRunnerVersion,omitempty"`
+
+	// GHRunnerRegistrationTokenSecretName is the name of a Secret
+	// in the same namespace whose `token` field holds a fresh
+	// runner registration token minted via
+	//   gh api -X POST /orgs/<org>/actions/runners/registration-token --jq .token
+	// (or the equivalent GitHub-App-driven mint). Tokens have ~1h
+	// TTL; the operator manages rotation. ExternalSecrets +
+	// 1Password is the typical sync shape — the chart wires this up.
+	// The reconciler only reads this Secret at first bootstrap of a
+	// host; once the runner has registered, the agent stores its
+	// long-lived auth token locally and survives reboots.
+	GHRunnerRegistrationTokenSecretName string `json:"ghRunnerRegistrationTokenSecretName,omitempty"`
+
+	// TuistMixBuildRoot exports `TUIST_MIX_BUILD_ROOT=<value>` in
+	// /etc/zshenv on the host so the xcresult-processor build
+	// workflow shares the BEAM build cache across consecutive jobs.
+	// +kubebuilder:default="/opt/tuist-build-cache"
+	TuistMixBuildRoot string `json:"tuistMixBuildRoot,omitempty"`
 }
 
 // ScalewayAppleSiliconMachineStatus is the observed state of the Machine.

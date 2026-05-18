@@ -115,6 +115,23 @@ type Config struct {
 	// `ssh.InsecureIgnoreHostKey()` that left every bootstrap open
 	// to a network MITM (kubeconfig + tart-kubelet binary injection).
 	KnownHostFingerprint string
+
+	// GHActionsRunner, when non-nil, installs a GitHub Actions
+	// self-hosted runner agent on the host as the final step of
+	// bootstrap, after tart-kubelet is up. Used for the bare-metal
+	// vm-image-builder fleet; pure Node hosts leave this nil.
+	//
+	// The runner agent runs as a LaunchAgent under cfg.SSHUser and
+	// picks up image-bake workflow jobs from GitHub. It coexists
+	// peacefully with tart-kubelet on the same host because no Pods
+	// are ever scheduled to builder Nodes (the per-fleet
+	// `tuist.dev/fleet` NodeLabel scopes Pod selection away from
+	// the builder fleet name).
+	//
+	// The reconciler is responsible for resolving the registration
+	// token from a Secret before populating
+	// GHActionsRunner.GHRunnerRegistrationToken.
+	GHActionsRunner *GHActionsRunnerConfig
 }
 
 // Run executes the bootstrap. Idempotent: re-running on a partially-
@@ -171,6 +188,15 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 	}
 	if err := loadTartKubeletLaunchd(ctx, client, cfg); err != nil {
 		return hk.Observed(), fmt.Errorf("load launchd job: %w", err)
+	}
+	// Optional builder-fleet tail: install brew tooling, verify
+	// Xcode, set the build-cache env, install + start the GitHub
+	// Actions runner agent. Skipped entirely for pure Node hosts
+	// (the default fleet).
+	if cfg.GHActionsRunner != nil {
+		if err := runActionsRunnerInstall(ctx, client, cfg.SSHUser, cfg.NodeName, *cfg.GHActionsRunner); err != nil {
+			return hk.Observed(), fmt.Errorf("install gh actions runner: %w", err)
+		}
 	}
 	return hk.Observed(), nil
 }

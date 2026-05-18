@@ -1,0 +1,105 @@
+{{- if and .Values.capi.enabled .Values.buildersFleet.enabled }}
+{{- $fleetName := include "tuist.buildersFleetName" . }}
+{{- $clusterName := include "tuist.componentName" (dict "root" . "component" "capi") }}
+{{- $bootstrapSecret := include "tuist.componentName" (dict "root" . "component" "noop-bootstrap") }}
+{{- $tokenSecret := default (printf "%s-gh-runner-registration-token" $fleetName) .Values.buildersFleet.registrationTokenSecretName }}
+{{- /*
+Bare-metal Mac mini fleet that bakes Tart VM images for CI workflows.
+Sibling of macos-fleet.yaml and runners-fleet.yaml, provisioned by
+the same cluster-api-provider-scaleway-applesilicon operator from
+the same Scaleway IAM credentials and pre-ordered host pool.
+
+Hosts register as Kubernetes Nodes via tart-kubelet (same as the
+other fleets), but no Pod selects on `tuist.dev/fleet={{ $fleetName }}`,
+so kubelet stays idle and the host is exclusively used by the
+GitHub Actions runner agent installed on top of bootstrap. The
+runner agent picks up image-bake workflow jobs from GitHub and
+runs Packer directly against the host's own Tart daemon; this
+can't be a Pod because Apple Silicon Virtualization.framework
+doesn't nest macOS guests inside macOS guests.
+
+Operator workflow:
+  1. Pre-order Mac minis on Scaleway with names prefixed
+     `tuist-pool-` (same pool the other fleets adopt from).
+  2. Keep `{{ $tokenSecret }}` in the {{ .Release.Namespace }}
+     namespace populated with a fresh org-scope registration token:
+       gh api -X POST /orgs/<org>/actions/runners/registration-token --jq .token
+     Tokens have ~1h TTL but the runner agent only needs one at
+     first registration; rotate quarterly or whenever scaling up.
+  3. `kubectl scale machinedeployment {{ $fleetName }} --replicas=N`
+     to resize. CAPI claims pool hosts; controller bootstraps +
+     installs the runner agent; new hosts appear in GitHub's
+     Runners page within ~10 min.
+
+The `tuist.dev/macos=true:NoSchedule` taint tart-kubelet auto-
+applies keeps stray Linux Pods off; the `tuist.dev/fleet` Node
+label keeps macOS Pods off (no Pod targets this fleet).
+*/ -}}
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: ScalewayAppleSiliconMachineTemplate
+metadata:
+  name: {{ $fleetName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: builders-fleet
+    tuist.dev/fleet: {{ $fleetName }}
+spec:
+  template:
+    spec:
+      type: {{ .Values.buildersFleet.machine.type | default "M2-L" | quote }}
+      zone: {{ .Values.buildersFleet.machine.zone | default "fr-par-1" | quote }}
+      os: {{ .Values.buildersFleet.machine.os | default "macos-tahoe-26.0" | quote }}
+      fleetName: {{ $fleetName }}
+      {{- with .Values.buildersFleet.machine.hostCPU }}
+      hostCPU: {{ . }}
+      {{- end }}
+      {{- with .Values.buildersFleet.machine.hostMemoryMB }}
+      hostMemoryMB: {{ . }}
+      {{- end }}
+      {{- with .Values.buildersFleet.adoptPoolPrefix }}
+      adoptPoolPrefix: {{ . | quote }}
+      {{- end }}
+      ghActionsRunner:
+        ghOrg: {{ .Values.buildersFleet.ghOrg | default "tuist" | quote }}
+        ghRunnerLabels: {{ .Values.buildersFleet.ghRunnerLabels | default "self-hosted,macos,bare-metal,vm-image-builder" | quote }}
+        ghRunnerVersion: {{ .Values.buildersFleet.ghRunnerVersion | default "2.334.0" | quote }}
+        ghRunnerRegistrationTokenSecretName: {{ $tokenSecret | quote }}
+        tuistMixBuildRoot: {{ .Values.buildersFleet.tuistMixBuildRoot | default "/opt/tuist-build-cache" | quote }}
+---
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: MachineDeployment
+metadata:
+  name: {{ $fleetName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: builders-fleet
+    tuist.dev/fleet: {{ $fleetName }}
+    cluster.x-k8s.io/cluster-name: {{ $clusterName }}
+spec:
+  clusterName: {{ $clusterName }}
+  replicas: {{ .Values.buildersFleet.replicas | default 0 }}
+  strategy:
+    # OnDelete because Scaleway Mac mini orders have a 24h billing
+    # floor, and rolling replacements double the spend during the
+    # rollout window. Same call the other two fleets make.
+    type: OnDelete
+  selector:
+    matchLabels:
+      cluster.x-k8s.io/cluster-name: {{ $clusterName }}
+      tuist.dev/fleet: {{ $fleetName }}
+  template:
+    metadata:
+      labels:
+        cluster.x-k8s.io/cluster-name: {{ $clusterName }}
+        tuist.dev/fleet: {{ $fleetName }}
+    spec:
+      clusterName: {{ $clusterName }}
+      bootstrap:
+        dataSecretName: {{ $bootstrapSecret }}
+      infrastructureRef:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+        kind: ScalewayAppleSiliconMachineTemplate
+        name: {{ $fleetName }}
+{{- end }}

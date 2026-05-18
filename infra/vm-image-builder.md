@@ -172,8 +172,13 @@ Once per operator, not per host:
   per-env IAM tokens are scoped to that project, so it's the natural
   home for the builders too (the `project-id` is in 1Password under
   `op://tuist-k8s-production/SCALEWAY_API/project-id` if you need it).
-- **SKU:** **M2-L** (M2 Pro, 12 vCPU, 32 GB RAM, 256 GB SSD). Same
-  default the CAPI provider uses for in-cluster hosts.
+- **SKU:** **M2-L** (M2 Pro, 10-core / 16 GB RAM / 256 GB SSD). Same
+  default the CAPI provider uses for in-cluster hosts. The
+  `Mac14,12` identifier reports as `Apple M2 Pro`, 6P+4E cores.
+  Scaleway's M2-L despite the name is **not** the 12-core / 32 GB
+  variant of M2 Pro; treat the Packer-config VM size (4 vCPU /
+  8 GB) as a fixed budget that fits the actual 16 GB host with
+  ~8 GB headroom, not as something resizable upward.
 - **OS image:** the Scaleway **macOS + Xcode preinstalled** image
   (Sequoia or later). The bootstrap verifies a full Xcode is present
   in `/Applications/Xcode.app` and aborts with a clear error if the

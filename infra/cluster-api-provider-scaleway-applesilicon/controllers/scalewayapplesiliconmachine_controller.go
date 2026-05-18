@@ -380,6 +380,15 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
 
+		ghRunner, err := r.resolveGHActionsRunnerConfig(ctx, machine)
+		if err != nil {
+			conditions.MarkFalse(machine, BootstrappedCondition, "GHRunnerTokenUnavailable",
+				clusterv1.ConditionSeverityWarning, "%v", err)
+			r.Recorder.Eventf(machine, corev1.EventTypeWarning, "GHRunnerTokenUnavailable",
+				"%v (will retry once the registration-token Secret is populated)", err)
+			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+		}
+
 		fingerprint, err := bootstrap.Run(ctx, bootstrap.Config{
 			IP:                   ip,
 			SSHUser:              bootstrapCreds.SSHUsername,
@@ -394,6 +403,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			MaxPods:              r.TartKubeletMaxPods,
 			NodeLabels:           machineNodeLabels(machine),
 			KnownHostFingerprint: bootstrapCreds.HostFingerprint,
+			GHActionsRunner:      ghRunner,
 		})
 		// Persist whatever fingerprint Run captured even on the error
 		// path, so a transient bootstrap failure doesn't lose the
@@ -738,6 +748,54 @@ func machineNodeLabels(m *infrav1.ScalewayAppleSiliconMachine) map[string]string
 		return nil
 	}
 	return map[string]string{"tuist.dev/fleet": m.Spec.FleetName}
+}
+
+// resolveGHActionsRunnerConfig builds the bootstrap-time config for
+// installing a GitHub Actions self-hosted runner agent on a builder
+// host. Returns nil when the CR doesn't request a runner (the common
+// case for pure Node hosts), or the resolved config when it does.
+//
+// The CR carries a Secret name (`ghRunnerRegistrationTokenSecretName`)
+// rather than the token itself so the short-lived token can rotate
+// independently of the Machine resource. The reconciler reads the
+// Secret here at bootstrap time; once the runner has registered the
+// agent stores its own long-lived auth token locally and survives
+// reboots without needing to consult the Secret again.
+//
+// A missing or empty Secret is a transient error: the operator may
+// still be rotating it, or ESO may not have synced yet. The caller
+// requeues; we don't surface a terminal failure.
+func (r *ScalewayAppleSiliconMachineReconciler) resolveGHActionsRunnerConfig(
+	ctx context.Context,
+	machine *infrav1.ScalewayAppleSiliconMachine,
+) (*bootstrap.GHActionsRunnerConfig, error) {
+	spec := machine.Spec.GHActionsRunner
+	if spec == nil {
+		return nil, nil
+	}
+	if spec.GHRunnerRegistrationTokenSecretName == "" {
+		return nil, fmt.Errorf("ghActionsRunner.ghRunnerRegistrationTokenSecretName is required when ghActionsRunner is set")
+	}
+	secret := &corev1.Secret{}
+	if err := r.Get(ctx, types.NamespacedName{
+		Namespace: machine.Namespace,
+		Name:      spec.GHRunnerRegistrationTokenSecretName,
+	}, secret); err != nil {
+		return nil, fmt.Errorf("read registration-token secret %s/%s: %w",
+			machine.Namespace, spec.GHRunnerRegistrationTokenSecretName, err)
+	}
+	token := string(secret.Data["token"])
+	if token == "" {
+		return nil, fmt.Errorf("registration-token secret %s/%s has no `token` field (or it is empty)",
+			machine.Namespace, spec.GHRunnerRegistrationTokenSecretName)
+	}
+	return &bootstrap.GHActionsRunnerConfig{
+		GHOrg:                     spec.GHOrg,
+		GHRunnerLabels:            spec.GHRunnerLabels,
+		GHRunnerVersion:           spec.GHRunnerVersion,
+		GHRunnerRegistrationToken: token,
+		TuistMixBuildRoot:         spec.TuistMixBuildRoot,
+	}, nil
 }
 
 func (r *ScalewayAppleSiliconMachineReconciler) SetupWithManager(mgr ctrl.Manager) error {
