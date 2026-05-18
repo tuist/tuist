@@ -1,7 +1,17 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.194.0<!-- RELEASE NOTES START -->
+## What's Changed in 4.195.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* retry run metadata upload on transient errors by [@fortmarek](https://github.com/fortmarek) in [#10842](https://github.com/tuist/tuist/pull/10842)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.195.0...4.195.1
+
+## What's Changed in 4.195.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
 
@@ -18,7 +28,7 @@ All notable changes to this project will be documented in this file.
 
 
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.193.3...4.194.0
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.193.3...4.195.0
 
 ## What's Changed in 4.193.3<!-- RELEASE NOTES START -->
 
