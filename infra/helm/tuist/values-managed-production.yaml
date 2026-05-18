@@ -241,21 +241,18 @@ kataContainers:
 
 # Linux runner fleet on Hetzner Robot AX162-R hosts (FSN1).
 #
-# Substrate sizing: 2× AX162-R (48c/96t EPYC Genoa, 256 GB ECC,
-# 2x1.92 TB NVMe DC Edition). Each host fits ~64 microVM slots at
-# the 1 vCPU / 4 GB shape (RAM-bound at 256 GB ÷ 4 GB; CPU
-# undersubscribed at 96 threads / 64 vCPU = 1.5× headroom). Two
-# hosts = 128 steady-state slots; single-host failure leaves 64
-# slots online, which matches the current Namespace.so Linux CPU
-# ceiling (64 concurrent / 128 GiB) the fleet is sized to replace.
+# Each AX162-R (48c/96t EPYC Genoa, 256 GB ECC, 2x1.92 TB NVMe DC
+# Edition) fits ~64 microVM slots at the 1 vCPU / 4 GB shape
+# (RAM-bound at 256 GB ÷ 4 GB; CPU undersubscribed at 96 threads /
+# 64 vCPU = 1.5× headroom).
 #
-# When to add a 3rd host: the autoscaler exposes whether it's
-# hitting `maxReplicas` via `RunnerPool.status` and the
+# To grow capacity, order another `tuist-bm-production-*` host in
+# the Robot panel and bump the cluster topology's `runners-linux`
+# MD replicas. The hetzner-robot-controller picks the new server
+# up automatically once it carries the naming convention; the
+# autoscaler keeps Pod replicas inside `maxReplicas` and surfaces
+# saturation via `RunnerPool.status` and the
 # `/api/internal/runners/desired_replicas` rolling-P95 signal.
-# If sustained P95 climbs over ~50 concurrent for a two-week
-# window, order `tuist-bm-production-3` (~€395/mo + €295 setup).
-# The hetzner-robot-controller picks it up automatically once it
-# carries the `tuist-bm-production-*` naming convention.
 runnersFleetLinux:
   enabled: true
   name: runners-linux
