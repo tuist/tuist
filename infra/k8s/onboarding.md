@@ -77,7 +77,7 @@ Skip this section for production Kura regional clusters. The production server d
 
 ```bash
 WL_KUBECONFIG=~/.kube/<cluster_name>.yaml
-APP_NS=tuist-<env>   # production uses tuist (no suffix)
+APP_NS=tuist-<env>   # production uses tuist (no suffix); preview uses preview-system
 
 sed "s/__NAMESPACE__/${APP_NS}/g" infra/k8s/mgmt/ci-service-account.yaml \
   | KUBECONFIG="$WL_KUBECONFIG" kubectl apply -f -
@@ -111,6 +111,12 @@ KUBECONFIG=/tmp/ci-kubeconfig.yaml kubectl -n "$APP_NS" get pods   # sanity-chec
 base64 < /tmp/ci-kubeconfig.yaml | gh secret set KUBECONFIG \
   --env server-k8s-<env> --repo tuist/tuist
 shred -u /tmp/ci-kubeconfig.yaml
+
+# If the workload cluster's control-plane endpoint changes later (for
+# example after a load-balancer recreation), re-run the minting flow
+# above and refresh the GitHub Environment secret. The kubeconfig
+# embeds `clusters[].cluster.server`, so it does not follow endpoint
+# changes automatically.
 ```
 
 ## 6. First deploy
