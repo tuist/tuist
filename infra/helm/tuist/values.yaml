@@ -31,6 +31,15 @@ kuraController:
   # Deprecated alias for tlsClusterIssuer. Kept so existing overlays do
   # not break while the controller flag is still named grpc-cluster-issuer.
   grpcClusterIssuer: ""
+  # Reconciles DNS-only Cloudflare load balancers that steer the global
+  # Kura hostnames to healthy regional origins without proxying traffic.
+  cloudflareLoadBalancing:
+    enabled: false
+    accountID: ""
+    zoneID: ""
+    apiTokenSecret:
+      name: cloudflare-api-token
+      key: api-token
   sharedSecrets:
     # Renders the kura-shared-secrets Kubernetes Secret in the
     # controller namespace. Set to false if the Secret is managed

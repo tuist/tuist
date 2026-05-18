@@ -1519,7 +1519,12 @@ msgstr ""
 msgid "Select a Kura region before deploying."
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:616
+#: lib/tuist_web/live/account_settings_live.ex:550
+#, elixir-autogen, elixir-format
+msgid "Use the global Kura endpoint %{url} to connect clients to the nearest healthy region."
+msgstr ""
+
+#: lib/tuist_web/live/account_settings_live.ex:632
 #, elixir-autogen, elixir-format
 msgid "Not deployed"
 msgstr ""
