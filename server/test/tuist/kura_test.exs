@@ -140,6 +140,79 @@ defmodule Tuist.KuraTest do
 
       assert deployment.kura_server_id == server.id
     end
+
+    test "schedules global endpoint deployments for every managed server in the account" do
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      stub(Tuist.Environment, :dev?, fn -> false end)
+      stub(Tuist.Environment, :test?, fn -> false end)
+      stub(Tuist.Environment, :kura_available_region_ids, fn -> ["us-east", "eu-central"] end)
+
+      {:ok, us_east_server} =
+        Kura.create_server(%{
+          account_id: account.id,
+          region: "us-east",
+          image_tag: "0.5.2"
+        })
+
+      {:ok, eu_central_server} =
+        Kura.create_server(%{
+          account_id: account.id,
+          region: "eu-central",
+          image_tag: "0.5.2"
+        })
+
+      [us_east_deployment] = us_east_server.deployments
+      [eu_central_deployment] = eu_central_server.deployments
+
+      us_east_deployment =
+        us_east_deployment
+        |> Deployment.status_changeset(%{status: :running, started_at: DateTime.utc_now()})
+        |> Repo.update!()
+
+      us_east_deployment
+      |> Deployment.status_changeset(%{status: :succeeded, finished_at: DateTime.utc_now()})
+      |> Repo.update!()
+
+      eu_central_deployment =
+        eu_central_deployment
+        |> Deployment.status_changeset(%{status: :running, started_at: DateTime.utc_now()})
+        |> Repo.update!()
+
+      eu_central_deployment
+      |> Deployment.status_changeset(%{status: :succeeded, finished_at: DateTime.utc_now()})
+      |> Repo.update!()
+
+      us_east_server =
+        us_east_server
+        |> Server.status_changeset(%{
+          status: :active,
+          url: "https://#{account.name}-us-east-1.kura.tuist.dev",
+          current_image_tag: "0.5.2"
+        })
+        |> Repo.update!()
+
+      eu_central_server =
+        eu_central_server
+        |> Server.status_changeset(%{
+          status: :active,
+          url: "https://#{account.name}-eu-central-1.kura.tuist.dev",
+          current_image_tag: "0.5.2"
+        })
+        |> Repo.update!()
+
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      stub(Tuist.Environment, :kura_runtime_image_tag, fn -> "0.5.2" end)
+
+      assert {:ok, deployments} = Kura.schedule_runtime_image_deployments()
+
+      assert deployments
+             |> Enum.map(& &1.kura_server_id)
+             |> Enum.sort() == Enum.sort([us_east_server.id, eu_central_server.id])
+
+      assert Enum.all?(deployments, &(&1.image_tag == "0.5.2"))
+    end
   end
 
   describe "create_deployment/2" do

@@ -156,13 +156,27 @@ defmodule Tuist.Kura do
       image_tag
       |> servers_needing_global_endpoint_query()
       |> Repo.all()
-      |> Enum.filter(&server_needs_global_endpoint?/1)
+      |> servers_requiring_global_endpoint_deployments()
       |> Enum.map(&create_deployment(&1, image_tag))
 
     case Enum.find(deployments, &match?({:error, _}, &1)) do
       nil -> {:ok, Enum.map(deployments, fn {:ok, deployment} -> deployment end)}
       {:error, reason} -> {:error, reason}
     end
+  end
+
+  defp servers_requiring_global_endpoint_deployments(servers) do
+    account_ids_needing_global_endpoint =
+      servers
+      |> Enum.filter(&region_has_global_endpoint?(&1.region))
+      |> Enum.uniq_by(& &1.account_id)
+      |> Enum.filter(fn %{account: account} -> account_needs_global_endpoint?(account) end)
+      |> MapSet.new(& &1.account_id)
+
+    Enum.filter(servers, fn server ->
+      region_has_global_endpoint?(server.region) and
+        MapSet.member?(account_ids_needing_global_endpoint, server.account_id)
+    end)
   end
 
   defp servers_needing_version_query(image_tag) do
@@ -198,7 +212,7 @@ defmodule Tuist.Kura do
   end
 
   def server_needs_global_endpoint?(%Server{account: %Account{} = account} = server) do
-    is_nil(global_cache_endpoint_url(account)) and region_has_global_endpoint?(server.region)
+    account_needs_global_endpoint?(account) and region_has_global_endpoint?(server.region)
   end
 
   def server_global_endpoint_observed?(%Server{} = server) do
@@ -596,6 +610,10 @@ defmodule Tuist.Kura do
       )
 
     Repo.exists?(regional_endpoint_exists) and Repo.exists?(global_endpoint_exists)
+  end
+
+  defp account_needs_global_endpoint?(%Account{} = account) do
+    is_nil(global_cache_endpoint_url(account))
   end
 
   defp remove_cache_endpoint(%Server{url: nil}), do: :ok

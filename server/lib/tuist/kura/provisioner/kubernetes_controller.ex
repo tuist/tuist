@@ -308,10 +308,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   end
 
   defp client_get_kura_instance(namespace, name, region) do
-    case kubernetes_client_opts(region) do
-      [] -> Client.get_kura_instance(namespace, name)
-      opts -> Client.get_kura_instance(namespace, name, opts)
-    end
+    Client.get_kura_instance(namespace, name, kubernetes_client_opts(region))
   end
 
   defp client_delete_kura_instance(namespace, name, region) do
