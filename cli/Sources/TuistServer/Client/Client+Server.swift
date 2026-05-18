@@ -11,7 +11,9 @@ extension Client {
             serverURL: serverURL,
             transport: TuistURLSessionTransport(),
             middlewares: HARRecordingMiddlewareFactory.middlewares() + [
+                RetryMiddleware(),
                 RequestIdMiddleware(),
+                ServerClientFeatureFlagsHeadersMiddleware(),
                 ServerClientCLIMetadataHeadersMiddleware(),
                 ServerClientAuthenticationMiddleware(authenticationURL: authenticationURL),
                 VerboseLoggingMiddleware(),
@@ -26,7 +28,9 @@ extension Client {
             serverURL: serverURL,
             transport: TuistURLSessionTransport(),
             middlewares: HARRecordingMiddlewareFactory.middlewares() + [
+                RetryMiddleware(),
                 RequestIdMiddleware(),
+                ServerClientFeatureFlagsHeadersMiddleware(),
                 VerboseLoggingMiddleware(),
                 OutputWarningsMiddleware(),
             ]

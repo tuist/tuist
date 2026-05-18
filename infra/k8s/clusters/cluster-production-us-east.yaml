@@ -1,0 +1,48 @@
+# Production Kura workload Cluster for the managed us-east region.
+# Maps product cluster_id us-east-1 to Hetzner Ashburn (ash).
+apiVersion: cluster.x-k8s.io/v1beta2
+kind: Cluster
+metadata:
+  name: tuist-kura-us-east
+  namespace: org-tuist
+spec:
+  clusterNetwork:
+    services:
+      cidrBlocks:
+        - 10.128.0.0/12
+    pods:
+      cidrBlocks:
+        - 192.168.0.0/16
+    serviceDomain: cluster.local
+  topology:
+    classRef:
+      name: tuist-hcloud
+    version: v1.34.6
+    controlPlane:
+      replicas: 3
+    variables:
+      - name: region
+        value: ash
+      - name: hcloudControlPlaneMachineType
+        value: ccx13
+      - name: hcloudWorkerMachineType
+        value: ccx13
+      - name: hcloudSSHKeyName
+        value:
+          - name: tuist-ops
+    workers:
+      machineDeployments:
+        # Dedicated Kura pool. Kura StatefulSets default to this node
+        # selector and use hard hostname spread, so keep at least three
+        # workers for the default three replicas.
+        - class: hcloud-worker
+          name: kura
+          failureDomain: ash
+          metadata:
+            labels:
+              node.cluster.x-k8s.io/pool: kura
+            annotations:
+              cluster.x-k8s.io/cluster-api-autoscaler-node-group-min-size: "3"
+              cluster.x-k8s.io/cluster-api-autoscaler-node-group-max-size: "12"
+              cluster.x-k8s.io/cluster-autoscaler-node-group-min-size: "3"
+              cluster.x-k8s.io/cluster-autoscaler-node-group-max-size: "12"

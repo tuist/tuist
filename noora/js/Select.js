@@ -28,6 +28,22 @@ class Select extends Component {
     ];
     for (const part of parts) renderPart(this.el, part, this.api);
     this.renderItems();
+    this.renderTriggerLabel();
+  }
+
+  renderTriggerLabel() {
+    // Zag keeps the hidden <select> and item states in sync, but nothing
+    // updates the visible trigger label when the user picks an option.
+    // Mirror `api.valueAsString` into the trigger's label span so the
+    // displayed value tracks the selection.
+    const label = this.el.querySelector(
+      "[data-part='trigger'] [data-part='label-wrapper'] [data-part='label']",
+    );
+    if (!label) return;
+    const selectedLabel = this.api.valueAsString;
+    const placeholder = label.dataset.placeholder || label.textContent;
+    if (!label.dataset.placeholder) label.dataset.placeholder = placeholder;
+    label.textContent = selectedLabel || label.dataset.placeholder;
   }
 
   renderItems() {

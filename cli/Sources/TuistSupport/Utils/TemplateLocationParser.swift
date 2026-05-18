@@ -13,13 +13,7 @@ public protocol TemplateLocationParsing {
 
 /// An implementation of `TemplateLocationParsing`
 public struct TemplateLocationParser: TemplateLocationParsing {
-    private let system: Systeming
-
-    public init(
-        system: Systeming = System.shared
-    ) {
-        self.system = system
-    }
+    public init() {}
 
     public func parseRepositoryBranch(from templateURL: String) -> String? {
         let splittedURL = templateURL

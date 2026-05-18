@@ -251,6 +251,51 @@ struct PackageInfoMapperTests {
     }
 
     @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
+    ) func resolveDependencies_whenArtifactsUseCustomScratchPath_mapsRemoteXcframeworks() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let packagePath = basePath.appending(component: "Tuist")
+        let scratchPath = basePath.appending(component: "custom-build")
+        let artifactsPath = scratchPath.appending(components: "artifacts", "tuist")
+
+        let validXCFramework = artifactsPath.appending(components: "ValidFramework", "ValidFramework.xcframework")
+        try await fileSystem.makeDirectory(at: validXCFramework)
+        try await fileSystem.makeDirectory(at: packagePath)
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Sources/Target_1")))
+
+        let resolvedDependencies = try await subject.resolveExternalDependencies(
+            path: scratchPath,
+            packagePath: packagePath,
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target_1"]),
+                    ],
+                    targets: [
+                        .test(name: "Target_1"),
+                    ],
+                    platforms: [.ios],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ],
+            packageToFolder: ["Package": basePath],
+            packageToTargetsToArtifactPaths: [:],
+            packageModuleAliases: [:],
+            packageSettings: .test()
+        )
+
+        let validFrameworkDependency = try #require(resolvedDependencies["ValidFramework"])
+        let dep = try #require(validFrameworkDependency.first)
+        if case let .xcframework(path, _, _, _) = dep {
+            #expect(path.pathString.contains("custom-build/artifacts/tuist/ValidFramework/ValidFramework.xcframework"))
+        }
+    }
+
+    @Test(
         .inTemporaryDirectory, .withMockedSwiftVersionProvider
     ) func resolveDependencies_whenProductContainsBinaryTargetMissingFrom_packageToTargetsToArtifactPaths() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
@@ -1055,6 +1100,7 @@ struct PackageInfoMapperTests {
                 ),
             ]
         )
+
         #expect(
             project ==
                 .testWithDefaultConfigs(
@@ -3210,6 +3256,7 @@ struct PackageInfoMapperTests {
                     settings: .settings(
                         base: [
                             "EXCLUDED_ARCHS[sdk=iphonesimulator*]": .string("x86_64"),
+                            "SWIFT_VERSION": "5",
                         ],
                         configurations: [
                             .debug(
@@ -3983,6 +4030,179 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
+    ) func map_whenProductDependencyHasSameNameAsLocalTarget_mapsToExternalDependency() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/Foo")))
+
+        let package1 = PackageInfo.test(
+            name: "Package",
+            products: [
+                .init(name: "Product1", type: .library(.automatic), targets: ["Foo"]),
+            ],
+            targets: [
+                .test(
+                    name: "Foo",
+                    dependencies: [.product(name: "Foo", package: "ExternalFoo", moduleAliases: nil, condition: nil)]
+                ),
+            ],
+            platforms: [.ios],
+            cLanguageStandard: nil,
+            cxxLanguageStandard: nil,
+            swiftLanguageVersions: nil
+        )
+        let package2 = PackageInfo.test(
+            name: "ExternalFoo",
+            products: [
+                .init(name: "Foo", type: .library(.automatic), targets: ["Foo"]),
+            ],
+            targets: [
+                .test(name: "Foo"),
+            ],
+            platforms: [.ios],
+            cLanguageStandard: nil,
+            cxxLanguageStandard: nil,
+            swiftLanguageVersions: nil
+        )
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: ["Package": package1, "ExternalFoo": package2]
+        )
+        #expect(
+            project ==
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    targets: [
+                        .test(
+                            "Foo",
+                            basePath: basePath,
+                            dependencies: [
+                                .external(name: "Foo", condition: nil),
+                            ]
+                        ),
+                    ]
+                )
+        )
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
+    ) func map_whenProductDependencyHasSameNameAsLocalTargetWithModuleAlias_mapsToTargetDependency() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/Foo")))
+
+        let package1 = PackageInfo.test(
+            name: "Package",
+            products: [
+                .init(name: "Product1", type: .library(.automatic), targets: ["Foo"]),
+            ],
+            targets: [
+                .test(
+                    name: "Foo",
+                    dependencies: [
+                        .product(
+                            name: "Foo",
+                            package: "ExternalFoo",
+                            moduleAliases: ["Foo": "ExternalFooTarget"],
+                            condition: nil
+                        ),
+                    ]
+                ),
+            ],
+            platforms: [.ios],
+            cLanguageStandard: nil,
+            cxxLanguageStandard: nil,
+            swiftLanguageVersions: nil
+        )
+        let package2 = PackageInfo.test(
+            name: "ExternalFoo",
+            products: [
+                .init(name: "Foo", type: .library(.automatic), targets: ["Foo"]),
+            ],
+            targets: [
+                .test(name: "Foo"),
+            ],
+            platforms: [.ios],
+            cLanguageStandard: nil,
+            cxxLanguageStandard: nil,
+            swiftLanguageVersions: nil
+        )
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: ["Package": package1, "ExternalFoo": package2]
+        )
+        #expect(
+            project ==
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    targets: [
+                        .test(
+                            "Foo",
+                            basePath: basePath,
+                            dependencies: [
+                                .target(name: "ExternalFooTarget", condition: nil),
+                            ],
+                            customSettings: ["OTHER_SWIFT_FLAGS": ["$(inherited)", "-module-alias", "Foo=ExternalFooTarget"]]
+                        ),
+                    ]
+                )
+        )
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
+    ) func map_whenProductDependencyReferencesSamePackage_mapsToTargetDependency() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/Bar")))
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/Foo")))
+
+        let package1 = PackageInfo.test(
+            name: "Package",
+            products: [
+                .init(name: "Product1", type: .library(.automatic), targets: ["Bar"]),
+                .init(name: "Foo", type: .library(.automatic), targets: ["Foo"]),
+            ],
+            targets: [
+                .test(
+                    name: "Bar",
+                    dependencies: [.product(name: "Foo", package: "Package", moduleAliases: nil, condition: nil)]
+                ),
+                .test(name: "Foo"),
+            ],
+            platforms: [.ios],
+            cLanguageStandard: nil,
+            cxxLanguageStandard: nil,
+            swiftLanguageVersions: nil
+        )
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: ["Package": package1]
+        )
+        #expect(
+            project ==
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    targets: [
+                        .test(
+                            "Bar",
+                            basePath: basePath,
+                            dependencies: [
+                                .target(name: "Foo", condition: nil),
+                            ]
+                        ),
+                        .test("Foo", basePath: basePath),
+                    ]
+                )
+        )
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
     ) func map_whenExternalByNameProductDependency_mapsToProjectDependencies() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/Target1")))
@@ -4077,7 +4297,7 @@ struct PackageInfoMapperTests {
             project ==
                 .testWithDefaultConfigs(
                     name: "Package",
-                    settings: .settings(base: ["GCC_C_LANGUAGE_STANDARD": "c99"]),
+                    settings: .settings(base: ["GCC_C_LANGUAGE_STANDARD": "c99", "SWIFT_VERSION": "5"]),
                     targets: [
                         .test("Target1", basePath: basePath),
                     ]
@@ -4116,7 +4336,7 @@ struct PackageInfoMapperTests {
             project ==
                 .testWithDefaultConfigs(
                     name: "Package",
-                    settings: .settings(base: ["CLANG_CXX_LANGUAGE_STANDARD": "gnu++14"]),
+                    settings: .settings(base: ["CLANG_CXX_LANGUAGE_STANDARD": "gnu++14", "SWIFT_VERSION": "5"]),
                     targets: [
                         .test("Target1", basePath: basePath),
                     ]
@@ -4627,7 +4847,7 @@ struct PackageInfoMapperTests {
                         automaticSchemesOptions: .enabled(),
                         disableSynthesizedResourceAccessors: true
                     ),
-                    settings: .settings(),
+                    settings: .settings(base: ["SWIFT_VERSION": "5"]),
                     targets: [
                         .test("Target", basePath: basePath),
                         .test(
@@ -4642,6 +4862,89 @@ struct PackageInfoMapperTests {
                     ]
                 )
         )
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
+    ) func map_whenExternalLocalSwiftPackageHasTestTarget() async throws {
+        // Given
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let sourcesPath = basePath.appending(components: ["Package", "Sources", "Target"])
+        try await fileSystem.makeDirectory(at: sourcesPath)
+        let testsPath = basePath.appending(components: ["Package", "Tests", "TargetTests"])
+        try await fileSystem.makeDirectory(at: testsPath)
+
+        // When
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageType: .external(origin: .local, artifactPaths: [:]),
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "Product", type: .library(.automatic), targets: ["Target"]),
+                    ],
+                    targets: [
+                        .test(name: "Target"),
+                        .test(
+                            name: "TargetTests",
+                            type: .test,
+                            dependencies: [.target(name: "Target", condition: nil)]
+                        ),
+                    ],
+                    platforms: [.ios]
+                ),
+            ]
+        )
+
+        // Then
+        #expect(project != nil)
+        #expect(Set(project?.targets.map(\.name) ?? []) == Set(["Target", "TargetTests"]))
+        let testTarget = project?.targets.first { $0.name == "TargetTests" }
+        #expect(testTarget?.product == .unitTests)
+        #expect(testTarget?.metadata.tags.contains(TargetTags.localSwiftPackageTest) == true)
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
+    ) func map_whenExternalRemoteSwiftPackageHasTestTarget() async throws {
+        // Given
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let sourcesPath = basePath.appending(components: ["Package", "Sources", "Target"])
+        try await fileSystem.makeDirectory(at: sourcesPath)
+        let testsPath = basePath.appending(components: ["Package", "Tests", "TargetTests"])
+        try await fileSystem.makeDirectory(at: testsPath)
+
+        // When
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageType: .external(origin: .remote, artifactPaths: [:]),
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "Product", type: .library(.automatic), targets: ["Target"]),
+                    ],
+                    targets: [
+                        .test(name: "Target"),
+                        .test(
+                            name: "TargetTests",
+                            type: .test,
+                            dependencies: [.target(name: "Target", condition: nil)]
+                        ),
+                    ],
+                    platforms: [.ios]
+                ),
+            ]
+        )
+
+        // Then
+        #expect(project != nil)
+        #expect(Set(project?.targets.map(\.name) ?? []) == Set(["Target"]))
     }
 
     @Test(
@@ -4694,7 +4997,7 @@ struct PackageInfoMapperTests {
                         automaticSchemesOptions: .enabled(),
                         disableSynthesizedResourceAccessors: true
                     ),
-                    settings: .settings(),
+                    settings: .settings(base: ["SWIFT_VERSION": "5"]),
                     targets: [
                         .test(
                             "Target",
@@ -4794,7 +5097,7 @@ struct PackageInfoMapperTests {
                         automaticSchemesOptions: .enabled(),
                         disableSynthesizedResourceAccessors: true
                     ),
-                    settings: .settings(),
+                    settings: .settings(base: ["SWIFT_VERSION": "5"]),
                     targets: [
                         .test("Target", basePath: basePath),
                         .test(
@@ -4881,7 +5184,7 @@ struct PackageInfoMapperTests {
                         automaticSchemesOptions: .enabled(),
                         disableSynthesizedResourceAccessors: true
                     ),
-                    settings: .settings(),
+                    settings: .settings(base: ["SWIFT_VERSION": "5"]),
                     targets: [
                         .test("Target", basePath: basePath),
                         .test(
@@ -5378,7 +5681,7 @@ struct PackageInfoMapperTests {
             ]
         )
 
-        let result = enabledTraits(
+        let result = SwiftPackageManagerGraphLoader.enabledTraits(
             rootPackageInfo: rootPackageInfo,
             packageInfos: [:]
         )
@@ -5397,12 +5700,89 @@ struct PackageInfoMapperTests {
             ]
         )
 
-        let result = enabledTraits(
+        let result = SwiftPackageManagerGraphLoader.enabledTraits(
             rootPackageInfo: rootPackageInfo,
             packageInfos: [:]
         )
 
         #expect(result.isEmpty)
+    }
+
+    @Test(.withMockedSwiftVersionProvider)
+    func enabledTraits_whenDependencyUsesDefaultTrait_resolvesUnderlyingTraits() {
+        let rootPackageInfo = PackageInfo.test(
+            name: "RootPackage",
+            products: [],
+            targets: [],
+            dependencies: [
+                PackageDependency(
+                    identity: "hummingbird",
+                    traits: [PackageDependencyTrait(name: "default")]
+                ),
+            ]
+        )
+
+        let hummingbirdInfo = PackageInfo.test(
+            name: "hummingbird",
+            products: [],
+            targets: [],
+            traits: [
+                PackageTrait(
+                    enabledTraits: ["ConfigurationSupport"],
+                    name: "default",
+                    description: "The default traits of this package."
+                ),
+                PackageTrait(
+                    enabledTraits: [],
+                    name: "ConfigurationSupport",
+                    description: "Enable support for swift-configuration package."
+                ),
+            ]
+        )
+
+        let result = SwiftPackageManagerGraphLoader.enabledTraits(
+            rootPackageInfo: rootPackageInfo,
+            packageInfos: ["hummingbird": hummingbirdInfo]
+        )
+
+        #expect(result["hummingbird"] == Set(["default", "ConfigurationSupport"]))
+    }
+
+    @Test(.withMockedSwiftVersionProvider)
+    func enabledTraits_whenDependencyExplicitlyDisablesTraits_doesNotEnableDefaultTraits() {
+        let rootPackageInfo = PackageInfo.test(
+            name: "RootPackage",
+            products: [],
+            targets: [],
+            dependencies: [
+                PackageDependency(identity: "hummingbird", traits: []),
+            ]
+        )
+
+        let hummingbirdInfo = PackageInfo.test(
+            name: "hummingbird",
+            products: [],
+            targets: [],
+            traits: [
+                PackageTrait(
+                    enabledTraits: ["ConfigurationSupport"],
+                    name: "default",
+                    description: "The default traits of this package."
+                ),
+                PackageTrait(
+                    enabledTraits: [],
+                    name: "ConfigurationSupport",
+                    description: "Enable support for swift-configuration package."
+                ),
+            ]
+        )
+
+        let result = SwiftPackageManagerGraphLoader.enabledTraits(
+            rootPackageInfo: rootPackageInfo,
+            packageInfos: ["hummingbird": hummingbirdInfo]
+        )
+
+        #expect(result["hummingbird"] == nil)
     }
 
     @Test(.withMockedSwiftVersionProvider)
@@ -5434,7 +5814,7 @@ struct PackageInfoMapperTests {
             ]
         )
 
-        let result = enabledTraits(
+        let result = SwiftPackageManagerGraphLoader.enabledTraits(
             rootPackageInfo: rootPackageInfo,
             packageInfos: ["dependency-a": dependencyAInfo]
         )
@@ -5473,7 +5853,7 @@ struct PackageInfoMapperTests {
             ]
         )
 
-        let result = enabledTraits(
+        let result = SwiftPackageManagerGraphLoader.enabledTraits(
             rootPackageInfo: rootPackageInfo,
             packageInfos: ["dependency-a": dependencyAInfo]
         )
@@ -5503,7 +5883,7 @@ struct PackageInfoMapperTests {
             ]
         )
 
-        let result = enabledTraits(
+        let result = SwiftPackageManagerGraphLoader.enabledTraits(
             rootPackageInfo: rootPackageInfo,
             packageInfos: [:]
         )
@@ -5596,6 +5976,105 @@ struct PackageInfoMapperTests {
         let swiftConditions = baseSettings?["SWIFT_ACTIVE_COMPILATION_CONDITIONS"]
 
         #expect(swiftConditions == .array(["$(inherited)", "ActualFeature"]))
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
+    ) func map_whenDependencyUsesDefaultTrait_includesHummingbirdConfigurationDependency() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await fileSystem
+            .makeDirectory(at: basePath.appending(try RelativePath(validating: "hummingbird/Sources/HummingbirdCore")))
+        try await fileSystem.touch(
+            basePath
+                .appending(try RelativePath(validating: "hummingbird/Sources/HummingbirdCore/HTTP1Channel+ConfigReader.swift"))
+        )
+        try await fileSystem.makeDirectory(
+            at: basePath.appending(try RelativePath(validating: "swift-configuration/Sources/Configuration"))
+        )
+        try await fileSystem.touch(
+            basePath.appending(try RelativePath(validating: "swift-configuration/Sources/Configuration/Configuration.swift"))
+        )
+
+        let rootPackageInfo = PackageInfo.test(
+            name: "RootPackage",
+            products: [],
+            targets: [],
+            dependencies: [
+                PackageDependency(
+                    identity: "hummingbird",
+                    traits: [PackageDependencyTrait(name: "default")]
+                ),
+            ]
+        )
+
+        let hummingbirdInfo = PackageInfo.test(
+            name: "hummingbird",
+            products: [
+                .init(name: "Hummingbird", type: .library(.automatic), targets: ["HummingbirdCore"]),
+            ],
+            targets: [
+                .test(
+                    name: "HummingbirdCore",
+                    dependencies: [
+                        .product(
+                            name: "Configuration",
+                            package: "swift-configuration",
+                            moduleAliases: nil,
+                            condition: .init(platformNames: [], config: nil, traits: ["ConfigurationSupport"])
+                        ),
+                    ]
+                ),
+            ],
+            traits: [
+                PackageTrait(
+                    enabledTraits: ["ConfigurationSupport"],
+                    name: "default",
+                    description: "The default traits of this package."
+                ),
+                PackageTrait(
+                    enabledTraits: [],
+                    name: "ConfigurationSupport",
+                    description: "Enable support for swift-configuration package."
+                ),
+            ],
+            platforms: [.ios]
+        )
+        let swiftConfigurationInfo = PackageInfo.test(
+            name: "swift-configuration",
+            products: [
+                .init(name: "Configuration", type: .library(.automatic), targets: ["Configuration"]),
+            ],
+            targets: [
+                .test(name: "Configuration"),
+            ],
+            platforms: [.ios]
+        )
+
+        let packageInfos = [
+            "hummingbird": hummingbirdInfo,
+            "swift-configuration": swiftConfigurationInfo,
+        ]
+        let activeTraits = SwiftPackageManagerGraphLoader.enabledTraits(
+            rootPackageInfo: rootPackageInfo,
+            packageInfos: packageInfos
+        )
+
+        #expect(activeTraits["hummingbird"] == Set(["default", "ConfigurationSupport"]))
+
+        let project = try await subject.map(
+            package: "hummingbird",
+            basePath: basePath,
+            packageInfos: packageInfos,
+            enabledTraits: activeTraits["hummingbird"] ?? []
+        )
+
+        let target = try #require(project?.targets.first(where: { $0.name == "HummingbirdCore" }))
+        #expect(target.dependencies.count == 1)
+        #expect(target.dependencies.first == .external(name: "Configuration"))
+
+        let swiftConditions = target.settings?.base["SWIFT_ACTIVE_COMPILATION_CONDITIONS"]
+        #expect(swiftConditions == .array(["$(inherited)", "ConfigurationSupport"]))
     }
 
     @Test(
@@ -6003,6 +6482,38 @@ struct PackageInfoMapperTests {
 
     @Test(
         .inTemporaryDirectory, .withMockedSwiftVersionProvider
+    ) func map_whenWrapperTargetPattern_baseProductTypeUsed() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/ATarget")))
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "A", type: .library(.automatic), targets: ["ATarget"]),
+                    ],
+                    targets: [
+                        .test(name: "ATarget"),
+                    ],
+                    platforms: [.ios],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ],
+            packageSettings: .test(
+                baseProductType: .framework
+            )
+        )
+        let mappedTarget = try #require(project?.targets.first(where: { $0.name == "ATarget" }))
+        #expect(mappedTarget.product == .framework)
+    }
+
+    @Test(
+        .inTemporaryDirectory, .withMockedSwiftVersionProvider
     ) func map_whenSameNameProductAndTarget_keepsTargetNameAsProductName() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/Foo")))
@@ -6226,6 +6737,136 @@ struct PackageInfoMapperTests {
 
     @Test(
         .inTemporaryDirectory, .withMockedSwiftVersionProvider
+    ) func map_whenRemoteBinaryTargetNameMatchesProductPrefix_keepsTargetNameAsProductName() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await fileSystem.makeDirectory(
+            at: basePath.appending(try RelativePath(validating: "Package/Sources/NMapsMapTarget"))
+        )
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "NMapsMap", type: .library(.automatic), targets: ["NMapsMapTarget"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "NMapsMapTarget",
+                            dependencies: [
+                                .target(name: "NMapsMapBinary", condition: nil),
+                            ]
+                        ),
+                        .test(
+                            name: "NMapsMapBinary",
+                            type: .binary,
+                            url: "https://repository.map.naver.com/archive/pod/NMapsMap/3.23.1/NMapsMap.zip"
+                        ),
+                    ],
+                    platforms: [.ios],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ]
+        )
+
+        let mappedTarget = try #require(project?.targets.first(where: { $0.name == "NMapsMapTarget" }))
+        #expect(mappedTarget.productName == "NMapsMapTarget")
+    }
+
+    @Test(
+        .inTemporaryDirectory, .withMockedSwiftVersionProvider
+    ) func map_whenUnderscorePrefixedBinaryTargetMatchesProductName_keepsTargetNameAsProductName() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await fileSystem.makeDirectory(
+            at: basePath.appending(try RelativePath(validating: "Package/Sources/FirebaseCrashlyticsTarget"))
+        )
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(
+                            name: "FirebaseCrashlytics",
+                            type: .library(.automatic),
+                            targets: ["FirebaseCrashlyticsTarget"]
+                        ),
+                    ],
+                    targets: [
+                        .test(
+                            name: "FirebaseCrashlyticsTarget",
+                            dependencies: [
+                                .target(name: "_FirebaseCrashlytics", condition: nil),
+                            ]
+                        ),
+                        .test(
+                            name: "_FirebaseCrashlytics",
+                            type: .binary,
+                            url: "https://github.com/akaffenberger/firebase-ios-sdk-xcframeworks/releases/download/11.15.0/_FirebaseCrashlytics.xcframework.zip"
+                        ),
+                    ],
+                    platforms: [.ios],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ]
+        )
+
+        let mappedTarget = try #require(project?.targets.first(where: { $0.name == "FirebaseCrashlyticsTarget" }))
+        #expect(mappedTarget.productName == "FirebaseCrashlyticsTarget")
+    }
+
+    @Test(
+        .inTemporaryDirectory, .withMockedSwiftVersionProvider
+    ) func map_whenWrapperTargetSharesProductNameWithBinaryXcframework_suffixesProductName() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await fileSystem.makeDirectory(
+            at: basePath.appending(try RelativePath(validating: "Package/Sources/Singular"))
+        )
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .test(
+                    name: "Singular",
+                    products: [
+                        .init(name: "Singular", type: .library(.automatic), targets: ["Singular"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "Singular",
+                            dependencies: [
+                                .target(name: "SingularBinary", condition: nil),
+                            ]
+                        ),
+                        .test(
+                            name: "SingularBinary",
+                            type: .binary,
+                            path: "Singular.xcframework"
+                        ),
+                    ],
+                    platforms: [.ios],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ]
+        )
+
+        let mappedTarget = try #require(project?.targets.first(where: { $0.name == "Singular" }))
+        #expect(mappedTarget.productName == "SingularWrapper")
+    }
+
+    @Test(
+        .inTemporaryDirectory, .withMockedSwiftVersionProvider
     ) func map_whenTargetNameContainsSpacesAndDefaultPathUsesUnderscores_mapsTargetSources() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         try await fileSystem.makeDirectory(
@@ -6409,10 +7050,13 @@ extension ProjectDescription.Project {
             disableSynthesizedResourceAccessors: true,
             textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
         ),
-        settings: ProjectDescription.Settings = .settings(configurations: [
-            .debug(name: .debug),
-            .release(name: .release),
-        ]),
+        settings: ProjectDescription.Settings = .settings(
+            base: ["SWIFT_VERSION": "5"],
+            configurations: [
+                .debug(name: .debug),
+                .release(name: .release),
+            ]
+        ),
         customSettings: ProjectDescription.SettingsDictionary = [:],
         targets: [ProjectDescription.Target]
     ) -> Self {

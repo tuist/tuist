@@ -36,6 +36,10 @@ defmodule Tuist.Tests.TestSuiteRun do
     field :avg_test_case_duration, Ch, type: "Int32"
     field :shard_id, Ch, type: "Nullable(UUID)"
     field :shard_index, Ch, type: "Nullable(Int32)"
+    field :project_id, Ch, type: "Nullable(Int64)"
+    field :is_ci, :boolean, default: false
+    field :git_branch, Ch, type: "String", default: ""
+    field :ran_at, Ch, type: "Nullable(DateTime64(6))"
     field :inserted_at, Ch, type: "DateTime64(6)"
   end
 
@@ -53,6 +57,10 @@ defmodule Tuist.Tests.TestSuiteRun do
       :avg_test_case_duration,
       :shard_id,
       :shard_index,
+      :project_id,
+      :is_ci,
+      :git_branch,
+      :ran_at,
       :inserted_at
     ])
     |> validate_required([

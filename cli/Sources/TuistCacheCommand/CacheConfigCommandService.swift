@@ -153,7 +153,7 @@ public enum CacheConfigCommandServiceError: LocalizedError, Equatable {
         switch self {
         case .notAuthenticated:
             return
-                "You are not authenticated. Refer to the documentation for authentication options: https://docs.tuist.dev/en/guides/server/authentication"
+                "You are not authenticated. Refer to the documentation for authentication options: https://tuist.dev/en/docs/guides/server/authentication"
         case let .invalidServerURL(url):
             return "Invalid server URL: \(url)"
         case .missingFullHandle:

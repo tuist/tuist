@@ -42,4 +42,26 @@ defmodule TuistWeb.BundleLiveTest do
       get(conn, ~p"/tuist/ios_app_with_frameworks/bundles/#{bundle.id}")
     end
   end
+
+  test "falls back to the first page when the bundle-size-analysis-table-page query param is not an integer",
+       %{
+         conn: conn,
+         organization: organization,
+         project: project
+       } do
+    # Given
+    bundle = BundlesFixtures.bundle_fixture(project: project)
+    path_hash = :md5 |> :crypto.hash("App.app") |> Base.encode16() |> String.slice(0, 8)
+    page_param = "bundle-size-analysis-table-page-#{path_hash}"
+
+    # When
+    {:ok, lv, _html} =
+      live(
+        conn,
+        ~p"/#{organization.account.name}/#{project.name}/bundles/#{bundle.id}?#{[{page_param, "not-an-integer"}]}"
+      )
+
+    # Then
+    assert has_element?(lv, "span[data-part='label']", "main")
+  end
 end

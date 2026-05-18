@@ -57,7 +57,9 @@ defmodule TuistWeb.Marketing.MarketingChangelogLive do
      |> assign(:has_more?, has_more?)
      |> assign(
        :head_image,
-       Tuist.Environment.app_url(path: "/marketing/images/og/changelog.jpg")
+       Tuist.Environment.app_url(
+         path: TuistWeb.Helpers.OpenGraph.marketing_og_image_path("/marketing/images/og/generated/changelog.jpg")
+       )
      )
      |> assign(:head_title, "Tuist Changelog")
      |> assign(:head_include_blog_rss_and_atom, false)

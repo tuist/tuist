@@ -4,7 +4,8 @@ defmodule Tuist.OAuth.TokenGenerator do
 
   OAuth tokens are generated as scoped AuthenticatedAccount JWTs with
   all_projects access. The scopes from the OAuth grant determine what
-  operations the token can perform.
+  operations the token can perform. A `user_id` claim is included so
+  that cross-organization project listing can resolve the originating user.
   """
 
   @behaviour Boruta.Oauth.TokenGenerator
@@ -32,6 +33,7 @@ defmodule Tuist.OAuth.TokenGenerator do
         "type" => "account",
         "scopes" => scopes,
         "all_projects" => true,
+        "user_id" => user.id,
         "preferred_username" => user.account.name,
         "email" => user.email
       }
@@ -47,6 +49,7 @@ defmodule Tuist.OAuth.TokenGenerator do
   end
 
   @default_user_scopes [
+    "project:admin:read",
     "project:cache:read",
     "project:cache:write",
     "project:previews:read",

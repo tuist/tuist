@@ -7,15 +7,18 @@ import Config
 # any compile-time configuration in here, as it won't be applied.
 # The block below contains prod specific runtime configuration.
 
-# ## Using releases
+# ## Pod role
 #
-# If you use `mix release`, you need to explicitly enable the server
-# by passing the TUIST_WEB=true when you start it:
+# The release boots into one of two modes selected by `TUIST_MODE`:
 #
-#     TUIST_WEB=true bin/tuist start
+#   * unset / `TUIST_MODE=web` — Phoenix endpoint binds, every Oban queue
+#     and ingestion buffer runs. Default for `bin/tuist start`.
+#   * `TUIST_MODE=processor` — no Phoenix listener; Oban runs only the
+#     `:process_build` queue.
 #
-# Alternatively, you can use `mix phx.gen.release` to generate a `bin/server`
-# script that automatically sets the env var above.
+# See `Tuist.Environment.mode/0` for the full list.
+alias Tuist.Oban.RuntimeConfig
+
 if Tuist.Environment.web?() do
   config :tuist, TuistWeb.Endpoint, server: true
 end
@@ -39,10 +42,54 @@ if Enum.member?([:prod, :stag, :can], env) do
   parsed_url = URI.parse(database_url)
   [username, password] = String.split(parsed_url.userinfo, ":")
 
+  # `{:keepalive, true}` enables SO_KEEPALIVE but inherits the OS default
+  # `tcp_keepalive_time` (7200s on Linux), so the pool keeps handing out
+  # half-dead sockets long after a cloud-egress NAT drops the idle TCP
+  # connection — surfaced as `DBConnection.ConnectionError: ssl recv
+  # (idle): closed`, fired ~14k times from `Oban.Met.Reporter` after the
+  # Render→K8s migration added NAT hops on the Supabase egress path.
+  # Postgres-side `tcp_keepalives_idle: "60"` only helps when those
+  # probes actually reach the client across the new path; mirror the
+  # same 60s/15s/4-probe cadence on the client socket so dead idles
+  # get reaped within ~2 min, well under any cloud NAT timeout.
+  # Postgrex hands `socket_options` straight to `:gen_tcp` / `:ssl`,
+  # so the `{:raw, _, _, _}` 4-tuples work here (unlike Mint, whose
+  # `Keyword.merge/2` normalization rejects them — see commit d803ae28cd).
+  tcp_keepalive_raw_opts =
+    case :os.type() do
+      {:unix, :linux} ->
+        [
+          {:raw, 6, 4, <<60::native-32>>},
+          {:raw, 6, 5, <<15::native-32>>},
+          {:raw, 6, 6, <<4::native-32>>}
+        ]
+
+      _ ->
+        []
+    end
+
   socket_opts =
     if Tuist.Environment.use_ipv6?(secrets) in ~w(true 1),
-      do: [:inet6, {:keepalive, true}],
-      else: [{:keepalive, true}]
+      do: [:inet6, {:keepalive, true}] ++ tcp_keepalive_raw_opts,
+      else: [{:keepalive, true}] ++ tcp_keepalive_raw_opts
+
+  # Picks the connection shape based on `TUIST_DATABASE_POOLED` (set by the
+  # chart on processor pods, unset on server pods). Direct Postgres keeps
+  # `:named` prepares + tcp_keepalives_* startup parameters; transaction-
+  # mode poolers (Supabase Supavisor on 6543, PgBouncer, etc.) drop both
+  # — they reject non-standard startup parameters with `protocol_violation`
+  # and can't reuse named prepares across transactions that land on
+  # different backend connections.
+  pooled? = Tuist.Environment.database_pooled?()
+
+  postgres_parameters =
+    if pooled?,
+      do: [],
+      else: [
+        tcp_keepalives_idle: "60",
+        tcp_keepalives_interval: "30",
+        tcp_keepalives_count: "3"
+      ]
 
   database_options = [
     pool_size: Tuist.Environment.database_pool_size(secrets),
@@ -54,11 +101,8 @@ if Enum.member?([:prod, :stag, :can], env) do
     hostname: parsed_url.host,
     port: parsed_url.port || 5432,
     socket_options: socket_opts,
-    parameters: [
-      tcp_keepalives_idle: "60",
-      tcp_keepalives_interval: "30",
-      tcp_keepalives_count: "3"
-    ]
+    parameters: postgres_parameters,
+    prepare: if(pooled?, do: :unnamed, else: :named)
   ]
 
   database_options =
@@ -73,12 +117,17 @@ if Enum.member?([:prod, :stag, :can], env) do
       database_options
     end
 
-  dns_name = System.get_env("RENDER_DISCOVERY_SERVICE")
-  app_name = System.get_env("RENDER_SERVICE_NAME")
+  # Cluster formation via headless Service DNS. TUIST_CLUSTER_DNS_SERVICE
+  # must point at a headless Service whose endpoints resolve to the pod IPs;
+  # TUIST_CLUSTER_APP_NAME is the Erlang long-name prefix used for the node
+  # (e.g. "tuist"). Both are set by the Helm chart when
+  # `server.cluster.enabled=true`.
+  dns_name = System.get_env("TUIST_CLUSTER_DNS_SERVICE")
+  app_name = System.get_env("TUIST_CLUSTER_APP_NAME")
 
   config :libcluster,
     topologies: [
-      render: [
+      k8s: [
         strategy: Cluster.Strategy.Kubernetes.DNS,
         config: [
           service: dns_name,
@@ -165,6 +214,9 @@ if Enum.member?([:prod, :stag, :can], env) do
 end
 
 if env == :dev do
+  clickhouse_http_port =
+    String.to_integer(System.get_env("TUIST_SERVER_CLICKHOUSE_HTTP_PORT") || "8123")
+
   dev_db_config =
     for {env_var, key} <- [
           {"DATABASE_USERNAME", :username},
@@ -175,12 +227,43 @@ if env == :dev do
         value = System.get_env(env_var),
         do: {key, value}
 
-  config :tuist, Tuist.Repo, dev_db_config
+  clickhouse_dev_config = [
+    hostname: "127.0.0.1",
+    port: clickhouse_http_port,
+    database: System.get_env("TUIST_SERVER_CLICKHOUSE_DB") || "tuist_development"
+  ]
 
-  if clickhouse_database = System.get_env("TUIST_SERVER_CLICKHOUSE_DB") do
-    config :tuist, Tuist.ClickHouseRepo, database: clickhouse_database
-    config :tuist, Tuist.IngestRepo, database: clickhouse_database
-  end
+  config :tuist, Tuist.ClickHouseRepo, clickhouse_dev_config
+  config :tuist, Tuist.IngestRepo, clickhouse_dev_config
+  config :tuist, Tuist.Repo, Keyword.put_new(dev_db_config, :database, "tuist_development")
+end
+
+if env == :test do
+  test_postgres_db =
+    System.get_env("TUIST_SERVER_TEST_POSTGRES_DB") ||
+      "tuist_test#{System.get_env("MIX_TEST_PARTITION")}"
+
+  test_clickhouse_db =
+    System.get_env("TUIST_SERVER_TEST_CLICKHOUSE_DB") ||
+      "tuist_test#{System.get_env("MIX_TEST_PARTITION")}"
+
+  test_port = String.to_integer(System.get_env("TUIST_SERVER_TEST_PORT") || "4002")
+
+  clickhouse_http_port =
+    String.to_integer(System.get_env("TUIST_SERVER_CLICKHOUSE_HTTP_PORT") || "8123")
+
+  config :tuist, Tuist.ClickHouseRepo,
+    hostname: "127.0.0.1",
+    port: clickhouse_http_port,
+    database: test_clickhouse_db
+
+  config :tuist, Tuist.IngestRepo,
+    hostname: "127.0.0.1",
+    port: clickhouse_http_port,
+    database: test_clickhouse_db
+
+  config :tuist, Tuist.Repo, database: test_postgres_db
+  config :tuist, TuistWeb.Endpoint, http: [ip: {127, 0, 0, 1}, port: test_port]
 end
 
 if Enum.member?([:prod, :stag, :can, :dev], env) do
@@ -239,6 +322,7 @@ if Tuist.Environment.error_tracking_enabled?() do
     client: TuistCommon.SentryHTTPClient,
     dsn: Tuist.Environment.sentry_dsn(secrets),
     environment_name: env,
+    release: Tuist.Environment.version(),
     enable_source_code_context: true,
     root_source_code_paths: [File.cwd!()],
     before_send: {Tuist.SentryEventFilter, :before_send}
@@ -283,25 +367,15 @@ if Tuist.Environment.env() not in [:test] do
   config :ex_aws, :s3, s3_config
 
   config :ex_aws,
+         Tuist.AWS.S3AuthenticationConfig.ex_aws_config(
+           Tuist.Environment.s3_authentication_method(secrets),
+           secrets
+         )
+
+  config :ex_aws,
     http_client: TuistCommon.AWS.Client
 
   config :tuist_common, finch_name: Tuist.Finch
-
-  case Tuist.Environment.s3_authentication_method(secrets) do
-    :env_access_key_id_and_secret_access_key ->
-      config :ex_aws,
-        secret_access_key: Tuist.Environment.s3_secret_access_key(secrets),
-        access_key_id: Tuist.Environment.s3_access_key_id(secrets)
-
-    :aws_web_identity_token_from_env_vars ->
-      config :ex_aws,
-        secret_access_key: [{:awscli, "profile_name", 30}],
-        access_key_id: [{:awscli, "profile_name", 30}],
-        awscli_auth_adapter: ExAws.STS.AuthCache.AssumeRoleWebIdentityAdapter
-
-    _ ->
-      nil
-  end
 end
 
 # Stripe config
@@ -341,27 +415,77 @@ end
 
 otel_endpoint = Tuist.Environment.get([:otel, :exporter, :otlp, :endpoint])
 
-# Oban
+# Oban.
+#
+# Four queue-list shapes derived from the same base. Pod role is set
+# via TUIST_MODE; delegate flags let the web tier hand off specific
+# queues to dedicated fleets without changing pod role.
+#
+#   * Web/server (default): every queue. Self-hosted installs without
+#     dedicated processors stay on this shape.
+#   * Build processor (TUIST_MODE=processor): only :process_build. CPU-
+#     heavy xcactivitylog parse, runs in-cluster on Linux.
+#   * Xcresult processor (TUIST_MODE=xcresult_processor): only
+#     :process_xcresult. Runs on macOS (Scaleway Mac mini) inside a
+#     Tart VM because xcresulttool is Xcode-only.
+#   * Server pods with TUIST_DELEGATE_PROCESS_BUILD=1 /
+#     TUIST_DELEGATE_PROCESS_XCRESULT=1 skip the matching queue so
+#     jobs land exclusively on the dedicated fleet — without those
+#     flags the server would race the processors on SKIP LOCKED, and
+#     on Linux the xcresult parse would crash because the macOS-only
+#     NIF isn't loaded.
+base_queues = [default: 10, vcs_comments: 20]
+process_build_queue = {:process_build, Tuist.Environment.process_build_queue_concurrency()}
+process_xcresult_queue = {:process_xcresult, Tuist.Environment.process_xcresult_queue_concurrency()}
+
+oban_queues =
+  cond do
+    Tuist.Environment.processor_mode?() ->
+      [process_build_queue]
+
+    Tuist.Environment.xcresult_processor_mode?() ->
+      [process_xcresult_queue]
+
+    true ->
+      base = base_queues
+      base = if Tuist.Environment.delegate_process_build?(), do: base, else: base ++ [process_build_queue]
+      if Tuist.Environment.delegate_process_xcresult?(), do: base, else: base ++ [process_xcresult_queue]
+  end
+
+# Leader-only Oban work (Cron, Pruner, Lifeline, Oban.Met.Reporter) runs
+# on whichever node wins the peer election. Web pods are the only leader-
+# eligible nodes; every other role gets `peer: false` (Oban normalises
+# that to the Isolated peer with `leader?: false`, so leader-only plugins
+# start there but stay idle). The crontab and the peer rule are derived
+# by `Tuist.Oban.RuntimeConfig`, which is unit-tested against every value
+# of `Tuist.Environment.modes/0` so a future denylist regression — like
+# the one where `:xcresult_processor` shipped leader-eligible with an
+# empty crontab and silently halted every cron job — fails CI before it
+# lands in prod.
+mode = Tuist.Environment.mode()
+
+crontab = RuntimeConfig.crontab(mode, env, Tuist.Environment.tuist_hosted?())
+
 config :tuist, Oban,
-  queues: [default: 10],
+  queues: oban_queues,
   plugins: [
     {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 7},
     {Oban.Plugins.Lifeline, rescue_after: to_timeout(minute: 30)},
-    {Oban.Plugins.Cron,
-     crontab:
-       if(Tuist.Environment.tuist_hosted?() and env in [:prod, :stag, :can],
-         do: [
-           {"0 10 * * 1-5", Tuist.Ops.DailySlackReportWorker},
-           {"0 * * * 1-5", Tuist.Ops.HourlySlackReportWorker},
-           {"@hourly", Tuist.Slack.Workers.ReportWorker},
-           {"*/10 * * * *", Tuist.Alerts.Workers.AlertWorker},
-           {"@daily", Tuist.Billing.Workers.SyncStripeMetersWorker},
-           {"@daily", Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker},
-           {"@daily", Tuist.Tests.Workers.ClearStaleFlakyFlagsWorker}
-         ],
-         else: []
-       )}
+    {Oban.Plugins.Cron, crontab: crontab}
   ]
+
+if !RuntimeConfig.peer_eligible?(mode) do
+  config :tuist, Oban, peer: false
+end
+
+# Kura controller rollout assets. Each env is enumerated explicitly so a
+# new one fails loudly rather than silently picking the wrong hook path.
+kura_hook_path =
+  case env do
+    e when e in [:prod, :stag, :can] -> Application.app_dir(:tuist, "priv/kura/hooks/tuist.lua")
+    e when e in [:dev, :test] -> Path.expand("../kura/ops/helm/kura/hooks/tuist.lua", File.cwd!())
+    other -> raise "unknown env #{inspect(other)} for :kura_hook_path; add it to runtime.exs"
+  end
 
 # Guardian
 config :tuist, Tuist.Guardian,
@@ -380,11 +504,17 @@ config :tuist, Tuist.PromEx,
     auth_strategy: :none
   ]
 
+config :tuist, :kura_hook_path, kura_hook_path
+
 if otel_endpoint do
   config :opentelemetry,
     span_processor: :batch,
     resource: [
-      service: [name: "tuist-server", namespace: "tuist"],
+      service: [
+        name: "tuist-server",
+        namespace: "tuist",
+        version: to_string(Tuist.Environment.version())
+      ],
       deployment: [environment: to_string(env)]
     ]
 

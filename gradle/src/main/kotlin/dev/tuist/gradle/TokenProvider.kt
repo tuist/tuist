@@ -20,6 +20,12 @@ open class TokenProvider(
         )
     }
 ) {
+    /** Convenience constructor: wires an internal [RefreshAuthTokenService] from the given [httpClients]. */
+    constructor(serverURL: URI, httpClients: TuistHttpClients) : this(
+        serverURL = serverURL,
+        refreshAuthTokenService = RefreshAuthTokenService(httpClients)
+    )
+
     private val tokenCache: CachedValueStore<String> by lazy {
         tokenCacheFactory(serverURL)
     }

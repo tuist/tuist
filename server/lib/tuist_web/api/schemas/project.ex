@@ -3,12 +3,13 @@ defmodule TuistWeb.API.Schemas.Project do
   The schema for the project response.
   """
   alias OpenApiSpex.Schema
+  alias TuistWeb.API.Schemas.BuildSystem
 
   require OpenApiSpex
 
   OpenApiSpex.schema(%{
     type: :object,
-    required: [:id, :full_name, :token, :default_branch, :visibility],
+    required: [:id, :full_name, :default_branch, :visibility],
     properties: %{
       id: %Schema{
         type: :number,
@@ -17,11 +18,6 @@ defmodule TuistWeb.API.Schemas.Project do
       full_name: %Schema{
         type: :string,
         description: "The full name of the project (e.g. tuist/tuist)"
-      },
-      token: %Schema{
-        type: :string,
-        description: "The token that should be used to authenticate the project. For CI only.",
-        deprecated: true
       },
       default_branch: %Schema{
         type: :string,
@@ -33,12 +29,17 @@ defmodule TuistWeb.API.Schemas.Project do
         description:
           "The URL of the connected git repository, such as https://github.com/tuist/tuist or https://github.com/tuist/tuist.git"
       },
+      token: %Schema{
+        type: :string,
+        deprecated: true,
+        description: "Deprecated. Always returns an empty string."
+      },
       visibility: %Schema{
         type: :string,
         description: "The visibility of the project",
         enum: [:private, :public]
       },
-      build_system: TuistWeb.API.Schemas.BuildSystem.schema()
+      build_system: BuildSystem.schema()
     }
   })
 end

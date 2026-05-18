@@ -346,12 +346,36 @@ defmodule Tuist.CommandEvents do
 
   defp materialized_view_tables(source_table) do
     {:ok, %{rows: rows}} =
-      IngestRepo.query(
+      metadata_repo_query(
         "SELECT name FROM system.tables WHERE database = currentDatabase() AND engine = 'MaterializedView' AND has(dependencies_table, {source:String})",
         %{"source" => source_table}
       )
 
     List.flatten(rows)
+  end
+
+  defp metadata_repo_query(query, params) do
+    if metadata_queries_bypass_dynamic_repo?() do
+      # ClickHouse system tables do not participate in transactions, so test
+      # metadata introspection has to bypass the sandboxed dynamic repo even
+      # though normal ClickHouse reads and writes stay transaction-backed.
+      previous_dynamic_repo = ClickHouseRepo.get_dynamic_repo()
+
+      try do
+        ClickHouseRepo.put_dynamic_repo(ClickHouseRepo)
+        ClickHouseRepo.query(query, params)
+      after
+        ClickHouseRepo.put_dynamic_repo(previous_dynamic_repo)
+      end
+    else
+      IngestRepo.query(query, params)
+    end
+  end
+
+  defp metadata_queries_bypass_dynamic_repo? do
+    :tuist
+    |> Application.get_env(__MODULE__, [])
+    |> Keyword.get(:metadata_queries_bypass_dynamic_repo, false)
   end
 
   def get_project_last_interaction_data(project_ids) do
@@ -373,19 +397,47 @@ defmodule Tuist.CommandEvents do
     |> Map.new(fn %{project_id: id, last_interacted_at: time} -> {id, time} end)
   end
 
-  def get_command_event_by_build_run_id(build_run_id) do
-    case ClickHouseRepo.get_by(Event, build_run_id: build_run_id) do
+  # Multiple rows may share the same build_run_id because the ID is derived
+  # from the `.xcactivitylog`, which Xcode can reuse across runs (e.g. a
+  # second `tuist test` that short-circuits before building picks up the
+  # previous log). We return the most recent event until we can source the
+  # build_run_id independently of the activity log.
+  #
+  # Pass `project_id:` when known so the lookup hits the
+  # `(project_id, name, ran_at)` primary key instead of relying solely on
+  # the `idx_build_run_id` / `idx_test_run_id` bloom filter to skip granules.
+  def get_command_event_by_build_run_id(build_run_id, opts \\ []) do
+    project_id = Keyword.get(opts, :project_id)
+
+    Event
+    |> scope_to_project(project_id)
+    |> where([e], e.build_run_id == ^build_run_id)
+    |> order_by([e], desc: e.ran_at, desc: e.created_at)
+    |> limit(1)
+    |> ClickHouseRepo.one()
+    |> case do
       nil -> {:error, :not_found}
       event -> {:ok, Event.normalize_enums(event)}
     end
   end
 
-  def get_command_event_by_test_run_id(test_run_id) do
-    case ClickHouseRepo.get_by(Event, test_run_id: test_run_id) do
+  def get_command_event_by_test_run_id(test_run_id, opts \\ []) do
+    project_id = Keyword.get(opts, :project_id)
+
+    Event
+    |> scope_to_project(project_id)
+    |> where([e], e.test_run_id == ^test_run_id)
+    |> order_by([e], desc: e.ran_at, desc: e.created_at)
+    |> limit(1)
+    |> ClickHouseRepo.one()
+    |> case do
       nil -> {:error, :not_found}
       event -> {:ok, Event.normalize_enums(event)}
     end
   end
+
+  defp scope_to_project(query, nil), do: query
+  defp scope_to_project(query, project_id), do: where(query, [e], e.project_id == ^project_id)
 
   def run_events(project_id, start_datetime, end_datetime, opts) do
     query =
@@ -413,13 +465,13 @@ defmodule Tuist.CommandEvents do
       add_filters(
         from(e in Event,
           as: :event,
-          group_by: fragment("formatDateTime(?, ?)", e.ran_at, ^date_format),
+          group_by: fragment("formatDateTime(?, ?, 'UTC')", e.ran_at, ^date_format),
           where:
             e.ran_at > ^DateTime.to_naive(start_datetime) and
               e.ran_at < ^DateTime.to_naive(end_datetime) and e.name == ^name and
               e.project_id == ^project_id,
           select: %{
-            date: fragment("formatDateTime(?, ?)", e.ran_at, ^date_format),
+            date: fragment("formatDateTime(?, ?, 'UTC')", e.ran_at, ^date_format),
             value: avg(e.duration)
           }
         ),
@@ -446,13 +498,13 @@ defmodule Tuist.CommandEvents do
       add_filters(
         from(e in Event,
           as: :event,
-          group_by: fragment("formatDateTime(?, ?)", e.ran_at, ^date_format),
+          group_by: fragment("formatDateTime(?, ?, 'UTC')", e.ran_at, ^date_format),
           where:
             e.ran_at > ^DateTime.to_naive(start_datetime) and
               e.ran_at < ^DateTime.to_naive(end_datetime) and
               e.project_id == ^project_id,
           select: %{
-            date: fragment("formatDateTime(?, ?)", e.ran_at, ^date_format),
+            date: fragment("formatDateTime(?, ?, 'UTC')", e.ran_at, ^date_format),
             count: count(e.id)
           }
         ),
@@ -495,13 +547,13 @@ defmodule Tuist.CommandEvents do
     query =
       from(e in Event,
         as: :event,
-        group_by: fragment("formatDateTime(?, ?)", e.ran_at, ^date_format),
+        group_by: fragment("formatDateTime(?, ?, 'UTC')", e.ran_at, ^date_format),
         where:
           e.ran_at > ^DateTime.to_naive(start_datetime) and
             e.ran_at < ^DateTime.to_naive(end_datetime) and
             e.project_id == ^project_id,
         select: %{
-          date: fragment("formatDateTime(?, ?)", e.ran_at, ^date_format),
+          date: fragment("formatDateTime(?, ?, 'UTC')", e.ran_at, ^date_format),
           cacheable_targets: sum(e.cacheable_targets_count),
           local_cache_target_hits: sum(e.local_cache_hits_count),
           remote_cache_target_hits: sum(e.remote_cache_hits_count)
@@ -523,14 +575,14 @@ defmodule Tuist.CommandEvents do
     query =
       from(e in Event,
         as: :event,
-        group_by: fragment("formatDateTime(?, ?)", e.ran_at, ^date_format),
+        group_by: fragment("formatDateTime(?, ?, 'UTC')", e.ran_at, ^date_format),
         where:
           e.ran_at > ^DateTime.to_naive(start_datetime) and
             e.ran_at < ^DateTime.to_naive(end_datetime) and
             e.project_id == ^project_id and
             e.cacheable_targets_count > 0,
         select: %{
-          date: fragment("formatDateTime(?, ?)", e.ran_at, ^date_format),
+          date: fragment("formatDateTime(?, ?, 'UTC')", e.ran_at, ^date_format),
           percentile_hit_rate:
             fragment(
               "quantile(?)((? + ?) / ? * 100.0)",
@@ -666,14 +718,14 @@ defmodule Tuist.CommandEvents do
     query =
       from(e in Event,
         as: :event,
-        group_by: fragment("formatDateTime(?, ?)", e.ran_at, ^date_format),
+        group_by: fragment("formatDateTime(?, ?, 'UTC')", e.ran_at, ^date_format),
         where:
           e.ran_at > ^DateTime.to_naive(start_datetime) and
             e.ran_at < ^DateTime.to_naive(end_datetime) and
             e.project_id == ^project_id and
             e.test_targets_count > 0,
         select: %{
-          date: fragment("formatDateTime(?, ?)", e.ran_at, ^date_format),
+          date: fragment("formatDateTime(?, ?, 'UTC')", e.ran_at, ^date_format),
           percentile_hit_rate:
             fragment(
               "quantile(?)((? + ?) / ? * 100.0)",
@@ -724,13 +776,13 @@ defmodule Tuist.CommandEvents do
     query =
       from(e in Event,
         as: :event,
-        group_by: fragment("formatDateTime(?, ?)", e.ran_at, ^date_format),
+        group_by: fragment("formatDateTime(?, ?, 'UTC')", e.ran_at, ^date_format),
         where:
           e.ran_at > ^DateTime.to_naive(start_datetime) and
             e.ran_at < ^DateTime.to_naive(end_datetime) and
             e.project_id == ^project_id,
         select: %{
-          date: fragment("formatDateTime(?, ?)", e.ran_at, ^date_format),
+          date: fragment("formatDateTime(?, ?, 'UTC')", e.ran_at, ^date_format),
           test_targets: sum(e.test_targets_count),
           local_test_target_hits: sum(e.local_test_hits_count),
           remote_test_target_hits: sum(e.remote_test_hits_count)
@@ -820,6 +872,7 @@ defmodule Tuist.CommandEvents do
   defp apply_scheme_filter(query, scheme), do: where(query, [event: e], e.scheme == ^scheme)
 
   defp apply_category_filter(query, nil), do: query
+
   defp apply_category_filter(query, category), do: where(query, [event: e], e.category == ^category)
 
   defp apply_status_filter(query, nil), do: query
@@ -885,8 +938,9 @@ defmodule Tuist.CommandEvents do
           d in fragment(
             """
               SELECT formatDateTime(
-                toDateTime(?) + INTERVAL number HOUR,
-                ?
+                toDateTime(?, 'UTC') + INTERVAL number HOUR,
+                ?,
+                'UTC'
               ) AS date
               FROM numbers(?)
             """,
@@ -905,8 +959,9 @@ defmodule Tuist.CommandEvents do
           d in fragment(
             """
               SELECT formatDateTime(
-                toDateTime(?) + INTERVAL number DAY,
-                ?
+                toDateTime(?, 'UTC') + INTERVAL number DAY,
+                ?,
+                'UTC'
               ) AS date
               FROM numbers(dateDiff('day', toDate(?), toDate(?)) + 1)
             """,
@@ -926,8 +981,9 @@ defmodule Tuist.CommandEvents do
           d in fragment(
             """
               SELECT formatDateTime(
-                toStartOfMonth(toDateTime(?) + INTERVAL number MONTH),
-                ?
+                toStartOfMonth(toDateTime(?, 'UTC') + INTERVAL number MONTH),
+                ?,
+                'UTC'
               ) AS date
               FROM numbers(dateDiff('month', toDate(?), toDate(?)) + 1)
             """,

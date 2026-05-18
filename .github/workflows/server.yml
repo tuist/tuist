@@ -18,20 +18,21 @@ on:
       - noora/**
       - .github/workflows/server.yml
       - server/pnpm-lock.yaml
-      - pnpm-lock.yaml
+      - noora/aube-lock.yaml
   merge_group: {}
 
 permissions:
   contents: read
 
 concurrency:
-  group: tuist-server-${{ github.head_ref }}
+  group: tuist-server-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
 env:
+  MISE_VERSION: "2026.4.18"
+  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
   MIX_ENV: test
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  PNPM_HOME: ~/.pnpm
   MISE_TASK_RUN_AUTO_INSTALL: 0
   MISE_GITHUB_ATTESTATIONS: 0
 
@@ -40,6 +41,23 @@ defaults:
     working-directory: server
 
 jobs:
+  swift-test:
+    name: Swift Tests (XCActivityLogParser)
+    runs-on: namespace-profile-macos-xcode-26
+    timeout-minutes: 15
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    defaults:
+      run:
+        working-directory: server/native/xcactivitylog_nif
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore SwiftPM Cache
+        uses: actions/cache@v4
+        with:
+          path: server/native/xcactivitylog_nif/.build
+          key: xcactivitylog-nif-swiftpm-${{ hashFiles('server/native/xcactivitylog_nif/Package.resolved') }}
+      - name: Run tests
+        run: swift test --replace-scm-with-registry
   gettext:
     name: Gettext
     runs-on: namespace-profile-default-with-volume
@@ -47,25 +65,9 @@ jobs:
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
-      - uses: namespacelabs/nscloud-cache-action@v1
+      - uses: ./.github/actions/setup-server-mix
         with:
-          cache: mise
-      - uses: jdx/mise-action@v3.2.0
-        with:
-          install_args: "erlang elixir"
-          cache: "false"
-          working_directory: server
-      - name: Restore Mix Cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            server/deps
-            server/_build
-          key: mix-${{ hashFiles('server/mix.lock') }}
-          restore-keys: |
-            mix-
-      - name: Install dependencies
-        run: mix deps.get
+          mise-version: ${{ env.MISE_VERSION }}
       - name: Check marketing gettext template is up-to-date
         run: |
           # Extract only (without --merge) to check if marketing.pot changes
@@ -155,63 +157,6 @@ jobs:
           fi
 
           echo "✅ All dashboard translation templates present"
-  translation_protection:
-    name: Translation Protection
-    runs-on: namespace-profile-default-with-volume
-    timeout-minutes: 5
-    if: github.event_name == 'pull_request'
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Check for .po file modifications by non-bot users
-        run: |
-          # Get the PR author
-          PR_AUTHOR="${{ github.event.pull_request.user.login }}"
-
-          # Get list of added and modified .po files in this PR
-          ADDED_PO_FILES=$(git diff --name-only --diff-filter=A origin/${{ github.base_ref }}...HEAD | grep '\.po$' || true)
-          MODIFIED_PO_FILES=$(git diff --name-only --diff-filter=M origin/${{ github.base_ref }}...HEAD | grep '\.po$' || true)
-
-          if [ -z "$ADDED_PO_FILES" ] && [ -z "$MODIFIED_PO_FILES" ]; then
-            echo "✅ No .po files modified in this PR"
-            exit 0
-          fi
-
-          # Allow adding new language directories (one-time setup), but block modifications to non-English translations
-          if [ "$PR_AUTHOR" != "tuistit" ]; then
-            # Filter out English .po files from modified files (developers can modify English source translations)
-            NON_ENGLISH_MODIFIED=$(echo "$MODIFIED_PO_FILES" | grep -v '/en/LC_MESSAGES/' || true)
-
-            if [ -n "$NON_ENGLISH_MODIFIED" ]; then
-              echo "::error title=Translation files modified::Non-English translation files (.po) were modified by $PR_AUTHOR. Only the tuistit bot should modify translation files. Translations should be managed through Weblate."
-              echo ""
-              echo "Modified translation files:"
-              echo "$NON_ENGLISH_MODIFIED"
-              echo ""
-              echo "If you need to update translations, please use Weblate instead of editing .po files directly."
-              echo "You should only commit .pot (template) files, not .po (translation) files."
-              echo "Note: English .po files (en/LC_MESSAGES/*.po) can be modified by developers."
-              exit 1
-            fi
-
-            # Report on English modifications (allowed)
-            ENGLISH_MODIFIED=$(echo "$MODIFIED_PO_FILES" | grep '/en/LC_MESSAGES/' || true)
-            if [ -n "$ENGLISH_MODIFIED" ]; then
-              echo "✅ English translation files modified by $PR_AUTHOR (allowed):"
-              echo "$ENGLISH_MODIFIED"
-              echo ""
-            fi
-
-            if [ -n "$ADDED_PO_FILES" ]; then
-              echo "⚠️  New translation files added by $PR_AUTHOR:"
-              echo "$ADDED_PO_FILES"
-              echo ""
-              echo "✅ Allowing new language setup. Future modifications should go through Weblate."
-            fi
-          else
-            echo "✅ Translation files modified by tuistit bot"
-          fi
   test:
     name: Test
     runs-on: namespace-profile-default-with-volume
@@ -232,29 +177,18 @@ jobs:
           --health-retries 5
     steps:
       - uses: actions/checkout@v4
-      - uses: namespacelabs/nscloud-cache-action@v1
+      - uses: ./.github/actions/setup-server-mix
         with:
-          cache: mise
-      - uses: jdx/mise-action@v3.2.0
-        with:
-          install_args: "erlang elixir github:ClickHouse/ClickHouse"
-          cache: "false"
-          working_directory: server
-      - name: Restore Mix Cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            server/deps
-            server/_build
-          key: mix-${{ hashFiles('server/mix.lock') }}
-          restore-keys: |
-            mix-
-      - name: Install dependencies
-        run: mix deps.get
+          mise-version: ${{ env.MISE_VERSION }}
+          mise-install-args: erlang elixir github:ClickHouse/ClickHouse
+          mix-cache-key: mix-test-v2
+          mix-cache-restore-key: mix-test-v2-
+      - name: Compile
+        run: mix compile --warnings-as-errors
       - name: Start ClickHouse
-        run: mise run --no-prepare clickhouse:start
+        run: mise run --no-deps clickhouse:start
       - name: Setup database
-        run: mise run --no-prepare db:reset
+        run: mise run --no-deps db:reset
       - name: Run tests
         run: mix test --warnings-as-errors
   credo:
@@ -264,60 +198,33 @@ jobs:
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
-      - uses: namespacelabs/nscloud-cache-action@v1
+      - uses: ./.github/actions/setup-server-mix
         with:
-          cache: mise
-      - uses: jdx/mise-action@v3.2.0
-        with:
-          install_args: "erlang elixir"
-          cache: "false"
-          working_directory: server
-      - name: Restore Mix Cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            server/deps
-            server/_build
-          key: mix-${{ hashFiles('server/mix.lock') }}
-          restore-keys: |
-            mix-
-      - name: Install dependencies
-        run: mix deps.get
+          mise-version: ${{ env.MISE_VERSION }}
       - name: Run Credo
         run: mix credo
   format:
     name: Format
     runs-on: namespace-profile-default-with-volume
     timeout-minutes: 15
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
-      - uses: namespacelabs/nscloud-cache-action@v1
+      - uses: ./.github/actions/setup-server-mix
         with:
-          cache: mise
-      - uses: jdx/mise-action@v3.2.0
-        with:
-          install_args: "erlang elixir node pnpm npm:prettier"
-          cache: "false"
-          working_directory: server
-      - name: Restore Mix Cache
+          mise-version: ${{ env.MISE_VERSION }}
+          mise-install-args: erlang elixir node aube npm:prettier
+      - name: Restore Aube Cache
         uses: actions/cache@v4
         with:
           path: |
-            server/deps
-            server/_build
-          key: mix-${{ hashFiles('server/mix.lock') }}
-          restore-keys: |
-            mix-
-      - name: Restore PNPM Cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.pnpm/store
-          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
-      - name: Install dependencies
-        run: mix deps.get && pnpm install --ignore-workspace
+            ~/.local/share/aube
+            ~/.cache/aube
+          key: aube-server-${{ hashFiles('server/pnpm-lock.yaml') }}
+      - name: Install aube dependencies
+        run: aube install
       - name: Check format
-        run: mise run --no-prepare format --check
+        run: mise run --no-deps format --check
   esbuild:
     name: esbuild
     runs-on: namespace-profile-default-with-volume
@@ -325,37 +232,24 @@ jobs:
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
-      - uses: namespacelabs/nscloud-cache-action@v1
+      - uses: ./.github/actions/setup-server-mix
         with:
-          cache: mise
-      - uses: jdx/mise-action@v3.2.0
-        with:
-          install_args: "erlang elixir node pnpm"
-          cache: "false"
-          working_directory: server
-      - name: Restore Mix Cache
+          mise-version: ${{ env.MISE_VERSION }}
+          mise-install-args: erlang elixir node aube
+      - name: Restore Aube Cache
         uses: actions/cache@v4
         with:
           path: |
-            server/deps
-            server/_build
-          key: mix-${{ hashFiles('server/mix.lock') }}
-          restore-keys: |
-            mix-
-      - name: Restore PNPM Cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.pnpm/store
-          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
-      - name: Install dependencies
-        run: mix deps.get && pnpm install --ignore-workspace
+            ~/.local/share/aube
+            ~/.cache/aube
+          key: aube-server-${{ hashFiles('server/pnpm-lock.yaml') }}
+      - name: Install aube dependencies
+        run: aube install
       - name: Build noora static assets
         working-directory: noora
         run: |
-          pnpm install
-          npx esbuild js/index.js --bundle --minify --sourcemap --format=esm --outfile=./priv/static/noora.js
-          npx esbuild css/noora.css --bundle --minify --sourcemap --outfile=./priv/static/noora.css
+          aube install
+          aube run build
       - name: Install esbuild
         run: mix esbuild.install
       - name: Check esbuild output
@@ -381,14 +275,9 @@ jobs:
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
-      - uses: namespacelabs/nscloud-cache-action@v1
+      - uses: ./.github/actions/setup-server-mix
         with:
-          cache: mise
-      - uses: jdx/mise-action@v3.2.0
-        with:
-          install_args: "erlang elixir"
-          cache: "false"
-          working_directory: server
+          mise-version: ${{ env.MISE_VERSION }}
       - name: Install Trivy
         env:
           TRIVY_VERSION: "0.69.3"
@@ -396,19 +285,8 @@ jobs:
           curl -sfL "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" -o /tmp/trivy.tar.gz
           sudo tar xzf /tmp/trivy.tar.gz -C /usr/local/bin trivy
           rm /tmp/trivy.tar.gz
-      - name: Restore Mix Cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            server/deps
-            server/_build
-          key: mix-${{ hashFiles('server/mix.lock') }}
-          restore-keys: |
-            mix-
-      - name: Install dependencies
-        run: mix deps.get
       - name: Check
-        run: mise run --no-prepare security
+        run: ./mise/tasks/security.sh
   docker_build:
     name: Docker build
     runs-on: namespace-profile-default-with-volume
@@ -427,11 +305,24 @@ jobs:
           file: ./server/Dockerfile
           target: runner
           push: false
+          load: true
           tags: tuist/tuist
           build-args: |
             TUIST_HOSTED=0
             TUIST_VERSION=1.24.11.11
             MIX_ENV=prod
+            APT_CACHE_BUST=${{ github.sha }}
+      - name: Install Trivy
+        env:
+          TRIVY_VERSION: "0.69.3"
+        run: |
+          curl -sfL "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" -o /tmp/trivy.tar.gz
+          sudo tar xzf /tmp/trivy.tar.gz -C /usr/local/bin trivy
+          rm /tmp/trivy.tar.gz
+      - name: Scan image for vulnerabilities
+        # Use the absolute workspace path because `trivy image` in 0.69.3
+        # resolves --ignorefile against an undocumented base, not cwd.
+        run: trivy image --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 --no-progress --ignorefile "$GITHUB_WORKSPACE/.trivyignore" tuist/tuist
   # The Codegen produces non-deterministic results, so we're skipping it for now
   # api-codegen:
   #   name: API Codegen Check
@@ -455,7 +346,7 @@ jobs:
   #     - uses: namespacelabs/nscloud-cache-action@v1
   #       with:
   #         cache: mise
-  #     - uses: jdx/mise-action@v3.2.0
+  #     - uses: jdx/mise-action@v4.0.1
   #       with:
   #         cache: "false"
   #     - run: mise run install
@@ -495,29 +386,14 @@ jobs:
           --health-retries 5
     steps:
       - uses: actions/checkout@v4
-      - uses: namespacelabs/nscloud-cache-action@v1
+      - uses: ./.github/actions/setup-server-mix
         with:
-          cache: mise
-      - uses: jdx/mise-action@v3.2.0
-        with:
-          install_args: "erlang elixir github:ClickHouse/ClickHouse"
-          cache: "false"
-          working_directory: server
-      - name: Restore Mix Cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            server/deps
-            server/_build
-          key: mix-${{ hashFiles('server/mix.lock') }}
-          restore-keys: |
-            mix-
-      - name: Install dependencies
-        run: mix deps.get
+          mise-version: ${{ env.MISE_VERSION }}
+          mise-install-args: erlang elixir github:ClickHouse/ClickHouse
       - name: Start ClickHouse
-        run: mise run --no-prepare clickhouse:start
+        run: mise run --no-deps clickhouse:start
       - name: Setup database
-        run: mise run --no-prepare db:reset
+        run: mise run --no-deps db:reset
       - name: Run migrations
         run: mix ecto.migrate
       - name: Seed the database

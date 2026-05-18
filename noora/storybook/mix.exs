@@ -7,6 +7,7 @@ defmodule NooraStorybook.MixProject do
       version: "0.1.0",
       elixir: "~> 1.14",
       elixirc_paths: elixirc_paths(Mix.env()),
+      elixirc_options: [check_cwd: false],
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
       deps: deps(),
@@ -52,5 +53,4 @@ defmodule NooraStorybook.MixProject do
       ]
     ]
   end
-
 end

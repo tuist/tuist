@@ -40,7 +40,9 @@ defmodule TuistTestSupport.Fixtures.AlertsFixtures do
       deviation_percentage: Keyword.get(opts, :deviation_percentage, 20.0),
       environment: Keyword.get(opts, :environment, "any"),
       slack_channel_id: Keyword.get(opts, :slack_channel_id, "C#{unique_id}"),
-      slack_channel_name: Keyword.get(opts, :slack_channel_name, "test-channel-#{unique_id}")
+      slack_channel_name: Keyword.get(opts, :slack_channel_name, "test-channel-#{unique_id}"),
+      slack_webhook_url:
+        Keyword.get(opts, :slack_webhook_url, "https://hooks.slack.com/services/T#{unique_id}/B#{unique_id}/x")
     }
 
     category_attrs =

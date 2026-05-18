@@ -145,7 +145,7 @@ extension AbsolutePath: Swift.ExpressibleByStringLiteral {
 }
 
 extension String {
-    var isGlobComponent: Bool {
+    public var isGlobComponent: Bool {
         let globCharacters = CharacterSet(charactersIn: "*{}")
         return rangeOfCharacter(from: globCharacters) != nil
     }

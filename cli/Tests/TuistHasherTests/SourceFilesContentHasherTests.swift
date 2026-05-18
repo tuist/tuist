@@ -46,18 +46,40 @@ final class SourceFilesContentHasherTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(node, MerkleNode(
-            hash: "95f4fb96482b97d5f2fb472598252ea2",
+            hash: "509478874af8f071e65a63e9b94a9195",
             identifier: "sources",
             children: [
                 MerkleNode(
-                    hash: "first",
+                    hash: "22e39be4aa826c549fc08dc3e1a1804f",
                     identifier: sourceFile1.path.pathString,
-                    children: []
+                    children: [
+                        MerkleNode(
+                            hash: "082b4a6d39b5f89e0c48bac6bc6c157b",
+                            identifier: "name",
+                            children: []
+                        ),
+                        MerkleNode(
+                            hash: "first",
+                            identifier: "content",
+                            children: []
+                        ),
+                    ]
                 ),
                 MerkleNode(
-                    hash: "second",
+                    hash: "d934c9824bcb5eddda91271229e7237b",
                     identifier: sourceFile2.path.pathString,
-                    children: []
+                    children: [
+                        MerkleNode(
+                            hash: "ea109ebc1d271b006a1e76824e55df15",
+                            identifier: "name",
+                            children: []
+                        ),
+                        MerkleNode(
+                            hash: "second",
+                            identifier: "content",
+                            children: []
+                        ),
+                    ]
                 ),
             ]
         ))
@@ -83,13 +105,18 @@ final class SourceFilesContentHasherTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(node, MerkleNode(
-            hash: "a399dc1a1cf69cb55d7b7dda76b62e0a",
+            hash: "36e193e29391e3f9e113b8b0e648d5f8",
             identifier: "sources",
             children: [
                 MerkleNode(
-                    hash: "0921d026fd1854efd0b5735265bec941",
+                    hash: "62b16fd213fa4b1f0eeb23dee9badf4e",
                     identifier: sourceFile1Path.pathString,
                     children: [
+                        MerkleNode(
+                            hash: "082b4a6d39b5f89e0c48bac6bc6c157b",
+                            identifier: "name",
+                            children: []
+                        ),
                         MerkleNode(
                             hash: "082b4a6d39b5f89e0c48bac6bc6c157b",
                             identifier: "content",
@@ -119,9 +146,14 @@ final class SourceFilesContentHasherTests: TuistUnitTestCase {
                     ]
                 ),
                 MerkleNode(
-                    hash: "8b0b259086f1d24e1a0340e1abbae3b5",
+                    hash: "86aef10de761e9c61c6a559bae571185",
                     identifier: sourceFile2Path.pathString,
                     children: [
+                        MerkleNode(
+                            hash: "ea109ebc1d271b006a1e76824e55df15",
+                            identifier: "name",
+                            children: []
+                        ),
                         MerkleNode(
                             hash: "ea109ebc1d271b006a1e76824e55df15",
                             identifier: "content",
@@ -136,5 +168,42 @@ final class SourceFilesContentHasherTests: TuistUnitTestCase {
                 ),
             ]
         ))
+    }
+
+    func test_hash_changes_when_source_file_is_renamed() async throws {
+        // Given
+        let originalPath = sourceFile1Path!
+        let renamedPath = originalPath.parentDirectory.appending(component: "renamedSourceFile")
+        try await fileSystem.writeText("identical-content", at: originalPath)
+        try await fileSystem.writeText("identical-content", at: renamedPath)
+
+        let original = SourceFile(path: originalPath)
+        let renamed = SourceFile(path: renamedPath)
+
+        // When
+        let originalHash = try await subject.hash(identifier: "sources", sources: [original]).hash
+        let renamedHash = try await subject.hash(identifier: "sources", sources: [renamed]).hash
+
+        // Then
+        XCTAssertNotEqual(
+            originalHash,
+            renamedHash,
+            "Renaming a source file with identical content must produce a different hash so selective testing reruns tests whose snapshots/fixtures key off the source file name."
+        )
+    }
+
+    func test_hash_changes_when_source_file_is_renamed_with_preset_content_hash() async throws {
+        // Given
+        let originalPath = sourceFile1Path!
+        let renamedPath = originalPath.parentDirectory.appending(component: "renamedSourceFile")
+        let original = SourceFile(path: originalPath, contentHash: "shared")
+        let renamed = SourceFile(path: renamedPath, contentHash: "shared")
+
+        // When
+        let originalHash = try await subject.hash(identifier: "sources", sources: [original]).hash
+        let renamedHash = try await subject.hash(identifier: "sources", sources: [renamed]).hash
+
+        // Then
+        XCTAssertNotEqual(originalHash, renamedHash)
     }
 }

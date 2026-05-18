@@ -2,12 +2,18 @@ defmodule Tuist.BundlesTest do
   use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
+  import Ecto.Query
+
   alias Tuist.Bundles
+  alias Tuist.Bundles.Artifact
+  alias Tuist.Bundles.Bundle
+  alias Tuist.ClickHouseRepo
+  alias Tuist.Repo
   alias TuistTestSupport.Fixtures.BundlesFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   setup do
-    stub(DateTime, :utc_now, fn -> ~U[2024-08-10 02:00:00Z] end)
+    stub(DateTime, :utc_now, fn -> ~U[2024-08-10 02:00:00.000000Z] end)
     :ok
   end
 
@@ -37,6 +43,187 @@ defmodule Tuist.BundlesTest do
 
       # Then
       assert bundle.id == id
+    end
+
+    test "writes the bundle's artifacts to ClickHouse" do
+      # Given
+      project_id = ProjectsFixtures.project_fixture().id
+      id = UUIDv7.generate()
+
+      # When
+      {:ok, _bundle} =
+        Bundles.create_bundle(%{
+          id: id,
+          name: "App",
+          app_bundle_id: "dev.tuist.app",
+          install_size: 1024,
+          download_size: 1024,
+          supported_platforms: [:ios],
+          version: "1.0.0",
+          git_branch: "main",
+          type: :app,
+          project_id: project_id,
+          artifacts: [
+            %{
+              artifact_type: :directory,
+              path: "App.app",
+              shasum: "aaa",
+              size: 5_000_000_000,
+              children: [
+                %{
+                  artifact_type: :file,
+                  path: "App.app/Info.plist",
+                  shasum: "bbb",
+                  size: 1024
+                }
+              ]
+            }
+          ]
+        })
+
+      # Then read back via the read-only `ClickHouseRepo` (the counterpart
+      # of the write-centric `IngestRepo`) to confirm the rows landed.
+      ch_artifacts =
+        ClickHouseRepo.all(
+          from(a in Artifact,
+            where: a.bundle_id == type(^id, Ecto.UUID),
+            order_by: [asc: a.path]
+          )
+        )
+
+      assert Enum.map(ch_artifacts, & &1.path) == ["App.app", "App.app/Info.plist"]
+      assert Enum.map(ch_artifacts, & &1.size) == [5_000_000_000, 1024]
+      assert Enum.map(ch_artifacts, & &1.artifact_type) == ["directory", "file"]
+      assert Enum.all?(ch_artifacts, &(&1.bundle_id == id))
+      [parent, child] = ch_artifacts
+      assert parent.artifact_id == nil
+      assert child.artifact_id == parent.id
+      assert NaiveDateTime.compare(parent.inserted_at, ~N[2024-08-10 02:00:00]) == :eq
+      assert NaiveDateTime.compare(parent.updated_at, ~N[2024-08-10 02:00:00]) == :eq
+    end
+
+    test "writes the bundle to ClickHouse" do
+      # Given
+      project_id = ProjectsFixtures.project_fixture().id
+      id = UUIDv7.generate()
+
+      # When
+      {:ok, _bundle} =
+        Bundles.create_bundle(%{
+          id: id,
+          name: "App",
+          app_bundle_id: "dev.tuist.app",
+          install_size: 1_500_000_000,
+          download_size: 1_200_000_000,
+          supported_platforms: [:ios, :ios_simulator],
+          version: "1.0.0",
+          git_branch: "main",
+          git_commit_sha: "abc123",
+          git_ref: "refs/heads/main",
+          type: :app,
+          project_id: project_id
+        })
+
+      # Then read back via the read-only `ClickHouseRepo`.
+      [ch_bundle] =
+        ClickHouseRepo.all(from(b in Bundle, where: b.id == type(^id, Ecto.UUID)))
+
+      assert ch_bundle.id == id
+      assert ch_bundle.name == "App"
+      assert ch_bundle.app_bundle_id == "dev.tuist.app"
+      assert ch_bundle.install_size == 1_500_000_000
+      assert ch_bundle.download_size == 1_200_000_000
+      assert ch_bundle.supported_platforms == ["ios", "ios_simulator"]
+      assert ch_bundle.type == "app"
+      assert ch_bundle.git_branch == "main"
+      assert ch_bundle.git_commit_sha == "abc123"
+      assert ch_bundle.git_ref == "refs/heads/main"
+      assert ch_bundle.project_id == project_id
+      assert ch_bundle.uploaded_by_account_id == nil
+      assert NaiveDateTime.compare(ch_bundle.inserted_at, ~N[2024-08-10 02:00:00]) == :eq
+    end
+
+    test "raises and skips the bundle insert when ClickHouse is unavailable" do
+      # Given
+      project_id = ProjectsFixtures.project_fixture().id
+      id = UUIDv7.generate()
+
+      stub(Tuist.IngestRepo, :insert_all, fn _, _ ->
+        raise DBConnection.ConnectionError, "ClickHouse is down"
+      end)
+
+      # When the artifacts insert raises, the bundle insert is never reached
+      # so we never end up with a bundle row that has no artifacts in CH.
+      assert_raise DBConnection.ConnectionError, fn ->
+        Bundles.create_bundle(%{
+          id: id,
+          name: "App",
+          app_bundle_id: "dev.tuist.app",
+          install_size: 1024,
+          download_size: 1024,
+          supported_platforms: [:ios],
+          version: "1.0.0",
+          git_branch: "main",
+          type: :app,
+          project_id: project_id,
+          artifacts: [
+            %{
+              artifact_type: :file,
+              path: "App.app/Info.plist",
+              shasum: "bbb",
+              size: 1024
+            }
+          ]
+        })
+      end
+
+      # Then the bundle row was never persisted.
+      assert Bundles.get_bundle(id) == {:error, :not_found}
+    end
+
+    test "returns a populated bundle even when a CH read of the just-inserted row would not see it yet" do
+      # Given
+      project_id = ProjectsFixtures.project_fixture().id
+      id = UUIDv7.generate()
+
+      # Simulate ClickHouse Cloud read-after-write lag: any SELECT of the
+      # row we just wrote via `IngestRepo` lands on a replica that hasn't
+      # observed the new part yet and returns `nil`. Pre-fix, this turned
+      # `create_bundle/2` into `{:ok, nil}` and crashed the controller
+      # with a Phoenix HTML 500 that the CLI couldn't decode. The fix
+      # builds the response from the changeset so this read never has to
+      # happen.
+      stub(ClickHouseRepo, :one, fn _ -> nil end)
+
+      # When
+      {:ok, bundle} =
+        Bundles.create_bundle(%{
+          id: id,
+          name: "App",
+          app_bundle_id: "dev.tuist.app",
+          install_size: 1024,
+          download_size: 1024,
+          supported_platforms: [:ios, :ios_simulator],
+          version: "1.0.0",
+          git_branch: "main",
+          type: :app,
+          project_id: project_id
+        })
+
+      # Then we get a fully populated `%Bundle{}` regardless of CH read state.
+      assert %Bundle{} = bundle
+      assert bundle.id == id
+      assert bundle.name == "App"
+      assert bundle.type == :app
+      assert bundle.supported_platforms == [:ios, :ios_simulator]
+      assert %DateTime{} = bundle.inserted_at
+      # Second precision so Jason renders `2026-05-06T11:12:36Z` rather
+      # than `2026-05-06T11:12:36.000000Z`. The Swift CLI's default
+      # `ISO8601DateFormatter` rejects fractional seconds, so leaking
+      # the CH `DateTime64(6)` precision into the API response broke
+      # `tuist inspect bundle` after the CH cutover.
+      assert bundle.inserted_at.microsecond == {0, 0}
+      assert bundle.updated_at.microsecond == {0, 0}
     end
 
     test "raises if an artifact type is invalid" do
@@ -70,6 +257,51 @@ defmodule Tuist.BundlesTest do
           ]
         })
       end
+    end
+
+    test "returns {:error, changeset} when the bundle type is invalid" do
+      # Given
+      project_id = ProjectsFixtures.project_fixture().id
+
+      # When
+      {:error, changeset} =
+        Bundles.create_bundle(%{
+          id: UUIDv7.generate(),
+          name: "App",
+          app_bundle_id: "dev.tuist.app",
+          install_size: 1024,
+          supported_platforms: [:ios],
+          version: "1.0.0",
+          type: :not_a_real_type,
+          project_id: project_id
+        })
+
+      # Then — the bundle is not persisted and the caller gets a
+      # changeset with the offending field flagged.
+      refute changeset.valid?
+      assert "is invalid" in errors_on(changeset).type
+    end
+
+    test "returns {:error, changeset} when supported_platforms contains an invalid entry" do
+      # Given
+      project_id = ProjectsFixtures.project_fixture().id
+
+      # When
+      {:error, changeset} =
+        Bundles.create_bundle(%{
+          id: UUIDv7.generate(),
+          name: "App",
+          app_bundle_id: "dev.tuist.app",
+          install_size: 1024,
+          supported_platforms: [:ios, :made_up_os],
+          version: "1.0.0",
+          type: :app,
+          project_id: project_id
+        })
+
+      # Then
+      refute changeset.valid?
+      assert "has an invalid entry" in errors_on(changeset).supported_platforms
     end
   end
 
@@ -114,6 +346,80 @@ defmodule Tuist.BundlesTest do
 
       # Then
       assert {:error, :not_found} == got
+    end
+
+    test "ignores :artifacts in the preload list instead of issuing a Postgres query against the CH-backed association" do
+      # Given
+      bundle = BundlesFixtures.bundle_fixture()
+
+      # When — `:artifacts` would otherwise cause Ecto to preload through
+      # Tuist.Repo against the dropped PG `artifacts` table. The function
+      # should silently strip it and load the artifacts from CH instead.
+      {:ok, got} = Bundles.get_bundle(bundle.id, preload: [:artifacts, :uploaded_by_account])
+
+      # Then
+      assert got.id == bundle.id
+      assert got.artifacts == []
+    end
+
+    test "drops unknown supported_platforms values from a malformed CH row instead of crashing" do
+      # Given — a bundle inserted directly into ClickHouse (bypassing
+      # the changeset's `validate_supported_platforms/1`) so we can
+      # simulate a malformed backfill or future enum mismatch landing in
+      # the column. Without the read-boundary guard, `String.to_existing_atom/1`
+      # would raise `ArgumentError` and turn `get_bundle/1` into a 500.
+      bundle_id = UUIDv7.generate()
+      project_id = ProjectsFixtures.project_fixture().id
+
+      Tuist.IngestRepo.insert_all(Bundle, [
+        %{
+          id: bundle_id,
+          app_bundle_id: "dev.tuist.app",
+          name: "App",
+          install_size: 1024,
+          supported_platforms: ["ios", "future_platform_we_dont_know_about"],
+          version: "1.0.0",
+          type: "app",
+          project_id: project_id,
+          inserted_at: ~N[2024-01-01 02:00:00.000000],
+          updated_at: ~N[2024-01-01 02:00:00.000000]
+        }
+      ])
+
+      # When
+      {:ok, bundle} = Bundles.get_bundle(bundle_id)
+
+      # Then — the unknown entry is dropped, the known one is decoded.
+      assert bundle.supported_platforms == [:ios]
+      assert bundle.type == :app
+    end
+
+    test "falls back to nil when the CH bundle row carries an unknown type" do
+      # Given
+      bundle_id = UUIDv7.generate()
+      project_id = ProjectsFixtures.project_fixture().id
+
+      Tuist.IngestRepo.insert_all(Bundle, [
+        %{
+          id: bundle_id,
+          app_bundle_id: "dev.tuist.app",
+          name: "App",
+          install_size: 1024,
+          supported_platforms: ["ios"],
+          version: "1.0.0",
+          type: "future_bundle_type",
+          project_id: project_id,
+          inserted_at: ~N[2024-01-01 02:00:00.000000],
+          updated_at: ~N[2024-01-01 02:00:00.000000]
+        }
+      ])
+
+      # When
+      {:ok, bundle} = Bundles.get_bundle(bundle_id)
+
+      # Then — `format_bundle_type/1`'s catch-all clause renders this as
+      # "Unknown" in the dashboard rather than blowing up.
+      assert bundle.type == nil
     end
   end
 
@@ -243,7 +549,9 @@ defmodule Tuist.BundlesTest do
 
       # When
       got =
-        project |> Bundles.last_project_bundle(bundle: bundle) |> Repo.preload(:uploaded_by_account)
+        project
+        |> Bundles.last_project_bundle(bundle: bundle)
+        |> Repo.preload(:uploaded_by_account)
 
       # Then
       assert got == last_bundle
@@ -389,7 +697,7 @@ defmodule Tuist.BundlesTest do
         )
 
       assert got == [
-               %{date: ~D[2024-04-28], bundle_install_size: 1500},
+               %{date: ~D[2024-04-28], bundle_install_size: 0},
                %{date: ~D[2024-04-29], bundle_install_size: 3000},
                %{date: ~D[2024-04-30], bundle_install_size: 4000}
              ]
@@ -645,7 +953,7 @@ defmodule Tuist.BundlesTest do
         )
 
       assert got == [
-               %{date: ~D[2024-04-28], bundle_download_size: 1024},
+               %{date: ~D[2024-04-28], bundle_download_size: 0},
                %{date: ~D[2024-04-29], bundle_download_size: 3000},
                %{date: ~D[2024-04-30], bundle_download_size: 4000}
              ]
@@ -944,6 +1252,56 @@ defmodule Tuist.BundlesTest do
     end
   end
 
+  describe "distinct_project_app_bundles/1" do
+    test "returns one bundle per distinct name with the newest row preserved" do
+      # Given — three bundles for "App" plus one for "Other". The CH
+      # `DISTINCT` semantics differ from PG (`DISTINCT` runs before
+      # `ORDER BY`), so a naive query would pick an arbitrary "App" row
+      # and the dashboard would render stale install sizes.
+      project = ProjectsFixtures.project_fixture()
+
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        name: "App",
+        install_size: 1000,
+        inserted_at: ~U[2024-01-01 02:00:00Z]
+      )
+
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        name: "App",
+        install_size: 2000,
+        inserted_at: ~U[2024-01-02 02:00:00Z]
+      )
+
+      newest_app =
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          name: "App",
+          install_size: 3000,
+          inserted_at: ~U[2024-01-03 02:00:00Z]
+        )
+
+      other =
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          name: "Other",
+          install_size: 500,
+          inserted_at: ~U[2024-01-04 02:00:00Z]
+        )
+
+      # When
+      bundles = Bundles.distinct_project_app_bundles(project)
+
+      # Then
+      assert Enum.map(bundles, & &1.name) == ["Other", "App"]
+      app_bundle = Enum.find(bundles, &(&1.name == "App"))
+      assert app_bundle.id == newest_app.id
+      assert app_bundle.install_size == 3000
+      assert Enum.find(bundles, &(&1.name == "Other")).id == other.id
+    end
+  end
+
   describe "has_bundles_in_project_default_branch?/1" do
     test "returns true when there are bundles in the project's default branch" do
       # Given
@@ -1119,7 +1477,8 @@ defmodule Tuist.BundlesTest do
       project = ProjectsFixtures.project_fixture()
       threshold = BundlesFixtures.bundle_threshold_fixture(project: project)
 
-      {:ok, updated} = Bundles.update_bundle_threshold(threshold, %{name: "Updated", deviation_percentage: 15.0})
+      {:ok, updated} =
+        Bundles.update_bundle_threshold(threshold, %{name: "Updated", deviation_percentage: 15.0})
 
       assert updated.name == "Updated"
       assert updated.deviation_percentage == 15.0

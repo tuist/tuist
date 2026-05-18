@@ -39,7 +39,6 @@ struct PreviewsUploadServiceTests {
         subject = PreviewsUploadService(
             fileSystem: fileSystem,
             fileArchiver: fileArchiverFactory,
-            retryProvider: RetryProvider(),
             multipartUploadStartPreviewsService: multipartUploadStartPreviewsService,
             multipartUploadGenerateURLPreviewsService: multipartUploadGenerateURLPreviewsService,
             multipartUploadArtifactService: multipartUploadArtifactService,

@@ -1,0 +1,89 @@
+---
+{
+  "title": "Registry",
+  "titleTemplate": ":title · Features · Guides · Tuist",
+  "description": "Optimize Swift Package Manager resolution with the Tuist Registry."
+}
+---
+# Registry {#registry}
+
+As the number of dependencies grows, so does the time to resolve them. While other package managers like [CocoaPods](https://cocoapods.org/) or [npm](https://www.npmjs.com/) are centralized, Swift Package Manager is not. Because of that, SwiftPM needs to resolve dependencies by doing a deep clone of each repository, which can be time-consuming and takes up more memory than a centralized approach would. To address this, Tuist provides an implementation of the [Package Registry](https://github.com/swiftlang/swift-package-manager/blob/main/Documentation/PackageRegistry/PackageRegistryUsage.md), so you can download only the commits you _actually need_. The packages in the registry are based on the [Swift Package Index](https://swiftpackageindex.com/) -- if you can find a package there, the package is also available in the Tuist Registry. Additionally, the packages are distributed across the globe using an edge storage for minimum latency when resolving them.
+
+## Usage {#usage}
+
+There are two ways to set up the registry:
+
+### Option 1: Automatic setup during generation (recommended) {#automatic-setup}
+
+If you're using Tuist to generate your project, you can enable the registry by setting the `registryEnabled` option in your `Tuist.swift` configuration:
+
+```swift
+import ProjectDescription
+
+let tuist = Tuist(
+    project: .tuist(
+        generationOptions: .options(
+            registryEnabled: true
+        )
+    )
+)
+```
+
+With this option, `tuist generate` will automatically create the registry configuration file in your workspace. This eliminates the need to run `tuist registry setup` separately.
+
+> [!TIP]
+> If you want to integrate dependencies through Xcode's default Swift Package Manager integration (rather than Tuist's XcodeProj-based integration), enabling `registryEnabled` in your generated projects will configure them to use the registry automatically:
+>
+> ```swift
+> import ProjectDescription
+>
+> let tuist = Tuist(
+>     project: .tuist(
+>         generationOptions: .options(
+>             registryEnabled: true
+>         )
+>     )
+> )
+> ```
+
+
+### Option 2: Manual setup {#manual-setup}
+
+To set up the registry manually, run the following command in your project's directory:
+
+```bash
+tuist registry setup
+```
+
+This command generates a registry configuration file that enables the registry for your project. Ensure this file is committed so your team can also benefit from the registry.
+
+### Authentication (optional) {#authentication}
+
+Authentication is **optional**. Without authentication, you can use the registry with a rate limit of **1,000 requests per minute** per IP address. To get a higher rate limit of **20,000 requests per minute**, you can authenticate by running:
+
+```bash
+tuist registry login
+```
+
+> [!NOTE]
+> Authentication requires a <.localized_link href="/guides/server/accounts-and-projects">Tuist account and project</.localized_link>.
+
+
+### Resolving dependencies {#resolving-dependencies}
+
+To resolve dependencies from the registry instead of from source control, continue reading based on your project setup:
+- <.localized_link href="/guides/features/registry/xcode-project">Xcode project</.localized_link>
+- <.localized_link href="/guides/features/registry/generated-project">Generated project with the Xcode package integration</.localized_link>
+- <.localized_link href="/guides/features/registry/xcodeproj-integration">Generated project with the XcodeProj-based package integration</.localized_link>
+- <.localized_link href="/guides/features/registry/swift-package">Swift package</.localized_link>
+
+To set up the registry on the CI, follow this guide: <.localized_link href="/guides/features/registry/continuous-integration">Continuous integration</.localized_link>.
+
+### Package registry identifiers {#package-registry-identifiers}
+
+When you use package registry identifiers in a `Package.swift` or `Project.swift` file, you need to convert the URL of the package to the registry convention. The registry identifier is always in the form of `{organization}.{repository}`. For example, to use the registry for the `https://github.com/pointfreeco/swift-composable-architecture` package, the package registry identifier would be `pointfreeco.swift-composable-architecture`.
+
+> [!NOTE]
+> The identifier can't contain more than one dot. If the repository name contains a dot, it's replaced with an underscore.
+> For example, the `https://github.com/groue/GRDB.swift` package would have the registry identifier `groue.GRDB_swift`.
+

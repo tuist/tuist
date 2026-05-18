@@ -76,7 +76,7 @@ a {
     gap: var(--noora-spacing-3);
 
     & [data-part="indicator"] {
-      border-radius: var(--noora-radius-xsmall);
+      border-radius: var(--noora-radius-1);
       background-color: var(--indicator-color);
       width: 6px;
     }

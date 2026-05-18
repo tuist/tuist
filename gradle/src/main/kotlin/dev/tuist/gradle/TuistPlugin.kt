@@ -24,6 +24,10 @@ import org.gradle.api.logging.Logging
  *
  *     uploadInBackground = true // default: true locally, false on CI
  *
+ *     network {
+ *         proxy = false
+ *     }
+ *
  *     buildCache {
  *         enabled = true
  *         push = true
@@ -38,11 +42,28 @@ import org.gradle.api.logging.Logging
 data class TuistGradleConfig(
     val url: String,
     val project: String?,
+    val network: Network,
     val uploadInBackground: Boolean? = null,
     val testQuarantineEnabled: Boolean? = null
 ) {
+    data class Network(val proxy: Boolean)
+
     companion object {
         internal const val EXTRA_PROPERTY_KEY = "tuist.config"
+
+        fun from(settings: Settings, extension: TuistExtension): TuistGradleConfig =
+            TuistGradleConfig(
+                url = extension.url,
+                project = extension.project.ifBlank { null },
+                network = Network(
+                    proxy = EnvironmentProxyResolver.resolve(
+                        extensionProxy = extension.network.proxy,
+                        projectDir = settings.settingsDir
+                    )
+                ),
+                uploadInBackground = extension.uploadInBackground,
+                testQuarantineEnabled = extension.testQuarantine.enabled
+            )
 
         fun from(project: org.gradle.api.Project): TuistGradleConfig? =
             project.extensions.extraProperties.let {
@@ -72,56 +93,59 @@ class TuistPlugin : Plugin<Settings> {
     }
 
     private fun configure(settings: Settings, extension: TuistExtension) {
-        configureBuildCache(settings, extension)
-        configureBuildInsights(settings, extension)
-        configureTestInsights(settings, extension)
+        val config = TuistGradleConfig.from(settings, extension)
+        publishSharedConfig(settings, config)
+        configureBuildCache(settings, config, extension.buildCache)
+        configureBuildInsights(settings, config)
+        configureTestInsights(settings, config)
     }
 
-    private fun configureBuildInsights(settings: Settings, extension: TuistExtension) {
-        val project = extension.project.ifBlank { null }
+    private fun publishSharedConfig(settings: Settings, config: TuistGradleConfig) {
         settings.gradle.rootProject {
-            extensions.extraProperties.set(TuistGradleConfig.EXTRA_PROPERTY_KEY, TuistGradleConfig(
-                url = extension.url,
-                project = project,
-                uploadInBackground = extension.uploadInBackground,
-                testQuarantineEnabled = extension.testQuarantine.enabled
-            ))
+            extensions.extraProperties.set(TuistGradleConfig.EXTRA_PROPERTY_KEY, config)
+        }
+    }
+
+    private fun configureBuildInsights(settings: Settings, config: TuistGradleConfig) {
+        settings.gradle.rootProject {
             pluginManager.apply(TuistBuildInsightsPlugin::class.java)
-            val projectLabel = project ?: "(from tuist.toml)"
+            val projectLabel = config.project ?: "(from tuist.toml)"
             logger.lifecycle("Tuist: Build insights configured for $projectLabel")
         }
     }
 
-    private fun configureTestInsights(settings: Settings, extension: TuistExtension) {
-        val project = extension.project.ifBlank { null }
+    private fun configureTestInsights(settings: Settings, config: TuistGradleConfig) {
         settings.gradle.rootProject {
             pluginManager.apply(TuistTestInsightsPlugin::class.java)
             pluginManager.apply(TuistTestShardingPlugin::class.java)
-            val projectLabel = project ?: "(from tuist.toml)"
+            val projectLabel = config.project ?: "(from tuist.toml)"
             logger.lifecycle("Tuist: Test insights configured for $projectLabel")
         }
     }
 
-    private fun configureBuildCache(settings: Settings, extension: TuistExtension) {
-        val buildCacheConfig = extension.buildCache
+    private fun configureBuildCache(
+        settings: Settings,
+        config: TuistGradleConfig,
+        buildCacheConfig: BuildCacheExtension
+    ) {
         if (!buildCacheConfig.enabled) {
             logger.info("Tuist: Build cache is disabled.")
             return
         }
 
-        val project = extension.project.ifBlank { null }
-
         settings.buildCache {
             remote(TuistBuildCache::class.java) {
-                this.project = project
-                this.url = extension.url
+                this.project = config.project
+                this.url = config.url
+                this.projectDir = settings.settingsDir.absolutePath
+                this.useEnvironmentProxy = config.network.proxy
                 isPush = buildCacheConfig.push
                 this.allowInsecureProtocol = buildCacheConfig.allowInsecureProtocol
             }
         }
 
         settings.gradle.rootProject {
-            val projectLabel = project ?: "(from tuist.toml)"
+            val projectLabel = config.project ?: "(from tuist.toml)"
             logger.lifecycle("Tuist: Remote build cache configured for $projectLabel")
         }
     }
@@ -151,6 +175,18 @@ open class TuistExtension {
      * to ensure it completes before ephemeral agents exit.
      */
     var uploadInBackground: Boolean? = null
+
+    /**
+     * Network configuration.
+     */
+    val network: NetworkSettings = NetworkSettings()
+
+    /**
+     * Configure network settings.
+     */
+    fun network(action: Action<NetworkSettings>) {
+        action.execute(network)
+    }
 
     /**
      * Build cache configuration.
@@ -195,6 +231,18 @@ open class BuildCacheExtension {
      * Whether to allow insecure HTTP connections. Defaults to false.
      */
     var allowInsecureProtocol: Boolean = false
+}
+
+/**
+ * Configuration for Tuist's network behavior.
+ */
+open class NetworkSettings {
+    /**
+     * Whether the plugin should use the proxy defined by `HTTPS_PROXY`/`HTTP_PROXY`.
+     * When null (default), the plugin reads `[network].proxy` from `tuist.toml`
+     * and otherwise falls back to `true`.
+     */
+    var proxy: Boolean? = null
 }
 
 /**

@@ -7,97 +7,76 @@
 ---
 # Principles
 
-The heart of Tuist lies in its community and shared ethos. Below, you'll find the core principles that define Tuist's essence and guide our collective journey. These principles serve as our compass, helping us navigate decisions and fostering a unified approach to our work. By embracing these shared values, we ensure that our actions and choices consistently align with Tuist's vision and mission.
+These are the values we hire, work, and part ways by. They define what kind of company Tuist is. Everything else (process, tooling, how we run a week) flows from them.
 
-## Optimize for happiness
+## Be developer obsessed
 
-We believe happiness is fundamental to user engagement and satisfaction. In every development decision, we ask: *"Does this spark joy for our users?"*
+We obsess over developers the way great product companies obsess over their customers. Our job is to make their teams effective: projects that stay healthy, builds you can trust, tests that tell the truth, releases that don't hurt. Speed is a symptom of that, not the goal.
 
-This principle guides us to seek new perspectives, gather emotional feedback, eliminate complexity, and imagine innovative solutions. While challenging, this approach leads to products users truly love.
+We see customer pain two ways. We dog-food our own tools, so our friction is a signal. And we listen hard to feedback for the pain we can't feel ourselves: different scale, stack, workflow. Either way, we act on it as if we were part of the customer's platform team.
 
-Inspired by user-centric philosophies like [Apple](https://apple.com)'s and [Ruby on Rails](https://rubyonrails.org/doctrine)', we strive to infuse happiness into all aspects of our work. In an increasingly complex world, we use happiness as a key metric for decision-making and feature evaluation.
+In practice:
 
-By prioritizing joy in our designs, we create experiences that resonate deeply with users, setting our products apart in the marketplace.
+* Every proposal answers: does this make a developer's day shorter, clearer, more reliable, or less painful?
+* Friction in our own workflow is a product signal, not something to route around.
+* A bug report sitting untouched for a week is a failure of this principle, not a backlog item.
+* Complaining about a tool without proposing a fix is not a Tuist-shaped activity.
 
-> [!NOTE] EXAMPLES
-> - A Swift DSL to declare projects
-> - Optimized Xcode projects that compile faster
+## Compound with AI
 
-## By humans for humans
+Tuist is an AI company. Not because we sprinkle LLMs on features, but because we're building for a world where developers ship alongside agents, and we expect everyone here to already live in that world.
 
-We firmly believe that technology should enhance and empower human potential, not constrain or replace it. Humans, with our complex emotions and diverse perspectives, can unlock technology's full potential when given the right tools and environment.
+AI is a multiplier on work you already do well. The point isn't to make AI the first step in everything. It's to fold it into your workflow so the things you ship are sharper, and there are more of them. A designer who reaches for AI doesn't stop thinking like a designer; they get more of their best work out the door. Same goes for engineering, support, sales, anywhere.
 
-Our exceptional foundation was built by embracing this principle early on, empowering creative minds to contribute their unique viewpoints. We're confident that app builders who adopt this approach will create more human-centric, impactful applications.
+That mindset means staying curious about what AI can and can't do, testing the edges, and sharing what you find. Treating AI as a trend to wait out, or as someone else's problem, is not a fit here.
 
-Implementing this principle, especially in developer tools, can be challenging. It's tempting to focus solely on technical solutions, forgetting the human element. Remember: *computers are means to an end, not the end itself.*
+In practice:
 
-To truly embody this principle, shift your perspective from solutions to needs and problems. Explore the motivations behind requests - they reveal human stories. Don't just build what's asked; understand why it's needed. Cultivate empathy and understanding for users and their challenges.
+* If a workflow you own hasn't changed in months, that's worth poking at.
+* Share what's working: a workflow, a prompt, a failed experiment.
+* Skepticism with evidence is welcome. Skepticism on vibes is not.
 
-This principle extends beyond our products to our work culture. We treat each other with respect, empathy, and understanding. We foster an environment where individuals can be authentic, grow, and find fulfillment. We acknowledge that we're human and may fall short. If you see us straying from this principle, speak up. We're committed to learning and growing together, embracing our humanity in the process.
+## **Ship with taste**
 
-By keeping humans at the center of our technological endeavors, we create more meaningful, effective, and ethical solutions.
+AI raises the floor on output. It doesn't raise the ceiling. The ceiling is set by taste, judgment, and care. That's where humans still earn their keep. We expect everyone here to bring great product taste, and to hold a high bar for what ships under our name.
 
-> [!NOTE] EXAMPLES
-> - Problem and motivation-oriented focus in conversations with developers
-> - Mindful support for the community
+Craft shows up in the obvious places (the design system, the CLI's error messages, the docs, the way a page loads) and the unobvious ones (a clear PR description, a well-named function, a support reply that actually helps). It's the difference between something that works and something that feels right.
 
-## Make simple things easy, and everything else possible
+Caring about craft is not a license to over-polish. We ship. But we don't ship work we're not proud of, and we don't hide behind "AI wrote it" when it isn't good enough.
 
-It's crucial to recognize that we can't create a one-size-fits-all solution. The diversity of cultures and needs is vast, and we should embrace this variety rather than forcing everyone into a single mold. Many projects fall into this trap, and we must avoid it at all costs.
+In practice:
 
-So, what does this mean in practice? We need to pinpoint the common denominator of the problems we're addressing and build the simplest solution that resolves them. These solutions should be designed with extensibility in mind. By making them extensible, we provide an API for developers, enabling them to tailor the solution to their specific needs.
-
-It's important to understand that identifying core elements and spotting opportunities for extensibility is a process that takes time, experience, and continuous feedback from the community. It's an ongoing balance—a constant back-and-forth between refining the simple solution, challenging the core models, and making those models more powerful and adaptable.
-
-> [!NOTE] EXAMPLES
-> - Providing documented REST API to build their own clients
-> - Allowing users to declare their own resource synthesizers
-> - Supporting codifying their conventions around where sources and resources are located
-
-## Meet crafters where they are
-
-Crafters are the people who build things.
-Each crafter is different.
-They come from diverse backgrounds, with varying levels of experience, needs, and preferences—whether technical or not.
-We should build technology that acknowledges these differences and brings us closer to them, rather than creating a rigid model and expecting them to meet us where it's most convenient for us.
-
-Some organizations prefer the latter approach because the former can be costly.
-It requires building flexible models that serve as a foundation to accommodate the diverse needs of the community.
-However, when done right, this approach fosters a unique and lasting connection with the community, helping you shape and grow your product over time.
-
-So, when making decisions, consider whether we can get as close as possible to the community, somewhere between asking them to meet us where it's most convenient and meeting them where it's most convenient for them.
-While it may not always be possible to get as close as we’d like, we should always strive to do so.
-
-> [!NOTE] EXAMPLES
-> - Using Swift as a language for our DSL
-> - Localizing our documentation in multiple languages
-> - Adopting `Package.swift` as the interface to declare dependencies
+* Before you ship, ask: would I be proud to put my name on this?
+* Use AI to get to a draft faster, then spend the time you saved on taste: naming, clarity, edge cases, the last 10%.
+* "It compiles" / "it passes" / "the model produced it" is not the bar.
+* Polish small things. The error message, the empty state, the typo in the doc. They add up.
 
 ## Default to open
 
-Openness is an invitation to collaboration and diversity.
-We believe the best technological solutions are shaped in the open. However, many companies shy away from this approach due to fears of jeopardizing business or rapid growth.
+We publish our handbook, our dashboards, our code, and our roadmap. We work in public because it makes the company better: more feedback, sharper thinking, stronger trust. Openness is load-bearing for us, not a marketing trick.
 
-We want to do things differently. Our goal is to build the best and most diverse solution first, allowing the business to follow a community-driven craft. Therefore, we default to openness in everything we do, only keeping private information that is sensitive or poses a significant risk to the company's sustainability, especially during our early days.
+Working in public is also how we operate day to day. Decisions happen in the community forum, in public Slack channels, and in GitHub issues and PRs, not in DMs. Shipping is half the work; writing about how and why we built it is what lets others learn from and build on it.
 
-In terms of software, our approach aligns with this principle. We commoditize client-side software, such as XcodeProj and our generation logic and graph, using permissive licenses. At the same time, we treat the server as a monetization layer, offering advanced features that leverage server capabilities like databases or the ability to interact with other services.
+Some things stay private: customer data, performance conversations, unshipped security work, contract negotiations, anything that would put a person or the business at real risk. "It might be embarrassing" or "it's easier" does not clear that bar.
 
-> [!NOTE] EXAMPLES
-> - Open-source CLI and components like XcodeProj
-> - Open handbook
-> - Open [dashboard](https://tuist.grafana.net/public-dashboards/1f85f1c3895e48febd02cc7350ade2d9)
+In practice:
 
-## Community first
+* Public channel, public issue, public PR, unless there's a specific reason not to.
+* Decisions get written down where the community can find them.
+* Ship the work, then write about the work. Both count.
+* If you catch yourself defaulting to private, check the reason. Usually there isn't one.
 
-Tuist is where it is today thanks to its thriving community of crafters who connect with our vision and support us in advancing our mission.
-Building a community takes time, and despite what many companies believe, we don't think it can be bought with money.
-Tuist's community is one of our unique assets, and we must continue to nurture it.
+## Play the long game
 
-The Tuist community is also our best marketing. Tuist spread thanks to word of mouth—people tried it, liked what they saw, and shared it with others. It’s the most authentic and effective form of marketing we can have.
+We are building Tuist for decades, not quarters. The Tuist we want to exist is years away, not weeks. That shapes how we trade off short-term wins against long-term trust, quality, and focus.
 
-Therefore, we should focus on how to continue growing our community and introduce new ways for members to connect with the project—such as through contributions, sharing their work on marketplaces, or becoming owners of some project assets. Community investment is a long-term strategy, and we must keep investing in it.
+Playing the long game means saying no to work that would compromise the product, the community's trust, or the team's focus, even when there's short-term pressure to say yes. It means investing in things that pay off slowly: the handbook, the docs, the open source, the relationships. It means not chasing trends we don't believe in.
 
-> [!NOTE] EXAMPLES
-> - Gift community members with free Tuist subscriptions or swag
-> - Recognize their work publicly
-> - Guide them to land their first contributions
+It also means holding our current views with the humility the long game demands. We bring strong opinions, built from real experience and evidence, and we hold them weakly enough to update when the evidence shifts. The failure mode we care about is ego attached to an opinion. It shows up as defending a position after the facts have moved, or as treating disagreement as a personal attack. Over a decade, the people who are right most often are the ones who change their minds most willingly.
+
+In practice:
+
+* When short-term and long-term disagree, say so out loud before picking.
+* We don't ship things we'll regret shipping, even if they'd hit a number this quarter.
+* Bring opinions, especially unpopular ones. Silence is not humility.
+* If you can't articulate what would change your mind, you don't have a position, you have an attachment.

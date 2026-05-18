@@ -60,7 +60,8 @@ public struct WorkspaceDescriptor {
             xcworkspacePath: AbsolutePath = try! AbsolutePath(validating: "/Test/Project.xcworkspace"),
             projects: [ProjectDescriptor] = [],
             schemes: [SchemeDescriptor] = [],
-            sideEffects: [SideEffectDescriptor] = []
+            sideEffects: [SideEffectDescriptor] = [],
+            workspaceSettingsDescriptor: WorkspaceSettingsDescriptor? = nil
         ) -> WorkspaceDescriptor {
             WorkspaceDescriptor(
                 path: path,
@@ -68,7 +69,8 @@ public struct WorkspaceDescriptor {
                 xcworkspace: XCWorkspace(),
                 projectDescriptors: projects,
                 schemeDescriptors: schemes,
-                sideEffectDescriptors: sideEffects
+                sideEffectDescriptors: sideEffects,
+                workspaceSettingsDescriptor: workspaceSettingsDescriptor
             )
         }
     #endif

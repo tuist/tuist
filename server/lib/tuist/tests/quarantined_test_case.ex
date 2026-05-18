@@ -13,6 +13,7 @@ defmodule Tuist.Tests.QuarantinedTestCase do
     :quarantined_by_account_name,
     :last_ran_at,
     :last_run_id,
-    :last_status
+    :last_status,
+    :state
   ]
 end

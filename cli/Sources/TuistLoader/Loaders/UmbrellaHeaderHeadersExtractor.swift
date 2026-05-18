@@ -1,13 +1,14 @@
+import FileSystem
 import Foundation
 import Path
-import TuistSupport
 
 public enum UmbrellaHeaderHeadersExtractor {
     public static func headers(
         from path: AbsolutePath,
-        for productName: String?
-    ) throws -> [String] {
-        let umbrellaContent = try FileHandler.shared.readTextFile(path)
+        for productName: String?,
+        fileSystem: FileSysteming = FileSystem()
+    ) async throws -> [String] {
+        let umbrellaContent = try await fileSystem.readTextFile(at: path)
         let lines = umbrellaContent.components(separatedBy: .newlines)
         let expectedPrefixes = [
             "#import \"",

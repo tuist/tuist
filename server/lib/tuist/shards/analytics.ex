@@ -174,23 +174,22 @@ defmodule Tuist.Shards.Analytics do
 
   defp shard_balance_sessions(project_id, start_datetime, end_datetime) do
     ClickHouseRepo.all(
-      from(t in Test,
-        where: t.project_id == ^project_id,
-        where: not is_nil(t.shard_plan_id),
-        where: t.ran_at >= ^start_datetime,
-        where: t.ran_at <= ^end_datetime,
-        group_by: t.shard_plan_id,
+      from(sr in ShardRun,
+        where: sr.project_id == ^project_id,
+        where: sr.ran_at >= ^start_datetime,
+        where: sr.ran_at <= ^end_datetime,
+        group_by: sr.shard_plan_id,
         having: count() > 1,
         select: %{
-          plan_id: t.shard_plan_id,
+          plan_id: sr.shard_plan_id,
           balance:
             fragment(
               "if(avg(?) > 0, greatest(0, 1 - (stddevPop(?) / avg(?))), 1)",
-              t.duration,
-              t.duration,
-              t.duration
+              sr.duration,
+              sr.duration,
+              sr.duration
             ),
-          ran_at: max(t.ran_at)
+          ran_at: max(sr.ran_at)
         }
       )
     )
@@ -478,14 +477,21 @@ defmodule Tuist.Shards.Analytics do
   defp get_clickhouse_date_format(_), do: "%Y-%m-%d"
 
   def shard_metrics(test_run_id) when is_binary(test_run_id) do
+    # The shard_runs table is a MergeTree, so each shard can carry multiple
+    # rows: the controller inserts one upfront with duration=0 when the
+    # CLI uploads with status=processing, and the xcresult worker inserts
+    # another with the parsed duration afterwards. Collapse them per
+    # shard_index, picking the row with the largest inserted_at so the
+    # dashboard shows the latest data.
     ClickHouseRepo.all(
       from(sr in ShardRun,
         where: sr.test_run_id == ^test_run_id,
+        group_by: sr.shard_index,
         select: %{
           shard_index: sr.shard_index,
-          actual_duration_ms: sr.duration,
-          status: sr.status,
-          ran_at: sr.ran_at
+          actual_duration_ms: fragment("argMax(?, ?)", sr.duration, sr.inserted_at),
+          status: fragment("argMax(?, ?)", sr.status, sr.inserted_at),
+          ran_at: fragment("argMax(?, ?)", sr.ran_at, sr.inserted_at)
         }
       )
     )

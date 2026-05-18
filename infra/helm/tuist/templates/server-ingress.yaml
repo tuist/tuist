@@ -1,0 +1,39 @@
+{{- if and .Values.server.enabled .Values.server.ingress.enabled }}
+{{- $svcName := include "tuist.componentName" (dict "root" . "component" "server") }}
+{{- $svcPort := .Values.server.service.port }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "server") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+  {{- with .Values.server.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.server.ingress.className }}
+  ingressClassName: {{ . | quote }}
+  {{- end }}
+  {{- if .Values.server.ingress.tlsSecretName }}
+  tls:
+    - hosts:
+        - {{ .Values.server.ingress.host | quote }}
+      secretName: {{ .Values.server.ingress.tlsSecretName | quote }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.server.ingress.host | quote }}
+      http:
+        paths:
+          {{- with .Values.server.ingress.extraPaths }}
+          {{- toYaml . | nindent 10 }}
+          {{- end }}
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $svcName }}
+                port:
+                  number: {{ $svcPort }}
+{{- end }}

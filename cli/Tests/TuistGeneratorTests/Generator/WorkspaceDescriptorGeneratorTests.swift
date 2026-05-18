@@ -82,7 +82,7 @@ struct WorkspaceDescriptorGeneratorTests {
         // Given
         let name = "test"
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
-        try FileHandler.shared.createFolder(temporaryPath.appending(component: "\(name).xcworkspace"))
+        try await FileSystem().makeDirectory(at: temporaryPath.appending(component: "\(name).xcworkspace"))
         let workspace = Workspace.test(name: name)
         let graph = Graph.test(
             path: temporaryPath,

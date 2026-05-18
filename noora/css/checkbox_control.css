@@ -4,7 +4,7 @@
   align-items: center;
   cursor: pointer;
   box-sizing: border-box;
-  border-radius: var(--noora-radius-small);
+  border-radius: var(--noora-radius-2);
   width: 16px;
   height: 16px;
   color: var(--noora-choice-selector-label);

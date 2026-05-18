@@ -11,6 +11,7 @@ import TuistGenerator
 import TuistLoader
 import TuistServer
 import TuistSupport
+import TuistXcodeBuildProducts
 import XcodeGraph
 
 import struct TSCUtility.Version

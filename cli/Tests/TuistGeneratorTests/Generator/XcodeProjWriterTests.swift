@@ -1,7 +1,9 @@
 
 import Foundation
+import Path
 import TuistCore
 import TuistSupport
+import XcodeGraph
 import XcodeProj
 import XCTest
 @testable import TuistGenerator
@@ -65,8 +67,7 @@ final class XcodeProjWriterTests: TuistUnitTestCase {
         let path = try temporaryPath()
         let xcodeProjPath = path.appending(component: "Project.xcodeproj")
         let filePath = path.appending(component: "MyFile")
-        let fileHandler = FileHandler.shared
-        try fileHandler.touch(filePath)
+        try await fileSystem.touch(filePath)
 
         let sideEffect = SideEffectDescriptor.file(FileDescriptor(path: filePath, state: .absent))
         let descriptor = ProjectDescriptor.test(
@@ -251,5 +252,86 @@ final class XcodeProjWriterTests: TuistUnitTestCase {
         XCTAssertEqual(schemes, [
             "UserScheme.xcscheme",
         ])
+    }
+
+    func test_writeWorkspace_writesPerUserDerivedDataSettings() async throws {
+        // Given
+        let path = try temporaryPath()
+        let xcworkspacePath = path.appending(component: "Workspace.xcworkspace")
+        let derivedDataPath = try AbsolutePath(validating: "/tmp/DerivedData")
+        let descriptor = WorkspaceDescriptor.test(
+            path: path,
+            xcworkspacePath: xcworkspacePath,
+            workspaceSettingsDescriptor: WorkspaceSettingsDescriptor(
+                enableAutomaticXcodeSchemes: false,
+                derivedDataPath: .custom(derivedDataPath)
+            )
+        )
+
+        // When
+        try await subject.write(workspace: descriptor)
+
+        // Then
+        let username = NSUserName()
+        let perUserSettingsPath = xcworkspacePath
+            .appending(components: "xcuserdata", "\(username).xcuserdatad", "WorkspaceSettings.xcsettings")
+        let perUserSettings = try WorkspaceSettings.at(path: perUserSettingsPath.path)
+        XCTAssertEqual(perUserSettings.derivedDataLocationStyle, .absolutePath)
+        XCTAssertEqual(perUserSettings.derivedDataCustomLocation, "/tmp/DerivedData")
+    }
+
+    func test_writeWorkspace_preservesExistingPerUserSettings() async throws {
+        // Given
+        let path = try temporaryPath()
+        let xcworkspacePath = path.appending(component: "Workspace.xcworkspace")
+        let username = NSUserName()
+        let perUserSettingsPath = xcworkspacePath
+            .appending(components: "xcuserdata", "\(username).xcuserdatad", "WorkspaceSettings.xcsettings")
+        try await fileSystem.makeDirectory(at: perUserSettingsPath.parentDirectory)
+        let existingSettings = WorkspaceSettings()
+        existingSettings.autoCreateSchemes = true
+        try existingSettings.write(path: perUserSettingsPath.path, override: true)
+
+        let derivedDataPath = try AbsolutePath(validating: "/tmp/DerivedData")
+        let descriptor = WorkspaceDescriptor.test(
+            path: path,
+            xcworkspacePath: xcworkspacePath,
+            workspaceSettingsDescriptor: WorkspaceSettingsDescriptor(
+                enableAutomaticXcodeSchemes: false,
+                derivedDataPath: .custom(derivedDataPath)
+            )
+        )
+
+        // When
+        try await subject.write(workspace: descriptor)
+
+        // Then
+        let perUserSettings = try WorkspaceSettings.at(path: perUserSettingsPath.path)
+        XCTAssertEqual(perUserSettings.derivedDataLocationStyle, .absolutePath)
+        XCTAssertEqual(perUserSettings.derivedDataCustomLocation, "/tmp/DerivedData")
+        XCTAssertEqual(perUserSettings.autoCreateSchemes, true)
+    }
+
+    func test_writeWorkspace_doesNotWritePerUserSettingsWithoutCustomDerivedData() async throws {
+        // Given
+        let path = try temporaryPath()
+        let xcworkspacePath = path.appending(component: "Workspace.xcworkspace")
+        let descriptor = WorkspaceDescriptor.test(
+            path: path,
+            xcworkspacePath: xcworkspacePath,
+            workspaceSettingsDescriptor: WorkspaceSettingsDescriptor(
+                enableAutomaticXcodeSchemes: false
+            )
+        )
+
+        // When
+        try await subject.write(workspace: descriptor)
+
+        // Then
+        let username = NSUserName()
+        let perUserSettingsPath = xcworkspacePath
+            .appending(components: "xcuserdata", "\(username).xcuserdatad", "WorkspaceSettings.xcsettings")
+        let exists = try await fileSystem.exists(perUserSettingsPath)
+        XCTAssertFalse(exists)
     }
 }

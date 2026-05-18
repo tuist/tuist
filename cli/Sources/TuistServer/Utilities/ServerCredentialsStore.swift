@@ -144,8 +144,9 @@ public enum ServerCredentialsStoreBackend: Sendable {
         public func read(serverURL: URL) async throws -> ServerCredentials? {
             switch backend {
             case .keychain:
-                let refreshToken = try keychain(serverURL: serverURL).get(serverURL.absoluteString + "_refresh_token")!
-                let accessToken = try keychain(serverURL: serverURL).get(serverURL.absoluteString + "_access_token")!
+                guard let accessToken = try keychain(serverURL: serverURL).get(serverURL.absoluteString + "_access_token")
+                else { return nil }
+                let refreshToken = try keychain(serverURL: serverURL).get(serverURL.absoluteString + "_refresh_token")
                 return ServerCredentials(
                     accessToken: accessToken,
                     refreshToken: refreshToken

@@ -16,6 +16,11 @@ This node covers the Tuist CLI workspace under `cli/`. Follow downlinks for subs
 - `cli/Sources/TuistKit` - Monolithic command wiring; new commands should be added to feature-specific modules.
 - `cli/Sources/TuistGenerator` - Monolithic generation pipeline; new generation logic should be added to smaller, focused modules.
 
+## Building
+- To generate the Xcode project for a faster build, run `tuist generate tuist ProjectDescription --no-open` (generates only the required targets instead of the full workspace).
+- To compile, use `xcodebuild build -workspace Tuist.xcworkspace -scheme tuist CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""`.
+- Prefer the `tuist` scheme over `Tuist-Workspace` for faster iteration.
+
 ## Code Style
 - Do not add one-line comments unless they are truly useful.
 
@@ -33,6 +38,18 @@ This node covers the Tuist CLI workspace under `cli/`. Follow downlinks for subs
       // Test implementation
   }
   ```
+
+### Running tests
+- Prefer `tuist generate` + `xcodebuild`/`xcsiftbuild test` over `swift test`. `swift test` is significantly slower because it rebuilds the full SPM dependency graph, and some test targets (e.g. `TuistGeneratorTests`, `TuistLoaderTests`) aren't even registered in `Package.swift` — they only exist in the Tuist-generated workspace.
+- Fast iteration loop for a specific test suite:
+  ```bash
+  tuist generate tuist TuistGenerator TuistGeneratorTests ProjectDescription --no-open
+  xcsiftbuild test -workspace Tuist.xcworkspace -scheme Tuist-Workspace \
+      -only-testing TuistGeneratorTests/SomeSuite \
+      CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+      COMPILATION_CACHE_ENABLE_CACHING=NO
+  ```
+- Swift Testing filters use the pattern `ModuleTests/SuiteName` (the type name without the `struct` keyword). For a single `@Test` function: `ModuleTests/SuiteName/function_name`.
 
 ## Linting
 - Before committing changes, run `mise run cli:lint --fix` to ensure code is properly formatted.

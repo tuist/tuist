@@ -38,14 +38,22 @@ defmodule TuistWeb.Plugs.WebhookPlug do
   @impl true
   def init(options) do
     read_timeout = Keyword.get(options, :read_timeout, 15_000)
+    body_length = Keyword.get(options, :body_length)
+
+    parser_options =
+      maybe_put_parser_option(
+        [
+          parsers: [:json],
+          body_reader: {CacheBodyReader, :read_body, []},
+          json_decoder: Phoenix.json_library(),
+          read_timeout: read_timeout
+        ],
+        :length,
+        body_length
+      )
 
     parser_opts =
-      Plug.Parsers.init(
-        parsers: [:json],
-        body_reader: {CacheBodyReader, :read_body, []},
-        json_decoder: Phoenix.json_library(),
-        read_timeout: read_timeout
-      )
+      Plug.Parsers.init(parser_options)
 
     Keyword.put(options, :parser_opts, parser_opts)
   end
@@ -67,52 +75,70 @@ defmodule TuistWeb.Plugs.WebhookPlug do
   end
 
   defp handle_webhook(conn, options) do
-    secret = parse_secret!(get_config(options, :secret))
-    module = get_config(options, :handler)
     signature_header = get_config(options, :signature_header) || "x-hub-signature-256"
-    signature_prefix = get_config(options, :signature_prefix)
-    parser_opts = get_config(options, :parser_opts)
+    signature = conn |> get_req_header(signature_header) |> List.first()
 
-    conn =
-      try do
-        Plug.Parsers.call(conn, parser_opts)
-      rescue
-        error in Bandit.HTTPError ->
-          if error.plug_status == :request_timeout do
-            conn
-            |> send_resp(408, "Request Timeout")
-            |> halt()
-          else
-            reraise error, __STACKTRACE__
-          end
-      end
+    if is_nil(signature) do
+      conn
+      |> send_resp(401, "Missing #{signature_header} header")
+      |> halt()
+    else
+      verify_and_dispatch(conn, options, signature)
+    end
+  end
+
+  # Secret resolution may depend on the parsed body (e.g. webhooks
+  # whose signing secret is per-installation, not global), so it has
+  # to happen after `parse_request_body/2`.
+  #
+  # The resolver may also need to stash request-derived state on the
+  # conn (the matched installation row, for one) so post-HMAC handlers
+  # don't have to redo a potentially-ambiguous lookup. Resolvers can
+  # opt into that by returning `{:ok, secret, conn}` alongside the
+  # bare-string and `{:ok, secret}` shapes.
+  defp verify_and_dispatch(conn, options, signature) do
+    conn = parse_request_body(conn, get_config(options, :parser_opts))
 
     if conn.halted do
       conn
     else
-      signature = conn |> get_req_header(signature_header) |> List.first()
+      do_verify_and_dispatch(conn, options, signature)
+    end
+  end
 
-      cond do
-        is_nil(signature) ->
-          conn
-          |> send_resp(401, "Missing #{signature_header} header")
-          |> halt()
+  defp do_verify_and_dispatch(conn, options, signature) do
+    signature_prefix = get_config(options, :signature_prefix)
+    module = get_config(options, :handler)
 
-        conn.assigns.raw_body
-        |> List.wrap()
-        |> IO.iodata_to_binary()
-        |> verify_signature(
-          secret,
-          signature,
-          signature_prefix
-        ) ->
-          handle_verified_webhook(conn, module)
+    case resolve_secret(get_config(options, :secret), conn) do
+      {:ok, secret, conn} ->
+        dispatch_after_signature_check(conn, secret, signature, signature_prefix, module)
 
-        true ->
-          conn
-          |> send_resp(403, "Invalid signature")
-          |> halt()
-      end
+      {:error, reason} ->
+        conn
+        |> send_resp(403, "Invalid signature: #{reason}")
+        |> halt()
+    end
+  end
+
+  defp dispatch_after_signature_check(conn, secret, signature, signature_prefix, module) do
+    if valid_signature?(conn, secret, signature, signature_prefix) do
+      handle_verified_webhook(conn, module)
+    else
+      conn
+      |> send_resp(403, "Invalid signature")
+      |> halt()
+    end
+  end
+
+  defp resolve_secret(config, conn) do
+    case parse_secret!(config, conn) do
+      nil -> {:error, "no secret"}
+      secret when is_binary(secret) -> {:ok, secret, conn}
+      {:ok, secret} when is_binary(secret) -> {:ok, secret, conn}
+      {:ok, secret, %Plug.Conn{} = conn} when is_binary(secret) -> {:ok, secret, conn}
+      {:error, reason} -> {:error, reason}
+      other -> {:error, "unexpected secret: #{inspect(other)}"}
     end
   end
 
@@ -142,17 +168,48 @@ defmodule TuistWeb.Plugs.WebhookPlug do
     Plug.Crypto.secure_compare(signature_in_header, expected_signature_with_prefix)
   end
 
-  defp parse_secret!({m, f, a}), do: apply(m, f, a)
-  defp parse_secret!(fun) when is_function(fun), do: fun.()
-  defp parse_secret!(secret) when is_binary(secret), do: secret
+  defp valid_signature?(conn, secret, signature, signature_prefix) do
+    conn.assigns.raw_body
+    |> List.wrap()
+    |> IO.iodata_to_binary()
+    |> verify_signature(secret, signature, signature_prefix)
+  end
 
-  defp parse_secret!(secret) do
+  defp parse_request_body(conn, parser_opts) do
+    Plug.Parsers.call(conn, parser_opts)
+  rescue
+    error in Bandit.HTTPError ->
+      if error.plug_status == :request_timeout do
+        conn
+        |> send_resp(408, "Request Timeout")
+        |> halt()
+      else
+        reraise error, __STACKTRACE__
+      end
+
+    Plug.Parsers.RequestTooLargeError ->
+      conn
+      |> send_resp(413, "Payload Too Large")
+      |> halt()
+  end
+
+  defp maybe_put_parser_option(options, _key, nil), do: options
+  defp maybe_put_parser_option(options, key, value), do: Keyword.put(options, key, value)
+
+  defp parse_secret!({m, f, a}, _conn), do: apply(m, f, a)
+  defp parse_secret!(fun, conn) when is_function(fun, 1), do: fun.(conn)
+  defp parse_secret!(fun, _conn) when is_function(fun, 0), do: fun.()
+  defp parse_secret!(secret, _conn) when is_binary(secret), do: secret
+
+  defp parse_secret!(secret, _conn) do
     raise """
     The webhook secret is invalid. Expected a string, tuple, or function.
     Got: #{inspect(secret)}
 
-    If you're setting the secret at runtime, you need to pass a tuple or function.
-    For example:
+    If you're setting the secret at runtime, pass a tuple or function.
+    Functions can be `arity 0` (no args) or `arity 1` (receives the
+    parsed conn so the secret can depend on the body, e.g. for
+    per-tenant webhooks). For example:
 
     plug TuistWeb.Plugs.WebhookPlug,
       at: "/webhook/example",

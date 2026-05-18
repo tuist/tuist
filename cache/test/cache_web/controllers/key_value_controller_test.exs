@@ -2,6 +2,8 @@ defmodule CacheWeb.KeyValueControllerTest do
   use CacheWeb.ConnCase
   use Mimic
 
+  import ExUnit.CaptureLog
+
   alias Cache.Authentication
   alias Cache.KeyValueStore
 
@@ -132,12 +134,35 @@ defmodule CacheWeb.KeyValueControllerTest do
       assert conn.resp_body == ""
 
       {:ok, stored_json} = KeyValueStore.get_key_value(cas_id, account_handle, project_handle)
-      stored_response = Jason.decode!(stored_json)
+      stored_response = JSON.decode!(stored_json)
 
       assert stored_response["entries"] == [
                %{"value" => "test_value_1"},
                %{"value" => "test_value_2"}
              ]
+    end
+
+    test "returns 408 when request body read times out during JSON parsing", %{conn: conn} do
+      account_handle = "test-account"
+      project_handle = "test-project"
+
+      reject(KeyValueStore, :put_key_value, 4)
+
+      expect(Plug.Conn, :read_body, fn _conn, _opts ->
+        raise Bandit.TransportError, message: "Request body read timed out", error: :timeout
+      end)
+
+      capture_log(fn ->
+        assert_error_sent 408, fn ->
+          conn
+          |> put_req_header("authorization", "Bearer valid-token")
+          |> put_req_header("content-type", "application/json")
+          |> put(
+            "/api/cache/keyvalue?account_handle=#{account_handle}&project_handle=#{project_handle}",
+            ~s({"cas_id":"test_cas_id_123","entries":[{"value":"test_value_1"}]})
+          )
+        end
+      end)
     end
 
     test "returns 401 when authorization header is missing", %{conn: conn} do

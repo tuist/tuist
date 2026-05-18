@@ -21,6 +21,8 @@
 @import "./pages/overview.css";
 @import "./pages/preview.css";
 @import "./pages/previews.css";
+@import "./pages/ops/account.css";
+@import "./pages/ops/accounts.css";
 @import "./pages/ops/cache.css";
 @import "./pages/project_automations.css";
 @import "./pages/project_bundle_settings.css";
@@ -37,6 +39,6 @@
 @import "./pages/flaky_tests.css";
 @import "./pages/quarantined_tests.css";
 @import "./pages/shards.css";
-@import "./pages/sso_settings.css";
+@import "./pages/authentication_settings.css";
 @import "./pages/machine_metrics.css";
 @import "./pages/xcode_cache.css";

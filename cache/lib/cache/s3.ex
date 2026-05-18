@@ -181,30 +181,7 @@ defmodule Cache.S3 do
 
     case head_object_status(bucket, key) do
       :exists ->
-        local_path |> Path.dirname() |> File.mkdir_p!()
-
-        {dl_duration, dl_result} =
-          :timer.tc(fn ->
-            bucket
-            |> ExAws.S3.download_file(key, local_path)
-            |> ExAws.request()
-          end)
-
-        case dl_result do
-          {:ok, :done} ->
-            :telemetry.execute([:cache, :s3, :download], %{duration: dl_duration}, %{result: :ok})
-            {:ok, :hit}
-
-          {:error, {:http_error, 429, _}} ->
-            :telemetry.execute([:cache, :s3, :download], %{duration: dl_duration}, %{result: :rate_limited})
-            Logger.warning("S3 download rate limited for artifact: #{key}")
-            {:error, :rate_limited}
-
-          {:error, reason} ->
-            :telemetry.execute([:cache, :s3, :download], %{duration: dl_duration}, %{result: :error})
-            Logger.error("S3 download failed for artifact #{key}: #{inspect(reason)}")
-            {:error, reason}
-        end
+        download_existing_object(key, bucket, local_path)
 
       :not_found ->
         {:ok, :miss}
@@ -216,6 +193,78 @@ defmodule Cache.S3 do
       {:error, reason} ->
         {:error, reason}
     end
+  end
+
+  defp download_existing_object(key, bucket, local_path) do
+    tmp_path = tmp_download_path(local_path)
+
+    local_path |> Path.dirname() |> File.mkdir_p!()
+
+    {dl_duration, dl_result} =
+      :timer.tc(fn ->
+        bucket
+        |> ExAws.S3.download_file(key, tmp_path)
+        |> ExAws.request()
+      end)
+
+    handle_download_result(key, local_path, tmp_path, dl_duration, dl_result)
+  end
+
+  defp handle_download_result(key, local_path, tmp_path, dl_duration, {:ok, :done}) do
+    case publish_download(tmp_path, local_path) do
+      :ok ->
+        :telemetry.execute([:cache, :s3, :download], %{duration: dl_duration}, %{result: :ok})
+        {:ok, :hit}
+
+      {:error, reason} ->
+        :telemetry.execute([:cache, :s3, :download], %{duration: dl_duration}, %{result: :error})
+        Logger.error("Failed to publish S3 download for artifact #{key}: #{inspect(reason)}")
+        {:error, reason}
+    end
+  end
+
+  defp handle_download_result(key, _local_path, tmp_path, dl_duration, {:error, {:http_error, 429, _}}) do
+    cleanup_tmp_download(tmp_path)
+    :telemetry.execute([:cache, :s3, :download], %{duration: dl_duration}, %{result: :rate_limited})
+    Logger.warning("S3 download rate limited for artifact: #{key}")
+    {:error, :rate_limited}
+  end
+
+  defp handle_download_result(key, _local_path, tmp_path, dl_duration, {:error, reason}) do
+    cleanup_tmp_download(tmp_path)
+    :telemetry.execute([:cache, :s3, :download], %{duration: dl_duration}, %{result: :error})
+    Logger.error("S3 download failed for artifact #{key}: #{inspect(reason)}")
+    {:error, reason}
+  end
+
+  defp publish_download(tmp_path, local_path) do
+    case Cache.Disk.move_file(tmp_path, local_path) do
+      :ok ->
+        :ok
+
+      {:error, :exists} ->
+        cleanup_tmp_download(tmp_path)
+        :ok
+
+      {:error, reason} ->
+        cleanup_tmp_download(tmp_path)
+        {:error, reason}
+    end
+  end
+
+  defp cleanup_tmp_download(tmp_path) do
+    case File.rm(tmp_path) do
+      :ok -> :ok
+      {:error, :enoent} -> :ok
+      {:error, _reason} -> :ok
+    end
+  end
+
+  defp tmp_download_path(local_path) do
+    dir = Path.dirname(local_path)
+    filename = Path.basename(local_path)
+    suffix = [:positive] |> System.unique_integer() |> Integer.to_string()
+    Path.join(dir, ".tmp.#{filename}.#{suffix}")
   end
 
   @doc """

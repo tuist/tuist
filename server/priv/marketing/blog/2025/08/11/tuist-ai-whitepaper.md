@@ -46,7 +46,7 @@ Consequently, many companies rely solely on unit tests and solid architecture to
 
 Here's how it works: mention `@tuist-qa` in your PR, and within minutes, an agent spins up a macOS environment, installs your app, and methodically tests the changes. It reads your `QA.md` for context, understands your app's architecture, and focuses testing on what matters most.
 
-All the necessary components for agentic QA are already in place: Tuist supports [previews](https://docs.tuist.dev/en/guides/features/previews) for app bundle uploads with commit and branch tracking, and it integrates with GitHub for event-driven actions. Additionally, integration with Namespace is being built for spinning up macOS environments where agents can operate. Early results are promising.
+All the necessary components for agentic QA are already in place: Tuist supports [previews](https://tuist.dev/en/docs/guides/features/previews) for app bundle uploads with commit and branch tracking, and it integrates with GitHub for event-driven actions. Additionally, integration with Namespace is being built for spinning up macOS environments where agents can operate. Early results are promising.
 
 You mention us in a PR, and we respond shortly after with a summary and link to a detailed testing report that includes logs, screenshots, and all necessary diagnostic information. We gather context from PRs and other sources, such as `QA.md` files.
 

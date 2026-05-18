@@ -1,0 +1,123 @@
+#!/bin/bash
+# Indexes all GitHub issues and pull requests from tuist/tuist into TypeSense.
+# Paginates through the GitHub API, handles rate limiting, and bulk-imports
+# documents into the "github-issues" TypeSense collection in batches of 250.
+# Requires TYPESENSE_API_KEY and TYPESENSE_HOST environment variables.
+set -euo pipefail
+
+GITHUB_REPO="tuist/tuist"
+TYPESENSE_API_KEY="${TYPESENSE_API_KEY:?TYPESENSE_API_KEY is required}"
+TYPESENSE_HOST="${TYPESENSE_HOST:?TYPESENSE_HOST is required}"
+GITHUB_TOKEN="${GITHUB_TOKEN:-}"
+COLLECTION="github-issues"
+
+DOCUMENTS_FILE=$(mktemp)
+trap 'rm -f "$DOCUMENTS_FILE"' EXIT
+
+typesense_request() {
+  local method="$1" path="$2"
+  shift 2
+  curl -sf -X "$method" "${TYPESENSE_HOST}${path}" \
+    -H "X-TYPESENSE-API-KEY: ${TYPESENSE_API_KEY}" \
+    -H "Content-Type: application/json" \
+    "$@" || true
+}
+
+echo "Fetching issues and PRs from ${GITHUB_REPO}..."
+
+url="https://api.github.com/repos/${GITHUB_REPO}/issues?state=all&per_page=100&sort=updated&direction=desc"
+total=0
+
+while [ -n "$url" ]; do
+  response_file=$(mktemp)
+  header_file=$(mktemp)
+
+  http_code=$(curl -sf -w "%{http_code}" \
+    -H "Accept: application/vnd.github+json" \
+    -H "User-Agent: TuistSearchIndexer/1.0" \
+    ${GITHUB_TOKEN:+-H "Authorization: Bearer ${GITHUB_TOKEN}"} \
+    -D "$header_file" \
+    -o "$response_file" \
+    "$url") || http_code="000"
+
+  if [ "$http_code" = "403" ]; then
+    reset=$(grep -i "x-ratelimit-reset" "$header_file" | tr -d '\r' | awk '{print $2}')
+    now=$(date +%s)
+    wait=$((reset - now))
+    [ "$wait" -lt 1 ] && wait=1
+    echo "Rate limited, waiting ${wait}s..." >&2
+    sleep "$wait"
+    rm -f "$response_file" "$header_file"
+    continue
+  fi
+
+  count=$(jq 'length' "$response_file")
+  if [ "$count" -eq 0 ]; then
+    rm -f "$response_file" "$header_file"
+    break
+  fi
+
+  jq -c '.[] | {
+    title: .title,
+    content: ((.body // "")[:10000]),
+    url: .html_url,
+    number: .number,
+    state: .state,
+    kind: (if .pull_request then "pull-request" else "issue" end),
+    labels: [.labels[]?.name],
+    author: (.user.login // ""),
+    created_at: (.created_at // ""),
+    updated_at: (.updated_at // ""),
+    "hierarchy.lvl0": (if .pull_request then "Pull Requests" else "Issues" end),
+    "hierarchy.lvl1": .title
+  }' "$response_file" >> "$DOCUMENTS_FILE"
+
+  total=$((total + count))
+  printf "  Fetched %d issues...\r" "$total"
+
+  url=$(grep -i '^link:' "$header_file" | tr ',' '\n' | grep 'rel="next"' | sed 's/.*<\(.*\)>.*/\1/' || echo "")
+  rm -f "$response_file" "$header_file"
+done
+
+echo "  Fetched ${total} issues     "
+
+doc_count=$(wc -l < "$DOCUMENTS_FILE" | tr -d ' ')
+echo "Prepared ${doc_count} documents"
+
+typesense_request DELETE "/collections/${COLLECTION}"
+
+typesense_request POST "/collections" -d '{
+  "name": "'"${COLLECTION}"'",
+  "fields": [
+    {"name": "title", "type": "string"},
+    {"name": "content", "type": "string"},
+    {"name": "url", "type": "string", "index": false},
+    {"name": "number", "type": "int64"},
+    {"name": "state", "type": "string", "facet": true},
+    {"name": "kind", "type": "string", "facet": true},
+    {"name": "labels", "type": "string[]", "facet": true},
+    {"name": "author", "type": "string", "facet": true},
+    {"name": "created_at", "type": "string"},
+    {"name": "updated_at", "type": "string"},
+    {"name": "hierarchy.lvl0", "type": "string", "facet": true},
+    {"name": "hierarchy.lvl1", "type": "string"}
+  ]
+}'
+echo "Created collection '${COLLECTION}'"
+
+total_success=0
+split_dir=$(mktemp -d)
+split -l 250 "$DOCUMENTS_FILE" "${split_dir}/batch_"
+
+for batch_file in "${split_dir}"/batch_*; do
+  [ -f "$batch_file" ] || continue
+  result=$(curl -sf -X POST "${TYPESENSE_HOST}/collections/${COLLECTION}/documents/import?action=create" \
+    -H "X-TYPESENSE-API-KEY: ${TYPESENSE_API_KEY}" \
+    -H "Content-Type: text/plain" \
+    --data-binary @"$batch_file")
+  successes=$(echo "$result" | jq -r 'select(.success == true)' | wc -l | tr -d ' ')
+  total_success=$((total_success + successes))
+done
+
+rm -rf "$split_dir"
+echo "Indexed ${total_success}/${doc_count} documents into '${COLLECTION}'"

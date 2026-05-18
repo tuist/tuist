@@ -32,20 +32,6 @@
         <h1 data-part="label">
           {@test_case_detail.name}
         </h1>
-        <.badge
-          :if={@test_case_detail.is_flaky}
-          label={dgettext("dashboard_tests", "Flaky")}
-          color="attention"
-          style="light-fill"
-          size="large"
-        />
-        <.badge
-          :if={@test_case_detail.is_quarantined}
-          label={dgettext("dashboard_tests", "Quarantined")}
-          color="destructive"
-          style="light-fill"
-          size="large"
-        />
       </div>
       <div
         :if={@test_case_detail.module_name != "" or @test_case_detail.suite_name != ""}
@@ -68,28 +54,41 @@
       </div>
     </div>
     <div data-part="actions">
-      <.button
-        :if={@test_case_detail.is_quarantined}
-        label={dgettext("dashboard_tests", "Unquarantine")}
-        variant="secondary"
-        size="medium"
-        phx-click="unquarantine"
+      <.dropdown
+        id="test-case-state-dropdown"
+        label={state_label(@test_case_detail.state || "enabled")}
       >
-        <:icon_left>
-          <.icon name="lock_open_2" />
-        </:icon_left>
-      </.button>
-      <.button
-        :if={!@test_case_detail.is_quarantined}
-        label={dgettext("dashboard_tests", "Quarantine")}
-        variant="secondary"
-        size="medium"
-        phx-click="quarantine"
-      >
-        <:icon_left>
-          <.icon name="lock" />
-        </:icon_left>
-      </.button>
+        <:icon>
+          <.icon name={state_icon(@test_case_detail.state || "enabled")} />
+        </:icon>
+        <.dropdown_item
+          value="enabled"
+          label={dgettext("dashboard_tests", "Enabled")}
+          on_click="set-state"
+          data-selected={(@test_case_detail.state || "enabled") == "enabled"}
+        >
+          <:left_icon><.icon name="player_play" /></:left_icon>
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
+        <.dropdown_item
+          value="muted"
+          label={dgettext("dashboard_tests", "Muted")}
+          on_click="set-state"
+          data-selected={(@test_case_detail.state || "enabled") == "muted"}
+        >
+          <:left_icon><.icon name="volume_3" /></:left_icon>
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
+        <.dropdown_item
+          value="skipped"
+          label={dgettext("dashboard_tests", "Skipped")}
+          on_click="set-state"
+          data-selected={(@test_case_detail.state || "enabled") == "skipped"}
+        >
+          <:left_icon><.icon name="player_track_next" /></:left_icon>
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
+      </.dropdown>
       <.button
         :if={@test_case_detail.is_flaky}
         label={dgettext("dashboard_tests", "Unmark as flaky")}
@@ -218,7 +217,7 @@
                 branch: @selected_project.default_branch
               )
             }
-            value={if @reliability.ok?, do: "#{@reliability.result}%"}
+            value={if @reliability.ok?, do: format_percent(@reliability.result)}
             id="widget-test-reliability"
             empty={@reliability.ok? && is_nil(@reliability.result)}
             empty_label={dgettext("dashboard_tests", "No data")}
@@ -232,11 +231,7 @@
                 "Total number of times this test case has been executed."
               )
             }
-            value={
-              if @analytics.ok?,
-                do:
-                  Number.Delimit.number_to_delimited(@analytics.result.total_count, precision: 0)
-            }
+            value={if @analytics.ok?, do: format_number(@analytics.result.total_count)}
             id="widget-test-case-runs"
             empty={@analytics.ok? && @analytics.result.total_count == 0}
           />
@@ -246,11 +241,7 @@
             description={
               dgettext("dashboard_tests", "Number of times this test case has failed.")
             }
-            value={
-              if @analytics.ok?,
-                do:
-                  Number.Delimit.number_to_delimited(@analytics.result.failed_count, precision: 0)
-            }
+            value={if @analytics.ok?, do: format_number(@analytics.result.failed_count)}
             id="widget-failed-test-case-runs"
             empty={@analytics.ok? && @analytics.result.total_count == 0}
           />
@@ -298,9 +289,12 @@
                 {format_event_subtitle(event)}
               </span>
             </div>
-            <div data-part="overview-history-time">
-              {Timex.from_now(event.inserted_at)}
-            </div>
+            <.relative_time_with_tooltip
+              id={"overview-history-event-#{event.id}-time-tooltip"}
+              part="overview-history-time"
+              time={event.inserted_at}
+              timezone={@user_timezone}
+            />
           </div>
         </div>
         <div :if={@overview_history_has_more} data-part="overview-history-footer">
@@ -553,6 +547,16 @@
             status="warning"
           />
         </:col>
+        <:col :let={test_case_run} label={dgettext("dashboard_tests", "Branch")}>
+          <.text_cell
+            icon="git_branch"
+            label={
+              if test_case_run.git_branch == "",
+                do: dgettext("dashboard_tests", "Unknown"),
+                else: test_case_run.git_branch
+            }
+          />
+        </:col>
         <:col :let={test_case_run} label={dgettext("dashboard_tests", "Ran by")}>
           <.test_ran_by_badge_cell test={test_case_run} />
         </:col>
@@ -635,9 +639,12 @@
               {format_event_subtitle(event)}
             </span>
           </div>
-          <span data-part="timeline-time">
-            {Timex.from_now(event.inserted_at)}
-          </span>
+          <.relative_time_with_tooltip
+            id={"test-history-event-#{event.id}-time-tooltip"}
+            part="timeline-time"
+            time={event.inserted_at}
+            timezone={@user_timezone}
+          />
         </div>
 
         <div

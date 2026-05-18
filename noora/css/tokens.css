@@ -41,7 +41,7 @@
   --noora-orange-300: oklch(81.9% 0.111 48.6);
   --noora-orange-400: oklch(76.9% 0.149 48.6);
   --noora-orange-500: oklch(71.9% 0.185 48.7);
-  --noora-orange-600: oklch(0.62 0.1659 48.81);
+  --noora-orange-600: oklch(62% 0.1659 48.81);
   --noora-orange-700: oklch(48% 0.129 49);
   --noora-orange-800: oklch(33.7% 0.091 48.5);
   --noora-orange-900: oklch(20.9% 0.057 48.2);
@@ -122,13 +122,13 @@
   --noora-neutral-gray-24: oklch(31.8% 0 0 / 0.24);
   --noora-neutral-gray-16: oklch(34.8% 0 0 / 0.16);
 
-  --noora-alpha-red: oklch(58.7% 0.23 30.7 / 0.2);
+  --noora-alpha-red: oklch(58.7% 0.23 30.7 / 0.18);
   --noora-alpha-orange: oklch(71.9% 0.185 48.7 / 0.16);
   --noora-alpha-yellow: oklch(84.8% 0.174 86.1 / 0.16);
   --noora-alpha-green: oklch(64% 0.175 146.7 / 0.16);
   --noora-alpha-azure: oklch(57% 0.127 238.5 / 0.16);
-  --noora-alpha-blue: oklch(63% 0.182 259.5 / 0.24);
-  --noora-alpha-purple: oklch(53.2% 0.276 286.9 / 0.24);
+  --noora-alpha-blue: oklch(63% 0.182 259.5 / 0.2);
+  --noora-alpha-purple: oklch(53.2% 0.276 286.9 / 0.2);
   --noora-alpha-pink: oklch(57.4% 0.218 7.8 / 0.24);
   --noora-alpha-black: oklch(0% 0 0 / 0.8);
 
@@ -140,7 +140,7 @@
   );
   --noora-surface-background-secondary: light-dark(
     var(--noora-neutral-light-200),
-    var(--noora-neutral-dark-1100)
+    var(--noora-neutral-dark-1000)
   );
   --noora-surface-background-tertiary: light-dark(
     var(--noora-neutral-light-100),
@@ -244,14 +244,14 @@
   --noora-button-background-primary:
     linear-gradient(
       180deg,
-      oklch(100% 0 0 / 0.16) 0%,
+      oklch(100% 0 0 / 0.06) 0%,
       oklch(100% 0 0 / 0) 100%
     ),
     var(--noora-button-primary-background);
   --noora-button-background-primary-hover:
     linear-gradient(
       180deg,
-      oklch(100% 0 0 / 0.08) 0%,
+      oklch(100% 0 0 / 0.18) 0%,
       oklch(100% 0 0 / 0) 100%
     ),
     var(--noora-button-primary-background);
@@ -300,42 +300,42 @@
   --noora-button-background-secondary:
     linear-gradient(
       180deg,
-      light-dark(oklch(78.6% 0.013 248 / 0), oklch(100% 0 0 / 0.06)),
-      light-dark(oklch(78.6% 0.013 248 / 0.06), oklch(100% 0 0 / 0))
+      light-dark(oklch(78.6% 0.013 248 / 0), oklch(100% 0 0 / 0.04)),
+      light-dark(oklch(78.6% 0.013 248 / 0.08), oklch(100% 0 0 / 0))
     ),
     var(--noora-button-secondary-background);
   --noora-button-background-secondary-hover:
     linear-gradient(
       180deg,
-      light-dark(oklch(78.6% 0.013 248 / 0.03), oklch(100% 0 0 / 0.03)),
-      light-dark(oklch(78.6% 0.013 248 / 0.13), oklch(100% 0 0 / 0))
+      light-dark(oklch(78.6% 0.013 248 / 0), oklch(100% 0 0 / 0.08)),
+      light-dark(oklch(78.6% 0.013 248 / 0.16), oklch(100% 0 0 / 0))
     ),
     var(--noora-button-secondary-background);
   --noora-button-background-secondary-disabled:
     linear-gradient(
       180deg,
       light-dark(oklch(78.6% 0.013 248 / 0), oklch(100% 0 0 / 0.06)),
-      light-dark(oklch(78.6% 0.013 248 / 0.06), oklch(100% 0 0 / 0))
+      light-dark(oklch(78.6% 0.013 248 / 0.08), oklch(100% 0 0 / 0))
     ),
     var(--noora-button-secondary-disabled-background);
   --noora-button-border-secondary:
-    0px 1px 0px 0px light-dark(oklch(100% 0 0 / 0.9), oklch(100% 0 0 / 0.12))
+    0px 1px 0px 0px light-dark(oklch(100% 0 0 / 0.9), oklch(100% 0 0 / 0.16))
       inset,
     0px 1px 1px 0px
-      light-dark(oklch(31.8% 0.011 248.2 / 0.05), oklch(16.2% 0 0 / 0.8)),
+      light-dark(oklch(31.8% 0.011 248.2 / 0.05), oklch(16.2% 0 0 / 0.1)),
     0px 0px 0px 1px
-      light-dark(oklch(31.8% 0.011 248.2 / 0.08), oklch(25.4% 0 0 / 0.9)),
+      light-dark(oklch(31.8% 0.011 248.2 / 0.08), oklch(34.8% 0 0 / 0.9)),
     0px 2px 3px 0px
-      light-dark(oklch(31.8% 0.011 248.2 / 0.06), oklch(0% 0 0 / 0.24));
+      light-dark(oklch(31.8% 0.011 248.2 / 0.06), oklch(0% 0 0 / 0.5));
   --noora-button-border-secondary-disabled:
-    0px 1px 0px 0px light-dark(oklch(100% 0 0 / 0.7), oklch(100% 0 0 / 0.12))
+    0px 1px 0px 0px light-dark(oklch(100% 0 0 / 0.7), oklch(100% 0 0 / 0.16))
       inset,
     0px 1px 1px 0px
-      light-dark(oklch(31.8% 0.011 248.2 / 0.05), oklch(16.2% 0 0 / 0.8)),
+      light-dark(oklch(31.8% 0.011 248.2 / 0.05), oklch(16.2% 0 0 / 0.1)),
     0px 0px 0px 1px
-      light-dark(oklch(31.8% 0.011 248.2 / 0.05), oklch(25.4% 0 0 / 0.9)),
+      light-dark(oklch(31.8% 0.011 248.2 / 0.05), oklch(34.8% 0 0 / 0.9)),
     0px 2px 3px 0px
-      light-dark(oklch(31.8% 0.011 248.2 / 0.06), oklch(0% 0 0 / 0.24));
+      light-dark(oklch(31.8% 0.011 248.2 / 0.06), oklch(0% 0 0 / 0.5));
   --noora-button-background-secondary-active:
     linear-gradient(
       180deg,
@@ -351,21 +351,21 @@
       ),
     0px 0px 0px 2.5px
       light-dark(oklch(31.8% 0.011 248.2 / 0.25), oklch(54.9% 0 0 / 0.8)),
-    0px 1px 0px 0px light-dark(oklch(100% 0 0 / 0.9), oklch(100% 0 0 / 0.12))
+    0px 1px 0px 0px light-dark(oklch(100% 0 0 / 0.9), oklch(100% 0 0 / 0.16))
       inset,
     0px 1px 1px 0px
-      light-dark(oklch(31.8% 0.011 248.2 / 0.05), oklch(16.2% 0 0 / 0.8)),
+      light-dark(oklch(31.8% 0.011 248.2 / 0.05), oklch(16.2% 0 0 / 0.1)),
     0px 0px 0px 1px
-      light-dark(oklch(31.8% 0.011 248.2 / 0.08), oklch(25.4% 0 0 / 0.9)),
+      light-dark(oklch(31.8% 0.011 248.2 / 0.08), oklch(34.8% 0 0 / 0.9)),
     0px 2px 3px 0px
-      light-dark(oklch(31.8% 0.011 248.2 / 0.06), oklch(0% 0 0 / 0.24));
+      light-dark(oklch(31.8% 0.011 248.2 / 0.06), oklch(0% 0 0 / 0.5));
   --noora-button-border-secondary-active:
     0px 0px 0px 1px
-      light-dark(oklch(31.8% 0.011 248.2 / 0.08), oklch(25.4% 0 0 / 0.9)),
+      light-dark(oklch(31.8% 0.011 248.2 / 0.08), oklch(34.8% 0 0 / 0.9)),
     0px 1px 2px 0px light-dark(oklch(0% 0 0 / 0.05), oklch(0% 0 0 / 0.4)) inset;
 
   --noora-button-background-destructive:
-    linear-gradient(180deg, oklch(100% 0 0 / 0.24), oklch(100% 0 0 / 0)),
+    linear-gradient(180deg, oklch(100% 0 0 / 0.06), oklch(100% 0 0 / 0)),
     var(--noora-button-destructive-background);
   --noora-button-border-destructive:
     0px 1px 0px 0px oklch(100% 0 0 / 0.2) inset,
@@ -375,7 +375,7 @@
     0px 2px 3px 0px
       light-dark(oklch(31.8% 0.011 248.2 / 0.16), oklch(0% 0 0 / 0.4));
   --noora-button-background-destructive-hover:
-    linear-gradient(180deg, oklch(100% 0 0 / 0.06), oklch(100% 0 0 / 0)),
+    linear-gradient(180deg, oklch(100% 0 0 / 0.24), oklch(100% 0 0 / 0)),
     var(--noora-button-destructive-background);
   --noora-button-border-destructive-hover:
     0px 1px 0px 0px oklch(100% 0 0 / 0.1) inset,
@@ -387,8 +387,8 @@
   --noora-button-background-destructive-disabled:
     linear-gradient(
       180deg,
-      light-dark(oklch(100% 0 0 / 0.32), oklch(31.8% 0.011 248.2 / 0.25)),
-      light-dark(oklch(100% 0 0 / 0), oklch(31.8% 0.011 248.2 / 0.45))
+      light-dark(oklch(100% 0 0 / 0.06), oklch(31.8% 0.011 248.2 / 0.25)),
+      light-dark(oklch(100% 0 0 / 0), oklch(31.8% 0.011 248.2 / 0.5))
     ),
     var(--noora-button-destructive-disabled-background);
   --noora-button-border-destructive-disabled:
@@ -819,11 +819,7 @@
     0px -1px 0px 0px oklch(31.8% 0.011 248.2 / 0.16) inset,
     0px 8px 6px 0px oklch(31.8% 0.011 248.2 / 0.02),
     0px 2px 4px 0px oklch(31.8% 0.011 248.2 / 0.04);
-  --noora-border-section:
-    0px 1px 0px 0px oklch(100% 0 0 / 0.9) inset,
-    0px 1px 1px 0px oklch(31.8% 0.011 248.2 / 0.05),
-    0px 0px 0px 1px oklch(31.8% 0.011 248.2 / 0.08),
-    0px 2px 2px 0px oklch(31.8% 0.011 248.2 / 0.06);
+  --noora-border-section: 0 0 0 1px oklch(31.8% 0.011 248.2 / 0.06);
   --noora-border-heavy:
     0px 0px 0px 1.5px oklch(31.82% 0.0113 248.18 / 0.1) inset,
     0px -1.5px 0px 0px oklch(31.82% 0.0113 248.18 / 0.12) inset,
@@ -831,14 +827,16 @@
     0px 2px 4px 0px oklch(31.82% 0.0113 248.18 / 0.04);
 
   /* Radius */
-  --noora-radius-none: 0rem;
-  --noora-radius-xsmall: 0.125rem;
-  --noora-radius-small: 0.25rem;
-  --noora-radius-medium: 0.375rem;
-  --noora-radius-large: 0.5rem;
-  --noora-radius-xlarge: 0.75rem;
-  --noora-radius-2xlarge: 1rem;
-  --noora-radius-max: 1000px;
+  --noora-radius-0: 0rem;
+  --noora-radius-1: 0.125rem;
+  --noora-radius-2: 0.25rem;
+  --noora-radius-3: 0.375rem;
+  --noora-radius-4: 0.5rem;
+  --noora-radius-5: 0.625rem;
+  --noora-radius-6: 0.75rem;
+  --noora-radius-7: 0.875rem;
+  --noora-radius-8: 1rem;
+  --noora-radius-99: 1000px;
 
   /* Icon */
   --noora-icon-size-small: 0.75rem;
@@ -846,8 +844,8 @@
   --noora-icon-size-large: 1.25rem;
 
   /* Typography */
-  --noora-font-heading: "DM Sans", sans-serif;
-  --noora-font-body: "Inter Variable", sans-serif;
+  --noora-font-heading: "Inter Variable", "Noto Sans Georgian", sans-serif;
+  --noora-font-body: "Inter Variable", "Noto Sans Georgian", sans-serif;
   --noora-font-code: "Geist Mono", monospace;
 
   --noora-font-weight-regular: 400;
@@ -868,7 +866,7 @@
   --noora-font-body-medium: 0.875rem/1.25rem var(--noora-font-body);
   --noora-font-body-small: 0.75rem/1rem var(--noora-font-body);
   --noora-font-body-xsmall: 0.625rem/0.75rem var(--noora-font-body);
-  --noora-font-code-large: 1rem/1.5rem var(--noora-font-code);
+  --noora-font-code-large: 0.875rem/1.25rem var(--noora-font-code);
   --noora-font-code-medium: 0.75rem/1rem var(--noora-font-code);
   --noora-font-code-small: 0.625rem/0.75rem var(--noora-font-code);
 
@@ -879,10 +877,10 @@
       0px 0px 0px 1px oklch(46.9% 0.27 286.9 / 0.9),
       0px 2px 3px 0px oklch(0% 0 0 / 0.4);
     --noora-button-border-secondary-hover:
-      0px 1px 0px 0px oklch(100% 0 0 / 0.06) inset,
-      0px 1px 1px 0px oklch(16.2% 0 0 / 0.8),
-      0px 0px 0px 1px oklch(25.4% 0 0 / 0.9),
-      0px 2px 3px 0px oklch(0% 0 0 / 0.24);
+      0px 1px 0px 0px oklch(100% 0 0 / 0.24) inset,
+      0px 1px 1px 0px oklch(16.2% 0 0 / 0.1),
+      0px 0px 0px 1px oklch(34.8% 0 0 / 0.9),
+      0px 2px 3px 0px oklch(0% 0 0 / 0.5);
   }
 
   &[data-theme="dark"] {
@@ -957,11 +955,7 @@
       0px 1px 0px 0px oklch(54.9% 0 0 / 0.3) inset,
       0px 0px 0px 1px oklch(54.9% 0 0 / 0.2) inset,
       0px 2px 4px 0px oklch(0% 0 0 / 0.12), 0px 4px 8px 0px oklch(0% 0 0 / 0.24);
-    --noora-border-section:
-      0px 1px 0px 0px oklch(100% 0 0 / 0.2) inset,
-      0px 1px 1px 0px oklch(16.2% 0 0 / 0.8),
-      0px 0px 0px 1px oklch(34.8% 0 0 / 0.7),
-      0px 2px 2px 0px oklch(0% 0 0 / 0.24);
+    --noora-border-section: 0 0 0 1px oklch(34.8% 0 0 / 0.55);
     --noora-border-heavy:
       0px 1.5px 0px 0px oklch(54.9% 0 0 / 0.3) inset,
       0px 0px 0px 1.5px oklch(54.9% 0 0 / 0.2) inset,

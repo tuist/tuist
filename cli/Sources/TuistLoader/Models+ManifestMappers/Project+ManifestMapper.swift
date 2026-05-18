@@ -37,7 +37,7 @@ extension XcodeGraph.Project {
         case .external: .remote
         }
 
-        let targets = try await manifest.targets.concurrentMap(maxConcurrentTasks: 20) {
+        let targets = try await manifest.targets.concurrentMap {
             try await XcodeGraph.Target.from(
                 manifest: $0,
                 generatorPaths: generatorPaths,

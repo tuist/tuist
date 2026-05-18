@@ -22,7 +22,7 @@ This service provides:
 - `POST /api/cache/cas/:id` - Store Xcode cache artifact (requires `account_handle` and `project_handle` query params)
 
 ### Health Check
-- `GET /up` - Health check endpoint
+- `GET /up` - Health check endpoint (returns 200 when healthy, 503 otherwise)
 
 ## Setup
 
@@ -37,8 +37,8 @@ This service provides:
    - `PORT` - Port to run on (default: 4000)
    - `SERVER_URL` - URL of the main Tuist server for authentication
    - `STORAGE_DIR` - Directory for artifact storage (default: `/storage`)
-   - `DISK_HIGH_WATERMARK_PERCENT` - Optional high watermark (%) that triggers disk eviction (default: `85`)
-   - `DISK_TARGET_PERCENT` - Optional target usage (%) the eviction job aims for after cleanup (default: `70`)
+   - `DISK_HIGH_WATERMARK_PERCENT` - Optional high watermark (%) that triggers disk eviction (default: `75`)
+   - `DISK_TARGET_PERCENT` - Optional target usage (%) the eviction job aims for after cleanup (default: `60`)
    - `S3_BUCKET` - S3 bucket for module and Gradle cache artifacts
    - `S3_XCODE_CACHE_BUCKET` - Optional dedicated S3 bucket for Xcode cache artifacts (defaults to `S3_BUCKET`). When set to a different value, Xcode cache reads and writes use this bucket directly.
    - `S3_REGISTRY_BUCKET` - S3 bucket for Swift package registry
@@ -58,7 +58,7 @@ mix test
 
 ## Development
 
-The service uses a clone-local suffix from `.tuist-dev-instance` in development mode through mise shell env. That suffix scopes the cache port and the main server URL it talks to, so one repo clone can run its own paired `server/` and `cache/` instances without colliding with other clones.
+The service uses a checkout-local suffix in development mode through the shared mise shell env. Each checkout persists that suffix through Git metadata when available, while keeping the existing root `.tuist-dev-instance` file as a compatibility fallback. That suffix scopes the cache port and the main server URL it talks to, so developers can choose either multiple clones or linked worktrees and still run their own paired `server/` and `cache/` instances without colliding.
 
 ## Architecture
 

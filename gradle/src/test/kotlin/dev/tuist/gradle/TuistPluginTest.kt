@@ -293,6 +293,46 @@ class TuistPluginTest {
     }
 
     @Test
+    fun `plugin reads network proxy from tuist toml`() {
+        File(testProjectDir, "tuist.toml").writeText("""
+            project = "test-account/test-project"
+
+            [network]
+            proxy = false
+        """.trimIndent())
+
+        settingsFile.writeText("""
+            import dev.tuist.gradle.TuistGradleConfig
+
+            plugins {
+                id("dev.tuist")
+            }
+
+            rootProject.name = "test-project"
+        """.trimIndent())
+
+        buildFile.writeText("""
+            import dev.tuist.gradle.TuistGradleConfig
+
+            tasks.register("printProxyConfig") {
+                doLast {
+                    val config = project.extensions.extraProperties["tuist.config"] as TuistGradleConfig
+                    println("proxy=${'$'}{config.network.proxy}")
+                }
+            }
+        """.trimIndent())
+
+        val result = GradleRunner.create()
+            .withProjectDir(testProjectDir)
+            .withArguments("printProxyConfig")
+            .withPluginClasspath()
+            .build()
+
+        assertEquals(TaskOutcome.SUCCESS, result.task(":printProxyConfig")?.outcome)
+        assertTrue(result.output.contains("proxy=false"))
+    }
+
+    @Test
     fun `build insights logs message when configured`() {
         settingsFile.writeText("""
             plugins {
@@ -326,6 +366,44 @@ class TuistPluginTest {
 
         assertEquals(TaskOutcome.SUCCESS, result.task(":hello")?.outcome)
         assertTrue(result.output.contains("Build insights configured for my-org/my-project"))
+    }
+
+    @Test
+    fun `quarantine configuration stores no unserializable clients in task actions`() {
+        settingsFile.writeText("""
+            plugins {
+                id("dev.tuist")
+            }
+
+            tuist {
+                project = "test-account/test-project"
+                testQuarantine {
+                    enabled = true
+                }
+                buildCache {
+                    enabled = false
+                }
+            }
+
+            rootProject.name = "test-project"
+        """.trimIndent())
+
+        buildFile.writeText("""
+            plugins { java }
+
+            repositories { mavenCentral() }
+        """.trimIndent())
+
+        val result = GradleRunner.create()
+            .withProjectDir(testProjectDir)
+            .withArguments("test", "--configuration-cache", "--dry-run")
+            .withPluginClasspath()
+            .build()
+
+        assertTrue(
+            !result.output.contains("Configuration cache state could not be cached"),
+            "Unexpected configuration cache serialization error:\n${result.output}"
+        )
     }
 
     @Test

@@ -1,8 +1,0 @@
-servers:
-  web:
-    hosts:
-      - processor.tuist.dev
-
-env:
-  clear:
-    DEPLOY_ENV: production

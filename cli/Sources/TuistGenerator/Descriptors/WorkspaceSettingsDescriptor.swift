@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import XcodeGraph
 import XcodeProj
 
 /// Workspace Settings Descriptor
@@ -12,13 +13,32 @@ import XcodeProj
 /// - seealso: `WorkspaceDescriptor`
 public struct WorkspaceSettingsDescriptor: Equatable {
     private let enableAutomaticXcodeSchemes: Bool?
+    private let derivedDataPath: Workspace.GenerationOptions.DerivedDataPath
 
     var settings: WorkspaceSettings {
-        WorkspaceSettings(autoCreateSchemes: enableAutomaticXcodeSchemes)
+        let derivedDataLocationStyle: WorkspaceSettings.DerivedDataLocationStyle?
+        let derivedDataCustomLocation: String?
+        switch derivedDataPath {
+        case .default:
+            derivedDataLocationStyle = nil
+            derivedDataCustomLocation = nil
+        case let .custom(path):
+            derivedDataLocationStyle = .absolutePath
+            derivedDataCustomLocation = path.pathString
+        }
+        return WorkspaceSettings(
+            derivedDataLocationStyle: derivedDataLocationStyle,
+            derivedDataCustomLocation: derivedDataCustomLocation,
+            autoCreateSchemes: enableAutomaticXcodeSchemes
+        )
     }
 
-    public init(enableAutomaticXcodeSchemes: Bool?) {
+    public init(
+        enableAutomaticXcodeSchemes: Bool?,
+        derivedDataPath: Workspace.GenerationOptions.DerivedDataPath = .default
+    ) {
         self.enableAutomaticXcodeSchemes = enableAutomaticXcodeSchemes
+        self.derivedDataPath = derivedDataPath
     }
 
     public static func xcsettingsFilePath(relativeToWorkspace workspacePath: AbsolutePath) -> AbsolutePath {

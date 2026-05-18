@@ -1,4 +1,5 @@
 import Foundation
+import TuistEnvironment
 #if canImport(FoundationNetworking)
     import FoundationNetworking
 #endif
@@ -7,31 +8,127 @@ import Foundation
     import TuistHAR
 #endif
 
-private func tuistURLSessionConfiguration() -> URLSessionConfiguration {
+private func environmentProxyURL() -> URL? {
+    let environment = Environment.current.variables
+    let candidates = ["HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy"]
+    for key in candidates {
+        if let value = environment[key], !value.isEmpty, let url = URL(string: value) {
+            return url
+        }
+    }
+    return nil
+}
+
+private func resolvedUseEnvironmentProxy(_ useEnvironmentProxy: Bool?) -> Bool {
+    useEnvironmentProxy ?? HTTPSettings.current.useEnvironmentProxy
+}
+
+public func tuistURLSessionConfiguration(useEnvironmentProxy: Bool? = nil) -> URLSessionConfiguration {
+    tuistURLSessionConfigurationResolved(useEnvironmentProxy: resolvedUseEnvironmentProxy(useEnvironmentProxy))
+}
+
+private func tuistURLSessionConfigurationResolved(useEnvironmentProxy: Bool) -> URLSessionConfiguration {
     let configuration: URLSessionConfiguration = .ephemeral
-    configuration.timeoutIntervalForRequest = 120 // 2 minutes
-    configuration.timeoutIntervalForResource = 300 // 5 minutes
+    configuration.timeoutIntervalForRequest = 120
+    configuration.timeoutIntervalForResource = 90
     configuration.httpMaximumConnectionsPerHost = 20
     #if os(macOS) || os(iOS) || os(tvOS) || os(watchOS)
         configuration.allowsCellularAccess = true
         configuration.allowsConstrainedNetworkAccess = true
         configuration.allowsExpensiveNetworkAccess = true
     #endif
+    #if os(macOS)
+        if useEnvironmentProxy,
+           let proxyURL = environmentProxyURL(),
+           let dictionary = proxyDictionary(for: proxyURL)
+        {
+            configuration.connectionProxyDictionary = dictionary
+        }
+    #endif
     return configuration
 }
 
-#if canImport(TuistHAR)
-    private var _tuistURLSession: URLSession = .init(
-        configuration: tuistURLSessionConfiguration(),
-        delegate: URLSessionMetricsDelegate.shared,
-        delegateQueue: nil
-    )
-#else
-    private var _tuistURLSession: URLSession = .init(configuration: tuistURLSessionConfiguration())
-#endif
+private func makeTuistURLSession(useEnvironmentProxy: Bool) -> URLSession {
+    #if canImport(TuistHAR)
+        return URLSession(
+            configuration: tuistURLSessionConfigurationResolved(useEnvironmentProxy: useEnvironmentProxy),
+            delegate: URLSessionMetricsDelegate.shared,
+            delegateQueue: nil
+        )
+    #else
+        return URLSession(configuration: tuistURLSessionConfigurationResolved(useEnvironmentProxy: useEnvironmentProxy))
+    #endif
+}
+
+private final class SharedTuistURLSession: @unchecked Sendable {
+    private let lock = NSLock()
+    private var useEnvironmentProxy: Bool?
+    private var session: URLSession?
+
+    func resolve(useEnvironmentProxy: Bool) -> URLSession {
+        let sessionToInvalidate: URLSession?
+        lock.lock()
+
+        if let session, self.useEnvironmentProxy == useEnvironmentProxy {
+            lock.unlock()
+            return session
+        }
+
+        sessionToInvalidate = session
+        let session = makeTuistURLSession(useEnvironmentProxy: useEnvironmentProxy)
+        self.useEnvironmentProxy = useEnvironmentProxy
+        self.session = session
+        lock.unlock()
+        sessionToInvalidate?.invalidateAndCancel()
+        return session
+    }
+
+    func invalidate() {
+        let sessionToInvalidate: URLSession?
+        lock.lock()
+        useEnvironmentProxy = nil
+        sessionToInvalidate = session
+        session = nil
+        lock.unlock()
+        sessionToInvalidate?.invalidateAndCancel()
+    }
+}
+
+private let sharedTuistURLSession = SharedTuistURLSession()
+
+func invalidateSharedTuistURLSession() {
+    sharedTuistURLSession.invalidate()
+}
 
 extension URLSession {
     public static var tuistShared: URLSession {
-        _tuistURLSession
+        sharedTuistURLSession.resolve(useEnvironmentProxy: HTTPSettings.current.useEnvironmentProxy)
+    }
+
+    public static func tuistShared(useEnvironmentProxy: Bool) -> URLSession {
+        makeTuistURLSession(useEnvironmentProxy: useEnvironmentProxy)
     }
 }
+
+#if os(macOS)
+    func proxyDictionary(for proxyURL: URL) -> [AnyHashable: Any]? {
+        guard let host = proxyURL.host else { return nil }
+        let port = proxyURL.port ?? defaultProxyPort(for: proxyURL.scheme)
+        var dictionary: [AnyHashable: Any] = [:]
+        dictionary[kCFNetworkProxiesHTTPEnable as String] = 1
+        dictionary[kCFNetworkProxiesHTTPProxy as String] = host
+        dictionary[kCFNetworkProxiesHTTPPort as String] = port
+        dictionary[kCFNetworkProxiesHTTPSEnable as String] = 1
+        dictionary[kCFNetworkProxiesHTTPSProxy as String] = host
+        dictionary[kCFNetworkProxiesHTTPSPort as String] = port
+        return dictionary
+    }
+
+    private func defaultProxyPort(for scheme: String?) -> Int {
+        switch scheme?.lowercased() {
+        case "https": return 443
+        case "http": return 80
+        default: return 8080
+        }
+    }
+#endif

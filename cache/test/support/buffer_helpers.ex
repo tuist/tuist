@@ -1,11 +1,11 @@
 defmodule Cache.BufferTestHelpers do
   @moduledoc """
-  Shared setup helpers for starting test-local SQLiteBuffer instances
+  Shared setup helpers for starting test-local buffer instances
   and stubbing module-level buffer functions to use them.
 
-  Each helper starts a supervised SQLiteBuffer with a unique name,
-  allows the Ecto sandbox for its process, and stubs the buffer
-  module's public functions to delegate to the test-local instance.
+  Each helper starts a supervised buffer with a unique name and
+  stubs the buffer module's public functions to delegate to the
+  test-local instance.
 
   The stubs call through to the real buffer functions (using the
   `name` parameter) so tests exercise the actual ETS insert logic
@@ -20,7 +20,9 @@ defmodule Cache.BufferTestHelpers do
   alias Cache.KeyValueRepo
   alias Cache.S3TransfersBuffer
   alias Cache.SQLiteBuffer
+  alias Cache.Xcode.EventsPipeline
   alias Ecto.Adapters.SQL.Sandbox
+  alias OffBroadwayMemory.Buffer
 
   @doc """
   Starts a test-local KeyValueBuffer and stubs module functions to use it.
@@ -98,6 +100,23 @@ defmodule Cache.BufferTestHelpers do
     stub(S3TransfersBuffer, :reset, fn -> SQLiteBuffer.reset(name) end)
 
     Map.put(context, :s3_name, name)
+  end
+
+  @doc """
+  Starts a test-local Xcode events buffer and stubs the pipeline to use it.
+
+  Adds `:xcode_events_buffer_name` and `:unique_suffix` to the context.
+  """
+  def setup_xcode_events_buffer(context \\ %{}) do
+    {suffix, context} = ensure_suffix(context)
+    name = :"xcode_events_buf_test_#{suffix}"
+    start_supervised!({Buffer, name: name})
+
+    stub(EventsPipeline, :async_push, fn event ->
+      EventsPipeline.async_push(event, name)
+    end)
+
+    Map.put(context, :xcode_events_buffer_name, name)
   end
 
   defp ensure_suffix(%{unique_suffix: suffix} = context), do: {suffix, context}

@@ -17,11 +17,15 @@ final class TrackableCommandTests: TuistTestCase {
     private var subject: TrackableCommand!
     private var backgroundProcessRunner: MockBackgroundProcessRunning!
     private var gitController: MockGitControlling!
+    private var serverAuthenticationController: MockServerAuthenticationControlling!
+    private var uploadAnalyticsService: MockUploadAnalyticsServicing!
 
     override func setUp() {
         super.setUp()
         gitController = MockGitControlling()
         backgroundProcessRunner = MockBackgroundProcessRunning()
+        serverAuthenticationController = MockServerAuthenticationControlling()
+        uploadAnalyticsService = MockUploadAnalyticsServicing()
         given(backgroundProcessRunner)
             .runInBackground(.any, environment: .any)
             .willReturn()
@@ -32,23 +36,31 @@ final class TrackableCommandTests: TuistTestCase {
         given(gitController)
             .gitInfo(workingDirectory: .any)
             .willReturn(.test())
+
+        given(uploadAnalyticsService)
+            .upload(commandEvent: .any, fullHandle: .any, serverURL: .any, sessionDirectory: .any)
+            .willReturn(.test())
     }
 
     override func tearDown() {
         subject = nil
         gitController = nil
         backgroundProcessRunner = nil
+        serverAuthenticationController = nil
+        uploadAnalyticsService = nil
         super.tearDown()
     }
 
     private func makeSubject(
+        command: ParsableCommand? = nil,
         flag: Bool = true,
         shouldFail: Bool = false,
         analyticsRequired: Bool = false,
         commandArguments: [String] = ["cache", "warm"]
-    ) {
+    ) throws {
+        let temporaryPath = try temporaryPath()
         subject = TrackableCommand(
-            command: TestCommand(
+            command: command ?? TestCommand(
                 flag: flag,
                 shouldFail: shouldFail,
                 analyticsRequired: analyticsRequired
@@ -59,7 +71,9 @@ final class TrackableCommandTests: TuistTestCase {
                 gitController: gitController
             ),
             backgroundProcessRunner: backgroundProcessRunner,
-            sessionDirectory: fileHandler.currentPath
+            uploadAnalyticsService: uploadAnalyticsService,
+            serverAuthenticationController: serverAuthenticationController,
+            sessionDirectory: temporaryPath
         )
     }
 
@@ -67,7 +81,7 @@ final class TrackableCommandTests: TuistTestCase {
 
     func test_whenCommandFails_uploadsEventWithExpectedInfo() async throws {
         // Given
-        makeSubject(flag: false, shouldFail: true)
+        try makeSubject(flag: false, shouldFail: true)
         // When
         await XCTAssertThrowsSpecific(
             try await subject.run(
@@ -91,7 +105,7 @@ final class TrackableCommandTests: TuistTestCase {
 
     func test_whenPathIsInArguments() async throws {
         // Given
-        makeSubject(commandArguments: ["cache", "warm", "--path", "/my-path"])
+        try makeSubject(commandArguments: ["cache", "warm", "--path", "/my-path"])
 
         // When
         try await subject.run(fullHandle: "tuist/tuist", serverURL: .test(), shouldTrackAnalytics: true)
@@ -107,7 +121,7 @@ final class TrackableCommandTests: TuistTestCase {
 
     func test_whenPathIsInArguments_and_no_fullHandle_is_set() async throws {
         // Given
-        makeSubject(commandArguments: ["cache", "warm", "--path", "/my-path"])
+        try makeSubject(commandArguments: ["cache", "warm", "--path", "/my-path"])
 
         // When
         try await subject.run(fullHandle: nil, serverURL: .test(), shouldTrackAnalytics: true)
@@ -123,7 +137,7 @@ final class TrackableCommandTests: TuistTestCase {
 
     func test_whenPathIsNotInArguments() async throws {
         // Given
-        makeSubject(commandArguments: ["cache", "warm"])
+        try makeSubject(commandArguments: ["cache", "warm"])
 
         // When
         try await subject.run(fullHandle: "tuist/tuist", serverURL: .test(), shouldTrackAnalytics: true)
@@ -133,9 +147,151 @@ final class TrackableCommandTests: TuistTestCase {
             .runInBackground(.any, environment: .any)
             .called(1)
         verify(gitController)
-            .gitInfo(workingDirectory: .value(fileHandler.currentPath))
+            .gitInfo(workingDirectory: .any)
             .called(1)
     }
+
+    func test_whenOptionalAuthenticationIsEnabled_forTrackedCommands_wraps_command_execution() async throws {
+        // Given
+        let recorder = AuthenticationConfigRecorder()
+        ConfigObservingCommandState.recorder = recorder
+        ConfigObservingCommandState.analyticsRequired = true
+        let command = ConfigObservingCommand()
+        try makeSubject(command: command)
+
+        // When
+        try await subject.run(
+            fullHandle: nil,
+            serverURL: nil,
+            shouldTrackAnalytics: false,
+            optionalAuthentication: true
+        )
+
+        // Then
+        let recordedValues = await recorder.values()
+        XCTAssertEqual(recordedValues, [true])
+    }
+
+    func test_whenOptionalAuthenticationIsEnabled_andNoToken_skipsForegroundUpload() async throws {
+        // Given
+        given(serverAuthenticationController)
+            .authenticationToken(serverURL: .any, refreshIfNeeded: .any)
+            .willReturn(nil)
+        try makeSubject(analyticsRequired: true)
+
+        // When
+        try await subject.run(
+            fullHandle: "tuist/tuist",
+            serverURL: .test(),
+            shouldTrackAnalytics: true,
+            optionalAuthentication: true
+        )
+
+        // Then
+        verify(uploadAnalyticsService)
+            .upload(commandEvent: .any, fullHandle: .any, serverURL: .any, sessionDirectory: .any)
+            .called(0)
+        verify(backgroundProcessRunner)
+            .runInBackground(.any, environment: .any)
+            .called(0)
+    }
+
+    func test_whenOptionalAuthenticationIsEnabled_andTokenIsAvailable_uploadsRunMetadata() async throws {
+        // Given
+        given(serverAuthenticationController)
+            .authenticationToken(serverURL: .any, refreshIfNeeded: .any)
+            .willReturn(.project("token"))
+        try makeSubject(analyticsRequired: true)
+
+        // When
+        try await subject.run(
+            fullHandle: "tuist/tuist",
+            serverURL: .test(),
+            shouldTrackAnalytics: true,
+            optionalAuthentication: true
+        )
+
+        // Then
+        verify(uploadAnalyticsService)
+            .upload(commandEvent: .any, fullHandle: .any, serverURL: .any, sessionDirectory: .any)
+            .called(1)
+    }
+
+    func test_whenRunMetadataUploadTimesOut_doesNotFailCommand() async throws {
+        // Given
+        uploadAnalyticsService.reset()
+        given(uploadAnalyticsService)
+            .upload(commandEvent: .any, fullHandle: .any, serverURL: .any, sessionDirectory: .any)
+            .willThrow(URLError(.timedOut))
+        try makeSubject(analyticsRequired: true)
+
+        // When/Then
+        try await subject.run(
+            fullHandle: "tuist/tuist",
+            serverURL: .test(),
+            shouldTrackAnalytics: true
+        )
+    }
+
+    func test_whenRunMetadataCreationFails_doesNotFailCommand() async throws {
+        // Given
+        gitController.reset()
+        given(gitController)
+            .gitInfo(workingDirectory: .any)
+            .willThrow(NSError(domain: "TestDomain", code: 525))
+        try makeSubject(analyticsRequired: true)
+
+        // When/Then
+        try await subject.run(
+            fullHandle: "tuist/tuist",
+            serverURL: .test(),
+            shouldTrackAnalytics: true
+        )
+
+        verify(uploadAnalyticsService)
+            .upload(commandEvent: .any, fullHandle: .any, serverURL: .any, sessionDirectory: .any)
+            .called(0)
+    }
+
+    func test_whenOptionalAuthenticationIsEnabled_background_upload_does_not_add_a_flag() async throws {
+        // Given
+        try makeSubject(analyticsRequired: false)
+
+        // When
+        try await subject.run(
+            fullHandle: "tuist/tuist",
+            serverURL: .test(),
+            shouldTrackAnalytics: true,
+            optionalAuthentication: true
+        )
+
+        // Then
+        verify(backgroundProcessRunner)
+            .runInBackground(
+                .matching { arguments in
+                    !arguments.contains("--optional-authentication")
+                },
+                environment: .any
+            )
+            .called(1)
+    }
+}
+
+private actor AuthenticationConfigRecorder {
+    private var recordedValues: [Bool] = []
+
+    func record(_ value: Bool) {
+        recordedValues.append(value)
+    }
+
+    func values() -> [Bool] {
+        recordedValues
+    }
+}
+
+private enum ConfigObservingCommandState {
+    static var recorder = AuthenticationConfigRecorder()
+    static var analyticsRequired = false
 }
 
 private struct TestCommand: TrackableParsableCommand, ParsableCommand {
@@ -166,5 +322,19 @@ private struct TestCommand: TrackableParsableCommand, ParsableCommand {
         if shouldFail {
             throw TestError.commandFailed
         }
+    }
+}
+
+private struct ConfigObservingCommand: TrackableParsableCommand, AsyncParsableCommand {
+    static var configuration: CommandConfiguration {
+        CommandConfiguration(commandName: "observe")
+    }
+
+    var analyticsRequired: Bool {
+        ConfigObservingCommandState.analyticsRequired
+    }
+
+    func run() async throws {
+        await ConfigObservingCommandState.recorder.record(ServerAuthenticationConfig.current.optionalAuthentication)
     }
 }

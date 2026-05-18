@@ -19,12 +19,14 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  id-token: write
   contents: read
 
 env:
+  MISE_VERSION: "2026.4.18"
+  MISE_GITHUB_TOKEN: ${{ github.token }}
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   MISE_GITHUB_ATTESTATIONS: 0
+  MISE_LOCKED: 1
 
 defaults:
   run:
@@ -35,7 +37,12 @@ jobs:
     name: Test
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    permissions:
+      contents: read
+      id-token: write
+    if: |
+      (github.event.pull_request.draft == false || github.event_name != 'pull_request') &&
+      (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork != true)
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -43,20 +50,41 @@ jobs:
           distribution: temurin
           java-version: "21"
       - uses: gradle/actions/setup-gradle@v4
-      - uses: jdx/mise-action@v3.2.0
+      - uses: jdx/mise-action@v4.0.1
         with:
+          version: ${{ env.MISE_VERSION }}
           install_args: "tuist"
           cache: "false"
       - name: Authenticate with Tuist
-        if: github.event.pull_request.head.repo.fork != true
         run: tuist auth login
+      - run: ./gradlew testDebugUnitTest
+
+  test-fork:
+    name: Test Fork
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    if: github.event_name == 'pull_request' && github.event.pull_request.draft == false && github.event.pull_request.head.repo.fork == true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@v4
       - run: ./gradlew testDebugUnitTest
 
   build:
     name: Build
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    permissions:
+      contents: read
+      id-token: write
+    if: |
+      (github.event.pull_request.draft == false || github.event_name != 'pull_request') &&
+      (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork != true)
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -64,17 +92,31 @@ jobs:
           distribution: temurin
           java-version: "21"
       - uses: gradle/actions/setup-gradle@v4
-      - uses: jdx/mise-action@v3.2.0
+      - uses: jdx/mise-action@v4.0.1
         with:
+          version: ${{ env.MISE_VERSION }}
           install_args: "tuist"
           cache: "false"
       - name: Authenticate with Tuist
-        if: github.event.pull_request.head.repo.fork != true
         run: tuist auth login
       - run: ./gradlew assembleDebug
       - name: Share
-        if: github.event.pull_request.head.repo.fork != true
         run: tuist share app/build/outputs/apk/debug/app-debug.apk
       - name: Inspect bundle
-        if: github.event.pull_request.head.repo.fork != true
         run: tuist inspect bundle app/build/outputs/apk/debug/app-debug.apk
+
+  build-fork:
+    name: Build Fork
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    if: github.event_name == 'pull_request' && github.event.pull_request.draft == false && github.event.pull_request.head.repo.fork == true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@v4
+      - run: ./gradlew assembleDebug

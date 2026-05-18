@@ -84,6 +84,7 @@ defmodule TuistWeb.CacheRunsLive do
     organization =
       if Accounts.organization?(project.account) do
         {:ok, organization} = Accounts.get_organization_by_id(project.account.organization_id)
+
         users = Accounts.get_organization_members(organization)
 
         [
@@ -92,6 +93,7 @@ defmodule TuistWeb.CacheRunsLive do
             field: :ran_by,
             display_name: dgettext("dashboard_cache", "Ran by"),
             type: :option,
+            searchable: true,
             options: [:ci] ++ Enum.map(users, fn user -> user.id end),
             options_display_names:
               Map.merge(

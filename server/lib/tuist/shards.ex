@@ -17,7 +17,6 @@ defmodule Tuist.Shards do
   alias Tuist.Shards.ShardPlanModule
   alias Tuist.Shards.ShardPlanTestSuite
   alias Tuist.Storage
-  alias Tuist.Tests.Test
   alias Tuist.Tests.TestModuleRun
   alias Tuist.Tests.TestSuiteRun
 
@@ -60,6 +59,8 @@ defmodule Tuist.Shards do
       project_id: project.id,
       shard_count: shard_count,
       granularity: granularity,
+      build_run_id: Map.get(params, :build_run_id),
+      gradle_build_id: Map.get(params, :gradle_build_id),
       inserted_at: now
     }
 
@@ -238,17 +239,11 @@ defmodule Tuist.Shards do
   defp fetch_timing_data(project, "module") do
     cutoff = DateTime.add(DateTime.utc_now(), -@timing_lookback_days, :day)
 
-    matching_run_ids =
-      from(t in Test,
-        where: t.project_id == ^project.id,
-        where: t.is_ci == true,
-        where: t.git_branch == ^project.default_branch,
-        where: t.ran_at >= ^cutoff,
-        select: t.id
-      )
-
     from(mr in TestModuleRun,
-      where: mr.test_run_id in subquery(matching_run_ids),
+      where: mr.project_id == ^project.id,
+      where: mr.is_ci == true,
+      where: mr.git_branch == ^project.default_branch,
+      where: mr.ran_at >= ^cutoff,
       group_by: mr.name,
       select: %{name: mr.name, avg_duration: fragment("avg(?)", mr.duration)}
     )
@@ -259,17 +254,11 @@ defmodule Tuist.Shards do
   defp fetch_timing_data(project, "suite") do
     cutoff = DateTime.add(DateTime.utc_now(), -@timing_lookback_days, :day)
 
-    matching_run_ids =
-      from(t in Test,
-        where: t.project_id == ^project.id,
-        where: t.is_ci == true,
-        where: t.git_branch == ^project.default_branch,
-        where: t.ran_at >= ^cutoff,
-        select: t.id
-      )
-
     from(sr in TestSuiteRun,
-      where: sr.test_run_id in subquery(matching_run_ids),
+      where: sr.project_id == ^project.id,
+      where: sr.is_ci == true,
+      where: sr.git_branch == ^project.default_branch,
+      where: sr.ran_at >= ^cutoff,
       group_by: sr.name,
       select: %{name: sr.name, avg_duration: fragment("avg(?)", sr.duration)}
     )

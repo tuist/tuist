@@ -22,7 +22,7 @@ public protocol TemplatesDirectoryLocating {
 
     /// - Parameter path: The path to the `Templates` directory for a plugin.
     /// - Returns: All available directories defined for the plugin at the given path
-    func templatePluginDirectories(at path: AbsolutePath) throws -> [AbsolutePath]
+    func templatePluginDirectories(at path: AbsolutePath) async throws -> [AbsolutePath]
 }
 
 public final class TemplatesDirectoryLocator: TemplatesDirectoryLocating {
@@ -83,14 +83,33 @@ public final class TemplatesDirectoryLocator: TemplatesDirectoryLocating {
 
     public func templateDirectories(at path: AbsolutePath) async throws -> [AbsolutePath] {
         let tuistTemplatesDirectory = try await locateTuistTemplates()
-        let tuistTemplates = try tuistTemplatesDirectory.map(FileHandler.shared.contentsOfDirectory) ?? []
+        var tuistTemplates: [AbsolutePath] = []
+        if let tuistTemplatesDirectory {
+            tuistTemplates = try await fileSystem.contentsOfDirectory(tuistTemplatesDirectory)
+        }
         let userTemplatesDirectory = try await locateUserTemplates(at: path)
-        let userTemplates = try userTemplatesDirectory.map(FileHandler.shared.contentsOfDirectory) ?? []
-        return (tuistTemplates + userTemplates).filter(FileHandler.shared.isFolder)
+        var userTemplates: [AbsolutePath] = []
+        if let userTemplatesDirectory {
+            userTemplates = try await fileSystem.contentsOfDirectory(userTemplatesDirectory)
+        }
+        var result: [AbsolutePath] = []
+        for item in tuistTemplates + userTemplates {
+            if try await fileSystem.exists(item, isDirectory: true) {
+                result.append(item)
+            }
+        }
+        return result
     }
 
-    public func templatePluginDirectories(at path: AbsolutePath) throws -> [AbsolutePath] {
-        try FileHandler.shared.contentsOfDirectory(path).filter(FileHandler.shared.isFolder)
+    public func templatePluginDirectories(at path: AbsolutePath) async throws -> [AbsolutePath] {
+        let contents = try await fileSystem.contentsOfDirectory(path)
+        var result: [AbsolutePath] = []
+        for item in contents {
+            if try await fileSystem.exists(item, isDirectory: true) {
+                result.append(item)
+            }
+        }
+        return result
     }
 
     // MARK: - Helpers

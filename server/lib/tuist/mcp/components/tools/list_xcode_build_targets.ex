@@ -5,6 +5,7 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuildTargets do
 
   use Tuist.MCP.Tool,
     name: "list_xcode_build_targets",
+    title: "List Xcode Build Targets",
     schema: %{
       "type" => "object",
       "properties" => %{
@@ -41,7 +42,7 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuildTargets do
 
     with {:ok, _build, _project} <-
            MCPTool.load_and_authorize(
-             get_build(build_run_id),
+             Builds.get_build(build_run_id),
              conn.assigns,
              :read,
              :build,
@@ -81,13 +82,6 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuildTargets do
            end),
          pagination_metadata: MCPTool.pagination_metadata(meta)
        }}
-    end
-  end
-
-  defp get_build(id) do
-    case Builds.get_build(id) do
-      nil -> {:error, :not_found}
-      build -> {:ok, build}
     end
   end
 end

@@ -650,7 +650,7 @@ public struct PackageInfo: Equatable, Hashable, Codable { // swiftlint:disable:t
                     case enableExperimentalFeature(String)
                     case interoperabilityMode(String)
                     case defaultIsolation(String)
-                    case strictMemorySafety(String)
+                    case strictMemorySafety(String?)
                     case disableWarning(String)
                 }
 
@@ -712,7 +712,7 @@ public struct PackageInfo: Equatable, Hashable, Codable { // swiftlint:disable:t
                             self.value = [value]
                         case let .strictMemorySafety(value):
                             name = .strictMemorySafety
-                            self.value = [value]
+                            self.value = [value].compactMap { $0 }
                         case let .disableWarning(value):
                             name = .disableWarning
                             self.value = [value]
@@ -761,7 +761,7 @@ public struct PackageInfo: Equatable, Hashable, Codable { // swiftlint:disable:t
                     case .defaultIsolation:
                         try container.encode(Kind.defaultIsolation(value.first!), forKey: .kind)
                     case .strictMemorySafety:
-                        try container.encode(Kind.strictMemorySafety(value.first!), forKey: .kind)
+                        try container.encode(Kind.strictMemorySafety(value.first), forKey: .kind)
                     case .disableWarning:
                         try container.encode(Kind.disableWarning(value.first!), forKey: .kind)
                     }

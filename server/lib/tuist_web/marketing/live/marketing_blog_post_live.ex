@@ -29,8 +29,11 @@ defmodule TuistWeb.Marketing.MarketingBlogPostLive do
 
     author = Blog.get_authors()[post.author]
 
+    current_path = if(is_nil(uri.query), do: uri.path, else: "#{uri.path}?#{uri.query}")
+
     socket =
       socket
+      |> assign(:current_path, current_path)
       |> assign(:post, post)
       |> assign(:author, author)
       |> assign(:head_title, post.title)

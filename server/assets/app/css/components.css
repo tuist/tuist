@@ -1,9 +1,11 @@
-@import "./components/account_dropdown.css";
+@import "../../shared/css/components/account_dropdown.css";
+@import "./components/chart_type_toggle.css";
 @import "./components/empty_state.css";
 @import "./components/empty_card_section.css";
 @import "./components/terminal.css";
 @import "./components/logs.css";
 @import "./components/module_cache_tab.css";
+@import "./components/selective_testing_tab.css";
 @import "./components/percentile_dropdown_widget.css";
 @import "./components/public_project_cta_banner.css";
 @import "./components/widget.css";

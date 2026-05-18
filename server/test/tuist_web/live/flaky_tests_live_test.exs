@@ -17,7 +17,8 @@ defmodule TuistWeb.FlakyTestsLiveTest do
       project: project
     } do
       # When
-      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/flaky-tests")
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/flaky-tests")
 
       # Then
       assert has_element?(lv, "[data-part='flaky-tests']")
@@ -35,7 +36,8 @@ defmodule TuistWeb.FlakyTestsLiveTest do
       RunsFixtures.optimize_test_case_runs()
 
       # When
-      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/flaky-tests")
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/flaky-tests")
 
       # Then
       assert has_element?(lv, "[data-part='flaky-tests-table']")
@@ -55,7 +57,10 @@ defmodule TuistWeb.FlakyTestsLiveTest do
 
       # When
       {:ok, lv, _html} =
-        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/flaky-tests?search=First")
+        live(
+          conn,
+          ~p"/#{organization.account.name}/#{project.name}/tests/flaky-tests?search=First"
+        )
 
       # Then
       assert has_element?(lv, "#flaky-tests-table", "testFirstFlaky")
@@ -69,7 +74,10 @@ defmodule TuistWeb.FlakyTestsLiveTest do
     } do
       # When
       {:ok, lv, _html} =
-        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/flaky-tests?sort_by=name&sort_order=asc")
+        live(
+          conn,
+          ~p"/#{organization.account.name}/#{project.name}/tests/flaky-tests?sort_by=name&sort_order=asc"
+        )
 
       # Then
       assert has_element?(lv, "[data-part='flaky-tests']")
@@ -82,38 +90,47 @@ defmodule TuistWeb.FlakyTestsLiveTest do
     } do
       # When
       {:ok, lv, _html} =
-        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/flaky-tests?sort_by=invalid_field")
+        live(
+          conn,
+          ~p"/#{organization.account.name}/#{project.name}/tests/flaky-tests?sort_by=invalid_field"
+        )
 
       # Then
       assert has_element?(lv, "[data-part='flaky-tests']")
     end
 
-    test "filters flaky tests table by environment", %{
+    test "renders all currently-flagged tests regardless of the environment filter", %{
       conn: conn,
       organization: organization,
       project: project
     } do
-      # Given
+      # The environment filter scopes the per-row stats (flaky_runs_count,
+      # last_flaky_at), not membership — otherwise the list silently drops
+      # currently-flagged tests whose flaky runs sit in the other env, and
+      # the count diverges from the analytics card.
       recent = NaiveDateTime.add(NaiveDateTime.utc_now(), -60)
       create_flaky_test_case(project, "testCIFlaky", is_ci: true, ran_at: recent)
       create_flaky_test_case(project, "testLocalFlaky", is_ci: false, ran_at: recent)
       RunsFixtures.optimize_test_case_runs()
 
-      # When - filter by CI environment
       {:ok, lv, _html} =
-        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/flaky-tests?analytics-environment=ci")
+        live(
+          conn,
+          ~p"/#{organization.account.name}/#{project.name}/tests/flaky-tests?analytics-environment=ci"
+        )
 
-      # Then
       assert has_element?(lv, "#flaky-tests-table", "testCIFlaky")
-      refute has_element?(lv, "#flaky-tests-table", "testLocalFlaky")
+      assert has_element?(lv, "#flaky-tests-table", "testLocalFlaky")
     end
 
-    test "filters flaky tests table by time range", %{
+    test "renders all currently-flagged tests regardless of the time-range filter", %{
       conn: conn,
       organization: organization,
       project: project
     } do
-      # Given
+      # Same invariant: the date range scopes the stats columns; the list
+      # itself shows every currently-flagged test, including ones whose
+      # flaky runs predate the window.
       recent = NaiveDateTime.add(NaiveDateTime.utc_now(), -60)
       create_flaky_test_case(project, "testRecentFlaky", ran_at: recent)
 
@@ -121,16 +138,36 @@ defmodule TuistWeb.FlakyTestsLiveTest do
       create_flaky_test_case(project, "testOldFlaky", ran_at: old_datetime)
       RunsFixtures.optimize_test_case_runs()
 
-      # When - use default 30-day range
       {:ok, lv, _html} =
         live(
           conn,
           ~p"/#{organization.account.name}/#{project.name}/tests/flaky-tests?analytics-date-range=last-30-days"
         )
 
-      # Then
       assert has_element?(lv, "#flaky-tests-table", "testRecentFlaky")
-      refute has_element?(lv, "#flaky-tests-table", "testOldFlaky")
+      assert has_element?(lv, "#flaky-tests-table", "testOldFlaky")
+    end
+
+    test "renders flaky test cases, test case runs, and test runs widgets", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # Given
+      recent = NaiveDateTime.add(NaiveDateTime.utc_now(), -60)
+      create_flaky_test_case(project, "testFlakyOne", ran_at: recent)
+      create_flaky_test_case(project, "testFlakyTwo", ran_at: recent)
+      RunsFixtures.optimize_test_case_runs()
+
+      # When
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/flaky-tests")
+
+      # Then
+      render_async(lv, 2000)
+      assert has_element?(lv, "#widget-flaky-test-cases")
+      assert has_element?(lv, "#widget-flaky-test-case-runs")
+      assert has_element?(lv, "#widget-flaky-test-runs")
     end
   end
 
@@ -139,9 +176,17 @@ defmodule TuistWeb.FlakyTestsLiveTest do
 
     IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
 
+    ran_at = Keyword.get(opts, :ran_at, NaiveDateTime.add(NaiveDateTime.utc_now(), -60))
+
+    RunsFixtures.test_case_event_fixture(
+      test_case_id: test_case.id,
+      event_type: "marked_flaky",
+      inserted_at: ran_at
+    )
+
     RunsFixtures.test_case_run_fixture(
       Keyword.merge(
-        [project_id: project.id, test_case_id: test_case.id, is_flaky: true],
+        [project_id: project.id, test_case_id: test_case.id, is_flaky: true, ran_at: ran_at],
         opts
       )
     )

@@ -4,17 +4,29 @@ defmodule Tuist.Application do
   use Application
   use Boundary, top_level?: true, deps: [Tuist, TuistWeb]
 
+  alias Tuist.Application.RuntimeChildren
   alias Tuist.Builds.Build
+  alias Tuist.Builds.BuildFile
+  alias Tuist.Builds.BuildIssue
+  alias Tuist.Builds.BuildMachineMetric
+  alias Tuist.Builds.BuildTarget
+  alias Tuist.Builds.CacheableTask
+  alias Tuist.Builds.CASOutput
   alias Tuist.Cache.CASEvent
   alias Tuist.CommandEvents
   alias Tuist.DBConnection.TelemetryListener
+  alias Tuist.Docs.ContentFileWatcher
+  alias Tuist.Docs.NimblePublisher.Cache
   alias Tuist.Environment
   alias Tuist.Gradle
   alias Tuist.Gradle.Build.Buffer
+  alias Tuist.Kura
   alias Tuist.Tests.TestCase
   alias Tuist.Tests.TestCaseEvent
   alias Tuist.Tests.TestCaseFailure
   alias Tuist.Tests.TestCaseRun
+  alias Tuist.Tests.TestCaseRunArgument
+  alias Tuist.Tests.TestCaseRunAttachment
   alias Tuist.Tests.TestCaseRunRepetition
   alias Tuist.Tests.TestModuleRun
   alias Tuist.Tests.TestSuiteRun
@@ -67,6 +79,7 @@ defmodule Tuist.Application do
 
   defp start_telemetry do
     Oban.Telemetry.attach_default_logger()
+    TuistCommon.ObanTelemetry.attach()
     ReqTelemetry.attach_default_logger(:pipeline)
     TransportLogger.attach(:tuist)
 
@@ -80,7 +93,58 @@ defmodule Tuist.Application do
       OpentelemetryEcto.setup([event_prefix: [:tuist, :repo]] ++ ecto_skip_metrics)
       OpentelemetryEcto.setup([event_prefix: [:tuist, :ingest_repo]] ++ ecto_skip_metrics)
       OpentelemetryEcto.setup([event_prefix: [:tuist, :click_house_repo]] ++ ecto_skip_metrics)
+
+      kick_opentelemetry_exporter_after_boot()
     end
+  end
+
+  # opentelemetry_exporter starts as part of :extra_applications at release
+  # boot — before the pod's ClusterIP Service DNS is guaranteed to resolve
+  # (especially true just after pod start on k8s, where kube-dns can lag).
+  # Its very first export attempt hits :no_endpoints and the batch processor
+  # never recovers — subsequent spans are silently dropped.
+  #
+  # Workaround: stop + start the exporter a few seconds later, once DNS is
+  # up. The fresh gRPC channel resolves the endpoint correctly and from
+  # then on export works normally.
+  defp kick_opentelemetry_exporter_after_boot do
+    spawn_supervised_task(fn -> do_kick_opentelemetry_exporter() end)
+  end
+
+  defp do_kick_opentelemetry_exporter do
+    Process.sleep(8_000)
+
+    case Application.stop(:opentelemetry_exporter) do
+      :ok ->
+        case Application.start(:opentelemetry_exporter) do
+          :ok ->
+            Logger.info("Restarted :opentelemetry_exporter to clear boot-time :no_endpoints state")
+
+          {:error, reason} ->
+            Logger.warning("Failed to restart :opentelemetry_exporter: #{inspect(reason)}")
+        end
+
+      {:error, reason} ->
+        Logger.warning("Failed to stop :opentelemetry_exporter for restart: #{inspect(reason)}")
+    end
+  end
+
+  # Start a fire-and-forget task with crash-reporting wrapped around it.
+  # `Task.start/1` swallows exceptions silently; wrapping the body in a
+  # `try/rescue` guarantees anything that goes wrong reaches Logger (and
+  # Sentry via the Sentry logger handler).
+  defp spawn_supervised_task(fun) do
+    Task.start(fn ->
+      try do
+        fun.()
+      rescue
+        e ->
+          Logger.error(
+            "Unhandled exception in background task: #{Exception.message(e)}\n" <>
+              Exception.format_stacktrace(__STACKTRACE__)
+          )
+      end
+    end)
   end
 
   defp start_sentry_logger do
@@ -94,41 +158,120 @@ defmodule Tuist.Application do
   defp start_loki_logger do
     loki_url = Environment.loki_url()
 
+    # Setting TUIST_LOKI_URL attaches an in-process log handler that
+    # pushes each event to Loki directly. Attach in the background with
+    # retry so a slow DNS / CNI startup doesn't fail the first attempt.
     if loki_url do
-      LokiLoggerHandler.attach(:loki_handler,
-        loki_url: loki_url,
-        storage: :memory,
-        labels: %{
-          app: {:static, "tuist-server"},
-          service_name: {:static, "tuist-server"},
-          service_namespace: {:static, "tuist"},
-          env: {:static, to_string(Environment.env())},
-          level: :level
-        },
-        structured_metadata: [
-          :trace_id,
-          :span_id,
-          :request_id,
-          :auth_account_handle,
-          :selected_account_handle,
-          :selected_project_handle,
-          :method,
-          :route,
-          :request_path,
-          :reason,
-          :error,
-          :kind,
-          :event,
-          :duration_ms,
-          :remote_address,
-          :remote_port,
-          :recv_oct,
-          :send_oct,
-          :req_body_bytes,
-          :request_span_context,
-          :connection_span_context
-        ]
-      )
+      spawn_supervised_task(fn -> attach_loki_handler_with_retry(loki_url, 0) end)
+    end
+  end
+
+  @loki_attach_max_attempts 10
+  @loki_attach_base_backoff_ms 1_000
+  @loki_attach_max_backoff_ms 30_000
+
+  defp attach_loki_handler_with_retry(loki_url, attempt) when attempt < @loki_attach_max_attempts do
+    # Exponential backoff capped at @loki_attach_max_backoff_ms. Total
+    # wait across 10 attempts is ~5 min, which covers the longest DNS /
+    # CNI propagation delays we've seen on k8s after a fresh pod schedule.
+    backoff =
+      @loki_attach_base_backoff_ms
+      |> Kernel.*(:math.pow(2, attempt))
+      |> round()
+      |> min(@loki_attach_max_backoff_ms)
+
+    Process.sleep(backoff)
+
+    # Call :logger.add_handler/3 directly so we can set filters + overload
+    # options that LokiLoggerHandler.attach/2 doesn't expose:
+    #
+    #   - `filters`: drop log events whose module is inside LokiLoggerHandler
+    #     itself. Its Sender emits Logger.warning on failed pushes, and those
+    #     warnings would otherwise re-enter this handler, get buffered, fail
+    #     to push, emit another warning, and so on. The kernel logger kills
+    #     overloaded handlers (removed_failing_handler), so this amplification
+    #     was disabling the handler within a few seconds of startup.
+    #   - `overload_kill_enable: false`: additional guard so transient bursts
+    #     (e.g., a retry storm after Alloy restarts) don't permanently kill
+    #     the handler.
+    handler_config = %{
+      loki_url: loki_url,
+      storage: :memory,
+      labels: %{
+        app: {:static, "tuist-server"},
+        service_name: {:static, "tuist-server"},
+        service_namespace: {:static, "tuist"},
+        env: {:static, to_string(Environment.env())},
+        level: :level
+      },
+      structured_metadata: [
+        :trace_id,
+        :span_id,
+        :request_id,
+        :request_kind,
+        :auth_account_handle,
+        :selected_account_handle,
+        :selected_project_handle,
+        :method,
+        :route,
+        :request_path,
+        :reason,
+        :error,
+        :kind,
+        :event,
+        :duration_ms,
+        :remote_address,
+        :remote_port,
+        :recv_oct,
+        :send_oct,
+        :req_body_bytes,
+        :request_span_context,
+        :connection_span_context
+      ]
+    }
+
+    logger_config = %{
+      config: handler_config,
+      filters: [
+        loki_self_logs: {&__MODULE__.filter_loki_self_logs/2, []}
+      ],
+      filter_default: :log,
+      overload_kill_enable: false
+    }
+
+    case :logger.add_handler(:loki_handler, LokiLoggerHandler.Handler, logger_config) do
+      :ok ->
+        Logger.info("LokiLoggerHandler attached after #{attempt + 1} attempt(s)")
+
+      {:error, reason} ->
+        Logger.warning("LokiLoggerHandler attach attempt #{attempt + 1} failed: #{inspect(reason)} — retrying")
+
+        attach_loki_handler_with_retry(loki_url, attempt + 1)
+    end
+  end
+
+  defp attach_loki_handler_with_retry(_loki_url, _attempt) do
+    Logger.error("LokiLoggerHandler attach gave up after #{@loki_attach_max_attempts} attempts")
+  end
+
+  # :logger filter callback. Drops log events that originated inside
+  # LokiLoggerHandler itself — prevents a feedback loop where failed-push
+  # warnings get buffered and retried, amplifying the queue until the kernel
+  # kills the handler. Must be a public function for :logger to resolve it.
+  @doc false
+  def filter_loki_self_logs(log_event, _extra) do
+    case log_event do
+      %{meta: %{mfa: {module, _function, _arity}}} ->
+        mod_str = Atom.to_string(module)
+
+        if String.starts_with?(mod_str, "Elixir.LokiLoggerHandler") do
+          :stop
+        else
+          :ignore
+        end
+
+      _ ->
+        :ignore
     end
   end
 
@@ -141,6 +284,12 @@ defmodule Tuist.Application do
         {Tuist.IngestRepo, connection_listeners: {[TelemetryListener], :clickhouse_write}},
         Supervisor.child_spec(CommandEvents.Event.Buffer, id: CommandEvents.Event.Buffer),
         Supervisor.child_spec(Build.Buffer, id: Build.Buffer),
+        Supervisor.child_spec(BuildFile.Buffer, id: BuildFile.Buffer),
+        Supervisor.child_spec(BuildIssue.Buffer, id: BuildIssue.Buffer),
+        Supervisor.child_spec(BuildMachineMetric.Buffer, id: BuildMachineMetric.Buffer),
+        Supervisor.child_spec(BuildTarget.Buffer, id: BuildTarget.Buffer),
+        Supervisor.child_spec(CacheableTask.Buffer, id: CacheableTask.Buffer),
+        Supervisor.child_spec(CASOutput.Buffer, id: CASOutput.Buffer),
         Supervisor.child_spec(XcodeGraph.Buffer, id: XcodeGraph.Buffer),
         Supervisor.child_spec(XcodeProject.Buffer, id: XcodeProject.Buffer),
         Supervisor.child_spec(XcodeTarget.Buffer, id: XcodeTarget.Buffer),
@@ -152,6 +301,8 @@ defmodule Tuist.Application do
         Supervisor.child_spec(TestCase.Buffer, id: TestCase.Buffer),
         Supervisor.child_spec(TestCaseFailure.Buffer, id: TestCaseFailure.Buffer),
         Supervisor.child_spec(TestCaseRunRepetition.Buffer, id: TestCaseRunRepetition.Buffer),
+        Supervisor.child_spec(TestCaseRunArgument.Buffer, id: TestCaseRunArgument.Buffer),
+        Supervisor.child_spec(TestCaseRunAttachment.Buffer, id: TestCaseRunAttachment.Buffer),
         Supervisor.child_spec(TestCaseEvent.Buffer, id: TestCaseEvent.Buffer),
         Supervisor.child_spec(CASEvent.Buffer, id: CASEvent.Buffer),
         Tuist.Vault,
@@ -161,10 +312,8 @@ defmodule Tuist.Application do
         {Phoenix.PubSub, name: Tuist.PubSub},
         {TuistWeb.RateLimit.InMemory, [clean_period: to_timeout(hour: 1)]},
         {Tuist.API.Pipeline, []},
-        {Guardian.DB.Sweeper, [interval: 60 * 60 * 1000]},
-        TuistWeb.Telemetry,
-        TuistWeb.Endpoint
-      ]
+        TuistWeb.Telemetry
+      ] ++ RuntimeChildren.guardian_db_sweeper(Environment.mode()) ++ dev_content_children() ++ [TuistWeb.Endpoint]
 
     children
     |> Kernel.++(
@@ -209,6 +358,7 @@ defmodule Tuist.Application do
         ],
         else: []
     )
+    |> Kernel.++(kura_children())
     # Marketing.Stats polls ClickHouse on init. Skip it in test (tables
     # may not exist) and dev (noisy debug logs every 5 s).
     |> Kernel.++(
@@ -218,18 +368,53 @@ defmodule Tuist.Application do
     )
   end
 
-  defp s3_ca_cert_opts do
-    case Environment.s3_ca_cert_pem() do
-      nil ->
-        [cacertfile: CAStore.file_path()]
+  defp dev_content_children do
+    if Environment.dev?() do
+      docs_dirs = [
+        Path.expand("../../priv/docs", __DIR__),
+        Path.expand("../../../examples/xcode", __DIR__)
+      ]
 
-      pem_content ->
-        der_certs =
-          pem_content
-          |> :public_key.pem_decode()
-          |> Enum.map(fn {_, der, _} -> der end)
+      marketing_dirs = [
+        Path.expand("../../priv/marketing", __DIR__)
+      ]
 
-        [cacerts: der_certs]
+      [
+        Cache,
+        Supervisor.child_spec(
+          {Tuist.ContentFileWatcher, name: ContentFileWatcher, dirs: docs_dirs, extensions: [".md"], cache: Cache},
+          id: ContentFileWatcher
+        ),
+        Tuist.Marketing.NimblePublisher.Cache,
+        Supervisor.child_spec(
+          {Tuist.ContentFileWatcher,
+           name: Tuist.Marketing.ContentFileWatcher,
+           dirs: marketing_dirs,
+           extensions: [".md", ".yml"],
+           cache: Tuist.Marketing.NimblePublisher.Cache},
+          id: Tuist.Marketing.ContentFileWatcher
+        )
+      ]
+    else
+      []
+    end
+  end
+
+  # Reconciles Kura deployments stranded in `:running` after a crash or
+  # rolling deploy. Mirrors the gate on the `Tuist.Kura.Reconciler` cron
+  # in `Tuist.Oban.RuntimeConfig.crontab/3`: web mode, prod-like env,
+  # Tuist-hosted. Anywhere else (dev, test, self-hosted, non-web pods)
+  # Kura is not provisioned and the reconciler has nothing to do.
+  defp kura_children do
+    if Environment.web?() and Environment.env() in [:prod, :stag, :can] and Environment.tuist_hosted?() do
+      [
+        Supervisor.child_spec(
+          {Task, &Kura.reconcile_orphaned_deployments/0},
+          id: Kura.Reconciler
+        )
+      ]
+    else
+      []
     end
   end
 
@@ -237,6 +422,16 @@ defmodule Tuist.Application do
     if Environment.test?() do
       %{:default => [size: 10]}
     else
+      {s3_endpoint, s3_pool_opts} =
+        TuistCommon.FinchPools.s3_pool(
+          endpoint: Environment.s3_endpoint(),
+          size: Environment.s3_pool_size(),
+          count: Environment.s3_pool_count(),
+          protocols: Environment.s3_protocols(),
+          use_ipv6: Environment.use_ipv6?() in ~w(true 1),
+          ca_cert_pem: Environment.s3_ca_cert_pem()
+        )
+
       base_pools =
         %{
           :default => [size: 10, start_pool_metrics?: true],
@@ -255,21 +450,7 @@ defmodule Tuist.Application do
             protocols: [:http2, :http1],
             start_pool_metrics?: true
           ],
-          Environment.s3_endpoint() => [
-            conn_opts: [
-              log: true,
-              protocols: Environment.s3_protocols(),
-              transport_opts:
-                [
-                  inet6: Environment.use_ipv6?() in ~w(true 1),
-                  verify: :verify_peer
-                ] ++ s3_ca_cert_opts()
-            ],
-            size: Environment.s3_pool_size(),
-            count: Environment.s3_pool_count(),
-            protocols: Environment.s3_protocols(),
-            start_pool_metrics?: true
-          ],
+          s3_endpoint => s3_pool_opts,
           "https://marketing.tuist.dev" => [
             conn_opts: [
               log: true,

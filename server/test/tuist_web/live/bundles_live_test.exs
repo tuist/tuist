@@ -25,23 +25,27 @@ defmodule TuistWeb.BundlesLiveTest do
     organization: organization,
     project: project
   } do
-    # Given
+    # Given — two bundles of the same app, so both fall under the page's
+    # app-name filter (defaulted from the first app with :ios platform).
     BundlesFixtures.bundle_fixture(
       project: project,
-      name: "AppOne"
+      name: "App",
+      git_commit_sha: "aaaa111bbbb",
+      inserted_at: DateTime.add(DateTime.utc_now(), -1, :hour)
     )
 
     BundlesFixtures.bundle_fixture(
       project: project,
-      name: "AppTwo"
+      name: "App",
+      git_commit_sha: "cccc222dddd"
     )
 
     # When
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/bundles")
 
     # Then
-    assert has_element?(lv, "span", "AppOne")
-    assert has_element?(lv, "span", "AppTwo")
+    assert has_element?(lv, "#bundles-table span", "aaaa111")
+    assert has_element?(lv, "#bundles-table span", "cccc222")
   end
 
   test "defaults download size to 0 MB when last bundle has only install size", %{
@@ -282,11 +286,12 @@ defmodule TuistWeb.BundlesLiveTest do
     organization: organization,
     project: project
   } do
+    # Use a single app name so all bundles match the page's app-name filter.
     for i <- 1..25 do
       BundlesFixtures.bundle_fixture(
         project: project,
-        name: "App-#{i}",
-        install_size: i * 1000
+        name: "App",
+        install_size: i * 1024
       )
     end
 
@@ -307,6 +312,7 @@ defmodule TuistWeb.BundlesLiveTest do
                ~p"/#{organization.account.name}/#{project.name}/bundles?bundles-sort-by=install-size&bundles-sort-order=asc&after=#{cursor}"
              )
 
-    assert has_element?(lv, "span", "App-1")
+    # install_size ascending starts at 1024 bytes = "1.0 KB".
+    assert has_element?(lv, "#bundles-table span", "1.0 KB")
   end
 end

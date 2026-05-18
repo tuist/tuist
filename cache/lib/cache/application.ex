@@ -19,6 +19,7 @@ defmodule Cache.Application do
     end
 
     Oban.Telemetry.attach_default_logger()
+    TuistCommon.ObanTelemetry.attach()
     TransportLogger.attach(:cache)
     start_sentry_logger()
     start_loki_logger()
@@ -37,6 +38,7 @@ defmodule Cache.Application do
       Cache.KeyValueStore,
       Cache.MultipartUploads,
       Cache.Registry.Metadata,
+      Cache.Registry.AlternateManifests,
       CacheWeb.Endpoint,
       Cache.SocketLinker,
       # Cannot alias Cache.Finch to Finch or it'll conflict with the top-level library

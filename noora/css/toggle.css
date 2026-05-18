@@ -65,7 +65,7 @@
       align-items: center;
       width: 28px;
       height: 14px;
-      border-radius: var(--noora-radius-small);
+      border-radius: var(--noora-radius-2);
       box-shadow: var(--noora-border-light-default);
       transition:
         background-color 0.15s ease-in-out,
@@ -76,7 +76,7 @@
       position: absolute;
       width: 14px;
       height: 14px;
-      border-radius: var(--noora-radius-small);
+      border-radius: var(--noora-radius-2);
       background: var(--noora-choice-selector-label);
       box-shadow: var(--noora-border-light-default);
       transition: left 0.15s ease-in-out;

@@ -27,8 +27,8 @@ public struct PluginTestCommand: ParsableCommand {
     )
     var testProducts: [String] = []
 
-    public func run() throws {
-        try PluginTestService().run(
+    public func run() async throws {
+        try await PluginTestService().run(
             path: pluginOptions.path,
             configuration: pluginOptions.configuration,
             buildTests: buildTests,

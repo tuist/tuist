@@ -5,9 +5,9 @@ defmodule Tuist.Marketing.Content do
   alias Tuist.Marketing.Blog
   alias Tuist.Marketing.Customers
 
-  def get_entries do
+  def get_entries(locale \\ "en") do
     posts = Enum.map(Blog.get_posts(), &{:post, &1})
-    case_studies = Enum.map(Customers.get_case_studies(), &{:case_study, &1})
+    case_studies = Enum.map(Customers.get_case_studies(locale), &{:case_study, &1})
 
     Enum.sort_by(posts ++ case_studies, &get_entry_date/1, {:desc, DateTime})
   end

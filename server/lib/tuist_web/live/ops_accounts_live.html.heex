@@ -1,0 +1,70 @@
+<div id="ops-accounts">
+  <div data-part="header">
+    <h1 data-part="title">{dgettext("dashboard", "Accounts")}</h1>
+  </div>
+  <.card title={dgettext("dashboard", "Accounts")} icon="users">
+    <.card_section>
+      <div data-part="filters">
+        <.form for={%{}} phx-change="search" phx-submit="search" phx-debounce="300">
+          <.text_input
+            type="search"
+            id="ops-accounts-search"
+            name="search"
+            placeholder={dgettext("dashboard", "Search by name")}
+            show_suffix={false}
+            value={@search}
+          />
+        </.form>
+      </div>
+      <.table
+        id="ops-accounts-table"
+        rows={@accounts}
+        row_navigate={fn account -> ~p"/ops/accounts/#{account.id}" end}
+      >
+        <:col :let={account} label={dgettext("dashboard", "Name")}>
+          <.text_cell label={account.name} />
+        </:col>
+        <:col :let={account} label={dgettext("dashboard", "Type")}>
+          <.text_cell label={account_type(account)} />
+        </:col>
+        <:col :let={account} label={dgettext("dashboard", "Billing email")}>
+          <.text_cell label={account.billing_email || dgettext("dashboard", "None")} />
+        </:col>
+        <:col :let={account} label={dgettext("dashboard", "Plan")}>
+          <.badge_cell
+            label={plan_label(current_plan(account))}
+            color={plan_color(current_plan(account))}
+            style="light-fill"
+          />
+        </:col>
+        <:col :let={account} label={dgettext("dashboard", "Status")}>
+          <.badge_cell
+            label={status_label(subscription_status(account))}
+            color={status_color(subscription_status(account))}
+            style="light-fill"
+          />
+        </:col>
+        <:col :let={account} label={dgettext("dashboard", "Stripe customer")}>
+          <.text_cell label={account.customer_id || dgettext("dashboard", "Not created")} />
+        </:col>
+        <:empty_state>
+          <.table_empty_state
+            icon="users"
+            title={dgettext("dashboard", "No accounts")}
+            subtitle={dgettext("dashboard", "No accounts match the current filter.")}
+          />
+        </:empty_state>
+      </.table>
+      <.pagination_group
+        :if={@meta.total_pages > 1}
+        current_page={@current_page}
+        number_of_pages={@meta.total_pages}
+        page_patch={
+          fn page ->
+            ~p"/ops/accounts?#{Map.put(@query_params, "page", page)}"
+          end
+        }
+      />
+    </.card_section>
+  </.card>
+</div>

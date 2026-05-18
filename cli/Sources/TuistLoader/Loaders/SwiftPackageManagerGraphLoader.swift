@@ -5,6 +5,7 @@ import ProjectDescription
 import TSCUtility
 import TuistConstants
 import TuistCore
+import TuistEnvironment
 import TuistLogging
 import TuistSupport
 import XcodeGraph
@@ -49,7 +50,8 @@ public protocol SwiftPackageManagerGraphLoading {
     func load(
         packagePath: AbsolutePath,
         packageSettings: TuistCore.PackageSettings,
-        disableSandbox: Bool
+        disableSandbox: Bool,
+        swiftPackageManagerArguments: [String]
     ) async throws -> (TuistLoader.DependenciesGraph, [LintingIssue])
 }
 
@@ -59,41 +61,70 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
     private let manifestLoader: ManifestLoading
     private let fileSystem: FileSysteming
     private let contentHasher: ContentHashing
+    private let swiftPackageManagerLock: SwiftPackageManagerLock
+    private let swiftPackageManagerScratchDirectoryLocator: SwiftPackageManagerScratchDirectoryLocator
 
     public init(
         swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(),
         packageInfoMapper: PackageInfoMapping = PackageInfoMapper(),
         manifestLoader: ManifestLoading = ManifestLoader.current,
         fileSystem: FileSysteming = FileSystem(),
-        contentHasher: ContentHashing = ContentHasher()
+        contentHasher: ContentHashing = ContentHasher(),
+        swiftPackageManagerLock: SwiftPackageManagerLock = SwiftPackageManagerLock(),
+        swiftPackageManagerScratchDirectoryLocator: SwiftPackageManagerScratchDirectoryLocator =
+            SwiftPackageManagerScratchDirectoryLocator()
     ) {
         self.swiftPackageManagerController = swiftPackageManagerController
         self.packageInfoMapper = packageInfoMapper
         self.manifestLoader = manifestLoader
         self.fileSystem = fileSystem
         self.contentHasher = contentHasher
+        self.swiftPackageManagerLock = swiftPackageManagerLock
+        self.swiftPackageManagerScratchDirectoryLocator = swiftPackageManagerScratchDirectoryLocator
     }
 
-    // swiftlint:disable:next function_body_length
     public func load(
         packagePath: AbsolutePath,
         packageSettings: TuistCore.PackageSettings,
-        disableSandbox: Bool
+        disableSandbox: Bool,
+        swiftPackageManagerArguments: [String] = []
     ) async throws -> (TuistLoader.DependenciesGraph, [LintingIssue]) {
-        let path = packagePath.parentDirectory.appending(
-            component: Constants.SwiftPackageManager.packageBuildDirectoryName
+        let scratchDirectory = try await swiftPackageManagerScratchDirectory(
+            packagePath: packagePath.parentDirectory,
+            arguments: swiftPackageManagerArguments
         )
+        // The lock is held only while we read SwiftPM's state files directly.
+        // Subprocess invocations of `swift package` happen outside the lock, since each
+        // subprocess acquires its own scratch-directory lock — holding our lock around
+        // a `swift package` invocation on the same scratch directory deadlocks.
+        let workspaceState = try await swiftPackageManagerLock
+            .withLock(scratchDirectory: scratchDirectory) {
+                let workspacePath = scratchDirectory.appending(component: "workspace-state.json")
+                if try await !fileSystem.exists(workspacePath) {
+                    throw SwiftPackageManagerGraphGeneratorError.installRequired
+                }
+                return try JSONDecoder()
+                    .decode(SwiftPackageManagerWorkspaceState.self, from: try await fileSystem.readFile(at: workspacePath))
+            }
+        return try await loadUnsafe(
+            packagePath: packagePath,
+            packageSettings: packageSettings,
+            disableSandbox: disableSandbox,
+            scratchDirectory: scratchDirectory,
+            workspaceState: workspaceState
+        )
+    }
+
+    // swiftlint:disable:next function_body_length
+    private func loadUnsafe(
+        packagePath: AbsolutePath,
+        packageSettings: TuistCore.PackageSettings,
+        disableSandbox: Bool,
+        scratchDirectory: AbsolutePath,
+        workspaceState: SwiftPackageManagerWorkspaceState
+    ) async throws -> (TuistLoader.DependenciesGraph, [LintingIssue]) {
+        let path = scratchDirectory
         let checkoutsFolder = path.appending(component: "checkouts")
-        let workspacePath = path.appending(component: "workspace-state.json")
-
-        if try await !fileSystem.exists(workspacePath) {
-            throw SwiftPackageManagerGraphGeneratorError.installRequired
-        }
-
-        let workspaceState = try JSONDecoder()
-            .decode(SwiftPackageManagerWorkspaceState.self, from: try await fileSystem.readFile(at: workspacePath))
-
-        let outdatedDependencyIssues = try await validatePackageResolved(at: packagePath.parentDirectory)
 
         let rootPackage = try await manifestLoader.loadPackage(at: packagePath.parentDirectory, disableSandbox: disableSandbox)
 
@@ -176,7 +207,7 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
         })
         .compactMap { _, groupedPackageInfos in
             if let localPackage = groupedPackageInfos.first(where: {
-                ["local", "fileSystem", "localSourceControl"].contains($0.kind)
+                Self.isLocalDependencyKind($0.kind)
             }) {
                 return localPackage
             } else if let registryPackage = groupedPackageInfos.first(where: { $0.kind == "registry" }) {
@@ -218,6 +249,7 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
 
         let externalDependencies = try await packageInfoMapper.resolveExternalDependencies(
             path: path,
+            packagePath: packagePath.parentDirectory,
             packageInfos: packageInfoDictionary,
             packageToFolder: packageToFolder,
             packageToTargetsToArtifactPaths: packageToTargetsToArtifactPaths,
@@ -226,7 +258,7 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
         )
 
         let packageInfoDictionaryById = Dictionary(uniqueKeysWithValues: packageInfos.map { ($0.id, $0.info) })
-        let enabledTraitsPerPackage = enabledTraits(
+        let enabledTraitsPerPackage = Self.enabledTraits(
             rootPackageInfo: rootPackage,
             packageInfos: packageInfoDictionaryById
         )
@@ -239,7 +271,10 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
                 projectManifest: try await packageInfoMapper.map(
                     packageInfo: packageInfo.info,
                     path: packageInfo.folder,
-                    packageType: .external(artifactPaths: packageToTargetsToArtifactPaths[packageInfo.name] ?? [:]),
+                    packageType: .external(
+                        origin: Self.packageOrigin(for: packageInfo.kind),
+                        artifactPaths: packageToTargetsToArtifactPaths[packageInfo.name] ?? [:]
+                    ),
                     packageSettings: packageSettings,
                     packageModuleAliases: packageModuleAliases,
                     enabledTraits: enabledTraitsPerPackage[packageInfo.id] ?? []
@@ -250,9 +285,17 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
             .reduce(into: [:]) { result, item in
                 let (packageInfo, hash, projectManifest) = item
                 if let projectManifest {
+                    let swiftPackageManagerScratchDirectory: Path? = if Self.isLocalDependencyKind(packageInfo.kind) {
+                        nil
+                    } else {
+                        SwiftPackageManagerPaths
+                            .scratchDirectory(containingCheckout: packageInfo.folder)
+                            .map { Path.path($0.pathString) }
+                    }
                     result[.path(packageInfo.folder.pathString)] = DependenciesGraph.ExternalProject(
                         manifest: projectManifest,
-                        hash: hash
+                        hash: hash,
+                        swiftPackageManagerScratchDirectory: swiftPackageManagerScratchDirectory
                     )
                 }
             }
@@ -262,39 +305,117 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
                 externalDependencies: externalDependencies,
                 externalProjects: externalProjects
             ),
-            outdatedDependencyIssues
+            []
         )
     }
 
-    private func validatePackageResolved(at path: AbsolutePath) async throws -> [LintingIssue] {
-        let savedPackageResolvedPath = path.appending(components: [
-            Constants.SwiftPackageManager.packageBuildDirectoryName,
-            Constants.DerivedDirectory.name,
-            Constants.SwiftPackageManager.packageResolvedName,
-        ])
-        let savedData: Data?
-        if try await fileSystem.exists(savedPackageResolvedPath) {
-            savedData = try await fileSystem.readFile(at: savedPackageResolvedPath)
-        } else {
-            savedData = nil
+    private static func isLocalDependencyKind(_ kind: String) -> Bool {
+        ["local", "fileSystem", "localSourceControl"].contains(kind)
+    }
+
+    private static func packageOrigin(for kind: String) -> PackageType.ExternalOrigin {
+        isLocalDependencyKind(kind) ? .local : .remote
+    }
+
+    static func enabledTraits(
+        rootPackageInfo: PackageInfo,
+        packageInfos: [String: PackageInfo]
+    ) -> [String: Set<String>] {
+        var result: [String: Set<String>] = [:]
+
+        processTraits(
+            from: rootPackageInfo.dependencies,
+            enabledTraitsForCurrentPackage: [],
+            packageInfos: packageInfos,
+            result: &result
+        )
+
+        for (packageId, packageInfo) in packageInfos {
+            let enabledForThisPackage = result[packageId] ?? []
+            processTraits(
+                from: packageInfo.dependencies,
+                enabledTraitsForCurrentPackage: enabledForThisPackage,
+                packageInfos: packageInfos,
+                result: &result
+            )
         }
 
-        let currentPackageResolvedPath = path.appending(component: Constants.SwiftPackageManager.packageResolvedName)
-        let currentData: Data?
-        if try await fileSystem.exists(currentPackageResolvedPath) {
-            currentData = try await fileSystem.readFile(at: currentPackageResolvedPath)
-        } else {
-            currentData = nil
-        }
+        return result
+    }
 
-        if currentData != savedData {
-            return [LintingIssue(
-                reason: "We detected outdated dependencies. Run `tuist install` to update them.",
-                severity: .warning,
-                category: .outdatedDependencies
-            )]
+    private static func processTraits(
+        from dependencies: [PackageDependency],
+        enabledTraitsForCurrentPackage: Set<String>,
+        packageInfos: [String: PackageInfo],
+        result: inout [String: Set<String>]
+    ) {
+        for dependency in dependencies {
+            let enabledTraits = dependency.traits.reduce(into: Set<String>()) { result, trait in
+                if let condition = trait.condition {
+                    if !condition.isDisjoint(with: enabledTraitsForCurrentPackage) {
+                        result.insert(trait.name)
+                    }
+                } else {
+                    result.insert(trait.name)
+                }
+            }
+
+            let resolvedTraits = resolvedEnabledTraits(
+                enabledTraits,
+                packageTraits: packageInfos[dependency.identity]?.traits ?? []
+            )
+
+            guard !resolvedTraits.isEmpty else { continue }
+            result[dependency.identity, default: []].formUnion(resolvedTraits)
         }
-        return []
+    }
+
+    private static func resolvedEnabledTraits(
+        _ traitNames: some Collection<String>,
+        packageTraits: [PackageTrait]
+    ) -> Set<String> {
+        var resolvedTraitNames = Set(traitNames)
+
+        resolveEnabledTraitNames(
+            resolvedTraitNames,
+            packageTraits: packageTraits,
+            into: &resolvedTraitNames
+        )
+
+        return resolvedTraitNames
+    }
+
+    private static func resolveEnabledTraitNames(
+        _ traitNames: some Collection<String>,
+        packageTraits: [PackageTrait],
+        into resolvedTraitNames: inout Set<String>
+    ) {
+        for traitName in traitNames {
+            guard let trait = packageTraits.first(where: { $0.name == traitName }) else {
+                continue
+            }
+
+            for enabledTrait in trait.enabledTraits {
+                guard resolvedTraitNames.insert(enabledTrait).inserted else { continue }
+                resolveEnabledTraitNames(
+                    [enabledTrait],
+                    packageTraits: packageTraits,
+                    into: &resolvedTraitNames
+                )
+            }
+        }
+    }
+
+    private func swiftPackageManagerScratchDirectory(
+        packagePath: AbsolutePath,
+        arguments: [String]
+    ) async throws -> AbsolutePath {
+        try swiftPackageManagerScratchDirectoryLocator.locate(
+            packagePath: packagePath,
+            arguments: arguments,
+            environment: Environment.current.variables,
+            workingDirectory: try await Environment.current.currentWorkingDirectory()
+        )
     }
 }
 
@@ -314,55 +435,6 @@ extension ProjectDescription.Platform {
             return .watchOS
         case .visionOS:
             return .visionOS
-        }
-    }
-}
-
-// MARK: - Trait Processing
-
-/// Extracts the enabled traits for each package dependency from the root package and all packages in the dependency graph.
-/// - Parameters:
-///   - rootPackageInfo: The `PackageInfo` of the root package (the Tuist `Package.swift`)
-///   - packageInfos: All `PackageInfo`s in the dependency graph, keyed by package identity
-/// - Returns: A dictionary where keys are package identities and values are the set of enabled trait names
-func enabledTraits(
-    rootPackageInfo: PackageInfo,
-    packageInfos: [String: PackageInfo]
-) -> [String: Set<String>] {
-    var result: [String: Set<String>] = [:]
-
-    processTraits(
-        from: rootPackageInfo.dependencies,
-        enabledTraitsForCurrentPackage: [],
-        result: &result
-    )
-
-    for (packageId, packageInfo) in packageInfos {
-        let enabledForThisPackage = result[packageId] ?? []
-        processTraits(
-            from: packageInfo.dependencies,
-            enabledTraitsForCurrentPackage: enabledForThisPackage,
-            result: &result
-        )
-    }
-
-    return result
-}
-
-private func processTraits(
-    from dependencies: [PackageDependency],
-    enabledTraitsForCurrentPackage: Set<String>,
-    result: inout [String: Set<String>]
-) {
-    for dependency in dependencies {
-        for trait in dependency.traits {
-            if let condition = trait.condition {
-                if !condition.isDisjoint(with: enabledTraitsForCurrentPackage) {
-                    result[dependency.identity, default: []].insert(trait.name)
-                }
-            } else {
-                result[dependency.identity, default: []].insert(trait.name)
-            }
         }
     }
 }

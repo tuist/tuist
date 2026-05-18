@@ -157,12 +157,24 @@ public final class XCFrameworkMetadataProvider: PrecompiledMetadataProvider,
 
         switch library.path.extension {
         case "framework":
-            binaryPath = try AbsolutePath(
+            let frameworkPath = try AbsolutePath(
                 validating: library.identifier, relativeTo: xcframeworkPath
             )
             .appending(try RelativePath(validating: library.path.pathString))
-            .appending(component: library.path.basenameWithoutExt)
-            linking = try? self.linking(binaryPath: binaryPath)
+            let expectedBinaryPath = frameworkPath
+                .appending(component: library.path.basenameWithoutExt)
+            let tbdPath = frameworkPath
+                .appending(component: "\(library.path.basenameWithoutExt).tbd")
+            if try await fileSystem.exists(expectedBinaryPath) {
+                binaryPath = expectedBinaryPath
+                linking = try? self.linking(binaryPath: binaryPath)
+            } else if try await fileSystem.exists(tbdPath) {
+                binaryPath = tbdPath
+                linking = .dynamic
+            } else {
+                binaryPath = expectedBinaryPath
+                linking = nil
+            }
         case "a":
             binaryPath = try AbsolutePath(
                 validating: library.identifier, relativeTo: xcframeworkPath

@@ -14,9 +14,13 @@ defmodule Tuist.Builds do
   alias Tuist.Builds.CASOutput
   alias Tuist.ClickHouseFlop
   alias Tuist.ClickHouseRepo
-  alias Tuist.IngestRepo
+  alias Tuist.Environment
+  alias Tuist.KeyValueStore
   alias Tuist.Projects.Project
   alias Tuist.Repo
+
+  @short_cache_ttl to_timeout(second: 10)
+  @build_lookup_recent_window_days 90
 
   def valid_ci_providers, do: ["github", "gitlab", "bitrise", "circleci", "buildkite", "codemagic"]
 
@@ -31,15 +35,73 @@ defmodule Tuist.Builds do
   end
 
   def last_24h_build_count do
+    cached_count(:last_24h_build_count, &last_24h_build_count_query/0)
+  end
+
+  defp last_24h_build_count_query do
     twenty_four_hours_ago = DateTime.add(DateTime.utc_now(), -24, :hour)
 
     ClickHouseRepo.one(from(b in Build, where: b.inserted_at >= ^twenty_four_hours_ago, select: count())) || 0
   end
 
-  def get_build(id) do
-    Build
-    |> from(hints: ["FINAL"], where: [id: ^id])
-    |> ClickHouseRepo.one()
+  # `ORDER BY inserted_at DESC LIMIT 1` picks the latest version of the row
+  # without the multi-part merge `FINAL` would force. The recent lookup adds an
+  # inserted_at bound so ClickHouse can prune monthly partitions for common
+  # detail-page/callback traffic, then falls back to the unbounded lookup for
+  # older build URLs.
+  def get_build(id, opts \\ []) do
+    project_id = Keyword.get(opts, :project_id)
+
+    case Ecto.UUID.cast(id) do
+      {:ok, uuid} ->
+        build =
+          ClickHouseRepo.one(get_build_query(uuid, project_id, recent_build_lookup_floor())) ||
+            ClickHouseRepo.one(get_build_query(uuid, project_id))
+
+        case build do
+          nil -> {:error, :not_found}
+          build -> {:ok, build}
+        end
+
+      _ ->
+        {:error, :not_found}
+    end
+  end
+
+  defp recent_build_lookup_floor do
+    DateTime.add(DateTime.utc_now(), -@build_lookup_recent_window_days, :day)
+  end
+
+  defp get_build_query(uuid, nil) do
+    from(b in Build,
+      where: b.id == ^uuid,
+      order_by: [desc: b.inserted_at],
+      limit: 1
+    )
+  end
+
+  defp get_build_query(uuid, project_id) do
+    from(b in Build,
+      where: b.project_id == ^project_id and b.id == ^uuid,
+      order_by: [desc: b.inserted_at],
+      limit: 1
+    )
+  end
+
+  defp get_build_query(uuid, nil, inserted_at_floor) do
+    from(b in Build,
+      where: b.id == ^uuid and b.inserted_at >= ^inserted_at_floor,
+      order_by: [desc: b.inserted_at],
+      limit: 1
+    )
+  end
+
+  defp get_build_query(uuid, project_id, inserted_at_floor) do
+    from(b in Build,
+      where: b.project_id == ^project_id and b.id == ^uuid and b.inserted_at >= ^inserted_at_floor,
+      order_by: [desc: b.inserted_at],
+      limit: 1
+    )
   end
 
   def create_build(attrs) do
@@ -74,17 +136,21 @@ defmodule Tuist.Builds do
 
       {:ok, build_map} = Build.Buffer.insert(build_map)
 
-      Task.await_many(
-        [
-          Task.async(fn -> create_build_issues(build_map, Map.get(attrs, :issues, [])) end),
-          Task.async(fn -> create_build_files(build_map, Map.get(attrs, :files, [])) end),
-          Task.async(fn -> create_build_targets(build_map, Map.get(attrs, :targets, [])) end),
-          Task.async(fn -> create_cacheable_tasks(build_map, cacheable_tasks) end),
-          Task.async(fn -> create_cas_outputs(build_map, cas_outputs) end),
-          Task.async(fn -> create_machine_metrics(build_map, machine_metrics) end)
-        ],
-        30_000
-      )
+      # Per-table writes go through Bufferable Buffers (async cast).
+      # Previously these were synchronous IngestRepo.insert_all/3 calls fanned
+      # out via Task.await_many; under ClickHouse pressure the await_many would
+      # blow the worker's wall-time budget and orphan in-flight builds, which
+      # made ProcessBuildWorker the dominant source of stuck "executing" rows
+      # in Oban. Routing through buffers makes create_build/1 effectively
+      # non-blocking on ClickHouse health, at the cost of losing in-memory
+      # rows on hard pod kill — acceptable since the existing Build.Buffer
+      # write above already had that property.
+      create_build_issues(build_map, Map.get(attrs, :issues, []))
+      create_build_files(build_map, Map.get(attrs, :files, []))
+      create_build_targets(build_map, Map.get(attrs, :targets, []))
+      create_cacheable_tasks(build_map, cacheable_tasks)
+      create_cas_outputs(build_map, cas_outputs)
+      create_machine_metrics(build_map, machine_metrics)
 
       project = Project |> Repo.get(build.project_id) |> Repo.preload(:account)
 
@@ -103,6 +169,8 @@ defmodule Tuist.Builds do
   end
 
   defp create_build_files(build, files) do
+    now = :second |> DateTime.utc_now() |> DateTime.to_naive()
+
     files =
       Enum.map(files, fn file_attrs ->
         %{
@@ -118,21 +186,24 @@ defmodule Tuist.Builds do
           path: file_attrs.path,
           target: file_attrs.target,
           project: file_attrs.project,
-          compilation_duration: file_attrs.compilation_duration
+          compilation_duration: file_attrs.compilation_duration,
+          inserted_at: now
         }
       end)
 
-    IngestRepo.insert_all(BuildFile, files)
+    BuildFile.Buffer.insert_all(files)
   end
 
   defp create_build_targets(build, targets) do
     targets = Enum.map(targets, &BuildTarget.changeset(build.id, &1))
 
-    IngestRepo.insert_all(BuildTarget, targets)
+    BuildTarget.Buffer.insert_all(targets)
   end
 
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   defp create_build_issues(build, issues) do
+    now = :second |> DateTime.utc_now() |> DateTime.to_naive()
+
     issues =
       Enum.map(issues, fn issue_attrs ->
         %{
@@ -148,14 +219,12 @@ defmodule Tuist.Builds do
           starting_line: issue_attrs.starting_line,
           ending_line: issue_attrs.ending_line,
           starting_column: issue_attrs.starting_column,
-          ending_column: issue_attrs.ending_column
+          ending_column: issue_attrs.ending_column,
+          inserted_at: now
         }
       end)
 
-    IngestRepo.insert_all(
-      BuildIssue,
-      issues
-    )
+    BuildIssue.Buffer.insert_all(issues)
   end
 
   defp normalize_issue_type(:warning), do: 0
@@ -213,7 +282,7 @@ defmodule Tuist.Builds do
         }
       end)
 
-    IngestRepo.insert_all(CacheableTask, tasks)
+    CacheableTask.Buffer.insert_all(tasks)
   end
 
   defp create_machine_metrics(build, metrics) when is_list(metrics) do
@@ -223,6 +292,7 @@ defmodule Tuist.Builds do
       Enum.map(metrics, fn metric ->
         %{
           build_run_id: build.id,
+          gradle_build_id: nil,
           timestamp: metric.timestamp,
           cpu_usage_percent: metric.cpu_usage_percent / 1,
           memory_used_bytes: metric.memory_used_bytes,
@@ -235,7 +305,7 @@ defmodule Tuist.Builds do
         }
       end)
 
-    IngestRepo.insert_all(BuildMachineMetric, entries)
+    BuildMachineMetric.Buffer.insert_all(entries)
 
     :ok
   end
@@ -259,7 +329,7 @@ defmodule Tuist.Builds do
         }
       end)
 
-    IngestRepo.insert_all(CASOutput, outputs)
+    CASOutput.Buffer.insert_all(outputs)
   end
 
   def list_build_issues(build_run_id) do
@@ -279,7 +349,10 @@ defmodule Tuist.Builds do
   end
 
   def list_cacheable_tasks(attrs) do
-    ClickHouseFlop.validate_and_run!(CacheableTask, attrs, for: CacheableTask)
+    case ClickHouseFlop.validate_and_run(CacheableTask, attrs, for: CacheableTask) do
+      {:ok, result} -> {:ok, result}
+      {:error, %Flop.Meta{errors: errors}} -> {:error, errors}
+    end
   end
 
   def list_cas_outputs(attrs) do
@@ -408,6 +481,14 @@ defmodule Tuist.Builds do
   end
 
   def recent_build_status_counts(project_id, opts \\ []) do
+    cache_key = [:builds, :recent_build_status_counts, project_id, :erlang.phash2(opts)]
+
+    cached_count_map(cache_key, fn ->
+      recent_build_status_counts_query(project_id, opts)
+    end)
+  end
+
+  defp recent_build_status_counts_query(project_id, opts) do
     limit = Keyword.get(opts, :limit, 40)
     order_direction = if Keyword.get(opts, :order, :desc) == :desc, do: "DESC", else: "ASC"
 
@@ -433,6 +514,22 @@ defmodule Tuist.Builds do
     }
   end
 
+  defp cached_count(key, fun) do
+    if Environment.test?() do
+      fun.()
+    else
+      KeyValueStore.get_or_update([:builds, key], [ttl: @short_cache_ttl], fun)
+    end
+  end
+
+  defp cached_count_map(key, fun) do
+    if Environment.test?() do
+      fun.()
+    else
+      KeyValueStore.get_or_update(key, [ttl: @short_cache_ttl], fun)
+    end
+  end
+
   def project_build_schemes(%Project{} = project) do
     thirty_days_ago = DateTime.add(DateTime.utc_now(), -30, :day)
 
@@ -441,6 +538,7 @@ defmodule Tuist.Builds do
         where: b.project_id == ^project.id,
         where: b.scheme != "",
         where: b.inserted_at > ^thirty_days_ago,
+        order_by: [asc: b.scheme],
         distinct: true,
         select: b.scheme
       )
@@ -455,6 +553,7 @@ defmodule Tuist.Builds do
         where: b.project_id == ^project.id,
         where: b.configuration != "",
         where: b.inserted_at > ^thirty_days_ago,
+        order_by: [asc: b.configuration],
         distinct: true,
         select: b.configuration
       )

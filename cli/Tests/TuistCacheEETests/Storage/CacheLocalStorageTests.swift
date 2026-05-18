@@ -50,7 +50,6 @@ struct CacheLocalStorageTests {
         let subject = CacheLocalStorage(
             cacheDirectoriesProvider: cacheDirectoriesProvider,
             artifactSigner: artifactSigner,
-            fileHandler: FileHandler.shared,
             fileSystem: fileSystem
         )
 
@@ -90,7 +89,6 @@ struct CacheLocalStorageTests {
         let subject = CacheLocalStorage(
             cacheDirectoriesProvider: cacheDirectoriesProvider,
             artifactSigner: artifactSigner,
-            fileHandler: FileHandler.shared,
             fileSystem: fileSystem
         )
 
@@ -126,7 +124,6 @@ struct CacheLocalStorageTests {
         let subject = CacheLocalStorage(
             cacheDirectoriesProvider: cacheDirectoriesProvider,
             artifactSigner: artifactSigner,
-            fileHandler: FileHandler.shared,
             fileSystem: fileSystem
         )
 
@@ -166,7 +163,6 @@ struct CacheLocalStorageTests {
         let subject = CacheLocalStorage(
             cacheDirectoriesProvider: cacheDirectoriesProvider,
             artifactSigner: artifactSigner,
-            fileHandler: FileHandler.shared,
             fileSystem: fileSystem
         )
 
@@ -202,7 +198,6 @@ struct CacheLocalStorageTests {
         let subject = CacheLocalStorage(
             cacheDirectoriesProvider: cacheDirectoriesProvider,
             artifactSigner: artifactSigner,
-            fileHandler: FileHandler.shared,
             fileSystem: fileSystem
         )
 
@@ -239,7 +234,6 @@ struct CacheLocalStorageTests {
         let subject = CacheLocalStorage(
             cacheDirectoriesProvider: cacheDirectoriesProvider,
             artifactSigner: artifactSigner,
-            fileHandler: FileHandler.shared,
             fileSystem: fileSystem
         )
 
@@ -280,7 +274,6 @@ struct CacheLocalStorageTests {
         let subject = CacheLocalStorage(
             cacheDirectoriesProvider: cacheDirectoriesProvider,
             artifactSigner: artifactSigner,
-            fileHandler: FileHandler.shared,
             fileSystem: fileSystem
         )
 
@@ -321,7 +314,6 @@ struct CacheLocalStorageTests {
         let subject = CacheLocalStorage(
             cacheDirectoriesProvider: cacheDirectoriesProvider,
             artifactSigner: artifactSigner,
-            fileHandler: FileHandler.shared,
             fileSystem: fileSystem
         )
 
@@ -368,7 +360,6 @@ struct CacheLocalStorageTests {
         let subject = CacheLocalStorage(
             cacheDirectoriesProvider: cacheDirectoriesProvider,
             artifactSigner: MockArtifactSigning(),
-            fileHandler: FileHandler.shared,
             fileSystem: fileSystem
         )
         try await subject.clean()
@@ -405,7 +396,6 @@ struct CacheLocalStorageTests {
         let subject = CacheLocalStorage(
             cacheDirectoriesProvider: cacheDirectoriesProvider,
             artifactSigner: MockArtifactSigning(),
-            fileHandler: FileHandler.shared,
             fileSystem: fileSystem
         )
         try await subject.clean(maxEntries: 10)
@@ -441,7 +431,6 @@ struct CacheLocalStorageTests {
         let subject = CacheLocalStorage(
             cacheDirectoriesProvider: cacheDirectoriesProvider,
             artifactSigner: MockArtifactSigning(),
-            fileHandler: FileHandler.shared,
             fileSystem: fileSystem
         )
         try await subject.clean()
@@ -480,7 +469,6 @@ struct CacheLocalStorageTests {
         let subject = CacheLocalStorage(
             cacheDirectoriesProvider: cacheDirectoriesProvider,
             artifactSigner: artifactSigner,
-            fileHandler: FileHandler.shared,
             fileSystem: fileSystem
         )
 

@@ -1,4 +1,4 @@
-function setTheme(theme) {
+export function setTheme(theme) {
   const resolvedColorScheme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
   document.documentElement.style.setProperty("color-scheme", theme === "system" ? "light dark" : theme);
   document.documentElement.setAttribute("data-theme", theme === "system" ? resolvedColorScheme : theme);
@@ -10,7 +10,7 @@ function setTheme(theme) {
   window.dispatchEvent(new CustomEvent("changed-preferred-theme", { detail: theme }));
 }
 
-function getPreferredTheme() {
+export function getPreferredTheme() {
   try {
     const preferredTheme = localStorage.getItem("preferred-theme");
     return preferredTheme === "null" || preferredTheme === null ? "system" : preferredTheme;
@@ -27,6 +27,27 @@ export function observeThemeChanges() {
 
   setTheme(getPreferredTheme());
 }
+
+export const ThemeToggle = {
+  mounted() {
+    const handleClick = (event) => {
+      event.preventDefault();
+
+      const currentTheme = document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
+
+      setTheme(currentTheme === "dark" ? "light" : "dark");
+    };
+
+    this.el.addEventListener("click", handleClick);
+    this.handleClick = handleClick;
+  },
+
+  destroyed() {
+    if (this.el && this.handleClick) {
+      this.el.removeEventListener("click", this.handleClick);
+    }
+  },
+};
 
 export default {
   mounted() {

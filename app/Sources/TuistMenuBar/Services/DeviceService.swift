@@ -10,6 +10,7 @@ import TuistLogging
 import TuistServer
 import TuistSimulator
 import TuistSupport
+import TuistXcodeBuildProducts
 
 private enum DownloadedApp {
     case appBundle(AppBundle)
@@ -251,7 +252,7 @@ final class DeviceService: DeviceServicing {
         guard let archivePath = try await remoteArtifactDownloader.download(url: url)
         else { throw DeviceServiceError.appDownloadFailed(preview.id) }
         let fileUnarchiver = try fileArchiverFactory.makeFileUnarchiver(for: archivePath)
-        let unarchivedDirectory = try fileUnarchiver.unzip()
+        let unarchivedDirectory = try await fileUnarchiver.unzip()
 
         switch selectedDevice {
         case .device, .simulator:
@@ -289,10 +290,10 @@ final class DeviceService: DeviceServicing {
     ) async throws {
         switch (app, device) {
         case let (.appBundle(appBundle), .simulator(simulator)):
-            let bootedDevice = try simulatorController.booted(
+            let bootedDevice = try await simulatorController.booted(
                 device: simulator.device, forced: true
             )
-            try simulatorController.installApp(at: appBundle.path, device: bootedDevice)
+            try await simulatorController.installApp(at: appBundle.path, device: bootedDevice)
             try await simulatorController.launchApp(
                 bundleId: appBundle.infoPlist.bundleId, device: bootedDevice, arguments: []
             )

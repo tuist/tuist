@@ -130,7 +130,7 @@ struct RegistrySetupCommandService {
                 "Generated the registry configuration file at \(.accent(configurationJSONPath.relative(to: path).pathString))",
                 takeaways: [
                     "Commit the generated configuration file to share the configuration with the rest of your team",
-                    "For more information about the registry head to our \(.link(title: "docs", href: "https://docs.tuist.dev/en/guides/features/registry"))",
+                    "For more information about the registry head to our \(.link(title: "docs", href: "https://tuist.dev/en/docs/guides/features/registry"))",
                 ]
             )
         )

@@ -1,9 +1,7 @@
 import Path
-import TSCUtility
 
 public struct TuistGeneratedProjectOptions: Equatable, Hashable {
     public let compatibleXcodeVersions: CompatibleXcodeVersions
-    public let swiftVersion: Version?
     public let plugins: [PluginLocation]
     public let generationOptions: GenerationOptions
     public let installOptions: InstallOptions
@@ -11,14 +9,12 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
 
     public init(
         compatibleXcodeVersions: CompatibleXcodeVersions,
-        swiftVersion: Version?,
         plugins: [PluginLocation],
         generationOptions: GenerationOptions,
         installOptions: InstallOptions,
         cacheOptions: CacheOptions
     ) {
         self.compatibleXcodeVersions = compatibleXcodeVersions
-        self.swiftVersion = swiftVersion
         self.plugins = plugins
         self.generationOptions = generationOptions
         self.installOptions = installOptions
@@ -27,7 +23,6 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
 
     public func hash(into hasher: inout Hasher) {
         hasher.combine(compatibleXcodeVersions)
-        hasher.combine(swiftVersion)
         hasher.combine(plugins)
         hasher.combine(generationOptions)
         hasher.combine(installOptions)
@@ -37,7 +32,6 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
     public static var `default`: Self {
         TuistGeneratedProjectOptions(
             compatibleXcodeVersions: .all,
-            swiftVersion: nil,
             plugins: [],
             generationOptions: .init(
                 resolveDependenciesWithSystemScm: false,
@@ -49,7 +43,9 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
                 includeGenerateScheme: false,
                 enableCaching: false,
                 registryEnabled: false,
-                warningsAsErrors: .none
+                warningsAsErrors: .none,
+                defaultSwiftVersion: GenerationOptions.defaultSwiftVersionValue,
+                onOutdatedDependencies: .warn
             ),
             installOptions: .init(passthroughSwiftPackageManagerArguments: []),
             cacheOptions: CacheOptions(
@@ -60,6 +56,8 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
     }
 
     public struct GenerationOptions: Codable, Hashable, Equatable {
+        public static let defaultSwiftVersionValue = "5"
+
         public enum StaticSideEffectsWarningTargets: Codable, Hashable, Equatable {
             case all
             case none
@@ -88,6 +86,12 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
             }
         }
 
+        public enum OutdatedDependenciesAction: String, Codable, Hashable, Equatable, Sendable {
+            case warn
+            case install
+            case fail
+        }
+
         @available(*, deprecated, message: "Use `additionalPackageResolutionArguments` instead.")
         public let resolveDependenciesWithSystemScm: Bool
         public let disablePackageVersionLocking: Bool
@@ -105,6 +109,9 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
         public let enableCaching: Bool
         public let registryEnabled: Bool
         public let warningsAsErrors: WarningsAsErrors
+        public let defaultSwiftVersion: String
+        public let manifestEnvironment: [String]
+        public let onOutdatedDependencies: OutdatedDependenciesAction
 
         public init(
             resolveDependenciesWithSystemScm: Bool,
@@ -121,7 +128,10 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
             includeGenerateScheme: Bool,
             enableCaching: Bool = false,
             registryEnabled: Bool = false,
-            warningsAsErrors: WarningsAsErrors = .none
+            warningsAsErrors: WarningsAsErrors = .none,
+            defaultSwiftVersion: String = GenerationOptions.defaultSwiftVersionValue,
+            manifestEnvironment: [String] = [],
+            onOutdatedDependencies: OutdatedDependenciesAction = .warn
         ) {
             self.resolveDependenciesWithSystemScm = resolveDependenciesWithSystemScm
             self.disablePackageVersionLocking = disablePackageVersionLocking
@@ -138,6 +148,9 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
             self.enableCaching = enableCaching
             self.registryEnabled = registryEnabled
             self.warningsAsErrors = warningsAsErrors
+            self.defaultSwiftVersion = defaultSwiftVersion
+            self.manifestEnvironment = manifestEnvironment
+            self.onOutdatedDependencies = onOutdatedDependencies
         }
 
         #if DEBUG
@@ -157,7 +170,10 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
                 includeGenerateScheme: Bool = true,
                 enableCaching: Bool = false,
                 registryEnabled: Bool = false,
-                warningsAsErrors: TuistGeneratedProjectOptions.GenerationOptions.WarningsAsErrors = .none
+                warningsAsErrors: TuistGeneratedProjectOptions.GenerationOptions.WarningsAsErrors = .none,
+                defaultSwiftVersion: String = GenerationOptions.defaultSwiftVersionValue,
+                manifestEnvironment: [String] = [],
+                onOutdatedDependencies: TuistGeneratedProjectOptions.GenerationOptions.OutdatedDependenciesAction = .warn
             ) -> Self {
                 .init(
                     resolveDependenciesWithSystemScm: resolveDependenciesWithSystemScm,
@@ -174,7 +190,10 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
                     includeGenerateScheme: includeGenerateScheme,
                     enableCaching: enableCaching,
                     registryEnabled: registryEnabled,
-                    warningsAsErrors: warningsAsErrors
+                    warningsAsErrors: warningsAsErrors,
+                    defaultSwiftVersion: defaultSwiftVersion,
+                    manifestEnvironment: manifestEnvironment,
+                    onOutdatedDependencies: onOutdatedDependencies
                 )
             }
         #endif
@@ -203,7 +222,6 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
     #if DEBUG
         public static func test(
             compatibleXcodeVersions: CompatibleXcodeVersions = .all,
-            swiftVersion: Version? = nil,
             plugins: [PluginLocation] = [],
             generationOptions: GenerationOptions = .test(),
             installOptions: InstallOptions = .test(),
@@ -211,7 +229,6 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
         ) -> Self {
             return .init(
                 compatibleXcodeVersions: compatibleXcodeVersions,
-                swiftVersion: swiftVersion,
                 plugins: plugins,
                 generationOptions: generationOptions,
                 installOptions: installOptions,

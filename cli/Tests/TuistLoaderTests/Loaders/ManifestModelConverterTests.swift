@@ -148,7 +148,7 @@ final class ManifestModelConverterTests: TuistUnitTestCase {
     func test_loadProject_withFolderReferences() async throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let files = try createFolders([
+        let files = try await createFolders([
             "Stubs",
         ])
         let manifest = ProjectManifest.test(
@@ -223,7 +223,7 @@ final class ManifestModelConverterTests: TuistUnitTestCase {
     func test_loadWorkspace_withProjects() async throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let projects = try createFolders([
+        let projects = try await createFolders([
             "A",
             "B",
         ])

@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Path
 import TuistSupport
@@ -20,11 +21,11 @@ final class ExtendedAttributesControllerIntegrationTests: TuistTestCase {
         super.tearDown()
     }
 
-    func test_setAttribute_and_getAttribute_set_and_return_attributes_when_file() throws {
+    func test_setAttribute_and_getAttribute_set_and_return_attributes_when_file() async throws {
         // Given
         let tmpDir = try temporaryPath()
         let filePath = tmpDir.appending(component: "file.txt")
-        try FileHandler.shared.touch(filePath)
+        try await FileSystem().touch(filePath)
 
         // When
         try subject.setAttribute("foo", value: "bar", path: filePath)
@@ -46,11 +47,11 @@ final class ExtendedAttributesControllerIntegrationTests: TuistTestCase {
         XCTAssertEqual(got, "bar")
     }
 
-    func test_getAttribute_returnsNil_when_theAttributeIsMissing_when_file() throws {
+    func test_getAttribute_returnsNil_when_theAttributeIsMissing_when_file() async throws {
         // Given
         let tmpDir = try temporaryPath()
         let filePath = tmpDir.appending(component: "file.txt")
-        try FileHandler.shared.touch(filePath)
+        try await FileSystem().touch(filePath)
 
         // When
         let got = try subject.getAttribute("foo", path: filePath)
@@ -70,11 +71,11 @@ final class ExtendedAttributesControllerIntegrationTests: TuistTestCase {
         XCTAssertNil(got)
     }
 
-    func test_removeAttribute_removesTheAttribute_when_file() throws {
+    func test_removeAttribute_removesTheAttribute_when_file() async throws {
         // Given
         let tmpDir = try temporaryPath()
         let filePath = tmpDir.appending(component: "file.txt")
-        try FileHandler.shared.touch(filePath)
+        try await FileSystem().touch(filePath)
 
         // When
         try subject.setAttribute("foo", value: "bar", path: filePath)
@@ -85,11 +86,11 @@ final class ExtendedAttributesControllerIntegrationTests: TuistTestCase {
         XCTAssertNil(got)
     }
 
-    func test_removeAttribute_removesTheAttribute_when_file_with_absent_attribute() throws {
+    func test_removeAttribute_removesTheAttribute_when_file_with_absent_attribute() async throws {
         // Given
         let tmpDir = try temporaryPath()
         let filePath = tmpDir.appending(component: "file.txt")
-        try FileHandler.shared.touch(filePath)
+        try await FileSystem().touch(filePath)
 
         // When
         try subject.removeAttribute("foo", path: filePath)

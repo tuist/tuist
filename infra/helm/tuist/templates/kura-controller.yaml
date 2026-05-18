@@ -1,0 +1,203 @@
+{{- if .Values.kuraController.enabled }}
+{{- $name := include "tuist.componentName" (dict "root" . "component" "kura-controller") }}
+{{- $namespace := .Values.kuraController.namespace }}
+{{- $serverRoleName := printf "%s-server" $name }}
+{{- $imageTag := .Values.kuraController.image.tag }}
+{{- $tlsClusterIssuer := .Values.kuraController.tlsClusterIssuer | default .Values.kuraController.grpcClusterIssuer }}
+{{- if not $imageTag }}
+{{- fail "kuraController.image.tag is required — running the controller on :latest silently drifts and surfaces in production after the next push to ghcr." }}
+{{- end }}
+{{- if and .Values.kuraController.tlsClusterIssuer .Values.kuraController.grpcClusterIssuer (ne .Values.kuraController.tlsClusterIssuer .Values.kuraController.grpcClusterIssuer) }}
+{{- fail "kuraController.tlsClusterIssuer and deprecated kuraController.grpcClusterIssuer cannot both be set to different values" }}
+{{- end }}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ $namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $name }}
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura-controller
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $name }}
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura-controller
+rules:
+  - apiGroups: ["kura.tuist.dev"]
+    resources: [kurainstances]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: ["kura.tuist.dev"]
+    resources: [kurainstances/status, kurainstances/finalizers]
+    verbs: [get, update, patch]
+  - apiGroups: ["apps"]
+    resources: [statefulsets]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [""]
+    resources: [services, configmaps]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: ["networking.k8s.io"]
+    resources: [ingresses, networkpolicies]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: ["policy"]
+    resources: [poddisruptionbudgets]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: ["coordination.k8s.io"]
+    resources: [leases]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: ["cert-manager.io"]
+    resources: [certificates]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [""]
+    resources: [events]
+    verbs: [create, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $name }}
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura-controller
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $name }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}
+    namespace: {{ $namespace }}
+{{- if .Values.server.enabled }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $serverRoleName }}
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+rules:
+  - apiGroups: ["kura.tuist.dev"]
+    resources: [kurainstances]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $serverRoleName }}
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $serverRoleName }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "tuist.componentServiceAccountName" (dict "root" . "component" "server") }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura-controller
+spec:
+  replicas: {{ .Values.kuraController.replicaCount }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      {{- include "tuist.componentLabels" (dict "root" . "component" "kura-controller") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "tuist.componentLabels" (dict "root" . "component" "kura-controller") | nindent 8 }}
+    spec:
+      serviceAccountName: {{ $name }}
+      {{- with .Values.kuraController.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: manager
+          image: "{{ .Values.kuraController.image.repository }}:{{ $imageTag }}"
+          imagePullPolicy: {{ .Values.kuraController.image.pullPolicy }}
+          args:
+            - --leader-elect=true
+            - --metrics-bind-address=:8080
+            - --health-probe-bind-address=:8081
+            - --watch-namespace={{ $namespace }}
+            {{- if $tlsClusterIssuer }}
+            - --grpc-cluster-issuer={{ $tlsClusterIssuer }}
+            {{- end }}
+          ports:
+            - name: metrics
+              containerPort: 8080
+            - name: probe
+              containerPort: 8081
+          livenessProbe:
+            httpGet: { path: /healthz, port: probe }
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet: { path: /readyz, port: probe }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.kuraController.resources | nindent 12 }}
+{{- if .Values.kuraController.sharedSecrets.enabled }}
+---
+# Shared platform secrets for every Kura runtime pod in this cluster.
+# The controller mounts this Secret via envFrom on the StatefulSet so
+# the JWT verifier secret + license signing key never have to live in
+# the KuraInstance spec (anyone with list/watch on the CR could
+# otherwise read forging material). Keys are populated either through
+# Helm values (CI deploy) or by an out-of-band operator (sealed-secrets,
+# external-secrets, etc.) — leave .Values.kuraController.sharedSecrets.data
+# empty to keep operator-managed secrets unchanged on each deploy.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: kura-shared-secrets
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura
+{{- if .Values.kuraController.sharedSecrets.annotations }}
+  annotations:
+    {{- toYaml .Values.kuraController.sharedSecrets.annotations | nindent 4 }}
+{{- end }}
+type: Opaque
+{{- with .Values.kuraController.sharedSecrets.data }}
+stringData:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- end }}
+{{- end }}

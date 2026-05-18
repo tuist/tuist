@@ -4,6 +4,7 @@
     import Path
     import TuistBuildCommand
     import TuistCore
+    import TuistEnvironment
     import TuistEnvKey
     import TuistExtension
     import TuistKit
@@ -13,30 +14,49 @@
 
     enum TuistTestFlagError: FatalError, Equatable {
         case invalidCombination([String])
+        case passthroughActionVerbConflict(String)
 
         var description: String {
             switch self {
             case let .invalidCombination(arguments):
                 "The arguments \(arguments.joined(separator: ", ")) are mutually exclusive, only of them can be used."
+            case let .passthroughActionVerbConflict(verb):
+                "The xcodebuild action '\(verb)' cannot be passed after the terminator (--). 'tuist test' already picks the action based on its flags: 'test' by default, 'build-for-testing' with --build-only, and 'test-without-building' with --without-building. Drop '\(verb)' from the passthrough arguments, and use --build-only or --without-building if you need a different action."
             }
         }
 
         var type: ErrorType {
             switch self {
-            case .invalidCombination:
+            case .invalidCombination, .passthroughActionVerbConflict:
                 .abort
             }
         }
     }
 
-    public struct TestRunCommand: AsyncParsableCommand, LogConfigurableCommand,
-        RecentPathRememberableCommand, TrackableParsableCommand
-    {
+    private let notAllowedPassthroughXcodeBuildArguments = [
+        "-scheme",
+        "-workspace",
+        "-project",
+        "-testPlan",
+        "-skip-test-configuration",
+        "-only-test-configuration",
+        "-only-testing",
+        "-skip-testing",
+    ]
+
+    private let xcodeBuildActionVerbs: Set<String> = [
+        "test",
+        "build-for-testing",
+        "test-without-building",
+    ]
+
+    public struct TestRunCommand: AsyncParsableCommand, LogConfigurableCommand, TrackableParsableCommand {
         public init() {}
 
         public static var configuration: CommandConfiguration {
             CommandConfiguration(
                 commandName: "run",
+                _superCommandName: "test",
                 abstract: "Tests a project",
                 usage:
                 "tuist test [<options>] [<scheme>] -- [<passthrough-xcode-build-arguments> ...]",
@@ -280,6 +300,35 @@
         )
         var shardReference: String?
 
+        @Flag(
+            name: .long,
+            help: "Skip uploading test products to remote storage. Use when you provide test products to shard runners yourself, for example via shared volumes.",
+            envKey: .testShardSkipUpload
+        )
+        var shardSkipUpload: Bool = false
+
+        @Option(
+            name: .long,
+            help: "Path to a locally managed shard archive. In build-for-testing mode Tuist writes the optimized archive there; in shard execution mode Tuist extracts it instead of downloading test products from remote storage.",
+            completion: .file(),
+            envKey: .testShardArchivePath
+        )
+        var shardArchivePath: String?
+
+        @Option(
+            name: .long,
+            help: "The zero-based shard index to execute.",
+            envKey: .testShardIndex
+        )
+        var shardIndex: Int?
+
+        @Option(
+            name: .long,
+            help: "Inspect mode: 'local' parses the xcresult on this machine, 'remote' uploads it for server-side processing, 'off' skips test analysis entirely (no xcresult parsing, archiving, or upload — the Tests dashboard is not populated). When omitted, defaults to 'remote' for tuist-hosted instances and 'local' for self-hosted ones.",
+            envKey: .inspectTestMode
+        )
+        var inspectMode: TestProcessingMode?
+
         @Argument(
             parsing: .postTerminator,
             help:
@@ -298,22 +347,17 @@
             )
         }
 
-        private var notAllowedPassthroughXcodeBuildArguments = [
-            "-scheme",
-            "-workspace",
-            "-project",
-            "-testPlan",
-            "-skip-test-configuration",
-            "-only-test-configuration",
-            "-only-testing",
-            "-skip-testing",
-        ]
-
         public func run() async throws {
             try notAllowedPassthroughXcodeBuildArguments.forEach {
                 if passthroughXcodeBuildArguments.contains($0) {
                     throw XcodeBuildPassthroughArgumentError.alreadyHandled($0)
                 }
+            }
+
+            if let firstPassthroughArgument = passthroughXcodeBuildArguments.first,
+               xcodeBuildActionVerbs.contains(firstPassthroughArgument)
+            {
+                throw TuistTestFlagError.passthroughActionVerbConflict(firstPassthroughArgument)
             }
 
             if skipUITests, skipUnitTests {
@@ -335,12 +379,7 @@
                     )
             }
 
-            let absolutePath =
-                if let path {
-                    try AbsolutePath(validating: path, relativeTo: FileHandler.shared.currentPath)
-                } else {
-                    FileHandler.shared.currentPath
-                }
+            let absolutePath = try await Environment.current.pathRelativeToWorkingDirectory(path)
 
             let action: XcodeBuildTestAction =
                 if buildOnly {
@@ -368,12 +407,12 @@
                 rosetta: rosetta,
                 skipUITests: skipUITests,
                 skipUnitTests: skipUnitTests,
-                resultBundlePath: resultBundlePath.map {
-                    try AbsolutePath(
-                        validating: $0,
-                        relativeTo: FileHandler.shared.currentPath
-                    )
-                },
+                resultBundlePath: try await {
+                    if let resultBundlePath {
+                        return try await Environment.current.pathRelativeToWorkingDirectory(resultBundlePath)
+                    }
+                    return nil
+                }(),
                 derivedDataPath: derivedDataPath,
                 retryCount: retryCount,
                 testTargets: testTargets,
@@ -397,7 +436,15 @@
                 shardMax: shardMax,
                 shardTotal: shardTotal,
                 shardMaxDuration: shardMaxDuration,
-                shardIndex: EnvKey.testShardIndex.envValue()
+                shardIndex: shardIndex,
+                shardSkipUpload: shardSkipUpload,
+                shardArchivePath: try await {
+                    if let shardArchivePath {
+                        return try await Environment.current.pathRelativeToWorkingDirectory(shardArchivePath)
+                    }
+                    return nil
+                }(),
+                mode: inspectMode
             )
         }
     }

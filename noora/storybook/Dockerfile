@@ -11,29 +11,28 @@
 #   - https://pkgs.org/ - resource for finding needed packages
 #   - Ex: hexpm/elixir:1.18.3-erlang-27.3.2-debian-bullseye-20250407-slim
 #
-ARG ELIXIR_VERSION=1.19.1
-ARG OTP_VERSION=28.1.1
-ARG DEBIAN_VERSION=bullseye-20251020-slim
+ARG ELIXIR_VERSION=1.19.5
+ARG OTP_VERSION=28.4.3
+ARG DEBIAN_VERSION=bullseye-20260406-slim
 
 ARG BUILDER_IMAGE="hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-debian-${DEBIAN_VERSION}"
 ARG RUNNER_IMAGE="debian:${DEBIAN_VERSION}"
 
 FROM node:24-slim AS npm-deps
-ENV PNPM_HOME="/pnpm"
-ENV PATH="$PNPM_HOME:$PATH"
-RUN corepack enable
+ENV CI=1
+RUN npm install -g --ignore-scripts=false @endevco/aube@1.6.2
 
-COPY package.json /app/noora/
+COPY package.json aube-lock.yaml /app/noora/
 COPY js/ /app/noora/js/
 COPY css/ /app/noora/css/
 COPY lib/ /app/noora/lib/
 COPY mix.exs README.md /app/noora/
 
 WORKDIR /app/noora
-RUN pnpm install
+RUN aube install
 
 RUN mkdir -p priv/static
-RUN pnpm run build
+RUN aube run build
 RUN ./node_modules/.bin/esbuild css/noora.css --bundle --minify --outfile=./priv/static/noora.css
 
 FROM ${BUILDER_IMAGE} AS builder

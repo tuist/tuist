@@ -5,6 +5,7 @@ defmodule Tuist.MCP.Components.Tools.GetXcodeBuild do
 
   use Tuist.MCP.Tool,
     name: "get_xcode_build",
+    title: "Get Xcode Build",
     schema: %{
       "type" => "object",
       "properties" => %{
@@ -30,7 +31,7 @@ defmodule Tuist.MCP.Components.Tools.GetXcodeBuild do
 
     with {:ok, build, _project} <-
            MCPTool.load_and_authorize(
-             get_build(build_run_id),
+             Builds.get_build(build_run_id),
              conn.assigns,
              :read,
              :build,
@@ -56,13 +57,6 @@ defmodule Tuist.MCP.Components.Tools.GetXcodeBuild do
          cacheable_task_remote_hits_count: build.cacheable_task_remote_hits_count,
          inserted_at: Formatter.iso8601(build.inserted_at, naive: :utc)
        }}
-    end
-  end
-
-  defp get_build(id) do
-    case Builds.get_build(id) do
-      nil -> {:error, :not_found}
-      build -> {:ok, build}
     end
   end
 end

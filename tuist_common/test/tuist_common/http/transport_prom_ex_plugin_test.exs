@@ -15,7 +15,7 @@ defmodule TuistCommon.HTTP.TransportPromExPluginTest do
 
       assert timeout_metric.tag_values.(%{
                conn: %{method: "POST", private: %{phoenix_route: "/foo"}, request_path: "/foo"}
-             }) == %{method: "POST", route: "/foo"}
+             }) == %{method: "POST", route: "/foo", request_path: "/foo"}
     end
 
     test "tracks Bandit failures from native stop and exception events" do
@@ -28,13 +28,18 @@ defmodule TuistCommon.HTTP.TransportPromExPluginTest do
       assert stop_metric.tag_values.(%{
                conn: %{method: "GET", private: %{}, request_path: "/bar", status: 500},
                error: nil
-             }) == %{method: "GET", route: "unknown", reason: "server_error"}
+             }) == %{
+               method: "GET",
+               route: "unknown",
+               reason: "server_error",
+               request_path: "/bar"
+             }
 
       assert exception_metric.event_name == [:bandit, :request, :exception]
 
       assert exception_metric.tag_values.(%{
                conn: %{method: "GET", private: %{}, request_path: "/bar"}
-             }) == %{method: "GET", route: "unknown", reason: "exception"}
+             }) == %{method: "GET", route: "unknown", reason: "exception", request_path: "/bar"}
     end
 
     test "tracks Thousand Island drop and error counters from native events" do

@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import XCTest
 
@@ -36,7 +37,7 @@ final class XcodeTests: TuistUnitTestCase {
         let infoPlist = Xcode.InfoPlist(version: "3.2.1")
         let infoPlistData = try plistEncoder.encode(infoPlist)
         let contentsPath = temporaryPath.appending(component: "Contents")
-        try FileHandler.shared.createFolder(contentsPath)
+        try await FileSystem().makeDirectory(at: contentsPath)
         let infoPlistPath = contentsPath.appending(component: "Info.plist")
         try infoPlistData.write(to: infoPlistPath.url)
 

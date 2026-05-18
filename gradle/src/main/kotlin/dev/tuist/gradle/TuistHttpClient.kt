@@ -3,10 +3,18 @@ package dev.tuist.gradle
 import java.net.HttpURLConnection
 import java.net.URI
 
-class TokenExpiredException : Exception()
+class TokenExpiredException : Exception("Tuist auth token expired; retrying with a refreshed token")
 
+/**
+ * High-level HTTP wrapper used by the cache and insights code paths: it owns
+ * the configuration / token lifecycle and transparently retries once on 401.
+ *
+ * All actual transport is delegated to [TuistHttpClients], so the proxy and
+ * any other cross-cutting HTTP concern only need to be configured in one place.
+ */
 class TuistHttpClient(
     private val configurationProvider: ConfigurationProvider,
+    private val httpClients: TuistHttpClients = TuistHttpClients(),
     private val connectTimeoutMs: Int = 30_000,
     private val readTimeoutMs: Int = 60_000
 ) {
@@ -16,9 +24,7 @@ class TuistHttpClient(
     private val configLock = Any()
 
     fun openConnection(url: URI, config: CacheConfiguration): HttpURLConnection {
-        val connection = url.toURL().openConnection() as HttpURLConnection
-        connection.connectTimeout = connectTimeoutMs
-        connection.readTimeout = readTimeoutMs
+        val connection = httpClients.openConnection(url, connectTimeoutMs, readTimeoutMs)
         connection.setRequestProperty("Authorization", "Bearer ${config.token}")
         return connection
     }

@@ -1,0 +1,115 @@
+.code-window {
+  --docs-terminal-shell-shadow: var(--noora-light-border-default);
+  --docs-terminal-body-shadow: var(--noora-light-border-default);
+  --docs-terminal-body-highlight: inset 0 1px 0 0 light-dark(oklch(100% 0 0 / 0.9), oklch(100% 0 0 / 0.06));
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  box-shadow: var(--docs-terminal-shell-shadow);
+  border-radius: 12px;
+  background: var(--noora-surface-background-primary);
+  padding: 4px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+html[data-theme="dark"] .code-window {
+  --docs-terminal-shell-shadow: 0px 1px 1px 0px rgb(14 14 14 / 0.3), 0px 0px 0px 1px rgb(113 113 113 / 0.45),
+    0px 2px 3px 0px rgb(0 0 0 / 0.3);
+  --docs-terminal-body-shadow: 0px 1px 1px 0px rgb(14 14 14 / 0.8), 0px 0px 0px 1px rgb(58 58 58 / 0.7),
+    0px 2px 2px 0px rgb(0 0 0 / 0.24);
+  --docs-terminal-body-highlight: inset 0px 1px 0px 0px rgb(255 255 255 / 0.2);
+}
+
+.code-window > [data-part="bar"] {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 8px;
+}
+
+.code-window > [data-part="bar"] > [data-part="language"] {
+  color: var(--noora-surface-label-primary);
+  font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+}
+
+.code-window > [data-part="bar"] > [data-part="copy"] {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  transition: opacity 0.2s ease;
+  cursor: pointer;
+  border-radius: 6px;
+  padding: 6px;
+  color: var(--noora-button-neutral-label);
+}
+
+.code-window > [data-part="bar"] > [data-part="copy"] svg {
+  width: 20px;
+  height: 20px;
+}
+
+.code-window > [data-part="bar"] > [data-part="copy"] [data-part="copy-icon"],
+.code-window > [data-part="bar"] > [data-part="copy"] [data-part="copy-check-icon"] {
+  display: flex;
+}
+
+.code-window > [data-part="bar"] > [data-part="copy"] [data-part="copy-check-icon"] {
+  display: none;
+}
+
+.code-window > [data-part="bar"] > [data-part="copy"][data-copied] [data-part="copy-icon"] {
+  display: none;
+}
+
+.code-window > [data-part="bar"] > [data-part="copy"][data-copied] [data-part="copy-check-icon"] {
+  display: flex;
+}
+
+.code-window > [data-part="bar"] > [data-part="copy"]:hover {
+  opacity: 0.7;
+}
+
+.code-window > [data-part="bar"] > [data-part="copy"]:active {
+  opacity: 0.5;
+}
+
+.code-window > [data-part="code"] {
+  position: relative;
+  box-shadow: var(--docs-terminal-body-shadow);
+  border-radius: 8px;
+  background: var(--noora-surface-background-tertiary);
+  padding: 16px 12px;
+  overflow-x: auto;
+  font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+
+  &::after {
+    position: absolute;
+    inset: 0;
+    box-shadow: var(--docs-terminal-body-highlight);
+    border-radius: inherit;
+    pointer-events: none;
+    content: "";
+  }
+}
+
+/* MDEx's html_inline formatter adds an inline background-color on <pre>,
+   override it so the code-window background shows through. */
+.code-window > [data-part="code"] pre {
+  margin: 0;
+  background: none !important;
+}
+
+.code-window > [data-part="code"] code {
+  display: block;
+  background: none;
+  color: inherit;
+}
+
+.code-window > [data-part="code"] code .line {
+  display: block;
+  min-height: 1lh;
+  white-space: pre;
+}

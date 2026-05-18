@@ -40,7 +40,7 @@ defmodule TuistWeb.Components.PublicProjectCTABanner do
             label={dgettext("dashboard", "Get started")}
             variant="primary"
             size="large"
-            href="https://docs.tuist.dev/en/"
+            href="https://tuist.dev/en/docs/"
             target="_blank"
           />
           <.button

@@ -51,7 +51,7 @@ defmodule CacheWeb.Plugs.AuthPlug do
   defp error_response(conn, status, message) do
     conn
     |> put_resp_content_type("application/json")
-    |> send_resp(status, Jason.encode!(%{message: message}))
+    |> send_resp(status, JSON.encode!(%{message: message}))
     |> halt()
   end
 end

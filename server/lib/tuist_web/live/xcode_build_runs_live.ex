@@ -15,9 +15,10 @@ defmodule TuistWeb.XcodeBuildRunsLive do
 
   def assign_mount(socket) do
     project = socket.assigns.selected_project
+    schemes = Builds.project_build_schemes(project)
     configurations = Builds.project_build_configurations(project)
     tags = Builds.project_build_tags(project)
-    assign(socket, :available_filters, define_filters(project, configurations, tags))
+    assign(socket, :available_filters, define_filters(project, schemes, configurations, tags))
   end
 
   def assign_handle_params(socket, params) do
@@ -196,15 +197,18 @@ defmodule TuistWeb.XcodeBuildRunsLive do
     flop_filters ++ ran_by_flop_filters ++ tag_flop_filters
   end
 
-  defp define_filters(project, configurations, tags) do
+  defp define_filters(project, schemes, configurations, tags) do
     base = [
       %Filter.Filter{
         id: "scheme",
         field: :scheme,
         display_name: dgettext("dashboard_builds", "Scheme"),
-        type: :text,
-        operator: :=~,
-        value: ""
+        type: :option,
+        searchable: true,
+        options: schemes,
+        options_display_names: Map.new(schemes, &{&1, &1}),
+        operator: :==,
+        value: nil
       },
       %Filter.Filter{
         id: "configuration",
@@ -295,6 +299,7 @@ defmodule TuistWeb.XcodeBuildRunsLive do
     organization =
       if Accounts.organization?(project.account) do
         {:ok, organization} = Accounts.get_organization_by_id(project.account.organization_id)
+
         users = Accounts.get_organization_members(organization)
 
         [
@@ -303,6 +308,7 @@ defmodule TuistWeb.XcodeBuildRunsLive do
             field: :ran_by,
             display_name: dgettext("dashboard_builds", "Ran by"),
             type: :option,
+            searchable: true,
             options: [:ci] ++ Enum.map(users, fn user -> user.account.id end),
             options_display_names:
               Map.merge(

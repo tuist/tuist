@@ -126,15 +126,19 @@ defmodule Noora.Sidebar do
   attr(:navigate, :string, default: nil, doc: "Navigates to a LiveView")
   attr(:patch, :string, default: nil, doc: "Patches the current LiveView")
   attr(:href, :any, default: nil, doc: "Uses traditional browser navigation to the new location")
+  attr(:external, :boolean, default: false, doc: "Whether the item points to an external resource.")
   attr(:rest, :global)
 
   def sidebar_item(assigns) do
     ~H"""
-    <.link navigate={@navigate} patch={@patch} href={@href} data-part="item">
+    <.link navigate={@navigate} patch={@patch} href={@href} data-part="item" {@rest}>
       <.tab_menu_vertical label={@label} data-selected={@selected}>
         <:icon_left>
           <.icon name={@icon} />
         </:icon_left>
+        <:icon_right :if={@external}>
+          <.external_link />
+        </:icon_right>
       </.tab_menu_vertical>
     </.link>
     """

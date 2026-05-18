@@ -1,0 +1,247 @@
+# Staging overlay for the Tuist-managed deployment.
+# Layer on top of values-managed-common.yaml. Secrets come from 1Password via
+# ESO (configured in common); at deploy time we only pass the image tag.
+#
+#   helm upgrade --install tuist infra/helm/tuist \
+#     -n tuist-staging --create-namespace \
+#     -f infra/helm/tuist/values-managed-common.yaml \
+#     -f infra/helm/tuist/values-managed-staging.yaml \
+#     --set server.image.tag=$GIT_SHA
+
+server:
+  replicaCount: 1
+
+  # Non-secret runtime config. Traces go to the in-cluster Alloy receiver
+  # (deployed by infra/helm/k8s-monitoring) via OTLP gRPC; Alloy forwards
+  # them to Grafana Cloud Tempo. Logs follow a different path — the server
+  # writes to stdout and a per-node Alloy DaemonSet tails /var/log/pods —
+  # so TUIST_LOKI_URL stays unset (the in-app LokiLoggerHandler only
+  # attaches when TUIST_LOKI_INPROC=1).
+  extraEnv:
+    # Selects which priv/secrets/<env>.yml.enc file the app decrypts at
+    # boot. Image is env-agnostic (built with MIX_ENV=prod); this flag
+    # plus the MASTER_KEY ESO secret pick the runtime deployment target.
+    - name: TUIST_DEPLOY_ENV
+      value: stag
+    - name: TUIST_DATABASE_POOL_SIZE
+      value: "15"
+    - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
+      value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
+
+  appUrl: https://staging.tuist.dev
+
+  # ingress-nginx fronts the server on port 443 with a Cloudflare Origin CA
+  # cert (synced into the tuist-tls-cloudflare-origin Secret out-of-band;
+  # 15-year validity, renewal is a future-us problem). Cloudflare is set
+  # to Full (strict) SSL — edge ↔ origin now runs HTTPS.
+  ingress:
+    enabled: true
+    className: nginx
+    host: staging.tuist.dev
+    tlsSecretName: tuist-tls-cloudflare-origin
+
+  autoscaling:
+    enabled: false
+
+  podDisruptionBudget:
+    enabled: false
+
+  # Staging only has 2 cpx22 worker nodes (~2.5GiB allocatable each), and
+  # system DaemonSets eat ~1GiB per node before app pods schedule. With
+  # `maxSurge: 1` (the chart default) a rolling deploy needs the new server
+  # pod to start *before* the old one terminates, which doesn't fit. Swap
+  # to `maxUnavailable: 1` so the old pod terminates first; brief downtime
+  # during deploy is acceptable for staging.
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+
+  # Staging is squeezed onto 2 cpx22 workers (~2.5Gi allocatable each, ~1.5Gi
+  # eaten by system DaemonSets). Requests are sized for *scheduling*, not for
+  # actual runtime memory usage — the BEAM regularly uses 700-900MiB. Limits
+  # carry the real headroom; the burstable QoS class is intentional given how
+  # idle staging stays.
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "384Mi"
+    limits:
+      cpu: "1000m"
+      memory: "1536Mi"
+
+  # The migration hook is an extra pod that starts before Helm can
+  # terminate any existing workload pod. `Tuist.Release.migrate` only loads
+  # the app config and runs Ecto migrations (no Phoenix endpoint, no Oban,
+  # pool size 1), so peak working set is around 150-250Mi. Match the
+  # staging server's shape so the hook fits whenever the server fits; the
+  # common 4Gi limit still caps backfill spikes.
+  migrationJob:
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "200Mi"
+
+objectStorage:
+  external:
+    buckets:
+      default: tuist-stag-storage
+
+processor:
+  # Supabase staging project (inzgspjesrhqhleomvkb) — dedicated pooler on
+  # port 6543 (transaction mode). Same hostname as the direct Postgres
+  # endpoint, just a different port. Pooler creds are the `tuist_processor`
+  # role provisioned via infra/supabase/tuist-processor-role.sql.
+  database:
+    host: db.inzgspjesrhqhleomvkb.supabase.co
+  # Single replica on staging — 2-replica redundancy isn't needed for a
+  # pre-prod env, and a second pod doesn't fit on the 2-worker cluster
+  # alongside the server pod + system DaemonSets. PDB stays off too;
+  # rolling deploys terminate the one pod, jobs queue up briefly in
+  # oban_jobs, and resume once the new pod boots.
+  replicaCount: 1
+  podDisruptionBudget:
+    enabled: false
+  # Same surge=0/unavailable=1 reasoning as the server above.
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  extraEnv:
+    # Must match the server's TUIST_DEPLOY_ENV above so the processor pod
+    # decrypts the same priv/secrets/<env>.yml.enc file the web tier does.
+    - name: TUIST_DEPLOY_ENV
+      value: stag
+    - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
+      value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
+  # The processor runs the full Tuist BEAM release (Repos, Vault, Cachex,
+  # ingestion buffers, Oban, etc.) — TUIST_MODE=processor only skips the
+  # Phoenix endpoint binding and narrows the Oban queue set. Boot memory sits
+  # around 600-800MiB. Same burstable shape as the server above: low request
+  # so it schedules next to the server on the cramped staging cluster, high
+  # limit so runtime isn't constrained.
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "384Mi"
+    limits:
+      cpu: "500m"
+      memory: "1536Mi"
+
+xcresultProcessor:
+  # Single replica in staging. Inherits the chart default rolling
+  # strategy (maxSurge=1, maxUnavailable=0) so helm upgrade --wait
+  # actually blocks on the new Tart-VM Pod becoming Ready before
+  # marking the rollout done — without this, replicas=1 +
+  # maxUnavailable=1 lets a Deployment look "Available" with zero
+  # actually-running Pods, and a stuck rollout slips past --atomic.
+  # Surge-during-roll fits within tart-kubelet's max-pods=3
+  # (chart default): csi-daemonset(1) + old(1) + new(1) = 3.
+  enabled: true
+  replicaCount: 1
+  extraEnv:
+    - name: TUIST_DEPLOY_ENV
+      value: stag
+    - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
+      value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
+
+# Mac mini fleet. The chart renders one ScalewayAppleSiliconMachine
+# CR per replica; the cluster-api-provider-scaleway-applesilicon
+# operator orders each Mac mini, then SSH-bootstraps it with
+# tart-kubelet. The Mac mini joins the cluster as a real Node.
+macosFleet:
+  enabled: true
+  replicas: 1
+  # Share the pre-ordered pool with runnersFleet (same prefix
+  # below). Both MachineDeployments draw from one Scaleway-side
+  # pool of `tuist-pool-*` hosts; the controller claims the first
+  # match per Machine. Avoids fragmenting capacity between the
+  # macos and runners fleets in staging where total hostCount
+  # (1 + 2) easily fits within one operator-managed pool.
+  adoptPoolPrefix: "tuist-pool-"
+  machine:
+    # Staging tracks the chart default (M2-L on Scaleway: M2 Pro
+    # 10-core / 16 GB). Drop to M2-M if staging capacity gets tight
+    # on inventory and we accept smaller hosts.
+    type: M2-L
+    # Leave 2 CPU + 2 GB for the macOS host + Apple
+    # Virtualization.framework reserve. tart-kubelet advertises
+    # `8 / 14336` so kube-scheduler packs Pods against the real VM
+    # budget. Asking for the host's full 10 CPU / 16 GB fails at
+    # `tart run` with
+    # `memorySize > maximumAllowedMemorySize` (and the matching
+    # CPU-count check).
+    hostCPU: 8
+    hostMemoryMB: 14336
+
+# Customer-runner Mac mini fleet. Sized to tuist/tuist's
+# concurrency tier (2 in staging; production keeps 5).
+# Workloads that target this fleet schedule via
+# `nodeSelector: tuist.dev/fleet=tuist-tuist-runners-fleet`.
+#
+# Image digest pinned to the artifact built by the most recent
+# successful run of .github/workflows/runner-image.yml. Bumped
+# manually for now (one digest per runner-image release);
+# automation lands when the image flow gets its own
+# release-bump workflow.
+runnersFleet:
+  enabled: true
+  hostCount: 1
+  # Pre-ordered Mac mini pool. Operator orders Mac minis in the
+  # Scaleway console with names starting with `tuist-pool-`
+  # (e.g. `tuist-pool-001`, `tuist-pool-002`); the CAPI controller
+  # claims the first matching one for each new Machine. No
+  # auto-order fallback — if the pool runs dry the new Machine
+  # stays in `Provisioning` with `NoAvailableHost` events until
+  # capacity is pre-ordered.
+  adoptPoolPrefix: "tuist-pool-"
+  machine:
+    # Chart default — M2-L on Scaleway: M2 Pro 10-core / 16 GB.
+    # Explicit here so `hostCPU`/`hostMemoryMB` stay in sync if a
+    # future operator overrides the SKU per env. The operator's
+    # pre-ordered hosts MUST be M2-L (matching the controller's
+    # adoption filter); other SKUs in the pool are skipped.
+    type: M2-L
+    # Match the SKU's actual capacity less host overhead so
+    # tart-kubelet advertises the right Node.Status.Capacity and
+    # kube-scheduler packs Pods against the real VM budget.
+    # 14336 leaves ~2 GB for the macOS host + Apple
+    # Virtualization.framework reserve (16 GB - 2 GB = 14 GB);
+    # asking for the full 16 GB on a 16 GB host fails at
+    # `tart run` with `memorySize > maximumAllowedMemorySize`.
+    # `hostCPU: 8` leaves 2 cores for the host's system services.
+    hostCPU: 8
+    hostMemoryMB: 14336
+  # Cluster-internal CIDR ranges the runner namespace's
+  # NetworkPolicy blocks egress to. **Pod-network only** — the
+  # Tart VM's traffic is not subject to this policy (vmnet bypasses
+  # CNI). Use the cluster-perimeter firewall on the Mac mini's
+  # security group to gate VM egress. The ranges below match the
+  # staging cluster's Pod + Service CIDRs; double-check with
+  # `kubectl cluster-info dump | grep -i cidr` before bumping
+  # these on a fresh cluster.
+  networkPolicy:
+    enabled: true
+    exceptCIDRs:
+      - "10.0.0.0/8"
+      - "172.16.0.0/12"
+      - "192.168.0.0/16"
+  pools:
+    - name: default
+      # 1 warm runner per host. Pool replicas must equal `hostCount`
+      # while pods request the full host — over-provisioning the
+      # pool only produces unschedulable Pods that drag readiness
+      # gates without adding capacity.
+      replicas: 1
+      runnerImage: "ghcr.io/tuist/tuist-runner@sha256:13f45853f4153f6717dff0aad23e7c896e46bc48cc41df4be314605adeadb5ff"
+      dispatchLabel: "tuist-staging-macos"
+      pod:
+        # Pod request = host capacity. kube-scheduler bin-packs one
+        # Pod per host AND tart-kubelet's `tart set` gives the VM
+        # the host's full CPU/RAM. Mismatch with `machine.host*`
+        # would either waste memory (Pod under-requests, VM is
+        # smaller than host) or fail to schedule (over-requests).
+        cpuMilli: 8000
+        memoryMB: 14336

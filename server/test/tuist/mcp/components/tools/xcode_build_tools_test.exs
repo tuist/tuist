@@ -87,26 +87,27 @@ defmodule Tuist.MCP.Components.Tools.XcodeBuildToolsTest do
       project = %{id: 1, name: "app"}
 
       stub(Builds, :get_build, fn "build-1" ->
-        %{
-          id: "build-1",
-          duration: 5000,
-          status: "success",
-          category: "clean",
-          scheme: "App",
-          configuration: "Debug",
-          xcode_version: "15.0",
-          macos_version: "14.0",
-          model_identifier: "MacBookPro18,1",
-          is_ci: false,
-          git_branch: "main",
-          git_commit_sha: "abc123",
-          git_ref: "refs/heads/main",
-          cacheable_tasks_count: 10,
-          cacheable_task_local_hits_count: 5,
-          cacheable_task_remote_hits_count: 3,
-          project_id: 1,
-          inserted_at: ~N[2024-01-01 12:00:00]
-        }
+        {:ok,
+         %{
+           id: "build-1",
+           duration: 5000,
+           status: "success",
+           category: "clean",
+           scheme: "App",
+           configuration: "Debug",
+           xcode_version: "15.0",
+           macos_version: "14.0",
+           model_identifier: "MacBookPro18,1",
+           is_ci: false,
+           git_branch: "main",
+           git_commit_sha: "abc123",
+           git_ref: "refs/heads/main",
+           cacheable_tasks_count: 10,
+           cacheable_task_local_hits_count: 5,
+           cacheable_task_remote_hits_count: 3,
+           project_id: 1,
+           inserted_at: ~N[2024-01-01 12:00:00]
+         }}
       end)
 
       stub(Projects, :get_project_by_id, fn 1 -> project end)
@@ -127,7 +128,7 @@ defmodule Tuist.MCP.Components.Tools.XcodeBuildToolsTest do
       project = %{id: 1, name: "app"}
 
       stub(Builds, :get_build, fn "build-1" ->
-        %{id: "build-1", project_id: 1}
+        {:ok, %{id: "build-1", project_id: 1}}
       end)
 
       stub(Projects, :get_project_by_id, fn 1 -> project end)
@@ -167,7 +168,7 @@ defmodule Tuist.MCP.Components.Tools.XcodeBuildToolsTest do
     test "returns build files" do
       project = %{id: 1, name: "app"}
 
-      stub(Builds, :get_build, fn "build-1" -> %{id: "build-1", project_id: 1} end)
+      stub(Builds, :get_build, fn "build-1" -> {:ok, %{id: "build-1", project_id: 1}} end)
       stub(Projects, :get_project_by_id, fn 1 -> project end)
       stub(Tuist.Authorization, :authorize, fn :build_read, :subject, ^project -> :ok end)
 
@@ -204,7 +205,7 @@ defmodule Tuist.MCP.Components.Tools.XcodeBuildToolsTest do
     test "returns build issues" do
       project = %{id: 1, name: "app"}
 
-      stub(Builds, :get_build, fn "build-1" -> %{id: "build-1", project_id: 1} end)
+      stub(Builds, :get_build, fn "build-1" -> {:ok, %{id: "build-1", project_id: 1}} end)
       stub(Projects, :get_project_by_id, fn 1 -> project end)
       stub(Tuist.Authorization, :authorize, fn :build_read, :subject, ^project -> :ok end)
 
@@ -240,30 +241,31 @@ defmodule Tuist.MCP.Components.Tools.XcodeBuildToolsTest do
     test "returns cache tasks" do
       project = %{id: 1, name: "app"}
 
-      stub(Builds, :get_build, fn "build-1" -> %{id: "build-1", project_id: 1} end)
+      stub(Builds, :get_build, fn "build-1" -> {:ok, %{id: "build-1", project_id: 1}} end)
       stub(Projects, :get_project_by_id, fn 1 -> project end)
       stub(Tuist.Authorization, :authorize, fn :build_read, :subject, ^project -> :ok end)
 
       stub(Builds, :list_cacheable_tasks, fn _attrs ->
-        {[
-           %{
-             type: "swift",
-             status: "hit_remote",
-             key: "abc123",
-             read_duration: 50.0,
-             write_duration: nil,
-             description: "AppTarget",
-             cas_output_node_ids: ["node-1"]
-           }
-         ],
-         %{
-           has_next_page?: false,
-           has_previous_page?: false,
-           total_count: 1,
-           total_pages: 1,
-           current_page: 1,
-           page_size: 20
-         }}
+        {:ok,
+         {[
+            %{
+              type: "swift",
+              status: "hit_remote",
+              key: "abc123",
+              read_duration: 50.0,
+              write_duration: nil,
+              description: "AppTarget",
+              cas_output_node_ids: ["node-1"]
+            }
+          ],
+          %{
+            has_next_page?: false,
+            has_previous_page?: false,
+            total_count: 1,
+            total_pages: 1,
+            current_page: 1,
+            page_size: 20
+          }}}
       end)
 
       result = ListXcodeBuildCacheTasks.call(conn_with_subject(), %{"build_run_id" => "build-1"})
@@ -279,7 +281,7 @@ defmodule Tuist.MCP.Components.Tools.XcodeBuildToolsTest do
     test "returns CAS outputs" do
       project = %{id: 1, name: "app"}
 
-      stub(Builds, :get_build, fn "build-1" -> %{id: "build-1", project_id: 1} end)
+      stub(Builds, :get_build, fn "build-1" -> {:ok, %{id: "build-1", project_id: 1}} end)
       stub(Projects, :get_project_by_id, fn 1 -> project end)
       stub(Tuist.Authorization, :authorize, fn :build_read, :subject, ^project -> :ok end)
 

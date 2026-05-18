@@ -1,11 +1,13 @@
 import ArgumentParser
 import Foundation
+import Path
 import TuistCore
+import TuistEnvironment
 import TuistEnvKey
 import TuistSupport
 import XcodeGraph
 
-public struct XcodeBuildBuildForTestingCommand: AsyncParsableCommand, TrackableParsableCommand, RecentPathRememberableCommand {
+public struct XcodeBuildBuildForTestingCommand: AsyncParsableCommand, TrackableParsableCommand {
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "build-for-testing",
@@ -60,6 +62,21 @@ public struct XcodeBuildBuildForTestingCommand: AsyncParsableCommand, TrackableP
     )
     var shardReference: String?
 
+    @Flag(
+        name: .long,
+        help: "Skip uploading test products to remote storage. Use when you provide test products to shard runners yourself, for example via shared volumes.",
+        envKey: .testShardSkipUpload
+    )
+    var shardSkipUpload: Bool = false
+
+    @Option(
+        name: .long,
+        help: "Path where Tuist should write the optimized shard archive instead of uploading test products to remote storage.",
+        completion: .file(),
+        envKey: .testShardArchivePath
+    )
+    var shardArchivePath: String?
+
     @Argument(
         parsing: .captureForPassthrough,
         help: "Arguments that will be passed through to the xcodebuild CLI. All arguments are forwarded to xcodebuild. Example: tuist xcodebuild build-for-testing -scheme MyAppTests -destination 'platform=iOS Simulator,name=iPhone 15'"
@@ -67,6 +84,12 @@ public struct XcodeBuildBuildForTestingCommand: AsyncParsableCommand, TrackableP
     public var passthroughXcodebuildArguments: [String] = []
 
     public func run() async throws {
+        let shardArchivePath = try await { () async throws -> AbsolutePath? in
+            if let shardArchivePath = self.shardArchivePath {
+                return try await Environment.current.pathRelativeToWorkingDirectory(shardArchivePath)
+            }
+            return nil
+        }()
         try await XcodeBuildBuildCommandService()
             .run(
                 passthroughXcodebuildArguments: ["build-for-testing"] + passthroughXcodebuildArguments,
@@ -75,7 +98,9 @@ public struct XcodeBuildBuildForTestingCommand: AsyncParsableCommand, TrackableP
                 shardMin: shardMin,
                 shardMax: shardMax,
                 shardTotal: shardTotal,
-                shardMaxDuration: shardMaxDuration
+                shardMaxDuration: shardMaxDuration,
+                shardSkipUpload: shardSkipUpload,
+                shardArchivePath: shardArchivePath
             )
     }
 }

@@ -71,7 +71,7 @@ struct SchemeLinter: SchemeLinting {
                 )
             }
             try await testAction.testPlans?.forEach(context: .concurrent) { testPlan in
-                if try await !fileSystem.exists(testPlan.path) {
+                if testPlan.kind == .referenced, try await !fileSystem.exists(testPlan.path) {
                     issues.append(
                         LintingIssue(
                             reason: "Test Plan not found at path \(testPlan.path.pathString)",

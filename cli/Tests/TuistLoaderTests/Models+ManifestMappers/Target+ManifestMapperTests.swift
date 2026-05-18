@@ -101,28 +101,26 @@ final class TargetManifestMapperTests: TuistUnitTestCase {
         XCTAssertNil(got.sources[0].contentHash) // Regular files don't have contentHash
         XCTAssertEqual(got.sources[1].path, scriptOutputFile)
         XCTAssertEqual(got.sources[1].contentHash, "mock-hash") // Generated files should have contentHash from mock
+        XCTAssertEqual(got.buildableFolders.count, 1)
+        let buildableFolder = try XCTUnwrap(got.buildableFolders.first)
+        XCTAssertEqual(buildableFolder.path, buildableSourcesDirectory)
+        XCTAssertEqual(buildableFolder.exceptions, [
+            BuildableFolderException(excluded: [
+                try generatorPaths.resolve(path: "BuildableSources/excluded.swift"),
+            ], compilerFlags: [
+                try generatorPaths.resolve(path: "BuildableSources/flags.swift"): "-print-stats",
+            ], publicHeaders: [
+                try generatorPaths.resolve(path: "BuildableSources/headers/public.h"),
+            ], privateHeaders: [
+                try generatorPaths.resolve(path: "BuildableSources/headers/private.h"),
+            ]),
+        ])
         XCTAssertEqual(
-            got.buildableFolders,
-            [
-                BuildableFolder(
-                    path: buildableSourcesDirectory,
-                    exceptions: [
-                        BuildableFolderException(excluded: [
-                            try generatorPaths.resolve(path: "BuildableSources/excluded.swift"),
-                        ], compilerFlags: [
-                            try generatorPaths.resolve(path: "BuildableSources/flags.swift"): "-print-stats",
-                        ], publicHeaders: [
-                            try generatorPaths.resolve(path: "BuildableSources/headers/public.h"),
-                        ], privateHeaders: [
-                            try generatorPaths.resolve(path: "BuildableSources/headers/private.h"),
-                        ]),
-                    ],
-                    resolvedFiles: [
-                        BuildableFolderFile(path: buildableFlagsFile, compilerFlags: "-print-stats"),
-                        BuildableFolderFile(path: buildableSourceFile, compilerFlags: nil),
-                    ]
-                ),
-            ]
+            Set(buildableFolder.resolvedFiles),
+            Set([
+                BuildableFolderFile(path: buildableSourceFile, compilerFlags: nil),
+                BuildableFolderFile(path: buildableFlagsFile, compilerFlags: "-print-stats"),
+            ])
         )
     }
 

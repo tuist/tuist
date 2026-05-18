@@ -19,6 +19,7 @@
       display: flex;
       flex-direction: column;
       gap: var(--noora-spacing-4);
+      min-width: 0;
 
       & > [data-part="title"] {
         display: flex;
@@ -56,7 +57,7 @@
         & > [data-part="badge-failure"],
         & > [data-part="badge-skipped"],
         & > [data-part="badge-flaky"] {
-          border-radius: var(--noora-radius-large);
+          border-radius: var(--noora-radius-4);
           & > [data-part="icon"] {
             padding: var(--noora-spacing-3);
             width: var(--noora-icon-size-large);
@@ -73,6 +74,7 @@
           margin: var(--noora-spacing-0);
           color: var(--noora-surface-label-primary);
           font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+          word-break: break-word;
         }
       }
 
@@ -85,9 +87,14 @@
 
     & > [data-part="actions"] {
       display: flex;
+      flex-shrink: 0;
       flex-direction: row;
       gap: var(--noora-spacing-4);
     }
+  }
+
+  & .noora-dropdown-item:not([data-selected]) [data-part="right-icon"] svg {
+    visibility: hidden;
   }
 
   & [data-part="test-case-details-section"] {
@@ -184,7 +191,7 @@
         align-items: center;
         gap: 10px;
         box-shadow: var(--noora-light-border-default);
-        border-radius: var(--noora-radius-large);
+        border-radius: var(--noora-radius-4);
         background: var(--noora-surface-background-primary);
         padding: var(--noora-spacing-5);
 
@@ -193,7 +200,7 @@
           flex-shrink: 0;
           justify-content: center;
           align-items: center;
-          border-radius: var(--noora-radius-large);
+          border-radius: var(--noora-radius-4);
           padding: var(--noora-spacing-3);
 
           & svg {
@@ -276,7 +283,7 @@
 
       & [data-part="collapsible"] {
         box-shadow: var(--noora-light-border-default);
-        border-radius: var(--noora-radius-xlarge);
+        border-radius: var(--noora-radius-6);
         overflow: hidden;
 
         & [data-part="header-row"] {
@@ -468,7 +475,7 @@
               flex-direction: column;
               gap: var(--noora-spacing-5);
               box-shadow: var(--noora-light-border-default);
-              border-radius: var(--noora-radius-large);
+              border-radius: var(--noora-radius-4);
               padding: var(--noora-spacing-5);
 
               & [data-part="repetition-wrapper"] {
@@ -496,7 +503,7 @@
               flex-direction: column;
               gap: var(--noora-spacing-2);
               box-shadow: var(--noora-border-section);
-              border-radius: var(--noora-radius-medium);
+              border-radius: var(--noora-radius-3);
               background: var(--noora-surface-background-tertiary);
               padding: var(--noora-spacing-5);
               color: var(--noora-surface-label-primary);
@@ -584,7 +591,7 @@
         align-items: center;
         gap: 10px;
         box-shadow: var(--noora-light-border-default);
-        border-radius: var(--noora-radius-large);
+        border-radius: var(--noora-radius-4);
         background: var(--noora-surface-background-primary);
         padding: var(--noora-spacing-5);
 
@@ -593,7 +600,7 @@
           flex-shrink: 0;
           justify-content: center;
           align-items: center;
-          border-radius: var(--noora-radius-large);
+          border-radius: var(--noora-radius-4);
           padding: var(--noora-spacing-3);
 
           & svg {

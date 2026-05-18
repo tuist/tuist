@@ -5,6 +5,7 @@ defmodule TuistWeb.API.TestsControllerTest do
   alias Tuist.Tests
   alias Tuist.Tests.Analytics
   alias Tuist.Tests.Test
+  alias Tuist.Tests.Workers.ProcessXcresultWorker
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.Authentication
@@ -242,7 +243,7 @@ defmodule TuistWeb.API.TestsControllerTest do
     end
 
     test "creates a test run with xcode build system by default", %{conn: conn, user: user, project: project} do
-      expect(Tests, :get_test, fn _id -> {:error, :not_found} end)
+      expect(Tests, :get_test, fn _id, _opts -> {:error, :not_found} end)
 
       expect(Tests, :create_test, fn attrs ->
         assert attrs.build_system == "xcode"
@@ -290,7 +291,7 @@ defmodule TuistWeb.API.TestsControllerTest do
     end
 
     test "creates a test run with gradle build system", %{conn: conn, user: user, project: project} do
-      expect(Tests, :get_test, fn _id -> {:error, :not_found} end)
+      expect(Tests, :get_test, fn _id, _opts -> {:error, :not_found} end)
 
       expect(Tests, :create_test, fn attrs ->
         assert attrs.build_system == "gradle"
@@ -364,7 +365,7 @@ defmodule TuistWeb.API.TestsControllerTest do
     end
 
     test "creates a test run without macos_version (not required)", %{conn: conn, user: user, project: project} do
-      expect(Tests, :get_test, fn _id -> {:error, :not_found} end)
+      expect(Tests, :get_test, fn _id, _opts -> {:error, :not_found} end)
 
       expect(Tests, :create_test, fn attrs ->
         assert attrs.build_system == "gradle"
@@ -397,10 +398,169 @@ defmodule TuistWeb.API.TestsControllerTest do
       assert %{"type" => "test", "id" => _id} = json_response(conn, 200)
     end
 
+    test "creates a test run with parameterized test arguments", %{conn: conn, user: user, project: project} do
+      expect(Tests, :get_test, fn _id, _opts -> {:error, :not_found} end)
+
+      expect(Tests, :create_test, fn attrs ->
+        [module] = attrs.test_modules
+        [test_case] = module.test_cases
+        arguments = test_case.arguments
+
+        assert length(arguments) == 2
+
+        [arg1, arg2] = arguments
+        assert arg1.name == ".cardUser"
+        assert arg1.status == "failure"
+        assert arg1.duration == 500
+        assert length(arg1.failures) == 1
+        assert hd(arg1.failures).message == "Snapshot does not match"
+        assert length(arg1.repetitions) == 2
+
+        assert arg2.name == ".cardAdmin"
+        assert arg2.status == "success"
+
+        {:ok,
+         %Test{
+           id: attrs.id,
+           duration: attrs.duration,
+           project_id: project.id,
+           build_system: "xcode",
+           test_case_runs: [
+             %{
+               id: UUIDv7.generate(),
+               name: "profile details",
+               module_name: "MyTests",
+               suite_name: "ProfileTests",
+               arguments: [
+                 %{id: UUIDv7.generate(), name: ".cardUser"},
+                 %{id: UUIDv7.generate(), name: ".cardAdmin"}
+               ]
+             }
+           ]
+         }}
+      end)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          "/api/projects/#{user.account.name}/#{project.name}/tests",
+          %{
+            duration: 5000,
+            is_ci: false,
+            status: "failure",
+            test_modules: [
+              %{
+                name: "MyTests",
+                status: "failure",
+                duration: 5000,
+                test_suites: [
+                  %{name: "ProfileTests", status: "failure", duration: 5000}
+                ],
+                test_cases: [
+                  %{
+                    name: "profile details",
+                    test_suite_name: "ProfileTests",
+                    status: "failure",
+                    duration: 1000,
+                    arguments: [
+                      %{
+                        name: ".cardUser",
+                        status: "failure",
+                        duration: 500,
+                        failures: [
+                          %{
+                            message: "Snapshot does not match",
+                            path: "ProfileTests.swift",
+                            line_number: 22,
+                            issue_type: "issue_recorded"
+                          }
+                        ],
+                        repetitions: [
+                          %{repetition_number: 1, name: "First Run", status: "success", duration: 200},
+                          %{repetition_number: 2, name: "Retry 1", status: "failure", duration: 300}
+                        ]
+                      },
+                      %{
+                        name: ".cardAdmin",
+                        status: "success",
+                        duration: 500
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        )
+
+      response = json_response(conn, 200)
+      assert %{"type" => "test"} = response
+      [test_case_run] = response["test_case_runs"]
+      assert test_case_run["name"] == "profile details"
+      assert length(test_case_run["arguments"]) == 2
+      [arg1, arg2] = test_case_run["arguments"]
+      assert arg1["name"] == ".cardUser"
+      assert arg2["name"] == ".cardAdmin"
+    end
+
+    test "returns preloaded test_case_runs when the test already exists", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      existing_id = UUIDv7.generate()
+      existing_run_id = UUIDv7.generate()
+
+      # Regression test for the %Ecto.Association.NotLoaded{} crash: when
+      # the test already exists, get_test must preload test_case_runs so
+      # the response reflects what is actually stored, not an empty list.
+      expect(Tests, :get_test, fn ^existing_id, opts ->
+        assert opts[:preload] == [test_case_runs: :arguments]
+
+        {:ok,
+         %Test{
+           id: existing_id,
+           duration: 1000,
+           project_id: project.id,
+           build_system: "xcode",
+           test_case_runs: [
+             %Tuist.Tests.TestCaseRun{
+               id: existing_run_id,
+               name: "testExample",
+               module_name: "MyModule",
+               suite_name: "MyModuleTests",
+               arguments: []
+             }
+           ]
+         }}
+      end)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          "/api/projects/#{user.account.name}/#{project.name}/tests",
+          %{
+            id: existing_id,
+            duration: 1000,
+            is_ci: false,
+            status: "success",
+            test_modules: []
+          }
+        )
+
+      response = json_response(conn, 200)
+      assert response["id"] == existing_id
+      assert [run] = response["test_case_runs"]
+      assert run["id"] == existing_run_id
+      assert run["name"] == "testExample"
+    end
+
     test "enqueues a VCS pull request comment", %{conn: conn, user: user, project: project} do
       test_pid = self()
 
-      expect(Tests, :get_test, fn _id -> {:error, :not_found} end)
+      expect(Tests, :get_test, fn _id, _opts -> {:error, :not_found} end)
 
       expect(Tests, :create_test, fn attrs ->
         {:ok,
@@ -439,6 +599,141 @@ defmodule TuistWeb.API.TestsControllerTest do
       assert args.git_ref == "refs/pull/42/merge"
       assert args.git_remote_url_origin == "https://github.com/tuist/tuist.git"
       assert args.project_id == project.id
+    end
+
+    test "embeds vcs_comment_params in ProcessXcresultWorker args when status is processing", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      expect(Tests, :get_test, fn _id, _opts -> {:error, :not_found} end)
+
+      expect(Tests, :create_test, fn attrs ->
+        {:ok,
+         %Test{
+           id: attrs.id,
+           duration: attrs.duration,
+           project_id: project.id,
+           account_id: attrs.account_id,
+           is_ci: true,
+           git_branch: attrs.git_branch,
+           git_commit_sha: attrs.git_commit_sha,
+           git_ref: attrs.git_ref,
+           macos_version: attrs.macos_version,
+           xcode_version: attrs.xcode_version,
+           model_identifier: attrs.model_identifier,
+           scheme: attrs.scheme,
+           ci_run_id: attrs.ci_run_id,
+           ci_project_handle: attrs.ci_project_handle,
+           ci_host: attrs.ci_host,
+           ci_provider: attrs.ci_provider,
+           build_run_id: attrs.build_run_id,
+           shard_plan_id: attrs.shard_plan_id,
+           build_system: "xcode",
+           status: "processing",
+           test_case_runs: []
+         }}
+      end)
+
+      reject(&Tuist.VCS.enqueue_vcs_pull_request_comment/1)
+
+      conn
+      |> put_req_header("content-type", "application/json")
+      |> post(
+        "/api/projects/#{user.account.name}/#{project.name}/tests",
+        %{
+          duration: 0,
+          macos_version: "15.0",
+          xcode_version: "16.0",
+          is_ci: true,
+          status: "processing",
+          scheme: "TuistAcceptanceTests",
+          git_commit_sha: "abc123",
+          git_ref: "refs/pull/42/merge",
+          git_remote_url_origin: "https://github.com/tuist/tuist.git",
+          shard_index: 1,
+          test_modules: []
+        }
+      )
+
+      assert_enqueued(
+        worker: ProcessXcresultWorker,
+        args: %{
+          "vcs_comment_params" => %{
+            "git_commit_sha" => "abc123",
+            "git_ref" => "refs/pull/42/merge",
+            "git_remote_url_origin" => "https://github.com/tuist/tuist.git",
+            "project_id" => project.id
+          }
+        }
+      )
+    end
+
+    test "uses the request body id (not the merged run id) for storage_key on sharded runs", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      # The CLI uploads each shard's xcresult to S3 keyed on the UUID
+      # it generated locally; for sharded runs the merged test run id
+      # belongs to the first shard, so the worker must read from the
+      # request body's id key, not from the merged Test row's id.
+      requested_id = UUIDv7.generate()
+      existing_merged_id = UUIDv7.generate()
+      shard_plan_id = UUIDv7.generate()
+
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      stub(Tests, :get_test, fn _id, _opts -> {:error, :not_found} end)
+
+      stub(Tests, :create_test, fn attrs ->
+        # Simulate the real sharded merge: create_or_update_sharded_test
+        # rewrites status to "in_progress" while it waits for the other
+        # shards, even though the CLI uploaded with status="processing".
+        # The merged id is the first shard's, not this shard's body id.
+        {:ok,
+         %Test{
+           id: existing_merged_id,
+           duration: attrs.duration,
+           project_id: project.id,
+           account_id: attrs.account_id,
+           is_ci: true,
+           scheme: nil,
+           shard_plan_id: shard_plan_id,
+           build_system: "xcode",
+           status: "in_progress",
+           test_case_runs: []
+         }}
+      end)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          "/api/projects/#{user.account.name}/#{project.name}/tests",
+          %{
+            id: requested_id,
+            duration: 0,
+            is_ci: true,
+            status: "processing",
+            shard_plan_id: shard_plan_id,
+            shard_index: 1,
+            test_modules: []
+          }
+        )
+
+      assert json_response(conn, 200)
+
+      expected_key =
+        "#{user.account.name}/#{project.name}/runs/#{requested_id}/result_bundle.zip"
+
+      assert_enqueued(
+        worker: ProcessXcresultWorker,
+        args: %{
+          "test_run_id" => existing_merged_id,
+          "storage_key" => expected_key,
+          "shard_index" => 1
+        }
+      )
     end
   end
 

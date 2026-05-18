@@ -3,7 +3,7 @@
   flex-direction: column;
   gap: var(--noora-spacing-3);
   box-shadow: var(--noora-border-light-default);
-  border-radius: var(--noora-radius-xlarge);
+  border-radius: var(--noora-radius-6);
   padding: var(--noora-spacing-2);
 
   & > [data-part="header"] {
@@ -21,7 +21,7 @@
 
   & > [data-part="body"] {
     box-shadow: var(--noora-border-section);
-    border-radius: var(--noora-radius-large);
+    border-radius: var(--noora-radius-4);
     background: var(--noora-surface-background-tertiary);
     padding: var(--noora-spacing-6) var(--noora-spacing-5);
     line-break: anywhere;

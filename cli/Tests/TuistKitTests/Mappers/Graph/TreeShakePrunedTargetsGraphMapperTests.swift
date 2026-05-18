@@ -93,7 +93,7 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
         XCTAssertEmpty(gotGraph.projects.values.flatMap(\.schemes))
     }
 
-    func test_map_removes_project_schemes_with_whose_run_action_expand_variable_from_target_has_been_removed() throws {
+    func test_map_clears_run_action_expand_variable_from_target_when_its_target_is_pruned() throws {
         // Given
         let path = try AbsolutePath(validating: "/project")
         let prunedTarget = Target.test(name: "first", metadata: .metadata(tags: ["tuist:prunable"]))
@@ -118,10 +118,12 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
         // Then
         XCTAssertEmpty(gotSideEffects)
         XCTAssertNotEmpty(gotGraph.projects)
-        XCTAssertEmpty(gotGraph.projects.values.flatMap(\.schemes))
+        let gotSchemes = gotGraph.projects.values.flatMap(\.schemes)
+        XCTAssertEqual(gotSchemes.count, 1)
+        XCTAssertNil(gotSchemes.first?.runAction?.expandVariableFromTarget)
     }
 
-    func test_map_removes_project_schemes_with_whose_test_action_expand_variable_from_target_has_been_removed() throws {
+    func test_map_clears_test_action_expand_variable_from_target_when_its_target_is_pruned() throws {
         // Given
         let path = try AbsolutePath(validating: "/project")
         let prunedTarget = Target.test(name: "first", metadata: .metadata(tags: ["tuist:prunable"]))
@@ -146,6 +148,44 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
         // Then
         XCTAssertEmpty(gotSideEffects)
         XCTAssertNotEmpty(gotGraph.projects)
+        let gotSchemes = gotGraph.projects.values.flatMap(\.schemes)
+        XCTAssertEqual(gotSchemes.count, 1)
+        XCTAssertNil(gotSchemes.first?.testAction?.expandVariableFromTarget)
+    }
+
+    func test_map_drops_scheme_when_clearing_expand_variable_from_target_leaves_it_empty() throws {
+        // Given: a scheme whose only content is a pruned expandVariableFromTarget reference.
+        // Clearing that reference leaves the scheme with no build targets, no test targets, no
+        // test plans, and no run file path — so the scheme is correctly dropped.
+        let path = try AbsolutePath(validating: "/project")
+        let prunedTarget = Target.test(name: "first", metadata: .metadata(tags: ["tuist:prunable"]))
+        let schemes: [Scheme] = [
+            .test(
+                buildAction: .test(targets: []),
+                testAction: .test(
+                    targets: [],
+                    expandVariableFromTarget: .init(projectPath: path, name: prunedTarget.name)
+                ),
+                runAction: .test(
+                    executable: nil,
+                    filePath: nil,
+                    expandVariableFromTarget: .init(projectPath: path, name: prunedTarget.name)
+                )
+            ),
+        ]
+        let project = Project.test(path: path, targets: [prunedTarget], schemes: schemes)
+
+        let graph = Graph.test(
+            path: project.path,
+            projects: [project.path: project],
+            dependencies: [:]
+        )
+
+        // When
+        let (gotGraph, gotSideEffects, _) = try subject.map(graph: graph, environment: MapperEnvironment())
+
+        // Then
+        XCTAssertEmpty(gotSideEffects)
         XCTAssertEmpty(gotGraph.projects.values.flatMap(\.schemes))
     }
 
@@ -260,6 +300,81 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
                     )
                 ),
             ]
+        )
+    }
+
+    func test_map_keeps_workspace_aggregate_scheme_when_expand_variable_target_is_pruned() throws {
+        // Given: an aggregate workspace scheme (e.g. "AllModules") that references test targets
+        // from multiple projects and also sets testAction.expandVariableFromTarget to the
+        // first-alphabetically test target (a pattern some DSL helpers produce). The first
+        // target gets a selective-testing cache hit and is marked prunable, while the other
+        // test targets are non-cached and should still run. The scheme must survive so the
+        // shard plan can enumerate the non-cached tests.
+        let projectAPath = try AbsolutePath(validating: "/ProjectA")
+        let projectBPath = try AbsolutePath(validating: "/ProjectB")
+        let projectCPath = try AbsolutePath(validating: "/ProjectC")
+
+        let aFramework = Target.test(name: "A", product: .framework)
+        let aTests = Target.test(
+            name: "ATests",
+            product: .unitTests,
+            metadata: .metadata(tags: ["tuist:prunable"])
+        )
+        let bFramework = Target.test(name: "B", product: .framework)
+        let bTests = Target.test(name: "BTests", product: .unitTests)
+        let cFramework = Target.test(name: "C", product: .framework)
+        let cTests = Target.test(name: "CTests", product: .unitTests)
+
+        let projectA = Project.test(path: projectAPath, targets: [aFramework, aTests])
+        let projectB = Project.test(path: projectBPath, targets: [bFramework, bTests])
+        let projectC = Project.test(path: projectCPath, targets: [cFramework, cTests])
+
+        let allModulesScheme = Scheme.test(
+            name: "AllModules",
+            testAction: .test(
+                targets: [
+                    TestableTarget(target: .init(projectPath: projectAPath, name: aTests.name)),
+                    TestableTarget(target: .init(projectPath: projectBPath, name: bTests.name)),
+                    TestableTarget(target: .init(projectPath: projectCPath, name: cTests.name)),
+                ],
+                // First-alphabetically test target — this is the exact pattern that triggers
+                // the bug when that target has a selective-testing cache hit.
+                expandVariableFromTarget: .init(projectPath: projectAPath, name: aTests.name)
+            )
+        )
+
+        let workspace = Workspace.test(
+            projects: [projectAPath, projectBPath, projectCPath],
+            schemes: [allModulesScheme]
+        )
+
+        let graph = Graph.test(
+            path: projectAPath,
+            workspace: workspace,
+            projects: [
+                projectAPath: projectA,
+                projectBPath: projectB,
+                projectCPath: projectC,
+            ],
+            dependencies: [:]
+        )
+
+        // When
+        let (gotGraph, _, _) = try subject.map(graph: graph, environment: MapperEnvironment())
+
+        // Then
+        let gotScheme = gotGraph.workspace.schemes.first(where: { $0.name == "AllModules" })
+        XCTAssertNotNil(
+            gotScheme,
+            "AllModules should survive tree-shaking even when its expandVariableFromTarget is pruned"
+        )
+        XCTAssertEqual(
+            gotScheme?.testAction?.targets.map(\.target.name).sorted(),
+            ["BTests", "CTests"]
+        )
+        XCTAssertNil(
+            gotScheme?.testAction?.expandVariableFromTarget,
+            "The expandVariableFromTarget reference should be cleared rather than dropping the scheme"
         )
     }
 
@@ -487,5 +602,175 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
             ]
         )
         XCTAssertBetterEqual(expectedGraph, gotGraph)
+    }
+
+    /// When a pre/post-action's `target` reference names a target being pruned out of the
+    /// graph, tree-shake rewrites the reference to a surviving buildable in the same scheme
+    /// so the script keeps receiving target-derived env vars.
+    func test_map_rewrites_pre_post_action_target_to_surviving_buildable_when_original_is_pruned() throws {
+        // Given
+        var prunedFramework = Target.test(name: "PrunedFramework", product: .framework)
+        prunedFramework.metadata.tags.formUnion(["tuist:prunable"])
+        let testTarget = Target.test(name: "FrameworkTests", product: .unitTests)
+        let path = try temporaryPath()
+
+        let scheme = Scheme.test(
+            name: "FrameworkTests",
+            buildAction: .test(
+                targets: [TargetReference(projectPath: path, name: testTarget.name)],
+                preActions: [
+                    ExecutionAction(
+                        title: "Pre-action",
+                        scriptText: "echo $TARGET_BUILD_DIR",
+                        target: TargetReference(projectPath: path, name: prunedFramework.name),
+                        shellPath: nil
+                    ),
+                ],
+                postActions: [
+                    ExecutionAction(
+                        title: "Post-action",
+                        scriptText: "echo done",
+                        target: TargetReference(projectPath: path, name: prunedFramework.name),
+                        shellPath: nil
+                    ),
+                ]
+            ),
+            testAction: .test(
+                targets: [.test(target: TargetReference(projectPath: path, name: testTarget.name))],
+                postActions: [
+                    ExecutionAction(
+                        title: "Test post-action",
+                        scriptText: "echo tested",
+                        target: TargetReference(projectPath: path, name: prunedFramework.name),
+                        shellPath: nil
+                    ),
+                ]
+            )
+        )
+        let project = Project.test(path: path, targets: [prunedFramework, testTarget], schemes: [scheme])
+        let graph = Graph.test(projects: [project.path: project])
+
+        // When
+        let (gotGraph, _, _) = try subject.map(graph: graph, environment: MapperEnvironment())
+
+        // Then
+        let survivingScheme = try XCTUnwrap(gotGraph.projects.values.first?.schemes.first)
+        let testTargetRef = TargetReference(projectPath: path, name: testTarget.name)
+
+        XCTAssertEqual(
+            survivingScheme.buildAction?.preActions.first?.target,
+            testTargetRef,
+            "Build action pre-action target should be rewritten to the scheme's surviving buildable."
+        )
+        XCTAssertEqual(
+            survivingScheme.buildAction?.postActions.first?.target,
+            testTargetRef,
+            "Build action post-action target should be rewritten to the scheme's surviving buildable."
+        )
+        XCTAssertEqual(
+            survivingScheme.testAction?.postActions.first?.target,
+            testTargetRef,
+            "Test action post-action target should be rewritten to the scheme's surviving testable target."
+        )
+    }
+
+    /// A pre/post-action `target` that names a target not present in the graph (e.g. a typo
+    /// in the manifest) must be left alone. Rewriting it would silently swap in another
+    /// target's build settings and suppress the existing scheme-target-not-found surface
+    /// in the linter / scheme generator.
+    func test_map_does_not_rewrite_unresolvable_pre_post_action_target() throws {
+        // Given
+        var prunedFramework = Target.test(name: "PrunedFramework", product: .framework)
+        prunedFramework.metadata.tags.formUnion(["tuist:prunable"])
+        let testTarget = Target.test(name: "FrameworkTests", product: .unitTests)
+        let path = try temporaryPath()
+        let typoRef = TargetReference(projectPath: path, name: "DoesNotExistAnywhere")
+
+        let scheme = Scheme.test(
+            name: "FrameworkTests",
+            buildAction: .test(
+                targets: [TargetReference(projectPath: path, name: testTarget.name)],
+                preActions: [
+                    ExecutionAction(
+                        title: "Pre-action",
+                        scriptText: "echo $TARGET_BUILD_DIR",
+                        target: typoRef,
+                        shellPath: nil
+                    ),
+                ]
+            ),
+            testAction: .test(
+                targets: [.test(target: TargetReference(projectPath: path, name: testTarget.name))]
+            )
+        )
+        let project = Project.test(path: path, targets: [prunedFramework, testTarget], schemes: [scheme])
+        let graph = Graph.test(projects: [project.path: project])
+
+        // When
+        let (gotGraph, _, _) = try subject.map(graph: graph, environment: MapperEnvironment())
+
+        // Then
+        let survivingScheme = try XCTUnwrap(gotGraph.projects.values.first?.schemes.first)
+        XCTAssertEqual(
+            survivingScheme.buildAction?.preActions.first?.target,
+            typoRef,
+            "An unresolvable pre-action target should not be silently rewritten — the existing linter surface should report it."
+        )
+    }
+
+    /// When the only surviving testable in a scheme lives in a test plan (not in
+    /// `testAction.targets`), test-action pre/post-action targets that name a pruned target
+    /// should fall back to that test-plan target — not to the build action's first target —
+    /// so the script gets test build settings, not arbitrary build-target ones.
+    func test_map_rewrites_test_action_target_to_surviving_test_plan_target_when_action_targets_are_empty() throws {
+        // Given
+        var prunedFramework = Target.test(name: "PrunedFramework", product: .framework)
+        prunedFramework.metadata.tags.formUnion(["tuist:prunable"])
+        let app = Target.test(name: "App", product: .app)
+        let surviveTests = Target.test(name: "SurviveTests", product: .unitTests)
+        let path = try temporaryPath()
+        let testPlanPath = path.appending(component: "Plan.xctestplan")
+
+        let scheme = Scheme.test(
+            name: "Plan",
+            buildAction: .test(targets: [TargetReference(projectPath: path, name: app.name)]),
+            testAction: .test(
+                targets: [],
+                postActions: [
+                    ExecutionAction(
+                        title: "Post-action",
+                        scriptText: "echo done",
+                        target: TargetReference(projectPath: path, name: prunedFramework.name),
+                        shellPath: nil
+                    ),
+                ],
+                testPlans: [
+                    TestPlan(
+                        path: testPlanPath,
+                        testTargets: [
+                            .test(target: TargetReference(projectPath: path, name: surviveTests.name)),
+                        ],
+                        isDefault: true
+                    ),
+                ]
+            )
+        )
+        let project = Project.test(
+            path: path,
+            targets: [prunedFramework, app, surviveTests],
+            schemes: [scheme]
+        )
+        let graph = Graph.test(projects: [project.path: project])
+
+        // When
+        let (gotGraph, _, _) = try subject.map(graph: graph, environment: MapperEnvironment())
+
+        // Then
+        let survivingScheme = try XCTUnwrap(gotGraph.projects.values.first?.schemes.first)
+        XCTAssertEqual(
+            survivingScheme.testAction?.postActions.first?.target,
+            TargetReference(projectPath: path, name: surviveTests.name),
+            "Should fall back to the surviving test plan target, not the build action's target."
+        )
     }
 }

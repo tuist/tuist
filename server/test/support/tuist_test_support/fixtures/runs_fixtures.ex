@@ -17,11 +17,21 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   def optimize_test_case_runs do
-    SQL.query!(IngestRepo, "OPTIMIZE TABLE test_case_runs FINAL", [])
+    IngestRepo.with_retry(fn ->
+      SQL.query!(IngestRepo, "OPTIMIZE TABLE test_case_runs FINAL", [])
+    end)
   end
 
   def optimize_test_runs do
-    SQL.query!(IngestRepo, "OPTIMIZE TABLE test_runs FINAL", [])
+    IngestRepo.with_retry(fn ->
+      SQL.query!(IngestRepo, "OPTIMIZE TABLE test_runs FINAL", [])
+    end)
+  end
+
+  def optimize_shard_runs do
+    IngestRepo.with_retry(fn ->
+      SQL.query!(IngestRepo, "OPTIMIZE TABLE shard_runs FINAL", [])
+    end)
   end
 
   def build_fixture(attrs \\ []) do
@@ -105,35 +115,45 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
         }
       ])
 
-    case Tests.create_test(%{
-           id: Keyword.get(attrs, :id, UUIDv7.generate()),
-           project_id: project_id,
-           account_id: account_id,
-           duration: Keyword.get(attrs, :duration, 2000),
-           status: Keyword.get(attrs, :status, "success"),
-           scheme: Keyword.get(attrs, :scheme),
-           model_identifier: Keyword.get(attrs, :model_identifier, "Mac15,6"),
-           macos_version: Keyword.get(attrs, :macos_version, "11.2.3"),
-           xcode_version: Keyword.get(attrs, :xcode_version, "12.4"),
-           git_branch: Keyword.get(attrs, :git_branch, "main"),
-           git_ref: Keyword.get(attrs, :git_ref),
-           git_commit_sha: Keyword.get(attrs, :git_commit_sha, "abc123"),
-           ran_at: Keyword.get(attrs, :ran_at, NaiveDateTime.utc_now()),
-           is_ci: Keyword.get(attrs, :is_ci, false),
-           build_run_id: Keyword.get(attrs, :build_run_id),
-           gradle_build_id: Keyword.get(attrs, :gradle_build_id),
-           build_system: Keyword.get(attrs, :build_system, "xcode"),
-           ci_run_id: Keyword.get(attrs, :ci_run_id),
-           ci_project_handle: Keyword.get(attrs, :ci_project_handle),
-           ci_host: Keyword.get(attrs, :ci_host),
-           ci_provider: Keyword.get(attrs, :ci_provider),
-           shard_plan_id: Keyword.get(attrs, :shard_plan_id),
-           shard_index: Keyword.get(attrs, :shard_index),
-           test_modules: test_modules
-         }) do
-      {:ok, test} -> {:ok, test}
-      {:error, changeset} -> {:error, changeset}
-    end
+    result =
+      Tests.create_test(%{
+        id: Keyword.get(attrs, :id, UUIDv7.generate()),
+        project_id: project_id,
+        account_id: account_id,
+        duration: Keyword.get(attrs, :duration, 2000),
+        status: Keyword.get(attrs, :status, "success"),
+        scheme: Keyword.get(attrs, :scheme),
+        model_identifier: Keyword.get(attrs, :model_identifier, "Mac15,6"),
+        macos_version: Keyword.get(attrs, :macos_version, "11.2.3"),
+        xcode_version: Keyword.get(attrs, :xcode_version, "12.4"),
+        git_branch: Keyword.get(attrs, :git_branch, "main"),
+        git_ref: Keyword.get(attrs, :git_ref),
+        git_commit_sha: Keyword.get(attrs, :git_commit_sha, "abc123"),
+        ran_at: Keyword.get(attrs, :ran_at, NaiveDateTime.utc_now()),
+        is_ci: Keyword.get(attrs, :is_ci, false),
+        build_run_id: Keyword.get(attrs, :build_run_id),
+        gradle_build_id: Keyword.get(attrs, :gradle_build_id),
+        build_system: Keyword.get(attrs, :build_system, "xcode"),
+        ci_run_id: Keyword.get(attrs, :ci_run_id),
+        ci_project_handle: Keyword.get(attrs, :ci_project_handle),
+        ci_host: Keyword.get(attrs, :ci_host),
+        ci_provider: Keyword.get(attrs, :ci_provider),
+        shard_plan_id: Keyword.get(attrs, :shard_plan_id),
+        shard_index: Keyword.get(attrs, :shard_index),
+        test_modules: test_modules,
+        run_destinations: Keyword.get(attrs, :run_destinations, [])
+      })
+
+    TestCase.Buffer.flush()
+    TestCaseRun.Buffer.flush()
+    Tuist.Tests.TestModuleRun.Buffer.flush()
+    Tuist.Tests.TestSuiteRun.Buffer.flush()
+    TestCaseFailure.Buffer.flush()
+    TestCaseRunRepetition.Buffer.flush()
+    Tuist.Tests.TestCaseRunArgument.Buffer.flush()
+    TestCaseEvent.Buffer.flush()
+
+    result
   end
 
   def cas_output_fixture(attrs \\ []) do
@@ -164,6 +184,13 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
         ProjectsFixtures.project_fixture().id
       end)
 
+    state =
+      cond do
+        Keyword.has_key?(attrs, :state) -> Keyword.get(attrs, :state)
+        Keyword.get(attrs, :is_quarantined, false) -> "muted"
+        true -> "enabled"
+      end
+
     %TestCase{
       id: Keyword.get_lazy(attrs, :id, fn -> UUIDv7.generate() end),
       name: Keyword.get(attrs, :name, "testExample"),
@@ -174,7 +201,7 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
       last_duration: Keyword.get(attrs, :last_duration, 100),
       last_ran_at: Keyword.get(attrs, :last_ran_at, NaiveDateTime.utc_now()),
       is_flaky: Keyword.get(attrs, :is_flaky, false),
-      is_quarantined: Keyword.get(attrs, :is_quarantined, false),
+      state: state,
       inserted_at: Keyword.get(attrs, :inserted_at, NaiveDateTime.utc_now()),
       avg_duration: Keyword.get(attrs, :avg_duration, 100)
     }
@@ -203,6 +230,7 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
       status: Keyword.get(attrs, :status, 0),
       is_flaky: Keyword.get(attrs, :is_flaky, false),
       is_new: Keyword.get(attrs, :is_new, false),
+      is_quarantined: Keyword.get(attrs, :is_quarantined, false),
       duration: Keyword.get(attrs, :duration, 100),
       ran_at: Keyword.get(attrs, :ran_at, NaiveDateTime.utc_now()),
       inserted_at: Keyword.get(attrs, :inserted_at, NaiveDateTime.utc_now())
@@ -273,6 +301,7 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
     attachment = %{
       id: Keyword.get_lazy(attrs, :id, fn -> UUIDv7.generate() end),
       test_case_run_id: Keyword.fetch!(attrs, :test_case_run_id),
+      test_run_id: Keyword.get(attrs, :test_run_id, nil),
       file_name: Keyword.get(attrs, :file_name, "crash-report.ips"),
       repetition_number: Keyword.get(attrs, :repetition_number, nil),
       inserted_at: Keyword.get(attrs, :inserted_at, NaiveDateTime.utc_now())
@@ -287,7 +316,7 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
     test_case_event = %{
       id: Keyword.get_lazy(attrs, :id, fn -> UUIDv7.generate() end),
       test_case_id: Keyword.fetch!(attrs, :test_case_id),
-      event_type: Keyword.get(attrs, :event_type, "quarantined"),
+      event_type: Keyword.get(attrs, :event_type, "muted"),
       actor_id: Keyword.get(attrs, :actor_id, nil),
       inserted_at: Keyword.get(attrs, :inserted_at, NaiveDateTime.utc_now())
     }

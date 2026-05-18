@@ -114,6 +114,21 @@ public class GraphTraverser: GraphTraversing {
         projects.values.flatMap(\.schemes) + graph.workspace.schemes
     }
 
+    public func testTargets(for schemeName: String) -> Set<GraphTarget> {
+        guard let scheme = schemes().first(where: { $0.name == schemeName }),
+              let testAction = scheme.testAction
+        else { return Set() }
+        var testTargetRefSet = Set(testAction.targets.map(\.target))
+        if let testPlans = testAction.testPlans {
+            testTargetRefSet.formUnion(testPlans.flatMap(\.testTargets).map(\.target))
+        }
+        return allTargets().filter { graphTarget in
+            testTargetRefSet.contains(
+                TargetReference(projectPath: graphTarget.path, name: graphTarget.target.name)
+            )
+        }
+    }
+
     public func precompiledFrameworksPaths() -> Set<Path.AbsolutePath> {
         let dependencies = graph.dependencies.reduce(into: Set<GraphDependency>()) { acc, next in
             acc.formUnion([next.key])
@@ -184,6 +199,41 @@ public class GraphTraverser: GraphTraversing {
                 return values
             }
         }
+    }
+
+    /// Collects App Intents metadata directories from transitive static XCFramework dependencies.
+    ///
+    /// This is intentionally limited to static XCFrameworks. Dynamic frameworks already expose their
+    /// App Intents metadata through the normal framework bundle layout that Xcode consumes as part of
+    /// its regular dependency metadata handling. The cached static XCFramework case is different: Tuist
+    /// needs to discover those metadata directories so project generation can recreate the sibling
+    /// `<Name>.appintents` layout and populate the dependency metadata file lists before Xcode processes
+    /// App Intents for the runnable target.
+    public func staticXCFrameworkAppIntentsMetadata(
+        path: AbsolutePath,
+        name: String
+    ) throws -> Set<StaticXCFrameworkAppIntentsMetadata> {
+        var queue = Array(graph.dependencies[.target(name: name, path: path), default: []])
+        var visited: Set<GraphDependency> = []
+        var result: Set<StaticXCFrameworkAppIntentsMetadata> = []
+
+        while let dependency = queue.popLast() {
+            guard visited.insert(dependency).inserted else { continue }
+
+            if case let .xcframework(xcframework) = dependency, xcframework.linking == .static {
+                for library in xcframework.infoPlist.libraries where library.path.extension == "framework" {
+                    let metadataPath = xcframework.path
+                        .appending(component: library.identifier)
+                        .appending(try RelativePath(validating: library.path.pathString))
+                        .appending(component: "Metadata.appintents")
+                    result.insert(.init(frameworkName: library.binaryName, metadataPath: metadataPath))
+                }
+            }
+
+            queue.append(contentsOf: graph.dependencies[dependency, default: []])
+        }
+
+        return result
     }
 
     public func directTargetDependencies(path: Path.AbsolutePath, name: String) -> Set<
@@ -444,7 +494,12 @@ public class GraphTraverser: GraphTraversing {
             }
         )
 
-        // Exclude any products embed in unit test host apps
+        // For hosted unit tests, subtract frameworks already embedded in the host app
+        // to avoid duplicate embedding (and the runtime issues that follow). Frameworks
+        // the test depends on but the host doesn't must still be embedded in the .xctest
+        // bundle — otherwise dyld finds them in BUILT_PRODUCTS_DIR unsigned and a hardened
+        // host process rejects them with a Team ID / signature mismatch at launch.
+        // For standalone unit tests there is no host to load into, so embed nothing.
         if target.target.product == .unitTests {
             if let hostApp = unitTestHost(path: path, name: name) {
                 references.subtract(
@@ -461,9 +516,18 @@ public class GraphTraverser: GraphTraversing {
     public func searchablePathDependencies(path: Path.AbsolutePath, name: String) throws -> Set<
         GraphDependencyReference
     > {
-        try linkableDependencies(path: path, name: name, shouldExcludeHostAppDependencies: false)
+        let staticXCFrameworksBehindDynamic = staticXCFrameworksLinkedByDynamicXCFrameworkDependencies(
+            path: path,
+            name: name
+        )
+        let staticReferences = staticXCFrameworksBehindDynamic.compactMap {
+            dependencyReference(to: $0, from: .target(name: name, path: path))
+        }
+
+        return try linkableDependencies(path: path, name: name, shouldExcludeHostAppDependencies: false)
             .union(staticPrecompiledFrameworksDependencies(path: path, name: name))
             .union(transitiveStaticDependenciesOfDynamicFrameworkDependencies(path: path, name: name))
+            .union(staticReferences)
     }
 
     public func linkableDependencies(path: Path.AbsolutePath, name: String) throws -> Set<
@@ -535,13 +599,14 @@ public class GraphTraverser: GraphTraversing {
             name: name
         )
 
-        let staticXCFrameworksLinkedByDynamicXCFrameworkDependencies = filterDependencies(
-            from: Set(precompiledDynamicLibrariesAndFrameworks).filter { $0.xcframeworkDependency != nil },
-            test: {
-                $0.xcframeworkDependency?.linking == .static &&
-                    $0.xcframeworkDependency?.swiftModules.isEmpty == false
-            },
-            skip: { $0.xcframeworkDependency == nil }
+        // Static xcframeworks reached through a dynamic xcframework are intentionally NOT
+        // linked at the consumer level. The dynamic xcframework already absorbed their symbols
+        // during its build; relinking here causes duplicate symbols and breaks libraries with
+        // global state (e.g. FirebaseApp's singleton registry). Module visibility for these
+        // statics is provided through `searchablePathDependencies` instead.
+        let staticXCFrameworksLinkedByDynamicXCFrameworkDependencies = staticXCFrameworksLinkedByDynamicXCFrameworkDependencies(
+            path: path,
+            name: name
         )
 
         let libraryDependenciesLinkedByStaticXCFrameworks =
@@ -555,7 +620,6 @@ public class GraphTraverser: GraphTraversing {
         let precompiledLibrariesAndFrameworks =
             (
                 precompiledDynamicLibrariesAndFrameworks
-                    + staticXCFrameworksLinkedByDynamicXCFrameworkDependencies
                     + libraryDependenciesLinkedByStaticXCFrameworks
             )
             .compactMap { dependencyReference(to: $0, from: targetGraphDependency) }
@@ -657,6 +721,25 @@ public class GraphTraverser: GraphTraversing {
                 $0.xcframeworkDependency?.linking == .static &&
                     $0.xcframeworkDependency?.swiftModules.isEmpty == true &&
                     $0.xcframeworkDependency?.moduleMaps.isEmpty == false
+            },
+            skip: { $0.xcframeworkDependency == nil }
+        )
+    }
+
+    public func staticXCFrameworksLinkedByDynamicXCFrameworkDependencies(
+        path: Path.AbsolutePath,
+        name: String
+    ) -> Set<GraphDependency> {
+        filterDependencies(
+            from: Set(
+                precompiledDynamicLibrariesAndFrameworks(
+                    path: path,
+                    name: name
+                )
+            ).filter { $0.xcframeworkDependency != nil },
+            test: {
+                $0.xcframeworkDependency?.linking == .static &&
+                    $0.xcframeworkDependency?.swiftModules.isEmpty == false
             },
             skip: { $0.xcframeworkDependency == nil }
         )

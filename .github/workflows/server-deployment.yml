@@ -1,0 +1,601 @@
+name: Server Deployment
+
+# Build + deploy the Tuist server to a single Kubernetes environment.
+#
+# This workflow is the "building block": build → push image → helm
+# upgrade. It runs against exactly one environment per invocation, with no
+# cascade and no acceptance tests. Use it for:
+#   - Ad-hoc staging / canary / production deploys via workflow_dispatch
+#     (e.g. re-running a specific SHA on one env).
+#   - As a workflow_call target from server-production-deployment.yml,
+#     which chains canary → acceptance tests → production on push-to-main.
+#
+# Image architecture: a single env-agnostic image is built per commit
+# (MIX_ENV=prod always). The runtime picks canary/staging/production
+# behavior via the TUIST_DEPLOY_ENV env var set by the Helm overlay, and the
+# MASTER_KEY ESO secret decrypts the matching priv/secrets/<env>.yml.enc
+# file baked into the image. This means the same `sha-<SHA>` image is
+# promoted across environments - one build, N deploys.
+#
+# Environment → cluster wiring is by convention: namespace = `tuist-<env>`
+# (except production = `tuist`), values overlay = `values-managed-<env>.yaml`,
+# public host = `<env>.tuist.dev` (except production = `tuist.dev`). Adding a
+# new environment is just adding the matching values files.
+#
+# Required secrets:
+#   OP_SERVICE_ACCOUNT_TOKEN (per GitHub Environment server-k8s-<env>) -
+#     1Password service-account token scoped read-only to the
+#     tuist-k8s-<env> vault, where the cluster's kubeconfig is stored
+#     as a Document item named `kubeconfig: tuist-<env>`. Each
+#     environment's secret value is the SA token for that environment's
+#     vault — staging deploys can't read canary/production kubeconfigs.
+#     Production also reads the Kura regional workload kubeconfigs from
+#     `kubeconfig: kura-us-east-1` and `kubeconfig: kura-us-west-1` in
+#     the production vault so the server can write KuraInstance CRs to
+#     the us-east and us-west clusters.
+# App secrets live inside the cluster (MASTER_KEY via ESO, DATABASE_URL /
+# ClickHouse / Tigris keys in priv/secrets/<env>.yml.enc baked into the
+# image).
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        default: staging
+        type: choice
+        options:
+          - staging
+          - canary
+          - production
+      commit_sha:
+        description: Commit SHA to deploy (defaults to the event's SHA)
+        required: false
+      image_tag:
+        description: Pre-built image tag to deploy instead of building
+        required: false
+      kura_runtime_image_tag:
+        description: Pre-built Kura runtime image tag to deploy
+        required: false
+  workflow_call:
+    inputs:
+      environment:
+        description: Target environment (staging | canary | production)
+        required: true
+        type: string
+      commit_sha:
+        description: Commit SHA to deploy (defaults to github.sha)
+        required: false
+        type: string
+      image_tag:
+        description: >-
+          Pre-built image tag to deploy. When set, the build job is
+          skipped and the deploy job uses this tag directly. When unset,
+          the workflow builds + pushes an image tagged sha-<commit_sha>.
+        required: false
+        type: string
+      kura_runtime_image_tag:
+        description: >-
+          Pre-built Kura runtime image tag to deploy. When unset, the
+          deploy job resolves the latest kura@ release tag and strips the
+          tag prefix before passing it to Helm.
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: tuist/tuist
+  KURA_CONTROLLER_IMAGE_NAME: tuist/kura-controller
+  HELM_CHART_PATH: infra/helm/tuist
+  HELM_RELEASE_NAME: tuist
+  OBSERVABILITY_CHART_PATH: infra/helm/k8s-monitoring
+  OBSERVABILITY_RELEASE_NAME: k8s-monitoring
+  OBSERVABILITY_NAMESPACE: observability
+  DEPLOY_SHA: ${{ inputs.commit_sha || github.sha }}
+  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN || github.token }}
+
+jobs:
+  build:
+    name: Build + push
+    if: inputs.image_tag == ''
+    runs-on: namespace-profile-default-with-volume
+    timeout-minutes: 40
+    outputs:
+      image_tag: ${{ steps.tag.outputs.image_tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+          submodules: false
+      - id: tag
+        run: echo "image_tag=sha-${DEPLOY_SHA:0:12}" >> "$GITHUB_OUTPUT"
+      - uses: namespacelabs/nscloud-setup-buildx-action@v0
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        name: Build and push server image
+        with:
+          context: .
+          file: ./server/Dockerfile
+          target: runner
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
+          build-args: |
+            TUIST_HOSTED=1
+            MIX_ENV=prod
+            APT_CACHE_BUST=${{ env.DEPLOY_SHA }}
+      - uses: docker/build-push-action@v6
+        name: Build and push Kura controller image
+        with:
+          context: .
+          file: ./infra/kura-controller/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.KURA_CONTROLLER_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
+  observability-install:
+    # Installs / upgrades the grafana/k8s-monitoring wrapper chart ahead of
+    # the server rollout so the Alloy OTLP receiver is ready before the
+    # server starts pushing spans to it. Idempotent: on every run it's a
+    # no-op if Chart.lock + values haven't changed.
+    #
+    # Shares the `server-deploy-<env>` concurrency lane with the deploy
+    # job on purpose: the server's OTLP endpoint and the chart that
+    # provides the receiver change in lockstep, so a newer chart install
+    # must never interleave with an older server rollout.
+    name: Observability chart (${{ inputs.environment }})
+    needs: build
+    # `build` is skipped when image_tag is supplied - keep running.
+    if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped')
+    runs-on: namespace-profile-default
+    environment:
+      name: server-k8s-${{ inputs.environment }}
+    concurrency:
+      group: server-deploy-${{ inputs.environment }}
+      cancel-in-progress: false
+    timeout-minutes: 15
+    env:
+      KUBECONFIG: ${{ github.workspace }}/.kube/config
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "helm kubectl"
+          cache: "false"
+      - uses: 1password/install-cli-action@v2
+      - name: Load kubeconfig from 1Password
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          op document get "kubeconfig: tuist-${{ inputs.environment }}" \
+            --vault "tuist-k8s-${{ inputs.environment }}" --output "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
+      - name: Verify cluster reachability
+        # Fail fast if the 1P-stored kubeconfig points at an unreachable
+        # apiserver. Without this, the next step would hang for `--timeout`
+        # on a phantom kubeconfig (e.g. a torn-down validation cluster
+        # whose LB IP got reassigned to another tenant) and we'd find out
+        # only after a partial helm rollout.
+        run: |
+          set -euo pipefail
+          API="$(kubectl config view --minify --raw -o jsonpath='{.clusters[0].cluster.server}')"
+          echo "Reaching apiserver at $API"
+          kubectl --request-timeout=10s get --raw /version >/dev/null
+      - name: helm dependency update
+        run: helm dependency update "$OBSERVABILITY_CHART_PATH"
+      - name: helm upgrade --install k8s-monitoring
+        run: |
+          helm upgrade --install "$OBSERVABILITY_RELEASE_NAME" "$OBSERVABILITY_CHART_PATH" \
+            --namespace "$OBSERVABILITY_NAMESPACE" --create-namespace \
+            -f "$OBSERVABILITY_CHART_PATH/values-${{ inputs.environment }}.yaml" \
+            --timeout 10m --wait
+
+  deploy:
+    name: Deploy to ${{ inputs.environment == 'production' && 'tuist' || format('tuist-{0}', inputs.environment) }}
+    needs: [build, observability-install]
+    # `build` may be skipped when image_tag is passed in - keep running.
+    # `observability-install` always runs, so it must be a plain success.
+    if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped') && needs.observability-install.result == 'success'
+    runs-on: namespace-profile-default
+    environment:
+      name: server-k8s-${{ inputs.environment }}
+      url: https://${{ inputs.environment == 'production' && 'tuist.dev' || format('{0}.tuist.dev', inputs.environment) }}
+    # Serialize deploys targeting the same environment so two concurrent
+    # runs don't race on the Helm release.
+    concurrency:
+      group: server-deploy-${{ inputs.environment }}
+      cancel-in-progress: false
+    # helm-upgrade waits up to 30m, setup/teardown adds ~5m, the
+    # optional Kura-regional fan-out runs ~10m on production. 60m
+    # leaves a ~15m buffer for that worst-case stack and keeps a
+    # SIGTERM-stuck helm from holding the slot indefinitely.
+    timeout-minutes: 60
+    env:
+      KUBECONFIG: ${{ github.workspace }}/.kube/config
+      NAMESPACE: ${{ inputs.environment == 'production' && 'tuist' || format('tuist-{0}', inputs.environment) }}
+      IMAGE_TAG: ${{ inputs.image_tag != '' && inputs.image_tag || needs.build.outputs.image_tag }}
+      KURA_RUNTIME_IMAGE_TAG: ${{ inputs.kura_runtime_image_tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "helm kubectl"
+          cache: "false"
+      - uses: 1password/install-cli-action@v2
+      - name: Load kubeconfig from 1Password
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          op document get "kubeconfig: tuist-${{ inputs.environment }}" \
+            --vault "tuist-k8s-${{ inputs.environment }}" --output "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
+      - name: Verify cluster reachability
+        # Fail fast if the 1P-stored kubeconfig points at an unreachable
+        # apiserver. Without this, helm upgrade would hang for `--timeout`
+        # against a phantom endpoint and partially mutate cluster state
+        # before erroring.
+        run: |
+          set -euo pipefail
+          API="$(kubectl config view --minify --raw -o jsonpath='{.clusters[0].cluster.server}')"
+          echo "Reaching apiserver at $API"
+          kubectl --request-timeout=10s get --raw /version >/dev/null
+      - name: Sync Kura regional kubeconfigs
+        if: inputs.environment == 'production'
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          dir="$RUNNER_TEMP/kura-kubeconfigs"
+          mkdir -p "$dir"
+
+          op document get "kubeconfig: kura-us-east-1" \
+            --vault "tuist-k8s-production" --output "$dir/us-east-1.yaml"
+          op document get "kubeconfig: kura-us-west-1" \
+            --vault "tuist-k8s-production" --output "$dir/us-west-1.yaml"
+          chmod 600 "$dir/us-east-1.yaml" "$dir/us-west-1.yaml"
+
+          kubectl create namespace "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
+          kubectl -n "$NAMESPACE" create secret generic tuist-kura-kubeconfigs \
+            --from-file=TUIST_KURA_KUBECONFIG_US_EAST_1="$dir/us-east-1.yaml" \
+            --from-file=TUIST_KURA_KUBECONFIG_US_WEST_1="$dir/us-west-1.yaml" \
+            --dry-run=client -o yaml | kubectl apply -f -
+      - name: kubectl apply CRDs
+        # Helm 3 installs `crds/*.yaml` on `helm install` and skips
+        # them on `helm upgrade` (intentional — Helm refuses to manage
+        # CRD lifecycle to avoid data loss on schema regressions). The
+        # deploy workflow re-applies them every run so chart-managed
+        # schema changes ship the same way code changes do; no
+        # operator-side manual step.
+        run: kubectl apply -f "$HELM_CHART_PATH/crds/"
+      - name: Recover interrupted Helm release
+        run: |
+          set -euo pipefail
+
+          status="$(
+            helm status "$HELM_RELEASE_NAME" -n "$NAMESPACE" 2>/dev/null |
+              awk '/^STATUS:/ { print $2 }' ||
+              true
+          )"
+          case "$status" in
+            pending-install|pending-upgrade|pending-rollback)
+              echo "Release $HELM_RELEASE_NAME is $status; rolling back to the last deployed revision before upgrading."
+              helm history "$HELM_RELEASE_NAME" -n "$NAMESPACE" --max 20
+
+              deployed_revision="$(
+                helm history "$HELM_RELEASE_NAME" -n "$NAMESPACE" --max 20 |
+                  awk '$0 ~ /[[:space:]]deployed[[:space:]]/ { revision = $1 } END { print revision }'
+              )"
+
+              if [ -z "$deployed_revision" ]; then
+                echo "No deployed revision found for $HELM_RELEASE_NAME in $NAMESPACE."
+                exit 1
+              fi
+
+              # This is a metadata recovery path, not the real health gate.
+              # An interrupted atomic rollback can leave the latest Helm
+              # revision in pending-rollback even when the last deployed
+              # revision is the only viable base for the next deploy. Waiting
+              # here replays the old manifest's readiness problems and can
+              # strand this recovery step before the current chart gets a
+              # chance to fix them. The following helm upgrade owns the full
+              # --wait/--atomic rollout with richer diagnostics.
+              helm rollback "$HELM_RELEASE_NAME" "$deployed_revision" \
+                --namespace "$NAMESPACE" --timeout 5m
+
+              helm status "$HELM_RELEASE_NAME" -n "$NAMESPACE"
+              ;;
+            *)
+              echo "Release $HELM_RELEASE_NAME status is ${status:-not-installed}; no recovery needed."
+              ;;
+          esac
+      - name: Clean up stale migration Jobs
+        # The chart's pre-upgrade migration hook is named
+        # `tuist-tuist-server-migrate` (stable across revisions). Any
+        # `tuist-tuist-server-migrate-<n>` Jobs in the namespace are
+        # orphans whose Pending pods would otherwise compete with the new
+        # hook for scheduler attention; sweep them before invoking helm.
+        run: |
+          set -euo pipefail
+
+          stale_jobs="$(
+            kubectl -n "$NAMESPACE" get jobs \
+              -l app.kubernetes.io/component=server-migration \
+              -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' |
+              grep -E -- '-[0-9]+$' || true
+          )"
+
+          if [ -z "$stale_jobs" ]; then
+            echo "No revision-suffixed migration Jobs to clean up."
+            exit 0
+          fi
+
+          echo "Deleting stale migration Jobs:"
+          echo "$stale_jobs"
+          # `--ignore-not-found` covers a rare race where helm's hook gets
+          # deleted between the list and delete calls. Cascade=foreground
+          # so dependent pods (Pending or otherwise) go with the Job.
+          echo "$stale_jobs" | xargs -r kubectl -n "$NAMESPACE" delete job \
+            --ignore-not-found --cascade=foreground --timeout=2m
+      - name: Resolve Kura runtime image tag
+        run: |
+          set -euo pipefail
+
+          if [ -n "${KURA_RUNTIME_IMAGE_TAG:-}" ]; then
+            echo "Using configured Kura runtime image tag $KURA_RUNTIME_IMAGE_TAG"
+            exit 0
+          fi
+
+          refs="$(git ls-remote --tags --refs origin 'refs/tags/kura@*')"
+          tag="$(
+            printf '%s\n' "$refs" |
+              awk -F'refs/tags/kura@' 'NF == 2 { print $2 }' |
+              grep -E '^[0-9]+[.][0-9]+[.][0-9]+$' |
+              sort -V |
+              tail -n 1 ||
+              true
+          )"
+
+          if [ -z "$tag" ]; then
+            echo "No kura@ release tag found."
+            exit 1
+          fi
+
+          echo "KURA_RUNTIME_IMAGE_TAG=$tag" >> "$GITHUB_ENV"
+          echo "Resolved Kura runtime image tag $tag"
+      - name: helm upgrade --install
+        # App secrets never pass through --set: the chart runs in
+        # `server.managedSecrets: true` mode, which reads DATABASE_URL /
+        # TUIST_CLICKHOUSE_URL / TUIST_S3_* from priv/secrets/<env>.yml.enc
+        # baked into the image and pulls MASTER_KEY from 1Password via an
+        # in-cluster ExternalSecret. Passing secrets through --set would
+        # leak them into `helm get manifest`.
+        #
+        # helm --timeout 30m is sized for the adoption path: Mac minis
+        # are pre-ordered by the operator under the `tuist-pool-` prefix
+        # and the CAPI controller claims them on demand. Adoption is
+        # cheap (rename + tart-kubelet bootstrap + Tart VM cold-boot)
+        # vs Scaleway CreateServer (~50 min). Steady-state deploys
+        # finish in 5-15 min once the Mac mini is already in the cluster.
+        # If we ever flip back to auto-order in an env, bump this back
+        # to ~90m to absorb a fresh Scaleway provisioning.
+        #
+        # 35 min = helm's `--timeout 30m` plus a 5-min cushion for the
+        # in-process `--atomic` rollback. A workflow-side timeout under
+        # 35 min risks killing helm after it has moved the release into
+        # pending-rollback, leaving the cluster wedged for the next run.
+        timeout-minutes: 35
+        run: |
+          # Stream cluster state every 30s while helm waits. helm
+          # --atomic --wait produces no stdout during the wait, so
+          # without this the action log shows nothing for up to 90 min.
+          # The watcher dies via trap when helm exits (either way).
+          (
+            while true; do
+              sleep 30
+              echo "::group::cluster snapshot $(date -u +%H:%M:%SZ)"
+              kubectl -n "$NAMESPACE" get pods -o wide 2>&1 | tail -40 || true
+              echo "--- recent events ---"
+              kubectl -n "$NAMESPACE" get events --sort-by=.lastTimestamp 2>&1 | tail -20 || true
+              echo "::endgroup::"
+            done
+          ) &
+          watcher_pid=$!
+          trap 'kill "$watcher_pid" 2>/dev/null || true; wait "$watcher_pid" 2>/dev/null || true' EXIT
+
+          helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
+            --namespace "$NAMESPACE" --create-namespace \
+            -f "$HELM_CHART_PATH/values-managed-common.yaml" \
+            -f "$HELM_CHART_PATH/values-managed-${{ inputs.environment }}.yaml" \
+            --set server.image.tag="$IMAGE_TAG" \
+            --set kuraController.image.tag="$IMAGE_TAG" \
+            --set kuraRuntime.image.tag="$KURA_RUNTIME_IMAGE_TAG" \
+            --atomic --timeout 30m --wait
+      - name: Deploy Kura regional controllers
+        if: inputs.environment == 'production'
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          declare -A kubeconfig_items=(
+            ["us-east-1"]="kubeconfig: kura-us-east-1"
+            ["us-west-1"]="kubeconfig: kura-us-west-1"
+          )
+          # Cluster names match the CAPI Cluster CR names in
+          # infra/k8s/clusters/cluster-production-us-{east,west}.yaml.
+          # They drive external-dns.txtOwnerId and the Hetzner ingress
+          # LB annotation set by k8s:install-platform; drifting these
+          # values would churn TXT records and rename LBs on every
+          # deploy, so they must match what bootstrap-workload uses.
+          declare -A cluster_names=(
+            ["us-east-1"]="tuist-kura-us-east"
+            ["us-west-1"]="tuist-kura-us-west"
+          )
+
+          # Cloudflare DNS-01 token for cert-manager. Resolved here once
+          # so the install-platform script can stay credential-agnostic.
+          CLOUDFLARE_API_TOKEN="$(op read "op://tuist-k8s-production/cloudflare-tuist-dns/credential")"
+          export CLOUDFLARE_API_TOKEN
+
+          for region in us-east-1 us-west-1; do
+            kubeconfig="$RUNNER_TEMP/kura-${region}.yaml"
+            op document get "${kubeconfig_items[$region]}" \
+              --vault "tuist-k8s-production" --output "$kubeconfig"
+            chmod 600 "$kubeconfig"
+
+            api="$(KUBECONFIG="$kubeconfig" kubectl config view --minify --raw -o jsonpath='{.clusters[0].cluster.server}')"
+            echo "Deploying Kura controller to $region at $api"
+            KUBECONFIG="$kubeconfig" kubectl --request-timeout=10s get --raw /version >/dev/null
+
+            # Bring the cluster's platform layer (cert-manager + the
+            # letsencrypt ClusterIssuer, ingress-nginx, external-dns,
+            # ESO) to chart HEAD before installing the kura-controller,
+            # whose StatefulSet reconcile depends on cert-manager.io/v1
+            # Certificate. Idempotent: a no-op on clusters already at
+            # head, a self-heal on half-bootstrapped ones. The mise -C
+            # is required because k8s:* tasks live in infra/mise.toml
+            # scope, not the repo root.
+            mise -C "$GITHUB_WORKSPACE/infra" run k8s:install-platform \
+              "$kubeconfig" "${cluster_names[$region]}"
+
+            KUBECONFIG="$kubeconfig" kubectl apply -f "$HELM_CHART_PATH/crds/"
+            KUBECONFIG="$kubeconfig" helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
+              --namespace tuist-kura-controller --create-namespace \
+              -f "$HELM_CHART_PATH/values-managed-kura-region.yaml" \
+              --set kuraController.image.tag="$IMAGE_TAG" \
+              --atomic --timeout 10m --wait
+          done
+      - name: Diagnostics on failure
+        # `--atomic` rolls back the release on timeout, so `helm history` and
+        # most cluster state reflect the rolled-back revision rather than the
+        # failure. Migration-job pods linger long enough for logs to be useful;
+        # everything else is best-effort.
+        if: failure()
+        run: |
+          set +e
+          echo "::group::helm history"
+          helm history "$HELM_RELEASE_NAME" -n "$NAMESPACE" --max 10 || true
+          echo "::endgroup::"
+          echo "::group::helm get manifest (last attempted revision)"
+          helm get manifest "$HELM_RELEASE_NAME" -n "$NAMESPACE" 2>&1 | head -200 || true
+          echo "::endgroup::"
+          echo "::group::pods"
+          kubectl -n "$NAMESPACE" get pods -o wide || true
+          echo "::endgroup::"
+          echo "::group::events (last 100, sorted)"
+          kubectl -n "$NAMESPACE" get events --sort-by=.lastTimestamp 2>&1 | tail -100 || true
+          echo "::endgroup::"
+          echo "::group::migration job"
+          kubectl -n "$NAMESPACE" get jobs -l app.kubernetes.io/component=server-migration -o wide || true
+          for job in $(kubectl -n "$NAMESPACE" get jobs -l app.kubernetes.io/component=server-migration -o name 2>/dev/null); do
+            echo "--- describe $job ---"
+            kubectl -n "$NAMESPACE" describe "$job" || true
+            echo "--- logs $job ---"
+            kubectl -n "$NAMESPACE" logs "$job" --all-containers --tail=500 || true
+          done
+          echo "::endgroup::"
+          echo "::group::server deployment + pods"
+          kubectl -n "$NAMESPACE" describe deploy/tuist-tuist-server || true
+          for pod in $(kubectl -n "$NAMESPACE" get pods -l app.kubernetes.io/component=server -o name 2>/dev/null); do
+            echo "--- describe $pod ---"
+            kubectl -n "$NAMESPACE" describe "$pod" || true
+            echo "--- logs $pod (current) ---"
+            kubectl -n "$NAMESPACE" logs "$pod" --all-containers --tail=500 || true
+            echo "--- logs $pod (previous) ---"
+            kubectl -n "$NAMESPACE" logs "$pod" --all-containers --previous --tail=500 || true
+          done
+          echo "::endgroup::"
+          echo "::group::xcresult processor deployment + pods"
+          kubectl -n "$NAMESPACE" describe deploy/tuist-tuist-xcresult-processor || true
+          for pod in $(kubectl -n "$NAMESPACE" get pods -l app.kubernetes.io/component=xcresult-processor -o name 2>/dev/null); do
+            echo "--- describe $pod ---"
+            kubectl -n "$NAMESPACE" describe "$pod" || true
+            echo "--- logs $pod (current) ---"
+            kubectl -n "$NAMESPACE" logs "$pod" --all-containers --tail=500 || true
+            echo "--- logs $pod (previous) ---"
+            kubectl -n "$NAMESPACE" logs "$pod" --all-containers --previous --tail=500 || true
+          done
+          echo "::endgroup::"
+          echo "::group::runners-controller deployment + pods"
+          kubectl -n "$NAMESPACE" describe deploy/tuist-tuist-runners-controller 2>&1 || true
+          for pod in $(kubectl -n "$NAMESPACE" get pods -l app.kubernetes.io/component=runners-controller -o name 2>/dev/null); do
+            echo "--- describe $pod ---"
+            kubectl -n "$NAMESPACE" describe "$pod" || true
+            echo "--- logs $pod (current) ---"
+            kubectl -n "$NAMESPACE" logs "$pod" --all-containers --tail=500 || true
+            echo "--- logs $pod (previous) ---"
+            kubectl -n "$NAMESPACE" logs "$pod" --all-containers --previous --tail=500 || true
+          done
+          echo "::endgroup::"
+          echo "::group::CAPI provider deployment + pods"
+          kubectl -n "$NAMESPACE" describe deploy/tuist-tuist-capi-scaleway-applesilicon 2>&1 || true
+          for pod in $(kubectl -n "$NAMESPACE" get pods -l app.kubernetes.io/component=capi-provider-scaleway-applesilicon -o name 2>/dev/null); do
+            echo "--- describe $pod ---"
+            kubectl -n "$NAMESPACE" describe "$pod" || true
+            echo "--- logs $pod (current) ---"
+            kubectl -n "$NAMESPACE" logs "$pod" --all-containers --tail=300 || true
+          done
+          echo "::endgroup::"
+          echo "::group::Scaleway Apple Silicon CRs (Machine adoption state)"
+          kubectl -n "$NAMESPACE" get scalewayapplesiliconmachines -o wide 2>&1 || true
+          kubectl -n "$NAMESPACE" get scalewayapplesiliconmachinetemplates -o wide 2>&1 || true
+          kubectl -n "$NAMESPACE" get machinedeployments.cluster.x-k8s.io -o wide 2>&1 || true
+          kubectl -n "$NAMESPACE" get machines.cluster.x-k8s.io -o wide 2>&1 || true
+          echo "::endgroup::"
+          echo "::group::macOS fleet nodes"
+          kubectl get nodes -l kubernetes.io/os=darwin,tuist.dev/runtime=tart -o wide || true
+          for node in $(kubectl get nodes -l kubernetes.io/os=darwin,tuist.dev/runtime=tart -o name 2>/dev/null); do
+            echo "--- describe $node ---"
+            kubectl describe "$node" || true
+          done
+          echo "::endgroup::"
+          echo "::group::external secrets"
+          kubectl -n "$NAMESPACE" get externalsecret,secretstore 2>&1 || true
+          kubectl -n "$NAMESPACE" describe externalsecret 2>&1 || true
+          echo "::endgroup::"
+          # Kura regional clusters: the install-platform step runs against
+          # a different kubeconfig than the main deploy. Dump platform-ns
+          # state from each region whose kubeconfig was synced earlier in
+          # the job so a stuck regional install isn't a black box.
+          for region_kubeconfig in "$RUNNER_TEMP"/kura-us-east-1.yaml "$RUNNER_TEMP"/kura-us-west-1.yaml; do
+            [ -r "$region_kubeconfig" ] || continue
+            region="$(basename "$region_kubeconfig" .yaml)"
+            echo "::group::kura $region platform namespace"
+            KUBECONFIG="$region_kubeconfig" kubectl -n platform get jobs,pods -o wide 2>&1 || true
+            KUBECONFIG="$region_kubeconfig" kubectl -n platform get events \
+              --sort-by=.lastTimestamp 2>&1 | tail -50 || true
+            for job in $(KUBECONFIG="$region_kubeconfig" kubectl -n platform get jobs \
+              -l app.kubernetes.io/name=ingress-nginx -o name 2>/dev/null); do
+              echo "--- describe $job ---"
+              KUBECONFIG="$region_kubeconfig" kubectl -n platform describe "$job" 2>&1 || true
+              for pod in $(KUBECONFIG="$region_kubeconfig" kubectl -n platform get pods \
+                -l "job-name=${job##*/}" -o name 2>/dev/null); do
+                echo "--- describe $pod ---"
+                KUBECONFIG="$region_kubeconfig" kubectl -n platform describe "$pod" 2>&1 || true
+                echo "--- logs $pod ---"
+                KUBECONFIG="$region_kubeconfig" kubectl -n platform logs "$pod" \
+                  --all-containers --tail=200 2>&1 || true
+              done
+            done
+            echo "::endgroup::"
+          done
+      - name: Post-deploy smoke test
+        run: |
+          kubectl -n "$NAMESPACE" rollout status deploy/tuist-tuist-server --timeout=10m
+          kubectl -n "$NAMESPACE" run smoke-$RANDOM --rm -i --restart=Never --image=curlimages/curl \
+            --command -- curl -fsS "http://tuist-tuist-server/ready"

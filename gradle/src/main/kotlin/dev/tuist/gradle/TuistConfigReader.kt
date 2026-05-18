@@ -57,14 +57,19 @@ object CacheEndpointResolver {
         accountHandle: String,
         tokenProvider: TokenProvider,
         envProvider: (String) -> String? = { System.getenv(it) },
-        getCacheEndpointsService: GetCacheEndpointsService = GetCacheEndpointsService()
+        httpClients: TuistHttpClients = TuistHttpClients(),
+        getCacheEndpointsService: GetCacheEndpointsService = GetCacheEndpointsService(httpClients)
     ): String {
         val envEndpoint = envProvider("TUIST_CACHE_ENDPOINT")
         if (!envEndpoint.isNullOrBlank()) {
             return envEndpoint
         }
 
-        val endpoints = getCacheEndpointsService.getCacheEndpoints(serverURL, accountHandle, tokenProvider)
+        val endpoints = getCacheEndpointsService.getCacheEndpoints(
+            serverURL = serverURL,
+            accountHandle = accountHandle,
+            tokenProvider = tokenProvider
+        )
 
         if (endpoints.isEmpty()) {
             throw NoCacheEndpointsException(accountHandle)
@@ -73,20 +78,20 @@ object CacheEndpointResolver {
         return if (endpoints.size == 1) {
             endpoints[0]
         } else {
-            pickFastestEndpoint(endpoints)
+            pickFastestEndpoint(endpoints, httpClients)
                 ?: throw CacheEndpointsUnreachableException(endpoints)
         }
     }
 
-    internal fun pickFastestEndpoint(endpoints: List<String>): String? {
+    internal fun pickFastestEndpoint(
+        endpoints: List<String>,
+        httpClients: TuistHttpClients = TuistHttpClients()
+    ): String? {
         val bestEndpoint = AtomicReference<String?>(null)
         val bestLatency = AtomicReference(Long.MAX_VALUE)
         val latch = CountDownLatch(endpoints.size)
 
-        val latencyClient = OkHttpClient.Builder()
-            .connectTimeout(5, TimeUnit.SECONDS)
-            .readTimeout(5, TimeUnit.SECONDS)
-            .build()
+        val latencyClient = httpClients.latencyClient
 
         for (endpoint in endpoints) {
             Thread {

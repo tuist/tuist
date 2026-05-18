@@ -8,10 +8,13 @@ defmodule Tuist.Builds.Analytics do
   alias Tuist.ClickHouseRepo
   alias Tuist.CommandEvents
   alias Tuist.CommandEvents.Event
+  alias Tuist.Utilities.Decimals
   alias Tuist.Xcode.XcodeGraph
 
   def build_duration_analytics_by_category(project_id, category, opts \\ []) do
-    start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
     end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
 
     category_field =
@@ -34,6 +37,7 @@ defmodule Tuist.Builds.Analytics do
       )
 
     query
+    |> apply_filters(opts)
     |> ClickHouseRepo.all()
     |> Enum.map(fn row ->
       %{category: row.category, value: row.value || 0}
@@ -41,7 +45,9 @@ defmodule Tuist.Builds.Analytics do
   end
 
   def build_analytics(project_id, opts \\ []) do
-    start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
     end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
 
     days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
@@ -59,7 +65,12 @@ defmodule Tuist.Builds.Analytics do
       )
 
     previous_builds_count =
-      build_total_count(project_id, DateTime.add(start_datetime, -days_delta, :day), start_datetime, opts)
+      build_total_count(
+        project_id,
+        DateTime.add(start_datetime, -days_delta, :day),
+        start_datetime,
+        opts
+      )
 
     current_builds_count = build_total_count(project_id, start_datetime, end_datetime, opts)
 
@@ -80,7 +91,7 @@ defmodule Tuist.Builds.Analytics do
 
     query = """
     SELECT
-      toStartOfInterval(inserted_at, INTERVAL #{clickhouse_interval}) as date,
+      toStartOfInterval(inserted_at, INTERVAL #{clickhouse_interval}, 'UTC') as date,
       count() as count
     FROM build_runs
     WHERE project_id = {project_id:Int64}
@@ -103,7 +114,8 @@ defmodule Tuist.Builds.Analytics do
 
     {:ok, %{rows: rows}} = ClickHouseRepo.query(query, params)
 
-    builds_data = Map.new(rows, fn [date, count] -> {normalise_date(date, date_period), count} end)
+    builds_data =
+      Map.new(rows, fn [date, count] -> {normalise_date(date, date_period), count} end)
 
     date_period
     |> date_range_for_date_period(start_datetime: start_datetime, end_datetime: end_datetime)
@@ -129,8 +141,85 @@ defmodule Tuist.Builds.Analytics do
     ClickHouseRepo.one(query) || 0
   end
 
+  @scatter_data_limit 10_000
+
+  def build_duration_scatter_data(project_id, opts \\ []) do
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+    group_by = Keyword.get(opts, :group_by, :scheme)
+
+    query =
+      apply_filters(
+        from(b in Build,
+          where: b.project_id == ^project_id,
+          where: b.inserted_at > ^start_datetime,
+          where: b.inserted_at < ^end_datetime,
+          order_by: [desc: b.inserted_at],
+          limit: ^@scatter_data_limit,
+          select: %{
+            id: b.id,
+            inserted_at: b.inserted_at,
+            duration: b.duration,
+            scheme: b.scheme,
+            status: b.status,
+            category: b.category,
+            is_ci: b.is_ci
+          }
+        ),
+        opts
+      )
+
+    results = ClickHouseRepo.all(query)
+    truncated = length(results) >= @scatter_data_limit
+
+    oldest_entry =
+      if truncated do
+        results |> List.last() |> Map.get(:inserted_at)
+      end
+
+    series =
+      results
+      |> Enum.group_by(fn build ->
+        case group_by do
+          :environment -> build.is_ci
+          :category -> build.category
+          _ -> build.scheme
+        end
+      end)
+      |> Enum.map(fn {group_key, builds} ->
+        %{
+          name: group_key,
+          data:
+            Enum.map(builds, fn build ->
+              ts = NaiveDateTime.diff(build.inserted_at, ~N[1970-01-01 00:00:00], :millisecond)
+
+              %{
+                value: [ts, Decimals.to_rounded(build.duration / 1000)],
+                id: build.id,
+                meta: %{
+                  scheme: build.scheme,
+                  status: build.status,
+                  is_ci: build.is_ci,
+                  category: build.category
+                }
+              }
+            end)
+        }
+      end)
+
+    %{
+      series: series,
+      truncated: truncated,
+      oldest_entry: oldest_entry
+    }
+  end
+
   def build_duration_analytics(project_id, opts \\ []) do
-    start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
     end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
 
     days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
@@ -138,18 +227,25 @@ defmodule Tuist.Builds.Analytics do
     clickhouse_interval = clickhouse_interval_for_date_period(date_period)
 
     previous_period_data =
-      build_aggregated_analytics(project_id, DateTime.add(start_datetime, -days_delta, :day), start_datetime, opts)
+      build_aggregated_analytics(
+        project_id,
+        DateTime.add(start_datetime, -days_delta, :day),
+        start_datetime,
+        opts
+      )
 
     previous_period_total_average_duration = previous_period_data.average_duration
 
-    current_period_data = build_aggregated_analytics(project_id, start_datetime, end_datetime, opts)
+    current_period_data =
+      build_aggregated_analytics(project_id, start_datetime, end_datetime, opts)
+
     current_period_total_average_duration = current_period_data.average_duration
 
     {filter_clauses, filter_params} = build_filter_clauses(opts)
 
     query = """
     SELECT
-      toStartOfInterval(inserted_at, INTERVAL #{clickhouse_interval}) as date,
+      toStartOfInterval(inserted_at, INTERVAL #{clickhouse_interval}, 'UTC') as date,
       avgOrNull(duration) as value
     FROM build_runs
     WHERE project_id = {project_id:Int64}
@@ -173,7 +269,9 @@ defmodule Tuist.Builds.Analytics do
     {:ok, %{rows: rows}} = ClickHouseRepo.query(query, params)
 
     average_durations_data = Enum.map(rows, fn [date, value] -> %{date: date, value: value} end)
-    average_durations = process_durations_data(average_durations_data, start_datetime, end_datetime, date_period)
+
+    average_durations =
+      process_durations_data(average_durations_data, start_datetime, end_datetime, date_period)
 
     %{
       trend:
@@ -221,7 +319,9 @@ defmodule Tuist.Builds.Analytics do
   end
 
   def build_percentile_durations(project_id, percentile, opts \\ []) do
-    start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
     end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
 
     days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
@@ -244,7 +344,7 @@ defmodule Tuist.Builds.Analytics do
 
     query = """
     SELECT
-      toStartOfInterval(inserted_at, INTERVAL #{clickhouse_interval}) as date,
+      toStartOfInterval(inserted_at, INTERVAL #{clickhouse_interval}, 'UTC') as date,
       quantileOrNull(#{percentile})(duration) as value
     FROM build_runs
     WHERE project_id = {project_id:Int64}
@@ -310,7 +410,9 @@ defmodule Tuist.Builds.Analytics do
   end
 
   def build_success_rate_analytics(project_id, opts \\ []) do
-    start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
     end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
 
     days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
@@ -362,7 +464,9 @@ defmodule Tuist.Builds.Analytics do
   end
 
   defp build_success_rate(project_id, opts) do
-    start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
     end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
     filter_opts = Keyword.get(opts, :opts, [])
 
@@ -409,7 +513,7 @@ defmodule Tuist.Builds.Analytics do
 
     query = """
     SELECT
-      toStartOfInterval(inserted_at, INTERVAL #{clickhouse_interval}) as date,
+      toStartOfInterval(inserted_at, INTERVAL #{clickhouse_interval}, 'UTC') as date,
       count() as total_builds,
       countIf(status = 'success') as successful_builds
     FROM build_runs
@@ -467,7 +571,10 @@ defmodule Tuist.Builds.Analytics do
 
   def cache_hit_rate_analytics(opts \\ []) do
     project_id = Keyword.get(opts, :project_id)
-    start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
     end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
     is_ci = Keyword.get(opts, :is_ci)
 
@@ -520,7 +627,9 @@ defmodule Tuist.Builds.Analytics do
   end
 
   defp cache_hit_rate(project_id, opts) do
-    start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
     end_datetime = DateTime.utc_now()
 
     result = build_cache_hit_rate(project_id, start_datetime, end_datetime, opts)
@@ -584,9 +693,82 @@ defmodule Tuist.Builds.Analytics do
     end)
   end
 
+  def selective_testing_scatter_data(opts \\ []) do
+    project_id = Keyword.get(opts, :project_id)
+
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+    is_ci = Keyword.get(opts, :is_ci)
+
+    query =
+      from(e in Event,
+        where: e.project_id == ^project_id,
+        where: e.ran_at > ^DateTime.to_naive(start_datetime),
+        where: e.ran_at < ^DateTime.to_naive(end_datetime),
+        where: e.test_targets_count > 0,
+        order_by: [desc: e.ran_at],
+        limit: ^@scatter_data_limit,
+        select: %{
+          ran_at: e.ran_at,
+          is_ci: e.is_ci,
+          hit_rate:
+            fragment(
+              "(ifNull(?, 0) + ifNull(?, 0)) / ? * 100.0",
+              e.local_test_hits_count,
+              e.remote_test_hits_count,
+              e.test_targets_count
+            )
+        }
+      )
+
+    query =
+      case is_ci do
+        true -> where(query, [e], e.is_ci == true)
+        false -> where(query, [e], e.is_ci == false)
+        _ -> query
+      end
+
+    results = ClickHouseRepo.all(query)
+    truncated = length(results) >= @scatter_data_limit
+
+    oldest_entry =
+      if truncated do
+        results |> List.last() |> Map.get(:ran_at)
+      end
+
+    series =
+      results
+      |> Enum.group_by(& &1.is_ci)
+      |> Enum.map(fn {is_ci, events} ->
+        %{
+          name: is_ci,
+          data:
+            Enum.map(events, fn %{ran_at: ran_at, hit_rate: hit_rate} ->
+              ts = NaiveDateTime.diff(ran_at, ~N[1970-01-01 00:00:00], :millisecond)
+
+              %{
+                value: [ts, Decimals.to_rounded(hit_rate)],
+                meta: %{is_ci: is_ci}
+              }
+            end)
+        }
+      end)
+
+    %{
+      series: series,
+      truncated: truncated,
+      oldest_entry: oldest_entry
+    }
+  end
+
   def selective_testing_analytics(opts \\ []) do
     project_id = Keyword.get(opts, :project_id)
-    start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
     end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
     is_ci = Keyword.get(opts, :is_ci)
 
@@ -638,7 +820,10 @@ defmodule Tuist.Builds.Analytics do
 
   def selective_testing_analytics_with_percentiles(opts \\ []) do
     project_id = Keyword.get(opts, :project_id)
-    start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
     end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
     is_ci = Keyword.get(opts, :is_ci)
 
@@ -729,7 +914,9 @@ defmodule Tuist.Builds.Analytics do
 
   defp process_percentile_hit_rates(percentile_data, dates, date_period) do
     percentile_map =
-      Map.new(percentile_data, fn row -> {normalise_date(row.date, date_period), row.percentile_hit_rate} end)
+      Map.new(percentile_data, fn row ->
+        {normalise_date(row.date, date_period), row.percentile_hit_rate}
+      end)
 
     Enum.map(dates, fn date ->
       normalized_date = normalise_date(date, date_period)
@@ -742,7 +929,9 @@ defmodule Tuist.Builds.Analytics do
   end
 
   defp selective_testing_hit_rate(project_id, opts) do
-    start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
     end_datetime = DateTime.utc_now()
 
     result =
@@ -788,7 +977,9 @@ defmodule Tuist.Builds.Analytics do
     |> date_range_for_date_period(start_datetime: start_datetime, end_datetime: end_datetime)
     |> Enum.map(fn date ->
       normalized_date = normalise_date(date, date_period)
-      selective_testing_hit_rate_metadata = Map.get(selective_testing_hit_rate_metadata_map, normalized_date)
+
+      selective_testing_hit_rate_metadata =
+        Map.get(selective_testing_hit_rate_metadata_map, normalized_date)
 
       if is_nil(selective_testing_hit_rate_metadata) or
            (selective_testing_hit_rate_metadata.test_targets || 0) == 0 do
@@ -811,7 +1002,10 @@ defmodule Tuist.Builds.Analytics do
 
   def build_time_analytics(opts \\ []) do
     project_id = Keyword.get(opts, :project_id)
-    start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
     end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
     is_ci = Keyword.get(opts, :is_ci)
 
@@ -887,7 +1081,9 @@ defmodule Tuist.Builds.Analytics do
   end
 
   defp cas_action_analytics(project_id, action, opts) do
-    start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
     end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
     days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
 
@@ -898,7 +1094,7 @@ defmodule Tuist.Builds.Analytics do
       ClickHouseRepo.query!(
         """
         SELECT
-          toStartOfInterval(date, INTERVAL #{interval_str}) as period,
+          toStartOfInterval(toDateTime(date), INTERVAL #{interval_str}, 'UTC') as period,
           SUM(total_size) as total_size
         FROM cas_events_daily_stats
         WHERE project_id = {project_id:Int64}
@@ -979,6 +1175,84 @@ defmodule Tuist.Builds.Analytics do
     end)
   end
 
+  def build_cache_hit_rate_scatter_data(project_id, opts \\ []) do
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+    group_by = Keyword.get(opts, :group_by, :scheme)
+
+    query =
+      apply_filters(
+        from(b in Build,
+          where: b.project_id == ^project_id,
+          where: b.inserted_at >= ^start_datetime,
+          where: b.inserted_at <= ^end_datetime,
+          where: b.cacheable_tasks_count > 0,
+          order_by: [desc: b.inserted_at],
+          limit: ^@scatter_data_limit,
+          select: %{
+            id: b.id,
+            inserted_at: b.inserted_at,
+            scheme: b.scheme,
+            status: b.status,
+            is_ci: b.is_ci,
+            hit_rate:
+              fragment(
+                "CASE WHEN ? = 0 THEN 0.0 ELSE (ifNull(?, 0) + ifNull(?, 0)) / ? * 100.0 END",
+                b.cacheable_tasks_count,
+                b.cacheable_task_local_hits_count,
+                b.cacheable_task_remote_hits_count,
+                b.cacheable_tasks_count
+              )
+          }
+        ),
+        opts
+      )
+
+    results = ClickHouseRepo.all(query)
+    truncated = length(results) >= @scatter_data_limit
+
+    oldest_entry =
+      if truncated do
+        results |> List.last() |> Map.get(:inserted_at)
+      end
+
+    series =
+      results
+      |> Enum.group_by(fn build ->
+        case group_by do
+          :environment -> build.is_ci
+          _ -> build.scheme
+        end
+      end)
+      |> Enum.map(fn {group_key, builds} ->
+        %{
+          name: group_key,
+          data:
+            Enum.map(builds, fn build ->
+              ts = NaiveDateTime.diff(build.inserted_at, ~N[1970-01-01 00:00:00], :millisecond)
+
+              %{
+                value: [ts, Decimals.to_rounded(build.hit_rate)],
+                id: build.id,
+                meta: %{
+                  scheme: build.scheme,
+                  status: build.status,
+                  is_ci: build.is_ci
+                }
+              }
+            end)
+        }
+      end)
+
+    %{
+      series: series,
+      truncated: truncated,
+      oldest_entry: oldest_entry
+    }
+  end
+
   @doc """
   Gets build cache hit rate analytics for a project over a time period.
 
@@ -988,7 +1262,9 @@ defmodule Tuist.Builds.Analytics do
     * `:is_ci` - Filter by CI builds (true/false/nil for all)
   """
   def build_cache_hit_rate_analytics(project_id, opts \\ []) do
-    start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
     end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
     days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
 
@@ -998,7 +1274,7 @@ defmodule Tuist.Builds.Analytics do
 
     query = """
     SELECT
-      toStartOfInterval(inserted_at, INTERVAL #{clickhouse_interval}) as date,
+      toStartOfInterval(inserted_at, INTERVAL #{clickhouse_interval}, 'UTC') as date,
       CASE WHEN SUM(cacheable_tasks_count) = 0 THEN 0.0
            ELSE (SUM(cacheable_task_local_hits_count) + SUM(cacheable_task_remote_hits_count)) / SUM(cacheable_tasks_count) * 100.0
       END as hit_rate
@@ -1029,7 +1305,9 @@ defmodule Tuist.Builds.Analytics do
     current_avg_hit_rate = avg_cache_hit_rate(project_id, start_datetime, end_datetime, opts)
 
     previous_start_datetime = DateTime.add(start_datetime, -days_delta, :day)
-    previous_avg_hit_rate = avg_cache_hit_rate(project_id, previous_start_datetime, start_datetime, opts)
+
+    previous_avg_hit_rate =
+      avg_cache_hit_rate(project_id, previous_start_datetime, start_datetime, opts)
 
     processed_data =
       process_hit_rate_data(current_data, start_datetime, end_datetime, date_period)
@@ -1069,7 +1347,9 @@ defmodule Tuist.Builds.Analytics do
     * `:values` - List of percentile hit rate values
   """
   def build_cache_hit_rate_percentile(project_id, percentile, opts \\ []) do
-    start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
     end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
 
     days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
@@ -1095,7 +1375,7 @@ defmodule Tuist.Builds.Analytics do
 
     query = """
     SELECT
-      toStartOfInterval(inserted_at, INTERVAL #{clickhouse_interval}) as date,
+      toStartOfInterval(inserted_at, INTERVAL #{clickhouse_interval}, 'UTC') as date,
       quantileOrNull(#{inverted_percentile})((cacheable_task_local_hits_count + cacheable_task_remote_hits_count) / cacheable_tasks_count * 100.0) as hit_rate
     FROM build_runs
     WHERE project_id = {project_id:Int64}
@@ -1121,7 +1401,8 @@ defmodule Tuist.Builds.Analytics do
 
     hit_rate_data = Enum.map(rows, fn [date, hit_rate] -> %{date: date, hit_rate: hit_rate} end)
 
-    processed_data = process_hit_rate_data(hit_rate_data, start_datetime, end_datetime, date_period)
+    processed_data =
+      process_hit_rate_data(hit_rate_data, start_datetime, end_datetime, date_period)
 
     %{
       trend:
@@ -1302,7 +1583,7 @@ defmodule Tuist.Builds.Analytics do
 
     query = """
     SELECT
-      toStartOfInterval(inserted_at, INTERVAL #{time_bucket}) as date,
+      toStartOfInterval(inserted_at, INTERVAL #{time_bucket}, 'UTC') as date,
       sum(cacheable_tasks_count) as cacheable_tasks,
       sum(cacheable_task_local_hits_count) as cacheable_task_local_hits,
       sum(cacheable_task_remote_hits_count) as cacheable_task_remote_hits
@@ -1340,6 +1621,76 @@ defmodule Tuist.Builds.Analytics do
     end)
   end
 
+  def module_cache_hit_rate_scatter_data(opts \\ []) do
+    project_id = Keyword.get(opts, :project_id)
+
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+    is_ci = Keyword.get(opts, :is_ci)
+
+    query =
+      from(e in Event,
+        where: e.project_id == ^project_id,
+        where: e.ran_at > ^DateTime.to_naive(start_datetime),
+        where: e.ran_at < ^DateTime.to_naive(end_datetime),
+        where: e.cacheable_targets_count > 0,
+        order_by: [desc: e.ran_at],
+        limit: ^@scatter_data_limit,
+        select: %{
+          ran_at: e.ran_at,
+          is_ci: e.is_ci,
+          hit_rate:
+            fragment(
+              "(ifNull(?, 0) + ifNull(?, 0)) / ? * 100.0",
+              e.local_cache_hits_count,
+              e.remote_cache_hits_count,
+              e.cacheable_targets_count
+            )
+        }
+      )
+
+    query =
+      case is_ci do
+        true -> where(query, [e], e.is_ci == true)
+        false -> where(query, [e], e.is_ci == false)
+        _ -> query
+      end
+
+    results = ClickHouseRepo.all(query)
+    truncated = length(results) >= @scatter_data_limit
+
+    oldest_entry =
+      if truncated do
+        results |> List.last() |> Map.get(:ran_at)
+      end
+
+    series =
+      results
+      |> Enum.group_by(& &1.is_ci)
+      |> Enum.map(fn {is_ci, events} ->
+        %{
+          name: is_ci,
+          data:
+            Enum.map(events, fn %{ran_at: ran_at, hit_rate: hit_rate} ->
+              ts = NaiveDateTime.diff(ran_at, ~N[1970-01-01 00:00:00], :millisecond)
+
+              %{
+                value: [ts, Decimals.to_rounded(hit_rate)],
+                meta: %{is_ci: is_ci}
+              }
+            end)
+        }
+      end)
+
+    %{
+      series: series,
+      truncated: truncated,
+      oldest_entry: oldest_entry
+    }
+  end
+
   @doc """
   Gets module cache hit rate analytics for a project over a time period.
 
@@ -1358,7 +1709,10 @@ defmodule Tuist.Builds.Analytics do
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def module_cache_hit_rate_analytics(opts \\ []) do
     project_id = Keyword.get(opts, :project_id)
-    start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
     end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
 
     days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
@@ -1384,9 +1738,15 @@ defmodule Tuist.Builds.Analytics do
     avg_hit_rate = calculate_hit_rate_percentage(total_hits, cacheable)
 
     previous_start = DateTime.add(start_datetime, -days_delta, :day)
-    previous_result = CommandEvents.cache_hit_rate(project_id, previous_start, start_datetime, opts)
+
+    previous_result =
+      CommandEvents.cache_hit_rate(project_id, previous_start, start_datetime, opts)
+
     previous_cacheable = previous_result.cacheable_targets_count || 0
-    previous_hits = (previous_result.local_cache_hits_count || 0) + (previous_result.remote_cache_hits_count || 0)
+
+    previous_hits =
+      (previous_result.local_cache_hits_count || 0) +
+        (previous_result.remote_cache_hits_count || 0)
 
     previous_hit_rate = calculate_hit_rate_percentage(previous_hits, previous_cacheable)
 
@@ -1431,7 +1791,10 @@ defmodule Tuist.Builds.Analytics do
   """
   def module_cache_hits_analytics(opts \\ []) do
     project_id = Keyword.get(opts, :project_id)
-    start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
     end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
 
     days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
@@ -1506,7 +1869,10 @@ defmodule Tuist.Builds.Analytics do
   """
   def module_cache_misses_analytics(opts \\ []) do
     project_id = Keyword.get(opts, :project_id)
-    start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
     end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
 
     days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
@@ -1592,7 +1958,9 @@ defmodule Tuist.Builds.Analytics do
     * `:values` - List of percentile hit rate values (as percentages)
   """
   def module_cache_hit_rate_percentile(project_id, percentile, opts \\ []) do
-    start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
     end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
 
     days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
@@ -1600,12 +1968,24 @@ defmodule Tuist.Builds.Analytics do
     clickhouse_time_bucket = clickhouse_interval_for_date_period(date_period)
 
     current_period_percentile =
-      module_cache_hit_rate_period_percentile(project_id, percentile, start_datetime, end_datetime, opts)
+      module_cache_hit_rate_period_percentile(
+        project_id,
+        percentile,
+        start_datetime,
+        end_datetime,
+        opts
+      )
 
     previous_start = DateTime.add(start_datetime, -days_delta, :day)
 
     previous_period_percentile =
-      module_cache_hit_rate_period_percentile(project_id, percentile, previous_start, start_datetime, opts)
+      module_cache_hit_rate_period_percentile(
+        project_id,
+        percentile,
+        previous_start,
+        start_datetime,
+        opts
+      )
 
     percentile_time_series =
       CommandEvents.cache_hit_rate_percentiles(
@@ -1622,7 +2002,9 @@ defmodule Tuist.Builds.Analytics do
 
     percentile_map =
       Map.new(percentile_time_series, fn item ->
-        value = if item.percentile_hit_rate, do: Float.round(item.percentile_hit_rate, 1), else: 0.0
+        value =
+          if item.percentile_hit_rate, do: Float.round(item.percentile_hit_rate, 1), else: 0.0
+
         normalized_date = normalize_clickhouse_date(item.date, date_period)
         {normalized_date, value}
       end)
@@ -1632,14 +2014,25 @@ defmodule Tuist.Builds.Analytics do
 
     %{
       avg_hit_rate: current_period_percentile,
-      trend: trend(previous_value: previous_period_percentile, current_value: current_period_percentile),
+      trend:
+        trend(
+          previous_value: previous_period_percentile,
+          current_value: current_period_percentile
+        ),
       dates: percentile_dates,
       values: percentile_values
     }
   end
 
   defp module_cache_hit_rate_period_percentile(project_id, percentile, start_datetime, end_datetime, opts) do
-    result = CommandEvents.cache_hit_rate_period_percentile(project_id, start_datetime, end_datetime, percentile, opts)
+    result =
+      CommandEvents.cache_hit_rate_period_percentile(
+        project_id,
+        start_datetime,
+        end_datetime,
+        percentile,
+        opts
+      )
 
     case result do
       nil -> 0.0

@@ -1,0 +1,175 @@
+services:
+  kura-us:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    hostname: kura-us
+    domainname: kura.internal
+    environment: &kura_env
+      KURA_PORT: "4000"
+      KURA_GRPC_PORT: "50051"
+      KURA_INTERNAL_PORT: "7443"
+      KURA_TENANT_ID: default
+      KURA_TMP_DIR: /tmp/kura
+      KURA_DATA_DIR: /var/cache/kura
+      KURA_REGION: us-east
+      KURA_NODE_URL: http://kura-us.kura.internal:7443
+      KURA_PEERS: http://kura-us.kura.internal:7443,http://kura-eu.kura.internal:7443,http://kura-ap.kura.internal:7443
+      KURA_DISCOVERY_DNS_NAME: kura-ring.kura.internal
+      KURA_FILE_DESCRIPTOR_POOL_SIZE: "128"
+      KURA_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS: "5000"
+      KURA_SEGMENT_HANDLE_CACHE_SIZE: "32"
+      KURA_MEMORY_SOFT_LIMIT_BYTES: "536870912"
+      KURA_MEMORY_HARD_LIMIT_BYTES: "805306368"
+      KURA_MANIFEST_CACHE_MAX_BYTES: "67108864"
+      KURA_MAX_KEYVALUE_BYTES: "1048576"
+      KURA_METADATA_STORE_MAX_OPEN_FILES: "1024"
+      KURA_METADATA_STORE_MAX_BACKGROUND_JOBS: "4"
+      KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://tempo:4318/v1/traces
+      KURA_OTEL_SERVICE_NAME: kura-us
+      KURA_OTEL_DEPLOYMENT_ENVIRONMENT: local
+      KURA_SENTRY_DSN: ${KURA_SENTRY_DSN:-}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:4000/up >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+    labels:
+      kura.region: us-east
+      kura.tenant_id: default
+    ports:
+      - "${KURA_US_PORT:-4101}:4000"
+      - "${KURA_US_GRPC_PORT:-5101}:50051"
+    volumes:
+      - kura-us-data:/var/cache/kura
+    networks:
+      default:
+        aliases:
+          - kura-us.kura.internal
+          - kura-ring.kura.internal
+
+  kura-eu:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    hostname: kura-eu
+    domainname: kura.internal
+    environment:
+      <<: *kura_env
+      KURA_REGION: eu-west
+      KURA_NODE_URL: http://kura-eu.kura.internal:7443
+      KURA_PEERS: http://kura-us.kura.internal:7443,http://kura-eu.kura.internal:7443,http://kura-ap.kura.internal:7443
+      KURA_OTEL_SERVICE_NAME: kura-eu
+    depends_on:
+      kura-us:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:4000/up >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+    labels:
+      kura.region: eu-west
+      kura.tenant_id: default
+    ports:
+      - "${KURA_EU_PORT:-4102}:4000"
+      - "${KURA_EU_GRPC_PORT:-5102}:50051"
+    volumes:
+      - kura-eu-data:/var/cache/kura
+    networks:
+      default:
+        aliases:
+          - kura-eu.kura.internal
+          - kura-ring.kura.internal
+
+  kura-ap:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    hostname: kura-ap
+    domainname: kura.internal
+    environment:
+      <<: *kura_env
+      KURA_REGION: ap-south
+      KURA_NODE_URL: http://kura-ap.kura.internal:7443
+      KURA_PEERS: http://kura-us.kura.internal:7443,http://kura-eu.kura.internal:7443,http://kura-ap.kura.internal:7443
+      KURA_OTEL_SERVICE_NAME: kura-ap
+    depends_on:
+      kura-eu:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:4000/up >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+    labels:
+      kura.region: ap-south
+      kura.tenant_id: default
+    ports:
+      - "${KURA_AP_PORT:-4103}:4000"
+      - "${KURA_AP_GRPC_PORT:-5103}:50051"
+    volumes:
+      - kura-ap-data:/var/cache/kura
+    networks:
+      default:
+        aliases:
+          - kura-ap.kura.internal
+          - kura-ring.kura.internal
+
+  prometheus:
+    image: prom/prometheus:v3.11.2
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--web.enable-remote-write-receiver"
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ./ops/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+
+  loki:
+    image: grafana/loki:3.5.0
+    command: ["-config.file=/etc/loki/config.yml"]
+    ports:
+      - "${LOKI_PORT:-3100}:3100"
+    volumes:
+      - ./ops/loki/config.yml:/etc/loki/config.yml:ro
+
+  promtail:
+    image: grafana/promtail:3.5.0
+    command: ["-config.file=/etc/promtail/config.yml"]
+    depends_on:
+      - loki
+    volumes:
+      - ./ops/promtail/config.yml:/etc/promtail/config.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  tempo:
+    image: grafana/tempo:2.8.1
+    command: ["-config.file=/etc/tempo/config.yml"]
+    ports:
+      - "${TEMPO_PORT:-3200}:3200"
+      - "${OTLP_PORT:-4318}:4318"
+    volumes:
+      - ./ops/tempo/config.yml:/etc/tempo/config.yml:ro
+
+  grafana:
+    image: grafana/grafana:12.1.1
+    depends_on:
+      - prometheus
+      - loki
+      - tempo
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    volumes:
+      - ./ops/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./ops/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./ops/grafana/dashboards:/etc/grafana/dashboards:ro
+
+volumes:
+  kura-us-data:
+  kura-eu-data:
+  kura-ap-data:

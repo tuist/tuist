@@ -1,0 +1,93 @@
+#marketing-changelog-entry {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-9);
+  padding-bottom: var(--noora-spacing-12);
+
+  @media (min-width: 1024px) {
+    gap: var(--noora-spacing-11);
+  }
+
+  & > [data-part="header"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-7);
+    box-sizing: border-box;
+    margin-right: auto;
+    margin-left: auto;
+    padding-right: var(--noora-spacing-6);
+    padding-left: var(--noora-spacing-6);
+    width: 100%;
+    max-width: 769px;
+
+    @media (min-width: 1024px) {
+      padding-top: var(--noora-spacing-12);
+    }
+
+    & > [data-part="back"] {
+      & > a {
+        display: flex;
+        align-items: center;
+        gap: var(--noora-spacing-2);
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+        text-decoration: none;
+
+        &:hover {
+          color: var(--noora-surface-label-primary);
+        }
+
+        & > svg {
+          width: 16px;
+          height: 16px;
+        }
+      }
+    }
+
+    & > [data-part="category"] {
+      display: flex;
+      justify-content: center;
+    }
+
+    & > [data-part="title"] {
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-heading-2xlarge);
+      text-align: center;
+
+      @media (min-width: 1024px) {
+        font: var(--noora-font-weight-medium) var(--noora-font-heading-2xlarge);
+      }
+    }
+
+    & > [data-part="meta"] {
+      display: flex;
+      flex-direction: row;
+      flex-wrap: wrap;
+      justify-content: center;
+      align-items: center;
+      gap: var(--noora-spacing-4);
+
+      & > time {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+      }
+    }
+  }
+
+  & > [data-part="body"] {
+    box-sizing: border-box;
+    margin-right: auto;
+    margin-left: auto;
+    padding-right: var(--noora-spacing-6);
+    padding-left: var(--noora-spacing-6);
+    width: 100%;
+    max-width: 769px;
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+
+    & img {
+      max-width: 100%;
+      height: auto;
+    }
+  }
+}

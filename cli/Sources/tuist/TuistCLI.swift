@@ -8,7 +8,8 @@ private enum TuistCLI {
         try await initDependencies { sessionPaths in
             try await TuistCommand.main(
                 logFilePath: sessionPaths.logFilePath,
-                sessionDirectory: sessionPaths.sessionDirectory
+                sessionDirectory: sessionPaths.sessionDirectory,
+                networkFilePath: sessionPaths.networkFilePath
             )
         }
     }

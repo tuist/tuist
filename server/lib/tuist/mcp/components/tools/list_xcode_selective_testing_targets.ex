@@ -1,0 +1,93 @@
+defmodule Tuist.MCP.Components.Tools.ListXcodeTestTargets do
+  @moduledoc """
+  List Xcode test targets with their selective testing status (hit/miss) and hash for a given test run. The test_run_id can also be a Tuist dashboard URL, e.g. https://tuist.dev/{account}/{project}/tests/test-runs/{id}.
+  """
+
+  use Tuist.MCP.Tool,
+    name: "list_xcode_test_targets",
+    title: "List Xcode Selective Testing Targets",
+    schema: %{
+      "type" => "object",
+      "properties" => %{
+        "test_run_id" => %{
+          "type" => "string",
+          "description" => "The ID of the test run."
+        },
+        "hit_status" => %{
+          "type" => "string",
+          "description" => "Filter by selective testing status: miss, local, or remote."
+        },
+        "page" => %{
+          "type" => "integer",
+          "description" => "Page number (default: 1)."
+        },
+        "page_size" => %{
+          "type" => "integer",
+          "description" => "Results per page (default: 20, max: 100)."
+        }
+      },
+      "required" => ["test_run_id"]
+    }
+
+  alias Tuist.CommandEvents
+  alias Tuist.MCP.Tool, as: MCPTool
+  alias Tuist.Tests
+  alias Tuist.Xcode
+
+  @impl EMCP.Tool
+  def description,
+    do:
+      "List Xcode test targets with their selective testing status (hit/miss) and hash for a given test run. The test_run_id can also be a Tuist dashboard URL, e.g. #{Tuist.Environment.app_url()}/{account}/{project}/tests/test-runs/{id}."
+
+  def execute(conn, %{"test_run_id" => test_run_id} = args) do
+    with {:ok, run, _project} <-
+           MCPTool.load_and_authorize(
+             Tests.get_test(test_run_id),
+             conn.assigns,
+             :read,
+             :test,
+             "Test run not found: #{test_run_id}"
+           ),
+         {:ok, command_event} <-
+           load_command_event(run, test_run_id) do
+      page = MCPTool.page(args)
+      page_size = MCPTool.page_size(args)
+
+      flop_params = maybe_add_filter(%{page: page, page_size: page_size}, args)
+
+      {analytics, meta} = Xcode.selective_testing_analytics(command_event, flop_params)
+
+      {:ok,
+       %{
+         targets:
+           Enum.map(analytics.test_modules, fn target ->
+             %{
+               name: target.name,
+               hit_status: to_string(target.selective_testing_hit),
+               hash: target.selective_testing_hash
+             }
+           end),
+         pagination_metadata: MCPTool.pagination_metadata(meta)
+       }}
+    end
+  end
+
+  defp load_command_event(run, raw_test_run_id) do
+    case CommandEvents.get_command_event_by_test_run_id(run.id, project_id: run.project_id) do
+      {:ok, command_event} -> {:ok, command_event}
+      {:error, :not_found} -> {:error, "Test run not found: #{raw_test_run_id}"}
+    end
+  end
+
+  defp maybe_add_filter(flop_params, args) do
+    case Map.get(args, "hit_status") do
+      nil ->
+        flop_params
+
+      status ->
+        Map.put(flop_params, :filters, [
+          %{field: :selective_testing_hit, op: :==, value: status}
+        ])
+    end
+  end
+end

@@ -1,5 +1,6 @@
 import Foundation
 import HTTPTypes
+import OpenAPIRuntime
 import Testing
 
 @testable import TuistHTTP
@@ -98,4 +99,59 @@ struct VerboseLoggingMiddlewareTests {
 
         #expect(gotResponse.status == response.status)
     }
+
+    @Test func process_logs_complete_body_when_within_size_limit() async throws {
+        let subject = VerboseLoggingMiddleware(maxBodyBytesToLog: 5)
+        let body = HTTPBody(Data("hello".utf8))
+
+        let result = try await subject.process(body)
+
+        #expect(result.bodyToLog == .complete(Data("hello".utf8)))
+        let bodyForNext = try #require(result.bodyForNext)
+        let dataForNext = try await Data(collecting: bodyForNext, upTo: 5)
+        #expect(dataForNext == Data("hello".utf8))
+    }
+
+    @Test func process_does_not_collect_body_when_it_exceeds_size_limit() async throws {
+        let subject = VerboseLoggingMiddleware(maxBodyBytesToLog: 4)
+        let body = HTTPBody(Data("hello".utf8))
+
+        let result = try await subject.process(body)
+
+        #expect(result.bodyToLog == .tooManyBytesToLog(5))
+        let bodyForNext = try #require(result.bodyForNext)
+        #expect(bodyForNext == body)
+        let dataForNext = try await Data(collecting: bodyForNext, upTo: 5)
+        #expect(dataForNext == Data("hello".utf8))
+    }
+
+    @Test func process_does_not_iterate_body_when_it_exceeds_size_limit() async throws {
+        let subject = VerboseLoggingMiddleware(maxBodyBytesToLog: 4)
+        let body = HTTPBody(
+            FailingOnIterationBodySequence(),
+            length: .known(5),
+            iterationBehavior: .single
+        )
+
+        let result = try await subject.process(body)
+
+        #expect(result.bodyToLog == .tooManyBytesToLog(5))
+        #expect(result.bodyForNext == body)
+    }
 }
+
+private struct FailingOnIterationBodySequence: AsyncSequence, Sendable {
+    typealias Element = HTTPBody.ByteChunk
+
+    func makeAsyncIterator() -> Iterator {
+        Iterator()
+    }
+
+    struct Iterator: AsyncIteratorProtocol {
+        mutating func next() async throws -> HTTPBody.ByteChunk? {
+            throw BodyWasIteratedError()
+        }
+    }
+}
+
+private struct BodyWasIteratedError: Error {}

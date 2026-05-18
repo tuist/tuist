@@ -3,16 +3,18 @@ defmodule Tuist.Authentication do
   A module to deal with authentication in the system.
   """
   alias Tuist.Accounts
+  alias Tuist.Accounts.Account
   alias Tuist.Accounts.AuthenticatedAccount
+  alias Tuist.Accounts.User
   alias Tuist.Projects
 
   def authenticated_subject(token) do
     case Tuist.Guardian.resource_from_token(token) do
       {:ok, %AuthenticatedAccount{} = resource, _opts} ->
-        resource
+        reject_if_inactive_account_user(resource)
 
       {:ok, resource, _opts} ->
-        Tuist.Repo.preload(resource, :account)
+        resource |> Tuist.Repo.preload(:account) |> reject_if_inactive_user()
 
       _ ->
         user = Accounts.get_user_by_token(token)
@@ -20,10 +22,22 @@ defmodule Tuist.Authentication do
         if is_nil(user) do
           account_or_project_token(token)
         else
-          user
+          reject_if_inactive_user(user)
         end
     end
   end
+
+  defp reject_if_inactive_user(%User{active: false}), do: nil
+  defp reject_if_inactive_user(other), do: other
+
+  defp reject_if_inactive_account_user(%AuthenticatedAccount{account: %Account{} = account} = resource) do
+    case Tuist.Repo.preload(account, :user) do
+      %Account{user: %User{active: false}} -> nil
+      account -> %{resource | account: account}
+    end
+  end
+
+  defp reject_if_inactive_account_user(resource), do: resource
 
   defp account_or_project_token(token) do
     project_token = Projects.get_project_by_full_token(token)
@@ -64,25 +78,33 @@ defmodule Tuist.Authentication do
 
   """
   def refresh(old_token, opts) do
-    with {:ok, user, old_claims} <- Tuist.Guardian.resource_from_token(old_token, %{}, opts),
-         {:ok, {:user, user}} when user != nil <-
-           {:ok, {:user, Tuist.Repo.preload(user, :account)}},
-         preferred_username = user.account.name,
+    with {:ok, resource, old_claims} <- Tuist.Guardian.resource_from_token(old_token, %{}, opts),
+         {:ok, {:resource, resource}} when resource != nil <-
+           {:ok, {:resource, preload_account(resource)}},
+         {preferred_username, subject} <- refresh_subject(resource),
          new_claims =
            old_claims
            |> Map.drop(["jti", "iss", "iat", "nbf", "exp"])
            |> Map.put("preferred_username", preferred_username),
-         {:ok, new_token, new_claims} <- __MODULE__.encode_and_sign(user, new_claims, opts) do
+         {:ok, new_token, new_claims} <- __MODULE__.encode_and_sign(subject, new_claims, opts) do
       Tuist.Guardian.on_revoke(old_claims, old_token)
       {:ok, {old_token, old_claims}, {new_token, new_claims}}
     else
       {:error, reason} ->
         {:error, reason}
 
-      {:ok, {:user, nil}} ->
+      {:ok, {:resource, nil}} ->
         {:error, "The token user doesn't exist"}
     end
   end
+
+  defp preload_account(%User{} = user), do: Tuist.Repo.preload(user, :account)
+  defp preload_account(%AuthenticatedAccount{} = resource), do: resource
+  defp preload_account(_), do: nil
+
+  defp refresh_subject(%User{account: %{name: name}} = user), do: {name, user}
+
+  defp refresh_subject(%AuthenticatedAccount{account: %{name: name} = account}), do: {name, account}
 
   def exchange(old_token, from_type, to_type, options) do
     Tuist.Guardian.exchange(old_token, from_type, to_type, options)

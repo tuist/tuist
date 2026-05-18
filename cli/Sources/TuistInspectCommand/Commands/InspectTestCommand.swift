@@ -2,6 +2,7 @@
     import ArgumentParser
     import Foundation
     import TuistEnvKey
+    import TuistKit
     import TuistNooraExtension
 
     struct InspectTestCommand: AsyncParsableCommand, NooraReadyCommand {
@@ -35,6 +36,13 @@
         )
         var resultBundlePath: String?
 
+        @Option(
+            name: .long,
+            help: "Processing mode: 'local' parses the xcresult on this machine, 'remote' uploads it for server-side processing, 'off' skips test analysis entirely (nothing is parsed, archived, or uploaded). When omitted, defaults to 'remote' for tuist-hosted instances and 'local' for self-hosted ones.",
+            envKey: .inspectTestMode
+        )
+        var mode: TestProcessingMode?
+
         var jsonThroughNoora: Bool = false
 
         func run() async throws {
@@ -42,7 +50,8 @@
                 .run(
                     path: path,
                     derivedDataPath: derivedDataPath,
-                    resultBundlePath: resultBundlePath
+                    resultBundlePath: resultBundlePath,
+                    mode: mode
                 )
         }
     }

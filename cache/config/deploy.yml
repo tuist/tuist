@@ -1,10 +1,16 @@
 service: cache
 image: tuist/cache
+deploy_timeout: 120
 
 servers:
   web:
     proxy: false
     options:
+      health-cmd: /app/bin/healthcheck
+      health-interval: 5s
+      health-timeout: 35s
+      health-retries: 5
+      health-start-period: 15s
       network-alias: cache-app
       add-host: host.docker.internal:host-gateway
 

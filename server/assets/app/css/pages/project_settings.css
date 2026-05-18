@@ -21,8 +21,6 @@
   }
 
   & > [data-part="preview-access-card-section"] {
-    margin-bottom: var(--noora-spacing-7);
-
     & > [data-part="content"] {
       display: flex;
       flex-direction: column;

@@ -1,0 +1,242 @@
+# Production overlay for the Tuist-managed deployment.
+# Layer on top of values-managed-common.yaml:
+#   helm upgrade --install tuist infra/helm/tuist \
+#     -n tuist --create-namespace \
+#     -f infra/helm/tuist/values-managed-common.yaml \
+#     -f infra/helm/tuist/values-managed-production.yaml \
+#     --set server.image.tag=$GIT_SHA
+
+server:
+  replicaCount: 2
+
+  appUrl: https://tuist.dev
+
+  # HA scale-out needs distributed Erlang so PubSub + the in-memory rate
+  # limiter work across pods. Emits a headless Service that libcluster's
+  # Kubernetes.DNS strategy uses to discover peers; the chart wires
+  # TUIST_CLUSTER_DNS_SERVICE / TUIST_CLUSTER_APP_NAME into each pod.
+  cluster:
+    enabled: true
+    applicationName: tuist
+
+  extraEnv:
+    # Selects which priv/secrets/<env>.yml.enc file the app decrypts at
+    # boot. Image is env-agnostic (built with MIX_ENV=prod); this flag
+    # plus the MASTER_KEY ESO secret pick the runtime deployment target.
+    - name: TUIST_DEPLOY_ENV
+      value: prod
+    - name: TUIST_DATABASE_POOL_SIZE
+      value: "15"
+    - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
+      value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
+    # Exposes the managed Kura regions in account settings. Each region
+    # maps to a controller-backed Kura cluster_id in Tuist.Kura.Regions.
+    - name: TUIST_KURA_AVAILABLE_REGIONS
+      value: eu-central,us-east,us-west
+    # Kubeconfigs for regional Kura clusters. CI syncs this Secret from
+    # 1Password before Helm upgrades the production server release.
+    - name: TUIST_KURA_KUBECONFIG_US_EAST_1
+      valueFrom:
+        secretKeyRef:
+          name: tuist-kura-kubeconfigs
+          key: TUIST_KURA_KUBECONFIG_US_EAST_1
+    - name: TUIST_KURA_KUBECONFIG_US_WEST_1
+      valueFrom:
+        secretKeyRef:
+          name: tuist-kura-kubeconfigs
+          key: TUIST_KURA_KUBECONFIG_US_WEST_1
+
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+
+  # ingress-nginx fronts the server on port 443 with a Cloudflare Origin
+  # CA cert (synced into the tuist-tls-cloudflare-origin Secret out-of-
+  # band; 15-year validity). Cloudflare is set to Full (strict) SSL.
+  ingress:
+    enabled: true
+    className: nginx
+    host: tuist.dev
+    tlsSecretName: tuist-tls-cloudflare-origin
+
+  # Full prod resource envelope — sized against the ccx23 worker.
+  resources:
+    requests:
+      cpu: "1000m"
+      memory: "2Gi"
+    limits:
+      cpu: "3000m"
+      memory: "4Gi"
+
+  # Pod anti-affinity so the two replicas never land on the same worker.
+  # With 2 × ccx23 workers this gives us a replica per node.
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchLabels:
+                app.kubernetes.io/component: server
+            topologyKey: kubernetes.io/hostname
+
+  # Keep server pods on the dedicated-vCPU general pool. Without this the
+  # scheduler could place a server replica on the cpx51 processor pool
+  # (shared vCPU, sized for parsing) and we'd get the latency spikes the
+  # ccx23 dedicated cores were chosen to avoid. md-0 in
+  # workload-cluster-production.yaml carries the matching pool label.
+  nodeSelector:
+    node.cluster.x-k8s.io/pool: general
+
+postgresql:
+  external:
+    host: db.tuist.dev  # Supabase pooler endpoint for production.
+
+clickhouse:
+  external:
+    url: ""  # Set via helm --set at deploy time; see runbook.
+
+objectStorage:
+  external:
+    buckets:
+      default: tuist-prod-storage
+
+processor:
+  # Supabase production project (yltsvvtmlktxdgpcbylg) — dedicated pooler on
+  # port 6543 (transaction mode). Same hostname as the direct Postgres
+  # endpoint, just a different port. Pooler creds are the `tuist_processor`
+  # role provisioned via infra/supabase/tuist-processor-role.sql.
+  database:
+    host: db.yltsvvtmlktxdgpcbylg.supabase.co
+  extraEnv:
+    # Must match the server's TUIST_DEPLOY_ENV above so the processor pod
+    # decrypts the same priv/secrets/<env>.yml.enc file the web tier does.
+    - name: TUIST_DEPLOY_ENV
+      value: prod
+    - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
+      value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
+  # Sized for the dedicated cpx51 processor pool (16 vCPU / 32 GiB shared
+  # vCPU per node). With anti-affinity pinning one replica per node, each
+  # pod owns the whole node minus kube-system overhead; we leave ~4 GiB
+  # and ~4 vCPU as headroom. The Swift parser holds ~3-4x the .xcactivitylog
+  # file size in memory while building the BuildStep tree and JSON-encoding
+  # the result; at queueConcurrency=5 most realistic builds fit comfortably
+  # in 24 GiB. If we ever start seeing OOMKills again the next move is
+  # either to lower queueConcurrency, bump pod memory, or reintroduce a
+  # per-archive size cap in Tuist.Processor.BuildProcessor.
+  # CPU limit at 12 cores lets the BEAM run ~12 dirty-CPU schedulers,
+  # so all 5 NIF parses run on dedicated dirty schedulers without
+  # serializing on scheduler availability the way they did at 4 cores.
+  resources:
+    requests:
+      cpu: "4000m"
+      memory: "8Gi"
+    limits:
+      cpu: "12000m"
+      memory: "24Gi"
+
+  # Pin processor pods to the dedicated cpx51 pool provisioned by
+  # md-processor in cluster-production.yaml. The label is set on
+  # the MachineDeployment metadata; CAPI propagates it to each node's
+  # registration. Without this the pods could land on the cheaper ccx23
+  # general pool that doesn't have the memory headroom 5 concurrent parses
+  # need. The tuist-hcloud ClusterClass doesn't expose a taint variable, so
+  # we rely on nodeSelector alone — server pods stay on the general pool
+  # via their own anti-affinity, not via taint isolation.
+  nodeSelector:
+    node.cluster.x-k8s.io/pool: processor
+
+  # Hard one-replica-per-node spread. Soft preferred-anti-affinity wasn't
+  # enough — when the new ReplicaSet was rolling out and only one cpx62
+  # node was Ready yet, both pods landed on it and stayed stacked even
+  # after the second node came up; combined ~10 cores of work on one
+  # 16-vCPU node halved effective parsing throughput while the other
+  # node sat idle. DoNotSchedule + nodeTaintsPolicy=Honor (set in the
+  # template) makes the separation enforced without deadlocking under
+  # node drain — a tainted node is excluded from the topology so the
+  # replacement pod can still land on the surviving worker.
+  topologySpread:
+    enabled: true
+    whenUnsatisfiable: DoNotSchedule
+  affinity: {}
+
+# Same priv/secrets selection as the build processor; the Tart image
+# embeds the encrypted bundle and decrypts it via MASTER_KEY.
+xcresultProcessor:
+  # replicaCount stays at the chart default (2). The topology spread
+  # in xcresult-processor-deployment.yaml forces the two replicas onto
+  # distinct Mac minis (the fleet has 2 hosts in production); the PDB
+  # below keeps at least one queue consumer up across voluntary
+  # disruptions (operator-driven host drains, fleet rolls).
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+  extraEnv:
+    - name: TUIST_DEPLOY_ENV
+      value: prod
+    - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
+      value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
+
+# Mac mini fleet — declarative via CAPI. Production keeps 2 hosts so
+# a single-host Scaleway BMC reboot or macOS upgrade doesn't take all
+# xcresult capacity offline.
+macosFleet:
+  replicas: 2
+  # Claim pre-ordered Mac minis during the CAPI MachineDeployment
+  # cutover instead of auto-ordering fresh production hosts.
+  adoptPoolPrefix: "tuist-pool-"
+  machine:
+    # Production tracks the chart default — M2-L on Scaleway:
+    # M2 Pro 10-core / 16 GB. Explicit here so the matching
+    # `hostCPU` / `hostMemoryMB` stay in sync if a future operator
+    # flips to a different SKU.
+    type: M2-L
+    # Leave 2 CPU + 2 GB for the macOS host + Apple
+    # Virtualization.framework reserve. Asking for the host's full
+    # 10 CPU / 16 GB on `tart run` fails with
+    # `memorySize > maximumAllowedMemorySize` (and the matching
+    # CPU-count check).
+    hostCPU: 8
+    hostMemoryMB: 14336
+  controlPlane:
+    host: api.tuist.dev
+
+# Customer-runner Mac mini fleet. Sized to 9 hosts = 9 concurrent
+# customer runs. Apple's SLA permits up to two VMs per host; v1
+# runs one VM per host to keep capacity reasoning simple. Bump
+# this once the operational story for two-per-host is in place.
+# Runner images are digest-pinned so subsequent runner-image
+# releases can safely bump all enabled managed environments.
+runnersFleet:
+  enabled: true
+  hostCount: 9
+  # Pre-ordered pool. Operator orders M2-L hosts in the Scaleway
+  # console with names starting with `tuist-pool-` ahead of
+  # bringing this block live (Mac mini lead times can stretch
+  # several days). The CAPI controller claims them on demand;
+  # there is no auto-order fallback.
+  adoptPoolPrefix: "tuist-pool-"
+  networkPolicy:
+    enabled: true
+    exceptCIDRs:
+      - "10.0.0.0/8"
+      - "172.16.0.0/12"
+      - "192.168.0.0/16"
+  pools:
+    - name: default
+      replicas: 9
+      runnerImage: "ghcr.io/tuist/tuist-runner@sha256:13f45853f4153f6717dff0aad23e7c896e46bc48cc41df4be314605adeadb5ff"
+      dispatchLabel: "tuist-macos"
+
+# In-cluster Valkey backs the auth rate limiter (Hammer.Redis). The
+# chart wires TUIST_REDIS_URL to the embedded Service; without it the
+# rate limiter falls back to the per-pod InMemory bucket.
+redis:
+  enabled: true

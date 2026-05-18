@@ -182,8 +182,11 @@ defmodule TuistCommon.BodyReader do
         cleanup_internal_opts(base_opts)
 
       content_length ->
+        bytes_for_initial_read =
+          min(content_length, Keyword.get(base_opts, :length, content_length))
+
         timeout_opts = Keyword.take(base_opts, [:min_timeout, :max_timeout, :min_throughput])
-        dynamic_timeout = calculate_timeout(content_length, timeout_opts)
+        dynamic_timeout = calculate_timeout(bytes_for_initial_read, timeout_opts)
 
         base_opts
         |> cleanup_internal_opts()

@@ -23,7 +23,7 @@ import { LiveSocket } from "phoenix_live_view";
 import topbar from "./js/vendor/topbar.js";
 import Noora from "noora";
 import "./app.css";
-import ThemeSwitcher, { observeThemeChanges } from "./js/ThemeSwitcher.js";
+import ThemeSwitcher, { ThemeToggle, observeThemeChanges } from "./js/ThemeSwitcher.js";
 import ImageFallback from "./js/ImageFallback.js";
 import DeeplinkValidation from "./js/DeeplinkValidation.js";
 import Clipboard from "./js/Clipboard.js";
@@ -36,6 +36,8 @@ import StopPropagationOnDrag from "./js/StopPropagationOnDrag.js";
 import SelectSlackChannelPopup from "./js/SelectSlackChannelPopup.js";
 import PublicProjectCTABanner from "./js/PublicProjectCTABanner.js";
 import TextAttachmentContent from "./js/hooks/TextAttachmentContent.js";
+import { setupQueryMemory } from "./js/QueryMemory.js";
+import { getUserLocale } from "./js/UserLocale.js";
 import { getUserTimezone } from "./js/UserTimezone.js";
 
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content");
@@ -57,12 +59,14 @@ Hooks.TextAttachmentContent = TextAttachmentContent;
 
 observeThemeChanges();
 Hooks.ThemeSwitcher = ThemeSwitcher;
+Hooks.ThemeToggle = ThemeToggle;
 
 let liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {
     _csrf_token: csrfToken,
     _csp_nonce: cspNonce,
+    user_locale: getUserLocale(),
     user_timezone: getUserTimezone(),
   },
   hooks: { ...Hooks, ...Noora.Hooks },
@@ -78,6 +82,8 @@ window.addEventListener("phx:page-loading-stop", (_info) => topbar.hide());
 
 // connect if there are any LiveViews on the page
 liveSocket.connect();
+
+setupQueryMemory();
 
 // Analytics
 window.addEventListener("phx:navigate", (info) => {

@@ -64,6 +64,7 @@ public enum EnvKey: String, CaseIterable {
     case graphTargets = "TUIST_GRAPH_TARGETS"
     case graphPath = "TUIST_GRAPH_PATH"
     case graphOutputPath = "TUIST_GRAPH_OUTPUT_PATH"
+    case graphSkipMacroSupportTargets = "TUIST_GRAPH_SKIP_MACRO_SUPPORT_TARGETS"
 
     // INIT
 
@@ -124,12 +125,16 @@ public enum EnvKey: String, CaseIterable {
     case inspectBundle = "TUIST_INSPECT_BUNDLE"
     case inspectBundleJSON = "TUIST_INSPECT_BUNDLE_JSON"
     case inspectBundlePath = "TUIST_INSPECT_BUNDLE_PATH"
+    case inspectBundleConfiguration = "TUIST_INSPECT_BUNDLE_CONFIGURATION"
+    case inspectBundlePlatform = "TUIST_INSPECT_BUNDLE_PLATFORM"
+    case inspectBundleDerivedDataPath = "TUIST_INSPECT_BUNDLE_DERIVED_DATA_PATH"
 
     // INSPECT TEST
 
     case inspectTestPath = "TUIST_INSPECT_TEST_PATH"
     case inspectTestDerivedDataPath = "TUIST_INSPECT_TEST_DERIVED_DATA_PATH"
     case inspectTestResultBundlePath = "TUIST_INSPECT_TEST_RESULT_BUNDLE_PATH"
+    case inspectTestMode = "TUIST_INSPECT_TEST_MODE"
 
     // RUN
 
@@ -188,6 +193,8 @@ public enum EnvKey: String, CaseIterable {
     case testShardGranularity = "TUIST_TEST_SHARD_GRANULARITY"
     case testShardIndex = "TUIST_SHARD_INDEX"
     case testShardReference = "TUIST_SHARD_REFERENCE"
+    case testShardSkipUpload = "TUIST_TEST_SHARD_SKIP_UPLOAD"
+    case testShardArchivePath = "TUIST_TEST_SHARD_ARCHIVE_PATH"
 
     // TEST SHOW
 
@@ -213,6 +220,24 @@ public enum EnvKey: String, CaseIterable {
     case testCaseShowProject = "TUIST_TEST_CASE_SHOW_PROJECT"
     case testCaseShowPath = "TUIST_TEST_CASE_SHOW_PATH"
     case testCaseShowJson = "TUIST_TEST_CASE_SHOW_JSON"
+
+    // TEST CASE UPDATE
+
+    case testCaseUpdateIdentifier = "TUIST_TEST_CASE_UPDATE_IDENTIFIER"
+    case testCaseUpdateState = "TUIST_TEST_CASE_UPDATE_STATE"
+    case testCaseUpdateFlaky = "TUIST_TEST_CASE_UPDATE_FLAKY"
+    case testCaseUpdateProject = "TUIST_TEST_CASE_UPDATE_PROJECT"
+    case testCaseUpdatePath = "TUIST_TEST_CASE_UPDATE_PATH"
+    case testCaseUpdateJson = "TUIST_TEST_CASE_UPDATE_JSON"
+
+    // TEST CASE EVENTS
+
+    case testCaseEventsIdentifier = "TUIST_TEST_CASE_EVENTS_IDENTIFIER"
+    case testCaseEventsProject = "TUIST_TEST_CASE_EVENTS_PROJECT"
+    case testCaseEventsPath = "TUIST_TEST_CASE_EVENTS_PATH"
+    case testCaseEventsJson = "TUIST_TEST_CASE_EVENTS_JSON"
+    case testCaseEventsPage = "TUIST_TEST_CASE_EVENTS_PAGE"
+    case testCaseEventsPageSize = "TUIST_TEST_CASE_EVENTS_PAGE_SIZE"
 
     // TEST CASE RUN LIST
 
@@ -438,6 +463,7 @@ public enum EnvKey: String, CaseIterable {
     // CACHE
 
     case cacheExternalOnly = "TUIST_CACHE_EXTERNAL_ONLY"
+    case cacheProfile = "TUIST_CACHE_PROFILE"
     case cacheGenerateOnly = "TUIST_CACHE_GENERATE_ONLY"
     case cachePrintHashes = "TUIST_CACHE_PRINT_HASHES"
     case cacheConfiguration = "TUIST_CACHE_CONFIGURATION"

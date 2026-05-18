@@ -16,7 +16,8 @@ public protocol CreateTestCaseRunAttachmentServicing {
         testCaseRunId: String,
         fileName: String,
         filePath: AbsolutePath,
-        repetitionNumber: Int?
+        repetitionNumber: Int?,
+        testCaseRunArgumentId: String?
     ) async throws -> String
 }
 
@@ -45,12 +46,12 @@ enum CreateTestCaseRunAttachmentServiceError: LocalizedError {
 public struct CreateTestCaseRunAttachmentService: CreateTestCaseRunAttachmentServicing {
     private let fileSystem: FileSystem
     private let fullHandleService: FullHandleServicing
-    private let urlSession: URLSession
+    private let urlSession: URLSession?
 
     public init(
         fileSystem: FileSystem = FileSystem(),
         fullHandleService: FullHandleServicing = FullHandleService(),
-        urlSession: URLSession = .tuistShared
+        urlSession: URLSession? = nil
     ) {
         self.fileSystem = fileSystem
         self.fullHandleService = fullHandleService
@@ -63,7 +64,8 @@ public struct CreateTestCaseRunAttachmentService: CreateTestCaseRunAttachmentSer
         testCaseRunId: String,
         fileName: String,
         filePath: AbsolutePath,
-        repetitionNumber: Int?
+        repetitionNumber: Int?,
+        testCaseRunArgumentId: String? = nil
     ) async throws -> String {
         let client = Client.authenticated(serverURL: serverURL)
         let handles = try fullHandleService.parse(fullHandle)
@@ -78,6 +80,7 @@ public struct CreateTestCaseRunAttachmentService: CreateTestCaseRunAttachmentSer
                     .init(
                         file_name: fileName,
                         repetition_number: repetitionNumber,
+                        test_case_run_argument_id: testCaseRunArgumentId,
                         test_case_run_id: testCaseRunId
                     )
                 )
@@ -96,6 +99,7 @@ public struct CreateTestCaseRunAttachmentService: CreateTestCaseRunAttachmentSer
                 request.setValue(Self.contentType(for: fileName), forHTTPHeaderField: "Content-Type")
                 request.httpBody = try await fileSystem.readFile(at: filePath)
 
+                let urlSession = urlSession ?? .tuistShared
                 let (_, uploadResponse) = try await urlSession.data(for: request)
                 guard let httpResponse = uploadResponse as? HTTPURLResponse,
                       (200 ..< 300).contains(httpResponse.statusCode)

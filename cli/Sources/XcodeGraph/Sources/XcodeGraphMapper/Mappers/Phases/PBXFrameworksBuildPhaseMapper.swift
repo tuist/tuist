@@ -64,28 +64,21 @@ struct PBXFrameworksBuildPhaseMapper: PBXFrameworksBuildPhaseMapping {
             )
         )
         if let path = fileRef.path {
-            let name = path.replacingOccurrences(of: ".framework", with: "")
             let linkingStatus: LinkingStatus = buildFile.attributes?
                 .contains("Weak") == true ? .optional : .required
             switch fileRef.sourceTree {
             case .buildProductsDir:
-                if let target = xcodeProj.pbxproj.targets(named: name).first {
-                    return .target(
-                        name: target.name,
-                        status: linkingStatus,
-                        condition: nil
-                    )
-                } else if let projectNativeTarget = projectNativeTargets[name] {
-                    return .project(
-                        target: projectNativeTarget.nativeTarget.name,
-                        path: projectNativeTarget.project.projectPath.parentDirectory,
-                        status: linkingStatus,
-                        condition: nil
-                    )
+                if let targetDependency = mapBuildProductDependency(
+                    path: path,
+                    linkingStatus: linkingStatus,
+                    xcodeProj: xcodeProj,
+                    projectNativeTargets: projectNativeTargets
+                ) {
+                    return targetDependency
                 }
             case .sdkRoot, .developerDir:
                 return .sdk(
-                    name: name,
+                    name: productName(from: path),
                     status: linkingStatus,
                     condition: nil
                 )
@@ -98,6 +91,48 @@ struct PBXFrameworksBuildPhaseMapper: PBXFrameworksBuildPhaseMapping {
 
         let absolutePath = try AbsolutePath(validating: filePathString)
         return try pathMapper.map(path: absolutePath, expectedSignature: nil, condition: nil)
+    }
+
+    private func mapBuildProductDependency(
+        path: String,
+        linkingStatus: LinkingStatus,
+        xcodeProj: XcodeProj,
+        projectNativeTargets: [String: ProjectNativeTarget]
+    ) -> TargetDependency? {
+        let target = xcodeProj.pbxproj.nativeTargets
+            .filter { $0.product?.path == path }
+            .first
+            ?? xcodeProj.pbxproj.targets(named: productName(from: path)).first
+        if let target {
+            return .target(
+                name: target.name,
+                status: linkingStatus,
+                condition: nil
+            )
+        }
+
+        let projectNativeTarget = projectNativeTargets.values
+            .filter { $0.nativeTarget.product?.path == path }
+            .first
+            ?? projectNativeTargets[productName(from: path)]
+        if let projectNativeTarget {
+            return .project(
+                target: projectNativeTarget.nativeTarget.name,
+                path: projectNativeTarget.project.projectPath.parentDirectory,
+                status: linkingStatus,
+                condition: nil
+            )
+        }
+
+        return nil
+    }
+
+    private func productName(from path: String) -> String {
+        if path.hasPrefix("lib"), path.hasSuffix(".a") {
+            return String(path.dropFirst(3).dropLast(2))
+        }
+
+        return path.replacingOccurrences(of: ".framework", with: "")
     }
 }
 

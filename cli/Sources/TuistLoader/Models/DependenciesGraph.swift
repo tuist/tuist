@@ -1,8 +1,8 @@
 import ProjectDescription
 
 #if DEBUG
+    import FileSystem
     import Path
-    import TuistSupport
 #endif
 
 /// A directed acyclic graph (DAG) that Tuist uses to represent the dependency tree.
@@ -10,10 +10,16 @@ public struct DependenciesGraph: Equatable, Codable { // swiftlint:disable:this 
     public struct ExternalProject: Equatable, Codable {
         public var manifest: ProjectDescription.Project
         public var hash: String?
+        public var swiftPackageManagerScratchDirectory: Path?
 
-        public init(manifest: ProjectDescription.Project, hash: String?) {
+        public init(
+            manifest: ProjectDescription.Project,
+            hash: String?,
+            swiftPackageManagerScratchDirectory: Path? = nil
+        ) {
             self.manifest = manifest
             self.hash = hash
+            self.swiftPackageManagerScratchDirectory = swiftPackageManagerScratchDirectory
         }
     }
 
@@ -73,9 +79,10 @@ public struct DependenciesGraph: Equatable, Codable { // swiftlint:disable:this 
             spmFolder: Path,
             packageFolder: Path,
             destinations: Destinations = [.iPhone, .iPad, .macWithiPadDesign, .appleVisionWithiPadDesign],
-            fileHandler: FileHandler
-        ) throws -> Self {
-            try fileHandler.createFolder(try AbsolutePath(validating: "\(packageFolder.pathString)/customPath/resources"))
+            fileSystem: FileSysteming = FileSystem()
+        ) async throws -> Self {
+            try await fileSystem
+                .makeDirectory(at: try AbsolutePath(validating: "\(packageFolder.pathString)/customPath/resources"))
 
             let externalDependencies: [String: [TargetDependency]] = [
                 "Tuist": [

@@ -1,0 +1,6 @@
+[advisories]
+ignore = [
+  # jsonwebtoken is only used with HMAC JWT verification in Kura.
+  # The rsa advisory does not apply because we do not accept RSA algorithms.
+  "RUSTSEC-2023-0071",
+]

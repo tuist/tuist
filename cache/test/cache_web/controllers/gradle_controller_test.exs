@@ -8,6 +8,7 @@ defmodule CacheWeb.GradleControllerTest do
 
   alias Cache.Authentication
   alias Cache.Gradle
+  alias Cache.S3
   alias Cache.S3Transfers
   alias Ecto.Adapters.SQL.Sandbox
 
@@ -37,9 +38,17 @@ defmodule CacheWeb.GradleControllerTest do
       project_handle = "test-project"
       cache_key = "abc123"
       body = "test artifact content"
+      key = "#{account_handle}/#{project_handle}/gradle/ab/c1/#{cache_key}"
+      test_pid = self()
 
       expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
         {:ok, "Bearer valid-token"}
+      end)
+
+      expect(S3, :exists?, fn ^key, opts ->
+        assert Keyword.get(opts, :type) == :cache
+        send(test_pid, {:s3_exists_checked, self()})
+        false
       end)
 
       Gradle.Disk
@@ -55,6 +64,7 @@ defmodule CacheWeb.GradleControllerTest do
           conn
           |> put_req_header("authorization", "Bearer valid-token")
           |> put_req_header("content-type", "application/octet-stream")
+          |> put_req_header("content-length", Integer.to_string(byte_size(body)))
           |> put(
             "/api/cache/gradle/#{cache_key}?account_handle=#{account_handle}&project_handle=#{project_handle}",
             body
@@ -63,6 +73,11 @@ defmodule CacheWeb.GradleControllerTest do
         assert conn.status == 201
         assert conn.resp_body == ""
       end)
+
+      assert_receive {:s3_exists_checked, task_pid}, 1_000
+      ref = Process.monitor(task_pid)
+      assert_receive {:DOWN, ^ref, :process, ^task_pid, reason}, 1_000
+      assert reason in [:normal, :noproc]
 
       :ok = Cache.S3TransfersBuffer.flush()
 
@@ -73,7 +88,7 @@ defmodule CacheWeb.GradleControllerTest do
       assert upload.account_handle == account_handle
       assert upload.project_handle == project_handle
       assert upload.artifact_type == :gradle
-      assert upload.key == "#{account_handle}/#{project_handle}/gradle/ab/c1/#{cache_key}"
+      assert upload.key == key
     end
 
     test "streams large artifact to temp file on same filesystem as storage", %{
@@ -84,9 +99,17 @@ defmodule CacheWeb.GradleControllerTest do
       project_handle = "test-project"
       cache_key = "abc123"
       large_body = :binary.copy("0123456789abcdef", 150_000)
+      key = "#{account_handle}/#{project_handle}/gradle/ab/c1/#{cache_key}"
+      test_pid = self()
 
       expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
         {:ok, "Bearer valid-token"}
+      end)
+
+      expect(S3, :exists?, fn ^key, opts ->
+        assert Keyword.get(opts, :type) == :cache
+        send(test_pid, {:s3_exists_checked, self()})
+        false
       end)
 
       Gradle.Disk
@@ -109,6 +132,7 @@ defmodule CacheWeb.GradleControllerTest do
           conn
           |> put_req_header("authorization", "Bearer valid-token")
           |> put_req_header("content-type", "application/octet-stream")
+          |> put_req_header("content-length", Integer.to_string(byte_size(large_body)))
           |> Plug.Conn.put_private(:body_read_opts, length: 128_000, read_length: 128_000, read_timeout: 60_000)
           |> put(
             "/api/cache/gradle/#{cache_key}?account_handle=#{account_handle}&project_handle=#{project_handle}",
@@ -119,6 +143,11 @@ defmodule CacheWeb.GradleControllerTest do
         assert conn.resp_body == ""
       end)
 
+      assert_receive {:s3_exists_checked, task_pid}, 1_000
+      ref = Process.monitor(task_pid)
+      assert_receive {:DOWN, ^ref, :process, ^task_pid, reason}, 1_000
+      assert reason in [:normal, :noproc]
+
       :ok = Cache.S3TransfersBuffer.flush()
 
       uploads = S3Transfers.pending(:upload, 10)
@@ -128,7 +157,201 @@ defmodule CacheWeb.GradleControllerTest do
       assert upload.account_handle == account_handle
       assert upload.project_handle == project_handle
       assert upload.artifact_type == :gradle
-      assert upload.key == "#{account_handle}/#{project_handle}/gradle/ab/c1/#{cache_key}"
+      assert upload.key == key
+    end
+
+    test "does not enqueue upload when Gradle artifact already exists in S3", %{conn: conn} do
+      account_handle = "test-account"
+      project_handle = "test-project"
+      cache_key = "abc123"
+      body = "test artifact content"
+      key = "#{account_handle}/#{project_handle}/gradle/ab/c1/#{cache_key}"
+      test_pid = self()
+
+      expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
+        {:ok, "Bearer valid-token"}
+      end)
+
+      expect(S3, :exists?, fn ^key, opts ->
+        assert Keyword.get(opts, :type) == :cache
+        send(test_pid, {:s3_exists_checked, self()})
+        true
+      end)
+
+      Gradle.Disk
+      |> expect(:exists?, fn ^account_handle, ^project_handle, ^cache_key ->
+        false
+      end)
+      |> expect(:put, fn ^account_handle, ^project_handle, ^cache_key, ^body ->
+        :ok
+      end)
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> put_req_header("content-type", "application/octet-stream")
+        |> put_req_header("content-length", Integer.to_string(byte_size(body)))
+        |> put(
+          "/api/cache/gradle/#{cache_key}?account_handle=#{account_handle}&project_handle=#{project_handle}",
+          body
+        )
+
+      assert conn.status == 201
+      assert conn.resp_body == ""
+
+      assert_receive {:s3_exists_checked, task_pid}, 1_000
+      ref = Process.monitor(task_pid)
+      assert_receive {:DOWN, ^ref, :process, ^task_pid, reason}, 1_000
+      assert reason in [:normal, :noproc]
+
+      :ok = Cache.S3TransfersBuffer.flush()
+      assert S3Transfers.pending(:upload, 10) == []
+    end
+
+    test "returns timeout instead of acknowledging a chunked upload timeout as success", %{conn: conn} do
+      account_handle = "test-account"
+      project_handle = "test-project"
+      cache_key = "abc123"
+      chunk = String.duplicate("x", 200_000)
+      call_count = :counters.new(1, [])
+
+      expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
+        {:ok, "Bearer valid-token"}
+      end)
+
+      expect(Gradle.Disk, :exists?, fn ^account_handle, ^project_handle, ^cache_key ->
+        false
+      end)
+
+      reject(Gradle.Disk, :put, 4)
+
+      expect(Plug.Conn, :read_body, 2, fn conn, _opts ->
+        count = :counters.get(call_count, 1)
+        :counters.add(call_count, 1, 1)
+
+        if count == 0 do
+          {:more, chunk, conn}
+        else
+          raise Bandit.TransportError, message: "Request body read timed out", error: :timeout
+        end
+      end)
+
+      capture_log(fn ->
+        conn =
+          conn
+          |> put_req_header("authorization", "Bearer valid-token")
+          |> put_req_header("content-type", "application/octet-stream")
+          |> put_req_header("content-length", Integer.to_string(byte_size(chunk)))
+          |> put(
+            "/api/cache/gradle/#{cache_key}?account_handle=#{account_handle}&project_handle=#{project_handle}",
+            chunk
+          )
+
+        assert conn.status == 408
+        response = json_response(conn, 408)
+        assert response["message"] == "Request body read timed out"
+      end)
+
+      :ok = Cache.S3TransfersBuffer.flush()
+      assert S3Transfers.pending(:upload, 10) == []
+    end
+
+    test "rejects uploads without a Content-Length header", %{conn: conn} do
+      # Without Content-Length the server cannot verify the body arrived
+      # whole, so the truncation check in Cache.BodyReader would be a
+      # no-op. The operation spec declares content-length as a required
+      # header, so OpenApiSpex rejects the request with 422 before it
+      # reaches the controller body.
+      account_handle = "test-account"
+      project_handle = "test-project"
+      cache_key = "abc123"
+
+      reject(Gradle.Disk, :exists?, 3)
+      reject(Gradle.Disk, :put, 4)
+
+      expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
+        {:ok, "Bearer valid-token"}
+      end)
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> put_req_header("content-type", "application/octet-stream")
+        |> put_req_header("transfer-encoding", "chunked")
+        |> Map.update!(:req_headers, fn headers ->
+          Enum.reject(headers, fn {name, _} -> name == "content-length" end)
+        end)
+        |> put(
+          "/api/cache/gradle/#{cache_key}?account_handle=#{account_handle}&project_handle=#{project_handle}",
+          "whatever"
+        )
+
+      assert conn.status == 422
+
+      response = json_response(conn, 422)
+
+      assert %{
+               "errors" => [
+                 %{
+                   "title" => "Invalid value",
+                   "source" => %{"pointer" => "/content-length"}
+                 } = error
+               ]
+             } = response
+
+      assert error["detail"] =~ "Missing field: content-length"
+
+      :ok = Cache.S3TransfersBuffer.flush()
+      assert S3Transfers.pending(:upload, 10) == []
+    end
+
+    test "rejects truncated uploads without persisting the partial body", %{conn: conn} do
+      # Regression test for a class of bug where a client disconnect mid-PUT
+      # produced an `{:ok, partial, conn}` result from the HTTP adapter. The
+      # partial bytes were previously persisted as a complete cache entry
+      # and served back with `200 OK` on every subsequent download, causing
+      # clients to fail deep inside their snapshot parsers with null-message
+      # errors. The reader must now reject the request before anything is
+      # written to disk.
+      account_handle = "test-account"
+      project_handle = "test-project"
+      cache_key = "abc123"
+      partial_chunk = String.duplicate("x", 512)
+      declared_length = 10_000
+
+      expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
+        {:ok, "Bearer valid-token"}
+      end)
+
+      expect(Gradle.Disk, :exists?, fn ^account_handle, ^project_handle, ^cache_key ->
+        false
+      end)
+
+      reject(Gradle.Disk, :put, 4)
+
+      expect(Plug.Conn, :read_body, fn conn, _opts ->
+        {:ok, partial_chunk, conn}
+      end)
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> put_req_header("content-type", "application/octet-stream")
+        |> put_req_header("content-length", Integer.to_string(declared_length))
+        |> put(
+          "/api/cache/gradle/#{cache_key}?account_handle=#{account_handle}&project_handle=#{project_handle}",
+          partial_chunk
+        )
+
+      assert conn.status == 400
+
+      response = json_response(conn, 400)
+
+      assert response["message"] ==
+               "Request body was truncated before reaching the declared Content-Length"
+
+      :ok = Cache.S3TransfersBuffer.flush()
+      assert S3Transfers.pending(:upload, 10) == []
     end
 
     test "skips save when artifact already exists", %{conn: conn} do
@@ -149,6 +372,38 @@ defmodule CacheWeb.GradleControllerTest do
         conn
         |> put_req_header("authorization", "Bearer valid-token")
         |> put_req_header("content-type", "application/octet-stream")
+        |> put_req_header("content-length", Integer.to_string(byte_size(body)))
+        |> put(
+          "/api/cache/gradle/#{cache_key}?account_handle=#{account_handle}&project_handle=#{project_handle}",
+          body
+        )
+
+      assert conn.status == 200
+      assert conn.resp_body == ""
+    end
+
+    test "skips save for large duplicate uploads without returning 500", %{conn: conn} do
+      account_handle = "test-account"
+      project_handle = "test-project"
+      cache_key = "abc123"
+      body = :binary.copy("0123456789abcdef", 20_000)
+
+      expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
+        {:ok, "Bearer valid-token"}
+      end)
+
+      expect(Gradle.Disk, :exists?, fn ^account_handle, ^project_handle, ^cache_key ->
+        true
+      end)
+
+      reject(Gradle.Disk, :put, 4)
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> put_req_header("content-type", "application/octet-stream")
+        |> put_req_header("content-length", Integer.to_string(byte_size(body)))
+        |> Plug.Conn.put_private(:body_read_opts, length: 128_000, read_length: 128_000, read_timeout: 60_000)
         |> put(
           "/api/cache/gradle/#{cache_key}?account_handle=#{account_handle}&project_handle=#{project_handle}",
           body
@@ -181,6 +436,7 @@ defmodule CacheWeb.GradleControllerTest do
           conn
           |> put_req_header("authorization", "Bearer valid-token")
           |> put_req_header("content-type", "application/octet-stream")
+          |> put_req_header("content-length", Integer.to_string(byte_size(body)))
           |> put(
             "/api/cache/gradle/#{cache_key}?account_handle=#{account_handle}&project_handle=#{project_handle}",
             body
@@ -216,6 +472,7 @@ defmodule CacheWeb.GradleControllerTest do
         conn
         |> put_req_header("authorization", "Bearer valid-token")
         |> put_req_header("content-type", "application/octet-stream")
+        |> put_req_header("content-length", Integer.to_string(byte_size(large_body)))
         |> Plug.Conn.put_private(:body_read_opts, length: 128_000, read_length: 128_000, read_timeout: 60_000)
         |> put(
           "/api/cache/gradle/#{cache_key}?account_handle=#{account_handle}&project_handle=#{project_handle}",
@@ -269,6 +526,37 @@ defmodule CacheWeb.GradleControllerTest do
       assert conn.status == 404
       response = json_response(conn, 404)
       assert response["message"] == "Unauthorized or not found"
+    end
+
+    test "returns 422 when path params contain traversal", %{conn: conn} do
+      account_handle = "test-account"
+      project_handle = "test-project"
+
+      expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
+        {:ok, "Bearer valid-token"}
+      end)
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> put_req_header("content-type", "application/octet-stream")
+        |> put("/api/cache/gradle/..?account_handle=#{account_handle}&project_handle=#{project_handle}", "body")
+
+      assert conn.status == 422
+
+      response = json_response(conn, 422)
+
+      assert %{
+               "errors" => [
+                 %{
+                   "title" => "Invalid value",
+                   "source" => %{"pointer" => "/cache_key"},
+                   "detail" => detail
+                 }
+               ]
+             } = response
+
+      assert is_binary(detail)
     end
   end
 end

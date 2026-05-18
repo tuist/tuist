@@ -7,12 +7,15 @@ import TuistCache
 import TuistConfig
 import TuistConfigLoader
 import TuistCore
+import TuistEnvironment
 import TuistExtension
+import TuistHasher
 import TuistLoader
 import TuistPlugin
 import TuistServer
 import TuistSupport
 import TuistXCActivityLog
+import TuistXcodeBuildProducts
 import XcodeGraph
 #if canImport(TuistCacheEE)
     import TuistCacheEE
@@ -36,7 +39,6 @@ import XcodeGraph
         private let simulatorController: SimulatorControlling
         private let xcodeBuildController: XcodeBuildControlling
         private let xcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocating
-        private let fileHandler: FileHandling
         private let fileSystem: FileSysteming
         private let contentHasher: ContentHashing
         private let cacheGraphContentHasher: CacheGraphContentHashing
@@ -51,7 +53,6 @@ import XcodeGraph
                 xcodeBuildController: XcodeBuildController(),
                 simulatorController: SimulatorController(),
                 xcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocator(),
-                fileHandler: FileHandler.shared,
                 fileSystem: FileSystem(),
                 contentHasher: contentHasher,
                 cacheGraphContentHasher: CacheGraphContentHasher(contentHasher: contentHasher),
@@ -66,7 +67,6 @@ import XcodeGraph
             xcodeBuildController: XcodeBuildControlling,
             simulatorController: SimulatorControlling,
             xcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocating,
-            fileHandler: FileHandling,
             fileSystem: FileSysteming,
             contentHasher: ContentHashing,
             cacheGraphContentHasher: CacheGraphContentHashing,
@@ -81,7 +81,6 @@ import XcodeGraph
             self.xcodeBuildController = xcodeBuildController
             self.simulatorController = simulatorController
             self.xcodeProjectBuildDirectoryLocator = xcodeProjectBuildDirectoryLocator
-            self.fileHandler = fileHandler
             self.fileSystem = fileSystem
             self.contentHasher = contentHasher
             self.cacheGraphContentHasher = cacheGraphContentHasher
@@ -94,18 +93,16 @@ import XcodeGraph
             configuration: String?,
             targetsToBinaryCache: Set<String>,
             externalOnly: Bool,
-            generateOnly: Bool
+            generateOnly: Bool,
+            cacheProfile: String?
         ) async throws {
-            let path = if let directory {
-                try AbsolutePath(validating: directory, relativeTo: fileHandler.currentPath)
-            } else {
-                fileHandler.currentPath
-            }
+            let path = try await Environment.current.pathRelativeToWorkingDirectory(directory)
             let config = try await configLoader.loadConfig(path: path)
             let cacheStorage = try await CacheStorageFactory().cacheStorage(config: config)
+            let requestedTargetsToBinaryCache = Set(targetsToBinaryCache.map { TargetQuery(stringLiteral: $0) })
             let generator = generatorFactory.binaryCacheWarmingPreload(
                 config: config,
-                targetsToBinaryCache: Set(targetsToBinaryCache.map { TargetQuery(stringLiteral: $0) })
+                targetsToBinaryCache: requestedTargetsToBinaryCache
             )
 
             // The loading of the graph triggers the fetching of remote binaries into the local cache to speed up warming.
@@ -123,6 +120,27 @@ import XcodeGraph
             // Lint
             try cacheWarmGraphLinter.lint(graph: graph)
 
+            // Resolve the effective cache profile.
+            // - When --cache-profile is specified, resolve it via the same logic as `tuist generate`.
+            // - When --external-only is used (deprecated), map to the .onlyExternal profile.
+            // - When neither is specified, default to .allPossible (cache everything) to preserve
+            //   the original behavior of `tuist cache` without flags.
+            // Note: includedTargets is [] because --targets filtering is applied separately below
+            // in cacheableTargets(), not through the profile resolver.
+            let profile: CacheProfile
+            if let cacheProfile {
+                let resolvedCacheProfileType = CacheProfileType(stringLiteral: cacheProfile)
+                profile = try config.resolveCacheProfile(
+                    ignoreBinaryCache: false,
+                    includedTargets: [],
+                    cacheProfile: resolvedCacheProfileType
+                )
+            } else if externalOnly {
+                profile = .onlyExternal
+            } else {
+                profile = .allPossible
+            }
+
             // Hash
             Logger.current.info("Hashing cacheable targets")
 
@@ -130,8 +148,8 @@ import XcodeGraph
                 for: graph,
                 configuration: configuration,
                 config: config,
-                includedTargets: targetsToBinaryCache,
-                externalOnly: externalOnly,
+                requestedTargetsToBinaryCache: requestedTargetsToBinaryCache,
+                cacheProfile: profile,
                 cacheStorage: cacheStorage
             )
 
@@ -208,14 +226,14 @@ import XcodeGraph
                 .filter { !($0.buildAction?.targets ?? []).isEmpty }
                 .map { (scheme: $0, cacheOutputType: CacheOutputType.xcframework) }
 
-            try await FileHandler.shared.inTemporaryDirectory { temporaryDirectory in
+            try await fileSystem.runInTemporaryDirectory(prefix: "CacheWarm") { temporaryDirectory in
                 var artifactsToStore: [CacheGraphTargetBuiltArtifact] = []
 
                 let derivedDataPath = temporaryDirectory.appending(component: "derived-data")
                 let activityLogsDirectory = temporaryDirectory.appending(component: "activity-logs")
 
-                try fileHandler.createFolder(derivedDataPath)
-                try fileHandler.createFolder(activityLogsDirectory)
+                try await fileSystem.makeDirectory(at: derivedDataPath)
+                try await fileSystem.makeDirectory(at: activityLogsDirectory)
 
                 let xcodebuildTarget = XcodeBuildTarget(with: projectPath)
 
@@ -383,7 +401,7 @@ import XcodeGraph
                 guard try await fileSystem.exists(macroPath) else { continue }
                 // This will help us identify in the storage whether an executable represents or not a macro.
                 let macroWithExtension = temporaryDirectory.appending(component: "\(macroPath.basename).macro")
-                try fileHandler.copy(from: macroPath, to: macroWithExtension)
+                try await fileSystem.copy(macroPath, to: macroWithExtension)
                 macrosToStore.append(CacheGraphTargetBuiltArtifact(
                     type: .macro,
                     graphTarget: macro.0,
@@ -505,6 +523,35 @@ import XcodeGraph
                     output: xcframeworkPath
                 )
 
+                // Embed App Intents metadata if available.
+                // For static frameworks, appintentsmetadataprocessor writes a .appintents bundle
+                // as a sibling to the .framework in the build products directory. We copy the
+                // Metadata.appintents directory into each framework slice of the xcframework so
+                // the app target's AppIntentsSSUTraining phase can discover it.
+                // We derive the .appintents name from productNameWithExtension (which respects
+                // PRODUCT_NAME build setting overrides) to stay consistent with how the framework
+                // artifact itself is resolved.
+                let resolvedProductName = cacheableTarget.0.target.productNameWithExtension
+                    .replacingOccurrences(of: ".framework", with: "")
+                let appIntentsBundleName = "\(resolvedProductName).appintents"
+                for artifactDir in Set(platformBinaryArtifacts) {
+                    let metadataSource = artifactDir.appending(
+                        components: [appIntentsBundleName, "Metadata.appintents"]
+                    )
+                    guard try await fileSystem.exists(metadataSource) else { continue }
+                    let frameworkSlices = try await fileSystem.glob(
+                        directory: xcframeworkPath,
+                        include: ["*/*.framework"]
+                    ).collect()
+                    for slice in frameworkSlices {
+                        try await fileSystem.copy(
+                            metadataSource,
+                            to: slice.appending(component: "Metadata.appintents")
+                        )
+                    }
+                    break
+                }
+
                 xcframeworks.append(CacheGraphTargetBuiltArtifact(
                     type: .xcframework,
                     graphTarget: cacheableTarget.0,
@@ -537,7 +584,7 @@ import XcodeGraph
                 }
 
                 let destinationPath = temporaryDirectory.appending(component: outputPath.basename)
-                try fileHandler.copy(from: outputPath, to: destinationPath)
+                try await fileSystem.copy(outputPath, to: destinationPath)
 
                 artifacts.append(CacheGraphTargetBuiltArtifact(
                     type: .xcframework,
@@ -565,12 +612,12 @@ import XcodeGraph
             let platform = Platform.allCases.first { scheme.name.hasSuffix($0.caseValue) }!
             let platformArtifactsDirectory = temporaryDirectory.appending(components: ["artifacts", "\(platform.caseValue)"])
 
-            try fileHandler.createFolder(platformArtifactsDirectory)
+            try await fileSystem.makeDirectory(at: platformArtifactsDirectory)
 
             // Simulator
             if platform.hasSimulators {
                 let simulatorArtifactsDirectory = platformArtifactsDirectory.appending(component: "simulator")
-                try fileHandler.createFolder(simulatorArtifactsDirectory)
+                try await fileSystem.makeDirectory(at: simulatorArtifactsDirectory)
 
                 Logger.current.info("Building scheme \(scheme.name) for the simulator", metadata: .section)
                 try await xcodeBuildController.build(
@@ -625,7 +672,7 @@ import XcodeGraph
             Logger.current.info("Building scheme \(scheme.name) for device", metadata: .section)
 
             let deviceArtifactsDirectory = platformArtifactsDirectory.appending(component: "device")
-            try fileHandler.createFolder(deviceArtifactsDirectory)
+            try await fileSystem.makeDirectory(at: deviceArtifactsDirectory)
 
             var deviceArguments: [XcodeBuildArgument] = [
                 .xcarg("SKIP_INSTALL", "NO"),
@@ -694,12 +741,12 @@ import XcodeGraph
             isReleaseConfiguration: Bool
         ) async throws {
             let platformArtifactsDirectory = temporaryDirectory.appending(components: ["artifacts", "iOS"])
-            try fileHandler.createFolder(platformArtifactsDirectory)
+            try await fileSystem.makeDirectory(at: platformArtifactsDirectory)
 
             Logger.current.info("Building scheme \(scheme.name) for Mac Catalyst", metadata: .section)
 
             let macCatalystArtifactsDirectory = platformArtifactsDirectory.appending(component: "mac-catalyst")
-            try fileHandler.createFolder(macCatalystArtifactsDirectory)
+            try await fileSystem.makeDirectory(at: macCatalystArtifactsDirectory)
 
             try await xcodeBuildController.build(
                 xcodebuildTarget,
@@ -778,8 +825,8 @@ import XcodeGraph
             binaryArtifactDirectories: inout [Platform: Set<AbsolutePath>]
         ) async throws {
             for artifact in try await fileSystem.glob(directory: productsDirectory, include: ["*"]).collect() {
-                try fileHandler.copy(
-                    from: artifact,
+                try await fileSystem.copy(
+                    artifact,
                     to: into.appending(component: artifact.basename)
                 )
             }
@@ -822,16 +869,23 @@ import XcodeGraph
             for graph: Graph,
             configuration: String,
             config: Tuist,
-            includedTargets: Set<String>,
-            externalOnly: Bool,
+            requestedTargetsToBinaryCache: Set<TargetQuery>,
+            cacheProfile: CacheProfile,
             cacheStorage: CacheStoring
         ) async throws -> [(GraphTarget, String)] {
             let graphTraverser = GraphTraverser(graph: graph)
-            let includedTargets = includedTargets
-                .isEmpty ? Set(graphTraverser.allInternalTargets().map(\.target.name)) : includedTargets
 
-            // When `externalOnly` is true, there is no need to compute `includedTargets` hashes
-            let excludedTargets = externalOnly ? includedTargets : []
+            // Apply the same profile-based filtering used by `tuist generate`.
+            // Targets where shouldReplace returns false are excluded from cache warming.
+            let decider = CacheProfileTargetReplacementDecider(profile: cacheProfile, exceptions: [])
+            var excludedTargets = Set<String>()
+            for graphTarget in graphTraverser.allTargets() {
+                guard let project = graph.projects[graphTarget.path] else { continue }
+                if !decider.shouldReplace(project: project, target: graphTarget.target) {
+                    excludedTargets.insert(graphTarget.target.name)
+                }
+            }
+
             let hashesByCacheableTarget = try await cacheGraphContentHasher.contentHashes(
                 for: graph,
                 configuration: configuration,
@@ -839,22 +893,37 @@ import XcodeGraph
                 excludedTargets: excludedTargets,
                 destination: nil
             )
+            let selectedHashesByCacheableTarget: [GraphTarget: TargetContentHash]
+            switch CacheWarmTargetGraphSelector.selection(
+                graphTraverser: graphTraverser,
+                requestedTargets: requestedTargetsToBinaryCache
+            ) {
+            case .allReachable:
+                selectedHashesByCacheableTarget = hashesByCacheableTarget
+            case let .explicit(allowedTargets):
+                selectedHashesByCacheableTarget = Dictionary(
+                    uniqueKeysWithValues: hashesByCacheableTarget.filter { allowedTargets.contains($0.key) }
+                )
+            case .noNonTestRoots:
+                Logger.current.info("No non-test targets were selected for binary cache warming")
+                return []
+            }
 
             let sortedCacheableTargets = try graphTraverser.allTargetsTopologicalSorted()
 
             let cacheableTargets = sortedCacheableTargets.reduce(into: Set<CacheStorableTarget>()) { acc, next in
-                if let targetContentHash = hashesByCacheableTarget[next] {
+                if let targetContentHash = selectedHashesByCacheableTarget[next] {
                     acc.formUnion([CacheStorableTarget(target: next, hash: targetContentHash.hash)])
                 }
             }
 
             let cacheItems = try await cacheStorage.fetch(
-                Set(hashesByCacheableTarget.map { CacheStorableItem(name: $0.key.target.name, hash: $0.value.hash) }),
+                Set(selectedHashesByCacheableTarget.map { CacheStorableItem(name: $0.key.target.name, hash: $0.value.hash) }),
                 cacheCategory: .binaries
             )
 
             await RunMetadataStorage.current.update(
-                binaryCacheItems: hashesByCacheableTarget.reduce(into: [:]) { result, element in
+                binaryCacheItems: selectedHashesByCacheableTarget.reduce(into: [:]) { result, element in
                     let cacheItem = cacheItems.keys.first(where: { $0.hash == element.value.hash }) ?? CacheItem(
                         name: element.key.target.name,
                         hash: element.value.hash,
@@ -866,7 +935,7 @@ import XcodeGraph
             )
 
             await RunMetadataStorage.current.update(
-                targetContentHashSubhashes: hashesByCacheableTarget.reduce(into: [:]) { result, element in
+                targetContentHashSubhashes: selectedHashesByCacheableTarget.reduce(into: [:]) { result, element in
                     result[element.value.hash] = element.value.subhashes
                 }
             )

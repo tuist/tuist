@@ -143,6 +143,29 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         ])
     }
 
+    func test_addElement_allowsFolderReferenceAndNestedFileToSharePath() throws {
+        // Given
+        let folderPath = try AbsolutePath(validating: "/path/Package/Tests/TargetTests")
+        let sourcePath = folderPath.appending(component: "TargetTests.swift")
+        let elements = [
+            GroupFileElement.file(path: sourcePath, group: .group(name: "Project")),
+            GroupFileElement.folder(path: folderPath, group: .group(name: "Project")),
+        ]
+
+        // When
+        try subject.generate(
+            files: elements,
+            groups: groups,
+            pbxproj: pbxproj,
+            sourceRootPath: "/path"
+        )
+
+        // Then
+        XCTAssertNotNil(subject.file(path: folderPath))
+        XCTAssertNotNil(subject.group(path: folderPath))
+        XCTAssertNotNil(subject.file(path: sourcePath))
+    }
+
     func test_addElement_parentDirectories() throws {
         // Given
         let element = GroupFileElement.file(
@@ -484,6 +507,96 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
             "App.app",
             "Framework.framework",
             "libLibrary.a",
+        ])
+    }
+
+    func test_generateProjectFiles_whenExplicitResourceIsInsideSynchronizedGroup() throws {
+        // Given
+        let xcstringsPath = try AbsolutePath(validating: "/project/Resources/Localizable.xcstrings")
+        let target = Target.test(
+            resources: .init([.file(path: xcstringsPath)]),
+            buildableFolders: [
+                BuildableFolder(
+                    path: "/project/Resources",
+                    exceptions: BuildableFolderExceptions(exceptions: []),
+                    resolvedFiles: [
+                        BuildableFolderFile(path: xcstringsPath, compilerFlags: nil),
+                    ]
+                ),
+            ]
+        )
+        let project = Project.test(
+            path: "/project",
+            sourceRootPath: "/project",
+            xcodeProjPath: "/project/Project.xcodeproj",
+            targets: [target]
+        )
+        let graph = Graph.test()
+        let graphTraverser = GraphTraverser(graph: graph)
+        let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj)
+
+        // When
+        try subject.generateProjectFiles(
+            project: project,
+            graphTraverser: graphTraverser,
+            groups: groups,
+            pbxproj: pbxproj
+        )
+
+        // Then
+        XCTAssertNotNil(subject.file(path: xcstringsPath))
+        let projectGroup = groups.sortedMain.group(named: "Project")
+        XCTAssertEqual(projectGroup?.flattenedChildren.sorted(), [
+            "Localizable.xcstrings",
+            "Resources",
+        ])
+    }
+
+    func test_generateProjectFiles_whenExplicitResourceIsInsideNestedSynchronizedGroup() throws {
+        // Given
+        let xcstringsPath = try AbsolutePath(validating: "/project/Resources/MyModule/Localizable.xcstrings")
+        let target = Target.test(
+            name: "MyModule",
+            resources: .init([.file(path: xcstringsPath)]),
+            buildableFolders: []
+        )
+        let resourcesTarget = Target.test(
+            name: "MyModuleResources",
+            resources: .init([]),
+            buildableFolders: [
+                BuildableFolder(
+                    path: "/project/Resources/MyModule",
+                    exceptions: BuildableFolderExceptions(exceptions: []),
+                    resolvedFiles: [
+                        BuildableFolderFile(path: xcstringsPath, compilerFlags: nil),
+                    ]
+                ),
+            ]
+        )
+        let project = Project.test(
+            path: "/project",
+            sourceRootPath: "/project",
+            xcodeProjPath: "/project/Project.xcodeproj",
+            targets: [target, resourcesTarget]
+        )
+        let graph = Graph.test()
+        let graphTraverser = GraphTraverser(graph: graph)
+        let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj)
+
+        // When
+        try subject.generateProjectFiles(
+            project: project,
+            graphTraverser: graphTraverser,
+            groups: groups,
+            pbxproj: pbxproj
+        )
+
+        // Then
+        XCTAssertNotNil(subject.file(path: xcstringsPath))
+        let projectGroup = groups.sortedMain.group(named: "Project")
+        XCTAssertEqual(projectGroup?.flattenedChildren.sorted(), [
+            "Resources/Localizable.xcstrings",
+            "Resources/MyModule",
         ])
     }
 

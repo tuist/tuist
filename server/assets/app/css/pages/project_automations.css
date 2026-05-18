@@ -20,8 +20,7 @@
     font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
   }
 
-  & > [data-part="flaky-detection-card-section"],
-  & > [data-part="quarantine-card-section"] {
+  & > [data-part="test-case-automations-card-section"] {
     display: flex;
     flex-direction: column;
     gap: var(--noora-spacing-6);
@@ -56,76 +55,351 @@
     }
   }
 
-  & [data-part="slack-section"] {
-    display: flex;
-    flex-direction: row;
-    justify-content: space-between;
-    align-items: center;
-    border-bottom: 1px solid var(--noora-surface-border-secondary);
-    padding: var(--noora-spacing-4) 0;
+  & > [data-part="test-case-automations-card-section"] {
+    & > [data-part="header"] {
+      align-items: center;
+    }
 
-    & > [data-part="content"] {
+    & [data-part="cell"][data-type="button"] {
+      justify-content: flex-end;
+    }
+
+    & [data-part="empty-state"] {
+      border: 1px dashed var(--noora-surface-border-secondary);
+      border-radius: var(--noora-border-radius-medium);
+      padding: var(--noora-spacing-6);
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+      text-align: center;
+    }
+  }
+
+  & [data-part="automation-form"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-6);
+    padding: var(--noora-spacing-7);
+
+    [data-part="form-row"] {
       display: flex;
       flex-direction: column;
-      align-items: flex-start;
-      gap: var(--noora-spacing-4);
+      gap: var(--noora-spacing-2);
+      padding-top: var(--noora-spacing-6);
 
-      & > .noora-tag {
-        margin-top: var(--noora-spacing-4);
+      & > [data-part="label"] {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+      }
+    }
+
+    /* Number inputs default to a wider intrinsic width than text inputs and
+       carry the browser spin buttons that bleed past our `compact` width
+       constraint. We explicitly suppress the spinner everywhere in the
+       form so the inputs sit flush inside their wrappers. */
+    input[type="number"] {
+      appearance: textfield;
+      -moz-appearance: textfield;
+    }
+
+    input[type="number"]::-webkit-inner-spin-button,
+    input[type="number"]::-webkit-outer-spin-button {
+      appearance: none;
+      -webkit-appearance: none;
+      margin: 0;
+    }
+
+    [data-part="form-row-inline"] {
+      display: flex;
+      flex-direction: row;
+      flex-wrap: wrap;
+      gap: var(--noora-spacing-5);
+
+      /* Pin each control to a width that comfortably holds its label and
+         value without forcing the row over to a single growing column.
+         Without explicit widths the flexed dropdowns ballooned and the
+         inputs cramped; with `flex: 0 0 auto` everything stays predictable
+         across modal sizes and the row wraps cleanly when the modal is
+         narrower than the controls' combined width. */
+      & > [data-part="form-row"] {
+        flex: 0 0 auto;
+        min-width: 0;
       }
 
-      & > [data-part="toggle"] {
-        display: flex;
-        flex-direction: row;
-        align-items: center;
-        gap: var(--noora-spacing-3);
+      /* Default dropdown width fits the longest label we ship
+         ("Greater or equal"). */
+      & > [data-part="form-row"][data-size="dropdown"] {
+        width: 11rem;
+      }
 
-        & > [data-part="label"] {
+      /* When / Over dropdowns hold shorter labels ("Flakiness rate",
+         "Rolling window") and shrink so the whole condition row fits on
+         one line at the modal's full width. */
+      & > [data-part="form-row"][data-size="dropdown-narrow"] {
+        width: 10rem;
+      }
+
+      /* Number / short-string inputs ("3", "30d", "100") sit happily in a
+         smaller box. */
+      & > [data-part="form-row"][data-size="compact"] {
+        width: 6rem;
+      }
+    }
+
+    [data-part="form-section"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-4);
+
+      & > [data-part="form-section-header"] {
+        display: flex;
+        flex-direction: column;
+        gap: var(--noora-spacing-1);
+
+        &[data-inline] {
+          flex-direction: row;
+          align-items: center;
+          gap: var(--noora-spacing-3);
+        }
+
+        /* Sections that pair the title with a primary action (e.g. "Add
+           action") split into a title group on the left and the action on
+           the right. */
+        &[data-with-action] {
+          flex-direction: row;
+          align-items: center;
+          gap: var(--noora-spacing-4);
+
+          & > [data-part="form-section-header-titles"] {
+            flex: 1;
+            min-width: 0;
+          }
+
+          & > .noora-dropdown {
+            flex-shrink: 0;
+          }
+        }
+
+        & > [data-part="form-section-header-titles"] {
+          display: flex;
+          flex-direction: column;
+          gap: var(--noora-spacing-1);
+        }
+
+        & > [data-part="form-section-header-action"] {
+          margin-left: auto;
+        }
+
+        & [data-part="title"] {
           color: var(--noora-surface-label-primary);
-          font: var(--noora-font-weight-medium) var(--noora-font-body-large);
+          font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+        }
+
+        & [data-part="subtitle"] {
+          color: var(--noora-surface-label-secondary);
+          font: var(--noora-font-weight-regular) var(--noora-font-body-small);
         }
       }
 
-      & > [data-part="subtitle"] {
-        color: var(--noora-surface-label-secondary);
-        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+      & > [data-part="form-section-body"] {
+        display: flex;
+        flex-direction: column;
+        gap: var(--noora-spacing-4);
       }
     }
 
-    &:last-child {
-      border-bottom: none;
+    [data-part="event-checkbox-list"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-4);
+      margin-top: var(--noora-spacing-2);
+
+      & > [data-part="event-checkbox"] {
+        display: flex;
+        flex-direction: row;
+        align-items: flex-start;
+        gap: var(--noora-spacing-3);
+        cursor: pointer;
+
+        & > .noora-checkbox-control {
+          flex-shrink: 0;
+          margin-top: 2px;
+        }
+
+        & > [data-part="body"] {
+          display: flex;
+          flex-direction: column;
+          gap: var(--noora-spacing-1);
+
+          & > [data-part="label"] {
+            color: var(--noora-surface-label-primary);
+            font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+          }
+
+          & > [data-part="description"] {
+            color: var(--noora-surface-label-secondary);
+            font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+          }
+        }
+      }
     }
 
-    & > [data-part="row-content"] {
+    [data-part="action-row"] {
       display: flex;
       flex-direction: row;
       align-items: center;
       gap: var(--noora-spacing-4);
+      padding-top: var(--noora-spacing-6);
 
-      & > [data-part="label"] {
+      & > [data-part="action-label"] {
+        flex: 1;
         color: var(--noora-surface-label-primary);
         font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
       }
 
-      & .noora-text-input {
-        width: 80px;
+      & > .noora-dropdown {
+        flex-shrink: 0;
+      }
+
+      & > [data-part="action-fields"] {
+        display: flex;
+        flex: 1;
+        flex-direction: row;
+        gap: var(--noora-spacing-3);
+        min-width: 0;
+
+        & > .noora-text-input {
+          flex: 1;
+          min-width: 0;
+        }
+      }
+
+      & > .noora-button[data-variant="secondary"] {
+        margin-left: auto;
       }
     }
 
-    & > [data-part="stacked-row-content"] {
+    .noora-dropdown-item:not([data-selected]) [data-part="right-icon"] svg {
+      visibility: hidden;
+    }
+
+    [data-part="slack-action"] {
       display: flex;
+      flex: 1;
       flex-direction: column;
-      align-items: flex-start;
-      gap: var(--noora-spacing-2);
+      gap: var(--noora-spacing-5);
+      min-width: 0;
+
+      & > [data-part="slack-action-header"] {
+        display: flex;
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+        gap: var(--noora-spacing-4);
+
+        & > [data-part="slack-action-header-left"],
+        & > [data-part="slack-action-header-right"] {
+          display: flex;
+          flex-direction: row;
+          align-items: center;
+          gap: var(--noora-spacing-3);
+        }
+
+        & [data-part="action-label"] {
+          flex-shrink: 0;
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+        }
+      }
+
+      & > [data-part="slack-message-row"] {
+        display: flex;
+        flex-direction: column;
+        gap: var(--noora-spacing-4);
+
+        & > [data-part="slack-message-label"] {
+          display: flex;
+          flex-direction: column;
+          gap: var(--noora-spacing-4);
+
+          & > [data-part="label"] {
+            color: var(--noora-surface-label-primary);
+            font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+          }
+
+          & > [data-part="sublabel"] {
+            color: var(--noora-surface-label-secondary);
+            font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+
+            & a {
+              color: var(--noora-button-primary-background);
+              text-decoration: none;
+
+              &:hover {
+                text-decoration: underline;
+              }
+            }
+          }
+        }
+
+        & > [data-part="variables-hint"] {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: var(--noora-spacing-2);
+          color: var(--noora-surface-label-secondary);
+          font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+
+          & > [data-part="label"] {
+            flex-shrink: 0;
+          }
+
+          & > code {
+            border-radius: var(--noora-radius-2);
+            background: var(--noora-surface-background-secondary);
+            padding: 1px 6px;
+            font-size: 12px;
+          }
+        }
+      }
+    }
+
+    [data-part="toggle"] {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: var(--noora-spacing-3);
 
       & > [data-part="label"] {
         color: var(--noora-surface-label-primary);
-        font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+        font: var(--noora-font-weight-medium) var(--noora-font-body-large);
       }
+    }
+  }
+}
 
-      & .noora-text-input {
-        width: 280px;
-      }
+#create-automation-modal > [data-part="positioner"] > [data-part="content"] {
+  width: min(840px, 90vw);
+  max-width: 840px;
+}
+
+#create-automation-modal-body {
+  padding: 0;
+
+  [data-part="modal-content-wrapper"] {
+    display: flex;
+    flex-direction: column;
+    max-height: calc(85vh - 160px);
+    overflow: hidden;
+
+    & > .noora-line-divider {
+      flex-shrink: 0;
+    }
+
+    & > [data-part="scroll-area"] {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-x: hidden;
+      overflow-y: auto;
     }
   }
 }

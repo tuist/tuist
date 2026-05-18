@@ -6,13 +6,21 @@ This file provides guidance to AI agents when working with code in this reposito
 - `cli/` - Tuist CLI (Swift) - see `cli/AGENTS.md`
 - `server/` - Tuist Server (Elixir/Phoenix) - see `server/AGENTS.md`
 - `cache/` - Tuist cache service (Elixir/Phoenix) - see `cache/AGENTS.md`
+- `kura/` - Kura distributed cache mesh (Rust) - see `kura/AGENTS.md`
 - `tuist_common/` - Shared Elixir utilities used across services - see `tuist_common/AGENTS.md`
 - `app/` - Tuist iOS and macOS app - see `app/AGENTS.md`
 - `android/` - Tuist Android app (Kotlin/Compose) - see `android/AGENTS.md`
 - `handbook/` - Company handbook (VitePress) - see `handbook/AGENTS.md`
-- `docs/` - Documentation and guides - see `docs/AGENTS.md`
 - `noora/` - Noora design system (Elixir/Phoenix web components) - see `noora/AGENTS.md`
+- `mise/tasks/registry/` - Operational scripts for Swift package registry management (purge, sync)
 - `skills/` - Agent Skills (published to [tuist/agent-skills](https://github.com/tuist/agent-skills))
+- `server/native/xcactivitylog_nif/` - Swift NIF linked into the server release for xcactivitylog parsing. The build processor is no longer a standalone Elixir app; it's the same `ghcr.io/tuist/tuist` image booted with `TUIST_MODE=processor` to run the `:process_build` Oban queue consumer.
+- `server/native/xcresult_nif/` - Swift NIF for xcresult parsing (macOS-only — uses `xcresulttool`). Baked into a Tart VM image (`infra/xcresult-processor-image/`) that runs as a k8s `Deployment` scheduled onto a Mac mini node via tart-cri.
+- `infra/xcresult-processor-image/` - Packer template + launchd plist that produces the macOS Tart image hosting the Tuist server release with `TUIST_MODE=xcresult_processor`. See `infra/xcresult-processor-image/AGENTS.md`.
+- `infra/tart-cri/` - Container Runtime Interface (CRI) implementation that drives Tart on macOS, plus a CNI plugin. Lets a Mac mini join a Kubernetes cluster as a real node so macOS workloads schedule via standard `Deployment` / `Job` with `nodeSelector: kubernetes.io/os=darwin` + `tuist.dev/runtime=tart`. See `infra/tart-cri/AGENTS.md`.
+- `infra/cluster-api-provider-scaleway-applesilicon/` - Cluster API infrastructure provider that manages Scaleway Apple Silicon Mac minis declaratively. Watches `ScalewayAppleSiliconMachine` CRs, calls Scaleway's API to order/release machines, SSHes in to bootstrap kubelet + tart-cri. Scaling the fleet is `kubectl scale machinedeployment`. See `infra/cluster-api-provider-scaleway-applesilicon/AGENTS.md`.
+- `search/` - Search infrastructure (TypeSense) - see `search/AGENTS.md`
+- `status/` - Public status page (Cloudflare Worker + Hono) backed by Grafana IRM - see `status/AGENTS.md`
 - `infra/` - Infrastructure and deployment assets - see `infra/AGENTS.md`
 
 ## Global Guardrails
@@ -30,9 +38,12 @@ When creating commits and pull requests, use these conventional commit scopes:
 - `android` - Changes to the Tuist Android app
 - `server` - Changes to the Tuist server (Elixir/Phoenix)
 - `cache` - Changes to the Tuist cache service (Elixir/Phoenix)
+- `kura` - Changes to the Kura distributed cache mesh service
 - `cli` - Changes to the Tuist CLI (Swift)
 - `noora` - Changes to the Noora web component library
 - `skills` - Changes to the Agent Skills package
+- `search` - Changes to the search infrastructure (TypeSense)
+- `status` - Changes to the public status page (Cloudflare Worker)
 - `docs` - Changes to documentation
 - `handbook` - Changes to the handbook/guides
 
@@ -41,6 +52,7 @@ Examples:
 - `feat(server): add new telemetry sanitizer module`
 - `fix(cli): resolve cache artifact upload issue`
 - `feat(cache): add new S3 transfer worker`
+- `feat(kura): add peer discovery backoff handling`
 - `feat(skills): add new migration skill`
 - `docs(handbook): update project setup guide`
 
@@ -50,8 +62,8 @@ Examples:
 - Do not add one-line comments unless you think they are really useful.
 
 ## Workflow
-- The Xcode project is generated with Tuist running `tuist generate --no-open`
-- When compiling Swift changes, use `xcodebuild build -workspace Tuist.xcworkspace -scheme Tuist-Workspace CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""` instead of `swift build`
+- For faster builds, generate only the required targets: `tuist generate tuist ProjectDescription --no-open`
+- When compiling Swift changes, use `xcodebuild build -workspace Tuist.xcworkspace -scheme tuist CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""` instead of `swift build`
 - When testing Swift changes, use `xcodebuild test -workspace Tuist.xcworkspace -scheme Tuist-Workspace -only-testing MyTests/SuiteTests CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""` instead of `swift test`.
 - Prefer running test suites or individual test cases, and not the whole test target, for performance
 - When using `swift build`, `swift test`, or `swift package resolve` always include `--replace-scm-with-registry` to avoid switching packages from registry to source control resolution
@@ -88,12 +100,12 @@ Examples:
 Tuist Server is an Elixir/Phoenix web application that extends the functionality of the Tuist CLI for iOS/macOS development. It provides binary caching, app preview deployment, build analytics, and Swift package registry services.
 
 **Key Technologies:**
-- **Backend**: Elixir 1.18.3 with Phoenix 1.7.12 framework
+- **Backend**: Elixir 1.19.5 with Phoenix 1.7.12 framework
 - **Databases**: 
   - PostgreSQL (primary database)
   - ClickHouse (analytics database, write-only through IngestRepo)
 - **Frontend**: Phoenix LiveView with JavaScript/TypeScript and esbuild
-- **Package Management**: pnpm for JavaScript dependencies
+- **Package Management**: aube for JavaScript dependencies
 
 **Core Architecture Components:**
 - `lib/tuist/` - Core business logic modules (accounts, billing, bundles, projects, registry, etc.)
@@ -120,13 +132,10 @@ Tuist Server is an Elixir/Phoenix web application that extends the functionality
 
 **Setup Commands:**
 ```bash
-mise install                    # Install system dependencies
 brew install postgresql@16      # Make sure `postgresql@16` is installed locally via Homebrew
 brew services start postgresql@16
 mise run clickhouse:start      # Start ClickHouse
-mise run db:create             # Create database
-mise run db:load               # Load database schema
-mise run db:seed               # Seed with development data
+mise install                   # Install dependencies and bootstrap the local development database
 mise run dev                   # Start development server
 ```
 
@@ -174,7 +183,7 @@ mise run dev                   # Start development server
 
 - `.mise.toml` - Development environment and tool versions
 - `mix.exs` - Elixir project configuration and dependencies
-- `package.json` - JavaScript dependencies managed by pnpm
+- `package.json` - JavaScript dependencies managed by aube
 - `config/` directory - Phoenix application configuration
 - `priv/secrets/dev.key` - Development secrets encryption key (not in repo)
 
@@ -236,15 +245,16 @@ The CI pipeline will fail if any `.po` files are modified by anyone other than `
 
 ## Deployment
 
-The application deploys to Render with different environments:
-- `mise run deploy:staging` - Deploy to staging
-- `mise run deploy:canary` - Deploy to canary
-- `mise run deploy:production` - Deploy to production
+The application deploys to our self-hosted CAPI Kubernetes clusters on Hetzner via Helm. See `infra/AGENTS.md` for the full layout.
+
+- Push to `main` triggers `.github/workflows/server-production-deployment.yml`, which cascades canary → acceptance tests → production (hotfix fast-path available).
+- Single-environment deploys use `.github/workflows/server-deployment.yml` via `workflow_dispatch`.
+- Chart and per-env values live in `infra/helm/tuist/` (`values-managed-{staging,canary,production}.yaml`).
 
 ## Important Notes
 
 - Always run `mix ecto.migrate` after pulling database migrations
-- Use `mise run install` after pulling dependency changes
+- Use `mise run install` after pulling dependency changes or when bootstrapping a fresh worktree
 - Local development connects to `http://localhost:8080` for Tuist CLI integration
 
 # Tuist Handbook

@@ -4,6 +4,7 @@ import TuistAlert
 import TuistCache
 import TuistConfigLoader
 import TuistCore
+import TuistEnvironment
 import TuistExtension
 import TuistHasher
 import TuistLoader
@@ -78,19 +79,11 @@ public struct HashCacheCommandService: HashCacheServicing {
         }
     #endif
 
-    private func absolutePath(_ path: String?) throws -> AbsolutePath {
-        if let path {
-            return try AbsolutePath(validating: path, relativeTo: FileHandler.shared.currentPath)
-        } else {
-            return FileHandler.shared.currentPath
-        }
-    }
-
     public func run(
         path: String?,
         configuration: String?
     ) async throws {
-        let absolutePath = try absolutePath(path)
+        let absolutePath = try await Environment.current.pathRelativeToWorkingDirectory(path)
 
         let graph: XcodeGraph.Graph
         let defaultConfiguration: String?

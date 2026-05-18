@@ -80,7 +80,7 @@ defmodule TuistWeb.ConnectLive do
             <.button
               variant="primary"
               label={dgettext("dashboard_auth", "Tuist documentation")}
-              href="https://docs.tuist.dev/"
+              href="https://tuist.dev/en/docs/"
               target="_blank"
             >
               <:icon_right>

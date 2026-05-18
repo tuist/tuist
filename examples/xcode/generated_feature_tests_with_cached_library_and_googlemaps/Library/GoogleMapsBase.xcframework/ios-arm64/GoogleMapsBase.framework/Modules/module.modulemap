@@ -1,0 +1,5 @@
+framework module GoogleMapsBase {
+  umbrella header "GoogleMapsBase.h"
+  export *
+  module * { export * }
+}

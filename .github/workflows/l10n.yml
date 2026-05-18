@@ -1,0 +1,73 @@
+name: L10n
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "translate.exs"
+      - "server/priv/gettext/*.pot"
+      - "L10N.md"
+      - "server/L10N.md"
+      - "server/L10N/**"
+      - "server/priv/docs/L10N.md"
+      - "server/priv/docs/L10N/**"
+      - "server/priv/docs/en/guides/install-tuist.md"
+      - "server/priv/docs/en/guides/features/cache.md"
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: l10n-translations
+  cancel-in-progress: true
+
+env:
+  MISE_VERSION: "2026.4.18"
+  MISE_GITHUB_TOKEN: ${{ github.token }}
+
+jobs:
+  translate:
+    name: Translate
+    runs-on: namespace-profile-default-with-volume
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: namespacelabs/nscloud-cache-action@v1
+        with:
+          cache: mise
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: "elixir erlang"
+          cache: "false"
+      - name: Install server dependencies
+        working-directory: server
+        run: mix deps.get
+      - name: Run translations
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: elixir translate.exs --model "openai:gpt-4.1-mini"
+      - name: Check for changes
+        id: changes
+        run: |
+          if [[ -n $(git diff --name-only -- '*.po' '.l10n/' 'server/priv/docs/**/*.md') ]]; then
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          fi
+      - name: Create PR
+        if: steps.changes.outputs.has_changes == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.TUISTIT_TOKEN || github.token }}
+          commit-message: "chore(server): update translations"
+          branch: l10n/update-translations
+          title: "chore(server): update translations"
+          body: |
+            Automated translation update triggered by changes to `.pot` files or `L10N.md` context.
+          add-paths: |
+            .l10n/**
+            server/priv/gettext/**/*.po
+            server/priv/docs/**/*.md
+          committer: "tuistit <tuistit@users.noreply.github.com>"
+          author: "tuistit <tuistit@users.noreply.github.com>"

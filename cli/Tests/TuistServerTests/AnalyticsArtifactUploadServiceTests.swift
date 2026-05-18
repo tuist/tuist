@@ -1,7 +1,11 @@
 import FileSystem
 import Foundation
 import Mockable
+#if canImport(TuistAppleArchiver)
+    import TuistAppleArchiver
+#endif
 import TuistCore
+import TuistHTTP
 import TuistServer
 import TuistSupport
 import TuistTesting
@@ -21,6 +25,9 @@ final class AnalyticsArtifactUploadServiceTests: TuistTestCase {
         MockMultipartUploadCompleteAnalyticsServicing!
     private var completeAnalyticsArtifactsUploadsService:
         MockCompleteAnalyticsArtifactsUploadsServicing!
+    #if canImport(TuistAppleArchiver)
+        private var appleArchiver: MockAppleArchiving!
+    #endif
 
     override func setUp() {
         super.setUp()
@@ -33,18 +40,33 @@ final class AnalyticsArtifactUploadServiceTests: TuistTestCase {
         multipartUploadArtifactService = .init()
         multipartUploadCompleteAnalyticsService = .init()
         completeAnalyticsArtifactsUploadsService = .init()
-
-        subject = AnalyticsArtifactUploadService(
-            fileSystem: fileSystem,
-            xcresultToolController: xcresultToolController,
-            fileArchiver: fileArchiverFactory,
-            retryProvider: RetryProvider(),
-            multipartUploadStartAnalyticsService: multipartUploadStartAnalyticsService,
-            multipartUploadGenerateURLAnalyticsService: multipartUploadGenerateURLAnalyticsService,
-            multipartUploadArtifactService: multipartUploadArtifactService,
-            multipartUploadCompleteAnalyticsService: multipartUploadCompleteAnalyticsService,
-            completeAnalyticsArtifactsUploadsService: completeAnalyticsArtifactsUploadsService
-        )
+        #if canImport(TuistAppleArchiver)
+            appleArchiver = .init()
+            subject = AnalyticsArtifactUploadService(
+                fileSystem: fileSystem,
+                xcresultToolController: xcresultToolController,
+                fileArchiver: fileArchiverFactory,
+                fullHandleService: FullHandleService(),
+                multipartUploadStartAnalyticsService: multipartUploadStartAnalyticsService,
+                multipartUploadGenerateURLAnalyticsService: multipartUploadGenerateURLAnalyticsService,
+                multipartUploadArtifactService: multipartUploadArtifactService,
+                multipartUploadCompleteAnalyticsService: multipartUploadCompleteAnalyticsService,
+                completeAnalyticsArtifactsUploadsService: completeAnalyticsArtifactsUploadsService,
+                appleArchiver: appleArchiver
+            )
+        #else
+            subject = AnalyticsArtifactUploadService(
+                fileSystem: fileSystem,
+                xcresultToolController: xcresultToolController,
+                fileArchiver: fileArchiverFactory,
+                fullHandleService: FullHandleService(),
+                multipartUploadStartAnalyticsService: multipartUploadStartAnalyticsService,
+                multipartUploadGenerateURLAnalyticsService: multipartUploadGenerateURLAnalyticsService,
+                multipartUploadArtifactService: multipartUploadArtifactService,
+                multipartUploadCompleteAnalyticsService: multipartUploadCompleteAnalyticsService,
+                completeAnalyticsArtifactsUploadsService: completeAnalyticsArtifactsUploadsService
+            )
+        #endif
     }
 
     override func tearDown() {
@@ -62,23 +84,39 @@ final class AnalyticsArtifactUploadServiceTests: TuistTestCase {
         // Given
         let temporaryDirectory = try temporaryPath()
         let resultBundle = temporaryDirectory.appending(component: "artifact.bundle")
-        try FileHandler.shared.touch(resultBundle)
+        try await FileSystem().touch(resultBundle)
         let accountHandle = "account-\(UUID().uuidString)"
         let projectHandle = "project-\(UUID().uuidString)"
 
         let serverURL: URL = .test()
         let commandEventID = UUID().uuidString
 
-        let fileArchiver = MockFileArchiving()
-        given(fileArchiverFactory)
-            .makeFileArchiver(for: .value([resultBundle]))
-            .willReturn(fileArchiver)
+        #if canImport(TuistAppleArchiver)
+            // On macOS the result_bundle path goes through AppleArchive, not the zip
+            // `FileArchiver`. Stub compress to write an .aar file so the downstream
+            // multipart pipeline has a real file to work with.
+            given(appleArchiver)
+                .compress(
+                    directory: .value(resultBundle),
+                    to: .any,
+                    excludePatterns: .value([]),
+                    preservesBaseDirectory: .value(true)
+                )
+                .willProduce { _, archivePath, _, _ in
+                    try Data("fake-aar".utf8).write(to: archivePath.url)
+                }
+        #else
+            let fileArchiver = MockFileArchiving()
+            given(fileArchiverFactory)
+                .makeFileArchiver(for: .value([resultBundle]))
+                .willReturn(fileArchiver)
 
-        let artifactArchivePath = temporaryDirectory.appending(component: "artifact.zip")
+            let artifactArchivePath = temporaryDirectory.appending(component: "artifact.zip")
 
-        given(fileArchiver)
-            .zip(name: .value("artifact"))
-            .willReturn(artifactArchivePath)
+            given(fileArchiver)
+                .zip(name: .value("artifact"))
+                .willReturn(artifactArchivePath)
+        #endif
 
         given(multipartUploadStartAnalyticsService)
             .uploadAnalyticsArtifact(
@@ -91,16 +129,29 @@ final class AnalyticsArtifactUploadServiceTests: TuistTestCase {
             .willReturn("upload-id")
 
         var generateUploadURLCallback: ((MultipartUploadArtifactPart) async throws -> String)!
-        given(multipartUploadArtifactService)
-            .multipartUploadArtifact(
-                artifactPath: .value(artifactArchivePath),
-                generateUploadURL: .matching { callback in
-                    generateUploadURLCallback = callback
-                    return true
-                },
-                updateProgress: .any
-            )
-            .willReturn([(etag: "etag", partNumber: 1)])
+        #if canImport(TuistAppleArchiver)
+            given(multipartUploadArtifactService)
+                .multipartUploadArtifact(
+                    artifactPath: .matching { $0.extension == "aar" },
+                    generateUploadURL: .matching { callback in
+                        generateUploadURLCallback = callback
+                        return true
+                    },
+                    updateProgress: .any
+                )
+                .willReturn([(etag: "etag", partNumber: 1)])
+        #else
+            given(multipartUploadArtifactService)
+                .multipartUploadArtifact(
+                    artifactPath: .value(artifactArchivePath),
+                    generateUploadURL: .matching { callback in
+                        generateUploadURLCallback = callback
+                        return true
+                    },
+                    updateProgress: .any
+                )
+                .willReturn([(etag: "etag", partNumber: 1)])
+        #endif
 
         given(multipartUploadCompleteAnalyticsService)
             .uploadAnalyticsArtifact(
@@ -190,7 +241,7 @@ final class AnalyticsArtifactUploadServiceTests: TuistTestCase {
             .willReturn(uploadPartURL)
 
         // When / Then
-        try await subject.uploadResultBundle(
+        try await subject.uploadAndAnalyzeResultBundle(
             resultBundle,
             accountHandle: accountHandle,
             projectHandle: projectHandle,
@@ -208,9 +259,9 @@ final class AnalyticsArtifactUploadServiceTests: TuistTestCase {
         // Given
         let temporaryDirectory = try temporaryPath()
         let sessionDirectory = temporaryDirectory.appending(component: "session")
-        try FileHandler.shared.createFolder(sessionDirectory)
-        try FileHandler.shared.touch(sessionDirectory.appending(component: "logs.txt"))
-        try FileHandler.shared.touch(sessionDirectory.appending(component: "network.har"))
+        try await FileSystem().makeDirectory(at: sessionDirectory)
+        try await FileSystem().touch(sessionDirectory.appending(component: "logs.txt"))
+        try await FileSystem().touch(sessionDirectory.appending(component: "network.har"))
 
         let accountHandle = "account-\(UUID().uuidString)"
         let projectHandle = "project-\(UUID().uuidString)"

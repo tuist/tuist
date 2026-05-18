@@ -1,0 +1,12 @@
+{{- if and .Values.extension.enabled (not .Values.extension.existingConfigMap) .Values.extension.script }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "kura.extensionConfigMapName" . }}
+  labels:
+    {{- include "kura.labels" . | nindent 4 }}
+data:
+  {{ .Values.extension.scriptFileName }}: |
+{{ .Values.extension.script | indent 4 }}
+{{- end }}
+

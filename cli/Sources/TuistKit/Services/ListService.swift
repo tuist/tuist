@@ -3,6 +3,7 @@ import Path
 import TuistConfigLoader
 import TuistCore
 import TuistEncodable
+import TuistEnvironment
 import TuistLoader
 import TuistLogging
 import TuistPlugin
@@ -35,7 +36,7 @@ struct ListService {
     }
 
     func run(path: String?, outputFormat format: OutputFormat) async throws {
-        let path = try self.path(path)
+        let path = try await self.path(path)
 
         let plugins = try await loadPlugins(at: path)
         let templateDirectories = try await locateTemplateDirectories(at: path, plugins: plugins)
@@ -49,12 +50,8 @@ struct ListService {
 
     // MARK: - Helpers
 
-    private func path(_ path: String?) throws -> AbsolutePath {
-        if let path {
-            return try AbsolutePath(validating: path, relativeTo: FileHandler.shared.currentPath)
-        } else {
-            return FileHandler.shared.currentPath
-        }
+    private func path(_ path: String?) async throws -> AbsolutePath {
+        try await Environment.current.pathRelativeToWorkingDirectory(path)
     }
 
     private func output(

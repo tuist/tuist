@@ -41,7 +41,8 @@ defmodule Tuist.Repo.Migrations.CreateCacheEndpoints do
         execute seed_sql("https://cache-eu-central-canary.tuist.dev", "EU Central Canary")
 
       :dev ->
-        execute seed_sql("http://localhost:8087", "Local Dev")
+        cache_port = System.get_env("TUIST_CACHE_PORT") || "8087"
+        execute seed_sql("http://localhost:#{cache_port}", "Local Dev")
 
       :test ->
         execute seed_sql("https://cache-eu-central-test.tuist.dev", "EU Central Test")

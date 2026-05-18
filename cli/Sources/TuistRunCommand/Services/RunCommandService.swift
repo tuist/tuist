@@ -17,6 +17,7 @@ import TuistSupport
     import TuistKit
     import TuistLoader
     import TuistSimulator
+    import TuistXcodeBuildProducts
     import XcodeGraph
 #endif
 
@@ -473,7 +474,7 @@ struct RunCommandService {
             let archivePath = try await remoteArtifactDownloader.download(url: buildURL)
             guard let archivePath else { throw RunCommandServiceError.appNotFound(previewLink.absoluteString) }
 
-            let unarchivedDirectory = try fileArchiverFactory.makeFileUnarchiver(for: archivePath).unzip()
+            let unarchivedDirectory = try await fileArchiverFactory.makeFileUnarchiver(for: archivePath).unzip()
             try await fileSystem.remove(archivePath)
 
             guard let apkPath = try await fileSystem.glob(directory: unarchivedDirectory, include: ["**/*.apk"])
@@ -561,7 +562,7 @@ struct RunCommandService {
             }
             guard let archivePath else { throw RunCommandServiceError.appNotFound(previewLink.absoluteString) }
 
-            let unarchivedDirectory = try fileArchiverFactory.makeFileUnarchiver(for: archivePath).unzip()
+            let unarchivedDirectory = try await fileArchiverFactory.makeFileUnarchiver(for: archivePath).unzip()
             try await fileSystem.remove(archivePath)
 
             guard let appBundlePath = try await
@@ -598,8 +599,8 @@ struct RunCommandService {
                 errorMessage: nil,
                 showSpinner: true
             ) { updateProgress in
-                let device = try simulatorController.booted(device: simulatorDevice)
-                try simulatorController.installApp(at: appBundle.path, device: device)
+                let device = try await simulatorController.booted(device: simulatorDevice)
+                try await simulatorController.installApp(at: appBundle.path, device: device)
                 updateProgress("Launching \(appBundle.infoPlist.name) on \(simulatorDevice.name)")
                 try await simulatorController.launchApp(
                     bundleId: appBundle.infoPlist.bundleId,

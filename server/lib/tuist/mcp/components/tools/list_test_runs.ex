@@ -5,6 +5,7 @@ defmodule Tuist.MCP.Components.Tools.ListTestRuns do
 
   use Tuist.MCP.Tool,
     name: "list_test_runs",
+    title: "List Test Runs",
     authorize: [action: :read, category: :test],
     schema: %{
       "type" => "object",

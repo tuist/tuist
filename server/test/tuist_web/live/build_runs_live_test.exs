@@ -64,4 +64,29 @@ defmodule TuistWeb.BuildRunsLiveTest do
 
     assert has_element?(lv, "span", "App-1")
   end
+
+  test "filters build runs by scheme", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    RunsFixtures.build_fixture(
+      project_id: project.id,
+      scheme: "App"
+    )
+
+    RunsFixtures.build_fixture(
+      project_id: project.id,
+      scheme: "Framework"
+    )
+
+    {:ok, lv, _html} =
+      live(
+        conn,
+        ~p"/#{organization.account.name}/#{project.name}/builds/build-runs?filter_scheme_op===&filter_scheme_val=App"
+      )
+
+    assert has_element?(lv, "[data-part='build-runs-table'] span", "App")
+    refute has_element?(lv, "[data-part='build-runs-table'] span", "Framework")
+  end
 end

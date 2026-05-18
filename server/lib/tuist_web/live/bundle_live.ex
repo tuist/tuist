@@ -891,8 +891,7 @@ defmodule TuistWeb.BundleLive do
     path_hash = :md5 |> :crypto.hash(artifact_path) |> Base.encode16() |> String.slice(0, 8)
     page_param = "bundle-size-analysis-table-page-#{path_hash}"
 
-    bundle_size_analysis_sunburst_chart_table_page =
-      String.to_integer(params[page_param] || "1")
+    bundle_size_analysis_sunburst_chart_table_page = parse_page(params[page_param])
 
     table_page_size = 5
 
@@ -930,6 +929,15 @@ defmodule TuistWeb.BundleLive do
       :bundle_size_analysis_sunburst_chart_table_page_param,
       page_param
     )
+  end
+
+  defp parse_page(nil), do: 1
+
+  defp parse_page(value) do
+    case Integer.parse(to_string(value)) do
+      {page, _} when page > 0 -> page
+      _ -> 1
+    end
   end
 
   defp add_collapsed_to_artifact(artifact, %{assigns: %{artifacts_by_path: artifacts_by_path}} = _socket) do

@@ -1,8 +1,14 @@
 {
   config,
+  lib,
   pkgs,
   ...
 }: let
+  hostName = config.networking.hostName;
+  isNonProduction = lib.hasSuffix "-staging" hostName || lib.hasSuffix "-canary" hostName;
+  cachePromexScrapeInterval = if isNonProduction then "120s" else "30s";
+  internalExporterScrapeInterval = if isNonProduction then "60s" else "30s";
+
   grafanaCloudUrl = config.services.onepassword-secrets.secrets.grafanaCloudPromRemoteWriteUrl.path;
   grafanaCloudUsername = config.services.onepassword-secrets.secrets.grafanaCloudPromUsername.path;
   grafanaCloudPassword = config.services.onepassword-secrets.secrets.grafanaCloudPromPassword.path;
@@ -69,7 +75,7 @@
     prometheus.exporter.self "alloy" {}
 
     prometheus.exporter.unix "default" {
-      include_exporter_metrics = true
+      include_exporter_metrics = false
       disable_collectors = []
       enable_collectors = ["filefd"]
     }
@@ -92,7 +98,7 @@
     prometheus.scrape "process_exporter" {
       targets = prometheus.exporter.process.default.targets
 
-      scrape_interval = "15s"
+      scrape_interval = "${internalExporterScrapeInterval}"
 
       forward_to = [prometheus.relabel.process_exporter.receiver]
     }
@@ -116,7 +122,7 @@
         },
       ]
 
-      scrape_interval = "15s"
+      scrape_interval = "${cachePromexScrapeInterval}"
 
       forward_to = [prometheus.remote_write.grafana_cloud.receiver]
     }
@@ -124,7 +130,7 @@
     prometheus.scrape "unix_exporter" {
       targets = prometheus.exporter.unix.default.targets
 
-      scrape_interval = "15s"
+      scrape_interval = "${internalExporterScrapeInterval}"
 
       forward_to = [prometheus.relabel.unix_exporter.receiver]
     }
@@ -141,7 +147,7 @@
     prometheus.scrape "alloy" {
       targets = prometheus.exporter.self.alloy.targets
 
-      scrape_interval = "15s"
+      scrape_interval = "${internalExporterScrapeInterval}"
 
       forward_to = [prometheus.relabel.alloy.receiver]
     }

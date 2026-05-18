@@ -8,100 +8,13 @@ import TuistServer
 import TuistSupport
 import TuistTesting
 import TuistXCResultService
+import XCResultParser
 
 @testable import TuistKit
 
 @Suite
 struct TestQuarantineServiceTests {
-    private let listTestCasesService = MockListTestCasesServicing()
-    private let serverEnvironmentService = MockServerEnvironmentServicing()
-    private let subject: TestQuarantineService
-
-    init() {
-        subject = TestQuarantineService(
-            listTestCasesService: listTestCasesService,
-            serverEnvironmentService: serverEnvironmentService
-        )
-    }
-
-    // MARK: - quarantinedTests
-
-    @Test(.withMockedDependencies())
-    func quarantinedTests_returnsEmpty_whenSkipQuarantineIsTrue() async throws {
-        let config = Tuist.test(fullHandle: "org/project")
-        let result = await subject.quarantinedTests(config: config, skipQuarantine: true)
-        #expect(result.isEmpty)
-    }
-
-    @Test(.withMockedDependencies())
-    func quarantinedTests_returnsEmpty_whenFullHandleIsNil() async throws {
-        let config = Tuist.test(fullHandle: nil)
-        let result = await subject.quarantinedTests(config: config, skipQuarantine: false)
-        #expect(result.isEmpty)
-    }
-
-    @Test(.withMockedDependencies())
-    func quarantinedTests_returnsEmpty_whenFetchFails() async throws {
-        let config = Tuist.test(fullHandle: "org/project")
-        let serverURL = URL(string: "https://tuist.dev")!
-
-        given(serverEnvironmentService)
-            .url(configServerURL: .any)
-            .willReturn(serverURL)
-
-        given(listTestCasesService)
-            .listTestCases(
-                fullHandle: .any, serverURL: .any, flaky: .any,
-                quarantined: .any, page: .any, pageSize: .any
-            )
-            .willThrow(NSError(domain: "test", code: 500))
-
-        let alertController = AlertController()
-        let result = await AlertController.$current.withValue(alertController) {
-            await subject.quarantinedTests(config: config, skipQuarantine: false)
-        }
-
-        #expect(result.isEmpty)
-        let warnings = alertController.warnings()
-        #expect(warnings.count == 1)
-        #expect(warnings.first?.message.plain().contains("Failed to fetch quarantined tests") == true)
-    }
-
-    @Test(.withMockedDependencies())
-    func quarantinedTests_returnsTestIdentifiers() async throws {
-        let config = Tuist.test(fullHandle: "org/project")
-        let serverURL = URL(string: "https://tuist.dev")!
-
-        given(serverEnvironmentService)
-            .url(configServerURL: .any)
-            .willReturn(serverURL)
-
-        let response = Operations.listTestCases.Output.Ok.Body.jsonPayload(
-            pagination_metadata: .init(
-                current_page: 1, has_next_page: false, has_previous_page: false,
-                page_size: 500, total_count: 2, total_pages: 1
-            ),
-            test_cases: [
-                .test(id: "1", module: .test(name: "AppTests"), name: "testFoo()", suite: .test(name: "FooSuite")),
-                .test(id: "2", module: .test(name: "CoreTests"), name: "testBar()"),
-            ]
-        )
-
-        given(listTestCasesService)
-            .listTestCases(
-                fullHandle: .value("org/project"), serverURL: .value(serverURL), flaky: .value(nil),
-                quarantined: .value(true), page: .value(1), pageSize: .value(500)
-            )
-            .willReturn(response)
-
-        let result = await subject.quarantinedTests(config: config, skipQuarantine: false)
-
-        let expected = [
-            try TestIdentifier(target: "AppTests", class: "FooSuite", method: "testFoo()"),
-            try TestIdentifier(target: "CoreTests", class: nil, method: "testBar()"),
-        ]
-        #expect(result == expected)
-    }
+    private let subject = TestQuarantineService()
 
     // MARK: - markQuarantinedTests
 
@@ -341,6 +254,55 @@ struct TestQuarantineServiceTests {
 
         #expect(subject.onlyQuarantinedTestsFailed(testSummary: summary) == false)
     }
+
+    // MARK: - onlyQuarantinedTestsFailed (TestResultStatuses)
+
+    @Test
+    func onlyQuarantinedTestsFailed_statuses_returnsFalse_whenNoQuarantinedTests() throws {
+        let statuses = TestResultStatuses(testCases: [
+            .init(name: "testA()", testSuite: "Suite", module: "AppTests", status: .failed),
+        ])
+        #expect(subject.onlyQuarantinedTestsFailed(testStatuses: statuses, quarantinedTests: []) == false)
+    }
+
+    @Test
+    func onlyQuarantinedTestsFailed_statuses_returnsFalse_whenNoFailures() throws {
+        let statuses = TestResultStatuses(testCases: [
+            .init(name: "testA()", testSuite: "Suite", module: "AppTests", status: .passed),
+        ])
+        let quarantined = [try TestIdentifier(target: "AppTests", class: "Suite", method: "testA()")]
+        #expect(subject.onlyQuarantinedTestsFailed(testStatuses: statuses, quarantinedTests: quarantined) == false)
+    }
+
+    @Test
+    func onlyQuarantinedTestsFailed_statuses_returnsTrue_whenAllFailuresQuarantined() throws {
+        let statuses = TestResultStatuses(testCases: [
+            .init(name: "testA()", testSuite: "Suite", module: "AppTests", status: .failed),
+            .init(name: "testB()", testSuite: "Suite", module: "AppTests", status: .passed),
+        ])
+        let quarantined = [try TestIdentifier(target: "AppTests", class: "Suite", method: "testA()")]
+        #expect(subject.onlyQuarantinedTestsFailed(testStatuses: statuses, quarantinedTests: quarantined) == true)
+    }
+
+    @Test
+    func onlyQuarantinedTestsFailed_statuses_returnsFalse_whenNonQuarantinedTestFailed() throws {
+        let statuses = TestResultStatuses(testCases: [
+            .init(name: "testA()", testSuite: "Suite", module: "AppTests", status: .failed),
+            .init(name: "testB()", testSuite: "Suite", module: "AppTests", status: .failed),
+        ])
+        let quarantined = [try TestIdentifier(target: "AppTests", class: "Suite", method: "testA()")]
+        #expect(subject.onlyQuarantinedTestsFailed(testStatuses: statuses, quarantinedTests: quarantined) == false)
+    }
+
+    @Test
+    func onlyQuarantinedTestsFailed_statuses_matchesByTargetOnly() throws {
+        let statuses = TestResultStatuses(testCases: [
+            .init(name: "testA()", testSuite: "Suite", module: "AppTests", status: .failed),
+            .init(name: "testB()", testSuite: "Other", module: "AppTests", status: .failed),
+        ])
+        let quarantined = [try TestIdentifier(target: "AppTests")]
+        #expect(subject.onlyQuarantinedTestsFailed(testStatuses: statuses, quarantinedTests: quarantined) == true)
+    }
 }
 
 extension Components.Schemas.TestCase {
@@ -349,6 +311,7 @@ extension Components.Schemas.TestCase {
         isQuarantined: Bool = true,
         module: Components.Schemas.TestCase.modulePayload = .test(),
         name: String = "testExample()",
+        state: String = "muted",
         suite: Components.Schemas.TestCase.suitePayload? = nil
     ) -> Self {
         .init(
@@ -358,6 +321,7 @@ extension Components.Schemas.TestCase {
             is_quarantined: isQuarantined,
             module: module,
             name: name,
+            state: state,
             suite: suite,
             url: "https://tuist.dev/test-cases/\(id)"
         )

@@ -1,0 +1,129 @@
+replicaCount: 3
+
+image:
+  repository: ghcr.io/tuist/kura
+  tag: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext: {}
+securityContext: {}
+
+service:
+  type: ClusterIP
+  annotations: {}
+  loadBalancerIP: ""
+  externalTrafficPolicy: ""
+  httpPort: 4000
+  grpcPort: 50051
+
+peerTls:
+  enabled: false
+  internalPort: 7443
+  secretName: ""
+  caCertFileName: ca.pem
+  certFileName: tls.crt
+  keyFileName: tls.key
+
+headlessService:
+  annotations: {}
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: kura.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+persistence:
+  enabled: true
+  # Prefer ReadWriteOncePod to enforce one Kura writer per PVC.
+  # Override to ReadWriteOnce only when the CSI driver does not support it.
+  accessModes:
+    - ReadWriteOncePod
+  size: 20Gi
+  storageClass: ""
+  annotations: {}
+
+tmpStorage:
+  sizeLimit: ""
+
+resources: {}
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+
+updateStrategy:
+  rollingUpdatePartition: null
+
+podLifecycle:
+  # Allow endpoint propagation to remove the pod from public traffic before SIGTERM.
+  preStopDelaySeconds: 20
+  # Leave a small platform buffer after Kura's own drain deadline for process exit.
+  terminationGraceExtraSeconds: 15
+
+pdb:
+  enabled: true
+  minAvailable: 1
+
+config:
+  tenantId: default
+  region: fr-par
+  fileDescriptors:
+    poolSize: 128
+    acquireTimeoutMs: 5000
+    segmentHandleCacheSize: 32
+  memory:
+    softLimitBytes: 536870912
+    hardLimitBytes: 805306368
+    manifestCacheMaxBytes: 67108864
+    maxKeyvalueBytes: 1048576
+  shutdown:
+    drainCompletionTimeoutMs: 240000
+  metadataStore:
+    maxOpenFiles: 1024
+    maxBackgroundJobs: 4
+  telemetry:
+    otlpTracesEndpoint: http://otel-collector:4318/v1/traces
+    deploymentEnvironment: production
+  discovery:
+    enabled: true
+  # The Kura image vendors a DB-IP Lite City MMDB at
+  # `/opt/geoip/dbip-city-lite.mmdb`, so client geographic attribution
+  # (country + ISO 3166-2 subdivision) is on whenever that file is
+  # present (Kura soft-fails if it isn't). `refreshIntervalSecs`
+  # controls how often the pod re-downloads the monthly dump in the
+  # background. Set to 0 to pin to the vendored copy for the pod
+  # lifetime.
+  geoip:
+    refreshIntervalSecs: 86400
+
+# Use extraEnv or extraEnvFrom to inject optional secrets such as KURA_SENTRY_DSN.
+extraEnv: []
+extraEnvFrom: []
+extraVolumes: []
+extraVolumeMounts: []
+
+extension:
+  enabled: false
+  existingConfigMap: ""
+  script: ""
+  mountDir: /etc/kura/extensions
+  scriptFileName: hooks.lua

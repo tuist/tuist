@@ -15,7 +15,8 @@ defmodule Tuist.Gradle.Build do
       :root_project_name,
       :account_id,
       :gradle_version,
-      :java_version
+      :java_version,
+      :inserted_at
     ],
     sortable: [:inserted_at, :duration_ms, :status],
     default_order: %{

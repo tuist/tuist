@@ -1,0 +1,14 @@
+{{- if and .Values.processor.enabled .Values.processor.podDisruptionBudget.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "processor") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: processor
+spec:
+  minAvailable: {{ .Values.processor.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "tuist.componentLabels" (dict "root" . "component" "processor") | nindent 6 }}
+{{- end }}

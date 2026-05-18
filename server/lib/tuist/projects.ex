@@ -10,6 +10,8 @@ defmodule Tuist.Projects do
   alias Tuist.Accounts.ProjectAccount
   alias Tuist.Accounts.User
   alias Tuist.AppBuilds.Preview
+  alias Tuist.Automations
+  alias Tuist.Automations.Alerts.Alert
   alias Tuist.Base64
   alias Tuist.CommandEvents
   alias Tuist.Projects.Project
@@ -218,17 +220,30 @@ defmodule Tuist.Projects do
     |> maybe_filter_recent(opts)
   end
 
-  def list_accessible_projects(%AuthenticatedAccount{account: %{user_id: user_id} = account, all_projects: true}, opts)
-      when not is_nil(user_id) do
-    case Accounts.get_user_by_id(user_id) do
-      nil -> list_accessible_projects(account, opts)
-      user -> list_accessible_projects(user, opts)
-    end
+  def list_accessible_projects(%AuthenticatedAccount{issued_by: %User{} = user, all_projects: true}, opts) do
+    list_accessible_projects(user, opts)
   end
 
-  def list_accessible_projects(%AuthenticatedAccount{account: account}, opts) do
+  def list_accessible_projects(%AuthenticatedAccount{account: account, all_projects: true}, opts) do
     list_accessible_projects(account, opts)
   end
+
+  def list_accessible_projects(
+        %AuthenticatedAccount{account: %Account{id: account_id}, all_projects: false, project_ids: project_ids},
+        opts
+      )
+      when is_list(project_ids) do
+    preload = Keyword.get(opts, :preload, [:account])
+
+    from(p in Project,
+      where: p.account_id == ^account_id and p.id in ^project_ids,
+      preload: ^preload
+    )
+    |> Repo.all()
+    |> maybe_filter_recent(opts)
+  end
+
+  def list_accessible_projects(%AuthenticatedAccount{all_projects: false}, _opts), do: []
 
   def list_accessible_projects(%Project{} = project, opts) do
     project = Repo.preload(project, Keyword.get(opts, :preload, [:account]))
@@ -273,16 +288,26 @@ defmodule Tuist.Projects do
     created_at = Keyword.get(opts, :created_at, DateTime.utc_now())
     visibility = Keyword.get(opts, :visibility, :private)
 
-    %{
-      token: token,
-      name: name,
-      account_id: account_id,
-      created_at: created_at,
-      visibility: visibility,
-      build_system: Keyword.get(opts, :build_system, :xcode)
-    }
-    |> Project.create_changeset()
-    |> Repo.insert()
+    changeset =
+      Project.create_changeset(%{
+        token: token,
+        name: name,
+        account_id: account_id,
+        created_at: created_at,
+        visibility: visibility,
+        build_system: Keyword.get(opts, :build_system, :xcode)
+      })
+
+    Ecto.Multi.new()
+    |> Ecto.Multi.insert(:project, changeset)
+    |> Ecto.Multi.run(:default_alert, fn _repo, %{project: project} ->
+      seed_default_alert(project)
+    end)
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{project: project}} -> {:ok, project}
+      {:error, _step, changeset, _changes} -> {:error, changeset}
+    end
   end
 
   def create_project!(%{name: name, account: %{id: account_id}}, opts \\ []) do
@@ -291,18 +316,28 @@ defmodule Tuist.Projects do
     visibility = Keyword.get(opts, :visibility, :private)
     preload = Keyword.get(opts, :preload, [])
 
-    %Project{}
-    |> Project.create_changeset(%{
-      token: token,
-      name: name,
-      account_id: account_id,
-      created_at: created_at,
-      visibility: visibility,
-      default_previews_visibility: Keyword.get(opts, :default_previews_visibility, :private),
-      build_system: Keyword.get(opts, :build_system, :xcode)
-    })
-    |> Repo.insert!()
-    |> Repo.preload(preload)
+    project =
+      %Project{}
+      |> Project.create_changeset(%{
+        token: token,
+        name: name,
+        account_id: account_id,
+        created_at: created_at,
+        visibility: visibility,
+        default_previews_visibility: Keyword.get(opts, :default_previews_visibility, :private),
+        build_system: Keyword.get(opts, :build_system, :xcode)
+      })
+      |> Repo.insert!()
+
+    {:ok, _alert} = seed_default_alert(project)
+
+    Repo.preload(project, preload)
+  end
+
+  defp seed_default_alert(%Project{id: project_id}) do
+    %Alert{}
+    |> Alert.changeset(Automations.default_alert_attrs(project_id))
+    |> Repo.insert()
   end
 
   def delete_project(%Project{} = project) do

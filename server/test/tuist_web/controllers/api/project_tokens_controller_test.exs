@@ -2,6 +2,7 @@ defmodule TuistWeb.API.ProjectTokensControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
+  alias Tuist.Accounts
   alias Tuist.Projects
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
@@ -64,6 +65,33 @@ defmodule TuistWeb.API.ProjectTokensControllerTest do
         |> post("/api/projects/#{project.account.name}/#{project.name}/tokens")
 
       # Then
+      response = json_response(conn, :forbidden)
+
+      assert response == %{
+               "message" => "The authenticated subject is not authorized to perform this action"
+             }
+    end
+
+    test "returns forbidden when an organization member tries to create a project access token", %{conn: conn} do
+      owner = AccountsFixtures.user_fixture()
+      member = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: owner)
+
+      Accounts.add_user_to_organization(member, organization, role: :user)
+
+      project =
+        ProjectsFixtures.project_fixture(
+          account_id: organization.account.id,
+          preload: [:account]
+        )
+
+      conn = TuistWeb.Authentication.put_current_user(conn, member)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/projects/#{project.account.name}/#{project.name}/tokens")
+
       response = json_response(conn, :forbidden)
 
       assert response == %{

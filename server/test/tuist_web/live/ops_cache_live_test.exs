@@ -30,7 +30,7 @@ defmodule TuistWeb.OpsCacheLiveTest do
       })
 
     # When
-    {:ok, _lv, html} = live(conn, ~p"/ops/cache")
+    {:ok, _lv, html} = live(conn, ~p"/ops")
 
     # Then
     assert html =~ "Cache Endpoints"
@@ -47,7 +47,7 @@ defmodule TuistWeb.OpsCacheLiveTest do
         display_name: "Test Node"
       })
 
-    {:ok, lv, _html} = live(conn, ~p"/ops/cache")
+    {:ok, lv, _html} = live(conn, ~p"/ops")
 
     # When
     lv |> element("button", "Disable") |> render_click()
@@ -65,7 +65,7 @@ defmodule TuistWeb.OpsCacheLiveTest do
         display_name: "Test Node"
       })
 
-    {:ok, lv, _html} = live(conn, ~p"/ops/cache")
+    {:ok, lv, _html} = live(conn, ~p"/ops")
 
     # When
     lv |> element("button", "Delete") |> render_click()
@@ -74,9 +74,9 @@ defmodule TuistWeb.OpsCacheLiveTest do
     assert {:error, :not_found} = CacheEndpoints.get_cache_endpoint(endpoint.id)
   end
 
-  test "adds a new endpoint", %{conn: conn} do
+  test "adds a new endpoint in disabled state", %{conn: conn} do
     # Given
-    {:ok, lv, _html} = live(conn, ~p"/ops/cache")
+    {:ok, lv, _html} = live(conn, ~p"/ops")
 
     # When
     lv
@@ -87,13 +87,14 @@ defmodule TuistWeb.OpsCacheLiveTest do
     |> render_submit()
 
     # Then
-    endpoints = CacheEndpoints.list_cache_endpoints()
-    assert Enum.any?(endpoints, fn e -> e.display_name == "New Node" end)
+    assert {:ok, endpoint} = CacheEndpoints.get_cache_endpoint_by_url("https://cache-new.tuist.dev")
+    assert endpoint.display_name == "New Node"
+    assert endpoint.enabled == false
   end
 
   test "shows empty state when no endpoints exist", %{conn: conn} do
     # When
-    {:ok, _lv, html} = live(conn, ~p"/ops/cache")
+    {:ok, _lv, html} = live(conn, ~p"/ops")
 
     # Then
     assert html =~ "No cache endpoints"

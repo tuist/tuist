@@ -1,8 +1,6 @@
-import _NIOFileSystem
 import FileSystem
 import Foundation
 import Mockable
-import NIOCore
 import Path
 
 #if canImport(Glibc)
@@ -82,6 +80,11 @@ public protocol Environmenting: Sendable {
     /// A cache socket path string for a given full handle with $HOME prefix to be environment-independent
     func cacheSocketPathString(for fullHandle: String) -> String
 
+    /// Returns the LaunchAgent label for the Xcode cache daemon of the given full handle.
+    /// This label is shared between `tuist setup cache` (which registers the LaunchAgent)
+    /// and `tuist teardown cache` (which boots it out).
+    func cacheLaunchAgentLabel(for fullHandle: String) -> String
+
     /// Returns the current architecture of the machine
     func architecture() async throws -> MacArchitecture
 
@@ -137,6 +140,14 @@ extension Environmenting {
 /// Local environment controller.
 public struct Environment: Environmenting {
     @TaskLocal public static var current: Environmenting = Environment()
+
+    /// Names of process environment variables that, in addition to `TUIST_*`, `CI`, and
+    /// `DEVELOPER_DIR`, are forwarded to the manifest evaluation subprocess.
+    ///
+    /// Each entry is either a literal name or a name ending in `*` for prefix matching.
+    /// The list is sourced from `Tuist.swift`'s `manifestEnvironment` and bound by the
+    /// graph loader after the config has been loaded.
+    @TaskLocal public static var additionalManifestEnvironmentKeys: [String] = []
 
     public var processId: String
     public var variables: [String: String]
@@ -221,7 +232,7 @@ public struct Environment: Environmenting {
     }
 
     public func currentWorkingDirectory() async throws -> AbsolutePath {
-        return try await AbsolutePath(validating: _NIOFileSystem.FileSystem.shared.currentWorkingDirectory.string)
+        return try await FileSystem().currentWorkingDirectory()
     }
 
     private func variable(_ variableName: String) -> String? {
@@ -290,7 +301,27 @@ public struct Environment: Environmenting {
         let allowedVariables = variables.filter {
             allowedVariableKeys.contains($0.key)
         }
-        return tuistVariables.merging(allowedVariables, uniquingKeysWith: { $1 })
+        let additionalPatterns = Environment.additionalManifestEnvironmentKeys
+        let additionalVariables = additionalPatterns.isEmpty ? [:] : variables.filter { key, _ in
+            Self.matches(key: key, patterns: additionalPatterns)
+        }
+        return tuistVariables
+            .merging(allowedVariables, uniquingKeysWith: { $1 })
+            .merging(additionalVariables, uniquingKeysWith: { $1 })
+    }
+
+    static func matches(key: String, patterns: [String]) -> Bool {
+        for pattern in patterns {
+            if pattern.hasSuffix("*") {
+                let prefix = String(pattern.dropLast())
+                if !prefix.isEmpty, key.hasPrefix(prefix) {
+                    return true
+                }
+            } else if key == pattern {
+                return true
+            }
+        }
+        return false
     }
 
     public var workspacePath: AbsolutePath? {
@@ -350,6 +381,10 @@ public struct Environment: Environmenting {
         } else {
             return socketPathString
         }
+    }
+
+    public func cacheLaunchAgentLabel(for fullHandle: String) -> String {
+        "tuist.cache.\(fullHandle.replacingOccurrences(of: "/", with: "_"))"
     }
 
     #if os(macOS)

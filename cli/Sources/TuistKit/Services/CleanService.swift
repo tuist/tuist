@@ -61,7 +61,6 @@ enum TuistCleanCategory: ExpressibleByArgument, CaseIterable, Equatable {
 }
 
 struct CleanService {
-    private let fileHandler: FileHandling
     private let rootDirectoryLocator: RootDirectoryLocating
     private let cacheDirectoriesProvider: CacheDirectoriesProviding
     private let manifestFilesLocator: ManifestFilesLocating
@@ -74,7 +73,6 @@ struct CleanService {
     private let fileSystem: FileSystem
 
     init(
-        fileHandler: FileHandling,
         rootDirectoryLocator: RootDirectoryLocating,
         cacheDirectoriesProvider: CacheDirectoriesProviding,
         manifestFilesLocator: ManifestFilesLocating,
@@ -86,7 +84,6 @@ struct CleanService {
         serverAuthenticationController: ServerAuthenticationControlling,
         fileSystem: FileSystem
     ) {
-        self.fileHandler = fileHandler
         self.rootDirectoryLocator = rootDirectoryLocator
         self.cacheDirectoriesProvider = cacheDirectoriesProvider
         self.manifestFilesLocator = manifestFilesLocator
@@ -101,7 +98,6 @@ struct CleanService {
 
     init() {
         self.init(
-            fileHandler: FileHandler.shared,
             rootDirectoryLocator: RootDirectoryLocator(),
             cacheDirectoriesProvider: CacheDirectoriesProvider(),
             manifestFilesLocator: ManifestFilesLocator(),
@@ -120,11 +116,7 @@ struct CleanService {
         remote: Bool,
         path: String?
     ) async throws {
-        let resolvedPath = if let path {
-            try AbsolutePath(validating: path, relativeTo: FileHandler.shared.currentPath)
-        } else {
-            FileHandler.shared.currentPath
-        }
+        let resolvedPath = try await Environment.current.pathRelativeToWorkingDirectory(path)
 
         let packageDirectory = try await manifestFilesLocator.locatePackageManifest(at: resolvedPath)?.parentDirectory
 

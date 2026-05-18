@@ -32,11 +32,11 @@ struct BuildableFolderManifestMapperTests {
             rootDirectory: temporaryDirectory
         )
 
-        let got = try await XcodeGraph.BuildableFolder.from(
+        let got = try #require(try await XcodeGraph.BuildableFolder.from(
             manifest: manifest,
             generatorPaths: generatorPaths,
             targetName: "Target"
-        )
+        ))
 
         let resolvedPaths = Set(got.resolvedFiles.map(\.path))
 
@@ -64,11 +64,11 @@ struct BuildableFolderManifestMapperTests {
             rootDirectory: temporaryDirectory
         )
 
-        let got = try await XcodeGraph.BuildableFolder.from(
+        let got = try #require(try await XcodeGraph.BuildableFolder.from(
             manifest: manifest,
             generatorPaths: generatorPaths,
             targetName: "Target"
-        )
+        ))
 
         let resolvedPaths = Set(got.resolvedFiles.map(\.path))
 
@@ -94,11 +94,11 @@ struct BuildableFolderManifestMapperTests {
             rootDirectory: temporaryDirectory
         )
 
-        let got = try await XcodeGraph.BuildableFolder.from(
+        let got = try #require(try await XcodeGraph.BuildableFolder.from(
             manifest: manifest,
             generatorPaths: generatorPaths,
             targetName: "Target"
-        )
+        ))
 
         let resolvedPaths = Set(got.resolvedFiles.map(\.path))
 
@@ -125,11 +125,11 @@ struct BuildableFolderManifestMapperTests {
             rootDirectory: temporaryDirectory
         )
 
-        let got = try await XcodeGraph.BuildableFolder.from(
+        let got = try #require(try await XcodeGraph.BuildableFolder.from(
             manifest: manifest,
             generatorPaths: generatorPaths,
             targetName: "Target"
-        )
+        ))
 
         let resolvedPaths = Set(got.resolvedFiles.map(\.path))
 
@@ -157,11 +157,11 @@ struct BuildableFolderManifestMapperTests {
             rootDirectory: temporaryDirectory
         )
 
-        let got = try await XcodeGraph.BuildableFolder.from(
+        let got = try #require(try await XcodeGraph.BuildableFolder.from(
             manifest: manifest,
             generatorPaths: generatorPaths,
             targetName: "Target"
-        )
+        ))
 
         let fileWithFlags = got.resolvedFiles.first {
             $0.path == temporaryDirectory.appending(components: "Sources", "File.swift")
@@ -190,11 +190,11 @@ struct BuildableFolderManifestMapperTests {
             rootDirectory: temporaryDirectory
         )
 
-        let got = try await XcodeGraph.BuildableFolder.from(
+        let got = try #require(try await XcodeGraph.BuildableFolder.from(
             manifest: manifest,
             generatorPaths: generatorPaths,
             targetName: "Target"
-        )
+        ))
 
         let resolvedPaths = Set(got.resolvedFiles.map(\.path))
 
@@ -225,11 +225,11 @@ struct BuildableFolderManifestMapperTests {
             rootDirectory: temporaryDirectory
         )
 
-        let got = try await XcodeGraph.BuildableFolder.from(
+        let got = try #require(try await XcodeGraph.BuildableFolder.from(
             manifest: manifest,
             generatorPaths: generatorPaths,
             targetName: "Target"
-        )
+        ))
 
         let resolvedPaths = Set(got.resolvedFiles.map(\.path))
 

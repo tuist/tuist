@@ -71,15 +71,38 @@ defmodule Tuist.Slack do
 
   def slack_installation_topic(account_id), do: "slack_installation:#{account_id}"
 
+  # Only clear destinations that still rely on the bot-token fallback.
+  # Destinations that already migrated to a per-channel webhook keep working
+  # independently of the legacy installation we're tearing down.
   defp clear_project_slack_fields_query(account_id) do
     from(p in Project,
       where: p.account_id == ^account_id,
       update: [
         set: [
-          slack_channel_id: nil,
-          slack_channel_name: nil,
-          flaky_test_alerts_slack_channel_id: nil,
-          flaky_test_alerts_slack_channel_name: nil
+          slack_channel_id:
+            fragment(
+              "CASE WHEN ? IS NULL THEN NULL ELSE ? END",
+              p.slack_webhook_url,
+              p.slack_channel_id
+            ),
+          slack_channel_name:
+            fragment(
+              "CASE WHEN ? IS NULL THEN NULL ELSE ? END",
+              p.slack_webhook_url,
+              p.slack_channel_name
+            ),
+          flaky_test_alerts_slack_channel_id:
+            fragment(
+              "CASE WHEN ? IS NULL THEN NULL ELSE ? END",
+              p.flaky_test_alerts_slack_webhook_url,
+              p.flaky_test_alerts_slack_channel_id
+            ),
+          flaky_test_alerts_slack_channel_name:
+            fragment(
+              "CASE WHEN ? IS NULL THEN NULL ELSE ? END",
+              p.flaky_test_alerts_slack_webhook_url,
+              p.flaky_test_alerts_slack_channel_name
+            )
         ]
       ]
     )
@@ -90,6 +113,7 @@ defmodule Tuist.Slack do
       join: p in Project,
       on: ar.project_id == p.id,
       where: p.account_id == ^account_id,
+      where: is_nil(ar.slack_webhook_url),
       update: [
         set: [
           slack_channel_id: nil,
@@ -142,6 +166,89 @@ defmodule Tuist.Slack do
     Phoenix.Token.verify(TuistWeb.Endpoint, "slack_state", token, max_age: token_max_age_seconds)
   end
 
+  @channel_result_namespace "slack_channel_result"
+  @channel_result_max_age_seconds 600
+  @slack_webhook_prefix "https://hooks.slack.com/services/"
+
+  @doc """
+  Encrypts a `{channel_id, channel_name, webhook_url}` tuple coming back
+  from the Slack OAuth callback so a LiveView can later verify the values
+  came from us. The token is `Phoenix.Token.encrypt/4`-encrypted (not just
+  signed) because the payload includes the webhook URL, which is a bearer
+  credential — a signed-only token would be readable by anyone with access
+  to the page that renders it.
+
+  Returns `{:error, :invalid_webhook_url}` if the URL doesn't look like a
+  real Slack webhook — a small belt-and-suspenders check on top of the
+  encryption.
+  """
+  def sign_channel_result(%{webhook_url: webhook_url} = payload) when is_binary(webhook_url) do
+    if slack_webhook_url?(webhook_url) do
+      {:ok, Phoenix.Token.encrypt(TuistWeb.Endpoint, @channel_result_namespace, payload)}
+    else
+      {:error, :invalid_webhook_url}
+    end
+  end
+
+  @doc """
+  Decrypts a token produced by `sign_channel_result/1`. Re-checks the
+  webhook URL against the Slack host allowlist after decoding so a stolen
+  token can't smuggle a non-Slack URL through.
+  """
+  def verify_channel_result(token) when is_binary(token) do
+    case Phoenix.Token.decrypt(TuistWeb.Endpoint, @channel_result_namespace, token,
+           max_age: @channel_result_max_age_seconds
+         ) do
+      {:ok, %{webhook_url: webhook_url} = payload} ->
+        if slack_webhook_url?(webhook_url), do: {:ok, payload}, else: {:error, :invalid_webhook_url}
+
+      {:ok, _other} ->
+        {:error, :invalid}
+
+      {:error, _reason} = error ->
+        error
+    end
+  end
+
+  def verify_channel_result(_), do: {:error, :invalid}
+
+  @doc """
+  Returns true when the URL is a Slack incoming-webhook URL.
+  """
+  def slack_webhook_url?(url) when is_binary(url), do: String.starts_with?(url, @slack_webhook_prefix)
+  def slack_webhook_url?(_), do: false
+
+  @doc """
+  Encrypts a Slack webhook URL for storage inside JSON columns (e.g.
+  automation action payloads), where Cloak's Ecto types cannot apply.
+
+  The result is base64-encoded ciphertext. Callers MUST validate the URL
+  with `slack_webhook_url?/1` before encrypting.
+  """
+  def encrypt_webhook_url(url) when is_binary(url) do
+    if slack_webhook_url?(url) do
+      {:ok, ciphertext} = Tuist.Vault.encrypt(url)
+      {:ok, Base.encode64(ciphertext)}
+    else
+      {:error, :invalid_webhook_url}
+    end
+  end
+
+  @doc """
+  Decrypts a webhook URL produced by `encrypt_webhook_url/1`.
+  """
+  def decrypt_webhook_url(encoded) when is_binary(encoded) do
+    with {:ok, ciphertext} <- Base.decode64(encoded),
+         {:ok, plaintext} <- Tuist.Vault.decrypt(ciphertext),
+         true <- slack_webhook_url?(plaintext) do
+      {:ok, plaintext}
+    else
+      _ -> {:error, :invalid_webhook_url}
+    end
+  end
+
+  def decrypt_webhook_url(_), do: {:error, :invalid_webhook_url}
+
   def send_message(blocks, opts \\ []) do
     if Environment.tuist_hosted?() and Environment.prod?() do
       token = Environment.slack_tuist_token()
@@ -188,21 +295,36 @@ defmodule Tuist.Slack do
 
   @doc """
   Sends an alert notification to Slack.
+
+  Prefers the per-channel `slack_webhook_url`. Destinations created before
+  the webhook flow existed fall back to `chat.postMessage` with the
+  account-level bot token until the user re-selects the channel.
   """
   def send_alert(%Alert{} = alert) do
+    alert = Repo.preload(alert, alert_rule: [project: [account: :slack_installation]])
+
     %Alert{
       alert_rule: %{
-        slack_channel_id: slack_channel_id,
-        project: %{
-          name: project_name,
-          account: %{name: account_name, slack_installation: %Installation{access_token: access_token}}
-        }
+        slack_webhook_url: webhook_url,
+        slack_channel_id: channel_id,
+        project: %{name: project_name, account: %{name: account_name} = account}
       }
-    } = alert = Repo.preload(alert, alert_rule: [project: [account: :slack_installation]])
+    } = alert
 
     blocks = build_alert_blocks(alert, account_name, project_name)
-    Client.post_message(access_token, slack_channel_id, blocks)
+    deliver(webhook_url, account.slack_installation, channel_id, blocks)
   end
+
+  defp deliver(webhook_url, _installation, _channel_id, blocks) when is_binary(webhook_url) and webhook_url != "" do
+    Client.post_to_webhook(webhook_url, blocks)
+  end
+
+  defp deliver(_webhook_url, %Installation{access_token: token}, channel_id, blocks)
+       when is_binary(token) and is_binary(channel_id) do
+    Client.post_message(token, channel_id, blocks)
+  end
+
+  defp deliver(_webhook_url, _installation, _channel_id, _blocks), do: :ok
 
   defp build_alert_blocks(alert, account_name, project_name) do
     [
@@ -458,18 +580,25 @@ defmodule Tuist.Slack do
 
   @doc """
   Sends a flaky test alert notification to Slack using project-level settings.
+
+  Prefers the per-channel `flaky_test_alerts_slack_webhook_url`; falls back to
+  `chat.postMessage` with the account-level bot token for destinations
+  configured before the webhook flow existed.
   """
   def send_flaky_test_alert(project, test_case, flaky_runs_count, was_auto_quarantined \\ false) do
     project = Repo.preload(project, account: :slack_installation)
 
     %Project{
-      flaky_test_alerts_slack_channel_id: slack_channel_id,
+      flaky_test_alerts_slack_webhook_url: webhook_url,
+      flaky_test_alerts_slack_channel_id: channel_id,
       name: project_name,
-      account: %{name: account_name, slack_installation: %Installation{access_token: access_token}}
+      account: %{name: account_name} = account
     } = project
 
-    blocks = build_flaky_test_alert_blocks(test_case, flaky_runs_count, account_name, project_name, was_auto_quarantined)
-    Client.post_message(access_token, slack_channel_id, blocks)
+    blocks =
+      build_flaky_test_alert_blocks(test_case, flaky_runs_count, account_name, project_name, was_auto_quarantined)
+
+    deliver(webhook_url, account.slack_installation, channel_id, blocks)
   end
 
   defp build_flaky_test_alert_blocks(test_case, flaky_runs_count, account_name, project_name, was_auto_quarantined) do
@@ -547,69 +676,6 @@ defmodule Tuist.Slack do
       elements: [
         %{type: "mrkdwn", text: ":no_entry_sign: _This test has been automatically quarantined_"}
       ]
-    }
-  end
-
-  @doc """
-  Sends a Slack notification when a test case is manually marked as flaky by a user.
-  """
-  def send_manual_flaky_test_alert(project, test_case, user, was_auto_quarantined \\ false) do
-    project = Repo.preload(project, account: :slack_installation)
-
-    case project do
-      %Project{
-        flaky_test_alerts_slack_channel_id: slack_channel_id,
-        name: project_name,
-        account: %{name: account_name, slack_installation: %Installation{access_token: access_token}}
-      }
-      when not is_nil(slack_channel_id) and not is_nil(access_token) ->
-        blocks = build_manual_flaky_test_alert_blocks(test_case, user, account_name, project_name, was_auto_quarantined)
-        Client.post_message(access_token, slack_channel_id, blocks)
-
-      _ ->
-        :ok
-    end
-  end
-
-  defp build_manual_flaky_test_alert_blocks(test_case, user, account_name, project_name, was_auto_quarantined) do
-    base_blocks = [
-      flaky_test_alert_header_block(),
-      manual_flaky_test_alert_context_block(user),
-      alert_divider_block(),
-      flaky_test_alert_test_case_block(test_case, account_name, project_name),
-      manual_flaky_test_alert_info_block()
-    ]
-
-    if was_auto_quarantined do
-      base_blocks ++ [auto_quarantined_info_block()]
-    else
-      base_blocks
-    end
-  end
-
-  defp manual_flaky_test_alert_context_block(user) do
-    now = DateTime.utc_now()
-    ts = DateTime.to_unix(now)
-    fallback = Calendar.strftime(now, "%b %d, %H:%M")
-
-    %{
-      type: "context",
-      elements: [
-        %{
-          type: "mrkdwn",
-          text: "Manually marked as flaky by *#{user.email}* at <!date^#{ts}^{date_short} {time}|#{fallback}>"
-        }
-      ]
-    }
-  end
-
-  defp manual_flaky_test_alert_info_block do
-    %{
-      type: "section",
-      text: %{
-        type: "mrkdwn",
-        text: "_This test was manually marked as flaky by a team member_"
-      }
     }
   end
 end

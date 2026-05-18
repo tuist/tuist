@@ -549,8 +549,8 @@ defmodule TuistWeb.AuthenticationTest do
           creator: user,
           sso_provider: :okta,
           sso_organization_id: "company.okta.com",
-          okta_client_id: "client_id",
-          okta_client_secret: "client_secret",
+          oauth2_client_id: "client_id",
+          oauth2_client_secret: "client_secret",
           preload: [:account]
         )
 

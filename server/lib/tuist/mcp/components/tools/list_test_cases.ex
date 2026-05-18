@@ -5,6 +5,7 @@ defmodule Tuist.MCP.Components.Tools.ListTestCases do
 
   use Tuist.MCP.Tool,
     name: "list_test_cases",
+    title: "List Test Cases",
     authorize: [action: :read, category: :test],
     schema: %{
       "type" => "object",
@@ -21,9 +22,11 @@ defmodule Tuist.MCP.Components.Tools.ListTestCases do
           "type" => "boolean",
           "description" => "When true, returns only flaky test cases."
         },
-        "quarantined" => %{
-          "type" => "boolean",
-          "description" => "Filter by quarantined status."
+        "state" => %{
+          "type" => "string",
+          "enum" => ["enabled", "muted", "skipped"],
+          "description" =>
+            ~s{Filter by test case state. "muted" tests still run but their failures don't fail the build; "skipped" tests are excluded from execution entirely.}
         },
         "module_name" => %{
           "type" => "string",
@@ -63,11 +66,13 @@ defmodule Tuist.MCP.Components.Tools.ListTestCases do
     page_size = MCPTool.page_size(args)
     filters = build_filters(args)
 
+    # `:id` tiebreaker keeps paginated results stable when many test cases
+    # share the same `:last_ran_at`.
     {test_cases, meta} =
       Tests.list_test_cases(project.id, %{
         filters: filters,
-        order_by: [:last_ran_at],
-        order_directions: [:desc],
+        order_by: [:last_ran_at, :id],
+        order_directions: [:desc, :asc],
         page: page,
         page_size: page_size
       })
@@ -82,7 +87,7 @@ defmodule Tuist.MCP.Components.Tools.ListTestCases do
              module_name: test_case.module_name,
              suite_name: test_case.suite_name,
              is_flaky: test_case.is_flaky,
-             is_quarantined: test_case.is_quarantined,
+             state: test_case.state || "enabled",
              last_status: to_string(test_case.last_status),
              last_duration: test_case.last_duration,
              last_ran_at: Formatter.iso8601(test_case.last_ran_at, naive: :utc),
@@ -96,16 +101,16 @@ defmodule Tuist.MCP.Components.Tools.ListTestCases do
   defp build_filters(args) do
     [
       {"flaky", :is_flaky},
-      {"quarantined", :is_quarantined},
+      {"state", :state},
       {"module_name", :module_name},
       {"name", :name},
       {"suite_name", :suite_name}
     ]
     |> Enum.reduce([], fn {key, field}, filters ->
-      case Map.get(args, key) do
-        nil -> filters
-        true when field in [:is_flaky, :is_quarantined] -> [%{field: field, op: :==, value: true} | filters]
-        value -> [%{field: field, op: :==, value: value} | filters]
+      case {key, Map.get(args, key)} do
+        {_, nil} -> filters
+        {"flaky", true} -> [%{field: :is_flaky, op: :==, value: true} | filters]
+        {_, value} -> [%{field: field, op: :==, value: value} | filters]
       end
     end)
     |> Enum.reverse()

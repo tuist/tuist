@@ -29,13 +29,26 @@
             <.circle_dashed />
           </div>
         </div>
+        <div :if={@run.status == "processing"} data-part="badge-processing">
+          <div data-part="icon">
+            <.circle_dashed />
+          </div>
+        </div>
+        <div :if={@run.status == "failed_processing"} data-part="badge-warning">
+          <div data-part="icon">
+            <.alert_hexagon />
+          </div>
+        </div>
         <div :if={@run.status == "skipped"} data-part="badge-warning">
           <div data-part="icon">
             <.alert_hexagon />
           </div>
         </div>
         <h1 data-part="label">
-          {@run.scheme || dgettext("dashboard_tests", "Unknown")}
+          {if(@run.scheme in [nil, ""],
+            do: dgettext("dashboard_tests", "Unknown"),
+            else: @run.scheme
+          )}
         </h1>
         <.badge
           :if={@run.is_flaky}
@@ -86,7 +99,10 @@
     </div>
     <div data-part="actions">
       <.button
-        :if={@has_result_bundle.ok? && @has_result_bundle.result && @command_event}
+        :if={
+          @run.status != "processing" && @has_result_bundle.ok? && @has_result_bundle.result &&
+            @command_event
+        }
         href={
           ~p"/#{@selected_project.account.name}/#{@selected_project.name}/runs/#{@command_event.id}/download"
         }
@@ -97,7 +113,29 @@
         <:icon_left><.download /></:icon_left>
       </.button>
       <.button
-        :if={Tuist.Tests.test_ci_run_url(@run)}
+        :if={@run.status == "processing"}
+        label={dgettext("dashboard_tests", "Download result")}
+        variant="secondary"
+        size="medium"
+        disabled
+      >
+        <:icon_left><.download /></:icon_left>
+      </.button>
+      <.button
+        :if={
+          @run.status != "processing" && @has_session.ok? && @has_session.result && @command_event
+        }
+        href={
+          ~p"/#{@selected_project.account.name}/#{@selected_project.name}/runs/#{@command_event.id}/download_session"
+        }
+        label={dgettext("dashboard_tests", "Download session")}
+        variant="secondary"
+        size="medium"
+      >
+        <:icon_left><.download /></:icon_left>
+      </.button>
+      <.button
+        :if={@run.status != "processing" && Tuist.Tests.test_ci_run_url(@run)}
         href={Tuist.Tests.test_ci_run_url(@run)}
         label={dgettext("dashboard_tests", "CI Run")}
         variant="secondary"
@@ -106,10 +144,47 @@
       >
         <:icon_left><.external_link /></:icon_left>
       </.button>
+      <.button
+        :if={@run.status == "processing"}
+        label={dgettext("dashboard_tests", "CI Run")}
+        variant="secondary"
+        size="medium"
+        disabled
+      >
+        <:icon_left><.external_link /></:icon_left>
+      </.button>
     </div>
   </div>
 
-  <.tab_menu_horizontal>
+  <div :if={@run.status == "processing"} data-part="processing-state">
+    <div data-part="image">
+      <img src="/images/processing_build_light.png" data-theme="light" />
+      <img src="/images/processing_build_dark.png" data-theme="dark" />
+    </div>
+    <div data-part="labels">
+      <span data-part="title">
+        {dgettext("dashboard_tests", "Your test results are being processed")}
+      </span>
+      <span data-part="subtitle">
+        {dgettext(
+          "dashboard_tests",
+          "This usually takes a few seconds. If the page doesn't update automatically, click the refresh button."
+        )}
+      </span>
+    </div>
+    <.button
+      label={dgettext("dashboard_tests", "Refresh")}
+      variant="secondary"
+      size="medium"
+      phx-click="refresh_test_run"
+    >
+      <:icon_left>
+        <.reload />
+      </:icon_left>
+    </.button>
+  </div>
+
+  <.tab_menu_horizontal :if={@run.status != "processing"}>
     <.tab_menu_horizontal_item
       label={dgettext("dashboard_tests", "Overview")}
       selected={@selected_tab == "overview"}
@@ -118,7 +193,7 @@
     />
     <.tab_menu_horizontal_item
       :if={@has_selective_testing_data}
-      label={dgettext("dashboard_tests", "Test Optimizations")}
+      label={dgettext("dashboard_tests", "Selective Testing")}
       selected={@selected_tab == "test-optimizations"}
       patch={"?#{Query.put(@uri.query, "tab", "test-optimizations")}"}
       replace={true}
@@ -146,7 +221,7 @@
     />
   </.tab_menu_horizontal>
 
-  <div :if={@selected_tab == "overview"} data-part="overview">
+  <div :if={@selected_tab == "overview" and @run.status != "processing"} data-part="overview">
     <.card
       title={dgettext("dashboard_tests", "Test Details")}
       icon="chart_arcs"
@@ -181,6 +256,13 @@
               <.badge
                 :if={@run.status == "skipped"}
                 label={dgettext("dashboard_tests", "Skipped")}
+                color="warning"
+                style="fill"
+                size="large"
+              />
+              <.badge
+                :if={@run.status == "failed_processing"}
+                label={dgettext("dashboard_tests", "Failed processing")}
                 color="warning"
                 style="fill"
                 size="large"
@@ -249,6 +331,31 @@
                 <.device_laptop />
                 {@run.macos_version}
               </span>
+            </div>
+          </div>
+          <div :if={@run.run_destinations != []} data-part="metadata-row">
+            <div data-part="metadata">
+              <div data-part="title">
+                {dngettext(
+                  "dashboard_tests",
+                  "Device",
+                  "Devices",
+                  length(@run.run_destinations)
+                )}
+              </div>
+              <div data-part="value">
+                <div data-part="run-destinations">
+                  <div :for={destination <- @run.run_destinations} data-part="run-destination">
+                    <.icon name={platform_icon_name(destination.platform)} />
+                    <span>{destination.name}</span>
+                    <span data-part="subtitle">
+                      {String.trim(
+                        "#{TestRunDestination.humanize_platform(destination)} #{destination.os_version}"
+                      )}
+                    </span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -488,68 +595,178 @@
                 </.neutral_button>
               </div>
               <div data-part="content" data-state="closed">
-                <div :if={Enum.any?(test_case_run.repetitions)} data-part="repetitions">
+                <%= if Enum.any?(test_case_run.arguments) do %>
                   <div
-                    :for={{repetition, rep_index} <- Enum.with_index(test_case_run.repetitions)}
-                    data-part="repetition-wrapper"
+                    :for={
+                      argument <- Enum.filter(test_case_run.arguments, &(&1.status == "failure"))
+                    }
+                    class="argument-collapsible"
                   >
-                    <div data-part="repetition-item">
+                    <div data-part="argument-header">
                       <.badge
-                        :if={repetition.status == "success"}
-                        label={dgettext("dashboard_tests", "Passed")}
-                        color="success"
-                        style="light-fill"
-                        size="small"
-                      />
-                      <.badge
-                        :if={repetition.status == "failure"}
                         label={dgettext("dashboard_tests", "Failed")}
                         color="destructive"
                         style="light-fill"
                         size="small"
                       />
-                      <span data-part="repetition-name">{repetition.name}</span>
-                    </div>
-                    <.failure_message_span
-                      :if={
-                        repetition.status == "failure" and Enum.any?(test_case_run.failures) and
-                          Enum.at(test_case_run.failures, rep_index)
-                      }
-                      failure={Enum.at(test_case_run.failures, rep_index)}
-                      context={@run}
-                    />
-                    <div
-                      :if={
-                        Enum.any?(
-                          attachments_for_repetition(
-                            test_case_run.attachments,
-                            repetition.repetition_number
-                          )
-                        )
-                      }
-                      data-part="attachments-list"
-                    >
-                      <.inline_attachment_items
-                        attachments={
-                          attachments_for_repetition(
-                            test_case_run.attachments,
-                            repetition.repetition_number
-                          )
+                      <span data-part="argument-name">{argument.name}</span>
+                      <.neutral_button
+                        :if={Enum.any?(argument.failures) or Enum.any?(argument.repetitions)}
+                        id={"arg-closed-btn-#{argument.id}"}
+                        variant="secondary"
+                        size="small"
+                        phx-click={
+                          JS.hide(to: "#arg-closed-btn-#{argument.id}")
+                          |> JS.show(to: "#arg-open-btn-#{argument.id}", display: "flex")
+                          |> JS.show(to: "#arg-body-#{argument.id}", display: "flex")
                         }
-                        test_case_run={test_case_run}
-                        project={@selected_project}
-                        id_prefix={"overview-rep-#{rep_index}"}
-                        text_attachment_urls={@text_attachment_urls}
+                      >
+                        <.chevron_down />
+                      </.neutral_button>
+                      <.neutral_button
+                        :if={Enum.any?(argument.failures) or Enum.any?(argument.repetitions)}
+                        id={"arg-open-btn-#{argument.id}"}
+                        variant="secondary"
+                        size="small"
+                        style="display:none"
+                        phx-click={
+                          JS.show(to: "#arg-closed-btn-#{argument.id}", display: "flex")
+                          |> JS.hide(to: "#arg-open-btn-#{argument.id}")
+                          |> JS.hide(to: "#arg-body-#{argument.id}")
+                        }
+                      >
+                        <.chevron_up />
+                      </.neutral_button>
+                    </div>
+                    <div
+                      id={"arg-body-#{argument.id}"}
+                      data-part="argument-body"
+                      style="display:none"
+                    >
+                      <div :if={Enum.any?(argument.repetitions)} data-part="repetitions">
+                        <div
+                          :for={
+                            {repetition, rep_index} <-
+                              Enum.with_index(
+                                Enum.sort_by(argument.repetitions, & &1.repetition_number)
+                              )
+                          }
+                          data-part="repetition-wrapper"
+                        >
+                          <div data-part="repetition-item">
+                            <.badge
+                              :if={repetition.status == "success"}
+                              label={dgettext("dashboard_tests", "Passed")}
+                              color="success"
+                              style="light-fill"
+                              size="small"
+                            />
+                            <.badge
+                              :if={repetition.status == "failure"}
+                              label={dgettext("dashboard_tests", "Failed")}
+                              color="destructive"
+                              style="light-fill"
+                              size="small"
+                            />
+                            <span data-part="repetition-name">{repetition.name}</span>
+                          </div>
+                          <div
+                            :if={
+                              Enum.any?(
+                                attachments_for_repetition(
+                                  argument.attachments,
+                                  repetition.repetition_number
+                                )
+                              )
+                            }
+                            data-part="attachments-list"
+                          >
+                            <.inline_attachment_items
+                              attachments={
+                                attachments_for_repetition(
+                                  argument.attachments,
+                                  repetition.repetition_number
+                                )
+                              }
+                              test_case_run={test_case_run}
+                              project={@selected_project}
+                              id_prefix={"overview-arg-#{argument.id}-rep-#{rep_index}"}
+                              text_attachment_urls={@text_attachment_urls}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                      <.failure_message_span
+                        :for={failure <- argument.failures}
+                        failure={failure}
+                        context={@run}
                       />
                     </div>
                   </div>
-                </div>
-                <.failure_message_span
-                  :for={failure <- test_case_run.failures}
-                  :if={!Enum.any?(test_case_run.repetitions)}
-                  failure={failure}
-                  context={@run}
-                />
+                <% else %>
+                  <div :if={Enum.any?(test_case_run.repetitions)} data-part="repetitions">
+                    <div
+                      :for={{repetition, rep_index} <- Enum.with_index(test_case_run.repetitions)}
+                      data-part="repetition-wrapper"
+                    >
+                      <div data-part="repetition-item">
+                        <.badge
+                          :if={repetition.status == "success"}
+                          label={dgettext("dashboard_tests", "Passed")}
+                          color="success"
+                          style="light-fill"
+                          size="small"
+                        />
+                        <.badge
+                          :if={repetition.status == "failure"}
+                          label={dgettext("dashboard_tests", "Failed")}
+                          color="destructive"
+                          style="light-fill"
+                          size="small"
+                        />
+                        <span data-part="repetition-name">{repetition.name}</span>
+                      </div>
+                      <.failure_message_span
+                        :if={
+                          repetition.status == "failure" and Enum.any?(test_case_run.failures) and
+                            Enum.at(test_case_run.failures, rep_index)
+                        }
+                        failure={Enum.at(test_case_run.failures, rep_index)}
+                        context={@run}
+                      />
+                      <div
+                        :if={
+                          Enum.any?(
+                            attachments_for_repetition(
+                              test_case_run.attachments,
+                              repetition.repetition_number
+                            )
+                          )
+                        }
+                        data-part="attachments-list"
+                      >
+                        <.inline_attachment_items
+                          attachments={
+                            attachments_for_repetition(
+                              test_case_run.attachments,
+                              repetition.repetition_number
+                            )
+                          }
+                          test_case_run={test_case_run}
+                          project={@selected_project}
+                          id_prefix={"overview-rep-#{rep_index}"}
+                          text_attachment_urls={@text_attachment_urls}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <.failure_message_span
+                    :for={failure <- test_case_run.failures}
+                    :if={!Enum.any?(test_case_run.repetitions)}
+                    failure={failure}
+                    context={@run}
+                  />
+                <% end %>
                 <div :if={test_case_run.crash_report} data-part="crash-report-details">
                   <div data-part="crash-report-header">
                     <span data-part="crash-report-title">
@@ -1481,129 +1698,19 @@
   </div>
 
   <div :if={@selected_tab == "test-optimizations" && @has_selective_testing_data}>
-    <.card
-      title={dgettext("dashboard_tests", "Optimization Summary")}
-      icon="chart_arcs"
-      data-part="optimization-summary"
-    >
-      <.card_section data-part="optimization-summary-section">
-        <.widget
-          title={dgettext("dashboard_tests", "Total modules")}
-          description={
-            dgettext(
-              "dashboard_tests",
-              "Total modules represents the total number of testable modules."
-            )
-          }
-          value={@selective_testing_analytics.total_modules_count}
-          id="widget-optimization-summary-total-modules"
-        />
-        <.widget
-          title={dgettext("dashboard_tests", "Selective test hits")}
-          description={
-            dgettext(
-              "dashboard_tests",
-              "Selective test hits represents the number of test modules that were skipped thanks to the selective testing."
-            )
-          }
-          value={
-            @selective_testing_analytics.selective_testing_local_hits_count +
-              @selective_testing_analytics.selective_testing_remote_hits_count
-          }
-          id="widget-optimization-summary-selective-test-hits"
-        />
-        <.widget
-          title={dgettext("dashboard_tests", "Selective test misses")}
-          description={
-            dgettext(
-              "dashboard_tests",
-              "Selective test misses represents the number of test modules that were run as they were not successfully run before."
-            )
-          }
-          value={@selective_testing_analytics.selective_testing_misses_count}
-          id="widget-optimization-summary-selective-test-misses"
-        />
-      </.card_section>
-    </.card>
-    <.card
-      title={dgettext("dashboard_tests", "Selective Testing")}
-      icon="history_toggle"
-      data-part="selective-testing"
-    >
-      <.card_section data-part="selective-testing-section">
-        <.form for={%{}} phx-change="search-selective-testing" phx-debounce="200">
-          <.text_input
-            type="search"
-            id="search-selective-testing"
-            name="search"
-            placeholder={dgettext("dashboard_tests", "Search...")}
-            show_suffix={false}
-            data-part="search"
-            value={@selective_testing_filter}
-          />
-        </.form>
-        <.table id="selective-testing-table" rows={@selective_testing_analytics.test_modules}>
-          <:col
-            :let={test_module}
-            label={dgettext("dashboard_tests", "Module")}
-            patch={
-              "?#{@uri.query
-              |> Query.put("selective-testing-sort-by", "name")
-              |> Query.put("selective-testing-sort-order", sort_order_patch_value("name", @selective_testing_sort_by, @selective_testing_sort_order))
-              |> Query.drop("selective-testing-page")}"
-            }
-            icon={
-              @selective_testing_sort_by == "name" &&
-                sort_icon(@selective_testing_sort_order)
-            }
-          >
-            <.text_and_description_cell label={test_module.name} />
-          </:col>
-          <:col :let={test_module} label={dgettext("dashboard_tests", "Hit")}>
-            <.badge_cell
-              :if={test_module.selective_testing_hit == :remote}
-              label={dgettext("dashboard_tests", "Remote")}
-              color="focus"
-              style="light-fill"
-            />
-            <.badge_cell
-              :if={test_module.selective_testing_hit == :local}
-              label={dgettext("dashboard_tests", "Local")}
-              color="secondary"
-              style="light-fill"
-            />
-            <.badge_cell
-              :if={test_module.selective_testing_hit == :miss}
-              label={dgettext("dashboard_tests", "Missed")}
-              color="warning"
-              style="light-fill"
-            />
-          </:col>
-          <:col :let={test_module} label={dgettext("dashboard_tests", "Hash")}>
-            <.text_cell label={
-              test_module.selective_testing_hash || dgettext("dashboard_tests", "Unknown")
-            } />
-          </:col>
-          <:empty_state>
-            <.table_empty_state
-              icon="history_toggle"
-              title={dgettext("dashboard_tests", "No modules found")}
-              subtitle={dgettext("dashboard_tests", "Try changing your search term")}
-            />
-          </:empty_state>
-        </.table>
-        <.pagination_group
-          :if={@selective_testing_page_count > 1}
-          current_page={@selective_testing_page}
-          number_of_pages={@selective_testing_page_count}
-          page_patch={
-            fn page ->
-              "?#{Query.put(@uri.query, "selective-testing-page", page)}"
-            end
-          }
-        />
-      </.card_section>
-    </.card>
+    <.selective_testing_tab
+      selective_testing_analytics={@selective_testing_analytics}
+      selective_testing_filter={@selective_testing_filter}
+      selective_testing_page={@selective_testing_page}
+      selective_testing_page_count={@selective_testing_page_count}
+      selective_testing_sort_by={@selective_testing_sort_by}
+      selective_testing_sort_order={@selective_testing_sort_order}
+      expanded_target_names={@expanded_target_names}
+      uri={@uri}
+      run={@command_event}
+      available_filters={@selective_testing_available_filters}
+      selective_testing_active_filters={@selective_testing_active_filters}
+    />
   </div>
 
   <div :if={@selected_tab == "module-cache" && @has_binary_cache_data}>

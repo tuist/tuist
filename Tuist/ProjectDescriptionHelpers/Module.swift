@@ -37,6 +37,7 @@ public enum Module: String, CaseIterable {
     case process = "TuistProcess"
     case ci = "TuistCI"
     case xcodeProjectOrWorkspacePathLocator = "TuistXcodeProjectOrWorkspacePathLocator"
+    case xcodeBuildProducts = "TuistXcodeBuildProducts"
     case xcResultService = "TuistXCResultService"
     case cas = "TuistCAS"
     case casAnalytics = "TuistCASAnalytics"
@@ -51,6 +52,7 @@ public enum Module: String, CaseIterable {
     case tuistExtension = "TuistExtension"
     case alert = "TuistAlert"
     case threadSafe = "TuistThreadSafe"
+    case macOSSDK = "TuistMacOSSDK"
     case userInputReader = "TuistUserInputReader"
     case encodable = "TuistEncodable"
     case uniqueIDGenerator = "TuistUniqueIDGenerator"
@@ -73,6 +75,7 @@ public enum Module: String, CaseIterable {
     case inspectCommand = "TuistInspectCommand"
     case android = "TuistAndroid"
     case machineMetrics = "TuistMachineMetrics"
+    case appleArchiver = "TuistAppleArchiver"
 
     func forceStaticLinking() -> Bool {
         return Environment.forceStaticLinking.getBoolean(default: false)
@@ -85,7 +88,46 @@ public enum Module: String, CaseIterable {
     public static func allTargets() -> [Target] {
         var targets = Module.allCases.flatMap(\.targets)
         targets.append(contentsOf: cacheEETargets())
+        targets.append(contentsOf: xcResultParserTargets())
         return targets
+    }
+
+    public static func xcResultParserTargets() -> [Target] {
+        [
+            .target(
+                name: "XCResultParser",
+                destinations: [.mac],
+                product: .staticFramework,
+                bundleId: "dev.tuist.XCResultParser",
+                deploymentTargets: .macOS("15.0"),
+                infoPlist: .default,
+                buildableFolders: ["server/native/xcresult_nif/Sources/XCResultParser/"],
+                dependencies: [
+                    .external(name: "Path"),
+                    .external(name: "FileSystem"),
+                    .external(name: "Command"),
+                    .external(name: "Mockable"),
+                ],
+                settings: .settings(
+                    base: ["MACOSX_DEPLOYMENT_TARGET": "15.0"],
+                    configurations: [
+                        .debug(
+                            name: "Debug",
+                            settings: [
+                                "SWIFT_ACTIVE_COMPILATION_CONDITIONS": "$(inherited) MOCKING",
+                            ],
+                            xcconfig: nil
+                        ),
+                        .release(
+                            name: "Release",
+                            settings: [:],
+                            xcconfig: nil
+                        ),
+                    ]
+                ),
+                metadata: .metadata(tags: ["domain:testing", "layer:support"])
+            ),
+        ]
     }
 
     public static func cacheEETargets() -> [Target] {
@@ -190,6 +232,7 @@ public enum Module: String, CaseIterable {
                 dependencies: [
                     .target(name: Module.alert.targetName),
                     .target(name: Module.cacheCommand.targetName),
+                    .target(name: Module.configLoader.targetName),
                     .target(name: Module.core.targetName),
                     .target(name: Module.environment.targetName),
                     .target(name: Module.environmentTesting.targetName),
@@ -273,7 +316,8 @@ public enum Module: String, CaseIterable {
 
     public var sourceTargets: [Target] {
         let isStaticProduct = product == .staticLibrary || product == .staticFramework
-        let isTestingTarget = targetName == Module.acceptanceTesting.targetName || targetName == Module.environmentTesting.targetName
+        let isTestingTarget = targetName == Module.acceptanceTesting.targetName || targetName == Module.environmentTesting
+            .targetName
         return [
             target(
                 name: targetName,
@@ -304,11 +348,10 @@ public enum Module: String, CaseIterable {
         switch self {
         case .tuist, .tuistBenchmark, .tuistFixtureGenerator, .projectAutomation,
              .projectDescription,
-             .xcodeGraph, .xcodeMetadata, .xcodeGraphMapper,
              .acceptanceTesting, .simulator, .testing, .environmentTesting, .process,
              .constants, .environment, .logging,
              .envKey, .versionCommand, .encodable,
-             .uniqueIDGenerator, .opener, .nooraExtension, .alert, .threadSafe,
+             .uniqueIDGenerator, .opener, .nooraExtension, .alert, .threadSafe, .macOSSDK,
              .tuistExtension, .config, .nooraTesting, .loggerTesting,
              .accountCommand, .organizationCommand, .projectCommand, .bundleCommand,
              .registryCommand, .buildCommand, .generateCommand,
@@ -327,8 +370,6 @@ public enum Module: String, CaseIterable {
         switch self {
         case .tuist, .tuistBenchmark, .tuistFixtureGenerator:
             return .commandLineTool
-        case .xcodeGraph, .xcodeMetadata, .xcodeGraphMapper:
-            return .staticLibrary
         case .projectAutomation, .projectDescription:
             return forceStaticLinking() ? .staticFramework : .framework
         default:
@@ -347,7 +388,6 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.loggerTesting.targetName),
                     .target(name: Module.environment.targetName),
                     .target(name: Module.logging.targetName),
-                    .target(name: Module.projectDescription.targetName),
                     .target(name: Module.kit.targetName),
                     .target(name: Module.buildCommand.targetName),
                     .target(name: Module.generateCommand.targetName),
@@ -362,6 +402,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.acceptanceTesting.targetName),
                     .target(name: Module.testing.targetName),
                     .target(name: Module.loggerTesting.targetName),
+                    .target(name: Module.environment.targetName),
                     .target(name: Module.kit.targetName),
                     .target(name: Module.initCommand.targetName),
                     .target(name: Module.support.targetName),
@@ -421,7 +462,7 @@ public enum Module: String, CaseIterable {
             default:
                 []
             }
-        return dependencies + [.external(name: "SnapshotTesting")] + sharedDependencies
+        return dependencies + [.target(name: Module.projectDescription.targetName)] + sharedDependencies
     }
 
     public var strictConcurrencySetting: String? {
@@ -464,15 +505,16 @@ public enum Module: String, CaseIterable {
         case .plugin:
             moduleTags.append("domain:plugins")
         case .simulator, .xcActivityLog, .git, .rootDirectoryLocator,
-            .process, .ci, .cas, .casAnalytics, .launchctl, .xcResultService, .xcodeProjectOrWorkspacePathLocator,
-            .http, .har, .configLoader, .machineMetrics:
+             .process, .ci, .cas, .casAnalytics, .launchctl, .xcResultService, .xcodeProjectOrWorkspacePathLocator,
+             .xcodeBuildProducts,
+             .http, .har, .configLoader, .machineMetrics, .appleArchiver:
             moduleTags.append("domain:infrastructure")
         case .cacheCommand, .authCommand, .envKey, .versionCommand,
              .accountCommand, .organizationCommand, .projectCommand, .bundleCommand,
              .registryCommand, .buildCommand, .generateCommand, .testCommand,
              .initCommand, .runCommand, .shareCommand, .inspectCommand, .android:
             moduleTags.append("domain:cli")
-        case .nooraExtension, .alert, .threadSafe, .encodable, .uniqueIDGenerator, .opener:
+        case .nooraExtension, .alert, .threadSafe, .macOSSDK, .encodable, .uniqueIDGenerator, .opener:
             moduleTags.append("domain:foundation")
         case .tuistExtension:
             moduleTags.append("domain:generation")
@@ -481,7 +523,7 @@ public enum Module: String, CaseIterable {
         // Layer tags
         switch self {
         case .projectDescription, .projectAutomation, .xcodeGraph, .xcodeMetadata, .xcodeGraphMapper, .support, .core,
-             .constants, .environment, .logging, .nooraExtension, .alert, .threadSafe, .encodable,
+             .constants, .environment, .logging, .nooraExtension, .alert, .threadSafe, .macOSSDK, .encodable,
              .uniqueIDGenerator, .opener, .config:
             moduleTags.append("layer:foundation")
         case .tuist, .tuistBenchmark, .tuistFixtureGenerator:
@@ -527,6 +569,7 @@ public enum Module: String, CaseIterable {
             case .environmentTesting:
                 [
                     .target(name: Module.environment.targetName),
+                    .external(name: "FileSystem"),
                     .external(name: "Path"),
                 ]
             case .nooraTesting:
@@ -560,6 +603,8 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.core.targetName),
                     .target(name: Module.server.targetName),
                     .target(name: Module.support.targetName),
+                    .target(name: Module.macOSSDK.targetName),
+                    .target(name: Module.xcodeBuildProducts.targetName),
                     .target(name: Module.http.targetName),
                     .target(name: Module.alert.targetName),
                     .target(name: Module.nooraTesting.targetName),
@@ -697,6 +742,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.core.targetName),
                     .target(name: Module.hasher.targetName),
                     .target(name: Module.support.targetName),
+                    .target(name: Module.xcodeBuildProducts.targetName),
                     .target(name: Module.generator.targetName),
                     .target(name: Module.automation.targetName),
                     .target(name: Module.server.targetName),
@@ -717,7 +763,10 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.process.targetName, condition: .when([.macos])),
                     .target(name: Module.xcodeProjectOrWorkspacePathLocator.targetName),
                     .target(name: Module.xcResultService.targetName),
+                    .target(name: "XCResultParser"),
                     .target(name: Module.cas.targetName),
+                    .target(name: Module.appleArchiver.targetName, condition: .when([.macos])),
+                    .target(name: Module.casAnalytics.targetName),
                     .target(name: Module.launchctl.targetName),
                     .target(name: Module.machineMetrics.targetName),
                     .target(name: Module.oidc.targetName),
@@ -737,7 +786,6 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.environment.targetName),
                     .target(name: Module.logging.targetName),
                     .target(name: Module.userInputReader.targetName),
-                    .external(name: "MCP"),
                     .external(name: "FileSystem"),
                     .external(name: "SwiftToolsSupport"),
                     .target(name: Module.xcodeGraph.targetName),
@@ -786,6 +834,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.environment.targetName),
                     .target(name: Module.logging.targetName),
                     .external(name: "FileSystem"),
+                    .external(name: "Command"),
                     .target(name: Module.xcodeGraph.targetName),
                     .external(name: "SwiftGenKit"),
                     .external(name: "PathKit"),
@@ -813,6 +862,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.config.targetName),
                     .target(name: Module.core.targetName),
                     .target(name: Module.support.targetName),
+                    .target(name: Module.macOSSDK.targetName),
                     .target(name: Module.rootDirectoryLocator.targetName),
                     .target(name: Module.projectDescription.targetName),
                     .target(name: Module.git.targetName),
@@ -823,9 +873,9 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.logging.targetName),
                     .target(name: Module.xcodeGraph.targetName),
                     .external(name: "FileSystem"),
+                    .external(name: "Command"),
                     .external(name: "XcodeProj"),
                     .external(name: "SwiftToolsSupport"),
-                    .external(name: "_NIOFileSystem"),
                 ]
             case .plugin:
                 [
@@ -839,6 +889,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.constants.targetName),
                     .target(name: Module.logging.targetName),
                     .external(name: "FileSystem"),
+                    .external(name: "Command"),
                     .external(name: "SwiftToolsSupport"),
                 ]
             case .migration:
@@ -867,6 +918,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.core.targetName),
                     .target(name: Module.opener.targetName),
                     .target(name: Module.support.targetName),
+                    .target(name: Module.xcodeBuildProducts.targetName),
                     .target(name: Module.simulator.targetName),
                     .target(name: Module.constants.targetName),
                     .target(name: Module.environment.targetName),
@@ -887,19 +939,22 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.core.targetName, condition: .when([.macos])),
                     .target(name: Module.http.targetName),
                     .target(name: Module.constants.targetName, condition: .when([.macos])),
-                    .target(name: Module.environment.targetName, condition: .when([.macos])),
-                    .target(name: Module.logging.targetName, condition: .when([.macos])),
+                    .target(name: Module.environment.targetName),
+                    .target(name: Module.logging.targetName),
                     .target(name: Module.opener.targetName),
                     .target(name: Module.threadSafe.targetName),
                     .target(name: Module.uniqueIDGenerator.targetName),
                     .target(name: Module.xcActivityLog.targetName, condition: .when([.macos])),
                     .target(name: Module.xcResultService.targetName, condition: .when([.macos])),
+                    .target(name: "XCResultParser", condition: .when([.macos])),
                     .target(name: Module.machineMetrics.targetName, condition: .when([.macos])),
                     .target(name: Module.simulator.targetName),
+                    .target(name: Module.appleArchiver.targetName, condition: .when([.macos])),
                     .target(name: Module.automation.targetName, condition: .when([.macos])),
                     .target(name: Module.ci.targetName, condition: .when([.macos])),
                     .target(name: Module.process.targetName, condition: .when([.macos])),
                     .target(name: Module.git.targetName, condition: .when([.macos])),
+                    .target(name: Module.xcodeBuildProducts.targetName, condition: .when([.macos])),
                     .external(name: "FileSystem"),
                     .external(name: "OpenAPIRuntime"),
                     .external(name: "OpenAPIURLSession"),
@@ -916,8 +971,10 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.support.targetName),
                     .target(name: Module.rootDirectoryLocator.targetName),
                     .target(name: Module.threadSafe.targetName),
+                    .target(name: Module.environment.targetName),
                     .target(name: Module.logging.targetName),
                     .target(name: Module.xcodeGraph.targetName),
+                    .external(name: "Command"),
                     .external(name: "FileSystem"),
                     .external(name: "OrderedSet"),
                     .external(name: "Logging"),
@@ -981,6 +1038,8 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.alert.targetName),
                     .target(name: Module.support.targetName),
                     .target(name: Module.projectDescription.targetName),
+                    .target(name: Module.http.targetName),
+                    .target(name: Module.environment.targetName),
                     .external(name: "FileSystem"),
                     .external(name: "TOMLDecoder"),
                 ]
@@ -988,6 +1047,7 @@ public enum Module: String, CaseIterable {
                 [
                     .target(name: Module.support.targetName),
                     .target(name: Module.environment.targetName),
+                    .external(name: "Command"),
                     .external(name: "SwiftToolsSupport"),
                     .external(name: "FileSystem"),
                 ]
@@ -1002,12 +1062,20 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.environment.targetName),
                     .external(name: "FileSystem"),
                 ]
+            case .xcodeBuildProducts:
+                [
+                    .target(name: Module.environment.targetName),
+                    .target(name: Module.simulator.targetName),
+                    .target(name: Module.support.targetName),
+                    .target(name: Module.xcodeGraph.targetName),
+                    .external(name: "FileSystem"),
+                    .external(name: "Crypto"),
+                ]
             case .xcResultService:
                 [
                     .target(name: Module.support.targetName),
-                    .target(name: Module.xcActivityLog.targetName),
                     .target(name: Module.logging.targetName),
-                    .external(name: "Command"),
+                    .target(name: "XCResultParser"),
                     .external(name: "FileSystem"),
                     .external(name: "Logging"),
                 ]
@@ -1031,9 +1099,8 @@ public enum Module: String, CaseIterable {
                 ]
             case .casAnalytics:
                 [
-                    .target(name: Module.support.targetName),
                     .target(name: Module.environment.targetName),
-                    .external(name: "FileSystem"),
+                    .external(name: "CASAnalyticsDatabase"),
                 ]
             case .launchctl:
                 [
@@ -1051,6 +1118,7 @@ public enum Module: String, CaseIterable {
                 [
                     .target(name: Module.alert.targetName, condition: .when([.macos])),
                     .target(name: Module.support.targetName, condition: .when([.macos])),
+                    .target(name: Module.environment.targetName),
                     .target(name: Module.logging.targetName),
                     .target(name: Module.har.targetName, condition: .when([.macos])),
                     .external(name: "OpenAPIRuntime"),
@@ -1129,6 +1197,11 @@ public enum Module: String, CaseIterable {
                 ]
             case .threadSafe:
                 []
+            case .macOSSDK:
+                [
+                    .target(name: Module.threadSafe.targetName),
+                    .external(name: "Command"),
+                ]
             case .encodable:
                 [
                     .external(name: "SwiftToolsSupport"),
@@ -1337,6 +1410,11 @@ public enum Module: String, CaseIterable {
                     .external(name: "FileSystem"),
                     .external(name: "TSCBasic"),
                 ]
+            case .appleArchiver:
+                [
+                    .external(name: "Path"),
+                    .external(name: "Mockable"),
+                ]
             case .shareCommand:
                 [
                     .target(name: Module.server.targetName),
@@ -1347,6 +1425,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.configLoader.targetName),
                     .target(name: Module.nooraExtension.targetName),
                     .target(name: Module.support.targetName),
+                    .target(name: Module.xcodeBuildProducts.targetName),
                     .target(name: Module.alert.targetName),
                     .target(name: Module.encodable.targetName),
                     .target(name: Module.kit.targetName),
@@ -1381,6 +1460,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.core.targetName),
                     .target(name: Module.loader.targetName),
                     .target(name: Module.simulator.targetName),
+                    .target(name: Module.xcodeBuildProducts.targetName),
                     .external(name: "Noora"),
                     .external(name: "ArgumentParser"),
                     .external(name: "FileSystem"),
@@ -1397,6 +1477,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.configLoader.targetName),
                     .target(name: Module.nooraExtension.targetName),
                     .target(name: Module.support.targetName),
+                    .target(name: Module.xcodeBuildProducts.targetName),
                     .target(name: Module.alert.targetName),
                     .target(name: Module.encodable.targetName),
                     .target(name: Module.git.targetName),
@@ -1407,7 +1488,9 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.xcActivityLog.targetName),
                     .target(name: Module.xcodeProjectOrWorkspacePathLocator.targetName),
                     .target(name: Module.xcResultService.targetName),
+                    .target(name: "XCResultParser"),
                     .target(name: Module.machineMetrics.targetName),
+                    .target(name: Module.casAnalytics.targetName),
                     .target(name: Module.ci.targetName, condition: .when([.macos])),
                     .target(name: Module.process.targetName, condition: .when([.macos])),
                     .target(name: Module.config.targetName),
@@ -1431,19 +1514,38 @@ public enum Module: String, CaseIterable {
         var dependencies: [TargetDependency] =
             switch self {
             case .tuist, .tuistBenchmark, .acceptanceTesting, .simulator, .testing, .environmentTesting, .process,
-                 .xcodeGraph, .xcodeMetadata, .xcodeGraphMapper,
                  .constants, .environment, .logging, .nooraTesting, .loggerTesting,
-                 .envKey, .versionCommand, .nooraExtension, .tuistExtension, .alert, .threadSafe, .encodable,
+                 .envKey, .versionCommand, .nooraExtension, .tuistExtension, .alert, .threadSafe, .macOSSDK, .encodable,
                  .uniqueIDGenerator, .opener, .config,
                  .accountCommand, .organizationCommand, .projectCommand, .bundleCommand,
                  .registryCommand, .buildCommand, .generateCommand,
                  .runCommand, .shareCommand, .inspectCommand, .android:
                 []
+            case .xcodeGraph:
+                []
+            case .xcodeMetadata:
+                [
+                    .target(name: Module.xcodeGraph.targetName),
+                ]
+            case .xcodeGraphMapper:
+                [
+                    .target(name: Module.xcodeGraph.targetName),
+                    .target(name: Module.xcodeMetadata.targetName),
+                    .external(name: "AEXML"),
+                    .external(name: "FileSystem"),
+                    .external(name: "PathKit"),
+                    .external(name: "XcodeProj"),
+                ]
             case .machineMetrics:
                 [
                     .target(name: Module.testing.targetName),
                     .target(name: Module.environment.targetName),
                     .target(name: Module.environmentTesting.targetName),
+                    .external(name: "FileSystem"),
+                    .external(name: "FileSystemTesting"),
+                ]
+            case .appleArchiver:
+                [
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
                 ]
@@ -1464,6 +1566,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.config.targetName),
                     .target(name: Module.rootDirectoryLocator.targetName),
                     .target(name: Module.constants.targetName),
+                    .target(name: Module.http.targetName),
                     .target(name: Module.loader.targetName),
                     .target(name: Module.testing.targetName),
                     .target(name: Module.support.targetName),
@@ -1553,9 +1656,11 @@ public enum Module: String, CaseIterable {
                 []
             case .kit:
                 [
+                    .target(name: Module.appleArchiver.targetName, condition: .when([.macos])),
                     .target(name: Module.config.targetName),
                     .target(name: Module.support.targetName),
                     .target(name: Module.automation.targetName),
+                    .target(name: Module.xcodeBuildProducts.targetName),
                     .target(name: Module.cache.targetName),
                     .target(name: Module.cas.targetName),
                     .target(name: Module.server.targetName),
@@ -1580,9 +1685,11 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.ci.targetName, condition: .when([.macos])),
                     .target(name: Module.process.targetName, condition: .when([.macos])),
                     .target(name: Module.xcResultService.targetName),
+                    .target(name: "XCResultParser"),
                     .target(name: Module.xcodeProjectOrWorkspacePathLocator.targetName),
                     .target(name: Module.launchctl.targetName),
                     .target(name: Module.machineMetrics.targetName),
+                    .target(name: Module.casAnalytics.targetName),
                     .target(name: Module.oidc.targetName),
                     .target(name: Module.http.targetName),
                     .target(name: Module.cas.targetName),
@@ -1619,7 +1726,6 @@ public enum Module: String, CaseIterable {
                     .external(name: "GRPCNIOTransportHTTP2"),
                     .external(name: "SwiftyJSON"),
                     .external(name: "Rosalind"),
-                    .external(name: "MCP"),
                     .external(name: "Noora"),
                     .external(name: "Command"),
                     .external(name: "OpenAPIRuntime"),
@@ -1637,6 +1743,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.xcodeMetadata.targetName),
                     .external(name: "SwiftToolsSupport"),
                     .external(name: "Command"),
+                    .external(name: "XcodeProj"),
                 ]
             case .generator:
                 [
@@ -1669,10 +1776,12 @@ public enum Module: String, CaseIterable {
                 ]
             case .loader:
                 [
+                    .target(name: Module.alert.targetName),
                     .target(name: Module.config.targetName),
                     .target(name: Module.projectDescription.targetName),
                     .target(name: Module.core.targetName),
                     .target(name: Module.support.targetName),
+                    .target(name: Module.macOSSDK.targetName),
                     .target(name: Module.testing.targetName),
                     .target(name: Module.nooraTesting.targetName),
                     .target(name: Module.rootDirectoryLocator.targetName),
@@ -1683,7 +1792,6 @@ public enum Module: String, CaseIterable {
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
                     .target(name: Module.xcodeGraph.targetName),
-                    .external(name: "_NIOFileSystem"),
                 ]
             case .plugin:
                 [
@@ -1719,6 +1827,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.core.targetName),
                     .target(name: Module.support.targetName),
                     .target(name: Module.testing.targetName),
+                    .target(name: Module.xcodeBuildProducts.targetName),
                     .target(name: Module.constants.targetName),
                     .target(name: Module.environment.targetName),
                     .target(name: Module.opener.targetName),
@@ -1731,6 +1840,7 @@ public enum Module: String, CaseIterable {
             case .server:
                 [
                     .target(name: Module.android.targetName),
+                    .target(name: Module.appleArchiver.targetName, condition: .when([.macos])),
                     .target(name: Module.support.targetName),
                     .target(name: Module.testing.targetName),
                     .target(name: Module.core.targetName),
@@ -1739,6 +1849,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.constants.targetName),
                     .target(name: Module.environment.targetName),
                     .target(name: Module.opener.targetName),
+                    .target(name: Module.process.targetName, condition: .when([.macos])),
                     .target(name: Module.uniqueIDGenerator.targetName),
                     .target(name: Module.xcodeGraph.targetName),
                     .external(name: "OpenAPIRuntime"),
@@ -1753,6 +1864,8 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.core.targetName),
                     .target(name: Module.support.targetName),
                     .target(name: Module.rootDirectoryLocator.targetName),
+                    .target(name: Module.environment.targetName),
+                    .target(name: Module.environmentTesting.targetName),
                     .target(name: Module.testing.targetName),
                     .target(name: Module.xcodeGraph.targetName),
                     .external(name: "FileSystem"),
@@ -1813,9 +1926,21 @@ public enum Module: String, CaseIterable {
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
                 ]
+            case .xcodeBuildProducts:
+                [
+                    .target(name: Module.testing.targetName),
+                    .target(name: Module.environment.targetName),
+                    .target(name: Module.environmentTesting.targetName),
+                    .target(name: Module.simulator.targetName),
+                    .target(name: Module.support.targetName),
+                    .target(name: Module.xcodeGraph.targetName),
+                    .external(name: "FileSystem"),
+                    .external(name: "FileSystemTesting"),
+                ]
             case .xcResultService:
                 [
                     .target(name: Module.testing.targetName),
+                    .target(name: "XCResultParser"),
                     .external(name: "FileSystemTesting"),
                 ]
             case .cas:
@@ -1861,6 +1986,8 @@ public enum Module: String, CaseIterable {
                 [
                     .target(name: Module.testing.targetName),
                     .target(name: Module.support.targetName),
+                    .target(name: Module.environment.targetName),
+                    .target(name: Module.environmentTesting.targetName),
                     .external(name: "OpenAPIRuntime"),
                     .external(name: "HTTPTypes"),
                 ]
@@ -1877,7 +2004,7 @@ public enum Module: String, CaseIterable {
     private var destinations: Destinations {
         switch self {
         case .simulator, .server, .http, .threadSafe, .uniqueIDGenerator, .opener, .logging, .environment, .cas, .constants,
-            .xcodeGraph, .android:
+             .xcodeGraph, .android:
             [.mac, .iPhone, .iPad]
         default:
             [.mac]
@@ -1887,7 +2014,7 @@ public enum Module: String, CaseIterable {
     private var deploymentTargets: DeploymentTargets {
         switch self {
         case .simulator, .server, .http, .threadSafe, .uniqueIDGenerator, .opener, .logging, .environment, .cas, .constants,
-            .xcodeGraph, .android: .multiplatform(iOS: "18.0", macOS: "15.0")
+             .xcodeGraph, .android: .multiplatform(iOS: "18.0", macOS: "15.0")
         default: .macOS("15.0")
         }
     }

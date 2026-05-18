@@ -206,8 +206,8 @@ public struct BuildGraphInspector: BuildGraphInspecting {
     public func workspacePath(directory: AbsolutePath) async throws -> AbsolutePath? {
         try await fileSystem.glob(directory: directory, include: ["*.xcworkspace"])
             .collect()
-            .filter {
-                try FileHandler.shared.contentsOfDirectory($0)
+            .concurrentFilter {
+                try await fileSystem.contentsOfDirectory($0)
                     .map(\.basename)
                     .contains(Constants.tuistGeneratedFileName)
             }

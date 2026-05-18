@@ -134,6 +134,31 @@ defmodule TuistWeb.UserSessionControllerTest do
     end
   end
 
+  describe "GET /docs/login" do
+    test "redirects to login page", %{conn: conn} do
+      conn = get(conn, ~p"/docs/login")
+      assert redirected_to(conn) == ~p"/users/log_in"
+    end
+
+    test "stores return_to path in session", %{conn: conn} do
+      conn = get(conn, ~p"/docs/login?#{%{return_to: "/en/docs/guides"}}")
+      assert redirected_to(conn) == ~p"/users/log_in?#{%{return_to: "/en/docs/guides"}}"
+      assert get_session(conn, :user_return_to) == "/en/docs/guides"
+    end
+
+    test "ignores non-local return_to paths", %{conn: conn} do
+      conn = get(conn, ~p"/docs/login?#{%{return_to: "https://evil.com"}}")
+      assert redirected_to(conn) == ~p"/users/log_in"
+      refute get_session(conn, :user_return_to)
+    end
+
+    test "ignores protocol-relative return_to paths", %{conn: conn} do
+      conn = get(conn, ~p"/docs/login?#{%{return_to: "//evil.example"}}")
+      assert redirected_to(conn) == ~p"/users/log_in"
+      refute get_session(conn, :user_return_to)
+    end
+  end
+
   describe "DELETE /users/log_out" do
     test "logs the user out", %{conn: conn, user: user} do
       conn = conn |> log_in_user(user) |> delete(~p"/users/log_out")
@@ -143,6 +168,36 @@ defmodule TuistWeb.UserSessionControllerTest do
 
     test "succeeds even if the user is not logged in", %{conn: conn} do
       conn = delete(conn, ~p"/users/log_out")
+      assert redirected_to(conn) == ~p"/"
+      refute get_session(conn, :user_token)
+    end
+
+    test "redirects to return_to when it is a local path", %{conn: conn, user: user} do
+      conn =
+        conn
+        |> log_in_user(user)
+        |> delete(~p"/users/log_out?#{%{return_to: "/en/docs/guides"}}")
+
+      assert redirected_to(conn) == "/en/docs/guides"
+      refute get_session(conn, :user_token)
+    end
+
+    test "ignores protocol-relative return_to paths", %{conn: conn, user: user} do
+      conn =
+        conn
+        |> log_in_user(user)
+        |> delete(~p"/users/log_out?#{%{return_to: "//evil.example/foo"}}")
+
+      assert redirected_to(conn) == ~p"/"
+      refute get_session(conn, :user_token)
+    end
+
+    test "ignores non-local return_to paths", %{conn: conn, user: user} do
+      conn =
+        conn
+        |> log_in_user(user)
+        |> delete(~p"/users/log_out?#{%{return_to: "https://evil.example/foo"}}")
+
       assert redirected_to(conn) == ~p"/"
       refute get_session(conn, :user_token)
     end

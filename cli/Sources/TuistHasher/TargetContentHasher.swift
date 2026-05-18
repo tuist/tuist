@@ -218,9 +218,16 @@ public struct TargetContentHasher: TargetContentHashing {
                 []
             }
 
+        let hashingFilesFilter = HashingFilesFilter()
         let buildableFolderHashes = try await graphTarget.target
             .buildableFolders.sorted(by: { $0.path < $1.path })
-            .map { ($0, $0.resolvedFiles.sorted(by: { $0.path < $1.path })) }
+            .map { buildableFolder in
+                let resolvedFiles = buildableFolder.resolvedFiles
+                    .filter { hashingFilesFilter($0.path) }
+                    .sorted(by: { $0.path < $1.path })
+
+                return (buildableFolder, resolvedFiles)
+            }
             .concurrentFlatMap {
                 (buildableFolder: BuildableFolder, buildableFiles: [BuildableFolderFile]) in
                 let publicHeaders = buildableFolder.exceptions.flatMap(\.publicHeaders)

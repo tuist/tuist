@@ -1,4 +1,3 @@
-import _NIOFileSystem
 import FileSystem
 import FileSystemTesting
 import Foundation
@@ -30,7 +29,6 @@ class CachedManifestLoaderTests {
     private var recordedLoadConfigCalls: Int = 0
     private var recordedLoadPluginCalls: Int = 0
     private let fileSystem = FileSystem()
-    private let fileHandler = FileHandler.shared
     private var subject: CachedManifestLoader!
 
     init() throws {
@@ -160,12 +158,12 @@ class CachedManifestLoaderTests {
         given(manifestLoader)
             .register(plugins: .any)
             .willReturn()
-        try stubPlugins(withHash: "hash")
+        try await stubPlugins(withHash: "hash")
 
         _ = try await subject.loadProject(at: path, disableSandbox: false)
 
         // When
-        try stubPlugins(withHash: "updatedHash")
+        try await stubPlugins(withHash: "updatedHash")
         subject = try createSubject() // we need to re-create the subject as it internally caches hashes
         _ = try await subject.loadProject(at: path, disableSandbox: false)
 
@@ -249,7 +247,7 @@ class CachedManifestLoaderTests {
         _ = try await subject.loadProject(at: path, disableSandbox: false)
 
         // When
-        try corruptFiles(at: cacheDirectory)
+        try await corruptFiles(at: cacheDirectory)
         let result = try await subject.loadProject(at: path, disableSandbox: false)
 
         // Then
@@ -308,40 +306,9 @@ class CachedManifestLoaderTests {
         })
     }
 
-    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func notThrowing_fileAlreadyExistsNIOError() async throws {
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func throwing_writeErrors() async throws {
         // Given
-        let fileSystem = MockFileSystem()
-        fileSystem.writeTextOverride = { _, _, _ in
-            throw _NIOFileSystem.FileSystemError(
-                code: .fileAlreadyExists,
-                message: "",
-                cause: nil,
-                location: .init(function: "", file: "", line: 0)
-            )
-        }
-
-        subject = try createSubject(fileSystem: fileSystem)
-
-        let path = try #require(FileSystem.temporaryTestDirectory).appending(component: "App")
-        let project = Project.test(name: "App")
-        try await stubProject(project, at: path)
-
-        // When
-        let result = try await subject.loadProject(at: path, disableSandbox: false)
-
-        // Then
-        #expect(result == project)
-        #expect(result.name == "App")
-    }
-
-    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func throwing_otherNIOErrors() async throws {
-        // Given
-        let expectedError = _NIOFileSystem.FileSystemError(
-            code: .invalidArgument,
-            message: "",
-            cause: nil,
-            location: .init(function: "", file: "", line: 0)
-        )
+        let expectedError = TestError.writeFailed
         let fileSystem = MockFileSystem()
         fileSystem.writeTextOverride = { _, _, _ in
             throw expectedError
@@ -375,11 +342,16 @@ class CachedManifestLoaderTests {
     private func stubWorkspace(
         _ workspace: Workspace,
         at path: AbsolutePath
-    ) throws {
+    ) async throws {
         let manifestPath = path.appending(component: Manifest.workspace.fileName(path))
-        try fileHandler.touch(manifestPath)
+        if try await !fileSystem.exists(manifestPath.parentDirectory) {
+            try await fileSystem.makeDirectory(at: manifestPath.parentDirectory)
+        }
         let manifestData = try JSONEncoder().encode(workspace)
-        try fileHandler.write(String(data: manifestData, encoding: .utf8)!, path: manifestPath, atomically: true)
+        if try await fileSystem.exists(manifestPath) {
+            try await fileSystem.remove(manifestPath)
+        }
+        try await fileSystem.writeText(String(data: manifestData, encoding: .utf8)!, at: manifestPath)
         workspaceManifests[path] = workspace
     }
 
@@ -402,11 +374,16 @@ class CachedManifestLoaderTests {
     private func stub(
         deprecatedManifest manifest: ProjectDescription.Config,
         at path: AbsolutePath
-    ) throws {
+    ) async throws {
         let manifestPath = path.appending(component: Manifest.config.fileName(path))
-        try fileHandler.touch(manifestPath)
+        if try await !fileSystem.exists(manifestPath.parentDirectory) {
+            try await fileSystem.makeDirectory(at: manifestPath.parentDirectory)
+        }
         let manifestData = try JSONEncoder().encode(manifest)
-        try fileHandler.write(String(data: manifestData, encoding: .utf8)!, path: manifestPath, atomically: true)
+        if try await fileSystem.exists(manifestPath) {
+            try await fileSystem.remove(manifestPath)
+        }
+        try await fileSystem.writeText(String(data: manifestData, encoding: .utf8)!, at: manifestPath)
         configManifests[path] = manifest
     }
 
@@ -418,13 +395,18 @@ class CachedManifestLoaderTests {
         }
     }
 
-    private func stubPlugins(withHash hash: String) throws {
+    private func stubPlugins(withHash hash: String) async throws {
         let plugin = ProjectDescription.Plugin(name: "TestPlugin")
         let path = try #require(FileSystem.temporaryTestDirectory).appending(component: "TestPlugin")
         let manifestPath = path.appending(component: Manifest.plugin.fileName(path))
-        try fileHandler.touch(manifestPath)
+        if try await !fileSystem.exists(path) {
+            try await fileSystem.makeDirectory(at: path)
+        }
         let manifestData = try JSONEncoder().encode(plugin)
-        try fileHandler.write(String(data: manifestData, encoding: .utf8)!, path: manifestPath, atomically: true)
+        if try await fileSystem.exists(manifestPath) {
+            try await fileSystem.remove(manifestPath)
+        }
+        try await fileSystem.writeText(String(data: manifestData, encoding: .utf8)!, at: manifestPath)
         pluginManifests[path] = plugin
 
         let plugins = Plugins.test(projectDescriptionHelpers: [
@@ -435,15 +417,15 @@ class CachedManifestLoaderTests {
         try subject.register(plugins: plugins)
     }
 
-    private func corruptFiles(at path: AbsolutePath) throws {
-        for filePath in try fileHandler.contentsOfDirectory(path) {
-            try fileHandler.write("corruptedData", path: filePath, atomically: true)
+    private func corruptFiles(at path: AbsolutePath) async throws {
+        let contents = try await fileSystem.contentsOfDirectory(path)
+        for filePath in contents {
+            try await fileSystem.remove(filePath)
+            try await fileSystem.writeText("corruptedData", at: filePath)
         }
     }
 }
 
-extension _NIOFileSystem.FileSystemError: Equatable {
-    public static func == (lhs: _NIOFileSystem.FileSystemError, rhs: _NIOFileSystem.FileSystemError) -> Bool {
-        return lhs.code == rhs.code && lhs.message == rhs.message && lhs.location == rhs.location
-    }
+private enum TestError: Error, Equatable {
+    case writeFailed
 }

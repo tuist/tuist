@@ -41,6 +41,8 @@ public enum ServerAuthenticationControllerError: LocalizedError, Equatable {
 @Mockable
 public protocol ServerAuthenticationControlling: Sendable {
     func authenticationToken(serverURL: URL) async throws -> AuthenticationToken?
+    func authenticationToken(serverURL: URL, refreshIfNeeded: Bool) async throws
+        -> AuthenticationToken?
     func refreshToken(serverURL: URL) async throws
     func refreshToken(serverURL: URL, inBackground: Bool, locking: Bool, forceInProcessLock: Bool)
         async throws
@@ -102,7 +104,7 @@ public enum AuthenticationToken: Equatable, CustomStringConvertible {
         func withLock<T>(
             lockfilePath: AbsolutePath,
             serverURL: URL,
-            maxAttempts: Int = 10,
+            maxAttempts: Int = 30,
             retryInterval: UInt64 = 500, // Milliseconds
             action: (_ complete: () async throws -> Void) async throws -> Void,
             fetchActionResult: () async throws -> T?
@@ -235,22 +237,40 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
     @discardableResult public func authenticationToken(serverURL: URL)
         async throws -> AuthenticationToken?
     {
+        try await authenticationToken(serverURL: serverURL, refreshIfNeeded: true)
+    }
+
+    @discardableResult public func authenticationToken(
+        serverURL: URL,
+        refreshIfNeeded: Bool
+    ) async throws -> AuthenticationToken? {
         #if canImport(TuistSupport)
             if let environmentToken = try await environmentToken() {
                 return environmentToken
-            } else {
-                return try await authenticationTokenRefreshingIfNeeded(
-                    serverURL: serverURL,
-                    forceRefresh: false,
-                    inBackground: ServerAuthenticationConfig.current.backgroundRefresh,
-                    locking: true
-                )
             }
+        #endif
+
+        if !refreshIfNeeded {
+            switch try await tokenStatus(serverURL: serverURL, forceRefresh: false) {
+            case let .valid(token):
+                return token
+            case .expired, .absent:
+                return nil
+            }
+        }
+
+        #if canImport(TuistSupport)
+            return try await authenticationTokenRefreshingIfNeeded(
+                serverURL: serverURL,
+                forceRefresh: false,
+                inBackground: ServerAuthenticationConfig.current.backgroundRefresh,
+                locking: true
+            )
         #else
             return try await authenticationTokenRefreshingIfNeeded(
                 serverURL: serverURL, forceRefresh: false,
                 inBackground: ServerAuthenticationConfig.current.backgroundRefresh,
-                locking: false
+                locking: true
             )
         #endif
     }
@@ -258,14 +278,32 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
     private func deletingCredentialsOnUnauthorizedError<T>(
         serverURL: URL, action: () async throws -> T
     ) async throws -> T {
+        // Snapshot the refresh token before the action so we can detect a peer
+        // process rotating it while our refresh request was in flight. Without
+        // this, two parallel `tuist` invocations can race: the slower one POSTs
+        // a now-revoked refresh token, the server responds 401, and we used to
+        // wipe the credentials file even though the on-disk credentials had
+        // already been refreshed by the peer.
+        let refreshTokenBeforeAction = try? await ServerCredentialsStore.current
+            .read(serverURL: serverURL)?.refreshToken
         do {
             return try await action()
         } catch let error as RefreshAuthTokenServiceError {
             if case .unauthorized = error {
-                #if canImport(TuistSupport)
-                    Logger.current.debug("Deleting the credentials for \(serverURL)")
-                #endif
-                try? await ServerCredentialsStore.current.delete(serverURL: serverURL)
+                let refreshTokenAfterAction = try? await ServerCredentialsStore.current
+                    .read(serverURL: serverURL)?.refreshToken
+                if refreshTokenBeforeAction != refreshTokenAfterAction {
+                    #if canImport(TuistSupport)
+                        Logger.current.debug(
+                            "Refresh token for \(serverURL) was rotated by another process; preserving credentials"
+                        )
+                    #endif
+                } else {
+                    #if canImport(TuistSupport)
+                        Logger.current.debug("Deleting the credentials for \(serverURL)")
+                    #endif
+                    try? await ServerCredentialsStore.current.delete(serverURL: serverURL)
+                }
             }
             throw error
         } catch {
@@ -307,6 +345,14 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
             Logger.current.debug("Refreshing authentication token for \(serverURL) if needed")
         #endif
 
+        if forceRefresh, locking {
+            return try await cachedValueStore.getValue(
+                key: forceRefreshLockKey(serverURL: serverURL)
+            ) {
+                try await executeRefresh(serverURL: serverURL, forceRefresh: true)
+            }
+        }
+
         let fetchActionResult = { () async throws -> AuthenticationToken? in
             switch try await tokenStatus(serverURL: serverURL, forceRefresh: false) {
             case let .valid(token):
@@ -346,9 +392,9 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
                         case .project:
                             return (token, nil as Date?)
                         case let .account(accessToken):
-                            return (token, accessToken.expiryDate)
+                            return (token, cacheExpirationDate(for: accessToken))
                         case let .user(accessToken: accessToken, refreshToken: _):
-                            return (token, accessToken.expiryDate)
+                            return (token, cacheExpirationDate(for: accessToken))
                         }
                     }
                 #else
@@ -374,9 +420,9 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
                     case .project:
                         return (token, nil as Date?)
                     case let .account(accessToken):
-                        return (token, accessToken.expiryDate)
+                        return (token, cacheExpirationDate(for: accessToken))
                     case let .user(accessToken: accessToken, refreshToken: _):
-                        return (token, accessToken.expiryDate)
+                        return (token, cacheExpirationDate(for: accessToken))
                     }
                 }
             #else
@@ -520,7 +566,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
                 upToDateToken = token
             case let .account(accessToken):
                 upToDateToken = token
-                expiresAt = accessToken.expiryDate
+                expiresAt = cacheExpirationDate(for: accessToken)
             case let .user(
                 accessToken, refreshToken
             ):
@@ -551,18 +597,18 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
                     #if canImport(TuistSupport)
                         Logger.current.debug("Access token refreshed for \(serverURL)")
                     #endif
+                    let accessToken = try JWT.parse(tokens.accessToken)
                     upToDateToken = .user(
-                        accessToken: try JWT.parse(tokens.accessToken),
+                        accessToken: accessToken,
                         refreshToken: try JWT.parse(tokens.refreshToken)
                     )
-                    expiresAt = try JWT.parse(tokens.accessToken)
-                        .expiryDate
+                    expiresAt = cacheExpirationDate(for: accessToken)
                 } else {
                     upToDateToken = .user(
                         accessToken: accessToken,
                         refreshToken: refreshToken
                     )
-                    expiresAt = accessToken.expiryDate
+                    expiresAt = cacheExpirationDate(for: accessToken)
                 }
             }
 
@@ -588,6 +634,14 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         "token_\(serverURL.absoluteString)"
     }
 
+    private func forceRefreshLockKey(serverURL: URL) async throws -> String {
+        guard let token = try await fetchTokenFromStore(serverURL: serverURL) else {
+            return "\(lockKey(serverURL: serverURL))_force_refresh_absent"
+        }
+
+        return "\(lockKey(serverURL: serverURL))_force_refresh_\(stableHash(token.value))"
+    }
+
     private func fetchTokenFromStore(serverURL: URL) async throws -> AuthenticationToken? {
         let credentials: ServerCredentials? = try await ServerCredentialsStore.current.read(
             serverURL: serverURL
@@ -603,6 +657,17 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
                 )
             }
         }
+    }
+
+    private func stableHash(_ value: String) -> String {
+        let hash = value.utf8.reduce(UInt64(14_695_981_039_346_656_037)) { hash, byte in
+            (hash ^ UInt64(byte)) &* 1_099_511_628_211
+        }
+        return String(hash, radix: 16)
+    }
+
+    private func cacheExpirationDate(for token: JWT) -> Date {
+        token.expiryDate.addingTimeInterval(-30)
     }
 
     private func environmentToken() async throws -> AuthenticationToken? {
@@ -649,13 +714,10 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         refreshToken: JWT
     ) async throws -> ServerAuthenticationTokens {
         do {
-            let newTokens = try await RetryProvider()
-                .runWithRetries {
-                    return try await refreshAuthTokenService.refreshTokens(
-                        serverURL: serverURL,
-                        refreshToken: refreshToken.token
-                    )
-                }
+            let newTokens = try await refreshAuthTokenService.refreshTokens(
+                serverURL: serverURL,
+                refreshToken: refreshToken.token
+            )
             try await ServerCredentialsStore.current
                 .store(
                     credentials: ServerCredentials(

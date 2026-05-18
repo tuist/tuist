@@ -352,6 +352,32 @@ defmodule TuistWeb.API.AnalyticsController do
                                  type: :string,
                                  description: "The selective testing hit status",
                                  enum: ["miss", "local", "remote"]
+                               },
+                               subhashes: %Schema{
+                                 type: :object,
+                                 description: "Individual component hashes that make up the final hash",
+                                 properties: %{
+                                   sources: %Schema{type: :string, description: "Sources hash"},
+                                   resources: %Schema{type: :string, description: "Resources hash"},
+                                   copy_files: %Schema{type: :string, description: "Copy files hash"},
+                                   core_data_models: %Schema{type: :string, description: "Core data models hash"},
+                                   target_scripts: %Schema{type: :string, description: "Target scripts hash"},
+                                   environment: %Schema{type: :string, description: "Environment hash"},
+                                   headers: %Schema{type: :string, description: "Headers hash"},
+                                   deployment_target: %Schema{type: :string, description: "Deployment target hash"},
+                                   info_plist: %Schema{type: :string, description: "Info.plist hash"},
+                                   entitlements: %Schema{type: :string, description: "Entitlements hash"},
+                                   dependencies: %Schema{type: :string, description: "Dependencies hash"},
+                                   project_settings: %Schema{type: :string, description: "Project settings hash"},
+                                   target_settings: %Schema{type: :string, description: "Target settings hash"},
+                                   buildable_folders: %Schema{type: :string, description: "Buildable folders hash"},
+                                   additional_strings: %Schema{
+                                     type: :array,
+                                     description: "Additional strings used in the hash",
+                                     items: %Schema{type: :string}
+                                   },
+                                   external: %Schema{type: :string, description: "External project hash"}
+                                 }
                                }
                              }
                            }
@@ -461,13 +487,7 @@ defmodule TuistWeb.API.AnalyticsController do
         git_commit_sha: git_commit_sha,
         git_ref: git_ref,
         git_remote_url_origin: git_remote_url_origin,
-        project_id: selected_project.id,
-        preview_url_template: "#{url(~p"/")}:account_name/:project_name/previews/:preview_id",
-        preview_qr_code_url_template: "#{url(~p"/")}:account_name/:project_name/previews/:preview_id/qr-code.png",
-        command_run_url_template: "#{url(~p"/")}:account_name/:project_name/runs/:command_event_id",
-        test_run_url_template: "#{url(~p"/")}:account_name/:project_name/tests/test-runs/:test_run_id",
-        bundle_url_template: "#{url(~p"/")}:account_name/:project_name/bundles/:bundle_id",
-        build_url_template: "#{url(~p"/")}:account_name/:project_name/builds/build-runs/:build_id"
+        project_id: selected_project.id
       })
     end
 

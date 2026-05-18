@@ -26,6 +26,7 @@ import TuistVersionCommand
 
 #if os(macOS)
     import TuistCore
+    import TuistHAR
     import TuistHTTP
     import TuistKit
     import TuistLoader
@@ -73,6 +74,7 @@ public struct TuistCommand: AsyncParsableCommand {
                         RunCommand.self,
                         ScaffoldCommand.self,
                         SetupCommand.self,
+                        TeardownCommand.self,
                         TestCommand.self,
                         InspectCommand.self,
                         XcodeBuildCommand.self,
@@ -81,10 +83,6 @@ public struct TuistCommand: AsyncParsableCommand {
                 CommandGroup(
                     name: "Share",
                     subcommands: [ShareCommand.self]
-                ),
-                CommandGroup(
-                    name: "AI",
-                    subcommands: [MCPCommand.self]
                 ),
             ]
         #endif
@@ -146,20 +144,14 @@ public struct TuistCommand: AsyncParsableCommand {
     public static func main(
         logFilePath: AbsolutePath,
         sessionDirectory: AbsolutePath,
+        networkFilePath: AbsolutePath,
         _ arguments: [String]? = nil,
         parseAsRoot: ((_ arguments: [String]?) throws -> ParsableCommand) = Self.parseAsRoot
     ) async throws {
         let processedArguments = Array(processArguments(arguments)?.dropFirst() ?? [])
 
         #if os(macOS)
-            let path: AbsolutePath
-            if let argumentIndex = CommandLine.arguments.firstIndex(of: "--path") {
-                path = try AbsolutePath(
-                    validating: CommandLine.arguments[argumentIndex + 1], relativeTo: .current
-                )
-            } else {
-                path = .current
-            }
+            let path = try await CommandArguments.path(in: processedArguments)
 
             try await CacheDirectoriesProvider.bootstrap()
 
@@ -174,10 +166,7 @@ public struct TuistCommand: AsyncParsableCommand {
                 let config = try await ConfigLoader().loadConfig(path: path)
                 let serverURL = try ServerEnvironmentService().url(configServerURL: config.url)
                 let command = try parseAsRoot(processedArguments)
-
-                if command is RecentPathRememberableCommand {
-                    try await RecentPathsStore.current.remember(path: path)
-                }
+                let shouldRecordHAR = (command as? HARRecordingCommand)?.shouldRecordHAR ?? true
 
                 executeCommand = {
                     logFilePathDisplayStrategy =
@@ -192,29 +181,40 @@ public struct TuistCommand: AsyncParsableCommand {
                     let shouldTrackAnalytics = processedArguments.prefix(2) != ["inspect", "build"]
                         && processedArguments.prefix(2) != ["auth", "refresh-token"]
                         && processedArguments.first != "analytics-upload"
+                    let optionalAuthentication = config.project.optionalAuthentication
+                    let runTrackableCommand = {
+                        try await withHARRecorder(
+                            networkFilePath: networkFilePath,
+                            shouldRecordHAR: shouldRecordHAR
+                        ) {
+                            try await trackableCommand.run(
+                                fullHandle: config.fullHandle,
+                                serverURL: serverURL,
+                                shouldTrackAnalytics: shouldTrackAnalytics,
+                                optionalAuthentication: optionalAuthentication
+                            )
+                        }
+                    }
                     if let nooraReadyCommand = command as? NooraReadyCommand {
                         let jsonThroughNoora = nooraReadyCommand.jsonThroughNoora
                         try await withLoggerForNoora(logFilePath: logFilePath) {
                             try await Noora.$current.withValue(initNoora(jsonThroughNoora: jsonThroughNoora)) {
-                                try await trackableCommand.run(
-                                    fullHandle: config.fullHandle,
-                                    serverURL: serverURL,
-                                    shouldTrackAnalytics: shouldTrackAnalytics
-                                )
+                                try await runTrackableCommand()
                             }
                         }
                     } else {
-                        try await trackableCommand.run(
-                            fullHandle: config.fullHandle,
-                            serverURL: serverURL,
-                            shouldTrackAnalytics: shouldTrackAnalytics
-                        )
+                        try await runTrackableCommand()
                     }
                 }
             } catch {
                 parsingError = error
                 executeCommand = {
-                    try await executeTask(with: processedArguments)
+                    try await withHARRecorder(
+                        networkFilePath: networkFilePath,
+                        shouldRecordHAR: true
+                    ) {
+                        try await executeTask(with: processedArguments)
+                    }
                 }
             }
 
@@ -337,13 +337,11 @@ public struct TuistCommand: AsyncParsableCommand {
         let takeaways = AlertController.current.takeaways()
 
         if !warningAlerts.isEmpty {
-            print("\n")
             Noora.current.warning(warningAlerts)
         }
         let logsNextStep: TerminalText = "Check out the logs at \(logFilePath.pathString)"
 
         if let errorAlert {
-            print("\n")
             var errorAlertNextSteps = errorAlert.takeaways
             if shouldOutputLogFilePath {
                 errorAlertNextSteps.append(logsNextStep)
@@ -355,7 +353,6 @@ public struct TuistCommand: AsyncParsableCommand {
             if shouldOutputLogFilePath {
                 successAlertNextSteps.append(logsNextStep)
             }
-            print("\n")
             Noora.current.success(.alert(successAlert.message, takeaways: successAlertNextSteps))
         }
     }
@@ -366,6 +363,18 @@ public struct TuistCommand: AsyncParsableCommand {
                 arguments: processedArguments,
                 tuistBinaryPath: processArguments()!.first!
             )
+        }
+
+        private static func withHARRecorder(
+            networkFilePath: AbsolutePath,
+            shouldRecordHAR: Bool,
+            _ action: () async throws -> Void
+        ) async throws {
+            let harRecorder: HARRecorder? =
+                shouldRecordHAR ? HARRecorder(filePath: networkFilePath) : nil
+            try await HARRecorder.$current.withValue(harRecorder) {
+                try await action()
+            }
         }
     #endif
 

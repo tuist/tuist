@@ -93,6 +93,25 @@ final class SettingsMapperTests: XCTestCase {
         )
     }
 
+    func test_set_SWIFT_DEFAULT_ACTOR_ISOLATION_when_main_actor() throws {
+        let settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting] = [
+            .init(tool: .swift, name: .defaultIsolation, condition: nil, value: ["MainActor"]),
+        ]
+
+        let mapper = SettingsMapper(
+            headerSearchPaths: [],
+            mainRelativePath: try RelativePath(validating: "path"),
+            settings: settings
+        )
+
+        let resolvedSettings = try mapper.settingsDictionary()
+
+        XCTAssertEqual(
+            resolvedSettings["SWIFT_DEFAULT_ACTOR_ISOLATION"],
+            .string("MainActor")
+        )
+    }
+
     func test_set_HEADER_SEARCH_PATHS() throws {
         let settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting] = [
             .init(tool: .c, name: .headerSearchPath, condition: nil, value: ["cPath"]),
@@ -343,6 +362,25 @@ final class SettingsMapperTests: XCTestCase {
         XCTAssertEqual(
             combinedSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS"],
             .array(["$(inherited)", "Define1"])
+        )
+    }
+
+    func test_strict_memory_safety_no_arguments() throws {
+        let settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting] = [
+            .init(tool: .swift, name: .strictMemorySafety, condition: nil, value: []),
+        ]
+
+        let mapper = SettingsMapper(
+            headerSearchPaths: [],
+            mainRelativePath: try RelativePath(validating: "path"),
+            settings: settings
+        )
+
+        let resolvedSettings = try mapper.settingsDictionary()
+
+        XCTAssertEqual(
+            resolvedSettings["OTHER_SWIFT_FLAGS"],
+            .array(["$(inherited)", "-strict-memory-safety"])
         )
     }
 

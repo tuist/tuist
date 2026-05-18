@@ -12,7 +12,7 @@ defmodule Cache.Registry.SwiftPackageIndex do
 
   def list_packages(token) do
     with {:ok, json} <- TuistCommon.GitHub.fetch_packages_json(token, @github_opts),
-         {:ok, urls} <- Jason.decode(json) do
+         {:ok, urls} <- JSON.decode(json) do
       packages =
         urls
         |> Enum.map(&repository_full_handle_from_url/1)

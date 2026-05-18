@@ -28,7 +28,8 @@ public protocol RecursiveManifestLoading {
     func loadAndMergePackageProjects(
         in loadedWorkspace: LoadedWorkspace,
         packageSettings: TuistCore.PackageSettings,
-        disableSandbox: Bool
+        disableSandbox: Bool,
+        swiftPackageManagerScratchDirectory: AbsolutePath?
     ) async throws -> LoadedWorkspace
 }
 
@@ -44,20 +45,17 @@ public struct LoadedWorkspace {
 
 public struct RecursiveManifestLoader: RecursiveManifestLoading {
     private let manifestLoader: ManifestLoading
-    private let fileHandler: FileHandling
     private let fileSystem: FileSysteming
     private let packageInfoMapper: PackageInfoMapping
     private let rootDirectoryLocator: RootDirectoryLocating
 
     public init(
         manifestLoader: ManifestLoading = ManifestLoader.current,
-        fileHandler: FileHandling = FileHandler.shared,
         fileSystem: FileSysteming = FileSystem(),
         packageInfoMapper: PackageInfoMapping = PackageInfoMapper(),
         rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator()
     ) {
         self.manifestLoader = manifestLoader
-        self.fileHandler = fileHandler
         self.fileSystem = fileSystem
         self.packageInfoMapper = packageInfoMapper
         self.rootDirectoryLocator = rootDirectoryLocator
@@ -111,7 +109,8 @@ public struct RecursiveManifestLoader: RecursiveManifestLoading {
     public func loadAndMergePackageProjects(
         in loadedWorkspace: LoadedWorkspace,
         packageSettings: TuistCore.PackageSettings,
-        disableSandbox: Bool
+        disableSandbox: Bool,
+        swiftPackageManagerScratchDirectory: AbsolutePath? = nil
     ) async throws -> LoadedWorkspace {
         let rootDirectory: AbsolutePath = try await rootDirectoryLocator.locate(from: loadedWorkspace.path)
         let generatorPaths = GeneratorPaths(
@@ -124,12 +123,17 @@ public struct RecursiveManifestLoader: RecursiveManifestLoading {
             try generatorPaths.resolve(path: $0)
         }.concurrentFlatMap {
             try await fileSystem.glob(directory: $0, include: [""]).collect()
-        }.filter {
-            fileHandler.isFolder($0) && $0.basename != Constants.tuistDirectoryName
+        }.concurrentFilter {
+            try await fileSystem.exists($0, isDirectory: true) && $0.basename != Constants.tuistDirectoryName
         }.concurrentFilter {
             let manifests = try await manifestLoader.manifests(at: $0)
-            return manifests.contains(.package) && !manifests.contains(.project) && !manifests.contains(.workspace) && !$0
-                .pathString.contains(".build/checkouts")
+            return manifests.contains(.package)
+                && !manifests.contains(.project)
+                && !manifests.contains(.workspace)
+                && !SwiftPackageManagerPaths.isPath(
+                    $0,
+                    inSwiftPackageManagerCheckoutsOf: swiftPackageManagerScratchDirectory
+                )
         }
 
         let packageProjects = try await loadPackageProjects(

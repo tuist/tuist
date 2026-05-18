@@ -75,6 +75,38 @@ defmodule Tuist.AuthenticationTest do
     assert result.project_ids == []
   end
 
+  test "authenticated_subject returns nil for account tokens owned by inactive personal users" do
+    # Given
+    user = AccountsFixtures.user_fixture(preload: [:account])
+
+    {:ok, {_, token_value}} =
+      Accounts.create_account_token(%{account: user.account, scopes: ["project:cache:read"], name: "test-token"})
+
+    user |> User.active_changeset(false) |> Repo.update!()
+
+    # When/Then
+    assert Authentication.authenticated_subject(token_value) == nil
+  end
+
+  test "authenticated_subject returns nil for organization account tokens created by inactive users" do
+    # Given
+    organization_account = AccountsFixtures.organization_fixture(preload: [:account]).account
+    creator = AccountsFixtures.user_fixture(preload: [:account])
+
+    {:ok, {_, token_value}} =
+      Accounts.create_account_token(%{
+        account: organization_account,
+        created_by_account: creator.account,
+        scopes: ["project:cache:read"],
+        name: "test-token"
+      })
+
+    creator |> User.active_changeset(false) |> Repo.update!()
+
+    # When/Then
+    assert Authentication.authenticated_subject(token_value) == nil
+  end
+
   test "authenticated_subject returns AuthenticatedAccount for JWT account token" do
     # Given
     account = AccountsFixtures.organization_fixture(preload: [:account]).account
@@ -98,6 +130,57 @@ defmodule Tuist.AuthenticationTest do
 
     # Then
     assert account_id == account.id
+  end
+
+  test "authenticated_subject returns nil for JWT account tokens owned by inactive personal users" do
+    # Given
+    user = AccountsFixtures.user_fixture(preload: [:account])
+
+    {:ok, jwt_token, _claims} =
+      Authentication.encode_and_sign(
+        user.account,
+        %{
+          "type" => "account",
+          "scopes" => ["project:cache:read"]
+        },
+        token_type: :access,
+        ttl: {1, :hour}
+      )
+
+    user |> User.active_changeset(false) |> Repo.update!()
+
+    # When/Then
+    assert Authentication.authenticated_subject(jwt_token) == nil
+  end
+
+  test "refresh/2 refreshes an account JWT" do
+    # Given
+    account = AccountsFixtures.organization_fixture(preload: [:account]).account
+
+    {:ok, refresh_token, _claims} =
+      Authentication.encode_and_sign(
+        account,
+        %{
+          "type" => "account",
+          "scopes" => ["preview_create"]
+        },
+        token_type: :refresh,
+        ttl: {60, :minute}
+      )
+
+    # When
+    {:ok, _old, {new_refresh_token, new_claims}} =
+      Authentication.refresh(refresh_token, ttl: {60, :minute})
+
+    # Then
+    assert new_claims["preferred_username"] == account.name
+    assert new_claims["type"] == "account"
+    assert new_claims["scopes"] == ["preview_create"]
+
+    {:ok, %AuthenticatedAccount{account: %Account{id: refreshed_account_id}}, _} =
+      Tuist.Guardian.resource_from_token(new_refresh_token)
+
+    assert refreshed_account_id == account.id
   end
 
   test "refresh/2 refreshes the account handle" do

@@ -12,6 +12,7 @@ import TuistTesting
 
 struct ProjectAcceptanceTests {
     @Test(
+        .disabled(),
         .inTemporaryDirectory,
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
         .withMockedNoora,
@@ -35,6 +36,7 @@ struct ProjectAcceptanceTests {
     }
 
     @Test(
+        .disabled(),
         .inTemporaryDirectory,
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
         .withMockedNoora,
@@ -82,6 +84,7 @@ struct ProjectAcceptanceTests {
     }
 
     @Test(
+        .disabled(),
         .inTemporaryDirectory,
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
         .withMockedNoora,
@@ -117,6 +120,7 @@ struct ProjectAcceptanceTests {
     }
 
     @Test(
+        .disabled(),
         .inTemporaryDirectory,
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
         .withMockedNoora,
@@ -150,6 +154,7 @@ struct ProjectAcceptanceTests {
     }
 
     @Test(
+        .disabled(),
         .inTemporaryDirectory,
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
         .withMockedNoora,

@@ -1,0 +1,611 @@
+defmodule Tuist.Automations.Alerts.AlertTest do
+  use TuistTestSupport.Cases.DataCase, async: true
+
+  alias Tuist.Automations.Alerts.Alert
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
+
+  defp valid_attrs(project, overrides \\ %{}) do
+    Map.merge(
+      %{
+        "project_id" => project.id,
+        "name" => "Auto-quarantine flaky tests",
+        "monitor_type" => "flakiness_rate",
+        "trigger_config" => %{"threshold" => 10, "window_type" => "last_days", "window" => "30d"},
+        "trigger_actions" => [%{"type" => "change_state", "state" => "muted"}]
+      },
+      overrides
+    )
+  end
+
+  describe "changeset/2" do
+    test "is valid with valid attributes" do
+      project = ProjectsFixtures.project_fixture()
+      changeset = Alert.changeset(%Alert{}, valid_attrs(project))
+      assert changeset.valid?
+    end
+
+    test "requires project_id, name, monitor_type, trigger_actions" do
+      changeset = Alert.changeset(%Alert{}, %{})
+      refute changeset.valid?
+      errors = errors_on(changeset)
+      assert "can't be blank" in errors.project_id
+      assert "can't be blank" in errors.name
+      assert "can't be blank" in errors.monitor_type
+      assert "can't be blank" in errors.trigger_actions
+    end
+
+    test "rejects unknown monitor_type" do
+      project = ProjectsFixtures.project_fixture()
+      changeset = Alert.changeset(%Alert{}, valid_attrs(project, %{"monitor_type" => "bogus"}))
+      refute changeset.valid?
+      assert errors_on(changeset).monitor_type
+    end
+
+    test "accepts flaky_run_count monitor_type with integer threshold" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "monitor_type" => "flaky_run_count",
+            "trigger_config" => %{"threshold" => 3, "window_type" => "last_days", "window" => "30d"}
+          })
+        )
+
+      assert changeset.valid?
+    end
+
+    test "accepts a flaky_run_count alert with lt comparison" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "monitor_type" => "flaky_run_count",
+            "trigger_config" => %{"threshold" => 1, "window_type" => "last_days", "window" => "30d", "comparison" => "lt"},
+            "trigger_actions" => [%{"type" => "remove_label", "label" => "flaky"}]
+          })
+        )
+
+      assert changeset.valid?
+    end
+
+    test "accepts a flakiness_rate alert with lte comparison" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "monitor_type" => "flakiness_rate",
+            "trigger_config" => %{
+              "threshold" => 5,
+              "window_type" => "last_days",
+              "window" => "30d",
+              "comparison" => "lte"
+            },
+            "trigger_actions" => [%{"type" => "remove_label", "label" => "flaky"}]
+          })
+        )
+
+      assert changeset.valid?
+    end
+
+    test "rejects an unknown comparison" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "trigger_config" => %{
+              "threshold" => 5,
+              "window_type" => "last_days",
+              "window" => "30d",
+              "comparison" => "bogus"
+            }
+          })
+        )
+
+      refute changeset.valid?
+      assert errors_on(changeset).trigger_config
+    end
+
+    test "rejects flakiness_rate config with threshold out of range" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "trigger_config" => %{"threshold" => 200, "window_type" => "last_days", "window" => "30d"}
+          })
+        )
+
+      refute changeset.valid?
+      assert errors_on(changeset).trigger_config
+    end
+
+    test "rejects flakiness_rate config without window" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{"trigger_config" => %{"threshold" => 10}})
+        )
+
+      refute changeset.valid?
+      assert errors_on(changeset).trigger_config
+    end
+
+    test "accepts a flakiness_rate alert with rolling window_type" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "trigger_config" => %{
+              "threshold" => 10,
+              "window_type" => "rolling",
+              "rolling_window_size" => 100
+            }
+          })
+        )
+
+      assert changeset.valid?
+    end
+
+    test "accepts a flaky_run_count alert with rolling window_type" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "monitor_type" => "flaky_run_count",
+            "trigger_config" => %{
+              "threshold" => 3,
+              "window_type" => "rolling",
+              "rolling_window_size" => 50
+            }
+          })
+        )
+
+      assert changeset.valid?
+    end
+
+    test "rejects rolling window_type without rolling_window_size" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "trigger_config" => %{"threshold" => 10, "window_type" => "rolling"}
+          })
+        )
+
+      refute changeset.valid?
+      assert errors_on(changeset).trigger_config
+    end
+
+    test "rejects rolling window_type with rolling_window_size above the cap" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "trigger_config" => %{
+              "threshold" => 10,
+              "window_type" => "rolling",
+              "rolling_window_size" => 1_000_000
+            }
+          })
+        )
+
+      refute changeset.valid?
+      assert errors_on(changeset).trigger_config
+    end
+
+    test "rejects rolling window_type with non-positive rolling_window_size" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "trigger_config" => %{
+              "threshold" => 10,
+              "window_type" => "rolling",
+              "rolling_window_size" => 0
+            }
+          })
+        )
+
+      refute changeset.valid?
+      assert errors_on(changeset).trigger_config
+    end
+
+    test "accepts test_updated monitor with a non-empty events list" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "monitor_type" => "test_updated",
+            "trigger_config" => %{"events" => ["marked_flaky", "state_changed_to_muted"]},
+            "trigger_actions" => [%{"type" => "change_state", "state" => "muted"}]
+          })
+        )
+
+      assert changeset.valid?
+    end
+
+    test "rejects test_updated monitor with an empty events list" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "monitor_type" => "test_updated",
+            "trigger_config" => %{"events" => []},
+            "trigger_actions" => [%{"type" => "change_state", "state" => "muted"}]
+          })
+        )
+
+      refute changeset.valid?
+      assert errors_on(changeset).trigger_config
+    end
+
+    test "rejects test_updated monitor without an events key" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "monitor_type" => "test_updated",
+            "trigger_config" => %{},
+            "trigger_actions" => [%{"type" => "change_state", "state" => "muted"}]
+          })
+        )
+
+      refute changeset.valid?
+      assert errors_on(changeset).trigger_config
+    end
+
+    test "rejects test_updated monitor with unknown event names" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "monitor_type" => "test_updated",
+            "trigger_config" => %{"events" => ["marked_flaky", "fly_to_moon"]},
+            "trigger_actions" => [%{"type" => "change_state", "state" => "muted"}]
+          })
+        )
+
+      refute changeset.valid?
+      assert errors_on(changeset).trigger_config
+    end
+
+    test "rejects unknown window_type" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "trigger_config" => %{
+              "threshold" => 10,
+              "window_type" => "weekly",
+              "window" => "30d"
+            }
+          })
+        )
+
+      refute changeset.valid?
+      assert errors_on(changeset).trigger_config
+    end
+
+    test "rejects trigger_config without an explicit window_type" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "trigger_config" => %{"threshold" => 10, "window" => "30d"}
+          })
+        )
+
+      refute changeset.valid?
+      assert errors_on(changeset).trigger_config
+    end
+
+    test "rejects rolling recovery_config with non-positive rolling_window_size" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "recovery_enabled" => true,
+            "recovery_config" => %{"window_type" => "rolling", "rolling_window_size" => 0},
+            "recovery_actions" => [%{"type" => "remove_label", "label" => "flaky"}]
+          })
+        )
+
+      refute changeset.valid?
+      assert errors_on(changeset).recovery_config
+    end
+
+    test "rejects rolling recovery_config without rolling_window_size" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "recovery_enabled" => true,
+            "recovery_config" => %{"window_type" => "rolling"},
+            "recovery_actions" => [%{"type" => "remove_label", "label" => "flaky"}]
+          })
+        )
+
+      refute changeset.valid?
+      assert errors_on(changeset).recovery_config
+    end
+
+    test "rejects last_days recovery_config without a window string" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "recovery_enabled" => true,
+            "recovery_config" => %{"window_type" => "last_days"},
+            "recovery_actions" => [%{"type" => "remove_label", "label" => "flaky"}]
+          })
+        )
+
+      refute changeset.valid?
+      assert errors_on(changeset).recovery_config
+    end
+
+    test "accepts rolling recovery_config with a positive rolling_window_size" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "recovery_enabled" => true,
+            "recovery_config" => %{"window_type" => "rolling", "rolling_window_size" => 50},
+            "recovery_actions" => [%{"type" => "remove_label", "label" => "flaky"}]
+          })
+        )
+
+      assert changeset.valid?
+    end
+
+    test "skips recovery validation when recovery is disabled" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "recovery_enabled" => false,
+            "recovery_config" => %{"window_type" => "rolling", "rolling_window_size" => 0}
+          })
+        )
+
+      assert changeset.valid?
+    end
+  end
+
+  describe "trigger_actions validation" do
+    test "accepts a change_state action with valid state" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "trigger_actions" => [%{"type" => "change_state", "state" => "enabled"}]
+          })
+        )
+
+      assert changeset.valid?
+    end
+
+    test "accepts a change_state action with skipped state" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "trigger_actions" => [%{"type" => "change_state", "state" => "skipped"}]
+          })
+        )
+
+      assert changeset.valid?
+    end
+
+    test "rejects change_state action with invalid state" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "trigger_actions" => [%{"type" => "change_state", "state" => "bogus"}]
+          })
+        )
+
+      refute changeset.valid?
+      assert "contains invalid actions" in errors_on(changeset).trigger_actions
+    end
+
+    test "accepts a send_slack action with channel and message" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "trigger_actions" => [
+              %{"type" => "send_slack", "channel" => "C123", "message" => "hi"}
+            ]
+          })
+        )
+
+      assert changeset.valid?
+    end
+
+    test "rejects send_slack action with empty channel" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "trigger_actions" => [%{"type" => "send_slack", "channel" => "", "message" => "hi"}]
+          })
+        )
+
+      refute changeset.valid?
+    end
+
+    test "rejects send_slack action with empty message" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "trigger_actions" => [%{"type" => "send_slack", "channel" => "C123", "message" => ""}]
+          })
+        )
+
+      refute changeset.valid?
+    end
+
+    test "accepts add_label and remove_label actions" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "trigger_actions" => [%{"type" => "add_label", "label" => "flaky"}],
+            "recovery_enabled" => true,
+            "recovery_config" => %{"window_type" => "last_days", "window" => "14d"},
+            "recovery_actions" => [%{"type" => "remove_label", "label" => "flaky"}]
+          })
+        )
+
+      assert changeset.valid?
+    end
+
+    test "rejects add_label without a label" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "trigger_actions" => [%{"type" => "add_label"}]
+          })
+        )
+
+      refute changeset.valid?
+    end
+
+    test "rejects more than one change_state action in trigger_actions" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "trigger_actions" => [
+              %{"type" => "change_state", "state" => "muted"},
+              %{"type" => "change_state", "state" => "enabled"}
+            ]
+          })
+        )
+
+      refute changeset.valid?
+      assert "can only contain one change_state action" in errors_on(changeset).trigger_actions
+    end
+
+    test "rejects duplicate add_label with same label" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "trigger_actions" => [
+              %{"type" => "add_label", "label" => "flaky"},
+              %{"type" => "add_label", "label" => "flaky"}
+            ]
+          })
+        )
+
+      refute changeset.valid?
+      assert "can only contain one add_label action per label" in errors_on(changeset).trigger_actions
+    end
+
+    test "allows add_label with different labels" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "trigger_actions" => [
+              %{"type" => "add_label", "label" => "flaky"},
+              %{"type" => "add_label", "label" => "slow"}
+            ]
+          })
+        )
+
+      assert changeset.valid?
+    end
+
+    test "rejects unknown action type" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{"trigger_actions" => [%{"type" => "fly_to_moon"}]})
+        )
+
+      refute changeset.valid?
+    end
+  end
+
+  describe "foreign key" do
+    test "rejects nonexistent project_id" do
+      changeset = Alert.changeset(%Alert{}, valid_attrs(%{id: 999_999}))
+      assert changeset.valid?
+      {:error, changeset_with_error} = Repo.insert(changeset)
+      assert "does not exist" in errors_on(changeset_with_error).project_id
+    end
+  end
+end

@@ -30,6 +30,7 @@ defmodule Tuist.Tests.TestCaseFailure do
   @primary_key {:id, Ecto.UUID, autogenerate: false}
   schema "test_case_failures" do
     field :test_case_run_id, Ecto.UUID
+    field :test_case_run_argument_id, Ch, type: "Nullable(UUID)"
     field :message, :string
     field :path, :string
     field :line_number, Ch, type: "Int32"
@@ -43,6 +44,7 @@ defmodule Tuist.Tests.TestCaseFailure do
       %{
         id: attrs[:id],
         test_case_run_id: attrs[:test_case_run_id],
+        test_case_run_argument_id: attrs[:test_case_run_argument_id],
         message: attrs[:message],
         path: attrs[:path],
         line_number: attrs[:line_number],
@@ -52,6 +54,7 @@ defmodule Tuist.Tests.TestCaseFailure do
       [
         :id,
         :test_case_run_id,
+        :test_case_run_argument_id,
         :message,
         :path,
         :line_number,

@@ -54,7 +54,8 @@ public struct CacheURLStore: CacheURLStoring {
             return url
         }
 
-        let key = "cache_url_\(serverURL.absoluteString)_\(accountHandle ?? "global")"
+        let key =
+            "cache_url_\(serverURL.absoluteString)_\(accountHandle ?? "global")_\(currentCacheEndpointKeySuffix())"
         let nsKey = key as NSString
 
         if let cachedURLString = localCache.object(forKey: nsKey) as? String {
@@ -154,6 +155,14 @@ public struct CacheURLStore: CacheURLStoring {
 
         let expirationDate = Calendar.current.date(byAdding: .hour, value: 1, to: Date())
         return (value: bestEndpoint.0, expiresAt: expirationDate)
+    }
+
+    private func currentCacheEndpointKeySuffix() -> String {
+        if ClientFeatureFlags.contains("kura") {
+            "kura"
+        } else {
+            "default"
+        }
     }
 }
 

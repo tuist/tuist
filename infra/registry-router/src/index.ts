@@ -15,10 +15,13 @@ const EARTH_RADIUS_KM = 6371;
 const ORIGINS: Origin[] = [
   { host: "cache-eu-central.tuist.dev",   lat:  50.11, lon:    8.68 }, // Frankfurt
   { host: "cache-eu-north.tuist.dev",     lat:  60.17, lon:   24.94 }, // Helsinki
-  { host: "cache-us-east.tuist.dev",      lat:  39.04, lon:  -77.49 }, // Virginia
+  { host: "cache-us-east.tuist.dev",      lat:  39.04, lon:  -77.49 }, // Ashburn
+  { host: "cache-us-east-2.tuist.dev",    lat:  39.04, lon:  -77.49 }, // Ashburn
+  { host: "cache-us-east-3.tuist.dev",    lat:  39.04, lon:  -77.49 }, // Ashburn
   { host: "cache-us-west.tuist.dev",      lat:  45.59, lon: -122.60 }, // Oregon
   { host: "cache-ap-southeast.tuist.dev", lat:   1.35, lon:  103.82 }, // Singapore
   { host: "cache-sa-west.tuist.dev",      lat: -33.45, lon:  -70.67 }, // Santiago
+  { host: "cache-au-east.tuist.dev",      lat: -33.87, lon:  151.21 }, // Sydney
 ];
 
 function toRadians(degrees: number): number {

@@ -1,0 +1,94 @@
+# RunnerPool CRD for the runners-controller. Lives in `crds/` (not
+# `templates/`) so helm applies it BEFORE any RunnerPool CR the chart
+# renders during a fresh install — without that ordering, the
+# apiserver rejects the CR with "no matches for kind RunnerPool" and
+# the install fails on first deploy to a clean cluster.
+#
+# Trade-off vs. living in `templates/`: helm does NOT touch crds/ on
+# `helm upgrade`. Schema changes therefore have to be applied
+# out-of-band on existing installs (kubectl apply -f this file).
+# That's acceptable here — the chart is the source of truth for the
+# CRD, runners-controller is the only consumer, and we evolve the
+# spec rarely. Schema-evolution drill on upgrades: re-applying this
+# file manually (or via a one-shot Job) before the helm upgrade lands.
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: runnerpools.tuist.dev
+spec:
+  group: tuist.dev
+  scope: Namespaced
+  names:
+    plural: runnerpools
+    singular: runnerpool
+    kind: RunnerPool
+    shortNames: [rpool]
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Replicas
+          type: integer
+          jsonPath: .spec.replicas
+        - name: Observed
+          type: integer
+          jsonPath: .status.observedReplicas
+        - name: DispatchLabel
+          type: string
+          jsonPath: .spec.dispatchLabel
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              required: [image, fleetSelector, dispatchLabel]
+              properties:
+                labels:
+                  type: array
+                  items:
+                    type: string
+                  description: Labels stamped on Pods + SAs the controller creates.
+                replicas:
+                  type: integer
+                  default: 0
+                  minimum: 0
+                  description: Number of Pods the controller maintains for this pool.
+                image:
+                  type: string
+                  description: OCI ref of the runner Tart image, digest-pinned.
+                fleetSelector:
+                  type: string
+                  description: Value of `tuist.dev/fleet=<name>` Pods in this pool pin to via nodeSelector.
+                dispatchLabel:
+                  type: string
+                  description: GitHub Actions runner label customers put in `runs-on` to target this fleet. Webhook handler matches against `workflow_job.labels`; dispatch endpoint includes it in the JIT mint.
+                podCPUMilli:
+                  type: integer
+                  default: 8000
+                  description: Pod request shape so kube-scheduler bin-packs one Pod per host AND tart-kubelet's `tart set` matches host capacity minus VZ overhead.
+                podMemoryMB:
+                  type: integer
+                  default: 14336
+                  description: Pod memory request matching the Mac mini SKU's capacity minus VZ overhead.
+            status:
+              type: object
+              properties:
+                observedReplicas:
+                  type: integer
+                lastReconcile:
+                  type: string
+                  format: date-time
+                observedImage:
+                  type: string
+                  description: spec.image value the controller last recorded an imageRolledAt for. Bumped together on every image change.
+                imageRolledAt:
+                  type: string
+                  format: date-time
+                  description: Timestamp the controller last observed spec.image change. The server-side dispatch endpoint uses this to stagger HTTP 410 drain responses across a rolling window so the warm pool doesn't drop to zero on every digest-pin bump.

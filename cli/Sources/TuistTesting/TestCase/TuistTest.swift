@@ -38,20 +38,18 @@ func _withMockedDependencies(forwardLogs: Bool = false, _ closure: () async thro
     try await Logger.$current.withValue(logger) {
         try await Logger.$testingLogHandler.withValue(logHandler) {
             try await Noora.$current.withValue(NooraMock(terminal: Terminal(isInteractive: false))) {
-                try await RecentPathsStore.$current.withValue(MockRecentPathsStoring()) {
-                    try await AlertController.$current.withValue(AlertController()) {
-                        #if os(macOS)
-                            try await ServerCredentialsStore.$current.withValue(MockServerCredentialsStoring()) {
-                                try await CachedValueStore.$current.withValue(MockCachedValueStoring()) {
-                                    try await RunMetadataStorage.$current.withValue(RunMetadataStorage()) {
-                                        try await closure()
-                                    }
+                try await AlertController.$current.withValue(AlertController()) {
+                    #if os(macOS)
+                        try await ServerCredentialsStore.$current.withValue(MockServerCredentialsStoring()) {
+                            try await CachedValueStore.$current.withValue(MockCachedValueStoring()) {
+                                try await RunMetadataStorage.$current.withValue(RunMetadataStorage()) {
+                                    try await closure()
                                 }
                             }
-                        #else
-                            try await closure()
-                        #endif
-                    }
+                        }
+                    #else
+                        try await closure()
+                    #endif
                 }
             }
         }

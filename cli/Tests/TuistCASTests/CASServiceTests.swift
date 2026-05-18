@@ -20,7 +20,7 @@
         private let saveCacheCASService: MockSaveCacheCASServicing
         private let loadCacheCASService: MockLoadCacheCASServicing
         private let dataCompressingService: MockDataCompressingServicing
-        private let metadataStore: MockCASOutputMetadataStoring
+        private let analyticsDatabase: MockCASAnalyticsDatabasing
         private let serverAuthenticationController: MockServerAuthenticationControlling
         private let fullHandle = "account-handle/project-handle"
         private let serverURL = URL(string: "https://example.com")!
@@ -31,7 +31,7 @@
             saveCacheCASService = .init()
             loadCacheCASService = .init()
             dataCompressingService = .init()
-            metadataStore = .init()
+            analyticsDatabase = .init()
             serverAuthenticationController = .init()
 
             given(cacheURLStore)
@@ -50,7 +50,7 @@
                 loadCacheCASService: loadCacheCASService,
                 fileSystem: FileSystem(),
                 dataCompressingService: dataCompressingService,
-                metadataStore: metadataStore,
+                analyticsDatabase: analyticsDatabase,
                 serverAuthenticationController: serverAuthenticationController
             )
         }
@@ -81,8 +81,8 @@
                 .decompress(.any)
                 .willReturn(expectedData)
 
-            given(metadataStore)
-                .storeMetadata(.any, for: .any)
+            given(analyticsDatabase)
+                .storeCASOutput(key: .any, size: .any, duration: .any, compressedSize: .any)
                 .willReturn()
 
             // When
@@ -114,8 +114,8 @@
 
             try await Task.sleep(for: .milliseconds(100))
 
-            verify(metadataStore)
-                .storeMetadata(.any, for: .value(casID))
+            verify(analyticsDatabase)
+                .storeCASOutput(key: .value(casID), size: .any, duration: .any, compressedSize: .any)
                 .called(1)
         }
 
@@ -181,8 +181,8 @@
                 )
                 .willReturn()
 
-            given(metadataStore)
-                .storeMetadata(.any, for: .any)
+            given(analyticsDatabase)
+                .storeCASOutput(key: .any, size: .any, duration: .any, compressedSize: .any)
                 .willReturn()
 
             // When
@@ -217,8 +217,8 @@
 
             try await Task.sleep(for: .milliseconds(100))
 
-            verify(metadataStore)
-                .storeMetadata(.any, for: .value(fingerprint))
+            verify(analyticsDatabase)
+                .storeCASOutput(key: .value(fingerprint), size: .any, duration: .any, compressedSize: .any)
                 .called(1)
         }
 
@@ -316,7 +316,7 @@
                 loadCacheCASService: loadCacheCASService,
                 fileSystem: FileSystem(),
                 dataCompressingService: dataCompressingService,
-                metadataStore: metadataStore,
+                analyticsDatabase: analyticsDatabase,
                 serverAuthenticationController: serverAuthenticationController,
                 upload: false
             )
@@ -353,8 +353,8 @@
 
             try await Task.sleep(for: .milliseconds(100))
 
-            verify(metadataStore)
-                .storeMetadata(.any, for: .any)
+            verify(analyticsDatabase)
+                .storeCASOutput(key: .any, size: .any, duration: .any, compressedSize: .any)
                 .called(0)
         }
 

@@ -25,7 +25,7 @@ final class StencilManifestMapperTests: TuistUnitTestCase {
     func test_locate_when_a_stencil_and_git_directory_exists() async throws {
         // Given
         let stencilDirectory = try temporaryPath()
-        try createFolders(["this/is/a/very/nested/directory", "this/is/Tuist/Stencils", "this/.git"])
+        try await createFolders(["this/is/a/very/nested/directory", "this/is/Tuist/Stencils", "this/.git"])
 
         // When
         let got = try await subject
@@ -38,7 +38,7 @@ final class StencilManifestMapperTests: TuistUnitTestCase {
     func test_locate_when_a_stencil_directory_exists() async throws {
         // Given
         let stencilDirectory = try temporaryPath()
-        try createFolders(["this/is/a/very/nested/directory", "this/is/Tuist/Stencils"])
+        try await createFolders(["this/is/a/very/nested/directory", "this/is/Tuist/Stencils"])
 
         // When
         let got = try await subject
@@ -51,7 +51,7 @@ final class StencilManifestMapperTests: TuistUnitTestCase {
     func test_locate_when_a_git_directory_exists() async throws {
         // Given
         let stencilDirectory = try temporaryPath()
-        try createFolders(["this/is/a/very/nested/directory", "this/.git", "this/Tuist/Stencils"])
+        try await createFolders(["this/is/a/very/nested/directory", "this/.git", "this/Tuist/Stencils"])
 
         // When
         let got = try await subject
@@ -64,7 +64,7 @@ final class StencilManifestMapperTests: TuistUnitTestCase {
     func test_locate_when_multiple_tuist_directories_exists() async throws {
         // Given
         let stencilDirectory = try temporaryPath()
-        try createFolders(["this/is/a/very/nested/Tuist/Stencils", "this/is/Tuist/Stencils"])
+        try await createFolders(["this/is/a/very/nested/Tuist/Stencils", "this/is/Tuist/Stencils"])
         let paths = [
             "this/is/a/very/directory",
             "this/is/a/very/nested/directory",

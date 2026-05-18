@@ -2,18 +2,23 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
+  alias Tuist.CommandEvents
   alias Tuist.MCP.Components.Tools.GetTestCase
   alias Tuist.MCP.Components.Tools.GetTestCaseRun
   alias Tuist.MCP.Components.Tools.GetTestRun
+  alias Tuist.MCP.Components.Tools.ListTestCaseEvents
   alias Tuist.MCP.Components.Tools.ListTestCaseRunAttachments
   alias Tuist.MCP.Components.Tools.ListTestCaseRuns
   alias Tuist.MCP.Components.Tools.ListTestCases
   alias Tuist.MCP.Components.Tools.ListTestModuleRuns
   alias Tuist.MCP.Components.Tools.ListTestRuns
   alias Tuist.MCP.Components.Tools.ListTestSuiteRuns
+  alias Tuist.MCP.Components.Tools.ListXcodeTestTargets
+  alias Tuist.MCP.Components.Tools.UpdateTestCase
   alias Tuist.Projects
   alias Tuist.Tests
   alias Tuist.Tests.Analytics
+  alias Tuist.Xcode
 
   describe "list_test_runs" do
     test "returns paginated test runs with metrics" do
@@ -211,7 +216,7 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
              module_name: "AuthModule",
              suite_name: "AuthSuite",
              is_flaky: false,
-             is_quarantined: false,
+             state: "enabled",
              last_status: :success,
              last_duration: 1500,
              last_ran_at: ~N[2024-01-01 12:00:00],
@@ -253,6 +258,98 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
                ListTestCases.call(conn, %{"account_handle" => "acme", "project_handle" => "app"})
 
       assert text =~ "You do not have access to project: acme/app"
+    end
+  end
+
+  describe "list_test_case_events" do
+    test "returns events for a test case" do
+      project = %{id: 1, name: "app"}
+
+      stub(Tests, :get_test_case_by_id, fn "tc-1" ->
+        {:ok, %{id: "tc-1", project_id: 1}}
+      end)
+
+      stub(Projects, :get_project_by_id, fn 1 -> project end)
+      stub(Tuist.Authorization, :authorize, fn :test_read, :subject, ^project -> :ok end)
+
+      stub(Tests, :list_test_case_events, fn "tc-1", _attrs ->
+        {[
+           %{
+             event_type: "marked_flaky",
+             inserted_at: ~N[2024-06-15 10:30:00],
+             actor: %{id: 1, name: "alice"}
+           },
+           %{
+             event_type: "first_run",
+             inserted_at: ~N[2024-06-01 08:00:00],
+             actor: nil
+           }
+         ],
+         %{
+           has_next_page?: false,
+           has_previous_page?: false,
+           current_page: 1,
+           page_size: 20,
+           total_count: 2,
+           total_pages: 1
+         }}
+      end)
+
+      conn = %Plug.Conn{assigns: %{current_subject: :subject}}
+
+      assert %{"content" => [%{"type" => "text", "text" => text}]} =
+               ListTestCaseEvents.call(conn, %{"test_case_id" => "tc-1"})
+
+      assert JSON.decode!(text) == %{
+               "events" => [
+                 %{
+                   "event_type" => "marked_flaky",
+                   "inserted_at" => "2024-06-15T10:30:00Z",
+                   "actor" => %{"id" => 1, "name" => "alice"}
+                 },
+                 %{
+                   "event_type" => "first_run",
+                   "inserted_at" => "2024-06-01T08:00:00Z",
+                   "actor" => nil
+                 }
+               ],
+               "pagination_metadata" => %{
+                 "has_next_page" => false,
+                 "has_previous_page" => false,
+                 "current_page" => 1,
+                 "page_size" => 20,
+                 "total_count" => 2,
+                 "total_pages" => 1
+               }
+             }
+    end
+
+    test "returns error when test case not found" do
+      stub(Tests, :get_test_case_by_id, fn "tc-404" -> {:error, :not_found} end)
+
+      conn = %Plug.Conn{assigns: %{current_subject: :subject}}
+
+      assert %{"content" => [%{"type" => "text", "text" => text}], "isError" => true} =
+               ListTestCaseEvents.call(conn, %{"test_case_id" => "tc-404"})
+
+      assert text =~ "Test case not found"
+    end
+
+    test "requires :test_read authorization" do
+      project = %{id: 1, name: "app"}
+      stub(Tests, :get_test_case_by_id, fn "tc-1" -> {:ok, %{id: "tc-1", project_id: 1}} end)
+      stub(Projects, :get_project_by_id, fn 1 -> project end)
+
+      expect(Tuist.Authorization, :authorize, fn :test_read, :subject, ^project ->
+        {:error, :forbidden}
+      end)
+
+      conn = %Plug.Conn{assigns: %{current_subject: :subject}}
+
+      assert %{"content" => [%{"type" => "text", "text" => text}], "isError" => true} =
+               ListTestCaseEvents.call(conn, %{"test_case_id" => "tc-1"})
+
+      assert text =~ "You do not have access to this resource."
     end
   end
 
@@ -301,6 +398,57 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
 
       assert %{"content" => [%{"type" => "text", "text" => text}], "isError" => true} =
                GetTestCase.call(conn, %{})
+
+      assert text =~
+               "Provide either test_case_id, or identifier with account_handle and project_handle."
+    end
+  end
+
+  describe "update_test_case" do
+    test "requires :test_update authorization" do
+      project = %{id: "project-id", name: "project-name"}
+      project_id = project.id
+      stub(Tests, :get_test_case_by_id, fn "test-case-id" -> {:ok, %{project_id: project.id}} end)
+      stub(Projects, :get_project_by_id, fn ^project_id -> project end)
+
+      expect(Tuist.Authorization, :authorize, fn :test_update, :subject, ^project ->
+        {:error, :forbidden}
+      end)
+
+      conn = %Plug.Conn{assigns: %{current_subject: :subject}}
+
+      assert %{"content" => [%{"type" => "text", "text" => text}], "isError" => true} =
+               UpdateTestCase.call(conn, %{"test_case_id" => "test-case-id", "state" => "muted"})
+
+      assert text =~ "You do not have access to this resource."
+    end
+
+    test "returns error without state or is_flaky" do
+      conn = %Plug.Conn{assigns: %{current_subject: :subject}}
+
+      assert %{"content" => [%{"type" => "text", "text" => text}], "isError" => true} =
+               UpdateTestCase.call(conn, %{"test_case_id" => "test-case-id"})
+
+      assert text =~ "Provide at least one of `state` or `is_flaky`."
+    end
+
+    test "returns error for invalid state value" do
+      conn = %Plug.Conn{assigns: %{current_subject: :subject}}
+
+      assert %{"content" => [%{"type" => "text", "text" => text}], "isError" => true} =
+               UpdateTestCase.call(conn, %{
+                 "test_case_id" => "test-case-id",
+                 "state" => "invalid"
+               })
+
+      assert text =~ "`state` must be one of `enabled`, `muted`, or `skipped`."
+    end
+
+    test "returns error without test_case_id or identifier" do
+      conn = %Plug.Conn{assigns: %{current_subject: :subject}}
+
+      assert %{"content" => [%{"type" => "text", "text" => text}], "isError" => true} =
+               UpdateTestCase.call(conn, %{"state" => "muted"})
 
       assert text =~
                "Provide either test_case_id, or identifier with account_handle and project_handle."
@@ -446,8 +594,8 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
            id: "run-1",
            project_id: 1,
            attachments: [
-             %{id: "att-1", file_name: "crash-report.ips"},
-             %{id: "att-2", file_name: "screenshot.png"}
+             %{id: "att-1", test_run_id: "run-0", file_name: "crash-report.ips"},
+             %{id: "att-2", test_run_id: "run-0", file_name: "screenshot.png"}
            ]
          }}
       end)
@@ -480,6 +628,100 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
       assert att2["file_name"] == "screenshot.png"
       assert att2["type"] == "image"
       assert att2["download_url"] == "https://s3.example.com/presigned-url"
+    end
+  end
+
+  describe "list_xcode_test_targets" do
+    test "returns targets with selective testing status" do
+      project = %{id: 1, name: "app"}
+      command_event = %{id: "event-1", project_id: 1, created_at: ~N[2024-01-01 12:00:00]}
+
+      stub(Tests, :get_test, fn "run-1" ->
+        {:ok, %{id: "run-1", project_id: 1}}
+      end)
+
+      stub(CommandEvents, :get_command_event_by_test_run_id, fn "run-1", [project_id: 1] ->
+        {:ok, command_event}
+      end)
+
+      stub(Projects, :get_project_by_id, fn 1 -> project end)
+      stub(Tuist.Authorization, :authorize, fn :test_read, :subject, ^project -> :ok end)
+
+      stub(Xcode, :selective_testing_analytics, fn ^command_event, _flop_params ->
+        {%{
+           test_modules: [
+             %{name: "AuthTests", selective_testing_hit: :miss, selective_testing_hash: "abc123"},
+             %{name: "CoreTests", selective_testing_hit: :local, selective_testing_hash: "def456"},
+             %{name: "UITests", selective_testing_hit: :remote, selective_testing_hash: "ghi789"}
+           ]
+         },
+         %{
+           has_next_page?: false,
+           has_previous_page?: false,
+           total_count: 3,
+           total_pages: 1,
+           current_page: 1,
+           page_size: 20
+         }}
+      end)
+
+      conn = %Plug.Conn{assigns: %{current_subject: :subject}}
+
+      assert %{"content" => [%{"type" => "text", "text" => text}]} =
+               ListXcodeTestTargets.call(conn, %{"test_run_id" => "run-1"})
+
+      result = JSON.decode!(text)
+      assert length(result["targets"]) == 3
+
+      auth = Enum.find(result["targets"], &(&1["name"] == "AuthTests"))
+      assert auth["hit_status"] == "miss"
+      assert auth["hash"] == "abc123"
+
+      core = Enum.find(result["targets"], &(&1["name"] == "CoreTests"))
+      assert core["hit_status"] == "local"
+
+      ui = Enum.find(result["targets"], &(&1["name"] == "UITests"))
+      assert ui["hit_status"] == "remote"
+    end
+
+    test "requires :test_read authorization" do
+      project = %{id: "project-id", name: "project-name"}
+      project_id = project.id
+      stub(Tests, :get_test, fn "run-1" -> {:ok, %{id: "run-1", project_id: project.id}} end)
+      stub(Projects, :get_project_by_id, fn ^project_id -> project end)
+
+      expect(Tuist.Authorization, :authorize, fn :test_read, :subject, ^project ->
+        {:error, :forbidden}
+      end)
+
+      conn = %Plug.Conn{assigns: %{current_subject: :subject}}
+
+      assert %{"content" => [%{"type" => "text", "text" => text}], "isError" => true} =
+               ListXcodeTestTargets.call(conn, %{"test_run_id" => "run-1"})
+
+      assert text =~ "You do not have access to this resource."
+    end
+
+    test "returns an error when no command event is associated with the test run" do
+      project = %{id: 1, name: "app"}
+
+      stub(Tests, :get_test, fn "run-1" ->
+        {:ok, %{id: "run-1", project_id: 1}}
+      end)
+
+      stub(CommandEvents, :get_command_event_by_test_run_id, fn "run-1", [project_id: 1] ->
+        {:error, :not_found}
+      end)
+
+      stub(Projects, :get_project_by_id, fn 1 -> project end)
+      stub(Tuist.Authorization, :authorize, fn :test_read, :subject, ^project -> :ok end)
+
+      conn = %Plug.Conn{assigns: %{current_subject: :subject}}
+
+      assert %{"content" => [%{"type" => "text", "text" => text}], "isError" => true} =
+               ListXcodeTestTargets.call(conn, %{"test_run_id" => "run-1"})
+
+      assert text =~ "Test run not found: run-1"
     end
   end
 end

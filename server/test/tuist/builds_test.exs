@@ -197,7 +197,7 @@ defmodule Tuist.BuildsTest do
   end
 
   describe "get_build/1" do
-    test "returns build" do
+    test "returns {:ok, build}" do
       # Given
       {:ok, build} =
         RunsFixtures.build_fixture()
@@ -205,21 +205,43 @@ defmodule Tuist.BuildsTest do
       build_id = build.id
 
       # When
-      build = Builds.get_build(build_id)
+      {:ok, got} = Builds.get_build(build_id)
 
       # Then
-      assert build.id == build_id
+      assert got.id == build_id
     end
 
-    test "returns nil when build does not exist" do
+    test "falls back to the unbounded lookup for older builds" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          inserted_at: DateTime.utc_now() |> DateTime.add(-120, :day) |> DateTime.to_naive()
+        )
+
+      # When
+      {:ok, got} = Builds.get_build(build.id, project_id: project.id)
+
+      # Then
+      assert got.id == build.id
+    end
+
+    test "returns {:error, :not_found} when build does not exist" do
       # Given
       non_existent_build_id = UUIDv7.generate()
 
-      # When
-      build = Builds.get_build(non_existent_build_id)
+      # When / Then
+      assert Builds.get_build(non_existent_build_id) == {:error, :not_found}
+    end
 
-      # Then
-      assert build == nil
+    test "returns {:error, :not_found} when id is nil" do
+      assert Builds.get_build(nil) == {:error, :not_found}
+    end
+
+    test "returns {:error, :not_found} when id is not a valid UUID" do
+      assert Builds.get_build("not-a-uuid") == {:error, :not_found}
     end
   end
 
@@ -500,7 +522,7 @@ defmodule Tuist.BuildsTest do
       schemes = Builds.project_build_schemes(project)
 
       # Then
-      assert Enum.sort(schemes) == ["App", "Framework"]
+      assert schemes == ["App", "Framework"]
     end
 
     test "returns an empty list when no builds exist for the project" do
@@ -582,7 +604,7 @@ defmodule Tuist.BuildsTest do
       configurations = Builds.project_build_configurations(project)
 
       # Then
-      assert Enum.sort(configurations) == ["Debug", "Release"]
+      assert configurations == ["Debug", "Release"]
     end
 
     test "returns an empty list when no builds exist for the project" do
@@ -856,7 +878,7 @@ defmodule Tuist.BuildsTest do
         )
 
       # When
-      {tasks, meta} =
+      {:ok, {tasks, meta}} =
         Builds.list_cacheable_tasks(%{
           page_size: 2,
           filters: [%{field: :build_run_id, op: :==, value: build.id}]
@@ -880,7 +902,7 @@ defmodule Tuist.BuildsTest do
         )
 
       # When - filter by type
-      {swift_tasks, _meta} =
+      {:ok, {swift_tasks, _meta}} =
         Builds.list_cacheable_tasks(%{
           filters: [
             %{field: :build_run_id, op: :==, value: build.id},
@@ -905,7 +927,7 @@ defmodule Tuist.BuildsTest do
         )
 
       # When
-      {tasks, _meta} =
+      {:ok, {tasks, _meta}} =
         Builds.list_cacheable_tasks(%{
           filters: [%{field: :build_run_id, op: :==, value: build.id}],
           order_by: [:key],
@@ -922,7 +944,7 @@ defmodule Tuist.BuildsTest do
       {:ok, build} = RunsFixtures.build_fixture(cacheable_tasks: [])
 
       # When
-      {tasks, meta} =
+      {:ok, {tasks, meta}} =
         Builds.list_cacheable_tasks(%{
           filters: [%{field: :build_run_id, op: :==, value: build.id}]
         })
@@ -930,6 +952,21 @@ defmodule Tuist.BuildsTest do
       # Then
       assert tasks == []
       assert meta.total_count == 0
+    end
+
+    test "returns {:error, errors} when a filter value is invalid" do
+      # When
+      result =
+        Builds.list_cacheable_tasks(%{
+          filters: [
+            %{field: :build_run_id, op: :==, value: "00000000-0000-0000-0000-000000000000"},
+            %{field: :status, op: :==, value: "hit"}
+          ]
+        })
+
+      # Then
+      assert {:error, errors} = result
+      assert Keyword.has_key?(errors, :filters)
     end
   end
 

@@ -28,6 +28,17 @@ extension Tuist {
             case only([GenerationWarning])
         }
 
+        /// How `tuist generate` reacts when it detects that dependencies are outdated
+        /// (i.e. `Package.resolved` has changed since the last `tuist install`).
+        public enum OutdatedDependenciesAction: String, Codable, Equatable, Sendable {
+            /// Print a warning and continue generation (default).
+            case warn
+            /// Run `tuist install` automatically and then continue generation.
+            case install
+            /// Fail generation, requiring the user to run `tuist install` first.
+            case fail
+        }
+
         /// This is now deprecated.
         ///
         /// To achieve the same behaviour, use `additionalPackageResolutionArguments` like so:
@@ -107,6 +118,26 @@ extension Tuist {
         /// Controls which generation warnings are promoted to errors, causing `tuist generate` to fail.
         public var warningsAsErrors: WarningsAsErrors
 
+        /// The default Swift language mode (`SWIFT_VERSION` build setting) applied to local targets
+        /// that don't specify one. This controls which Swift language mode the compiler uses
+        /// (e.g. `"5"` for Swift 5 mode, `"6"` for Swift 6 strict concurrency mode).
+        /// External SPM packages are not affected — their language mode is derived from their
+        /// own `Package.swift` manifest, matching SPM's behavior.
+        public var defaultSwiftVersion: String
+
+        /// Names of process environment variables that Tuist forwards to manifest evaluation
+        /// in addition to the default set (`TUIST_*`, `CI`, and `DEVELOPER_DIR`).
+        ///
+        /// Each entry is either a literal name (e.g. `OPENSWIFTUI_LIBRARY_TYPE`) or a name
+        /// ending in `*` for prefix matching (e.g. `OPENSWIFTUI_*`).
+        ///
+        /// Listed variables also participate in the manifest cache hash, so changes invalidate
+        /// the cache as expected.
+        public var manifestEnvironment: [String]
+
+        /// Controls how `tuist generate` reacts to outdated dependencies. Defaults to `.warn`.
+        public var onOutdatedDependencies: OutdatedDependenciesAction
+
         public static func options(
             disablePackageVersionLocking: Bool = false,
             staticSideEffectsWarningTargets: StaticSideEffectsWarningTargets = .all,
@@ -119,7 +150,10 @@ extension Tuist {
             enableCaching: Bool = false,
             registryEnabled: Bool = false,
             additionalPackageResolutionArguments: [String] = [],
-            warningsAsErrors: WarningsAsErrors = .none
+            warningsAsErrors: WarningsAsErrors = .none,
+            defaultSwiftVersion: String = "5",
+            manifestEnvironment: [String] = [],
+            onOutdatedDependencies: OutdatedDependenciesAction = .warn
         ) -> Self {
             self.init(
                 resolveDependenciesWithSystemScm: false,
@@ -136,7 +170,10 @@ extension Tuist {
                 includeGenerateScheme: includeGenerateScheme,
                 enableCaching: enableCaching,
                 registryEnabled: registryEnabled,
-                warningsAsErrors: warningsAsErrors
+                warningsAsErrors: warningsAsErrors,
+                defaultSwiftVersion: defaultSwiftVersion,
+                manifestEnvironment: manifestEnvironment,
+                onOutdatedDependencies: onOutdatedDependencies
             )
         }
 
@@ -174,7 +211,10 @@ extension Tuist {
                 includeGenerateScheme: includeGenerateScheme,
                 enableCaching: enableCaching,
                 registryEnabled: false,
-                warningsAsErrors: .none
+                warningsAsErrors: .none,
+                defaultSwiftVersion: "5",
+                manifestEnvironment: [],
+                onOutdatedDependencies: .warn
             )
         }
 
@@ -207,7 +247,10 @@ extension Tuist {
                 includeGenerateScheme: false,
                 enableCaching: false,
                 registryEnabled: false,
-                warningsAsErrors: .none
+                warningsAsErrors: .none,
+                defaultSwiftVersion: "5",
+                manifestEnvironment: [],
+                onOutdatedDependencies: .warn
             )
         }
     }

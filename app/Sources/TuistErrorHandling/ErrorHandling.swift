@@ -1,6 +1,7 @@
 import OpenAPIRuntime
 import SwiftUI
 import TuistHTTP
+import TuistLogging
 import TuistServer
 
 struct ErrorAlert: Identifiable {
@@ -14,19 +15,27 @@ public final class ErrorHandling: ObservableObject {
 
     @MainActor
     public func handle(error: Error) {
-        let errorDescription: String
         if let clientError = error as? ClientError {
-            if let underlyingServerClientError = clientError.underlyingError
-                as? ClientAuthenticationError
-            {
-                errorDescription = "\(underlyingServerClientError.errorDescription ?? "Unknown error")"
-            } else {
-                errorDescription = clientError.underlyingError.localizedDescription
+            if clientError.underlyingError is ClientAuthenticationError {
+                Logger.current.error(
+                    "Client authentication error received. Deleting stored credentials. Error: \(clientError.underlyingError.localizedDescription)"
+                )
+                Task {
+                    try await ServerCredentialsStore.current.delete(
+                        serverURL: ServerEnvironmentService().url()
+                    )
+                }
+                return
             }
+            Logger.current.error(
+                "Client error received: \(clientError.underlyingError.localizedDescription)"
+            )
+            currentAlert = ErrorAlert(message: clientError.underlyingError.localizedDescription)
+            return
         } else {
-            errorDescription = error.localizedDescription
+            Logger.current.error("Error received: \(error.localizedDescription)")
+            currentAlert = ErrorAlert(message: error.localizedDescription)
         }
-        currentAlert = ErrorAlert(message: errorDescription)
     }
 }
 

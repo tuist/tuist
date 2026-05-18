@@ -11,6 +11,7 @@ func tuistMenuBarDependencies() -> [TargetDependency] {
         .project(target: "TuistHTTP", path: "../"),
         .project(target: "TuistAutomation", path: "../"),
         .project(target: "TuistSimulator", path: "../"),
+        .project(target: "TuistXcodeBuildProducts", path: "../"),
         .project(target: "TuistAndroid", path: "../"),
         .project(target: "TuistLogging", path: "../"),
         .project(target: "XcodeGraph", path: "../"),
@@ -112,8 +113,8 @@ let project = Project(
                     "SUPublicEDKey": "XUfguyGrLktmv6E4C/iqfw8p57HWKqx4mJ/hG4/lbMk=",
                     "SUFeedURL":
                         "https://raw.githubusercontent.com/tuist/tuist/main/app/appcast.xml",
-                    "CFBundleShortVersionString": "0.25.0",
-                    "CFBundleVersion": "13760",
+                    "CFBundleShortVersionString": "0.25.3",
+                    "CFBundleVersion": "14606",
                     "UILaunchStoryboardName": "LaunchScreen.storyboard",
                     "UISupportedInterfaceOrientations": [
                         "UIInterfaceOrientationPortrait",
@@ -223,6 +224,7 @@ let project = Project(
             sources: ["Sources/TuistErrorHandling/**"],
             dependencies: [
                 .project(target: "TuistServer", path: "../"),
+                .project(target: "TuistLogging", path: "../"),
                 .project(target: "TuistHTTP", path: "../"),
                 .external(name: "OpenAPIRuntime"),
             ]
@@ -247,6 +249,8 @@ let project = Project(
             sources: ["Sources/TuistAuthentication/**"],
             dependencies: [
                 .project(target: "TuistServer", path: "../"),
+                .project(target: "TuistHTTP", path: "../"),
+                .project(target: "TuistLogging", path: "../"),
                 .target(name: "TuistAppStorage"),
             ]
         ),

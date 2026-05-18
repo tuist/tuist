@@ -11,16 +11,13 @@ import XcodeGraph
 /// xcframeworks.
 /// See this PR for more context: https://github.com/tuist/tuist/pull/6757
 public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
-    private let fileHandler: FileHandling
     private let fileSystem: FileSysteming
     private let manifestFilesLocator: ManifestFilesLocating
 
     public init(
-        fileHandler: FileHandling = FileHandler.shared,
         fileSystem: FileSysteming = FileSystem(),
         manifestFilesLocator: ManifestFilesLocating = ManifestFilesLocator()
     ) {
-        self.fileHandler = fileHandler
         self.fileSystem = fileSystem
         self.manifestFilesLocator = manifestFilesLocator
     }
@@ -53,7 +50,23 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
                     }
                 }
 
-            guard !staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies.isEmpty else { return [:] }
+            // Static Swift xcframeworks reached through a dynamic xcframework are not relinked
+            // at the consumer level (their symbols are already absorbed into the dynamic
+            // xcframework's binary). They still need module visibility for the compiler to
+            // resolve `import` statements that the dynamic xcframework's swiftinterface references.
+            let staticSwiftXCFrameworksLinkedByDynamicXCFrameworkDependencies = graphTraverser
+                .staticXCFrameworksLinkedByDynamicXCFrameworkDependencies(
+                    path: project.path,
+                    name: target.name
+                )
+                .sorted()
+                .compactMap { dependency -> GraphDependency.XCFramework? in
+                    if case let .xcframework(xcframework) = dependency { return xcframework } else { return nil }
+                }
+
+            guard !staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies.isEmpty
+                || !staticSwiftXCFrameworksLinkedByDynamicXCFrameworkDependencies.isEmpty
+            else { return [:] }
 
             let staticObjcXCFrameworksWithLibrariesLinkedByDynamicXCFrameworkDependencies =
                 staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies
@@ -69,10 +82,13 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
                     .filter { !$0.containsLibrary() }
 
             var settings = SettingsDictionary()
-            if !staticObjcXCFrameworksWithoutLibrariesLinkedByDynamicXCFrameworkDependencies.isEmpty {
+            let xcframeworksRequiringPerSDKSearchPaths =
+                staticObjcXCFrameworksWithoutLibrariesLinkedByDynamicXCFrameworkDependencies
+                    + staticSwiftXCFrameworksLinkedByDynamicXCFrameworkDependencies
+            if !xcframeworksRequiringPerSDKSearchPaths.isEmpty {
                 var pathsBySDKCondition: [String: [String]] = [:]
 
-                for xcframework in staticObjcXCFrameworksWithoutLibrariesLinkedByDynamicXCFrameworkDependencies {
+                for xcframework in xcframeworksRequiringPerSDKSearchPaths {
                     for library in xcframework.infoPlist.libraries {
                         let platform = library.platform.graphPlatform
                         guard target.supportedPlatforms.contains(platform) else { continue }
@@ -85,7 +101,9 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
                 }
 
                 for sdkCondition in pathsBySDKCondition.keys.sorted() {
-                    settings["FRAMEWORK_SEARCH_PATHS[\(sdkCondition)]"] = .array(pathsBySDKCondition[sdkCondition]!)
+                    settings["FRAMEWORK_SEARCH_PATHS[\(sdkCondition)]"] = .array(
+                        ["$(inherited)"] + pathsBySDKCondition[sdkCondition]!
+                    )
                 }
             }
 
@@ -140,6 +158,7 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
                 components: [
                     Constants.SwiftPackageManager.packageBuildDirectoryName,
                     Constants.DerivedDirectory.dependenciesDerivedDirectory,
+                    Constants.DerivedDirectory.dependenciesXCFrameworkDirectory,
                 ]
             )
         } else {
@@ -148,6 +167,7 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
                     Constants.tuistDirectoryName,
                     Constants.SwiftPackageManager.packageBuildDirectoryName,
                     Constants.DerivedDirectory.dependenciesDerivedDirectory,
+                    Constants.DerivedDirectory.dependenciesXCFrameworkDirectory,
                 ]
             )
         }
@@ -168,7 +188,6 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
         derivedDirectory: AbsolutePath
     ) async throws -> [SideEffectDescriptor] {
         let fileSystem = fileSystem
-        let fileHandler = fileHandler
         return try await staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies
             .concurrentFlatMap { xcframework -> [SideEffectDescriptor] in
                 guard let moduleMap = xcframework.moduleMaps.first
@@ -182,7 +201,7 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
                     .file(
                         FileDescriptor(
                             path: headersDirectory.appending(components: "module.modulemap"),
-                            contents: try fileHandler.readFile(moduleMap)
+                            contents: try await fileSystem.readFile(at: moduleMap)
                         )
                     ),
                 ]
@@ -192,7 +211,7 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
                         .file(
                             FileDescriptor(
                                 path: headersDirectory.appending(components: "\(name).h"),
-                                contents: String(data: try fileHandler.readFile(umbrellaHeader), encoding: .utf8)?
+                                contents: String(data: try await fileSystem.readFile(at: umbrellaHeader), encoding: .utf8)?
                                     .replacingOccurrences(of: "<\(name)/", with: "<")
                                     .data(using: .utf8)
                             )
@@ -269,49 +288,53 @@ extension SettingsDictionary {
         }
     }
 
-    /// There are scenarios when the combined settings introduce duplicates for these setting keys.
-    /// We don't know how to reproduce – either in a reproducible sample or via unit tests.
-    /// This is also why the `removeOtherSwiftFlagsDuplicates` is `internal` instead of `fileprivate`, so we can at least test the
+    /// Combining target settings can introduce duplicates when a graph reaches the same dependency through multiple paths.
+    /// This is also why the `removeOtherSwiftFlagsDuplicates` is `internal` instead of `fileprivate`, so we can test the
     /// method itself in isolation.
     fileprivate func removeDuplicates() -> SettingsDictionary {
         removeDuplicates(for: "FRAMEWORK_SEARCH_PATHS")
             .removeDuplicates(for: "HEADER_SEARCH_PATHS")
             .removeDuplicates(for: "OTHER_C_FLAGS")
+            .removeDuplicates(forConditionedKey: "FRAMEWORK_SEARCH_PATHS")
+            .removeDuplicates(forConditionedKey: "HEADER_SEARCH_PATHS")
+            .removeDuplicates(forConditionedKey: "OTHER_C_FLAGS")
             .removeOtherSwiftFlagsDuplicates()
     }
 
     func removeOtherSwiftFlagsDuplicates() -> SettingsDictionary {
-        let key = "OTHER_SWIFT_FLAGS"
         var settings = self
-        guard let value = settings[key] else { return settings }
-        switch value {
-        case let .string(value):
-            settings[key] = .string(value)
-        case let .array(value):
-            var seen = Set<String>()
-            let value = value.enumerated().filter {
-                if $0.element.isFlagWithArgument {
-                    if value.endIndex > $0.offset + 1 {
-                        return !seen.contains($0.element + value[$0.offset + 1])
-                    } else {
-                        return true
-                    }
-                } else {
-                    if $0.offset == 0 {
-                        return seen.insert($0.element).inserted
-                    } else {
-                        let previousElement = value[$0.offset - 1]
-                        if previousElement.isFlagWithArgument {
-                            return seen.insert(previousElement + $0.element).inserted
+        let keys = settings.keys.filter { $0 == "OTHER_SWIFT_FLAGS" || $0.hasPrefix("OTHER_SWIFT_FLAGS[") }
+        for key in keys {
+            guard let value = settings[key] else { continue }
+            switch value {
+            case let .string(value):
+                settings[key] = .string(value)
+            case let .array(value):
+                var seen = Set<String>()
+                let value = value.enumerated().filter {
+                    if $0.element.isFlagWithArgument {
+                        if value.endIndex > $0.offset + 1 {
+                            return !seen.contains($0.element + value[$0.offset + 1])
                         } else {
+                            return true
+                        }
+                    } else {
+                        if $0.offset == 0 {
                             return seen.insert($0.element).inserted
+                        } else {
+                            let previousElement = value[$0.offset - 1]
+                            if previousElement.isFlagWithArgument {
+                                return seen.insert(previousElement + $0.element).inserted
+                            } else {
+                                return seen.insert($0.element).inserted
+                            }
                         }
                     }
                 }
+                settings[key] = .array(
+                    value.map(\.element)
+                )
             }
-            settings[key] = .array(
-                value.map(\.element)
-            )
         }
         return settings
     }
@@ -328,6 +351,28 @@ extension SettingsDictionary {
             )
         }
         return settings
+    }
+
+    fileprivate func removeDuplicates(forConditionedKey key: String) -> SettingsDictionary {
+        var settings = self
+        let conditionedKeys = settings.keys.filter { $0.hasPrefix("\(key)[") }
+        for conditionedKey in conditionedKeys {
+            guard let value = settings[conditionedKey] else { continue }
+            switch value {
+            case let .string(value):
+                settings[conditionedKey] = .string(value)
+            case let .array(value):
+                settings[conditionedKey] = .array(value.uniquedPreservingOrder())
+            }
+        }
+        return settings
+    }
+}
+
+extension [String] {
+    fileprivate func uniquedPreservingOrder() -> [String] {
+        var seen = Set<String>()
+        return filter { seen.insert($0).inserted }
     }
 }
 
@@ -353,7 +398,7 @@ extension XCFrameworkInfoPlist.Library {
             }
             return "sdk=\(graphPlatform.xcodeSdkRoot)*"
         case .maccatalyst:
-            return "sdk=iphoneos*"
+            return "sdk=macosx*"
         case nil:
             return "sdk=\(graphPlatform.xcodeSdkRoot)*"
         }

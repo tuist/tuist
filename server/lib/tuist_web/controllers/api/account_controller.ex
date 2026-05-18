@@ -9,6 +9,7 @@ defmodule TuistWeb.API.AccountController do
   alias TuistWeb.API.Schemas.Account, as: AccountSchema
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.ValidationError
+  alias TuistWeb.Authentication
 
   plug(TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
@@ -51,11 +52,13 @@ defmodule TuistWeb.API.AccountController do
   )
 
   def update_account(%{path_params: %{"account_handle" => handle}, body_params: params} = conn, _params) do
+    current_user = Authentication.current_user(conn)
+
     with {:ok, account} <- get_account(handle),
          :ok <-
            Authorization.authorize(
              :organization_update,
-             conn.assigns.current_user,
+             current_user,
              account
            ),
          # The field is called `handle` in the public API, but `name` in our domain.
@@ -89,8 +92,10 @@ defmodule TuistWeb.API.AccountController do
   )
 
   def delete_account(%{path_params: %{"account_handle" => handle}} = conn, _params) do
+    current_user = Authentication.current_user(conn)
+
     with {:ok, account} <- get_account(handle),
-         :ok <- Authorization.authorize(:account_delete, conn.assigns.current_user, account) do
+         :ok <- Authorization.authorize(:account_delete, current_user, account) do
       Accounts.delete_account!(account)
 
       conn

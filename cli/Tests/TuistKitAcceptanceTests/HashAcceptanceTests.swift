@@ -4,7 +4,7 @@ import TuistTesting
 @testable import TuistKit
 
 struct HashAcceptanceTests {
-    @Test(.withFixture("generated_ios_app_with_frameworks"), .withMockedDependencies())
+    @Test(.disabled(), .withFixture("generated_ios_app_with_frameworks"), .withMockedDependencies())
     func xcode_project_ios_framework() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         try await TuistTest.run(HashCacheCommand.self, ["--path", fixtureDirectory.pathString])

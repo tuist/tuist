@@ -36,6 +36,34 @@
       gap: var(--noora-spacing-7);
       width: 48%;
 
+      & > [data-part="github-host-config"] {
+        display: flex;
+        flex-direction: column;
+        align-self: flex-end;
+        gap: var(--noora-spacing-7);
+        width: 320px;
+
+        /* Equal-width tabs in the github.com / Enterprise server toggle.
+         * Noora's default `.noora-button-group` flexbox would let the
+         * longer label ("Enterprise server") expand asymmetrically; the
+         * 1fr 1fr grid keeps both halves the same width per design. */
+        & > .noora-button-group {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+
+          & > .noora-button-group-item {
+            justify-content: center;
+            white-space: nowrap;
+          }
+        }
+
+        & > [data-part="github-enterprise-form"] {
+          display: flex;
+          flex-direction: column;
+          gap: var(--noora-spacing-5);
+        }
+      }
+
       & > [data-part="actions"] {
         display: flex;
         flex-direction: row;
@@ -184,7 +212,7 @@
               align-items: center;
               z-index: var(--noora-z-index-1);
               box-shadow: var(--noora-border-light-default);
-              border-radius: var(--noora-radius-medium);
+              border-radius: var(--noora-radius-3);
               background: var(--noora-surface-background-primary);
               padding: var(--noora-spacing-3);
 

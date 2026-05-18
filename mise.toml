@@ -1,8 +1,11 @@
 [tools]
-    tuist = "4.166.2"
+    aube = "1.6.2"
+    # Temporarily pinned to 4.192.4 until the SwiftPM deadlock from PR #10729 is released.
+    # See https://github.com/tuist/tuist/issues/10754.
+    tuist = "4.195.0"
     swiftlint = "0.59.1"
-    "elixir" = "1.19.1"
-    "erlang" = "28.1"
+    "elixir" = "1.19.5"
+    "erlang" = "28.4.3"
     swiftformat = "0.58.7"
     git-cliff = "2.6.0"
     sops = "3.9.3"
@@ -10,17 +13,27 @@
     protoc = "32.1"
     "1password-cli" = "2.32.0"
     bats = "1.11.1"
+    rclone = "1.73.3"
+    jq = "1.8.1"
+    yq = "4.52.5"
     java = "21"
     gradle = "8.12"
+    caddy = "2.11.2"
+    "github:tuist/blick" = "0.8.0"
+    "npm:opencode-ai" = "1.14.39"
 
 [hooks]
     postinstall = "{{config_root}}/mise/tasks/install.sh"
 
 [env]
-    _.source = "{{config_root}}/mise/utilities/dev_instance_env.sh"
+    MISE_CONFIG_ROOT = "{{config_root}}"
+    _.source = ["{{config_root}}/mise/utilities/dev_instance_env.sh", "{{config_root}}/mise/utilities/cache_ee_env.sh"]
     TUIST_CACHE_CONCURRENCY_LIMIT="none"
+    TUIST_FILESYSTEM_BACKEND = "swift-file-system"
     # Elixir recommends half of the number of cores: https://elixir-lang.org/blog/2025/10/16/elixir-v1-19-0-released/
     MIX_OS_DEPS_COMPILE_PARTITION_COUNT=4
+    TUIST_INSPECT_TEST_MODE = "remote"
+    TUIST_FEATURE_FLAG_KURA = "1"
     TUIST_HOSTED = "1"
     TUIST_S3_VIRTUAL_HOST = "1"
     TUIST_S3_BUCKET_AS_HOST = "1"
@@ -92,6 +105,9 @@
     echo "1. Commit the updated signatures file: git add $SIGNATURES_FILE && git commit -m \"add CLA signature for $user_name\""
     echo "2. Push your changes to complete the CLA signing process"
     '''
+
+[plugins]
+    swiftformat = "https://github.com/mise-plugins/mise-swiftformat.git"
 
 [settings]
     jobs = 6

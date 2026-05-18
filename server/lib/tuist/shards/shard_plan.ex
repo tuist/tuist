@@ -13,8 +13,12 @@ defmodule Tuist.Shards.ShardPlan do
     field :project_id, Ch, type: "Int64"
     field :shard_count, Ch, type: "Int32"
     field :granularity, Ch, type: "LowCardinality(String)", default: "module"
+    field :build_run_id, Ch, type: "Nullable(UUID)"
+    field :gradle_build_id, Ch, type: "Nullable(UUID)"
     field :inserted_at, Ch, type: "DateTime64(6)"
 
+    belongs_to :build_run, Tuist.Builds.Build, foreign_key: :build_run_id, define_field: false
+    belongs_to :gradle_build, Tuist.Gradle.Build, foreign_key: :gradle_build_id, define_field: false
     has_many :modules, Tuist.Shards.ShardPlanModule, foreign_key: :shard_plan_id
     has_many :test_suites, Tuist.Shards.ShardPlanTestSuite, foreign_key: :shard_plan_id
     has_many :shard_runs, Tuist.Shards.ShardRun, foreign_key: :shard_plan_id
@@ -28,6 +32,8 @@ defmodule Tuist.Shards.ShardPlan do
       :project_id,
       :shard_count,
       :granularity,
+      :build_run_id,
+      :gradle_build_id,
       :inserted_at
     ])
     |> validate_required([

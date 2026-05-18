@@ -1,5 +1,5 @@
 <TuistWeb.Marketing.Layouts.marketing>
-  <main id="marketing-changelog">
+  <main id="marketing-changelog" phx-hook="CodeCopy">
     <TuistWeb.Marketing.MarketingComponents.navbar {assigns} />
     <header data-part="header">
       <h1 data-part="title">{dgettext("marketing", "Changelog")}</h1>
@@ -62,7 +62,7 @@
             <.tag label={entry.category} data-part="category" />
             <div data-part="title-row">
               <h2 data-part="title">
-                <a href={"##{entry.id}"}>{entry.title}</a>
+                <a href={~p"/changelog/#{entry.id}"}>{entry.title}</a>
               </h2>
               <div :if={not is_nil(entry.pull_request)} data-part="pr">
                 <.button

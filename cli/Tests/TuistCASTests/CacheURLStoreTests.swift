@@ -178,7 +178,10 @@
             let accountHandle = "my-org"
 
             given(getCacheEndpoints)
-                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(accountHandle))
+                .getCacheEndpoints(
+                    serverURL: .value(serverURL),
+                    accountHandle: .value(accountHandle)
+                )
                 .willReturn([endpoint])
 
             // When
@@ -187,7 +190,10 @@
             // Then
             #expect(result.absoluteString == endpoint)
             verify(getCacheEndpoints)
-                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(accountHandle))
+                .getCacheEndpoints(
+                    serverURL: .value(serverURL),
+                    accountHandle: .value(accountHandle)
+                )
                 .called(1)
         }
 
@@ -221,6 +227,42 @@
             await #expect(throws: CacheURLStoreError.invalidURL("")) {
                 _ = try await subject.getCacheURL(for: serverURL, accountHandle: nil)
             }
+        }
+
+        @Test(.withMockedEnvironment())
+        func separates_cached_endpoints_when_kura_feature_flag_is_enabled() async throws {
+            // Given
+            let serverURL = URL(string: "https://tuist.dev")!
+            let defaultEndpoint = "https://cache.example.com"
+            let kuraEndpoint = "https://kura-cache.example.com"
+            let kuraGetCacheEndpoints = MockGetCacheEndpointsServicing()
+            let kuraSubject = CacheURLStore(
+                cachedValueStore: cachedValueStore,
+                getCacheEndpointsService: kuraGetCacheEndpoints,
+                endpointLatencyService: latencyService
+            )
+
+            given(getCacheEndpoints)
+                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil))
+                .willReturn([defaultEndpoint])
+
+            // When
+            let defaultResult = try await subject.getCacheURL(for: serverURL, accountHandle: nil)
+            Environment.mocked?.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
+            given(kuraGetCacheEndpoints)
+                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil))
+                .willReturn([kuraEndpoint])
+            let kuraResult = try await kuraSubject.getCacheURL(for: serverURL, accountHandle: nil)
+
+            // Then
+            #expect(defaultResult.absoluteString == defaultEndpoint)
+            #expect(kuraResult.absoluteString == kuraEndpoint)
+            verify(getCacheEndpoints)
+                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil))
+                .called(1)
+            verify(kuraGetCacheEndpoints)
+                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil))
+                .called(1)
         }
     }
 #endif

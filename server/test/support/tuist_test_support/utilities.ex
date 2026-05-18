@@ -20,27 +20,4 @@ defmodule TuistTestSupport.Utilities do
     Tuist.Builds.Build.Buffer.flush()
     result
   end
-
-  def truncate_clickhouse_tables do
-    commands = [
-      "TRUNCATE TABLE IF EXISTS command_events",
-      "TRUNCATE TABLE IF EXISTS xcode_graphs",
-      "TRUNCATE TABLE IF EXISTS xcode_projects",
-      "TRUNCATE TABLE IF EXISTS xcode_targets",
-      "TRUNCATE TABLE IF EXISTS cacheable_tasks",
-      "TRUNCATE TABLE IF EXISTS cas_outputs",
-      "TRUNCATE TABLE IF EXISTS cas_events",
-      "TRUNCATE TABLE IF EXISTS build_files",
-      "TRUNCATE TABLE IF EXISTS build_issues",
-      "TRUNCATE TABLE IF EXISTS build_targets",
-      "TRUNCATE TABLE IF EXISTS build_runs",
-      "TRUNCATE TABLE IF EXISTS gradle_builds",
-      "TRUNCATE TABLE IF EXISTS gradle_tasks",
-      "TRUNCATE TABLE IF EXISTS gradle_cache_events"
-    ]
-
-    for command <- commands do
-      Tuist.IngestRepo.query!(command)
-    end
-  end
 end

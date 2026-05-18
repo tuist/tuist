@@ -33,7 +33,7 @@ REPO="homebrew-tuist"
 WORKFLOW_ID="130356792"
 
 # Trigger the workflow
-curl -v X POST \
+curl --fail-with-body -v -X POST \
   -H "Authorization: token $GITHUB_TOKEN" \
   -H "Accept: application/vnd.github.v3+json" \
   "https://api.github.com/repos/$OWNER/$REPO/actions/workflows/$WORKFLOW_ID/dispatches" \

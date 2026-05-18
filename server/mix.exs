@@ -5,13 +5,15 @@ defmodule Tuist.MixProject do
     [
       app: :tuist,
       version: "0.1.0",
-      elixir: "~> 1.16",
+      elixir: "~> 1.19",
       elixirc_paths: elixirc_paths(Mix.env()),
+      elixirc_options: [check_cwd: false],
       test_paths: ["test"],
       start_permanent: Enum.member?([:prod, :stag, :can], Mix.env()),
+      releases: releases(),
       aliases: aliases(),
       deps: deps(),
-      compilers: [:boundary] ++ Mix.compilers(),
+      compilers: compilers(Mix.env()),
       listeners: [Phoenix.CodeReloader]
     ]
   end
@@ -31,6 +33,10 @@ defmodule Tuist.MixProject do
   defp elixirc_paths(:dev), do: ["lib", "credo"]
   defp elixirc_paths(_), do: ["lib"]
 
+  # Boundary verifies a large module graph and makes content edits slow in dev.
+  defp compilers(:dev), do: Mix.compilers()
+  defp compilers(_env), do: [:boundary] ++ Mix.compilers()
+
   # Specifies your project dependencies.
   #
   # Type `mix help deps` for examples and options.
@@ -39,12 +45,14 @@ defmodule Tuist.MixProject do
       {:phoenix, "~> 1.7"},
       {:phoenix_ecto, "~> 4.4"},
       {:ecto_sql, "~> 3.12"},
+      {:db_connection, "~> 2.9", override: true},
       {:postgrex, ">= 0.0.0"},
       {:phoenix_html, "~> 4.0"},
-      {:phoenix_live_reload, "~> 1.2", only: :dev},
+      {:phoenix_live_reload, "~> 1.6.1", only: :dev},
       {:phoenix_live_view, "~> 1.1.0"},
       {:phoenix_view, "~> 2.0"},
       {:floki, ">= 0.33.0"},
+      {:html2markdown, "~> 0.3.1"},
       {:phoenix_live_dashboard, "~> 0.8.4"},
       {:heroicons,
        github: "tailwindlabs/heroicons", tag: "v2.1.1", sparse: "optimized", app: false, compile: false, depth: 1},
@@ -60,6 +68,8 @@ defmodule Tuist.MixProject do
       {:bandit, git: "https://github.com/tuist/bandit", branch: "detect-client-disconnect-on-timeout", override: true},
       {:credo, "== 1.7.13", only: [:dev, :test], runtime: false},
       {:sentry, "~> 11.0.4"},
+      {:tower, "0.8.0"},
+      {:tower_opentelemetry, "~> 0.2.0"},
       {:hackney, "~> 1.8"},
       {:castore, "~> 1.0.12"},
       {:uniq, "~> 0.6"},
@@ -67,6 +77,8 @@ defmodule Tuist.MixProject do
       {:ex_aws, "~> 2.6"},
       {:ex_aws_s3,
        git: "https://github.com/tuist/ex_aws_s3/", ref: "7f3278bef49cc3fa6b4138a4077804d328a41c9c", override: true},
+      {:ex_cldr, "~> 2.37"},
+      {:ex_cldr_numbers, "~> 2.38"},
       {:number, "~> 1.0"},
       {:mimic, "~> 2.0", only: :test},
       {:ymlr, "~> 5.0"},
@@ -78,7 +90,6 @@ defmodule Tuist.MixProject do
       {:ueberauth, "~> 0.10.8"},
       {:ueberauth_github, "~> 0.8"},
       {:ueberauth_google, "~> 0.12"},
-      {:ueberauth_okta, "~> 1.0"},
       {:ueberauth_apple, "~> 0.6"},
       {:req, "~> 0.5.6"},
       {:req_telemetry, "~> 0.1.1"},
@@ -105,7 +116,7 @@ defmodule Tuist.MixProject do
       {:retry, "~> 0.19"},
       {:redirect, "~> 0.4.0"},
       {:let_me, "~> 1.2"},
-      {:emcp, "~> 0.3.2"},
+      {:emcp, "~> 0.3.4"},
       {:ua_parser, "~> 1.8"},
       {:money, "~> 1.12"},
       {:image, "~> 0.60"},
@@ -127,7 +138,8 @@ defmodule Tuist.MixProject do
       {:redix, "~> 1.1"},
       {:redis_mutex, "~> 1.1"},
       {:hammer_backend_redis, "~> 7.0"},
-      {:ecto_ch, "~> 0.8.3"},
+      {:ch, git: "https://github.com/tuist/ch.git", branch: "codex/experimental-transactions", override: true},
+      {:ecto_ch, git: "https://github.com/tuist/ecto_ch.git", branch: "codex/experimental-transactions", override: true},
       {:noora, path: "../noora"},
       {:zstream, "~> 0.6"},
       {:cloak_ecto, "~> 1.3.0"},
@@ -140,6 +152,7 @@ defmodule Tuist.MixProject do
       {:langchain, "~> 0.4"},
       {:earmark, "~> 1.4"},
       {:mdex, "~> 0.11"},
+      {:mdex_mermaid, "~> 0.3"},
       {:html_sanitize_ex, "~> 1.4"},
       {:posthog, "~> 1.0", runtime: false},
       {:opentelemetry_api, "~> 1.4"},
@@ -153,7 +166,11 @@ defmodule Tuist.MixProject do
       {:opentelemetry_bandit, "~> 0.3"},
       {:opentelemetry_broadway, "~> 0.3"},
       {:loki_logger_handler, "~> 0.2"},
-      {:processor, path: "../processor", runtime: false}
+      {:tidewave, "~> 0.5", only: :dev},
+      {:carta, "~> 0.2.0"},
+      {:browse_chrome, "~> 0.4.0"},
+      {:browse, "~> 0.5.0", override: true},
+      {:muontrap, "~> 1.7", override: true}
     ]
   end
 
@@ -181,18 +198,28 @@ defmodule Tuist.MixProject do
         "ecto.migrate"
       ],
       test: ["ecto.create --quiet", "run priv/repo/timezone.exs", "ecto.migrate --quiet", "test"],
-      "assets.setup": ["esbuild.install --if-missing"],
+      "assets.setup": [
+        "cmd --cd ../noora aube install",
+        "esbuild.install --if-missing"
+      ],
       "assets.build": [
+        "cmd --cd ../noora aube run build",
         "esbuild app",
         "esbuild marketing",
+        "esbuild docs",
         "esbuild apidocs"
       ],
       "assets.deploy": [
         "esbuild marketing --minify",
+        "esbuild docs --minify",
         "esbuild app --minify",
         "esbuild apidocs --minify",
         "phx.digest"
       ]
     ]
+  end
+
+  defp releases do
+    [tuist: []]
   end
 end

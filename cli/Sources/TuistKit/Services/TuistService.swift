@@ -1,3 +1,5 @@
+import Command
+import FileSystem
 import Foundation
 import Path
 import TuistConfigLoader
@@ -16,13 +18,19 @@ enum TuistServiceError: Error {
 public final class TuistService: NSObject {
     private let pluginService: PluginServicing
     private let configLoader: ConfigLoading
+    private let fileSystem: FileSysteming
+    private let commandRunner: CommandRunning
 
     public init(
         pluginService: PluginServicing = PluginService(),
-        configLoader: ConfigLoading = ConfigLoader()
+        configLoader: ConfigLoading = ConfigLoader(),
+        fileSystem: FileSysteming = FileSystem(),
+        commandRunner: CommandRunning = CommandRunner()
     ) {
         self.pluginService = pluginService
         self.configLoader = configLoader
+        self.fileSystem = fileSystem
+        self.commandRunner = commandRunner
     }
 
     public func run(
@@ -33,15 +41,7 @@ public final class TuistService: NSObject {
 
         let commandName = "tuist-\(arguments[0])"
 
-        let path: AbsolutePath
-        if let pathOptionIndex = arguments.firstIndex(of: "--path") ?? arguments.firstIndex(of: "--p") {
-            path = try AbsolutePath(
-                validating: arguments[pathOptionIndex + 1],
-                relativeTo: FileHandler.shared.currentPath
-            )
-        } else {
-            path = FileHandler.shared.currentPath
-        }
+        let path = try await CommandArguments.path(in: arguments)
 
         let config = try await configLoader.loadConfig(path: path)
 
@@ -58,21 +58,22 @@ public final class TuistService: NSObject {
             pluginPaths.append(absolutePath)
         }
 
-        let pluginExecutables = try pluginPaths
-            .flatMap(FileHandler.shared.contentsOfDirectory)
-            .filter { $0.basename.hasPrefix("tuist-") }
+        var pluginExecutables: [AbsolutePath] = []
+        for pluginPath in pluginPaths {
+            let contents = try await fileSystem.contentsOfDirectory(pluginPath)
+            pluginExecutables.append(contentsOf: contents.filter { $0.basename.hasPrefix("tuist-") })
+        }
 
         if let pluginCommand = pluginExecutables.first(where: { $0.basename == commandName }) {
             arguments[0] = pluginCommand.pathString
-        } else if System.shared.commandExists(commandName) {
+        } else if await commandRunner.commandExists(commandName) {
             arguments[0] = commandName
         } else {
             throw TuistServiceError.taskUnavailable
         }
 
-        try System.shared.runAndPrint(
-            arguments,
-            verbose: Environment.current.isVerbose,
+        try await commandRunner.runAndPrint(
+            arguments: arguments,
             environment: [
                 Constants.EnvironmentVariables.tuistBinaryPath: tuistBinaryPath,
             ].merging(Environment.current.variables) { tuistEnv, _ in tuistEnv }

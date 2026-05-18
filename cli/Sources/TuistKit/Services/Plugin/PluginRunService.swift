@@ -1,7 +1,15 @@
+import Command
 import Path
+import TuistEnvironment
 import TuistSupport
 
 struct PluginRunService {
+    private let commandRunner: CommandRunning
+
+    init(commandRunner: CommandRunning = CommandRunner()) {
+        self.commandRunner = commandRunner
+    }
+
     func run(
         path: String?,
         configuration: PluginCommand.PackageConfiguration,
@@ -9,7 +17,7 @@ struct PluginRunService {
         skipBuild: Bool,
         task: String,
         arguments: [String]
-    ) throws {
+    ) async throws {
         var runCommand = [
             "swift", "run",
             "--configuration", configuration.rawValue,
@@ -17,7 +25,7 @@ struct PluginRunService {
         if let path {
             runCommand += [
                 "--package-path",
-                try AbsolutePath(validating: path, relativeTo: FileHandler.shared.currentPath).pathString,
+                try await Environment.current.pathRelativeToWorkingDirectory(path).pathString,
             ]
         }
         if buildTests {
@@ -32,6 +40,6 @@ struct PluginRunService {
         }
         runCommand.append(task)
         runCommand += arguments
-        try System.shared.runAndPrint(runCommand)
+        try await commandRunner.runAndPrint(arguments: runCommand)
     }
 }

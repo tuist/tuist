@@ -5,6 +5,7 @@ defmodule TuistWeb.Endpoint do
   # The session will be stored in the cookie and signed,
   # this means its contents can be read but not tampered with.
   # Set :encryption_salt if you would also like to encrypt it.
+  alias TuistWeb.Plugs.GitHubWebhookLoggingPlug
   alias TuistWeb.Plugs.WebhookPlug
   alias TuistWeb.Webhooks.BillingController
   alias TuistWeb.Webhooks.GitHubController
@@ -29,15 +30,16 @@ defmodule TuistWeb.Endpoint do
   # You should set gzip to true if you are running phx.digest
   # when deploying your static files in production.
   plug Plug.Static,
+    at: "/docs/images",
+    from: {:tuist, "priv/docs/images"},
+    gzip: false
+
+  plug Plug.Static,
     at: "/",
     from: :tuist,
     gzip: true,
-    cache_control_for_etags: "public, max-age=31536000, immutable",
+    cache_control_for_etags: "public, max-age=0, must-revalidate",
     only: TuistWeb.static_paths()
-
-  if Code.ensure_loaded?(Tidewave) do
-    plug Tidewave
-  end
 
   # Code reloading can be explicitly enabled under the
   # :code_reloader configuration of your endpoint.
@@ -55,6 +57,7 @@ defmodule TuistWeb.Endpoint do
   plug Plug.RequestId
   plug TuistCommon.OtelRequestIdPlug
   plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint]
+  plug TuistWeb.Plugs.RequestKindPlug
   plug Sentry.PlugContext
   plug TuistWeb.Plugs.CloseConnectionOnErrorPlug
 
@@ -63,13 +66,17 @@ defmodule TuistWeb.Endpoint do
     handler: BillingController,
     secret: {Tuist.Environment, :stripe_endpoint_secret, []}
 
+  plug GitHubWebhookLoggingPlug
+
   plug WebhookPlug,
     at: "/webhooks/github",
     handler: GitHubController,
-    secret: {Tuist.Environment, :github_app_webhook_secret, []},
+    secret: &GitHubController.resolve_webhook_secret/1,
     signature_header: "x-hub-signature-256",
     signature_prefix: "sha256=",
-    read_timeout: 60_000
+    # The GitHub webhook events we handle are small, so fail fast on slow bodies.
+    read_timeout: 5_000,
+    body_length: 262_144
 
   plug WebhookPlug,
     at: "/webhooks/cache",

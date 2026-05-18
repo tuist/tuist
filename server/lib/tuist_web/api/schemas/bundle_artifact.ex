@@ -16,7 +16,7 @@ defmodule TuistWeb.API.Schemas.BundleArtifact do
       artifact_type: %Schema{
         type: :string,
         description: "The type of artifact",
-        enum: Ecto.Enum.values(Artifact, :artifact_type)
+        enum: Artifact.artifact_types()
       },
       path: %Schema{
         type: :string,

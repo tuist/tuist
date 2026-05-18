@@ -1,3 +1,4 @@
+import FileSystem
 import Path
 import TuistSupport
 import XcodeGraph
@@ -69,7 +70,7 @@ final class FrameworkLoaderTests: TuistUnitTestCase {
         let architectures = [BinaryArchitecture.armv7s]
         let linking = BinaryLinking.dynamic
 
-        try FileHandler.shared.touch(frameworkPath)
+        try await FileSystem().touch(frameworkPath)
 
         frameworkMetadataProvider.loadMetadataStub = {
             FrameworkMetadata(

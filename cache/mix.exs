@@ -7,6 +7,7 @@ defmodule Cache.MixProject do
       version: "0.1.0",
       elixir: "~> 1.18",
       elixirc_paths: elixirc_paths(Mix.env()),
+      elixirc_options: [check_cwd: false],
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
       deps: deps()
@@ -42,7 +43,6 @@ defmodule Cache.MixProject do
       {:ex_aws_s3, "~> 2.0"},
       {:ex_aws_sts, "~> 2.2"},
       {:guardian, "~> 2.3"},
-      {:jason, "~> 1.4"},
       {:jose, "~> 1.11"},
       {:mimic, "~> 1.7", only: :test},
       {:oban, "~> 2.17"},
@@ -56,6 +56,7 @@ defmodule Cache.MixProject do
       {:plug_cowboy, "~> 2.7"},
       {:prom_ex, git: "https://github.com/pepicrft/prom_ex", branch: "finch"},
       {:req, "~> 0.5"},
+      {:req_fuse, "~> 0.3.2"},
       {:styler, "~> 1.0", only: [:dev, :test], runtime: false},
       {:sweet_xml, "~> 0.7"},
       {:uuid_v7, "~> 0.6"},

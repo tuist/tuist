@@ -59,7 +59,7 @@ defmodule Cache.KeyValueStoreTest do
                  cache_name: cache_name
                )
 
-      decoded = Jason.decode!(json)
+      decoded = JSON.decode!(json)
       assert decoded["entries"] == [%{"value" => "value1"}]
     end
 
@@ -88,7 +88,7 @@ defmodule Cache.KeyValueStoreTest do
                  cache_name: cache_name
                )
 
-      decoded = Jason.decode!(json)
+      decoded = JSON.decode!(json)
 
       assert decoded["entries"] == [
                %{"value" => "value1"},
@@ -123,7 +123,7 @@ defmodule Cache.KeyValueStoreTest do
                )
 
       assert is_binary(json)
-      assert {:ok, _} = Jason.decode(json)
+      assert {:ok, _} = JSON.decode(json)
     end
 
     test "overwrites existing values for the same key", %{
@@ -161,7 +161,7 @@ defmodule Cache.KeyValueStoreTest do
                  cache_name: cache_name
                )
 
-      decoded = Jason.decode!(json)
+      decoded = JSON.decode!(json)
 
       assert decoded["entries"] == [
                %{"value" => "updated1"},
@@ -215,8 +215,8 @@ defmodule Cache.KeyValueStoreTest do
                  cache_name: cache_name
                )
 
-      decoded_1 = Jason.decode!(json_1)
-      decoded_2 = Jason.decode!(json_2)
+      decoded_1 = JSON.decode!(json_1)
+      decoded_2 = JSON.decode!(json_2)
 
       assert decoded_1["entries"] == [%{"value" => "value_for_cas_1"}]
       assert decoded_2["entries"] == [%{"value" => "value_for_cas_2"}]
@@ -267,8 +267,8 @@ defmodule Cache.KeyValueStoreTest do
                  cache_name: cache_name
                )
 
-      decoded_1 = Jason.decode!(json_1)
-      decoded_2 = Jason.decode!(json_2)
+      decoded_1 = JSON.decode!(json_1)
+      decoded_2 = JSON.decode!(json_2)
 
       assert decoded_1["entries"] == [%{"value" => "value_for_account_1"}]
       assert decoded_2["entries"] == [%{"value" => "value_for_account_2"}]
@@ -319,8 +319,8 @@ defmodule Cache.KeyValueStoreTest do
                  cache_name: cache_name
                )
 
-      decoded_1 = Jason.decode!(json_1)
-      decoded_2 = Jason.decode!(json_2)
+      decoded_1 = JSON.decode!(json_1)
+      decoded_2 = JSON.decode!(json_2)
 
       assert decoded_1["entries"] == [%{"value" => "value_for_project_1"}]
       assert decoded_2["entries"] == [%{"value" => "value_for_project_2"}]
@@ -351,7 +351,7 @@ defmodule Cache.KeyValueStoreTest do
                  cache_name: cache_name
                )
 
-      decoded = Jason.decode!(json)
+      decoded = JSON.decode!(json)
       assert decoded["entries"] == []
     end
 
@@ -386,7 +386,7 @@ defmodule Cache.KeyValueStoreTest do
                  cache_name: cache_name
                )
 
-      decoded = Jason.decode!(json)
+      decoded = JSON.decode!(json)
 
       assert decoded["entries"] == [
                %{"value" => "value with spaces"},
@@ -554,7 +554,7 @@ defmodule Cache.KeyValueStoreTest do
 
       key = "keyvalue:#{account_handle}:#{project_handle}:#{cas_id}"
       record = KeyValueRepo.get_by!(KeyValueEntry, key: key)
-      assert record.json_payload == Jason.encode!(%{entries: [%{"value" => "value1"}, %{"value" => "value2"}]})
+      assert record.json_payload == JSON.encode!(%{entries: [%{"value" => "value1"}, %{"value" => "value2"}]})
     end
 
     test "reads through cachex when entries exist only in sqlite", %{
@@ -585,7 +585,7 @@ defmodule Cache.KeyValueStoreTest do
                  cache_name: cache_name
                )
 
-      assert Jason.decode!(json)["entries"] == [%{"value" => "value1"}, %{"value" => "value2"}]
+      assert JSON.decode!(json)["entries"] == [%{"value" => "value1"}, %{"value" => "value2"}]
 
       key = "keyvalue:#{account_handle}:#{project_handle}:#{cas_id}"
       assert {:ok, ^json} = Cachex.get(cache_name, key)

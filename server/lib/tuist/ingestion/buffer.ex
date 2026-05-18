@@ -115,7 +115,7 @@ defmodule Tuist.Ingestion.Buffer do
 
       _not_empty ->
         Logger.notice("Flushing #{buffer_size} byte(s) RowBinary from #{name}")
-        IngestRepo.query!(insert_sql, [header | buffer], insert_opts)
+        IngestRepo.with_retry(fn -> IngestRepo.query!(insert_sql, [header | buffer], insert_opts) end)
     end
   end
 

@@ -35,7 +35,8 @@ public protocol GeneratorFactorying {
         ignoreBinaryCache: Bool,
         ignoreSelectiveTesting: Bool,
         cacheStorage: CacheStoring,
-        destination: SimulatorDeviceAndRuntime?
+        destination: SimulatorDeviceAndRuntime?,
+        schemeName: String?
     ) -> Generating
 
     /// Returns the generator for focused projects.
@@ -95,7 +96,8 @@ public struct GeneratorFactory: GeneratorFactorying {
         ignoreBinaryCache _: Bool,
         ignoreSelectiveTesting _: Bool,
         cacheStorage _: CacheStoring,
-        destination _: SimulatorDeviceAndRuntime?
+        destination _: SimulatorDeviceAndRuntime?,
+        schemeName: String? = nil
     ) -> Generating {
         let contentHasher = ContentHasher()
         let projectMapperFactory = ProjectMapperFactory(contentHasher: contentHasher)
@@ -114,7 +116,8 @@ public struct GeneratorFactory: GeneratorFactorying {
             testPlan: testPlan,
             includedTargets: Set(includedTargets.map(TargetQuery.init(stringLiteral:))),
             excludedTargets: Set(excludedTargets.map(TargetQuery.init(stringLiteral:))),
-            includedProducts: [.unitTests, .uiTests]
+            includedProducts: [.unitTests, .uiTests],
+            schemeName: schemeName
         )
         let workspaceMappers = workspaceMapperFactory.automation(
             tuist: config
@@ -225,7 +228,8 @@ public struct GeneratorFactory: GeneratorFactorying {
             ignoreBinaryCache: Bool,
             ignoreSelectiveTesting: Bool,
             cacheStorage: CacheStoring,
-            destination: SimulatorDeviceAndRuntime?
+            destination: SimulatorDeviceAndRuntime?,
+            schemeName: String?
         ) -> Generating
 
         /// Returns the generator for focused projects.
@@ -332,7 +336,8 @@ public struct GeneratorFactory: GeneratorFactorying {
             ignoreBinaryCache: Bool,
             ignoreSelectiveTesting: Bool,
             cacheStorage: CacheStoring,
-            destination: SimulatorDeviceAndRuntime?
+            destination: SimulatorDeviceAndRuntime?,
+            schemeName: String? = nil
         ) -> Generating {
             let contentHasher = ContentHasher()
             let projectMapperFactory = ProjectMapperFactory(contentHasher: contentHasher)
@@ -355,7 +360,8 @@ public struct GeneratorFactory: GeneratorFactorying {
                 excludedTargets: Set(excludedTargets.map(TargetQuery.init(stringLiteral:))),
                 configuration: configuration,
                 cacheStorage: cacheStorage,
-                destination: destination
+                destination: destination,
+                schemeName: schemeName
             )
             let workspaceMappers = workspaceMapperFactory.automation(tuist: config)
             return Generator(

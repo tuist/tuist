@@ -6,7 +6,7 @@
   align-items: center;
   gap: var(--noora-spacing-6);
   box-shadow: var(--noora-light-border-default);
-  border-radius: var(--noora-radius-xlarge);
+  border-radius: var(--noora-radius-6);
   padding: var(--noora-spacing-5);
   text-decoration: none;
 

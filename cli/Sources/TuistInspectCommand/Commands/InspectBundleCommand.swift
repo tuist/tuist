@@ -4,6 +4,10 @@ import Foundation
 import Path
 import TuistEnvKey
 
+#if os(macOS)
+    import XcodeGraph
+#endif
+
 public struct InspectBundleCommand: AsyncParsableCommand {
     public init() {}
 
@@ -15,11 +19,34 @@ public struct InspectBundleCommand: AsyncParsableCommand {
     }
 
     @Argument(
-        help: "The path to the bundle.",
+        help: "The path to the bundle, or the name of an app for Apple platforms to resolve from Xcode build products.",
         completion: .directory,
         envKey: .inspectBundle
     )
     var bundle: String
+
+    #if os(macOS)
+        @Option(
+            name: [.long, .customShort("C")],
+            help: "The configuration of the app to inspect.",
+            envKey: .inspectBundleConfiguration
+        )
+        var configuration: String?
+
+        @Option(
+            help: "The platforms (iOS, tvOS, visionOS, watchOS or macOS) to inspect the app for.",
+            completion: .list(["iOS", "tvOS", "macOS", "visionOS", "watchOS"]),
+            envKey: .inspectBundlePlatform
+        )
+        var platforms: [XcodeGraph.Platform] = []
+
+        @Option(
+            help: "The derived data path to find the app in. When absent, the system-configured one.",
+            completion: .directory,
+            envKey: .inspectBundleDerivedDataPath
+        )
+        var derivedDataPath: String?
+    #endif
 
     @Flag(
         help: "The output in JSON format.",
@@ -36,11 +63,23 @@ public struct InspectBundleCommand: AsyncParsableCommand {
     var path: String?
 
     public func run() async throws {
-        try await InspectBundleCommandService()
-            .run(
-                path: path,
-                bundle: bundle,
-                json: json
-            )
+        #if os(macOS)
+            try await InspectBundleCommandService()
+                .run(
+                    path: path,
+                    bundle: bundle,
+                    configuration: configuration,
+                    platforms: platforms,
+                    derivedDataPath: derivedDataPath,
+                    json: json
+                )
+        #else
+            try await InspectBundleCommandService()
+                .run(
+                    path: path,
+                    bundle: bundle,
+                    json: json
+                )
+        #endif
     }
 }

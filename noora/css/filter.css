@@ -2,7 +2,7 @@
   display: flex;
   align-items: center;
   box-shadow: var(--noora-border-light-default);
-  border-radius: var(--noora-radius-medium);
+  border-radius: var(--noora-radius-3);
   background: var(--noora-surface-background-primary);
   padding: var(--noora-spacing-1) var(--noora-spacing-3);
 
@@ -38,7 +38,7 @@
       align-items: center;
       gap: var(--noora-spacing-1);
       cursor: pointer;
-      border-radius: var(--noora-radius-small);
+      border-radius: var(--noora-radius-2);
 
       &:hover {
         background: var(--noora-surface-background-tertiary);
@@ -56,7 +56,7 @@
     & [data-part="badge"] {
       display: flex;
       align-items: center;
-      border-radius: var(--noora-radius-small);
+      border-radius: var(--noora-radius-2);
       background: var(--noora-badge-light-fill-neutral-background);
       padding: var(--noora-spacing-1) var(--noora-spacing-4);
       font: var(--noora-font-body-small);
@@ -96,7 +96,7 @@
       gap: var(--noora-spacing-3);
       z-index: var(--noora-z-index-10);
       box-shadow: var(--noora-border-medium);
-      border-radius: var(--noora-radius-large);
+      border-radius: var(--noora-radius-4);
       background: var(--noora-surface-background-primary);
       padding: var(--noora-spacing-5);
       width: 300px;
@@ -125,7 +125,7 @@
     box-sizing: border-box;
     outline: 0;
     border: 0;
-    border-radius: var(--noora-radius-small);
+    border-radius: var(--noora-radius-2);
     background: transparent;
     padding: 0;
     width: var(--noora-icon-size-medium);

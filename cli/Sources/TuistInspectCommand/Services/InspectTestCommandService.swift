@@ -3,19 +3,20 @@
     import Foundation
     import Path
     import TuistAlert
-    import TuistAutomation
+    import TuistConfig
     import TuistConfigLoader
     import TuistCore
     import TuistEnvironment
     import TuistKit
-    import TuistLoader
     import TuistLogging
     import TuistProcess
     import TuistServer
     import TuistSupport
     import TuistXCActivityLog
+    import TuistXcodeBuildProducts
     import TuistXcodeProjectOrWorkspacePathLocator
     import TuistXCResultService
+    import XCResultParser
 
     enum InspectTestCommandServiceError: Equatable, LocalizedError {
         case executablePathMissing
@@ -66,7 +67,8 @@
         func run(
             path: String?,
             derivedDataPath: String? = nil,
-            resultBundlePath: String? = nil
+            resultBundlePath: String? = nil,
+            mode: TestProcessingMode? = nil
         ) async throws {
             if Environment.current.variables["TUIST_INSPECT_TEST_WAIT"] != "YES",
                Environment.current.workspacePath != nil
@@ -94,6 +96,36 @@
             let projectPath = try await xcodeProjectOrWorkspacePathLocator.locate(from: path)
             let config = try await configLoader.loadConfig(path: projectPath)
 
+            let resolvedMode = mode ?? TestProcessingMode.default(for: config.url)
+
+            switch resolvedMode {
+            case .local:
+                try await runLocal(
+                    resolvedResultBundlePath: resolvedResultBundlePath,
+                    projectDerivedDataDirectory: projectDerivedDataDirectory,
+                    path: path,
+                    config: config
+                )
+            case .remote:
+                try await runRemote(
+                    resolvedResultBundlePath: resolvedResultBundlePath,
+                    config: config
+                )
+            case .off:
+                AlertController.current.warning(
+                    .alert(
+                        "'tuist inspect test' cannot run with mode 'off' — 'off' skips test analysis entirely, leaving nothing for this command to do."
+                    )
+                )
+            }
+        }
+
+        private func runLocal(
+            resolvedResultBundlePath: AbsolutePath,
+            projectDerivedDataDirectory: AbsolutePath?,
+            path: AbsolutePath,
+            config: Tuist
+        ) async throws {
             guard let testSummary = try await xcResultService.parse(
                 path: resolvedResultBundlePath,
                 rootDirectory: path
@@ -101,7 +133,7 @@
                 throw InspectTestCommandServiceError.mostRecentResultBundleNotFound(resolvedResultBundlePath)
             }
 
-            let test = try await uploadResultBundleService.uploadResultBundle(
+            let test = try await uploadResultBundleService.uploadTestSummary(
                 testSummary: testSummary,
                 projectDerivedDataDirectory: projectDerivedDataDirectory,
                 config: config,
@@ -111,6 +143,24 @@
 
             AlertController.current.success(
                 .alert("View the analyzed test at \(test.url)")
+            )
+        }
+
+        private func runRemote(
+            resolvedResultBundlePath: AbsolutePath,
+            config: Tuist
+        ) async throws {
+            let test = try await uploadResultBundleService.uploadResultBundle(
+                resultBundlePath: resolvedResultBundlePath,
+                config: config,
+                quarantinedTests: [],
+                buildRunId: nil,
+                shardPlanId: nil,
+                shardIndex: nil
+            )
+
+            AlertController.current.success(
+                .alert("Result bundle uploaded for processing. View at \(test.url)")
             )
         }
 

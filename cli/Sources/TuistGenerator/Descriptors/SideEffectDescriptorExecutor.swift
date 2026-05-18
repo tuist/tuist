@@ -1,3 +1,4 @@
+import Command
 import FileSystem
 import Foundation
 import TuistCore
@@ -13,9 +14,14 @@ public protocol SideEffectDescriptorExecuting {
 
 public struct SideEffectDescriptorExecutor: SideEffectDescriptorExecuting {
     private let fileSystem: FileSystem
+    private let commandRunner: CommandRunning
 
-    public init(fileSystem: FileSystem = FileSystem()) {
+    public init(
+        fileSystem: FileSystem = FileSystem(),
+        commandRunner: CommandRunning = CommandRunner()
+    ) {
         self.fileSystem = fileSystem
+        self.commandRunner = commandRunner
     }
 
     // MARK: - SideEffectDescriptorExecuting
@@ -25,11 +31,13 @@ public struct SideEffectDescriptorExecutor: SideEffectDescriptorExecuting {
             Logger.current.debug("Side effect: \(sideEffect)")
             switch sideEffect {
             case let .command(commandDescriptor):
-                try perform(command: commandDescriptor)
+                try await perform(command: commandDescriptor)
             case let .file(fileDescriptor):
                 try await process(file: fileDescriptor)
             case let .directory(directoryDescriptor):
                 try await process(directory: directoryDescriptor)
+            case let .testPlan(testPlanDescriptor):
+                try await process(testPlan: testPlanDescriptor)
             }
         }
     }
@@ -39,11 +47,11 @@ public struct SideEffectDescriptorExecutor: SideEffectDescriptorExecuting {
     private func process(file: FileDescriptor) async throws {
         switch file.state {
         case .present:
-            try FileHandler.shared.createFolder(file.path.parentDirectory)
+            try await fileSystem.makeDirectory(at: file.path.parentDirectory)
             if let contents = file.contents {
                 try contents.write(to: file.path.url)
             } else {
-                try FileHandler.shared.touch(file.path)
+                try await fileSystem.touch(file.path)
             }
         case .absent:
             try await fileSystem.remove(file.path)
@@ -63,15 +71,24 @@ public struct SideEffectDescriptorExecutor: SideEffectDescriptorExecuting {
         }
     }
 
-    private func perform(command: CommandDescriptor) throws {
-        try System.shared.run(command.command)
+    private func perform(command: CommandDescriptor) async throws {
+        try await commandRunner.runAndWait(arguments: command.command)
+    }
+
+    private func process(testPlan: TestPlanDescriptor) async throws {
+        let parent = testPlan.path.parentDirectory
+        if try await !fileSystem.exists(parent) {
+            try await fileSystem.makeDirectory(at: parent)
+        }
+        let data = try testPlan.encode()
+        try data.write(to: testPlan.path.url)
     }
 }
 
 #if DEBUG
     final class MockSideEffectDescriptorExecutor: SideEffectDescriptorExecuting {
         var executeStub: (([SideEffectDescriptor]) throws -> Void)?
-        func execute(sideEffects: [SideEffectDescriptor]) throws {
+        func execute(sideEffects: [SideEffectDescriptor]) async throws {
             try executeStub?(sideEffects)
         }
     }

@@ -36,12 +36,6 @@ defmodule TuistTestSupport.Cases.DataCase do
 
   setup tags do
     TuistTestSupport.Cases.DataCase.setup_sandbox(tags)
-    Mimic.stub(Tuist.Tasks, :run_async, fn fun -> fun.() end)
-
-    on_exit(fn ->
-      TuistTestSupport.Utilities.truncate_clickhouse_tables()
-    end)
-
     :ok
   end
 
@@ -49,7 +43,23 @@ defmodule TuistTestSupport.Cases.DataCase do
   Sets up the sandbox based on the test tags.
   """
   def setup_sandbox(tags) do
-    pid = Sandbox.start_owner!(Tuist.Repo, shared: not tags[:async])
-    on_exit(fn -> Sandbox.stop_owner(pid) end)
+    Mimic.stub(Tuist.Tasks, :run_async, fn fun -> fun.() end)
+
+    shared? = not tags[:async]
+    repo_pid = Sandbox.start_owner!(Tuist.Repo, shared: shared?)
+
+    clickhouse_pid =
+      try do
+        Sandbox.start_owner!(Tuist.IngestRepo, shared: shared?)
+      catch
+        kind, reason ->
+          Sandbox.stop_owner(repo_pid)
+          :erlang.raise(kind, reason, __STACKTRACE__)
+      end
+
+    on_exit(fn ->
+      Sandbox.stop_owner(clickhouse_pid)
+      Sandbox.stop_owner(repo_pid)
+    end)
   end
 end

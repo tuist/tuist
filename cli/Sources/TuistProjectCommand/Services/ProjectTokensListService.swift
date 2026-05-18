@@ -35,7 +35,7 @@ struct ProjectTokensListService: ProjectTokensListServicing {
     ) async throws {
         AlertController.current.warning(.alert(
             "Project tokens are deprecated in favor of account tokens",
-            takeaway: "Learn more: https://docs.tuist.dev/en/guides/server/authentication#account-tokens"
+            takeaway: "Learn more: https://tuist.dev/en/docs/guides/server/authentication#account-tokens"
         ))
 
         let directoryPath = try await Environment.current.pathRelativeToWorkingDirectory(directory)

@@ -1,5 +1,5 @@
 import Path
-import TuistSupport
+import TuistEnvironment
 
 struct MigrationCheckEmptyBuildSettingsCommand: AsyncParsableCommand {
     static var configuration: CommandConfiguration {
@@ -26,8 +26,9 @@ struct MigrationCheckEmptyBuildSettingsCommand: AsyncParsableCommand {
     var target: String?
 
     func run() async throws {
+        let cwd = try await Environment.current.currentWorkingDirectory()
         try await MigrationCheckEmptyBuildSettingsService().run(
-            xcodeprojPath: try AbsolutePath(validating: xcodeprojPath, relativeTo: FileHandler.shared.currentPath),
+            xcodeprojPath: try AbsolutePath(validating: xcodeprojPath, relativeTo: cwd),
             target: target
         )
     }

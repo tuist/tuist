@@ -49,7 +49,7 @@ defmodule TuistWeb.ChooseUsernameLive do
             <div data-part="header">
               <h1 data-part="title">{dgettext("dashboard_auth", "Choose a username")}</h1>
               <span data-part="subtitle">
-                {dgettext("dashboard_auth", "Choose a username for your personal account")}
+                {dgettext("dashboard_auth", "Choose a username for your account")}
               </span>
             </div>
             <.form
@@ -117,6 +117,9 @@ defmodule TuistWeb.ChooseUsernameLive do
           |> assign(:error, dgettext("dashboard_auth", "This username has already been taken"))
 
         {:noreply, socket}
+
+      {:error, :email_taken} ->
+        {:noreply, redirect(socket, to: ~p"/auth/cancel-pending-signup")}
 
       {:error, errors} when is_map(errors) ->
         error = Map.get(errors, :name)

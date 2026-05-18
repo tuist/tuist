@@ -3,6 +3,8 @@ import CryptoKit
 import Foundation
 import SwiftUI
 import TuistAppStorage
+import TuistHTTP
+import TuistLogging
 import TuistServer
 
 public enum AuthenticationError: LocalizedError {
@@ -54,6 +56,9 @@ public final class AuthenticationService: ObservableObject {
         self.deleteAccountService = deleteAccountService
 
         authenticationState = (try? appStorage.get(AuthenticationStateKey.self)) ?? .loggedOut
+        Logger.current.notice(
+            "Initialized authentication service with state: \(authenticationState.logDescription)"
+        )
 
         startCredentialsListener()
     }
@@ -67,8 +72,14 @@ public final class AuthenticationService: ObservableObject {
             for await credentials in ServerCredentialsStore.current.credentialsChanged {
                 await MainActor.run {
                     do {
+                        Logger.current.notice(
+                            "Received credentials change: hasCredentials=\(credentials != nil)"
+                        )
                         try updateAuthenticationState(with: credentials)
                     } catch {
+                        Logger.current.error(
+                            "Failed to update authentication state from credentials change: \(error.localizedDescription)"
+                        )
                         authenticationState = .loggedOut
                         try? appStorage.set(AuthenticationStateKey.self, value: .loggedOut)
                     }
@@ -81,8 +92,10 @@ public final class AuthenticationService: ObservableObject {
         if let credentials {
             let account = try extractAccount(from: credentials.accessToken)
             authenticationState = .loggedIn(account: account)
+            Logger.current.notice("Authentication state updated to logged in")
         } else {
             authenticationState = .loggedOut
+            Logger.current.notice("Authentication state updated to logged out")
         }
 
         try? appStorage.set(AuthenticationStateKey.self, value: authenticationState)
@@ -101,7 +114,17 @@ public final class AuthenticationService: ObservableObject {
     }
 
     public func signOut() async {
-        try! await ServerCredentialsStore.current.delete(serverURL: serverEnvironmentService.url())
+        Logger.current.notice(
+            "Signing out and deleting credentials for server: \(serverEnvironmentService.url().absoluteString)"
+        )
+        do {
+            try await ServerCredentialsStore.current.delete(serverURL: serverEnvironmentService.url())
+        } catch {
+            Logger.current.error(
+                "Failed to delete credentials when signing out: \(error.localizedDescription)"
+            )
+        }
+
         await MainActor.run {
             try? updateAuthenticationState(with: nil)
         }
@@ -149,6 +172,8 @@ public final class AuthenticationService: ObservableObject {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.addRequestIDHeader()
+        ClientFeatureFlags.addHeader(to: &request)
 
         let parameters = [
             "email": email,
@@ -167,6 +192,13 @@ public final class AuthenticationService: ObservableObject {
         if httpResponse.statusCode == 200 {
             try await handleTokenResponse(data)
         } else {
+            Logger.current.error(
+                """
+                Email and password sign in token exchange failed with status code: \(httpResponse.statusCode), \
+                requestID: \(request.requestID ?? "unknown"), \
+                responseRequestID: \(httpResponse.requestID ?? "unknown")
+                """
+            )
             throw AuthenticationError.tokenExchangeFailed(statusCode: httpResponse.statusCode)
         }
     }
@@ -180,6 +212,8 @@ public final class AuthenticationService: ObservableObject {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.addRequestIDHeader()
+        ClientFeatureFlags.addHeader(to: &request)
 
         let parameters = [
             "identity_token": identityToken,
@@ -198,6 +232,13 @@ public final class AuthenticationService: ObservableObject {
         if httpResponse.statusCode == 200 {
             try await handleTokenResponse(data)
         } else {
+            Logger.current.error(
+                """
+                Apple sign in token exchange failed with status code: \(httpResponse.statusCode), \
+                requestID: \(request.requestID ?? "unknown"), \
+                responseRequestID: \(httpResponse.requestID ?? "unknown")
+                """
+            )
             throw AuthenticationError.tokenExchangeFailed(statusCode: httpResponse.statusCode)
         }
     }
@@ -290,6 +331,8 @@ public final class AuthenticationService: ObservableObject {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        request.addRequestIDHeader()
+        ClientFeatureFlags.addHeader(to: &request)
 
         let parameters = [
             "grant_type": "authorization_code",
@@ -314,6 +357,13 @@ public final class AuthenticationService: ObservableObject {
         if httpResponse.statusCode == 200 {
             try await handleTokenResponse(data)
         } else {
+            Logger.current.error(
+                """
+                OAuth token exchange failed with status code: \(httpResponse.statusCode), \
+                requestID: \(request.requestID ?? "unknown"), \
+                responseRequestID: \(httpResponse.requestID ?? "unknown")
+                """
+            )
             throw AuthenticationError.tokenExchangeFailed(statusCode: httpResponse.statusCode)
         }
     }
@@ -336,6 +386,18 @@ public final class AuthenticationService: ObservableObject {
             ),
             serverURL: serverEnvironmentService.url()
         )
+        Logger.current.notice("Stored authentication credentials from token response")
+    }
+}
+
+extension AuthenticationState {
+    fileprivate var logDescription: String {
+        switch self {
+        case .loggedIn:
+            return "loggedIn"
+        case .loggedOut:
+            return "loggedOut"
+        }
     }
 }
 

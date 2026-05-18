@@ -19,18 +19,18 @@
           <:right_icon><.check /></:right_icon>
         </.dropdown_item>
         <.dropdown_item
-          value="local"
-          label={dgettext("dashboard_projects", "Local")}
-          patch={"?#{Query.put(@uri.query, "analytics-environment", "local")}"}
-          data-selected={@analytics_environment == "local"}
-        >
-          <:right_icon><.check /></:right_icon>
-        </.dropdown_item>
-        <.dropdown_item
           value="ci"
           label={dgettext("dashboard_projects", "CI")}
           patch={"?#{Query.put(@uri.query, "analytics-environment", "ci")}"}
           data-selected={@analytics_environment == "ci"}
+        >
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
+        <.dropdown_item
+          value="local"
+          label={dgettext("dashboard_projects", "Local")}
+          patch={"?#{Query.put(@uri.query, "analytics-environment", "local")}"}
+          data-selected={@analytics_environment == "local"}
         >
           <:right_icon><.check /></:right_icon>
         </.dropdown_item>
@@ -173,21 +173,21 @@
         />
         <.widget
           loading={!@test_analytics.ok?}
-          title={dgettext("dashboard_projects", "Average test time")}
+          title={dgettext("dashboard_tests", "Avg. test run duration")}
           description={
             dgettext(
-              "dashboard_projects",
-              "Average time it takes to test a project when using the 'tuist test' command."
+              "dashboard_tests",
+              "The average test run duration."
             )
           }
           value={
-            if @test_analytics.ok?,
-              do:
-                dgettext("dashboard_projects", "%{duration}s",
-                  duration: Float.round(@test_analytics.result.total_average_duration / 1000, 1)
-                )
+            if @test_analytics.ok? do
+              Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                @test_analytics.result.total_average_duration
+              )
+            end
           }
-          id="widget-average-test-time"
+          id="widget-test-run-duration"
           trend_value={if @test_analytics.ok?, do: @test_analytics.result.trend, else: nil}
           trend_label={@analytics_trend_label}
           trend_type={:inverse}
@@ -437,7 +437,7 @@
             @binary_cache_hit_rate_analytics.result.cache_hit_rate == 0.0
         }
         title={dgettext("dashboard_projects", "Binary cache and selective testing: no data yet")}
-        get_started_href="https://docs.tuist.dev/en/"
+        get_started_href="https://tuist.dev/en/docs/"
       >
         <:image>
           <img src="/images/empty_line_chart_light.png" data-theme="light" />
@@ -533,7 +533,7 @@
     <.empty_card_section
       :if={@recent_test_runs.ok? && Enum.empty?(@recent_test_runs.result)}
       title={dgettext("dashboard_projects", "Runs: no data yet")}
-      get_started_href="https://docs.tuist.dev/en/guides/develop/selective-testing"
+      get_started_href="https://tuist.dev/en/docs/guides/features/selective-testing"
     >
       <:image>
         <img src="/images/empty_bar_chart_light.png" data-theme="light" />
@@ -560,7 +560,7 @@
           :for={_ <- 1..3}
           width="64px"
           height="64px"
-          border_radius="var(--noora-radius-large)"
+          border_radius="var(--noora-radius-4)"
         />
       </div>
     </.card_section>
@@ -579,7 +579,7 @@
       :if={@latest_app_previews.ok? && Enum.empty?(@latest_app_previews.result)}
       data-part="empty-previews-card-section"
       title={dgettext("dashboard_projects", "No previews yet")}
-      get_started_href="https://docs.tuist.dev/en/guides/features/previews"
+      get_started_href="https://tuist.dev/en/docs/guides/features/previews"
     >
       <:image>
         <img src="/images/empty_previews_light.png" data-theme="light" />
@@ -759,18 +759,18 @@
           <:right_icon><.check /></:right_icon>
         </.dropdown_item>
         <.dropdown_item
-          value="local"
-          label={dgettext("dashboard_projects", "Local")}
-          patch={"?#{Query.put(@uri.query, "builds-environment", "local")}"}
-          data-selected={@builds_environment == "local"}
-        >
-          <:right_icon><.check /></:right_icon>
-        </.dropdown_item>
-        <.dropdown_item
           value="ci"
           label={dgettext("dashboard_projects", "CI")}
           patch={"?#{Query.put(@uri.query, "builds-environment", "ci")}"}
           data-selected={@builds_environment == "ci"}
+        >
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
+        <.dropdown_item
+          value="local"
+          label={dgettext("dashboard_projects", "Local")}
+          patch={"?#{Query.put(@uri.query, "builds-environment", "local")}"}
+          data-selected={@builds_environment == "local"}
         >
           <:right_icon><.check /></:right_icon>
         </.dropdown_item>
@@ -910,7 +910,7 @@
       <.empty_card_section
         :if={@recent_build_runs.ok? && Enum.empty?(@recent_build_runs.result)}
         title={dgettext("dashboard_projects", "No recent builds yet")}
-        get_started_href="https://docs.tuist.dev/en/guides/develop/insights#builds"
+        get_started_href="https://tuist.dev/en/docs/guides/features/build-insights#builds"
       >
         <:image>
           <img src="/images/empty_bar_chart_light.png" data-theme="light" />
@@ -1030,7 +1030,7 @@
             @builds_duration_analytics.result.total_average_duration == 0
         }
         title={dgettext("dashboard_projects", "No builds yet")}
-        get_started_href="https://docs.tuist.dev/en/guides/develop/insights#builds"
+        get_started_href="https://tuist.dev/en/docs/guides/features/build-insights#builds"
       >
         <:image>
           <img src="/images/empty_line_chart_light.png" data-theme="light" />

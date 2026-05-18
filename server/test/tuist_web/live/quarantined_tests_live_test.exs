@@ -94,7 +94,7 @@ defmodule TuistWeb.QuarantinedTestsLiveTest do
 
       RunsFixtures.test_case_event_fixture(
         test_case_id: tuist_test_case.id,
-        event_type: "quarantined",
+        event_type: "muted",
         actor_id: nil
       )
 
@@ -106,10 +106,49 @@ defmodule TuistWeb.QuarantinedTestsLiveTest do
       assert has_element?(lv, "#quarantined-tests-table", "tuistQuarantinedTest")
       assert has_element?(lv, "#quarantined-tests-table", "Tuist")
     end
+
+    test "renders a Mode badge for muted vs skipped tests", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      create_test_case_with_state(project, "mutedExample", "muted")
+      create_test_case_with_state(project, "skippedExample", "skipped")
+
+      {:ok, lv, html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/quarantined-tests")
+
+      assert has_element?(lv, "#quarantined-tests-table", "mutedExample")
+      assert has_element?(lv, "#quarantined-tests-table", "skippedExample")
+      assert html =~ "Muted"
+      assert html =~ "Skipped"
+    end
+
+    test "filters quarantined tests by Mode", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      create_test_case_with_state(project, "mutedExample", "muted")
+      create_test_case_with_state(project, "skippedExample", "skipped")
+
+      {:ok, lv, _html} =
+        live(
+          conn,
+          ~p"/#{organization.account.name}/#{project.name}/tests/quarantined-tests?filter_state_op===&filter_state_val=skipped"
+        )
+
+      assert has_element?(lv, "#quarantined-tests-table", "skippedExample")
+      refute has_element?(lv, "#quarantined-tests-table", "mutedExample")
+    end
   end
 
   defp create_quarantined_test_case(project, name) do
-    test_case = RunsFixtures.test_case_fixture(project_id: project.id, name: name, is_quarantined: true)
+    create_test_case_with_state(project, name, "muted")
+  end
+
+  defp create_test_case_with_state(project, name, state) do
+    test_case = RunsFixtures.test_case_fixture(project_id: project.id, name: name, state: state)
 
     IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
 

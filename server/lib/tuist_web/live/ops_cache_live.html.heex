@@ -1,4 +1,7 @@
 <div id="ops-cache">
+  <div data-part="header">
+    <h1 data-part="title">{dgettext("dashboard", "Cache")}</h1>
+  </div>
   <.card title="Cache Endpoints" icon="server">
     <.card_section>
       <.table id="cache-endpoints-table" rows={@endpoints}>
@@ -41,27 +44,23 @@
   <.card title="Add Cache Endpoint" icon="circle_plus">
     <.card_section>
       <form phx-submit="add" data-part="add-form">
-        <div data-part="field">
-          <label for="url">URL</label>
-          <input
-            type="text"
-            name="url"
-            id="url"
-            placeholder="https://cache-node.tuist.dev"
-            required
-          />
-        </div>
-        <div data-part="field">
-          <label for="display_name">Display Name</label>
-          <input
-            type="text"
-            name="display_name"
-            id="display_name"
-            placeholder="EU Central"
-            required
-          />
-        </div>
-        <.button type="submit" label="Add Endpoint" />
+        <.text_input
+          id="url"
+          name="url"
+          label="URL"
+          placeholder="https://cache-node.tuist.dev"
+          required
+          show_required
+        />
+        <.text_input
+          id="display_name"
+          name="display_name"
+          label="Display Name"
+          placeholder="EU Central"
+          required
+          show_required
+        />
+        <.button type="submit" variant="primary" label="Add Endpoint" />
       </form>
     </.card_section>
   </.card>

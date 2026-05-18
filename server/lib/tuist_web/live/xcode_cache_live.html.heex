@@ -1,5 +1,5 @@
 <.empty_state
-  :if={Enum.empty?(@builds)}
+  :if={not @has_builds?}
   command="tuist setup cache"
   id="xcode-cache-empty-state"
   title={dgettext("dashboard_cache", "Set up Xcode cache for your project")}
@@ -19,72 +19,72 @@
   <:actions>
     <.button
       label={dgettext("dashboard_cache", "Tuist documentation")}
-      href="https://docs.tuist.dev/en/guides/features/cache/xcode-cache"
+      href="https://tuist.dev/en/docs/guides/features/cache/xcode-cache"
       target="_blank"
     >
       <:icon_right><.chevron_right /></:icon_right>
     </.button>
   </:actions>
 </.empty_state>
-<div :if={not Enum.empty?(@builds)} id="xcode-cache">
+<div :if={@has_builds?} id="xcode-cache">
+  <div data-part="filters">
+    <.date_picker
+      id="xcode-cache-date-range-picker"
+      name="analytics-date-range"
+      presets={[
+        %{
+          id: "last-24-hours",
+          label: dgettext("dashboard_cache", "Last 24 hours"),
+          period: {24, :hour}
+        },
+        %{
+          id: "last-7-days",
+          label: dgettext("dashboard_cache", "Last 7 days"),
+          period: {7, :day}
+        },
+        %{
+          id: "last-30-days",
+          label: dgettext("dashboard_cache", "Last 30 days"),
+          period: {30, :day}
+        },
+        %{
+          id: "last-12-months",
+          label: dgettext("dashboard_cache", "Last 12 months"),
+          period: {12, :month}
+        },
+        %{id: "custom", label: dgettext("dashboard_cache", "Custom")}
+      ]}
+      selected_preset={@analytics_preset}
+      period={@analytics_period}
+      on_period_change="analytics_period_changed"
+      max={Date.utc_today()}
+    >
+      <:actions>
+        <.button
+          label={dgettext("dashboard_cache", "Cancel")}
+          variant="secondary"
+          phx-click={
+            JS.dispatch("phx:date-picker-cancel",
+              detail: %{id: "xcode-cache-date-range-picker"}
+            )
+          }
+        />
+        <.button
+          label={dgettext("dashboard_cache", "Apply")}
+          phx-click={
+            JS.dispatch("phx:date-picker-apply",
+              detail: %{id: "xcode-cache-date-range-picker"}
+            )
+          }
+        />
+      </:actions>
+    </.date_picker>
+  </div>
   <.card
     title={dgettext("dashboard_cache", "Analytics")}
     icon="chart_arcs"
     data-part="analytics-card"
   >
-    <:actions>
-      <.date_picker
-        id="xcode-cache-date-range-picker"
-        name="analytics-date-range"
-        presets={[
-          %{
-            id: "last-24-hours",
-            label: dgettext("dashboard_cache", "Last 24 hours"),
-            period: {24, :hour}
-          },
-          %{
-            id: "last-7-days",
-            label: dgettext("dashboard_cache", "Last 7 days"),
-            period: {7, :day}
-          },
-          %{
-            id: "last-30-days",
-            label: dgettext("dashboard_cache", "Last 30 days"),
-            period: {30, :day}
-          },
-          %{
-            id: "last-12-months",
-            label: dgettext("dashboard_cache", "Last 12 months"),
-            period: {12, :month}
-          },
-          %{id: "custom", label: dgettext("dashboard_cache", "Custom")}
-        ]}
-        selected_preset={@analytics_preset}
-        period={@analytics_period}
-        on_period_change="analytics_period_changed"
-        max={Date.utc_today()}
-      >
-        <:actions>
-          <.button
-            label={dgettext("dashboard_cache", "Cancel")}
-            variant="secondary"
-            phx-click={
-              JS.dispatch("phx:date-picker-cancel",
-                detail: %{id: "xcode-cache-date-range-picker"}
-              )
-            }
-          />
-          <.button
-            label={dgettext("dashboard_cache", "Apply")}
-            phx-click={
-              JS.dispatch("phx:date-picker-apply",
-                detail: %{id: "xcode-cache-date-range-picker"}
-              )
-            }
-          />
-        </:actions>
-      </.date_picker>
-    </:actions>
     <div data-part="widgets">
       <.percentile_dropdown_widget
         loading={
@@ -249,7 +249,31 @@
            (@downloads_analytics.ok? and @downloads_analytics.result.total_size != 0) or
            (@uploads_analytics.ok? and @uploads_analytics.result.total_size != 0))
     }>
-      <div data-part="analytics-chart">
+      <.chart_type_toggle
+        id="cache-hit-rate"
+        chart_type={@cache_hit_rate_chart_type}
+        chart_type_event="select_cache_hit_rate_chart_type"
+        group_by_options={[
+          %{value: "scheme", label: dgettext("dashboard_cache", "Scheme")},
+          %{value: "environment", label: dgettext("dashboard_cache", "Environment")}
+        ]}
+        selected_group_by={@cache_hit_rate_scatter_group_by}
+        group_by_query_param="cache-hit-rate-scatter-group-by"
+        uri={@uri}
+      />
+      <div
+        :if={@cache_hit_rate_chart.loading || !@cache_hit_rate_chart.ok?}
+        data-part="analytics-chart"
+      >
+        <.skeleton_chart />
+      </div>
+      <div
+        :if={
+          @cache_hit_rate_chart.ok? and !@cache_hit_rate_chart.loading and
+            @cache_hit_rate_chart.result == :line
+        }
+        data-part="analytics-chart"
+      >
         <.chart
           id="xcode-cache-hit-rate-chart"
           type="line"
@@ -368,6 +392,25 @@
           y_axis_max={100}
         />
       </div>
+      <.scatter_chart
+        id="cache-hit-rate-scatter-chart"
+        chart={@cache_hit_rate_chart}
+        period={@analytics_period}
+        value_format="{value}%"
+        y_axis_max={100}
+        url_fn={
+          fn point ->
+            ~p"/#{@selected_account.name}/#{@selected_project.name}/builds/build-runs/#{point.id}"
+          end
+        }
+        truncation_title={
+          dgettext(
+            "dashboard_cache",
+            "The 10,000 entry limit has been reached, data is only included up to %{date}. Try narrowing the date range to see more recent data.",
+            date: scatter_oldest_entry_formatted(@cache_hit_rate_chart.result)
+          )
+        }
+      />
     </.card_section>
     <.card_section :if={
       @analytics_selected_widget != "cache_hit_rate" and
@@ -592,7 +635,7 @@
     <div :if={Enum.empty?(@builds)} data-part="empty-builds">
       <.empty_card_section
         title={dgettext("dashboard_cache", "No data yet")}
-        get_started_href="https://docs.tuist.dev/en/guides/develop/build/cache"
+        get_started_href="https://tuist.dev/en/docs/guides/features/cache"
         data-part="empty-builds-table-card-section"
       >
         <:image>

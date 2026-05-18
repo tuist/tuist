@@ -36,8 +36,11 @@ if config_env() == :prod do
 
       path ->
         File.mkdir_p!(Path.dirname(path))
-        suffix = 4 |> :crypto.strong_rand_bytes() |> Base.encode16(case: :lower)
+
+        suffix = Regex.replace(~r/[^A-Za-z0-9._-]/, System.fetch_env!("HOSTNAME"), "-")
+
         unique_path = Path.rootname(path) <> "-#{suffix}" <> Path.extname(path)
+        _ = File.rm(unique_path)
         Application.put_env(:cache, :socket_path, unique_path)
 
         [
@@ -142,9 +145,13 @@ if config_env() == :prod do
   config :cache,
     server_url: System.get_env("SERVER_URL") || "https://tuist.dev",
     storage_dir: System.get_env("STORAGE_DIR") || raise("environment variable STORAGE_DIR is missing"),
-    disk_usage_high_watermark_percent: Cache.Config.float_env("DISK_HIGH_WATERMARK_PERCENT", 85.0),
-    disk_usage_target_percent: Cache.Config.float_env("DISK_TARGET_PERCENT", 70.0),
+    disk_usage_high_watermark_percent: Cache.Config.float_env("DISK_HIGH_WATERMARK_PERCENT", 75.0),
+    disk_usage_target_percent: Cache.Config.float_env("DISK_TARGET_PERCENT", 60.0),
     api_key: System.get_env("TUIST_CACHE_API_KEY"),
+    analytics_failure_threshold: Cache.Config.int_env("ANALYTICS_FAILURE_THRESHOLD", 3),
+    analytics_cooldown_ms: Cache.Config.int_env("ANALYTICS_COOLDOWN_MS", 60_000),
+    analytics_receive_timeout_ms: Cache.Config.int_env("ANALYTICS_RECEIVE_TIMEOUT_MS", 2_000),
+    analytics_pool_timeout_ms: Cache.Config.int_env("ANALYTICS_POOL_TIMEOUT_MS", 1_000),
     registry_github_token: System.get_env("REGISTRY_GITHUB_TOKEN"),
     registry_sync_allowlist: Cache.Config.list_env("REGISTRY_SYNC_ALLOWLIST"),
     key_value_max_db_size_bytes: String.to_integer(System.get_env("KEY_VALUE_MAX_DB_SIZE_BYTES") || "26843545600"),

@@ -417,6 +417,35 @@ final class LinkGeneratorTests: XCTestCase {
         ])
     }
 
+    func test_generatePackages_initializesPackageProductDependencies() throws {
+        // Given
+        let target = Target.test(
+            name: "Test",
+            product: .framework,
+            dependencies: [
+                .package(product: "OrderedCollections", type: .runtime),
+            ]
+        )
+        let pbxproj = PBXProj()
+        let pbxTarget = PBXNativeTarget(name: target.name)
+        pbxproj.add(object: pbxTarget)
+
+        let frameworksBuildPhase = PBXFrameworksBuildPhase()
+        pbxproj.add(object: frameworksBuildPhase)
+        pbxTarget.buildPhases.append(frameworksBuildPhase)
+
+        // When
+        try subject.generatePackages(
+            target: target,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj
+        )
+
+        // Then
+        XCTAssertEqual(pbxTarget.packageProductDependencies?.map(\.productName), ["OrderedCollections"])
+        XCTAssertEqual(try pbxTarget.frameworksBuildPhase()?.files?.map(\.product?.productName), ["OrderedCollections"])
+    }
+
     func test_generateEmbedPhase_setupEmbedFrameworksBuildPhase_whenPackageProductIsPresent() throws {
         // Given
         var dependencies: Set<GraphDependencyReference> = []

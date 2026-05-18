@@ -79,10 +79,14 @@ config :cache,
 
 config :cache,
   storage_dir: "tmp/cas",
-  disk_usage_high_watermark_percent: 85.0,
-  disk_usage_target_percent: 70.0,
+  disk_usage_high_watermark_percent: 75.0,
+  disk_usage_target_percent: 60.0,
   events_batch_size: 100,
   events_batch_timeout: 5_000,
+  analytics_failure_threshold: 3,
+  analytics_cooldown_ms: 60_000,
+  analytics_receive_timeout_ms: 2_000,
+  analytics_pool_timeout_ms: 1_000,
   key_value_eviction_max_age_days: 30,
   key_value_max_db_size_bytes: 25 * 1024 * 1024 * 1024,
   key_value_eviction_min_retention_days: 1,
@@ -111,7 +115,7 @@ config :mime, :types, %{
 
 config :opentelemetry, traces_exporter: :none
 
-config :phoenix, :json_library, Jason
+config :phoenix, :json_library, JSON
 
 config :sentry,
   client: TuistCommon.SentryHTTPClient,

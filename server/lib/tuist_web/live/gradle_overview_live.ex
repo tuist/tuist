@@ -57,11 +57,11 @@ defmodule TuistWeb.GradleOverviewLive do
     end)
     |> assign_async(
       [:recent_test_runs, :failed_test_runs_count, :passed_test_runs_count],
-      fn -> fetch_test_runs_data(project.id) end
+      fn -> fetch_test_runs_data(project) end
     )
     |> assign_async(
       [:recent_build_runs, :successful_builds_count, :failed_builds_count],
-      fn -> fetch_build_runs_data(project.id) end
+      fn -> fetch_build_runs_data(project) end
     )
     |> assign_async(:builds_duration_analytics, fn ->
       {:ok, %{builds_duration_analytics: GradleAnalytics.build_duration_analytics(project.id, builds_opts)}}
@@ -82,12 +82,12 @@ defmodule TuistWeb.GradleOverviewLive do
     end
   end
 
-  defp fetch_test_runs_data(project_id) do
+  defp fetch_test_runs_data(project) do
     {recent_test_runs, _meta} =
       Tests.list_test_runs(%{
         last: 40,
         filters: [
-          %{field: :project_id, op: :==, value: project_id},
+          %{field: :project_id, op: :==, value: project.id},
           %{field: :build_system, op: :==, value: "gradle"}
         ],
         order_by: [:ran_at],
@@ -105,7 +105,12 @@ defmodule TuistWeb.GradleOverviewLive do
 
         value = (run.duration / 1000) |> Decimal.from_float() |> Decimal.round(0)
 
-        %{value: value, itemStyle: %{color: color}, date: run.ran_at}
+        %{
+          value: value,
+          itemStyle: %{color: color},
+          date: run.ran_at,
+          url: ~p"/#{project.account.name}/#{project.name}/tests/test-runs/#{run.id}"
+        }
       end)
 
     failed_test_runs_count = Enum.count(recent_test_runs, &(&1.status == "failure"))
@@ -119,8 +124,8 @@ defmodule TuistWeb.GradleOverviewLive do
      }}
   end
 
-  defp fetch_build_runs_data(project_id) do
-    {builds, _meta} = Gradle.list_builds(project_id, %{page_size: 30})
+  defp fetch_build_runs_data(project) do
+    {builds, _meta} = Gradle.list_builds(project.id, %{page_size: 30})
 
     recent_builds_chart_data =
       builds
@@ -133,7 +138,12 @@ defmodule TuistWeb.GradleOverviewLive do
             _ -> "var:noora-chart-warning"
           end
 
-        %{value: build.duration_ms, itemStyle: %{color: color}, date: build.inserted_at}
+        %{
+          value: build.duration_ms,
+          itemStyle: %{color: color},
+          date: build.inserted_at,
+          url: ~p"/#{project.account.name}/#{project.name}/builds/build-runs/#{build.id}"
+        }
       end)
 
     successful_builds_count = Enum.count(builds, &(&1.status == "success"))

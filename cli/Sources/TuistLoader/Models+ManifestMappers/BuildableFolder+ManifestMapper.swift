@@ -2,6 +2,7 @@ import FileSystem
 import Foundation
 import Path
 import ProjectDescription
+import TuistAlert
 import TuistLogging
 import TuistSupport
 import XcodeGraph
@@ -24,11 +25,19 @@ extension XcodeGraph.BuildableFolder {
         manifest: ProjectDescription.BuildableFolder,
         generatorPaths: GeneratorPaths,
         targetName: String
-    ) async throws -> XcodeGraph.BuildableFolder {
+    ) async throws -> XcodeGraph.BuildableFolder? {
         let path = try generatorPaths.resolve(path: manifest.path)
         let fileSystem = FileSystem()
 
         if try await !fileSystem.exists(path) {
+            if manifest.optional {
+                AlertController.current.warning(
+                    .alert(
+                        "The target \(targetName) has an optional buildableFolder at \(path.pathString) that does not exist. It will be skipped."
+                    )
+                )
+                return nil
+            }
             throw BuildableFolderManifestMapperError.folderNotFound(targetName: targetName, path: path)
         }
 
@@ -43,20 +52,21 @@ extension XcodeGraph.BuildableFolder {
         let allPaths = try await fileSystem
             .glob(directory: path, include: ["**/*"]).collect()
             .filter { !exclusions.contains($0) }
-        let resolvedFiles = try await allPaths.concurrentCompactMap(maxConcurrentTasks: 100) { filePath -> BuildableFolderFile? in
-            if filePath.isInOpaqueDirectory { return nil }
-            if filePath.isOpaqueDirectory {
+        let resolvedFiles = try await allPaths
+            .concurrentCompactMap { filePath -> BuildableFolderFile? in
+                if filePath.isInOpaqueDirectory { return nil }
+                if filePath.isOpaqueDirectory {
+                    return BuildableFolderFile(
+                        path: filePath,
+                        compilerFlags: compilerFlagsByPath[filePath]
+                    )
+                }
+                if try await fileSystem.exists(filePath, isDirectory: true) { return nil }
                 return BuildableFolderFile(
                     path: filePath,
                     compilerFlags: compilerFlagsByPath[filePath]
                 )
             }
-            if try await fileSystem.exists(filePath, isDirectory: true) { return nil }
-            return BuildableFolderFile(
-                path: filePath,
-                compilerFlags: compilerFlagsByPath[filePath]
-            )
-        }
 
         return XcodeGraph.BuildableFolder(
             path: path,

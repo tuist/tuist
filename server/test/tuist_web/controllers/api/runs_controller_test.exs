@@ -26,7 +26,6 @@ defmodule TuistWeb.API.RunsControllerTest do
 
   setup do
     stub(VCS, :enqueue_vcs_pull_request_comment, fn _args -> {:ok, %{}} end)
-    TuistTestSupport.Utilities.truncate_clickhouse_tables()
     :ok
   end
 
@@ -229,9 +228,9 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # When
       {404, _, response_json_string} =
-        assert_error_sent :not_found, fn ->
+        assert_error_sent(:not_found, fn ->
           get(conn, "/api/projects/#{user.account.name}/#{non_existent_project_name}/runs")
-        end
+        end)
 
       assert Jason.decode!(response_json_string) == %{
                "message" => "The project #{project_slug} was not found."
@@ -343,7 +342,9 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert build.status == "failure"
       assert build.category == "incremental"
 
-      assert build.issues |> Enum.map(&Map.take(&1, [:type, :message, :build_run_id])) |> Enum.sort_by(& &1.message) == [
+      assert build.issues
+             |> Enum.map(&Map.take(&1, [:type, :message, :build_run_id]))
+             |> Enum.sort_by(& &1.message) == [
                %{
                  type: "error",
                  message: "Expected ';' after expression",
@@ -356,7 +357,9 @@ defmodule TuistWeb.API.RunsControllerTest do
                }
              ]
 
-      assert build.files |> Enum.map(&Map.take(&1, [:type, :path, :build_run_id])) |> Enum.sort_by(& &1.path) == [
+      assert build.files
+             |> Enum.map(&Map.take(&1, [:type, :path, :build_run_id]))
+             |> Enum.sort_by(& &1.path) == [
                %{
                  type: "c",
                  path: "File.m",
@@ -508,11 +511,14 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       get_build_call_count = :counters.new(1, [:atomics])
 
-      stub(Builds, :get_build, fn ^id ->
+      get_build_response = fn ->
         count = :counters.get(get_build_call_count, 1)
         :counters.add(get_build_call_count, 1, 1)
-        if count == 0, do: nil, else: existing_build
-      end)
+        if count == 0, do: {:error, :not_found}, else: {:ok, existing_build}
+      end
+
+      stub(Builds, :get_build, fn ^id -> get_build_response.() end)
+      stub(Builds, :get_build, fn ^id, _opts -> get_build_response.() end)
 
       error_changeset = %Ecto.Changeset{
         errors: [id: {"has already been taken", [constraint: :unique]}],
@@ -725,7 +731,7 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert build.cacheable_task_local_hits_count == 2
       assert build.cacheable_task_remote_hits_count == 2
 
-      {cacheable_tasks, _meta} =
+      {:ok, {cacheable_tasks, _meta}} =
         Builds.list_cacheable_tasks(%{
           filters: [%{field: :build_run_id, op: :==, value: build.id}],
           order_by: [:key],
@@ -740,7 +746,8 @@ defmodule TuistWeb.API.RunsControllerTest do
         %{type: "swift", status: "hit_remote", key: "cache_key_5", build_run_id: build.id}
       ]
 
-      actual_tasks = Enum.map(cacheable_tasks, &Map.take(&1, [:type, :status, :key, :build_run_id]))
+      actual_tasks =
+        Enum.map(cacheable_tasks, &Map.take(&1, [:type, :status, :key, :build_run_id]))
 
       assert actual_tasks == expected_tasks
 
@@ -782,7 +789,7 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert build.cacheable_task_remote_hits_count == 0
 
       # Verify no cacheable tasks are created in ClickHouse
-      {cacheable_tasks, _meta} =
+      {:ok, {cacheable_tasks, _meta}} =
         Builds.list_cacheable_tasks(%{
           filters: [%{field: :build_run_id, op: :==, value: build.id}]
         })
@@ -892,7 +899,16 @@ defmodule TuistWeb.API.RunsControllerTest do
       actual_outputs =
         Enum.map(
           cas_outputs,
-          &Map.take(&1, [:node_id, :checksum, :size, :duration, :compressed_size, :operation, :type, :build_run_id])
+          &Map.take(&1, [
+            :node_id,
+            :checksum,
+            :size,
+            :duration,
+            :compressed_size,
+            :operation,
+            :type,
+            :build_run_id
+          ])
         )
 
       assert actual_outputs == expected_outputs
@@ -920,7 +936,7 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # When
       {404, _, response_json_string} =
-        assert_error_sent :not_found, fn ->
+        assert_error_sent(:not_found, fn ->
           post(
             conn,
             ~p"/api/projects/#{non_existent_account_name}/#{non_existent_project_name}/runs",
@@ -929,7 +945,7 @@ defmodule TuistWeb.API.RunsControllerTest do
             duration: 1000,
             is_ci: false
           )
-        end
+        end)
 
       assert Jason.decode!(response_json_string) == %{
                "message" => "The project #{project_slug} was not found."
@@ -1038,7 +1054,7 @@ defmodule TuistWeb.API.RunsControllerTest do
       Buffer.flush()
       [build] = get_builds_for_project(project.id)
 
-      {cacheable_tasks, _meta} =
+      {:ok, {cacheable_tasks, _meta}} =
         Builds.list_cacheable_tasks(%{
           filters: [%{field: :build_run_id, op: :==, value: build.id}],
           order_by: [:key],
@@ -1243,12 +1259,7 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert module2.duration == 5000
 
       # Verify test cases were stored
-      {test_cases, _meta} =
-        Tests.list_test_case_runs(%{
-          filters: [%{field: :test_run_id, op: :==, value: test_run.id}],
-          order_by: [:name],
-          order_directions: [:asc]
-        })
+      {test_cases, _meta} = wait_for_test_case_runs(test_run.id)
 
       assert length(test_cases) == 3
 
@@ -1612,6 +1623,27 @@ defmodule TuistWeb.API.RunsControllerTest do
                "project_id" => project.id,
                "url" => url(~p"/#{project.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
              }
+    end
+  end
+
+  defp wait_for_test_case_runs(test_run_id, attempts \\ 10) do
+    result =
+      Tests.list_test_case_runs(%{
+        filters: [%{field: :test_run_id, op: :==, value: test_run_id}],
+        order_by: [:name],
+        order_directions: [:asc]
+      })
+
+    case result do
+      {test_cases, _meta} when test_cases != [] ->
+        result
+
+      _ when attempts > 1 ->
+        Process.sleep(50)
+        wait_for_test_case_runs(test_run_id, attempts - 1)
+
+      _ ->
+        result
     end
   end
 end

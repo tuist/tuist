@@ -24,7 +24,7 @@ final class RootDirectoryLocatorTests: TuistTestCase {
     func test_locate_when_a_tuist_and_git_directory_exists() async throws {
         // Given
         let temporaryDirectory = try temporaryPath()
-        try createFolders(["this/is/a/very/nested/directory", "this/is/Tuist/", "this/.git"])
+        try await createFolders(["this/is/a/very/nested/directory", "this/is/Tuist/", "this/.git"])
 
         // When
         let got = try await subject
@@ -37,7 +37,7 @@ final class RootDirectoryLocatorTests: TuistTestCase {
     func test_locate_when_a_tuist_directory_exists() async throws {
         // Given
         let temporaryDirectory = try temporaryPath()
-        try createFolders(["this/is/a/very/nested/directory", "this/is/Tuist/"])
+        try await createFolders(["this/is/a/very/nested/directory", "this/is/Tuist/"])
 
         // When
         let got = try await subject
@@ -50,7 +50,7 @@ final class RootDirectoryLocatorTests: TuistTestCase {
     func test_locate_when_a_tuist_swift_manifest_file_exists() async throws {
         // Given
         let temporaryDirectory = try temporaryPath()
-        try createFolders(["this/is/a/very/nested/directory"])
+        try await createFolders(["this/is/a/very/nested/directory"])
         try await createFiles(["this/is/\(Constants.tuistManifestFileName)"])
 
         // When
@@ -64,7 +64,7 @@ final class RootDirectoryLocatorTests: TuistTestCase {
     func test_locate_when_a_tuist_toml_file_exists() async throws {
         // Given
         let temporaryDirectory = try temporaryPath()
-        try createFolders(["this/is/a/very/nested/directory"])
+        try await createFolders(["this/is/a/very/nested/directory"])
         try await createFiles(["this/is/\(Constants.tuistTomlFileName)"])
 
         // When
@@ -78,7 +78,7 @@ final class RootDirectoryLocatorTests: TuistTestCase {
     func test_locate_when_a_git_directory_exists() async throws {
         // Given
         let temporaryDirectory = try temporaryPath()
-        try createFolders(["this/is/a/very/nested/directory", "this/.git"])
+        try await createFolders(["this/is/a/very/nested/directory", "this/.git"])
 
         // When
         let got = try await subject
@@ -91,7 +91,7 @@ final class RootDirectoryLocatorTests: TuistTestCase {
     func test_locate_when_a_tuist_file_is_present_not_directory() async throws {
         // Given
         let temporaryDirectory = try temporaryPath()
-        try createFolders(["this/is/a/directory"])
+        try await createFolders(["this/is/a/directory"])
         try await createFiles(["this/is/a/directory/tuist"])
 
         // When
@@ -105,7 +105,7 @@ final class RootDirectoryLocatorTests: TuistTestCase {
     func test_locate_when_multiple_tuist_directories_exists() async throws {
         // Given
         let temporaryDirectory = try temporaryPath()
-        try createFolders(["this/is/a/very/nested/Tuist/", "this/is/Tuist/"])
+        try await createFolders(["this/is/a/very/nested/Tuist/", "this/is/Tuist/"])
         let paths = [
             "this/is/a/very/directory",
             "this/is/a/very/nested/directory",
@@ -201,7 +201,10 @@ final class RootDirectoryLocatorTests: TuistTestCase {
     func test_locate_when_a_tuist_directory_and_swiftpm_manifest_exists() async throws {
         // Given
         let temporaryDirectory = try temporaryPath()
-        try createFolders(["this/is/a/very/nested/directory/\(Constants.SwiftPackageManager.packageSwiftName)", "this/is/Tuist/"])
+        try await createFolders([
+            "this/is/a/very/nested/directory/\(Constants.SwiftPackageManager.packageSwiftName)",
+            "this/is/Tuist/",
+        ])
 
         // When
         let got = try await subject

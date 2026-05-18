@@ -7,10 +7,13 @@ defmodule Tuist.Tests.Analytics do
   alias Postgrex.Interval
   alias Tuist.ClickHouseRepo
   alias Tuist.CommandEvents.Event
+  alias Tuist.Tests
+  alias Tuist.Tests.FlakyTestCaseRun
   alias Tuist.Tests.Test
   alias Tuist.Tests.TestCase
   alias Tuist.Tests.TestCaseEvent
   alias Tuist.Tests.TestCaseRun
+  alias Tuist.Tests.TestCaseRunActiveDailyStat
   alias Tuist.Tests.TestCaseRunByTestRun
   alias Tuist.Tests.TestCaseRunDailyAggregate
 
@@ -108,8 +111,10 @@ defmodule Tuist.Tests.Analytics do
 
   @doc """
   Returns analytics for quarantined tests count over time for a project.
-  This computes the number of quarantined tests at each time bucket by
-  tracking quarantine/unquarantine events from the test_case_events table.
+  This computes the number of muted and skipped tests at each time bucket by
+  tracking `muted` / `unmuted` / `skipped` / `unskipped` events from the
+  test_case_events table. Returns separate series for muted and skipped counts,
+  plus a combined `count`/`values` covering both states.
   """
   def quarantined_tests_analytics(project_id, opts \\ []) do
     start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
@@ -132,7 +137,170 @@ defmodule Tuist.Tests.Analytics do
       ClickHouseRepo.all(
         from(e in TestCaseEvent,
           where: e.test_case_id in subquery(project_test_case_ids_subquery),
-          where: e.event_type in ["quarantined", "unquarantined"],
+          where: e.event_type in ^Tests.quarantine_event_types(),
+          where: e.inserted_at <= ^max_endpoint,
+          select: %{test_case_id: e.test_case_id, event_type: e.event_type, inserted_at: e.inserted_at},
+          order_by: [asc: e.inserted_at]
+        )
+      )
+
+    events_by_tc = Enum.group_by(events, & &1.test_case_id)
+
+    {muted_values, skipped_values} =
+      date_endpoints
+      |> Enum.map(&quarantine_counts_at(events_by_tc, DateTime.to_naive(&1)))
+      |> Enum.unzip()
+
+    values =
+      muted_values
+      |> Enum.zip(skipped_values)
+      |> Enum.map(fn {muted, skipped} -> muted + skipped end)
+
+    muted_count = List.last(muted_values) || 0
+    skipped_count = List.last(skipped_values) || 0
+    count = muted_count + skipped_count
+
+    {previous_muted, previous_skipped} =
+      quarantine_counts_at(events_by_tc, DateTime.to_naive(DateTime.add(start_datetime, -1, :second)))
+
+    previous_count = previous_muted + previous_skipped
+
+    %{
+      trend: trend(previous_value: previous_count, current_value: count),
+      muted_trend: trend(previous_value: previous_muted, current_value: muted_count),
+      skipped_trend: trend(previous_value: previous_skipped, current_value: skipped_count),
+      count: count,
+      values: values,
+      muted_count: muted_count,
+      skipped_count: skipped_count,
+      muted_values: muted_values,
+      skipped_values: skipped_values,
+      dates: dates
+    }
+  end
+
+  defp quarantine_counts_at(events_by_tc, datetime_naive) do
+    Enum.reduce(events_by_tc, {0, 0}, fn {_tc_id, tc_events}, {muted_acc, skipped_acc} ->
+      last_event =
+        tc_events
+        |> Enum.take_while(&(NaiveDateTime.compare(&1.inserted_at, datetime_naive) != :gt))
+        |> List.last()
+
+      case last_event do
+        %{event_type: "muted"} -> {muted_acc + 1, skipped_acc}
+        %{event_type: "skipped"} -> {muted_acc, skipped_acc + 1}
+        _ -> {muted_acc, skipped_acc}
+      end
+    end)
+  end
+
+  @doc """
+  Returns analytics for the number of flaky test case runs over time for a project.
+  Counts every individual test case execution where `is_flaky = true`, not the
+  number of test cases flagged or the number of build runs that contained
+  flakiness. Backed by the `flaky_test_case_runs` materialized view.
+  """
+  def flaky_test_case_runs_analytics(project_id, opts \\ []) do
+    start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+
+    days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
+    date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
+    time_bucket = time_bucket_for_date_period(date_period)
+    clickhouse_time_bucket = time_bucket_to_clickhouse_interval(time_bucket)
+
+    current_runs_data =
+      flaky_test_case_runs_count(
+        project_id,
+        start_datetime,
+        end_datetime,
+        clickhouse_time_bucket,
+        opts
+      )
+
+    current_runs = process_runs_count_data(current_runs_data, start_datetime, end_datetime, date_period)
+
+    previous_runs_count =
+      flaky_test_case_runs_total_count(
+        project_id,
+        DateTime.add(start_datetime, -days_delta, :day),
+        start_datetime,
+        opts
+      )
+
+    current_runs_count = flaky_test_case_runs_total_count(project_id, start_datetime, end_datetime, opts)
+
+    %{
+      trend: trend(previous_value: previous_runs_count, current_value: current_runs_count),
+      count: current_runs_count,
+      values: Enum.map(current_runs, & &1.count),
+      dates: Enum.map(current_runs, & &1.date)
+    }
+  end
+
+  defp flaky_test_case_runs_count(project_id, start_datetime, end_datetime, time_bucket, opts) do
+    date_format = get_clickhouse_date_format(time_bucket)
+    is_ci = Keyword.get(opts, :is_ci)
+
+    from(f in FlakyTestCaseRun,
+      where: f.project_id == ^project_id,
+      where: f.ran_at >= ^start_datetime,
+      where: f.ran_at <= ^end_datetime,
+      group_by: fragment("formatDateTime(?, ?)", f.ran_at, ^date_format),
+      select: %{
+        date: fragment("formatDateTime(?, ?)", f.ran_at, ^date_format),
+        count: count()
+      },
+      order_by: fragment("formatDateTime(?, ?)", f.ran_at, ^date_format)
+    )
+    |> apply_flaky_test_case_run_is_ci_filter(is_ci)
+    |> ClickHouseRepo.all()
+  end
+
+  defp flaky_test_case_runs_total_count(project_id, start_datetime, end_datetime, opts) do
+    is_ci = Keyword.get(opts, :is_ci)
+
+    from(f in FlakyTestCaseRun,
+      where: f.project_id == ^project_id,
+      where: f.ran_at >= ^start_datetime,
+      where: f.ran_at <= ^end_datetime,
+      select: count()
+    )
+    |> apply_flaky_test_case_run_is_ci_filter(is_ci)
+    |> ClickHouseRepo.one() || 0
+  end
+
+  defp apply_flaky_test_case_run_is_ci_filter(query, nil), do: query
+  defp apply_flaky_test_case_run_is_ci_filter(query, true), do: where(query, [f], f.is_ci == true)
+  defp apply_flaky_test_case_run_is_ci_filter(query, false), do: where(query, [f], f.is_ci == false)
+
+  @doc """
+  Returns analytics for the number of flaky test cases over time for a project.
+  At each bucket endpoint T, the value is the number of test cases currently
+  flagged as flaky, derived by replaying `marked_flaky` / `unmarked_flaky`
+  events from `test_case_events`. Honors `:is_ci` to scope to test cases that
+  have at least one matching run within the analytics period (since events
+  themselves have no environment attached).
+  """
+  def flaky_tests_analytics(project_id, opts \\ []) do
+    start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+    is_ci = Keyword.get(opts, :is_ci)
+
+    date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
+    dates = date_range_for_date_period(date_period, start_datetime: start_datetime, end_datetime: end_datetime)
+    date_endpoints = Enum.map(dates, &date_to_end_of_bucket(&1, date_period))
+
+    project_test_case_ids_subquery =
+      scoped_project_test_case_ids(project_id, start_datetime, end_datetime, is_ci)
+
+    max_endpoint = List.last(date_endpoints) || end_datetime
+
+    events =
+      ClickHouseRepo.all(
+        from(e in TestCaseEvent,
+          where: e.test_case_id in subquery(project_test_case_ids_subquery),
+          where: e.event_type in ["marked_flaky", "unmarked_flaky"],
           where: e.inserted_at <= ^max_endpoint,
           select: %{test_case_id: e.test_case_id, event_type: e.event_type, inserted_at: e.inserted_at},
           order_by: [asc: e.inserted_at]
@@ -151,17 +319,132 @@ defmodule Tuist.Tests.Analytics do
             |> Enum.take_while(&(NaiveDateTime.compare(&1.inserted_at, endpoint_naive) != :gt))
             |> List.last()
 
-          last_event != nil and last_event.event_type == "quarantined"
+          last_event != nil and last_event.event_type == "marked_flaky"
         end)
       end)
 
-    current_count = quarantined_count_at(project_id, end_datetime)
+    previous_count = flaky_count_from_events(events_by_tc, DateTime.add(start_datetime, -1, :second))
+    current_count = List.last(values) || 0
 
     %{
+      trend: trend(previous_value: previous_count, current_value: current_count),
       count: current_count,
       values: values,
       dates: dates
     }
+  end
+
+  defp flaky_count_from_events(events_by_tc, datetime) do
+    datetime_naive = DateTime.to_naive(datetime)
+
+    Enum.count(events_by_tc, fn {_tc_id, tc_events} ->
+      last_event =
+        tc_events
+        |> Enum.take_while(&(NaiveDateTime.compare(&1.inserted_at, datetime_naive) != :gt))
+        |> List.last()
+
+      last_event != nil and last_event.event_type == "marked_flaky"
+    end)
+  end
+
+  defp scoped_project_test_case_ids(project_id, _start_datetime, _end_datetime, nil) do
+    from(tc in TestCase,
+      where: tc.project_id == ^project_id,
+      group_by: tc.id,
+      select: tc.id
+    )
+  end
+
+  defp scoped_project_test_case_ids(project_id, start_datetime, end_datetime, is_ci) when is_boolean(is_ci) do
+    from(tcr in TestCaseRun,
+      where: tcr.project_id == ^project_id,
+      where: tcr.ran_at >= ^start_datetime,
+      where: tcr.ran_at <= ^end_datetime,
+      where: tcr.is_ci == ^is_ci,
+      group_by: tcr.test_case_id,
+      select: tcr.test_case_id
+    )
+  end
+
+  @doc """
+  Returns analytics for the number of active test cases over time for a project.
+  A test case is counted at bucket endpoint T if it has at least one run in the
+  14 days ending at T. The chart can both rise (new test cases appear) and fall
+  (test cases stop being run). Honors `:is_ci` to scope to CI-only or local-only
+  runs.
+  """
+  def test_cases_count_analytics(project_id, opts \\ []) do
+    start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+    is_ci = Keyword.get(opts, :is_ci)
+
+    date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
+    dates = date_range_for_date_period(date_period, start_datetime: start_datetime, end_datetime: end_datetime)
+    date_endpoints = Enum.map(dates, &date_to_end_of_bucket(&1, date_period))
+
+    window_days = Tests.active_window_days()
+
+    previous_endpoint = DateTime.add(start_datetime, -1, :second)
+    previous_count = active_test_cases_count(project_id, previous_endpoint, window_days, is_ci, date_period)
+
+    values =
+      Enum.map(
+        date_endpoints,
+        &active_test_cases_count(project_id, &1, window_days, is_ci, date_period)
+      )
+
+    current_count = List.last(values) || 0
+
+    %{
+      trend: trend(previous_value: previous_count, current_value: current_count),
+      count: current_count,
+      values: values,
+      dates: dates
+    }
+  end
+
+  # For day/month buckets, reads `test_case_runs_active_daily_stats` — a daily
+  # presence MV keyed by (project_id, date, is_ci, test_case_id). Each call
+  # groups exact test_case_id rows across the 14-day window instead of scanning
+  # `test_case_runs` or merging large exact aggregate states.
+  #
+  # For hour buckets (the `last-24-hours` preset), the daily MV is too coarse
+  # — every hourly endpoint within the same UTC day would return the same
+  # value, and an endpoint earlier in the day would count runs that haven't
+  # happened yet. Fall back to the raw `test_case_runs` query in that case;
+  # the 14-day window over an hourly chart only spans ~14 days of source
+  # rows, so the cost is bounded.
+  defp active_test_cases_count(project_id, endpoint, window_days, is_ci, :hour) do
+    window_start = DateTime.add(endpoint, -window_days * 86_400, :second)
+
+    from(tcr in TestCaseRun,
+      where: tcr.project_id == ^project_id,
+      where: tcr.ran_at >= ^window_start,
+      where: tcr.ran_at <= ^endpoint,
+      where: tcr.inserted_at >= ^window_start,
+      select: fragment("uniqExact(?)", tcr.test_case_id)
+    )
+    |> apply_is_ci_filter(is_ci)
+    |> ClickHouseRepo.one() || 0
+  end
+
+  defp active_test_cases_count(project_id, endpoint, window_days, is_ci, _date_period) do
+    end_date = DateTime.to_date(endpoint)
+    start_date = Date.add(end_date, -(window_days - 1))
+
+    daily_presence_query =
+      apply_is_ci_filter(
+        from(s in TestCaseRunActiveDailyStat,
+          where: s.project_id == ^project_id,
+          where: s.date >= ^start_date,
+          where: s.date <= ^end_date,
+          group_by: s.test_case_id,
+          select: %{test_case_id: s.test_case_id}
+        ),
+        is_ci
+      )
+
+    ClickHouseRepo.one(from(s in subquery(daily_presence_query), select: count())) || 0
   end
 
   defp date_to_end_of_bucket(%Date{} = date, :day) do
@@ -176,17 +459,76 @@ defmodule Tuist.Tests.Analytics do
     DateTime.add(datetime, 3599, :second)
   end
 
-  defp quarantined_count_at(project_id, datetime) do
-    inner =
-      from(tc in TestCase,
-        where: tc.project_id == ^project_id,
-        where: tc.inserted_at <= ^datetime,
-        group_by: tc.id,
-        having: fragment("argMax(?, ?) = 1", tc.is_quarantined, tc.inserted_at),
-        select: tc.id
+  @scatter_data_limit 10_000
+
+  def test_run_duration_scatter_data(project_id, opts \\ []) do
+    start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+    group_by = Keyword.get(opts, :group_by, :scheme)
+
+    query =
+      apply_test_run_filters(
+        from(t in Test,
+          where: t.project_id == ^project_id,
+          where: t.ran_at >= ^start_datetime,
+          where: t.ran_at <= ^end_datetime,
+          order_by: [desc: t.ran_at],
+          limit: ^@scatter_data_limit,
+          select: %{
+            id: t.id,
+            ran_at: t.ran_at,
+            duration: t.duration,
+            scheme: t.scheme,
+            status: t.status,
+            is_ci: t.is_ci,
+            is_flaky: t.is_flaky
+          }
+        ),
+        opts
       )
 
-    ClickHouseRepo.one(from(tc in subquery(inner), select: count())) || 0
+    results = ClickHouseRepo.all(query)
+    truncated = length(results) >= @scatter_data_limit
+
+    oldest_entry =
+      if truncated do
+        results |> List.last() |> Map.get(:ran_at)
+      end
+
+    series =
+      results
+      |> Enum.group_by(fn run ->
+        case group_by do
+          :environment -> run.is_ci
+          _ -> run.scheme
+        end
+      end)
+      |> Enum.map(fn {group_key, runs} ->
+        %{
+          name: group_key,
+          data:
+            Enum.map(runs, fn run ->
+              ts = NaiveDateTime.diff(run.ran_at, ~N[1970-01-01 00:00:00], :millisecond)
+
+              %{
+                value: [ts, run.duration],
+                id: run.id,
+                meta: %{
+                  scheme: run.scheme,
+                  status: run.status,
+                  is_ci: run.is_ci,
+                  is_flaky: run.is_flaky
+                }
+              }
+            end)
+        }
+      end)
+
+    %{
+      series: series,
+      truncated: truncated,
+      oldest_entry: oldest_entry
+    }
   end
 
   def test_run_duration_analytics(project_id, opts \\ []) do
@@ -428,6 +770,7 @@ defmodule Tuist.Tests.Analytics do
   def get_test_run_metrics(test_run_id) do
     query =
       from t in TestCaseRunByTestRun,
+        hints: ["FINAL"],
         where: t.test_run_id == ^test_run_id,
         select: %{
           total_count: fragment("coalesce(count(?), 0)", t.id),
@@ -467,7 +810,7 @@ defmodule Tuist.Tests.Analytics do
     event_data =
       ClickHouseRepo.all(
         from(e in Event,
-          where: e.test_run_id in ^test_run_ids,
+          where: e.project_id == ^project_id and e.test_run_id in ^test_run_ids,
           select: %{
             test_run_id: e.test_run_id,
             cacheable_targets_count: e.cacheable_targets_count,
@@ -949,11 +1292,12 @@ defmodule Tuist.Tests.Analytics do
   Calculates the ratio of flaky runs to total runs in the last 30 days.
   Returns 0.0 if there are no flaky runs or no data.
   """
-  def get_test_case_flakiness_rate(%TestCase{id: test_case_id}) do
+  def get_test_case_flakiness_rate(%TestCase{id: test_case_id, project_id: project_id}) do
     thirty_days_ago = DateTime.add(DateTime.utc_now(), -30, :day)
 
     query =
       from(tcr in TestCaseRun,
+        where: tcr.project_id == ^project_id,
         where: tcr.test_case_id == ^test_case_id,
         where: tcr.inserted_at >= ^thirty_days_ago,
         select: %{

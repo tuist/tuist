@@ -1,0 +1,245 @@
+{{- if .Values.server.enabled }}
+{{- $secretName := include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
+{{- $masterKeySecretName := ternary (include "tuist.componentName" (dict "root" . "component" "server-external-secrets")) $secretName .Values.server.managedSecrets }}
+{{- $objectStorageAccessKey := include "tuist.objectStorageAccessKey" . -}}
+{{- $objectStorageSecretKey := include "tuist.objectStorageSecretKey" . -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "server") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+spec:
+  {{- if not .Values.server.autoscaling.enabled }}
+  replicas: {{ .Values.server.replicaCount }}
+  {{- end }}
+  strategy:
+    {{- toYaml .Values.server.strategy | nindent 4 }}
+  selector:
+    matchLabels:
+      {{- include "tuist.componentLabels" (dict "root" . "component" "server") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "tuist.componentLabels" (dict "root" . "component" "server") | nindent 8 }}
+        {{- with .Values.global.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- with .Values.server.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9091"
+        # Ports declared on this Pod: http, metrics, epmd (HA prod).
+        # Without a port-name discriminator, Kubernetes pod-role
+        # discovery emits one scrape target per declared port — naming
+        # the metrics one explicitly keeps Alloy on a single target
+        # per pod. See helm/k8s-monitoring/values.yaml for the
+        # annotation→config mapping.
+        prometheus.io/port-name: metrics
+        {{- with .Values.server.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "tuist.componentServiceAccountName" (dict "root" . "component" "server") }}
+      terminationGracePeriodSeconds: {{ .Values.server.terminationGracePeriodSeconds }}
+      {{- include "tuist.podScheduling" . | nindent 6 }}
+      {{- with .Values.server.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.server.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.server.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: server
+          image: "{{ .Values.server.image.repository }}:{{ .Values.server.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.server.image.pullPolicy }}
+          command:
+            - /app/bin/tuist
+            - start
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: metrics
+              containerPort: 9091
+            {{- if .Values.server.cluster.enabled }}
+            - name: epmd
+              containerPort: 4369
+            {{- end }}
+          env:
+            # TUIST_MODE defaults to :web in Tuist.Environment.mode/0 — no
+            # need to set it explicitly here. The processor Deployment sets
+            # TUIST_MODE=processor; everything else is :web.
+            {{- if not .Values.server.managedSecrets }}
+            - name: DATABASE_URL
+              value: {{ include "tuist.databaseUrl" . | quote }}
+            - name: TUIST_USE_SSL_FOR_DATABASE
+              value: {{ .Values.server.database.ssl | ternary "1" "0" | quote }}
+            - name: TUIST_CLICKHOUSE_URL
+              value: {{ include "tuist.clickhouseUrl" . | quote }}
+            - name: TUIST_SECRET_KEY_BASE
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secretName }}
+                  key: server-secret-key-base
+            {{- end }}
+            - name: TUIST_APP_URL
+              value: {{ .Values.server.appUrl | quote }}
+            - name: TUIST_LOG_LEVEL
+              value: {{ .Values.server.logLevel | quote }}
+            - name: TUIST_HOSTED
+              value: {{ .Values.server.hosted | ternary "1" "0" | quote }}
+            - name: TUIST_SKIP_EMAIL_CONFIRMATION
+              value: {{ .Values.server.skipEmailConfirmation | ternary "1" "0" | quote }}
+            - name: TUIST_SELF_HOSTING_DEVELOPMENT_MODE
+              value: {{ .Values.server.license.selfHostingDevelopmentMode | ternary "1" "0" | quote }}
+            {{- if .Values.processor.enabled }}
+            # Hand off the :process_build queue entirely to processor pods —
+            # without this the server's local Oban worker (default concurrency
+            # 2) races the dedicated processor and steals jobs the processor
+            # was meant to do, defeating the whole point of a separate parse
+            # fleet.
+            - name: TUIST_DELEGATE_PROCESS_BUILD
+              value: "1"
+            {{- end }}
+            {{- if .Values.xcresultProcessor.enabled }}
+            # Hand off the :process_xcresult queue to the macOS xcresult-
+            # processor Pods scheduled onto Mac mini nodes via tart-cri.
+            # Linux pods don't ship the macOS-only xcresult NIF, so
+            # without this flag the server's local Oban worker would
+            # claim jobs and crash on `:nif_not_loaded` for every
+            # test-result archive.
+            - name: TUIST_DELEGATE_PROCESS_XCRESULT
+              value: "1"
+            {{- end }}
+            {{- if .Values.runnersFleet.enabled }}
+            # Runners namespace. The server reads RunnerPool CRs at
+            # dispatch time to discover the fleet name; per-customer
+            # config is `accounts.runner_max_concurrent` and has no
+            # chart-level setting.
+            - name: TUIST_RUNNERS_NAMESPACE
+              value: {{ .Values.runnersFleet.namespace | default "tuist-runners" | quote }}
+            {{- end }}
+            {{- include "tuist.licenseEnv" . | nindent 12 }}
+            {{- include "tuist.githubEnv" . | nindent 12 }}
+            {{- if or .Values.server.masterKey .Values.server.managedSecrets }}
+            - name: MASTER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $masterKeySecretName }}
+                  key: server-master-key
+            {{- end }}
+            {{- if .Values.server.cluster.enabled }}
+            - name: TUIST_CLUSTER_DNS_SERVICE
+              value: {{ include "tuist.serverHeadlessServiceName" . | quote }}
+            - name: TUIST_CLUSTER_APP_NAME
+              value: {{ .Values.server.cluster.applicationName | quote }}
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: RELEASE_DISTRIBUTION
+              value: "name"
+            - name: RELEASE_NODE
+              value: "$(TUIST_CLUSTER_APP_NAME)@$(POD_IP)"
+            {{- end }}
+            - name: TUIST_S3_BUCKET_NAME
+              value: {{ include "tuist.objectStorageBucketDefault" . | quote }}
+            - name: TUIST_S3_ENDPOINT
+              value: {{ include "tuist.objectStorageEndpoint" . | quote }}
+            - name: TUIST_S3_REGION
+              value: {{ include "tuist.objectStorageRegion" . | quote }}
+            - name: TUIST_S3_VIRTUAL_HOST
+              value: {{ .Values.server.s3.virtualHost | ternary "1" "0" | quote }}
+            - name: TUIST_S3_BUCKET_AS_HOST
+              value: {{ .Values.server.s3.bucketAsHost | ternary "1" "0" | quote }}
+            {{- if and (eq .Values.objectStorage.mode "external") .Values.objectStorage.external.managedSecrets }}
+            - name: TUIST_S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tuist.componentName" (dict "root" . "component" "object-storage-external-secrets") }}
+                  key: object-storage-access-key
+            - name: TUIST_S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tuist.componentName" (dict "root" . "component" "object-storage-external-secrets") }}
+                  key: object-storage-secret-key
+            {{- else if and $objectStorageAccessKey $objectStorageSecretKey }}
+            - name: TUIST_S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secretName }}
+                  key: object-storage-access-key
+            - name: TUIST_S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secretName }}
+                  key: object-storage-secret-key
+            {{- end }}
+            {{- if .Values.cache.enabled }}
+            - name: TUIST_CACHE_ENDPOINTS
+              value: {{ .Values.server.cacheEndpointUrl | default (printf "http://%s:%v" (include "tuist.componentName" (dict "root" . "component" "cache")) .Values.cache.service.port) | quote }}
+            {{- end }}
+            {{- if .Values.kuraRuntime.image.tag }}
+            - name: TUIST_KURA_RUNTIME_IMAGE_TAG
+              value: {{ .Values.kuraRuntime.image.tag | quote }}
+            {{- end }}
+            {{- $redisUrl := include "tuist.redisUrl" . }}
+            {{- if and .Values.redis.enabled $redisUrl }}
+            - name: TUIST_REDIS_URL
+              value: {{ $redisUrl | quote }}
+            {{- end }}
+            {{- if and .Values.observability.enabled (include "tuist.observabilityOtlpEndpoint" .) }}
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: {{ include "tuist.observabilityOtlpEndpoint" . | quote }}
+            - name: TUIST_LOKI_URL
+              value: "http://{{ include "tuist.componentName" (dict "root" . "component" "loki") }}:3100"
+            {{- end }}
+            {{- with .Values.server.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.server.extraEnvFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          startupProbe:
+            httpGet:
+              path: {{ .Values.server.probes.startup.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.server.probes.startup.initialDelaySeconds }}
+            periodSeconds: {{ .Values.server.probes.startup.periodSeconds }}
+            timeoutSeconds: {{ .Values.server.probes.startup.timeoutSeconds }}
+            failureThreshold: {{ .Values.server.probes.startup.failureThreshold }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.server.probes.readiness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.server.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.server.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.server.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.server.probes.readiness.failureThreshold }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.server.probes.liveness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.server.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.server.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.server.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.server.probes.liveness.failureThreshold }}
+          lifecycle:
+            preStop:
+              exec:
+                # Give the ingress time to stop routing new traffic before the
+                # release shuts down — avoids 502s during a rolling deploy.
+                command: ["sh", "-c", "sleep 10"]
+          resources:
+            {{- toYaml .Values.server.resources | nindent 12 }}
+{{- end }}

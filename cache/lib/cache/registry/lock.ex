@@ -13,7 +13,7 @@ defmodule Cache.Registry.Lock do
     lock_key = lock_key(key)
     now = System.system_time(:second)
     expires_at = now + ttl_seconds
-    body = Jason.encode!(%{acquired_at: now, expires_at: expires_at, node: to_string(node())})
+    body = JSON.encode!(%{acquired_at: now, expires_at: expires_at, node: to_string(node())})
 
     case put_lock(lock_key, body, if_none_match: "*") do
       {:ok, _} ->
@@ -83,7 +83,7 @@ defmodule Cache.Registry.Lock do
          |> with_tigris_consistency()
          |> ExAws.request() do
       {:ok, %{body: body, headers: headers}} ->
-        with {:ok, lock} <- Jason.decode(body) do
+        with {:ok, lock} <- JSON.decode(body) do
           {:ok, lock, S3.etag_from_headers(headers)}
         end
 

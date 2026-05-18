@@ -788,13 +788,7 @@ defmodule TuistWeb.API.RunsController do
               git_commit_sha: build.git_commit_sha,
               git_ref: build.git_ref,
               git_remote_url_origin: Map.get(body_params, :git_remote_url_origin),
-              project_id: selected_project.id,
-              preview_url_template: "#{url(~p"/")}:account_name/:project_name/previews/:preview_id",
-              preview_qr_code_url_template: "#{url(~p"/")}:account_name/:project_name/previews/:preview_id/qr-code.png",
-              command_run_url_template: "#{url(~p"/")}:account_name/:project_name/runs/:command_event_id",
-              test_run_url_template: "#{url(~p"/")}:account_name/:project_name/tests/test-runs/:test_run_id",
-              bundle_url_template: "#{url(~p"/")}:account_name/:project_name/bundles/:bundle_id",
-              build_url_template: "#{url(~p"/")}:account_name/:project_name/builds/build-runs/:build_id"
+              project_id: selected_project.id
             })
 
             conn
@@ -834,11 +828,11 @@ defmodule TuistWeb.API.RunsController do
   end
 
   defp get_or_create_build(params) do
-    case Builds.get_build(params.id) do
-      %Tuist.Builds.Build{} = build ->
+    case Builds.get_build(params.id, project_id: params.project.id) do
+      {:ok, build} ->
         {:ok, build}
 
-      nil ->
+      {:error, :not_found} ->
         custom_metadata = Map.get(params, :custom_metadata, %{})
 
         build_attrs = %{
@@ -881,8 +875,8 @@ defmodule TuistWeb.API.RunsController do
   defp handle_build_creation_result({:error, changeset}, build_id) do
     if Keyword.has_key?(changeset.errors, :id) do
       case Builds.get_build(build_id) do
-        %Tuist.Builds.Build{} = build -> {:ok, build}
-        nil -> {:error, :creation_failed}
+        {:ok, build} -> {:ok, build}
+        {:error, :not_found} -> {:error, :creation_failed}
       end
     else
       {:error, changeset}

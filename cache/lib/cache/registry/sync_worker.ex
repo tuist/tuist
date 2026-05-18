@@ -105,14 +105,16 @@ defmodule Cache.Registry.SyncWorker do
 
   defp missing_versions(tags, metadata) do
     releases = Map.get(metadata, "releases", %{})
+    skipped_releases = Map.get(metadata, "skipped_releases", %{})
+    known_versions = Map.keys(releases) ++ Map.keys(skipped_releases)
 
     tags
-    |> Enum.filter(&valid_semver?/1)
+    |> Enum.filter(&KeyNormalizer.valid_source_tag?/1)
     |> Enum.reject(&String.contains?(&1, "-dev"))
     |> Enum.uniq_by(&KeyNormalizer.normalize_version/1)
     |> Enum.filter(fn tag ->
       normalized = KeyNormalizer.normalize_version(tag)
-      not Map.has_key?(releases, normalized)
+      normalized not in known_versions
     end)
   end
 
@@ -130,7 +132,10 @@ defmodule Cache.Registry.SyncWorker do
     |> Map.put_new("name", name)
     |> Map.put("repository_full_handle", full_handle)
     |> Map.put_new("releases", %{})
-    |> Map.put("updated_at", DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601())
+    |> Map.put(
+      "updated_at",
+      DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601()
+    )
   end
 
   defp empty_metadata(scope, name, full_handle) do
@@ -141,13 +146,6 @@ defmodule Cache.Registry.SyncWorker do
       "releases" => %{},
       "updated_at" => DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601()
     }
-  end
-
-  defp valid_semver?(version) do
-    Regex.match?(
-      ~r/^v?\d+\.\d+(\.\d+)?(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$/,
-      version
-    )
   end
 
   defp apply_allowlist(packages, nil), do: packages

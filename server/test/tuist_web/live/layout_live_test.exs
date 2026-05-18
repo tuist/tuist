@@ -12,6 +12,7 @@ defmodule TuistWeb.LayoutLiveTest do
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.LayoutLive
+  alias TuistWeb.Locale
 
   setup %{conn: conn} = context do
     conn = init_test_session(conn, %{})
@@ -128,7 +129,9 @@ defmodule TuistWeb.LayoutLiveTest do
                      selected: false,
                      avatar_color: "gray",
                      show_avatar: true
-                   },
+                   }
+                 ],
+                 footer_items: [
                    %{
                      label: "Create organization",
                      value: "create-organization",
@@ -146,7 +149,9 @@ defmodule TuistWeb.LayoutLiveTest do
                      selected: true,
                      href: ~p"/#{organization.account.name}/#{project.name}",
                      badge: %{label: "Xcode", color: "focus"}
-                   },
+                   }
+                 ],
+                 footer_items: [
                    %{
                      label: "Create project",
                      value: "create-project",
@@ -163,6 +168,21 @@ defmodule TuistWeb.LayoutLiveTest do
       assert socket.assigns.selected_project == project
       assert socket.assigns.selected_account.name == organization.account.name
       assert socket.assigns.selected_projects == [project]
+    end
+
+    @tag user_role: :user
+    test "uses the session locale for translated dashboard labels", %{
+      params: params,
+      session: session
+    } do
+      {:cont, socket} = Locale.on_mount(:assign_locale, %{}, Map.put(session, "locale", "es"), %LiveView.Socket{})
+
+      {:cont, socket} = LayoutLive.on_mount(:project, params, session, socket)
+
+      assert Enum.any?(
+               Enum.at(socket.assigns.breadcrumbs, 0).footer_items,
+               &(&1.label == "Crear organización")
+             )
     end
   end
 
@@ -193,7 +213,9 @@ defmodule TuistWeb.LayoutLiveTest do
                      value: user.account.id,
                      avatar_color: "gray",
                      show_avatar: true
-                   },
+                   }
+                 ],
+                 footer_items: [
                    %{
                      label: "Create organization",
                      value: "create-organization",
@@ -250,7 +272,9 @@ defmodule TuistWeb.LayoutLiveTest do
                      href: ~p"/#{user.account.name}/projects",
                      avatar_color: "gray",
                      show_avatar: true
-                   },
+                   }
+                 ],
+                 footer_items: [
                    %{
                      label: "Create organization",
                      value: "create-organization",
@@ -307,7 +331,9 @@ defmodule TuistWeb.LayoutLiveTest do
                      href: ~p"/#{user.account.name}/projects",
                      avatar_color: "gray",
                      show_avatar: true
-                   },
+                   }
+                 ],
+                 footer_items: [
                    %{
                      label: "Create organization",
                      value: "create-organization",

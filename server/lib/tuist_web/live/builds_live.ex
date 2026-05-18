@@ -25,10 +25,6 @@ defmodule TuistWeb.BuildsLive do
         TuistWeb.XcodeBuildsLive.assign_mount(socket, params)
       end
 
-    if connected?(socket) do
-      Tuist.PubSub.subscribe("#{account.name}/#{project.name}")
-    end
-
     {:ok, socket}
   end
 
@@ -46,14 +42,6 @@ defmodule TuistWeb.BuildsLive do
     end
   end
 
-  def handle_info({:xcode_build_created, _build}, socket) do
-    TuistWeb.XcodeBuildsLive.handle_info({:xcode_build_created, nil}, socket)
-  end
-
-  def handle_info({:gradle_build_created, _build}, socket) do
-    TuistWeb.GradleBuildsLive.handle_info({:gradle_build_created, nil}, socket)
-  end
-
   def handle_info(_event, socket) do
     {:noreply, socket}
   end
@@ -67,6 +55,19 @@ defmodule TuistWeb.BuildsLive do
      |> assign(:selected_build_duration_type, type)
      |> assign(:uri, uri)
      |> push_event("replace-url", %{url: "?" <> query})}
+  end
+
+  def handle_event("select_build_duration_chart_type", %{"type" => type}, socket) do
+    query = Query.put(socket.assigns.uri.query, "build-duration-chart-type", type)
+    uri = URI.new!("?" <> query)
+    socket = assign(socket, build_duration_chart_type: type, uri: uri)
+    opts = TuistWeb.XcodeBuildsLive.analytics_opts(socket.assigns)
+    group_by = TuistWeb.XcodeBuildsLive.scatter_group_by_atom(socket.assigns.build_duration_scatter_group_by)
+
+    {:noreply,
+     socket
+     |> push_event("replace-url", %{url: "?" <> query})
+     |> TuistWeb.XcodeBuildsLive.assign_build_duration_chart(type, group_by, opts)}
   end
 
   def handle_event("select_widget", %{"widget" => _widget} = params, %{assigns: %{selected_project: project}} = socket) do
@@ -90,24 +91,6 @@ defmodule TuistWeb.BuildsLive do
         |> Query.put("analytics-end-date", end_date)
       else
         Query.put(socket.assigns.uri.query, "analytics-date-range", preset)
-      end
-
-    {:noreply, push_patch(socket, to: "/#{selected_account.name}/#{selected_project.name}/builds?#{query_params}")}
-  end
-
-  def handle_event(
-        "configuration_insights_period_changed",
-        %{"value" => %{"start" => start_date, "end" => end_date}, "preset" => preset},
-        %{assigns: %{selected_account: selected_account, selected_project: selected_project}} = socket
-      ) do
-    query_params =
-      if preset == "custom" do
-        socket.assigns.uri.query
-        |> Query.put("configuration-insights-date-range", "custom")
-        |> Query.put("configuration-insights-start-date", start_date)
-        |> Query.put("configuration-insights-end-date", end_date)
-      else
-        Query.put(socket.assigns.uri.query, "configuration-insights-date-range", preset)
       end
 
     {:noreply, push_patch(socket, to: "/#{selected_account.name}/#{selected_project.name}/builds?#{query_params}")}

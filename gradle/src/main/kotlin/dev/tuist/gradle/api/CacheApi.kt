@@ -11,5 +11,7 @@ import retrofit2.http.Query
 
 interface CacheApi {
     @GET("api/cache/endpoints")
-    fun getCacheEndpoints(@Query("account_handle") accountHandle: String): Call<CacheEndpoints>
+    fun getCacheEndpoints(
+        @Query("account_handle") accountHandle: String
+    ): Call<CacheEndpoints>
 }

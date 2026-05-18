@@ -319,6 +319,22 @@ defmodule Tuist.Authorization.ChecksTest do
              ) == true
     end
 
+    test "returns false for project when scopes match but project belongs to another account", %{
+      organization: organization
+    } do
+      project = ProjectsFixtures.project_fixture()
+
+      assert Checks.scopes_permit(
+               %AuthenticatedAccount{
+                 account: organization.account,
+                 scopes: ["project:bundles:read"],
+                 all_projects: true
+               },
+               project,
+               "project:bundles:read"
+             ) == false
+    end
+
     test "returns true for project when scopes match and project is in project_ids", %{organization: organization} do
       # Given
       project = ProjectsFixtures.project_fixture(account_id: organization.account.id)
@@ -505,6 +521,24 @@ defmodule Tuist.Authorization.ChecksTest do
       assert Checks.ops_access(project, nil) == false
       assert Checks.ops_access(authenticated_account, nil) == false
       assert Checks.ops_access("string", nil) == false
+    end
+  end
+
+  describe "ops_write_access/2" do
+    test "returns true when user is in ops_user_handles", %{user: user} do
+      # Given
+      expect(Tuist.Environment, :ops_user_handles, fn -> [user.account.name] end)
+
+      # When/Then
+      assert Checks.ops_write_access(user, nil) == true
+    end
+
+    test "returns false when user is not in ops_user_handles", %{user: user} do
+      # Given
+      expect(Tuist.Environment, :ops_user_handles, fn -> ["other_user"] end)
+
+      # When/Then
+      assert Checks.ops_write_access(user, nil) == false
     end
   end
 end

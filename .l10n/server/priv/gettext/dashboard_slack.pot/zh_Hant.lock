@@ -1,0 +1,19 @@
+{
+  "hash": "ee86f8ac43276d0769574c4789df92672a0b8e3c2f32f30c8a4c314f57264340",
+  "hash_tree": {
+    "context": {
+      "child": {
+        "file": "server/L10N.md",
+        "hash": "4b6d469c7014caa6766970af517055bd43685866b230e2545cce3b06044cec87"
+      },
+      "file": "L10N.md",
+      "hash": "5d5910c58a27c289d172b18f0bca28176bf6b6a74bd894e27273f55199cd2816"
+    },
+    "source": {
+      "file": "server/priv/gettext/dashboard_slack.pot",
+      "hash": "f5a2013f8d003a45f3150f3d0e7a1cea008566d1ec7b4b7fee3cc7613bf6910c"
+    }
+  },
+  "model": "openai:gpt-4.1-mini",
+  "translated_at": "2026-05-11T14:16:19.368730Z"
+}

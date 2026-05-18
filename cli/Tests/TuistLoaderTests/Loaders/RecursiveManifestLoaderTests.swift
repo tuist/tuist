@@ -40,7 +40,6 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
 
         subject = RecursiveManifestLoader(
             manifestLoader: manifestLoader,
-            fileHandler: fileHandler,
             packageInfoMapper: packageInfoMapper,
             rootDirectoryLocator: rootDirectoryLocator
         )
@@ -225,7 +224,7 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
         try await stub(manifest: projectA, at: try RelativePath(validating: "Some/Path/A"))
         try await stub(manifest: projectB, at: try RelativePath(validating: "Some/Path/B"))
         try await stub(manifest: projectC, at: try RelativePath(validating: "Some/Path/C"))
-        try stub(manifest: workspace, at: try RelativePath(validating: "Some/Path"))
+        try await stub(manifest: workspace, at: try RelativePath(validating: "Some/Path"))
 
         // When
         let manifests = try await subject.loadWorkspace(
@@ -274,7 +273,7 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
         try await stub(manifest: projectA, at: try RelativePath(validating: "Some/Path/A"))
         try await stub(manifest: projectB, at: try RelativePath(validating: "Some/Path/B"))
         try await stub(manifest: projectC, at: try RelativePath(validating: "Some/Path/C"))
-        try stub(manifest: workspace, at: try RelativePath(validating: "Some/Path"))
+        try await stub(manifest: workspace, at: try RelativePath(validating: "Some/Path"))
 
         // When
         let manifests = try await subject.loadWorkspace(
@@ -312,7 +311,7 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
         )
 
         try await stub(manifest: projectA, at: try RelativePath(validating: "Some/Path"))
-        try stub(manifest: workspace, at: try RelativePath(validating: "Some/Path"))
+        try await stub(manifest: workspace, at: try RelativePath(validating: "Some/Path"))
 
         // When
         let manifests = try await subject.loadWorkspace(
@@ -331,7 +330,7 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
     func test_loadSPM_Package() async throws {
         // Given
         let packageA = createPackage(name: "PackageA")
-        try stub(manifest: packageA, at: try RelativePath(validating: "Some/Path/A"))
+        try await stub(manifest: packageA, at: try RelativePath(validating: "Some/Path/A"))
         given(packageInfoMapper).map(
             packageInfo: .value(packageA),
             path: .any,
@@ -349,11 +348,88 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
             at: path.appending(try RelativePath(validating: "Some/Path/A")),
             disableSandbox: false
         )
-        manifests = try await subject.loadAndMergePackageProjects(in: manifests, packageSettings: .test(), disableSandbox: false)
+        manifests = try await subject.loadAndMergePackageProjects(
+            in: manifests,
+            packageSettings: .test(),
+            disableSandbox: false
+        )
 
         // Then
         XCTAssertEqual(withRelativePaths(manifests.projects), [
             "Some/Path/A": .test(name: "PackageA"),
+        ])
+    }
+
+    func test_loadSPM_Package_ignoresPackagesInCustomSwiftPMCheckouts() async throws {
+        // Given
+        let packageA = createPackage(name: "PackageA")
+        let checkoutPackage = createPackage(name: "CheckoutPackage")
+        try await stub(manifest: packageA, at: try RelativePath(validating: "Some/Path/A"))
+        try await stub(
+            manifest: checkoutPackage,
+            at: try RelativePath(validating: "Some/Path/A/custom-build/checkouts/CheckoutPackage")
+        )
+        given(packageInfoMapper).map(
+            packageInfo: .value(packageA),
+            path: .any,
+            packageType: .any,
+            packageSettings: .any,
+            packageModuleAliases: .any,
+            enabledTraits: .any
+        )
+        .willReturn(
+            .test(name: "PackageA")
+        )
+
+        // When
+        var manifests = try await subject.loadWorkspace(
+            at: path.appending(try RelativePath(validating: "Some/Path/A")),
+            disableSandbox: false
+        )
+        manifests = try await subject.loadAndMergePackageProjects(
+            in: manifests,
+            packageSettings: .test(),
+            disableSandbox: false,
+            swiftPackageManagerScratchDirectory: path.appending(try RelativePath(validating: "Some/Path/A/custom-build"))
+        )
+
+        // Then
+        XCTAssertEqual(withRelativePaths(manifests.projects), [
+            "Some/Path/A": .test(name: "PackageA"),
+        ])
+    }
+
+    func test_loadSPM_Package_whenPathContainsCheckouts_doesNotFilterItOut() async throws {
+        // Given
+        let packageA = createPackage(name: "PackageA")
+        try await stub(manifest: packageA, at: try RelativePath(validating: "Some/checkouts/A"))
+        given(packageInfoMapper).map(
+            packageInfo: .value(packageA),
+            path: .any,
+            packageType: .any,
+            packageSettings: .any,
+            packageModuleAliases: .any,
+            enabledTraits: .any
+        )
+        .willReturn(
+            .test(name: "PackageA")
+        )
+
+        // When
+        var manifests = try await subject.loadWorkspace(
+            at: path.appending(try RelativePath(validating: "Some/checkouts/A")),
+            disableSandbox: false
+        )
+        manifests = try await subject.loadAndMergePackageProjects(
+            in: manifests,
+            packageSettings: .test(),
+            disableSandbox: false,
+            swiftPackageManagerScratchDirectory: path.appending(try RelativePath(validating: "Some/custom-build"))
+        )
+
+        // Then
+        XCTAssertEqual(withRelativePaths(manifests.projects), [
+            "Some/checkouts/A": .test(name: "PackageA"),
         ])
     }
 
@@ -410,22 +486,24 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
     private func stub(
         manifest: Workspace,
         at relativePath: RelativePath
-    ) throws {
+    ) async throws {
         let manifestPath = path
             .appending(relativePath)
             .appending(component: Manifest.workspace.fileName(path.appending(relativePath)))
-        try fileHandler.touch(manifestPath)
+        try await fileSystem.makeDirectory(at: manifestPath.parentDirectory)
+        try await fileSystem.touch(manifestPath)
         workspaceManifests[manifestPath.parentDirectory] = manifest
     }
 
     private func stub(
         manifest: PackageInfo,
         at relativePath: RelativePath
-    ) throws {
+    ) async throws {
         let manifestPath = path
             .appending(relativePath)
             .appending(component: Manifest.package.fileName(path.appending(relativePath)))
-        try fileHandler.touch(manifestPath)
+        try await fileSystem.makeDirectory(at: manifestPath.parentDirectory)
+        try await fileSystem.touch(manifestPath)
         packageManifests[manifestPath.parentDirectory] = manifest
     }
 

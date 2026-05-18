@@ -31,6 +31,7 @@ defmodule Noora.Icon do
       |> String.replace("-", "_")
 
     file_path = Path.join(@icons_path, file)
+    @external_resource file_path
     content = File.read!(file_path)
 
     def unquote(String.to_atom(icon_name))(assigns) do

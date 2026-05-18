@@ -20,14 +20,22 @@ public struct ExternalDependencyPathWorkspaceMapper: WorkspaceMapping {
     // MARK: - Helpers
 
     private func map(project: Project) throws -> (Project, [SideEffectDescriptor]) {
+        let swiftPackageManagerScratchDirectory = SwiftPackageManagerPaths.scratchDirectory(
+            containingCheckout: project.path,
+            knownScratchDirectory: project.swiftPackageManagerScratchDirectory
+        )
         guard case .external = project.type,
-              // We don't want to update local packages (which are defined outside the `checkouts` directory in `.build`
-              project.path.parentDirectory.parentDirectory.basename == Constants.SwiftPackageManager.packageBuildDirectoryName
+              let swiftPackageManagerScratchDirectory,
+              SwiftPackageManagerPaths.isPath(project.path, inCheckoutsOf: swiftPackageManagerScratchDirectory)
         else { return (project, []) }
         var project = project
         let xcodeProjBasename = project.xcodeProjPath.basename
-        let derivedDirectory = project.path.parentDirectory.parentDirectory.appending(
-            components: Constants.DerivedDirectory.dependenciesDerivedDirectory, project.name
+        let derivedDirectory = swiftPackageManagerScratchDirectory.appending(
+            components: [
+                Constants.DerivedDirectory.dependenciesDerivedDirectory,
+                Constants.DerivedDirectory.dependenciesProjectDirectory,
+                project.name,
+            ]
         )
         project.xcodeProjPath = derivedDirectory.appending(component: xcodeProjBasename)
 

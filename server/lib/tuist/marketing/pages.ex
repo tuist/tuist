@@ -4,13 +4,15 @@ defmodule Tuist.Marketing.Pages do
   and cookie policy. It uses NimblePublisher to parse markdown files from priv/marketing/pages/
   into Page structs that can be rendered by the web controllers.
   """
-  use NimblePublisher,
+
+  use Tuist.Marketing.NimblePublisher.Content,
     build: Tuist.Marketing.Pages.Page,
-    from: Application.app_dir(:tuist, "priv/marketing/pages/*.md"),
+    dev_from: Path.expand("../../../priv/marketing/pages/*.md", __DIR__),
+    prod_from: Application.app_dir(:tuist, "priv/marketing/pages/*.md"),
     as: :pages,
     parser: Tuist.Marketing.Pages.PageParser,
     highlighters: [],
     html_converter: Tuist.Marketing.MDExConverter
 
-  def get_pages, do: @pages
+  def get_pages, do: content_entries()
 end

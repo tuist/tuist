@@ -42,6 +42,20 @@ defmodule TuistTestSupport.Fixtures.ProjectsFixtures do
       )
       |> Repo.preload(Keyword.get(opts, :preload, []))
 
+    # Production create_project! seeds a default "Flaky test detection" alert
+    # on every project. Most tests want a clean-slate project and assert on
+    # explicitly created alerts, so the fixture strips the default by default.
+    # Pass `with_default_alert: true` to opt in when you need the realistic
+    # shape.
+    if !Keyword.get(opts, :with_default_alert, false) do
+      import Ecto.Query
+
+      Repo.delete_all(
+        from a in Tuist.Automations.Alerts.Alert,
+          where: a.project_id == ^project.id
+      )
+    end
+
     if vcs_connection_opts do
       account = Repo.preload(project, :account).account
 

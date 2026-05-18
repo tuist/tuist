@@ -18,10 +18,13 @@ defmodule Tuist.Tests.TestCase do
       :suite_name,
       :last_status,
       :is_flaky,
-      :is_quarantined
+      :state,
+      :last_ran_at,
+      :last_ran_at_ci,
+      :last_ran_at_local
     ],
-    sortable: [:name, :last_duration, :avg_duration, :last_ran_at],
-    default_order: %{order_by: [:last_ran_at], order_directions: [:desc]}
+    sortable: [:name, :last_duration, :avg_duration, :last_ran_at, :id],
+    default_order: %{order_by: [:last_ran_at, :id], order_directions: [:desc, :asc]}
   }
 
   @primary_key {:id, Ecto.UUID, autogenerate: false}
@@ -33,8 +36,11 @@ defmodule Tuist.Tests.TestCase do
     field :last_status, Ch, type: "Enum8('success' = 0, 'failure' = 1, 'skipped' = 2)"
     field :last_duration, Ch, type: "Int32"
     field :last_ran_at, Ch, type: "DateTime64(6)"
+    field :last_ran_at_ci, Ch, type: "Nullable(DateTime64(6))"
+    field :last_ran_at_local, Ch, type: "Nullable(DateTime64(6))"
     field :is_flaky, :boolean, default: false
-    field :is_quarantined, :boolean, default: false
+    field :last_run_id, Ch, type: "Nullable(UUID)"
+    field :state, Ch, type: "LowCardinality(String)"
     field :inserted_at, Ch, type: "DateTime64(6)"
     field :recent_durations, Ch, type: "Array(Int32)"
     field :avg_duration, Ch, type: "Int64"
@@ -51,8 +57,11 @@ defmodule Tuist.Tests.TestCase do
       :last_status,
       :last_duration,
       :last_ran_at,
+      :last_ran_at_ci,
+      :last_ran_at_local,
       :is_flaky,
-      :is_quarantined,
+      :last_run_id,
+      :state,
       :inserted_at,
       :recent_durations,
       :avg_duration

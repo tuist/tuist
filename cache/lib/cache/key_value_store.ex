@@ -119,7 +119,7 @@ defmodule Cache.KeyValueStore do
 
   defp encode_entries(values) do
     entries = Enum.map(values, &%{"value" => &1})
-    Jason.encode!(%{entries: entries})
+    JSON.encode!(%{entries: entries})
   end
 
   defp build_key(account_handle, project_handle, cas_id) do

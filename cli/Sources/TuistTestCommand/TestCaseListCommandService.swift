@@ -72,6 +72,7 @@ struct TestCaseListCommandService: TestCaseListCommandServicing {
             serverURL: serverURL,
             flaky: flaky ? true : nil,
             quarantined: quarantined ? true : nil,
+            state: nil,
             page: startPage + 1, // API uses 1-indexed pages
             pageSize: pageSize
         )
@@ -119,13 +120,13 @@ struct TestCaseListCommandService: TestCaseListCommandServicing {
                 testCase.module.name,
                 testCase.suite?.name ?? "-",
                 testCase.is_flaky ? "Yes" : "No",
-                testCase.is_quarantined ? "Yes" : "No",
+                testCase.state,
                 Formatters.formatDuration(testCase.avg_duration),
             ]
         }
 
         try await Noora.current.paginatedTable(
-            headers: ["Name", "Module", "Suite", "Flaky", "Quarantined", "Avg Duration"],
+            headers: ["Name", "Module", "Suite", "Flaky", "State", "Avg Duration"],
             pageSize: pageSize,
             totalPages: totalPages,
             startPage: startPage,
@@ -139,6 +140,7 @@ struct TestCaseListCommandService: TestCaseListCommandServicing {
                     serverURL: serverURL,
                     flaky: flaky ? true : nil,
                     quarantined: quarantined ? true : nil,
+                    state: nil,
                     page: pageIndex + 1, // API uses 1-indexed pages
                     pageSize: pageSize
                 )
@@ -149,7 +151,7 @@ struct TestCaseListCommandService: TestCaseListCommandServicing {
                         testCase.module.name,
                         testCase.suite?.name ?? "-",
                         testCase.is_flaky ? "Yes" : "No",
-                        testCase.is_quarantined ? "Yes" : "No",
+                        testCase.state,
                         Formatters.formatDuration(testCase.avg_duration),
                     ]
                 }

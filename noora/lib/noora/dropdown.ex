@@ -21,6 +21,12 @@ defmodule Noora.Dropdown do
   attr(:id, :string, required: true, doc: "Unique identifier for the dropdown component")
   attr(:label, :string, default: nil, doc: "Main text displayed in the dropdown trigger")
 
+  attr(:size, :string,
+    values: ~w(medium large),
+    default: "large",
+    doc: "The size of the dropdown trigger"
+  )
+
   attr(:secondary_text, :string,
     default: nil,
     doc: "Secondary text displayed to the left of the main label"
@@ -80,11 +86,19 @@ defmodule Noora.Dropdown do
     <.portal :if={!@icon_only} id={@id <> "-label-portal"} target={"#" <> @id <> "-label-target"}>
       {@label}
     </.portal>
+    <.portal
+      :if={!@icon_only and has_slot_content?(@icon, assigns)}
+      id={@id <> "-icon-portal"}
+      target={"#" <> @id <> "-icon-target"}
+    >
+      {render_slot(@icon)}
+    </.portal>
     <div
       id={@id}
       class="noora-dropdown"
       phx-hook="NooraDropdown"
       phx-update="ignore"
+      data-size={@size}
       data-loop-focus
       data-typeahead
       data-close-on-select={@close_on_select}
@@ -100,7 +114,7 @@ defmodule Noora.Dropdown do
       <button :if={!@icon_only} data-part="trigger" disabled={@disabled} type="button">
         <div data-part="label-wrapper">
           <div :if={has_slot_content?(@icon, assigns)} data-part="icon">
-            {render_slot(@icon)}
+            <span id={@id <> "-icon-target"}></span>
           </div>
           <span :if={@secondary_text} data-part="secondary-text">
             {@secondary_text}
@@ -139,6 +153,7 @@ defmodule Noora.Dropdown do
 
   attr(:id, :string, required: true, doc: "Unique identifier for the dropdown component")
   attr(:label, :string, default: nil, doc: "Main text displayed in the dropdown trigger")
+  attr(:size, :string, values: ~w(small large), default: "small", doc: "The size of the inline dropdown trigger")
 
   attr(:disabled, :boolean, default: nil, doc: "Whether the dropdown is disabled")
 
@@ -182,6 +197,7 @@ defmodule Noora.Dropdown do
       id={@id}
       class="noora-inline-dropdown"
       phx-hook="NooraDropdown"
+      data-size={@size}
       data-loop-focus
       data-close-on-select
       data-typeahead

@@ -39,9 +39,9 @@ public class TrackableCommand {
     private let clock: Clock
     private let commandArguments: [String]
     private let commandEventFactory: CommandEventFactory
-    private let fileHandler: FileHandling
     private let backgroundProcessRunner: BackgroundProcessRunning
     private let uploadAnalyticsService: UploadAnalyticsServicing
+    private let serverAuthenticationController: ServerAuthenticationControlling
     private let fileSystem: FileSysteming
     private let sessionDirectory: AbsolutePath
 
@@ -50,9 +50,9 @@ public class TrackableCommand {
         commandArguments: [String],
         clock: Clock = WallClock(),
         commandEventFactory: CommandEventFactory = CommandEventFactory(),
-        fileHandler: FileHandling = FileHandler.shared,
         backgroundProcessRunner: BackgroundProcessRunning = BackgroundProcessRunner(),
         uploadAnalyticsService: UploadAnalyticsServicing = UploadAnalyticsService(),
+        serverAuthenticationController: ServerAuthenticationControlling = ServerAuthenticationController(),
         fileSystem: FileSysteming = FileSystem(),
         sessionDirectory: AbsolutePath
     ) {
@@ -60,9 +60,9 @@ public class TrackableCommand {
         self.commandArguments = commandArguments
         self.clock = clock
         self.commandEventFactory = commandEventFactory
-        self.fileHandler = fileHandler
         self.backgroundProcessRunner = backgroundProcessRunner
         self.uploadAnalyticsService = uploadAnalyticsService
+        self.serverAuthenticationController = serverAuthenticationController
         self.fileSystem = fileSystem
         self.sessionDirectory = sessionDirectory
     }
@@ -70,49 +70,51 @@ public class TrackableCommand {
     public func run(
         fullHandle: String?,
         serverURL: URL?,
-        shouldTrackAnalytics: Bool
+        shouldTrackAnalytics: Bool,
+        optionalAuthentication: Bool = false
     ) async throws {
         let timer = clock.startTimer()
         let ranAt = clock.now
-        let pathIndex = commandArguments.firstIndex(of: "--path")
-        let path: AbsolutePath
-        if let pathIndex, commandArguments.endIndex > pathIndex + 1 {
-            path = try AbsolutePath(validating: commandArguments[pathIndex + 1], relativeTo: fileHandler.currentPath)
-        } else {
-            path = fileHandler.currentPath
-        }
+        let path = try await CommandArguments.path(in: commandArguments)
         let runMetadataStorage = RunMetadataStorage()
-        try await RunMetadataStorage.$current.withValue(runMetadataStorage) {
-            do {
-                if var asyncCommand = command as? AsyncParsableCommand {
-                    try await asyncCommand.run()
-                } else {
-                    try command.run()
+        let usesOptionalAuthentication =
+            optionalAuthentication
+                && (((command as? TrackableParsableCommand)?.analyticsRequired == true) || Environment.current.isCI)
+        try await ServerAuthenticationConfig.withOptionalAuthentication(usesOptionalAuthentication) {
+            try await RunMetadataStorage.$current.withValue(runMetadataStorage) {
+                do {
+                    if var asyncCommand = command as? AsyncParsableCommand {
+                        try await asyncCommand.run()
+                    } else {
+                        try command.run()
+                    }
+                    if let fullHandle, let serverURL, shouldTrackAnalytics {
+                        await uploadCommandEvent(
+                            timer: timer,
+                            status: .success,
+                            runId: runMetadataStorage.runId,
+                            path: path,
+                            runMetadataStorage: runMetadataStorage,
+                            fullHandle: fullHandle,
+                            serverURL: serverURL,
+                            ranAt: ranAt
+                        )
+                    }
+                } catch {
+                    if let fullHandle, let serverURL, shouldTrackAnalytics {
+                        await uploadCommandEvent(
+                            timer: timer,
+                            status: .failure("\(error)"),
+                            runId: await runMetadataStorage.runId,
+                            path: path,
+                            runMetadataStorage: runMetadataStorage,
+                            fullHandle: fullHandle,
+                            serverURL: serverURL,
+                            ranAt: ranAt
+                        )
+                    }
+                    throw error
                 }
-                if let fullHandle, let serverURL, shouldTrackAnalytics {
-                    try await uploadCommandEvent(
-                        timer: timer,
-                        status: .success,
-                        runId: runMetadataStorage.runId,
-                        path: path,
-                        runMetadataStorage: runMetadataStorage,
-                        fullHandle: fullHandle,
-                        serverURL: serverURL
-                    )
-                }
-            } catch {
-                if let fullHandle, let serverURL, shouldTrackAnalytics {
-                    try await uploadCommandEvent(
-                        timer: timer,
-                        status: .failure("\(error)"),
-                        runId: await runMetadataStorage.runId,
-                        path: path,
-                        runMetadataStorage: runMetadataStorage,
-                        fullHandle: fullHandle,
-                        serverURL: serverURL
-                    )
-                }
-                throw error
             }
         }
     }
@@ -124,38 +126,51 @@ public class TrackableCommand {
         path: AbsolutePath,
         runMetadataStorage: RunMetadataStorage,
         fullHandle: String,
-        serverURL: URL
-    ) async throws {
-        let durationInSeconds = timer.stop()
-        let durationInMs = Int(durationInSeconds * 1000)
-        let configuration = type(of: command).configuration
-        let (name, subcommand) = extractCommandName(from: configuration)
-        let info = await TrackableCommandInfo(
-            runId: runId,
-            name: name,
-            subcommand: subcommand,
-            commandArguments: commandArguments,
-            durationInMs: durationInMs,
-            status: status,
-            graph: runMetadataStorage.graph,
-            graphBinaryBuildDuration: runMetadataStorage.graphBinaryBuildDuration,
-            binaryCacheItems: runMetadataStorage.binaryCacheItems,
-            selectiveTestingCacheItems: runMetadataStorage.selectiveTestingCacheItems,
-            targetContentHashSubhashes: runMetadataStorage.targetContentHashSubhashes,
-            previewId: runMetadataStorage.previewId,
-            resultBundlePath: runMetadataStorage.resultBundlePath,
-            ranAt: Date(),
-            buildRunId: runMetadataStorage.buildRunId,
-            testRunId: runMetadataStorage.testRunId,
-            cacheEndpoint: runMetadataStorage.cacheEndpoint
-        )
-        let commandEvent = try commandEventFactory.make(
-            from: info,
-            path: path
-        )
-        if (command as? TrackableParsableCommand)?.analyticsRequired == true || Environment.current.isCI {
-            Logger.current.info("Uploading run metadata...")
-            do {
+        serverURL: URL,
+        ranAt: Date
+    ) async {
+        do {
+            if ServerAuthenticationConfig.current.optionalAuthentication {
+                let token = try? await serverAuthenticationController.authenticationToken(
+                    serverURL: serverURL,
+                    refreshIfNeeded: false
+                )
+                if token == nil {
+                    Logger.current.debug("Skipping run metadata upload: no authentication credentials available.")
+                    return
+                }
+            }
+
+            let durationInSeconds = timer.stop()
+            let durationInMs = Int(durationInSeconds * 1000)
+            let configuration = type(of: command).configuration
+            let (name, subcommand) = extractCommandName(from: configuration)
+            let info = await TrackableCommandInfo(
+                runId: runId,
+                name: name,
+                subcommand: subcommand,
+                commandArguments: commandArguments,
+                durationInMs: durationInMs,
+                status: status,
+                graph: runMetadataStorage.graph,
+                graphBinaryBuildDuration: runMetadataStorage.graphBinaryBuildDuration,
+                binaryCacheItems: runMetadataStorage.binaryCacheItems,
+                selectiveTestingCacheItems: runMetadataStorage.selectiveTestingCacheItems,
+                targetContentHashSubhashes: runMetadataStorage.targetContentHashSubhashes,
+                previewId: runMetadataStorage.previewId,
+                resultBundlePath: runMetadataStorage.resultBundlePath,
+                ranAt: ranAt,
+                buildRunId: runMetadataStorage.buildRunId,
+                testRunId: runMetadataStorage.testRunId,
+                cacheEndpoint: runMetadataStorage.cacheEndpoint
+            )
+            let commandEvent = try await commandEventFactory.make(
+                from: info,
+                path: path
+            )
+            let buildRunURL = await runMetadataStorage.buildRunURL
+            if (command as? TrackableParsableCommand)?.analyticsRequired == true || Environment.current.isCI {
+                Logger.current.info("Uploading run metadata...")
                 let serverCommandEvent = try await uploadAnalyticsService.upload(
                     commandEvent: commandEvent,
                     fullHandle: fullHandle,
@@ -167,32 +182,36 @@ public class TrackableCommand {
                         .info(
                             "You can view a detailed test report at: \(testRunURL.absoluteString)"
                         )
+                } else if let buildRunURL {
+                    Logger.current
+                        .info(
+                            "Build uploaded for processing. You can view the build report at: \(buildRunURL.absoluteString)"
+                        )
                 } else {
                     Logger.current
                         .info(
                             "You can view a detailed run report at: \(serverCommandEvent.url.absoluteString)"
                         )
                 }
-            } catch let error as ClientError {
-                Logger.current
-                    .warning("Failed to upload run metadata: \(String(describing: error.underlyingError))")
-            } catch {
-                Logger.current.warning("Failed to upload run metadata: \(String(describing: error))")
+            } else {
+                let tempDirectory = try await fileSystem.makeTemporaryDirectory(prefix: "analytics")
+                let commandEventPath = tempDirectory.appending(component: "command-event.json")
+                try await fileSystem.writeAsJSON(commandEvent, at: commandEventPath)
+                try backgroundProcessRunner.runInBackground(
+                    [Environment.current.currentExecutablePath()?.pathString ?? "tuist"] + [
+                        "analytics-upload",
+                        commandEventPath.pathString,
+                        fullHandle,
+                        serverURL.absoluteString,
+                        sessionDirectory.pathString,
+                    ],
+                    environment: ProcessInfo.processInfo.environment
+                )
             }
-        } else {
-            let tempDirectory = try await fileSystem.makeTemporaryDirectory(prefix: "analytics")
-            let commandEventPath = tempDirectory.appending(component: "command-event.json")
-            try await fileSystem.writeAsJSON(commandEvent, at: commandEventPath)
-            try backgroundProcessRunner.runInBackground(
-                [Environment.current.currentExecutablePath()?.pathString ?? "tuist"] + [
-                    "analytics-upload",
-                    commandEventPath.pathString,
-                    fullHandle,
-                    serverURL.absoluteString,
-                    sessionDirectory.pathString,
-                ],
-                environment: ProcessInfo.processInfo.environment
-            )
+        } catch let error as ClientError {
+            Logger.current.warning("Failed to upload run metadata: \(String(describing: error.underlyingError))")
+        } catch {
+            Logger.current.warning("Failed to upload run metadata: \(String(describing: error))")
         }
     }
 

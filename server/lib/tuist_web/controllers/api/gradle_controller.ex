@@ -178,13 +178,7 @@ defmodule TuistWeb.API.GradleController do
       git_commit_sha: body[:git_commit_sha],
       git_ref: body[:git_ref],
       git_remote_url_origin: body[:git_remote_url_origin],
-      project_id: project.id,
-      preview_url_template: "#{url(~p"/")}:account_name/:project_name/previews/:preview_id",
-      preview_qr_code_url_template: "#{url(~p"/")}:account_name/:project_name/previews/:preview_id/qr-code.png",
-      command_run_url_template: "#{url(~p"/")}:account_name/:project_name/runs/:command_event_id",
-      test_run_url_template: "#{url(~p"/")}:account_name/:project_name/tests/test-runs/:test_run_id",
-      bundle_url_template: "#{url(~p"/")}:account_name/:project_name/bundles/:bundle_id",
-      build_url_template: "#{url(~p"/")}:account_name/:project_name/builds/build-runs/:build_id"
+      project_id: project.id
     })
 
     conn

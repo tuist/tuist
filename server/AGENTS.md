@@ -6,10 +6,10 @@ This node covers the Tuist Server application under `server/`. Follow downlinks 
 Tuist Server is an Elixir/Phoenix web application that extends the Tuist CLI. It provides binary caching, app preview deployment, and build analytics services.
 
 **Key Technologies**
-- Backend: Elixir 1.18.3 with Phoenix 1.7.12
+- Backend: Elixir 1.19.5 with Phoenix 1.7.12
 - Databases: PostgreSQL (primary), ClickHouse (analytics; write via IngestRepo, read via ClickHouseRepo)
 - Frontend: Phoenix LiveView with JavaScript/TypeScript and esbuild
-- Package management: pnpm for JavaScript dependencies
+- Package management: aube for JavaScript dependencies
 
 **Core Components**
 - `lib/tuist/` - Business logic modules (accounts, billing, bundles, projects, etc.)
@@ -34,13 +34,10 @@ Tuist Server is an Elixir/Phoenix web application that extends the Tuist CLI. It
 
 **Setup Commands**
 ```bash
-mise install
 brew install postgresql@16
 brew services start postgresql@16
 mise run clickhouse:start
-mise run db:create
-mise run db:load
-mise run db:seed
+mise install
 mise run dev
 ```
 
@@ -71,10 +68,11 @@ mise run dev
 - `mise run format`
 - `mix sobelow`
 - `mise run security`
+- Dev compiles skip the Boundary compiler for fast content reloads. Run a non-dev compile (for example, `MIX_ENV=test mix compile`) when you want to validate boundaries locally before pushing.
 
 **Assets**
-- `mix assets.setup`
-- `mix assets.build`
+- `mix assets.setup` - Installs server esbuild and the local `noora` JS dependencies
+- `mix assets.build` - Builds local `noora` assets, then app/marketing/docs/apidocs bundles
 - `mix assets.deploy`
 
 **Database Utilities**
@@ -85,7 +83,7 @@ mise run dev
 ## Key Configuration Files
 - `.mise.toml` - Tool versions
 - `mix.exs` - Elixir project configuration
-- `package.json` - JS dependencies (pnpm)
+- `package.json` - JS dependencies (aube)
 - `config/` - Phoenix configuration
 - `priv/secrets/dev.key` - Development secrets (not in repo)
 
@@ -114,7 +112,7 @@ mise run dev
 
 ## Important Notes
 - Run `mix ecto.migrate` after pulling migrations.
-- Use `mise run install` after dependency changes.
+- Use `mise run install` after dependency changes or when bootstrapping a fresh worktree.
 - Local development connects to `http://localhost:8080` for Tuist CLI integration.
 
 ## Data Export Documentation
@@ -127,3 +125,4 @@ Update `server/data-export.md` whenever you change stored customer data (schema,
 - Configuration: `server/config/AGENTS.md`
 - Migrations and seeds: `server/priv/AGENTS.md`
 - Test conventions: `server/test/AGENTS.md`
+- Grafana dashboards (Oban + others): [`infra/grafana-dashboards/`](../infra/grafana-dashboards/) (Git Sync'd with Grafana Cloud — see `infra/AGENTS.md`)

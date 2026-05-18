@@ -1,0 +1,126 @@
+{
+  "originHash" : "eaf0120aada03126bb2d5c22eea625b8ba0565517b1041850b9ed2c70ce15868",
+  "pins" : [
+    {
+      "identity" : "1024jp.gzipswift",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "5.2.0"
+      }
+    },
+    {
+      "identity" : "apple.swift-argument-parser",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "1.7.1"
+      }
+    },
+    {
+      "identity" : "apple.swift-atomics",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "1.3.0"
+      }
+    },
+    {
+      "identity" : "apple.swift-collections",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "1.4.1"
+      }
+    },
+    {
+      "identity" : "apple.swift-log",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "1.12.0"
+      }
+    },
+    {
+      "identity" : "apple.swift-nio",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "2.99.0"
+      }
+    },
+    {
+      "identity" : "apple.swift-system",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "1.6.4"
+      }
+    },
+    {
+      "identity" : "krzyzanowskim.cryptoswift",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "1.3.3"
+      }
+    },
+    {
+      "identity" : "kylef.pathkit",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "1.0.1"
+      }
+    },
+    {
+      "identity" : "kylef.spectre",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "0.10.1"
+      }
+    },
+    {
+      "identity" : "MobileNativeFoundation.XCLogParser",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "0.2.47"
+      }
+    },
+    {
+      "identity" : "stephencelis.SQLite_swift",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "0.16.0"
+      }
+    },
+    {
+      "identity" : "tuist.FileSystem",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "0.16.2"
+      }
+    },
+    {
+      "identity" : "tuist.Path",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "0.3.8"
+      }
+    },
+    {
+      "identity" : "tuist.zipfoundation",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "0.9.21"
+      }
+    }
+  ],
+  "version" : 3
+}

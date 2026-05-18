@@ -1,5 +1,5 @@
 defmodule Tuist.Cache.AnalyticsTest do
-  use TuistTestSupport.Cases.DataCase
+  use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
   alias Tuist.Cache.Analytics
@@ -906,13 +906,15 @@ defmodule Tuist.Cache.AnalyticsTest do
       )
 
       # When - get newest 1 item
-      current = Analytics.cache_hit_rate_metric_by_count(project.id, :average, limit: 1, offset: 0)
+      current =
+        Analytics.cache_hit_rate_metric_by_count(project.id, :average, limit: 1, offset: 0)
 
       # Then - Average of [1.0 (module), 1.0 (xcode)] = 1.0
       assert current == 1.0
 
       # When - skip newest, get older item
-      previous = Analytics.cache_hit_rate_metric_by_count(project.id, :average, limit: 1, offset: 1)
+      previous =
+        Analytics.cache_hit_rate_metric_by_count(project.id, :average, limit: 1, offset: 1)
 
       # Then - Average of [0.25 (module), 0.5 (xcode)] = 0.375
       assert previous == 0.375

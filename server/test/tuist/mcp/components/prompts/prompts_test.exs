@@ -9,6 +9,8 @@ defmodule Tuist.MCP.Components.Prompts.PromptsTest do
   alias Tuist.MCP.Components.Prompts.CompareTestCase
   alias Tuist.MCP.Components.Prompts.CompareTestRuns
   alias Tuist.MCP.Components.Prompts.FixFlakyTest
+  alias Tuist.MCP.Components.Prompts.IntegrateGradleProject
+  alias Tuist.MCP.Components.Prompts.IntegrateXcodeProject
   alias Tuist.Projects
 
   describe "fix_flaky_test" do
@@ -170,6 +172,54 @@ defmodule Tuist.MCP.Components.Prompts.PromptsTest do
       assert text =~ "Compare Cache Runs"
       assert text =~ "cr-base-id"
       assert text =~ "cr-head-id"
+    end
+  end
+
+  describe "integrate_gradle_project" do
+    test "returns prompt messages" do
+      result =
+        IntegrateGradleProject.template(nil, %{
+          "account_handle" => "acme",
+          "project_handle" => "android",
+          "features" => "remote_cache,test_sharding"
+        })
+
+      assert %{messages: messages} = result
+      assert length(messages) == 1
+      text = hd(messages).content.text
+      assert text =~ "Integrate Tuist Gradle Project"
+      assert text =~ "`acme/android`"
+      assert text =~ "create_project"
+      assert text =~ "org.gradle.caching=true"
+      assert text =~ "running a Gradle build first"
+      assert text =~ "tuistPrepareTestShards"
+      assert text =~ "remote_cache,test_sharding"
+    end
+  end
+
+  describe "integrate_xcode_project" do
+    test "returns prompt messages" do
+      result =
+        IntegrateXcodeProject.template(nil, %{
+          "account_handle" => "acme",
+          "project_handle" => "ios",
+          "features" => "xcode_cache,test_sharding"
+        })
+
+      assert %{messages: messages} = result
+      assert length(messages) == 1
+      text = hd(messages).content.text
+      assert text =~ "Integrate Tuist Xcode Project"
+      assert text =~ "`acme/ios`"
+      assert text =~ "xcode_cache,test_sharding"
+      assert text =~ "tuist setup cache"
+      assert text =~ "$HOME/.local/state/tuist/acme_ios.sock"
+      assert text =~ "tuist inspect build"
+      assert text =~ "tuist inspect test"
+      assert text =~ "accurate scheme attribution"
+      assert text =~ "$HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect test"
+      assert text =~ "tuist xcodebuild build-for-testing"
+      assert text =~ "tuist test --build-only --shard-total 5"
     end
   end
 end

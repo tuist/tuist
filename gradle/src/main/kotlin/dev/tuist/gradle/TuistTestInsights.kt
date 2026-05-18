@@ -2,6 +2,7 @@ package dev.tuist.gradle
 
 import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
+import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.logging.Logging
@@ -288,7 +289,9 @@ abstract class TuistTestInsightsService :
     interface Params : BuildServiceParameters {
         val url: Property<String>
         val project: Property<String>
+        val useEnvironmentProxy: Property<Boolean>
         val rootProjectName: Property<String>
+        val projectDir: DirectoryProperty
     }
 
     private val logger = Logging.getLogger(TuistTestInsightsService::class.java)
@@ -372,15 +375,19 @@ abstract class TuistTestInsightsService :
 
     private fun sendReport() {
         val projectValue = parameters.project.orNull
+        val httpClients = TuistHttpClients(useEnvironmentProxy = parameters.useEnvironmentProxy.get())
+        val projectDir = parameters.projectDir.asFile.get()
 
         val configProvider = DefaultConfigurationProvider(
             project = projectValue,
             serverUrl = parameters.url.get(),
-            projectDir = java.io.File(System.getProperty("user.dir"))
+            projectDir = projectDir,
+            httpClients = httpClients
         )
 
         val httpClient = TuistHttpClient(
             configurationProvider = configProvider,
+            httpClients = httpClients,
             connectTimeoutMs = 10_000,
             readTimeoutMs = 10_000
         )
@@ -461,22 +468,22 @@ internal abstract class TuistTestInsightsPlugin @Inject constructor() : Plugin<P
         ) {
             parameters.url.set(config.url)
             config.project?.let { parameters.project.set(it) }
+            parameters.useEnvironmentProxy.set(config.network.proxy)
             parameters.rootProjectName.set(project.rootProject.name)
+            parameters.projectDir.set(project.rootProject.layout.projectDirectory)
         }
 
         val quarantineEnabled = config.testQuarantineEnabled ?: ciDetector.isCi()
-        val quarantineService = if (quarantineEnabled) {
-            val configProvider = DefaultConfigurationProvider(
-                project = config.project,
-                serverUrl = config.url,
-                projectDir = java.io.File(System.getProperty("user.dir"))
-            )
-            val httpClient = TuistHttpClient(
-                configurationProvider = configProvider,
-                connectTimeoutMs = 10_000,
-                readTimeoutMs = 10_000
-            )
-            TuistTestQuarantineService(httpClient = httpClient, baseUrl = config.url)
+        val quarantineServiceProvider = if (quarantineEnabled) {
+            project.gradle.sharedServices.registerIfAbsent(
+                "tuistTestQuarantine",
+                TuistTestQuarantineBuildService::class.java
+            ) {
+                parameters.serverUrl.set(config.url)
+                config.project?.let { parameters.tuistProject.set(it) }
+                parameters.useEnvironmentProxy.set(config.network.proxy)
+                parameters.projectDir.set(project.rootProject.layout.projectDirectory)
+            }
         } else {
             null
         }
@@ -496,15 +503,38 @@ internal abstract class TuistTestInsightsPlugin @Inject constructor() : Plugin<P
                     }
                 })
 
-                if (quarantineService != null) {
+                if (quarantineServiceProvider != null) {
+                    testTask.usesService(quarantineServiceProvider)
                     testTask.ignoreFailures = true
 
                     testTask.doFirst {
-                        val quarantineMap = quarantineService.getQuarantinedTests()
-                        serviceProvider.get().quarantineMap = quarantineMap
-                        val modulePatterns = quarantineMap[moduleName]
-                        if (modulePatterns != null) {
-                            logger.lifecycle("Tuist: Found ${modulePatterns.size} quarantined test(s) in module $moduleName")
+                        val quarantinedTests = quarantineServiceProvider.get().getQuarantinedTests()
+                        // The post-run failure mask only needs muted tests:
+                        // skipped ones don't run, so they can't produce
+                        // failures we need to mask.
+                        serviceProvider.get().quarantineMap = quarantinedTests.muted
+
+                        val mutedInModule = quarantinedTests.muted[moduleName] ?: emptyList()
+                        val skippedInModule = quarantinedTests.skipped[moduleName] ?: emptyList()
+
+                        // Exclude skipped tests via Gradle's TestFilter so
+                        // they never run. Patterns use ANT-style globs:
+                        // "ClassName.methodName" or "*.methodName" if we
+                        // don't have a suite.
+                        skippedInModule.forEach { id ->
+                            val pattern = if (id.suiteName != null) {
+                                "${id.suiteName}.${id.testName}"
+                            } else {
+                                "*.${id.testName}"
+                            }
+                            testTask.filter.excludeTestsMatching(pattern)
+                        }
+
+                        if (mutedInModule.isNotEmpty() || skippedInModule.isNotEmpty()) {
+                            logger.lifecycle(
+                                "Tuist: Found ${mutedInModule.size + skippedInModule.size} quarantined test(s) " +
+                                    "in module $moduleName (${mutedInModule.size} muted, ${skippedInModule.size} skipped)"
+                            )
                         }
                     }
 

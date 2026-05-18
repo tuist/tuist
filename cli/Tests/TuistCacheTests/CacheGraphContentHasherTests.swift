@@ -181,4 +181,67 @@ struct CacheGraphContentHasherTests {
             )
             .called(1)
     }
+
+    @Test(
+        .withMockedSwiftVersionProvider
+    ) func contentHashes_when_target_depends_on_XCTest_hashes_are_not_computed() async throws {
+        // Given
+        let included = Target.test(name: "Included", product: .framework)
+        let testSupport = Target.test(name: "TestSupport", product: .uiTests)
+        let project = Project.test(
+            path: "/Project/Path",
+            targets: [included, testSupport]
+        )
+        let includedTarget = GraphTarget(
+            path: project.path,
+            target: project.targets["Included"]!,
+            project: project
+        )
+        let xctestTarget = GraphTarget(
+            path: project.path,
+            target: project.targets["TestSupport"]!,
+            project: project
+        )
+        let graph = Graph.test(
+            path: project.path,
+            projects: [
+                project.path: project,
+            ]
+        )
+
+        given(graphContentHasher)
+            .contentHashes(
+                for: .any,
+                include: .any,
+                destination: .any,
+                additionalStrings: .any
+            )
+            .willReturn([:])
+        given(defaultConfigurationFetcher)
+            .fetch(configuration: .any, defaultConfiguration: .any, graph: .any)
+            .willReturn("Debug")
+        let swiftVersionProviderMock = try #require(SwiftVersionProvider.mocked)
+        given(swiftVersionProviderMock).swiftlangVersion().willReturn("5.10.0")
+
+        // When
+        _ = try await subject.contentHashes(
+            for: graph,
+            configuration: "Debug",
+            defaultConfiguration: nil,
+            excludedTargets: [],
+            destination: nil
+        )
+
+        // Then
+        verify(graphContentHasher)
+            .contentHashes(
+                for: .any,
+                include: .matching { filter in
+                    filter(includedTarget) && !filter(xctestTarget)
+                },
+                destination: .any,
+                additionalStrings: .any
+            )
+            .called(1)
+    }
 }

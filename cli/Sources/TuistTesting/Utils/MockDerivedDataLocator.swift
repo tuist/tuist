@@ -1,6 +1,6 @@
 import Foundation
 import Path
-import TuistSupport
+import TuistXcodeBuildProducts
 
 public final class MockDerivedDataLocator: DerivedDataLocating {
     public init() {}

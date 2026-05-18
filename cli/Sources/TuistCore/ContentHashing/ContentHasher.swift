@@ -2,7 +2,6 @@ import CryptoKit
 import FileSystem
 import Foundation
 import Path
-import TuistSupport
 
 /// `ContentHasher`
 /// is the single source of truth for hashing content.
@@ -59,7 +58,7 @@ public struct ContentHasher: ContentHashing {
             return try await fileSystem.glob(directory: filePath, include: ["*"])
                 .collect()
                 .filter { filesFilter($0) }
-                .concurrentMap(maxConcurrentTasks: 100) { filePath -> String? in
+                .concurrentMap { filePath -> String? in
                     guard try await fileSystem.exists(filePath) else { return nil }
                     let filePath = try await fileSystem.resolveSymbolicLink(filePath)
                     return try await hash(path: filePath)
@@ -70,7 +69,7 @@ public struct ContentHasher: ContentHashing {
         }
 
         guard try await fileSystem.exists(filePath) else {
-            throw FileHandlerError.fileNotFound(filePath)
+            throw ContentHashingError.fileHashingFailed(filePath)
         }
         guard let sourceData = try? await fileSystem.readFile(at: filePath) else {
             throw ContentHashingError.failedToReadFile(filePath)

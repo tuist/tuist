@@ -115,19 +115,20 @@ struct ProjectEditor: ProjectEditing {
         onlyCurrentDirectory: Bool,
         plugins: Plugins
     ) async throws -> AbsolutePath {
-        let tuistIgnoreContent = (try? FileHandler.shared.readTextFile(editingPath.appending(component: ".tuistignore"))) ?? ""
-        let tuistIgnoreEntries = try tuistIgnoreContent
-            .split(separator: "\n")
-            .map(String.init)
-            .map { entry -> String in
-                guard !entry.starts(with: "**") else { return entry }
-                let path = editingPath.appending(try RelativePath(validating: entry))
-                if FileHandler.shared.isFolder(path) {
-                    return path.appending(component: "**").pathString
-                } else {
-                    return path.pathString
-                }
+        let tuistIgnoreContent = (try? await fileSystem.readTextFile(at: editingPath.appending(component: ".tuistignore"))) ?? ""
+        var tuistIgnoreEntries: [String] = []
+        for entry in tuistIgnoreContent.split(separator: "\n").map(String.init) {
+            guard !entry.starts(with: "**") else {
+                tuistIgnoreEntries.append(entry)
+                continue
             }
+            let path = editingPath.appending(try RelativePath(validating: entry))
+            if try await fileSystem.exists(path, isDirectory: true) {
+                tuistIgnoreEntries.append(path.appending(component: "**").pathString)
+            } else {
+                tuistIgnoreEntries.append(path.pathString)
+            }
+        }
 
         let pathsToExclude = [
             "**/\(Constants.SwiftPackageManager.packageBuildDirectoryName)/**",

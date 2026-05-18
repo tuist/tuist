@@ -15,7 +15,9 @@ import TuistServer
 import TuistSupport
 import TuistUniqueIDGenerator
 import TuistXCActivityLog
+import TuistXcodeBuildProducts
 import TuistXCResultService
+import XCResultParser
 
 struct XcodeBuildTestCommandService {
     private let fileSystem: FileSysteming
@@ -30,8 +32,10 @@ struct XcodeBuildTestCommandService {
     private let xcResultService: XCResultServicing
     private let rootDirectoryLocator: RootDirectoryLocating
     private let testQuarantineService: TestQuarantineServicing
+    private let testCaseListService: TestCaseListServicing
     private let shardService: ShardServicing
     private let serverEnvironmentService: ServerEnvironmentServicing
+    private let uploadBuildRunService: UploadBuildRunServicing?
 
     init(
         fileSystem: FileSysteming = FileSystem(),
@@ -46,8 +50,10 @@ struct XcodeBuildTestCommandService {
         xcResultService: XCResultServicing = XCResultService(),
         rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
         testQuarantineService: TestQuarantineServicing = TestQuarantineService(),
+        testCaseListService: TestCaseListServicing = TestCaseListService(),
         shardService: ShardServicing = ShardService(),
-        serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService()
+        serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
+        uploadBuildRunService: UploadBuildRunServicing? = UploadBuildRunService()
     ) {
         self.fileSystem = fileSystem
         self.xcodeBuildController = xcodeBuildController
@@ -61,38 +67,68 @@ struct XcodeBuildTestCommandService {
         self.xcResultService = xcResultService
         self.rootDirectoryLocator = rootDirectoryLocator
         self.testQuarantineService = testQuarantineService
+        self.testCaseListService = testCaseListService
         self.shardService = shardService
         self.serverEnvironmentService = serverEnvironmentService
+        self.uploadBuildRunService = uploadBuildRunService
     }
 
     func run(
         passthroughXcodebuildArguments: [String],
         skipQuarantine: Bool = false,
-        shardIndex: Int? = nil
+        shardIndex: Int? = nil,
+        shardReference: String? = nil,
+        shardArchivePath: AbsolutePath? = nil,
+        mode: TestProcessingMode? = nil
     ) async throws {
         var passthroughXcodebuildArguments = passthroughXcodebuildArguments
-        try await passthroughXcodebuildArguments.append(
-            contentsOf: resultBundlePathArguments(passthroughXcodebuildArguments: passthroughXcodebuildArguments)
-        )
+        let (
+            resultBundlePathArgs,
+            resolvedResultBundlePath
+        ) = try await resolveResultBundlePath(passthroughXcodebuildArguments: passthroughXcodebuildArguments)
+        passthroughXcodebuildArguments.append(contentsOf: resultBundlePathArgs)
 
         let path = try await path(passthroughXcodebuildArguments: passthroughXcodebuildArguments)
         let config = try await configLoader.loadConfig(path: path)
+        let mode = mode ?? TestProcessingMode.default(for: config.url)
 
         var shardPlanId: String?
         var shardTestProductsPath: AbsolutePath?
+        var shardXCTestRunPath: AbsolutePath?
         if let shardIndex, let fullHandle = config.fullHandle {
             let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
+
+            let testProductsPath: AbsolutePath?
+            if let localPathString = passedValue(for: "-testProductsPath", arguments: passthroughXcodebuildArguments) {
+                let currentDirectory = try await Environment.current.currentWorkingDirectory()
+                testProductsPath = try AbsolutePath(validating: localPathString, relativeTo: currentDirectory)
+            } else {
+                testProductsPath = nil
+            }
+
             let shard = try await shardService.shard(
                 shardIndex: shardIndex,
                 fullHandle: fullHandle,
-                serverURL: serverURL
+                serverURL: serverURL,
+                reference: shardReference,
+                testProductsPath: testProductsPath,
+                testProductsArchivePath: shardArchivePath
             )
-            shardTestProductsPath = shard.testProductsPath
+            shardPlanId = shard.shardPlanId
+
             passthroughXcodebuildArguments = removeOption("-workspace", from: passthroughXcodebuildArguments)
             passthroughXcodebuildArguments = removeOption("-scheme", from: passthroughXcodebuildArguments)
             passthroughXcodebuildArguments = removeOption("-project", from: passthroughXcodebuildArguments)
-            passthroughXcodebuildArguments += ["-testProductsPath", shard.testProductsPath.pathString]
-            shardPlanId = shard.shardPlanId
+
+            if let xcTestRunPath = shard.xcTestRunPath {
+                shardXCTestRunPath = xcTestRunPath
+                passthroughXcodebuildArguments = removeOption("-testProductsPath", from: passthroughXcodebuildArguments)
+                passthroughXcodebuildArguments = removeOption("-xctestrun", from: passthroughXcodebuildArguments)
+                passthroughXcodebuildArguments += ["-xctestrun", xcTestRunPath.pathString]
+            } else {
+                shardTestProductsPath = shard.testProductsPath
+                passthroughXcodebuildArguments += ["-testProductsPath", shard.testProductsPath.pathString]
+            }
         }
 
         let xcodeBuildArguments = try await xcodeBuildArgumentParser.parse(passthroughXcodebuildArguments)
@@ -103,76 +139,145 @@ struct XcodeBuildTestCommandService {
             }
         }
 
-        let resultBundlePath = await RunMetadataStorage.current.resultBundlePath
-
-        let quarantinedTests = await testQuarantineService.quarantinedTests(config: config, skipQuarantine: skipQuarantine)
+        let resultBundlePath: AbsolutePath? = resolvedResultBundlePath
+        let (mutedTests, skippedTests) = try await loadQuarantinedTests(config: config, skipQuarantine: skipQuarantine)
+        let allQuarantinedTests = mutedTests + skippedTests
+        let xcodeBuildArgumentsWithSkip = passthroughXcodebuildArguments + skippedTests.flatMap { skipped in
+            ["-skip-testing", skipped.description]
+        }
 
         do {
-            try await xcodeBuildController.run(arguments: passthroughXcodebuildArguments)
+            try await xcodeBuildController.run(arguments: xcodeBuildArgumentsWithSkip)
         } catch {
             if let derivedDataPath {
-                await updateBuildRunId(projectDerivedDataDirectory: derivedDataPath)
+                await processBuildRun(
+                    projectDerivedDataDirectory: derivedDataPath,
+                    projectPath: path,
+                    config: config,
+                    passthroughXcodebuildArguments: passthroughXcodebuildArguments
+                )
             }
 
-            let rootDirectory = await rootDirectory()
             var testSummary: TestSummary?
-            if let resultBundlePath,
-               let parsed = try await xcResultService.parse(path: resultBundlePath, rootDirectory: rootDirectory)
-            {
-                testSummary = testQuarantineService.markQuarantinedTests(testSummary: parsed, quarantinedTests: quarantinedTests)
+            if mode == .local, let resultBundlePath {
+                let rootDirectory = await rootDirectory()
+                if let parsed = try await xcResultService.parse(path: resultBundlePath, rootDirectory: rootDirectory) {
+                    testSummary = testQuarantineService.markQuarantinedTests(
+                        testSummary: parsed,
+                        quarantinedTests: mutedTests
+                    )
+                }
             }
 
             await uploadResultBundleIfNeeded(
                 testSummary: testSummary,
+                resultBundlePath: resultBundlePath,
                 projectDerivedDataDirectory: derivedDataPath,
                 config: config,
+                quarantinedTests: allQuarantinedTests,
                 shardPlanId: shardPlanId,
-                shardIndex: shardIndex
+                shardIndex: shardIndex,
+                mode: mode
             )
 
-            if let testSummary, testQuarantineService.onlyQuarantinedTestsFailed(testSummary: testSummary) {
+            let quarantinePass: Bool
+            if let testSummary {
+                quarantinePass = testQuarantineService.onlyQuarantinedTestsFailed(testSummary: testSummary)
+            } else if let resultBundlePath {
+                let testStatuses = try await xcResultService.parseTestStatuses(path: resultBundlePath)
+                quarantinePass = testQuarantineService.onlyQuarantinedTestsFailed(
+                    testStatuses: testStatuses,
+                    quarantinedTests: mutedTests
+                )
+            } else {
+                quarantinePass = false
+            }
+
+            if quarantinePass {
                 if let shardTestProductsPath {
                     try? await fileSystem.remove(shardTestProductsPath)
+                }
+                if let shardXCTestRunPath {
+                    try? await fileSystem.remove(shardXCTestRunPath)
                 }
                 return
             }
 
-            if let shardTestProductsPath {
-                try? await fileSystem.remove(shardTestProductsPath)
-            }
+            try? await cleanUpShardArtifacts(testProductsPath: shardTestProductsPath, xcTestRunPath: shardXCTestRunPath)
             throw error
         }
 
         if let derivedDataPath {
-            await updateBuildRunId(projectDerivedDataDirectory: derivedDataPath)
+            await processBuildRun(
+                projectDerivedDataDirectory: derivedDataPath,
+                projectPath: path,
+                config: config,
+                passthroughXcodebuildArguments: passthroughXcodebuildArguments
+            )
         }
 
-        let rootDirectory = await rootDirectory()
         var testSummary: TestSummary?
-        if let resultBundlePath,
-           let parsed = try await xcResultService.parse(path: resultBundlePath, rootDirectory: rootDirectory)
-        {
-            testSummary = testQuarantineService.markQuarantinedTests(testSummary: parsed, quarantinedTests: quarantinedTests)
+        if mode == .local, let resultBundlePath {
+            let rootDirectory = await rootDirectory()
+            if let parsed = try await xcResultService.parse(path: resultBundlePath, rootDirectory: rootDirectory) {
+                testSummary = testQuarantineService.markQuarantinedTests(
+                    testSummary: parsed,
+                    quarantinedTests: mutedTests
+                )
+            }
         }
         await uploadResultBundleIfNeeded(
             testSummary: testSummary,
+            resultBundlePath: resultBundlePath,
             projectDerivedDataDirectory: derivedDataPath,
             config: config,
+            quarantinedTests: allQuarantinedTests,
             shardPlanId: shardPlanId,
-            shardIndex: shardIndex
+            shardIndex: shardIndex,
+            mode: mode
         )
         if let shardTestProductsPath {
             try? await fileSystem.remove(shardTestProductsPath)
         }
+        if let shardXCTestRunPath {
+            try? await fileSystem.remove(shardXCTestRunPath)
+        }
     }
 
-    private func updateBuildRunId(projectDerivedDataDirectory: AbsolutePath) async {
+    private func cleanUpShardArtifacts(testProductsPath: AbsolutePath?, xcTestRunPath: AbsolutePath?) async {
+        if let testProductsPath {
+            try? await fileSystem.remove(testProductsPath)
+        }
+        if let xcTestRunPath {
+            try? await fileSystem.remove(xcTestRunPath)
+        }
+    }
+
+    private func processBuildRun(
+        projectDerivedDataDirectory: AbsolutePath,
+        projectPath: AbsolutePath,
+        config: Tuist,
+        passthroughXcodebuildArguments: [String]
+    ) async {
         guard let mostRecentActivityLogPath = try? await xcActivityLogController.mostRecentActivityLogFile(
             projectDerivedDataDirectory: projectDerivedDataDirectory
         )
         else { return }
 
         await RunMetadataStorage.current.update(buildRunId: mostRecentActivityLogPath.path.basenameWithoutExt)
+
+        guard let uploadBuildRunService, config.fullHandle != nil else { return }
+        do {
+            try await uploadBuildRunService.uploadBuildRun(
+                activityLogPath: mostRecentActivityLogPath.path,
+                projectPath: projectPath,
+                config: config,
+                scheme: passedValue(for: "-scheme", arguments: passthroughXcodebuildArguments),
+                configuration: passedValue(for: "-configuration", arguments: passthroughXcodebuildArguments)
+            )
+        } catch {
+            AlertController.current.warning(.alert("Failed to upload build: \(error.localizedDescription)"))
+        }
     }
 
     private func projectPath(xcodeBuildArguments: XcodeBuildArguments) async throws -> AbsolutePath? {
@@ -200,27 +305,24 @@ struct XcodeBuildTestCommandService {
         }
     }
 
-    private func resultBundlePathArguments(
+    private func resolveResultBundlePath(
         passthroughXcodebuildArguments: [String]
-    ) async throws -> [String] {
+    ) async throws -> (additionalArguments: [String], resultBundlePath: AbsolutePath) {
         if let resultBundlePathString = passedValue(
             for: "-resultBundlePath",
             arguments: passthroughXcodebuildArguments
         ) {
             let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
             let resultBundlePath = try AbsolutePath(validating: resultBundlePathString, relativeTo: currentWorkingDirectory)
-            await RunMetadataStorage.current.update(
-                resultBundlePath: resultBundlePath
-            )
-            return []
+            return (additionalArguments: [], resultBundlePath: resultBundlePath)
         } else {
             let resultBundlePath = try cacheDirectoriesProvider
                 .cacheDirectory(for: .runs)
                 .appending(components: uniqueIDGenerator.uniqueID())
-            await RunMetadataStorage.current.update(
+            return (
+                additionalArguments: ["-resultBundlePath", resultBundlePath.pathString],
                 resultBundlePath: resultBundlePath
             )
-            return ["-resultBundlePath", resultBundlePath.pathString]
         }
     }
 
@@ -263,28 +365,84 @@ struct XcodeBuildTestCommandService {
         }
         return try? await rootDirectoryLocator.locate(from: workingDirectory)
     }
+}
 
+extension XcodeBuildTestCommandService {
     private func uploadResultBundleIfNeeded(
         testSummary: TestSummary?,
+        resultBundlePath: AbsolutePath?,
         projectDerivedDataDirectory: AbsolutePath?,
         config: Tuist,
+        quarantinedTests: [TestIdentifier] = [],
         shardPlanId: String? = nil,
-        shardIndex: Int? = nil
+        shardIndex: Int? = nil,
+        mode: TestProcessingMode = .local
     ) async {
-        guard let testSummary,
-              config.fullHandle != nil
-        else { return }
+        guard config.fullHandle != nil else { return }
 
         do {
-            _ = try await uploadResultBundleService.uploadResultBundle(
-                testSummary: testSummary,
-                projectDerivedDataDirectory: projectDerivedDataDirectory,
-                config: config,
-                shardPlanId: shardPlanId,
-                shardIndex: shardIndex
-            )
+            switch mode {
+            case .local:
+                guard let testSummary else { return }
+                _ = try await uploadResultBundleService.uploadTestSummary(
+                    testSummary: testSummary,
+                    projectDerivedDataDirectory: projectDerivedDataDirectory,
+                    config: config,
+                    shardPlanId: shardPlanId,
+                    shardIndex: shardIndex
+                )
+            case .remote:
+                guard let resultBundlePath else { return }
+                let buildRunId = await RunMetadataStorage.current.buildRunId
+                let test = try await uploadResultBundleService.uploadResultBundle(
+                    resultBundlePath: resultBundlePath,
+                    config: config,
+                    quarantinedTests: quarantinedTests,
+                    buildRunId: buildRunId,
+                    shardPlanId: shardPlanId,
+                    shardIndex: shardIndex
+                )
+                await RunMetadataStorage.current.update(testRunId: test.id)
+                AlertController.current.success(
+                    .alert("Result bundle uploaded for processing. View at \(test.url)")
+                )
+            case .off:
+                return
+            }
         } catch {
             AlertController.current.warning(.alert("Failed to upload test results: \(error.localizedDescription)"))
+        }
+    }
+
+    private func loadQuarantinedTests(
+        config: Tuist,
+        skipQuarantine: Bool
+    ) async throws -> (muted: [TestIdentifier], skipped: [TestIdentifier]) {
+        guard !skipQuarantine, let fullHandle = config.fullHandle else {
+            return ([], [])
+        }
+        let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
+        async let mutedTask = testCaseListService.listTestCases(
+            fullHandle: fullHandle, serverURL: serverURL, state: .muted
+        )
+        async let skippedTask = testCaseListService.listTestCases(
+            fullHandle: fullHandle, serverURL: serverURL, state: .skipped
+        )
+        do {
+            let (muted, skipped) = try await (mutedTask, skippedTask)
+            let total = muted.count + skipped.count
+            if total > 0 {
+                Logger.current.notice(
+                    "Found \(total) quarantined test(s): \(muted.count) muted, \(skipped.count) skipped",
+                    metadata: .subsection
+                )
+            }
+            return (muted, skipped)
+        } catch {
+            AlertController.current.warning(
+                .alert("Failed to fetch quarantined tests: \(error.localizedDescription). Running all tests.")
+            )
+            return ([], [])
         }
     }
 }

@@ -12,3 +12,4 @@ This service provides caching infrastructure for Tuist. It shares tooling and co
 - Cache domain and storage: `cache/lib/cache/AGENTS.md`
 - Platform/nginx config: `cache/platform/AGENTS.md`
 - Server conventions and tooling: `server/AGENTS.md`
+- Grafana dashboard: [`infra/grafana-dashboards/cache-service.json`](../infra/grafana-dashboards/cache-service.json) (Git Sync'd with Grafana Cloud — see `infra/AGENTS.md`)

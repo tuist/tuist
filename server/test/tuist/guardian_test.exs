@@ -32,6 +32,34 @@ defmodule Tuist.GuardianTest do
       assert scopes == ["preview_create", "cache_read"]
     end
 
+    test "includes issued_by user when user_id claim is present" do
+      user = AccountsFixtures.user_fixture()
+      org = AccountsFixtures.organization_fixture(creator: user)
+
+      claims = %{
+        "sub" => to_string(org.account.id),
+        "type" => "account",
+        "scopes" => ["mcp"],
+        "all_projects" => true,
+        "user_id" => user.id
+      }
+
+      assert {:ok, %AuthenticatedAccount{issued_by: issued_by}} = Guardian.resource_from_claims(claims)
+      assert issued_by.id == user.id
+    end
+
+    test "issued_by is nil when user_id claim is absent" do
+      account = AccountsFixtures.organization_fixture(preload: [:account]).account
+
+      claims = %{
+        "sub" => to_string(account.id),
+        "type" => "account",
+        "scopes" => ["mcp"]
+      }
+
+      assert {:ok, %AuthenticatedAccount{issued_by: nil}} = Guardian.resource_from_claims(claims)
+    end
+
     test "returns error when account not found" do
       non_existent_id = 99_999_999
 

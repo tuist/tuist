@@ -3,7 +3,7 @@ import Foundation
 import TuistSupport
 import XcodeGraph
 
-public struct XcodeBuildBuildCommand: AsyncParsableCommand, TrackableParsableCommand, RecentPathRememberableCommand {
+public struct XcodeBuildBuildCommand: AsyncParsableCommand, TrackableParsableCommand {
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "build",

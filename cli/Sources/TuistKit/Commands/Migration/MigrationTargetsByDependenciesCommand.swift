@@ -1,7 +1,7 @@
 import ArgumentParser
 import Foundation
 import Path
-import TuistSupport
+import TuistEnvironment
 
 public struct MigrationTargetsByDependenciesCommand: AsyncParsableCommand {
     public init() {}
@@ -23,7 +23,8 @@ public struct MigrationTargetsByDependenciesCommand: AsyncParsableCommand {
     var xcodeprojPath: String
 
     public func run() async throws {
+        let cwd = try await Environment.current.currentWorkingDirectory()
         try await MigrationTargetsByDependenciesService()
-            .run(xcodeprojPath: try AbsolutePath(validating: xcodeprojPath, relativeTo: FileHandler.shared.currentPath))
+            .run(xcodeprojPath: try AbsolutePath(validating: xcodeprojPath, relativeTo: cwd))
     }
 }

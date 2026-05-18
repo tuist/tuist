@@ -4,6 +4,7 @@ import GRPCCore
 import GRPCNIOTransportHTTP2
 import Path
 import TuistCAS
+import TuistCASAnalytics
 import TuistCore
 import TuistEnvironment
 import TuistLoader
@@ -37,7 +38,10 @@ struct CacheStartCommandService {
 
         // Run the cache server with the cache-specific logger
         try await Logger.$current.withValue(cacheLogger) {
-            AnalyticsStateController().scheduleMaintenance(stateDirectory: Environment.current.stateDirectory)
+            let analyticsDatabase = try CASAnalyticsDatabase()
+            try analyticsDatabase.migrate()
+            AnalyticsStateController(database: analyticsDatabase)
+                .scheduleMaintenance(stateDirectory: Environment.current.stateDirectory)
 
             let socketPath = Environment.current.cacheSocketPath(for: fullHandle)
             if try await !fileSystem.exists(socketPath.parentDirectory, isDirectory: true) {
@@ -63,13 +67,15 @@ struct CacheStartCommandService {
                         fullHandle: fullHandle,
                         serverURL: serverURL,
                         cacheURLStore: cacheURLStore,
-                        upload: upload
+                        upload: upload,
+                        analyticsDatabase: analyticsDatabase
                     ),
                     CASService(
                         fullHandle: fullHandle,
                         serverURL: serverURL,
                         cacheURLStore: cacheURLStore,
-                        upload: upload
+                        upload: upload,
+                        analyticsDatabase: analyticsDatabase
                     ),
                 ]
             )

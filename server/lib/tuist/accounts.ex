@@ -30,6 +30,8 @@ defmodule Tuist.Accounts do
 
   require Logger
 
+  @reset_password_delivery_cooldown_in_minutes 5
+
   def new_organizations_in_last_hour do
     Repo.all(from(o in Organization, where: o.created_at > ago(1, "hour"), preload: [:account]))
   end
@@ -120,7 +122,9 @@ defmodule Tuist.Accounts do
         on: ur.user_id == u.id,
         join: r in Role,
         on: ur.role_id == r.id,
-        where: r.resource_type == "Organization" and r.resource_id == ^organization_id
+        join: a in assoc(u, :account),
+        where: r.resource_type == "Organization" and r.resource_id == ^organization_id,
+        order_by: a.name
       )
     )
   end
@@ -242,33 +246,19 @@ defmodule Tuist.Accounts do
     Repo.get_by(Oauth2Identity, provider: provider, id_in_provider: to_string(id_in_provider))
   end
 
-  @doc """
-  Updates the Okta configuration for an organization.
-
-  ## Parameters
-    - organization_id: The ID of the organization to update
-    - attrs: Map containing Okta configuration fields:
-      - okta_client_id: The Okta client ID
-      - okta_client_secret: The Okta client secret (will be encrypted automatically)
-      - sso_provider: Will be automatically set to :okta
-      - sso_organization_id: The Okta organization ID
-
-  ## Returns
-    - {:ok, organization} on success
-    - {:error, :not_found} if organization doesn't exist
-    - {:error, changeset} if validation fails
-  """
-  def update_okta_configuration(organization_id, attrs) do
+  def update_sso_configuration(organization_id, sso_provider, attrs) do
     case get_organization_by_id(organization_id) do
       {:ok, organization} ->
-        # Rename okta_client_secret to okta_encrypted_client_secret for the changeset
-        okta_attrs =
+        sso_attrs =
           attrs
-          |> Map.put(:sso_provider, :okta)
-          |> maybe_rename_client_secret()
+          |> Map.put(:sso_provider, sso_provider)
+          |> maybe_rename_secret(
+            :oauth2_client_secret,
+            :oauth2_encrypted_client_secret
+          )
 
         organization
-        |> Organization.update_changeset(okta_attrs)
+        |> Organization.update_changeset(sso_attrs)
         |> Repo.update()
 
       {:error, :not_found} = error ->
@@ -276,10 +266,10 @@ defmodule Tuist.Accounts do
     end
   end
 
-  defp maybe_rename_client_secret(attrs) do
-    case Map.pop(attrs, :okta_client_secret) do
+  defp maybe_rename_secret(attrs, secret_key, encrypted_secret_key) do
+    case Map.pop(attrs, secret_key) do
       {nil, attrs} -> attrs
-      {secret, attrs} -> Map.put(attrs, :okta_encrypted_client_secret, secret)
+      {secret, attrs} -> Map.put(attrs, encrypted_secret_key, secret)
     end
   end
 
@@ -338,8 +328,11 @@ defmodule Tuist.Accounts do
   defp create_organization_multi(%{name: name, creator: %User{id: user_id, email: user_email}}, opts) do
     sso_provider = Keyword.get(opts, :sso_provider)
     sso_organization_id = Keyword.get(opts, :sso_organization_id)
-    okta_client_id = Keyword.get(opts, :okta_client_id)
-    okta_client_secret = Keyword.get(opts, :okta_client_secret)
+    oauth2_client_id = Keyword.get(opts, :oauth2_client_id)
+    oauth2_client_secret = Keyword.get(opts, :oauth2_client_secret)
+    oauth2_authorize_url = Keyword.get(opts, :oauth2_authorize_url)
+    oauth2_token_url = Keyword.get(opts, :oauth2_token_url)
+    oauth2_user_info_url = Keyword.get(opts, :oauth2_user_info_url)
     created_at = Keyword.get(opts, :created_at, DateTime.utc_now())
 
     current_month_remote_cache_hits_count =
@@ -351,8 +344,11 @@ defmodule Tuist.Accounts do
       Organization.create_changeset(%Organization{}, %{
         sso_provider: sso_provider,
         sso_organization_id: sso_organization_id,
-        okta_client_id: okta_client_id,
-        okta_encrypted_client_secret: okta_client_secret,
+        oauth2_client_id: oauth2_client_id,
+        oauth2_encrypted_client_secret: oauth2_client_secret,
+        oauth2_authorize_url: oauth2_authorize_url,
+        oauth2_token_url: oauth2_token_url,
+        oauth2_user_info_url: oauth2_user_info_url,
         created_at: created_at
       })
     )
@@ -429,13 +425,9 @@ defmodule Tuist.Accounts do
         :apple ->
           nil
 
-        :okta ->
-          auth.extra.raw_info.token.other_params["id_token"]
-          |> JOSE.JWT.peek_payload()
-          |> Map.get(:fields)
-          |> Map.get("iss")
-          |> URI.parse()
-          |> Map.get(:host)
+        provider when provider in [:okta, :oauth2] ->
+          auth.extra.raw_info[:provider_organization_id] ||
+            auth.extra.raw_info["provider_organization_id"]
       end
 
     if oauth2_identity do
@@ -495,14 +487,40 @@ defmodule Tuist.Accounts do
   Gets an OAuth2 identity by provider and id, preloading the user and account.
   Used to determine if a user signing in via OAuth is new or existing.
 
+  For per-issuer providers (`:okta`, `:oauth2`) the caller MUST pass the
+  `provider_organization_id` that identifies the issuer. OIDC `sub` is only
+  unique within a single issuer, so looking up without the issuer across these
+  providers would allow cross-tenant account takeover — two different
+  customer-configured IdPs can legally return the same `sub`. Passing `nil`
+  for a per-issuer provider returns `{:error, :not_found}` on purpose, as a
+  safer default: a buggy caller causes a loud login failure instead of a
+  silent authentication as the wrong user.
+
+  For global providers (`:github`, `:google`, `:apple`) the `sub` is globally
+  unique and `provider_organization_id` is ignored.
+
   Returns `{:ok, identity}` if found, `{:error, :not_found}` otherwise.
   """
-  def get_oauth2_identity(provider, id_in_provider) do
+  def get_oauth2_identity(provider, id_in_provider, provider_organization_id \\ nil)
+
+  def get_oauth2_identity(provider, _id_in_provider, provider_organization_id)
+      when provider in [:okta, :oauth2] and (is_nil(provider_organization_id) or provider_organization_id == "") do
+    {:error, :not_found}
+  end
+
+  def get_oauth2_identity(provider, id_in_provider, provider_organization_id) do
     query =
       from(o in Oauth2Identity,
         where: o.provider == ^provider and o.id_in_provider == ^to_string(id_in_provider),
         preload: [user: [:account]]
       )
+
+    query =
+      if provider in [:okta, :oauth2] do
+        from o in query, where: o.provider_organization_id == ^provider_organization_id
+      else
+        query
+      end
 
     case Repo.one(query) do
       nil -> {:error, :not_found}
@@ -525,13 +543,9 @@ defmodule Tuist.Accounts do
       :apple ->
         nil
 
-      :okta ->
-        auth.extra.raw_info.token.other_params["id_token"]
-        |> JOSE.JWT.peek_payload()
-        |> Map.get(:fields)
-        |> Map.get("iss")
-        |> URI.parse()
-        |> Map.get(:host)
+      provider when provider in [:okta, :oauth2] ->
+        auth.extra.raw_info[:provider_organization_id] ||
+          auth.extra.raw_info["provider_organization_id"]
     end
   end
 
@@ -726,6 +740,17 @@ defmodule Tuist.Accounts do
       )
 
     Flop.validate_and_run!(query, attrs, for: Account)
+  end
+
+  @doc """
+  Returns a paginated list of accounts. Accepts any Flop params (`page`,
+  `page_size`, `filters`, `order_by`, ...). Use the `:search` custom filter
+  for a handle substring match — see `Account.search_filter/3`. Callers are
+  expected to preload associations they need.
+  """
+  def list_accounts(attrs \\ %{}) do
+    base_query = from(a in Account, order_by: [asc: a.name])
+    Flop.validate_and_run!(base_query, attrs, for: Account)
   end
 
   def list_billable_customers do
@@ -1136,6 +1161,18 @@ defmodule Tuist.Accounts do
     end
   end
 
+  def get_invitation_by_token(token) do
+    invitation =
+      Invitation
+      |> Repo.get_by(token: token)
+      |> Repo.preload(inviter: :account)
+
+    case invitation do
+      nil -> {:error, :not_found}
+      invitation -> {:ok, invitation}
+    end
+  end
+
   def belongs_to_organization?(%User{} = user, %Organization{} = organization) do
     organization_user?(user, organization) or organization_admin?(user, organization)
   end
@@ -1194,6 +1231,15 @@ defmodule Tuist.Accounts do
     )
   end
 
+  def get_pending_invitations_by_email(invitee_email) do
+    Repo.all(
+      from(i in Invitation,
+        where: i.invitee_email == ^invitee_email,
+        order_by: [desc: i.created_at]
+      )
+    )
+  end
+
   def cancel_invitation(%Invitation{} = invitation) do
     {:ok, _} = Repo.delete(invitation)
     :ok
@@ -1201,6 +1247,12 @@ defmodule Tuist.Accounts do
 
   def get_role_by_id(id) do
     Repo.get(Role, id)
+  end
+
+  def update_user_preferred_locale(%User{} = user, preferred_locale) do
+    user
+    |> User.preferred_locale_changeset(%{preferred_locale: preferred_locale})
+    |> Repo.update()
   end
 
   def update_last_visited_project(%User{} = user, last_visited_project_id) do
@@ -1231,10 +1283,15 @@ defmodule Tuist.Accounts do
       Repo.one(from(u in User, where: u.email == ^email, preload: [:account]))
 
     if User.valid_password?(user, password) do
-      if is_nil(user.confirmed_at) do
-        {:error, :not_confirmed}
-      else
-        {:ok, user}
+      cond do
+        is_nil(user.confirmed_at) ->
+          {:error, :not_confirmed}
+
+        not user.active ->
+          {:error, :invalid_email_or_password}
+
+        true ->
+          {:ok, user}
       end
     else
       {:error, :invalid_email_or_password}
@@ -1323,9 +1380,10 @@ defmodule Tuist.Accounts do
     preload = Keyword.get(opts, :preload, [])
     {:ok, query} = UserToken.verify_session_token_query(token)
 
-    query
-    |> Repo.one()
-    |> Repo.preload(preload)
+    case query |> Repo.one() |> Repo.preload(preload) do
+      %User{active: false} -> nil
+      user -> user
+    end
   end
 
   @doc """
@@ -1400,13 +1458,19 @@ defmodule Tuist.Accounts do
   """
   def deliver_user_reset_password_instructions(%{user: %User{} = user, reset_password_url: reset_password_url})
       when is_function(reset_password_url, 1) do
-    {encoded_token, user_token} = UserToken.build_email_token(user, "reset_password")
-    Repo.insert!(user_token)
+    if recently_sent_reset_password_instructions?(user) do
+      :ok
+    else
+      Repo.delete_all(UserToken.by_user_and_contexts_query(user, ["reset_password"]))
 
-    UserNotifier.deliver_reset_password_instructions(%{
-      user: user,
-      reset_password_url: reset_password_url.(encoded_token)
-    })
+      {encoded_token, user_token} = UserToken.build_email_token(user, "reset_password")
+      Repo.insert!(user_token)
+
+      UserNotifier.deliver_reset_password_instructions(%{
+        user: user,
+        reset_password_url: reset_password_url.(encoded_token)
+      })
+    end
   end
 
   @doc """
@@ -1451,6 +1515,16 @@ defmodule Tuist.Accounts do
       {:ok, %{user: user}} -> {:ok, user}
       {:error, :user, changeset, _} -> {:error, changeset}
     end
+  end
+
+  defp recently_sent_reset_password_instructions?(%User{id: user_id}) do
+    Repo.exists?(
+      from t in UserToken,
+        where:
+          t.user_id == ^user_id and
+            t.context == "reset_password" and
+            t.inserted_at > ago(@reset_password_delivery_cooldown_in_minutes, "minute")
+    )
   end
 
   defp generate_random_string(length) do
@@ -1541,17 +1615,32 @@ defmodule Tuist.Accounts do
              |> Repo.one()
              |> Repo.preload(preload),
            false <- account_token_expired?(token),
+           :ok <- reject_inactive_account_token_users(token),
            true <- verify_pass(token, token_hash) do
         {:ok, token}
       else
         nil -> {:error, :not_found}
         true -> {:error, :expired}
+        {:error, :inactive_user} -> {:error, :inactive_user}
         _ -> {:error, :invalid_token}
       end
     else
       {:error, :invalid_token}
     end
   end
+
+  defp reject_inactive_account_token_users(%AccountToken{} = token) do
+    token = Repo.preload(token, account: :user, created_by_account: :user)
+
+    if account_user_inactive?(token.account) or account_user_inactive?(token.created_by_account) do
+      {:error, :inactive_user}
+    else
+      :ok
+    end
+  end
+
+  defp account_user_inactive?(%Account{user: %User{active: false}}), do: true
+  defp account_user_inactive?(_account), do: false
 
   @doc """
   Lists account tokens for a given account with pagination support via Flop.
@@ -1618,67 +1707,86 @@ defmodule Tuist.Accounts do
     ~w(gray red orange yellow azure blue purple pink)
   end
 
-  def okta_organization_for_user_email(email) do
+  @okta_authorize_path "/oauth2/v1/authorize"
+  @okta_token_path "/oauth2/v1/token"
+  @okta_userinfo_path "/oauth2/v1/userinfo"
+
+  def oauth2_config_for_organization(%Organization{
+        sso_provider: provider,
+        sso_organization_id: sso_organization_id,
+        oauth2_client_id: client_id,
+        oauth2_encrypted_client_secret: client_secret,
+        oauth2_authorize_url: authorize_url,
+        oauth2_token_url: token_url,
+        oauth2_user_info_url: user_info_url
+      })
+      when provider in [:okta, :oauth2] and not is_nil(sso_organization_id) and not is_nil(client_id) and
+             not is_nil(client_secret) and not is_nil(authorize_url) and not is_nil(token_url) and
+             not is_nil(user_info_url) do
+    site = if provider == :okta, do: "https://#{sso_organization_id}", else: sso_organization_id
+
+    {:ok,
+     %{
+       site: site,
+       provider_organization_id: sso_organization_id,
+       client_id: client_id,
+       client_secret: client_secret,
+       authorize_url: authorize_url,
+       token_url: token_url,
+       user_info_url: user_info_url
+     }}
+  end
+
+  def oauth2_config_for_organization(_organization) do
+    {:error, :oauth2_not_configured}
+  end
+
+  def okta_authorize_url(domain), do: "https://#{domain}#{@okta_authorize_path}"
+  def okta_token_url(domain), do: "https://#{domain}#{@okta_token_path}"
+  def okta_userinfo_url(domain), do: "https://#{domain}#{@okta_userinfo_path}"
+
+  def sso_organization_for_user_email(email) do
     with {:ok, user} <- get_user_by_email(email),
-         organization when not is_nil(organization) <- user_okta_organization(user) do
+         organization when not is_nil(organization) <- user_sso_organization(user) do
       {:ok, organization}
     else
       _ ->
-        # If user doesn't exist or has no SSO organization, try domain-based matching
-        okta_organization_for_email_domain(email)
+        sso_organization_for_email_domain(email)
     end
   end
 
-  defp user_okta_organization(user) do
+  defp sso_organization_for_email_domain(email) do
+    case String.split(email, "@") do
+      [_username, domain] ->
+        okta_domain = String.replace(domain, ".com", ".okta.com")
+        url_domain = "https://#{domain}"
+
+        case Repo.one(
+               from(o in Organization,
+                 where: o.sso_provider in [:okta, :oauth2],
+                 where:
+                   o.sso_organization_id == ^domain or
+                     o.sso_organization_id == ^okta_domain or
+                     o.sso_organization_id == ^url_domain
+               )
+             ) do
+          %Organization{} = organization -> {:ok, organization}
+          nil -> {:error, :not_found}
+        end
+
+      _ ->
+        {:error, :not_found}
+    end
+  end
+
+  defp user_sso_organization(user) do
     user_organizations = get_user_organization_accounts(user)
 
     Enum.find_value(user_organizations, fn %{organization: organization} ->
-      if organization.sso_provider == :okta && organization.sso_organization_id do
+      if organization.sso_provider in [:okta, :oauth2] && organization.sso_organization_id do
         organization
       end
     end)
-  end
-
-  defp okta_organization_for_email_domain(email) do
-    with [_username, domain] <- String.split(email, "@"),
-         %Organization{} = organization <-
-           Repo.one(
-             from(o in Organization,
-               where: o.sso_provider == :okta,
-               where:
-                 o.sso_organization_id ==
-                   ^String.replace(domain, ".com", ".okta.com")
-             )
-           ) do
-      {:ok, organization}
-    else
-      _ -> {:error, :not_found}
-    end
-  end
-
-  @doc """
-  Gets the Okta configuration for an organization by its ID.
-
-  Returns {:ok, %{client_id: ..., client_secret: ..., site: ...}} if the organization
-  has Okta configuration, otherwise returns {:error, :not_found}.
-  """
-  def get_okta_configuration_by_organization_id(organization_id) do
-    case get_organization_by_id(organization_id) do
-      {:ok, organization} ->
-        if organization.sso_provider == :okta && organization.okta_client_id do
-          {:ok,
-           %{
-             client_id: organization.okta_client_id,
-             client_secret: organization.okta_encrypted_client_secret,
-             site: organization.sso_organization_id
-           }}
-        else
-          {:error, :not_found}
-        end
-
-      {:error, reason} ->
-        {:error, reason}
-    end
   end
 
   def delete_account!(%Account{} = account) do
@@ -1697,10 +1805,14 @@ defmodule Tuist.Accounts do
   def user?(account), do: !is_nil(account.user_id)
 
   @doc """
-  Lists all custom cache endpoints for the given account.
+  Lists all account cache endpoints for the given account and cache technology.
   """
-  def list_account_cache_endpoints(%Account{} = account) do
-    Repo.all(from(e in AccountCacheEndpoint, where: e.account_id == ^account.id))
+  def list_account_cache_endpoints(%Account{} = account, technology \\ :default) do
+    Repo.all(
+      from(e in AccountCacheEndpoint,
+        where: e.account_id == ^account.id and e.technology == ^technology
+      )
+    )
   end
 
   @doc """
@@ -1718,15 +1830,19 @@ defmodule Tuist.Accounts do
   end
 
   @doc """
-  Returns custom cache endpoint URLs for the given account handle, or default endpoints if none configured.
+  Returns cache endpoint URLs for the given account handle and cache technology.
 
-  Custom endpoints are only returned when:
+  For the default cache technology, custom endpoints are only returned when:
   - The account exists
   - The account is on the enterprise plan when Tuist-hosted
   - The account has `custom_cache_endpoints_enabled` set to `true`
   - The account has at least one custom cache endpoint configured
+
+  For Kura, account-specific endpoints are returned only when they have been configured.
   """
-  def get_cache_endpoints_for_handle(account_handle) when is_binary(account_handle) do
+  def get_cache_endpoints_for_handle(account_handle, technology \\ :default)
+
+  def get_cache_endpoints_for_handle(account_handle, :default) when is_binary(account_handle) do
     if Environment.tuist_hosted?() do
       account_handle
       |> get_account_by_handle()
@@ -1740,7 +1856,15 @@ defmodule Tuist.Accounts do
     end
   end
 
-  def get_cache_endpoints_for_handle(_), do: CacheEndpoints.active_endpoint_urls()
+  def get_cache_endpoints_for_handle(account_handle, :kura) when is_binary(account_handle) do
+    account_handle
+    |> get_account_by_handle()
+    |> kura_cache_endpoints()
+    |> Enum.map(& &1.url)
+  end
+
+  def get_cache_endpoints_for_handle(_, :default), do: CacheEndpoints.active_endpoint_urls()
+  def get_cache_endpoints_for_handle(_, :kura), do: []
 
   defp custom_cache_endpoints(%Account{custom_cache_endpoints_enabled: true} = account) do
     if custom_cache_endpoints_available?(account) do
@@ -1751,6 +1875,9 @@ defmodule Tuist.Accounts do
   end
 
   defp custom_cache_endpoints(_), do: []
+
+  defp kura_cache_endpoints(%Account{} = account), do: list_account_cache_endpoints(account, :kura)
+  defp kura_cache_endpoints(_), do: []
 
   @doc """
   Creates a custom cache endpoint for the given account.

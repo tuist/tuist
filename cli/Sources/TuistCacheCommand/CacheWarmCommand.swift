@@ -2,6 +2,7 @@
     import ArgumentParser
     import Foundation
     import TuistAlert
+    import TuistConfig
     import TuistEnvKey
     import TuistExtension
     import TuistSupport
@@ -43,7 +44,7 @@
         var targets: [String] = []
 
         @Flag(
-            help: "If passed, the command doesn't cache the targets passed in the `--targets` argument, but only their dependencies",
+            help: "If passed, the command doesn't cache the targets passed in the `--targets` argument, but only their dependencies. Deprecated: use `--cache-profile only-external` instead.",
             envKey: .cacheExternalOnly
         )
         var externalOnly: Bool = false
@@ -54,6 +55,13 @@
             envKey: .cacheGenerateOnly
         )
         var generateOnly: Bool = false
+
+        @Option(
+            name: .long,
+            help: "Cache profile to use for warming. Accepts built-in profiles (\(BaseCacheProfile.allCases.map(\.rawValue).joined(separator: ", "))) or a custom profile name defined in your Tuist configuration. Applies the same profile-based target filtering as `tuist generate`, including base behavior, targetQueries, and exceptTargetQueries.",
+            envKey: .cacheProfile
+        )
+        var cacheProfile: String?
 
         @Flag(
             name: .long,
@@ -72,12 +80,20 @@
                 return
             }
 
+            if externalOnly {
+                AlertController.current.warning(.alert(
+                    "The \(.command("--external-only")) flag is deprecated.",
+                    takeaway: "Use \(.command("--cache-profile only-external")) instead."
+                ))
+            }
+
             try await Extension.cacheService.run(
                 path: path,
                 configuration: configuration,
                 targetsToBinaryCache: Set(targets),
                 externalOnly: externalOnly,
-                generateOnly: generateOnly
+                generateOnly: generateOnly,
+                cacheProfile: cacheProfile
             )
         }
     }

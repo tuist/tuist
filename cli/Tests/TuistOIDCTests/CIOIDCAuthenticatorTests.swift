@@ -79,6 +79,48 @@ struct CIOIDCAuthenticatorTests {
         #expect(token == expectedToken)
     }
 
+    @Test(.withMockedEnvironment())
+    func fetchOIDCToken_wraps_github_actions_request_failures() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.variables = [
+            "GITHUB_ACTIONS": "true",
+            "ACTIONS_ID_TOKEN_REQUEST_URL": "https://token.actions.githubusercontent.com",
+            "ACTIONS_ID_TOKEN_REQUEST_TOKEN": "some-token",
+        ]
+
+        given(oidcTokenFetcher)
+            .fetchToken(requestURL: .any, requestToken: .any, audience: .any)
+            .willThrow(
+                OIDCTokenFetcherError.tokenRequestFailed(
+                    statusCode: 503,
+                    body: "upstream connect error"
+                )
+            )
+
+        // When / Then
+        await #expect(
+            throws: CIOIDCAuthenticatorError.gitHubActionsOIDCTokenRequestFailed(
+                statusCode: 503,
+                body: "upstream connect error"
+            )
+        ) {
+            try await subject.fetchOIDCToken()
+        }
+    }
+
+    @Test
+    func github_actions_request_failure_error_description_is_actionable() {
+        let error = CIOIDCAuthenticatorError.gitHubActionsOIDCTokenRequestFailed(
+            statusCode: 503,
+            body: "upstream connect error"
+        )
+
+        #expect(error.localizedDescription.contains("GitHub Actions returned status code 503"))
+        #expect(error.localizedDescription.contains("upstream GitHub Actions OIDC outage"))
+        #expect(error.localizedDescription.contains("upstream connect error"))
+    }
+
     // MARK: - CircleCI
 
     @Test(.withMockedEnvironment())

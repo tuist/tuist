@@ -8,17 +8,20 @@ import XcodeProj
 
 enum BuildPhaseGenerationError: FatalError, Equatable {
     case missingFileReference(AbsolutePath)
+    case missingProductReference(targetName: String)
 
     var description: String {
         switch self {
         case let .missingFileReference(path):
             return "Trying to add a file at path \(path.pathString) to a build phase that hasn't been added to the project."
+        case let .missingProductReference(targetName):
+            return "Trying to embed the product of target '\(targetName)' in a Copy Files phase, but no product reference was found. Make sure '\(targetName)' is declared as a dependency of this target."
         }
     }
 
     var type: ErrorType {
         switch self {
-        case .missingFileReference:
+        case .missingFileReference, .missingProductReference:
             return .bug
         }
     }
@@ -47,7 +50,7 @@ protocol BuildPhaseGenerating {
         pbxTarget: PBXTarget,
         pbxproj: PBXProj,
         sourceRootPath: AbsolutePath
-    ) throws
+    ) async throws
 }
 
 // swiftlint:disable:next type_body_length
@@ -88,6 +91,7 @@ struct BuildPhaseGenerator: BuildPhaseGenerating {
         let directSwiftMacroExecutables = graphTraverser.directSwiftMacroExecutables(path: path, name: target.name).sorted()
         try generateCopySwiftMacroExecutableScriptBuildPhase(
             directSwiftMacroExecutables: directSwiftMacroExecutables,
+            target: target,
             pbxTarget: pbxTarget,
             pbxproj: pbxproj
         )
@@ -208,7 +212,7 @@ struct BuildPhaseGenerator: BuildPhaseGenerating {
         pbxTarget: PBXTarget,
         pbxproj: PBXProj,
         sourceRootPath: AbsolutePath
-    ) throws {
+    ) async throws {
         for script in scripts {
             let buildPhase = try PBXShellScriptBuildPhase(
                 files: [],
@@ -224,7 +228,7 @@ struct BuildPhaseGenerator: BuildPhaseGenerating {
                 inputFileListPaths: script.inputFileListPaths,
                 outputFileListPaths: script.outputFileListPaths,
                 shellPath: script.shellPath,
-                shellScript: script.shellScript(sourceRootPath: sourceRootPath),
+                shellScript: try await script.shellScript(sourceRootPath: sourceRootPath),
                 runOnlyForDeploymentPostprocessing: script.runForInstallBuildsOnly,
                 showEnvVarsInLog: script.showEnvVarsInLog,
                 dependencyFile: script.dependencyFile?.relative(to: sourceRootPath).pathString
@@ -443,28 +447,44 @@ struct BuildPhaseGenerator: BuildPhaseGenerating {
             pbxTarget.buildPhases.append(copyFilesPhase)
 
             var buildFilesCache = Set<AbsolutePath>()
-            let files = action.files.sorted(using: KeyPathComparator(\.path))
+            var buildProductCache = Set<String>()
+
+            let files = action.files.sorted(by: { copyFileElementSortKey($0) < copyFileElementSortKey($1) })
 
             var pbxBuildFiles = [PBXBuildFile]()
             for file in files {
-                let filePath = file.path
-                guard let fileReference = fileElements.file(path: filePath) else {
-                    throw BuildPhaseGenerationError.missingFileReference(filePath)
-                }
-
-                var settings: [String: BuildFileSetting]?
-
-                // File ATTRIBUTES
-                // example: `settings = {ATTRIBUTES = (Codesign, )}`
-                if file.codeSignOnCopy {
-                    settings = ["ATTRIBUTES": ["CodeSignOnCopy"]]
-                }
-
-                if buildFilesCache.contains(filePath) == false {
-                    let pbxBuildFile = PBXBuildFile(file: fileReference, settings: settings)
-                    pbxBuildFile.applyPlatformFilters(file.condition?.platformFilters)
-                    pbxBuildFiles.append(pbxBuildFile)
-                    buildFilesCache.insert(filePath)
+                switch file {
+                case let .file(filePath, _, _), let .folderReference(filePath, _, _):
+                    guard let fileReference = fileElements.file(path: filePath) else {
+                        throw BuildPhaseGenerationError.missingFileReference(filePath)
+                    }
+                    if buildFilesCache.contains(filePath) == false {
+                        var settings: [String: BuildFileSetting]?
+                        if file.codeSignOnCopy {
+                            settings = ["ATTRIBUTES": ["CodeSignOnCopy"]]
+                        }
+                        let pbxBuildFile = PBXBuildFile(file: fileReference, settings: settings)
+                        pbxBuildFile.applyPlatformFilters(file.condition?.platformFilters)
+                        pbxBuildFiles.append(pbxBuildFile)
+                        buildFilesCache.insert(filePath)
+                    }
+                case let .buildProduct(name, _, _):
+                    guard let productReference = fileElements.product(target: name) else {
+                        throw BuildPhaseGenerationError.missingProductReference(targetName: name)
+                    }
+                    if !buildProductCache.contains(name) {
+                        var settings: [String: BuildFileSetting]?
+                        if file.codeSignOnCopy {
+                            // `RemoveHeadersOnCopy` mirrors the attributes Xcode emits for the standard
+                            // "Embed App Extensions" / "Embed Frameworks" build phases, stripping public
+                            // headers from the embedded product so they don't ship in the bundle.
+                            settings = ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]]
+                        }
+                        let pbxBuildFile = PBXBuildFile(file: productReference, settings: settings)
+                        pbxBuildFile.applyPlatformFilters(file.condition?.platformFilters)
+                        pbxBuildFiles.append(pbxBuildFile)
+                        buildProductCache.insert(name)
+                    }
                 }
             }
             pbxBuildFiles.forEach { pbxproj.add(object: $0) }
@@ -472,8 +492,20 @@ struct BuildPhaseGenerator: BuildPhaseGenerating {
         }
     }
 
+    private func copyFileElementSortKey(_ element: CopyFileElement) -> String {
+        switch element {
+        case let .file(path, _, _):
+            return "0:\(path.pathString)"
+        case let .folderReference(path, _, _):
+            return "1:\(path.pathString)"
+        case let .buildProduct(name, _, _):
+            return "2:\(name)"
+        }
+    }
+
     private func generateCopySwiftMacroExecutableScriptBuildPhase(
         directSwiftMacroExecutables: [GraphDependencyReference],
+        target: Target,
         pbxTarget: PBXTarget,
         pbxproj: PBXProj
     ) throws {
@@ -500,20 +532,43 @@ struct BuildPhaseGenerator: BuildPhaseGenerating {
             fi
             """
         }
-        copySwiftMacrosBuildPhase.shellScript = """
-        #  This build phase serves two purposes:
-        #  - Force Xcode build system to compile the macOS executable transitively when compiling for non-macOS destinations
-        #  - Place the artifacts in the "Debug" directory where the built artifacts for the active destination live. We default to "Debug" because otherwise the Xcode editor fails to resolve the macro references.
-        \(copyLines.joined(separator: "\n"))
-        """
 
-        copySwiftMacrosBuildPhase.inputPaths = executableNames.map { "$BUILD_DIR/$CONFIGURATION/\($0)" }
-
-        copySwiftMacrosBuildPhase.outputPaths = executableNames.flatMap { executable in
+        copySwiftMacrosBuildPhase.inputPaths = executableNames.flatMap {
             [
-                "$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/\(executable)",
-                "$BUILD_DIR/Debug-$EFFECTIVE_PLATFORM_NAME/\(executable)",
+                "$BUILD_DIR/$CONFIGURATION/\($0)",
+                "$(OBJROOT)/UninstalledProducts/macosx/\($0)",
             ]
+        }
+
+        if target.supports(.macOS) {
+            // Declaring the actual destination paths as outputs would collide with
+            // the macro target's `Ld` step on native macOS builds (where
+            // `$EFFECTIVE_PLATFORM_NAME` is empty and both write to
+            // `$BUILD_DIR/Debug/<exe>`). Use a stamp file under `$DERIVED_FILE_DIR`
+            // (per-target / per-configuration / per-platform) so Xcode's
+            // incremental up-to-date check still works without colliding.
+            copySwiftMacrosBuildPhase.shellScript = """
+            #  This build phase serves two purposes:
+            #  - Force Xcode build system to compile the macOS executable transitively when compiling for non-macOS destinations
+            #  - Place the artifacts in the "Debug" directory where the built artifacts for the active destination live. We default to "Debug" because otherwise the Xcode editor fails to resolve the macro references.
+            \(copyLines.joined(separator: "\n"))
+            mkdir -p "$DERIVED_FILE_DIR"
+            touch "$DERIVED_FILE_DIR/copy-swift-macro.stamp"
+            """
+            copySwiftMacrosBuildPhase.outputPaths = ["$(DERIVED_FILE_DIR)/copy-swift-macro.stamp"]
+        } else {
+            copySwiftMacrosBuildPhase.shellScript = """
+            #  This build phase serves two purposes:
+            #  - Force Xcode build system to compile the macOS executable transitively when compiling for non-macOS destinations
+            #  - Place the artifacts in the "Debug" directory where the built artifacts for the active destination live. We default to "Debug" because otherwise the Xcode editor fails to resolve the macro references.
+            \(copyLines.joined(separator: "\n"))
+            """
+            copySwiftMacrosBuildPhase.outputPaths = executableNames.flatMap { executable in
+                [
+                    "$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/\(executable)",
+                    "$BUILD_DIR/Debug-$EFFECTIVE_PLATFORM_NAME/\(executable)",
+                ]
+            }
         }
 
         pbxproj.add(object: copySwiftMacrosBuildPhase)
@@ -597,8 +652,7 @@ struct BuildPhaseGenerator: BuildPhaseGenerating {
         let currentVersionReference = fileElements.file(path: currentVersionPath)!
         modelReference.currentVersion = currentVersionReference
 
-        let pbxBuildFile = PBXBuildFile(file: modelReference)
-        return pbxBuildFile
+        return PBXBuildFile(file: modelReference)
     }
 
     private func generateResourceBundle(
@@ -610,7 +664,7 @@ struct BuildPhaseGenerator: BuildPhaseGenerating {
         let bundles = graphTraverser
             .resourceBundleDependencies(path: path, name: target.name)
             .sorted()
-        let buildFiles = bundles.compactMap { dependency -> PBXBuildFile? in
+        return bundles.compactMap { dependency -> PBXBuildFile? in
             switch dependency {
             case let .bundle(path: path, condition: condition):
                 let buildFile = PBXBuildFile(file: fileElements.file(path: path))
@@ -624,8 +678,6 @@ struct BuildPhaseGenerator: BuildPhaseGenerating {
                 return nil
             }
         }
-
-        return buildFiles
     }
 
     func generateAppExtensionsBuildPhase(
@@ -636,6 +688,11 @@ struct BuildPhaseGenerator: BuildPhaseGenerating {
         fileElements: ProjectFileElements,
         pbxproj: PBXProj
     ) throws {
+        // Unit test bundles must not embed extensions. When hosted by an extension
+        // (e.g. watchOS), embedding creates a cycle: the extension embeds the test
+        // bundle as a PlugIn, while the test bundle would embed the extension back.
+        guard target.product != .unitTests else { return }
+
         let appExtensions = graphTraverser.appExtensionDependencies(path: path, name: target.name).sorted()
         guard !appExtensions.isEmpty else { return }
 

@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Path
 
@@ -56,19 +57,25 @@ import Path
     public struct FileClient: FileClienting {
         // MARK: - Attributes
 
-        let session: URLSession
+        private let session: URLSession?
+        private let fileSystem: FileSysteming
         private let successStatusCodeRange = 200 ..< 300
 
         // MARK: - Init
 
-        public init(session: URLSession = .tuistShared) {
+        public init(
+            session: URLSession? = nil,
+            fileSystem: FileSysteming = FileSystem()
+        ) {
             self.session = session
+            self.fileSystem = fileSystem
         }
 
         // MARK: - Public
 
         public func download(url: URL) async throws -> AbsolutePath {
             let request = URLRequest(url: url)
+            let session = resolvedSession()
             do {
                 let (localUrl, response) = try await session.download(for: request)
                 guard let httpResponse = response as? HTTPURLResponse else {
@@ -95,9 +102,13 @@ import Path
         }
 
         public func upload(file: AbsolutePath, hash _: String, to url: URL) async throws -> Bool {
-            let fileSize = try FileHandler.shared.fileSize(path: file)
+            guard let metadata = try await fileSystem.fileMetadata(at: file) else {
+                throw FileClientError.noLocalURL(URLRequest(url: url))
+            }
+            let fileSize = UInt64(metadata.size)
             let fileData = try Data(contentsOf: file.url)
             let request = uploadRequest(url: url, fileSize: fileSize, data: fileData)
+            let session = resolvedSession()
             do {
                 let (_, response) = try await session.data(for: request)
                 guard let httpResponse = response as? HTTPURLResponse else {
@@ -133,6 +144,10 @@ import Path
             request.setValue("zip", forHTTPHeaderField: "Content-Encoding")
             request.httpBody = data
             return request
+        }
+
+        private func resolvedSession() -> URLSession {
+            session ?? .tuistShared
         }
 
         // MARK: - HAR Recording

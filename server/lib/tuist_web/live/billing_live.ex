@@ -25,9 +25,11 @@ defmodule TuistWeb.BillingLive do
     current_month_remote_cache_hits_count = selected_account.current_month_remote_cache_hits_count
 
     estimated_next_payment =
-      Billing.get_estimated_next_payment(%{
+      %{
         current_month_remote_cache_hits_count: current_month_remote_cache_hits_count
-      })
+      }
+      |> Billing.get_estimated_next_payment_money()
+      |> format_money()
 
     next_charge_date =
       if is_nil(subscription) do

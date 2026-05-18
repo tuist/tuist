@@ -18,7 +18,6 @@
     & > [data-part="title"] {
       display: flex;
       flex-direction: row;
-      justify-content: space-between;
       align-items: center;
       gap: var(--noora-spacing-4);
 
@@ -38,7 +37,7 @@
 
       & > [data-part="badge-success"],
       & > [data-part="badge-failure"] {
-        border-radius: var(--noora-radius-large);
+        border-radius: var(--noora-radius-4);
         & > [data-part="icon"] {
           padding: var(--noora-spacing-3);
           width: var(--noora-icon-size-large);
@@ -56,6 +55,12 @@
         color: var(--noora-surface-label-primary);
         font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
       }
+    }
+
+    & > [data-part="actions"] {
+      display: flex;
+      flex-direction: row;
+      gap: var(--noora-spacing-4);
     }
   }
 

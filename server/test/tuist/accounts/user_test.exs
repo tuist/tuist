@@ -64,6 +64,27 @@ defmodule Tuist.Accounts.UserTest do
     end
   end
 
+  describe "preferred_locale_changeset/2" do
+    test "accepts a supported locale" do
+      got = User.preferred_locale_changeset(%User{}, %{preferred_locale: "es"})
+
+      assert got.valid?
+    end
+
+    test "accepts nil to clear the preference" do
+      got = User.preferred_locale_changeset(%User{}, %{preferred_locale: nil})
+
+      assert got.valid?
+    end
+
+    test "rejects an unsupported locale" do
+      got = User.preferred_locale_changeset(%User{}, %{preferred_locale: "xx"})
+
+      assert got.valid? == false
+      assert "is invalid" in errors_on(got).preferred_locale
+    end
+  end
+
   describe "gravatar_url/1" do
     test "generates the right avatar" do
       # When

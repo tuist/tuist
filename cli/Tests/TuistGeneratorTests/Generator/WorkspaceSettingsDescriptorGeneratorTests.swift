@@ -2,6 +2,7 @@ import FileSystem
 import FileSystemTesting
 import Foundation
 import Mockable
+import Path
 import Testing
 import TuistCore
 import TuistSupport
@@ -46,5 +47,44 @@ struct WorkspaceSettingsDescriptorGeneratorTests {
 
         // Then
         #expect(result == WorkspaceSettingsDescriptor(enableAutomaticXcodeSchemes: true))
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedSwiftVersionProvider) func generate_withCustomDerivedDataPath() throws {
+        // Given
+        let derivedDataPath = try AbsolutePath(validating: "/tmp/DerivedData")
+        let workspace = Workspace.test(
+            generationOptions: .test(
+                enableAutomaticXcodeSchemes: nil,
+                derivedDataPath: .custom(derivedDataPath)
+            )
+        )
+
+        // When
+        let result = subject.generateWorkspaceSettings(workspace: workspace)
+
+        // Then
+        #expect(
+            result == WorkspaceSettingsDescriptor(
+                enableAutomaticXcodeSchemes: nil,
+                derivedDataPath: .custom(derivedDataPath)
+            )
+        )
+        #expect(result?.settings.derivedDataLocationStyle == .absolutePath)
+        #expect(result?.settings.derivedDataCustomLocation == "/tmp/DerivedData")
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedSwiftVersionProvider) func generate_withAllNilOptions() {
+        // Given
+        let workspace = Workspace.test(
+            generationOptions: .test(
+                enableAutomaticXcodeSchemes: nil
+            )
+        )
+
+        // When
+        let result = subject.generateWorkspaceSettings(workspace: workspace)
+
+        // Then
+        #expect(result == nil)
     }
 }

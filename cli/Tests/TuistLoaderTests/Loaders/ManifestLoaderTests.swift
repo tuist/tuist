@@ -1,9 +1,12 @@
 import FileSystem
 import Foundation
+import Mockable
 import TuistConstants
+import TuistCore
+import TuistEnvironment
+import TuistGit
 import XcodeGraph
 import XCTest
-
 @testable import TuistLoader
 @testable import TuistSupport
 @testable import TuistTesting
@@ -115,7 +118,7 @@ final class ManifestLoaderTests: TuistTestCase {
         let manifestPath = temporaryPath.appending(
             component: Manifest.package.fileName(temporaryPath)
         )
-        try FileHandler.shared.createFolder(temporaryPath.appending(component: Constants.tuistDirectoryName))
+        try await fileSystem.makeDirectory(at: temporaryPath.appending(component: Constants.tuistDirectoryName))
         try content.write(
             to: manifestPath.url,
             atomically: true,
@@ -181,7 +184,7 @@ final class ManifestLoaderTests: TuistTestCase {
         let manifestPath = temporaryPath.appending(
             component: Manifest.package.fileName(temporaryPath)
         )
-        try FileHandler.shared.createFolder(temporaryPath.appending(component: Constants.tuistDirectoryName))
+        try await fileSystem.makeDirectory(at: temporaryPath.appending(component: Constants.tuistDirectoryName))
         try content.write(
             to: manifestPath.url,
             atomically: true,
@@ -204,6 +207,127 @@ final class ManifestLoaderTests: TuistTestCase {
         )
     }
 
+    func test_loadPackageSettings_withPackageDescriptionContextEnvironment() async throws {
+        // Given
+        let temporaryPath = try temporaryPath()
+        let gitController = MockGitControlling()
+        subject = ManifestLoader(
+            environment: Environment.current,
+            resourceLocator: ResourceLocator(),
+            cacheDirectoriesProvider: CacheDirectoriesProvider(),
+            projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactory(),
+            manifestFilesLocator: ManifestFilesLocator(),
+            swiftPackageManagerController: SwiftPackageManagerController(),
+            packageInfoLoader: PackageInfoLoader(),
+            gitController: gitController
+        )
+        let content = """
+        // swift-tools-version: 6.1
+        import PackageDescription
+
+        let demoContextValue = Context.environment["TUIST_DEMO_CONTEXT_VALUE"]
+        let hasGitInformation = Context.gitInformation?.currentTag == "1.2.3" &&
+            Context.gitInformation?.currentCommit == "abc123" &&
+            Context.gitInformation?.hasUncommittedChanges == false
+
+        #if TUIST
+        import ProjectDescription
+
+        let packageSettings = PackageSettings(
+            targetSettings: demoContextValue == "enabled" && hasGitInformation ? ["TargetA": ["OTHER_LDFLAGS": "-ObjC"]] : [:]
+        )
+
+        #endif
+
+        let package = Package(
+            name: "PackageName",
+            dependencies: []
+        )
+
+        """
+
+        let manifestPath = temporaryPath.appending(
+            component: Manifest.package.fileName(temporaryPath)
+        )
+        try await fileSystem.makeDirectory(at: temporaryPath.appending(component: Constants.tuistDirectoryName))
+        try content.write(
+            to: manifestPath.url,
+            atomically: true,
+            encoding: .utf8
+        )
+
+        given(gitController)
+            .isGitAvailable()
+            .willReturn(true)
+        given(gitController)
+            .isInGitRepository(workingDirectory: .value(temporaryPath))
+            .willReturn(true)
+        given(gitController)
+            .currentTag(workingDirectory: .value(temporaryPath))
+            .willReturn("1.2.3")
+        given(gitController)
+            .currentCommitSHA(workingDirectory: .value(temporaryPath))
+            .willReturn("abc123")
+        given(gitController)
+            .hasUncommittedChanges(workingDirectory: .value(temporaryPath))
+            .willReturn(false)
+
+        let variables = Environment.current.variables.merging(
+            ["TUIST_DEMO_CONTEXT_VALUE": "enabled"],
+            uniquingKeysWith: { $1 }
+        )
+
+        // When
+        let got = try await Environment.$current.withValue(Environment(variables: variables)) {
+            try await subject.loadPackageSettings(at: temporaryPath, disableSandbox: true)
+        }
+
+        // Then
+        XCTAssertEqual(
+            got,
+            .init(
+                targetSettings: [
+                    "TargetA": .settings(base: [
+                        "OTHER_LDFLAGS": "-ObjC",
+                    ]),
+                ]
+            )
+        )
+    }
+
+    func test_loadPackageBaseProductType() async throws {
+        // Given
+        let temporaryPath = try temporaryPath()
+        let content = """
+        // swift-tools-version: 5.9
+        import PackageDescription
+
+        #if TUIST
+        import ProjectDescription
+
+        let packageSettings = PackageSettings(
+            baseProductType: .framework
+        )
+
+        #endif
+        """
+
+        let manifestPath = temporaryPath.appending(
+            component: Manifest.package.fileName(temporaryPath)
+        )
+        try await fileSystem.makeDirectory(at: temporaryPath.appending(component: Constants.tuistDirectoryName))
+        try await fileSystem.writeText(content, at: manifestPath)
+
+        // When
+        let got = try await subject.loadPackageSettings(at: temporaryPath, disableSandbox: true)
+
+        // Then
+        XCTAssertEqual(
+            got,
+            .init(baseProductType: .framework)
+        )
+    }
+
     func test_loadPackageSettings_without_package_settings() async throws {
         // Given
         let temporaryPath = try temporaryPath()
@@ -221,7 +345,7 @@ final class ManifestLoaderTests: TuistTestCase {
         let manifestPath = temporaryPath.appending(
             component: Manifest.package.fileName(temporaryPath)
         )
-        try FileHandler.shared.createFolder(temporaryPath.appending(component: Constants.tuistDirectoryName))
+        try await fileSystem.makeDirectory(at: temporaryPath.appending(component: Constants.tuistDirectoryName))
         try content.write(
             to: manifestPath.url,
             atomically: true,
@@ -263,7 +387,7 @@ final class ManifestLoaderTests: TuistTestCase {
     func test_loadTemplate() async throws {
         // Given
         let temporaryPath = try temporaryPath().appending(component: "folder")
-        try fileHandler.createFolder(temporaryPath)
+        try await fileSystem.makeDirectory(at: temporaryPath)
         let content = """
         import ProjectDescription
 
@@ -322,11 +446,10 @@ final class ManifestLoaderTests: TuistTestCase {
 
     func test_manifestsAt() async throws {
         // Given
-        let fileHandler = FileHandler()
         let temporaryPath = try temporaryPath()
-        try fileHandler.touch(temporaryPath.appending(component: "Project.swift"))
-        try fileHandler.touch(temporaryPath.appending(component: "Workspace.swift"))
-        try fileHandler.touch(temporaryPath.appending(component: "Config.swift"))
+        try await fileSystem.touch(temporaryPath.appending(component: "Project.swift"))
+        try await fileSystem.touch(temporaryPath.appending(component: "Workspace.swift"))
+        try await fileSystem.touch(temporaryPath.appending(component: "Config.swift"))
 
         // When
         let got = try await subject.manifests(at: temporaryPath)
@@ -339,11 +462,10 @@ final class ManifestLoaderTests: TuistTestCase {
 
     func test_manifestLoadError() async throws {
         // Given
-        let fileHandler = FileHandler()
         let temporaryPath = try temporaryPath()
         let configPath = temporaryPath.appending(component: "Config.swift")
-        try fileHandler.touch(configPath)
-        let data = try fileHandler.readFile(configPath)
+        try await fileSystem.touch(configPath)
+        let data = try Data(contentsOf: configPath.url)
 
         // When
         await XCTAssertThrowsSpecific(
@@ -362,7 +484,8 @@ final class ManifestLoaderTests: TuistTestCase {
     func test_validate_projectExists() async throws {
         // Given
         let path = try temporaryPath().appending(component: "App")
-        try fileHandler.touch(
+        try await fileSystem.makeDirectory(at: path)
+        try await fileSystem.touch(
             path.appending(component: "Project.swift")
         )
 
@@ -373,7 +496,8 @@ final class ManifestLoaderTests: TuistTestCase {
     func test_validate_workspaceExists() async throws {
         // Given
         let path = try temporaryPath().appending(component: "App")
-        try fileHandler.touch(
+        try await fileSystem.makeDirectory(at: path)
+        try await fileSystem.touch(
             path.appending(component: "Workspace.swift")
         )
 
@@ -384,7 +508,8 @@ final class ManifestLoaderTests: TuistTestCase {
     func test_validate_packageExists() async throws {
         // Given
         let path = try temporaryPath().appending(component: "App")
-        try fileHandler.touch(
+        try await fileSystem.makeDirectory(at: path)
+        try await fileSystem.touch(
             path.appending(component: "Package.swift")
         )
 
@@ -421,7 +546,8 @@ final class ManifestLoaderTests: TuistTestCase {
     func test_hasRootManifest_workspaceExists() async throws {
         // Given
         let path = try temporaryPath().appending(component: "App")
-        try fileHandler.touch(
+        try await fileSystem.makeDirectory(at: path)
+        try await fileSystem.touch(
             path.appending(component: "Workspace.swift")
         )
 
@@ -435,7 +561,8 @@ final class ManifestLoaderTests: TuistTestCase {
     func test_hasRootManifest_packageExists() async throws {
         // Given
         let path = try temporaryPath().appending(component: "App")
-        try fileHandler.touch(
+        try await fileSystem.makeDirectory(at: path)
+        try await fileSystem.touch(
             path.appending(component: "Package.swift")
         )
 

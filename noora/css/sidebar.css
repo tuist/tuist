@@ -29,7 +29,7 @@
       align-items: stretch;
       gap: var(--noora-spacing-4);
       cursor: pointer;
-      border-radius: var(--noora-radius-medium);
+      border-radius: var(--noora-radius-3);
       user-select: none;
       text-decoration: unset;
       &:not(a) {

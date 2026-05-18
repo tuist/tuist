@@ -1,5 +1,5 @@
 defmodule CacheWeb.CleanControllerTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
   use Oban.Testing, repo: Cache.Repo
   use Mimic
 
@@ -42,6 +42,33 @@ defmodule CacheWeb.CleanControllerTest do
         worker: CleanProjectWorker,
         args: %{account_handle: "test_account", project_handle: "test_project"}
       )
+    end
+
+    test "returns 422 when path params contain traversal", %{conn: conn} do
+      expect(Authentication, :ensure_project_accessible, fn _conn, "..", "test_project" ->
+        {:ok, "Bearer valid-token"}
+      end)
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> delete("/api/cache/clean?account_handle=..&project_handle=test_project")
+
+      assert conn.status == 422
+
+      response = json_response(conn, 422)
+
+      assert %{
+               "errors" => [
+                 %{
+                   "title" => "Invalid value",
+                   "source" => %{"pointer" => "/account_handle"},
+                   "detail" => detail
+                 }
+               ]
+             } = response
+
+      assert is_binary(detail)
     end
   end
 end

@@ -52,6 +52,40 @@ url = "https://github.com/FiloSottile/age/releases/download/v1.2.1/age-v1.2.1-da
 [tools.age."platforms.windows-x64"]
 url = "https://github.com/FiloSottile/age/releases/download/v1.2.1/age-v1.2.1-windows-amd64.zip"
 
+[[tools.aube]]
+version = "1.6.2"
+backend = "github:endevco/aube"
+
+[tools.aube."platforms.linux-arm64"]
+checksum = "sha256:1c47d2c0a50cf80f49aedcc2f58ce8abcbdf763092e772c8961c6e5b18916e8b"
+url = "https://github.com/endevco/aube/releases/download/v1.6.2/aube-v1.6.2-aarch64-unknown-linux-gnu.tar.gz"
+url_api = "https://api.github.com/repos/endevco/aube/releases/assets/410164231"
+
+[tools.aube."platforms.linux-arm64-musl"]
+checksum = "sha256:9780776921db3a54fc3237f50b9686489d93115e26584c7a85d54ce96a8e9b39"
+url = "https://github.com/endevco/aube/releases/download/v1.6.2/aube-v1.6.2-aarch64-unknown-linux-musl.tar.gz"
+url_api = "https://api.github.com/repos/endevco/aube/releases/assets/410164229"
+
+[tools.aube."platforms.linux-x64"]
+checksum = "sha256:16fcc40dfbaac110ce8f4e88728a440f2366094a45fd6c189bcbcc2b3ea31f06"
+url = "https://github.com/endevco/aube/releases/download/v1.6.2/aube-v1.6.2-x86_64-unknown-linux-gnu.tar.gz"
+url_api = "https://api.github.com/repos/endevco/aube/releases/assets/410164107"
+
+[tools.aube."platforms.linux-x64-musl"]
+checksum = "sha256:2ee3821fd62b56bb39cb2ceffe6ad38975e35f82311ca7f9ec6ee28bc6d284b8"
+url = "https://github.com/endevco/aube/releases/download/v1.6.2/aube-v1.6.2-x86_64-unknown-linux-musl.tar.gz"
+url_api = "https://api.github.com/repos/endevco/aube/releases/assets/410164199"
+
+[tools.aube."platforms.macos-arm64"]
+checksum = "sha256:4ce92482500f77f0779f288328cb7411f7ae2441b8618eae36a2ab5ea7591a32"
+url = "https://github.com/endevco/aube/releases/download/v1.6.2/aube-v1.6.2-aarch64-apple-darwin.tar.gz"
+url_api = "https://api.github.com/repos/endevco/aube/releases/assets/410166750"
+
+[tools.aube."platforms.windows-x64"]
+checksum = "sha256:916594efae8f8b59fc898913f96d199a21d212c7037043853ee04df7264611d0"
+url = "https://github.com/endevco/aube/releases/download/v1.6.2/aube-v1.6.2-x86_64-pc-windows-msvc.zip"
+url_api = "https://api.github.com/repos/endevco/aube/releases/assets/410174742"
+
 [[tools.bats]]
 version = "1.11.1"
 backend = "aqua:bats-core/bats-core"
@@ -63,6 +97,7 @@ url = "https://github.com/bats-core/bats-core/archive/refs/tags/v1.11.1.tar.gz"
 url = "https://github.com/bats-core/bats-core/archive/refs/tags/v1.11.1.tar.gz"
 
 [tools.bats."platforms.linux-x64"]
+checksum = "blake3:68f3c29e21d03ad96d7bd5a133a5716e47a2d53a2f08886484cfea6c3fb86dc9"
 url = "https://github.com/bats-core/bats-core/archive/refs/tags/v1.11.1.tar.gz"
 
 [tools.bats."platforms.linux-x64-musl"]
@@ -75,19 +110,48 @@ url = "https://github.com/bats-core/bats-core/archive/refs/tags/v1.11.1.tar.gz"
 [tools.bats."platforms.macos-x64"]
 url = "https://github.com/bats-core/bats-core/archive/refs/tags/v1.11.1.tar.gz"
 
+[[tools.caddy]]
+version = "2.11.2"
+backend = "aqua:caddyserver/caddy"
+
+[tools.caddy."platforms.linux-arm64"]
+checksum = "sha256:b9d88bec4254d0a98bd415ad60f97f37e4222dec96235c00b442437f5e303a32"
+url = "https://github.com/caddyserver/caddy/releases/download/v2.11.2/caddy_2.11.2_linux_arm64.tar.gz"
+
+[tools.caddy."platforms.linux-arm64-musl"]
+checksum = "sha256:b9d88bec4254d0a98bd415ad60f97f37e4222dec96235c00b442437f5e303a32"
+url = "https://github.com/caddyserver/caddy/releases/download/v2.11.2/caddy_2.11.2_linux_arm64.tar.gz"
+
+[tools.caddy."platforms.linux-x64"]
+checksum = "sha256:94391dfefe1f278ac8f387ab86162f0e88d87ff97df367f360e51e3cda3df56f"
+url = "https://github.com/caddyserver/caddy/releases/download/v2.11.2/caddy_2.11.2_linux_amd64.tar.gz"
+
+[tools.caddy."platforms.linux-x64-musl"]
+checksum = "sha256:94391dfefe1f278ac8f387ab86162f0e88d87ff97df367f360e51e3cda3df56f"
+url = "https://github.com/caddyserver/caddy/releases/download/v2.11.2/caddy_2.11.2_linux_amd64.tar.gz"
+
+[tools.caddy."platforms.macos-arm64"]
+checksum = "sha256:7ab765777e953574d5713a69cab3f5a2f643a5c1cc264d4239a60ff845b465d8"
+url = "https://github.com/caddyserver/caddy/releases/download/v2.11.2/caddy_2.11.2_mac_arm64.tar.gz"
+
+[tools.caddy."platforms.macos-x64"]
+checksum = "sha256:dc44b5b27d306098e79e50d002cbc14349d5b6c298913dffca1f84318cd4c4c3"
+url = "https://github.com/caddyserver/caddy/releases/download/v2.11.2/caddy_2.11.2_mac_amd64.tar.gz"
+
+[tools.caddy."platforms.windows-x64"]
+checksum = "sha256:2902d2a278597e4983d70ed6d694fcab36b29b0b7d109771c59d7da7147afad8"
+url = "https://github.com/caddyserver/caddy/releases/download/v2.11.2/caddy_2.11.2_windows_amd64.zip"
+
 [[tools.elixir]]
-version = "1.19.1"
+version = "1.19.5"
 backend = "core:elixir"
 
-[tools.elixir."platforms.macos-arm64"]
-checksum = "blake3:76681c4c67ae2b78b3b7e8b624a24699db1f8f4d8849181e4b9e6bdc5b218428"
+[tools.elixir."platforms.linux-x64"]
+checksum = "blake3:1d0caecc22478e4a7c8eb4c4bdc230d1ef287c1dbfa91b79348bf4db1c286acb"
 
 [[tools.erlang]]
-version = "28.1"
+version = "28.4.3"
 backend = "core:erlang"
-
-[tools.erlang."platforms.macos-arm64"]
-checksum = "blake3:bff63ba6bebaec189cffd0652357721298a314bd4dbb7351f241e563cc08b46b"
 
 [[tools.git-cliff]]
 version = "2.6.0"
@@ -120,21 +184,104 @@ url = "https://github.com/orhun/git-cliff/releases/download/v2.6.0/git-cliff-2.6
 [tools.git-cliff."platforms.windows-x64"]
 url = "https://github.com/orhun/git-cliff/releases/download/v2.6.0/git-cliff-2.6.0-x86_64-pc-windows-msvc.zip"
 
+[[tools."github:tuist/blick"]]
+version = "0.8.0"
+backend = "github:tuist/blick"
+
+[tools."github:tuist/blick"."platforms.linux-x64"]
+checksum = "sha256:7026d22cd165aea97285f081a1beb2814ecabcbd270b85cbe01280fa3e34ee25"
+url = "https://github.com/tuist/blick/releases/download/0.8.0/blick-0.8.0-x86_64-unknown-linux-gnu.tar.gz"
+url_api = "https://api.github.com/repos/tuist/blick/releases/assets/412682235"
+
+[tools."github:tuist/blick"."platforms.linux-x64-musl"]
+checksum = "sha256:7026d22cd165aea97285f081a1beb2814ecabcbd270b85cbe01280fa3e34ee25"
+url = "https://github.com/tuist/blick/releases/download/0.8.0/blick-0.8.0-x86_64-unknown-linux-gnu.tar.gz"
+url_api = "https://api.github.com/repos/tuist/blick/releases/assets/412682235"
+
+[tools."github:tuist/blick"."platforms.macos-arm64"]
+checksum = "sha256:22a86c7f647c38f0bc9ee17d52464b6e088c3d245857501080ec628f35782a30"
+url = "https://github.com/tuist/blick/releases/download/0.8.0/blick-0.8.0-aarch64-apple-darwin.tar.gz"
+url_api = "https://api.github.com/repos/tuist/blick/releases/assets/412682239"
+
+[tools."github:tuist/blick"."platforms.macos-x64"]
+checksum = "sha256:bb17d4f507aa3dc0f8964c77e9139a33739118ada1a088295e9509474072101d"
+url = "https://github.com/tuist/blick/releases/download/0.8.0/blick-0.8.0-x86_64-apple-darwin.tar.gz"
+url_api = "https://api.github.com/repos/tuist/blick/releases/assets/412682236"
+
 [[tools.gradle]]
 version = "8.12.1"
 backend = "aqua:gradle/gradle"
 
+[tools.gradle."platforms.linux-arm64"]
+url = "https://github.com/gradle/gradle-distributions/releases/download/v8.12.1/gradle-8.12.1-bin.zip"
+
+[tools.gradle."platforms.linux-arm64-musl"]
+url = "https://github.com/gradle/gradle-distributions/releases/download/v8.12.1/gradle-8.12.1-bin.zip"
+
+[tools.gradle."platforms.linux-x64"]
+checksum = "blake3:7761b714daf36ba736871d060669a60eb6a728aad96ae817d3972d82f64730e9"
+url = "https://github.com/gradle/gradle-distributions/releases/download/v8.12.1/gradle-8.12.1-bin.zip"
+
+[tools.gradle."platforms.linux-x64-musl"]
+url = "https://github.com/gradle/gradle-distributions/releases/download/v8.12.1/gradle-8.12.1-bin.zip"
+
 [tools.gradle."platforms.macos-arm64"]
 checksum = "blake3:7761b714daf36ba736871d060669a60eb6a728aad96ae817d3972d82f64730e9"
+url = "https://github.com/gradle/gradle-distributions/releases/download/v8.12.1/gradle-8.12.1-bin.zip"
+
+[tools.gradle."platforms.macos-x64"]
+url = "https://github.com/gradle/gradle-distributions/releases/download/v8.12.1/gradle-8.12.1-bin.zip"
+
+[tools.gradle."platforms.windows-x64"]
 url = "https://github.com/gradle/gradle-distributions/releases/download/v8.12.1/gradle-8.12.1-bin.zip"
 
 [[tools.java]]
 version = "21.0.2"
 backend = "core:java"
 
+[tools.java."platforms.linux-x64"]
+checksum = "sha256:a2def047a73941e01a73739f92755f86b895811afb1f91243db214cff5bdac3f"
+url = "https://download.java.net/java/GA/jdk21.0.2/f2283984656d49d69e91c558476027ac/13/GPL/openjdk-21.0.2_linux-x64_bin.tar.gz"
+
 [tools.java."platforms.macos-arm64"]
 checksum = "sha256:b3d588e16ec1e0ef9805d8a696591bd518a5cea62567da8f53b5ce32d11d22e4"
 url = "https://download.java.net/java/GA/jdk21.0.2/f2283984656d49d69e91c558476027ac/13/GPL/openjdk-21.0.2_macos-aarch64_bin.tar.gz"
+
+[[tools.jq]]
+version = "1.8.1"
+backend = "aqua:jqlang/jq"
+
+[tools.jq."platforms.linux-arm64"]
+checksum = "sha256:6bc62f25981328edd3cfcfe6fe51b073f2d7e7710d7ef7fcdac28d4e384fc3d4"
+url = "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-linux-arm64"
+
+[tools.jq."platforms.linux-arm64-musl"]
+checksum = "sha256:6bc62f25981328edd3cfcfe6fe51b073f2d7e7710d7ef7fcdac28d4e384fc3d4"
+url = "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-linux-arm64"
+
+[tools.jq."platforms.linux-x64"]
+checksum = "sha256:020468de7539ce70ef1bceaf7cde2e8c4f2ca6c3afb84642aabc5c97d9fc2a0d"
+url = "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-linux-amd64"
+
+[tools.jq."platforms.linux-x64-musl"]
+checksum = "sha256:020468de7539ce70ef1bceaf7cde2e8c4f2ca6c3afb84642aabc5c97d9fc2a0d"
+url = "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-linux-amd64"
+
+[tools.jq."platforms.macos-arm64"]
+checksum = "sha256:a9fe3ea2f86dfc72f6728417521ec9067b343277152b114f4e98d8cb0e263603"
+url = "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-macos-arm64"
+
+[tools.jq."platforms.macos-x64"]
+checksum = "sha256:e80dbe0d2a2597e3c11c404f03337b981d74b4a8504b70586c354b7697a7c27f"
+url = "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-macos-amd64"
+
+[tools.jq."platforms.windows-x64"]
+checksum = "sha256:23cb60a1354eed6bcc8d9b9735e8c7b388cd1fdcb75726b93bc299ef22dd9334"
+url = "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-windows-amd64.exe"
+
+[[tools."npm:opencode-ai"]]
+version = "1.14.39"
+backend = "npm:opencode-ai"
 
 [[tools.protoc]]
 version = "32.1"
@@ -168,6 +315,38 @@ url = "https://github.com/protocolbuffers/protobuf/releases/download/v32.1/proto
 checksum = "sha256:69569cbc178cd5785ecb7d93569913110677eafeb4b8f82970c361fad4c7cd66"
 url = "https://github.com/protocolbuffers/protobuf/releases/download/v32.1/protoc-32.1-win64.zip"
 
+[[tools.rclone]]
+version = "1.73.3"
+backend = "aqua:rclone/rclone"
+
+[tools.rclone."platforms.linux-arm64"]
+checksum = "sha256:ed2a638b4cb15abe4f01d6d9c015f3a1cb41aa7a17c96db2725542c61f353b8e"
+url = "https://github.com/rclone/rclone/releases/download/v1.73.3/rclone-v1.73.3-linux-arm64.zip"
+
+[tools.rclone."platforms.linux-arm64-musl"]
+checksum = "sha256:ed2a638b4cb15abe4f01d6d9c015f3a1cb41aa7a17c96db2725542c61f353b8e"
+url = "https://github.com/rclone/rclone/releases/download/v1.73.3/rclone-v1.73.3-linux-arm64.zip"
+
+[tools.rclone."platforms.linux-x64"]
+checksum = "sha256:70278c22b98c7d02aed01828b70053904dbce4c8a1a15d7781d836c6fdb036ea"
+url = "https://github.com/rclone/rclone/releases/download/v1.73.3/rclone-v1.73.3-linux-amd64.zip"
+
+[tools.rclone."platforms.linux-x64-musl"]
+checksum = "sha256:70278c22b98c7d02aed01828b70053904dbce4c8a1a15d7781d836c6fdb036ea"
+url = "https://github.com/rclone/rclone/releases/download/v1.73.3/rclone-v1.73.3-linux-amd64.zip"
+
+[tools.rclone."platforms.macos-arm64"]
+checksum = "sha256:ef046e9facd10d1fb39d0ef865d7fab9b5c6ca1597ac7c9167f3aa0c7747393f"
+url = "https://github.com/rclone/rclone/releases/download/v1.73.3/rclone-v1.73.3-osx-arm64.zip"
+
+[tools.rclone."platforms.macos-x64"]
+checksum = "sha256:aaf209187baf40a4f6b732104121f81eedc0264aaa91186952ec3e78b82025b1"
+url = "https://github.com/rclone/rclone/releases/download/v1.73.3/rclone-v1.73.3-osx-amd64.zip"
+
+[tools.rclone."platforms.windows-x64"]
+checksum = "sha256:1c51142576194d124ffa9654f45bab972530da22a3a339509bf9bed399f9dea3"
+url = "https://github.com/rclone/rclone/releases/download/v1.73.3/rclone-v1.73.3-windows-amd64.zip"
+
 [[tools.sops]]
 version = "3.9.3"
 backend = "aqua:getsops/sops"
@@ -175,12 +354,16 @@ backend = "aqua:getsops/sops"
 [tools.sops."platforms.linux-arm64"]
 checksum = "sha256:49515aba9264e507eab884ebf902098046b8922d32f588f9a2beecb4a601d2ef"
 url = "https://github.com/getsops/sops/releases/download/v3.9.3/sops-v3.9.3.linux.arm64"
-provenance = "slsa"
+
+[tools.sops."platforms.linux-arm64".provenance.slsa]
+url = "https://github.com/getsops/sops/releases/download/v3.9.3/sops-v3.9.3.intoto.jsonl"
 
 [tools.sops."platforms.linux-arm64-musl"]
 checksum = "sha256:49515aba9264e507eab884ebf902098046b8922d32f588f9a2beecb4a601d2ef"
 url = "https://github.com/getsops/sops/releases/download/v3.9.3/sops-v3.9.3.linux.arm64"
-provenance = "slsa"
+
+[tools.sops."platforms.linux-arm64-musl".provenance.slsa]
+url = "https://github.com/getsops/sops/releases/download/v3.9.3/sops-v3.9.3.intoto.jsonl"
 
 [tools.sops."platforms.linux-x64"]
 checksum = "sha256:835ee92ef7269e1e40d69cbe5e1042975f3cd38044e8a0fa3c1a13543b7dcfaa"
@@ -192,7 +375,9 @@ url = "https://github.com/getsops/sops/releases/download/v3.9.3/sops-v3.9.3.into
 [tools.sops."platforms.linux-x64-musl"]
 checksum = "sha256:835ee92ef7269e1e40d69cbe5e1042975f3cd38044e8a0fa3c1a13543b7dcfaa"
 url = "https://github.com/getsops/sops/releases/download/v3.9.3/sops-v3.9.3.linux.amd64"
-provenance = "slsa"
+
+[tools.sops."platforms.linux-x64-musl".provenance.slsa]
+url = "https://github.com/getsops/sops/releases/download/v3.9.3/sops-v3.9.3.intoto.jsonl"
 
 [tools.sops."platforms.macos-arm64"]
 checksum = "sha256:a087bd505b23dceb7debf60e02f4520c16fe32b02c0253c4e52821575f5d5027"
@@ -204,16 +389,20 @@ url = "https://github.com/getsops/sops/releases/download/v3.9.3/sops-v3.9.3.into
 [tools.sops."platforms.macos-x64"]
 checksum = "sha256:995a4571357b02fbbbba1f4ab1298b97eb5d976b02dc6f678edd6a3f7c7a952f"
 url = "https://github.com/getsops/sops/releases/download/v3.9.3/sops-v3.9.3.darwin.amd64"
-provenance = "slsa"
+
+[tools.sops."platforms.macos-x64".provenance.slsa]
+url = "https://github.com/getsops/sops/releases/download/v3.9.3/sops-v3.9.3.intoto.jsonl"
 
 [tools.sops."platforms.windows-x64"]
 checksum = "sha256:df9372dd551a872918d70fcc4394e58a498d4f16bae414b1995555059ba8d4f6"
 url = "https://github.com/getsops/sops/releases/download/v3.9.3/sops-v3.9.3.exe"
-provenance = "slsa"
+
+[tools.sops."platforms.windows-x64".provenance.slsa]
+url = "https://github.com/getsops/sops/releases/download/v3.9.3/sops-v3.9.3.intoto.jsonl"
 
 [[tools.swiftformat]]
 version = "0.58.7"
-backend = "github:nicklockwood/SwiftFormat"
+backend = "asdf:https://github.com/mise-plugins/mise-swiftformat.git"
 
 [tools.swiftformat."platforms.linux-arm64"]
 checksum = "sha256:33c3b3b4d66d17513177e0a4f9b943611d64a16aa12ea52cbfba39595c098621"
@@ -269,29 +458,61 @@ url = "https://github.com/realm/SwiftLint/releases/download/0.59.1/portable_swif
 url = "https://github.com/realm/SwiftLint/releases/download/0.59.1/portable_swiftlint.zip"
 
 [[tools.tuist]]
-version = "4.166.2"
+version = "4.195.0"
 backend = "aqua:tuist/tuist"
 
 [tools.tuist."platforms.linux-arm64"]
-checksum = "sha256:d56cd0fdcf004ca0fbbb2dc7cd325588e947cc9d8ef9e79da90768c9e186bec7"
-url = "https://github.com/tuist/tuist/releases/download/4.166.2/tuist-linux-aarch64.tar.gz"
+checksum = "sha256:3b46a93f091aeb697bd9cf3f55d37727fc0fe14b1991f5acd5a83b65eb966266"
+url = "https://github.com/tuist/tuist/releases/download/4.195.0/tuist-linux-aarch64.tar.gz"
 
 [tools.tuist."platforms.linux-arm64-musl"]
-checksum = "sha256:d56cd0fdcf004ca0fbbb2dc7cd325588e947cc9d8ef9e79da90768c9e186bec7"
-url = "https://github.com/tuist/tuist/releases/download/4.166.2/tuist-linux-aarch64.tar.gz"
+checksum = "sha256:3b46a93f091aeb697bd9cf3f55d37727fc0fe14b1991f5acd5a83b65eb966266"
+url = "https://github.com/tuist/tuist/releases/download/4.195.0/tuist-linux-aarch64.tar.gz"
 
 [tools.tuist."platforms.linux-x64"]
-checksum = "sha256:3ad9a273954a3471a0eb3f65ec115ce38aa70a6e716f75acdfee5ef40a047879"
-url = "https://github.com/tuist/tuist/releases/download/4.166.2/tuist-linux-x86_64.tar.gz"
+checksum = "sha256:294f82ee689e3a0e13b386b928a1ade3041358f5bda609b390080c4c917c64de"
+url = "https://github.com/tuist/tuist/releases/download/4.195.0/tuist-linux-x86_64.tar.gz"
 
 [tools.tuist."platforms.linux-x64-musl"]
-checksum = "sha256:3ad9a273954a3471a0eb3f65ec115ce38aa70a6e716f75acdfee5ef40a047879"
-url = "https://github.com/tuist/tuist/releases/download/4.166.2/tuist-linux-x86_64.tar.gz"
+checksum = "sha256:294f82ee689e3a0e13b386b928a1ade3041358f5bda609b390080c4c917c64de"
+url = "https://github.com/tuist/tuist/releases/download/4.195.0/tuist-linux-x86_64.tar.gz"
 
 [tools.tuist."platforms.macos-arm64"]
-checksum = "sha256:ab476ec4e008d4be91075dbb409b39f8acf616b712f0f19a74bb962c81124ef6"
-url = "https://github.com/tuist/tuist/releases/download/4.166.2/tuist.zip"
+checksum = "sha256:773a4de6b242b182c4a908024f92bf516270dcc26b3d0d1cc661ade242bd7c24"
+url = "https://github.com/tuist/tuist/releases/download/4.195.0/tuist.zip"
 
 [tools.tuist."platforms.macos-x64"]
-checksum = "sha256:ab476ec4e008d4be91075dbb409b39f8acf616b712f0f19a74bb962c81124ef6"
-url = "https://github.com/tuist/tuist/releases/download/4.166.2/tuist.zip"
+checksum = "sha256:773a4de6b242b182c4a908024f92bf516270dcc26b3d0d1cc661ade242bd7c24"
+url = "https://github.com/tuist/tuist/releases/download/4.195.0/tuist.zip"
+
+[[tools.yq]]
+version = "4.52.5"
+backend = "aqua:mikefarah/yq"
+
+[tools.yq."platforms.linux-arm64"]
+checksum = "sha256:90fa510c50ee8ca75544dbfffed10c88ed59b36834df35916520cddc623d9aaa"
+url = "https://github.com/mikefarah/yq/releases/download/v4.52.5/yq_linux_arm64"
+
+[tools.yq."platforms.linux-arm64-musl"]
+checksum = "sha256:90fa510c50ee8ca75544dbfffed10c88ed59b36834df35916520cddc623d9aaa"
+url = "https://github.com/mikefarah/yq/releases/download/v4.52.5/yq_linux_arm64"
+
+[tools.yq."platforms.linux-x64"]
+checksum = "sha256:75d893a0d5940d1019cb7cdc60001d9e876623852c31cfc6267047bc31149fa9"
+url = "https://github.com/mikefarah/yq/releases/download/v4.52.5/yq_linux_amd64"
+
+[tools.yq."platforms.linux-x64-musl"]
+checksum = "sha256:75d893a0d5940d1019cb7cdc60001d9e876623852c31cfc6267047bc31149fa9"
+url = "https://github.com/mikefarah/yq/releases/download/v4.52.5/yq_linux_amd64"
+
+[tools.yq."platforms.macos-arm64"]
+checksum = "sha256:45a12e64d4bd8a31c72ee1b889e81f1b1110e801baad3d6f030c111db0068de0"
+url = "https://github.com/mikefarah/yq/releases/download/v4.52.5/yq_darwin_arm64"
+
+[tools.yq."platforms.macos-x64"]
+checksum = "sha256:6e399d1eb466860c3202d231727197fdce055888c5c7bec6964156983dd1559d"
+url = "https://github.com/mikefarah/yq/releases/download/v4.52.5/yq_darwin_amd64"
+
+[tools.yq."platforms.windows-x64"]
+checksum = "sha256:47594981f3848a4b4447494adeca9555f908f7cf0a89c4da3fd0243a4631da1c"
+url = "https://github.com/mikefarah/yq/releases/download/v4.52.5/yq_windows_amd64.exe"

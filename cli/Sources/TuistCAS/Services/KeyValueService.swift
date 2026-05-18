@@ -16,8 +16,7 @@
         private let putCacheValueService: PutCacheValueServicing
         private let getCacheValueService: GetCacheValueServicing
         private let fileSystem: FileSystem
-        private let nodeStore: CASNodeStoring
-        private let metadataStore: KeyValueMetadataStoring
+        private let analyticsDatabase: CASAnalyticsDatabasing
         private let serverAuthenticationController: ServerAuthenticationControlling
         private let upload: Bool
 
@@ -33,8 +32,7 @@
             putCacheValueService: PutCacheValueServicing = PutCacheValueService(),
             getCacheValueService: GetCacheValueServicing = GetCacheValueService(),
             fileSystem: FileSystem = FileSystem(),
-            nodeStore: CASNodeStoring = CASNodeStore(),
-            metadataStore: KeyValueMetadataStoring = KeyValueMetadataStore(),
+            analyticsDatabase: CASAnalyticsDatabasing,
             serverAuthenticationController: ServerAuthenticationControlling = ServerAuthenticationController()
         ) {
             self.fullHandle = fullHandle
@@ -44,8 +42,7 @@
             self.putCacheValueService = putCacheValueService
             self.getCacheValueService = getCacheValueService
             self.fileSystem = fileSystem
-            self.nodeStore = nodeStore
-            self.metadataStore = metadataStore
+            self.analyticsDatabase = analyticsDatabase
             self.serverAuthenticationController = serverAuthenticationController
         }
 
@@ -244,7 +241,7 @@
 
                         // Store the mapping
                         do {
-                            try await nodeStore.storeNode(nodeID, checksum: hexString.uppercased())
+                            try analyticsDatabase.storeNode(key: nodeID, checksum: hexString.uppercased())
                         } catch {
                             Logger.current.error("Failed to store node mapping: \(error)")
                         }
@@ -302,9 +299,12 @@
             operationType: KeyValueOperationType
         ) {
             Task {
-                let metadata = KeyValueMetadata(duration: duration)
                 do {
-                    try await metadataStore.storeMetadata(metadata, for: cacheKey, operationType: operationType)
+                    try analyticsDatabase.storeKeyValueMetadata(
+                        key: cacheKey,
+                        operationType: operationType.rawValue,
+                        duration: duration
+                    )
                 } catch {
                     Logger.current.error(
                         "Failed to store KeyValue metadata for cacheKey: \(cacheKey): \(error)"

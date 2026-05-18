@@ -9,10 +9,16 @@ import okhttp3.OkHttpClient
 import org.gradle.api.DefaultTask
 import org.gradle.api.Plugin
 import org.gradle.api.Project
+import org.gradle.api.file.ConfigurableFileCollection
 import org.gradle.api.logging.Logging
 import org.gradle.api.tasks.Input
+import org.gradle.api.tasks.InputFiles
+import org.gradle.api.tasks.IgnoreEmptyDirectories
 import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.Optional
+import org.gradle.api.tasks.PathSensitive
+import org.gradle.api.tasks.PathSensitivity
+import org.gradle.api.tasks.SkipWhenEmpty
 import org.gradle.api.tasks.TaskAction
 import org.gradle.api.tasks.testing.Test
 import retrofit2.Retrofit
@@ -30,9 +36,10 @@ class TuistTestShardingService(
         baseUrl: String,
         token: String,
         accountHandle: String,
-        projectHandle: String
+        projectHandle: String,
+        httpClients: TuistHttpClients = TuistHttpClients()
     ) : this(
-        shardsApi = createShardsApi(baseUrl, token),
+        shardsApi = createShardsApi(baseUrl, token, httpClients),
         accountHandle = accountHandle,
         projectHandle = projectHandle
     )
@@ -42,7 +49,8 @@ class TuistTestShardingService(
         testSuites: List<String>,
         shardMax: Int,
         shardMin: Int?,
-        shardMaxDuration: Int?
+        shardMaxDuration: Int?,
+        gradleBuildId: String? = null
     ): ShardPlan {
         val body = CreateShardPlanParams1(
             reference = reference,
@@ -50,7 +58,8 @@ class TuistTestShardingService(
             shardMin = shardMin,
             shardMax = shardMax,
             shardMaxDuration = shardMaxDuration,
-            granularity = CreateShardPlanParams1.Granularity.suite
+            granularity = CreateShardPlanParams1.Granularity.suite,
+            gradleBuildId = gradleBuildId
         )
 
         val response = shardsApi.createShardPlan(accountHandle, projectHandle, body).execute()
@@ -68,7 +77,7 @@ class TuistTestShardingService(
         return response.body() ?: throw org.gradle.api.GradleException("Get shard returned empty response.")
     }
 
-    internal fun deriveReference(): String? {
+    fun deriveReference(): String? {
         System.getenv("GITHUB_RUN_ID")?.let { runId ->
             val attempt = System.getenv("GITHUB_RUN_ATTEMPT") ?: "1"
             return "github-$runId-$attempt"
@@ -81,16 +90,22 @@ class TuistTestShardingService(
     }
 }
 
-private fun createShardsApi(baseUrl: String, token: String): ShardsApi {
-    val client = OkHttpClient.Builder()
+private fun createShardsApi(
+    baseUrl: String,
+    token: String,
+    httpClients: TuistHttpClients = TuistHttpClients()
+): ShardsApi {
+    // Branch a short-timeout variant off the shared OkHttp client so the
+    // proxy (and connection pool) from [httpClients] is reused.
+    val client = httpClients.okHttp.newBuilder()
+        .connectTimeout(10, TimeUnit.SECONDS)
+        .readTimeout(10, TimeUnit.SECONDS)
         .addInterceptor { chain ->
             val request = chain.request().newBuilder()
                 .header("Authorization", "Bearer $token")
                 .build()
             chain.proceed(request)
         }
-        .connectTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(10, TimeUnit.SECONDS)
         .build()
 
     return Retrofit.Builder()
@@ -101,14 +116,7 @@ private fun createShardsApi(baseUrl: String, token: String): ShardsApi {
         .create(ShardsApi::class.java)
 }
 
-internal fun discoverTestSuites(project: Project): List<String> {
-    val classDirs = project.allprojects.flatMap { subproject ->
-        subproject.tasks.withType(Test::class.java).flatMap { it.testClassesDirs.files }
-    }
-    return discoverTestSuitesFromDirs(classDirs)
-}
-
-internal fun discoverTestSuitesFromDirs(classDirs: List<java.io.File>): List<String> {
+fun discoverTestSuitesFromDirs(classDirs: List<java.io.File>): List<String> {
     val testSuites = mutableSetOf<String>()
     for (dir in classDirs) {
         if (!dir.exists()) continue
@@ -125,6 +133,20 @@ internal fun discoverTestSuitesFromDirs(classDirs: List<java.io.File>): List<Str
 }
 
 abstract class TuistPrepareTestShardsTask : DefaultTask() {
+
+    private enum class CIProvider {
+        GITHUB, GITLAB, CIRCLECI, BUILDKITE, CODEMAGIC, BITRISE
+    }
+
+    private fun detectCIProvider(env: EnvironmentProvider): CIProvider? {
+        if (env.getenv("GITHUB_ACTIONS") != null) return CIProvider.GITHUB
+        if (env.getenv("GITLAB_CI") != null) return CIProvider.GITLAB
+        if (env.getenv("CIRCLECI") != null) return CIProvider.CIRCLECI
+        if (env.getenv("BUILDKITE") != null) return CIProvider.BUILDKITE
+        if (env.getenv("CM_BUILD_ID") != null) return CIProvider.CODEMAGIC
+        if (env.getenv("BITRISE_IO") != null) return CIProvider.BITRISE
+        return null
+    }
 
     /** Maximum number of shards to distribute tests across. */
     @get:Input
@@ -151,6 +173,15 @@ abstract class TuistPrepareTestShardsTask : DefaultTask() {
     @get:Internal
     var tuistProject: String? = null
 
+    @get:Input
+    var useEnvironmentProxy: Boolean = true
+
+    @get:InputFiles
+    @get:SkipWhenEmpty
+    @get:IgnoreEmptyDirectories
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    abstract val compiledTestClassDirectories: ConfigurableFileCollection
+
     @TaskAction
     fun execute() {
         val shardingService = createShardingService()
@@ -161,19 +192,24 @@ abstract class TuistPrepareTestShardsTask : DefaultTask() {
                 "Could not derive shard reference. Set TUIST_SHARD_REFERENCE or run in a supported CI environment."
             )
 
-        val testSuites = discoverTestSuites(project)
+        val testSuites = discoverTestSuitesFromDirs(compiledTestClassDirectories.files.toList())
         if (testSuites.isEmpty()) {
             throw org.gradle.api.GradleException("No test classes found in compiled test output.")
         }
 
         logger.lifecycle("Tuist: Discovered ${testSuites.size} test suite(s): ${testSuites.joinToString(", ")}")
 
+        val gradleBuildId = project.gradle.sharedServices.registrations
+            .findByName("tuistBuildInsights")?.service?.orNull
+            ?.let { (it as? TuistBuildInsightsService)?.buildId }
+
         val response = shardingService.createShardPlan(
             reference = reference,
             testSuites = testSuites,
             shardMax = shardMax,
             shardMin = shardMin,
-            shardMaxDuration = shardMaxDuration
+            shardMaxDuration = shardMaxDuration,
+            gradleBuildId = gradleBuildId
         )
 
         logger.lifecycle("Tuist: Shard plan created — reference=$reference, shards=${response.shardCount}")
@@ -182,46 +218,108 @@ abstract class TuistPrepareTestShardsTask : DefaultTask() {
         }
 
         val indices = (0 until response.shardCount).toList()
-        val githubOutputPath = System.getenv("GITHUB_OUTPUT")
-        if (githubOutputPath != null) {
-            val matrixJSON = """{"shard":$indices}"""
-            java.io.File(githubOutputPath).appendText("matrix=$matrixJSON\n")
-            logger.lifecycle("Tuist: GitHub Actions matrix output written.")
-        } else {
-            val matrix = mapOf(
-                "reference" to reference,
-                "shard_count" to response.shardCount,
-                "shards" to response.shards.map { shard ->
-                    mapOf(
-                        "index" to shard.index,
-                        "test_targets" to shard.testTargets,
-                        "estimated_duration_ms" to shard.estimatedDurationMs
-                    )
+        writeShardMatrixOutput(indices, reference, response)
+    }
+
+    fun writeShardMatrixOutput(
+        indices: List<Int>,
+        reference: String,
+        response: ShardPlan,
+        env: EnvironmentProvider = SystemEnvironmentProvider()
+    ) {
+        when (detectCIProvider(env)) {
+            CIProvider.GITHUB -> {
+                val matrixJSON = """{"shard":$indices}"""
+                java.io.File(env.getenv("GITHUB_OUTPUT")!!).appendText("matrix=$matrixJSON\n")
+                logger.lifecycle("Tuist: GitHub Actions matrix output written.")
+            }
+            CIProvider.GITLAB -> {
+                val yaml = buildString {
+                    for (index in indices) {
+                        appendLine("shard-$index:")
+                        appendLine("  extends: .tuist-shard")
+                        appendLine("  variables:")
+                        appendLine("    TUIST_SHARD_INDEX: \"$index\"")
+                        appendLine()
+                    }
                 }
-            )
-            val outputFile = project.projectDir.resolve(".tuist-shard-matrix.json")
-            outputFile.writeText(Gson().toJson(matrix))
-            logger.lifecycle("Tuist: Shard matrix written to ${outputFile.path}")
+                val outputFile = project.projectDir.resolve(".tuist-shard-child-pipeline.yml")
+                outputFile.writeText(yaml)
+                logger.lifecycle("Tuist: GitLab CI child pipeline written to ${outputFile.path}")
+            }
+            CIProvider.CIRCLECI -> {
+                val parameters = mapOf(
+                    "shard-indices" to indices.joinToString(","),
+                    "shard-count" to indices.size
+                )
+                val outputFile = project.projectDir.resolve(".tuist-shard-continuation.json")
+                outputFile.writeText(Gson().toJson(parameters))
+                logger.lifecycle("Tuist: CircleCI continuation parameters written to ${outputFile.path}")
+            }
+            CIProvider.BUILDKITE -> {
+                val yaml = buildString {
+                    appendLine("steps:")
+                    for (index in indices) {
+                        appendLine("  - label: \"Shard #$index\"")
+                        appendLine("    env:")
+                        appendLine("      TUIST_SHARD_INDEX: \"$index\"")
+                        appendLine()
+                    }
+                }
+                val outputFile = project.projectDir.resolve(".tuist-shard-pipeline.yml")
+                outputFile.writeText(yaml)
+                logger.lifecycle("Tuist: Buildkite pipeline written to ${outputFile.path}")
+            }
+            CIProvider.CODEMAGIC -> {
+                val matrixJSON = """{"shard":$indices}"""
+                java.io.File(env.getenv("CM_ENV")!!).appendText("TUIST_SHARD_MATRIX=$matrixJSON\nTUIST_SHARD_COUNT=${indices.size}\n")
+                logger.lifecycle("Tuist: Codemagic environment variables written to CM_ENV.")
+            }
+            CIProvider.BITRISE -> {
+                val matrixJSON = """{"shard":$indices,"shard_count":${indices.size}}"""
+                val deployDir = env.getenv("BITRISE_DEPLOY_DIR")!!
+                java.io.File(deployDir, ".tuist-shard-matrix.json").writeText(matrixJSON)
+                logger.lifecycle("Tuist: Bitrise shard matrix written to deploy directory.")
+            }
+            null -> {
+                val matrix = mapOf(
+                    "reference" to reference,
+                    "shard_count" to response.shardCount,
+                    "shards" to response.shards.map { shard ->
+                        mapOf(
+                            "index" to shard.index,
+                            "test_targets" to shard.testTargets,
+                            "estimated_duration_ms" to shard.estimatedDurationMs
+                        )
+                    }
+                )
+                val outputFile = project.projectDir.resolve(".tuist-shard-matrix.json")
+                outputFile.writeText(Gson().toJson(matrix))
+                logger.lifecycle("Tuist: Shard matrix written to ${outputFile.path}")
+            }
         }
     }
 
     private fun createShardingService(): TuistTestShardingService {
+        val httpClients = TuistHttpClients(useEnvironmentProxy = useEnvironmentProxy)
         val configProvider = DefaultConfigurationProvider(
             project = tuistProject,
             serverUrl = serverUrl,
-            projectDir = project.rootDir
+            projectDir = project.rootDir,
+            httpClients = httpClients
         )
         val config = configProvider.getConfiguration()
         return TuistTestShardingService(
             baseUrl = serverUrl,
             token = config.token,
             accountHandle = config.accountHandle,
-            projectHandle = config.projectHandle
+            projectHandle = config.projectHandle,
+            httpClients = httpClients
         )
     }
 }
 
-internal abstract class TuistTestShardingPlugin : Plugin<Project> {
+abstract class TuistTestShardingPlugin : Plugin<Project> {
 
     private val logger = Logging.getLogger(TuistTestShardingPlugin::class.java)
 
@@ -231,50 +329,54 @@ internal abstract class TuistTestShardingPlugin : Plugin<Project> {
         if (project !== project.rootProject) return
 
         val config = TuistGradleConfig.from(project) ?: return
+        val providers = project.providers
+        val testClassDirectories = project.objects.fileCollection()
 
-        project.tasks.register("tuistPrepareTestShards", TuistPrepareTestShardsTask::class.java).configure {
+        val prepareTestShards = project.tasks.register("tuistPrepareTestShards", TuistPrepareTestShardsTask::class.java)
+        prepareTestShards.configure {
             group = "tuist"
             description = "Build test classes, discover test suites, and create a shard plan on the Tuist server"
             serverUrl = config.url
             tuistProject = config.project
+            useEnvironmentProxy = config.network.proxy
+            compiledTestClassDirectories.from(testClassDirectories)
 
-            project.findProperty("tuistShardMax")?.toString()?.toIntOrNull()?.let { shardMax = it }
-            project.findProperty("tuistShardMin")?.toString()?.toIntOrNull()?.let { shardMin = it }
-            project.findProperty("tuistShardMaxDuration")?.toString()?.toIntOrNull()?.let { shardMaxDuration = it }
+            providers.gradleProperty("tuistShardMax").orNull?.toIntOrNull()?.let { shardMax = it }
+            providers.gradleProperty("tuistShardMin").orNull?.toIntOrNull()?.let { shardMin = it }
+            providers.gradleProperty("tuistShardMaxDuration").orNull?.toIntOrNull()?.let { shardMaxDuration = it }
+            providers.environmentVariable("TUIST_SHARD_REFERENCE").orNull?.let { shardReference = it }
+        }
 
-            System.getenv("TUIST_SHARD_REFERENCE")?.let { shardReference = it }
-
-            // Depend on whatever tasks produce the compiled test classes.
-            // This works for both standard JVM projects (testClasses) and Android
-            // projects (compileDebugUnitTestSources, etc.).
-            project.allprojects.forEach { subproject ->
-                subproject.tasks.withType(Test::class.java).forEach { testTask ->
-                    dependsOn(testTask.testClassesDirs.buildDependencies)
-                }
+        project.allprojects.forEach { subproject ->
+            subproject.tasks.withType(Test::class.java).configureEach {
+                testClassDirectories.from(testClassesDirs)
             }
         }
 
-        val shardIndexStr = System.getenv("TUIST_SHARD_INDEX") ?: return
+        val shardIndexStr = providers.environmentVariable("TUIST_SHARD_INDEX").orNull ?: return
         val shardIndex = shardIndexStr.toIntOrNull()
         if (shardIndex == null) {
             logger.warn("Tuist: TUIST_SHARD_INDEX is not a valid integer: $shardIndexStr")
             return
         }
 
+        val httpClients = TuistHttpClients(useEnvironmentProxy = config.network.proxy)
         val configProvider = DefaultConfigurationProvider(
             project = config.project,
             serverUrl = config.url,
-            projectDir = java.io.File(System.getProperty("user.dir"))
+            projectDir = project.rootProject.projectDir,
+            httpClients = httpClients
         )
         val cacheConfig = configProvider.getConfiguration()
         val shardingService = TuistTestShardingService(
             baseUrl = config.url,
             token = cacheConfig.token,
             accountHandle = cacheConfig.accountHandle,
-            projectHandle = cacheConfig.projectHandle
+            projectHandle = cacheConfig.projectHandle,
+            httpClients = httpClients
         )
 
-        val reference = System.getenv("TUIST_SHARD_REFERENCE") ?: shardingService.deriveReference()
+        val reference = providers.environmentVariable("TUIST_SHARD_REFERENCE").orNull ?: shardingService.deriveReference()
             ?: throw org.gradle.api.GradleException(
                 "Could not derive shard reference. Set TUIST_SHARD_REFERENCE or run in a supported CI environment."
             )

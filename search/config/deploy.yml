@@ -1,0 +1,40 @@
+service: tuist-search
+
+image: tuist/search
+
+servers:
+  web:
+    hosts:
+      - 91.99.179.13
+
+ssh:
+  user: <%= ENV.fetch("KAMAL_SSH_USER", "github-actions") %>
+
+registry:
+  server: ghcr.io
+  username: cschmatzler
+  password:
+    - KAMAL_REGISTRY_PASSWORD
+
+proxy:
+  ssl: true
+  host: search.tuist.dev
+  app_port: 8108
+  healthcheck:
+    path: /health
+    interval: 3
+    timeout: 5
+
+env:
+  clear:
+    TYPESENSE_DATA_DIR: /data
+    TYPESENSE_ENABLE_CORS: "true"
+  secret:
+    - TYPESENSE_API_KEY
+    - GITHUB_TOKEN
+
+volumes:
+  - /data/typesense:/data
+
+builder:
+  arch: arm64

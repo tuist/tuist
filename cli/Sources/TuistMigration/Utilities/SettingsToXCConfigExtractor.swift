@@ -94,13 +94,13 @@ public struct SettingsToXCConfigExtractor: SettingsToXCConfigExtracting {
         }
 
         if try await !fileSystem.exists(xcconfigPath.parentDirectory) {
-            try FileHandler.shared.createFolder(xcconfigPath.parentDirectory)
+            try await fileSystem.makeDirectory(at: xcconfigPath.parentDirectory)
         }
         let buildSettingsContent = [
             commonBuildSettingsLines.sorted().joined(separator: "\n"),
             buildSettingsLines.sorted().joined(separator: "\n"),
         ].joined(separator: "\n\n")
-        try FileHandler.shared.write(buildSettingsContent, path: xcconfigPath, atomically: true)
+        try await fileSystem.writeText(buildSettingsContent, at: xcconfigPath)
 
         AlertController.current
             .success(.alert("Build settings successfully extracted into \(xcconfigPath.pathString)"))

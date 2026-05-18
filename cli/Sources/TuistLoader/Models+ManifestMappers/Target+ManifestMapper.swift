@@ -73,7 +73,7 @@ extension XcodeGraph.Target {
             fileSystem: fileSystem
         )
 
-        let copyFiles = try await (manifest.copyFiles ?? []).concurrentMap(maxConcurrentTasks: 100) {
+        let copyFiles = try await (manifest.copyFiles ?? []).concurrentMap {
             try await XcodeGraph.CopyFilesAction.from(
                 manifest: $0,
                 generatorPaths: generatorPaths,
@@ -93,20 +93,20 @@ extension XcodeGraph.Target {
             headers = nil
         }
 
-        let coreDataModels = try await manifest.coreDataModels.concurrentMap(maxConcurrentTasks: 100) {
+        let coreDataModels = try await manifest.coreDataModels.concurrentMap {
             try await XcodeGraph.CoreDataModel.from(
                 manifest: $0,
                 generatorPaths: generatorPaths,
                 fileSystem: fileSystem
             )
-        } + resourcesCoreDatas.concurrentMap(maxConcurrentTasks: 100) {
+        } + resourcesCoreDatas.concurrentMap {
             try await XcodeGraph.CoreDataModel.from(
                 path: $0,
                 fileSystem: fileSystem
             )
         }
 
-        let scripts = try await manifest.scripts.concurrentMap(maxConcurrentTasks: 100) {
+        let scripts = try await manifest.scripts.concurrentMap {
             try await XcodeGraph.TargetScript.from(
                 manifest: $0,
                 generatorPaths: generatorPaths,
@@ -120,7 +120,7 @@ extension XcodeGraph.Target {
         let playgrounds = sourcesPlaygrounds + resourcesPlaygrounds
 
         let additionalFiles = try await manifest.additionalFiles
-            .concurrentMap(maxConcurrentTasks: 100) {
+            .concurrentMap {
                 try await XcodeGraph.FileElement.from(
                     manifest: $0,
                     generatorPaths: generatorPaths,
@@ -138,7 +138,7 @@ extension XcodeGraph.Target {
         }
 
         let metadata = XcodeGraph.TargetMetadata(tags: Set(manifest.metadata.tags))
-        let buildableFolders = try await manifest.buildableFolders.concurrentMap(maxConcurrentTasks: 100) {
+        let buildableFolders = try await manifest.buildableFolders.concurrentCompactMap {
             try await XcodeGraph.BuildableFolder.from(
                 manifest: $0,
                 generatorPaths: generatorPaths,
@@ -222,8 +222,8 @@ extension XcodeGraph.Target {
         playgrounds: [AbsolutePath],
         coreDataModels: [AbsolutePath]
     ) {
-        let resourceFilter = { (path: AbsolutePath) -> Bool in
-            XcodeGraph.Target.isResource(path: path)
+        let resourceFilter = { (path: AbsolutePath) async throws -> Bool in
+            try await XcodeGraph.Target.isResource(path: path, fileSystem: fileSystem)
         }
 
         let privacyManifest: XcodeGraph.PrivacyManifest? = manifest.resources?.privacyManifest.map {
@@ -240,7 +240,7 @@ extension XcodeGraph.Target {
         var coreDataModels: Set<AbsolutePath> = []
 
         let result = try await (manifest.resources?.resources ?? [])
-            .concurrentMap(maxConcurrentTasks: 100) { manifest async throws -> [XcodeGraph.ResourceFileElement] in
+            .concurrentMap { manifest async throws -> [XcodeGraph.ResourceFileElement] in
                 do {
                     return try await XcodeGraph.ResourceFileElement.from(
                         manifest: manifest,

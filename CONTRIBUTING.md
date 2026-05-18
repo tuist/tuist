@@ -4,8 +4,8 @@ By submitting a pull request, you represent that you have the right to license y
 
 ---
 
-For more information about how to contribute, please refer to the [Contributors -> Code](https://docs.tuist.dev/en/contributors/code) section of the documentation.
+For more information about how to contribute, please refer to the [Contributors -> Code](https://tuist.dev/en/docs/contributors/code) section of the documentation.
 
 ---
 
-Before submitting the pull request, please make sure you have [tested your changes](https://docs.old.tuist.io/contributors/testing-strategy/) and that they follow the [Tuist project Manifesto](https://docs.tuist.io/documentation/tuist/manifesto).
+Before submitting the pull request, please make sure you have tested your changes and that they follow the [Tuist project principles](https://tuist.dev/en/docs/contributors/principles).

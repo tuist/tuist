@@ -1,0 +1,88 @@
+#!/bin/bash
+# Installs a systemd timer (daily at 04:00 UTC) on the remote server that
+# runs all indexers via docker exec on the TypeSense container:
+# DocSearch scrapers (docs + forum), DocC API indexer, and GitHub issues/PRs.
+set -euo pipefail
+
+TYPESENSE_API_KEY=$(op read "op://cache/TYPESENSE_API_KEY/password")
+GITHUB_TOKEN=$(op read "op://cache/SEARCH_GITHUB_TOKEN/password" 2>/dev/null || echo "")
+
+SERVER_HOST="91.99.179.13"
+SSH_USER="${SEARCH_SSH_USER:-root}"
+
+# Store secrets on server (restricted permissions)
+ssh ${SSH_USER}@${SERVER_HOST} "mkdir -p /opt/docsearch && chmod 700 /opt/docsearch"
+echo "${TYPESENSE_API_KEY}" | ssh ${SSH_USER}@${SERVER_HOST} "cat > /opt/docsearch/.api_key && chmod 600 /opt/docsearch/.api_key"
+echo "${GITHUB_TOKEN}" | ssh ${SSH_USER}@${SERVER_HOST} "cat > /opt/docsearch/.github_token && chmod 600 /opt/docsearch/.github_token"
+
+# Create runner script that docker-execs into the TypeSense container
+ssh ${SSH_USER}@${SERVER_HOST} "cat > /opt/docsearch/run.sh" << 'REMOTE_SCRIPT'
+#!/bin/bash
+set -euo pipefail
+CONTAINER=$(docker ps --filter label=service=tuist-search --filter label=role=web --format '{{.Names}}' | head -1)
+TYPESENSE_API_KEY=$(cat /opt/docsearch/.api_key)
+GITHUB_TOKEN=$(cat /opt/docsearch/.github_token 2>/dev/null || echo "")
+
+# DocSearch scrapers (docs, forum) — runs as a separate container since it needs network/DNS access
+for config_file in docsearch.json docsearch-forum.json; do
+  echo "==> Scraping with ${config_file}..."
+  CONFIG=$(docker exec "$CONTAINER" cat /opt/docsearch/${config_file})
+  docker run --rm --network kamal --dns 8.8.8.8 \
+    -e TYPESENSE_API_KEY="$TYPESENSE_API_KEY" \
+    -e TYPESENSE_HOST="$CONTAINER" \
+    -e TYPESENSE_PORT=8108 \
+    -e TYPESENSE_PROTOCOL=http \
+    -e CONFIG="$CONFIG" \
+    typesense/docsearch-scraper
+  echo "==> Done with ${config_file}"
+done
+
+# DocC indexer (ProjectDescription API reference)
+echo "==> Indexing DocC (ProjectDescription)..."
+docker exec \
+  -e TYPESENSE_API_KEY="$TYPESENSE_API_KEY" \
+  -e TYPESENSE_HOST="http://localhost:8108" \
+  "$CONTAINER" /opt/docsearch/index-docc
+echo "==> Done with DocC indexer"
+
+# GitHub indexer (issues and PRs)
+echo "==> Indexing GitHub issues and PRs..."
+docker exec \
+  -e TYPESENSE_API_KEY="$TYPESENSE_API_KEY" \
+  -e TYPESENSE_HOST="http://localhost:8108" \
+  -e GITHUB_TOKEN="$GITHUB_TOKEN" \
+  "$CONTAINER" /opt/docsearch/index-github
+echo "==> Done with GitHub indexer"
+REMOTE_SCRIPT
+ssh ${SSH_USER}@${SERVER_HOST} "chmod 700 /opt/docsearch/run.sh"
+
+# Install systemd service and timer
+ssh ${SSH_USER}@${SERVER_HOST} "cat > /etc/systemd/system/docsearch-scraper.service" << 'SERVICE'
+[Unit]
+Description=DocSearch scraper and search indexer
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/docsearch/run.sh
+SERVICE
+
+ssh ${SSH_USER}@${SERVER_HOST} "cat > /etc/systemd/system/docsearch-scraper.timer" << 'TIMER'
+[Unit]
+Description=Run DocSearch scraper daily at 04:00 UTC
+
+[Timer]
+OnCalendar=*-*-* 04:00:00 UTC
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+TIMER
+
+ssh ${SSH_USER}@${SERVER_HOST} "systemctl daemon-reload && systemctl enable --now docsearch-scraper.timer"
+
+# Remove old cron job if present
+ssh ${SSH_USER}@${SERVER_HOST} "rm -f /etc/cron.d/docsearch-scraper"
+
+echo "Systemd timer installed — scraper will run daily at 04:00 UTC"
+echo "View logs: ssh ${SSH_USER}@${SERVER_HOST} journalctl -u docsearch-scraper"

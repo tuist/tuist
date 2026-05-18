@@ -159,6 +159,9 @@ defmodule Tuist.Authorization do
     action :update do
       desc("Allows the admin of an account to update its settings.")
       allow([:authenticated_as_user, user_role: :admin])
+
+      desc("Allows users with ops write access to update any account's settings.")
+      allow([:authenticated_as_user, :ops_write_access])
     end
 
     action :delete do
@@ -169,9 +172,6 @@ defmodule Tuist.Authorization do
 
   object :account_token do
     action :create do
-      desc("Allows users of an account to create an account token.")
-      allow([:authenticated_as_user, user_role: :user])
-
       desc("Allows the admin of an account to create an account token.")
       allow([:authenticated_as_user, user_role: :admin])
     end
@@ -270,6 +270,9 @@ defmodule Tuist.Authorization do
 
       desc("Allows users with ops access to read any projects.")
       allow([:authenticated_as_user, :ops_access])
+
+      desc("Allows an account token with project:admin:read scope to read projects.")
+      allow([:authenticated_as_account, scopes_permit: "project:admin:read"])
     end
 
     action :update do
@@ -335,6 +338,9 @@ defmodule Tuist.Authorization do
 
       desc("Allows users with ops access to read any projects.")
       allow([:authenticated_as_user, :ops_access])
+
+      desc("Allows an account token with project:admin:read scope to read projects.")
+      allow([:authenticated_as_account, scopes_permit: "project:admin:read"])
     end
   end
 
@@ -417,6 +423,34 @@ defmodule Tuist.Authorization do
     end
   end
 
+  object :automation_alert do
+    action :create do
+      desc("Allows the admin of a project to create an automation alert.")
+      allow([:authenticated_as_user, user_role: :admin])
+    end
+
+    action :read do
+      desc("Allows users of a project to read automation alerts.")
+      allow([:authenticated_as_user, user_role: :user])
+
+      desc("Allows the admin of a project to read automation alerts.")
+      allow([:authenticated_as_user, user_role: :admin])
+
+      desc("Allows users with ops access to read any automation alerts.")
+      allow([:authenticated_as_user, :ops_access])
+    end
+
+    action :update do
+      desc("Allows the admin of a project to update an automation alert.")
+      allow([:authenticated_as_user, user_role: :admin])
+    end
+
+    action :delete do
+      desc("Allows the admin of a project to delete an automation alert.")
+      allow([:authenticated_as_user, user_role: :admin])
+    end
+  end
+
   object :test do
     action :create do
       desc("Allows users of a project to create a test.")
@@ -453,6 +487,17 @@ defmodule Tuist.Authorization do
 
       desc("Allows an account token with project:tests:read or project:tests:write scope to read tests.")
       allow([:authenticated_as_account, scopes_permit: "project:tests:read"])
+      allow([:authenticated_as_account, scopes_permit: "project:tests:write"])
+    end
+
+    action :update do
+      desc("Allows users of a project to update a tests data.")
+      allow([:authenticated_as_user, user_role: :user])
+
+      desc("Allows the admin of a project to update tests data.")
+      allow([:authenticated_as_user, user_role: :admin])
+
+      desc("Allows an account token with project:tests:write scope to update tests data.")
       allow([:authenticated_as_account, scopes_permit: "project:tests:write"])
     end
   end

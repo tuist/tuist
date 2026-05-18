@@ -8,8 +8,11 @@ defmodule CacheWeb.XcodeController do
   alias Cache.S3Transfers
   alias Cache.Xcode
   alias CacheWeb.API.Schemas.Error
+  alias CacheWeb.API.Schemas.SafePathComponent
 
   require Logger
+
+  @max_upload_bytes 25 * 1024 * 1024
 
   plug OpenApiSpex.Plug.CastAndValidate,
     json_render_error_v2: true
@@ -22,19 +25,19 @@ defmodule CacheWeb.XcodeController do
     parameters: [
       id: [
         in: :path,
-        type: :string,
+        schema: SafePathComponent.schema(),
         required: true,
         description: "The artifact identifier"
       ],
       account_handle: [
         in: :query,
-        type: :string,
+        schema: SafePathComponent.schema(),
         required: true,
         description: "The handle of the account"
       ],
       project_handle: [
         in: :query,
-        type: :string,
+        schema: SafePathComponent.schema(),
         required: true,
         description: "The handle of the project"
       ]
@@ -42,9 +45,9 @@ defmodule CacheWeb.XcodeController do
     responses: %{
       ok: {"Artifact content", "application/octet-stream", nil},
       not_found: {"Artifact not found", "application/json", Error},
+      unprocessable_entity: {"Invalid request parameters", "application/json", Error},
       unauthorized: {"Unauthorized", "application/json", Error},
-      forbidden: {"Forbidden", "application/json", Error},
-      bad_request: {"Bad request", "application/json", Error}
+      forbidden: {"Forbidden", "application/json", Error}
     }
   )
 
@@ -99,19 +102,19 @@ defmodule CacheWeb.XcodeController do
     parameters: [
       id: [
         in: :path,
-        type: :string,
+        schema: SafePathComponent.schema(),
         required: true,
         description: "The artifact identifier"
       ],
       account_handle: [
         in: :query,
-        type: :string,
+        schema: SafePathComponent.schema(),
         required: true,
         description: "The handle of the account"
       ],
       project_handle: [
         in: :query,
-        type: :string,
+        schema: SafePathComponent.schema(),
         required: true,
         description: "The handle of the project"
       ]
@@ -122,9 +125,9 @@ defmodule CacheWeb.XcodeController do
       request_entity_too_large: {"Request body exceeded allowed size", "application/json", Error},
       request_timeout: {"Request body read timed out", "application/json", Error},
       internal_server_error: {"Failed to persist artifact", "application/json", Error},
+      unprocessable_entity: {"Invalid request parameters", "application/json", Error},
       unauthorized: {"Unauthorized", "application/json", Error},
-      forbidden: {"Forbidden", "application/json", Error},
-      bad_request: {"Bad request", "application/json", Error}
+      forbidden: {"Forbidden", "application/json", Error}
     }
   )
 
@@ -139,14 +142,14 @@ defmodule CacheWeb.XcodeController do
   defp handle_existing_artifact(conn) do
     :telemetry.execute([:cache, :xcode, :upload, :exists], %{count: 1}, %{})
 
-    {_, conn_after} = BodyReader.drain(conn)
+    {_, conn_after} = BodyReader.drain(conn, max_bytes: @max_upload_bytes)
     send_resp(conn_after, :no_content, "")
   end
 
   defp save_new_artifact(conn, account_handle, project_handle, id) do
     case Xcode.Disk.ensure_artifact_directory(account_handle, project_handle, id) do
       {:ok, target_dir} ->
-        case BodyReader.read(conn, tmp_dir: target_dir) do
+        case BodyReader.read(conn, max_bytes: @max_upload_bytes, tmp_dir: target_dir) do
           {:ok, data, conn_after} ->
             size = get_data_size(data)
             :telemetry.execute([:cache, :xcode, :upload, :attempt], %{size: size}, %{})
@@ -187,7 +190,7 @@ defmodule CacheWeb.XcodeController do
 
         key = Xcode.Disk.key(account_handle, project_handle, id)
         :ok = CacheArtifacts.track_artifact_access(key)
-        S3Transfers.enqueue_xcode_upload(account_handle, project_handle, key)
+        S3Transfers.enqueue_upload_if_missing(account_handle, project_handle, :xcode_cache, key)
         send_resp(conn, :no_content, "")
 
       {:error, :exists} ->

@@ -5,6 +5,7 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuildCacheTasks do
 
   use Tuist.MCP.Tool,
     name: "list_xcode_build_cache_tasks",
+    title: "List Xcode Build Cache Tasks",
     schema: %{
       "type" => "object",
       "properties" => %{
@@ -14,10 +15,12 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuildCacheTasks do
         },
         "status" => %{
           "type" => "string",
+          "enum" => ["hit_local", "hit_remote", "miss"],
           "description" => "Filter by cache status: hit_local, hit_remote, or miss."
         },
         "type" => %{
           "type" => "string",
+          "enum" => ["clang", "swift"],
           "description" => "Filter by task type: clang or swift."
         },
         "page" => %{
@@ -45,57 +48,48 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuildCacheTasks do
 
     with {:ok, _build, _project} <-
            MCPTool.load_and_authorize(
-             get_build(build_run_id),
+             Builds.get_build(build_run_id),
              conn.assigns,
              :read,
              :build,
              "Build not found: #{build_run_id}"
            ) do
-      filters = [%{field: :build_run_id, op: :==, value: build_run_id}]
-
-      filters =
-        Enum.reduce([:status, :type], filters, fn field, acc ->
-          case Map.get(args, to_string(field)) do
-            nil -> acc
-            value -> acc ++ [%{field: field, op: :==, value: value}]
-          end
-        end)
-
-      page = MCPTool.page(args)
-      page_size = MCPTool.page_size(args)
-
-      {tasks, meta} =
-        Builds.list_cacheable_tasks(%{
-          filters: filters,
-          order_by: [:inserted_at],
-          order_directions: [:desc],
-          page: page,
-          page_size: page_size
-        })
-
-      {:ok,
-       %{
-         tasks:
-           Enum.map(tasks, fn task ->
-             %{
-               type: to_string(task.type),
-               status: to_string(task.status),
-               key: task.key,
-               read_duration: task.read_duration,
-               write_duration: task.write_duration,
-               description: task.description,
-               cas_output_node_ids: task.cas_output_node_ids
-             }
-           end),
-         pagination_metadata: MCPTool.pagination_metadata(meta)
-       }}
+      with {:ok, {tasks, meta}} <-
+             Builds.list_cacheable_tasks(%{
+               filters: build_filters(build_run_id, args),
+               order_by: [:inserted_at],
+               order_directions: [:desc],
+               page: MCPTool.page(args),
+               page_size: MCPTool.page_size(args)
+             }) do
+        {:ok,
+         %{
+           tasks:
+             Enum.map(tasks, fn task ->
+               %{
+                 type: to_string(task.type),
+                 status: to_string(task.status),
+                 key: task.key,
+                 read_duration: task.read_duration,
+                 write_duration: task.write_duration,
+                 description: task.description,
+                 cas_output_node_ids: task.cas_output_node_ids
+               }
+             end),
+           pagination_metadata: MCPTool.pagination_metadata(meta)
+         }}
+      end
     end
   end
 
-  defp get_build(id) do
-    case Builds.get_build(id) do
-      nil -> {:error, :not_found}
-      build -> {:ok, build}
-    end
+  defp build_filters(build_run_id, args) do
+    base = [%{field: :build_run_id, op: :==, value: build_run_id}]
+
+    Enum.reduce([:status, :type], base, fn field, acc ->
+      case Map.get(args, to_string(field)) do
+        nil -> acc
+        value -> acc ++ [%{field: field, op: :==, value: value}]
+      end
+    end)
   end
 end

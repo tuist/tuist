@@ -1,7 +1,6 @@
 import Foundation
 import Path
 import ProjectDescription
-import TSCUtility
 import TuistConfig
 import TuistCore
 import TuistLogging
@@ -39,7 +38,8 @@ extension TuistConfig.Tuist {
     ) async throws -> TuistConfig.Tuist {
         let fullHandle = manifest.fullHandle
         let inspectOptions = InspectOptions.from(manifest: manifest.inspectOptions)
-        let cache = TuistConfig.Tuist.Cache(upload: manifest.cache.upload)
+        let network = TuistConfig.Tuist.Network(proxy: manifest.network.proxy)
+        let xcodeCache = TuistConfig.Tuist.XcodeCache(upload: manifest.xcodeCache.upload)
         let urlString = manifest.url
 
         guard let url = URL(string: urlString.dropSuffix("/")) else {
@@ -49,7 +49,6 @@ extension TuistConfig.Tuist {
         switch manifest.project {
         case let .tuist(
             compatibleXcodeVersions,
-            manifestSwiftVersion,
             plugins,
             generationOptions,
             installOptions,
@@ -65,12 +64,6 @@ extension TuistConfig.Tuist {
 
             let compatibleXcodeVersions = TuistConfig.CompatibleXcodeVersions.from(manifest: compatibleXcodeVersions)
             let plugins = try plugins.map { try PluginLocation.from(manifest: $0, generatorPaths: generatorPaths) }
-            let swiftVersion: TSCUtility.Version?
-            if let configuredVersion = manifestSwiftVersion {
-                swiftVersion = TSCUtility.Version(configuredVersion.major, configuredVersion.minor, configuredVersion.patch)
-            } else {
-                swiftVersion = nil
-            }
 
             let installOptions = TuistConfig.TuistGeneratedProjectOptions.InstallOptions.from(
                 manifest: installOptions
@@ -80,7 +73,6 @@ extension TuistConfig.Tuist {
                 project: .generated(
                     TuistGeneratedProjectOptions(
                         compatibleXcodeVersions: compatibleXcodeVersions,
-                        swiftVersion: swiftVersion,
                         plugins: plugins,
                         generationOptions: generationOptions,
                         installOptions: installOptions,
@@ -89,16 +81,18 @@ extension TuistConfig.Tuist {
                 ),
                 fullHandle: fullHandle,
                 inspectOptions: inspectOptions,
-                cache: cache,
-                url: url
+                xcodeCache: xcodeCache,
+                url: url,
+                network: network
             )
         case .xcode:
             return TuistConfig.Tuist(
                 project: .xcode(TuistXcodeProjectOptions()),
                 fullHandle: fullHandle,
                 inspectOptions: inspectOptions,
-                cache: cache,
-                url: url
+                xcodeCache: xcodeCache,
+                url: url,
+                network: network
             )
         }
     }

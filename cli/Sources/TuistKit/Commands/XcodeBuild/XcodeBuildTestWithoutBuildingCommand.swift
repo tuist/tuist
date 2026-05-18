@@ -1,11 +1,11 @@
 import ArgumentParser
 import Foundation
+import Path
+import TuistEnvironment
 import TuistEnvKey
 import TuistSupport
 
-public struct XcodeBuildTestWithoutBuildingCommand: AsyncParsableCommand, TrackableParsableCommand,
-    RecentPathRememberableCommand
-{
+public struct XcodeBuildTestWithoutBuildingCommand: AsyncParsableCommand, TrackableParsableCommand {
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "test-without-building",
@@ -33,12 +33,43 @@ public struct XcodeBuildTestWithoutBuildingCommand: AsyncParsableCommand, Tracka
     @Option(name: .long, help: "The zero-based shard index to execute.")
     var shardIndex: Int?
 
+    @Option(
+        name: .long,
+        help: "Explicit shard reference. Derived from environment variables for supported CI providers.",
+        envKey: .testShardReference
+    )
+    var shardReference: String?
+
+    @Option(
+        name: .long,
+        help: "Path to a locally managed shard archive. Tuist extracts this archive instead of downloading test products from remote storage.",
+        completion: .file(),
+        envKey: .testShardArchivePath
+    )
+    var shardArchivePath: String?
+
+    @Option(
+        name: .long,
+        help: "Inspect mode: 'local' parses the xcresult on this machine, 'remote' uploads it for server-side processing, 'off' skips test analysis entirely (no xcresult parsing, archiving, or upload — the Tests dashboard is not populated). When omitted, defaults to 'remote' for tuist-hosted instances and 'local' for self-hosted ones.",
+        envKey: .inspectTestMode
+    )
+    var inspectMode: TestProcessingMode?
+
     public func run() async throws {
+        let shardArchivePath = try await { () async throws -> AbsolutePath? in
+            if let shardArchivePath = self.shardArchivePath {
+                return try await Environment.current.pathRelativeToWorkingDirectory(shardArchivePath)
+            }
+            return nil
+        }()
         try await XcodeBuildTestCommandService()
             .run(
                 passthroughXcodebuildArguments: ["test-without-building"] + passthroughXcodebuildArguments,
                 skipQuarantine: skipQuarantine,
-                shardIndex: shardIndex ?? EnvKey.testShardIndex.envValue()
+                shardIndex: shardIndex ?? EnvKey.testShardIndex.envValue(),
+                shardReference: shardReference,
+                shardArchivePath: shardArchivePath,
+                mode: inspectMode
             )
     }
 }

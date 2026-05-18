@@ -35,6 +35,11 @@ class TuistHttpClientTest {
                     projectHandle = "test-project"
                 )
             },
+            httpClients = TuistHttpClients(
+                environmentVariables = mapOf(
+                    "TUIST_FEATURE_FLAG_A" to "1"
+                )
+            ),
             connectTimeoutMs = 10_000,
             readTimeoutMs = 10_000
         )
@@ -55,6 +60,23 @@ class TuistHttpClientTest {
 
         val request = mockWebServer.takeRequest()
         assertEquals("Bearer my-secret-token", request.getHeader("Authorization"))
+    }
+
+    @Test
+    fun `openConnection sets enabled feature flags header`() {
+        mockWebServer.enqueue(MockResponse().setResponseCode(200))
+
+        val httpClient = createHttpClient()
+        val url = URI(mockWebServer.url("/test").toString())
+
+        httpClient.execute { config ->
+            val connection = httpClient.openConnection(url, config)
+            connection.requestMethod = "GET"
+            connection.responseCode
+        }
+
+        val request = mockWebServer.takeRequest()
+        assertEquals("A", request.getHeader(FeatureFlagsHeaders.HEADER_NAME))
     }
 
     @Test

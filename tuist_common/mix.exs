@@ -7,6 +7,7 @@ defmodule TuistCommon.MixProject do
       version: "0.1.0",
       elixir: "~> 1.16",
       elixirc_paths: elixirc_paths(Mix.env()),
+      elixirc_options: [check_cwd: false],
       start_permanent: Mix.env() == :prod,
       deps: deps()
     ]
@@ -26,6 +27,7 @@ defmodule TuistCommon.MixProject do
     [
       {:sentry, "~> 11.0.4"},
       {:bandit, "~> 1.0"},
+      {:castore, "~> 1.0.12"},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:db_connection, "~> 2.0"},
       {:ecto, "~> 3.13"},

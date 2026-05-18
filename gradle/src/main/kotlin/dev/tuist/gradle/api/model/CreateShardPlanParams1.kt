@@ -22,6 +22,8 @@ import com.google.gson.annotations.SerializedName
  * 
  *
  * @param reference A unique shard plan reference, typically derived from CI environment.
+ * @param buildRunId The UUID of the associated Xcode build run.
+ * @param gradleBuildId The UUID of the associated Gradle build.
  * @param granularity Sharding granularity level.
  * @param modules Test module names (for module-level granularity).
  * @param shardMax Maximum number of shards.
@@ -37,6 +39,14 @@ data class CreateShardPlanParams1 (
     /* A unique shard plan reference, typically derived from CI environment. */
     @SerializedName("reference")
     val reference: kotlin.String,
+
+    /* The UUID of the associated Xcode build run. */
+    @SerializedName("build_run_id")
+    val buildRunId: kotlin.String? = null,
+
+    /* The UUID of the associated Gradle build. */
+    @SerializedName("gradle_build_id")
+    val gradleBuildId: kotlin.String? = null,
 
     /* Sharding granularity level. */
     @SerializedName("granularity")

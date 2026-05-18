@@ -77,6 +77,7 @@ defmodule TuistWeb.API.TestCaseRunAttachmentsController do
               Tests.attachment_storage_key(%{
                 account_handle: project.account.name,
                 project_handle: project.name,
+                test_run_id: attachment.test_run_id,
                 test_case_run_id: test_case_run_id,
                 attachment_id: attachment.id,
                 file_name: attachment.file_name
@@ -154,6 +155,11 @@ defmodule TuistWeb.API.TestCaseRunAttachmentsController do
              type: :integer,
              nullable: true,
              description: "The repetition number (attempt) this attachment belongs to."
+           },
+           test_case_run_argument_id: %Schema{
+             type: :string,
+             nullable: true,
+             description: "The UUID of the argument this attachment belongs to (for parameterized tests)."
            }
          },
          required: [:test_case_run_id, :file_name]
@@ -180,18 +186,27 @@ defmodule TuistWeb.API.TestCaseRunAttachmentsController do
   def create(%{assigns: %{selected_project: project}, body_params: body_params} = conn, _params) do
     attachment_id = UUIDv7.generate()
 
+    test_run_id = Map.get(body_params, :test_run_id)
+
     attrs =
       then(
         %{
           id: attachment_id,
           test_case_run_id: body_params.test_case_run_id,
+          test_run_id: test_run_id,
           file_name: body_params.file_name,
           inserted_at: NaiveDateTime.utc_now()
         },
         fn attrs ->
-          case Map.get(body_params, :repetition_number) do
+          attrs =
+            case Map.get(body_params, :repetition_number) do
+              nil -> attrs
+              repetition_number -> Map.put(attrs, :repetition_number, repetition_number)
+            end
+
+          case Map.get(body_params, :test_case_run_argument_id) do
             nil -> attrs
-            repetition_number -> Map.put(attrs, :repetition_number, repetition_number)
+            argument_id -> Map.put(attrs, :test_case_run_argument_id, argument_id)
           end
         end
       )
@@ -204,6 +219,7 @@ defmodule TuistWeb.API.TestCaseRunAttachmentsController do
       Tests.attachment_storage_key(%{
         account_handle: project.account.name,
         project_handle: project.name,
+        test_run_id: test_run_id,
         test_case_run_id: body_params.test_case_run_id,
         attachment_id: attachment_id,
         file_name: body_params.file_name

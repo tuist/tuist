@@ -1,0 +1,28 @@
+# Overlay for the canary workload cluster.
+# Install with:
+#   helm dependency update infra/helm/k8s-monitoring
+#   helm upgrade --install k8s-monitoring infra/helm/k8s-monitoring \
+#     -n observability --create-namespace \
+#     -f infra/helm/k8s-monitoring/values-canary.yaml
+
+k8s-monitoring:
+  cluster:
+    name: tuist-canary
+
+  destinations:
+    grafana-cloud-metrics:
+      extraLabels:
+        env: canary
+    grafana-cloud-logs:
+      extraLabels:
+        env: canary
+    # OTLP destinations don't take extraLabels; traces are identified by
+    # `cluster = tuist-canary` (auto-set from k8s-monitoring.cluster.name)
+    # plus the `deployment.environment` resource attribute below.
+    grafana-cloud-traces:
+      processors:
+        attributes:
+          actions:
+            - action: insert
+              key: deployment.environment
+              value: canary

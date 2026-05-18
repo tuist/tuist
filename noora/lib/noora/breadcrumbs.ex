@@ -82,6 +82,7 @@ defmodule Noora.Breadcrumbs do
 
   slot(:icon, doc: "Breadcrumb icon")
   slot(:inner_block, doc: "Content to be rendered inside the breadcrumb menu")
+  slot(:footer, doc: "Content rendered as a sticky footer below the scrollable items area")
   attr(:rest, :global)
 
   def breadcrumb(assigns) do
@@ -123,7 +124,12 @@ defmodule Noora.Breadcrumbs do
       </button>
       <div :if={has_slot_content?(@inner_block, assigns)} data-part="positioner">
         <div class="noora-dropdown-content" data-part="content">
-          {render_slot(@inner_block)}
+          <div data-part="items">
+            {render_slot(@inner_block)}
+          </div>
+          <div :if={has_slot_content?(@footer, assigns)} data-part="footer">
+            {render_slot(@footer)}
+          </div>
         </div>
       </div>
     </div>

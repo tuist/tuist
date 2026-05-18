@@ -1,3 +1,4 @@
+import FileSystem
 import Mockable
 import Path
 import ProjectDescription
@@ -20,7 +21,7 @@ final class TemplateGitLoaderTests: TuistUnitTestCase {
         gitController = MockGitControlling()
         subject = TemplateGitLoader(
             templateLoader: templateLoader,
-            fileHandler: FileHandler.shared,
+            fileSystem: FileSystem(),
             gitController: gitController,
             templateLocationParser: TemplateLocationParser()
         )

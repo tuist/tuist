@@ -234,7 +234,7 @@ defmodule Cache.KeyValueEvictionWorkerTest do
     entry =
       KeyValueRepo.insert!(%KeyValueEntry{
         key: "keyvalue:acme:ios:ROOT1",
-        json_payload: Jason.encode!(%{"entries" => many_entries}),
+        json_payload: JSON.encode!(%{"entries" => many_entries}),
         last_accessed_at: old_time
       })
 

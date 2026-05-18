@@ -42,16 +42,19 @@ extension Project {
     }
 
     public func derivedDirectoryPath(for target: Target) -> AbsolutePath {
+        let resolvedSwiftPackageManagerScratchDirectory = SwiftPackageManagerPaths.scratchDirectory(
+            containingCheckout: path,
+            knownScratchDirectory: swiftPackageManagerScratchDirectory
+        )
         if case .external = type,
-           path.pathString
-           .contains("\(Constants.SwiftPackageManager.packageBuildDirectoryName)/checkouts")
+           let resolvedSwiftPackageManagerScratchDirectory,
+           SwiftPackageManagerPaths.isPath(path, inCheckoutsOf: resolvedSwiftPackageManagerScratchDirectory)
         {
-            return path
-                // Leads to SPM's .build directory
-                .parentDirectory.parentDirectory
+            return resolvedSwiftPackageManagerScratchDirectory
                 .appending(
                     components: [
                         Constants.DerivedDirectory.dependenciesDerivedDirectory,
+                        Constants.DerivedDirectory.dependenciesTargetDirectory,
                         target.name,
                     ]
                 )

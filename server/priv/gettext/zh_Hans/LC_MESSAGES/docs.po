@@ -1,0 +1,419 @@
+msgid ""
+msgstr ""
+"Language: zh_Hans\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: lib/tuist_web/live/docs_live.ex:333
+#: lib/tuist_web/live/docs_live.ex:641
+#, elixir-autogen, elixir-format
+msgid "Artifacts"
+msgstr "构件"
+
+#: lib/tuist_web/live/docs_live.ex:304
+#: lib/tuist_web/live/docs_live.ex:631
+#, elixir-autogen, elixir-format
+msgid "Automatically detect flaky tests that fail without code changes and save time spent investigating false failures."
+msgstr "自动检测在未修改代码情况下失败的不稳定测试，节省调查假失败所花费的时间。"
+
+#: lib/tuist_web/docs/layouts/root.html.heex:170
+#, elixir-autogen, elixir-format
+msgid "Bluesky"
+msgstr "Bluesky"
+
+#: lib/tuist_web/live/docs_live.ex:222
+#: lib/tuist_web/live/docs_live.ex:600
+#, elixir-autogen, elixir-format
+msgid "Builds"
+msgstr "构建"
+
+#: lib/tuist_web/live/docs_live.ex:236
+#: lib/tuist_web/live/docs_live.ex:607
+#, elixir-autogen, elixir-format
+msgid "Cache"
+msgstr "缓存"
+
+#: lib/tuist_web/live/docs_live.ex:421
+#: lib/tuist_web/live/docs_live.ex:666
+#, elixir-autogen, elixir-format
+msgid "Chat with the Tuist community in real-time."
+msgstr "与 Tuist 社区实时聊天。"
+
+#: lib/tuist_web/live/docs_live.ex:391
+#: lib/tuist_web/live/docs_live.ex:659
+#, elixir-autogen, elixir-format
+msgid "Connect with thousands of developers who are shipping better apps with Tuist. Get help, share wins, and shape the future of app development tooling."
+msgstr "与数千名使用 Tuist 构建更好应用的开发者连接。获得帮助，分享成功经验，共同塑造应用开发工具的未来。"
+
+#: lib/tuist_web/live/docs_live.ex:409
+#: lib/tuist_web/live/docs_live.ex:665
+#, elixir-autogen, elixir-format
+msgid "Contribute or report issues to our open source repository."
+msgstr "为我们的开源仓库贡献代码或报告问题。"
+
+#: lib/tuist_web/live/docs_live.ex:150
+#, elixir-autogen, elixir-format
+msgid "Copy command"
+msgstr "复制命令"
+
+#: lib/tuist_web/docs/components/page_layout.html.heex:71
+#: lib/tuist_web/docs/components/page_layout.html.heex:74
+#: lib/tuist_web/docs/components/page_layout.html.heex:81
+#: lib/tuist_web/docs/components/toc.html.heex:6
+#: lib/tuist_web/docs/components/toc.html.heex:9
+#: lib/tuist_web/docs/components/toc.html.heex:15
+#, elixir-autogen, elixir-format
+msgid "Copy page"
+msgstr "复制页面"
+
+#: lib/tuist_web/docs/components/page_layout.html.heex:82
+#: lib/tuist_web/docs/components/toc.html.heex:16
+#, elixir-autogen, elixir-format
+msgid "Copy page as markdown for LLMs"
+msgstr "将页面复制为适用于大型语言模型的 Markdown 格式"
+
+#: lib/tuist_web/docs/components/page_layout.html.heex:35
+#, elixir-autogen, elixir-format
+msgid "Documentation navigation"
+msgstr "文档导航"
+
+#: lib/tuist_web/live/docs_live.ex:171
+#: lib/tuist_web/live/docs_live.ex:591
+#, elixir-autogen, elixir-format
+msgid "Explore dashboard"
+msgstr "探索仪表板"
+
+#: lib/tuist_web/live/docs_live.ex:300
+#: lib/tuist_web/live/docs_live.ex:630
+#, elixir-autogen, elixir-format
+msgid "Flaky Tests"
+msgstr "不稳定测试"
+
+#: lib/tuist_web/live/docs_live.ex:486
+#: lib/tuist_web/live/docs_live.ex:676
+#, elixir-autogen, elixir-format
+msgid "Follow Tuist on LinkedIn for news and updates."
+msgstr "在 LinkedIn 上关注 Tuist，获取新闻和更新。"
+
+#: lib/tuist_web/live/docs_live.ex:462
+#: lib/tuist_web/live/docs_live.ex:672
+#, elixir-autogen, elixir-format
+msgid "Follow us on Bluesky to stay up to date with our work."
+msgstr "在 Bluesky 上关注我们，随时了解我们的工作动态。"
+
+#: lib/tuist_web/live/docs_live.ex:474
+#: lib/tuist_web/live/docs_live.ex:674
+#, elixir-autogen, elixir-format
+msgid "Follow us on Mastodon to stay up to date with our work."
+msgstr "在 Mastodon 上关注我们，随时了解我们的工作动态。"
+
+#: lib/tuist_web/live/docs_live.ex:335
+#: lib/tuist_web/live/docs_live.ex:643
+#, elixir-autogen, elixir-format
+msgid "From code to feedback in minutes. Instant previews and AI-powered testing close the loop between building and validating."
+msgstr "从代码到反馈只需几分钟。即时预览和 AI 驱动的测试连接构建与验证的闭环。"
+
+#: lib/tuist_web/docs/layouts/root.html.heex:146
+#, elixir-autogen, elixir-format
+msgid "GitHub"
+msgstr "GitHub"
+
+#: lib/tuist_web/docs/layouts/root.html.heex:95
+#, elixir-autogen, elixir-format
+msgid "Guides"
+msgstr "指南"
+
+#: lib/tuist_web/live/docs_live.ex:253
+#: lib/tuist_web/live/docs_live.ex:317
+#: lib/tuist_web/live/docs_live.ex:612
+#: lib/tuist_web/live/docs_live.ex:635
+#, elixir-autogen, elixir-format
+msgid "Insights"
+msgstr "洞察"
+
+#: lib/tuist_web/live/docs_live.ex:126
+#: lib/tuist_web/live/docs_live.ex:129
+#: lib/tuist_web/live/docs_live.ex:583
+#, elixir-autogen, elixir-format
+msgid "Install Tuist CLI"
+msgstr "安装 Tuist CLI"
+
+#: lib/tuist_web/live/docs_live.ex:362
+#: lib/tuist_web/live/docs_live.ex:563
+#, elixir-autogen, elixir-format
+msgid "Learn from real implementations and get inspired by what's possible when your toolchain just works."
+msgstr "从真实实现中学习，感受当你的工具链顺畅运行时可能实现的精彩。"
+
+#: lib/tuist_web/live/docs_live.ex:450
+#: lib/tuist_web/live/docs_live.ex:670
+#, elixir-autogen, elixir-format
+msgid "Learn from videos from the Tuist team and the community."
+msgstr "观看 Tuist 团队及社区的视频，学习更多。"
+
+#: lib/tuist_web/live/docs_live.ex:213
+#: lib/tuist_web/live/docs_live.ex:595
+#, elixir-autogen, elixir-format
+msgid "Learn how to generate projects, automate your workflows, and scale your app development efficiently with Tuist."
+msgstr "学习如何使用 Tuist 生成项目、自动化工作流并高效扩展应用开发。"
+
+#: lib/tuist_web/live/docs_live.ex:211
+#: lib/tuist_web/live/docs_live.ex:593
+#, elixir-autogen, elixir-format
+msgid "Learn more about what Tuist offers"
+msgstr "了解更多 Tuist 的功能和优势"
+
+#: lib/tuist_web/docs/layouts/root.html.heex:86
+#, elixir-autogen, elixir-format
+msgid "Main navigation"
+msgstr "主导航"
+
+#: lib/tuist_web/docs/layouts/root.html.heex:154
+#, elixir-autogen, elixir-format
+msgid "Mastodon"
+msgstr "Mastodon"
+
+#: lib/tuist_web/docs/layouts/root.html.heex:251
+#, elixir-autogen, elixir-format
+msgid "Menu"
+msgstr "菜单"
+
+#: lib/tuist_web/live/docs_live.ex:257
+#: lib/tuist_web/live/docs_live.ex:613
+#, elixir-autogen, elixir-format
+msgid "Monitor build performance across your CI infrastructure to catch slowdowns before they impact development."
+msgstr "监控整个 CI 基础设施的构建性能，在影响开发之前捕捉性能下降。"
+
+#: lib/tuist_web/docs/components/toc.html.heex:39
+#: lib/tuist_web/docs/layouts/root.html.heex:261
+#, elixir-autogen, elixir-format
+msgid "On this page"
+msgstr "本页内容"
+
+#: lib/tuist_web/live/docs_live.ex:389
+#: lib/tuist_web/live/docs_live.ex:657
+#, elixir-autogen, elixir-format
+msgid "Open source and community"
+msgstr "开源与社区"
+
+#: lib/tuist_web/docs/layouts/root.html.heex:235
+#, elixir-autogen, elixir-format
+msgid "Page navigation"
+msgstr "页面导航"
+
+#: lib/tuist_web/live/docs_live.ex:344
+#: lib/tuist_web/live/docs_live.ex:648
+#, elixir-autogen, elixir-format
+msgid "Previews"
+msgstr "预览"
+
+#: lib/tuist_web/docs/layouts/root.html.heex:111
+#, elixir-autogen, elixir-format
+msgid "References"
+msgstr "参考"
+
+#: lib/tuist_web/docs/layouts/root.html.heex:117
+#, elixir-autogen, elixir-format
+msgid "Resources"
+msgstr "资源"
+
+#: lib/tuist_web/docs/components/page_layout.html.heex:15
+#, elixir-autogen, elixir-format
+msgid "Return to top"
+msgstr "返回顶部"
+
+#: lib/tuist_web/live/docs_live.ex:271
+#: lib/tuist_web/live/docs_live.ex:620
+#, elixir-autogen, elixir-format
+msgid "Run only impacted tests based on your changes, faster feedback loops, less waiting, both locally and on CI."
+msgstr "仅运行受变更影响的测试，加快反馈循环，减少等待时间，支持本地和 CI。"
+
+#: lib/tuist_web/live/docs_live.ex:287
+#: lib/tuist_web/live/docs_live.ex:626
+#, elixir-autogen, elixir-format
+msgid "Run only the tests that matter by detecting changes since your last successful run, cutting down test times both locally and on CI."
+msgstr "通过检测自上次成功运行以来的变更，仅运行关键测试，缩短本地和 CI 的测试时间。"
+
+#: lib/tuist_web/docs/layouts/root.html.heex:217
+#, elixir-autogen, elixir-format
+msgid "Search"
+msgstr "搜索"
+
+#: lib/tuist_web/live/docs_live.ex:360
+#: lib/tuist_web/live/docs_live.ex:561
+#, elixir-autogen, elixir-format
+msgid "See Tuist in action"
+msgstr "观看 Tuist 实际应用"
+
+#: lib/tuist_web/live/docs_live.ex:283
+#: lib/tuist_web/live/docs_live.ex:625
+#, elixir-autogen, elixir-format
+msgid "Selective Testing"
+msgstr "选择性测试"
+
+#: lib/tuist_web/live/docs_live.ex:348
+#: lib/tuist_web/live/docs_live.ex:649
+#, elixir-autogen, elixir-format
+msgid "Share your app instantly with a URL, no TestFlight or setup needed, so others can run it on their device or simulator in seconds."
+msgstr "即时通过 URL 分享你的应用，无需 TestFlight 或任何设置，别人可在设备或模拟器上秒开运行。"
+
+#: lib/tuist_web/live/docs_live.ex:434
+#: lib/tuist_web/live/docs_live.ex:668
+#, elixir-autogen, elixir-format
+msgid "Share your ideas, report issues, and discuss with other community members."
+msgstr "分享你的想法，报告问题，与其他社区成员讨论。"
+
+#: lib/tuist_web/live/docs_live.ex:224
+#: lib/tuist_web/live/docs_live.ex:602
+#, elixir-autogen, elixir-format
+msgid "Skip the manual steps, auto-generate projects, speeds up builds, and explore insights with built-in analytics."
+msgstr "跳过手动步骤，自动生成项目，加快构建速度，并利用内置分析探索洞察。"
+
+#: lib/tuist_web/docs/layouts/root.html.heex:84
+#, elixir-autogen, elixir-format
+msgid "Skip to content"
+msgstr "跳至内容"
+
+#: lib/tuist_web/docs/layouts/root.html.heex:162
+#, elixir-autogen, elixir-format
+msgid "Slack"
+msgstr "Slack"
+
+#: lib/tuist_web/live/docs_live.ex:240
+#: lib/tuist_web/live/docs_live.ex:608
+#, elixir-autogen, elixir-format
+msgid "Speeds up builds by caching compiled modules, cutting down load times in both local development and CI workflows."
+msgstr "通过缓存已编译模块加速构建，减少本地开发及 CI 工作流中的加载时间。"
+
+#: lib/tuist_web/docs/components/page_layout.html.heex:12
+#: lib/tuist_web/docs/components/toc.html.heex:1
+#, elixir-autogen, elixir-format
+msgid "Table of contents"
+msgstr "目录"
+
+#: lib/tuist_web/live/docs_live.ex:269
+#: lib/tuist_web/live/docs_live.ex:618
+#, elixir-autogen, elixir-format
+msgid "Tests"
+msgstr "测试"
+
+#: lib/tuist_web/docs/layouts/root.html.heex:223
+#, elixir-autogen, elixir-format
+msgid "Toggle sidebar"
+msgstr "切换侧边栏"
+
+#: lib/tuist_web/live/docs_live.ex:321
+#: lib/tuist_web/live/docs_live.ex:636
+#, elixir-autogen, elixir-format
+msgid "Track test performance, catch slow tests early, and debug CI failures through real-time logs."
+msgstr "跟踪测试性能，及早发现缓慢测试，通过实时日志调试 CI 失败。"
+
+#: lib/tuist_web/live/docs_live.ex:448
+#: lib/tuist_web/live/docs_live.ex:669
+#, elixir-autogen, elixir-format
+msgid "Videos"
+msgstr "视频"
+
+#: lib/tuist_web/docs/components/page_layout.html.heex:90
+#: lib/tuist_web/docs/components/toc.html.heex:24
+#, elixir-autogen, elixir-format
+msgid "View as Markdown"
+msgstr "查看为 Markdown"
+
+#: lib/tuist_web/docs/components/page_layout.html.heex:91
+#: lib/tuist_web/docs/components/toc.html.heex:25
+#, elixir-autogen, elixir-format
+msgid "View this page as plain text"
+msgstr "以纯文本查看此页"
+
+#: lib/tuist_web/live/docs_live.ex:164
+#: lib/tuist_web/live/docs_live.ex:589
+#, elixir-autogen, elixir-format
+msgid "install specific version of tuist"
+msgstr "安装特定版本的 tuist"
+
+#: lib/tuist_web/live/docs_live.ex:162
+#, elixir-autogen, elixir-format
+msgid "or follow the instructions to"
+msgstr "或按照说明去"
+
+#: lib/tuist_web/live/docs_live.ex:109
+#: lib/tuist_web/live/docs_live.ex:578
+#, elixir-autogen, elixir-format
+msgid "Let us be your virtual companion that continuously optimizes and observes your setup, so you can focus on shipping."
+msgstr "让我们成为你的虚拟助手，持续优化并监测你的环境，你可以专注于发布。"
+
+#: lib/tuist_web/live/docs_live.ex:107
+#: lib/tuist_web/live/docs_live.ex:576
+#, elixir-autogen, elixir-format
+msgid "Your mobile platform team, as a service"
+msgstr "你的移动平台团队，即服务"
+
+#: lib/tuist_web/docs/layouts/root.html.heex:105
+#, elixir-autogen, elixir-format
+msgid "CLI"
+msgstr "CLI"
+
+#: lib/tuist_web/docs/components/search_modal.html.heex:71
+#, elixir-autogen, elixir-format
+msgid "Close"
+msgstr "关闭"
+
+#: lib/tuist_web/docs/components/search_modal.html.heex:67
+#, elixir-autogen, elixir-format
+msgid "Navigate"
+msgstr "导航"
+
+#: lib/tuist_web/docs/components/search_modal.html.heex:22
+#, elixir-autogen, elixir-format
+msgid "No search history"
+msgstr "无搜索历史"
+
+#: lib/tuist_web/docs/layouts/root.html.heex:279
+#, elixir-autogen, elixir-format
+msgid "Search..."
+msgstr "搜索…"
+
+#: lib/tuist_web/docs/components/search_modal.html.heex:40
+#, elixir-autogen, elixir-format
+msgid "Select"
+msgstr "选择"
+
+#: lib/tuist_web/live/docs_live.ex:520
+#, elixir-autogen, elixir-format
+msgid "Edit this page"
+msgstr "编辑此页面"
+
+#: lib/tuist_web/live/docs_live.ex:530
+#, elixir-autogen, elixir-format
+msgid "Last updated on %{date}"
+msgstr "最后更新于 %{date}"
+
+#: lib/tuist_web/live/docs_live.ex:508
+#, elixir-autogen, elixir-format
+msgid "View"
+msgstr "查看"
+
+#: lib/tuist_web/live/docs_live.ex:510
+#, elixir-autogen, elixir-format
+msgid "as Markdown"
+msgstr "以 Markdown 格式"
+
+#: lib/tuist_web/docs/layouts/root.html.heex:178
+#: lib/tuist_web/docs/layouts/root.html.heex:200
+#, elixir-autogen, elixir-format
+msgid "Log in"
+msgstr "登录"
+
+#: lib/tuist_web/docs/components/page_layout.html.heex:75
+#: lib/tuist_web/docs/components/toc.html.heex:10
+#, elixir-autogen, elixir-format
+msgid "Copied"
+msgstr "已复制"
+
+#: lib/tuist_web/docs/layouts/root.html.heex:175
+#: lib/tuist_web/docs/layouts/root.html.heex:196
+#, elixir-autogen, elixir-format
+msgid "Toggle theme"
+msgstr "切换主题"

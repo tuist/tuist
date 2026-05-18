@@ -1,12 +1,42 @@
 defmodule Tuist.Builds.Workers.ProcessBuildWorker do
-  @moduledoc false
-  use Oban.Worker, queue: :default, max_attempts: 3
+  @moduledoc """
+  Oban worker that parses an uploaded xcactivitylog archive and writes the
+  structured build run.
+
+  In the managed deployment the `:process_build` queue only runs on processor
+  pods (`TUIST_MODE=processor`), so this worker's body executes there;
+  the server pods enqueue jobs but never claim them. In self-hosted installs
+  the server runs both roles in the same BEAM.
+
+  ## Uniqueness
+
+  Jobs are unique on `build_id` over `available | scheduled | executing |
+  retryable` with `period: :infinity` to absorb the duplicate enqueues from
+  the race in `get_or_create_build`. A re-enqueue while a previous job is
+  still in-flight (or sitting in retryable) is silently dropped — to manually
+  requeue a stuck job, cancel the existing one first.
+  """
+
+  use Oban.Worker,
+    queue: :process_build,
+    max_attempts: 5,
+    unique: [
+      keys: [:build_id],
+      states: [:available, :scheduled, :executing, :retryable],
+      period: :infinity
+    ]
 
   alias Tuist.Accounts
   alias Tuist.Builds
   alias Tuist.Storage
 
   require Logger
+
+  # Cap one job's wall time so a single huge xcactivitylog cannot hold a worker
+  # slot indefinitely. The NIF's internal timeout is set lower so it returns
+  # a structured error first; this is the outer guard for everything else.
+  @impl Oban.Worker
+  def timeout(_job), do: to_timeout(minute: 5)
 
   @impl Oban.Worker
   def perform(%Oban.Job{
@@ -16,22 +46,13 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
         attempt: attempt,
         max_attempts: max_attempts
       }) do
-    processor_url = Tuist.Environment.processor_url()
     xcode_cache_upload_enabled = Map.get(args, "xcode_cache_upload_enabled", false)
-
-    result =
-      if is_nil(processor_url) or processor_url == "" do
-        process_locally(build_id, storage_key, account_id, xcode_cache_upload_enabled)
-      else
-        send_to_processor(processor_url, build_id, storage_key, account_id, project_id, xcode_cache_upload_enabled)
-      end
-
     build_metadata = Map.get(args, "build_metadata", %{})
 
-    case result do
+    case process_build(build_id, storage_key, account_id, xcode_cache_upload_enabled) do
       {:ok, parsed_data} ->
         parsed_data = Map.put(parsed_data, "project_id", project_id)
-        replace_build_run(build_id, parsed_data, account_id, build_metadata)
+        replace_build_run(build_id, parsed_data, account_id, project_id, build_metadata)
 
         case Map.get(args, "vcs_comment_params", %{}) do
           params when params != %{} -> Tuist.VCS.enqueue_vcs_pull_request_comment(params)
@@ -40,6 +61,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
 
       {:error, reason} ->
         if attempt >= max_attempts do
+          Logger.error("Build processing failed permanently for build #{build_id}: #{inspect(reason)}")
           mark_failed_build_processing(build_id, project_id, account_id, build_metadata)
         end
 
@@ -47,14 +69,14 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
     end
   end
 
-  defp process_locally(build_id, storage_key, account_id, xcode_cache_upload_enabled) do
+  defp process_build(build_id, storage_key, account_id, xcode_cache_upload_enabled) do
     with {:ok, account} <- Accounts.get_account_by_id(account_id) do
       temp_path = Path.join(System.tmp_dir!(), "build_#{build_id}.zip")
 
       try do
         case Storage.download_to_file(storage_key, temp_path, account) do
           {:ok, _} ->
-            Processor.BuildProcessor.process_build(temp_path, xcode_cache_upload_enabled)
+            Tuist.Processor.BuildProcessor.process_build(temp_path, xcode_cache_upload_enabled)
 
           {:error, _} = error ->
             error
@@ -65,55 +87,11 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
     end
   end
 
-  defp send_to_processor(processor_url, build_id, storage_key, account_id, project_id, xcode_cache_upload_enabled) do
-    webhook_secret = Tuist.Environment.processor_webhook_secret()
-
-    if is_nil(webhook_secret) or webhook_secret == "" do
-      Logger.error("Processor webhook secret not configured for build #{build_id}")
-      {:error, "webhook_secret_not_configured"}
-    else
-      payload = %{
-        build_id: build_id,
-        storage_key: storage_key,
-        account_id: account_id,
-        project_id: project_id,
-        xcode_cache_upload_enabled: xcode_cache_upload_enabled
-      }
-
-      json_body = Jason.encode!(payload)
-
-      signature =
-        :hmac
-        |> :crypto.mac(:sha256, webhook_secret, json_body)
-        |> Base.encode16(case: :lower)
-
-      case Req.post("#{processor_url}/webhooks/process-build",
-             body: json_body,
-             headers: [
-               {"content-type", "application/json"},
-               {"x-webhook-signature", signature}
-             ],
-             receive_timeout: 300_000
-           ) do
-        {:ok, %{status: 200, body: parsed_data}} ->
-          {:ok, parsed_data}
-
-        {:ok, %{status: status, body: body}} ->
-          Logger.error("Processor returned #{status} for build #{build_id}: #{inspect(body)}")
-          {:error, "processor_error_#{status}: #{inspect(body)}"}
-
-        {:error, reason} ->
-          Logger.error("Processor request failed for build #{build_id}: #{inspect(reason)}")
-          {:error, reason}
-      end
-    end
-  end
-
-  defp replace_build_run(build_id, parsed_data, account_id, build_metadata) do
+  defp replace_build_run(build_id, parsed_data, account_id, project_id, build_metadata) do
     parsed = atomize_keys(parsed_data)
 
     attrs =
-      Map.merge(base_build_attrs(build_id, account_id, build_metadata), %{
+      Map.merge(base_build_attrs(build_id, project_id, account_id, build_metadata), %{
         project_id: parsed[:project_id],
         duration: parsed[:duration] || 0,
         status: parsed[:status] || "success",
@@ -132,7 +110,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
 
   defp mark_failed_build_processing(build_id, project_id, account_id, build_metadata) do
     attrs =
-      Map.merge(base_build_attrs(build_id, account_id, build_metadata), %{
+      Map.merge(base_build_attrs(build_id, project_id, account_id, build_metadata), %{
         project_id: project_id,
         status: "failed_processing",
         duration: 0
@@ -141,15 +119,15 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
     Builds.create_build(attrs)
   end
 
-  defp base_build_attrs(build_id, account_id, build_metadata) do
-    case Builds.get_build(build_id) do
-      nil ->
+  defp base_build_attrs(build_id, project_id, account_id, build_metadata) do
+    case Builds.get_build(build_id, project_id: project_id) do
+      {:error, :not_found} ->
         Map.merge(
           %{id: build_id, account_id: account_id, is_ci: false},
           atomize_keys(build_metadata)
         )
 
-      existing_build ->
+      {:ok, existing_build} ->
         existing_build
         |> Map.from_struct()
         |> Map.drop([

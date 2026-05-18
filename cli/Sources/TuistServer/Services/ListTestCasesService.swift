@@ -10,6 +10,7 @@ public protocol ListTestCasesServicing {
         serverURL: URL,
         flaky: Bool?,
         quarantined: Bool?,
+        state: Operations.listTestCases.Input.Query.statePayload?,
         page: Int?,
         pageSize: Int
     ) async throws -> Operations.listTestCases.Output.Ok.Body.jsonPayload
@@ -49,6 +50,7 @@ public struct ListTestCasesService: ListTestCasesServicing {
         serverURL: URL,
         flaky: Bool?,
         quarantined: Bool?,
+        state: Operations.listTestCases.Input.Query.statePayload?,
         page: Int?,
         pageSize: Int
     ) async throws -> Operations.listTestCases.Output.Ok.Body.jsonPayload {
@@ -64,6 +66,7 @@ public struct ListTestCasesService: ListTestCasesServicing {
                 query: .init(
                     flaky: flaky,
                     quarantined: quarantined,
+                    state: state,
                     page_size: pageSize,
                     page: page
                 )

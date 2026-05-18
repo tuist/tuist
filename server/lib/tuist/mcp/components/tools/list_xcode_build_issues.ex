@@ -5,6 +5,7 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuildIssues do
 
   use Tuist.MCP.Tool,
     name: "list_xcode_build_issues",
+    title: "List Xcode Build Issues",
     schema: %{
       "type" => "object",
       "properties" => %{
@@ -41,7 +42,7 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuildIssues do
 
     with {:ok, _build, _project} <-
            MCPTool.load_and_authorize(
-             get_build(build_run_id),
+             Builds.get_build(build_run_id),
              conn.assigns,
              :read,
              :build,
@@ -72,13 +73,6 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuildIssues do
            ending_column: issue.ending_column
          }
        end)}
-    end
-  end
-
-  defp get_build(id) do
-    case Builds.get_build(id) do
-      nil -> {:error, :not_found}
-      build -> {:ok, build}
     end
   end
 

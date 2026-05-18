@@ -13,9 +13,7 @@ import XcodeGraph
     import TuistCacheEE
 #endif
 
-public struct XcodeBuildCommand: AsyncParsableCommand, TrackableParsableCommand,
-    RecentPathRememberableCommand
-{
+public struct XcodeBuildCommand: AsyncParsableCommand, TrackableParsableCommand {
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "xcodebuild",

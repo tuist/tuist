@@ -38,8 +38,8 @@ public struct PluginRunCommand: ParsableCommand {
     )
     var arguments: [String] = []
 
-    public func run() throws {
-        try PluginRunService().run(
+    public func run() async throws {
+        try await PluginRunService().run(
             path: pluginOptions.path,
             configuration: pluginOptions.configuration,
             buildTests: buildTests,

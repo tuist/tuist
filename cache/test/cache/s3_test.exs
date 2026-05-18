@@ -307,18 +307,23 @@ defmodule Cache.S3Test do
 
       expect(Cache.Disk, :artifact_path, fn ^key -> local_path end)
 
-      expect(ExAws.S3, :download_file, fn "test-bucket", ^key, ^local_path ->
-        {:download_operation, "test-bucket", key, local_path}
+      expect(ExAws.S3, :download_file, fn "test-bucket", ^key, tmp_path ->
+        assert Path.dirname(tmp_path) == tmp_dir
+        assert Path.basename(tmp_path) =~ ".tmp.test_hash."
+        {:download_operation, "test-bucket", key, tmp_path}
       end)
 
-      expect(ExAws, :request, fn {:download_operation, "test-bucket", ^key, ^local_path} ->
-        File.write!(local_path, "downloaded content")
+      expect(ExAws, :request, fn {:download_operation, "test-bucket", ^key, tmp_path} ->
+        File.write!(tmp_path, "downloaded content")
         {:ok, :done}
       end)
 
       capture_log(fn ->
         assert {:ok, :hit} = S3.download(key)
       end)
+
+      assert File.read!(local_path) == "downloaded content"
+      assert File.ls!(tmp_dir) == ["test_hash"]
     end
 
     test "returns {:ok, :miss} when file does not exist in S3" do
@@ -348,17 +353,21 @@ defmodule Cache.S3Test do
 
       expect(Cache.Disk, :artifact_path, fn ^key -> local_path end)
 
-      expect(ExAws.S3, :download_file, fn "test-bucket", ^key, ^local_path ->
-        {:download_operation, "test-bucket", key, local_path}
+      expect(ExAws.S3, :download_file, fn "test-bucket", ^key, tmp_path ->
+        {:download_operation, "test-bucket", key, tmp_path}
       end)
 
-      expect(ExAws, :request, fn {:download_operation, "test-bucket", ^key, ^local_path} ->
+      expect(ExAws, :request, fn {:download_operation, "test-bucket", ^key, tmp_path} ->
+        File.write!(tmp_path, "partial content")
         {:error, :timeout}
       end)
 
       capture_log(fn ->
         assert {:error, :timeout} = S3.download(key)
       end)
+
+      refute File.exists?(local_path)
+      assert File.ls!(tmp_dir) == []
     end
 
     test "returns :rate_limited error on 429 during exists check" do
@@ -390,17 +399,53 @@ defmodule Cache.S3Test do
 
       expect(Cache.Disk, :artifact_path, fn ^key -> local_path end)
 
-      expect(ExAws.S3, :download_file, fn "test-bucket", ^key, ^local_path ->
-        {:download_operation, "test-bucket", key, local_path}
+      expect(ExAws.S3, :download_file, fn "test-bucket", ^key, tmp_path ->
+        {:download_operation, "test-bucket", key, tmp_path}
       end)
 
-      expect(ExAws, :request, fn {:download_operation, "test-bucket", ^key, ^local_path} ->
+      expect(ExAws, :request, fn {:download_operation, "test-bucket", ^key, tmp_path} ->
+        File.write!(tmp_path, "partial content")
         {:error, {:http_error, 429, %{body: "Too many requests"}}}
       end)
 
       capture_log(fn ->
         assert {:error, :rate_limited} = S3.download(key)
       end)
+
+      refute File.exists?(local_path)
+      assert File.ls!(tmp_dir) == []
+    end
+
+    test "treats a finished download as success when another process published the artifact first" do
+      key = "test_account/test_project/xcode/TE/ST/test_hash"
+      {:ok, tmp_dir} = Briefly.create(directory: true)
+      local_path = Path.join(tmp_dir, "test_hash")
+
+      File.write!(local_path, "already there")
+
+      expect(ExAws.S3, :head_object, fn "test-bucket", ^key ->
+        %ExAws.Operation.S3{bucket: "test-bucket", path: key}
+      end)
+
+      expect(ExAws, :request, fn %ExAws.Operation.S3{}, _opts -> {:ok, %{status_code: 200}} end)
+
+      expect(Cache.Disk, :artifact_path, fn ^key -> local_path end)
+
+      expect(ExAws.S3, :download_file, fn "test-bucket", ^key, tmp_path ->
+        {:download_operation, "test-bucket", key, tmp_path}
+      end)
+
+      expect(ExAws, :request, fn {:download_operation, "test-bucket", ^key, tmp_path} ->
+        File.write!(tmp_path, "new content")
+        {:ok, :done}
+      end)
+
+      capture_log(fn ->
+        assert {:ok, :hit} = S3.download(key)
+      end)
+
+      assert File.read!(local_path) == "already there"
+      assert File.ls!(tmp_dir) == ["test_hash"]
     end
 
     test "xcode_cache download from primary bucket returns {:ok, :hit}" do
@@ -416,18 +461,23 @@ defmodule Cache.S3Test do
 
       expect(Cache.Disk, :artifact_path, fn ^key -> local_path end)
 
-      expect(ExAws.S3, :download_file, fn "test-xcode-cache-bucket", ^key, ^local_path ->
-        {:download_operation, "test-xcode-cache-bucket", key, local_path}
+      expect(ExAws.S3, :download_file, fn "test-xcode-cache-bucket", ^key, tmp_path ->
+        assert Path.dirname(tmp_path) == tmp_dir
+        assert Path.basename(tmp_path) =~ ".tmp.test_hash."
+        {:download_operation, "test-xcode-cache-bucket", key, tmp_path}
       end)
 
-      expect(ExAws, :request, fn {:download_operation, "test-xcode-cache-bucket", ^key, ^local_path} ->
-        File.write!(local_path, "downloaded content")
+      expect(ExAws, :request, fn {:download_operation, "test-xcode-cache-bucket", ^key, tmp_path} ->
+        File.write!(tmp_path, "downloaded content")
         {:ok, :done}
       end)
 
       capture_log(fn ->
         assert {:ok, :hit} = S3.download(key, type: :xcode_cache)
       end)
+
+      assert File.read!(local_path) == "downloaded content"
+      assert File.ls!(tmp_dir) == ["test_hash"]
     end
 
     test "xcode_cache download returns {:ok, :miss} when not in dedicated bucket" do

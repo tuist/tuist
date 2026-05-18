@@ -25,9 +25,9 @@ public final class DeleteDerivedDirectoryProjectMapperTests: TuistUnitTestCase {
         let projectPath = try temporaryPath()
         let derivedDirectory = projectPath.appending(component: Constants.DerivedDirectory.name)
         let projectA = Project.test(path: projectPath)
-        try fileHandler.createFolder(derivedDirectory)
-        try fileHandler.createFolder(derivedDirectory.appending(component: "InfoPlists"))
-        try fileHandler.touch(derivedDirectory.appending(component: "TargetA.modulemap"))
+        try await fileSystem.makeDirectory(at: derivedDirectory)
+        try await fileSystem.makeDirectory(at: derivedDirectory.appending(component: "InfoPlists"))
+        try await fileSystem.touch(derivedDirectory.appending(component: "TargetA.modulemap"))
 
         // When
         let (_, sideEffects) = try await subject.map(project: projectA)

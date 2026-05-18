@@ -13,8 +13,8 @@
       <author>
         <name>Tuist</name>
       </author>
-      <link href="<%= Tuist.Environment.app_url(path: "#{~p"/changelog"}\##{entry.id}") %>"/>
-      <id><%= Tuist.Environment.app_url(path: "#{~p"/changelog"}\##{entry.id}") %></id>
+      <link href="<%= Tuist.Environment.app_url(path: ~p"/changelog/#{entry.id}") %>"/>
+      <id><%= Tuist.Environment.app_url(path: ~p"/changelog/#{entry.id}") %></id>
       <updated><%= entry.date |> Timex.format!("{RFC1123}") %></updated>
       <content type="html"><![CDATA[ <%= entry.body %> ]]></content>
     </entry>

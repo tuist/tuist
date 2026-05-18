@@ -16,6 +16,7 @@
       "cache-eu-north"
       "cache-us-east"
       "cache-us-east-2"
+      "cache-us-east-3"
       "cache-us-west"
       "cache-ap-southeast"
       "cache-eu-central-staging"

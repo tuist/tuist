@@ -3,6 +3,7 @@ defmodule Tuist.Builds.CASOutput do
   A CAS output represents cache upload/download operations for a build run.
   """
   use Ecto.Schema
+  use Tuist.Ingestion.Bufferable
 
   @derive {
     Flop.Schema,

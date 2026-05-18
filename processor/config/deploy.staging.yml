@@ -1,8 +1,0 @@
-servers:
-  web:
-    hosts:
-      - processor-staging.tuist.dev
-
-env:
-  clear:
-    DEPLOY_ENV: staging

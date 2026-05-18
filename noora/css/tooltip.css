@@ -1,9 +1,18 @@
 .noora-tooltip {
+  display: inline-flex;
+  align-items: center;
+
+  & [data-part="trigger"] {
+    display: inline-flex;
+    align-items: center;
+    cursor: help;
+  }
+
   & [data-part="content"] {
     align-items: top;
     z-index: var(--noora-z-index-12);
     box-shadow: var(--noora-tooltip-border);
-    border-radius: var(--noora-radius-medium);
+    border-radius: var(--noora-radius-3);
     background: var(--noora-tooltip-background);
     width: max-content;
     max-width: 250px;
@@ -43,6 +52,7 @@
       gap: var(--noora-spacing-2);
       padding: var(--noora-spacing-2) var(--noora-spacing-3);
       font: var(--noora-font-body-small);
+      color: var(--noora-tooltip-label-primary);
     }
 
     &[data-size="large"] {

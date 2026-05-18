@@ -83,6 +83,14 @@ components:
       type: integer
       x-struct:
       x-validate:
+    TestCaseEventsPage:
+      default: 1
+      description: The page number to return.
+      minimum: 1
+      title: TestCaseEventsPage
+      type: integer
+      x-struct:
+      x-validate:
     TestCasesIndexPage:
       default: 1
       description: The page number to return.
@@ -184,6 +192,73 @@ components:
       title: BuildCacheTasksIndexPage
       type: integer
       x-struct:
+      x-validate:
+    AutomationAlert:
+      description: An automation alert — a rule that evaluates a monitor condition and runs trigger/recovery actions.
+      properties:
+        cadence:
+          description: Evaluation cadence (e.g. "5m").
+          type: string
+          x-struct:
+          x-validate:
+        enabled:
+          type: boolean
+          x-struct:
+          x-validate:
+        id:
+          format: uuid
+          type: string
+          x-struct:
+          x-validate:
+        monitor_type:
+          description: The monitor type that evaluates the condition.
+          enum:
+            - flakiness_rate
+            - flaky_run_count
+          type: string
+          x-struct:
+          x-validate:
+        name:
+          type: string
+          x-struct:
+          x-validate:
+        recovery_actions:
+          items:
+            $ref: '#/components/schemas/AutomationAlertAction'
+          type: array
+          x-struct:
+          x-validate:
+        recovery_config:
+          description: Recovery parameters (e.g. window).
+          type: object
+          x-struct:
+          x-validate:
+        recovery_enabled:
+          type: boolean
+          x-struct:
+          x-validate:
+        trigger_actions:
+          items:
+            $ref: '#/components/schemas/AutomationAlertAction'
+          type: array
+          x-struct:
+          x-validate:
+        trigger_config:
+          description: Monitor-specific trigger parameters (e.g. threshold, window).
+          type: object
+          x-struct:
+          x-validate:
+      required:
+        - id
+        - name
+        - enabled
+        - monitor_type
+        - trigger_config
+        - cadence
+        - trigger_actions
+      title: AutomationAlert
+      type: object
+      x-struct: Elixir.TuistWeb.API.Schemas.AutomationAlert
       x-validate:
     ArtifactUploadID:
       description: The upload has been initiated and a ID is returned to upload the various parts using multi-part uploads
@@ -1152,7 +1227,7 @@ components:
           x-validate:
         token:
           deprecated: true
-          description: The token that should be used to authenticate the project. For CI only.
+          description: Deprecated. Always returns an empty string.
           type: string
           x-struct:
           x-validate:
@@ -1167,7 +1242,6 @@ components:
       required:
         - id
         - full_name
-        - token
         - default_branch
         - visibility
       title: Project
@@ -1227,6 +1301,18 @@ components:
       x-validate:
     CreateShardPlanParams:
       properties:
+        build_run_id:
+          description: The UUID of the associated Xcode build run.
+          format: uuid
+          type: string
+          x-struct:
+          x-validate:
+        gradle_build_id:
+          description: The UUID of the associated Gradle build.
+          format: uuid
+          type: string
+          x-struct:
+          x-validate:
         granularity:
           description: Sharding granularity level.
           enum:
@@ -1656,7 +1742,8 @@ components:
           x-struct:
           x-validate:
         is_quarantined:
-          description: Whether the test case is quarantined
+          deprecated: true
+          description: 'Whether the test case is quarantined (either `muted` or `skipped`). Deprecated: use `state` instead.'
           type: boolean
           x-struct:
           x-validate:
@@ -1681,6 +1768,11 @@ components:
           x-validate:
         name:
           description: Name of the test case
+          type: string
+          x-struct:
+          x-validate:
+        state:
+          description: Lifecycle state of the test case. Currently one of `enabled`, `muted`, or `skipped`; the field is left as an open string so adding new states in the future doesn't break clients pinned to the older spec. `enabled` means it runs as part of the suite and contributes to pass/fail counts. `muted` (mute-mode quarantine) means it still runs so we keep collecting flakiness signal, but failures no longer fail the build. `skipped` (skip-mode quarantine) means it is excluded from execution entirely.
           type: string
           x-struct:
           x-validate:
@@ -1716,6 +1808,7 @@ components:
         - avg_duration
         - is_flaky
         - is_quarantined
+        - state
         - url
       title: TestCase
       type: object
@@ -1893,6 +1986,12 @@ components:
           type: integer
           x-struct:
           x-validate:
+        test_case_run_argument_id:
+          description: The UUID of the argument this attachment belongs to (for parameterized tests).
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
         test_case_run_id:
           description: The UUID of the test case run.
           type: string
@@ -1931,6 +2030,15 @@ components:
       title: ValidationError
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.ValidationError
+      x-validate:
+    TestTargetsPageSize:
+      default: 20
+      description: The maximum number of targets to return in a single page.
+      maximum: 100
+      minimum: 1
+      title: TestTargetsPageSize
+      type: integer
+      x-struct:
       x-validate:
     RunParams:
       description: Parameters to create a single run.
@@ -2944,6 +3052,15 @@ components:
       type: string
       x-struct:
       x-validate:
+    TestCaseEventsPageSize:
+      default: 20
+      description: The maximum number of events to return in a single page.
+      maximum: 100
+      minimum: 1
+      title: TestCaseEventsPageSize
+      type: integer
+      x-struct:
+      x-validate:
     RunsBuild:
       description: Represents a single build run.
       properties:
@@ -3453,6 +3570,15 @@ components:
       type: string
       x-struct:
       x-validate:
+    TestCasesIndexState:
+      enum:
+        - enabled
+        - muted
+        - skipped
+      title: TestCasesIndexState
+      type: string
+      x-struct:
+      x-validate:
     ArtifactUploadURL:
       description: The URL to upload an artifact.
       properties:
@@ -3614,6 +3740,14 @@ components:
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Error
       x-validate:
+    TestTargetsPage:
+      default: 1
+      description: The page number to return.
+      minimum: 1
+      title: TestTargetsPage
+      type: integer
+      x-struct:
+      x-validate:
     RunsIndexPage:
       default: 1
       description: The page number to return.
@@ -3696,6 +3830,12 @@ components:
           type: string
           x-struct:
           x-validate:
+        id:
+          description: Optional client-generated UUID for the test run. If not provided, the server generates one.
+          format: uuid
+          type: string
+          x-struct:
+          x-validate:
         is_ci:
           description: Indicates if the run was executed on a Continuous Integration (CI) system.
           type: boolean
@@ -3733,6 +3873,8 @@ components:
             - success
             - failure
             - skipped
+            - processing
+            - failed_processing
           type: string
           x-struct:
           x-validate:
@@ -3762,6 +3904,110 @@ components:
                 description: The test cases within this module.
                 items:
                   properties:
+                    arguments:
+                      description: The argument variants for parameterized tests (Swift Testing @Test with arguments, JUnit5 @ParameterizedTest).
+                      items:
+                        properties:
+                          duration:
+                            description: The duration of this argument variant in milliseconds.
+                            type: integer
+                            x-struct:
+                            x-validate:
+                          failures:
+                            description: The failures for this argument variant.
+                            items:
+                              properties:
+                                issue_type:
+                                  description: The type of issue.
+                                  enum:
+                                    - error_thrown
+                                    - assertion_failure
+                                    - issue_recorded
+                                  type: string
+                                  x-struct:
+                                  x-validate:
+                                line_number:
+                                  description: The line number where the failure occurred.
+                                  type: integer
+                                  x-struct:
+                                  x-validate:
+                                message:
+                                  description: The failure message.
+                                  type: string
+                                  x-struct:
+                                  x-validate:
+                                path:
+                                  description: The file path where the failure occurred.
+                                  type: string
+                                  x-struct:
+                                  x-validate:
+                              required:
+                                - line_number
+                              type: object
+                              x-struct:
+                              x-validate:
+                            type: array
+                            x-struct:
+                            x-validate:
+                          name:
+                            description: "The argument label (e.g., '.cardUser')."
+                            type: string
+                            x-struct:
+                            x-validate:
+                          repetitions:
+                            description: The repetition attempts for this argument variant.
+                            items:
+                              properties:
+                                duration:
+                                  description: The duration in milliseconds.
+                                  type: integer
+                                  x-struct:
+                                  x-validate:
+                                name:
+                                  description: The name of the repetition.
+                                  type: string
+                                  x-struct:
+                                  x-validate:
+                                repetition_number:
+                                  description: The repetition attempt number.
+                                  type: integer
+                                  x-struct:
+                                  x-validate:
+                                status:
+                                  description: The status.
+                                  enum:
+                                    - success
+                                    - failure
+                                  type: string
+                                  x-struct:
+                                  x-validate:
+                              required:
+                                - repetition_number
+                                - name
+                                - status
+                              type: object
+                              x-struct:
+                              x-validate:
+                            type: array
+                            x-struct:
+                            x-validate:
+                          status:
+                            description: The status for this argument variant.
+                            enum:
+                              - success
+                              - failure
+                            type: string
+                            x-struct:
+                            x-validate:
+                        required:
+                          - name
+                          - status
+                        type: object
+                        x-struct:
+                        x-validate:
+                      type: array
+                      x-struct:
+                      x-validate:
                     duration:
                       description: The duration of the test case in milliseconds.
                       type: integer
@@ -3801,6 +4047,11 @@ components:
                         x-struct:
                         x-validate:
                       type: array
+                      x-struct:
+                      x-validate:
+                    is_quarantined:
+                      description: Whether this test case was quarantined when it ran.
+                      type: boolean
                       x-struct:
                       x-validate:
                     name:
@@ -3851,6 +4102,8 @@ components:
                         - success
                         - failure
                         - skipped
+                        - processing
+                        - failed_processing
                       type: string
                       x-struct:
                       x-validate:
@@ -3889,6 +4142,8 @@ components:
                         - success
                         - failure
                         - skipped
+                        - processing
+                        - failed_processing
                       type: string
                       x-struct:
                       x-validate:
@@ -3988,7 +4243,7 @@ components:
       description: A shard plan with assignment details.
       properties:
         id:
-          description: The shard plan UUID.
+          description: The shard plan id.
           format: uuid
           type: string
           x-struct:
@@ -4153,6 +4408,11 @@ components:
           type: boolean
           x-struct:
           x-validate:
+        is_quarantined:
+          description: Whether the test case was quarantined at the time of the run.
+          type: boolean
+          x-struct:
+          x-validate:
         module_name:
           description: Module name.
           type: string
@@ -4200,6 +4460,7 @@ components:
         - is_ci
         - is_flaky
         - is_new
+        - is_quarantined
       title: TestCaseRun
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Tests.TestCaseRun
@@ -4404,6 +4665,52 @@ components:
       title: GenerationsIndexPageSize
       type: integer
       x-struct:
+      x-validate:
+    AutomationAlertAction:
+      description: An action run when an automation alert triggers or recovers.
+      properties:
+        channel:
+          description: Slack channel ID. Required for send_slack actions.
+          type: string
+          x-struct:
+          x-validate:
+        channel_name:
+          description: Slack channel name for display.
+          type: string
+          x-struct:
+          x-validate:
+        label:
+          description: Label name. Required for add_label and remove_label actions.
+          type: string
+          x-struct:
+          x-validate:
+        message:
+          description: Message template. Required for send_slack actions. Supports {{variable}} interpolation.
+          type: string
+          x-struct:
+          x-validate:
+        state:
+          description: Required for change_state actions.
+          enum:
+            - enabled
+            - muted
+          type: string
+          x-struct:
+          x-validate:
+        type:
+          enum:
+            - change_state
+            - send_slack
+            - add_label
+            - remove_label
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - type
+      title: AutomationAlertAction
+      type: object
+      x-struct: Elixir.TuistWeb.API.Schemas.AutomationAlertAction
       x-validate:
     BundleSupportedPlatform:
       description: A platform that a bundle can support (e.g. iOS)
@@ -5082,6 +5389,29 @@ components:
           description: The test case runs created by this test run, with their identifiers.
           items:
             properties:
+              arguments:
+                description: The argument variants (for parameterized tests).
+                items:
+                  properties:
+                    id:
+                      description: The UUID of the argument.
+                      type: string
+                      x-struct:
+                      x-validate:
+                    name:
+                      description: The argument label.
+                      type: string
+                      x-struct:
+                      x-validate:
+                  required:
+                    - id
+                    - name
+                  type: object
+                  x-struct:
+                  x-validate:
+                type: array
+                x-struct:
+                x-validate:
               id:
                 description: The UUID of the test case run.
                 type: string
@@ -5135,6 +5465,15 @@ components:
       title: RunsTest
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Tests.Test
+      x-validate:
+    SelectiveTestingHitStatus:
+      enum:
+        - miss
+        - local
+        - remote
+      title: SelectiveTestingHitStatus
+      type: string
+      x-struct:
       x-validate:
     PaginationMetadata:
       description: Pagination metadata.
@@ -5370,7 +5709,7 @@ info:
   version: 0.1.0
   x-logo:
     altText: Tuist logo
-    url: http://localhost:8080/images/open-graph/squared.png
+    url: https://tuist.dev/images/open-graph/squared.png
 openapi: 3.0.0
 paths:
   /api/cache/multipart/complete:
@@ -6197,6 +6536,96 @@ paths:
                                         - local
                                         - remote
                                       type: string
+                                      x-struct:
+                                      x-validate:
+                                    subhashes:
+                                      description: Individual component hashes that make up the final hash
+                                      properties:
+                                        additional_strings:
+                                          description: Additional strings used in the hash
+                                          items:
+                                            type: string
+                                            x-struct:
+                                            x-validate:
+                                          type: array
+                                          x-struct:
+                                          x-validate:
+                                        buildable_folders:
+                                          description: Buildable folders hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        copy_files:
+                                          description: Copy files hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        core_data_models:
+                                          description: Core data models hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        dependencies:
+                                          description: Dependencies hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        deployment_target:
+                                          description: Deployment target hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        entitlements:
+                                          description: Entitlements hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        environment:
+                                          description: Environment hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        external:
+                                          description: External project hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        headers:
+                                          description: Headers hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        info_plist:
+                                          description: Info.plist hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        project_settings:
+                                          description: Project settings hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        resources:
+                                          description: Resources hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        sources:
+                                          description: Sources hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        target_scripts:
+                                          description: Target scripts hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        target_settings:
+                                          description: Target settings hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                      type: object
                                       x-struct:
                                       x-validate:
                                   required:
@@ -7162,6 +7591,143 @@ paths:
       summary: List build targets for a given build.
       tags:
         - Builds
+  /api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/events:
+    get:
+      callbacks: {}
+      operationId: listTestCaseEvents
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The ID of the test case.
+          in: path
+          name: test_case_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page_size
+          required: false
+          schema:
+            default: 20
+            description: The maximum number of events to return in a single page.
+            maximum: 100
+            minimum: 1
+            title: TestCaseEventsPageSize
+            type: integer
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page
+          required: false
+          schema:
+            default: 1
+            description: The page number to return.
+            minimum: 1
+            title: TestCaseEventsPage
+            type: integer
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  events:
+                    items:
+                      properties:
+                        actor:
+                          description: The user who triggered the event, or null for system events.
+                          nullable: true
+                          properties:
+                            id:
+                              description: The actor's account ID.
+                              type: integer
+                              x-struct:
+                              x-validate:
+                            name:
+                              description: The actor's account handle.
+                              type: string
+                              x-struct:
+                              x-validate:
+                          required:
+                            - id
+                            - name
+                          type: object
+                          x-struct:
+                          x-validate:
+                        event_type:
+                          description: The type of event.
+                          enum:
+                            - first_run
+                            - marked_flaky
+                            - unmarked_flaky
+                            - quarantined
+                            - unquarantined
+                            - muted
+                            - unmuted
+                            - skipped
+                            - unskipped
+                          type: string
+                          x-struct:
+                          x-validate:
+                        inserted_at:
+                          description: Unix timestamp of when the event occurred.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                      required:
+                        - event_type
+                        - inserted_at
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  pagination_metadata:
+                    $ref: '#/components/schemas/PaginationMetadata'
+                required:
+                  - events
+                  - pagination_metadata
+                type: object
+                x-struct:
+                x-validate:
+          description: List of test case events
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Test case not found
+      summary: List events for a test case.
+      tags:
+        - Test Cases
   /api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}:
     get:
       callbacks: {}
@@ -7329,6 +7895,11 @@ paths:
                     type: boolean
                     x-struct:
                     x-validate:
+                  is_quarantined:
+                    description: Whether the test case was quarantined at the time of the run.
+                    type: boolean
+                    x-struct:
+                    x-validate:
                   module_name:
                     description: Module name.
                     type: string
@@ -7422,6 +7993,7 @@ paths:
                   - is_ci
                   - is_flaky
                   - is_new
+                  - is_quarantined
                   - failures
                   - repetitions
                   - attachments
@@ -7457,14 +8029,6 @@ paths:
             type: integer
             x-struct:
             x-validate:
-        - description: The handle of the account.
-          in: path
-          name: account_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
         - description: Number of items per page.
           in: query
           name: page_size
@@ -7477,6 +8041,14 @@ paths:
           in: query
           name: git_branch
           required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
           schema:
             type: string
             x-struct:
@@ -9651,6 +10223,136 @@ paths:
       summary: Get the artifact tree for a bundle.
       tags:
         - Bundles
+  /api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/targets:
+    get:
+      callbacks: {}
+      operationId: listTestTargets
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The ID of the test run.
+          in: path
+          name: test_run_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by selective testing hit status.
+          in: query
+          name: hit_status
+          required: false
+          schema:
+            enum:
+              - miss
+              - local
+              - remote
+            title: SelectiveTestingHitStatus
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page
+          required: false
+          schema:
+            default: 1
+            description: The page number to return.
+            minimum: 1
+            title: TestTargetsPage
+            type: integer
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page_size
+          required: false
+          schema:
+            default: 20
+            description: The maximum number of targets to return in a single page.
+            maximum: 100
+            minimum: 1
+            title: TestTargetsPageSize
+            type: integer
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  pagination_metadata:
+                    $ref: '#/components/schemas/PaginationMetadata'
+                  targets:
+                    items:
+                      properties:
+                        hash:
+                          description: The selective testing hash.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        hit_status:
+                          description: Selective testing hit status.
+                          enum:
+                            - miss
+                            - local
+                            - remote
+                          type: string
+                          x-struct:
+                          x-validate:
+                        name:
+                          description: The test target name.
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - name
+                        - hit_status
+                        - hash
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - targets
+                  - pagination_metadata
+                type: object
+                x-struct:
+                x-validate:
+          description: List of test targets
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Test run not found
+      summary: List targets for a test run.
+      tags:
+        - Tests
   /api/projects/{account_handle}/{project_handle}/cache-runs/{cache_run_id}:
     get:
       callbacks: {}
@@ -11007,6 +11709,149 @@ paths:
       summary: Complete a multipart upload for a build archive.
       tags:
         - Builds
+  /api/projects/{account_handle}/{project_handle}/automations/alerts:
+    get:
+      callbacks: {}
+      operationId: listAutomationAlerts
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  alerts:
+                    items:
+                      $ref: '#/components/schemas/AutomationAlert'
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - alerts
+                type: object
+                x-struct:
+                x-validate:
+          description: List of automation alerts
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+      summary: List automation alerts for a project.
+      tags:
+        - Automation Alerts
+    post:
+      callbacks: {}
+      operationId: createAutomationAlert
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                cadence:
+                  type: string
+                  x-struct:
+                  x-validate:
+                monitor_type:
+                  enum:
+                    - flakiness_rate
+                    - flaky_run_count
+                  type: string
+                  x-struct:
+                  x-validate:
+                name:
+                  type: string
+                  x-struct:
+                  x-validate:
+                recovery_actions:
+                  items:
+                    $ref: '#/components/schemas/AutomationAlertAction'
+                  type: array
+                  x-struct:
+                  x-validate:
+                recovery_config:
+                  type: object
+                  x-struct:
+                  x-validate:
+                recovery_enabled:
+                  type: boolean
+                  x-struct:
+                  x-validate:
+                trigger_actions:
+                  items:
+                    $ref: '#/components/schemas/AutomationAlertAction'
+                  type: array
+                  x-struct:
+                  x-validate:
+                trigger_config:
+                  type: object
+                  x-struct:
+                  x-validate:
+              required:
+                - name
+                - monitor_type
+                - trigger_actions
+              type: object
+              x-struct:
+              x-validate:
+        description: Automation alert
+        required: false
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutomationAlert'
+          description: Created alert
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Validation error
+      summary: Create an automation alert.
+      tags:
+        - Automation Alerts
   /api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}:
     get:
       callbacks: {}
@@ -12400,6 +13245,19 @@ paths:
             type: string
             x-struct:
             x-validate:
+        - description: Filter by test case state.
+          in: query
+          name: state
+          required: false
+          schema:
+            enum:
+              - enabled
+              - muted
+              - skipped
+            title: TestCasesIndexState
+            type: string
+            x-struct:
+            x-validate:
         - description: ''
           in: query
           name: page_size
@@ -13138,7 +13996,8 @@ paths:
                     x-struct:
                     x-validate:
                   is_quarantined:
-                    description: Whether the test case is quarantined.
+                    deprecated: true
+                    description: 'Whether the test case is quarantined (either `muted` or `skipped`). Deprecated: use `state` instead.'
                     type: boolean
                     x-struct:
                     x-validate:
@@ -13190,6 +14049,11 @@ paths:
                     type: number
                     x-struct:
                     x-validate:
+                  state:
+                    description: The state of the test case. Currently one of `enabled`, `muted`, or `skipped`; the field is left as an open string so adding new states in the future doesn't break clients pinned to the older spec.
+                    type: string
+                    x-struct:
+                    x-validate:
                   suite:
                     nullable: true
                     properties:
@@ -13225,6 +14089,7 @@ paths:
                   - module
                   - is_flaky
                   - is_quarantined
+                  - state
                   - last_status
                   - last_duration
                   - last_ran_at
@@ -13252,10 +14117,168 @@ paths:
       summary: Get a test case by ID.
       tags:
         - Test Cases
+    patch:
+      callbacks: {}
+      description: Updates mutable fields on a test case. Supports changing `state` (currently one of `enabled`, `muted`, or `skipped`; the field is left as an open string so adding new states in the future doesn't break clients pinned to the older spec) and toggling `is_flaky`. Corresponding events (`muted`/`unmuted`, `skipped`/`unskipped`, `marked_flaky`/`unmarked_flaky`) are recorded automatically when values transition.
+      operationId: updateTestCase
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The ID of the test case.
+          in: path
+          name: test_case_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                is_flaky:
+                  description: Whether to mark the test case as flaky.
+                  type: boolean
+                  x-struct:
+                  x-validate:
+                state:
+                  description: The new state of the test case. Currently one of `enabled`, `muted`, or `skipped`; the field is left as an open string so adding new states in the future doesn't break clients pinned to the older spec.
+                  type: string
+                  x-struct:
+                  x-validate:
+              type: object
+              x-struct:
+              x-validate:
+        description: Test case update params
+        required: false
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  id:
+                    description: The test case ID.
+                    format: uuid
+                    type: string
+                    x-struct:
+                    x-validate:
+                  is_flaky:
+                    description: Whether the test case is marked as flaky.
+                    type: boolean
+                    x-struct:
+                    x-validate:
+                  is_quarantined:
+                    deprecated: true
+                    description: 'Whether the test case is quarantined (either `muted` or `skipped`). Deprecated: use `state` instead.'
+                    type: boolean
+                    x-struct:
+                    x-validate:
+                  module:
+                    properties:
+                      id:
+                        description: ID of the module.
+                        type: string
+                        x-struct:
+                        x-validate:
+                      name:
+                        description: Name of the module.
+                        type: string
+                        x-struct:
+                        x-validate:
+                    required:
+                      - id
+                      - name
+                    type: object
+                    x-struct:
+                    x-validate:
+                  name:
+                    description: Name of the test case.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  state:
+                    description: The state of the test case. Currently one of `enabled`, `muted`, or `skipped`; the field is left as an open string so adding new states in the future doesn't break clients pinned to the older spec.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  suite:
+                    nullable: true
+                    properties:
+                      id:
+                        description: ID of the suite.
+                        type: string
+                        x-struct:
+                        x-validate:
+                      name:
+                        description: Name of the suite.
+                        type: string
+                        x-struct:
+                        x-validate:
+                    required:
+                      - id
+                      - name
+                    type: object
+                    x-struct:
+                    x-validate:
+                  url:
+                    description: URL to view the test case in the dashboard.
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - id
+                  - name
+                  - module
+                  - is_flaky
+                  - is_quarantined
+                  - state
+                  - url
+                type: object
+                x-struct:
+                x-validate:
+          description: The updated test case
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid update params (empty body or malformed field values)
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to update this resource
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Test case not found
+      summary: Update a test case.
+      tags:
+        - Test Cases
   /api/cache/endpoints:
     get:
       callbacks: {}
-      description: Returns custom cache endpoints if configured for the account, otherwise returns default endpoints.
+      description: Returns cache endpoints for the requested account.
       operationId: getCacheEndpoints
       parameters:
         - description: The name of the account to get custom cache endpoints for.
@@ -17663,6 +18686,18 @@ paths:
           application/json:
             schema:
               properties:
+                build_run_id:
+                  description: The UUID of the associated Xcode build run.
+                  format: uuid
+                  type: string
+                  x-struct:
+                  x-validate:
+                gradle_build_id:
+                  description: The UUID of the associated Gradle build.
+                  format: uuid
+                  type: string
+                  x-struct:
+                  x-validate:
                 granularity:
                   description: Sharding granularity level.
                   enum:
@@ -18110,6 +19145,12 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
+                id:
+                  description: Optional client-generated UUID for the test run. If not provided, the server generates one.
+                  format: uuid
+                  type: string
+                  x-struct:
+                  x-validate:
                 is_ci:
                   description: Indicates if the run was executed on a Continuous Integration (CI) system.
                   type: boolean
@@ -18147,6 +19188,8 @@ paths:
                     - success
                     - failure
                     - skipped
+                    - processing
+                    - failed_processing
                   type: string
                   x-struct:
                   x-validate:
@@ -18176,6 +19219,110 @@ paths:
                         description: The test cases within this module.
                         items:
                           properties:
+                            arguments:
+                              description: The argument variants for parameterized tests (Swift Testing @Test with arguments, JUnit5 @ParameterizedTest).
+                              items:
+                                properties:
+                                  duration:
+                                    description: The duration of this argument variant in milliseconds.
+                                    type: integer
+                                    x-struct:
+                                    x-validate:
+                                  failures:
+                                    description: The failures for this argument variant.
+                                    items:
+                                      properties:
+                                        issue_type:
+                                          description: The type of issue.
+                                          enum:
+                                            - error_thrown
+                                            - assertion_failure
+                                            - issue_recorded
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        line_number:
+                                          description: The line number where the failure occurred.
+                                          type: integer
+                                          x-struct:
+                                          x-validate:
+                                        message:
+                                          description: The failure message.
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        path:
+                                          description: The file path where the failure occurred.
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                      required:
+                                        - line_number
+                                      type: object
+                                      x-struct:
+                                      x-validate:
+                                    type: array
+                                    x-struct:
+                                    x-validate:
+                                  name:
+                                    description: "The argument label (e.g., '.cardUser')."
+                                    type: string
+                                    x-struct:
+                                    x-validate:
+                                  repetitions:
+                                    description: The repetition attempts for this argument variant.
+                                    items:
+                                      properties:
+                                        duration:
+                                          description: The duration in milliseconds.
+                                          type: integer
+                                          x-struct:
+                                          x-validate:
+                                        name:
+                                          description: The name of the repetition.
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        repetition_number:
+                                          description: The repetition attempt number.
+                                          type: integer
+                                          x-struct:
+                                          x-validate:
+                                        status:
+                                          description: The status.
+                                          enum:
+                                            - success
+                                            - failure
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                      required:
+                                        - repetition_number
+                                        - name
+                                        - status
+                                      type: object
+                                      x-struct:
+                                      x-validate:
+                                    type: array
+                                    x-struct:
+                                    x-validate:
+                                  status:
+                                    description: The status for this argument variant.
+                                    enum:
+                                      - success
+                                      - failure
+                                    type: string
+                                    x-struct:
+                                    x-validate:
+                                required:
+                                  - name
+                                  - status
+                                type: object
+                                x-struct:
+                                x-validate:
+                              type: array
+                              x-struct:
+                              x-validate:
                             duration:
                               description: The duration of the test case in milliseconds.
                               type: integer
@@ -18215,6 +19362,11 @@ paths:
                                 x-struct:
                                 x-validate:
                               type: array
+                              x-struct:
+                              x-validate:
+                            is_quarantined:
+                              description: Whether this test case was quarantined when it ran.
+                              type: boolean
                               x-struct:
                               x-validate:
                             name:
@@ -18265,17 +19417,14 @@ paths:
                                 - success
                                 - failure
                                 - skipped
+                                - processing
+                                - failed_processing
                               type: string
                               x-struct:
                               x-validate:
                             test_suite_name:
                               description: The name of the test suite this test case belongs to (optional).
                               type: string
-                              x-struct:
-                              x-validate:
-                            is_quarantined:
-                              description: Whether this test case was quarantined when it ran.
-                              type: boolean
                               x-struct:
                               x-validate:
                           required:
@@ -18308,6 +19457,8 @@ paths:
                                 - success
                                 - failure
                                 - skipped
+                                - processing
+                                - failed_processing
                               type: string
                               x-struct:
                               x-validate:
@@ -18415,6 +19566,12 @@ paths:
                   description: The repetition number (attempt) this attachment belongs to.
                   nullable: true
                   type: integer
+                  x-struct:
+                  x-validate:
+                test_case_run_argument_id:
+                  description: The UUID of the argument this attachment belongs to (for parameterized tests).
+                  nullable: true
+                  type: string
                   x-struct:
                   x-validate:
                 test_case_run_id:
@@ -18610,10 +19767,212 @@ paths:
       summary: 'List test case runs for a test run. Deprecated: use listTestCaseRuns with test_run_id query param instead.'
       tags:
         - Test Case Runs
+  /api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}:
+    delete:
+      callbacks: {}
+      operationId: deleteAutomationAlert
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The ID of the alert.
+          in: path
+          name: alert_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '204':
+          content:
+            application/json: {}
+          description: Deleted
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found
+      summary: Delete an automation alert.
+      tags:
+        - Automation Alerts
+    get:
+      callbacks: {}
+      operationId: getAutomationAlert
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The ID of the alert.
+          in: path
+          name: alert_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutomationAlert'
+          description: Alert details
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found
+      summary: Get an automation alert by ID.
+      tags:
+        - Automation Alerts
+    put:
+      callbacks: {}
+      operationId: updateAutomationAlert
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The ID of the alert.
+          in: path
+          name: alert_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                cadence:
+                  type: string
+                  x-struct:
+                  x-validate:
+                enabled:
+                  type: boolean
+                  x-struct:
+                  x-validate:
+                name:
+                  type: string
+                  x-struct:
+                  x-validate:
+                recovery_actions:
+                  items:
+                    $ref: '#/components/schemas/AutomationAlertAction'
+                  type: array
+                  x-struct:
+                  x-validate:
+                recovery_config:
+                  type: object
+                  x-struct:
+                  x-validate:
+                recovery_enabled:
+                  type: boolean
+                  x-struct:
+                  x-validate:
+                trigger_actions:
+                  items:
+                    $ref: '#/components/schemas/AutomationAlertAction'
+                  type: array
+                  x-struct:
+                  x-validate:
+                trigger_config:
+                  type: object
+                  x-struct:
+                  x-validate:
+              type: object
+              x-struct:
+              x-validate:
+        description: Automation alert update
+        required: false
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutomationAlert'
+          description: Updated alert
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Validation error
+      summary: Update an automation alert.
+      tags:
+        - Automation Alerts
 security:
   - authorization: []
   - cookie: []
-servers:
-  - url: http://localhost:8080
-    variables: {}
+servers: []
 tags: []

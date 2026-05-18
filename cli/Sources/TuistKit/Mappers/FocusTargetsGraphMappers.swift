@@ -31,6 +31,8 @@ public enum FocusTargetsGraphMappersError: FatalError, Equatable {
 public struct FocusTargetsGraphMappers: GraphMapping {
     /// When specified, if includedTargets is empty it will automatically include all targets in the test plan.
     public let testPlan: String?
+    /// When specified and no explicit filters are provided, only test targets from this scheme are included.
+    public let schemeName: String?
     /// The targets to be kept as non prunable with their respective dependencies and tests targets.
     public let includedTargets: Set<TargetQuery>
     public let excludedTargets: Set<TargetQuery>
@@ -40,11 +42,13 @@ public struct FocusTargetsGraphMappers: GraphMapping {
 
     public init(
         testPlan: String? = nil,
+        schemeName: String? = nil,
         includedTargets: Set<TargetQuery>,
         excludedTargets: Set<TargetQuery> = [],
         includedProducts: Set<Product> = []
     ) {
         self.testPlan = testPlan
+        self.schemeName = schemeName
         self.includedTargets = includedTargets
         self.excludedTargets = excludedTargets
         self.includedProducts = includedProducts
@@ -57,7 +61,23 @@ public struct FocusTargetsGraphMappers: GraphMapping {
         let hasExplicitFilters = !includedTargets.isEmpty || !excludedTargets.isEmpty || testPlan != nil
         let sourceTargets: Set<GraphTarget>
 
-        if !includedProducts.isEmpty, !hasExplicitFilters {
+        if let schemeName, !hasExplicitFilters {
+            let scheme = graphTraverser.schemes().first(where: { $0.name == schemeName })
+            let schemeTestTargets = graphTraverser.testTargets(for: schemeName)
+            let schemeBuildTargets: Set<GraphTarget> = Set(
+                (scheme?.buildAction?.targets ?? []).compactMap {
+                    graphTraverser.target(path: $0.projectPath, name: $0.name)
+                }
+            )
+            let schemeTargets = schemeTestTargets.union(schemeBuildTargets)
+            if !schemeTargets.isEmpty {
+                sourceTargets = schemeTargets
+            } else if !includedProducts.isEmpty {
+                sourceTargets = graphTraverser.allTargets().filter { includedProducts.contains($0.target.product) }
+            } else {
+                sourceTargets = graphTraverser.allTargets()
+            }
+        } else if !includedProducts.isEmpty, !hasExplicitFilters {
             sourceTargets = graphTraverser.allTargets().filter { includedProducts.contains($0.target.product) }
         } else {
             let userSpecifiedSourceTargets = graphTraverser.filterIncludedTargets(
@@ -91,46 +111,23 @@ public struct FocusTargetsGraphMappers: GraphMapping {
             sourceTargets = userSpecifiedSourceTargets
         }
 
-        var filteredTargets = Set(try topologicalSort(
+        let filteredTargets = Set(try topologicalSort(
             Array(sourceTargets),
             successors: { Array(graphTraverser.directTargetDependencies(path: $0.path, name: $0.target.name)).map(\.graphTarget) }
         ))
-
-        let filteredTargetRefs = Set(filteredTargets.map {
-            TargetReference(projectPath: $0.path, name: $0.target.name)
-        })
-        let allSchemes = graph.projects.values.flatMap(\.schemes) + graph.workspace.schemes
-        let survivingSchemes = allSchemes.filter { scheme in
-            let schemeTargetRefs = (scheme.buildAction?.targets ?? [])
-                + (scheme.testAction?.targets.map(\.target) ?? [])
-            return schemeTargetRefs.contains(where: { filteredTargetRefs.contains($0) })
-        }
-        let executionActionTargetRefs = Set(
-            survivingSchemes.flatMap { scheme -> [TargetReference] in
-                let allActions = (scheme.buildAction?.preActions ?? [])
-                    + (scheme.buildAction?.postActions ?? [])
-                    + (scheme.testAction?.preActions ?? [])
-                    + (scheme.testAction?.postActions ?? [])
-                return allActions.compactMap(\.target)
-            }
-        )
-        let executionActionTargets = graphTraverser.allTargets().filter { graphTarget in
-            executionActionTargetRefs.contains(
-                TargetReference(projectPath: graphTarget.path, name: graphTarget.target.name)
-            )
-        }
-        let additionalTargets = try topologicalSort(
-            Array(executionActionTargets),
-            successors: { Array(graphTraverser.directTargetDependencies(path: $0.path, name: $0.target.name)).map(\.graphTarget) }
-        )
-        filteredTargets.formUnion(additionalTargets)
 
         graph.projects = graph.projects.mapValues { project in
             var project = project
             project.targets = project.targets.mapValues { target in
                 var target = target
                 if !filteredTargets.contains(GraphTarget(path: project.path, target: target, project: project)) {
-                    target.metadata.tags.formUnion(["tuist:prunable"])
+                    let isPreservedLocalPackageTest = !hasExplicitFilters
+                        && target.metadata.tags.contains(TargetTags.localSwiftPackageTest)
+                        && graphTraverser.directTargetDependencies(path: project.path, name: target.name)
+                        .contains(where: { filteredTargets.contains($0.graphTarget) })
+                    if !isPreservedLocalPackageTest {
+                        target.metadata.tags.formUnion(["tuist:prunable"])
+                    }
                 }
                 return target
             }

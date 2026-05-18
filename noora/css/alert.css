@@ -21,7 +21,7 @@
   );
   display: flex;
 
-  border-radius: var(--noora-radius-large);
+  border-radius: var(--noora-radius-4);
 
   & > [data-part="title"] {
     color: var(--noora-surface-label-primary);

@@ -1,0 +1,27 @@
+services:
+  kura-us:
+    environment: &peer_tls_env
+      KURA_NODE_URL: https://kura-us.kura.internal:7443
+      KURA_PEERS: https://kura-us.kura.internal:7443,https://kura-eu.kura.internal:7443,https://kura-ap.kura.internal:7443
+      KURA_INTERNAL_PORT: "7443"
+      KURA_INTERNAL_TLS_CA_CERT_PATH: /etc/kura/mtls/ca.pem
+      KURA_INTERNAL_TLS_CERT_PATH: /etc/kura/mtls/peer.pem
+      KURA_INTERNAL_TLS_KEY_PATH: /etc/kura/mtls/peer.key
+    volumes:
+      - ${KURA_MTLS_CERT_DIR}:/etc/kura/mtls:ro
+
+  kura-eu:
+    environment:
+      <<: *peer_tls_env
+      KURA_NODE_URL: https://kura-eu.kura.internal:7443
+      KURA_OTEL_SERVICE_NAME: kura-eu
+    volumes:
+      - ${KURA_MTLS_CERT_DIR}:/etc/kura/mtls:ro
+
+  kura-ap:
+    environment:
+      <<: *peer_tls_env
+      KURA_NODE_URL: https://kura-ap.kura.internal:7443
+      KURA_OTEL_SERVICE_NAME: kura-ap
+    volumes:
+      - ${KURA_MTLS_CERT_DIR}:/etc/kura/mtls:ro

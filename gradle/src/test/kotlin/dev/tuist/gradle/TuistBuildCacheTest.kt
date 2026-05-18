@@ -11,8 +11,10 @@ import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
+import java.io.EOFException
 import java.io.InputStream
 import java.io.OutputStream
+import java.util.zip.ZipException
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
@@ -120,14 +122,131 @@ class TuistBuildCacheTest {
     }
 
     @Test
-    fun `load throws exception on server error`() {
-        mockServer.enqueue(MockResponse().setResponseCode(500))
+    fun `load throws BuildCacheException with context on server error`() {
+        mockServer.enqueue(
+            MockResponse()
+                .setResponseCode(500)
+                .setBody("upstream exploded: key corrupt")
+        )
 
         val service = createService()
 
-        assertThrows<BuildCacheException> {
-            service.load(TestBuildCacheKey("key"), TestBuildCacheEntryReader())
+        val exception = assertThrows<BuildCacheException> {
+            service.load(TestBuildCacheKey("deadbeef"), TestBuildCacheEntryReader())
         }
+
+        val message = exception.message ?: error("BuildCacheException must not have a null message")
+        assertTrue(message.contains("load"), "expected operation in message, got: $message")
+        assertTrue(message.contains("deadbeef"), "expected cache key in message, got: $message")
+        assertTrue(message.contains("HTTP 500"), "expected HTTP status in message, got: $message")
+        assertTrue(
+            message.contains("upstream exploded"),
+            "expected response body snippet in message, got: $message"
+        )
+        assertTrue(
+            message.contains("host=${mockServer.hostName}"),
+            "expected host in message, got: $message"
+        )
+    }
+
+    @Test
+    fun `load wraps reader failures with cache key and content-length`() {
+        mockServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("anything")
+        )
+
+        val service = createService()
+        val reader = object : BuildCacheEntryReader {
+            override fun readFrom(input: InputStream) {
+                throw java.io.IOException("truncated body")
+            }
+        }
+
+        val exception = assertThrows<BuildCacheException> {
+            service.load(TestBuildCacheKey("abc123"), reader)
+        }
+
+        val message = exception.message ?: error("BuildCacheException must not have a null message")
+        assertTrue(message.contains("abc123"), "expected cache key in message, got: $message")
+        assertTrue(
+            message.contains("Failed to read cache entry body"),
+            "expected reader description in message, got: $message"
+        )
+        assertTrue(
+            message.contains("truncated body"),
+            "expected underlying cause in message, got: $message"
+        )
+        assertEquals("truncated body", exception.cause?.message)
+    }
+
+    @Test
+    fun `load treats invalid compressed cache entries as cache misses`() {
+        mockServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("anything")
+                .addHeader("ETag", "\"bad-entry\"")
+                .addHeader("Last-Modified", "Tue, 21 Apr 2026 00:47:30 GMT")
+        )
+
+        val service = createService()
+        val reader = object : BuildCacheEntryReader {
+            override fun readFrom(input: InputStream) {
+                throw ZipException("Unexpected end of ZLIB input stream")
+            }
+        }
+
+        val result = service.load(TestBuildCacheKey("corrupt-entry"), reader)
+
+        assertFalse(result)
+    }
+
+    @Test
+    fun `load treats truncated compressed cache entries as cache misses`() {
+        mockServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("anything")
+                .addHeader("ETag", "\"truncated-entry\"")
+                .addHeader("Last-Modified", "Tue, 21 Apr 2026 00:47:30 GMT")
+        )
+
+        val service = createService()
+        val reader = object : BuildCacheEntryReader {
+            override fun readFrom(input: InputStream) {
+                throw EOFException("Unexpected end of ZLIB input stream")
+            }
+        }
+
+        val result = service.load(TestBuildCacheKey("truncated-entry"), reader)
+
+        assertFalse(result)
+    }
+
+    @Test
+    fun `store throws BuildCacheException with context on server error`() {
+        mockServer.enqueue(
+            MockResponse()
+                .setResponseCode(503)
+                .setBody("cache unavailable")
+        )
+
+        val service = createService(isPushEnabled = true)
+
+        val exception = assertThrows<BuildCacheException> {
+            service.store(TestBuildCacheKey("putkey"), TestBuildCacheEntryWriter("payload"))
+        }
+
+        val message = exception.message ?: error("BuildCacheException must not have a null message")
+        assertTrue(message.contains("store"), "expected operation in message, got: $message")
+        assertTrue(message.contains("putkey"), "expected cache key in message, got: $message")
+        assertTrue(message.contains("HTTP 503"), "expected HTTP status in message, got: $message")
+        assertTrue(
+            message.contains("cache unavailable"),
+            "expected response body snippet in message, got: $message"
+        )
     }
 
     @Test

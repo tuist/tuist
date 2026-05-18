@@ -1,6 +1,5 @@
 import Foundation
 import HTTPTypes
-import Logging
 import OpenAPIRuntime
 import TuistHTTP
 
@@ -38,17 +37,33 @@ struct ServerClientAuthenticationMiddleware: ClientMiddleware {
         var request = request
 
         let urlForAuthentication = authenticationURL ?? baseURL
-        guard let token = try await serverAuthenticationController.authenticationToken(
-            serverURL: urlForAuthentication
-        )
-        else {
+        let config = ServerAuthenticationConfig.current
+
+        let token: AuthenticationToken?
+        do {
+            token = try await serverAuthenticationController.authenticationToken(
+                serverURL: urlForAuthentication,
+                refreshIfNeeded: true
+            )
+        } catch {
+            if config.optionalAuthentication {
+                return try await next(request, body, baseURL)
+            }
+            throw error
+        }
+
+        guard let token else {
+            if config.optionalAuthentication {
+                return try await next(request, body, baseURL)
+            }
             throw ClientAuthenticationError.notAuthenticated
         }
-        request.headerFields.append(
-            .init(
-                name: .authorization, value: "Bearer \(token.value)"
-            )
-        )
+        addAuthorizationHeader(to: &request, token: token)
+
         return try await next(request, body, baseURL)
+    }
+
+    private func addAuthorizationHeader(to request: inout HTTPRequest, token: AuthenticationToken) {
+        request.headerFields[.authorization] = "Bearer \(token.value)"
     }
 }

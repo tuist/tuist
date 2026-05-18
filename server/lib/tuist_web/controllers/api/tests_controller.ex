@@ -211,6 +211,11 @@ defmodule TuistWeb.API.TestsController do
          description: "Parameters to create a single test run.",
          type: :object,
          properties: %{
+           id: %Schema{
+             type: :string,
+             format: :uuid,
+             description: "Optional client-generated UUID for the test run. If not provided, the server generates one."
+           },
            duration: %Schema{
              description: "Duration of the run in milliseconds.",
              type: :integer
@@ -238,7 +243,7 @@ defmodule TuistWeb.API.TestsController do
            status: %Schema{
              type: :string,
              description: "The status of the test run.",
-             enum: ["success", "failure", "skipped"]
+             enum: ["success", "failure", "skipped", "processing", "failed_processing"]
            },
            git_commit_sha: %Schema{
              type: :string,
@@ -323,7 +328,7 @@ defmodule TuistWeb.API.TestsController do
                        status: %Schema{
                          type: :string,
                          description: "The status of the test suite.",
-                         enum: ["success", "failure", "skipped"]
+                         enum: ["success", "failure", "skipped", "processing", "failed_processing"]
                        },
                        duration: %Schema{
                          type: :integer,
@@ -350,7 +355,7 @@ defmodule TuistWeb.API.TestsController do
                        status: %Schema{
                          type: :string,
                          description: "The status of the test case.",
-                         enum: ["success", "failure", "skipped"]
+                         enum: ["success", "failure", "skipped", "processing", "failed_processing"]
                        },
                        duration: %Schema{
                          type: :integer,
@@ -413,6 +418,72 @@ defmodule TuistWeb.API.TestsController do
                            },
                            required: [:repetition_number, :name, :status]
                          }
+                       },
+                       arguments: %Schema{
+                         type: :array,
+                         description:
+                           "The argument variants for parameterized tests (Swift Testing @Test with arguments, JUnit5 @ParameterizedTest).",
+                         items: %Schema{
+                           type: :object,
+                           properties: %{
+                             name: %Schema{
+                               type: :string,
+                               description: "The argument label (e.g., '.cardUser')."
+                             },
+                             status: %Schema{
+                               type: :string,
+                               description: "The status for this argument variant.",
+                               enum: ["success", "failure"]
+                             },
+                             duration: %Schema{
+                               type: :integer,
+                               description: "The duration of this argument variant in milliseconds."
+                             },
+                             failures: %Schema{
+                               type: :array,
+                               description: "The failures for this argument variant.",
+                               items: %Schema{
+                                 type: :object,
+                                 properties: %{
+                                   message: %Schema{type: :string, description: "The failure message."},
+                                   path: %Schema{type: :string, description: "The file path where the failure occurred."},
+                                   line_number: %Schema{
+                                     type: :integer,
+                                     description: "The line number where the failure occurred."
+                                   },
+                                   issue_type: %Schema{
+                                     type: :string,
+                                     description: "The type of issue.",
+                                     enum: ["error_thrown", "assertion_failure", "issue_recorded"]
+                                   }
+                                 },
+                                 required: [:line_number]
+                               }
+                             },
+                             repetitions: %Schema{
+                               type: :array,
+                               description: "The repetition attempts for this argument variant.",
+                               items: %Schema{
+                                 type: :object,
+                                 properties: %{
+                                   repetition_number: %Schema{
+                                     type: :integer,
+                                     description: "The repetition attempt number."
+                                   },
+                                   name: %Schema{type: :string, description: "The name of the repetition."},
+                                   status: %Schema{
+                                     type: :string,
+                                     description: "The status.",
+                                     enum: ["success", "failure"]
+                                   },
+                                   duration: %Schema{type: :integer, description: "The duration in milliseconds."}
+                                 },
+                                 required: [:repetition_number, :name, :status]
+                               }
+                             }
+                           },
+                           required: [:name, :status]
+                         }
                        }
                      },
                      required: [:name, :status, :duration]
@@ -450,18 +521,61 @@ defmodule TuistWeb.API.TestsController do
 
     case get_or_create_test(run_params) do
       {:ok, test_run} ->
-        Tuist.VCS.enqueue_vcs_pull_request_comment(%{
+        vcs_comment_params = %{
           git_commit_sha: Map.get(body_params, :git_commit_sha),
           git_ref: Map.get(body_params, :git_ref),
           git_remote_url_origin: Map.get(body_params, :git_remote_url_origin),
-          project_id: selected_project.id,
-          preview_url_template: "#{url(~p"/")}:account_name/:project_name/previews/:preview_id",
-          preview_qr_code_url_template: "#{url(~p"/")}:account_name/:project_name/previews/:preview_id/qr-code.png",
-          command_run_url_template: "#{url(~p"/")}:account_name/:project_name/runs/:command_event_id",
-          test_run_url_template: "#{url(~p"/")}:account_name/:project_name/tests/test-runs/:test_run_id",
-          bundle_url_template: "#{url(~p"/")}:account_name/:project_name/bundles/:bundle_id",
-          build_url_template: "#{url(~p"/")}:account_name/:project_name/builds/build-runs/:build_id"
-        })
+          project_id: selected_project.id
+        }
+
+        # Trigger off the request status, not the merged Test row's status:
+        # for sharded runs, create_or_update_sharded_test rewrites the row
+        # to "in_progress" while it waits for the other shards, so
+        # test_run.status is never "processing" even though the CLI is
+        # uploading an xcresult that still needs parsing.
+        if Map.get(body_params, :status) == "processing" do
+          # The CLI uploads each shard's xcresult to S3 keyed on the UUID
+          # it generated locally (body_params.id). For sharded runs, the
+          # server merges all shards into a single Test row, so test_run.id
+          # is the merged id — only the first shard's. Falling back to the
+          # merged id would point the worker at a missing object for every
+          # other shard, leaving their data unprocessed and the dashboard
+          # stuck at 0.
+          xcresult_id = Map.get(body_params, :id) || test_run.id
+
+          storage_key =
+            "#{selected_project.account.name}/#{selected_project.name}/runs/#{xcresult_id}/result_bundle.zip"
+
+          %{
+            test_run_id: test_run.id,
+            storage_key: storage_key,
+            account_id: test_run.account_id,
+            project_id: selected_project.id,
+            account_handle: selected_project.account.name,
+            project_handle: selected_project.name,
+            is_ci: test_run.is_ci || false,
+            git_branch: test_run.git_branch,
+            git_commit_sha: test_run.git_commit_sha,
+            git_ref: test_run.git_ref,
+            macos_version: test_run.macos_version,
+            xcode_version: test_run.xcode_version,
+            model_identifier: test_run.model_identifier,
+            scheme: test_run.scheme,
+            ci_run_id: test_run.ci_run_id,
+            ci_project_handle: test_run.ci_project_handle,
+            ci_host: test_run.ci_host,
+            ci_provider: test_run.ci_provider,
+            build_run_id: test_run.build_run_id,
+            shard_plan_id: test_run.shard_plan_id,
+            shard_index: Map.get(body_params, :shard_index),
+            vcs_comment_params: vcs_comment_params
+          }
+          |> Tuist.Tests.Workers.ProcessXcresultWorker.new()
+          |> Oban.insert()
+          |> then(fn {:ok, _job} -> :ok end)
+        else
+          Tuist.VCS.enqueue_vcs_pull_request_comment(vcs_comment_params)
+        end
 
         conn
         |> put_status(:ok)
@@ -473,12 +587,20 @@ defmodule TuistWeb.API.TestsController do
           url: url(~p"/#{selected_project.account.name}/#{selected_project.name}/tests/test-runs/#{test_run.id}"),
           test_case_runs:
             Enum.map(test_run.test_case_runs, fn run ->
-              %{
+              result = %{
                 id: run.id,
                 name: run.name,
                 module_name: run.module_name,
                 suite_name: run.suite_name
               }
+
+              case Map.get(run, :arguments) do
+                nil ->
+                  result
+
+                arguments ->
+                  Map.put(result, :arguments, Enum.map(arguments, &Map.take(&1, [:id, :name])))
+              end
             end)
         })
 
@@ -598,7 +720,7 @@ defmodule TuistWeb.API.TestsController do
   defp get_or_create_test(params) do
     test_id = Map.get(params, :id, UUIDv7.generate())
 
-    case Tests.get_test(test_id) do
+    case Tests.get_test(test_id, preload: [test_case_runs: :arguments]) do
       {:ok, test_run} ->
         {:ok, test_run}
 

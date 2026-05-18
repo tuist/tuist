@@ -25,13 +25,6 @@ let targets: [Target] = [
             .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
-    .testTarget(
-        name: "XcodeMetadataTests",
-        dependencies: ["XcodeMetadata", "XcodeGraph"],
-        swiftSettings: [
-            .enableExperimentalFeature("StrictConcurrency"),
-        ]
-    ),
     .target(
         name: "XcodeGraphMapper",
         dependencies: [
@@ -41,24 +34,6 @@ let targets: [Target] = [
             .product(name: "FileSystem", package: "tuist.FileSystem"),
             .product(name: "Path", package: "tuist.Path"),
             .product(name: "XcodeProj", package: "tuist.XcodeProj"),
-        ],
-        swiftSettings: [
-            .enableExperimentalFeature("StrictConcurrency"),
-            .define("MOCKING", .when(configuration: .debug)),
-        ]
-    ),
-    .testTarget(
-        name: "XcodeGraphTests",
-        dependencies: [.target(name: "XcodeGraph")],
-        swiftSettings: [
-            .enableExperimentalFeature("StrictConcurrency"),
-        ]
-    ),
-    .testTarget(
-        name: "XcodeGraphMapperTests",
-        dependencies: [
-            "XcodeGraphMapper",
-            .product(name: "FileSystem", package: "tuist.FileSystem"),
         ],
         swiftSettings: [
             .enableExperimentalFeature("StrictConcurrency"),
@@ -83,7 +58,7 @@ let package = Package(
         .package(id: "tuist.Path", .upToNextMajor(from: "0.3.8")),
         .package(id: "tuist.XcodeProj", .upToNextMajor(from: "9.9.0")),
         .package(id: "tuist.Command", from: "0.13.0"),
-        .package(id: "tuist.FileSystem", .upToNextMajor(from: "0.15.0")),
+        .package(id: "tuist.FileSystem", .upToNextMajor(from: "0.16.2")),
         .package(id: "kolos65.Mockable", .upToNextMajor(from: "0.6.1")),
         .package(id: "p-x9.MachOKit", .upToNextMajor(from: "0.46.1")),
         .package(id: "swiftlang.swift-docc-plugin", from: "1.4.6"),

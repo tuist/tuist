@@ -1,5 +1,5 @@
 ---
-name: using-tuist-generated-projects
+name: generated-projects
 description: Guides day-to-day work in Tuist-generated Xcode workspaces, including generation, build and test commands, and buildable folders. Use when working in a Tuist-generated project or when users mention `tuist generate`, `xcodebuild test`, or generated workspaces.
 ---
 
@@ -120,4 +120,4 @@ xcodebuild test \
 
 **Static side effects warnings:** adjust product types deliberately. Use `Target.product` for local targets and `PackageSettings(productTypes:)` for external products. Making everything dynamic with `.framework` can compile and run, but it may hurt launch time. Prefer static products (static frameworks or libraries) when possible and when they do not introduce side effects.
 
-**Objective-C dependency crashes:** add `-ObjC` or `-force_load` via `OTHER_LDFLAGS` on consuming targets as needed. Reference: `https://docs.tuist.dev/en/guides/features/projects/dependencies#objectivec-dependencies`.
+**Objective-C dependency crashes:** add `-ObjC` or `-force_load` via `OTHER_LDFLAGS` on consuming targets as needed. Reference: `https://tuist.dev/en/docs/guides/features/projects/dependencies#objectivec-dependencies`.

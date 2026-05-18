@@ -1,0 +1,4 @@
+framework module MyTBDFramework {
+  header "MyTBDFramework.h"
+  export *
+}

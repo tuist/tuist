@@ -1,0 +1,91 @@
+name: HCCM Deployment
+
+# Roll the hcloud-cloud-controller-manager chart values onto every
+# workload cluster on push to main. HCCM lives in kube-system and was
+# previously only installed during fresh-cluster onboarding via
+# `mise run k8s:bootstrap-workload`. That meant edits to
+# infra/k8s/mgmt/bootstrap/hccm-values.yaml had no effect on existing
+# clusters until someone re-ran bootstrap by hand — easy to forget,
+# and the kind of drift that bites at the worst possible time
+# (e.g. a CCM controller pruning Mac mini Nodes during a deploy).
+#
+# Idempotent. The matrix runs all environments in parallel: HCCM is
+# a workload-level component, blast radius is per-cluster, and the
+# change is a thin chart upgrade — no need for a canary→production
+# cascade like the application server has.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - infra/k8s/mgmt/bootstrap/hccm-values.yaml
+      - .github/workflows/hccm-deployment.yml
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  apply:
+    name: HCCM (${{ matrix.environment }})
+    strategy:
+      fail-fast: false
+      matrix:
+        # Per-cluster fixed region — sourced from
+        # infra/k8s/clusters/cluster-<env>.yaml's `region` topology
+        # variable. All workload clusters live in fsn1 today; spreading
+        # across regions is just a matter of overriding `region` per
+        # entry below — the chart's HCLOUD_LOAD_BALANCERS_LOCATION env
+        # follows.
+        include:
+          - environment: canary
+            region: fsn1
+          - environment: staging
+            region: fsn1
+          - environment: production
+            region: fsn1
+    runs-on: namespace-profile-default
+    environment:
+      name: server-k8s-${{ matrix.environment }}
+    # Hold the same lane as server-deployment.yml's deploy + observability
+    # jobs so HCCM upgrades and server rollouts can't race for the kube
+    # apiserver on the same cluster.
+    concurrency:
+      group: server-deploy-${{ matrix.environment }}
+      cancel-in-progress: false
+    timeout-minutes: 10
+    env:
+      KUBECONFIG: ${{ github.workspace }}/.kube/config
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "helm kubectl"
+          cache: "false"
+      - uses: 1password/install-cli-action@v2
+      - name: Load kubeconfig from 1Password
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          op document get "kubeconfig: tuist-${{ matrix.environment }}" \
+            --vault "tuist-k8s-${{ matrix.environment }}" --output "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
+      - name: Verify cluster reachability
+        # Same pre-flight as server-deployment.yml — fail fast if the
+        # 1P-stored kubeconfig points at a phantom apiserver instead
+        # of letting helm hang for the full --timeout.
+        run: |
+          set -euo pipefail
+          API="$(kubectl config view --minify --raw -o jsonpath='{.clusters[0].cluster.server}')"
+          echo "Reaching apiserver at $API"
+          kubectl --request-timeout=10s get --raw /version >/dev/null
+      - name: helm upgrade --install hccm
+        run: |
+          helm repo add hcloud https://charts.hetzner.cloud >/dev/null
+          helm repo update hcloud >/dev/null
+          helm upgrade --install hccm hcloud/hcloud-cloud-controller-manager \
+            --namespace kube-system \
+            -f infra/k8s/mgmt/bootstrap/hccm-values.yaml \
+            --set "env.HCLOUD_LOAD_BALANCERS_LOCATION.value=${{ matrix.region }}" \
+            --wait --timeout 3m

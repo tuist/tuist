@@ -145,7 +145,7 @@ defmodule TuistWeb.API.TestCasesControllerTest do
         )
 
       expect(Tests, :list_test_cases, fn _project_id, options ->
-        assert %{field: :is_quarantined, op: :==, value: true} in options.filters
+        assert %{field: :state, op: :in, value: ["muted", "skipped"]} in options.filters
 
         {[quarantined_test_case],
          %{
@@ -167,6 +167,66 @@ defmodule TuistWeb.API.TestCasesControllerTest do
       assert length(response["test_cases"]) == 1
       assert hd(response["test_cases"])["name"] == "quarantinedTest"
       assert hd(response["test_cases"])["is_quarantined"] == true
+    end
+
+    test "marks skipped test cases as quarantined in response", %{conn: conn, user: user, project: project} do
+      skipped_test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "skippedTest",
+          state: "skipped",
+          last_ran_at: NaiveDateTime.utc_now()
+        )
+
+      stub(Tests, :list_test_cases, fn _project_id, _options ->
+        {[skipped_test_case],
+         %{
+           has_next_page?: false,
+           has_previous_page?: false,
+           current_page: 1,
+           page_size: 20,
+           total_count: 1,
+           total_pages: 1
+         }}
+      end)
+
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases")
+
+      response = json_response(conn, :ok)
+
+      assert [result] = response["test_cases"]
+      assert result["state"] == "skipped"
+      assert result["is_quarantined"] == true
+    end
+
+    test "filters test cases by explicit skipped state", %{conn: conn, user: user, project: project} do
+      skipped_test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "skippedTest",
+          state: "skipped",
+          last_ran_at: NaiveDateTime.utc_now()
+        )
+
+      expect(Tests, :list_test_cases, fn _project_id, options ->
+        assert %{field: :state, op: :==, value: "skipped"} in options.filters
+
+        {[skipped_test_case],
+         %{
+           has_next_page?: false,
+           has_previous_page?: false,
+           current_page: 1,
+           page_size: 20,
+           total_count: 1,
+           total_pages: 1
+         }}
+      end)
+
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases?state=skipped")
+
+      response = json_response(conn, :ok)
+
+      assert [%{"state" => "skipped"}] = response["test_cases"]
     end
 
     test "supports pagination", %{conn: conn, user: user, project: project} do
@@ -292,6 +352,150 @@ defmodule TuistWeb.API.TestCasesControllerTest do
     end
   end
 
+  describe "GET /api/projects/:account_handle/:project_handle/tests/test-cases/:test_case_id/events" do
+    setup %{conn: conn} do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      conn = Authentication.put_current_user(conn, user)
+
+      %{conn: conn, user: user, project: project}
+    end
+
+    test "returns paginated events for a test case", %{conn: conn, user: user, project: project} do
+      test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "testExample",
+          last_ran_at: NaiveDateTime.utc_now()
+        )
+
+      stub(Tests, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
+
+      stub(Tests, :list_test_case_events, fn _test_case_id, _attrs ->
+        {[
+           %{
+             event_type: "marked_flaky",
+             inserted_at: ~N[2024-06-15 10:30:00],
+             actor: %{id: 1, name: "alice"}
+           },
+           %{
+             event_type: "first_run",
+             inserted_at: ~N[2024-06-01 08:00:00],
+             actor: nil
+           }
+         ],
+         %{
+           has_next_page?: false,
+           has_previous_page?: false,
+           current_page: 1,
+           page_size: 20,
+           total_count: 2,
+           total_pages: 1
+         }}
+      end)
+
+      conn =
+        get(conn, "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases/#{test_case.id}/events")
+
+      response = json_response(conn, :ok)
+
+      assert length(response["events"]) == 2
+
+      first_event = hd(response["events"])
+      assert first_event["event_type"] == "marked_flaky"
+      assert is_integer(first_event["inserted_at"])
+      assert first_event["actor"]["id"] == 1
+      assert first_event["actor"]["name"] == "alice"
+
+      second_event = Enum.at(response["events"], 1)
+      assert second_event["event_type"] == "first_run"
+      assert second_event["actor"] == nil
+
+      assert response["pagination_metadata"]["total_count"] == 2
+    end
+
+    test "supports pagination parameters", %{conn: conn, user: user, project: project} do
+      test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "testExample",
+          last_ran_at: NaiveDateTime.utc_now()
+        )
+
+      stub(Tests, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
+
+      expect(Tests, :list_test_case_events, fn _test_case_id, attrs ->
+        assert attrs.page == 2
+        assert attrs.page_size == 5
+
+        {[],
+         %{
+           has_next_page?: false,
+           has_previous_page?: true,
+           current_page: 2,
+           page_size: 5,
+           total_count: 6,
+           total_pages: 2
+         }}
+      end)
+
+      conn =
+        get(
+          conn,
+          "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases/#{test_case.id}/events?page=2&page_size=5"
+        )
+
+      response = json_response(conn, :ok)
+
+      assert response["pagination_metadata"]["current_page"] == 2
+      assert response["pagination_metadata"]["page_size"] == 5
+      assert response["pagination_metadata"]["has_previous_page"] == true
+    end
+
+    test "returns 404 when test case does not exist", %{conn: conn, user: user, project: project} do
+      stub(Tests, :get_test_case_by_id, fn _id -> {:error, :not_found} end)
+
+      conn =
+        get(
+          conn,
+          "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases/#{UUIDv7.generate()}/events"
+        )
+
+      assert json_response(conn, :not_found)
+    end
+
+    test "returns 404 when test case belongs to a different project", %{conn: conn, user: user, project: project} do
+      other_project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: other_project.id,
+          last_ran_at: NaiveDateTime.utc_now()
+        )
+
+      stub(Tests, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
+
+      conn =
+        get(conn, "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases/#{test_case.id}/events")
+
+      assert json_response(conn, :not_found)
+    end
+
+    test "returns 403 when user is not authorized", %{conn: conn, project: project} do
+      other_user = AccountsFixtures.user_fixture(preload: [:account])
+      conn = Authentication.put_current_user(conn, other_user)
+
+      conn =
+        get(
+          conn,
+          "/api/projects/#{project.account.name}/#{project.name}/tests/test-cases/#{UUIDv7.generate()}/events"
+        )
+
+      assert json_response(conn, :forbidden)
+    end
+  end
+
   describe "GET /api/projects/:account_handle/:project_handle/tests/test-cases/:test_case_id" do
     setup %{conn: conn} do
       user = AccountsFixtures.user_fixture(preload: [:account])
@@ -399,6 +603,282 @@ defmodule TuistWeb.API.TestCasesControllerTest do
 
       # Then
       assert json_response(conn, :forbidden)
+    end
+  end
+
+  describe "PATCH /api/projects/:account_handle/:project_handle/tests/test-cases/:test_case_id" do
+    setup %{conn: conn} do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      conn = Authentication.put_current_user(conn, user)
+
+      %{conn: conn, user: user, project: project}
+    end
+
+    test "updates state from muted to enabled", %{conn: conn, user: user, project: project} do
+      # Given
+      test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "testExample",
+          module_name: "MyTests",
+          suite_name: "MySuite",
+          state: "muted",
+          last_ran_at: NaiveDateTime.utc_now()
+        )
+
+      updated = %{test_case | state: "enabled"}
+
+      stub(Tests, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
+
+      expect(Tests, :update_test_case, fn id, attrs, opts ->
+        assert id == test_case.id
+        assert attrs == %{state: "enabled"}
+        assert Keyword.fetch!(opts, :actor_id) == user.account.id
+        {:ok, updated}
+      end)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> patch(
+          "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases/#{test_case.id}",
+          %{state: "enabled"}
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      assert response["id"] == test_case.id
+      assert response["state"] == "enabled"
+      assert response["is_quarantined"] == false
+      assert response["module"]["name"] == "MyTests"
+      assert response["suite"]["name"] == "MySuite"
+      assert response["url"] =~ test_case.id
+    end
+
+    test "updates state from enabled to muted", %{conn: conn, user: user, project: project} do
+      # Given
+      test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "testExample",
+          state: "enabled",
+          last_ran_at: NaiveDateTime.utc_now()
+        )
+
+      updated = %{test_case | state: "muted"}
+
+      stub(Tests, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
+
+      expect(Tests, :update_test_case, fn _id, attrs, _opts ->
+        assert attrs == %{state: "muted"}
+        {:ok, updated}
+      end)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> patch(
+          "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases/#{test_case.id}",
+          %{state: "muted"}
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      assert response["state"] == "muted"
+      assert response["is_quarantined"] == true
+    end
+
+    test "returns 404 when test case does not exist", %{conn: conn, user: user, project: project} do
+      # Given
+      stub(Tests, :get_test_case_by_id, fn _id -> {:error, :not_found} end)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> patch(
+          "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases/#{UUIDv7.generate()}",
+          %{state: "enabled"}
+        )
+
+      # Then
+      assert json_response(conn, :not_found)
+    end
+
+    test "returns 404 when test case is deleted between lookup and update", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      # Given
+      test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          state: "muted",
+          last_ran_at: NaiveDateTime.utc_now()
+        )
+
+      stub(Tests, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
+      stub(Tests, :update_test_case, fn _id, _attrs, _opts -> {:error, :not_found} end)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> patch(
+          "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases/#{test_case.id}",
+          %{state: "enabled"}
+        )
+
+      # Then
+      assert json_response(conn, :not_found)
+    end
+
+    test "returns 404 when test case belongs to a different project", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      # Given
+      other_project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: other_project.id,
+          last_ran_at: NaiveDateTime.utc_now()
+        )
+
+      stub(Tests, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> patch(
+          "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases/#{test_case.id}",
+          %{state: "enabled"}
+        )
+
+      # Then
+      assert json_response(conn, :not_found)
+    end
+
+    test "returns 403 when user is not authorized", %{conn: conn, project: project} do
+      # Given
+      other_user = AccountsFixtures.user_fixture(preload: [:account])
+      conn = Authentication.put_current_user(conn, other_user)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> patch(
+          "/api/projects/#{project.account.name}/#{project.name}/tests/test-cases/#{UUIDv7.generate()}",
+          %{state: "enabled"}
+        )
+
+      # Then
+      assert json_response(conn, :forbidden)
+    end
+
+    test "returns 400 when state value is invalid", %{conn: conn, user: user, project: project} do
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> patch(
+          "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases/#{UUIDv7.generate()}",
+          %{state: "not-a-real-state"}
+        )
+
+      # Then
+      assert response(conn, 400)
+    end
+
+    test "returns 400 when body omits both state and is_flaky", %{conn: conn, user: user, project: project} do
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> patch(
+          "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases/#{UUIDv7.generate()}",
+          %{}
+        )
+
+      # Then
+      assert json_response(conn, :bad_request)["message"] =~ "Provide at least one"
+    end
+
+    test "marks a test case as flaky", %{conn: conn, user: user, project: project} do
+      # Given
+      test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "testExample",
+          is_flaky: false,
+          last_ran_at: NaiveDateTime.utc_now()
+        )
+
+      updated = %{test_case | is_flaky: true}
+
+      stub(Tests, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
+
+      expect(Tests, :update_test_case, fn _id, attrs, _opts ->
+        assert attrs == %{is_flaky: true}
+        {:ok, updated}
+      end)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> patch(
+          "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases/#{test_case.id}",
+          %{is_flaky: true}
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      assert response["is_flaky"] == true
+    end
+
+    test "updates state and is_flaky together", %{conn: conn, user: user, project: project} do
+      # Given
+      test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "testExample",
+          state: "muted",
+          is_flaky: true,
+          last_ran_at: NaiveDateTime.utc_now()
+        )
+
+      updated = %{test_case | state: "enabled", is_flaky: false}
+
+      stub(Tests, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
+
+      expect(Tests, :update_test_case, fn _id, attrs, _opts ->
+        assert attrs == %{state: "enabled", is_flaky: false}
+        {:ok, updated}
+      end)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> patch(
+          "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases/#{test_case.id}",
+          %{state: "enabled", is_flaky: false}
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      assert response["state"] == "enabled"
+      assert response["is_flaky"] == false
     end
   end
 end

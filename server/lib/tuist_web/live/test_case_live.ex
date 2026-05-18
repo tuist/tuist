@@ -11,9 +11,9 @@ defmodule TuistWeb.TestCaseLive do
 
   alias Noora.Filter
   alias Tuist.Accounts
-  alias Tuist.Slack
   alias Tuist.Tests
   alias Tuist.Tests.Analytics
+  alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Utilities.Query
 
@@ -24,7 +24,7 @@ defmodule TuistWeb.TestCaseLive do
         _session,
         %{assigns: %{selected_project: project, selected_account: account}} = socket
       ) do
-    project = Tuist.Repo.preload(project, :vcs_connection)
+    project = Tuist.Repo.preload(project, vcs_connection: :github_app_installation)
 
     test_case_detail =
       case Tests.get_test_case_by_id(test_case_id) do
@@ -41,6 +41,7 @@ defmodule TuistWeb.TestCaseLive do
 
     if connected?(socket) do
       Tuist.PubSub.subscribe("#{account.name}/#{project.name}")
+      Tuist.PubSub.subscribe(Tests.test_case_topic(test_case_id))
     end
 
     socket =
@@ -62,6 +63,23 @@ defmodule TuistWeb.TestCaseLive do
 
   defp failure_message_span(assigns) do
     ~H[<span data-part="repetition-failure">{format_failure_message(@failure, @context)}</span>]
+  end
+
+  attr :id, :string, required: true
+  attr :part, :string, required: true
+  attr :time, :any, required: true
+  attr :timezone, :any, default: nil
+
+  defp relative_time_with_tooltip(assigns) do
+    ~H"""
+    <div data-part={@part}>
+      <.tooltip id={@id} title={DateFormatter.format_with_timezone_short(@time, @timezone)}>
+        <:trigger :let={attrs}>
+          <span {attrs}>{Timex.from_now(@time)}</span>
+        </:trigger>
+      </.tooltip>
+    </div>
+    """
   end
 
   defp define_filters(project) do
@@ -87,11 +105,20 @@ defmodule TuistWeb.TestCaseLive do
         type: :number,
         operator: :>,
         value: ""
+      },
+      %Filter.Filter{
+        id: "git_branch",
+        field: :git_branch,
+        display_name: dgettext("dashboard_tests", "Branch"),
+        type: :text,
+        operator: :=~,
+        value: ""
       }
     ]
 
     if Accounts.organization?(project.account) do
       {:ok, organization} = Accounts.get_organization_by_id(project.account.organization_id)
+
       users = Accounts.get_organization_members(organization)
 
       filters ++
@@ -101,6 +128,7 @@ defmodule TuistWeb.TestCaseLive do
             field: :ran_by,
             display_name: dgettext("dashboard_tests", "Ran by"),
             type: :option,
+            searchable: true,
             options: [:ci] ++ Enum.map(users, fn user -> user.account.id end),
             options_display_names:
               Map.merge(
@@ -248,14 +276,7 @@ defmodule TuistWeb.TestCaseLive do
   def handle_event(
         "mark-as-flaky",
         _params,
-        %{
-          assigns: %{
-            test_case_id: test_case_id,
-            test_case_detail: test_case_detail,
-            selected_project: project,
-            current_user: current_user
-          }
-        } = socket
+        %{assigns: %{test_case_id: test_case_id, test_case_detail: test_case_detail, current_user: current_user}} = socket
       ) do
     {:ok, updated_test_case} =
       Tests.update_test_case(
@@ -264,24 +285,7 @@ defmodule TuistWeb.TestCaseLive do
         actor_id: current_user.account.id
       )
 
-    test_case_detail = %{test_case_detail | is_flaky: updated_test_case.is_flaky}
-
-    {test_case_detail, was_auto_quarantined} =
-      if project.auto_quarantine_flaky_tests do
-        {:ok, quarantined_test_case} =
-          Tests.update_test_case(
-            test_case_id,
-            %{is_quarantined: true},
-            actor_id: current_user.account.id
-          )
-
-        {%{test_case_detail | is_quarantined: quarantined_test_case.is_quarantined}, true}
-      else
-        {test_case_detail, false}
-      end
-
-    # Send Slack notification for manual flaky marking
-    send_manual_flaky_alert(project, updated_test_case, current_user, was_auto_quarantined)
+    test_case_detail = Map.merge(test_case_detail, Map.take(updated_test_case, [:is_flaky, :state]))
 
     {:noreply,
      socket
@@ -290,38 +294,24 @@ defmodule TuistWeb.TestCaseLive do
   end
 
   def handle_event(
-        "quarantine",
-        _params,
+        "set-state",
+        %{"data" => new_state},
         %{assigns: %{test_case_id: test_case_id, test_case_detail: test_case_detail, current_user: current_user}} = socket
-      ) do
+      )
+      when new_state in ["enabled", "muted", "skipped"] do
     {:ok, updated_test_case} =
       Tests.update_test_case(
         test_case_id,
-        %{is_quarantined: true},
+        %{state: new_state},
         actor_id: current_user.account.id
       )
 
-    {:noreply,
-     socket
-     |> assign(:test_case_detail, %{test_case_detail | is_quarantined: updated_test_case.is_quarantined})
-     |> refresh_history_events()}
-  end
-
-  def handle_event(
-        "unquarantine",
-        _params,
-        %{assigns: %{test_case_id: test_case_id, test_case_detail: test_case_detail, current_user: current_user}} = socket
-      ) do
-    {:ok, updated_test_case} =
-      Tests.update_test_case(
-        test_case_id,
-        %{is_quarantined: false},
-        actor_id: current_user.account.id
-      )
+    test_case_detail =
+      Map.merge(test_case_detail, Map.take(updated_test_case, [:state]))
 
     {:noreply,
      socket
-     |> assign(:test_case_detail, %{test_case_detail | is_quarantined: updated_test_case.is_quarantined})
+     |> assign(:test_case_detail, test_case_detail)
      |> refresh_history_events()}
   end
 
@@ -349,6 +339,19 @@ defmodule TuistWeb.TestCaseLive do
     {:noreply, socket}
   end
 
+  def handle_info(
+        {:test_case_updated, %{id: id} = payload},
+        %{assigns: %{test_case_id: test_case_id, test_case_detail: test_case_detail}} = socket
+      )
+      when id == test_case_id do
+    # Reflect server-pushed state changes (e.g. from an automation acting on
+    # this test case) without waiting for a refresh.
+    {:noreply,
+     socket
+     |> assign(:test_case_detail, %{test_case_detail | is_flaky: payload.is_flaky, state: payload.state})
+     |> refresh_history_events()}
+  end
+
   def handle_info(_event, socket) do
     {:noreply, socket}
   end
@@ -364,7 +367,7 @@ defmodule TuistWeb.TestCaseLive do
       {:ok, %{analytics: Analytics.test_case_analytics_by_id(test_case_id)}}
     end)
     |> assign_async([:flakiness_rate, :flaky_runs_grouped, :flaky_runs_meta], fn ->
-      {flaky_runs_grouped, flaky_runs_meta} = Tests.list_flaky_runs_for_test_case(test_case_id)
+      {flaky_runs_grouped, flaky_runs_meta} = Tests.list_flaky_runs_for_test_case(project.id, test_case_id)
 
       {:ok,
        %{
@@ -457,36 +460,45 @@ defmodule TuistWeb.TestCaseLive do
     "?#{assigns.uri.query |> Query.put("sort_by", column) |> Query.put("sort_order", new_order) |> Query.drop("page")}"
   end
 
-  defp send_manual_flaky_alert(project, test_case, user, was_auto_quarantined) do
-    if project.flaky_test_alerts_enabled and project.flaky_test_alerts_slack_channel_id do
-      :ok = Slack.send_manual_flaky_test_alert(project, test_case, user, was_auto_quarantined)
-    end
+  defp state_label("muted"), do: dgettext("dashboard_tests", "Muted")
+  defp state_label("skipped"), do: dgettext("dashboard_tests", "Skipped")
+  defp state_label(_), do: dgettext("dashboard_tests", "Enabled")
 
-    :ok
-  end
+  defp state_icon("muted"), do: "volume_3"
+  defp state_icon("skipped"), do: "player_track_next"
+  defp state_icon(_), do: "player_play"
 
   defp event_icon("first_run"), do: "info_circle"
   defp event_icon("marked_flaky"), do: "alert_triangle"
   defp event_icon("unmarked_flaky"), do: "circle_check"
-  defp event_icon("quarantined"), do: "lock"
-  defp event_icon("unquarantined"), do: "lock_open_2"
+  defp event_icon("muted"), do: "volume_3"
+  defp event_icon("unmuted"), do: "player_play"
+  defp event_icon("skipped"), do: "player_track_next"
+  defp event_icon("unskipped"), do: "player_play"
   defp event_icon(_), do: "info_circle"
 
   defp event_color("first_run"), do: "primary"
   defp event_color("marked_flaky"), do: "warning"
   defp event_color("unmarked_flaky"), do: "success"
-  defp event_color("quarantined"), do: "destructive"
-  defp event_color("unquarantined"), do: "information"
+  defp event_color("muted"), do: "destructive"
+  defp event_color("unmuted"), do: "information"
+  defp event_color("skipped"), do: "destructive"
+  defp event_color("unskipped"), do: "information"
   defp event_color(_), do: "primary"
 
   defp event_title("first_run"), do: dgettext("dashboard_tests", "First run of this test")
   defp event_title("marked_flaky"), do: dgettext("dashboard_tests", "Marked as flaky")
   defp event_title("unmarked_flaky"), do: dgettext("dashboard_tests", "Unmarked as flaky")
-  defp event_title("quarantined"), do: dgettext("dashboard_tests", "Marked as quarantined")
-  defp event_title("unquarantined"), do: dgettext("dashboard_tests", "Marked as unquarantined")
+  defp event_title("muted"), do: dgettext("dashboard_tests", "Muted")
+  defp event_title("unmuted"), do: dgettext("dashboard_tests", "Enabled")
+  defp event_title("skipped"), do: dgettext("dashboard_tests", "Skipped")
+  defp event_title("unskipped"), do: dgettext("dashboard_tests", "Enabled")
   defp event_title(_), do: dgettext("dashboard_tests", "Event")
 
   defp format_event_subtitle(%{event_type: "first_run"}), do: nil
+
+  defp format_event_subtitle(%{alert: %{name: name}}),
+    do: dgettext("dashboard_tests", "By automation %{name}", name: name)
 
   defp format_event_subtitle(%{actor: nil}), do: dgettext("dashboard_tests", "Automatically by Tuist")
 

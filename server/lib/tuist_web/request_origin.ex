@@ -2,14 +2,21 @@ defmodule TuistWeb.RequestOrigin do
   @moduledoc false
 
   def from_conn(conn) do
-    scheme =
-      case Plug.Conn.get_req_header(conn, "x-forwarded-proto") do
-        [proto] -> proto
-        _ -> Atom.to_string(conn.scheme)
-      end
+    scheme = forwarded_value(conn, "x-forwarded-proto") || Atom.to_string(conn.scheme)
+    host = forwarded_value(conn, "x-forwarded-host") || conn.host
+    port = forwarded_value(conn, "x-forwarded-port") || Integer.to_string(conn.port)
 
-    default_port = if scheme == "https", do: 443, else: 80
-    authority = if conn.port == default_port, do: conn.host, else: "#{conn.host}:#{conn.port}"
-    "#{scheme}://#{authority}"
+    if String.contains?(host, ":") or port in ["80", "443"] do
+      "#{scheme}://#{host}"
+    else
+      "#{scheme}://#{host}:#{port}"
+    end
+  end
+
+  defp forwarded_value(conn, header) do
+    case Plug.Conn.get_req_header(conn, header) do
+      [value] -> value |> String.split(",", parts: 2) |> List.first() |> String.trim()
+      _ -> nil
+    end
   end
 end

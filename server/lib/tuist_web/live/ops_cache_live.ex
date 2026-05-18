@@ -45,7 +45,8 @@ defmodule TuistWeb.OpsCacheLive do
   def handle_event("add", %{"url" => url, "display_name" => display_name}, socket) do
     case CacheEndpoints.create_cache_endpoint(%{
            url: url,
-           display_name: display_name
+           display_name: display_name,
+           enabled: false
          }) do
       {:ok, _endpoint} ->
         endpoints = CacheEndpoints.list_cache_endpoints()
