@@ -167,12 +167,22 @@ jobs:
             -var "release_tarball=/tmp/release.tar.gz" \
             xcresult-processor.pkr.hcl
 
-      # Note: no `tart login ghcr.io` step. Tart's login writes to the
-      # macOS keychain, which on Tahoe-host LaunchAgents is gated by a
-      # "User interaction is not allowed" prompt the headless runner
-      # can't satisfy. The Push step below uses TART_REGISTRY_USERNAME
-      # / TART_REGISTRY_PASSWORD env-vars instead, which bypass
-      # keychain entirely.
+      # Two-step GHCR auth, mirroring release.yml's runner-image leg.
+      # See runner-image.yml's matching step for the long
+      # explanation: keychain is gated on Tahoe LaunchAgents,
+      # env-var-only push hangs at "Error: The request timed out.",
+      # and `crane auth login` writes ~/.docker/config.json which
+      # `tart push` reads via the Docker credential-helper protocol.
+      - name: Ensure crane is installed
+        run: |
+          if ! command -v crane >/dev/null 2>&1; then
+            brew install crane
+          fi
+
+      - name: Log in to GHCR (crane)
+        run: |
+          set -euo pipefail
+          echo "${{ secrets.GITHUB_TOKEN }}" | crane auth login --username tuist-bot --password-stdin ghcr.io
 
       - name: Push image to GHCR
         env:
