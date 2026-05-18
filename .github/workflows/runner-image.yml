@@ -67,22 +67,26 @@ jobs:
           done
 
       - name: Reclaim Tart disk
-        # Delete BOTH builder-produced VMs even though this workflow
-        # only bakes `tuist-runner`. The sibling
+        # Delete every locally-cloned VM on this host, not just the
+        # one this workflow produces. The sibling
         # `xcresult-processor-image` workflow runs on the same host
-        # and leaves `tuist-xcresult-processor` behind (and vice
-        # versa). Each VM is ~80 GB; on an M1-M's 256 GB SSD they
-        # accumulate fast and the next `tart clone` fails with
-        # "The file couldn't be saved because there isn't enough
-        # space." Deleting both unconditionally is the simplest
-        # interlock between the two workflows. The
-        # `--older-than 1` vms prune doesn't catch them because
-        # `tart list` updates the access time.
+        # and leaves its working VM behind (and vice versa); each
+        # VM is ~80 GB, and on an M1-M's 256 GB SSD they accumulate
+        # fast and the next `tart clone` fails with "The file
+        # couldn't be saved because there isn't enough space."
+        # Filtering on `Source=local` keeps the cached OCI base
+        # image (`ghcr.io/cirruslabs/macos-tahoe-xcode:26.4`,
+        # ~70 GB) so the next clone is still fast — `tart prune`
+        # below is what reclaims that cache when an image is
+        # upgraded. The `--older-than 1` vms prune doesn't catch
+        # the clones because `tart list` updates the access time.
+        # New image-bake workflows on this host don't need this
+        # step updated; their VMs get cleaned up the same way.
         run: |
           set -uo pipefail
-          tart list --format json || true
+          tart list || true
           df -h /
-          for vm in tuist-runner tuist-xcresult-processor; do
+          tart list | awk '$1 == "local" { print $2 }' | while read -r vm; do
             tart stop "$vm" 2>/dev/null || true
             tart delete "$vm" 2>/dev/null || true
           done

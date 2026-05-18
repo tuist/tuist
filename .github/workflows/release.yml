@@ -2164,13 +2164,13 @@ jobs:
           done
 
       - name: Reclaim Tart disk
-        # Delete both builder VMs; see runner-image.yml's same step
-        # for the rationale.
+        # Delete every locally-cloned VM; see runner-image.yml's
+        # same step for the rationale.
         run: |
           set -uo pipefail
-          tart list --format json || true
+          tart list || true
           df -h /
-          for vm in tuist-runner tuist-xcresult-processor; do
+          tart list | awk '$1 == "local" { print $2 }' | while read -r vm; do
             tart stop "$vm" 2>/dev/null || true
             tart delete "$vm" 2>/dev/null || true
           done
@@ -2332,18 +2332,17 @@ jobs:
           done
 
       - name: Reclaim Tart disk
-        # Delete both builder VMs; see runner-image.yml's same step
-        # for the rationale.
+        # Delete every locally-cloned VM; see runner-image.yml's
+        # same step for the rationale.
         run: |
           set -uo pipefail
-          tart list --format json || true
+          tart list || true
           df -h /
-          for vm in tuist-runner tuist-xcresult-processor; do
+          tart list | awk '$1 == "local" { print $2 }' | while read -r vm; do
             tart stop "$vm" 2>/dev/null || true
             tart delete "$vm" 2>/dev/null || true
           done
           tart prune --entries caches --older-than 0
-          tart prune --entries vms --older-than 1
           df -h /
 
       - name: Build image

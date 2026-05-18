@@ -121,18 +121,18 @@ jobs:
 
       # Reclaim disk before the Cirrus pull. macos-tahoe-xcode:26.4 is
       # ~70GB on disk; the bare-metal Mac mini accumulates older Tart
-      # VMs + image layers across runs and fills up. Stop+delete any
-      # leftover xcresult VM, then prune unused image layers.
+      # VMs + image layers across runs and fills up. Stop+delete every
+      # locally-cloned VM, then prune unused image layers.
       - name: Reclaim Tart disk
         # See runner-image.yml's Reclaim Tart disk step for the long
-        # explanation. tl;dr: delete both builder VMs because they
-        # share a host and the sibling workflow leaves its VM
-        # behind, eating ~80 GB of disk that the next clone needs.
+        # explanation. tl;dr: delete every `Source=local` VM because
+        # sibling image-bake workflows on this host leave their VMs
+        # behind, eating ~80 GB of disk each that the next clone needs.
         run: |
           set -uo pipefail
-          tart list --format json || true
+          tart list || true
           df -h /
-          for vm in tuist-runner tuist-xcresult-processor; do
+          tart list | awk '$1 == "local" { print $2 }' | while read -r vm; do
             tart stop "$vm" 2>/dev/null || true
             tart delete "$vm" 2>/dev/null || true
           done
