@@ -66,10 +66,11 @@ defmodule Tuist.Webhooks.Dispatcher do
     with %Projects.Project{account_id: account_id} <- Repo.get(Projects.Project, project_id),
          [_ | _] = endpoints <-
            Webhooks.list_endpoints_subscribed_to(account_id, "test_case.created") do
-      for test_case <- test_cases,
-          endpoint <- endpoints do
-        build_job(endpoint, "test_case.created", %{"object" => test_case_snapshot(test_case)})
-      end
+      test_cases
+      |> Enum.flat_map(fn test_case ->
+        body = %{"object" => test_case_snapshot(test_case)}
+        Enum.map(endpoints, &build_job(&1, "test_case.created", body))
+      end)
       |> insert_jobs()
     else
       _ -> :ok
