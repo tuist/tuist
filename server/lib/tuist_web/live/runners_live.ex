@@ -31,7 +31,7 @@ defmodule TuistWeb.RunnersLive do
        "#{dgettext("dashboard_runners", "Runners")} · #{selected_account.name} · Tuist"
      )
      |> assign(:workflows, Jobs.list_workflows_for_account(selected_account.id, limit: @widget_limit))
-     |> assign(:recent_jobs, Jobs.list_for_account(selected_account.id, limit: @widget_limit))}
+     |> assign_recent_jobs(selected_account.id)}
   end
 
   @impl true
@@ -102,6 +102,62 @@ defmodule TuistWeb.RunnersLive do
     query = Query.put(socket.assigns.uri.query || "", key, value)
     push_patch(socket, to: "/#{socket.assigns.selected_account.name}/runners?#{query}")
   end
+
+  defp assign_recent_jobs(socket, account_id) do
+    recent_jobs = Jobs.list_for_account(account_id, limit: @widget_limit)
+
+    socket
+    |> assign(:recent_jobs, recent_jobs)
+    |> assign(:recent_jobs_chart_data, recent_jobs_chart_data(recent_jobs, socket.assigns.selected_account.name))
+    |> assign(:recent_jobs_successful_count, Enum.count(recent_jobs, &(&1.conclusion == "success")))
+    |> assign(:recent_jobs_failed_count, Enum.count(recent_jobs, &(&1.conclusion == "failure")))
+  end
+
+  # Bars represent each recent job. Y is the duration in seconds (or
+  # zero for not-yet-started states), the bar colour mirrors the row's
+  # status badge so the chart reads at the same glance as the table.
+  defp recent_jobs_chart_data(recent_jobs, account_name) do
+    recent_jobs
+    |> Enum.reverse()
+    |> Enum.map(fn job ->
+      seconds = duration_seconds(job)
+
+      %{
+        value: seconds,
+        itemStyle: %{color: chart_color_for(job)},
+        date: job.updated_at,
+        url: "/#{account_name}/runners/jobs/#{job.workflow_job_id}"
+      }
+    end)
+  end
+
+  defp duration_seconds(%{status: "completed", started_at: started, completed_at: completed}) do
+    cond do
+      is_nil(started) or epoch?(started) -> 0
+      is_nil(completed) or epoch?(completed) -> 0
+      true -> div(DateTime.diff(completed, started, :millisecond), 1000)
+    end
+  end
+
+  defp duration_seconds(%{status: "running", started_at: started}) do
+    if is_nil(started) or epoch?(started),
+      do: 0,
+      else: div(DateTime.diff(DateTime.utc_now(), started, :millisecond), 1000)
+  end
+
+  defp duration_seconds(_), do: 0
+
+  defp epoch?(%DateTime{year: 1970, month: 1, day: 1}), do: true
+  defp epoch?(_), do: false
+
+  defp chart_color_for(%{status: "completed", conclusion: "success"}), do: "var:noora-chart-primary"
+  defp chart_color_for(%{status: "completed", conclusion: "failure"}), do: "var:noora-chart-destructive"
+  defp chart_color_for(%{status: "completed", conclusion: "cancelled"}), do: "var:noora-chart-warning"
+  defp chart_color_for(%{status: "completed"}), do: "var:noora-chart-secondary"
+  defp chart_color_for(%{status: "running"}), do: "var:noora-chart-tertiary"
+  defp chart_color_for(%{status: "claimed"}), do: "var:noora-chart-tertiary"
+  defp chart_color_for(%{status: "queued"}), do: "var:noora-chart-warning"
+  defp chart_color_for(_), do: "var:noora-chart-primary"
 
   defp trend_label("last-24-hours"), do: dgettext("dashboard_runners", "since yesterday")
   defp trend_label("last-7-days"), do: dgettext("dashboard_runners", "since last week")

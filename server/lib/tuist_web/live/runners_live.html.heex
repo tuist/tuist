@@ -228,14 +228,13 @@
     data-part="workflows-card"
   >
     <:actions>
-      <.link_button
-        navigate={~p"/#{@selected_account.name}/runners/workflows"}
+      <.button
         variant="secondary"
-        size="large"
-        label={dgettext("dashboard_runners", "View all")}
-      >
-        <:icon_right><.arrow_narrow_right /></:icon_right>
-      </.link_button>
+        size="medium"
+        label={dgettext("dashboard_runners", "View more")}
+        navigate={~p"/#{@selected_account.name}/runners/workflows"}
+        disabled={Enum.empty?(@workflows)}
+      />
     </:actions>
     <.card_section data-part="workflows-card-section">
       <div :if={not Enum.empty?(@workflows)} data-part="workflows-table">
@@ -292,15 +291,75 @@
     data-part="recent-jobs-card"
   >
     <:actions>
-      <.link_button
-        navigate={~p"/#{@selected_account.name}/runners/jobs"}
+      <.button
         variant="secondary"
-        size="large"
-        label={dgettext("dashboard_runners", "View all")}
-      >
-        <:icon_right><.arrow_narrow_right /></:icon_right>
-      </.link_button>
+        size="medium"
+        label={dgettext("dashboard_runners", "View more")}
+        navigate={~p"/#{@selected_account.name}/runners/jobs"}
+        disabled={Enum.empty?(@recent_jobs)}
+      />
     </:actions>
+    <.card_section
+      :if={not Enum.empty?(@recent_jobs)}
+      data-part="recent-jobs-section"
+    >
+      <div data-part="recent-jobs-chart">
+        <div data-part="legends">
+          <.legend
+            title={dgettext("dashboard_runners", "Successful")}
+            value={@recent_jobs_successful_count}
+            style="primary"
+          />
+          <.legend
+            title={dgettext("dashboard_runners", "Failed")}
+            value={@recent_jobs_failed_count}
+            style="destructive"
+          />
+        </div>
+        <.chart
+          id="runners-recent-jobs-chart"
+          type="bar"
+          extra_options={
+            %{
+              grid: %{
+                width: "98%",
+                left: "0.4%",
+                right: "7%",
+                height: "88%",
+                top: "5%"
+              },
+              tooltip: %{
+                valueFormat: "fn:formatSeconds",
+                dateFormat: "minute"
+              },
+              xAxis: %{
+                axisLabel: %{show: false},
+                data: Enum.map(@recent_jobs_chart_data, & &1.date)
+              },
+              yAxis: %{
+                splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
+                axisLabel: %{
+                  color: "var:noora-surface-label-secondary",
+                  formatter: "fn:formatSeconds"
+                }
+              },
+              legend: %{show: false}
+            }
+          }
+          series={[
+            %{
+              data: @recent_jobs_chart_data,
+              name: dgettext("dashboard_runners", "Job"),
+              type: "bar"
+            }
+          ]}
+          y_axis_min={0}
+          grid_lines
+          bar_width={8}
+          bar_radius={2}
+        />
+      </div>
+    </.card_section>
     <.card_section data-part="recent-jobs-card-section">
       <div :if={not Enum.empty?(@recent_jobs)} data-part="recent-jobs-table">
         <.table

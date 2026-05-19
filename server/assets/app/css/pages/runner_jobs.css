@@ -1,3 +1,21 @@
+#runners [data-part="recent-jobs-section"] {
+  & [data-part="recent-jobs-chart"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-4);
+
+    & [data-part="legends"] {
+      display: flex;
+      flex-direction: row;
+      gap: var(--noora-spacing-5);
+    }
+
+    & .noora-chart {
+      height: 148px;
+    }
+  }
+}
+
 #runner-jobs [data-part="pagination"] {
   display: flex;
   flex-direction: row;
