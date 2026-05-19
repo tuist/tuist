@@ -44,7 +44,8 @@ defmodule TuistWeb.RunnersLiveTest do
     {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners")
 
     assert html =~ "Total jobs"
-    assert html =~ "Running or queued"
+    assert html =~ "Avg. job duration"
+    assert html =~ "Avg. workflow duration"
     assert html =~ "Recent jobs"
     assert html =~ "Server"
     assert html =~ "Docker build"

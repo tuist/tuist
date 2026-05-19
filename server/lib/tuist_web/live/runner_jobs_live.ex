@@ -5,9 +5,12 @@ defmodule TuistWeb.RunnerJobsLive do
 
   import Noora.Filter
   import TuistWeb.Components.EmptyCardSection
+  import TuistWeb.Components.Skeleton
+  import TuistWeb.Widget
 
   alias Noora.Filter
   alias Tuist.Authorization
+  alias Tuist.Runners.Analytics
   alias Tuist.Runners.Jobs
   alias Tuist.Utilities.DateFormatter
 
@@ -26,7 +29,19 @@ defmodule TuistWeb.RunnerJobsLive do
        :head_title,
        "#{dgettext("dashboard_runners", "Jobs")} · #{selected_account.name} · Tuist"
      )
-     |> assign(:available_filters, available_filters())}
+     |> assign(:available_filters, available_filters())
+     |> assign(:analytics_selected_widget, "cumulative_minutes")
+     |> assign_async(
+       [:jobs_count, :cumulative_minutes, :live_status_counts],
+       fn ->
+         {:ok,
+          %{
+            jobs_count: Analytics.jobs_count(selected_account.id),
+            cumulative_minutes: Analytics.cumulative_minutes(selected_account.id),
+            live_status_counts: Jobs.status_counts(selected_account.id)
+          }}
+       end
+     )}
   end
 
   @impl true
@@ -40,6 +55,10 @@ defmodule TuistWeb.RunnerJobsLive do
   end
 
   @impl true
+  def handle_event("select_widget", %{"widget" => widget}, socket) do
+    {:noreply, assign(socket, :analytics_selected_widget, widget)}
+  end
+
   def handle_event("add_filter", %{"value" => filter_id}, socket) do
     updated_params = Filter.Operations.add_filter_to_query(filter_id, socket)
 
@@ -50,7 +69,6 @@ defmodule TuistWeb.RunnerJobsLive do
      |> push_event("open-popover", %{id: "filter-#{filter_id}-value-popover"})}
   end
 
-  @impl true
   def handle_event("update_filter", params, socket) do
     updated_params = Filter.Operations.update_filters_in_query(params, socket)
 

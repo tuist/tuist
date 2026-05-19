@@ -173,6 +173,7 @@ defmodule Tuist do
       # lifecycle via the RunnerPool CRD. Workflow_job lifecycle
       # rows live in ClickHouse (`runner_jobs`).
       Runners,
+      Runners.Analytics,
       Runners.Dispatch,
       Runners.Claims,
       Runners.Claim,

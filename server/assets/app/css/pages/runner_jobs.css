@@ -25,31 +25,25 @@
   }
 }
 
-#runners {
-  & [data-part="summary-cards"] {
+#runners [data-part="analytics"],
+#runner-jobs [data-part="jobs-analytics"] {
+  & [data-part="widgets"] {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: var(--noora-spacing-5);
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: var(--noora-spacing-4);
+    padding: var(--noora-spacing-5);
   }
 
-  & [data-part="summary-card"] {
+  & [data-part="analytics-card-chart-section"] {
+    min-height: 280px;
+  }
+
+  & [data-part="status-counts-empty"] {
     display: flex;
-    flex-direction: column;
-    gap: var(--noora-spacing-1);
-    padding: var(--noora-spacing-5);
-    border: 1px solid var(--noora-surface-border-secondary);
-    border-radius: var(--noora-radius-medium);
-    background: var(--noora-surface-background-secondary);
-
-    & > [data-part="label"] {
-      color: var(--noora-surface-label-secondary);
-      font: var(--noora-font-weight-regular) var(--noora-font-body-small);
-    }
-
-    & > [data-part="value"] {
-      color: var(--noora-surface-label-primary);
-      font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
-    }
+    justify-content: center;
+    padding: var(--noora-spacing-12) var(--noora-spacing-5);
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-weight-regular) var(--noora-font-body-small);
   }
 }
 

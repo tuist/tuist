@@ -1,5 +1,108 @@
 <div id="runner-jobs">
   <.card
+    title={dgettext("dashboard_runners", "Analytics")}
+    icon="chart_arcs"
+    data-part="jobs-analytics"
+  >
+    <div data-part="widgets">
+      <.widget
+        id="widget-jobs-total"
+        title={dgettext("dashboard_runners", "Total jobs")}
+        legend_color="primary"
+        description={dgettext("dashboard_runners", "Workflow jobs enqueued in the last 30 days.")}
+        value={if @jobs_count.ok?, do: Integer.to_string(@jobs_count.result.count)}
+        loading={!@jobs_count.ok?}
+        selected={@analytics_selected_widget == "total_jobs"}
+        phx_click="select_widget"
+        phx_value_widget="total_jobs"
+        empty={@jobs_count.ok? && @jobs_count.result.count == 0}
+      />
+      <.widget
+        id="widget-jobs-running"
+        title={dgettext("dashboard_runners", "Running")}
+        legend_color="tertiary"
+        description={dgettext("dashboard_runners", "Jobs the runner pool is currently executing.")}
+        value={
+          if @live_status_counts.ok? do
+            Integer.to_string(
+              Map.get(@live_status_counts.result, "running", 0) +
+                Map.get(@live_status_counts.result, "claimed", 0)
+            )
+          end
+        }
+        loading={!@live_status_counts.ok?}
+        selected={@analytics_selected_widget == "running"}
+        phx_click="select_widget"
+        phx_value_widget="running"
+      />
+      <.widget
+        id="widget-jobs-queued"
+        title={dgettext("dashboard_runners", "Queued")}
+        legend_color="secondary"
+        description={dgettext("dashboard_runners", "Jobs waiting for a runner to pick them up.")}
+        value={
+          if @live_status_counts.ok? do
+            Integer.to_string(Map.get(@live_status_counts.result, "queued", 0))
+          end
+        }
+        loading={!@live_status_counts.ok?}
+        selected={@analytics_selected_widget == "queued"}
+        phx_click="select_widget"
+        phx_value_widget="queued"
+      />
+      <.widget
+        id="widget-jobs-minutes"
+        title={dgettext("dashboard_runners", "Compute minutes")}
+        legend_color="p90"
+        description={dgettext("dashboard_runners", "Total compute time consumed by completed jobs in the last 30 days.")}
+        value={
+          if @cumulative_minutes.ok? do
+            Integer.to_string(div(@cumulative_minutes.result.total_ms, 60_000)) <> "m"
+          end
+        }
+        loading={!@cumulative_minutes.ok?}
+        selected={@analytics_selected_widget == "cumulative_minutes"}
+        phx_click="select_widget"
+        phx_value_widget="cumulative_minutes"
+        empty={@cumulative_minutes.ok? && @cumulative_minutes.result.total_ms == 0}
+      />
+    </div>
+    <.card_section data-part="analytics-card-chart-section">
+      <%= cond do %>
+        <% @analytics_selected_widget == "total_jobs" and !@jobs_count.ok? -> %>
+          <.skeleton_chart />
+        <% @analytics_selected_widget == "total_jobs" -> %>
+          <.chart
+            id="jobs-total-chart"
+            type="bar"
+            labels={Enum.map(@jobs_count.result.dates, &Date.to_iso8601/1)}
+            series={[%{name: dgettext("dashboard_runners", "Jobs"), values: @jobs_count.result.values}]}
+          />
+        <% @analytics_selected_widget == "cumulative_minutes" and !@cumulative_minutes.ok? -> %>
+          <.skeleton_chart />
+        <% @analytics_selected_widget == "cumulative_minutes" -> %>
+          <.chart
+            id="jobs-cumulative-minutes-chart"
+            type="bar"
+            labels={Enum.map(@cumulative_minutes.result.dates, &Date.to_iso8601/1)}
+            series={[
+              %{
+                name: dgettext("dashboard_runners", "Minutes"),
+                values: @cumulative_minutes.result.values
+              }
+            ]}
+          />
+        <% @analytics_selected_widget in ["running", "queued"] -> %>
+          <div data-part="status-counts-empty">
+            <span>{dgettext("dashboard_runners", "Live counts only — no time series.")}</span>
+          </div>
+        <% true -> %>
+          <.skeleton_chart />
+      <% end %>
+    </.card_section>
+  </.card>
+
+  <.card
     title={dgettext("dashboard_runners", "Jobs")}
     icon="stack_2"
     data-part="runner-jobs-card"

@@ -1,18 +1,155 @@
 <div id="runners">
-  <div data-part="summary-cards">
-    <div data-part="summary-card">
-      <span data-part="label">{dgettext("dashboard_runners", "Total jobs")}</span>
-      <span data-part="value">{TuistWeb.RunnersLive.total_jobs(@status_counts)}</span>
+  <.card
+    title={dgettext("dashboard_runners", "Analytics")}
+    icon="chart_arcs"
+    data-part="analytics"
+  >
+    <div data-part="widgets">
+      <.widget
+        id="widget-total-jobs"
+        title={dgettext("dashboard_runners", "Total jobs")}
+        legend_color="primary"
+        description={dgettext("dashboard_runners", "Workflow jobs received from GitHub in the last 30 days.")}
+        value={if @jobs_count.ok?, do: Integer.to_string(@jobs_count.result.count)}
+        loading={!@jobs_count.ok?}
+        selected={@analytics_selected_widget == "total_jobs"}
+        phx_click="select_widget"
+        phx_value_widget="total_jobs"
+        empty={@jobs_count.ok? && @jobs_count.result.count == 0}
+      />
+      <.percentile_dropdown_widget
+        id="widget-job-duration"
+        title={
+          case @job_duration_percentile do
+            "p99" -> dgettext("dashboard_runners", "p99 job duration")
+            "p90" -> dgettext("dashboard_runners", "p90 job duration")
+            "p50" -> dgettext("dashboard_runners", "p50 job duration")
+            _ -> dgettext("dashboard_runners", "Avg. job duration")
+          end
+        }
+        description={dgettext("dashboard_runners", "Time each job takes from start to completion.")}
+        value={
+          if @jobs_duration.ok? do
+            TuistWeb.RunnersLive.fmt_duration_ms(
+              TuistWeb.RunnersLive.percentile_value(@jobs_duration.result, @job_duration_percentile)
+            )
+          end
+        }
+        metrics={
+          if @jobs_duration.ok?,
+            do: TuistWeb.RunnersLive.percentile_metrics_for(@jobs_duration.result)
+        }
+        selected_type={@job_duration_percentile}
+        event_name="select_job_duration_percentile"
+        loading={!@jobs_duration.ok?}
+        legend_color={TuistWeb.RunnersLive.legend_color_for_percentile(@job_duration_percentile)}
+        selected={@analytics_selected_widget == "job_duration"}
+        phx_click="select_widget"
+        phx_value_widget="job_duration"
+        empty={
+          @jobs_duration.ok? &&
+            TuistWeb.RunnersLive.percentile_value(@jobs_duration.result, @job_duration_percentile) in [
+              nil,
+              0
+            ]
+        }
+      />
+      <.percentile_dropdown_widget
+        id="widget-workflow-duration"
+        title={
+          case @workflow_duration_percentile do
+            "p99" -> dgettext("dashboard_runners", "p99 workflow duration")
+            "p90" -> dgettext("dashboard_runners", "p90 workflow duration")
+            "p50" -> dgettext("dashboard_runners", "p50 workflow duration")
+            _ -> dgettext("dashboard_runners", "Avg. workflow duration")
+          end
+        }
+        description={
+          dgettext(
+            "dashboard_runners",
+            "Total wall-clock time from the first job start to the last job completion in a workflow run."
+          )
+        }
+        value={
+          if @workflows_duration.ok? do
+            TuistWeb.RunnersLive.fmt_duration_ms(
+              TuistWeb.RunnersLive.percentile_value(
+                @workflows_duration.result,
+                @workflow_duration_percentile
+              )
+            )
+          end
+        }
+        metrics={
+          if @workflows_duration.ok?,
+            do: TuistWeb.RunnersLive.percentile_metrics_for(@workflows_duration.result)
+        }
+        selected_type={@workflow_duration_percentile}
+        event_name="select_workflow_duration_percentile"
+        loading={!@workflows_duration.ok?}
+        legend_color={TuistWeb.RunnersLive.legend_color_for_percentile(@workflow_duration_percentile)}
+        selected={@analytics_selected_widget == "workflow_duration"}
+        phx_click="select_widget"
+        phx_value_widget="workflow_duration"
+        empty={
+          @workflows_duration.ok? &&
+            TuistWeb.RunnersLive.percentile_value(
+              @workflows_duration.result,
+              @workflow_duration_percentile
+            ) in [nil, 0]
+        }
+      />
     </div>
-    <div data-part="summary-card">
-      <span data-part="label">{dgettext("dashboard_runners", "Running or queued")}</span>
-      <span data-part="value">{TuistWeb.RunnersLive.in_progress_jobs(@status_counts)}</span>
-    </div>
-    <div data-part="summary-card">
-      <span data-part="label">{dgettext("dashboard_runners", "Completed")}</span>
-      <span data-part="value">{Map.get(@status_counts, "completed", 0)}</span>
-    </div>
-  </div>
+    <.card_section data-part="analytics-card-chart-section">
+      <%= cond do %>
+        <% @analytics_selected_widget == "total_jobs" and !@jobs_count.ok? -> %>
+          <.skeleton_chart />
+        <% @analytics_selected_widget == "total_jobs" -> %>
+          <.chart
+            id="runners-total-jobs-chart"
+            type="bar"
+            labels={Enum.map(@jobs_count.result.dates, &Date.to_iso8601/1)}
+            series={[%{name: dgettext("dashboard_runners", "Jobs"), values: @jobs_count.result.values}]}
+          />
+        <% @analytics_selected_widget == "job_duration" and !@jobs_duration.ok? -> %>
+          <.skeleton_chart />
+        <% @analytics_selected_widget == "job_duration" -> %>
+          <.chart
+            id="runners-job-duration-chart"
+            type="line"
+            labels={Enum.map(@jobs_duration.result.dates, &Date.to_iso8601/1)}
+            series={[
+              %{
+                name: @job_duration_percentile,
+                values:
+                  TuistWeb.RunnersLive.percentile_series(
+                    @jobs_duration.result,
+                    @job_duration_percentile
+                  )
+              }
+            ]}
+          />
+        <% @analytics_selected_widget == "workflow_duration" and !@workflows_duration.ok? -> %>
+          <.skeleton_chart />
+        <% true -> %>
+          <.chart
+            id="runners-workflow-duration-chart"
+            type="line"
+            labels={Enum.map(@workflows_duration.result.dates, &Date.to_iso8601/1)}
+            series={[
+              %{
+                name: @workflow_duration_percentile,
+                values:
+                  TuistWeb.RunnersLive.percentile_series(
+                    @workflows_duration.result,
+                    @workflow_duration_percentile
+                  )
+              }
+            ]}
+          />
+      <% end %>
+    </.card_section>
+  </.card>
 
   <.card
     title={dgettext("dashboard_runners", "Workflows")}
@@ -56,7 +193,7 @@
           <:col :let={w} label={dgettext("dashboard_runners", "Avg duration")}>
             <.text_cell
               icon="history"
-              label={TuistWeb.RunnersLive.format_duration_ms(w.avg_duration_ms)}
+              label={TuistWeb.RunnersLive.fmt_duration_ms(round(w.avg_duration_ms || 0))}
             />
           </:col>
           <:col :let={w} label={dgettext("dashboard_runners", "Last run")}>
