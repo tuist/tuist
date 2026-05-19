@@ -139,6 +139,41 @@ defmodule TuistWeb.RunnerJobsLiveTest do
     refute html =~ "queued-job"
   end
 
+  test "updates live status counts when a job is enqueued in the same account", %{
+    conn: conn,
+    account: account
+  } do
+    {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/jobs")
+
+    # Initial state — no queued jobs visible.
+    assert html =~ "Running"
+    assert html =~ "Queued"
+
+    # Subscribe in our test process so we can synchronise on the same
+    # broadcast the LiveView is listening to. Once we see the message
+    # we know `handle_info` has fired on the LV process too.
+    Tuist.PubSub.subscribe(Jobs.topic(account.id))
+
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 99_301,
+        account_id: account.id,
+        fleet_name: "fleet-broadcast",
+        repo: "tuist/tuist",
+        workflow_run_id: 993_010,
+        run_attempt: 1,
+        job_name: "broadcast-job",
+        head_branch: "main",
+        head_sha: "aaaaaa1"
+      })
+
+    assert_receive {:runner_jobs_status_changed, %{status: "queued"}}, 1_000
+
+    # The LV re-runs `assign_jobs` from the same broadcast, so the new
+    # row appears in the table without any client-side reload.
+    assert render(lv) =~ "broadcast-job"
+  end
+
   test "does not show jobs from other accounts", %{conn: conn, account: account} do
     other = AccountsFixtures.user_fixture().account
 

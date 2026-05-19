@@ -66,6 +66,7 @@ defmodule Tuist.Runners.Jobs do
       |> Map.put(:updated_at, now)
 
     insert_row!(row)
+    broadcast_status_change(Map.get(attrs, :account_id), "queued")
     :ok
   end
 
@@ -129,6 +130,7 @@ defmodule Tuist.Runners.Jobs do
     row = Map.merge(candidate, %{status: "claimed", claimed_at: claimed_at, pod_name: pod_name, updated_at: now})
 
     insert_row!(row)
+    broadcast_status_change(Map.get(candidate, :account_id), "claimed")
     :ok
   end
 
@@ -159,6 +161,7 @@ defmodule Tuist.Runners.Jobs do
           })
 
         insert_row!(row)
+        broadcast_status_change(job.account_id, "running")
         :ok
     end
   end
@@ -187,6 +190,7 @@ defmodule Tuist.Runners.Jobs do
           })
 
         insert_row!(row)
+        broadcast_status_change(job.account_id, "queued")
         :ok
     end
   end
@@ -220,6 +224,7 @@ defmodule Tuist.Runners.Jobs do
           })
 
         insert_row!(row)
+        broadcast_status_change(job.account_id, "completed")
 
         {:ok,
          Map.merge(job, %{
@@ -473,4 +478,19 @@ defmodule Tuist.Runners.Jobs do
   end
 
   defp epoch, do: ~U[1970-01-01 00:00:00.000000Z]
+
+  @doc """
+  Pub/Sub topic for an account's runner-job lifecycle events.
+  Subscribers receive `{:runner_jobs_status_changed, %{status: ...}}`
+  whenever any job in the account transitions, so LiveViews showing
+  Running / Queued counts can refresh.
+  """
+  def topic(account_id) when is_integer(account_id), do: "runner_jobs:#{account_id}"
+
+  defp broadcast_status_change(account_id, new_status) when is_integer(account_id) do
+    Tuist.PubSub.broadcast(%{status: new_status}, topic(account_id), :runner_jobs_status_changed)
+    :ok
+  end
+
+  defp broadcast_status_change(_, _), do: :ok
 end

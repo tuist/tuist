@@ -23,6 +23,10 @@ defmodule TuistWeb.RunnerJobsLive do
             dgettext("dashboard_runners", "The page you are looking for doesn't exist or has been moved.")
     end
 
+    if connected?(socket) do
+      Tuist.PubSub.subscribe(Jobs.topic(selected_account.id))
+    end
+
     {:ok,
      socket
      |> assign(
@@ -90,6 +94,21 @@ defmodule TuistWeb.RunnerJobsLive do
      |> push_patch(to: ~p"/#{socket.assigns.selected_account.name}/runners/jobs?#{updated_params}")
      |> push_event("close-dropdown", %{id: "all", all: true})
      |> push_event("close-popover", %{id: "all", all: true})}
+  end
+
+  @impl true
+  def handle_info({:runner_jobs_status_changed, _payload}, socket) do
+    # Refresh the live Running / Queued counts plus the jobs table on
+    # every state transition for the account. Filters and pagination
+    # state are preserved via `assign_jobs/1`. Wraps the result in
+    # AsyncResult so the template can keep reading `.ok?` / `.result`
+    # the same way it did right after the initial `assign_async`.
+    counts = Jobs.status_counts(socket.assigns.selected_account.id)
+
+    {:noreply,
+     socket
+     |> assign(:live_status_counts, Phoenix.LiveView.AsyncResult.ok(counts))
+     |> assign_jobs()}
   end
 
   defp assign_jobs(
