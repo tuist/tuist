@@ -18,31 +18,6 @@ import XcodeGraph
 
 @testable import TuistKit
 
-/// Pins the wiring change behind the fix for `tuist hash selective-testing` emitting hashes
-/// that did not match the keys used by `tuist test --build-only` for cache lookup.
-///
-/// Pre-fix, the command loaded the graph via `GeneratorFactory.defaultGenerator` and hashed
-/// it through `SelectiveTestingGraphHasher`. The testing pipeline (`generatorFactory.testing`)
-/// uses a different pre-hash mapper set (e.g. `ExternalProjectsPlatformNarrowerGraphMapper`
-/// running before `FocusTargets`/`TreeShake`), so targets whose dependency closure went
-/// through those mappers ended up with different content hashes.
-///
-/// These tests would fail on the pre-fix code:
-///  - `run_usesTheTestingGenerator_notTheDefaultOne` verifies the routing change — the command
-///    must now invoke `generatorFactory.testing(...)` with `ignoreSelectiveTesting: true` and
-///    `ignoreBinaryCache: true`.
-///  - `run_outputsTheHashes_fromMapperEnvironment` stubs the new `loadWithEnvironment` hook
-///    on `Generating` and verifies the command surfaces hashes from
-///    `MapperEnvironment.targetTestHashes` (populated by `TestsCacheGraphMapper`) instead of
-///    re-running a separate hasher.
-///
-/// The downstream contract (that `TestsCacheGraphMapper` populates `targetTestHashes` even
-/// when `ignoreSelectiveTesting: true`) is pinned by
-/// `TuistCacheEETests/TestsCacheMapperTests/test_when_ignore_selective_testing`. The
-/// mappers that transform pre-hash graph state — and thus generate the divergence on real
-/// projects — are pinned individually by
-/// `TuistDependenciesTests/ExternalProjectsPlatformNarrowerGraphMapperTests` and
-/// `TuistDependenciesTests/PruneOrphanExternalTargetsGraphMapperTests`.
 struct HashSelectiveTestingCommandServiceTests {
     private var subject: HashSelectiveTestingCommandService!
     private var generator: MockGenerating!
