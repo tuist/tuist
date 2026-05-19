@@ -530,14 +530,14 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 		}
 
 		fingerprint, err := bootstrap.UpdateTartKubelet(ctx, bootstrap.Config{
-			IP:                   ip,
-			SSHUser:              bootstrapCreds.SSHUsername,
-			SSHPrivateKey:        sshKey,
-			NodeName:             machine.Name,
-			Kubeconfig:           kubeconfigYAML,
-			TartKubeletBinary:    r.TartKubeletBinary,
-			TailscaleBinaries:    r.TailscaleBinaries,
-			TailscaleAuthKey:     tailscaleAuthKey,
+			IP:                ip,
+			SSHUser:           bootstrapCreds.SSHUsername,
+			SSHPrivateKey:     sshKey,
+			NodeName:          machine.Name,
+			Kubeconfig:        kubeconfigYAML,
+			TartKubeletBinary: r.TartKubeletBinary,
+			TailscaleBinaries: r.TailscaleBinaries,
+			TailscaleAuthKey:  tailscaleAuthKey,
 			// node_exporter is re-installed on every drift-loop run,
 			// not just on first bootstrap, so a chart-driven binary
 			// bump (NODE_EXPORTER_VERSION ARG in the operator
