@@ -108,6 +108,17 @@ on:
         required: false
         type: boolean
         default: false
+      query_robot_inventory:
+        description: |
+          When set, fetch the Robot API credentials from the
+          `org-tuist/hetzner` Secret and curl Robot's `/server`
+          endpoint directly. Reveals what server names + numbers
+          Robot is currently advertising — used to verify whether
+          a rename in the Robot panel has actually landed in the
+          API list.
+        required: false
+        type: boolean
+        default: false
 
 # Serialize: don't let two pushes apply concurrently and race.
 concurrency:
@@ -143,7 +154,7 @@ jobs:
           op document get "kubeconfig: tuist-mgmt" --vault tuist-k8s-mgmt --output "$KUBECONFIG"
           chmod 600 "$KUBECONFIG"
       - name: Diff (visibility into what's about to change)
-        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true' && github.event.inputs.restart_robot_controller != 'true'
+        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true' && github.event.inputs.restart_robot_controller != 'true' && github.event.inputs.query_robot_inventory != 'true'
         # `kubectl diff` exits non-zero when there's a diff, which is
         # the expected case here, so don't fail the step on that.
         # The actual gate is the apply step below.
@@ -174,11 +185,11 @@ jobs:
           kubectl diff -f infra/k8s/mgmt/hetzner-robot-controller.yaml || true
           echo "::endgroup::"
       - name: Apply ClusterClass first (Cluster CRs reference it)
-        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true' && github.event.inputs.restart_robot_controller != 'true'
+        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true' && github.event.inputs.restart_robot_controller != 'true' && github.event.inputs.query_robot_inventory != 'true'
         run: |
           kubectl apply -f infra/k8s/clusters/clusterclass-tuist.yaml
       - name: Apply per-env bare-metal substrate
-        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true' && github.event.inputs.restart_robot_controller != 'true'
+        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true' && github.event.inputs.restart_robot_controller != 'true' && github.event.inputs.query_robot_inventory != 'true'
         # HetznerBareMetalHost CRs + HetznerBareMetalMachineTemplate +
         # bare-metal KubeadmConfigTemplate + ExternalSecrets. Applied
         # between ClusterClass and Cluster CRs so the MD-claimed
@@ -212,14 +223,14 @@ jobs:
             fi
           done
       - name: Apply per-env Cluster CRs
-        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true' && github.event.inputs.restart_robot_controller != 'true'
+        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true' && github.event.inputs.restart_robot_controller != 'true' && github.event.inputs.query_robot_inventory != 'true'
         run: |
           for f in infra/k8s/clusters/cluster-*.yaml; do
             echo "==> $f"
             kubectl apply -f "$f"
           done
       - name: Apply mgmt-side workloads
-        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true' && github.event.inputs.restart_robot_controller != 'true'
+        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true' && github.event.inputs.restart_robot_controller != 'true' && github.event.inputs.query_robot_inventory != 'true'
         # These are mgmt-cluster Deployments / CronJobs, not Cluster
         # CRs. Independent of the CAPI manifests above.
         run: |
@@ -543,4 +554,28 @@ jobs:
           echo "::endgroup::"
           echo "::group::HBMs after restart"
           kubectl get hetznerbaremetalhost -n org-tuist -o wide || true
+          echo "::endgroup::"
+      - name: Query Robot API /server directly
+        # Pulls the Robot creds from the same Secret the
+        # controller reads (`org-tuist/hetzner`), then curls
+        # Robot's `/server` endpoint. The endpoint returns a JSON
+        # array of all servers in the account with their current
+        # name + number. Use it to confirm whether a panel rename
+        # has landed in the API view that the controller
+        # actually sees.
+        if: github.event.inputs.query_robot_inventory == 'true'
+        run: |
+          set -euo pipefail
+          user=$(kubectl get secret -n org-tuist hetzner \
+            -o jsonpath='{.data.hetzner-robot-user}' | base64 -d)
+          pass=$(kubectl get secret -n org-tuist hetzner \
+            -o jsonpath='{.data.hetzner-robot-password}' | base64 -d)
+          if [ -z "$user" ] || [ -z "$pass" ]; then
+            echo "::error::Robot creds not found in org-tuist/hetzner secret"
+            kubectl get secret -n org-tuist hetzner -o yaml | grep -v 'token\|password\|key' | head -20
+            exit 1
+          fi
+          echo "::group::Robot /server response (servers + names)"
+          curl -sS -u "$user:$pass" https://robot-ws.your-server.de/server \
+            | jq '[ .[] | { server_number: .server.server_number, server_name: .server.server_name, dc: .server.dc, status: .server.status, cancelled: .server.cancelled } ]' || true
           echo "::endgroup::"
