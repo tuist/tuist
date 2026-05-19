@@ -58,7 +58,18 @@ node:
   #      before binding its `:9808` healthz port, so the liveness
   #      probe gets `connection refused` and CrashLoopBackOff kicks
   #      in. Observed on `bm-tuist-staging-runners-linux-*`.
-  # Future bare-metal pools should carry the same
+  #
+  # Helm replaces (rather than merges) `node.affinity` when set, so
+  # the chart's upstream Robot exclusions (`is-root-server`,
+  # `provided-by=robot`) are re-declared here alongside our pool
+  # rule. All three live in one `matchExpressions` list so they AND
+  # together — a node schedules the pod only if it is none of:
+  # Hetzner root server, Robot-provisioned, or in `runners-linux`.
+  # Our CAPI HCCM doesn't set the `is-root-server` / `provided-by`
+  # labels today (upstream chart with no Robot creds), so the pool
+  # rule is what actually filters in this cluster; the others are
+  # forward-compat with a Syself-style HCCM or a future Robot-aware
+  # upstream. Future bare-metal pools should carry the same
   # `node.cluster.x-k8s.io/pool` label convention so this affinity
   # can be extended with another `values:` entry.
   affinity:
@@ -66,6 +77,14 @@ node:
       requiredDuringSchedulingIgnoredDuringExecution:
         nodeSelectorTerms:
           - matchExpressions:
+              - key: instance.hetzner.cloud/is-root-server
+                operator: NotIn
+                values:
+                  - "true"
+              - key: instance.hetzner.cloud/provided-by
+                operator: NotIn
+                values:
+                  - robot
               - key: node.cluster.x-k8s.io/pool
                 operator: NotIn
                 values:
