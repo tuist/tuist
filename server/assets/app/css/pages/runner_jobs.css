@@ -1,4 +1,7 @@
 #runners [data-part="recent-jobs-section"] {
+  gap: var(--noora-spacing-8);
+  padding: var(--noora-spacing-9);
+
   & [data-part="recent-jobs-chart"] {
     display: flex;
     flex-direction: column;
@@ -8,6 +11,10 @@
       display: flex;
       flex-direction: row;
       gap: var(--noora-spacing-5);
+
+      & > * {
+        flex-grow: 1;
+      }
     }
 
     & .noora-chart {

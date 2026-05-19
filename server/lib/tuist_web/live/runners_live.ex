@@ -104,7 +104,12 @@ defmodule TuistWeb.RunnersLive do
   end
 
   defp assign_recent_jobs(socket, account_id) do
-    recent_jobs = Jobs.list_for_account(account_id, limit: @widget_limit)
+    # The Recent jobs card mirrors the Recent Test Runs card on the
+    # Tests page — it's a chronicle of finished work, not a live
+    # status board. Filter to completed runs only so the bars carry
+    # a real duration and the success/failure legends count
+    # something other than zero.
+    recent_jobs = Jobs.list_for_account(account_id, status: "completed", limit: @widget_limit)
 
     socket
     |> assign(:recent_jobs, recent_jobs)

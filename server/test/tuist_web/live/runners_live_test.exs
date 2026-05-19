@@ -41,6 +41,13 @@ defmodule TuistWeb.RunnersLiveTest do
         head_sha: "abcdef0"
       })
 
+    # Recent jobs card only surfaces completed work, so walk the job
+    # through the full state machine before asserting it shows up.
+    {:ok, candidate} = Jobs.pick_queued("fleet-x", [])
+    :ok = Jobs.record_claimed(candidate, "pod-1", DateTime.utc_now())
+    :ok = Jobs.record_running(70_001, "runner-x")
+    {:ok, _} = Jobs.complete(70_001, "success")
+
     {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners")
 
     assert html =~ "Total jobs"
