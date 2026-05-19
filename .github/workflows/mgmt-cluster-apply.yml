@@ -44,6 +44,24 @@ on:
       - 'infra/k8s/mgmt/hetzner-robot-controller.yaml'
       - '.github/workflows/mgmt-cluster-apply.yml'
   workflow_dispatch:
+    inputs:
+      force_roll_bare_metal:
+        description: |
+          When set, SKIP the apply steps and force-roll a Hetzner
+          Robot bare-metal worker in the chosen cluster. CAPI's
+          MachineDeployment then re-provisions the host with
+          whatever bootstrap the current template carries — used
+          when a chart change has updated `postInstallScript` and
+          we need it to take effect without waiting for natural
+          Node churn. The standalone
+          `mgmt-cluster-roll-bare-metal.yml` workflow covers the
+          same need but is only dispatchable once it lands on
+          main; this input exists so a PR branch can validate the
+          roll path before merge.
+        required: false
+        type: choice
+        default: ""
+        options: ["", "staging", "canary", "production"]
 
 # Serialize: don't let two pushes apply concurrently and race.
 concurrency:
@@ -58,7 +76,10 @@ jobs:
     runs-on: namespace-profile-default
     environment:
       name: mgmt-cluster-apply
-    timeout-minutes: 10
+    # 20-minute ceiling — the apply path normally finishes in
+    # under 2 min; the roll path needs ~15 min for caph's
+    # rescue + installimage + kubeadm-join cycle.
+    timeout-minutes: 20
     env:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
     steps:
@@ -76,6 +97,7 @@ jobs:
           op document get "kubeconfig: tuist-mgmt" --vault tuist-k8s-mgmt --output "$KUBECONFIG"
           chmod 600 "$KUBECONFIG"
       - name: Diff (visibility into what's about to change)
+        if: github.event.inputs.force_roll_bare_metal == ''
         # `kubectl diff` exits non-zero when there's a diff, which is
         # the expected case here, so don't fail the step on that.
         # The actual gate is the apply step below.
@@ -106,9 +128,11 @@ jobs:
           kubectl diff -f infra/k8s/mgmt/hetzner-robot-controller.yaml || true
           echo "::endgroup::"
       - name: Apply ClusterClass first (Cluster CRs reference it)
+        if: github.event.inputs.force_roll_bare_metal == ''
         run: |
           kubectl apply -f infra/k8s/clusters/clusterclass-tuist.yaml
       - name: Apply per-env bare-metal substrate
+        if: github.event.inputs.force_roll_bare_metal == ''
         # HetznerBareMetalHost CRs + HetznerBareMetalMachineTemplate +
         # bare-metal KubeadmConfigTemplate + ExternalSecrets. Applied
         # between ClusterClass and Cluster CRs so the MD-claimed
@@ -142,15 +166,66 @@ jobs:
             fi
           done
       - name: Apply per-env Cluster CRs
+        if: github.event.inputs.force_roll_bare_metal == ''
         run: |
           for f in infra/k8s/clusters/cluster-*.yaml; do
             echo "==> $f"
             kubectl apply -f "$f"
           done
       - name: Apply mgmt-side workloads
+        if: github.event.inputs.force_roll_bare_metal == ''
         # These are mgmt-cluster Deployments / CronJobs, not Cluster
         # CRs. Independent of the CAPI manifests above.
         run: |
           kubectl apply -f infra/k8s/mgmt/hetzner-robot-controller.yaml
           kubectl apply -f infra/k8s/mgmt/etcd-snapshot.yaml
           kubectl apply -f infra/k8s/mgmt/tailscale.yaml
+      - name: Force-roll bare-metal HBMM
+        # Pre-merge counterpart to `mgmt-cluster-roll-bare-metal.yml`
+        # (which is only dispatchable once it lands on main). Deletes
+        # the first HetznerBareMetalMachine in the chosen cluster's
+        # bare-metal pool; CAPI's MachineDeployment recreates one
+        # from the current HetznerBareMetalMachineTemplate and caph
+        # re-runs the rescue + installimage + kubeadm-join flow.
+        # No cordon/drain: bare-metal nodes are tainted
+        # `tuist.dev/runner-tier=bare-metal:NoSchedule` so the only
+        # Pods on them are idempotent runner Pods.
+        if: github.event.inputs.force_roll_bare_metal != ''
+        timeout-minutes: 18
+        env:
+          CLUSTER: ${{ github.event.inputs.force_roll_bare_metal }}
+        run: |
+          set -euo pipefail
+          target=$(kubectl get hetznerbaremetalmachine -n org-tuist \
+            -l cluster.x-k8s.io/cluster-name=tuist-$CLUSTER \
+            -o jsonpath='{.items[0].metadata.name}' || true)
+          if [ -z "$target" ]; then
+            echo "::error::No HetznerBareMetalMachine found for cluster tuist-$CLUSTER"
+            exit 1
+          fi
+          echo "Rolling HBMM: $target"
+          kubectl get hetznerbaremetalmachine -n org-tuist "$target" -o wide
+          kubectl get hetznerbaremetalhost -n org-tuist
+          kubectl delete hetznerbaremetalmachine -n org-tuist "$target" --wait=true
+          deadline=$(( $(date +%s) + 17*60 ))
+          while [ "$(date +%s)" -lt "$deadline" ]; do
+            new=$(kubectl get hetznerbaremetalmachine -n org-tuist \
+              -l cluster.x-k8s.io/cluster-name=tuist-$CLUSTER \
+              -o jsonpath='{.items[0].metadata.name}' || true)
+            if [ -n "$new" ] && [ "$new" != "$target" ]; then
+              ready=$(kubectl get hetznerbaremetalmachine -n org-tuist "$new" \
+                -o jsonpath='{.status.ready}' || true)
+              echo "$(date -u +%H:%M:%S) new=$new ready=${ready:-false}"
+              if [ "$ready" = "true" ]; then
+                echo "Replacement HBMM $new is Ready."
+                exit 0
+              fi
+            else
+              echo "$(date -u +%H:%M:%S) waiting for replacement HBMM (current first=$new)"
+            fi
+            sleep 30
+          done
+          echo "::error::Timed out waiting for replacement HBMM to reach Ready=true"
+          kubectl get hetznerbaremetalmachine -n org-tuist -l cluster.x-k8s.io/cluster-name=tuist-$CLUSTER
+          kubectl get hetznerbaremetalhost -n org-tuist
+          exit 1
