@@ -53,28 +53,47 @@
         trend_type={:neutral}
         trend_label={dgettext("dashboard_runners", "since last month")}
       />
-      <.widget
-        id="widget-workflow-success-rate"
-        title={dgettext("dashboard_runners", "Success rate")}
-        legend_color="tertiary"
+      <.percentile_dropdown_widget
+        id="widget-workflow-queue-time"
+        title={
+          case @queue_time_percentile do
+            "p99" -> dgettext("dashboard_runners", "p99 queue time")
+            "p90" -> dgettext("dashboard_runners", "p90 queue time")
+            "p50" -> dgettext("dashboard_runners", "p50 queue time")
+            _ -> dgettext("dashboard_runners", "Avg. queue time")
+          end
+        }
         description={
           dgettext(
             "dashboard_runners",
-            "Share of enqueued jobs that completed with conclusion=success."
+            "Time each job spends waiting before a runner picks it up."
           )
         }
         value={
-          if @success_rate.ok?,
-            do: TuistWeb.RunnerWorkflowLive.format_success_rate(@success_rate.result.rate)
+          if @queue_time.ok? do
+            TuistWeb.RunnersLive.fmt_duration_ms(
+              TuistWeb.RunnersLive.percentile_value(@queue_time.result, @queue_time_percentile)
+            )
+          end
         }
-        loading={!@success_rate.ok?}
-        selected={@analytics_selected_widget == "success_rate"}
+        metrics={
+          if @queue_time.ok?,
+            do: TuistWeb.RunnersLive.percentile_metrics_for(@queue_time.result)
+        }
+        selected_type={@queue_time_percentile}
+        event_name="select_queue_time_percentile"
+        loading={!@queue_time.ok?}
+        legend_color={TuistWeb.RunnersLive.legend_color_for_percentile(@queue_time_percentile)}
+        selected={@analytics_selected_widget == "queue_time"}
         phx_click="select_widget"
-        phx_value_widget="success_rate"
-        trend_value={if @success_rate.ok?, do: @success_rate.result.trend}
-        trend_type={:neutral}
+        phx_value_widget="queue_time"
+        trend_value={
+          if @queue_time.ok? do
+            TuistWeb.RunnersLive.percentile_trend(@queue_time.result, @queue_time_percentile)
+          end
+        }
+        trend_type={:inverse}
         trend_label={dgettext("dashboard_runners", "since last month")}
-        empty={@success_rate.ok? && is_nil(@success_rate.result.rate)}
       />
       <.widget
         id="widget-workflow-failed-jobs"
@@ -165,28 +184,19 @@
             ]}
             y_axis_min={0}
           />
-        <% @analytics_selected_widget == "success_rate" and !@success_rate.ok? -> %>
+        <% @analytics_selected_widget == "queue_time" and !@queue_time.ok? -> %>
           <.skeleton_chart />
-        <% @analytics_selected_widget == "success_rate" -> %>
+        <% @analytics_selected_widget == "queue_time" -> %>
           <.chart
-            id="workflow-success-rate-chart"
+            id="workflow-queue-time-chart"
             type="line"
             extra_options={
-              TuistWeb.RunnerWorkflowLive.chart_options(@success_rate.result.dates, :percent)
+              TuistWeb.RunnersLive.duration_chart_options(
+                @queue_time.result.dates,
+                "last-30-days"
+              )
             }
-            series={[
-              %{
-                color: "var:noora-chart-tertiary",
-                data:
-                  @success_rate.result.dates
-                  |> Enum.zip(@success_rate.result.values)
-                  |> Enum.map(&Tuple.to_list/1),
-                name: dgettext("dashboard_runners", "Success rate"),
-                type: "line",
-                smooth: 0.1,
-                symbol: "none"
-              }
-            ]}
+            series={TuistWeb.RunnersLive.duration_chart_series(@queue_time.result)}
             y_axis_min={0}
           />
         <% @analytics_selected_widget == "failed_jobs" and !@failed_jobs_count.ok? -> %>

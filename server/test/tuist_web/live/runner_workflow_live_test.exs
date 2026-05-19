@@ -55,9 +55,9 @@ defmodule TuistWeb.RunnerWorkflowLiveTest do
     assert html =~ "Server"
     assert html =~ "tuist/tuist"
     assert html =~ "Total jobs"
-    assert html =~ "Success rate"
+    assert html =~ "queue time"
     assert html =~ "Failed jobs"
-    assert html =~ "Avg. job duration"
+    assert html =~ "job duration"
     assert html =~ "Docker build"
   end
 

@@ -41,19 +41,20 @@ defmodule TuistWeb.RunnerWorkflowLive do
       |> assign(:workflow_name, workflow_name)
       |> assign(:analytics_selected_widget, "total_jobs")
       |> assign(:job_duration_percentile, "avg")
+      |> assign(:queue_time_percentile, "avg")
       |> assign(
         :recent_jobs,
         Jobs.list_for_account(selected_account.id, scope_opts ++ [limit: @recent_jobs_limit])
       )
       |> assign_async(
-        [:jobs_count, :failed_jobs_count, :jobs_duration, :success_rate],
+        [:jobs_count, :failed_jobs_count, :jobs_duration, :queue_time],
         fn ->
           {:ok,
            %{
              jobs_count: Analytics.jobs_count(selected_account.id, scope_opts),
              failed_jobs_count: Analytics.failed_jobs_count(selected_account.id, scope_opts),
              jobs_duration: Analytics.jobs_duration(selected_account.id, scope_opts),
-             success_rate: Analytics.success_rate(selected_account.id, scope_opts)
+             queue_time: Analytics.queue_time(selected_account.id, scope_opts)
            }}
         end
       )
@@ -68,6 +69,10 @@ defmodule TuistWeb.RunnerWorkflowLive do
 
   def handle_event("select_job_duration_percentile", %{"type" => type}, socket) do
     {:noreply, assign(socket, :job_duration_percentile, type)}
+  end
+
+  def handle_event("select_queue_time_percentile", %{"type" => type}, socket) do
+    {:noreply, assign(socket, :queue_time_percentile, type)}
   end
 
   def display_workflow(""), do: dgettext("dashboard_runners", "Unknown")
@@ -89,10 +94,6 @@ defmodule TuistWeb.RunnerWorkflowLive do
     do: %{label: String.capitalize(other), status: "warning"}
 
   def conclusion_badge_props(_), do: nil
-
-  def format_success_rate(nil), do: "–"
-
-  def format_success_rate(value) when is_number(value), do: :erlang.float_to_binary(value / 1, decimals: 1) <> "%"
 
   def format_duration_ms(ms) when is_integer(ms) and ms > 0, do: DateFormatter.format_duration_from_milliseconds(ms)
 
@@ -159,7 +160,7 @@ defmodule TuistWeb.RunnerWorkflowLive do
     "/#{account_name}/runners/jobs?#{query}"
   end
 
-  def chart_options(dates, scale \\ :count) do
+  def chart_options(dates) do
     %{
       grid: %{width: "97%", left: "0.4%", height: "88%", top: "5%"},
       xAxis: %{
@@ -172,31 +173,13 @@ defmodule TuistWeb.RunnerWorkflowLive do
           padding: [10, 0, 0, 0]
         }
       },
-      yAxis: y_axis(scale),
+      yAxis: %{
+        splitNumber: 4,
+        splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
+        axisLabel: %{color: "var:noora-surface-label-secondary"}
+      },
       legend: %{show: false},
       tooltip: %{}
-    }
-  end
-
-  # `:percent` pins the y-axis to 0..100 so the success-rate line
-  # keeps a consistent baseline even when the rate sits at 100% for
-  # the whole window — without it echarts auto-scales to a tiny band
-  # and the plateau looks like noise rather than a steady success.
-  defp y_axis(:percent) do
-    %{
-      splitNumber: 4,
-      splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
-      axisLabel: %{color: "var:noora-surface-label-secondary", formatter: "{value}%"},
-      min: 0,
-      max: 100
-    }
-  end
-
-  defp y_axis(_) do
-    %{
-      splitNumber: 4,
-      splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
-      axisLabel: %{color: "var:noora-surface-label-secondary"}
     }
   end
 end

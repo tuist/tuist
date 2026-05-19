@@ -268,6 +268,129 @@ defmodule Tuist.Runners.Analytics do
   end
 
   @doc """
+  Per-job queue-time aggregates over the window: avg, p50, p90, p99
+  plus a daily series for each percentile. "Queue time" is the wall-
+  clock gap between `enqueued_at` and `claimed_at` — how long a
+  workflow_job waited before any runner picked it up. Jobs still in
+  the queue (`claimed_at` at epoch) are excluded; they don't have a
+  closed interval to measure yet.
+  """
+  def queue_time(account_id, opts \\ []) when is_integer(account_id) do
+    {start_dt, end_dt} = window(opts)
+    {prev_start_dt, prev_end_dt} = previous_window(start_dt, end_dt)
+
+    current = queue_time_aggregates(account_id, start_dt, end_dt, opts)
+    previous = queue_time_aggregates(account_id, prev_start_dt, prev_end_dt, opts)
+    rows = queue_time_buckets_per_day(account_id, start_dt, end_dt, opts)
+    filled = fill_duration_dates(rows, start_dt, end_dt)
+
+    %{
+      avg: trunc_or_zero(current.avg),
+      p50: trunc_or_zero(current.p50),
+      p90: trunc_or_zero(current.p90),
+      p99: trunc_or_zero(current.p99),
+      trend_avg: trend(trunc_or_zero(previous.avg), trunc_or_zero(current.avg)),
+      trend_p50: trend(trunc_or_zero(previous.p50), trunc_or_zero(current.p50)),
+      trend_p90: trend(trunc_or_zero(previous.p90), trunc_or_zero(current.p90)),
+      trend_p99: trend(trunc_or_zero(previous.p99), trunc_or_zero(current.p99)),
+      dates: Enum.map(filled, & &1.date),
+      avg_values: Enum.map(filled, & &1.avg),
+      p50_values: Enum.map(filled, & &1.p50),
+      p90_values: Enum.map(filled, & &1.p90),
+      p99_values: Enum.map(filled, & &1.p99)
+    }
+  end
+
+  defp queue_time_aggregates(account_id, start_dt, end_dt, opts) do
+    [aggregates | _] =
+      Job
+      |> from(hints: ["FINAL"])
+      |> claimed_in_window(account_id, start_dt, end_dt)
+      |> scope_workflow(opts)
+      |> select([j], %{
+        avg:
+          fragment(
+            "avg(toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?))",
+            j.claimed_at,
+            j.enqueued_at
+          ),
+        p50:
+          fragment(
+            "quantile(0.5)(toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?))",
+            j.claimed_at,
+            j.enqueued_at
+          ),
+        p90:
+          fragment(
+            "quantile(0.9)(toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?))",
+            j.claimed_at,
+            j.enqueued_at
+          ),
+        p99:
+          fragment(
+            "quantile(0.99)(toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?))",
+            j.claimed_at,
+            j.enqueued_at
+          )
+      })
+      |> ClickHouseRepo.all()
+      |> default_empty(%{avg: 0, p50: 0, p90: 0, p99: 0})
+
+    aggregates
+  end
+
+  defp queue_time_buckets_per_day(account_id, start_dt, end_dt, opts) do
+    Job
+    |> from(hints: ["FINAL"])
+    |> claimed_in_window(account_id, start_dt, end_dt)
+    |> scope_workflow(opts)
+    |> group_by([j], fragment("toDate(?)", j.claimed_at))
+    |> order_by([j], asc: fragment("toDate(?)", j.claimed_at))
+    |> select([j], %{
+      date: fragment("toDate(?)", j.claimed_at),
+      avg:
+        fragment(
+          "avg(toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?))",
+          j.claimed_at,
+          j.enqueued_at
+        ),
+      p50:
+        fragment(
+          "quantile(0.5)(toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?))",
+          j.claimed_at,
+          j.enqueued_at
+        ),
+      p90:
+        fragment(
+          "quantile(0.9)(toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?))",
+          j.claimed_at,
+          j.enqueued_at
+        ),
+      p99:
+        fragment(
+          "quantile(0.99)(toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?))",
+          j.claimed_at,
+          j.enqueued_at
+        )
+    })
+    |> ClickHouseRepo.all()
+  end
+
+  # Jobs that left the queue in the window — `claimed_at` past epoch
+  # within `[start_dt, end_dt]`. We bucket on `claimed_at` (not
+  # `enqueued_at`) so a job enqueued just before the window but
+  # claimed inside it still contributes to the day it was picked up.
+  defp claimed_in_window(query, account_id, start_dt, end_dt) do
+    where(
+      query,
+      [j],
+      j.account_id == ^account_id and j.claimed_at >= ^start_dt and j.claimed_at <= ^end_dt and
+        fragment("toUnixTimestamp64Milli(?) > 0", j.enqueued_at) and
+        fragment("toUnixTimestamp64Milli(?) > 0", j.claimed_at)
+    )
+  end
+
+  @doc """
   Per-workflow_run duration aggregates. A workflow's duration is
   `max(completed_at) - min(started_at)` across the jobs that share a
   `workflow_run_id` — i.e. how long the whole CI run took from first
@@ -474,82 +597,6 @@ defmodule Tuist.Runners.Analytics do
 
   defp trunc_or_zero(nil), do: 0
   defp trunc_or_zero(value) when is_number(value), do: trunc(value)
-
-  @doc """
-  Success rate (% of enqueued jobs that finished with
-  `conclusion='success'`) over the window plus a daily series and the
-  point-to-point delta vs the previous equivalent window. The
-  denominator matches the Workflows list column — share of ALL
-  enqueued jobs that landed on success, so in-flight rows and
-  cancelled/skipped conclusions all weigh against the rate.
-  """
-  def success_rate(account_id, opts \\ []) when is_integer(account_id) do
-    {start_dt, end_dt} = window(opts)
-    {prev_start_dt, prev_end_dt} = previous_window(start_dt, end_dt)
-
-    rate = success_rate_in_range(account_id, start_dt, end_dt, opts)
-    previous = success_rate_in_range(account_id, prev_start_dt, prev_end_dt, opts)
-    trend_pp = if is_nil(rate) or is_nil(previous), do: 0.0, else: Float.round(rate - previous, 1)
-
-    rows = success_rate_per_day(account_id, start_dt, end_dt, opts)
-    filled = fill_dates(rows, start_dt, end_dt, &Map.get(&1, :value, 0))
-
-    %{
-      rate: rate,
-      trend: trend_pp,
-      dates: Enum.map(filled, & &1.date),
-      values: Enum.map(filled, & &1.value)
-    }
-  end
-
-  defp success_rate_per_day(account_id, start_dt, end_dt, opts) do
-    Job
-    |> from(hints: ["FINAL"])
-    |> where(
-      [j],
-      j.account_id == ^account_id and j.enqueued_at >= ^start_dt and j.enqueued_at <= ^end_dt
-    )
-    |> scope_workflow(opts)
-    |> group_by([j], fragment("toDate(?)", j.enqueued_at))
-    |> select([j], %{
-      date: fragment("toDate(?)", j.enqueued_at),
-      value:
-        fragment(
-          "if(count() = 0, 0, round(countIf(? = 'completed' AND ? = 'success') / count() * 100, 1))",
-          j.status,
-          j.conclusion
-        )
-    })
-    |> order_by([j], asc: fragment("toDate(?)", j.enqueued_at))
-    |> ClickHouseRepo.all()
-  end
-
-  defp success_rate_in_range(account_id, start_dt, end_dt, opts) do
-    # Denominator matches the Workflows list view's "Success rate"
-    # column — share of ALL enqueued jobs in the window that landed
-    # on success. In-flight (queued/claimed/running) and other
-    # conclusions (failure/cancelled/skipped) all count against the
-    # rate. Keeping the formulas aligned across the two pages avoids
-    # the awkward "this column reads differently here than there"
-    # paper-cut.
-    [%{total: total, successful: successful} | _] =
-      Job
-      |> from(hints: ["FINAL"])
-      |> where(
-        [j],
-        j.account_id == ^account_id and j.enqueued_at >= ^start_dt and
-          j.enqueued_at <= ^end_dt
-      )
-      |> scope_workflow(opts)
-      |> select([j], %{
-        total: count(j.workflow_job_id),
-        successful: fragment("countIf(? = 'completed' AND ? = 'success')", j.status, j.conclusion)
-      })
-      |> ClickHouseRepo.all()
-      |> default_empty(%{total: 0, successful: 0})
-
-    if total == 0, do: nil, else: Float.round(successful / total * 100, 1)
-  end
 
   # Narrows a `runner_jobs` query to a specific workflow when the
   # caller provides `:repo` and/or `:workflow_name` opts. Used by the
