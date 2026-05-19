@@ -593,9 +593,25 @@ jobs:
           kubectl get events -n tuist-runners --sort-by=.lastTimestamp | tail -40 || true
           echo "::endgroup::"
           echo "::group::runners-controller logs (last 200 lines)"
-          kubectl logs -n tuist deployment/runners-controller --tail=200 2>&1 || \
-            kubectl logs -n tuist-runners deployment/runners-controller --tail=200 2>&1 || \
-            kubectl logs -A --selector=app.kubernetes.io/name=runners-controller --tail=200 2>&1 || true
+          ns_dep=$(kubectl get deployment -A -o json | jq -r '.items[] | select(.metadata.name | endswith("runners-controller")) | "\(.metadata.namespace)/\(.metadata.name)"' | head -1)
+          if [ -n "$ns_dep" ]; then
+            kubectl logs -n "${ns_dep%%/*}" "deployment/${ns_dep##*/}" --tail=200 2>&1 || true
+          fi
+          echo "::endgroup::"
+          echo "::group::One Linux runner pod logs (last 100 lines)"
+          one_pod=$(kubectl get pods -n tuist-runners -l tuist.dev/runner-pool -o jsonpath='{.items[?(@.status.phase=="Running")].metadata.name}' 2>/dev/null | tr ' ' '\n' | grep "linux-ubuntu" | head -1)
+          if [ -z "$one_pod" ]; then
+            one_pod=$(kubectl get pods -n tuist-runners -o jsonpath='{.items[?(@.status.phase=="Running")].metadata.name}' 2>/dev/null | tr ' ' '\n' | grep "linux-ubuntu" | head -1)
+          fi
+          if [ -n "$one_pod" ]; then
+            echo "Pod: $one_pod"
+            kubectl logs -n tuist-runners "$one_pod" --tail=100 2>&1 || true
+          fi
+          echo "::endgroup::"
+          echo "::group::Tuist server health"
+          kubectl get deployment -n tuist-staging -o wide | grep -v runners-controller || true
+          echo
+          kubectl get pods -n tuist-staging -o wide | head -30 || true
           echo "::endgroup::"
       - name: Dump hetzner-robot-controller state
         # When the force-roll deletes the HBM but the controller
