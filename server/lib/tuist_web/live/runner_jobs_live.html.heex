@@ -21,37 +21,19 @@
         empty={@jobs_count.ok? && @jobs_count.result.count == 0}
       />
       <.widget
-        id="widget-jobs-running"
-        title={dgettext("dashboard_runners", "Running")}
-        legend_color="tertiary"
-        description={dgettext("dashboard_runners", "Jobs the runner pool is currently executing.")}
-        value={
-          if @live_status_counts.ok? do
-            Integer.to_string(
-              Map.get(@live_status_counts.result, "running", 0) +
-                Map.get(@live_status_counts.result, "claimed", 0)
-            )
-          end
-        }
-        loading={!@live_status_counts.ok?}
-        selected={@analytics_selected_widget == "running"}
+        id="widget-jobs-failed"
+        title={dgettext("dashboard_runners", "Failed jobs")}
+        legend_color="destructive"
+        description={dgettext("dashboard_runners", "Jobs that completed with conclusion=failure in the last 30 days.")}
+        value={if @failed_jobs_count.ok?, do: Integer.to_string(@failed_jobs_count.result.count)}
+        loading={!@failed_jobs_count.ok?}
+        selected={@analytics_selected_widget == "failed_jobs"}
         phx_click="select_widget"
-        phx_value_widget="running"
-      />
-      <.widget
-        id="widget-jobs-queued"
-        title={dgettext("dashboard_runners", "Queued")}
-        legend_color="secondary"
-        description={dgettext("dashboard_runners", "Jobs waiting for a runner to pick them up.")}
-        value={
-          if @live_status_counts.ok? do
-            Integer.to_string(Map.get(@live_status_counts.result, "queued", 0))
-          end
-        }
-        loading={!@live_status_counts.ok?}
-        selected={@analytics_selected_widget == "queued"}
-        phx_click="select_widget"
-        phx_value_widget="queued"
+        phx_value_widget="failed_jobs"
+        trend_value={if @failed_jobs_count.ok?, do: @failed_jobs_count.result.trend}
+        trend_type={:inverse}
+        trend_label={dgettext("dashboard_runners", "since last month")}
+        empty={@failed_jobs_count.ok? && @failed_jobs_count.result.count == 0}
       />
       <.widget
         id="widget-jobs-minutes"
@@ -119,10 +101,28 @@
             ]}
             y_axis_min={0}
           />
-        <% @analytics_selected_widget in ["running", "queued"] -> %>
-          <div data-part="status-counts-empty">
-            <span>{dgettext("dashboard_runners", "Live counts only — no time series.")}</span>
-          </div>
+        <% @analytics_selected_widget == "failed_jobs" and !@failed_jobs_count.ok? -> %>
+          <.skeleton_chart />
+        <% @analytics_selected_widget == "failed_jobs" -> %>
+          <.chart
+            id="jobs-failed-chart"
+            type="line"
+            extra_options={TuistWeb.RunnerJobsLive.count_chart_options(@failed_jobs_count.result.dates)}
+            series={[
+              %{
+                color: "var:noora-chart-destructive",
+                data:
+                  @failed_jobs_count.result.dates
+                  |> Enum.zip(@failed_jobs_count.result.values)
+                  |> Enum.map(&Tuple.to_list/1),
+                name: dgettext("dashboard_runners", "Failed"),
+                type: "line",
+                smooth: 0.1,
+                symbol: "none"
+              }
+            ]}
+            y_axis_min={0}
+          />
         <% true -> %>
           <.skeleton_chart />
       <% end %>
@@ -134,6 +134,35 @@
     icon="stack_2"
     data-part="runner-jobs-card"
   >
+    <div data-part="widgets">
+      <.widget
+        id="widget-jobs-running"
+        title={dgettext("dashboard_runners", "Running")}
+        legend_color="tertiary"
+        description={dgettext("dashboard_runners", "Jobs the runner pool is currently executing.")}
+        value={
+          if @live_status_counts.ok? do
+            Integer.to_string(
+              Map.get(@live_status_counts.result, "running", 0) +
+                Map.get(@live_status_counts.result, "claimed", 0)
+            )
+          end
+        }
+        loading={!@live_status_counts.ok?}
+      />
+      <.widget
+        id="widget-jobs-queued"
+        title={dgettext("dashboard_runners", "Queued")}
+        legend_color="secondary"
+        description={dgettext("dashboard_runners", "Jobs waiting for a runner to pick them up.")}
+        value={
+          if @live_status_counts.ok? do
+            Integer.to_string(Map.get(@live_status_counts.result, "queued", 0))
+          end
+        }
+        loading={!@live_status_counts.ok?}
+      />
+    </div>
     <.card_section data-part="runner-jobs-card-section">
       <div data-part="filters">
         <.filter_dropdown
@@ -228,6 +257,27 @@
             <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(job.updated_at)} />
           </:col>
         </.table>
+        <div :if={@total_pages > 1} data-part="pagination">
+          <.button
+            variant="secondary"
+            label={dgettext("dashboard_runners", "Prev")}
+            disabled={@page <= 1}
+            patch={TuistWeb.RunnerJobsLive.page_link(@uri, max(1, @page - 1))}
+          >
+            <:icon_left><.chevron_left /></:icon_left>
+          </.button>
+          <span data-part="page-label">
+            {dgettext("dashboard_runners", "Page %{page} of %{total}", page: @page, total: @total_pages)}
+          </span>
+          <.button
+            variant="secondary"
+            label={dgettext("dashboard_runners", "Next")}
+            disabled={@page >= @total_pages}
+            patch={TuistWeb.RunnerJobsLive.page_link(@uri, min(@total_pages, @page + 1))}
+          >
+            <:icon_right><.chevron_right /></:icon_right>
+          </.button>
+        </div>
       </div>
       <div :if={Enum.empty?(@jobs)} data-part="empty-runner-jobs">
         <.empty_card_section

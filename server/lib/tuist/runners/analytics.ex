@@ -59,6 +59,64 @@ defmodule Tuist.Runners.Analytics do
     count
   end
 
+  @doc """
+  Total count of failed jobs over the window + daily series + trend.
+  A "failed" job is one that reached `status='completed'` with a
+  `conclusion='failure'`. Cancelled/skipped don't count — the
+  customer cares about runner-attributable failures, not the
+  build-author's choices.
+  """
+  def failed_jobs_count(account_id, opts \\ []) when is_integer(account_id) do
+    {start_dt, end_dt} = window(opts)
+    {prev_start_dt, prev_end_dt} = previous_window(start_dt, end_dt)
+
+    count = failed_count_in_range(account_id, start_dt, end_dt)
+    previous_count = failed_count_in_range(account_id, prev_start_dt, prev_end_dt)
+    rows = failed_jobs_per_day(account_id, start_dt, end_dt)
+    filled = fill_dates(rows, start_dt, end_dt, &Map.get(&1, :value, 0))
+
+    %{
+      count: count,
+      trend: trend(previous_count, count),
+      dates: Enum.map(filled, & &1.date),
+      values: Enum.map(filled, & &1.value)
+    }
+  end
+
+  defp failed_count_in_range(account_id, start_dt, end_dt) do
+    [%{count: count} | _] =
+      Job
+      |> from(hints: ["FINAL"])
+      |> where(
+        [j],
+        j.account_id == ^account_id and j.enqueued_at >= ^start_dt and
+          j.enqueued_at <= ^end_dt and j.status == "completed" and
+          j.conclusion == "failure"
+      )
+      |> select([j], %{count: count(j.workflow_job_id)})
+      |> ClickHouseRepo.all()
+      |> default_empty(%{count: 0})
+
+    count
+  end
+
+  defp failed_jobs_per_day(account_id, start_dt, end_dt) do
+    Job
+    |> from(hints: ["FINAL"])
+    |> where(
+      [j],
+      j.account_id == ^account_id and j.enqueued_at >= ^start_dt and j.enqueued_at <= ^end_dt and
+        j.status == "completed" and j.conclusion == "failure"
+    )
+    |> group_by([j], fragment("toDate(?)", j.completed_at))
+    |> select([j], %{
+      date: fragment("toDate(?)", j.completed_at),
+      value: count(j.workflow_job_id)
+    })
+    |> order_by([j], asc: fragment("toDate(?)", j.completed_at))
+    |> ClickHouseRepo.all()
+  end
+
   defp jobs_count_per_day(account_id, start_dt, end_dt) do
     Job
     |> from(hints: ["FINAL"])

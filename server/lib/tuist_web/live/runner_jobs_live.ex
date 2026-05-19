@@ -32,11 +32,12 @@ defmodule TuistWeb.RunnerJobsLive do
      |> assign(:available_filters, available_filters())
      |> assign(:analytics_selected_widget, "cumulative_minutes")
      |> assign_async(
-       [:jobs_count, :cumulative_minutes, :live_status_counts],
+       [:jobs_count, :failed_jobs_count, :cumulative_minutes, :live_status_counts],
        fn ->
          {:ok,
           %{
             jobs_count: Analytics.jobs_count(selected_account.id),
+            failed_jobs_count: Analytics.failed_jobs_count(selected_account.id),
             cumulative_minutes: Analytics.cumulative_minutes(selected_account.id),
             live_status_counts: Jobs.status_counts(selected_account.id)
           }}
@@ -45,14 +46,26 @@ defmodule TuistWeb.RunnerJobsLive do
   end
 
   @impl true
-  def handle_params(params, _uri, socket) do
+  def handle_params(params, uri, socket) do
     filters = Filter.Operations.decode_filters_from_query(params, socket.assigns.available_filters)
+    page = parse_page(params["page"])
 
     {:noreply,
      socket
+     |> assign(:uri, URI.parse(uri))
      |> assign(:active_filters, filters)
+     |> assign(:page, page)
      |> assign_jobs()}
   end
+
+  defp parse_page(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {n, ""} when n > 0 -> n
+      _ -> 1
+    end
+  end
+
+  defp parse_page(_), do: 1
 
   @impl true
   def handle_event("select_widget", %{"widget" => widget}, socket) do
@@ -83,12 +96,13 @@ defmodule TuistWeb.RunnerJobsLive do
          %{
            assigns: %{
              selected_account: account,
-             active_filters: filters
+             active_filters: filters,
+             page: page
            }
          } = socket
        ) do
-    opts =
-      [limit: @page_size]
+    base_opts =
+      []
       |> add_filter_opt(filters, "repository", :repo)
       |> add_filter_opt(filters, "workflow", :workflow_name)
       |> add_filter_opt(filters, "job", :job_name)
@@ -96,13 +110,29 @@ defmodule TuistWeb.RunnerJobsLive do
       |> add_option_opt(filters, "status", :status)
       |> add_option_opt(filters, "conclusion", :conclusion)
 
-    jobs = Jobs.list_for_account(account.id, opts)
+    total = Jobs.count_for_account(account.id, base_opts)
+    total_pages = max(1, ceil_div(total, @page_size))
+    page = min(page, total_pages)
+    offset = (page - 1) * @page_size
+
+    paged_opts =
+      base_opts
+      |> Keyword.put(:limit, @page_size)
+      |> Keyword.put(:offset, offset)
+
+    jobs = Jobs.list_for_account(account.id, paged_opts)
     counts = Jobs.status_counts(account.id)
 
     socket
     |> assign(:jobs, jobs)
     |> assign(:status_counts, counts)
+    |> assign(:page, page)
+    |> assign(:total_jobs, total)
+    |> assign(:total_pages, total_pages)
   end
+
+  defp ceil_div(0, _divisor), do: 0
+  defp ceil_div(numerator, divisor), do: div(numerator + divisor - 1, divisor)
 
   defp add_filter_opt(opts, filters, filter_id, opt_key) do
     case Enum.find(filters, &(&1.id == filter_id)) do
@@ -266,6 +296,20 @@ defmodule TuistWeb.RunnerJobsLive do
       legend: %{show: false},
       tooltip: %{}
     }
+  end
+
+  @doc """
+  Returns the query string for a given page number, preserving the
+  current filter state in `uri`.
+  """
+  def page_link(uri, page) do
+    query =
+      (uri.query || "")
+      |> URI.decode_query()
+      |> Map.put("page", Integer.to_string(page))
+      |> URI.encode_query()
+
+    "?" <> query
   end
 
   def minutes_chart_options(dates) do

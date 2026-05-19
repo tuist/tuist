@@ -237,6 +237,7 @@ defmodule Tuist.Runners.Jobs do
 
   Options:
     * `:limit` — page size, default 50
+    * `:offset` — number of rows to skip (page-based pagination)
     * `:status` — restrict to one of `"queued" | "claimed" | "running" | "completed"`
     * `:conclusion` — restrict completed jobs to a conclusion
       (e.g. `"success" | "failure" | "cancelled" | "skipped"`)
@@ -250,7 +251,35 @@ defmodule Tuist.Runners.Jobs do
   """
   def list_for_account(account_id, opts \\ []) when is_integer(account_id) and is_list(opts) do
     limit = Keyword.get(opts, :limit, 50)
+    offset = Keyword.get(opts, :offset, 0)
 
+    account_id
+    |> filtered_jobs_query(opts)
+    |> order_by([j], desc: j.updated_at, desc: j.workflow_job_id)
+    |> limit(^limit)
+    |> offset(^offset)
+    |> ClickHouseRepo.all()
+  end
+
+  @doc """
+  Total count of jobs matching the same filters used by
+  `list_for_account/2`. Used to drive pagination.
+  """
+  def count_for_account(account_id, opts \\ []) when is_integer(account_id) and is_list(opts) do
+    [%{count: count} | _] =
+      account_id
+      |> filtered_jobs_query(opts)
+      |> select([j], %{count: count(j.workflow_job_id)})
+      |> ClickHouseRepo.all()
+      |> case do
+        [] -> [%{count: 0}]
+        rows -> rows
+      end
+
+    count || 0
+  end
+
+  defp filtered_jobs_query(account_id, opts) do
     Job
     |> from(hints: ["FINAL"])
     |> where([j], j.account_id == ^account_id)
@@ -260,9 +289,6 @@ defmodule Tuist.Runners.Jobs do
     |> maybe_filter_like(:workflow_name, Keyword.get(opts, :workflow_name))
     |> maybe_filter_like(:job_name, Keyword.get(opts, :job_name))
     |> maybe_filter_like(:head_branch, Keyword.get(opts, :head_branch))
-    |> order_by([j], desc: j.updated_at, desc: j.workflow_job_id)
-    |> limit(^limit)
-    |> ClickHouseRepo.all()
   end
 
   defp maybe_filter_status(query, nil), do: query

@@ -1,3 +1,17 @@
+#runner-jobs [data-part="pagination"] {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  gap: var(--noora-spacing-4);
+  padding-top: var(--noora-spacing-4);
+
+  & [data-part="page-label"] {
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+  }
+}
+
 #runners,
 #runner-jobs,
 #runner-workflows {
@@ -30,8 +44,8 @@
   justify-content: flex-end;
 }
 
-#runners [data-part="analytics"],
-#runner-jobs [data-part="jobs-analytics"] {
+#runners,
+#runner-jobs {
   & [data-part="widgets"] {
     display: flex;
     flex-direction: row;
@@ -52,14 +66,6 @@
     & .noora-chart {
       height: 280px;
     }
-  }
-
-  & [data-part="status-counts-empty"] {
-    display: flex;
-    justify-content: center;
-    padding: var(--noora-spacing-12) var(--noora-spacing-5);
-    color: var(--noora-surface-label-secondary);
-    font: var(--noora-font-weight-regular) var(--noora-font-body-small);
   }
 }
 
