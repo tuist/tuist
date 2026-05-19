@@ -367,6 +367,21 @@ jobs:
           echo "::group::containerd status"
           ssh "${ssh_opts[@]}" "root@$ip" 'systemctl status containerd --no-pager -l; ls -la /usr/local/bin/containerd /usr/local/sbin/runc /usr/local/lib/systemd/system/containerd.service /etc/containerd/config.toml 2>&1' || true
           echo "::endgroup::"
+          echo "::group::uptime / load / memory / disk"
+          ssh "${ssh_opts[@]}" "root@$ip" 'uptime; echo "---"; free -h; echo "---"; df -h /; echo "---"; df -h' || true
+          echo "::endgroup::"
+          echo "::group::kubelet status + recent journal"
+          ssh "${ssh_opts[@]}" "root@$ip" 'systemctl status kubelet --no-pager -l; echo "---"; journalctl -u kubelet --no-pager -n 200' || true
+          echo "::endgroup::"
+          echo "::group::containerd recent journal"
+          ssh "${ssh_opts[@]}" "root@$ip" 'journalctl -u containerd --no-pager -n 100' || true
+          echo "::endgroup::"
+          echo "::group::dmesg tail (kernel events, OOM, hardware)"
+          ssh "${ssh_opts[@]}" "root@$ip" 'dmesg --ctime | tail -200' || true
+          echo "::endgroup::"
+          echo "::group::Recent /var/log/syslog"
+          ssh "${ssh_opts[@]}" "root@$ip" 'test -f /var/log/syslog && tail -200 /var/log/syslog || journalctl --no-pager -n 200' || true
+          echo "::endgroup::"
       - name: Dump workload-cluster state
         # Pulls the workload cluster's kubeconfig from the
         # CAPI-managed Secret (`<cluster>-kubeconfig` in
