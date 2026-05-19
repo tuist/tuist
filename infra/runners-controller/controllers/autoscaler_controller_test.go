@@ -277,4 +277,3 @@ func TestAutoscaler_ServerErrorLeavesReplicasUnchanged(t *testing.T) {
 		t.Errorf("Replicas = %d, want 5 (server error must not change replicas)", got.Spec.Replicas)
 	}
 }
-

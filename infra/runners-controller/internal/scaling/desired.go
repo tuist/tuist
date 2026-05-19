@@ -11,10 +11,10 @@ package scaling
 // the source of these three signals; this package is the policy
 // engine that combines them with per-pool knobs.
 type Signals struct {
-	Fleet                  string `json:"fleet"`
-	Claimed                int32  `json:"claimed"`
-	Queued                 int32  `json:"queued"`
-	P95ConcurrentLastHour  int32  `json:"p95_concurrent_last_hour"`
+	Fleet                 string `json:"fleet"`
+	Claimed               int32  `json:"claimed"`
+	Queued                int32  `json:"queued"`
+	P95ConcurrentLastHour int32  `json:"p95_concurrent_last_hour"`
 }
 
 // PolicyKnobs are the per-pool autoscaling parameters from the
