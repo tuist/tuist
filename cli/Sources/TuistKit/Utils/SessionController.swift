@@ -25,15 +25,8 @@ public struct SessionController {
         stateDirectory: AbsolutePath
     ) async throws -> (@Sendable (String) -> any LogHandler, SessionPaths) {
         let sessionPaths = try await createSessionDirectory(stateDirectory: stateDirectory)
-
-        let machineReadableCommands = [DumpCommand.self]
-        // swiftformat:disable all
-        let isCommandMachineReadable =
-            CommandLine.arguments.count > 1
-            && machineReadableCommands.map { $0._commandName }.contains(CommandLine.arguments[1])
-        // swiftformat:enable all
         let loggingConfig =
-            if isCommandMachineReadable || CommandLine.arguments.contains("--json") {
+            if MachineReadableOutput.isEnabled(arguments: CommandLine.arguments) {
                 LoggingConfig(
                     loggerType: .json,
                     verbose: Environment.current.isVerbose
