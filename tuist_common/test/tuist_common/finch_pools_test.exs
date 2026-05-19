@@ -57,6 +57,22 @@ defmodule TuistCommon.FinchPoolsTest do
       assert Enum.all?(cacerts, &is_binary/1)
     end
 
+    test "accepts PEM bundles with escaped newlines" do
+      pem =
+        CAStore.file_path()
+        |> File.read!()
+        |> String.replace("\n", "\\n")
+
+      {_endpoint, opts} =
+        FinchPools.s3_pool(endpoint: "https://s3.example.com", ca_cert_pem: pem)
+
+      transport_opts = opts |> Keyword.fetch!(:conn_opts) |> Keyword.fetch!(:transport_opts)
+      cacerts = Keyword.fetch!(transport_opts, :cacerts)
+
+      assert is_list(cacerts) and cacerts != []
+      assert Enum.all?(cacerts, &is_binary/1)
+    end
+
     test "raises when endpoint is missing" do
       assert_raise KeyError, fn -> FinchPools.s3_pool([]) end
     end
