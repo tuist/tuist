@@ -184,6 +184,11 @@ jobs:
     timeout-minutes: 20
     env:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
+      # True when ANY workflow_dispatch diagnostic or destructive
+      # input is set — used to gate the standard apply steps off
+      # so a diagnostic dispatch doesn't also re-run a full apply.
+      # Keep in sync with `on.workflow_dispatch.inputs` above.
+      DIAG_MODE: ${{ github.event.inputs.force_roll_bare_metal != '' || github.event.inputs.dump_cloud_init != '' || github.event.inputs.dump_workload != '' || github.event.inputs.dump_robot_controller == 'true' || github.event.inputs.restart_robot_controller == 'true' || github.event.inputs.query_robot_inventory == 'true' || github.event.inputs.cleanup_runner_pods != '' || github.event.inputs.kick_runners_controller != '' || github.event.inputs.dump_hcloud_md0 != '' || github.event.inputs.query_hcloud_servers == 'true' }}
     steps:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v3.2.0
@@ -199,7 +204,7 @@ jobs:
           op document get "kubeconfig: tuist-mgmt" --vault tuist-k8s-mgmt --output "$KUBECONFIG"
           chmod 600 "$KUBECONFIG"
       - name: Diff (visibility into what's about to change)
-        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true' && github.event.inputs.restart_robot_controller != 'true' && github.event.inputs.query_robot_inventory != 'true' && github.event.inputs.cleanup_runner_pods == '' && github.event.inputs.kick_runners_controller == '' && github.event.inputs.dump_hcloud_md0 == '' && github.event.inputs.query_hcloud_servers != 'true'
+        if: env.DIAG_MODE != 'true'
         # `kubectl diff` exits non-zero when there's a diff, which is
         # the expected case here, so don't fail the step on that.
         # The actual gate is the apply step below.
@@ -230,11 +235,11 @@ jobs:
           kubectl diff -f infra/k8s/mgmt/hetzner-robot-controller.yaml || true
           echo "::endgroup::"
       - name: Apply ClusterClass first (Cluster CRs reference it)
-        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true' && github.event.inputs.restart_robot_controller != 'true' && github.event.inputs.query_robot_inventory != 'true' && github.event.inputs.cleanup_runner_pods == '' && github.event.inputs.kick_runners_controller == '' && github.event.inputs.dump_hcloud_md0 == '' && github.event.inputs.query_hcloud_servers != 'true'
+        if: env.DIAG_MODE != 'true'
         run: |
           kubectl apply -f infra/k8s/clusters/clusterclass-tuist.yaml
       - name: Apply per-env bare-metal substrate
-        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true' && github.event.inputs.restart_robot_controller != 'true' && github.event.inputs.query_robot_inventory != 'true' && github.event.inputs.cleanup_runner_pods == '' && github.event.inputs.kick_runners_controller == '' && github.event.inputs.dump_hcloud_md0 == '' && github.event.inputs.query_hcloud_servers != 'true'
+        if: env.DIAG_MODE != 'true'
         # HetznerBareMetalHost CRs + HetznerBareMetalMachineTemplate +
         # bare-metal KubeadmConfigTemplate + ExternalSecrets. Applied
         # between ClusterClass and Cluster CRs so the MD-claimed
@@ -268,14 +273,14 @@ jobs:
             fi
           done
       - name: Apply per-env Cluster CRs
-        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true' && github.event.inputs.restart_robot_controller != 'true' && github.event.inputs.query_robot_inventory != 'true' && github.event.inputs.cleanup_runner_pods == '' && github.event.inputs.kick_runners_controller == '' && github.event.inputs.dump_hcloud_md0 == '' && github.event.inputs.query_hcloud_servers != 'true'
+        if: env.DIAG_MODE != 'true'
         run: |
           for f in infra/k8s/clusters/cluster-*.yaml; do
             echo "==> $f"
             kubectl apply -f "$f"
           done
       - name: Apply mgmt-side workloads
-        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true' && github.event.inputs.restart_robot_controller != 'true' && github.event.inputs.query_robot_inventory != 'true' && github.event.inputs.cleanup_runner_pods == '' && github.event.inputs.kick_runners_controller == '' && github.event.inputs.dump_hcloud_md0 == '' && github.event.inputs.query_hcloud_servers != 'true'
+        if: env.DIAG_MODE != 'true'
         # These are mgmt-cluster Deployments / CronJobs, not Cluster
         # CRs. Independent of the CAPI manifests above.
         run: |
