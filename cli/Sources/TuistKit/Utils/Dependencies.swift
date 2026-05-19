@@ -128,9 +128,7 @@ private func initSession() async throws -> (Logger, SessionPaths) {
 }
 
 func initNoora(jsonThroughNoora: Bool = false) -> Noora {
-    if MachineReadableOutput.isEnabled(arguments: Environment.current.arguments)
-        || CommandLine.arguments.contains("--quiet")
-    {
+    if MachineReadableOutput.shouldSuppressNooraOutput(arguments: Environment.current.arguments) {
         Noora(
             standardPipelines: jsonThroughNoora ? StandardPipelines() : StandardPipelines(
                 output: IgnoreOutputPipeline()

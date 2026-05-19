@@ -25,4 +25,22 @@ struct MachineReadableOutputTests {
 
         #expect(MachineReadableOutput.isEnabled(arguments: arguments) == false)
     }
+
+    @Test func shouldSuppressNooraOutput_whenQuietFlagIsPresent() {
+        let arguments = ["tuist", "--quiet", "generate"]
+
+        #expect(MachineReadableOutput.shouldSuppressNooraOutput(arguments: arguments))
+    }
+
+    @Test func shouldSuppressNooraOutput_whenMachineReadableOutputIsEnabled() {
+        let arguments = ["tuist", "dump"]
+
+        #expect(MachineReadableOutput.shouldSuppressNooraOutput(arguments: arguments))
+    }
+
+    @Test func shouldNotSuppressNooraOutput_forHumanReadableCommands() {
+        let arguments = ["tuist", "generate"]
+
+        #expect(MachineReadableOutput.shouldSuppressNooraOutput(arguments: arguments) == false)
+    }
 }
