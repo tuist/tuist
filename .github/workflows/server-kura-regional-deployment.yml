@@ -68,6 +68,7 @@ jobs:
       - name: Deploy Kura regional controllers
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          KURA_CLOUDFLARE_API_TOKEN: ${{ secrets.KURA_CLOUDFLARE_API_TOKEN }}
         run: |
           # k8s:deploy-kura-regionals is a file task under
           # infra/mise/tasks, discovered only when infra/mise.toml is
