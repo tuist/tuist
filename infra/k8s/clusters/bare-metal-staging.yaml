@@ -284,6 +284,44 @@ metadata:
 spec:
   template:
     spec:
+      files:
+        # containerd's GitHub-released tarball does NOT ship a
+        # systemd unit (the older cri-containerd-cni- bundle did,
+        # the plain `containerd-` tarball does not). Without this,
+        # `systemctl enable --now containerd` in the
+        # preKubeadmCommands below fails with "Unit file
+        # containerd.service does not exist", and the subsequent
+        # `kubeadm join` times out waiting for the CRI socket
+        # (`/var/run/containerd/containerd.sock`). Same unit the
+        # cloud worker template at `clusterclass-tuist.yaml`
+        # drops for the same reason.
+        - content: |
+            [Unit]
+            Description=containerd container runtime
+            Documentation=https://containerd.io
+            After=network.target local-fs.target dbus.service
+
+            [Service]
+            ExecStartPre=-/sbin/modprobe overlay
+            ExecStart=/usr/local/bin/containerd
+
+            Type=notify
+            Delegate=yes
+            KillMode=process
+            Restart=always
+            RestartSec=5
+
+            LimitNPROC=infinity
+            LimitCORE=infinity
+
+            TasksMax=infinity
+            OOMScoreAdjust=-999
+
+            [Install]
+            WantedBy=multi-user.target
+          owner: root:root
+          path: /etc/systemd/system/containerd.service
+          permissions: "0644"
       joinConfiguration:
         nodeRegistration:
           name: '{{ ds.meta_data.local_hostname }}'
