@@ -119,6 +119,19 @@ on:
         required: false
         type: boolean
         default: false
+      cleanup_runner_pods:
+        description: |
+          When set, delete the chosen cluster's runner Pods that
+          are Pending, Failed, or Terminating. The runners-controller
+          reconciler then recreates them from the CURRENT pod
+          template, picking up any toleration/nodeSelector
+          changes from a recent chart bump. Used when Pods are
+          stuck Pending because their snapshot predates a node-
+          template change (untolerated taint).
+        required: false
+        type: choice
+        default: ""
+        options: ["", "staging", "canary", "production"]
 
 # Serialize: don't let two pushes apply concurrently and race.
 concurrency:
@@ -154,7 +167,7 @@ jobs:
           op document get "kubeconfig: tuist-mgmt" --vault tuist-k8s-mgmt --output "$KUBECONFIG"
           chmod 600 "$KUBECONFIG"
       - name: Diff (visibility into what's about to change)
-        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true' && github.event.inputs.restart_robot_controller != 'true' && github.event.inputs.query_robot_inventory != 'true'
+        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true' && github.event.inputs.restart_robot_controller != 'true' && github.event.inputs.query_robot_inventory != 'true' && github.event.inputs.cleanup_runner_pods == ''
         # `kubectl diff` exits non-zero when there's a diff, which is
         # the expected case here, so don't fail the step on that.
         # The actual gate is the apply step below.
@@ -185,11 +198,11 @@ jobs:
           kubectl diff -f infra/k8s/mgmt/hetzner-robot-controller.yaml || true
           echo "::endgroup::"
       - name: Apply ClusterClass first (Cluster CRs reference it)
-        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true' && github.event.inputs.restart_robot_controller != 'true' && github.event.inputs.query_robot_inventory != 'true'
+        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true' && github.event.inputs.restart_robot_controller != 'true' && github.event.inputs.query_robot_inventory != 'true' && github.event.inputs.cleanup_runner_pods == ''
         run: |
           kubectl apply -f infra/k8s/clusters/clusterclass-tuist.yaml
       - name: Apply per-env bare-metal substrate
-        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true' && github.event.inputs.restart_robot_controller != 'true' && github.event.inputs.query_robot_inventory != 'true'
+        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true' && github.event.inputs.restart_robot_controller != 'true' && github.event.inputs.query_robot_inventory != 'true' && github.event.inputs.cleanup_runner_pods == ''
         # HetznerBareMetalHost CRs + HetznerBareMetalMachineTemplate +
         # bare-metal KubeadmConfigTemplate + ExternalSecrets. Applied
         # between ClusterClass and Cluster CRs so the MD-claimed
@@ -223,14 +236,14 @@ jobs:
             fi
           done
       - name: Apply per-env Cluster CRs
-        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true' && github.event.inputs.restart_robot_controller != 'true' && github.event.inputs.query_robot_inventory != 'true'
+        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true' && github.event.inputs.restart_robot_controller != 'true' && github.event.inputs.query_robot_inventory != 'true' && github.event.inputs.cleanup_runner_pods == ''
         run: |
           for f in infra/k8s/clusters/cluster-*.yaml; do
             echo "==> $f"
             kubectl apply -f "$f"
           done
       - name: Apply mgmt-side workloads
-        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true' && github.event.inputs.restart_robot_controller != 'true' && github.event.inputs.query_robot_inventory != 'true'
+        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true' && github.event.inputs.restart_robot_controller != 'true' && github.event.inputs.query_robot_inventory != 'true' && github.event.inputs.cleanup_runner_pods == ''
         # These are mgmt-cluster Deployments / CronJobs, not Cluster
         # CRs. Independent of the CAPI manifests above.
         run: |
@@ -634,4 +647,42 @@ jobs:
           echo "::group::Robot /server response (servers + names)"
           curl -sS -u "$user:$pass" https://robot-ws.your-server.de/server \
             | jq '[ .[] | { server_number: .server.server_number, server_name: .server.server_name, dc: .server.dc, status: .server.status, cancelled: .server.cancelled } ]' || true
+          echo "::endgroup::"
+      - name: Cleanup stale runner Pods
+        # Deletes runner Pods stuck in Pending/Failed/Terminating
+        # state. The runners-controller reconciles desired
+        # replicas by creating fresh Pods from the CURRENT pod
+        # template, so this is the safe way to pick up
+        # toleration/nodeSelector changes from a chart bump
+        # without rolling the whole RunnerPool CR.
+        if: github.event.inputs.cleanup_runner_pods != ''
+        env:
+          CLUSTER: ${{ github.event.inputs.cleanup_runner_pods }}
+          WL_KUBECONFIG: ${{ github.workspace }}/.kube/workload-config
+        run: |
+          set -euo pipefail
+          kubectl get secret -n org-tuist "tuist-$CLUSTER-kubeconfig" \
+            -o jsonpath='{.data.value}' | base64 -d > "$WL_KUBECONFIG"
+          chmod 600 "$WL_KUBECONFIG"
+          export KUBECONFIG="$WL_KUBECONFIG"
+          echo "::group::Pods before cleanup"
+          kubectl get pods -n tuist-runners -l tuist.dev/runner-pool -o wide 2>/dev/null || \
+            kubectl get pods -n tuist-runners -o wide
+          echo "::endgroup::"
+          for phase in Pending Failed; do
+            kubectl delete pods -n tuist-runners \
+              --field-selector=status.phase=$phase --wait=false || true
+          done
+          # Terminating Pods (deletionTimestamp set) aren't
+          # field-selectable; force-finish them with --grace-period=0.
+          for p in $(kubectl get pods -n tuist-runners \
+              --field-selector=status.phase!=Running \
+              -o jsonpath='{range .items[?(@.metadata.deletionTimestamp)]}{.metadata.name}{"\n"}{end}' 2>/dev/null || true); do
+            echo "Force-deleting Terminating Pod: $p"
+            kubectl delete pod -n tuist-runners "$p" --grace-period=0 --force --wait=false || true
+          done
+          echo "Sleeping 30s for reconciler to recreate..."
+          sleep 30
+          echo "::group::Pods after cleanup"
+          kubectl get pods -n tuist-runners -o wide || true
           echo "::endgroup::"
