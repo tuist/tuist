@@ -33,10 +33,19 @@
 #runners [data-part="analytics"],
 #runner-jobs [data-part="jobs-analytics"] {
   & [data-part="widgets"] {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    display: flex;
+    flex-direction: row;
     gap: var(--noora-spacing-4);
-    padding: var(--noora-spacing-5);
+
+    & > * {
+      flex: 1;
+    }
+
+    @media (max-width: 768px) {
+      & {
+        flex-direction: column;
+      }
+    }
   }
 
   & [data-part="analytics-card-chart-section"] {
