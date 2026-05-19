@@ -47,6 +47,7 @@ defmodule Tuist.Runners.Workers.StaleClaimsWorker do
 
   alias Tuist.Runners.Claims
   alias Tuist.Runners.Jobs
+  alias Tuist.Runners.Telemetry
 
   require Logger
 
@@ -65,6 +66,12 @@ defmodule Tuist.Runners.Workers.StaleClaimsWorker do
       Logger.warning("runners: released stale claims",
         count: released,
         stale_after_seconds: @stale_after_seconds
+      )
+
+      :telemetry.execute(
+        Telemetry.event_name_recovery(),
+        %{count: released},
+        %{kind: "stale_claim"}
       )
     end
 

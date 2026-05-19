@@ -893,7 +893,7 @@ jobs:
     name: Release CLI
     needs: check-releases
     if: needs.check-releases.outputs.cli-should-release == 'true'
-    runs-on: tuist-macos
+    runs-on: macos-26
     timeout-minutes: 50
     permissions:
       contents: write

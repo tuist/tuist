@@ -59,7 +59,7 @@ defmodule Tuist.MCP.Components.Tools.GenerationAndCacheToolsTest do
                  "project_handle" => "app"
                })
 
-      data = Jason.decode!(json)
+      data = JSON.decode!(json)
       assert length(data["generations"]) == 1
       assert hd(data["generations"])["id"] == "gen-1"
       assert hd(data["generations"])["status"] == "success"
@@ -103,7 +103,7 @@ defmodule Tuist.MCP.Components.Tools.GenerationAndCacheToolsTest do
       assert %{"content" => [%{"text" => json}]} =
                GetGeneration.call(conn, %{"generation_id" => "gen-1"})
 
-      data = Jason.decode!(json)
+      data = JSON.decode!(json)
       assert data["id"] == "gen-1"
       assert data["status"] == "success"
     end
@@ -170,7 +170,7 @@ defmodule Tuist.MCP.Components.Tools.GenerationAndCacheToolsTest do
                  "project_handle" => "app"
                })
 
-      data = Jason.decode!(json)
+      data = JSON.decode!(json)
       assert length(data["cache_runs"]) == 1
       assert hd(data["cache_runs"])["id"] == "cr-1"
     end
@@ -212,7 +212,7 @@ defmodule Tuist.MCP.Components.Tools.GenerationAndCacheToolsTest do
       assert %{"content" => [%{"text" => json}]} =
                GetCacheRun.call(conn, %{"cache_run_id" => "cr-1"})
 
-      data = Jason.decode!(json)
+      data = JSON.decode!(json)
       assert data["id"] == "cr-1"
       assert data["command_arguments"] == "warm"
     end
@@ -281,7 +281,7 @@ defmodule Tuist.MCP.Components.Tools.GenerationAndCacheToolsTest do
       assert %{"content" => [%{"text" => json}]} =
                ListXcodeModuleCacheTargets.call(conn, %{"run_id" => "gen-1"})
 
-      data = Jason.decode!(json)
+      data = JSON.decode!(json)
       assert length(data["targets"]) == 1
       target = hd(data["targets"])
       assert target["name"] == "App"

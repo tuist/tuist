@@ -4,6 +4,7 @@ defmodule Tuist.Runners.JobsTest do
   import TuistTestSupport.Fixtures.AccountsFixtures
 
   alias Tuist.Runners.Jobs
+  alias Tuist.Runners.Telemetry
 
   defp enqueue_fixture(account, workflow_job_id, opts \\ []) do
     fleet = Keyword.get(opts, :fleet, "fleet-a")
@@ -128,6 +129,36 @@ defmodule Tuist.Runners.JobsTest do
 
       counts = Jobs.status_counts(account.id)
       assert Map.get(counts, "completed", 0) == 1
+    end
+
+    test "emits :tuist, :runners, :job, :completed with timing measurements" do
+      handler_id = make_ref()
+      on_exit(fn -> :telemetry.detach(handler_id) end)
+      test_pid = self()
+
+      :ok =
+        :telemetry.attach(
+          handler_id,
+          Telemetry.event_name_job_completed(),
+          fn _name, measurements, metadata, _ ->
+            send(test_pid, {:completed, measurements, metadata})
+          end,
+          nil
+        )
+
+      account = account_fixture()
+      :ok = enqueue_fixture(account, 7100, fleet: "fleet-telemetry")
+      {:ok, candidate} = Jobs.pick_queued("fleet-telemetry", [])
+      :ok = Jobs.record_claimed(candidate, "pod-1", DateTime.utc_now())
+      :ok = Jobs.record_running(7100, "runner-x")
+
+      assert {:ok, _} = Jobs.complete(7100, "success")
+
+      assert_receive {:completed, measurements, %{fleet: "fleet-telemetry", conclusion: "success"}}, 500
+      assert measurements.count == 1
+      assert is_integer(measurements.run_time_ms) and measurements.run_time_ms >= 0
+      assert is_integer(measurements.total_time_ms) and measurements.total_time_ms >= 0
+      assert is_integer(measurements.queue_time_ms) and measurements.queue_time_ms >= 0
     end
 
     test "returns :not_found for an unknown workflow_job_id" do

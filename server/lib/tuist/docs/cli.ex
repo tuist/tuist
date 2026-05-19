@@ -102,7 +102,7 @@ defmodule Tuist.Docs.CLI do
         {:ok, body}
 
       {:ok, %{status: 200, body: body}} when is_binary(body) ->
-        Jason.decode(body)
+        JSON.decode(body)
 
       {:ok, %{status: status}} ->
         {:error, {:http_error, status}}
