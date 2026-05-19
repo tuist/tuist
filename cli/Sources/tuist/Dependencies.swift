@@ -6,12 +6,12 @@ import TuistEnvironment
 import TuistLogging
 import TuistNooraExtension
 import TuistServer
+import TuistSupport
 
 #if os(macOS)
     import TuistExtension
     import TuistKit
     import TuistLoader
-    import TuistSupport
 
     #if canImport(TuistCacheEE)
         import TuistCacheEE

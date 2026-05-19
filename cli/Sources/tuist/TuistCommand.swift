@@ -21,6 +21,7 @@ import TuistProjectCommand
 import TuistRegistryCommand
 import TuistRunCommand
 import TuistShareCommand
+import TuistSupport
 import TuistTestCommand
 import TuistVersionCommand
 
@@ -31,7 +32,6 @@ import TuistVersionCommand
     import TuistKit
     import TuistLoader
     import TuistServer
-    import TuistSupport
 #endif
 
 public struct TuistCommand: AsyncParsableCommand {
