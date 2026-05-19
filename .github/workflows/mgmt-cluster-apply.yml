@@ -771,6 +771,9 @@ jobs:
             kubectl logs -n "$ns" "$pod" --tail=80 2>&1 || true
           done
           echo "::endgroup::"
+          echo "::group::All Nodes + taints (why does the controller pod not schedule?)"
+          kubectl get nodes -o custom-columns=NAME:.metadata.name,STATUS:.status.conditions[-1].type,TAINTS:.spec.taints --no-headers 2>&1 || true
+          echo "::endgroup::"
           echo "::group::Rollout restart + force-finish stuck pods"
           kubectl rollout restart -n "$ns" "deployment/$dep"
           # Force-finish any Pods stuck Terminating on a NotReady/
