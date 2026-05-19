@@ -25,9 +25,12 @@ public struct HashSelectiveTestingCommand: AsyncParsableCommand {
     var path: String?
 
     public func run() async throws {
-        try await HashSelectiveTestingCommandService(selectiveTestingGraphHasher: Extension.selectiveTestingGraphHasher)
-            .run(
-                path: path
-            )
+        try await HashSelectiveTestingCommandService(
+            generatorFactory: Extension.generatorFactory,
+            cacheStorageFactory: Extension.cacheStorageFactory
+        )
+        .run(
+            path: path
+        )
     }
 }
