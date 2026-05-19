@@ -154,6 +154,16 @@ on:
         type: choice
         default: ""
         options: ["", "staging", "canary", "production"]
+      query_hcloud_servers:
+        description: |
+          When set, curl the Hetzner Cloud API directly with the
+          mgmt-cluster's hcloud-cloud-controller-manager creds
+          to list all servers — confirms whether the VMs that
+          CAPI says exist actually exist (and their status) at
+          the cloud provider level.
+        required: false
+        type: boolean
+        default: false
 
 # Serialize: don't let two pushes apply concurrently and race.
 concurrency:
@@ -189,7 +199,7 @@ jobs:
           op document get "kubeconfig: tuist-mgmt" --vault tuist-k8s-mgmt --output "$KUBECONFIG"
           chmod 600 "$KUBECONFIG"
       - name: Diff (visibility into what's about to change)
-        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true' && github.event.inputs.restart_robot_controller != 'true' && github.event.inputs.query_robot_inventory != 'true' && github.event.inputs.cleanup_runner_pods == '' && github.event.inputs.kick_runners_controller == '' && github.event.inputs.dump_hcloud_md0 == ''
+        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true' && github.event.inputs.restart_robot_controller != 'true' && github.event.inputs.query_robot_inventory != 'true' && github.event.inputs.cleanup_runner_pods == '' && github.event.inputs.kick_runners_controller == '' && github.event.inputs.dump_hcloud_md0 == '' && github.event.inputs.query_hcloud_servers != 'true'
         # `kubectl diff` exits non-zero when there's a diff, which is
         # the expected case here, so don't fail the step on that.
         # The actual gate is the apply step below.
@@ -220,11 +230,11 @@ jobs:
           kubectl diff -f infra/k8s/mgmt/hetzner-robot-controller.yaml || true
           echo "::endgroup::"
       - name: Apply ClusterClass first (Cluster CRs reference it)
-        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true' && github.event.inputs.restart_robot_controller != 'true' && github.event.inputs.query_robot_inventory != 'true' && github.event.inputs.cleanup_runner_pods == '' && github.event.inputs.kick_runners_controller == '' && github.event.inputs.dump_hcloud_md0 == ''
+        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true' && github.event.inputs.restart_robot_controller != 'true' && github.event.inputs.query_robot_inventory != 'true' && github.event.inputs.cleanup_runner_pods == '' && github.event.inputs.kick_runners_controller == '' && github.event.inputs.dump_hcloud_md0 == '' && github.event.inputs.query_hcloud_servers != 'true'
         run: |
           kubectl apply -f infra/k8s/clusters/clusterclass-tuist.yaml
       - name: Apply per-env bare-metal substrate
-        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true' && github.event.inputs.restart_robot_controller != 'true' && github.event.inputs.query_robot_inventory != 'true' && github.event.inputs.cleanup_runner_pods == '' && github.event.inputs.kick_runners_controller == '' && github.event.inputs.dump_hcloud_md0 == ''
+        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true' && github.event.inputs.restart_robot_controller != 'true' && github.event.inputs.query_robot_inventory != 'true' && github.event.inputs.cleanup_runner_pods == '' && github.event.inputs.kick_runners_controller == '' && github.event.inputs.dump_hcloud_md0 == '' && github.event.inputs.query_hcloud_servers != 'true'
         # HetznerBareMetalHost CRs + HetznerBareMetalMachineTemplate +
         # bare-metal KubeadmConfigTemplate + ExternalSecrets. Applied
         # between ClusterClass and Cluster CRs so the MD-claimed
@@ -258,14 +268,14 @@ jobs:
             fi
           done
       - name: Apply per-env Cluster CRs
-        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true' && github.event.inputs.restart_robot_controller != 'true' && github.event.inputs.query_robot_inventory != 'true' && github.event.inputs.cleanup_runner_pods == '' && github.event.inputs.kick_runners_controller == '' && github.event.inputs.dump_hcloud_md0 == ''
+        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true' && github.event.inputs.restart_robot_controller != 'true' && github.event.inputs.query_robot_inventory != 'true' && github.event.inputs.cleanup_runner_pods == '' && github.event.inputs.kick_runners_controller == '' && github.event.inputs.dump_hcloud_md0 == '' && github.event.inputs.query_hcloud_servers != 'true'
         run: |
           for f in infra/k8s/clusters/cluster-*.yaml; do
             echo "==> $f"
             kubectl apply -f "$f"
           done
       - name: Apply mgmt-side workloads
-        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true' && github.event.inputs.restart_robot_controller != 'true' && github.event.inputs.query_robot_inventory != 'true' && github.event.inputs.cleanup_runner_pods == '' && github.event.inputs.kick_runners_controller == '' && github.event.inputs.dump_hcloud_md0 == ''
+        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true' && github.event.inputs.restart_robot_controller != 'true' && github.event.inputs.query_robot_inventory != 'true' && github.event.inputs.cleanup_runner_pods == '' && github.event.inputs.kick_runners_controller == '' && github.event.inputs.dump_hcloud_md0 == '' && github.event.inputs.query_hcloud_servers != 'true'
         # These are mgmt-cluster Deployments / CronJobs, not Cluster
         # CRs. Independent of the CAPI manifests above.
         run: |
@@ -803,4 +813,37 @@ jobs:
               kubectl logs -n "$ns" "$p" --tail=60 2>&1 | grep -iE "error|fail|reconcil" | head -20 || true
             done
           done
+          echo "::endgroup::"
+      - name: Query Hetzner Cloud /servers
+        if: github.event.inputs.query_hcloud_servers == 'true'
+        run: |
+          set -euo pipefail
+          # The hcloud token is in a Secret somewhere — try common
+          # places. caph reads it via HetznerCluster's
+          # hcloudTokenRef which points at a Secret in the same
+          # namespace as the cluster.
+          token=""
+          for ns_sec in org-tuist/hetzner org-tuist/hcloud-token org-tuist/hetzner-token; do
+            ns="${ns_sec%/*}"; sec="${ns_sec##*/}"
+            for key in hcloud-token hcloud token; do
+              t=$(kubectl get secret -n "$ns" "$sec" -o jsonpath="{.data.$key}" 2>/dev/null | base64 -d 2>/dev/null || true)
+              if [ -n "$t" ] && [ "${#t}" -gt 30 ]; then
+                token="$t"; echo "found token in $ns/$sec key=$key"; break 2
+              fi
+            done
+          done
+          if [ -z "$token" ]; then
+            echo "::error::Could not locate hcloud token secret"
+            kubectl get secret -A | grep -i "hcloud\|hetzner" || true
+            exit 1
+          fi
+          echo "::group::Hetzner Cloud /servers (filtered to tuist-staging-*)"
+          curl -sS -H "Authorization: Bearer $token" \
+            "https://api.hetzner.cloud/v1/servers?per_page=50" \
+            | jq '[ .servers[] | select(.name | test("tuist-staging")) | { id, name, status, created, server_type: .server_type.name, image: .image.name, datacenter: .datacenter.name } ]' || true
+          echo "::endgroup::"
+          echo "::group::Hetzner Cloud actions (recent failures)"
+          curl -sS -H "Authorization: Bearer $token" \
+            "https://api.hetzner.cloud/v1/actions?status=error&per_page=20&sort=started:desc" \
+            | jq '[ .actions[] | select(.resources[]?.id as $r | true) | { id, command, status, started, finished, error, progress } ]' || true
           echo "::endgroup::"
