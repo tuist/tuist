@@ -554,6 +554,10 @@ jobs:
           echo "::group::All HBMMs in org-tuist"
           kubectl get hetznerbaremetalmachine -n org-tuist -o wide || true
           echo "::endgroup::"
+          echo "::group::KubeadmConfigTemplate (does it have containerd.service files: block?)"
+          kubectl get kubeadmconfigtemplate -n org-tuist tuist-bare-metal-worker-bootstraptemplate \
+            -o yaml | grep -E "files:|path:|containerd.service|name:" | head -30 || true
+          echo "::endgroup::"
           echo "::group::CAPI Cluster + MachineDeployments + MachineSets + Machines"
           kubectl get cluster -n org-tuist -o wide || true
           echo
