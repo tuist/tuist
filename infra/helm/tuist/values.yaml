@@ -679,29 +679,27 @@ runnersFleet:
     #     maxReplicas: 0
     #     scaleDownCooldownSeconds: 300
 
-# Linux runner fleet — Hetzner Robot bare-metal hosts (AX42-U class,
-# 8c/16t Zen 4 Ryzen, 64 GB DDR5, 2x512 GB NVMe) joined to the
-# workload cluster as worker Nodes via `kubeadm join`. The hosts
-# are labeled `node.cluster.x-k8s.io/pool=<runnersFleetLinux.name>`
-# and tainted `tuist.dev/runner-tier=bare-metal:NoSchedule` so that
-# only runner Pods land on them.
-#
-# In v1 the hosts are NOT CAPI-managed — operator provisions each
-# AX42-U from the Robot panel, runs the `kubeadm join` flow
-# documented in `infra/runners-controller/AGENTS.md`, applies the
-# pool label + tier taint, and the node is ready. `caph`'s
-# `HetznerBareMetalHost` flow (rescue boot + installimage +
-# cloud-init kubeadm join) is the eventual production path but
-# adds enough machinery to live in its own follow-up.
+# Linux runner fleet — Hetzner Robot bare-metal hosts (AX42-U for
+# staging/canary, AX162-R for production) claimed via caph and
+# joined to the workload cluster as worker Nodes. caph rescue-boots
+# each box, runs `installimage` to write Ubuntu 24.04 LTS, and the
+# clusterclass cloud-init runs `kubeadm join` automatically. The
+# clusterclass `postKubeadmCommands` stamps
+# `node.cluster.x-k8s.io/pool=<runnersFleetLinux.name>` and the
+# `tuist.dev/runner-tier=bare-metal:NoSchedule` taint so only
+# runner Pods land on these hosts.
 #
 # To enable a runner fleet on a new env:
-#   1. Order one or more AX42-U boxes from
+#   1. Order one or more boxes from
 #      [robot.hetzner.com](https://robot.hetzner.com) (FSN1 if the
 #      Cloud cluster is in FSN1; co-location keeps cross-substrate
 #      latency to ~5-10ms over public internet, ~1ms via vSwitch).
-#   2. Run the kubeadm-join procedure in
-#      `infra/runners-controller/AGENTS.md` to register each host
-#      as a worker Node with the right label + taint.
+#   2. Add a `HetznerBareMetalHost` CR in
+#      `infra/k8s/clusters/bare-metal-<env>.yaml` carrying the
+#      Robot server number, root SSH key ref, and the pool selector
+#      label the `bare-metal-worker` MachineDeployment claims on.
+#      The mgmt-cluster-apply workflow picks it up; caph does
+#      rescue + installimage + kubeadm-join with no manual step.
 #   3. Flip `runnersFleetLinux.enabled: true` here, set `name` to
 #      match the pool label value, point `pools[].runnerImage` at a
 #      digest-pinned `ghcr.io/tuist/tuist-linux-runner` build, and
