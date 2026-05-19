@@ -303,18 +303,38 @@ jobs:
           kubectl get hetznerbaremetalmachine -n org-tuist \
             -l cluster.x-k8s.io/cluster-name=tuist-$CLUSTER -o wide
           echo "::endgroup::"
-          # Delete the HBMMs first. CAPI clones template specs into
-          # the HBMM at creation time; an HBMM that was created
-          # before a template change carries the OLD bootstrap
-          # snapshot forever. Without deleting the HBMMs, caph
-          # rebinds the new HBM to one of the stale HBMMs and
-          # re-installs with the old (pre-fix) cloud-init script.
-          # MachineDeployment then recreates fresh HBMMs from the
-          # current template.
-          echo "Deleting all existing HBMMs in cluster pool"
+          # Delete the parent CAPI Machine objects + HBMMs. CAPI
+          # clones template specs at creation time:
+          #   * KubeadmConfigTemplate → KubeadmConfig (bootstrap)
+          #   * HetznerBareMetalMachineTemplate → HBMM (infra)
+          # Both snapshots are immutable on the Machine, so a
+          # Machine created before a template change carries the
+          # old script forever. Without deleting the Machine,
+          # MachineDeployment won't recreate it (the Machine
+          # exists but unhealthy; MD/MS only remediates via
+          # MachineHealthCheck, which we don't run). Deleting the
+          # HBMM alone leaves the Machine pointing at a missing
+          # infra ref and CAPI marks it permanently failed.
+          echo "Deleting CAPI Machines + HBMMs in cluster pool"
+          machines_to_drop=$(kubectl get machine -n org-tuist \
+            -l cluster.x-k8s.io/cluster-name=tuist-$CLUSTER \
+            -o jsonpath='{.items[*].metadata.name}' || true)
+          kubectl delete machine -n org-tuist \
+            -l cluster.x-k8s.io/cluster-name=tuist-$CLUSTER \
+            --wait=false --timeout=2m || true
           kubectl delete hetznerbaremetalmachine -n org-tuist \
             -l cluster.x-k8s.io/cluster-name=tuist-$CLUSTER \
             --wait=false --timeout=2m || true
+          # Strip Machine finalizers — they typically hang waiting
+          # for infra ref cleanup, but the HBMMs we just deleted
+          # are gone, leaving the Machine in a permanent
+          # `deletionTimestamp set + finalizer present` state.
+          for m in $machines_to_drop; do
+            if kubectl get machine -n org-tuist "$m" >/dev/null 2>&1; then
+              kubectl patch machine -n org-tuist "$m" \
+                -p '{"metadata":{"finalizers":[]}}' --type=merge || true
+            fi
+          done
           # Then delete the HBM. caph releases the (now dying)
           # HBMM bindings, hetzner-robot-controller re-creates the
           # HBM (fresh, empty state), MD creates a fresh HBMM
