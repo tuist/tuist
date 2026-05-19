@@ -157,6 +157,62 @@ defmodule Tuist.Runners.JobsTest do
     end
   end
 
+  describe "list_workflows_for_account/2" do
+    test "aggregates jobs into per-(workflow, repo) rollups" do
+      account = account_fixture()
+
+      :ok = enqueue_fixture(account, 50_001, repo: "acme/server")
+      :ok = enqueue_fixture(account, 50_002, repo: "acme/server")
+      :ok = enqueue_fixture(account, 50_003, repo: "acme/cli")
+
+      [server, cli] =
+        Jobs.list_workflows_for_account(account.id)
+        |> Enum.sort_by(& &1.repo)
+
+      assert server.repo == "acme/cli"
+      assert server.total_jobs == 1
+      assert cli.repo == "acme/server"
+      assert cli.total_jobs == 2
+    end
+
+    test "scopes results to the given account" do
+      account = account_fixture()
+      other = account_fixture()
+
+      :ok = enqueue_fixture(account, 51_001)
+      :ok = enqueue_fixture(other, 51_002)
+
+      assert Enum.count(Jobs.list_workflows_for_account(account.id)) == 1
+    end
+
+    test "computes success_count + avg_duration for completed jobs" do
+      account = account_fixture()
+
+      :ok = enqueue_fixture(account, 52_001, fleet: "fleet-a")
+      {:ok, candidate} = Jobs.pick_queued("fleet-a", [])
+      :ok = Jobs.record_claimed(candidate, "pod-1", DateTime.utc_now())
+      :ok = Jobs.record_running(52_001, "runner-x")
+      {:ok, _} = Jobs.complete(52_001, "success")
+
+      [w] = Jobs.list_workflows_for_account(account.id)
+
+      assert w.total_jobs == 1
+      assert w.success_count == 1
+      # avg_duration may be very small in tests; just assert it's set
+      assert w.avg_duration_ms != nil
+    end
+
+    test "filters by repo via :repo opt" do
+      account = account_fixture()
+      :ok = enqueue_fixture(account, 53_001, repo: "acme/a")
+      :ok = enqueue_fixture(account, 53_002, repo: "globex/b")
+
+      [w] = Jobs.list_workflows_for_account(account.id, repo: "acme")
+
+      assert w.repo == "acme/a"
+    end
+  end
+
   describe "get_for_account/2" do
     test "returns the merged row for the given workflow_job" do
       account = account_fixture()

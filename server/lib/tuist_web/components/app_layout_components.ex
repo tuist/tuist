@@ -374,6 +374,8 @@ defmodule TuistWeb.AppLayoutComponents do
     ~H"""
     <.sidebar>
       <% projects_path = ~p"/#{@selected_account.name}/projects" %>
+      <% runners_path = ~p"/#{@selected_account.name}/runners" %>
+      <% runner_workflows_path = ~p"/#{@selected_account.name}/runners/workflows" %>
       <% runner_jobs_path = ~p"/#{@selected_account.name}/runners/jobs" %>
       <.sidebar_item
         label={dgettext("dashboard", "Projects")}
@@ -388,12 +390,18 @@ defmodule TuistWeb.AppLayoutComponents do
         id="sidebar-runners"
         label={dgettext("dashboard", "Runners")}
         icon="server"
-        navigate={@current_path != runner_jobs_path && runner_jobs_path}
-        selected={String.starts_with?(@current_path, ~p"/#{@selected_account.name}/runners")}
-        disabled={false}
-        default_open={String.starts_with?(@current_path, ~p"/#{@selected_account.name}/runners")}
+        navigate={@current_path != runners_path && runners_path}
+        selected={@current_path == runners_path}
+        disabled={@current_path == runners_path}
+        default_open={String.starts_with?(@current_path, runners_path)}
         phx-update="ignore"
       >
+        <.sidebar_item
+          label={dgettext("dashboard", "Workflows")}
+          icon="versions"
+          navigate={runner_workflows_path}
+          selected={String.starts_with?(@current_path, runner_workflows_path)}
+        />
         <.sidebar_item
           label={dgettext("dashboard", "Jobs")}
           icon="stack_2"

@@ -1,0 +1,155 @@
+<div id="runners">
+  <div data-part="summary-cards">
+    <div data-part="summary-card">
+      <span data-part="label">{dgettext("dashboard_runners", "Total jobs")}</span>
+      <span data-part="value">{TuistWeb.RunnersLive.total_jobs(@status_counts)}</span>
+    </div>
+    <div data-part="summary-card">
+      <span data-part="label">{dgettext("dashboard_runners", "Running or queued")}</span>
+      <span data-part="value">{TuistWeb.RunnersLive.in_progress_jobs(@status_counts)}</span>
+    </div>
+    <div data-part="summary-card">
+      <span data-part="label">{dgettext("dashboard_runners", "Completed")}</span>
+      <span data-part="value">{Map.get(@status_counts, "completed", 0)}</span>
+    </div>
+  </div>
+
+  <.card
+    title={dgettext("dashboard_runners", "Workflows")}
+    icon="versions"
+    data-part="workflows-card"
+  >
+    <:actions>
+      <.link_button
+        navigate={~p"/#{@selected_account.name}/runners/workflows"}
+        variant="secondary"
+        size="large"
+        label={dgettext("dashboard_runners", "View all")}
+      >
+        <:icon_right><.arrow_narrow_right /></:icon_right>
+      </.link_button>
+    </:actions>
+    <.card_section data-part="workflows-card-section">
+      <div :if={not Enum.empty?(@workflows)} data-part="workflows-table">
+        <.table
+          id="runners-overview-workflows-table"
+          rows={@workflows}
+          row_key={fn w -> "runners-overview-workflow-#{w.repo}-#{w.workflow_name}" end}
+        >
+          <:col :let={w} label={dgettext("dashboard_runners", "Workflow")}>
+            <.text_cell
+              label={
+                if(w.workflow_name == "",
+                  do: dgettext("dashboard_runners", "Unknown"),
+                  else: w.workflow_name
+                )
+              }
+              sublabel={if(w.repo == "", do: "–", else: w.repo)}
+            />
+          </:col>
+          <:col :let={w} label={dgettext("dashboard_runners", "Jobs")}>
+            <.text_cell label={Integer.to_string(w.total_jobs)} />
+          </:col>
+          <:col :let={w} label={dgettext("dashboard_runners", "Success rate")}>
+            <.text_cell label={TuistWeb.RunnersLive.success_rate(w)} />
+          </:col>
+          <:col :let={w} label={dgettext("dashboard_runners", "Avg duration")}>
+            <.text_cell
+              icon="history"
+              label={TuistWeb.RunnersLive.format_duration_ms(w.avg_duration_ms)}
+            />
+          </:col>
+          <:col :let={w} label={dgettext("dashboard_runners", "Last run")}>
+            <.text_cell sublabel={TuistWeb.RunnersLive.from_now_or_dash(w.last_run_at)} />
+          </:col>
+        </.table>
+      </div>
+      <div :if={Enum.empty?(@workflows)} data-part="empty-workflows">
+        <.empty_card_section
+          title={TuistWeb.RunnersLive.widget_empty_label()}
+          get_started_href="https://tuist.dev/en/docs"
+        >
+          <:image>
+            <img src="/images/empty_table_light.png" data-theme="light" />
+            <img src="/images/empty_table_dark.png" data-theme="dark" />
+          </:image>
+        </.empty_card_section>
+      </div>
+    </.card_section>
+  </.card>
+
+  <.card
+    title={dgettext("dashboard_runners", "Recent jobs")}
+    icon="stack_2"
+    data-part="recent-jobs-card"
+  >
+    <:actions>
+      <.link_button
+        navigate={~p"/#{@selected_account.name}/runners/jobs"}
+        variant="secondary"
+        size="large"
+        label={dgettext("dashboard_runners", "View all")}
+      >
+        <:icon_right><.arrow_narrow_right /></:icon_right>
+      </.link_button>
+    </:actions>
+    <.card_section data-part="recent-jobs-card-section">
+      <div :if={not Enum.empty?(@recent_jobs)} data-part="recent-jobs-table">
+        <.table
+          id="runners-overview-recent-jobs-table"
+          rows={@recent_jobs}
+          row_key={fn job -> "runners-overview-job-#{job.workflow_job_id}" end}
+          row_navigate={
+            fn job ->
+              url(~p"/#{@selected_account.name}/runners/jobs/#{job.workflow_job_id}")
+            end
+          }
+        >
+          <:col :let={job} label={dgettext("dashboard_runners", "Workflow")}>
+            <.text_cell
+              label={
+                if(job.workflow_name == "",
+                  do: dgettext("dashboard_runners", "Unknown"),
+                  else: job.workflow_name
+                )
+              }
+            />
+          </:col>
+          <:col :let={job} label={dgettext("dashboard_runners", "Job")}>
+            <.text_cell label={if(job.job_name == "", do: "–", else: job.job_name)} />
+          </:col>
+          <:col :let={job} label={dgettext("dashboard_runners", "Status")}>
+            <% props =
+              cond do
+                job.status == "completed" and (job.conclusion || "") != "" ->
+                  TuistWeb.RunnersLive.conclusion_badge_props(job.conclusion)
+
+                true ->
+                  TuistWeb.RunnersLive.status_badge_props(job.status)
+              end %>
+            <.status_badge_cell label={props.label} status={props.status} />
+          </:col>
+          <:col :let={job} label={dgettext("dashboard_runners", "Repository")}>
+            <.text_cell
+              label={if(job.repo == "", do: dgettext("dashboard_runners", "Unknown"), else: job.repo)}
+            />
+          </:col>
+          <:col :let={job} label={dgettext("dashboard_runners", "Updated")}>
+            <.text_cell sublabel={TuistWeb.RunnersLive.from_now(job.updated_at)} />
+          </:col>
+        </.table>
+      </div>
+      <div :if={Enum.empty?(@recent_jobs)} data-part="empty-recent-jobs">
+        <.empty_card_section
+          title={TuistWeb.RunnersLive.widget_empty_label()}
+          get_started_href="https://tuist.dev/en/docs"
+        >
+          <:image>
+            <img src="/images/empty_table_light.png" data-theme="light" />
+            <img src="/images/empty_table_dark.png" data-theme="dark" />
+          </:image>
+        </.empty_card_section>
+      </div>
+    </.card_section>
+  </.card>
+</div>

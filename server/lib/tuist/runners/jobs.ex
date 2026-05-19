@@ -319,6 +319,67 @@ defmodule Tuist.Runners.Jobs do
   end
 
   @doc """
+  Aggregates `runner_jobs` into per-workflow rollups for the
+  customer-facing Workflows dashboard. One row per `(workflow_name,
+  repo)` pair, ordered by most recently active first.
+
+  Each row carries:
+
+    * `:workflow_name`, `:repo`
+    * `:total_jobs`
+    * `:success_count`, `:failure_count`, `:cancelled_count`, `:skipped_count`
+    * `:in_progress_count` — claimed + running + queued (anything not
+      completed)
+    * `:avg_duration_ms` — average completed job duration (epoch
+      sentinel `started_at`/`completed_at` excluded)
+    * `:last_run_at` — max `enqueued_at`
+
+  Options:
+    * `:limit` — page size, default 50
+    * `:repo` — substring match on `repo`
+    * `:workflow_name` — substring match on `workflow_name`
+    * `:head_branch` — substring match on `head_branch`
+  """
+  def list_workflows_for_account(account_id, opts \\ []) when is_integer(account_id) and is_list(opts) do
+    limit = Keyword.get(opts, :limit, 50)
+
+    Job
+    |> from(hints: ["FINAL"])
+    |> where([j], j.account_id == ^account_id)
+    |> maybe_filter_like(:repo, Keyword.get(opts, :repo))
+    |> maybe_filter_like(:workflow_name, Keyword.get(opts, :workflow_name))
+    |> maybe_filter_like(:head_branch, Keyword.get(opts, :head_branch))
+    |> group_by([j], [j.workflow_name, j.repo])
+    |> select([j], %{
+      workflow_name: j.workflow_name,
+      repo: j.repo,
+      total_jobs: count(j.workflow_job_id),
+      success_count:
+        fragment("countIf(? = 'completed' AND ? = 'success')", j.status, j.conclusion),
+      failure_count:
+        fragment("countIf(? = 'completed' AND ? = 'failure')", j.status, j.conclusion),
+      cancelled_count:
+        fragment("countIf(? = 'completed' AND ? = 'cancelled')", j.status, j.conclusion),
+      skipped_count:
+        fragment("countIf(? = 'completed' AND ? = 'skipped')", j.status, j.conclusion),
+      in_progress_count: fragment("countIf(? != 'completed')", j.status),
+      avg_duration_ms:
+        fragment(
+          "avgIf((toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?)), ? = 'completed' AND toUnixTimestamp64Milli(?) > 0 AND toUnixTimestamp64Milli(?) > 0)",
+          j.completed_at,
+          j.started_at,
+          j.status,
+          j.started_at,
+          j.completed_at
+        ),
+      last_run_at: max(j.enqueued_at)
+    })
+    |> order_by([j], desc: max(j.enqueued_at))
+    |> limit(^limit)
+    |> ClickHouseRepo.all()
+  end
+
+  @doc """
   Counts jobs in each lifecycle state for an account. Useful for
   customer dashboards.
   """

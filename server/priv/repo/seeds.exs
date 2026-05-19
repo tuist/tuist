@@ -3321,7 +3321,11 @@ completed_jobs
         job_row
         |> Map.from_struct()
         |> Map.delete(:__meta__)
-        |> Map.merge(%{started_at: started_at, completed_at: completed_at, updated_at: completed_at})
+        |> Map.merge(%{
+          started_at: started_at,
+          completed_at: completed_at,
+          updated_at: DateTime.utc_now()
+        })
 
       IngestRepo.insert_all(Job, [row])
   end
@@ -3397,7 +3401,7 @@ running_jobs
         job_row
         |> Map.from_struct()
         |> Map.delete(:__meta__)
-        |> Map.merge(%{started_at: started_at, updated_at: started_at})
+        |> Map.merge(%{started_at: started_at, updated_at: DateTime.utc_now()})
 
       IngestRepo.insert_all(Job, [row])
   end

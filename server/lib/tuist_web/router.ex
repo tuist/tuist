@@ -949,6 +949,8 @@ defmodule TuistWeb.Router do
       ] do
       live "/", ProjectsLive
       live "/projects", ProjectsLive
+      live "/runners", RunnersLive
+      live "/runners/workflows", RunnerWorkflowsLive
       live "/runners/jobs", RunnerJobsLive
       live "/runners/jobs/:workflow_job_id", RunnerJobLive
       live "/members", MembersLive
