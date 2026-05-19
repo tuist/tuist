@@ -1349,6 +1349,69 @@ defmodule Tuist.TestsTest do
       assert "testExample2" in case_names
     end
 
+    test "enqueues test_case.created webhook deliveries for first-run cases on subscribed endpoints" do
+      # Given — an endpoint in the project's account subscribed to test_case.created.
+      project = ProjectsFixtures.project_fixture()
+      account_id = project.account_id
+
+      {:ok, subscribed, _} =
+        Tuist.Webhooks.create_endpoint(account_id, %{
+          "name" => "Subscribed",
+          "url" => "https://example.com/hook",
+          "event_types" => ["test_case.created"]
+        })
+
+      # A second endpoint on the same account that subscribes to a
+      # different event — it must NOT receive a delivery for this write.
+      {:ok, _other, _} =
+        Tuist.Webhooks.create_endpoint(account_id, %{
+          "name" => "Other",
+          "url" => "https://example.com/other",
+          "event_types" => ["test_case.updated"]
+        })
+
+      runner_account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      test_attrs = %{
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        account_id: runner_account.id,
+        duration: 1000,
+        status: "success",
+        ran_at: NaiveDateTime.utc_now(),
+        is_ci: true,
+        test_modules: [
+          %{
+            name: "MyTestModule",
+            status: "success",
+            duration: 500,
+            test_cases: [
+              %{name: "testNew1", status: "success", duration: 200},
+              %{name: "testNew2", status: "success", duration: 300}
+            ]
+          }
+        ]
+      }
+
+      # When — Tests.create_test is the public entry point that drives
+      # the create-test-cases pipeline; webhook fan-out is a side effect
+      # of seeing previously-unobserved test cases on a CI run.
+      assert {:ok, _test} = Tests.create_test(test_attrs)
+
+      # Then — one Oban job per (subscribed endpoint, new test case).
+      jobs = Tuist.Repo.all(Oban.Job)
+      assert length(jobs) == 2
+      assert Enum.all?(jobs, &(&1.args["webhook_endpoint_id"] == subscribed.id))
+      assert Enum.all?(jobs, &(&1.args["event_type"] == "test_case.created"))
+
+      delivered_names =
+        jobs
+        |> Enum.map(& &1.args["payload"]["object"]["name"])
+        |> Enum.sort()
+
+      assert delivered_names == ["testNew1", "testNew2"]
+    end
+
     test "creates a test with test suites" do
       # Given
       project = ProjectsFixtures.project_fixture()

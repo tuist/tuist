@@ -1001,7 +1001,7 @@ test_case_definitions =
     }
   end
 
-{test_case_id_map, _test_cases_with_flaky_run, _new_test_case_ids} =
+{test_case_id_map, _test_cases_with_flaky_run, _new_test_case_ids, _test_cases} =
   Tuist.Tests.create_test_cases(tuist_project.id, test_case_definitions, %{})
 
 # Update flaky test cases to be marked as is_flaky.
@@ -3224,6 +3224,128 @@ SeedHelpers.insert_bulk_ch(gradle_machine_metrics, BuildMachineMetric, IngestRep
 
 IO.puts("  - Xcode machine metrics: #{length(xcode_machine_metrics)} data points")
 IO.puts("  - Gradle machine metrics: #{length(gradle_machine_metrics)} data points")
+
+# =============================================================================
+# Webhook endpoints and deliveries
+# =============================================================================
+#
+# Two account-level endpoints on the tuist organization, each subscribing to a
+# different slice of events so the index table demonstrates the per-endpoint
+# subscription model. We then forge a week of Oban delivery jobs so the chart,
+# stats, and table on the detail page have data the moment you log in.
+
+webhook_endpoints_with_events =
+  Enum.map(
+    [
+      {"Notion automation", "https://example.com/notion/tuist", ["test_case.created", "test_case.updated"]},
+      {"Slack relay", "https://example.com/slack/tuist", ["preview.created", "preview.deleted"]}
+    ],
+    fn {name, url, event_types} ->
+      endpoint =
+        case Repo.get_by(Tuist.Webhooks.WebhookEndpoint, account_id: organization.account.id, name: name) do
+          nil ->
+            {:ok, endpoint, _secret} =
+              Tuist.Webhooks.create_endpoint(organization.account.id, %{
+                "name" => name,
+                "url" => url,
+                "event_types" => event_types
+              })
+
+            endpoint
+
+          endpoint ->
+            endpoint
+        end
+
+      {endpoint, event_types}
+    end
+  )
+
+# Wipe any prior attempts for the seeded endpoints first so re-seeding
+# produces a deterministic mix instead of accumulating on top of the
+# previous run (or of real failures the dev cron generates against the
+# placeholder URLs). Uses CH lightweight DELETE so the rows are gone
+# before we start inserting the new batch.
+seeded_endpoint_ids = Enum.map(webhook_endpoints_with_events, fn {ep, _} -> ep.id end)
+
+IngestRepo.query!(
+  "DELETE FROM webhook_delivery_attempts WHERE webhook_endpoint_id IN {ids:Array(UUID)}",
+  %{ids: seeded_endpoint_ids}
+)
+
+# Healthy endpoints sit around the high 90s in success rate; reserve the
+# leftover 3% for transient upstream errors and the occasional timeout
+# so the chart and error states have something to render.
+webhook_attempt_outcomes = [
+  {:delivered, 200, "\"OK\""},
+  {:delivered, 204, ""},
+  {:failed, 500, ~s({"error":"internal_server_error"})},
+  {:failed, 502, "<html><body>Bad Gateway</body></html>"},
+  {:failed, 408, ~s({"error":"timeout"})}
+]
+
+weighted_outcome = fn ->
+  weights = [80, 17, 1, 1, 1]
+  total = Enum.sum(weights)
+  roll = :rand.uniform(total)
+
+  webhook_attempt_outcomes
+  |> Enum.zip(weights)
+  |> Enum.reduce_while(roll, fn {outcome, weight}, remaining ->
+    if remaining <= weight, do: {:halt, outcome}, else: {:cont, remaining - weight}
+  end)
+end
+
+webhook_attempts =
+  Enum.flat_map(webhook_endpoints_with_events, fn {endpoint, event_types} ->
+    Enum.map(1..1500, fn _ ->
+      {result, response_status, response_body} = weighted_outcome.()
+      event_type = Enum.random(event_types)
+      event_id = Ecto.UUID.generate()
+      offset_seconds = :rand.uniform(7 * 24 * 60 * 60)
+      inserted_at = DateTime.add(DateTime.utc_now(), -offset_seconds, :second)
+
+      request_payload = %{
+        "id" => event_id,
+        "type" => event_type,
+        "occurred_at" => DateTime.to_iso8601(inserted_at)
+      }
+
+      %{
+        id: Ecto.UUID.generate(),
+        webhook_endpoint_id: endpoint.id,
+        event_id: event_id,
+        event_type: event_type,
+        attempt: if(result == :failed, do: Enum.random(1..3), else: 1),
+        status: Atom.to_string(result),
+        request_body: JSON.encode!(request_payload),
+        request_headers:
+          JSON.encode!(%{
+            "Content-Type" => "application/json",
+            "User-Agent" => "Tuist-Webhooks/1.0",
+            "Tuist-Event-Id" => event_id,
+            "Tuist-Event-Type" => event_type
+          }),
+        response_status: response_status,
+        response_headers: JSON.encode!(%{"content-type" => "application/json"}),
+        response_body: response_body,
+        error: if(result == :failed, do: "HTTP #{response_status}", else: ""),
+        duration_ms: Enum.random(40..650),
+        inserted_at: inserted_at
+      }
+    end)
+  end)
+
+# Batch the inserts to keep CH parts merge-friendly — same chunking
+# convention as the rest of the CH inserts in this file.
+webhook_attempts
+|> Enum.chunk_every(500)
+|> Enum.each(fn chunk ->
+  IngestRepo.insert_all(Tuist.Webhooks.DeliveryAttempt, chunk, timeout: 120_000)
+end)
+
+IO.puts("  - webhook endpoints: #{length(webhook_endpoints_with_events)}")
+IO.puts("  - webhook delivery attempts: #{length(webhook_attempts)}")
 
 IO.puts("")
 IO.puts("=== Seed Complete (scale: #{seed_scale}) ===")

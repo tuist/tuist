@@ -115,6 +115,13 @@ xcresultProcessor:
 # Mac mini fleet — declarative via CAPI.
 macosFleet:
   replicas: 1
+  # Canary runs on the production tailnet (single shared tailnet
+  # across canary + production — same Grafana, same admin console).
+  # Staging has its own tailnet so a leaked staging key can't add
+  # a node to canary/prod.
+  tailscale:
+    enabled: true
+    tags: ["tag:tuist-macmini-canary"]
   controlPlane:
     host: api-canary.tuist.dev
 
@@ -137,7 +144,7 @@ runnersFleet:
   pools:
     - name: default
       replicas: 1
-      runnerImage: "ghcr.io/tuist/tuist-runner@sha256:c31b88881c9ff96b528a61fbb97dca954cf22e9734b55c2336bd0eea96af1b32"
+      runnerImage: "ghcr.io/tuist/tuist-runner@sha256:d4824d8b6a8c7b6d1c2e87dda7f4c4b751ef87f03f87a9c409cfa15756fb198c"
       dispatchLabel: "tuist-canary-macos"
 
 # In-cluster Valkey backs the auth rate limiter (Hammer.Redis). The

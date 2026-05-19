@@ -388,6 +388,49 @@ defmodule Tuist.GitHub.Client do
     end
   end
 
+  @doc """
+  GETs a single `workflow_job` and returns the GitHub-side status
+  (`"queued"` / `"in_progress"` / `"completed"`). Used by
+  `OrphanedRunnersWorker` to detect rows we transitioned to
+  `running` locally but whose JIT was never consumed by an
+  actually-registered runner on the GH side — the GitHub view of
+  the job is the only authoritative signal for "did the Pod
+  successfully come up".
+
+  `repository_full_handle` is the standard `<owner>/<repo>` form
+  GitHub uses everywhere.
+
+  See: https://docs.github.com/en/rest/actions/workflow-jobs#get-a-job-for-a-workflow-run
+  """
+  def get_workflow_job(installation, repository_full_handle, workflow_job_id)
+      when is_binary(repository_full_handle) and is_integer(workflow_job_id) do
+    api_url = installation_api_url(installation)
+    url = "#{api_url}/repos/#{repository_full_handle}/actions/jobs/#{workflow_job_id}"
+
+    with {:ok, %{token: token}} <- App.get_installation_token(installation, api_url: api_url),
+         {:ok, request_url, ssrf_opts} <- pin_ghes_url(url, api_url) do
+      req_opts =
+        [
+          url: request_url,
+          headers: default_headers(token)
+        ] ++ ssrf_opts ++ Retry.retry_options()
+
+      case Req.get(req_opts) do
+        {:ok, %{status: 200, body: %{"status" => status} = job}} when is_binary(status) ->
+          {:ok, %{status: status, conclusion: Map.get(job, "conclusion"), runner_name: Map.get(job, "runner_name")}}
+
+        {:ok, %{status: 404}} ->
+          {:error, :not_found}
+
+        {:ok, %{status: status, body: body}} ->
+          {:error, {:http, status, body}}
+
+        {:error, reason} ->
+          {:error, {:transport, reason}}
+      end
+    end
+  end
+
   defp installation_api_url(%{client_url: client_url}), do: VCS.api_url(:github, client_url)
   defp installation_api_url(_), do: VCS.api_url(:github, nil)
 

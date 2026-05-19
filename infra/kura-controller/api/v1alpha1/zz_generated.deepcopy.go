@@ -65,6 +65,14 @@ func (in *KuraInstanceSpec) DeepCopyInto(out *KuraInstanceSpec) {
 		out.Replicas = new(int32)
 		*out.Replicas = *in.Replicas
 	}
+	if in.CloudflarePoolLatitude != nil {
+		out.CloudflarePoolLatitude = new(float64)
+		*out.CloudflarePoolLatitude = *in.CloudflarePoolLatitude
+	}
+	if in.CloudflarePoolLongitude != nil {
+		out.CloudflarePoolLongitude = new(float64)
+		*out.CloudflarePoolLongitude = *in.CloudflarePoolLongitude
+	}
 	if in.NodeSelector != nil {
 		out.NodeSelector = make(map[string]string, len(in.NodeSelector))
 		for key, value := range in.NodeSelector {

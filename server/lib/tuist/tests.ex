@@ -51,6 +51,7 @@ defmodule Tuist.Tests do
   alias Tuist.Tests.TestModuleRun
   alias Tuist.Tests.TestRunDestination
   alias Tuist.Tests.TestSuiteRun
+  alias Tuist.Webhooks.Dispatcher
 
   require OpenTelemetry.Tracer
 
@@ -766,7 +767,7 @@ defmodule Tuist.Tests do
         {{tc.name, tc.module_name, tc.suite_name}, tc.id}
       end)
 
-    {test_case_id_map, test_cases_with_flaky_run, new_test_case_ids}
+    {test_case_id_map, test_cases_with_flaky_run, new_test_case_ids, test_cases}
   end
 
   defp collect_test_case_ids(project_id, test_modules) do
@@ -906,9 +907,24 @@ defmodule Tuist.Tests do
       # automation-applied state, not our pre-automation snapshot.
       broadcast_test_case_update(updated_test_case, event_types)
       dispatch_event_driven_automations(test_case, event_types)
+      dispatch_webhooks(updated_test_case, event_types, actor_id, alert_id)
 
       {:ok, updated_test_case}
     end
+  end
+
+  # Webhooks subscribe at the account-account level and fire on every state
+  # transition — both user-initiated and automation-driven — so receivers
+  # (e.g. a Jira ingest) see the full audit trail. Failures are swallowed
+  # inside the dispatcher; we don't want a webhook problem to abort the
+  # write that produced the event.
+  defp dispatch_webhooks(_test_case, [], _actor_id, _alert_id), do: :ok
+
+  defp dispatch_webhooks(test_case, event_types, actor_id, alert_id) do
+    Dispatcher.dispatch_test_case_event(test_case, event_types,
+      actor_id: actor_id,
+      alert_id: alert_id
+    )
   end
 
   @doc """
@@ -1501,7 +1517,7 @@ defmodule Tuist.Tests do
       end)
       |> Enum.uniq_by(fn data -> {data.name, data.module_name, data.suite_name} end)
 
-    {test_case_id_map, test_case_ids_with_flaky_run, new_test_case_ids} =
+    {test_case_id_map, test_case_ids_with_flaky_run, new_test_case_ids, test_cases_created} =
       create_test_cases(test.project_id, test_case_data_list, existing_test_cases,
         test_run_id: test.id,
         is_ci: test.is_ci
@@ -1582,7 +1598,15 @@ defmodule Tuist.Tests do
       end
     end)
 
-    create_first_run_events(test_case_runs, new_test_case_ids)
+    # The audit-log row and the outbound webhook fire on the same set:
+    # a test case whose row didn't exist before *and* whose run is the
+    # first one on the default branch. `test_case.updated` derives both
+    # signals from the same `event_types` list (see `update_test_case/3`);
+    # `test_case.created` mirrors that by deriving both from a single
+    # filtered run list here.
+    first_run_test_case_runs = filter_first_run_test_case_runs(test_case_runs, new_test_case_ids)
+    create_first_run_events(first_run_test_case_runs)
+    dispatch_test_case_created_webhooks(test.project_id, test_cases_created, first_run_test_case_runs)
 
     {test_case_ids_with_flaky_run, test_case_runs}
   end
@@ -1704,29 +1728,47 @@ defmodule Tuist.Tests do
     end)
   end
 
-  defp create_first_run_events(test_case_runs, new_test_case_ids) do
-    new_test_case_runs =
-      Enum.filter(test_case_runs, fn run ->
-        run.is_new and run.test_case_id in new_test_case_ids
+  # The intersection of "this test case row is brand-new" and "the run
+  # is the first one observed on the default branch (in the last 90
+  # days)". Both signals must agree before we call it a first run.
+  defp filter_first_run_test_case_runs(test_case_runs, new_test_case_ids) do
+    Enum.filter(test_case_runs, fn run ->
+      run.is_new and run.test_case_id in new_test_case_ids
+    end)
+  end
+
+  defp create_first_run_events([]), do: :ok
+
+  defp create_first_run_events(first_run_test_case_runs) do
+    now = NaiveDateTime.utc_now()
+
+    events =
+      Enum.map(first_run_test_case_runs, fn run ->
+        %{
+          id: TestCaseEvent.first_run_id(run.test_case_id),
+          test_case_id: run.test_case_id,
+          event_type: "first_run",
+          actor_id: nil,
+          alert_id: nil,
+          inserted_at: now
+        }
       end)
 
-    if Enum.any?(new_test_case_runs) do
-      now = NaiveDateTime.utc_now()
+    TestCaseEvent.Buffer.insert_all(events)
+  end
 
-      events =
-        Enum.map(new_test_case_runs, fn run ->
-          %{
-            id: TestCaseEvent.first_run_id(run.test_case_id),
-            test_case_id: run.test_case_id,
-            event_type: "first_run",
-            actor_id: nil,
-            alert_id: nil,
-            inserted_at: now
-          }
-        end)
+  # Webhook fan-out for the same set of test cases that get a `first_run`
+  # audit-log row. The dispatcher swallows resolver / no-subscriber paths
+  # and wraps the `Oban.insert_all/1` call in its own try/rescue, so this
+  # function doesn't need an outer rescue — surfacing a real failure here
+  # is more useful than silently logging it.
+  defp dispatch_test_case_created_webhooks(_project_id, _test_cases, []), do: :ok
 
-      TestCaseEvent.Buffer.insert_all(events)
-    end
+  defp dispatch_test_case_created_webhooks(project_id, test_cases, first_run_test_case_runs) do
+    first_run_ids = MapSet.new(first_run_test_case_runs, & &1.test_case_id)
+    new_test_cases = Enum.filter(test_cases, &MapSet.member?(first_run_ids, &1.id))
+    Dispatcher.dispatch_test_case_created(project_id, new_test_cases)
+    :ok
   end
 
   defp calculate_avg_test_case_duration(test_cases) do

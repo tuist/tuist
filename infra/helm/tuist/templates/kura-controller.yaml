@@ -157,11 +157,24 @@ spec:
             {{- if $tlsClusterIssuer }}
             - --grpc-cluster-issuer={{ $tlsClusterIssuer }}
             {{- end }}
+            {{- if .Values.kuraController.cloudflareLoadBalancing.enabled }}
+            - --cloudflare-account-id={{ .Values.kuraController.cloudflareLoadBalancing.accountID }}
+            - --cloudflare-zone-id={{ .Values.kuraController.cloudflareLoadBalancing.zoneID }}
+            - --cloudflare-api-token=$(CLOUDFLARE_API_TOKEN)
+            {{- end }}
           ports:
             - name: metrics
               containerPort: 8080
             - name: probe
               containerPort: 8081
+          {{- if .Values.kuraController.cloudflareLoadBalancing.enabled }}
+          env:
+            - name: CLOUDFLARE_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.kuraController.cloudflareLoadBalancing.apiTokenSecret.name }}
+                  key: {{ .Values.kuraController.cloudflareLoadBalancing.apiTokenSecret.key }}
+          {{- end }}
           livenessProbe:
             httpGet: { path: /healthz, port: probe }
             initialDelaySeconds: 15

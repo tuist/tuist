@@ -221,9 +221,12 @@ func sourceCIDRFilter(allowed []*net.IPNet, next http.Handler) http.Handler {
 }
 
 // DefaultScrapeAllowedCIDRs is the safe baseline allowlist for the
-// metrics proxy: RFC1918 IPv4 ranges, IPv4 link-local, IPv4 loopback,
-// IPv6 unique-local, IPv6 link-local, and IPv6 loopback. This covers
-// every realistic cluster Pod / Node CIDR while clamping out the
+// metrics proxy: RFC1918 IPv4 ranges, the Tailscale CGNAT range
+// (100.64/10 — what tailnet clients dial in on when the cluster
+// reaches the Mac mini via Tailscale's subnet router), IPv4 link-
+// local, IPv4 loopback, IPv6 unique-local, IPv6 link-local, and
+// IPv6 loopback. Covers every realistic cluster Pod / Node CIDR and
+// the tailnet-traversing scraper path while clamping out the
 // public WAN. Operators on clusters that route Pod traffic through
 // public IPs (rare) need to override via --scrape-allowed-cidr.
 func DefaultScrapeAllowedCIDRs() []*net.IPNet {
@@ -231,6 +234,7 @@ func DefaultScrapeAllowedCIDRs() []*net.IPNet {
 		"10.0.0.0/8",
 		"172.16.0.0/12",
 		"192.168.0.0/16",
+		"100.64.0.0/10",
 		"169.254.0.0/16",
 		"127.0.0.0/8",
 		"fc00::/7",

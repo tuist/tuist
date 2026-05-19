@@ -244,6 +244,34 @@ defmodule Tuist.Runners.Jobs do
     |> Map.new()
   end
 
+  @doc """
+  Lists `runner_jobs` rows in `status = 'running'` whose
+  `started_at` is older than `threshold` — candidates for the
+  "Pod minted a JIT but the GitHub runner never registered"
+  recovery path. `OrphanedRunnersWorker` cross-checks each
+  candidate against GitHub's view of the workflow_job; if GH
+  still reports `queued`, the runner never came up and we
+  release + re-queue.
+
+  Returns a list of maps carrying everything the worker needs
+  (`repo` for the GH API call, `claimed_at` for the PG release
+  handle), so the worker doesn't need a second round trip.
+  """
+  def list_orphaned_running(%DateTime{} = threshold) do
+    Job
+    |> from(hints: ["FINAL"])
+    |> where([j], j.status == "running" and j.started_at < ^threshold)
+    |> select([j], %{
+      workflow_job_id: j.workflow_job_id,
+      account_id: j.account_id,
+      repo: j.repo,
+      claimed_at: j.claimed_at,
+      started_at: j.started_at,
+      pod_name: j.pod_name
+    })
+    |> ClickHouseRepo.all()
+  end
+
   # ----- internal -----
 
   # Fetch the merged current state of a workflow_job. The RMT

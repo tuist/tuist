@@ -1,10 +1,21 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.194.0<!-- RELEASE NOTES START -->
+## What's Changed in 4.195.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* retry run metadata upload on transient errors by [@fortmarek](https://github.com/fortmarek) in [#10842](https://github.com/tuist/tuist/pull/10842)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.195.0...4.195.1
+
+## What's Changed in 4.195.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
 
+* expose is_quarantined on test case run API by [@justine-acorns](https://github.com/justine-acorns) in [#10785](https://github.com/tuist/tuist/pull/10785)
 * add onOutdatedDependencies action to GenerationOptions by [@freak4pc](https://github.com/freak4pc) in [#10715](https://github.com/tuist/tuist/pull/10715)
 ### 🐛 Bug Fixes
 
@@ -17,7 +28,7 @@ All notable changes to this project will be documented in this file.
 
 
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.193.3...4.194.0
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.193.3...4.195.0
 
 ## What's Changed in 4.193.3<!-- RELEASE NOTES START -->
 

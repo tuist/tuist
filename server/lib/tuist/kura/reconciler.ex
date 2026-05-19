@@ -110,7 +110,11 @@ defmodule Tuist.Kura.Reconciler do
   defp reconcile_deployment(%Deployment{kura_server: %Server{} = server} = deployment) do
     case Provisioner.current_image_tag(server) do
       {:ok, image_tag} when image_tag == deployment.image_tag ->
-        activate_and_mark_succeeded(deployment, server)
+        if Kura.server_needs_global_endpoint?(server) and not Kura.server_global_endpoint_observed?(server) do
+          apply_deployment(deployment, server)
+        else
+          activate_and_mark_succeeded(deployment, server)
+        end
 
       {:ok, _other_image_tag} ->
         apply_deployment(deployment, server)

@@ -19,7 +19,7 @@ Describe 'actively supported protocol interoperability'
     setup_suite_tmpdir
 
     dc down -v --remove-orphans >/dev/null 2>&1 || true
-    dc up --build -d kura-us kura-eu kura-ap >/dev/null 2>&1
+    compose_up kura-us kura-eu kura-ap || return 1
 
     wait_for_http "${KURA_US_URL}/up"
     wait_for_http "${KURA_EU_URL}/up"
