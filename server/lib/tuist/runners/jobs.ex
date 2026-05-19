@@ -39,6 +39,16 @@ defmodule Tuist.Runners.Jobs do
   with the same `workflow_job_id`. RMT merge collapses them; both
   rows carry the same `queued` state so the merge is a no-op
   visible to clients.
+
+  ## Read pattern (no `FINAL`)
+
+  RMT `FINAL` forces ClickHouse to merge matching parts at query
+  time, which scales poorly as the table grows. We read the
+  "latest row per workflow_job_id" the same way `Tuist.Tests`
+  does: `argMax(col, updated_at)` aggregated by `workflow_job_id`
+  for multi-row queries, and `ORDER BY updated_at DESC LIMIT 1`
+  for single-row lookups. Both patterns use the merge-tree index
+  and avoid the per-query merge cost.
   """
 
   import Ecto.Query
@@ -87,24 +97,26 @@ defmodule Tuist.Runners.Jobs do
   """
   def pick_queued(fleet_name, ineligible_account_ids \\ [])
       when is_binary(fleet_name) and is_list(ineligible_account_ids) do
-    Job
-    |> from(hints: ["FINAL"])
-    |> where([j], j.fleet_name == ^fleet_name and j.status == "queued")
+    from(j in Job,
+      where: j.fleet_name == ^fleet_name,
+      group_by: j.workflow_job_id,
+      having: fragment("argMax(?, ?) = ?", j.status, j.updated_at, "queued"),
+      select: %{
+        workflow_job_id: j.workflow_job_id,
+        account_id: fragment("argMax(?, ?)", j.account_id, j.updated_at),
+        fleet_name: fragment("argMax(?, ?)", j.fleet_name, j.updated_at),
+        repo: fragment("argMax(?, ?)", j.repo, j.updated_at),
+        workflow_run_id: fragment("argMax(?, ?)", j.workflow_run_id, j.updated_at),
+        run_attempt: fragment("argMax(?, ?)", j.run_attempt, j.updated_at),
+        job_name: fragment("argMax(?, ?)", j.job_name, j.updated_at),
+        head_branch: fragment("argMax(?, ?)", j.head_branch, j.updated_at),
+        head_sha: fragment("argMax(?, ?)", j.head_sha, j.updated_at),
+        enqueued_at: fragment("argMax(?, ?)", j.enqueued_at, j.updated_at)
+      }
+    )
     |> exclude_accounts(ineligible_account_ids)
-    |> order_by([j], asc: j.enqueued_at, asc: j.workflow_job_id)
+    |> order_by([j], asc: fragment("argMax(?, ?)", j.enqueued_at, j.updated_at), asc: j.workflow_job_id)
     |> limit(1)
-    |> select([j], %{
-      workflow_job_id: j.workflow_job_id,
-      account_id: j.account_id,
-      fleet_name: j.fleet_name,
-      repo: j.repo,
-      workflow_run_id: j.workflow_run_id,
-      run_attempt: j.run_attempt,
-      job_name: j.job_name,
-      head_branch: j.head_branch,
-      head_sha: j.head_sha,
-      enqueued_at: j.enqueued_at
-    })
     |> ClickHouseRepo.one()
     |> case do
       nil -> {:error, :empty}
@@ -115,7 +127,7 @@ defmodule Tuist.Runners.Jobs do
   defp exclude_accounts(query, []), do: query
 
   defp exclude_accounts(query, account_ids) when is_list(account_ids) do
-    where(query, [j], j.account_id not in ^account_ids)
+    having(query, [j], fragment("argMax(?, ?)", j.account_id, j.updated_at) not in ^account_ids)
   end
 
   @doc """
@@ -234,15 +246,19 @@ defmodule Tuist.Runners.Jobs do
   Counts `queued` rows for `fleet_name`. Used by the autoscaler
   to size the warm pool — every queued workflow_job needs a Pod
   to claim it, so the desired replica count grows with this
-  value. Uses RMT `FINAL` so we read the merged latest state per
-  workflow_job_id (no double-counting of jobs that have since
-  transitioned out of `queued`).
+  value. `argMax(status, updated_at)` picks the latest state per
+  `workflow_job_id` so jobs that have since transitioned out of
+  `queued` don't get double-counted.
   """
   def queued_count_by_fleet(fleet_name) when is_binary(fleet_name) do
-    Job
-    |> from(hints: ["FINAL"])
-    |> where([j], j.fleet_name == ^fleet_name and j.status == "queued")
-    |> select([j], count(j.workflow_job_id))
+    inner =
+      from j in Job,
+        where: j.fleet_name == ^fleet_name,
+        group_by: j.workflow_job_id,
+        having: fragment("argMax(?, ?) = ?", j.status, j.updated_at, "queued"),
+        select: j.workflow_job_id
+
+    from(s in subquery(inner), select: count())
     |> ClickHouseRepo.one()
     |> Kernel.||(0)
   end
@@ -290,11 +306,14 @@ defmodule Tuist.Runners.Jobs do
         FROM numbers(60)
       ) AS b
       CROSS JOIN (
-        SELECT claimed_at, completed_at
-        FROM runner_jobs FINAL
+        SELECT
+          argMax(claimed_at, updated_at) AS claimed_at,
+          argMax(completed_at, updated_at) AS completed_at
+        FROM runner_jobs
         WHERE fleet_name = {fleet:String}
           AND claimed_at >= now() - toIntervalHour(2)
           AND claimed_at != toDateTime64('1970-01-01 00:00:00.000', 6, 'UTC')
+        GROUP BY workflow_job_id
       ) AS j
       GROUP BY b.bucket
     )
@@ -311,25 +330,32 @@ defmodule Tuist.Runners.Jobs do
   customer dashboards.
   """
   def status_counts(account_id) when is_integer(account_id) do
-    Job
-    |> from(hints: ["FINAL"])
-    |> where([j], j.account_id == ^account_id)
-    |> group_by([j], j.status)
-    |> select([j], {j.status, count(j.workflow_job_id)})
+    inner =
+      from j in Job,
+        where: j.account_id == ^account_id,
+        group_by: j.workflow_job_id,
+        select: %{
+          workflow_job_id: j.workflow_job_id,
+          status: fragment("argMax(?, ?)", j.status, j.updated_at)
+        }
+
+    from(s in subquery(inner),
+      group_by: s.status,
+      select: {s.status, count(s.workflow_job_id)}
+    )
     |> ClickHouseRepo.all()
     |> Map.new()
   end
 
   # ----- internal -----
 
-  # Fetch the merged current state of a workflow_job. The RMT
-  # FINAL hint forces ClickHouse to apply the merge at query time
-  # so we see the latest `updated_at` row even before the
-  # background merge has run.
+  # Fetch the current state of a workflow_job. Single-row lookup
+  # by primary key — `ORDER BY updated_at DESC LIMIT 1` returns
+  # the latest INSERT without forcing a part-merge.
   defp current(workflow_job_id) do
     Job
-    |> from(hints: ["FINAL"])
     |> where([j], j.workflow_job_id == ^workflow_job_id)
+    |> order_by([j], desc: j.updated_at)
     |> limit(1)
     |> ClickHouseRepo.one()
   end
