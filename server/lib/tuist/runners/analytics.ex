@@ -476,10 +476,12 @@ defmodule Tuist.Runners.Analytics do
   defp trunc_or_zero(value) when is_number(value), do: trunc(value)
 
   @doc """
-  Success rate (% successful of completed jobs) over the window plus
-  trend. Cancelled/skipped jobs are intentionally not counted as
-  failures — the customer cares about runner-attributable failures.
-  Returns `nil` if no completed jobs exist in the window.
+  Success rate (% of enqueued jobs that finished with
+  `conclusion='success'`) over the window plus a daily series and the
+  point-to-point delta vs the previous equivalent window. The
+  denominator matches the Workflows list column — share of ALL
+  enqueued jobs that landed on success, so in-flight rows and
+  cancelled/skipped conclusions all weigh against the rate.
   """
   def success_rate(account_id, opts \\ []) when is_integer(account_id) do
     {start_dt, end_dt} = window(opts)
@@ -489,7 +491,37 @@ defmodule Tuist.Runners.Analytics do
     previous = success_rate_in_range(account_id, prev_start_dt, prev_end_dt, opts)
     trend_pp = if is_nil(rate) or is_nil(previous), do: 0.0, else: Float.round(rate - previous, 1)
 
-    %{rate: rate, trend: trend_pp}
+    rows = success_rate_per_day(account_id, start_dt, end_dt, opts)
+    filled = fill_dates(rows, start_dt, end_dt, &Map.get(&1, :value, 0))
+
+    %{
+      rate: rate,
+      trend: trend_pp,
+      dates: Enum.map(filled, & &1.date),
+      values: Enum.map(filled, & &1.value)
+    }
+  end
+
+  defp success_rate_per_day(account_id, start_dt, end_dt, opts) do
+    Job
+    |> from(hints: ["FINAL"])
+    |> where(
+      [j],
+      j.account_id == ^account_id and j.enqueued_at >= ^start_dt and j.enqueued_at <= ^end_dt
+    )
+    |> scope_workflow(opts)
+    |> group_by([j], fragment("toDate(?)", j.enqueued_at))
+    |> select([j], %{
+      date: fragment("toDate(?)", j.enqueued_at),
+      value:
+        fragment(
+          "if(count() = 0, 0, round(countIf(? = 'completed' AND ? = 'success') / count() * 100, 1))",
+          j.status,
+          j.conclusion
+        )
+    })
+    |> order_by([j], asc: fragment("toDate(?)", j.enqueued_at))
+    |> ClickHouseRepo.all()
   end
 
   defp success_rate_in_range(account_id, start_dt, end_dt, opts) do

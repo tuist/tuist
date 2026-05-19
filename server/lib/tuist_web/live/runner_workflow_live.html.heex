@@ -1,38 +1,33 @@
 <div id="runner-workflow">
-  <div data-part="back">
-    <.link_button
-      navigate={~p"/#{@selected_account.name}/runners/workflows"}
-      variant="secondary"
-      size="large"
-      label={dgettext("dashboard_runners", "All workflows")}
-    >
-      <:icon_left><.arrow_left /></:icon_left>
-    </.link_button>
-  </div>
-
-  <.card
-    title={TuistWeb.RunnerWorkflowLive.display_workflow(@workflow_name)}
-    icon="versions"
-    data-part="runner-workflow-header-card"
+  <.button
+    label={dgettext("dashboard_runners", "Workflows")}
+    data-part="back-button"
+    variant="secondary"
+    size="medium"
+    navigate={~p"/#{@selected_account.name}/runners/workflows"}
   >
-    <:actions>
-      <.badge label={@repo} style="light-fill" />
-    </:actions>
-    <.card_section data-part="metadata-section">
-      <div data-part="metadata-grid">
-        <div data-part="metadata-item">
-          <span data-part="label">{dgettext("dashboard_runners", "Repository")}</span>
-          <span data-part="value">{@repo}</span>
+    <:icon_left>
+      <.icon name="arrow_left" />
+    </:icon_left>
+  </.button>
+
+  <div data-part="header">
+    <div data-part="title-group">
+      <div data-part="title">
+        <div data-part="icon">
+          <.versions />
         </div>
-        <div data-part="metadata-item">
-          <span data-part="label">{dgettext("dashboard_runners", "Workflow")}</span>
-          <span data-part="value">
-            {TuistWeb.RunnerWorkflowLive.display_workflow(@workflow_name)}
-          </span>
-        </div>
+        <h1 data-part="label">
+          {TuistWeb.RunnerWorkflowLive.display_workflow(@workflow_name)}
+        </h1>
       </div>
-    </.card_section>
-  </.card>
+      <div data-part="badges">
+        <.badge label={@repo} color="primary" style="light-fill" size="large">
+          <:icon><.git_branch /></:icon>
+        </.badge>
+      </div>
+    </div>
+  </div>
 
   <.card
     title={dgettext("dashboard_runners", "Analytics")}
@@ -53,20 +48,25 @@
         trend_value={if @jobs_count.ok?, do: @jobs_count.result.trend}
         trend_type={:neutral}
         trend_label={dgettext("dashboard_runners", "since last month")}
-        empty={@jobs_count.ok? && @jobs_count.result.count == 0}
       />
       <.widget
         id="widget-workflow-success-rate"
         title={dgettext("dashboard_runners", "Success rate")}
         legend_color="tertiary"
         description={
-          dgettext("dashboard_runners", "Share of completed jobs with conclusion=success.")
+          dgettext(
+            "dashboard_runners",
+            "Share of enqueued jobs that completed with conclusion=success."
+          )
         }
         value={
           if @success_rate.ok?,
             do: TuistWeb.RunnerWorkflowLive.format_success_rate(@success_rate.result.rate)
         }
         loading={!@success_rate.ok?}
+        selected={@analytics_selected_widget == "success_rate"}
+        phx_click="select_widget"
+        phx_value_widget="success_rate"
         trend_value={if @success_rate.ok?, do: @success_rate.result.trend}
         trend_type={:neutral}
         trend_label={dgettext("dashboard_runners", "since last month")}
@@ -90,7 +90,6 @@
         trend_value={if @failed_jobs_count.ok?, do: @failed_jobs_count.result.trend}
         trend_type={:inverse}
         trend_label={dgettext("dashboard_runners", "since last month")}
-        empty={@failed_jobs_count.ok? && @failed_jobs_count.result.count == 0}
       />
       <.widget
         id="widget-workflow-avg-duration"
@@ -110,7 +109,6 @@
         trend_value={if @jobs_duration.ok?, do: @jobs_duration.result.trend_avg}
         trend_type={:inverse}
         trend_label={dgettext("dashboard_runners", "since last month")}
-        empty={@jobs_duration.ok? && @jobs_duration.result.avg == 0}
       />
     </div>
     <.card_section data-part="analytics-card-chart-section">
@@ -130,6 +128,30 @@
                   |> Enum.zip(@jobs_count.result.values)
                   |> Enum.map(&Tuple.to_list/1),
                 name: dgettext("dashboard_runners", "Jobs"),
+                type: "line",
+                smooth: 0.1,
+                symbol: "none"
+              }
+            ]}
+            y_axis_min={0}
+          />
+        <% @analytics_selected_widget == "success_rate" and !@success_rate.ok? -> %>
+          <.skeleton_chart />
+        <% @analytics_selected_widget == "success_rate" -> %>
+          <.chart
+            id="workflow-success-rate-chart"
+            type="line"
+            extra_options={
+              TuistWeb.RunnerWorkflowLive.chart_options(@success_rate.result.dates, :percent)
+            }
+            series={[
+              %{
+                color: "var:noora-chart-tertiary",
+                data:
+                  @success_rate.result.dates
+                  |> Enum.zip(@success_rate.result.values)
+                  |> Enum.map(&Tuple.to_list/1),
+                name: dgettext("dashboard_runners", "Success rate"),
                 type: "line",
                 smooth: 0.1,
                 symbol: "none"

@@ -137,7 +137,7 @@ defmodule TuistWeb.RunnerWorkflowLive do
     "/#{account_name}/runners/jobs?#{query}"
   end
 
-  def chart_options(dates) do
+  def chart_options(dates, scale \\ :count) do
     %{
       grid: %{width: "97%", left: "0.4%", height: "88%", top: "5%"},
       xAxis: %{
@@ -150,13 +150,31 @@ defmodule TuistWeb.RunnerWorkflowLive do
           padding: [10, 0, 0, 0]
         }
       },
-      yAxis: %{
-        splitNumber: 4,
-        splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
-        axisLabel: %{color: "var:noora-surface-label-secondary"}
-      },
+      yAxis: y_axis(scale),
       legend: %{show: false},
       tooltip: %{}
+    }
+  end
+
+  # `:percent` pins the y-axis to 0..100 so the success-rate line
+  # keeps a consistent baseline even when the rate sits at 100% for
+  # the whole window — without it echarts auto-scales to a tiny band
+  # and the plateau looks like noise rather than a steady success.
+  defp y_axis(:percent) do
+    %{
+      splitNumber: 4,
+      splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
+      axisLabel: %{color: "var:noora-surface-label-secondary", formatter: "{value}%"},
+      min: 0,
+      max: 100
+    }
+  end
+
+  defp y_axis(_) do
+    %{
+      splitNumber: 4,
+      splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
+      axisLabel: %{color: "var:noora-surface-label-secondary"}
     }
   end
 end

@@ -51,7 +51,7 @@ defmodule TuistWeb.RunnerWorkflowLiveTest do
 
     {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/workflows/tuist/tuist/Server")
 
-    assert html =~ "All workflows"
+    assert html =~ ~s(data-part="back-button")
     assert html =~ "Server"
     assert html =~ "tuist/tuist"
     assert html =~ "Total jobs"
