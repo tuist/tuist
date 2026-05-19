@@ -205,6 +205,21 @@ on:
         type: choice
         default: ""
         options: ["", "staging", "canary", "production"]
+      cleanup_ghost_nodes:
+        description: |
+          When set, delete cloud-worker Node objects whose
+          underlying Hetzner Cloud server no longer exists. HCCM
+          requeues these forever ("server not found"), starving
+          legitimate reconcile work (LB target updates), so
+          Cloudflare returns 525 even after ingress-nginx pods
+          are healthy. Identifies ghosts by `kubectl get node`
+          NotReady + age > 5min + cloud worker prefix, then
+          `kubectl delete node`. Safe: the Node object is just a
+          k8s record; the VM is already gone.
+        required: false
+        type: choice
+        default: ""
+        options: ["", "staging", "canary", "production"]
 
 # Serialize: don't let two pushes apply concurrently and race.
 concurrency:
@@ -1127,4 +1142,70 @@ jobs:
           echo "::endgroup::"
           echo "::group::LoadBalancer Service state (platform/ingress-nginx)"
           kubectl get svc -n platform platform-ingress-nginx-controller -o yaml | grep -E "loadBalancer:|ingress:|ip:|hostname:|targetRef|nodeName" | head -20 || true
+          echo "::endgroup::"
+      - name: Cleanup ghost cloud-worker Nodes
+        if: github.event.inputs.cleanup_ghost_nodes != ''
+        env:
+          CLUSTER: ${{ github.event.inputs.cleanup_ghost_nodes }}
+          WL_KUBECONFIG: ${{ github.workspace }}/.kube/workload-config
+        run: |
+          set -euo pipefail
+          kubectl get secret -n org-tuist "tuist-$CLUSTER-kubeconfig" \
+            -o jsonpath='{.data.value}' | base64 -d > "$WL_KUBECONFIG"
+          chmod 600 "$WL_KUBECONFIG"
+          export KUBECONFIG="$WL_KUBECONFIG"
+          echo "::group::Nodes BEFORE cleanup"
+          kubectl get nodes -o wide | head -60 || true
+          echo "::endgroup::"
+          # A cloud worker Node is a "ghost" when its Ready
+          # condition is False/Unknown AND no live HCloudMachine
+          # claims it via providerID. The simplest signal: a Node
+          # tainted `node.kubernetes.io/unreachable` for more than
+          # a few minutes AND named like the cloud-worker MD prefix.
+          # Skip the control plane and bare-metal Nodes.
+          echo "::group::Identify ghost cloud-worker Nodes"
+          # `lastHeartbeatTime` would be ideal but is verbose; use
+          # the unreachable taint's timeAdded if present (added by
+          # node lifecycle when kubelet stops heartbeating).
+          now=$(date -u +%s)
+          ghosts=()
+          for n in $(kubectl get nodes -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' | grep -E "^tuist-${CLUSTER}-md-0-"); do
+            # Skip if Ready=True
+            ready=$(kubectl get node "$n" -o jsonpath='{range .status.conditions[?(@.type=="Ready")]}{.status}{end}')
+            if [ "$ready" = "True" ]; then
+              continue
+            fi
+            # Check whether the node has unreachable taint
+            unreach=$(kubectl get node "$n" -o jsonpath='{range .spec.taints[?(@.key=="node.kubernetes.io/unreachable")]}{.timeAdded}{end}')
+            if [ -z "$unreach" ]; then
+              # No unreachable taint either; might be initializing — skip
+              continue
+            fi
+            ts=$(date -u -d "$unreach" +%s 2>/dev/null || gdate -u -d "$unreach" +%s 2>/dev/null || echo 0)
+            age=$((now - ts))
+            if [ "$age" -lt 300 ]; then
+              echo "Skipping $n (unreachable only ${age}s)"
+              continue
+            fi
+            echo "Ghost: $n (unreachable ${age}s)"
+            ghosts+=("$n")
+          done
+          echo "Found ${#ghosts[@]} ghost Nodes"
+          echo "::endgroup::"
+          if [ "${#ghosts[@]}" -gt 0 ]; then
+            echo "::group::Delete ghost Nodes"
+            for n in "${ghosts[@]}"; do
+              echo "kubectl delete node $n"
+              kubectl delete node "$n" --grace-period=0 --force --wait=false 2>&1 || true
+            done
+            echo "::endgroup::"
+          fi
+          # HCCM will reconcile remaining Nodes within ~30s
+          echo "Sleeping 30s for HCCM to reconcile..."
+          sleep 30
+          echo "::group::Nodes AFTER cleanup"
+          kubectl get nodes -o wide | head -30 || true
+          echo "::endgroup::"
+          echo "::group::HCCM logs after cleanup"
+          kubectl logs -n kube-system -l "app.kubernetes.io/name=hcloud-cloud-controller-manager" --tail=40 2>&1 | tail -40 || true
           echo "::endgroup::"
