@@ -18,6 +18,11 @@ KUBECONFIG_DIR="${RUNNER_TEMP:-${TMPDIR:-/tmp}}/kura-kubeconfigs"
 mkdir -p "$KUBECONFIG_DIR"
 trap 'rm -rf "$KUBECONFIG_DIR"' EXIT
 
+if [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
+  CLOUDFLARE_API_TOKEN="$(op read "op://tuist-k8s-production/cloudflare-tuist-dns/credential")"
+fi
+export CLOUDFLARE_API_TOKEN
+
 deploy_region() {
   local region="$1"
   local cluster_name="$2"
