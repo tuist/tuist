@@ -16,6 +16,11 @@ This node covers the `kura/website/` subtree, a localized Eleventy site for Kura
 - Produce a production build with `aube run build`
 - Regenerate social images only with `aube run social:images`
 
+## Deployment
+- Tooling is pinned in `.mise.toml`; `mise/tasks/*.sh` wrap the `aube run` scripts
+- `.github/workflows/kura-website.yml` builds on every PR and deploys to Cloudflare Pages on `main` (project `kura`, served at `kura.run`)
+- The deploy uploads `_site/` plus `functions/` (Pages Middleware) via `wrangler pages deploy`; the Cloudflare Pages project root must be `kura/website`
+
 ## Maintenance Notes
 - Keep English and Japanese routes in parity when adding new pages or posts
 - If you change front matter fields used by the OG script, update `scripts/generate-social-images.mjs` in the same change

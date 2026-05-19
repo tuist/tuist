@@ -8,7 +8,8 @@
     "build": "eleventy",
     "dev": "eleventy --serve --quiet",
     "clean": "rm -rf _site",
-    "social:images": "node scripts/generate-social-images.mjs"
+    "social:images": "node scripts/generate-social-images.mjs",
+    "deploy": "eleventy && wrangler pages deploy _site --project-name kura --branch main"
   },
   "devDependencies": {
     "@11ty/eleventy": "^3.0.0",
