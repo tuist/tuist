@@ -76,6 +76,18 @@ on:
         type: choice
         default: ""
         options: ["", "staging", "canary", "production"]
+      dump_workload:
+        description: |
+          When set, SKIP everything else and dump workload-cluster
+          state for the chosen cluster: Nodes, RunnerPool CRs,
+          runner Pods + recent events, runners-controller logs.
+          Used when the smoke is stuck "queued" (no runner picked
+          it up) to find out whether the bare-metal Node joined,
+          whether Pods got created, and why they're not running.
+        required: false
+        type: choice
+        default: ""
+        options: ["", "staging", "canary", "production"]
 
 # Serialize: don't let two pushes apply concurrently and race.
 concurrency:
@@ -111,7 +123,7 @@ jobs:
           op document get "kubeconfig: tuist-mgmt" --vault tuist-k8s-mgmt --output "$KUBECONFIG"
           chmod 600 "$KUBECONFIG"
       - name: Diff (visibility into what's about to change)
-        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == ''
+        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == ''
         # `kubectl diff` exits non-zero when there's a diff, which is
         # the expected case here, so don't fail the step on that.
         # The actual gate is the apply step below.
@@ -142,11 +154,11 @@ jobs:
           kubectl diff -f infra/k8s/mgmt/hetzner-robot-controller.yaml || true
           echo "::endgroup::"
       - name: Apply ClusterClass first (Cluster CRs reference it)
-        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == ''
+        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == ''
         run: |
           kubectl apply -f infra/k8s/clusters/clusterclass-tuist.yaml
       - name: Apply per-env bare-metal substrate
-        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == ''
+        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == ''
         # HetznerBareMetalHost CRs + HetznerBareMetalMachineTemplate +
         # bare-metal KubeadmConfigTemplate + ExternalSecrets. Applied
         # between ClusterClass and Cluster CRs so the MD-claimed
@@ -180,14 +192,14 @@ jobs:
             fi
           done
       - name: Apply per-env Cluster CRs
-        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == ''
+        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == ''
         run: |
           for f in infra/k8s/clusters/cluster-*.yaml; do
             echo "==> $f"
             kubectl apply -f "$f"
           done
       - name: Apply mgmt-side workloads
-        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == ''
+        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == ''
         # These are mgmt-cluster Deployments / CronJobs, not Cluster
         # CRs. Independent of the CAPI manifests above.
         run: |
@@ -354,4 +366,48 @@ jobs:
           echo "::endgroup::"
           echo "::group::containerd status"
           ssh "${ssh_opts[@]}" "root@$ip" 'systemctl status containerd --no-pager -l; ls -la /usr/local/bin/containerd /usr/local/sbin/runc /usr/local/lib/systemd/system/containerd.service /etc/containerd/config.toml 2>&1' || true
+          echo "::endgroup::"
+      - name: Dump workload-cluster state
+        # Pulls the workload cluster's kubeconfig from the
+        # CAPI-managed Secret (`<cluster>-kubeconfig` in
+        # `org-tuist`) and dumps:
+        #   - Nodes (did the bare-metal host actually join?)
+        #   - RunnerPool CRs (does the controller see the pool?)
+        #   - Runner Pods + events (did Pods get created, did they
+        #     schedule, are they failing on kata-qemu / image pull?)
+        #   - runners-controller logs (autoscaler reactions, etc.)
+        # Used when the smoke is stuck "queued" — no runner
+        # registered with GitHub means no live Pod with the right
+        # dispatch label.
+        if: github.event.inputs.dump_workload != ''
+        timeout-minutes: 5
+        env:
+          CLUSTER: ${{ github.event.inputs.dump_workload }}
+          WL_KUBECONFIG: ${{ github.workspace }}/.kube/workload-config
+        run: |
+          set -euo pipefail
+          kubectl get secret -n org-tuist "tuist-$CLUSTER-kubeconfig" \
+            -o jsonpath='{.data.value}' | base64 -d > "$WL_KUBECONFIG"
+          chmod 600 "$WL_KUBECONFIG"
+          export KUBECONFIG="$WL_KUBECONFIG"
+          echo "::group::Nodes"
+          kubectl get nodes -o wide
+          echo
+          kubectl get nodes -l node.cluster.x-k8s.io/pool=runners-linux -o yaml | grep -E "name:|taints:|labels:|conditions:" | head -50 || true
+          echo "::endgroup::"
+          echo "::group::RunnerPool CRs"
+          kubectl get runnerpool -A -o wide || true
+          echo "::endgroup::"
+          echo "::group::Runner Pods"
+          kubectl get pods -n tuist-runners -o wide || true
+          echo
+          kubectl get pods -n tuist-runners -o yaml | grep -E "phase:|reason:|message:|runtimeClassName:|nodeName:|name:" | head -60 || true
+          echo "::endgroup::"
+          echo "::group::Recent events in tuist-runners"
+          kubectl get events -n tuist-runners --sort-by=.lastTimestamp | tail -40 || true
+          echo "::endgroup::"
+          echo "::group::runners-controller logs (last 200 lines)"
+          kubectl logs -n tuist deployment/runners-controller --tail=200 2>&1 || \
+            kubectl logs -n tuist-runners deployment/runners-controller --tail=200 2>&1 || \
+            kubectl logs -A --selector=app.kubernetes.io/name=runners-controller --tail=200 2>&1 || true
           echo "::endgroup::"
