@@ -62,6 +62,20 @@ on:
         type: choice
         default: ""
         options: ["", "staging", "canary", "production"]
+      dump_cloud_init:
+        description: |
+          When set, SKIP everything else and SSH to the chosen
+          cluster's bare-metal host to dump `cloud-init status
+          --long` and the tail of `/var/log/cloud-init-output.log`
+          / `/var/log/cloud-init.log`. Diagnostic-only — when
+          caph reports `ensure-provisioned` stuck on
+          `CloudInitStatus failed`, this surfaces which
+          preKubeadmCommands step failed. SSH key comes from
+          1Password (`hetzner-bare-metal-ssh-key`).
+        required: false
+        type: choice
+        default: ""
+        options: ["", "staging", "canary", "production"]
 
 # Serialize: don't let two pushes apply concurrently and race.
 concurrency:
@@ -97,7 +111,7 @@ jobs:
           op document get "kubeconfig: tuist-mgmt" --vault tuist-k8s-mgmt --output "$KUBECONFIG"
           chmod 600 "$KUBECONFIG"
       - name: Diff (visibility into what's about to change)
-        if: github.event.inputs.force_roll_bare_metal == ''
+        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == ''
         # `kubectl diff` exits non-zero when there's a diff, which is
         # the expected case here, so don't fail the step on that.
         # The actual gate is the apply step below.
@@ -128,11 +142,11 @@ jobs:
           kubectl diff -f infra/k8s/mgmt/hetzner-robot-controller.yaml || true
           echo "::endgroup::"
       - name: Apply ClusterClass first (Cluster CRs reference it)
-        if: github.event.inputs.force_roll_bare_metal == ''
+        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == ''
         run: |
           kubectl apply -f infra/k8s/clusters/clusterclass-tuist.yaml
       - name: Apply per-env bare-metal substrate
-        if: github.event.inputs.force_roll_bare_metal == ''
+        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == ''
         # HetznerBareMetalHost CRs + HetznerBareMetalMachineTemplate +
         # bare-metal KubeadmConfigTemplate + ExternalSecrets. Applied
         # between ClusterClass and Cluster CRs so the MD-claimed
@@ -166,14 +180,14 @@ jobs:
             fi
           done
       - name: Apply per-env Cluster CRs
-        if: github.event.inputs.force_roll_bare_metal == ''
+        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == ''
         run: |
           for f in infra/k8s/clusters/cluster-*.yaml; do
             echo "==> $f"
             kubectl apply -f "$f"
           done
       - name: Apply mgmt-side workloads
-        if: github.event.inputs.force_roll_bare_metal == ''
+        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == ''
         # These are mgmt-cluster Deployments / CronJobs, not Cluster
         # CRs. Independent of the CAPI manifests above.
         run: |
@@ -279,3 +293,58 @@ jobs:
           kubectl get hetznerbaremetalmachine -n org-tuist -l cluster.x-k8s.io/cluster-name=tuist-$CLUSTER
           kubectl get hetznerbaremetalhost -n org-tuist
           exit 1
+      - name: Dump cloud-init logs from bare-metal host
+        # SSH into the bare-metal host using the keypair caph also
+        # uses (stored in 1Password as `hetzner-bare-metal-ssh-key`).
+        # Surfaces which `preKubeadmCommands` step failed when caph
+        # gets stuck at `ensure-provisioned` with `CloudInitStatus
+        # failed`.
+        if: github.event.inputs.dump_cloud_init != ''
+        timeout-minutes: 5
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          CLUSTER: ${{ github.event.inputs.dump_cloud_init }}
+        run: |
+          set -euo pipefail
+          hbmm=$(kubectl get hetznerbaremetalmachine -n org-tuist \
+            -l cluster.x-k8s.io/cluster-name=tuist-$CLUSTER \
+            -o jsonpath='{.items[0].metadata.name}' || true)
+          if [ -z "$hbmm" ]; then
+            echo "::error::No HetznerBareMetalMachine for cluster tuist-$CLUSTER"
+            exit 1
+          fi
+          hbm=$(kubectl get hetznerbaremetalhost -n org-tuist \
+            -o jsonpath='{.items[?(@.spec.consumerRef.name=="'"$hbmm"'")].metadata.name}' || true)
+          ip=$(kubectl get hetznerbaremetalhost -n org-tuist "$hbm" \
+            -o jsonpath='{.spec.status.ipv4}')
+          if [ -z "$ip" ]; then
+            echo "::error::No IPv4 on HBM $hbm"
+            kubectl get hetznerbaremetalhost -n org-tuist "$hbm" -o yaml
+            exit 1
+          fi
+          echo "HBM: $hbm  IP: $ip"
+          # Pull the SSH private key from 1Password. Same vault as
+          # the mgmt kubeconfig; the bare-metal-staging.yaml
+          # ExternalSecret references this entry too.
+          mkdir -p ~/.ssh
+          op read "op://tuist-k8s-mgmt/hetzner-bare-metal-ssh-key/ssh-privatekey" > ~/.ssh/hbm
+          chmod 600 ~/.ssh/hbm
+          ssh_opts=(
+            -i ~/.ssh/hbm
+            -o StrictHostKeyChecking=no
+            -o UserKnownHostsFile=/dev/null
+            -o ConnectTimeout=10
+            -o BatchMode=yes
+          )
+          echo "::group::cloud-init status --long"
+          ssh "${ssh_opts[@]}" "root@$ip" 'cloud-init status --long' || true
+          echo "::endgroup::"
+          echo "::group::cloud-init-output.log (last 300 lines)"
+          ssh "${ssh_opts[@]}" "root@$ip" 'tail -300 /var/log/cloud-init-output.log' || true
+          echo "::endgroup::"
+          echo "::group::cloud-init.log (last 300 lines, error-relevant)"
+          ssh "${ssh_opts[@]}" "root@$ip" 'tail -300 /var/log/cloud-init.log | grep -E "ERROR|WARNING|FAILED|fail|error" || tail -300 /var/log/cloud-init.log' || true
+          echo "::endgroup::"
+          echo "::group::containerd status"
+          ssh "${ssh_opts[@]}" "root@$ip" 'systemctl status containerd --no-pager -l; ls -la /usr/local/bin/containerd /usr/local/sbin/runc /usr/local/lib/systemd/system/containerd.service /etc/containerd/config.toml 2>&1' || true
+          echo "::endgroup::"
