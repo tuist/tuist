@@ -14,7 +14,7 @@ overrides:
   follow-redirects: 1.16.0
   mdast-util-to-hast: 13.2.1
   postcss: 8.5.10
-  protobufjs: 7.5.6
+  protobufjs: 7.5.8
   yaml: 2.8.3
 
 time:
@@ -23,7 +23,7 @@ time:
   '@protobufjs/utf8@1.1.1': 2026-04-27T20:31:28.490Z
   axios@1.15.2: 2026-04-21T17:53:03.731Z
   fast-uri@3.1.2: 2026-05-05T08:31:31.849Z
-  protobufjs@7.5.6: 2026-04-28T00:45:30.215Z
+  protobufjs@7.5.8: 2026-05-12T09:40:11.300Z
 
 importers:
 
@@ -1223,8 +1223,8 @@ packages:
   property-information@7.1.0:
     resolution: {integrity: sha512-TwEZ+X+yCJmYfL7TPUOcvBZ4QfoT5YenQiJuX//0th53DE6w0xxLEtfK3iyryQFddXuvkIk51EEgrJQ0WJkOmQ==}
 
-  protobufjs@7.5.6:
-    resolution: {integrity: sha512-M71sTMB146U3u0di3yup8iM+zv8yPRNQVr1KK4tyBitl3qFvEGucq/rGDRShD2rsJhtN02RJaJ7j5X5hmy8SJg==}
+  protobufjs@7.5.8:
+    resolution: {integrity: sha512-dvpCIeLPbXZS/Ete7yLaO7RenOdken2NHKykBXbsaGxZT0UTltcarBciw+A78SRQs9iMAAVpsYA+l8b1hTePIA==}
     engines: {node: '>=12.0.0'}
 
   proxy-from-env@2.1.0:
@@ -1769,7 +1769,7 @@ snapshots:
       '@opentelemetry/sdk-logs': 0.208.0(@opentelemetry/api@1.9.0)
       '@opentelemetry/sdk-metrics': 2.2.0(@opentelemetry/api@1.9.0)
       '@opentelemetry/sdk-trace-base': 2.2.0(@opentelemetry/api@1.9.0)
-      protobufjs: 7.5.6
+      protobufjs: 7.5.8
 
   '@opentelemetry/resources@2.2.0(@opentelemetry/api@1.9.0)':
     dependencies:
@@ -3193,7 +3193,7 @@ snapshots:
 
   property-information@7.1.0: {}
 
-  protobufjs@7.5.6:
+  protobufjs@7.5.8:
     dependencies:
       '@protobufjs/aspromise': 1.1.2
       '@protobufjs/base64': 1.1.2
