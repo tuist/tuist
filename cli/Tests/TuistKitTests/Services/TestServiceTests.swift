@@ -4849,12 +4849,9 @@ final class TestServiceTests: TuistUnitTestCase {
             .listTestCases(fullHandle: .any, serverURL: .any, state: .value(.skipped))
             .willReturn([skippedIdentifier])
 
-        let capture = ArgumentsCapture()
         given(xcodebuildController)
             .run(arguments: .any)
-            .willProduce { args in
-                capture.append(args)
-            }
+            .willReturn()
 
         // When
         try await AlertController.$current.withValue(AlertController()) {
@@ -4870,11 +4867,11 @@ final class TestServiceTests: TuistUnitTestCase {
         verify(testCaseListService)
             .listTestCases(fullHandle: .any, serverURL: .any, state: .value(.skipped))
             .called(1)
-        let arguments = try XCTUnwrap(capture.first())
-        XCTAssertTrue(
-            arguments.containsConsecutive(["-skip-testing", skippedIdentifier.description]),
-            "Expected xcodebuild args to contain -skip-testing for the quarantined test, got: \(arguments)"
-        )
+        verify(xcodebuildController)
+            .run(arguments: .matching { args in
+                args.containsConsecutive("-skip-testing", skippedIdentifier.description)
+            })
+            .called(1)
     }
 
     func test_run_testWithoutBuilding_skipsQuarantineFetch_whenSkipQuarantineIsTrue_fromBundle() async throws {
@@ -4958,12 +4955,9 @@ final class TestServiceTests: TuistUnitTestCase {
                 )
             )
 
-        let capture = ArgumentsCapture()
         given(xcodebuildController)
             .run(arguments: .any)
-            .willProduce { args in
-                capture.append(args)
-            }
+            .willReturn()
 
         // When
         try await AlertController.$current.withValue(AlertController()) {
@@ -4978,11 +4972,11 @@ final class TestServiceTests: TuistUnitTestCase {
         verify(testCaseListService)
             .listTestCases(fullHandle: .any, serverURL: .any, state: .value(.skipped))
             .called(1)
-        let arguments = try XCTUnwrap(capture.first())
-        XCTAssertTrue(
-            arguments.containsConsecutive(["-skip-testing", skippedIdentifier.description]),
-            "Expected xcodebuild args to contain -skip-testing for the quarantined test, got: \(arguments)"
-        )
+        verify(xcodebuildController)
+            .run(arguments: .matching { args in
+                args.containsConsecutive("-skip-testing", skippedIdentifier.description)
+            })
+            .called(1)
     }
 
     func test_run_testWithoutBuilding_passesShardArchivePathToShardService() async throws {
@@ -5366,27 +5360,9 @@ final class TestServiceTests: TuistUnitTestCase {
     }
 }
 
-private final class ArgumentsCapture: @unchecked Sendable {
-    private let lock = NSLock()
-    private var calls: [[String]] = []
-
-    func append(_ arguments: [String]) {
-        lock.lock()
-        defer { lock.unlock() }
-        calls.append(arguments)
-    }
-
-    func first() -> [String]? {
-        lock.lock()
-        defer { lock.unlock() }
-        return calls.first
-    }
-}
-
 extension [String] {
-    fileprivate func containsConsecutive(_ pair: [String]) -> Bool {
-        guard pair.count == 2 else { return false }
-        for index in indices.dropLast() where self[index] == pair[0] && self[index + 1] == pair[1] {
+    fileprivate func containsConsecutive(_ first: String, _ second: String) -> Bool {
+        for index in indices.dropLast() where self[index] == first && self[index + 1] == second {
             return true
         }
         return false
