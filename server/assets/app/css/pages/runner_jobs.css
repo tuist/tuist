@@ -39,7 +39,8 @@
 
 #runners,
 #runner-jobs,
-#runner-workflows {
+#runner-workflows,
+#runner-workflow {
   display: flex;
   flex-direction: column;
   gap: var(--noora-spacing-6);
@@ -70,7 +71,8 @@
 }
 
 #runners,
-#runner-jobs {
+#runner-jobs,
+#runner-workflow {
   & [data-part="widgets"] {
     display: flex;
     flex-direction: row;
@@ -94,7 +96,8 @@
   }
 }
 
-#runner-job {
+#runner-job,
+#runner-workflow {
   display: flex;
   flex-direction: column;
   gap: var(--noora-spacing-6);

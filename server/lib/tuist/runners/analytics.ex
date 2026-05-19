@@ -33,10 +33,10 @@ defmodule Tuist.Runners.Analytics do
     {start_dt, end_dt} = window(opts)
     {prev_start_dt, prev_end_dt} = previous_window(start_dt, end_dt)
 
-    count = jobs_count_in_range(account_id, start_dt, end_dt)
-    previous_count = jobs_count_in_range(account_id, prev_start_dt, prev_end_dt)
+    count = jobs_count_in_range(account_id, start_dt, end_dt, opts)
+    previous_count = jobs_count_in_range(account_id, prev_start_dt, prev_end_dt, opts)
 
-    rows = jobs_count_per_day(account_id, start_dt, end_dt)
+    rows = jobs_count_per_day(account_id, start_dt, end_dt, opts)
     filled = fill_dates(rows, start_dt, end_dt, &Map.get(&1, :value, 0))
 
     %{
@@ -47,11 +47,12 @@ defmodule Tuist.Runners.Analytics do
     }
   end
 
-  defp jobs_count_in_range(account_id, start_dt, end_dt) do
+  defp jobs_count_in_range(account_id, start_dt, end_dt, opts) do
     [%{count: count} | _] =
       Job
       |> from(hints: ["FINAL"])
       |> where([j], j.account_id == ^account_id and j.enqueued_at >= ^start_dt and j.enqueued_at <= ^end_dt)
+      |> scope_workflow(opts)
       |> select([j], %{count: count(j.workflow_job_id)})
       |> ClickHouseRepo.all()
       |> default_empty(%{count: 0})
@@ -70,9 +71,9 @@ defmodule Tuist.Runners.Analytics do
     {start_dt, end_dt} = window(opts)
     {prev_start_dt, prev_end_dt} = previous_window(start_dt, end_dt)
 
-    count = failed_count_in_range(account_id, start_dt, end_dt)
-    previous_count = failed_count_in_range(account_id, prev_start_dt, prev_end_dt)
-    rows = failed_jobs_per_day(account_id, start_dt, end_dt)
+    count = failed_count_in_range(account_id, start_dt, end_dt, opts)
+    previous_count = failed_count_in_range(account_id, prev_start_dt, prev_end_dt, opts)
+    rows = failed_jobs_per_day(account_id, start_dt, end_dt, opts)
     filled = fill_dates(rows, start_dt, end_dt, &Map.get(&1, :value, 0))
 
     %{
@@ -83,7 +84,7 @@ defmodule Tuist.Runners.Analytics do
     }
   end
 
-  defp failed_count_in_range(account_id, start_dt, end_dt) do
+  defp failed_count_in_range(account_id, start_dt, end_dt, opts) do
     [%{count: count} | _] =
       Job
       |> from(hints: ["FINAL"])
@@ -93,6 +94,7 @@ defmodule Tuist.Runners.Analytics do
           j.enqueued_at <= ^end_dt and j.status == "completed" and
           j.conclusion == "failure"
       )
+      |> scope_workflow(opts)
       |> select([j], %{count: count(j.workflow_job_id)})
       |> ClickHouseRepo.all()
       |> default_empty(%{count: 0})
@@ -100,7 +102,7 @@ defmodule Tuist.Runners.Analytics do
     count
   end
 
-  defp failed_jobs_per_day(account_id, start_dt, end_dt) do
+  defp failed_jobs_per_day(account_id, start_dt, end_dt, opts) do
     Job
     |> from(hints: ["FINAL"])
     |> where(
@@ -108,6 +110,7 @@ defmodule Tuist.Runners.Analytics do
       j.account_id == ^account_id and j.enqueued_at >= ^start_dt and j.enqueued_at <= ^end_dt and
         j.status == "completed" and j.conclusion == "failure"
     )
+    |> scope_workflow(opts)
     |> group_by([j], fragment("toDate(?)", j.completed_at))
     |> select([j], %{
       date: fragment("toDate(?)", j.completed_at),
@@ -117,10 +120,11 @@ defmodule Tuist.Runners.Analytics do
     |> ClickHouseRepo.all()
   end
 
-  defp jobs_count_per_day(account_id, start_dt, end_dt) do
+  defp jobs_count_per_day(account_id, start_dt, end_dt, opts) do
     Job
     |> from(hints: ["FINAL"])
     |> where([j], j.account_id == ^account_id and j.enqueued_at >= ^start_dt and j.enqueued_at <= ^end_dt)
+    |> scope_workflow(opts)
     |> group_by([j], fragment("toDate(?)", j.enqueued_at))
     |> select([j], %{
       date: fragment("toDate(?)", j.enqueued_at),
@@ -138,13 +142,14 @@ defmodule Tuist.Runners.Analytics do
     {start_dt, end_dt} = window(opts)
     {prev_start_dt, prev_end_dt} = previous_window(start_dt, end_dt)
 
-    total_ms = total_completed_ms(account_id, start_dt, end_dt)
-    previous_total_ms = total_completed_ms(account_id, prev_start_dt, prev_end_dt)
+    total_ms = total_completed_ms(account_id, start_dt, end_dt, opts)
+    previous_total_ms = total_completed_ms(account_id, prev_start_dt, prev_end_dt, opts)
 
     rows =
       Job
       |> from(hints: ["FINAL"])
       |> completed_in_window(account_id, start_dt, end_dt)
+      |> scope_workflow(opts)
       |> group_by([j], fragment("toDate(?)", j.completed_at))
       |> select([j], %{
         date: fragment("toDate(?)", j.completed_at),
@@ -173,11 +178,12 @@ defmodule Tuist.Runners.Analytics do
     }
   end
 
-  defp total_completed_ms(account_id, start_dt, end_dt) do
+  defp total_completed_ms(account_id, start_dt, end_dt, opts) do
     [%{total_ms: total_ms} | _] =
       Job
       |> from(hints: ["FINAL"])
       |> completed_in_window(account_id, start_dt, end_dt)
+      |> scope_workflow(opts)
       |> select([j], %{
         total_ms:
           fragment(
@@ -201,9 +207,9 @@ defmodule Tuist.Runners.Analytics do
     {start_dt, end_dt} = window(opts)
     {prev_start_dt, prev_end_dt} = previous_window(start_dt, end_dt)
 
-    current = jobs_duration_aggregates(account_id, start_dt, end_dt)
-    previous = jobs_duration_aggregates(account_id, prev_start_dt, prev_end_dt)
-    rows = duration_buckets_per_day(account_id, start_dt, end_dt, &job_duration_select/1)
+    current = jobs_duration_aggregates(account_id, start_dt, end_dt, opts)
+    previous = jobs_duration_aggregates(account_id, prev_start_dt, prev_end_dt, opts)
+    rows = duration_buckets_per_day(account_id, start_dt, end_dt, opts)
     filled = fill_duration_dates(rows, start_dt, end_dt)
 
     %{
@@ -223,11 +229,12 @@ defmodule Tuist.Runners.Analytics do
     }
   end
 
-  defp jobs_duration_aggregates(account_id, start_dt, end_dt) do
+  defp jobs_duration_aggregates(account_id, start_dt, end_dt, opts) do
     [aggregates | _] =
       Job
       |> from(hints: ["FINAL"])
       |> completed_in_window(account_id, start_dt, end_dt)
+      |> scope_workflow(opts)
       |> select([j], %{
         avg:
           fragment(
@@ -270,9 +277,9 @@ defmodule Tuist.Runners.Analytics do
     {start_dt, end_dt} = window(opts)
     {prev_start_dt, prev_end_dt} = previous_window(start_dt, end_dt)
 
-    current = workflows_duration_aggregates(account_id, start_dt, end_dt)
-    previous = workflows_duration_aggregates(account_id, prev_start_dt, prev_end_dt)
-    rows = workflows_duration_per_day(account_id, start_dt, end_dt)
+    current = workflows_duration_aggregates(account_id, start_dt, end_dt, opts)
+    previous = workflows_duration_aggregates(account_id, prev_start_dt, prev_end_dt, opts)
+    rows = workflows_duration_per_day(account_id, start_dt, end_dt, opts)
     filled = fill_duration_dates(rows, start_dt, end_dt)
 
     %{
@@ -292,8 +299,8 @@ defmodule Tuist.Runners.Analytics do
     }
   end
 
-  defp workflows_duration_aggregates(account_id, start_dt, end_dt) do
-    runs_subquery = workflow_runs_subquery(account_id, start_dt, end_dt)
+  defp workflows_duration_aggregates(account_id, start_dt, end_dt, opts) do
+    runs_subquery = workflow_runs_subquery(account_id, start_dt, end_dt, opts)
 
     [aggregates | _] =
       from(r in subquery(runs_subquery),
@@ -310,27 +317,29 @@ defmodule Tuist.Runners.Analytics do
     aggregates
   end
 
-  defp workflows_duration_per_day(account_id, start_dt, end_dt) do
-    runs_subquery = workflow_runs_subquery(account_id, start_dt, end_dt)
+  defp workflows_duration_per_day(account_id, start_dt, end_dt, opts) do
+    runs_subquery = workflow_runs_subquery(account_id, start_dt, end_dt, opts)
 
-    from(r in subquery(runs_subquery),
-      group_by: r.completion_date,
-      order_by: r.completion_date,
-      select: %{
-        date: r.completion_date,
-        avg: fragment("avg(?)", r.run_ms),
-        p50: fragment("quantile(0.5)(?)", r.run_ms),
-        p90: fragment("quantile(0.9)(?)", r.run_ms),
-        p99: fragment("quantile(0.99)(?)", r.run_ms)
-      }
+    ClickHouseRepo.all(
+      from(r in subquery(runs_subquery),
+        group_by: r.completion_date,
+        order_by: r.completion_date,
+        select: %{
+          date: r.completion_date,
+          avg: fragment("avg(?)", r.run_ms),
+          p50: fragment("quantile(0.5)(?)", r.run_ms),
+          p90: fragment("quantile(0.9)(?)", r.run_ms),
+          p99: fragment("quantile(0.99)(?)", r.run_ms)
+        }
+      )
     )
-    |> ClickHouseRepo.all()
   end
 
-  defp workflow_runs_subquery(account_id, start_dt, end_dt) do
+  defp workflow_runs_subquery(account_id, start_dt, end_dt, opts) do
     Job
     |> from(hints: ["FINAL"])
     |> completed_in_window(account_id, start_dt, end_dt)
+    |> scope_workflow(opts)
     |> where([j], j.workflow_run_id > 0)
     |> group_by([j], [j.workflow_run_id])
     |> select([j], %{
@@ -356,10 +365,11 @@ defmodule Tuist.Runners.Analytics do
 
   defp trend(_, _), do: 0.0
 
-  defp duration_buckets_per_day(account_id, start_dt, end_dt, _select_fn) do
+  defp duration_buckets_per_day(account_id, start_dt, end_dt, opts) do
     Job
     |> from(hints: ["FINAL"])
     |> completed_in_window(account_id, start_dt, end_dt)
+    |> scope_workflow(opts)
     |> group_by([j], fragment("toDate(?)", j.completed_at))
     |> order_by([j], asc: fragment("toDate(?)", j.completed_at))
     |> select([j], %{
@@ -429,7 +439,8 @@ defmodule Tuist.Runners.Analytics do
   defp fill_dates(rows, start_dt, end_dt, value_fn) do
     by_date = Map.new(rows, &{&1.date, value_fn.(&1)})
 
-    daily_range(start_dt, end_dt)
+    start_dt
+    |> daily_range(end_dt)
     |> Enum.map(fn date ->
       %{date: date, value: Map.get(by_date, date, 0)}
     end)
@@ -449,7 +460,8 @@ defmodule Tuist.Runners.Analytics do
 
     empty = %{avg: 0, p50: 0, p90: 0, p99: 0}
 
-    daily_range(start_dt, end_dt)
+    start_dt
+    |> daily_range(end_dt)
     |> Enum.map(fn date ->
       values = Map.get(by_date, date, empty)
       Map.put(values, :date, date)
@@ -463,7 +475,64 @@ defmodule Tuist.Runners.Analytics do
   defp trunc_or_zero(nil), do: 0
   defp trunc_or_zero(value) when is_number(value), do: trunc(value)
 
-  # Silence "unused alias" warnings; the select_fn parameter is kept
-  # for future extensibility but `duration_buckets_per_day/4` ignores it.
-  defp job_duration_select(_), do: :ok
+  @doc """
+  Success rate (% successful of completed jobs) over the window plus
+  trend. Cancelled/skipped jobs are intentionally not counted as
+  failures — the customer cares about runner-attributable failures.
+  Returns `nil` if no completed jobs exist in the window.
+  """
+  def success_rate(account_id, opts \\ []) when is_integer(account_id) do
+    {start_dt, end_dt} = window(opts)
+    {prev_start_dt, prev_end_dt} = previous_window(start_dt, end_dt)
+
+    rate = success_rate_in_range(account_id, start_dt, end_dt, opts)
+    previous = success_rate_in_range(account_id, prev_start_dt, prev_end_dt, opts)
+    trend_pp = if is_nil(rate) or is_nil(previous), do: 0.0, else: Float.round(rate - previous, 1)
+
+    %{rate: rate, trend: trend_pp}
+  end
+
+  defp success_rate_in_range(account_id, start_dt, end_dt, opts) do
+    # Denominator matches the Workflows list view's "Success rate"
+    # column — share of ALL enqueued jobs in the window that landed
+    # on success. In-flight (queued/claimed/running) and other
+    # conclusions (failure/cancelled/skipped) all count against the
+    # rate. Keeping the formulas aligned across the two pages avoids
+    # the awkward "this column reads differently here than there"
+    # paper-cut.
+    [%{total: total, successful: successful} | _] =
+      Job
+      |> from(hints: ["FINAL"])
+      |> where(
+        [j],
+        j.account_id == ^account_id and j.enqueued_at >= ^start_dt and
+          j.enqueued_at <= ^end_dt
+      )
+      |> scope_workflow(opts)
+      |> select([j], %{
+        total: count(j.workflow_job_id),
+        successful: fragment("countIf(? = 'completed' AND ? = 'success')", j.status, j.conclusion)
+      })
+      |> ClickHouseRepo.all()
+      |> default_empty(%{total: 0, successful: 0})
+
+    if total == 0, do: nil, else: Float.round(successful / total * 100, 1)
+  end
+
+  # Narrows a `runner_jobs` query to a specific workflow when the
+  # caller provides `:repo` and/or `:workflow_name` opts. Used by the
+  # workflow detail page to reuse the same widget queries that power
+  # the Jobs page, only scoped to one (repo, workflow_name) pair.
+  defp scope_workflow(query, opts) do
+    query
+    |> maybe_eq(:repo, Keyword.get(opts, :repo))
+    |> maybe_eq(:workflow_name, Keyword.get(opts, :workflow_name))
+  end
+
+  defp maybe_eq(query, _field, nil), do: query
+  defp maybe_eq(query, _field, ""), do: query
+
+  defp maybe_eq(query, :repo, value) when is_binary(value), do: where(query, [j], j.repo == ^value)
+
+  defp maybe_eq(query, :workflow_name, value) when is_binary(value), do: where(query, [j], j.workflow_name == ^value)
 end

@@ -21,21 +21,22 @@
           id="runner-workflows-table"
           rows={@workflows}
           row_key={fn w -> "runner-workflows-row-#{w.repo}-#{w.workflow_name}" end}
+          row_navigate={
+            fn w -> TuistWeb.RunnerWorkflowsLive.workflow_path(@selected_account.name, w) end
+          }
         >
           <:col :let={w} label={dgettext("dashboard_runners", "Workflow")}>
-            <.text_cell
-              label={
-                if(w.workflow_name == "",
-                  do: dgettext("dashboard_runners", "Unknown"),
-                  else: w.workflow_name
-                )
-              }
-            />
+            <.text_cell label={
+              if(w.workflow_name == "",
+                do: dgettext("dashboard_runners", "Unknown"),
+                else: w.workflow_name
+              )
+            } />
           </:col>
           <:col :let={w} label={dgettext("dashboard_runners", "Repository")}>
-            <.text_cell
-              label={if(w.repo == "", do: dgettext("dashboard_runners", "Unknown"), else: w.repo)}
-            />
+            <.text_cell label={
+              if(w.repo == "", do: dgettext("dashboard_runners", "Unknown"), else: w.repo)
+            } />
           </:col>
           <:col :let={w} label={dgettext("dashboard_runners", "Jobs")}>
             <.text_cell label={Integer.to_string(w.total_jobs)} />

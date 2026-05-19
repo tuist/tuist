@@ -61,9 +61,7 @@ defmodule TuistWeb.RunnerWorkflowsLive do
      |> push_event("close-popover", %{id: "all", all: true})}
   end
 
-  defp assign_workflows(
-         %{assigns: %{selected_account: account, active_filters: filters}} = socket
-       ) do
+  defp assign_workflows(%{assigns: %{selected_account: account, active_filters: filters}} = socket) do
     opts =
       [limit: @page_size]
       |> add_filter_opt(filters, "repository", :repo)
@@ -129,4 +127,27 @@ defmodule TuistWeb.RunnerWorkflowsLive do
   def from_now_or_dash(%DateTime{year: 1970}), do: "–"
   def from_now_or_dash(%DateTime{} = ts), do: DateFormatter.from_now(ts)
   def from_now_or_dash(_), do: "–"
+
+  @doc """
+  Resolves the per-row link target for the workflows table. Returns
+  a detail-page path when both `repo` (in `owner/name` form) and
+  `workflow_name` are present; rows missing either field — legacy
+  webhook payloads from before `workflow_name` landed — fall back
+  to the workflows index so Noora's `row_navigate` still has a
+  valid URL to bind.
+  """
+  def workflow_path(account_name, %{repo: repo, workflow_name: workflow_name})
+      when is_binary(repo) and is_binary(workflow_name) and repo != "" and workflow_name != "" do
+    case String.split(repo, "/", parts: 2) do
+      [owner, name] when owner != "" and name != "" ->
+        "/#{account_name}/runners/workflows/#{URI.encode(owner, &URI.char_unreserved?/1)}/#{URI.encode(name, &URI.char_unreserved?/1)}/#{URI.encode(workflow_name, &URI.char_unreserved?/1)}"
+
+      _ ->
+        fallback_path(account_name)
+    end
+  end
+
+  def workflow_path(account_name, _row), do: fallback_path(account_name)
+
+  defp fallback_path(account_name), do: "/#{account_name}/runners/workflows"
 end
