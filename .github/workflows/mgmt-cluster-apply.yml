@@ -982,7 +982,7 @@ jobs:
           # Cloudflare can't reach the origin (525) even after the
           # app pods come back on a Ready Node.
           unreachable_nodes=$(kubectl get nodes -o json | jq -r '.items[] | select(.spec.taints // [] | map(.key) | index("node.kubernetes.io/unreachable")) | .metadata.name')
-          for ns in "tuist-$CLUSTER" ingress-nginx; do
+          for ns in "tuist-$CLUSTER" platform; do
             if ! kubectl get ns "$ns" >/dev/null 2>&1; then
               echo "Namespace $ns not found, skipping"
               continue
@@ -1036,7 +1036,7 @@ jobs:
           done
           echo "Sleeping 60s for scheduler to act..."
           sleep 60
-          for ns in "tuist-$CLUSTER" ingress-nginx; do
+          for ns in "tuist-$CLUSTER" platform; do
             kubectl get ns "$ns" >/dev/null 2>&1 || continue
             echo "::group::[$ns] Deployments AFTER kick"
             kubectl get deployment -n "$ns" -o wide || true
