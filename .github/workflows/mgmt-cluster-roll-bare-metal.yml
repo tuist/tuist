@@ -1,27 +1,43 @@
 name: Mgmt Cluster Roll Bare-Metal
 
-# Force-rolls a Hetzner Robot bare-metal worker by deleting its
-# `HetznerBareMetalMachine`. CAPI's `bare-metal-worker` MachineDeployment
-# then creates a fresh HBMM from the current
-# `HetznerBareMetalMachineTemplate`, caph re-runs rescue +
-# installimage + cloud-init kubeadm-join, and the new Node joins
-# with whatever the current template's `postInstallScript` bakes
-# (so a chart bump that changes the bootstrap takes effect on the
-# next roll instead of waiting for natural Node churn).
+# Force-reinstalls a Hetzner Robot bare-metal worker by deleting
+# its `HetznerBareMetalHost` CR. caph then releases the bound
+# `HetznerBareMetalMachine` (the MachineDeployment recreates it),
+# `hetzner-robot-controller` re-discovers the Robot server and
+# creates a fresh HBM (`(empty)` state), and caph runs the full
+# rescue + installimage + cloud-init kubeadm-join cycle on the
+# fresh HBM. The new Node joins with whatever the current
+# template's `postInstallScript` bakes — so a chart bump that
+# changes the bootstrap takes effect on the next roll instead of
+# waiting for natural Node churn.
+#
+# Why delete the HBM (and not just the HBMM): caph fast-rebinds
+# a fresh HBMM to an already-provisioned HBM without re-running
+# installimage — so HBMM-only deletion silently fast-paths past
+# the bootstrap change.
+#
+# Pre-requisite: if a roll is being attempted on an
+# already-provisioned host, caph has likely renamed the Robot
+# server to the HBMM name during the previous provisioning. The
+# `hetzner-robot-controller`'s create filter only matches the
+# `tuist-bm-*` name prefix, so the operator must rename the
+# server back in the Robot panel BEFORE running this workflow,
+# otherwise the HBM won't be re-created and the workflow times
+# out.
 #
 # workflow_dispatch only — destructive on staging/canary/production
 # host fleets. The `cluster` input is required with no default so
 # nobody triggers this against production by mistake.
 #
 # Operational scope:
-#   - Deletes ONE HBMM at a time (the named one, or the first
+#   - Reinstalls ONE host at a time (the named one, or the first
 #     matching machine in the pool).
 #   - Does NOT cordon/drain — bare-metal nodes are tainted
 #     `tuist.dev/runner-tier=bare-metal:NoSchedule`, so the only
 #     Pods on them are runner Pods. Those are idempotent (a
 #     replacement Pod claims work from the same queue) and the
 #     autoscaler reconverges replica count automatically.
-#   - Waits for the replacement HBMM to reach phase `Running`
+#   - Waits for the replacement HBMM to reach `Ready=true`
 #     (~8–15 min) before exiting; smoke validation lives in
 #     `linux-runners-staging-smoke.yml`, run separately afterward.
 #
@@ -76,11 +92,11 @@ jobs:
           mkdir -p "$(dirname "$KUBECONFIG")"
           op document get "kubeconfig: tuist-mgmt" --vault tuist-k8s-mgmt --output "$KUBECONFIG"
           chmod 600 "$KUBECONFIG"
-      - name: Resolve target HBMM
-        # If the caller supplied a name, trust it. Otherwise pick the
-        # first HBMM bound to this cluster's `bare-metal-worker`
-        # MachineDeployment (every HBMM CAPI creates carries the
-        # `cluster.x-k8s.io/cluster-name` label).
+      - name: Resolve target HBM
+        # Find the HBM bound to the chosen cluster's HBMM (the
+        # consumer relationship goes HBM → HBMM). If `$MACHINE`
+        # was supplied as an HBMM name, use its consumerRef;
+        # otherwise pick the first HBMM in the cluster pool.
         run: |
           set -euo pipefail
           if [ -z "$MACHINE" ]; then
@@ -92,46 +108,69 @@ jobs:
             echo "::error::No HetznerBareMetalMachine found for cluster tuist-$CLUSTER"
             exit 1
           fi
+          HBM=$(kubectl get hetznerbaremetalhost -n org-tuist \
+            -o jsonpath='{.items[?(@.spec.consumerRef.name=="'"$MACHINE"'")].metadata.name}' || true)
+          if [ -z "$HBM" ]; then
+            echo "::error::No HBM bound to HBMM $MACHINE"
+            kubectl get hetznerbaremetalhost -n org-tuist
+            exit 1
+          fi
           echo "Target HBMM: $MACHINE"
+          echo "Target HBM:  $HBM"
           echo "MACHINE=$MACHINE" >> "$GITHUB_ENV"
+          echo "HBM=$HBM" >> "$GITHUB_ENV"
           echo "::group::Current state"
+          kubectl get hetznerbaremetalhost -n org-tuist "$HBM"
           kubectl get hetznerbaremetalmachine -n org-tuist "$MACHINE" -o wide
-          kubectl get hetznerbaremetalhost -n org-tuist
           echo "::endgroup::"
-      - name: Delete HBMM (triggers re-roll)
-        # CAPI's MachineDeployment controller observes the deletion
-        # and creates a replacement HBMM from the current template
-        # within seconds. caph then claims an available HBM and runs
-        # the rescue + installimage flow.
+      - name: Delete HBM (triggers full re-install)
+        # Deleting the HBM forces caph to discard the provisioned
+        # OS state. caph releases the HBMM (the MachineDeployment
+        # recreates one), `hetzner-robot-controller` re-discovers
+        # the Robot server and creates a fresh `(empty)` HBM, caph
+        # claims it and runs the full rescue + installimage flow.
         run: |
           set -euo pipefail
-          kubectl delete hetznerbaremetalmachine -n org-tuist "$MACHINE" --wait=true
-      - name: Wait for replacement HBMM to reach Running
-        # CAPI's Machine.status.phase transitions through
-        # `Provisioning` → `Provisioned` → `Running`. We watch the
-        # newly-created HBMM (any one not equal to $MACHINE under
-        # the same cluster-name label) until it hits `Running` or
-        # we time out.
+          kubectl delete hetznerbaremetalhost -n org-tuist "$HBM" --wait=false --timeout=2m || true
+          # caph's finalizer can block deletion if the HBMM still
+          # references the HBM. After the 2-min wait, strip the
+          # finalizer so the HBM is fully gone and hetzner-robot-
+          # controller can re-create it cleanly.
+          if kubectl get hetznerbaremetalhost -n org-tuist "$HBM" >/dev/null 2>&1; then
+            echo "HBM still present after 2m; stripping finalizers."
+            kubectl patch hetznerbaremetalhost -n org-tuist "$HBM" \
+              -p '{"metadata":{"finalizers":[]}}' --type=merge
+          fi
+      - name: Wait for replacement HBMM to reach Ready
+        # `HetznerBareMetalMachine.status.ready=true` is set only
+        # after the workload-cluster Node joins via kubeadm. Since
+        # we forced a real re-install (not a fast-rebind), this
+        # will only fire after caph walks the new HBM through the
+        # full state machine: (empty) → preparing → registering →
+        # image-installing → ensure-provisioned → provisioned →
+        # kubeadm-joined. ~8-15 min total on an AX42-U.
         timeout-minutes: 18
         run: |
           set -euo pipefail
-          deadline=$(( $(date +%s) + 18*60 ))
+          deadline=$(( $(date +%s) + 17*60 ))
           while [ "$(date +%s)" -lt "$deadline" ]; do
-            new=$(kubectl get hetznerbaremetalmachine -n org-tuist \
+            new_hbmm=$(kubectl get hetznerbaremetalmachine -n org-tuist \
               -l cluster.x-k8s.io/cluster-name=tuist-$CLUSTER \
               -o jsonpath='{.items[0].metadata.name}' || true)
-            if [ -n "$new" ] && [ "$new" != "$MACHINE" ]; then
-              hbm_state=$(kubectl get hetznerbaremetalhost -n org-tuist \
-                -o jsonpath='{.items[?(@.spec.consumerRef.name=="'"$new"'")].spec.status.provisioningState}' || true)
-              ready=$(kubectl get hetznerbaremetalmachine -n org-tuist "$new" \
+            new_hbm=$(kubectl get hetznerbaremetalhost -n org-tuist \
+              -o jsonpath='{.items[0].metadata.name}' || true)
+            if [ -n "$new_hbmm" ] && [ "$new_hbmm" != "$MACHINE" ]; then
+              ready=$(kubectl get hetznerbaremetalmachine -n org-tuist "$new_hbmm" \
                 -o jsonpath='{.status.ready}' || true)
-              echo "$(date -u +%H:%M:%S) new=$new hbm_state=${hbm_state:-?} ready=${ready:-false}"
+              prov=$(kubectl get hetznerbaremetalhost -n org-tuist "$new_hbm" \
+                -o jsonpath='{.spec.status.provisioningState}' 2>/dev/null || true)
+              echo "$(date -u +%H:%M:%S) new_hbmm=$new_hbmm new_hbm=$new_hbm hbm_state=${prov:-?} ready=${ready:-false}"
               if [ "$ready" = "true" ]; then
-                echo "Replacement HBMM $new is Ready."
+                echo "Replacement HBMM $new_hbmm is Ready."
                 exit 0
               fi
             else
-              echo "$(date -u +%H:%M:%S) waiting for replacement HBMM (current first=$new)"
+              echo "$(date -u +%H:%M:%S) waiting (new_hbmm=${new_hbmm:-?} == old, or absent)"
             fi
             sleep 30
           done
