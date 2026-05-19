@@ -2,7 +2,7 @@
 {{- $fleetName := include "tuist.buildersFleetName" . }}
 {{- $clusterName := include "tuist.componentName" (dict "root" . "component" "capi") }}
 {{- $bootstrapSecret := include "tuist.componentName" (dict "root" . "component" "noop-bootstrap") }}
-{{- $tokenSecret := default (printf "%s-gh-runner-registration-token" $fleetName) .Values.buildersFleet.registrationTokenSecretName }}
+{{- $ghAppSecret := default (printf "%s-gh-app" $fleetName) .Values.buildersFleet.ghAppSecretName }}
 {{- /*
 Bare-metal Mac mini fleet that bakes Tart VM images for CI workflows.
 Sibling of macos-fleet.yaml and runners-fleet.yaml, provisioned by
@@ -21,11 +21,11 @@ doesn't nest macOS guests inside macOS guests.
 Operator workflow:
   1. Pre-order Mac minis on Scaleway with names prefixed
      `tuist-pool-` (same pool the other fleets adopt from).
-  2. Keep `{{ $tokenSecret }}` in the {{ .Release.Namespace }}
-     namespace populated with a fresh org-scope registration token:
-       gh api -X POST /orgs/<org>/actions/runners/registration-token --jq .token
-     Tokens have ~1h TTL but the runner agent only needs one at
-     first registration; rotate quarterly or whenever scaling up.
+  2. Keep `{{ $ghAppSecret }}` in the {{ .Release.Namespace }}
+     namespace populated with the GitHub App credentials (App ID,
+     installation ID, RSA private key). One-time setup; the
+     reconciler mints a fresh runner registration token from them
+     on every bootstrap, so there's no short-lived token to rotate.
   3. `kubectl scale machinedeployment {{ $fleetName }} --replicas=N`
      to resize. CAPI claims pool hosts; controller bootstraps +
      installs the runner agent; new hosts appear in GitHub's
@@ -64,7 +64,7 @@ spec:
         ghOrg: {{ .Values.buildersFleet.ghOrg | default "tuist" | quote }}
         ghRunnerLabels: {{ .Values.buildersFleet.ghRunnerLabels | default "self-hosted,macos,bare-metal,vm-image-builder" | quote }}
         ghRunnerVersion: {{ .Values.buildersFleet.ghRunnerVersion | default "2.334.0" | quote }}
-        ghRunnerRegistrationTokenSecretName: {{ $tokenSecret | quote }}
+        ghAppSecretName: {{ $ghAppSecret | quote }}
         tuistMixBuildRoot: {{ .Values.buildersFleet.tuistMixBuildRoot | default "/opt/tuist-build-cache" | quote }}
 ---
 apiVersion: cluster.x-k8s.io/v1beta1

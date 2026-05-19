@@ -125,18 +125,23 @@ spec:
                                 `[self-hosted, macos, bare-metal, vm-image-builder]`). Drift
                                 here makes the host invisible to the GitHub scheduler.
                               type: string
-                            ghRunnerRegistrationTokenSecretName:
+                            ghAppSecretName:
                               description: |-
-                                GHRunnerRegistrationTokenSecretName is the name of a Secret
-                                in the same namespace whose `token` field holds a fresh
-                                runner registration token minted via
-                                  gh api -X POST /orgs/<org>/actions/runners/registration-token --jq .token
-                                (or the equivalent GitHub-App-driven mint). Tokens have ~1h
-                                TTL; the operator manages rotation. ExternalSecrets +
-                                1Password is the typical sync shape — the chart wires this up.
-                                The reconciler only reads this Secret at first bootstrap of a
-                                host; once the runner has registered, the agent stores its
-                                long-lived auth token locally and survives reboots.
+                                GHAppSecretName is the name of a Secret in the same namespace
+                                carrying the GitHub App credentials the reconciler uses to
+                                mint a fresh runner-registration token at every bootstrap.
+                                The Secret has three fields:
+
+                                  - `app-id`           — GitHub App ID
+                                  - `installation-id`  — Installation ID for the target org
+                                  - `private-key`      — PEM-encoded RSA private key
+
+                                None of the three expire on a timer; the operator sets the
+                                item once at env bring-up and never rotates it manually. The
+                                chart syncs the trio from a single 1Password item via ESO.
+                                Once a host has registered, its agent stores its own long-
+                                lived auth token locally and the Secret isn't consulted
+                                again for that host.
                               type: string
                             ghRunnerVersion:
                               default: 2.334.0

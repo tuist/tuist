@@ -41,6 +41,7 @@ import (
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/api/v1alpha1"
 	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/controllers"
 	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/internal/credentials"
+	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/internal/githubapp"
 	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/internal/kubeconfig"
 	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/internal/scaleway"
 )
@@ -318,6 +319,12 @@ func main() {
 		APIServerURL: apiServerURL,
 	}
 
+	// One Client per manager process, not per-Machine: the underlying
+	// http.Client keeps its TLS session pool warm across reconciles
+	// so a fleet bring-up doesn't re-handshake api.github.com on
+	// every host.
+	ghAppClient := &githubapp.Client{}
+
 	if err := (&controllers.ScalewayAppleSiliconMachineReconciler{
 		Client:               mgr.GetClient(),
 		Scheme:               mgr.GetScheme(),
@@ -345,6 +352,7 @@ func main() {
 		EgressNamespace:              egressNamespace,
 		EgressProxyGroup:             egressProxyGroup,
 		EgressMagicDNSSuffix:         egressMagicDNSSuffix,
+		MintRunnerRegistrationToken:  ghAppClient.MintRunnerRegistrationToken,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup MachineReconciler")
 		os.Exit(1)

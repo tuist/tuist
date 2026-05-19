@@ -49,29 +49,48 @@ grant invalidations during this fleet's onboarding (see "Local
 Network access" below); keeping installs centralized in the
 bootstrap is what makes the grants stable across re-runs.
 
-## One-time setup (per env)
+## One-time setup
 
-1. **Mint a GitHub Actions runner registration token** and stash it
-   in 1Password. Per-env vaults (`tuist-k8s-staging`,
-   `tuist-k8s-canary`, `tuist-k8s-production`); the chart's
-   `ClusterSecretStore "onepassword"` is already pre-scoped to the
-   matching vault, so the same 1P item name works across envs:
+1. **Create the "Tuist Builders Fleet" GitHub App** on the tuist
+   org (one-time, shared across all envs). Settings → Developer
+   settings → GitHub Apps → New GitHub App:
 
-   ```bash
-   gh api -X POST /orgs/tuist/actions/runners/registration-token --jq .token
-   # paste the result into 1Password as
-   # BUILDERS_FLEET_RUNNER_REGISTRATION_TOKEN.credential
+   - Name: `Tuist Builders Fleet`
+   - Homepage URL: anything (not consumed)
+   - Webhook: **Disable** ("Active" unchecked) — the App isn't a
+     webhook consumer, it's just an identity for minting runner-
+     registration tokens.
+   - Permissions → **Organization** → **Self-hosted runners: Read
+     and write**. Nothing else.
+   - Where can this GitHub App be installed: **Only on this account**.
+
+   Submit, then on the App's settings page:
+
+   - Note the **App ID** (top of the page).
+   - Click **Generate a private key**; save the `.pem` it downloads.
+   - **Install App** → select tuist → install. The URL becomes
+     `…/installations/<installation-id>`. Note the installation ID.
+
+2. **Stash the App credentials in 1Password**, one item per env
+   vault (`tuist-k8s-staging`, `tuist-k8s-canary`,
+   `tuist-k8s-production`). The `ClusterSecretStore "onepassword"`
+   is pre-scoped to the matching vault per env, so the same item
+   name works across envs. Each item has three fields:
+
+   ```
+   BUILDERS_FLEET_GITHUB_APP
+     app-id           = <App ID from step 1>
+     installation-id  = <Installation ID from step 1>
+     private-key      = <contents of the .pem file>
    ```
 
-   Tokens have ~1h TTL but the runner agent only consults the token
-   at first registration; once a host has registered, its agent
-   stores a long-lived auth token locally and survives reboots and
-   token rotations. Rotate the 1P value whenever scaling up or
-   when you remember; staleness shows up as a `Bootstrapping` event
-   with `GHRunnerTokenUnavailable` on the affected
-   `ScalewayAppleSiliconMachine`.
+   Same triple in all three envs — the App is one shared identity.
+   No expiry to track, no rotation on scale-up; the reconciler
+   mints a fresh ~1h runner-registration token from these on every
+   builder-host bootstrap via the GitHub App JWT → installation
+   token → registration token flow.
 
-2. **Pre-order Mac minis on Scaleway** with names prefixed
+3. **Pre-order Mac minis on Scaleway** with names prefixed
    `tuist-pool-`. Same pre-ordered pool the macosFleet and
    runnersFleet adopt from; the operator's pre-order job sizes for
    the sum of all three fleets' expected demand. Scaleway's Mac
@@ -79,7 +98,7 @@ bootstrap is what makes the grants stable across re-runs.
    speculative auto-ordering expensive, so the operator does this
    ahead of any scale-up.
 
-3. **Enable the fleet** in the env's values file:
+4. **Enable the fleet** in the env's values file:
 
    ```yaml
    # infra/helm/tuist/values-managed-<env>.yaml

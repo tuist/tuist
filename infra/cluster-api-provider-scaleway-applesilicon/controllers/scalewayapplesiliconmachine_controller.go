@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -29,6 +30,7 @@ import (
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/api/v1alpha1"
 	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/internal/credentials"
+	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/internal/githubapp"
 	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/internal/kubeconfig"
 	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/internal/scaleway"
 	"github.com/tuist/tuist/infra/macos-host-bootstrap"
@@ -149,6 +151,19 @@ type ScalewayAppleSiliconMachineReconciler struct {
 	EgressNamespace      string
 	EgressProxyGroup     string
 	EgressMagicDNSSuffix string
+
+	// MintRunnerRegistrationToken returns a fresh GitHub Actions
+	// runner registration token for the given org, exchanging the
+	// caller-supplied long-lived App credentials for a short-lived
+	// (~1h) registration token. The reconciler calls this at every
+	// builder-host bootstrap; once the runner agent has registered,
+	// it stores its own long-lived auth token locally and the
+	// credentials Secret isn't consulted again for that host.
+	//
+	// Production wires this to githubapp.Client.MintRunnerRegistrationToken
+	// against the public GitHub API. Tests inject a stub so the
+	// resolveGHActionsRunnerConfig path doesn't have to dial out.
+	MintRunnerRegistrationToken func(ctx context.Context, creds githubapp.Credentials, org string) (string, error)
 }
 
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=scalewayapplesiliconmachines,verbs=get;list;watch;create;update;patch;delete
@@ -433,10 +448,10 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 
 		ghRunner, err := r.resolveGHActionsRunnerConfig(ctx, machine)
 		if err != nil {
-			conditions.MarkFalse(machine, BootstrappedCondition, "GHRunnerTokenUnavailable",
+			conditions.MarkFalse(machine, BootstrappedCondition, "GHRunnerRegistrationTokenUnavailable",
 				clusterv1.ConditionSeverityWarning, "%v", err)
-			r.Recorder.Eventf(machine, corev1.EventTypeWarning, "GHRunnerTokenUnavailable",
-				"%v (will retry once the registration-token Secret is populated)", err)
+			r.Recorder.Eventf(machine, corev1.EventTypeWarning, "GHRunnerRegistrationTokenUnavailable",
+				"%v (will retry; check the github-app Secret + GitHub App reachability)", err)
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
 
@@ -954,16 +969,21 @@ func machineNodeLabels(m *infrav1.ScalewayAppleSiliconMachine) map[string]string
 // host. Returns nil when the CR doesn't request a runner (the common
 // case for pure Node hosts), or the resolved config when it does.
 //
-// The CR carries a Secret name (`ghRunnerRegistrationTokenSecretName`)
-// rather than the token itself so the short-lived token can rotate
-// independently of the Machine resource. The reconciler reads the
-// Secret here at bootstrap time; once the runner has registered the
-// agent stores its own long-lived auth token locally and survives
-// reboots without needing to consult the Secret again.
+// The CR carries a Secret name (`ghAppSecretName`) referring to a
+// K8s Secret with three keys: `app-id`, `installation-id`, and a
+// PEM-encoded RSA `private-key`. None of the three expire on a
+// timer; the operator sets them once at env bring-up. The
+// reconciler mints a fresh ~1h runner registration token from them
+// on every builder bootstrap via the GitHub App auth flow (JWT →
+// installation token → registration token), so the operator never
+// has to rotate a short-lived registration token by hand. Once the
+// runner has registered the agent stores its own long-lived auth
+// credential locally and the Secret isn't read again for that host.
 //
-// A missing or empty Secret is a transient error: the operator may
-// still be rotating it, or ESO may not have synced yet. The caller
-// requeues; we don't surface a terminal failure.
+// A missing or empty Secret, or a GitHub API hiccup mid-exchange,
+// is a transient error: ESO may not have synced yet, or GitHub may
+// be having a bad minute. The caller requeues; we don't surface a
+// terminal failure.
 func (r *ScalewayAppleSiliconMachineReconciler) resolveGHActionsRunnerConfig(
 	ctx context.Context,
 	machine *infrav1.ScalewayAppleSiliconMachine,
@@ -972,21 +992,44 @@ func (r *ScalewayAppleSiliconMachineReconciler) resolveGHActionsRunnerConfig(
 	if spec == nil {
 		return nil, nil
 	}
-	if spec.GHRunnerRegistrationTokenSecretName == "" {
-		return nil, fmt.Errorf("ghActionsRunner.ghRunnerRegistrationTokenSecretName is required when ghActionsRunner is set")
+	if spec.GHAppSecretName == "" {
+		return nil, fmt.Errorf("ghActionsRunner.ghAppSecretName is required when ghActionsRunner is set")
 	}
+	if r.MintRunnerRegistrationToken == nil {
+		return nil, fmt.Errorf("MintRunnerRegistrationToken not wired on reconciler; the manager binary must set it")
+	}
+
 	secret := &corev1.Secret{}
 	if err := r.Get(ctx, types.NamespacedName{
 		Namespace: machine.Namespace,
-		Name:      spec.GHRunnerRegistrationTokenSecretName,
+		Name:      spec.GHAppSecretName,
 	}, secret); err != nil {
-		return nil, fmt.Errorf("read registration-token secret %s/%s: %w",
-			machine.Namespace, spec.GHRunnerRegistrationTokenSecretName, err)
+		return nil, fmt.Errorf("read github-app secret %s/%s: %w",
+			machine.Namespace, spec.GHAppSecretName, err)
 	}
-	token := string(secret.Data["token"])
-	if token == "" {
-		return nil, fmt.Errorf("registration-token secret %s/%s has no `token` field (or it is empty)",
-			machine.Namespace, spec.GHRunnerRegistrationTokenSecretName)
+	creds := githubapp.Credentials{
+		AppID:          strings.TrimSpace(string(secret.Data["app-id"])),
+		InstallationID: strings.TrimSpace(string(secret.Data["installation-id"])),
+		PrivateKey:     secret.Data["private-key"],
+	}
+	var missing []string
+	if creds.AppID == "" {
+		missing = append(missing, "app-id")
+	}
+	if creds.InstallationID == "" {
+		missing = append(missing, "installation-id")
+	}
+	if len(creds.PrivateKey) == 0 {
+		missing = append(missing, "private-key")
+	}
+	if len(missing) > 0 {
+		return nil, fmt.Errorf("github-app secret %s/%s missing field(s): %s",
+			machine.Namespace, spec.GHAppSecretName, strings.Join(missing, ", "))
+	}
+
+	token, err := r.MintRunnerRegistrationToken(ctx, creds, spec.GHOrg)
+	if err != nil {
+		return nil, fmt.Errorf("mint runner registration token via github app: %w", err)
 	}
 	return &bootstrap.GHActionsRunnerConfig{
 		GHOrg:                     spec.GHOrg,

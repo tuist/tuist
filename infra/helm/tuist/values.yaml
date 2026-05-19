@@ -789,13 +789,16 @@ buildersFleet:
   # cache across consecutive jobs on the same host.
   tuistMixBuildRoot: "/opt/tuist-build-cache"
   # Override the auto-derived Secret name (default:
-  # `<fleetName>-gh-runner-registration-token`). Self-hosters who
-  # manage the Secret out-of-band point at their own name here.
-  registrationTokenSecretName: ""
+  # `<fleetName>-gh-app`). Self-hosters who manage the Secret
+  # out-of-band point at their own name here. The Secret has three
+  # keys: `app-id`, `installation-id`, `private-key`.
+  ghAppSecretName: ""
   externalSecrets:
-    # Sync the registration token from 1Password into the cluster
-    # Secret. Self-hosters can disable this and `kubectl create
-    # secret generic <name> --from-literal=token=<value>` instead.
+    # Sync the GitHub App credentials (App ID, installation ID,
+    # private key) from 1Password into the cluster Secret. Self-
+    # hosters can disable this and `kubectl create secret generic
+    # <name> --from-literal=app-id=… --from-literal=installation-id=…
+    # --from-file=private-key=…` instead.
     enabled: false
     refreshInterval: "1h"
     storeRef:
@@ -804,10 +807,16 @@ buildersFleet:
     # Bare 1Password item name. The cluster's `ClusterSecretStore
     # "onepassword"` is pre-configured per env to look in the
     # matching `tuist-k8s-<env>` vault, so this name is the same
-    # across envs. The operator pastes a fresh token into this
-    # item whenever they plan to scale up the fleet.
-    item: BUILDERS_FLEET_RUNNER_REGISTRATION_TOKEN
-    field: credential
+    # across envs. The item holds three fields (see `fields` below);
+    # operators set it once at env bring-up and never rotate it.
+    item: BUILDERS_FLEET_GITHUB_APP
+    # Field names within the 1Password item. Defaults match the
+    # operator-documented shape; overrideable for self-hosters
+    # whose vault layout differs.
+    fields:
+      appID: app-id
+      installationID: installation-id
+      privateKey: private-key
   machine:
     # Match the macosFleet shape — same M2-L baseline. Same caveat
     # applies: Scaleway's M2-L is M2 Pro 10-core / 16 GB despite
