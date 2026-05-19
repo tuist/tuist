@@ -762,8 +762,9 @@ jobs:
           kubectl get pods -n "$ns" -l app.kubernetes.io/component=runners-controller -o wide || \
             kubectl get pods -n "$ns" --selector="$(kubectl get deployment -n "$ns" "$dep" -o jsonpath='{.spec.selector.matchLabels}' | jq -r 'to_entries | map("\(.key)=\(.value)") | join(",")')" -o wide || true
           for pod in $(kubectl get pods -n "$ns" -l app.kubernetes.io/component=runners-controller -o jsonpath='{.items[*].metadata.name}'); do
-            echo "--- $pod describe ---"
-            kubectl describe pod -n "$ns" "$pod" | sed -n '/Conditions:/,/Events:/p' | head -25
+            echo "--- $pod conditions + scheduler events ---"
+            kubectl describe pod -n "$ns" "$pod" | sed -n '/Conditions:/,/Volumes:/p' | head -15
+            kubectl get events -n "$ns" --field-selector involvedObject.name="$pod" --sort-by=.lastTimestamp | tail -20 || true
             echo "--- $pod previous logs ---"
             kubectl logs -n "$ns" "$pod" --previous --tail=80 2>&1 || true
             echo "--- $pod current logs ---"
