@@ -16,25 +16,35 @@ import (
 )
 
 // WWNFillReconciler watches HetznerBareMetalHost CRs and, when
-// caph populates `status.hardwareDetails.storage[].wwn` for at
-// least two disks, patches `spec.rootDeviceHints.raid.wwn` with
-// both WWNs so caph's subsequent `installimage` step can proceed.
+// caph populates `spec.status.hardwareDetails.storage[].wwn` for
+// at least two disks, patches `spec.rootDeviceHints.raid.wwn`
+// with both WWNs so caph's subsequent `installimage` step can
+// proceed.
+//
+// The unusual `spec.status` path is caph's API shape, not a typo
+// here: `HetznerBareMetalHostSpec` embeds
+// `Status ControllerGeneratedStatus json:"status"` with the
+// comment "status is in the specs of the object, DO NOT EDIT" —
+// so the discovered hardware details live under spec, even
+// though they're controller-written.
 //
 // Why this is necessary: caph rejects empty `rootDeviceHints`
 // with `Please specify one or the other` — so an
 // operator/controller has to fill them. caph itself discovers
-// WWNs in rescue mode and writes them to `status.hardwareDetails`,
-// but doesn't promote them back into spec (intentionally — spec
-// is operator intent). This reconciler does the promotion for
-// CRs we own (`app.kubernetes.io/managed-by=hetzner-robot-controller`).
+// WWNs in rescue mode and writes them to
+// `spec.status.hardwareDetails`, but doesn't promote them back
+// into the operator-facing `spec.rootDeviceHints` (intentionally
+// — that field is operator intent). This reconciler does the
+// promotion for CRs we own
+// (`app.kubernetes.io/managed-by=hetzner-robot-controller`).
 //
 // Selection of disks: takes the first two WWN-bearing entries in
-// `status.hardwareDetails.storage`. AX42-U / AX102-U / AX162-R
-// ship with paired NVMes; this matches Hetzner's documented
-// default RAID-1 layout for AX-class boxes. If the operator wants
-// a different topology, set `rootDeviceHints` manually before
-// the first rescue boot — once the field is non-empty this
-// reconciler stops touching it (Patch is no-op).
+// `spec.status.hardwareDetails.storage`. AX42-U / AX102-U /
+// AX162-R ship with paired NVMes; this matches Hetzner's
+// documented default RAID-1 layout for AX-class boxes. If the
+// operator wants a different topology, set `rootDeviceHints`
+// manually before the first rescue boot — once the field is
+// non-empty this reconciler stops touching it (Patch is no-op).
 type WWNFillReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme

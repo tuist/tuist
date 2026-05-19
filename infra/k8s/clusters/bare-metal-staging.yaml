@@ -169,6 +169,43 @@ spec:
           chmod 600 /etc/netplan/99-tuist-disable-dhcp6.yaml
           mkdir -p /etc/tuist
           echo 'kata-runtime=true' > /etc/tuist/node-labels
+          # ---- runc + containerd 2.x install ----
+          # Match the cloud worker template (`clusterclass-tuist.yaml`):
+          # checksum-verified tarballs from upstream, NOT
+          # `apt-get install containerd`. Ubuntu Noble ships
+          # containerd 1.7.x, which only understands config
+          # `version = 2` and the `io.containerd.grpc.v1.cri`
+          # plugin path. The kata-qemu runtime handler we register
+          # below uses `version = 3` / `io.containerd.cri.v1.runtime`
+          # (containerd 2.x syntax), so a 1.7.x binary against this
+          # config would silently fail to register the kata-qemu
+          # handler and every Pod with `runtimeClassName: kata-qemu`
+          # would fail to start.
+          CONTAINERD_VERSION=2.2.3
+          RUNC_VERSION=1.2.5
+          ARCH="$(dpkg --print-architecture)"
+          # runc must be installed before containerd config default
+          # references it; containerd ships a default runc handler
+          # pointing at /usr/local/sbin/runc.
+          curl -fsSL -o /tmp/runc.${ARCH} \
+            "https://github.com/opencontainers/runc/releases/download/v${RUNC_VERSION}/runc.${ARCH}"
+          curl -fsSL -o /tmp/runc.sha256sum \
+            "https://github.com/opencontainers/runc/releases/download/v${RUNC_VERSION}/runc.sha256sum"
+          (cd /tmp && sha256sum --check --ignore-missing runc.sha256sum)
+          install /tmp/runc.${ARCH} /usr/local/sbin/runc
+          rm /tmp/runc.${ARCH} /tmp/runc.sha256sum
+          curl -fsSL -o /tmp/containerd.tar.gz \
+            "https://github.com/containerd/containerd/releases/download/v${CONTAINERD_VERSION}/containerd-${CONTAINERD_VERSION}-linux-${ARCH}.tar.gz"
+          curl -fsSL -o /tmp/containerd.tar.gz.sha256sum \
+            "https://github.com/containerd/containerd/releases/download/v${CONTAINERD_VERSION}/containerd-${CONTAINERD_VERSION}-linux-${ARCH}.tar.gz.sha256sum"
+          (cd /tmp && sed "s|containerd-${CONTAINERD_VERSION}-linux-${ARCH}.tar.gz|containerd.tar.gz|" containerd.tar.gz.sha256sum | sha256sum --check -)
+          tar -zxf /tmp/containerd.tar.gz -C /usr/local
+          rm /tmp/containerd.tar.gz /tmp/containerd.tar.gz.sha256sum
+          # The tarball ships its own systemd unit at
+          # /usr/local/lib/systemd/system/containerd.service which
+          # systemd picks up via its default unit search path; the
+          # preKubeadmCommands `systemctl enable --now containerd`
+          # then starts it on first boot.
           # ---- Kata Containers 3.30 pre-bake ----
           # Pinned versions; bump intentionally via PR (kata releases
           # have historically shipped install-script regressions —
@@ -185,14 +222,11 @@ spec:
             "https://github.com/kata-containers/kata-containers/releases/download/${KATA_VERSION}/kata-static-${KATA_VERSION}-amd64.tar.zst"
           tar --zstd -xf /tmp/kata.tar.zst -C /
           rm /tmp/kata.tar.zst
-          # containerd config drop-in for kata-qemu. The drop-in
-          # registers the kata-qemu runtime handler and points at
-          # kata's bundled configuration-qemu.toml (which in turn
-          # references /opt/kata/bin/qemu-system-x86_64, also bundled
-          # in the kata-static tarball). The main /etc/containerd/
-          # config.toml is set up here too so the imports line is in
-          # place before containerd ever starts — apt-installed
-          # containerd respects an existing config.toml.
+          # ---- containerd config: generate then append kata-qemu ----
+          # `containerd config default` emits a version=3 config
+          # with the runc handler pre-populated; we patch
+          # SystemdCgroup=true (matches cloud worker template) and
+          # append a kata-qemu runtime block.
           #
           # No snapshotter override: we stay on containerd's default
           # overlayfs. QEMU supports virtio-fs and 9pfs natively, so
@@ -201,20 +235,19 @@ spec:
           # (kata-fc would need nydus here because Firecracker has no
           # 9pfs/virtio-fs; that combination is the kata + FC + k8s
           # rabbit hole we deliberately stepped out of.)
-          mkdir -p /etc/containerd/conf.d
-          cat > /etc/containerd/config.toml <<'CONTAINERDCFG'
-          version = 3
-          imports = ["/etc/containerd/conf.d/*.toml"]
-          CONTAINERDCFG
-          cat > /etc/containerd/conf.d/kata-qemu.toml <<'DROPIN'
-          [plugins."io.containerd.cri.v1.runtime".containerd.runtimes.kata-qemu]
+          mkdir -p /etc/containerd
+          /usr/local/bin/containerd config default > /etc/containerd/config.toml
+          sed -i 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/config.toml
+          cat >> /etc/containerd/config.toml <<'KATAQEMU'
+
+          [plugins.'io.containerd.cri.v1.runtime'.containerd.runtimes.kata-qemu]
           runtime_type = "io.containerd.kata-qemu.v2"
           runtime_path = "/opt/kata/bin/containerd-shim-kata-v2"
           privileged_without_host_devices = true
           pod_annotations = ["io.katacontainers.*"]
-          [plugins."io.containerd.cri.v1.runtime".containerd.runtimes.kata-qemu.options]
+          [plugins.'io.containerd.cri.v1.runtime'.containerd.runtimes.kata-qemu.options]
           ConfigPath = "/opt/kata/share/defaults/kata-containers/configuration-qemu.toml"
-          DROPIN
+          KATAQEMU
       # Only claim hosts the hetzner-robot-controller created. The
       # controller stamps both labels on every CR it owns:
       # `app.kubernetes.io/managed-by=hetzner-robot-controller` is the
@@ -287,10 +320,13 @@ spec:
         # so the whole runcmd block aborts on the first line
         # and kubeadm-join never runs.
         - mkdir -p /etc/apt/keyrings
-        # Container runtime + kubeadm install. Matches what the
-        # cloud worker template installs so the worker bootstrap is
-        # consistent across substrates; the actual containerd version
-        # tracks the K8s version the cluster runs at.
+        # kubeadm + kubelet + kubectl install. containerd is NOT
+        # installed via apt here — postInstallScript pre-bakes
+        # containerd 2.x from the upstream tarball, matching the
+        # cloud worker template at `clusterclass-tuist.yaml` (Ubuntu
+        # Noble's apt containerd is 1.7.x which doesn't speak the
+        # version=3 / io.containerd.cri.v1.runtime config syntax the
+        # kata-qemu handler needs).
         - apt-get update
         - apt-get install -y apt-transport-https ca-certificates curl gpg
         - curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.34/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
@@ -299,7 +335,7 @@ spec:
         # `kubectl` is needed by the post-kubeadm `label node`
         # command; without it the runcmd block fails at the last
         # step with `kubectl: not found`.
-        - apt-get install -y containerd kubeadm kubelet kubectl
+        - apt-get install -y kubeadm kubelet kubectl
         # kubeadm preflight rejects with
         # `FileContent--proc-sys-net-ipv4-ip_forward contents are
         # not set to 1` on Hetzner's stock Ubuntu image, which

@@ -62,12 +62,6 @@ spec:
     minWarmPoolFloor: {{ dig "minWarmPoolFloor" 1 $autoscaling }}
     maxReplicas: {{ dig "maxReplicas" 0 $autoscaling }}
     scaleDownCooldownSeconds: {{ dig "scaleDownCooldownSeconds" 300 $autoscaling }}
-    {{- with $autoscaling.machineDeployment }}
-    machineDeployment:
-      namespace: {{ required "autoscaling.machineDeployment.namespace required" .namespace | quote }}
-      clusterName: {{ required "autoscaling.machineDeployment.clusterName required" .clusterName | quote }}
-      deploymentName: {{ required "autoscaling.machineDeployment.deploymentName required" .deploymentName | quote }}
-    {{- end }}
   {{- end }}
 {{- end }}
 {{- end }}
@@ -123,12 +117,6 @@ spec:
     minWarmPoolFloor: {{ dig "minWarmPoolFloor" 1 $autoscaling }}
     maxReplicas: {{ dig "maxReplicas" 0 $autoscaling }}
     scaleDownCooldownSeconds: {{ dig "scaleDownCooldownSeconds" 300 $autoscaling }}
-    {{- with $autoscaling.machineDeployment }}
-    machineDeployment:
-      namespace: {{ required "autoscaling.machineDeployment.namespace required" .namespace | quote }}
-      clusterName: {{ required "autoscaling.machineDeployment.clusterName required" .clusterName | quote }}
-      deploymentName: {{ required "autoscaling.machineDeployment.deploymentName required" .deploymentName | quote }}
-    {{- end }}
   {{- end }}
 {{- end }}
 {{- end }}
