@@ -633,6 +633,66 @@ struct InspectDependenciesCommandServiceTests {
     }
 
     @Test
+    func runRedundantOnlyDoesntFlagModernWatchAppDependenciesForWatch2AppContainerHost() async throws {
+        // Given
+        let path = try AbsolutePath(validating: "/project")
+        let config = Tuist.test()
+
+        let watchApp = Target.test(name: "WatchApp", destinations: .watchOS, product: .app)
+        let containerApp = Target.test(
+            name: "ContainerApp",
+            product: .watch2AppContainer,
+            dependencies: [TargetDependency.target(name: "WatchApp")]
+        )
+
+        let project = Project.test(path: path, targets: [watchApp, containerApp])
+        let graph = Graph.test(path: path, projects: [path: project], dependencies: [
+            .target(name: containerApp.name, path: project.path): [
+                .target(name: watchApp.name, path: project.path),
+            ],
+        ])
+
+        given(configLoader).loadConfig(path: .value(path)).willReturn(config)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generator).load(path: .value(path), options: .any).willReturn(graph)
+        given(targetScanner).imports(for: .value(watchApp), reachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(containerApp), reachableModules: .any).willReturn(Set([]))
+
+        // When / Then
+        try await subject.run(path: path.pathString, inspectionTypes: [.redundant])
+    }
+
+    @Test
+    func runImplicitOnlyDoesntFlagDeclaredModernWatchAppDependency() async throws {
+        // Given
+        let path = try AbsolutePath(validating: "/project")
+        let config = Tuist.test()
+
+        let watchApp = Target.test(name: "WatchApp", destinations: .watchOS, product: .app)
+        let app = Target.test(
+            name: "App",
+            product: .app,
+            dependencies: [TargetDependency.target(name: "WatchApp")]
+        )
+
+        let project = Project.test(path: path, targets: [watchApp, app])
+        let graph = Graph.test(path: path, projects: [path: project], dependencies: [
+            .target(name: app.name, path: project.path): [
+                .target(name: watchApp.name, path: project.path),
+            ],
+        ])
+
+        given(configLoader).loadConfig(path: .value(path)).willReturn(config)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generator).load(path: .value(path), options: .any).willReturn(graph)
+        given(targetScanner).imports(for: .value(watchApp), reachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set(["WatchApp"]))
+
+        // When / Then
+        try await subject.run(path: path.pathString, inspectionTypes: [.implicit])
+    }
+
+    @Test
     func runRedundantOnlyDoesntFlagMacroDependencies() async throws {
         // Given
         let path = try AbsolutePath(validating: "/project")
