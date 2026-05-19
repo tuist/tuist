@@ -26,21 +26,27 @@ struct MachineReadableOutputTests {
         #expect(MachineReadableOutput.isEnabled(arguments: arguments) == false)
     }
 
-    @Test func shouldSuppressNooraOutput_whenQuietFlagIsPresent() {
+    @Test func isQuiet_whenQuietFlagIsPresent() {
         let arguments = ["tuist", "--quiet", "generate"]
 
-        #expect(MachineReadableOutput.shouldSuppressNooraOutput(arguments: arguments))
+        #expect(MachineReadableOutput.isQuiet(arguments: arguments))
     }
 
-    @Test func shouldSuppressNooraOutput_whenMachineReadableOutputIsEnabled() {
-        let arguments = ["tuist", "dump"]
-
-        #expect(MachineReadableOutput.shouldSuppressNooraOutput(arguments: arguments))
-    }
-
-    @Test func shouldNotSuppressNooraOutput_forHumanReadableCommands() {
+    @Test func isQuiet_whenQuietFlagIsNotPresent() {
         let arguments = ["tuist", "generate"]
 
-        #expect(MachineReadableOutput.shouldSuppressNooraOutput(arguments: arguments) == false)
+        #expect(MachineReadableOutput.isQuiet(arguments: arguments) == false)
+    }
+
+    @Test func isEnabled_whenQuietFlagIsPresentForHumanReadableCommand() {
+        let arguments = ["tuist", "--quiet", "generate"]
+
+        #expect(MachineReadableOutput.isEnabled(arguments: arguments) == false)
+    }
+
+    @Test func isEnabled_whenQuietFlagIsPresentForMachineReadableCommand() {
+        let arguments = ["tuist", "--quiet", "dump"]
+
+        #expect(MachineReadableOutput.isEnabled(arguments: arguments))
     }
 }

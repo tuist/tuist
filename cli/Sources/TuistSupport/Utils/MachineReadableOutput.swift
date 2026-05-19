@@ -24,7 +24,7 @@ public enum MachineReadableOutput {
         return machineReadableCommands.contains(command)
     }
 
-    public static func shouldSuppressNooraOutput(arguments: [String]) -> Bool {
-        isEnabled(arguments: arguments) || arguments.contains("--quiet")
+    public static func isQuiet(arguments: [String]) -> Bool {
+        arguments.contains("--quiet")
     }
 }
