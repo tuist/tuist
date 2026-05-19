@@ -1,8 +1,8 @@
 import FileSystem
 import Foundation
 import Path
+import TuistAlert
 import TuistCore
-import TuistLogging
 import XcodeGraph
 
 /// Configures foreign build targets with script build phases and wires up linking dependencies.
@@ -95,9 +95,9 @@ public struct ForeignBuildGraphMapper: GraphMapping {
                     }
                     .map(\.pathString)
                 if filePathStrings.isEmpty {
-                    Logger.current.warning(
+                    AlertController.current.warning(.alert(
                         "Foreign build folder input '\(path.pathString)' for target '\(targetName)' is empty or does not exist. Verify the path is correct, otherwise Xcode will not detect changes to files in this folder."
-                    )
+                    ))
                 }
                 pathStrings.append(contentsOf: filePathStrings)
             case .script:
@@ -106,9 +106,9 @@ public struct ForeignBuildGraphMapper: GraphMapping {
         }
 
         if pathStrings.isEmpty {
-            Logger.current.warning(
-                "Foreign build target '\(targetName)' has no resolvable input file paths. The foreign build script will run on every build because Xcode has nothing to track for incremental builds."
-            )
+            AlertController.current.warning(.alert(
+                "Foreign build target '\(targetName)' has no resolvable input file paths, so the script will run on every build. This is fine when the underlying build system handles its own incrementality; otherwise, declare inputs so Xcode can skip the script when nothing changed."
+            ))
         }
 
         return pathStrings

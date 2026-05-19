@@ -124,23 +124,18 @@ public struct Target: Codable, Equatable, Sendable {
         /// - **Content hashing**: all inputs (including scripts) are used to compute a content hash for Tuist's
         ///   binary caching and selective testing, so that the foreign build step can be skipped when inputs are unchanged.
         ///
-        /// > Important: If folder/glob inputs resolve to no files at generation time, Xcode has nothing to track and
-        /// > the script will be marked as always out-of-date so it re-runs on every build. Tuist emits a warning in
-        /// > that case — double-check the configured paths.
+        /// > Important: If folder/glob inputs resolve to no files, Xcode has nothing to track for incremental
+        /// > builds, and the foreign build script is marked as always out-of-date so it re-runs on every build.
+        /// > This is fine when the underlying build system (Gradle, Cargo, CMake, …) handles its own
+        /// > incrementality; otherwise, double-check the configured paths.
         public enum Input: Codable, Hashable, Sendable {
             /// A single file whose contents affect the build output.
             case file(Path)
 
             /// A folder whose contents (recursively) affect the build output.
-            ///
-            /// The folder is expanded at generation time. If the folder doesn't exist or is empty, Tuist emits
-            /// a warning since Xcode would otherwise have no inputs to track for incremental builds.
             case folder(Path)
 
             /// A glob pattern that resolves to files whose contents affect the build output.
-            ///
-            /// The pattern is expanded at generation time. If the pattern matches no files, Tuist emits a
-            /// warning since Xcode would otherwise have no inputs to track for incremental builds.
             case glob(Path)
 
             /// A shell script whose stdout produces a cache key component (e.g. `"git rev-parse HEAD"`).

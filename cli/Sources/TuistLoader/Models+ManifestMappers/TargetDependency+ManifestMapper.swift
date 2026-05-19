@@ -2,6 +2,7 @@ import FileSystem
 import Foundation
 import Path
 import ProjectDescription
+import TuistAlert
 import TuistCore
 import TuistLogging
 import TuistSupport
@@ -134,9 +135,9 @@ extension XcodeGraph.ForeignBuild.Input {
             let pattern = String(resolvedPath.pathString.dropFirst())
             let matchedPaths = try await fileSystem.glob(directory: AbsolutePath.root, include: [pattern]).collect().sorted()
             if matchedPaths.isEmpty {
-                Logger.current.warning(
+                AlertController.current.warning(.alert(
                     "Foreign build glob input '\(resolvedPath.pathString)' matched no files. Verify the path is correct, otherwise Xcode will not detect changes to the matched files and the foreign build script may not re-run."
-                )
+                ))
             }
             return matchedPaths.map { .file($0) }
         case let .script(script):
