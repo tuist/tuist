@@ -673,12 +673,19 @@ jobs:
             kubectl delete pods -n tuist-runners \
               --field-selector=status.phase=$phase --wait=false || true
           done
-          # Terminating Pods (deletionTimestamp set) aren't
-          # field-selectable; force-finish them with --grace-period=0.
+          # Terminating Pods stay in phase=Running but carry a
+          # deletionTimestamp. Field selectors can't see this, so
+          # list all Pods with deletionTimestamp set (any phase)
+          # and strip finalizers + force-delete. Finalizers often
+          # wait on a Node that's gone, blocking deletion
+          # indefinitely. The runners-controller counts these
+          # Pods toward replicas, so until they're fully gone it
+          # won't recreate fresh ones.
           for p in $(kubectl get pods -n tuist-runners \
-              --field-selector=status.phase!=Running \
               -o jsonpath='{range .items[?(@.metadata.deletionTimestamp)]}{.metadata.name}{"\n"}{end}' 2>/dev/null || true); do
-            echo "Force-deleting Terminating Pod: $p"
+            echo "Force-finishing Terminating Pod: $p"
+            kubectl patch pod -n tuist-runners "$p" \
+              -p '{"metadata":{"finalizers":[]}}' --type=merge 2>/dev/null || true
             kubectl delete pod -n tuist-runners "$p" --grace-period=0 --force --wait=false || true
           done
           echo "Sleeping 30s for reconciler to recreate..."
