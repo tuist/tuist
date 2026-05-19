@@ -761,9 +761,20 @@ jobs:
             kubectl logs -n "$ns" "$pod" --tail=80 2>&1 || true
           done
           echo "::endgroup::"
-          echo "::group::Rollout restart"
+          echo "::group::Rollout restart + force-finish stuck pods"
           kubectl rollout restart -n "$ns" "deployment/$dep"
-          kubectl rollout status -n "$ns" "deployment/$dep" --timeout=2m || true
+          # Force-finish any Pods stuck Terminating on a NotReady/
+          # powered-off Node — without this the rollout can't
+          # progress because PDB / finalizers hold the old Pod
+          # alive while its Node never comes back.
+          for p in $(kubectl get pods -n "$ns" -l app.kubernetes.io/component=runners-controller \
+              -o jsonpath='{range .items[?(@.metadata.deletionTimestamp)]}{.metadata.name}{"\n"}{end}' 2>/dev/null || true); do
+            echo "Force-deleting stuck Terminating Pod: $p"
+            kubectl patch pod -n "$ns" "$p" \
+              -p '{"metadata":{"finalizers":[]}}' --type=merge 2>/dev/null || true
+            kubectl delete pod -n "$ns" "$p" --grace-period=0 --force --wait=false 2>/dev/null || true
+          done
+          kubectl rollout status -n "$ns" "deployment/$dep" --timeout=3m || true
           echo "::endgroup::"
           echo "::group::Nudge RunnerPool replicas (0 -> spec value)"
           for rp in $(kubectl get runnerpool -n tuist-runners -o jsonpath='{.items[?(@.spec.os=="linux")].metadata.name}'); do
