@@ -97,6 +97,17 @@ on:
         required: false
         type: boolean
         default: false
+      restart_robot_controller:
+        description: |
+          When set, `kubectl rollout restart` the
+          hetzner-robot-controller deployment, wait 90s for a
+          fresh reconcile cycle, then dump the new logs. Useful
+          when the controller appears stuck — info-level logs
+          only fire on create/delete, so silence on its own is
+          ambiguous.
+        required: false
+        type: boolean
+        default: false
 
 # Serialize: don't let two pushes apply concurrently and race.
 concurrency:
@@ -132,7 +143,7 @@ jobs:
           op document get "kubeconfig: tuist-mgmt" --vault tuist-k8s-mgmt --output "$KUBECONFIG"
           chmod 600 "$KUBECONFIG"
       - name: Diff (visibility into what's about to change)
-        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true'
+        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true' && github.event.inputs.restart_robot_controller != 'true'
         # `kubectl diff` exits non-zero when there's a diff, which is
         # the expected case here, so don't fail the step on that.
         # The actual gate is the apply step below.
@@ -163,11 +174,11 @@ jobs:
           kubectl diff -f infra/k8s/mgmt/hetzner-robot-controller.yaml || true
           echo "::endgroup::"
       - name: Apply ClusterClass first (Cluster CRs reference it)
-        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true'
+        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true' && github.event.inputs.restart_robot_controller != 'true'
         run: |
           kubectl apply -f infra/k8s/clusters/clusterclass-tuist.yaml
       - name: Apply per-env bare-metal substrate
-        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true'
+        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true' && github.event.inputs.restart_robot_controller != 'true'
         # HetznerBareMetalHost CRs + HetznerBareMetalMachineTemplate +
         # bare-metal KubeadmConfigTemplate + ExternalSecrets. Applied
         # between ClusterClass and Cluster CRs so the MD-claimed
@@ -201,14 +212,14 @@ jobs:
             fi
           done
       - name: Apply per-env Cluster CRs
-        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true'
+        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true' && github.event.inputs.restart_robot_controller != 'true'
         run: |
           for f in infra/k8s/clusters/cluster-*.yaml; do
             echo "==> $f"
             kubectl apply -f "$f"
           done
       - name: Apply mgmt-side workloads
-        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true'
+        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true' && github.event.inputs.restart_robot_controller != 'true'
         # These are mgmt-cluster Deployments / CronJobs, not Cluster
         # CRs. Independent of the CAPI manifests above.
         run: |
@@ -511,4 +522,25 @@ jobs:
           echo "::endgroup::"
           echo "::group::All HBMMs in org-tuist"
           kubectl get hetznerbaremetalmachine -n org-tuist -o wide || true
+          echo "::endgroup::"
+      - name: Restart hetzner-robot-controller and re-tail logs
+        # Force a fresh reconcile cycle. Useful when the controller
+        # is up but quiet (the info logs only fire on create/delete,
+        # so silence could mean either "nothing to do" or "stuck").
+        # After restart we wait 90s (1 reconcile interval + slack)
+        # and re-tail.
+        if: github.event.inputs.restart_robot_controller == 'true'
+        run: |
+          set -euo pipefail
+          echo "Triggering rollout restart..."
+          kubectl rollout restart -n org-tuist deployment/hetzner-robot-controller
+          kubectl rollout status -n org-tuist deployment/hetzner-robot-controller --timeout=2m
+          echo "Waiting 90s for one reconcile cycle..."
+          sleep 90
+          echo "::group::Fresh controller logs"
+          kubectl logs -n org-tuist deployment/hetzner-robot-controller --tail=100 2>&1 || \
+            kubectl logs -n org-tuist -l app.kubernetes.io/name=hetzner-robot-controller --tail=100 2>&1 || true
+          echo "::endgroup::"
+          echo "::group::HBMs after restart"
+          kubectl get hetznerbaremetalhost -n org-tuist -o wide || true
           echo "::endgroup::"
