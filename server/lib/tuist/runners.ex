@@ -56,6 +56,7 @@ defmodule Tuist.Runners do
   alias Tuist.Runners.Claims
   alias Tuist.Runners.Dispatch
   alias Tuist.Runners.Jobs
+  alias Tuist.Runners.Telemetry
   alias Tuist.VCS
 
   require Logger
@@ -100,6 +101,13 @@ defmodule Tuist.Runners do
       the check runs only on idle polls (before claim attempt).
   """
   def dispatch_for_sa(namespace, sa_name) when is_binary(namespace) and is_binary(sa_name) do
+    :telemetry.span(Telemetry.event_name_dispatch_request(), %{}, fn ->
+      result = do_dispatch_for_sa(namespace, sa_name)
+      {result, %{outcome: dispatch_outcome(result)}}
+    end)
+  end
+
+  defp do_dispatch_for_sa(namespace, sa_name) do
     with {:ok, sa} <- K8sClient.get_service_account(namespace, sa_name),
          {:ok, fleet_name} <- pool_label(sa),
          :ok <- check_not_stale(namespace, sa_name, fleet_name) do
@@ -150,6 +158,10 @@ defmodule Tuist.Runners do
       end
     end
   end
+
+  defp dispatch_outcome({:ok, _}), do: "served"
+  defp dispatch_outcome({:error, reason}) when is_atom(reason), do: Atom.to_string(reason)
+  defp dispatch_outcome(_), do: "unknown"
 
   defp serve_claim(namespace, sa_name, fleet_name, candidate, claim) do
     case Accounts.get_account_by_id(candidate.account_id) do
