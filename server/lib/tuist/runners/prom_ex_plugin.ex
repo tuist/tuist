@@ -152,18 +152,18 @@ defmodule Tuist.Runners.PromExPlugin do
         [
           counter(
             @metric_prefix ++ [:dispatch, :request, :count],
-            event_name: Telemetry.event_name_dispatch_request(),
+            event_name: Telemetry.event_name_dispatch_request() ++ [:stop],
             description: "Polling Pod dispatch requests bucketed by outcome.",
             tags: [:outcome]
           ),
           distribution(
             @metric_prefix ++ [:dispatch, :request, :duration, :milliseconds],
-            event_name: Telemetry.event_name_dispatch_request(),
-            measurement: :duration_ms,
+            event_name: Telemetry.event_name_dispatch_request() ++ [:stop],
+            measurement: :duration,
             description: "Wall-clock time the dispatch endpoint spent serving a polling Pod.",
             reporter_options: [buckets: @dispatch_duration_buckets],
             tags: [:outcome],
-            unit: :millisecond
+            unit: {:native, :millisecond}
           )
         ]
       ),

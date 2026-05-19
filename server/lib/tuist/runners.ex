@@ -101,12 +101,10 @@ defmodule Tuist.Runners do
       the check runs only on idle polls (before claim attempt).
   """
   def dispatch_for_sa(namespace, sa_name) when is_binary(namespace) and is_binary(sa_name) do
-    start_time = System.monotonic_time()
-
-    result = do_dispatch_for_sa(namespace, sa_name)
-    duration_ms = System.convert_time_unit(System.monotonic_time() - start_time, :native, :millisecond)
-    emit_dispatch_telemetry(result, duration_ms)
-    result
+    :telemetry.span(Telemetry.event_name_dispatch_request(), %{}, fn ->
+      result = do_dispatch_for_sa(namespace, sa_name)
+      {result, %{outcome: dispatch_outcome(result)}}
+    end)
   end
 
   defp do_dispatch_for_sa(namespace, sa_name) do
@@ -159,14 +157,6 @@ defmodule Tuist.Runners do
           {:error, :no_work_yet}
       end
     end
-  end
-
-  defp emit_dispatch_telemetry(result, duration_ms) do
-    :telemetry.execute(
-      Telemetry.event_name_dispatch_request(),
-      %{count: 1, duration_ms: duration_ms},
-      %{outcome: dispatch_outcome(result)}
-    )
   end
 
   defp dispatch_outcome({:ok, _}), do: "served"
