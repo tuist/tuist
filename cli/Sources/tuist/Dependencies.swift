@@ -52,7 +52,9 @@ struct IgnoreOutputPipeline: StandardPipelining {
 }
 
 func initNoora(jsonThroughNoora: Bool = false) -> Noora {
-    if CommandLine.arguments.contains("--json") || CommandLine.arguments.contains("--quiet") {
+    if MachineReadableOutput.isEnabled(arguments: Environment.current.arguments)
+        || CommandLine.arguments.contains("--quiet")
+    {
         Noora(
             standardPipelines: jsonThroughNoora ? StandardPipelines() : StandardPipelines(
                 output: IgnoreOutputPipeline()

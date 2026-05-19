@@ -220,12 +220,14 @@ public struct TuistCommand: AsyncParsableCommand {
 
             do {
                 try await executeCommand()
-                try await withLoggerForNoora(logFilePath: logFilePath) {
-                    Noora.$current.withValue(initNoora()) {
-                        outputCompletion(
-                            logFilePath: logFilePath,
-                            shouldOutputLogFilePath: logFilePathDisplayStrategy == .always
-                        )
+                if !MachineReadableOutput.isEnabled(arguments: Environment.current.arguments) {
+                    try await withLoggerForNoora(logFilePath: logFilePath) {
+                        Noora.$current.withValue(initNoora()) {
+                            outputCompletion(
+                                logFilePath: logFilePath,
+                                shouldOutputLogFilePath: logFilePathDisplayStrategy == .always
+                            )
+                        }
                     }
                 }
             } catch {
