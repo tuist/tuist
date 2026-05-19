@@ -232,15 +232,6 @@ func (r *ScalewayAppleSiliconMachineReconciler) Reconcile(ctx context.Context, r
 			}
 			return ctrl.Result{}, err
 		}
-		// CAPI's Machine controller waits for the InfrastructureCluster's
-		// Status.Ready before stamping our CR's OwnerRef, but we still
-		// gate on the parent Cluster being ready before touching
-		// Scaleway — covers the brief window where a Machine exists but
-		// the cluster's not provisioned.
-		if !cluster.Status.InfrastructureReady {
-			logger.Info("parent Cluster InfrastructureReady=false; requeueing")
-			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
-		}
 	}
 
 	// Pause gate. Respects both Cluster.Spec.Paused AND the standard
@@ -260,6 +251,11 @@ func (r *ScalewayAppleSiliconMachineReconciler) Reconcile(ctx context.Context, r
 	// signals — Cluster.Spec.Paused is only meaningful when a parent
 	// Cluster exists, and HasPaused covers the standalone case (and
 	// the owned case where the operator annotated just the CR).
+	//
+	// Evaluated BEFORE the InfrastructureReady check below: a paused
+	// CR whose parent Cluster is also infra-not-ready should go
+	// silent, not requeue every 30s. The pause signal is "operator
+	// wants me to stop"; honoring it has priority over readiness gating.
 	if cluster != nil && cluster.Spec.Paused {
 		logger.Info("parent Cluster paused; skipping reconcile")
 		return ctrl.Result{}, nil
@@ -267,6 +263,16 @@ func (r *ScalewayAppleSiliconMachineReconciler) Reconcile(ctx context.Context, r
 	if annotations.HasPaused(machine) {
 		logger.Info("Machine paused via annotation; skipping reconcile")
 		return ctrl.Result{}, nil
+	}
+
+	// CAPI's Machine controller waits for the InfrastructureCluster's
+	// Status.Ready before stamping our CR's OwnerRef, but we still
+	// gate on the parent Cluster being ready before touching
+	// Scaleway — covers the brief window where a Machine exists but
+	// the cluster's not provisioned.
+	if cluster != nil && !cluster.Status.InfrastructureReady {
+		logger.Info("parent Cluster InfrastructureReady=false; requeueing")
+		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 	}
 
 	return r.reconcileNormal(ctx, machine)

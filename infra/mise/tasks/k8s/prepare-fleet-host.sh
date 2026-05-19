@@ -225,20 +225,38 @@ fi
 
 printf '    transport: fleet SSH key works (Scaleway auto-injected at first boot)\n'
 
-# Heredoc with `'REMOTE'` (no expansion) — variables stay inside
-# the remote shell so we don't have to escape every `$`. Operator-
-# side `$SUDO_PW` / `$KCPW_B64` get passed through the `bash -s`
-# env declaration on the SSH command line.
-ssh "${SSH_OPTS[@]}" "m1@$HOST_IP" "SUDO_PW='$SUDO_PW' KCPW_B64='$KCPW_B64' bash -s" <<'REMOTE'
+# Heredoc with `'REMOTE'` (no expansion) — variables stay inside the
+# remote shell so we don't have to escape every `$`. Operator-side
+# `$SUDO_PW_B64` / `$KCPW_B64` get passed through the `bash -s` env
+# declaration on the SSH command line.
+#
+# Why base64-encode the password before interpolating: passing
+# `SUDO_PW='$SUDO_PW' bash -s` would break on a single quote in the
+# password (Scaleway's are alphanumeric today, but we shouldn't
+# rely on that), and `ps` on the local box would show the
+# plaintext in the SSH command line during the brief window the
+# call is running. base64 restricts the interpolated payload to
+# `[A-Za-z0-9+/=]` (safe for single-quote interpolation, regardless
+# of password content) and reduces the `ps` leak to the encoded
+# form. Decoded on the remote and unset immediately after.
+SUDO_PW_B64=$(printf '%s' "$SUDO_PW" | base64)
+
+ssh "${SSH_OPTS[@]}" "m1@$HOST_IP" "SUDO_PW_B64='$SUDO_PW_B64' KCPW_B64='$KCPW_B64' bash -s" <<'REMOTE'
 set -euo pipefail
+
+SUDO_PW=$(printf '%s' "$SUDO_PW_B64" | base64 -d)
+unset SUDO_PW_B64
 
 # 1. Passwordless sudoers (idempotent). The first sudo here needs
 #    the m1 password via `sudo -S`; every subsequent sudo on this
-#    host is passwordless because the file now exists.
+#    host is passwordless because the file now exists. The trailing
+#    `\n` matters: `sudo -S` reads a newline-terminated line from
+#    stdin, and macOS's `sudo` interprets EOF-without-newline as
+#    "no input" — silently failing auth without the newline.
 if [ -f /etc/sudoers.d/m1-nopasswd ]; then
   printf '  ✓ sudoers: already present\n'
 else
-  printf '%s' "$SUDO_PW" | sudo -S sh -c \
+  printf '%s\n' "$SUDO_PW" | sudo -S sh -c \
     "echo 'm1 ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/m1-nopasswd && chmod 440 /etc/sudoers.d/m1-nopasswd" 2>/dev/null
   printf '  ✓ sudoers: installed\n'
 fi
@@ -262,7 +280,7 @@ printf '  ✓ kcpassword + autoLoginUser: configured\n'
 printf '\n  ✓ host prepped — reboot in the Scaleway console for auto-login to take effect\n'
 REMOTE
 
-unset SUDO_PW
+unset SUDO_PW SUDO_PW_B64
 
 cat <<EOF
 
