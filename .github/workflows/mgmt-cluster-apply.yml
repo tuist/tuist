@@ -903,9 +903,12 @@ jobs:
             fi
           done
           echo "::endgroup::"
-          echo "::group::Strip uninit taints from cloud worker Nodes"
+          echo "::group::Strip uninit taints from all Ready Nodes (cloud + bare-metal)"
           # Only Ready Nodes — leave NotReady stale CRs alone.
-          for n in $(kubectl get nodes -o json | jq -r '.items[] | select(.metadata.name | startswith("tuist-" + env.CLUSTER + "-md-0")) | select(.status.conditions[] | select(.type=="Ready" and .status=="True")) | .metadata.name'); do
+          # Cover both cloud workers (md-0) and bare-metal Nodes
+          # (bm-*); both can have CAPI/HCCM-set uninit taints
+          # stuck when their respective controllers are degraded.
+          for n in $(kubectl get nodes -o json | jq -r '.items[] | select(.metadata.name | startswith("tuist-" + env.CLUSTER + "-md-0") or startswith("bm-tuist-" + env.CLUSTER)) | select(.status.conditions[] | select(.type=="Ready" and .status=="True")) | .metadata.name'); do
             taints=$(kubectl get node "$n" -o jsonpath='{.spec.taints}' 2>/dev/null || true)
             if echo "$taints" | grep -qE "uninitialized"; then
               echo "Removing uninit taints from $n"
