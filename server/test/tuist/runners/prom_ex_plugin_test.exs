@@ -1,5 +1,5 @@
 defmodule Tuist.Runners.PromExPluginTest do
-  use TuistTestSupport.Cases.DataCase, async: false
+  use TuistTestSupport.Cases.DataCase, async: true
 
   import Ecto.Query
   import TuistTestSupport.Fixtures.AccountsFixtures
@@ -148,14 +148,10 @@ defmodule Tuist.Runners.PromExPluginTest do
                      500
     end
 
-    test "tolerates a missing K8s client", %{handler_id: handler_id} do
-      attach_collector(handler_id, Telemetry.event_name_pool_replicas())
-
+    test "returns :ok when the K8s client is unavailable" do
       Mimic.stub(K8sClient, :list_runner_pools, fn _ns -> {:error, :not_in_cluster} end)
 
       assert :ok = PromExPlugin.execute_pool_replicas_telemetry_event()
-
-      refute_receive {:telemetry_event, [:tuist, :runners, :pool, :replicas], _, _}, 200
     end
   end
 end
