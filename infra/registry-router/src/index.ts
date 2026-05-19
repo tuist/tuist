@@ -12,16 +12,31 @@ const HEALTH_CHECK_TTL = 120;
 const HEALTH_CHECK_TIMEOUT = 5000;
 const EARTH_RADIUS_KM = 6371;
 
+// Registry origins. The two `registry-*.tuist.dev` hosts are the new
+// in-cluster registry-serving Deployments (one per region, see
+// infra/helm/tuist/templates/registry-serving-deployment.yaml). They run
+// the same Tuist release as the server with TUIST_MODE=registry_serving
+// and serve `/api/registry/swift/*` only.
+//
+// The legacy `cache-*.tuist.dev` Kamal hosts stay in the list during the
+// cutover so traffic that lands closer to a cache node than to one of the
+// two registry pods still gets a working response (the cache app keeps
+// serving the same routes until step 4 of the migration removes them).
+// Once registry-eu-central + registry-us-east are warm and metrics show
+// the cache hosts are no longer being hit for /api/registry/swift, the
+// cache-* entries are removed in a follow-up PR.
 const ORIGINS: Origin[] = [
-  { host: "cache-eu-central.tuist.dev",   lat:  50.11, lon:    8.68 }, // Frankfurt
-  { host: "cache-eu-north.tuist.dev",     lat:  60.17, lon:   24.94 }, // Helsinki
-  { host: "cache-us-east.tuist.dev",      lat:  39.04, lon:  -77.49 }, // Ashburn
-  { host: "cache-us-east-2.tuist.dev",    lat:  39.04, lon:  -77.49 }, // Ashburn
-  { host: "cache-us-east-3.tuist.dev",    lat:  39.04, lon:  -77.49 }, // Ashburn
-  { host: "cache-us-west.tuist.dev",      lat:  45.59, lon: -122.60 }, // Oregon
-  { host: "cache-ap-southeast.tuist.dev", lat:   1.35, lon:  103.82 }, // Singapore
-  { host: "cache-sa-west.tuist.dev",      lat: -33.45, lon:  -70.67 }, // Santiago
-  { host: "cache-au-east.tuist.dev",      lat: -33.87, lon:  151.21 }, // Sydney
+  { host: "registry-eu-central.tuist.dev", lat:  50.11, lon:    8.68 }, // Frankfurt
+  { host: "registry-us-east.tuist.dev",    lat:  39.04, lon:  -77.49 }, // Ashburn
+  { host: "cache-eu-central.tuist.dev",    lat:  50.11, lon:    8.68 }, // Frankfurt
+  { host: "cache-eu-north.tuist.dev",      lat:  60.17, lon:   24.94 }, // Helsinki
+  { host: "cache-us-east.tuist.dev",       lat:  39.04, lon:  -77.49 }, // Ashburn
+  { host: "cache-us-east-2.tuist.dev",     lat:  39.04, lon:  -77.49 }, // Ashburn
+  { host: "cache-us-east-3.tuist.dev",     lat:  39.04, lon:  -77.49 }, // Ashburn
+  { host: "cache-us-west.tuist.dev",       lat:  45.59, lon: -122.60 }, // Oregon
+  { host: "cache-ap-southeast.tuist.dev",  lat:   1.35, lon:  103.82 }, // Singapore
+  { host: "cache-sa-west.tuist.dev",       lat: -33.45, lon:  -70.67 }, // Santiago
+  { host: "cache-au-east.tuist.dev",       lat: -33.87, lon:  151.21 }, // Sydney
 ];
 
 function toRadians(degrees: number): number {

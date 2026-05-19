@@ -1,0 +1,43 @@
+{{- if and .Values.registryServing.enabled .Values.registryServing.ingress.enabled }}
+{{- $root := . }}
+{{- range $region := .Values.registryServing.regions }}
+{{- if $region.ingress }}
+{{- if $region.ingress.host }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" $root "component" (printf "registry-serving-%s" $region.name)) }}
+  labels:
+    {{- include "tuist.labels" $root | nindent 4 }}
+    app.kubernetes.io/component: registry-serving
+    tuist.dev/registry-region: {{ $region.name | quote }}
+  {{- with $root.Values.registryServing.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with $root.Values.registryServing.ingress.className }}
+  ingressClassName: {{ . | quote }}
+  {{- end }}
+  {{- if $region.ingress.tlsSecretName }}
+  tls:
+    - hosts:
+        - {{ $region.ingress.host | quote }}
+      secretName: {{ $region.ingress.tlsSecretName | quote }}
+  {{- end }}
+  rules:
+    - host: {{ $region.ingress.host | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "tuist.componentName" (dict "root" $root "component" (printf "registry-serving-%s" $region.name)) }}
+                port:
+                  number: {{ $root.Values.registryServing.service.port }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}

@@ -420,17 +420,22 @@ otel_endpoint = Tuist.Environment.get([:otel, :exporter, :otlp, :endpoint])
 
 # Oban.
 #
-# Four queue-list shapes derived from the same base. Pod role is set
+# Several queue-list shapes derived from the same base. Pod role is set
 # via TUIST_MODE; delegate flags let the web tier hand off specific
 # queues to dedicated fleets without changing pod role.
 #
-#   * Web/server (default): every queue. Self-hosted installs without
-#     dedicated processors stay on this shape.
+#   * Web/server (default): every queue except registry-only ones (the
+#     registry runs out of dedicated population/serving pods). Self-
+#     hosted installs without dedicated processors stay on this shape.
 #   * Build processor (TUIST_MODE=processor): only :process_build. CPU-
 #     heavy xcactivitylog parse, runs in-cluster on Linux.
 #   * Xcresult processor (TUIST_MODE=xcresult_processor): only
 #     :process_xcresult. Runs on macOS (Scaleway Mac mini) inside a
 #     Tart VM because xcresulttool is Xcode-only.
+#   * Registry-population pods (TUIST_MODE=registry_population) only
+#     consume :registry_sync and :registry_release. Single-replica deploy.
+#   * Registry-serving pods (TUIST_MODE=registry_serving) only consume
+#     :registry_prefetch — used to populate the local PVC after a disk miss.
 #   * Server pods with TUIST_DELEGATE_PROCESS_BUILD=1 /
 #     TUIST_DELEGATE_PROCESS_XCRESULT=1 skip the matching queue so
 #     jobs land exclusively on the dedicated fleet — without those
@@ -444,6 +449,9 @@ otel_endpoint = Tuist.Environment.get([:otel, :exporter, :otlp, :endpoint])
 base_queues = [default: 10, vcs_comments: 20, webhooks: 20]
 process_build_queue = {:process_build, Tuist.Environment.process_build_queue_concurrency()}
 process_xcresult_queue = {:process_xcresult, Tuist.Environment.process_xcresult_queue_concurrency()}
+registry_sync_queue = {:registry_sync, 1}
+registry_release_queue = {:registry_release, 5}
+registry_prefetch_queue = {:registry_prefetch, 5}
 
 oban_queues =
   cond do
@@ -452,6 +460,12 @@ oban_queues =
 
     Tuist.Environment.xcresult_processor_mode?() ->
       [process_xcresult_queue]
+
+    Tuist.Environment.registry_population_mode?() ->
+      [registry_sync_queue, registry_release_queue]
+
+    Tuist.Environment.registry_serving_mode?() ->
+      [registry_prefetch_queue]
 
     true ->
       base = base_queues
@@ -469,9 +483,27 @@ oban_queues =
 # the one where `:xcresult_processor` shipped leader-eligible with an
 # empty crontab and silently halted every cron job — fails CI before it
 # lands in prod.
+#
+# The registry sync cron is appended separately so the RuntimeConfig
+# invariants (empty crontab off `:web`, single source of truth for
+# leader-only entries) stay intact while still allowing the SyncWorker
+# to fan-out from the web pod into the dedicated `:registry_sync` queue
+# the registry-population pod consumes. The cron is gated on
+# `registry_enabled?` so self-hosted installs without a bucket / GitHub
+# token don't accumulate no-op jobs in `oban_jobs`.
 mode = Tuist.Environment.mode()
 
-crontab = RuntimeConfig.crontab(mode, env, Tuist.Environment.tuist_hosted?())
+base_crontab = RuntimeConfig.crontab(mode, env, Tuist.Environment.tuist_hosted?())
+
+registry_crontab =
+  if mode == :web and env in [:prod, :stag, :can] and
+       Tuist.Environment.registry_population_enabled?() do
+    [{"*/10 * * * *", Tuist.Registry.SyncWorker}]
+  else
+    []
+  end
+
+crontab = base_crontab ++ registry_crontab
 
 config :tuist, Oban,
   queues: oban_queues,

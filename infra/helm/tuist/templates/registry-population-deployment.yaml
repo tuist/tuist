@@ -1,0 +1,173 @@
+{{- if .Values.registryPopulation.enabled }}
+{{- $secretName := include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
+{{- $masterKeySecretName := ternary (include "tuist.componentName" (dict "root" . "component" "server-external-secrets")) $secretName .Values.server.managedSecrets }}
+{{- $registrySecretName := include "tuist.componentName" (dict "root" . "component" "registry-population-external-secrets") }}
+{{- $objectStorageAccessKey := include "tuist.objectStorageAccessKey" . -}}
+{{- $objectStorageSecretKey := include "tuist.objectStorageSecretKey" . -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "registry-population") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: registry-population
+spec:
+  # Single replica on purpose. The :registry_sync and :registry_release
+  # queues operate on the same registry bucket and metadata files; running
+  # multiple replicas would either need the Redis-backed lock the cache
+  # fleet used (10 nodes racing for one piece of work) or accept duplicate
+  # GitHub fetches. One pod, no lock, simpler — Oban.Plugins.Lifeline picks
+  # up anything still running across a rolling deploy.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "tuist.componentLabels" (dict "root" . "component" "registry-population") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "tuist.componentLabels" (dict "root" . "component" "registry-population") | nindent 8 }}
+        {{- with .Values.global.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- with .Values.registryPopulation.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9091"
+        {{- with .Values.registryPopulation.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "tuist.componentServiceAccountName" (dict "root" . "component" "server") }}
+      terminationGracePeriodSeconds: {{ .Values.registryPopulation.terminationGracePeriodSeconds }}
+      {{- include "tuist.podScheduling" . | nindent 6 }}
+      {{- with .Values.registryPopulation.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.registryPopulation.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.registryPopulation.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: registry-population
+          # Same image as the server Deployment — TUIST_MODE=registry_population
+          # disables the Phoenix endpoint and narrows the Oban queue set to
+          # :registry_sync + :registry_release. Cron lives on this pod (it's
+          # the only one running the registry sync queue), so the BEAM has to
+          # be Oban-leader-eligible: do not set `peer: false`.
+          image: "{{ .Values.server.image.repository }}:{{ .Values.server.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.server.image.pullPolicy }}
+          command:
+            - /app/bin/tuist
+            - start
+          ports:
+            - name: metrics
+              containerPort: 9091
+          env:
+            - name: TUIST_MODE
+              value: registry_population
+            {{- if .Values.registryPopulation.managedSecrets }}
+            - name: TUIST_DATABASE_POOLED
+              value: "1"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $registrySecretName }}
+                  key: registry-population-database-url
+            {{- end }}
+            {{- if or .Values.server.masterKey .Values.server.managedSecrets }}
+            - name: MASTER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $masterKeySecretName }}
+                  key: server-master-key
+            {{- end }}
+            - name: TUIST_HOSTED
+              value: {{ .Values.server.hosted | ternary "1" "0" | quote }}
+            - name: TUIST_LOG_LEVEL
+              value: {{ .Values.server.logLevel | quote }}
+            - name: TUIST_S3_BUCKET_NAME
+              value: {{ include "tuist.objectStorageBucketDefault" . | quote }}
+            - name: TUIST_S3_REGISTRY_BUCKET
+              value: {{ include "tuist.objectStorageBucketRegistry" . | quote }}
+            - name: TUIST_S3_ENDPOINT
+              value: {{ include "tuist.objectStorageEndpoint" . | quote }}
+            - name: TUIST_S3_REGION
+              value: {{ include "tuist.objectStorageRegion" . | quote }}
+            - name: TUIST_S3_VIRTUAL_HOST
+              value: {{ .Values.server.s3.virtualHost | ternary "1" "0" | quote }}
+            - name: TUIST_S3_BUCKET_AS_HOST
+              value: {{ .Values.server.s3.bucketAsHost | ternary "1" "0" | quote }}
+            {{- if and (eq .Values.objectStorage.mode "external") .Values.objectStorage.external.managedSecrets }}
+            - name: TUIST_S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tuist.componentName" (dict "root" . "component" "object-storage-external-secrets") }}
+                  key: object-storage-access-key
+            - name: TUIST_S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tuist.componentName" (dict "root" . "component" "object-storage-external-secrets") }}
+                  key: object-storage-secret-key
+            {{- else if and $objectStorageAccessKey $objectStorageSecretKey }}
+            - name: TUIST_S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secretName }}
+                  key: object-storage-access-key
+            - name: TUIST_S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secretName }}
+                  key: object-storage-secret-key
+            {{- end }}
+            # GitHub PAT used by SyncWorker + ReleaseWorker to clone packages
+            # and fetch tags / manifests. Rate limit is 5k req/h per token,
+            # which is comfortable for the steady-state SPI mirror.
+            - name: TUIST_REGISTRY_GITHUB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ ternary $registrySecretName $secretName .Values.registryPopulation.managedSecrets }}
+                  key: registry-github-token
+            {{- with .Values.registryPopulation.syncAllowlist }}
+            - name: TUIST_REGISTRY_SYNC_ALLOWLIST
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.registryPopulation.syncLimit }}
+            - name: TUIST_REGISTRY_SYNC_LIMIT
+              value: {{ . | quote }}
+            {{- end }}
+            {{- if and .Values.observability.enabled (include "tuist.observabilityOtlpEndpoint" .) }}
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: {{ include "tuist.observabilityOtlpEndpoint" . | quote }}
+            - name: TUIST_LOKI_URL
+              value: "http://{{ include "tuist.componentName" (dict "root" . "component" "loki") }}:3100"
+            {{- end }}
+            {{- with .Values.registryPopulation.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.server.extraEnvFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          # No HTTP probes — same shape as the processor pod. ReleaseWorker
+          # spawns `git clone` / `unzip` / `zip` for source archives so /tmp
+          # needs enough headroom for the largest package; sized below.
+          resources:
+            {{- toYaml .Values.registryPopulation.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: {{ .Values.registryPopulation.tmpSizeLimit | quote }}
+{{- end }}
