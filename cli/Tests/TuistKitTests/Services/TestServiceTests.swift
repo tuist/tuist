@@ -4819,6 +4819,172 @@ final class TestServiceTests: TuistUnitTestCase {
             .called(1)
     }
 
+    func test_run_testWithoutBuilding_appliesQuarantinedSkipTestTargets_whenRunningFromBundle() async throws {
+        // Given — a CI runner picks up an already-built .xctestproducts bundle and runs
+        // `tuist test --without-building -testProductsPath ...`. The bundle bypass path used to
+        // skip the quarantine fetch entirely, so tests marked as skipped in the dashboard kept
+        // executing on the test VM. This test pins the fix: skipped quarantined tests must reach
+        // xcodebuild as `-skip-testing` entries.
+        let path = try temporaryPath()
+        let testProductsPath = path.appending(component: "MyApp.xctestproducts")
+        try await fileSystem.makeDirectory(at: testProductsPath)
+
+        let selectiveTestingGraph = SelectiveTestingGraph(testTargetHashes: ["MyTests": "abc123"])
+        let graphPath = testProductsPath.appending(component: SelectiveTestingGraph.fileName)
+        try JSONEncoder().encode(selectiveTestingGraph).write(to: graphPath.url)
+
+        configLoader.reset()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject(), fullHandle: "tuist/tuist"))
+
+        let skippedIdentifier = try TestIdentifier(
+            target: "AppTests", class: "BrokenSuite", method: "testBroken()"
+        )
+        testCaseListService.reset()
+        given(testCaseListService)
+            .listTestCases(fullHandle: .any, serverURL: .any, state: .value(.muted))
+            .willReturn([])
+        given(testCaseListService)
+            .listTestCases(fullHandle: .any, serverURL: .any, state: .value(.skipped))
+            .willReturn([skippedIdentifier])
+
+        let capture = ArgumentsCapture()
+        given(xcodebuildController)
+            .run(arguments: .any)
+            .willProduce { args in
+                capture.append(args)
+            }
+
+        // When
+        try await AlertController.$current.withValue(AlertController()) {
+            try await testRun(
+                path: path,
+                action: .testWithoutBuilding,
+                passthroughXcodeBuildArguments: ["-testProductsPath", testProductsPath.pathString]
+            )
+        }
+
+        // Then — quarantine list was fetched and the skipped test landed in xcodebuild's
+        // -skip-testing flags.
+        verify(testCaseListService)
+            .listTestCases(fullHandle: .any, serverURL: .any, state: .value(.skipped))
+            .called(1)
+        let arguments = try XCTUnwrap(capture.first())
+        XCTAssertTrue(
+            arguments.containsConsecutive(["-skip-testing", skippedIdentifier.description]),
+            "Expected xcodebuild args to contain -skip-testing for the quarantined test, got: \(arguments)"
+        )
+    }
+
+    func test_run_testWithoutBuilding_skipsQuarantineFetch_whenSkipQuarantineIsTrue_fromBundle() async throws {
+        // Given — same bundle bypass setup, but the caller opted out of quarantine via
+        // --skip-quarantine. The fetch must not happen and no -skip-testing entries should be
+        // synthesized.
+        let path = try temporaryPath()
+        let testProductsPath = path.appending(component: "MyApp.xctestproducts")
+        try await fileSystem.makeDirectory(at: testProductsPath)
+
+        let selectiveTestingGraph = SelectiveTestingGraph(testTargetHashes: ["MyTests": "abc123"])
+        let graphPath = testProductsPath.appending(component: SelectiveTestingGraph.fileName)
+        try JSONEncoder().encode(selectiveTestingGraph).write(to: graphPath.url)
+
+        configLoader.reset()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject(), fullHandle: "tuist/tuist"))
+
+        given(xcodebuildController)
+            .run(arguments: .any)
+            .willReturn()
+
+        // When
+        try await AlertController.$current.withValue(AlertController()) {
+            try await testRun(
+                path: path,
+                action: .testWithoutBuilding,
+                passthroughXcodeBuildArguments: ["-testProductsPath", testProductsPath.pathString],
+                skipQuarantine: true
+            )
+        }
+
+        // Then
+        verify(testCaseListService)
+            .listTestCases(fullHandle: .any, serverURL: .any, state: .any)
+            .called(0)
+    }
+
+    func test_run_shard_appliesQuarantinedSkipTestTargets() async throws {
+        // Given — sharded test-without-building runs went through `runShard`, which bypassed the
+        // quarantine fetch the same way the bundle path did. This test pins that quarantined
+        // skipped tests now reach xcodebuild on shard runs too.
+        let path = try temporaryPath()
+        let extractedTestProductsPath = path.appending(component: "Extracted.xctestproducts")
+        try await fileSystem.makeDirectory(at: extractedTestProductsPath)
+
+        configLoader.reset()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject(), fullHandle: "tuist/tuist"))
+
+        let skippedIdentifier = try TestIdentifier(
+            target: "AppTests", class: "BrokenSuite", method: "testBroken()"
+        )
+        testCaseListService.reset()
+        given(testCaseListService)
+            .listTestCases(fullHandle: .any, serverURL: .any, state: .value(.muted))
+            .willReturn([])
+        given(testCaseListService)
+            .listTestCases(fullHandle: .any, serverURL: .any, state: .value(.skipped))
+            .willReturn([skippedIdentifier])
+
+        given(shardService)
+            .shard(
+                shardIndex: .any,
+                fullHandle: .any,
+                serverURL: .any,
+                reference: .any,
+                testProductsPath: .any,
+                testProductsArchivePath: .any
+            )
+            .willReturn(
+                Shard(
+                    reference: "ref",
+                    shardPlanId: "plan-123",
+                    testProductsPath: extractedTestProductsPath,
+                    xcTestRunPath: nil,
+                    modules: ["AppTests"],
+                    selectiveTestingGraph: nil
+                )
+            )
+
+        let capture = ArgumentsCapture()
+        given(xcodebuildController)
+            .run(arguments: .any)
+            .willProduce { args in
+                capture.append(args)
+            }
+
+        // When
+        try await AlertController.$current.withValue(AlertController()) {
+            try await testRun(
+                path: path,
+                action: .testWithoutBuilding,
+                shardIndex: 0
+            )
+        }
+
+        // Then
+        verify(testCaseListService)
+            .listTestCases(fullHandle: .any, serverURL: .any, state: .value(.skipped))
+            .called(1)
+        let arguments = try XCTUnwrap(capture.first())
+        XCTAssertTrue(
+            arguments.containsConsecutive(["-skip-testing", skippedIdentifier.description]),
+            "Expected xcodebuild args to contain -skip-testing for the quarantined test, got: \(arguments)"
+        )
+    }
+
     func test_run_testWithoutBuilding_passesShardArchivePathToShardService() async throws {
         // Given
         let path = try temporaryPath()
@@ -5197,5 +5363,32 @@ final class TestServiceTests: TuistUnitTestCase {
     func test_inferPlatformDestination_returns_nil_for_empty_schemes() {
         let graphTraverser = MockGraphTraversing()
         XCTAssertNil(subject.inferPlatformDestination(schemes: [], graphTraverser: graphTraverser))
+    }
+}
+
+private final class ArgumentsCapture: @unchecked Sendable {
+    private let lock = NSLock()
+    private var calls: [[String]] = []
+
+    func append(_ arguments: [String]) {
+        lock.lock()
+        defer { lock.unlock() }
+        calls.append(arguments)
+    }
+
+    func first() -> [String]? {
+        lock.lock()
+        defer { lock.unlock() }
+        return calls.first
+    }
+}
+
+extension [String] {
+    fileprivate func containsConsecutive(_ pair: [String]) -> Bool {
+        guard pair.count == 2 else { return false }
+        for index in indices.dropLast() where self[index] == pair[0] && self[index + 1] == pair[1] {
+            return true
+        }
+        return false
     }
 }
