@@ -230,30 +230,28 @@ jobs:
           CLUSTER: ${{ github.event.inputs.force_roll_bare_metal }}
         run: |
           set -euo pipefail
-          hbmm=$(kubectl get hetznerbaremetalmachine -n org-tuist \
-            -l cluster.x-k8s.io/cluster-name=tuist-$CLUSTER \
-            -o jsonpath='{.items[0].metadata.name}' || true)
-          if [ -z "$hbmm" ]; then
-            echo "::error::No HetznerBareMetalMachine found for cluster tuist-$CLUSTER"
-            exit 1
-          fi
+          # Pick the first managed HBM in the namespace directly.
+          # Not via "find HBMM, follow consumerRef" because MD can
+          # create a fresh HBMM while the old one is still stuck on
+          # the previous HBM — leaving us with two HBMMs (one bound
+          # to the HBM, one waiting) and picking the wrong one.
+          # Only one bare-metal HBM per env today, so first-in-list
+          # is unambiguous.
           hbm=$(kubectl get hetznerbaremetalhost -n org-tuist \
-            -o jsonpath='{.items[?(@.spec.consumerRef.name=="'"$hbmm"'")].metadata.name}' || true)
+            -l app.kubernetes.io/managed-by=hetzner-robot-controller \
+            -o jsonpath='{.items[0].metadata.name}' || true)
           if [ -z "$hbm" ]; then
-            echo "::error::No HBM bound to HBMM $hbmm"
+            echo "::error::No managed HetznerBareMetalHost in cluster"
             kubectl get hetznerbaremetalhost -n org-tuist
             exit 1
           fi
-          # Capture creationTimestamp so we can tell the freshly-
-          # recreated HBM apart from the one we're about to delete.
-          # (caph keeps the HBMM name on re-bind, so HBMM identity
-          # is not a reliable "new install" signal.)
           old_ts=$(kubectl get hetznerbaremetalhost -n org-tuist "$hbm" \
             -o jsonpath='{.metadata.creationTimestamp}')
-          echo "Force-reinstalling HBM: $hbm (creationTimestamp=$old_ts, bound to HBMM $hbmm)"
+          echo "Force-reinstalling HBM: $hbm (creationTimestamp=$old_ts)"
           echo "::group::Pre-roll state"
           kubectl get hetznerbaremetalhost -n org-tuist "$hbm"
-          kubectl get hetznerbaremetalmachine -n org-tuist "$hbmm" -o wide
+          kubectl get hetznerbaremetalmachine -n org-tuist \
+            -l cluster.x-k8s.io/cluster-name=tuist-$CLUSTER -o wide
           echo "::endgroup::"
           # Delete the HBM. caph will release the HBMM, hetzner-
           # robot-controller will re-create the HBM (fresh, empty
