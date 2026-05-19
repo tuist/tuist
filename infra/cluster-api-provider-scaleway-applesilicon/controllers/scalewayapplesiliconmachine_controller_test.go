@@ -8,14 +8,19 @@ import (
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
+	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util/conditions"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/api/v1alpha1"
+	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/internal/credentials"
 )
 
 // recordUpdateFailure is the safety primitive that bounds the
@@ -159,8 +164,32 @@ func newReconciler(t *testing.T, objs ...runtime.Object) *ScalewayAppleSiliconMa
 	if err := corev1.AddToScheme(scheme); err != nil {
 		t.Fatalf("scheme: %v", err)
 	}
-	c := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(objs...).Build()
-	return &ScalewayAppleSiliconMachineReconciler{Client: c}
+	if err := infrav1.AddToScheme(scheme); err != nil {
+		t.Fatalf("infrav1 scheme: %v", err)
+	}
+	if err := clusterv1.AddToScheme(scheme); err != nil {
+		t.Fatalf("clusterv1 scheme: %v", err)
+	}
+	if err := rbacv1.AddToScheme(scheme); err != nil {
+		t.Fatalf("rbacv1 scheme: %v", err)
+	}
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithRuntimeObjects(objs...).
+		WithStatusSubresource(&infrav1.ScalewayAppleSiliconMachine{}).
+		Build()
+	return &ScalewayAppleSiliconMachineReconciler{
+		Client:   c,
+		Recorder: fakeRecorder(),
+		// Real CredentialsManager backed by the same fake client. The
+		// per-machine Delete methods tolerate IsNotFound, so reconcileDelete
+		// can flow through Stages 2-3 without any pre-staged Secret /
+		// ServiceAccount / ClusterRoleBinding fixtures.
+		CredentialsManager: &credentials.Manager{
+			Client:    c,
+			Namespace: "ns",
+		},
+	}
 }
 
 func backdateBootstrappedCondition(machine *infrav1.ScalewayAppleSiliconMachine, by time.Duration) {
@@ -172,6 +201,159 @@ func backdateBootstrappedCondition(machine *infrav1.ScalewayAppleSiliconMachine,
 			machine.Status.Conditions[i].LastTransitionTime = metav1.NewTime(time.Now().Add(-by))
 			return
 		}
+	}
+}
+
+// Pause-annotation contract:
+//   - cluster.x-k8s.io/paused on the infra CR latches reconcileNormal
+//     off, so out-of-band cleanup (clear status.ServerID +
+//     spec.ProviderID before kubectl delete) can't race the
+//     adoption loop. reconcileDelete still runs on DeletionTimestamp
+//     regardless of the annotation — pause must not block teardown.
+
+func TestReconcile_PausedAnnotationSkipsAdoption(t *testing.T) {
+	machine := &infrav1.ScalewayAppleSiliconMachine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "m1",
+			Namespace: "ns",
+			Annotations: map[string]string{
+				"cluster.x-k8s.io/paused": "true",
+			},
+		},
+		Spec: infrav1.ScalewayAppleSiliconMachineSpec{
+			AdoptPoolPrefix: "tuist-pool-",
+			Type:            "M2-L",
+			Zone:            "fr-par-1",
+			OS:              "macos-tahoe-26.3",
+		},
+	}
+	r := newReconciler(t, machine)
+	// Leaving r.ScalewayClient nil: if pause is honored, the
+	// reconciler returns before any Scaleway call, so nothing
+	// dereferences it. If pause is broken, the reconciler will
+	// reach acquireServer and crash here — that's the failure
+	// signal we want.
+	result, err := r.Reconcile(context.Background(), ctrl.Request{
+		NamespacedName: types.NamespacedName{Name: "m1", Namespace: "ns"},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.RequeueAfter != 0 || result.Requeue {
+		t.Fatalf("paused CR must not be requeued; got %+v", result)
+	}
+
+	// Status should be untouched — no AdoptByPrefix means no phase
+	// transition into Adopting / Provisioning.
+	got := &infrav1.ScalewayAppleSiliconMachine{}
+	if err := r.Get(context.Background(), types.NamespacedName{Name: "m1", Namespace: "ns"}, got); err != nil {
+		t.Fatalf("get machine: %v", err)
+	}
+	if got.Status.Phase != "" {
+		t.Fatalf("paused CR phase should be untouched; got %q", got.Status.Phase)
+	}
+	if got.Status.ServerID != "" {
+		t.Fatalf("paused CR must not have claimed a server; got %q", got.Status.ServerID)
+	}
+}
+
+func TestReconcile_PausedAnnotationOnOwnedCRSkipsAdoption(t *testing.T) {
+	// Production path: the infra CR is owned by a CAPI Machine, which
+	// is owned by a Cluster. Operator annotates just the infra CR.
+	// Mirrors the recovery recipe in AGENTS.md.
+	cluster := &clusterv1.Cluster{
+		ObjectMeta: metav1.ObjectMeta{Name: "c1", Namespace: "ns"},
+		Status:     clusterv1.ClusterStatus{InfrastructureReady: true},
+	}
+	ownerMachine := &clusterv1.Machine{
+		ObjectMeta: metav1.ObjectMeta{Name: "m1", Namespace: "ns"},
+		Spec:       clusterv1.MachineSpec{ClusterName: "c1"},
+	}
+	machine := &infrav1.ScalewayAppleSiliconMachine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "m1",
+			Namespace: "ns",
+			Annotations: map[string]string{
+				"cluster.x-k8s.io/paused": "true",
+			},
+			OwnerReferences: []metav1.OwnerReference{{
+				APIVersion: clusterv1.GroupVersion.String(),
+				Kind:       "Machine",
+				Name:       ownerMachine.Name,
+				UID:        "owner-uid",
+			}},
+		},
+		Spec: infrav1.ScalewayAppleSiliconMachineSpec{
+			AdoptPoolPrefix: "tuist-pool-",
+			Type:            "M2-L",
+			Zone:            "fr-par-1",
+			OS:              "macos-tahoe-26.3",
+		},
+	}
+	r := newReconciler(t, cluster, ownerMachine, machine)
+	result, err := r.Reconcile(context.Background(), ctrl.Request{
+		NamespacedName: types.NamespacedName{Name: "m1", Namespace: "ns"},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.RequeueAfter != 0 || result.Requeue {
+		t.Fatalf("paused owned CR must not be requeued; got %+v", result)
+	}
+	got := &infrav1.ScalewayAppleSiliconMachine{}
+	if err := r.Get(context.Background(), types.NamespacedName{Name: "m1", Namespace: "ns"}, got); err != nil {
+		t.Fatalf("get machine: %v", err)
+	}
+	if got.Status.Phase != "" {
+		t.Fatalf("paused owned CR phase should be untouched; got %q", got.Status.Phase)
+	}
+}
+
+func TestReconcile_PausedAnnotationDoesNotBlockDelete(t *testing.T) {
+	// Pause gate must NOT interpose between DeletionTimestamp and
+	// reconcileDelete — otherwise the cleanup recipe in AGENTS.md
+	// can't proceed (operator annotates first, clears status, deletes;
+	// the delete has to drain through to finalizer removal). When
+	// status.ServerID is empty, reconcileDelete skips the Scaleway
+	// release (Stage 1) and runs through Stages 2-5 against the fake
+	// client — every Delete tolerates IsNotFound, so the CR's
+	// finalizer drops and the object disappears.
+	deletionTime := metav1.Now()
+	machine := &infrav1.ScalewayAppleSiliconMachine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:              "m1",
+			Namespace:         "ns",
+			DeletionTimestamp: &deletionTime,
+			Finalizers:        []string{MachineFinalizer},
+			Annotations: map[string]string{
+				"cluster.x-k8s.io/paused": "true",
+			},
+		},
+		Status: infrav1.ScalewayAppleSiliconMachineStatus{
+			// serverID empty: reconcileDelete will skip the Scaleway
+			// release stage that needs a non-nil ScalewayClient.
+			ServerID: "",
+		},
+	}
+	r := newReconciler(t, machine)
+	// Intentionally leaving r.ScalewayClient nil — Stage 1 must be
+	// skipped because ServerID is empty, so we should never touch it.
+
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{
+		NamespacedName: types.NamespacedName{Name: "m1", Namespace: "ns"},
+	}); err != nil {
+		t.Fatalf("unexpected reconcile error: %v", err)
+	}
+
+	// Finalizer removed → object fully gone from the fake client.
+	got := &infrav1.ScalewayAppleSiliconMachine{}
+	err := r.Get(context.Background(), types.NamespacedName{Name: "m1", Namespace: "ns"}, got)
+	if err == nil {
+		t.Fatalf("expected machine to be gone after delete reconcile; got finalizers=%v phase=%q",
+			got.Finalizers, got.Status.Phase)
+	}
+	if !apierrors.IsNotFound(err) {
+		t.Fatalf("expected NotFound, got: %v", err)
 	}
 }
 
