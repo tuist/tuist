@@ -1,0 +1,23 @@
+{% macro beam(tag, english, japanese, partName="", extraClass="", localeCode="en") %}
+  {% if localeCode == "en" and japanese %}
+    <{{ tag }}
+      {% if partName %}data-part="{{ partName }}"{% endif %}
+      class="kura-beam{% if extraClass %} {{ extraClass }}{% endif %}"
+      data-beam-copy
+    >
+      <span data-part="base" lang="en">{{ english | safe }}</span>
+      <span data-part="overlay" lang="ja" aria-hidden="true">{{ japanese | safe }}</span>
+    </{{ tag }}>
+  {% elif localeCode == "ja" and japanese %}
+    <{{ tag }}
+      {% if partName %}data-part="{{ partName }}"{% endif %}
+      {% if extraClass %}class="{{ extraClass }}"{% endif %}
+      lang="ja"
+    >{{ japanese | safe }}</{{ tag }}>
+  {% else %}
+    <{{ tag }}
+      {% if partName %}data-part="{{ partName }}"{% endif %}
+      {% if extraClass %}class="{{ extraClass }}"{% endif %}
+    >{{ english | safe }}</{{ tag }}>
+  {% endif %}
+{% endmacro %}

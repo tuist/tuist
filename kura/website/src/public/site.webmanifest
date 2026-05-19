@@ -1,0 +1,15 @@
+{
+  "name": "Kura",
+  "short_name": "Kura",
+  "description": "A low-latency cache mesh shaped like a modern storehouse.",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "1254x1254",
+      "type": "image/png"
+    }
+  ],
+  "theme_color": "#ff6b35",
+  "background_color": "#fff8ea",
+  "display": "standalone"
+}

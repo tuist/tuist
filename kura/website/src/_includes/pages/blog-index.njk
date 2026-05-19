@@ -1,0 +1,35 @@
+{% from "components/beam-copy.njk" import beam %}
+{% set localizedPosts = collections.posts | filterByLocale(locale.code) %}
+
+<section class="kura-hero" data-variant="blog">
+  <div class="kura-container" data-part="grid">
+    <div data-part="copy">
+      <p data-part="eyebrow"><span data-part="eyebrow-mark">蔵</span><span data-part="eyebrow-text">{{ copy.blogIndex.eyebrow[locale.code] }}</span></p>
+      {{ beam("h1", copy.blogIndex.title.en, copy.blogIndex.title.ja, "title", "", locale.code) }}
+      {{ beam("p", copy.blogIndex.intro.en, copy.blogIndex.intro.ja, "lede", "", locale.code) }}
+      <p data-part="feed">
+        <a data-part="feed-link" href="{{ locale.feedPath }}">{{ locale.labels.atom }}</a>
+        <span aria-hidden="true">·</span>
+        <a data-part="feed-link" href="{{ locale.rssPath }}">{{ locale.labels.rss }}</a>
+      </p>
+    </div>
+  </div>
+</section>
+
+<section class="kura-section">
+  <div class="kura-container">
+    <ol class="kura-blog-list">
+      {% for post in localizedPosts %}
+        <li class="kura-blog-card">
+          <p data-part="meta"><time>{{ post.date | readableDate(locale.langTag) }}</time></p>
+          <h2 data-part="title"><a href="{{ post.url }}">{{ post.data.title }}</a></h2>
+          {% if locale.code == "en" and post.data.translationDescription %}
+            {{ beam("p", post.data.description, post.data.translationDescription, "body", "", locale.code) }}
+          {% else %}
+            <p data-part="body">{{ post.data.description }}</p>
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ol>
+  </div>
+</section>

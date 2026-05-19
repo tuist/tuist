@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="{{ locale.lang }}">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    {% if homepage or not title %}
+      {% set pageTitle = site.name + " · " + site.tagline %}
+    {% else %}
+      {% set pageTitle = title + " · " + site.name %}
+    {% endif %}
+    {% set pageDesc = description or site.description %}
+    {% set pageUrl = site.url + page.url %}
+    {% set pageSocialImage = (socialImage or "/assets/social/home-en.png") | toAbsoluteUrl(site.url) %}
+    {% set pageSocialImageAlt = socialImageAlt or (site.name + " social card") %}
+    <title>{{ pageTitle }}</title>
+    <meta name="description" content="{{ pageDesc }}" />
+    <meta name="theme-color" content="{{ site.themeColor }}" />
+    <link rel="canonical" href="{{ pageUrl }}" />
+    <link rel="alternate" type="text/markdown" href="{{ pageUrl }}index.md" />
+    <link rel="alternate" type="text/plain" title="llms.txt" href="{{ site.url }}/llms.txt" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Mochiy+Pop+One&family=Kaisei+Decol:wght@500;700&family=Zen+Maru+Gothic:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/assets/styles.css" />
+    {% if locale.code == "en" %}<script src="/assets/beam.js" defer></script>{% endif %}
+    <script src="/assets/audio.js" defer></script>
+
+    <link rel="alternate" type="application/atom+xml" title="{{ locale.labels.feedTitle }}" href="{{ locale.feedPath }}" />
+    <link rel="alternate" type="application/rss+xml" title="{{ locale.labels.feedTitle }}" href="{{ locale.rssPath }}" />
+    <link rel="alternate" hrefLang="{{ locale.lang }}" href="{{ pageUrl }}" />
+    {% if alternates %}
+      {% for code, path in alternates %}
+        <link rel="alternate" hrefLang="{{ locales[code].lang }}" href="{{ path | toAbsoluteUrl(site.url) }}" />
+      {% endfor %}
+    {% endif %}
+    <link rel="alternate" hrefLang="x-default" href="{{ site.url }}/" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="{{ site.name }}" />
+    <meta property="og:locale" content="{{ locale.ogLocale }}" />
+    <meta property="og:title" content="{{ pageTitle }}" />
+    <meta property="og:description" content="{{ pageDesc }}" />
+    <meta property="og:url" content="{{ pageUrl }}" />
+    <meta property="og:image" content="{{ pageSocialImage }}" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="{{ pageSocialImageAlt }}" />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="{{ pageTitle }}" />
+    <meta name="twitter:description" content="{{ pageDesc }}" />
+    <meta name="twitter:image" content="{{ pageSocialImage }}" />
+    <meta name="twitter:image:alt" content="{{ pageSocialImageAlt }}" />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareSourceCode",
+        "name": "{{ site.name }}",
+        "description": "{{ pageDesc }}",
+        "url": "{{ pageUrl }}",
+        "codeRepository": "{{ site.repo }}",
+        "programmingLanguage": "Rust",
+        "author": {
+          "@type": "Organization",
+          "name": "{{ site.author }}"
+        },
+        "image": "{{ pageSocialImage }}"
+      }
+    </script>
+  </head>
+  <body class="kura-page" data-locale="{{ locale.code }}" data-page="{{ pageClass or 'home' }}">
+    <div class="kura-petals" aria-hidden="true">
+      {% for i in range(0, 26) %}
+        <span
+          class="kura-petals__petal"
+          data-shade="{{ i % 3 }}"
+          style="--x: {{ (i * 3.85 + (i % 5) * 2) % 100 }}vw; --delay: -{{ (i * 1.37) % 18 }}s; --dur: {{ 13 + (i % 7) * 1.6 }}s; --scale: {{ 0.6 + (i % 4) * 0.18 }}; --drift: {{ 6 + (i % 5) * 4 }}vw; --spin: {{ 360 + (i % 3) * 240 }}deg;"
+        ></span>
+      {% endfor %}
+    </div>
+
+    <div data-part="shell">
+      <div
+        class="kura-audio"
+        data-state="paused"
+        data-store-key="kura-soundtrack"
+      >
+        <audio data-part="player" loop preload="none">
+          <source src="/assets/kura-soundtrack.m4a" type="audio/mp4" />
+          <source src="/assets/kura-soundtrack.mp3" type="audio/mpeg" />
+        </audio>
+        <button
+          data-part="toggle"
+          type="button"
+          aria-label="{{ locale.labels.audioPlay }}"
+          data-label-play="{{ locale.labels.audioPlay }}"
+          data-label-pause="{{ locale.labels.audioPause }}"
+          data-label-playing="{{ locale.labels.audioPlaying }}"
+          data-label-paused="{{ locale.labels.audioPaused }}"
+        >
+          <span data-part="icon" aria-hidden="true">
+            <span data-part="bar"></span>
+            <span data-part="bar"></span>
+            <span data-part="bar"></span>
+          </span>
+          <span data-part="text">{{ locale.labels.audioLabel }}</span>
+        </button>
+        <span data-part="status" role="status" aria-live="polite"></span>
+      </div>
+
+      <header class="kura-site-header">
+        <div class="kura-container" data-part="inner">
+          <a class="kura-brand" href="{{ locale.homePath }}" aria-label="{{ site.name }}">
+            <img data-part="mark" src="/logo.png" alt="" width="40" height="40" />
+            <span data-part="words">
+              <span data-part="name">Kura</span>
+              <span data-part="reading" lang="ja" aria-label="kura"><span data-part="kanji">蔵</span><span data-part="kana">くら</span></span>
+            </span>
+          </a>
+          {% set hasPosts = (collections.posts | filterByLocale(locale.code) | length) > 0 %}
+          <nav class="kura-nav" aria-label="{{ locale.navAria }}">
+            {% for item in locale.nav %}
+              {% if not item.blog or hasPosts %}
+                <a data-part="link" href="{{ item.href }}">{{ item.label }}</a>
+              {% endif %}
+            {% endfor %}
+            <a data-part="cta" href="{{ site.repo }}">
+              <svg data-part="cta-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="6" cy="6" r="2.4" />
+                <circle cx="6" cy="18" r="2.4" />
+                <circle cx="17" cy="9" r="2.4" />
+                <path d="M6 8.4v7.2" />
+                <path d="M17 11.4c0 3.4-2.8 4.6-5.6 4.6H8.4" />
+              </svg>
+              <span>{{ locale.labels.github }}</span>
+            </a>
+            {% if alternates and alternates[locale.switchTo] %}
+              <a data-part="lang" href="{{ alternates[locale.switchTo] }}">{{ locale.switchLabel }}</a>
+            {% endif %}
+          </nav>
+        </div>
+      </header>
+
+      <main data-part="main">{{ content | safe }}</main>
+
+      <footer class="kura-field" aria-label="Kura">
+        <div class="kura-field__scene" aria-hidden="true">
+          <svg viewBox="0 0 1200 460" preserveAspectRatio="xMidYMax slice" role="img">
+            <defs>
+              <linearGradient id="kuraSky" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stop-color="#eaf5fb" />
+                <stop offset="0.55" stop-color="#fbeede" />
+                <stop offset="1" stop-color="#fce4ec" />
+              </linearGradient>
+              <linearGradient id="kuraField" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stop-color="#a9dd9a" />
+                <stop offset="1" stop-color="#7fc878" />
+              </linearGradient>
+            </defs>
+
+            <rect width="1200" height="460" fill="url(#kuraSky)" />
+
+            <circle cx="985" cy="96" r="92" fill="#ffe9b0" opacity="0.55" />
+            <circle cx="985" cy="96" r="56" fill="#ffdf94" />
+
+            <g opacity="0.9">
+              <ellipse cx="240" cy="120" rx="92" ry="30" fill="#ffffff" opacity="0.75" />
+              <ellipse cx="300" cy="108" rx="60" ry="26" fill="#ffffff" opacity="0.75" />
+              <ellipse cx="680" cy="78" rx="78" ry="26" fill="#ffffff" opacity="0.7" />
+              <ellipse cx="735" cy="70" rx="48" ry="20" fill="#ffffff" opacity="0.7" />
+            </g>
+
+            <path d="M0 320 Q 220 250 460 312 T 920 300 T 1200 320 V460 H0 Z" fill="#bfe6ad" />
+            <path d="M0 364 Q 300 300 640 356 T 1200 360 V460 H0 Z" fill="url(#kuraField)" />
+
+            <!-- left cherry tree -->
+            <g>
+              <path d="M168 374 C 162 300 156 244 196 188 C 168 230 168 280 180 374 Z" fill="#b5784a" />
+              <path d="M178 280 C 120 262 120 212 162 206" stroke="#b5784a" stroke-width="12" fill="none" stroke-linecap="round" />
+              <path d="M188 264 C 246 250 252 198 214 178" stroke="#b5784a" stroke-width="12" fill="none" stroke-linecap="round" />
+              <g fill="#f7bcd3">
+                <circle cx="150" cy="170" r="62" />
+                <circle cx="212" cy="152" r="70" />
+                <circle cx="266" cy="198" r="58" />
+                <circle cx="110" cy="212" r="54" />
+                <circle cx="206" cy="216" r="64" />
+              </g>
+              <g fill="#fcd6e4">
+                <circle cx="178" cy="150" r="26" />
+                <circle cx="236" cy="180" r="22" />
+                <circle cx="132" cy="192" r="20" />
+              </g>
+            </g>
+
+            <!-- right cherry tree -->
+            <g>
+              <path d="M1034 378 C 1028 304 1022 246 1062 190 C 1034 232 1034 282 1046 378 Z" fill="#b5784a" />
+              <path d="M1044 282 C 1102 264 1102 214 1060 208" stroke="#b5784a" stroke-width="12" fill="none" stroke-linecap="round" />
+              <path d="M1034 266 C 976 252 970 200 1008 180" stroke="#b5784a" stroke-width="12" fill="none" stroke-linecap="round" />
+              <g fill="#f3a9c6">
+                <circle cx="1066" cy="168" r="64" />
+                <circle cx="1004" cy="150" r="72" />
+                <circle cx="950" cy="198" r="58" />
+                <circle cx="1108" cy="210" r="54" />
+                <circle cx="1010" cy="216" r="66" />
+              </g>
+              <g fill="#fcd6e4">
+                <circle cx="1040" cy="150" r="26" />
+                <circle cx="980" cy="182" r="22" />
+                <circle cx="1086" cy="196" r="20" />
+              </g>
+            </g>
+
+            <!-- little bushes -->
+            <g fill="#79c06f">
+              <ellipse cx="430" cy="392" rx="54" ry="28" />
+              <ellipse cx="760" cy="402" rx="64" ry="30" />
+              <ellipse cx="610" cy="412" rx="48" ry="24" />
+            </g>
+
+            <!-- the Kura storehouse in the field -->
+            <image href="/logo.png" x="540" y="252" width="132" height="132" />
+
+            <!-- settled petals -->
+            <g fill="#f4a9c6" opacity="0.85">
+              <ellipse cx="330" cy="408" rx="6" ry="4" />
+              <ellipse cx="372" cy="424" rx="5" ry="3" />
+              <ellipse cx="500" cy="430" rx="6" ry="4" />
+              <ellipse cx="700" cy="430" rx="5" ry="3" />
+              <ellipse cx="860" cy="416" rx="6" ry="4" />
+              <ellipse cx="915" cy="432" rx="5" ry="3" />
+              <ellipse cx="250" cy="430" rx="5" ry="3" />
+              <ellipse cx="1080" cy="420" rx="6" ry="4" />
+            </g>
+
+            <!-- a bird riding a bicycle, the classic test of a model's craft -->
+            <g transform="translate(322 410)">
+              <g class="kura-field__rider">
+              <ellipse cx="0" cy="6" rx="46" ry="6" fill="#3c322a" opacity="0.12" />
+              <g fill="none" stroke="#3c322a" stroke-width="4" stroke-linecap="round">
+                <circle cx="-30" cy="-16" r="18" />
+                <circle cx="30" cy="-16" r="18" />
+                <circle cx="-30" cy="-16" r="2.6" fill="#3c322a" />
+                <circle cx="30" cy="-16" r="2.6" fill="#3c322a" />
+                <path d="M-30 -16 -18 -28M-30 -16 -42 -28M-30 -16 -18 -4M-30 -16 -42 -4" stroke-width="2" />
+                <path d="M30 -16 42 -28M30 -16 18 -28M30 -16 42 -4M30 -16 18 -4" stroke-width="2" />
+              </g>
+              <g fill="none" stroke="#e7623c" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M-30 -16 0 -18 28 -16" />
+                <path d="M0 -18 -8 -44" />
+                <path d="M-8 -44 24 -44" />
+                <path d="M24 -44 28 -16" />
+                <path d="M-16 -46 -2 -44" />
+              </g>
+              <circle cx="0" cy="-18" r="3.4" fill="#3c322a" />
+              <path d="M0 -18 6 -8" stroke="#3c322a" stroke-width="3" stroke-linecap="round" />
+              <g stroke="#3c322a" stroke-width="3" stroke-linecap="round" fill="none">
+                <path d="M-8 -42 1 -10" />
+                <path d="M-2 -42 5 -10" />
+              </g>
+              <ellipse cx="-8" cy="-58" rx="19" ry="16" fill="#fffdf6" stroke="#3c322a" stroke-width="3" />
+              <path d="M-22 -52 C -30 -44 -26 -36 -16 -40 Z" fill="#f7bcd3" stroke="#3c322a" stroke-width="2.4" />
+              <path d="M-6 -64 C 2 -60 0 -52 -10 -54 Z" fill="#f7bcd3" stroke="#3c322a" stroke-width="2.4" />
+              <circle cx="14" cy="-74" r="11" fill="#fffdf6" stroke="#3c322a" stroke-width="3" />
+              <path d="M22 -78 L 46 -71 L 22 -67 Z" fill="#ffdf94" stroke="#3c322a" stroke-width="2.4" stroke-linejoin="round" />
+              <circle cx="16" cy="-78" r="1.8" fill="#3c322a" />
+              </g>
+            </g>
+          </svg>
+
+          <span class="kura-field__fall" data-shade="0" style="--x: 14%; --delay: 0s; --dur: 7s;"></span>
+          <span class="kura-field__fall" data-shade="1" style="--x: 19%; --delay: -3s; --dur: 8.5s;"></span>
+          <span class="kura-field__fall" data-shade="2" style="--x: 24%; --delay: -5.5s; --dur: 7.8s;"></span>
+          <span class="kura-field__fall" data-shade="0" style="--x: 9%; --delay: -1.8s; --dur: 9.4s;"></span>
+          <span class="kura-field__fall" data-shade="2" style="--x: 80%; --delay: -1.5s; --dur: 7.5s;"></span>
+          <span class="kura-field__fall" data-shade="0" style="--x: 86%; --delay: -5s; --dur: 9s;"></span>
+          <span class="kura-field__fall" data-shade="1" style="--x: 75%; --delay: -2.4s; --dur: 8s;"></span>
+          <span class="kura-field__fall" data-shade="2" style="--x: 91%; --delay: -6.5s; --dur: 8.8s;"></span>
+        </div>
+
+      </footer>
+    </div>
+  </body>
+</html>

@@ -1,0 +1,99 @@
+{% from "components/beam-copy.njk" import beam %}
+{% set localizedPosts = collections.posts | filterByLocale(locale.code) %}
+{% set latestPost = localizedPosts[0] %}
+
+<section class="kura-hero">
+  <div class="kura-container" data-part="grid">
+    <div data-part="copy">
+      <p data-part="eyebrow"><span data-part="eyebrow-mark">蔵</span><span data-part="eyebrow-text">{{ copy.home.hero.eyebrow[locale.code] }}</span></p>
+      {{ beam("h1", copy.home.hero.title.en, copy.home.hero.title.ja, "title", "", locale.code) }}
+      {{ beam("p", copy.home.hero.body.en, copy.home.hero.body.ja, "lede", "", locale.code) }}
+      {{ beam("p", copy.home.hero.note.en, copy.home.hero.note.ja, "note", "", locale.code) }}
+    </div>
+    <figure class="kura-scene" data-part="artifact" aria-hidden="true">
+      <div data-part="stage">
+        <span data-part="cloud" data-i="1"></span>
+        <span data-part="cloud" data-i="2"></span>
+        <span data-part="sun"></span>
+        <span data-part="tree">
+          <span data-part="trunk"></span>
+          <span data-part="blossom"></span>
+        </span>
+        <img data-part="building" src="/logo.png" alt="" />
+        <span data-part="hill"></span>
+      </div>
+      <figcaption>
+        <span data-part="caption-name">Kura</span>
+        <span data-part="caption-meta">a storehouse in the field · 蔵</span>
+      </figcaption>
+    </figure>
+  </div>
+</section>
+
+<section class="kura-marquee" aria-label="{{ copy.home.languages.title[locale.code] }}">
+  <p data-part="caption"><span data-part="caption-text">{{ copy.home.languages.caption[locale.code] }}</span></p>
+  <div data-part="viewport">
+    <div data-part="track">
+      {% for n in range(0, 8) %}
+        {% for item in copy.home.languages.items %}
+          <span data-part="logo"{% if n > 0 %} aria-hidden="true"{% endif %} style="--lang-color: {{ item.color }}; --lang-ink: {{ item.ink }};"{% if n == 0 %} title="{{ item.name }}"{% endif %}>{{ item.abbr }}</span>
+        {% endfor %}
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+{% set metaIcons = [
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="2.2"/><circle cx="5" cy="17" r="2.2"/><circle cx="19" cy="17" r="2.2"/><path d="M10.5 6.6 6.5 15M13.5 6.6 17.5 15M7.2 17h9.6"/></svg>',
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3v4M15 3v4"/><rect x="6" y="7" width="12" height="6" rx="2"/><path d="M12 13v3.5A3.5 3.5 0 0 1 8.5 20H7"/></svg>',
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="6" rx="1.8"/><rect x="3.5" y="13.5" width="17" height="6" rx="1.8"/><path d="M7 7.5h.01M7 16.5h.01"/></svg>'
+] %}
+<section class="kura-meta">
+  <div class="kura-container" data-part="inner">
+    {% for chip in copy.home.hero.chips %}
+      <div data-part="meta-row">
+        <span data-part="meta-icon" aria-hidden="true">{{ metaIcons[loop.index0] | safe }}</span>
+        <span data-part="meta-key">第{{ ["一","二","三"][loop.index0] }}</span>
+        <span data-part="meta-value">{{ chip[locale.code] }}</span>
+        <span data-part="meta-desc">{{ chip.desc[locale.code] }}</span>
+      </div>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="kura-section" id="why">
+  <div class="kura-container">
+    <div data-part="heading">
+      <p data-part="eyebrow">{{ copy.home.why.title[locale.code] }}</p>
+      <h2 data-part="title">{{ copy.home.why.intro[locale.code] }}</h2>
+    </div>
+    <div class="kura-story">
+      {% for para in copy.home.why.story[locale.code] %}
+        <p data-part="para">{{ para }}</p>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+{% include "components/hosted-cta.njk" %}
+
+{% if latestPost %}
+<section class="kura-section" data-variant="blog">
+  <div class="kura-container">
+    <div data-part="heading">
+      <p data-part="eyebrow">{{ copy.home.blog.title[locale.code] }}</p>
+      <h2 data-part="title">{{ copy.home.blog.intro[locale.code] }}</h2>
+    </div>
+      <article class="kura-blog-card" data-variant="featured">
+        <p data-part="meta">{{ locale.labels.latestPost }} · <time>{{ latestPost.date | readableDate(locale.langTag) }}</time></p>
+        <h3 data-part="title"><a href="{{ latestPost.url }}">{{ latestPost.data.title }}</a></h3>
+        {% if locale.code == "en" and latestPost.data.translationDescription %}
+          {{ beam("p", latestPost.data.description, latestPost.data.translationDescription, "body", "", locale.code) }}
+        {% else %}
+          <p data-part="body">{{ latestPost.data.description }}</p>
+        {% endif %}
+        <p data-part="actions"><a data-part="link" href="{{ latestPost.url }}">{{ copy.home.blog.cta[locale.code] }}</a></p>
+      </article>
+  </div>
+</section>
+{% endif %}

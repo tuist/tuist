@@ -1,0 +1,25 @@
+---
+permalink: "/blog/rss.xml"
+eleventyExcludeFromCollections: true
+---
+{% set localizedPosts = collections.posts | filterByLocale("en") %}
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>{{ locales.en.labels.feedTitle }}</title>
+    <link>{{ site.url }}/blog/</link>
+    <description>{{ locales.en.labels.feedDescription }}</description>
+    <language>{{ locales.en.langTag }}</language>
+    <atom:link href="{{ site.url }}/blog/rss.xml" rel="self" type="application/rss+xml" />
+    {% if localizedPosts[0] %}<lastBuildDate>{{ localizedPosts[0].date | dateToRfc822 }}</lastBuildDate>{% endif %}
+    {% for post in localizedPosts %}
+      <item>
+        <title>{{ post.data.title }}</title>
+        <link>{{ site.url }}{{ post.url }}</link>
+        <guid isPermaLink="true">{{ site.url }}{{ post.url }}</guid>
+        <pubDate>{{ post.date | dateToRfc822 }}</pubDate>
+        <description><![CDATA[{{ post.data.description }}]]></description>
+      </item>
+    {% endfor %}
+  </channel>
+</rss>

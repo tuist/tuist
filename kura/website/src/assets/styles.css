@@ -1,0 +1,1447 @@
+/* ─── Tokens ──────────────────────────────────────────────── */
+
+:root {
+  --kura-sky-top: #e3f1fb;
+  --kura-sky: #eef6fb;
+  --kura-cream: #fdf7ec;
+  --kura-paper: #fffdf6;
+  --kura-ink: #3c322a;
+  --kura-ink-soft: #7a6d5e;
+  --kura-ink-faint: #a89a87;
+  --kura-sakura: #f7bcd3;
+  --kura-sakura-soft: #fcd9e6;
+  --kura-sakura-deep: #e1719c;
+  --kura-leaf: #8fd089;
+  --kura-leaf-deep: #5cb35c;
+  --kura-wood: #c4895a;
+  --kura-torii: #e7623c;
+  --kura-torii-deep: #c94b29;
+  --kura-sun: #ffdf94;
+
+  --kura-line: rgba(60, 50, 42, 0.14);
+  --kura-line-strong: rgba(60, 50, 42, 0.26);
+  --kura-shadow: 0 18px 40px -22px rgba(120, 80, 60, 0.55);
+  --kura-shadow-soft: 0 10px 26px -18px rgba(120, 80, 60, 0.45);
+
+  --kura-radius: 26px;
+  --kura-radius-sm: 16px;
+  --kura-container-width: min(74rem, calc(100vw - 3rem));
+  --kura-measure: 36rem;
+
+  --kura-font-display: "Mochiy Pop One", "Zen Maru Gothic", sans-serif;
+  --kura-font-head: "Kaisei Decol", "Zen Maru Gothic", serif;
+  --kura-font-body: "Zen Maru Gothic", "Hiragino Maru Gothic ProN", system-ui, sans-serif;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  background: var(--kura-sky);
+}
+
+img {
+  display: block;
+  max-width: 100%;
+}
+
+::selection {
+  background: var(--kura-sakura-deep);
+  color: #fff;
+}
+
+.kura-page {
+  margin: 0;
+  color: var(--kura-ink);
+  font-family: var(--kura-font-body);
+  font-size: 1rem;
+  line-height: 1.8;
+  letter-spacing: 0.005em;
+  position: relative;
+  min-height: 100vh;
+  background:
+    radial-gradient(120% 60% at 80% 0%, rgba(255, 233, 176, 0.4), transparent 60%),
+    linear-gradient(180deg, var(--kura-sky-top) 0%, var(--kura-sky) 22%, var(--kura-cream) 62%);
+  background-attachment: fixed;
+
+  & a {
+    color: var(--kura-torii-deep);
+    text-decoration-color: rgba(231, 98, 60, 0.4);
+    text-decoration-thickness: 2px;
+    text-underline-offset: 0.22em;
+    transition: color 180ms ease, text-decoration-color 180ms ease;
+  }
+
+  & a:hover {
+    color: var(--kura-torii);
+    text-decoration-color: var(--kura-torii);
+  }
+
+  & > [data-part="shell"] {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    z-index: 1;
+  }
+
+  & > [data-part="shell"] > [data-part="main"] {
+    flex: 1;
+    padding-bottom: 9rem;
+  }
+}
+
+.kura-container {
+  width: var(--kura-container-width);
+  margin: 0 auto;
+}
+
+/* ─── Drifting sakura petals (site-wide) ──────────────────── */
+
+.kura-petals {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.kura-petals__petal {
+  position: absolute;
+  top: -6vh;
+  left: var(--x);
+  width: 16px;
+  height: 16px;
+  background: var(--kura-sakura);
+  border-radius: 100% 0 100% 0;
+  opacity: 0.85;
+  transform: scale(var(--scale));
+  animation: kura-fall var(--dur) linear var(--delay) infinite;
+}
+
+.kura-petals__petal[data-shade="0"] {
+  background: var(--kura-sakura);
+}
+.kura-petals__petal[data-shade="1"] {
+  background: var(--kura-sakura-soft);
+}
+.kura-petals__petal[data-shade="2"] {
+  background: var(--kura-sakura-deep);
+  opacity: 0.7;
+}
+
+@keyframes kura-fall {
+  0% {
+    transform: translate3d(0, -6vh, 0) scale(var(--scale)) rotate(0deg);
+    opacity: 0;
+  }
+  8% {
+    opacity: 0.9;
+  }
+  50% {
+    transform: translate3d(var(--drift), 52vh, 0) scale(var(--scale)) rotate(calc(var(--spin) * 0.5));
+  }
+  92% {
+    opacity: 0.9;
+  }
+  100% {
+    transform: translate3d(0, 112vh, 0) scale(var(--scale)) rotate(var(--spin));
+    opacity: 0;
+  }
+}
+
+/* ─── Header ─────────────────────────────────────────────── */
+
+.kura-site-header {
+  position: relative;
+  z-index: 20;
+
+  & > [data-part="inner"] {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 2rem;
+    margin-top: 1.4rem;
+    padding: 0.9rem 1.6rem;
+    background: var(--kura-paper);
+    border: 2px solid var(--kura-ink);
+    border-radius: 999px;
+    box-shadow: var(--kura-shadow-soft);
+  }
+}
+
+.kura-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.7rem;
+  text-decoration: none;
+  color: var(--kura-ink);
+
+  &:hover {
+    color: var(--kura-ink);
+    text-decoration: none;
+  }
+
+  & > [data-part="mark"] {
+    width: 2.3rem;
+    height: 2.3rem;
+    object-fit: contain;
+    flex-shrink: 0;
+  }
+
+  & [data-part="name"] {
+    font-family: var(--kura-font-display);
+    font-size: 1.2rem;
+    letter-spacing: 0.02em;
+  }
+
+  & [data-part="words"] {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.5rem;
+  }
+
+  & [data-part="reading"] {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.2rem;
+  }
+
+  & [data-part="kanji"] {
+    font-family: var(--kura-font-head);
+    font-size: 1.05rem;
+    color: var(--kura-sakura-deep);
+  }
+
+  & [data-part="kana"] {
+    font-family: var(--kura-font-body);
+    font-size: 0.7rem;
+    color: var(--kura-ink-faint);
+    transform: translateY(-0.15rem);
+  }
+}
+
+.kura-nav {
+  display: flex;
+  align-items: center;
+  gap: 1.4rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+
+  & > [data-part="link"] {
+    text-decoration: none;
+    color: var(--kura-ink-soft);
+    font-family: var(--kura-font-body);
+    font-size: 0.92rem;
+    font-weight: 700;
+
+    &:hover {
+      color: var(--kura-torii);
+      text-decoration: none;
+    }
+  }
+
+  & > [data-part="cta"] {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    text-decoration: none;
+    font-family: var(--kura-font-body);
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: #fff;
+    background: var(--kura-torii);
+    padding: 0.5rem 1.1rem 0.5rem 0.9rem;
+    border-radius: 999px;
+    border: 2px solid var(--kura-ink);
+    box-shadow: 0 4px 0 var(--kura-ink);
+    transition: transform 120ms ease, box-shadow 120ms ease, color 120ms ease;
+
+    &:hover {
+      color: #fff;
+      transform: translateY(2px);
+      box-shadow: 0 2px 0 var(--kura-ink);
+      text-decoration: none;
+    }
+
+    & > [data-part="cta-icon"] {
+      width: 1.05rem;
+      height: 1.05rem;
+      flex: none;
+    }
+  }
+
+  & > [data-part="lang"] {
+    text-decoration: none;
+    font-family: var(--kura-font-body);
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: var(--kura-ink-soft);
+
+    &:hover {
+      color: var(--kura-torii);
+      text-decoration: none;
+    }
+  }
+}
+
+/* ─── Hero ───────────────────────────────────────────────── */
+
+.kura-hero {
+  padding: 4.5rem 0 3rem;
+
+  &[data-variant="blog"] {
+    padding: 4rem 0 2rem;
+  }
+
+  & > [data-part="grid"] {
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+    gap: 3.5rem;
+    align-items: center;
+  }
+
+  &[data-variant="blog"] > [data-part="grid"] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  & > [data-part="grid"] > [data-part="copy"] {
+    & > [data-part="eyebrow"] {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.55rem;
+      margin: 0 0 1.4rem;
+      padding: 0.4rem 1rem;
+      background: var(--kura-sakura-soft);
+      border: 2px solid var(--kura-ink);
+      border-radius: 999px;
+      font-family: var(--kura-font-body);
+      font-size: 0.74rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--kura-ink);
+    }
+
+    & [data-part="eyebrow-mark"] {
+      font-family: var(--kura-font-head);
+      font-size: 0.95rem;
+      color: var(--kura-sakura-deep);
+      letter-spacing: 0;
+    }
+
+    & > [data-part="title"] {
+      margin: 0;
+      font-family: var(--kura-font-display);
+      font-weight: 400;
+      font-size: clamp(2.2rem, 4.4vw, 3.4rem);
+      line-height: 1.35;
+      letter-spacing: 0.005em;
+      color: var(--kura-ink);
+      max-width: 18ch;
+    }
+
+    & > [data-part="title"][lang="ja"],
+    & > [data-part="title"] [lang="ja"] {
+      line-height: 1.5;
+    }
+
+    & > [data-part="lede"] {
+      margin: 1.6rem 0 0;
+      max-width: var(--kura-measure);
+      color: var(--kura-ink-soft);
+      font-size: 1.02rem;
+      line-height: 1.9;
+    }
+
+    & > [data-part="note"] {
+      margin: 1.1rem 0 0;
+      max-width: var(--kura-measure);
+      color: var(--kura-ink-faint);
+      font-size: 0.92rem;
+      line-height: 1.8;
+    }
+
+    & > [data-part="feed"] {
+      margin: 1.8rem 0 0;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.7rem;
+      font-size: 0.9rem;
+      color: var(--kura-ink-soft);
+    }
+
+    & [data-part="feed-link"] {
+      text-decoration: none;
+      font-weight: 700;
+      color: var(--kura-torii-deep);
+      border-bottom: 2px solid rgba(231, 98, 60, 0.4);
+      padding-bottom: 1px;
+
+      &:hover {
+        color: var(--kura-torii);
+        border-bottom-color: var(--kura-torii);
+      }
+    }
+  }
+}
+
+/* ─── Hero scene (logo on a hill with a cherry tree) ─────── */
+
+.kura-scene {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.2rem;
+
+  & > [data-part="stage"] {
+    position: relative;
+    width: min(26rem, 100%);
+    aspect-ratio: 1 / 0.86;
+    background: linear-gradient(180deg, #eaf5fb 0%, #fbeede 60%, #fce4ec 100%);
+    border: 3px solid var(--kura-ink);
+    border-radius: var(--kura-radius);
+    box-shadow: var(--kura-shadow);
+    overflow: hidden;
+  }
+
+  & [data-part="sun"] {
+    position: absolute;
+    top: 11%;
+    right: 13%;
+    width: 4.6rem;
+    height: 4.6rem;
+    border-radius: 50%;
+    background: var(--kura-sun);
+    box-shadow: 0 0 0 0.9rem rgba(255, 223, 148, 0.4);
+  }
+
+  & [data-part="cloud"] {
+    position: absolute;
+    height: 1.5rem;
+    width: 5rem;
+    background: #fff;
+    border-radius: 999px;
+    opacity: 0.92;
+    box-shadow:
+      1.4rem 0.3rem 0 -0.25rem #fff,
+      -1.3rem 0.35rem 0 -0.35rem #fff;
+  }
+
+  & [data-part="cloud"][data-i="1"] {
+    top: 16%;
+    left: -6rem;
+    animation: kura-drift 26s linear infinite;
+  }
+
+  & [data-part="cloud"][data-i="2"] {
+    top: 30%;
+    left: -7rem;
+    transform: scale(0.7);
+    opacity: 0.8;
+    animation: kura-drift 34s linear infinite;
+    animation-delay: -12s;
+  }
+
+  & [data-part="tree"] {
+    position: absolute;
+    left: 13%;
+    bottom: 14%;
+    width: 7rem;
+    height: 9rem;
+  }
+
+  & [data-part="trunk"] {
+    position: absolute;
+    left: 46%;
+    bottom: 0;
+    width: 0.7rem;
+    height: 4.4rem;
+    background: var(--kura-wood);
+    border-radius: 0 0 4px 4px;
+    transform: rotate(-4deg);
+  }
+
+  & [data-part="blossom"] {
+    position: absolute;
+    left: 50%;
+    top: 0;
+    width: 6.4rem;
+    height: 6.4rem;
+    transform: translateX(-50%);
+    background:
+      radial-gradient(circle at 35% 35%, var(--kura-sakura-soft) 0 22%, transparent 24%),
+      radial-gradient(circle at 70% 30%, var(--kura-sakura) 0 26%, transparent 28%),
+      radial-gradient(circle at 30% 70%, var(--kura-sakura) 0 26%, transparent 28%),
+      radial-gradient(circle at 72% 72%, var(--kura-sakura-deep) 0 24%, transparent 26%),
+      radial-gradient(circle at 50% 50%, var(--kura-sakura) 0 40%, transparent 42%);
+  }
+
+  & [data-part="building"] {
+    position: absolute;
+    right: 12%;
+    bottom: 13%;
+    width: 9.5rem;
+    height: auto;
+    filter: drop-shadow(0 6px 4px rgba(80, 50, 40, 0.18));
+  }
+
+  & [data-part="hill"] {
+    position: absolute;
+    left: -10%;
+    right: -10%;
+    bottom: -32%;
+    height: 58%;
+    background: linear-gradient(180deg, #9ad88f, #74c46f);
+    border-radius: 50% 50% 0 0 / 70% 70% 0 0;
+  }
+
+  & > figcaption {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    text-align: center;
+  }
+
+  & [data-part="caption-name"] {
+    font-family: var(--kura-font-display);
+    font-size: 1rem;
+    color: var(--kura-ink);
+  }
+
+  & [data-part="caption-meta"] {
+    font-size: 0.78rem;
+    color: var(--kura-ink-faint);
+    font-weight: 700;
+    letter-spacing: 0.04em;
+  }
+}
+
+@keyframes kura-drift {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(34rem);
+  }
+}
+
+.kura-scene [data-part="cloud"][data-i="2"] {
+  animation-name: kura-drift-2;
+}
+
+@keyframes kura-drift-2 {
+  0% {
+    transform: translateX(0) scale(0.7);
+  }
+  100% {
+    transform: translateX(36rem) scale(0.7);
+  }
+}
+
+/* ─── Meta strip ─────────────────────────────────────────── */
+
+.kura-meta {
+  margin-top: 3.75rem;
+
+  & > [data-part="inner"] {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1.2rem;
+    padding: 1.6rem;
+    background: var(--kura-paper);
+    border: 3px solid var(--kura-ink);
+    border-radius: var(--kura-radius);
+    box-shadow: var(--kura-shadow-soft);
+  }
+
+  & [data-part="meta-row"] {
+    display: grid;
+    grid-template-columns: 2.6rem 1fr;
+    grid-template-rows: auto auto auto;
+    column-gap: 0.9rem;
+    row-gap: 0.3rem;
+    padding: 1.1rem 1.1rem 1.2rem;
+    border-radius: var(--kura-radius-sm);
+    border: 2px solid var(--kura-ink);
+  }
+
+  & [data-part="meta-row"]:nth-child(1) {
+    background: #fde6ef;
+  }
+  & [data-part="meta-row"]:nth-child(2) {
+    background: #e4f4df;
+  }
+  & [data-part="meta-row"]:nth-child(3) {
+    background: #fdefce;
+  }
+
+  & [data-part="meta-icon"] {
+    grid-row: 1 / span 2;
+    display: grid;
+    place-items: center;
+    width: 2.6rem;
+    height: 2.6rem;
+    border-radius: 50%;
+    background: var(--kura-paper);
+    border: 2px solid var(--kura-ink);
+    color: var(--kura-ink);
+  }
+
+  & [data-part="meta-icon"] svg {
+    width: 1.35rem;
+    height: 1.35rem;
+  }
+
+  & [data-part="meta-key"] {
+    grid-column: 2;
+    align-self: end;
+    font-family: var(--kura-font-head);
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--kura-sakura-deep);
+    letter-spacing: 0.08em;
+  }
+
+  & [data-part="meta-value"] {
+    grid-column: 2;
+    font-family: var(--kura-font-head);
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--kura-ink);
+    line-height: 1.4;
+  }
+
+  & [data-part="meta-desc"] {
+    grid-column: 1 / -1;
+    margin-top: 0.5rem;
+    color: var(--kura-ink-soft);
+    font-size: 0.86rem;
+    line-height: 1.65;
+  }
+}
+
+/* ─── Sections ───────────────────────────────────────────── */
+
+.kura-section {
+  padding: 4rem 0 0;
+
+  & > .kura-container > [data-part="heading"] {
+    margin-bottom: 2.4rem;
+    display: grid;
+    gap: 0.9rem;
+
+    & > [data-part="eyebrow"] {
+      margin: 0;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      width: fit-content;
+      padding: 0.35rem 0.95rem;
+      background: var(--kura-sakura-soft);
+      border: 2px solid var(--kura-ink);
+      border-radius: 999px;
+      font-family: var(--kura-font-body);
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--kura-ink);
+    }
+
+    & > [data-part="title"] {
+      margin: 0;
+      font-family: var(--kura-font-head);
+      font-size: clamp(1.5rem, 2.6vw, 2.1rem);
+      font-weight: 700;
+      line-height: 1.5;
+      color: var(--kura-ink);
+      max-width: 44rem;
+    }
+
+  }
+}
+
+.kura-story {
+  display: grid;
+  gap: 1.3rem;
+  max-width: 44rem;
+
+  & > [data-part="para"] {
+    margin: 0;
+    font-family: var(--kura-font-body);
+    font-size: 1.05rem;
+    line-height: 1.95;
+    color: var(--kura-ink-soft);
+  }
+
+  & > [data-part="para"]:last-child {
+    color: var(--kura-ink);
+    font-weight: 500;
+  }
+}
+
+/* ─── Hosted-by-Tuist CTA ───────────────────────────────── */
+
+.kura-cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2rem 2.5rem;
+  padding: 2.6rem 2.8rem;
+  background: linear-gradient(150deg, var(--kura-sakura-soft), #ffe7d6 70%, var(--kura-sun));
+  border: 3px solid var(--kura-ink);
+  border-radius: var(--kura-radius);
+  box-shadow: 0 12px 0 -2px var(--kura-ink);
+
+  & > [data-part="body"] {
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+    max-width: 38rem;
+  }
+
+  & [data-part="eyebrow"] {
+    margin: 0;
+    font-family: var(--kura-font-body);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--kura-torii-deep);
+  }
+
+  & [data-part="title"] {
+    margin: 0;
+    font-family: var(--kura-font-head);
+    font-size: clamp(1.4rem, 2.4vw, 1.95rem);
+    font-weight: 700;
+    line-height: 1.4;
+    color: var(--kura-ink);
+  }
+
+  & [data-part="copy"] {
+    margin: 0;
+    font-family: var(--kura-font-body);
+    font-size: 1rem;
+    line-height: 1.85;
+    color: var(--kura-ink-soft);
+  }
+
+  & > [data-part="action"] {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    text-decoration: none;
+    font-family: var(--kura-font-display);
+    font-size: 1rem;
+    color: #fff;
+    background: var(--kura-torii);
+    padding: 0.95rem 1.6rem;
+    border-radius: 999px;
+    border: 3px solid var(--kura-ink);
+    box-shadow: 0 5px 0 var(--kura-ink);
+    transition: transform 120ms ease, box-shadow 120ms ease;
+
+    &:hover {
+      color: #fff;
+      text-decoration: none;
+      transform: translateY(3px);
+      box-shadow: 0 2px 0 var(--kura-ink);
+    }
+
+    & > [data-part="arrow"] {
+      width: 1.1rem;
+      height: 1.1rem;
+      flex: none;
+    }
+  }
+}
+
+@media (max-width: 640px) {
+  .kura-cta {
+    padding: 2rem 1.6rem;
+    gap: 1.6rem;
+
+    & > [data-part="action"] {
+      width: 100%;
+      justify-content: center;
+    }
+  }
+}
+
+/* ─── Languages marquee ─────────────────────────────────── */
+
+.kura-marquee {
+  margin-top: 2.5rem;
+  margin-bottom: 0.5rem;
+
+  & > [data-part="caption"] {
+    margin: 0 0 1.1rem;
+    text-align: center;
+  }
+
+  & [data-part="caption-text"] {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 1.1rem;
+    background: var(--kura-sakura-soft);
+    border: 2px solid var(--kura-ink);
+    border-radius: 999px;
+    font-family: var(--kura-font-body);
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    color: var(--kura-ink);
+  }
+
+  & > [data-part="viewport"] {
+    overflow: hidden;
+    padding: 0.6rem 0;
+    -webkit-mask-image: linear-gradient(
+      90deg,
+      transparent,
+      #000 7%,
+      #000 93%,
+      transparent
+    );
+    mask-image: linear-gradient(90deg, transparent, #000 7%, #000 93%, transparent);
+  }
+
+  & > [data-part="viewport"] > [data-part="track"] {
+    display: flex;
+    align-items: center;
+    width: max-content;
+    animation: kura-marquee 144s linear infinite;
+  }
+
+  &:hover > [data-part="viewport"] > [data-part="track"] {
+    animation-play-state: paused;
+  }
+
+  & [data-part="logo"] {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 4.6rem;
+    height: 4.6rem;
+    margin-right: 1.1rem;
+    border-radius: 20px;
+    background: var(--lang-color, var(--kura-torii));
+    color: var(--lang-ink, #fff);
+    border: 3px solid var(--kura-ink);
+    box-shadow: 0 4px 0 var(--kura-ink);
+    font-family: var(--kura-font-display);
+    font-size: 1.35rem;
+    line-height: 1;
+    user-select: none;
+  }
+}
+
+@keyframes kura-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+/* ─── Blog cards ────────────────────────────────────────── */
+
+.kura-blog-card {
+  display: block;
+  text-decoration: none;
+
+  &[data-variant="featured"] {
+    padding: 2rem 2.2rem;
+    background: linear-gradient(180deg, #fffdf6, #fdeef3);
+    border: 3px solid var(--kura-ink);
+    border-radius: var(--kura-radius);
+    box-shadow: var(--kura-shadow-soft);
+  }
+
+  & > [data-part="meta"] {
+    margin: 0 0 0.9rem;
+    font-family: var(--kura-font-body);
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--kura-sakura-deep);
+  }
+
+  & > [data-part="meta"] time {
+    color: var(--kura-ink-soft);
+  }
+
+  & > [data-part="title"] {
+    margin: 0;
+    font-family: var(--kura-font-head);
+    font-weight: 700;
+    font-size: 1.6rem;
+    line-height: 1.45;
+    color: var(--kura-ink);
+  }
+
+  & > [data-part="title"] > a {
+    color: inherit;
+    text-decoration: none;
+
+    &:hover {
+      color: var(--kura-torii);
+      text-decoration: none;
+    }
+  }
+
+  & > [data-part="body"] {
+    margin: 0.9rem 0 1.3rem;
+    max-width: var(--kura-measure);
+    color: var(--kura-ink-soft);
+    font-size: 0.98rem;
+    line-height: 1.85;
+  }
+
+  & > [data-part="actions"] {
+    margin: 1.2rem 0 0;
+  }
+
+  & [data-part="link"] {
+    display: inline-block;
+    font-family: var(--kura-font-body);
+    font-weight: 700;
+    font-size: 0.9rem;
+    color: #fff;
+    background: var(--kura-torii);
+    border: 2px solid var(--kura-ink);
+    border-radius: 999px;
+    padding: 0.5rem 1.2rem;
+    text-decoration: none;
+    box-shadow: 0 4px 0 var(--kura-ink);
+    transition: transform 120ms ease, box-shadow 120ms ease;
+
+    &::after {
+      content: " →";
+    }
+
+    &:hover {
+      color: #fff;
+      transform: translateY(2px);
+      box-shadow: 0 2px 0 var(--kura-ink);
+      text-decoration: none;
+    }
+  }
+}
+
+.kura-blog-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 1.1rem;
+
+  & > .kura-blog-card {
+    padding: 1.8rem 2rem;
+    background: var(--kura-paper);
+    border: 3px solid var(--kura-ink);
+    border-radius: var(--kura-radius);
+    box-shadow: var(--kura-shadow-soft);
+  }
+}
+
+/* ─── Post page ──────────────────────────────────────────── */
+
+.kura-post {
+  padding-top: 3rem;
+  padding-bottom: 4rem;
+
+  & > [data-part="container"] {
+    max-width: 46rem;
+    margin: 0 auto;
+    width: min(46rem, calc(100vw - 3rem));
+    padding: 2.6rem 2.8rem;
+    background: var(--kura-paper);
+    border: 3px solid var(--kura-ink);
+    border-radius: var(--kura-radius);
+    box-shadow: var(--kura-shadow);
+  }
+
+  & [data-part="header"] {
+    margin-bottom: 2.4rem;
+    padding-bottom: 1.8rem;
+    border-bottom: 2px dashed var(--kura-line);
+  }
+
+  & [data-part="meta"] {
+    margin: 0 0 1.2rem;
+    font-family: var(--kura-font-body);
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--kura-sakura-deep);
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+
+    & > span {
+      color: var(--kura-line-strong);
+    }
+  }
+
+  & [data-part="title"] {
+    margin: 0;
+    font-family: var(--kura-font-head);
+    font-size: clamp(1.9rem, 4.2vw, 2.7rem);
+    font-weight: 700;
+    line-height: 1.4;
+    color: var(--kura-ink);
+  }
+
+  & [data-part="lede"] {
+    margin: 1.4rem 0 0;
+    max-width: var(--kura-measure);
+    font-family: var(--kura-font-body);
+    font-size: 1.08rem;
+    line-height: 1.85;
+    color: var(--kura-ink-soft);
+  }
+
+  & [data-part="back"] {
+    margin: 3rem 0 0;
+    font-family: var(--kura-font-body);
+    font-weight: 700;
+    font-size: 0.92rem;
+
+    & > a {
+      text-decoration: none;
+      color: var(--kura-torii-deep);
+
+      &:hover {
+        color: var(--kura-torii);
+      }
+    }
+  }
+}
+
+/* ─── Prose ─────────────────────────────────────────────── */
+
+.kura-prose {
+  color: var(--kura-ink);
+  font-family: var(--kura-font-body);
+  font-size: 1.04rem;
+  line-height: 1.95;
+
+  & > *:first-child {
+    margin-top: 0;
+  }
+
+  & h2,
+  & h3 {
+    font-family: var(--kura-font-head);
+    font-weight: 700;
+    line-height: 1.45;
+    color: var(--kura-ink);
+  }
+
+  & h2 {
+    margin: 2.8rem 0 1.1rem;
+    font-size: 1.5rem;
+    padding-bottom: 0.4rem;
+    border-bottom: 2px dashed var(--kura-line);
+  }
+
+  & h3 {
+    margin: 2.2rem 0 0.8rem;
+    font-size: 1.2rem;
+  }
+
+  & p {
+    margin: 1.05rem 0;
+  }
+
+  & ul,
+  & ol {
+    margin: 1.05rem 0;
+    padding-left: 1.4rem;
+  }
+
+  & li {
+    margin: 0.4rem 0;
+  }
+
+  & ul li::marker {
+    color: var(--kura-sakura-deep);
+  }
+
+  & blockquote {
+    margin: 1.6rem 0;
+    padding: 0.8rem 1.2rem;
+    border: 2px solid var(--kura-ink);
+    border-radius: var(--kura-radius-sm);
+    background: var(--kura-sakura-soft);
+    color: var(--kura-ink);
+
+    & p {
+      margin: 0.3rem 0;
+    }
+  }
+
+  & code {
+    font-family: ui-monospace, "SFMono-Regular", "Menlo", monospace;
+    font-size: 0.9em;
+    background: #fdeef3;
+    color: var(--kura-torii-deep);
+    padding: 0.12rem 0.36rem;
+    border-radius: 6px;
+  }
+
+  & pre {
+    margin: 1.5rem 0;
+    padding: 1.2rem 1.4rem;
+    background: var(--kura-ink);
+    color: #fdf7ec;
+    border-radius: var(--kura-radius-sm);
+    overflow-x: auto;
+    font-size: 0.88rem;
+    line-height: 1.7;
+
+    & code {
+      background: transparent;
+      color: inherit;
+      padding: 0;
+    }
+  }
+}
+
+/* ─── Footer field scene ─────────────────────────────────── */
+
+.kura-field {
+  position: relative;
+  margin-top: -5rem;
+  padding-top: 6.5rem;
+  min-height: 39rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  isolation: isolate;
+}
+
+.kura-field__scene {
+  position: absolute;
+  inset: -6rem 0 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  -webkit-mask-image: linear-gradient(180deg, transparent 0, transparent 1.5rem, #000 6.5rem, #000 100%);
+  mask-image: linear-gradient(180deg, transparent 0, transparent 1.5rem, #000 6.5rem, #000 100%);
+
+  & > svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+}
+
+.kura-field__fall {
+  position: absolute;
+  top: 1rem;
+  left: var(--x);
+  width: 14px;
+  height: 14px;
+  background: var(--kura-sakura);
+  border-radius: 100% 0 100% 0;
+  opacity: 0.9;
+  animation: kura-field-fall var(--dur) linear var(--delay) infinite;
+}
+
+.kura-field__fall[data-shade="1"] {
+  background: var(--kura-sakura-soft);
+}
+.kura-field__fall[data-shade="2"] {
+  background: var(--kura-sakura-deep);
+  opacity: 0.75;
+}
+
+@keyframes kura-field-fall {
+  0% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.9;
+  }
+  50% {
+    transform: translate3d(2.5rem, 11rem, 0) rotate(180deg);
+  }
+  90% {
+    opacity: 0.9;
+  }
+  100% {
+    transform: translate3d(-1rem, 22rem, 0) rotate(360deg);
+    opacity: 0;
+  }
+}
+
+.kura-field__rider {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: kura-ride 5.5s ease-in-out infinite;
+}
+
+@keyframes kura-ride {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-2.5px);
+  }
+}
+
+/* ─── Beam (cursor reveal) ───────────────────────────────── */
+
+.kura-beam {
+  position: relative;
+  display: grid;
+  cursor: help;
+
+  & > [data-part="base"],
+  & > [data-part="overlay"] {
+    grid-area: 1 / 1;
+    transition: opacity 260ms ease;
+  }
+
+  & > [data-part="overlay"] {
+    color: var(--kura-sakura-deep);
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  &[data-beam-active="true"] > [data-part="base"] {
+    opacity: 0;
+  }
+
+  &[data-beam-active="true"] > [data-part="overlay"] {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kura-beam > [data-part="base"],
+  .kura-beam > [data-part="overlay"] {
+    transition: none;
+  }
+}
+
+/* ─── Responsive ─────────────────────────────────────────── */
+
+@media (max-width: 960px) {
+  :root {
+    --kura-container-width: min(44rem, calc(100vw - 2rem));
+  }
+
+  .kura-hero {
+    padding: 3rem 0 2rem;
+
+    & > [data-part="grid"] {
+      grid-template-columns: 1fr;
+      gap: 2.5rem;
+    }
+
+    & > [data-part="grid"] > [data-part="copy"] > [data-part="title"] {
+      max-width: 100%;
+    }
+  }
+
+  .kura-scene > [data-part="stage"] {
+    width: min(22rem, 100%);
+  }
+
+  .kura-meta > [data-part="inner"] {
+    grid-template-columns: 1fr;
+  }
+
+  .kura-field {
+    margin-top: -3.75rem;
+    padding-top: 5rem;
+    min-height: 36rem;
+  }
+
+  .kura-field__plaque {
+    grid-template-columns: 1fr;
+    gap: 1.3rem;
+
+    & [data-part="links"] {
+      justify-content: flex-start;
+    }
+  }
+}
+
+@media (max-width: 640px) {
+  .kura-site-header > [data-part="inner"] {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+    border-radius: var(--kura-radius);
+  }
+
+  .kura-nav {
+    gap: 1rem;
+  }
+
+  .kura-field {
+    margin-top: -2.5rem;
+    padding-top: 4rem;
+    min-height: 32rem;
+  }
+
+  .kura-hero > [data-part="grid"] > [data-part="copy"] > [data-part="title"] {
+    font-size: clamp(1.8rem, 8vw, 2.4rem);
+  }
+
+  .kura-post > [data-part="container"] {
+    padding: 1.8rem 1.5rem;
+  }
+
+  .kura-prose {
+    font-size: 1rem;
+  }
+}
+
+/* ─── Reduced motion ─────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .kura-petals__petal,
+  .kura-field__fall,
+  .kura-field__rider,
+  .kura-scene [data-part="cloud"],
+  .kura-marquee > [data-part="viewport"] > [data-part="track"] {
+    animation: none;
+  }
+
+  .kura-petals {
+    display: none;
+  }
+
+  .kura-marquee > [data-part="viewport"] {
+    overflow-x: auto;
+  }
+
+  .kura-audio [data-part="bar"] {
+    animation: none;
+    height: 55%;
+  }
+}
+
+/* ─── Ambient soundtrack control ──────────────────────────── */
+
+.kura-audio {
+  position: fixed;
+  left: 1.25rem;
+  bottom: 1.25rem;
+  z-index: 30;
+
+  & > [data-part="player"] {
+    display: none;
+  }
+
+  & > [data-part="toggle"] {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.5rem 0.95rem 0.5rem 0.8rem;
+    background: var(--kura-paper);
+    color: var(--kura-ink);
+    border: 2px solid var(--kura-ink);
+    border-radius: 999px;
+    box-shadow: 0 4px 0 var(--kura-ink);
+    font-family: var(--kura-font-body);
+    font-size: 0.82rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    transition: transform 120ms ease, box-shadow 120ms ease;
+  }
+
+  & > [data-part="toggle"]:hover {
+    transform: translateY(2px);
+    box-shadow: 0 2px 0 var(--kura-ink);
+  }
+
+  & > [data-part="toggle"]:focus-visible {
+    outline: 3px solid var(--kura-sakura-deep);
+    outline-offset: 3px;
+  }
+
+  & [data-part="icon"] {
+    display: inline-flex;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 2px;
+    width: 1.05rem;
+    height: 1.05rem;
+  }
+
+  & [data-part="bar"] {
+    width: 3px;
+    height: 35%;
+    border-radius: 2px;
+    background: var(--kura-torii);
+  }
+
+  &[data-state="playing"] [data-part="bar"] {
+    background: var(--kura-sakura-deep);
+    animation: kura-eq 900ms ease-in-out infinite;
+  }
+
+  &[data-state="playing"] [data-part="bar"]:nth-child(2) {
+    animation-duration: 700ms;
+    animation-delay: -200ms;
+  }
+
+  &[data-state="playing"] [data-part="bar"]:nth-child(3) {
+    animation-duration: 1100ms;
+    animation-delay: -450ms;
+  }
+
+  & [data-part="status"] {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    border: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+@keyframes kura-eq {
+  0%,
+  100% {
+    height: 30%;
+  }
+  50% {
+    height: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .kura-audio {
+    left: 0.85rem;
+    bottom: 0.85rem;
+  }
+}

@@ -1,0 +1,31 @@
+---
+layout: base.njk
+pageClass: post
+---
+{% from "components/beam-copy.njk" import beam %}
+<article class="kura-post">
+  <div class="kura-container" data-part="container">
+    <header data-part="header">
+      <p data-part="meta">
+        <time datetime="{{ page.date | htmlDateString }}">{{ page.date | readableDate(locale.langTag) }}</time>
+        {% if author %}<span aria-hidden="true">·</span><span>{{ author }}</span>{% endif %}
+      </p>
+      <h1 data-part="title">{{ title }}</h1>
+      {% if description %}
+        {% if locale.code == "en" and translationDescription %}
+          {{ beam("p", description, translationDescription, "lede", "", locale.code) }}
+        {% else %}
+          <p data-part="lede">{{ description }}</p>
+        {% endif %}
+      {% endif %}
+    </header>
+
+    <div data-part="body" class="kura-prose">
+      {{ content | safe }}
+    </div>
+
+    <p data-part="back"><a href="{{ locale.blogPath }}">← {{ locale.labels.backToBlog }}</a></p>
+  </div>
+</article>
+
+{% include "components/hosted-cta.njk" %}

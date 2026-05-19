@@ -1,0 +1,29 @@
+---
+permalink: "/ja/blog/feed.xml"
+eleventyExcludeFromCollections: true
+---
+{% set localizedPosts = collections.posts | filterByLocale("ja") %}
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>{{ locales.ja.labels.feedTitle }}</title>
+  <subtitle>{{ locales.ja.labels.feedDescription }}</subtitle>
+  <link href="{{ site.url }}/ja/blog/feed.xml" rel="self" />
+  <link href="{{ site.url }}/ja/blog/" />
+  <id>{{ site.url }}/ja/blog/</id>
+  {% if localizedPosts[0] %}<updated>{{ localizedPosts[0].date | dateToRfc3339 }}</updated>{% endif %}
+  <author>
+    <name>{{ site.author }}</name>
+  </author>
+  {% for post in localizedPosts %}
+    <entry>
+      <title>{{ post.data.title }}</title>
+      <link href="{{ site.url }}{{ post.url }}" />
+      <id>{{ site.url }}{{ post.url }}</id>
+      <updated>{{ post.date | dateToRfc3339 }}</updated>
+      <published>{{ post.date | dateToRfc3339 }}</published>
+      <summary>{{ post.data.description }}</summary>
+      <content type="html"><![CDATA[{{ post.templateContent | safe }}]]></content>
+    </entry>
+  {% endfor %}
+</feed>
+
