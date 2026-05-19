@@ -1,0 +1,43 @@
+name: Go Format
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "**/*.go"
+      - "**/go.mod"
+      - "**/go.sum"
+      - ".github/workflows/go-format.yml"
+  pull_request:
+    paths:
+      - "**/*.go"
+      - "**/go.mod"
+      - "**/go.sum"
+      - ".github/workflows/go-format.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  gofmt:
+    runs-on: namespace-profile-default
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: infra/kura-controller/go.mod
+      - name: Check formatting across all Go modules
+        run: |
+          set -euo pipefail
+          status=0
+          while IFS= read -r mod; do
+            dir="$(dirname "$mod")"
+            echo "==> $dir"
+            out="$(cd "$dir" && gofmt -l .)"
+            if [ -n "$out" ]; then
+              echo "::error::Unformatted Go files in $dir:"
+              echo "$out" | sed "s|^|$dir/|"
+              status=1
+            fi
+          done < <(find . -name go.mod -not -path "*/vendor/*" -not -path "*/node_modules/*")
+          exit "$status"
