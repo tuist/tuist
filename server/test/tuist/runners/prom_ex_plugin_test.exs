@@ -134,8 +134,8 @@ defmodule Tuist.Runners.PromExPluginTest do
         {:ok,
          [
            %{
-             "metadata" => %{"name" => "default"},
-             "spec" => %{"replicas" => 3, "dispatchLabel" => "tuist-runner-default"},
+             "metadata" => %{"name" => "pool-emit"},
+             "spec" => %{"replicas" => 3, "dispatchLabel" => "tuist-runner-pool-emit"},
              "status" => %{"observedReplicas" => 2}
            }
          ]}
@@ -144,7 +144,40 @@ defmodule Tuist.Runners.PromExPluginTest do
       PromExPlugin.execute_pool_replicas_telemetry_event()
 
       assert_receive {:telemetry_event, [:tuist, :runners, :pool, :replicas], %{desired: 3, observed: 2},
-                      %{fleet: "default", dispatch_label: "tuist-runner-default"}},
+                      %{fleet: "pool-emit"}},
+                     500
+    end
+
+    test "drains a pool to zero on the tick after it disappears from the cluster",
+         %{handler_id: handler_id} do
+      attach_collector(handler_id, Telemetry.event_name_pool_replicas())
+
+      # Tick 1 — pool is alive.
+      Mimic.stub(K8sClient, :list_runner_pools, fn _ns ->
+        {:ok,
+         [
+           %{
+             "metadata" => %{"name" => "pool-deleting"},
+             "spec" => %{"replicas" => 5},
+             "status" => %{"observedReplicas" => 5}
+           }
+         ]}
+      end)
+
+      PromExPlugin.execute_pool_replicas_telemetry_event()
+
+      assert_receive {:telemetry_event, [:tuist, :runners, :pool, :replicas], %{desired: 5, observed: 5},
+                      %{fleet: "pool-deleting"}},
+                     500
+
+      # Tick 2 — pool has been deleted. We expect an explicit `0`
+      # so `last_value` stops reporting the stale `5`.
+      Mimic.stub(K8sClient, :list_runner_pools, fn _ns -> {:ok, []} end)
+
+      PromExPlugin.execute_pool_replicas_telemetry_event()
+
+      assert_receive {:telemetry_event, [:tuist, :runners, :pool, :replicas], %{desired: 0, observed: 0},
+                      %{fleet: "pool-deleting"}},
                      500
     end
 

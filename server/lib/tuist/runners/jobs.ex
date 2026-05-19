@@ -182,7 +182,11 @@ defmodule Tuist.Runners.Jobs do
 
         :telemetry.execute(
           Telemetry.event_name_job_running(),
-          %{count: 1, queue_to_running_ms: duration_ms(job.enqueued_at, now)},
+          %{
+            count: 1,
+            queue_to_running_ms: duration_ms(job.enqueued_at, now),
+            claim_to_running_ms: duration_ms(job.claimed_at, now)
+          },
           %{fleet: job.fleet_name || ""}
         )
 

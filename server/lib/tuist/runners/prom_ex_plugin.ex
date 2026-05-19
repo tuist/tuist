@@ -53,6 +53,14 @@ defmodule Tuist.Runners.PromExPlugin do
   # series until process restart.
   @lifecycle_states ~w(claimed running)
 
+  # Process-dict key for the set of RunnerPool fleet names emitted
+  # on the previous `execute_pool_replicas_telemetry_event/0` tick.
+  # Lets the poll emit an explicit `0` for a fleet that was visible
+  # in the cluster on the prior tick but isn't now — without this,
+  # `last_value` keeps the last `desired`/`observed` sample forever
+  # after a RunnerPool is deleted.
+  @pool_replicas_seen_key :tuist_runners_pool_replicas_seen_fleets
+
   # Buckets cover the realistic wall-clock range for each duration.
   # `queue_time` and `queue_to_running` are sub-minute on the happy
   # path; `run_time` / `total_time` span seconds to the GH-side
@@ -111,6 +119,15 @@ defmodule Tuist.Runners.PromExPlugin do
             event_name: Telemetry.event_name_job_running(),
             measurement: :queue_to_running_ms,
             description: "Time between webhook enqueue and the running transition (queue + claim + mint).",
+            reporter_options: [buckets: @short_duration_buckets],
+            tags: [:fleet],
+            unit: :millisecond
+          ),
+          distribution(
+            @metric_prefix ++ [:job, :claim_to_running, :time, :milliseconds],
+            event_name: Telemetry.event_name_job_running(),
+            measurement: :claim_to_running_ms,
+            description: "Time between claim and the running transition — JIT mint plus pod label patch.",
             reporter_options: [buckets: @short_duration_buckets],
             tags: [:fleet],
             unit: :millisecond
@@ -236,14 +253,14 @@ defmodule Tuist.Runners.PromExPlugin do
             event_name: Telemetry.event_name_pool_replicas(),
             description: "Desired RunnerPool replicas (spec.replicas).",
             measurement: :desired,
-            tags: [:fleet, :dispatch_label]
+            tags: [:fleet]
           ),
           last_value(
             @metric_prefix ++ [:pool, :replicas, :observed],
             event_name: Telemetry.event_name_pool_replicas(),
             description: "Observed RunnerPool replicas (status.observedReplicas).",
             measurement: :observed,
-            tags: [:fleet, :dispatch_label]
+            tags: [:fleet]
           )
         ]
       )
@@ -377,29 +394,50 @@ defmodule Tuist.Runners.PromExPlugin do
   def execute_pool_replicas_telemetry_event do
     case K8sClient.list_runner_pools(Environment.runners_namespace()) do
       {:ok, items} ->
-        Enum.each(items, &emit_pool_replicas/1)
+        current = pool_replicas_from_items(items)
+        current_fleets = current |> Map.keys() |> MapSet.new()
+        previous_fleets = Process.get(@pool_replicas_seen_key, MapSet.new())
+
+        Enum.each(current, fn {fleet, {desired, observed}} ->
+          :telemetry.execute(
+            Telemetry.event_name_pool_replicas(),
+            %{desired: desired, observed: observed},
+            %{fleet: fleet}
+          )
+        end)
+
+        previous_fleets
+        |> MapSet.difference(current_fleets)
+        |> Enum.each(fn fleet ->
+          :telemetry.execute(
+            Telemetry.event_name_pool_replicas(),
+            %{desired: 0, observed: 0},
+            %{fleet: fleet}
+          )
+        end)
+
+        Process.put(@pool_replicas_seen_key, current_fleets)
+        :ok
 
       _ ->
         :ok
     end
   end
 
-  defp emit_pool_replicas(%{"metadata" => %{"name" => name}} = pool) do
-    spec = Map.get(pool, "spec", %{})
-    status = Map.get(pool, "status", %{})
+  defp pool_replicas_from_items(items) do
+    items
+    |> Enum.flat_map(fn pool ->
+      case pool_name(pool) do
+        nil ->
+          []
 
-    :telemetry.execute(
-      Telemetry.event_name_pool_replicas(),
-      %{
-        desired: Map.get(spec, "replicas", 0),
-        observed: Map.get(status, "observedReplicas", 0)
-      },
-      %{
-        fleet: name,
-        dispatch_label: Map.get(spec, "dispatchLabel", "")
-      }
-    )
+        name ->
+          spec = Map.get(pool, "spec", %{})
+          status = Map.get(pool, "status", %{})
+
+          [{name, {Map.get(spec, "replicas", 0), Map.get(status, "observedReplicas", 0)}}]
+      end
+    end)
+    |> Map.new()
   end
-
-  defp emit_pool_replicas(_), do: :ok
 end

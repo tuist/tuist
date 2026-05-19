@@ -561,26 +561,26 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "histogram_quantile(0.50, sum by (le) (rate(tuist_runners_job_queue_to_running_time_milliseconds_bucket{job=~\"$server_job\", fleet=~\"$fleet\"}[5m]))) - histogram_quantile(0.50, sum by (le) (rate(tuist_runners_job_queue_time_milliseconds_bucket{job=~\"$server_job\", fleet=~\"$fleet\"}[5m])))",
-            "legendFormat": "p50 (claim→running, approx)",
+            "expr": "histogram_quantile(0.50, sum by (le) (rate(tuist_runners_job_claim_to_running_time_milliseconds_bucket{job=~\"$server_job\", fleet=~\"$fleet\"}[5m])))",
+            "legendFormat": "p50",
             "refId": "A"
           },
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "histogram_quantile(0.50, sum by (le) (rate(tuist_runners_job_queue_to_running_time_milliseconds_bucket{job=~\"$server_job\", fleet=~\"$fleet\"}[5m])))",
-            "legendFormat": "p50 (total enqueue→running)",
+            "expr": "histogram_quantile(0.95, sum by (le) (rate(tuist_runners_job_claim_to_running_time_milliseconds_bucket{job=~\"$server_job\", fleet=~\"$fleet\"}[5m])))",
+            "legendFormat": "p95",
             "refId": "B"
           },
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "histogram_quantile(0.95, sum by (le) (rate(tuist_runners_job_queue_to_running_time_milliseconds_bucket{job=~\"$server_job\", fleet=~\"$fleet\"}[5m])))",
-            "legendFormat": "p95 (total enqueue→running)",
+            "expr": "histogram_quantile(0.99, sum by (le) (rate(tuist_runners_job_claim_to_running_time_milliseconds_bucket{job=~\"$server_job\", fleet=~\"$fleet\"}[5m])))",
+            "legendFormat": "p99",
             "refId": "C"
           }
         ],
-        "title": "Enqueue → running (JIT-mint included)",
+        "title": "Claim → running (JIT mint)",
         "type": "timeseries"
       },
       {
