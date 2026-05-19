@@ -517,6 +517,7 @@ defmodule Tuist.Environment do
         prices
 
       is_binary(prices_base64_json) ->
+        # credo:disable-for-next-line Credo.Checks.DisallowJason
         prices_base64_json |> Base.decode64!() |> Jason.decode!(keys: :atoms)
 
       true ->

@@ -452,7 +452,7 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
       conn
       |> put_req_header("x-hub-signature-256", sign(raw_body, secret))
       |> Plug.Conn.assign(:raw_body, raw_body)
-      |> Map.put(:body_params, Jason.decode!(raw_body))
+      |> Map.put(:body_params, JSON.decode!(raw_body))
     end
 
     test "returns the per-installation secret of the row whose webhook_secret HMACs the body",
