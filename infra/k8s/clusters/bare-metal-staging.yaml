@@ -201,11 +201,16 @@ spec:
           (cd /tmp && sed "s|containerd-${CONTAINERD_VERSION}-linux-${ARCH}.tar.gz|containerd.tar.gz|" containerd.tar.gz.sha256sum | sha256sum --check -)
           tar -zxf /tmp/containerd.tar.gz -C /usr/local
           rm /tmp/containerd.tar.gz /tmp/containerd.tar.gz.sha256sum
-          # The tarball ships its own systemd unit at
-          # /usr/local/lib/systemd/system/containerd.service which
-          # systemd picks up via its default unit search path; the
-          # preKubeadmCommands `systemctl enable --now containerd`
-          # then starts it on first boot.
+          # The plain `containerd-*.tar.gz` tarball does NOT ship a
+          # systemd unit (only the older `cri-containerd-cni-`
+          # bundle did). The unit is dropped at
+          # `/etc/systemd/system/containerd.service` by the
+          # `KubeadmConfigTemplate.spec.template.spec.files:`
+          # block below, then `systemctl enable --now containerd`
+          # in preKubeadmCommands starts it on first boot. Do not
+          # remove the files: block on the assumption the tarball
+          # provides the unit — it doesn't, and the kubeadm-join
+          # step then times out waiting for the CRI socket.
           # ---- Kata Containers 3.30 pre-bake ----
           # Pinned versions; bump intentionally via PR (kata releases
           # have historically shipped install-script regressions —
