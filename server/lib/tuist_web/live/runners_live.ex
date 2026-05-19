@@ -175,13 +175,30 @@ defmodule TuistWeb.RunnersLive do
   end
 
   @doc """
-  echarts `extra_options` for a duration chart — y-axis values are
-  milliseconds and rendered via the `formatMilliseconds` JS helper
-  shared with the Tests page.
+  echarts `extra_options` for a duration chart. Overlays the four
+  percentile series (avg + p50/p90/p99) so the chart reads the same
+  way as the Tests page: legend at the bottom, ms-formatted y-axis,
+  ms-formatted tooltip values.
   """
   def duration_chart_options(dates, analytics_preset) do
     %{
-      grid: %{width: "97%", left: "0.4%", height: "88%", top: "5%"},
+      legend: %{
+        left: "left",
+        top: "bottom",
+        orient: "horizontal",
+        textStyle: %{
+          color: "var:noora-surface-label-secondary",
+          fontFamily: "monospace",
+          fontWeight: 400,
+          fontSize: 10,
+          lineHeight: 12
+        },
+        icon:
+          "path://M0 6C0 4.89543 0.895431 4 2 4H6C7.10457 4 8 4.89543 8 6C8 7.10457 7.10457 8 6 8H2C0.895431 8 0 7.10457 0 6Z",
+        itemWidth: 8,
+        itemHeight: 4
+      },
+      grid: %{width: "97%", left: "0.4%", height: "60%", top: "10%"},
       xAxis: %{
         boundaryGap: false,
         type: "category",
@@ -200,13 +217,39 @@ defmodule TuistWeb.RunnersLive do
           formatter: "fn:formatMilliseconds"
         }
       },
-      legend: %{show: false},
       tooltip:
         if analytics_preset == "last-24-hours" do
           %{valueFormat: "fn:formatMilliseconds", dateFormat: "hour"}
         else
           %{valueFormat: "fn:formatMilliseconds"}
         end
+    }
+  end
+
+  @doc """
+  Builds the four-percentile time-series array (avg + p50/p90/p99)
+  for a duration chart, in the order the Tests page renders them.
+  """
+  def duration_chart_series(stats) do
+    [
+      duration_series(stats, "Average", "secondary", :avg_values),
+      duration_series(stats, "p99", "p99", :p99_values),
+      duration_series(stats, "p90", "p90", :p90_values),
+      duration_series(stats, "p50", "p50", :p50_values)
+    ]
+  end
+
+  defp duration_series(stats, name, color_key, values_key) do
+    %{
+      color: "var:noora-chart-#{color_key}",
+      data:
+        stats.dates
+        |> Enum.zip(Map.get(stats, values_key, []))
+        |> Enum.map(&Tuple.to_list/1),
+      name: name,
+      type: "line",
+      smooth: 0.1,
+      symbol: "none"
     }
   end
 

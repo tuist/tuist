@@ -205,24 +205,7 @@
             id="runners-job-duration-chart"
             type="line"
             extra_options={TuistWeb.RunnersLive.duration_chart_options(@jobs_duration.result.dates, @analytics_preset)}
-            series={[
-              %{
-                color: "var:noora-chart-#{TuistWeb.RunnersLive.legend_color_for_percentile(@job_duration_percentile)}",
-                data:
-                  @jobs_duration.result.dates
-                  |> Enum.zip(
-                    TuistWeb.RunnersLive.percentile_series(
-                      @jobs_duration.result,
-                      @job_duration_percentile
-                    )
-                  )
-                  |> Enum.map(&Tuple.to_list/1),
-                name: @job_duration_percentile,
-                type: "line",
-                smooth: 0.1,
-                symbol: "none"
-              }
-            ]}
+            series={TuistWeb.RunnersLive.duration_chart_series(@jobs_duration.result)}
             y_axis_min={0}
           />
         <% @analytics_selected_widget == "workflow_duration" and !@workflows_duration.ok? -> %>
@@ -232,24 +215,7 @@
             id="runners-workflow-duration-chart"
             type="line"
             extra_options={TuistWeb.RunnersLive.duration_chart_options(@workflows_duration.result.dates, @analytics_preset)}
-            series={[
-              %{
-                color: "var:noora-chart-#{TuistWeb.RunnersLive.legend_color_for_percentile(@workflow_duration_percentile)}",
-                data:
-                  @workflows_duration.result.dates
-                  |> Enum.zip(
-                    TuistWeb.RunnersLive.percentile_series(
-                      @workflows_duration.result,
-                      @workflow_duration_percentile
-                    )
-                  )
-                  |> Enum.map(&Tuple.to_list/1),
-                name: @workflow_duration_percentile,
-                type: "line",
-                smooth: 0.1,
-                symbol: "none"
-              }
-            ]}
+            series={TuistWeb.RunnersLive.duration_chart_series(@workflows_duration.result)}
             y_axis_min={0}
           />
       <% end %>
