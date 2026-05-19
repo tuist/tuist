@@ -17,6 +17,7 @@ import (
 	"k8s.io/client-go/tools/record"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util"
+	"sigs.k8s.io/cluster-api/util/annotations"
 	"sigs.k8s.io/cluster-api/util/conditions"
 	"sigs.k8s.io/cluster-api/util/patch"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -217,32 +218,55 @@ func (r *ScalewayAppleSiliconMachineReconciler) Reconcile(ctx context.Context, r
 		controllerutil.AddFinalizer(machine, MachineFinalizer)
 	}
 
-	if ownerMachine != nil {
-		// CAPI's Machine controller waits for the InfrastructureCluster's
-		// Status.Ready before stamping our CR's OwnerRef, but we still
-		// gate on the parent Machine's Cluster being ready before
-		// touching Scaleway — covers the brief window where a Machine
-		// exists but the cluster's not provisioned. Cluster.Spec.Paused
-		// also pauses us.
+	// Resolve parent Cluster (if any) for the readiness + pause gates.
+	// Standalone CRs (no owner Machine) skip the lookup but still
+	// honor a per-object pause annotation below.
+	var cluster *clusterv1.Cluster
+	if ownerMachine != nil && ownerMachine.Spec.ClusterName != "" {
+		cluster = &clusterv1.Cluster{}
 		clusterName := ownerMachine.Spec.ClusterName
-		if clusterName != "" {
-			cluster := &clusterv1.Cluster{}
-			if err := r.Get(ctx, types.NamespacedName{Namespace: machine.Namespace, Name: clusterName}, cluster); err != nil {
-				if apierrors.IsNotFound(err) {
-					logger.Info("parent Cluster not found; requeueing", "cluster", clusterName)
-					return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
-				}
-				return ctrl.Result{}, err
-			}
-			if cluster.Spec.Paused {
-				logger.Info("parent Cluster paused; skipping reconcile")
-				return ctrl.Result{}, nil
-			}
-			if !cluster.Status.InfrastructureReady {
-				logger.Info("parent Cluster InfrastructureReady=false; requeueing")
+		if err := r.Get(ctx, types.NamespacedName{Namespace: machine.Namespace, Name: clusterName}, cluster); err != nil {
+			if apierrors.IsNotFound(err) {
+				logger.Info("parent Cluster not found; requeueing", "cluster", clusterName)
 				return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 			}
+			return ctrl.Result{}, err
 		}
+		// CAPI's Machine controller waits for the InfrastructureCluster's
+		// Status.Ready before stamping our CR's OwnerRef, but we still
+		// gate on the parent Cluster being ready before touching
+		// Scaleway — covers the brief window where a Machine exists but
+		// the cluster's not provisioned.
+		if !cluster.Status.InfrastructureReady {
+			logger.Info("parent Cluster InfrastructureReady=false; requeueing")
+			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+		}
+	}
+
+	// Pause gate. Respects both Cluster.Spec.Paused AND the standard
+	// CAPI cluster.x-k8s.io/paused annotation on the infra CR itself.
+	// The per-object annotation is the operator's safety latch for
+	// out-of-band cleanup: when manually clearing status.ServerID +
+	// spec.ProviderID before a `kubectl delete` (e.g. to release a CR
+	// without releasing its underlying Scaleway server — the
+	// duplicate-claim recovery dance), the reconciler must NOT see the
+	// transient "fresh CR" shape and run AdoptByPrefix against the pool
+	// in between. Set the annotation first, patch second, delete
+	// third; the annotation latches reconcileNormal off until the
+	// DeletionTimestamp lands and reconcileDelete (which runs above,
+	// regardless of pause) takes over.
+	//
+	// annotations.IsPaused panics on nil cluster, so split the two
+	// signals — Cluster.Spec.Paused is only meaningful when a parent
+	// Cluster exists, and HasPaused covers the standalone case (and
+	// the owned case where the operator annotated just the CR).
+	if cluster != nil && cluster.Spec.Paused {
+		logger.Info("parent Cluster paused; skipping reconcile")
+		return ctrl.Result{}, nil
+	}
+	if annotations.HasPaused(machine) {
+		logger.Info("Machine paused via annotation; skipping reconcile")
+		return ctrl.Result{}, nil
 	}
 
 	return r.reconcileNormal(ctx, machine)

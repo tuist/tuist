@@ -12,7 +12,9 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
+	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util/conditions"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/api/v1alpha1"
@@ -159,8 +161,21 @@ func newReconciler(t *testing.T, objs ...runtime.Object) *ScalewayAppleSiliconMa
 	if err := corev1.AddToScheme(scheme); err != nil {
 		t.Fatalf("scheme: %v", err)
 	}
-	c := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(objs...).Build()
-	return &ScalewayAppleSiliconMachineReconciler{Client: c}
+	if err := infrav1.AddToScheme(scheme); err != nil {
+		t.Fatalf("infrav1 scheme: %v", err)
+	}
+	if err := clusterv1.AddToScheme(scheme); err != nil {
+		t.Fatalf("clusterv1 scheme: %v", err)
+	}
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithRuntimeObjects(objs...).
+		WithStatusSubresource(&infrav1.ScalewayAppleSiliconMachine{}).
+		Build()
+	return &ScalewayAppleSiliconMachineReconciler{
+		Client:   c,
+		Recorder: fakeRecorder(),
+	}
 }
 
 func backdateBootstrappedCondition(machine *infrav1.ScalewayAppleSiliconMachine, by time.Duration) {
@@ -172,6 +187,59 @@ func backdateBootstrappedCondition(machine *infrav1.ScalewayAppleSiliconMachine,
 			machine.Status.Conditions[i].LastTransitionTime = metav1.NewTime(time.Now().Add(-by))
 			return
 		}
+	}
+}
+
+// Pause-annotation contract:
+//   - cluster.x-k8s.io/paused on the infra CR latches reconcileNormal
+//     off, so out-of-band cleanup (clear status.ServerID +
+//     spec.ProviderID before kubectl delete) can't race the
+//     adoption loop. reconcileDelete still runs on DeletionTimestamp
+//     regardless of the annotation — pause must not block teardown.
+
+func TestReconcile_PausedAnnotationSkipsAdoption(t *testing.T) {
+	machine := &infrav1.ScalewayAppleSiliconMachine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "m1",
+			Namespace: "ns",
+			Annotations: map[string]string{
+				"cluster.x-k8s.io/paused": "true",
+			},
+		},
+		Spec: infrav1.ScalewayAppleSiliconMachineSpec{
+			AdoptPoolPrefix: "tuist-pool-",
+			Type:            "M2-L",
+			Zone:            "fr-par-1",
+			OS:              "macos-tahoe-26.3",
+		},
+	}
+	r := newReconciler(t, machine)
+	// Leaving r.ScalewayClient nil: if pause is honored, the
+	// reconciler returns before any Scaleway call, so nothing
+	// dereferences it. If pause is broken, the reconciler will
+	// reach acquireServer and crash here — that's the failure
+	// signal we want.
+	result, err := r.Reconcile(context.Background(), ctrl.Request{
+		NamespacedName: types.NamespacedName{Name: "m1", Namespace: "ns"},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.RequeueAfter != 0 || result.Requeue {
+		t.Fatalf("paused CR must not be requeued; got %+v", result)
+	}
+
+	// Status should be untouched — no AdoptByPrefix means no phase
+	// transition into Adopting / Provisioning.
+	got := &infrav1.ScalewayAppleSiliconMachine{}
+	if err := r.Get(context.Background(), types.NamespacedName{Name: "m1", Namespace: "ns"}, got); err != nil {
+		t.Fatalf("get machine: %v", err)
+	}
+	if got.Status.Phase != "" {
+		t.Fatalf("paused CR phase should be untouched; got %q", got.Status.Phase)
+	}
+	if got.Status.ServerID != "" {
+		t.Fatalf("paused CR must not have claimed a server; got %q", got.Status.ServerID)
 	}
 }
 

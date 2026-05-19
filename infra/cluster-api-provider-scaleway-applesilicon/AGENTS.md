@@ -191,3 +191,55 @@ kubectl describe scalewayapplesiliconmachine <name>
 # transitions, drift-loop attempts, terminal-failure transitions)
 kubectl get events --field-selector involvedObject.kind=ScalewayAppleSiliconMachine
 ```
+
+### Detach a CR without releasing its Scaleway host
+
+Reserved for recovering from a duplicate-claim state (multiple CRs
+ended up bound to the same Scaleway server) or for hand-rolling a CR
+off a host that's actively serving traffic. The standard
+`kubectl delete machine <name>` path always calls Scaleway's
+`DeleteServer` against the bound host, which is the wrong move when
+the host is shared OR you want to keep the host paid up.
+
+The reconciler skips Scaleway release whenever `status.serverID` is
+empty at delete time. But clearing `status.serverID` before the
+delete races the reconcile loop — it sees the empty serverID and
+runs `AdoptByPrefix` against the pool. To latch the loop off
+during cleanup, set the CAPI `cluster.x-k8s.io/paused` annotation
+on the CR *before* clearing status:
+
+```bash
+NS=tuist
+NAME=tuist-tuist-runners-fleet-mndbc-xxxxx
+
+# 1. Latch the reconciler off — annotate FIRST. Until this lands,
+#    every subsequent patch is racing.
+kubectl -n "$NS" annotate scalewayapplesiliconmachine "$NAME" \
+  cluster.x-k8s.io/paused=true --overwrite
+
+# 2. Clear status.serverID (so reconcileDelete skips DeleteServer)
+#    and spec.providerID (so CAPI core doesn't keep referencing
+#    the abandoned binding).
+kubectl -n "$NS" patch scalewayapplesiliconmachine "$NAME" \
+  --subresource=status --type=merge -p '{"status":{"serverID":""}}'
+kubectl -n "$NS" patch scalewayapplesiliconmachine "$NAME" \
+  --type=merge -p '{"spec":{"providerID":null}}'
+
+# 3. Delete the parent Machine. The pause annotation only latches
+#    reconcileNormal — reconcileDelete still runs on
+#    DeletionTimestamp regardless, observes the empty serverID,
+#    and skips the Scaleway release.
+kubectl -n "$NS" delete machine "$NAME"
+```
+
+The MachineSet will create a replacement CR with a fresh suffix,
+which adopts an unclaimed pool host on its next reconcile.
+
+After cleanup, if you renamed the original Scaleway host
+out-of-band (e.g. during a duplicate-claim untangling), rename it
+back so the pool prefix matches and a future `AdoptByPrefix` can
+pick it up:
+
+```bash
+scw apple-silicon server update <id> zone=<zone> name=tuist-pool-...
+```
