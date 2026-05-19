@@ -1169,10 +1169,24 @@ jobs:
           # node lifecycle when kubelet stops heartbeating).
           now=$(date -u +%s)
           ghosts=()
-          for n in $(kubectl get nodes -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' | grep -E "^tuist-${CLUSTER}-md-0-"); do
+          # Match both cloud-worker (tuist-<env>-md-0-*) and
+          # bare-metal (bm-tuist-<env>-*) prefixes. Bare-metal
+          # Nodes with stale providerID `hcloud://nocloud` will
+          # crash HCCM's LB reconciler, so they need cleanup too.
+          for n in $(kubectl get nodes -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' | grep -E "^(tuist-${CLUSTER}-md-0-|bm-tuist-${CLUSTER}-)"); do
             # Skip if Ready=True
             ready=$(kubectl get node "$n" -o jsonpath='{range .status.conditions[?(@.type=="Ready")]}{.status}{end}')
             if [ "$ready" = "True" ]; then
+              continue
+            fi
+            # Detect bogus providerID. `hcloud://nocloud` is a
+            # known sentinel from a failed installimage cycle —
+            # HCCM tries to parse "nocloud" as an integer server
+            # ID, fails, and aborts the entire Service reconcile.
+            pid=$(kubectl get node "$n" -o jsonpath='{.spec.providerID}' 2>/dev/null || true)
+            if [ "$pid" = "hcloud://nocloud" ]; then
+              echo "Ghost (bogus providerID): $n (providerID=$pid)"
+              ghosts+=("$n")
               continue
             fi
             # Check whether the node has unreachable taint
