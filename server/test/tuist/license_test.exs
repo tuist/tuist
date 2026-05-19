@@ -131,7 +131,7 @@ defmodule Tuist.LicenseTest do
         }
       }
 
-      encoded_data = license_payload |> Jason.encode!() |> Base.encode64()
+      encoded_data = license_payload |> JSON.encode!() |> Base.encode64()
       data_to_sign = "license/" <> encoded_data
       signature = :crypto.sign(:eddsa, :none, data_to_sign, [private_key, :ed25519])
       signature_base64 = Base.encode64(signature)
@@ -142,7 +142,7 @@ defmodule Tuist.LicenseTest do
           "sig" => signature_base64,
           "alg" => "base64+ed25519"
         }
-        |> Jason.encode!()
+        |> JSON.encode!()
         |> Base.encode64()
 
       result = License.resolve_certificate(verify_key, certificate)
@@ -169,7 +169,7 @@ defmodule Tuist.LicenseTest do
         }
       }
 
-      encoded_data = license_payload |> Jason.encode!() |> Base.encode64()
+      encoded_data = license_payload |> JSON.encode!() |> Base.encode64()
       data_to_sign = "license/" <> encoded_data
       signature = :crypto.sign(:eddsa, :none, data_to_sign, [other_private, :ed25519])
       signature_base64 = Base.encode64(signature)
@@ -180,7 +180,7 @@ defmodule Tuist.LicenseTest do
           "sig" => signature_base64,
           "alg" => "base64+ed25519"
         }
-        |> Jason.encode!()
+        |> JSON.encode!()
         |> Base.encode64()
 
       result = License.resolve_certificate(verify_key, certificate)
@@ -195,7 +195,7 @@ defmodule Tuist.LicenseTest do
         %{
           "data" => "some data"
         }
-        |> Jason.encode!()
+        |> JSON.encode!()
         |> Base.encode64()
 
       result = License.resolve_certificate(verify_key, certificate)
