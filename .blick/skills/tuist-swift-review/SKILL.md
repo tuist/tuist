@@ -34,12 +34,14 @@ semantics, identity, inheritance, or `deinit` are actually required.
   coordinators, actors-with-state-shared-by-reference).
 - **`final class` declarations whose `Sendable` conformance is backed by
   a stored `Synchronization.Mutex<State>` (or another `~Copyable`
-  synchronization primitive).** `Mutex` cannot be a stored property of a
-  `Copyable` struct — the compiler emits `stored property '...' of
+  synchronization primitive like `OSAllocatedUnfairLock`).** `Mutex` and
+  similar `~Copyable` types cannot be stored properties of a `Copyable`
+  struct — the compiler emits `stored property '...' of
   'Copyable'-conforming struct '...' has non-Copyable type 'Mutex<...>'`
   — and a `~Copyable` struct cannot be captured by a `@Sendable` closure.
   A `final class` with the `Mutex` and `Sendable` conformance is the
-  correct expression of this pattern.
+  correct expression of this pattern. Do not suggest converting these to
+  structs.
 
 ## 2. Avoid `@unchecked Sendable`
 

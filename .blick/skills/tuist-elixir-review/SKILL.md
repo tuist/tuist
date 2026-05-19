@@ -68,10 +68,11 @@ Tenant-owned schemas include at least: `Bundle`, `Run`, `Cache`,
 
 ### Do not flag
 
-- Internal background jobs that intentionally operate across tenants (look for an explicit `# admin / cross-tenant: ...` comment or a function name like `*_for_all/_global/_admin`).
+- Internal background jobs that intentionally operate across tenants **with an explicit `# admin / cross-tenant: ...` comment** or a function name like `*_for_all/_global/_admin`. These are documented cross-tenant paths by design.
 - Reads from non-tenant tables (`User`, `Account`, `Organization`, `Subscription`, etc.).
 - **Webhook handlers operating on a row that was already cryptographically selected upstream.** When `lib/tuist_web/plugs/webhook_plug.ex` resolves a per-row HMAC secret (e.g. `GitHubController.resolve_webhook_secret/1` matches a `GitHubAppInstallation` row whose `webhook_secret` HMACs the raw body, then stashes the row on `conn.assigns[:github_installation]`), downstream handlers reading that assign do not need a separate `installation.account_id == expected_account_id` check. There is no separate "expected account" — webhooks land on a global `/webhooks/<provider>` URL, and the row *is* the tenant context, selected by a per-row cryptographic capability. A redundant `account_id` equality check after `valid_signature?/4` would compare the row's value to itself; it adds dead code, not a defense layer. If the cryptographic check fails, the request 403's before the handler ever runs.
 - **Internal dispatch paths whose inputs come from a query already scoped by tenant.** When a function receives a struct produced by an upstream context function that already filters by `project_id` / `account_id` (e.g. `FlakyTestsMonitor.evaluate/1` → `AlertEvaluationWorker` → `ActionExecutor`), do not flag the downstream call as needing its own scoping check. Trace the input chain before flagging; only flag when the input is user-controllable (URL param, body field, header).
+- Functions documented in their `@doc` as cross-tenant (e.g. "Loads a single endpoint by id, regardless of account"). The docstring is the explicit boundary marker.
 
 ---
 
@@ -214,7 +215,7 @@ In marketing copy and pricing UI:
 ## 9. N+1 queries — DB calls inside loops
 
 A `Repo.*` / `ClickHouseRepo.*` / `IngestRepo.*` call inside `Enum.map`,
-`Enum.each`, `Enum.flat_map`, `Enum.filter`, `Enum.reduce`, `for`, or
+`Enum.each`, `Enum.flat_map`, `Enum.reduce`, `for`, or
 `Stream.*` is almost always an N+1. Each iteration is a separate round
 trip; the chart-bucket loop or per-row preload that looked harmless on
 toy data stalls real page loads.
@@ -324,55 +325,35 @@ authors.
 - A PR that adds or materially changes a user-facing server/dashboard
   feature without also adding or updating a
   `server/priv/marketing/changelog/*.md` entry.
-- A PR that adds or updates a `server/priv/marketing/changelog/*.md`
-  entry for a feature that is ops-only, admin-only, feature-flagged only
-  for internal rollout, infrastructure-only, or otherwise not meant to
-  be announced to customers yet.
 
-User-facing signals include changed dashboard routes, LiveViews,
-controllers, templates, page CSS, settings pages, integration flows,
-alerts, reports, previews, build/test/cache/bundle analytics, or public
-API behavior that customers can observe.
+### Do not flag (important exclusions to avoid noise)
 
-Do not treat a dashboard/UI change as announceable only because it lives
-in user-facing code. If the diff gates the behavior behind an
-account/org feature flag, ops/admin-only access, or an explicit internal
-rollout path, it is not ready for the product changelog unless the PR
-also makes that behavior broadly available to customers.
-
-Do not request a product changelog for fix PRs. This includes fixes that
-add or adjust dashboard fields, copy, validation, or settings controls
-when those UI changes are part of making an already-announced or already
-shipped flow work correctly. Only ask for a changelog when the PR's
-primary purpose is to launch a new customer-facing capability, not when
-the PR is repairing or completing a broken flow.
+- **Fix PRs** — bug fixes, corrections to existing flows, validation
+  improvements, error message tweaks, or UI adjustments that make an
+  already-announced or already-shipped feature work correctly. These
+  repair rather than launch.
+- **Ops-only, admin-only, or internal infrastructure changes** — even if
+  visible in dashboard code, if the behavior is gated to operators (`/ops`
+  routes), requires `ops_access`, or is infrastructure-only, it is not
+  a customer-facing product announcement.
+- **Features behind account/org feature flags for internal rollout** —
+  if the PR adds code that is not yet broadly available to customers
+  (gated by `FunWithFlags`, `Environment.dev?/ops?`, or similar), and
+  the PR does not also make the feature generally available, the
+  changelog entry should wait until general availability.
+- **Refactors, performance work, telemetry, and test-only changes**
+  without customer-visible behavioral changes.
+- **Documentation-only or marketing-only PRs.**
+- **CLI/app/cache/kura/noora-only changes** — this rule is for
+  server/dashboard features.
+- **PRs that already add or update a matching
+  `server/priv/marketing/changelog/*.md` entry.**
 
 When suggesting a fix, ask for a short marketing changelog entry with
 frontmatter like `title`, `category: "Product"`, and `pull_request`.
 Mention an accompanying image under
 `server/priv/static/marketing/images/changelog/` only when the feature
 has a visual dashboard/UI state worth showing.
-
-When flagging an inappropriate changelog entry, suggest removing the
-entry and, if the work still needs coordination, tracking it in the PR
-description or internal release notes instead.
-
-### Do not flag
-
-- Bug fixes with no new or materially changed user-facing behavior.
-- Fix PRs, even when the fix includes small user-facing UI changes needed
-  to make an already-shipped flow work correctly.
-- Refactors, performance work, infrastructure, ops/admin-only paths,
-  internal jobs, telemetry-only changes, tests, fixtures, or schema-only
-  plumbing whose effect is not directly visible to customers.
-- Features gated behind account/org feature flags that are being used
-  for internal rollout or controlled access, unless the PR also makes
-  the feature generally available to customers.
-- Documentation-only or marketing-only PRs.
-- CLI/app/cache/kura/noora-only changes. This rule is for
-  user-facing server/dashboard features.
-- PRs that already add or update a matching
-  `server/priv/marketing/changelog/*.md` entry.
 
 ---
 
