@@ -46,6 +46,9 @@ struct ForeignBuildGraphMapperTests {
         #expect(mappedForeignTarget.scripts.first?.name == "Foreign Build: SharedKMP")
         #expect(mappedForeignTarget.scripts.first?.script == .embedded("gradle build"))
         #expect(mappedForeignTarget.scripts.first?.outputPaths == [outputPath.pathString])
+        // When there are no tracked inputs, the script must always run; otherwise Xcode would
+        // skip it forever once the output exists.
+        #expect(mappedForeignTarget.scripts.first?.basedOnDependencyAnalysis == false)
     }
 
     @Test
@@ -189,6 +192,41 @@ struct ForeignBuildGraphMapperTests {
             mainFile.pathString,
             gradleFile.pathString,
         ].sorted())
+        // With tracked inputs, fall back to Xcode's default dependency analysis.
+        #expect(script.basedOnDependencyAnalysis == nil)
+    }
+
+    @Test(.inTemporaryDirectory)
+    func map_marksScriptAlwaysOutOfDateWhenFolderInputIsEmpty() async throws {
+        // Given a target whose folder input matches no files on disk — without this guard,
+        // Xcode would treat the script as up-to-date forever once the output exists.
+        let fileSystem = FileSystem()
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let emptyFolder = temporaryDirectory.appending(components: "SharedKMP", "src")
+        try await fileSystem.makeDirectory(at: emptyFolder)
+
+        let outputPath = temporaryDirectory.appending(components: "build", "SharedKMP.xcframework")
+        let foreignBuildTarget = Target.test(
+            name: "SharedKMP",
+            foreignBuild: ForeignBuild(
+                script: "gradle build",
+                inputs: [.folder(emptyFolder)],
+                output: .xcframework(path: outputPath, linking: .dynamic)
+            )
+        )
+        let project = Project.test(path: temporaryDirectory, targets: [foreignBuildTarget])
+        let graph = Graph.test(path: temporaryDirectory, projects: [temporaryDirectory: project])
+
+        // When
+        let mapper = ForeignBuildGraphMapper(fileSystem: fileSystem)
+        let (mappedGraph, _, _) = try await mapper.map(graph: graph, environment: MapperEnvironment())
+
+        // Then
+        let mappedProject = try #require(mappedGraph.projects[temporaryDirectory])
+        let mappedForeignTarget = try #require(mappedProject.targets["SharedKMP"])
+        let script = try #require(mappedForeignTarget.scripts.first)
+        #expect(script.inputPaths.isEmpty)
+        #expect(script.basedOnDependencyAnalysis == false)
     }
 
     @Test

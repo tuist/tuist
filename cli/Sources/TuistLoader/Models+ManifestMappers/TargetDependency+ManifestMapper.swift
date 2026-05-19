@@ -133,6 +133,11 @@ extension XcodeGraph.ForeignBuild.Input {
             let resolvedPath = try generatorPaths.resolve(path: path)
             let pattern = String(resolvedPath.pathString.dropFirst())
             let matchedPaths = try await fileSystem.glob(directory: AbsolutePath.root, include: [pattern]).collect().sorted()
+            if matchedPaths.isEmpty {
+                Logger.current.warning(
+                    "Foreign build glob input '\(resolvedPath.pathString)' matched no files. Verify the path is correct, otherwise Xcode will not detect changes to the matched files and the foreign build script may not re-run."
+                )
+            }
             return matchedPaths.map { .file($0) }
         case let .script(script):
             return [.script(script)]
