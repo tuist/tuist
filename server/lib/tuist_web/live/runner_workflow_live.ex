@@ -5,6 +5,7 @@ defmodule TuistWeb.RunnerWorkflowLive do
 
   import TuistWeb.Components.EmptyCardSection
   import TuistWeb.Components.Skeleton
+  import TuistWeb.PercentileDropdownWidget
   import TuistWeb.Widget
 
   alias Tuist.Authorization
@@ -39,6 +40,7 @@ defmodule TuistWeb.RunnerWorkflowLive do
       |> assign(:repo, repo)
       |> assign(:workflow_name, workflow_name)
       |> assign(:analytics_selected_widget, "total_jobs")
+      |> assign(:job_duration_percentile, "avg")
       |> assign(
         :recent_jobs,
         Jobs.list_for_account(selected_account.id, scope_opts ++ [limit: @recent_jobs_limit])
@@ -62,6 +64,10 @@ defmodule TuistWeb.RunnerWorkflowLive do
   @impl true
   def handle_event("select_widget", %{"widget" => widget}, socket) do
     {:noreply, assign(socket, :analytics_selected_widget, widget)}
+  end
+
+  def handle_event("select_job_duration_percentile", %{"type" => type}, socket) do
+    {:noreply, assign(socket, :job_duration_percentile, type)}
   end
 
   def display_workflow(""), do: dgettext("dashboard_runners", "Unknown")
@@ -118,6 +124,22 @@ defmodule TuistWeb.RunnerWorkflowLive do
   def short_sha(""), do: "–"
   def short_sha(nil), do: "–"
   def short_sha(sha) when is_binary(sha), do: String.slice(sha, 0, 7)
+
+  @doc """
+  Resolves the public repository URL for the header badge. GitHub
+  Actions webhooks always deliver `repo` as `<owner>/<name>` so the
+  canonical URL is just `https://github.com/<owner>/<name>`. The
+  helper short-circuits to `#` for malformed values so the badge
+  still renders without a broken outbound link.
+  """
+  def repo_url(repo) when is_binary(repo) do
+    case String.split(repo, "/", parts: 2) do
+      [owner, name] when owner != "" and name != "" -> "https://github.com/#{owner}/#{name}"
+      _ -> "#"
+    end
+  end
+
+  def repo_url(_), do: "#"
 
   @doc """
   Builds the Jobs-page URL pre-seeded with the Noora filter params

@@ -14,17 +14,21 @@
   <div data-part="header">
     <div data-part="title-group">
       <div data-part="title">
-        <div data-part="icon">
-          <.versions />
-        </div>
         <h1 data-part="label">
           {TuistWeb.RunnerWorkflowLive.display_workflow(@workflow_name)}
         </h1>
       </div>
       <div data-part="badges">
-        <.badge label={@repo} color="primary" style="light-fill" size="large">
-          <:icon><.git_branch /></:icon>
-        </.badge>
+        <a
+          href={TuistWeb.RunnerWorkflowLive.repo_url(@repo)}
+          target="_blank"
+          rel="noopener noreferrer"
+          data-part="repo-link"
+        >
+          <.badge label={@repo} color="primary" style="light-fill" size="large">
+            <:icon><.brand_github /></:icon>
+          </.badge>
+        </a>
       </div>
     </div>
   </div>
@@ -91,22 +95,48 @@
         trend_type={:inverse}
         trend_label={dgettext("dashboard_runners", "since last month")}
       />
-      <.widget
-        id="widget-workflow-avg-duration"
-        title={dgettext("dashboard_runners", "Avg. job duration")}
-        legend_color="p90"
+      <.percentile_dropdown_widget
+        id="widget-workflow-job-duration"
+        title={
+          case @job_duration_percentile do
+            "p99" -> dgettext("dashboard_runners", "p99 job duration")
+            "p90" -> dgettext("dashboard_runners", "p90 job duration")
+            "p50" -> dgettext("dashboard_runners", "p50 job duration")
+            _ -> dgettext("dashboard_runners", "Avg. job duration")
+          end
+        }
         description={
-          dgettext("dashboard_runners", "Average duration of completed jobs in the last 30 days.")
+          dgettext("dashboard_runners", "Time each job takes from start to completion.")
         }
         value={
-          if @jobs_duration.ok?,
-            do: TuistWeb.RunnerWorkflowLive.format_duration_ms(@jobs_duration.result.avg)
+          if @jobs_duration.ok? do
+            TuistWeb.RunnersLive.fmt_duration_ms(
+              TuistWeb.RunnersLive.percentile_value(
+                @jobs_duration.result,
+                @job_duration_percentile
+              )
+            )
+          end
         }
+        metrics={
+          if @jobs_duration.ok?,
+            do: TuistWeb.RunnersLive.percentile_metrics_for(@jobs_duration.result)
+        }
+        selected_type={@job_duration_percentile}
+        event_name="select_job_duration_percentile"
         loading={!@jobs_duration.ok?}
-        selected={@analytics_selected_widget == "avg_duration"}
+        legend_color={TuistWeb.RunnersLive.legend_color_for_percentile(@job_duration_percentile)}
+        selected={@analytics_selected_widget == "job_duration"}
         phx_click="select_widget"
-        phx_value_widget="avg_duration"
-        trend_value={if @jobs_duration.ok?, do: @jobs_duration.result.trend_avg}
+        phx_value_widget="job_duration"
+        trend_value={
+          if @jobs_duration.ok? do
+            TuistWeb.RunnersLive.percentile_trend(
+              @jobs_duration.result,
+              @job_duration_percentile
+            )
+          end
+        }
         trend_type={:inverse}
         trend_label={dgettext("dashboard_runners", "since last month")}
       />
@@ -183,26 +213,19 @@
             ]}
             y_axis_min={0}
           />
-        <% @analytics_selected_widget == "avg_duration" and !@jobs_duration.ok? -> %>
+        <% @analytics_selected_widget == "job_duration" and !@jobs_duration.ok? -> %>
           <.skeleton_chart />
-        <% @analytics_selected_widget == "avg_duration" -> %>
+        <% @analytics_selected_widget == "job_duration" -> %>
           <.chart
-            id="workflow-avg-duration-chart"
+            id="workflow-job-duration-chart"
             type="line"
-            extra_options={TuistWeb.RunnerWorkflowLive.chart_options(@jobs_duration.result.dates)}
-            series={[
-              %{
-                color: "var:noora-chart-p90",
-                data:
-                  @jobs_duration.result.dates
-                  |> Enum.zip(@jobs_duration.result.avg_values)
-                  |> Enum.map(&Tuple.to_list/1),
-                name: dgettext("dashboard_runners", "Avg duration (ms)"),
-                type: "line",
-                smooth: 0.1,
-                symbol: "none"
-              }
-            ]}
+            extra_options={
+              TuistWeb.RunnersLive.duration_chart_options(
+                @jobs_duration.result.dates,
+                "last-30-days"
+              )
+            }
+            series={TuistWeb.RunnersLive.duration_chart_series(@jobs_duration.result)}
             y_axis_min={0}
           />
         <% true -> %>

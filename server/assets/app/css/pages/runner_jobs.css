@@ -120,23 +120,6 @@
         align-items: center;
         gap: var(--noora-spacing-4);
 
-        & > [data-part="icon"] {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          padding: var(--noora-spacing-3);
-          width: var(--noora-icon-size-large);
-          height: var(--noora-icon-size-large);
-          border-radius: var(--noora-radius-4);
-          background: var(--noora-icon-primary-background);
-          color: var(--noora-icon-primary-label);
-
-          & > svg {
-            width: 100%;
-            height: 100%;
-          }
-        }
-
         & > [data-part="label"] {
           margin: var(--noora-spacing-0);
           color: var(--noora-surface-label-primary);
@@ -149,6 +132,11 @@
         display: flex;
         flex-direction: row;
         gap: var(--noora-spacing-3);
+
+        & > [data-part="repo-link"] {
+          text-decoration: none;
+          color: inherit;
+        }
       }
     }
 
