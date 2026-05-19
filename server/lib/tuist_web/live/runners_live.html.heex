@@ -1,4 +1,58 @@
 <div id="runners">
+  <div data-part="date-picker-bar">
+    <.date_picker
+      id="runners-analytics-date-range-picker"
+      name="analytics-date-range"
+      presets={[
+        %{
+          id: "last-24-hours",
+          label: dgettext("dashboard_runners", "Last 24 hours"),
+          period: {24, :hour}
+        },
+        %{
+          id: "last-7-days",
+          label: dgettext("dashboard_runners", "Last 7 days"),
+          period: {7, :day}
+        },
+        %{
+          id: "last-30-days",
+          label: dgettext("dashboard_runners", "Last 30 days"),
+          period: {30, :day}
+        },
+        %{
+          id: "last-12-months",
+          label: dgettext("dashboard_runners", "Last 12 months"),
+          period: {12, :month}
+        },
+        %{id: "custom", label: dgettext("dashboard_runners", "Custom")}
+      ]}
+      selected_preset={@analytics_preset}
+      period={@analytics_period}
+      on_period_change="analytics_period_changed"
+      max={Date.utc_today()}
+    >
+      <:actions>
+        <.button
+          label={dgettext("dashboard_runners", "Cancel")}
+          variant="secondary"
+          phx-click={
+            JS.dispatch("phx:date-picker-cancel",
+              detail: %{id: "runners-analytics-date-range-picker"}
+            )
+          }
+        />
+        <.button
+          label={dgettext("dashboard_runners", "Apply")}
+          phx-click={
+            JS.dispatch("phx:date-picker-apply",
+              detail: %{id: "runners-analytics-date-range-picker"}
+            )
+          }
+        />
+      </:actions>
+    </.date_picker>
+  </div>
+
   <.card
     title={dgettext("dashboard_runners", "Analytics")}
     icon="chart_arcs"
@@ -9,12 +63,15 @@
         id="widget-total-jobs"
         title={dgettext("dashboard_runners", "Total jobs")}
         legend_color="primary"
-        description={dgettext("dashboard_runners", "Workflow jobs received from GitHub in the last 30 days.")}
+        description={dgettext("dashboard_runners", "Workflow jobs received from GitHub in the selected window.")}
         value={if @jobs_count.ok?, do: Integer.to_string(@jobs_count.result.count)}
         loading={!@jobs_count.ok?}
         selected={@analytics_selected_widget == "total_jobs"}
         phx_click="select_widget"
         phx_value_widget="total_jobs"
+        trend_value={if @jobs_count.ok?, do: @jobs_count.result.trend}
+        trend_type={:neutral}
+        trend_label={@analytics_trend_label}
         empty={@jobs_count.ok? && @jobs_count.result.count == 0}
       />
       <.percentile_dropdown_widget
@@ -46,6 +103,13 @@
         selected={@analytics_selected_widget == "job_duration"}
         phx_click="select_widget"
         phx_value_widget="job_duration"
+        trend_value={
+          if @jobs_duration.ok? do
+            TuistWeb.RunnersLive.percentile_trend(@jobs_duration.result, @job_duration_percentile)
+          end
+        }
+        trend_type={:inverse}
+        trend_label={@analytics_trend_label}
         empty={
           @jobs_duration.ok? &&
             TuistWeb.RunnersLive.percentile_value(@jobs_duration.result, @job_duration_percentile) in [
@@ -91,6 +155,16 @@
         selected={@analytics_selected_widget == "workflow_duration"}
         phx_click="select_widget"
         phx_value_widget="workflow_duration"
+        trend_value={
+          if @workflows_duration.ok? do
+            TuistWeb.RunnersLive.percentile_trend(
+              @workflows_duration.result,
+              @workflow_duration_percentile
+            )
+          end
+        }
+        trend_type={:inverse}
+        trend_label={@analytics_trend_label}
         empty={
           @workflows_duration.ok? &&
             TuistWeb.RunnersLive.percentile_value(

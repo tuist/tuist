@@ -25,6 +25,11 @@
   }
 }
 
+#runners [data-part="date-picker-bar"] {
+  display: flex;
+  justify-content: flex-end;
+}
+
 #runners [data-part="analytics"],
 #runner-jobs [data-part="jobs-analytics"] {
   & [data-part="widgets"] {
@@ -35,7 +40,9 @@
   }
 
   & [data-part="analytics-card-chart-section"] {
-    min-height: 280px;
+    & .noora-chart {
+      height: 280px;
+    }
   }
 
   & [data-part="status-counts-empty"] {

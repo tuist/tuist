@@ -15,6 +15,9 @@
         selected={@analytics_selected_widget == "total_jobs"}
         phx_click="select_widget"
         phx_value_widget="total_jobs"
+        trend_value={if @jobs_count.ok?, do: @jobs_count.result.trend}
+        trend_type={:neutral}
+        trend_label={dgettext("dashboard_runners", "since last month")}
         empty={@jobs_count.ok? && @jobs_count.result.count == 0}
       />
       <.widget
@@ -64,6 +67,9 @@
         selected={@analytics_selected_widget == "cumulative_minutes"}
         phx_click="select_widget"
         phx_value_widget="cumulative_minutes"
+        trend_value={if @cumulative_minutes.ok?, do: @cumulative_minutes.result.trend}
+        trend_type={:neutral}
+        trend_label={dgettext("dashboard_runners", "since last month")}
         empty={@cumulative_minutes.ok? && @cumulative_minutes.result.total_ms == 0}
       />
     </div>

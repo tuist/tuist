@@ -241,4 +241,7 @@ defmodule TuistWeb.RunnerJobsLive do
   def short_sha(""), do: "–"
   def short_sha(nil), do: "–"
   def short_sha(sha) when is_binary(sha), do: String.slice(sha, 0, 7)
+
+  def trend_to_int(trend) when is_number(trend), do: round(trend)
+  def trend_to_int(_), do: 0
 end

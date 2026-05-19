@@ -24,13 +24,29 @@ defmodule Tuist.Runners.Analytics do
   @default_window_days 30
 
   @doc """
-  Total job count over the window plus a daily series.
+  Total job count over the window plus a daily series and the
+  trend (% change) versus the equivalent prior window.
 
-  Returns `%{count, dates, values}`.
+  Returns `%{count, trend, dates, values}`.
   """
   def jobs_count(account_id, opts \\ []) when is_integer(account_id) do
     {start_dt, end_dt} = window(opts)
+    {prev_start_dt, prev_end_dt} = previous_window(start_dt, end_dt)
 
+    count = jobs_count_in_range(account_id, start_dt, end_dt)
+    previous_count = jobs_count_in_range(account_id, prev_start_dt, prev_end_dt)
+
+    rows = jobs_count_per_day(account_id, start_dt, end_dt)
+
+    %{
+      count: count,
+      trend: trend(previous_count, count),
+      dates: Enum.map(rows, & &1.date),
+      values: Enum.map(rows, & &1.value)
+    }
+  end
+
+  defp jobs_count_in_range(account_id, start_dt, end_dt) do
     [%{count: count} | _] =
       Job
       |> from(hints: ["FINAL"])
@@ -39,13 +55,7 @@ defmodule Tuist.Runners.Analytics do
       |> ClickHouseRepo.all()
       |> default_empty(%{count: 0})
 
-    rows = jobs_count_per_day(account_id, start_dt, end_dt)
-
-    %{
-      count: count,
-      dates: Enum.map(rows, & &1.date),
-      values: Enum.map(rows, & &1.value)
-    }
+    count
   end
 
   defp jobs_count_per_day(account_id, start_dt, end_dt) do
@@ -63,26 +73,14 @@ defmodule Tuist.Runners.Analytics do
 
   @doc """
   Sum of completed-job runtime (`completed_at - started_at`) in
-  milliseconds over the window, plus a daily series for the line
-  chart. Used as the "Cumulative minutes" pricing surface.
+  milliseconds over the window, plus a daily series and a trend.
   """
   def cumulative_minutes(account_id, opts \\ []) when is_integer(account_id) do
     {start_dt, end_dt} = window(opts)
+    {prev_start_dt, prev_end_dt} = previous_window(start_dt, end_dt)
 
-    [%{total_ms: total_ms} | _] =
-      Job
-      |> from(hints: ["FINAL"])
-      |> completed_in_window(account_id, start_dt, end_dt)
-      |> select([j], %{
-        total_ms:
-          fragment(
-            "sum(toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?))",
-            j.completed_at,
-            j.started_at
-          )
-      })
-      |> ClickHouseRepo.all()
-      |> default_empty(%{total_ms: 0})
+    total_ms = total_completed_ms(account_id, start_dt, end_dt)
+    previous_total_ms = total_completed_ms(account_id, prev_start_dt, prev_end_dt)
 
     rows =
       Job
@@ -103,9 +101,29 @@ defmodule Tuist.Runners.Analytics do
 
     %{
       total_ms: total_ms || 0,
+      trend: trend(previous_total_ms, total_ms),
       dates: Enum.map(rows, & &1.date),
       values: Enum.map(rows, &(div(&1.value, 60_000) |> trunc()))
     }
+  end
+
+  defp total_completed_ms(account_id, start_dt, end_dt) do
+    [%{total_ms: total_ms} | _] =
+      Job
+      |> from(hints: ["FINAL"])
+      |> completed_in_window(account_id, start_dt, end_dt)
+      |> select([j], %{
+        total_ms:
+          fragment(
+            "sum(toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?))",
+            j.completed_at,
+            j.started_at
+          )
+      })
+      |> ClickHouseRepo.all()
+      |> default_empty(%{total_ms: 0})
+
+    total_ms || 0
   end
 
   @doc """
@@ -115,8 +133,31 @@ defmodule Tuist.Runners.Analytics do
   """
   def jobs_duration(account_id, opts \\ []) when is_integer(account_id) do
     {start_dt, end_dt} = window(opts)
+    {prev_start_dt, prev_end_dt} = previous_window(start_dt, end_dt)
 
-    [%{avg: avg, p50: p50, p90: p90, p99: p99} | _] =
+    current = jobs_duration_aggregates(account_id, start_dt, end_dt)
+    previous = jobs_duration_aggregates(account_id, prev_start_dt, prev_end_dt)
+    rows = duration_buckets_per_day(account_id, start_dt, end_dt, &job_duration_select/1)
+
+    %{
+      avg: trunc_or_zero(current.avg),
+      p50: trunc_or_zero(current.p50),
+      p90: trunc_or_zero(current.p90),
+      p99: trunc_or_zero(current.p99),
+      trend_avg: trend(trunc_or_zero(previous.avg), trunc_or_zero(current.avg)),
+      trend_p50: trend(trunc_or_zero(previous.p50), trunc_or_zero(current.p50)),
+      trend_p90: trend(trunc_or_zero(previous.p90), trunc_or_zero(current.p90)),
+      trend_p99: trend(trunc_or_zero(previous.p99), trunc_or_zero(current.p99)),
+      dates: Enum.map(rows, & &1.date),
+      avg_values: Enum.map(rows, &trunc_or_zero(&1.avg)),
+      p50_values: Enum.map(rows, &trunc_or_zero(&1.p50)),
+      p90_values: Enum.map(rows, &trunc_or_zero(&1.p90)),
+      p99_values: Enum.map(rows, &trunc_or_zero(&1.p99))
+    }
+  end
+
+  defp jobs_duration_aggregates(account_id, start_dt, end_dt) do
+    [aggregates | _] =
       Job
       |> from(hints: ["FINAL"])
       |> completed_in_window(account_id, start_dt, end_dt)
@@ -149,19 +190,7 @@ defmodule Tuist.Runners.Analytics do
       |> ClickHouseRepo.all()
       |> default_empty(%{avg: 0, p50: 0, p90: 0, p99: 0})
 
-    rows = duration_buckets_per_day(account_id, start_dt, end_dt, &job_duration_select/1)
-
-    %{
-      avg: trunc_or_zero(avg),
-      p50: trunc_or_zero(p50),
-      p90: trunc_or_zero(p90),
-      p99: trunc_or_zero(p99),
-      dates: Enum.map(rows, & &1.date),
-      avg_values: Enum.map(rows, &trunc_or_zero(&1.avg)),
-      p50_values: Enum.map(rows, &trunc_or_zero(&1.p50)),
-      p90_values: Enum.map(rows, &trunc_or_zero(&1.p90)),
-      p99_values: Enum.map(rows, &trunc_or_zero(&1.p99))
-    }
+    aggregates
   end
 
   @doc """
@@ -172,26 +201,33 @@ defmodule Tuist.Runners.Analytics do
   """
   def workflows_duration(account_id, opts \\ []) when is_integer(account_id) do
     {start_dt, end_dt} = window(opts)
+    {prev_start_dt, prev_end_dt} = previous_window(start_dt, end_dt)
 
-    # Inner per-run subquery: one row per workflow_run_id with the
-    # span from earliest start to latest completion.
-    runs_subquery =
-      Job
-      |> from(hints: ["FINAL"])
-      |> completed_in_window(account_id, start_dt, end_dt)
-      |> where([j], j.workflow_run_id > 0)
-      |> group_by([j], [j.workflow_run_id])
-      |> select([j], %{
-        completion_date: fragment("toDate(max(?))", j.completed_at),
-        run_ms:
-          fragment(
-            "toUnixTimestamp64Milli(max(?)) - toUnixTimestamp64Milli(min(?))",
-            j.completed_at,
-            j.started_at
-          )
-      })
+    current = workflows_duration_aggregates(account_id, start_dt, end_dt)
+    previous = workflows_duration_aggregates(account_id, prev_start_dt, prev_end_dt)
+    rows = workflows_duration_per_day(account_id, start_dt, end_dt)
 
-    [%{avg: avg, p50: p50, p90: p90, p99: p99} | _] =
+    %{
+      avg: trunc_or_zero(current.avg),
+      p50: trunc_or_zero(current.p50),
+      p90: trunc_or_zero(current.p90),
+      p99: trunc_or_zero(current.p99),
+      trend_avg: trend(trunc_or_zero(previous.avg), trunc_or_zero(current.avg)),
+      trend_p50: trend(trunc_or_zero(previous.p50), trunc_or_zero(current.p50)),
+      trend_p90: trend(trunc_or_zero(previous.p90), trunc_or_zero(current.p90)),
+      trend_p99: trend(trunc_or_zero(previous.p99), trunc_or_zero(current.p99)),
+      dates: Enum.map(rows, & &1.date),
+      avg_values: Enum.map(rows, &trunc_or_zero(&1.avg)),
+      p50_values: Enum.map(rows, &trunc_or_zero(&1.p50)),
+      p90_values: Enum.map(rows, &trunc_or_zero(&1.p90)),
+      p99_values: Enum.map(rows, &trunc_or_zero(&1.p99))
+    }
+  end
+
+  defp workflows_duration_aggregates(account_id, start_dt, end_dt) do
+    runs_subquery = workflow_runs_subquery(account_id, start_dt, end_dt)
+
+    [aggregates | _] =
       from(r in subquery(runs_subquery),
         select: %{
           avg: fragment("avg(?)", r.run_ms),
@@ -203,32 +239,54 @@ defmodule Tuist.Runners.Analytics do
       |> ClickHouseRepo.all()
       |> default_empty(%{avg: 0, p50: 0, p90: 0, p99: 0})
 
-    rows =
-      from(r in subquery(runs_subquery),
-        group_by: r.completion_date,
-        order_by: r.completion_date,
-        select: %{
-          date: r.completion_date,
-          avg: fragment("avg(?)", r.run_ms),
-          p50: fragment("quantile(0.5)(?)", r.run_ms),
-          p90: fragment("quantile(0.9)(?)", r.run_ms),
-          p99: fragment("quantile(0.99)(?)", r.run_ms)
-        }
-      )
-      |> ClickHouseRepo.all()
-
-    %{
-      avg: trunc_or_zero(avg),
-      p50: trunc_or_zero(p50),
-      p90: trunc_or_zero(p90),
-      p99: trunc_or_zero(p99),
-      dates: Enum.map(rows, & &1.date),
-      avg_values: Enum.map(rows, &trunc_or_zero(&1.avg)),
-      p50_values: Enum.map(rows, &trunc_or_zero(&1.p50)),
-      p90_values: Enum.map(rows, &trunc_or_zero(&1.p90)),
-      p99_values: Enum.map(rows, &trunc_or_zero(&1.p99))
-    }
+    aggregates
   end
+
+  defp workflows_duration_per_day(account_id, start_dt, end_dt) do
+    runs_subquery = workflow_runs_subquery(account_id, start_dt, end_dt)
+
+    from(r in subquery(runs_subquery),
+      group_by: r.completion_date,
+      order_by: r.completion_date,
+      select: %{
+        date: r.completion_date,
+        avg: fragment("avg(?)", r.run_ms),
+        p50: fragment("quantile(0.5)(?)", r.run_ms),
+        p90: fragment("quantile(0.9)(?)", r.run_ms),
+        p99: fragment("quantile(0.99)(?)", r.run_ms)
+      }
+    )
+    |> ClickHouseRepo.all()
+  end
+
+  defp workflow_runs_subquery(account_id, start_dt, end_dt) do
+    Job
+    |> from(hints: ["FINAL"])
+    |> completed_in_window(account_id, start_dt, end_dt)
+    |> where([j], j.workflow_run_id > 0)
+    |> group_by([j], [j.workflow_run_id])
+    |> select([j], %{
+      completion_date: fragment("toDate(max(?))", j.completed_at),
+      run_ms:
+        fragment(
+          "toUnixTimestamp64Milli(max(?)) - toUnixTimestamp64Milli(min(?))",
+          j.completed_at,
+          j.started_at
+        )
+    })
+  end
+
+  # Percentage change from previous to current. Returns 0.0 when
+  # either side is zero so the badge stays neutral on cold accounts.
+  defp trend(previous, current) when is_number(previous) and is_number(current) do
+    cond do
+      previous == 0 -> 0.0
+      current == 0 -> 0.0
+      true -> Float.round(current / previous * 100, 1) - 100.0
+    end
+  end
+
+  defp trend(_, _), do: 0.0
 
   defp duration_buckets_per_day(account_id, start_dt, end_dt, _select_fn) do
     Job
@@ -284,6 +342,13 @@ defmodule Tuist.Runners.Analytics do
       Keyword.get(opts, :start_datetime, DateTime.add(end_dt, -@default_window_days, :day))
 
     {start_dt, end_dt}
+  end
+
+  # Mirror window for trend comparison: same length, immediately
+  # preceding the current period.
+  defp previous_window(start_dt, end_dt) do
+    delta_seconds = DateTime.diff(end_dt, start_dt, :second)
+    {DateTime.add(start_dt, -delta_seconds, :second), start_dt}
   end
 
   defp default_empty([], default), do: [default]
