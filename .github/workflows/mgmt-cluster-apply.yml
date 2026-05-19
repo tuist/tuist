@@ -393,7 +393,26 @@ jobs:
           echo "::group::Nodes"
           kubectl get nodes -o wide
           echo
-          kubectl get nodes -l node.cluster.x-k8s.io/pool=runners-linux -o yaml | grep -E "name:|taints:|labels:|conditions:" | head -50 || true
+          echo "--- bare-metal Node descriptions ---"
+          for n in $(kubectl get nodes -l node.cluster.x-k8s.io/pool=runners-linux -o jsonpath='{.items[*].metadata.name}'); do
+            echo "=== $n ==="
+            kubectl describe node "$n" | sed -n '/Conditions:/,/Addresses:/p'
+            echo
+            kubectl describe node "$n" | sed -n '/Taints:/,/Unschedulable:/p'
+          done
+          echo "::endgroup::"
+          echo "::group::Cilium agent pods on bare-metal Nodes"
+          for n in $(kubectl get nodes -l node.cluster.x-k8s.io/pool=runners-linux -o jsonpath='{.items[*].metadata.name}'); do
+            echo "=== Cilium on $n ==="
+            cilium_pod=$(kubectl get pods -n kube-system -l k8s-app=cilium --field-selector spec.nodeName="$n" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+            if [ -z "$cilium_pod" ]; then
+              echo "(no Cilium pod scheduled on $n)"
+            else
+              kubectl get pod -n kube-system "$cilium_pod" -o wide
+              echo "--- last 80 lines of cilium-agent logs ---"
+              kubectl logs -n kube-system "$cilium_pod" --tail=80 2>&1 || true
+            fi
+          done
           echo "::endgroup::"
           echo "::group::RunnerPool CRs"
           kubectl get runnerpool -A -o wide || true
