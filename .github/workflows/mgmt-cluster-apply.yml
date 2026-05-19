@@ -534,6 +534,21 @@ jobs:
           echo "::group::All HBMMs in org-tuist"
           kubectl get hetznerbaremetalmachine -n org-tuist -o wide || true
           echo "::endgroup::"
+          echo "::group::CAPI Cluster + MachineDeployments + MachineSets + Machines"
+          kubectl get cluster -n org-tuist -o wide || true
+          echo
+          kubectl get machinedeployment -n org-tuist -o wide || true
+          echo
+          kubectl get machineset -n org-tuist -o wide || true
+          echo
+          kubectl get machine -n org-tuist -o wide || true
+          echo
+          echo "--- MachineDeployment describe (status, conditions) ---"
+          for md in $(kubectl get machinedeployment -n org-tuist -o jsonpath='{.items[*].metadata.name}'); do
+            echo "=== $md ==="
+            kubectl describe machinedeployment -n org-tuist "$md" | sed -n '/Status:/,/Events:/p' | head -40
+          done
+          echo "::endgroup::"
       - name: Restart hetzner-robot-controller and re-tail logs
         # Force a fresh reconcile cycle. Useful when the controller
         # is up but quiet (the info logs only fire on create/delete,
