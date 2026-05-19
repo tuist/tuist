@@ -1,30 +1,41 @@
 name: macOS + Xcode Image
 
 # Build the in-house macOS + Xcode Tart image — our replacement for
-# `ghcr.io/cirruslabs/macos-tahoe-xcode:N`. Triggered on-demand when
-# Apple ships a new Xcode (or when we want to test a beta).
+# `ghcr.io/cirruslabs/macos-tahoe-xcode:N`. Triggered on-demand
+# when Apple ships a new Xcode (or when we want to broaden the set
+# of co-installed Xcodes).
 #
-# The two Layer 2 images (`tuist-runner`, `tuist-xcresult-processor`)
-# inherit from the result and add Tuist-specific runtime. Splitting
-# the slow Xcode install out of those builds means a runner-image
-# commit doesn't pay the ~30 min Xcode-install tax on every CI
-# rebuild — just re-clones this image and lays the runner agent on
-# top in ~2 min.
+# Multi-Xcode model: the image bakes in a *set* of Xcode versions,
+# newest-first. The first version becomes the default
+# (xcode-select target); the rest are co-installed at
+# /Applications/Xcode_<version>.app so customer workflows pinning
+# older Xcodes don't pay an install cost at job time. The push
+# tag is derived from the *default* Xcode's major-minor:
+# `xcode_versions=26.5.0,26.4.1,26.3,26.2.1,26.1,26.0.1` → pushed
+# to `ghcr.io/tuist/macos-tahoe-xcode:26-5`.
+#
+# Cost profile: every additional Xcode adds ~30 min to the build
+# (xip extract + per-version rename) and ~40 GB to the image. A
+# six-Xcode build takes ~3.5 hours and produces a ~250 GB image.
+# That's deliberate: the alternative is paying that install cost
+# on every customer job that pins an older Xcode, which is much
+# worse than amortising it across image builds. Workflow timeout
+# is sized for the upper end (480 min).
 #
 # Auth model: the bare-metal `vm-image-builder` Mac mini has a
-# logged-in xcodes session in its login keychain. A maintainer runs
-# `xcodes signin <apple-id>` over SSH once per quarter (or whenever
-# the session expires) and approves 2FA from a trusted device. After
-# that, `xcodes download` on the builder authenticates silently
-# against developer.apple.com — no Apple ID secrets in GitHub, no
-# manual upload per Xcode release. See
+# logged-in xcodes session in its login keychain. A maintainer
+# runs `xcodes signin <apple-id>` over SSH once per quarter (or
+# whenever the session expires) and approves 2FA from a trusted
+# device. After that, `xcodes download` on the builder
+# authenticates silently against developer.apple.com — no Apple
+# ID secrets in GitHub, no manual upload per Xcode release. See
 # `infra/macos-xcode-image/AGENTS.md` for the runbook.
 
 on:
   workflow_dispatch:
     inputs:
-      xcode_version:
-        description: "Xcode version to install (e.g. 26.4.1). Must be available on developer.apple.com."
+      xcode_versions:
+        description: "Comma-separated Xcode versions, newest first (e.g. 26.5.0,26.4.1,26.3,26.2.1,26.1,26.0.1). First is the default; tag derives from its major-minor."
         required: true
       base_image:
         description: "Base Tart image to layer Xcode onto"
@@ -32,9 +43,12 @@ on:
         default: "ghcr.io/cirruslabs/macos-tahoe-base:latest"
 
 concurrency:
-  # Different Xcode versions can build in parallel (different push
-  # tags, no shared state). Same Xcode dispatched twice serialises.
-  group: macos-xcode-image-${{ inputs.xcode_version }}
+  # Same input dispatched twice serialises; different inputs can
+  # build in parallel. The group is the raw input string — two
+  # dispatches with equivalent versions but different whitespace
+  # would race, but that's a soft consistency problem the operator
+  # owns (one workflow_dispatch at a time).
+  group: macos-xcode-image-${{ inputs.xcode_versions }}
   cancel-in-progress: false
 
 permissions:
@@ -44,7 +58,7 @@ permissions:
 jobs:
   build:
     runs-on: [self-hosted, macos, bare-metal, vm-image-builder]
-    timeout-minutes: 180
+    timeout-minutes: 480
     env:
       PATH: /opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
     steps:
@@ -58,9 +72,9 @@ jobs:
           tart --version
 
       - name: Ensure xcodes is installed
-        # The CLI is also baked into the resulting Tart image (Layer
-        # 1's brew install), but here we need it on the *host* to
-        # drive the .xip download before Packer boots a VM.
+        # The CLI is also baked into the resulting Tart image, but
+        # here we need it on the *host* to drive the .xip downloads
+        # before Packer boots a VM.
         run: |
           set -euo pipefail
           if ! command -v xcodes >/dev/null 2>&1; then
@@ -68,31 +82,76 @@ jobs:
           fi
           xcodes version
 
-      - name: Download Xcode from Apple
-        id: xcode_xip
+      - name: Parse Xcode versions
+        id: versions
+        # Workflow input is a single comma-separated string; the
+        # rest of the pipeline wants both a whitespace-separated
+        # list (for the download loop) and the bare default
+        # version (for the tag). Trim each entry to tolerate the
+        # `26.5.0, 26.4.1` style operators tend to type.
+        run: |
+          set -euo pipefail
+          INPUT="${{ inputs.xcode_versions }}"
+          IFS=',' read -ra RAW <<< "$INPUT"
+          VERSIONS=()
+          for v in "${RAW[@]}"; do
+            trimmed=$(echo "$v" | xargs)
+            if [ -n "$trimmed" ]; then
+              VERSIONS+=("$trimmed")
+            fi
+          done
+          if [ "${#VERSIONS[@]}" -eq 0 ]; then
+            echo "no versions parsed from input: $INPUT" >&2
+            exit 1
+          fi
+          DEFAULT="${VERSIONS[0]}"
+          # Major-minor of the default, with dot → dash for the
+          # OCI-safe tag form (`:26-5` not `:26.5`).
+          MAJOR_MINOR=$(echo "$DEFAULT" | sed -E 's/^([0-9]+\.[0-9]+).*/\1/' | tr '.' '-')
+          # JSON list for Packer's -var. Packer's HCL parser accepts
+          # a JSON-style list when the variable is typed as
+          # list(string).
+          JSON=$(printf '"%s",' "${VERSIONS[@]}" | sed 's/,$//')
+          JSON="[$JSON]"
+          echo "versions_space=${VERSIONS[*]}" >> "$GITHUB_OUTPUT"
+          echo "versions_json=$JSON" >> "$GITHUB_OUTPUT"
+          echo "default=$DEFAULT" >> "$GITHUB_OUTPUT"
+          echo "tag=$MAJOR_MINOR" >> "$GITHUB_OUTPUT"
+          echo "Will install: ${VERSIONS[*]}"
+          echo "Default (xcode-select target): $DEFAULT"
+          echo "Push tag: $MAJOR_MINOR"
+
+      - name: Download Xcode .xips from Apple
+        id: xips
         # Uses the xcodes session cached in the builder's login
         # keychain by the quarterly `xcodes signin` runbook. If the
         # session has expired, `xcodes download` returns non-zero
-        # because Apple's auth challenge can't be answered
-        # non-interactively — the failure here is the signal to
-        # re-mint the session.
+        # on the first attempt because Apple's auth challenge
+        # can't be answered non-interactively — the failure here
+        # is the signal to re-mint the session. Each .xip is
+        # ~10 GB, so six versions = ~60 GB of downloads, ~1 hour
+        # at Apple's typical serving rate.
         run: |
           set -euo pipefail
-          XCODE_CACHE="${RUNNER_TEMP:-/tmp}/xcode-xip"
-          mkdir -p "$XCODE_CACHE"
-          # Reuse the .xip across runs if xcodes has it cached; only
-          # download when absent. `xcodes download` is idempotent but
-          # always re-verifies the signature, which takes minutes for
-          # a 10 GB file we already verified.
-          if ! ls "$XCODE_CACHE"/Xcode-${XCODE_VERSION}*.xip >/dev/null 2>&1; then
-            xcodes download "${XCODE_VERSION}" --directory "$XCODE_CACHE"
-          fi
-          XCODE_XIP=$(ls "$XCODE_CACHE"/Xcode-${XCODE_VERSION}*.xip | head -n1)
-          test -f "$XCODE_XIP"
-          echo "Have $(basename "$XCODE_XIP") ($(du -h "$XCODE_XIP" | awk '{print $1}'))"
-          echo "path=${XCODE_XIP}" >> "$GITHUB_OUTPUT"
-        env:
-          XCODE_VERSION: ${{ inputs.xcode_version }}
+          XIP_DIR="${RUNNER_TEMP:-/tmp}/xcode-xips"
+          mkdir -p "$XIP_DIR"
+          for v in ${{ steps.versions.outputs.versions_space }}; do
+            # Reuse the .xip across runs if xcodes has it cached;
+            # only download when absent. Apple's downloads page
+            # serves the same artifact regardless of which xcodes
+            # session pulled it, so a previous build's .xip is
+            # still valid for this build.
+            if ls "$XIP_DIR"/Xcode-"$v"*.xip >/dev/null 2>&1; then
+              echo "=== Xcode $v already cached ==="
+              ls -lh "$XIP_DIR"/Xcode-"$v"*.xip
+              continue
+            fi
+            echo "=== Downloading Xcode $v ==="
+            xcodes download "$v" --directory "$XIP_DIR"
+            ls -lh "$XIP_DIR"/Xcode-"$v"*.xip
+          done
+          echo "dir=$XIP_DIR" >> "$GITHUB_OUTPUT"
+          df -h "$XIP_DIR"
 
       - name: Initialize Packer
         working-directory: infra/macos-xcode-image
@@ -129,10 +188,10 @@ jobs:
           df -h /
 
       - name: Build image
-        id: build
         working-directory: infra/macos-xcode-image
         env:
-          XCODE_VERSION: ${{ inputs.xcode_version }}
+          XCODE_VERSIONS_JSON: ${{ steps.versions.outputs.versions_json }}
+          XCODE_XIP_DIR: ${{ steps.xips.outputs.dir }}
         run: |
           set -euo pipefail
           docker_config="$HOME/.docker/config.json"
@@ -153,32 +212,21 @@ jobs:
           env -u GITHUB_TOKEN -u MISE_GITHUB_TOKEN packer build \
             -var "base_image=${{ inputs.base_image || 'ghcr.io/cirruslabs/macos-tahoe-base:latest' }}" \
             -var "output_image=macos-tahoe-xcode" \
-            -var "xcode_xip_path=${{ steps.xcode_xip.outputs.path }}" \
-            -var "xcode_version=${XCODE_VERSION}" \
+            -var "xcode_versions=${XCODE_VERSIONS_JSON}" \
+            -var "xcode_xip_dir=${XCODE_XIP_DIR}" \
             macos-xcode.pkr.hcl
-
-          # Tag is major-minor (e.g. "26-4") — matches Cirrus's
-          # public macos-tahoe-xcode:N convention. Downstream Layer 2
-          # images reference this tag, not the patch-level version,
-          # so a 26.4.0 → 26.4.1 Apple bump can replace the image
-          # under the same tag without touching the runner-image /
-          # xcresult-processor packer files.
-          MAJOR_MINOR=$(echo "${XCODE_VERSION}" | sed -E 's/^([0-9]+\.[0-9]+).*/\1/' | tr '.' '-')
-          echo "tag=${MAJOR_MINOR}" >> "$GITHUB_OUTPUT"
 
       - name: Log in to GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | tart login ghcr.io --username tuist-bot --password-stdin
 
       - name: Push image to GHCR
-        env:
-          TART_REGISTRY_HOSTNAME: ghcr.io
-          TART_REGISTRY_USERNAME: tuist-bot
-          TART_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          TAG="${{ steps.build.outputs.tag }}"
+          TAG="${{ steps.versions.outputs.tag }}"
           tart push macos-tahoe-xcode "ghcr.io/tuist/macos-tahoe-xcode:${TAG}"
           echo "Pushed ghcr.io/tuist/macos-tahoe-xcode:${TAG}"
+          echo "  default Xcode: ${{ steps.versions.outputs.default }}"
+          echo "  also includes: ${{ steps.versions.outputs.versions_space }}"
 
       - name: Cleanup
         if: always()
