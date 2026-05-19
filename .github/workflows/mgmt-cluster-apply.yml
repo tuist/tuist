@@ -191,6 +191,20 @@ on:
         type: choice
         default: ""
         options: ["", "staging", "canary", "production"]
+      restart_hccm:
+        description: |
+          When set, force-restart hcloud-cloud-controller-manager
+          (Hetzner CCM) in kube-system on the workload cluster
+          plus any HCCM pod stuck Terminating on a NotReady Node.
+          HCCM owns Service type=LoadBalancer reconciliation
+          (Hetzner Cloud LB targets) — when it's degraded, the
+          ingress LB keeps forwarding to dead Node IPs and
+          Cloudflare returns 525 even though ingress-nginx pods
+          are healthy on Ready Nodes.
+        required: false
+        type: choice
+        default: ""
+        options: ["", "staging", "canary", "production"]
 
 # Serialize: don't let two pushes apply concurrently and race.
 concurrency:
@@ -1050,3 +1064,67 @@ jobs:
             done
             echo "::endgroup::"
           done
+      - name: Restart hcloud-cloud-controller-manager (Hetzner CCM)
+        if: github.event.inputs.restart_hccm != ''
+        env:
+          CLUSTER: ${{ github.event.inputs.restart_hccm }}
+          WL_KUBECONFIG: ${{ github.workspace }}/.kube/workload-config
+        run: |
+          set -euo pipefail
+          kubectl get secret -n org-tuist "tuist-$CLUSTER-kubeconfig" \
+            -o jsonpath='{.data.value}' | base64 -d > "$WL_KUBECONFIG"
+          chmod 600 "$WL_KUBECONFIG"
+          export KUBECONFIG="$WL_KUBECONFIG"
+          # HCCM lives in kube-system as a Deployment under helm
+          # release `hccm`. Find it by name OR by label.
+          ns="kube-system"
+          dep=$(kubectl get deployment -n "$ns" -o name 2>/dev/null | grep -iE "hcloud-cloud-controller|hccm" | head -1 | sed 's|deployment.apps/||' || true)
+          if [ -z "$dep" ]; then
+            echo "::error::HCCM deployment not found in kube-system"
+            kubectl get deployment -n "$ns" -o wide || true
+            exit 1
+          fi
+          echo "HCCM deployment: $ns/$dep"
+          echo "::group::HCCM BEFORE restart"
+          kubectl get deployment -n "$ns" "$dep" -o wide
+          kubectl get pods -n "$ns" -l "app.kubernetes.io/name=hcloud-cloud-controller-manager" -o wide || true
+          echo "::endgroup::"
+          # Force-finish stuck Terminating + pods on unreachable Nodes
+          unreachable_nodes=$(kubectl get nodes -o json | jq -r '.items[] | select(.spec.taints // [] | map(.key) | index("node.kubernetes.io/unreachable")) | .metadata.name')
+          echo "::group::Force-finish stuck HCCM pods"
+          for p in $(kubectl get pods -n "$ns" -l "app.kubernetes.io/name=hcloud-cloud-controller-manager" \
+              -o jsonpath='{range .items[?(@.metadata.deletionTimestamp)]}{.metadata.name}{"\n"}{end}' 2>/dev/null || true); do
+            echo "Force-deleting stuck Terminating HCCM Pod: $p"
+            kubectl patch pod -n "$ns" "$p" -p '{"metadata":{"finalizers":[]}}' --type=merge 2>/dev/null || true
+            kubectl delete pod -n "$ns" "$p" --grace-period=0 --force --wait=false 2>/dev/null || true
+          done
+          for n in $unreachable_nodes; do
+            for p in $(kubectl get pods -n "$ns" -l "app.kubernetes.io/name=hcloud-cloud-controller-manager" --field-selector spec.nodeName="$n" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || true); do
+              echo "Force-deleting HCCM Pod on unreachable Node $n: $p"
+              kubectl delete pod -n "$ns" "$p" --grace-period=0 --force --wait=false 2>/dev/null || true
+            done
+          done
+          echo "::endgroup::"
+          echo "::group::Rollout restart HCCM"
+          kubectl rollout restart -n "$ns" "deployment/$dep"
+          kubectl rollout status -n "$ns" "deployment/$dep" --timeout=3m || true
+          echo "::endgroup::"
+          # Trigger LB target refresh by touching the Service
+          echo "::group::Touch platform-ingress-nginx-controller Service to nudge HCCM"
+          if kubectl get svc -n platform platform-ingress-nginx-controller >/dev/null 2>&1; then
+            ts=$(date -u +%s)
+            kubectl annotate svc -n platform platform-ingress-nginx-controller "tuist.dev/lb-refresh=$ts" --overwrite || true
+          fi
+          echo "::endgroup::"
+          echo "Sleeping 45s for HCCM to reconcile LB..."
+          sleep 45
+          echo "::group::HCCM AFTER restart"
+          kubectl get deployment -n "$ns" "$dep" -o wide
+          kubectl get pods -n "$ns" -l "app.kubernetes.io/name=hcloud-cloud-controller-manager" -o wide || true
+          echo "::endgroup::"
+          echo "::group::HCCM logs (last 60 lines)"
+          kubectl logs -n "$ns" -l "app.kubernetes.io/name=hcloud-cloud-controller-manager" --tail=60 2>&1 | tail -60 || true
+          echo "::endgroup::"
+          echo "::group::LoadBalancer Service state (platform/ingress-nginx)"
+          kubectl get svc -n platform platform-ingress-nginx-controller -o yaml | grep -E "loadBalancer:|ingress:|ip:|hostname:|targetRef|nodeName" | head -20 || true
+          echo "::endgroup::"
