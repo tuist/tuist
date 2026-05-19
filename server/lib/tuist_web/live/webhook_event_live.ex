@@ -54,12 +54,8 @@ defmodule TuistWeb.WebhookEventLive do
 
   def format_body(body) when is_binary(body) do
     case JSON.decode(body) do
-      {:ok, decoded} ->
-        # credo:disable-for-next-line Credo.Checks.DisallowJason
-        Jason.encode!(decoded, pretty: true)
-
-      {:error, _} ->
-        body
+      {:ok, decoded} -> decoded |> :json.format() |> IO.iodata_to_binary()
+      {:error, _} -> body
     end
   end
 

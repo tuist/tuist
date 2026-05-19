@@ -478,14 +478,12 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
   defp binary_cache_targets_json(run) do
     run = Tuist.ClickHouseRepo.preload(run, xcode_targets: Xcode.xcode_targets_preload_query(run))
 
-    targets =
-      run.xcode_targets
-      |> Enum.filter(&(&1.binary_cache_hash != nil))
-      |> Enum.sort_by(& &1.name)
-      |> Enum.map(&target_to_json_map/1)
-
-    # credo:disable-for-next-line Credo.Checks.DisallowJason
-    Jason.encode!(targets, pretty: true)
+    run.xcode_targets
+    |> Enum.filter(&(&1.binary_cache_hash != nil))
+    |> Enum.sort_by(& &1.name)
+    |> Enum.map(&target_to_json_map/1)
+    |> :json.format()
+    |> IO.iodata_to_binary()
   end
 
   defp target_to_json_map(target) do
