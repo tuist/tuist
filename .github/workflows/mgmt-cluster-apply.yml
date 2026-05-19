@@ -164,6 +164,18 @@ on:
         required: false
         type: boolean
         default: false
+      unstick_uninit_taints:
+        description: |
+          When set, removes the cloud-uninit taints from Ready
+          cloud workers in the workload cluster (`node.cluster.x-k8s.io/uninitialized`,
+          `node.cloudprovider.kubernetes.io/uninitialized`) and
+          uncordons the control plane. Used when HCCM/CAPI fail
+          to initialize Nodes, leaving everything tainted and
+          nothing schedulable.
+        required: false
+        type: choice
+        default: ""
+        options: ["", "staging", "canary", "production"]
 
 # Serialize: don't let two pushes apply concurrently and race.
 concurrency:
@@ -188,7 +200,7 @@ jobs:
       # input is set — used to gate the standard apply steps off
       # so a diagnostic dispatch doesn't also re-run a full apply.
       # Keep in sync with `on.workflow_dispatch.inputs` above.
-      DIAG_MODE: ${{ github.event.inputs.force_roll_bare_metal != '' || github.event.inputs.dump_cloud_init != '' || github.event.inputs.dump_workload != '' || github.event.inputs.dump_robot_controller == 'true' || github.event.inputs.restart_robot_controller == 'true' || github.event.inputs.query_robot_inventory == 'true' || github.event.inputs.cleanup_runner_pods != '' || github.event.inputs.kick_runners_controller != '' || github.event.inputs.dump_hcloud_md0 != '' || github.event.inputs.query_hcloud_servers == 'true' }}
+      DIAG_MODE: ${{ github.event.inputs.force_roll_bare_metal != '' || github.event.inputs.dump_cloud_init != '' || github.event.inputs.dump_workload != '' || github.event.inputs.dump_robot_controller == 'true' || github.event.inputs.restart_robot_controller == 'true' || github.event.inputs.query_robot_inventory == 'true' || github.event.inputs.cleanup_runner_pods != '' || github.event.inputs.kick_runners_controller != '' || github.event.inputs.dump_hcloud_md0 != '' || github.event.inputs.query_hcloud_servers == 'true' || github.event.inputs.unstick_uninit_taints != '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v3.2.0
@@ -870,4 +882,38 @@ jobs:
           curl -sS -H "Authorization: Bearer $token" \
             "https://api.hetzner.cloud/v1/actions?status=error&per_page=20&sort=started:desc" \
             | jq '[ .actions[] | select(.resources[]?.id as $r | true) | { id, command, status, started, finished, error, progress } ]' || true
+          echo "::endgroup::"
+      - name: Unstick uninit taints + uncordon CP
+        if: github.event.inputs.unstick_uninit_taints != ''
+        env:
+          CLUSTER: ${{ github.event.inputs.unstick_uninit_taints }}
+          WL_KUBECONFIG: ${{ github.workspace }}/.kube/workload-config
+        run: |
+          set -euo pipefail
+          kubectl get secret -n org-tuist "tuist-$CLUSTER-kubeconfig" \
+            -o jsonpath='{.data.value}' | base64 -d > "$WL_KUBECONFIG"
+          chmod 600 "$WL_KUBECONFIG"
+          export KUBECONFIG="$WL_KUBECONFIG"
+          echo "::group::Uncordon control-plane Nodes"
+          for cp in $(kubectl get nodes -l node-role.kubernetes.io/control-plane -o jsonpath='{.items[*].metadata.name}'); do
+            unsched=$(kubectl get node "$cp" -o jsonpath='{.spec.unschedulable}')
+            if [ "$unsched" = "true" ]; then
+              echo "Uncordoning $cp"
+              kubectl uncordon "$cp" || true
+            fi
+          done
+          echo "::endgroup::"
+          echo "::group::Strip uninit taints from cloud worker Nodes"
+          # Only Ready Nodes — leave NotReady stale CRs alone.
+          for n in $(kubectl get nodes -o json | jq -r '.items[] | select(.metadata.name | startswith("tuist-" + env.CLUSTER + "-md-0")) | select(.status.conditions[] | select(.type=="Ready" and .status=="True")) | .metadata.name'); do
+            taints=$(kubectl get node "$n" -o jsonpath='{.spec.taints}' 2>/dev/null || true)
+            if echo "$taints" | grep -qE "uninitialized"; then
+              echo "Removing uninit taints from $n"
+              kubectl taint node "$n" node.cluster.x-k8s.io/uninitialized:NoSchedule- 2>/dev/null || true
+              kubectl taint node "$n" node.cloudprovider.kubernetes.io/uninitialized:NoSchedule- 2>/dev/null || true
+            fi
+          done
+          echo "::endgroup::"
+          echo "::group::Result"
+          kubectl get nodes -o custom-columns=NAME:.metadata.name,STATUS:.status.conditions[-1].type,SCHED:.spec.unschedulable,TAINT_KEYS:.spec.taints[*].key 2>&1 | head -30 || true
           echo "::endgroup::"
