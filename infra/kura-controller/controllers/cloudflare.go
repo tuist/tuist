@@ -17,17 +17,19 @@ import (
 const cloudflareAPIBaseURL = "https://api.cloudflare.com/client/v4"
 
 type CloudflareLoadBalancingConfig struct {
+	ZoneName  string
 	AccountID string
 	ZoneID    string
 	APIToken  string
 }
 
 func (c CloudflareLoadBalancingConfig) Enabled() bool {
-	return c.AccountID != "" && c.ZoneID != "" && c.APIToken != ""
+	return c.APIToken != "" && (c.ZoneName != "" || (c.AccountID != "" && c.ZoneID != ""))
 }
 
 type cloudflareClient struct {
 	baseURL    string
+	zoneName   string
 	accountID  string
 	zoneID     string
 	apiToken   string
@@ -87,9 +89,18 @@ type cloudflareError struct {
 	Message string `json:"message"`
 }
 
+type cloudflareZone struct {
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Account struct {
+		ID string `json:"id"`
+	} `json:"account"`
+}
+
 func newCloudflareClient(config CloudflareLoadBalancingConfig) *cloudflareClient {
 	return &cloudflareClient{
 		baseURL:   cloudflareAPIBaseURL,
+		zoneName:  config.ZoneName,
 		accountID: config.AccountID,
 		zoneID:    config.ZoneID,
 		apiToken:  config.APIToken,
@@ -100,6 +111,10 @@ func newCloudflareClient(config CloudflareLoadBalancingConfig) *cloudflareClient
 }
 
 func (c *cloudflareClient) reconcileKuraLoadBalancers(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
+	if err := c.ensureZoneResolved(ctx); err != nil {
+		return err
+	}
+
 	if instance.Spec.GlobalPublicHost != "" && instance.Spec.PublicHost != "" {
 		if err := c.reconcileKuraLoadBalancer(ctx, instance, instance.Spec.GlobalPublicHost, instance.Spec.PublicHost, "https"); err != nil {
 			return err
@@ -114,6 +129,10 @@ func (c *cloudflareClient) reconcileKuraLoadBalancers(ctx context.Context, insta
 }
 
 func (c *cloudflareClient) deleteKuraLoadBalancers(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
+	if err := c.ensureZoneResolved(ctx); err != nil {
+		return err
+	}
+
 	if instance.Spec.GlobalPublicHost != "" {
 		if err := c.removeKuraPool(ctx, instance, instance.Spec.GlobalPublicHost, "https"); err != nil {
 			return err
@@ -124,6 +143,30 @@ func (c *cloudflareClient) deleteKuraLoadBalancers(ctx context.Context, instance
 			return err
 		}
 	}
+	return nil
+}
+
+func (c *cloudflareClient) ensureZoneResolved(ctx context.Context) error {
+	if c.accountID != "" && c.zoneID != "" {
+		return nil
+	}
+	if c.zoneName == "" {
+		return fmt.Errorf("cloudflare zone metadata is incomplete")
+	}
+
+	zone, err := c.zoneByName(ctx, c.zoneName)
+	if err != nil {
+		return err
+	}
+	if zone == nil {
+		return fmt.Errorf("cloudflare zone %q not found", c.zoneName)
+	}
+	if zone.ID == "" || zone.Account.ID == "" {
+		return fmt.Errorf("cloudflare zone %q returned incomplete metadata", c.zoneName)
+	}
+
+	c.zoneID = zone.ID
+	c.accountID = zone.Account.ID
 	return nil
 }
 
@@ -325,6 +368,25 @@ func (c *cloudflareClient) loadBalancerByName(ctx context.Context, name string) 
 	return nil, nil
 }
 
+func (c *cloudflareClient) zoneByName(ctx context.Context, name string) (*cloudflareZone, error) {
+	zones, err := c.listZonesByName(ctx, name)
+	if err != nil {
+		return nil, err
+	}
+	for _, zone := range zones {
+		if zone.Name == name {
+			return &zone, nil
+		}
+	}
+	return nil, nil
+}
+
+func (c *cloudflareClient) listZonesByName(ctx context.Context, name string) ([]cloudflareZone, error) {
+	var response cloudflareListResponse[cloudflareZone]
+	err := c.do(ctx, http.MethodGet, fmt.Sprintf("/zones?name=%s", name), nil, &response)
+	return response.Result, err
+}
+
 func (c *cloudflareClient) listPools(ctx context.Context) ([]cloudflarePool, error) {
 	var response cloudflareListResponse[cloudflarePool]
 	err := c.do(ctx, http.MethodGet, fmt.Sprintf("/accounts/%s/load_balancers/pools?per_page=1000", c.accountID), nil, &response)
@@ -411,6 +473,10 @@ func (c *cloudflareClient) do(ctx context.Context, method, path string, body any
 func cloudflareResponseError(response any) error {
 	switch value := response.(type) {
 	case *cloudflareListResponse[cloudflarePool]:
+		if !value.Success {
+			return fmt.Errorf("cloudflare API error: %v", value.Errors)
+		}
+	case *cloudflareListResponse[cloudflareZone]:
 		if !value.Success {
 			return fmt.Errorf("cloudflare API error: %v", value.Errors)
 		}

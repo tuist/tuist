@@ -14,6 +14,7 @@ This doc is the runbook for onboarding **a new workload cluster** end-to-end. Th
 - Mgmt cluster kubeconfig in 1Password as `kubeconfig: tuist-mgmt` in the `tuist-k8s-mgmt` vault.
 - Hetzner Cloud project `tuist-workloads` (separate from `tuist-mgmt`) with API access. Token in 1Password as `tuist-workloads`.
 - A Cloudflare account with an API token scoped to `Zone.DNS:Edit` on `tuist.dev` (1Password: `cloudflare-tuist-dns`).
+- Production Kura regional deploys additionally need a `KURA_CLOUDFLARE_API_TOKEN` item in the `tuist-k8s-production` vault. The token must be able to manage Cloudflare Load Balancers and read `tuist.dev` zone metadata; the Kura controller chart syncs it through ESO into the `kura` namespace.
 - Per-env 1Password vault (`tuist-k8s-staging` / `tuist-k8s-canary` / `tuist-k8s-production` / `tuist-k8s-preview`) holding the runtime secrets (`MASTER_KEY`, `TUIST_LICENSE_KEY` for preview, Grafana Cloud tokens) and a Service Account token scoped to the vault.
 - CLI tools installed via mise:
   ```bash

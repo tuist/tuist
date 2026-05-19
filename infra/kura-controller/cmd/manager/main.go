@@ -33,6 +33,7 @@ func main() {
 	var enableLeaderElection bool
 	var watchNamespace string
 	var grpcClusterIssuer string
+	var cloudflareZoneName string
 	var cloudflareAccountID string
 	var cloudflareZoneID string
 	var cloudflareAPIToken string
@@ -42,6 +43,7 @@ func main() {
 	flag.BoolVar(&enableLeaderElection, "leader-elect", true, "Single-leader election")
 	flag.StringVar(&watchNamespace, "watch-namespace", "", "Namespace to watch for KuraInstance resources")
 	flag.StringVar(&grpcClusterIssuer, "grpc-cluster-issuer", "", "cert-manager ClusterIssuer to use for gRPC TLS certificates (leaves gRPC plaintext when empty)")
+	flag.StringVar(&cloudflareZoneName, "cloudflare-zone-name", "", "Cloudflare zone name for Kura global DNS steering")
 	flag.StringVar(&cloudflareAccountID, "cloudflare-account-id", "", "Cloudflare account ID for Kura global DNS steering")
 	flag.StringVar(&cloudflareZoneID, "cloudflare-zone-id", "", "Cloudflare zone ID for Kura global DNS steering")
 	flag.StringVar(&cloudflareAPIToken, "cloudflare-api-token", "", "Cloudflare API token for Kura global DNS steering")
@@ -76,6 +78,7 @@ func main() {
 		Scheme:            mgr.GetScheme(),
 		GRPCClusterIssuer: grpcClusterIssuer,
 		CloudflareLoadBalancing: controllers.CloudflareLoadBalancingConfig{
+			ZoneName:  cloudflareZoneName,
 			AccountID: cloudflareAccountID,
 			ZoneID:    cloudflareZoneID,
 			APIToken:  cloudflareAPIToken,

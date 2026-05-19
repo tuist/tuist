@@ -35,11 +35,19 @@ kuraController:
   # Kura hostnames to healthy regional origins without proxying traffic.
   cloudflareLoadBalancing:
     enabled: false
+    zoneName: ""
     accountID: ""
     zoneID: ""
     apiTokenSecret:
       name: cloudflare-api-token
       key: api-token
+      managed: false
+      refreshInterval: "1h"
+      storeRef:
+        kind: ClusterSecretStore
+        name: onepassword
+      item: KURA_CLOUDFLARE_API_TOKEN
+      field: credential
   sharedSecrets:
     # Renders the kura-shared-secrets Kubernetes Secret in the
     # controller namespace. Set to false if the Secret is managed
