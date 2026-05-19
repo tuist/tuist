@@ -497,12 +497,12 @@ jobs:
         if: github.event.inputs.dump_robot_controller == 'true'
         run: |
           set -euo pipefail
-          echo "::group::hetzner-robot-controller pod"
-          kubectl get pods -n hetzner-robot-controller -o wide || true
+          echo "::group::hetzner-robot-controller pod (in org-tuist)"
+          kubectl get pods -n org-tuist -l app.kubernetes.io/name=hetzner-robot-controller -o wide || true
           echo "::endgroup::"
           echo "::group::hetzner-robot-controller logs (last 200)"
-          kubectl logs -n hetzner-robot-controller deployment/hetzner-robot-controller --tail=200 2>&1 || \
-            kubectl logs -n hetzner-robot-controller -l app.kubernetes.io/name=hetzner-robot-controller --tail=200 2>&1 || true
+          kubectl logs -n org-tuist deployment/hetzner-robot-controller --tail=200 2>&1 || \
+            kubectl logs -n org-tuist -l app.kubernetes.io/name=hetzner-robot-controller --tail=200 2>&1 || true
           echo "::endgroup::"
           echo "::group::All HBMs in org-tuist"
           kubectl get hetznerbaremetalhost -n org-tuist -o wide || true
