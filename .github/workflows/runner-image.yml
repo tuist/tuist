@@ -11,7 +11,7 @@ name: Runner Image
 # `:<git-sha>` tag is dispatch-only and not consumed by the chart.
 #
 # Layer split: this is Layer 2 on top of
-# `ghcr.io/tuist/macos-tahoe-xcode:<major>-<minor>` (built by
+# `ghcr.io/tuist/macos-tahoe-xcode:<xcode-version-dashes>` (built by
 # `infra/macos-xcode-image`). Xcode + dev tools + WWDR certs live
 # in Layer 1; this build just adds the GitHub Actions runner agent
 # and dispatch loop on top, so a Layer 2 build is ~2 min instead of
@@ -27,7 +27,7 @@ on:
       base_image:
         description: "Layer 1 base Tart image. Bump the tag to test against a different Xcode profile."
         required: false
-        default: "ghcr.io/tuist/macos-tahoe-xcode:26-4"
+        default: "ghcr.io/tuist/macos-tahoe-xcode:26-4-1"
       runner_version:
         description: "GitHub Actions runner version"
         required: false
@@ -86,7 +86,7 @@ jobs:
         run: |
           set -euo pipefail
           env -u GITHUB_TOKEN -u MISE_GITHUB_TOKEN packer build \
-            -var "base_image=${{ inputs.base_image || 'ghcr.io/tuist/macos-tahoe-xcode:26-4' }}" \
+            -var "base_image=${{ inputs.base_image || 'ghcr.io/tuist/macos-tahoe-xcode:26-4-1' }}" \
             -var "output_image=tuist-runner" \
             -var "runner_version=${{ inputs.runner_version || '2.334.0' }}" \
             runner.pkr.hcl

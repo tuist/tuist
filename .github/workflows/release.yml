@@ -2183,8 +2183,14 @@ jobs:
           # matching Layer 1 tag has already been published by
           # macos-xcode-image.yml.
           XCODE_VERSION=$(cat XCODE_VERSION | tr -d '[:space:]')
-          MAJOR_MINOR=$(echo "${XCODE_VERSION}" | sed -E 's/^([0-9]+\.[0-9]+).*/\1/' | tr '.' '-')
-          BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode:${MAJOR_MINOR}"
+          # Tag is the full version with dots → dashes (e.g.
+          # 26.4.1 → 26-4-1, 26.5 → 26-5). Matches the tag the
+          # macos-xcode-image workflow publishes; rolling Apple's
+          # patch bump 26.4.0 → 26.4.1 produces a *new* Layer 1
+          # tag, picked up by bumping XCODE_VERSION in this image's
+          # pin file.
+          BASE_TAG=$(echo "${XCODE_VERSION}" | tr '.' '-')
+          BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode:${BASE_TAG}"
           env -u GITHUB_TOKEN -u MISE_GITHUB_TOKEN packer build \
             -var "base_image=${BASE_IMAGE}" \
             -var "output_image=tuist-xcresult-processor" \
@@ -2326,13 +2332,19 @@ jobs:
           # would leave this job skipped. Assumes the matching Layer
           # 1 tag has already been published by macos-xcode-image.yml.
           XCODE_VERSION=$(cat XCODE_VERSION | tr -d '[:space:]')
-          MAJOR_MINOR=$(echo "${XCODE_VERSION}" | sed -E 's/^([0-9]+\.[0-9]+).*/\1/' | tr '.' '-')
-          BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode:${MAJOR_MINOR}"
+          # Tag is the full version with dots → dashes (e.g.
+          # 26.4.1 → 26-4-1, 26.5 → 26-5). Matches the tag the
+          # macos-xcode-image workflow publishes. The runner-image
+          # push profile mirrors the same form, so
+          # `tuist-runner:macos-26-4-1` is one-to-one with
+          # `macos-tahoe-xcode:26-4-1`.
+          BASE_TAG=$(echo "${XCODE_VERSION}" | tr '.' '-')
+          BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode:${BASE_TAG}"
           env -u GITHUB_TOKEN -u MISE_GITHUB_TOKEN packer build \
             -var "base_image=${BASE_IMAGE}" \
             -var "output_image=tuist-runner" \
             runner.pkr.hcl
-          echo "profile=macos-${MAJOR_MINOR}" >> "$GITHUB_OUTPUT"
+          echo "profile=macos-${BASE_TAG}" >> "$GITHUB_OUTPUT"
 
       - name: Push image to GHCR + resolve digest
         id: push

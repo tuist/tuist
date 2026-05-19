@@ -46,10 +46,11 @@ The local build:
 
 ## Layer 1 dependency
 
-This is **Layer 2** on top of `ghcr.io/tuist/macos-tahoe-xcode:<major>-<minor>`
-(built by `infra/macos-xcode-image`). Xcode itself lives in Layer 1
-because the NIF shells out to `/usr/bin/xcrun xcresulttool`, which
-only ships in full Xcode (not the Command Line Tools).
+This is **Layer 2** on top of
+`ghcr.io/tuist/macos-tahoe-xcode:<xcode-version-dashes>` (built by
+`infra/macos-xcode-image`). Xcode itself lives in Layer 1 because
+the NIF shells out to `/usr/bin/xcrun xcresulttool`, which only
+ships in full Xcode (not the Command Line Tools).
 
 Bumping the Xcode the processor runs against is a two-step:
 
@@ -61,7 +62,7 @@ Bumping the Xcode the processor runs against is a two-step:
    and commit with a `feat(xcresult-processor-image): bump to
    Xcode X.Y.Z` message. The file lives under this image's
    release-include-path so check-releases triggers a rebuild
-   against `ghcr.io/tuist/macos-tahoe-xcode:<major>-<minor>`.
+   against `ghcr.io/tuist/macos-tahoe-xcode:<xcode-version-dashes>`.
 
 ## Env injection at runtime
 

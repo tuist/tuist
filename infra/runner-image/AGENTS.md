@@ -63,11 +63,11 @@ CI:
   conventional commits on `main` trigger `release.yml`'s
   `release-runner-image` job: builds against the Layer 1 base
   resolved from `infra/runner-image/XCODE_VERSION`, pushes
-  `ghcr.io/tuist/tuist-runner:macos-<major>-<minor>-<semver>`
-  + `:macos-<major>-<minor>` (the rolling profile tag), resolves
-  the digest with `crane digest`, rewrites
-  `runnersFleet.runnerImage` across managed-env values files
-  that already have a digest pin, tags `runner-image@x.y.z`,
+  `ghcr.io/tuist/tuist-runner:macos-<xcode-version-dashes>-<semver>`
+  + `:macos-<xcode-version-dashes>` (the rolling profile tag,
+  e.g. `:macos-26-4-1`), resolves the digest with `crane digest`,
+  rewrites `runnersFleet.runnerImage` across managed-env values
+  files that already have a digest pin, tags `runner-image@x.y.z`,
   opens a GitHub Release, commits.
 - **Ad-hoc rebuilds.** `.github/workflows/runner-image.yml`
   (push-to-main on `infra/runner-image/**` changes, plus a
@@ -83,13 +83,13 @@ hosted runners.
 
 ## Layer 1 dependency
 
-This is **Layer 2** on top of `ghcr.io/tuist/macos-tahoe-xcode:<major>-<minor>`
-(built by `infra/macos-xcode-image`). Xcode + dev tools + WWDR
-certs all live in Layer 1; this layer just adds the GitHub
-Actions runner agent + dispatch loop + runner user / launchd
-wiring on top. A Layer 2 rebuild on every runner-image commit
-costs ~2 min instead of the ~30 min an all-in-one rebuild used
-to cost.
+This is **Layer 2** on top of
+`ghcr.io/tuist/macos-tahoe-xcode:<xcode-version-dashes>` (built by
+`infra/macos-xcode-image`). Xcode + dev tools + WWDR certs all
+live in Layer 1; this layer just adds the GitHub Actions runner
+agent + dispatch loop + runner user / launchd wiring on top. A
+Layer 2 rebuild on every runner-image commit costs ~2 min instead
+of the ~30 min an all-in-one rebuild used to cost.
 
 Bumping the Xcode customers see on their runners is a two-step:
 
@@ -101,15 +101,18 @@ Bumping the Xcode customers see on their runners is a two-step:
    commit with a `feat(runner-image): bump to Xcode X.Y.Z`
    message. The file lives under this image's release-include-path
    so check-releases triggers a rebuild against
-   `ghcr.io/tuist/macos-tahoe-xcode:<major>-<minor>` and rewrites
-   the chart's `runnersFleet.runnerImage` digest pin.
+   `ghcr.io/tuist/macos-tahoe-xcode:<xcode-version-dashes>` and
+   rewrites the chart's `runnersFleet.runnerImage` digest pin.
 
 ## Profile tagging
 
-Push tags are per-Xcode-profile: `:macos-26-4` (rolling, latest
-in that profile) plus `:macos-26-4-<semver>` (immutable, for
-rollbacks and traceability). The chart pins by digest, not tag,
-so multiple Xcode profiles can coexist in GHCR — the runner-fleet
+Push tags are per-Xcode-profile: `:macos-26-4-1` (rolling, latest
+in that profile) plus `:macos-26-4-1-<semver>` (immutable, for
+rollbacks and traceability). The tag form is the Xcode version
+with dots → dashes, matching Layer 1's tag scheme: a 26.4.1 Layer
+1 produces a `:macos-26-4-1` runner image, a 26.5 Layer 1
+produces `:macos-26-5`. The chart pins by digest, not tag, so
+multiple Xcode profiles can coexist in GHCR — the runner-fleet
 config currently selects one as the default but the structure is
 ready for the future customer-facing profile selection.
 

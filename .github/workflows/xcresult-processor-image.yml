@@ -13,7 +13,7 @@ name: Xcresult Processor Image
 # the chart.
 #
 # Layer split: this is Layer 2 on top of
-# `ghcr.io/tuist/macos-tahoe-xcode:<major>-<minor>` (built by
+# `ghcr.io/tuist/macos-tahoe-xcode:<xcode-version-dashes>` (built by
 # `infra/macos-xcode-image`). Xcode lives in Layer 1 — the NIF
 # shells out to `/usr/bin/xcrun xcresulttool`, which only ships in
 # full Xcode (not the Command Line Tools). This Layer 2 build just
@@ -32,7 +32,7 @@ on:
       base_image:
         description: "Layer 1 base Tart image. Bump the tag to test against a different Xcode profile."
         required: false
-        default: "ghcr.io/tuist/macos-tahoe-xcode:26-4"
+        default: "ghcr.io/tuist/macos-tahoe-xcode:26-4-1"
 
 concurrency:
   group: xcresult-processor-image
@@ -139,7 +139,7 @@ jobs:
         run: |
           set -euo pipefail
           env -u GITHUB_TOKEN -u MISE_GITHUB_TOKEN packer build \
-            -var "base_image=${{ inputs.base_image || 'ghcr.io/tuist/macos-tahoe-xcode:26-4' }}" \
+            -var "base_image=${{ inputs.base_image || 'ghcr.io/tuist/macos-tahoe-xcode:26-4-1' }}" \
             -var "output_image=tuist-xcresult-processor" \
             -var "release_tarball=/tmp/release.tar.gz" \
             xcresult-processor.pkr.hcl

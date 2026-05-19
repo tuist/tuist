@@ -29,7 +29,7 @@ packer {
 #     Completed, and the next reconcile tick creates a fresh Pod.
 #
 # Layer split: this is Layer 2 on top of
-# `ghcr.io/tuist/macos-tahoe-xcode:<major>-<minor>` (built by
+# `ghcr.io/tuist/macos-tahoe-xcode:<xcode-version-dashes>` (built by
 # `infra/macos-xcode-image`). Xcode + dev tools + WWDR certs all
 # live in the Layer 1 base; this layer just adds the GitHub Actions
 # runner agent, the dispatch loop, and the runner user / launchd
@@ -69,8 +69,8 @@ packer {
 
 variable "base_image" {
   type        = string
-  description = "Base Tart image (Layer 1: ghcr.io/tuist/macos-tahoe-xcode:<major>-<minor>). Bump this to roll the fleet onto a new Xcode."
-  default     = "ghcr.io/tuist/macos-tahoe-xcode:26-4"
+  description = "Base Tart image (Layer 1: ghcr.io/tuist/macos-tahoe-xcode:<xcode-version-dashes>, e.g. `:26-4-1` or `:26-5`). Bump this to roll the fleet onto a new Xcode."
+  default     = "ghcr.io/tuist/macos-tahoe-xcode:26-4-1"
 }
 
 variable "output_image" {

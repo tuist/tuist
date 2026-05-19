@@ -16,7 +16,7 @@ packer {
 # draining the `:process_xcresult` Oban queue.
 #
 # Layer split: this is Layer 2 on top of
-# `ghcr.io/tuist/macos-tahoe-xcode:<major>-<minor>` (built by
+# `ghcr.io/tuist/macos-tahoe-xcode:<xcode-version-dashes>` (built by
 # `infra/macos-xcode-image`). Xcode lives in Layer 1 — the NIF
 # shells out to `/usr/bin/xcrun xcresulttool`, which only ships in
 # full Xcode (not the Command Line Tools), so the base must carry
@@ -36,8 +36,8 @@ packer {
 
 variable "base_image" {
   type        = string
-  description = "Base Tart image (Layer 1: ghcr.io/tuist/macos-tahoe-xcode:<major>-<minor>). Bump to roll onto a new Xcode."
-  default     = "ghcr.io/tuist/macos-tahoe-xcode:26-4"
+  description = "Base Tart image (Layer 1: ghcr.io/tuist/macos-tahoe-xcode:<xcode-version-dashes>, e.g. `:26-4-1` or `:26-5`). Bump to roll onto a new Xcode."
+  default     = "ghcr.io/tuist/macos-tahoe-xcode:26-4-1"
 }
 
 variable "output_image" {
