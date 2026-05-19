@@ -818,20 +818,24 @@ load anchor "tuist.runners" from "/etc/pf.anchors/tuist.runners"
 PFCONFENTRY
 fi
 
-# Kill any kernel-resident tables from a previous bootstrap pass
-# before the validate. The tables are declared in the anchor file
-# without 'persist' so a clean ruleset load drops them, but hosts
-# that previously ran a 'persist'-flagged version of this script
-# carry the tables in kernel state until something explicitly
-# destroys them — 'pfctl -F all' on the anchor flushes entries and
-# rules but NOT persist tables, so subsequent 'pfctl -nf' parses
-# still die on 'cannot define table vm_sources: Resource busy'.
-# '-T kill' actually removes the table from kernel state.
-# Tolerate failure here on first-run hosts where the tables don't
-# yet exist.
-sudo pfctl -a tuist.runners -t vm_sources -T kill 2>/dev/null || true
-sudo pfctl -a tuist.runners -t blocked_dst -T kill 2>/dev/null || true
-sudo pfctl -a tuist.runners -F all 2>/dev/null || true
+# Reset the anchor's kernel-resident ruleset before the validate.
+# Hosts that previously ran an older version of this script left
+# persist-flagged 'vm_sources' / 'blocked_dst' tables in the
+# kernel, and 'pfctl -nf' on a config that redefines them dies on
+# EBUSY ("cannot define table vm_sources: Resource busy") — the
+# validate doesn't tolerate redefinition while the prior table is
+# still in kernel state. Load an empty ruleset into the anchor
+# first: the kernel evicts tables that aren't in the new load and
+# aren't persist'd, and since the empty ruleset doesn't request
+# persistence, previously-persist'd tables drop out. The
+# subsequent 'pfctl -f /etc/pf.conf' puts the real ruleset back.
+#
+# Note: pfctl has no '-T destroy' for tables. '-T kill' kills
+# connections matching addresses in the table, not the table
+# itself, and '-F all' flushes rules and addresses but explicitly
+# preserves persist tables — neither can remove the stuck state
+# directly.
+echo "" | sudo pfctl -a tuist.runners -f - 2>/dev/null || true
 
 # Validate the ruleset before activating. -nf parses without
 # loading; if this fails we want a clear bootstrap error rather
