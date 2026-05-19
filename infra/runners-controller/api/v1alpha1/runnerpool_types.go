@@ -59,11 +59,11 @@ type RunnerPoolSpec struct {
 	// JIT-mint time, in addition to DispatchLabel which is always
 	// appended. Conventionally `["self-hosted", "<os>", "<arch>"]`
 	// (e.g. macOS pool: `["self-hosted", "macOS", "ARM64"]`; Linux
-	// pool: `["self-hosted", "Linux", "X64"]`). Empty falls back
-	// to the macOS triple on the server for backward compat with
-	// v1 macOS-only pools.
-	// +optional
-	RunnerLabels []string `json:"runnerLabels,omitempty"`
+	// pool: `["self-hosted", "Linux", "X64"]`). The chart renders
+	// this field for every pool (per-OS defaults applied in the
+	// helm template), so the server treats absent/empty as a chart
+	// bug rather than substituting a default.
+	RunnerLabels []string `json:"runnerLabels"`
 
 	// OS is the host OS for this pool's Pods. Drives nodeSelector
 	// and tolerations on the controller side. `darwin` (default,

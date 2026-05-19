@@ -26,7 +26,7 @@ defmodule Tuist.Runners.DispatchTest do
               }} = Dispatch.pool_summary_by_name("linux-pool")
     end
 
-    test "falls back to the macOS triple when runnerLabels is absent" do
+    test "returns [] when runnerLabels is absent" do
       stub(Client, :get_runner_pool, fn _ns, "macos-pool" ->
         {:ok,
          %{
@@ -35,11 +35,10 @@ defmodule Tuist.Runners.DispatchTest do
          }}
       end)
 
-      assert {:ok, %{runner_labels: ["self-hosted", "macOS", "ARM64"]}} =
-               Dispatch.pool_summary_by_name("macos-pool")
+      assert {:ok, %{runner_labels: []}} = Dispatch.pool_summary_by_name("macos-pool")
     end
 
-    test "falls back to the macOS triple when runnerLabels is empty" do
+    test "returns [] when runnerLabels is empty" do
       stub(Client, :get_runner_pool, fn _ns, "macos-pool" ->
         {:ok,
          %{
@@ -48,8 +47,7 @@ defmodule Tuist.Runners.DispatchTest do
          }}
       end)
 
-      assert {:ok, %{runner_labels: ["self-hosted", "macOS", "ARM64"]}} =
-               Dispatch.pool_summary_by_name("macos-pool")
+      assert {:ok, %{runner_labels: []}} = Dispatch.pool_summary_by_name("macos-pool")
     end
 
     test "filters non-string and empty entries from runnerLabels" do

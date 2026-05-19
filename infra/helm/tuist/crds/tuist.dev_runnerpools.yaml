@@ -48,7 +48,7 @@ spec:
           properties:
             spec:
               type: object
-              required: [image, fleetSelector, dispatchLabel]
+              required: [image, fleetSelector, dispatchLabel, runnerLabels]
               properties:
                 labels:
                   type: array
@@ -76,9 +76,10 @@ spec:
                   description: |
                     GitHub Actions runner labels stamped on the runner at JIT-mint
                     time (in addition to `dispatchLabel`, which is always appended).
-                    Conventionally `["self-hosted", "<os>", "<arch>"]`. Empty falls
-                    back to `["self-hosted", "macOS", "ARM64"]` for backward compat
-                    with v1 macOS-only pools.
+                    Conventionally `["self-hosted", "<os>", "<arch>"]`. The chart
+                    renders this field for every pool (per-OS defaults applied in
+                    the helm template), so the server treats absent/empty as a
+                    chart bug rather than substituting a default.
                 os:
                   type: string
                   default: darwin

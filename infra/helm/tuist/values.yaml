@@ -660,9 +660,10 @@ runnersFleet:
     #   runnerImage: ""        # Required. Digest-pinned in production.
     #   dispatchLabel: ""      # Required. The label customers put in `runs-on`.
     #   # GitHub runner labels stamped at JIT-mint time, in addition
-    #   # to `dispatchLabel` (always appended). Default
-    #   # `["self-hosted", "macOS", "ARM64"]` for backward compat;
-    #   # set explicitly for Linux pools.
+    #   # to `dispatchLabel` (always appended). Defaults per-OS in
+    #   # the helm template (`["self-hosted", "macOS", "ARM64"]` for
+    #   # the macOS block, `["self-hosted", "Linux", "X64"]` for the
+    #   # Linux block); override here to add extra labels.
     #   runnerLabels: ["self-hosted", "macOS", "ARM64"]
     #   pod:
     #     cpuMilli: 8000

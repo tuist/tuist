@@ -285,21 +285,17 @@ defmodule Tuist.Runners.Dispatch do
 
   defp pool_summary(_), do: nil
 
-  # Default to the macOS triple when `runnerLabels` is absent or
-  # empty so existing v1 macOS-only pools keep working after the
-  # CRD evolves; new Linux pools set the field explicitly via the
-  # helm `pools[].runnerLabels` knob.
-  @default_runner_labels ["self-hosted", "macOS", "ARM64"]
-
-  defp extract_runner_labels(%{"runnerLabels" => labels}) when is_list(labels) and labels != [] do
+  # `runnerLabels` is required on every RunnerPool CR (the chart
+  # renders it from `pools[].runnerLabels`, defaulting per-OS in
+  # the template). We filter non-string/empty entries defensively
+  # but no longer fall back to a hard-coded triple — a CR reaching
+  # this code with an empty list is a chart bug and should surface,
+  # not get silently rewritten to the macOS default.
+  defp extract_runner_labels(%{"runnerLabels" => labels}) when is_list(labels) do
     Enum.filter(labels, &(is_binary(&1) and &1 != ""))
-    |> case do
-      [] -> @default_runner_labels
-      filtered -> filtered
-    end
   end
 
-  defp extract_runner_labels(_), do: @default_runner_labels
+  defp extract_runner_labels(_), do: []
 
   defp namespace, do: Environment.runners_namespace()
 
