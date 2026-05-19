@@ -96,7 +96,7 @@ defmodule Tuist.Runners do
   def scaling_signals_for_fleet(fleet_name) when is_binary(fleet_name) do
     %{
       fleet: fleet_name,
-      claimed: Claims.counts_per_fleet() |> Map.get(fleet_name, 0),
+      claimed: Map.get(Claims.counts_per_fleet(), fleet_name, 0),
       queued: Jobs.queued_count_by_fleet(fleet_name),
       p95_concurrent_last_hour: Jobs.p95_concurrent_last_hour(fleet_name)
     }

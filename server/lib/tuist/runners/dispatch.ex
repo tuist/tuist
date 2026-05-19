@@ -55,7 +55,7 @@ defmodule Tuist.Runners.Dispatch do
     action = Map.get(payload, "action", "<none>")
     job = Map.get(payload, "workflow_job", %{})
     labels = Map.get(job, "labels", [])
-    repo = Map.get(payload, "repository", %{}) |> Map.get("full_name", "")
+    repo = payload |> Map.get("repository", %{}) |> Map.get("full_name", "")
 
     Logger.info(
       "runners: workflow_job action=#{action} (labels=#{inspect(labels)}); ignored",
