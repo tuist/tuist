@@ -823,18 +823,27 @@ fi
 # persist-flagged 'vm_sources' / 'blocked_dst' tables in the
 # kernel, and 'pfctl -nf' on a config that redefines them dies on
 # EBUSY ("cannot define table vm_sources: Resource busy") — the
-# validate doesn't tolerate redefinition while the prior table is
-# still in kernel state. Load an empty ruleset into the anchor
-# first: the kernel evicts tables that aren't in the new load and
-# aren't persist'd, and since the empty ruleset doesn't request
-# persistence, previously-persist'd tables drop out. The
-# subsequent 'pfctl -f /etc/pf.conf' puts the real ruleset back.
+# validate doesn't tolerate redefinition while a prior persist
+# table is still in kernel state.
 #
-# Note: pfctl has no '-T destroy' for tables. '-T kill' kills
-# connections matching addresses in the table, not the table
-# itself, and '-F all' flushes rules and addresses but explicitly
-# preserves persist tables — neither can remove the stuck state
-# directly.
+# pfctl(8) defines '-T kill' as "Kill a table" — i.e. destroy it
+# from kernel state — and that's the only command that removes a
+# persist'd table. '-F all' / '-F Tables' explicitly preserve
+# persist tables (they only flush addresses), so they can't repair
+# this on their own. We do '-T kill' at both anchor scope AND
+# top-level scope: in practice older versions of this script have
+# at various times placed these tables in either location, and the
+# 2>/dev/null swallows the "no such table" error for the location
+# that doesn't apply on a given host.
+#
+# Belt-and-suspenders: after the kills, load an empty ruleset into
+# the anchor so any leftover anchor-level rules referencing the
+# old tables get cleared too, before pf(4) sees the redefinition
+# attempt in the validate below.
+sudo pfctl -a tuist.runners -t vm_sources -T kill 2>/dev/null || true
+sudo pfctl -a tuist.runners -t blocked_dst -T kill 2>/dev/null || true
+sudo pfctl -t vm_sources -T kill 2>/dev/null || true
+sudo pfctl -t blocked_dst -T kill 2>/dev/null || true
 echo "" | sudo pfctl -a tuist.runners -f - 2>/dev/null || true
 
 # Validate the ruleset before activating. -nf parses without
