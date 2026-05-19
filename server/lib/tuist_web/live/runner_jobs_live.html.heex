@@ -80,7 +80,7 @@
         <% @analytics_selected_widget == "total_jobs" -> %>
           <.chart
             id="jobs-total-chart"
-            type="bar"
+            type="line"
             labels={Enum.map(@jobs_count.result.dates, &Date.to_iso8601/1)}
             series={[%{name: dgettext("dashboard_runners", "Jobs"), values: @jobs_count.result.values}]}
           />
@@ -89,7 +89,7 @@
         <% @analytics_selected_widget == "cumulative_minutes" -> %>
           <.chart
             id="jobs-cumulative-minutes-chart"
-            type="bar"
+            type="line"
             labels={Enum.map(@cumulative_minutes.result.dates, &Date.to_iso8601/1)}
             series={[
               %{
