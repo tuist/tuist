@@ -10,6 +10,7 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
 - Runtime configuration and limits: `src/config.rs`, `src/constants.rs`
 - Observability and analytics: `src/metrics.rs`, `src/telemetry.rs`, `src/analytics.rs`
 - Peer TLS support: `src/peer_tls.rs`
+- Marketing site: `website/` - localized Eleventy site, blog feeds, and OG image generation. See `website/AGENTS.md`
 - Operational assets: `docker-compose.yml`, `ops/`, `test/e2e/`, `spec/e2e/`
   - See `ops/AGENTS.md` for Helm, rollout helpers, and observability config boundaries
 
