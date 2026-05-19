@@ -40,7 +40,7 @@ msgstr "500"
 #: lib/tuist_web/components/account_dropdown.ex:65
 #, elixir-autogen, elixir-format
 msgid "Account settings"
-msgstr "帳號設定"
+msgstr "帳戶設定"
 
 #: lib/tuist_web/components/percentile_dropdown_widget.ex:123
 #: lib/tuist_web/components/percentile_dropdown_widget.ex:127
@@ -105,7 +105,7 @@ msgid "Emails"
 msgstr "電子郵件"
 
 #: lib/tuist_web/controllers/error_html.ex:133
-#: lib/tuist_web/live/ops_account_kura_deployment_live.html.heex:40
+#: lib/tuist_web/live/ops_account_kura_deployment_live.html.heex:42
 #, elixir-autogen, elixir-format
 msgid "Error"
 msgstr "錯誤"
@@ -118,7 +118,7 @@ msgstr "錯誤"
 #: lib/tuist_web/components/app_layout_components.ex:398
 #, elixir-autogen, elixir-format
 msgid "Flags"
-msgstr "標記"
+msgstr "旗標"
 
 #: lib/tuist_web/components/empty_card_section.ex:29
 #: lib/tuist_web/components/public_project_cta_banner.ex:40
@@ -129,10 +129,10 @@ msgstr "開始使用"
 #: lib/tuist_web/controllers/error_html.ex:155
 #, elixir-autogen, elixir-format
 msgid "Go to dashboard"
-msgstr "前往儀表板"
+msgstr "前往控制台"
 
 #: lib/tuist_web/components/app_layout_components.ex:428
-#: lib/tuist_web/live/ops_account_kura_deployment_live.html.heex:50
+#: lib/tuist_web/live/ops_account_kura_deployment_live.html.heex:52
 #, elixir-autogen, elixir-format
 msgid "Grafana"
 msgstr "Grafana"
@@ -142,13 +142,13 @@ msgstr "Grafana"
 msgid "Integrations"
 msgstr "整合"
 
-#: lib/tuist_web/controllers/github_app_setup_controller.ex:25
-#: lib/tuist_web/controllers/github_app_setup_controller.ex:28
+#: lib/tuist_web/controllers/github_app_setup_controller.ex:38
+#: lib/tuist_web/controllers/github_app_setup_controller.ex:41
 #, elixir-autogen, elixir-format
 msgid "Invalid GitHub app installation. Please try again."
-msgstr "無效的 GitHub 應用程式安裝。請再試一次。"
+msgstr "GitHub 應用程式安裝無效。請再試一次。"
 
-#: lib/tuist_web/controllers/github_app_setup_controller.ex:31
+#: lib/tuist_web/controllers/github_app_setup_controller.ex:44
 #, elixir-autogen, elixir-format
 msgid "Invalid installation request. Please try again."
 msgstr "安裝請求無效。請再試一次。"
@@ -156,7 +156,7 @@ msgstr "安裝請求無效。請再試一次。"
 #: lib/tuist_web/components/app_layout_components.ex:392
 #, elixir-autogen, elixir-format
 msgid "Jobs"
-msgstr "工作"
+msgstr "任務"
 
 #: lib/tuist_web/components/empty_state.ex:43
 #, elixir-autogen, elixir-format
@@ -166,7 +166,7 @@ msgstr "了解更多"
 #: lib/tuist_web/components/app_layout_components.ex:386
 #, elixir-autogen, elixir-format
 msgid "LiveDashboard"
-msgstr "即時儀表板"
+msgstr "即時控制台"
 
 #: lib/tuist_web/components/account_dropdown.ex:109
 #, elixir-autogen, elixir-format
@@ -196,7 +196,7 @@ msgstr "下一步"
 #: lib/tuist_web/components/widget.ex:146
 #, elixir-autogen, elixir-format
 msgid "No data yet"
-msgstr "尚無資料"
+msgstr "尚無數據"
 
 #: lib/tuist_web/controllers/error_html.ex:64
 #, elixir-autogen, elixir-format
@@ -207,12 +207,12 @@ msgstr "找不到"
 #: lib/tuist_web/authorization.ex:46
 #, elixir-autogen, elixir-format
 msgid "Only operations roles can access this page."
-msgstr "只有操作角色可存取此頁面。"
+msgstr "僅限作業角色可存取此頁面。"
 
 #: lib/tuist_web/controllers/error_html.ex:98
 #, elixir-autogen, elixir-format
 msgid "Oops! Something went wrong"
-msgstr "哎呀！發生錯誤了"
+msgstr "哎呀！發生錯誤"
 
 #: lib/tuist_web/controllers/error_html.ex:65
 #, elixir-autogen, elixir-format
@@ -222,7 +222,7 @@ msgstr "抱歉，我們找不到該頁面"
 #: lib/tuist_web/components/account_dropdown.ex:81
 #, elixir-autogen, elixir-format
 msgid "Operations"
-msgstr "操作"
+msgstr "作業"
 
 #: lib/tuist_web/components/app_layout_components.ex:23
 #, elixir-autogen, elixir-format
@@ -232,7 +232,7 @@ msgstr "總覽"
 #: lib/tuist_web/controllers/error_html.ex:44
 #, elixir-autogen, elixir-format
 msgid "Please, make sure you are accessing the right resource and that you have the permissions to access it."
-msgstr "請確認您正在存取正確的資源，且您有權限進行存取。"
+msgstr "請確認您正在存取正確的資源，且您具有存取權限。"
 
 #: lib/tuist_web/components/app_components.ex:51
 #, elixir-autogen, elixir-format
@@ -267,7 +267,7 @@ msgstr "專案設定"
 #: lib/tuist_web/controllers/error_html.ex:101
 #, elixir-autogen, elixir-format
 msgid "Sorry, something went wrong on our side. Contact us at contact@tuist.dev and we'll look into it."
-msgstr "抱歉，我們這邊出了一些問題。請聯絡 contact@tuist.dev，我們會處理。"
+msgstr "抱歉，系統發生錯誤。請聯絡 contact@tuist.dev，我們將進行調查。"
 
 #: lib/tuist_web/controllers/error_html.ex:58
 #, elixir-autogen, elixir-format
@@ -277,17 +277,17 @@ msgstr "抱歉，您尋找的頁面不存在或已被移動。"
 #: lib/tuist_web/controllers/error_html.ex:79
 #, elixir-autogen, elixir-format
 msgid "Sorry, you made too many requests. Please try again later."
-msgstr "抱歉，您的請求次數過多。請稍後再試。"
+msgstr "抱歉，您的請求過於頻繁。請稍後再試。"
 
 #: lib/tuist_web/components/app_layout_components.ex:412
 #, elixir-autogen, elixir-format
 msgid "Storage"
-msgstr "儲存空間"
+msgstr "儲存"
 
 #: lib/tuist_web/components/account_dropdown.ex:100
 #, elixir-autogen, elixir-format
 msgid "Switch to your preferred theme"
-msgstr "切換到您喜好的主題"
+msgstr "切換至您的偏好主題"
 
 #: lib/tuist_web/components/app_layout_components.ex:94
 #: lib/tuist_web/components/app_layout_components.ex:269
@@ -310,17 +310,17 @@ msgstr "測試"
 #: lib/tuist_web/plugs/loader_plug.ex:52
 #, elixir-autogen, elixir-format
 msgid "The account %{account_handle} was not found."
-msgstr "找不到帳號 %{account_handle}。"
+msgstr "找不到帳戶 %{account_handle}。"
 
 #: lib/tuist_web/live/layout_live.ex:153
 #, elixir-autogen, elixir-format
 msgid "The account you are looking for doesn't exist or has been moved."
-msgstr "您尋找的帳號不存在或已被移動。"
+msgstr "您尋找的帳戶不存在或已被移動。"
 
 #: lib/tuist_web/controllers/auth_controller.ex:29
 #, elixir-autogen, elixir-format
 msgid "The authentication URL is not supported"
-msgstr "不支援此認證 URL"
+msgstr "不支援的驗證網址"
 
 #: lib/tuist_web/authorization.ex:63
 #: lib/tuist_web/authorization.ex:79
@@ -331,7 +331,7 @@ msgstr "您尋找的頁面不存在或已被移動。"
 #: lib/tuist_web/controllers/preview_controller.ex:133
 #, elixir-autogen, elixir-format
 msgid "The preview ipa doesn't exist or has expired."
-msgstr "預覽 ipa 不存在或已過期。"
+msgstr "預覽的 ipa 不存在或已過期。"
 
 #: lib/tuist_web/controllers/api/cache/plugs/loader_query_plug.ex:36
 #: lib/tuist_web/plugs/loader_plug.ex:115
@@ -343,7 +343,7 @@ msgstr "找不到專案 %{project_slug}。"
 #: lib/tuist_web/plugs/loader_plug.ex:119
 #, elixir-autogen, elixir-format
 msgid "The project full handle %{project_slug} is invalid. It should follow the convention 'account_handle/project_handle'."
-msgstr "專案完整識別 %{project_slug} 無效，應遵循格式 'account_handle/project_handle'。"
+msgstr "專案完整識別碼 %{project_slug} 無效。應符合格式 'account_handle/project_handle'。"
 
 #: lib/tuist_web/live/layout_live.ex:61
 #, elixir-autogen, elixir-format
@@ -355,7 +355,7 @@ msgstr "您尋找的專案不存在或已被移動。"
 msgid "The run with ID %{run_id} was not found."
 msgstr "找不到 ID 為 %{run_id} 的執行。"
 
-#: lib/tuist_web/live/layout_live.ex:253
+#: lib/tuist_web/live/layout_live.ex:260
 #, elixir-autogen, elixir-format
 msgid "The run you are looking for doesn't exist or has been moved."
 msgstr "您尋找的執行不存在或已被移動。"
@@ -379,7 +379,7 @@ msgstr "Tuist 圖示"
 #: lib/tuist_web/components/layout_components.ex:64
 #, elixir-autogen, elixir-format
 msgid "Tuist extends Apple's tools, helping you ship apps that stand out."
-msgstr "Tuist 擴展了 Apple 的工具，幫助您打造出眾的應用程式。"
+msgstr "Tuist 擴充了 Apple 的工具，助您打造出色應用程式。"
 
 #: lib/tuist_web/controllers/error_html.ex:40
 #, elixir-autogen, elixir-format
@@ -403,7 +403,7 @@ msgstr "Xcode 快取"
 #: lib/tuist_web/controllers/error_html.ex:41
 #, elixir-autogen, elixir-format
 msgid "You are not authorized to view this page"
-msgstr "您沒有權限檢視此頁面"
+msgstr "您未被授權瀏覽此頁面"
 
 #: lib/tuist_web/authorization.ex:21
 #: lib/tuist_web/authorization.ex:40
@@ -411,7 +411,7 @@ msgstr "您沒有權限檢視此頁面"
 #: lib/tuist_web/authorization.ex:72
 #, elixir-autogen, elixir-format
 msgid "You need to be authenticated to access this page."
-msgstr "您需要驗證身分才能存取此頁面。"
+msgstr "您需要先驗證身份才能存取此頁面。"
 
 #: lib/tuist_web/controllers/user_session_controller.ex:28
 #, elixir-autogen, elixir-format
@@ -447,17 +447,17 @@ msgstr "不穩定測試"
 #: lib/tuist_web/components/public_project_cta_banner.ex:33
 #, elixir-autogen, elixir-format
 msgid "Ready to speed up your builds and unlock insights for your app?"
-msgstr "準備好加速您的建置並解鎖應用程式洞察了嗎？"
+msgstr "準備好加速建置並洞察您的應用程式了嗎？"
 
 #: lib/tuist_web/components/public_project_cta_banner.ex:47
 #, elixir-autogen, elixir-format
 msgid "Talk to us"
-msgstr "與我們聯繫"
+msgstr "聯絡我們"
 
 #: lib/tuist_web/components/public_project_cta_banner.ex:26
 #, elixir-autogen, elixir-format
 msgid "This is a public dashboard for the %{account_name}/%{project_name} project."
-msgstr "這是 %{account_name}/%{project_name} 專案的公開儀表板。"
+msgstr "這是 %{account_name}/%{project_name} 專案的公開控制台。"
 
 #: lib/tuist_web/components/app_layout_components.ex:120
 #: lib/tuist_web/components/app_layout_components.ex:295
@@ -468,7 +468,7 @@ msgstr "隔離測試"
 #: lib/tuist_web/components/app_layout_components.ex:180
 #, elixir-autogen, elixir-format
 msgid "Generations"
-msgstr "世代"
+msgstr "版本"
 
 #: lib/tuist_web/components/app_layout_components.ex:319
 #, elixir-autogen, elixir-format
@@ -489,12 +489,12 @@ msgstr "快取"
 #: lib/tuist_web/controllers/preview_controller.ex:154
 #, elixir-autogen, elixir-format
 msgid "The preview APK doesn't exist or has expired."
-msgstr "預覽 APK 不存在或已過期。"
+msgstr "預覽的 APK 不存在或已過期。"
 
 #: lib/tuist_web/live/components/machine_metrics_charts.ex:73
 #, elixir-autogen, elixir-format
 msgid "Metrics"
-msgstr "度量"
+msgstr "指標"
 
 #: lib/tuist_web/controllers/error_html.ex:28
 #, elixir-autogen, elixir-format
@@ -505,7 +505,7 @@ msgstr "驗證失敗"
 #: lib/tuist_web/controllers/auth_controller.ex:515
 #, elixir-autogen, elixir-format
 msgid "Your identity provider denied access. Please ask your organization admin to assign you to the Tuist application."
-msgstr "您的身份提供者拒絕存取。請聯絡您的組織管理員將您分配至 Tuist 應用程式。"
+msgstr "您的身份提供者拒絕存取。請向您的組織管理員申請將您指派到 Tuist 應用程式。"
 
 #: lib/tuist_web/components/app_layout_components.ex:131
 #: lib/tuist_web/components/app_layout_components.ex:306
@@ -521,97 +521,97 @@ msgstr "與身份提供者的驗證失敗。請再試一次。"
 #: lib/tuist_web/controllers/auth_controller.ex:599
 #, elixir-autogen, elixir-format
 msgid "Failed to authenticate with the SSO provider. Please try again."
-msgstr "與 SSO 提供者驗證失敗。請再試一次。"
+msgstr "無法與 SSO 供應商驗證。請再試一次。"
 
 #: lib/tuist_web/controllers/auth_controller.ex:494
 #, elixir-autogen, elixir-format
 msgid "SSO is not fully configured for this organization. Ask an organization admin to review the SSO settings."
-msgstr "此組織的 SSO 未完全設定。請請組織管理員檢查 SSO 設定。"
+msgstr "此組織的 SSO 尚未完全設定。請組織管理員檢查 SSO 設定。"
 
 #: lib/tuist_web/controllers/auth_controller.ex:557
 #, elixir-autogen, elixir-format
 msgid "The SSO authorization code is invalid or expired. Please restart the sign-in flow."
-msgstr "SSO 授權碼無效或已過期。請重新開始登入流程。"
+msgstr "SSO 授權碼無效或已過期。請重新啟動登入流程。"
 
 #: lib/tuist_web/controllers/auth_controller.ex:529
 #, elixir-autogen, elixir-format
 msgid "The SSO provider callback is missing an authorization code. Please restart the sign-in flow."
-msgstr "SSO 提供者回呼缺少授權碼。請重新開始登入流程。"
+msgstr "SSO 提供者回調缺少授權碼。請重新啟動登入流程。"
 
 #: lib/tuist_web/controllers/auth_controller.ex:480
 #, elixir-autogen, elixir-format
 msgid "The SSO request is missing an organization identifier. Please start the sign-in flow again from the login page."
-msgstr "SSO 請求缺少組織識別碼。請從登入頁面重新開始登入流程。"
+msgstr "SSO 請求缺少組織識別碼。請從登入頁面重新啟動登入流程。"
 
 #: lib/tuist_web/controllers/auth_controller.ex:508
 #, elixir-autogen, elixir-format
 msgid "The SSO response could not be validated because the request state did not match. Please try again."
-msgstr "因請求狀態不符，無法驗證 SSO 回應。請再試一次。"
+msgstr "SSO 回應無法驗證，因請求狀態不符。請再試一次。"
 
 #: lib/tuist_web/controllers/auth_controller.ex:536
 #, elixir-autogen, elixir-format
 msgid "The configured SSO endpoints are invalid. Ask your organization admin to review the SSO settings."
-msgstr "設定的 SSO 端點無效。請組織管理員檢查 SSO 設定。"
+msgstr "設定的 SSO 端點無效。請向組織管理員檢查 SSO 設定。"
 
 #: lib/tuist_web/components/layouts/ops.html.heex:8
 #, elixir-autogen, elixir-format
 msgid "Tuist Ops"
-msgstr "Tuist 操作"
+msgstr "Tuist 運營"
 
 #: lib/tuist_web/controllers/auth_controller.ex:543
 #, elixir-autogen, elixir-format
 msgid "Tuist couldn't exchange the authorization code with your identity provider. Ask your organization admin to verify the SSO credentials and callback URL."
-msgstr "Tuist 無法與您的身份提供者交換授權碼。請組織管理員確認 SSO 認證資料與回呼 URL。"
+msgstr "Tuist 無法與您的身份提供者交換授權碼。請組織管理員確認 SSO 憑證及回調 URL。"
 
 #: lib/tuist_web/controllers/auth_controller.ex:550
 #, elixir-autogen, elixir-format
 msgid "Tuist couldn't fetch your profile from your identity provider. Ask your organization admin to verify the user info endpoint and configured scopes."
-msgstr "Tuist 無法從身份提供者取得您的個人資料。請組織管理員確認用戶資訊端點與設定權限。"
+msgstr "Tuist 無法從您的身份提供者取得您的個人資料。請組織管理員確認使用者資訊端點與設定的權限範圍。"
 
 #: lib/tuist_web/controllers/auth_controller.ex:592
 #, elixir-autogen, elixir-format
 msgid "We couldn't complete the SSO callback for this request. Please try again."
-msgstr "我們無法完成此請求的 SSO 回呼。請再試一次。"
+msgstr "我們無法完成此請求的 SSO 回調。請再試一次。"
 
 #: lib/tuist_web/controllers/auth_controller.ex:487
 #, elixir-autogen, elixir-format
 msgid "We couldn't find the organization for this SSO request. Please verify that you are using the correct SSO link."
-msgstr "找不到此 SSO 請求對應的組織。請確認您使用的是正確的 SSO 連結。"
+msgstr "找不到此 SSO 請求的組織。請確認您使用了正確的 SSO 連結。"
 
 #: lib/tuist_web/controllers/auth_controller.ex:585
 #, elixir-autogen, elixir-format
 msgid "We couldn't start the SSO flow for this organization. Please verify the SSO configuration and try again."
-msgstr "無法啟動此組織的 SSO 流程。請確認 SSO 設定並再試一次。"
+msgstr "無法為此組織啟動 SSO 流程。請確認 SSO 設定並重試。"
 
 #: lib/tuist_web/controllers/auth_controller.ex:501
 #, elixir-autogen, elixir-format
 msgid "Your SSO session has expired. Please restart the sign-in flow from the login page."
-msgstr "您的 SSO 會話已過期。請從登入頁面重新開始登入流程。"
+msgstr "您的 SSO 會話已過期。請從登入頁面重新啟動登入流程。"
 
 #: lib/tuist_web/controllers/auth_controller.ex:578
 #, elixir-autogen, elixir-format
 msgid "Your Tuist account already exists, but it isn't a member of this organization. Ask an organization admin to add you, then sign in with SSO again."
-msgstr "您的 Tuist 帳號已存在，但不是此組織成員。請組織管理員將您加入，然後再使用 SSO 登入。"
+msgstr "您的 Tuist 帳戶已存在，但不是本組織成員。請組織管理員將您新增後，再次以 SSO 登入。"
 
 #: lib/tuist_web/controllers/auth_controller.ex:564
 #, elixir-autogen, elixir-format
 msgid "Your identity provider response is missing a stable user identifier. Ask your organization admin to review the user info claims."
-msgstr "您的身份提供者回應缺少穩定的用戶識別碼。請組織管理員檢查用戶資訊權限聲明。"
+msgstr "您的身份提供者回應缺少穩定的使用者識別碼。請組織管理員檢查使用者資訊宣告。"
 
 #: lib/tuist_web/controllers/auth_controller.ex:571
 #, elixir-autogen, elixir-format
 msgid "Your identity provider response is missing an email address. Ask your organization admin to include the email claim."
-msgstr "您的身份提供者回應缺少電子郵件地址。請組織管理員包含電子郵件聲明。"
+msgstr "您的身份提供者回應缺少電子郵件地址。請組織管理員加入電子郵件宣告。"
 
 #: lib/tuist_web/controllers/auth_controller.ex:522
 #, elixir-autogen, elixir-format
 msgid "Your identity provider returned an authentication error. Please try again or contact your organization admin."
-msgstr "您的身份提供者回傳驗證錯誤。請再試一次或聯絡組織管理員。"
+msgstr "您的身份提供者返回驗證錯誤。請再試一次或聯絡組織管理員。"
 
 #: lib/tuist_web/components/account_dropdown.ex:73
 #, elixir-autogen, elixir-format
 msgid "Dashboard"
-msgstr "儀表板"
+msgstr "控制台"
 
 #: lib/tuist_web/components/app_layout_components.ex:380
 #: lib/tuist_web/live/ops_accounts_live.ex:18
@@ -619,14 +619,14 @@ msgstr "儀表板"
 #: lib/tuist_web/live/ops_accounts_live.html.heex:5
 #, elixir-autogen, elixir-format
 msgid "Accounts"
-msgstr "帳號"
+msgstr "帳戶"
 
 #: lib/tuist_web/components/layouts/account.html.heex:57
 #, elixir-autogen, elixir-format
 msgid "Authentication"
 msgstr "身份驗證"
 
-#: lib/tuist_web/controllers/github_app_setup_controller.ex:34
+#: lib/tuist_web/controllers/github_app_setup_controller.ex:47
 #, elixir-autogen, elixir-format
 msgid "This GitHub app installation is already connected."
 msgstr "此 GitHub 應用程式安裝已連接。"
@@ -640,30 +640,31 @@ msgstr "%{account} 計劃設定於本期結束時取消。"
 #: lib/tuist_web/live/ops_account_live.ex:106
 #, elixir-autogen, elixir-format
 msgid "%{account} upgraded to Enterprise. Stripe will send an invoice for the first period."
-msgstr "%{account} 已升級為 Enterprise。Stripe 將寄送第一期的發票。"
+msgstr "%{account} 已升級至 Enterprise。Stripe 將寄送首期發票。"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:5
 #, elixir-autogen, elixir-format
 msgid "Account ID"
-msgstr "帳號 ID"
+msgstr "帳戶 ID"
 
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:88
 #: lib/tuist_web/live/ops_account_kura_deployment_live.ex:23
 #: lib/tuist_web/live/ops_account_live.ex:36
 #, elixir-autogen, elixir-format
 msgid "Account not found."
-msgstr "找不到帳號。"
+msgstr "找不到帳戶。"
 
 #: lib/tuist_web/live/ops_account_helpers.ex:40
 #, elixir-autogen, elixir-format
 msgid "Active"
 msgstr "啟用中"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:150
+#: lib/tuist_web/live/ops_account_live.html.heex:152
 #, elixir-autogen, elixir-format
 msgid "Address line 1"
 msgstr "地址行 1"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:158
+#: lib/tuist_web/live/ops_account_live.html.heex:160
 #, elixir-autogen, elixir-format
 msgid "Address line 2 (optional)"
 msgstr "地址行 2（選填）"
@@ -693,17 +694,17 @@ msgstr "奧地利"
 msgid "Belgium"
 msgstr "比利時"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:196
+#: lib/tuist_web/live/ops_account_live.html.heex:198
 #, elixir-autogen, elixir-format
 msgid "Billing cadence"
 msgstr "帳單週期"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:59
-#: lib/tuist_web/live/ops_account_live.html.heex:142
+#: lib/tuist_web/live/ops_account_live.html.heex:61
+#: lib/tuist_web/live/ops_account_live.html.heex:144
 #: lib/tuist_web/live/ops_accounts_live.html.heex:30
 #, elixir-autogen, elixir-format
 msgid "Billing email"
-msgstr "帳單電子郵件"
+msgstr "帳單郵件"
 
 #: lib/tuist_web/live/ops_account_live.ex:215
 #, elixir-autogen, elixir-format
@@ -720,25 +721,25 @@ msgstr "保加利亞"
 msgid "Canada"
 msgstr "加拿大"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:213
+#: lib/tuist_web/live/ops_account_live.html.heex:215
 #, elixir-autogen, elixir-format
 msgid "Cancel"
 msgstr "取消"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:92
+#: lib/tuist_web/live/ops_account_live.html.heex:94
 #, elixir-autogen, elixir-format
 msgid "Cancel %{account}'s subscription at the end of the current billing period? Access is kept until then."
-msgstr "是否在目前結算期結束時取消 %{account} 的訂閱？直到到期為止仍可使用。"
+msgstr "取消 %{account} 在本帳單週期結束後的訂閱？存取權限將維持至該時間點。"
 
 #: lib/tuist_web/live/ops_account_live.ex:136
 #, elixir-autogen, elixir-format
 msgid "Cancel failed: %{reason}"
 msgstr "取消失敗：%{reason}"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:89
+#: lib/tuist_web/live/ops_account_live.html.heex:91
 #, elixir-autogen, elixir-format
 msgid "Cancel plan"
-msgstr "取消方案"
+msgstr "取消計劃"
 
 #: lib/tuist_web/live/ops_account_helpers.ex:42
 #: lib/tuist_web/live/ops_account_kura_deployment_live.ex:77
@@ -756,7 +757,7 @@ msgstr "智利"
 msgid "China"
 msgstr "中國"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:164
+#: lib/tuist_web/live/ops_account_live.html.heex:166
 #, elixir-autogen, elixir-format
 msgid "City"
 msgstr "城市"
@@ -766,15 +767,15 @@ msgstr "城市"
 msgid "Colombia"
 msgstr "哥倫比亞"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:184
+#: lib/tuist_web/live/ops_account_live.html.heex:186
 #, elixir-autogen, elixir-format
 msgid "Country"
 msgstr "國家"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:112
+#: lib/tuist_web/live/ops_account_live.html.heex:114
 #, elixir-autogen, elixir-format
 msgid "Creates a Stripe customer (if missing), sets the billing address, and starts an invoice-billed Enterprise subscription. The customer receives an invoice by email; no card is collected here."
-msgstr "建立 Stripe 客戶（如無則建立）、設定帳單地址，並啟動以發票計費的 Enterprise 訂閱。客戶將透過電子郵件收到發票；此處不會收集卡片資訊。"
+msgstr "建立 Stripe 客戶（如尚無），設定帳單地址，並啟動以發票計費的 Enterprise 訂閱。客戶將以電子郵件收到發票；此處不收集信用卡資訊。"
 
 #: lib/tuist_web/live/ops_account_live.ex:221
 #, elixir-autogen, elixir-format
@@ -814,7 +815,7 @@ msgstr "找不到部署。"
 #: lib/tuist_web/live/ops_account_helpers.ex:22
 #, elixir-autogen, elixir-format
 msgid "Enterprise"
-msgstr "Enterprise"
+msgstr "企業版"
 
 #: lib/tuist_web/live/ops_account_live.ex:225
 #, elixir-autogen, elixir-format
@@ -826,10 +827,10 @@ msgstr "愛沙尼亞"
 msgid "Failed"
 msgstr "失敗"
 
-#: lib/tuist_web/live/ops_account_kura_deployment_live.html.heex:31
+#: lib/tuist_web/live/ops_account_kura_deployment_live.html.heex:33
 #, elixir-autogen, elixir-format
 msgid "Finished"
-msgstr "完成"
+msgstr "已完成"
 
 #: lib/tuist_web/live/ops_account_live.ex:226
 #, elixir-autogen, elixir-format
@@ -906,7 +907,7 @@ msgstr "Kura"
 msgid "Kura deployment"
 msgstr "Kura 部署"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:28
+#: lib/tuist_web/live/ops_account_live.html.heex:30
 #, elixir-autogen, elixir-format
 msgid "Latest deployment"
 msgstr "最新部署"
@@ -936,7 +937,7 @@ msgstr "馬來西亞"
 msgid "Malta"
 msgstr "馬爾他"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:72
+#: lib/tuist_web/live/ops_account_live.html.heex:74
 #, elixir-autogen, elixir-format
 msgid "Manage on Stripe"
 msgstr "在 Stripe 管理"
@@ -946,8 +947,8 @@ msgstr "在 Stripe 管理"
 msgid "Mexico"
 msgstr "墨西哥"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:199
-#: lib/tuist_web/live/ops_account_live.html.heex:203
+#: lib/tuist_web/live/ops_account_live.html.heex:201
+#: lib/tuist_web/live/ops_account_live.html.heex:205
 #, elixir-autogen, elixir-format
 msgid "Monthly"
 msgstr "每月"
@@ -957,7 +958,7 @@ msgstr "每月"
 msgid "Name"
 msgstr "名稱"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:134
+#: lib/tuist_web/live/ops_account_live.html.heex:136
 #, elixir-autogen, elixir-format
 msgid "Name on invoice"
 msgstr "發票上的名稱"
@@ -975,12 +976,12 @@ msgstr "紐西蘭"
 #: lib/tuist_web/live/ops_accounts_live.html.heex:53
 #, elixir-autogen, elixir-format
 msgid "No accounts"
-msgstr "無帳號"
+msgstr "無帳戶"
 
 #: lib/tuist_web/live/ops_accounts_live.html.heex:54
 #, elixir-autogen, elixir-format
 msgid "No accounts match the current filter."
-msgstr "沒有帳號符合目前篩選條件。"
+msgstr "沒有符合當前篩選條件的帳戶。"
 
 #: lib/tuist_web/live/ops_account_live.ex:119
 #, elixir-autogen, elixir-format
@@ -989,9 +990,9 @@ msgstr "沒有可取消的有效訂閱。"
 
 #: lib/tuist_web/live/ops_account_kura_deployment_live.ex:85
 #: lib/tuist_web/live/ops_account_live.html.heex:23
-#: lib/tuist_web/live/ops_account_live.html.heex:26
-#: lib/tuist_web/live/ops_account_live.html.heex:31
-#: lib/tuist_web/live/ops_account_live.html.heex:60
+#: lib/tuist_web/live/ops_account_live.html.heex:27
+#: lib/tuist_web/live/ops_account_live.html.heex:33
+#: lib/tuist_web/live/ops_account_live.html.heex:62
 #: lib/tuist_web/live/ops_accounts_live.html.heex:31
 #, elixir-autogen, elixir-format
 msgid "None"
@@ -1002,7 +1003,7 @@ msgstr "無"
 msgid "Norway"
 msgstr "挪威"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:63
+#: lib/tuist_web/live/ops_account_live.html.heex:65
 #: lib/tuist_web/live/ops_accounts_live.html.heex:48
 #, elixir-autogen, elixir-format
 msgid "Not created"
@@ -1021,20 +1022,20 @@ msgstr "組織"
 #: lib/tuist_web/live/ops_account_kura_deployment_live.ex:73
 #, elixir-autogen, elixir-format
 msgid "Pending"
-msgstr "待處理"
+msgstr "等待中"
 
 #: lib/tuist_web/live/ops_account_live.ex:248
 #, elixir-autogen, elixir-format
 msgid "Philippines"
 msgstr "菲律賓"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:45
+#: lib/tuist_web/live/ops_account_live.html.heex:47
 #: lib/tuist_web/live/ops_accounts_live.html.heex:33
 #, elixir-autogen, elixir-format
 msgid "Plan"
 msgstr "方案"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:42
+#: lib/tuist_web/live/ops_account_live.html.heex:44
 #, elixir-autogen, elixir-format
 msgid "Plan & billing"
 msgstr "方案與帳單"
@@ -1049,7 +1050,7 @@ msgstr "波蘭"
 msgid "Portugal"
 msgstr "葡萄牙"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:178
+#: lib/tuist_web/live/ops_account_live.html.heex:180
 #, elixir-autogen, elixir-format
 msgid "Postal code"
 msgstr "郵遞區號"
@@ -1062,7 +1063,7 @@ msgstr "專業版"
 #: lib/tuist_web/live/ops_account_live.html.heex:12
 #, elixir-autogen, elixir-format
 msgid "Region"
-msgstr "區域"
+msgstr "地區"
 
 #: lib/tuist_web/live/ops_account_live.ex:251
 #, elixir-autogen, elixir-format
@@ -1072,14 +1073,14 @@ msgstr "羅馬尼亞"
 #: lib/tuist_web/live/ops_account_kura_deployment_live.ex:74
 #, elixir-autogen, elixir-format
 msgid "Running"
-msgstr "進行中"
+msgstr "執行中"
 
 #: lib/tuist_web/live/ops_accounts_live.html.heex:13
 #, elixir-autogen, elixir-format
 msgid "Search by name"
-msgstr "按名稱搜尋"
+msgstr "依名稱搜尋"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:187
+#: lib/tuist_web/live/ops_account_live.html.heex:189
 #, elixir-autogen, elixir-format
 msgid "Select a country"
 msgstr "選擇國家"
@@ -1114,26 +1115,26 @@ msgstr "南韓"
 msgid "Spain"
 msgstr "西班牙"
 
-#: lib/tuist_web/live/ops_account_kura_deployment_live.html.heex:27
+#: lib/tuist_web/live/ops_account_kura_deployment_live.html.heex:29
 #, elixir-autogen, elixir-format
 msgid "Started"
 msgstr "已開始"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:172
+#: lib/tuist_web/live/ops_account_live.html.heex:174
 #, elixir-autogen, elixir-format
 msgid "State / region (optional)"
-msgstr "州 / 地區（選填）"
+msgstr "州/地區（選填）"
 
-#: lib/tuist_web/live/ops_account_kura_deployment_live.html.heex:11
-#: lib/tuist_web/live/ops_account_kura_deployment_live.html.heex:16
+#: lib/tuist_web/live/ops_account_kura_deployment_live.html.heex:13
+#: lib/tuist_web/live/ops_account_kura_deployment_live.html.heex:18
 #: lib/tuist_web/live/ops_account_live.html.heex:15
-#: lib/tuist_web/live/ops_account_live.html.heex:52
+#: lib/tuist_web/live/ops_account_live.html.heex:54
 #: lib/tuist_web/live/ops_accounts_live.html.heex:40
 #, elixir-autogen, elixir-format
 msgid "Status"
 msgstr "狀態"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:62
+#: lib/tuist_web/live/ops_account_live.html.heex:64
 #: lib/tuist_web/live/ops_accounts_live.html.heex:47
 #, elixir-autogen, elixir-format
 msgid "Stripe customer"
@@ -1204,16 +1205,16 @@ msgstr "英國"
 msgid "United States"
 msgstr "美國"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:107
+#: lib/tuist_web/live/ops_account_live.html.heex:109
 #, elixir-autogen, elixir-format
 msgid "Upgrade %{account} to Enterprise"
-msgstr "將 %{account} 升級為 Enterprise"
+msgstr "升級 %{account} 至 Enterprise"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:80
-#: lib/tuist_web/live/ops_account_live.html.heex:221
+#: lib/tuist_web/live/ops_account_live.html.heex:82
+#: lib/tuist_web/live/ops_account_live.html.heex:223
 #, elixir-autogen, elixir-format
 msgid "Upgrade to Enterprise"
-msgstr "升級為 Enterprise"
+msgstr "升級至 Enterprise"
 
 #: lib/tuist_web/live/ops_account_live.ex:267
 #, elixir-autogen, elixir-format
@@ -1230,7 +1231,76 @@ msgstr "使用者"
 msgid "Vietnam"
 msgstr "越南"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:204
+#: lib/tuist_web/live/ops_account_live.html.heex:206
 #, elixir-autogen, elixir-format
 msgid "Yearly"
 msgstr "每年"
+
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:290
+#, elixir-autogen, elixir-format
+msgid "Could not complete the GitHub App registration."
+msgstr "無法完成 GitHub 應用程式註冊。"
+
+#: lib/tuist_web/controllers/github_app_setup_controller.ex:51
+#, elixir-autogen, elixir-format
+msgid "GitHub Enterprise Server installations must go through the App registration flow first."
+msgstr "GitHub Enterprise Server 安裝必須先完成應用程式註冊流程。"
+
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:99
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:120
+#, elixir-autogen, elixir-format
+msgid "GitHub Enterprise Server is only available on the Enterprise plan."
+msgstr "GitHub Enterprise Server 僅適用於 Enterprise 方案。"
+
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:66
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:85
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:110
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:126
+#, elixir-autogen, elixir-format
+msgid "Invalid manifest registration request."
+msgstr "無效的註冊清單請求。"
+
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:51
+#, elixir-autogen, elixir-format
+msgid "Manifest flow is only available for GitHub Enterprise Server."
+msgstr "清單流程僅適用於 GitHub Enterprise Server。"
+
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:71
+#, elixir-autogen, elixir-format
+msgid "Missing manifest registration state."
+msgstr "缺少清單註冊狀態。"
+
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:92
+#, elixir-autogen, elixir-format
+msgid "This account already has a GitHub app installation. Uninstall it before registering a new one."
+msgstr "此帳戶已安裝 GitHub 應用程式，請先解除安裝後再註冊新的。"
+
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:276
+#, elixir-autogen, elixir-format
+msgid "%{url} resolves to a non-public IP address, so Tuist refuses to connect to it. Either expose the GitHub Enterprise Server API on a public address (allowlisting Tuist's egress IPs is enough), or self-host Tuist inside your network."
+msgstr "%{url} 解析為非公開 IP 位址，Tuist 因此拒絕連線。請將 GitHub Enterprise Server API 公開於公開位址（允許 Tuist 出站 IP 即可），或在您的網路內自架 Tuist。"
+
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:336
+#, elixir-autogen, elixir-format
+msgid "GitHub Enterprise Server rejected the manifest with HTTP %{status}. The registration code is no longer usable — start the flow again from the integrations page."
+msgstr "GitHub Enterprise Server 以 HTTP %{status} 拒絕清單。註冊碼不再可用 — 請從整合頁面重新啟動流程。"
+
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:330
+#, elixir-autogen, elixir-format
+msgid "GitHub Enterprise Server returned 404 when converting the manifest. The temporary registration code may have expired (it's valid for one hour) — start the flow again from the integrations page."
+msgstr "GitHub Enterprise Server 轉換清單時回傳 404。暫時註冊碼可能已過期（有效期間為一小時）— 請從整合頁面重新啟動流程。"
+
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:343
+#, elixir-autogen, elixir-format
+msgid "GitHub Enterprise Server returned HTTP %{status} when converting the manifest. Check the server logs for the request body and retry."
+msgstr "GitHub Enterprise Server 轉換清單時回傳 HTTP %{status}。請查看伺服器日誌的請求內容並重試。"
+
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:305
+#, elixir-autogen, elixir-format
+msgid "Tuist could not reach %{url}. Confirm the instance is reachable from the public internet, or self-host Tuist if it's internal-only."
+msgstr "Tuist 無法存取 %{url}。請確認該實例可從公共網際網路存取；若僅限內部使用，請自架 Tuist。"
+
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:283
+#, elixir-autogen, elixir-format
+msgid "Tuist could not resolve %{url}. Double-check the GitHub Enterprise Server URL is correct and publicly resolvable."
+msgstr "Tuist 無法解析 %{url}。請確認 GitHub Enterprise Server URL 正確且可公開解析。"
