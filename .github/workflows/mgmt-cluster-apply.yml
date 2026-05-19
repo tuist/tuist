@@ -259,16 +259,36 @@ jobs:
           fi
           old_ts=$(kubectl get hetznerbaremetalhost -n org-tuist "$hbm" \
             -o jsonpath='{.metadata.creationTimestamp}')
+          # Snapshot OLD HBMM names so we can detect when CAPI's
+          # MD has truly recreated them (rather than reusing a
+          # stale snapshot).
+          old_hbmms=$(kubectl get hetznerbaremetalmachine -n org-tuist \
+            -l cluster.x-k8s.io/cluster-name=tuist-$CLUSTER \
+            -o jsonpath='{.items[*].metadata.name}' || true)
           echo "Force-reinstalling HBM: $hbm (creationTimestamp=$old_ts)"
+          echo "Old HBMM(s) being replaced: $old_hbmms"
           echo "::group::Pre-roll state"
           kubectl get hetznerbaremetalhost -n org-tuist "$hbm"
           kubectl get hetznerbaremetalmachine -n org-tuist \
             -l cluster.x-k8s.io/cluster-name=tuist-$CLUSTER -o wide
           echo "::endgroup::"
-          # Delete the HBM. caph will release the HBMM, hetzner-
-          # robot-controller will re-create the HBM (fresh, empty
-          # state) on its next sync, caph claims it and walks the
-          # full state machine.
+          # Delete the HBMMs first. CAPI clones template specs into
+          # the HBMM at creation time; an HBMM that was created
+          # before a template change carries the OLD bootstrap
+          # snapshot forever. Without deleting the HBMMs, caph
+          # rebinds the new HBM to one of the stale HBMMs and
+          # re-installs with the old (pre-fix) cloud-init script.
+          # MachineDeployment then recreates fresh HBMMs from the
+          # current template.
+          echo "Deleting all existing HBMMs in cluster pool"
+          kubectl delete hetznerbaremetalmachine -n org-tuist \
+            -l cluster.x-k8s.io/cluster-name=tuist-$CLUSTER \
+            --wait=false --timeout=2m || true
+          # Then delete the HBM. caph releases the (now dying)
+          # HBMM bindings, hetzner-robot-controller re-creates the
+          # HBM (fresh, empty state), MD creates a fresh HBMM
+          # from the current template, caph claims it and walks
+          # the full state machine.
           kubectl delete hetznerbaremetalhost -n org-tuist "$hbm" --wait=false --timeout=2m || true
           if kubectl get hetznerbaremetalhost -n org-tuist "$hbm" >/dev/null 2>&1; then
             echo "HBM still present after 2m; stripping finalizers."
@@ -293,17 +313,30 @@ jobs:
               prov=$(kubectl get hetznerbaremetalhost -n org-tuist "$new_hbm" \
                 -o jsonpath='{.spec.status.provisioningState}' 2>/dev/null || true)
             fi
+            new_hbmm=$(kubectl get hetznerbaremetalmachine -n org-tuist \
+              -l cluster.x-k8s.io/cluster-name=tuist-$CLUSTER \
+              -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
             ready=$(kubectl get hetznerbaremetalmachine -n org-tuist \
               -l cluster.x-k8s.io/cluster-name=tuist-$CLUSTER \
               -o jsonpath='{.items[0].status.ready}' 2>/dev/null || true)
-            echo "$(date -u +%H:%M:%S) hbm=${new_hbm:-?} ts=${new_ts:-?} state=${prov:-?} ready=${ready:-false}"
-            if [ -n "$new_ts" ] && [ "$new_ts" != "$old_ts" ] && [ "$ready" = "true" ]; then
-              echo "Fresh HBM ($new_ts > $old_ts) and HBMM Ready — done."
+            # Reject the current HBMM if its name is one of the
+            # ones we just deleted (status.ready can be stale on
+            # an object still tearing down).
+            hbmm_fresh=true
+            for old in $old_hbmms; do
+              if [ "$new_hbmm" = "$old" ]; then
+                hbmm_fresh=false
+                break
+              fi
+            done
+            echo "$(date -u +%H:%M:%S) hbm=${new_hbm:-?} ts=${new_ts:-?} state=${prov:-?} hbmm=${new_hbmm:-?} fresh=$hbmm_fresh ready=${ready:-false}"
+            if [ -n "$new_ts" ] && [ "$new_ts" != "$old_ts" ] && [ "$hbmm_fresh" = "true" ] && [ "$ready" = "true" ]; then
+              echo "Fresh HBM ($new_ts > $old_ts), fresh HBMM ($new_hbmm), Ready — done."
               exit 0
             fi
             sleep 30
           done
-          echo "::error::Timed out waiting for fresh HBM with HBMM Ready=true"
+          echo "::error::Timed out waiting for fresh HBM + fresh HBMM Ready=true"
           kubectl get hetznerbaremetalmachine -n org-tuist -l cluster.x-k8s.io/cluster-name=tuist-$CLUSTER
           kubectl get hetznerbaremetalhost -n org-tuist
           exit 1
