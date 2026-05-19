@@ -716,24 +716,34 @@ jobs:
             -o jsonpath='{.data.value}' | base64 -d > "$WL_KUBECONFIG"
           chmod 600 "$WL_KUBECONFIG"
           export KUBECONFIG="$WL_KUBECONFIG"
-          # Find the runners-controller deployment (namespace varies
-          # by chart version: `tuist` historically, `tuist-runners`
-          # in some shapes).
-          ns=""
-          for candidate in tuist tuist-runners; do
-            if kubectl get deployment -n "$candidate" runners-controller >/dev/null 2>&1; then
-              ns="$candidate"; break
-            fi
-          done
-          if [ -z "$ns" ]; then
+          # Helm release names the deployment
+          # `<release>-tuist-runners-controller` in the `tuist-<env>`
+          # namespace. Scan for any deployment matching
+          # `*runners-controller`.
+          ns_dep=$(kubectl get deployment -A -o json | jq -r '.items[] | select(.metadata.name | endswith("runners-controller")) | "\(.metadata.namespace)/\(.metadata.name)"' | head -1)
+          if [ -z "$ns_dep" ]; then
             echo "::error::runners-controller deployment not found"
             kubectl get deployment -A | grep -i runners || true
             exit 1
           fi
-          echo "runners-controller in namespace: $ns"
-          echo "::group::Rollout restart runners-controller"
-          kubectl rollout restart -n "$ns" deployment/runners-controller
-          kubectl rollout status -n "$ns" deployment/runners-controller --timeout=2m
+          ns="${ns_dep%%/*}"
+          dep="${ns_dep##*/}"
+          echo "runners-controller: $ns/$dep"
+          echo "::group::Current pod state + last logs (BEFORE restart)"
+          kubectl get pods -n "$ns" -l app.kubernetes.io/component=runners-controller -o wide || \
+            kubectl get pods -n "$ns" --selector="$(kubectl get deployment -n "$ns" "$dep" -o jsonpath='{.spec.selector.matchLabels}' | jq -r 'to_entries | map("\(.key)=\(.value)") | join(",")')" -o wide || true
+          for pod in $(kubectl get pods -n "$ns" -l app.kubernetes.io/component=runners-controller -o jsonpath='{.items[*].metadata.name}'); do
+            echo "--- $pod describe ---"
+            kubectl describe pod -n "$ns" "$pod" | sed -n '/Conditions:/,/Events:/p' | head -25
+            echo "--- $pod previous logs ---"
+            kubectl logs -n "$ns" "$pod" --previous --tail=80 2>&1 || true
+            echo "--- $pod current logs ---"
+            kubectl logs -n "$ns" "$pod" --tail=80 2>&1 || true
+          done
+          echo "::endgroup::"
+          echo "::group::Rollout restart"
+          kubectl rollout restart -n "$ns" "deployment/$dep"
+          kubectl rollout status -n "$ns" "deployment/$dep" --timeout=2m || true
           echo "::endgroup::"
           echo "::group::Nudge RunnerPool replicas (0 -> spec value)"
           for rp in $(kubectl get runnerpool -n tuist-runners -o jsonpath='{.items[?(@.spec.os=="linux")].metadata.name}'); do
@@ -749,6 +759,6 @@ jobs:
           echo "::group::Linux Pods after kick"
           kubectl get pods -n tuist-runners -o wide | grep -E "NAME|linux-ubuntu" || true
           echo "::endgroup::"
-          echo "::group::runners-controller logs (last 80)"
-          kubectl logs -n "$ns" deployment/runners-controller --tail=80 2>&1 || true
+          echo "::group::runners-controller logs after kick (last 80)"
+          kubectl logs -n "$ns" "deployment/$dep" --tail=80 2>&1 || true
           echo "::endgroup::"
