@@ -168,16 +168,16 @@
         patch={"?#{Query.put(@uri.query, "tab", "overview")}"}
       />
       <.tab_menu_horizontal_item
-        :if={@run.cacheable_tasks_count > 0}
-        label={dgettext("dashboard_builds", "Xcode Cache")}
-        selected={@selected_tab == "xcode-cache"}
-        patch={"?#{Query.put(@uri.query, "tab", "xcode-cache")}"}
-      />
-      <.tab_menu_horizontal_item
         :if={@has_binary_cache_data}
         label={dgettext("dashboard_builds", "Module Cache")}
         selected={@selected_tab == "module-cache"}
         patch={"?#{Query.put(@uri.query, "tab", "module-cache")}"}
+      />
+      <.tab_menu_horizontal_item
+        :if={@run.cacheable_tasks_count > 0}
+        label={dgettext("dashboard_builds", "Xcode Cache")}
+        selected={@selected_tab == "xcode-cache"}
+        patch={"?#{Query.put(@uri.query, "tab", "xcode-cache")}"}
       />
       <.tab_menu_horizontal_item
         label={dgettext("dashboard_builds", "Warnings")}
