@@ -144,6 +144,16 @@ on:
         type: choice
         default: ""
         options: ["", "staging", "canary", "production"]
+      dump_hcloud_md0:
+        description: |
+          When set, dump the chosen cluster's md-0 (cloud worker)
+          MachineDeployment + Machines + HCloudMachines with
+          status conditions. Used when cloud workers are stuck
+          NotReady or VMs aren't joining the workload cluster.
+        required: false
+        type: choice
+        default: ""
+        options: ["", "staging", "canary", "production"]
 
 # Serialize: don't let two pushes apply concurrently and race.
 concurrency:
@@ -179,7 +189,7 @@ jobs:
           op document get "kubeconfig: tuist-mgmt" --vault tuist-k8s-mgmt --output "$KUBECONFIG"
           chmod 600 "$KUBECONFIG"
       - name: Diff (visibility into what's about to change)
-        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true' && github.event.inputs.restart_robot_controller != 'true' && github.event.inputs.query_robot_inventory != 'true' && github.event.inputs.cleanup_runner_pods == '' && github.event.inputs.kick_runners_controller == ''
+        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true' && github.event.inputs.restart_robot_controller != 'true' && github.event.inputs.query_robot_inventory != 'true' && github.event.inputs.cleanup_runner_pods == '' && github.event.inputs.kick_runners_controller == '' && github.event.inputs.dump_hcloud_md0 == ''
         # `kubectl diff` exits non-zero when there's a diff, which is
         # the expected case here, so don't fail the step on that.
         # The actual gate is the apply step below.
@@ -210,11 +220,11 @@ jobs:
           kubectl diff -f infra/k8s/mgmt/hetzner-robot-controller.yaml || true
           echo "::endgroup::"
       - name: Apply ClusterClass first (Cluster CRs reference it)
-        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true' && github.event.inputs.restart_robot_controller != 'true' && github.event.inputs.query_robot_inventory != 'true' && github.event.inputs.cleanup_runner_pods == '' && github.event.inputs.kick_runners_controller == ''
+        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true' && github.event.inputs.restart_robot_controller != 'true' && github.event.inputs.query_robot_inventory != 'true' && github.event.inputs.cleanup_runner_pods == '' && github.event.inputs.kick_runners_controller == '' && github.event.inputs.dump_hcloud_md0 == ''
         run: |
           kubectl apply -f infra/k8s/clusters/clusterclass-tuist.yaml
       - name: Apply per-env bare-metal substrate
-        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true' && github.event.inputs.restart_robot_controller != 'true' && github.event.inputs.query_robot_inventory != 'true' && github.event.inputs.cleanup_runner_pods == '' && github.event.inputs.kick_runners_controller == ''
+        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true' && github.event.inputs.restart_robot_controller != 'true' && github.event.inputs.query_robot_inventory != 'true' && github.event.inputs.cleanup_runner_pods == '' && github.event.inputs.kick_runners_controller == '' && github.event.inputs.dump_hcloud_md0 == ''
         # HetznerBareMetalHost CRs + HetznerBareMetalMachineTemplate +
         # bare-metal KubeadmConfigTemplate + ExternalSecrets. Applied
         # between ClusterClass and Cluster CRs so the MD-claimed
@@ -248,14 +258,14 @@ jobs:
             fi
           done
       - name: Apply per-env Cluster CRs
-        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true' && github.event.inputs.restart_robot_controller != 'true' && github.event.inputs.query_robot_inventory != 'true' && github.event.inputs.cleanup_runner_pods == '' && github.event.inputs.kick_runners_controller == ''
+        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true' && github.event.inputs.restart_robot_controller != 'true' && github.event.inputs.query_robot_inventory != 'true' && github.event.inputs.cleanup_runner_pods == '' && github.event.inputs.kick_runners_controller == '' && github.event.inputs.dump_hcloud_md0 == ''
         run: |
           for f in infra/k8s/clusters/cluster-*.yaml; do
             echo "==> $f"
             kubectl apply -f "$f"
           done
       - name: Apply mgmt-side workloads
-        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true' && github.event.inputs.restart_robot_controller != 'true' && github.event.inputs.query_robot_inventory != 'true' && github.event.inputs.cleanup_runner_pods == '' && github.event.inputs.kick_runners_controller == ''
+        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true' && github.event.inputs.restart_robot_controller != 'true' && github.event.inputs.query_robot_inventory != 'true' && github.event.inputs.cleanup_runner_pods == '' && github.event.inputs.kick_runners_controller == '' && github.event.inputs.dump_hcloud_md0 == ''
         # These are mgmt-cluster Deployments / CronJobs, not Cluster
         # CRs. Independent of the CAPI manifests above.
         run: |
@@ -761,4 +771,36 @@ jobs:
           echo "::endgroup::"
           echo "::group::runners-controller logs after kick (last 80)"
           kubectl logs -n "$ns" "deployment/$dep" --tail=80 2>&1 || true
+          echo "::endgroup::"
+      - name: Dump hcloud md-0 state
+        if: github.event.inputs.dump_hcloud_md0 != ''
+        env:
+          CLUSTER: ${{ github.event.inputs.dump_hcloud_md0 }}
+        run: |
+          set -euo pipefail
+          echo "::group::md-0 Machines (cloud worker pool)"
+          kubectl get machine -n org-tuist \
+            -l cluster.x-k8s.io/cluster-name=tuist-$CLUSTER,cluster.x-k8s.io/deployment-name=tuist-$CLUSTER-md-0 \
+            -o wide || kubectl get machine -n org-tuist | grep "md-0" || true
+          echo "::endgroup::"
+          echo "::group::HCloudMachines"
+          kubectl get hcloudmachine -n org-tuist -o wide || true
+          echo
+          for hcm in $(kubectl get hcloudmachine -n org-tuist -o jsonpath='{.items[*].metadata.name}'); do
+            echo "=== $hcm ==="
+            kubectl get hcloudmachine -n org-tuist "$hcm" -o yaml | \
+              awk '/^status:/,/^[a-z]/' | grep -E "providerID|conditions:|reason:|message:|status:|type:|lastTransitionTime:" | head -30
+          done
+          echo "::endgroup::"
+          echo "::group::Recent CAPI Machine events"
+          kubectl get events -n org-tuist --sort-by=.lastTimestamp --field-selector=involvedObject.kind=Machine | tail -25 || true
+          echo "::endgroup::"
+          echo "::group::Recent CAPH controller logs"
+          for ns in capi-system caph-system capi-hetzner-system cluster-api-provider-hetzner-system; do
+            pods=$(kubectl get pods -n "$ns" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || true)
+            for p in $pods; do
+              echo "--- $ns/$p logs (tail 60) ---"
+              kubectl logs -n "$ns" "$p" --tail=60 2>&1 | grep -iE "error|fail|reconcil" | head -20 || true
+            done
+          done
           echo "::endgroup::"
