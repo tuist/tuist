@@ -122,7 +122,19 @@ spec:
             - --metrics-bind-address=:8080
             - --health-probe-bind-address=:8081
             - --host-namespace=org-tuist
-            - --name-prefix=tuist-bm-
+            # Originally `tuist-bm-` to match only operator-named
+            # bare-metal servers. caph rewrites Robot server names
+            # to the HBMM name during provisioning
+            # (e.g. `tuist-staging-runners-linux-v5bcr-…-…`); the
+            # narrow prefix then refuses to re-create an HBM after
+            # a roll, blocking re-installimage cycles. Widened to
+            # `tuist-` so both original and caph-rewritten names
+            # match. The Robot account is fleet-scoped to this
+            # purpose and the HBMM template's hostSelector
+            # (`app.kubernetes.io/managed-by=hetzner-robot-controller`)
+            # still gates which HBMs the bare-metal MD actually
+            # consumes.
+            - --name-prefix=tuist-
             - --poll-interval=60s
             - --robot-user-path=/etc/hetzner-robot-controller/robot-user
             - --robot-pass-path=/etc/hetzner-robot-controller/robot-pass
