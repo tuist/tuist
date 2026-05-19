@@ -46,7 +46,7 @@ kuraController:
       storeRef:
         kind: ClusterSecretStore
         name: onepassword
-      item: KURA_CLOUDFLARE_API_TOKEN
+      item: cloudflare-tuist-dns
       field: credential
   sharedSecrets:
     # Renders the kura-shared-secrets Kubernetes Secret in the
