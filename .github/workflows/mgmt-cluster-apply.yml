@@ -176,6 +176,21 @@ on:
         type: choice
         default: ""
         options: ["", "staging", "canary", "production"]
+      kick_tuist_staging:
+        description: |
+          When set, `kubectl rollout restart` every Deployment in
+          `tuist-<env>` namespace and force-finish any pods stuck
+          Terminating on NotReady Nodes (strip finalizers + force
+          delete). Used when the Tuist server / processor /
+          runners-controller pods are pinned to a NotReady Node
+          and the deployment reports 0/N Available even though
+          the cached pod state shows 1/1 Running. Forces
+          rescheduling onto a Ready Node so the origin becomes
+          reachable again.
+        required: false
+        type: choice
+        default: ""
+        options: ["", "staging", "canary", "production"]
 
 # Serialize: don't let two pushes apply concurrently and race.
 concurrency:
@@ -949,4 +964,66 @@ jobs:
           echo "::endgroup::"
           echo "::group::Result"
           kubectl get nodes -o custom-columns=NAME:.metadata.name,STATUS:.status.conditions[-1].type,SCHED:.spec.unschedulable,TAINT_KEYS:.spec.taints[*].key 2>&1 | head -30 || true
+          echo "::endgroup::"
+      - name: Kick tuist-staging deployments (force reschedule to Ready Nodes)
+        if: github.event.inputs.kick_tuist_staging != ''
+        env:
+          CLUSTER: ${{ github.event.inputs.kick_tuist_staging }}
+          WL_KUBECONFIG: ${{ github.workspace }}/.kube/workload-config
+        run: |
+          set -euo pipefail
+          kubectl get secret -n org-tuist "tuist-$CLUSTER-kubeconfig" \
+            -o jsonpath='{.data.value}' | base64 -d > "$WL_KUBECONFIG"
+          chmod 600 "$WL_KUBECONFIG"
+          export KUBECONFIG="$WL_KUBECONFIG"
+          ns="tuist-$CLUSTER"
+          echo "::group::Deployments in $ns BEFORE kick"
+          kubectl get deployment -n "$ns" -o wide || true
+          echo
+          kubectl get pods -n "$ns" -o wide || true
+          echo "::endgroup::"
+          # Strip finalizers from any pod stuck Terminating across the
+          # whole namespace — without this, the rollout can't progress
+          # because the old pod is pinned to a NotReady Node whose
+          # kubelet will never confirm deletion.
+          echo "::group::Force-finish stuck Terminating pods in $ns"
+          for p in $(kubectl get pods -n "$ns" \
+              -o jsonpath='{range .items[?(@.metadata.deletionTimestamp)]}{.metadata.name}{"\n"}{end}' 2>/dev/null || true); do
+            echo "Force-deleting stuck Terminating Pod: $p"
+            kubectl patch pod -n "$ns" "$p" \
+              -p '{"metadata":{"finalizers":[]}}' --type=merge 2>/dev/null || true
+            kubectl delete pod -n "$ns" "$p" --grace-period=0 --force --wait=false 2>/dev/null || true
+          done
+          echo "::endgroup::"
+          # Delete any pod whose node has the unreachable taint — the
+          # 5-min default tolerationSeconds gets reset whenever kubelet
+          # briefly reaches the apiserver, so pods can stay pinned for
+          # hours. Forcing a delete reschedules to a Ready Node.
+          echo "::group::Force-delete pods on unreachable Nodes"
+          unreachable_nodes=$(kubectl get nodes -o json | jq -r '.items[] | select(.spec.taints // [] | map(.key) | index("node.kubernetes.io/unreachable")) | .metadata.name')
+          for n in $unreachable_nodes; do
+            for p in $(kubectl get pods -n "$ns" --field-selector spec.nodeName="$n" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || true); do
+              echo "Force-deleting Pod on unreachable Node $n: $p"
+              kubectl delete pod -n "$ns" "$p" --grace-period=0 --force --wait=false 2>/dev/null || true
+            done
+          done
+          echo "::endgroup::"
+          echo "::group::Rollout restart every Deployment in $ns"
+          for d in $(kubectl get deployment -n "$ns" -o jsonpath='{.items[*].metadata.name}'); do
+            echo "--- restart $d ---"
+            kubectl rollout restart -n "$ns" "deployment/$d" || true
+          done
+          echo "::endgroup::"
+          echo "Sleeping 60s for scheduler to act..."
+          sleep 60
+          echo "::group::Deployments in $ns AFTER kick"
+          kubectl get deployment -n "$ns" -o wide || true
+          echo
+          kubectl get pods -n "$ns" -o wide || true
+          echo "::endgroup::"
+          echo "::group::Pod events for any Pending/CrashLoop pods"
+          for p in $(kubectl get pods -n "$ns" -o jsonpath='{range .items[?(@.status.phase!="Running")]}{.metadata.name}{"\n"}{end}'); do
+            echo "--- $p ---"
+            kubectl describe pod -n "$ns" "$p" | sed -n '/Events:/,$p' | head -20 || true
+          done
           echo "::endgroup::"
