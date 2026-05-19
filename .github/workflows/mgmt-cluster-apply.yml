@@ -132,6 +132,18 @@ on:
         type: choice
         default: ""
         options: ["", "staging", "canary", "production"]
+      kick_runners_controller:
+        description: |
+          When set, `kubectl rollout restart` the runners-controller
+          deployment in the WORKLOAD cluster, then patch the
+          RunnerPool CR to nudge replicas (set to 0 then back to
+          spec.replicas), then sleep 30s and dump Pod state. Used
+          when the reconciler is silent — replicas=N but 0 actual
+          Pods, status.observedReplicas stale.
+        required: false
+        type: choice
+        default: ""
+        options: ["", "staging", "canary", "production"]
 
 # Serialize: don't let two pushes apply concurrently and race.
 concurrency:
@@ -167,7 +179,7 @@ jobs:
           op document get "kubeconfig: tuist-mgmt" --vault tuist-k8s-mgmt --output "$KUBECONFIG"
           chmod 600 "$KUBECONFIG"
       - name: Diff (visibility into what's about to change)
-        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true' && github.event.inputs.restart_robot_controller != 'true' && github.event.inputs.query_robot_inventory != 'true' && github.event.inputs.cleanup_runner_pods == ''
+        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true' && github.event.inputs.restart_robot_controller != 'true' && github.event.inputs.query_robot_inventory != 'true' && github.event.inputs.cleanup_runner_pods == '' && github.event.inputs.kick_runners_controller == ''
         # `kubectl diff` exits non-zero when there's a diff, which is
         # the expected case here, so don't fail the step on that.
         # The actual gate is the apply step below.
@@ -198,11 +210,11 @@ jobs:
           kubectl diff -f infra/k8s/mgmt/hetzner-robot-controller.yaml || true
           echo "::endgroup::"
       - name: Apply ClusterClass first (Cluster CRs reference it)
-        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true' && github.event.inputs.restart_robot_controller != 'true' && github.event.inputs.query_robot_inventory != 'true' && github.event.inputs.cleanup_runner_pods == ''
+        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true' && github.event.inputs.restart_robot_controller != 'true' && github.event.inputs.query_robot_inventory != 'true' && github.event.inputs.cleanup_runner_pods == '' && github.event.inputs.kick_runners_controller == ''
         run: |
           kubectl apply -f infra/k8s/clusters/clusterclass-tuist.yaml
       - name: Apply per-env bare-metal substrate
-        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true' && github.event.inputs.restart_robot_controller != 'true' && github.event.inputs.query_robot_inventory != 'true' && github.event.inputs.cleanup_runner_pods == ''
+        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true' && github.event.inputs.restart_robot_controller != 'true' && github.event.inputs.query_robot_inventory != 'true' && github.event.inputs.cleanup_runner_pods == '' && github.event.inputs.kick_runners_controller == ''
         # HetznerBareMetalHost CRs + HetznerBareMetalMachineTemplate +
         # bare-metal KubeadmConfigTemplate + ExternalSecrets. Applied
         # between ClusterClass and Cluster CRs so the MD-claimed
@@ -236,14 +248,14 @@ jobs:
             fi
           done
       - name: Apply per-env Cluster CRs
-        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true' && github.event.inputs.restart_robot_controller != 'true' && github.event.inputs.query_robot_inventory != 'true' && github.event.inputs.cleanup_runner_pods == ''
+        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true' && github.event.inputs.restart_robot_controller != 'true' && github.event.inputs.query_robot_inventory != 'true' && github.event.inputs.cleanup_runner_pods == '' && github.event.inputs.kick_runners_controller == ''
         run: |
           for f in infra/k8s/clusters/cluster-*.yaml; do
             echo "==> $f"
             kubectl apply -f "$f"
           done
       - name: Apply mgmt-side workloads
-        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true' && github.event.inputs.restart_robot_controller != 'true' && github.event.inputs.query_robot_inventory != 'true' && github.event.inputs.cleanup_runner_pods == ''
+        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true' && github.event.inputs.restart_robot_controller != 'true' && github.event.inputs.query_robot_inventory != 'true' && github.event.inputs.cleanup_runner_pods == '' && github.event.inputs.kick_runners_controller == ''
         # These are mgmt-cluster Deployments / CronJobs, not Cluster
         # CRs. Independent of the CAPI manifests above.
         run: |
@@ -692,4 +704,51 @@ jobs:
           sleep 30
           echo "::group::Pods after cleanup"
           kubectl get pods -n tuist-runners -o wide || true
+          echo "::endgroup::"
+      - name: Kick runners-controller (force reconcile)
+        if: github.event.inputs.kick_runners_controller != ''
+        env:
+          CLUSTER: ${{ github.event.inputs.kick_runners_controller }}
+          WL_KUBECONFIG: ${{ github.workspace }}/.kube/workload-config
+        run: |
+          set -euo pipefail
+          kubectl get secret -n org-tuist "tuist-$CLUSTER-kubeconfig" \
+            -o jsonpath='{.data.value}' | base64 -d > "$WL_KUBECONFIG"
+          chmod 600 "$WL_KUBECONFIG"
+          export KUBECONFIG="$WL_KUBECONFIG"
+          # Find the runners-controller deployment (namespace varies
+          # by chart version: `tuist` historically, `tuist-runners`
+          # in some shapes).
+          ns=""
+          for candidate in tuist tuist-runners; do
+            if kubectl get deployment -n "$candidate" runners-controller >/dev/null 2>&1; then
+              ns="$candidate"; break
+            fi
+          done
+          if [ -z "$ns" ]; then
+            echo "::error::runners-controller deployment not found"
+            kubectl get deployment -A | grep -i runners || true
+            exit 1
+          fi
+          echo "runners-controller in namespace: $ns"
+          echo "::group::Rollout restart runners-controller"
+          kubectl rollout restart -n "$ns" deployment/runners-controller
+          kubectl rollout status -n "$ns" deployment/runners-controller --timeout=2m
+          echo "::endgroup::"
+          echo "::group::Nudge RunnerPool replicas (0 -> spec value)"
+          for rp in $(kubectl get runnerpool -n tuist-runners -o jsonpath='{.items[?(@.spec.os=="linux")].metadata.name}'); do
+            current=$(kubectl get runnerpool -n tuist-runners "$rp" -o jsonpath='{.spec.replicas}')
+            echo "Bumping $rp: $current -> 0 -> $current"
+            kubectl patch runnerpool -n tuist-runners "$rp" --type=merge -p "{\"spec\":{\"replicas\":0}}"
+            sleep 5
+            kubectl patch runnerpool -n tuist-runners "$rp" --type=merge -p "{\"spec\":{\"replicas\":$current}}"
+          done
+          echo "::endgroup::"
+          echo "Sleeping 45s for reconciler to act..."
+          sleep 45
+          echo "::group::Linux Pods after kick"
+          kubectl get pods -n tuist-runners -o wide | grep -E "NAME|linux-ubuntu" || true
+          echo "::endgroup::"
+          echo "::group::runners-controller logs (last 80)"
+          kubectl logs -n "$ns" deployment/runners-controller --tail=80 2>&1 || true
           echo "::endgroup::"
