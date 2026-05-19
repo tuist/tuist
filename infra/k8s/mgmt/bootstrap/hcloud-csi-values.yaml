@@ -43,6 +43,33 @@ node:
   # to a CrashLoopBackOff with "context deadline exceeded" trying to
   # GET /hetzner/v1/metadata/availability-zone.
   hostNetwork: true
+  # Skip Hetzner Robot bare-metal nodes (the `runners-linux` pool in
+  # `cluster-<env>.yaml`). The chart's default tolerations are
+  # `operator: Exists`, which swallows the
+  # `tuist.dev/runner-tier=bare-metal:NoSchedule` taint and lands the
+  # pod on bare metal, where two things go wrong:
+  #   1. Hetzner Cloud Volumes can't attach to Robot servers, so the
+  #      driver has nothing to do there — it's the wrong CSI for the
+  #      hardware.
+  #   2. The driver's startup call to `api.hetzner.cloud` truncates
+  #      to the first 3 nameservers (Linux resolv.conf limit), which
+  #      on a multi-NIC bare-metal box can omit the working upstream;
+  #      kubelet logs `DNSConfigForming` and the process exits Error
+  #      before binding its `:9808` healthz port, so the liveness
+  #      probe gets `connection refused` and CrashLoopBackOff kicks
+  #      in. Observed on `bm-tuist-staging-runners-linux-*`.
+  # Future bare-metal pools should carry the same
+  # `node.cluster.x-k8s.io/pool` label convention so this affinity
+  # can be extended with another `values:` entry.
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: node.cluster.x-k8s.io/pool
+                operator: NotIn
+                values:
+                  - runners-linux
   resources:
     requests:
       cpu: 25m
