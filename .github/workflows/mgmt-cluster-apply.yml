@@ -88,6 +88,15 @@ on:
         type: choice
         default: ""
         options: ["", "staging", "canary", "production"]
+      dump_robot_controller:
+        description: |
+          When set, dump hetzner-robot-controller state on the
+          mgmt cluster: pod status, recent logs, all HBMs visible
+          in `org-tuist`. Used when a force-roll deletes the HBM
+          but the controller never recreates it.
+        required: false
+        type: boolean
+        default: false
 
 # Serialize: don't let two pushes apply concurrently and race.
 concurrency:
@@ -123,7 +132,7 @@ jobs:
           op document get "kubeconfig: tuist-mgmt" --vault tuist-k8s-mgmt --output "$KUBECONFIG"
           chmod 600 "$KUBECONFIG"
       - name: Diff (visibility into what's about to change)
-        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == ''
+        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true'
         # `kubectl diff` exits non-zero when there's a diff, which is
         # the expected case here, so don't fail the step on that.
         # The actual gate is the apply step below.
@@ -154,11 +163,11 @@ jobs:
           kubectl diff -f infra/k8s/mgmt/hetzner-robot-controller.yaml || true
           echo "::endgroup::"
       - name: Apply ClusterClass first (Cluster CRs reference it)
-        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == ''
+        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true'
         run: |
           kubectl apply -f infra/k8s/clusters/clusterclass-tuist.yaml
       - name: Apply per-env bare-metal substrate
-        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == ''
+        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true'
         # HetznerBareMetalHost CRs + HetznerBareMetalMachineTemplate +
         # bare-metal KubeadmConfigTemplate + ExternalSecrets. Applied
         # between ClusterClass and Cluster CRs so the MD-claimed
@@ -192,14 +201,14 @@ jobs:
             fi
           done
       - name: Apply per-env Cluster CRs
-        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == ''
+        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true'
         run: |
           for f in infra/k8s/clusters/cluster-*.yaml; do
             echo "==> $f"
             kubectl apply -f "$f"
           done
       - name: Apply mgmt-side workloads
-        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == ''
+        if: github.event.inputs.force_roll_bare_metal == '' && github.event.inputs.dump_cloud_init == '' && github.event.inputs.dump_workload == '' && github.event.inputs.dump_robot_controller != 'true'
         # These are mgmt-cluster Deployments / CronJobs, not Cluster
         # CRs. Independent of the CAPI manifests above.
         run: |
@@ -479,4 +488,27 @@ jobs:
           kubectl logs -n tuist deployment/runners-controller --tail=200 2>&1 || \
             kubectl logs -n tuist-runners deployment/runners-controller --tail=200 2>&1 || \
             kubectl logs -A --selector=app.kubernetes.io/name=runners-controller --tail=200 2>&1 || true
+          echo "::endgroup::"
+      - name: Dump hetzner-robot-controller state
+        # When the force-roll deletes the HBM but the controller
+        # never re-creates it, this surfaces: is the controller
+        # pod healthy? Are its recent reconciles erroring? What
+        # HBMs does the controller currently see?
+        if: github.event.inputs.dump_robot_controller == 'true'
+        run: |
+          set -euo pipefail
+          echo "::group::hetzner-robot-controller pod"
+          kubectl get pods -n hetzner-robot-controller -o wide || true
+          echo "::endgroup::"
+          echo "::group::hetzner-robot-controller logs (last 200)"
+          kubectl logs -n hetzner-robot-controller deployment/hetzner-robot-controller --tail=200 2>&1 || \
+            kubectl logs -n hetzner-robot-controller -l app.kubernetes.io/name=hetzner-robot-controller --tail=200 2>&1 || true
+          echo "::endgroup::"
+          echo "::group::All HBMs in org-tuist"
+          kubectl get hetznerbaremetalhost -n org-tuist -o wide || true
+          echo
+          kubectl get hetznerbaremetalhost -n org-tuist -o yaml | grep -E "name:|managed-by|server-name|provisioningState" | head -30 || true
+          echo "::endgroup::"
+          echo "::group::All HBMMs in org-tuist"
+          kubectl get hetznerbaremetalmachine -n org-tuist -o wide || true
           echo "::endgroup::"
