@@ -323,12 +323,17 @@ jobs:
             exit 1
           fi
           echo "HBM: $hbm  IP: $ip"
-          # Pull the SSH private key from 1Password. Same vault as
-          # the mgmt kubeconfig; the bare-metal-staging.yaml
-          # ExternalSecret references this entry too.
+          # Fetch the SSH key directly from the K8s Secret caph
+          # uses — same data, less guessing about 1Password layout.
           mkdir -p ~/.ssh
-          op read "op://tuist-k8s-mgmt/hetzner-bare-metal-ssh-key/ssh-privatekey" > ~/.ssh/hbm
+          kubectl get secret -n org-tuist hetzner-bare-metal-ssh-key \
+            -o jsonpath='{.data.ssh-privatekey}' | base64 -d > ~/.ssh/hbm
           chmod 600 ~/.ssh/hbm
+          if ! [ -s ~/.ssh/hbm ]; then
+            echo "::error::SSH private key fetch produced empty file."
+            kubectl get secrets -n org-tuist
+            exit 1
+          fi
           ssh_opts=(
             -i ~/.ssh/hbm
             -o StrictHostKeyChecking=no
