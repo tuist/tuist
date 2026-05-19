@@ -244,4 +244,50 @@ defmodule TuistWeb.RunnerJobsLive do
 
   def trend_to_int(trend) when is_number(trend), do: round(trend)
   def trend_to_int(_), do: 0
+
+  def count_chart_options(dates) do
+    %{
+      grid: %{width: "97%", left: "0.4%", height: "88%", top: "5%"},
+      xAxis: %{
+        boundaryGap: false,
+        type: "category",
+        axisLabel: %{
+          color: "var:noora-surface-label-secondary",
+          formatter: "fn:toLocaleDate",
+          customValues: [List.first(dates), List.last(dates)],
+          padding: [10, 0, 0, 0]
+        }
+      },
+      yAxis: %{
+        splitNumber: 4,
+        splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
+        axisLabel: %{color: "var:noora-surface-label-secondary"}
+      },
+      legend: %{show: false},
+      tooltip: %{}
+    }
+  end
+
+  def minutes_chart_options(dates) do
+    %{
+      grid: %{width: "97%", left: "0.4%", height: "88%", top: "5%"},
+      xAxis: %{
+        boundaryGap: false,
+        type: "category",
+        axisLabel: %{
+          color: "var:noora-surface-label-secondary",
+          formatter: "fn:toLocaleDate",
+          customValues: [List.first(dates), List.last(dates)],
+          padding: [10, 0, 0, 0]
+        }
+      },
+      yAxis: %{
+        splitNumber: 4,
+        splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
+        axisLabel: %{color: "var:noora-surface-label-secondary"}
+      },
+      legend: %{show: false},
+      tooltip: %{}
+    }
+  end
 end

@@ -37,12 +37,13 @@ defmodule Tuist.Runners.Analytics do
     previous_count = jobs_count_in_range(account_id, prev_start_dt, prev_end_dt)
 
     rows = jobs_count_per_day(account_id, start_dt, end_dt)
+    filled = fill_dates(rows, start_dt, end_dt, &Map.get(&1, :value, 0))
 
     %{
       count: count,
       trend: trend(previous_count, count),
-      dates: Enum.map(rows, & &1.date),
-      values: Enum.map(rows, & &1.value)
+      dates: Enum.map(filled, & &1.date),
+      values: Enum.map(filled, & &1.value)
     }
   end
 
@@ -99,11 +100,18 @@ defmodule Tuist.Runners.Analytics do
       |> order_by([j], asc: fragment("toDate(?)", j.completed_at))
       |> ClickHouseRepo.all()
 
+    minute_rows =
+      Enum.map(rows, fn row ->
+        %{date: row.date, value: row.value |> div(60_000) |> trunc()}
+      end)
+
+    filled = fill_dates(minute_rows, start_dt, end_dt, &Map.get(&1, :value, 0))
+
     %{
       total_ms: total_ms || 0,
       trend: trend(previous_total_ms, total_ms),
-      dates: Enum.map(rows, & &1.date),
-      values: Enum.map(rows, &(div(&1.value, 60_000) |> trunc()))
+      dates: Enum.map(filled, & &1.date),
+      values: Enum.map(filled, & &1.value)
     }
   end
 
@@ -138,6 +146,7 @@ defmodule Tuist.Runners.Analytics do
     current = jobs_duration_aggregates(account_id, start_dt, end_dt)
     previous = jobs_duration_aggregates(account_id, prev_start_dt, prev_end_dt)
     rows = duration_buckets_per_day(account_id, start_dt, end_dt, &job_duration_select/1)
+    filled = fill_duration_dates(rows, start_dt, end_dt)
 
     %{
       avg: trunc_or_zero(current.avg),
@@ -148,11 +157,11 @@ defmodule Tuist.Runners.Analytics do
       trend_p50: trend(trunc_or_zero(previous.p50), trunc_or_zero(current.p50)),
       trend_p90: trend(trunc_or_zero(previous.p90), trunc_or_zero(current.p90)),
       trend_p99: trend(trunc_or_zero(previous.p99), trunc_or_zero(current.p99)),
-      dates: Enum.map(rows, & &1.date),
-      avg_values: Enum.map(rows, &trunc_or_zero(&1.avg)),
-      p50_values: Enum.map(rows, &trunc_or_zero(&1.p50)),
-      p90_values: Enum.map(rows, &trunc_or_zero(&1.p90)),
-      p99_values: Enum.map(rows, &trunc_or_zero(&1.p99))
+      dates: Enum.map(filled, & &1.date),
+      avg_values: Enum.map(filled, & &1.avg),
+      p50_values: Enum.map(filled, & &1.p50),
+      p90_values: Enum.map(filled, & &1.p90),
+      p99_values: Enum.map(filled, & &1.p99)
     }
   end
 
@@ -206,6 +215,7 @@ defmodule Tuist.Runners.Analytics do
     current = workflows_duration_aggregates(account_id, start_dt, end_dt)
     previous = workflows_duration_aggregates(account_id, prev_start_dt, prev_end_dt)
     rows = workflows_duration_per_day(account_id, start_dt, end_dt)
+    filled = fill_duration_dates(rows, start_dt, end_dt)
 
     %{
       avg: trunc_or_zero(current.avg),
@@ -216,11 +226,11 @@ defmodule Tuist.Runners.Analytics do
       trend_p50: trend(trunc_or_zero(previous.p50), trunc_or_zero(current.p50)),
       trend_p90: trend(trunc_or_zero(previous.p90), trunc_or_zero(current.p90)),
       trend_p99: trend(trunc_or_zero(previous.p99), trunc_or_zero(current.p99)),
-      dates: Enum.map(rows, & &1.date),
-      avg_values: Enum.map(rows, &trunc_or_zero(&1.avg)),
-      p50_values: Enum.map(rows, &trunc_or_zero(&1.p50)),
-      p90_values: Enum.map(rows, &trunc_or_zero(&1.p90)),
-      p99_values: Enum.map(rows, &trunc_or_zero(&1.p99))
+      dates: Enum.map(filled, & &1.date),
+      avg_values: Enum.map(filled, & &1.avg),
+      p50_values: Enum.map(filled, & &1.p50),
+      p90_values: Enum.map(filled, & &1.p90),
+      p99_values: Enum.map(filled, & &1.p99)
     }
   end
 
@@ -353,6 +363,44 @@ defmodule Tuist.Runners.Analytics do
 
   defp default_empty([], default), do: [default]
   defp default_empty(rows, _default), do: rows
+
+  # Fills the date range with zero-valued rows where the ClickHouse
+  # grouped query didn't produce a bucket. Without this the line
+  # chart skips over empty days and renders as a single connected
+  # blip, which looks broken on small datasets.
+  defp fill_dates(rows, start_dt, end_dt, value_fn) do
+    by_date = Map.new(rows, &{&1.date, value_fn.(&1)})
+
+    daily_range(start_dt, end_dt)
+    |> Enum.map(fn date ->
+      %{date: date, value: Map.get(by_date, date, 0)}
+    end)
+  end
+
+  defp fill_duration_dates(rows, start_dt, end_dt) do
+    by_date =
+      Map.new(rows, fn row ->
+        {row.date,
+         %{
+           avg: trunc_or_zero(row.avg),
+           p50: trunc_or_zero(row.p50),
+           p90: trunc_or_zero(row.p90),
+           p99: trunc_or_zero(row.p99)
+         }}
+      end)
+
+    empty = %{avg: 0, p50: 0, p90: 0, p99: 0}
+
+    daily_range(start_dt, end_dt)
+    |> Enum.map(fn date ->
+      values = Map.get(by_date, date, empty)
+      Map.put(values, :date, date)
+    end)
+  end
+
+  defp daily_range(%DateTime{} = start_dt, %DateTime{} = end_dt) do
+    Date.range(DateTime.to_date(start_dt), DateTime.to_date(end_dt))
+  end
 
   defp trunc_or_zero(nil), do: 0
   defp trunc_or_zero(value) when is_number(value), do: trunc(value)

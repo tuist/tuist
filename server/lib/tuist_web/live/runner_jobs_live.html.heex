@@ -81,8 +81,21 @@
           <.chart
             id="jobs-total-chart"
             type="line"
-            labels={Enum.map(@jobs_count.result.dates, &Date.to_iso8601/1)}
-            series={[%{name: dgettext("dashboard_runners", "Jobs"), values: @jobs_count.result.values}]}
+            extra_options={TuistWeb.RunnerJobsLive.count_chart_options(@jobs_count.result.dates)}
+            series={[
+              %{
+                color: "var:noora-chart-primary",
+                data:
+                  @jobs_count.result.dates
+                  |> Enum.zip(@jobs_count.result.values)
+                  |> Enum.map(&Tuple.to_list/1),
+                name: dgettext("dashboard_runners", "Jobs"),
+                type: "line",
+                smooth: 0.1,
+                symbol: "none"
+              }
+            ]}
+            y_axis_min={0}
           />
         <% @analytics_selected_widget == "cumulative_minutes" and !@cumulative_minutes.ok? -> %>
           <.skeleton_chart />
@@ -90,13 +103,21 @@
           <.chart
             id="jobs-cumulative-minutes-chart"
             type="line"
-            labels={Enum.map(@cumulative_minutes.result.dates, &Date.to_iso8601/1)}
+            extra_options={TuistWeb.RunnerJobsLive.minutes_chart_options(@cumulative_minutes.result.dates)}
             series={[
               %{
+                color: "var:noora-chart-p90",
+                data:
+                  @cumulative_minutes.result.dates
+                  |> Enum.zip(@cumulative_minutes.result.values)
+                  |> Enum.map(&Tuple.to_list/1),
                 name: dgettext("dashboard_runners", "Minutes"),
-                values: @cumulative_minutes.result.values
+                type: "line",
+                smooth: 0.1,
+                symbol: "none"
               }
             ]}
+            y_axis_min={0}
           />
         <% @analytics_selected_widget in ["running", "queued"] -> %>
           <div data-part="status-counts-empty">

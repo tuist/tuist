@@ -182,8 +182,21 @@
           <.chart
             id="runners-total-jobs-chart"
             type="line"
-            labels={Enum.map(@jobs_count.result.dates, &Date.to_iso8601/1)}
-            series={[%{name: dgettext("dashboard_runners", "Jobs"), values: @jobs_count.result.values}]}
+            extra_options={TuistWeb.RunnersLive.count_chart_options(@jobs_count.result.dates, @analytics_preset)}
+            series={[
+              %{
+                color: "var:noora-chart-primary",
+                data:
+                  @jobs_count.result.dates
+                  |> Enum.zip(@jobs_count.result.values)
+                  |> Enum.map(&Tuple.to_list/1),
+                name: dgettext("dashboard_runners", "Jobs"),
+                type: "line",
+                smooth: 0.1,
+                symbol: "none"
+              }
+            ]}
+            y_axis_min={0}
           />
         <% @analytics_selected_widget == "job_duration" and !@jobs_duration.ok? -> %>
           <.skeleton_chart />
@@ -191,17 +204,26 @@
           <.chart
             id="runners-job-duration-chart"
             type="line"
-            labels={Enum.map(@jobs_duration.result.dates, &Date.to_iso8601/1)}
+            extra_options={TuistWeb.RunnersLive.duration_chart_options(@jobs_duration.result.dates, @analytics_preset)}
             series={[
               %{
-                name: @job_duration_percentile,
-                values:
-                  TuistWeb.RunnersLive.percentile_series(
-                    @jobs_duration.result,
-                    @job_duration_percentile
+                color: "var:noora-chart-#{TuistWeb.RunnersLive.legend_color_for_percentile(@job_duration_percentile)}",
+                data:
+                  @jobs_duration.result.dates
+                  |> Enum.zip(
+                    TuistWeb.RunnersLive.percentile_series(
+                      @jobs_duration.result,
+                      @job_duration_percentile
+                    )
                   )
+                  |> Enum.map(&Tuple.to_list/1),
+                name: @job_duration_percentile,
+                type: "line",
+                smooth: 0.1,
+                symbol: "none"
               }
             ]}
+            y_axis_min={0}
           />
         <% @analytics_selected_widget == "workflow_duration" and !@workflows_duration.ok? -> %>
           <.skeleton_chart />
@@ -209,17 +231,26 @@
           <.chart
             id="runners-workflow-duration-chart"
             type="line"
-            labels={Enum.map(@workflows_duration.result.dates, &Date.to_iso8601/1)}
+            extra_options={TuistWeb.RunnersLive.duration_chart_options(@workflows_duration.result.dates, @analytics_preset)}
             series={[
               %{
-                name: @workflow_duration_percentile,
-                values:
-                  TuistWeb.RunnersLive.percentile_series(
-                    @workflows_duration.result,
-                    @workflow_duration_percentile
+                color: "var:noora-chart-#{TuistWeb.RunnersLive.legend_color_for_percentile(@workflow_duration_percentile)}",
+                data:
+                  @workflows_duration.result.dates
+                  |> Enum.zip(
+                    TuistWeb.RunnersLive.percentile_series(
+                      @workflows_duration.result,
+                      @workflow_duration_percentile
+                    )
                   )
+                  |> Enum.map(&Tuple.to_list/1),
+                name: @workflow_duration_percentile,
+                type: "line",
+                smooth: 0.1,
+                symbol: "none"
               }
             ]}
+            y_axis_min={0}
           />
       <% end %>
     </.card_section>

@@ -142,6 +142,74 @@ defmodule TuistWeb.RunnersLive do
   def trend_to_int(trend) when is_number(trend), do: round(trend)
   def trend_to_int(_), do: 0
 
+  @doc """
+  echarts `extra_options` for a simple count chart — single series,
+  no legend, date-formatted x-axis, plain numeric y-axis.
+  """
+  def count_chart_options(dates, analytics_preset) do
+    %{
+      grid: %{width: "97%", left: "0.4%", height: "88%", top: "5%"},
+      xAxis: %{
+        boundaryGap: false,
+        type: "category",
+        axisLabel: %{
+          color: "var:noora-surface-label-secondary",
+          formatter: "fn:toLocaleDate",
+          customValues: [List.first(dates), List.last(dates)],
+          padding: [10, 0, 0, 0]
+        }
+      },
+      yAxis: %{
+        splitNumber: 4,
+        splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
+        axisLabel: %{color: "var:noora-surface-label-secondary"}
+      },
+      legend: %{show: false},
+      tooltip:
+        if analytics_preset == "last-24-hours" do
+          %{dateFormat: "hour"}
+        else
+          %{}
+        end
+    }
+  end
+
+  @doc """
+  echarts `extra_options` for a duration chart — y-axis values are
+  milliseconds and rendered via the `formatMilliseconds` JS helper
+  shared with the Tests page.
+  """
+  def duration_chart_options(dates, analytics_preset) do
+    %{
+      grid: %{width: "97%", left: "0.4%", height: "88%", top: "5%"},
+      xAxis: %{
+        boundaryGap: false,
+        type: "category",
+        axisLabel: %{
+          color: "var:noora-surface-label-secondary",
+          formatter: "fn:toLocaleDate",
+          customValues: [List.first(dates), List.last(dates)],
+          padding: [10, 0, 0, 0]
+        }
+      },
+      yAxis: %{
+        splitNumber: 4,
+        splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
+        axisLabel: %{
+          color: "var:noora-surface-label-secondary",
+          formatter: "fn:formatMilliseconds"
+        }
+      },
+      legend: %{show: false},
+      tooltip:
+        if analytics_preset == "last-24-hours" do
+          %{valueFormat: "fn:formatMilliseconds", dateFormat: "hour"}
+        else
+          %{valueFormat: "fn:formatMilliseconds"}
+        end
+    }
+  end
+
   def status_badge_props("queued"), do: %{label: dgettext("dashboard_runners", "Queued"), status: "warning"}
   def status_badge_props("claimed"), do: %{label: dgettext("dashboard_runners", "Claimed"), status: "in_progress"}
   def status_badge_props("running"), do: %{label: dgettext("dashboard_runners", "Running"), status: "in_progress"}
