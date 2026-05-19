@@ -192,6 +192,48 @@ kubectl describe scalewayapplesiliconmachine <name>
 kubectl get events --field-selector involvedObject.kind=ScalewayAppleSiliconMachine
 ```
 
+### Unstick a host whose CAPI bootstrap is failing on sudo
+
+Symptom: `kubectl describe scalewayapplesiliconmachine <name>` shows
+`BootstrappedCondition=False` with a message containing `sudo:`
+errors, or the bootstrap looping on early SSH steps after Stage 1
+provisioning succeeded.
+
+Root cause is almost always: the operator-stored `m1` password in
+the bootstrap Secret has drifted from what's actually set on the
+host (Scaleway-issued password rotated, host got reinstalled,
+controller crashed mid-store, etc.). CAPI's bootstrap can SSH in
+(fleet key works) but can't `sudo -S` to install
+`/etc/sudoers.d/m1-nopasswd`, so every subsequent step fails.
+
+Recovery: run `prepare-fleet-host` to install the sudoers entry
+out-of-band using the operator-provided current password.
+
+```bash
+# Get the live m1 password from Scaleway:
+scw apple-silicon server get <server-id> zone=<zone> -o json \
+  | jq -r .vnc_url
+# (Password is between `m1:` and `@` in the vnc:// URL.)
+
+# Then:
+mise run k8s:prepare-fleet-host <env> <fleet-name> <host-ip>
+```
+
+The script SSHes in with the fleet key (which Scaleway auto-injects
+at first boot via project-level keys), prompts for the password,
+installs `/etc/sudoers.d/m1-nopasswd` and `/etc/kcpassword` /
+`autoLoginUser`. After that, CAPI's bootstrap proceeds without ever
+needing a correct password in its Secret.
+
+If the fleet pubkey isn't on the host (rare — Scaleway didn't
+inject), the script's SSH probe fails with `Permission denied`.
+Recover by VNC'ing into the host and pasting the pubkey into
+`~/.ssh/scw_authorized_keys`, then re-running the script. Don't
+bother with `~/.ssh/authorized_keys` — Scaleway's `sshd_config`
+reads both files, but `scw_authorized_keys` is the one the
+first-boot injection writes to, so anything you add there
+mirrors the auto-inject convention.
+
 ### Detach a CR without releasing its Scaleway host
 
 Reserved for recovering from a duplicate-claim state (multiple CRs
