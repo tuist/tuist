@@ -555,11 +555,12 @@ defmodule TuistWeb.AccountSettingsLive do
           :if={@global_endpoint_url && Enum.any?(@kura_servers)}
           status="information"
           type="secondary"
-          size="small"
-          title={
+          size="large"
+          title={dgettext("dashboard_account", "Global Kura endpoint")}
+          description={
             dgettext(
               "dashboard_account",
-              "Use the global Kura endpoint %{url} to connect clients to the nearest healthy region.",
+              "Point clients at %{url}. It routes to the nearest healthy region automatically.",
               url: @global_endpoint_url
             )
           }
