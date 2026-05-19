@@ -115,6 +115,13 @@ xcresultProcessor:
 # Mac mini fleet — declarative via CAPI.
 macosFleet:
   replicas: 1
+  # Canary runs on the production tailnet (single shared tailnet
+  # across canary + production — same Grafana, same admin console).
+  # Staging has its own tailnet so a leaked staging key can't add
+  # a node to canary/prod.
+  tailscale:
+    enabled: true
+    tags: ["tag:tuist-macmini-canary"]
   controlPlane:
     host: api-canary.tuist.dev
 

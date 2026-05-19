@@ -81,9 +81,16 @@ defmodule TuistCommon.FinchPools do
   defp ca_cert_opts(pem_content) do
     der_certs =
       pem_content
+      |> normalize_pem_content()
       |> :public_key.pem_decode()
       |> Enum.map(fn {_, der, _} -> der end)
 
     [cacerts: der_certs]
+  end
+
+  defp normalize_pem_content(pem_content) do
+    pem_content
+    |> String.replace("\r\n", "\n")
+    |> String.replace("\\n", "\n")
   end
 end

@@ -104,6 +104,7 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
   alias Tuist.GitHub.Client, as: GitHubClient
   alias Tuist.Runners.Claims
   alias Tuist.Runners.Jobs
+  alias Tuist.Runners.Telemetry
   alias Tuist.VCS
 
   require Logger
@@ -181,6 +182,12 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
 
     with :ok <- safe_record_queued(workflow_job_id),
          :ok <- safe_release(workflow_job_id, claimed_at) do
+      :telemetry.execute(
+        Telemetry.event_name_recovery(),
+        %{count: 1},
+        %{kind: "orphan_requeued"}
+      )
+
       true
     else
       _ -> false
@@ -210,6 +217,13 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
 
     safe_complete_pg(workflow_job_id)
     safe_complete_ch(workflow_job_id, conclusion || "")
+
+    :telemetry.execute(
+      Telemetry.event_name_recovery(),
+      %{count: 1},
+      %{kind: "orphan_completed"}
+    )
+
     true
   end
 

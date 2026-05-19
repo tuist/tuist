@@ -37,6 +37,7 @@ defmodule Tuist.Runners.Dispatch do
   alias Tuist.Kubernetes.Client
   alias Tuist.Runners.Claims
   alias Tuist.Runners.Jobs
+  alias Tuist.Runners.Telemetry
 
   require Logger
 
@@ -44,14 +45,31 @@ defmodule Tuist.Runners.Dispatch do
   Handle a `workflow_job` webhook payload. Branches on `action`.
   """
   def handle_webhook(%{"action" => "queued"} = payload, installation_id) when is_integer(installation_id) do
-    handle_queued(payload)
+    result = handle_queued(payload)
+    emit_webhook_telemetry("queued", result)
+    result
   end
 
   def handle_webhook(%{"action" => "completed"} = payload, installation_id) when is_integer(installation_id) do
-    handle_completed(payload)
+    result = handle_completed(payload)
+    emit_webhook_telemetry("completed", result)
+    result
   end
 
   def handle_webhook(_payload, _installation_id), do: :ignored
+
+  defp emit_webhook_telemetry(action, result) do
+    :telemetry.execute(
+      Telemetry.event_name_webhook(),
+      %{count: 1},
+      %{action: action, outcome: webhook_outcome(result)}
+    )
+  end
+
+  defp webhook_outcome({:ok, kind}), do: Atom.to_string(kind)
+  defp webhook_outcome(:ignored), do: "ignored"
+  defp webhook_outcome({:error, reason}) when is_atom(reason), do: Atom.to_string(reason)
+  defp webhook_outcome(_), do: "unknown"
 
   defp handle_queued(payload) do
     job = Map.get(payload, "workflow_job", %{})

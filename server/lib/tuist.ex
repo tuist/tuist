@@ -179,6 +179,8 @@ defmodule Tuist do
       Runners.Claim,
       Runners.Jobs,
       Runners.Job,
+      Runners.PromExPlugin,
+      Runners.Telemetry,
       Kubernetes.Client
     ]
 end

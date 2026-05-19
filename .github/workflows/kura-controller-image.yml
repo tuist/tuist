@@ -54,9 +54,7 @@ jobs:
         run: go vet ./...
 
   build:
-    needs:
-      - format
-      - test
+    needs: test
     if: github.event_name != 'pull_request'
     runs-on: namespace-profile-default
     steps:

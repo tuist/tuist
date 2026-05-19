@@ -8,12 +8,17 @@ defmodule Cache.Finch.PoolsTest do
 
   describe "config/0 S3 pool protocols" do
     setup do
+      stub(Cache.Config, :cache_bucket, fn -> "cache-bucket" end)
       stub(Cache.Config, :server_url, fn -> "https://tuist.dev" end)
       stub(Cache.Config, :s3_ca_cert_pem, fn -> nil end)
+      stub(Cache.Config, :s3_virtual_host, fn -> false end)
 
       stub(Cache.Config, :s3_config, fn ->
         {:ok, [scheme: "https://", host: "s3.example.com", region: "us-east-1"]}
       end)
+
+      stub(Cache.Config, :xcode_cache_bucket, fn -> nil end)
+      stub(Cache.Config, :registry_bucket, fn -> nil end)
 
       :ok
     end
@@ -70,6 +75,19 @@ defmodule Cache.Finch.PoolsTest do
       cacerts = Keyword.fetch!(transport_opts, :cacerts)
       assert is_list(cacerts) and cacerts != []
       assert Enum.all?(cacerts, &is_binary/1)
+    end
+
+    test "registers virtual-hosted bucket pools when enabled" do
+      stub(Cache.Config, :s3_virtual_host, fn -> true end)
+      stub(Cache.Config, :xcode_cache_bucket, fn -> "xcode-bucket" end)
+      stub(Cache.Config, :registry_bucket, fn -> "registry-bucket" end)
+
+      config = Pools.config()
+
+      assert Map.has_key?(config, "https://s3.example.com")
+      assert Map.has_key?(config, "https://cache-bucket.s3.example.com")
+      assert Map.has_key?(config, "https://xcode-bucket.s3.example.com")
+      assert Map.has_key?(config, "https://registry-bucket.s3.example.com")
     end
   end
 end

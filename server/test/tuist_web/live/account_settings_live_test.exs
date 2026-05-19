@@ -8,6 +8,7 @@ defmodule TuistWeb.AccountSettingsLiveTest do
   alias Tuist.Accounts
   alias Tuist.Environment
   alias Tuist.Kura
+  alias Tuist.Kura.Server
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
   setup %{conn: conn} do
@@ -144,6 +145,43 @@ defmodule TuistWeb.AccountSettingsLiveTest do
     assert html =~ server.url
     assert html =~ "0.5.2"
     refute html =~ "kura@0.5.2"
+  end
+
+  test "renders the global Cloudflare endpoint banner when an endpoint is active" do
+    assigns = kura_section_assigns(global_endpoint_url: "https://test-org.kura.tuist.dev")
+
+    html = render_component(&TuistWeb.AccountSettingsLive.kura_servers_section/1, assigns)
+
+    assert html =~ "Global Kura endpoint"
+    assert html =~ "https://test-org.kura.tuist.dev"
+    assert html =~ "It routes to the nearest healthy region automatically"
+  end
+
+  test "hides the global Cloudflare endpoint banner when there is no active endpoint" do
+    assigns = kura_section_assigns(global_endpoint_url: nil)
+
+    html = render_component(&TuistWeb.AccountSettingsLive.kura_servers_section/1, assigns)
+
+    refute html =~ "Global Kura endpoint"
+  end
+
+  defp kura_section_assigns(overrides) do
+    server = %Server{
+      id: 1,
+      region: "us-east",
+      status: :active,
+      url: "https://test-org-us-east-1.kura.tuist.dev",
+      current_image_tag: "0.5.2",
+      observed_image_tag: "0.5.2"
+    }
+
+    Enum.into(overrides, %{
+      kura_servers: [server],
+      available_kura_regions: [],
+      add_kura_server_form: Phoenix.Component.to_form(%{}, as: :server),
+      latest_kura_version: nil,
+      global_endpoint_url: nil
+    })
   end
 
   test "allows adding another managed Kura region when one is already deployed", %{

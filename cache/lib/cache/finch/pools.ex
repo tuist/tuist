@@ -40,7 +40,9 @@ defmodule Cache.Finch.Pools do
             ca_cert_pem: Cache.Config.s3_ca_cert_pem()
           )
 
-        Map.put(pools, s3_url, s3_pool_opts)
+        s3_url
+        |> s3_endpoints()
+        |> Enum.reduce(pools, fn endpoint, acc -> Map.put(acc, endpoint, s3_pool_opts) end)
 
       :error ->
         pools
@@ -51,5 +53,30 @@ defmodule Cache.Finch.Pools do
     config()
     |> Map.keys()
     |> Enum.reject(&(&1 == :default))
+  end
+
+  defp s3_endpoints(s3_url) do
+    Enum.uniq([s3_url | virtual_host_s3_endpoints(s3_url)])
+  end
+
+  defp virtual_host_s3_endpoints(s3_url) do
+    if Cache.Config.s3_virtual_host() do
+      [
+        Cache.Config.cache_bucket(),
+        Cache.Config.xcode_cache_bucket() || Cache.Config.cache_bucket(),
+        Cache.Config.registry_bucket()
+      ]
+      |> Enum.filter(&is_binary/1)
+      |> Enum.map(&bucket_endpoint(s3_url, &1))
+    else
+      []
+    end
+  end
+
+  defp bucket_endpoint(s3_url, bucket) do
+    s3_url
+    |> URI.parse()
+    |> Map.update!(:host, fn host -> "#{bucket}.#{host}" end)
+    |> URI.to_string()
   end
 end

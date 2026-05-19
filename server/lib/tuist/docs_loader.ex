@@ -486,7 +486,7 @@ defmodule Tuist.Docs.Loader do
         attrs
 
       _ ->
-        case Jason.decode(frontmatter) do
+        case JSON.decode(frontmatter) do
           {:ok, attrs} when is_map(attrs) -> attrs
           _ -> %{}
         end

@@ -46,8 +46,15 @@ defmodule Tuist.Runners.Jobs do
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
   alias Tuist.Runners.Job
+  alias Tuist.Runners.Telemetry
 
   require Logger
+
+  # Pre-1970 sentinel used for "not yet set" timestamp slots. Any
+  # timestamp at or below this epoch is treated as missing when
+  # computing telemetry durations so a delivery-race `completed`
+  # (no `started_at`) doesn't emit a multi-decade run_time spike.
+  @epoch ~U[1970-01-01 00:00:00.000000Z]
 
   @doc """
   Idempotent enqueue. Inserts a `status='queued'` row for the
@@ -66,6 +73,13 @@ defmodule Tuist.Runners.Jobs do
       |> Map.put(:updated_at, now)
 
     insert_row!(row)
+
+    :telemetry.execute(
+      Telemetry.event_name_job_enqueued(),
+      %{count: 1},
+      %{fleet: Map.get(row, :fleet_name, "")}
+    )
+
     broadcast_status_change(Map.get(attrs, :account_id), "queued")
     :ok
   end
@@ -130,6 +144,13 @@ defmodule Tuist.Runners.Jobs do
     row = Map.merge(candidate, %{status: "claimed", claimed_at: claimed_at, pod_name: pod_name, updated_at: now})
 
     insert_row!(row)
+
+    :telemetry.execute(
+      Telemetry.event_name_job_claim(),
+      %{count: 1, queue_time_ms: duration_ms(candidate[:enqueued_at], claimed_at)},
+      %{fleet: Map.get(candidate, :fleet_name, ""), outcome: "ok"}
+    )
+
     broadcast_status_change(Map.get(candidate, :account_id), "claimed")
     :ok
   end
@@ -161,6 +182,17 @@ defmodule Tuist.Runners.Jobs do
           })
 
         insert_row!(row)
+
+        :telemetry.execute(
+          Telemetry.event_name_job_running(),
+          %{
+            count: 1,
+            queue_to_running_ms: duration_ms(job.enqueued_at, now),
+            claim_to_running_ms: duration_ms(job.claimed_at, now)
+          },
+          %{fleet: job.fleet_name || ""}
+        )
+
         broadcast_status_change(job.account_id, "running")
         :ok
     end
@@ -190,6 +222,13 @@ defmodule Tuist.Runners.Jobs do
           })
 
         insert_row!(row)
+
+        :telemetry.execute(
+          Telemetry.event_name_job_requeued(),
+          %{count: 1},
+          %{fleet: job.fleet_name || ""}
+        )
+
         broadcast_status_change(job.account_id, "queued")
         :ok
     end
@@ -224,6 +263,21 @@ defmodule Tuist.Runners.Jobs do
           })
 
         insert_row!(row)
+
+        :telemetry.execute(
+          Telemetry.event_name_job_completed(),
+          %{
+            count: 1,
+            run_time_ms: duration_ms(job.started_at, now),
+            queue_time_ms: duration_ms(job.enqueued_at, job.claimed_at),
+            total_time_ms: duration_ms(job.enqueued_at, now)
+          },
+          %{
+            fleet: job.fleet_name || "",
+            conclusion: normalise_conclusion(conclusion)
+          }
+        )
+
         broadcast_status_change(job.account_id, "completed")
 
         {:ok,
@@ -477,7 +531,27 @@ defmodule Tuist.Runners.Jobs do
     |> Map.delete(:__meta__)
   end
 
-  defp epoch, do: ~U[1970-01-01 00:00:00.000000Z]
+  defp epoch, do: @epoch
+
+  # Returns `nil` when either bound is missing/epoch so the
+  # histogram bucketer drops the sample instead of recording a
+  # garbage duration.
+  defp duration_ms(%DateTime{} = from, %DateTime{} = to) do
+    if DateTime.after?(from, @epoch) and DateTime.after?(to, from) do
+      DateTime.diff(to, from, :millisecond)
+    end
+  end
+
+  defp duration_ms(_, _), do: nil
+
+  # Normalise GH conclusion strings into the bounded tag set the
+  # dashboard groups by. `nil` and `""` collapse to `"unknown"`
+  # so the conclusion-by-rate panel doesn't grow a phantom empty
+  # series for in-flight rows that crash through the orphan
+  # recovery path.
+  defp normalise_conclusion(c) when c in [nil, ""], do: "unknown"
+  defp normalise_conclusion(c) when is_binary(c), do: c
+  defp normalise_conclusion(_), do: "unknown"
 
   @doc """
   Pub/Sub topic for an account's runner-job lifecycle events.

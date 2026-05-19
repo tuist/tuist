@@ -1861,6 +1861,55 @@ IO.puts(
 create_xcode_data_for_events.(generate_events, "Generate runs")
 create_xcode_data_for_events.(cache_events, "Cache runs")
 
+# Create command events with build_run_id and xcode data for build runs so
+# the build detail page surfaces the Module Cache tab.
+IO.puts("Generating command events with module cache data for build runs...")
+
+build_runs_for_module_cache =
+  completed_builds
+  |> Enum.take(50)
+  |> Enum.with_index()
+
+build_run_command_events =
+  Enum.map(build_runs_for_module_cache, fn {build, idx} ->
+    %{
+      id: UUIDv7.generate(),
+      name: "xcodebuild",
+      duration: build.duration,
+      tuist_version: "4.1.0",
+      project_id: tuist_project.id,
+      cacheable_targets: [],
+      local_cache_target_hits: [],
+      remote_cache_target_hits: [],
+      test_targets: [],
+      local_test_target_hits: [],
+      remote_test_target_hits: [],
+      swift_version: "5.9",
+      macos_version: "14.0",
+      subcommand: "build",
+      command_arguments: "xcodebuild build --scheme #{build.scheme}",
+      is_ci: build.is_ci,
+      user_id: if(build.is_ci, do: nil, else: user.id),
+      client_id: "client-id",
+      status: if(build.status == "success", do: 0, else: 1),
+      error_message: nil,
+      preview_id: nil,
+      git_ref: nil,
+      git_commit_sha: "build-#{idx}",
+      git_branch: nil,
+      created_at: build.inserted_at,
+      updated_at: build.inserted_at,
+      ran_at: build.inserted_at,
+      build_run_id: build.id
+    }
+  end)
+
+if length(build_run_command_events) > 0 do
+  IngestRepo.insert_all(Event, build_run_command_events, timeout: 120_000)
+  IO.puts("  - Created #{length(build_run_command_events)} build run command events")
+  create_xcode_data_for_events.(build_run_command_events, "Build runs")
+end
+
 # =============================================================================
 # Ensure all quarantined test cases have at least one test case run
 # =============================================================================

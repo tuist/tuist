@@ -35,7 +35,7 @@ defmodule Tuist.Kubernetes.Client do
   def replace(path, body, opts \\ []) when is_binary(path) and is_map(body) do
     request(:put, path,
       opts: opts,
-      body: Jason.encode!(body),
+      body: JSON.encode!(body),
       headers: [{"content-type", "application/json"}]
     )
   end
@@ -43,7 +43,7 @@ defmodule Tuist.Kubernetes.Client do
   def patch(path, operations, opts \\ []) when is_binary(path) and is_list(operations) do
     request(:patch, path,
       opts: opts,
-      body: Jason.encode!(operations),
+      body: JSON.encode!(operations),
       headers: [{"content-type", "application/json-patch+json"}]
     )
   end
@@ -118,7 +118,7 @@ defmodule Tuist.Kubernetes.Client do
   """
   def create_token_review(token, opts \\ []) when is_binary(token) do
     body =
-      Jason.encode!(%{
+      JSON.encode!(%{
         "apiVersion" => "authentication.k8s.io/v1",
         "kind" => "TokenReview",
         "spec" => %{
@@ -225,7 +225,7 @@ defmodule Tuist.Kubernetes.Client do
   """
   def patch_pod(namespace, name, patch_body) when is_binary(namespace) and is_binary(name) and is_map(patch_body) do
     request(:patch, "/api/v1/namespaces/#{namespace}/pods/#{name}",
-      body: Jason.encode!(patch_body),
+      body: JSON.encode!(patch_body),
       headers: [{"content-type", "application/strategic-merge-patch+json"}]
     )
   end
