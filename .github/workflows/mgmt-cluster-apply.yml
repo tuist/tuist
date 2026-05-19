@@ -470,17 +470,21 @@ jobs:
           echo "HBM: $hbm  IP: $ip"
           # Fetch the SSH key directly from the K8s Secret caph
           # uses — same data, less guessing about 1Password layout.
-          mkdir -p ~/.ssh
+          # Write to /dev/shm (tmpfs, RAM-only) and trap-clear on
+          # EXIT so the key never persists on disk even if a
+          # subsequent ssh call fails mid-step.
+          ssh_key=/dev/shm/hbm-$$
+          trap 'shred -u "$ssh_key" 2>/dev/null || rm -f "$ssh_key"' EXIT
           kubectl get secret -n org-tuist hetzner-bare-metal-ssh-key \
-            -o jsonpath='{.data.ssh-privatekey}' | base64 -d > ~/.ssh/hbm
-          chmod 600 ~/.ssh/hbm
-          if ! [ -s ~/.ssh/hbm ]; then
+            -o jsonpath='{.data.ssh-privatekey}' | base64 -d > "$ssh_key"
+          chmod 600 "$ssh_key"
+          if ! [ -s "$ssh_key" ]; then
             echo "::error::SSH private key fetch produced empty file."
             kubectl get secrets -n org-tuist
             exit 1
           fi
           ssh_opts=(
-            -i ~/.ssh/hbm
+            -i "$ssh_key"
             -o StrictHostKeyChecking=no
             -o UserKnownHostsFile=/dev/null
             -o ConnectTimeout=10
