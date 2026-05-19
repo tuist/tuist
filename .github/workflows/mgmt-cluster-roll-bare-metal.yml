@@ -1,0 +1,141 @@
+name: Mgmt Cluster Roll Bare-Metal
+
+# Force-rolls a Hetzner Robot bare-metal worker by deleting its
+# `HetznerBareMetalMachine`. CAPI's `bare-metal-worker` MachineDeployment
+# then creates a fresh HBMM from the current
+# `HetznerBareMetalMachineTemplate`, caph re-runs rescue +
+# installimage + cloud-init kubeadm-join, and the new Node joins
+# with whatever the current template's `postInstallScript` bakes
+# (so a chart bump that changes the bootstrap takes effect on the
+# next roll instead of waiting for natural Node churn).
+#
+# workflow_dispatch only — destructive on staging/canary/production
+# host fleets. The `cluster` input is required with no default so
+# nobody triggers this against production by mistake.
+#
+# Operational scope:
+#   - Deletes ONE HBMM at a time (the named one, or the first
+#     matching machine in the pool).
+#   - Does NOT cordon/drain — bare-metal nodes are tainted
+#     `tuist.dev/runner-tier=bare-metal:NoSchedule`, so the only
+#     Pods on them are runner Pods. Those are idempotent (a
+#     replacement Pod claims work from the same queue) and the
+#     autoscaler reconverges replica count automatically.
+#   - Waits for the replacement HBMM to reach phase `Running`
+#     (~8–15 min) before exiting; smoke validation lives in
+#     `linux-runners-staging-smoke.yml`, run separately afterward.
+#
+# Required secrets (on the mgmt-cluster-apply GitHub Environment —
+# reuses the same secret as mgmt-cluster-apply.yml):
+#   OP_SERVICE_ACCOUNT_TOKEN - 1Password SA scoped read-only to
+#     `tuist-k8s-mgmt` vault.
+
+on:
+  workflow_dispatch:
+    inputs:
+      cluster:
+        description: Workload cluster whose bare-metal pool to roll
+        required: true
+        type: choice
+        options: [staging, canary, production]
+      machine_name:
+        description: |
+          Specific HetznerBareMetalMachine to delete (in `org-tuist`).
+          Leave empty to roll the first machine in the pool.
+        required: false
+        type: string
+
+concurrency:
+  group: mgmt-cluster-roll-${{ github.event.inputs.cluster }}
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  roll:
+    name: Roll bare-metal HBMM
+    runs-on: namespace-profile-default
+    environment:
+      name: mgmt-cluster-apply
+    timeout-minutes: 20
+    env:
+      KUBECONFIG: ${{ github.workspace }}/.kube/config
+      CLUSTER: ${{ github.event.inputs.cluster }}
+      MACHINE: ${{ github.event.inputs.machine_name }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "kubectl"
+          cache: "false"
+      - uses: 1password/install-cli-action@v2
+      - name: Load mgmt kubeconfig from 1Password
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          op document get "kubeconfig: tuist-mgmt" --vault tuist-k8s-mgmt --output "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
+      - name: Resolve target HBMM
+        # If the caller supplied a name, trust it. Otherwise pick the
+        # first HBMM bound to this cluster's `bare-metal-worker`
+        # MachineDeployment (every HBMM CAPI creates carries the
+        # `cluster.x-k8s.io/cluster-name` label).
+        run: |
+          set -euo pipefail
+          if [ -z "$MACHINE" ]; then
+            MACHINE=$(kubectl get hetznerbaremetalmachine -n org-tuist \
+              -l cluster.x-k8s.io/cluster-name=tuist-$CLUSTER \
+              -o jsonpath='{.items[0].metadata.name}' || true)
+          fi
+          if [ -z "$MACHINE" ]; then
+            echo "::error::No HetznerBareMetalMachine found for cluster tuist-$CLUSTER"
+            exit 1
+          fi
+          echo "Target HBMM: $MACHINE"
+          echo "MACHINE=$MACHINE" >> "$GITHUB_ENV"
+          echo "::group::Current state"
+          kubectl get hetznerbaremetalmachine -n org-tuist "$MACHINE" -o wide
+          kubectl get hetznerbaremetalhost -n org-tuist
+          echo "::endgroup::"
+      - name: Delete HBMM (triggers re-roll)
+        # CAPI's MachineDeployment controller observes the deletion
+        # and creates a replacement HBMM from the current template
+        # within seconds. caph then claims an available HBM and runs
+        # the rescue + installimage flow.
+        run: |
+          set -euo pipefail
+          kubectl delete hetznerbaremetalmachine -n org-tuist "$MACHINE" --wait=true
+      - name: Wait for replacement HBMM to reach Running
+        # CAPI's Machine.status.phase transitions through
+        # `Provisioning` → `Provisioned` → `Running`. We watch the
+        # newly-created HBMM (any one not equal to $MACHINE under
+        # the same cluster-name label) until it hits `Running` or
+        # we time out.
+        timeout-minutes: 18
+        run: |
+          set -euo pipefail
+          deadline=$(( $(date +%s) + 18*60 ))
+          while [ "$(date +%s)" -lt "$deadline" ]; do
+            new=$(kubectl get hetznerbaremetalmachine -n org-tuist \
+              -l cluster.x-k8s.io/cluster-name=tuist-$CLUSTER \
+              -o jsonpath='{.items[0].metadata.name}' || true)
+            if [ -n "$new" ] && [ "$new" != "$MACHINE" ]; then
+              hbm_state=$(kubectl get hetznerbaremetalhost -n org-tuist \
+                -o jsonpath='{.items[?(@.spec.consumerRef.name=="'"$new"'")].spec.status.provisioningState}' || true)
+              ready=$(kubectl get hetznerbaremetalmachine -n org-tuist "$new" \
+                -o jsonpath='{.status.ready}' || true)
+              echo "$(date -u +%H:%M:%S) new=$new hbm_state=${hbm_state:-?} ready=${ready:-false}"
+              if [ "$ready" = "true" ]; then
+                echo "Replacement HBMM $new is Ready."
+                exit 0
+              fi
+            else
+              echo "$(date -u +%H:%M:%S) waiting for replacement HBMM (current first=$new)"
+            fi
+            sleep 30
+          done
+          echo "::error::Timed out waiting for replacement HBMM to reach Ready=true"
+          kubectl get hetznerbaremetalmachine -n org-tuist -l cluster.x-k8s.io/cluster-name=tuist-$CLUSTER
+          kubectl get hetznerbaremetalhost -n org-tuist
+          exit 1
