@@ -130,23 +130,25 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, err
 	}
 
-	// Pod already moved to a terminal phase (we marked it Succeeded
-	// after the VM exited, or someone else marked it Failed). Do
-	// nothing here: re-running createPod would clone+boot a fresh
-	// VM for a Pod the workload controller is about to garbage-
-	// collect, and the watcher needs the Pod to stay in the
-	// terminal phase long enough to observe the transition. The
-	// finalizer comes off via the DeletionTimestamp branch below
-	// when the controller eventually deletes the Pod.
-	if pod.Status.Phase == corev1.PodSucceeded || pod.Status.Phase == corev1.PodFailed {
-		return ctrl.Result{}, nil
-	}
-
 	if !pod.DeletionTimestamp.IsZero() {
 		// Pod is being deleted. Run VM teardown, then drop our
 		// finalizer and force-complete the API object deletion. Order
 		// matters: the Pod must not disappear from kubectl's view
 		// while the VM is still running on the host.
+		//
+		// This branch must run BEFORE the terminal-phase early-return
+		// below: when a Pod's VM exits cleanly we publish
+		// Phase=Succeeded, and shortly after the owning controller
+		// issues a Delete on it. Both conditions (terminal phase AND
+		// DeletionTimestamp set) hold simultaneously from that moment
+		// on. If the terminal-phase check ran first, the reconciler
+		// would short-circuit and never remove the finalizer — Pods
+		// would sit forever in `Terminating` with the finalizer
+		// holding them open and the runners-controller's reap path
+		// (which correctly skips Pods that already have a
+		// DeletionTimestamp) unable to do anything about it. We
+		// shipped exactly that bug for several days; the fix is the
+		// ordering you see here.
 		if err := r.deletePod(ctx, pod); err != nil {
 			logger.Error(err, "delete failed; will retry")
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
@@ -158,6 +160,18 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			logger.Error(err, "complete pod deletion; will retry")
 			return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 		}
+		return ctrl.Result{}, nil
+	}
+
+	// Pod already moved to a terminal phase (we marked it Succeeded
+	// after the VM exited, or someone else marked it Failed). Do
+	// nothing here: re-running createPod would clone+boot a fresh
+	// VM for a Pod the workload controller is about to garbage-
+	// collect, and the watcher needs the Pod to stay in the
+	// terminal phase long enough to observe the transition. Finalizer
+	// removal happens via the DeletionTimestamp branch above the
+	// moment the owning controller issues a Delete on the Pod.
+	if pod.Status.Phase == corev1.PodSucceeded || pod.Status.Phase == corev1.PodFailed {
 		return ctrl.Result{}, nil
 	}
 
