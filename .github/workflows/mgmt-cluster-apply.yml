@@ -320,15 +320,17 @@ jobs:
           CLUSTER: ${{ github.event.inputs.dump_cloud_init }}
         run: |
           set -euo pipefail
-          hbmm=$(kubectl get hetznerbaremetalmachine -n org-tuist \
-            -l cluster.x-k8s.io/cluster-name=tuist-$CLUSTER \
+          # Pick HBM directly by managed-by label (avoids the two-
+          # HBMMs-one-bound corner case the force-roll step also
+          # had to work around).
+          hbm=$(kubectl get hetznerbaremetalhost -n org-tuist \
+            -l app.kubernetes.io/managed-by=hetzner-robot-controller \
             -o jsonpath='{.items[0].metadata.name}' || true)
-          if [ -z "$hbmm" ]; then
-            echo "::error::No HetznerBareMetalMachine for cluster tuist-$CLUSTER"
+          if [ -z "$hbm" ]; then
+            echo "::error::No managed HetznerBareMetalHost in cluster"
+            kubectl get hetznerbaremetalhost -n org-tuist
             exit 1
           fi
-          hbm=$(kubectl get hetznerbaremetalhost -n org-tuist \
-            -o jsonpath='{.items[?(@.spec.consumerRef.name=="'"$hbmm"'")].metadata.name}' || true)
           ip=$(kubectl get hetznerbaremetalhost -n org-tuist "$hbm" \
             -o jsonpath='{.spec.status.ipv4}')
           if [ -z "$ip" ]; then
