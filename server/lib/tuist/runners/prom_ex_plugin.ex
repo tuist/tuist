@@ -33,7 +33,7 @@ defmodule Tuist.Runners.PromExPlugin do
 
   use PromEx.Plugin
 
-  import Ecto.Query, only: [from: 2]
+  import Ecto.Query, only: [from: 2, subquery: 1]
 
   alias Tuist.ClickHouseRepo
   alias Tuist.Environment
@@ -267,16 +267,40 @@ defmodule Tuist.Runners.PromExPlugin do
     end
   end
 
+  # Avoid `FINAL` — at scale it forces ClickHouse to merge across
+  # every part of `runner_jobs` on every 30s poll. Instead, collapse
+  # per workflow_job via `argMax(updated_at)` in a subquery, then
+  # filter the *current* state to `queued` and group by fleet.
+  #
+  # The `enqueued_at >= cutoff` prunes partitions (the table is
+  # `PARTITION BY toYYYYMM(enqueued_at)` and every state-transition
+  # INSERT carries the original `enqueued_at` forward, so all rows
+  # for a workflow_job live in the same partition). Seven days is
+  # well past any realistic queue lifetime — GitHub's own queue
+  # timeout is ~24h — so any row still queued beyond the cutoff is
+  # a system-wide outage where a slightly low gauge is the least
+  # of our problems.
+  @queue_lookback_days 7
+
   defp fetch_queue_counts do
-    query =
+    cutoff = DateTime.add(DateTime.utc_now(), -@queue_lookback_days, :day)
+
+    latest =
       from(j in Job,
-        hints: ["FINAL"],
-        where: j.status == "queued",
-        group_by: j.fleet_name,
-        select: {j.fleet_name, count(j.workflow_job_id)}
+        where: j.enqueued_at >= ^cutoff,
+        group_by: j.workflow_job_id,
+        select: %{
+          workflow_job_id: j.workflow_job_id,
+          fleet_name: fragment("argMax(?, ?)", j.fleet_name, j.updated_at),
+          status: fragment("argMax(?, ?)", j.status, j.updated_at)
+        }
       )
 
-    query
+    from(s in subquery(latest),
+      where: s.status == "queued",
+      group_by: s.fleet_name,
+      select: {s.fleet_name, count(s.workflow_job_id)}
+    )
     |> ClickHouseRepo.all()
     |> Map.new(fn {fleet, count} -> {fleet || "", count} end)
   end
