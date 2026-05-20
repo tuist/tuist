@@ -11,9 +11,6 @@ import XcodeGraph
 /// 1. Configures the target as an aggregate (adds the build script phase)
 /// 2. For each consuming target that depends on this foreign build target (via `.target(name:)` or `.project(target:path:)`),
 ///    inserts a `foreignBuildOutput` graph dependency for linking
-/// 3. When the consumer lives in a different project than the foreign build aggregate, attaches a copy of
-///    the build script directly to the consumer. Xcode does not run scripts from aggregate targets in other
-///    projects via implicit dependency resolution, so without this the consumer would link a stale artifact.
 ///
 /// Side effects (running the foreign build script) are handled separately by `ForeignBuildSideEffectGraphMapper`,
 /// which runs after cache and tree-shaking mappers so that cached/pruned targets don't trigger unnecessary builds.
@@ -30,7 +27,7 @@ public struct ForeignBuildGraphMapper: GraphMapping {
     ) async throws -> (Graph, [SideEffectDescriptor], MapperEnvironment) {
         var graph = graph
 
-        var foreignBuildTargets = [GraphDependency: ResolvedForeignBuild]()
+        var foreignBuildTargets = [GraphDependency: (name: String, info: ForeignBuild)]()
 
         for (projectPath, project) in graph.projects {
             var updatedProject = project
@@ -57,12 +54,7 @@ public struct ForeignBuildGraphMapper: GraphMapping {
                 updatedProject.targets[targetName] = updatedTarget
 
                 let graphDep = GraphDependency.target(name: targetName, path: projectPath)
-                foreignBuildTargets[graphDep] = ResolvedForeignBuild(
-                    name: targetName,
-                    projectPath: projectPath,
-                    info: foreignBuild,
-                    resolvedInputPaths: inputPaths
-                )
+                foreignBuildTargets[graphDep] = (name: targetName, info: foreignBuild)
                 if graph.dependencies[graphDep] == nil {
                     graph.dependencies[graphDep] = Set()
                 }
@@ -73,58 +65,19 @@ public struct ForeignBuildGraphMapper: GraphMapping {
 
         for (consumer, deps) in graph.dependencies {
             for dep in deps {
-                guard let resolved = foreignBuildTargets[dep] else { continue }
+                guard let (name, foreignBuild) = foreignBuildTargets[dep] else { continue }
                 let foreignBuildOutputDep = GraphDependency.foreignBuildOutput(
                     GraphDependency.ForeignBuildOutput(
-                        name: resolved.name,
-                        path: resolved.info.output.path,
-                        linking: resolved.info.output.linking
+                        name: name,
+                        path: foreignBuild.output.path,
+                        linking: foreignBuild.output.linking
                     )
                 )
                 graph.dependencies[consumer, default: Set()].insert(foreignBuildOutputDep)
-
-                guard case let .target(consumerName, consumerPath, _) = consumer,
-                      consumerPath != resolved.projectPath,
-                      let consumerProject = graph.projects[consumerPath],
-                      let consumerTarget = consumerProject.targets[consumerName],
-                      consumerTarget.foreignBuild == nil
-                else { continue }
-
-                let scriptName = "Foreign Build: \(resolved.name)"
-                if consumerTarget.scripts.contains(where: { $0.name == scriptName }) { continue }
-
-                let wrappedScript = """
-                export SRCROOT=\(resolved.projectPath.pathString)
-                cd "$SRCROOT"
-                \(resolved.info.script)
-                """
-                var updatedTarget = consumerTarget
-                updatedTarget.scripts.insert(
-                    TargetScript(
-                        name: scriptName,
-                        order: .pre,
-                        script: .embedded(wrappedScript),
-                        inputPaths: resolved.resolvedInputPaths,
-                        outputPaths: [resolved.info.output.path.pathString],
-                        showEnvVarsInLog: false,
-                        basedOnDependencyAnalysis: resolved.resolvedInputPaths.isEmpty ? false : nil
-                    ),
-                    at: 0
-                )
-                var updatedProject = consumerProject
-                updatedProject.targets[consumerName] = updatedTarget
-                graph.projects[consumerPath] = updatedProject
             }
         }
 
         return (graph, [], environment)
-    }
-
-    private struct ResolvedForeignBuild {
-        let name: String
-        let projectPath: AbsolutePath
-        let info: ForeignBuild
-        let resolvedInputPaths: [String]
     }
 
     private func inputPaths(from inputs: [ForeignBuild.Input], targetName: String) async throws -> [String] {
