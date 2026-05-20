@@ -268,6 +268,85 @@ defmodule Tuist.Runners.Analytics do
   end
 
   @doc """
+  Combined Total / Successful / Failed job counts over the window,
+  one query per line so the Jobs page can render the breakdown as
+  three series on a single chart without three round trips. Each
+  line carries its own trend so the widget can label the dominant
+  one.
+  """
+  def jobs_breakdown(account_id, opts \\ []) when is_integer(account_id) do
+    {start_dt, end_dt} = window(opts)
+    {prev_start_dt, prev_end_dt} = previous_window(start_dt, end_dt)
+
+    current = breakdown_totals(account_id, start_dt, end_dt, opts)
+    previous = breakdown_totals(account_id, prev_start_dt, prev_end_dt, opts)
+    rows = breakdown_per_day(account_id, start_dt, end_dt, opts)
+    filled = fill_breakdown_dates(rows, start_dt, end_dt)
+
+    %{
+      total: current.total,
+      successful: current.successful,
+      failed: current.failed,
+      trend_total: trend(previous.total, current.total),
+      trend_successful: trend(previous.successful, current.successful),
+      trend_failed: trend(previous.failed, current.failed),
+      dates: Enum.map(filled, & &1.date),
+      total_values: Enum.map(filled, & &1.total),
+      successful_values: Enum.map(filled, & &1.successful),
+      failed_values: Enum.map(filled, & &1.failed)
+    }
+  end
+
+  defp breakdown_totals(account_id, start_dt, end_dt, opts) do
+    [aggregates | _] =
+      Job
+      |> from(hints: ["FINAL"])
+      |> where([j], j.account_id == ^account_id and j.enqueued_at >= ^start_dt and j.enqueued_at <= ^end_dt)
+      |> scope_workflow(opts)
+      |> select([j], %{
+        total: count(j.workflow_job_id),
+        successful: fragment("countIf(? = 'completed' AND ? = 'success')", j.status, j.conclusion),
+        failed: fragment("countIf(? = 'completed' AND ? = 'failure')", j.status, j.conclusion)
+      })
+      |> ClickHouseRepo.all()
+      |> default_empty(%{total: 0, successful: 0, failed: 0})
+
+    aggregates
+  end
+
+  defp breakdown_per_day(account_id, start_dt, end_dt, opts) do
+    Job
+    |> from(hints: ["FINAL"])
+    |> where([j], j.account_id == ^account_id and j.enqueued_at >= ^start_dt and j.enqueued_at <= ^end_dt)
+    |> scope_workflow(opts)
+    |> group_by([j], fragment("toDate(?)", j.enqueued_at))
+    |> select([j], %{
+      date: fragment("toDate(?)", j.enqueued_at),
+      total: count(j.workflow_job_id),
+      successful: fragment("countIf(? = 'completed' AND ? = 'success')", j.status, j.conclusion),
+      failed: fragment("countIf(? = 'completed' AND ? = 'failure')", j.status, j.conclusion)
+    })
+    |> order_by([j], asc: fragment("toDate(?)", j.enqueued_at))
+    |> ClickHouseRepo.all()
+  end
+
+  defp fill_breakdown_dates(rows, start_dt, end_dt) do
+    by_date =
+      Map.new(rows, fn row ->
+        {row.date, %{total: row.total, successful: row.successful, failed: row.failed}}
+      end)
+
+    empty = %{total: 0, successful: 0, failed: 0}
+
+    start_dt
+    |> daily_range(end_dt)
+    |> Enum.map(fn date ->
+      values = Map.get(by_date, date, empty)
+      Map.put(values, :date, date)
+    end)
+  end
+
+  @doc """
   Per-job queue-time aggregates over the window: avg, p50, p90, p99
   plus a daily series for each percentile. "Queue time" is the wall-
   clock gap between `enqueued_at` and `claimed_at` — how long a

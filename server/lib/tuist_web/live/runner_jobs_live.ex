@@ -6,6 +6,7 @@ defmodule TuistWeb.RunnerJobsLive do
   import Noora.Filter
   import TuistWeb.Components.EmptyCardSection
   import TuistWeb.Components.Skeleton
+  import TuistWeb.PercentileDropdownWidget
   import TuistWeb.Widget
 
   alias Noora.Filter
@@ -37,7 +38,9 @@ defmodule TuistWeb.RunnerJobsLive do
      )
      |> assign(:available_filters, available_filters())
      |> assign(:repos, Jobs.distinct_repos_for_account(selected_account.id))
-     |> assign(:analytics_selected_widget, "cumulative_minutes")}
+     |> assign(:analytics_selected_widget, "jobs")
+     |> assign(:queue_time_percentile, "avg")
+     |> assign(:job_duration_percentile, "avg")}
   end
 
   @impl true
@@ -71,13 +74,14 @@ defmodule TuistWeb.RunnerJobsLive do
 
     assign_async(
       socket,
-      [:jobs_count, :failed_jobs_count, :cumulative_minutes, :live_status_counts],
+      [:jobs_breakdown, :cumulative_minutes, :queue_time, :jobs_duration, :live_status_counts],
       fn ->
         {:ok,
          %{
-           jobs_count: Analytics.jobs_count(account.id, scope_opts),
-           failed_jobs_count: Analytics.failed_jobs_count(account.id, scope_opts),
+           jobs_breakdown: Analytics.jobs_breakdown(account.id, scope_opts),
            cumulative_minutes: Analytics.cumulative_minutes(account.id, scope_opts),
+           queue_time: Analytics.queue_time(account.id, scope_opts),
+           jobs_duration: Analytics.jobs_duration(account.id, scope_opts),
            live_status_counts: Jobs.status_counts(account.id)
          }}
       end
@@ -107,6 +111,14 @@ defmodule TuistWeb.RunnerJobsLive do
   @impl true
   def handle_event("select_widget", %{"widget" => widget}, socket) do
     {:noreply, assign(socket, :analytics_selected_widget, widget)}
+  end
+
+  def handle_event("select_queue_time_percentile", %{"type" => type}, socket) do
+    {:noreply, assign(socket, :queue_time_percentile, type)}
+  end
+
+  def handle_event("select_job_duration_percentile", %{"type" => type}, socket) do
+    {:noreply, assign(socket, :job_duration_percentile, type)}
   end
 
   def handle_event("add_filter", %{"value" => filter_id}, socket) do
@@ -344,6 +356,78 @@ defmodule TuistWeb.RunnerJobsLive do
 
   def repository_label("any"), do: dgettext("dashboard_runners", "Any")
   def repository_label(repo) when is_binary(repo), do: repo
+
+  @doc """
+  Builds the three-series array (Total / Successful / Failed) for
+  the Jobs widget chart. Order is intentional: Total renders on top
+  in the legend, then the two outcome breakdowns sorted as
+  success-then-failure to match the existing recent-jobs legend
+  pairing on the runners overview.
+  """
+  def jobs_breakdown_chart_series(stats) do
+    [
+      breakdown_series(stats, "Total", "secondary", :total_values),
+      breakdown_series(stats, "Successful", "primary", :successful_values),
+      breakdown_series(stats, "Failed", "destructive", :failed_values)
+    ]
+  end
+
+  defp breakdown_series(stats, name, color_key, values_key) do
+    %{
+      color: "var:noora-chart-#{color_key}",
+      data:
+        stats.dates
+        |> Enum.zip(Map.get(stats, values_key, []))
+        |> Enum.map(&Tuple.to_list/1),
+      name: name,
+      type: "line",
+      smooth: 0.1,
+      symbol: "none"
+    }
+  end
+
+  @doc """
+  echarts `extra_options` for the three-series Jobs breakdown chart.
+  Adds a legend below the plot mirroring the duration chart on the
+  runners overview so all multi-series charts read the same way.
+  """
+  def breakdown_chart_options(dates) do
+    %{
+      legend: %{
+        left: "left",
+        top: "bottom",
+        orient: "horizontal",
+        textStyle: %{
+          color: "var:noora-surface-label-secondary",
+          fontFamily: "monospace",
+          fontWeight: 400,
+          fontSize: 10,
+          lineHeight: 12
+        },
+        icon:
+          "path://M0 6C0 4.89543 0.895431 4 2 4H6C7.10457 4 8 4.89543 8 6C8 7.10457 7.10457 8 6 8H2C0.895431 8 0 7.10457 0 6Z",
+        itemWidth: 8,
+        itemHeight: 4
+      },
+      grid: %{width: "97%", left: "0.4%", height: "60%", top: "10%"},
+      xAxis: %{
+        boundaryGap: false,
+        type: "category",
+        axisLabel: %{
+          color: "var:noora-surface-label-secondary",
+          formatter: "fn:toLocaleDate",
+          customValues: [List.first(dates), List.last(dates)],
+          padding: [10, 0, 0, 0]
+        }
+      },
+      yAxis: %{
+        splitNumber: 4,
+        splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
+        axisLabel: %{color: "var:noora-surface-label-secondary"}
+      },
+      tooltip: %{}
+    }
+  end
 
   def count_chart_options(dates) do
     %{
