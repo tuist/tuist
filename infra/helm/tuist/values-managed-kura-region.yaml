@@ -30,7 +30,9 @@ kuraController:
     zoneName: tuist.dev
     apiTokenSecret:
       managed: true
-      item: cloudflare-tuist-dns
+      # Use the stable 1Password item ID so CI and ESO do not break if
+      # duplicate items share the same human-readable title.
+      item: 5eqouhc6gmfqrsg7owxpddrlfq
   sharedSecrets:
     # In managed regions, kura-shared-secrets is populated by CI from
     # the same secret store as the Tuist server release.

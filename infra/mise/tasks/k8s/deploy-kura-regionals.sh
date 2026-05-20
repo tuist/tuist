@@ -14,12 +14,13 @@ REPO_ROOT="$(git rev-parse --show-toplevel)"
 HELM_CHART_PATH="$REPO_ROOT/infra/helm/tuist"
 HELM_RELEASE_NAME="tuist"
 KUBECONFIG_DIR="${RUNNER_TEMP:-${TMPDIR:-/tmp}}/kura-kubeconfigs"
+CLOUDFLARE_TOKEN_ITEM_ID="${CLOUDFLARE_TOKEN_ITEM_ID:-5eqouhc6gmfqrsg7owxpddrlfq}"
 
 mkdir -p "$KUBECONFIG_DIR"
 trap 'rm -rf "$KUBECONFIG_DIR"' EXIT
 
 if [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
-  CLOUDFLARE_API_TOKEN="$(op read "op://tuist-k8s-production/cloudflare-tuist-dns/credential")"
+  CLOUDFLARE_API_TOKEN="$(op read "op://tuist-k8s-production/${CLOUDFLARE_TOKEN_ITEM_ID}/credential")"
 fi
 export CLOUDFLARE_API_TOKEN
 
