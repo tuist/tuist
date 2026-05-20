@@ -20,6 +20,7 @@ on:
       - server/pnpm-lock.yaml
       - noora/aube-lock.yaml
   merge_group: {}
+  workflow_dispatch: {}
 
 permissions:
   contents: read
