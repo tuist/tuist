@@ -2,7 +2,7 @@ defmodule TuistWeb.Webhooks.GitHubController do
   use TuistWeb, :controller
 
   alias Tuist.Environment
-  alias Tuist.Runners.Dispatch
+  alias Tuist.Runners.Workers.DispatchWorker
   alias Tuist.VCS
 
   require Logger
@@ -208,6 +208,24 @@ defmodule TuistWeb.Webhooks.GitHubController do
     end
   end
 
+  # Hand off to the `:webhooks` Oban queue and acknowledge to
+  # GitHub immediately. The synchronous variant of this handler
+  # (account lookup + K8s LIST + ClickHouse INSERT inside the
+  # request) caused the 2026-05-19 incident: every webhook held
+  # a Phoenix worker for the full 10 s GitHub timeout while
+  # downstream stalled, so the HTTP body-read pool saturated and
+  # the ingress started 5xx-ing.
+  #
+  # Failure modes after this change:
+  #
+  #   * Payload missing `installation.id` → 200 OK, no enqueue.
+  #     GitHub won't redeliver and there's nothing to dispatch
+  #     against — same shape as the previous `:ignored` branch.
+  #   * `Oban.insert/1` returns `{:error, _}` → 503 so GitHub
+  #     retries. Only triggers if PG is unreachable, which
+  #     would have us 503-ing anyway.
+  #   * Worker errors → Oban retries with backoff up to
+  #     `max_attempts`. The HTTP layer is done.
   defp handle_workflow_job(conn, params) do
     installation_id =
       case params do
@@ -215,35 +233,41 @@ defmodule TuistWeb.Webhooks.GitHubController do
         _ -> nil
       end
 
-    result =
-      if installation_id do
-        Dispatch.handle_webhook(params, installation_id)
-      else
-        :ignored
+    # Real GitHub deliveries always carry `X-GitHub-Delivery`; the
+    # fallback is for tests / handcrafted requests so the `unique`
+    # constraint on the worker doesn't collapse every guid-less
+    # job into one.
+    delivery_guid =
+      conn
+      |> get_req_header("x-github-delivery")
+      |> List.first()
+      |> case do
+        nil -> Ecto.UUID.generate()
+        guid -> guid
       end
 
-    case result do
-      # `:ok` shapes (`:queued` / `:completed`) and `:ignored`
-      # (a job we deliberately don't handle: no account match,
-      # cap=0, no matching pool, ambiguous pool) are terminal
-      # and return 200 so GitHub doesn't replay them. GitHub
-      # will not redeliver a `queued` event for the same job
-      # — the queue lives on its side until a runner claims it
-      # — so a permanent decision has to land here, not later.
-      {:ok, _} ->
-        conn |> put_status(:ok) |> json(%{status: "ok"})
+    if installation_id do
+      enqueue_dispatch(conn, params, installation_id, delivery_guid)
+    else
+      conn |> put_status(:ok) |> json(%{status: "ok"})
+    end
+  end
 
-      :ignored ->
+  defp enqueue_dispatch(conn, params, installation_id, delivery_guid) do
+    args = %{
+      "payload" => params,
+      "installation_id" => installation_id,
+      "delivery_guid" => delivery_guid
+    }
+
+    case args |> DispatchWorker.new() |> Oban.insert() do
+      {:ok, _job} ->
         conn |> put_status(:ok) |> json(%{status: "ok"})
 
       {:error, reason} ->
-        # Transient failure — e.g. the K8s LIST for RunnerPools
-        # raced a deploy, the ClickHouse INSERT timed out, or
-        # the account lookup blew up. Return 5xx so GitHub
-        # retries with backoff; without that, the job stays
-        # queued in GitHub indefinitely and no warm runner can
-        # claim it (our CH queue never got the row).
-        Logger.warning("runners: webhook returning 503 for retry", reason: inspect(reason))
+        Logger.warning("runners: failed to enqueue dispatch worker; returning 503",
+          reason: inspect(reason)
+        )
 
         conn
         |> put_status(:service_unavailable)

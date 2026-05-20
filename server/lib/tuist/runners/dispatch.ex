@@ -34,12 +34,23 @@ defmodule Tuist.Runners.Dispatch do
 
   alias Tuist.Accounts
   alias Tuist.Environment
+  alias Tuist.KeyValueStore
   alias Tuist.Kubernetes.Client
   alias Tuist.Runners.Claims
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.Telemetry
 
   require Logger
+
+  # RunnerPool CRs change only on operator action (helm upgrade). At
+  # 0.14 req/sec webhook traffic, 30 s of caching cuts K8s LIST load
+  # to ~2/min while keeping post-deploy propagation under a minute.
+  @pools_cache_ttl_ms 30_000
+
+  # Per-account row is touched only by the rare path that flips
+  # `runner_max_concurrent`. The hard cap is re-enforced in PG inside
+  # `Claims.attempt/4`, so a stale cached value can't overcommit.
+  @account_cache_ttl_ms 60_000
 
   @doc """
   Handle a `workflow_job` webhook payload. Branches on `action`.
@@ -66,7 +77,12 @@ defmodule Tuist.Runners.Dispatch do
     )
   end
 
+  # Each ignore branch carries its own reason so `tuist_runners_webhook_count_total`
+  # can distinguish "K8s LIST timed out" (infra) from "user's runs-on doesn't match"
+  # (user-config) from "account has runners disabled" (paywall). The previous flat
+  # `outcome="ignored"` made a real apiserver outage look identical to a typo.
   defp webhook_outcome({:ok, kind}), do: Atom.to_string(kind)
+  defp webhook_outcome({:ignored, reason}) when is_atom(reason), do: Atom.to_string(reason)
   defp webhook_outcome(:ignored), do: "ignored"
   defp webhook_outcome({:error, reason}) when is_atom(reason), do: Atom.to_string(reason)
   defp webhook_outcome(_), do: "unknown"
@@ -91,7 +107,7 @@ defmodule Tuist.Runners.Dispatch do
       {:ok, :queued}
     else
       {:error, :no_account} ->
-        :ignored
+        {:ignored, :no_account}
 
       {:error, :runners_disabled} ->
         Logger.info("runners: account has runners disabled (max_concurrent=0); ignoring",
@@ -99,27 +115,27 @@ defmodule Tuist.Runners.Dispatch do
           repo: full_name
         )
 
-        :ignored
+        {:ignored, :runners_disabled}
 
       {:error, :no_matching_pool} ->
         # The workflow_job's labels don't match any pool's
         # `spec.dispatchLabel`. Could be a different runner
         # provider in the same org, or a typo in `runs-on` —
         # either way, not ours to handle.
-        :ignored
+        {:ignored, :no_matching_pool}
 
       {:error, :no_pools} ->
         Logger.error("runners: no RunnerPool CRs in cluster; ignoring", repo: full_name)
-        :ignored
+        {:ignored, :no_pools}
 
       {:error, :ambiguous_pool} ->
         # The chart's render-time check failed and two pools claim
-        # the same dispatchLabel. Surface as `:ignored` so the
-        # webhook handler still returns 200 (GitHub won't retry
-        # for us — fixing the chart is the operator action),
-        # but the loud Logger.error inside `match_pool/1` gives
-        # ops something to alert on.
-        :ignored
+        # the same dispatchLabel. Surface as ignored so the webhook
+        # handler still returns 200 (GitHub won't retry for us —
+        # fixing the chart is the operator action), but the loud
+        # Logger.error inside `match_pool/1` gives ops something
+        # to alert on.
+        {:ignored, :ambiguous_pool}
 
       {:error, reason} = err ->
         Logger.warning("runners: enqueue failed: #{inspect(reason)}", repo: full_name)
@@ -195,7 +211,7 @@ defmodule Tuist.Runners.Dispatch do
   def match_pool(requested_labels) when is_list(requested_labels) do
     needle_set = MapSet.new(requested_labels, &String.downcase/1)
 
-    case Client.list_runner_pools(namespace()) do
+    case list_runner_pools_cached() do
       {:ok, []} ->
         {:error, :no_pools}
 
@@ -253,7 +269,7 @@ defmodule Tuist.Runners.Dispatch do
   end
 
   defp fetch_enabled_account(owner) when is_binary(owner) and owner != "" do
-    case Accounts.get_account_by_handle(owner) do
+    case get_account_by_handle_cached(owner) do
       nil ->
         {:error, :no_account}
 
@@ -269,6 +285,53 @@ defmodule Tuist.Runners.Dispatch do
   end
 
   defp fetch_enabled_account(_), do: {:error, :no_account}
+
+  # We deliberately do NOT cache `{:error, _}` returns from the K8s
+  # client. A transient apiserver hiccup should retry on the next
+  # webhook, not pin every dispatch attempt to the same error for
+  # 30 s. The successful `{:ok, items}` shape is the only one that
+  # gets memoised.
+  defp list_runner_pools_cached do
+    cache_key = [__MODULE__, :pools, namespace()]
+
+    case KeyValueStore.get(cache_key) do
+      nil ->
+        case Client.list_runner_pools(namespace()) do
+          {:ok, _items} = ok ->
+            KeyValueStore.put(cache_key, ok, ttl: @pools_cache_ttl_ms)
+            ok
+
+          error ->
+            error
+        end
+
+      cached ->
+        cached
+    end
+  end
+
+  # We deliberately cache successful lookups only. A `nil` lookup
+  # (unknown org login) is rare and re-querying PG keeps the cache
+  # API simple — `KeyValueStore.get/1` can't distinguish "cached nil"
+  # from "no entry," so caching nil would need a sentinel layer.
+  defp get_account_by_handle_cached(owner) do
+    cache_key = [__MODULE__, :account, owner]
+
+    case KeyValueStore.get(cache_key) do
+      nil ->
+        case Accounts.get_account_by_handle(owner) do
+          nil ->
+            nil
+
+          account ->
+            KeyValueStore.put(cache_key, account, ttl: @account_cache_ttl_ms)
+            account
+        end
+
+      cached ->
+        cached
+    end
+  end
 
   defp pool_summary(%{"metadata" => %{"name" => name}, "spec" => %{"dispatchLabel" => label}})
        when is_binary(name) and is_binary(label) and label != "" do
