@@ -289,7 +289,7 @@ jobs:
         run: ./mise/tasks/security.sh
   docker_build:
     name: Docker build
-    runs-on: namespace-profile-default-with-volume
+    runs-on: tuist-staging-linux
     timeout-minutes: 15
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     steps:
@@ -297,7 +297,7 @@ jobs:
         with:
           submodules: false
       - name: Set up Docker Buildx
-        uses: namespacelabs/nscloud-setup-buildx-action@v0
+        uses: docker/setup-buildx-action@v3
       - name: Docker build
         uses: docker/build-push-action@v6
         with:
