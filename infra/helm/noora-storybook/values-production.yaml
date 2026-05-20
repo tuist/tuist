@@ -1,0 +1,23 @@
+global:
+  commonLabels:
+    tuist.dev/service: noora-storybook
+    tuist.dev/stack: managed
+
+ingress:
+  enabled: true
+  className: nginx
+  host: storybook.noora.tuist.dev
+  tlsSecretName: noora-storybook-tls
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-cloudflare
+
+resources:
+  requests:
+    cpu: "100m"
+    memory: "256Mi"
+  limits:
+    cpu: "500m"
+    memory: "512Mi"
+
+nodeSelector:
+  node.cluster.x-k8s.io/pool: general

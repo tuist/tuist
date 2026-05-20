@@ -68,6 +68,7 @@ jobs:
         run: |
           set -uo pipefail
           charts=(
+            infra/helm/noora-storybook
             infra/helm/tuist
             infra/helm/k8s-monitoring
             infra/helm/platform
@@ -80,7 +81,14 @@ jobs:
             if grep -q "^dependencies:" "$chart/Chart.yaml"; then
               helm dependency update "$chart"
             fi
-            if ! helm lint "$chart"; then
+            args=()
+            case "$chart" in
+              infra/helm/noora-storybook)
+                args+=("-f" "$chart/values-production.yaml")
+                args+=("--set" "image.tag=validation")
+                ;;
+            esac
+            if ! helm lint "$chart" "${args[@]}"; then
               failed+=("$chart")
             fi
             echo "::endgroup::"
@@ -124,6 +132,7 @@ jobs:
         run: |
           set -uo pipefail
           configs=(
+            "noora-storybook (production)|infra/helm/noora-storybook|noora-storybook|values-production.yaml"
             "tuist (production)|infra/helm/tuist|tuist|values-managed-common.yaml values-managed-production.yaml"
             "k8s-monitoring (production)|infra/helm/k8s-monitoring|k8s-monitoring|values-production.yaml"
             "platform (hetzner)|infra/helm/platform|platform|values-hetzner.yaml"
@@ -143,10 +152,12 @@ jobs:
             # them via the per-environment helm upgrade. We need a value here
             # so templates that `fail` on an empty tag still render, without
             # changing the production guard.
+            if [ "$name" = "noora-storybook (production)" ]; then
+              args+=("--set" "image.tag=validation")
+            fi
             if [ "$name" = "tuist (production)" ]; then
               args+=("--set" "kuraController.image.tag=validation")
               args+=("--set" "kuraRuntime.image.tag=validation")
-              args+=("--set" "nooraStorybook.image.tag=validation")
             fi
             if ! helm template "$release" "$chart" "${args[@]}" > rendered.yaml; then
               failed+=("$name (template)")
