@@ -20,13 +20,6 @@
 // `*GitHubAppResolver`. Adding a PAT-based, GitLab Runner, or
 // Forgejo equivalent is a new struct that implements the same
 // interface, with no edits to the Machine controller.
-//
-// For the macOS-runners-as-a-service direction the same shape
-// extends per-customer: a multi-tenant resolver looks the
-// installation ID up from the Machine's owner / namespace, mints
-// a token against that customer's GitHub App installation, and
-// returns it. The Machine reconciler still doesn't know it's
-// happening.
 package runner
 
 import (
