@@ -73,3 +73,20 @@ spec:
           metadata:
             labels:
               node.cluster.x-k8s.io/pool: runners-linux
+              # Tell the cloud-provider service controller to skip
+              # these Nodes when building Hetzner LoadBalancer target
+              # lists. Two reasons:
+              #   1. They're not hcloud VMs — they have no
+              #      `providerID: hcloud://<int>` HCCM can parse. A
+              #      stale install once left a Node with
+              #      `hcloud://nocloud` and HCCM aborted the entire
+              #      Service reconcile on that one bad target,
+              #      bringing the ingress LB down with it.
+              #   2. Even with a correct `hcloud://bm-<n>` providerID,
+              #      bare-metal hosts run runner Pods only — routing
+              #      ingress traffic through them just bounces it
+              #      back into the cluster network.
+              # The label is honored by the upstream Kubernetes
+              # cloud-provider library (see `nodeIncluded()` in
+              # `cloud-provider/controllers/service`).
+              node.kubernetes.io/exclude-from-external-load-balancers: ""
