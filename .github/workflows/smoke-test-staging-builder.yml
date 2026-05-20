@@ -7,7 +7,15 @@ name: Smoke Test Staging Builder
 # Removed after the PR merges and the runner setup is documented.
 
 on:
-  workflow_dispatch:
+  # Auto-runs on every push to this branch that touches the workflow
+  # file itself, since `workflow_dispatch` requires the workflow file
+  # to already exist on the default branch (it doesn't) and we don't
+  # want to commit a throwaway smoke job to main just to dispatch it.
+  push:
+    branches:
+      - claude/gallant-mestorf-f3ab92
+    paths:
+      - .github/workflows/smoke-test-staging-builder.yml
 
 permissions:
   contents: read
