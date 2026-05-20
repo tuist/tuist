@@ -726,6 +726,99 @@ defmodule Tuist.Runners.Analytics do
     |> ClickHouseRepo.all()
   end
 
+  @scatter_data_limit 10_000
+
+  @doc """
+  Returns one point per completed workflow_job for the scatter
+  view of the Job duration chart. Each point carries the
+  completed_at as the x value (ms since epoch) and the runtime in
+  seconds as the y value. Results are capped at #{@scatter_data_limit}
+  and grouped into a single series so the same Noora `scatter_chart`
+  component the builds page already uses can render them.
+  """
+  def job_duration_scatter(account_id, opts \\ []) when is_integer(account_id) do
+    {start_dt, end_dt} = window(opts)
+
+    rows =
+      Job
+      |> from(hints: ["FINAL"])
+      |> completed_in_window(account_id, start_dt, end_dt)
+      |> scope_workflow(opts)
+      |> select([j], %{
+        id: j.workflow_job_id,
+        completed_at: j.completed_at,
+        duration_ms:
+          fragment(
+            "toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?)",
+            j.completed_at,
+            j.started_at
+          ),
+        conclusion: j.conclusion
+      })
+      |> order_by([j], desc: j.completed_at)
+      |> limit(@scatter_data_limit)
+      |> ClickHouseRepo.all()
+
+    points_to_scatter_payload(rows)
+  end
+
+  @doc """
+  Same shape as `job_duration_scatter/2` but for the queue-time
+  chart — x = `claimed_at`, y = `(claimed_at - enqueued_at) / 1000`.
+  """
+  def queue_time_scatter(account_id, opts \\ []) when is_integer(account_id) do
+    {start_dt, end_dt} = window(opts)
+
+    rows =
+      Job
+      |> from(hints: ["FINAL"])
+      |> claimed_in_window(account_id, start_dt, end_dt)
+      |> scope_workflow(opts)
+      |> select([j], %{
+        id: j.workflow_job_id,
+        completed_at: j.claimed_at,
+        duration_ms:
+          fragment(
+            "toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?)",
+            j.claimed_at,
+            j.enqueued_at
+          ),
+        conclusion: j.conclusion
+      })
+      |> order_by([j], desc: j.claimed_at)
+      |> limit(@scatter_data_limit)
+      |> ClickHouseRepo.all()
+
+    points_to_scatter_payload(rows)
+  end
+
+  defp points_to_scatter_payload(rows) do
+    truncated = length(rows) >= @scatter_data_limit
+    oldest_entry = if truncated, do: rows |> List.last() |> Map.get(:completed_at)
+
+    data =
+      Enum.map(rows, fn row ->
+        ts = DateTime.to_unix(row.completed_at, :millisecond)
+        seconds = Float.round(row.duration_ms / 1000, 1)
+
+        %{
+          value: [ts, seconds],
+          id: row.id,
+          meta: %{conclusion: row.conclusion}
+        }
+      end)
+
+    %{
+      series: [%{name: "duration", data: data}],
+      truncated: truncated,
+      oldest_entry: maybe_to_naive(oldest_entry)
+    }
+  end
+
+  defp maybe_to_naive(nil), do: nil
+  defp maybe_to_naive(%DateTime{} = dt), do: DateTime.to_naive(dt)
+  defp maybe_to_naive(%NaiveDateTime{} = nd), do: nd
+
   defp completed_in_window(query, account_id, start_dt, end_dt) do
     where(
       query,

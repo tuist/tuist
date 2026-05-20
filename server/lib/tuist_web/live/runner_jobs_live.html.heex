@@ -350,7 +350,14 @@
         <% @analytics_selected_widget == "queue_time" and !@queue_time.ok? -> %>
           <.skeleton_chart />
         <% @analytics_selected_widget == "queue_time" -> %>
+          <.chart_type_toggle
+            id="jobs-queue-time"
+            chart_type={@queue_time_chart_type}
+            chart_type_event="select_queue_time_chart_type"
+            uri={@uri}
+          />
           <.chart
+            :if={@queue_time_chart_type == "line"}
             id="jobs-queue-time-chart"
             type="line"
             extra_options={
@@ -362,10 +369,32 @@
             series={TuistWeb.RunnersLive.duration_chart_series(@queue_time.result)}
             y_axis_min={0}
           />
+          <.scatter_chart
+            :if={@queue_time_chart_type == "scatter"}
+            id="jobs-queue-time-scatter-chart"
+            chart={@queue_time_scatter}
+            period={@analytics_period}
+            value_format="fn:formatSeconds"
+            url_fn={fn point -> ~p"/#{@selected_account.name}/runners/jobs/#{point.id}" end}
+            truncation_title={
+              dgettext(
+                "dashboard_runners",
+                "The 10,000 entry limit has been reached, data is only included up to %{date}. Try narrowing the date range, repository, or platform.",
+                date: scatter_oldest_entry_formatted(@queue_time_scatter.result)
+              )
+            }
+          />
         <% @analytics_selected_widget == "job_duration" and !@jobs_duration.ok? -> %>
           <.skeleton_chart />
         <% @analytics_selected_widget == "job_duration" -> %>
+          <.chart_type_toggle
+            id="jobs-job-duration"
+            chart_type={@job_duration_chart_type}
+            chart_type_event="select_job_duration_chart_type"
+            uri={@uri}
+          />
           <.chart
+            :if={@job_duration_chart_type == "line"}
             id="jobs-job-duration-chart"
             type="line"
             extra_options={
@@ -376,6 +405,21 @@
             }
             series={TuistWeb.RunnersLive.duration_chart_series(@jobs_duration.result)}
             y_axis_min={0}
+          />
+          <.scatter_chart
+            :if={@job_duration_chart_type == "scatter"}
+            id="jobs-job-duration-scatter-chart"
+            chart={@job_duration_scatter}
+            period={@analytics_period}
+            value_format="fn:formatSeconds"
+            url_fn={fn point -> ~p"/#{@selected_account.name}/runners/jobs/#{point.id}" end}
+            truncation_title={
+              dgettext(
+                "dashboard_runners",
+                "The 10,000 entry limit has been reached, data is only included up to %{date}. Try narrowing the date range, repository, or platform.",
+                date: scatter_oldest_entry_formatted(@job_duration_scatter.result)
+              )
+            }
           />
         <% true -> %>
           <.skeleton_chart />

@@ -4,7 +4,9 @@ defmodule TuistWeb.RunnerJobsLive do
   use Noora
 
   import Noora.Filter
+  import TuistWeb.Components.ChartTypeToggle
   import TuistWeb.Components.EmptyCardSection
+  import TuistWeb.Components.ScatterChart
   import TuistWeb.Components.Skeleton
   import TuistWeb.PercentileDropdownWidget
   import TuistWeb.Widget
@@ -54,6 +56,9 @@ defmodule TuistWeb.RunnerJobsLive do
     %{preset: preset, period: {start_datetime, end_datetime} = period} =
       DatePicker.date_picker_params(params, "analytics")
 
+    job_duration_chart_type = chart_type_param(params["job-duration-chart-type"])
+    queue_time_chart_type = chart_type_param(params["queue-time-chart-type"])
+
     {:noreply,
      socket
      |> assign(:uri, URI.parse(uri))
@@ -64,12 +69,81 @@ defmodule TuistWeb.RunnerJobsLive do
      |> assign(:analytics_preset, preset)
      |> assign(:analytics_period, period)
      |> assign(:analytics_trend_label, trend_label(preset))
+     |> assign(:job_duration_chart_type, job_duration_chart_type)
+     |> assign(:queue_time_chart_type, queue_time_chart_type)
      |> assign_analytics(repository, platform, start_datetime, end_datetime)
+     |> assign_duration_scatter(repository, platform, start_datetime, end_datetime, job_duration_chart_type)
+     |> assign_queue_time_scatter(repository, platform, start_datetime, end_datetime, queue_time_chart_type)
      |> assign_jobs(repository, platform)}
   end
 
   defp platform_param(value) when value in ["macos", "linux"], do: value
   defp platform_param(_), do: "any"
+
+  defp chart_type_param("scatter"), do: "scatter"
+  defp chart_type_param(_), do: "line"
+
+  # Scatter assigns: a no-op {:ok, :line} when the toggle is on
+  # "line" (so the template's `:if={scatter?(...)}` resolves to false
+  # without firing a query), and the actual scatter payload when
+  # "scatter".
+  defp assign_duration_scatter(socket, _repository, _platform, _start_dt, _end_dt, "line") do
+    assign_async(socket, :job_duration_scatter, fn ->
+      {:ok, %{job_duration_scatter: :line}}
+    end)
+  end
+
+  defp assign_duration_scatter(
+         %{assigns: %{selected_account: account}} = socket,
+         repository,
+         platform,
+         start_dt,
+         end_dt,
+         "scatter"
+       ) do
+    scope_opts =
+      []
+      |> maybe_repo(repository)
+      |> maybe_platform(platform)
+      |> Keyword.put(:start_datetime, start_dt)
+      |> Keyword.put(:end_datetime, end_dt)
+
+    assign_async(socket, :job_duration_scatter, fn ->
+      {:ok,
+       %{
+         job_duration_scatter: {:scatter, Analytics.job_duration_scatter(account.id, scope_opts)}
+       }}
+    end)
+  end
+
+  defp assign_queue_time_scatter(socket, _repository, _platform, _start_dt, _end_dt, "line") do
+    assign_async(socket, :queue_time_scatter, fn ->
+      {:ok, %{queue_time_scatter: :line}}
+    end)
+  end
+
+  defp assign_queue_time_scatter(
+         %{assigns: %{selected_account: account}} = socket,
+         repository,
+         platform,
+         start_dt,
+         end_dt,
+         "scatter"
+       ) do
+    scope_opts =
+      []
+      |> maybe_repo(repository)
+      |> maybe_platform(platform)
+      |> Keyword.put(:start_datetime, start_dt)
+      |> Keyword.put(:end_datetime, end_dt)
+
+    assign_async(socket, :queue_time_scatter, fn ->
+      {:ok,
+       %{
+         queue_time_scatter: {:scatter, Analytics.queue_time_scatter(account.id, scope_opts)}
+       }}
+    end)
+  end
 
   defp assign_analytics(%{assigns: %{selected_account: account}} = socket, repository, platform, start_dt, end_dt) do
     scope_opts =
@@ -136,6 +210,26 @@ defmodule TuistWeb.RunnerJobsLive do
 
   def handle_event("select_jobs_breakdown", %{"type" => type}, socket) when type in ["total", "passed", "failed"] do
     {:noreply, assign(socket, :jobs_breakdown_type, type)}
+  end
+
+  def handle_event(
+        "select_job_duration_chart_type",
+        %{"type" => type},
+        %{assigns: %{selected_account: account, uri: uri}} = socket
+      )
+      when type in ["line", "scatter"] do
+    query = Query.put(uri.query || "", "job-duration-chart-type", type)
+    {:noreply, push_patch(socket, to: ~p"/#{account.name}/runners/jobs?#{query}")}
+  end
+
+  def handle_event(
+        "select_queue_time_chart_type",
+        %{"type" => type},
+        %{assigns: %{selected_account: account, uri: uri}} = socket
+      )
+      when type in ["line", "scatter"] do
+    query = Query.put(uri.query || "", "queue-time-chart-type", type)
+    {:noreply, push_patch(socket, to: ~p"/#{account.name}/runners/jobs?#{query}")}
   end
 
   def handle_event("add_filter", %{"value" => filter_id}, socket) do
