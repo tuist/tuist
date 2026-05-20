@@ -197,6 +197,15 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	if _, ok := sts.Spec.Template.Annotations["kubernetes.io/ingress-bandwidth"]; ok {
 		t.Fatal("expected no default ingress bandwidth annotation")
 	}
+	if got := sts.Spec.Template.Annotations["prometheus.io/scrape"]; got != "true" {
+		t.Fatalf("expected Prometheus scrape annotation, got %q", got)
+	}
+	if got := sts.Spec.Template.Annotations["prometheus.io/port-name"]; got != "http" {
+		t.Fatalf("expected Prometheus port-name annotation, got %q", got)
+	}
+	if got := sts.Spec.Template.Annotations["prometheus.io/path"]; got != "/metrics" {
+		t.Fatalf("expected Prometheus path annotation, got %q", got)
+	}
 	if got := sts.Spec.Template.Spec.NodeSelector["node.cluster.x-k8s.io/pool"]; got != "kura" {
 		t.Fatalf("expected kura node pool selector, got %q", got)
 	}

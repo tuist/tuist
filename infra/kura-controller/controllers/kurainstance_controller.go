@@ -502,7 +502,10 @@ func rolloutStatusFromStatefulSet(instance *kurav1alpha1.KuraInstance, sts *apps
 
 func podTemplate(instance *kurav1alpha1.KuraInstance) corev1.PodTemplateSpec {
 	return corev1.PodTemplateSpec{
-		ObjectMeta: metav1.ObjectMeta{Labels: labels(instance)},
+		ObjectMeta: metav1.ObjectMeta{
+			Labels:      labels(instance),
+			Annotations: podAnnotations(),
+		},
 		Spec: corev1.PodSpec{
 			TerminationGracePeriodSeconds: ptr(terminationGracePeriodSeconds()),
 			NodeSelector:                  nodeSelector(instance),
@@ -523,6 +526,18 @@ func podTemplate(instance *kurav1alpha1.KuraInstance) corev1.PodTemplateSpec {
 			}},
 			Volumes: volumes(instance),
 		},
+	}
+}
+
+// podAnnotations exposes Kura's Prometheus metrics to the managed
+// clusters' Alloy annotation autodiscovery pipeline. Keep this aligned
+// with kura/ops/helm/kura/values.yaml so controller-managed Kura pods
+// publish the same telemetry surface as chart-managed ones.
+func podAnnotations() map[string]string {
+	return map[string]string{
+		"prometheus.io/scrape":    "true",
+		"prometheus.io/port-name": "http",
+		"prometheus.io/path":      "/metrics",
 	}
 }
 
