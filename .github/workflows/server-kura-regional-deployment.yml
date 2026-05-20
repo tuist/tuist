@@ -69,4 +69,10 @@ jobs:
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
         run: |
+          # k8s:deploy-kura-regionals is a file task under
+          # infra/mise/tasks, discovered only when infra/mise.toml is
+          # loaded. mise-action trusts the repo-root config but not the
+          # nested infra one, so without this the task resolves against
+          # the root config and mise exits with "no task found".
+          mise trust "$GITHUB_WORKSPACE/infra/mise.toml"
           mise -C "$GITHUB_WORKSPACE/infra" run k8s:deploy-kura-regionals "$IMAGE_TAG"

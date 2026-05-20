@@ -5,57 +5,78 @@ import TuistCache
 import TuistConfigLoader
 import TuistCore
 import TuistEnvironment
-import TuistHasher
 import TuistLoader
 import TuistLogging
+import TuistServer
 import TuistSupport
 import XcodeGraph
 
 struct HashSelectiveTestingCommandService {
     private let generatorFactory: GeneratorFactorying
+    private let cacheStorageFactory: CacheStorageFactorying
     private let configLoader: ConfigLoading
-    private let selectiveTestingGraphHasher: SelectiveTestingGraphHashing
 
-    init(selectiveTestingGraphHasher: SelectiveTestingGraphHashing) {
+    init(
+        generatorFactory: GeneratorFactorying,
+        cacheStorageFactory: CacheStorageFactorying
+    ) {
         self.init(
-            generatorFactory: GeneratorFactory(),
-            configLoader: ConfigLoader(),
-            selectiveTestingGraphHasher: selectiveTestingGraphHasher
+            generatorFactory: generatorFactory,
+            cacheStorageFactory: cacheStorageFactory,
+            configLoader: ConfigLoader()
         )
     }
 
     init(
         generatorFactory: GeneratorFactorying,
-        configLoader: ConfigLoading,
-        selectiveTestingGraphHasher: SelectiveTestingGraphHashing
+        cacheStorageFactory: CacheStorageFactorying,
+        configLoader: ConfigLoading
     ) {
         self.generatorFactory = generatorFactory
+        self.cacheStorageFactory = cacheStorageFactory
         self.configLoader = configLoader
-        self.selectiveTestingGraphHasher = selectiveTestingGraphHasher
     }
 
     func run(path: String?) async throws {
         let absolutePath = try await Environment.current.pathRelativeToWorkingDirectory(path)
 
         let config = try await configLoader.loadConfig(path: absolutePath)
-        let generator = generatorFactory.defaultGenerator(config: config, includedTargets: [])
-        let graph = try await generator.load(
+        // Run the loader through the same generator the test pipeline uses so the
+        // graph we hash matches the graph TestsCacheGraphMapper would see at
+        // selective-testing fetch time. The previous default-generator path applied
+        // a different set of mappers, which silently produced hashes that did not
+        // match the ones the cache is keyed on.
+        let cacheStorage = try await cacheStorageFactory.cacheLocalStorage()
+        let generator = generatorFactory.testing(
+            config: config,
+            testPlan: nil,
+            includedTargets: [],
+            excludedTargets: [],
+            skipUITests: false,
+            skipUnitTests: false,
+            configuration: nil,
+            ignoreBinaryCache: true,
+            ignoreSelectiveTesting: true,
+            cacheStorage: cacheStorage,
+            destination: nil,
+            schemeName: nil
+        )
+        let (_, environment) = try await generator.loadWithEnvironment(
             path: absolutePath,
             options: config.project.generatedProject?.generationOptions
         )
 
-        let hashes = try await selectiveTestingGraphHasher.hash(
-            graph: graph,
-            additionalStrings: []
-        )
+        let hashesByTarget: [(name: String, hash: String)] = environment.targetTestHashes
+            .flatMap { _, targetsByName in
+                targetsByName.map { (name: $0.key, hash: $0.value) }
+            }
+            .sorted { $0.name < $1.name }
 
-        let sortedHashes = hashes.sorted { $0.key.target.name < $1.key.target.name }
-
-        if sortedHashes.isEmpty {
+        if hashesByTarget.isEmpty {
             AlertController.current.warning(.alert("The project contains no hasheable targets for selective testing."))
         } else {
-            for (target, targetContentHash) in sortedHashes {
-                Logger.current.info("\(target.target.name) - \(targetContentHash.hash)")
+            for entry in hashesByTarget {
+                Logger.current.info("\(entry.name) - \(entry.hash)")
             }
         }
     }

@@ -18,6 +18,10 @@ import XcodeGraph
 public protocol Generating {
     @discardableResult
     func load(path: AbsolutePath, options: TuistGeneratedProjectOptions.GenerationOptions?) async throws -> Graph
+    func loadWithEnvironment(
+        path: AbsolutePath,
+        options: TuistGeneratedProjectOptions.GenerationOptions?
+    ) async throws -> (Graph, MapperEnvironment)
     func generate(path: AbsolutePath, options: TuistGeneratedProjectOptions.GenerationOptions?) async throws -> AbsolutePath
     func generateWithGraph(path: AbsolutePath, options: TuistGeneratedProjectOptions.GenerationOptions?) async throws
         -> (AbsolutePath, Graph, MapperEnvironment)
@@ -93,6 +97,14 @@ public class Generator: Generating {
 
     public func load(path: AbsolutePath, options: TuistGeneratedProjectOptions.GenerationOptions?) async throws -> Graph {
         try await load(path: path, options: options).0
+    }
+
+    public func loadWithEnvironment(
+        path: AbsolutePath,
+        options: TuistGeneratedProjectOptions.GenerationOptions?
+    ) async throws -> (Graph, MapperEnvironment) {
+        let (graph, _, environment) = try await load(path: path, options: options)
+        return (graph, environment)
     }
 
     func load(

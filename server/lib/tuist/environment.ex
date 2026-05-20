@@ -517,7 +517,7 @@ defmodule Tuist.Environment do
         prices
 
       is_binary(prices_base64_json) ->
-        prices_base64_json |> Base.decode64!() |> Jason.decode!(keys: :atoms)
+        prices_base64_json |> Base.decode64!() |> JSON.decode!()
 
       true ->
         nil

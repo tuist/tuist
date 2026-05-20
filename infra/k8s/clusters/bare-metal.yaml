@@ -1,0 +1,431 @@
+# Shared bare-metal substrate for every workload cluster
+# (staging / canary / production). Each cluster's topology sets
+# `bareMetalCluster: <env>` on the ClusterClass variable; the
+# `HetznerBareMetalMachineTemplateClusterSelector` patch in
+# `clusterclass-tuist.yaml` injects that into the rendered HBMM
+# template's `hostSelector.matchLabels."tuist.dev/cluster"`, so a
+# per-cluster MachineDeployment only claims HBMs that
+# `hetzner-robot-controller` has stamped for its own env.
+#
+# Owns one thing here: the `HetznerBareMetalMachineTemplate` that
+# the `bare-metal-worker` MachineDeployment class (see
+# `clusterclass-tuist.yaml`) claims through. Per-host
+# `HetznerBareMetalHost` CRs are NOT in this file — they're managed
+# by `hetzner-robot-controller`, which reflects Robot's inventory
+# (servers named `tuist-bm-<cluster>-*` or the caph-rewritten
+# `tuist-<cluster>-…`) into the cluster and auto-fills disk WWNs
+# once caph populates `hardwareDetails`. See
+# `infra/hetzner-robot-controller/AGENTS.md`.
+#
+# Prerequisite Secrets (created manually on the mgmt cluster — see
+# `infra/runners-controller/AGENTS.md` for the bring-up runbook):
+#
+#   - `hetzner` Secret in `org-tuist` — extended with
+#     `hetzner-robot-user` + `hetzner-robot-password` keys alongside
+#     the existing `hcloud` token. The HetznerClusterTemplate's
+#     `hetznerSecretRef.key.hcloudToken` only maps the hcloud
+#     token (CAPH's HetznerCluster spec doesn't take Robot keys —
+#     that's a frequent misread of the CRD). The Robot credentials
+#     are consumed by the caph controller deployment itself via
+#     `HROBOT_USERNAME` / `HROBOT_PASSWORD` env vars sourced from
+#     these same Secret keys, and by the hetzner-robot-controller
+#     Deployment (`infra/k8s/mgmt/hetzner-robot-controller.yaml`)
+#     for its Robot-inventory reconciliation loop.
+#
+#   - `hetzner-bare-metal-ssh-key` in `org-tuist` — keys
+#     `sshkey-name` + `ssh-publickey` + `ssh-privatekey`. Referenced
+#     by `HetznerBareMetalMachineTemplate.spec.template.spec.sshSpec`
+#     below, AND from `HetznerCluster.spec.sshKeys.robotRescueSecretRef`
+#     (a one-time patch on the live HetznerCluster — the template is
+#     immutable, so the field can't be propagated through GitOps).
+#
+# Both items are fleet-level (one Hetzner Robot account spans every
+# AX-class host across staging / canary / production), so they live
+# in the `tuist-k8s-mgmt` 1Password vault. Once ESO lands on the
+# mgmt cluster the manual Secret-creation step goes away and these
+# become ESO-synced.
+#
+# Schema note: the caph bare-metal CR fields below track caph >=v1.0.
+
+---
+# Infrastructure template for the bare-metal-worker MachineDeployment
+# class. The class definition lives in `clusterclass-tuist.yaml`.
+# Selects hosts via `hostSelector.matchLabels` so we only claim
+# hetzner-robot-controller-managed hosts (the controller stamps
+# `app.kubernetes.io/managed-by=hetzner-robot-controller` on each CR
+# it creates). Without this gate, caph would also claim any
+# operator-hand-authored `HetznerBareMetalHost` in the namespace,
+# defeating the convention's safety property.
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+kind: HetznerBareMetalMachineTemplate
+metadata:
+  name: tuist-bare-metal-machinetemplate
+  namespace: org-tuist
+spec:
+  template:
+    spec:
+      installImage:
+        # Path inside the rescue system's filesystem to the OS tarball
+        # to install. Hetzner mounts an NFS share at /root/.oldroot/nfs
+        # inside the rescue system with images for each supported
+        # distribution.
+        image:
+          path: /root/.oldroot/nfs/install/../images/Ubuntu-2404-noble-amd64-base.tar.gz
+        # Software RAID 1 mirror across both NVMes. caph silently
+        # rewrites `swraidLevel: 0` → `SWRAIDLEVEL 1` in the
+        # installimage wrapper (RAID 0 isn't supported via its API),
+        # so set the level explicitly to avoid the surprise.
+        swraid: 1
+        swraidLevel: 1
+        # Partition layout — match Hetzner's default installimage
+        # for UEFI AX-class boxes with SWRAID 1. The ESP uses
+        # `fileSystem: esp` (Hetzner installimage keyword, not the
+        # caph-documented `ext*`/`btrfs`/`xfs` list — caph's schema
+        # is an unconstrained string and passes the value through to
+        # the autosetup file). `esp` tells installimage to mark the
+        # partition as EFI System Partition, format it as FAT32,
+        # and place it OUTSIDE the RAID array — `vfat` makes
+        # installimage reject it as malformed inside SWRAID. No
+        # swap on bare metal.
+        partitions:
+          - mount: /boot/efi
+            fileSystem: esp
+            size: 256M
+          - mount: /boot
+            fileSystem: ext4
+            size: 1024M
+          - mount: /
+            fileSystem: ext4
+            size: all
+        # post-install script runs CHROOTed into the freshly
+        # installed OS before the first reboot. Three jobs:
+        #
+        #   1. Install cloud-init. Hetzner's Ubuntu-2404-noble
+        #      base tarball doesn't include it, but caph's
+        #      `ensure-provisioned` step SSHes back into the box
+        #      after reboot and runs `cloud-init status` to verify
+        #      the OS is healthy. Without this package, caph hangs
+        #      at `ensure-provisioned` with
+        #      `bash: line 1: cloud-init: command not found`.
+        #
+        #   2. Disable cloud-init's network config and pin Hetzner's
+        #      static netplan as authoritative (DHCPv6 fights the
+        #      static assignment otherwise).
+        #
+        #   3. Pre-bake Kata Containers 3.30 + QEMU. Binaries land at
+        #      /opt/kata (including /opt/kata/bin/qemu-system-x86_64
+        #      which kata-static bundles), and the containerd kata-qemu
+        #      runtime drop-in lives at /etc/containerd/conf.d/
+        #      kata-qemu.toml — all written before containerd ever
+        #      starts. When kubelet brings containerd up via
+        #      preKubeadmCommands the kata-qemu handler is already
+        #      registered. No runtime DaemonSet, no containerd restart
+        #      loop, no Cilium disruption (the runtime kata-deploy
+        #      DaemonSet was this PR's earlier approach and proved
+        #      unworkable on a 64 GB bare-metal Node where every
+        #      containerd
+        #      restart bounced Cilium for ~5 min).
+        postInstallScript: |
+          #!/bin/bash
+          set -euo pipefail
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update
+          apt-get install -y cloud-init
+          # Hetzner's installimage leaves cloud-init service
+          # disabled (the base tarball is configured for a
+          # static-image use case where cloud-init isn't wanted).
+          # caph polls `cloud-init status` after the post-install
+          # reboot and reboot-loops when the answer is `disabled`.
+          rm -f /etc/cloud/cloud-init.disabled
+          systemctl enable cloud-init.service
+          systemctl enable cloud-init-local.service
+          systemctl enable cloud-config.service
+          systemctl enable cloud-final.service
+          cloud-init clean --logs --machine-id || true
+          # Disable cloud-inits network handling. Hetzner
+          # installimage already wrote /etc/netplan/01-netcfg.yaml
+          # with the static IPv4/IPv6 assignment for this box.
+          # Default cloud-init writes a 50-cloud-init.yaml with
+          # dhcp4/dhcp6 enabled on the same interface, which
+          # netplan merges as override — and DHCP fails on Hetzner
+          # since they assign static IPs. Pin cloud-init off the
+          # network surface so Hetzner's static config stays
+          # authoritative.
+          mkdir -p /etc/cloud/cloud.cfg.d
+          cat > /etc/cloud/cloud.cfg.d/99-disable-network-config.cfg <<'CICFG'
+          network: {config: disabled}
+          CICFG
+          rm -f /etc/netplan/50-cloud-init.yaml
+          # Disable DHCPv6 + accept-ra on Hetzner's netplan
+          # interface. Hetzner's 01-netcfg.yaml omits both, and
+          # networkd in Ubuntu 24.04 implicitly tries DHCPv6 when
+          # an IPv6 address is configured. The implicit DHCPv6
+          # client fails ("Failed to configure DHCPv6 client: No
+          # such file or directory"), networkd marks the entire
+          # interface Failed, the static IPv4 never gets bound —
+          # box ends up unreachable post-install. Augment with a
+          # higher-priority netplan drop-in (netplan merges in
+          # alphabetical order, 99 wins).
+          cat > /etc/netplan/99-tuist-disable-dhcp6.yaml <<'NETPLAN'
+          network:
+            version: 2
+            ethernets:
+              enp3s0:
+                dhcp6: false
+                accept-ra: false
+          NETPLAN
+          chmod 600 /etc/netplan/99-tuist-disable-dhcp6.yaml
+          mkdir -p /etc/tuist
+          echo 'kata-runtime=true' > /etc/tuist/node-labels
+          # ---- runc + containerd 2.x install ----
+          # Match the cloud worker template (`clusterclass-tuist.yaml`):
+          # checksum-verified tarballs from upstream, NOT
+          # `apt-get install containerd`. Ubuntu Noble ships
+          # containerd 1.7.x, which only understands config
+          # `version = 2` and the `io.containerd.grpc.v1.cri`
+          # plugin path. The kata-qemu runtime handler we register
+          # below uses `version = 3` / `io.containerd.cri.v1.runtime`
+          # (containerd 2.x syntax), so a 1.7.x binary against this
+          # config would silently fail to register the kata-qemu
+          # handler and every Pod with `runtimeClassName: kata-qemu`
+          # would fail to start.
+          CONTAINERD_VERSION=2.2.3
+          RUNC_VERSION=1.2.5
+          ARCH="$(dpkg --print-architecture)"
+          # runc must be installed before containerd config default
+          # references it; containerd ships a default runc handler
+          # pointing at /usr/local/sbin/runc.
+          curl -fsSL -o /tmp/runc.${ARCH} \
+            "https://github.com/opencontainers/runc/releases/download/v${RUNC_VERSION}/runc.${ARCH}"
+          curl -fsSL -o /tmp/runc.sha256sum \
+            "https://github.com/opencontainers/runc/releases/download/v${RUNC_VERSION}/runc.sha256sum"
+          (cd /tmp && sha256sum --check --ignore-missing runc.sha256sum)
+          install /tmp/runc.${ARCH} /usr/local/sbin/runc
+          rm /tmp/runc.${ARCH} /tmp/runc.sha256sum
+          curl -fsSL -o /tmp/containerd.tar.gz \
+            "https://github.com/containerd/containerd/releases/download/v${CONTAINERD_VERSION}/containerd-${CONTAINERD_VERSION}-linux-${ARCH}.tar.gz"
+          curl -fsSL -o /tmp/containerd.tar.gz.sha256sum \
+            "https://github.com/containerd/containerd/releases/download/v${CONTAINERD_VERSION}/containerd-${CONTAINERD_VERSION}-linux-${ARCH}.tar.gz.sha256sum"
+          (cd /tmp && sed "s|containerd-${CONTAINERD_VERSION}-linux-${ARCH}.tar.gz|containerd.tar.gz|" containerd.tar.gz.sha256sum | sha256sum --check -)
+          tar -zxf /tmp/containerd.tar.gz -C /usr/local
+          rm /tmp/containerd.tar.gz /tmp/containerd.tar.gz.sha256sum
+          # The plain `containerd-*.tar.gz` tarball does NOT ship a
+          # systemd unit (only the older `cri-containerd-cni-`
+          # bundle did). The unit is dropped at
+          # `/etc/systemd/system/containerd.service` by the
+          # `KubeadmConfigTemplate.spec.template.spec.files:`
+          # block below, then `systemctl enable --now containerd`
+          # in preKubeadmCommands starts it on first boot. Do not
+          # remove the files: block on the assumption the tarball
+          # provides the unit — it doesn't, and the kubeadm-join
+          # step then times out waiting for the CRI socket.
+          # ---- Kata Containers 3.30 pre-bake ----
+          # Pinned versions; bump intentionally via PR (kata releases
+          # have historically shipped install-script regressions —
+          # 3.13.0's was what kicked off this PR's debugging saga).
+          KATA_VERSION=3.30.0
+          # Kata 3.30 ships as zstd-compressed tarball; install zstd
+          # so GNU tar can decompress via `--zstd`. Hetzner's base
+          # Ubuntu image doesn't include zstd.
+          apt-get install -y zstd
+          # kata-static under /opt/kata. The tarball expands with a
+          # top-level `opt/` so extracting at / lands binaries at
+          # /opt/kata/{bin,libexec,share}/...
+          curl -fsSL -o /tmp/kata.tar.zst \
+            "https://github.com/kata-containers/kata-containers/releases/download/${KATA_VERSION}/kata-static-${KATA_VERSION}-amd64.tar.zst"
+          tar --zstd -xf /tmp/kata.tar.zst -C /
+          rm /tmp/kata.tar.zst
+          # ---- containerd config: generate then append kata-qemu ----
+          # `containerd config default` emits a version=3 config
+          # with the runc handler pre-populated; we patch
+          # SystemdCgroup=true (matches cloud worker template) and
+          # append a kata-qemu runtime block.
+          #
+          # No snapshotter override: we stay on containerd's default
+          # overlayfs. QEMU supports virtio-fs and 9pfs natively, so
+          # kata-qemu mounts the overlay directory into the microVM
+          # directly — no block-device snapshotter (nydus) required.
+          # (kata-fc would need nydus here because Firecracker has no
+          # 9pfs/virtio-fs; that combination is the kata + FC + k8s
+          # rabbit hole we deliberately stepped out of.)
+          mkdir -p /etc/containerd
+          /usr/local/bin/containerd config default > /etc/containerd/config.toml
+          sed -i 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/config.toml
+          cat >> /etc/containerd/config.toml <<'KATAQEMU'
+
+          [plugins.'io.containerd.cri.v1.runtime'.containerd.runtimes.kata-qemu]
+          runtime_type = "io.containerd.kata-qemu.v2"
+          runtime_path = "/opt/kata/bin/containerd-shim-kata-v2"
+          privileged_without_host_devices = true
+          pod_annotations = ["io.katacontainers.*"]
+          [plugins.'io.containerd.cri.v1.runtime'.containerd.runtimes.kata-qemu.options]
+          ConfigPath = "/opt/kata/share/defaults/kata-containers/configuration-qemu.toml"
+          KATAQEMU
+      # Two-label gate, both required for caph to claim an HBM:
+      #   - `app.kubernetes.io/managed-by=hetzner-robot-controller`
+      #     scopes to CRs the controller owns (vs. anything a
+      #     human might hand-author). Stamped at HBM creation.
+      #   - `tuist.dev/cluster=<env>` keeps each cluster from
+      #     claiming another cluster's HBMs out of the shared
+      #     Robot account. The Cluster topology sets
+      #     `bareMetalCluster: <env>`; the ClusterClass patch
+      #     `HetznerBareMetalMachineTemplateClusterSelector`
+      #     injects it into the rendered per-Cluster HBMM
+      #     template here. The default value (just managed-by)
+      #     intentionally claims nothing — the patch is what
+      #     activates this template for a given cluster.
+      hostSelector:
+        matchLabels:
+          app.kubernetes.io/managed-by: hetzner-robot-controller
+      sshSpec:
+        # The same SSH key the operator pastes into the Robot order
+        # form when provisioning, so caph can SSH into rescue mode
+        # without needing a separate credential set.
+        secretRef:
+          name: hetzner-bare-metal-ssh-key
+          key:
+            name: sshkey-name
+            publicKey: ssh-publickey
+            privateKey: ssh-privatekey
+        portAfterInstallImage: 22
+        portAfterCloudInit: 22
+
+---
+# Bootstrap template for the bare-metal-worker MachineDeployment.
+# cloud-init drops the kubelet config + containerd config files, runs
+# kubeadm join, and applies the labels + taints that route runner
+# Pods exclusively to this node and opt into kata-deploy.
+apiVersion: bootstrap.cluster.x-k8s.io/v1beta2
+kind: KubeadmConfigTemplate
+metadata:
+  name: tuist-bare-metal-worker-bootstraptemplate
+  namespace: org-tuist
+spec:
+  template:
+    spec:
+      files:
+        # containerd's GitHub-released tarball does NOT ship a
+        # systemd unit (the older cri-containerd-cni- bundle did,
+        # the plain `containerd-` tarball does not). Without this,
+        # `systemctl enable --now containerd` in the
+        # preKubeadmCommands below fails with "Unit file
+        # containerd.service does not exist", and the subsequent
+        # `kubeadm join` times out waiting for the CRI socket
+        # (`/var/run/containerd/containerd.sock`). Same unit the
+        # cloud worker template at `clusterclass-tuist.yaml`
+        # drops for the same reason.
+        - content: |
+            [Unit]
+            Description=containerd container runtime
+            Documentation=https://containerd.io
+            After=network.target local-fs.target dbus.service
+
+            [Service]
+            ExecStartPre=-/sbin/modprobe overlay
+            ExecStart=/usr/local/bin/containerd
+
+            Type=notify
+            Delegate=yes
+            KillMode=process
+            Restart=always
+            RestartSec=5
+
+            LimitNPROC=infinity
+            LimitCORE=infinity
+
+            TasksMax=infinity
+            OOMScoreAdjust=-999
+
+            [Install]
+            WantedBy=multi-user.target
+          owner: root:root
+          path: /etc/systemd/system/containerd.service
+          permissions: "0644"
+      joinConfiguration:
+        nodeRegistration:
+          name: '{{ ds.meta_data.local_hostname }}'
+          # No `--provider-id` here: the cloud-init NoCloud datasource
+          # we're booted under doesn't expose Hetzner Robot's server
+          # number through `ds.meta_data.instance_id` (it resolves to
+          # the literal string `nocloud`, leaving the Node with the
+          # wrong `spec.providerID`). caph's bare-metal machine
+          # controller already stamps the correct providerID
+          # (`hcloud://bm-<serverNumber>`) on the
+          # HetznerBareMetalMachine; CAPI's machine controller then
+          # patches the matching Node.spec.providerID once the Node
+          # joins. Letting them do the binding is what every other
+          # caph + bare-metal deployment does.
+          #
+          # Also no `--cloud-provider=external`: there's no CCM for
+          # Hetzner Robot bare-metal hosts (HCCM only knows about
+          # hcloud VMs, not Robot servers). Setting it would add the
+          # `node.cloudprovider.kubernetes.io/uninitialized=true`
+          # NoSchedule taint that nothing would ever remove, blocking
+          # all Pods. CAPI's machine controller still removes its own
+          # `node.cluster.x-k8s.io/uninitialized` taint after binding.
+          taints:
+            # Only runner Pods land on bare-metal nodes; everything
+            # else stays on the elastic cloud `md-0` pool.
+            - key: tuist.dev/runner-tier
+              value: bare-metal
+              effect: NoSchedule
+      preKubeadmCommands:
+        # No `set -euo pipefail` here — CAPI's kubeadm-bootstrap
+        # renders each `preKubeadmCommands` entry as its own
+        # cloud-init `runcmd` step, which runs via `/bin/sh`
+        # (dash on Ubuntu). Dash doesn't know `set -o pipefail`,
+        # so the whole runcmd block aborts on the first line
+        # and kubeadm-join never runs.
+        - mkdir -p /etc/apt/keyrings
+        # kubeadm + kubelet + kubectl install. containerd is NOT
+        # installed via apt here — postInstallScript pre-bakes
+        # containerd 2.x from the upstream tarball, matching the
+        # cloud worker template at `clusterclass-tuist.yaml` (Ubuntu
+        # Noble's apt containerd is 1.7.x which doesn't speak the
+        # version=3 / io.containerd.cri.v1.runtime config syntax the
+        # kata-qemu handler needs).
+        - apt-get update
+        - apt-get install -y apt-transport-https ca-certificates curl gpg
+        - curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.34/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+        - 'echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.34/deb/ /" > /etc/apt/sources.list.d/kubernetes.list'
+        - apt-get update
+        # `kubectl` is needed by the post-kubeadm `label node`
+        # command; without it the runcmd block fails at the last
+        # step with `kubectl: not found`.
+        - apt-get install -y kubeadm kubelet kubectl
+        # kubeadm preflight rejects with
+        # `FileContent--proc-sys-net-ipv4-ip_forward contents are
+        # not set to 1` on Hetzner's stock Ubuntu image, which
+        # ships ip_forward=0. Also load the bridge netfilter
+        # module so the matching bridge sysctls become writable
+        # (br_netfilter creates `/proc/sys/net/bridge/*`). Set
+        # both persistently for after-reboot survival.
+        - modprobe overlay
+        - modprobe br_netfilter
+        - 'printf "overlay\nbr_netfilter\n" > /etc/modules-load.d/k8s.conf'
+        - 'printf "net.bridge.bridge-nf-call-iptables = 1\nnet.bridge.bridge-nf-call-ip6tables = 1\nnet.ipv4.ip_forward = 1\n" > /etc/sysctl.d/k8s.conf'
+        - sysctl --system
+        # cloud-init's write_files (above) drops the
+        # containerd.service unit at /etc/systemd/system/, but
+        # systemd doesn't auto-discover new unit files between
+        # boot and the next user action. Without daemon-reload,
+        # `systemctl enable --now containerd` errors with "Unit
+        # file containerd.service does not exist" — the file is
+        # on disk, systemd just hasn't scanned it yet. Same call
+        # the cloud worker template makes for the same reason.
+        - systemctl daemon-reload
+        - systemctl enable --now containerd
+        - systemctl enable kubelet
+      postKubeadmCommands:
+        # Stamp the runner-pool + kata-runtime labels on the Node
+        # after kubeadm join completes. The MachineDeployment also
+        # carries these in `metadata.labels`, but CAPI's label-sync
+        # only propagates `node.cluster.x-k8s.io/*` and
+        # `node-role.kubernetes.io/*`; the tuist.dev/* and
+        # katacontainers.io/* labels have to be applied directly.
+        # `katacontainers.io/kata-runtime` is what the kata-qemu
+        # RuntimeClass' nodeSelector matches — its old applier was
+        # the kata-deploy DaemonSet, which we removed once Kata
+        # moved into the OS install path (see postInstallScript).
+        - 'kubectl --kubeconfig /etc/kubernetes/kubelet.conf label node "$(hostname)" tuist.dev/kata-runtime=true --overwrite'
+        - 'kubectl --kubeconfig /etc/kubernetes/kubelet.conf label node "$(hostname)" katacontainers.io/kata-runtime=true --overwrite'

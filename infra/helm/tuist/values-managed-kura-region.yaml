@@ -24,7 +24,13 @@ kuraController:
   # with Let's Encrypt certificates. Must already exist on the regional
   # cluster (cert-manager + the issuer are bootstrapped via the
   # mgmt-cluster pipeline).
-  tlsClusterIssuer: "letsencrypt-prod"
+  tlsClusterIssuer: "letsencrypt-cloudflare"
+  cloudflareLoadBalancing:
+    enabled: true
+    zoneName: tuist.dev
+    apiTokenSecret:
+      managed: true
+      item: cloudflare-tuist-dns
   sharedSecrets:
     # In managed regions, kura-shared-secrets is populated by CI from
     # the same secret store as the Tuist server release.

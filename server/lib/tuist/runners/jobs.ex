@@ -39,6 +39,16 @@ defmodule Tuist.Runners.Jobs do
   with the same `workflow_job_id`. RMT merge collapses them; both
   rows carry the same `queued` state so the merge is a no-op
   visible to clients.
+
+  ## Read pattern (no `FINAL`)
+
+  RMT `FINAL` forces ClickHouse to merge matching parts at query
+  time, which scales poorly as the table grows. We read the
+  "latest row per workflow_job_id" the same way `Tuist.Tests`
+  does: `argMax(col, updated_at)` aggregated by `workflow_job_id`
+  for multi-row queries, and `ORDER BY updated_at DESC LIMIT 1`
+  for single-row lookups. Both patterns use the merge-tree index
+  and avoid the per-query merge cost.
   """
 
   import Ecto.Query
@@ -46,8 +56,15 @@ defmodule Tuist.Runners.Jobs do
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
   alias Tuist.Runners.Job
+  alias Tuist.Runners.Telemetry
 
   require Logger
+
+  # Pre-1970 sentinel used for "not yet set" timestamp slots. Any
+  # timestamp at or below this epoch is treated as missing when
+  # computing telemetry durations so a delivery-race `completed`
+  # (no `started_at`) doesn't emit a multi-decade run_time spike.
+  @epoch ~U[1970-01-01 00:00:00.000000Z]
 
   @doc """
   Idempotent enqueue. Inserts a `status='queued'` row for the
@@ -66,6 +83,13 @@ defmodule Tuist.Runners.Jobs do
       |> Map.put(:updated_at, now)
 
     insert_row!(row)
+
+    :telemetry.execute(
+      Telemetry.event_name_job_enqueued(),
+      %{count: 1},
+      %{fleet: Map.get(row, :fleet_name, "")}
+    )
+
     :ok
   end
 
@@ -87,24 +111,26 @@ defmodule Tuist.Runners.Jobs do
   """
   def pick_queued(fleet_name, ineligible_account_ids \\ [])
       when is_binary(fleet_name) and is_list(ineligible_account_ids) do
-    Job
-    |> from(hints: ["FINAL"])
-    |> where([j], j.fleet_name == ^fleet_name and j.status == "queued")
+    from(j in Job,
+      where: j.fleet_name == ^fleet_name,
+      group_by: j.workflow_job_id,
+      having: fragment("argMax(?, ?) = ?", j.status, j.updated_at, "queued"),
+      select: %{
+        workflow_job_id: j.workflow_job_id,
+        account_id: fragment("argMax(?, ?)", j.account_id, j.updated_at),
+        fleet_name: fragment("argMax(?, ?)", j.fleet_name, j.updated_at),
+        repo: fragment("argMax(?, ?)", j.repo, j.updated_at),
+        workflow_run_id: fragment("argMax(?, ?)", j.workflow_run_id, j.updated_at),
+        run_attempt: fragment("argMax(?, ?)", j.run_attempt, j.updated_at),
+        job_name: fragment("argMax(?, ?)", j.job_name, j.updated_at),
+        head_branch: fragment("argMax(?, ?)", j.head_branch, j.updated_at),
+        head_sha: fragment("argMax(?, ?)", j.head_sha, j.updated_at),
+        enqueued_at: fragment("argMax(?, ?)", j.enqueued_at, j.updated_at)
+      }
+    )
     |> exclude_accounts(ineligible_account_ids)
-    |> order_by([j], asc: j.enqueued_at, asc: j.workflow_job_id)
+    |> order_by([j], asc: fragment("argMax(?, ?)", j.enqueued_at, j.updated_at), asc: j.workflow_job_id)
     |> limit(1)
-    |> select([j], %{
-      workflow_job_id: j.workflow_job_id,
-      account_id: j.account_id,
-      fleet_name: j.fleet_name,
-      repo: j.repo,
-      workflow_run_id: j.workflow_run_id,
-      run_attempt: j.run_attempt,
-      job_name: j.job_name,
-      head_branch: j.head_branch,
-      head_sha: j.head_sha,
-      enqueued_at: j.enqueued_at
-    })
     |> ClickHouseRepo.one()
     |> case do
       nil -> {:error, :empty}
@@ -115,7 +141,7 @@ defmodule Tuist.Runners.Jobs do
   defp exclude_accounts(query, []), do: query
 
   defp exclude_accounts(query, account_ids) when is_list(account_ids) do
-    where(query, [j], j.account_id not in ^account_ids)
+    having(query, [j], fragment("argMax(?, ?)", j.account_id, j.updated_at) not in ^account_ids)
   end
 
   @doc """
@@ -128,6 +154,13 @@ defmodule Tuist.Runners.Jobs do
     row = Map.merge(candidate, %{status: "claimed", claimed_at: claimed_at, pod_name: pod_name, updated_at: now})
 
     insert_row!(row)
+
+    :telemetry.execute(
+      Telemetry.event_name_job_claim(),
+      %{count: 1, queue_time_ms: duration_ms(candidate[:enqueued_at], claimed_at)},
+      %{fleet: Map.get(candidate, :fleet_name, ""), outcome: "ok"}
+    )
+
     :ok
   end
 
@@ -158,6 +191,17 @@ defmodule Tuist.Runners.Jobs do
           })
 
         insert_row!(row)
+
+        :telemetry.execute(
+          Telemetry.event_name_job_running(),
+          %{
+            count: 1,
+            queue_to_running_ms: duration_ms(job.enqueued_at, now),
+            claim_to_running_ms: duration_ms(job.claimed_at, now)
+          },
+          %{fleet: job.fleet_name || ""}
+        )
+
         :ok
     end
   end
@@ -186,6 +230,13 @@ defmodule Tuist.Runners.Jobs do
           })
 
         insert_row!(row)
+
+        :telemetry.execute(
+          Telemetry.event_name_job_requeued(),
+          %{count: 1},
+          %{fleet: job.fleet_name || ""}
+        )
+
         :ok
     end
   end
@@ -220,6 +271,20 @@ defmodule Tuist.Runners.Jobs do
 
         insert_row!(row)
 
+        :telemetry.execute(
+          Telemetry.event_name_job_completed(),
+          %{
+            count: 1,
+            run_time_ms: duration_ms(job.started_at, now),
+            queue_time_ms: duration_ms(job.enqueued_at, job.claimed_at),
+            total_time_ms: duration_ms(job.enqueued_at, now)
+          },
+          %{
+            fleet: job.fleet_name || "",
+            conclusion: normalise_conclusion(conclusion)
+          }
+        )
+
         {:ok,
          Map.merge(job, %{
            status: "completed",
@@ -231,15 +296,106 @@ defmodule Tuist.Runners.Jobs do
   end
 
   @doc """
+  Counts `queued` rows for `fleet_name`. Used by the autoscaler
+  to size the warm pool — every queued workflow_job needs a Pod
+  to claim it, so the desired replica count grows with this
+  value. `argMax(status, updated_at)` picks the latest state per
+  `workflow_job_id` so jobs that have since transitioned out of
+  `queued` don't get double-counted.
+  """
+  def queued_count_by_fleet(fleet_name) when is_binary(fleet_name) do
+    inner =
+      from j in Job,
+        where: j.fleet_name == ^fleet_name,
+        group_by: j.workflow_job_id,
+        having: fragment("argMax(?, ?) = ?", j.status, j.updated_at, "queued"),
+        select: j.workflow_job_id
+
+    from(s in subquery(inner), select: count())
+    |> ClickHouseRepo.one()
+    |> Kernel.||(0)
+  end
+
+  @doc """
+  Computes the rolling p95 of concurrent (claimed + running) jobs
+  on `fleet_name` over the last 60 minutes, in one-minute buckets.
+
+  How: bucket the last 60 minutes; for each minute, count
+  workflow_jobs whose `[claimed_at, completed_at]` interval covers
+  the bucket. Take `quantile(0.95)` over the 60 counts.
+
+  Powers the autoscaler's "lead the demand" behavior — when load
+  ebbs after a peak, the warm pool floor stays at p95 for another
+  hour so the *next* peak feels instant. Without it, every peak
+  pays the full cold-start tax.
+
+  Returns 0 on an empty fleet (no rows) or a brand-new fleet (no
+  history yet) — both are the same as "no signal, use the
+  configured static floor."
+
+  Note on RMT semantics: rows for completed jobs carry
+  `completed_at` set to the completion timestamp; rows still in
+  flight carry `completed_at = epoch`, so the interval check
+  matches on `completed_at > bucket OR completed_at = epoch`. The
+  2-hour scan window bounds the work — jobs that completed more
+  than two hours ago can't overlap any bucket inside the last
+  60 minutes, so excluding them is a free perf win.
+  """
+  def p95_concurrent_last_hour(fleet_name) when is_binary(fleet_name) do
+    query = """
+    SELECT toUInt64(quantile(0.95)(concurrent_count)) AS p95
+    FROM (
+      SELECT
+        b.bucket AS bucket,
+        countIf(
+          j.claimed_at <= b.bucket
+          AND (
+            j.completed_at > b.bucket
+            OR j.completed_at = toDateTime64('1970-01-01 00:00:00.000', 6, 'UTC')
+          )
+        ) AS concurrent_count
+      FROM (
+        SELECT toStartOfMinute(now() - toIntervalMinute(number)) AS bucket
+        FROM numbers(60)
+      ) AS b
+      CROSS JOIN (
+        SELECT
+          argMax(claimed_at, updated_at) AS claimed_at,
+          argMax(completed_at, updated_at) AS completed_at
+        FROM runner_jobs
+        WHERE fleet_name = {fleet:String}
+          AND claimed_at >= now() - toIntervalHour(2)
+          AND claimed_at != toDateTime64('1970-01-01 00:00:00.000', 6, 'UTC')
+        GROUP BY workflow_job_id
+      ) AS j
+      GROUP BY b.bucket
+    )
+    """
+
+    case ClickHouseRepo.query(query, %{fleet: fleet_name}) do
+      {:ok, %{rows: [[p95]]}} when is_integer(p95) -> p95
+      _ -> 0
+    end
+  end
+
+  @doc """
   Counts jobs in each lifecycle state for an account. Useful for
   customer dashboards.
   """
   def status_counts(account_id) when is_integer(account_id) do
-    Job
-    |> from(hints: ["FINAL"])
-    |> where([j], j.account_id == ^account_id)
-    |> group_by([j], j.status)
-    |> select([j], {j.status, count(j.workflow_job_id)})
+    inner =
+      from j in Job,
+        where: j.account_id == ^account_id,
+        group_by: j.workflow_job_id,
+        select: %{
+          workflow_job_id: j.workflow_job_id,
+          status: fragment("argMax(?, ?)", j.status, j.updated_at)
+        }
+
+    from(s in subquery(inner),
+      group_by: s.status,
+      select: {s.status, count(s.workflow_job_id)}
+    )
     |> ClickHouseRepo.all()
     |> Map.new()
   end
@@ -274,14 +430,13 @@ defmodule Tuist.Runners.Jobs do
 
   # ----- internal -----
 
-  # Fetch the merged current state of a workflow_job. The RMT
-  # FINAL hint forces ClickHouse to apply the merge at query time
-  # so we see the latest `updated_at` row even before the
-  # background merge has run.
+  # Fetch the current state of a workflow_job. Single-row lookup
+  # by primary key — `ORDER BY updated_at DESC LIMIT 1` returns
+  # the latest INSERT without forcing a part-merge.
   defp current(workflow_job_id) do
     Job
-    |> from(hints: ["FINAL"])
     |> where([j], j.workflow_job_id == ^workflow_job_id)
+    |> order_by([j], desc: j.updated_at)
     |> limit(1)
     |> ClickHouseRepo.one()
   end
@@ -297,5 +452,25 @@ defmodule Tuist.Runners.Jobs do
     |> Map.delete(:__meta__)
   end
 
-  defp epoch, do: ~U[1970-01-01 00:00:00.000000Z]
+  defp epoch, do: @epoch
+
+  # Returns `nil` when either bound is missing/epoch so the
+  # histogram bucketer drops the sample instead of recording a
+  # garbage duration.
+  defp duration_ms(%DateTime{} = from, %DateTime{} = to) do
+    if DateTime.after?(from, @epoch) and DateTime.after?(to, from) do
+      DateTime.diff(to, from, :millisecond)
+    end
+  end
+
+  defp duration_ms(_, _), do: nil
+
+  # Normalise GH conclusion strings into the bounded tag set the
+  # dashboard groups by. `nil` and `""` collapse to `"unknown"`
+  # so the conclusion-by-rate panel doesn't grow a phantom empty
+  # series for in-flight rows that crash through the orphan
+  # recovery path.
+  defp normalise_conclusion(c) when c in [nil, ""], do: "unknown"
+  defp normalise_conclusion(c) when is_binary(c), do: c
+  defp normalise_conclusion(_), do: "unknown"
 end

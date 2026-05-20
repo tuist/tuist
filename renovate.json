@@ -9,6 +9,15 @@
         "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>[^\\s]+)\\s+default\\s*=\\s*\"(?<currentValue>[^\"]+)\""
       ],
       "extractVersionTemplate": "^v?(?<version>.+)$"
+    },
+    {
+      "customType": "regex",
+      "description": "GitHub Actions runner version baked into the Linux runner image. Same shape as the macOS counterpart above; bumps land as `fix(linux-runner-image): …` commits which release.yml's release-linux-runner-image flow picks up to rebuild + push + rewrite the runnersFleetLinux pin.",
+      "fileMatch": ["^infra/linux-runner-image/Dockerfile$"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>[^\\s]+)\\s+ARG\\s+RUNNER_VERSION=(?<currentValue>[^\\s]+)"
+      ],
+      "extractVersionTemplate": "^v?(?<version>.+)$"
     }
   ],
   "packageRules": [
@@ -18,6 +27,15 @@
       "matchFileNames": ["infra/runner-image/runner.pkr.hcl"],
       "matchPackageNames": ["actions/runner"],
       "commitMessagePrefix": "fix(runner-image):",
+      "commitMessageTopic": "GitHub Actions runner",
+      "automerge": true
+    },
+    {
+      "description": "actions/runner bumps for the Linux image: route through the linux-runner-image release flow.",
+      "matchManagers": ["custom.regex"],
+      "matchFileNames": ["infra/linux-runner-image/Dockerfile"],
+      "matchPackageNames": ["actions/runner"],
+      "commitMessagePrefix": "fix(linux-runner-image):",
       "commitMessageTopic": "GitHub Actions runner",
       "automerge": true
     }

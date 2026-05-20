@@ -269,3 +269,77 @@ buildersFleet:
   adoptPoolPrefix: "tuist-pool-"
   externalSecrets:
     enabled: true
+
+# Kata Containers + Firecracker runtime for Linux bare-metal nodes.
+# The `kataContainers` block above defaults to disabled; staging
+# flips it on so the kata-deploy DaemonSet installs the runtime on
+# every bare-metal worker that joins the workload cluster.
+kataContainers:
+  enabled: true
+
+# Linux runner fleet on Hetzner Robot bare-metal hosts.
+#
+# Substrate: AX42-U class boxes (8c/16t Zen 4 Ryzen, 64 GB DDR5,
+# 2x512 GB NVMe) provisioned and lifecycled by caph from the workload
+# cluster's `bare-metal-worker` MachineDeployment class. caph claims
+# `HetznerBareMetalHost` CRs in the management cluster (one per
+# pre-ordered Robot server number), rescue-boots them, runs
+# `installimage` to write Ubuntu 24.04 LTS, and the bootstrap
+# cloud-init runs `kubeadm join` automatically.
+#
+# Each node carries:
+#   - `node.cluster.x-k8s.io/pool=runners-linux` (selector for runner Pods)
+#   - `tuist.dev/kata-runtime=true` (opts the node into the kata-deploy
+#     DaemonSet's install path)
+#   - taint `tuist.dev/runner-tier=bare-metal:NoSchedule` (only Pods that
+#     tolerate it land here; everything else stays on the cloud `md-0`
+#     pool)
+#
+# Runner Pods use `runtimeClass: kata-qemu`, so each Pod becomes a
+# QEMU microVM with its own kernel. Density: ~16 microVMs per AX42-U
+# at the 1vCPU / 4 GB slot size. Kata-qemu over kata-fc because
+# Firecracker has no 9pfs/virtio-fs support — kata-fc on a stock
+# overlayfs snapshotter needs nydus + nydusd packaging to deliver
+# rootfs to the microVM. kata-qemu reads overlayfs directly via
+# virtio-fs.
+runnersFleetLinux:
+  enabled: true
+  # Matches the `node.cluster.x-k8s.io/pool` label stamped on each
+  # bare-metal Node by the CAPI MachineDeployment.
+  name: runners-linux
+  pools:
+    - name: ubuntu-22-04
+      runnerImage: "ghcr.io/tuist/tuist-linux-runner:sha-4483c37d81e2"
+      dispatchLabel: "tuist-staging-linux"
+      runnerLabels:
+        - self-hosted
+        - Linux
+        - X64
+      # Each Pod is a QEMU microVM (Kata Containers under containerd).
+      # Per-tenant kernel boundary, ~50 MiB hypervisor overhead per
+      # Pod. Disable to fall back to runc on the host (no tenant
+      # isolation, single-Pod-per-host).
+      runtimeClass: kata-qemu
+      pod:
+        # Per-tenant slot, ccx23-equivalent. AX42-U fits ~16 of these
+        # cleanly with 1:1 CPU + a small RAM reserve for kubelet and
+        # other system DaemonSets on the host. Production AX162-R
+        # quadruples this density (64 slots — 256 GB / 4 GB cap, with
+        # CPU undersubscribed at 96 threads / 64 vCPU = 1.5× headroom
+        # for noisy-neighbor protection).
+        cpuMilli: 1000
+        memoryMB: 4096
+      # Queue-depth driven autoscaling. Pod-level only — the operator
+      # manages bare-metal Host count manually via the cluster topology
+      # in `infra/k8s/clusters/cluster-staging.yaml`. Bare-metal hosts
+      # are monthly-billed in Hetzner Robot; auto-scaling them via the
+      # autoscaler's `machineDeployment` field would (a) silently
+      # provision unused capacity at non-trivial cost, and (b) mis-size
+      # because the autoscaler doesn't know slots-per-host. Pending
+      # Pods past `maxReplicas` are the operator's signal to order
+      # another `tuist-bm-*` host.
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 2
+        maxReplicas: 14
+        scaleDownCooldownSeconds: 300

@@ -35,7 +35,7 @@ defmodule Tuist.Kubernetes.Client do
   def replace(path, body, opts \\ []) when is_binary(path) and is_map(body) do
     request(:put, path,
       opts: opts,
-      body: Jason.encode!(body),
+      body: JSON.encode!(body),
       headers: [{"content-type", "application/json"}]
     )
   end
@@ -43,7 +43,7 @@ defmodule Tuist.Kubernetes.Client do
   def patch(path, operations, opts \\ []) when is_binary(path) and is_list(operations) do
     request(:patch, path,
       opts: opts,
-      body: Jason.encode!(operations),
+      body: JSON.encode!(operations),
       headers: [{"content-type", "application/json-patch+json"}]
     )
   end
@@ -118,7 +118,7 @@ defmodule Tuist.Kubernetes.Client do
   """
   def create_token_review(token, opts \\ []) when is_binary(token) do
     body =
-      Jason.encode!(%{
+      JSON.encode!(%{
         "apiVersion" => "authentication.k8s.io/v1",
         "kind" => "TokenReview",
         "spec" => %{
@@ -156,6 +156,51 @@ defmodule Tuist.Kubernetes.Client do
         # Apiserver omits `authenticated` when validation itself
         # fails (expired SA token, rotated signing key, malformed
         # JWT). Fail closed: treat as unauthenticated.
+        {:error, :unauthenticated}
+
+      {:error, _} = err ->
+        err
+    end
+  end
+
+  @doc """
+  TokenReview variant for the runners-controller calling the
+  `desired_replicas` endpoint. Unlike `create_token_review/1`, this
+  does NOT require the `tuist-runners-dispatch` audience — the
+  controller mounts its SA token at the standard projected path
+  (default audience = kube-apiserver), not via a custom
+  audience-scoped projected volume the way tart-kubelet does for
+  runner Pods.
+
+  The audience filter is intentionally absent. The endpoint
+  returns aggregate scaling signals (claimed / queued / p95
+  counts) and is read-only, so accepting any valid in-cluster SA
+  token is a sane authentication bar — anyone with cluster-side
+  workload access could read the same data via the K8s API
+  anyway. The strict-audience pattern stays scoped to dispatch,
+  where the principal also gates JIT minting against a specific
+  customer's GitHub Actions runner.
+  """
+  def create_controller_token_review(token, opts \\ []) when is_binary(token) do
+    body =
+      JSON.encode!(%{
+        "apiVersion" => "authentication.k8s.io/v1",
+        "kind" => "TokenReview",
+        "spec" => %{"token" => token}
+      })
+
+    case request(:post, "/apis/authentication.k8s.io/v1/tokenreviews",
+           opts: opts,
+           body: body,
+           headers: [{"content-type", "application/json"}]
+         ) do
+      {:ok, %{"status" => %{"authenticated" => true, "user" => user}}} ->
+        parse_sa_principal(user)
+
+      {:ok, %{"status" => %{"authenticated" => false}}} ->
+        {:error, :unauthenticated}
+
+      {:ok, %{"status" => %{"error" => _}}} ->
         {:error, :unauthenticated}
 
       {:error, _} = err ->
@@ -225,7 +270,7 @@ defmodule Tuist.Kubernetes.Client do
   """
   def patch_pod(namespace, name, patch_body) when is_binary(namespace) and is_binary(name) and is_map(patch_body) do
     request(:patch, "/api/v1/namespaces/#{namespace}/pods/#{name}",
-      body: Jason.encode!(patch_body),
+      body: JSON.encode!(patch_body),
       headers: [{"content-type", "application/strategic-merge-patch+json"}]
     )
   end

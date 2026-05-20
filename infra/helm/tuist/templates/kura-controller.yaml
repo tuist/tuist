@@ -158,8 +158,15 @@ spec:
             - --grpc-cluster-issuer={{ $tlsClusterIssuer }}
             {{- end }}
             {{- if .Values.kuraController.cloudflareLoadBalancing.enabled }}
+            {{- if .Values.kuraController.cloudflareLoadBalancing.zoneName }}
+            - --cloudflare-zone-name={{ .Values.kuraController.cloudflareLoadBalancing.zoneName }}
+            {{- end }}
+            {{- if .Values.kuraController.cloudflareLoadBalancing.accountID }}
             - --cloudflare-account-id={{ .Values.kuraController.cloudflareLoadBalancing.accountID }}
+            {{- end }}
+            {{- if .Values.kuraController.cloudflareLoadBalancing.zoneID }}
             - --cloudflare-zone-id={{ .Values.kuraController.cloudflareLoadBalancing.zoneID }}
+            {{- end }}
             - --cloudflare-api-token=$(CLOUDFLARE_API_TOKEN)
             {{- end }}
           ports:
