@@ -27,7 +27,8 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"@daily", Tuist.Billing.Workers.SyncStripeMetersWorker},
     {"* * * * *", Tuist.Kura.Reconciler},
     {"* * * * *", Tuist.Runners.Workers.StaleClaimsWorker},
-    {"* * * * *", Tuist.Runners.Workers.OrphanedRunnersWorker}
+    {"* * * * *", Tuist.Runners.Workers.OrphanedRunnersWorker},
+    {"*/5 * * * *", Tuist.Runners.Workers.MissedQueuedWorker}
   ]
 
   @prod_like_envs [:prod, :stag, :can]

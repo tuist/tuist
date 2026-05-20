@@ -763,6 +763,21 @@ defmodule Tuist.Accounts do
     )
   end
 
+  @doc """
+  Returns accounts with runners enabled (`runner_max_concurrent > 0`).
+  Used by `Tuist.Runners.Workers.MissedQueuedWorker` to scope the
+  GitHub-side reconcile to customers who actually use runners; the
+  rest cost nothing to skip and would just burn API budget.
+  """
+  def list_accounts_with_runners_enabled do
+    Repo.all(
+      from(a in Account,
+        where: a.runner_max_concurrent > 0,
+        order_by: [asc: a.id]
+      )
+    )
+  end
+
   defp create_oauth2_identity(%{
          provider: provider,
          id_in_provider: id_in_provider,

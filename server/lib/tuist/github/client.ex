@@ -431,6 +431,148 @@ defmodule Tuist.GitHub.Client do
     end
   end
 
+  @doc """
+  Lists `workflow_run`s in `status='queued'` for a repository.
+  `:created_after` (a `DateTime`) caps the lookback window with the
+  GitHub `created=>=...` query filter so we don't paginate over
+  ancient queued runs the customer has already abandoned.
+
+  Used by `Tuist.Runners.Workers.MissedQueuedWorker` to recover
+  `workflow_job.queued` webhooks GitHub never delivered (or our
+  endpoint missed). One repo per call — caller is responsible for
+  enumerating repos via `list_installation_repositories/2`.
+
+  Returns `{:ok, [%{id, name, head_branch, head_sha, run_attempt}]}`
+  with just the fields the recovery worker needs to then list the
+  run's jobs. `per_page=100` without pagination — a single repo with
+  100+ queued runs inside the recovery window is well outside the
+  failure mode we're recovering from.
+
+  See: https://docs.github.com/en/rest/actions/workflow-runs#list-workflow-runs-for-a-repository
+  """
+  def list_queued_workflow_runs(installation, repository_full_handle, opts \\ [])
+      when is_binary(repository_full_handle) do
+    api_url = installation_api_url(installation)
+    query = build_queued_runs_query(opts)
+    url = "#{api_url}/repos/#{repository_full_handle}/actions/runs?#{query}"
+
+    with {:ok, %{token: token}} <- App.get_installation_token(installation, api_url: api_url),
+         {:ok, request_url, ssrf_opts} <- pin_ghes_url(url, api_url) do
+      req_opts =
+        [
+          url: request_url,
+          headers: default_headers(token)
+        ] ++ ssrf_opts ++ Retry.retry_options()
+
+      case Req.get(req_opts) do
+        {:ok, %{status: 200, body: %{"workflow_runs" => runs}}} when is_list(runs) ->
+          {:ok, Enum.map(runs, &format_workflow_run/1)}
+
+        {:ok, %{status: 404}} ->
+          {:error, :not_found}
+
+        {:ok, %{status: status, body: body}} ->
+          {:error, {:http, status, body}}
+
+        {:error, reason} ->
+          {:error, {:transport, reason}}
+      end
+    end
+  end
+
+  defp build_queued_runs_query(opts) do
+    base = [{"status", "queued"}, {"per_page", "100"}]
+
+    base =
+      case Keyword.get(opts, :created_after) do
+        %DateTime{} = ts -> base ++ [{"created", ">=" <> DateTime.to_iso8601(ts)}]
+        _ -> base
+      end
+
+    URI.encode_query(base)
+  end
+
+  defp format_workflow_run(run) do
+    %{
+      id: run["id"],
+      name: run["name"] || "",
+      head_branch: run["head_branch"] || "",
+      head_sha: run["head_sha"] || "",
+      run_attempt: run["run_attempt"] || 1
+    }
+  end
+
+  @doc """
+  Lists `workflow_job`s for a `workflow_run`. Used by
+  `Tuist.Runners.Workers.MissedQueuedWorker` to discover individual
+  queued jobs whose `workflow_job.queued` webhooks never made it to
+  our endpoint.
+
+  `filter` controls which run attempts GitHub returns:
+    * `"latest"` (default) — only the most recent attempt's jobs.
+    * `"all"` — every attempt's jobs.
+
+  We default to `"latest"` because the recovery path only needs the
+  attempt that's actually waiting; earlier attempts are by definition
+  done or superseded.
+
+  See: https://docs.github.com/en/rest/actions/workflow-jobs#list-jobs-for-a-workflow-run
+  """
+  def list_workflow_run_jobs(installation, repository_full_handle, run_id, opts \\ [])
+      when is_binary(repository_full_handle) and is_integer(run_id) do
+    api_url = installation_api_url(installation)
+    filter = Keyword.get(opts, :filter, "latest")
+    url = "#{api_url}/repos/#{repository_full_handle}/actions/runs/#{run_id}/jobs?filter=#{filter}&per_page=100"
+
+    with {:ok, %{token: token}} <- App.get_installation_token(installation, api_url: api_url),
+         {:ok, request_url, ssrf_opts} <- pin_ghes_url(url, api_url) do
+      req_opts =
+        [
+          url: request_url,
+          headers: default_headers(token)
+        ] ++ ssrf_opts ++ Retry.retry_options()
+
+      case Req.get(req_opts) do
+        {:ok, %{status: 200, body: %{"jobs" => jobs}}} when is_list(jobs) ->
+          {:ok, Enum.map(jobs, &format_workflow_job/1)}
+
+        {:ok, %{status: 404}} ->
+          {:error, :not_found}
+
+        {:ok, %{status: status, body: body}} ->
+          {:error, {:http, status, body}}
+
+        {:error, reason} ->
+          {:error, {:transport, reason}}
+      end
+    end
+  end
+
+  defp format_workflow_job(job) do
+    %{
+      id: job["id"],
+      run_id: job["run_id"],
+      run_attempt: job["run_attempt"] || 1,
+      name: job["name"] || "",
+      status: job["status"] || "",
+      labels: List.wrap(job["labels"]),
+      head_branch: job["head_branch"] || "",
+      head_sha: job["head_sha"] || "",
+      created_at: parse_iso8601(job["created_at"])
+    }
+  end
+
+  defp parse_iso8601(nil), do: nil
+
+  defp parse_iso8601(ts) when is_binary(ts) do
+    case DateTime.from_iso8601(ts) do
+      {:ok, dt, _} -> dt
+      _ -> nil
+    end
+  end
+
+  defp parse_iso8601(_), do: nil
+
   defp installation_api_url(%{client_url: client_url}), do: VCS.api_url(:github, client_url)
   defp installation_api_url(_), do: VCS.api_url(:github, nil)
 

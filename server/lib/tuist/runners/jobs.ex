@@ -428,6 +428,19 @@ defmodule Tuist.Runners.Jobs do
     |> ClickHouseRepo.all()
   end
 
+  @doc """
+  Returns `true` if any row exists for `workflow_job_id` regardless
+  of status. Used by `MissedQueuedWorker` to avoid re-INSERTing a
+  row the webhook already wrote. RMT semantics mean re-INSERT would
+  be idempotent on `workflow_job_id`, but emitting `Jobs.enqueue/1`
+  also fires the `job_enqueued` telemetry — checking first keeps
+  the counter from double-counting when the recovery path races a
+  delayed webhook.
+  """
+  def exists?(workflow_job_id) when is_integer(workflow_job_id) do
+    not is_nil(current(workflow_job_id))
+  end
+
   # ----- internal -----
 
   # Fetch the current state of a workflow_job. Single-row lookup
