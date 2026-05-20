@@ -39,6 +39,7 @@ defmodule TuistWeb.RunnerJobsLive do
      |> assign(:available_filters, available_filters())
      |> assign(:repos, Jobs.distinct_repos_for_account(selected_account.id))
      |> assign(:analytics_selected_widget, "jobs")
+     |> assign(:jobs_breakdown_type, "total")
      |> assign(:queue_time_percentile, "avg")
      |> assign(:job_duration_percentile, "avg")}
   end
@@ -119,6 +120,10 @@ defmodule TuistWeb.RunnerJobsLive do
 
   def handle_event("select_job_duration_percentile", %{"type" => type}, socket) do
     {:noreply, assign(socket, :job_duration_percentile, type)}
+  end
+
+  def handle_event("select_jobs_breakdown", %{"type" => type}, socket) when type in ["total", "passed", "failed"] do
+    {:noreply, assign(socket, :jobs_breakdown_type, type)}
   end
 
   def handle_event("add_filter", %{"value" => filter_id}, socket) do
@@ -358,19 +363,50 @@ defmodule TuistWeb.RunnerJobsLive do
   def repository_label(repo) when is_binary(repo), do: repo
 
   @doc """
-  Builds the three-series array (Total / Successful / Failed) for
-  the Jobs widget chart. Order is intentional: Total renders on top
-  in the legend, then the two outcome breakdowns sorted as
-  success-then-failure to match the existing recent-jobs legend
-  pairing on the runners overview.
+  Builds the three-series array (Total / Passed / Failed) for the
+  Job runs widget chart. Passed uses the tertiary chart slot — the
+  same green Noora uses for the live Running widget legend so the
+  two pass/healthy signals on this page read with one colour.
   """
   def jobs_breakdown_chart_series(stats) do
     [
       breakdown_series(stats, "Total", "secondary", :total_values),
-      breakdown_series(stats, "Successful", "primary", :successful_values),
-      breakdown_series(stats, "Failed", "destructive", :failed_values)
+      breakdown_series(stats, dgettext("dashboard_runners", "Passed"), "tertiary", :successful_values),
+      breakdown_series(stats, dgettext("dashboard_runners", "Failed"), "destructive", :failed_values)
     ]
   end
+
+  @doc """
+  Title shown above the Job runs widget. The dropdown lets viewers
+  switch between the absolute count of Total runs, Passed runs, or
+  Failed runs — the title rotates with the selection so the widget
+  reads as a single number with context.
+  """
+  def jobs_breakdown_title("passed"), do: dgettext("dashboard_runners", "Passed job runs")
+  def jobs_breakdown_title("failed"), do: dgettext("dashboard_runners", "Failed job runs")
+  def jobs_breakdown_title(_total), do: dgettext("dashboard_runners", "Job runs")
+
+  def jobs_breakdown_value(stats, "passed"), do: Map.get(stats, :successful, 0)
+  def jobs_breakdown_value(stats, "failed"), do: Map.get(stats, :failed, 0)
+  def jobs_breakdown_value(stats, _total), do: Map.get(stats, :total, 0)
+
+  def jobs_breakdown_trend(stats, "passed"), do: Map.get(stats, :trend_successful, 0.0)
+  def jobs_breakdown_trend(stats, "failed"), do: Map.get(stats, :trend_failed, 0.0)
+  def jobs_breakdown_trend(stats, _total), do: Map.get(stats, :trend_total, 0.0)
+
+  # `:inverse` for Failed so the trend badge reads "good" when the
+  # count drops and "bad" when it climbs; `:regular` for Passed so
+  # rising passes are green; `:neutral` for the raw run count where
+  # neither direction has an obvious health signal.
+  def jobs_breakdown_trend_type("failed"), do: :inverse
+  def jobs_breakdown_trend_type("passed"), do: :regular
+  def jobs_breakdown_trend_type(_), do: :neutral
+
+  # Legend dot colour rotates with the dropdown selection so the
+  # widget header colour matches the value being shown.
+  def jobs_breakdown_legend_color("passed"), do: "tertiary"
+  def jobs_breakdown_legend_color("failed"), do: "destructive"
+  def jobs_breakdown_legend_color(_total), do: "secondary"
 
   defp breakdown_series(stats, name, color_key, values_key) do
     %{

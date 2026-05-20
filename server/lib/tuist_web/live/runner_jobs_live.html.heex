@@ -91,44 +91,115 @@
     <div data-part="widgets">
       <.widget
         id="widget-jobs"
-        title={dgettext("dashboard_runners", "Jobs")}
-        legend_color="primary"
+        title={TuistWeb.RunnerJobsLive.jobs_breakdown_title(@jobs_breakdown_type)}
+        legend_color={TuistWeb.RunnerJobsLive.jobs_breakdown_legend_color(@jobs_breakdown_type)}
         description={
           dgettext(
             "dashboard_runners",
             "Workflow jobs received in the window, broken down by outcome."
           )
         }
-        value={if @jobs_breakdown.ok?, do: Integer.to_string(@jobs_breakdown.result.total)}
+        value={
+          if @jobs_breakdown.ok?,
+            do:
+              Integer.to_string(
+                TuistWeb.RunnerJobsLive.jobs_breakdown_value(
+                  @jobs_breakdown.result,
+                  @jobs_breakdown_type
+                )
+              )
+        }
         loading={!@jobs_breakdown.ok?}
         selected={@analytics_selected_widget == "jobs"}
         phx_click="select_widget"
         phx_value_widget="jobs"
-        trend_value={if @jobs_breakdown.ok?, do: @jobs_breakdown.result.trend_total}
-        trend_type={:neutral}
-        trend_label={@analytics_trend_label}
-      />
-      <.widget
-        id="widget-jobs-minutes"
-        title={dgettext("dashboard_runners", "Compute minutes")}
-        legend_color="p90"
-        description={
-          dgettext(
-            "dashboard_runners",
-            "Total compute time consumed by completed jobs in the window."
-          )
+        trend_value={
+          if @jobs_breakdown.ok?,
+            do:
+              TuistWeb.RunnerJobsLive.jobs_breakdown_trend(
+                @jobs_breakdown.result,
+                @jobs_breakdown_type
+              )
         }
-        value={
-          if @cumulative_minutes.ok? do
-            Integer.to_string(div(@cumulative_minutes.result.total_ms, 60_000)) <> "m"
+        trend_type={TuistWeb.RunnerJobsLive.jobs_breakdown_trend_type(@jobs_breakdown_type)}
+        trend_label={@analytics_trend_label}
+      >
+        <:select>
+          <.dropdown_item
+            value="total"
+            phx-click="select_jobs_breakdown"
+            phx-value-type="total"
+            data-selected={@jobs_breakdown_type == "total"}
+          >
+            <div data-part="breakdown-item">
+              <div data-part="dot" data-color="secondary"></div>
+              <span data-part="label">{dgettext("dashboard_runners", "Job runs")}</span>
+            </div>
+          </.dropdown_item>
+          <.dropdown_item
+            value="passed"
+            phx-click="select_jobs_breakdown"
+            phx-value-type="passed"
+            data-selected={@jobs_breakdown_type == "passed"}
+          >
+            <div data-part="breakdown-item">
+              <div data-part="dot" data-color="tertiary"></div>
+              <span data-part="label">{dgettext("dashboard_runners", "Passed")}</span>
+            </div>
+          </.dropdown_item>
+          <.dropdown_item
+            value="failed"
+            phx-click="select_jobs_breakdown"
+            phx-value-type="failed"
+            data-selected={@jobs_breakdown_type == "failed"}
+          >
+            <div data-part="breakdown-item">
+              <div data-part="dot" data-color="destructive"></div>
+              <span data-part="label">{dgettext("dashboard_runners", "Failed")}</span>
+            </div>
+          </.dropdown_item>
+        </:select>
+      </.widget>
+      <.percentile_dropdown_widget
+        id="widget-jobs-job-duration"
+        title={
+          case @job_duration_percentile do
+            "p99" -> dgettext("dashboard_runners", "p99 job duration")
+            "p90" -> dgettext("dashboard_runners", "p90 job duration")
+            "p50" -> dgettext("dashboard_runners", "p50 job duration")
+            _ -> dgettext("dashboard_runners", "Avg. job duration")
           end
         }
-        loading={!@cumulative_minutes.ok?}
-        selected={@analytics_selected_widget == "cumulative_minutes"}
+        description={
+          dgettext("dashboard_runners", "Time each job takes from start to completion.")
+        }
+        value={
+          if @jobs_duration.ok? do
+            TuistWeb.RunnersLive.fmt_duration_ms(
+              TuistWeb.RunnersLive.percentile_value(
+                @jobs_duration.result,
+                @job_duration_percentile
+              )
+            )
+          end
+        }
+        metrics={
+          if @jobs_duration.ok?,
+            do: TuistWeb.RunnersLive.percentile_metrics_for(@jobs_duration.result)
+        }
+        selected_type={@job_duration_percentile}
+        event_name="select_job_duration_percentile"
+        loading={!@jobs_duration.ok?}
+        legend_color={TuistWeb.RunnersLive.legend_color_for_percentile(@job_duration_percentile)}
+        selected={@analytics_selected_widget == "job_duration"}
         phx_click="select_widget"
-        phx_value_widget="cumulative_minutes"
-        trend_value={if @cumulative_minutes.ok?, do: @cumulative_minutes.result.trend}
-        trend_type={:neutral}
+        phx_value_widget="job_duration"
+        trend_value={
+          if @jobs_duration.ok? do
+            TuistWeb.RunnersLive.percentile_trend(@jobs_duration.result, @job_duration_percentile)
+          end
+        }
+        trend_type={:inverse}
         trend_label={@analytics_trend_label}
       />
       <.percentile_dropdown_widget
@@ -173,46 +244,27 @@
         trend_type={:inverse}
         trend_label={@analytics_trend_label}
       />
-      <.percentile_dropdown_widget
-        id="widget-jobs-job-duration"
-        title={
-          case @job_duration_percentile do
-            "p99" -> dgettext("dashboard_runners", "p99 job duration")
-            "p90" -> dgettext("dashboard_runners", "p90 job duration")
-            "p50" -> dgettext("dashboard_runners", "p50 job duration")
-            _ -> dgettext("dashboard_runners", "Avg. job duration")
-          end
-        }
+      <.widget
+        id="widget-jobs-minutes"
+        title={dgettext("dashboard_runners", "Compute minutes")}
+        legend_color="p90"
         description={
-          dgettext("dashboard_runners", "Time each job takes from start to completion.")
+          dgettext(
+            "dashboard_runners",
+            "Total compute time consumed by completed jobs in the window."
+          )
         }
         value={
-          if @jobs_duration.ok? do
-            TuistWeb.RunnersLive.fmt_duration_ms(
-              TuistWeb.RunnersLive.percentile_value(
-                @jobs_duration.result,
-                @job_duration_percentile
-              )
-            )
+          if @cumulative_minutes.ok? do
+            Integer.to_string(div(@cumulative_minutes.result.total_ms, 60_000)) <> "m"
           end
         }
-        metrics={
-          if @jobs_duration.ok?,
-            do: TuistWeb.RunnersLive.percentile_metrics_for(@jobs_duration.result)
-        }
-        selected_type={@job_duration_percentile}
-        event_name="select_job_duration_percentile"
-        loading={!@jobs_duration.ok?}
-        legend_color={TuistWeb.RunnersLive.legend_color_for_percentile(@job_duration_percentile)}
-        selected={@analytics_selected_widget == "job_duration"}
+        loading={!@cumulative_minutes.ok?}
+        selected={@analytics_selected_widget == "cumulative_minutes"}
         phx_click="select_widget"
-        phx_value_widget="job_duration"
-        trend_value={
-          if @jobs_duration.ok? do
-            TuistWeb.RunnersLive.percentile_trend(@jobs_duration.result, @job_duration_percentile)
-          end
-        }
-        trend_type={:inverse}
+        phx_value_widget="cumulative_minutes"
+        trend_value={if @cumulative_minutes.ok?, do: @cumulative_minutes.result.trend}
+        trend_type={:neutral}
         trend_label={@analytics_trend_label}
       />
     </div>
