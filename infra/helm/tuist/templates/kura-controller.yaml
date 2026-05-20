@@ -157,6 +157,9 @@ spec:
             {{- if $tlsClusterIssuer }}
             - --grpc-cluster-issuer={{ $tlsClusterIssuer }}
             {{- end }}
+            {{- if .Values.kuraController.telemetry.otlpTracesEndpoint }}
+            - --otlp-traces-endpoint={{ .Values.kuraController.telemetry.otlpTracesEndpoint }}
+            {{- end }}
             {{- if .Values.kuraController.cloudflareLoadBalancing.enabled }}
             {{- if .Values.kuraController.cloudflareLoadBalancing.zoneName }}
             - --cloudflare-zone-name={{ .Values.kuraController.cloudflareLoadBalancing.zoneName }}
