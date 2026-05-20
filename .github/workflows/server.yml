@@ -193,14 +193,14 @@ jobs:
         run: mix test --warnings-as-errors
   credo:
     name: Credo
-    runs-on: namespace-profile-default-with-volume
+    runs-on: tuist-production-linux
     timeout-minutes: 15
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-server-mix
         with:
           mise-version: ${{ env.MISE_VERSION }}
+          use-namespace-cache: "false"
       - name: Run Credo
         run: mix credo
   format:

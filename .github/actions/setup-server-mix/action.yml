@@ -24,18 +24,23 @@ inputs:
     description: GitHub token used by mise to fetch tools (avoids rate limits)
     required: false
     default: ""
+  use-namespace-cache:
+    description: Whether to use the Namespace cloud cache for mise. Disable on non-Namespace runners.
+    required: false
+    default: "true"
 
 runs:
   using: composite
   steps:
-    - uses: namespacelabs/nscloud-cache-action@v1
+    - if: inputs.use-namespace-cache == 'true'
+      uses: namespacelabs/nscloud-cache-action@v1
       with:
         cache: mise
     - uses: jdx/mise-action@v4.0.1
       with:
         version: ${{ inputs.mise-version }}
         install_args: ${{ inputs.mise-install-args }}
-        cache: "false"
+        cache: ${{ inputs.use-namespace-cache == 'true' && 'false' || 'true' }}
         working_directory: server
         github_token: ${{ inputs.github-token || env.MISE_GITHUB_TOKEN }}
     - name: Restore Mix Cache
