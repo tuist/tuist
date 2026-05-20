@@ -1,12 +1,5 @@
 name: Noora Storybook Deployment
 
-# Production-only deployment for the public Noora Storybook app.
-#
-# The Storybook release is intentionally separate from the main Tuist server
-# release boundary. Noora library changes may still trigger the server workflows
-# because the server depends on `{:noora, path: "../noora"}`, but Storybook image
-# build + rollout lives here.
-
 on:
   push:
     branches:
@@ -57,7 +50,7 @@ jobs:
           submodules: false
       - id: tag
         run: echo "image_tag=sha-${DEPLOY_SHA:0:12}" >> "$GITHUB_OUTPUT"
-      - uses: namespacelabs/nscloud-setup-buildx-action@v0
+      - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}

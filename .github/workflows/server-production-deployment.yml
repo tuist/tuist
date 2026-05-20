@@ -66,6 +66,7 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME: tuist/tuist
   KURA_CONTROLLER_IMAGE_NAME: tuist/kura-controller
+
 jobs:
   # --------------------------------------------------------------------------
   # Build once - the image is env-agnostic (MIX_ENV=prod, all env secrets

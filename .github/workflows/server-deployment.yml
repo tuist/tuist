@@ -101,7 +101,7 @@ env:
 
 jobs:
   build:
-    name: Build + push deploy images
+    name: Build + push
     if: inputs.image_tag == ''
     # TODO: migrate to tuist-production-linux once the runner image ships
     # a docker daemon — buildx requires a working docker engine.
