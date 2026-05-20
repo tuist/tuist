@@ -1,5 +1,35 @@
 <div id="runners">
   <div data-part="date-picker-bar">
+    <.dropdown
+      id="runners-repository-dropdown"
+      label={TuistWeb.RunnersLive.repository_label(@repository)}
+      secondary_text={dgettext("dashboard_runners", "Repository:")}
+    >
+      <:search>
+        <input
+          type="text"
+          placeholder={dgettext("dashboard_runners", "Search...")}
+          data-part="search-input"
+        />
+      </:search>
+      <.dropdown_item
+        value="any"
+        label={dgettext("dashboard_runners", "Any")}
+        patch={TuistWeb.RunnersLive.repository_patch(@uri, "any")}
+        data-selected={@repository == "any"}
+      >
+        <:right_icon :if={@repository == "any"}><.check /></:right_icon>
+      </.dropdown_item>
+      <.dropdown_item
+        :for={repo <- @repos}
+        value={repo}
+        label={repo}
+        patch={TuistWeb.RunnersLive.repository_patch(@uri, repo)}
+        data-selected={@repository == repo}
+      >
+        <:right_icon :if={@repository == repo}><.check /></:right_icon>
+      </.dropdown_item>
+    </.dropdown>
     <.date_picker
       id="runners-analytics-date-range-picker"
       name="analytics-date-range"
@@ -63,7 +93,12 @@
         id="widget-total-jobs"
         title={dgettext("dashboard_runners", "Total jobs")}
         legend_color="primary"
-        description={dgettext("dashboard_runners", "Workflow jobs received from GitHub in the selected window.")}
+        description={
+          dgettext(
+            "dashboard_runners",
+            "Workflow jobs received from GitHub in the selected window."
+          )
+        }
         value={if @jobs_count.ok?, do: Integer.to_string(@jobs_count.result.count)}
         loading={!@jobs_count.ok?}
         selected={@analytics_selected_widget == "total_jobs"}
@@ -84,11 +119,16 @@
             _ -> dgettext("dashboard_runners", "Avg. job duration")
           end
         }
-        description={dgettext("dashboard_runners", "Time each job takes from start to completion.")}
+        description={
+          dgettext("dashboard_runners", "Time each job takes from start to completion.")
+        }
         value={
           if @jobs_duration.ok? do
             TuistWeb.RunnersLive.fmt_duration_ms(
-              TuistWeb.RunnersLive.percentile_value(@jobs_duration.result, @job_duration_percentile)
+              TuistWeb.RunnersLive.percentile_value(
+                @jobs_duration.result,
+                @job_duration_percentile
+              )
             )
           end
         }
@@ -151,7 +191,9 @@
         selected_type={@workflow_duration_percentile}
         event_name="select_workflow_duration_percentile"
         loading={!@workflows_duration.ok?}
-        legend_color={TuistWeb.RunnersLive.legend_color_for_percentile(@workflow_duration_percentile)}
+        legend_color={
+          TuistWeb.RunnersLive.legend_color_for_percentile(@workflow_duration_percentile)
+        }
         selected={@analytics_selected_widget == "workflow_duration"}
         phx_click="select_widget"
         phx_value_widget="workflow_duration"
@@ -182,7 +224,12 @@
           <.chart
             id="runners-total-jobs-chart"
             type="line"
-            extra_options={TuistWeb.RunnersLive.count_chart_options(@jobs_count.result.dates, @analytics_preset)}
+            extra_options={
+              TuistWeb.RunnersLive.count_chart_options(
+                @jobs_count.result.dates,
+                @analytics_preset
+              )
+            }
             series={[
               %{
                 color: "var:noora-chart-primary",
@@ -204,7 +251,12 @@
           <.chart
             id="runners-job-duration-chart"
             type="line"
-            extra_options={TuistWeb.RunnersLive.duration_chart_options(@jobs_duration.result.dates, @analytics_preset)}
+            extra_options={
+              TuistWeb.RunnersLive.duration_chart_options(
+                @jobs_duration.result.dates,
+                @analytics_preset
+              )
+            }
             series={TuistWeb.RunnersLive.duration_chart_series(@jobs_duration.result)}
             y_axis_min={0}
           />
@@ -214,7 +266,12 @@
           <.chart
             id="runners-workflow-duration-chart"
             type="line"
-            extra_options={TuistWeb.RunnersLive.duration_chart_options(@workflows_duration.result.dates, @analytics_preset)}
+            extra_options={
+              TuistWeb.RunnersLive.duration_chart_options(
+                @workflows_duration.result.dates,
+                @analytics_preset
+              )
+            }
             series={TuistWeb.RunnersLive.duration_chart_series(@workflows_duration.result)}
             y_axis_min={0}
           />
@@ -223,9 +280,9 @@
   </.card>
 
   <.card
-    title={dgettext("dashboard_runners", "Workflows")}
+    title={dgettext("dashboard_runners", "Recent workflows")}
     icon="versions"
-    data-part="workflows-card"
+    data-part="recent-workflows-card"
   >
     <:actions>
       <.button
@@ -233,45 +290,125 @@
         size="medium"
         label={dgettext("dashboard_runners", "View more")}
         navigate={~p"/#{@selected_account.name}/runners/workflows"}
-        disabled={Enum.empty?(@workflows)}
+        disabled={Enum.empty?(@recent_workflow_runs)}
       />
     </:actions>
-    <.card_section data-part="workflows-card-section">
-      <div :if={not Enum.empty?(@workflows)} data-part="workflows-table">
+    <.card_section
+      :if={not Enum.empty?(@recent_workflow_runs)}
+      data-part="recent-workflows-section"
+    >
+      <div data-part="recent-workflows-chart">
+        <div data-part="legends">
+          <.legend
+            title={dgettext("dashboard_runners", "Successful")}
+            value={@recent_workflow_runs_successful_count}
+            style="primary"
+          />
+          <.legend
+            title={dgettext("dashboard_runners", "Failed")}
+            value={@recent_workflow_runs_failed_count}
+            style="destructive"
+          />
+        </div>
+        <.chart
+          id="runners-recent-workflows-chart"
+          type="bar"
+          extra_options={
+            %{
+              grid: %{
+                width: "98%",
+                left: "0.4%",
+                right: "7%",
+                height: "88%",
+                top: "5%"
+              },
+              tooltip: %{
+                valueFormat: "fn:formatSeconds",
+                dateFormat: "minute"
+              },
+              xAxis: %{
+                axisLabel: %{show: false},
+                data: Enum.map(@recent_workflow_runs_chart_data, & &1.date)
+              },
+              yAxis: %{
+                splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
+                axisLabel: %{
+                  color: "var:noora-surface-label-secondary",
+                  formatter: "fn:formatSeconds"
+                }
+              },
+              legend: %{show: false}
+            }
+          }
+          series={[
+            %{
+              data: @recent_workflow_runs_chart_data,
+              name: dgettext("dashboard_runners", "Workflow run"),
+              type: "bar"
+            }
+          ]}
+          y_axis_min={0}
+          grid_lines
+          bar_width={8}
+          bar_radius={2}
+        />
+      </div>
+    </.card_section>
+    <.card_section data-part="recent-workflows-card-section">
+      <div :if={not Enum.empty?(@recent_workflow_runs)} data-part="recent-workflows-table">
         <.table
-          id="runners-overview-workflows-table"
-          rows={@workflows}
-          row_key={fn w -> "runners-overview-workflow-#{w.repo}-#{w.workflow_name}" end}
+          id="runners-overview-recent-workflows-table"
+          rows={@recent_workflow_runs}
+          row_key={fn run -> "runners-overview-workflow-run-#{run.workflow_run_id}" end}
+          row_navigate={
+            fn run ->
+              TuistWeb.RunnersLive.workflow_run_path(@selected_account.name, run) || "#"
+            end
+          }
         >
-          <:col :let={w} label={dgettext("dashboard_runners", "Workflow")}>
+          <:col :let={run} label={dgettext("dashboard_runners", "Workflow")}>
             <.text_cell
               label={
-                if(w.workflow_name == "",
+                if(run.workflow_name == "",
                   do: dgettext("dashboard_runners", "Unknown"),
-                  else: w.workflow_name
+                  else: run.workflow_name
                 )
               }
-              sublabel={if(w.repo == "", do: "–", else: w.repo)}
+              sublabel={if(run.repo == "", do: "–", else: run.repo)}
             />
           </:col>
-          <:col :let={w} label={dgettext("dashboard_runners", "Jobs")}>
-            <.text_cell label={Integer.to_string(w.total_jobs)} />
+          <:col :let={run} label={dgettext("dashboard_runners", "Status")}>
+            <.status_badge_cell
+              label={TuistWeb.RunnersLive.conclusion_label(run.conclusion)}
+              status={TuistWeb.RunnersLive.conclusion_status_badge(run.conclusion)}
+            />
           </:col>
-          <:col :let={w} label={dgettext("dashboard_runners", "Success rate")}>
-            <.text_cell label={TuistWeb.RunnersLive.success_rate(w)} />
+          <:col :let={run} label={dgettext("dashboard_runners", "Branch")}>
+            <.text_cell
+              icon="git_branch"
+              label={
+                if(run.head_branch == "",
+                  do: dgettext("dashboard_runners", "Unknown"),
+                  else: run.head_branch
+                )
+              }
+            />
           </:col>
-          <:col :let={w} label={dgettext("dashboard_runners", "Avg duration")}>
+          <:col :let={run} label={dgettext("dashboard_runners", "Commit")}>
+            <.text_cell icon="git_commit" label={TuistWeb.RunnersLive.short_sha(run.head_sha)} />
+          </:col>
+          <:col :let={run} label={dgettext("dashboard_runners", "Duration")}>
             <.text_cell
               icon="history"
-              label={TuistWeb.RunnersLive.fmt_duration_ms(round(w.avg_duration_ms || 0))}
+              label={TuistWeb.RunnersLive.fmt_duration_ms(run.duration_ms)}
             />
           </:col>
-          <:col :let={w} label={dgettext("dashboard_runners", "Last run")}>
-            <.text_cell sublabel={TuistWeb.RunnersLive.from_now_or_dash(w.last_run_at)} />
+          <:col :let={run} label={dgettext("dashboard_runners", "Updated")}>
+            <.text_cell sublabel={TuistWeb.RunnersLive.from_now_or_dash(run.updated_at)} />
           </:col>
         </.table>
       </div>
-      <div :if={Enum.empty?(@workflows)} data-part="empty-workflows">
+      <div :if={Enum.empty?(@recent_workflow_runs)} data-part="empty-recent-workflows">
         <.empty_card_section
           title={TuistWeb.RunnersLive.widget_empty_label()}
           get_started_href="https://tuist.dev/en/docs"
@@ -373,14 +510,12 @@
           }
         >
           <:col :let={job} label={dgettext("dashboard_runners", "Workflow")}>
-            <.text_cell
-              label={
-                if(job.workflow_name == "",
-                  do: dgettext("dashboard_runners", "Unknown"),
-                  else: job.workflow_name
-                )
-              }
-            />
+            <.text_cell label={
+              if(job.workflow_name == "",
+                do: dgettext("dashboard_runners", "Unknown"),
+                else: job.workflow_name
+              )
+            } />
           </:col>
           <:col :let={job} label={dgettext("dashboard_runners", "Job")}>
             <.text_cell label={if(job.job_name == "", do: "–", else: job.job_name)} />
@@ -397,9 +532,9 @@
             <.status_badge_cell label={props.label} status={props.status} />
           </:col>
           <:col :let={job} label={dgettext("dashboard_runners", "Repository")}>
-            <.text_cell
-              label={if(job.repo == "", do: dgettext("dashboard_runners", "Unknown"), else: job.repo)}
-            />
+            <.text_cell label={
+              if(job.repo == "", do: dgettext("dashboard_runners", "Unknown"), else: job.repo)
+            } />
           </:col>
           <:col :let={job} label={dgettext("dashboard_runners", "Updated")}>
             <.text_cell sublabel={TuistWeb.RunnersLive.from_now(job.updated_at)} />

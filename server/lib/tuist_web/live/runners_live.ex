@@ -30,8 +30,7 @@ defmodule TuistWeb.RunnersLive do
        :head_title,
        "#{dgettext("dashboard_runners", "Runners")} · #{selected_account.name} · Tuist"
      )
-     |> assign(:workflows, Jobs.list_workflows_for_account(selected_account.id, limit: @widget_limit))
-     |> assign_recent_jobs(selected_account.id)}
+     |> assign(:repos, Jobs.distinct_repos_for_account(selected_account.id))}
   end
 
   @impl true
@@ -42,18 +41,22 @@ defmodule TuistWeb.RunnersLive do
     selected_widget = params["widget"] || "total_jobs"
     job_duration_percentile = params["job-duration"] || "avg"
     workflow_duration_percentile = params["workflow-duration"] || "avg"
+    repository = params["repository"] || "any"
 
-    opts = [start_datetime: start_datetime, end_datetime: end_datetime]
+    opts = maybe_repo([start_datetime: start_datetime, end_datetime: end_datetime], repository)
 
     {:noreply,
      socket
      |> assign(:uri, URI.parse(uri))
+     |> assign(:repository, repository)
      |> assign(:analytics_preset, preset)
      |> assign(:analytics_period, period)
      |> assign(:analytics_trend_label, trend_label(preset))
      |> assign(:analytics_selected_widget, selected_widget)
      |> assign(:job_duration_percentile, job_duration_percentile)
      |> assign(:workflow_duration_percentile, workflow_duration_percentile)
+     |> assign_recent_jobs(account.id, repository)
+     |> assign_recent_workflow_runs(account.id, repository)
      |> assign_async(
        [:jobs_count, :jobs_duration, :workflows_duration],
        fn ->
@@ -66,6 +69,11 @@ defmodule TuistWeb.RunnersLive do
        end
      )}
   end
+
+  defp maybe_repo(opts, "any"), do: opts
+  defp maybe_repo(opts, nil), do: opts
+  defp maybe_repo(opts, ""), do: opts
+  defp maybe_repo(opts, repo) when is_binary(repo), do: Keyword.put(opts, :repo, repo)
 
   @impl true
   def handle_event("select_widget", %{"widget" => widget}, socket) do
@@ -103,13 +111,15 @@ defmodule TuistWeb.RunnersLive do
     push_patch(socket, to: "/#{socket.assigns.selected_account.name}/runners?#{query}")
   end
 
-  defp assign_recent_jobs(socket, account_id) do
+  defp assign_recent_jobs(socket, account_id, repository) do
     # The Recent jobs card mirrors the Recent Test Runs card on the
     # Tests page — it's a chronicle of finished work, not a live
     # status board. Filter to completed runs only so the bars carry
     # a real duration and the success/failure legends count
     # something other than zero.
-    recent_jobs = Jobs.list_for_account(account_id, status: "completed", limit: @widget_limit)
+    opts = maybe_repo([status: "completed", limit: @widget_limit], repository)
+
+    recent_jobs = Jobs.list_for_account(account_id, opts)
 
     socket
     |> assign(:recent_jobs, recent_jobs)
@@ -117,6 +127,66 @@ defmodule TuistWeb.RunnersLive do
     |> assign(:recent_jobs_successful_count, Enum.count(recent_jobs, &(&1.conclusion == "success")))
     |> assign(:recent_jobs_failed_count, Enum.count(recent_jobs, &(&1.conclusion == "failure")))
   end
+
+  defp assign_recent_workflow_runs(socket, account_id, repository) do
+    opts = maybe_repo([limit: @widget_limit], repository)
+
+    recent_workflow_runs = Jobs.list_recent_workflow_runs_for_account(account_id, opts)
+
+    socket
+    |> assign(:recent_workflow_runs, recent_workflow_runs)
+    |> assign(
+      :recent_workflow_runs_chart_data,
+      recent_workflow_runs_chart_data(recent_workflow_runs, socket.assigns.selected_account.name)
+    )
+    |> assign(
+      :recent_workflow_runs_successful_count,
+      Enum.count(recent_workflow_runs, &(&1.conclusion == "success"))
+    )
+    |> assign(
+      :recent_workflow_runs_failed_count,
+      Enum.count(recent_workflow_runs, &(&1.conclusion == "failure"))
+    )
+  end
+
+  # Workflow-run bars mirror the recent-jobs chart: one bar per run,
+  # height in seconds, colour from the run-level conclusion. We URL
+  # the bar to the workflow detail page when the slug fully resolves
+  # so clicking drills down naturally; partial-info rows just don't
+  # carry a navigate target.
+  defp recent_workflow_runs_chart_data(recent_workflow_runs, account_name) do
+    recent_workflow_runs
+    |> Enum.reverse()
+    |> Enum.map(fn run ->
+      %{
+        value: run_duration_seconds(run),
+        itemStyle: %{color: workflow_run_chart_color(run.conclusion)},
+        date: run.updated_at,
+        url: workflow_run_detail_url(account_name, run)
+      }
+    end)
+  end
+
+  defp run_duration_seconds(%{duration_ms: ms}) when is_integer(ms) and ms > 0, do: div(ms, 1000)
+  defp run_duration_seconds(_), do: 0
+
+  defp workflow_run_chart_color("success"), do: "var:noora-chart-primary"
+  defp workflow_run_chart_color("failure"), do: "var:noora-chart-destructive"
+  defp workflow_run_chart_color("cancelled"), do: "var:noora-chart-warning"
+  defp workflow_run_chart_color(_), do: "var:noora-chart-secondary"
+
+  defp workflow_run_detail_url(account_name, %{repo: repo, workflow_name: workflow_name})
+       when is_binary(repo) and is_binary(workflow_name) and repo != "" and workflow_name != "" do
+    case String.split(repo, "/", parts: 2) do
+      [owner, name] when owner != "" and name != "" ->
+        "/#{account_name}/runners/workflows/#{URI.encode(owner, &URI.char_unreserved?/1)}/#{URI.encode(name, &URI.char_unreserved?/1)}/#{URI.encode(workflow_name, &URI.char_unreserved?/1)}"
+
+      _ ->
+        nil
+    end
+  end
+
+  defp workflow_run_detail_url(_account_name, _row), do: nil
 
   # Bars represent each recent job. Y is the duration in seconds (or
   # zero for not-yet-started states), the bar colour mirrors the row's
@@ -164,6 +234,51 @@ defmodule TuistWeb.RunnersLive do
   defp chart_color_for(%{status: "queued"}), do: "var:noora-chart-warning"
   defp chart_color_for(_), do: "var:noora-chart-primary"
 
+  @doc """
+  Patches the URL to swap the repository scope. Same shape used on
+  the Workflows and Jobs list pages so a viewer hopping between the
+  three keeps the same scope active.
+  """
+  def repository_patch(%URI{} = uri, repository) do
+    "?" <> Query.put(uri.query, "repository", repository)
+  end
+
+  def repository_label("any"), do: dgettext("dashboard_runners", "Any")
+  def repository_label(repo) when is_binary(repo), do: repo
+
+  @doc """
+  Conclusion label for the Recent workflow_runs table — the rollup
+  in `list_recent_workflow_runs_for_account/2` may return `success`,
+  `failure`, `cancelled`, or `skipped`. Anything outside that set
+  collapses to "Unknown" so a stray value renders cleanly.
+  """
+  def conclusion_label("success"), do: dgettext("dashboard_runners", "Success")
+  def conclusion_label("failure"), do: dgettext("dashboard_runners", "Failure")
+  def conclusion_label("cancelled"), do: dgettext("dashboard_runners", "Cancelled")
+  def conclusion_label("skipped"), do: dgettext("dashboard_runners", "Skipped")
+  def conclusion_label(_), do: dgettext("dashboard_runners", "Unknown")
+
+  def conclusion_status_badge("success"), do: "success"
+  def conclusion_status_badge("failure"), do: "error"
+  def conclusion_status_badge(_), do: "warning"
+
+  def workflow_run_path(account_name, %{repo: repo, workflow_name: workflow_name})
+      when is_binary(repo) and is_binary(workflow_name) and repo != "" and workflow_name != "" do
+    case String.split(repo, "/", parts: 2) do
+      [owner, name] when owner != "" and name != "" ->
+        "/#{account_name}/runners/workflows/#{URI.encode(owner, &URI.char_unreserved?/1)}/#{URI.encode(name, &URI.char_unreserved?/1)}/#{URI.encode(workflow_name, &URI.char_unreserved?/1)}"
+
+      _ ->
+        nil
+    end
+  end
+
+  def workflow_run_path(_account_name, _row), do: nil
+
+  def short_sha(""), do: "–"
+  def short_sha(nil), do: "–"
+  def short_sha(sha) when is_binary(sha), do: String.slice(sha, 0, 7)
+
   defp trend_label("last-24-hours"), do: dgettext("dashboard_runners", "since yesterday")
   defp trend_label("last-7-days"), do: dgettext("dashboard_runners", "since last week")
   defp trend_label("last-12-months"), do: dgettext("dashboard_runners", "since last year")
@@ -175,8 +290,7 @@ defmodule TuistWeb.RunnersLive do
   def fmt_duration_ms(nil), do: "–"
   def fmt_duration_ms(0), do: "0s"
 
-  def fmt_duration_ms(ms) when is_integer(ms) and ms > 0,
-    do: DateFormatter.format_duration_from_milliseconds(ms)
+  def fmt_duration_ms(ms) when is_integer(ms) and ms > 0, do: DateFormatter.format_duration_from_milliseconds(ms)
 
   def fmt_duration_ms(_), do: "–"
 

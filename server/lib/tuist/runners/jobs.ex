@@ -612,6 +612,71 @@ defmodule Tuist.Runners.Jobs do
   end
 
   @doc """
+  Returns the N most recently completed workflow_runs for the account,
+  one row per `workflow_run_id`. Each row collapses the workflow_run's
+  jobs into a single rollup: max(completed_at)-min(started_at) for
+  duration, argMax over the latest job for human-readable fields
+  (workflow_name, repo, head_branch, head_sha), and the worst
+  conclusion across all the completed jobs as the run's conclusion.
+
+  Options:
+    * `:limit` — page size, default 5
+    * `:repo` — exact match on `repo`
+    * `:workflow_name` — exact match on `workflow_name`
+  """
+  def list_recent_workflow_runs_for_account(account_id, opts \\ []) when is_integer(account_id) do
+    limit = Keyword.get(opts, :limit, 5)
+    repo = Keyword.get(opts, :repo)
+    workflow_name = Keyword.get(opts, :workflow_name)
+
+    Job
+    |> from(hints: ["FINAL"])
+    |> where([j], j.account_id == ^account_id and j.workflow_run_id > 0)
+    |> maybe_eq_workflow(repo, workflow_name)
+    |> group_by([j], j.workflow_run_id)
+    |> having([j], fragment("countIf(? != 'completed')", j.status) == 0)
+    |> select([j], %{
+      workflow_run_id: j.workflow_run_id,
+      workflow_name: fragment("argMax(?, ?)", j.workflow_name, j.updated_at),
+      repo: fragment("argMax(?, ?)", j.repo, j.updated_at),
+      head_branch: fragment("argMax(?, ?)", j.head_branch, j.updated_at),
+      head_sha: fragment("argMax(?, ?)", j.head_sha, j.updated_at),
+      duration_ms:
+        fragment(
+          "toUnixTimestamp64Milli(max(?)) - toUnixTimestamp64Milli(min(?))",
+          j.completed_at,
+          j.started_at
+        ),
+      # Worst conclusion wins: any failure marks the run failed; any
+      # cancelled marks the run cancelled; otherwise success/skipped.
+      conclusion:
+        fragment(
+          "if(countIf(? = 'failure') > 0, 'failure', if(countIf(? = 'cancelled') > 0, 'cancelled', if(countIf(? = 'success') > 0, 'success', 'skipped')))",
+          j.conclusion,
+          j.conclusion,
+          j.conclusion
+        ),
+      updated_at: max(j.updated_at)
+    })
+    |> order_by([j], desc: max(j.updated_at))
+    |> limit(^limit)
+    |> ClickHouseRepo.all()
+  end
+
+  defp maybe_eq_workflow(query, nil, nil), do: query
+
+  defp maybe_eq_workflow(query, repo, nil) when is_binary(repo) and repo != "", do: where(query, [j], j.repo == ^repo)
+
+  defp maybe_eq_workflow(query, nil, workflow_name) when is_binary(workflow_name) and workflow_name != "",
+    do: where(query, [j], j.workflow_name == ^workflow_name)
+
+  defp maybe_eq_workflow(query, repo, workflow_name)
+       when is_binary(repo) and is_binary(workflow_name) and repo != "" and workflow_name != "",
+       do: where(query, [j], j.repo == ^repo and j.workflow_name == ^workflow_name)
+
+  defp maybe_eq_workflow(query, _repo, _workflow_name), do: query
+
+  @doc """
   Lists the distinct repositories the account has dispatched jobs to
   in the last 30 days, in alphabetical order. Powers the page-level
   repository dropdown on the Workflows page — a curated list of
