@@ -12,8 +12,7 @@ Lint the chart:
 
 ```bash
 helm lint infra/helm/noora-storybook \
-  -f infra/helm/noora-storybook/values-production.yaml \
-  --set image.tag=validation
+  -f infra/helm/noora-storybook/values-ci.yaml
 ```
 
 Render the production manifests:
@@ -21,7 +20,7 @@ Render the production manifests:
 ```bash
 helm template noora-storybook infra/helm/noora-storybook \
   -f infra/helm/noora-storybook/values-production.yaml \
-  --set image.tag=validation
+  -f infra/helm/noora-storybook/values-ci.yaml
 ```
 
 ## Production deploy
