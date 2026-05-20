@@ -166,13 +166,7 @@ fn build_tracer_provider(
     endpoint: &str,
     node_location: &NodeLocation,
 ) -> Result<SdkTracerProvider, String> {
-    let exporter = opentelemetry_otlp::SpanExporter::builder()
-        .with_http()
-        .with_endpoint(endpoint)
-        .with_protocol(Protocol::HttpBinary)
-        .with_timeout(Duration::from_secs(3))
-        .build()
-        .map_err(|error| format!("failed to build OTLP exporter: {error}"))?;
+    let exporter = build_span_exporter(endpoint)?;
 
     let mut attributes = vec![
         KeyValue::new("service.name", config.otel_service_name.clone()),
@@ -203,6 +197,60 @@ fn build_tracer_provider(
         .with_resource(resource)
         .with_batch_exporter(exporter)
         .build())
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum OtlpTraceProtocol {
+    Grpc,
+    HttpBinary,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+struct OtlpTraceExporterConfig {
+    endpoint: String,
+    protocol: OtlpTraceProtocol,
+}
+
+fn build_span_exporter(endpoint: &str) -> Result<opentelemetry_otlp::SpanExporter, String> {
+    let exporter = otlp_trace_exporter_config(endpoint)?;
+
+    match exporter.protocol {
+        OtlpTraceProtocol::Grpc => opentelemetry_otlp::SpanExporter::builder()
+            .with_tonic()
+            .with_endpoint(exporter.endpoint)
+            .with_timeout(Duration::from_secs(3))
+            .build()
+            .map_err(|error| format!("failed to build OTLP gRPC exporter: {error}")),
+        OtlpTraceProtocol::HttpBinary => opentelemetry_otlp::SpanExporter::builder()
+            .with_http()
+            .with_endpoint(exporter.endpoint)
+            .with_protocol(Protocol::HttpBinary)
+            .with_timeout(Duration::from_secs(3))
+            .build()
+            .map_err(|error| format!("failed to build OTLP HTTP exporter: {error}")),
+    }
+}
+
+fn otlp_trace_exporter_config(endpoint: &str) -> Result<OtlpTraceExporterConfig, String> {
+    let url = reqwest::Url::parse(endpoint)
+        .map_err(|error| format!("OTLP traces endpoint must be a valid URL: {error}"))?;
+
+    let (protocol, endpoint) = match url.scheme() {
+        "grpc" => (
+            OtlpTraceProtocol::Grpc,
+            endpoint.replacen("grpc://", "http://", 1),
+        ),
+        "grpcs" => (
+            OtlpTraceProtocol::Grpc,
+            endpoint.replacen("grpcs://", "https://", 1),
+        ),
+        _ if url.path().is_empty() || url.path() == "/" => {
+            (OtlpTraceProtocol::Grpc, url.to_string())
+        }
+        _ => (OtlpTraceProtocol::HttpBinary, url.to_string()),
+    };
+
+    Ok(OtlpTraceExporterConfig { endpoint, protocol })
 }
 
 struct RequestHeaderExtractor<'a>(&'a HeaderMap);
@@ -248,5 +296,45 @@ pub fn inject_current_trace_context(headers: &mut reqwest::header::HeaderMap) {
 pub fn attach_parent_context(span: &Span, headers: &HeaderMap) {
     if let Err(error) = span.set_parent(extract_parent_context(headers)) {
         warn!("failed to attach propagated trace context: {error:?}");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{OtlpTraceProtocol, otlp_trace_exporter_config};
+
+    #[test]
+    fn otlp_trace_exporter_config_uses_http_for_signal_paths() {
+        let config = otlp_trace_exporter_config("http://collector:4318/v1/traces")
+            .expect("expected OTLP HTTP endpoint to parse");
+
+        assert_eq!(config.protocol, OtlpTraceProtocol::HttpBinary);
+        assert_eq!(config.endpoint, "http://collector:4318/v1/traces");
+    }
+
+    #[test]
+    fn otlp_trace_exporter_config_uses_grpc_for_root_endpoint() {
+        let config = otlp_trace_exporter_config("http://collector:4317")
+            .expect("expected OTLP gRPC endpoint to parse");
+
+        assert_eq!(config.protocol, OtlpTraceProtocol::Grpc);
+        assert_eq!(config.endpoint, "http://collector:4317/");
+    }
+
+    #[test]
+    fn otlp_trace_exporter_config_supports_grpc_scheme_shorthand() {
+        let config = otlp_trace_exporter_config("grpcs://collector.internal:443")
+            .expect("expected explicit gRPC scheme to parse");
+
+        assert_eq!(config.protocol, OtlpTraceProtocol::Grpc);
+        assert_eq!(config.endpoint, "https://collector.internal:443");
+    }
+
+    #[test]
+    fn otlp_trace_exporter_config_rejects_invalid_urls() {
+        let error =
+            otlp_trace_exporter_config("not-a-url").expect_err("expected invalid endpoint to fail");
+
+        assert!(error.contains("must be a valid URL"));
     }
 }
