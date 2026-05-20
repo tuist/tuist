@@ -43,58 +43,10 @@ on:
       - 'infra/k8s/mgmt/tailscale.yaml'
       - 'infra/k8s/mgmt/hetzner-robot-controller.yaml'
       - '.github/workflows/mgmt-cluster-apply.yml'
+  # Manual re-runs of the apply path, e.g. to force a re-deploy
+  # without a code change. No inputs — incident-recovery actions
+  # run from an operator's laptop (see `infra/k8s/onboarding.md`).
   workflow_dispatch:
-    inputs:
-      # Diagnostic / recovery inputs. The normal push-to-main path
-      # ignores these; the standard apply steps are skipped when
-      # any of them is set (see `DIAG_MODE` below).
-      dump_workload:
-        description: |
-          Dump workload-cluster state for the chosen cluster:
-          Nodes + taints, RunnerPool CRs, runner Pods + recent
-          events, runners-controller logs, Tuist server health.
-          First stop when "smoke stuck queued" or "nothing is
-          scheduling."
-        required: false
-        type: choice
-        default: ""
-        options: ["", "staging", "canary", "production"]
-      kick_tuist_staging:
-        description: |
-          Force-reschedule pods that are stranded on NotReady
-          Nodes: rollout-restart every Deployment in `tuist-<env>`
-          AND `platform` namespaces, strip finalizers from stuck
-          Terminating pods, force-delete pods on Nodes with the
-          `unreachable` taint. Use when Deployments report 0/N
-          Available even though pods show 1/1 Running.
-        required: false
-        type: choice
-        default: ""
-        options: ["", "staging", "canary", "production"]
-      restart_hccm:
-        description: |
-          Restart hcloud-cloud-controller-manager (kube-system)
-          and nudge the ingress Service to trigger a fresh LB
-          target reconcile. Use when the Hetzner LB still points
-          at dead Node IPs and Cloudflare returns 525 even
-          though ingress-nginx pods are healthy.
-        required: false
-        type: choice
-        default: ""
-        options: ["", "staging", "canary", "production"]
-      cleanup_ghost_nodes:
-        description: |
-          Delete stale Node objects that confuse HCCM: cloud
-          workers whose hcloud VM no longer exists ("server not
-          found"), and bare-metal Nodes left with the legacy
-          `providerID: hcloud://nocloud` from a failed
-          installimage. Safe — the Node object is just a k8s
-          record; CAPI re-creates it on the next reconcile if
-          the underlying machine is still alive.
-        required: false
-        type: choice
-        default: ""
-        options: ["", "staging", "canary", "production"]
 
 # Serialize: don't let two pushes apply concurrently and race.
 concurrency:
@@ -109,17 +61,11 @@ jobs:
     runs-on: namespace-profile-default
     environment:
       name: mgmt-cluster-apply
-    # 10-minute ceiling — the apply path normally finishes in
-    # under 2 min; diag dispatches have their own waits but stay
-    # well under this.
-    timeout-minutes: 10
+    # The apply path normally finishes in under 2 min; 5 min
+    # leaves slack for slow `kubectl diff` against large CRDs.
+    timeout-minutes: 5
     env:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
-      # True when ANY workflow_dispatch diagnostic input is set —
-      # gates off the standard apply steps so a diag dispatch
-      # doesn't also re-run a full apply. Keep in sync with
-      # `on.workflow_dispatch.inputs` above.
-      DIAG_MODE: ${{ github.event.inputs.dump_workload != '' || github.event.inputs.kick_tuist_staging != '' || github.event.inputs.restart_hccm != '' || github.event.inputs.cleanup_ghost_nodes != '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v3.2.0
@@ -135,7 +81,6 @@ jobs:
           op document get "kubeconfig: tuist-mgmt" --vault tuist-k8s-mgmt --output "$KUBECONFIG"
           chmod 600 "$KUBECONFIG"
       - name: Diff (visibility into what's about to change)
-        if: env.DIAG_MODE != 'true'
         # `kubectl diff` exits non-zero when there's a diff, which is
         # the expected case here, so don't fail the step on that.
         # The actual gate is the apply step below.
@@ -166,11 +111,9 @@ jobs:
           kubectl diff -f infra/k8s/mgmt/hetzner-robot-controller.yaml || true
           echo "::endgroup::"
       - name: Apply ClusterClass first (Cluster CRs reference it)
-        if: env.DIAG_MODE != 'true'
         run: |
           kubectl apply -f infra/k8s/clusters/clusterclass-tuist.yaml
       - name: Apply per-env bare-metal substrate
-        if: env.DIAG_MODE != 'true'
         # HetznerBareMetalHost CRs + HetznerBareMetalMachineTemplate +
         # bare-metal KubeadmConfigTemplate + ExternalSecrets. Applied
         # between ClusterClass and Cluster CRs so the MD-claimed
@@ -204,325 +147,15 @@ jobs:
             fi
           done
       - name: Apply per-env Cluster CRs
-        if: env.DIAG_MODE != 'true'
         run: |
           for f in infra/k8s/clusters/cluster-*.yaml; do
             echo "==> $f"
             kubectl apply -f "$f"
           done
       - name: Apply mgmt-side workloads
-        if: env.DIAG_MODE != 'true'
         # These are mgmt-cluster Deployments / CronJobs, not Cluster
         # CRs. Independent of the CAPI manifests above.
         run: |
           kubectl apply -f infra/k8s/mgmt/hetzner-robot-controller.yaml
           kubectl apply -f infra/k8s/mgmt/etcd-snapshot.yaml
           kubectl apply -f infra/k8s/mgmt/tailscale.yaml
-      - name: Dump workload-cluster state
-        # Pulls the workload cluster's kubeconfig from the
-        # CAPI-managed Secret (`<cluster>-kubeconfig` in
-        # `org-tuist`) and dumps:
-        #   - Nodes (did the bare-metal host actually join?)
-        #   - RunnerPool CRs (does the controller see the pool?)
-        #   - Runner Pods + events (did Pods get created, did they
-        #     schedule, are they failing on kata-qemu / image pull?)
-        #   - runners-controller logs (autoscaler reactions, etc.)
-        # Used when the smoke is stuck "queued" — no runner
-        # registered with GitHub means no live Pod with the right
-        # dispatch label.
-        if: github.event.inputs.dump_workload != ''
-        timeout-minutes: 5
-        env:
-          CLUSTER: ${{ github.event.inputs.dump_workload }}
-          WL_KUBECONFIG: ${{ github.workspace }}/.kube/workload-config
-        run: |
-          set -euo pipefail
-          kubectl get secret -n org-tuist "tuist-$CLUSTER-kubeconfig" \
-            -o jsonpath='{.data.value}' | base64 -d > "$WL_KUBECONFIG"
-          chmod 600 "$WL_KUBECONFIG"
-          export KUBECONFIG="$WL_KUBECONFIG"
-          echo "::group::Nodes"
-          kubectl get nodes -o wide
-          echo
-          echo "--- bare-metal Node descriptions ---"
-          for n in $(kubectl get nodes -l node.cluster.x-k8s.io/pool=runners-linux -o jsonpath='{.items[*].metadata.name}'); do
-            echo "=== $n ==="
-            kubectl describe node "$n" | sed -n '/Conditions:/,/Addresses:/p'
-            echo
-            kubectl describe node "$n" | sed -n '/Taints:/,/Unschedulable:/p'
-          done
-          echo "::endgroup::"
-          echo "::group::Cilium agent pods on bare-metal Nodes"
-          for n in $(kubectl get nodes -l node.cluster.x-k8s.io/pool=runners-linux -o jsonpath='{.items[*].metadata.name}'); do
-            echo "=== Cilium on $n ==="
-            cilium_pod=$(kubectl get pods -n kube-system -l k8s-app=cilium --field-selector spec.nodeName="$n" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
-            if [ -z "$cilium_pod" ]; then
-              echo "(no Cilium pod scheduled on $n)"
-            else
-              kubectl get pod -n kube-system "$cilium_pod" -o wide
-              echo "--- last 80 lines of cilium-agent logs ---"
-              kubectl logs -n kube-system "$cilium_pod" --tail=80 2>&1 || true
-            fi
-          done
-          echo "::endgroup::"
-          echo "::group::RunnerPool CRs"
-          kubectl get runnerpool -A -o wide || true
-          echo "::endgroup::"
-          echo "::group::Runner Pods"
-          kubectl get pods -n tuist-runners -o wide || true
-          echo
-          kubectl get pods -n tuist-runners -o yaml | grep -E "phase:|reason:|message:|runtimeClassName:|nodeName:|name:" | head -60 || true
-          echo "::endgroup::"
-          echo "::group::Recent events in tuist-runners"
-          kubectl get events -n tuist-runners --sort-by=.lastTimestamp | tail -40 || true
-          echo "::endgroup::"
-          echo "::group::runners-controller logs (last 200 lines)"
-          ns_dep=$(kubectl get deployment -A -o json | jq -r '.items[] | select(.metadata.name | endswith("runners-controller")) | "\(.metadata.namespace)/\(.metadata.name)"' | head -1)
-          if [ -n "$ns_dep" ]; then
-            kubectl logs -n "${ns_dep%%/*}" "deployment/${ns_dep##*/}" --tail=200 2>&1 || true
-          fi
-          echo "::endgroup::"
-          echo "::group::One Linux runner pod logs (last 100 lines)"
-          one_pod=$(kubectl get pods -n tuist-runners -l tuist.dev/runner-pool -o jsonpath='{.items[?(@.status.phase=="Running")].metadata.name}' 2>/dev/null | tr ' ' '\n' | grep "linux-ubuntu" | head -1)
-          if [ -z "$one_pod" ]; then
-            one_pod=$(kubectl get pods -n tuist-runners -o jsonpath='{.items[?(@.status.phase=="Running")].metadata.name}' 2>/dev/null | tr ' ' '\n' | grep "linux-ubuntu" | head -1)
-          fi
-          if [ -n "$one_pod" ]; then
-            echo "Pod: $one_pod"
-            kubectl logs -n tuist-runners "$one_pod" --tail=100 2>&1 || true
-          fi
-          echo "::endgroup::"
-          echo "::group::Tuist server health"
-          kubectl get deployment -n tuist-staging -o wide | grep -v runners-controller || true
-          echo
-          kubectl get pods -n tuist-staging -o wide | head -30 || true
-          echo "::endgroup::"
-      - name: Kick tuist-staging deployments (force reschedule to Ready Nodes)
-        if: github.event.inputs.kick_tuist_staging != ''
-        env:
-          CLUSTER: ${{ github.event.inputs.kick_tuist_staging }}
-          WL_KUBECONFIG: ${{ github.workspace }}/.kube/workload-config
-        run: |
-          set -euo pipefail
-          kubectl get secret -n org-tuist "tuist-$CLUSTER-kubeconfig" \
-            -o jsonpath='{.data.value}' | base64 -d > "$WL_KUBECONFIG"
-          chmod 600 "$WL_KUBECONFIG"
-          export KUBECONFIG="$WL_KUBECONFIG"
-          # Kick both tuist-<env> AND ingress-nginx — when cloud
-          # workers are flapping NotReady, both the application
-          # pods and the ingress controller pods get stranded, so
-          # Cloudflare can't reach the origin (525) even after the
-          # app pods come back on a Ready Node.
-          unreachable_nodes=$(kubectl get nodes -o json | jq -r '.items[] | select(.spec.taints // [] | map(.key) | index("node.kubernetes.io/unreachable")) | .metadata.name')
-          for ns in "tuist-$CLUSTER" platform; do
-            if ! kubectl get ns "$ns" >/dev/null 2>&1; then
-              echo "Namespace $ns not found, skipping"
-              continue
-            fi
-            echo "::group::[$ns] Deployments BEFORE kick"
-            kubectl get deployment -n "$ns" -o wide || true
-            echo
-            kubectl get pods -n "$ns" -o wide || true
-            echo "::endgroup::"
-            # Strip finalizers from any pod stuck Terminating across
-            # the whole namespace — without this, the rollout can't
-            # progress because the old pod is pinned to a NotReady
-            # Node whose kubelet will never confirm deletion.
-            echo "::group::[$ns] Force-finish stuck Terminating pods"
-            for p in $(kubectl get pods -n "$ns" \
-                -o jsonpath='{range .items[?(@.metadata.deletionTimestamp)]}{.metadata.name}{"\n"}{end}' 2>/dev/null || true); do
-              echo "Force-deleting stuck Terminating Pod: $p"
-              kubectl patch pod -n "$ns" "$p" \
-                -p '{"metadata":{"finalizers":[]}}' --type=merge 2>/dev/null || true
-              kubectl delete pod -n "$ns" "$p" --grace-period=0 --force --wait=false 2>/dev/null || true
-            done
-            echo "::endgroup::"
-            # Delete any pod whose node has the unreachable taint —
-            # the 5-min default tolerationSeconds gets reset whenever
-            # kubelet briefly reaches the apiserver, so pods can stay
-            # pinned for hours. Forcing a delete reschedules to a
-            # Ready Node.
-            echo "::group::[$ns] Force-delete pods on unreachable Nodes"
-            for n in $unreachable_nodes; do
-              for p in $(kubectl get pods -n "$ns" --field-selector spec.nodeName="$n" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || true); do
-                echo "Force-deleting Pod on unreachable Node $n: $p"
-                kubectl delete pod -n "$ns" "$p" --grace-period=0 --force --wait=false 2>/dev/null || true
-              done
-            done
-            echo "::endgroup::"
-            echo "::group::[$ns] Rollout restart every Deployment"
-            for d in $(kubectl get deployment -n "$ns" -o jsonpath='{.items[*].metadata.name}'); do
-              echo "--- restart $d ---"
-              kubectl rollout restart -n "$ns" "deployment/$d" || true
-            done
-            echo "::endgroup::"
-            # DaemonSets (e.g. ingress-nginx can also ship as a DS in
-            # some flavors) may have stuck pods on unreachable Nodes.
-            # Restart them too.
-            echo "::group::[$ns] Rollout restart every DaemonSet"
-            for d in $(kubectl get daemonset -n "$ns" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null); do
-              echo "--- restart ds/$d ---"
-              kubectl rollout restart -n "$ns" "daemonset/$d" || true
-            done
-            echo "::endgroup::"
-          done
-          echo "Sleeping 60s for scheduler to act..."
-          sleep 60
-          for ns in "tuist-$CLUSTER" platform; do
-            kubectl get ns "$ns" >/dev/null 2>&1 || continue
-            echo "::group::[$ns] Deployments AFTER kick"
-            kubectl get deployment -n "$ns" -o wide || true
-            echo
-            kubectl get pods -n "$ns" -o wide || true
-            echo "::endgroup::"
-            echo "::group::[$ns] Pod events for any Pending/CrashLoop pods"
-            for p in $(kubectl get pods -n "$ns" -o jsonpath='{range .items[?(@.status.phase!="Running")]}{.metadata.name}{"\n"}{end}'); do
-              echo "--- $p ---"
-              kubectl describe pod -n "$ns" "$p" | sed -n '/Events:/,$p' | head -20 || true
-            done
-            echo "::endgroup::"
-          done
-      - name: Restart hcloud-cloud-controller-manager (Hetzner CCM)
-        if: github.event.inputs.restart_hccm != ''
-        env:
-          CLUSTER: ${{ github.event.inputs.restart_hccm }}
-          WL_KUBECONFIG: ${{ github.workspace }}/.kube/workload-config
-        run: |
-          set -euo pipefail
-          kubectl get secret -n org-tuist "tuist-$CLUSTER-kubeconfig" \
-            -o jsonpath='{.data.value}' | base64 -d > "$WL_KUBECONFIG"
-          chmod 600 "$WL_KUBECONFIG"
-          export KUBECONFIG="$WL_KUBECONFIG"
-          # HCCM lives in kube-system as a Deployment under helm
-          # release `hccm`. Find it by name OR by label.
-          ns="kube-system"
-          dep=$(kubectl get deployment -n "$ns" -o name 2>/dev/null | grep -iE "hcloud-cloud-controller|hccm" | head -1 | sed 's|deployment.apps/||' || true)
-          if [ -z "$dep" ]; then
-            echo "::error::HCCM deployment not found in kube-system"
-            kubectl get deployment -n "$ns" -o wide || true
-            exit 1
-          fi
-          echo "HCCM deployment: $ns/$dep"
-          echo "::group::HCCM BEFORE restart"
-          kubectl get deployment -n "$ns" "$dep" -o wide
-          kubectl get pods -n "$ns" -l "app.kubernetes.io/name=hcloud-cloud-controller-manager" -o wide || true
-          echo "::endgroup::"
-          # Force-finish stuck Terminating + pods on unreachable Nodes
-          unreachable_nodes=$(kubectl get nodes -o json | jq -r '.items[] | select(.spec.taints // [] | map(.key) | index("node.kubernetes.io/unreachable")) | .metadata.name')
-          echo "::group::Force-finish stuck HCCM pods"
-          for p in $(kubectl get pods -n "$ns" -l "app.kubernetes.io/name=hcloud-cloud-controller-manager" \
-              -o jsonpath='{range .items[?(@.metadata.deletionTimestamp)]}{.metadata.name}{"\n"}{end}' 2>/dev/null || true); do
-            echo "Force-deleting stuck Terminating HCCM Pod: $p"
-            kubectl patch pod -n "$ns" "$p" -p '{"metadata":{"finalizers":[]}}' --type=merge 2>/dev/null || true
-            kubectl delete pod -n "$ns" "$p" --grace-period=0 --force --wait=false 2>/dev/null || true
-          done
-          for n in $unreachable_nodes; do
-            for p in $(kubectl get pods -n "$ns" -l "app.kubernetes.io/name=hcloud-cloud-controller-manager" --field-selector spec.nodeName="$n" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || true); do
-              echo "Force-deleting HCCM Pod on unreachable Node $n: $p"
-              kubectl delete pod -n "$ns" "$p" --grace-period=0 --force --wait=false 2>/dev/null || true
-            done
-          done
-          echo "::endgroup::"
-          echo "::group::Rollout restart HCCM"
-          kubectl rollout restart -n "$ns" "deployment/$dep"
-          kubectl rollout status -n "$ns" "deployment/$dep" --timeout=3m || true
-          echo "::endgroup::"
-          # Trigger LB target refresh by touching the Service
-          echo "::group::Touch platform-ingress-nginx-controller Service to nudge HCCM"
-          if kubectl get svc -n platform platform-ingress-nginx-controller >/dev/null 2>&1; then
-            ts=$(date -u +%s)
-            kubectl annotate svc -n platform platform-ingress-nginx-controller "tuist.dev/lb-refresh=$ts" --overwrite || true
-          fi
-          echo "::endgroup::"
-          echo "Sleeping 45s for HCCM to reconcile LB..."
-          sleep 45
-          echo "::group::HCCM AFTER restart"
-          kubectl get deployment -n "$ns" "$dep" -o wide
-          kubectl get pods -n "$ns" -l "app.kubernetes.io/name=hcloud-cloud-controller-manager" -o wide || true
-          echo "::endgroup::"
-          echo "::group::HCCM logs (last 60 lines)"
-          kubectl logs -n "$ns" -l "app.kubernetes.io/name=hcloud-cloud-controller-manager" --tail=60 2>&1 | tail -60 || true
-          echo "::endgroup::"
-          echo "::group::LoadBalancer Service state (platform/ingress-nginx)"
-          kubectl get svc -n platform platform-ingress-nginx-controller -o yaml | grep -E "loadBalancer:|ingress:|ip:|hostname:|targetRef|nodeName" | head -20 || true
-          echo "::endgroup::"
-      - name: Cleanup ghost cloud-worker Nodes
-        if: github.event.inputs.cleanup_ghost_nodes != ''
-        env:
-          CLUSTER: ${{ github.event.inputs.cleanup_ghost_nodes }}
-          WL_KUBECONFIG: ${{ github.workspace }}/.kube/workload-config
-        run: |
-          set -euo pipefail
-          kubectl get secret -n org-tuist "tuist-$CLUSTER-kubeconfig" \
-            -o jsonpath='{.data.value}' | base64 -d > "$WL_KUBECONFIG"
-          chmod 600 "$WL_KUBECONFIG"
-          export KUBECONFIG="$WL_KUBECONFIG"
-          echo "::group::Nodes BEFORE cleanup"
-          kubectl get nodes -o wide | head -60 || true
-          echo "::endgroup::"
-          # A cloud worker Node is a "ghost" when its Ready
-          # condition is False/Unknown AND no live HCloudMachine
-          # claims it via providerID. The simplest signal: a Node
-          # tainted `node.kubernetes.io/unreachable` for more than
-          # a few minutes AND named like the cloud-worker MD prefix.
-          # Skip the control plane and bare-metal Nodes.
-          echo "::group::Identify ghost cloud-worker Nodes"
-          # `lastHeartbeatTime` would be ideal but is verbose; use
-          # the unreachable taint's timeAdded if present (added by
-          # node lifecycle when kubelet stops heartbeating).
-          now=$(date -u +%s)
-          ghosts=()
-          # Match both cloud-worker (tuist-<env>-md-0-*) and
-          # bare-metal (bm-tuist-<env>-*) prefixes. Bare-metal
-          # Nodes with stale providerID `hcloud://nocloud` will
-          # crash HCCM's LB reconciler, so they need cleanup too.
-          for n in $(kubectl get nodes -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' | grep -E "^(tuist-${CLUSTER}-md-0-|bm-tuist-${CLUSTER}-)"); do
-            # Skip if Ready=True
-            ready=$(kubectl get node "$n" -o jsonpath='{range .status.conditions[?(@.type=="Ready")]}{.status}{end}')
-            if [ "$ready" = "True" ]; then
-              continue
-            fi
-            # Detect bogus providerID. `hcloud://nocloud` is a
-            # known sentinel from a failed installimage cycle —
-            # HCCM tries to parse "nocloud" as an integer server
-            # ID, fails, and aborts the entire Service reconcile.
-            pid=$(kubectl get node "$n" -o jsonpath='{.spec.providerID}' 2>/dev/null || true)
-            if [ "$pid" = "hcloud://nocloud" ]; then
-              echo "Ghost (bogus providerID): $n (providerID=$pid)"
-              ghosts+=("$n")
-              continue
-            fi
-            # Check whether the node has unreachable taint
-            unreach=$(kubectl get node "$n" -o jsonpath='{range .spec.taints[?(@.key=="node.kubernetes.io/unreachable")]}{.timeAdded}{end}')
-            if [ -z "$unreach" ]; then
-              # No unreachable taint either; might be initializing — skip
-              continue
-            fi
-            ts=$(date -u -d "$unreach" +%s 2>/dev/null || gdate -u -d "$unreach" +%s 2>/dev/null || echo 0)
-            age=$((now - ts))
-            if [ "$age" -lt 300 ]; then
-              echo "Skipping $n (unreachable only ${age}s)"
-              continue
-            fi
-            echo "Ghost: $n (unreachable ${age}s)"
-            ghosts+=("$n")
-          done
-          echo "Found ${#ghosts[@]} ghost Nodes"
-          echo "::endgroup::"
-          if [ "${#ghosts[@]}" -gt 0 ]; then
-            echo "::group::Delete ghost Nodes"
-            for n in "${ghosts[@]}"; do
-              echo "kubectl delete node $n"
-              kubectl delete node "$n" --grace-period=0 --force --wait=false 2>&1 || true
-            done
-            echo "::endgroup::"
-          fi
-          # HCCM will reconcile remaining Nodes within ~30s
-          echo "Sleeping 30s for HCCM to reconcile..."
-          sleep 30
-          echo "::group::Nodes AFTER cleanup"
-          kubectl get nodes -o wide | head -30 || true
-          echo "::endgroup::"
-          echo "::group::HCCM logs after cleanup"
-          kubectl logs -n kube-system -l "app.kubernetes.io/name=hcloud-cloud-controller-manager" --tail=40 2>&1 | tail -40 || true
-          echo "::endgroup::"
