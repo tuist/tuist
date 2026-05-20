@@ -30,8 +30,13 @@
     _.source = ["{{config_root}}/mise/utilities/dev_instance_env.sh", "{{config_root}}/mise/utilities/cache_ee_env.sh"]
     TUIST_CACHE_CONCURRENCY_LIMIT="none"
     TUIST_FILESYSTEM_BACKEND = "swift-file-system"
-    # Elixir recommends half of the number of cores: https://elixir-lang.org/blog/2025/10/16/elixir-v1-19-0-released/
-    MIX_OS_DEPS_COMPILE_PARTITION_COUNT=4
+    # Elixir recommends half of the number of cores
+    # (https://elixir-lang.org/blog/2025/10/16/elixir-v1-19-0-released/),
+    # but our CI runners are 1 vCPU / 4 GB microVMs where four
+    # partitioned BEAM workers OOM during `mix deps.compile`.
+    # Serial is safe everywhere; the locally-felt cost is a slower
+    # first-time compile.
+    MIX_OS_DEPS_COMPILE_PARTITION_COUNT=1
     TUIST_INSPECT_TEST_MODE = "remote"
     TUIST_FEATURE_FLAG_KURA = "1"
     TUIST_HOSTED = "1"
