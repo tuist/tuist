@@ -1,0 +1,82 @@
+name: Hetzner Robot Controller Image
+
+# PR validation + ad-hoc image build for hetzner-robot-controller,
+# the small operator that reflects Hetzner Robot's server inventory
+# into HetznerBareMetalHost CRs on the mgmt cluster (so the
+# operator doesn't hand-author one per box) and auto-fills disk
+# WWNs once caph populates hardwareDetails.
+#
+# Steady-state image promotion is owned by release.yml's
+# release-hetzner-robot-controller job; this workflow only handles
+# pre-release iteration via `:sha-<git-sha>` tags.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - infra/hetzner-robot-controller/**
+      - .github/workflows/hetzner-robot-controller-image.yml
+  pull_request:
+    paths:
+      - infra/hetzner-robot-controller/**
+      - .github/workflows/hetzner-robot-controller-image.yml
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: tuist/tuist-hetzner-robot-controller
+
+jobs:
+  test:
+    runs-on: namespace-profile-default
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: infra/hetzner-robot-controller/go.mod
+          cache-dependency-path: infra/hetzner-robot-controller/go.sum
+      - name: Test
+        working-directory: infra/hetzner-robot-controller
+        run: go test ./...
+      - name: Vet
+        working-directory: infra/hetzner-robot-controller
+        run: go vet ./...
+
+  build:
+    needs: test
+    if: github.event_name != 'pull_request'
+    runs-on: namespace-profile-default
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Compute tags
+        id: tags
+        run: |
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
+          GIT_SHA="${GITHUB_SHA::12}"
+          {
+            echo "tags<<EOF"
+            echo "${IMAGE}:sha-${GIT_SHA}"
+            echo "${IMAGE}:latest"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/hetzner-robot-controller/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+          cache-from: type=gha,scope=hetzner-robot-controller
+          cache-to: type=gha,mode=max,scope=hetzner-robot-controller

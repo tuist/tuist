@@ -34,12 +34,18 @@ name: Mgmt Cluster Apply
 
 on:
   push:
+    # Main-only — every other deploy workflow in the repo holds this
+    # posture so a feature branch never mutates production state.
     branches: [main]
     paths:
       - 'infra/k8s/clusters/**'
       - 'infra/k8s/mgmt/etcd-snapshot.yaml'
       - 'infra/k8s/mgmt/tailscale.yaml'
+      - 'infra/k8s/mgmt/hetzner-robot-controller.yaml'
       - '.github/workflows/mgmt-cluster-apply.yml'
+  # Manual re-runs of the apply path, e.g. to force a re-deploy
+  # without a code change. No inputs — incident-recovery actions
+  # run from an operator's laptop (see `infra/k8s/onboarding.md`).
   workflow_dispatch:
 
 # Serialize: don't let two pushes apply concurrently and race.
@@ -55,7 +61,9 @@ jobs:
     runs-on: namespace-profile-default
     environment:
       name: mgmt-cluster-apply
-    timeout-minutes: 10
+    # The apply path normally finishes in under 2 min; 5 min
+    # leaves slack for slow `kubectl diff` against large CRDs.
+    timeout-minutes: 5
     env:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
     steps:
@@ -82,6 +90,12 @@ jobs:
           echo "::group::ClusterClass diff"
           kubectl diff -f infra/k8s/clusters/clusterclass-tuist.yaml || true
           echo "::endgroup::"
+          for f in infra/k8s/clusters/bare-metal*.yaml; do
+            [ -e "$f" ] || continue
+            echo "::group::$(basename "$f") diff"
+            kubectl diff -f "$f" || true
+            echo "::endgroup::"
+          done
           for f in infra/k8s/clusters/cluster-*.yaml; do
             echo "::group::$(basename "$f") diff"
             kubectl diff -f "$f" || true
@@ -93,9 +107,48 @@ jobs:
           echo "::group::tailscale.yaml diff"
           kubectl diff -f infra/k8s/mgmt/tailscale.yaml || true
           echo "::endgroup::"
+          echo "::group::hetzner-robot-controller.yaml diff"
+          kubectl diff -f infra/k8s/mgmt/hetzner-robot-controller.yaml || true
+          echo "::endgroup::"
       - name: Apply ClusterClass first (Cluster CRs reference it)
         run: |
           kubectl apply -f infra/k8s/clusters/clusterclass-tuist.yaml
+      - name: Apply bare-metal substrate
+        # HetznerBareMetalMachineTemplate + KubeadmConfigTemplate
+        # for the shared `bare-metal-worker` MachineDeployment class.
+        # Per-cluster HBM claim scoping is via the `bareMetalCluster`
+        # ClusterClass variable + the patch in `clusterclass-tuist.yaml`,
+        # not by duplicating substrate per env. Applied
+        # between ClusterClass and Cluster CRs so the MD-claimed
+        # templates exist by the time the topology controller starts
+        # reconciling worker Machines.
+        #
+        # HetznerBareMetalMachineTemplate's spec is immutable by CAPI
+        # convention (every infrastructure template across providers
+        # works this way — the spec is a definitional snapshot that
+        # gets cloned by reference at Machine creation, not mutated in
+        # place). When the PR changes the template, plain `kubectl
+        # apply` fails with `Invalid value: ... is immutable`. Fall
+        # back to delete + apply, which is safe because:
+        # (a) deleting an unreferenced template is a no-op for caph
+        # (b) existing Machines hold a snapshot of the template's
+        #     spec in their own object and aren't affected by the
+        #     template going away.
+        run: |
+          set -o pipefail
+          for f in infra/k8s/clusters/bare-metal*.yaml; do
+            [ -e "$f" ] || continue
+            echo "==> $f"
+            if ! kubectl apply -f "$f" 2>&1 | tee /tmp/apply.out; then
+              if grep -q 'is immutable' /tmp/apply.out; then
+                echo "Immutable spec detected, retrying as delete + apply..."
+                kubectl delete -f "$f" --ignore-not-found --wait=true
+                kubectl apply -f "$f"
+              else
+                exit 1
+              fi
+            fi
+          done
       - name: Apply per-env Cluster CRs
         run: |
           for f in infra/k8s/clusters/cluster-*.yaml; do
@@ -106,5 +159,6 @@ jobs:
         # These are mgmt-cluster Deployments / CronJobs, not Cluster
         # CRs. Independent of the CAPI manifests above.
         run: |
+          kubectl apply -f infra/k8s/mgmt/hetzner-robot-controller.yaml
           kubectl apply -f infra/k8s/mgmt/etcd-snapshot.yaml
           kubectl apply -f infra/k8s/mgmt/tailscale.yaml

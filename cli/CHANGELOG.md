@@ -5,7 +5,15 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
+* keep tuist dump stdout machine-readable by [@pepicrft](https://github.com/pepicrft) in [#10874](https://github.com/tuist/tuist/pull/10874)
+* re-run foreign build script when inputs cannot be tracked by [@fortmarek](https://github.com/fortmarek) in [#10872](https://github.com/tuist/tuist/pull/10872)
+* align tuist hash selective-testing with the test pipeline by [@fortmarek](https://github.com/fortmarek) in [#10870](https://github.com/tuist/tuist/pull/10870)
+* apply test quarantine to --without-building and shard runs by [@fortmarek](https://github.com/fortmarek) in [#10864](https://github.com/tuist/tuist/pull/10864)
+* Indentation in StringsTemplate.swift by [@teameh](https://github.com/teameh) in [#10853](https://github.com/tuist/tuist/pull/10853)
 * retry run metadata upload on transient errors by [@fortmarek](https://github.com/fortmarek) in [#10842](https://github.com/tuist/tuist/pull/10842)
+### ⚡ Performance
+
+* use Set for project path lookups in tree-shake mapper by [@inju2403](https://github.com/inju2403) in [#10033](https://github.com/tuist/tuist/pull/10033)
 
 
 

@@ -1,6 +1,7 @@
 import FileSystem
 import Foundation
 import Path
+import TuistAlert
 import TuistCore
 import XcodeGraph
 
@@ -34,7 +35,7 @@ public struct ForeignBuildGraphMapper: GraphMapping {
             for (targetName, target) in project.targets {
                 guard let foreignBuild = target.foreignBuild else { continue }
 
-                let inputPaths = try await inputPaths(from: foreignBuild.inputs)
+                let inputPaths = try await inputPaths(from: foreignBuild.inputs, targetName: targetName)
                 var updatedTarget = target
                 updatedTarget.scripts = [
                     TargetScript(
@@ -43,7 +44,8 @@ public struct ForeignBuildGraphMapper: GraphMapping {
                         script: .embedded(foreignBuild.script),
                         inputPaths: inputPaths,
                         outputPaths: [foreignBuild.output.path.pathString],
-                        showEnvVarsInLog: false
+                        showEnvVarsInLog: false,
+                        basedOnDependencyAnalysis: inputPaths.isEmpty ? false : nil
                     ),
                 ]
                 updatedTarget.metadata = .metadata(
@@ -78,7 +80,7 @@ public struct ForeignBuildGraphMapper: GraphMapping {
         return (graph, [], environment)
     }
 
-    private func inputPaths(from inputs: [ForeignBuild.Input]) async throws -> [String] {
+    private func inputPaths(from inputs: [ForeignBuild.Input], targetName: String) async throws -> [String] {
         var pathStrings: [String] = []
 
         for input in inputs {
@@ -92,10 +94,21 @@ public struct ForeignBuildGraphMapper: GraphMapping {
                         try await fileSystem.exists($0, isDirectory: false)
                     }
                     .map(\.pathString)
+                if filePathStrings.isEmpty {
+                    AlertController.current.warning(.alert(
+                        "Foreign build folder input '\(path.pathString)' for target '\(targetName)' is empty or does not exist. Verify the path is correct, otherwise Xcode will not detect changes to files in this folder."
+                    ))
+                }
                 pathStrings.append(contentsOf: filePathStrings)
             case .script:
                 break
             }
+        }
+
+        if pathStrings.isEmpty {
+            AlertController.current.warning(.alert(
+                "Foreign build target '\(targetName)' has no resolvable input file paths, so the script will run on every build. This is fine when the underlying build system handles its own incrementality; otherwise, declare inputs so Xcode can skip the script when nothing changed."
+            ))
         }
 
         return pathStrings

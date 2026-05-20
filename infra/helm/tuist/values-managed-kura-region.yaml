@@ -30,7 +30,7 @@ kuraController:
     zoneName: tuist.dev
     apiTokenSecret:
       managed: true
-      item: KURA_CLOUDFLARE_API_TOKEN
+      item: cloudflare-tuist-dns
   sharedSecrets:
     # In managed regions, kura-shared-secrets is populated by CI from
     # the same secret store as the Tuist server release.

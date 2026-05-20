@@ -6,12 +6,12 @@ import TuistEnvironment
 import TuistLogging
 import TuistNooraExtension
 import TuistServer
+import TuistSupport
 
 #if os(macOS)
     import TuistExtension
     import TuistKit
     import TuistLoader
-    import TuistSupport
 
     #if canImport(TuistCacheEE)
         import TuistCacheEE
@@ -52,7 +52,9 @@ struct IgnoreOutputPipeline: StandardPipelining {
 }
 
 func initNoora(jsonThroughNoora: Bool = false) -> Noora {
-    if CommandLine.arguments.contains("--json") || CommandLine.arguments.contains("--quiet") {
+    if MachineReadableOutput.isEnabled(arguments: Environment.current.arguments)
+        || MachineReadableOutput.isQuiet(arguments: Environment.current.arguments)
+    {
         Noora(
             standardPipelines: jsonThroughNoora ? StandardPipelines() : StandardPipelines(
                 output: IgnoreOutputPipeline()
