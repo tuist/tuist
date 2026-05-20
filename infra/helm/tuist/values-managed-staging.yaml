@@ -292,7 +292,7 @@ runnersFleetLinux:
   name: runners-linux
   pools:
     - name: ubuntu-22-04
-      runnerImage: "ghcr.io/tuist/tuist-linux-runner:sha-4483c37d81e2"
+      runnerImage: "ghcr.io/tuist/tuist-linux-runner:sha-c6767c4e169d"
       dispatchLabel: "tuist-staging-linux"
       runnerLabels:
         - self-hosted
@@ -325,3 +325,11 @@ runnersFleetLinux:
         minWarmPoolFloor: 2
         maxReplicas: 14
         scaleDownCooldownSeconds: 300
+
+# Staging-only override for the runners-controller image, ahead of
+# the common pin in values-managed-common.yaml. Pre-merge validation
+# of the dind sidecar plumbing — canary/prod stay on the previous
+# digest until this PR lands on main.
+runnersController:
+  image:
+    tag: "sha-c6767c4e169d"
