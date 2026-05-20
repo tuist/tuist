@@ -22,154 +22,64 @@ env:
   MISE_GITHUB_ATTESTATIONS: 0
 
 jobs:
-  check-component:
-    # Per-component release check, fanned out so each cliff invocation runs
-    # in parallel and finishes in seconds. GITHUB_TOKEN is deliberately
-    # cleared before invoking cliff: with it set, cliff makes one API call
-    # per commit to enrich the template with PR titles/usernames, which
-    # is irrelevant for --bumped-version and was costing 60-180s per
-    # component (the previous serial job timed out at 15 min).
-    name: Check ${{ matrix.component }} for releasable changes
+  check-releases:
+    # Single linear job: each component check is a sub-second `git cliff
+    # --bumped-version` call. The previous serial implementation hit the
+    # 15-min job timeout because cliff was making per-commit GitHub API
+    # calls to enrich the changelog template with PR title/username — see
+    # the GITHUB_TOKEN/GH_TOKEN unset below. Stripping that enrichment
+    # drops each call from ~120s to <1s, so all 15 components finish well
+    # under a minute on a single runner.
+    name: Check for releasable changes
     runs-on: namespace-profile-default-with-volume
     timeout-minutes: 5
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - component: cli
-            tag-prefix: ""
-            tag-regex: '^[0-9]+\.[0-9]+\.[0-9]+$'
-            cliff-config: cli/cliff.toml
-            initial-version: "0.0.0"
-            include-paths: |
-              cli/**/*
-              .xcode-version-releases
-              Package.swift
-              Package.resolved
-          - component: app
-            tag-prefix: "app@"
-            tag-regex: '^app@[0-9]+\.[0-9]+\.[0-9]+$'
-            cliff-config: app/cliff.toml
-            initial-version: "0.1.0"
-            include-paths: |
-              app/**/*
-              mise/tasks/app/**/*
-              cli/Sources/TuistSupport/**/*
-              cli/Sources/TuistCore/**/*
-              cli/Sources/TuistServer/**/*
-              cli/Sources/TuistHTTP/**/*
-              cli/Sources/TuistAutomation/**/*
-              cli/Sources/TuistSimulator/**/*
-              cli/Sources/TuistAndroid/**/*
-              cli/Sources/TuistLogging/**/*
-              cli/Sources/XcodeGraph/**/*
-              cli/Sources/TuistConstants/**/*
-              cli/Sources/TuistEnvironment/**/*
-              cli/Sources/TuistConfig/**/*
-              cli/Sources/TuistAlert/**/*
-              cli/Sources/TuistThreadSafe/**/*
-              cli/Sources/TuistOpener/**/*
-              cli/Sources/TuistUniqueIDGenerator/**/*
-              cli/Sources/TuistNooraExtension/**/*
-          - component: server
-            tag-prefix: "server@"
-            tag-regex: '^server@[0-9]+\.[0-9]+\.[0-9]+$'
-            cliff-config: server/cliff.toml
-            initial-version: "0.1.0"
-            include-paths: |
-              server/**/*
-          - component: cache
-            tag-prefix: "cache@"
-            tag-regex: '^cache@[0-9]+\.[0-9]+\.[0-9]+$'
-            cliff-config: cache/cliff.toml
-            initial-version: "0.1.0"
-            include-paths: |
-              cache/**/*
-          - component: kura
-            tag-prefix: "kura@"
-            tag-regex: '^kura@[0-9]+\.[0-9]+\.[0-9]+$'
-            cliff-config: kura/cliff.toml
-            initial-version: "0.1.0"
-            include-paths: |
-              kura/**/*
-          - component: gradle
-            tag-prefix: "gradle@"
-            tag-regex: '^gradle@[0-9]+\.[0-9]+\.[0-9]+$'
-            cliff-config: gradle/cliff.toml
-            initial-version: "0.1.0"
-            include-paths: ""
-          - component: skills
-            tag-prefix: "skills@"
-            tag-regex: '^skills@[0-9]+\.[0-9]+\.[0-9]+$'
-            cliff-config: skills/cliff.toml
-            initial-version: "0.1.0"
-            include-paths: |
-              skills/**/*
-          - component: noora
-            tag-prefix: "noora@"
-            tag-regex: '^noora@[0-9]+\.[0-9]+\.[0-9]+$'
-            cliff-config: noora/cliff.toml
-            initial-version: "0.73.0"
-            include-paths: |
-              noora/**/*
-          - component: helm
-            tag-prefix: "helm@"
-            tag-regex: '^helm@[0-9]+\.[0-9]+\.[0-9]+$'
-            cliff-config: infra/helm/cliff.toml
-            initial-version: "0.1.0"
-            include-paths: |
-              infra/helm/**/*
-          - component: capi-scaleway
-            # Spans three Go modules that all ship inside the operator image.
-            tag-prefix: "capi-scaleway@"
-            tag-regex: '^capi-scaleway@[0-9]+\.[0-9]+\.[0-9]+$'
-            cliff-config: infra/cluster-api-provider-scaleway-applesilicon/cliff.toml
-            initial-version: "0.1.0"
-            include-paths: |
-              infra/cluster-api-provider-scaleway-applesilicon/**/*
-              infra/macos-host-bootstrap/**/*
-              infra/tart-kubelet/**/*
-          - component: xcresult-processor-image
-            # Bakes the server release in, so server pieces the BEAM
-            # exercises under TUIST_MODE=xcresult_processor also trigger a bump.
-            tag-prefix: "xcresult-processor-image@"
-            tag-regex: '^xcresult-processor-image@[0-9]+\.[0-9]+\.[0-9]+$'
-            cliff-config: infra/xcresult-processor-image/cliff.toml
-            initial-version: "0.1.0"
-            include-paths: |
-              infra/xcresult-processor-image/**/*
-              server/lib/**/*
-              server/native/xcresult_nif/**/*
-              server/mix.exs
-              server/mix.lock
-          - component: runner-image
-            tag-prefix: "runner-image@"
-            tag-regex: '^runner-image@[0-9]+\.[0-9]+\.[0-9]+$'
-            cliff-config: infra/runner-image/cliff.toml
-            initial-version: "0.1.0"
-            include-paths: |
-              infra/runner-image/**/*
-          - component: linux-runner-image
-            tag-prefix: "linux-runner-image@"
-            tag-regex: '^linux-runner-image@[0-9]+\.[0-9]+\.[0-9]+$'
-            cliff-config: infra/linux-runner-image/cliff.toml
-            initial-version: "0.1.0"
-            include-paths: |
-              infra/linux-runner-image/**/*
-          - component: runners-controller
-            tag-prefix: "runners-controller@"
-            tag-regex: '^runners-controller@[0-9]+\.[0-9]+\.[0-9]+$'
-            cliff-config: infra/runners-controller/cliff.toml
-            initial-version: "0.1.0"
-            include-paths: |
-              infra/runners-controller/**/*
-          - component: hetzner-robot-controller
-            tag-prefix: "hetzner-robot-controller@"
-            tag-regex: '^hetzner-robot-controller@[0-9]+\.[0-9]+\.[0-9]+$'
-            cliff-config: infra/hetzner-robot-controller/cliff.toml
-            initial-version: "0.1.0"
-            include-paths: |
-              infra/hetzner-robot-controller/**/*
+    outputs:
+      cli-should-release: ${{ steps.check.outputs.cli-should-release }}
+      cli-next-version: ${{ steps.check.outputs.cli-next-version }}
+      cli-next-version-number: ${{ steps.check.outputs.cli-next-version-number }}
+      app-should-release: ${{ steps.check.outputs.app-should-release }}
+      app-next-version: ${{ steps.check.outputs.app-next-version }}
+      app-next-version-number: ${{ steps.check.outputs.app-next-version-number }}
+      server-should-release: ${{ steps.check.outputs.server-should-release }}
+      server-next-version: ${{ steps.check.outputs.server-next-version }}
+      server-next-version-number: ${{ steps.check.outputs.server-next-version-number }}
+      cache-should-release: ${{ steps.check.outputs.cache-should-release }}
+      cache-next-version: ${{ steps.check.outputs.cache-next-version }}
+      cache-next-version-number: ${{ steps.check.outputs.cache-next-version-number }}
+      kura-should-release: ${{ steps.check.outputs.kura-should-release }}
+      kura-next-version: ${{ steps.check.outputs.kura-next-version }}
+      kura-next-version-number: ${{ steps.check.outputs.kura-next-version-number }}
+      gradle-should-release: ${{ steps.check.outputs.gradle-should-release }}
+      gradle-next-version: ${{ steps.check.outputs.gradle-next-version }}
+      gradle-next-version-number: ${{ steps.check.outputs.gradle-next-version-number }}
+      skills-should-release: ${{ steps.check.outputs.skills-should-release }}
+      skills-next-version: ${{ steps.check.outputs.skills-next-version }}
+      skills-next-version-number: ${{ steps.check.outputs.skills-next-version-number }}
+      noora-should-release: ${{ steps.check.outputs.noora-should-release }}
+      noora-next-version: ${{ steps.check.outputs.noora-next-version }}
+      noora-next-version-number: ${{ steps.check.outputs.noora-next-version-number }}
+      helm-should-release: ${{ steps.check.outputs.helm-should-release }}
+      helm-next-version: ${{ steps.check.outputs.helm-next-version }}
+      helm-next-version-number: ${{ steps.check.outputs.helm-next-version-number }}
+      capi-scaleway-should-release: ${{ steps.check.outputs.capi-scaleway-should-release }}
+      capi-scaleway-next-version: ${{ steps.check.outputs.capi-scaleway-next-version }}
+      capi-scaleway-next-version-number: ${{ steps.check.outputs.capi-scaleway-next-version-number }}
+      xcresult-processor-image-should-release: ${{ steps.check.outputs.xcresult-processor-image-should-release }}
+      xcresult-processor-image-next-version: ${{ steps.check.outputs.xcresult-processor-image-next-version }}
+      xcresult-processor-image-next-version-number: ${{ steps.check.outputs.xcresult-processor-image-next-version-number }}
+      runner-image-should-release: ${{ steps.check.outputs.runner-image-should-release }}
+      runner-image-next-version: ${{ steps.check.outputs.runner-image-next-version }}
+      runner-image-next-version-number: ${{ steps.check.outputs.runner-image-next-version-number }}
+      linux-runner-image-should-release: ${{ steps.check.outputs.linux-runner-image-should-release }}
+      linux-runner-image-next-version: ${{ steps.check.outputs.linux-runner-image-next-version }}
+      linux-runner-image-next-version-number: ${{ steps.check.outputs.linux-runner-image-next-version-number }}
+      runners-controller-should-release: ${{ steps.check.outputs.runners-controller-should-release }}
+      runners-controller-next-version: ${{ steps.check.outputs.runners-controller-next-version }}
+      runners-controller-next-version-number: ${{ steps.check.outputs.runners-controller-next-version-number }}
+      hetzner-robot-controller-should-release: ${{ steps.check.outputs.hetzner-robot-controller-should-release }}
+      hetzner-robot-controller-next-version: ${{ steps.check.outputs.hetzner-robot-controller-next-version }}
+      hetzner-robot-controller-next-version-number: ${{ steps.check.outputs.hetzner-robot-controller-next-version-number }}
+      should-release-any: ${{ steps.check.outputs.should-release-any }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -180,154 +90,139 @@ jobs:
           install_args: "git-cliff"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
-
-      - name: Compute release info
-        id: check
+      - id: check
         env:
-          COMPONENT: ${{ matrix.component }}
-          TAG_PREFIX: ${{ matrix.tag-prefix }}
-          TAG_REGEX: ${{ matrix.tag-regex }}
-          CLIFF_CONFIG: ${{ matrix.cliff-config }}
-          INITIAL_VERSION: ${{ matrix.initial-version }}
-          INCLUDE_PATHS: ${{ matrix.include-paths }}
+          # Strip cliff's GitHub remote token so it doesn't make a per-commit
+          # API call to enrich commits with PR title/username — see job comment.
+          GITHUB_TOKEN: ""
+          GH_TOKEN: ""
         run: |
           set -euo pipefail
-          # Strip GITHUB_TOKEN so cliff doesn't enrich commits via the GitHub API.
-          # See the job comment for why.
-          unset GITHUB_TOKEN GH_TOKEN
+          ANY=false
 
-          INCLUDE_ARGS=()
-          while IFS= read -r p; do
-            [ -n "$p" ] && INCLUDE_ARGS+=(--include-path "$p")
-          done <<< "${INCLUDE_PATHS}"
+          # Args: component tag_prefix tag_regex cliff_config initial_version [include_path ...]
+          check_component() {
+            local component="$1" tag_prefix="$2" tag_regex="$3" cliff_config="$4" initial="$5"
+            shift 5
+            local include_args=()
+            local p
+            for p in "$@"; do include_args+=(--include-path "$p"); done
 
-          LATEST_VERSION="$(git tag -l | grep -E "${TAG_REGEX}" | sort -V | tail -n1 || true)"
-
-          if [ -n "${LATEST_VERSION}" ]; then
-            NEXT_VERSION="$(git cliff "${INCLUDE_ARGS[@]}" --config "${CLIFF_CONFIG}" --repository "." --bumped-version 2>/dev/null -- "${LATEST_VERSION}..HEAD" || true)"
-          else
-            NEXT_VERSION="$(git cliff "${INCLUDE_ARGS[@]}" --config "${CLIFF_CONFIG}" --repository "." --bumped-version 2>/dev/null || true)"
-          fi
-
-          # cliff may echo the tag-prefixed form; strip any stray prefix.
-          if [ -n "${TAG_PREFIX}" ]; then
-            while [[ "${NEXT_VERSION}" == "${TAG_PREFIX}"* ]]; do
-              NEXT_VERSION="${NEXT_VERSION#${TAG_PREFIX}}"
-            done
-          fi
-          [ -z "${NEXT_VERSION}" ] && NEXT_VERSION="${INITIAL_VERSION}"
-
-          LATEST_NUM="${LATEST_VERSION#${TAG_PREFIX}}"
-
-          if [ -z "${LATEST_VERSION}" ]; then
-            SHOULD_RELEASE=true
-          else
-            GREATEST="$(printf '%s\n%s\n' "${LATEST_NUM}" "${NEXT_VERSION}" | sort -V | tail -n1)"
-            if [ "${NEXT_VERSION}" != "${LATEST_NUM}" ] && [ "${GREATEST}" = "${NEXT_VERSION}" ]; then
-              SHOULD_RELEASE=true
+            local latest next_num latest_num
+            latest="$(git tag -l | grep -E "$tag_regex" | sort -V | tail -n1 || true)"
+            if [ -n "$latest" ]; then
+              next_num="$(git cliff "${include_args[@]}" --config "$cliff_config" --repository "." --bumped-version 2>/dev/null -- "${latest}..HEAD" || true)"
             else
-              SHOULD_RELEASE=false
-              NEXT_VERSION="${LATEST_NUM}"
+              next_num="$(git cliff "${include_args[@]}" --config "$cliff_config" --repository "." --bumped-version 2>/dev/null || true)"
             fi
-          fi
 
-          FULL_VERSION="${TAG_PREFIX}${NEXT_VERSION}"
+            if [ -n "$tag_prefix" ]; then
+              while [[ "$next_num" == "$tag_prefix"* ]]; do
+                next_num="${next_num#$tag_prefix}"
+              done
+            fi
+            [ -z "$next_num" ] && next_num="$initial"
+            latest_num="${latest#$tag_prefix}"
 
-          echo "Component:   ${COMPONENT}"
-          echo "Latest tag:  ${LATEST_VERSION:-<none>}"
-          echo "Next:        ${FULL_VERSION} (number: ${NEXT_VERSION})"
-          echo "Release?     ${SHOULD_RELEASE}"
+            local should=false
+            if [ -z "$latest" ]; then
+              should=true
+            else
+              local greatest
+              greatest="$(printf '%s\n%s\n' "$latest_num" "$next_num" | sort -V | tail -n1)"
+              if [ "$next_num" != "$latest_num" ] && [ "$greatest" = "$next_num" ]; then
+                should=true
+              else
+                next_num="$latest_num"
+              fi
+            fi
 
-          mkdir -p release-info
-          jq -n \
-            --arg component "${COMPONENT}" \
-            --argjson should_release "${SHOULD_RELEASE}" \
-            --arg next_version "${FULL_VERSION}" \
-            --arg next_version_number "${NEXT_VERSION}" \
-            '{component: $component, "should-release": $should_release, "next-version": $next_version, "next-version-number": $next_version_number}' \
-            > "release-info/${COMPONENT}.json"
+            local full="${tag_prefix}${next_num}"
+            echo "::group::Check ${component} (release? ${should})"
+            printf 'component:  %s\nlatest tag: %s\nnext:       %s (number: %s)\n' \
+              "$component" "${latest:-<none>}" "$full" "$next_num"
+            echo "::endgroup::"
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: release-info-${{ matrix.component }}
-          path: release-info/${{ matrix.component }}.json
-          retention-days: 1
-          if-no-files-found: error
+            {
+              echo "${component}-should-release=${should}"
+              echo "${component}-next-version=${full}"
+              echo "${component}-next-version-number=${next_num}"
+            } >> "$GITHUB_OUTPUT"
+            [ "$should" = "true" ] && ANY=true
+            return 0
+          }
 
-  check-releases:
-    name: Aggregate releasable changes
-    needs: check-component
-    runs-on: namespace-profile-default-with-volume
-    timeout-minutes: 5
-    outputs:
-      cli-should-release: ${{ steps.aggregate.outputs.cli-should-release }}
-      cli-next-version: ${{ steps.aggregate.outputs.cli-next-version }}
-      cli-next-version-number: ${{ steps.aggregate.outputs.cli-next-version-number }}
-      app-should-release: ${{ steps.aggregate.outputs.app-should-release }}
-      app-next-version: ${{ steps.aggregate.outputs.app-next-version }}
-      app-next-version-number: ${{ steps.aggregate.outputs.app-next-version-number }}
-      server-should-release: ${{ steps.aggregate.outputs.server-should-release }}
-      server-next-version: ${{ steps.aggregate.outputs.server-next-version }}
-      server-next-version-number: ${{ steps.aggregate.outputs.server-next-version-number }}
-      cache-should-release: ${{ steps.aggregate.outputs.cache-should-release }}
-      cache-next-version: ${{ steps.aggregate.outputs.cache-next-version }}
-      cache-next-version-number: ${{ steps.aggregate.outputs.cache-next-version-number }}
-      kura-should-release: ${{ steps.aggregate.outputs.kura-should-release }}
-      kura-next-version: ${{ steps.aggregate.outputs.kura-next-version }}
-      kura-next-version-number: ${{ steps.aggregate.outputs.kura-next-version-number }}
-      gradle-should-release: ${{ steps.aggregate.outputs.gradle-should-release }}
-      gradle-next-version: ${{ steps.aggregate.outputs.gradle-next-version }}
-      gradle-next-version-number: ${{ steps.aggregate.outputs.gradle-next-version-number }}
-      skills-should-release: ${{ steps.aggregate.outputs.skills-should-release }}
-      skills-next-version: ${{ steps.aggregate.outputs.skills-next-version }}
-      skills-next-version-number: ${{ steps.aggregate.outputs.skills-next-version-number }}
-      noora-should-release: ${{ steps.aggregate.outputs.noora-should-release }}
-      noora-next-version: ${{ steps.aggregate.outputs.noora-next-version }}
-      noora-next-version-number: ${{ steps.aggregate.outputs.noora-next-version-number }}
-      helm-should-release: ${{ steps.aggregate.outputs.helm-should-release }}
-      helm-next-version: ${{ steps.aggregate.outputs.helm-next-version }}
-      helm-next-version-number: ${{ steps.aggregate.outputs.helm-next-version-number }}
-      capi-scaleway-should-release: ${{ steps.aggregate.outputs.capi-scaleway-should-release }}
-      capi-scaleway-next-version: ${{ steps.aggregate.outputs.capi-scaleway-next-version }}
-      capi-scaleway-next-version-number: ${{ steps.aggregate.outputs.capi-scaleway-next-version-number }}
-      xcresult-processor-image-should-release: ${{ steps.aggregate.outputs.xcresult-processor-image-should-release }}
-      xcresult-processor-image-next-version: ${{ steps.aggregate.outputs.xcresult-processor-image-next-version }}
-      xcresult-processor-image-next-version-number: ${{ steps.aggregate.outputs.xcresult-processor-image-next-version-number }}
-      runner-image-should-release: ${{ steps.aggregate.outputs.runner-image-should-release }}
-      runner-image-next-version: ${{ steps.aggregate.outputs.runner-image-next-version }}
-      runner-image-next-version-number: ${{ steps.aggregate.outputs.runner-image-next-version-number }}
-      linux-runner-image-should-release: ${{ steps.aggregate.outputs.linux-runner-image-should-release }}
-      linux-runner-image-next-version: ${{ steps.aggregate.outputs.linux-runner-image-next-version }}
-      linux-runner-image-next-version-number: ${{ steps.aggregate.outputs.linux-runner-image-next-version-number }}
-      runners-controller-should-release: ${{ steps.aggregate.outputs.runners-controller-should-release }}
-      runners-controller-next-version: ${{ steps.aggregate.outputs.runners-controller-next-version }}
-      runners-controller-next-version-number: ${{ steps.aggregate.outputs.runners-controller-next-version-number }}
-      hetzner-robot-controller-should-release: ${{ steps.aggregate.outputs.hetzner-robot-controller-should-release }}
-      hetzner-robot-controller-next-version: ${{ steps.aggregate.outputs.hetzner-robot-controller-next-version }}
-      hetzner-robot-controller-next-version-number: ${{ steps.aggregate.outputs.hetzner-robot-controller-next-version-number }}
-      should-release-any: ${{ steps.aggregate.outputs.should-release-any }}
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          path: release-info
-          pattern: release-info-*
-          merge-multiple: true
-      - id: aggregate
-        run: |
-          set -euo pipefail
-          any=false
-          for f in release-info/*.json; do
-            comp="$(jq -r '.component' "$f")"
-            should="$(jq -r '."should-release"' "$f")"
-            version="$(jq -r '."next-version"' "$f")"
-            number="$(jq -r '."next-version-number"' "$f")"
-            echo "${comp}-should-release=${should}" >> "$GITHUB_OUTPUT"
-            echo "${comp}-next-version=${version}" >> "$GITHUB_OUTPUT"
-            echo "${comp}-next-version-number=${number}" >> "$GITHUB_OUTPUT"
-            echo "${comp}: should-release=${should} next=${version}"
-            [ "${should}" = "true" ] && any=true
-          done
-          echo "should-release-any=${any}" >> "$GITHUB_OUTPUT"
+          check_component cli "" '^[0-9]+\.[0-9]+\.[0-9]+$' cli/cliff.toml "0.0.0" \
+            'cli/**/*' '.xcode-version-releases' 'Package.swift' 'Package.resolved'
+
+          check_component app "app@" '^app@[0-9]+\.[0-9]+\.[0-9]+$' app/cliff.toml "0.1.0" \
+            'app/**/*' 'mise/tasks/app/**/*' \
+            'cli/Sources/TuistSupport/**/*' 'cli/Sources/TuistCore/**/*' \
+            'cli/Sources/TuistServer/**/*' 'cli/Sources/TuistHTTP/**/*' \
+            'cli/Sources/TuistAutomation/**/*' 'cli/Sources/TuistSimulator/**/*' \
+            'cli/Sources/TuistAndroid/**/*' 'cli/Sources/TuistLogging/**/*' \
+            'cli/Sources/XcodeGraph/**/*' 'cli/Sources/TuistConstants/**/*' \
+            'cli/Sources/TuistEnvironment/**/*' 'cli/Sources/TuistConfig/**/*' \
+            'cli/Sources/TuistAlert/**/*' 'cli/Sources/TuistThreadSafe/**/*' \
+            'cli/Sources/TuistOpener/**/*' 'cli/Sources/TuistUniqueIDGenerator/**/*' \
+            'cli/Sources/TuistNooraExtension/**/*'
+
+          check_component server "server@" '^server@[0-9]+\.[0-9]+\.[0-9]+$' server/cliff.toml "0.1.0" \
+            'server/**/*'
+
+          check_component cache "cache@" '^cache@[0-9]+\.[0-9]+\.[0-9]+$' cache/cliff.toml "0.1.0" \
+            'cache/**/*'
+
+          check_component kura "kura@" '^kura@[0-9]+\.[0-9]+\.[0-9]+$' kura/cliff.toml "0.1.0" \
+            'kura/**/*'
+
+          check_component gradle "gradle@" '^gradle@[0-9]+\.[0-9]+\.[0-9]+$' gradle/cliff.toml "0.1.0"
+
+          check_component skills "skills@" '^skills@[0-9]+\.[0-9]+\.[0-9]+$' skills/cliff.toml "0.1.0" \
+            'skills/**/*'
+
+          check_component noora "noora@" '^noora@[0-9]+\.[0-9]+\.[0-9]+$' noora/cliff.toml "0.73.0" \
+            'noora/**/*'
+
+          check_component helm "helm@" '^helm@[0-9]+\.[0-9]+\.[0-9]+$' infra/helm/cliff.toml "0.1.0" \
+            'infra/helm/**/*'
+
+          # capi-scaleway spans three Go modules that ship together in the operator image.
+          check_component capi-scaleway "capi-scaleway@" '^capi-scaleway@[0-9]+\.[0-9]+\.[0-9]+$' \
+            infra/cluster-api-provider-scaleway-applesilicon/cliff.toml "0.1.0" \
+            'infra/cluster-api-provider-scaleway-applesilicon/**/*' \
+            'infra/macos-host-bootstrap/**/*' \
+            'infra/tart-kubelet/**/*'
+
+          # xcresult-processor-image bakes the server release in, so server pieces the
+          # BEAM exercises under TUIST_MODE=xcresult_processor also trigger a bump.
+          check_component xcresult-processor-image "xcresult-processor-image@" \
+            '^xcresult-processor-image@[0-9]+\.[0-9]+\.[0-9]+$' \
+            infra/xcresult-processor-image/cliff.toml "0.1.0" \
+            'infra/xcresult-processor-image/**/*' \
+            'server/lib/**/*' \
+            'server/native/xcresult_nif/**/*' \
+            'server/mix.exs' \
+            'server/mix.lock'
+
+          check_component runner-image "runner-image@" '^runner-image@[0-9]+\.[0-9]+\.[0-9]+$' \
+            infra/runner-image/cliff.toml "0.1.0" \
+            'infra/runner-image/**/*'
+
+          check_component linux-runner-image "linux-runner-image@" '^linux-runner-image@[0-9]+\.[0-9]+\.[0-9]+$' \
+            infra/linux-runner-image/cliff.toml "0.1.0" \
+            'infra/linux-runner-image/**/*'
+
+          check_component runners-controller "runners-controller@" '^runners-controller@[0-9]+\.[0-9]+\.[0-9]+$' \
+            infra/runners-controller/cliff.toml "0.1.0" \
+            'infra/runners-controller/**/*'
+
+          check_component hetzner-robot-controller "hetzner-robot-controller@" \
+            '^hetzner-robot-controller@[0-9]+\.[0-9]+\.[0-9]+$' \
+            infra/hetzner-robot-controller/cliff.toml "0.1.0" \
+            'infra/hetzner-robot-controller/**/*'
+
+          echo "should-release-any=${ANY}" >> "$GITHUB_OUTPUT"
 
   release-cli:
     name: Release CLI
