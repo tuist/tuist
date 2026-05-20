@@ -45,22 +45,50 @@ struct ForeignBuildCrossProjectDependencyGenerator: ForeignBuildCrossProjectDepe
         let edges = collectEdges(graphTraverser: graphTraverser)
         guard !edges.isEmpty else { return }
 
-        for path in Set(edges.map(\.aggregateProjectPath)) {
+        let aggregateProjectPaths = Set(edges.map(\.aggregateProjectPath))
+        for path in aggregateProjectPaths.sorted() {
             guard let descriptor = descriptorsByPath[path] else { continue }
             _ = try descriptor.xcodeProj.pbxproj.dataRepresentation(outputSettings: PBXOutputSettings())
         }
 
         var fileRefCache: [FileRefKey: PBXFileReference] = [:]
         for edge in edges {
-            try wire(edge: edge, descriptorsByPath: descriptorsByPath, fileRefCache: &fileRefCache)
+            try wire(
+                edge: edge,
+                graphTraverser: graphTraverser,
+                descriptorsByPath: descriptorsByPath,
+                fileRefCache: &fileRefCache
+            )
         }
     }
 
-    private struct Edge: Hashable {
+    private struct Edge: Hashable, Comparable {
         let consumerProjectPath: AbsolutePath
         let consumerTargetName: String
         let aggregateProjectPath: AbsolutePath
         let aggregateTargetName: String
+        let condition: PlatformCondition?
+
+        static func < (lhs: Edge, rhs: Edge) -> Bool {
+            if lhs.consumerProjectPath != rhs.consumerProjectPath {
+                return lhs.consumerProjectPath < rhs.consumerProjectPath
+            }
+            if lhs.consumerTargetName != rhs.consumerTargetName {
+                return lhs.consumerTargetName < rhs.consumerTargetName
+            }
+            if lhs.aggregateProjectPath != rhs.aggregateProjectPath {
+                return lhs.aggregateProjectPath < rhs.aggregateProjectPath
+            }
+            if lhs.aggregateTargetName != rhs.aggregateTargetName {
+                return lhs.aggregateTargetName < rhs.aggregateTargetName
+            }
+            switch (lhs.condition, rhs.condition) {
+            case (nil, nil): return false
+            case (nil, _): return true
+            case (_, nil): return false
+            case let (lhs?, rhs?): return lhs < rhs
+            }
+        }
     }
 
     private struct FileRefKey: Hashable {
@@ -80,21 +108,27 @@ struct ForeignBuildCrossProjectDependencyGenerator: ForeignBuildCrossProjectDepe
                         consumerProjectPath: consumerPath,
                         consumerTargetName: target.name,
                         aggregateProjectPath: reference.graphTarget.path,
-                        aggregateTargetName: reference.graphTarget.target.name
+                        aggregateTargetName: reference.graphTarget.target.name,
+                        condition: reference.condition
                     ))
                 }
             }
         }
-        return Array(edges)
+        return edges.sorted()
     }
 
     private func wire(
         edge: Edge,
+        graphTraverser: GraphTraversing,
         descriptorsByPath: [AbsolutePath: ProjectDescriptor],
         fileRefCache: inout [FileRefKey: PBXFileReference]
     ) throws {
         guard let consumerDescriptor = descriptorsByPath[edge.consumerProjectPath],
-              let aggregateDescriptor = descriptorsByPath[edge.aggregateProjectPath]
+              let aggregateDescriptor = descriptorsByPath[edge.aggregateProjectPath],
+              let consumerXcodeGraphTarget = graphTraverser.target(
+                  path: edge.consumerProjectPath,
+                  name: edge.consumerTargetName
+              )?.target
         else { return }
 
         let consumerPbxproj = consumerDescriptor.xcodeProj.pbxproj
@@ -135,6 +169,7 @@ struct ForeignBuildCrossProjectDependencyGenerator: ForeignBuildCrossProjectDepe
         consumerPbxproj.add(object: proxy)
 
         let dependency = PBXTargetDependency(name: edge.aggregateTargetName, targetProxy: proxy)
+        dependency.applyCondition(edge.condition, applicableTo: consumerXcodeGraphTarget)
         consumerPbxproj.add(object: dependency)
         consumerTarget.dependencies.append(dependency)
     }
