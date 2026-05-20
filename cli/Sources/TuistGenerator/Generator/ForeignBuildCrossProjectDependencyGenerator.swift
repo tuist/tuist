@@ -62,33 +62,12 @@ struct ForeignBuildCrossProjectDependencyGenerator: ForeignBuildCrossProjectDepe
         }
     }
 
-    private struct Edge: Hashable, Comparable {
+    private struct Edge: Hashable {
         let consumerProjectPath: AbsolutePath
         let consumerTargetName: String
         let aggregateProjectPath: AbsolutePath
         let aggregateTargetName: String
         let condition: PlatformCondition?
-
-        static func < (lhs: Edge, rhs: Edge) -> Bool {
-            if lhs.consumerProjectPath != rhs.consumerProjectPath {
-                return lhs.consumerProjectPath < rhs.consumerProjectPath
-            }
-            if lhs.consumerTargetName != rhs.consumerTargetName {
-                return lhs.consumerTargetName < rhs.consumerTargetName
-            }
-            if lhs.aggregateProjectPath != rhs.aggregateProjectPath {
-                return lhs.aggregateProjectPath < rhs.aggregateProjectPath
-            }
-            if lhs.aggregateTargetName != rhs.aggregateTargetName {
-                return lhs.aggregateTargetName < rhs.aggregateTargetName
-            }
-            switch (lhs.condition, rhs.condition) {
-            case (nil, nil): return false
-            case (nil, _): return true
-            case (_, nil): return false
-            case let (lhs?, rhs?): return lhs < rhs
-            }
-        }
     }
 
     private struct FileRefKey: Hashable {
@@ -114,7 +93,10 @@ struct ForeignBuildCrossProjectDependencyGenerator: ForeignBuildCrossProjectDepe
                 }
             }
         }
-        return edges.sorted()
+        return edges.sorted { lhs, rhs in
+            (lhs.consumerProjectPath, lhs.consumerTargetName, lhs.aggregateProjectPath, lhs.aggregateTargetName)
+                < (rhs.consumerProjectPath, rhs.consumerTargetName, rhs.aggregateProjectPath, rhs.aggregateTargetName)
+        }
     }
 
     private func wire(
