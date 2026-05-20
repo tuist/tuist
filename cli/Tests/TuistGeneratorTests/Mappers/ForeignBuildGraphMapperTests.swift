@@ -230,6 +230,63 @@ struct ForeignBuildGraphMapperTests {
     }
 
     @Test
+    func map_attachesScriptToConsumerWhenForeignBuildIsInDifferentProject() async throws {
+        // Given a consumer that depends on a foreign build target in another project.
+        // Xcode does not create cross-project dependencies for aggregate targets that produce
+        // no native product, so the script must be attached directly to the consumer; otherwise
+        // editing the foreign sources won't trigger a rebuild.
+        let foreignProjectPath = try AbsolutePath(validating: "/Workspace/Foreign")
+        let consumerProjectPath = try AbsolutePath(validating: "/Workspace/Consumer")
+        let outputPath = try AbsolutePath(validating: "/Workspace/Foreign/build/SharedKMP.xcframework")
+        let foreignBuildTarget = Target.test(
+            name: "SharedKMP",
+            foreignBuild: ForeignBuild(
+                script: "cd $SRCROOT && gradle build",
+                inputs: [],
+                output: .xcframework(path: outputPath, linking: .dynamic)
+            )
+        )
+        let consumingTarget = Target.test(
+            name: "Framework1",
+            dependencies: [.project(target: "SharedKMP", path: foreignProjectPath)]
+        )
+        let foreignProject = Project.test(path: foreignProjectPath, targets: [foreignBuildTarget])
+        let consumerProject = Project.test(path: consumerProjectPath, targets: [consumingTarget])
+        let foreignBuildDep = GraphDependency.target(name: "SharedKMP", path: foreignProjectPath)
+        let graph = Graph.test(
+            path: consumerProjectPath,
+            projects: [
+                foreignProjectPath: foreignProject,
+                consumerProjectPath: consumerProject,
+            ],
+            dependencies: [
+                .target(name: "Framework1", path: consumerProjectPath): Set([foreignBuildDep]),
+            ]
+        )
+
+        // When
+        let (mappedGraph, _, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
+
+        // Then
+        let mappedConsumerProject = try #require(mappedGraph.projects[consumerProjectPath])
+        let mappedConsumer = try #require(mappedConsumerProject.targets["Framework1"])
+        let consumerScript = try #require(
+            mappedConsumer.scripts.first(where: { $0.name == "Foreign Build: SharedKMP" })
+        )
+        // The script must override SRCROOT to the foreign build's project path so that
+        // the user's script (which uses $SRCROOT) resolves the same way it would when
+        // attached to the aggregate target in the foreign project.
+        if case let .embedded(script) = consumerScript.script {
+            #expect(script.contains("export SRCROOT=\(foreignProjectPath.pathString)"))
+            #expect(script.contains("cd $SRCROOT && gradle build"))
+        } else {
+            Issue.record("Expected embedded script, got \(consumerScript.script)")
+        }
+        #expect(consumerScript.order == .pre)
+        #expect(consumerScript.outputPaths == [outputPath.pathString])
+    }
+
+    @Test
     func map_doesNothingWhenNoForeignBuildTargets() async throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/Project")
