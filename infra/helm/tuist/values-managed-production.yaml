@@ -272,20 +272,24 @@ runnersFleetLinux:
         - X64
       runtimeClass: kata-qemu
       pod:
-        cpuMilli: 1000
-        memoryMB: 4096
+        # Matches the Namespace `namespace-profile-default-with-volume`
+        # CPU shape (4 vCPU) at half the RAM (8 GB) so the chart packs
+        # more Pods per host while still letting `mix deps.compile`
+        # run its 4-way partition without starving the BEAM workers.
+        cpuMilli: 4000
+        memoryMB: 8192
       # Pod-level autoscaling only. Bare-metal host count is operator-
       # managed via the cluster topology — see staging values for the
       # rationale.
       autoscaling:
         enabled: true
-        # ~50% of P95: keeps warm runners pre-thawed without paying
-        # for steady-state idle capacity equal to peak.
-        minWarmPoolFloor: 30
-        # 2 hosts × 64 raw slots = 128, minus ~4 slots per host
-        # reserved for system DaemonSets (Cilium agent, kube-proxy
-        # replacement, node-exporter) and per-Pod kata overhead.
-        maxReplicas: 120
+        minWarmPoolFloor: 4
+        # CPU-bound: 96 threads / 4 vCPU = 24 Pods/host. RAM headroom
+        # at 8 GB/Pod is wider (256 GB / 8 GB = 32 Pods/host before
+        # reserving ~32 GB for Cilium BPF + system DaemonSets). Two
+        # hosts × 24 = 48 raw slots; cap a touch lower to leave the
+        # autoscaler debounce room.
+        maxReplicas: 40
         scaleDownCooldownSeconds: 300
 
 # In-cluster Valkey backs the auth rate limiter (Hammer.Redis). The
