@@ -128,7 +128,36 @@ get hetznerbaremetalhost` shows them in numerical order.
 | -------------------------------------- | ------------------------------------ | ---------------------------------------------------------------- |
 | `app.kubernetes.io/managed-by`         | `hetzner-robot-controller`           | Scopes "what's mine" for the deletion pass and the WWN watcher  |
 | `robot.hetzner.com/server-number`      | `2986829` (as string)                | Queryable from kubectl                                          |
-| `robot.hetzner.com/server-name`        | `tuist-bm-staging-1`                 | Lets `HetznerBareMetalMachineTemplate.spec.template.spec.hostSelector` match by env |
+| `robot.hetzner.com/server-name`        | `tuist-bm-staging-1`                 | The Robot panel name (caph rewrites this during provisioning) |
+| `tuist.dev/cluster`                    | `staging`                            | Per-env partition for the shared Robot account; HBMM `hostSelector` matches on this |
+
+## Per-cluster partitioning
+
+The Robot account is shared across `staging`, `canary`, `production`,
+and any future CAPI clusters. `--clusters=staging,canary,production`
+turns on cluster gating: a Robot server is included in inventory only
+if its name parses to one of those values via either of:
+
+- `tuist-bm-<cluster>-…` — operator's name in the Robot panel.
+- `tuist-<cluster>-…` — caph rewrites the name to the
+  `HetznerBareMetalMachine` name during provisioning; that's
+  `<clusterName>-<deploymentName>-…` per CAPI templating.
+
+The matched cluster gets stamped on the HBM as `tuist.dev/cluster`,
+and each env's `HetznerBareMetalMachineTemplate.spec.template.spec.hostSelector`
+filters on it:
+
+```yaml
+hostSelector:
+  matchLabels:
+    app.kubernetes.io/managed-by: hetzner-robot-controller
+    tuist.dev/cluster: staging
+```
+
+Existing CRs that pre-date the label get back-filled on the next sync
+based on `robot.hetzner.com/server-name`. Empty `--clusters` disables
+the gate entirely (legacy single-env mode) — production should always
+set the flag.
 
 ## Cascade safety on deletion
 

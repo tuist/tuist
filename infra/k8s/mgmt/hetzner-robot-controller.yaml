@@ -129,12 +129,19 @@ spec:
             # narrow prefix then refuses to re-create an HBM after
             # a roll, blocking re-installimage cycles. Widened to
             # `tuist-` so both original and caph-rewritten names
-            # match. The Robot account is fleet-scoped to this
-            # purpose and the HBMM template's hostSelector
-            # (`app.kubernetes.io/managed-by=hetzner-robot-controller`)
-            # still gates which HBMs the bare-metal MD actually
-            # consumes.
+            # match. Per-cluster isolation across the shared Robot
+            # account is now enforced via `--clusters` below.
             - --name-prefix=tuist-
+            # Cluster gate. A Robot server is included in inventory
+            # only if its name parses to one of these (matching
+            # `tuist-bm-<cluster>-…` or the caph-rewritten
+            # `tuist-<cluster>-…`); the match is stamped on the HBM
+            # as `tuist.dev/cluster=<cluster>` so each env's HBMM
+            # `hostSelector` can scope itself. Update this list when
+            # a new cluster comes online; canary / production are
+            # listed pre-emptively so the controller picks them up
+            # the moment their cluster CRs land.
+            - --clusters=staging,canary,production
             - --poll-interval=60s
             - --robot-user-path=/etc/hetzner-robot-controller/robot-user
             - --robot-pass-path=/etc/hetzner-robot-controller/robot-pass

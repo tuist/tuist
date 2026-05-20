@@ -307,3 +307,110 @@ func TestSyncer_RespectsContext(t *testing.T) {
 
 // types.NamespacedName import keep-alive for future test cases.
 var _ = types.NamespacedName{}
+
+func TestClusterFromServerName(t *testing.T) {
+	clusters := []string{"staging", "canary", "production", "production-us-east"}
+	cases := []struct {
+		name     string
+		in       string
+		clusters []string
+		want     string
+	}{
+		{"operator-named staging", "tuist-bm-staging-1", clusters, "staging"},
+		{"operator-named canary", "tuist-bm-canary-3", clusters, "canary"},
+		{"caph-renamed staging", "tuist-staging-runners-linux-v5bcr-nx8h7-fgfc5", clusters, "staging"},
+		{"caph-renamed canary", "tuist-canary-runners-linux-abcde-fghij-klmno", clusters, "canary"},
+		{"multi-segment cluster wins over shorter prefix",
+			"tuist-production-us-east-runners-linux-xyz", clusters, "production-us-east"},
+		{"unknown cluster", "tuist-foo-runners-linux", clusters, ""},
+		{"non-tuist prefix", "some-other-server", clusters, ""},
+		{"empty cluster list", "tuist-bm-staging-1", nil, ""},
+		{"name happens to start with cluster but no '-' boundary",
+			"tuist-stagingoid-something", clusters, ""},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := clusterFromServerName(c.in, c.clusters)
+			if got != c.want {
+				t.Errorf("clusterFromServerName(%q) = %q, want %q", c.in, got, c.want)
+			}
+		})
+	}
+}
+
+func TestSync_ClusterGating_SkipsUnrecognizedNames(t *testing.T) {
+	// `tuist-foo-1` matches the wide `tuist-` NamePrefix but is
+	// not in the cluster list — should be ignored entirely.
+	syncer := newSyncer(t, []robot.Server{
+		{Number: 1, Name: "tuist-bm-staging-1"},
+		{Number: 2, Name: "tuist-foo-1"},
+		{Number: 3, Name: "tuist-canary-runners-linux-xyz"}, // caph-renamed canary
+	})
+	syncer.NamePrefix = "tuist-"
+	syncer.Clusters = []string{"staging", "canary"}
+
+	if err := syncer.sync(context.Background()); err != nil {
+		t.Fatalf("sync: %v", err)
+	}
+
+	hosts := listHosts(t, syncer)
+	if got, want := len(hosts), 2; got != want {
+		t.Fatalf("hosts: got %d want %d (foo should be skipped)", got, want)
+	}
+	wantCluster := map[string]string{"bm-1": "staging", "bm-3": "canary"}
+	for _, h := range hosts {
+		got := h.GetLabels()[ClusterLabel]
+		want := wantCluster[h.GetName()]
+		if got != want {
+			t.Errorf("%s cluster label = %q, want %q", h.GetName(), got, want)
+		}
+	}
+}
+
+func TestSync_ClusterGating_BackfillsExistingHostsMissingLabel(t *testing.T) {
+	// Pre-cluster-gate HBM: has managed-by + server-name but no
+	// cluster label. The back-fill loop should add the label
+	// based on the server name.
+	existing := makeHost("bm-1", 1, "", true)
+	lbls := existing.GetLabels()
+	lbls[ServerNameLabel] = "tuist-bm-staging-1"
+	existing.SetLabels(lbls)
+
+	syncer := newSyncer(t, []robot.Server{
+		{Number: 1, Name: "tuist-staging-runners-linux-renamed"}, // caph already renamed
+	}, existing)
+	syncer.NamePrefix = "tuist-"
+	syncer.Clusters = []string{"staging", "canary"}
+
+	if err := syncer.sync(context.Background()); err != nil {
+		t.Fatalf("sync: %v", err)
+	}
+
+	hosts := listHosts(t, syncer)
+	if got, want := len(hosts), 1; got != want {
+		t.Fatalf("hosts: got %d want %d", got, want)
+	}
+	if got := hosts[0].GetLabels()[ClusterLabel]; got != "staging" {
+		t.Errorf("expected back-filled cluster=staging, got %q", got)
+	}
+}
+
+func TestSync_ClusterGating_Disabled_StampsNoClusterLabel(t *testing.T) {
+	// Legacy single-env mode (Clusters=nil) must keep the old
+	// behavior: no cluster gate, no label stamped.
+	syncer := newSyncer(t, []robot.Server{
+		{Number: 1, Name: "tuist-bm-staging-1"},
+	})
+
+	if err := syncer.sync(context.Background()); err != nil {
+		t.Fatalf("sync: %v", err)
+	}
+
+	hosts := listHosts(t, syncer)
+	if got, want := len(hosts), 1; got != want {
+		t.Fatalf("hosts: got %d want %d", got, want)
+	}
+	if got := hosts[0].GetLabels()[ClusterLabel]; got != "" {
+		t.Errorf("expected no cluster label in legacy mode, got %q", got)
+	}
+}

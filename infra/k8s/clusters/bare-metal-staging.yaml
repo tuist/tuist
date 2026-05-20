@@ -255,14 +255,19 @@ spec:
           KATAQEMU
       # Only claim hosts the hetzner-robot-controller created. The
       # controller stamps both labels on every CR it owns:
-      # `app.kubernetes.io/managed-by=hetzner-robot-controller` is the
-      # ownership gate, `robot.hetzner.com/server-name` carries the
-      # Robot panel name so future per-env selectors (e.g.
-      # `tuist-bm-staging-*`) can route. The current shape is single-
-      # env / single-pool, so we match only the managed-by label.
+      # Two-label gate:
+      #   - `app.kubernetes.io/managed-by=hetzner-robot-controller`
+      #     scopes to CRs the controller owns (vs. anything a human
+      #     might hand-author).
+      #   - `tuist.dev/cluster=staging` is what keeps this env from
+      #     claiming canary / production HBMs out of the shared
+      #     Robot account. The label is stamped by the controller's
+      #     server-name parser (see `--clusters` on the
+      #     `hetzner-robot-controller` Deployment).
       hostSelector:
         matchLabels:
           app.kubernetes.io/managed-by: hetzner-robot-controller
+          tuist.dev/cluster: staging
       sshSpec:
         # The same SSH key the operator pastes into the Robot order
         # form when provisioning, so caph can SSH into rescue mode

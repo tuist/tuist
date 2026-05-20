@@ -66,6 +66,14 @@ const (
 	// `HetznerBareMetalMachineTemplate.spec.template.spec.hostSelector`
 	// in some setups (e.g. selecting all `tuist-bm-staging-*`).
 	ServerNameLabel = "robot.hetzner.com/server-name"
+
+	// ClusterLabel records which CAPI cluster the host belongs to,
+	// derived from the Robot server name. Each env's HBMM
+	// `hostSelector.matchLabels` filters on this so a single shared
+	// Robot account stays partitioned across staging / canary /
+	// production. The controller stamps it on creation and back-
+	// fills it on existing CRs whose label is missing.
+	ClusterLabel = "tuist.dev/cluster"
 )
 
 // InventorySyncer is a controller-runtime Runnable that
@@ -90,6 +98,18 @@ type InventorySyncer struct {
 	// with this are ignored — both for creation (we won't make a
 	// CR) and for deletion (we won't touch their CRs).
 	NamePrefix string
+
+	// Clusters partitions a shared Robot account across CAPI
+	// clusters. A Robot server is included in inventory only if
+	// its name matches `tuist-bm-{cluster}-...` (operator-named)
+	// or `tuist-{cluster}-...` (caph-renamed during provisioning),
+	// where `{cluster}` is one of these values. The matched value
+	// is stamped on the HBM as `tuist.dev/cluster=<cluster>` so
+	// each env's HBMM `hostSelector` can scope itself.
+	//
+	// Empty list = legacy single-env mode: no gating, no cluster
+	// label stamped. Production should always set this.
+	Clusters []string
 
 	// PollInterval between Robot list calls. Default 60s.
 	PollInterval time.Duration
@@ -165,7 +185,11 @@ func (s *InventorySyncer) sync(ctx context.Context) error {
 	// `liveServerNumbers` — every non-cancelled server in the account,
 	// regardless of name. Used for the deletion gate so caph's rename
 	// doesn't cause us to reap a live host.
+	// `clusterByName` — the cluster derived from the server name (if
+	// any). Cached here so we can stamp it on creation AND back-fill
+	// it on existing CRs without re-parsing inside two separate loops.
 	eligibleForCreation := map[string]robot.Server{} // CR name → server
+	clusterByName := map[string]string{}             // CR name → cluster (may be "")
 	liveServerNumbers := map[int]struct{}{}
 	for _, srv := range servers {
 		if srv.Cancelled {
@@ -175,8 +199,19 @@ func (s *InventorySyncer) sync(ctx context.Context) error {
 		if !strings.HasPrefix(srv.Name, s.NamePrefix) {
 			continue
 		}
+		cluster := clusterFromServerName(srv.Name, s.Clusters)
+		// Cluster gating: when `--clusters` is configured, only
+		// servers whose name parses to one of them get a CR. This
+		// is what keeps a shared Robot account from cross-claiming
+		// across envs after `NamePrefix` got widened past
+		// `tuist-bm-` to accommodate caph's mid-provisioning name
+		// rewrite (e.g. `tuist-staging-runners-linux-…`).
+		if len(s.Clusters) > 0 && cluster == "" {
+			continue
+		}
 		name := crNameForServer(srv.Number)
 		eligibleForCreation[name] = srv
+		clusterByName[name] = cluster
 	}
 
 	// Current state from the cluster: every HBMH we own (matched
@@ -201,14 +236,46 @@ func (s *InventorySyncer) sync(ctx context.Context) error {
 		if _, exists := owned[name]; exists {
 			continue
 		}
-		if err := s.createHost(ctx, name, srv); err != nil {
+		if err := s.createHost(ctx, name, srv, clusterByName[name]); err != nil {
 			// Don't bail the whole pass on one create failure;
 			// log and continue so other servers still progress.
 			logger.Error(err, "create HetznerBareMetalHost", "name", name, "server", srv.Number)
 			continue
 		}
-		logger.Info("created HetznerBareMetalHost", "name", name, "server", srv.Number, "robotName", srv.Name)
+		logger.Info("created HetznerBareMetalHost", "name", name, "server", srv.Number,
+			"robotName", srv.Name, "cluster", clusterByName[name])
 		createdCount++
+	}
+
+	// Back-fill `tuist.dev/cluster` on CRs that pre-date this
+	// label (the controller used to stamp only managed-by +
+	// server-number + server-name). Without this, existing HBMs
+	// would never gain the label and caph hostSelector wouldn't
+	// claim them after an env adopts the per-cluster gate.
+	backfilledCount := 0
+	if len(s.Clusters) > 0 {
+		for name, obj := range owned {
+			if obj.GetLabels()[ClusterLabel] != "" {
+				continue
+			}
+			robotName := obj.GetLabels()[ServerNameLabel]
+			cluster := clusterFromServerName(robotName, s.Clusters)
+			if cluster == "" {
+				continue
+			}
+			labels := obj.GetLabels()
+			if labels == nil {
+				labels = map[string]string{}
+			}
+			labels[ClusterLabel] = cluster
+			obj.SetLabels(labels)
+			if err := s.Client.Update(ctx, obj); err != nil {
+				logger.Error(err, "back-fill cluster label", "name", name, "cluster", cluster)
+				continue
+			}
+			logger.Info("back-filled cluster label", "name", name, "cluster", cluster)
+			backfilledCount++
+		}
 	}
 
 	deletedCount := 0
@@ -249,8 +316,43 @@ func (s *InventorySyncer) sync(ctx context.Context) error {
 
 	logger.V(1).Info("sync complete",
 		"robotServers", len(servers), "eligibleForCreation", len(eligibleForCreation),
-		"created", createdCount, "deleted", deletedCount, "owned", len(owned))
+		"created", createdCount, "deleted", deletedCount,
+		"backfilledClusterLabel", backfilledCount, "owned", len(owned))
 	return nil
+}
+
+// clusterFromServerName returns which of the configured clusters
+// a Robot server name belongs to, or "" if none match. Accepts
+// both shapes the controller sees in practice:
+//
+//   - `tuist-bm-<cluster>-<n>` — the operator's name in the
+//     Robot panel.
+//   - `tuist-<cluster>-...` — caph rewrites the server name to
+//     the HetznerBareMetalMachine name during provisioning, which
+//     CAPI templates as `<clusterName>-<deploymentName>-…`. The
+//     cluster name is the first segment after `tuist-`.
+//
+// Cluster names are matched as literal prefixes (with a trailing
+// `-` to avoid `production` accidentally matching `prod`).
+// Longest match wins so `production-us-east` takes precedence
+// over `production`.
+func clusterFromServerName(name string, clusters []string) string {
+	// Try `tuist-bm-<cluster>-` first (operator-named original).
+	// Then `tuist-<cluster>-` (caph-renamed). Take the longest
+	// matching cluster so multi-segment names like
+	// `production-us-east` aren't shadowed by `production`.
+	best := ""
+	for _, c := range clusters {
+		if c == "" {
+			continue
+		}
+		for _, prefix := range []string{"tuist-bm-" + c + "-", "tuist-" + c + "-"} {
+			if strings.HasPrefix(name, prefix) && len(c) > len(best) {
+				best = c
+			}
+		}
+	}
+	return best
 }
 
 // serverNumberFromCR reads the Robot server number from the
@@ -276,16 +378,20 @@ func serverNumberFromCR(obj *unstructured.Unstructured) (int, bool) {
 // `spec.rootDeviceHints`. We can't pre-populate WWNs here without
 // SSHing into rescue ourselves, which doubles the surface area
 // for no real win.
-func (s *InventorySyncer) createHost(ctx context.Context, name string, srv robot.Server) error {
+func (s *InventorySyncer) createHost(ctx context.Context, name string, srv robot.Server, cluster string) error {
 	obj := &unstructured.Unstructured{}
 	obj.SetGroupVersionKind(hetznerBareMetalHostGVK)
 	obj.SetName(name)
 	obj.SetNamespace(s.Namespace)
-	obj.SetLabels(map[string]string{
+	labels := map[string]string{
 		ManagedByLabel:    ManagedByValue,
 		ServerNumberLabel: fmt.Sprintf("%d", srv.Number),
 		ServerNameLabel:   srv.Name,
-	})
+	}
+	if cluster != "" {
+		labels[ClusterLabel] = cluster
+	}
+	obj.SetLabels(labels)
 	obj.SetAnnotations(map[string]string{
 		// Surface the Robot product / DC for ad-hoc inspection.
 		// caph itself also populates `hardwareDetails`, but this
