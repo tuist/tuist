@@ -99,20 +99,30 @@ type InventorySyncer struct {
 	// CR) and for deletion (we won't touch their CRs).
 	NamePrefix string
 
-	// Clusters partitions a shared Robot account across CAPI
-	// clusters. A Robot server is included in inventory only if
-	// its name matches `tuist-bm-{cluster}-...` (operator-named)
-	// or `tuist-{cluster}-...` (caph-renamed during provisioning),
-	// where `{cluster}` is one of these values. The matched value
-	// is stamped on the HBM as `tuist.dev/cluster=<cluster>` so
-	// each env's HBMM `hostSelector` can scope itself.
-	//
-	// Empty list = legacy single-env mode: no gating, no cluster
-	// label stamped. Production should always set this.
-	Clusters []string
-
 	// PollInterval between Robot list calls. Default 60s.
 	PollInterval time.Duration
+}
+
+// clusterEnv pairs the CAPI Cluster CR's `metadata.name` with the
+// short env label its `bareMetalCluster` topology variable sets.
+// Two names exist because they don't always match: production's
+// Cluster CR is just `tuist` while its env label is `production`.
+// We need both — the Cluster CR name matches caph's mid-
+// provisioning Robot rename (`bm-<clusterName>-...`), while the
+// env label matches the operator's `tuist-bm-<env>-N` convention
+// and is what gets stamped on the HBM for HBMM hostSelectors.
+type clusterEnv struct {
+	clusterName string // e.g. "tuist", "tuist-staging"
+	envLabel    string // e.g. "production", "staging"
+}
+
+// capiClusterGVK is the upstream CAPI Cluster CRD we list to
+// discover envs. Unstructured access so we don't pull in the
+// full CAPI v1beta types just to read two fields.
+var capiClusterGVK = schema.GroupVersionKind{
+	Group:   "cluster.x-k8s.io",
+	Version: "v1beta1",
+	Kind:    "Cluster",
 }
 
 // NeedLeaderElection makes the manager only run this on the
@@ -181,33 +191,49 @@ func (s *InventorySyncer) sync(ctx context.Context) error {
 		return fmt.Errorf("list robot servers: %w", err)
 	}
 
+	// Read the Cluster CRs every sync to discover which envs share
+	// the Robot account. Source of truth is each Cluster's
+	// `spec.topology.variables[name=bareMetalCluster]`. An empty
+	// list means "no bare-metal-enabled clusters in this
+	// namespace" — gate stays off and the controller falls back to
+	// pure-prefix matching (legacy single-env behaviour).
+	envs, err := s.discoverClusterEnvs(ctx)
+	if err != nil {
+		return fmt.Errorf("discover cluster envs: %w", err)
+	}
+
 	// `eligibleForCreation` — name prefix matches AND not cancelled.
 	// `liveServerNumbers` — every non-cancelled server in the account,
 	// regardless of name. Used for the deletion gate so caph's rename
 	// doesn't cause us to reap a live host.
-	// `clusterByName` — the cluster derived from the server name (if
+	// `clusterByName` — the env derived from the server name (if
 	// any). Cached here so we can stamp it on creation AND back-fill
 	// it on existing CRs without re-parsing inside two separate loops.
 	eligibleForCreation := map[string]robot.Server{} // CR name → server
-	clusterByName := map[string]string{}             // CR name → cluster (may be "")
+	clusterByName := map[string]string{}             // CR name → env (may be "")
 	liveServerNumbers := map[int]struct{}{}
 	for _, srv := range servers {
 		if srv.Cancelled {
 			continue
 		}
 		liveServerNumbers[srv.Number] = struct{}{}
-		if !strings.HasPrefix(srv.Name, s.NamePrefix) {
-			continue
-		}
-		cluster := clusterFromServerName(srv.Name, s.Clusters)
-		// Cluster gating: when `--clusters` is configured, only
-		// servers whose name parses to one of them get a CR. This
-		// is what keeps a shared Robot account from cross-claiming
-		// across envs after `NamePrefix` got widened past
-		// `tuist-bm-` to accommodate caph's mid-provisioning name
-		// rewrite (e.g. `tuist-staging-runners-linux-…`).
-		if len(s.Clusters) > 0 && cluster == "" {
-			continue
+		cluster := clusterFromServerName(srv.Name, envs)
+		// When at least one Cluster CR has `bareMetalCluster`
+		// set, the cluster-gate is the source of truth and
+		// supersedes `NamePrefix` — only servers whose name
+		// parses to one of those envs get a CR. The
+		// `NamePrefix` flag stays around as a legacy fallback
+		// for single-env clusters that haven't migrated yet
+		// (e.g. a brand-new workload cluster bootstrapping
+		// before its topology variables land).
+		if len(envs) > 0 {
+			if cluster == "" {
+				continue
+			}
+		} else {
+			if !strings.HasPrefix(srv.Name, s.NamePrefix) {
+				continue
+			}
 		}
 		name := crNameForServer(srv.Number)
 		eligibleForCreation[name] = srv
@@ -253,13 +279,13 @@ func (s *InventorySyncer) sync(ctx context.Context) error {
 	// would never gain the label and caph hostSelector wouldn't
 	// claim them after an env adopts the per-cluster gate.
 	backfilledCount := 0
-	if len(s.Clusters) > 0 {
+	if len(envs) > 0 {
 		for name, obj := range owned {
 			if obj.GetLabels()[ClusterLabel] != "" {
 				continue
 			}
 			robotName := obj.GetLabels()[ServerNameLabel]
-			cluster := clusterFromServerName(robotName, s.Clusters)
+			cluster := clusterFromServerName(robotName, envs)
 			if cluster == "" {
 				continue
 			}
@@ -321,38 +347,81 @@ func (s *InventorySyncer) sync(ctx context.Context) error {
 	return nil
 }
 
-// clusterFromServerName returns which of the configured clusters
-// a Robot server name belongs to, or "" if none match. Accepts
-// both shapes the controller sees in practice:
+// discoverClusterEnvs lists CAPI Cluster CRs in `namespace` and
+// builds the (clusterName, envLabel) mapping from each Cluster's
+// `spec.topology.variables[name=bareMetalCluster].value`.
 //
-//   - `tuist-bm-<cluster>-<n>` — the operator's name in the
-//     Robot panel.
-//   - `tuist-<cluster>-...` — caph rewrites the server name to
-//     the HetznerBareMetalMachine name during provisioning, which
-//     CAPI templates as `<clusterName>-<deploymentName>-…`. The
-//     cluster name is the first segment after `tuist-`.
+// Clusters without that variable are skipped — they don't use the
+// bare-metal worker pool, so they don't need a partition in the
+// shared Robot account. Returning an empty list is the correct
+// outcome for clusters that don't enable bare-metal at all (e.g.
+// Kura-only regional clusters).
+func (s *InventorySyncer) discoverClusterEnvs(ctx context.Context) ([]clusterEnv, error) {
+	list := &unstructured.UnstructuredList{}
+	list.SetGroupVersionKind(capiClusterGVK)
+	if err := s.Client.List(ctx, list, client.InNamespace(s.Namespace)); err != nil {
+		return nil, fmt.Errorf("list capi clusters: %w", err)
+	}
+	out := make([]clusterEnv, 0, len(list.Items))
+	for i := range list.Items {
+		cl := &list.Items[i]
+		vars, _, _ := unstructured.NestedSlice(cl.Object, "spec", "topology", "variables")
+		for _, v := range vars {
+			vm, ok := v.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			if vm["name"] != "bareMetalCluster" {
+				continue
+			}
+			env, _ := vm["value"].(string)
+			if env == "" {
+				continue
+			}
+			out = append(out, clusterEnv{clusterName: cl.GetName(), envLabel: env})
+			break
+		}
+	}
+	return out, nil
+}
+
+// clusterFromServerName returns which env a Robot server name
+// belongs to, or "" if none match. Accepts both shapes the
+// controller sees in practice:
 //
-// Cluster names are matched as literal prefixes (with a trailing
-// `-` to avoid `production` accidentally matching `prod`).
-// Longest match wins so `production-us-east` takes precedence
-// over `production`.
-func clusterFromServerName(name string, clusters []string) string {
-	// Try `tuist-bm-<cluster>-` first (operator-named original).
-	// Then `tuist-<cluster>-` (caph-renamed). Take the longest
-	// matching cluster so multi-segment names like
-	// `production-us-east` aren't shadowed by `production`.
-	best := ""
-	for _, c := range clusters {
-		if c == "" {
+//   - `tuist-bm-<env>-<n>` — the operator's name in the Robot
+//     panel. `<env>` is the short label (`staging`, `canary`,
+//     `production`).
+//   - `bm-<clusterName>-...` — caph rewrites the server name to
+//     `bm-<HBMM-name>` during provisioning; HBMMs are CAPI-
+//     templated as `<clusterName>-<deploymentName>-…`, so the
+//     prefix after the leading `bm-` is the Cluster CR name.
+//     This matters because the Cluster CR name doesn't always
+//     follow the `tuist-<env>` convention — production's Cluster
+//     CR is just `tuist`, while its env label is `production`.
+//
+// Longest prefix wins, so `tuist-staging` beats `tuist`
+// (production's short Cluster name) on a server like
+// `bm-tuist-staging-runners-linux-…`.
+func clusterFromServerName(name string, envs []clusterEnv) string {
+	bestLen := 0
+	bestEnv := ""
+	for _, e := range envs {
+		if e.envLabel == "" {
 			continue
 		}
-		for _, prefix := range []string{"tuist-bm-" + c + "-", "tuist-" + c + "-"} {
-			if strings.HasPrefix(name, prefix) && len(c) > len(best) {
-				best = c
+		candidates := []string{
+			"tuist-bm-" + e.envLabel + "-",
+			"bm-" + e.clusterName + "-",
+		}
+		for _, p := range candidates {
+			if strings.HasPrefix(name, p) && len(p) > bestLen {
+				bestLen = len(p)
+				bestEnv = e.envLabel
 			}
 		}
 	}
-	return best
+	return bestEnv
 }
 
 // serverNumberFromCR reads the Robot server number from the
