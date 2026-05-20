@@ -350,7 +350,7 @@ defmodule Tuist.Processor.XCResultProcessorTest do
         ]
       }
 
-      {:ok, attempts} = Agent.start_link(fn -> 0 end)
+      {:ok, attempts} = Agent.start(fn -> 0 end)
       on_exit(fn -> if Process.alive?(attempts), do: Agent.stop(attempts) end)
 
       on_part = fn n ->
@@ -406,7 +406,7 @@ defmodule Tuist.Processor.XCResultProcessorTest do
         ]
       }
 
-      {:ok, counters} = Agent.start_link(fn -> %{part: 0, abort: 0} end)
+      {:ok, counters} = Agent.start(fn -> %{part: 0, abort: 0} end)
       on_exit(fn -> if Process.alive?(counters), do: Agent.stop(counters) end)
 
       on_part = fn _n ->
