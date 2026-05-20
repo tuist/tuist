@@ -48,6 +48,7 @@ defmodule TuistWeb.RunnerJobsLive do
   def handle_params(params, uri, socket) do
     filters = Filter.Operations.decode_filters_from_query(params, socket.assigns.available_filters)
     repository = params["repository"] || "any"
+    platform = platform_param(params["platform"])
     page = parse_page(params["page"])
 
     %{preset: preset, period: {start_datetime, end_datetime} = period} =
@@ -58,18 +59,23 @@ defmodule TuistWeb.RunnerJobsLive do
      |> assign(:uri, URI.parse(uri))
      |> assign(:active_filters, filters)
      |> assign(:repository, repository)
+     |> assign(:platform, platform)
      |> assign(:page, page)
      |> assign(:analytics_preset, preset)
      |> assign(:analytics_period, period)
      |> assign(:analytics_trend_label, trend_label(preset))
-     |> assign_analytics(repository, start_datetime, end_datetime)
-     |> assign_jobs(repository)}
+     |> assign_analytics(repository, platform, start_datetime, end_datetime)
+     |> assign_jobs(repository, platform)}
   end
 
-  defp assign_analytics(%{assigns: %{selected_account: account}} = socket, repository, start_dt, end_dt) do
+  defp platform_param(value) when value in ["macos", "linux"], do: value
+  defp platform_param(_), do: "any"
+
+  defp assign_analytics(%{assigns: %{selected_account: account}} = socket, repository, platform, start_dt, end_dt) do
     scope_opts =
       []
       |> maybe_repo(repository)
+      |> maybe_platform(platform)
       |> Keyword.put(:start_datetime, start_dt)
       |> Keyword.put(:end_datetime, end_dt)
 
@@ -93,6 +99,12 @@ defmodule TuistWeb.RunnerJobsLive do
   defp maybe_repo(opts, nil), do: opts
   defp maybe_repo(opts, ""), do: opts
   defp maybe_repo(opts, repo) when is_binary(repo), do: Keyword.put(opts, :repo, repo)
+
+  defp maybe_platform(opts, "any"), do: opts
+  defp maybe_platform(opts, nil), do: opts
+  defp maybe_platform(opts, ""), do: opts
+  defp maybe_platform(opts, platform) when platform in ["macos", "linux"], do: Keyword.put(opts, :platform, platform)
+  defp maybe_platform(opts, _), do: opts
 
   defp trend_label("last-24-hours"), do: dgettext("dashboard_runners", "since yesterday")
   defp trend_label("last-7-days"), do: dgettext("dashboard_runners", "since last week")
@@ -179,13 +191,18 @@ defmodule TuistWeb.RunnerJobsLive do
     {:noreply,
      socket
      |> assign(:live_status_counts, Phoenix.LiveView.AsyncResult.ok(counts))
-     |> assign_jobs(socket.assigns.repository)}
+     |> assign_jobs(socket.assigns.repository, socket.assigns.platform)}
   end
 
-  defp assign_jobs(%{assigns: %{selected_account: account, active_filters: filters, page: page}} = socket, repository) do
+  defp assign_jobs(
+         %{assigns: %{selected_account: account, active_filters: filters, page: page}} = socket,
+         repository,
+         platform
+       ) do
     base_opts =
       []
       |> maybe_repo(repository)
+      |> maybe_platform(platform)
       |> add_filter_opt(filters, "workflow", :workflow_name)
       |> add_filter_opt(filters, "job", :job_name)
       |> add_filter_opt(filters, "branch", :head_branch)
@@ -361,6 +378,21 @@ defmodule TuistWeb.RunnerJobsLive do
 
   def repository_label("any"), do: dgettext("dashboard_runners", "Any")
   def repository_label(repo) when is_binary(repo), do: repo
+
+  @doc """
+  Patches the URL to swap the Platform scope while preserving every
+  other state. Same shape as repository_patch — both pages stay in
+  lockstep when a viewer hops between them with the same scopes.
+  """
+  def platform_patch(%URI{} = uri, platform) do
+    "?" <> Query.put(uri.query, "platform", platform)
+  end
+
+  def platform_label("macos"), do: dgettext("dashboard_runners", "macOS")
+  def platform_label("linux"), do: dgettext("dashboard_runners", "Linux")
+  def platform_label(_any), do: dgettext("dashboard_runners", "Any")
+
+  def platforms, do: ["macos", "linux"]
 
   @doc """
   Builds the three-series array (Total / Passed / Failed) for the

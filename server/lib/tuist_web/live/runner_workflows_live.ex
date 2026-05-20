@@ -38,6 +38,7 @@ defmodule TuistWeb.RunnerWorkflowsLive do
   @impl true
   def handle_params(params, uri, socket) do
     repository = params["repository"] || "any"
+    platform = platform_param(params["platform"])
     search = params["search"] || ""
     sort_by = sort_by_param(params["sort_by"])
     sort_order = sort_order_param(params["sort_order"], sort_by)
@@ -50,6 +51,7 @@ defmodule TuistWeb.RunnerWorkflowsLive do
      socket
      |> assign(:uri, URI.parse(uri))
      |> assign(:repository, repository)
+     |> assign(:platform, platform)
      |> assign(:search, search)
      |> assign(:sort_by, sort_by)
      |> assign(:sort_order, sort_order)
@@ -57,9 +59,12 @@ defmodule TuistWeb.RunnerWorkflowsLive do
      |> assign(:analytics_preset, preset)
      |> assign(:analytics_period, period)
      |> assign(:analytics_trend_label, trend_label(preset))
-     |> assign_analytics(repository, start_datetime, end_datetime)
-     |> assign_workflows(repository, search, sort_by, sort_order)}
+     |> assign_analytics(repository, platform, start_datetime, end_datetime)
+     |> assign_workflows(repository, platform, search, sort_by, sort_order)}
   end
+
+  defp platform_param(value) when value in ["macos", "linux"], do: value
+  defp platform_param(_), do: "any"
 
   # Bound the sort_by URL param to the values the backend knows how
   # to ORDER BY — anything else falls back to the default so a
@@ -120,10 +125,11 @@ defmodule TuistWeb.RunnerWorkflowsLive do
   # repository scope or the date range changes. We wrap in
   # `assign_async` so the chart area can flip to the skeleton while
   # the new query is in flight.
-  defp assign_analytics(%{assigns: %{selected_account: account}} = socket, repository, start_dt, end_dt) do
+  defp assign_analytics(%{assigns: %{selected_account: account}} = socket, repository, platform, start_dt, end_dt) do
     scope_opts =
       repository
       |> scope_opts()
+      |> maybe_platform(platform)
       |> Keyword.put(:start_datetime, start_dt)
       |> Keyword.put(:end_datetime, end_dt)
 
@@ -144,6 +150,7 @@ defmodule TuistWeb.RunnerWorkflowsLive do
   defp assign_workflows(
          %{assigns: %{selected_account: account, page: page}} = socket,
          repository,
+         platform,
          search,
          sort_by,
          sort_order
@@ -151,6 +158,7 @@ defmodule TuistWeb.RunnerWorkflowsLive do
     base_opts =
       repository
       |> scope_opts()
+      |> maybe_platform(platform)
       |> maybe_put_search(search)
 
     total = Jobs.count_workflows_for_account(account.id, base_opts)
@@ -179,6 +187,12 @@ defmodule TuistWeb.RunnerWorkflowsLive do
   defp scope_opts(""), do: []
   defp scope_opts(repo) when is_binary(repo), do: [repo: repo]
 
+  defp maybe_platform(opts, "any"), do: opts
+  defp maybe_platform(opts, nil), do: opts
+  defp maybe_platform(opts, ""), do: opts
+  defp maybe_platform(opts, platform) when platform in ["macos", "linux"], do: Keyword.put(opts, :platform, platform)
+  defp maybe_platform(opts, _), do: opts
+
   defp maybe_put_search(opts, ""), do: opts
   defp maybe_put_search(opts, nil), do: opts
   defp maybe_put_search(opts, search) when is_binary(search), do: Keyword.put(opts, :workflow_name, search)
@@ -206,6 +220,20 @@ defmodule TuistWeb.RunnerWorkflowsLive do
 
   def repository_label("any"), do: dgettext("dashboard_runners", "Any")
   def repository_label(repo) when is_binary(repo), do: repo
+
+  @doc """
+  Patches the URL to swap the Platform scope while preserving every
+  other piece of state.
+  """
+  def platform_patch(%URI{} = uri, platform) do
+    "?" <> Query.put(uri.query, "platform", platform)
+  end
+
+  def platform_label("macos"), do: dgettext("dashboard_runners", "macOS")
+  def platform_label("linux"), do: dgettext("dashboard_runners", "Linux")
+  def platform_label(_any), do: dgettext("dashboard_runners", "Any")
+
+  def platforms, do: ["macos", "linux"]
 
   @doc """
   Builds the patch URL for a sortable column header. Clicking the

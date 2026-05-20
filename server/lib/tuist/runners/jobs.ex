@@ -360,7 +360,22 @@ defmodule Tuist.Runners.Jobs do
     |> maybe_filter_like(:workflow_name, Keyword.get(opts, :workflow_name))
     |> maybe_filter_like(:job_name, Keyword.get(opts, :job_name))
     |> maybe_filter_like(:head_branch, Keyword.get(opts, :head_branch))
+    |> maybe_filter_platform(Keyword.get(opts, :platform))
   end
+
+  # Platform filter narrows on the `fleet_name` prefix — every
+  # fleet is named after its OS (macos-xcode-26.4, linux-amd64), so
+  # we don't need a dedicated column to support the dropdown.
+  defp maybe_filter_platform(query, nil), do: query
+  defp maybe_filter_platform(query, ""), do: query
+  defp maybe_filter_platform(query, "any"), do: query
+
+  defp maybe_filter_platform(query, platform) when platform in ["macos", "linux"] do
+    prefix = platform <> "-"
+    where(query, [j], fragment("startsWith(?, ?)", j.fleet_name, ^prefix))
+  end
+
+  defp maybe_filter_platform(query, _), do: query
 
   defp maybe_filter_status(query, nil), do: query
 
@@ -531,6 +546,7 @@ defmodule Tuist.Runners.Jobs do
     |> maybe_filter_like(:repo, Keyword.get(opts, :repo))
     |> maybe_filter_like(:workflow_name, Keyword.get(opts, :workflow_name))
     |> maybe_filter_like(:head_branch, Keyword.get(opts, :head_branch))
+    |> maybe_filter_platform(Keyword.get(opts, :platform))
     |> group_by([j], [j.workflow_name, j.repo])
     |> select([j], %{
       workflow_name: j.workflow_name,
@@ -633,6 +649,7 @@ defmodule Tuist.Runners.Jobs do
     |> from(hints: ["FINAL"])
     |> where([j], j.account_id == ^account_id and j.workflow_run_id > 0)
     |> maybe_eq_workflow(repo, workflow_name)
+    |> maybe_filter_platform(Keyword.get(opts, :platform))
     |> group_by([j], j.workflow_run_id)
     |> having([j], fragment("countIf(? != 'completed')", j.status) == 0)
     |> select([j], %{
@@ -712,6 +729,7 @@ defmodule Tuist.Runners.Jobs do
       |> maybe_filter_like(:repo, Keyword.get(opts, :repo))
       |> maybe_filter_like(:workflow_name, Keyword.get(opts, :workflow_name))
       |> maybe_filter_like(:head_branch, Keyword.get(opts, :head_branch))
+      |> maybe_filter_platform(Keyword.get(opts, :platform))
       |> group_by([j], [j.workflow_name, j.repo])
       |> select([j], %{workflow_name: j.workflow_name, repo: j.repo})
 

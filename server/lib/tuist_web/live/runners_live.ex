@@ -42,21 +42,26 @@ defmodule TuistWeb.RunnersLive do
     job_duration_percentile = params["job-duration"] || "avg"
     workflow_duration_percentile = params["workflow-duration"] || "avg"
     repository = params["repository"] || "any"
+    platform = platform_param(params["platform"])
 
-    opts = maybe_repo([start_datetime: start_datetime, end_datetime: end_datetime], repository)
+    opts =
+      [start_datetime: start_datetime, end_datetime: end_datetime]
+      |> maybe_repo(repository)
+      |> maybe_platform(platform)
 
     {:noreply,
      socket
      |> assign(:uri, URI.parse(uri))
      |> assign(:repository, repository)
+     |> assign(:platform, platform)
      |> assign(:analytics_preset, preset)
      |> assign(:analytics_period, period)
      |> assign(:analytics_trend_label, trend_label(preset))
      |> assign(:analytics_selected_widget, selected_widget)
      |> assign(:job_duration_percentile, job_duration_percentile)
      |> assign(:workflow_duration_percentile, workflow_duration_percentile)
-     |> assign_recent_jobs(account.id, repository)
-     |> assign_recent_workflow_runs(account.id, repository)
+     |> assign_recent_jobs(account.id, repository, platform)
+     |> assign_recent_workflow_runs(account.id, repository, platform)
      |> assign_async(
        [:jobs_count, :jobs_duration, :workflows_duration],
        fn ->
@@ -74,6 +79,18 @@ defmodule TuistWeb.RunnersLive do
   defp maybe_repo(opts, nil), do: opts
   defp maybe_repo(opts, ""), do: opts
   defp maybe_repo(opts, repo) when is_binary(repo), do: Keyword.put(opts, :repo, repo)
+
+  defp maybe_platform(opts, "any"), do: opts
+  defp maybe_platform(opts, nil), do: opts
+  defp maybe_platform(opts, ""), do: opts
+  defp maybe_platform(opts, platform) when platform in ["macos", "linux"], do: Keyword.put(opts, :platform, platform)
+  defp maybe_platform(opts, _), do: opts
+
+  # Bounded set — every fleet's `fleet_name` starts with either
+  # `macos-` or `linux-`, so the dropdown only ever needs those two
+  # plus the unset `any`.
+  defp platform_param(value) when value in ["macos", "linux"], do: value
+  defp platform_param(_), do: "any"
 
   @impl true
   def handle_event("select_widget", %{"widget" => widget}, socket) do
@@ -111,13 +128,16 @@ defmodule TuistWeb.RunnersLive do
     push_patch(socket, to: "/#{socket.assigns.selected_account.name}/runners?#{query}")
   end
 
-  defp assign_recent_jobs(socket, account_id, repository) do
+  defp assign_recent_jobs(socket, account_id, repository, platform) do
     # The Recent jobs card mirrors the Recent Test Runs card on the
     # Tests page — it's a chronicle of finished work, not a live
     # status board. Filter to completed runs only so the bars carry
     # a real duration and the success/failure legends count
     # something other than zero.
-    opts = maybe_repo([status: "completed", limit: @widget_limit], repository)
+    opts =
+      [status: "completed", limit: @widget_limit]
+      |> maybe_repo(repository)
+      |> maybe_platform(platform)
 
     recent_jobs = Jobs.list_for_account(account_id, opts)
 
@@ -128,8 +148,11 @@ defmodule TuistWeb.RunnersLive do
     |> assign(:recent_jobs_failed_count, Enum.count(recent_jobs, &(&1.conclusion == "failure")))
   end
 
-  defp assign_recent_workflow_runs(socket, account_id, repository) do
-    opts = maybe_repo([limit: @widget_limit], repository)
+  defp assign_recent_workflow_runs(socket, account_id, repository, platform) do
+    opts =
+      [limit: @widget_limit]
+      |> maybe_repo(repository)
+      |> maybe_platform(platform)
 
     recent_workflow_runs = Jobs.list_recent_workflow_runs_for_account(account_id, opts)
 
@@ -245,6 +268,23 @@ defmodule TuistWeb.RunnersLive do
 
   def repository_label("any"), do: dgettext("dashboard_runners", "Any")
   def repository_label(repo) when is_binary(repo), do: repo
+
+  @doc """
+  Same pattern as `repository_patch/2`: toggle the URL's `platform`
+  param while leaving every other piece of state intact, so a
+  viewer hopping between Repository, Platform and the date picker
+  composes filters instead of resetting them.
+  """
+  def platform_patch(%URI{} = uri, platform) do
+    "?" <> Query.put(uri.query, "platform", platform)
+  end
+
+  def platform_label("macos"), do: dgettext("dashboard_runners", "macOS")
+  def platform_label("linux"), do: dgettext("dashboard_runners", "Linux")
+  def platform_label(_any), do: dgettext("dashboard_runners", "Any")
+
+  @platforms ["macos", "linux"]
+  def platforms, do: @platforms
 
   @doc """
   Conclusion label for the Recent workflow_runs table — the rollup

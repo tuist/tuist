@@ -1,6 +1,29 @@
 <div id="runners">
   <div data-part="date-picker-bar">
     <.dropdown
+      id="runners-platform-dropdown"
+      label={TuistWeb.RunnersLive.platform_label(@platform)}
+      secondary_text={dgettext("dashboard_runners", "Platform:")}
+    >
+      <.dropdown_item
+        value="any"
+        label={dgettext("dashboard_runners", "Any")}
+        patch={TuistWeb.RunnersLive.platform_patch(@uri, "any")}
+        data-selected={@platform == "any"}
+      >
+        <:right_icon :if={@platform == "any"}><.check /></:right_icon>
+      </.dropdown_item>
+      <.dropdown_item
+        :for={p <- TuistWeb.RunnersLive.platforms()}
+        value={p}
+        label={TuistWeb.RunnersLive.platform_label(p)}
+        patch={TuistWeb.RunnersLive.platform_patch(@uri, p)}
+        data-selected={@platform == p}
+      >
+        <:right_icon :if={@platform == p}><.check /></:right_icon>
+      </.dropdown_item>
+    </.dropdown>
+    <.dropdown
       id="runners-repository-dropdown"
       label={TuistWeb.RunnersLive.repository_label(@repository)}
       secondary_text={dgettext("dashboard_runners", "Repository:")}

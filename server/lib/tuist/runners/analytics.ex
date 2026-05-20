@@ -803,11 +803,27 @@ defmodule Tuist.Runners.Analytics do
   # caller provides `:repo` and/or `:workflow_name` opts. Used by the
   # workflow detail page to reuse the same widget queries that power
   # the Jobs page, only scoped to one (repo, workflow_name) pair.
+  # The same opts also carry an optional `:platform` ("macos" or
+  # "linux") which narrows on the `fleet_name` prefix — no new
+  # column needed since every fleet is already named after its OS
+  # (macos-xcode-26.4, linux-amd64, etc.).
   defp scope_workflow(query, opts) do
     query
     |> maybe_eq(:repo, Keyword.get(opts, :repo))
     |> maybe_eq(:workflow_name, Keyword.get(opts, :workflow_name))
+    |> maybe_platform(Keyword.get(opts, :platform))
   end
+
+  defp maybe_platform(query, nil), do: query
+  defp maybe_platform(query, ""), do: query
+  defp maybe_platform(query, "any"), do: query
+
+  defp maybe_platform(query, platform) when platform in ["macos", "linux"] do
+    prefix = platform <> "-"
+    where(query, [j], fragment("startsWith(?, ?)", j.fleet_name, ^prefix))
+  end
+
+  defp maybe_platform(query, _), do: query
 
   defp maybe_eq(query, _field, nil), do: query
   defp maybe_eq(query, _field, ""), do: query
