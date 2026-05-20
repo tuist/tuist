@@ -332,4 +332,4 @@ runnersFleetLinux:
 # digest until this PR lands on main.
 runnersController:
   image:
-    tag: "sha-c6767c4e169d"
+    tag: "sha-9c7ad9e57359"
