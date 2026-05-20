@@ -643,7 +643,10 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
     end
 
     test "200s without enqueueing when the payload has no installation.id", %{conn: conn} do
-      conn = put_req_header(conn, "x-github-event", "workflow_job")
+      conn =
+        conn
+        |> put_req_header("x-github-event", "workflow_job")
+        |> put_req_header("x-github-delivery", "deadbeef-no-installation")
 
       params = %{
         "action" => "queued",
@@ -655,26 +658,6 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
 
       assert result.status == 200
       refute_enqueued(worker: DispatchWorker)
-    end
-
-    test "synthesises a delivery_guid when GitHub didn't send X-GitHub-Delivery", %{conn: conn} do
-      # Without a synthetic GUID, the worker's unique constraint
-      # would collapse every guid-less job into one and we'd
-      # silently drop concurrent deliveries.
-      conn = put_req_header(conn, "x-github-event", "workflow_job")
-
-      params = %{
-        "action" => "queued",
-        "installation" => %{"id" => 1},
-        "workflow_job" => %{"id" => 2, "labels" => ["tuist-macos"]},
-        "repository" => %{"full_name" => "tuist/tuist"}
-      }
-
-      assert GitHubController.handle(conn, params).status == 200
-
-      [job] = all_enqueued(worker: DispatchWorker)
-      assert is_binary(job.args["delivery_guid"])
-      assert byte_size(job.args["delivery_guid"]) > 0
     end
   end
 end

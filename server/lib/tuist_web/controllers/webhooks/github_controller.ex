@@ -233,18 +233,7 @@ defmodule TuistWeb.Webhooks.GitHubController do
         _ -> nil
       end
 
-    # Real GitHub deliveries always carry `X-GitHub-Delivery`; the
-    # fallback is for tests / handcrafted requests so the `unique`
-    # constraint on the worker doesn't collapse every guid-less
-    # job into one.
-    delivery_guid =
-      conn
-      |> get_req_header("x-github-delivery")
-      |> List.first()
-      |> case do
-        nil -> Ecto.UUID.generate()
-        guid -> guid
-      end
+    delivery_guid = conn |> get_req_header("x-github-delivery") |> List.first()
 
     if installation_id do
       enqueue_dispatch(conn, params, installation_id, delivery_guid)
