@@ -1,0 +1,41 @@
+name: Smoke Test Staging Builder
+
+# One-shot smoke test for the cluster-managed staging
+# vm-image-builder runner brought up by this PR's CAPI fixes.
+# Targets the runner via the operator-added `smoke-test-staging`
+# label so it can't be picked up by the production `-01` builder.
+# Removed after the PR merges and the runner setup is documented.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: [self-hosted, smoke-test-staging]
+    timeout-minutes: 10
+    steps:
+      - name: Host identity + bootstrap-installed tooling
+        run: |
+          set -eo pipefail
+          echo "=== runner identity ==="
+          hostname
+          whoami
+          sw_vers
+          echo
+
+          echo "=== bootstrap-installed tooling on PATH ==="
+          /usr/local/bin/tart --version
+          /opt/homebrew/bin/packer --version
+          /opt/homebrew/bin/crane version
+          echo
+
+          echo "=== sudoers + actions runner ==="
+          ls -la /etc/sudoers.d/m1-nopasswd
+          sudo -n true && echo "passwordless sudo OK"
+          launchctl list | grep -i actions.runner | head -3
+          echo
+
+          echo "=== smoke complete ==="
