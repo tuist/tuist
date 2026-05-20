@@ -101,9 +101,7 @@ kuraController:
     zoneName: tuist.dev
     apiTokenSecret:
       managed: true
-      # Use the stable 1Password item ID so ESO keeps resolving the
-      # intended token even if another item is created with the same title.
-      item: 5eqouhc6gmfqrsg7owxpddrlfq
+      item: cloudflare-tuist-dns
 
 postgresql:
   external:
