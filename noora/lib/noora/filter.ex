@@ -560,7 +560,7 @@ defmodule Noora.Filter do
         phx-value-type="delete"
         phx-value-payload_filter_id={@filter.id}
       >
-        <.trash_x />
+        <.trash />
       </button>
     </div>
     """
