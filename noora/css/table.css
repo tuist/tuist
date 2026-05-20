@@ -103,10 +103,12 @@
       }
 
       & tr:not(:first-child):not([data-part="expanded-row"]) td {
-        box-shadow:
-          0 1px 0 0
-            light-dark(var(--noora-neutral-light-400), var(--noora-neutral-dark-900))
-            inset;
+        box-shadow: 0 1px 0 0
+          light-dark(
+            var(--noora-neutral-light-400),
+            var(--noora-neutral-dark-900)
+          )
+          inset;
       }
 
       & tr:not(:last-child) td {
