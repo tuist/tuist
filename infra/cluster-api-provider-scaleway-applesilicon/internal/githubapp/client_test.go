@@ -194,4 +194,3 @@ func newRSAKey(t *testing.T) ([]byte, *rsa.PrivateKey) {
 	})
 	return pemBytes, key
 }
-
