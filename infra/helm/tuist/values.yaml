@@ -888,6 +888,12 @@ runnersController:
     repository: ghcr.io/tuist/tuist-runners-controller
     tag: ""
     pullPolicy: IfNotPresent
+  # OCI ref of the dockerd sidecar stamped on every Linux runner
+  # Pod (`docker:dind` upstream image). Required for any
+  # `runnersFleetLinux` pool; empty disables the sidecar so Pods
+  # come up with no `DOCKER_HOST`. Renovate keeps this pinned.
+  # renovate: datasource=docker depName=docker versioning=docker
+  dindImage: "docker:28-dind"
   resources:
     requests:
       cpu: 50m

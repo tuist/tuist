@@ -124,11 +124,10 @@ RUN apt-get update \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Docker + buildx from the official Docker apt repo. Layered
-# separately from the baseline apt install so unrelated tooling
-# bumps don't bust the much larger docker-ce layer.
-# `docker-buildx-plugin` isn't in Ubuntu's repos and `docker.io`
-# lags upstream by months, so we pull from download.docker.com.
+# Docker CLI + buildx + compose plugins. The daemon runs in the
+# `dind` native sidecar (`docker:dind`); this image carries only
+# the client side. `docker-buildx-plugin` isn't in Ubuntu's repos
+# and `docker.io` lags upstream, so we use download.docker.com.
 RUN install -m 0755 -d /etc/apt/keyrings \
     && curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc \
     && chmod a+r /etc/apt/keyrings/docker.asc \
@@ -136,22 +135,21 @@ RUN install -m 0755 -d /etc/apt/keyrings \
     && echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu ${VERSION_CODENAME} stable" > /etc/apt/sources.list.d/docker.list \
     && apt-get update \
     && apt-get install -y --no-install-recommends \
-        docker-ce \
         docker-ce-cli \
-        containerd.io \
         docker-buildx-plugin \
         docker-compose-plugin \
-        iptables \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
 # Non-root runner user. `actions/runner` refuses to register as
 # root unless `RUNNER_ALLOW_RUNASROOT=1` is set. Passwordless sudo
-# matches the GitHub-hosted runner experience; the `docker` group
-# lets the runner reach the in-Pod dockerd socket without sudo.
-RUN useradd -m -d /home/runner -s /bin/bash runner \
+# matches the hosted-runner experience. The `docker` group GID is
+# pinned to 123 to match the `--group=123` arg the controller
+# passes to dockerd in the sidecar, so the runner can reach
+# /var/run/docker.sock without sudo.
+RUN groupadd -g 123 docker \
+    && useradd -m -d /home/runner -s /bin/bash -G docker runner \
     && echo "runner ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers \
-    && usermod -aG docker runner \
     && mkdir -p /home/runner/actions-runner \
     && chown -R runner:runner /home/runner
 

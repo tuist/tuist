@@ -3,10 +3,13 @@ package podtemplate
 import (
 	"testing"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	tuistv1 "github.com/tuist/tuist/infra/runners-controller/api/v1alpha1"
 )
+
+const testDindImage = "docker:28-dind"
 
 func basePool(os string) *tuistv1.RunnerPool {
 	return &tuistv1.RunnerPool{
@@ -22,8 +25,12 @@ func basePool(os string) *tuistv1.RunnerPool {
 	}
 }
 
+func build(p *tuistv1.RunnerPool) *corev1.Pod {
+	return Build(p, "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", testDindImage)
+}
+
 func TestBuild_MacOSScheduling(t *testing.T) {
-	pod := Build(basePool(""), "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch")
+	pod := build(basePool(""))
 
 	if got, want := pod.Spec.NodeSelector["kubernetes.io/os"], "darwin"; got != want {
 		t.Errorf("nodeSelector os = %q, want %q", got, want)
@@ -40,7 +47,7 @@ func TestBuild_MacOSScheduling(t *testing.T) {
 }
 
 func TestBuild_LinuxScheduling(t *testing.T) {
-	pod := Build(basePool("linux"), "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch")
+	pod := build(basePool("linux"))
 	// Linux pools must use the in-cluster URL — the public path
 	// hits Hetzner Cloud LB hairpin and silently times out.
 	for _, env := range pod.Spec.Containers[0].Env {
@@ -57,10 +64,6 @@ func TestBuild_LinuxScheduling(t *testing.T) {
 	if got, want := pod.Spec.NodeSelector["kubernetes.io/arch"], "amd64"; got != want {
 		t.Errorf("nodeSelector arch = %q, want %q", got, want)
 	}
-	// Hetzner Robot bare-metal hosts join the workload cluster via
-	// kubeadm out-of-band (not CAPI-managed in v1), and the operator
-	// labels them `node.cluster.x-k8s.io/pool=<FleetSelector>` so the
-	// Pod's nodeSelector pins to the runner-tier hosts.
 	if got, want := pod.Spec.NodeSelector["node.cluster.x-k8s.io/pool"], "fleet-x"; got != want {
 		t.Errorf("nodeSelector pool = %q, want %q", got, want)
 	}
@@ -70,9 +73,6 @@ func TestBuild_LinuxScheduling(t *testing.T) {
 	if _, present := pod.Spec.NodeSelector["tuist.dev/runtime"]; present {
 		t.Errorf("nodeSelector should NOT carry tuist.dev/runtime on Linux pools")
 	}
-	// Linux bare-metal hosts are tainted `tuist.dev/runner-tier=bare-metal:NoSchedule`
-	// so only runner Pods land on them; everything else (server, system
-	// DaemonSets, etc.) stays on the elastic Hetzner Cloud `md-0` pool.
 	if len(pod.Spec.Tolerations) != 1 {
 		t.Fatalf("Tolerations = %+v, want exactly 1 (bare-metal runner-tier)", pod.Spec.Tolerations)
 	}
@@ -85,7 +85,7 @@ func TestBuild_LinuxScheduling(t *testing.T) {
 func TestBuild_UnknownOSFallsBackToMacOS(t *testing.T) {
 	// A misconfigured OS field should still produce a schedulable
 	// Pod against the macOS fleet rather than fail open.
-	pod := Build(basePool("solaris"), "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch")
+	pod := build(basePool("solaris"))
 	if got, want := pod.Spec.NodeSelector["kubernetes.io/os"], "darwin"; got != want {
 		t.Errorf("nodeSelector os = %q, want darwin fallback", got)
 	}
@@ -93,56 +93,133 @@ func TestBuild_UnknownOSFallsBackToMacOS(t *testing.T) {
 
 func TestBuild_RuntimeClassNameStampedWhenSet(t *testing.T) {
 	pool := basePool("linux")
-	pool.Spec.RuntimeClass = "kata-fc"
-	pod := Build(pool, "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch")
+	pool.Spec.RuntimeClass = "kata-qemu"
+	pod := build(pool)
 	if pod.Spec.RuntimeClassName == nil {
-		t.Fatalf("RuntimeClassName = nil, want \"kata-fc\"")
+		t.Fatalf("RuntimeClassName = nil, want \"kata-qemu\"")
 	}
-	if got := *pod.Spec.RuntimeClassName; got != "kata-fc" {
-		t.Errorf("RuntimeClassName = %q, want \"kata-fc\"", got)
+	if got := *pod.Spec.RuntimeClassName; got != "kata-qemu" {
+		t.Errorf("RuntimeClassName = %q, want \"kata-qemu\"", got)
 	}
 }
 
 func TestBuild_RuntimeClassNameNilWhenUnset(t *testing.T) {
-	// Empty `runtimeClass` must produce a nil *string, not an empty
-	// pointer. kube-apiserver accepts both as "default runtime" but
-	// nil is the canonical absence; some downstream tooling treats
-	// the two cases differently.
-	pool := basePool("linux") // no RuntimeClass set
-	pod := Build(pool, "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch")
+	pool := basePool("linux")
+	pod := build(pool)
 	if pod.Spec.RuntimeClassName != nil {
 		t.Errorf("RuntimeClassName = %v, want nil for default runtime", *pod.Spec.RuntimeClassName)
 	}
 }
 
-func TestBuild_LinuxPodIsPrivilegedWithDockerHost(t *testing.T) {
-	// Linux pods always run privileged + dockerd inside a kata-qemu
-	// microVM; macOS pods never do.
-	pod := Build(basePool("linux"), "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch")
-	c := pod.Spec.Containers[0]
-	if c.SecurityContext == nil || c.SecurityContext.Privileged == nil || !*c.SecurityContext.Privileged {
-		t.Fatalf("SecurityContext = %+v, want privileged=true", c.SecurityContext)
+func TestBuild_LinuxPodGetsDindSidecar(t *testing.T) {
+	// Linux pods get a dind native sidecar (initContainer with
+	// restartPolicy=Always) instead of running dockerd in the
+	// runner container. Mirrors the ARC pattern.
+	pod := build(basePool("linux"))
+
+	if len(pod.Spec.InitContainers) != 1 {
+		t.Fatalf("InitContainers = %d, want 1 (dind sidecar)", len(pod.Spec.InitContainers))
 	}
-	var sawHost bool
-	for _, env := range c.Env {
+	dind := pod.Spec.InitContainers[0]
+	if dind.Name != "dind" {
+		t.Errorf("sidecar Name = %q, want \"dind\"", dind.Name)
+	}
+	if dind.Image != testDindImage {
+		t.Errorf("sidecar Image = %q, want %q", dind.Image, testDindImage)
+	}
+	if dind.RestartPolicy == nil || *dind.RestartPolicy != corev1.ContainerRestartPolicyAlways {
+		t.Errorf("sidecar RestartPolicy = %v, want Always (native sidecar)", dind.RestartPolicy)
+	}
+	if dind.SecurityContext == nil || dind.SecurityContext.Privileged == nil || !*dind.SecurityContext.Privileged {
+		t.Errorf("sidecar SecurityContext = %+v, want privileged=true", dind.SecurityContext)
+	}
+	if dind.StartupProbe == nil || dind.StartupProbe.Exec == nil {
+		t.Fatalf("sidecar missing exec startupProbe; got %+v", dind.StartupProbe)
+	}
+	if cmd := dind.StartupProbe.Exec.Command; len(cmd) != 2 || cmd[0] != "docker" || cmd[1] != "info" {
+		t.Errorf("sidecar startupProbe.exec = %v, want [docker info]", cmd)
+	}
+
+	// Runner container stays unprivileged; defense in depth on top
+	// of the kata-qemu microVM boundary.
+	runner := pod.Spec.Containers[0]
+	if runner.SecurityContext != nil && runner.SecurityContext.Privileged != nil && *runner.SecurityContext.Privileged {
+		t.Errorf("runner SecurityContext = %+v, want no privileged flag", runner.SecurityContext)
+	}
+
+	// DOCKER_HOST points at the shared socket so the runner's
+	// docker CLI hits the sidecar's daemon.
+	var sawDockerHost bool
+	for _, env := range runner.Env {
 		if env.Name == "DOCKER_HOST" && env.Value == "unix:///var/run/docker.sock" {
-			sawHost = true
+			sawDockerHost = true
 		}
 	}
-	if !sawHost {
-		t.Errorf("env missing DOCKER_HOST=unix:///var/run/docker.sock; got %+v", c.Env)
+	if !sawDockerHost {
+		t.Errorf("runner env missing DOCKER_HOST=unix:///var/run/docker.sock; got %+v", runner.Env)
+	}
+
+	// Both containers must mount the shared docker.sock and work
+	// volumes so docker-run -v bind-mounts resolve identically on
+	// both sides.
+	for _, vm := range []corev1.VolumeMount{
+		{Name: "dind-sock", MountPath: "/var/run"},
+		{Name: "work", MountPath: "/home/runner/actions-runner/_work"},
+	} {
+		if !hasVolumeMount(runner.VolumeMounts, vm) {
+			t.Errorf("runner missing volumeMount %+v; got %+v", vm, runner.VolumeMounts)
+		}
+		if !hasVolumeMount(dind.VolumeMounts, vm) {
+			t.Errorf("sidecar missing volumeMount %+v; got %+v", vm, dind.VolumeMounts)
+		}
+	}
+	for _, v := range []string{"dind-sock", "work"} {
+		if !hasVolume(pod.Spec.Volumes, v) {
+			t.Errorf("pod missing volume %q; got %+v", v, pod.Spec.Volumes)
+		}
 	}
 }
 
-func TestBuild_MacOSPodIsNotPrivileged(t *testing.T) {
-	pod := Build(basePool(""), "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch")
-	c := pod.Spec.Containers[0]
-	if c.SecurityContext != nil && c.SecurityContext.Privileged != nil && *c.SecurityContext.Privileged {
-		t.Errorf("SecurityContext = %+v, want no privileged flag on macOS pods", c.SecurityContext)
+func TestBuild_LinuxPodWithoutDindImageSkipsSidecar(t *testing.T) {
+	// Empty dindImage (macOS-only install) must not produce a
+	// sidecar or DOCKER_HOST env even on a Linux pool.
+	pod := Build(basePool("linux"), "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", "")
+	if len(pod.Spec.InitContainers) != 0 {
+		t.Errorf("InitContainers = %d, want 0 when dindImage is empty", len(pod.Spec.InitContainers))
 	}
-	for _, env := range c.Env {
+	for _, env := range pod.Spec.Containers[0].Env {
+		if env.Name == "DOCKER_HOST" {
+			t.Errorf("runner should not carry DOCKER_HOST when sidecar is absent; got %q", env.Value)
+		}
+	}
+}
+
+func TestBuild_MacOSPodHasNoDindSidecar(t *testing.T) {
+	pod := build(basePool(""))
+	if len(pod.Spec.InitContainers) != 0 {
+		t.Errorf("macOS pods must not get the dind sidecar; got %d initContainers", len(pod.Spec.InitContainers))
+	}
+	for _, env := range pod.Spec.Containers[0].Env {
 		if env.Name == "DOCKER_HOST" {
 			t.Errorf("macOS pods should not carry DOCKER_HOST; got %q", env.Value)
 		}
 	}
+}
+
+func hasVolumeMount(mounts []corev1.VolumeMount, want corev1.VolumeMount) bool {
+	for _, m := range mounts {
+		if m.Name == want.Name && m.MountPath == want.MountPath {
+			return true
+		}
+	}
+	return false
+}
+
+func hasVolume(volumes []corev1.Volume, name string) bool {
+	for _, v := range volumes {
+		if v.Name == name {
+			return true
+		}
+	}
+	return false
 }

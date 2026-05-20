@@ -203,17 +203,34 @@ The key remains valid through reinstalls because caph configures it
 into `/root/.ssh/authorized_keys` as part of the cloud-init
 bootstrap.
 
-## docker-in-runner (Linux pools)
+## dockerd sidecar (Linux pools)
 
-Every Linux runner Pod runs `privileged: true` with dockerd
-started inside the container at boot. Privileged is bounded by
-the per-Pod `kata-qemu` microVM, so the bare-metal host kernel
-is not exposed. **Linux pools must always set `spec.runtimeClass:
-kata-qemu`** — there is no escape valve.
+Every Linux runner Pod gets a `dind` native sidecar (k8s ≥ 1.29:
+initContainer with `restartPolicy: Always`) running the upstream
+`docker:dind` image. The runner container stays unprivileged;
+only the sidecar is `privileged: true`, bounded by the Pod's
+`kata-qemu` microVM. **Linux pools must always set
+`spec.runtimeClass: kata-qemu`** — there is no escape valve.
 
-This is the same workflow surface GitHub-hosted and Namespace
-runners ship: `services:` containers, `docker build`, buildx,
-compose, registry login.
+Mirrors the ARC `gha-runner-scale-set` sidecar pattern. The
+sidecar's `startupProbe` (`exec: docker info`) blocks the runner
+container from starting until dockerd is reachable, replacing
+what would otherwise be a polling loop on the runner side.
+kubelet supervises dockerd — if it crashes, k8s restarts it.
 
-If `/var/lib/docker` throughput becomes a bottleneck on virtio-fs,
-mount an `emptyDir` at the path so dockerd lands on node disk.
+Shape:
+
+- `dind-sock` emptyDir mounted at `/var/run` in both containers
+  exposes `/var/run/docker.sock`.
+- `work` emptyDir mounted at `/home/runner/actions-runner/_work`
+  in both containers so `docker run -v $PWD:/x` paths resolve
+  the same on either side.
+- `DOCKER_HOST=unix:///var/run/docker.sock` injected into the
+  runner so the docker CLI hits the sidecar.
+- `--group=123` passed to dockerd so the socket GID matches the
+  `docker` group inside the runner image (pinned at Dockerfile
+  build time).
+
+The sidecar image is pinned via the chart's
+`runnersController.dindImage` value and threaded into the
+controller as `--dind-image`. Renovate keeps the pin bumped.

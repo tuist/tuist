@@ -13,15 +13,15 @@ macOS image). Same single-shot lifecycle, much simpler substrate.
 - `/home/runner/actions-runner/` — GitHub Actions runner binary
   (no registration baked in; we register at runtime via the JIT
   config minted by `Tuist.Runners.dispatch_for_sa/2`).
-- `/usr/local/bin/dispatch-poll.sh` — starts dockerd, then polls
-  the dispatch endpoint with the projected SA token as Bearer. On
-  204 it sleeps; on 200 it `exec`s `./run.sh --jitconfig <jit>`.
-  Container exit is the substrate's terminal signal.
-- `docker-ce`, `docker-ce-cli`, `containerd.io`,
-  `docker-buildx-plugin`, `docker-compose-plugin` from the
-  official Docker apt repo. The daemon always starts at boot —
-  Linux runner Pods run `privileged: true` inside a kata-qemu
-  microVM, so dockerd-on is the platform default.
+- `/usr/local/bin/dispatch-poll.sh` — polls the dispatch
+  endpoint with the projected SA token as Bearer. On 204 it
+  sleeps; on 200 it `exec`s `./run.sh --jitconfig <jit>`.
+- `docker-ce-cli`, `docker-buildx-plugin`, `docker-compose-plugin`
+  from the official Docker apt repo — client side only. The
+  daemon runs in the `dind` native sidecar (`docker:dind`)
+  attached to the same Pod by the runners-controller. The
+  runner's `docker` group is pinned to GID 123 to match the
+  socket GID dockerd creates in the sidecar.
 
 No `inject-env.sh`, no launchd plist, no VM-halt trap — kubelet
 projects env + SA token natively, container exit IS the
@@ -29,14 +29,11 @@ substrate's terminal signal.
 
 ## docker
 
-`dispatch-poll.sh` runs `sudo dockerd` in the background, waits
-up to 30 s for `docker info` to succeed, then enters the dispatch
-loop. On timeout it dumps the last 50 lines of `/tmp/dockerd.log`
-and aborts so the Pod fails loudly instead of half-starting
-workflows that expect dockerd to be available.
-
-See `infra/runners-controller/AGENTS.md` for the safety boundary
-(kata-qemu microVM) and the storage-driver caveat.
+dockerd does NOT run in this image. It runs in a sidecar; the
+runner reaches it via `DOCKER_HOST=unix:///var/run/docker.sock`
+injected by the controller, with the socket mounted from a
+shared emptyDir. See `infra/runners-controller/AGENTS.md` for
+the sidecar Pod shape + lifecycle.
 
 ## Build
 

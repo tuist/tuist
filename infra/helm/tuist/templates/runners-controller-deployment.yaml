@@ -174,6 +174,8 @@ spec:
             # Autoscaler reconciler runs in the cluster; always use
             # the in-cluster Service URL for the same reason.
             - --scaling-signals-url=http://{{ include "tuist.componentName" (dict "root" . "component" "server") }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.server.service.port | default 80 }}/api/internal/runners/desired_replicas
+            # dockerd sidecar image stamped on every Linux runner Pod.
+            - --dind-image={{ .Values.runnersController.dindImage }}
           ports:
             - name: metrics
               containerPort: 8080

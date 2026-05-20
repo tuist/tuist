@@ -30,7 +30,11 @@ import (
 // Cloud LB hairpin when they try to reach the public ingress IP
 // from inside the cluster, so they must use the in-cluster
 // Service URL instead.
-func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInternalURL string) *corev1.Pod {
+//
+// `dindImage` is the OCI ref of the dockerd sidecar baked into
+// every Linux runner Pod (k8s 1.29+ native sidecar). Empty skips
+// the sidecar, which is fine for macOS-only installs.
+func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInternalURL, dindImage string) *corev1.Pod {
 	cpu := resource.NewMilliQuantity(int64(pool.Spec.PodCPUMilli), resource.DecimalSI)
 	mem := resource.NewQuantity(int64(pool.Spec.PodMemoryMB)*1024*1024, resource.BinarySI)
 
@@ -98,15 +102,44 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 		},
 	}
 
-	// Linux pods always run dockerd inside the container so
-	// workflows can use `services:`, `docker build`, and buildx
-	// natively. Privileged is bounded by the Pod's kata-qemu
-	// microVM, not the host kernel — Linux pools must therefore
-	// always set `spec.runtimeClass: kata-qemu`.
-	var securityContext *corev1.SecurityContext
-	if linuxPod {
+	// Linux pods get a dockerd sidecar (k8s 1.29+ native sidecar:
+	// initContainer with restartPolicy=Always). The runner stays
+	// unprivileged; only the sidecar is privileged, bounded by the
+	// Pod's kata-qemu microVM. The startupProbe blocks the runner
+	// from starting until `docker info` succeeds, replacing what
+	// would otherwise be a polling loop in dispatch-poll.sh.
+	var initContainers []corev1.Container
+	if linuxPod && dindImage != "" {
+		extraVolumes = append(extraVolumes,
+			corev1.Volume{Name: "dind-sock", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
+			corev1.Volume{Name: "work", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
+		)
+		extraVolumeMounts = append(extraVolumeMounts,
+			corev1.VolumeMount{Name: "dind-sock", MountPath: "/var/run"},
+			corev1.VolumeMount{Name: "work", MountPath: "/home/runner/actions-runner/_work"},
+		)
 		env = append(env, corev1.EnvVar{Name: "DOCKER_HOST", Value: "unix:///var/run/docker.sock"})
-		securityContext = &corev1.SecurityContext{Privileged: ptr(true)}
+		initContainers = []corev1.Container{{
+			Name:  "dind",
+			Image: dindImage,
+			// --group pins the docker.sock GID so the runner user
+			// (member of `docker` group, GID 123) can reach it
+			// without sudo. The Dockerfile pins the same GID.
+			Args: []string{"dockerd", "--host=unix:///var/run/docker.sock", "--group=123"},
+			SecurityContext: &corev1.SecurityContext{
+				Privileged: ptr(true),
+			},
+			RestartPolicy: ptr(corev1.ContainerRestartPolicyAlways),
+			StartupProbe: &corev1.Probe{
+				ProbeHandler:     corev1.ProbeHandler{Exec: &corev1.ExecAction{Command: []string{"docker", "info"}}},
+				PeriodSeconds:    2,
+				FailureThreshold: 30,
+			},
+			VolumeMounts: []corev1.VolumeMount{
+				{Name: "dind-sock", MountPath: "/var/run"},
+				{Name: "work", MountPath: "/home/runner/actions-runner/_work"},
+			},
+		}}
 	}
 
 	return &corev1.Pod{
@@ -133,6 +166,7 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 			NodeSelector:                 nodeSelector,
 			Tolerations:                  tolerations,
 			Volumes:                      extraVolumes,
+			InitContainers:               initContainers,
 			// RuntimeClassName, when set, routes the Pod through a
 			// non-default container runtime. Linux bare-metal pools
 			// use `kata-fc` (Kata Containers + Firecracker) so each
@@ -157,9 +191,8 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 							corev1.ResourceMemory: *mem,
 						},
 					},
-					SecurityContext: securityContext,
-					VolumeMounts:    extraVolumeMounts,
-					Env:             env,
+					VolumeMounts: extraVolumeMounts,
+					Env:          env,
 				},
 			},
 		},

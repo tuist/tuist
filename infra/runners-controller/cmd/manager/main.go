@@ -45,6 +45,7 @@ func main() {
 		dispatchInternalURL string
 		scalingSignalsURL   string
 		watchedNS           string
+		dindImage           string
 	)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "Prometheus metrics endpoint")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "Liveness/readiness probe endpoint")
@@ -56,6 +57,8 @@ func main() {
 		"URL the autoscaler reconciler GETs for fleet load signals (`?fleet=<name>` appended). Optional; if empty, autoscaling is silently disabled (existing macOS pools work unchanged).")
 	flag.StringVar(&watchedNS, "namespace", envOr("TUIST_RUNNERS_NAMESPACE", "tuist-runners"),
 		"Namespace the controller watches. Defaults to tuist-runners.")
+	flag.StringVar(&dindImage, "dind-image", envOr("TUIST_RUNNER_DIND_IMAGE", ""),
+		"OCI ref for the dockerd sidecar image stamped on Linux runner Pods (e.g. docker:28-dind@sha256:...). Required when any RunnerPool has spec.os=linux.")
 
 	opts := zap.Options{Development: false}
 	opts.BindFlags(flag.CommandLine)
@@ -92,6 +95,7 @@ func main() {
 		Scheme:              mgr.GetScheme(),
 		DispatchURL:         dispatchURL,
 		DispatchInternalURL: dispatchInternalURL,
+		DindImage:           dindImage,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup RunnerPool reconciler")
 		os.Exit(1)

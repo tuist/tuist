@@ -47,25 +47,6 @@ if [ -z "${SA_TOKEN}" ]; then
   exit 1
 fi
 
-# Linux runner Pods run `privileged: true` inside a kata-qemu
-# microVM so dockerd inside the container is safe and always-on.
-# Wait for the socket before exec'ing the runner so `services:`
-# start-up doesn't race the daemon.
-echo "$(date -u +%FT%TZ) dispatch-poll: starting dockerd"
-sudo dockerd > /tmp/dockerd.log 2>&1 &
-for i in $(seq 1 30); do
-  if [ -S /var/run/docker.sock ] && docker info >/dev/null 2>&1; then
-    echo "$(date -u +%FT%TZ) dispatch-poll: dockerd ready after ${i}s"
-    break
-  fi
-  sleep 1
-done
-if ! docker info >/dev/null 2>&1; then
-  echo "$(date -u +%FT%TZ) dispatch-poll: dockerd failed to start within 30s; last 50 lines:"
-  sudo tail -n 50 /tmp/dockerd.log || true
-  exit 1
-fi
-
 # 2s interval matches the macOS image — close enough to "live" for
 # customer dashboards without burning the dispatch endpoint. At
 # this rate a warm pool of N Pods generates ~N/2 QPS server-side,
