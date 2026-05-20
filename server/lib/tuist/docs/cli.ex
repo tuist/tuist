@@ -36,9 +36,13 @@ defmodule Tuist.Docs.CLI do
 
   defp load(opts) do
     cache = Keyword.get(opts, :cache, :tuist)
+    # Tests should opt into live GitHub fetches explicitly so regular unit tests
+    # don't depend on external rate limits or network availability.
+    fetch_if_missing? = Keyword.get(opts, :fetch_if_missing, not Tuist.Environment.test?())
 
     case Cachex.get(cache, @cache_key) do
-      {:ok, nil} -> fetch_and_cache(cache)
+      {:ok, nil} when fetch_if_missing? -> fetch_and_cache(cache)
+      {:ok, nil} -> nil
       {:ok, data} -> data
       _ -> nil
     end
