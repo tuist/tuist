@@ -30,6 +30,57 @@
         <:right_icon :if={@repository == repo}><.check /></:right_icon>
       </.dropdown_item>
     </.dropdown>
+    <.date_picker
+      id="workflows-analytics-date-range-picker"
+      name="analytics-date-range"
+      presets={[
+        %{
+          id: "last-24-hours",
+          label: dgettext("dashboard_runners", "Last 24 hours"),
+          period: {24, :hour}
+        },
+        %{
+          id: "last-7-days",
+          label: dgettext("dashboard_runners", "Last 7 days"),
+          period: {7, :day}
+        },
+        %{
+          id: "last-30-days",
+          label: dgettext("dashboard_runners", "Last 30 days"),
+          period: {30, :day}
+        },
+        %{
+          id: "last-12-months",
+          label: dgettext("dashboard_runners", "Last 12 months"),
+          period: {12, :month}
+        },
+        %{id: "custom", label: dgettext("dashboard_runners", "Custom")}
+      ]}
+      selected_preset={@analytics_preset}
+      period={@analytics_period}
+      on_period_change="analytics_period_changed"
+      max={Date.utc_today()}
+    >
+      <:actions>
+        <.button
+          label={dgettext("dashboard_runners", "Cancel")}
+          variant="secondary"
+          phx-click={
+            JS.dispatch("phx:date-picker-cancel",
+              detail: %{id: "workflows-analytics-date-range-picker"}
+            )
+          }
+        />
+        <.button
+          label={dgettext("dashboard_runners", "Apply")}
+          phx-click={
+            JS.dispatch("phx:date-picker-apply",
+              detail: %{id: "workflows-analytics-date-range-picker"}
+            )
+          }
+        />
+      </:actions>
+    </.date_picker>
   </div>
 
   <.card
@@ -54,7 +105,7 @@
         phx_value_widget="workflow_runs"
         trend_value={if @workflow_runs_count.ok?, do: @workflow_runs_count.result.trend}
         trend_type={:neutral}
-        trend_label={dgettext("dashboard_runners", "since last month")}
+        trend_label={@analytics_trend_label}
       />
       <.widget
         id="widget-workflows-failed-runs"
@@ -78,7 +129,7 @@
           if @failed_workflow_runs_count.ok?, do: @failed_workflow_runs_count.result.trend
         }
         trend_type={:inverse}
-        trend_label={dgettext("dashboard_runners", "since last month")}
+        trend_label={@analytics_trend_label}
       />
       <.percentile_dropdown_widget
         id="widget-workflows-duration"
@@ -128,7 +179,7 @@
           end
         }
         trend_type={:inverse}
-        trend_label={dgettext("dashboard_runners", "since last month")}
+        trend_label={@analytics_trend_label}
       />
     </div>
     <.card_section data-part="analytics-card-chart-section">

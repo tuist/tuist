@@ -13,6 +13,8 @@ defmodule TuistWeb.RunnerJobsLive do
   alias Tuist.Runners.Analytics
   alias Tuist.Runners.Jobs
   alias Tuist.Utilities.DateFormatter
+  alias TuistWeb.Helpers.DatePicker
+  alias TuistWeb.Utilities.Query
 
   @page_size 50
 
@@ -34,33 +36,64 @@ defmodule TuistWeb.RunnerJobsLive do
        "#{dgettext("dashboard_runners", "Jobs")} · #{selected_account.name} · Tuist"
      )
      |> assign(:available_filters, available_filters())
-     |> assign(:analytics_selected_widget, "cumulative_minutes")
-     |> assign_async(
-       [:jobs_count, :failed_jobs_count, :cumulative_minutes, :live_status_counts],
-       fn ->
-         {:ok,
-          %{
-            jobs_count: Analytics.jobs_count(selected_account.id),
-            failed_jobs_count: Analytics.failed_jobs_count(selected_account.id),
-            cumulative_minutes: Analytics.cumulative_minutes(selected_account.id),
-            live_status_counts: Jobs.status_counts(selected_account.id)
-          }}
-       end
-     )}
+     |> assign(:repos, Jobs.distinct_repos_for_account(selected_account.id))
+     |> assign(:analytics_selected_widget, "cumulative_minutes")}
   end
 
   @impl true
   def handle_params(params, uri, socket) do
     filters = Filter.Operations.decode_filters_from_query(params, socket.assigns.available_filters)
+    repository = params["repository"] || "any"
     page = parse_page(params["page"])
+
+    %{preset: preset, period: {start_datetime, end_datetime} = period} =
+      DatePicker.date_picker_params(params, "analytics")
 
     {:noreply,
      socket
      |> assign(:uri, URI.parse(uri))
      |> assign(:active_filters, filters)
+     |> assign(:repository, repository)
      |> assign(:page, page)
-     |> assign_jobs()}
+     |> assign(:analytics_preset, preset)
+     |> assign(:analytics_period, period)
+     |> assign(:analytics_trend_label, trend_label(preset))
+     |> assign_analytics(repository, start_datetime, end_datetime)
+     |> assign_jobs(repository)}
   end
+
+  defp assign_analytics(%{assigns: %{selected_account: account}} = socket, repository, start_dt, end_dt) do
+    scope_opts =
+      []
+      |> maybe_repo(repository)
+      |> Keyword.put(:start_datetime, start_dt)
+      |> Keyword.put(:end_datetime, end_dt)
+
+    assign_async(
+      socket,
+      [:jobs_count, :failed_jobs_count, :cumulative_minutes, :live_status_counts],
+      fn ->
+        {:ok,
+         %{
+           jobs_count: Analytics.jobs_count(account.id, scope_opts),
+           failed_jobs_count: Analytics.failed_jobs_count(account.id, scope_opts),
+           cumulative_minutes: Analytics.cumulative_minutes(account.id, scope_opts),
+           live_status_counts: Jobs.status_counts(account.id)
+         }}
+      end
+    )
+  end
+
+  defp maybe_repo(opts, "any"), do: opts
+  defp maybe_repo(opts, nil), do: opts
+  defp maybe_repo(opts, ""), do: opts
+  defp maybe_repo(opts, repo) when is_binary(repo), do: Keyword.put(opts, :repo, repo)
+
+  defp trend_label("last-24-hours"), do: dgettext("dashboard_runners", "since yesterday")
+  defp trend_label("last-7-days"), do: dgettext("dashboard_runners", "since last week")
+  defp trend_label("last-12-months"), do: dgettext("dashboard_runners", "since last year")
+  defp trend_label("custom"), do: dgettext("dashboard_runners", "since last period")
+  defp trend_label(_), do: dgettext("dashboard_runners", "since last month")
 
   defp parse_page(value) when is_binary(value) do
     case Integer.parse(value) do
@@ -96,6 +129,27 @@ defmodule TuistWeb.RunnerJobsLive do
      |> push_event("close-popover", %{id: "all", all: true})}
   end
 
+  def handle_event(
+        "analytics_period_changed",
+        %{"value" => %{"start" => start_date, "end" => end_date}, "preset" => preset},
+        %{assigns: %{selected_account: account, uri: uri}} = socket
+      ) do
+    query =
+      if preset == "custom" do
+        uri.query
+        |> Query.put("analytics-date-range", "custom")
+        |> Query.put("analytics-start-date", start_date)
+        |> Query.put("analytics-end-date", end_date)
+      else
+        uri.query
+        |> Query.put("analytics-date-range", preset)
+        |> Query.drop("analytics-start-date")
+        |> Query.drop("analytics-end-date")
+      end
+
+    {:noreply, push_patch(socket, to: ~p"/#{account.name}/runners/jobs?#{query}")}
+  end
+
   @impl true
   def handle_info({:runner_jobs_status_changed, _payload}, socket) do
     # Refresh the live Running / Queued counts plus the jobs table on
@@ -108,21 +162,13 @@ defmodule TuistWeb.RunnerJobsLive do
     {:noreply,
      socket
      |> assign(:live_status_counts, Phoenix.LiveView.AsyncResult.ok(counts))
-     |> assign_jobs()}
+     |> assign_jobs(socket.assigns.repository)}
   end
 
-  defp assign_jobs(
-         %{
-           assigns: %{
-             selected_account: account,
-             active_filters: filters,
-             page: page
-           }
-         } = socket
-       ) do
+  defp assign_jobs(%{assigns: %{selected_account: account, active_filters: filters, page: page}} = socket, repository) do
     base_opts =
       []
-      |> add_filter_opt(filters, "repository", :repo)
+      |> maybe_repo(repository)
       |> add_filter_opt(filters, "workflow", :workflow_name)
       |> add_filter_opt(filters, "job", :job_name)
       |> add_filter_opt(filters, "branch", :head_branch)
@@ -186,14 +232,6 @@ defmodule TuistWeb.RunnerJobsLive do
         },
         operator: :==,
         value: nil
-      },
-      %Filter.Filter{
-        id: "repository",
-        field: :repo,
-        display_name: dgettext("dashboard_runners", "Repository"),
-        type: :text,
-        operator: :=~,
-        value: ""
       },
       %Filter.Filter{
         id: "workflow",
@@ -293,6 +331,19 @@ defmodule TuistWeb.RunnerJobsLive do
 
   def trend_to_int(trend) when is_number(trend), do: round(trend)
   def trend_to_int(_), do: 0
+
+  @doc """
+  Patches the URL to swap the repository scope while preserving page
+  and filter state — same shape used on the Workflows page so both
+  pages stay in lockstep when a viewer hops between them with the
+  same scope active.
+  """
+  def repository_patch(%URI{} = uri, repository) do
+    "?" <> Query.put(uri.query, "repository", repository)
+  end
+
+  def repository_label("any"), do: dgettext("dashboard_runners", "Any")
+  def repository_label(repo) when is_binary(repo), do: repo
 
   def count_chart_options(dates) do
     %{

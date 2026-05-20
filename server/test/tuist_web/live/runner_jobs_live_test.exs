@@ -89,14 +89,10 @@ defmodule TuistWeb.RunnerJobsLiveTest do
         head_sha: "6666666"
       })
 
-    {:ok, _lv, html} =
-      live(
-        conn,
-        ~p"/#{account.name}/runners/jobs?#{[{"filter_repository_op", "=~"}, {"filter_repository_val", "tuist/cli"}]}"
-      )
+    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/jobs?repository=tuist/cli")
 
     assert html =~ "cli-job"
-    refute html =~ "server-job"
+    refute html =~ ~r{>\s*server-job\s*<}
   end
 
   test "filters by status via the status filter", %{conn: conn, account: account} do

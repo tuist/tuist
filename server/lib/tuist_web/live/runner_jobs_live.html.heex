@@ -1,4 +1,88 @@
 <div id="runner-jobs">
+  <div data-part="page-filter-bar">
+    <.dropdown
+      id="jobs-repository-dropdown"
+      label={TuistWeb.RunnerJobsLive.repository_label(@repository)}
+      secondary_text={dgettext("dashboard_runners", "Repository:")}
+    >
+      <:search>
+        <input
+          type="text"
+          placeholder={dgettext("dashboard_runners", "Search...")}
+          data-part="search-input"
+        />
+      </:search>
+      <.dropdown_item
+        value="any"
+        label={dgettext("dashboard_runners", "Any")}
+        patch={TuistWeb.RunnerJobsLive.repository_patch(@uri, "any")}
+        data-selected={@repository == "any"}
+      >
+        <:right_icon :if={@repository == "any"}><.check /></:right_icon>
+      </.dropdown_item>
+      <.dropdown_item
+        :for={repo <- @repos}
+        value={repo}
+        label={repo}
+        patch={TuistWeb.RunnerJobsLive.repository_patch(@uri, repo)}
+        data-selected={@repository == repo}
+      >
+        <:right_icon :if={@repository == repo}><.check /></:right_icon>
+      </.dropdown_item>
+    </.dropdown>
+    <.date_picker
+      id="jobs-analytics-date-range-picker"
+      name="analytics-date-range"
+      presets={[
+        %{
+          id: "last-24-hours",
+          label: dgettext("dashboard_runners", "Last 24 hours"),
+          period: {24, :hour}
+        },
+        %{
+          id: "last-7-days",
+          label: dgettext("dashboard_runners", "Last 7 days"),
+          period: {7, :day}
+        },
+        %{
+          id: "last-30-days",
+          label: dgettext("dashboard_runners", "Last 30 days"),
+          period: {30, :day}
+        },
+        %{
+          id: "last-12-months",
+          label: dgettext("dashboard_runners", "Last 12 months"),
+          period: {12, :month}
+        },
+        %{id: "custom", label: dgettext("dashboard_runners", "Custom")}
+      ]}
+      selected_preset={@analytics_preset}
+      period={@analytics_period}
+      on_period_change="analytics_period_changed"
+      max={Date.utc_today()}
+    >
+      <:actions>
+        <.button
+          label={dgettext("dashboard_runners", "Cancel")}
+          variant="secondary"
+          phx-click={
+            JS.dispatch("phx:date-picker-cancel",
+              detail: %{id: "jobs-analytics-date-range-picker"}
+            )
+          }
+        />
+        <.button
+          label={dgettext("dashboard_runners", "Apply")}
+          phx-click={
+            JS.dispatch("phx:date-picker-apply",
+              detail: %{id: "jobs-analytics-date-range-picker"}
+            )
+          }
+        />
+      </:actions>
+    </.date_picker>
+  </div>
+
   <.card
     title={dgettext("dashboard_runners", "Analytics")}
     icon="chart_arcs"
@@ -17,14 +101,19 @@
         phx_value_widget="total_jobs"
         trend_value={if @jobs_count.ok?, do: @jobs_count.result.trend}
         trend_type={:neutral}
-        trend_label={dgettext("dashboard_runners", "since last month")}
+        trend_label={@analytics_trend_label}
         empty={@jobs_count.ok? && @jobs_count.result.count == 0}
       />
       <.widget
         id="widget-jobs-failed"
         title={dgettext("dashboard_runners", "Failed jobs")}
         legend_color="destructive"
-        description={dgettext("dashboard_runners", "Jobs that completed with conclusion=failure in the last 30 days.")}
+        description={
+          dgettext(
+            "dashboard_runners",
+            "Jobs that completed with conclusion=failure in the last 30 days."
+          )
+        }
         value={if @failed_jobs_count.ok?, do: Integer.to_string(@failed_jobs_count.result.count)}
         loading={!@failed_jobs_count.ok?}
         selected={@analytics_selected_widget == "failed_jobs"}
@@ -32,14 +121,19 @@
         phx_value_widget="failed_jobs"
         trend_value={if @failed_jobs_count.ok?, do: @failed_jobs_count.result.trend}
         trend_type={:inverse}
-        trend_label={dgettext("dashboard_runners", "since last month")}
+        trend_label={@analytics_trend_label}
         empty={@failed_jobs_count.ok? && @failed_jobs_count.result.count == 0}
       />
       <.widget
         id="widget-jobs-minutes"
         title={dgettext("dashboard_runners", "Compute minutes")}
         legend_color="p90"
-        description={dgettext("dashboard_runners", "Total compute time consumed by completed jobs in the last 30 days.")}
+        description={
+          dgettext(
+            "dashboard_runners",
+            "Total compute time consumed by completed jobs in the last 30 days."
+          )
+        }
         value={
           if @cumulative_minutes.ok? do
             Integer.to_string(div(@cumulative_minutes.result.total_ms, 60_000)) <> "m"
@@ -51,7 +145,7 @@
         phx_value_widget="cumulative_minutes"
         trend_value={if @cumulative_minutes.ok?, do: @cumulative_minutes.result.trend}
         trend_type={:neutral}
-        trend_label={dgettext("dashboard_runners", "since last month")}
+        trend_label={@analytics_trend_label}
         empty={@cumulative_minutes.ok? && @cumulative_minutes.result.total_ms == 0}
       />
     </div>
@@ -85,7 +179,9 @@
           <.chart
             id="jobs-cumulative-minutes-chart"
             type="line"
-            extra_options={TuistWeb.RunnerJobsLive.minutes_chart_options(@cumulative_minutes.result.dates)}
+            extra_options={
+              TuistWeb.RunnerJobsLive.minutes_chart_options(@cumulative_minutes.result.dates)
+            }
             series={[
               %{
                 color: "var:noora-chart-p90",
@@ -107,7 +203,9 @@
           <.chart
             id="jobs-failed-chart"
             type="line"
-            extra_options={TuistWeb.RunnerJobsLive.count_chart_options(@failed_jobs_count.result.dates)}
+            extra_options={
+              TuistWeb.RunnerJobsLive.count_chart_options(@failed_jobs_count.result.dates)
+            }
             series={[
               %{
                 color: "var:noora-chart-destructive",
@@ -139,7 +237,9 @@
         id="widget-jobs-running"
         title={dgettext("dashboard_runners", "Running")}
         legend_color="tertiary"
-        description={dgettext("dashboard_runners", "Jobs the runner pool is currently executing.")}
+        description={
+          dgettext("dashboard_runners", "Jobs the runner pool is currently executing.")
+        }
         value={
           if @live_status_counts.ok? do
             Integer.to_string(
@@ -187,19 +287,15 @@
           }
         >
           <:col :let={job} label={dgettext("dashboard_runners", "Workflow")}>
-            <.text_cell
-              label={
-                if(job.workflow_name == "",
-                  do: dgettext("dashboard_runners", "Unknown"),
-                  else: job.workflow_name
-                )
-              }
-            />
+            <.text_cell label={
+              if(job.workflow_name == "",
+                do: dgettext("dashboard_runners", "Unknown"),
+                else: job.workflow_name
+              )
+            } />
           </:col>
           <:col :let={job} label={dgettext("dashboard_runners", "Job")}>
-            <.text_cell
-              label={if(job.job_name == "", do: "–", else: job.job_name)}
-            />
+            <.text_cell label={if(job.job_name == "", do: "–", else: job.job_name)} />
           </:col>
           <:col :let={job} label={dgettext("dashboard_runners", "Status")}>
             <% props =
@@ -213,9 +309,9 @@
             <.status_badge_cell label={props.label} status={props.status} />
           </:col>
           <:col :let={job} label={dgettext("dashboard_runners", "Repository")}>
-            <.text_cell
-              label={if(job.repo == "", do: dgettext("dashboard_runners", "Unknown"), else: job.repo)}
-            />
+            <.text_cell label={
+              if(job.repo == "", do: dgettext("dashboard_runners", "Unknown"), else: job.repo)
+            } />
           </:col>
           <:col :let={job} label={dgettext("dashboard_runners", "Branch")}>
             <.text_cell
@@ -267,7 +363,10 @@
             <:icon_left><.chevron_left /></:icon_left>
           </.button>
           <span data-part="page-label">
-            {dgettext("dashboard_runners", "Page %{page} of %{total}", page: @page, total: @total_pages)}
+            {dgettext("dashboard_runners", "Page %{page} of %{total}",
+              page: @page,
+              total: @total_pages
+            )}
           </span>
           <.button
             variant="secondary"

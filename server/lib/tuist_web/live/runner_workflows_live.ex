@@ -12,6 +12,7 @@ defmodule TuistWeb.RunnerWorkflowsLive do
   alias Tuist.Runners.Analytics
   alias Tuist.Runners.Jobs
   alias Tuist.Utilities.DateFormatter
+  alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Utilities.Query
 
   @page_size 25
@@ -42,6 +43,9 @@ defmodule TuistWeb.RunnerWorkflowsLive do
     sort_order = sort_order_param(params["sort_order"], sort_by)
     page = parse_page(params["page"])
 
+    %{preset: preset, period: {start_datetime, end_datetime} = period} =
+      DatePicker.date_picker_params(params, "analytics")
+
     {:noreply,
      socket
      |> assign(:uri, URI.parse(uri))
@@ -50,7 +54,10 @@ defmodule TuistWeb.RunnerWorkflowsLive do
      |> assign(:sort_by, sort_by)
      |> assign(:sort_order, sort_order)
      |> assign(:page, page)
-     |> assign_analytics(repository)
+     |> assign(:analytics_preset, preset)
+     |> assign(:analytics_period, period)
+     |> assign(:analytics_trend_label, trend_label(preset))
+     |> assign_analytics(repository, start_datetime, end_datetime)
      |> assign_workflows(repository, search, sort_by, sort_order)}
   end
 
@@ -76,6 +83,27 @@ defmodule TuistWeb.RunnerWorkflowsLive do
     {:noreply, assign(socket, :workflow_duration_percentile, type)}
   end
 
+  def handle_event(
+        "analytics_period_changed",
+        %{"value" => %{"start" => start_date, "end" => end_date}, "preset" => preset},
+        %{assigns: %{selected_account: account, uri: uri}} = socket
+      ) do
+    query =
+      if preset == "custom" do
+        uri.query
+        |> Query.put("analytics-date-range", "custom")
+        |> Query.put("analytics-start-date", start_date)
+        |> Query.put("analytics-end-date", end_date)
+      else
+        uri.query
+        |> Query.put("analytics-date-range", preset)
+        |> Query.drop("analytics-start-date")
+        |> Query.drop("analytics-end-date")
+      end
+
+    {:noreply, push_patch(socket, to: ~p"/#{account.name}/runners/workflows?#{query}")}
+  end
+
   def handle_event("search-workflows", %{"search" => search}, %{assigns: %{selected_account: account, uri: uri}} = socket) do
     # Reset to page 1 on every keystroke — leaving page=3 attached
     # while the result set shrinks past page 1 would land the viewer
@@ -89,10 +117,15 @@ defmodule TuistWeb.RunnerWorkflowsLive do
   end
 
   # Re-runs all three account-level analytics queries whenever the
-  # repository scope changes. We wrap in `assign_async` so the chart
-  # area can flip to the skeleton while the new query is in flight.
-  defp assign_analytics(%{assigns: %{selected_account: account}} = socket, repository) do
-    scope_opts = scope_opts(repository)
+  # repository scope or the date range changes. We wrap in
+  # `assign_async` so the chart area can flip to the skeleton while
+  # the new query is in flight.
+  defp assign_analytics(%{assigns: %{selected_account: account}} = socket, repository, start_dt, end_dt) do
+    scope_opts =
+      repository
+      |> scope_opts()
+      |> Keyword.put(:start_datetime, start_dt)
+      |> Keyword.put(:end_datetime, end_dt)
 
     assign_async(
       socket,
@@ -205,6 +238,15 @@ defmodule TuistWeb.RunnerWorkflowsLive do
   def sort_by_label("jobs"), do: dgettext("dashboard_runners", "Jobs")
   def sort_by_label("success_rate"), do: dgettext("dashboard_runners", "Success rate")
   def sort_by_label(_workflow_default), do: dgettext("dashboard_runners", "Workflow")
+
+  # The trend chip on each widget reads "since last <unit>" — pair
+  # the unit to the active preset so the comparison label matches
+  # the window the analytics are computed over.
+  defp trend_label("last-24-hours"), do: dgettext("dashboard_runners", "since yesterday")
+  defp trend_label("last-7-days"), do: dgettext("dashboard_runners", "since last week")
+  defp trend_label("last-12-months"), do: dgettext("dashboard_runners", "since last year")
+  defp trend_label("custom"), do: dgettext("dashboard_runners", "since last period")
+  defp trend_label(_), do: dgettext("dashboard_runners", "since last month")
 
   def success_rate(%{success_count: success, total_jobs: total}) when total > 0 do
     rate = success / total * 100

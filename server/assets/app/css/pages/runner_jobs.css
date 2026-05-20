@@ -38,10 +38,12 @@
   }
 }
 
-#runner-workflows [data-part="page-filter-bar"] {
+#runner-workflows [data-part="page-filter-bar"],
+#runner-jobs [data-part="page-filter-bar"] {
   display: flex;
   flex-direction: row;
   justify-content: flex-end;
+  gap: var(--noora-spacing-4);
 }
 
 #runners,
