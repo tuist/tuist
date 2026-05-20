@@ -172,8 +172,10 @@ jobs:
           ref: ${{ env.DEPLOY_SHA }}
       - uses: jdx/mise-action@v3.2.0
         with:
-          install_args: "helm kubectl"
+          install: "false"
           cache: "false"
+      # Pin globally so the mise shim resolves; `install_args` alone installs the binary but leaves the shim unactivated.
+      - run: mise use -g helm kubectl
       - uses: 1password/install-cli-action@v2
       - name: Load kubeconfig from 1Password
         env:
@@ -254,8 +256,11 @@ jobs:
       - if: steps.check-values.outputs.exists == 'true'
         uses: jdx/mise-action@v3.2.0
         with:
-          install_args: "helm kubectl"
+          install: "false"
           cache: "false"
+      # Pin globally so the mise shim resolves; `install_args` alone installs the binary but leaves the shim unactivated.
+      - if: steps.check-values.outputs.exists == 'true'
+        run: mise use -g helm kubectl
       - if: steps.check-values.outputs.exists == 'true'
         uses: 1password/install-cli-action@v2
       - if: steps.check-values.outputs.exists == 'true'
@@ -318,8 +323,10 @@ jobs:
           ref: ${{ env.DEPLOY_SHA }}
       - uses: jdx/mise-action@v3.2.0
         with:
-          install_args: "helm kubectl"
+          install: "false"
           cache: "false"
+      # Pin globally so the mise shim resolves; `install_args` alone installs the binary but leaves the shim unactivated.
+      - run: mise use -g helm kubectl
       - uses: 1password/install-cli-action@v2
       - name: Load kubeconfig from 1Password
         env:

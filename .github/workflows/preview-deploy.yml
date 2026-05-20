@@ -308,8 +308,10 @@ jobs:
           ref: ${{ needs.resolve.outputs.ref }}
       - uses: jdx/mise-action@v3.2.0
         with:
-          install_args: "helm kubectl"
+          install: "false"
           cache: "false"
+      # Pin globally so the mise shim resolves; `install_args` alone installs the binary but leaves the shim unactivated.
+      - run: mise use -g helm kubectl
       - name: Load kubeconfig
         run: |
           mkdir -p "$(dirname "$KUBECONFIG")"
@@ -473,8 +475,10 @@ jobs:
     steps:
       - uses: jdx/mise-action@v3.2.0
         with:
-          install_args: "helm kubectl"
+          install: "false"
           cache: "false"
+      # Pin globally so the mise shim resolves; `install_args` alone installs the binary but leaves the shim unactivated.
+      - run: mise use -g helm kubectl
       - name: Load kubeconfig
         run: |
           mkdir -p "$(dirname "$KUBECONFIG")"
