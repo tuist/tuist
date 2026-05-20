@@ -134,6 +134,12 @@
             <div data-part="breakdown-item">
               <div data-part="dot" data-color="secondary"></div>
               <span data-part="label">{dgettext("dashboard_runners", "All")}</span>
+              <span data-part="separator">-</span>
+              <span data-part="value">
+                {if @jobs_breakdown.ok?,
+                  do: Integer.to_string(@jobs_breakdown.result.total),
+                  else: dgettext("dashboard_runners", "N/A")}
+              </span>
             </div>
           </.dropdown_item>
           <.dropdown_item
@@ -145,6 +151,12 @@
             <div data-part="breakdown-item">
               <div data-part="dot" data-color="tertiary"></div>
               <span data-part="label">{dgettext("dashboard_runners", "Passed")}</span>
+              <span data-part="separator">-</span>
+              <span data-part="value">
+                {if @jobs_breakdown.ok?,
+                  do: Integer.to_string(@jobs_breakdown.result.successful),
+                  else: dgettext("dashboard_runners", "N/A")}
+              </span>
             </div>
           </.dropdown_item>
           <.dropdown_item
@@ -156,6 +168,12 @@
             <div data-part="breakdown-item">
               <div data-part="dot" data-color="destructive"></div>
               <span data-part="label">{dgettext("dashboard_runners", "Failed")}</span>
+              <span data-part="separator">-</span>
+              <span data-part="value">
+                {if @jobs_breakdown.ok?,
+                  do: Integer.to_string(@jobs_breakdown.result.failed),
+                  else: dgettext("dashboard_runners", "N/A")}
+              </span>
             </div>
           </.dropdown_item>
         </:select>
