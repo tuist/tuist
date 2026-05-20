@@ -269,3 +269,55 @@ kubectl get nodes -o json | jq -r '.items[] | select(.spec.providerID | startswi
 ```
 
 Deleting a Node object is safe — CAPI re-creates it on the next reconcile if the underlying VM is still alive.
+
+## Rolling a bare-metal host
+
+When a chart bump changes `postInstallScript` (or any
+`KubeadmConfigTemplate` / `HetznerBareMetalMachineTemplate` field) and
+you need it to take effect before natural Node churn, force a
+re-install. Work against the **mgmt** kubeconfig:
+
+```bash
+export KUBECONFIG=~/.kube/tuist-mgmt.yaml
+CLUSTER=staging  # or canary / production
+
+# Find the HBM bound to the cluster's HBMM, and snapshot its
+# creationTimestamp — that's how we'll know the controller has
+# re-created it (the HBMM name stays the same on re-bind).
+HBMM=$(kubectl get hetznerbaremetalmachine -n org-tuist \
+  -l cluster.x-k8s.io/cluster-name=tuist-$CLUSTER \
+  -o jsonpath='{.items[0].metadata.name}')
+HBM=$(kubectl get hetznerbaremetalhost -n org-tuist \
+  -o jsonpath="{.items[?(@.spec.consumerRef.name=='$HBMM')].metadata.name}")
+OLD_TS=$(kubectl get hetznerbaremetalhost -n org-tuist $HBM \
+  -o jsonpath='{.metadata.creationTimestamp}')
+
+# Delete the HBM (NOT the HBMM): caph fast-rebinds a fresh HBMM to
+# an already-provisioned HBM without re-running installimage, so
+# only deleting the HBM forces caph to discard the OS state.
+kubectl delete hetznerbaremetalhost -n org-tuist $HBM --wait=false --timeout=2m
+# Strip caph's finalizer if the HBMM still references the HBM after
+# 2 min — otherwise the HBM lingers and `hetzner-robot-controller`
+# can't re-create it cleanly.
+kubectl patch hetznerbaremetalhost -n org-tuist $HBM \
+  -p '{"metadata":{"finalizers":[]}}' --type=merge 2>/dev/null || true
+
+# Wait ~8–15 min for the full cycle:
+#   (empty) → preparing → registering → image-installing →
+#   ensure-provisioned → provisioned → kubeadm-joined
+# Watch for a fresh creationTimestamp AND HBMM Ready=true:
+while sleep 30; do
+  NEW=$(kubectl get hetznerbaremetalhost -n org-tuist -o jsonpath='{.items[0].metadata.creationTimestamp}')
+  READY=$(kubectl get hetznerbaremetalmachine -n org-tuist \
+    -l cluster.x-k8s.io/cluster-name=tuist-$CLUSTER \
+    -o jsonpath='{.items[0].status.ready}')
+  echo "$(date +%H:%M:%S) ts=$NEW ready=$READY"
+  [ "$NEW" != "$OLD_TS" ] && [ "$READY" = "true" ] && break
+done
+```
+
+Bare-metal Nodes carry `tuist.dev/runner-tier=bare-metal:NoSchedule`,
+so the only workload on them is idempotent runner Pods — no need to
+cordon/drain. The autoscaler reconverges replica count automatically
+after the new Node joins. Run a smoke afterward
+(`linux-runners-staging-smoke.yml`) to confirm the new bootstrap is healthy.
