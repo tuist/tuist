@@ -113,6 +113,12 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 		extraVolumes = append(extraVolumes,
 			corev1.Volume{Name: "dind-sock", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
 			corev1.Volume{Name: "work", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
+			// /var/lib/docker must NOT land on the container rootfs:
+			// virtio-fs (kata) doesn't carry the xattrs BuildKit needs
+			// for checksums, so buildx fails with "operation not
+			// supported" on COPY hashing. Documented docker:dind
+			// pattern is a dedicated volume here.
+			corev1.Volume{Name: "dind-storage", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
 		)
 		extraVolumeMounts = append(extraVolumeMounts,
 			corev1.VolumeMount{Name: "dind-sock", MountPath: "/var/run"},
@@ -138,6 +144,7 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 			VolumeMounts: []corev1.VolumeMount{
 				{Name: "dind-sock", MountPath: "/var/run"},
 				{Name: "work", MountPath: "/home/runner/actions-runner/_work"},
+				{Name: "dind-storage", MountPath: "/var/lib/docker"},
 			},
 		}}
 	}

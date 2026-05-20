@@ -159,9 +159,8 @@ func TestBuild_LinuxPodGetsDindSidecar(t *testing.T) {
 		t.Errorf("runner env missing DOCKER_HOST=unix:///var/run/docker.sock; got %+v", runner.Env)
 	}
 
-	// Both containers must mount the shared docker.sock and work
-	// volumes so docker-run -v bind-mounts resolve identically on
-	// both sides.
+	// Shared between containers: docker.sock + work paths so
+	// docker-run -v bind-mounts resolve identically on both sides.
 	for _, vm := range []corev1.VolumeMount{
 		{Name: "dind-sock", MountPath: "/var/run"},
 		{Name: "work", MountPath: "/home/runner/actions-runner/_work"},
@@ -173,7 +172,16 @@ func TestBuild_LinuxPodGetsDindSidecar(t *testing.T) {
 			t.Errorf("sidecar missing volumeMount %+v; got %+v", vm, dind.VolumeMounts)
 		}
 	}
-	for _, v := range []string{"dind-sock", "work"} {
+	// /var/lib/docker only on the sidecar — keeps BuildKit's
+	// checksum-time xattr ops off virtio-fs/rootfs.
+	dindStorage := corev1.VolumeMount{Name: "dind-storage", MountPath: "/var/lib/docker"}
+	if !hasVolumeMount(dind.VolumeMounts, dindStorage) {
+		t.Errorf("sidecar missing %+v; got %+v", dindStorage, dind.VolumeMounts)
+	}
+	if hasVolumeMount(runner.VolumeMounts, dindStorage) {
+		t.Errorf("runner should not mount dind-storage")
+	}
+	for _, v := range []string{"dind-sock", "work", "dind-storage"} {
 		if !hasVolume(pod.Spec.Volumes, v) {
 			t.Errorf("pod missing volume %q; got %+v", v, pod.Spec.Volumes)
 		}
