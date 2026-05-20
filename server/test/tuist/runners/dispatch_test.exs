@@ -1,19 +1,29 @@
 defmodule Tuist.Runners.DispatchTest do
-  use TuistTestSupport.Cases.DataCase, async: false
+  use TuistTestSupport.Cases.DataCase, async: true
 
   import Mimic
 
   alias Tuist.Accounts
+  alias Tuist.Environment
   alias Tuist.Kubernetes.Client
   alias Tuist.Runners.Dispatch
 
   setup :verify_on_exit!
 
   setup do
-    # Each test starts with an empty cache so cache hits/misses are
-    # deterministic. `:tuist` is the global Cachex name used by
-    # `KeyValueStore`.
-    Cachex.clear(:tuist)
+    # `KeyValueStore` writes to the application-wide `:tuist`
+    # Cachex, so tests run in parallel without colliding only as
+    # long as each one's cache keys are unique. Account keys are
+    # already keyed on the per-test org name (`organization_fixture`
+    # uses a unique integer); pinning the namespace to a fresh
+    # value here makes the pool-cache key unique too. The stub
+    # closes over a single string so multiple invocations inside
+    # one test return the same namespace (a `unique_integer/1`
+    # call inside the stub would yield a different namespace on
+    # each call and the cache would never hit).
+    namespace = "tuist-runners-#{System.unique_integer([:positive])}"
+    stub(Environment, :runners_namespace, fn -> namespace end)
+
     :ok
   end
 
