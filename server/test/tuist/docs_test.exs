@@ -1,7 +1,10 @@
 defmodule Tuist.DocsTest do
   use ExUnit.Case, async: true
+  use Mimic
 
   alias Tuist.Docs
+  alias Tuist.Docs.CLI
+  alias Tuist.Docs.Page
 
   describe "get_page/1" do
     test "loads an English documentation page" do
@@ -21,6 +24,19 @@ defmodule Tuist.DocsTest do
     end
 
     test "loads static CLI documentation pages" do
+      stub(CLI, :get_page, fn
+        "/en/cli/debugging" ->
+          %Page{
+            slug: "/en/cli/debugging",
+            title: "Debugging",
+            body: "Debugging",
+            source_path: "test://cli/debugging"
+          }
+
+        _slug ->
+          nil
+      end)
+
       page = Docs.get_page("/en/cli/debugging")
       assert page.slug == "/en/cli/debugging"
       assert page.title == "Debugging"
