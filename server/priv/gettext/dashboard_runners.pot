@@ -29,7 +29,7 @@ msgstr ""
 msgid "Apply"
 msgstr ""
 
-#: lib/tuist_web/live/runner_workflows_live.html.heex:250
+#: lib/tuist_web/live/runner_workflows_live.html.heex:252
 #: lib/tuist_web/live/runners_live.html.heex:263
 #, elixir-autogen, elixir-format
 msgid "Avg duration"
@@ -51,7 +51,6 @@ msgstr ""
 #: lib/tuist_web/live/runner_jobs_live.ex:217
 #: lib/tuist_web/live/runner_jobs_live.html.heex:220
 #: lib/tuist_web/live/runner_workflow_live.html.heex:293
-#: lib/tuist_web/live/runner_workflows_live.ex:176
 #, elixir-autogen, elixir-format
 msgid "Branch"
 msgstr ""
@@ -151,7 +150,6 @@ msgid "Failure"
 msgstr ""
 
 #: lib/tuist_web/live/runner_jobs_live.html.heex:170
-#: lib/tuist_web/live/runner_workflows_live.html.heex:214
 #, elixir-autogen, elixir-format
 msgid "Filter"
 msgstr ""
@@ -162,7 +160,7 @@ msgstr ""
 msgid "Fleet"
 msgstr ""
 
-#: lib/tuist_web/live/runner_workflows_live.html.heex:256
+#: lib/tuist_web/live/runner_workflows_live.html.heex:258
 #, elixir-autogen, elixir-format
 msgid "In progress"
 msgstr ""
@@ -182,7 +180,7 @@ msgstr ""
 #: lib/tuist_web/live/runner_jobs_live.html.heex:74
 #: lib/tuist_web/live/runner_jobs_live.html.heex:133
 #: lib/tuist_web/live/runner_workflow_live.html.heex:179
-#: lib/tuist_web/live/runner_workflows_live.html.heex:244
+#: lib/tuist_web/live/runner_workflows_live.html.heex:246
 #: lib/tuist_web/live/runners_live.html.heex:193
 #: lib/tuist_web/live/runners_live.html.heex:257
 #, elixir-autogen, elixir-format
@@ -225,7 +223,7 @@ msgstr ""
 msgid "Last 7 days"
 msgstr ""
 
-#: lib/tuist_web/live/runner_workflows_live.html.heex:259
+#: lib/tuist_web/live/runner_workflows_live.html.heex:261
 #: lib/tuist_web/live/runners_live.html.heex:269
 #, elixir-autogen, elixir-format
 msgid "Last run"
@@ -237,7 +235,7 @@ msgid "Minutes"
 msgstr ""
 
 #: lib/tuist_web/live/runner_jobs_live.html.heex:274
-#: lib/tuist_web/live/runner_workflows_live.html.heex:280
+#: lib/tuist_web/live/runner_workflows_live.html.heex:282
 #, elixir-autogen, elixir-format
 msgid "Next"
 msgstr ""
@@ -260,22 +258,17 @@ msgstr ""
 
 #: lib/tuist_web/live/runner_workflows_live.html.heex:294
 #, elixir-autogen, elixir-format
-msgid "No workflows match the current filters"
-msgstr ""
-
-#: lib/tuist_web/live/runner_workflows_live.html.heex:292
-#, elixir-autogen, elixir-format
 msgid "No workflows yet"
 msgstr ""
 
 #: lib/tuist_web/live/runner_jobs_live.html.heex:270
-#: lib/tuist_web/live/runner_workflows_live.html.heex:273
+#: lib/tuist_web/live/runner_workflows_live.html.heex:275
 #, elixir-autogen, elixir-format
 msgid "Page %{page} of %{total}"
 msgstr ""
 
 #: lib/tuist_web/live/runner_jobs_live.html.heex:263
-#: lib/tuist_web/live/runner_workflows_live.html.heex:266
+#: lib/tuist_web/live/runner_workflows_live.html.heex:268
 #, elixir-autogen, elixir-format
 msgid "Prev"
 msgstr ""
@@ -299,7 +292,7 @@ msgstr ""
 #: lib/tuist_web/live/runner_job_live.html.heex:33
 #: lib/tuist_web/live/runner_jobs_live.ex:193
 #: lib/tuist_web/live/runner_jobs_live.html.heex:215
-#: lib/tuist_web/live/runner_workflows_live.html.heex:239
+#: lib/tuist_web/live/runner_workflows_live.html.heex:241
 #: lib/tuist_web/live/runners_live.html.heex:399
 #, elixir-autogen, elixir-format
 msgid "Repository"
@@ -366,7 +359,7 @@ msgstr ""
 msgid "Success"
 msgstr ""
 
-#: lib/tuist_web/live/runner_workflows_live.html.heex:247
+#: lib/tuist_web/live/runner_workflows_live.html.heex:249
 #: lib/tuist_web/live/runners_live.html.heex:260
 #, elixir-autogen, elixir-format
 msgid "Success rate"
@@ -386,7 +379,7 @@ msgstr ""
 #: lib/tuist_web/live/runner_job_live.ex:18
 #: lib/tuist_web/live/runner_jobs_live.ex:23
 #: lib/tuist_web/live/runner_workflow_live.ex:26
-#: lib/tuist_web/live/runner_workflows_live.ex:25
+#: lib/tuist_web/live/runner_workflows_live.ex:23
 #: lib/tuist_web/live/runners_live.ex:24
 #, elixir-autogen, elixir-format
 msgid "The page you are looking for doesn't exist or has been moved."
@@ -441,8 +434,8 @@ msgstr ""
 #: lib/tuist_web/live/runner_workflow_live.ex:79
 #: lib/tuist_web/live/runner_workflow_live.ex:86
 #: lib/tuist_web/live/runner_workflow_live.html.heex:298
-#: lib/tuist_web/live/runner_workflows_live.html.heex:234
-#: lib/tuist_web/live/runner_workflows_live.html.heex:241
+#: lib/tuist_web/live/runner_workflows_live.html.heex:236
+#: lib/tuist_web/live/runner_workflows_live.html.heex:243
 #: lib/tuist_web/live/runners_live.ex:321
 #: lib/tuist_web/live/runners_live.html.heex:250
 #: lib/tuist_web/live/runners_live.html.heex:379
@@ -468,8 +461,7 @@ msgstr ""
 #: lib/tuist_web/live/runner_job_live.html.heex:37
 #: lib/tuist_web/live/runner_jobs_live.ex:201
 #: lib/tuist_web/live/runner_jobs_live.html.heex:189
-#: lib/tuist_web/live/runner_workflows_live.ex:168
-#: lib/tuist_web/live/runner_workflows_live.html.heex:231
+#: lib/tuist_web/live/runner_workflows_live.html.heex:233
 #: lib/tuist_web/live/runners_live.html.heex:246
 #: lib/tuist_web/live/runners_live.html.heex:375
 #, elixir-autogen, elixir-format
@@ -499,7 +491,7 @@ msgstr ""
 
 #: lib/tuist_web/live/runner_workflow_live.ex:33
 #: lib/tuist_web/live/runner_workflow_live.html.heex:3
-#: lib/tuist_web/live/runner_workflows_live.ex:32
+#: lib/tuist_web/live/runner_workflows_live.ex:30
 #: lib/tuist_web/live/runner_workflows_live.html.heex:206
 #: lib/tuist_web/live/runners_live.html.heex:226
 #, elixir-autogen, elixir-format
@@ -628,7 +620,7 @@ msgstr ""
 msgid "Workflow runs with at least one job that completed with conclusion=failure."
 msgstr ""
 
-#: lib/tuist_web/live/runner_workflows_live.ex:193
+#: lib/tuist_web/live/runner_workflows_live.ex:149
 #: lib/tuist_web/live/runner_workflows_live.html.heex:17
 #, elixir-autogen, elixir-format
 msgid "Any"
@@ -642,4 +634,14 @@ msgstr ""
 #: lib/tuist_web/live/runner_workflows_live.html.heex:11
 #, elixir-autogen, elixir-format
 msgid "Search..."
+msgstr ""
+
+#: lib/tuist_web/live/runner_workflows_live.html.heex:296
+#, elixir-autogen, elixir-format
+msgid "No workflows match the current search"
+msgstr ""
+
+#: lib/tuist_web/live/runner_workflows_live.html.heex:217
+#, elixir-autogen, elixir-format
+msgid "Search by name..."
 msgstr ""

@@ -3,13 +3,11 @@ defmodule TuistWeb.RunnerWorkflowsLive do
   use TuistWeb, :live_view
   use Noora
 
-  import Noora.Filter
   import TuistWeb.Components.EmptyCardSection
   import TuistWeb.Components.Skeleton
   import TuistWeb.PercentileDropdownWidget
   import TuistWeb.Widget
 
-  alias Noora.Filter
   alias Tuist.Authorization
   alias Tuist.Runners.Analytics
   alias Tuist.Runners.Jobs
@@ -31,7 +29,6 @@ defmodule TuistWeb.RunnerWorkflowsLive do
        :head_title,
        "#{dgettext("dashboard_runners", "Workflows")} · #{selected_account.name} · Tuist"
      )
-     |> assign(:available_filters, card_filters())
      |> assign(:repos, Jobs.distinct_repos_for_account(selected_account.id))
      |> assign(:analytics_selected_widget, "workflow_runs")
      |> assign(:workflow_duration_percentile, "avg")}
@@ -39,18 +36,18 @@ defmodule TuistWeb.RunnerWorkflowsLive do
 
   @impl true
   def handle_params(params, uri, socket) do
-    filters = Filter.Operations.decode_filters_from_query(params, socket.assigns.available_filters)
     repository = params["repository"] || "any"
+    search = params["search"] || ""
     page = parse_page(params["page"])
 
     {:noreply,
      socket
      |> assign(:uri, URI.parse(uri))
-     |> assign(:active_filters, filters)
      |> assign(:repository, repository)
+     |> assign(:search, search)
      |> assign(:page, page)
      |> assign_analytics(repository)
-     |> assign_workflows(repository)}
+     |> assign_workflows(repository, search)}
   end
 
   @impl true
@@ -62,25 +59,16 @@ defmodule TuistWeb.RunnerWorkflowsLive do
     {:noreply, assign(socket, :workflow_duration_percentile, type)}
   end
 
-  def handle_event("add_filter", %{"value" => filter_id}, socket) do
-    updated_params = Filter.Operations.add_filter_to_query(filter_id, socket)
+  def handle_event("search-workflows", %{"search" => search}, %{assigns: %{selected_account: account, uri: uri}} = socket) do
+    # Reset to page 1 on every keystroke — leaving page=3 attached
+    # while the result set shrinks past page 1 would land the viewer
+    # on an empty page until assign_workflows clamps it back.
+    query =
+      uri.query
+      |> Query.put("search", search)
+      |> Query.put("page", "1")
 
-    {:noreply,
-     socket
-     |> push_patch(to: ~p"/#{socket.assigns.selected_account.name}/runners/workflows?#{updated_params}")
-     |> push_event("open-dropdown", %{id: "filter-#{filter_id}-value-dropdown"})
-     |> push_event("open-popover", %{id: "filter-#{filter_id}-value-popover"})}
-  end
-
-  @impl true
-  def handle_event("update_filter", params, socket) do
-    updated_params = Filter.Operations.update_filters_in_query(params, socket)
-
-    {:noreply,
-     socket
-     |> push_patch(to: ~p"/#{socket.assigns.selected_account.name}/runners/workflows?#{updated_params}")
-     |> push_event("close-dropdown", %{id: "all", all: true})
-     |> push_event("close-popover", %{id: "all", all: true})}
+    {:noreply, push_patch(socket, to: ~p"/#{account.name}/runners/workflows?#{query}")}
   end
 
   # Re-runs all three account-level analytics queries whenever the
@@ -103,15 +91,11 @@ defmodule TuistWeb.RunnerWorkflowsLive do
     )
   end
 
-  defp assign_workflows(
-         %{assigns: %{selected_account: account, active_filters: filters, page: page}} = socket,
-         repository
-       ) do
+  defp assign_workflows(%{assigns: %{selected_account: account, page: page}} = socket, repository, search) do
     base_opts =
       repository
       |> scope_opts()
-      |> add_filter_opt(filters, "workflow", :workflow_name)
-      |> add_filter_opt(filters, "branch", :head_branch)
+      |> maybe_put_search(search)
 
     total = Jobs.count_workflows_for_account(account.id, base_opts)
     total_pages = max(1, ceil_div(total, @page_size))
@@ -137,6 +121,10 @@ defmodule TuistWeb.RunnerWorkflowsLive do
   defp scope_opts(""), do: []
   defp scope_opts(repo) when is_binary(repo), do: [repo: repo]
 
+  defp maybe_put_search(opts, ""), do: opts
+  defp maybe_put_search(opts, nil), do: opts
+  defp maybe_put_search(opts, search) when is_binary(search), do: Keyword.put(opts, :workflow_name, search)
+
   defp ceil_div(0, _divisor), do: 0
   defp ceil_div(numerator, divisor), do: div(numerator + divisor - 1, divisor)
 
@@ -148,38 +136,6 @@ defmodule TuistWeb.RunnerWorkflowsLive do
   end
 
   defp parse_page(_), do: 1
-
-  defp add_filter_opt(opts, filters, filter_id, opt_key) do
-    case Enum.find(filters, &(&1.id == filter_id)) do
-      %{value: value} when is_binary(value) and value != "" -> Keyword.put(opts, opt_key, value)
-      _ -> opts
-    end
-  end
-
-  # Workflow name and branch only narrow the table — analytics
-  # already operate at the workflow-run granularity, so keeping them
-  # inside the card avoids surprising the viewer when the widgets
-  # don't react to a workflow-name search.
-  defp card_filters do
-    [
-      %Filter.Filter{
-        id: "workflow",
-        field: :workflow_name,
-        display_name: dgettext("dashboard_runners", "Workflow"),
-        type: :text,
-        operator: :=~,
-        value: ""
-      },
-      %Filter.Filter{
-        id: "branch",
-        field: :head_branch,
-        display_name: dgettext("dashboard_runners", "Branch"),
-        type: :text,
-        operator: :=~,
-        value: ""
-      }
-    ]
-  end
 
   @doc """
   Builds the patch URL for the repository dropdown, preserving every
