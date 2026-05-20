@@ -56,7 +56,19 @@ defmodule Tuist.Runners.Dispatch do
     result
   end
 
-  def handle_webhook(_payload, _installation_id), do: :ignored
+  def handle_webhook(payload, _installation_id) do
+    action = Map.get(payload, "action", "<none>")
+    job = Map.get(payload, "workflow_job", %{})
+    labels = Map.get(job, "labels", [])
+    repo = payload |> Map.get("repository", %{}) |> Map.get("full_name", "")
+
+    Logger.info(
+      "runners: workflow_job action=#{action} (labels=#{inspect(labels)}); ignored",
+      repo: repo
+    )
+
+    :ignored
+  end
 
   defp emit_webhook_telemetry(action, result) do
     :telemetry.execute(
@@ -91,6 +103,12 @@ defmodule Tuist.Runners.Dispatch do
       {:ok, :queued}
     else
       {:error, :no_account} ->
+        Logger.info("runners: no account match for webhook owner; ignoring",
+          owner: owner,
+          repo: full_name,
+          requested_labels: requested
+        )
+
         :ignored
 
       {:error, :runners_disabled} ->
@@ -106,6 +124,12 @@ defmodule Tuist.Runners.Dispatch do
         # `spec.dispatchLabel`. Could be a different runner
         # provider in the same org, or a typo in `runs-on` —
         # either way, not ours to handle.
+        Logger.info(
+          "runners: workflow_job has no matching pool; ignoring (labels=#{inspect(requested)})",
+          owner: owner,
+          repo: full_name
+        )
+
         :ignored
 
       {:error, :no_pools} ->
@@ -236,15 +260,17 @@ defmodule Tuist.Runners.Dispatch do
   end
 
   @doc """
-  GETs the RunnerPool by name and returns its dispatch label.
-  Used by the JIT mint path so the runner registers with the
-  label customers used in `runs-on`.
+  GETs the RunnerPool by name and returns its dispatch label +
+  the OS/arch runner labels to stamp at JIT-mint time. Used by
+  the dispatch path so the runner registers with both the
+  customer-routing label (`dispatch_label`) and the
+  platform-identification labels GitHub's UI surfaces.
   """
-  def dispatch_label_for_pool(pool_name) when is_binary(pool_name) do
+  def pool_summary_by_name(pool_name) when is_binary(pool_name) do
     case Client.get_runner_pool(namespace(), pool_name) do
       {:ok, cr} ->
         case pool_summary(cr) do
-          %{dispatch_label: label} -> {:ok, label}
+          %{} = summary -> {:ok, summary}
           nil -> {:error, :no_dispatch_label}
         end
 
@@ -271,12 +297,24 @@ defmodule Tuist.Runners.Dispatch do
 
   defp fetch_enabled_account(_), do: {:error, :no_account}
 
-  defp pool_summary(%{"metadata" => %{"name" => name}, "spec" => %{"dispatchLabel" => label}})
+  defp pool_summary(%{"metadata" => %{"name" => name}, "spec" => %{"dispatchLabel" => label} = spec})
        when is_binary(name) and is_binary(label) and label != "" do
-    %{name: name, dispatch_label: label}
+    %{name: name, dispatch_label: label, runner_labels: extract_runner_labels(spec)}
   end
 
   defp pool_summary(_), do: nil
+
+  # `runnerLabels` is required on every RunnerPool CR (the chart
+  # renders it from `pools[].runnerLabels`, defaulting per-OS in
+  # the template). We filter non-string/empty entries defensively
+  # but no longer fall back to a hard-coded triple — a CR reaching
+  # this code with an empty list is a chart bug and should surface,
+  # not get silently rewritten to the macOS default.
+  defp extract_runner_labels(%{"runnerLabels" => labels}) when is_list(labels) do
+    Enum.filter(labels, &(is_binary(&1) and &1 != ""))
+  end
+
+  defp extract_runner_labels(_), do: []
 
   defp namespace, do: Environment.runners_namespace()
 

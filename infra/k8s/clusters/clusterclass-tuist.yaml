@@ -34,6 +34,9 @@ spec:
       name: tuist-hcloud-cluster
   workers:
     machineDeployments:
+      # General-purpose Hetzner Cloud worker. Server, system DaemonSets,
+      # observability — anything that benefits from elastic scaling and
+      # doesn't need KVM exposed.
       - class: hcloud-worker
         bootstrap:
           templateRef:
@@ -58,6 +61,43 @@ spec:
           remediation:
             triggerIf:
               unhealthyInRange: "[0-2]"
+      # Hetzner Robot bare-metal worker. Linux runner Pods (Firecracker
+      # microVMs via Kata Containers — see `kataContainers` in the
+      # helm chart) schedule onto these exclusively. The `installimage`
+      # spec + cloud-init bootstrap live in `bare-metal-staging.yaml`
+      # alongside the `HetznerBareMetalHost` CRs caph claims to satisfy
+      # MD replicas. Pre-ordered hosts only: nothing here orders new
+      # bare metal from Robot, the operator does that out of band.
+      - class: bare-metal-worker
+        bootstrap:
+          templateRef:
+            apiVersion: bootstrap.cluster.x-k8s.io/v1beta2
+            kind: KubeadmConfigTemplate
+            name: tuist-bare-metal-worker-bootstraptemplate
+        infrastructure:
+          templateRef:
+            apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+            kind: HetznerBareMetalMachineTemplate
+            name: tuist-bare-metal-machinetemplate
+        healthCheck:
+          checks:
+            # Longer timeout than hcloud: rescue → installimage → reboot
+            # → cloud-init → kubeadm join on a fresh AX42-U takes 8-15
+            # minutes vs. the ~2 minutes for a cloud VM.
+            nodeStartupTimeoutSeconds: 1800
+            unhealthyNodeConditions:
+              - type: Ready
+                status: Unknown
+                timeoutSeconds: 600
+              - type: Ready
+                status: "False"
+                timeoutSeconds: 600
+          remediation:
+            triggerIf:
+              # Operator-paced provisioning means we don't want
+              # auto-remediation chewing through Robot reinstalls if a
+              # box is briefly NotReady. Operator investigates instead.
+              unhealthyInRange: "[0-0]"
   variables:
     - name: clusterEndpointHost
       required: false
@@ -166,6 +206,20 @@ spec:
           type: string
           default: ubuntu-24.04
     - name: hcloudWorkerMachinePlacementGroupName
+      required: false
+      schema:
+        openAPIV3Schema:
+          type: string
+          default: ""
+    # Bare-metal cluster gate. Each per-cluster topology sets this
+    # to its own env (`staging` / `canary` / `production`) so the
+    # `HetznerBareMetalMachineTemplateClusterSelector` patch below
+    # can scope HBM claims to that env only. Empty (the default)
+    # means "no bare-metal in this cluster" — the patch is a no-op,
+    # leaving the shared HBMM template's selector as just the
+    # managed-by gate (which would let *any* env claim *any* HBM if
+    # you forget to set this, so don't).
+    - name: bareMetalCluster
       required: false
       schema:
         openAPIV3Schema:
@@ -290,6 +344,30 @@ spec:
               path: "/spec/template/spec/placementGroupName"
               valueFrom:
                 variable: hcloudWorkerMachinePlacementGroupName
+    # Inject the per-cluster gate into the shared bare-metal HBMM
+    # template. `hetzner-robot-controller` stamps each HBM with
+    # `tuist.dev/cluster=<env>` based on the Robot server name; the
+    # selector match here is what keeps a staging cluster from
+    # claiming canary or production HBMs out of the shared Robot
+    # account. The patch fires only when the Cluster topology sets
+    # `bareMetalCluster`, so Kura-only clusters (no bare-metal
+    # MachineDeployment at all) skip the patch and don't render the
+    # HBMM template.
+    - name: HetznerBareMetalMachineTemplateClusterSelector
+      enabledIf: '{{ if ne .bareMetalCluster "" }}true{{end}}'
+      definitions:
+        - selector:
+            apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+            kind: HetznerBareMetalMachineTemplate
+            matchResources:
+              machineDeploymentClass:
+                names:
+                  - bare-metal-worker
+          jsonPatches:
+            - op: add
+              path: "/spec/template/spec/hostSelector/matchLabels/tuist.dev~1cluster"
+              valueFrom:
+                variable: bareMetalCluster
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
 kind: HetznerClusterTemplate

@@ -818,20 +818,33 @@ load anchor "tuist.runners" from "/etc/pf.anchors/tuist.runners"
 PFCONFENTRY
 fi
 
-# Kill any kernel-resident tables from a previous bootstrap pass
-# before the validate. The tables are declared in the anchor file
-# without 'persist' so a clean ruleset load drops them, but hosts
-# that previously ran a 'persist'-flagged version of this script
-# carry the tables in kernel state until something explicitly
-# destroys them — 'pfctl -F all' on the anchor flushes entries and
-# rules but NOT persist tables, so subsequent 'pfctl -nf' parses
-# still die on 'cannot define table vm_sources: Resource busy'.
-# '-T kill' actually removes the table from kernel state.
-# Tolerate failure here on first-run hosts where the tables don't
-# yet exist.
+# Reset the anchor's kernel-resident ruleset before the validate.
+# Hosts that previously ran an older version of this script left
+# persist-flagged 'vm_sources' / 'blocked_dst' tables in the
+# kernel, and 'pfctl -nf' on a config that redefines them dies on
+# EBUSY ("cannot define table vm_sources: Resource busy") — the
+# validate doesn't tolerate redefinition while a prior persist
+# table is still in kernel state.
+#
+# pfctl(8) defines '-T kill' as "Kill a table" — i.e. destroy it
+# from kernel state — and that's the only command that removes a
+# persist'd table. '-F all' / '-F Tables' explicitly preserve
+# persist tables (they only flush addresses), so they can't repair
+# this on their own. We do '-T kill' at both anchor scope AND
+# top-level scope: in practice older versions of this script have
+# at various times placed these tables in either location, and the
+# 2>/dev/null swallows the "no such table" error for the location
+# that doesn't apply on a given host.
+#
+# Belt-and-suspenders: after the kills, load an empty ruleset into
+# the anchor so any leftover anchor-level rules referencing the
+# old tables get cleared too, before pf(4) sees the redefinition
+# attempt in the validate below.
 sudo pfctl -a tuist.runners -t vm_sources -T kill 2>/dev/null || true
 sudo pfctl -a tuist.runners -t blocked_dst -T kill 2>/dev/null || true
-sudo pfctl -a tuist.runners -F all 2>/dev/null || true
+sudo pfctl -t vm_sources -T kill 2>/dev/null || true
+sudo pfctl -t blocked_dst -T kill 2>/dev/null || true
+echo "" | sudo pfctl -a tuist.runners -f - 2>/dev/null || true
 
 # Validate the ruleset before activating. -nf parses without
 # loading; if this fails we want a clear bootstrap error rather

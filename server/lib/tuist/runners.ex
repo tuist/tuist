@@ -77,6 +77,33 @@ defmodule Tuist.Runners do
   @drain_interval_seconds 30
 
   @doc """
+  Returns the raw load signals the runners-controller's autoscaler
+  uses to compute the desired replica count for `fleet_name`:
+
+    * `claimed` — Pods currently running or in the process of
+      claiming (Postgres `runner_claims` grouped by `fleet_name`).
+    * `queued` — workflow_jobs still in `runner_jobs.status =
+      'queued'` for this fleet (ClickHouse).
+    * `p95_concurrent_last_hour` — rolling p95 of concurrent
+      claimed/running jobs over the last 60 one-minute buckets
+      (ClickHouse). Smooths out single-spike noise while keeping
+      the warm pool sized for typical peak load.
+
+  The controller composes these into a desired-replica value
+  using its CRD-bound knobs (`minWarmPoolFloor`, `maxReplicas`)
+  — keeping the policy on the controller side and the signal
+  source on the server side.
+  """
+  def scaling_signals_for_fleet(fleet_name) when is_binary(fleet_name) do
+    %{
+      fleet: fleet_name,
+      claimed: Map.get(Claims.counts_per_fleet(), fleet_name, 0),
+      queued: Jobs.queued_count_by_fleet(fleet_name),
+      p95_concurrent_last_hour: Jobs.p95_concurrent_last_hour(fleet_name)
+    }
+  end
+
+  @doc """
   Claims the next eligible queued workflow_job for the SA's fleet
   and mints a JIT for the workflow_job's account.
 
@@ -168,9 +195,10 @@ defmodule Tuist.Runners do
       {:ok, account} ->
         pod_name = pod_name_from_sa(sa_name)
 
-        with {:ok, dispatch_label} <- Dispatch.dispatch_label_for_pool(fleet_name),
+        with {:ok, %{dispatch_label: dispatch_label, runner_labels: runner_labels}} <-
+               Dispatch.pool_summary_by_name(fleet_name),
              :ok <- stamp_owner_labels(namespace, pod_name, account),
-             {:ok, jit, runner_name} <- mint_jit(account, sa_name, dispatch_label),
+             {:ok, jit, runner_name} <- mint_jit(account, sa_name, dispatch_label, runner_labels),
              :ok <- Claims.mark_running(candidate.workflow_job_id, runner_name),
              :ok <- record_running_safe(candidate.workflow_job_id, runner_name) do
           Logger.info("runners: dispatched",
@@ -317,8 +345,17 @@ defmodule Tuist.Runners do
     end
   end
 
-  defp mint_jit(account, sa_name, dispatch_label) do
-    runner_name = "tuist-#{account.name}-#{sa_name}"
+  defp mint_jit(account, sa_name, dispatch_label, runner_labels) do
+    # GitHub's `create JIT config` API caps `name` at 64 characters.
+    # Earlier versions prefixed `tuist-<account.name>-` — for macOS
+    # pools that fit, but the Linux pool name is longer
+    # (`<release>-tuist-runner-pool-linux-ubuntu-22-04`), so the
+    # combined string overshoots and GitHub returns 422. The SA
+    # name is already unique within the cluster and contains the
+    # chart's release + pool prefix, and the runner is registered
+    # under `account.name` via the API URL — so dropping the
+    # redundant prefix is safe.
+    runner_name = sa_name
 
     # Resolve the full installation row (carries `installation_id`
     # AND `client_url`) instead of just the integer id. The JIT
@@ -326,18 +363,32 @@ defmodule Tuist.Runners do
     # — github.com for SaaS, the customer's GHES host otherwise.
     # Without this we'd silently mint a github.com runner for a
     # GHES org with the same login.
+    #
+    # `runner_labels` carries the OS/arch identification triple
+    # (e.g. `["self-hosted", "macOS", "ARM64"]` for the Mac fleet,
+    # `["self-hosted", "Linux", "X64"]` for the Hetzner Cloud
+    # fleet); `dispatch_label` is appended so the customer's
+    # `runs-on` matches and GitHub binds the workflow_job to this
+    # specific pool's runner.
+    # Match GitHub-hosted's workspace path so on-disk artifacts
+    # that bake absolute paths (SwiftPM `.build/checkouts/`,
+    # DerivedData, `actions/cache` payloads) work interchangeably
+    # between hosted and self-hosted runs. The runner images
+    # create a `runner` user with the corresponding HOME on each
+    # OS — `/Users/runner` on macOS, `/home/runner` on Linux.
+    work_folder =
+      if "macOS" in runner_labels do
+        "/Users/runner/work"
+      else
+        "/home/runner/work"
+      end
+
     with {:ok, installation} <- VCS.get_github_app_installation_for_account(account.id),
          {:ok, %{encoded_jit_config: jit, runner_name: runner_name}} <-
            GitHubClient.generate_jit_config(installation, account.name, %{
              name: runner_name,
-             labels: ["self-hosted", "macOS", "ARM64", dispatch_label],
-             # Match GitHub-hosted's workspace path so on-disk
-             # artifacts that bake absolute paths (SwiftPM
-             # `.build/checkouts/`, DerivedData, `actions/cache`
-             # payloads) work interchangeably between hosted and
-             # self-hosted runs. The runner image creates a `runner`
-             # user with home `/Users/runner` to match.
-             work_folder: "/Users/runner/work"
+             labels: runner_labels ++ [dispatch_label],
+             work_folder: work_folder
            }) do
       {:ok, jit, runner_name}
     else
