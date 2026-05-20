@@ -116,6 +116,12 @@ spec:
         # bump `replicas:` here to grow capacity.
         - class: bare-metal-worker
           name: runners-linux
+          # Two pre-ordered AX162-R hosts (`tuist-bm-production-1` and
+          # `tuist-bm-production-2`) in FSN1. Each box hosts ~64 Kata-
+          # QEMU runner slots at the chart's 1 vCPU / 4 GB slot size;
+          # two boxes give ~128 runner slots + one host of HA headroom.
+          # Bump in lockstep with new Robot orders.
+          replicas: 2
           failureDomain: fsn1
           metadata:
             labels:
