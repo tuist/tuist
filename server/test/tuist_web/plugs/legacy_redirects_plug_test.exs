@@ -64,6 +64,16 @@ defmodule TuistWeb.Plugs.LegacyRedirectsPlugTest do
       assert conn.halted
     end
 
+    test "redirects legacy translation guide paths to the languages page" do
+      conn = %{build_conn() | request_path: "/en/docs/contributors/translate"}
+
+      conn = LegacyRedirectsPlug.call(conn, [])
+
+      assert conn.status == 301
+      assert redirected_to(conn, 301) == "/en/docs/contributors/languages"
+      assert conn.halted
+    end
+
     test "normalizes legacy docs paths and resolves content redirects in one hop" do
       conn = %{build_conn() | request_path: "/docs/en/guides/develop/build/cache", query_string: "tab=setup"}
 
