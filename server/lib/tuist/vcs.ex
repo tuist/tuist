@@ -31,6 +31,16 @@ defmodule Tuist.VCS do
   @max_flaky_tests_in_comment 5
   @max_failed_tests_in_comment 5
 
+  # Per-webhook lookup cache: every inbound GitHub webhook calls
+  # `list_github_app_installations_for_webhook/2` once before HMAC
+  # verification, so memoising the result keeps that PG read off the
+  # request path under burst load. The TTL is short enough that any
+  # install / uninstall / re-register flow heals within a minute,
+  # and the only field a stale entry could mis-serve (`webhook_secret`)
+  # is rotated through `replace_github_app_installation/2` whose flow
+  # already spans longer than the TTL.
+  @webhook_installations_cache_ttl_ms 60_000
+
   @doc """
   Constructs a CI run URL based on the CI provider and metadata.
   Returns nil if the required CI information is missing.
@@ -1288,11 +1298,39 @@ defmodule Tuist.VCS do
 
   Both filters are optional. Pass `nil` for either to skip it. With
   both `nil`, returns `[]`.
+
+  The result is cached for #{@webhook_installations_cache_ttl_ms} ms
+  keyed by `(installation_id, app_id)`. Every inbound webhook hits
+  this path before HMAC verification, and the underlying table only
+  changes on App install / update / uninstall (rare relative to
+  webhook traffic), so memoising the lookup removes one Postgres
+  round-trip per webhook on the hot path. The TTL is the sole
+  invalidation mechanism: mutations don't bust the cache because
+  the only field a stale entry could mis-serve (`webhook_secret`)
+  rotates through a flow that takes longer than the TTL anyway.
+
+  ## Opts
+
+  - `:cache` — Cachex instance to use. Defaults to `:tuist`; tests
+    pass a per-case Cachex so state doesn't leak across runs.
   """
-  def list_github_app_installations_for_webhook(installation_id, app_id) do
-    case build_webhook_lookup_query(maybe_to_string(installation_id), maybe_to_string(app_id)) do
-      nil -> []
-      query -> Repo.all(query)
+  def list_github_app_installations_for_webhook(installation_id, app_id, opts \\ []) do
+    installation_id = maybe_to_string(installation_id)
+    app_id = maybe_to_string(app_id)
+
+    if installation_id == nil and app_id == nil do
+      []
+    else
+      KeyValueStore.get_or_update(
+        webhook_installations_cache_key(installation_id, app_id),
+        [cache: Keyword.get(opts, :cache, :tuist), ttl: @webhook_installations_cache_ttl_ms],
+        fn ->
+          case build_webhook_lookup_query(installation_id, app_id) do
+            nil -> []
+            query -> Repo.all(query)
+          end
+        end
+      )
     end
   end
 
@@ -1311,6 +1349,9 @@ defmodule Tuist.VCS do
       where: i.installation_id == ^installation_id or i.app_id == ^app_id
     )
   end
+
+  defp webhook_installations_cache_key(installation_id, app_id),
+    do: [__MODULE__, :webhook_installations, installation_id || "_", app_id || "_"]
 
   @doc """
   Updates a GitHub app installation.

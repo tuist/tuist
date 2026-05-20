@@ -226,6 +226,16 @@ defmodule TuistWeb.Webhooks.GitHubController do
   #     would have us 503-ing anyway.
   #   * Worker errors → Oban retries with backoff up to
   #     `max_attempts`. The HTTP layer is done.
+  # Actions that the dispatch pipeline persists or claims against.
+  # `Tuist.Runners.Dispatch.handle_webhook/2` only branches on these
+  # two — every other action (notably `in_progress`, ~33 % of
+  # `workflow_job` traffic) falls through to the catch-all
+  # `:ignored` branch in the worker. Short-circuiting here removes
+  # the Oban.insert (and its Postgres write) for those events,
+  # which under burst load was costing us ~one PG checkout per
+  # webhook for work the worker was going to discard anyway.
+  @dispatchable_workflow_job_actions ~w(queued completed)
+
   defp handle_workflow_job(conn, params) do
     installation_id =
       case params do
@@ -234,11 +244,17 @@ defmodule TuistWeb.Webhooks.GitHubController do
       end
 
     delivery_guid = conn |> get_req_header("x-github-delivery") |> List.first()
+    action = Map.get(params, "action")
 
-    if installation_id do
-      enqueue_dispatch(conn, params, installation_id, delivery_guid)
-    else
-      conn |> put_status(:ok) |> json(%{status: "ok"})
+    cond do
+      is_nil(installation_id) ->
+        conn |> put_status(:ok) |> json(%{status: "ok"})
+
+      action not in @dispatchable_workflow_job_actions ->
+        conn |> put_status(:ok) |> json(%{status: "ok"})
+
+      true ->
+        enqueue_dispatch(conn, params, installation_id, delivery_guid)
     end
   end
 
