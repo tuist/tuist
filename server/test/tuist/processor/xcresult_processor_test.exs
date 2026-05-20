@@ -350,8 +350,7 @@ defmodule Tuist.Processor.XCResultProcessorTest do
         ]
       }
 
-      {:ok, attempts} = Agent.start(fn -> 0 end)
-      on_exit(fn -> if Process.alive?(attempts), do: Agent.stop(attempts) end)
+      attempts = start_supervised!({Agent, fn -> 0 end})
 
       on_part = fn n ->
         case Agent.get_and_update(attempts, &{&1 + 1, &1 + 1}) do
@@ -406,8 +405,7 @@ defmodule Tuist.Processor.XCResultProcessorTest do
         ]
       }
 
-      {:ok, counters} = Agent.start(fn -> %{part: 0, abort: 0} end)
-      on_exit(fn -> if Process.alive?(counters), do: Agent.stop(counters) end)
+      counters = start_supervised!({Agent, fn -> %{part: 0, abort: 0} end})
 
       on_part = fn _n ->
         Agent.update(counters, &%{&1 | part: &1.part + 1})
