@@ -1308,8 +1308,13 @@ defmodule Tuist.VCS do
   invalidation mechanism: mutations don't bust the cache because
   the only field a stale entry could mis-serve (`webhook_secret`)
   rotates through a flow that takes longer than the TTL anyway.
+
+  ## Opts
+
+  - `:cache` — Cachex instance to use. Defaults to `:tuist`; tests
+    pass a per-case Cachex so state doesn't leak across runs.
   """
-  def list_github_app_installations_for_webhook(installation_id, app_id) do
+  def list_github_app_installations_for_webhook(installation_id, app_id, opts \\ []) do
     installation_id = maybe_to_string(installation_id)
     app_id = maybe_to_string(app_id)
 
@@ -1318,7 +1323,7 @@ defmodule Tuist.VCS do
     else
       KeyValueStore.get_or_update(
         webhook_installations_cache_key(installation_id, app_id),
-        [cache: cache_name(), ttl: @webhook_installations_cache_ttl_ms],
+        [cache: Keyword.get(opts, :cache, :tuist), ttl: @webhook_installations_cache_ttl_ms],
         fn ->
           case build_webhook_lookup_query(installation_id, app_id) do
             nil -> []
@@ -1345,21 +1350,6 @@ defmodule Tuist.VCS do
     )
   end
 
-  @doc """
-  Name of the Cachex instance backing the webhook installations cache.
-  Returns the application-wide `:tuist` cache in prod; tests can
-  `stub/3` this to point at a per-test Cachex started via
-  `start_supervised!` so cache state never leaks across parallel
-  cases.
-  """
-  def cache_name, do: :tuist
-
-  # Cachex's key serialiser (`Tuist.KeyValueStore.cache_key/1`) joins
-  # list elements with `-`, so the key needs to be a flat list of
-  # `to_string/1`-friendly terms. The two `_` slots reserve dedicated
-  # positions for `installation_id` and `app_id` (empty string when
-  # absent) so a lookup keyed by just one of them can't collide with a
-  # lookup keyed by the other.
   defp webhook_installations_cache_key(installation_id, app_id),
     do: [__MODULE__, :webhook_installations, installation_id || "_", app_id || "_"]
 

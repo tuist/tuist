@@ -3663,11 +3663,11 @@ defmodule Tuist.VCSTest do
     setup do
       cache = :"vcs_webhook_#{System.unique_integer([:positive])}"
       start_supervised!({Cachex, name: cache})
-      stub(VCS, :cache_name, fn -> cache end)
-      :ok
+      %{cache: cache}
     end
 
-    test "memoises the lookup so a repeated webhook does not re-query Postgres" do
+    test "memoises the lookup so a repeated webhook does not re-query Postgres",
+         %{cache: cache} do
       # Given a real row to hit on the first call.
       account = AccountsFixtures.organization_fixture().account
 
@@ -3678,19 +3678,19 @@ defmodule Tuist.VCSTest do
           app_id: "999"
         })
 
-      first = VCS.list_github_app_installations_for_webhook("111", "999")
+      first = VCS.list_github_app_installations_for_webhook("111", "999", cache: cache)
       assert [%GitHubAppInstallation{id: id}] = first
       assert id == installation.id
 
       # Repo.all/1 must not be called on the second invocation — the
-      # mimic expect fails the test if it is.
+      # mimic reject fails the test if it is.
       reject(&Tuist.Repo.all/1)
 
-      second = VCS.list_github_app_installations_for_webhook("111", "999")
+      second = VCS.list_github_app_installations_for_webhook("111", "999", cache: cache)
       assert second == first
     end
 
-    test "honours nil filters separately from supplied ones" do
+    test "honours nil filters separately from supplied ones", %{cache: cache} do
       account = AccountsFixtures.organization_fixture().account
 
       {:ok, installation} =
@@ -3703,8 +3703,8 @@ defmodule Tuist.VCSTest do
       # Lookup by installation_id alone uses a distinct cache slot
       # from the (installation_id, app_id) lookup, so they don't
       # collide in the cache key.
-      by_installation = VCS.list_github_app_installations_for_webhook("222", nil)
-      by_both = VCS.list_github_app_installations_for_webhook("222", "1000")
+      by_installation = VCS.list_github_app_installations_for_webhook("222", nil, cache: cache)
+      by_both = VCS.list_github_app_installations_for_webhook("222", "1000", cache: cache)
 
       assert [%GitHubAppInstallation{id: id1}] = by_installation
       assert [%GitHubAppInstallation{id: id2}] = by_both
@@ -3712,9 +3712,9 @@ defmodule Tuist.VCSTest do
       assert id2 == installation.id
     end
 
-    test "returns [] without touching Postgres when both filters are nil" do
+    test "returns [] without touching Postgres when both filters are nil", %{cache: cache} do
       reject(&Tuist.Repo.all/1)
-      assert VCS.list_github_app_installations_for_webhook(nil, nil) == []
+      assert VCS.list_github_app_installations_for_webhook(nil, nil, cache: cache) == []
     end
   end
 end
