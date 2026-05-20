@@ -60,10 +60,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v3.2.0
         with:
-          install: "false"
+          install_args: "helm kubectl"
           cache: "false"
-      # Pin globally so the mise shim resolves; `install_args` alone installs the binary but leaves the shim unactivated.
-      - run: mise use -g helm kubectl
       - uses: 1password/install-cli-action@v2
       - name: Load kubeconfig from 1Password
         env:
