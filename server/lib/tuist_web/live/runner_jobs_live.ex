@@ -384,7 +384,7 @@ defmodule TuistWeb.RunnerJobsLive do
   """
   def jobs_breakdown_title("passed"), do: dgettext("dashboard_runners", "Passed job runs")
   def jobs_breakdown_title("failed"), do: dgettext("dashboard_runners", "Failed job runs")
-  def jobs_breakdown_title(_total), do: dgettext("dashboard_runners", "Job runs")
+  def jobs_breakdown_title(_total), do: dgettext("dashboard_runners", "All job runs")
 
   def jobs_breakdown_value(stats, "passed"), do: Map.get(stats, :successful, 0)
   def jobs_breakdown_value(stats, "failed"), do: Map.get(stats, :failed, 0)
