@@ -522,6 +522,7 @@ defmodule Tuist.Runners.Jobs do
   def list_workflows_for_account(account_id, opts \\ []) when is_integer(account_id) and is_list(opts) do
     limit = Keyword.get(opts, :limit, 50)
     offset = Keyword.get(opts, :offset, 0)
+    sort_by = Keyword.get(opts, :sort_by, "workflow")
 
     Job
     |> from(hints: ["FINAL"])
@@ -550,10 +551,36 @@ defmodule Tuist.Runners.Jobs do
         ),
       last_run_at: max(j.enqueued_at)
     })
-    |> order_by([j], desc: max(j.enqueued_at))
+    |> workflows_order_by(sort_by)
     |> limit(^limit)
     |> offset(^offset)
     |> ClickHouseRepo.all()
+  end
+
+  # "success_rate" sort the share of successful jobs. ClickHouse can't
+  # use a Decimal/Float division inside ORDER BY without quoting, so
+  # we cast both sides to Float64 before dividing. Workflows with
+  # zero total_jobs end up as 0/0 → nan; nullIf+coalesce pulls them
+  # to the bottom of the descending sort.
+  defp workflows_order_by(query, "success_rate") do
+    order_by(query, [j],
+      desc:
+        fragment(
+          "coalesce(toFloat64(countIf(? = 'completed' AND ? = 'success')) / nullIf(toFloat64(count(?)), 0), 0)",
+          j.status,
+          j.conclusion,
+          j.workflow_job_id
+        ),
+      desc: max(j.enqueued_at)
+    )
+  end
+
+  defp workflows_order_by(query, "jobs") do
+    order_by(query, [j], desc: count(j.workflow_job_id), desc: max(j.enqueued_at))
+  end
+
+  defp workflows_order_by(query, _workflow_default) do
+    order_by(query, [j], asc: j.workflow_name, asc: j.repo)
   end
 
   @doc """

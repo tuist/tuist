@@ -38,6 +38,7 @@ defmodule TuistWeb.RunnerWorkflowsLive do
   def handle_params(params, uri, socket) do
     repository = params["repository"] || "any"
     search = params["search"] || ""
+    sort_by = sort_by_param(params["sort_by"])
     page = parse_page(params["page"])
 
     {:noreply,
@@ -45,10 +46,17 @@ defmodule TuistWeb.RunnerWorkflowsLive do
      |> assign(:uri, URI.parse(uri))
      |> assign(:repository, repository)
      |> assign(:search, search)
+     |> assign(:sort_by, sort_by)
      |> assign(:page, page)
      |> assign_analytics(repository)
-     |> assign_workflows(repository, search)}
+     |> assign_workflows(repository, search, sort_by)}
   end
+
+  # Bound the sort_by URL param to the values the backend knows how
+  # to ORDER BY — anything else falls back to the default so a
+  # malformed URL doesn't surface a 500.
+  defp sort_by_param(value) when value in ["workflow", "success_rate", "jobs"], do: value
+  defp sort_by_param(_), do: "workflow"
 
   @impl true
   def handle_event("select_widget", %{"widget" => widget}, socket) do
@@ -91,7 +99,7 @@ defmodule TuistWeb.RunnerWorkflowsLive do
     )
   end
 
-  defp assign_workflows(%{assigns: %{selected_account: account, page: page}} = socket, repository, search) do
+  defp assign_workflows(%{assigns: %{selected_account: account, page: page}} = socket, repository, search, sort_by) do
     base_opts =
       repository
       |> scope_opts()
@@ -106,6 +114,7 @@ defmodule TuistWeb.RunnerWorkflowsLive do
       base_opts
       |> Keyword.put(:limit, @page_size)
       |> Keyword.put(:offset, offset)
+      |> Keyword.put(:sort_by, sort_by)
 
     workflows = Jobs.list_workflows_for_account(account.id, paged_opts)
 
@@ -148,6 +157,19 @@ defmodule TuistWeb.RunnerWorkflowsLive do
 
   def repository_label("any"), do: dgettext("dashboard_runners", "Any")
   def repository_label(repo) when is_binary(repo), do: repo
+
+  @doc """
+  Patches the current URL to swap the sort_by param, dropping `page`
+  so a viewer changing the sort order lands on the first page of
+  the newly-ordered list rather than getting stranded past the end.
+  """
+  def sort_by_patch(%URI{} = uri, sort_by) do
+    "?" <> (uri.query |> Query.put("sort_by", sort_by) |> Query.drop("page"))
+  end
+
+  def sort_by_label("success_rate"), do: dgettext("dashboard_runners", "Success rate")
+  def sort_by_label("jobs"), do: dgettext("dashboard_runners", "Jobs")
+  def sort_by_label(_workflow_default), do: dgettext("dashboard_runners", "Workflow")
 
   def success_rate(%{success_count: success, total_jobs: total}) when total > 0 do
     rate = success / total * 100

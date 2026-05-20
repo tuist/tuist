@@ -3281,7 +3281,16 @@ IO.puts("  - Gradle machine metrics: #{length(gradle_machine_metrics)} data poin
 # =============================================================================
 
 runner_jobs_account_id = organization.account.id
-runner_jobs_repos = ["tuist/tuist", "tuist/noora", "tuist/cli"]
+
+runner_jobs_repos = [
+  "tuist/tuist",
+  "tuist/noora",
+  "tuist/cli",
+  "tuist/cache",
+  "tuist/kura",
+  "tuist/skills"
+]
+
 runner_jobs_fleets = ["macos-xcode-26.4", "macos-xcode-26.3", "linux-amd64"]
 runner_jobs_branches = ["main", "feat/runners-ui", "fix/cache-flake", "renovate/deps"]
 now = DateTime.utc_now()
@@ -3292,15 +3301,107 @@ end
 
 # Completed jobs — history (most recent first by `enqueued_at`)
 completed_jobs = [
-  %{conclusion: "success", workflow: "Server", job_name: "Docker build", run_attempt: 1, minutes_ago: 7, duration_s: 312, repo_idx: 0},
-  %{conclusion: "success", workflow: "Server", job_name: "Gettext", run_attempt: 1, minutes_ago: 18, duration_s: 84, repo_idx: 0},
-  %{conclusion: "failure", workflow: "CLI", job_name: "Build Acceptance Tests", run_attempt: 1, minutes_ago: 42, duration_s: 198, repo_idx: 2},
-  %{conclusion: "success", workflow: "CLI", job_name: "Unit Tests", run_attempt: 2, minutes_ago: 54, duration_s: 287, repo_idx: 2},
-  %{conclusion: "cancelled", workflow: "Server Production Deployment", job_name: "Build server image", run_attempt: 1, minutes_ago: 73, duration_s: 41, repo_idx: 0},
-  %{conclusion: "success", workflow: "Cache Deploy", job_name: "deploy-canary", run_attempt: 1, minutes_ago: 105, duration_s: 422, repo_idx: 0},
-  %{conclusion: "success", workflow: "Server", job_name: "Test", run_attempt: 1, minutes_ago: 161, duration_s: 305, repo_idx: 0},
-  %{conclusion: "skipped", workflow: "Release", job_name: "Release Skills", run_attempt: 1, minutes_ago: 188, duration_s: 0, repo_idx: 1}
+  %{
+    conclusion: "success",
+    workflow: "Server",
+    job_name: "Docker build",
+    run_attempt: 1,
+    minutes_ago: 7,
+    duration_s: 312,
+    repo_idx: 0
+  },
+  %{
+    conclusion: "success",
+    workflow: "Server",
+    job_name: "Gettext",
+    run_attempt: 1,
+    minutes_ago: 18,
+    duration_s: 84,
+    repo_idx: 0
+  },
+  %{
+    conclusion: "failure",
+    workflow: "CLI",
+    job_name: "Build Acceptance Tests",
+    run_attempt: 1,
+    minutes_ago: 42,
+    duration_s: 198,
+    repo_idx: 2
+  },
+  %{
+    conclusion: "success",
+    workflow: "CLI",
+    job_name: "Unit Tests",
+    run_attempt: 2,
+    minutes_ago: 54,
+    duration_s: 287,
+    repo_idx: 2
+  },
+  %{
+    conclusion: "cancelled",
+    workflow: "Server Production Deployment",
+    job_name: "Build server image",
+    run_attempt: 1,
+    minutes_ago: 73,
+    duration_s: 41,
+    repo_idx: 0
+  },
+  %{
+    conclusion: "success",
+    workflow: "Cache Deploy",
+    job_name: "deploy-canary",
+    run_attempt: 1,
+    minutes_ago: 105,
+    duration_s: 422,
+    repo_idx: 0
+  },
+  %{
+    conclusion: "success",
+    workflow: "Server",
+    job_name: "Test",
+    run_attempt: 1,
+    minutes_ago: 161,
+    duration_s: 305,
+    repo_idx: 0
+  },
+  %{
+    conclusion: "skipped",
+    workflow: "Release",
+    job_name: "Release Skills",
+    run_attempt: 1,
+    minutes_ago: 188,
+    duration_s: 0,
+    repo_idx: 1
+  }
 ]
+
+# Long-tail workflow catalog — each entry produces one (repo,
+# workflow_name) pair on the Workflows list. Generating ~25 extra
+# rows lets the page actually paginate on dev seed data instead of
+# fitting every workflow on a single page.
+additional_workflow_seeds =
+  ~w(Lint Format SecurityScan Codecov NightlyBuild WeeklyRelease
+     UpdateDependencies SyncTranslations DeployStaging DeployCanary
+     BundleSizeCheck DocsBuild HelmLint MigrationCheck APISmokeTests
+     iOSTests AndroidTests WebTests PerformanceBench AccessibilityAudit
+     CoverageReport ImageScan StaleBranchCleanup ReleaseNotes
+     OpenSourceLicenseAudit)
+  |> Enum.with_index()
+  |> Enum.map(fn {workflow_name, idx} ->
+    %{
+      conclusion: Enum.at(~w(success success failure success cancelled), rem(idx, 5)),
+      workflow: workflow_name,
+      job_name: "build",
+      run_attempt: 1,
+      # Spread completions across the last 30 days so the daily
+      # series picks up multiple buckets.
+      minutes_ago: 240 + idx * 60,
+      duration_s: 45 + rem(idx, 9) * 25,
+      repo_idx: rem(idx, length(runner_jobs_repos))
+    }
+  end)
+
+completed_jobs = completed_jobs ++ additional_workflow_seeds
 
 completed_jobs
 |> Enum.with_index()
