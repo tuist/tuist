@@ -17,7 +17,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"strings"
 	"time"
 
 	"k8s.io/apimachinery/pkg/runtime"
@@ -51,7 +50,6 @@ func main() {
 
 		hostNamespace string
 		namePrefix    string
-		clustersFlag  string
 		pollInterval  time.Duration
 
 		robotUserPath string
@@ -70,14 +68,6 @@ func main() {
 		envOrDefault("HRC_NAME_PREFIX", "tuist-bm-"),
 		"Robot servers whose name starts with this are managed by this controller. "+
 			"Servers outside the prefix are ignored on both creation and deletion.")
-	flag.StringVar(&clustersFlag, "clusters",
-		envOrDefault("HRC_CLUSTERS", ""),
-		"Comma-separated list of CAPI cluster names that share this Robot account "+
-			"(e.g. `staging,canary,production`). A Robot server is included in inventory "+
-			"only if its name matches `tuist-bm-<cluster>-...` or `tuist-<cluster>-...` "+
-			"(the caph-rewritten shape) for one of these clusters; the match is stamped "+
-			"on the HBM as `tuist.dev/cluster=<cluster>` so each env's HBMM hostSelector "+
-			"can scope itself. Empty disables cluster gating (legacy single-env mode).")
 	flag.DurationVar(&pollInterval, "poll-interval", 60*time.Second,
 		"How often to poll Robot for inventory changes. Hardware procurement is "+
 			"human-paced — short intervals just add load without speeding anything up.")
@@ -124,7 +114,6 @@ func main() {
 		Robot:        robotClient,
 		Namespace:    hostNamespace,
 		NamePrefix:   namePrefix,
-		Clusters:     parseClusters(clustersFlag),
 		PollInterval: pollInterval,
 	}
 	if err := mgr.Add(syncer); err != nil {
@@ -158,8 +147,7 @@ func main() {
 	}
 
 	setupLog.Info("starting manager",
-		"namespace", hostNamespace, "prefix", namePrefix,
-		"clusters", parseClusters(clustersFlag), "interval", pollInterval)
+		"namespace", hostNamespace, "prefix", namePrefix, "interval", pollInterval)
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		setupLog.Error(err, "manager exited")
 		os.Exit(1)
@@ -171,23 +159,6 @@ func envOrDefault(key, fallback string) string {
 		return v
 	}
 	return fallback
-}
-
-// parseClusters splits the comma-separated `--clusters` flag
-// into a clean slice. Empty input yields nil (legacy single-env
-// mode — no cluster gating, no label stamping).
-func parseClusters(s string) []string {
-	if s == "" {
-		return nil
-	}
-	parts := strings.Split(s, ",")
-	out := make([]string, 0, len(parts))
-	for _, p := range parts {
-		if p = strings.TrimSpace(p); p != "" {
-			out = append(out, p)
-		}
-	}
-	return out
 }
 
 // trimNewline strips a single trailing newline if present.
