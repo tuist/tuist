@@ -2,6 +2,7 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
+  alias Tuist.Runners.Workers.DispatchWorker
   alias Tuist.VCS
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.VCSFixtures
@@ -610,10 +611,8 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
   end
 
   describe "handle/2 workflow_job" do
-    alias Tuist.Runners.Workers.DispatchWorker
-
     test "200s immediately and enqueues a DispatchWorker job with the payload + GUID", %{conn: conn} do
-      installation_id = 111_169_140
+      installation_id = System.unique_integer([:positive])
       delivery_guid = "deadbeef-0000-1111-2222-333344445555"
 
       conn =

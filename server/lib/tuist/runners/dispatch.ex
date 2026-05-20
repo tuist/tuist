@@ -323,12 +323,13 @@ defmodule Tuist.Runners.Dispatch do
   # gets memoised.
   defp list_runner_pools_cached do
     cache_key = [__MODULE__, :pools, namespace()]
+    cache_opts = [cache: cache_name()]
 
-    case KeyValueStore.get(cache_key) do
+    case KeyValueStore.get(cache_key, cache_opts) do
       nil ->
         case Client.list_runner_pools(namespace()) do
           {:ok, _items} = ok ->
-            KeyValueStore.put(cache_key, ok, ttl: @pools_cache_ttl_ms)
+            KeyValueStore.put(cache_key, ok, Keyword.put(cache_opts, :ttl, @pools_cache_ttl_ms))
             ok
 
           error ->
@@ -349,15 +350,16 @@ defmodule Tuist.Runners.Dispatch do
   # can't distinguish "cached nil" from "no entry" anyway.
   defp get_account_by_handle_cached(owner) do
     cache_key = [__MODULE__, :account, owner]
+    cache_opts = [cache: cache_name()]
 
-    case KeyValueStore.get(cache_key) do
+    case KeyValueStore.get(cache_key, cache_opts) do
       nil ->
         case Accounts.get_account_by_handle(owner) do
           nil ->
             nil
 
           %{runner_max_concurrent: cap} = account when is_integer(cap) and cap > 0 ->
-            KeyValueStore.put(cache_key, account, ttl: @account_cache_ttl_ms)
+            KeyValueStore.put(cache_key, account, Keyword.put(cache_opts, :ttl, @account_cache_ttl_ms))
             account
 
           account ->
@@ -368,6 +370,13 @@ defmodule Tuist.Runners.Dispatch do
         cached
     end
   end
+
+  # Tests start a per-process Cachex via `start_supervised!` and
+  # stash its name in the process dictionary so cache state never
+  # leaks across parallel test cases. Production leaves the key
+  # unset and the call falls through to the application-wide
+  # `:tuist` cache started in `Tuist.Application`.
+  defp cache_name, do: Process.get({__MODULE__, :cache}, :tuist)
 
   defp pool_summary(%{"metadata" => %{"name" => name}, "spec" => %{"dispatchLabel" => label} = spec})
        when is_binary(name) and is_binary(label) and label != "" do
