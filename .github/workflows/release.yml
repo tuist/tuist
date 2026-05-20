@@ -23,13 +23,6 @@ env:
 
 jobs:
   check-releases:
-    # Single linear job: each component check is a sub-second `git cliff
-    # --bumped-version` call. The previous serial implementation hit the
-    # 15-min job timeout because cliff was making per-commit GitHub API
-    # calls to enrich the changelog template with PR title/username — see
-    # the GITHUB_TOKEN/GH_TOKEN unset below. Stripping that enrichment
-    # drops each call from ~120s to <1s, so all 15 components finish well
-    # under a minute on a single runner.
     name: Check for releasable changes
     runs-on: namespace-profile-default-with-volume
     timeout-minutes: 5
@@ -92,8 +85,8 @@ jobs:
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - id: check
         env:
-          # Strip cliff's GitHub remote token so it doesn't make a per-commit
-          # API call to enrich commits with PR title/username — see job comment.
+          # Empty token prevents cliff from making a per-commit GitHub API call
+          # to enrich commits with PR title/username, which --bumped-version doesn't need.
           GITHUB_TOKEN: ""
           GH_TOKEN: ""
         run: |
