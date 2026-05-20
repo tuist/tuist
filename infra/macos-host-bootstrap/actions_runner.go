@@ -50,12 +50,20 @@ type GHActionsRunnerConfig struct {
 	// resolves it from a Secret named in the CR. Tokens expire fast;
 	// the operator is responsible for keeping the Secret fresh.
 	GHRunnerRegistrationToken string
-
-	// TuistMixBuildRoot exports `TUIST_MIX_BUILD_ROOT=<value>` in
-	// /etc/zshenv on the host so the xcresult-processor build
-	// workflow shares the BEAM build cache across consecutive jobs.
-	TuistMixBuildRoot string
 }
+
+// builderMixBuildRoot is the host-side path the bare-metal builder
+// exports as TUIST_MIX_BUILD_ROOT in /etc/zshenv. The
+// xcresult-processor build workflow (and the matching leg in
+// release.yml) read this env var so consecutive `mix release` runs
+// share their BEAM build cache across jobs on the same host.
+//
+// Hardcoded (rather than CR-configurable) because the value is an
+// implementation detail of one specific workflow's caching scheme.
+// Surfacing it through the CAPI CR + chart + CRD was paying for a
+// configurability nobody ever exercised, and leaked workflow-level
+// concerns into the infrastructure provider's public contract.
+const builderMixBuildRoot = "/opt/tuist-build-cache"
 
 // installBuilderTooling lays down the host-level dependencies the
 // image-bake workflows expect to find on PATH: Homebrew, Packer
@@ -138,10 +146,7 @@ echo "Xcode OK: $(xcodebuild -version | head -n1)"
 // the line. The cache directory is created with the SSH user's
 // ownership so the runner's mix invocations can write to it without
 // sudo.
-func writeBuildCacheEnv(ctx context.Context, client *ssh.Client, sshUser, root string) error {
-	if root == "" {
-		root = "/opt/tuist-build-cache"
-	}
+func writeBuildCacheEnv(ctx context.Context, client *ssh.Client, sshUser string) error {
 	script := fmt.Sprintf(`set -euo pipefail
 sudo mkdir -p %[1]s
 sudo chown %[2]s:staff %[1]s
@@ -149,7 +154,7 @@ LINE='export TUIST_MIX_BUILD_ROOT=%[1]s'
 if ! sudo grep -qxF "$LINE" /etc/zshenv 2>/dev/null; then
   echo "$LINE" | sudo tee -a /etc/zshenv > /dev/null
 fi
-`, shellQuote(root), shellQuote(sshUser))
+`, shellQuote(builderMixBuildRoot), shellQuote(sshUser))
 	return RunCommand(ctx, client, script)
 }
 
@@ -300,7 +305,7 @@ func runActionsRunnerInstall(ctx context.Context, client *ssh.Client, sshUser, r
 	if err := verifyBuilderXcode(ctx, client); err != nil {
 		return fmt.Errorf("verify builder xcode: %w", err)
 	}
-	if err := writeBuildCacheEnv(ctx, client, sshUser, cfg.TuistMixBuildRoot); err != nil {
+	if err := writeBuildCacheEnv(ctx, client, sshUser); err != nil {
 		return fmt.Errorf("write build cache env: %w", err)
 	}
 	if err := installActionsRunner(ctx, client, sshUser, runnerName, cfg); err != nil {

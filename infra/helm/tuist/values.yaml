@@ -873,10 +873,6 @@ buildersFleet:
   # into the runner-image guest matches the one running on the
   # host that bakes it. Renovate-tracked: bump both pins together.
   ghRunnerVersion: "2.334.0"
-  # Exported as `TUIST_MIX_BUILD_ROOT=<value>` in `/etc/zshenv` so
-  # the xcresult-processor build workflow shares its BEAM build
-  # cache across consecutive jobs on the same host.
-  tuistMixBuildRoot: "/opt/tuist-build-cache"
   # Override the auto-derived Secret name (default:
   # `<fleetName>-gh-app`). Self-hosters who manage the Secret
   # out-of-band point at their own name here. The Secret has three

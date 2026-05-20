@@ -1066,7 +1066,6 @@ func (r *ScalewayAppleSiliconMachineReconciler) resolveGHActionsRunnerConfig(
 		GHRunnerLabels:            spec.GHRunnerLabels,
 		GHRunnerVersion:           spec.GHRunnerVersion,
 		GHRunnerRegistrationToken: token,
-		TuistMixBuildRoot:         spec.TuistMixBuildRoot,
 	}, nil
 }
 

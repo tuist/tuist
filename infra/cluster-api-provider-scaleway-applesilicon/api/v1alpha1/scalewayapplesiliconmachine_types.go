@@ -154,12 +154,6 @@ type GHActionsRunnerConfig struct {
 	// lived auth token locally and the Secret isn't consulted
 	// again for that host.
 	GHAppSecretName string `json:"ghAppSecretName,omitempty"`
-
-	// TuistMixBuildRoot exports `TUIST_MIX_BUILD_ROOT=<value>` in
-	// /etc/zshenv on the host so the xcresult-processor build
-	// workflow shares the BEAM build cache across consecutive jobs.
-	// +kubebuilder:default="/opt/tuist-build-cache"
-	TuistMixBuildRoot string `json:"tuistMixBuildRoot,omitempty"`
 }
 
 // ScalewayAppleSiliconMachineStatus is the observed state of the Machine.

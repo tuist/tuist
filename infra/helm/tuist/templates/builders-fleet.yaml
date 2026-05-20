@@ -65,7 +65,6 @@ spec:
         ghRunnerLabels: {{ .Values.buildersFleet.ghRunnerLabels | default "self-hosted,macos,bare-metal,vm-image-builder" | quote }}
         ghRunnerVersion: {{ .Values.buildersFleet.ghRunnerVersion | default "2.334.0" | quote }}
         ghAppSecretName: {{ $ghAppSecret | quote }}
-        tuistMixBuildRoot: {{ .Values.buildersFleet.tuistMixBuildRoot | default "/opt/tuist-build-cache" | quote }}
 ---
 apiVersion: cluster.x-k8s.io/v1beta1
 kind: MachineDeployment

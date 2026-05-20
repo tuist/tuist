@@ -152,13 +152,6 @@ spec:
                                 runner agent baked into the runner-image guest matches the
                                 agent running on the host that bakes that image.
                               type: string
-                            tuistMixBuildRoot:
-                              default: /opt/tuist-build-cache
-                              description: |-
-                                TuistMixBuildRoot exports `TUIST_MIX_BUILD_ROOT=<value>` in
-                                /etc/zshenv on the host so the xcresult-processor build
-                                workflow shares the BEAM build cache across consecutive jobs.
-                              type: string
                           type: object
                         hostCPU:
                           description: |-
