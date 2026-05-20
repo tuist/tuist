@@ -160,7 +160,7 @@ macosFleet:
   # merging to main. Reverted on merge — the `0.4.1` semver pin in
   # values-managed-common.yaml is owned by release.yml's auto-bump.
   image:
-    tag: "a93c6fcb"
+    tag: "36ffa835"
   # Share the pre-ordered pool with runnersFleet (same prefix
   # below). Both MachineDeployments draw from one Scaleway-side
   # pool of `tuist-pool-*` hosts; the controller claims the first
