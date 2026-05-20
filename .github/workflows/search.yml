@@ -32,7 +32,12 @@ env:
 jobs:
   build:
     name: Build and health check
-    runs-on: tuist-production-linux
+    # TODO: migrate to tuist-production-linux once the runner image ships
+    # a docker daemon — `search/mise/tasks/test.sh` shells out to `docker
+    # build`. Parked on GitHub-hosted `ubuntu-latest` (not Namespace) in
+    # the meantime to keep the CI working without re-introducing a
+    # Namespace dependency.
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
