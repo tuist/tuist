@@ -250,7 +250,10 @@
     data-part="runner-workflow-jobs-card"
   >
     <:actions>
-      <.link_button
+      <.button
+        variant="secondary"
+        size="medium"
+        label={dgettext("dashboard_runners", "View more")}
         navigate={
           TuistWeb.RunnerWorkflowLive.jobs_filter_path(
             @selected_account.name,
@@ -258,9 +261,7 @@
             @workflow_name
           )
         }
-        variant="secondary"
-        size="medium"
-        label={dgettext("dashboard_runners", "View more")}
+        disabled={Enum.empty?(@recent_jobs)}
       />
     </:actions>
     <.card_section data-part="runner-workflow-jobs-card-section">
