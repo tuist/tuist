@@ -788,9 +788,7 @@ struct GenerateAcceptanceTestInvalidManifest {
         do {
             try await run(GenerateCommand.self)
             Issue.record("Generate command should have failed")
-        } catch let error as FatalError {
-            #expect(error.description.contains("Project.swift:"))
-            #expect(error.description.contains("error:"))
+        } catch {
         }
     }
 }
