@@ -190,7 +190,7 @@ defmodule TuistWeb.MembersLive do
                     </button>
                   </:trigger>
                   <:header_icon>
-                    <.trash_x />
+                    <.trash />
                   </:header_icon>
                   <p>
                     {dgettext(
@@ -249,7 +249,7 @@ defmodule TuistWeb.MembersLive do
                       JS.dispatch("phx:open-modal", detail: %{id: "remove-member-modal-#{member.id}"})
                     }
                   >
-                    <:left_icon><.trash_x /></:left_icon>
+                    <:left_icon><.trash /></:left_icon>
                   </.dropdown_item>
                 </.dropdown>
               </:col>
@@ -289,7 +289,7 @@ defmodule TuistWeb.MembersLive do
                     on_click="revoke_invite"
                     phx-value-id={invitation.id}
                   >
-                    <:left_icon><.trash_x /></:left_icon>
+                    <:left_icon><.trash /></:left_icon>
                   </.dropdown_item>
                 </.dropdown>
               </:col>
