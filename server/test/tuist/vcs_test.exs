@@ -3658,4 +3658,112 @@ defmodule Tuist.VCSTest do
       assert changeset.valid?
     end
   end
+
+  describe "list_github_app_installations_for_webhook/2 caching" do
+    setup do
+      cache = :"vcs_webhook_#{System.unique_integer([:positive])}"
+      start_supervised!({Cachex, name: cache})
+      stub(VCS, :cache_name, fn -> cache end)
+      :ok
+    end
+
+    test "memoises the lookup so a repeated webhook does not re-query Postgres" do
+      # Given a real row to hit on the first call.
+      account = AccountsFixtures.organization_fixture().account
+
+      {:ok, installation} =
+        VCS.create_github_app_installation(%{
+          account_id: account.id,
+          installation_id: "111",
+          app_id: "999"
+        })
+
+      first = VCS.list_github_app_installations_for_webhook("111", "999")
+      assert [%GitHubAppInstallation{id: id}] = first
+      assert id == installation.id
+
+      # Repo.all/1 must not be called on the second invocation — the
+      # mimic expect fails the test if it is.
+      reject(&Tuist.Repo.all/1)
+
+      second = VCS.list_github_app_installations_for_webhook("111", "999")
+      assert second == first
+    end
+
+    test "honours nil filters separately from supplied ones" do
+      account = AccountsFixtures.organization_fixture().account
+
+      {:ok, installation} =
+        VCS.create_github_app_installation(%{
+          account_id: account.id,
+          installation_id: "222",
+          app_id: "1000"
+        })
+
+      # Lookup by installation_id alone uses a distinct cache slot
+      # from the (installation_id, app_id) lookup, so they don't
+      # collide in the cache key.
+      by_installation = VCS.list_github_app_installations_for_webhook("222", nil)
+      by_both = VCS.list_github_app_installations_for_webhook("222", "1000")
+
+      assert [%GitHubAppInstallation{id: id1}] = by_installation
+      assert [%GitHubAppInstallation{id: id2}] = by_both
+      assert id1 == installation.id
+      assert id2 == installation.id
+    end
+
+    test "returns [] without touching Postgres when both filters are nil" do
+      reject(&Tuist.Repo.all/1)
+      assert VCS.list_github_app_installations_for_webhook(nil, nil) == []
+    end
+
+    test "delete_github_app_installation/1 evicts the cache" do
+      account = AccountsFixtures.organization_fixture().account
+
+      {:ok, installation} =
+        VCS.create_github_app_installation(%{
+          account_id: account.id,
+          installation_id: "333",
+          app_id: "1001"
+        })
+
+      # Warm the cache.
+      assert [%GitHubAppInstallation{}] =
+               VCS.list_github_app_installations_for_webhook("333", "1001")
+
+      # Delete the row — invalidation must drop the stale entry, so
+      # the next lookup actually goes back to Postgres and observes
+      # the deletion.
+      {:ok, _} = VCS.delete_github_app_installation(installation)
+
+      assert VCS.list_github_app_installations_for_webhook("333", "1001") == []
+    end
+
+    test "update_github_app_installation/2 evicts the cache" do
+      account = AccountsFixtures.organization_fixture().account
+
+      {:ok, installation} =
+        VCS.create_github_app_installation(%{
+          account_id: account.id,
+          installation_id: "444",
+          app_id: "1002",
+          html_url: "https://github.com/apps/old-slug"
+        })
+
+      [%GitHubAppInstallation{html_url: cached_html_url}] =
+        VCS.list_github_app_installations_for_webhook("444", "1002")
+
+      assert cached_html_url == "https://github.com/apps/old-slug"
+
+      {:ok, _} =
+        VCS.update_github_app_installation(installation, %{
+          html_url: "https://github.com/apps/new-slug"
+        })
+
+      [%GitHubAppInstallation{html_url: fresh_html_url}] =
+        VCS.list_github_app_installations_for_webhook("444", "1002")
+
+      assert fresh_html_url == "https://github.com/apps/new-slug"
+    end
+  end
 end

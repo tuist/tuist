@@ -167,6 +167,31 @@ defmodule Tuist.KeyValueStore do
     end
   end
 
+  @doc ~S"""
+  Removes a value from the cache. Idempotent — deleting a missing
+  key is a no-op.
+
+  ## Opts
+
+  - `:cache`: The cache to use. Defaults to `:tuist`.
+  """
+  def delete(cache_key, opts \\ []) do
+    if use_redis?(opts) do
+      try do
+        Redix.command(Environment.redis_conn_name(), ["DEL", cache_key(cache_key)])
+      rescue
+        _error in Redix.ConnectionError ->
+          delete_from_cachex(cache_key, opts)
+      end
+    else
+      delete_from_cachex(cache_key, opts)
+    end
+  end
+
+  defp delete_from_cachex(cache_key, opts) do
+    Cachex.del(cachex_cache(opts), cache_key(cache_key))
+  end
+
   defp put_in_redis(cache_key, value, opts) do
     cache_key = cache_key(cache_key)
     cache_ttl = Keyword.get(opts, :ttl, to_timeout(minute: 1))
