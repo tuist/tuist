@@ -127,7 +127,7 @@ spec:
           # for the first time, the bump-chart-image-pins step
           # rewrites this line to a semver tag (`0.1.0`, `0.2.0`,
           # …) and from there it's owned by the release pipeline.
-          image: ghcr.io/tuist/tuist-hetzner-robot-controller:sha-59deca403dc9
+          image: ghcr.io/tuist/tuist-hetzner-robot-controller:sha-9f91ba2bd8f8
           imagePullPolicy: IfNotPresent
           args:
             - --leader-elect=true
