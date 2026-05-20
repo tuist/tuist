@@ -323,7 +323,7 @@ defmodule Tuist.Runners.Dispatch do
   # gets memoised.
   defp list_runner_pools_cached do
     cache_key = [__MODULE__, :pools, namespace()]
-    cache_opts = [cache: cache_name()]
+    cache_opts = [cache: __MODULE__.cache_name()]
 
     case KeyValueStore.get(cache_key, cache_opts) do
       nil ->
@@ -350,7 +350,7 @@ defmodule Tuist.Runners.Dispatch do
   # can't distinguish "cached nil" from "no entry" anyway.
   defp get_account_by_handle_cached(owner) do
     cache_key = [__MODULE__, :account, owner]
-    cache_opts = [cache: cache_name()]
+    cache_opts = [cache: __MODULE__.cache_name()]
 
     case KeyValueStore.get(cache_key, cache_opts) do
       nil ->
@@ -371,12 +371,13 @@ defmodule Tuist.Runners.Dispatch do
     end
   end
 
-  # Tests start a per-process Cachex via `start_supervised!` and
-  # stash its name in the process dictionary so cache state never
-  # leaks across parallel test cases. Production leaves the key
-  # unset and the call falls through to the application-wide
-  # `:tuist` cache started in `Tuist.Application`.
-  defp cache_name, do: Process.get({__MODULE__, :cache}, :tuist)
+  @doc """
+  Name of the Cachex instance backing the dispatch caches. Returns
+  the application-wide `:tuist` cache in prod; tests can `stub/3`
+  this to point at a per-test Cachex started via `start_supervised!`
+  so cache state never leaks across parallel cases.
+  """
+  def cache_name, do: :tuist
 
   defp pool_summary(%{"metadata" => %{"name" => name}, "spec" => %{"dispatchLabel" => label} = spec})
        when is_binary(name) and is_binary(label) and label != "" do

@@ -6,18 +6,19 @@ defmodule Tuist.Runners.DispatchTest do
   alias Tuist.Accounts
   alias Tuist.Kubernetes.Client
   alias Tuist.Runners.Dispatch
+  alias TuistTestSupport.Fixtures.AccountsFixtures
 
   setup :verify_on_exit!
 
   setup do
     cache = :"runners_dispatch_#{System.unique_integer([:positive])}"
     start_supervised!({Cachex, name: cache})
-    Process.put({Dispatch, :cache}, cache)
+    stub(Dispatch, :cache_name, fn -> cache end)
     :ok
   end
 
   defp account_with_cap(cap) do
-    account = TuistTestSupport.Fixtures.AccountsFixtures.organization_fixture().account
+    account = AccountsFixtures.organization_fixture().account
 
     account
     |> Ecto.Changeset.change(runner_max_concurrent: cap)
