@@ -220,6 +220,36 @@
             value={@search}
           />
         </.form>
+        <.dropdown
+          id="workflows-sort-by-dropdown"
+          label={TuistWeb.RunnerWorkflowsLive.sort_by_label(@sort_by)}
+          secondary_text={dgettext("dashboard_runners", "Sort by:")}
+        >
+          <.dropdown_item
+            value="workflow"
+            label={dgettext("dashboard_runners", "Workflow")}
+            patch={TuistWeb.RunnerWorkflowsLive.column_sort_patch(assigns, "workflow")}
+            data-selected={@sort_by == "workflow"}
+          >
+            <:right_icon :if={@sort_by == "workflow"}><.check /></:right_icon>
+          </.dropdown_item>
+          <.dropdown_item
+            value="jobs"
+            label={dgettext("dashboard_runners", "Jobs")}
+            patch={TuistWeb.RunnerWorkflowsLive.column_sort_patch(assigns, "jobs")}
+            data-selected={@sort_by == "jobs"}
+          >
+            <:right_icon :if={@sort_by == "jobs"}><.check /></:right_icon>
+          </.dropdown_item>
+          <.dropdown_item
+            value="success_rate"
+            label={dgettext("dashboard_runners", "Success rate")}
+            patch={TuistWeb.RunnerWorkflowsLive.column_sort_patch(assigns, "success_rate")}
+            data-selected={@sort_by == "success_rate"}
+          >
+            <:right_icon :if={@sort_by == "success_rate"}><.check /></:right_icon>
+          </.dropdown_item>
+        </.dropdown>
       </div>
       <div :if={not Enum.empty?(@workflows)} data-part="runner-workflows-table">
         <.table

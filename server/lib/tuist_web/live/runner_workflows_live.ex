@@ -202,6 +202,10 @@ defmodule TuistWeb.RunnerWorkflowsLive do
   def sort_icon("asc"), do: "square_rounded_arrow_up"
   def sort_icon(_desc), do: "square_rounded_arrow_down"
 
+  def sort_by_label("jobs"), do: dgettext("dashboard_runners", "Jobs")
+  def sort_by_label("success_rate"), do: dgettext("dashboard_runners", "Success rate")
+  def sort_by_label(_workflow_default), do: dgettext("dashboard_runners", "Workflow")
+
   def success_rate(%{success_count: success, total_jobs: total}) when total > 0 do
     rate = success / total * 100
 
