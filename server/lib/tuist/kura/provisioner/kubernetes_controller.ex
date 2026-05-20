@@ -198,7 +198,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   defp cloudflare_pool_longitude(%Regions{provisioner_config: %{cloudflare_pool_longitude: longitude}}), do: longitude
   defp cloudflare_pool_longitude(_), do: nil
 
-  # Tuist-platform-wide secrets (license signing key, JWT verifier) are
+  # Tuist-platform-wide secrets (JWT verifier) are
   # mounted into the Kura pod from the shared kura-shared-secrets
   # Secret in the kura namespace, not embedded in the KuraInstance
   # spec. Anyone with list/watch on kurainstances can read its spec, so

@@ -194,8 +194,6 @@ defmodule Cache.SQLiteBufferTest do
   end
 
   test "flush inserts and deletes s3 transfers with de-duplication" do
-    import Ecto.Query
-
     key = "account/project/xcode/ab/cd/key"
 
     :ok = S3TransfersBuffer.enqueue(:upload, "account", "project", :xcode_cache, key)
@@ -306,8 +304,6 @@ defmodule Cache.SQLiteBufferTest do
   end
 
   test "writes during flush are not lost" do
-    import Ecto.Query
-
     base_key = "keyvalue:during_flush:account:project"
 
     for i <- 1..50 do

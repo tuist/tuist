@@ -53,6 +53,8 @@ defmodule Tuist.Docs.CLITest do
     {:ok, cache: cache}
   end
 
+  defp cache_opts(cache), do: [cache: cache]
+
   describe "get_pages/1" do
     test "returns pages when spec is fetched successfully", %{cache: cache} do
       stub(Req, :get, fn url, _opts ->
@@ -65,7 +67,7 @@ defmodule Tuist.Docs.CLITest do
         end
       end)
 
-      pages = CLI.get_pages(cache: cache)
+      pages = CLI.get_pages(cache_opts(cache))
 
       assert length(pages) == 3
       slugs = Enum.map(pages, & &1.slug)
@@ -79,7 +81,7 @@ defmodule Tuist.Docs.CLITest do
         {:ok, %{status: 500}}
       end)
 
-      assert CLI.get_pages(cache: cache) == []
+      assert CLI.get_pages(cache_opts(cache)) == []
     end
 
     test "returns empty list when no CLI release is found", %{cache: cache} do
@@ -87,7 +89,7 @@ defmodule Tuist.Docs.CLITest do
         {:ok, %{status: 200, body: [%{"tag_name" => "server@1.0.0"}]}}
       end)
 
-      assert CLI.get_pages(cache: cache) == []
+      assert CLI.get_pages(cache_opts(cache)) == []
     end
 
     test "caches the result after first fetch", %{cache: cache} do
@@ -105,8 +107,8 @@ defmodule Tuist.Docs.CLITest do
         end
       end)
 
-      CLI.get_pages(cache: cache)
-      CLI.get_pages(cache: cache)
+      CLI.get_pages(cache_opts(cache))
+      CLI.get_pages(cache_opts(cache))
 
       assert :counters.get(call_count, 1) == 2
     end
@@ -124,7 +126,7 @@ defmodule Tuist.Docs.CLITest do
         end
       end)
 
-      page = CLI.get_page("/en/cli/generate", cache: cache)
+      page = CLI.get_page("/en/cli/generate", cache_opts(cache))
 
       assert page.slug == "/en/cli/generate"
       assert page.title == "tuist generate"
@@ -142,7 +144,7 @@ defmodule Tuist.Docs.CLITest do
         end
       end)
 
-      assert is_nil(CLI.get_page("/en/cli/nonexistent", cache: cache))
+      assert is_nil(CLI.get_page("/en/cli/nonexistent", cache_opts(cache)))
     end
   end
 
@@ -158,7 +160,7 @@ defmodule Tuist.Docs.CLITest do
         end
       end)
 
-      [cli_group, commands_group] = CLI.sidebar_items(cache: cache)
+      [cli_group, commands_group] = CLI.sidebar_items(cache_opts(cache))
 
       assert cli_group.label == "CLI"
       assert length(cli_group.items) == 3
@@ -172,7 +174,7 @@ defmodule Tuist.Docs.CLITest do
     test "returns empty list when fetch fails", %{cache: cache} do
       stub(Req, :get, fn _url, _opts -> {:error, :timeout} end)
 
-      assert CLI.sidebar_items(cache: cache) == []
+      assert CLI.sidebar_items(cache_opts(cache)) == []
     end
   end
 end

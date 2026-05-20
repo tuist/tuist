@@ -69,8 +69,6 @@ kuraController:
     #   KURA_EXTENSION_JWT_VERIFIER_TUIST_ALGORITHM: HS512
     #   KURA_EXTENSION_JWT_VERIFIER_TUIST_ISSUER: tuist
     #   KURA_EXTENSION_JWT_VERIFIER_TUIST_SECRET: "<JWT signing secret>"
-    #   KURA_EXTENSION_SIGNER_TUIST_ALGORITHM: hmac-sha256
-    #   KURA_EXTENSION_SIGNER_TUIST_SECRET: "<license signing key>"
 
 kuraRuntime:
   image:

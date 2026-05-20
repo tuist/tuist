@@ -1108,16 +1108,21 @@ defmodule Tuist.Tests do
     test_case_ids = slim_results |> Enum.map(& &1.test_case_id) |> Enum.uniq()
     {min_ran_at, max_ran_at} = ran_at_bounds(slim_results)
 
-    ClickHouseRepo.all(
-      from(tcr in TestCaseRun,
-        hints: ["FINAL"],
-        where: tcr.project_id in ^project_ids,
-        where: tcr.test_case_id in ^test_case_ids,
-        where: tcr.ran_at >= ^min_ran_at,
-        where: tcr.ran_at <= ^max_ran_at,
-        where: tcr.id in ^ids
-      )
+    # `test_case_runs` is ReplacingMergeTree; re-inserts (e.g. flaky flag
+    # updates) leave multiple versions per id until background merges
+    # collapse them. Dedupe in Elixir by `desc: inserted_at` rather than
+    # paying FINAL's full-part scan and in-memory merge for the page-sized
+    # set of ids that the slim MV already narrowed us to.
+    from(tcr in TestCaseRun,
+      where: tcr.project_id in ^project_ids,
+      where: tcr.test_case_id in ^test_case_ids,
+      where: tcr.ran_at >= ^min_ran_at,
+      where: tcr.ran_at <= ^max_ran_at,
+      where: tcr.id in ^ids,
+      order_by: [desc: tcr.inserted_at]
     )
+    |> ClickHouseRepo.all()
+    |> Enum.uniq_by(& &1.id)
   end
 
   defp ran_at_bounds([first | rest]) do
@@ -2890,14 +2895,35 @@ defmodule Tuist.Tests do
     six_hours_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -6, :hour)
     now = NaiveDateTime.utc_now()
 
-    stale_runs =
+    # `test_runs` is ReplacingMergeTree, and FINAL re-expands granule
+    # selection across parts so duplicates can be merged. That defeats the
+    # `idx_status` skip index, which is the only thing that makes finding
+    # `in_progress` rows cheap. Find candidate ids without FINAL (the skip
+    # index then prunes granules), then re-resolve their latest version via
+    # the `proj_by_id` projection — FINAL over a small id set stays cheap.
+    candidate_ids =
       ClickHouseRepo.all(
         from(t in Test,
-          hints: ["FINAL"],
           where: t.status == "in_progress",
-          where: t.inserted_at < ^six_hours_ago
+          where: t.inserted_at < ^six_hours_ago,
+          select: t.id,
+          distinct: true
         )
       )
+
+    stale_runs =
+      if candidate_ids == [] do
+        []
+      else
+        ClickHouseRepo.all(
+          from(t in Test,
+            hints: ["FINAL"],
+            where: t.id in ^candidate_ids,
+            where: t.status == "in_progress",
+            where: t.inserted_at < ^six_hours_ago
+          )
+        )
+      end
 
     updated_runs =
       Enum.map(stale_runs, fn run ->

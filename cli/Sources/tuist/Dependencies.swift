@@ -106,13 +106,7 @@ func initNoora(jsonThroughNoora: Bool = false) -> Noora {
     }
 
     func withAdditionalMiddlewares(_ action: () async throws -> Void) async throws {
-        #if canImport(TuistCacheEE)
-            try await Client.$additionalMiddlewares.withValue([SignatureVerifierMiddleware()]) {
-                try await action()
-            }
-        #else
-            try await action()
-        #endif
+        try await action()
     }
 
     func withCacheService(_ action: () async throws -> Void) async throws {

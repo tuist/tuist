@@ -1,15 +1,41 @@
 defmodule Tuist.Docs.SidebarTest do
   use ExUnit.Case, async: true
+  use Mimic
 
   alias Tuist.Docs
+  alias Tuist.Docs.CLI
+  alias Tuist.Docs.Page
   alias Tuist.Docs.Sidebar
 
   test "tree returns a non-empty list of groups" do
+    stub(CLI, :sidebar_items, fn -> [] end)
+
     tree = Sidebar.tree()
     assert length(tree) > 0
   end
 
   test "all sidebar slugs correspond to actual docs pages" do
+    stub(CLI, :sidebar_items, fn -> [] end)
+
+    stub(CLI, :get_page, fn
+      "/en/cli/debugging" = slug ->
+        %Page{slug: slug, title: "Debugging", body: "Debugging", source_path: "test://cli/debugging"}
+
+      "/en/cli/directories" = slug ->
+        %Page{slug: slug, title: "Directories", body: "Directories", source_path: "test://cli/directories"}
+
+      "/en/cli/shell-completions" = slug ->
+        %Page{
+          slug: slug,
+          title: "Shell completions",
+          body: "Shell completions",
+          source_path: "test://cli/shell-completions"
+        }
+
+      _slug ->
+        nil
+    end)
+
     slugs = collect_slugs(Sidebar.tree())
 
     for slug <- slugs do
