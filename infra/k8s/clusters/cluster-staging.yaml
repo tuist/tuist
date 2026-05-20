@@ -1,5 +1,16 @@
 # Staging workload Cluster, topology mode against tuist-hcloud.
-# 3× cpx22 control plane + 2× cpx32 workers in fsn1.
+# 3× cpx22 control plane + 2× cpx32 workers in fsn1, plus a
+# `bare-metal-worker` MachineDeployment that claims Hetzner Robot
+# AX42-U boxes for the Linux runner fleet.
+#
+# Linux GitHub Actions runners run as Firecracker microVMs (via Kata
+# Containers) on the bare-metal nodes. The HetznerBareMetalHost CRs
+# the bare-metal MD claims live in `bare-metal-staging.yaml`; caph
+# rescue-boots each AX42-U, runs `installimage` to write Ubuntu
+# 24.04 LTS, and the cloud-init in
+# `tuist-bare-metal-worker-bootstraptemplate` (in
+# `clusterclass-tuist.yaml`-via-`bare-metal-staging.yaml`) runs
+# `kubeadm join` automatically.
 apiVersion: cluster.x-k8s.io/v1beta2
 kind: Cluster
 metadata:
@@ -25,14 +36,65 @@ spec:
         value: fsn1
       - name: hcloudControlPlaneMachineType
         value: cpx22
+      # Default for pools without an override (md-0).
       - name: hcloudWorkerMachineType
         value: cpx32
       - name: hcloudSSHKeyName
         value:
           - name: tuist-ops
+      # Scopes bare-metal HBM claims to this cluster (see the
+      # `HetznerBareMetalMachineTemplateClusterSelector` patch in
+      # `clusterclass-tuist.yaml`). Matches the `--clusters` entry
+      # on the `hetzner-robot-controller` Deployment and the
+      # cluster prefix in the Robot panel server name
+      # (`tuist-bm-staging-…`).
+      - name: bareMetalCluster
+        value: staging
     workers:
       machineDeployments:
+        # General-purpose pool: Phoenix server, system DaemonSets.
+        # Stays on Hetzner Cloud (cpx32) since these workloads don't
+        # benefit from bare metal and the elastic scaling matters
+        # more than per-host cost.
         - class: hcloud-worker
           name: md-0
           replicas: 2
           failureDomain: fsn1
+        # Linux runner pool on Hetzner Robot bare metal. Each
+        # claimable `HetznerBareMetalHost` CR (see
+        # `bare-metal-staging.yaml`) gets picked up by caph, which
+        # runs the rescue + installimage + cloud-init kubeadm-join
+        # flow to register the host as a worker Node. Each node ends
+        # up labeled `node.cluster.x-k8s.io/pool=runners-linux` +
+        # `tuist.dev/kata-runtime=true` and tainted
+        # `tuist.dev/runner-tier=bare-metal:NoSchedule`.
+        #
+        # Host count is operator-managed: order another
+        # `tuist-bm-staging-*` server in the Robot panel and bump
+        # `replicas:` here to grow capacity. Pod-level autoscaling
+        # in `values-managed-staging.yaml`'s
+        # `runnersFleetLinux.pools[].autoscaling` floats Pod counts
+        # within the slot ceiling each host provides.
+        - class: bare-metal-worker
+          name: runners-linux
+          failureDomain: fsn1
+          metadata:
+            labels:
+              node.cluster.x-k8s.io/pool: runners-linux
+              # Tell the cloud-provider service controller to skip
+              # these Nodes when building Hetzner LoadBalancer target
+              # lists. Two reasons:
+              #   1. They're not hcloud VMs — they have no
+              #      `providerID: hcloud://<int>` HCCM can parse. A
+              #      stale install once left a Node with
+              #      `hcloud://nocloud` and HCCM aborted the entire
+              #      Service reconcile on that one bad target,
+              #      bringing the ingress LB down with it.
+              #   2. Even with a correct `hcloud://bm-<n>` providerID,
+              #      bare-metal hosts run runner Pods only — routing
+              #      ingress traffic through them just bounces it
+              #      back into the cluster network.
+              # The label is honored by the upstream Kubernetes
+              # cloud-provider library (see `nodeIncluded()` in
+              # `cloud-provider/controllers/service`).
+              node.kubernetes.io/exclude-from-external-load-balancers: ""

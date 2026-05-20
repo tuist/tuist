@@ -236,5 +236,20 @@ spec:
           port: 443
         - protocol: TCP
           port: 80
+    # In-cluster Tuist server. Linux runner Pods (CNI-attached)
+    # call the dispatch endpoint via the in-cluster Service URL
+    # because Hetzner Cloud LBs don't hairpin — they can't reach
+    # the public ingress IP from inside the cluster. macOS Tart
+    # VMs use the public path (vmnet bypasses CNI), so this rule
+    # is essentially "Linux runners only," scoped to the server's
+    # Pod label so it doesn't widen access to ClickHouse / Postgres
+    # / Kura on the cluster network.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Release.Namespace }}
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/component: server
 {{- end }}
 {{- end }}

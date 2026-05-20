@@ -748,9 +748,90 @@ runnersFleet:
     #   replicas: 0            # spec.replicas — number of Pods the controller maintains.
     #   runnerImage: ""        # Required. Digest-pinned in production.
     #   dispatchLabel: ""      # Required. The label customers put in `runs-on`.
+    #   # GitHub runner labels stamped at JIT-mint time, in addition
+    #   # to `dispatchLabel` (always appended). Defaults per-OS in
+    #   # the helm template (`["self-hosted", "macOS", "ARM64"]` for
+    #   # the macOS block, `["self-hosted", "Linux", "X64"]` for the
+    #   # Linux block); override here to add extra labels.
+    #   runnerLabels: ["self-hosted", "macOS", "ARM64"]
     #   pod:
     #     cpuMilli: 8000
     #     memoryMB: 14336
+    #   # Optional queue-depth-driven autoscaling. When `enabled`, the
+    #   # runners-controller patches `spec.replicas` (and the bound
+    #   # CAPI MachineDeployment) every 15 s using the desired-replicas
+    #   # endpoint on the Tuist server. Omit the block (or leave
+    #   # `enabled: false`) for a static-replicas pool.
+    #   autoscaling:
+    #     enabled: false
+    #     minWarmPoolFloor: 1
+    #     maxReplicas: 0
+    #     scaleDownCooldownSeconds: 300
+
+# Linux runner fleet — Hetzner Robot bare-metal hosts (AX42-U for
+# staging/canary, AX162-R for production) claimed via caph and
+# joined to the workload cluster as worker Nodes. caph rescue-boots
+# each box, runs `installimage` to write Ubuntu 24.04 LTS, and the
+# clusterclass cloud-init runs `kubeadm join` automatically. The
+# clusterclass `postKubeadmCommands` stamps
+# `node.cluster.x-k8s.io/pool=<runnersFleetLinux.name>` and the
+# `tuist.dev/runner-tier=bare-metal:NoSchedule` taint so only
+# runner Pods land on these hosts.
+#
+# To enable a runner fleet on a new env:
+#   1. Order one or more boxes from
+#      [robot.hetzner.com](https://robot.hetzner.com) (FSN1 if the
+#      Cloud cluster is in FSN1; co-location keeps cross-substrate
+#      latency to ~5-10ms over public internet, ~1ms via vSwitch).
+#   2. Add a `HetznerBareMetalHost` CR in
+#      `infra/k8s/clusters/bare-metal-<env>.yaml` carrying the
+#      Robot server number, root SSH key ref, and the pool selector
+#      label the `bare-metal-worker` MachineDeployment claims on.
+#      The mgmt-cluster-apply workflow picks it up; caph does
+#      rescue + installimage + kubeadm-join with no manual step.
+#   3. Flip `runnersFleetLinux.enabled: true` here, set `name` to
+#      match the pool label value, point `pools[].runnerImage` at a
+#      digest-pinned `ghcr.io/tuist/tuist-linux-runner` build, and
+#      set `pools[].autoscaling.maxReplicas` to the number of hosts
+#      you provisioned (the autoscaler won't request more Pods than
+#      the operator-provisioned host count can accommodate; Pending
+#      Pods are the signal to provision more hosts).
+runnersFleetLinux:
+  enabled: false
+  # Value of the `node.cluster.x-k8s.io/pool=` label CAPI's
+  # label-sync propagates from the runner MachineDeployment to
+  # each runner Node. Must match the
+  # `metadata.labels.node.cluster.x-k8s.io/pool` entry on the
+  # matching `machineDeployments[]` in
+  # `infra/k8s/clusters/cluster-<env>.yaml`. Defaults to
+  # `runners-linux` (the convention used in
+  # `cluster-staging.yaml`).
+  name: ""
+  # Namespace for the rendered RunnerPool CRs. Falls back to the
+  # macOS fleet's namespace when unset so a single chart install
+  # can share infra (RBAC, NetworkPolicy) across both fleets.
+  namespace: ""
+  # RunnerPool CRs rendered into `runnersFleetLinux.namespace`.
+  # One entry per image variant. Required when
+  # `runnersFleetLinux.enabled` is true.
+  pools: []
+    # Example entry:
+    # - name: ubuntu-22-04
+    #   replicas: 0          # static target; ignored when autoscaling is enabled.
+    #   runnerImage: ""      # Required. Digest-pinned in production.
+    #   dispatchLabel: ""    # Required. The label customers put in `runs-on`.
+    #   runnerLabels:
+    #     - self-hosted
+    #     - Linux
+    #     - X64
+    #   pod:
+    #     cpuMilli: 4000
+    #     memoryMB: 16384
+    #   autoscaling:
+    #     enabled: true
+    #     minWarmPoolFloor: 3
+    #     maxReplicas: 30
+    #     scaleDownCooldownSeconds: 300
 
 # runners-controller: standalone Go reconciler that owns Pod + SA
 # materialization for the RunnerPool CRD. The controller watches
@@ -760,6 +841,38 @@ runnersFleet:
 # and its sibling SA and boots a replacement. The Pod's projected
 # SA token is the dispatch-endpoint authentication anchor (server
 # validates it via TokenReview).
+# Kata Containers + QEMU support. When enabled, the chart renders a
+# `kata-qemu` RuntimeClass routed through the kata QEMU shim, with a
+# `katacontainers.io/kata-runtime=true` nodeSelector so Pods that opt
+# in fail to schedule until a Node carrying the label is available.
+#
+# Install model: Kata is baked into the bare-metal Node at OS install
+# time via the `postInstallScript` in
+# `infra/k8s/clusters/bare-metal-staging.yaml`. The script unpacks
+# `kata-static` under `/opt/kata` (which bundles
+# `qemu-system-x86_64`) and writes the containerd drop-in for the
+# kata-qemu handler — all chrooted in the freshly-installed OS
+# before the first boot. When the Node joins, containerd starts
+# with kata-qemu already registered; the bootstrap
+# `postKubeadmCommands` stamps the
+# `katacontainers.io/kata-runtime=true` label, and kata-qemu Pods
+# can schedule immediately. No runtime DaemonSet runs, no
+# containerd restart happens after the Node is up.
+#
+# Target nodes: bare-metal Linux worker Nodes ordered through the
+# `bare-metal-worker` MachineDeployment in
+# `infra/k8s/clusters/cluster-<env>.yaml`. Hetzner Cloud / Mac mini
+# nodes never carry the kata-runtime label and the RuntimeClass'
+# nodeSelector excludes them automatically.
+#
+# Disable (`enabled: false`) for dev clusters without bare metal —
+# pools that set `runtimeClass: kata-qemu` simply won't get the
+# matching RuntimeClass and will fail at schedule time, which is the
+# correct behavior (fail loud rather than silently fall back to runc
+# in an environment that asked for microVM isolation).
+kataContainers:
+  enabled: false
+
 runnersController:
   replicaCount: 1
   image:
@@ -773,7 +886,6 @@ runnersController:
     limits:
       cpu: 500m
       memory: 256Mi
-
 cache:
   enabled: true
   replicaCount: 1
