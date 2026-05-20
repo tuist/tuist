@@ -10,6 +10,7 @@ defmodule Cache.Finch.PoolsTest do
     setup do
       stub(Cache.Config, :cache_bucket, fn -> "cache-bucket" end)
       stub(Cache.Config, :server_url, fn -> "https://tuist.dev" end)
+      stub(Cache.Config, :server_ca_cert_pem, fn -> nil end)
       stub(Cache.Config, :s3_ca_cert_pem, fn -> nil end)
       stub(Cache.Config, :s3_virtual_host, fn -> false end)
 
@@ -52,6 +53,22 @@ defmodule Cache.Finch.PoolsTest do
 
       assert Keyword.get(server_pool, :protocols) == [:http2, :http1]
       assert Keyword.get(server_pool[:conn_opts], :protocols) == [:http2, :http1]
+    end
+
+    test "uses the configured CA bundle for server TLS" do
+      pem = File.read!(CAStore.file_path())
+
+      stub(Cache.Config, :server_ca_cert_pem, fn -> pem end)
+
+      config = Pools.config()
+      server_pool = Map.get(config, "https://tuist.dev")
+      transport_opts = Keyword.fetch!(server_pool[:conn_opts], :transport_opts)
+
+      refute Keyword.has_key?(transport_opts, :cacertfile)
+
+      cacerts = Keyword.fetch!(transport_opts, :cacerts)
+      assert is_list(cacerts) and cacerts != []
+      assert Enum.all?(cacerts, &is_binary/1)
     end
 
     test "defaults S3 protocols to [:http2, :http1] when not configured" do
