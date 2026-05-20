@@ -205,42 +205,15 @@ bootstrap.
 
 ## docker-in-runner (Linux pools)
 
-Linux pools can opt into in-Pod dockerd by setting
-`runnersFleetLinux.pools[].docker.enabled: true` in the chart
-values. The controller's `podtemplate.Build` then:
+Every Linux runner Pod runs `privileged: true` with dockerd
+started inside the container at boot. Privileged is bounded by
+the per-Pod `kata-qemu` microVM, so the bare-metal host kernel
+is not exposed. **Linux pools must always set `spec.runtimeClass:
+kata-qemu`** — there is no escape valve.
 
-- Stamps `securityContext.privileged: true` on the runner container.
-- Injects `TUIST_RUNNER_DOCKER_ENABLED=1` and
-  `DOCKER_HOST=unix:///var/run/docker.sock` into the Pod env.
+This is the same workflow surface GitHub-hosted and Namespace
+runners ship: `services:` containers, `docker build`, buildx,
+compose, registry login.
 
-The `tuist-linux-runner` image's `dispatch-poll.sh` reads
-`TUIST_RUNNER_DOCKER_ENABLED`; when set it launches dockerd via
-`sudo`, waits up to 30 s for the socket to accept connections, and
-only then enters the dispatch loop. The same image serves docker
-and non-docker pools — without the env flag dockerd never starts.
-
-**Privileged is safe here because every Linux runner Pod is also
-wrapped in a `kata-qemu` microVM** (`spec.runtimeClass: kata-qemu`).
-Privileged inside the microVM grants SYS_ADMIN + device access to
-the in-VM kernel, not the bare-metal host. **Don't enable
-`docker.enabled` on pools without `runtimeClass: kata-qemu`** —
-on plain runc the privileged container shares the host kernel and
-any escape compromises the bare-metal node.
-
-What docker-in-runner unlocks for workflows:
-
-- GitHub Actions `services:` containers (the postgres sidecar in
-  `server.yml`'s `test` job, etc.).
-- `docker build` + `docker buildx` against the in-Pod daemon. The
-  `docker_build` job in `server.yml` can swap
-  `namespacelabs/nscloud-setup-buildx-action` for vanilla
-  `docker/setup-buildx-action`.
-- Compose, registry login, anything else that talks to dockerd.
-
-Storage driver: dockerd inside the kata microVM uses whatever
-storage driver it auto-selects against the virtio-fs'd rootfs.
-overlay2 generally works on kata 3.30 + virtio-fs but falls back
-to `vfs` on older configs (correct, just slow). If layer-pull
-throughput becomes a bottleneck, mount an `emptyDir` at
-`/var/lib/docker` so dockerd lands on a clean directory backed by
-the node disk.
+If `/var/lib/docker` throughput becomes a bottleneck on virtio-fs,
+mount an `emptyDir` at the path so dockerd lands on node disk.

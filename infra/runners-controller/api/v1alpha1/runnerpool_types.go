@@ -87,29 +87,12 @@ type RunnerPoolSpec struct {
 	PodMemoryMB int32 `json:"podMemoryMB,omitempty"`
 
 	// RuntimeClass, when set, is stamped on the runner Pod's
-	// `spec.runtimeClassName`. The chart's `kata-fc` RuntimeClass
-	// routes Pod containers through Kata Containers + Firecracker
-	// so each runner Pod becomes a microVM with its own kernel,
-	// real per-tenant isolation, and ~5 MiB snapshot overhead. Empty
-	// (the v1 default) uses the cluster default runtime (runc on
-	// containerd), which is fine for macOS pools and single-tenant
-	// bare-metal Linux pools.
+	// `spec.runtimeClassName`. The chart's `kata-qemu` RuntimeClass
+	// wraps each Pod in a microVM with its own kernel — required on
+	// Linux pools because the controller stamps `privileged: true`
+	// on every Linux runner container so workflows can use dockerd.
 	// +optional
 	RuntimeClass string `json:"runtimeClass,omitempty"`
-
-	// Docker, when set with Enabled=true, runs dockerd inside the
-	// runner container so workflows can use `services:`, `docker
-	// build`, and buildx natively without an external sidecar. The
-	// runner container is granted `privileged: true`; on Linux pools
-	// running behind a kata-qemu RuntimeClass that's bounded by the
-	// Pod's microVM, so the blast radius stays inside the per-tenant
-	// kernel rather than the bare-metal host. The runner image must
-	// bake in `dockerd` and gate the daemon launch on
-	// `TUIST_RUNNER_DOCKER_ENABLED=1` (the field flows through to
-	// that env so the same image can serve both docker and
-	// non-docker pools).
-	// +optional
-	Docker *RunnerPoolDocker `json:"docker,omitempty"`
 
 	// Autoscaling is the optional queue-depth-driven autoscaling
 	// config for this pool. When `Enabled` is true the
@@ -118,23 +101,6 @@ type RunnerPoolSpec struct {
 	// pools stay at a static `Replicas` value (the v1 macOS shape).
 	// +optional
 	Autoscaling *RunnerPoolAutoscaling `json:"autoscaling,omitempty"`
-}
-
-// RunnerPoolDocker carries the docker-in-runner knobs. Lives in
-// its own struct so an absent block keeps `RunnerPoolSpec`
-// byte-identical to its pre-docker shape on the wire — no
-// `docker: null` noise on every macOS pool.
-type RunnerPoolDocker struct {
-	// Enabled, when true, gives the runner container
-	// `securityContext.privileged: true` and sets
-	// `TUIST_RUNNER_DOCKER_ENABLED=1` + `DOCKER_HOST` in the Pod
-	// env. The image's `dispatch-poll.sh` reads the env flag and
-	// launches dockerd before exec'ing the runner. Only safe on
-	// pools whose `RuntimeClass` puts the Pod inside a microVM
-	// (kata-qemu) — on plain runc the privileged container shares
-	// the host kernel.
-	// +optional
-	Enabled bool `json:"enabled,omitempty"`
 }
 
 // RunnerPoolAutoscaling carries the autoscaling knobs. Lives in

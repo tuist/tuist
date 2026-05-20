@@ -51,7 +51,6 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 	// dispatch-audience token at a fixed path the dispatch-poll
 	// script reads.
 	linuxPod := pool.Spec.OS == "linux"
-	dockerEnabled := pool.Spec.Docker != nil && pool.Spec.Docker.Enabled
 	var extraVolumes []corev1.Volume
 	var extraVolumeMounts []corev1.VolumeMount
 	automount := true
@@ -88,13 +87,10 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 			},
 		},
 		{
-			// dispatch-poll.sh inside the runner VM keys cap-check +
-			// claim de-dup on the (pool, pod_uid) tuple so a Pod
-			// that's recreated under the same name gets a fresh
-			// claim slot. Without this the in-VM script bails before
-			// its first poll with `TUIST_RUNNER_POD_UID not set`
-			// (set -u), the dispatch endpoint never sees a runner
-			// check in, and the queued workflow_job stays unclaimed.
+			// dispatch-poll.sh keys claim de-dup on (pool, pod_uid)
+			// so a recreated-same-name Pod gets a fresh slot. With
+			// set -u, the script bails before its first poll if this
+			// env is missing.
 			Name: "TUIST_RUNNER_POD_UID",
 			ValueFrom: &corev1.EnvVarSource{
 				FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.uid"},
@@ -102,20 +98,14 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 		},
 	}
 
-	// docker-in-runner: dispatch-poll.sh reads
-	// `TUIST_RUNNER_DOCKER_ENABLED` and launches dockerd before
-	// exec'ing the actions/runner. Same image works for both modes
-	// (dockerd starts only when the env flag is set), so the
-	// controller decides per-pool via `spec.docker.enabled`. The
-	// `privileged: true` security context is bounded by the Pod's
-	// kata-qemu microVM on Linux pools — the host kernel is not
-	// exposed.
+	// Linux pods always run dockerd inside the container so
+	// workflows can use `services:`, `docker build`, and buildx
+	// natively. Privileged is bounded by the Pod's kata-qemu
+	// microVM, not the host kernel — Linux pools must therefore
+	// always set `spec.runtimeClass: kata-qemu`.
 	var securityContext *corev1.SecurityContext
-	if dockerEnabled {
-		env = append(env,
-			corev1.EnvVar{Name: "TUIST_RUNNER_DOCKER_ENABLED", Value: "1"},
-			corev1.EnvVar{Name: "DOCKER_HOST", Value: "unix:///var/run/docker.sock"},
-		)
+	if linuxPod {
+		env = append(env, corev1.EnvVar{Name: "DOCKER_HOST", Value: "unix:///var/run/docker.sock"})
 		securityContext = &corev1.SecurityContext{Privileged: ptr(true)}
 	}
 

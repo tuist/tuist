@@ -125,23 +125,10 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 # Docker + buildx from the official Docker apt repo. Layered
-# separately from the baseline apt install above so unrelated
-# tooling bumps don't bust the much larger docker-ce layer.
-#
-# Workflows that opt into the `tuist-*-linux` pools with
-# `runnersFleetLinux.pools[].docker.enabled: true` get an in-Pod
-# dockerd launched by dispatch-poll.sh. The daemon honors the
-# `TUIST_RUNNER_DOCKER_ENABLED` env gate so the same image works
-# for pools that don't grant `privileged: true` (no dockerd, no
-# docker CLI surprise — the binary's there but the socket isn't).
-#
-# We pull from download.docker.com directly because
-# `docker-buildx-plugin` is not in Ubuntu's main repo and Ubuntu's
-# `docker.io` package lags upstream by months.
-#
-# `iptables` is pulled in as a runtime dep for dockerd's NAT/bridge
-# setup (the package ships its own moby-engine integration but the
-# binary isn't included in `containerd.io`).
+# separately from the baseline apt install so unrelated tooling
+# bumps don't bust the much larger docker-ce layer.
+# `docker-buildx-plugin` isn't in Ubuntu's repos and `docker.io`
+# lags upstream by months, so we pull from download.docker.com.
 RUN install -m 0755 -d /etc/apt/keyrings \
     && curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc \
     && chmod a+r /etc/apt/keyrings/docker.asc \
@@ -159,12 +146,9 @@ RUN install -m 0755 -d /etc/apt/keyrings \
     && rm -rf /var/lib/apt/lists/*
 
 # Non-root runner user. `actions/runner` refuses to register as
-# root unless `RUNNER_ALLOW_RUNASROOT=1` is set — explicitly opt
-# out by creating a dedicated user. The user gets passwordless
-# sudo so workflow steps can install packages without prompting,
-# matching the GitHub-hosted runner experience. Membership in the
-# `docker` group lets the runner reach the in-Pod dockerd socket
-# without sudo on docker-enabled pools.
+# root unless `RUNNER_ALLOW_RUNASROOT=1` is set. Passwordless sudo
+# matches the GitHub-hosted runner experience; the `docker` group
+# lets the runner reach the in-Pod dockerd socket without sudo.
 RUN useradd -m -d /home/runner -s /bin/bash runner \
     && echo "runner ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers \
     && usermod -aG docker runner \

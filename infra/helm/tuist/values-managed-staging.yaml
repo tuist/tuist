@@ -298,22 +298,10 @@ runnersFleetLinux:
         - self-hosted
         - Linux
         - X64
-      # Each Pod is a QEMU microVM (Kata Containers under containerd).
-      # Per-tenant kernel boundary, ~50 MiB hypervisor overhead per
-      # Pod. Disable to fall back to runc on the host (no tenant
-      # isolation, single-Pod-per-host).
+      # Required: the controller stamps `privileged: true` on every
+      # Linux runner container so workflows can use dockerd; the
+      # kata-qemu microVM is the safety boundary.
       runtimeClass: kata-qemu
-      # docker-in-runner: the runner container runs `privileged:
-      # true` and dockerd starts inside the microVM at boot, so
-      # workflows can use `services:`, `docker build`, and buildx
-      # natively (closing the gap against namespace-profile-* and
-      # GitHub-hosted runners). Privileged is bounded by the
-      # kata-qemu microVM above — the host kernel stays out of
-      # scope. Enable docker only when `runtimeClass: kata-qemu`
-      # is also set on the same pool; on a plain runc Pod
-      # privileged would share the bare-metal host kernel.
-      docker:
-        enabled: true
       pod:
         # Per-tenant slot, ccx23-equivalent. AX42-U fits ~16 of these
         # cleanly with 1:1 CPU + a small RAM reserve for kubelet and
