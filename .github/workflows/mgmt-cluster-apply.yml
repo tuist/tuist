@@ -90,7 +90,7 @@ jobs:
           echo "::group::ClusterClass diff"
           kubectl diff -f infra/k8s/clusters/clusterclass-tuist.yaml || true
           echo "::endgroup::"
-          for f in infra/k8s/clusters/bare-metal-*.yaml; do
+          for f in infra/k8s/clusters/bare-metal*.yaml; do
             [ -e "$f" ] || continue
             echo "::group::$(basename "$f") diff"
             kubectl diff -f "$f" || true
@@ -113,9 +113,12 @@ jobs:
       - name: Apply ClusterClass first (Cluster CRs reference it)
         run: |
           kubectl apply -f infra/k8s/clusters/clusterclass-tuist.yaml
-      - name: Apply per-env bare-metal substrate
-        # HetznerBareMetalHost CRs + HetznerBareMetalMachineTemplate +
-        # bare-metal KubeadmConfigTemplate + ExternalSecrets. Applied
+      - name: Apply bare-metal substrate
+        # HetznerBareMetalMachineTemplate + KubeadmConfigTemplate
+        # for the shared `bare-metal-worker` MachineDeployment class.
+        # Per-cluster HBM claim scoping is via the `bareMetalCluster`
+        # ClusterClass variable + the patch in `clusterclass-tuist.yaml`,
+        # not by duplicating substrate per env. Applied
         # between ClusterClass and Cluster CRs so the MD-claimed
         # templates exist by the time the topology controller starts
         # reconciling worker Machines.
@@ -133,7 +136,7 @@ jobs:
         #     template going away.
         run: |
           set -o pipefail
-          for f in infra/k8s/clusters/bare-metal-*.yaml; do
+          for f in infra/k8s/clusters/bare-metal*.yaml; do
             [ -e "$f" ] || continue
             echo "==> $f"
             if ! kubectl apply -f "$f" 2>&1 | tee /tmp/apply.out; then

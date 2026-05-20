@@ -211,6 +211,20 @@ spec:
         openAPIV3Schema:
           type: string
           default: ""
+    # Bare-metal cluster gate. Each per-cluster topology sets this
+    # to its own env (`staging` / `canary` / `production`) so the
+    # `HetznerBareMetalMachineTemplateClusterSelector` patch below
+    # can scope HBM claims to that env only. Empty (the default)
+    # means "no bare-metal in this cluster" — the patch is a no-op,
+    # leaving the shared HBMM template's selector as just the
+    # managed-by gate (which would let *any* env claim *any* HBM if
+    # you forget to set this, so don't).
+    - name: bareMetalCluster
+      required: false
+      schema:
+        openAPIV3Schema:
+          type: string
+          default: ""
   patches:
     - name: HetznerClusterTemplateGeneral
       definitions:
@@ -330,6 +344,30 @@ spec:
               path: "/spec/template/spec/placementGroupName"
               valueFrom:
                 variable: hcloudWorkerMachinePlacementGroupName
+    # Inject the per-cluster gate into the shared bare-metal HBMM
+    # template. `hetzner-robot-controller` stamps each HBM with
+    # `tuist.dev/cluster=<env>` based on the Robot server name; the
+    # selector match here is what keeps a staging cluster from
+    # claiming canary or production HBMs out of the shared Robot
+    # account. The patch fires only when the Cluster topology sets
+    # `bareMetalCluster`, so Kura-only clusters (no bare-metal
+    # MachineDeployment at all) skip the patch and don't render the
+    # HBMM template.
+    - name: HetznerBareMetalMachineTemplateClusterSelector
+      enabledIf: '{{ if ne .bareMetalCluster "" }}true{{end}}'
+      definitions:
+        - selector:
+            apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+            kind: HetznerBareMetalMachineTemplate
+            matchResources:
+              machineDeploymentClass:
+                names:
+                  - bare-metal-worker
+          jsonPatches:
+            - op: add
+              path: "/spec/template/spec/hostSelector/matchLabels/tuist.dev~1cluster"
+              valueFrom:
+                variable: bareMetalCluster
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
 kind: HetznerClusterTemplate

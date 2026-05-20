@@ -42,6 +42,14 @@ spec:
       - name: hcloudSSHKeyName
         value:
           - name: tuist-ops
+      # Scopes bare-metal HBM claims to this cluster (see the
+      # `HetznerBareMetalMachineTemplateClusterSelector` patch in
+      # `clusterclass-tuist.yaml`). Matches the `--clusters` entry
+      # on the `hetzner-robot-controller` Deployment and the
+      # cluster prefix in the Robot panel server name
+      # (`tuist-bm-staging-…`).
+      - name: bareMetalCluster
+        value: staging
     workers:
       machineDeployments:
         # General-purpose pool: Phoenix server, system DaemonSets.

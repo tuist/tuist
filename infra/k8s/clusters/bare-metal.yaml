@@ -1,12 +1,20 @@
-# Bare-metal substrate for the staging workload cluster.
+# Shared bare-metal substrate for every workload cluster
+# (staging / canary / production). Each cluster's topology sets
+# `bareMetalCluster: <env>` on the ClusterClass variable; the
+# `HetznerBareMetalMachineTemplateClusterSelector` patch in
+# `clusterclass-tuist.yaml` injects that into the rendered HBMM
+# template's `hostSelector.matchLabels."tuist.dev/cluster"`, so a
+# per-cluster MachineDeployment only claims HBMs that
+# `hetzner-robot-controller` has stamped for its own env.
 #
 # Owns one thing here: the `HetznerBareMetalMachineTemplate` that
 # the `bare-metal-worker` MachineDeployment class (see
 # `clusterclass-tuist.yaml`) claims through. Per-host
 # `HetznerBareMetalHost` CRs are NOT in this file — they're managed
 # by `hetzner-robot-controller`, which reflects Robot's inventory
-# (servers named `tuist-bm-*`) into the cluster and auto-fills disk
-# WWNs once caph populates `hardwareDetails`. See
+# (servers named `tuist-bm-<cluster>-*` or the caph-rewritten
+# `tuist-<cluster>-…`) into the cluster and auto-fills disk WWNs
+# once caph populates `hardwareDetails`. See
 # `infra/hetzner-robot-controller/AGENTS.md`.
 #
 # Prerequisite Secrets (created manually on the mgmt cluster — see
@@ -253,21 +261,22 @@ spec:
           [plugins.'io.containerd.cri.v1.runtime'.containerd.runtimes.kata-qemu.options]
           ConfigPath = "/opt/kata/share/defaults/kata-containers/configuration-qemu.toml"
           KATAQEMU
-      # Only claim hosts the hetzner-robot-controller created. The
-      # controller stamps both labels on every CR it owns:
-      # Two-label gate:
+      # Two-label gate, both required for caph to claim an HBM:
       #   - `app.kubernetes.io/managed-by=hetzner-robot-controller`
-      #     scopes to CRs the controller owns (vs. anything a human
-      #     might hand-author).
-      #   - `tuist.dev/cluster=staging` is what keeps this env from
-      #     claiming canary / production HBMs out of the shared
-      #     Robot account. The label is stamped by the controller's
-      #     server-name parser (see `--clusters` on the
-      #     `hetzner-robot-controller` Deployment).
+      #     scopes to CRs the controller owns (vs. anything a
+      #     human might hand-author). Stamped at HBM creation.
+      #   - `tuist.dev/cluster=<env>` keeps each cluster from
+      #     claiming another cluster's HBMs out of the shared
+      #     Robot account. The Cluster topology sets
+      #     `bareMetalCluster: <env>`; the ClusterClass patch
+      #     `HetznerBareMetalMachineTemplateClusterSelector`
+      #     injects it into the rendered per-Cluster HBMM
+      #     template here. The default value (just managed-by)
+      #     intentionally claims nothing — the patch is what
+      #     activates this template for a given cluster.
       hostSelector:
         matchLabels:
           app.kubernetes.io/managed-by: hetzner-robot-controller
-          tuist.dev/cluster: staging
       sshSpec:
         # The same SSH key the operator pastes into the Robot order
         # form when provisioning, so caph can SSH into rescue mode
