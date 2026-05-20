@@ -154,6 +154,13 @@ xcresultProcessor:
 macosFleet:
   enabled: true
   replicas: 1
+  # Temporary branch-deploy override: pin the CAPI provider image to
+  # the SHA-tagged build of claude/gallant-mestorf-f3ab92 so the
+  # SSH-key ProjectID scoping fix lands in staging ahead of the PR
+  # merging to main. Reverted on merge — the `0.4.1` semver pin in
+  # values-managed-common.yaml is owned by release.yml's auto-bump.
+  image:
+    tag: "b4b22760"
   # Share the pre-ordered pool with runnersFleet (same prefix
   # below). Both MachineDeployments draw from one Scaleway-side
   # pool of `tuist-pool-*` hosts; the controller claims the first
