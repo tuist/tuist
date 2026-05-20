@@ -33,10 +33,10 @@
     # Elixir recommends half of the number of cores
     # (https://elixir-lang.org/blog/2025/10/16/elixir-v1-19-0-released/),
     # but our CI runners are 1 vCPU / 4 GB microVMs where four
-    # partitioned BEAM workers OOM during `mix deps.compile`. Two
-    # partitions still fit the Pod and roughly halve the compile
-    # wall-clock vs serial.
-    MIX_OS_DEPS_COMPILE_PARTITION_COUNT=2
+    # partitioned BEAM workers OOM during `mix deps.compile`. Three
+    # partitions is the current sweet spot found empirically — fits
+    # the Pod and gets close to the 4-way wall-clock without OOMs.
+    MIX_OS_DEPS_COMPILE_PARTITION_COUNT=3
     TUIST_INSPECT_TEST_MODE = "remote"
     TUIST_FEATURE_FLAG_KURA = "1"
     TUIST_HOSTED = "1"
