@@ -146,6 +146,7 @@ jobs:
             if [ "$name" = "tuist (production)" ]; then
               args+=("--set" "kuraController.image.tag=validation")
               args+=("--set" "kuraRuntime.image.tag=validation")
+              args+=("--set" "nooraStorybook.image.tag=validation")
             fi
             if ! helm template "$release" "$chart" "${args[@]}" > rendered.yaml; then
               failed+=("$name (template)")

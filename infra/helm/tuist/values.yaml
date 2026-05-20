@@ -261,6 +261,65 @@ server:
     # topologies that prefer a post-install Job instead.
     asHook: false
 
+nooraStorybook:
+  enabled: false
+  replicaCount: 1
+  image:
+    repository: ghcr.io/tuist/noora-storybook
+    tag: ""
+    pullPolicy: IfNotPresent
+  secretKeyBase: ""
+  # Optional explicit PHX_HOST override. When unset, the Deployment falls
+  # back to ingress.host.
+  host: ""
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 8080
+  ingress:
+    enabled: false
+    className: ""
+    host: ""
+    tlsSecretName: ""
+    annotations: {}
+  resources: {}
+  extraEnv: []
+  extraEnvFrom: []
+  podAnnotations: {}
+  podLabels: {}
+  affinity: {}
+  nodeSelector: {}
+  tolerations: []
+  terminationGracePeriodSeconds: 30
+  probes:
+    readiness:
+      path: /
+      initialDelaySeconds: 5
+      periodSeconds: 10
+      timeoutSeconds: 3
+      failureThreshold: 3
+    liveness:
+      path: /
+      initialDelaySeconds: 30
+      periodSeconds: 20
+      timeoutSeconds: 3
+      failureThreshold: 3
+    startup:
+      path: /
+      initialDelaySeconds: 0
+      periodSeconds: 5
+      timeoutSeconds: 3
+      failureThreshold: 60
+
+slackRedirect:
+  enabled: false
+  ingress:
+    enabled: false
+    className: ""
+    host: ""
+    tlsSecretName: ""
+    annotations: {}
+
 processor:
   # Oban-backed xcactivitylog processor. Runs the same Docker image as the
   # server with TUIST_MODE=processor, which (a) disables the Phoenix

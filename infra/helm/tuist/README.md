@@ -1,6 +1,6 @@
 # Tuist Helm Chart
 
-This chart deploys the Tuist server, cache service, and processor, with support for either embedded or external infrastructure dependencies.
+This chart deploys the Tuist server, cache service, processor, and optional public web workloads, with support for either embedded or external infrastructure dependencies.
 
 ## Infrastructure dependencies
 

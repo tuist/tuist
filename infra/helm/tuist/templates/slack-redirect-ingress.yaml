@@ -1,0 +1,35 @@
+{{- if and .Values.slackRedirect.enabled .Values.slackRedirect.ingress.enabled .Values.server.enabled }}
+{{- $host := required "slackRedirect.ingress.host is required when slackRedirect.ingress.enabled is true" .Values.slackRedirect.ingress.host -}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "slack-redirect") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: slack-redirect
+  {{- with .Values.slackRedirect.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.slackRedirect.ingress.className }}
+  ingressClassName: {{ . | quote }}
+  {{- end }}
+  {{- if .Values.slackRedirect.ingress.tlsSecretName }}
+  tls:
+    - hosts:
+        - {{ $host | quote }}
+      secretName: {{ .Values.slackRedirect.ingress.tlsSecretName | quote }}
+  {{- end }}
+  rules:
+    - host: {{ $host | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "tuist.componentName" (dict "root" . "component" "server") }}
+                port:
+                  number: {{ .Values.server.service.port }}
+{{- end }}

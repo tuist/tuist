@@ -5,7 +5,7 @@ Deployment assets for the Tuist stack — both the managed cluster we operate an
 ## Layout
 
 ### `helm/tuist/` — main Tuist Helm chart
-Umbrella chart for the server, cache, processor, and optional embedded infrastructure (Postgres, ClickHouse, object storage, observability). Used by:
+Umbrella chart for the server, cache, processor, auxiliary public workloads, and optional embedded infrastructure (Postgres, ClickHouse, object storage, observability). Used by:
 - **Self-hosters** — `helm install tuist infra/helm/tuist` with their own `values.yaml`. `managedSecrets: false` (the default) keeps behavior self-hosted: DATABASE_URL / S3 / etc. come from values directly.
 - **Managed cluster (us)** — layered with `values-managed-common.yaml` + `values-managed-{staging,canary,production}.yaml`. `managedSecrets: true` swaps the chart to ESO-driven secret sync from 1Password, external databases, Hetzner Cloud LoadBalancer annotations, etc.
 

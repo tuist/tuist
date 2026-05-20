@@ -66,6 +66,7 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME: tuist/tuist
   KURA_CONTROLLER_IMAGE_NAME: tuist/kura-controller
+  NOORA_STORYBOOK_IMAGE_NAME: tuist/noora-storybook
 
 jobs:
   # --------------------------------------------------------------------------
@@ -117,6 +118,14 @@ jobs:
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.KURA_CONTROLLER_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
+      - uses: docker/build-push-action@v6
+        name: Build and push Noora Storybook image
+        with:
+          context: ./noora
+          file: ./noora/storybook/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.NOORA_STORYBOOK_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
   # --------------------------------------------------------------------------
   # Canary leg - deploys the pre-built image. Runs for every push (hotfix
   # or not) and for manual dispatch. On hotfix pushes it still runs as a

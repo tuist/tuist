@@ -91,6 +91,7 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME: tuist/tuist
   KURA_CONTROLLER_IMAGE_NAME: tuist/kura-controller
+  NOORA_STORYBOOK_IMAGE_NAME: tuist/noora-storybook
   HELM_CHART_PATH: infra/helm/tuist
   HELM_RELEASE_NAME: tuist
   OBSERVABILITY_CHART_PATH: infra/helm/k8s-monitoring
@@ -101,7 +102,7 @@ env:
 
 jobs:
   build:
-    name: Build + push
+    name: Build + push deploy images
     if: inputs.image_tag == ''
     # TODO: migrate to tuist-production-linux once the runner image ships
     # a docker daemon — buildx requires a working docker engine.
@@ -143,6 +144,14 @@ jobs:
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.KURA_CONTROLLER_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
+      - uses: docker/build-push-action@v6
+        name: Build and push Noora Storybook image
+        with:
+          context: ./noora
+          file: ./noora/storybook/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.NOORA_STORYBOOK_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
   observability-install:
     # Installs / upgrades the grafana/k8s-monitoring wrapper chart ahead of
     # the server rollout so the Alloy OTLP receiver is ready before the
@@ -510,6 +519,7 @@ jobs:
             --set server.image.tag="$IMAGE_TAG" \
             --set kuraController.image.tag="$IMAGE_TAG" \
             --set kuraRuntime.image.tag="$KURA_RUNTIME_IMAGE_TAG" \
+            --set nooraStorybook.image.tag="$IMAGE_TAG" \
             --atomic --timeout 30m --wait
       - name: Diagnostics on failure
         # `--atomic` rolls back the release on timeout, so `helm history` and
