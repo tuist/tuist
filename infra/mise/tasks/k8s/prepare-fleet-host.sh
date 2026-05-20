@@ -271,10 +271,18 @@ fi
 #    preference. Re-applied every run because there's no cheap
 #    idempotency check we trust on the encoded contents, and sudo
 #    is now passwordless so the writes are free.
+#
+#    `launchctl kickstart -k system/com.apple.loginwindow` handles
+#    both "loginwindow is running, respawn it" and "loginwindow is
+#    gone, just start it" uniformly. `killall -HUP loginwindow`
+#    exits 1 with "No matching processes were found" in the latter
+#    case, which happens when an earlier reconcile attempt SIGHUP'd
+#    loginwindow and launchd's no-respawn-after-SIGHUP policy left
+#    it dead.
 printf '%s' "$KCPW_B64" | base64 -d | sudo tee /etc/kcpassword > /dev/null
 sudo chmod 600 /etc/kcpassword
 sudo defaults write /Library/Preferences/com.apple.loginwindow autoLoginUser 'm1'
-sudo killall -HUP loginwindow 2>/dev/null || true
+sudo launchctl kickstart -k system/com.apple.loginwindow 2>/dev/null || true
 printf '  ✓ kcpassword + autoLoginUser: configured\n'
 
 printf '\n  ✓ host prepped — reboot in the Scaleway console for auto-login to take effect\n'

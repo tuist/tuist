@@ -33,8 +33,6 @@ defmodule TuistWeb.API.CacheController do
 
   plug TuistWeb.API.Authorization.BillingPlug when action not in [:endpoints]
 
-  plug :sign
-
   tags(["Cache"])
 
   operation(:endpoints,
@@ -693,26 +691,6 @@ defmodule TuistWeb.API.CacheController do
       "#{String.downcase(project_slug)}/#{hash}/#{name}"
     else
       "#{String.downcase(project_slug)}/#{cache_category}/#{hash}/#{name}"
-    end
-  end
-
-  defp sign(%{query_params: %{"hash" => hash}} = conn, _opts) do
-    sign_conn(conn, hash)
-  end
-
-  defp sign(%{path_params: %{"hash" => hash}} = conn, _opts) do
-    sign_conn(conn, hash)
-  end
-
-  defp sign(conn, _opts) do
-    conn
-  end
-
-  defp sign_conn(conn, hash) do
-    if Tuist.Environment.test?() or Tuist.Environment.dev?() do
-      put_resp_header(conn, "x-tuist-signature", "tuist")
-    else
-      put_resp_header(conn, "x-tuist-signature", Tuist.License.sign(hash))
     end
   end
 end

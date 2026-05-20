@@ -11,10 +11,10 @@ defmodule Cache.Finch.Pools do
         conn_opts: [
           log: true,
           protocols: [:http2, :http1],
-          transport_opts: [
-            cacertfile: CAStore.file_path(),
-            verify: :verify_peer
-          ]
+          transport_opts:
+            [
+              verify: :verify_peer
+            ] ++ TuistCommon.FinchPools.ca_cert_opts(Cache.Config.server_ca_cert_pem())
         ],
         size: 32,
         count: 8,

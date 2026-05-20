@@ -59,13 +59,7 @@ public func initDependencies(_ action: (SessionPaths) async throws -> Void) asyn
 }
 
 public func withAdditionalMiddlewares(_ action: () async throws -> Void) async throws {
-    #if canImport(TuistCacheEE)
-        try await Client.$additionalMiddlewares.withValue([SignatureVerifierMiddleware()]) {
-            try await action()
-        }
-    #else
-        try await action()
-    #endif
+    try await action()
 }
 
 private func withInitializedManifestLoader(_ action: () async throws -> Void) async throws {
