@@ -4,7 +4,7 @@
 -- integration of Kura's extension API. Kura itself stays generic.
 -- Other adopters write their own hooks.lua against the same API.
 --
--- Three jobs, mirroring what the Tuist server does for `/api/cache/*`:
+-- Two jobs:
 --
 --   1. authenticate — first try the current cache service's JWT fast
 --      path: verify Tuist-issued Guardian JWTs locally and see whether
@@ -23,16 +23,9 @@
 --      the requested tenant to match `ctx.server_tenant_id` so one
 --      account's Kura mesh cannot serve another account's namespace.
 --
---   3. response_headers — for module-cache GETs we sign `ctx.query.hash`
---      with the same license signing key the central Tuist server
---      uses, so the CLI's existing `x-tuist-signature` verification
---      works against Kura without any client change.
---
 -- Required Kura extension config (set by the chart / rollout worker):
 --   * KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL  → https://tuist.dev (or staging)
 --   * KURA_EXTENSION_JWT_VERIFIER_TUIST_*        → Guardian verifier for Tuist JWTs
---   * KURA_EXTENSION_SIGNER_TUIST_ALGORITHM      → hmac-sha256
---   * KURA_EXTENSION_SIGNER_TUIST_SECRET         → license signing key (raw bytes, base64-encoded)
 
 local function authorization_header(headers)
   local authorization = headers.authorization or headers.Authorization
@@ -255,27 +248,4 @@ function authorize(ctx, principal)
     },
     ttl_seconds = 3,
   }
-end
-
-function response_headers(ctx, _principal)
-  -- Mirror the central server: only the module-cache GET path carries a
-  -- signature, and it signs the `hash` query parameter. Other routes
-  -- get no extra headers from this hook.
-  if ctx.method == "GET"
-    and ctx.route == "/api/cache/module/{id}"
-    and ctx.status_code ~= nil
-    and ctx.status_code < 400
-    and ctx.query
-    and ctx.query.hash ~= nil
-  then
-    return {
-      sign = {
-        header = "x-tuist-signature",
-        signer = "tuist",
-        payload = ctx.query.hash,
-      },
-    }
-  end
-
-  return {}
 end
