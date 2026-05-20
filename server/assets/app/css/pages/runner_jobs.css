@@ -72,7 +72,8 @@
 
 #runners,
 #runner-jobs,
-#runner-workflow {
+#runner-workflow,
+#runner-workflows {
   & [data-part="widgets"] {
     display: flex;
     flex-direction: row;

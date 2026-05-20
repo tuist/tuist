@@ -391,6 +391,128 @@ defmodule Tuist.Runners.Analytics do
   end
 
   @doc """
+  Total distinct workflow_runs over the window plus a daily series
+  and the trend (% change) versus the previous equivalent window. A
+  workflow_run is one full CI invocation — many jobs share the same
+  `workflow_run_id`, but the count is over distinct ids so a run with
+  twenty matrix jobs still counts once.
+  """
+  def workflow_runs_count(account_id, opts \\ []) when is_integer(account_id) do
+    {start_dt, end_dt} = window(opts)
+    {prev_start_dt, prev_end_dt} = previous_window(start_dt, end_dt)
+
+    count = workflow_runs_count_in_range(account_id, start_dt, end_dt, opts)
+    previous_count = workflow_runs_count_in_range(account_id, prev_start_dt, prev_end_dt, opts)
+
+    rows = workflow_runs_per_day(account_id, start_dt, end_dt, opts)
+    filled = fill_dates(rows, start_dt, end_dt, &Map.get(&1, :value, 0))
+
+    %{
+      count: count,
+      trend: trend(previous_count, count),
+      dates: Enum.map(filled, & &1.date),
+      values: Enum.map(filled, & &1.value)
+    }
+  end
+
+  defp workflow_runs_count_in_range(account_id, start_dt, end_dt, opts) do
+    [%{count: count} | _] =
+      Job
+      |> from(hints: ["FINAL"])
+      |> where(
+        [j],
+        j.account_id == ^account_id and j.enqueued_at >= ^start_dt and
+          j.enqueued_at <= ^end_dt and j.workflow_run_id > 0
+      )
+      |> scope_workflow(opts)
+      |> select([j], %{count: fragment("uniqExact(?)", j.workflow_run_id)})
+      |> ClickHouseRepo.all()
+      |> default_empty(%{count: 0})
+
+    count || 0
+  end
+
+  defp workflow_runs_per_day(account_id, start_dt, end_dt, opts) do
+    Job
+    |> from(hints: ["FINAL"])
+    |> where(
+      [j],
+      j.account_id == ^account_id and j.enqueued_at >= ^start_dt and j.enqueued_at <= ^end_dt and
+        j.workflow_run_id > 0
+    )
+    |> scope_workflow(opts)
+    |> group_by([j], fragment("toDate(?)", j.enqueued_at))
+    |> select([j], %{
+      date: fragment("toDate(?)", j.enqueued_at),
+      value: fragment("uniqExact(?)", j.workflow_run_id)
+    })
+    |> order_by([j], asc: fragment("toDate(?)", j.enqueued_at))
+    |> ClickHouseRepo.all()
+  end
+
+  @doc """
+  Count of workflow_runs whose roll-up landed on failure — at least
+  one job in the run completed with `conclusion='failure'`. Daily
+  series + trend match the shape of `workflow_runs_count/2` so both
+  widgets can switch the same chart pattern.
+  """
+  def failed_workflow_runs_count(account_id, opts \\ []) when is_integer(account_id) do
+    {start_dt, end_dt} = window(opts)
+    {prev_start_dt, prev_end_dt} = previous_window(start_dt, end_dt)
+
+    count = failed_workflow_runs_in_range(account_id, start_dt, end_dt, opts)
+    previous_count = failed_workflow_runs_in_range(account_id, prev_start_dt, prev_end_dt, opts)
+    rows = failed_workflow_runs_per_day(account_id, start_dt, end_dt, opts)
+    filled = fill_dates(rows, start_dt, end_dt, &Map.get(&1, :value, 0))
+
+    %{
+      count: count,
+      trend: trend(previous_count, count),
+      dates: Enum.map(filled, & &1.date),
+      values: Enum.map(filled, & &1.value)
+    }
+  end
+
+  defp failed_workflow_runs_in_range(account_id, start_dt, end_dt, opts) do
+    [%{count: count} | _] =
+      account_id
+      |> failed_workflow_runs_base_query(start_dt, end_dt, opts)
+      |> select([j], %{count: fragment("uniqExact(?)", j.workflow_run_id)})
+      |> ClickHouseRepo.all()
+      |> default_empty(%{count: 0})
+
+    count || 0
+  end
+
+  defp failed_workflow_runs_per_day(account_id, start_dt, end_dt, opts) do
+    account_id
+    |> failed_workflow_runs_base_query(start_dt, end_dt, opts)
+    |> group_by([j], fragment("toDate(?)", j.enqueued_at))
+    |> select([j], %{
+      date: fragment("toDate(?)", j.enqueued_at),
+      value: fragment("uniqExact(?)", j.workflow_run_id)
+    })
+    |> order_by([j], asc: fragment("toDate(?)", j.enqueued_at))
+    |> ClickHouseRepo.all()
+  end
+
+  # A workflow_run is "failed" when any of its jobs completed with
+  # `conclusion='failure'`. We filter rows directly rather than rolling
+  # the run up first because `uniqExact(workflow_run_id)` over the
+  # filtered rows produces the same distinct count without the extra
+  # subquery roundtrip.
+  defp failed_workflow_runs_base_query(account_id, start_dt, end_dt, opts) do
+    Job
+    |> from(hints: ["FINAL"])
+    |> where(
+      [j],
+      j.account_id == ^account_id and j.enqueued_at >= ^start_dt and j.enqueued_at <= ^end_dt and
+        j.workflow_run_id > 0 and j.status == "completed" and j.conclusion == "failure"
+    )
+    |> scope_workflow(opts)
+  end
+
+  @doc """
   Per-workflow_run duration aggregates. A workflow's duration is
   `max(completed_at) - min(started_at)` across the jobs that share a
   `workflow_run_id` — i.e. how long the whole CI run took from first

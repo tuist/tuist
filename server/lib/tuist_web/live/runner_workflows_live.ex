@@ -5,9 +5,13 @@ defmodule TuistWeb.RunnerWorkflowsLive do
 
   import Noora.Filter
   import TuistWeb.Components.EmptyCardSection
+  import TuistWeb.Components.Skeleton
+  import TuistWeb.PercentileDropdownWidget
+  import TuistWeb.Widget
 
   alias Noora.Filter
   alias Tuist.Authorization
+  alias Tuist.Runners.Analytics
   alias Tuist.Runners.Jobs
   alias Tuist.Utilities.DateFormatter
 
@@ -26,7 +30,20 @@ defmodule TuistWeb.RunnerWorkflowsLive do
        :head_title,
        "#{dgettext("dashboard_runners", "Workflows")} · #{selected_account.name} · Tuist"
      )
-     |> assign(:available_filters, available_filters())}
+     |> assign(:available_filters, available_filters())
+     |> assign(:analytics_selected_widget, "workflow_runs")
+     |> assign(:workflow_duration_percentile, "avg")
+     |> assign_async(
+       [:workflow_runs_count, :failed_workflow_runs_count, :workflows_duration],
+       fn ->
+         {:ok,
+          %{
+            workflow_runs_count: Analytics.workflow_runs_count(selected_account.id),
+            failed_workflow_runs_count: Analytics.failed_workflow_runs_count(selected_account.id),
+            workflows_duration: Analytics.workflows_duration(selected_account.id)
+          }}
+       end
+     )}
   end
 
   @impl true
@@ -40,6 +57,14 @@ defmodule TuistWeb.RunnerWorkflowsLive do
   end
 
   @impl true
+  def handle_event("select_widget", %{"widget" => widget}, socket) do
+    {:noreply, assign(socket, :analytics_selected_widget, widget)}
+  end
+
+  def handle_event("select_workflow_duration_percentile", %{"type" => type}, socket) do
+    {:noreply, assign(socket, :workflow_duration_percentile, type)}
+  end
+
   def handle_event("add_filter", %{"value" => filter_id}, socket) do
     updated_params = Filter.Operations.add_filter_to_query(filter_id, socket)
 
@@ -150,4 +175,33 @@ defmodule TuistWeb.RunnerWorkflowsLive do
   def workflow_path(account_name, _row), do: fallback_path(account_name)
 
   defp fallback_path(account_name), do: "/#{account_name}/runners/workflows"
+
+  @doc """
+  echarts `extra_options` for the workflow-level count charts on
+  the analytics card. Matches the single-series count pattern used
+  by `RunnerWorkflowLive.chart_options/1` — date-formatted x-axis,
+  plain numeric y-axis, no legend.
+  """
+  def chart_options(dates) do
+    %{
+      grid: %{width: "97%", left: "0.4%", height: "88%", top: "5%"},
+      xAxis: %{
+        boundaryGap: false,
+        type: "category",
+        axisLabel: %{
+          color: "var:noora-surface-label-secondary",
+          formatter: "fn:toLocaleDate",
+          customValues: [List.first(dates), List.last(dates)],
+          padding: [10, 0, 0, 0]
+        }
+      },
+      yAxis: %{
+        splitNumber: 4,
+        splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
+        axisLabel: %{color: "var:noora-surface-label-secondary"}
+      },
+      legend: %{show: false},
+      tooltip: %{}
+    }
+  end
 end

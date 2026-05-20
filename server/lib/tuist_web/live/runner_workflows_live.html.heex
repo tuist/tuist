@@ -1,5 +1,175 @@
 <div id="runner-workflows">
   <.card
+    title={dgettext("dashboard_runners", "Analytics")}
+    icon="chart_arcs"
+    data-part="workflows-analytics"
+  >
+    <div data-part="widgets">
+      <.widget
+        id="widget-workflows-runs"
+        title={dgettext("dashboard_runners", "Workflow runs")}
+        legend_color="primary"
+        description={
+          dgettext("dashboard_runners", "Distinct workflow runs invoked in the last 30 days.")
+        }
+        value={
+          if @workflow_runs_count.ok?, do: Integer.to_string(@workflow_runs_count.result.count)
+        }
+        loading={!@workflow_runs_count.ok?}
+        selected={@analytics_selected_widget == "workflow_runs"}
+        phx_click="select_widget"
+        phx_value_widget="workflow_runs"
+        trend_value={if @workflow_runs_count.ok?, do: @workflow_runs_count.result.trend}
+        trend_type={:neutral}
+        trend_label={dgettext("dashboard_runners", "since last month")}
+      />
+      <.widget
+        id="widget-workflows-failed-runs"
+        title={dgettext("dashboard_runners", "Failed runs")}
+        legend_color="destructive"
+        description={
+          dgettext(
+            "dashboard_runners",
+            "Workflow runs with at least one job that completed with conclusion=failure."
+          )
+        }
+        value={
+          if @failed_workflow_runs_count.ok?,
+            do: Integer.to_string(@failed_workflow_runs_count.result.count)
+        }
+        loading={!@failed_workflow_runs_count.ok?}
+        selected={@analytics_selected_widget == "failed_workflow_runs"}
+        phx_click="select_widget"
+        phx_value_widget="failed_workflow_runs"
+        trend_value={
+          if @failed_workflow_runs_count.ok?, do: @failed_workflow_runs_count.result.trend
+        }
+        trend_type={:inverse}
+        trend_label={dgettext("dashboard_runners", "since last month")}
+      />
+      <.percentile_dropdown_widget
+        id="widget-workflows-duration"
+        title={
+          case @workflow_duration_percentile do
+            "p99" -> dgettext("dashboard_runners", "p99 workflow duration")
+            "p90" -> dgettext("dashboard_runners", "p90 workflow duration")
+            "p50" -> dgettext("dashboard_runners", "p50 workflow duration")
+            _ -> dgettext("dashboard_runners", "Avg. workflow duration")
+          end
+        }
+        description={
+          dgettext(
+            "dashboard_runners",
+            "Total wall-clock time from the first job start to the last job completion in a workflow run."
+          )
+        }
+        value={
+          if @workflows_duration.ok? do
+            TuistWeb.RunnersLive.fmt_duration_ms(
+              TuistWeb.RunnersLive.percentile_value(
+                @workflows_duration.result,
+                @workflow_duration_percentile
+              )
+            )
+          end
+        }
+        metrics={
+          if @workflows_duration.ok?,
+            do: TuistWeb.RunnersLive.percentile_metrics_for(@workflows_duration.result)
+        }
+        selected_type={@workflow_duration_percentile}
+        event_name="select_workflow_duration_percentile"
+        loading={!@workflows_duration.ok?}
+        legend_color={
+          TuistWeb.RunnersLive.legend_color_for_percentile(@workflow_duration_percentile)
+        }
+        selected={@analytics_selected_widget == "workflow_duration"}
+        phx_click="select_widget"
+        phx_value_widget="workflow_duration"
+        trend_value={
+          if @workflows_duration.ok? do
+            TuistWeb.RunnersLive.percentile_trend(
+              @workflows_duration.result,
+              @workflow_duration_percentile
+            )
+          end
+        }
+        trend_type={:inverse}
+        trend_label={dgettext("dashboard_runners", "since last month")}
+      />
+    </div>
+    <.card_section data-part="analytics-card-chart-section">
+      <%= cond do %>
+        <% @analytics_selected_widget == "workflow_runs" and !@workflow_runs_count.ok? -> %>
+          <.skeleton_chart />
+        <% @analytics_selected_widget == "workflow_runs" -> %>
+          <.chart
+            id="workflows-runs-chart"
+            type="line"
+            extra_options={
+              TuistWeb.RunnerWorkflowsLive.chart_options(@workflow_runs_count.result.dates)
+            }
+            series={[
+              %{
+                color: "var:noora-chart-primary",
+                data:
+                  @workflow_runs_count.result.dates
+                  |> Enum.zip(@workflow_runs_count.result.values)
+                  |> Enum.map(&Tuple.to_list/1),
+                name: dgettext("dashboard_runners", "Runs"),
+                type: "line",
+                smooth: 0.1,
+                symbol: "none"
+              }
+            ]}
+            y_axis_min={0}
+          />
+        <% @analytics_selected_widget == "failed_workflow_runs" and !@failed_workflow_runs_count.ok? -> %>
+          <.skeleton_chart />
+        <% @analytics_selected_widget == "failed_workflow_runs" -> %>
+          <.chart
+            id="workflows-failed-runs-chart"
+            type="line"
+            extra_options={
+              TuistWeb.RunnerWorkflowsLive.chart_options(@failed_workflow_runs_count.result.dates)
+            }
+            series={[
+              %{
+                color: "var:noora-chart-destructive",
+                data:
+                  @failed_workflow_runs_count.result.dates
+                  |> Enum.zip(@failed_workflow_runs_count.result.values)
+                  |> Enum.map(&Tuple.to_list/1),
+                name: dgettext("dashboard_runners", "Failed runs"),
+                type: "line",
+                smooth: 0.1,
+                symbol: "none"
+              }
+            ]}
+            y_axis_min={0}
+          />
+        <% @analytics_selected_widget == "workflow_duration" and !@workflows_duration.ok? -> %>
+          <.skeleton_chart />
+        <% @analytics_selected_widget == "workflow_duration" -> %>
+          <.chart
+            id="workflows-duration-chart"
+            type="line"
+            extra_options={
+              TuistWeb.RunnersLive.duration_chart_options(
+                @workflows_duration.result.dates,
+                "last-30-days"
+              )
+            }
+            series={TuistWeb.RunnersLive.duration_chart_series(@workflows_duration.result)}
+            y_axis_min={0}
+          />
+        <% true -> %>
+          <.skeleton_chart />
+      <% end %>
+    </.card_section>
+  </.card>
+
+  <.card
     title={dgettext("dashboard_runners", "Workflows")}
     icon="versions"
     data-part="runner-workflows-card"
