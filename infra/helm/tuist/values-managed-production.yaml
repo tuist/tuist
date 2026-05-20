@@ -95,6 +95,14 @@ server:
   nodeSelector:
     node.cluster.x-k8s.io/pool: general
 
+kuraController:
+  cloudflareLoadBalancing:
+    enabled: true
+    zoneName: tuist.dev
+    apiTokenSecret:
+      managed: true
+      item: cloudflare-tuist-dns
+
 postgresql:
   external:
     host: db.tuist.dev  # Supabase pooler endpoint for production.

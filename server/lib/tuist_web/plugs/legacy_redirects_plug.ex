@@ -17,8 +17,7 @@ defmodule TuistWeb.Plugs.LegacyRedirectsPlug do
   @docs_locale_redirect ~r{^/docs/(?<locale>[^/]+)(?<rest>/.*)?$}
 
   @redirects %{
-    "/blog/2024/12/16/trendyol" => "/customers/trendyol",
-    "/en/contributors/translate" => "/en/contributors/languages"
+    "/blog/2024/12/16/trendyol" => "/customers/trendyol"
   }
 
   def init(opts), do: opts

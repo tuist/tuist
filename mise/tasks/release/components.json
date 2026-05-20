@@ -1,0 +1,159 @@
+{
+  "components": [
+    {
+      "name": "cli",
+      "tag_prefix": "",
+      "tag_regex": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "cliff_config": "cli/cliff.toml",
+      "initial_version": "0.0.0",
+      "include_paths": [
+        "cli/**/*",
+        ".xcode-version-releases",
+        "Package.swift",
+        "Package.resolved"
+      ]
+    },
+    {
+      "name": "app",
+      "tag_prefix": "app@",
+      "tag_regex": "^app@[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "cliff_config": "app/cliff.toml",
+      "initial_version": "0.1.0",
+      "include_paths": [
+        "app/**/*",
+        "mise/tasks/app/**/*",
+        "cli/Sources/TuistSupport/**/*",
+        "cli/Sources/TuistCore/**/*",
+        "cli/Sources/TuistServer/**/*",
+        "cli/Sources/TuistHTTP/**/*",
+        "cli/Sources/TuistAutomation/**/*",
+        "cli/Sources/TuistSimulator/**/*",
+        "cli/Sources/TuistAndroid/**/*",
+        "cli/Sources/TuistLogging/**/*",
+        "cli/Sources/XcodeGraph/**/*",
+        "cli/Sources/TuistConstants/**/*",
+        "cli/Sources/TuistEnvironment/**/*",
+        "cli/Sources/TuistConfig/**/*",
+        "cli/Sources/TuistAlert/**/*",
+        "cli/Sources/TuistThreadSafe/**/*",
+        "cli/Sources/TuistOpener/**/*",
+        "cli/Sources/TuistUniqueIDGenerator/**/*",
+        "cli/Sources/TuistNooraExtension/**/*"
+      ]
+    },
+    {
+      "name": "server",
+      "tag_prefix": "server@",
+      "tag_regex": "^server@[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "cliff_config": "server/cliff.toml",
+      "initial_version": "0.1.0",
+      "include_paths": ["server/**/*"]
+    },
+    {
+      "name": "cache",
+      "tag_prefix": "cache@",
+      "tag_regex": "^cache@[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "cliff_config": "cache/cliff.toml",
+      "initial_version": "0.1.0",
+      "include_paths": ["cache/**/*"]
+    },
+    {
+      "name": "kura",
+      "tag_prefix": "kura@",
+      "tag_regex": "^kura@[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "cliff_config": "kura/cliff.toml",
+      "initial_version": "0.1.0",
+      "include_paths": ["kura/**/*"]
+    },
+    {
+      "name": "gradle",
+      "tag_prefix": "gradle@",
+      "tag_regex": "^gradle@[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "cliff_config": "gradle/cliff.toml",
+      "initial_version": "0.1.0",
+      "include_paths": []
+    },
+    {
+      "name": "skills",
+      "tag_prefix": "skills@",
+      "tag_regex": "^skills@[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "cliff_config": "skills/cliff.toml",
+      "initial_version": "0.1.0",
+      "include_paths": ["skills/**/*"]
+    },
+    {
+      "name": "noora",
+      "tag_prefix": "noora@",
+      "tag_regex": "^noora@[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "cliff_config": "noora/cliff.toml",
+      "initial_version": "0.73.0",
+      "include_paths": ["noora/**/*"]
+    },
+    {
+      "name": "helm",
+      "tag_prefix": "helm@",
+      "tag_regex": "^helm@[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "cliff_config": "infra/helm/cliff.toml",
+      "initial_version": "0.1.0",
+      "include_paths": ["infra/helm/**/*"]
+    },
+    {
+      "name": "capi-scaleway",
+      "tag_prefix": "capi-scaleway@",
+      "tag_regex": "^capi-scaleway@[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "cliff_config": "infra/cluster-api-provider-scaleway-applesilicon/cliff.toml",
+      "initial_version": "0.1.0",
+      "include_paths": [
+        "infra/cluster-api-provider-scaleway-applesilicon/**/*",
+        "infra/macos-host-bootstrap/**/*",
+        "infra/tart-kubelet/**/*"
+      ]
+    },
+    {
+      "name": "xcresult-processor-image",
+      "tag_prefix": "xcresult-processor-image@",
+      "tag_regex": "^xcresult-processor-image@[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "cliff_config": "infra/xcresult-processor-image/cliff.toml",
+      "initial_version": "0.1.0",
+      "include_paths": [
+        "infra/xcresult-processor-image/**/*",
+        "server/lib/**/*",
+        "server/native/xcresult_nif/**/*",
+        "server/mix.exs",
+        "server/mix.lock"
+      ]
+    },
+    {
+      "name": "runner-image",
+      "tag_prefix": "runner-image@",
+      "tag_regex": "^runner-image@[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "cliff_config": "infra/runner-image/cliff.toml",
+      "initial_version": "0.1.0",
+      "include_paths": ["infra/runner-image/**/*"]
+    },
+    {
+      "name": "linux-runner-image",
+      "tag_prefix": "linux-runner-image@",
+      "tag_regex": "^linux-runner-image@[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "cliff_config": "infra/linux-runner-image/cliff.toml",
+      "initial_version": "0.1.0",
+      "include_paths": ["infra/linux-runner-image/**/*"]
+    },
+    {
+      "name": "runners-controller",
+      "tag_prefix": "runners-controller@",
+      "tag_regex": "^runners-controller@[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "cliff_config": "infra/runners-controller/cliff.toml",
+      "initial_version": "0.1.0",
+      "include_paths": ["infra/runners-controller/**/*"]
+    },
+    {
+      "name": "hetzner-robot-controller",
+      "tag_prefix": "hetzner-robot-controller@",
+      "tag_regex": "^hetzner-robot-controller@[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "cliff_config": "infra/hetzner-robot-controller/cliff.toml",
+      "initial_version": "0.1.0",
+      "include_paths": ["infra/hetzner-robot-controller/**/*"]
+    }
+  ]
+}

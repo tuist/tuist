@@ -1861,7 +1861,7 @@
         "targets": [
           {
             "datasource": "$logs_datasource",
-            "expr": "{namespace=\"kura\", container=\"kura\", app_kubernetes_io_instance=~\"${instance:regex}\"} | json",
+            "expr": "{cluster=~\"${cluster:regex}\", namespace=\"kura\", container=\"kura\", pod=~\"${pod:regex}\"} | json",
             "refId": "A"
           }
         ],
@@ -2283,6 +2283,30 @@
           "name": "region",
           "query": {
             "query": "label_values(kura_node_info{cluster=~\"${cluster:regex}\", tenant_id=~\"${tenant:regex}\"}, region)",
+            "refId": "PrometheusVariableQueryEditor-VariableQuery"
+          },
+          "refresh": 1,
+          "regex": "",
+          "sort": 1,
+          "type": "query"
+        },
+        {
+          "allValue": ".*",
+          "current": {
+            "selected": true,
+            "text": "All",
+            "value": "$__all"
+          },
+          "datasource": "$logs_datasource",
+          "definition": "label_values({cluster=~\"${cluster:regex}\", namespace=\"kura\", container=\"kura\"}, pod)",
+          "hide": 0,
+          "includeAll": true,
+          "label": "Pod",
+          "multi": true,
+          "name": "pod",
+          "query": {
+            "qryType": 1,
+            "query": "label_values({cluster=~\"${cluster:regex}\", namespace=\"kura\", container=\"kura\"}, pod)",
             "refId": "PrometheusVariableQueryEditor-VariableQuery"
           },
           "refresh": 1,
