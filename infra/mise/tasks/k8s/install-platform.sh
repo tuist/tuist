@@ -172,9 +172,20 @@ dump_diagnostics() {
 }
 trap dump_diagnostics EXIT
 
-KUBECONFIG="$WL_KUBECONFIG" helm upgrade --install platform "$CHART_PATH" \
-  --namespace platform \
-  "${HELM_VALUES_ARGS[@]}" \
-  "${HELM_SET_ARGS[@]}" \
-  "${HELM_EXTRA_ARGS[@]}" \
-  --wait --timeout "$HELM_TIMEOUT"
+HELM_CMD=(
+  helm upgrade --install platform "$CHART_PATH"
+  --namespace platform
+  "${HELM_VALUES_ARGS[@]}"
+  "${HELM_SET_ARGS[@]}"
+)
+
+if [ "${#HELM_EXTRA_ARGS[@]}" -gt 0 ]; then
+  HELM_CMD+=("${HELM_EXTRA_ARGS[@]}")
+fi
+
+HELM_CMD+=(
+  --wait
+  --timeout "$HELM_TIMEOUT"
+)
+
+KUBECONFIG="$WL_KUBECONFIG" "${HELM_CMD[@]}"
