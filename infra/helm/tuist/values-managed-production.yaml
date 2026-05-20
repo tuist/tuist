@@ -102,16 +102,6 @@ kuraController:
     apiTokenSecret:
       managed: true
       item: cloudflare-tuist-dns
-slackRedirect:
-  enabled: true
-  ingress:
-    enabled: true
-    className: nginx
-    host: slack.tuist.dev
-    tlsSecretName: slack-tuist-dev-tls
-    annotations:
-      cert-manager.io/cluster-issuer: letsencrypt-cloudflare
-
 postgresql:
   external:
     host: db.tuist.dev  # Supabase pooler endpoint for production.

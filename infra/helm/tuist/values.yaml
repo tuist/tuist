@@ -261,15 +261,6 @@ server:
     # topologies that prefer a post-install Job instead.
     asHook: false
 
-slackRedirect:
-  enabled: false
-  ingress:
-    enabled: false
-    className: ""
-    host: ""
-    tlsSecretName: ""
-    annotations: {}
-
 processor:
   # Oban-backed xcactivitylog processor. Runs the same Docker image as the
   # server with TUIST_MODE=processor, which (a) disables the Phoenix
