@@ -832,6 +832,21 @@ runnersFleetLinux:
     #   pod:
     #     cpuMilli: 4000
     #     memoryMB: 16384
+    #   # When set, routes Pods through the named RuntimeClass instead
+    #   # of the cluster default. `kata-qemu` is the chart-provided
+    #   # RuntimeClass that wraps each Pod in a Kata Containers + QEMU
+    #   # microVM (per-tenant kernel). Empty falls back to runc.
+    #   runtimeClass: kata-qemu
+    #   # Opt-in docker-in-runner. `enabled: true` makes the controller
+    #   # stamp `securityContext.privileged: true` on the runner
+    #   # container and inject `TUIST_RUNNER_DOCKER_ENABLED=1` so the
+    #   # image starts dockerd before exec'ing the actions/runner.
+    #   # Workflows can then use `services:`, `docker build`, and
+    #   # buildx natively. Only safe in combination with
+    #   # `runtimeClass: kata-qemu` — privileged on plain runc shares
+    #   # the host kernel.
+    #   docker:
+    #     enabled: false
     #   autoscaling:
     #     enabled: true
     #     minWarmPoolFloor: 3

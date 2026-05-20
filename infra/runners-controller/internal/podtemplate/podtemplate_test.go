@@ -114,3 +114,78 @@ func TestBuild_RuntimeClassNameNilWhenUnset(t *testing.T) {
 		t.Errorf("RuntimeClassName = %v, want nil for default runtime", *pod.Spec.RuntimeClassName)
 	}
 }
+
+func TestBuild_DockerEnabledStampsPrivilegedAndEnv(t *testing.T) {
+	// docker-in-runner pools must produce a container with
+	// `privileged: true` + `TUIST_RUNNER_DOCKER_ENABLED=1` so the
+	// image's dispatch-poll.sh launches dockerd. The privileged
+	// flag is only safe when paired with `runtimeClass: kata-qemu`
+	// on this fleet; the controller doesn't enforce that pairing
+	// because the chart is the single source of truth — this test
+	// just covers the wire shape.
+	pool := basePool("linux")
+	pool.Spec.RuntimeClass = "kata-qemu"
+	pool.Spec.Docker = &tuistv1.RunnerPoolDocker{Enabled: true}
+	pod := Build(pool, "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch")
+
+	c := pod.Spec.Containers[0]
+	if c.SecurityContext == nil || c.SecurityContext.Privileged == nil || !*c.SecurityContext.Privileged {
+		t.Fatalf("SecurityContext = %+v, want privileged=true", c.SecurityContext)
+	}
+
+	var sawFlag, sawHost bool
+	for _, env := range c.Env {
+		if env.Name == "TUIST_RUNNER_DOCKER_ENABLED" && env.Value == "1" {
+			sawFlag = true
+		}
+		if env.Name == "DOCKER_HOST" && env.Value == "unix:///var/run/docker.sock" {
+			sawHost = true
+		}
+	}
+	if !sawFlag {
+		t.Errorf("env missing TUIST_RUNNER_DOCKER_ENABLED=1; got %+v", c.Env)
+	}
+	if !sawHost {
+		t.Errorf("env missing DOCKER_HOST=unix:///var/run/docker.sock; got %+v", c.Env)
+	}
+}
+
+func TestBuild_DockerDisabledLeavesContainerUnprivileged(t *testing.T) {
+	// Default (no `docker` block) must not stamp privileged or the
+	// docker env vars. Same image, env-gated behavior — the daemon
+	// stays dormant in the container.
+	pool := basePool("linux")
+	pool.Spec.RuntimeClass = "kata-qemu"
+	pod := Build(pool, "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch")
+
+	c := pod.Spec.Containers[0]
+	if c.SecurityContext != nil && c.SecurityContext.Privileged != nil && *c.SecurityContext.Privileged {
+		t.Errorf("SecurityContext = %+v, want no privileged flag", c.SecurityContext)
+	}
+	for _, env := range c.Env {
+		if env.Name == "TUIST_RUNNER_DOCKER_ENABLED" || env.Name == "DOCKER_HOST" {
+			t.Errorf("env should not carry %s without docker.enabled; got value %q", env.Name, env.Value)
+		}
+	}
+}
+
+func TestBuild_DockerExplicitlyDisabled(t *testing.T) {
+	// A non-nil Docker block with Enabled=false must behave like
+	// the unset case — no privileged, no env. Protects against the
+	// chart rendering `docker: {enabled: false}` and the controller
+	// mistakenly treating "block present" as opt-in.
+	pool := basePool("linux")
+	pool.Spec.RuntimeClass = "kata-qemu"
+	pool.Spec.Docker = &tuistv1.RunnerPoolDocker{Enabled: false}
+	pod := Build(pool, "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch")
+
+	c := pod.Spec.Containers[0]
+	if c.SecurityContext != nil && c.SecurityContext.Privileged != nil && *c.SecurityContext.Privileged {
+		t.Errorf("SecurityContext = %+v, want no privileged flag when docker.enabled=false", c.SecurityContext)
+	}
+	for _, env := range c.Env {
+		if env.Name == "TUIST_RUNNER_DOCKER_ENABLED" || env.Name == "DOCKER_HOST" {
+			t.Errorf("env should not carry %s when docker.enabled=false; got value %q", env.Name, env.Value)
+		}
+	}
+}

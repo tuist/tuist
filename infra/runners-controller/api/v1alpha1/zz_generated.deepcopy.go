@@ -77,10 +77,18 @@ func (in *RunnerPoolSpec) DeepCopyInto(out *RunnerPoolSpec) {
 		out.RunnerLabels = make([]string, len(in.RunnerLabels))
 		copy(out.RunnerLabels, in.RunnerLabels)
 	}
+	if in.Docker != nil {
+		out.Docker = new(RunnerPoolDocker)
+		in.Docker.DeepCopyInto(out.Docker)
+	}
 	if in.Autoscaling != nil {
 		out.Autoscaling = new(RunnerPoolAutoscaling)
 		in.Autoscaling.DeepCopyInto(out.Autoscaling)
 	}
+}
+
+func (in *RunnerPoolDocker) DeepCopyInto(out *RunnerPoolDocker) {
+	*out = *in
 }
 
 func (in *RunnerPoolAutoscaling) DeepCopyInto(out *RunnerPoolAutoscaling) {

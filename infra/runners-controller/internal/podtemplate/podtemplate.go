@@ -51,6 +51,7 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 	// dispatch-audience token at a fixed path the dispatch-poll
 	// script reads.
 	linuxPod := pool.Spec.OS == "linux"
+	dockerEnabled := pool.Spec.Docker != nil && pool.Spec.Docker.Enabled
 	var extraVolumes []corev1.Volume
 	var extraVolumeMounts []corev1.VolumeMount
 	automount := true
@@ -75,6 +76,47 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 			MountPath: "/var/run/secrets/tuist-runner",
 			ReadOnly:  true,
 		}}
+	}
+
+	env := []corev1.EnvVar{
+		{Name: "TUIST_RUNNER_DISPATCH_URL", Value: effectiveDispatchURL},
+		{Name: "TUIST_RUNNER_POOL", Value: pool.Name},
+		{
+			Name: "TUIST_RUNNER_POD_NAME",
+			ValueFrom: &corev1.EnvVarSource{
+				FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.name"},
+			},
+		},
+		{
+			// dispatch-poll.sh inside the runner VM keys cap-check +
+			// claim de-dup on the (pool, pod_uid) tuple so a Pod
+			// that's recreated under the same name gets a fresh
+			// claim slot. Without this the in-VM script bails before
+			// its first poll with `TUIST_RUNNER_POD_UID not set`
+			// (set -u), the dispatch endpoint never sees a runner
+			// check in, and the queued workflow_job stays unclaimed.
+			Name: "TUIST_RUNNER_POD_UID",
+			ValueFrom: &corev1.EnvVarSource{
+				FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.uid"},
+			},
+		},
+	}
+
+	// docker-in-runner: dispatch-poll.sh reads
+	// `TUIST_RUNNER_DOCKER_ENABLED` and launches dockerd before
+	// exec'ing the actions/runner. Same image works for both modes
+	// (dockerd starts only when the env flag is set), so the
+	// controller decides per-pool via `spec.docker.enabled`. The
+	// `privileged: true` security context is bounded by the Pod's
+	// kata-qemu microVM on Linux pools — the host kernel is not
+	// exposed.
+	var securityContext *corev1.SecurityContext
+	if dockerEnabled {
+		env = append(env,
+			corev1.EnvVar{Name: "TUIST_RUNNER_DOCKER_ENABLED", Value: "1"},
+			corev1.EnvVar{Name: "DOCKER_HOST", Value: "unix:///var/run/docker.sock"},
+		)
+		securityContext = &corev1.SecurityContext{Privileged: ptr(true)}
 	}
 
 	return &corev1.Pod{
@@ -125,33 +167,9 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 							corev1.ResourceMemory: *mem,
 						},
 					},
-					VolumeMounts: extraVolumeMounts,
-					Env: []corev1.EnvVar{
-						{Name: "TUIST_RUNNER_DISPATCH_URL", Value: effectiveDispatchURL},
-						{Name: "TUIST_RUNNER_POOL", Value: pool.Name},
-						{
-							Name: "TUIST_RUNNER_POD_NAME",
-							ValueFrom: &corev1.EnvVarSource{
-								FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.name"},
-							},
-						},
-						{
-							// dispatch-poll.sh inside the runner VM
-							// keys cap-check + claim de-dup on the
-							// (pool, pod_uid) tuple so a Pod that's
-							// recreated under the same name gets a
-							// fresh claim slot. Without this the
-							// in-VM script bails before its first
-							// poll with `TUIST_RUNNER_POD_UID not
-							// set` (set -u), the dispatch endpoint
-							// never sees a runner check in, and the
-							// queued workflow_job stays unclaimed.
-							Name: "TUIST_RUNNER_POD_UID",
-							ValueFrom: &corev1.EnvVarSource{
-								FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.uid"},
-							},
-						},
-					},
+					SecurityContext: securityContext,
+					VolumeMounts:    extraVolumeMounts,
+					Env:             env,
 				},
 			},
 		},

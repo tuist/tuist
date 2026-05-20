@@ -47,6 +47,37 @@ if [ -z "${SA_TOKEN}" ]; then
   exit 1
 fi
 
+# Optional in-Pod dockerd, gated by an env var the runners-controller
+# sets on pools with `spec.docker.enabled: true`. The same image
+# serves docker and non-docker pools — without the env flag this
+# block is a no-op and the `docker` CLI is present but the socket
+# isn't, mirroring a non-Docker runner. With the flag, we launch
+# the daemon and wait for it to accept connections before handing
+# off to actions/runner so workflow `services:` start-up doesn't
+# race the daemon.
+#
+# dockerd requires root; the runner user has passwordless sudo per
+# the image build. The container itself runs `privileged: true` on
+# docker-enabled pools, which is safe here because every such Pod
+# is wrapped in a kata-qemu microVM — privileged inside the VM
+# does not extend to the bare-metal host.
+if [ "${TUIST_RUNNER_DOCKER_ENABLED:-0}" = "1" ]; then
+  echo "$(date -u +%FT%TZ) dispatch-poll: starting in-Pod dockerd"
+  sudo dockerd > /tmp/dockerd.log 2>&1 &
+  for i in $(seq 1 30); do
+    if [ -S /var/run/docker.sock ] && docker info >/dev/null 2>&1; then
+      echo "$(date -u +%FT%TZ) dispatch-poll: dockerd ready after ${i}s"
+      break
+    fi
+    sleep 1
+  done
+  if ! docker info >/dev/null 2>&1; then
+    echo "$(date -u +%FT%TZ) dispatch-poll: dockerd failed to start within 30s; last 50 lines:"
+    sudo tail -n 50 /tmp/dockerd.log || true
+    exit 1
+  fi
+fi
+
 # 2s interval matches the macOS image — close enough to "live" for
 # customer dashboards without burning the dispatch endpoint. At
 # this rate a warm pool of N Pods generates ~N/2 QPS server-side,

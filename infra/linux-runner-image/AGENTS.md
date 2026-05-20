@@ -19,10 +19,35 @@ macOS image). Same single-shot lifecycle, much simpler substrate.
   the runner exits, PID 1 exits, the container exits, kubelet
   flips the Pod to Succeeded/Failed, the RunnerPoolReconciler
   reaps the Pod + sibling SA and boots a replacement.
+- `docker-ce`, `docker-ce-cli`, `containerd.io`,
+  `docker-buildx-plugin`, `docker-compose-plugin` from the
+  official Docker apt repo. The daemon does NOT start by default —
+  `dispatch-poll.sh` only launches it when the runners-controller
+  injects `TUIST_RUNNER_DOCKER_ENABLED=1` via the pool's
+  `spec.docker.enabled` field. The same image therefore serves
+  docker-enabled (kata-qemu) and non-docker pools.
 
 No `inject-env.sh`, no launchd plist, no VM-halt trap — kubelet
 projects env + SA token natively, container exit IS the
 substrate's terminal signal.
+
+## docker-in-runner
+
+When `dispatch-poll.sh` sees `TUIST_RUNNER_DOCKER_ENABLED=1` it
+runs `sudo dockerd` in the background (the runner user has
+passwordless sudo and is in the `docker` group) and waits up to
+30 s for the socket to accept `docker info`. On timeout it
+prints the last 50 lines of `/tmp/dockerd.log` and aborts so the
+Pod fails loudly instead of half-starting workflows that expect
+`DOCKER_HOST` to work.
+
+The controller only sets the env flag when the pool's
+`spec.docker.enabled` is true, and only Linux pools with
+`spec.runtimeClass: kata-qemu` should enable it (the runner
+container also gets `privileged: true`, which is safe inside the
+microVM but exposes the host kernel on plain runc). See
+`infra/runners-controller/AGENTS.md` for the policy + chart
+plumbing.
 
 ## Build
 

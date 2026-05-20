@@ -109,6 +109,30 @@ spec:
                     kernel, real isolation). Empty keeps the default runtime
                     (runc on containerd), which is fine for macOS pools and
                     single-tenant bare-metal Linux pools during bring-up.
+                docker:
+                  type: object
+                  description: |
+                    Optional docker-in-runner support. When `enabled: true`,
+                    the runner container gets `securityContext.privileged:
+                    true` and dockerd starts inside the container at boot, so
+                    workflows can use `services:`, `docker build`, and buildx
+                    natively. Intended for Linux pools running behind the
+                    `kata-qemu` RuntimeClass — privileged is bounded by the
+                    Pod's microVM there, not the host kernel. On a plain
+                    runc Pod the privileged container shares the host
+                    kernel, so don't enable docker on pools without
+                    `runtimeClass`.
+                  properties:
+                    enabled:
+                      type: boolean
+                      default: false
+                      description: |
+                        Toggle docker-in-runner. When true the controller
+                        sets `privileged: true` on the runner container and
+                        injects `TUIST_RUNNER_DOCKER_ENABLED=1` +
+                        `DOCKER_HOST` into the Pod env so the image's
+                        dispatch-poll launches dockerd before exec'ing the
+                        actions/runner.
                 autoscaling:
                   type: object
                   description: |
