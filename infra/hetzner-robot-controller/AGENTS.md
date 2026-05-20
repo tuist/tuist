@@ -57,10 +57,22 @@ Robot webservice (https://robot.hetzner.com/api)
 │   │    and rootDeviceHints is empty:    │   │
 │   │    patch rootDeviceHints.raid.wwn   │   │
 │   └─────────────────────────────────────┘   │
+│   ┌─────────────────────────────────────┐   │
+│   │ NodeProviderIDFillReconciler        │   │
+│   │  - watches HetznerBareMetalHost     │   │
+│   │  - filters managed-by label         │   │
+│   │  - when state=provisioned + a       │   │
+│   │    consumerRef HBMM exists:         │   │
+│   │    look up workload kubeconfig,     │   │
+│   │    patch Node.spec.providerID to    │   │
+│   │    hcloud://bm-<server-number>      │   │
+│   └─────────────────────────────────────┘   │
 └────────────────────┬─────────────────────────┘
-                     │ creates / patches
+                     │ creates / patches CRs (mgmt)
+                     │ patches Nodes (workload)
                      ▼
        HetznerBareMetalHost CRs (caph claims these)
+       + workload-cluster Nodes (providerID set)
 ```
 
 ## Module layout
@@ -78,7 +90,9 @@ infra/hetzner-robot-controller/
 │   ├── hostdiscovery.go      # InventorySyncer Runnable
 │   ├── hostdiscovery_test.go
 │   ├── wwnfill.go            # WWNFillReconciler
-│   └── wwnfill_test.go
+│   ├── wwnfill_test.go
+│   ├── nodeproviderfill.go   # NodeProviderIDFillReconciler
+│   └── nodeproviderfill_test.go
 ├── internal/robot/
 │   └── client.go             # hrobot-go SDK wrapper + FakeClient
 └── config/rbac/role.yaml     # ClusterRole the chart binds

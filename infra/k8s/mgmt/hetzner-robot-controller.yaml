@@ -46,6 +46,18 @@ rules:
   - apiGroups: ["infrastructure.cluster.x-k8s.io"]
     resources: ["hetznerbaremetalhosts/status"]
     verbs: ["get", "list", "watch"]
+  # NodeProviderIDFillReconciler reads the HBM's consumer HBMM
+  # to find the workload cluster name, then reads that cluster's
+  # kubeconfig Secret in `org-tuist` to patch the workload Node's
+  # providerID. The Node patch itself happens against the workload
+  # API server with its own credentials (loaded from the Secret),
+  # so no Node-level RBAC is needed here.
+  - apiGroups: ["infrastructure.cluster.x-k8s.io"]
+    resources: ["hetznerbaremetalmachines"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list", "watch"]
   - apiGroups: ["coordination.k8s.io"]
     resources: ["leases"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
