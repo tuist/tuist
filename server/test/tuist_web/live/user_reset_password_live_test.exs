@@ -7,6 +7,7 @@ defmodule TuistWeb.UserResetPasswordLiveTest do
   import TuistTestSupport.Fixtures.AccountsFixtures
 
   alias Tuist.Accounts
+  alias Tuist.Accounts.UserToken
 
   setup do
     user = user_fixture()
@@ -37,5 +38,36 @@ defmodule TuistWeb.UserResetPasswordLiveTest do
                to: ~p"/users/log_in"
              }
     end
+
+    test "disconnects all active sessions after resetting the password", %{conn: conn, token: token, user: user} do
+      live_socket_ids =
+        user
+        |> active_session_tokens()
+        |> Enum.map(&UserToken.live_socket_id/1)
+
+      Enum.each(live_socket_ids, &TuistWeb.Endpoint.subscribe/1)
+
+      {:ok, lv, _html} = live(conn, ~p"/users/reset_password/#{token}")
+
+      lv
+      |> form("#reset_password_form", %{
+        "user" => %{
+          "password" => "new valid password",
+          "password_confirmation" => "new valid password"
+        }
+      })
+      |> render_submit()
+
+      Enum.each(live_socket_ids, fn live_socket_id ->
+        assert_receive %Phoenix.Socket.Broadcast{event: "disconnect", topic: ^live_socket_id}
+      end)
+    end
+  end
+
+  defp active_session_tokens(user) do
+    [
+      Accounts.generate_user_session_token(user),
+      Accounts.generate_user_session_token(user)
+    ]
   end
 end
