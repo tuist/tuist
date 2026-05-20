@@ -10,6 +10,7 @@ defmodule TuistWeb.TestRunLiveTest do
   alias Tuist.Shards.Analytics, as: ShardsAnalytics
   alias Tuist.Storage
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
   alias TuistTestSupport.Fixtures.ShardsFixtures
 
@@ -101,7 +102,6 @@ defmodule TuistWeb.TestRunLiveTest do
     organization: organization,
     project: project
   } do
-    alias TuistTestSupport.Fixtures.CommandEventsFixtures
     # Given
     {:ok, test_run} =
       RunsFixtures.test_fixture(project_id: project.id)
