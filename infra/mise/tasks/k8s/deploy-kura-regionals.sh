@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#MISE description="Deploy the Kura regional platform/controller layer to the production us-east-1 and us-west-1 clusters."
+#MISE description="Deploy the Kura regional platform/controller/observability layer to the production us-east-1 and us-west-1 clusters."
 #USAGE arg "<image_tag>" help="Kura controller image tag to deploy"
 
 set -euo pipefail
@@ -13,6 +13,7 @@ IMAGE_TAG="$1"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 HELM_CHART_PATH="$REPO_ROOT/infra/helm/tuist"
 HELM_RELEASE_NAME="tuist"
+MONITORING_CHART_PATH="$REPO_ROOT/infra/helm/k8s-monitoring"
 KUBECONFIG_DIR="${RUNNER_TEMP:-${TMPDIR:-/tmp}}/kura-kubeconfigs"
 
 mkdir -p "$KUBECONFIG_DIR"
@@ -22,6 +23,8 @@ if [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
   CLOUDFLARE_API_TOKEN="$(op read "op://tuist-k8s-production/cloudflare-tuist-dns/credential")"
 fi
 export CLOUDFLARE_API_TOKEN
+
+helm dependency update "$MONITORING_CHART_PATH" >/dev/null
 
 deploy_region() {
   local region="$1"
@@ -43,6 +46,13 @@ deploy_region() {
   # records and rename LBs on every deploy.
   mise -C "$REPO_ROOT/infra" run k8s:install-platform \
     "$kubeconfig" "$cluster_name"
+
+  echo "Deploying Grafana monitoring to $region"
+  KUBECONFIG="$kubeconfig" helm upgrade --install k8s-monitoring "$MONITORING_CHART_PATH" \
+    --namespace observability --create-namespace \
+    -f "$MONITORING_CHART_PATH/values-production.yaml" \
+    --set "k8s-monitoring.cluster.name=$cluster_name" \
+    --atomic --timeout 10m --wait
 
   KUBECONFIG="$kubeconfig" kubectl apply -f "$HELM_CHART_PATH/crds/"
   KUBECONFIG="$kubeconfig" helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \

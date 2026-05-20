@@ -58,6 +58,9 @@ PUBLIC_HOST=cache.example.com
 # - Hosted: https://tuist.dev
 # - Self-hosted: https://your-tuist-server.example.com
 SERVER_URL=https://tuist.dev
+# Optional: PEM-encoded CA certificate for internal or self-signed Tuist server endpoints.
+# Also accepted as TUIST_SERVER_CA_CERT_PEM.
+# SERVER_CA_CERT_PEM=-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----
 
 # S3 Storage configuration
 S3_BUCKET=your-cache-bucket
@@ -94,6 +97,7 @@ KEY_VALUE_DATABASE_PATH=/data/key_value.sqlite
 | `SECRET_KEY_BASE` | Yes | | Secret key used to sign and encrypt data (minimum 64 characters). |
 | `PUBLIC_HOST` | Yes | | Public hostname or IP address of your cache service. Used to generate absolute URLs. |
 | `SERVER_URL` | No | `https://tuist.dev` | URL of your Tuist server for authentication. |
+| `SERVER_CA_CERT_PEM` | No | System CA bundle | PEM-encoded CA certificate for verifying HTTPS connections to `SERVER_URL`. Useful for internal Certificate Authorities or self-signed Tuist server endpoints. Also accepted as `TUIST_SERVER_CA_CERT_PEM`. |
 | `STORAGE_DIR` | Yes | | Directory where CAS artifacts are stored on disk. The provided Docker Compose setup uses `/storage`. |
 | `KEY_VALUE_DATABASE_PATH` | No | `/data/key_value.sqlite` | Path to the dedicated SQLite database used by the key-value store. |
 | `POOL_SIZE` | No | `2` | Connection pool size for the primary metadata SQLite database. |

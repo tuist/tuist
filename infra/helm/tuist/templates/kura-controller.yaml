@@ -157,6 +157,9 @@ spec:
             {{- if $tlsClusterIssuer }}
             - --grpc-cluster-issuer={{ $tlsClusterIssuer }}
             {{- end }}
+            {{- if .Values.kuraController.telemetry.otlpTracesEndpoint }}
+            - --otlp-traces-endpoint={{ .Values.kuraController.telemetry.otlpTracesEndpoint }}
+            {{- end }}
             {{- if .Values.kuraController.cloudflareLoadBalancing.enabled }}
             {{- if .Values.kuraController.cloudflareLoadBalancing.zoneName }}
             - --cloudflare-zone-name={{ .Values.kuraController.cloudflareLoadBalancing.zoneName }}
@@ -196,9 +199,9 @@ spec:
 ---
 # Shared platform secrets for every Kura runtime pod in this cluster.
 # The controller mounts this Secret via envFrom on the StatefulSet so
-# the JWT verifier secret + license signing key never have to live in
-# the KuraInstance spec (anyone with list/watch on the CR could
-# otherwise read forging material). Keys are populated either through
+# the JWT verifier secret never has to live in the KuraInstance spec
+# (anyone with list/watch on the CR could otherwise read forging
+# material). Keys are populated either through
 # Helm values (CI deploy) or by an out-of-band operator (sealed-secrets,
 # external-secrets, etc.) — leave .Values.kuraController.sharedSecrets.data
 # empty to keep operator-managed secrets unchanged on each deploy.

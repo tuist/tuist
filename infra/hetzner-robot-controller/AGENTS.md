@@ -57,10 +57,22 @@ Robot webservice (https://robot.hetzner.com/api)
 │   │    and rootDeviceHints is empty:    │   │
 │   │    patch rootDeviceHints.raid.wwn   │   │
 │   └─────────────────────────────────────┘   │
+│   ┌─────────────────────────────────────┐   │
+│   │ NodeProviderIDFillReconciler        │   │
+│   │  - watches HetznerBareMetalHost     │   │
+│   │  - filters managed-by label         │   │
+│   │  - when state=provisioned + a       │   │
+│   │    consumerRef HBMM exists:         │   │
+│   │    look up workload kubeconfig,     │   │
+│   │    patch Node.spec.providerID to    │   │
+│   │    hcloud://bm-<server-number>      │   │
+│   └─────────────────────────────────────┘   │
 └────────────────────┬─────────────────────────┘
-                     │ creates / patches
+                     │ creates / patches CRs (mgmt)
+                     │ patches Nodes (workload)
                      ▼
        HetznerBareMetalHost CRs (caph claims these)
+       + workload-cluster Nodes (providerID set)
 ```
 
 ## Module layout
@@ -78,7 +90,9 @@ infra/hetzner-robot-controller/
 │   ├── hostdiscovery.go      # InventorySyncer Runnable
 │   ├── hostdiscovery_test.go
 │   ├── wwnfill.go            # WWNFillReconciler
-│   └── wwnfill_test.go
+│   ├── wwnfill_test.go
+│   ├── nodeproviderfill.go   # NodeProviderIDFillReconciler
+│   └── nodeproviderfill_test.go
 ├── internal/robot/
 │   └── client.go             # hrobot-go SDK wrapper + FakeClient
 └── config/rbac/role.yaml     # ClusterRole the chart binds
@@ -134,17 +148,26 @@ get hetznerbaremetalhost` shows them in numerical order.
 ## Per-cluster partitioning
 
 The Robot account is shared across `staging`, `canary`, `production`,
-and any future CAPI clusters. `--clusters=staging,canary,production`
-turns on cluster gating: a Robot server is included in inventory only
-if its name parses to one of those values via either of:
+and any future CAPI clusters. The controller discovers which envs
+exist by listing CAPI `Cluster` CRs in `org-tuist` and reading each
+one's `spec.topology.variables[name=bareMetalCluster].value` — that
+value is the env's short label (`staging`, `canary`, `production`).
 
-- `tuist-bm-<cluster>-…` — operator's name in the Robot panel.
-- `tuist-<cluster>-…` — caph rewrites the name to the
-  `HetznerBareMetalMachine` name during provisioning; that's
-  `<clusterName>-<deploymentName>-…` per CAPI templating.
+A Robot server is included in inventory only if its name parses to
+one of those envs via either of:
 
-The matched cluster gets stamped on the HBM as `tuist.dev/cluster`,
-and each env's `HetznerBareMetalMachineTemplate.spec.template.spec.hostSelector`
+- `tuist-bm-<envLabel>-…` — operator's name in the Robot panel.
+- `bm-<clusterCRName>-…` — caph rewrites the Robot server name to
+  `bm-<HBMM-name>` during provisioning; HBMMs are CAPI-templated as
+  `<clusterCRName>-<deploymentName>-…`. Note `clusterCRName` is the
+  Cluster CR's `metadata.name` — which doesn't always follow the
+  `tuist-<env>` convention (production's CR is just `tuist`).
+
+Longest-prefix wins so a short Cluster name like `tuist` (production)
+can't accidentally swallow `tuist-staging`-prefixed servers.
+
+The matched env gets stamped on the HBM as `tuist.dev/cluster`, and
+each env's `HetznerBareMetalMachineTemplate.spec.template.spec.hostSelector`
 filters on it:
 
 ```yaml
@@ -155,9 +178,9 @@ hostSelector:
 ```
 
 Existing CRs that pre-date the label get back-filled on the next sync
-based on `robot.hetzner.com/server-name`. Empty `--clusters` disables
-the gate entirely (legacy single-env mode) — production should always
-set the flag.
+based on `robot.hetzner.com/server-name`. If no Cluster CR sets
+`bareMetalCluster`, the gate is off and the controller falls back to
+the legacy `--name-prefix` filter (single-env mode).
 
 ## Cascade safety on deletion
 

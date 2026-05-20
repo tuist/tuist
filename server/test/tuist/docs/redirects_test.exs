@@ -24,6 +24,11 @@ defmodule Tuist.Docs.RedirectsTest do
                {:ok, "/en/docs/guides/integrations/authentication/sso"}
     end
 
+    test "redirects the old translation guide slug to languages" do
+      assert Redirects.resolve("/en/docs/contributors/translate") ==
+               {:ok, "/en/docs/contributors/languages"}
+    end
+
     test "preserves dynamic suffixes for example redirects" do
       assert Redirects.resolve("/en/docs/guides/examples/generated-projects/app_with_airship_sdk") ==
                {:ok, "/en/docs/references/examples/generated-projects/app_with_airship_sdk"}

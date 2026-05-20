@@ -40,6 +40,23 @@ func newSyncer(t *testing.T, servers []robot.Server, existing ...*unstructured.U
 	}
 }
 
+// makeClusterCR builds a fake CAPI Cluster CR with a single
+// `bareMetalCluster` topology variable. discoverClusterEnvs reads
+// these to figure out the (clusterName, envLabel) mapping.
+func makeClusterCR(name, envLabel string) *unstructured.Unstructured {
+	cl := &unstructured.Unstructured{}
+	cl.SetGroupVersionKind(capiClusterGVK)
+	cl.SetName(name)
+	cl.SetNamespace("org-tuist")
+	_ = unstructured.SetNestedSlice(cl.Object, []interface{}{
+		map[string]interface{}{
+			"name":  "bareMetalCluster",
+			"value": envLabel,
+		},
+	}, "spec", "topology", "variables")
+	return cl
+}
+
 // makeHost builds a HetznerBareMetalHost CR with the controller's
 // managed-by label and the given server-number label, optionally
 // with a `consumerRef` to simulate caph having claimed it.
@@ -309,28 +326,37 @@ func TestSyncer_RespectsContext(t *testing.T) {
 var _ = types.NamespacedName{}
 
 func TestClusterFromServerName(t *testing.T) {
-	clusters := []string{"staging", "canary", "production", "production-us-east"}
+	// Real-world env layout including the irregular "tuist" name
+	// for production (Cluster CR named `tuist` but env label
+	// `production`). The longest-prefix rule keeps that short
+	// name from accidentally swallowing tuist-staging / tuist-canary.
+	envs := []clusterEnv{
+		{clusterName: "tuist-staging", envLabel: "staging"},
+		{clusterName: "tuist-canary", envLabel: "canary"},
+		{clusterName: "tuist", envLabel: "production"},
+	}
 	cases := []struct {
-		name     string
-		in       string
-		clusters []string
-		want     string
+		name string
+		in   string
+		envs []clusterEnv
+		want string
 	}{
-		{"operator-named staging", "tuist-bm-staging-1", clusters, "staging"},
-		{"operator-named canary", "tuist-bm-canary-3", clusters, "canary"},
-		{"caph-renamed staging", "tuist-staging-runners-linux-v5bcr-nx8h7-fgfc5", clusters, "staging"},
-		{"caph-renamed canary", "tuist-canary-runners-linux-abcde-fghij-klmno", clusters, "canary"},
-		{"multi-segment cluster wins over shorter prefix",
-			"tuist-production-us-east-runners-linux-xyz", clusters, "production-us-east"},
-		{"unknown cluster", "tuist-foo-runners-linux", clusters, ""},
-		{"non-tuist prefix", "some-other-server", clusters, ""},
-		{"empty cluster list", "tuist-bm-staging-1", nil, ""},
-		{"name happens to start with cluster but no '-' boundary",
-			"tuist-stagingoid-something", clusters, ""},
+		{"operator-named staging", "tuist-bm-staging-1", envs, "staging"},
+		{"operator-named canary", "tuist-bm-canary-3", envs, "canary"},
+		{"operator-named production", "tuist-bm-production-1", envs, "production"},
+		{"caph-renamed staging (bm- prefix)", "bm-tuist-staging-runners-linux-v5bcr-nx8h7-fgfc5", envs, "staging"},
+		{"caph-renamed canary (bm- prefix)", "bm-tuist-canary-runners-linux-abcde-fghij-klmno", envs, "canary"},
+		{"caph-renamed production (bm- prefix)", "bm-tuist-runners-linux-pvv5b-m8tb2-8mrp2", envs, "production"},
+		{"longer Cluster CR name wins over shorter prefix",
+			"bm-tuist-staging-runners-linux-xyz", envs, "staging"},
+		{"unknown env", "tuist-bm-foo-1", envs, ""},
+		{"non-tuist prefix", "some-other-server", envs, ""},
+		{"empty env list", "tuist-bm-staging-1", nil, ""},
+		{"prefix without trailing dash boundary", "tuist-stagingoid-something", envs, ""},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			got := clusterFromServerName(c.in, c.clusters)
+			got := clusterFromServerName(c.in, c.envs)
 			if got != c.want {
 				t.Errorf("clusterFromServerName(%q) = %q, want %q", c.in, got, c.want)
 			}
@@ -340,14 +366,17 @@ func TestClusterFromServerName(t *testing.T) {
 
 func TestSync_ClusterGating_SkipsUnrecognizedNames(t *testing.T) {
 	// `tuist-foo-1` matches the wide `tuist-` NamePrefix but is
-	// not in the cluster list — should be ignored entirely.
+	// not under any discovered cluster — should be ignored entirely.
+	// caph-rewritten name uses the `bm-<clusterName>-` shape.
 	syncer := newSyncer(t, []robot.Server{
 		{Number: 1, Name: "tuist-bm-staging-1"},
 		{Number: 2, Name: "tuist-foo-1"},
-		{Number: 3, Name: "tuist-canary-runners-linux-xyz"}, // caph-renamed canary
-	})
+		{Number: 3, Name: "bm-tuist-canary-runners-linux-xyz"}, // caph-renamed canary
+	},
+		makeClusterCR("tuist-staging", "staging"),
+		makeClusterCR("tuist-canary", "canary"),
+	)
 	syncer.NamePrefix = "tuist-"
-	syncer.Clusters = []string{"staging", "canary"}
 
 	if err := syncer.sync(context.Background()); err != nil {
 		t.Fatalf("sync: %v", err)
@@ -367,6 +396,37 @@ func TestSync_ClusterGating_SkipsUnrecognizedNames(t *testing.T) {
 	}
 }
 
+func TestSync_ClusterGating_HandlesIrregularProductionClusterName(t *testing.T) {
+	// Production's Cluster CR is just `tuist` (no `tuist-production`
+	// convention). caph rewrites its bare-metal Robot servers to
+	// `bm-tuist-runners-linux-...` — which the parser must
+	// correctly attribute to env=production despite the prefix
+	// also being a substring of `bm-tuist-staging-...`.
+	syncer := newSyncer(t, []robot.Server{
+		{Number: 1, Name: "tuist-bm-production-1"},                       // operator-named
+		{Number: 2, Name: "bm-tuist-runners-linux-pvv5b-m8tb2-8mrp2"},    // caph-renamed
+		{Number: 3, Name: "bm-tuist-staging-runners-linux-v5bcr-xyz"},   // unrelated staging
+	},
+		makeClusterCR("tuist", "production"),
+		makeClusterCR("tuist-staging", "staging"),
+	)
+	syncer.NamePrefix = "tuist-"
+
+	if err := syncer.sync(context.Background()); err != nil {
+		t.Fatalf("sync: %v", err)
+	}
+	hosts := listHosts(t, syncer)
+	if got := len(hosts); got != 3 {
+		t.Fatalf("hosts: got %d want 3", got)
+	}
+	want := map[string]string{"bm-1": "production", "bm-2": "production", "bm-3": "staging"}
+	for _, h := range hosts {
+		if got := h.GetLabels()[ClusterLabel]; got != want[h.GetName()] {
+			t.Errorf("%s cluster label = %q, want %q", h.GetName(), got, want[h.GetName()])
+		}
+	}
+}
+
 func TestSync_ClusterGating_BackfillsExistingHostsMissingLabel(t *testing.T) {
 	// Pre-cluster-gate HBM: has managed-by + server-name but no
 	// cluster label. The back-fill loop should add the label
@@ -377,10 +437,12 @@ func TestSync_ClusterGating_BackfillsExistingHostsMissingLabel(t *testing.T) {
 	existing.SetLabels(lbls)
 
 	syncer := newSyncer(t, []robot.Server{
-		{Number: 1, Name: "tuist-staging-runners-linux-renamed"}, // caph already renamed
-	}, existing)
+		{Number: 1, Name: "bm-tuist-staging-runners-linux-renamed"}, // caph already renamed
+	}, existing,
+		makeClusterCR("tuist-staging", "staging"),
+		makeClusterCR("tuist-canary", "canary"),
+	)
 	syncer.NamePrefix = "tuist-"
-	syncer.Clusters = []string{"staging", "canary"}
 
 	if err := syncer.sync(context.Background()); err != nil {
 		t.Fatalf("sync: %v", err)

@@ -1501,7 +1501,7 @@ defmodule Tuist.Accounts do
   ## Examples
 
       iex> reset_user_password(user, %{password: "new long password", password_confirmation: "new long password"})
-      {:ok, %User{}}
+      {:ok, %{user: %User{}, revoked_session_live_socket_ids: []}}
 
       iex> reset_user_password(user, %{password: "valid", password_confirmation: "not the same"})
       {:error, %Ecto.Changeset{}}
@@ -1509,12 +1509,20 @@ defmodule Tuist.Accounts do
   """
   def reset_user_password(user, attrs) do
     Multi.new()
+    |> Multi.all(:session_tokens, UserToken.by_user_and_contexts_query(user, ["session"]))
     |> Multi.update(:user, User.password_changeset(user, attrs))
     |> Multi.delete_all(:tokens, UserToken.by_user_and_contexts_query(user, :all))
     |> Repo.transaction()
     |> case do
-      {:ok, %{user: user}} -> {:ok, user}
-      {:error, :user, changeset, _} -> {:error, changeset}
+      {:ok, %{user: user, session_tokens: session_tokens}} ->
+        {:ok,
+         %{
+           user: user,
+           revoked_session_live_socket_ids: Enum.map(session_tokens, &UserToken.live_socket_id/1)
+         }}
+
+      {:error, :user, changeset, _} ->
+        {:error, changeset}
     end
   end
 

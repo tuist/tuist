@@ -76,9 +76,16 @@ defmodule TuistCommon.FinchPools do
     end
   end
 
-  defp ca_cert_opts(nil), do: [cacertfile: CAStore.file_path()]
+  @doc """
+  Returns TLS CA verification options for Finch/Mint transport options.
 
-  defp ca_cert_opts(pem_content) do
+  When `pem_content` is nil, the bundled CAStore bundle is used. When a PEM
+  bundle is supplied, it is decoded into DER certificates so callers can trust
+  private or internal CAs that are not in CAStore.
+  """
+  def ca_cert_opts(nil), do: [cacertfile: CAStore.file_path()]
+
+  def ca_cert_opts(pem_content) do
     der_certs =
       pem_content
       |> normalize_pem_content()

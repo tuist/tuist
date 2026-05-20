@@ -154,9 +154,10 @@ k8s-monitoring:
       metricsPath: "prometheus.io/path"
       metricsScheme: "prometheus.io/scheme"
 
-  # OTLP gRPC receiver on :4317 for the managed Tuist server's span
-  # exports. Preserves the contract the server expects today (only the
-  # Service name changes — see README for the endpoint update).
+  # OTLP receivers for the managed workloads' span exports. The Tuist
+  # server and processor push over gRPC to :4317; managed Kura pods push
+  # over OTLP HTTP to :4318/v1/traces. Keeping both enabled lets each
+  # workload use the protocol its runtime stack already prefers.
   applicationObservability:
     enabled: true
     collector: alloy-receiver
@@ -165,6 +166,9 @@ k8s-monitoring:
         grpc:
           enabled: true
           port: 4317
+        http:
+          enabled: true
+          port: 4318
 
   # ───── Telemetry services (deployed alongside the collectors) ─────
 

@@ -19,4 +19,15 @@ defmodule Cache.ConfigTest do
       assert Cache.Config.s3_ca_cert_pem(ca_cert_pem: "") == nil
     end
   end
+
+  describe "server_ca_cert_pem/1" do
+    test "returns the configured PEM bundle" do
+      assert Cache.Config.server_ca_cert_pem("pem-content") == "pem-content"
+    end
+
+    test "returns nil when unset or blank" do
+      assert Cache.Config.server_ca_cert_pem(nil) == nil
+      assert Cache.Config.server_ca_cert_pem("") == nil
+    end
+  end
 end

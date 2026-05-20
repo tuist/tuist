@@ -46,6 +46,26 @@ rules:
   - apiGroups: ["infrastructure.cluster.x-k8s.io"]
     resources: ["hetznerbaremetalhosts/status"]
     verbs: ["get", "list", "watch"]
+  # NodeProviderIDFillReconciler reads the HBM's consumer HBMM
+  # to find the workload cluster name, then reads that cluster's
+  # kubeconfig Secret in `org-tuist` to patch the workload Node's
+  # providerID. The Node patch itself happens against the workload
+  # API server with its own credentials (loaded from the Secret),
+  # so no Node-level RBAC is needed here.
+  - apiGroups: ["infrastructure.cluster.x-k8s.io"]
+    resources: ["hetznerbaremetalmachines"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list", "watch"]
+  # InventorySyncer reads CAPI Cluster CRs to discover the
+  # (clusterName, envLabel) mapping from each Cluster's
+  # `spec.topology.variables[name=bareMetalCluster]`. Source of
+  # truth for the per-env gate — replaced the static `--clusters`
+  # flag, since the controller picks up new clusters automatically.
+  - apiGroups: ["cluster.x-k8s.io"]
+    resources: ["clusters"]
+    verbs: ["get", "list", "watch"]
   - apiGroups: ["coordination.k8s.io"]
     resources: ["leases"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
@@ -115,33 +135,24 @@ spec:
           # for the first time, the bump-chart-image-pins step
           # rewrites this line to a semver tag (`0.1.0`, `0.2.0`,
           # …) and from there it's owned by the release pipeline.
-          image: ghcr.io/tuist/tuist-hetzner-robot-controller:sha-5fdd66ccc037
+          image: ghcr.io/tuist/tuist-hetzner-robot-controller:sha-c837ff316f9f
           imagePullPolicy: IfNotPresent
           args:
             - --leader-elect=true
             - --metrics-bind-address=:8080
             - --health-probe-bind-address=:8081
             - --host-namespace=org-tuist
-            # Originally `tuist-bm-` to match only operator-named
-            # bare-metal servers. caph rewrites Robot server names
-            # to the HBMM name during provisioning
-            # (e.g. `tuist-staging-runners-linux-v5bcr-…-…`); the
-            # narrow prefix then refuses to re-create an HBM after
-            # a roll, blocking re-installimage cycles. Widened to
-            # `tuist-` so both original and caph-rewritten names
-            # match. Per-cluster isolation across the shared Robot
-            # account is now enforced via `--clusters` below.
+            # Legacy fallback only: matches operator-named
+            # servers like `tuist-bm-staging-1`. When at least one
+            # Cluster CR sets `spec.topology.variables[bareMetalCluster]`,
+            # the controller discovers envs from those CRs and
+            # supersedes this prefix entirely — see the
+            # InventorySyncer doc-comment in
+            # `infra/hetzner-robot-controller/controllers/hostdiscovery.go`.
+            # New bare-metal clusters get added by setting the
+            # topology variable in their `cluster-<env>.yaml`; no
+            # change is needed here.
             - --name-prefix=tuist-
-            # Cluster gate. A Robot server is included in inventory
-            # only if its name parses to one of these (matching
-            # `tuist-bm-<cluster>-…` or the caph-rewritten
-            # `tuist-<cluster>-…`); the match is stamped on the HBM
-            # as `tuist.dev/cluster=<cluster>` so each env's HBMM
-            # `hostSelector` can scope itself. Update this list when
-            # a new cluster comes online; canary / production are
-            # listed pre-emptively so the controller picks them up
-            # the moment their cluster CRs land.
-            - --clusters=staging,canary,production
             - --poll-interval=60s
             - --robot-user-path=/etc/hetzner-robot-controller/robot-user
             - --robot-pass-path=/etc/hetzner-robot-controller/robot-pass

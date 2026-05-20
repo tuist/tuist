@@ -48,6 +48,11 @@ kuraController:
         name: onepassword
       item: cloudflare-tuist-dns
       field: credential
+  telemetry:
+    # Default OTLP traces endpoint for controller-managed Kura pods.
+    # Leave empty to disable controller-injected tracing, or override
+    # per KuraInstance through spec.extraEnv.
+    otlpTracesEndpoint: ""
   sharedSecrets:
     # Renders the kura-shared-secrets Kubernetes Secret in the
     # controller namespace. Set to false if the Secret is managed
@@ -64,8 +69,6 @@ kuraController:
     #   KURA_EXTENSION_JWT_VERIFIER_TUIST_ALGORITHM: HS512
     #   KURA_EXTENSION_JWT_VERIFIER_TUIST_ISSUER: tuist
     #   KURA_EXTENSION_JWT_VERIFIER_TUIST_SECRET: "<JWT signing secret>"
-    #   KURA_EXTENSION_SIGNER_TUIST_ALGORITHM: hmac-sha256
-    #   KURA_EXTENSION_SIGNER_TUIST_SECRET: "<license signing key>"
 
 kuraRuntime:
   image:
