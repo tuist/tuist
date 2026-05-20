@@ -40,8 +40,8 @@
 
 #runner-workflows [data-part="page-filter-bar"] {
   display: flex;
-  flex-direction: column;
-  gap: var(--noora-spacing-4);
+  flex-direction: row;
+  justify-content: flex-end;
 }
 
 #runners,

@@ -93,13 +93,10 @@ defmodule TuistWeb.RunnerWorkflowsLiveTest do
       })
 
     {:ok, _lv, html} =
-      live(
-        conn,
-        ~p"/#{account.name}/runners/workflows?#{[{"filter_repository_op", "=~"}, {"filter_repository_val", "tuist/cli"}]}"
-      )
+      live(conn, ~p"/#{account.name}/runners/workflows?repository=tuist/cli")
 
     assert html =~ "CLI"
-    refute html =~ "Server"
+    refute html =~ ~r{>\s*Server\s*<}
   end
 
   test "shows empty state when no workflows match", %{conn: conn, account: account} do

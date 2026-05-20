@@ -557,6 +557,28 @@ defmodule Tuist.Runners.Jobs do
   end
 
   @doc """
+  Lists the distinct repositories the account has dispatched jobs to
+  in the last 30 days, in alphabetical order. Powers the page-level
+  repository dropdown on the Workflows page — a curated list of
+  values is friendlier than a free-text filter, and the 30-day
+  window keeps the list short on accounts with long-tail repos.
+  """
+  def distinct_repos_for_account(account_id) when is_integer(account_id) do
+    thirty_days_ago = DateTime.add(DateTime.utc_now(), -30, :day)
+
+    Job
+    |> from(hints: ["FINAL"])
+    |> where(
+      [j],
+      j.account_id == ^account_id and j.repo != "" and j.enqueued_at >= ^thirty_days_ago
+    )
+    |> distinct(true)
+    |> order_by([j], asc: j.repo)
+    |> select([j], j.repo)
+    |> ClickHouseRepo.all()
+  end
+
+  @doc """
   Counts the distinct `(workflow_name, repo)` pairs that match the
   same filters used by `list_workflows_for_account/2`. Wraps the
   filtered group-by in a subquery so the outer `count()` returns one
