@@ -199,31 +199,6 @@ type ScalewayAppleSiliconMachineStatus struct {
 	// +optional
 	Conditions clusterv1.Conditions `json:"conditions,omitempty"`
 
-	// AdoptionReinstallCompletedAt records when the controller
-	// re-imaged a freshly-adopted pool host to refresh its SSH-key
-	// set and reset its sudo password. Fixes two Scaleway-side
-	// adoption-flow gaps in one step:
-	//
-	//   - Project SSH keys are baked into `~m1/.ssh/scw_authorized_keys`
-	//     at the host's *original* create time and never refreshed.
-	//     A fleet whose key was registered AFTER the pool host was
-	//     ordered would otherwise be SSH-locked-out forever.
-	//   - The Scaleway API only returns `sudo_password` on the
-	//     CreateServer response. Adopted hosts go through Get / Update
-	//     only, so the controller has no reliable way to learn the
-	//     host's current sudo password and triggers PAM lockouts on
-	//     retry.
-	//
-	// Reinstall (`POST /reinstall`) re-images the host with the
-	// current project SSH key set and returns a fresh
-	// `sudo_password` in its response. Triggered once per Machine,
-	// at adoption time, and only when the field is unset. After the
-	// timestamp is recorded, subsequent reconciles skip Reinstall
-	// regardless of bootstrap state — so an existing healthy host
-	// can never have its OS wiped by a controller restart.
-	// +optional
-	AdoptionReinstallCompletedAt *metav1.Time `json:"adoptionReinstallCompletedAt,omitempty"`
-
 	// TartKubeletBinarySHA is the SHA-256 of the tart-kubelet binary
 	// currently installed on the Mac mini. Drift between this and the
 	// operator's own baked-in binary SHA triggers a rolling update of

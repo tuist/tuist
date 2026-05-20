@@ -114,6 +114,71 @@ bootstrap is what makes the grants stable across re-runs.
    new MachineDeployment + ScalewayAppleSiliconMachineTemplate and
    starts claiming pool hosts.
 
+## Seeding pre-existing pool hosts for a new fleet
+
+This is only relevant when **adding a brand-new fleet to a cluster
+that already has `tuist-pool-` hosts ordered**, which is rare —
+on the order of once per product line. For day-2 scaling of an
+existing fleet, skip this section.
+
+Scaleway only bakes the project's SSH key set into a Mac mini's
+`~m1/.ssh/scw_authorized_keys` at the host's *original* create
+time, and never refreshes it. The buildersFleet's per-fleet
+Ed25519 key gets registered in the Scaleway project the first time
+the controller reconciles a buildersFleet Machine, but pool hosts
+that pre-date that registration won't have it. Adoption hangs at
+the SSH step with `BootstrapFailed: SSH not available after 5m`
+until the new fleet's pubkey is on the host.
+
+Two ways to seed it:
+
+  - **Order fresh pool hosts after the fleet is enabled** —
+    simplest. The chart's first reconcile (helm upgrade with
+    `buildersFleet.enabled: true`) registers the SSH key; any
+    `tuist-pool-*` hosts ordered *after* that point inherit it
+    automatically. No host-side work needed.
+
+  - **Plant the key onto existing pool hosts manually.** SSH into
+    each existing pool host using a key that's *already* on it (a
+    sibling fleet's key, or an operator personal key in the
+    project) and append the buildersFleet pubkey:
+
+    ```bash
+    # Pull the new pubkey from the cluster.
+    KUBECONFIG=$(op read op://tuist-k8s-<env>/.../kubeconfig) \
+      kubectl -n tuist-<env> get secret \
+      <release>-builders-fleet-ssh -o jsonpath='{.data.id_ed25519\.pub}' \
+      | base64 -d
+
+    # Append it to each pool host.
+    ssh m1@<pool-host-ip> "echo '<pubkey>' >> ~/.ssh/scw_authorized_keys && chmod 600 ~/.ssh/scw_authorized_keys"
+    ```
+
+While you're SSH'd in, also confirm the pool host has passwordless
+sudo configured for `m1`. The pre-order workflow normally sets
+this up via VNC (see the [Local Network access section](#one-time-per-host-grant-local-network-access)),
+but it's worth checking before adoption hits a PAM lockout from
+repeated wrong-password retries:
+
+```bash
+ssh m1@<pool-host-ip> "ls /etc/sudoers.d/m1-nopasswd && sudo -n true && echo OK"
+```
+
+If the sudoers file isn't there, plant it once (VNC in via the
+Scaleway console, since SSH-time sudo needs the m1 password):
+
+```bash
+sudo tee /etc/sudoers.d/m1-nopasswd <<'EOF'
+m1 ALL=(ALL) NOPASSWD: ALL
+EOF
+sudo chmod 440 /etc/sudoers.d/m1-nopasswd
+```
+
+Once the pubkey is in `scw_authorized_keys` and passwordless sudo
+is wired up, the next CAPI reconcile (within ~30s) adopts the host
+cleanly. Same caveat applies one time per new fleet; existing
+fleets keep working untouched.
+
 ## Scaling
 
 ```bash

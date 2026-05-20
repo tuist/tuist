@@ -198,10 +198,6 @@ func (f *fakeAppleSiliconAPI) WaitForServer(*applesilicon.WaitForServerRequest, 
 	return nil, errors.New("WaitForServer not implemented in fake")
 }
 
-func (f *fakeAppleSiliconAPI) ReinstallServer(*applesilicon.ReinstallServerRequest, ...scw.RequestOption) (*applesilicon.Server, error) {
-	return nil, errors.New("ReinstallServer not implemented in fake")
-}
-
 func (f *fakeAppleSiliconAPI) ListOS(*applesilicon.ListOSRequest, ...scw.RequestOption) (*applesilicon.ListOSResponse, error) {
 	return nil, errors.New("ListOS not implemented in fake")
 }

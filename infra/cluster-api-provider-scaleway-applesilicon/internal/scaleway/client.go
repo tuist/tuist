@@ -40,7 +40,6 @@ type AppleSiliconAPI interface {
 	GetServer(req *applesilicon.GetServerRequest, opts ...scw.RequestOption) (*applesilicon.Server, error)
 	ListServers(req *applesilicon.ListServersRequest, opts ...scw.RequestOption) (*applesilicon.ListServersResponse, error)
 	UpdateServer(req *applesilicon.UpdateServerRequest, opts ...scw.RequestOption) (*applesilicon.Server, error)
-	ReinstallServer(req *applesilicon.ReinstallServerRequest, opts ...scw.RequestOption) (*applesilicon.Server, error)
 	DeleteServer(req *applesilicon.DeleteServerRequest, opts ...scw.RequestOption) error
 	WaitForServer(req *applesilicon.WaitForServerRequest, opts ...scw.RequestOption) (*applesilicon.Server, error)
 	ListOS(req *applesilicon.ListOSRequest, opts ...scw.RequestOption) (*applesilicon.ListOSResponse, error)
@@ -272,57 +271,6 @@ func (c *Client) findServerByName(ctx context.Context, name, zone string) (*appl
 		}
 		page++
 	}
-}
-
-// Reinstall wipes the server and re-images it from the same OS the
-// host was created with, returning a fresh `*Server` snapshot
-// (notably with a fresh `sudo_password` field that the create-time-
-// only API path otherwise locks the controller out of for adopted
-// hosts). Blocks until Scaleway reports the server back to
-// `delivered=true` + `status=ready`.
-//
-// Two ground truths Reinstall fixes on adopted pool hosts:
-//
-//   - **SSH key reseat.** Scaleway bakes the project's current SSH
-//     key set into `~m1/.ssh/scw_authorized_keys` at first boot and
-//     never refreshes it. A fleet whose Ed25519 key is registered
-//     AFTER the pool host was ordered ends up locked out of SSH on
-//     adoption. Reinstall re-bakes with the current project keys
-//     (which include the per-fleet key Stage 0 of reconcileNormal
-//     just registered), so the controller's first SSH dial works.
-//
-//   - **Captured sudo password.** Scaleway only populates
-//     `sudo_password` on CreateServer responses. Adopted hosts go
-//     through Get/Update only, where the field comes back empty —
-//     the vnc_url fallback in scalewayServerToServer pulls a
-//     password from there but its provenance is the OS-default
-//     initial password set at original CreateServer time, which a
-//     manual operator can no longer be sure is the host's current
-//     one (macOS Tahoe auto-rotates account state during the
-//     `loginwindow autoLoginUser` write that an earlier operator's
-//     setup might have triggered). Reinstall returns a fresh, known-
-//     correct password that the controller stages into the
-//     bootstrap Secret on the next reconcile.
-//
-// Called once per Machine, gated by
-// `Status.AdoptionReinstallCompletedAt` so a second reconcile after
-// a successful bootstrap doesn't wipe the host's joined-the-cluster
-// state.
-func (c *Client) Reinstall(ctx context.Context, serverID, zone string) (*Server, error) {
-	if _, err := c.API.ReinstallServer(&applesilicon.ReinstallServerRequest{
-		ServerID: serverID,
-		Zone:     scw.Zone(zone),
-	}, scw.WithContext(ctx)); err != nil {
-		return nil, fmt.Errorf("reinstall server: %w", err)
-	}
-	final, err := c.API.WaitForServer(&applesilicon.WaitForServerRequest{
-		ServerID: serverID,
-		Zone:     scw.Zone(zone),
-	}, scw.WithContext(ctx))
-	if err != nil {
-		return nil, fmt.Errorf("wait for reinstall: %w", err)
-	}
-	return scalewayServerToServer(final), nil
 }
 
 // ErrNoAvailableHost is returned by AdoptByPrefix when no
