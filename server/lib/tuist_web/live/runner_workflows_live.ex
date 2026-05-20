@@ -15,7 +15,7 @@ defmodule TuistWeb.RunnerWorkflowsLive do
   alias Tuist.Runners.Jobs
   alias Tuist.Utilities.DateFormatter
 
-  @page_size 50
+  @page_size 25
 
   @impl true
   def mount(_params, _session, %{assigns: %{selected_account: selected_account, current_user: current_user}} = socket) do
@@ -31,28 +31,24 @@ defmodule TuistWeb.RunnerWorkflowsLive do
        "#{dgettext("dashboard_runners", "Workflows")} · #{selected_account.name} · Tuist"
      )
      |> assign(:available_filters, available_filters())
+     |> assign(:page_filters, page_filters())
+     |> assign(:card_filters, card_filters())
      |> assign(:analytics_selected_widget, "workflow_runs")
-     |> assign(:workflow_duration_percentile, "avg")
-     |> assign_async(
-       [:workflow_runs_count, :failed_workflow_runs_count, :workflows_duration],
-       fn ->
-         {:ok,
-          %{
-            workflow_runs_count: Analytics.workflow_runs_count(selected_account.id),
-            failed_workflow_runs_count: Analytics.failed_workflow_runs_count(selected_account.id),
-            workflows_duration: Analytics.workflows_duration(selected_account.id)
-          }}
-       end
-     )}
+     |> assign(:workflow_duration_percentile, "avg")}
   end
 
   @impl true
-  def handle_params(params, _uri, socket) do
+  def handle_params(params, uri, socket) do
     filters = Filter.Operations.decode_filters_from_query(params, socket.assigns.available_filters)
+    repo = find_filter_value(filters, "repository")
+    page = parse_page(params["page"])
 
     {:noreply,
      socket
+     |> assign(:uri, URI.parse(uri))
      |> assign(:active_filters, filters)
+     |> assign(:page, page)
+     |> assign_analytics(repo)
      |> assign_workflows()}
   end
 
@@ -86,15 +82,69 @@ defmodule TuistWeb.RunnerWorkflowsLive do
      |> push_event("close-popover", %{id: "all", all: true})}
   end
 
-  defp assign_workflows(%{assigns: %{selected_account: account, active_filters: filters}} = socket) do
-    opts =
-      [limit: @page_size]
+  # Re-runs all three account-level analytics queries whenever the
+  # repository scope changes. We wrap in `assign_async` so the chart
+  # area can flip to the skeleton while the new query is in flight.
+  defp assign_analytics(%{assigns: %{selected_account: account}} = socket, repo) do
+    scope_opts = if repo, do: [repo: repo], else: []
+
+    assign_async(
+      socket,
+      [:workflow_runs_count, :failed_workflow_runs_count, :workflows_duration],
+      fn ->
+        {:ok,
+         %{
+           workflow_runs_count: Analytics.workflow_runs_count(account.id, scope_opts),
+           failed_workflow_runs_count: Analytics.failed_workflow_runs_count(account.id, scope_opts),
+           workflows_duration: Analytics.workflows_duration(account.id, scope_opts)
+         }}
+      end
+    )
+  end
+
+  defp assign_workflows(%{assigns: %{selected_account: account, active_filters: filters, page: page}} = socket) do
+    base_opts =
+      []
       |> add_filter_opt(filters, "repository", :repo)
       |> add_filter_opt(filters, "workflow", :workflow_name)
       |> add_filter_opt(filters, "branch", :head_branch)
 
-    workflows = Jobs.list_workflows_for_account(account.id, opts)
-    assign(socket, :workflows, workflows)
+    total = Jobs.count_workflows_for_account(account.id, base_opts)
+    total_pages = max(1, ceil_div(total, @page_size))
+    page = min(page, total_pages)
+    offset = (page - 1) * @page_size
+
+    paged_opts =
+      base_opts
+      |> Keyword.put(:limit, @page_size)
+      |> Keyword.put(:offset, offset)
+
+    workflows = Jobs.list_workflows_for_account(account.id, paged_opts)
+
+    socket
+    |> assign(:workflows, workflows)
+    |> assign(:page, page)
+    |> assign(:total_workflows, total)
+    |> assign(:total_pages, total_pages)
+  end
+
+  defp ceil_div(0, _divisor), do: 0
+  defp ceil_div(numerator, divisor), do: div(numerator + divisor - 1, divisor)
+
+  defp parse_page(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {n, ""} when n > 0 -> n
+      _ -> 1
+    end
+  end
+
+  defp parse_page(_), do: 1
+
+  defp find_filter_value(filters, id) do
+    case Enum.find(filters, &(&1.id == id)) do
+      %{value: value} when is_binary(value) and value != "" -> value
+      _ -> nil
+    end
   end
 
   defp add_filter_opt(opts, filters, filter_id, opt_key) do
@@ -104,7 +154,11 @@ defmodule TuistWeb.RunnerWorkflowsLive do
     end
   end
 
-  defp available_filters do
+  # Repository scope lives at the page level — it gates both the
+  # analytics widgets AND the workflows table, so collapsing it into
+  # a single chip on the top filter bar avoids the awkward "two
+  # filter rows do almost the same thing" arrangement.
+  defp page_filters do
     [
       %Filter.Filter{
         id: "repository",
@@ -113,7 +167,16 @@ defmodule TuistWeb.RunnerWorkflowsLive do
         type: :text,
         operator: :=~,
         value: ""
-      },
+      }
+    ]
+  end
+
+  # Workflow name and branch only narrow the table — analytics
+  # already operate at the workflow-run granularity, so keeping them
+  # inside the card avoids surprising the viewer when the widgets
+  # don't react to a workflow-name search.
+  defp card_filters do
+    [
       %Filter.Filter{
         id: "workflow",
         field: :workflow_name,
@@ -132,6 +195,8 @@ defmodule TuistWeb.RunnerWorkflowsLive do
       }
     ]
   end
+
+  defp available_filters, do: page_filters() ++ card_filters()
 
   def success_rate(%{success_count: success, total_jobs: total}) when total > 0 do
     rate = success / total * 100
@@ -203,5 +268,19 @@ defmodule TuistWeb.RunnerWorkflowsLive do
       legend: %{show: false},
       tooltip: %{}
     }
+  end
+
+  @doc """
+  Returns the query string for a given workflows-table page number,
+  preserving the current filter state pulled from `uri`.
+  """
+  def page_link(uri, page) do
+    query =
+      (uri.query || "")
+      |> URI.decode_query()
+      |> Map.put("page", Integer.to_string(page))
+      |> URI.encode_query()
+
+    "?" <> query
   end
 end

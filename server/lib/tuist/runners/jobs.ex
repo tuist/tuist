@@ -521,6 +521,7 @@ defmodule Tuist.Runners.Jobs do
   """
   def list_workflows_for_account(account_id, opts \\ []) when is_integer(account_id) and is_list(opts) do
     limit = Keyword.get(opts, :limit, 50)
+    offset = Keyword.get(opts, :offset, 0)
 
     Job
     |> from(hints: ["FINAL"])
@@ -551,7 +552,30 @@ defmodule Tuist.Runners.Jobs do
     })
     |> order_by([j], desc: max(j.enqueued_at))
     |> limit(^limit)
+    |> offset(^offset)
     |> ClickHouseRepo.all()
+  end
+
+  @doc """
+  Counts the distinct `(workflow_name, repo)` pairs that match the
+  same filters used by `list_workflows_for_account/2`. Wraps the
+  filtered group-by in a subquery so the outer `count()` returns one
+  row per workflow pair without re-aggregating.
+  """
+  def count_workflows_for_account(account_id, opts \\ []) when is_integer(account_id) and is_list(opts) do
+    inner =
+      Job
+      |> from(hints: ["FINAL"])
+      |> where([j], j.account_id == ^account_id)
+      |> maybe_filter_like(:repo, Keyword.get(opts, :repo))
+      |> maybe_filter_like(:workflow_name, Keyword.get(opts, :workflow_name))
+      |> maybe_filter_like(:head_branch, Keyword.get(opts, :head_branch))
+      |> group_by([j], [j.workflow_name, j.repo])
+      |> select([j], %{workflow_name: j.workflow_name, repo: j.repo})
+
+    from(s in subquery(inner), select: count())
+    |> ClickHouseRepo.one()
+    |> Kernel.||(0)
   end
 
   @doc """

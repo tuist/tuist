@@ -1,4 +1,25 @@
 <div id="runner-workflows">
+  <div data-part="page-filter-bar">
+    <div data-part="filters">
+      <.filter_dropdown
+        id="page-filter-dropdown"
+        label={dgettext("dashboard_runners", "Filter")}
+        available_filters={@page_filters}
+        active_filters={@active_filters}
+      />
+    </div>
+    <div
+      :if={Enum.any?(@active_filters, &(&1.id == "repository"))}
+      data-part="active-filters"
+    >
+      <.active_filter
+        :for={filter <- @active_filters}
+        :if={filter.id == "repository"}
+        filter={filter}
+      />
+    </div>
+  </div>
+
   <.card
     title={dgettext("dashboard_runners", "Analytics")}
     icon="chart_arcs"
@@ -177,14 +198,21 @@
     <.card_section data-part="runner-workflows-card-section">
       <div data-part="filters">
         <.filter_dropdown
-          id="filter-dropdown"
+          id="card-filter-dropdown"
           label={dgettext("dashboard_runners", "Filter")}
-          available_filters={@available_filters}
+          available_filters={@card_filters}
           active_filters={@active_filters}
         />
       </div>
-      <div :if={Enum.any?(@active_filters)} data-part="active-filters">
-        <.active_filter :for={filter <- @active_filters} filter={filter} />
+      <div
+        :if={Enum.any?(@active_filters, &(&1.id != "repository"))}
+        data-part="active-filters"
+      >
+        <.active_filter
+          :for={filter <- @active_filters}
+          :if={filter.id != "repository"}
+          filter={filter}
+        />
       </div>
       <div :if={not Enum.empty?(@workflows)} data-part="runner-workflows-table">
         <.table
@@ -227,6 +255,30 @@
             <.text_cell sublabel={TuistWeb.RunnerWorkflowsLive.from_now_or_dash(w.last_run_at)} />
           </:col>
         </.table>
+        <div :if={@total_pages > 1} data-part="pagination">
+          <.button
+            variant="secondary"
+            label={dgettext("dashboard_runners", "Prev")}
+            disabled={@page <= 1}
+            patch={TuistWeb.RunnerWorkflowsLive.page_link(@uri, max(1, @page - 1))}
+          >
+            <:icon_left><.chevron_left /></:icon_left>
+          </.button>
+          <span data-part="page-label">
+            {dgettext("dashboard_runners", "Page %{page} of %{total}",
+              page: @page,
+              total: @total_pages
+            )}
+          </span>
+          <.button
+            variant="secondary"
+            label={dgettext("dashboard_runners", "Next")}
+            disabled={@page >= @total_pages}
+            patch={TuistWeb.RunnerWorkflowsLive.page_link(@uri, min(@total_pages, @page + 1))}
+          >
+            <:icon_right><.chevron_right /></:icon_right>
+          </.button>
+        </div>
       </div>
       <div :if={Enum.empty?(@workflows)} data-part="empty-runner-workflows">
         <.empty_card_section

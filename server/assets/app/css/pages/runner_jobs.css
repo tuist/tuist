@@ -23,7 +23,8 @@
   }
 }
 
-#runner-jobs [data-part="pagination"] {
+#runner-jobs [data-part="pagination"],
+#runner-workflows [data-part="pagination"] {
   display: flex;
   flex-direction: row;
   justify-content: center;
@@ -35,6 +36,12 @@
     color: var(--noora-surface-label-secondary);
     font: var(--noora-font-weight-regular) var(--noora-font-body-small);
   }
+}
+
+#runner-workflows [data-part="page-filter-bar"] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-4);
 }
 
 #runners,
