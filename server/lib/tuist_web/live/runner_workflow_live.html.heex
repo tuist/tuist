@@ -53,6 +53,25 @@
         trend_type={:neutral}
         trend_label={dgettext("dashboard_runners", "since last month")}
       />
+      <.widget
+        id="widget-workflow-failed-jobs"
+        title={dgettext("dashboard_runners", "Failed jobs")}
+        legend_color="destructive"
+        description={
+          dgettext(
+            "dashboard_runners",
+            "Jobs that completed with conclusion=failure in the last 30 days."
+          )
+        }
+        value={if @failed_jobs_count.ok?, do: Integer.to_string(@failed_jobs_count.result.count)}
+        loading={!@failed_jobs_count.ok?}
+        selected={@analytics_selected_widget == "failed_jobs"}
+        phx_click="select_widget"
+        phx_value_widget="failed_jobs"
+        trend_value={if @failed_jobs_count.ok?, do: @failed_jobs_count.result.trend}
+        trend_type={:inverse}
+        trend_label={dgettext("dashboard_runners", "since last month")}
+      />
       <.percentile_dropdown_widget
         id="widget-workflow-queue-time"
         title={
@@ -92,25 +111,6 @@
             TuistWeb.RunnersLive.percentile_trend(@queue_time.result, @queue_time_percentile)
           end
         }
-        trend_type={:inverse}
-        trend_label={dgettext("dashboard_runners", "since last month")}
-      />
-      <.widget
-        id="widget-workflow-failed-jobs"
-        title={dgettext("dashboard_runners", "Failed jobs")}
-        legend_color="destructive"
-        description={
-          dgettext(
-            "dashboard_runners",
-            "Jobs that completed with conclusion=failure in the last 30 days."
-          )
-        }
-        value={if @failed_jobs_count.ok?, do: Integer.to_string(@failed_jobs_count.result.count)}
-        loading={!@failed_jobs_count.ok?}
-        selected={@analytics_selected_widget == "failed_jobs"}
-        phx_click="select_widget"
-        phx_value_widget="failed_jobs"
-        trend_value={if @failed_jobs_count.ok?, do: @failed_jobs_count.result.trend}
         trend_type={:inverse}
         trend_label={dgettext("dashboard_runners", "since last month")}
       />
