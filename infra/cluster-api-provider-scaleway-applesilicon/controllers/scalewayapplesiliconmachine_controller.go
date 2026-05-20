@@ -420,6 +420,72 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 		return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
 	}
 
+	// Stage 1.5: one-shot Reinstall for freshly-adopted pool hosts.
+	//
+	// Scaleway pool hosts only bake the project SSH key set into
+	// `~m1/.ssh/scw_authorized_keys` at the host's *original* create
+	// time and never refresh it. A fleet whose Ed25519 key is
+	// registered AFTER the pool host was ordered (the normal case
+	// for any new fleet added to an existing cluster) is SSH-locked
+	// out on adoption. The companion problem is that the Scaleway
+	// API only returns `sudo_password` on CreateServer; adopted
+	// hosts have to fall back to vnc_url parsing, which surfaces a
+	// stale or proxy password that triggers PAM lockouts on
+	// repeated wrong-password retries.
+	//
+	// `ReinstallServer` re-images the host from the same OS it was
+	// originally ordered with, baking in the *current* project SSH
+	// key set and minting a fresh sudo password. We trigger it
+	// exactly once per Machine, gated by the
+	// `Status.AdoptionReinstallCompletedAt` field — so a controller
+	// restart, network partition, or any subsequent reconcile that
+	// flips `BootstrappedCondition` to False can never wipe a host
+	// that's already joined the cluster. The `!Status.Ready` guard
+	// is a second safety net for Machines that pre-date this field
+	// (existing healthy fleets that adopted before this code rolled
+	// out): we never reinstall a host whose Node has already
+	// reached Ready=True.
+	if machine.Spec.AdoptPoolPrefix != "" &&
+		machine.Status.AdoptionReinstallCompletedAt == nil &&
+		!machine.Status.Ready {
+		r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Reinstalling",
+			"Re-imaging adopted Mac mini %s to refresh SSH-key set + sudo password",
+			machine.Status.ServerID)
+		srv, reinstallErr := r.ScalewayClient.Reinstall(ctx, machine.Status.ServerID, machine.Spec.Zone)
+		if reinstallErr != nil {
+			conditions.MarkFalse(machine, BootstrappedCondition, "ReinstallFailed",
+				clusterv1.ConditionSeverityWarning, "%v", reinstallErr)
+			r.Recorder.Eventf(machine, corev1.EventTypeWarning, "ReinstallFailed",
+				"Scaleway Reinstall for %s: %v (will retry)", machine.Name, reinstallErr)
+			return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
+		}
+		// The reinstall changes the host's SSH host key, so the
+		// stored TOFU fingerprint no longer matches. Clearing the
+		// bootstrap Secret's host-fingerprint entry forces the next
+		// bootstrap dial to re-TOFU; without this, every subsequent
+		// SSH attempt fails the host-key-callback before auth even
+		// starts.
+		if err := r.CredentialsManager.SetMachineHostFingerprint(ctx, machine.Name, ""); err != nil {
+			return ctrl.Result{RequeueAfter: 30 * time.Second}, fmt.Errorf("clear host fingerprint: %w", err)
+		}
+		if err := r.CredentialsManager.SetMachineCredentials(ctx, machine.Name, srv.SudoPassword, srv.SSHUsername); err != nil {
+			return ctrl.Result{RequeueAfter: 30 * time.Second}, fmt.Errorf("persist fresh credentials post-reinstall: %w", err)
+		}
+		machine.Status.Addresses = []clusterv1.MachineAddress{{
+			Type:    clusterv1.MachineExternalIP,
+			Address: srv.IP,
+		}}
+		now := metav1.Now()
+		machine.Status.AdoptionReinstallCompletedAt = &now
+		bootstrapCreds.SudoPassword = srv.SudoPassword
+		bootstrapCreds.SSHUsername = srv.SSHUsername
+		bootstrapCreds.HostFingerprint = ""
+		r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Reinstalled",
+			"Reinstall of %s complete; resuming bootstrap with fresh SSH key set + sudo password",
+			machine.Name)
+		logger.Info("reinstalled adopted Mac mini", "id", srv.ID, "ip", srv.IP)
+	}
+
 	// Detect Node drift: bootstrap previously succeeded
 	// (BootstrappedCondition=True) but the Node tart-kubelet
 	// registered no longer exists in the cluster. Causes seen in

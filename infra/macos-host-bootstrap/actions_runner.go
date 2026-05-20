@@ -232,8 +232,14 @@ if [ ! -f "$RUNNER_DIR/config.sh" ]; then
 fi
 
 cd "$RUNNER_DIR"
+# Tear down any prior LaunchAgent before reconfiguring. ./svc.sh stop
+# is best-effort because it shells out to launchctl unload (legacy
+# API) which falls through silently when the agent isn't loaded;
+# the bootout below catches the case where svc.sh's view of state
+# diverges from the actual launchd domain.
 ./svc.sh stop 2>/dev/null || true
 ./svc.sh uninstall 2>/dev/null || true
+sudo launchctl bootout "gui/$(id -u %[2]s)/$RUNNER_LABEL" 2>/dev/null || true
 rm -f .runner .credentials .credentials_rsaparams
 
 ./config.sh \
@@ -244,9 +250,28 @@ rm -f .runner .credentials .credentials_rsaparams
   --work _work \
   --unattended \
   --replace
+
+# ./svc.sh install templates the LaunchAgent plist at
+# ~%[2]s/Library/LaunchAgents/$RUNNER_LABEL.plist and chowns it to
+# the runner user. We deliberately STOP THERE and don't call
+# ./svc.sh start — that step does a legacy launchctl-load of the
+# plist from the SSH session's launchd domain (system), which on
+# macOS Tahoe can't reach the user's Aqua session and dies with
+# "Failed: failed to load ...". The modern equivalent is
+# launchctl bootstrap gui/<UID> on the plist path, which targets
+# the Aqua session's GUI domain explicitly; sudo lets us cross
+# from the SSH session to the GUI domain without an asuser shim.
 ./svc.sh install %[2]s
-./svc.sh start
-./svc.sh status
+
+RUNNER_UID=$(id -u %[2]s)
+RUNNER_PLIST=/Users/%[2]s/Library/LaunchAgents/$RUNNER_LABEL.plist
+sudo launchctl bootstrap "gui/$RUNNER_UID" "$RUNNER_PLIST"
+sudo launchctl kickstart -k "gui/$RUNNER_UID/$RUNNER_LABEL"
+
+# Drop down to ./svc.sh status only for the human-readable summary
+# in the controller logs. The plist-not-loaded case is already
+# fatal above, so this is just diagnostic.
+./svc.sh status || true
 `,
 		shellQuote(cfg.GHRunnerVersion),
 		shellQuote(sshUser),
