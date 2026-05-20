@@ -34,12 +34,11 @@ defmodule Tuist.VCS do
   # Per-webhook lookup cache: every inbound GitHub webhook calls
   # `list_github_app_installations_for_webhook/2` once before HMAC
   # verification, so memoising the result keeps that PG read off the
-  # request path under burst load. The TTL is short enough that an
-  # in-flight rotation of `webhook_secret` heals within a minute, and
-  # mutating callers (`update_github_app_installation` /
-  # `replace_github_app_installation` / `create_github_app_installation`
-  # / `delete_github_app_installation`) evict explicitly so the cache
-  # never carries a deleted or rewritten row past the next mutation.
+  # request path under burst load. The TTL is short enough that any
+  # install / uninstall / re-register flow heals within a minute,
+  # and the only field a stale entry could mis-serve (`webhook_secret`)
+  # is rotated through `replace_github_app_installation/2` whose flow
+  # already spans longer than the TTL.
   @webhook_installations_cache_ttl_ms 60_000
 
   @doc """
@@ -1305,11 +1304,10 @@ defmodule Tuist.VCS do
   this path before HMAC verification, and the underlying table only
   changes on App install / update / uninstall (rare relative to
   webhook traffic), so memoising the lookup removes one Postgres
-  round-trip per webhook on the hot path. Mutating functions
-  (`update_github_app_installation`, `replace_github_app_installation`,
-  `create_github_app_installation`, `delete_github_app_installation`)
-  call `invalidate_webhook_installation_cache/1` so the cache never
-  outlives the row it points at by more than the TTL window.
+  round-trip per webhook on the hot path. The TTL is the sole
+  invalidation mechanism: mutations don't bust the cache because
+  the only field a stale entry could mis-serve (`webhook_secret`)
+  rotates through a flow that takes longer than the TTL anyway.
   """
   def list_github_app_installations_for_webhook(installation_id, app_id) do
     installation_id = maybe_to_string(installation_id)
@@ -1356,24 +1354,6 @@ defmodule Tuist.VCS do
   """
   def cache_name, do: :tuist
 
-  # Evicts the three cache entries that could materialise the given
-  # row through `list_github_app_installations_for_webhook/2`'s
-  # `installation_id` OR `app_id` matcher: a lookup keyed by just
-  # the installation, just the App, or both. Called by every
-  # mutation on `GitHubAppInstallation` so the cache can't hand
-  # back a row that was deleted or whose `webhook_secret` rotated.
-  defp invalidate_webhook_installation_cache(%GitHubAppInstallation{installation_id: installation_id, app_id: app_id}) do
-    installation_id = maybe_to_string(installation_id)
-    app_id = maybe_to_string(app_id)
-
-    for {iid, aid} <- [{installation_id, app_id}, {installation_id, nil}, {nil, app_id}],
-        not (iid == nil and aid == nil) do
-      KeyValueStore.delete(webhook_installations_cache_key(iid, aid), cache: cache_name())
-    end
-
-    :ok
-  end
-
   # Cachex's key serialiser (`Tuist.KeyValueStore.cache_key/1`) joins
   # list elements with `-`, so the key needs to be a flat list of
   # `to_string/1`-friendly terms. The two `_` slots reserve dedicated
@@ -1387,21 +1367,9 @@ defmodule Tuist.VCS do
   Updates a GitHub app installation.
   """
   def update_github_app_installation(%GitHubAppInstallation{} = github_app_installation, attrs) do
-    result =
-      github_app_installation
-      |> GitHubAppInstallation.update_changeset(attrs)
-      |> Repo.update()
-
-    case result do
-      {:ok, updated} ->
-        invalidate_webhook_installation_cache(github_app_installation)
-        invalidate_webhook_installation_cache(updated)
-
-      _ ->
-        :ok
-    end
-
-    result
+    github_app_installation
+    |> GitHubAppInstallation.update_changeset(attrs)
+    |> Repo.update()
   end
 
   @doc """
@@ -1412,38 +1380,18 @@ defmodule Tuist.VCS do
   def replace_github_app_installation(%GitHubAppInstallation{} = github_app_installation, attrs) do
     # The new row supersedes the old one; clear the prior installation_id
     # since the customer has not yet installed the freshly registered App.
-    result =
-      github_app_installation
-      |> GitHubAppInstallation.changeset(Map.merge(%{installation_id: nil, html_url: nil}, attrs))
-      |> Repo.update()
-
-    case result do
-      {:ok, updated} ->
-        invalidate_webhook_installation_cache(github_app_installation)
-        invalidate_webhook_installation_cache(updated)
-
-      _ ->
-        :ok
-    end
-
-    result
+    github_app_installation
+    |> GitHubAppInstallation.changeset(Map.merge(%{installation_id: nil, html_url: nil}, attrs))
+    |> Repo.update()
   end
 
   @doc """
   Creates a new GitHub app installation.
   """
   def create_github_app_installation(attrs) do
-    result =
-      %GitHubAppInstallation{}
-      |> GitHubAppInstallation.changeset(attrs)
-      |> Repo.insert()
-
-    case result do
-      {:ok, inserted} -> invalidate_webhook_installation_cache(inserted)
-      _ -> :ok
-    end
-
-    result
+    %GitHubAppInstallation{}
+    |> GitHubAppInstallation.changeset(attrs)
+    |> Repo.insert()
   end
 
   @doc """
@@ -1508,14 +1456,7 @@ defmodule Tuist.VCS do
   Deletes a GitHub app installation.
   """
   def delete_github_app_installation(%GitHubAppInstallation{} = github_app_installation) do
-    result = Repo.delete(github_app_installation, stale_error_field: :id)
-
-    case result do
-      {:ok, _deleted} -> invalidate_webhook_installation_cache(github_app_installation)
-      _ -> :ok
-    end
-
-    result
+    Repo.delete(github_app_installation, stale_error_field: :id)
   end
 
   @doc """

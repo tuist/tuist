@@ -3716,54 +3716,5 @@ defmodule Tuist.VCSTest do
       reject(&Tuist.Repo.all/1)
       assert VCS.list_github_app_installations_for_webhook(nil, nil) == []
     end
-
-    test "delete_github_app_installation/1 evicts the cache" do
-      account = AccountsFixtures.organization_fixture().account
-
-      {:ok, installation} =
-        VCS.create_github_app_installation(%{
-          account_id: account.id,
-          installation_id: "333",
-          app_id: "1001"
-        })
-
-      # Warm the cache.
-      assert [%GitHubAppInstallation{}] =
-               VCS.list_github_app_installations_for_webhook("333", "1001")
-
-      # Delete the row — invalidation must drop the stale entry, so
-      # the next lookup actually goes back to Postgres and observes
-      # the deletion.
-      {:ok, _} = VCS.delete_github_app_installation(installation)
-
-      assert VCS.list_github_app_installations_for_webhook("333", "1001") == []
-    end
-
-    test "update_github_app_installation/2 evicts the cache" do
-      account = AccountsFixtures.organization_fixture().account
-
-      {:ok, installation} =
-        VCS.create_github_app_installation(%{
-          account_id: account.id,
-          installation_id: "444",
-          app_id: "1002",
-          html_url: "https://github.com/apps/old-slug"
-        })
-
-      [%GitHubAppInstallation{html_url: cached_html_url}] =
-        VCS.list_github_app_installations_for_webhook("444", "1002")
-
-      assert cached_html_url == "https://github.com/apps/old-slug"
-
-      {:ok, _} =
-        VCS.update_github_app_installation(installation, %{
-          html_url: "https://github.com/apps/new-slug"
-        })
-
-      [%GitHubAppInstallation{html_url: fresh_html_url}] =
-        VCS.list_github_app_installations_for_webhook("444", "1002")
-
-      assert fresh_html_url == "https://github.com/apps/new-slug"
-    end
   end
 end
