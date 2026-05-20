@@ -47,9 +47,13 @@ defmodule Tuist.Runners.Dispatch do
   # to ~2/min while keeping post-deploy propagation under a minute.
   @pools_cache_ttl_ms 30_000
 
-  # Per-account row is touched only by the rare path that flips
-  # `runner_max_concurrent`. The hard cap is re-enforced in PG inside
-  # `Claims.attempt/4`, so a stale cached value can't overcommit.
+  # Only accounts already in the `enabled` state (cap > 0) get
+  # cached. The hard cap is re-enforced in PG inside `Claims.attempt/4`,
+  # so a stale cached value can't overcommit — the only thing the
+  # cached value gates here is the cap=0 vs cap>0 boundary. We
+  # explicitly *don't* cache cap=0 accounts so a customer flipping
+  # the switch from disabled to enabled doesn't have to wait an
+  # entire TTL for their first webhook to dispatch.
   @account_cache_ttl_ms 60_000
 
   @doc """
@@ -336,10 +340,13 @@ defmodule Tuist.Runners.Dispatch do
     end
   end
 
-  # We deliberately cache successful lookups only. A `nil` lookup
-  # (unknown org login) is rare and re-querying PG keeps the cache
-  # API simple — `KeyValueStore.get/1` can't distinguish "cached nil"
-  # from "no entry," so caching nil would need a sentinel layer.
+  # Caches enabled accounts (cap > 0) only. Skipping the cache for
+  # cap=0 / nil accounts keeps the adoption path snappy: a customer
+  # who first flips `runner_max_concurrent` from 0 to N expects the
+  # next webhook to dispatch right away, not after the previous
+  # cap-0 result has aged out of a long TTL. We also skip caching
+  # unknown handles for the same reason — `KeyValueStore.get/1`
+  # can't distinguish "cached nil" from "no entry" anyway.
   defp get_account_by_handle_cached(owner) do
     cache_key = [__MODULE__, :account, owner]
 
@@ -349,8 +356,11 @@ defmodule Tuist.Runners.Dispatch do
           nil ->
             nil
 
-          account ->
+          %{runner_max_concurrent: cap} = account when is_integer(cap) and cap > 0 ->
             KeyValueStore.put(cache_key, account, ttl: @account_cache_ttl_ms)
+            account
+
+          account ->
             account
         end
 

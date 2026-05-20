@@ -127,6 +127,22 @@ defmodule Tuist.Runners.DispatchTest do
       assert {:ignored, :no_pools} = Dispatch.handle_webhook(payload, 1)
     end
 
+    test "cap=0 accounts are NOT cached so adoption (flip from disabled to enabled) takes effect immediately" do
+      # Adoption flow: the user has runner_max_concurrent=0 (default
+      # for a fresh org), pushes code that fires a `workflow_job.queued`
+      # webhook, then flips the cap to N. The next webhook must not
+      # see the stale cap=0 because that would mean the customer waits
+      # an entire TTL before their first job dispatches.
+      account = account_with_cap(0)
+
+      expect(Accounts, :get_account_by_handle, 2, fn _ -> account end)
+
+      payload = queued_payload(owner: account.name)
+
+      assert {:ignored, :runners_disabled} = Dispatch.handle_webhook(payload, 1)
+      assert {:ignored, :runners_disabled} = Dispatch.handle_webhook(payload, 1)
+    end
+
     test "list_runner_pools error is NOT cached so a transient apiserver hiccup recovers" do
       # A 30s cache on the error path would pin the dispatch handler
       # to the same {:error, _} return for the whole TTL, well past
