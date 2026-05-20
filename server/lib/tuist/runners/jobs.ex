@@ -523,6 +523,7 @@ defmodule Tuist.Runners.Jobs do
     limit = Keyword.get(opts, :limit, 50)
     offset = Keyword.get(opts, :offset, 0)
     sort_by = Keyword.get(opts, :sort_by, "workflow")
+    sort_order = Keyword.get(opts, :sort_order, default_sort_order(sort_by))
 
     Job
     |> from(hints: ["FINAL"])
@@ -551,18 +552,37 @@ defmodule Tuist.Runners.Jobs do
         ),
       last_run_at: max(j.enqueued_at)
     })
-    |> workflows_order_by(sort_by)
+    |> workflows_order_by(sort_by, sort_order)
     |> limit(^limit)
     |> offset(^offset)
     |> ClickHouseRepo.all()
   end
 
-  # "success_rate" sort the share of successful jobs. ClickHouse can't
-  # use a Decimal/Float division inside ORDER BY without quoting, so
-  # we cast both sides to Float64 before dividing. Workflows with
-  # zero total_jobs end up as 0/0 → nan; nullIf+coalesce pulls them
-  # to the bottom of the descending sort.
-  defp workflows_order_by(query, "success_rate") do
+  # Numerical sorts default to descending (largest first feels right
+  # for counts/rates); the alphabetical workflow sort defaults to
+  # ascending. The LiveView's `column_sort_patch` mirrors the same
+  # defaults when a viewer first clicks a column header.
+  defp default_sort_order("workflow"), do: "asc"
+  defp default_sort_order(_), do: "desc"
+
+  # Each branch builds the ORDER BY for one (column, direction) pair.
+  # "success_rate" divides the success countIf by the total count
+  # with nullIf on the denominator so all-zero workflows don't blow
+  # up with a 0/0 nan that breaks the comparator.
+  defp workflows_order_by(query, "success_rate", "asc") do
+    order_by(query, [j],
+      asc:
+        fragment(
+          "coalesce(toFloat64(countIf(? = 'completed' AND ? = 'success')) / nullIf(toFloat64(count(?)), 0), 0)",
+          j.status,
+          j.conclusion,
+          j.workflow_job_id
+        ),
+      desc: max(j.enqueued_at)
+    )
+  end
+
+  defp workflows_order_by(query, "success_rate", _desc) do
     order_by(query, [j],
       desc:
         fragment(
@@ -575,11 +595,19 @@ defmodule Tuist.Runners.Jobs do
     )
   end
 
-  defp workflows_order_by(query, "jobs") do
+  defp workflows_order_by(query, "jobs", "asc") do
+    order_by(query, [j], asc: count(j.workflow_job_id), desc: max(j.enqueued_at))
+  end
+
+  defp workflows_order_by(query, "jobs", _desc) do
     order_by(query, [j], desc: count(j.workflow_job_id), desc: max(j.enqueued_at))
   end
 
-  defp workflows_order_by(query, _workflow_default) do
+  defp workflows_order_by(query, _workflow_default, "desc") do
+    order_by(query, [j], desc: j.workflow_name, desc: j.repo)
+  end
+
+  defp workflows_order_by(query, _workflow_default, _asc) do
     order_by(query, [j], asc: j.workflow_name, asc: j.repo)
   end
 

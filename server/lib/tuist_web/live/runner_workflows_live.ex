@@ -39,6 +39,7 @@ defmodule TuistWeb.RunnerWorkflowsLive do
     repository = params["repository"] || "any"
     search = params["search"] || ""
     sort_by = sort_by_param(params["sort_by"])
+    sort_order = sort_order_param(params["sort_order"], sort_by)
     page = parse_page(params["page"])
 
     {:noreply,
@@ -47,9 +48,10 @@ defmodule TuistWeb.RunnerWorkflowsLive do
      |> assign(:repository, repository)
      |> assign(:search, search)
      |> assign(:sort_by, sort_by)
+     |> assign(:sort_order, sort_order)
      |> assign(:page, page)
      |> assign_analytics(repository)
-     |> assign_workflows(repository, search, sort_by)}
+     |> assign_workflows(repository, search, sort_by, sort_order)}
   end
 
   # Bound the sort_by URL param to the values the backend knows how
@@ -57,6 +59,13 @@ defmodule TuistWeb.RunnerWorkflowsLive do
   # malformed URL doesn't surface a 500.
   defp sort_by_param(value) when value in ["workflow", "success_rate", "jobs"], do: value
   defp sort_by_param(_), do: "workflow"
+
+  # Sort order is bounded to asc|desc. The default differs by column
+  # so a fresh sort feels right: alphabetical columns lean ascending,
+  # numerical columns lean descending (largest counts first).
+  defp sort_order_param(value, _sort_by) when value in ["asc", "desc"], do: value
+  defp sort_order_param(_, "workflow"), do: "asc"
+  defp sort_order_param(_, _), do: "desc"
 
   @impl true
   def handle_event("select_widget", %{"widget" => widget}, socket) do
@@ -99,7 +108,13 @@ defmodule TuistWeb.RunnerWorkflowsLive do
     )
   end
 
-  defp assign_workflows(%{assigns: %{selected_account: account, page: page}} = socket, repository, search, sort_by) do
+  defp assign_workflows(
+         %{assigns: %{selected_account: account, page: page}} = socket,
+         repository,
+         search,
+         sort_by,
+         sort_order
+       ) do
     base_opts =
       repository
       |> scope_opts()
@@ -115,6 +130,7 @@ defmodule TuistWeb.RunnerWorkflowsLive do
       |> Keyword.put(:limit, @page_size)
       |> Keyword.put(:offset, offset)
       |> Keyword.put(:sort_by, sort_by)
+      |> Keyword.put(:sort_order, sort_order)
 
     workflows = Jobs.list_workflows_for_account(account.id, paged_opts)
 
@@ -159,17 +175,32 @@ defmodule TuistWeb.RunnerWorkflowsLive do
   def repository_label(repo) when is_binary(repo), do: repo
 
   @doc """
-  Patches the current URL to swap the sort_by param, dropping `page`
-  so a viewer changing the sort order lands on the first page of
-  the newly-ordered list rather than getting stranded past the end.
+  Builds the patch URL for a sortable column header. Clicking the
+  column that's already the active sort toggles asc/desc; clicking
+  a different column switches to it with its default direction
+  (asc for `workflow`, desc otherwise). Always drops `page` so a
+  fresh sort starts on page 1.
   """
-  def sort_by_patch(%URI{} = uri, sort_by) do
-    "?" <> (uri.query |> Query.put("sort_by", sort_by) |> Query.drop("page"))
+  def column_sort_patch(assigns, column) do
+    new_order =
+      cond do
+        assigns.sort_by == column -> toggle_sort_order(assigns.sort_order)
+        column == "workflow" -> "asc"
+        true -> "desc"
+      end
+
+    "?" <>
+      (assigns.uri.query
+       |> Query.put("sort_by", column)
+       |> Query.put("sort_order", new_order)
+       |> Query.drop("page"))
   end
 
-  def sort_by_label("success_rate"), do: dgettext("dashboard_runners", "Success rate")
-  def sort_by_label("jobs"), do: dgettext("dashboard_runners", "Jobs")
-  def sort_by_label(_workflow_default), do: dgettext("dashboard_runners", "Workflow")
+  defp toggle_sort_order("asc"), do: "desc"
+  defp toggle_sort_order(_desc), do: "asc"
+
+  def sort_icon("asc"), do: "square_rounded_arrow_up"
+  def sort_icon(_desc), do: "square_rounded_arrow_down"
 
   def success_rate(%{success_count: success, total_jobs: total}) when total > 0 do
     rate = success / total * 100
