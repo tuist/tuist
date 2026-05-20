@@ -380,6 +380,7 @@ defmodule TuistWeb.API.CacheControllerTest do
       project = ProjectsFixtures.project_fixture()
       {:ok, account} = Accounts.get_account_by_id(project.account_id)
       hash = "hash"
+
       CacheActionItems.create_cache_action_item(%{
         hash: hash,
         project: project
