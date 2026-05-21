@@ -202,7 +202,6 @@ jobs:
       - uses: ./.github/actions/setup-server-mix
         with:
           mise-version: ${{ env.MISE_VERSION }}
-          use-namespace-cache: "false"
       - name: Run Credo
         run: mix credo
   format:
