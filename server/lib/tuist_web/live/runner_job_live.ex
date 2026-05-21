@@ -3,6 +3,8 @@ defmodule TuistWeb.RunnerJobLive do
   use TuistWeb, :live_view
   use Noora
 
+  import TuistWeb.Components.EmptyCardSection
+
   alias Tuist.Authorization
   alias Tuist.Runners.Jobs
   alias Tuist.Utilities.DateFormatter
@@ -48,28 +50,67 @@ defmodule TuistWeb.RunnerJobLive do
   end
 
   defp job_title(%{workflow_name: workflow, job_name: job}) when workflow != "" and job != "",
-    do: "#{workflow} › #{job}"
+    do: "#{workflow} · #{job}"
 
   defp job_title(%{job_name: job}) when job != "", do: job
   defp job_title(%{workflow_job_id: id}), do: "Job ##{id}"
 
   def header_title(job), do: job_title(job)
 
-  def status_badge_props("queued"), do: %{label: dgettext("dashboard_runners", "Queued"), status: "warning"}
-  def status_badge_props("claimed"), do: %{label: dgettext("dashboard_runners", "Claimed"), status: "in_progress"}
-  def status_badge_props("running"), do: %{label: dgettext("dashboard_runners", "Running"), status: "in_progress"}
-  def status_badge_props("completed"), do: %{label: dgettext("dashboard_runners", "Completed"), status: "success"}
-  def status_badge_props(_), do: %{label: dgettext("dashboard_runners", "Unknown"), status: "warning"}
+  def header_status(%{status: "completed", conclusion: conclusion}) do
+    case conclusion do
+      "success" -> :success
+      "failure" -> :failure
+      "cancelled" -> :warning
+      "skipped" -> :warning
+      _ -> :warning
+    end
+  end
 
-  def conclusion_badge_props("success"), do: %{label: dgettext("dashboard_runners", "Success"), status: "success"}
-  def conclusion_badge_props("failure"), do: %{label: dgettext("dashboard_runners", "Failure"), status: "error"}
-  def conclusion_badge_props("cancelled"), do: %{label: dgettext("dashboard_runners", "Cancelled"), status: "warning"}
-  def conclusion_badge_props("skipped"), do: %{label: dgettext("dashboard_runners", "Skipped"), status: "warning"}
+  def header_status(%{status: "queued"}), do: :processing
+  def header_status(%{status: "claimed"}), do: :processing
+  def header_status(%{status: "running"}), do: :processing
+  def header_status(_), do: :processing
 
-  def conclusion_badge_props(other) when is_binary(other) and other != "",
-    do: %{label: String.capitalize(other), status: "warning"}
+  def status_badge_props(%{status: "completed", conclusion: "success"}),
+    do: %{label: dgettext("dashboard_runners", "Passed"), color: "success"}
 
-  def conclusion_badge_props(_), do: nil
+  def status_badge_props(%{status: "completed", conclusion: "failure"}),
+    do: %{label: dgettext("dashboard_runners", "Failed"), color: "destructive"}
+
+  def status_badge_props(%{status: "completed", conclusion: "cancelled"}),
+    do: %{label: dgettext("dashboard_runners", "Cancelled"), color: "warning"}
+
+  def status_badge_props(%{status: "completed", conclusion: "skipped"}),
+    do: %{label: dgettext("dashboard_runners", "Skipped"), color: "warning"}
+
+  def status_badge_props(%{status: "queued"}),
+    do: %{label: dgettext("dashboard_runners", "Queued"), color: "warning"}
+
+  def status_badge_props(%{status: "claimed"}),
+    do: %{label: dgettext("dashboard_runners", "Claimed"), color: "information"}
+
+  def status_badge_props(%{status: "running"}),
+    do: %{label: dgettext("dashboard_runners", "Running"), color: "information"}
+
+  def status_badge_props(_), do: %{label: dgettext("dashboard_runners", "Unknown"), color: "neutral"}
+
+  def platform_label(fleet_name) when is_binary(fleet_name) do
+    cond do
+      String.starts_with?(fleet_name, "macos-") -> dgettext("dashboard_runners", "macOS")
+      String.starts_with?(fleet_name, "linux-") -> dgettext("dashboard_runners", "Linux")
+      true -> dgettext("dashboard_runners", "Unknown")
+    end
+  end
+
+  def platform_label(_), do: dgettext("dashboard_runners", "Unknown")
+
+  def github_job_url(%{repo: repo, workflow_run_id: run_id, workflow_job_id: job_id})
+      when is_binary(repo) and repo != "" and is_integer(run_id) and run_id > 0 and is_integer(job_id) and job_id > 0 do
+    "https://github.com/#{repo}/actions/runs/#{run_id}/job/#{job_id}"
+  end
+
+  def github_job_url(_), do: nil
 
   def queued_duration_ms(%{enqueued_at: enqueued, claimed_at: claimed}) do
     cond do
@@ -132,4 +173,8 @@ defmodule TuistWeb.RunnerJobLive do
   def display(nil), do: "–"
   def display(value) when is_binary(value), do: value
   def display(value), do: to_string(value)
+
+  def short_sha(""), do: "–"
+  def short_sha(nil), do: "–"
+  def short_sha(sha) when is_binary(sha), do: String.slice(sha, 0, 7)
 end
