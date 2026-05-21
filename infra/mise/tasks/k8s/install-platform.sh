@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-#MISE description="Install or upgrade the Tuist platform chart (cert-manager, ESO, external-dns, and optionally ingress-nginx) on a workload cluster. Idempotent — safe to run on every deploy."
+#MISE description="Install or upgrade the Tuist platform chart (cert-manager, ESO, external-dns, metrics-server, and optionally ingress-nginx) on a workload cluster. Idempotent — safe to run on every deploy."
 #USAGE arg "<kubeconfig>" help="Path to the workload cluster kubeconfig"
 #USAGE arg "<cluster_name>" help="Cluster name, used for the external-dns owner ID and, for app clusters, the ingress LoadBalancer name"
 
 # Brings a workload cluster to the desired state of the platform chart
 # at HEAD: cert-manager + ClusterIssuer + external-dns +
-# external-secrets, plus ingress-nginx on app-serving clusters.
+# external-secrets + metrics-server, plus ingress-nginx on app-serving
+# clusters.
 # Designed to run from CI on every deploy so a
 # half-bootstrapped cluster self-heals instead of silently breaking
 # downstream installs that depend on cert-manager.io/v1 Certificate.

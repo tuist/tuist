@@ -17,7 +17,7 @@ Wraps the upstream `grafana/k8s-monitoring` chart and adds the 1Password-via-ESO
 README: [`helm/k8s-monitoring/README.md`](helm/k8s-monitoring/README.md).
 
 ### `helm/platform/` — platform bootstrap chart
-cert-manager + external-dns + ESO controllers, installed once per workload cluster. ingress-nginx is enabled only on app-serving clusters; Kura regional clusters use direct `LoadBalancer` Services instead. Provider-specific LB annotations live in per-provider overlays (e.g., `values-hetzner.yaml`).
+cert-manager + external-dns + ESO + metrics-server controllers, installed once per workload cluster. ingress-nginx is enabled only on app-serving clusters; Kura regional clusters use direct `LoadBalancer` Services instead. Provider-specific LB annotations live in per-provider overlays (e.g., `values-hetzner.yaml`).
 
 ### `k8s/` — CAPI cluster manifests
 Cluster API CRs and cluster-scoped manifests for the self-hosted CAPI + caph stack we operate on Hetzner:
