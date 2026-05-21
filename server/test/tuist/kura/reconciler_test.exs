@@ -377,7 +377,7 @@ defmodule Tuist.Kura.ReconcilerTest do
   end
 
   test "does not project a server active until the Cloudflare-fronted global endpoint serves" do
-    {_account, server, deployment} = create_server()
+    {_account, server, deployment} = create_managed_server("eu-central")
     {:ok, _deployment} = Kura.mark_failed(deployment, "apply failed")
     {:ok, server} = Kura.fail_server(server)
 
@@ -421,7 +421,7 @@ defmodule Tuist.Kura.ReconcilerTest do
 
     assert :ok = Reconciler.reconcile()
 
-    assert %Deployment{status: :succeeded, error_message: nil} = Repo.get!(Deployment, deployment.id)
+    assert %Deployment{status: :failed, error_message: "apply failed"} = Repo.get!(Deployment, deployment.id)
 
     server = Repo.get!(Server, server.id)
     assert server.status == :active

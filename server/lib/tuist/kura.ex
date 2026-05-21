@@ -203,7 +203,13 @@ defmodule Tuist.Kura do
     )
   end
 
-  def server_needs_global_endpoint?(%Server{account: %Account{} = account} = server) do
+  def server_needs_global_endpoint?(%Server{} = server) do
+    account =
+      case server.account do
+        %Account{} = account -> account
+        _ -> Repo.preload(server, account: :cache_endpoints).account
+      end
+
     account_needs_global_endpoint?(account) and region_has_global_endpoint?(server.region)
   end
 

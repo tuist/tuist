@@ -184,17 +184,12 @@ defmodule Tuist.Environment do
   unavailable or quota-limited.
   """
   def kura_require_global_endpoints? do
-    case System.get_env("TUIST_KURA_REQUIRE_GLOBAL_ENDPOINTS") do
+    "TUIST_KURA_REQUIRE_GLOBAL_ENDPOINTS"
+    |> System.get_env()
+    |> case do
       nil -> true
       "" -> true
-      "0" -> false
-      "false" -> false
-      "FALSE" -> false
-      "no" -> false
-      "NO" -> false
-      "off" -> false
-      "OFF" -> false
-      _ -> true
+      value -> not falsey?(value)
     end
   end
 
@@ -1075,6 +1070,10 @@ defmodule Tuist.Environment do
   end
 
   defp safe_get_in(_data, _keys), do: nil
+
+  defp falsey?(value) when is_binary(value) do
+    String.downcase(value) in ["0", "false", "no", "off"]
+  end
 
   def secrets do
     Application.get_env(:tuist, :secrets) || %{}
