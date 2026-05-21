@@ -574,6 +574,51 @@ func TestReconcileDelete_ReleasesToPool(t *testing.T) {
 	}
 }
 
+// TestReconcileDelete_LegacyCRWithoutPrefixSkipsRelease covers the
+// compatibility path for CRs created under the older chart that only
+// rendered `adoptPoolPrefix` when the value was non-empty. Those
+// objects can't safely ReleaseToPool (the client refuses an empty
+// prefix to avoid orphaning hosts outside the pool namespace), so
+// the controller skips Stage 1 and proceeds to the rest of the
+// teardown. Without this fallthrough, deleting a legacy CR would
+// loop forever and block fleet shrinkage.
+func TestReconcileDelete_LegacyCRWithoutPrefixSkipsRelease(t *testing.T) {
+	api := &scalewayAPIStub{
+		servers: []*applesilicon.Server{{ID: "srv-legacy", Name: "tuist-tuist-macos-fleet-legacy"}},
+	}
+	machine := &infrav1.ScalewayAppleSiliconMachine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       "macos-fleet-legacy",
+			Namespace:  "ns",
+			Finalizers: []string{MachineFinalizer},
+		},
+		Spec: infrav1.ScalewayAppleSiliconMachineSpec{
+			// Empty AdoptPoolPrefix — predates the required-prefix contract.
+			Zone: "fr-par-1",
+		},
+		Status: infrav1.ScalewayAppleSiliconMachineStatus{ServerID: "srv-legacy"},
+	}
+	r := newReconciler(t)
+	r.ScalewayClient = &scaleway.Client{API: api}
+
+	result, err := r.reconcileDelete(context.Background(), machine)
+	if err != nil {
+		t.Fatalf("reconcileDelete: %v", err)
+	}
+	if result.RequeueAfter != 0 || result.Requeue {
+		t.Fatalf("legacy CR delete must not requeue; got %+v", result)
+	}
+	if len(api.reinstalledIDs) != 0 {
+		t.Fatalf("legacy CR must NOT trigger Scaleway release; got reinstalls for %v", api.reinstalledIDs)
+	}
+	if len(api.updatedNames) != 0 {
+		t.Fatalf("legacy CR must NOT rename the server; got %v", api.updatedNames)
+	}
+	if machine.Status.ServerID != "" {
+		t.Fatalf("Status.ServerID should be cleared even when release is skipped, got %q", machine.Status.ServerID)
+	}
+}
+
 func startsWith(s, prefix string) bool {
 	return len(s) >= len(prefix) && s[:len(prefix)] == prefix
 }

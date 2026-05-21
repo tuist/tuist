@@ -82,6 +82,7 @@ spec:
 
                     When no compatible pre-ordered host is available, reconcile
                     requeues with a `NoAvailableHost` event.
+                  minLength: 1
                   type: string
                 fleetName:
                   description: |-

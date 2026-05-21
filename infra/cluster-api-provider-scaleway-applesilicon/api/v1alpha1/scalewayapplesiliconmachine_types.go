@@ -107,6 +107,7 @@ type ScalewayAppleSiliconMachineSpec struct {
 	// scan once Scaleway flips it back to `Delivered + Ready`.
 	// Physical destruction is operator-owned via the Scaleway
 	// console so the 24h billing floor doesn't leak into deploy flows.
+	// +kubebuilder:validation:MinLength=1
 	AdoptPoolPrefix string `json:"adoptPoolPrefix"`
 }
 

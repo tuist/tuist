@@ -680,19 +680,40 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileDelete(
 	// Stage 1: release the Scaleway server back into the pool —
 	// rename + reinstall — so the host stays alive for the next
 	// adopt. Skip if already released (mid-cleanup retry).
+	//
+	// Legacy CRs predating the required-AdoptPoolPrefix contract may
+	// still exist with the field unset (the older chart only
+	// rendered `adoptPoolPrefix` when the value was non-empty, so
+	// fleets that didn't set it produced bare CRs). For those we
+	// can't ReleaseToPool — the client rejects an empty prefix as a
+	// guard against orphaning hosts outside the pool namespace — so
+	// skip the Scaleway release stage entirely, leave the host
+	// running, and let the operator clean it up via the Scaleway
+	// console. Without this fallthrough, deleting a legacy CR would
+	// loop forever on a precondition error and block fleet teardown.
 	if machine.Status.ServerID != "" {
-		r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Releasing",
-			"Returning Scaleway server %s to pool %q (with reinstall)",
-			machine.Status.ServerID, machine.Spec.AdoptPoolPrefix)
-		if err := r.ScalewayClient.ReleaseToPool(ctx, machine.Status.ServerID, machine.Spec.Zone, machine.Spec.AdoptPoolPrefix); err != nil {
-			logger.Error(err, "Scaleway release-to-pool failed; will retry")
-			r.Recorder.Eventf(machine, corev1.EventTypeWarning, "ReleaseFailed",
-				"Scaleway ReleaseToPool: %v (will retry)", err)
-			return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
+		switch {
+		case machine.Spec.AdoptPoolPrefix == "":
+			r.Recorder.Eventf(machine, corev1.EventTypeWarning, "ReleaseSkipped",
+				"Spec.AdoptPoolPrefix is empty (legacy CR); skipping Scaleway release of %s — clean up the host via the Scaleway console if needed",
+				machine.Status.ServerID)
+			logger.Info("legacy CR without AdoptPoolPrefix; skipping Scaleway release",
+				"serverID", machine.Status.ServerID)
+			machine.Status.ServerID = ""
+		default:
+			r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Releasing",
+				"Returning Scaleway server %s to pool %q (with reinstall)",
+				machine.Status.ServerID, machine.Spec.AdoptPoolPrefix)
+			if err := r.ScalewayClient.ReleaseToPool(ctx, machine.Status.ServerID, machine.Spec.Zone, machine.Spec.AdoptPoolPrefix); err != nil {
+				logger.Error(err, "Scaleway release-to-pool failed; will retry")
+				r.Recorder.Eventf(machine, corev1.EventTypeWarning, "ReleaseFailed",
+					"Scaleway ReleaseToPool: %v (will retry)", err)
+				return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
+			}
+			machine.Status.ServerID = ""
+			r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Released",
+				"Scaleway server returned to pool; reinstall triggered")
 		}
-		machine.Status.ServerID = ""
-		r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Released",
-			"Scaleway server returned to pool; reinstall triggered")
 	}
 
 	// Stage 2: drop the per-machine kubelet identity. The token is
