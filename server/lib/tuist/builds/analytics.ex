@@ -1223,11 +1223,13 @@ defmodule Tuist.Builds.Analytics do
     count_series = fill_cas_series(parsed_rows, :count, start_datetime, end_datetime, date_period)
 
     avg_latency_values =
-      Enum.zip(duration_series, count_series)
+      duration_series
+      |> Enum.zip(count_series)
       |> Enum.map(fn {dur, count} -> safe_div(dur, count) end)
 
     throughput_values =
-      Enum.zip(size_series, duration_series)
+      size_series
+      |> Enum.zip(duration_series)
       |> Enum.map(fn {size, dur} -> bytes_per_second(size, dur) end)
 
     %{
@@ -1241,8 +1243,7 @@ defmodule Tuist.Builds.Analytics do
       total_duration_ms: current_totals.total_duration_ms,
       event_count: current_totals.event_count,
       avg_latency_ms: safe_div(current_totals.total_duration_ms, current_totals.event_count),
-      throughput_bytes_per_second:
-        bytes_per_second(current_totals.total_size, current_totals.total_duration_ms),
+      throughput_bytes_per_second: bytes_per_second(current_totals.total_size, current_totals.total_duration_ms),
       previous_size: previous_totals.total_size,
       previous_duration_ms: previous_totals.total_duration_ms,
       previous_event_count: previous_totals.event_count
