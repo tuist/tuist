@@ -43,6 +43,7 @@ use crate::{
 
 const DEFAULT_INSTANCE_NAME: &str = "default";
 const REAPI_READ_STREAM_CHUNK_BYTES: usize = 256 * 1024;
+const REAPI_MATERIALIZATION_REJECTED_ACTION: &str = "reapi_materialization_rejected";
 
 #[derive(Clone)]
 pub struct ReapiService {
@@ -237,29 +238,39 @@ impl ActionCache for ReapiService {
             artifact_hash: Some(digest.hash.clone()),
         };
         let principal = self.authorize_request(&request, extension.clone()).await?;
+        let mut materialization_budget = MaterializationBudget::new(&self.state);
         let (size_bytes, mut action_result) = fetch_keyvalue_proto::<reapi::ActionResult>(
             &self.state,
             namespace_id,
             &key,
             "action result",
+            Some(&mut materialization_budget),
         )
         .await?;
 
         if request.get_ref().inline_stdout
             && action_result.stdout_raw.is_empty()
             && let Some(digest) = &action_result.stdout_digest
-            && let Some(bytes) = maybe_read_cas_bytes(&self.state, namespace_id, digest)
-                .await
-                .map_err(Status::internal)?
+            && let Some(bytes) = maybe_read_cas_bytes(
+                &self.state,
+                namespace_id,
+                digest,
+                Some(&mut materialization_budget),
+            )
+            .await?
         {
             action_result.stdout_raw = bytes;
         }
         if request.get_ref().inline_stderr
             && action_result.stderr_raw.is_empty()
             && let Some(digest) = &action_result.stderr_digest
-            && let Some(bytes) = maybe_read_cas_bytes(&self.state, namespace_id, digest)
-                .await
-                .map_err(Status::internal)?
+            && let Some(bytes) = maybe_read_cas_bytes(
+                &self.state,
+                namespace_id,
+                digest,
+                Some(&mut materialization_budget),
+            )
+            .await?
         {
             action_result.stderr_raw = bytes;
         }
@@ -275,9 +286,13 @@ impl ActionCache for ReapiService {
                 }
                 if output_file.contents.is_empty()
                     && let Some(digest) = &output_file.digest
-                    && let Some(bytes) = maybe_read_cas_bytes(&self.state, namespace_id, digest)
-                        .await
-                        .map_err(Status::internal)?
+                    && let Some(bytes) = maybe_read_cas_bytes(
+                        &self.state,
+                        namespace_id,
+                        digest,
+                        Some(&mut materialization_budget),
+                    )
+                    .await?
                 {
                     output_file.contents = bytes;
                 }
@@ -462,9 +477,17 @@ impl ContentAddressableStorage for ReapiService {
         };
         let principal = self.authorize_request(&request, extension.clone()).await?;
         let mut responses = Vec::with_capacity(request.get_ref().digests.len());
+        let mut materialization_budget = MaterializationBudget::new(&self.state);
 
         for digest in &request.get_ref().digests {
-            let response = match maybe_read_cas_bytes(&self.state, namespace_id, digest).await {
+            let response = match maybe_read_cas_bytes(
+                &self.state,
+                namespace_id,
+                digest,
+                Some(&mut materialization_budget),
+            )
+            .await
+            {
                 Ok(Some(data)) => reapi::batch_read_blobs_response::Response {
                     digest: Some(digest.clone()),
                     data,
@@ -477,11 +500,11 @@ impl ContentAddressableStorage for ReapiService {
                     compressor: 0,
                     status: Some(rpc_status(5, "blob not found")),
                 },
-                Err(error) => reapi::batch_read_blobs_response::Response {
+                Err(status) => reapi::batch_read_blobs_response::Response {
                     digest: Some(digest.clone()),
                     data: Vec::new(),
                     compressor: 0,
-                    status: Some(rpc_status(13, error)),
+                    status: Some(rpc_status_from_grpc_status(&status)),
                 },
             };
             responses.push(response);
@@ -797,29 +820,41 @@ async fn fetch_keyvalue_proto<T>(
     namespace_id: &str,
     key: &str,
     label: &str,
+    materialization_budget: Option<&mut MaterializationBudget<'_>>,
 ) -> Result<(u64, T), Status>
 where
     T: Message + Default,
 {
-    let bytes =
-        match state
-            .store
-            .fetch_inline_artifact_bytes(ArtifactProducer::Reapi, namespace_id, key)
-        {
-            Ok(Some(bytes)) => bytes,
-            Ok(None) => {
-                state
-                    .metrics
-                    .record_artifact_read(ArtifactProducer::Reapi, "not_found", 0);
-                return Err(Status::not_found(format!("{label} not found")));
-            }
-            Err(error) => {
-                state
-                    .metrics
-                    .record_artifact_read(ArtifactProducer::Reapi, "error", 0);
-                return Err(Status::internal(format!("failed to load {label}: {error}")));
-            }
-        };
+    let manifest = match state
+        .store
+        .fetch_artifact_for_serving(ArtifactProducer::Reapi, namespace_id, key)
+        .await
+    {
+        Ok(Some(manifest)) => manifest,
+        Ok(None) => {
+            state
+                .metrics
+                .record_artifact_read(ArtifactProducer::Reapi, "not_found", 0);
+            return Err(Status::not_found(format!("{label} not found")));
+        }
+        Err(error) => {
+            state
+                .metrics
+                .record_artifact_read(ArtifactProducer::Reapi, "error", 0);
+            return Err(Status::internal(format!("failed to load {label}: {error}")));
+        }
+    };
+    if let Some(budget) = materialization_budget {
+        budget.claim(manifest.size, label)?;
+    }
+    let bytes = read_manifest_bytes(state, &manifest)
+        .await
+        .map_err(|error| {
+            state
+                .metrics
+                .record_artifact_read(ArtifactProducer::Reapi, "error", 0);
+            Status::internal(format!("failed to load {label}: {error}"))
+        })?;
     let decoded = T::decode(bytes.as_slice()).map_err(|error| {
         state
             .metrics
@@ -833,8 +868,9 @@ async fn maybe_read_cas_bytes(
     state: &SharedState,
     namespace_id: &str,
     digest: &reapi::Digest,
-) -> Result<Option<Vec<u8>>, String> {
-    let key = blob_key(&digest_key(digest).map_err(|error| error.message().to_owned())?);
+    materialization_budget: Option<&mut MaterializationBudget<'_>>,
+) -> Result<Option<Vec<u8>>, Status> {
+    let key = blob_key(&digest_key(digest)?);
     let Some(manifest) = state
         .store
         .fetch_artifact_for_serving(ArtifactProducer::Reapi, namespace_id, &key)
@@ -843,20 +879,25 @@ async fn maybe_read_cas_bytes(
             state
                 .metrics
                 .record_artifact_read(ArtifactProducer::Reapi, "error", 0);
-        })?
+        })
+        .map_err(Status::internal)?
     else {
         state
             .metrics
             .record_artifact_read(ArtifactProducer::Reapi, "not_found", 0);
         return Ok(None);
     };
+    if let Some(budget) = materialization_budget {
+        budget.claim(manifest.size, "CAS response materialization")?;
+    }
     let bytes = read_manifest_bytes(state, &manifest)
         .await
         .inspect_err(|_| {
             state
                 .metrics
                 .record_artifact_read(ArtifactProducer::Reapi, "error", 0);
-        })?;
+        })
+        .map_err(Status::internal)?;
     state
         .metrics
         .record_artifact_read(ArtifactProducer::Reapi, "ok", bytes.len() as u64);
@@ -895,6 +936,63 @@ async fn read_manifest_bytes(
     manifest: &ArtifactManifest,
 ) -> Result<Vec<u8>, String> {
     state.store.read_artifact_bytes(manifest).await
+}
+
+struct MaterializationBudget<'a> {
+    state: &'a SharedState,
+    remaining_bytes: usize,
+    held_permits: Vec<tokio::sync::OwnedSemaphorePermit>,
+}
+
+impl<'a> MaterializationBudget<'a> {
+    fn new(state: &'a SharedState) -> Self {
+        Self {
+            state,
+            remaining_bytes: state.memory.reapi_response_budget_bytes(),
+            held_permits: Vec::new(),
+        }
+    }
+
+    fn claim(&mut self, size_bytes: u64, label: &str) -> Result<(), Status> {
+        let requested_bytes = usize::try_from(size_bytes).map_err(|_| {
+            self.reject(format!(
+                "{label} exceeds the maximum addressable REAPI materialization size"
+            ))
+        })?;
+        if requested_bytes > self.remaining_bytes {
+            return Err(self.reject(format!(
+                "{label} needs {requested_bytes} bytes but only {} bytes remain in the REAPI materialization budget",
+                self.remaining_bytes
+            )));
+        }
+        let pool_bytes = self.state.memory.reapi_materialization_pool_bytes();
+        if requested_bytes > pool_bytes {
+            return Err(self.reject(format!(
+                "{label} needs {requested_bytes} bytes but the node only allows {pool_bytes} bytes of concurrent REAPI response materialization"
+            )));
+        }
+        let permit = self
+            .state
+            .memory
+            .try_acquire_reapi_materialization(requested_bytes)
+            .map_err(|_| {
+                self.reject(format!(
+                    "{label} was rejected because the concurrent REAPI response materialization pool is exhausted"
+                ))
+            })?;
+        self.remaining_bytes -= requested_bytes;
+        if let Some(permit) = permit {
+            self.held_permits.push(permit);
+        }
+        Ok(())
+    }
+
+    fn reject(&self, message: String) -> Status {
+        self.state
+            .metrics
+            .record_memory_action(REAPI_MATERIALIZATION_REJECTED_ACTION);
+        Status::resource_exhausted(message)
+    }
 }
 
 fn validate_digest_bytes(digest: &reapi::Digest, bytes: &[u8]) -> Result<(), String> {
@@ -944,6 +1042,10 @@ fn rpc_status(code: i32, message: impl Into<String>) -> RpcStatus {
         message: message.into(),
         details: Vec::new(),
     }
+}
+
+fn rpc_status_from_grpc_status(status: &Status) -> RpcStatus {
+    rpc_status(status.code() as i32, status.message())
 }
 
 fn grpc_extension_context(
@@ -1062,7 +1164,13 @@ fn parse_blob_resource_name(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{artifact::producer::ArtifactProducer, test_support::test_context};
+    use std::time::Duration;
+
+    use crate::{
+        artifact::producer::ArtifactProducer,
+        failpoints::{FailpointAction, FailpointName},
+        test_support::test_context,
+    };
 
     #[test]
     fn parses_read_resource_names_with_and_without_instance_names() {
@@ -1194,6 +1302,308 @@ mod tests {
         assert!(rendered.contains("kura_artifact_reads_total"));
         assert!(rendered.contains("producer=\"reapi\""));
         assert!(rendered.contains("result=\"ok\""));
+    }
+
+    #[tokio::test]
+    async fn cas_batch_reads_mark_oversized_blobs_resource_exhausted_without_spending_budget() {
+        let context = test_context(|config| {
+            config.memory_soft_limit_bytes = 32 * 1024 * 1024;
+            config.memory_hard_limit_bytes = 64 * 1024 * 1024;
+        })
+        .await;
+        let service = ReapiService {
+            state: context.state.clone(),
+        };
+        let oversized_bytes = vec![b'x'; 9 * 1024 * 1024];
+        let small_bytes = b"small-bytes";
+        let oversized_digest = reapi::Digest {
+            hash: hex::encode(Sha256::digest(&oversized_bytes)),
+            size_bytes: oversized_bytes.len() as i64,
+        };
+        let small_digest = reapi::Digest {
+            hash: hex::encode(Sha256::digest(small_bytes)),
+            size_bytes: small_bytes.len() as i64,
+        };
+        let oversized_key =
+            blob_key(&digest_key(&oversized_digest).expect("digest key should build"));
+        let small_key = blob_key(&digest_key(&small_digest).expect("digest key should build"));
+
+        context
+            .state
+            .store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                DEFAULT_INSTANCE_NAME,
+                &oversized_key,
+                "application/octet-stream",
+                &oversized_bytes,
+            )
+            .await
+            .expect("oversized cas blob should persist");
+        context
+            .state
+            .store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                DEFAULT_INSTANCE_NAME,
+                &small_key,
+                "application/octet-stream",
+                small_bytes,
+            )
+            .await
+            .expect("small cas blob should persist");
+
+        let response = service
+            .batch_read_blobs(Request::new(reapi::BatchReadBlobsRequest {
+                instance_name: DEFAULT_INSTANCE_NAME.into(),
+                digests: vec![oversized_digest, small_digest],
+                digest_function: reapi::digest_function::Value::Sha256 as i32,
+                ..Default::default()
+            }))
+            .await
+            .expect("batch read should succeed");
+
+        assert_eq!(response.get_ref().responses.len(), 2);
+        assert_eq!(
+            response.get_ref().responses[0]
+                .status
+                .as_ref()
+                .map(|status| status.code),
+            Some(tonic::Code::ResourceExhausted as i32)
+        );
+        assert!(response.get_ref().responses[0].data.is_empty());
+        assert_eq!(
+            response.get_ref().responses[1]
+                .status
+                .as_ref()
+                .map(|status| status.code),
+            Some(0)
+        );
+        assert_eq!(response.get_ref().responses[1].data, small_bytes);
+    }
+
+    #[tokio::test]
+    async fn concurrent_cas_batch_reads_respect_shared_materialization_pool() {
+        let context = test_context(|config| {
+            config.memory_soft_limit_bytes = 64 * 1024 * 1024;
+            config.memory_hard_limit_bytes = 128 * 1024 * 1024;
+        })
+        .await;
+        let first_service = ReapiService {
+            state: context.state.clone(),
+        };
+        let second_service = ReapiService {
+            state: context.state.clone(),
+        };
+        let third_service = ReapiService {
+            state: context.state.clone(),
+        };
+        let bytes = vec![b'b'; 16 * 1024 * 1024];
+        let digest = reapi::Digest {
+            hash: hex::encode(Sha256::digest(&bytes)),
+            size_bytes: bytes.len() as i64,
+        };
+        let key = blob_key(&digest_key(&digest).expect("digest key should build"));
+        context
+            .state
+            .store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                DEFAULT_INSTANCE_NAME,
+                &key,
+                "application/octet-stream",
+                &bytes,
+            )
+            .await
+            .expect("cas blob should persist");
+        context.state.store.failpoints().set_always(
+            FailpointName::AfterReadArtifactBytesBeforeReturn,
+            FailpointAction::Sleep(Duration::from_millis(250)),
+        );
+
+        let first = tokio::spawn({
+            let digest = digest.clone();
+            async move {
+                first_service
+                    .batch_read_blobs(Request::new(reapi::BatchReadBlobsRequest {
+                        instance_name: DEFAULT_INSTANCE_NAME.into(),
+                        digests: vec![digest],
+                        digest_function: reapi::digest_function::Value::Sha256 as i32,
+                        ..Default::default()
+                    }))
+                    .await
+            }
+        });
+        let second = tokio::spawn({
+            let digest = digest.clone();
+            async move {
+                second_service
+                    .batch_read_blobs(Request::new(reapi::BatchReadBlobsRequest {
+                        instance_name: DEFAULT_INSTANCE_NAME.into(),
+                        digests: vec![digest],
+                        digest_function: reapi::digest_function::Value::Sha256 as i32,
+                        ..Default::default()
+                    }))
+                    .await
+            }
+        });
+
+        tokio::time::sleep(Duration::from_millis(50)).await;
+
+        let third = third_service
+            .batch_read_blobs(Request::new(reapi::BatchReadBlobsRequest {
+                instance_name: DEFAULT_INSTANCE_NAME.into(),
+                digests: vec![digest.clone()],
+                digest_function: reapi::digest_function::Value::Sha256 as i32,
+                ..Default::default()
+            }))
+            .await
+            .expect("third request should get a per-digest response");
+
+        context
+            .state
+            .store
+            .failpoints()
+            .clear(FailpointName::AfterReadArtifactBytesBeforeReturn);
+
+        assert_eq!(
+            third.get_ref().responses[0]
+                .status
+                .as_ref()
+                .map(|status| status.code),
+            Some(tonic::Code::ResourceExhausted as i32)
+        );
+
+        for handle in [first, second] {
+            let response = handle
+                .await
+                .expect("concurrent read task should join")
+                .expect("concurrent read should succeed");
+            assert_eq!(
+                response.get_ref().responses[0]
+                    .status
+                    .as_ref()
+                    .map(|status| status.code),
+                Some(0)
+            );
+            assert_eq!(response.get_ref().responses[0].data, bytes);
+        }
+    }
+
+    #[tokio::test]
+    async fn cas_batch_reads_shed_under_critical_memory_pressure() {
+        let context = test_context(|_| {}).await;
+        let service = ReapiService {
+            state: context.state.clone(),
+        };
+        let bytes = b"blob-bytes";
+        let digest = reapi::Digest {
+            hash: hex::encode(Sha256::digest(bytes)),
+            size_bytes: bytes.len() as i64,
+        };
+        let key = blob_key(&digest_key(&digest).expect("digest key should build"));
+
+        context
+            .state
+            .store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                DEFAULT_INSTANCE_NAME,
+                &key,
+                "application/octet-stream",
+                bytes,
+            )
+            .await
+            .expect("cas blob should persist");
+        context
+            .state
+            .memory
+            .observe(context.state.config.memory_hard_limit_bytes);
+
+        let response = service
+            .batch_read_blobs(Request::new(reapi::BatchReadBlobsRequest {
+                instance_name: DEFAULT_INSTANCE_NAME.into(),
+                digests: vec![digest],
+                digest_function: reapi::digest_function::Value::Sha256 as i32,
+                ..Default::default()
+            }))
+            .await
+            .expect("batch read should return per-digest status");
+
+        assert_eq!(
+            response.get_ref().responses[0]
+                .status
+                .as_ref()
+                .map(|status| status.code),
+            Some(tonic::Code::ResourceExhausted as i32)
+        );
+    }
+
+    #[tokio::test]
+    async fn action_cache_inline_reads_reject_when_inline_expansion_exceeds_budget() {
+        let context = test_context(|config| {
+            config.memory_soft_limit_bytes = 32 * 1024 * 1024;
+            config.memory_hard_limit_bytes = 64 * 1024 * 1024;
+        })
+        .await;
+        let service = ReapiService {
+            state: context.state.clone(),
+        };
+        let stdout_bytes = vec![b's'; 9 * 1024 * 1024];
+        let stdout_digest = reapi::Digest {
+            hash: hex::encode(Sha256::digest(&stdout_bytes)),
+            size_bytes: stdout_bytes.len() as i64,
+        };
+        let stdout_key = blob_key(&digest_key(&stdout_digest).expect("digest key should build"));
+        context
+            .state
+            .store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                DEFAULT_INSTANCE_NAME,
+                &stdout_key,
+                "application/octet-stream",
+                &stdout_bytes,
+            )
+            .await
+            .expect("stdout blob should persist");
+
+        let action_result = reapi::ActionResult {
+            stdout_digest: Some(stdout_digest),
+            ..Default::default()
+        };
+        let action_bytes = action_result.encode_to_vec();
+        let action_digest = reapi::Digest {
+            hash: hex::encode(Sha256::digest(&action_bytes)),
+            size_bytes: action_bytes.len() as i64,
+        };
+        let action_key =
+            action_cache_key(&digest_key(&action_digest).expect("digest key should build"));
+        context
+            .state
+            .store
+            .persist_inline_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                DEFAULT_INSTANCE_NAME,
+                &action_key,
+                "application/x-protobuf",
+                &action_bytes,
+            )
+            .await
+            .expect("action result should persist");
+
+        let error = service
+            .get_action_result(Request::new(reapi::GetActionResultRequest {
+                instance_name: DEFAULT_INSTANCE_NAME.into(),
+                action_digest: Some(action_digest),
+                inline_stdout: true,
+                digest_function: reapi::digest_function::Value::Sha256 as i32,
+                ..Default::default()
+            }))
+            .await
+            .expect_err("inline expansion should respect the materialization budget");
+
+        assert_eq!(error.code(), tonic::Code::ResourceExhausted);
     }
 
     #[tokio::test]

@@ -53,7 +53,7 @@ use crate::{
 };
 
 const MULTIPART_LOCK_STRIPES: usize = 64;
-const EXISTENCE_CACHE_CAPACITY: usize = 65_536;
+pub const EXISTENCE_CACHE_CAPACITY: usize = 65_536;
 const EXISTENCE_CACHE_TTL: Duration = Duration::from_secs(30);
 
 pub struct Store {
@@ -554,6 +554,8 @@ impl Store {
             let bytes = self
                 .inline_bytes(&manifest.artifact_id)?
                 .ok_or_else(|| "inline artifact bytes are missing".to_string())?;
+            self.hit_failpoint(FailpointName::AfterReadArtifactBytesBeforeReturn)
+                .await?;
             self.note_artifact_exists(&manifest.artifact_id);
             return Ok(bytes);
         }
@@ -568,6 +570,8 @@ impl Store {
                 tokio::task::spawn_blocking(move || read_bytes_at(handle.as_std(), offset, size))
                     .await
                     .map_err(|error| format!("failed to join segment read task: {error}"))??;
+            self.hit_failpoint(FailpointName::AfterReadArtifactBytesBeforeReturn)
+                .await?;
             self.note_artifact_exists(&manifest.artifact_id);
             return Ok(bytes);
         }
@@ -582,6 +586,8 @@ impl Store {
             let bytes = tokio::task::spawn_blocking(move || read_bytes_at(file.as_std(), 0, size))
                 .await
                 .map_err(|error| format!("failed to join blob read task: {error}"))??;
+            self.hit_failpoint(FailpointName::AfterReadArtifactBytesBeforeReturn)
+                .await?;
             self.note_artifact_exists(&manifest.artifact_id);
             return Ok(bytes);
         }
@@ -1098,6 +1104,20 @@ impl Store {
     async fn segment_handle_cache_get(&self, cache_key: &str) -> Option<Arc<PersistentFile>> {
         let mut cache = self.segment_handles.lock().await;
         cache.touch(cache_key)
+    }
+
+    pub async fn trim_segment_handle_cache_to(&self, target_entries: usize, reason: &str) -> usize {
+        let mut cache = self.segment_handles.lock().await;
+        let evicted = cache.trim_to(target_entries);
+        let cached = cache.len();
+        drop(cache);
+        self.io.metrics().update_segment_handles_cached(cached);
+        if evicted > 0 {
+            self.io
+                .metrics()
+                .record_segment_handle_evictions(reason, evicted as u64);
+        }
+        evicted
     }
 
     #[cfg(test)]
@@ -1967,6 +1987,14 @@ impl Store {
         evicted
     }
 
+    pub fn trim_existence_cache_to(&self, target_entries: usize) -> usize {
+        let mut cache = self
+            .existence_cache
+            .lock()
+            .expect("existence cache lock poisoned");
+        cache.trim_to(target_entries)
+    }
+
     fn manifest_from_db(&self, artifact_id: &str) -> Result<Option<ArtifactManifest>, String> {
         self.db
             .get_cf(self.cf(ROCKSDB_CF_MANIFESTS), artifact_id.as_bytes())
@@ -2253,6 +2281,23 @@ impl ExistenceCache {
         }
     }
 
+    fn trim_to(&mut self, target_entries: usize) -> usize {
+        let mut evicted = 0_usize;
+        while self.entries.len() > target_entries {
+            let Some(oldest_key) = self
+                .entries
+                .iter()
+                .min_by_key(|(_, entry)| entry.access_order)
+                .map(|(artifact_id, _)| artifact_id.clone())
+            else {
+                break;
+            };
+            self.entries.remove(&oldest_key);
+            evicted += 1;
+        }
+        evicted
+    }
+
     fn evict_over_capacity(&mut self) {
         while self.entries.len() > self.capacity {
             let Some(oldest_key) = self
@@ -2388,6 +2433,14 @@ impl SegmentHandleCache {
 
     fn remove(&mut self, cache_key: &str) -> bool {
         self.entries.remove(cache_key).is_some()
+    }
+
+    fn trim_to(&mut self, target_entries: usize) -> usize {
+        let original_capacity = self.capacity;
+        self.capacity = target_entries;
+        let evicted = self.evict_over_capacity();
+        self.capacity = original_capacity;
+        evicted
     }
 
     fn evict_over_capacity(&mut self) -> usize {

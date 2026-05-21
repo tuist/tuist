@@ -3,10 +3,16 @@ use std::sync::{
     atomic::{AtomicU8, Ordering},
 };
 
+use tokio::sync::{OwnedSemaphorePermit, Semaphore};
+
 use crate::metrics::Metrics;
 
 const RECOVERY_NUMERATOR: u64 = 9;
 const RECOVERY_DENOMINATOR: u64 = 10;
+const MIN_REAPI_RESPONSE_BUDGET_BYTES: usize = 8 * 1024 * 1024;
+const MAX_REAPI_RESPONSE_BUDGET_BYTES: usize = 64 * 1024 * 1024;
+const MIN_REAPI_MATERIALIZATION_POOL_BYTES: usize = 16 * 1024 * 1024;
+const MAX_REAPI_MATERIALIZATION_POOL_BYTES: usize = 128 * 1024 * 1024;
 
 #[derive(Clone)]
 pub struct MemoryController {
@@ -17,6 +23,7 @@ struct MemoryControllerInner {
     soft_limit_bytes: u64,
     hard_limit_bytes: u64,
     state: AtomicU8,
+    reapi_materialization_pool: Arc<Semaphore>,
     metrics: Metrics,
 }
 
@@ -66,6 +73,9 @@ impl MemoryController {
                 soft_limit_bytes,
                 hard_limit_bytes,
                 state: AtomicU8::new(MemoryPressure::Normal.as_u8()),
+                reapi_materialization_pool: Arc::new(Semaphore::new(
+                    reapi_materialization_pool_bytes(soft_limit_bytes),
+                )),
                 metrics,
             }),
         }
@@ -138,12 +148,65 @@ impl MemoryController {
             MemoryPressure::Critical => 0,
         }
     }
+
+    pub fn bounded_cache_target_entries(&self, capacity: usize) -> usize {
+        match self.pressure() {
+            MemoryPressure::Normal => capacity,
+            MemoryPressure::Constrained => capacity / 2,
+            MemoryPressure::Critical => 0,
+        }
+    }
+
+    pub fn reapi_response_budget_bytes(&self) -> usize {
+        let normal_budget = clamp_u64(
+            self.inner.soft_limit_bytes / 4,
+            MIN_REAPI_RESPONSE_BUDGET_BYTES as u64,
+            MAX_REAPI_RESPONSE_BUDGET_BYTES as u64,
+        ) as usize;
+        match self.pressure() {
+            MemoryPressure::Normal => normal_budget,
+            MemoryPressure::Constrained => normal_budget / 2,
+            MemoryPressure::Critical => 0,
+        }
+    }
+
+    pub fn reapi_materialization_pool_bytes(&self) -> usize {
+        reapi_materialization_pool_bytes(self.inner.soft_limit_bytes)
+    }
+
+    pub fn try_acquire_reapi_materialization(
+        &self,
+        requested_bytes: usize,
+    ) -> Result<Option<OwnedSemaphorePermit>, ()> {
+        if requested_bytes == 0 {
+            return Ok(None);
+        }
+        let permits = u32::try_from(requested_bytes).map_err(|_| ())?;
+        self.inner
+            .reapi_materialization_pool
+            .clone()
+            .try_acquire_many_owned(permits)
+            .map(Some)
+            .map_err(|_| ())
+    }
 }
 
 fn recovery_bytes(limit: u64) -> u64 {
     limit
         .saturating_mul(RECOVERY_NUMERATOR)
         .saturating_div(RECOVERY_DENOMINATOR)
+}
+
+fn clamp_u64(value: u64, minimum: u64, maximum: u64) -> u64 {
+    value.max(minimum).min(maximum)
+}
+
+fn reapi_materialization_pool_bytes(soft_limit_bytes: u64) -> usize {
+    clamp_u64(
+        soft_limit_bytes / 2,
+        MIN_REAPI_MATERIALIZATION_POOL_BYTES as u64,
+        MAX_REAPI_MATERIALIZATION_POOL_BYTES as u64,
+    ) as usize
 }
 
 #[cfg(test)]
@@ -161,5 +224,31 @@ mod tests {
         assert_eq!(controller.observe(220), MemoryPressure::Critical);
         assert_eq!(controller.observe(185), MemoryPressure::Critical);
         assert_eq!(controller.observe(180), MemoryPressure::Constrained);
+    }
+
+    #[test]
+    fn reapi_response_budget_shrinks_with_memory_pressure() {
+        let metrics = Metrics::new("eu-west".into(), "tenant".into());
+        let controller = MemoryController::new(metrics, 128 * 1024 * 1024, 256 * 1024 * 1024);
+
+        assert_eq!(controller.reapi_response_budget_bytes(), 32 * 1024 * 1024);
+
+        controller.observe(128 * 1024 * 1024);
+        assert_eq!(controller.reapi_response_budget_bytes(), 16 * 1024 * 1024);
+
+        controller.observe(256 * 1024 * 1024);
+        assert_eq!(controller.reapi_response_budget_bytes(), 0);
+    }
+
+    #[test]
+    fn reapi_materialization_pool_is_clamped_from_soft_limit() {
+        let metrics = Metrics::new("eu-west".into(), "tenant".into());
+        let small = MemoryController::new(metrics.clone(), 24 * 1024 * 1024, 48 * 1024 * 1024);
+        let medium = MemoryController::new(metrics.clone(), 128 * 1024 * 1024, 256 * 1024 * 1024);
+        let large = MemoryController::new(metrics, 8 * 1024 * 1024 * 1024, 9 * 1024 * 1024 * 1024);
+
+        assert_eq!(small.reapi_materialization_pool_bytes(), 16 * 1024 * 1024);
+        assert_eq!(medium.reapi_materialization_pool_bytes(), 64 * 1024 * 1024);
+        assert_eq!(large.reapi_materialization_pool_bytes(), 128 * 1024 * 1024);
     }
 }
