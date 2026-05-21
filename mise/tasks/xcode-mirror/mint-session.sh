@@ -14,29 +14,27 @@
 # does its main job — populating the session cookies. No manual
 # 1P clicking, no manual `brew install`.
 #
-# Auth tool: `fastlane spaceauth`. Older versions of this script
-# tried `xcodes signin` but xcodes only authenticates as part of
-# a `download`/`install` operation — there's no standalone signin.
-# Fastlane's spaceauth is the documented, decade-old tool for
-# minting a developer.apple.com session that's portable to other
-# clients (cookie replay), which is exactly what our Elixir worker
-# does. The session cookies it emits include `myacinfo` (Apple's
-# SSO cookie that covers developer-portal downloads) plus the
-# `dqsid` session token.
+# Apple auth: this script talks to `idmsa.apple.com` directly via
+# curl — the same flow fastlane's spaceship and xcodes' AppleAPI
+# implement under the hood. No third-party dep (no fastlane gem
+# install, no ruby, no python). The trade-off is that if Apple
+# changes their auth endpoints (which they do every couple of
+# years), the script needs a small patch — but it's ~80 lines of
+# explicit HTTP calls, not a magic library to debug. If it ever
+# breaks before we get to fix it, fall back to:
+#   gem install --user-install spaceship
+#   ruby -rspaceship -e 'Spaceship::ConnectAPI.login("<apple-id>")'
+# and copy the cookies out of ~/.fastlane/spaceship/<apple-id>/cookie.
 #
 # Flow:
-#   1. Install missing prerequisites (`oras`, `jq`, `1password-cli`,
-#      `fastlane`) via brew.
+#   1. Install missing prerequisites (`oras`, `jq`, `1password-cli`)
+#      via brew.
 #   2. Ensure `op` is signed in.
 #   3. Bootstrap 1P items if absent (one-time, on first run for a
 #      given env's vault).
-#   4. Run `fastlane spaceauth -u <apple-id>` — interactive 2FA
-#      on a trusted device.
-#   5. Parse Fastlane's YAML-encoded session into our `{name: value}`
-#      JSON cookie jar.
-#   6. Write it straight into the `Tuist Xcode Mirror Session`
-#      item via `op item edit`. External Secrets propagates within
-#      ~5 min; the next worker tick uses the fresh cookies.
+#   4. Do the Apple auth dance: signin → 2FA → trust.
+#   5. Extract the cookies from the Netscape jar curl wrote.
+#   6. Write the JSON cookie set straight into the 1P item.
 
 set -euo pipefail
 
@@ -52,9 +50,8 @@ declare -A brew_formula=(
   [oras]="oras"
   [jq]="jq"
   [op]="1password-cli"
-  [fastlane]="fastlane"
 )
-for cmd in oras jq op fastlane; do
+for cmd in oras jq op; do
   if ! command -v "$cmd" >/dev/null 2>&1; then
     missing+=("${brew_formula[$cmd]}")
   fi
@@ -93,15 +90,10 @@ fi
 
 if ! op vault get "$OP_VAULT" >/dev/null 2>&1; then
   echo "Error: 1Password vault '$OP_VAULT' not visible to this account." >&2
-  echo "(Use --vault <name> to target a different vault, or check your" >&2
-  echo "1Password permissions for the env you're trying to set up.)" >&2
+  echo "(Use --vault <name> to target a different vault.)" >&2
   exit 1
 fi
 
-# GHCR_TUIST_BOT item — the worker's push credential. One-time
-# setup; the same PAT is used across envs (it's an org-level
-# resource), but each env's vault holds its own copy because
-# ESO's ClusterSecretStore scopes by vault.
 if ! op item get "$OP_GHCR_ITEM" --vault "$OP_VAULT" >/dev/null 2>&1; then
   cat <<EOF
 
@@ -112,8 +104,7 @@ under the tuist-bot identity. Need a PAT with the \`write:packages\`
 scope on the tuist org.
 
 Mint one at https://github.com/settings/tokens (or reuse an
-existing tuist-bot PAT that already has write:packages — same
-token is fine across staging / canary / production).
+existing tuist-bot PAT — same token is fine across envs).
 
 EOF
   read -rsp "Paste tuist-bot GHCR PAT (write:packages): " GHCR_TOKEN
@@ -133,10 +124,6 @@ EOF
   unset GHCR_TOKEN
 fi
 
-# Resolve the Apple ID. Precedence:
-#   1. CLI arg.
-#   2. apple_id field of an existing session item.
-#   3. Interactive prompt (and bootstrap the item if absent).
 APPLE_ID="${usage_apple_id:-${1:-}}"
 if [ -z "$APPLE_ID" ]; then
   APPLE_ID="$(op item get "$OP_ITEM" --vault "$OP_VAULT" --fields apple_id 2>/dev/null || true)"
@@ -150,10 +137,6 @@ if [ -z "$APPLE_ID" ]; then
   fi
 fi
 
-# Tuist Xcode Mirror Session item — created with a placeholder
-# session_cookies field that the rest of the script overwrites
-# after fastlane spaceauth succeeds. Splitting create vs. edit
-# avoids needing a real cookie jar to bootstrap.
 if ! op item get "$OP_ITEM" --vault "$OP_VAULT" >/dev/null 2>&1; then
   echo "Creating $OP_VAULT / $OP_ITEM (placeholder, will populate below)..."
   op item create \
@@ -165,75 +148,176 @@ if ! op item get "$OP_ITEM" --vault "$OP_VAULT" >/dev/null 2>&1; then
     >/dev/null
 fi
 
-# === 4. Mint Apple session via fastlane spaceauth ============================
+# === 4. Apple auth dance ====================================================
 
+# Temp files for the curl cookie jar and HTTP response bodies. All
+# cleaned up at exit — a captured session token leaking to disk
+# is the worst-case here.
+work_dir="$(mktemp -d -t xcode_mirror_mint.XXXXXX)"
+cookie_jar="$work_dir/cookies"
+trap 'rm -rf "$work_dir"' EXIT
+
+# 4a. Widget key — the value Apple's web SSO uses to identify the
+# requesting "service". App Store Connect publishes it through an
+# unauthenticated config endpoint; same key works for the
+# developer portal cookies we care about.
+widget_key="$(
+  curl -fsSL 'https://appstoreconnect.apple.com/olympus/v1/app/config?hostname=itunesconnect.apple.com' \
+    | jq -r '.authServiceKey'
+)"
+if [ -z "$widget_key" ] || [ "$widget_key" = "null" ]; then
+  echo "Error: couldn't fetch Apple's widget key from olympus/v1/app/config." >&2
+  echo "(Apple may have moved the endpoint; check developer.apple.com/login)" >&2
+  exit 1
+fi
+
+# 4b. Prompt for password. -s suppresses echo. We never persist
+# this anywhere; it goes straight into the signin request and out
+# of scope.
 echo
-echo "Signing in to developer.apple.com as $APPLE_ID via fastlane spaceauth..."
-echo "(2FA prompt → approve on your trusted Apple device → enter 6-digit code below.)"
+echo "Signing in to developer.apple.com as $APPLE_ID..."
+read -rsp "Apple ID password: " APPLE_PASSWORD
 echo
 
-# Capture fastlane's stdout/stderr to a temp file while still
-# letting it interact with the TTY for password + 2FA prompts.
-# `tee` keeps the user looking at progress; the temp file is what
-# we parse afterwards. Trap-clean it on exit so a session token
-# doesn't linger on disk.
-tmp_output="$(mktemp -t fastlane_spaceauth.XXXXXX)"
-trap 'rm -f "$tmp_output"' EXIT
+# 4c. POST /signin. Apple returns 409 with `scnt` +
+# `X-Apple-ID-Session-Id` response headers when 2FA is required
+# (the common case for any account that's not exempted from
+# Apple's MFA mandate, which is now everyone). 200 means the
+# account skipped 2FA — vanishingly rare since 2019.
+signin_body="$work_dir/signin.body"
+signin_headers="$work_dir/signin.headers"
+signin_status="$(
+  curl -sS -o "$signin_body" -D "$signin_headers" \
+    -w '%{http_code}' \
+    -c "$cookie_jar" \
+    -X POST \
+    -H 'Accept: application/json, text/javascript' \
+    -H 'Content-Type: application/json' \
+    -H "X-Apple-Widget-Key: $widget_key" \
+    -H 'X-Requested-With: XMLHttpRequest' \
+    --data-binary "$(jq -nc --arg id "$APPLE_ID" --arg pw "$APPLE_PASSWORD" \
+        '{accountName:$id, password:$pw, rememberMe:true}')" \
+    'https://idmsa.apple.com/appleauth/auth/signin'
+)"
+unset APPLE_PASSWORD
 
-if ! fastlane spaceauth -u "$APPLE_ID" 2>&1 | tee "$tmp_output"; then
-  echo "Error: fastlane spaceauth failed. See output above." >&2
+case "$signin_status" in
+  200)
+    # No 2FA — already trusted IP / exempted. Cookies are in the
+    # jar, skip to the dev-portal hop below.
+    ;;
+  409)
+    # 2FA required. Apple's headers are case-preserved but case-
+    # insensitive; grep -i is safe.
+    scnt="$(grep -i '^scnt:' "$signin_headers" | tail -n1 | sed 's/^[Ss][Cc][Nn][Tt]: //' | tr -d '\r')"
+    session_id="$(grep -i '^x-apple-id-session-id:' "$signin_headers" | tail -n1 | sed 's/^[Xx]-[Aa]pple-[Ii][Dd]-[Ss]ession-[Ii][Dd]: //' | tr -d '\r')"
+    if [ -z "$scnt" ] || [ -z "$session_id" ]; then
+      echo "Error: 409 from /signin but couldn't parse scnt / X-Apple-ID-Session-Id headers." >&2
+      cat "$signin_headers" >&2
+      exit 1
+    fi
+
+    # Trigger the trusted-device push so the user gets the prompt.
+    curl -sS -o /dev/null -c "$cookie_jar" -b "$cookie_jar" \
+      -X GET \
+      -H 'Accept: application/json' \
+      -H "X-Apple-Widget-Key: $widget_key" \
+      -H "X-Apple-ID-Session-Id: $session_id" \
+      -H "scnt: $scnt" \
+      'https://idmsa.apple.com/appleauth/auth/verify/trusteddevice'
+
+    echo "Approve the prompt on your trusted Apple device, then enter the 6-digit code."
+    read -rp "2FA code: " CODE
+    if [ -z "$CODE" ]; then
+      echo "Error: empty 2FA code." >&2
+      exit 1
+    fi
+
+    verify_status="$(
+      curl -sS -o /dev/null -D "$work_dir/verify.headers" \
+        -w '%{http_code}' \
+        -c "$cookie_jar" -b "$cookie_jar" \
+        -X POST \
+        -H 'Accept: application/json' \
+        -H 'Content-Type: application/json' \
+        -H "X-Apple-Widget-Key: $widget_key" \
+        -H "X-Apple-ID-Session-Id: $session_id" \
+        -H "scnt: $scnt" \
+        --data-binary "$(jq -nc --arg c "$CODE" '{securityCode:{code:$c}}')" \
+        'https://idmsa.apple.com/appleauth/auth/verify/trusteddevice/securitycode'
+    )"
+    unset CODE
+
+    if [ "$verify_status" != "204" ] && [ "$verify_status" != "200" ]; then
+      echo "Error: 2FA verify returned HTTP $verify_status." >&2
+      exit 1
+    fi
+
+    # Mark this signin as a "trusted" device so the session
+    # outlasts the default few-hours window. Returns the bulk of
+    # the session cookies we care about (myacinfo + dqsid).
+    curl -sS -o /dev/null \
+      -c "$cookie_jar" -b "$cookie_jar" \
+      -X GET \
+      -H 'Accept: application/json' \
+      -H "X-Apple-Widget-Key: $widget_key" \
+      -H "X-Apple-ID-Session-Id: $session_id" \
+      -H "scnt: $scnt" \
+      'https://idmsa.apple.com/appleauth/auth/2sv/trust'
+    ;;
+  *)
+    echo "Error: /signin returned HTTP $signin_status." >&2
+    echo "Response body:" >&2
+    cat "$signin_body" >&2
+    exit 1
+    ;;
+esac
+
+# 4d. Hit developer.apple.com once to upgrade the cookie set into
+# the form the dev-portal CDN accepts — Apple sets additional
+# scoped cookies on the first authenticated request to that
+# subdomain.
+curl -sS -o /dev/null \
+  -c "$cookie_jar" -b "$cookie_jar" \
+  'https://developer.apple.com/account/' \
+  >/dev/null 2>&1 || true
+
+# === 5. Extract cookies as JSON =============================================
+
+# Netscape cookie jar format:
+#   <domain> <flag> <path> <secure> <expiry> <name> <value>
+# Apple's flow drops cookies across multiple subdomains. We keep
+# anything ending in `apple.com` so myacinfo (idmsa) + dqsid
+# (developer.apple.com) + any cross-cutting auth crumbs all make
+# it into the jar. The worker only reads the names it cares
+# about; extras don't hurt.
+cookies_json="$(
+  awk -F'\t' -v OFS='' '
+    BEGIN { print "{"; first = 1 }
+    /^[^#]/ && NF == 7 {
+      domain = $1; name = $6; value = $7
+      sub(/^#HttpOnly_/, "", domain)
+      if (domain !~ /apple\.com$/) next
+      if (name == "") next
+      if (!first) print ","
+      # Escape inner quotes / backslashes so the JSON parses.
+      gsub(/\\/, "\\\\", value)
+      gsub(/"/, "\\\"", value)
+      printf "\"%s\":\"%s\"", name, value
+      first = 0
+    }
+    END { print "}" }
+  ' "$cookie_jar"
+)"
+
+# Validate + minify with jq before pushing to 1P.
+if ! echo "$cookies_json" | jq -e 'length > 0' >/dev/null 2>&1; then
+  echo "Error: no apple.com cookies in the jar after the auth dance." >&2
+  echo "Cookie jar dump:" >&2
+  cat "$cookie_jar" >&2
   exit 1
 fi
-
-# === 5. Parse Fastlane's YAML session into our JSON cookie jar ==============
-
-# fastlane spaceauth prints something like:
-#
-#   Pass the following via the FASTLANE_SESSION environment variable:
-#   ---
-#   - !ruby/object:HTTP::Cookie
-#     name: myacinfo
-#     value: DAW...
-#     ...
-#   Example:
-#   export FASTLANE_SESSION='---\n- !ruby/object:...'
-#
-# We grab the `export FASTLANE_SESSION='...'` line — single-line,
-# easier to parse than the multi-line YAML block above.
-session_line="$(grep -E "^export FASTLANE_SESSION=" "$tmp_output" | head -n1 || true)"
-if [ -z "$session_line" ]; then
-  echo "Error: fastlane spaceauth didn't produce a FASTLANE_SESSION line." >&2
-  echo "(Check the output above for what went wrong.)" >&2
-  exit 1
-fi
-
-# Strip the `export FASTLANE_SESSION='` prefix and the trailing `'`.
-session_yaml="${session_line#export FASTLANE_SESSION=\'}"
-session_yaml="${session_yaml%\'}"
-
-# Convert the Ruby-flavoured YAML to our {name: value} JSON. Pass
-# the YAML via stdin to dodge the bash single-quote escaping
-# fastlane uses in its `export` line (`'\''` → `'`); Ruby's `gets`
-# preserves whatever fastlane wrote literally. `unsafe_load` is
-# needed to deserialise the `!ruby/object:HTTP::Cookie` tagged
-# values — they're trusted (we just minted them).
-cookies_json="$(printf '%s' "$session_yaml" | ruby -ryaml -rjson -e '
-  yaml = STDIN.read
-  cookies = YAML.unsafe_load(yaml)
-  result = cookies.each_with_object({}) do |c, acc|
-    name = c.respond_to?(:name) ? c.name : c["name"]
-    value = c.respond_to?(:value) ? c.value : c["value"]
-    acc[name] = value if name && value
-  end
-  raise "no cookies extracted from fastlane session" if result.empty?
-  puts result.to_json
-')"
-
-if [ -z "$cookies_json" ]; then
-  echo "Error: failed to extract cookies from fastlane session." >&2
-  exit 1
-fi
-
+cookies_json="$(echo "$cookies_json" | jq -c '.')"
 n="$(echo "$cookies_json" | jq 'length')"
 echo "Captured $n cookie(s)."
 
