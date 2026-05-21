@@ -139,7 +139,7 @@ private class DirectoryStructure {
         case let .project(path):
             return path.pathString
                 .contains(
-                    "\(Constants.SwiftPackageManager.packageBuildDirectoryName)/\(Constants.DerivedDirectory.dependenciesDerivedDirectory)"
+                    "\(Constants.DerivedDirectory.dependenciesDerivedDirectory)/\(Constants.DerivedDirectory.dependenciesProjectDirectory)/"
                 )
         case .directory, .file, .folderReference, .virtualGroup:
             return false

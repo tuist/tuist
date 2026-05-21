@@ -1,6 +1,8 @@
 import Foundation
 import Mockable
 import Path
+import TuistConfig
+import TuistConfigLoader
 import TuistConstants
 import TuistCore
 import TuistEnvironment
@@ -37,6 +39,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
     private var templatesDirectoryLocator: MockTemplatesDirectoryLocating!
     private var projectDescriptionHelpersBuilder: MockProjectDescriptionHelpersBuilder!
     private var projectDescriptionHelpersBuilderFactory: MockProjectDescriptionHelpersBuilderFactory!
+    private var configLoader: MockConfigLoading!
     private var subject: ProjectEditor!
 
     override func setUp() {
@@ -50,14 +53,21 @@ final class ProjectEditorTests: TuistUnitTestCase {
         templatesDirectoryLocator = MockTemplatesDirectoryLocating()
         projectDescriptionHelpersBuilder = MockProjectDescriptionHelpersBuilder()
         projectDescriptionHelpersBuilderFactory = MockProjectDescriptionHelpersBuilderFactory()
+        configLoader = MockConfigLoading()
         projectDescriptionHelpersBuilderFactory
             .projectDescriptionHelpersBuilderStub = { _ in self.projectDescriptionHelpersBuilder }
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(
+                .test(project: .generated(.test()))
+            )
 
         subject = ProjectEditor(
             generator: generator,
             projectEditorMapper: projectEditorMapper,
             resourceLocator: resourceLocator,
             manifestFilesLocator: manifestFilesLocator,
+            configLoader: configLoader,
             helpersDirectoryLocator: helpersDirectoryLocator,
             writer: writer,
             templatesDirectoryLocator: templatesDirectoryLocator,
@@ -72,8 +82,23 @@ final class ProjectEditorTests: TuistUnitTestCase {
         manifestFilesLocator = nil
         helpersDirectoryLocator = nil
         templatesDirectoryLocator = nil
+        configLoader = nil
         subject = nil
         super.tearDown()
+    }
+
+    private func makeSubject(configLoader: MockConfigLoading? = nil) -> ProjectEditor {
+        ProjectEditor(
+            generator: generator,
+            projectEditorMapper: projectEditorMapper,
+            resourceLocator: resourceLocator,
+            manifestFilesLocator: manifestFilesLocator,
+            configLoader: configLoader ?? self.configLoader,
+            helpersDirectoryLocator: helpersDirectoryLocator,
+            writer: writer,
+            templatesDirectoryLocator: templatesDirectoryLocator,
+            projectDescriptionHelpersBuilderFactory: projectDescriptionHelpersBuilderFactory
+        )
     }
 
     func test_edit() async throws {
@@ -144,6 +169,81 @@ final class ProjectEditorTests: TuistUnitTestCase {
         XCTAssertEqual(mapArgs?.projectDescriptionPath, projectDescriptionPath.parentDirectory)
         XCTAssertEqual(mapArgs?.configPath, configPath)
         XCTAssertEqual(mapArgs?.packageManifestPath, packageManifestPath)
+    }
+
+    func test_edit_excludes_custom_swift_package_manager_scratch_directory() async throws {
+        // Given
+        let directory = try temporaryPath()
+        let customScratchDirectory = directory.appending(components: "CustomScratch")
+        let customConfigLoader = MockConfigLoading()
+        let manifests = [
+            ManifestFilesLocator.ProjectManifest(
+                manifest: .project,
+                path: directory.appending(component: "Project.swift")
+            ),
+        ]
+        let projectDescriptionPath = directory.appending(component: "ProjectDescription.framework")
+        let packageManifestPath = directory.appending(components: "Tuist", "Package.swift")
+        let graph = Graph.test(name: "Edit")
+
+        resourceLocator.projectDescriptionStub = { projectDescriptionPath }
+        given(customConfigLoader)
+            .loadConfig(path: .any)
+            .willReturn(
+                .test(
+                    project: .generated(
+                        .test(
+                            installOptions: .test(
+                                passthroughSwiftPackageManagerArguments: [
+                                    "--scratch-path",
+                                    customScratchDirectory.pathString,
+                                ]
+                            )
+                        )
+                    )
+                )
+            )
+        given(manifestFilesLocator).locateProjectManifests(
+            at: .any,
+            excluding: .value(
+                [
+                    "**/.build/**",
+                    "\(customScratchDirectory.pathString)/**",
+                ]
+            ),
+            onlyCurrentDirectory: .any
+        )
+        .willReturn(manifests)
+        given(manifestFilesLocator).locatePackageManifest(at: .any).willReturn(packageManifestPath)
+        given(manifestFilesLocator).locateConfig(at: .any).willReturn(nil)
+        given(manifestFilesLocator)
+            .locatePluginManifests(at: .any, excluding: .any, onlyCurrentDirectory: .any)
+            .willReturn([])
+        projectEditorMapper.mapStub = graph
+        generator.generateWorkspaceStub = { _ in
+            .test(xcworkspacePath: directory.appending(component: "Edit.xcworkspacepath"))
+        }
+        given(templatesDirectoryLocator)
+            .locateUserTemplates(at: .any)
+            .willReturn(nil)
+        let subject = makeSubject(configLoader: customConfigLoader)
+
+        // When
+        try _ = await subject.edit(at: directory, in: directory, onlyCurrentDirectory: false, plugins: .test())
+
+        // Then
+        verify(manifestFilesLocator)
+            .locateProjectManifests(
+                at: .value(directory),
+                excluding: .value(
+                    [
+                        "**/.build/**",
+                        "\(customScratchDirectory.pathString)/**",
+                    ]
+                ),
+                onlyCurrentDirectory: .value(false)
+            )
+            .called(1)
     }
 
     func test_edit_when_there_are_no_editable_files() async throws {
