@@ -6,6 +6,8 @@
 #     -f infra/helm/tuist/values-managed-production.yaml \
 #     --set server.image.tag=$GIT_SHA
 
+kuraGlobalEndpointsRequired: false
+
 server:
   replicaCount: 2
 
@@ -102,7 +104,6 @@ kuraController:
     apiTokenSecret:
       managed: true
       item: cloudflare-tuist-dns
-
 postgresql:
   external:
     host: db.tuist.dev  # Supabase pooler endpoint for production.
@@ -249,6 +250,29 @@ runnersFleet:
       runnerImage: "ghcr.io/tuist/tuist-runner@sha256:d4824d8b6a8c7b6d1c2e87dda7f4c4b751ef87f03f87a9c409cfa15756fb198c"
       dispatchLabel: "tuist-macos"
 
+# Bare-metal vm-image-builder fleet — bakes the Tart VM images the
+# macosFleet and runnersFleet hosts run. Sized at 1 to start so the
+# cluster-managed builder lands alongside the existing hand-
+# bootstrapped `vm-image-builder-01` host (which carries the same
+# `vm-image-builder` runner label, so GitHub's scheduler routes
+# between them). Retire `-01` per the "Migrating from hand-
+# bootstrapped hosts" section of vm-image-builder.md once the
+# cluster-managed builder is comfortably taking jobs; scale up
+# `replicas` here to whatever capacity ends up needed.
+#
+# Shares the `tuist-pool-` host pool with macosFleet (2) and
+# runnersFleet (9), so this fleet adds 1 to the pool-demand
+# total. The operator's pre-order job for production already
+# tracks the macos + runners side; bump it by 1 ahead of the
+# first `helm upgrade` that flips this fleet's pool-claim path
+# on.
+buildersFleet:
+  enabled: true
+  replicas: 1
+  adoptPoolPrefix: "tuist-pool-"
+  externalSecrets:
+    enabled: true
+
 # Kata Containers + QEMU runtime for the Linux runner microVM pool.
 kataContainers:
   enabled: true
@@ -272,7 +296,7 @@ runnersFleetLinux:
   name: runners-linux
   pools:
     - name: ubuntu-22-04
-      runnerImage: "ghcr.io/tuist/tuist-linux-runner:sha-4483c37d81e2"
+      runnerImage: "ghcr.io/tuist/tuist-linux-runner@sha256:3d6052b299e87fec95f8e03abf8c049bf75d40b03a3858dac6e28db2d4501a32"
       dispatchLabel: "tuist-production-linux"
       runnerLabels:
         - self-hosted

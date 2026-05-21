@@ -253,6 +253,23 @@ runnersFleet:
         cpuMilli: 8000
         memoryMB: 14336
 
+# Bare-metal vm-image-builder fleet — bakes the Tart VM images that
+# the macosFleet and runnersFleet hosts run. Shares the
+# `tuist-pool-` host pool with the other two fleets; CAPI claims
+# the next available `tuist-pool-*` Mac mini, bootstraps it
+# identically to the other fleets (tart-kubelet + node_exporter +
+# Tailscale), and then layers on a GitHub Actions self-hosted
+# runner LaunchAgent that picks up image-bake workflow jobs from
+# the tuist org. The runner agent's registration token is minted
+# on every bootstrap by the CAPI reconciler from the
+# `BUILDERS_FLEET_GITHUB_APP` 1P item synced via ESO.
+buildersFleet:
+  enabled: true
+  replicas: 1
+  adoptPoolPrefix: "tuist-pool-"
+  externalSecrets:
+    enabled: true
+
 # Kata Containers + Firecracker runtime for Linux bare-metal nodes.
 # The `kataContainers` block above defaults to disabled; staging
 # flips it on so the kata-deploy DaemonSet installs the runtime on

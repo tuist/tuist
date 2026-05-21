@@ -31,6 +31,7 @@ import (
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/api/v1alpha1"
 	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/internal/credentials"
 	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/internal/kubeconfig"
+	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/internal/runner"
 	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/internal/scaleway"
 	"github.com/tuist/tuist/infra/macos-host-bootstrap"
 )
@@ -150,6 +151,20 @@ type ScalewayAppleSiliconMachineReconciler struct {
 	EgressNamespace      string
 	EgressProxyGroup     string
 	EgressMagicDNSSuffix string
+
+	// RunnerResolver turns a Machine's `Spec.GHActionsRunner` into a
+	// fully-populated `*bootstrap.GHActionsRunnerConfig` with a fresh
+	// short-lived registration token. Empty when no Machine in the
+	// cluster carries a GHActionsRunner spec (a pure-Node fleet);
+	// non-nil for clusters that include the buildersFleet or any
+	// future workload-on-host fleet.
+	//
+	// Lives behind an interface so the Scaleway-specific Machine
+	// reconciler doesn't import workload-credential-specific code.
+	// Production wires the GitHub-App-backed implementation in
+	// `cmd/manager/main.go`; tests inject a stub that returns a
+	// canned config without dialing GitHub or reading a Secret.
+	RunnerResolver runner.Resolver
 }
 
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=scalewayapplesiliconmachines,verbs=get;list;watch;create;update;patch;delete
@@ -461,6 +476,21 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
 
+		var ghRunner *bootstrap.GHActionsRunnerConfig
+		if machine.Spec.GHActionsRunner != nil {
+			if r.RunnerResolver == nil {
+				return ctrl.Result{}, fmt.Errorf("RunnerResolver not wired on reconciler; the manager binary must set it when any fleet carries a ghActionsRunner spec")
+			}
+			ghRunner, err = r.RunnerResolver.Resolve(ctx, machine.Namespace, machine.Spec.GHActionsRunner)
+			if err != nil {
+				conditions.MarkFalse(machine, BootstrappedCondition, "GHRunnerRegistrationTokenUnavailable",
+					clusterv1.ConditionSeverityWarning, "%v", err)
+				r.Recorder.Eventf(machine, corev1.EventTypeWarning, "GHRunnerRegistrationTokenUnavailable",
+					"%v (will retry; check the github-app Secret + GitHub App reachability)", err)
+				return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+			}
+		}
+
 		fingerprint, err := bootstrap.Run(ctx, bootstrap.Config{
 			IP:                   ip,
 			SSHUser:              bootstrapCreds.SSHUsername,
@@ -479,6 +509,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			MaxPods:              r.TartKubeletMaxPods,
 			NodeLabels:           machineNodeLabels(machine),
 			KnownHostFingerprint: bootstrapCreds.HostFingerprint,
+			GHActionsRunner:      ghRunner,
 		})
 		// Persist whatever fingerprint Run captured even on the error
 		// path, so a transient bootstrap failure doesn't lose the

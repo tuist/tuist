@@ -52,6 +52,16 @@ type Client struct {
 	API AppleSiliconAPI
 	IAM *iam.API
 
+	// DefaultProjectID is the SCW_DEFAULT_PROJECT_ID the underlying
+	// scw client was constructed with. Captured at NewClient time
+	// so IAM calls that Scaleway strictly enforces project scope on
+	// (notably ListSSHKeys / CreateSSHKey under a project-scoped
+	// `SSHKeysFullAccess` policy) can include it explicitly. The
+	// SDK won't back-fill it into IAM resource requests on its own —
+	// without an explicit ProjectID, ListSSHKeys ends up asking for
+	// org-wide list and Scaleway returns "insufficient permissions".
+	DefaultProjectID string
+
 	// adoptMu serializes AdoptByPrefix across all goroutines in this
 	// process. Scaleway's UpdateServer is not conditional — two
 	// concurrent rename calls against the same server both succeed,
@@ -77,7 +87,8 @@ func NewClient() (*Client, error) {
 		if err != nil {
 			return nil, fmt.Errorf("scaleway client: %w", err)
 		}
-		return &Client{API: applesilicon.NewAPI(client), IAM: iam.NewAPI(client)}, nil
+		projectID, _ := client.GetDefaultProjectID()
+		return &Client{API: applesilicon.NewAPI(client), IAM: iam.NewAPI(client), DefaultProjectID: projectID}, nil
 	}
 	profile, err := cfg.GetActiveProfile()
 	if err != nil {
@@ -87,7 +98,8 @@ func NewClient() (*Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("scaleway client: %w", err)
 	}
-	return &Client{API: applesilicon.NewAPI(client), IAM: iam.NewAPI(client)}, nil
+	projectID, _ := client.GetDefaultProjectID()
+	return &Client{API: applesilicon.NewAPI(client), IAM: iam.NewAPI(client), DefaultProjectID: projectID}, nil
 }
 
 // EnsureSSHKey registers `publicKey` with Scaleway under `name`.
@@ -100,13 +112,28 @@ func NewClient() (*Client, error) {
 func (c *Client) EnsureSSHKey(ctx context.Context, name, publicKey string) (string, error) {
 	wantPub := normalizePubKey(publicKey)
 
+	// Scope every IAM request to the env-default project. Scaleway
+	// gates `iam:ListSSHKeys` under a project-scoped
+	// `SSHKeysFullAccess` policy strictly: without an explicit
+	// ProjectID filter, the listing is implicitly org-wide and gets
+	// denied with `insufficient permissions: list ssh_key`. Bundle
+	// the same filter into the create call so the new key lands in
+	// the same project the existing fleet keys live in (matches the
+	// AGENTS.md "project scope" convention for the IAM application).
+	var projectIDFilter *string
+	if c.DefaultProjectID != "" {
+		p := c.DefaultProjectID
+		projectIDFilter = &p
+	}
+
 	page := int32(1)
 	pageSize := uint32(100)
 	for {
 		resp, err := c.IAM.ListSSHKeys(&iam.ListSSHKeysRequest{
-			Name:     &name,
-			Page:     &page,
-			PageSize: &pageSize,
+			Name:      &name,
+			ProjectID: projectIDFilter,
+			Page:      &page,
+			PageSize:  &pageSize,
 		}, scw.WithContext(ctx))
 		if err != nil {
 			return "", fmt.Errorf("list ssh keys: %w", err)
@@ -134,6 +161,7 @@ func (c *Client) EnsureSSHKey(ctx context.Context, name, publicKey string) (stri
 	created, err := c.IAM.CreateSSHKey(&iam.CreateSSHKeyRequest{
 		Name:      name,
 		PublicKey: publicKey,
+		ProjectID: c.DefaultProjectID,
 	}, scw.WithContext(ctx))
 	if err != nil {
 		return "", fmt.Errorf("create ssh key: %w", err)
