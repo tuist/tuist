@@ -3,83 +3,21 @@ defmodule Tuist.Runners.Workers.MissedQueuedWorker do
   Recovers `workflow_job.queued` webhook deliveries GitHub dropped
   or our endpoint missed.
 
-  ## Why this exists
-
-  The `workflow_job: queued` webhook is the **only** path that
-  inserts a row into ClickHouse `runner_jobs`. `OrphanedRunnersWorker`
-  reconciles rows already in CH `status='running'` against GitHub —
-  it cannot recover a `queued` event that was never delivered to
-  the webhook endpoint at all. If GitHub drops a delivery (provider
-  outage, our endpoint 5xx'd, signature failure, replay-after-deploy
-  window), the customer's workflow_job sits in GitHub's queue
+  The webhook is the only path that inserts a row into CH
+  `runner_jobs`. `OrphanedRunnersWorker` reconciles rows already in
+  `status='running'` — it can't recover a `queued` event that was
+  never delivered at all. Without this worker, a dropped delivery
+  leaves the customer's workflow_job stuck in GitHub's queue
   indefinitely with no row, no metric, no alert on our side.
 
-  ## How it works
+  For each account with `runner_max_concurrent > 0`, walks the
+  installation's repos, lists `?status=queued` workflow runs in a
+  `@lookback_minutes` window, and for any job with a matching pool
+  label that we don't already have in CH (`Jobs.exists?/1`), calls
+  `Jobs.enqueue/1`.
 
-  Every 5 minutes:
-
-    1. List accounts with `runner_max_concurrent > 0`. Customers
-       who haven't enabled runners can't be the target of this
-       failure and we don't want to burn API budget enumerating
-       their repos.
-
-    2. For each enabled account, resolve the GitHub App
-       installation via `Tuist.VCS.get_github_app_installation_for_account/1`.
-
-    3. List the installation's repositories (paginated via the
-       existing `GitHubClient.list_installation_repositories/2`).
-
-    4. For each repo, GET `/actions/runs?status=queued&created>=...`
-       with a `@lookback_minutes`-wide window. `created>=` caps the
-       blast radius so an outage that left thousands of ancient
-       runs in `queued` doesn't suddenly cost us an unbounded
-       number of API calls.
-
-    5. For each queued run, GET `/actions/runs/{run_id}/jobs?filter=latest`
-       to enumerate its jobs. Run-level queries don't include
-       per-job labels, which we need to decide pool routing.
-
-    6. For each job in `status='queued'` whose `labels` match one
-       of our `RunnerPool.spec.dispatchLabel`s, check
-       `Jobs.exists?(workflow_job_id)`. If the row already exists
-       (webhook arrived, just slightly delayed), skip. Otherwise
-       INSERT via `Jobs.enqueue/1` using the same payload shape
-       the webhook handler builds.
-
-  ## Cadence and lookback
-
-  Cron `*/5 * * * *` with `@lookback_minutes = 15` gives 3x overlap
-  against intermittent failures: a webhook dropped at T receives
-  three chances to be recovered before falling out of the window
-  at T+15.
-
-  Recovery latency is bounded by the cron period (up to 5 min) plus
-  the time it takes the worker to reach that customer's repo in its
-  iteration. Acceptable trade against API cost — every-minute
-  cadence would push us close to the 5000/hr per-installation rate
-  limit for customers with many repos.
-
-  ## Cost shape
-
-  Per cycle per enabled account: `1 + R` API calls for the empty
-  case (list repos + list-queued-runs per repo), and an additional
-  call per queued run found. Queued runs in any given 15-min window
-  are usually 0; the steady-state cost is dominated by the empty
-  list-runs calls. At 100 repos per customer that's ~1200 calls/hr
-  per installation, well inside the 5000/hr installation limit.
-
-  ## Idempotency and race against late webhooks
-
-  `Jobs.exists?/1` is the dedup gate — if the webhook landed
-  between our list-jobs call and our enqueue call, the second
-  enqueue is dropped. If the webhook lands AFTER our enqueue, RMT
-  on the CH side collapses to one logical row (both INSERTs carry
-  `status='queued'`, the later `updated_at` wins on merge, the
-  outcome is identical to a single delivery).
-
-  Telemetry: emits `tuist_runners_recovery_count{kind="missed_queued"}`
-  per successful recovery — feeds the Grafana dashboard's recovery
-  rate panel alongside `stale_claim` / `orphan_requeued` / `orphan_completed`.
+  Emits `tuist_runners_recovery_count{kind="missed_queued"}` per
+  recovery alongside the existing `stale_claim` / `orphan_*` kinds.
   """
 
   use Oban.Worker, queue: :default, max_attempts: 1
