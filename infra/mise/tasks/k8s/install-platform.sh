@@ -34,11 +34,14 @@ if [ ! -r "$WL_KUBECONFIG" ]; then
   exit 1
 fi
 
-# HCCM stamps every node with topology.kubernetes.io/region (e.g. ash,
-# hil, fsn1). Reading the location from the cluster keeps callers
-# free of any region-name mapping that could drift from the actual
-# placement.
+# HCCM stamps Hetzner Cloud nodes with topology.kubernetes.io/region
+# (e.g. ash, hil, fsn1). Reading the location from the cluster keeps
+# callers free of any region-name mapping that could drift from the
+# actual placement. Filter to nodes that actually carry the label —
+# bare-metal Hetzner Robot nodes are joined to the same cluster and
+# don't have it.
 REGION="$(KUBECONFIG="$WL_KUBECONFIG" kubectl get nodes \
+  -l topology.kubernetes.io/region \
   -o jsonpath='{.items[0].metadata.labels.topology\.kubernetes\.io/region}')"
 if [ -z "$REGION" ]; then
   echo "ERROR: could not derive Hetzner location from topology.kubernetes.io/region on $WL_KUBECONFIG nodes" >&2
