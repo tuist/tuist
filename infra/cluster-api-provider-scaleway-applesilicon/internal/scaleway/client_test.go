@@ -142,6 +142,18 @@ type fakeAppleSiliconAPI struct {
 	updateCalls  int
 	getErrors    map[int]error
 	getCalls     int
+
+	// deleteErrors maps `<call-index> -> error` for DeleteServer; an
+	// absent / nil entry returns success (Scaleway accepts the
+	// immediate delete). Lets the precondition-fallback tests force
+	// the typed scw.PreconditionFailedError that the SDK returns for
+	// a server still inside its 24h Apple-licensing floor, then
+	// observe the schedule-deletion UpdateServer call that should
+	// follow.
+	deleteErrors  map[int]error
+	deleteCalls   int
+	deletedIDs    []string
+	scheduledIDs  []string
 }
 
 func (f *fakeAppleSiliconAPI) ListServers(req *applesilicon.ListServersRequest, _ ...scw.RequestOption) (*applesilicon.ListServersResponse, error) {
@@ -180,6 +192,9 @@ func (f *fakeAppleSiliconAPI) UpdateServer(req *applesilicon.UpdateServerRequest
 			if req.Name != nil {
 				s.Name = *req.Name
 			}
+			if req.ScheduleDeletion != nil && *req.ScheduleDeletion {
+				f.scheduledIDs = append(f.scheduledIDs, s.ID)
+			}
 			return s, nil
 		}
 	}
@@ -190,8 +205,13 @@ func (f *fakeAppleSiliconAPI) CreateServer(*applesilicon.CreateServerRequest, ..
 	return nil, errors.New("CreateServer not implemented in fake")
 }
 
-func (f *fakeAppleSiliconAPI) DeleteServer(*applesilicon.DeleteServerRequest, ...scw.RequestOption) error {
-	return errors.New("DeleteServer not implemented in fake")
+func (f *fakeAppleSiliconAPI) DeleteServer(req *applesilicon.DeleteServerRequest, _ ...scw.RequestOption) error {
+	f.deleteCalls++
+	if err, ok := f.deleteErrors[f.deleteCalls]; ok {
+		return err
+	}
+	f.deletedIDs = append(f.deletedIDs, req.ServerID)
+	return nil
 }
 
 func (f *fakeAppleSiliconAPI) WaitForServer(*applesilicon.WaitForServerRequest, ...scw.RequestOption) (*applesilicon.Server, error) {
@@ -554,5 +574,105 @@ func TestAdoptByPrefix_Phase1VerifyNon404SurfacesError(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "phase 1 verify") {
 		t.Fatalf("expected error to identify phase 1 verify, got %v", err)
+	}
+}
+
+// --- DeleteServer fallback for the 24h billing floor ----------------------
+//
+// The SDK parses standard error types into their own concrete types
+// inside hasResponseError — a 412 with `"type": "precondition_failed"`
+// comes back as *scw.PreconditionFailedError, not as the generic
+// *scw.ResponseError. An earlier version of isPreconditionFailed only
+// checked the generic shape and so missed every real 412 the SDK
+// returned, leaving DeleteServer to loop on the Apple 24h floor while
+// the MachineDeployment sat at 0 available and gated every helm
+// upgrade behind it. These tests pin the wiring so the schedule-
+// deletion fallback actually fires.
+
+func TestDeleteServer_PreconditionFailedTriggersScheduleDeletion(t *testing.T) {
+	api := &fakeAppleSiliconAPI{
+		servers: []*applesilicon.Server{
+			readyServer("srv-1", "tuist-tuist-macos-fleet-0"),
+		},
+		deleteErrors: map[int]error{
+			1: &scw.PreconditionFailedError{Precondition: "unknown_precondition", HelpMessage: "this server cannot be deleted before 2026-06-12 07:06:59"},
+		},
+	}
+	c := newTestClient(api)
+
+	if err := c.DeleteServer(context.Background(), "srv-1", "fr-par-1"); err != nil {
+		t.Fatalf("DeleteServer: expected nil after schedule-deletion fallback, got %v", err)
+	}
+	if got := api.scheduledIDs; len(got) != 1 || got[0] != "srv-1" {
+		t.Fatalf("expected schedule-deletion UpdateServer call for srv-1, got %v", got)
+	}
+}
+
+func TestDeleteServer_ResponseError412AlsoTriggersScheduleDeletion(t *testing.T) {
+	// Unparsed 412 responses (non-JSON body or unknown error type) come
+	// back as the generic *scw.ResponseError. The wiring should still
+	// catch this path so the fallback isn't tied to one error shape.
+	api := &fakeAppleSiliconAPI{
+		servers: []*applesilicon.Server{
+			readyServer("srv-2", "tuist-tuist-macos-fleet-1"),
+		},
+		deleteErrors: map[int]error{
+			1: &scw.ResponseError{StatusCode: 412, Status: "412 Precondition Failed"},
+		},
+	}
+	c := newTestClient(api)
+
+	if err := c.DeleteServer(context.Background(), "srv-2", "fr-par-1"); err != nil {
+		t.Fatalf("DeleteServer: expected nil after schedule-deletion fallback, got %v", err)
+	}
+	if got := api.scheduledIDs; len(got) != 1 || got[0] != "srv-2" {
+		t.Fatalf("expected schedule-deletion UpdateServer call for srv-2, got %v", got)
+	}
+}
+
+func TestDeleteServer_PreconditionFallbackPropagatesNon404UpdateError(t *testing.T) {
+	api := &fakeAppleSiliconAPI{
+		servers: []*applesilicon.Server{
+			readyServer("srv-3", "tuist-tuist-macos-fleet-2"),
+		},
+		deleteErrors: map[int]error{
+			1: &scw.PreconditionFailedError{Precondition: "unknown_precondition"},
+		},
+		updateErrors: map[int]error{
+			1: errors.New("scaleway: 502 bad gateway"),
+		},
+	}
+	c := newTestClient(api)
+
+	err := c.DeleteServer(context.Background(), "srv-3", "fr-par-1")
+	if err == nil {
+		t.Fatalf("expected schedule-deletion failure to be surfaced")
+	}
+	if !strings.Contains(err.Error(), "schedule deletion") {
+		t.Fatalf("expected error to identify the schedule-deletion fallback, got %v", err)
+	}
+}
+
+func TestDeleteServer_PreconditionFallbackTreats404AsAlreadyGone(t *testing.T) {
+	// Race window: a previous reconcile already scheduled the
+	// deletion, the billing floor expired between reconciles, and
+	// Scaleway has since removed the server. The fallback's
+	// UpdateServer comes back 404 — that's a clean "already gone"
+	// and should not propagate as a reconcile failure.
+	api := &fakeAppleSiliconAPI{
+		servers: []*applesilicon.Server{
+			readyServer("srv-4", "tuist-tuist-macos-fleet-3"),
+		},
+		deleteErrors: map[int]error{
+			1: &scw.PreconditionFailedError{Precondition: "unknown_precondition"},
+		},
+		updateErrors: map[int]error{
+			1: &scw.ResourceNotFoundError{Resource: "server", ResourceID: "srv-4"},
+		},
+	}
+	c := newTestClient(api)
+
+	if err := c.DeleteServer(context.Background(), "srv-4", "fr-par-1"); err != nil {
+		t.Fatalf("DeleteServer: expected nil when schedule-deletion sees 404, got %v", err)
 	}
 }

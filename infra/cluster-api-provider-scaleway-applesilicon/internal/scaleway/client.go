@@ -519,7 +519,21 @@ func (c *Client) DeleteServer(ctx context.Context, id, zone string) error {
 
 // isPreconditionFailed detects Scaleway's HTTP 412 — typically the
 // 24h Apple-licensing floor on DeleteServer.
+//
+// The SDK parses standard error types into their own concrete types
+// (PreconditionFailedError, ResourceNotFoundError, …) inside
+// hasResponseError before they reach us; the generic ResponseError is
+// only returned for unparsed responses (non-JSON body, unknown error
+// type). Match both so DeleteServer's schedule-deletion fallback
+// actually fires — otherwise the controller loops DeleteServer every
+// 60 s for the multi-week Apple billing floor while the
+// MachineDeployment sits at 0 available, wedging every helm upgrade
+// that gates on it.
 func isPreconditionFailed(err error) bool {
+	var preconditionErr *scw.PreconditionFailedError
+	if errors.As(err, &preconditionErr) {
+		return true
+	}
 	var scwErr *scw.ResponseError
 	if errors.As(err, &scwErr) {
 		return scwErr.StatusCode == http.StatusPreconditionFailed
