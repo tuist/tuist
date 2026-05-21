@@ -154,6 +154,16 @@ type fakeAppleSiliconAPI struct {
 	deleteCalls   int
 	deletedIDs    []string
 	scheduledIDs  []string
+
+	// reinstallErrors maps `<call-index> -> error` for ReinstallServer;
+	// an absent / nil entry returns success and appends to
+	// reinstalledIDs. ReleaseToPool tests use this to force the
+	// crash-recovery shape where a previous reinstall is still in
+	// flight (TransientStateError) and confirm the second attempt
+	// degrades gracefully.
+	reinstallErrors map[int]error
+	reinstallCalls  int
+	reinstalledIDs  []string
 }
 
 func (f *fakeAppleSiliconAPI) ListServers(req *applesilicon.ListServersRequest, _ ...scw.RequestOption) (*applesilicon.ListServersResponse, error) {
@@ -212,6 +222,21 @@ func (f *fakeAppleSiliconAPI) DeleteServer(req *applesilicon.DeleteServerRequest
 	}
 	f.deletedIDs = append(f.deletedIDs, req.ServerID)
 	return nil
+}
+
+func (f *fakeAppleSiliconAPI) ReinstallServer(req *applesilicon.ReinstallServerRequest, _ ...scw.RequestOption) (*applesilicon.Server, error) {
+	f.reinstallCalls++
+	if err, ok := f.reinstallErrors[f.reinstallCalls]; ok {
+		return nil, err
+	}
+	for _, s := range f.servers {
+		if s.ID == req.ServerID {
+			f.reinstalledIDs = append(f.reinstalledIDs, s.ID)
+			s.Status = applesilicon.ServerStatusReinstalling
+			return s, nil
+		}
+	}
+	return nil, errors.New("not found")
 }
 
 func (f *fakeAppleSiliconAPI) WaitForServer(*applesilicon.WaitForServerRequest, ...scw.RequestOption) (*applesilicon.Server, error) {
@@ -674,5 +699,128 @@ func TestDeleteServer_PreconditionFallbackTreats404AsAlreadyGone(t *testing.T) {
 
 	if err := c.DeleteServer(context.Background(), "srv-4", "fr-par-1"); err != nil {
 		t.Fatalf("DeleteServer: expected nil when schedule-deletion sees 404, got %v", err)
+	}
+}
+
+// --- ReleaseToPool ---------------------------------------------------------
+//
+// ReleaseToPool is the cluster-driven exit for a Mac mini: rename
+// back into the pool namespace and trigger an OS reinstall, leaving
+// physical destruction as an out-of-band operator action. These
+// tests pin the rename target shape, the reinstall side-effect, the
+// crash-recovery shape (TransientStateError from a second reinstall
+// while the first is still in flight), and the 404-as-success paths
+// that let an operator-deleted host clean up its Machine cleanly.
+
+func TestReleaseToPool_HappyPathRenamesAndReinstalls(t *testing.T) {
+	api := &fakeAppleSiliconAPI{
+		servers: []*applesilicon.Server{
+			readyServer("srv-1", "tuist-tuist-macos-fleet-0"),
+		},
+	}
+	c := newTestClient(api)
+
+	if err := c.ReleaseToPool(context.Background(), "srv-1", "fr-par-1", "tuist-pool-"); err != nil {
+		t.Fatalf("ReleaseToPool: %v", err)
+	}
+	if got := api.servers[0].Name; !strings.HasPrefix(got, "tuist-pool-") {
+		t.Fatalf("server should be renamed back into the pool namespace, got %q", got)
+	}
+	if got := api.reinstalledIDs; len(got) != 1 || got[0] != "srv-1" {
+		t.Fatalf("expected ReinstallServer call for srv-1, got %v", got)
+	}
+}
+
+func TestReleaseToPool_RejectsEmptyPoolPrefix(t *testing.T) {
+	// An empty poolPrefix would rename the server to a bare UUID
+	// outside the pool namespace, where AdoptByPrefix would never
+	// find it again — effectively orphaning the host. Refuse loudly
+	// so the caller fixes the call site (auto-order mode should call
+	// DeleteServer directly, not ReleaseToPool with "").
+	api := &fakeAppleSiliconAPI{
+		servers: []*applesilicon.Server{readyServer("srv-1", "tuist-tuist-macos-fleet-0")},
+	}
+	c := newTestClient(api)
+
+	if err := c.ReleaseToPool(context.Background(), "srv-1", "fr-par-1", ""); err == nil {
+		t.Fatal("expected ReleaseToPool to refuse empty poolPrefix")
+	}
+	if api.updateCalls != 0 || api.reinstallCalls != 0 {
+		t.Fatalf("no Scaleway calls should fire when validation rejects the input; updates=%d reinstalls=%d",
+			api.updateCalls, api.reinstallCalls)
+	}
+}
+
+func TestReleaseToPool_SwallowsTransientStateOnReinstall(t *testing.T) {
+	// Crash-recovery: a prior reconcile already triggered a reinstall;
+	// the controller restarted, sees ServerID still set, and retries.
+	// Rename succeeds (different UUID — pool happy with either name),
+	// reinstall fails with TransientStateError because the server is
+	// still `reinstalling`. Treat as success so the Machine finalizes
+	// and the host eventually becomes ready under its pool name.
+	api := &fakeAppleSiliconAPI{
+		servers: []*applesilicon.Server{readyServer("srv-1", "tuist-tuist-macos-fleet-0")},
+		reinstallErrors: map[int]error{
+			1: &scw.TransientStateError{Resource: "server", ResourceID: "srv-1", CurrentState: "reinstalling"},
+		},
+	}
+	c := newTestClient(api)
+
+	if err := c.ReleaseToPool(context.Background(), "srv-1", "fr-par-1", "tuist-pool-"); err != nil {
+		t.Fatalf("ReleaseToPool: expected nil on TransientStateError, got %v", err)
+	}
+}
+
+func TestReleaseToPool_TreatsRename404AsAlreadyGone(t *testing.T) {
+	// Operator force-deleted the host out-of-band between reconciles.
+	// The rename comes back 404; nothing left to release, so return
+	// success and let the controller finalize the Machine cleanly.
+	api := &fakeAppleSiliconAPI{
+		servers: []*applesilicon.Server{readyServer("srv-2", "tuist-tuist-macos-fleet-1")},
+		updateErrors: map[int]error{
+			1: &scw.ResourceNotFoundError{Resource: "server", ResourceID: "srv-2"},
+		},
+	}
+	c := newTestClient(api)
+
+	if err := c.ReleaseToPool(context.Background(), "srv-2", "fr-par-1", "tuist-pool-"); err != nil {
+		t.Fatalf("ReleaseToPool: expected nil when rename sees 404, got %v", err)
+	}
+	if api.reinstallCalls != 0 {
+		t.Fatalf("rename 404 means host is gone; reinstall must be skipped, got %d calls", api.reinstallCalls)
+	}
+}
+
+func TestReleaseToPool_TreatsReinstall404AsAlreadyGone(t *testing.T) {
+	// Race: rename lands, then operator deletes the host before
+	// reinstall fires. Reinstall 404 is also "already gone".
+	api := &fakeAppleSiliconAPI{
+		servers: []*applesilicon.Server{readyServer("srv-3", "tuist-tuist-macos-fleet-2")},
+		reinstallErrors: map[int]error{
+			1: &scw.ResourceNotFoundError{Resource: "server", ResourceID: "srv-3"},
+		},
+	}
+	c := newTestClient(api)
+
+	if err := c.ReleaseToPool(context.Background(), "srv-3", "fr-par-1", "tuist-pool-"); err != nil {
+		t.Fatalf("ReleaseToPool: expected nil when reinstall sees 404, got %v", err)
+	}
+}
+
+func TestReleaseToPool_PropagatesNonRecoverableReinstallError(t *testing.T) {
+	api := &fakeAppleSiliconAPI{
+		servers: []*applesilicon.Server{readyServer("srv-4", "tuist-tuist-macos-fleet-3")},
+		reinstallErrors: map[int]error{
+			1: errors.New("scaleway: 502 bad gateway"),
+		},
+	}
+	c := newTestClient(api)
+
+	err := c.ReleaseToPool(context.Background(), "srv-4", "fr-par-1", "tuist-pool-")
+	if err == nil {
+		t.Fatal("expected non-recoverable reinstall error to surface")
+	}
+	if !strings.Contains(err.Error(), "reinstall server") {
+		t.Fatalf("expected error to identify reinstall step, got %v", err)
 	}
 }

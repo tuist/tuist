@@ -45,6 +45,21 @@ const (
 	// Conditions surfaced on the CR for operator visibility.
 	ProvisionedCondition  clusterv1.ConditionType = "Provisioned"
 	BootstrappedCondition clusterv1.ConditionType = "Bootstrapped"
+
+	// ReleasePolicyAnnotation controls what happens to the underlying
+	// Scaleway server when its ScalewayAppleSiliconMachine is deleted.
+	// Default for pool-adopted Machines (Spec.AdoptPoolPrefix set) is
+	// "pool": rename the server back into the pool namespace and
+	// trigger a Scaleway OS reinstall, so the next AdoptByPrefix sees
+	// factory-default state. Operator can set this to "terminate" on
+	// individual Machines to force the legacy DeleteServer path —
+	// useful for broken hosts that must not be re-adopted (kernel
+	// panic loop, hardware fault, retired SKU). Auto-order Machines
+	// (no AdoptPoolPrefix) always use the terminate path regardless,
+	// because there's no pool to return to.
+	ReleasePolicyAnnotation = "tuist.dev/release-policy"
+	ReleasePolicyPool       = "pool"
+	ReleasePolicyTerminate  = "terminate"
 )
 
 // ScalewayAppleSiliconMachineReconciler reconciles ScalewayAppleSiliconMachine objects.
@@ -677,19 +692,39 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileDelete(
 	machine.Status.Phase = "Deleting"
 
 	// Stage 1: release the Scaleway server. Skip if already released
-	// (mid-cleanup retry).
+	// (mid-cleanup retry). For pool-adopted Machines this is a soft
+	// release back into the pool — rename + reinstall — so the host
+	// stays alive for the next adopt. Auto-order Machines and any
+	// Machine annotated `tuist.dev/release-policy: terminate` go
+	// through the legacy DeleteServer path; see ReleasePolicyAnnotation
+	// for the contract.
 	if machine.Status.ServerID != "" {
-		r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Deleting",
-			"Releasing Scaleway server %s", machine.Status.ServerID)
-		if err := r.ScalewayClient.DeleteServer(ctx, machine.Status.ServerID, machine.Spec.Zone); err != nil {
-			logger.Error(err, "Scaleway delete failed; will retry")
-			r.Recorder.Eventf(machine, corev1.EventTypeWarning, "DeleteFailed",
-				"Scaleway DeleteServer: %v (will retry)", err)
-			return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
+		if shouldReleaseToPool(machine) {
+			r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Releasing",
+				"Returning Scaleway server %s to pool %q (with reinstall)",
+				machine.Status.ServerID, machine.Spec.AdoptPoolPrefix)
+			if err := r.ScalewayClient.ReleaseToPool(ctx, machine.Status.ServerID, machine.Spec.Zone, machine.Spec.AdoptPoolPrefix); err != nil {
+				logger.Error(err, "Scaleway release-to-pool failed; will retry")
+				r.Recorder.Eventf(machine, corev1.EventTypeWarning, "ReleaseFailed",
+					"Scaleway ReleaseToPool: %v (will retry)", err)
+				return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
+			}
+			machine.Status.ServerID = ""
+			r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Released",
+				"Scaleway server returned to pool; reinstall triggered")
+		} else {
+			r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Deleting",
+				"Releasing Scaleway server %s", machine.Status.ServerID)
+			if err := r.ScalewayClient.DeleteServer(ctx, machine.Status.ServerID, machine.Spec.Zone); err != nil {
+				logger.Error(err, "Scaleway delete failed; will retry")
+				r.Recorder.Eventf(machine, corev1.EventTypeWarning, "DeleteFailed",
+					"Scaleway DeleteServer: %v (will retry)", err)
+				return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
+			}
+			machine.Status.ServerID = ""
+			r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Deleted",
+				"Scaleway server released")
 		}
-		machine.Status.ServerID = ""
-		r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Deleted",
-			"Scaleway server released")
 	}
 
 	// Stage 2: drop the per-machine kubelet identity. The token is
@@ -1018,6 +1053,30 @@ func (r *ScalewayAppleSiliconMachineReconciler) SetupWithManager(mgr ctrl.Manage
 			handler.EnqueueRequestsFromMapFunc(scalewayMachineForCAPIMachine),
 		).
 		Complete(r)
+}
+
+// shouldReleaseToPool decides whether reconcileDelete should hand the
+// underlying Scaleway server back to the adopt pool (with reinstall)
+// or fall through to the legacy physical-terminate path.
+//
+//   - No AdoptPoolPrefix → auto-order Machine, no pool to return to;
+//     must terminate.
+//   - `tuist.dev/release-policy: terminate` annotation → operator
+//     opt-out, e.g. a broken host that shouldn't be re-adopted.
+//   - Default → pool.
+//
+// Empty / unknown annotation values are treated as the default. The
+// operator opt-in is intentionally minimal-surface so the common case
+// (Mac mini in good health, fleet scaling down or rolling) doesn't
+// need any per-Machine annotation gymnastics.
+func shouldReleaseToPool(machine *infrav1.ScalewayAppleSiliconMachine) bool {
+	if machine.Spec.AdoptPoolPrefix == "" {
+		return false
+	}
+	if machine.Annotations[ReleasePolicyAnnotation] == ReleasePolicyTerminate {
+		return false
+	}
+	return true
 }
 
 // scalewayMachineForCAPIMachine maps a CAPI Machine event to a

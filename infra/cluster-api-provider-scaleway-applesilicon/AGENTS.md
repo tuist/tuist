@@ -173,16 +173,40 @@ them Ready.
 ```bash
 kubectl scale machinedeployment <fleet-name> --replicas=1
 ```
-CAPI core picks the most-recently-created Machines for deletion;
-operator releases them via Scaleway's API (the 24h Apple licensing
-floor still applies — Scaleway keeps charging until the boundary).
+CAPI core picks the most-recently-created Machines for deletion. For
+pool-adopted Machines (the default — `Spec.AdoptPoolPrefix` set), the
+controller does NOT call `Scaleway DeleteServer`. Instead it renames
+the host back into the pool namespace (`<poolPrefix><uuid>`) and
+triggers a Scaleway OS reinstall; the host stays alive, returns to
+factory-default state, and becomes eligible for the next adoption
+once Scaleway flips it back to `Delivered + Ready`. The 24h Apple
+licensing floor stays in operator-owned territory — you keep paying
+for capacity you already pre-ordered until you decide to release it
+via the Scaleway console.
 
 ### Replace a wedged host
 ```bash
 kubectl delete machine <machine-name>
 ```
 The MachineSet immediately creates a replacement; the old Mac mini
-is released back to Scaleway after the operator's delete reconcile.
+is renamed back into the pool, reinstalled, and re-eligible for the
+next adoption. The replacement Machine will adopt either this host
+(post-reinstall) or any other available pool host, whichever
+Scaleway returns to `Ready` first.
+
+If the host is genuinely broken (kernel panic loop, hardware fault,
+retired SKU) and must not be re-adopted, force the legacy physical-
+terminate path before deleting:
+
+```bash
+kubectl -n "$NS" annotate scalewayapplesiliconmachine <name> \
+  tuist.dev/release-policy=terminate --overwrite
+kubectl -n "$NS" delete machine <machine-name>
+```
+
+The annotation switches `reconcileDelete` from `ReleaseToPool` to
+`DeleteServer`. The schedule-deletion fallback handles the 24h
+billing floor; Scaleway stops billing at floor expiry.
 
 ### Investigate a failure
 ```bash
