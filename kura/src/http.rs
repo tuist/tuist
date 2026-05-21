@@ -137,6 +137,7 @@ fn internal_routes() -> Router<SharedState> {
 
 const NX_NAMESPACE_ID: &str = "nx";
 const METRO_NAMESPACE_ID: &str = "metro";
+const UNMATCHED_ROUTE: &str = "/_unmatched";
 
 #[derive(Debug, PartialEq, Eq)]
 struct NamespaceQuery {
@@ -339,6 +340,13 @@ fn optional_u64_param(params: &HashMap<String, String>, key: &str) -> Result<Opt
         .transpose()
 }
 
+fn request_route(req: &Request) -> String {
+    req.extensions()
+        .get::<MatchedPath>()
+        .map(|path| path.as_str().to_owned())
+        .unwrap_or_else(|| UNMATCHED_ROUTE.to_owned())
+}
+
 async fn track_http_metrics(
     State(state): State<SharedState>,
     req: Request,
@@ -346,11 +354,7 @@ async fn track_http_metrics(
 ) -> Response {
     let _request_guard = state.start_http_request();
     let start = std::time::Instant::now();
-    let route = req
-        .extensions()
-        .get::<MatchedPath>()
-        .map(|path| path.as_str().to_owned())
-        .unwrap_or_else(|| req.uri().path().to_owned());
+    let route = request_route(&req);
     let method = req.method().to_string();
     let uri_path = req.uri().path().to_owned();
     let client_location = state
@@ -426,11 +430,7 @@ async fn reject_draining_public_requests(
     req: Request,
     next: Next,
 ) -> Response {
-    let route = req
-        .extensions()
-        .get::<MatchedPath>()
-        .map(|path| path.as_str().to_owned())
-        .unwrap_or_else(|| req.uri().path().to_owned());
+    let route = request_route(&req);
     let version = req.version();
 
     if !is_probe_route(&route) && state.runtime.is_draining() {
@@ -453,11 +453,7 @@ async fn reject_overloaded_public_writes(
     next: Next,
 ) -> Response {
     let method = req.method().clone();
-    let route = req
-        .extensions()
-        .get::<MatchedPath>()
-        .map(|path| path.as_str().to_owned())
-        .unwrap_or_else(|| req.uri().path().to_owned());
+    let route = request_route(&req);
 
     if is_write_method(&method) && !is_probe_route(&route) {
         if state.memory.pressure() == MemoryPressure::Critical {
@@ -499,12 +495,8 @@ async fn apply_extensions(State(state): State<SharedState>, req: Request, next: 
         return next.run(req).await;
     };
 
-    let route = req
-        .extensions()
-        .get::<MatchedPath>()
-        .map(|path| path.as_str().to_owned())
-        .unwrap_or_else(|| req.uri().path().to_owned());
     let mut req = req;
+    let route = request_route(&req);
     let path = req.uri().path().to_owned();
     if should_skip_extension_route(&route) {
         return next.run(req).await;
@@ -2031,6 +2023,27 @@ mod tests {
         assert_eq!(body["regions"], serde_json::json!(["eu-central"]));
         assert_eq!(body["members"].as_array().expect("members array").len(), 3);
         assert_eq!(body["nodes"].as_array().expect("nodes array").len(), 3);
+    }
+
+    #[tokio::test]
+    async fn unknown_paths_use_a_stable_unmatched_route_metric_label() {
+        let context = test_context(|_| {}).await;
+
+        let response = public_router(context.state.clone())
+            .oneshot(
+                Request::builder()
+                    .uri("/.docker/.env")
+                    .body(Body::empty())
+                    .expect("failed to build request"),
+            )
+            .await
+            .expect("request failed");
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+
+        let metrics = context.state.metrics.render();
+        assert!(metrics.contains("route=\"/_unmatched\""));
+        assert!(!metrics.contains("route=\"/.docker/.env\""));
     }
 
     #[tokio::test]

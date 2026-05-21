@@ -15,6 +15,7 @@ on:
       - Kura
       - Mgmt Cluster Apply
       - Noora
+      - Noora Storybook Deployment
       - Processor
       - Processor Deploy
       - Release

@@ -38,6 +38,7 @@ func main() {
 	var cloudflareAccountID string
 	var cloudflareZoneID string
 	var cloudflareAPIToken string
+	var requireGlobalEndpoints bool
 
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "Prometheus metrics endpoint")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "Liveness/readiness probe endpoint")
@@ -49,6 +50,7 @@ func main() {
 	flag.StringVar(&cloudflareAccountID, "cloudflare-account-id", "", "Cloudflare account ID for Kura global DNS steering")
 	flag.StringVar(&cloudflareZoneID, "cloudflare-zone-id", "", "Cloudflare zone ID for Kura global DNS steering")
 	flag.StringVar(&cloudflareAPIToken, "cloudflare-api-token", "", "Cloudflare API token for Kura global DNS steering")
+	flag.BoolVar(&requireGlobalEndpoints, "require-global-endpoints", true, "Require global Cloudflare endpoints to reconcile before marking a Kura instance ready")
 
 	opts := zap.Options{Development: false}
 	opts.BindFlags(flag.CommandLine)
@@ -81,10 +83,11 @@ func main() {
 		GRPCClusterIssuer:  grpcClusterIssuer,
 		OTLPTracesEndpoint: otlpTracesEndpoint,
 		CloudflareLoadBalancing: controllers.CloudflareLoadBalancingConfig{
-			ZoneName:  cloudflareZoneName,
-			AccountID: cloudflareAccountID,
-			ZoneID:    cloudflareZoneID,
-			APIToken:  cloudflareAPIToken,
+			ZoneName:               cloudflareZoneName,
+			AccountID:              cloudflareAccountID,
+			ZoneID:                 cloudflareZoneID,
+			APIToken:               cloudflareAPIToken,
+			RequireGlobalEndpoints: requireGlobalEndpoints,
 		},
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup KuraInstanceReconciler")

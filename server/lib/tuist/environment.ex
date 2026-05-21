@@ -175,6 +175,24 @@ defmodule Tuist.Environment do
     System.get_env("TUIST_KURA_RUNTIME_IMAGE_TAG") || get([:kura, :runtime_image_tag], secrets)
   end
 
+  @doc """
+  Whether managed Kura servers must wait for the global Cloudflare-
+  fronted endpoint before being projected active.
+
+  Defaults to true. Set `TUIST_KURA_REQUIRE_GLOBAL_ENDPOINTS=0` to
+  degrade gracefully while the global load-balancer layer is
+  unavailable or quota-limited.
+  """
+  def kura_require_global_endpoints? do
+    "TUIST_KURA_REQUIRE_GLOBAL_ENDPOINTS"
+    |> System.get_env()
+    |> case do
+      nil -> true
+      "" -> true
+      value -> not falsey?(value)
+    end
+  end
+
   def prometheus_enabled? do
     prometheus_enabled = System.get_env("TUIST_PROMETHEUS_ENABLED")
 
@@ -1052,6 +1070,10 @@ defmodule Tuist.Environment do
   end
 
   defp safe_get_in(_data, _keys), do: nil
+
+  defp falsey?(value) when is_binary(value) do
+    String.downcase(value) in ["0", "false", "no", "off"]
+  end
 
   def secrets do
     Application.get_env(:tuist, :secrets) || %{}

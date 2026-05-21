@@ -150,7 +150,8 @@ defmodule Tuist.Kura.Reconciler do
   defp reconcile_deployment(%Deployment{kura_server: %Server{} = server} = deployment) do
     case Provisioner.current_image_tag(server) do
       {:ok, image_tag} when image_tag == deployment.image_tag ->
-        if Kura.server_needs_global_endpoint?(server) and not Kura.server_global_endpoint_observed?(server) do
+        if Kura.server_requires_global_endpoint_readiness?(server) and
+             not Kura.server_global_endpoint_observed?(server) do
           apply_deployment(deployment, server)
         else
           activate_and_mark_succeeded(deployment, server)
@@ -279,13 +280,26 @@ defmodule Tuist.Kura.Reconciler do
     end
   end
 
+  defp converge(%Server{} = server, desired) do
+    if converged?(server, desired) do
+      :ok
+    else
+      do_converge(server, desired)
+    end
+  end
+
+  defp converged?(%Server{status: :active, current_image_tag: tag, observed_image_tag: tag} = server, tag) do
+    not (Kura.server_requires_global_endpoint_readiness?(server) and
+           not Kura.server_global_endpoint_observed?(server))
+  end
+
+  defp converged?(%Server{}, _desired), do: false
+
   # Already active on the observed image: a no-op. Skip the write and
   # broadcast so a healthy server is not re-locked, re-written, and
   # pushed to every open settings LiveView every tick. Anything else
   # heals through the endpoint-gated activation.
-  defp converge(%Server{status: :active, current_image_tag: tag, observed_image_tag: tag}, tag), do: :ok
-
-  defp converge(%Server{} = server, desired) do
+  defp do_converge(%Server{} = server, desired) do
     case Kura.activate_server(server, desired) do
       {:ok, _server} ->
         Logger.info("[Kura.Reconciler] converged server #{server.id} to #{desired}")

@@ -1,0 +1,6 @@
+image:
+  tag: validation
+
+# CI validation needs a host so the template can satisfy PHX_HOST without
+# depending on the production overlay.
+host: validation.noora.example.com

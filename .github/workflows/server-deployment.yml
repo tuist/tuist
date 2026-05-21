@@ -285,15 +285,82 @@ jobs:
             -f "$TAILSCALE_CHART_PATH/values-${{ inputs.environment }}.yaml" \
             --timeout 10m --wait
 
+  platform-install:
+    # Installs / upgrades the platform chart (cert-manager, ingress-nginx,
+    # external-dns, ESO, metrics-server) ahead of the server rollout. The
+    # bootstrap script lays this down once per cluster, but app-impacting
+    # platform settings — ingress-nginx upstream-keepalive-timeout,
+    # metrics-server presence — must self-heal on every deploy so existing
+    # clusters pick up chart edits without a manual re-bootstrap. Idempotent:
+    # steady-state finishes in under a minute when nothing has drifted.
+    #
+    # Shares the `server-deploy-<env>` concurrency lane with the deploy job
+    # so a newer platform install never interleaves with an older server
+    # rollout.
+    name: Platform chart (${{ inputs.environment }})
+    needs: build
+    if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped')
+    runs-on: tuist-production-linux
+    environment:
+      name: server-k8s-${{ inputs.environment }}
+    concurrency:
+      group: server-deploy-${{ inputs.environment }}
+      cancel-in-progress: false
+    timeout-minutes: 20
+    env:
+      KUBECONFIG: ${{ github.workspace }}/.kube/config
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "helm kubectl"
+          cache: "false"
+      - uses: 1password/install-cli-action@v2
+      - name: Load kubeconfig from 1Password
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          op document get "kubeconfig: tuist-${{ inputs.environment }}" \
+            --vault "tuist-k8s-${{ inputs.environment }}" --output "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
+      - name: Verify cluster reachability
+        run: |
+          set -euo pipefail
+          API="$(kubectl config view --minify --raw -o jsonpath='{.clusters[0].cluster.server}')"
+          echo "Reaching apiserver at $API"
+          kubectl --request-timeout=10s get --raw /version >/dev/null
+      - name: Run k8s:install-platform
+        # CLOUDFLARE_API_TOKEN is read from the in-cluster Secret the bootstrap
+        # script created (CI is cluster-admin) instead of being added as a
+        # second GitHub secret. ::add-mask:: registers the value with Actions
+        # so it's redacted in subsequent step output (GHA only auto-masks
+        # values it knows are secrets; values derived at runtime aren't).
+        env:
+          CLUSTER_NAME: ${{ inputs.environment == 'production' && 'tuist' || format('tuist-{0}', inputs.environment) }}
+        run: |
+          set -euo pipefail
+          CLOUDFLARE_API_TOKEN="$(kubectl -n platform get secret cloudflare-api-token \
+            -o jsonpath='{.data.api-token}' | base64 -d)"
+          echo "::add-mask::$CLOUDFLARE_API_TOKEN"
+          export CLOUDFLARE_API_TOKEN
+          echo "Reconciling platform chart for cluster $CLUSTER_NAME"
+          mise -C infra run k8s:install-platform "$KUBECONFIG" "$CLUSTER_NAME"
+
   deploy:
     name: Deploy to ${{ inputs.environment == 'production' && 'tuist' || format('tuist-{0}', inputs.environment) }}
-    needs: [build, observability-install, tailscale-operator-install]
+    needs: [build, observability-install, tailscale-operator-install, platform-install]
     # `build` may be skipped when image_tag is passed in - keep running.
     # `observability-install` always runs, so it must be a plain success.
     # `tailscale-operator-install` runs the install for managed envs and
     # short-circuits when a forked workflow has no env values file; either
     # way it must complete cleanly before the chart deploy.
-    if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped') && needs.observability-install.result == 'success' && needs.tailscale-operator-install.result == 'success'
+    # `platform-install` reconciles cert-manager / ingress-nginx /
+    # external-dns / ESO / metrics-server so app-impacting platform settings
+    # land before the app chart upgrade.
+    if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped') && needs.observability-install.result == 'success' && needs.tailscale-operator-install.result == 'success' && needs.platform-install.result == 'success'
     runs-on: tuist-production-linux
     environment:
       name: server-k8s-${{ inputs.environment }}

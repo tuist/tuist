@@ -6,6 +6,8 @@
 #     -f infra/helm/tuist/values-managed-production.yaml \
 #     --set server.image.tag=$GIT_SHA
 
+kuraGlobalEndpointsRequired: false
+
 server:
   replicaCount: 2
 
@@ -102,7 +104,6 @@ kuraController:
     apiTokenSecret:
       managed: true
       item: cloudflare-tuist-dns
-
 postgresql:
   external:
     host: db.tuist.dev  # Supabase pooler endpoint for production.
