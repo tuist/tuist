@@ -156,7 +156,7 @@ func main() {
 		"How many ScalewayAppleSiliconMachine reconciles run in parallel. The "+
 			"default of 1 (controller-runtime's default) serializes the whole "+
 			"fleet behind one worker — first-time bring-up of N Mac minis takes "+
-			"N × bootstrap time because each CreateServer + SSH bootstrap "+
+			"N × bootstrap time because each AdoptByPrefix + SSH bootstrap "+
 			"blocks the worker for ~50 min. Bumping this lets distinct machines "+
 			"provision in parallel; reconciles for the same machine remain "+
 			"serialized by controller-runtime's per-key locking. 4 covers the "+

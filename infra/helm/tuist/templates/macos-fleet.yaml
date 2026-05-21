@@ -43,14 +43,11 @@ spec:
       {{- with .Values.macosFleet.machine.hostMemoryMB }}
       hostMemoryMB: {{ . }}
       {{- end }}
-      {{- with .Values.macosFleet.adoptPoolPrefix }}
-      # Adoption mode: skip Scaleway CreateServer and claim a
-      # pre-ordered host whose name starts with this prefix.
-      # Shared with runnersFleet by default — operator pre-orders
-      # one Mac mini pool, both fleets draw from it as
-      # MachineDeployments scale.
-      adoptPoolPrefix: {{ . | quote }}
-      {{- end }}
+      # Required. The controller claims a pre-ordered host whose
+      # Scaleway-side name starts with this prefix. Shared with
+      # runnersFleet by default — operator pre-orders one Mac mini
+      # pool, both fleets draw from it as MachineDeployments scale.
+      adoptPoolPrefix: {{ required "macosFleet.adoptPoolPrefix is required" .Values.macosFleet.adoptPoolPrefix | quote }}
 ---
 apiVersion: cluster.x-k8s.io/v1beta1
 kind: MachineDeployment

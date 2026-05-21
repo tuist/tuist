@@ -57,9 +57,9 @@ spec:
       {{- with .Values.buildersFleet.machine.hostMemoryMB }}
       hostMemoryMB: {{ . }}
       {{- end }}
-      {{- with .Values.buildersFleet.adoptPoolPrefix }}
-      adoptPoolPrefix: {{ . | quote }}
-      {{- end }}
+      # Required. Adopts from the same pre-ordered pool as the
+      # other fleets.
+      adoptPoolPrefix: {{ required "buildersFleet.adoptPoolPrefix is required" .Values.buildersFleet.adoptPoolPrefix | quote }}
       ghActionsRunner:
         ghOrg: {{ .Values.buildersFleet.ghOrg | default "tuist" | quote }}
         ghRunnerLabels: {{ .Values.buildersFleet.ghRunnerLabels | default "self-hosted,macos,bare-metal,vm-image-builder" | quote }}

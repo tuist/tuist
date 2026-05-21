@@ -204,8 +204,9 @@ macosFleet:
   tailscale:
     enabled: true
     tags: ["tag:tuist-macmini-production"]
-  # Claim pre-ordered Mac minis during the CAPI MachineDeployment
-  # cutover instead of auto-ordering fresh production hosts.
+  # Claim pre-ordered Mac minis from the shared `tuist-pool-`
+  # pool. The CAPI controller has no auto-order path; operators
+  # pre-order capacity in the Scaleway console.
   adoptPoolPrefix: "tuist-pool-"
   machine:
     # Production tracks the chart default — M2-L on Scaleway:

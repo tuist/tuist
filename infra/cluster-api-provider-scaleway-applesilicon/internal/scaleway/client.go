@@ -36,14 +36,10 @@ const claimPendingPrefix = "tuist-claim-pending-"
 // SDK + HTTP client. The concrete `*applesilicon.API` satisfies it
 // via Go's structural typing — no adapter required.
 type AppleSiliconAPI interface {
-	CreateServer(req *applesilicon.CreateServerRequest, opts ...scw.RequestOption) (*applesilicon.Server, error)
 	GetServer(req *applesilicon.GetServerRequest, opts ...scw.RequestOption) (*applesilicon.Server, error)
 	ListServers(req *applesilicon.ListServersRequest, opts ...scw.RequestOption) (*applesilicon.ListServersResponse, error)
 	UpdateServer(req *applesilicon.UpdateServerRequest, opts ...scw.RequestOption) (*applesilicon.Server, error)
-	DeleteServer(req *applesilicon.DeleteServerRequest, opts ...scw.RequestOption) error
 	ReinstallServer(req *applesilicon.ReinstallServerRequest, opts ...scw.RequestOption) (*applesilicon.Server, error)
-	WaitForServer(req *applesilicon.WaitForServerRequest, opts ...scw.RequestOption) (*applesilicon.Server, error)
-	ListOS(req *applesilicon.ListOSRequest, opts ...scw.RequestOption) (*applesilicon.ListOSResponse, error)
 }
 
 // Client talks to Scaleway's Apple Silicon + IAM APIs. Construct with
@@ -187,62 +183,6 @@ type Server struct {
 	Status       string
 	SudoPassword string
 	SSHUsername  string
-}
-
-// CreateServer orders a new Mac mini in `zone`. Blocks until Scaleway
-// reports the server in a state past `starting`. The returned struct
-// includes the one-time OS-default sudo password the controller stashes
-// for break-glass SSH access; it isn't persisted in Scaleway after the
-// initial provisioning window.
-//
-// Idempotent on `name`: if a server with the given name already exists
-// in the project we adopt it instead of creating a duplicate. This
-// matters because CreateServer + WaitForServer can take 3-5min total,
-// long enough for the parent reconcile context to time out and trigger
-// a retry that would otherwise re-call CreateServer (and burn another
-// 24h of Apple licensing on a server we won't end up using).
-func (c *Client) CreateServer(ctx context.Context, name, zone, serverType, osName string) (*Server, error) {
-	if existing, err := c.findServerByName(ctx, name, zone); err != nil {
-		return nil, fmt.Errorf("lookup existing server: %w", err)
-	} else if existing != nil {
-		// Adopt the in-flight server. WaitForServer is idempotent — it
-		// just polls until state==ready, fine to call on a server that
-		// already finished provisioning.
-		final, err := c.API.WaitForServer(&applesilicon.WaitForServerRequest{
-			ServerID: existing.ID,
-			Zone:     scw.Zone(zone),
-		}, scw.WithContext(ctx))
-		if err != nil {
-			return nil, fmt.Errorf("wait for existing server: %w", err)
-		}
-		return scalewayServerToServer(final), nil
-	}
-
-	osID, err := c.resolveOSID(ctx, zone, osName)
-	if err != nil {
-		return nil, err
-	}
-
-	created, err := c.API.CreateServer(&applesilicon.CreateServerRequest{
-		Zone: scw.Zone(zone),
-		Name: name,
-		Type: serverType,
-		OsID: &osID,
-	}, scw.WithContext(ctx))
-	if err != nil {
-		return nil, fmt.Errorf("create server: %w", err)
-	}
-
-	// Wait for the server to be ready (Scaleway calls this `ready`).
-	final, err := c.API.WaitForServer(&applesilicon.WaitForServerRequest{
-		ServerID: created.ID,
-		Zone:     scw.Zone(zone),
-	}, scw.WithContext(ctx))
-	if err != nil {
-		return nil, fmt.Errorf("wait for server: %w", err)
-	}
-
-	return scalewayServerToServer(final), nil
 }
 
 // findServerByName returns the first server in the zone whose name
@@ -477,56 +417,15 @@ func (c *Client) GetServer(ctx context.Context, id, zone string) (*Server, error
 	return scalewayServerToServer(srv), nil
 }
 
-// DeleteServer terminates a Mac mini. Apple's licensing enforces a
-// 24h floor — DeleteServer fails with HTTP 412 inside that window.
-// When that happens we fall back to UpdateServer with
-// `schedule_deletion=true`, which queues the delete for the floor
-// expiry. Scaleway keeps billing through the floor either way.
-//
-// 404 from Scaleway means the server is already gone (manual delete,
-// scheduled-deletion already executed, or a previous reconcile that
-// completed but crashed before the patch landed). Treated as success
-// so the finalizer comes off and the CR can be GC'd; without this the
-// reconcile loops forever and the Mac mini billing keeps running on
-// any sibling server we haven't pruned.
-func (c *Client) DeleteServer(ctx context.Context, id, zone string) error {
-	err := c.API.DeleteServer(&applesilicon.DeleteServerRequest{
-		ServerID: id,
-		Zone:     scw.Zone(zone),
-	}, scw.WithContext(ctx))
-	if err == nil {
-		return nil
-	}
-	if IsNotFound(err) {
-		return nil
-	}
-	if !isPreconditionFailed(err) {
-		return err
-	}
-	scheduled := true
-	_, updateErr := c.API.UpdateServer(&applesilicon.UpdateServerRequest{
-		ServerID:         id,
-		Zone:             scw.Zone(zone),
-		ScheduleDeletion: &scheduled,
-	}, scw.WithContext(ctx))
-	if updateErr != nil {
-		if IsNotFound(updateErr) {
-			return nil
-		}
-		return fmt.Errorf("schedule deletion (after immediate delete failed with %v): %w", err, updateErr)
-	}
-	return nil
-}
-
-// ReleaseToPool returns a Mac mini to the adopt pool instead of
-// physically terminating it. Operator-driven physical destruction
-// is intentionally separated from cluster-driven Machine churn: the
-// 24h Apple-licensing floor makes destroy-and-recreate wildly
-// expensive (you pay for the floor regardless of whether the host is
-// in your cluster), and the operator already owns host capacity
-// planning via the pre-order workflow. So "Machine deleted" should
-// mean "host returned to the pool, freshly reinstalled, ready for
-// the next adopt" — not "Scaleway DeleteServer fires."
+// ReleaseToPool returns a Mac mini to the adopt pool. Operator-
+// driven physical destruction is intentionally separated from
+// cluster-driven Machine churn: the 24h Apple-licensing floor makes
+// destroy-and-recreate wildly expensive (you pay for the floor
+// regardless of whether the host is in your cluster), and the
+// operator already owns host capacity planning via the pre-order
+// workflow. So "Machine deleted" means "host returned to the pool,
+// freshly reinstalled, ready for the next adopt." Operators
+// retiring a broken host do so out-of-band via the Scaleway console.
 //
 // Two-step:
 //
@@ -554,10 +453,6 @@ func (c *Client) DeleteServer(ctx context.Context, id, zone string) error {
 // TransientStateError if the server is already mid-reinstall from a
 // previous attempt; we swallow it as success. 404 on either step
 // means the operator deleted the host out-of-band; also success.
-//
-// Callers that want the legacy physical-terminate semantics — for
-// broken hosts that must not be re-adopted — should call
-// DeleteServer directly and skip this entry point.
 func (c *Client) ReleaseToPool(ctx context.Context, id, zone, poolPrefix string) error {
 	if poolPrefix == "" {
 		return fmt.Errorf("ReleaseToPool: poolPrefix is required")
@@ -598,37 +493,12 @@ func (c *Client) ReleaseToPool(ctx context.Context, id, zone, poolPrefix string)
 // isTransientState detects scaleway-sdk-go's typed
 // `*scw.TransientStateError`, which the SDK returns when a request
 // can't proceed because the resource is in a transitional phase
-// (`reinstalling`, `deleting`, …). Same shape consideration as
-// isPreconditionFailed: this is parsed into its own concrete type
-// inside hasResponseError, so checking *ResponseError alone misses
-// it.
+// (`reinstalling`, `deleting`, …). The SDK parses this into its own
+// concrete type inside hasResponseError, so checking *ResponseError
+// alone misses it.
 func isTransientState(err error) bool {
 	var transientErr *scw.TransientStateError
 	return errors.As(err, &transientErr)
-}
-
-// isPreconditionFailed detects Scaleway's HTTP 412 — typically the
-// 24h Apple-licensing floor on DeleteServer.
-//
-// The SDK parses standard error types into their own concrete types
-// (PreconditionFailedError, ResourceNotFoundError, …) inside
-// hasResponseError before they reach us; the generic ResponseError is
-// only returned for unparsed responses (non-JSON body, unknown error
-// type). Match both so DeleteServer's schedule-deletion fallback
-// actually fires — otherwise the controller loops DeleteServer every
-// 60 s for the multi-week Apple billing floor while the
-// MachineDeployment sits at 0 available, wedging every helm upgrade
-// that gates on it.
-func isPreconditionFailed(err error) bool {
-	var preconditionErr *scw.PreconditionFailedError
-	if errors.As(err, &preconditionErr) {
-		return true
-	}
-	var scwErr *scw.ResponseError
-	if errors.As(err, &scwErr) {
-		return scwErr.StatusCode == http.StatusPreconditionFailed
-	}
-	return false
 }
 
 // IsNotFound returns true for Scaleway's 404 responses. Exposed so the
@@ -649,21 +519,6 @@ func IsNotFound(err error) bool {
 	return false
 }
 
-func (c *Client) resolveOSID(ctx context.Context, zone, name string) (string, error) {
-	resp, err := c.API.ListOS(&applesilicon.ListOSRequest{
-		Zone: scw.Zone(zone),
-	}, scw.WithContext(ctx))
-	if err != nil {
-		return "", fmt.Errorf("list OS: %w", err)
-	}
-	for _, os := range resp.Os {
-		if os.Name == name {
-			return os.ID, nil
-		}
-	}
-	return "", fmt.Errorf("OS %q not found in zone %s", name, zone)
-}
-
 func scalewayServerToServer(s *applesilicon.Server) *Server {
 	out := &Server{
 		ID:           s.ID,
@@ -674,21 +529,19 @@ func scalewayServerToServer(s *applesilicon.Server) *Server {
 	if s.IP != nil {
 		out.IP = s.IP.String()
 	}
-	// Scaleway only populates `sudo_password` on the CreateServer
-	// response — once that one-time window closes, every subsequent
-	// GET/list returns an empty `sudo_password`. Hosts adopted from
-	// the pre-ordered pool never go through CreateServer, so without
-	// this fallback the controller stages an empty password into the
-	// bootstrap Secret and `enableAutoLogin` either silently skips
-	// (writing nothing) or writes a kcpassword whose plaintext is
-	// just the cipher key padding — either way Aqua never comes up
-	// and `tart run` fails forever.
+	// Scaleway never surfaces `sudo_password` on GET/list responses
+	// for pool-adopted hosts (the field is only populated on the
+	// one-time CreateServer response, and the pool workflow never
+	// hits that path). Without a fallback the controller stages an
+	// empty password into the bootstrap Secret and `enableAutoLogin`
+	// either silently skips (writing nothing) or writes a kcpassword
+	// whose plaintext is just the cipher key padding — either way
+	// Aqua never comes up and `tart run` fails forever.
 	//
 	// The `vnc_url` field embeds the same OS-default credentials as
 	// `vnc://<ssh_username>:<password>@<ip>:<port>`. It's surfaced on
-	// every GET, including for adopted servers, and verified out-of-
-	// band to authenticate the m1 macOS user. Pull the password from
-	// there when `sudo_password` is empty.
+	// every GET and verified out-of-band to authenticate the m1
+	// macOS user; pull the password from there.
 	if out.SudoPassword == "" {
 		out.SudoPassword = passwordFromVncURL(s.VncURL)
 	}
