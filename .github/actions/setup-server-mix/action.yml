@@ -23,7 +23,7 @@ inputs:
   mix-os-deps-compile-partition-count:
     description: Lower Mix dependency compilation parallelism for CI runners with tighter memory limits.
     required: false
-    default: "1"
+    default: "3"
   github-token:
     description: GitHub token used by mise to fetch tools (avoids rate limits)
     required: false
