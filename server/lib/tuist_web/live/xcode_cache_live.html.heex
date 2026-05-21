@@ -185,51 +185,185 @@
         trend_label={@analytics_trend_label}
         empty={@hit_rate_analytics.ok? && @hit_rate_analytics.result.avg_hit_rate == 0}
       />
-      <.widget
-        loading={!@analytics_chart_data.ok?}
-        title={dgettext("dashboard_cache", "Cache downloads")}
-        legend_color="secondary"
+      <.split_dropdown_widget
+        loading={!@transfer_analytics.ok?}
+        title={
+          case @selected_transfer_type do
+            "downloads" -> dgettext("dashboard_cache", "Cache downloads")
+            "uploads" -> dgettext("dashboard_cache", "Cache uploads")
+            _ -> dgettext("dashboard_cache", "Cache transfer")
+          end
+        }
+        legend_color={split_legend_color(@selected_transfer_type, "p50")}
         description={
           dgettext(
             "dashboard_cache",
-            "Cache downloads represents the total size of cache artifacts downloaded from remote storage during the given period."
+            "Cache transfer represents the total size of cache artifacts downloaded from and uploaded to remote storage during the given period."
           )
         }
         value={
-          if @downloads_analytics.ok?,
-            do: ByteFormatter.format_bytes(@downloads_analytics.result.total_size)
+          if @transfer_analytics.ok?,
+            do:
+              ByteFormatter.format_bytes(
+                transfer_value(@transfer_analytics.result, @selected_transfer_type)
+              )
         }
-        id="widget-cache-downloads"
-        trend_value={if @downloads_analytics.ok?, do: @downloads_analytics.result.trend}
+        metrics={
+          if @transfer_analytics.ok? do
+            %{
+              combined: ByteFormatter.format_bytes(@transfer_analytics.result.total),
+              primary: ByteFormatter.format_bytes(@transfer_analytics.result.downloads.total),
+              secondary: ByteFormatter.format_bytes(@transfer_analytics.result.uploads.total)
+            }
+          end
+        }
+        selected_type={@selected_transfer_type}
+        primary_value="downloads"
+        secondary_value="uploads"
+        combined_label={dgettext("dashboard_cache", "Cache transfer")}
+        primary_label={dgettext("dashboard_cache", "Downloads")}
+        secondary_label={dgettext("dashboard_cache", "Uploads")}
+        combined_dot="combined-transfer"
+        primary_dot="downloads"
+        secondary_dot="uploads"
+        event_name="select_transfer_type"
+        id="widget-cache-transfer"
+        trend_value={if @transfer_analytics.ok?, do: @transfer_analytics.result.trend}
         trend_type={:neutral}
         trend_label={@analytics_trend_label}
         phx_click="select_widget"
-        phx_value_widget="cache_downloads"
-        selected={@analytics_selected_widget == "cache_downloads"}
-        empty={@downloads_analytics.ok? && @downloads_analytics.result.total_size == 0}
+        phx_value_widget="cache_transfer"
+        selected={@analytics_selected_widget == "cache_transfer"}
+        empty={@transfer_analytics.ok? && @transfer_analytics.result.total == 0}
       />
-      <.widget
-        loading={!@analytics_chart_data.ok?}
-        title={dgettext("dashboard_cache", "Cache uploads")}
-        legend_color="p99"
+      <.split_dropdown_widget
+        loading={!@latency_analytics.ok?}
+        title={
+          case @selected_latency_type do
+            "read" -> dgettext("dashboard_cache", "Read latency")
+            "write" -> dgettext("dashboard_cache", "Write latency")
+            _ -> dgettext("dashboard_cache", "Cache latency")
+          end
+        }
+        legend_color={split_legend_color(@selected_latency_type, "p90")}
         description={
           dgettext(
             "dashboard_cache",
-            "Cache uploads represents the total size of cache artifacts uploaded to remote storage during the given period."
+            "Average latency of read (download) and write (upload) operations against remote cache storage during the given period."
           )
         }
         value={
-          if @uploads_analytics.ok?,
-            do: ByteFormatter.format_bytes(@uploads_analytics.result.total_size)
+          if @latency_analytics.ok?,
+            do:
+              Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                latency_value(@latency_analytics.result, @selected_latency_type)
+              )
         }
-        id="widget-cache-uploads"
-        trend_value={if @uploads_analytics.ok?, do: @uploads_analytics.result.trend}
-        trend_type={:neutral}
+        metrics={
+          if @latency_analytics.ok? do
+            %{
+              combined:
+                Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                  @latency_analytics.result.total
+                ),
+              primary:
+                Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                  @latency_analytics.result.downloads.total
+                ),
+              secondary:
+                Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                  @latency_analytics.result.uploads.total
+                )
+            }
+          end
+        }
+        selected_type={@selected_latency_type}
+        primary_value="read"
+        secondary_value="write"
+        combined_label={dgettext("dashboard_cache", "Cache latency")}
+        primary_label={dgettext("dashboard_cache", "Read")}
+        secondary_label={dgettext("dashboard_cache", "Write")}
+        combined_dot="combined-latency"
+        primary_dot="read"
+        secondary_dot="write"
+        event_name="select_latency_type"
+        id="widget-cache-latency"
+        trend_value={if @latency_analytics.ok?, do: @latency_analytics.result.trend}
+        trend_type={:inverse}
         trend_label={@analytics_trend_label}
         phx_click="select_widget"
-        phx_value_widget="cache_uploads"
-        selected={@analytics_selected_widget == "cache_uploads"}
-        empty={@uploads_analytics.ok? && @uploads_analytics.result.total_size == 0}
+        phx_value_widget="cache_latency"
+        selected={@analytics_selected_widget == "cache_latency"}
+        empty={@latency_analytics.ok? && @latency_analytics.result.total == 0}
+      />
+      <.split_dropdown_widget
+        loading={!@throughput_analytics.ok?}
+        title={
+          case @selected_throughput_type do
+            "downloads" -> dgettext("dashboard_cache", "Download throughput")
+            "uploads" -> dgettext("dashboard_cache", "Upload throughput")
+            _ -> dgettext("dashboard_cache", "Cache throughput")
+          end
+        }
+        legend_color={split_legend_color(@selected_throughput_type, "flaky")}
+        description={
+          dgettext(
+            "dashboard_cache",
+            "Combined download and upload throughput against remote cache storage during the given period, derived from bytes transferred over time."
+          )
+        }
+        value={
+          if @throughput_analytics.ok?,
+            do:
+              dgettext("dashboard_cache", "%{value}/s",
+                value:
+                  ByteFormatter.format_bytes(
+                    round(
+                      throughput_value(@throughput_analytics.result, @selected_throughput_type)
+                    )
+                  )
+              )
+        }
+        metrics={
+          if @throughput_analytics.ok? do
+            %{
+              combined:
+                dgettext("dashboard_cache", "%{value}/s",
+                  value: ByteFormatter.format_bytes(round(@throughput_analytics.result.total))
+                ),
+              primary:
+                dgettext("dashboard_cache", "%{value}/s",
+                  value:
+                    ByteFormatter.format_bytes(
+                      round(@throughput_analytics.result.downloads.total)
+                    )
+                ),
+              secondary:
+                dgettext("dashboard_cache", "%{value}/s",
+                  value:
+                    ByteFormatter.format_bytes(round(@throughput_analytics.result.uploads.total))
+                )
+            }
+          end
+        }
+        selected_type={@selected_throughput_type}
+        primary_value="downloads"
+        secondary_value="uploads"
+        combined_label={dgettext("dashboard_cache", "Cache throughput")}
+        primary_label={dgettext("dashboard_cache", "Downloads")}
+        secondary_label={dgettext("dashboard_cache", "Uploads")}
+        combined_dot="combined-throughput"
+        primary_dot="downloads"
+        secondary_dot="uploads"
+        event_name="select_throughput_type"
+        id="widget-cache-throughput"
+        trend_value={if @throughput_analytics.ok?, do: @throughput_analytics.result.trend}
+        trend_type={:regular}
+        trend_label={@analytics_trend_label}
+        phx_click="select_widget"
+        phx_value_widget="cache_throughput"
+        selected={@analytics_selected_widget == "cache_throughput"}
+        empty={@throughput_analytics.ok? && @throughput_analytics.result.total == 0}
       />
     </div>
     <.card_section :if={
@@ -246,8 +380,7 @@
       @analytics_selected_widget == "cache_hit_rate" and
         @hit_rate_analytics.ok? and @hit_rate_p99.ok? and @hit_rate_p90.ok? and @hit_rate_p50.ok? and
         (@hit_rate_analytics.result.avg_hit_rate != 0 or
-           (@downloads_analytics.ok? and @downloads_analytics.result.total_size != 0) or
-           (@uploads_analytics.ok? and @uploads_analytics.result.total_size != 0))
+           (@transfer_analytics.ok? and @transfer_analytics.result.total != 0))
     }>
       <.chart_type_toggle
         id="cache-hit-rate"
@@ -416,8 +549,7 @@
       @analytics_selected_widget != "cache_hit_rate" and
         @analytics_chart_data.ok? and
         (@hit_rate_analytics.result.avg_hit_rate != 0 or
-           @downloads_analytics.result.total_size != 0 or
-           @uploads_analytics.result.total_size != 0)
+           @transfer_analytics.result.total != 0)
     }>
       <div data-part="analytics-chart">
         <.chart
@@ -429,9 +561,31 @@
                 width: "93%",
                 left: "0.4%",
                 right: "7%",
-                height: "88%",
+                height:
+                  if(length(@analytics_chart_data.result.series) > 1, do: "60%", else: "88%"),
                 top: "5%"
               },
+              legend:
+                if length(@analytics_chart_data.result.series) > 1 do
+                  %{
+                    left: "left",
+                    top: "bottom",
+                    orient: "horizontal",
+                    textStyle: %{
+                      color: "var:noora-surface-label-secondary",
+                      fontFamily: "monospace",
+                      fontWeight: 400,
+                      fontSize: 10,
+                      lineHeight: 12
+                    },
+                    icon:
+                      "path://M0 6C0 4.89543 0.895431 4 2 4H6C7.10457 4 8 4.89543 8 6C8 7.10457 7.10457 8 6 8H2C0.895431 8 0 7.10457 0 6Z",
+                    itemWidth: 8,
+                    itemHeight: 4
+                  }
+                else
+                  %{show: false}
+                end,
               xAxis: %{
                 boundaryGap: false,
                 type: "category",
@@ -461,26 +615,23 @@
                   %{valueFormat: @analytics_chart_data.result.value_formatter, dateFormat: "hour"}
                 else
                   %{valueFormat: @analytics_chart_data.result.value_formatter}
-                end,
-              legend: %{
-                show: false
-              }
+                end
             }
           }
-          series={[
-            %{
-              data:
-                Enum.zip(
-                  @analytics_chart_data.result.dates,
-                  @analytics_chart_data.result.values
-                )
-                |> Enum.map(&Tuple.to_list/1),
-              name: @analytics_chart_data.result.name,
-              type: "line",
-              smooth: 0.1,
-              symbol: "none"
-            }
-          ]}
+          series={
+            Enum.map(@analytics_chart_data.result.series, fn series ->
+              %{
+                color: series.color,
+                data:
+                  Enum.zip(@analytics_chart_data.result.dates, series.values)
+                  |> Enum.map(&Tuple.to_list/1),
+                name: series.name,
+                type: "line",
+                smooth: 0.1,
+                symbol: "none"
+              }
+            end)
+          }
           y_axis_min={0}
         />
       </div>
@@ -488,8 +639,7 @@
     <.empty_card_section
       :if={
         (@hit_rate_analytics.ok? && @hit_rate_analytics.result.avg_hit_rate == 0) and
-          @downloads_analytics.result.total_size == 0 and
-          @uploads_analytics.result.total_size == 0
+          @transfer_analytics.ok? and @transfer_analytics.result.total == 0
       }
       title={dgettext("dashboard_cache", "No data yet")}
     >

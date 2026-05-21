@@ -53,6 +53,10 @@ function formatBytes(bytes) {
   }
 }
 
+function formatBytesPerSecond(bytesPerSecond) {
+  return `${formatBytes(bytesPerSecond)}/s`;
+}
+
 const formatters = {
   toLocaleDate: (el) => (value, _) => {
     const date = new Date(value);
@@ -73,6 +77,9 @@ const formatters = {
   formatBytes: (el) => (value, _) => {
     return formatBytes(value);
   },
+  formatBytesPerSecond: (el) => (value, _) => {
+    return formatBytesPerSecond(value);
+  },
   formatMilliseconds: (el) => (value, _) => {
     return formatMilliseconds(value);
   },
@@ -86,6 +93,7 @@ const formatters = {
 
 const tooltipFormatters = {
   formatBytes,
+  formatBytesPerSecond,
   formatMilliseconds,
   formatSeconds,
   formatHours: (value) => formatHours(value, { includeMinutes: true }),

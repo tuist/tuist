@@ -1630,6 +1630,7 @@ async fn get_artifact(
     analytics_key: Option<&str>,
     analytics: Option<LegacyAnalyticsContext<'_>>,
 ) -> Response {
+    let started_at = std::time::Instant::now();
     match state
         .store
         .fetch_artifact(producer, namespace_id, key)
@@ -1648,6 +1649,7 @@ async fn get_artifact(
                     analytics,
                     analytics_key.unwrap_or(key),
                     manifest.size,
+                    elapsed_millis(started_at),
                 );
             }
             response
@@ -1672,6 +1674,7 @@ async fn put_blob_artifact(
     request: Request,
     spec: BlobPutSpec<'_>,
 ) -> Response {
+    let started_at = std::time::Instant::now();
     match state
         .store
         .artifact_exists(producer, spec.namespace_id, spec.key)
@@ -1736,6 +1739,7 @@ async fn put_blob_artifact(
                 spec.analytics,
                 spec.analytics_key.unwrap_or(spec.key),
                 manifest.size,
+                elapsed_millis(started_at),
             );
             spec.success_status.into_response()
         }
@@ -1749,6 +1753,10 @@ async fn put_blob_artifact(
     }
 }
 
+fn elapsed_millis(started_at: std::time::Instant) -> u64 {
+    u64::try_from(started_at.elapsed().as_millis()).unwrap_or(u64::MAX)
+}
+
 fn record_legacy_cache_event(
     state: &SharedState,
     producer: ArtifactProducer,
@@ -1756,6 +1764,7 @@ fn record_legacy_cache_event(
     analytics: Option<LegacyAnalyticsContext<'_>>,
     key: &str,
     size: u64,
+    duration_ms: u64,
 ) {
     let Some(context) = analytics else {
         return;
@@ -1765,18 +1774,34 @@ fn record_legacy_cache_event(
     };
 
     match (producer, action) {
-        (ArtifactProducer::Xcode, "download") => {
-            analytics.enqueue_xcode_download(context.tenant_id, context.namespace_id, key, size)
-        }
-        (ArtifactProducer::Xcode, "upload") => {
-            analytics.enqueue_xcode_upload(context.tenant_id, context.namespace_id, key, size)
-        }
-        (ArtifactProducer::Gradle, "download") => {
-            analytics.enqueue_gradle_download(context.tenant_id, context.namespace_id, key, size)
-        }
-        (ArtifactProducer::Gradle, "upload") => {
-            analytics.enqueue_gradle_upload(context.tenant_id, context.namespace_id, key, size)
-        }
+        (ArtifactProducer::Xcode, "download") => analytics.enqueue_xcode_download(
+            context.tenant_id,
+            context.namespace_id,
+            key,
+            size,
+            duration_ms,
+        ),
+        (ArtifactProducer::Xcode, "upload") => analytics.enqueue_xcode_upload(
+            context.tenant_id,
+            context.namespace_id,
+            key,
+            size,
+            duration_ms,
+        ),
+        (ArtifactProducer::Gradle, "download") => analytics.enqueue_gradle_download(
+            context.tenant_id,
+            context.namespace_id,
+            key,
+            size,
+            duration_ms,
+        ),
+        (ArtifactProducer::Gradle, "upload") => analytics.enqueue_gradle_upload(
+            context.tenant_id,
+            context.namespace_id,
+            key,
+            size,
+            duration_ms,
+        ),
         _ => {}
     }
 }

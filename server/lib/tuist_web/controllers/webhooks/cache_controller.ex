@@ -44,7 +44,8 @@ defmodule TuistWeb.Webhooks.CacheController do
                 size: size,
                 cas_id: cas_id,
                 project_id: project_id,
-                cache_endpoint: cache_endpoint
+                cache_endpoint: cache_endpoint,
+                duration_ms: Map.get(event, "duration_ms", 0)
               }
 
             nil ->

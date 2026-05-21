@@ -55,8 +55,9 @@ defmodule TuistWeb.XcodeCacheLiveTest do
 
       {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/xcode-cache")
 
-      assert has_element?(lv, "#widget-cache-uploads")
-      assert has_element?(lv, "#widget-cache-downloads")
+      assert has_element?(lv, "#widget-cache-transfer")
+      assert has_element?(lv, "#widget-cache-latency")
+      assert has_element?(lv, "#widget-cache-throughput")
       assert has_element?(lv, "#widget-cache-hit-rate")
     end
   end
