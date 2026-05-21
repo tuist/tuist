@@ -96,6 +96,10 @@ green-field cluster.
 {{- .Values.runnersFleet.name | default (include "tuist.componentName" (dict "root" . "component" "runners-fleet")) -}}
 {{- end -}}
 
+{{- define "tuist.buildersFleetName" -}}
+{{- .Values.buildersFleet.name | default (include "tuist.componentName" (dict "root" . "component" "builders-fleet")) -}}
+{{- end -}}
+
 {{/*
 Linux runner fleet name — the value of the
 `node.cluster.x-k8s.io/pool=` label CAPI's label-sync propagates from

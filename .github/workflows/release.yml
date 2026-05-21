@@ -1434,13 +1434,6 @@ jobs:
           tar -czf /tmp/release.tar.gz -C "${{ steps.release.outputs.dir }}" .
           ls -lh /tmp/release.tar.gz
 
-      - name: Update Tart
-        run: |
-          set -euo pipefail
-          brew update
-          brew upgrade cirruslabs/cli/tart || brew install cirruslabs/cli/tart
-          tart --version
-
       - name: Initialize Packer
         working-directory: infra/xcresult-processor-image
         run: packer init -upgrade xcresult-processor.pkr.hcl
@@ -1463,14 +1456,17 @@ jobs:
           done
 
       - name: Reclaim Tart disk
+        # Delete every locally-cloned VM; see runner-image.yml's
+        # same step for the rationale.
         run: |
           set -uo pipefail
-          tart list --format json || true
+          tart list || true
           df -h /
-          tart stop tuist-xcresult-processor 2>/dev/null || true
-          tart delete tuist-xcresult-processor 2>/dev/null || true
+          tart list | awk '$1 == "local" { print $2 }' | while read -r vm; do
+            tart stop "$vm" 2>/dev/null || true
+            tart delete "$vm" 2>/dev/null || true
+          done
           tart prune --entries caches --older-than 0
-          tart prune --entries vms --older-than 1
           df -h /
 
       - name: Build image
@@ -1500,8 +1496,17 @@ jobs:
             -var "release_tarball=/tmp/release.tar.gz" \
             xcresult-processor.pkr.hcl
 
-      - name: Log in to GHCR
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | tart login ghcr.io --username tuist-bot --password-stdin
+      # Two-step GHCR auth, mirroring the release-runner-image leg
+      # above. See runner-image.yml's matching step for the long
+      # explanation: keychain is gated on Tahoe LaunchAgents,
+      # env-var-only push hangs at "Error: The request timed out.",
+      # and `crane auth login` writes ~/.docker/config.json which
+      # `tart push` reads via the Docker credential-helper protocol.
+      # `crane` is installed by the builder bootstrap.
+      - name: Log in to GHCR (crane)
+        run: |
+          set -euo pipefail
+          echo "${{ secrets.GITHUB_TOKEN }}" | crane auth login --username tuist-bot --password-stdin ghcr.io
 
       - name: Push image to GHCR
         env:
@@ -1555,14 +1560,10 @@ jobs:
           version: ${{ env.MISE_VERSION }}
           install_args: "git-cliff"
 
-      - name: Ensure crane is installed
-        # `crane digest` resolves the just-pushed tag to its
-        # immutable @sha256:… form for the chart pin. Not on the
-        # bare-metal runner by default; brew is.
-        run: |
-          if ! command -v crane >/dev/null 2>&1; then
-            brew install crane
-          fi
+      # `crane` is installed by the builder bootstrap; the
+      # release-runner-image leg uses `crane digest` further down
+      # to resolve a pushed tag to its immutable @sha256:… form
+      # for the chart pin, plus `crane auth login` for GHCR auth.
 
       - name: Get release notes
         id: release-notes
@@ -1590,12 +1591,14 @@ jobs:
             git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../../" --bump -o CHANGELOG.md 2>/dev/null
           fi
 
-      - name: Update Tart
-        run: |
-          set -euo pipefail
-          brew update
-          brew upgrade cirruslabs/cli/tart || brew install cirruslabs/cli/tart
-          tart --version
+      # Tart isn't installed by this workflow. The builder host's
+      # bootstrap path (infra/macos-host-bootstrap.installTart, run
+      # by the Scaleway CAPI provider on every Mac mini Node)
+      # extracts the operator-image-baked tart.app tarball to
+      # /usr/local/bin/tart. Same install path the in-cluster
+      # macosFleet / runnersFleet hosts use; the workflow's PATH
+      # picks it up and `packer init` / Packer's tart-cli plugin
+      # fail loudly if it's missing.
 
       - name: Initialize Packer
         working-directory: infra/runner-image
@@ -1621,14 +1624,17 @@ jobs:
           done
 
       - name: Reclaim Tart disk
+        # Delete every locally-cloned VM; see runner-image.yml's
+        # same step for the rationale.
         run: |
           set -uo pipefail
-          tart list --format json || true
+          tart list || true
           df -h /
-          tart stop tuist-runner 2>/dev/null || true
-          tart delete tuist-runner 2>/dev/null || true
+          tart list | awk '$1 == "local" { print $2 }' | while read -r vm; do
+            tart stop "$vm" 2>/dev/null || true
+            tart delete "$vm" 2>/dev/null || true
+          done
           tart prune --entries caches --older-than 0
-          tart prune --entries vms --older-than 1
           df -h /
 
       - name: Build image
@@ -1657,13 +1663,17 @@ jobs:
             -var "output_image=tuist-runner" \
             runner.pkr.hcl
 
-      - name: Log in to GHCR (tart + crane)
-        # `tart` and `crane` keep their own credential stores, so
-        # both need a login here: tart to push, crane to read the
-        # manifest back via `crane digest`.
+      - name: Log in to GHCR (crane only)
+        # `tart login` would write to the macOS keychain, which on
+        # Tahoe-host LaunchAgents fails with "User interaction is not
+        # allowed". The Push step below uses TART_REGISTRY_USERNAME /
+        # TART_REGISTRY_PASSWORD env-vars instead, which bypass
+        # keychain entirely. `crane` keeps its own credential store
+        # (~/.docker/config.json), which is not subject to keychain
+        # gating, so crane still needs an explicit login for the
+        # `crane digest` step that reads the manifest back.
         run: |
           set -euo pipefail
-          echo "${{ secrets.GITHUB_TOKEN }}" | tart login ghcr.io --username tuist-bot --password-stdin
           echo "${{ secrets.GITHUB_TOKEN }}" | crane auth login --username tuist-bot --password-stdin ghcr.io
 
       - name: Push image to GHCR + resolve digest
