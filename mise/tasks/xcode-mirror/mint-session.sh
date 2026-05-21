@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #MISE description "Refresh the Apple session cookies used by the Tuist.XcodeMirror worker."
 #USAGE arg "[apple_id]" help="Apple ID to sign in as (default: read from 1Password)."
-#USAGE flag "--vault <vault>" help="1Password vault to write to (default: tuist-k8s-staging)."
+#USAGE flag "--vault <vault>" help="1Password vault to write the session to (default: tuist-k8s-staging)."
 
 # Quarterly maintenance for the Tuist.XcodeMirror worker. Apple's
 # developer.apple.com session expires every ~30 days; when the
@@ -12,23 +12,32 @@
 # `GHCR_TUIST_BOT` items don't exist in the target vault yet, the
 # task creates them (prompting for the GHCR PAT once) and then
 # does its main job — populating the session cookies. No manual
-# 1P clicking, no extra package installs (`oras`, `jq`, `op` come
-# from the root mise.toml).
+# 1P clicking.
 #
-# Apple auth: this script talks to `idmsa.apple.com` directly via
-# curl — the same flow fastlane's spaceship and xcodes' AppleAPI
-# implement under the hood. The trade-off is that if Apple changes
-# their auth endpoints (rare but they do, every couple of years),
-# we patch ~80 lines of explicit HTTP calls instead of waiting on a
-# third-party release.
+# Apple auth: delegated to `xcodes`. Apple switched
+# `/appleauth/auth/signin` from plaintext-password POST to a
+# Secure Remote Password (SRP) handshake — the client computes a
+# proof derived from the password + a server-issued salt and
+# never sends the password itself. Implementing SRP from scratch
+# in bash is impractical (big-int math + SHA dance), so we let
+# `xcodes` do it; its `AppleAPI` Swift dependency is SRP-aware
+# and well-maintained. After xcodes auths, it persists the
+# resulting cookie jar at
+# `~/Library/Application Support/xcodes/session.json`, which we
+# parse and copy into the 1P item.
 #
 # Flow:
 #   1. Ensure `op` is signed in.
 #   2. Bootstrap 1P items if absent (one-time, on first run for a
 #      given env's vault).
-#   3. Do the Apple auth dance: signin → 2FA → trust.
-#   4. Extract the cookies from the Netscape jar curl wrote.
-#   5. Write the JSON cookie set straight into the 1P item.
+#   3. Source the Apple ID password from the `Tuist Apple ID` 1P
+#      item (override-able).
+#   4. Clear any cached xcodes session, then trigger a fresh auth
+#      by running an xcodes subcommand that requires login.
+#      Operator types the 2FA code at the interactive prompt.
+#   5. Read xcodes' persisted session, convert to `{name: value}`
+#      JSON.
+#   6. Write the JSON into the 1P item via `op item edit`.
 
 set -euo pipefail
 
@@ -36,10 +45,13 @@ OP_VAULT="${usage_vault:-${TUIST_XCODE_MIRROR_OP_VAULT:-tuist-k8s-staging}}"
 OP_ITEM="${TUIST_XCODE_MIRROR_OP_ITEM:-Tuist Xcode Mirror Session}"
 OP_FIELD="${TUIST_XCODE_MIRROR_OP_FIELD:-session_cookies}"
 OP_GHCR_ITEM="${TUIST_XCODE_MIRROR_OP_GHCR_ITEM:-GHCR_TUIST_BOT}"
-
-# Tools (`oras`, `jq`, `op`, `curl`) come from the repo-root mise.toml.
-# Running this task via `mise run xcode-mirror:mint-session` auto-installs
-# what's missing — no brew dance here.
+# Where to source the Apple ID password from. The default points
+# at the shared "Tuist Apple ID" login item in 1Password's
+# Employee vault; teams using a different layout can override via
+# env.
+OP_APPLE_ITEM="${TUIST_XCODE_MIRROR_OP_APPLE_ITEM:-Tuist Apple ID}"
+OP_APPLE_VAULT="${TUIST_XCODE_MIRROR_OP_APPLE_VAULT:-Employee}"
+OP_APPLE_FIELD="${TUIST_XCODE_MIRROR_OP_APPLE_FIELD:-password}"
 
 # === 1. Ensure op is signed in ==============================================
 
@@ -104,6 +116,11 @@ if [ -z "$APPLE_ID" ]; then
   APPLE_ID="$(op item get "$OP_ITEM" --vault "$OP_VAULT" --fields apple_id 2>/dev/null || true)"
 fi
 if [ -z "$APPLE_ID" ]; then
+  # Fall back to the username on the source Apple ID item — same
+  # account either way, just a different 1P field.
+  APPLE_ID="$(op item get "$OP_APPLE_ITEM" --vault "$OP_APPLE_VAULT" --fields username 2>/dev/null || true)"
+fi
+if [ -z "$APPLE_ID" ]; then
   echo
   read -rp "Apple ID for the xcode-mirror service account: " APPLE_ID
   if [ -z "$APPLE_ID" ]; then
@@ -123,231 +140,109 @@ if ! op item get "$OP_ITEM" --vault "$OP_VAULT" >/dev/null 2>&1; then
     >/dev/null
 fi
 
-# === 3. Apple auth dance ====================================================
+# === 3. Source the Apple ID password from 1P =================================
 
-# Temp files for the curl cookie jar and HTTP response bodies. All
-# cleaned up at exit — a captured session token leaking to disk
-# is the worst-case here.
-work_dir="$(mktemp -d -t xcode_mirror_mint.XXXXXX)"
-cookie_jar="$work_dir/cookies"
-trap 'rm -rf "$work_dir"' EXIT
-
-# Apple's auth endpoints sit behind an anti-bot CDN that rejects
-# requests missing the iframe-style headers their JS widget sends.
-# A realistic Safari UA + Origin/Referer pinned to idmsa.apple.com
-# clears the check; without them the CDN returns 503 +
-# `WidgetServiceUnavailable` before the request hits the auth
-# backend. The OAuth-flavoured headers (X-Apple-OAuth-*) mirror
-# what fastlane's spaceship sends — Apple treats them as
-# load-bearing for the signin flow even though they're nominally
-# OAuth params.
-ua_safari='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Safari/605.1.15'
-oauth_state="$(uuidgen | tr 'A-Z' 'a-z')"
-
-# 4a. Widget key — the value Apple's web SSO uses to identify the
-# requesting "service". App Store Connect publishes it through an
-# unauthenticated config endpoint; same key works for the
-# developer portal cookies we care about. We capture the response
-# into the same cookie jar the signin call uses; Apple's CDN sets
-# session cookies (`aaa_si`, `axx_s`) here that signin requires.
-widget_key="$(
-  curl -fsSL \
-    -A "$ua_safari" \
-    -c "$cookie_jar" -b "$cookie_jar" \
-    'https://appstoreconnect.apple.com/olympus/v1/app/config?hostname=itunesconnect.apple.com' \
-    | jq -r '.authServiceKey'
+# `--reveal` is the post-2.x op CLI flag for "give me the
+# concealed value as a string"; without it `--fields password`
+# returns the redacted placeholder.
+APPLE_PASSWORD="$(
+  op item get "$OP_APPLE_ITEM" --vault "$OP_APPLE_VAULT" \
+    --fields "label=$OP_APPLE_FIELD" --reveal 2>/dev/null || true
 )"
-if [ -z "$widget_key" ] || [ "$widget_key" = "null" ]; then
-  echo "Error: couldn't fetch Apple's widget key from olympus/v1/app/config." >&2
-  echo "(Apple may have moved the endpoint; check developer.apple.com/login)" >&2
-  exit 1
+
+if [ -z "$APPLE_PASSWORD" ]; then
+  echo
+  echo "Couldn't read $OP_APPLE_VAULT/$OP_APPLE_ITEM/$OP_APPLE_FIELD from 1Password."
+  echo "(Set TUIST_XCODE_MIRROR_OP_APPLE_{ITEM,VAULT,FIELD} to override paths,"
+  echo " or paste the password below.)"
+  read -rsp "Apple ID password for $APPLE_ID: " APPLE_PASSWORD
+  echo
+  if [ -z "$APPLE_PASSWORD" ]; then
+    echo "Error: Apple ID password required." >&2
+    exit 1
+  fi
 fi
 
-# 4b. Warm the cookie jar with the auth-widget landing page. The
-# CDN sets a couple of additional cookies on this hit that signin
-# then expects. Skipping this step is what produced the
-# `WidgetServiceUnavailable` 503 on earlier iterations of this
-# script.
-curl -fsSL -o /dev/null \
-  -A "$ua_safari" \
-  -c "$cookie_jar" -b "$cookie_jar" \
-  "https://appleid.apple.com/auth/authorize/signin?client_id=${widget_key}&redirect_uri=https%3A%2F%2Fappstoreconnect.apple.com&response_type=code&response_mode=web_message&state=${oauth_state}&frame_id=auth-${oauth_state}&language=en_US" \
-  || true
+# === 4. Trigger xcodes auth ==================================================
 
-# 4c. Prompt for password. -s suppresses echo. We never persist
-# this anywhere; it goes straight into the signin request and out
-# of scope.
+# Clear any cached session so we get fresh cookies. `xcodes
+# signout` is safe to call even when no session exists.
+xcodes signout >/dev/null 2>&1 || true
+
+# Wipe any pre-existing session file too — xcodes only rewrites
+# on successful auth, so a stale file would otherwise mask a
+# failed auth from us.
+SESSION_FILE="$HOME/Library/Application Support/xcodes/session.json"
+rm -f "$SESSION_FILE"
+
+# Trigger auth via `xcodes runtimes downloadable` — it queries
+# Apple's developer-portal API for the runtime list, which is
+# auth-walled. We don't care about the runtime list; we care that
+# xcodes goes through its SRP login + 2FA dance and persists the
+# session on success.
+#
+# Credentials flow via env vars; xcodes reads `XCODES_USERNAME`
+# and `XCODES_PASSWORD` (avoiding the per-command `--apple-id`
+# flag that doesn't exist on every subcommand). The 2FA prompt
+# stays interactive — xcodes reads the 6-digit code from the
+# terminal, the operator types it after approving the trusted-
+# device push on their iPhone.
+#
+# Output is filtered to drop the noisy runtime list; auth-related
+# lines (sign-in progress, 2FA prompt) still reach the terminal
+# via stderr.
 echo
-echo "Signing in to developer.apple.com as $APPLE_ID..."
-read -rsp "Apple ID password: " APPLE_PASSWORD
+echo "Signing in to developer.apple.com as $APPLE_ID via xcodes..."
+echo "(Approve the prompt on your trusted Apple device, then enter the 6-digit code.)"
 echo
 
-# 4d. POST /signin. Apple returns 409 with `scnt` +
-# `X-Apple-ID-Session-Id` response headers when 2FA is required
-# (the common case for any account that's not exempted from
-# Apple's MFA mandate, which is now everyone). 200 means the
-# account skipped 2FA — vanishingly rare since 2019.
-signin_body="$work_dir/signin.body"
-signin_headers="$work_dir/signin.headers"
-signin_status="$(
-  curl -sS -o "$signin_body" -D "$signin_headers" \
-    -w '%{http_code}' \
-    -A "$ua_safari" \
-    -c "$cookie_jar" -b "$cookie_jar" \
-    -X POST \
-    -H 'Accept: application/json, text/javascript' \
-    -H 'Accept-Language: en-US,en;q=0.9' \
-    -H 'Content-Type: application/json' \
-    -H 'Origin: https://idmsa.apple.com' \
-    -H 'Referer: https://idmsa.apple.com/' \
-    -H "X-Apple-Widget-Key: $widget_key" \
-    -H 'X-Requested-With: XMLHttpRequest' \
-    -H "X-Apple-OAuth-Client-Id: $widget_key" \
-    -H 'X-Apple-OAuth-Client-Type: firstPartyAuth' \
-    -H 'X-Apple-OAuth-Redirect-URI: https://appstoreconnect.apple.com' \
-    -H 'X-Apple-OAuth-Require-Grant-Code: true' \
-    -H 'X-Apple-OAuth-Response-Mode: web_message' \
-    -H 'X-Apple-OAuth-Response-Type: code' \
-    -H "X-Apple-OAuth-State: $oauth_state" \
-    --data-binary "$(jq -nc --arg id "$APPLE_ID" --arg pw "$APPLE_PASSWORD" \
-        '{accountName:$id, password:$pw, rememberMe:true}')" \
-    'https://idmsa.apple.com/appleauth/auth/signin'
-)"
+set +e
+XCODES_USERNAME="$APPLE_ID" XCODES_PASSWORD="$APPLE_PASSWORD" \
+  xcodes runtimes downloadable >/dev/null
+xcodes_status=$?
+set -e
 unset APPLE_PASSWORD
 
-case "$signin_status" in
-  200)
-    # No 2FA — already trusted IP / exempted. Cookies are in the
-    # jar, skip to the dev-portal hop below.
-    ;;
-  409)
-    # 2FA required. Apple's headers are case-preserved but case-
-    # insensitive; grep -i is safe.
-    scnt="$(grep -i '^scnt:' "$signin_headers" | tail -n1 | sed 's/^[Ss][Cc][Nn][Tt]: //' | tr -d '\r')"
-    session_id="$(grep -i '^x-apple-id-session-id:' "$signin_headers" | tail -n1 | sed 's/^[Xx]-[Aa]pple-[Ii][Dd]-[Ss]ession-[Ii][Dd]: //' | tr -d '\r')"
-    if [ -z "$scnt" ] || [ -z "$session_id" ]; then
-      echo "Error: 409 from /signin but couldn't parse scnt / X-Apple-ID-Session-Id headers." >&2
-      cat "$signin_headers" >&2
-      exit 1
-    fi
-
-    # Trigger the trusted-device push so the user gets the prompt.
-    # Same Origin/Referer/UA discipline as signin — Apple's CDN
-    # bounces these too if they smell like a bot.
-    curl -sS -o /dev/null -c "$cookie_jar" -b "$cookie_jar" \
-      -A "$ua_safari" \
-      -X GET \
-      -H 'Accept: application/json' \
-      -H 'Origin: https://idmsa.apple.com' \
-      -H 'Referer: https://idmsa.apple.com/' \
-      -H "X-Apple-Widget-Key: $widget_key" \
-      -H "X-Apple-ID-Session-Id: $session_id" \
-      -H "scnt: $scnt" \
-      'https://idmsa.apple.com/appleauth/auth/verify/trusteddevice'
-
-    echo "Approve the prompt on your trusted Apple device, then enter the 6-digit code."
-    read -rp "2FA code: " CODE
-    if [ -z "$CODE" ]; then
-      echo "Error: empty 2FA code." >&2
-      exit 1
-    fi
-
-    verify_status="$(
-      curl -sS -o /dev/null -D "$work_dir/verify.headers" \
-        -w '%{http_code}' \
-        -A "$ua_safari" \
-        -c "$cookie_jar" -b "$cookie_jar" \
-        -X POST \
-        -H 'Accept: application/json' \
-        -H 'Content-Type: application/json' \
-        -H 'Origin: https://idmsa.apple.com' \
-        -H 'Referer: https://idmsa.apple.com/' \
-        -H "X-Apple-Widget-Key: $widget_key" \
-        -H "X-Apple-ID-Session-Id: $session_id" \
-        -H "scnt: $scnt" \
-        --data-binary "$(jq -nc --arg c "$CODE" '{securityCode:{code:$c}}')" \
-        'https://idmsa.apple.com/appleauth/auth/verify/trusteddevice/securitycode'
-    )"
-    unset CODE
-
-    if [ "$verify_status" != "204" ] && [ "$verify_status" != "200" ]; then
-      echo "Error: 2FA verify returned HTTP $verify_status." >&2
-      exit 1
-    fi
-
-    # Mark this signin as a "trusted" device so the session
-    # outlasts the default few-hours window. Returns the bulk of
-    # the session cookies we care about (myacinfo + dqsid).
-    curl -sS -o /dev/null \
-      -A "$ua_safari" \
-      -c "$cookie_jar" -b "$cookie_jar" \
-      -X GET \
-      -H 'Accept: application/json' \
-      -H 'Origin: https://idmsa.apple.com' \
-      -H 'Referer: https://idmsa.apple.com/' \
-      -H "X-Apple-Widget-Key: $widget_key" \
-      -H "X-Apple-ID-Session-Id: $session_id" \
-      -H "scnt: $scnt" \
-      'https://idmsa.apple.com/appleauth/auth/2sv/trust'
-    ;;
-  *)
-    echo "Error: /signin returned HTTP $signin_status." >&2
-    echo "Response body:" >&2
-    cat "$signin_body" >&2
+if [ "$xcodes_status" -ne 0 ]; then
+  # `xcodes runtimes downloadable` returns non-zero if auth fails
+  # *or* if the runtime list query fails post-auth. Distinguish by
+  # checking whether the session file was written.
+  if [ ! -f "$SESSION_FILE" ]; then
+    echo "Error: xcodes auth failed (exit $xcodes_status)." >&2
+    echo "Re-run with verbose xcodes output to debug:" >&2
+    echo "  XCODES_USERNAME=$APPLE_ID xcodes runtimes downloadable" >&2
     exit 1
-    ;;
-esac
+  fi
+  # Session file exists → auth worked, the runtime list query
+  # itself flaked (Apple's API is sometimes slow). Continue.
+fi
 
-# 4e. Hit developer.apple.com once to upgrade the cookie set into
-# the form the dev-portal CDN accepts — Apple sets additional
-# scoped cookies on the first authenticated request to that
-# subdomain.
-curl -sS -o /dev/null \
-  -A "$ua_safari" \
-  -c "$cookie_jar" -b "$cookie_jar" \
-  'https://developer.apple.com/account/' \
-  >/dev/null 2>&1 || true
-
-# === 4. Extract cookies as JSON =============================================
-
-# Netscape cookie jar format:
-#   <domain> <flag> <path> <secure> <expiry> <name> <value>
-# Apple's flow drops cookies across multiple subdomains. We keep
-# anything ending in `apple.com` so myacinfo (idmsa) + dqsid
-# (developer.apple.com) + any cross-cutting auth crumbs all make
-# it into the jar. The worker only reads the names it cares
-# about; extras don't hurt.
-cookies_json="$(
-  awk -F'\t' -v OFS='' '
-    BEGIN { print "{"; first = 1 }
-    /^[^#]/ && NF == 7 {
-      domain = $1; name = $6; value = $7
-      sub(/^#HttpOnly_/, "", domain)
-      if (domain !~ /apple\.com$/) next
-      if (name == "") next
-      if (!first) print ","
-      # Escape inner quotes / backslashes so the JSON parses.
-      gsub(/\\/, "\\\\", value)
-      gsub(/"/, "\\\"", value)
-      printf "\"%s\":\"%s\"", name, value
-      first = 0
-    }
-    END { print "}" }
-  ' "$cookie_jar"
-)"
-
-# Validate + minify with jq before pushing to 1P.
-if ! echo "$cookies_json" | jq -e 'length > 0' >/dev/null 2>&1; then
-  echo "Error: no apple.com cookies in the jar after the auth dance." >&2
-  echo "Cookie jar dump:" >&2
-  cat "$cookie_jar" >&2
+if [ ! -f "$SESSION_FILE" ]; then
+  echo "Error: xcodes returned success but didn't persist a session." >&2
+  echo "Expected: $SESSION_FILE" >&2
   exit 1
 fi
-cookies_json="$(echo "$cookies_json" | jq -c '.')"
+
+# === 5. Extract cookies as JSON ==============================================
+
+# xcodes serialises its cookies as a JSON array of
+# `HTTPCookieStorable` records:
+#   [{"name": "myacinfo", "value": "DAW...", "domain": ".apple.com",
+#     "path": "/", "expiresDate": ..., "secure": true, ...}, ...]
+# We only want {name → value}.
+cookies_json="$(jq -c 'map({(.name): .value}) | add // {}' "$SESSION_FILE")"
+
 n="$(echo "$cookies_json" | jq 'length')"
+if [ "$n" -lt 1 ]; then
+  echo "Error: session file present but contained no cookies." >&2
+  echo "Dump:" >&2
+  cat "$SESSION_FILE" >&2
+  exit 1
+fi
+
 echo "Captured $n cookie(s)."
 
-# === 5. Write to 1Password =================================================
+# === 6. Write to 1Password ==================================================
 
 echo "Writing to 1Password ($OP_VAULT / $OP_ITEM / $OP_FIELD)..."
 
