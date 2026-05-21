@@ -60,18 +60,19 @@
             var observedTargetImports: [Target: Set<String>] = [:]
 
             let allTargetNames = Set(allTargets.map(\.target.productName))
+            let allModuleNames = allTargetNames.union(precompiledModuleNames(graphTraverser: graphTraverser))
 
             for target in allInternalTargets {
                 let reachableModules = reachableModules(
                     for: target,
                     graphTraverser: graphTraverser,
-                    allTargetNames: allTargetNames
+                    allModuleNames: allModuleNames
                 )
                 let sourceDependencies = Set(
                     try await targetScanner.imports(for: target.target, reachableModules: reachableModules)
                 )
 
-                let explicitTargetDependencies = explicitTargetDependencies(
+                let explicitDependencyModules = explicitDependencyModules(
                     graphTraverser: graphTraverser,
                     target: target,
                     includeExternalDependencies: inspectType == .implicit,
@@ -80,10 +81,10 @@
 
                 let observedImports = switch inspectType {
                 case .redundant:
-                    explicitTargetDependencies.subtracting(sourceDependencies)
+                    explicitDependencyModules.subtracting(sourceDependencies)
                 case .implicit:
-                    sourceDependencies.subtracting(explicitTargetDependencies)
-                        .intersection(allTargetNames)
+                    sourceDependencies.subtracting(explicitDependencyModules)
+                        .intersection(allModuleNames)
                 }
                 if !observedImports.isEmpty {
                     observedTargetImports[target.target] = observedImports
@@ -92,7 +93,7 @@
             return observedTargetImports
         }
 
-        private func explicitTargetDependencies(
+        private func explicitDependencyModules(
             graphTraverser: GraphTraverser,
             target: GraphTarget,
             includeExternalDependencies: Bool,
@@ -151,18 +152,34 @@
                 }
                 .map { dependency in
                     if case .external = dependency.graphTarget.project.type {
-                        let targets = [dependency.graphTarget] + graphTraverser.allTargetDependencies(
-                            path: dependency.graphTarget.project.path,
-                            name: dependency.graphTarget.target.name
+                        let graphDependency = GraphDependency.target(
+                            name: dependency.graphTarget.target.name,
+                            path: dependency.graphTarget.project.path
                         )
-                        return Set(targets)
+                        return Set([dependency.graphTarget.target.productName])
+                            .union(
+                                transitiveDependencies(
+                                    from: graphDependency,
+                                    graphTraverser: graphTraverser
+                                )
+                                .flatMap { moduleNames(for: $0, graphTraverser: graphTraverser) }
+                            )
                     } else {
-                        return Set(arrayLiteral: dependency.graphTarget)
+                        return Set(arrayLiteral: dependency.graphTarget.target.productName)
                     }
                 }
                 .flatMap { $0 }
-                .map(\.target.productName)
-            return Set(explicitTargetDependencies)
+            var explicitDependencyModules = Set(explicitTargetDependencies)
+
+            if includeExternalDependencies {
+                let graphDependency = GraphDependency.target(name: target.target.name, path: target.project.path)
+                let directPrecompiledDependencyModules = graphTraverser.dependencies[graphDependency, default: []]
+                    .filter { !$0.isTarget }
+                    .flatMap { moduleNames(for: $0, graphTraverser: graphTraverser) }
+                explicitDependencyModules.formUnion(directPrecompiledDependencyModules)
+            }
+
+            return explicitDependencyModules
         }
 
         /// Modules reachable from the target's transitive declared-dependency closure.
@@ -171,13 +188,60 @@
         private func reachableModules(
             for target: GraphTarget,
             graphTraverser: GraphTraverser,
-            allTargetNames: Set<String>
+            allModuleNames: Set<String>
         ) -> Set<String> {
-            let transitive = graphTraverser.allTargetDependencies(
-                path: target.path,
-                name: target.target.name
+            let graphDependency = GraphDependency.target(name: target.target.name, path: target.path)
+            return Set(
+                transitiveDependencies(from: graphDependency, graphTraverser: graphTraverser)
+                    .flatMap { moduleNames(for: $0, graphTraverser: graphTraverser) }
             )
-            return Set(transitive.map(\.target.productName)).intersection(allTargetNames)
+            .intersection(allModuleNames)
+        }
+
+        private func precompiledModuleNames(graphTraverser: GraphTraverser) -> Set<String> {
+            var dependencies = Set(graphTraverser.dependencies.keys)
+            graphTraverser.dependencies.values.forEach { dependencies.formUnion($0) }
+            return Set(
+                dependencies
+                    .filter { !$0.isTarget }
+                    .flatMap { moduleNames(for: $0, graphTraverser: graphTraverser) }
+            )
+        }
+
+        private func transitiveDependencies(
+            from root: GraphDependency,
+            graphTraverser: GraphTraverser
+        ) -> Set<GraphDependency> {
+            var visited: Set<GraphDependency> = []
+            var stack = Array(graphTraverser.dependencies[root, default: []])
+
+            while let dependency = stack.popLast() {
+                guard visited.insert(dependency).inserted else { continue }
+                stack.append(contentsOf: graphTraverser.dependencies[dependency, default: []])
+            }
+
+            return visited
+        }
+
+        private func moduleNames(
+            for dependency: GraphDependency,
+            graphTraverser: GraphTraverser
+        ) -> Set<String> {
+            switch dependency {
+            case let .target(name, path, _):
+                guard let target = graphTraverser.target(path: path, name: name) else { return [] }
+                return [target.target.productName]
+            case let .xcframework(xcframework):
+                return Set(xcframework.infoPlist.libraries.map(\.binaryName))
+            case let .framework(path, _, _, _, _, _, _):
+                return [path.basenameWithoutExt]
+            case let .foreignBuildOutput(output):
+                return [output.name]
+            case let .packageProduct(_, product, _):
+                return [product]
+            case .bundle, .library, .macro, .sdk:
+                return []
+            }
         }
     }
 #endif

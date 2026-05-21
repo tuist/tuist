@@ -33,6 +33,18 @@ struct InspectDependenciesCommandServiceTests {
         )
     }
 
+    private func xcframeworkDependency(moduleName: String) throws -> GraphDependency {
+        .testXCFramework(
+            path: try AbsolutePath(validating: "/dependencies/\(moduleName).xcframework"),
+            infoPlist: .test(libraries: [
+                .test(
+                    path: try RelativePath(validating: "ios-arm64/\(moduleName).framework"),
+                    architectures: [.arm64]
+                ),
+            ])
+        )
+    }
+
     // MARK: - Both Checks Tests
 
     @Test
@@ -287,6 +299,83 @@ struct InspectDependenciesCommandServiceTests {
         ) {
             try await subject.run(path: path.pathString, inspectionTypes: [.implicit])
         }
+    }
+
+    @Test
+    func runImplicitOnlyWhenXCFrameworkFromSPMPackageIsImplicitlyImported() async throws {
+        // Given
+        let config = Tuist.test()
+
+        let path = try AbsolutePath(validating: "/project")
+        let app = Target.test(name: "App", product: .app)
+        let project = Project.test(path: path, targets: [app])
+
+        let packageTarget = Target.test(name: "PackageTarget", product: .staticFramework)
+        let packageTargetPath = try AbsolutePath(validating: "/spm/Package")
+        let packageProject = Project.test(path: packageTargetPath, targets: [packageTarget], type: .external(hash: "hash"))
+        let binaryDependency = try xcframeworkDependency(moduleName: "BinaryKit")
+
+        let graph = Graph.test(
+            path: path,
+            projects: [
+                path: project,
+                packageTargetPath: packageProject,
+            ],
+            dependencies: [
+                .target(name: "PackageTarget", path: packageTargetPath): [
+                    binaryDependency,
+                ],
+            ]
+        )
+
+        given(configLoader).loadConfig(path: .value(path)).willReturn(config)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generator).load(path: .value(path), options: .any).willReturn(graph)
+        given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set(["BinaryKit"]))
+
+        // When / Then
+        await #expect(
+            throws: InspectImportsServiceError.issuesFound(implicit: [.init(
+                target: "App",
+                dependencies: ["BinaryKit"]
+            )])
+        ) {
+            try await subject.run(path: path.pathString, inspectionTypes: [.implicit])
+        }
+    }
+
+    @Test
+    func runImplicitOnlyTreatsDirectXCFrameworkDependencyAsExplicitAndReachable() async throws {
+        // Given
+        let config = Tuist.test()
+
+        let path = try AbsolutePath(validating: "/project")
+        let app = Target.test(name: "App", product: .app)
+        let project = Project.test(path: path, targets: [app])
+        let binaryDependency = try xcframeworkDependency(moduleName: "BinaryKit")
+
+        let graph = Graph.test(
+            path: path,
+            projects: [path: project],
+            dependencies: [
+                .target(name: "App", path: path): [
+                    binaryDependency,
+                ],
+            ]
+        )
+
+        given(configLoader).loadConfig(path: .value(path)).willReturn(config)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generator).load(path: .value(path), options: .any).willReturn(graph)
+        given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set(["BinaryKit"]))
+
+        // When
+        try await subject.run(path: path.pathString, inspectionTypes: [.implicit])
+
+        // Then
+        verify(targetScanner)
+            .imports(for: .value(app), reachableModules: .value(["BinaryKit"]))
+            .called(1)
     }
 
     @Test
