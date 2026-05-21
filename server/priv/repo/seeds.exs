@@ -620,7 +620,6 @@ cas_events =
       size: cas_output.size,
       cas_id: cas_output.node_id,
       project_id: tuist_project.id,
-      duration_ms: :rand.uniform(800) + 50,
       inserted_at: cas_output.inserted_at
     }
   end)

@@ -53,7 +53,6 @@ struct XcodeAnalyticsEvent {
     action: String,
     size: u64,
     cas_id: String,
-    duration_ms: u64,
 }
 
 #[derive(Clone, Debug, Serialize, PartialEq, Eq)]
@@ -63,7 +62,6 @@ struct GradleAnalyticsEvent {
     action: String,
     size: u64,
     cache_key: String,
-    duration_ms: u64,
 }
 
 #[derive(Serialize)]
@@ -129,7 +127,6 @@ impl Analytics {
         namespace_id: &str,
         cas_id: &str,
         size: u64,
-        duration_ms: u64,
     ) {
         self.enqueue(AnalyticsEvent::Xcode(XcodeAnalyticsEvent {
             account_handle: tenant_id.to_owned(),
@@ -137,7 +134,6 @@ impl Analytics {
             action: "download".into(),
             size,
             cas_id: cas_id.to_owned(),
-            duration_ms,
         }));
     }
 
@@ -147,7 +143,6 @@ impl Analytics {
         namespace_id: &str,
         cas_id: &str,
         size: u64,
-        duration_ms: u64,
     ) {
         self.enqueue(AnalyticsEvent::Xcode(XcodeAnalyticsEvent {
             account_handle: tenant_id.to_owned(),
@@ -155,7 +150,6 @@ impl Analytics {
             action: "upload".into(),
             size,
             cas_id: cas_id.to_owned(),
-            duration_ms,
         }));
     }
 
@@ -165,7 +159,6 @@ impl Analytics {
         namespace_id: &str,
         cache_key: &str,
         size: u64,
-        duration_ms: u64,
     ) {
         self.enqueue(AnalyticsEvent::Gradle(GradleAnalyticsEvent {
             account_handle: tenant_id.to_owned(),
@@ -173,7 +166,6 @@ impl Analytics {
             action: "download".into(),
             size,
             cache_key: cache_key.to_owned(),
-            duration_ms,
         }));
     }
 
@@ -183,7 +175,6 @@ impl Analytics {
         namespace_id: &str,
         cache_key: &str,
         size: u64,
-        duration_ms: u64,
     ) {
         self.enqueue(AnalyticsEvent::Gradle(GradleAnalyticsEvent {
             account_handle: tenant_id.to_owned(),
@@ -191,7 +182,6 @@ impl Analytics {
             action: "upload".into(),
             size,
             cache_key: cache_key.to_owned(),
-            duration_ms,
         }));
     }
 
@@ -583,8 +573,8 @@ mod tests {
         .expect("analytics should initialize")
         .expect("analytics should be enabled");
 
-        analytics.enqueue_xcode_upload("acme", "ios", "cas-1", 42, 12);
-        analytics.enqueue_gradle_download("acme", "android", "gradle-key", 64, 24);
+        analytics.enqueue_xcode_upload("acme", "ios", "cas-1", 42);
+        analytics.enqueue_gradle_download("acme", "android", "gradle-key", 64);
 
         timeout(Duration::from_secs(2), async {
             loop {
@@ -615,8 +605,7 @@ mod tests {
                     "project_handle": "ios",
                     "action": "upload",
                     "size": 42,
-                    "cas_id": "cas-1",
-                    "duration_ms": 12
+                    "cas_id": "cas-1"
                 }]
             })
         );
@@ -636,8 +625,7 @@ mod tests {
                     "project_handle": "android",
                     "action": "download",
                     "size": 64,
-                    "cache_key": "gradle-key",
-                    "duration_ms": 24
+                    "cache_key": "gradle-key"
                 }]
             })
         );
@@ -666,10 +654,10 @@ mod tests {
         .expect("analytics should initialize")
         .expect("analytics should be enabled");
 
-        analytics.enqueue_xcode_upload("acme", "ios", "cas-1", 1, 0);
-        analytics.enqueue_xcode_upload("acme", "ios", "cas-2", 1, 0);
-        analytics.enqueue_xcode_upload("acme", "ios", "cas-3", 1, 0);
-        analytics.enqueue_xcode_upload("acme", "ios", "cas-4", 1, 0);
+        analytics.enqueue_xcode_upload("acme", "ios", "cas-1", 1);
+        analytics.enqueue_xcode_upload("acme", "ios", "cas-2", 1);
+        analytics.enqueue_xcode_upload("acme", "ios", "cas-3", 1);
+        analytics.enqueue_xcode_upload("acme", "ios", "cas-4", 1);
 
         timeout(Duration::from_secs(2), async {
             loop {

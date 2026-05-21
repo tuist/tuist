@@ -30,7 +30,6 @@ defmodule Tuist.Cache do
           cas_id: event.cas_id,
           project_id: event.project_id,
           cache_endpoint: event.cache_endpoint,
-          duration_ms: Map.get(event, :duration_ms, 0),
           inserted_at: now
         }
       end)

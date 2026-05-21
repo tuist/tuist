@@ -13,7 +13,6 @@ defmodule Tuist.Cache.CASEvent do
     field :cas_id, Ch, type: "String"
     field :project_id, Ch, type: "Int64"
     field :cache_endpoint, Ch, type: "LowCardinality(String)"
-    field :duration_ms, Ch, type: "Int64"
     field :inserted_at, Ch, type: "DateTime"
   end
 end
