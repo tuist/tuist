@@ -315,7 +315,7 @@ jobs:
           ref: ${{ env.DEPLOY_SHA }}
       - uses: jdx/mise-action@v3.2.0
         with:
-          install_args: "helm kubectl jq"
+          install_args: "helm kubectl"
           cache: "false"
       - uses: 1password/install-cli-action@v2
       - name: Load kubeconfig from 1Password
@@ -333,24 +333,19 @@ jobs:
           echo "Reaching apiserver at $API"
           kubectl --request-timeout=10s get --raw /version >/dev/null
       - name: Run k8s:install-platform
-        # The script needs CLOUDFLARE_API_TOKEN and a cluster name. We avoid
-        # adding a new GitHub secret for the token by reading it back from
-        # the in-cluster Secret that the bootstrap script created (CI runs
-        # cluster-admin). The cluster name is taken from the existing
-        # platform release's stored values so the txtOwnerId external-dns
-        # uses on every reconcile stays identical to bootstrap.
+        # CLOUDFLARE_API_TOKEN is read from the in-cluster Secret the bootstrap
+        # script created (CI is cluster-admin) instead of being added as a
+        # second GitHub secret. ::add-mask:: registers the value with Actions
+        # so it's redacted in subsequent step output (GHA only auto-masks
+        # values it knows are secrets; values derived at runtime aren't).
+        env:
+          CLUSTER_NAME: ${{ inputs.environment == 'production' && 'tuist' || format('tuist-{0}', inputs.environment) }}
         run: |
           set -euo pipefail
           CLOUDFLARE_API_TOKEN="$(kubectl -n platform get secret cloudflare-api-token \
             -o jsonpath='{.data.api-token}' | base64 -d)"
+          echo "::add-mask::$CLOUDFLARE_API_TOKEN"
           export CLOUDFLARE_API_TOKEN
-          OWNER="$(helm get values platform -n platform -o json \
-            | jq -r '."external-dns".txtOwnerId // empty')"
-          CLUSTER_NAME="${OWNER%-platform}"
-          if [ -z "$CLUSTER_NAME" ]; then
-            echo "ERROR: could not derive cluster name from existing platform release" >&2
-            exit 1
-          fi
           echo "Reconciling platform chart for cluster $CLUSTER_NAME"
           mise -C infra run k8s:install-platform "$KUBECONFIG" "$CLUSTER_NAME"
 
