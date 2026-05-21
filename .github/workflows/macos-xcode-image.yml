@@ -63,42 +63,56 @@ jobs:
       # picks it up and `packer init` / Packer's tart-cli plugin
       # fail loudly if it's missing.
 
-      - name: Ensure xcodes is installed
-        # The CLI is also baked into the resulting Tart image (Layer
-        # 1's brew install), but here we need it on the *host* to
-        # drive the .xip download before Packer boots a VM.
-        run: |
-          set -euo pipefail
-          if ! command -v xcodes >/dev/null 2>&1; then
-            brew install xcodes aria2
-          fi
-          xcodes version
-
-      - name: Download Xcode from Apple
+      # Pull the .xip from our in-house mirror instead of Apple
+      # directly. The mirror is populated by `Tuist.XcodeMirror`
+      # (in-cluster Oban worker, every 6h) and as a break-glass by
+      # the `mise run xcode-mirror:upload <version>` task. Moving
+      # the Apple-auth concern out of CI means:
+      #   * CAPI-managed builders can rotate without breaking the
+      #     workflow (no more host-bound keychain session);
+      #   * `gh workflow run` doesn't need a maintainer to have
+      #     SSH'd into the builder ahead of time;
+      #   * a stale session is alertable from the worker, not a
+      #     confusing CI failure at random.
+      # If the .xip isn't in the mirror yet (worker hasn't ticked,
+      # or the version was just released), the operator runs the
+      # break-glass task locally and re-triggers this workflow.
+      - name: Pull Xcode .xip from mirror
         id: xcode_xip
-        # Uses the xcodes session cached in the builder's login
-        # keychain by the quarterly `xcodes signin` runbook. If
-        # the session has expired, `xcodes download` returns
-        # non-zero because Apple's auth challenge can't be answered
-        # non-interactively — the failure here is the signal to
-        # re-mint the session.
+        env:
+          XCODE_VERSION: ${{ inputs.xcode_version }}
         run: |
           set -euo pipefail
           XCODE_CACHE="${RUNNER_TEMP:-/tmp}/xcode-xip"
           mkdir -p "$XCODE_CACHE"
-          # Reuse the .xip across runs if xcodes has it cached;
-          # only download when absent. xcodes' download verifies
-          # the signature, which takes minutes for a 10 GB file
-          # we already verified on the previous build.
           if ! ls "$XCODE_CACHE"/Xcode-${XCODE_VERSION}*.xip >/dev/null 2>&1; then
-            xcodes download "${XCODE_VERSION}" --directory "$XCODE_CACHE"
+            # The credential-helper protocol picks up the GHCR creds
+            # the next step's `crane auth login` writes — same path
+            # the runner-image / xcresult-processor workflows use.
+            # We do an explicit login here (not at workflow top)
+            # because oras' login persists to ~/.docker/config.json
+            # which Packer's anonymous-pull dance later toggles
+            # back to anonymous for the public Cirrus base.
+            echo "${{ secrets.GITHUB_TOKEN }}" | oras login ghcr.io --username tuist-bot --password-stdin
+            if ! oras pull "ghcr.io/tuist/xcode-xips:${XCODE_VERSION}" --output "$XCODE_CACHE"; then
+              {
+                echo "Error: Xcode ${XCODE_VERSION} is not in the mirror at"
+                echo "ghcr.io/tuist/xcode-xips:${XCODE_VERSION}."
+                echo ""
+                echo "The in-cluster Tuist.XcodeMirror worker may not have ticked yet"
+                echo "(6h cadence), or its session may have expired. Break-glass:"
+                echo ""
+                echo "  mise run xcode-mirror:upload ${XCODE_VERSION}"
+                echo ""
+                echo "Then re-trigger this workflow."
+              } >&2
+              exit 1
+            fi
           fi
           XCODE_XIP=$(ls "$XCODE_CACHE"/Xcode-${XCODE_VERSION}*.xip | head -n1)
           test -f "$XCODE_XIP"
           echo "Have $(basename "$XCODE_XIP") ($(du -h "$XCODE_XIP" | awk '{print $1}'))"
           echo "path=${XCODE_XIP}" >> "$GITHUB_OUTPUT"
-        env:
-          XCODE_VERSION: ${{ inputs.xcode_version }}
 
       - name: Initialize Packer
         working-directory: infra/macos-xcode-image

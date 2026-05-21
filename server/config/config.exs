@@ -160,7 +160,17 @@ config :logger, :console,
     :stage,
     :client_url,
     :status,
-    :body
+    :body,
+    # Tuist.XcodeMirror structured fields
+    :version,
+    :mode,
+    :versions,
+    :tag,
+    :destination,
+    :bytes,
+    :exit_code,
+    :output,
+    :url
   ]
 
 config :mime, :types, %{

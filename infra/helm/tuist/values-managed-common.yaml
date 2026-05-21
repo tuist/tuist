@@ -82,6 +82,14 @@ server:
   github:
     managedSecrets: true
 
+  # Tuist.XcodeMirror worker. Wired across all hosted envs but
+  # gated by `mode` (default "observe" in values.yaml) so the
+  # worker computes the Apple-vs-mirror diff and emits structured
+  # logs / Sentry messages without downloading until we flip to
+  # "mirror" — staged rollout per the PR runbook.
+  xcodeMirror:
+    managedSecrets: true
+
   database:
     ssl: true
 

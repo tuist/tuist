@@ -225,6 +225,26 @@ RUN : "APT_CACHE_BUST=${APT_CACHE_BUST}" \
   apt-get install -y curl build-essential gcc wget libvips libstdc++6 openssl libncurses5 locales ca-certificates postgresql-client zip unzip git tini \
   && apt-get clean && rm -f /var/lib/apt/lists/*_*
 
+# `oras` powers the Xcode .xip push step in Tuist.XcodeMirror.Pusher
+# (server/lib/tuist/xcode_mirror/pusher.ex). We pin the version
+# because the OCI Distribution Spec is stable but the CLI has
+# occasionally renamed flags between minor releases. Renovate
+# tracks `oras-project/oras` releases — see renovate.json's custom
+# regex manager keyed off the marker comment below.
+# renovate: datasource=github-releases depName=oras-project/oras
+ARG ORAS_VERSION=1.3.0
+RUN set -euo pipefail \
+  && case "$(uname -m)" in \
+       aarch64) ORAS_ARCH=arm64 ;; \
+       x86_64)  ORAS_ARCH=amd64 ;; \
+       *) echo "unsupported arch $(uname -m)" >&2; exit 1 ;; \
+     esac \
+  && curl -fsSL -o /tmp/oras.tar.gz \
+       "https://github.com/oras-project/oras/releases/download/v${ORAS_VERSION}/oras_${ORAS_VERSION}_linux_${ORAS_ARCH}.tar.gz" \
+  && tar -xzf /tmp/oras.tar.gz -C /usr/local/bin oras \
+  && rm -f /tmp/oras.tar.gz \
+  && oras version
+
 RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && locale-gen
 
 ENV LANG=en_US.UTF-8

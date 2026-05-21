@@ -79,29 +79,44 @@ thin runtime on top — ~2 min instead of ~30.
 The Tuist CLI is **not** preinstalled. Customer workflows install
 it themselves via mise / brew so the version is theirs to pin.
 
-## Quarterly maintenance: xcodes signin
+## Apple-auth-free CI: the `xcode-xips` mirror
 
-The build workflow runs `xcodes download <version>` on the
-bare-metal `vm-image-builder` Mac mini against `developer.apple.com`.
-That call authenticates against the xcodes session cached in the
-host's login keychain. Apple's session lifetime is ~30 days in
-practice, sometimes longer — when it expires, `xcodes download`
-fails non-interactively (Apple's 2FA challenge has nowhere to
-answer) and the workflow returns the auth error.
+The build workflow does **not** talk to Apple. It pulls the .xip
+from `ghcr.io/tuist/xcode-xips:<version>` via oras — an in-house
+mirror that holds every Xcode .xip we've published. The Apple-auth
+concern is confined to one of two places, neither of them tied to
+a specific Mac mini:
 
-To re-mint:
+1. **Steady state — `Tuist.XcodeMirror` in-cluster worker.** An
+   Oban worker in the Tuist server polls `xcodereleases.com` every
+   6 hours, diffs against `ghcr.io/tuist/xcode-xips`, downloads any
+   missing versions from Apple's CDN using a session cookie jar
+   stored in 1Password, and pushes them to GHCR. Operator does
+   nothing per Xcode release.
+2. **Break-glass — `mise run xcode-mirror:upload <version>`.**
+   When the worker hasn't picked up a brand-new Xcode yet (cookies
+   expired, Apple API change, version absent from
+   xcodereleases.com), the local maintainer task downloads from
+   Apple via xcodes and pushes to GHCR by hand. Same effect as a
+   worker tick, just operator-initiated. See
+   `mise/tasks/xcode-mirror/upload.sh` for prerequisites.
 
-1. SSH to the `vm-image-builder` Mac mini as the GitHub-Actions
-   runner user.
-2. Run `xcodes signin <apple-id>` and enter the password when
-   prompted.
-3. Approve the 2FA prompt on a trusted Apple device (phone /
-   another Mac signed into the same Apple ID). Enter the 6-digit
-   code at the xcodes prompt.
-4. xcodes stores the session in the login keychain. Subsequent
-   `xcodes download` calls run silently against Apple.
+When the worker's session expires (~30 days in practice based on
+Apple's lifetime), Sentry fires `xcode_mirror.session_expired`.
+Refresh the cookie jar from any maintainer's Mac — no SSH into
+any host:
 
-Re-run the failed workflow.
+```
+mise run xcode-mirror:mint-session
+```
+
+The task spawns `xcodes signin`, captures the post-2FA session
+cookies from xcodes' keychain entry, and writes them straight into
+the 1Password item via `op item edit`. External Secrets propagates
+the new value to the cluster within ~5 min; the next worker tick
+uses the fresh cookies. See `server/lib/tuist/xcode_mirror/` for
+the worker code and `infra/helm/tuist/templates/xcode-mirror-external-secrets.yaml`
+for the secret wiring.
 
 The Apple ID used here is the one designated in our 1Password
 vault under `Tuist macOS image-builder Apple ID`.

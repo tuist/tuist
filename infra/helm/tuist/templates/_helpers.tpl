@@ -360,3 +360,31 @@ License env vars. Resolves to (in order):
       key: token-update-packages
 {{- end }}
 {{- end -}}
+
+{{- define "tuist.xcodeMirrorEnv" -}}
+{{- if .Values.server.enabled }}
+# Mode lands as a plain env var (not via the Secret) because it's
+# operational config, not a credential. "off" / "observe" / "mirror";
+# read by Tuist.Environment.xcode_mirror_mode/1.
+- name: TUIST_XCODE_MIRROR_MODE
+  value: {{ .Values.server.xcodeMirror.mode | default "observe" | quote }}
+{{- if .Values.server.xcodeMirror.managedSecrets }}
+{{- $secret := include "tuist.componentName" (dict "root" . "component" "xcode-mirror-external-secrets") }}
+- name: TUIST_XCODE_MIRROR_SESSION_COOKIES
+  valueFrom:
+    secretKeyRef:
+      name: {{ $secret | quote }}
+      key: session-cookies
+- name: TUIST_XCODE_MIRROR_GHCR_USERNAME
+  valueFrom:
+    secretKeyRef:
+      name: {{ $secret | quote }}
+      key: ghcr-username
+- name: TUIST_XCODE_MIRROR_GHCR_TOKEN
+  valueFrom:
+    secretKeyRef:
+      name: {{ $secret | quote }}
+      key: ghcr-token
+{{- end }}
+{{- end }}
+{{- end -}}
