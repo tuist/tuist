@@ -370,11 +370,10 @@ jobs:
     concurrency:
       group: server-deploy-${{ inputs.environment }}
       cancel-in-progress: false
-    # helm-upgrade waits up to 10m for hooks plus ~10m of explicit
-    # rollout-status checks, with setup/teardown adding ~5m. 30m
+    # helm-upgrade waits up to 30m and setup/teardown adds ~5m. 50m
     # leaves a healthy buffer around that stack and keeps a
     # SIGTERM-stuck helm from holding the slot indefinitely.
-    timeout-minutes: 30
+    timeout-minutes: 50
     env:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
       NAMESPACE: ${{ inputs.environment == 'production' && 'tuist' || format('tuist-{0}', inputs.environment) }}
@@ -461,13 +460,13 @@ jobs:
               fi
 
               # This is a metadata recovery path, not the real health gate.
-              # An interrupted rollback can leave the latest Helm revision
-              # in pending-rollback even when the last deployed revision
-              # is the only viable base for the next deploy. Waiting here
-              # replays the old manifest's readiness problems and can
+              # An interrupted atomic rollback can leave the latest Helm
+              # revision in pending-rollback even when the last deployed
+              # revision is the only viable base for the next deploy. Waiting
+              # here replays the old manifest's readiness problems and can
               # strand this recovery step before the current chart gets a
-              # chance to fix them. The following helm upgrade owns the
-              # full rollout with richer diagnostics.
+              # chance to fix them. The following helm upgrade owns the full
+              # --wait/--atomic rollout with richer diagnostics.
               helm rollback "$HELM_RELEASE_NAME" "$deployed_revision" \
                 --namespace "$NAMESPACE" --timeout 5m
 
@@ -539,31 +538,25 @@ jobs:
         # in-cluster ExternalSecret. Passing secrets through --set would
         # leak them into `helm get manifest`.
         #
-        # --wait=hookOnly (helm 4 default) waits only for chart hooks —
-        # the pre-upgrade migration Job — not for every resource the
-        # chart renders. The chart owns resources whose readiness sits
-        # behind slow async reconciliation loops outside this deploy's
-        # critical path (e.g. infrastructure CRs that reconcile
-        # against external control planes); gating the server rollout
-        # on them turns any out-of-band reconciliation hiccup into a
-        # multi-hour deploy hang on a change that has nothing to do
-        # with those resources. Readiness for everything we actually
-        # ship in a code deploy (server, processors, controllers) is
-        # verified by the `kubectl rollout status` loop below.
+        # helm --timeout 30m is sized for the adoption path: Mac minis
+        # are pre-ordered by the operator under the `tuist-pool-` prefix
+        # and the CAPI controller claims them on demand. Adoption is
+        # cheap (rename + tart-kubelet bootstrap + Tart VM cold-boot)
+        # vs Scaleway CreateServer (~50 min). Steady-state deploys
+        # finish in 5-15 min once the Mac mini is already in the cluster.
+        # If we ever flip back to auto-order in an env, bump this back
+        # to ~90m to absorb a fresh Scaleway provisioning.
         #
-        # On any helm failure or rollout failure we roll back to the
-        # revision that was `deployed` *before* this upgrade started
-        # (captured up front; awk-ing `helm history` after the fact
-        # would pick the just-completed bad revision since helm marks
-        # it `deployed` once manifests apply, before the rollout-
-        # status loop runs). That's the safety net the legacy
-        # `--atomic` flag used to provide, restricted to the resources
-        # whose readiness actually gates "deploy good."
-        timeout-minutes: 25
+        # 35 min = helm's `--timeout 30m` plus a 5-min cushion for the
+        # in-process `--atomic` rollback. A workflow-side timeout under
+        # 35 min risks killing helm after it has moved the release into
+        # pending-rollback, leaving the cluster wedged for the next run.
+        timeout-minutes: 35
         run: |
-          # Stream cluster state every 30s while helm and the rollout
-          # checks run. Otherwise the action log shows nothing for up to
-          # --timeout. The watcher dies via trap when the step exits.
+          # Stream cluster state every 30s while helm waits. helm
+          # --atomic --wait produces no stdout during the wait, so
+          # without this the action log shows nothing for up to 90 min.
+          # The watcher dies via trap when helm exits (either way).
           (
             while true; do
               sleep 30
@@ -577,84 +570,19 @@ jobs:
           watcher_pid=$!
           trap 'kill "$watcher_pid" 2>/dev/null || true; wait "$watcher_pid" 2>/dev/null || true' EXIT
 
-          set -uo pipefail
-
-          # Capture the revision that is `deployed` *right now*, before
-          # this upgrade runs. That's our rollback target: once helm
-          # upgrade succeeds, the new revision is also marked `deployed`
-          # and a post-hoc awk over `helm history` can no longer
-          # distinguish "the old good one" from "the one whose pods are
-          # crashing." First-install case (no history) returns empty;
-          # rollback_release degrades gracefully and exits 1 below.
-          pre_upgrade_revision="$(
-            helm history "$HELM_RELEASE_NAME" -n "$NAMESPACE" --max 20 2>/dev/null |
-              awk '$0 ~ /[[:space:]]deployed[[:space:]]/ { rev = $1 } END { print rev }' ||
-              true
-          )"
-          echo "Pre-upgrade deployed revision: ${pre_upgrade_revision:-<none, first install>}"
-
-          rollback_release() {
-            if [ -z "$pre_upgrade_revision" ]; then
-              echo "No prior deployed revision to roll back to; leaving release as-is for the next run's recovery step."
-              return
-            fi
-            echo "Rolling back $HELM_RELEASE_NAME to revision $pre_upgrade_revision."
-            helm rollback "$HELM_RELEASE_NAME" "$pre_upgrade_revision" \
-              -n "$NAMESPACE" --timeout 10m --cleanup-on-fail || true
-          }
-
-          if ! helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
-              --namespace "$NAMESPACE" --create-namespace \
-              -f "$HELM_CHART_PATH/values-managed-common.yaml" \
-              -f "$HELM_CHART_PATH/values-managed-${{ inputs.environment }}.yaml" \
-              --set server.image.tag="$IMAGE_TAG" \
-              --set kuraController.image.tag="$IMAGE_TAG" \
-              --set kuraRuntime.image.tag="$KURA_RUNTIME_IMAGE_TAG" \
-              --timeout 10m --wait=hookOnly --cleanup-on-fail; then
-            echo "::error::helm upgrade failed."
-            rollback_release
-            exit 1
-          fi
-
-          # Verify the chart-managed Deployments became healthy. The
-          # label selector picks up every Deployment owned by this
-          # release regardless of component; new Deployments added to
-          # the chart get gated automatically. CAPI MachineDeployments
-          # aren't Deployments and are skipped here on purpose.
-          mapfile -t deployments < <(
-            kubectl -n "$NAMESPACE" get deploy \
-              -l "app.kubernetes.io/instance=$HELM_RELEASE_NAME" \
-              -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' |
-              sort
-          )
-          if [ "${#deployments[@]}" -eq 0 ]; then
-            echo "::error::No Deployments found for release $HELM_RELEASE_NAME in $NAMESPACE."
-            rollback_release
-            exit 1
-          fi
-
-          failed_deploy=""
-          for d in "${deployments[@]}"; do
-            echo "::group::rollout status $d"
-            if ! kubectl -n "$NAMESPACE" rollout status deploy/"$d" --timeout=10m; then
-              failed_deploy="$d"
-              echo "::endgroup::"
-              break
-            fi
-            echo "::endgroup::"
-          done
-
-          if [ -n "$failed_deploy" ]; then
-            echo "::error::Deployment $failed_deploy did not become healthy."
-            rollback_release
-            exit 1
-          fi
+          helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
+            --namespace "$NAMESPACE" --create-namespace \
+            -f "$HELM_CHART_PATH/values-managed-common.yaml" \
+            -f "$HELM_CHART_PATH/values-managed-${{ inputs.environment }}.yaml" \
+            --set server.image.tag="$IMAGE_TAG" \
+            --set kuraController.image.tag="$IMAGE_TAG" \
+            --set kuraRuntime.image.tag="$KURA_RUNTIME_IMAGE_TAG" \
+            --atomic --timeout 30m --wait
       - name: Diagnostics on failure
-        # The previous step rolls back the release before exiting, so
-        # `helm history` and most cluster state reflect the rolled-back
-        # revision rather than the failure. Migration-job pods linger
-        # long enough for logs to be useful; everything else is best-
-        # effort.
+        # `--atomic` rolls back the release on timeout, so `helm history` and
+        # most cluster state reflect the rolled-back revision rather than the
+        # failure. Migration-job pods linger long enough for logs to be useful;
+        # everything else is best-effort.
         if: failure()
         run: |
           set +e
