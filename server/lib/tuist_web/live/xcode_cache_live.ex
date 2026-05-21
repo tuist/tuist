@@ -8,7 +8,6 @@ defmodule TuistWeb.XcodeCacheLive do
   import TuistWeb.Components.ScatterChart
   import TuistWeb.Components.Skeleton
   import TuistWeb.EmptyState
-  import TuistWeb.MetricDropdownWidget
   import TuistWeb.PercentileDropdownWidget
   import TuistWeb.Runs.RanByBadge
 
