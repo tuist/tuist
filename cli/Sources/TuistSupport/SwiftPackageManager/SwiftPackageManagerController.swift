@@ -1,7 +1,6 @@
 import Command
 import FileSystem
 import Foundation
-import Logging
 import Mockable
 import Path
 import TSCUtility
@@ -70,7 +69,7 @@ public struct SwiftPackageManagerController: SwiftPackageManagerControlling {
     public init() {
         self.init(
             fileSystem: FileSystem(),
-            commandRunner: { CommandRunner(logger: Logger.current) }
+            commandRunner: { CommandRunner() }
         )
     }
 
