@@ -39,7 +39,7 @@ type ScalewayAppleSiliconMachineSpec struct {
 
 	// OS is the Scaleway-provided macOS image name. The controller
 	// resolves this to an OS UUID via `scw apple-silicon os list`.
-	// +kubebuilder:default=macos-tahoe-26.0
+	// +kubebuilder:default=macos-tahoe-26.3
 	OS string `json:"os,omitempty"`
 
 	// FleetName groups Machines that share an SSH key. Set by the

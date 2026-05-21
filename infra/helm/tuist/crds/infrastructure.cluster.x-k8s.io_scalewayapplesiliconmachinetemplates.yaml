@@ -179,7 +179,7 @@ spec:
                             chart-level value when empty.
                           type: string
                         os:
-                          default: macos-tahoe-26.0
+                          default: macos-tahoe-26.3
                           description: |-
                             OS is the Scaleway-provided macOS image name. The controller
                             resolves this to an OS UUID via `scw apple-silicon os list`.
