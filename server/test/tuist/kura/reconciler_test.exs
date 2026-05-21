@@ -377,7 +377,7 @@ defmodule Tuist.Kura.ReconcilerTest do
   end
 
   test "does not project a server active until the Cloudflare-fronted global endpoint serves" do
-    {_account, server, deployment} = create_server()
+    {_account, server, deployment} = create_managed_server("eu-central")
     {:ok, _deployment} = Kura.mark_failed(deployment, "apply failed")
     {:ok, server} = Kura.fail_server(server)
 
@@ -407,6 +407,28 @@ defmodule Tuist.Kura.ReconcilerTest do
     assert server.last_observed_at
   end
 
+  test "projects a server active when global endpoints are temporarily optional" do
+    {_account, server, deployment} = create_managed_server("eu-central")
+    {:ok, _deployment} = Kura.mark_failed(deployment, "apply failed")
+    {:ok, server} = Kura.fail_server(server)
+
+    stub(Tuist.Environment, :kura_require_global_endpoints?, fn -> false end)
+
+    expect(Provisioner, :current_image_tag, fn %Server{id: id} ->
+      assert id == server.id
+      {:ok, "0.5.2"}
+    end)
+
+    assert :ok = Reconciler.reconcile()
+
+    assert %Deployment{status: :failed, error_message: "apply failed"} = Repo.get!(Deployment, deployment.id)
+
+    server = Repo.get!(Server, server.id)
+    assert server.status == :active
+    assert server.current_image_tag == "0.5.2"
+    assert server.url == "http://localhost:4100"
+  end
+
   defp create_server do
     user = AccountsFixtures.user_fixture()
     account = Accounts.get_account_from_user(user)
@@ -415,6 +437,24 @@ defmodule Tuist.Kura.ReconcilerTest do
       Kura.create_server(%{
         account_id: account.id,
         region: "local-controller",
+        image_tag: "0.5.2"
+      })
+
+    {account, server, List.first(server.deployments)}
+  end
+
+  defp create_managed_server(region) do
+    user = AccountsFixtures.user_fixture()
+    account = Accounts.get_account_from_user(user)
+
+    stub(Tuist.Environment, :dev?, fn -> false end)
+    stub(Tuist.Environment, :test?, fn -> false end)
+    stub(Tuist.Environment, :kura_available_region_ids, fn -> [region] end)
+
+    {:ok, server} =
+      Kura.create_server(%{
+        account_id: account.id,
+        region: region,
         image_tag: "0.5.2"
       })
 

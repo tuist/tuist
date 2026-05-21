@@ -8,6 +8,12 @@ global:
   nodeSelector: {}
   tolerations: []
 
+# When false, the server and Kura controller keep reconciling workload
+# readiness even if the Cloudflare-fronted global Kura endpoints are not
+# available yet. The global endpoint wiring remains configured; only the
+# readiness gate is relaxed.
+kuraGlobalEndpointsRequired: true
+
 kuraController:
   enabled: false
   namespace: kura
