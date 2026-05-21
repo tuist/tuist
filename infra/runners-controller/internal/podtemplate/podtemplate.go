@@ -14,8 +14,6 @@
 package podtemplate
 
 import (
-	"strconv"
-
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -154,22 +152,10 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 		}}
 	}
 
-	// kata sizes the microVM from container memory LIMITS (not
-	// requests) and falls back to `default_memory` (2 GiB) when no
-	// limit is set. Linux pods get a per-pod annotation overriding
-	// that so the VM honors `pod.memoryMB` from the chart — without
-	// it dockerd OOMs the moment a workflow pulls a large image
-	// into the tmpfs /var/lib/docker.
-	annotations := map[string]string{}
-	if linuxPod {
-		annotations["io.katacontainers.config.hypervisor.default_memory"] = strconv.FormatInt(int64(pool.Spec.PodMemoryMB), 10)
-	}
-
 	return &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        podName,
-			Namespace:   pool.Namespace,
-			Annotations: annotations,
+			Name:      podName,
+			Namespace: pool.Namespace,
 			Labels: map[string]string{
 				"app.kubernetes.io/name":      "tuist-runner",
 				"app.kubernetes.io/component": "runner",
@@ -211,6 +197,18 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 					Image: pool.Spec.Image,
 					Resources: corev1.ResourceRequirements{
 						Requests: corev1.ResourceList{
+							corev1.ResourceCPU:    *cpu,
+							corev1.ResourceMemory: *mem,
+						},
+						// kata sizes the microVM from the sum of
+						// container memory LIMITS; falls back to
+						// `default_memory` (2 GiB) when no limit is
+						// set. Without an explicit limit, dockerd in
+						// the dind sidecar OOMs the moment a workflow
+						// pulls a large image into the tmpfs
+						// /var/lib/docker. Setting limit == request
+						// keeps scheduling predictable.
+						Limits: corev1.ResourceList{
 							corev1.ResourceCPU:    *cpu,
 							corev1.ResourceMemory: *mem,
 						},
