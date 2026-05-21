@@ -101,7 +101,22 @@ type ScalewayAppleSiliconMachineSpec struct {
 	// requeues with a `NoAvailableHost` event. No auto-order
 	// fallback — the operator pre-orders, the controller adopts.
 	//
-	// Empty (default) preserves the legacy auto-order behavior.
+	// Delete semantics also change in pool mode: when the Machine is
+	// deleted, the controller renames the host back into the pool
+	// namespace (with a fresh UUID suffix) and triggers a Scaleway
+	// OS reinstall, then drops the k8s-side state. The host stays
+	// alive, is reset to factory-default state, and becomes eligible
+	// for the next AdoptByPrefix scan once Scaleway flips it back to
+	// `Delivered + Ready`. Physical destruction is left to the
+	// operator — they pre-order capacity, they decide when to release
+	// it, and the 24h billing floor stays in operator-owned territory
+	// instead of leaking into deploy flows. Force the legacy
+	// physical-terminate path on individual broken hosts via the
+	// `tuist.dev/release-policy: terminate` annotation on the Machine.
+	//
+	// Empty (default) preserves the legacy auto-order behavior, and
+	// delete falls back to `Scaleway DeleteServer` regardless of the
+	// release-policy annotation (there's no pool to return to).
 	// +optional
 	AdoptPoolPrefix string `json:"adoptPoolPrefix,omitempty"`
 }
