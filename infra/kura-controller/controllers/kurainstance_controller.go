@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -164,12 +165,18 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	}
 	statusGlobalPublicURL := ""
 	statusGlobalGRPCPublicURL := ""
+	globalStatusWarnings := []string{}
 	if r.CloudflareLoadBalancing.Enabled() {
 		if err := newCloudflareClient(r.CloudflareLoadBalancing).reconcileKuraLoadBalancers(ctx, instance); err != nil {
-			return ctrl.Result{}, err
+			if r.CloudflareLoadBalancing.RequireGlobalEndpoints {
+				return ctrl.Result{}, err
+			}
+			logger.Error(err, "global endpoint reconciliation degraded; continuing with workload status update")
+			globalStatusWarnings = append(globalStatusWarnings, fmt.Sprintf("global endpoint reconciliation degraded: %v", err))
+		} else {
+			statusGlobalPublicURL = globalPublicURL(instance)
+			statusGlobalGRPCPublicURL = globalGRPCPublicURL(instance)
 		}
-		statusGlobalPublicURL = globalPublicURL(instance)
-		statusGlobalGRPCPublicURL = globalGRPCPublicURL(instance)
 	}
 
 	rollout, err := r.rolloutStatus(ctx, instance)
@@ -184,7 +191,7 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	instance.Status.GlobalGRPCPublicURL = statusGlobalGRPCPublicURL
 	instance.Status.ObservedImage = rollout.observedImage
 	instance.Status.ReadyReplicas = rollout.readyReplicas
-	instance.Status.Message = rollout.message
+	instance.Status.Message = joinStatusMessage(rollout.message, globalStatusWarnings...)
 	instance.Status.LastReconciledAt = &now
 
 	if err := r.Status().Update(ctx, instance); err != nil {
@@ -193,6 +200,19 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 	logger.Info("reconciled Kura instance", "phase", rollout.phase, "readyReplicas", rollout.readyReplicas)
 	return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+}
+
+func joinStatusMessage(primary string, extras ...string) string {
+	parts := make([]string, 0, 1+len(extras))
+	if primary != "" {
+		parts = append(parts, primary)
+	}
+	for _, extra := range extras {
+		if extra != "" {
+			parts = append(parts, extra)
+		}
+	}
+	return strings.Join(parts, "; ")
 }
 
 func (r *KuraInstanceReconciler) reconcileConfigMap(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {

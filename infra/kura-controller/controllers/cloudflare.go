@@ -17,10 +17,11 @@ import (
 const cloudflareAPIBaseURL = "https://api.cloudflare.com/client/v4"
 
 type CloudflareLoadBalancingConfig struct {
-	ZoneName  string
-	AccountID string
-	ZoneID    string
-	APIToken  string
+	ZoneName               string
+	AccountID              string
+	ZoneID                 string
+	APIToken               string
+	RequireGlobalEndpoints bool
 }
 
 func (c CloudflareLoadBalancingConfig) Enabled() bool {
