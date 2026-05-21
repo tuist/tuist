@@ -135,6 +135,12 @@ jobs:
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
+          # Registry-backed BuildKit cache. `mode=max` exports every
+          # stage's layers + `RUN --mount=type=cache` mounts so a
+          # follow-up build rehydrates the long Elixir/aube/swift
+          # compile path. ghcr.io auth is already set up above.
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-buildcache:server
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-buildcache:server,mode=max
           build-args: |
             TUIST_HOSTED=1
             MIX_ENV=prod
