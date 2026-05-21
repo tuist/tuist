@@ -173,54 +173,93 @@ fi
 # signout` is safe to call even when no session exists.
 xcodes signout >/dev/null 2>&1 || true
 
-# Wipe any pre-existing session file too — xcodes only rewrites
-# on successful auth, so a stale file would otherwise mask a
-# failed auth from us.
-SESSION_FILE="$HOME/Library/Application Support/xcodes/session.json"
-rm -f "$SESSION_FILE"
+# We don't know xcodes' exact session-file path across versions
+# (1.6 used `~/Library/Application Support/xcodes/session.json`;
+# the underlying AppleAPI Swift package has changed file names
+# more than once). Instead of guessing, baseline the filesystem,
+# run xcodes, and detect whichever file appeared.
+MARKER="$(mktemp -t xcode_mirror_marker.XXXXXX)"
+# Bump the mtime by a second so filesystem 1s granularity doesn't
+# match the marker against the same-second creation of the
+# session file.
+sleep 1
 
-# Trigger auth via `xcodes runtimes install <fake-name>`. xcodes
-# only knows the catalog of installable runtimes after querying
-# Apple's auth-walled developer-portal API, so the install command
-# has to authenticate (SRP signin → 2FA push → 2FA code) before
-# it can decide whether `<fake-name>` exists. By the time it bails
-# out with "no such runtime", session.json has been persisted —
-# which is the only thing we actually wanted.
+# xcodes' runtime + Xcode catalog lookups are local (cached from
+# xcodereleases.com), so passing a fake version/runtime name
+# short-circuits before auth. The only reliable auth trigger is
+# `xcodes install <real-version>` — it auths, persists the
+# session, then starts the actual .xip download. We watch for the
+# session file appearing and SIGINT xcodes before the download
+# eats any meaningful bandwidth.
 #
-# `xcodes runtimes downloadable` doesn't exist in xcodes 1.6.x
-# (the runtimes subcommands are: installed | install | download |
-# delete). `xcodes signin` was removed too. Using `install` with
-# a sentinel name is the cleanest auth-only trigger.
-#
-# Credentials flow via env vars; xcodes reads `XCODES_USERNAME`
-# and `XCODES_PASSWORD` (the per-command `--apple-id` flag doesn't
-# exist on every subcommand). The 2FA prompt stays interactive —
-# xcodes reads the 6-digit code from the terminal, the operator
-# types it after approving the trusted-device push.
+# Pick a real version from xcodes' own catalog so we don't drift
+# against Apple's release pace. The choice doesn't matter — any
+# installable version triggers the same auth path.
+XCODE_VERSION_FOR_AUTH="${TUIST_XCODE_MIRROR_PROBE_VERSION:-$(xcodes list 2>/dev/null | grep -vi '(Installed' | tail -n1 | awk '{print $1}')}"
+if [ -z "$XCODE_VERSION_FOR_AUTH" ]; then
+  XCODE_VERSION_FOR_AUTH="26.4.1"
+fi
+
+JUNK_DIR="$(mktemp -d -t xcode_mirror_junk.XXXXXX)"
+SESSION_FILE=""
+
+# Watcher: scan for any newly-created file in xcodes' likely data
+# directories. When one appears that looks like a JSON cookie jar,
+# SIGINT xcodes so the .xip download aborts. Polls every 0.5 s for
+# up to 5 min (well past any realistic 2FA flow).
+(
+  for _ in $(seq 1 600); do
+    sleep 0.5
+    found="$(
+      find "$HOME/Library/Application Support" "$HOME/Library/Caches" \
+        -maxdepth 4 -newer "$MARKER" -type f -name '*.json' 2>/dev/null \
+        | head -n1
+    )"
+    if [ -n "$found" ]; then
+      # Brief delay so xcodes can finish fsyncing + chmod'ing the
+      # file before we yank the rug. 1s is plenty.
+      sleep 1
+      # SIGINT — gracefully aborts the download. xcodes prints a
+      # "Cancelled" line and exits non-zero, both of which we
+      # ignore.
+      pkill -INT -x xcodes 2>/dev/null || true
+      break
+    fi
+  done
+) &
+WATCHER_PID=$!
+trap 'kill $WATCHER_PID 2>/dev/null || true; rm -rf "$JUNK_DIR" "$MARKER"' EXIT
+
 echo
 echo "Signing in to developer.apple.com as $APPLE_ID via xcodes..."
-echo "(Approve the prompt on your trusted Apple device, then enter the 6-digit code.)"
+echo "(Triggering auth via 'xcodes install $XCODE_VERSION_FOR_AUTH'."
+echo " Approve the prompt on your trusted Apple device, then enter the 6-digit code."
+echo " We'll abort the download as soon as the session is captured.)"
 echo
-
-# Sentinel runtime name. Apple's catalog never contains this, so
-# xcodes always errors on the lookup *after* auth completes.
-PROBE='__tuist_xcode_mirror_auth_probe__'
 
 set +e
 XCODES_USERNAME="$APPLE_ID" XCODES_PASSWORD="$APPLE_PASSWORD" \
-  xcodes runtimes install "$PROBE" 2>&1 \
-    | grep -viE "no (such|matching) runtime|Sorry, that runtime" \
-    || true
+  xcodes install "$XCODE_VERSION_FOR_AUTH" --directory "$JUNK_DIR"
 set -e
 unset APPLE_PASSWORD
 
-if [ ! -f "$SESSION_FILE" ]; then
-  echo "Error: xcodes didn't persist a session at $SESSION_FILE after auth." >&2
-  echo "(If auth failed entirely, re-run for the error trace; if xcodes 1.6.x" >&2
-  echo " changed the session-file path, check ~/Library/Application Support/" >&2
-  echo " for the new location.)" >&2
+# Locate the file the watcher saw (or scan again, in case the
+# watcher missed it on a slow disk).
+SESSION_FILE="$(
+  find "$HOME/Library/Application Support" "$HOME/Library/Caches" \
+    -maxdepth 4 -newer "$MARKER" -type f -name '*.json' 2>/dev/null \
+    | head -n1
+)"
+
+if [ -z "$SESSION_FILE" ] || [ ! -f "$SESSION_FILE" ]; then
+  echo "Error: xcodes didn't persist a session JSON anywhere we could find." >&2
+  echo "(Sanity-check: anything new in ~/Library?)" >&2
+  find "$HOME/Library/Application Support" "$HOME/Library/Caches" \
+    -maxdepth 4 -newer "$MARKER" -type f 2>/dev/null >&2 || true
   exit 1
 fi
+
+echo "Found xcodes session at: $SESSION_FILE"
 
 # === 5. Extract cookies as JSON ==============================================
 
