@@ -106,7 +106,11 @@ jobs:
     # TODO: migrate to tuist-production-linux once the runner image ships
     # a docker daemon — buildx requires a working docker engine.
     runs-on: namespace-profile-default-with-volume
-    timeout-minutes: 40
+    # Bumped from 40m to 60m: #10886 swapped
+    # namespacelabs/nscloud-setup-buildx-action (persistent build
+    # cache) for vanilla docker/setup-buildx-action, so every build
+    # is now cold — previously ~15m, now 40-50m.
+    timeout-minutes: 60
     outputs:
       image_tag: ${{ steps.tag.outputs.image_tag }}
     steps:
