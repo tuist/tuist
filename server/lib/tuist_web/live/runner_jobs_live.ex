@@ -218,8 +218,12 @@ defmodule TuistWeb.RunnerJobsLive do
         %{assigns: %{selected_account: account, uri: uri}} = socket
       )
       when type in ["line", "scatter"] do
-    query = Query.put(uri.query || "", "job-duration-chart-type", type)
-    {:noreply, push_patch(socket, to: ~p"/#{account.name}/runners/jobs?#{query}")}
+    # `~p` re-encodes its query interpolation, so threading an
+    # already-encoded query string makes `=` and `&` get re-escaped
+    # on every click — the URL grows by another encoding layer each
+    # time. Pass the decoded map instead so the sigil encodes once.
+    params = uri.query |> Query.put("job-duration-chart-type", type) |> URI.decode_query()
+    {:noreply, push_patch(socket, to: ~p"/#{account.name}/runners/jobs?#{params}")}
   end
 
   def handle_event(
@@ -228,8 +232,8 @@ defmodule TuistWeb.RunnerJobsLive do
         %{assigns: %{selected_account: account, uri: uri}} = socket
       )
       when type in ["line", "scatter"] do
-    query = Query.put(uri.query || "", "queue-time-chart-type", type)
-    {:noreply, push_patch(socket, to: ~p"/#{account.name}/runners/jobs?#{query}")}
+    params = uri.query |> Query.put("queue-time-chart-type", type) |> URI.decode_query()
+    {:noreply, push_patch(socket, to: ~p"/#{account.name}/runners/jobs?#{params}")}
   end
 
   def handle_event("add_filter", %{"value" => filter_id}, socket) do
