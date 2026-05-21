@@ -237,7 +237,10 @@ struct ResourcesProjectMapperTests {
         #expect(gotTarget.name == target.name)
         #expect(gotTarget.product == target.product)
         #expect(gotTarget.resources.resources.count == 0)
-        #expect(gotTarget.sources.count == 1)
+        #expect(gotTarget.sources.count == 2)
+        let xcassetsSources = gotTarget.sources.filter { $0.path.extension == "xcassets" }
+        #expect(xcassetsSources.count == 1)
+        #expect(xcassetsSources.first?.path == buildableFolders[1].resolvedFiles[1].path)
         #expect(gotTarget.dependencies.count == 1)
         #expect(gotTarget.dependencies.first == TargetDependency.target(
             name: "\(project.name)_\(target.name)",
@@ -310,7 +313,10 @@ struct ResourcesProjectMapperTests {
         #expect(gotTarget.name == target.name)
         #expect(gotTarget.product == target.product)
         #expect(gotTarget.resources.resources.count == 0)
-        #expect(gotTarget.sources.count == 1)
+        #expect(gotTarget.sources.count == 2)
+        let xcassetsSources = gotTarget.sources.filter { $0.path.extension == "xcassets" }
+        #expect(xcassetsSources.count == 1)
+        #expect(xcassetsSources.first?.path == buildableFolders[1].resolvedFiles[1].path)
         #expect(gotTarget.dependencies.count == 1)
         #expect(gotTarget.dependencies.first == TargetDependency.target(
             name: "\(project.name)_\(target.name)",
@@ -459,6 +465,9 @@ struct ResourcesProjectMapperTests {
             ]
         )
         #expect(gotTarget.buildableFolders.first == expectedSourcesFolder)
+        let xcassetsSources = gotTarget.sources.filter { $0.path.extension == "xcassets" }
+        #expect(xcassetsSources.count == 1)
+        #expect(xcassetsSources.first?.path == assetsPath)
 
         let resourcesTarget = try #require(gotProject.targets.values.sorted().first)
         #expect(resourcesTarget.buildableFolders.count == 1)
@@ -479,6 +488,42 @@ struct ResourcesProjectMapperTests {
             ]
         )
         #expect(resourcesTarget.buildableFolders.first == expectedResourcesFolder)
+    }
+
+    @Test
+    func mapWhenBuildableFolderIsAssetCatalogAddsItToMainTargetSources() async throws {
+        // Given
+        let assetsPath = try AbsolutePath(validating: "/Resources/Assets.xcassets")
+        let buildableFolder = BuildableFolder(
+            path: assetsPath,
+            exceptions: BuildableFolderExceptions(exceptions: []),
+            resolvedFiles: []
+        )
+
+        let target = Target.test(
+            product: .staticFramework,
+            sources: [],
+            resources: ResourceFileElements([]),
+            buildableFolders: [buildableFolder]
+        )
+        let project = Project.test(targets: [target])
+        given(buildableFolderChecker).containsResources(.value([buildableFolder])).willReturn(true)
+        given(buildableFolderChecker).containsSources(.value([buildableFolder])).willReturn(false)
+
+        // When
+        let (gotProject, gotSideEffects) = try await subject.map(project: project)
+
+        // Then
+        #expect(gotSideEffects.isEmpty)
+        let gotTarget = try #require(gotProject.targets.values.sorted().last)
+        #expect(gotTarget.buildableFolders.isEmpty)
+        let xcassetsSources = gotTarget.sources.filter { $0.path.extension == "xcassets" }
+        #expect(xcassetsSources.count == 1)
+        #expect(xcassetsSources.first?.path == assetsPath)
+
+        let resourcesTarget = try #require(gotProject.targets.values.sorted().first)
+        #expect(resourcesTarget.product == .bundle)
+        #expect(resourcesTarget.buildableFolders == [buildableFolder])
     }
 
     @Test
@@ -690,6 +735,9 @@ struct ResourcesProjectMapperTests {
             ]
         )
         #expect(gotTarget.buildableFolders.contains(expectedSourcesFolderSourcesView))
+        let xcassetsSources = gotTarget.sources.filter { $0.path.extension == "xcassets" }
+        #expect(xcassetsSources.count == 1)
+        #expect(xcassetsSources.first?.path == assetFolder)
 
         let resourcesTarget = try #require(gotProject.targets.values.sorted().first)
         #expect(resourcesTarget.buildableFolders.count == 3)
