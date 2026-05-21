@@ -172,6 +172,7 @@ spec:
             {{- end }}
             - --cloudflare-api-token=$(CLOUDFLARE_API_TOKEN)
             {{- end }}
+            - --reconcile-global-endpoints={{ ternary "true" "false" .Values.kuraGlobalEndpointsEnabled }}
             - --require-global-endpoints={{ ternary "true" "false" .Values.kuraGlobalEndpointsRequired }}
           ports:
             - name: metrics

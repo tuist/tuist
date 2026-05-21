@@ -1,0 +1,44 @@
+name: Kura Release Deployment
+
+# Kura ships as an independent runtime image. The server chart only picks
+# up a new Kura build on the next server rollout, so the `kura@...` tag is
+# the release handoff that re-runs the normal canary -> acceptance ->
+# production promotion with the published Kura image pinned explicitly.
+#
+# Trigger on the pushed release tag, not raw `kura/**` source changes, so
+# the rollout cannot outrun the image/tag publication done in release.yml.
+
+on:
+  push:
+    tags:
+      - "kura@*"
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  dispatch:
+    runs-on: tuist-production-linux
+    timeout-minutes: 10
+    steps:
+      - name: Dispatch Server Production Deployment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          KURA_RUNTIME_IMAGE_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          curl -fsSL -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/server-production-deployment.yml/dispatches" \
+            -d @- <<EOF
+          {
+            "ref": "main",
+            "inputs": {
+              "commit_sha": "${GITHUB_SHA}",
+              "kura_runtime_image_tag": "${KURA_RUNTIME_IMAGE_TAG#kura@}"
+            }
+          }
+          EOF

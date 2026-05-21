@@ -1,8 +1,10 @@
 import FileSystem
 import Foundation
 import Path
+import TuistConfigLoader
 import TuistConstants
 import TuistCore
+import TuistEnvironment
 import TuistLoader
 import TuistSupport
 import XcodeGraph
@@ -13,13 +15,20 @@ import XcodeGraph
 public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
     private let fileSystem: FileSysteming
     private let manifestFilesLocator: ManifestFilesLocating
+    private let configLoader: ConfigLoading
+    private let swiftPackageManagerScratchDirectoryLocator: SwiftPackageManagerScratchDirectoryLocator
 
     public init(
         fileSystem: FileSysteming = FileSystem(),
-        manifestFilesLocator: ManifestFilesLocating = ManifestFilesLocator()
+        manifestFilesLocator: ManifestFilesLocating = ManifestFilesLocator(),
+        configLoader: ConfigLoading = ConfigLoader(),
+        swiftPackageManagerScratchDirectoryLocator: SwiftPackageManagerScratchDirectoryLocator =
+            SwiftPackageManagerScratchDirectoryLocator()
     ) {
         self.fileSystem = fileSystem
         self.manifestFilesLocator = manifestFilesLocator
+        self.configLoader = configLoader
+        self.swiftPackageManagerScratchDirectoryLocator = swiftPackageManagerScratchDirectoryLocator
     }
 
     public func map(
@@ -154,9 +163,16 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
 
     private func derivedDirectory(for graph: Graph) async throws -> AbsolutePath {
         if let packageManifest = try await manifestFilesLocator.locatePackageManifest(at: graph.path) {
-            return packageManifest.parentDirectory.appending(
+            let config = try await configLoader.loadConfig(path: graph.path)
+            let arguments = config.project.generatedProject?.installOptions.passthroughSwiftPackageManagerArguments ?? []
+            let scratchDirectory = try swiftPackageManagerScratchDirectoryLocator.locate(
+                packagePath: packageManifest.parentDirectory,
+                arguments: arguments,
+                environment: Environment.current.variables,
+                workingDirectory: try await Environment.current.currentWorkingDirectory()
+            )
+            return scratchDirectory.appending(
                 components: [
-                    Constants.SwiftPackageManager.packageBuildDirectoryName,
                     Constants.DerivedDirectory.dependenciesDerivedDirectory,
                     Constants.DerivedDirectory.dependenciesXCFrameworkDirectory,
                 ]
