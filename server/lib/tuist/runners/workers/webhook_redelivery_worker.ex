@@ -12,15 +12,27 @@ defmodule Tuist.Runners.Workers.WebhookRedeliveryWorker do
   Algorithm (mirrors GitHub's documented pattern at
   https://docs.github.com/en/webhooks/using-webhooks/automatically-redelivering-failed-deliveries-for-a-github-app-webhook):
 
-    1. `GET /app/hook/deliveries?status=failure` (App-wide, paginated)
-       across the `@lookback_minutes` window.
+    1. For each App in `Tuist.VCS.list_github_apps/0` (the global
+       github.com App plus any per-installation GHES manifest-flow
+       Apps), `GET /app/hook/deliveries` paginated across the
+       `@lookback_minutes` window.
     2. Filter to `event="workflow_job"`.
     3. Group attempts by `guid`. A GUID is constant across the
        original delivery and any redelivery attempts of the same
        logical event.
-    4. For each GUID whose latest attempt is still a failure,
+    4. For each GUID whose attempts include no successful one,
        `POST /app/hook/deliveries/{id}/attempts` on the most recent
-       attempt. GitHub re-fires through our normal webhook URL.
+       attempt. GitHub re-fires through that App's webhook URL.
+
+  ## Why list all deliveries instead of `?status=failure`
+
+  GitHub does support a server-side `status=failure` filter, but
+  using it breaks GUID-based dedup: a successful redelivery from a
+  previous cycle has `status="OK"` and gets filtered out, so the
+  dedup check `Enum.any?(attempts, &succeeded?/1)` never sees it
+  and we'd re-redeliver the same GUID until it aged out. GitHub's
+  documented pattern fetches all and groups locally for exactly
+  this reason.
 
   ## Why redeliver instead of inserting locally
 
@@ -31,19 +43,11 @@ defmodule Tuist.Runners.Workers.WebhookRedeliveryWorker do
 
   ## Cost shape
 
-  App-wide endpoint, single call per page. Failed deliveries are
-  rare in steady state, so the list call usually returns an empty
-  body or a small page. Independent of repo count or installation
-  count — a customer with 1000 repos costs the same as one with 10.
-
-  ## Idempotency
-
-  GUID dedup means a delivery already successfully redelivered (its
-  GUID has a status="OK" attempt) is skipped on subsequent cycles.
-  A redelivery still in flight when the next cycle runs may be
-  re-requested — harmless because the webhook handler is idempotent
-  on `workflow_job_id` (RMT collapse on the CH side, advisory-lock
-  + ON CONFLICT on the PG side).
+  App-wide endpoint per App, single call per page. Independent of
+  repo or installation count under an App — a customer with 1000
+  repos costs the same as one with 10. Multiple Apps (github.com +
+  GHES manifest-flow Apps) multiply linearly, but the App count is
+  small.
 
   Emits `tuist_runners_recovery_count{kind="redelivered"}` per
   successful redelivery request.
@@ -53,6 +57,7 @@ defmodule Tuist.Runners.Workers.WebhookRedeliveryWorker do
 
   alias Tuist.GitHub.Client, as: GitHubClient
   alias Tuist.Runners.Telemetry
+  alias Tuist.VCS
 
   require Logger
 
@@ -63,11 +68,7 @@ defmodule Tuist.Runners.Workers.WebhookRedeliveryWorker do
     threshold = DateTime.add(DateTime.utc_now(), -@lookback_minutes * 60, :second)
 
     requested =
-      threshold
-      |> list_failed_deliveries_since()
-      |> Enum.filter(&workflow_job?/1)
-      |> Enum.group_by(& &1.guid)
-      |> Enum.count(fn {guid, attempts} -> redeliver_if_unrecovered(guid, attempts) end)
+      Enum.reduce(VCS.list_github_apps(), 0, fn app, acc -> acc + redeliver_for_app(app, threshold) end)
 
     if requested > 0 do
       Logger.warning("runners: requested webhook redeliveries", count: requested)
@@ -76,8 +77,18 @@ defmodule Tuist.Runners.Workers.WebhookRedeliveryWorker do
     :ok
   end
 
-  defp list_failed_deliveries_since(threshold) do
-    fetch_pages(threshold, [status: "failure"], [])
+  defp redeliver_for_app(%{credentials: creds, api_url: api_url}, threshold) do
+    threshold
+    |> list_deliveries_since(creds, api_url)
+    |> Enum.filter(&workflow_job?/1)
+    |> Enum.group_by(& &1.guid)
+    |> Enum.count(fn {guid, attempts} ->
+      redeliver_if_unrecovered(guid, attempts, creds, api_url)
+    end)
+  end
+
+  defp list_deliveries_since(threshold, creds, api_url) do
+    fetch_pages(threshold, [credentials: creds, api_url: api_url], [])
   end
 
   defp fetch_pages(threshold, opts, acc) do
@@ -92,7 +103,7 @@ defmodule Tuist.Runners.Workers.WebhookRedeliveryWorker do
         if next_url == nil or has_pre_threshold?(deliveries, threshold) do
           acc
         else
-          fetch_pages(threshold, [next_url: next_url], acc)
+          fetch_pages(threshold, Keyword.put(opts, :next_url, next_url), acc)
         end
 
       {:error, reason} ->
@@ -105,6 +116,7 @@ defmodule Tuist.Runners.Workers.WebhookRedeliveryWorker do
   end
 
   defp within_window?(%{delivered_at: %DateTime{} = at}, threshold), do: DateTime.compare(at, threshold) != :lt
+
   defp within_window?(_, _), do: false
 
   defp has_pre_threshold?(deliveries, threshold) do
@@ -123,13 +135,13 @@ defmodule Tuist.Runners.Workers.WebhookRedeliveryWorker do
   # succeeded (status="OK" / 2xx), we're done — that's our
   # redelivery from a previous cycle landing. Otherwise, the
   # most-recent failed attempt is the one to redeliver from.
-  defp redeliver_if_unrecovered(_guid, attempts) do
+  defp redeliver_if_unrecovered(_guid, attempts, creds, api_url) do
     cond do
       Enum.any?(attempts, &succeeded?/1) ->
         false
 
       latest = pick_latest(attempts) ->
-        case GitHubClient.redeliver_app_hook_delivery(latest.id) do
+        case GitHubClient.redeliver_app_hook_delivery(latest.id, credentials: creds, api_url: api_url) do
           :ok ->
             Logger.warning("runners: redelivered failed webhook",
               delivery_id: latest.id,

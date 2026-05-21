@@ -438,33 +438,39 @@ defmodule Tuist.GitHub.Client do
   `workflow_job` deliveries we never processed.
 
   Options:
-    * `:status` — `"success"` (200-399) or `"failure"` (400-599).
-      Filters server-side. Omit for all deliveries.
+    * `:credentials` — App credentials map (defaults to global
+      env-configured github.com App). Pass per-installation creds
+      from `Tuist.VCS.list_github_apps/0` to query a GHES App's log.
+    * `:api_url` — host root (defaults to api.github.com). Goes
+      with `:credentials` for GHES Apps.
     * `:next_url` — opaque cursor from a previous call's `meta.next_url`
       for paginating to the next page.
 
-  Returns `{:ok, %{meta: %{next_url}, deliveries: [...]}}`. Each
-  delivery carries only metadata (no payload) — see GitHub's docs
-  for the full schema. Use `get_app_hook_delivery/1` to fetch the
-  full payload for a single delivery.
+  No status filter is applied. GitHub does support `?status=failure`
+  server-side, but a successful redelivery from a previous cycle
+  carries the same `guid` as the original failure with `status="OK"`
+  — filtering to failures hides that and breaks GUID-based dedup.
+  The documented recovery pattern lists ALL deliveries and groups
+  locally.
 
-  Auth: App JWT (NOT installation token). Endpoint is at the
-  app's host (github.com or the GHES instance the App is
-  registered on).
+  Returns `{:ok, %{meta: %{next_url}, deliveries: [...]}}`. Each
+  delivery carries only metadata (no payload).
+
+  Auth: App JWT (NOT installation token).
 
   See: https://docs.github.com/en/rest/apps/webhooks#list-deliveries-for-an-app-webhook
   """
   def list_app_hook_deliveries(opts \\ []) do
-    api_url = VCS.api_url(:github, nil)
+    api_url = Keyword.get(opts, :api_url, VCS.api_url(:github, nil))
 
     url =
       Keyword.get(
         opts,
         :next_url,
-        "#{api_url}/app/hook/deliveries?#{build_deliveries_query(opts)}"
+        "#{api_url}/app/hook/deliveries?per_page=100"
       )
 
-    with {:ok, jwt} <- App.get_jwt() do
+    with {:ok, jwt} <- App.get_jwt(opts) do
       req_opts =
         [
           url: url,
@@ -492,15 +498,19 @@ defmodule Tuist.GitHub.Client do
   guarantees. Used by the recovery worker after a failed delivery is
   discovered.
 
+  Options `:credentials` and `:api_url` work the same as in
+  `list_app_hook_deliveries/1` — pass the App that owns the
+  `delivery_id` you're redelivering.
+
   Returns `:ok` on the documented 202 Accepted response.
 
   See: https://docs.github.com/en/rest/apps/webhooks#redeliver-a-delivery-for-an-app-webhook
   """
-  def redeliver_app_hook_delivery(delivery_id) when is_integer(delivery_id) do
-    api_url = VCS.api_url(:github, nil)
+  def redeliver_app_hook_delivery(delivery_id, opts \\ []) when is_integer(delivery_id) do
+    api_url = Keyword.get(opts, :api_url, VCS.api_url(:github, nil))
     url = "#{api_url}/app/hook/deliveries/#{delivery_id}/attempts"
 
-    with {:ok, jwt} <- App.get_jwt() do
+    with {:ok, jwt} <- App.get_jwt(opts) do
       req_opts =
         [
           url: url,
@@ -519,18 +529,6 @@ defmodule Tuist.GitHub.Client do
           {:error, {:transport, reason}}
       end
     end
-  end
-
-  defp build_deliveries_query(opts) do
-    base = [{"per_page", "100"}]
-
-    base =
-      case Keyword.get(opts, :status) do
-        s when s in ["success", "failure"] -> base ++ [{"status", s}]
-        _ -> base
-      end
-
-    URI.encode_query(base)
   end
 
   defp format_delivery(d) do
