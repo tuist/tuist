@@ -12,6 +12,7 @@ defmodule TuistWeb.RunnerJobsLive do
   import TuistWeb.Widget
 
   alias Noora.Filter
+  alias Phoenix.LiveView.AsyncResult
   alias Tuist.Authorization
   alias Tuist.Runners.Analytics
   alias Tuist.Runners.Jobs
@@ -57,7 +58,9 @@ defmodule TuistWeb.RunnerJobsLive do
       DatePicker.date_picker_params(params, "analytics")
 
     job_duration_chart_type = chart_type_param(params["job-duration-chart-type"])
+    job_duration_group_by = scatter_group_by_param(params["job-duration-group-by"])
     queue_time_chart_type = chart_type_param(params["queue-time-chart-type"])
+    queue_time_group_by = scatter_group_by_param(params["queue-time-group-by"])
 
     {:noreply,
      socket
@@ -70,10 +73,26 @@ defmodule TuistWeb.RunnerJobsLive do
      |> assign(:analytics_period, period)
      |> assign(:analytics_trend_label, trend_label(preset))
      |> assign(:job_duration_chart_type, job_duration_chart_type)
+     |> assign(:job_duration_group_by, job_duration_group_by)
      |> assign(:queue_time_chart_type, queue_time_chart_type)
+     |> assign(:queue_time_group_by, queue_time_group_by)
      |> assign_analytics(repository, platform, start_datetime, end_datetime)
-     |> assign_duration_scatter(repository, platform, start_datetime, end_datetime, job_duration_chart_type)
-     |> assign_queue_time_scatter(repository, platform, start_datetime, end_datetime, queue_time_chart_type)
+     |> assign_duration_scatter(
+       repository,
+       platform,
+       start_datetime,
+       end_datetime,
+       job_duration_chart_type,
+       job_duration_group_by
+     )
+     |> assign_queue_time_scatter(
+       repository,
+       platform,
+       start_datetime,
+       end_datetime,
+       queue_time_chart_type,
+       queue_time_group_by
+     )
      |> assign_jobs(repository, platform)}
   end
 
@@ -83,11 +102,16 @@ defmodule TuistWeb.RunnerJobsLive do
   defp chart_type_param("scatter"), do: "scatter"
   defp chart_type_param(_), do: "line"
 
+  # Bound the scatter group_by URL param so a typo doesn't surface
+  # as a missing series. We offer Status (default) and Platform.
+  defp scatter_group_by_param("platform"), do: "platform"
+  defp scatter_group_by_param(_), do: "status"
+
   # Scatter assigns: a no-op {:ok, :line} when the toggle is on
   # "line" (so the template's `:if={scatter?(...)}` resolves to false
   # without firing a query), and the actual scatter payload when
   # "scatter".
-  defp assign_duration_scatter(socket, _repository, _platform, _start_dt, _end_dt, "line") do
+  defp assign_duration_scatter(socket, _repository, _platform, _start_dt, _end_dt, "line", _group_by) do
     assign_async(socket, :job_duration_scatter, fn ->
       {:ok, %{job_duration_scatter: :line}}
     end)
@@ -99,7 +123,8 @@ defmodule TuistWeb.RunnerJobsLive do
          platform,
          start_dt,
          end_dt,
-         "scatter"
+         "scatter",
+         group_by
        ) do
     scope_opts =
       []
@@ -107,6 +132,7 @@ defmodule TuistWeb.RunnerJobsLive do
       |> maybe_platform(platform)
       |> Keyword.put(:start_datetime, start_dt)
       |> Keyword.put(:end_datetime, end_dt)
+      |> Keyword.put(:group_by, String.to_existing_atom(group_by))
 
     assign_async(socket, :job_duration_scatter, fn ->
       {:ok,
@@ -116,7 +142,7 @@ defmodule TuistWeb.RunnerJobsLive do
     end)
   end
 
-  defp assign_queue_time_scatter(socket, _repository, _platform, _start_dt, _end_dt, "line") do
+  defp assign_queue_time_scatter(socket, _repository, _platform, _start_dt, _end_dt, "line", _group_by) do
     assign_async(socket, :queue_time_scatter, fn ->
       {:ok, %{queue_time_scatter: :line}}
     end)
@@ -128,7 +154,8 @@ defmodule TuistWeb.RunnerJobsLive do
          platform,
          start_dt,
          end_dt,
-         "scatter"
+         "scatter",
+         group_by
        ) do
     scope_opts =
       []
@@ -136,6 +163,7 @@ defmodule TuistWeb.RunnerJobsLive do
       |> maybe_platform(platform)
       |> Keyword.put(:start_datetime, start_dt)
       |> Keyword.put(:end_datetime, end_dt)
+      |> Keyword.put(:group_by, String.to_existing_atom(group_by))
 
     assign_async(socket, :queue_time_scatter, fn ->
       {:ok,
@@ -288,7 +316,7 @@ defmodule TuistWeb.RunnerJobsLive do
 
     {:noreply,
      socket
-     |> assign(:live_status_counts, Phoenix.LiveView.AsyncResult.ok(counts))
+     |> assign(:live_status_counts, AsyncResult.ok(counts))
      |> assign_jobs(socket.assigns.repository, socket.assigns.platform)}
   end
 

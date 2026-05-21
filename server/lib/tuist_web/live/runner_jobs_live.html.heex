@@ -354,6 +354,12 @@
             id="jobs-queue-time"
             chart_type={@queue_time_chart_type}
             chart_type_event="select_queue_time_chart_type"
+            group_by_options={[
+              %{value: "status", label: dgettext("dashboard_runners", "Status")},
+              %{value: "platform", label: dgettext("dashboard_runners", "Platform")}
+            ]}
+            selected_group_by={@queue_time_group_by}
+            group_by_query_param="queue-time-group-by"
             uri={@uri}
           />
           <.chart
@@ -391,6 +397,12 @@
             id="jobs-job-duration"
             chart_type={@job_duration_chart_type}
             chart_type_event="select_job_duration_chart_type"
+            group_by_options={[
+              %{value: "status", label: dgettext("dashboard_runners", "Status")},
+              %{value: "platform", label: dgettext("dashboard_runners", "Platform")}
+            ]}
+            selected_group_by={@job_duration_group_by}
+            group_by_query_param="job-duration-group-by"
             uri={@uri}
           />
           <.chart

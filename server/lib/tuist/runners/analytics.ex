@@ -16,10 +16,13 @@ defmodule Tuist.Runners.Analytics do
   straight into a chart.
   """
 
+  use Gettext, backend: TuistWeb.Gettext
+
   import Ecto.Query
 
   alias Tuist.ClickHouseRepo
   alias Tuist.Runners.Job
+  alias Tuist.Utilities.DateFormatter
 
   @default_window_days 30
 
@@ -738,6 +741,7 @@ defmodule Tuist.Runners.Analytics do
   """
   def job_duration_scatter(account_id, opts \\ []) when is_integer(account_id) do
     {start_dt, end_dt} = window(opts)
+    group_by = group_by_opt(Keyword.get(opts, :group_by))
 
     rows =
       Job
@@ -746,20 +750,25 @@ defmodule Tuist.Runners.Analytics do
       |> scope_workflow(opts)
       |> select([j], %{
         id: j.workflow_job_id,
-        completed_at: j.completed_at,
+        x_at: j.completed_at,
         duration_ms:
           fragment(
             "toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?)",
             j.completed_at,
             j.started_at
           ),
-        conclusion: j.conclusion
+        job_name: j.job_name,
+        workflow_name: j.workflow_name,
+        repo: j.repo,
+        head_branch: j.head_branch,
+        conclusion: j.conclusion,
+        fleet_name: j.fleet_name
       })
       |> order_by([j], desc: j.completed_at)
       |> limit(@scatter_data_limit)
       |> ClickHouseRepo.all()
 
-    points_to_scatter_payload(rows)
+    points_to_scatter_payload(rows, group_by)
   end
 
   @doc """
@@ -768,6 +777,7 @@ defmodule Tuist.Runners.Analytics do
   """
   def queue_time_scatter(account_id, opts \\ []) when is_integer(account_id) do
     {start_dt, end_dt} = window(opts)
+    group_by = group_by_opt(Keyword.get(opts, :group_by))
 
     rows =
       Job
@@ -776,44 +786,125 @@ defmodule Tuist.Runners.Analytics do
       |> scope_workflow(opts)
       |> select([j], %{
         id: j.workflow_job_id,
-        completed_at: j.claimed_at,
+        x_at: j.claimed_at,
         duration_ms:
           fragment(
             "toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?)",
             j.claimed_at,
             j.enqueued_at
           ),
-        conclusion: j.conclusion
+        job_name: j.job_name,
+        workflow_name: j.workflow_name,
+        repo: j.repo,
+        head_branch: j.head_branch,
+        conclusion: j.conclusion,
+        fleet_name: j.fleet_name
       })
       |> order_by([j], desc: j.claimed_at)
       |> limit(@scatter_data_limit)
       |> ClickHouseRepo.all()
 
-    points_to_scatter_payload(rows)
+    points_to_scatter_payload(rows, group_by)
   end
 
-  defp points_to_scatter_payload(rows) do
-    truncated = length(rows) >= @scatter_data_limit
-    oldest_entry = if truncated, do: rows |> List.last() |> Map.get(:completed_at)
+  defp group_by_opt(:status), do: :status
+  defp group_by_opt(:platform), do: :platform
+  defp group_by_opt("status"), do: :status
+  defp group_by_opt("platform"), do: :platform
+  defp group_by_opt(_), do: nil
 
-    data =
+  defp points_to_scatter_payload(rows, group_by) do
+    truncated = length(rows) >= @scatter_data_limit
+    oldest_entry = if truncated, do: rows |> List.last() |> Map.get(:x_at)
+
+    points =
       Enum.map(rows, fn row ->
-        ts = DateTime.to_unix(row.completed_at, :millisecond)
+        ts = DateTime.to_unix(row.x_at, :millisecond)
         seconds = Float.round(row.duration_ms / 1000, 1)
 
         %{
           value: [ts, seconds],
           id: row.id,
-          meta: %{conclusion: row.conclusion}
+          group_key: group_key(row, group_by),
+          tooltipExtra: tooltip_extra(row)
         }
       end)
 
     %{
-      series: [%{name: "duration", data: data}],
+      series: build_series(points, group_by),
       truncated: truncated,
       oldest_entry: maybe_to_naive(oldest_entry)
     }
   end
+
+  # No `group_by` → every dot lives on one "duration" series. With
+  # group_by set the points fan out into one series per group key,
+  # which echarts paints with distinct colours and exposes as legend
+  # chips — same UX as Group by Scheme on the Xcode builds page.
+  defp build_series(points, nil) do
+    [%{name: "duration", data: Enum.map(points, &Map.delete(&1, :group_key))}]
+  end
+
+  defp build_series(points, _group_by) do
+    points
+    |> Enum.group_by(& &1.group_key)
+    |> Enum.map(fn {key, group_points} ->
+      %{name: key, data: Enum.map(group_points, &Map.delete(&1, :group_key))}
+    end)
+    |> Enum.sort_by(& &1.name)
+  end
+
+  defp group_key(_row, nil), do: nil
+  defp group_key(row, :status), do: status_label(row.conclusion)
+  defp group_key(row, :platform), do: platform_from_fleet(row.fleet_name)
+
+  defp status_label(""), do: dgettext("dashboard_runners", "Unknown")
+  defp status_label(nil), do: dgettext("dashboard_runners", "Unknown")
+  defp status_label("success"), do: dgettext("dashboard_runners", "Success")
+  defp status_label("failure"), do: dgettext("dashboard_runners", "Failure")
+  defp status_label("cancelled"), do: dgettext("dashboard_runners", "Cancelled")
+  defp status_label("skipped"), do: dgettext("dashboard_runners", "Skipped")
+  defp status_label(other) when is_binary(other), do: String.capitalize(other)
+
+  # Same prefix-derivation the page-level Platform filter uses, so
+  # the Group by partition aligns with the dropdown filter scope.
+  # Anything outside the two named OSes falls into "Other" so legacy
+  # rows stay visible without being lumped in with the known fleets.
+  defp platform_from_fleet(name) when is_binary(name) do
+    cond do
+      String.starts_with?(name, "macos-") -> dgettext("dashboard_runners", "macOS")
+      String.starts_with?(name, "linux-") -> dgettext("dashboard_runners", "Linux")
+      true -> dgettext("dashboard_runners", "Other")
+    end
+  end
+
+  defp platform_from_fleet(_), do: dgettext("dashboard_runners", "Other")
+
+  # Each dot carries enough context to identify the workflow_job
+  # without leaving the chart — which workflow_run it belongs to,
+  # which job, on which repo and branch, what status it ended in,
+  # which platform executed it. Same per-row data the Recent jobs
+  # table already exposes; the tooltip is the chart-equivalent of
+  # that row.
+  defp tooltip_extra(row) do
+    [
+      %{label: dgettext("dashboard_runners", "Workflow"), value: display(row.workflow_name)},
+      %{label: dgettext("dashboard_runners", "Job"), value: display(row.job_name)},
+      %{label: dgettext("dashboard_runners", "Repository"), value: display(row.repo)},
+      %{label: dgettext("dashboard_runners", "Branch"), value: display(row.head_branch)},
+      %{label: dgettext("dashboard_runners", "Status"), value: status_label(row.conclusion)},
+      %{label: dgettext("dashboard_runners", "Platform"), value: platform_from_fleet(row.fleet_name)},
+      %{label: dgettext("dashboard_runners", "Duration"), value: format_duration_ms(row.duration_ms)}
+    ]
+  end
+
+  defp display(nil), do: dgettext("dashboard_runners", "Unknown")
+  defp display(""), do: dgettext("dashboard_runners", "Unknown")
+  defp display(value) when is_binary(value), do: value
+
+  defp format_duration_ms(ms) when is_integer(ms) and ms > 0, do: DateFormatter.format_duration_from_milliseconds(ms)
+
+  defp format_duration_ms(_), do: "0s"
 
   defp maybe_to_naive(nil), do: nil
   defp maybe_to_naive(%DateTime{} = dt), do: DateTime.to_naive(dt)
