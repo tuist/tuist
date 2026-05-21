@@ -144,7 +144,8 @@
   ],
   "allowed_domains": ["tuist.dev"],
   "stop_urls": [
-    "https://tuist.dev/(?![a-z]{2}/docs).*"
+    "https://tuist.dev/(?![a-z]{2}/docs).*",
+    "https://tuist.dev/.*/docs/contributors/translate(?:/.*)?$"
   ],
   "selectors": {
     "default": {

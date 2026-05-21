@@ -162,6 +162,23 @@ type Config struct {
 	// `ssh.InsecureIgnoreHostKey()` that left every bootstrap open
 	// to a network MITM (kubeconfig + tart-kubelet binary injection).
 	KnownHostFingerprint string
+
+	// GHActionsRunner, when non-nil, installs a GitHub Actions
+	// self-hosted runner agent on the host as the final step of
+	// bootstrap, after tart-kubelet is up. Used for the bare-metal
+	// vm-image-builder fleet; pure Node hosts leave this nil.
+	//
+	// The runner agent runs as a LaunchAgent under cfg.SSHUser and
+	// picks up image-bake workflow jobs from GitHub. It coexists
+	// peacefully with tart-kubelet on the same host because no Pods
+	// are ever scheduled to builder Nodes (the per-fleet
+	// `tuist.dev/fleet` NodeLabel scopes Pod selection away from
+	// the builder fleet name).
+	//
+	// The reconciler is responsible for resolving the registration
+	// token from a Secret before populating
+	// GHActionsRunner.GHRunnerRegistrationToken.
+	GHActionsRunner *GHActionsRunnerConfig
 }
 
 // Run executes the bootstrap. Idempotent: re-running on a partially-
@@ -178,54 +195,63 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 		return "", fmt.Errorf("parse ssh key: %w", err)
 	}
 
-	hk := newHostKeyState(cfg.KnownHostFingerprint)
+	hk := NewHostKeyState(cfg.KnownHostFingerprint)
 
-	if err := waitForSSH(ctx, cfg.IP, cfg.SSHUser, signer, hk); err != nil {
+	if err := WaitForSSH(ctx, cfg.IP, cfg.SSHUser, signer, hk); err != nil {
 		return "", err
 	}
 
-	client, err := dial(cfg.IP, cfg.SSHUser, signer, hk)
+	client, err := Dial(cfg.IP, cfg.SSHUser, signer, hk)
 	if err != nil {
 		return "", err
 	}
 	defer client.Close()
 
-	if err := enablePasswordlessSudo(ctx, client, cfg.SSHUser, cfg.UserPassword); err != nil {
-		return hk.observed(), fmt.Errorf("passwordless sudo: %w", err)
+	if err := EnablePasswordlessSudo(ctx, client, cfg.SSHUser, cfg.UserPassword); err != nil {
+		return hk.Observed(), fmt.Errorf("passwordless sudo: %w", err)
 	}
-	if err := enableAutoLogin(ctx, client, cfg.SSHUser, cfg.UserPassword); err != nil {
-		return hk.observed(), fmt.Errorf("auto-login: %w", err)
+	if err := EnableAutoLogin(ctx, client, cfg.SSHUser, cfg.UserPassword); err != nil {
+		return hk.Observed(), fmt.Errorf("auto-login: %w", err)
 	}
-	if err := disableIdleSleep(ctx, client); err != nil {
-		return hk.observed(), fmt.Errorf("disable idle sleep: %w", err)
+	if err := DisableIdleSleep(ctx, client); err != nil {
+		return hk.Observed(), fmt.Errorf("disable idle sleep: %w", err)
 	}
 	if cfg.NodeName != "" {
-		if err := setHostname(ctx, client, cfg.NodeName); err != nil {
-			return hk.observed(), fmt.Errorf("set hostname: %w", err)
+		if err := SetHostname(ctx, client, cfg.NodeName); err != nil {
+			return hk.Observed(), fmt.Errorf("set hostname: %w", err)
 		}
 	}
 	if err := installTart(ctx, client, cfg.TartTarball); err != nil {
-		return hk.observed(), fmt.Errorf("install tart: %w", err)
+		return hk.Observed(), fmt.Errorf("install tart: %w", err)
 	}
 	if err := installVMEgressFirewall(ctx, client); err != nil {
-		return hk.observed(), fmt.Errorf("install vm egress firewall: %w", err)
+		return hk.Observed(), fmt.Errorf("install vm egress firewall: %w", err)
 	}
 	if err := installTailscale(ctx, client, cfg); err != nil {
-		return hk.observed(), fmt.Errorf("install tailscale: %w", err)
+		return hk.Observed(), fmt.Errorf("install tailscale: %w", err)
 	}
 	if err := installNodeExporter(ctx, client, cfg); err != nil {
-		return hk.observed(), fmt.Errorf("install node_exporter: %w", err)
+		return hk.Observed(), fmt.Errorf("install node_exporter: %w", err)
 	}
 	if err := writeKubeconfig(ctx, client, cfg.Kubeconfig); err != nil {
-		return hk.observed(), fmt.Errorf("write kubeconfig: %w", err)
+		return hk.Observed(), fmt.Errorf("write kubeconfig: %w", err)
 	}
 	if err := installTartKubelet(ctx, client, cfg.TartKubeletBinary); err != nil {
-		return hk.observed(), fmt.Errorf("install tart-kubelet: %w", err)
+		return hk.Observed(), fmt.Errorf("install tart-kubelet: %w", err)
 	}
 	if err := loadTartKubeletLaunchd(ctx, client, cfg); err != nil {
-		return hk.observed(), fmt.Errorf("load launchd job: %w", err)
+		return hk.Observed(), fmt.Errorf("load launchd job: %w", err)
 	}
-	return hk.observed(), nil
+	// Optional builder-fleet tail: install brew tooling, verify
+	// Xcode, set the build-cache env, install + start the GitHub
+	// Actions runner agent. Skipped entirely for pure Node hosts
+	// (the default fleet).
+	if cfg.GHActionsRunner != nil {
+		if err := runActionsRunnerInstall(ctx, client, cfg.SSHUser, cfg.NodeName, *cfg.GHActionsRunner); err != nil {
+			return hk.Observed(), fmt.Errorf("install gh actions runner: %w", err)
+		}
+	}
+	return hk.Observed(), nil
 }
 
 // UpdateTartKubelet rolls a new tart-kubelet binary onto an
@@ -261,42 +287,42 @@ func UpdateTartKubelet(ctx context.Context, cfg Config) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("parse ssh key: %w", err)
 	}
-	hk := newHostKeyState(cfg.KnownHostFingerprint)
-	client, err := dial(cfg.IP, cfg.SSHUser, signer, hk)
+	hk := NewHostKeyState(cfg.KnownHostFingerprint)
+	client, err := Dial(cfg.IP, cfg.SSHUser, signer, hk)
 	if err != nil {
 		return "", err
 	}
 	defer client.Close()
 
 	if err := writeKubeconfig(ctx, client, cfg.Kubeconfig); err != nil {
-		return hk.observed(), fmt.Errorf("refresh kubeconfig: %w", err)
+		return hk.Observed(), fmt.Errorf("refresh kubeconfig: %w", err)
 	}
 	if err := installTartKubelet(ctx, client, cfg.TartKubeletBinary); err != nil {
-		return hk.observed(), fmt.Errorf("install tart-kubelet: %w", err)
+		return hk.Observed(), fmt.Errorf("install tart-kubelet: %w", err)
 	}
 	if err := installTailscale(ctx, client, cfg); err != nil {
-		return hk.observed(), fmt.Errorf("install tailscale: %w", err)
+		return hk.Observed(), fmt.Errorf("install tailscale: %w", err)
 	}
 	if err := installNodeExporter(ctx, client, cfg); err != nil {
-		return hk.observed(), fmt.Errorf("install node_exporter: %w", err)
+		return hk.Observed(), fmt.Errorf("install node_exporter: %w", err)
 	}
 	if err := loadTartKubeletLaunchd(ctx, client, cfg); err != nil {
-		return hk.observed(), fmt.Errorf("reload launchd job: %w", err)
+		return hk.Observed(), fmt.Errorf("reload launchd job: %w", err)
 	}
-	return hk.observed(), nil
+	return hk.Observed(), nil
 }
 
-// setHostname makes the macOS hostname match the CR name, so
+// SetHostname makes the macOS hostname match the CR name, so
 // `os.Hostname()` inside tart-kubelet (the default --node-name) lines
 // up with the inventory. The operator passes --node-name explicitly
 // regardless; this is belt-and-braces.
-func setHostname(ctx context.Context, client *ssh.Client, name string) error {
+func SetHostname(ctx context.Context, client *ssh.Client, name string) error {
 	script := fmt.Sprintf(`set -euo pipefail
 sudo scutil --set HostName %[1]s
 sudo scutil --set LocalHostName %[1]s
 sudo scutil --set ComputerName %[1]s
 `, shellQuote(name))
-	return runCommand(ctx, client, script)
+	return RunCommand(ctx, client, script)
 }
 
 // writeKubeconfig drops the controller-built kubeconfig at the
@@ -310,7 +336,7 @@ sudo mkdir -p /etc/tart-kubelet
 sudo tee /etc/tart-kubelet/kubeconfig >/dev/null
 sudo chmod 0600 /etc/tart-kubelet/kubeconfig
 `
-	return runCommandWithStdin(ctx, client, script, kubeconfig)
+	return RunCommandWithStdin(ctx, client, script, kubeconfig)
 }
 
 // installTartKubelet uploads the operator-baked tart-kubelet binary
@@ -332,7 +358,7 @@ sudo mkdir -p /usr/local/bin
 sudo tee /usr/local/bin/tart-kubelet >/dev/null
 sudo chmod 0755 /usr/local/bin/tart-kubelet
 `
-	return runCommandWithStdin(ctx, client, script, string(binary))
+	return RunCommandWithStdin(ctx, client, script, string(binary))
 }
 
 // loadTartKubeletLaunchd writes /Library/LaunchDaemons/dev.tuist.tart-kubelet.plist
@@ -361,7 +387,7 @@ sudo chmod 0600 /etc/tart-kubelet/kubeconfig
 sudo launchctl bootout system "$PLIST" 2>/dev/null || true
 sudo launchctl bootstrap system "$PLIST"
 `, shellQuote(cfg.SSHUser))
-	return runCommandWithStdin(ctx, client, script, plist)
+	return RunCommandWithStdin(ctx, client, script, plist)
 }
 
 func renderLaunchdPlist(cfg Config) string {
@@ -428,7 +454,7 @@ func renderLaunchdPlist(cfg Config) string {
 	// Virtualization.framework requires the calling process to be the
 	// same user that holds the live GUI console session — Tart's
 	// "Failed to get current host key" otherwise. The auto-login we
-	// configured in `enableAutoLogin` puts m1 on the console at boot;
+	// configured in `EnableAutoLogin` puts m1 on the console at boot;
 	// matching the launchd job's UserName lines tart up with that
 	// session.
 	return fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
@@ -467,26 +493,26 @@ func shellQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
-// hostKeyState wires SSH dials to the persisted-fingerprint TOFU
-// flow. The same instance is shared across waitForSSH retries and the
+// HostKeyState wires SSH dials to the persisted-fingerprint TOFU
+// flow. The same instance is shared across WaitForSSH retries and the
 // real dial: when we capture a fingerprint on a probe dial the real
 // dial verifies against it, so an attacker can't inject a different
 // host key between the two.
-type hostKeyState struct {
+type HostKeyState struct {
 	mu       sync.Mutex
 	expected string // empty until first observation; persisted by caller
 	captured string // SHA256 of the key the host actually presented
 }
 
-func newHostKeyState(known string) *hostKeyState {
-	return &hostKeyState{expected: known}
+func NewHostKeyState(known string) *HostKeyState {
+	return &HostKeyState{expected: known}
 }
 
-// observed returns the fingerprint the host actually presented during
+// Observed returns the fingerprint the host actually presented during
 // the dial, or the expected value if the dial never happened. The
 // controller persists this so the next reconcile starts with a known
 // host.
-func (h *hostKeyState) observed() string {
+func (h *HostKeyState) Observed() string {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if h.captured != "" {
@@ -495,7 +521,7 @@ func (h *hostKeyState) observed() string {
 	return h.expected
 }
 
-func (h *hostKeyState) callback() ssh.HostKeyCallback {
+func (h *HostKeyState) Callback() ssh.HostKeyCallback {
 	return func(_ string, _ net.Addr, key ssh.PublicKey) error {
 		got := ssh.FingerprintSHA256(key)
 		h.mu.Lock()
@@ -520,23 +546,38 @@ func (h *hostKeyState) callback() ssh.HostKeyCallback {
 	}
 }
 
-func dial(ip, user string, signer ssh.Signer, hk *hostKeyState) (*ssh.Client, error) {
+func Dial(ip, user string, signer ssh.Signer, hk *HostKeyState) (*ssh.Client, error) {
+	return DialAuth(ip, user, []ssh.AuthMethod{ssh.PublicKeys(signer)}, hk)
+}
+
+// DialAuth is Dial parameterised over the auth method list. Use it
+// when the caller wants something other than a single in-process
+// signer, e.g. SSH agent auth where the keys live in 1Password and
+// the agent socket signs on demand. Same host-key TOFU semantics as
+// Dial.
+func DialAuth(ip, user string, auth []ssh.AuthMethod, hk *HostKeyState) (*ssh.Client, error) {
 	cfg := &ssh.ClientConfig{
 		User:            user,
-		Auth:            []ssh.AuthMethod{ssh.PublicKeys(signer)},
-		HostKeyCallback: hk.callback(),
+		Auth:            auth,
+		HostKeyCallback: hk.Callback(),
 		Timeout:         15 * time.Second,
 	}
 	return ssh.Dial("tcp", ip+":22", cfg)
 }
 
-func waitForSSH(ctx context.Context, ip, user string, signer ssh.Signer, hk *hostKeyState) error {
+func WaitForSSH(ctx context.Context, ip, user string, signer ssh.Signer, hk *HostKeyState) error {
+	return WaitForSSHAuth(ctx, ip, user, []ssh.AuthMethod{ssh.PublicKeys(signer)}, hk)
+}
+
+// WaitForSSHAuth is WaitForSSH parameterised over the auth method
+// list. Same semantics as DialAuth.
+func WaitForSSHAuth(ctx context.Context, ip, user string, auth []ssh.AuthMethod, hk *HostKeyState) error {
 	deadline := time.Now().Add(5 * time.Minute)
 	for {
 		if time.Now().After(deadline) {
 			return fmt.Errorf("SSH not available after 5m at %s", ip)
 		}
-		client, err := dial(ip, user, signer, hk)
+		client, err := DialAuth(ip, user, auth, hk)
 		if err == nil {
 			client.Close()
 			return nil
@@ -549,7 +590,7 @@ func waitForSSH(ctx context.Context, ip, user string, signer ssh.Signer, hk *hos
 	}
 }
 
-// enablePasswordlessSudo writes a sudoers.d entry for the SSH user. We
+// EnablePasswordlessSudo writes a sudoers.d entry for the SSH user. We
 // authenticate the initial sudo with the SSH user's password supplied
 // by the caller; subsequent sudo calls don't need it.
 //
@@ -566,13 +607,13 @@ func waitForSSH(ctx context.Context, ip, user string, signer ssh.Signer, hk *hos
 //
 // File-existence check still short-circuits the common case where
 // the operator already staged the sudoers entry before adoption.
-func enablePasswordlessSudo(ctx context.Context, client *ssh.Client, user, password string) error {
+func EnablePasswordlessSudo(ctx context.Context, client *ssh.Client, user, password string) error {
 	if password == "" {
 		// Idempotency-only path: if the sudoers file is there, fine;
 		// if not, return without touching PAM so we don't ramp the
 		// lockout counter on every reconcile.
 		check := fmt.Sprintf(`test -f /etc/sudoers.d/%[1]s-nopasswd`, user)
-		return runCommand(ctx, client, check)
+		return RunCommand(ctx, client, check)
 	}
 	script := fmt.Sprintf(`set -euo pipefail
 if [ -f /etc/sudoers.d/%[1]s-nopasswd ]; then exit 0; fi
@@ -581,10 +622,10 @@ echo '%[2]s' | sudo -S tee /etc/sudoers.d/%[1]s-nopasswd > /dev/null <<EOF
 EOF
 sudo chmod 440 /etc/sudoers.d/%[1]s-nopasswd
 `, user, password)
-	return runCommand(ctx, client, script)
+	return RunCommand(ctx, client, script)
 }
 
-// enableAutoLogin sets the macOS auto-login flag so a desktop session
+// EnableAutoLogin sets the macOS auto-login flag so a desktop session
 // exists at boot. Tart's Virtualization.framework requires a live
 // console session — without this, every `tart run` returns
 // "Virtualization is not available because no graphic console is
@@ -593,7 +634,7 @@ sudo chmod 440 /etc/sudoers.d/%[1]s-nopasswd
 // macOS implements auto-login via:
 //   - /etc/kcpassword (XOR-encoded password with Apple's well-known key)
 //   - com.apple.loginwindow.autoLoginUser preference
-func enableAutoLogin(ctx context.Context, client *ssh.Client, user, password string) error {
+func EnableAutoLogin(ctx context.Context, client *ssh.Client, user, password string) error {
 	// No password to XOR into /etc/kcpassword means we'd write a
 	// broken kcpassword (just the cipher key with no plaintext under
 	// it) and macOS would silently fail to auto-login the user. That
@@ -618,33 +659,69 @@ func enableAutoLogin(ctx context.Context, client *ssh.Client, user, password str
 	// which means tart-kubelet's `tart run` fails on every pod even
 	// after Tart and the kubelet are correctly installed.
 	//
-	// Killing loginwindow with SIGHUP forces it to respawn, and the
-	// respawned process — unlike the boot-time process — does honor
-	// the auto-login preference, brings up the Aqua session, and the
-	// bridge100 vmnet interface starts working. Idempotent: if the
-	// Aqua session already exists, the kick still works (loginwindow
-	// re-establishes it cleanly) and we accept that small cost over
-	// branching on session state.
+	// `launchctl kickstart -k system/com.apple.loginwindow` is the
+	// modern way to do this and handles both cases uniformly:
+	//   * loginwindow IS running: SIGTERM the existing instance and
+	//     respawn it.
+	//   * loginwindow is NOT running: just spawn it.
+	// `killall -HUP loginwindow` (the previous approach) exits 1 with
+	// "No matching processes were found" when loginwindow is missing,
+	// which is the state we land in if the host had loginwindow exit
+	// via SIGHUP earlier (launchd's policy is to not auto-respawn
+	// after SIGHUP for a console-bound daemon). kickstart talks to
+	// launchd's service registry directly so the missing-process case
+	// is a clean start, not an error.
 	script := fmt.Sprintf(`set -euo pipefail
 echo '%[2]s' | base64 -d | sudo tee /etc/kcpassword > /dev/null
 sudo chmod 600 /etc/kcpassword
 sudo defaults write /Library/Preferences/com.apple.loginwindow autoLoginUser '%[1]s'
-sudo killall -HUP loginwindow 2>/dev/null || true
+sudo launchctl kickstart -k system/com.apple.loginwindow 2>/dev/null || true
 # Wait for the Aqua session to come up. loginwindow respawn typically
-# takes <2s; 30s is generous. If it still doesn't appear we let
-# bootstrap continue — Stage 2 of reconcileNormal will retry on the
-# next reconcile if VZ subsequently rejects the VM start.
+# takes <2s; 30s is generous. If it still doesn't appear we still
+# proceed to the kcpassword verification below before failing — the
+# Aqua check is best-effort because launchctl's session inspection
+# semantics vary between macOS releases.
+session_up=0
 for i in $(seq 1 30); do
   if sudo launchctl print "gui/$(id -u '%[1]s')" 2>/dev/null | grep -q 'session = Aqua'; then
-    exit 0
+    session_up=1
+    break
   fi
   sleep 1
 done
+
+# Verify /etc/kcpassword wasn't replaced by macOS Tahoe's "<sealed>"
+# marker. When the password we wrote doesn't actually match the
+# user's, loginwindow rejects the auto-login attempt and overwrites
+# /etc/kcpassword with the XOR-encoded literal string "<sealed>"
+# (8 bytes + 3 NUL padding = 11 bytes total). Bootstrap silently
+# completes but every subsequent reboot fails to bring up an Aqua
+# session — Tart can't start guests, all runner pods hit
+# TartCreateFailed indefinitely.
+#
+# Read kcpassword as root and XOR-decode it; the first 8 bytes are
+# the signal. Python exit 1 here propagates via 'set -e' and fails
+# the bootstrap loudly, so the operator fixes the bootstrap-Secret-
+# vs-host password drift before the host ships.
+sudo /usr/bin/python3 - <<'CHECK'
+import sys
+key = bytes([0x7d, 0x89, 0x52, 0x23, 0xd2, 0xbc, 0xdd, 0xea, 0xa3, 0xb9, 0x1f])
+with open('/etc/kcpassword', 'rb') as f:
+    enc = f.read()
+dec = bytes(b ^ key[i %% len(key)] for i, b in enumerate(enc))
+if dec.startswith(b'<sealed>'):
+    sys.stderr.write("kcpassword replaced by macOS with <sealed> marker — bootstrap-stored password does not match m1's actual password on this host\n")
+    sys.exit(1)
+CHECK
+
+if [ "$session_up" = "0" ]; then
+  echo "WARN: Aqua session for %[1]s did not appear after loginwindow kick; bootstrap continues — VM-start preflight will retry"
+fi
 `, user, encoded)
-	return runCommand(ctx, client, script)
+	return RunCommand(ctx, client, script)
 }
 
-// disableIdleSleep stops macOS from tearing the user's Aqua session
+// DisableIdleSleep stops macOS from tearing the user's Aqua session
 // down out from under tart-kubelet. Apple's Virtualization framework
 // needs the auto-login user to hold a live console session at the
 // moment of `tart run`; if the host idle-sleeps, the screensaver
@@ -677,14 +754,14 @@ done
 // Idempotent: every call writes the same values regardless of prior
 // state. Failures here are fatal because there's no point shipping
 // a host that will silently fall over an hour after bootstrap.
-func disableIdleSleep(ctx context.Context, client *ssh.Client) error {
+func DisableIdleSleep(ctx context.Context, client *ssh.Client) error {
 	script := `set -euo pipefail
 sudo pmset -a sleep 0 displaysleep 0 disksleep 0
 sudo defaults write /Library/Preferences/com.apple.screensaver idleTime -int 0
 sudo defaults write /Library/Preferences/com.apple.screensaver askForPassword -int 0
 sudo defaults write /Library/Preferences/.GlobalPreferences com.apple.autologout.AutoLogOutDelay -int 0
 `
-	return runCommand(ctx, client, script)
+	return RunCommand(ctx, client, script)
 }
 
 // kcpasswordKey is Apple's well-known XOR cipher used to obfuscate
@@ -733,7 +810,7 @@ EOF
 sudo chmod 0755 /usr/local/bin/tart
 /usr/local/bin/tart --version
 `
-	return runCommandWithStdin(ctx, client, script, string(tarball))
+	return RunCommandWithStdin(ctx, client, script, string(tarball))
 }
 
 // installVMEgressFirewall configures pfctl rules that drop egress
@@ -805,18 +882,20 @@ block drop out quick from <vm_sources> to <blocked_dst>
 block drop out quick from <vm_sources> to 169.254.169.254
 PFCONF
 
-# Splice the anchor into /etc/pf.conf if it isn't already there.
-# /etc/pf.conf is editable per-host (vs. /System/Library which is
-# SIP-protected); macOS's default pf.conf carries a marker line
-# we anchor our insert against.
-if ! sudo grep -q "anchor \"tuist.runners\"" /etc/pf.conf; then
-  sudo tee -a /etc/pf.conf >/dev/null <<'PFCONFENTRY'
-
+# Manage the anchor block in /etc/pf.conf via begin/end markers.
+# Strip-and-append between markers is idempotent and convergent:
+# any number of pre-existing marker-delimited blocks (duplicates
+# from a stuttering reconcile, partial writes from a prior crashed
+# run) get removed before the canonical block is written.
+sudo sed -i.bak '/^# BEGIN tuist.runners$/,/^# END tuist.runners$/d' /etc/pf.conf
+sudo rm -f /etc/pf.conf.bak
+sudo tee -a /etc/pf.conf >/dev/null <<'PFCONFENTRY'
+# BEGIN tuist.runners
 # Tuist runner VM egress filter — see /etc/pf.anchors/tuist.runners
 anchor "tuist.runners"
 load anchor "tuist.runners" from "/etc/pf.anchors/tuist.runners"
+# END tuist.runners
 PFCONFENTRY
-fi
 
 # Reset the anchor's kernel-resident ruleset before the validate.
 # Hosts that previously ran an older version of this script left
@@ -886,7 +965,7 @@ sudo chmod 0644 /Library/LaunchDaemons/dev.tuist.pfctl-runners.plist
 sudo launchctl bootout system/dev.tuist.pfctl-runners 2>/dev/null || true
 sudo launchctl bootstrap system /Library/LaunchDaemons/dev.tuist.pfctl-runners.plist
 `
-	return runCommand(ctx, client, script)
+	return RunCommand(ctx, client, script)
 }
 
 // installTailscale joins the Mac mini to the cluster's tailnet using
@@ -926,7 +1005,7 @@ func installTailscale(ctx context.Context, client *ssh.Client, cfg Config) error
 sudo mkdir -p /etc/tuist
 sudo tee /etc/tuist/tailscale-auth-key >/dev/null
 sudo chmod 0600 /etc/tuist/tailscale-auth-key`
-	if err := runCommandWithStdin(ctx, client, keyScript, cfg.TailscaleAuthKey); err != nil {
+	if err := RunCommandWithStdin(ctx, client, keyScript, cfg.TailscaleAuthKey); err != nil {
 		return fmt.Errorf("stage tailscale auth key: %w", err)
 	}
 
@@ -1081,7 +1160,7 @@ echo "tailscale up returned but no tailnet IPv4 within 30s; current status:" >&2
 sudo /usr/local/bin/tailscale status >&2 || true
 exit 1
 `, hostnameArg, tagsArg)
-	return runCommandWithStdin(ctx, client, script, string(cfg.TailscaleBinaries))
+	return RunCommandWithStdin(ctx, client, script, string(cfg.TailscaleBinaries))
 }
 
 // installNodeExporter drops the cross-compiled darwin/arm64 binary,
@@ -1157,16 +1236,16 @@ sudo chmod 0644 /Library/LaunchDaemons/dev.tuist.node-exporter.plist
 sudo launchctl bootout system /Library/LaunchDaemons/dev.tuist.node-exporter.plist 2>/dev/null || true
 sudo launchctl bootstrap system /Library/LaunchDaemons/dev.tuist.node-exporter.plist
 `
-	return runCommandWithStdin(ctx, client, script, string(cfg.NodeExporterBinary))
+	return RunCommandWithStdin(ctx, client, script, string(cfg.NodeExporterBinary))
 }
 
 // === SSH helpers ===========================================================
 
-func runCommand(ctx context.Context, client *ssh.Client, cmd string) error {
-	return runCommandWithStdin(ctx, client, cmd, "")
+func RunCommand(ctx context.Context, client *ssh.Client, cmd string) error {
+	return RunCommandWithStdin(ctx, client, cmd, "")
 }
 
-func runCommandWithStdin(ctx context.Context, client *ssh.Client, cmd, stdin string) error {
+func RunCommandWithStdin(ctx context.Context, client *ssh.Client, cmd, stdin string) error {
 	session, err := client.NewSession()
 	if err != nil {
 		return err

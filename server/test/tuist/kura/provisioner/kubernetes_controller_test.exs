@@ -44,13 +44,12 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       env = Map.new(spec["extraEnv"], &{&1["name"], &1["value"]})
       assert env["KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL"] == "https://tuist.dev"
-      # Tuist platform secrets (JWT verifier, license signer) live in the
+      # Tuist platform secrets (JWT verifier) live in the
       # kura-shared-secrets Kubernetes Secret; the controller envFroms
       # them into the pod. They must NEVER appear in the spec, since
       # anyone with list/watch on KuraInstance would otherwise read the
       # global JWT signing secret.
       refute Map.has_key?(env, "KURA_EXTENSION_JWT_VERIFIER_TUIST_SECRET")
-      refute Map.has_key?(env, "KURA_EXTENSION_SIGNER_TUIST_SECRET")
     end
 
     test "renders local controller overrides for kind testing" do

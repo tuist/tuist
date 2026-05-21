@@ -123,6 +123,11 @@ public struct Target: Codable, Equatable, Sendable {
         ///   build phase so that Xcode can skip re-running the script when inputs haven't changed.
         /// - **Content hashing**: all inputs (including scripts) are used to compute a content hash for Tuist's
         ///   binary caching and selective testing, so that the foreign build step can be skipped when inputs are unchanged.
+        ///
+        /// > Important: If folder/glob inputs resolve to no files, Xcode has nothing to track for incremental
+        /// > builds, and the foreign build script is marked as always out-of-date so it re-runs on every build.
+        /// > This is fine when the underlying build system (Gradle, Cargo, CMake, …) handles its own
+        /// > incrementality; otherwise, double-check the configured paths.
         public enum Input: Codable, Hashable, Sendable {
             /// A single file whose contents affect the build output.
             case file(Path)

@@ -36,6 +36,7 @@ This service provides:
    - `PUBLIC_HOST` - Hostname for the service (release entrypoint sets `$(cat /etc/host_hostname).tuist.dev`)
    - `PORT` - Port to run on (default: 4000)
    - `SERVER_URL` - URL of the main Tuist server for authentication
+   - `SERVER_CA_CERT_PEM` - Optional PEM-encoded CA certificate for verifying HTTPS connections to `SERVER_URL` (also accepted as `TUIST_SERVER_CA_CERT_PEM`)
    - `STORAGE_DIR` - Directory for artifact storage (default: `/storage`)
    - `DISK_HIGH_WATERMARK_PERCENT` - Optional high watermark (%) that triggers disk eviction (default: `75`)
    - `DISK_TARGET_PERCENT` - Optional target usage (%) the eviction job aims for after cleanup (default: `60`)

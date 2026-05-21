@@ -12,6 +12,7 @@ services:
       PHX_SERVER: "true"
       SECRET_KEY_BASE: ${SECRET_KEY_BASE}
       SERVER_URL: ${SERVER_URL}
+      SERVER_CA_CERT_PEM: ${SERVER_CA_CERT_PEM}
       STORAGE_DIR: /storage
       PHX_SOCKET_PATH: /run/cache/cache.sock
       PHX_SOCKET_LINK: /run/cache/current.sock

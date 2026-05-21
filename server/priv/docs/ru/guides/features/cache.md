@@ -2,60 +2,32 @@
 {
   "title": "Cache",
   "titleTemplate": ":title · Features · Guides · Tuist",
-  "description": "Optimize your build times with Tuist Cache."
+  "description": "Optimize build times with Tuist Cache, including module cache, Xcode cache, and Gradle cache."
 }
 ---
-# Кэш {#cache}
+# Cache {#cache}
 
-Система сборки Xcode обеспечивает [инкрементные
-сборки](https://en.wikipedia.org/wiki/Incremental_build_model), повышая
-эффективность работы на одной машине. Однако артефакты сборки не разделяются
-между различными окружениями, что заставляет вас пересобирать один и тот же код
-снова и снова - либо в окружении [Continuous Integration
-(CI)](https://en.wikipedia.org/wiki/Continuous_integration), либо в локальном
-окружении разработки (на вашем Mac).
+Build artifacts are not shared across environments, forcing you to rebuild the same code over and over. Tuist's caching feature shares artifacts remotely so your team and CI get faster builds without rebuilding what has already been built.
 
-Tuist решает эти проблемы с помощью функции кэширования, значительно сокращая
-время сборки как в локальной разработке, так и в CI-средах. Такой подход не
-только ускоряет циклы обратной связи, но и минимизирует необходимость
-переключения контекста, что в конечном итоге повышает производительность.
+Pick the caching solution that matches your build system:
 
-Мы предлагаем два типа кэширования:
-- <LocalizedLink href="/guides/features/cache/module-cache">Кэш модулей</LocalizedLink>
-- <LocalizedLink href="/guides/features/cache/xcode-cache">Кэш Xcode</LocalizedLink>
-
-## Кэш модулей {#module-cache}
-
-Для проектов, использующих возможности Tuist по созданию
-<LocalizedLink href="/guides/features/projects">проектов</LocalizedLink>, мы
-предоставляем мощную систему кэширования, которая кэширует отдельные модули в
-виде двоичных файлов и передает их в вашу команду и CI-среду.
-
-Хотя вы также можете использовать новый кэш Xcode, эта функция в настоящее время
-оптимизирована для локальных сборок, и вы, скорее всего, будете иметь более
-низкий коэффициент попадания в кэш по сравнению с кэшированием сгенерированных
-проектов. Однако решение о том, какое решение для кэширования использовать,
-зависит от ваших конкретных потребностей и предпочтений. Вы также можете
-комбинировать оба решения для достижения наилучших результатов.
-
-<LocalizedLink href="/guides/features/cache/module-cache">Подробнее о Модуль кэш →</LocalizedLink>
-
-## Кэш Xcode {#xcode-cache}
-
-> [!WARNING]
-> **State Of Cache In Xcode**
->
-> Кэширование Xcode в настоящее время оптимизировано для локальных инкрементных
-> сборок, и весь спектр задач сборки пока не является независимым от пути. Тем не
-> менее, вы можете получить преимущества, подключив удаленный кэш Tuist, и мы
-> ожидаем, что время сборки будет улучшаться со временем, поскольку возможности
-> системы сборки продолжают совершенствоваться.
-
-
-Apple работает над новым решением для кэширования на уровне сборки, подобно
-другим системам сборки, таким как Bazel и Buck. Новая возможность кэширования
-доступна с Xcode 26, и Tuist теперь легко интегрируется с ней - независимо от
-того, используете ли вы
-<LocalizedLink href="/guides/features/projects">генерацию проектов</LocalizedLink> Tuist или нет.
-
-<LocalizedLink href="/guides/features/cache/xcode-cache">Узнайте больше о кэше Xcode →</LocalizedLink>
+<HomeCards>
+    <HomeCard
+        icon="<img src='/images/guides/features/xcode-icon.png' alt='Xcode' width='32' height='32' />"
+        title="Module cache"
+        details="Cache individual modules as binaries for projects using Tuist's generated projects. Requires Tuist project generation."
+        linkText="Set up module cache"
+        link="/guides/features/cache/module-cache"/>
+    <HomeCard
+        icon="<img src='/images/guides/features/xcode-icon.png' alt='Xcode' width='32' height='32' />"
+        title="Xcode cache"
+        details="Share Xcode compilation artifacts across environments. Works with any Xcode project, no project generation required."
+        linkText="Set up Xcode cache"
+        link="/guides/features/cache/xcode-cache"/>
+    <HomeCard
+        icon="<img src='/images/guides/features/gradle-icon.svg' alt='Gradle' width='32' height='32' />"
+        title="Gradle cache"
+        details="Share Gradle build cache artifacts remotely. Includes build insights for performance visibility."
+        linkText="Set up Gradle cache"
+        link="/guides/features/cache/gradle-cache"/>
+</HomeCards>

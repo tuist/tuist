@@ -25,12 +25,14 @@ kuraController:
   # cluster (cert-manager + the issuer are bootstrapped via the
   # mgmt-cluster pipeline).
   tlsClusterIssuer: "letsencrypt-cloudflare"
+  telemetry:
+    otlpTracesEndpoint: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4318/v1/traces
   cloudflareLoadBalancing:
     enabled: true
     zoneName: tuist.dev
     apiTokenSecret:
       managed: true
-      item: KURA_CLOUDFLARE_API_TOKEN
+      item: cloudflare-tuist-dns
   sharedSecrets:
     # In managed regions, kura-shared-secrets is populated by CI from
     # the same secret store as the Tuist server release.

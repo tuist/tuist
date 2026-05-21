@@ -21,6 +21,8 @@ kuraController:
   # chart. The controller uses it for the per-Kura public HTTPS and gRPC
   # certificates mounted into each runtime pod.
   tlsClusterIssuer: "letsencrypt-cloudflare"
+  telemetry:
+    otlpTracesEndpoint: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4318/v1/traces
 
 server:
   serviceAccount:
@@ -225,7 +227,7 @@ macosFleet:
     # release.yml has run for this scope, pin to a known-good
     # SHA-tagged build that the standalone
     # capi-provider-scaleway-applesilicon-image.yml workflow pushed.
-    tag: "0.4.0"
+    tag: "0.4.1"
   # MagicDNSSuffix is a tailnet-account-level constant — same
   # across all three envs because they share one Tuist tailnet.
   # Read once from `tailscale status --json | .MagicDNSSuffix` on
@@ -239,7 +241,7 @@ runnersController:
     repository: ghcr.io/tuist/tuist-runners-controller
     # SHA-tagged build from the runners-controller-image.yml
     # workflow.
-    tag: "0.2.0"
+    tag: "sha-b4cc4ab7551b"
 
 # Everything below = external. The managed deployment never runs embedded
 # Postgres / ClickHouse / object storage / observability stacks.

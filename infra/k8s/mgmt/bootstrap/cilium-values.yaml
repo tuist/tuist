@@ -88,10 +88,22 @@ operator:
 prometheus:
   enabled: true
 
-# Pod resources kept moderate; tune later based on Grafana dashboards.
+# Pod resources. The limit has to accommodate the BPF maps that
+# cilium-agent allocates at startup. With `bpf-map-dynamic-size-ratio`
+# at its chart default of 0.0025 and `preallocate-bpf-maps=true`, the
+# combined dynamic maps (auth/ct/neigh/nat/policy) are sized as a
+# fraction of system memory and charged to the cilium-agent cgroup.
+#
+# On a 256GB AX162-R bare-metal node that lands at ~640MB, which blows
+# past a 512Mi limit and surfaces as `bpf(BPF_MAP_CREATE) = ENOMEM`
+# (`initializing neighbors map: cannot allocate memory`), leaving the
+# `node.cilium.io/agent-not-ready:NoSchedule` taint stuck and the node
+# unusable. 2Gi gives comfortable headroom for current and future
+# hardware sizes; actual usage stays low on the smaller Hetzner Cloud
+# nodes where the ratio resolves to tens of MB.
 resources:
   requests:
     cpu: 100m
     memory: 256Mi
   limits:
-    memory: 512Mi
+    memory: 2Gi

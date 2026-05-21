@@ -164,6 +164,51 @@ defmodule Tuist.Kubernetes.Client do
   end
 
   @doc """
+  TokenReview variant for the runners-controller calling the
+  `desired_replicas` endpoint. Unlike `create_token_review/1`, this
+  does NOT require the `tuist-runners-dispatch` audience — the
+  controller mounts its SA token at the standard projected path
+  (default audience = kube-apiserver), not via a custom
+  audience-scoped projected volume the way tart-kubelet does for
+  runner Pods.
+
+  The audience filter is intentionally absent. The endpoint
+  returns aggregate scaling signals (claimed / queued / p95
+  counts) and is read-only, so accepting any valid in-cluster SA
+  token is a sane authentication bar — anyone with cluster-side
+  workload access could read the same data via the K8s API
+  anyway. The strict-audience pattern stays scoped to dispatch,
+  where the principal also gates JIT minting against a specific
+  customer's GitHub Actions runner.
+  """
+  def create_controller_token_review(token, opts \\ []) when is_binary(token) do
+    body =
+      JSON.encode!(%{
+        "apiVersion" => "authentication.k8s.io/v1",
+        "kind" => "TokenReview",
+        "spec" => %{"token" => token}
+      })
+
+    case request(:post, "/apis/authentication.k8s.io/v1/tokenreviews",
+           opts: opts,
+           body: body,
+           headers: [{"content-type", "application/json"}]
+         ) do
+      {:ok, %{"status" => %{"authenticated" => true, "user" => user}}} ->
+        parse_sa_principal(user)
+
+      {:ok, %{"status" => %{"authenticated" => false}}} ->
+        {:error, :unauthenticated}
+
+      {:ok, %{"status" => %{"error" => _}}} ->
+        {:error, :unauthenticated}
+
+      {:error, _} = err ->
+        err
+    end
+  end
+
+  @doc """
   GETs a ServiceAccount by name from `namespace`. The dispatch
   endpoint reads `metadata.labels["tuist.dev/runner-pool"]` to
   resolve which pool the SA-as-caller is authorized for.

@@ -351,9 +351,19 @@ helm dependency update "$REPO_ROOT/infra/helm/k8s-monitoring" >/dev/null
 KUBECONFIG="$WL_KUBECONFIG" kubectl create namespace observability --dry-run=client -o yaml | \
   KUBECONFIG="$WL_KUBECONFIG" kubectl apply -f -
 
+MONITORING_VALUES_FILE="$REPO_ROOT/infra/helm/k8s-monitoring/values-${ENV}.yaml"
+MONITORING_SET_ARGS=()
+if [ "$IS_KURA_REGIONAL_CLUSTER" = true ]; then
+  # Regional Kura clusters share production Grafana labels but must keep
+  # their own cluster identity so Grafana distinguishes us-east/us-west.
+  MONITORING_VALUES_FILE="$REPO_ROOT/infra/helm/k8s-monitoring/values-production.yaml"
+  MONITORING_SET_ARGS+=(--set "k8s-monitoring.cluster.name=${CLUSTER_NAME}")
+fi
+
 KUBECONFIG="$WL_KUBECONFIG" helm upgrade --install k8s-monitoring "$REPO_ROOT/infra/helm/k8s-monitoring" \
   --namespace observability \
-  -f "$REPO_ROOT/infra/helm/k8s-monitoring/values-${ENV}.yaml" \
+  -f "$MONITORING_VALUES_FILE" \
+  "${MONITORING_SET_ARGS[@]}" \
   --wait --timeout 5m || echo "WARN: monitoring chart didn't go Ready in 5min; continuing (not blocking the cluster)"
 
 if [ "$IS_KURA_REGIONAL_CLUSTER" = true ]; then

@@ -54,12 +54,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Update Tart
-        run: |
-          set -euo pipefail
-          brew update
-          brew upgrade cirruslabs/cli/tart || brew install cirruslabs/cli/tart
-          tart --version
+      # Tart isn't installed by this workflow. The builder host's
+      # bootstrap path (infra/macos-host-bootstrap.installTart, run
+      # by the Scaleway CAPI provider on every Mac mini Node)
+      # extracts the operator-image-baked tart.app tarball to
+      # /usr/local/bin/tart. Same install path the in-cluster
+      # macosFleet / runnersFleet hosts use; the workflow's PATH
+      # picks it up and `packer init` / Packer's tart-cli plugin
+      # fail loudly if it's missing.
 
       - name: Ensure xcodes is installed
         # The CLI is also baked into the resulting Tart image (Layer
@@ -122,14 +124,18 @@ jobs:
           done
 
       - name: Reclaim Tart disk
+        # Delete every locally-cloned VM; see runner-image.yml's
+        # same step for the rationale (sibling image-bake workflows
+        # on this host leave their VMs behind, ~80 GB each).
         run: |
           set -uo pipefail
-          tart list --format json || true
+          tart list || true
           df -h /
-          tart stop macos-tahoe-xcode 2>/dev/null || true
-          tart delete macos-tahoe-xcode 2>/dev/null || true
+          tart list | awk '$1 == "local" { print $2 }' | while read -r vm; do
+            tart stop "$vm" 2>/dev/null || true
+            tart delete "$vm" 2>/dev/null || true
+          done
           tart prune --entries caches --older-than 0
-          tart prune --entries vms --older-than 1
           df -h /
 
       - name: Build image
@@ -171,8 +177,21 @@ jobs:
           TAG=$(echo "${XCODE_VERSION}" | tr '.' '-')
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
 
-      - name: Log in to GHCR
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | tart login ghcr.io --username tuist-bot --password-stdin
+      # crane writes creds to ~/.docker/config.json, which Tart's
+      # push reads via the Docker credential-helper protocol.
+      # Bypasses the macOS keychain (which `tart login` would use,
+      # and which gates on a Tahoe-LaunchAgent-incompatible "User
+      # interaction" prompt) and Tart 2.32.1's env-var-only push
+      # path (which hangs with "Error: The request timed out").
+      # `crane` is installed by the builder bootstrap. Logging in
+      # AFTER the Packer build is intentional: this image's base
+      # is the *public* `ghcr.io/cirruslabs/macos-tahoe-base`, so
+      # Packer's clone is anonymous (see the credential-dropping
+      # step above). Auth is needed only for the push that follows.
+      - name: Log in to GHCR (crane)
+        run: |
+          set -euo pipefail
+          echo "${{ secrets.GITHUB_TOKEN }}" | crane auth login --username tuist-bot --password-stdin ghcr.io
 
       - name: Push image to GHCR
         env:

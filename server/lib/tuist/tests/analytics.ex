@@ -795,14 +795,18 @@ defmodule Tuist.Tests.Analytics do
   def test_runs_metrics(project_id, test_runs) when is_list(test_runs) do
     test_run_ids = Enum.map(test_runs, & &1.id)
 
+    # The `test_case_runs_by_test_run` MV is ordered by
+    # `(test_run_id, ran_at, id)`, giving an O(log N) seek per test_run_id.
+    # It is ReplacingMergeTree, so re-inserts can duplicate rows per id;
+    # `count(DISTINCT id)` gets the right count without paying for FINAL.
     test_case_counts =
       ClickHouseRepo.all(
-        from(t in TestCaseRun,
+        from(t in TestCaseRunByTestRun,
           where: t.project_id == ^project_id and t.test_run_id in ^test_run_ids,
           group_by: t.test_run_id,
           select: %{
             test_run_id: t.test_run_id,
-            total_count: count(t.id)
+            total_count: fragment("count(DISTINCT ?)", t.id)
           }
         )
       )

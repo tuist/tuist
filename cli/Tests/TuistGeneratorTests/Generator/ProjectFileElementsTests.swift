@@ -552,6 +552,48 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         ])
     }
 
+    func test_generateProjectFiles_whenExplicitSourceIsInsideSynchronizedGroup() throws {
+        // Given
+        let xcassetsPath = try AbsolutePath(validating: "/project/Resources/Assets.xcassets")
+        let target = Target.test(
+            sources: [SourceFile(path: xcassetsPath)],
+            buildableFolders: [
+                BuildableFolder(
+                    path: "/project/Resources",
+                    exceptions: BuildableFolderExceptions(exceptions: []),
+                    resolvedFiles: [
+                        BuildableFolderFile(path: xcassetsPath, compilerFlags: nil),
+                    ]
+                ),
+            ]
+        )
+        let project = Project.test(
+            path: "/project",
+            sourceRootPath: "/project",
+            xcodeProjPath: "/project/Project.xcodeproj",
+            targets: [target]
+        )
+        let graph = Graph.test()
+        let graphTraverser = GraphTraverser(graph: graph)
+        let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj)
+
+        // When
+        try subject.generateProjectFiles(
+            project: project,
+            graphTraverser: graphTraverser,
+            groups: groups,
+            pbxproj: pbxproj
+        )
+
+        // Then
+        XCTAssertNotNil(subject.file(path: xcassetsPath))
+        let projectGroup = groups.sortedMain.group(named: "Project")
+        XCTAssertEqual(projectGroup?.flattenedChildren.sorted(), [
+            "Assets.xcassets",
+            "Resources",
+        ])
+    }
+
     func test_generateProjectFiles_whenExplicitResourceIsInsideNestedSynchronizedGroup() throws {
         // Given
         let xcstringsPath = try AbsolutePath(validating: "/project/Resources/MyModule/Localizable.xcstrings")
