@@ -12,12 +12,14 @@
 # Steady state: the in-cluster worker handles this. See
 # `infra/macos-xcode-image/AGENTS.md` for the architecture.
 #
-# Pre-reqs (run once on your Mac):
-#   * `brew install xcodes oras jq`
-#   * `xcodes signin <apple-id>` and approve 2FA. The session lives
-#     in your login keychain for ~30 days.
-#   * `gh auth token | oras login ghcr.io --username <gh-user> --password-stdin`
-#     (the token needs `write:packages` scope on the tuist org)
+# Self-bootstraps:
+#   * installs missing brew formulae (xcodes, oras, jq)
+#   * uses the operator's `gh` auth token to log oras into ghcr.io
+#     so they don't have to remember the manual login command
+#
+# The only state outside this task that the operator has to set up
+# *before* running it is a signed-in xcodes session, which is
+# bootstrapped by `mise run xcode-mirror:mint-session`.
 
 set -euo pipefail
 
@@ -28,34 +30,61 @@ if [ -z "$VERSION" ]; then
   exit 1
 fi
 
-# Pre-flight checks. Fail fast with an actionable message instead of
-# halfway through a 10 GB download.
+# === Auto-install prerequisites ============================================
+
+declare -a missing
+declare -A brew_formula=(
+  [xcodes]="xcodes"
+  [oras]="oras"
+  [jq]="jq"
+)
 for cmd in xcodes oras jq; do
   if ! command -v "$cmd" >/dev/null 2>&1; then
-    echo "Error: ${cmd} not installed. Run \`brew install xcodes oras jq\`." >&2
-    exit 1
+    missing+=("${brew_formula[$cmd]}")
   fi
 done
 
-# Trust-but-verify the GHCR auth. `oras` doesn't expose a `whoami`,
-# so we round-trip a manifest fetch against a probe tag we don't
-# expect to exist. A 404 means we authenticated and the tag is just
-# missing (expected); anything else means oras can't reach the
-# registry — surfacing the most likely fix.
-if ! oras manifest fetch ghcr.io/tuist/xcode-xips:__probe__ >/dev/null 2>&1; then
-  http_err=$(oras manifest fetch ghcr.io/tuist/xcode-xips:__probe__ 2>&1 || true)
-  if ! echo "$http_err" | grep -qiE "not found|404"; then
-    cat >&2 <<EOF
-Error: oras can't authenticate against ghcr.io/tuist/xcode-xips.
-Run: gh auth token | oras login ghcr.io --username <gh-user> --password-stdin
-(Token needs the write:packages scope on the tuist org.)
+if [ "${#missing[@]}" -gt 0 ]; then
+  if ! command -v brew >/dev/null 2>&1; then
+    echo "Error: brew not installed. Install Homebrew first: https://brew.sh" >&2
+    exit 1
+  fi
+  echo "Installing prerequisites: ${missing[*]}"
+  brew install "${missing[@]}"
+fi
 
-oras said:
-$http_err
+# === Auto-login to GHCR via gh ============================================
+
+# oras has no `whoami` so the cheapest reliable auth check is a
+# 404-expected manifest fetch. A 404 means we authenticated and
+# the probe tag just doesn't exist (good); anything else means
+# we have to log in.
+needs_login=true
+if oras manifest fetch ghcr.io/tuist/xcode-xips:__probe__ 2>&1 | grep -qiE "not found|404"; then
+  needs_login=false
+fi
+
+if [ "$needs_login" = "true" ]; then
+  if ! command -v gh >/dev/null 2>&1; then
+    cat >&2 <<'EOF'
+Error: gh CLI not installed, and oras can't authenticate against
+ghcr.io/tuist. Install gh (`brew install gh && gh auth login`) or
+log oras in manually:
+
+  echo $TOKEN | oras login ghcr.io --username <gh-user> --password-stdin
 EOF
     exit 1
   fi
+  if ! gh auth status >/dev/null 2>&1; then
+    echo "Signing in to gh (needed for ghcr.io push)..."
+    gh auth login
+  fi
+  gh_user=$(gh api user --jq .login 2>/dev/null || echo "tuist-bot")
+  echo "Logging oras into ghcr.io as $gh_user..."
+  gh auth token | oras login ghcr.io --username "$gh_user" --password-stdin >/dev/null
 fi
+
+# === Cache & download ======================================================
 
 CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/tuist-xcode-mirror"
 mkdir -p "$CACHE_DIR"
@@ -68,7 +97,8 @@ if [ -n "$EXISTING_XIP" ] && [ -f "$EXISTING_XIP" ]; then
   echo "Reusing cached .xip: ${EXISTING_XIP} ($(du -h "$EXISTING_XIP" | awk '{print $1}'))"
   XIP="$EXISTING_XIP"
 else
-  echo "Downloading Xcode ${VERSION} from Apple (requires signed-in xcodes session)..."
+  echo "Downloading Xcode ${VERSION} from Apple..."
+  echo "(Requires a signed-in xcodes session — run \`mise run xcode-mirror:mint-session\` if absent.)"
   xcodes download "${VERSION}" --directory "${CACHE_DIR}"
   XIP="$(ls "${CACHE_DIR}"/Xcode-"${VERSION}"*.xip | head -n1)"
   if [ ! -f "$XIP" ]; then
@@ -77,12 +107,13 @@ else
   fi
 fi
 
+# === Push ================================================================
+
 echo "Pushing $(basename "$XIP") → ghcr.io/tuist/xcode-xips:${VERSION}..."
-# `--artifact-type` advertises the media type for the manifest so the
-# worker (and future tooling) can verify the tag points at a real
-# .xip instead of some unrelated artifact that happened to land under
-# the same tag. The blob media type below is what Apple's .xips
-# actually are — a signed pkcs7-mime envelope.
+# `--artifact-type` advertises the media type for the manifest so
+# the worker (and future tooling) can verify the tag points at a
+# real .xip. The blob's own media type is `application/x-pkcs7-mime`,
+# which Apple's signed .xips actually are.
 oras push \
   --artifact-type "application/vnd.tuist.xcode-xip" \
   "ghcr.io/tuist/xcode-xips:${VERSION}" \
