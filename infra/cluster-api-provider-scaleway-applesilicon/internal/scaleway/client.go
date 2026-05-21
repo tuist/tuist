@@ -24,7 +24,7 @@ import (
 
 // claimPendingPrefix marks a server that's mid-adoption — it has been
 // renamed out of the operator's pool prefix but not yet to the final
-// per-Machine `claimName`. Used by AdoptByPrefix's two-phase claim to
+// per-Machine `claimName`. Used by AdoptFromPool's two-phase claim to
 // detect race losers (their pending name has been overwritten by
 // someone else's) and to let subsequent reconciles re-adopt orphans
 // from a controller crash between the two phases.
@@ -59,7 +59,7 @@ type Client struct {
 	// org-wide list and Scaleway returns "insufficient permissions".
 	DefaultProjectID string
 
-	// adoptMu serializes AdoptByPrefix across all goroutines in this
+	// adoptMu serializes AdoptFromPool across all goroutines in this
 	// process. Scaleway's UpdateServer is not conditional — two
 	// concurrent rename calls against the same server both succeed,
 	// last-write-wins — so per-call optimistic read-after-write
@@ -214,7 +214,7 @@ func (c *Client) findServerByName(ctx context.Context, name, zone string) (*appl
 	}
 }
 
-// ErrNoAvailableHost is returned by AdoptByPrefix when no
+// ErrNoAvailableHost is returned by AdoptFromPool when no
 // pre-ordered server in the project carries the configured pool
 // prefix AND matches the requested spec (`type`/`os`/`zone`).
 // Scaleway Mac mini lead times rule out auto-ordering on the hot
@@ -223,7 +223,7 @@ func (c *Client) findServerByName(ctx context.Context, name, zone string) (*appl
 // more capacity.
 var ErrNoAvailableHost = errors.New("no available Apple Silicon host in pool")
 
-// AdoptByPrefix claims a pre-ordered server in `zone` whose
+// AdoptFromPool claims a pre-ordered server in `zone` whose
 // Scaleway-side name starts with `poolPrefix`, matches
 // (`serverType`, `osName`), and is `Delivered=true` +
 // `Status=ready`. The rename to `claimName` IS the claim — it both
@@ -264,7 +264,7 @@ var ErrNoAvailableHost = errors.New("no available Apple Silicon host in pool")
 // Why a rename and not a Scaleway tag? The Apple Silicon API
 // doesn't expose tags. Naming is the only mutable, queryable
 // signal we have.
-func (c *Client) AdoptByPrefix(ctx context.Context, claimName, zone, serverType, osName, poolPrefix string) (*Server, error) {
+func (c *Client) AdoptFromPool(ctx context.Context, claimName, zone, serverType, osName, poolPrefix string) (*Server, error) {
 	if poolPrefix == "" {
 		return nil, fmt.Errorf("poolPrefix is required for adoption")
 	}
@@ -338,7 +338,7 @@ func (c *Client) AdoptByPrefix(ctx context.Context, claimName, zone, serverType,
 }
 
 // tryTwoPhaseClaim attempts to claim `serverID` via the two-phase
-// rename described in AdoptByPrefix.
+// rename described in AdoptFromPool.
 //
 // Returns:
 //
@@ -433,15 +433,15 @@ func (c *Client) GetServer(ctx context.Context, id, zone string) (*Server, error
 //     UpdateServer. The new name is `poolPrefix + uuid` — a fresh
 //     UUID so we don't collide with any other pool host that's been
 //     parked at the same name earlier in the host's lifetime, and
-//     because AdoptByPrefix scans on the prefix (the exact suffix
+//     because AdoptFromPool scans on the prefix (the exact suffix
 //     doesn't matter). Once renamed, the host is invisible to
 //     `findServerByName(claimName)` lookups (the per-Machine name
-//     is gone) and visible to future `AdoptByPrefix` scans.
+//     is gone) and visible to future `AdoptFromPool` scans.
 //
 //  2. Trigger ReinstallServer, which wipes the disk and reimages
 //     with the server type's default OS. Async on Scaleway's side
 //     (~5-15 min on M2-L); we fire-and-forget because
-//     AdoptByPrefix already filters on `Delivered + Status == Ready`
+//     AdoptFromPool already filters on `Delivered + Status == Ready`
 //     and the host transitions through `reinstalling → ready` on
 //     its own. Means: next adopt sees factory-default state — no
 //     stale tart-kubelet config, no leftover Tailscale auth, no

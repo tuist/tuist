@@ -28,7 +28,7 @@ API group: `infrastructure.cluster.x-k8s.io/v1alpha1`. Short names:
  │ capi-scaleway-applesilicon manager           │
  │   ├── ScalewayAppleSiliconMachineReconciler  │
  │   │   ├── 1. Stage: Adopting                 │
- │   │   │      scaleway.AdoptByPrefix(...)     │
+ │   │   │      scaleway.AdoptFromPool(...)     │
  │   │   │      → ProviderID, IP, sudo password │
  │   │   ├── 2. Stage: Bootstrapping            │
  │   │   │      bootstrap.Run(SSH, Tart, kubelet,│
@@ -260,7 +260,7 @@ current state intact.
 The reconciler skips Scaleway release whenever `status.serverID` is
 empty at delete time. But clearing `status.serverID` before the
 delete races the reconcile loop — it sees the empty serverID and
-runs `AdoptByPrefix` against the pool. To latch the loop off
+runs `AdoptFromPool` against the pool. To latch the loop off
 during cleanup, set the CAPI `cluster.x-k8s.io/paused` annotation
 on the CR *before* clearing status:
 
@@ -293,7 +293,7 @@ which adopts an unclaimed pool host on its next reconcile.
 
 After cleanup, if you renamed the original Scaleway host
 out-of-band (e.g. during a duplicate-claim untangling), rename it
-back so the pool prefix matches and a future `AdoptByPrefix` can
+back so the pool prefix matches and a future `AdoptFromPool` can
 pick it up:
 
 ```bash

@@ -246,7 +246,7 @@ func TestReconcile_PausedAnnotationSkipsAdoption(t *testing.T) {
 		t.Fatalf("paused CR must not be requeued; got %+v", result)
 	}
 
-	// Status should be untouched — no AdoptByPrefix means no phase
+	// Status should be untouched — no AdoptFromPool means no phase
 	// transition into Adopting / Provisioning.
 	got := &infrav1.ScalewayAppleSiliconMachine{}
 	if err := r.Get(context.Background(), types.NamespacedName{Name: "m1", Namespace: "ns"}, got); err != nil {

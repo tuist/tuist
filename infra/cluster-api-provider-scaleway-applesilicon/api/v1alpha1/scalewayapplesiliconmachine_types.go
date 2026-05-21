@@ -103,7 +103,7 @@ type ScalewayAppleSiliconMachineSpec struct {
 	// the host back into the pool namespace (with a fresh UUID
 	// suffix) and triggers a Scaleway OS reinstall, then drops the
 	// k8s-side state. The host stays alive, is reset to factory-
-	// default state, and becomes eligible for the next AdoptByPrefix
+	// default state, and becomes eligible for the next AdoptFromPool
 	// scan once Scaleway flips it back to `Delivered + Ready`.
 	// Physical destruction is operator-owned via the Scaleway
 	// console so the 24h billing floor doesn't leak into deploy flows.
