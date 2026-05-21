@@ -170,26 +170,20 @@ defmodule TuistWeb.XcodeCacheLive do
 
     uri = URI.new!("?" <> URI.encode_query(params))
 
-    analytics_selected_widget = params["analytics-selected-widget"] || "cache_hit_rate"
-
-    cache_hit_rate_chart_type = params["cache-hit-rate-chart-type"] || "line"
-    cache_hit_rate_scatter_group_by = params["cache-hit-rate-scatter-group-by"] || "scheme"
-
-    scatter_group_by_atom =
-      case cache_hit_rate_scatter_group_by do
-        "environment" -> :environment
-        _ -> :scheme
-      end
+    analytics_selected_widget = Map.get(params, "analytics-selected-widget", "cache_hit_rate")
+    cache_hit_rate_chart_type = Map.get(params, "cache-hit-rate-chart-type", "line")
+    cache_hit_rate_scatter_group_by = Map.get(params, "cache-hit-rate-scatter-group-by", "scheme")
+    scatter_group_by_atom = scatter_group_by_atom(cache_hit_rate_scatter_group_by)
 
     socket
     |> assign(:analytics_preset, preset)
     |> assign(:analytics_period, period)
     |> assign(:analytics_trend_label, analytics_trend_label(preset))
     |> assign(:analytics_selected_widget, analytics_selected_widget)
-    |> assign(:selected_hit_rate_type, params["hit-rate-type"] || "avg")
-    |> assign(:selected_transfer_type, params["transfer-type"] || "combined")
-    |> assign(:selected_latency_type, params["latency-type"] || "combined")
-    |> assign(:selected_throughput_type, params["throughput-type"] || "combined")
+    |> assign(:selected_hit_rate_type, Map.get(params, "hit-rate-type", "avg"))
+    |> assign(:selected_transfer_type, Map.get(params, "transfer-type", "combined"))
+    |> assign(:selected_latency_type, Map.get(params, "latency-type", "combined"))
+    |> assign(:selected_throughput_type, Map.get(params, "throughput-type", "combined"))
     |> assign(:cache_hit_rate_chart_type, cache_hit_rate_chart_type)
     |> assign(:cache_hit_rate_scatter_group_by, cache_hit_rate_scatter_group_by)
     |> assign(:uri, uri)
