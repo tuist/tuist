@@ -11,6 +11,9 @@ ingress:
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-cloudflare
 
+networkPolicy:
+  enabled: true
+
 resources:
   requests:
     cpu: "100m"

@@ -6,6 +6,11 @@ Standalone chart for the public Noora Storybook deployment at
 This chart is intentionally separate from `infra/helm/tuist/` so Storybook can ship on
 its own workflow and release boundary instead of riding the Tuist server rollout.
 
+Because it runs on the shared production workload cluster, the chart also hardens the
+runtime by using a dedicated ServiceAccount, disabling service-account token automount,
+running the container as non-root with a restricted security context, and enabling a
+default-deny NetworkPolicy in production.
+
 ## Local validation
 
 Lint the chart:

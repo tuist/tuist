@@ -35,6 +35,14 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 app.kubernetes.io/component: storybook
 {{- end -}}
 
+{{- define "noora-storybook.serviceAccountName" -}}
+{{- if .Values.serviceAccount.create -}}
+  {{- default (include "noora-storybook.fullname" .) .Values.serviceAccount.name -}}
+{{- else -}}
+  {{- default "default" .Values.serviceAccount.name -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "noora-storybook.podScheduling" -}}
 {{- with .Values.global.imagePullSecrets }}
 imagePullSecrets:

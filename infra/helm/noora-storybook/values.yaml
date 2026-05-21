@@ -26,6 +26,13 @@ service:
   port: 80
   targetPort: 8080
 
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+automountServiceAccountToken: false
+
 ingress:
   enabled: false
   className: ""
@@ -34,6 +41,17 @@ ingress:
   annotations: {}
 
 resources: {}
+podSecurityContext:
+  seccompProfile:
+    type: RuntimeDefault
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 65534
 extraEnv: []
 extraEnvFrom: []
 podAnnotations: {}
@@ -42,6 +60,13 @@ affinity: {}
 nodeSelector: {}
 tolerations: []
 terminationGracePeriodSeconds: 30
+networkPolicy:
+  enabled: false
+  ingressControllerNamespace: platform
+  ingressControllerPodLabels:
+    app.kubernetes.io/name: ingress-nginx
+    app.kubernetes.io/component: controller
+  dnsNamespace: kube-system
 
 probes:
   readiness:
