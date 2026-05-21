@@ -1,0 +1,25 @@
+<section id="invitation-not-found">
+  <div data-part="content">
+    <div data-part="logos">
+      <img src={~p"/images/tuist_logo_32x32@2x.png"} alt="Tuist" data-part="logo" />
+      <span data-part="logo-separator" aria-hidden="true">+</span>
+      <img src={~p"/images/slack_logo.svg"} alt="Slack" data-part="logo" />
+    </div>
+
+    <header data-part="header">
+      <h1 data-part="title">We couldn't find that invitation</h1>
+      <p data-part="subtitle">
+        The link may have expired or been used already.
+      </p>
+    </header>
+
+    <.alert
+      id="invitation-not-found-alert"
+      type="secondary"
+      status="error"
+      size="medium"
+      title="Invitation not found"
+      description="If you think this is a mistake, request a new invitation from the home page."
+    />
+  </div>
+</section>

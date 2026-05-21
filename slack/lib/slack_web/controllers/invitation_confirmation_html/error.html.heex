@@ -1,0 +1,25 @@
+<section id="invitation-confirm-error">
+  <div data-part="content">
+    <div data-part="logos">
+      <img src={~p"/images/tuist_logo_32x32@2x.png"} alt="Tuist" data-part="logo" />
+      <span data-part="logo-separator" aria-hidden="true">+</span>
+      <img src={~p"/images/slack_logo.svg"} alt="Slack" data-part="logo" />
+    </div>
+
+    <header data-part="header">
+      <h1 data-part="title">Something went wrong</h1>
+      <p data-part="subtitle">
+        We couldn't confirm your invitation right now. Please try again in a minute.
+      </p>
+    </header>
+
+    <.alert
+      id="invitation-confirm-error-alert"
+      type="secondary"
+      status="error"
+      size="medium"
+      title="Confirmation failed"
+      description="If the problem persists, reach out to hello@tuist.dev."
+    />
+  </div>
+</section>
