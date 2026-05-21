@@ -1,0 +1,6 @@
+apiVersion: v2
+name: noora-storybook
+description: Standalone Helm chart for deploying the Noora Storybook app.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

@@ -1,6 +1,8 @@
 # Tuist Helm Chart
 
-This chart deploys the Tuist server, cache service, and processor, with support for either embedded or external infrastructure dependencies.
+This chart deploys the Tuist server, cache service, processor, and optional server-owned public web workloads, with support for either embedded or external infrastructure dependencies.
+
+Noora Storybook ships from the standalone `infra/helm/noora-storybook/` chart so it can keep an independent deployment workflow.
 
 ## Infrastructure dependencies
 

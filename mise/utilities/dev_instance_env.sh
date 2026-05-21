@@ -117,3 +117,8 @@ export TUIST_SERVER_TEST_CLICKHOUSE_DB="tuist_test${test_partition}_${suffix}"
 export TUIST_CACHE_TEST_PORT="$((4003 + suffix))"
 export TUIST_CACHE_TEST_POSTGRES_DB="cache_test_${suffix}"
 export TUIST_CACHE_TEST_STORAGE_DIR="/tmp/test_cas_${suffix}"
+
+if [[ -z "${CI:-}" && -z "${MIX_OS_DEPS_COMPILE_PARTITION_COUNT:-}" ]]; then
+  # Keep faster local dependency compilation without forcing CI into the same setting.
+  export MIX_OS_DEPS_COMPILE_PARTITION_COUNT="4"
+fi

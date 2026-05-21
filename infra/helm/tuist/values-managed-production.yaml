@@ -102,7 +102,6 @@ kuraController:
     apiTokenSecret:
       managed: true
       item: cloudflare-tuist-dns
-
 postgresql:
   external:
     host: db.tuist.dev  # Supabase pooler endpoint for production.
