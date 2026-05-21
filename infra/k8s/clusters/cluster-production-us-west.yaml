@@ -30,6 +30,16 @@ spec:
       - name: hcloudSSHKeyName
         value:
           - name: tuist-ops
+      - name: hcloudPlacementGroups
+        value:
+          - name: tuist-kura-us-west-control-plane
+            type: spread
+          - name: tuist-kura-us-west-workers
+            type: spread
+      - name: hcloudControlPlanePlacementGroupName
+        value: tuist-kura-us-west-control-plane
+      - name: hcloudWorkerMachinePlacementGroupName
+        value: tuist-kura-us-west-workers
     workers:
       machineDeployments:
         # Dedicated Kura pool. Kura StatefulSets default to this node

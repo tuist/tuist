@@ -25,6 +25,8 @@ kuraController:
   namespace: kura
   replicaCount: 2
   tolerations: []
+  podSecurityContext: {}
+  containerSecurityContext: {}
   image:
     repository: ghcr.io/tuist/kura-controller
     tag: ""
@@ -225,6 +227,8 @@ server:
     minAvailable: 1
   podAnnotations: {}
   podLabels: {}
+  podSecurityContext: {}
+  containerSecurityContext: {}
   affinity: {}
   # Optional nodeSelector to keep server pods off a dedicated worker pool
   # (for example, the cpx51 processor pool the managed cluster provisions
@@ -232,6 +236,9 @@ server:
   nodeSelector: {}
   tolerations: []
   terminationGracePeriodSeconds: 60
+  # Writable scratch volume mounted at /tmp. Managed deployments pair this
+  # with readOnlyRootFilesystem so the BEAM still has a temp dir.
+  tmpSizeLimit: ""
   # Preferred HTTP probes. All three hit the Phoenix /ready endpoint.
   #
   # startupProbe gives the release up to ~5 minutes to come up under load
@@ -356,6 +363,8 @@ processor:
     minAvailable: 1
   podAnnotations: {}
   podLabels: {}
+  podSecurityContext: {}
+  containerSecurityContext: {}
   # Grace period long enough for an in-flight xcactivitylog parse (typically
   # 30s–5min, occasionally up to ~20min on outsized archives) to finish
   # before SIGKILL. Oban.Plugins.Lifeline reclaims anything that was still

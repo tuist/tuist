@@ -43,6 +43,16 @@ spec:
       - name: hcloudSSHKeyName
         value:
           - name: tuist-ops
+      - name: hcloudPlacementGroups
+        value:
+          - name: tuist-preview-control-plane
+            type: spread
+          - name: tuist-preview-workers
+            type: spread
+      - name: hcloudControlPlanePlacementGroupName
+        value: tuist-preview-control-plane
+      - name: hcloudWorkerMachinePlacementGroupName
+        value: tuist-preview-workers
     workers:
       machineDeployments:
         - class: hcloud-worker

@@ -15,6 +15,15 @@ global:
 kuraController:
   enabled: true
   namespace: kura
+  podSecurityContext:
+    runAsNonRoot: true
+    seccompProfile:
+      type: RuntimeDefault
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop: [ALL]
+    readOnlyRootFilesystem: true
   image:
     tag: ""  # Set by CI to the commit SHA on each deploy.
   # Managed app clusters bootstrap this ClusterIssuer via the platform
@@ -40,6 +49,15 @@ server:
     type: ClusterIP
     port: 80
     targetPort: 8080
+  podSecurityContext:
+    runAsNonRoot: true
+    seccompProfile:
+      type: RuntimeDefault
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop: [ALL]
+    readOnlyRootFilesystem: true
 
   # ingress-nginx defaults `proxy-body-size` to 1m, which rejects large
   # `createBundle` requests (the JSON manifest carries one entry per
@@ -157,6 +175,7 @@ server:
       memory: "2Gi"
 
   terminationGracePeriodSeconds: 60
+  tmpSizeLimit: 4Gi
 
 # Processor runs in-cluster as a dedicated Oban consumer for :process_build.
 # Same Docker image as the server; TUIST_MODE=processor in the chart
@@ -171,6 +190,15 @@ processor:
   enabled: true
   replicaCount: 2
   queueConcurrency: 5
+  podSecurityContext:
+    runAsNonRoot: true
+    seccompProfile:
+      type: RuntimeDefault
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop: [ALL]
+    readOnlyRootFilesystem: true
   managedSecrets: true
   externalSecrets:
     refreshInterval: "1h"

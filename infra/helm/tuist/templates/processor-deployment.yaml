@@ -45,6 +45,10 @@ spec:
       serviceAccountName: {{ include "tuist.componentServiceAccountName" (dict "root" . "component" "server") }}
       terminationGracePeriodSeconds: {{ .Values.processor.terminationGracePeriodSeconds }}
       {{- include "tuist.podScheduling" . | nindent 6 }}
+      {{- with .Values.processor.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       # Spread one replica per node. Default whenUnsatisfiable=ScheduleAnyway
       # keeps the constraint advisory so a 1-node cluster (preview / self-host
       # on a small footprint) still schedules; managed envs override to
@@ -180,6 +184,10 @@ spec:
           # `terminationGracePeriodSeconds` to finish whatever parse it had
           # claimed; anything still running at the deadline is reclaimed by
           # Oban.Plugins.Lifeline on a healthy pod.
+          {{- with .Values.processor.containerSecurityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           resources:
             {{- toYaml .Values.processor.resources | nindent 12 }}
           volumeMounts:

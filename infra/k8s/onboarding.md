@@ -70,55 +70,52 @@ mise run k8s:bootstrap-workload <cluster_name> <env> [kubeconfig_item]
 
 On success the script uploads the freshly-minted workload kubeconfig to the per-env 1Password vault. App clusters use the default `kubeconfig: tuist-<env>` title. Production Kura regional clusters pass explicit titles matching the product cluster IDs: `kubeconfig: kura-us-east-1` and `kubeconfig: kura-us-west-1`.
 
-## 5. Wire the GitHub Actions deployer
+## 5. CI kubeconfig handoff
 
-CI uses a namespace-scoped ServiceAccount with a long-lived token, defined in [`mgmt/ci-service-account.yaml`](mgmt/ci-service-account.yaml). Apply it on the workload cluster, mint a kubeconfig, and load it into the GitHub Environment secret:
+The bootstrap task in §4 uploads the workload cluster's admin kubeconfig to the per-env 1Password vault as `kubeconfig: tuist-<env>` (or an explicit title like `kubeconfig: kura-us-east-1` for production Kura regional clusters). The deploy workflows read that document at runtime via the per-environment `OP_SERVICE_ACCOUNT_TOKEN`; there is no separate GitHub `KUBECONFIG` secret to mint or refresh.
 
-Skip this section for production Kura regional clusters. The production server deploy workflow reads `kubeconfig: kura-us-east-1` and `kubeconfig: kura-us-west-1` from the production 1Password vault, syncs them into the main production server namespace for runtime CR writes, and deploys the Kura controller to those regional clusters directly.
+That admin kubeconfig is still required for the shared infra jobs (`platform-install`, `observability-install`, and `tailscale-operator-install`). For the steady-state app Helm upgrade itself, provision the narrower deployer document once the cluster already has an initial app release:
 
 ```bash
-WL_KUBECONFIG=~/.kube/<cluster_name>.yaml
-APP_NS=tuist-<env>   # production uses tuist (no suffix); preview uses preview-system
-
-sed "s/__NAMESPACE__/${APP_NS}/g" infra/k8s/mgmt/ci-service-account.yaml \
-  | KUBECONFIG="$WL_KUBECONFIG" kubectl apply -f -
-
-SERVER=$(KUBECONFIG="$WL_KUBECONFIG" kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}')
-CA=$(KUBECONFIG="$WL_KUBECONFIG" kubectl -n "$APP_NS" get secret github-actions-deployer-token -o jsonpath='{.data.ca\.crt}')
-TOKEN=$(KUBECONFIG="$WL_KUBECONFIG" kubectl -n "$APP_NS" get secret github-actions-deployer-token -o jsonpath='{.data.token}' | base64 -d)
-
-cat > /tmp/ci-kubeconfig.yaml <<EOF
-apiVersion: v1
-kind: Config
-clusters:
-  - name: <cluster_name>
-    cluster:
-      server: $SERVER
-      certificate-authority-data: $CA
-contexts:
-  - name: ci
-    context:
-      cluster: <cluster_name>
-      namespace: $APP_NS
-      user: github-actions-deployer
-users:
-  - name: github-actions-deployer
-    user:
-      token: $TOKEN
-current-context: ci
-EOF
-
-KUBECONFIG=/tmp/ci-kubeconfig.yaml kubectl -n "$APP_NS" get pods   # sanity-check
-base64 < /tmp/ci-kubeconfig.yaml | gh secret set KUBECONFIG \
-  --env server-k8s-<env> --repo tuist/tuist
-shred -u /tmp/ci-kubeconfig.yaml
-
-# If the workload cluster's control-plane endpoint changes later (for
-# example after a load-balancer recreation), re-run the minting flow
-# above and refresh the GitHub Environment secret. The kubeconfig
-# embeds `clusters[].cluster.server`, so it does not follow endpoint
-# changes automatically.
+mise run k8s:provision-ci-deployer ~/.kube/<cluster_name>.yaml <env>
 ```
+
+That task uploads `kubeconfig: tuist-<env>-deploy` to the same vault. `server-deployment.yml` prefers that narrower document for the main `deploy` job and falls back to `kubeconfig: tuist-<env>` when it is absent.
+
+Important: the narrow deployer intentionally only patches the chart's existing CRDs, Namespaces, ClusterRoles, and ClusterRoleBindings. It is not suitable for the very first app install on a brand-new cluster because those cluster-scoped resources do not exist yet.
+
+Verify that bootstrap published the document and that it reaches the workload cluster:
+
+```bash
+TMP_KUBECONFIG=/tmp/tuist-ci-kubeconfig.yaml
+op document get "kubeconfig: tuist-<env>" \
+  --vault "tuist-k8s-<env>" --output "$TMP_KUBECONFIG"
+chmod 600 "$TMP_KUBECONFIG"
+
+KUBECONFIG="$TMP_KUBECONFIG" kubectl get nodes
+shred -u "$TMP_KUBECONFIG"
+```
+
+Verify the narrower steady-state deployer document when it exists:
+
+```bash
+TMP_KUBECONFIG=/tmp/tuist-ci-deployer-kubeconfig.yaml
+op document get "kubeconfig: tuist-<env>-deploy" \
+  --vault "tuist-k8s-<env>" --output "$TMP_KUBECONFIG"
+chmod 600 "$TMP_KUBECONFIG"
+
+KUBECONFIG="$TMP_KUBECONFIG" kubectl -n tuist-<env> get deploy
+shred -u "$TMP_KUBECONFIG"
+```
+
+Production Kura regional clusters follow the same path, just with explicit document titles:
+
+```bash
+op document get "kubeconfig: kura-us-east-1" --vault tuist-k8s-production >/dev/null
+op document get "kubeconfig: kura-us-west-1" --vault tuist-k8s-production >/dev/null
+```
+
+The remaining long-term cleanup is to split the shared infra charts and the main app chart more aggressively so even less of the rollout needs the admin kubeconfig.
 
 ## 6. First deploy
 
@@ -207,6 +204,19 @@ HCCM needs the `load-balancer.hetzner.cloud/location` annotation on the Service 
 ```bash
 kubectl -n kube-system logs -l app.kubernetes.io/name=hcloud-cloud-controller-manager
 ```
+
+**Workload cluster has a large backlog of `NotReady` / `Unknown` Node objects after machine churn**
+Use the `k8s:prune-orphaned-nodes` task to compare workload-cluster Node objects against the live Cluster API `Machine` inventory and delete only the stale objects that are older than the safety threshold:
+```bash
+# Preview: Node objects live on the workload cluster, backing Machines live on mgmt.
+mise run k8s:prune-orphaned-nodes ~/.kube/tuist-preview.yaml tuist-preview ~/.kube/tuist-mgmt.yaml
+
+# Mixed clusters (for example, in-cluster Mac mini fleets) must use the
+# fleet's own CAPI cluster name and scope the node set.
+mise run k8s:prune-orphaned-nodes ~/.kube/tuist-production.yaml tuist-tuist-capi ~/.kube/tuist-production.yaml \
+  --name-prefix tuist-tuist-macos-fleet-
+```
+Dry-run is the default; add `--apply` after reviewing the candidate list.
 
 **`** (ArgumentError) argument error` from the server pod**
 `MASTER_KEY` is wrong or missing. ESO sync issue or 1Password item name mismatch. Check:

@@ -46,6 +46,10 @@ spec:
       serviceAccountName: {{ include "tuist.componentServiceAccountName" (dict "root" . "component" "server") }}
       terminationGracePeriodSeconds: {{ .Values.server.terminationGracePeriodSeconds }}
       {{- include "tuist.podScheduling" . | nindent 6 }}
+      {{- with .Values.server.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       {{- with .Values.server.affinity }}
       affinity:
         {{- toYaml . | nindent 8 }}
@@ -242,6 +246,21 @@ spec:
                 # Give the ingress time to stop routing new traffic before the
                 # release shuts down — avoids 502s during a rolling deploy.
                 command: ["sh", "-c", "sleep 10"]
+          {{- with .Values.server.containerSecurityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           resources:
             {{- toYaml .Values.server.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          {{- if .Values.server.tmpSizeLimit }}
+          emptyDir:
+            sizeLimit: {{ .Values.server.tmpSizeLimit | quote }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
 {{- end }}

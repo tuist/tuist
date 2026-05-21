@@ -30,8 +30,8 @@ Cluster API CRs and cluster-scoped manifests for the self-hosted CAPI + caph sta
 - `clusters/README.md` — ClusterClass authoring + caph-upstream porting notes.
 - `mgmt/etcd-snapshot.yaml`, `mgmt/tailscale.yaml` — mgmt-cluster workloads (hourly etcd snapshot to Tigris, tailnet-only operator access).
 - `mgmt/bootstrap/` — Helm values for the per-workload bootstrap (Cilium, HCCM, hcloud-csi, ESO `ClusterSecretStore`).
-- `mgmt/ci-service-account.yaml` — SA + RBAC for the GitHub Actions deployer (applied per workload).
 - `mgmt/preview-mgmt-rbac.yaml` — narrow SA + Role on the mgmt cluster used by the preview-deploy / preview-sweep workflows to scale the preview MachineDeployment.
+- `mgmt/ci-deployer-rbac.yaml` — narrow steady-state SA + RBAC for the main app Helm upgrade path on existing workload clusters.
 - `onboarding.md` — end-to-end runbook for standing up a new workload cluster.
 
 ### `kura-controller/` — Kura endpoint controller

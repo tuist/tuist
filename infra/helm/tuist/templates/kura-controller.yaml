@@ -141,6 +141,10 @@ spec:
         {{- include "tuist.componentLabels" (dict "root" . "component" "kura-controller") | nindent 8 }}
     spec:
       serviceAccountName: {{ $name }}
+      {{- with .Values.kuraController.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       {{- with .Values.kuraController.tolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}
@@ -195,6 +199,10 @@ spec:
             httpGet: { path: /readyz, port: probe }
             initialDelaySeconds: 5
             periodSeconds: 10
+          {{- with .Values.kuraController.containerSecurityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           resources:
             {{- toYaml .Values.kuraController.resources | nindent 12 }}
 {{- if .Values.kuraController.sharedSecrets.enabled }}

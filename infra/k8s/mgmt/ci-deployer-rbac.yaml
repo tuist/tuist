@@ -1,0 +1,167 @@
+# Narrow steady-state deployer for `server-deployment.yml`'s main Helm
+# upgrade step.
+#
+# This is intentionally *not* the bootstrap/admin identity. The workload
+# cluster's admin kubeconfig still lives in 1Password as
+# `kubeconfig: tuist-<env>` and is used by the jobs that reconcile shared
+# platform / observability charts. This ServiceAccount exists to narrow the
+# frequent app-chart deploy path down to:
+#   - namespace admin in the app / kura / runners / tailscale-operator namespaces
+#   - patch/update of the chart-owned CRDs, Namespaces, ClusterRoles, and
+#     ClusterRoleBindings that already exist in the cluster
+#
+# Important constraint: because the role intentionally omits cluster-wide
+# create + unrestricted bind/escalate, it is only suitable *after* the
+# initial app release has already laid down the chart's cluster-scoped RBAC
+# and CRDs. Provision it on an existing cluster, or after the first admin-
+# credential deploy on a brand-new cluster.
+#
+# Apply against the workload cluster after substituting __APP_NAMESPACE__:
+#
+#   sed 's/__APP_NAMESPACE__/tuist-staging/g' infra/k8s/mgmt/ci-deployer-rbac.yaml \
+#     | kubectl --kubeconfig ~/.kube/tuist-staging.yaml apply -f -
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: github-actions-app-deployer
+  namespace: __APP_NAMESPACE__
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: github-actions-app-deployer-token
+  namespace: __APP_NAMESPACE__
+  annotations:
+    kubernetes.io/service-account.name: github-actions-app-deployer
+type: kubernetes.io/service-account-token
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: github-actions-app-deployer-cluster
+rules:
+  # CRDs are applied in a dedicated kubectl step before Helm upgrades the
+  # app chart. Existing managed clusters already have these CRDs; the narrow
+  # deployer only needs to patch them in place.
+  - apiGroups: [apiextensions.k8s.io]
+    resources: [customresourcedefinitions]
+    resourceNames:
+      - kura.tuist.dev
+      - runnerpools.tuist.dev
+      - scalewayapplesiliconclusters.infrastructure.cluster.x-k8s.io
+      - scalewayapplesiliconmachines.infrastructure.cluster.x-k8s.io
+      - scalewayapplesiliconmachinetemplates.infrastructure.cluster.x-k8s.io
+    verbs: [get, list, watch, update, patch]
+  # The managed release owns two extra namespaces (`kura` and
+  # `tuist-runners`). Keep patch rights so Helm can converge their labels and
+  # annotations without handing the deployer blanket namespace creation.
+  - apiGroups: [""]
+    resources: [namespaces]
+    resourceNames:
+      - __APP_NAMESPACE__
+      - kura
+      - tailscale-operator
+      - tuist-runners
+    verbs: [get, list, watch, update, patch]
+  # Cluster-scoped RBAC objects emitted by the chart. Narrow to the exact
+  # names the managed `tuist` release uses.
+  - apiGroups: [rbac.authorization.k8s.io]
+    resources: [clusterroles]
+    resourceNames:
+      - tuist-tuist-capi-scaleway-applesilicon
+      - tuist-tuist-runners-controller
+      - tuist-tuist-runners-fleet-reader
+      - tuist-tuist-runners-token-reviewer
+      - tuist-tuist-tart-kubelet
+    verbs: [get, list, watch, update, patch]
+  - apiGroups: [rbac.authorization.k8s.io]
+    resources: [clusterrolebindings]
+    resourceNames:
+      - tuist-tuist-capi-scaleway-applesilicon
+      - tuist-tuist-runners-controller
+      - tuist-tuist-runners-fleet-reader
+      - tuist-tuist-runners-token-reviewer
+    verbs: [get, list, watch, update, patch]
+  # Updating those ClusterRoles trips Kubernetes' privilege-escalation guard
+  # unless the caller is allowed to escalate/bind the same named roles.
+  - apiGroups: [rbac.authorization.k8s.io]
+    resources: [clusterroles]
+    resourceNames:
+      - tuist-tuist-capi-scaleway-applesilicon
+      - tuist-tuist-runners-controller
+      - tuist-tuist-runners-fleet-reader
+      - tuist-tuist-runners-token-reviewer
+      - tuist-tuist-tart-kubelet
+    verbs: [bind, escalate]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: github-actions-app-deployer-cluster
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: github-actions-app-deployer-cluster
+subjects:
+  - kind: ServiceAccount
+    name: github-actions-app-deployer
+    namespace: __APP_NAMESPACE__
+---
+# Namespace-scoped admin rights for the namespaces the managed app chart
+# touches during a steady-state deploy.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: github-actions-app-deployer
+  namespace: __APP_NAMESPACE__
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: admin
+subjects:
+  - kind: ServiceAccount
+    name: github-actions-app-deployer
+    namespace: __APP_NAMESPACE__
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: github-actions-app-deployer
+  namespace: kura
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: admin
+subjects:
+  - kind: ServiceAccount
+    name: github-actions-app-deployer
+    namespace: __APP_NAMESPACE__
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: github-actions-app-deployer
+  namespace: tailscale-operator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: admin
+subjects:
+  - kind: ServiceAccount
+    name: github-actions-app-deployer
+    namespace: __APP_NAMESPACE__
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: github-actions-app-deployer
+  namespace: tuist-runners
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: admin
+subjects:
+  - kind: ServiceAccount
+    name: github-actions-app-deployer
+    namespace: __APP_NAMESPACE__

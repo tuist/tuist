@@ -42,6 +42,16 @@ spec:
       - name: hcloudSSHKeyName
         value:
           - name: tuist-ops
+      - name: hcloudPlacementGroups
+        value:
+          - name: tuist-staging-control-plane
+            type: spread
+          - name: tuist-staging-workers
+            type: spread
+      - name: hcloudControlPlanePlacementGroupName
+        value: tuist-staging-control-plane
+      - name: hcloudWorkerMachinePlacementGroupName
+        value: tuist-staging-workers
       # Scopes bare-metal HBM claims to this cluster (see the
       # `HetznerBareMetalMachineTemplateClusterSelector` patch in
       # `clusterclass-tuist.yaml`). Matches the `--clusters` entry

@@ -77,17 +77,16 @@ server:
       cpu: "3000m"
       memory: "4Gi"
 
-  # Pod anti-affinity so the two replicas never land on the same worker.
-  # With 2 × ccx23 workers this gives us a replica per node.
+  # Hard anti-affinity: with 2 × ccx23 workers we either get one replica
+  # per node or the rollout blocks instead of silently stacking both pods
+  # on one host and pretending HA still exists.
   affinity:
     podAntiAffinity:
-      preferredDuringSchedulingIgnoredDuringExecution:
-        - weight: 100
-          podAffinityTerm:
-            labelSelector:
-              matchLabels:
-                app.kubernetes.io/component: server
-            topologyKey: kubernetes.io/hostname
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchLabels:
+              app.kubernetes.io/component: server
+          topologyKey: kubernetes.io/hostname
 
   # Keep server pods on the dedicated-vCPU general pool. Without this the
   # scheduler could place a server replica on the cpx51 processor pool

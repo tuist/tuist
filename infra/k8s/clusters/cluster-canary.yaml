@@ -30,6 +30,16 @@ spec:
       - name: hcloudSSHKeyName
         value:
           - name: tuist-ops
+      - name: hcloudPlacementGroups
+        value:
+          - name: tuist-canary-control-plane
+            type: spread
+          - name: tuist-canary-workers
+            type: spread
+      - name: hcloudControlPlanePlacementGroupName
+        value: tuist-canary-control-plane
+      - name: hcloudWorkerMachinePlacementGroupName
+        value: tuist-canary-workers
       # Scopes bare-metal HBM claims to this cluster (see the
       # `HetznerBareMetalMachineTemplateClusterSelector` patch in
       # `clusterclass-tuist.yaml`). Matches the `--clusters` entry

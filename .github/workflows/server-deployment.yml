@@ -29,6 +29,11 @@ name: Server Deployment
 #     as a Document item named `kubeconfig: tuist-<env>`. Each
 #     environment's secret value is the SA token for that environment's
 #     vault — staging deploys can't read canary/production kubeconfigs.
+#     The main `deploy` job prefers an optional narrower
+#     `kubeconfig: tuist-<env>-deploy` document when present and falls back
+#     to `kubeconfig: tuist-<env>` otherwise. The platform / observability /
+#     tailscale jobs always use the admin kubeconfig because they still own
+#     shared infra charts.
 #     Production also reads the Kura regional workload kubeconfigs from
 #     `kubeconfig: kura-us-east-1` and `kubeconfig: kura-us-west-1` in
 #     the production vault so the server can write KuraInstance CRs to
@@ -392,8 +397,18 @@ jobs:
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
         run: |
+          set -euo pipefail
           mkdir -p "$(dirname "$KUBECONFIG")"
-          op document get "kubeconfig: tuist-${{ inputs.environment }}" \
+          DEPLOY_DOC="kubeconfig: tuist-${{ inputs.environment }}-deploy"
+          ADMIN_DOC="kubeconfig: tuist-${{ inputs.environment }}"
+          if op item get "$DEPLOY_DOC" --vault "tuist-k8s-${{ inputs.environment }}" >/dev/null 2>&1; then
+            DOC_TITLE="$DEPLOY_DOC"
+            echo "Using narrow deployer kubeconfig $DOC_TITLE"
+          else
+            DOC_TITLE="$ADMIN_DOC"
+            echo "Narrow deployer kubeconfig not present; falling back to $DOC_TITLE"
+          fi
+          op document get "$DOC_TITLE" \
             --vault "tuist-k8s-${{ inputs.environment }}" --output "$KUBECONFIG"
           chmod 600 "$KUBECONFIG"
       - name: Verify cluster reachability
