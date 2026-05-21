@@ -185,7 +185,7 @@
         trend_label={@analytics_trend_label}
         empty={@hit_rate_analytics.ok? && @hit_rate_analytics.result.avg_hit_rate == 0}
       />
-      <.split_dropdown_widget
+      <.metric_dropdown_widget
         loading={!@transfer_analytics.ok?}
         title={
           case @selected_transfer_type do
@@ -208,24 +208,34 @@
                 transfer_value(@transfer_analytics.result, @selected_transfer_type)
               )
         }
+        options={[
+          %{
+            value: "combined",
+            label: dgettext("dashboard_cache", "Cache transfer"),
+            dot_type: "combined-transfer"
+          },
+          %{
+            value: "downloads",
+            label: dgettext("dashboard_cache", "Downloads"),
+            dot_type: "downloads"
+          },
+          %{
+            value: "uploads",
+            label: dgettext("dashboard_cache", "Uploads"),
+            dot_type: "uploads"
+          }
+        ]}
         metrics={
           if @transfer_analytics.ok? do
             %{
-              combined: ByteFormatter.format_bytes(@transfer_analytics.result.total),
-              primary: ByteFormatter.format_bytes(@transfer_analytics.result.downloads.total),
-              secondary: ByteFormatter.format_bytes(@transfer_analytics.result.uploads.total)
+              "combined" => ByteFormatter.format_bytes(@transfer_analytics.result.total),
+              "downloads" =>
+                ByteFormatter.format_bytes(@transfer_analytics.result.downloads.total),
+              "uploads" => ByteFormatter.format_bytes(@transfer_analytics.result.uploads.total)
             }
           end
         }
         selected_type={@selected_transfer_type}
-        primary_value="downloads"
-        secondary_value="uploads"
-        combined_label={dgettext("dashboard_cache", "Cache transfer")}
-        primary_label={dgettext("dashboard_cache", "Downloads")}
-        secondary_label={dgettext("dashboard_cache", "Uploads")}
-        combined_dot="combined-transfer"
-        primary_dot="downloads"
-        secondary_dot="uploads"
         event_name="select_transfer_type"
         id="widget-cache-transfer"
         trend_value={if @transfer_analytics.ok?, do: @transfer_analytics.result.trend}
@@ -236,7 +246,7 @@
         selected={@analytics_selected_widget == "cache_transfer"}
         empty={@transfer_analytics.ok? && @transfer_analytics.result.total == 0}
       />
-      <.split_dropdown_widget
+      <.metric_dropdown_widget
         loading={!@latency_analytics.ok?}
         title={
           case @selected_latency_type do
@@ -259,18 +269,35 @@
                 latency_value(@latency_analytics.result, @selected_latency_type)
               )
         }
+        options={[
+          %{
+            value: "combined",
+            label: dgettext("dashboard_cache", "Cache latency"),
+            dot_type: "combined-latency"
+          },
+          %{
+            value: "read",
+            label: dgettext("dashboard_cache", "Read"),
+            dot_type: "read"
+          },
+          %{
+            value: "write",
+            label: dgettext("dashboard_cache", "Write"),
+            dot_type: "write"
+          }
+        ]}
         metrics={
           if @latency_analytics.ok? do
             %{
-              combined:
+              "combined" =>
                 Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
                   @latency_analytics.result.total
                 ),
-              primary:
+              "read" =>
                 Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
                   @latency_analytics.result.downloads.total
                 ),
-              secondary:
+              "write" =>
                 Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
                   @latency_analytics.result.uploads.total
                 )
@@ -278,14 +305,6 @@
           end
         }
         selected_type={@selected_latency_type}
-        primary_value="read"
-        secondary_value="write"
-        combined_label={dgettext("dashboard_cache", "Cache latency")}
-        primary_label={dgettext("dashboard_cache", "Read")}
-        secondary_label={dgettext("dashboard_cache", "Write")}
-        combined_dot="combined-latency"
-        primary_dot="read"
-        secondary_dot="write"
         event_name="select_latency_type"
         id="widget-cache-latency"
         trend_value={if @latency_analytics.ok?, do: @latency_analytics.result.trend}
@@ -296,7 +315,7 @@
         selected={@analytics_selected_widget == "cache_latency"}
         empty={@latency_analytics.ok? && @latency_analytics.result.total == 0}
       />
-      <.split_dropdown_widget
+      <.metric_dropdown_widget
         loading={!@throughput_analytics.ok?}
         title={
           case @selected_throughput_type do
@@ -319,18 +338,35 @@
                 throughput_value(@throughput_analytics.result, @selected_throughput_type)
               )
         }
+        options={[
+          %{
+            value: "combined",
+            label: dgettext("dashboard_cache", "Cache throughput"),
+            dot_type: "combined-throughput"
+          },
+          %{
+            value: "downloads",
+            label: dgettext("dashboard_cache", "Downloads"),
+            dot_type: "downloads"
+          },
+          %{
+            value: "uploads",
+            label: dgettext("dashboard_cache", "Uploads"),
+            dot_type: "uploads"
+          }
+        ]}
         metrics={
           if @throughput_analytics.ok? do
             %{
-              combined:
+              "combined" =>
                 Tuist.Utilities.ThroughputFormatter.format_throughput(
                   @throughput_analytics.result.total
                 ),
-              primary:
+              "downloads" =>
                 Tuist.Utilities.ThroughputFormatter.format_throughput(
                   @throughput_analytics.result.downloads.total
                 ),
-              secondary:
+              "uploads" =>
                 Tuist.Utilities.ThroughputFormatter.format_throughput(
                   @throughput_analytics.result.uploads.total
                 )
@@ -338,14 +374,6 @@
           end
         }
         selected_type={@selected_throughput_type}
-        primary_value="downloads"
-        secondary_value="uploads"
-        combined_label={dgettext("dashboard_cache", "Cache throughput")}
-        primary_label={dgettext("dashboard_cache", "Downloads")}
-        secondary_label={dgettext("dashboard_cache", "Uploads")}
-        combined_dot="combined-throughput"
-        primary_dot="downloads"
-        secondary_dot="uploads"
         event_name="select_throughput_type"
         id="widget-cache-throughput"
         trend_value={if @throughput_analytics.ok?, do: @throughput_analytics.result.trend}

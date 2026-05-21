@@ -1,17 +1,10 @@
 defmodule TuistWeb.PercentileDropdownWidget do
   @moduledoc """
-  A widget component that displays metrics with a dropdown for selecting different percentile views.
-
-  This component combines a display widget with a dropdown menu that allows users to switch between
-  different statistical views of the same metric: average (avg), 99th percentile (p99),
-  90th percentile (p90), and 50th percentile (p50).
-
-  Each percentile option is displayed with a colored dot indicator, label, and corresponding value.
-  The colors are defined in CSS using the `data-type` attribute:
-  - avg: blue (--noora-chart-legend-secondary)
-  - p99: green (--noora-chart-p99)
-  - p90: pink (--noora-chart-p90)
-  - p50: orange (--noora-chart-p50)
+  Convenience wrapper around `TuistWeb.MetricDropdownWidget` that wires up the
+  standard percentile options (`avg`, `p99`, `p90`, `p50`). Callers pass a
+  `metrics` map keyed by atom (`:avg`, `:p99`, `:p90`, `:p50`) and a
+  `selected_type` string; everything else passes through to the underlying
+  widget.
 
   ## Example
 
@@ -20,26 +13,25 @@ defmodule TuistWeb.PercentileDropdownWidget do
         title="Latency"
         description="Response time"
         value="125ms"
-        metrics=%{avg: "100ms", p99: "250ms", p90: "180ms", p50: "95ms"}
+        metrics={%{avg: "100ms", p99: "250ms", p90: "180ms", p50: "95ms"}}
         selected_type="p99"
         event_name="change_percentile"
-        legend_color="green"
-        trend_value="+5%"
-        trend_label="vs last week"
+        legend_color="p99"
       />
   """
   use TuistWeb, :html
   use Noora
 
   import Phoenix.Component
+  import TuistWeb.MetricDropdownWidget
 
   attr(:id, :string, required: true)
   attr(:title, :string, required: true)
   attr(:description, :string, required: true)
   attr(:value, :string, default: nil)
-  attr(:metrics, :map, default: nil, doc: "Map containing the metric values (avg, p99, p90, p50)")
+  attr(:metrics, :map, default: nil)
   attr(:selected_type, :string, required: true, values: ~w(avg p99 p90 p50))
-  attr(:event_name, :string, required: true, doc: "Phoenix event name for selection changes")
+  attr(:event_name, :string, required: true)
   attr(:loading, :boolean, default: false)
   attr(:empty, :boolean, default: false)
   attr(:empty_label, :string, default: nil)
@@ -48,16 +40,25 @@ defmodule TuistWeb.PercentileDropdownWidget do
   attr(:trend_value, :any, default: nil)
   attr(:trend_type, :atom, default: :regular, values: [:regular, :inverse, :neutral])
   attr(:trend_label, :string, default: nil)
-  attr(:phx_click, :string, default: nil, doc: "Phoenix event to trigger on widget click")
-  attr(:phx_value_widget, :string, default: nil, doc: "Widget ID value to pass with phx-click event")
+  attr(:phx_click, :string, default: nil)
+  attr(:phx_value_widget, :string, default: nil)
 
   def percentile_dropdown_widget(assigns) do
+    assigns =
+      assigns
+      |> assign(:options, percentile_options())
+      |> update(:metrics, &stringify_metric_keys/1)
+
     ~H"""
-    <.widget
+    <.metric_dropdown_widget
+      id={@id}
       title={@title}
       description={@description}
       value={@value}
-      id={@id}
+      options={@options}
+      metrics={@metrics}
+      selected_type={@selected_type}
+      event_name={@event_name}
       loading={@loading}
       empty={@empty}
       empty_label={@empty_label}
@@ -68,61 +69,22 @@ defmodule TuistWeb.PercentileDropdownWidget do
       trend_label={@trend_label}
       phx_click={@phx_click}
       phx_value_widget={@phx_value_widget}
-    >
-      <:select>
-        <.dropdown_item
-          value="avg"
-          phx-click={@event_name}
-          phx-value-type="avg"
-          data-selected={@selected_type == "avg"}
-        >
-          <.percentile_dropdown_item type="avg" metrics={@metrics} />
-        </.dropdown_item>
-        <.dropdown_item
-          value="p99"
-          phx-click={@event_name}
-          phx-value-type="p99"
-          data-selected={@selected_type == "p99"}
-        >
-          <.percentile_dropdown_item type="p99" metrics={@metrics} />
-        </.dropdown_item>
-        <.dropdown_item
-          value="p90"
-          phx-click={@event_name}
-          phx-value-type="p90"
-          data-selected={@selected_type == "p90"}
-        >
-          <.percentile_dropdown_item type="p90" metrics={@metrics} />
-        </.dropdown_item>
-        <.dropdown_item
-          value="p50"
-          phx-click={@event_name}
-          phx-value-type="p50"
-          data-selected={@selected_type == "p50"}
-        >
-          <.percentile_dropdown_item type="p50" metrics={@metrics} />
-        </.dropdown_item>
-      </:select>
-    </.widget>
+    />
     """
   end
 
-  defp percentile_dropdown_item(assigns) do
-    ~H"""
-    <div data-part="percentile-item">
-      <div data-part="dot" data-type={@type}></div>
-      <span data-part="label">{percentile_label(@type)}</span>
-      <span data-part="separator">-</span>
-      <span data-part="value">
-        {Map.get(@metrics || %{}, String.to_atom(@type), dgettext("dashboard", "N/A"))}
-      </span>
-    </div>
-    """
+  defp percentile_options do
+    [
+      %{value: "avg", label: dgettext("dashboard", "Avg."), dot_type: "avg"},
+      %{value: "p99", label: dgettext("dashboard", "p99"), dot_type: "p99"},
+      %{value: "p90", label: dgettext("dashboard", "p90"), dot_type: "p90"},
+      %{value: "p50", label: dgettext("dashboard", "p50"), dot_type: "p50"}
+    ]
   end
 
-  defp percentile_label("avg"), do: dgettext("dashboard", "Avg.")
-  defp percentile_label("p99"), do: dgettext("dashboard", "p99")
-  defp percentile_label("p90"), do: dgettext("dashboard", "p90")
-  defp percentile_label("p50"), do: dgettext("dashboard", "p50")
-  defp percentile_label(_), do: dgettext("dashboard", "Avg.")
+  defp stringify_metric_keys(nil), do: nil
+
+  defp stringify_metric_keys(metrics) when is_map(metrics) do
+    Map.new(metrics, fn {k, v} -> {to_string(k), v} end)
+  end
 end
