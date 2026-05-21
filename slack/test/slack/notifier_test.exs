@@ -14,6 +14,9 @@ defmodule Slack.NotifierTest do
       Application.put_env(:slack, :notifier, bot_token: nil, channel_id: nil)
       refute Notifier.enabled?()
 
+      Application.put_env(:slack, :notifier, bot_token: "", channel_id: "C123")
+      refute Notifier.enabled?()
+
       Application.put_env(:slack, :notifier, bot_token: "xoxb-test", channel_id: nil)
       refute Notifier.enabled?()
     end

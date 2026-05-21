@@ -74,8 +74,8 @@ if config_env() == :prod do
   config :slack, :mailer_from, {mailer_from_name, mailer_from_email}
 
   config :slack, :notifier,
-    bot_token: System.get_env("SLACK_BOT_TOKEN") || raise("environment variable SLACK_BOT_TOKEN is missing"),
-    channel_id: System.get_env("SLACK_CHANNEL_ID") || raise("environment variable SLACK_CHANNEL_ID is missing"),
+    bot_token: System.get_env("SLACK_BOT_TOKEN"),
+    channel_id: System.get_env("SLACK_CHANNEL_ID"),
     admin_url: "https://#{host}/admin/invitations"
 
   config :slack,
