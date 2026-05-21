@@ -207,6 +207,10 @@ defmodule Tuist.Kura do
     account_needs_global_endpoint?(account) and region_has_global_endpoint?(server.region)
   end
 
+  def server_requires_global_endpoint_readiness?(%Server{} = server) do
+    Tuist.Environment.kura_require_global_endpoints?() and server_needs_global_endpoint?(server)
+  end
+
   def server_global_endpoint_observed?(%Server{} = server) do
     case Provisioner.global_public_url(server) do
       url when is_binary(url) and url != "" -> true
@@ -443,14 +447,18 @@ defmodule Tuist.Kura do
   defp ensure_public_https_up(_uri), do: :ok
 
   defp ready_global_public_url(%Server{} = server) do
-    case Provisioner.global_public_url(server) do
-      url when is_binary(url) and url != "" ->
-        with :ok <- ensure_public_endpoint_ready(url) do
-          {:ok, url}
-        end
+    if server_requires_global_endpoint_readiness?(server) do
+      case Provisioner.global_public_url(server) do
+        url when is_binary(url) and url != "" ->
+          with :ok <- ensure_public_endpoint_ready(url) do
+            {:ok, url}
+          end
 
-      _ ->
-        {:ok, nil}
+        _ ->
+          {:ok, nil}
+      end
+    else
+      {:ok, nil}
     end
   end
 

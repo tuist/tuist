@@ -6,6 +6,8 @@
 #     -f infra/helm/tuist/values-managed-production.yaml \
 #     --set server.image.tag=$GIT_SHA
 
+kuraGlobalEndpointsRequired: false
+
 server:
   replicaCount: 2
 
