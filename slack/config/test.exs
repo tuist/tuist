@@ -8,8 +8,6 @@ config :phoenix, :plug_init_mode, :runtime
 
 config :slack, Slack.Mailer, adapter: Swoosh.Adapters.Test
 
-config :swoosh, :api_client, false
-
 config :slack, Slack.Repo,
   database: Path.expand("../test.db", __DIR__),
   pool: Sandbox,
@@ -27,3 +25,5 @@ config :slack, :admin_basic_auth,
 
 config :slack, :captcha, site_key: nil, secret_key: nil
 config :slack, :notifier, bot_token: nil, channel_id: nil
+
+config :swoosh, :api_client, false
