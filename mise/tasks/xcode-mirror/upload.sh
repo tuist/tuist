@@ -12,10 +12,10 @@
 # Steady state: the in-cluster worker handles this. See
 # `infra/macos-xcode-image/AGENTS.md` for the architecture.
 #
-# Self-bootstraps:
-#   * installs missing brew formulae (xcodes, oras, jq)
-#   * uses the operator's `gh` auth token to log oras into ghcr.io
-#     so they don't have to remember the manual login command
+# Tools come from the repo-root mise.toml (xcodes, oras, jq, gh).
+# Beyond that the task self-bootstraps: it uses the operator's
+# existing `gh` token to log oras into ghcr.io so they don't have
+# to remember the manual login command.
 #
 # The only state outside this task that the operator has to set up
 # *before* running it is a signed-in xcodes session, which is
@@ -30,28 +30,9 @@ if [ -z "$VERSION" ]; then
   exit 1
 fi
 
-# === Auto-install prerequisites ============================================
-
-declare -a missing
-declare -A brew_formula=(
-  [xcodes]="xcodes"
-  [oras]="oras"
-  [jq]="jq"
-)
-for cmd in xcodes oras jq; do
-  if ! command -v "$cmd" >/dev/null 2>&1; then
-    missing+=("${brew_formula[$cmd]}")
-  fi
-done
-
-if [ "${#missing[@]}" -gt 0 ]; then
-  if ! command -v brew >/dev/null 2>&1; then
-    echo "Error: brew not installed. Install Homebrew first: https://brew.sh" >&2
-    exit 1
-  fi
-  echo "Installing prerequisites: ${missing[*]}"
-  brew install "${missing[@]}"
-fi
+# Tools (`xcodes`, `oras`, `jq`) come from the repo-root mise.toml.
+# Running this task via `mise run xcode-mirror:upload` auto-installs
+# anything missing.
 
 # === Auto-login to GHCR via gh ============================================
 

@@ -12,29 +12,23 @@
 # `GHCR_TUIST_BOT` items don't exist in the target vault yet, the
 # task creates them (prompting for the GHCR PAT once) and then
 # does its main job — populating the session cookies. No manual
-# 1P clicking, no manual `brew install`.
+# 1P clicking, no extra package installs (`oras`, `jq`, `op` come
+# from the root mise.toml).
 #
 # Apple auth: this script talks to `idmsa.apple.com` directly via
 # curl — the same flow fastlane's spaceship and xcodes' AppleAPI
-# implement under the hood. No third-party dep (no fastlane gem
-# install, no ruby, no python). The trade-off is that if Apple
-# changes their auth endpoints (which they do every couple of
-# years), the script needs a small patch — but it's ~80 lines of
-# explicit HTTP calls, not a magic library to debug. If it ever
-# breaks before we get to fix it, fall back to:
-#   gem install --user-install spaceship
-#   ruby -rspaceship -e 'Spaceship::ConnectAPI.login("<apple-id>")'
-# and copy the cookies out of ~/.fastlane/spaceship/<apple-id>/cookie.
+# implement under the hood. The trade-off is that if Apple changes
+# their auth endpoints (rare but they do, every couple of years),
+# we patch ~80 lines of explicit HTTP calls instead of waiting on a
+# third-party release.
 #
 # Flow:
-#   1. Install missing prerequisites (`oras`, `jq`, `1password-cli`)
-#      via brew.
-#   2. Ensure `op` is signed in.
-#   3. Bootstrap 1P items if absent (one-time, on first run for a
+#   1. Ensure `op` is signed in.
+#   2. Bootstrap 1P items if absent (one-time, on first run for a
 #      given env's vault).
-#   4. Do the Apple auth dance: signin → 2FA → trust.
-#   5. Extract the cookies from the Netscape jar curl wrote.
-#   6. Write the JSON cookie set straight into the 1P item.
+#   3. Do the Apple auth dance: signin → 2FA → trust.
+#   4. Extract the cookies from the Netscape jar curl wrote.
+#   5. Write the JSON cookie set straight into the 1P item.
 
 set -euo pipefail
 
@@ -43,30 +37,11 @@ OP_ITEM="${TUIST_XCODE_MIRROR_OP_ITEM:-Tuist Xcode Mirror Session}"
 OP_FIELD="${TUIST_XCODE_MIRROR_OP_FIELD:-session_cookies}"
 OP_GHCR_ITEM="${TUIST_XCODE_MIRROR_OP_GHCR_ITEM:-GHCR_TUIST_BOT}"
 
-# === 1. Auto-install prerequisites ===========================================
+# Tools (`oras`, `jq`, `op`, `curl`) come from the repo-root mise.toml.
+# Running this task via `mise run xcode-mirror:mint-session` auto-installs
+# what's missing — no brew dance here.
 
-declare -a missing
-declare -A brew_formula=(
-  [oras]="oras"
-  [jq]="jq"
-  [op]="1password-cli"
-)
-for cmd in oras jq op; do
-  if ! command -v "$cmd" >/dev/null 2>&1; then
-    missing+=("${brew_formula[$cmd]}")
-  fi
-done
-
-if [ "${#missing[@]}" -gt 0 ]; then
-  if ! command -v brew >/dev/null 2>&1; then
-    echo "Error: brew not installed. Install Homebrew first: https://brew.sh" >&2
-    exit 1
-  fi
-  echo "Installing prerequisites: ${missing[*]}"
-  brew install "${missing[@]}"
-fi
-
-# === 2. Ensure op is signed in ==============================================
+# === 1. Ensure op is signed in ==============================================
 
 if ! op whoami >/dev/null 2>&1; then
   echo "1Password CLI not signed in. Trying interactive sign-in..."
@@ -86,7 +61,7 @@ EOF
   exit 1
 fi
 
-# === 3. Bootstrap 1P items if absent ========================================
+# === 2. Bootstrap 1P items if absent ========================================
 
 if ! op vault get "$OP_VAULT" >/dev/null 2>&1; then
   echo "Error: 1Password vault '$OP_VAULT' not visible to this account." >&2
@@ -148,7 +123,7 @@ if ! op item get "$OP_ITEM" --vault "$OP_VAULT" >/dev/null 2>&1; then
     >/dev/null
 fi
 
-# === 4. Apple auth dance ====================================================
+# === 3. Apple auth dance ====================================================
 
 # Temp files for the curl cookie jar and HTTP response bodies. All
 # cleaned up at exit — a captured session token leaking to disk
@@ -282,7 +257,7 @@ curl -sS -o /dev/null \
   'https://developer.apple.com/account/' \
   >/dev/null 2>&1 || true
 
-# === 5. Extract cookies as JSON =============================================
+# === 4. Extract cookies as JSON =============================================
 
 # Netscape cookie jar format:
 #   <domain> <flag> <path> <secure> <expiry> <name> <value>
@@ -321,7 +296,7 @@ cookies_json="$(echo "$cookies_json" | jq -c '.')"
 n="$(echo "$cookies_json" | jq 'length')"
 echo "Captured $n cookie(s)."
 
-# === 6. Write to 1Password =================================================
+# === 5. Write to 1Password =================================================
 
 echo "Writing to 1Password ($OP_VAULT / $OP_ITEM / $OP_FIELD)..."
 

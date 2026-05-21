@@ -15,6 +15,16 @@
     bats = "1.11.1"
     rclone = "1.73.3"
     jq = "1.8.1"
+    # Used by the xcode-mirror mise tasks on the maintainer's Mac AND
+    # by Tuist.XcodeMirror.Pusher in the server pod (server/Dockerfile
+    # installs the same version). Keep the two pins in lockstep.
+    oras = "1.3.0"
+    # XcodesOrg/xcodes — break-glass Xcode .xip downloader used by
+    # `mise run xcode-mirror:upload`. The in-cluster worker doesn't
+    # need this (it talks to Apple's CDN directly), but the local
+    # maintainer flow benefits from xcodes' download + verify
+    # machinery.
+    xcodes = "1.6.0"
     yq = "4.52.5"
     java = "21"
     gradle = "8.12"
