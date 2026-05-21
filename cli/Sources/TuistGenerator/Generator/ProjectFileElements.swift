@@ -356,8 +356,9 @@ class ProjectFileElements {
         let defaultSwiftPackageManagerScratchDirectory = sourceRootPath.appending(
             component: Constants.SwiftPackageManager.packageBuildDirectoryName
         )
-        let isSwiftPackageManagerArtifact =
-            swiftPackageManagerScratchDirectories.contains(where: { path.isDescendantOfOrEqual(to: $0) })
+        let isSwiftPackageManagerArtifact = swiftPackageManagerScratchDirectories.contains(where: {
+            path.isDescendantOfOrEqual(to: $0)
+        })
             || path.isDescendantOfOrEqual(to: defaultSwiftPackageManagerScratchDirectory)
         if path.pathString.contains(cacheDirectory.pathString) {
             guard compiled[path] == nil else {
