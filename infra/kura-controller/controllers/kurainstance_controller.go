@@ -166,7 +166,7 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	statusGlobalPublicURL := ""
 	statusGlobalGRPCPublicURL := ""
 	globalStatusWarnings := []string{}
-	if r.CloudflareLoadBalancing.Enabled() {
+	if r.CloudflareLoadBalancing.Enabled() && r.CloudflareLoadBalancing.ReconcileGlobalEndpoints {
 		if err := newCloudflareClient(r.CloudflareLoadBalancing).reconcileKuraLoadBalancers(ctx, instance); err != nil {
 			if r.CloudflareLoadBalancing.RequireGlobalEndpoints {
 				return ctrl.Result{}, err
