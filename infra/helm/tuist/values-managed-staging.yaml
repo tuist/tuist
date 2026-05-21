@@ -309,7 +309,7 @@ runnersFleetLinux:
   name: runners-linux
   pools:
     - name: ubuntu-22-04
-      runnerImage: "ghcr.io/tuist/tuist-linux-runner:sha-4483c37d81e2"
+      runnerImage: "ghcr.io/tuist/tuist-linux-runner@sha256:3d6052b299e87fec95f8e03abf8c049bf75d40b03a3858dac6e28db2d4501a32"
       dispatchLabel: "tuist-staging-linux"
       runnerLabels:
         - self-hosted
