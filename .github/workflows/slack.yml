@@ -29,7 +29,6 @@ defaults:
 
 env:
   MISE_VERSION: "2026.4.18"
-  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   MISE_GITHUB_ATTESTATIONS: 0
   MISE_CEILING_PATHS: ${{ github.workspace }}
 
@@ -40,6 +39,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - name: Restore Mix Cache
         uses: actions/cache@v4
         with:
@@ -65,6 +66,8 @@ jobs:
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - name: Restore Mix Cache
         uses: actions/cache@v4
         with:
@@ -90,6 +93,8 @@ jobs:
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - name: Restore Mix Cache
         uses: actions/cache@v4
         with:
@@ -115,6 +120,8 @@ jobs:
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - name: Restore Mix Cache
         uses: actions/cache@v4
         with:
