@@ -2,6 +2,7 @@ import ArgumentParser
 import Foundation
 import Mockable
 import Path
+import TuistAlert
 import TuistCore
 import TuistGit
 import TuistLogging
@@ -259,13 +260,16 @@ final class TrackableCommandTests: TuistTestCase {
             command: UnnamedCommand(),
             commandArguments: ["mystery"]
         )
+        let alertController = AlertController()
 
         // When
-        try await subject.run(
-            fullHandle: "tuist/tuist",
-            serverURL: .test(),
-            shouldTrackAnalytics: true
-        )
+        try await AlertController.$current.withValue(alertController) {
+            try await subject.run(
+                fullHandle: "tuist/tuist",
+                serverURL: .test(),
+                shouldTrackAnalytics: true
+            )
+        }
 
         // Then
         verify(uploadAnalyticsService)
@@ -278,6 +282,11 @@ final class TrackableCommandTests: TuistTestCase {
                 sessionDirectory: .any
             )
             .called(1)
+        XCTAssertEqual(alertController.warnings().count, 1)
+        XCTAssertEqual(
+            alertController.warnings().first?.message.plain(),
+            "Failed to resolve canonical command metadata for analytics. Falling back to command arguments."
+        )
     }
 
     func test_whenCommandStoresResolvedAnalyticsMetadata_uploadsCanonicalValues() async throws {

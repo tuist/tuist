@@ -3,6 +3,7 @@ import FileSystem
 import Foundation
 import OpenAPIRuntime
 import Path
+import TuistAlert
 import TuistCache
 import TuistCore
 import TuistEnvironment
@@ -247,8 +248,8 @@ public class TrackableCommand {
             )
         }
 
-        Logger.current.warning(
-            "Failed to resolve canonical command metadata for analytics. Falling back to command arguments."
+        AlertController.current.warning(
+            .alert("Failed to resolve canonical command metadata for analytics. Falling back to command arguments.")
         )
         return AnalyticsCommandMetadata(
             name: fallbackName,
