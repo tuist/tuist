@@ -113,12 +113,15 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 		extraVolumes = append(extraVolumes,
 			corev1.Volume{Name: "dind-sock", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
 			corev1.Volume{Name: "work", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
-			// /var/lib/docker must NOT land on the container rootfs:
-			// virtio-fs (kata) doesn't carry the xattrs BuildKit needs
-			// for checksums, so buildx fails with "operation not
-			// supported" on COPY hashing. Documented docker:dind
-			// pattern is a dedicated volume here.
-			corev1.Volume{Name: "dind-storage", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
+			// /var/lib/docker on tmpfs (in-VM RAM). Default emptyDir
+			// backs onto node disk which kata serves via virtio-fs;
+			// virtio-fs lacks the xattr surface BuildKit needs for
+			// checksum computation, so COPY operations fail with
+			// "operation not supported". tmpfs inside the microVM
+			// is a real Linux FS with full xattr support. The pod's
+			// memory request must cover dockerd's working set
+			// (layers + build cache) plus the runner's own usage.
+			corev1.Volume{Name: "dind-storage", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{Medium: corev1.StorageMediumMemory}}},
 		)
 		extraVolumeMounts = append(extraVolumeMounts,
 			corev1.VolumeMount{Name: "dind-sock", MountPath: "/var/run"},

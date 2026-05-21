@@ -303,14 +303,11 @@ runnersFleetLinux:
       # kata-qemu microVM is the safety boundary.
       runtimeClass: kata-qemu
       pod:
-        # Per-tenant slot, ccx23-equivalent. AX42-U fits ~16 of these
-        # cleanly with 1:1 CPU + a small RAM reserve for kubelet and
-        # other system DaemonSets on the host. Production AX162-R
-        # quadruples this density (64 slots — 256 GB / 4 GB cap, with
-        # CPU undersubscribed at 96 threads / 64 vCPU = 1.5× headroom
-        # for noisy-neighbor protection).
-        cpuMilli: 1000
-        memoryMB: 4096
+        # Bumped from 4 GB → 8 GB to give the dind sidecar's tmpfs
+        # /var/lib/docker (default 50% of pod memory) room to host
+        # a full server build alongside the runner's own working set.
+        cpuMilli: 2000
+        memoryMB: 8192
       # Queue-depth driven autoscaling. Pod-level only — the operator
       # manages bare-metal Host count manually via the cluster topology
       # in `infra/k8s/clusters/cluster-staging.yaml`. Bare-metal hosts
@@ -323,7 +320,9 @@ runnersFleetLinux:
       autoscaling:
         enabled: true
         minWarmPoolFloor: 2
-        maxReplicas: 14
+        # Halved with the 4 GB → 8 GB pod bump above. AX42-U fits
+        # ~7 of the new slots cleanly.
+        maxReplicas: 7
         scaleDownCooldownSeconds: 300
 
 # Staging-only override for the runners-controller image, ahead of
