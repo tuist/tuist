@@ -253,6 +253,8 @@ jobs:
           aube install
           aube run build
       - name: Install esbuild
+        env:
+          MIX_OS_DEPS_COMPILE_PARTITION_COUNT: 1
         run: mix esbuild.install
       - name: Check esbuild output
         run: |
