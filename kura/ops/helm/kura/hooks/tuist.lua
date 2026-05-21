@@ -8,20 +8,23 @@
 --
 --   1. authenticate — first try the current cache service's JWT fast
 --      path: verify Tuist-issued Guardian JWTs locally and see whether
---      `claims.projects` already contains the requested full handle.
---      If that misses (non-JWT token, invalid JWT, or the claim set was
---      trimmed and doesn't include this project), fall back to the
---      Tuist server's `/api/projects` endpoint. That keeps all token
---      shapes working without making the hot path pay a server
---      roundtrip when the JWT already proves access.
+--      `claims.accounts` or `claims.projects` already covers the
+--      requested cache scope. If that misses (non-JWT token, invalid
+--      JWT, or the claim set was trimmed and doesn't include this
+--      account/project), fall back to Tuist's `/api/cache/access`
+--      endpoint. That keeps all token shapes working without making the
+--      hot path pay a server roundtrip when the JWT already proves
+--      access.
 --
---   2. authorize — the principal carries the list of project handles
---      it can access. We resolve the request's target project from (in
---      order) `ctx.tenant_id` + `ctx.namespace_id`,
---      `ctx.query.account_handle` + `ctx.query.project_handle`, or
---      `ctx.query.tenant_id` + `ctx.query.namespace_id`, and require
---      the requested tenant to match `ctx.server_tenant_id` so one
---      account's Kura mesh cannot serve another account's namespace.
+--   2. authorize — the principal carries first-class account-scoped
+--      and project-scoped cache access. We resolve the request target
+--      from `ctx.tenant_id` / `ctx.namespace_id` plus the
+--      `ctx.namespace_explicit` signal. Requests that omitted a
+--      namespace and were routed through Kura's default namespace are
+--      authorized as account scope; explicit namespaces remain
+--      project-scoped. We also require the requested tenant to match
+--      `ctx.server_tenant_id` so one account's Kura mesh cannot serve
+--      another account's namespace.
 --
 -- Required Kura extension config (set by the chart / rollout worker):
 --   * KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL  → https://tuist.dev (or staging)
@@ -43,20 +46,24 @@ local function bearer_token(headers)
   return string.gsub(authorization, "^Bearer%s+", "")
 end
 
-local function normalized_projects(projects)
+local function normalized_handles(handles)
   local normalized = {}
 
-  if projects == nil then
+  if handles == nil then
     return normalized
   end
 
-  for _, project in ipairs(projects) do
-    if project ~= nil and project ~= "" then
-      table.insert(normalized, string.lower(project))
+  for _, handle in ipairs(handles) do
+    if handle ~= nil and handle ~= "" then
+      table.insert(normalized, string.lower(handle))
     end
   end
 
   return normalized
+end
+
+local function account_handles(body)
+  return normalized_handles(body and body.accounts or nil)
 end
 
 local function project_handles(body)
@@ -67,7 +74,10 @@ local function project_handles(body)
   end
 
   for _, project in ipairs(body.projects) do
-    local full_name = project.full_name
+    local full_name = project
+    if type(project) == "table" then
+      full_name = project.full_name
+    end
     if full_name ~= nil and full_name ~= "" then
       table.insert(projects, string.lower(full_name))
     end
@@ -105,6 +115,23 @@ local function request_tenant(ctx)
   return nil
 end
 
+local function request_namespace_explicit(ctx)
+  if ctx.namespace_explicit ~= nil then
+    return ctx.namespace_explicit
+  end
+
+  if ctx.query ~= nil then
+    if ctx.query.project_handle ~= nil and ctx.query.project_handle ~= "" then
+      return true
+    end
+    if ctx.query.namespace_id ~= nil and ctx.query.namespace_id ~= "" then
+      return true
+    end
+  end
+
+  return false
+end
+
 local function request_namespace(ctx)
   local namespace = ctx.namespace_id
 
@@ -124,48 +151,71 @@ local function request_namespace(ctx)
   return nil
 end
 
-local function request_project(ctx)
+local function request_target(ctx)
   local tenant = server_tenant(ctx)
   local requested_tenant = request_tenant(ctx)
   local namespace = request_namespace(ctx)
 
   if tenant == nil then
-    return nil, nil, nil, 503, "Server tenant is unavailable"
+    return nil, { status = 503, message = "Server tenant is unavailable" }
   end
 
   if requested_tenant ~= nil and requested_tenant ~= tenant then
-    return tenant, namespace, nil, 403, "Forbidden: tenant '" .. requested_tenant .. "' is routed to server for '" .. tenant .. "'"
+    return nil, {
+      status = 403,
+      message = "Forbidden: tenant '" .. requested_tenant .. "' is routed to server for '" .. tenant .. "'",
+    }
   end
 
-  if namespace ~= nil then
-    return tenant, namespace, tenant .. "/" .. namespace, nil, nil
+  if request_namespace_explicit(ctx) then
+    if namespace == nil then
+      return nil, { status = 403, message = "Missing namespace_id/project_handle on request" }
+    end
+
+    return {
+      scope = "project",
+      account = tenant,
+      namespace = namespace,
+      identifier = tenant .. "/" .. namespace,
+    }, nil
   end
 
-  return tenant, namespace, nil, 403, "Missing namespace_id/project_handle on request"
+  return {
+    scope = "account",
+    account = tenant,
+    namespace = namespace,
+    identifier = tenant,
+  }, nil
 end
 
-local function principal_from_projects(id, kind, projects)
+local function principal_from_cache_access(id, kind, accounts, projects)
   return {
     id = id or "tuist",
     kind = kind or "subject",
     attributes = {
+      accounts = accounts,
       projects = projects,
     },
   }
 end
 
-local function authenticate_via_projects_endpoint(authorization)
+local function authenticate_via_cache_access_endpoint(authorization)
   local response = kura.http_json("tuist", {
     method = "GET",
-    path = "/api/projects",
+    path = "/api/cache/access",
     headers = {
       ["authorization"] = authorization,
     },
   })
 
-  if response.status == 200 and response.body and response.body.projects then
+  if response.status == 200 and response.body then
     return {
-      principal = principal_from_projects("tuist", "subject", project_handles(response.body)),
+      principal = principal_from_cache_access(
+        "tuist",
+        "subject",
+        account_handles(response.body),
+        project_handles(response.body)
+      ),
       ttl_seconds = 60,
     }
   end
@@ -197,25 +247,44 @@ function authenticate(ctx)
   end
 
   local token = bearer_token(ctx.headers)
-  local _, _, project = request_project(ctx)
+  local target, deny = request_target(ctx)
+  if target == nil then
+    return {
+      deny = deny,
+      ttl_seconds = 3,
+    }
+  end
+
   local ok, claims = pcall(function()
     return kura.jwt_verify("tuist", token)
   end)
 
-  if ok and project ~= nil then
-    local projects = normalized_projects(claims.projects)
+  if ok and target ~= nil then
+    local accounts = normalized_handles(claims.accounts)
+    local projects = normalized_handles(claims.projects)
 
-    for _, candidate in ipairs(projects) do
-      if candidate == project then
-        return {
-          principal = principal_from_projects(claims.sub, claims.type, projects),
-          ttl_seconds = 60,
-        }
+    if target.scope == "account" then
+      for _, candidate in ipairs(accounts) do
+        if candidate == target.identifier then
+          return {
+            principal = principal_from_cache_access(claims.sub, claims.type, accounts, projects),
+            ttl_seconds = 60,
+          }
+        end
+      end
+    else
+      for _, candidate in ipairs(projects) do
+        if candidate == target.identifier then
+          return {
+            principal = principal_from_cache_access(claims.sub, claims.type, accounts, projects),
+            ttl_seconds = 60,
+          }
+        end
       end
     end
   end
 
-  return authenticate_via_projects_endpoint(authorization)
+  return authenticate_via_cache_access_endpoint(authorization)
 end
 
 function authorize(ctx, principal)
@@ -226,17 +295,34 @@ function authorize(ctx, principal)
     }
   end
 
-  local _, _, project, status, message = request_project(ctx)
-  if project == nil then
+  local target, deny = request_target(ctx)
+  if target == nil then
     return {
-      deny = { status = status, message = message },
+      deny = deny,
+      ttl_seconds = 3,
+    }
+  end
+
+  if target.scope == "account" then
+    local accounts = principal.attributes and principal.attributes.accounts or {}
+    for _, candidate in ipairs(accounts) do
+      if candidate == target.identifier then
+        return { allow = true, ttl_seconds = 60 }
+      end
+    end
+
+    return {
+      deny = {
+        status = 403,
+        message = "Forbidden: account '" .. target.identifier .. "' is not granted to this principal",
+      },
       ttl_seconds = 3,
     }
   end
 
   local projects = principal.attributes and principal.attributes.projects or {}
   for _, candidate in ipairs(projects) do
-    if candidate == project then
+    if candidate == target.identifier then
       return { allow = true, ttl_seconds = 60 }
     end
   end
@@ -244,7 +330,7 @@ function authorize(ctx, principal)
   return {
     deny = {
       status = 403,
-      message = "Forbidden: project '" .. project .. "' is not granted to this principal",
+      message = "Forbidden: project '" .. target.identifier .. "' is not granted to this principal",
     },
     ttl_seconds = 3,
   }

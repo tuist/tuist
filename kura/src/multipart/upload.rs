@@ -9,9 +9,15 @@ pub struct MultipartUpload {
     pub upload_id: String,
     pub tenant_id: String,
     pub namespace_id: String,
+    #[serde(default = "default_namespace_explicit")]
+    pub namespace_explicit: bool,
     pub category: String,
     pub hash: String,
     pub name: String,
     pub parts: BTreeMap<u32, MultipartPart>,
     pub created_at_ms: u64,
+}
+
+fn default_namespace_explicit() -> bool {
+    true
 }

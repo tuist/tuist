@@ -6,6 +6,7 @@ defmodule Tuist.Authentication do
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Accounts.User
+  alias Tuist.Cache
   alias Tuist.Projects
 
   def authenticated_subject(token) do
@@ -111,12 +112,11 @@ defmodule Tuist.Authentication do
   end
 
   def encode_and_sign(resource, claims \\ %{}, opts \\ []) do
-    projects =
-      resource
-      |> Projects.list_accessible_projects(recent: 5)
-      |> Enum.map(&"#{&1.account.name}/#{&1.name}")
+    claims =
+      claims
+      |> Map.put("projects", Cache.accessible_project_handles(resource, recent: 5))
+      |> Map.put("accounts", Cache.accessible_account_handles(resource))
 
-    claims = Map.put(claims, "projects", projects)
     Tuist.Guardian.encode_and_sign(resource, claims, opts)
   end
 

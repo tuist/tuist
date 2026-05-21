@@ -95,6 +95,7 @@ pdb:
 
 config:
   tenantId: default
+  defaultNamespaceId: ""
   region: fr-par
   fileDescriptors:
     poolSize: 128

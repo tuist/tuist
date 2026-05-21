@@ -44,6 +44,7 @@ where
         grpc_port: 0,
         internal_port: 7443,
         tenant_id: "test-tenant".into(),
+        default_namespace_id: None,
         region: "local".into(),
         tmp_dir: temp_dir.path().join("tmp"),
         data_dir: temp_dir.path().join("data"),

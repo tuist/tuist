@@ -1415,6 +1415,7 @@ impl Store {
         &self,
         tenant_id: &str,
         namespace_id: &str,
+        namespace_explicit: bool,
         category: &str,
         hash: &str,
         name: &str,
@@ -1424,6 +1425,7 @@ impl Store {
             upload_id: upload_id.clone(),
             tenant_id: tenant_id.to_owned(),
             namespace_id: namespace_id.to_owned(),
+            namespace_explicit,
             category: category.to_owned(),
             hash: hash.to_owned(),
             name: name.to_owned(),
@@ -2569,6 +2571,7 @@ mod tests {
             grpc_port: 0,
             internal_port: 7443,
             tenant_id: "test-tenant".into(),
+            default_namespace_id: None,
             region: "local".into(),
             tmp_dir: temp_dir.path().join("tmp"),
             data_dir: temp_dir.path().join("data"),
@@ -3337,7 +3340,7 @@ mod tests {
     async fn multipart_upload_round_trip() {
         let (_temp_dir, config, store) = temp_store();
         let upload_id = store
-            .start_multipart_upload("acme", "ios", "builds", "hash-1", "Module.framework")
+            .start_multipart_upload("acme", "ios", true, "builds", "hash-1", "Module.framework")
             .expect("failed to start upload");
 
         let part_1 = config.tmp_dir.join("part-1");
@@ -3375,7 +3378,7 @@ mod tests {
     async fn concurrent_multipart_part_writes_do_not_lose_updates() {
         let (_temp_dir, config, store) = temp_store();
         let upload_id = store
-            .start_multipart_upload("acme", "ios", "builds", "hash-1", "Module.framework")
+            .start_multipart_upload("acme", "ios", true, "builds", "hash-1", "Module.framework")
             .expect("failed to start upload");
         let store = Arc::new(store);
 

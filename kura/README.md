@@ -101,6 +101,8 @@ Kura exposes multiple cache protocols behind one service. The actively supported
 - 🐘 `Gradle`: `PUT/GET /api/cache/gradle/{cache_key}?tenant_id=...&namespace_id=...`
 - 📦 `Module Cache`: `POST /api/cache/module/start?...`, `POST /api/cache/module/part?...`, `POST /api/cache/module/complete?...`, `HEAD/GET /api/cache/module/{id}?...`
 
+For those HTTP cache routes, `namespace_id` stays part of the primary request contract. If you set `KURA_DEFAULT_NAMESPACE_ID`, callers may omit `namespace_id` and Kura will substitute the configured namespace. That is useful for account-scoped traffic where the integration wants a stable internal namespace without exposing it to clients. REAPI requests still carry their namespace explicitly.
+
 Kura also exposes compatibility endpoints that are not a primary focus today:
 
 - 🧱 `Nx`: `PUT/GET /v1/cache/{hash}`
@@ -134,6 +136,19 @@ curl -X PUT \
 
 curl \
   "http://localhost:4103/api/cache/keyvalue/cas-1?tenant_id=acme&namespace_id=ios"
+```
+
+Example account-scoped Xcode artifact round trip with an inherited namespace:
+
+```bash
+KURA_DEFAULT_NAMESPACE_ID=account \
+curl -X POST \
+  "http://localhost:4101/api/cache/cas/account-artifact?tenant_id=acme" \
+  -H "content-type: application/octet-stream" \
+  --data-binary "account-binary"
+
+curl \
+  "http://localhost:4102/api/cache/cas/account-artifact?tenant_id=acme"
 ```
 
 ## 🗄️ Storage And Replication
@@ -188,6 +203,7 @@ When `Optional` is `Yes`, the `Default` column shows what Kura uses today. `auto
 | `KURA_GRPC_TLS_CERT_PATH` | PEM cert path used to terminate TLS on the public gRPC listener. | Yes | disabled |
 | `KURA_GRPC_TLS_KEY_PATH` | PEM private-key path paired with `KURA_GRPC_TLS_CERT_PATH`. | Yes | disabled |
 | `KURA_TENANT_ID` | Default tenant identifier for the node. | No | `—` |
+| `KURA_DEFAULT_NAMESPACE_ID` | Default namespace used when HTTP cache requests omit `namespace_id`. | Yes | disabled |
 | `KURA_REGION` | Region label advertised in metrics and replication state. | No | `—` |
 | `KURA_TMP_DIR` | Temporary directory for staged request bodies and multipart assembly. | No | `—` |
 | `KURA_DATA_DIR` | Persistent directory for metadata state and segment files. | No | `—` |
@@ -323,6 +339,8 @@ OTLP tracing is optional. Leaving `KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` unse
 ## 📣 Runtime Analytics
 
 Analytics webhooks are a separate optional subsystem that mirrors the legacy cache analytics contract for Xcode and Gradle traffic.
+
+Kura only emits those legacy webhook events when the HTTP request carried an explicit `namespace_id`. Requests that inherit `KURA_DEFAULT_NAMESPACE_ID` continue to work for cache reads and writes, but Kura skips the legacy project-oriented analytics webhook so upstreams do not need to invent synthetic project identifiers.
 
 When enabled:
 
@@ -484,9 +502,14 @@ The script may define these hooks:
 - `response_headers(ctx, principal)`
 
 For tenant-aware deployments, `ctx` carries both the request target
-(`tenant_id`, `namespace_id`) and the node's configured tenant as
-`server_tenant_id` (derived from `KURA_TENANT_ID`). Concrete auth and
-policy decisions are hook-specific and should be documented with the
-hook implementation rather than in the generic runtime contract.
+(`tenant_id`, `namespace_id`), whether the namespace was explicit
+(`namespace_explicit`), and the node's configured tenant as
+`server_tenant_id` (derived from `KURA_TENANT_ID`). When
+`KURA_DEFAULT_NAMESPACE_ID` is set, hooks can use `namespace_explicit =
+false` to distinguish account-scoped traffic that inherited the default
+namespace from project-scoped traffic that named one directly. Concrete
+auth and policy decisions are hook-specific and should be documented
+with the hook implementation rather than in the generic runtime
+contract.
 
 The runtime keeps decision caching, metrics, timeouts, and cryptographic primitives in Rust, while the script supplies policy.

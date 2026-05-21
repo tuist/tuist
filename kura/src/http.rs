@@ -143,13 +143,20 @@ const UNMATCHED_ROUTE: &str = "/_unmatched";
 struct NamespaceQuery {
     tenant_id: String,
     namespace_id: String,
+    namespace_explicit: bool,
 }
 
 impl NamespaceQuery {
-    fn from_params(params: &HashMap<String, String>) -> Result<Self, String> {
+    fn from_params_with_default(
+        params: &HashMap<String, String>,
+        default_namespace_id: Option<&str>,
+    ) -> Result<Self, String> {
+        let (namespace_id, namespace_explicit) =
+            namespace_id_from_params(params, default_namespace_id);
         Ok(Self {
             tenant_id: required_param(params, "tenant_id")?,
-            namespace_id: required_param(params, "namespace_id")?,
+            namespace_id: namespace_id.ok_or_else(|| "Missing namespace_id".to_string())?,
+            namespace_explicit,
         })
     }
 }
@@ -163,9 +170,12 @@ struct ModuleQuery {
 }
 
 impl ModuleQuery {
-    fn from_params(params: &HashMap<String, String>) -> Result<Self, String> {
+    fn from_params_with_default(
+        params: &HashMap<String, String>,
+        default_namespace_id: Option<&str>,
+    ) -> Result<Self, String> {
         Ok(Self {
-            namespace: NamespaceQuery::from_params(params)?,
+            namespace: NamespaceQuery::from_params_with_default(params, default_namespace_id)?,
             cache_category: params
                 .get("cache_category")
                 .cloned()
@@ -327,6 +337,17 @@ fn required_param(params: &HashMap<String, String>, key: &str) -> Result<String,
     param_value(params, key)
         .cloned()
         .ok_or_else(|| format!("Missing {key}"))
+}
+
+fn namespace_id_from_params(
+    params: &HashMap<String, String>,
+    default_namespace_id: Option<&str>,
+) -> (Option<String>, bool) {
+    let namespace_explicit = param_value(params, "namespace_id").is_some();
+    let namespace_id = param_value(params, "namespace_id")
+        .cloned()
+        .or_else(|| default_namespace_id.map(ToOwned::to_owned));
+    (namespace_id, namespace_explicit)
 }
 
 fn optional_u64_param(params: &HashMap<String, String>, key: &str) -> Result<Option<u64>, String> {
@@ -610,6 +631,7 @@ async fn extension_context_from_http(
         server_tenant_id: state.config.tenant_id.clone(),
         tenant_id: metadata.tenant_id,
         namespace_id: metadata.namespace_id,
+        namespace_explicit: metadata.namespace_explicit,
         producer: metadata.producer,
         artifact_key: metadata.artifact_key,
         artifact_hash: metadata.artifact_hash,
@@ -637,6 +659,7 @@ struct HttpExtensionMetadata {
     operation: String,
     tenant_id: Option<String>,
     namespace_id: Option<String>,
+    namespace_explicit: bool,
     producer: Option<String>,
     artifact_key: Option<String>,
     artifact_hash: Option<String>,
@@ -651,7 +674,8 @@ async fn http_extension_metadata(
     request_body: Option<&[u8]>,
 ) -> HttpExtensionMetadata {
     let tenant_id = param_value(query, "tenant_id").cloned();
-    let mut namespace_id = param_value(query, "namespace_id").cloned();
+    let (mut namespace_id, mut namespace_explicit) =
+        namespace_id_from_params(query, state.config.default_namespace_id.as_deref());
     let last_path_segment = path.rsplit('/').next().map(str::to_owned);
 
     match route {
@@ -659,6 +683,7 @@ async fn http_extension_metadata(
             operation: "artifact.read".into(),
             tenant_id,
             namespace_id,
+            namespace_explicit,
             producer: Some("xcode".into()),
             artifact_key: last_path_segment.as_deref().map(action_cache_key),
             artifact_hash: None,
@@ -667,6 +692,7 @@ async fn http_extension_metadata(
             operation: "artifact.write".into(),
             tenant_id,
             namespace_id,
+            namespace_explicit,
             producer: Some("xcode".into()),
             artifact_key: query
                 .get("cas_id")
@@ -685,6 +711,7 @@ async fn http_extension_metadata(
             .into(),
             tenant_id,
             namespace_id,
+            namespace_explicit,
             producer: Some("xcode".into()),
             artifact_key: last_path_segment.as_deref().map(blob_key),
             artifact_hash: last_path_segment.clone(),
@@ -698,6 +725,7 @@ async fn http_extension_metadata(
             .into(),
             tenant_id,
             namespace_id,
+            namespace_explicit,
             producer: Some("gradle".into()),
             artifact_key: last_path_segment.clone(),
             artifact_hash: last_path_segment.clone(),
@@ -712,6 +740,7 @@ async fn http_extension_metadata(
             .into(),
             tenant_id,
             namespace_id,
+            namespace_explicit,
             producer: Some("module".into()),
             artifact_key: Some(module_key_from_query(query)),
             artifact_hash: query.get("hash").cloned(),
@@ -720,10 +749,14 @@ async fn http_extension_metadata(
             let multipart_upload = query
                 .get("upload_id")
                 .and_then(|upload_id| state.store.multipart_upload(upload_id).ok().flatten());
-            let tenant_id =
-                tenant_id.or_else(|| multipart_upload.as_ref().map(|u| u.tenant_id.clone()));
-            let namespace_id =
-                namespace_id.or_else(|| multipart_upload.as_ref().map(|u| u.namespace_id.clone()));
+            let tenant_id = multipart_upload
+                .as_ref()
+                .map(|upload| upload.tenant_id.clone())
+                .or(tenant_id);
+            if let Some(upload) = multipart_upload.as_ref() {
+                namespace_id = Some(upload.namespace_id.clone());
+                namespace_explicit = upload.namespace_explicit;
+            }
             let artifact_key = multipart_upload
                 .as_ref()
                 .map(|upload| module_key(&upload.category, &upload.hash, &upload.name))
@@ -737,6 +770,7 @@ async fn http_extension_metadata(
                 operation: "artifact.write".into(),
                 tenant_id,
                 namespace_id,
+                namespace_explicit,
                 producer: Some("module".into()),
                 artifact_key,
                 artifact_hash,
@@ -746,12 +780,14 @@ async fn http_extension_metadata(
             operation: "namespace.delete".into(),
             tenant_id,
             namespace_id,
+            namespace_explicit,
             producer: None,
             artifact_key: None,
             artifact_hash: None,
         },
         "/v1/cache/{hash}" => {
             namespace_id = Some(NX_NAMESPACE_ID.into());
+            namespace_explicit = true;
             HttpExtensionMetadata {
                 operation: if method.eq_ignore_ascii_case("GET") {
                     "artifact.read"
@@ -761,6 +797,7 @@ async fn http_extension_metadata(
                 .into(),
                 tenant_id: Some("default".into()),
                 namespace_id,
+                namespace_explicit,
                 producer: Some("nx".into()),
                 artifact_key: last_path_segment.clone(),
                 artifact_hash: last_path_segment,
@@ -768,6 +805,7 @@ async fn http_extension_metadata(
         }
         "/api/metro/cache/{cache_key}" => {
             namespace_id = Some(METRO_NAMESPACE_ID.into());
+            namespace_explicit = true;
             HttpExtensionMetadata {
                 operation: if method.eq_ignore_ascii_case("GET") {
                     "artifact.read"
@@ -777,6 +815,7 @@ async fn http_extension_metadata(
                 .into(),
                 tenant_id: Some("default".into()),
                 namespace_id,
+                namespace_explicit,
                 producer: Some("metro".into()),
                 artifact_key: last_path_segment.clone(),
                 artifact_hash: last_path_segment,
@@ -786,6 +825,7 @@ async fn http_extension_metadata(
             operation: "request".into(),
             tenant_id,
             namespace_id,
+            namespace_explicit,
             producer: None,
             artifact_key: None,
             artifact_hash: None,
@@ -926,7 +966,10 @@ async fn get_keyvalue(
     Query(params): Query<HashMap<String, String>>,
     State(state): State<SharedState>,
 ) -> Response {
-    let namespace = match NamespaceQuery::from_params(&params) {
+    let namespace = match NamespaceQuery::from_params_with_default(
+        &params,
+        state.config.default_namespace_id.as_deref(),
+    ) {
         Ok(namespace) => namespace,
         Err(message) => return error_response(StatusCode::BAD_REQUEST, message),
     };
@@ -1044,7 +1087,10 @@ async fn put_keyvalue(
     State(state): State<SharedState>,
     request: Request,
 ) -> Response {
-    let namespace = match NamespaceQuery::from_params(&params) {
+    let namespace = match NamespaceQuery::from_params_with_default(
+        &params,
+        state.config.default_namespace_id.as_deref(),
+    ) {
         Ok(namespace) => namespace,
         Err(message) => return error_response(StatusCode::BAD_REQUEST, message),
     };
@@ -1122,10 +1168,18 @@ async fn get_xcode(
     Query(params): Query<HashMap<String, String>>,
     State(state): State<SharedState>,
 ) -> Response {
-    let namespace = match NamespaceQuery::from_params(&params) {
+    let namespace = match NamespaceQuery::from_params_with_default(
+        &params,
+        state.config.default_namespace_id.as_deref(),
+    ) {
         Ok(namespace) => namespace,
         Err(message) => return error_response(StatusCode::BAD_REQUEST, message),
     };
+
+    let analytics = namespace.namespace_explicit.then_some(LegacyAnalyticsContext {
+        tenant_id: &namespace.tenant_id,
+        namespace_id: &namespace.namespace_id,
+    });
 
     get_artifact(
         state,
@@ -1133,10 +1187,7 @@ async fn get_xcode(
         &namespace.namespace_id,
         &blob_key(&id),
         Some(&id),
-        Some(LegacyAnalyticsContext {
-            tenant_id: &namespace.tenant_id,
-            namespace_id: &namespace.namespace_id,
-        }),
+        analytics,
     )
     .await
 }
@@ -1147,10 +1198,18 @@ async fn put_xcode(
     State(state): State<SharedState>,
     request: Request,
 ) -> Response {
-    let namespace = match NamespaceQuery::from_params(&params) {
+    let namespace = match NamespaceQuery::from_params_with_default(
+        &params,
+        state.config.default_namespace_id.as_deref(),
+    ) {
         Ok(namespace) => namespace,
         Err(message) => return error_response(StatusCode::BAD_REQUEST, message),
     };
+
+    let analytics = namespace.namespace_explicit.then_some(LegacyAnalyticsContext {
+        tenant_id: &namespace.tenant_id,
+        namespace_id: &namespace.namespace_id,
+    });
 
     put_blob_artifact(
         state,
@@ -1163,10 +1222,7 @@ async fn put_xcode(
             max_bytes: MAX_XCODE_BYTES,
             success_status: StatusCode::NO_CONTENT,
             existing_status: StatusCode::NO_CONTENT,
-            analytics: Some(LegacyAnalyticsContext {
-                tenant_id: &namespace.tenant_id,
-                namespace_id: &namespace.namespace_id,
-            }),
+            analytics,
         },
     )
     .await
@@ -1177,10 +1233,18 @@ async fn get_gradle(
     Query(params): Query<HashMap<String, String>>,
     State(state): State<SharedState>,
 ) -> Response {
-    let namespace = match NamespaceQuery::from_params(&params) {
+    let namespace = match NamespaceQuery::from_params_with_default(
+        &params,
+        state.config.default_namespace_id.as_deref(),
+    ) {
         Ok(namespace) => namespace,
         Err(message) => return error_response(StatusCode::BAD_REQUEST, message),
     };
+
+    let analytics = namespace.namespace_explicit.then_some(LegacyAnalyticsContext {
+        tenant_id: &namespace.tenant_id,
+        namespace_id: &namespace.namespace_id,
+    });
 
     get_artifact(
         state,
@@ -1188,10 +1252,7 @@ async fn get_gradle(
         &namespace.namespace_id,
         &cache_key,
         Some(&cache_key),
-        Some(LegacyAnalyticsContext {
-            tenant_id: &namespace.tenant_id,
-            namespace_id: &namespace.namespace_id,
-        }),
+        analytics,
     )
     .await
 }
@@ -1202,10 +1263,18 @@ async fn put_gradle(
     State(state): State<SharedState>,
     request: Request,
 ) -> Response {
-    let namespace = match NamespaceQuery::from_params(&params) {
+    let namespace = match NamespaceQuery::from_params_with_default(
+        &params,
+        state.config.default_namespace_id.as_deref(),
+    ) {
         Ok(namespace) => namespace,
         Err(message) => return error_response(StatusCode::BAD_REQUEST, message),
     };
+
+    let analytics = namespace.namespace_explicit.then_some(LegacyAnalyticsContext {
+        tenant_id: &namespace.tenant_id,
+        namespace_id: &namespace.namespace_id,
+    });
 
     put_blob_artifact(
         state,
@@ -1218,10 +1287,7 @@ async fn put_gradle(
             max_bytes: MAX_GRADLE_BYTES,
             success_status: StatusCode::CREATED,
             existing_status: StatusCode::OK,
-            analytics: Some(LegacyAnalyticsContext {
-                tenant_id: &namespace.tenant_id,
-                namespace_id: &namespace.namespace_id,
-            }),
+            analytics,
         },
     )
     .await
@@ -1231,7 +1297,10 @@ async fn head_module(
     Query(params): Query<HashMap<String, String>>,
     State(state): State<SharedState>,
 ) -> Response {
-    let query = match ModuleQuery::from_params(&params) {
+    let query = match ModuleQuery::from_params_with_default(
+        &params,
+        state.config.default_namespace_id.as_deref(),
+    ) {
         Ok(query) => query,
         Err(message) => return error_response(StatusCode::BAD_REQUEST, message),
     };
@@ -1258,7 +1327,10 @@ async fn get_module(
     Query(params): Query<HashMap<String, String>>,
     State(state): State<SharedState>,
 ) -> Response {
-    let query = match ModuleQuery::from_params(&params) {
+    let query = match ModuleQuery::from_params_with_default(
+        &params,
+        state.config.default_namespace_id.as_deref(),
+    ) {
         Ok(query) => query,
         Err(message) => return error_response(StatusCode::BAD_REQUEST, message),
     };
@@ -1278,7 +1350,10 @@ async fn start_module_upload(
     Query(params): Query<HashMap<String, String>>,
     State(state): State<SharedState>,
 ) -> Response {
-    let query = match ModuleQuery::from_params(&params) {
+    let query = match ModuleQuery::from_params_with_default(
+        &params,
+        state.config.default_namespace_id.as_deref(),
+    ) {
         Ok(query) => query,
         Err(message) => return error_response(StatusCode::BAD_REQUEST, message),
     };
@@ -1298,6 +1373,7 @@ async fn start_module_upload(
         Ok(false) => match state.store.start_multipart_upload(
             &query.namespace.tenant_id,
             &query.namespace.namespace_id,
+            query.namespace.namespace_explicit,
             &query.cache_category,
             &query.hash,
             &query.name,
@@ -1425,7 +1501,10 @@ async fn clean_namespace(
     Query(params): Query<HashMap<String, String>>,
     State(state): State<SharedState>,
 ) -> Response {
-    let namespace = match NamespaceQuery::from_params(&params) {
+    let namespace = match NamespaceQuery::from_params_with_default(
+        &params,
+        state.config.default_namespace_id.as_deref(),
+    ) {
         Ok(namespace) => namespace,
         Err(message) => return error_response(StatusCode::BAD_REQUEST, message),
     };
@@ -2552,7 +2631,7 @@ mod tests {
         let upload_id = context
             .state
             .store
-            .start_multipart_upload("acme", "ios", "builds", "hash-1", "Module.framework")
+            .start_multipart_upload("acme", "ios", true, "builds", "hash-1", "Module.framework")
             .expect("failed to start multipart upload");
         let query = parse_query_map(Some(&format!("upload_id={upload_id}&part_number=1")));
         let headers = BTreeMap::new();
@@ -2573,6 +2652,7 @@ mod tests {
 
         assert_eq!(extension_context.tenant_id.as_deref(), Some("acme"));
         assert_eq!(extension_context.namespace_id.as_deref(), Some("ios"));
+        assert!(extension_context.namespace_explicit);
         assert_eq!(extension_context.artifact_hash.as_deref(), Some("hash-1"));
         assert_eq!(
             extension_context.artifact_key.as_deref(),
@@ -2600,6 +2680,7 @@ mod tests {
 
         assert_eq!(extension_context.tenant_id.as_deref(), Some("acme"));
         assert_eq!(extension_context.namespace_id.as_deref(), Some("ios"));
+        assert!(extension_context.namespace_explicit);
     }
 
     #[tokio::test]
@@ -2625,6 +2706,68 @@ mod tests {
             extension_context.artifact_key.as_deref(),
             Some("action_cache/cas-1")
         );
+        assert!(extension_context.namespace_explicit);
+    }
+
+    #[tokio::test]
+    async fn default_namespace_allows_projectless_xcode_routes() {
+        let context = test_context(|config| {
+            config.default_namespace_id = Some("~account".into());
+        })
+        .await;
+        let app = router(context.state.clone());
+
+        let put_response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/cache/cas/artifact-1?tenant_id=acme")
+                    .header("content-type", "application/octet-stream")
+                    .body(Body::from("account-binary"))
+                    .expect("failed to build put request"),
+            )
+            .await
+            .expect("put request failed");
+        assert_eq!(put_response.status(), StatusCode::NO_CONTENT);
+
+        let get_response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/cache/cas/artifact-1?tenant_id=acme")
+                    .body(Body::empty())
+                    .expect("failed to build get request"),
+            )
+            .await
+            .expect("get request failed");
+        assert_eq!(get_response.status(), StatusCode::OK);
+        assert_eq!(response_text(get_response).await, "account-binary");
+    }
+
+    #[tokio::test]
+    async fn extension_context_marks_default_namespace_as_not_explicit() {
+        let context = test_context(|config| {
+            config.default_namespace_id = Some("~account".into());
+        })
+        .await;
+        let query = parse_query_map(Some("tenant_id=acme"));
+        let extension_context = extension_context_from_http(
+            &context.state,
+            HttpExtensionRequest {
+                route: "/api/cache/cas/{id}",
+                method: "GET",
+                path: "/api/cache/cas/artifact-1",
+                query: &query,
+                headers: &BTreeMap::new(),
+                body: None,
+                status_code: None,
+            },
+        )
+        .await;
+
+        assert_eq!(extension_context.tenant_id.as_deref(), Some("acme"));
+        assert_eq!(extension_context.namespace_id.as_deref(), Some("~account"));
+        assert!(!extension_context.namespace_explicit);
     }
 
     #[tokio::test]
