@@ -161,4 +161,32 @@ defmodule Tuist.GitHub.AppTest do
       assert message =~ "SSRF"
     end
   end
+
+  describe "get_jwt/1" do
+    test "returns a signed JWT using the globally-configured App credentials" do
+      assert {:ok, "jwt"} = App.get_jwt()
+    end
+
+    test "returns a signed JWT using credentials passed via opts (per-installation GHES App)" do
+      ghes_creds = Map.put(@creds, :app_id, "ghes-app-id")
+
+      # `get_jwt` must NOT fall back to the global credentials when
+      # the caller supplied their own — the JWT must be issued with
+      # the GHES App's `iss` (app_id) so GitHub on that GHES instance
+      # accepts it.
+      expect(JOSE.JWT, :sign, fn _key, _header, %{"iss" => iss} = _claims ->
+        assert iss == "ghes-app-id"
+        "signed_pem"
+      end)
+
+      assert {:ok, "jwt"} = App.get_jwt(credentials: ghes_creds)
+    end
+
+    test "returns {:error, _} when no App credentials are configured" do
+      stub(VCS, :github_app_credentials, fn -> nil end)
+
+      assert {:error, message} = App.get_jwt()
+      assert message =~ "GitHub App is not configured"
+    end
+  end
 end
