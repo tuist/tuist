@@ -140,12 +140,6 @@ public struct GenerateService {
         if !noOpen {
             try await opener.open(path: workspacePath)
         }
-        if let buildFolder {
-            AlertController.current.warning(.alert(
-                "Project generated using custom build folder: \(buildFolder.pathString)",
-                takeaway: "Ensure the build folder has the same resolved dependencies."
-            ))
-        }
         AlertController.current.success(.alert("Project generated."))
         Logger.current.notice(timeTakenLoggerFormatter.timeTakenMessage(for: timer))
     }

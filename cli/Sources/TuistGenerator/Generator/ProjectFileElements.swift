@@ -76,15 +76,18 @@ class ProjectFileElements {
     var compiled: [AbsolutePath: PBXFileReference] = [:]
     var knownRegions: Set<String> = Set([])
     private let cacheDirectoriesProvider: CacheDirectoriesProviding
+    private var swiftPackageManagerScratchDirectories: Set<AbsolutePath>
 
     // MARK: - Init
 
     init(
         _ elements: [AbsolutePath: PBXFileElement] = [:],
-        cacheDirectoriesProvider: CacheDirectoriesProviding = CacheDirectoriesProvider()
+        cacheDirectoriesProvider: CacheDirectoriesProviding = CacheDirectoriesProvider(),
+        swiftPackageManagerScratchDirectories: Set<AbsolutePath> = []
     ) {
         self.elements = elements
         self.cacheDirectoriesProvider = cacheDirectoriesProvider
+        self.swiftPackageManagerScratchDirectories = swiftPackageManagerScratchDirectories
     }
 
     func generateProjectFiles(
@@ -93,6 +96,9 @@ class ProjectFileElements {
         groups: ProjectGroups,
         pbxproj: PBXProj
     ) throws {
+        swiftPackageManagerScratchDirectories.formUnion(
+            graphTraverser.projects.values.compactMap(\.swiftPackageManagerScratchDirectory)
+        )
         var files = Set<GroupFileElement>()
 
         for target in project.targets.values.sorted() {
@@ -347,6 +353,12 @@ class ProjectFileElements {
     ) throws {
         // Pre-compiled artifact from the cache
         let cacheDirectory = cacheDirectoriesProvider.cacheDirectory()
+        let defaultSwiftPackageManagerScratchDirectory = sourceRootPath.appending(
+            component: Constants.SwiftPackageManager.packageBuildDirectoryName
+        )
+        let isSwiftPackageManagerArtifact =
+            swiftPackageManagerScratchDirectories.contains(where: { path.isDescendantOfOrEqual(to: $0) })
+            || path.isDescendantOfOrEqual(to: defaultSwiftPackageManagerScratchDirectory)
         if path.pathString.contains(cacheDirectory.pathString) {
             guard compiled[path] == nil else {
                 return
@@ -360,9 +372,7 @@ class ProjectFileElements {
                 pbxproj: pbxproj
             )
             compiled[path] = fileElement
-        } else if path.pathString
-            .contains("/\(Constants.SwiftPackageManager.packageBuildDirectoryName)/")
-        {
+        } else if isSwiftPackageManagerArtifact {
             guard compiled[path] == nil else {
                 return
             }
