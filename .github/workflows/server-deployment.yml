@@ -542,20 +542,32 @@ jobs:
         # --wait=hookOnly (helm 4 default) waits only for chart hooks —
         # the pre-upgrade migration Job — not for every resource the
         # chart renders. The chart owns three CAPI MachineDeployments
-        # (macos / runners / builders fleets) whose readiness depends
-        # on out-of-band Scaleway Mac mini provisioning (50+ min cold
-        # order, operator-driven host pool refill, no SLA). Gating the
-        # server rollout on them turns a routine deploy into a multi-
-        # hour hang the moment the pre-ordered `tuist-pool-` pool runs
-        # dry. CAPI controllers reconcile the fleets asynchronously;
-        # their state is independent of the server's readiness.
+        # (macos / runners / builders fleets) whose readiness lives
+        # behind a slow async CAPI reconciliation loop driven by an
+        # out-of-cluster Scaleway control plane: Scaleway DeleteServer
+        # is gated by a multi-week billing-floor that the controller
+        # can't shortcut, and CreateServer on a fresh host runs 50+
+        # min. The chart's `OnDelete` rollout strategy was picked for
+        # exactly this reason (manual machine churn by the operator,
+        # not auto-rolling on every chart change), and the assumption
+        # is that the operator times Machine churn against the billing
+        # floor. Gating the server rollout on that loop means any
+        # CAPI hiccup — billing-floor on a Machine that's mid-roll,
+        # network blip to the Scaleway API, stuck adoption — cascades
+        # into a multi-hour deploy hang while the server change itself
+        # has nothing to do with the fleets.
         #
         # Readiness for everything we ship in a code deploy (server,
         # processors, controllers) is verified by the `kubectl rollout
-        # status` loop below, with a manual helm rollback to the last
-        # deployed revision when any of them fails — that's the safety
-        # net the legacy `--atomic` flag used to provide, restricted to
-        # the resources whose readiness actually gates "deploy good."
+        # status` loop below. On any helm failure or rollout failure
+        # we roll back to the revision that was `deployed` *before*
+        # this upgrade started (captured up front; awk-ing
+        # `helm history` after the fact would pick the just-completed
+        # bad revision since helm marks it `deployed` once manifests
+        # apply, before the rollout-status loop runs). That's the
+        # safety net the legacy `--atomic` flag used to provide,
+        # restricted to the resources whose readiness actually gates
+        # "deploy good."
         timeout-minutes: 25
         run: |
           # Stream cluster state every 30s while helm and the rollout
@@ -576,18 +588,27 @@ jobs:
 
           set -uo pipefail
 
+          # Capture the revision that is `deployed` *right now*, before
+          # this upgrade runs. That's our rollback target: once helm
+          # upgrade succeeds, the new revision is also marked `deployed`
+          # and a post-hoc awk over `helm history` can no longer
+          # distinguish "the old good one" from "the one whose pods are
+          # crashing." First-install case (no history) returns empty;
+          # rollback_release degrades gracefully and exits 1 below.
+          pre_upgrade_revision="$(
+            helm history "$HELM_RELEASE_NAME" -n "$NAMESPACE" --max 20 2>/dev/null |
+              awk '$0 ~ /[[:space:]]deployed[[:space:]]/ { rev = $1 } END { print rev }' ||
+              true
+          )"
+          echo "Pre-upgrade deployed revision: ${pre_upgrade_revision:-<none, first install>}"
+
           rollback_release() {
-            local prev_revision
-            prev_revision="$(
-              helm history "$HELM_RELEASE_NAME" -n "$NAMESPACE" --max 20 |
-                awk '$0 ~ /[[:space:]]deployed[[:space:]]/ { rev = $1 } END { print rev }'
-            )"
-            if [ -z "$prev_revision" ]; then
-              echo "No prior deployed revision; leaving release as-is for the next run's recovery step."
+            if [ -z "$pre_upgrade_revision" ]; then
+              echo "No prior deployed revision to roll back to; leaving release as-is for the next run's recovery step."
               return
             fi
-            echo "Rolling back $HELM_RELEASE_NAME to revision $prev_revision."
-            helm rollback "$HELM_RELEASE_NAME" "$prev_revision" \
+            echo "Rolling back $HELM_RELEASE_NAME to revision $pre_upgrade_revision."
+            helm rollback "$HELM_RELEASE_NAME" "$pre_upgrade_revision" \
               -n "$NAMESPACE" --timeout 10m --cleanup-on-fail || true
           }
 
