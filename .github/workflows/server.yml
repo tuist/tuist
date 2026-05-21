@@ -203,6 +203,8 @@ jobs:
         with:
           mise-version: ${{ env.MISE_VERSION }}
       - name: Run Credo
+        env:
+          MIX_OS_DEPS_COMPILE_PARTITION_COUNT: 1
         run: mix credo
   format:
     name: Format
@@ -289,6 +291,8 @@ jobs:
           sudo tar xzf /tmp/trivy.tar.gz -C /usr/local/bin trivy
           rm /tmp/trivy.tar.gz
       - name: Check
+        env:
+          MIX_OS_DEPS_COMPILE_PARTITION_COUNT: 1
         run: ./mise/tasks/security.sh
   docker_build:
     name: Docker build
