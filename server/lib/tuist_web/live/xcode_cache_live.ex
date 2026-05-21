@@ -275,7 +275,7 @@ defmodule TuistWeb.XcodeCacheLive do
   defp analytics_chart_data("cache_throughput", _transfer, _latency, throughput, _hit_rate) do
     %{
       dates: throughput.dates,
-      value_formatter: "fn:formatBytesPerSecond",
+      value_formatter: "fn:formatMbps",
       series: [
         %{
           name: dgettext("dashboard_cache", "Cache throughput"),

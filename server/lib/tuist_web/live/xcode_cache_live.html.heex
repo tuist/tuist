@@ -315,33 +315,24 @@
         value={
           if @throughput_analytics.ok?,
             do:
-              dgettext("dashboard_cache", "%{value}/s",
-                value:
-                  ByteFormatter.format_bytes(
-                    round(
-                      throughput_value(@throughput_analytics.result, @selected_throughput_type)
-                    )
-                  )
+              Tuist.Utilities.ThroughputFormatter.format_throughput(
+                throughput_value(@throughput_analytics.result, @selected_throughput_type)
               )
         }
         metrics={
           if @throughput_analytics.ok? do
             %{
               combined:
-                dgettext("dashboard_cache", "%{value}/s",
-                  value: ByteFormatter.format_bytes(round(@throughput_analytics.result.total))
+                Tuist.Utilities.ThroughputFormatter.format_throughput(
+                  @throughput_analytics.result.total
                 ),
               primary:
-                dgettext("dashboard_cache", "%{value}/s",
-                  value:
-                    ByteFormatter.format_bytes(
-                      round(@throughput_analytics.result.downloads.total)
-                    )
+                Tuist.Utilities.ThroughputFormatter.format_throughput(
+                  @throughput_analytics.result.downloads.total
                 ),
               secondary:
-                dgettext("dashboard_cache", "%{value}/s",
-                  value:
-                    ByteFormatter.format_bytes(round(@throughput_analytics.result.uploads.total))
+                Tuist.Utilities.ThroughputFormatter.format_throughput(
+                  @throughput_analytics.result.uploads.total
                 )
             }
           end
