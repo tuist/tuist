@@ -28,7 +28,7 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"* * * * *", Tuist.Kura.Reconciler},
     {"* * * * *", Tuist.Runners.Workers.StaleClaimsWorker},
     {"* * * * *", Tuist.Runners.Workers.OrphanedRunnersWorker},
-    {"*/5 * * * *", Tuist.Runners.Workers.MissedQueuedWorker}
+    {"*/5 * * * *", Tuist.Runners.Workers.WebhookRedeliveryWorker}
   ]
 
   @prod_like_envs [:prod, :stag, :can]
