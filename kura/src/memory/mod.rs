@@ -11,7 +11,6 @@ const RECOVERY_NUMERATOR: u64 = 9;
 const RECOVERY_DENOMINATOR: u64 = 10;
 const MIN_REAPI_RESPONSE_BUDGET_BYTES: usize = 8 * 1024 * 1024;
 const MAX_REAPI_RESPONSE_BUDGET_BYTES: usize = 64 * 1024 * 1024;
-const MIN_REAPI_MATERIALIZATION_POOL_BYTES: usize = 16 * 1024 * 1024;
 const MAX_REAPI_MATERIALIZATION_POOL_BYTES: usize = 128 * 1024 * 1024;
 
 #[derive(Clone)]
@@ -74,7 +73,7 @@ impl MemoryController {
                 hard_limit_bytes,
                 state: AtomicU8::new(MemoryPressure::Normal.as_u8()),
                 reapi_materialization_pool: Arc::new(Semaphore::new(
-                    reapi_materialization_pool_bytes(soft_limit_bytes),
+                    reapi_materialization_pool_bytes(soft_limit_bytes, hard_limit_bytes),
                 )),
                 metrics,
             }),
@@ -163,6 +162,7 @@ impl MemoryController {
             MIN_REAPI_RESPONSE_BUDGET_BYTES as u64,
             MAX_REAPI_RESPONSE_BUDGET_BYTES as u64,
         ) as usize;
+        let normal_budget = normal_budget.min(self.reapi_materialization_pool_bytes());
         match self.pressure() {
             MemoryPressure::Normal => normal_budget,
             MemoryPressure::Constrained => normal_budget / 2,
@@ -171,7 +171,7 @@ impl MemoryController {
     }
 
     pub fn reapi_materialization_pool_bytes(&self) -> usize {
-        reapi_materialization_pool_bytes(self.inner.soft_limit_bytes)
+        reapi_materialization_pool_bytes(self.inner.soft_limit_bytes, self.inner.hard_limit_bytes)
     }
 
     pub fn try_acquire_reapi_materialization(
@@ -201,10 +201,11 @@ fn clamp_u64(value: u64, minimum: u64, maximum: u64) -> u64 {
     value.max(minimum).min(maximum)
 }
 
-fn reapi_materialization_pool_bytes(soft_limit_bytes: u64) -> usize {
+fn reapi_materialization_pool_bytes(soft_limit_bytes: u64, hard_limit_bytes: u64) -> usize {
+    let headroom_bytes = hard_limit_bytes.saturating_sub(soft_limit_bytes) / 2;
     clamp_u64(
-        soft_limit_bytes / 2,
-        MIN_REAPI_MATERIALIZATION_POOL_BYTES as u64,
+        headroom_bytes,
+        1,
         MAX_REAPI_MATERIALIZATION_POOL_BYTES as u64,
     ) as usize
 }
@@ -241,13 +242,13 @@ mod tests {
     }
 
     #[test]
-    fn reapi_materialization_pool_is_clamped_from_soft_limit() {
+    fn reapi_materialization_pool_is_clamped_from_memory_headroom() {
         let metrics = Metrics::new("eu-west".into(), "tenant".into());
         let small = MemoryController::new(metrics.clone(), 24 * 1024 * 1024, 48 * 1024 * 1024);
         let medium = MemoryController::new(metrics.clone(), 128 * 1024 * 1024, 256 * 1024 * 1024);
         let large = MemoryController::new(metrics, 8 * 1024 * 1024 * 1024, 9 * 1024 * 1024 * 1024);
 
-        assert_eq!(small.reapi_materialization_pool_bytes(), 16 * 1024 * 1024);
+        assert_eq!(small.reapi_materialization_pool_bytes(), 12 * 1024 * 1024);
         assert_eq!(medium.reapi_materialization_pool_bytes(), 64 * 1024 * 1024);
         assert_eq!(large.reapi_materialization_pool_bytes(), 128 * 1024 * 1024);
     }
