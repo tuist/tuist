@@ -62,6 +62,14 @@ func newRunnerPod(name, image string, phase corev1.PodPhase, poolName string) *c
 	}
 }
 
+func newDeletingRunnerPod(name, image string, phase corev1.PodPhase, poolName string) *corev1.Pod {
+	pod := newRunnerPod(name, image, phase, poolName)
+	now := metav1.Now()
+	pod.DeletionTimestamp = &now
+	pod.Finalizers = []string{tartKubeletPodFinalizer}
+	return pod
+}
+
 func TestIsStaleImage(t *testing.T) {
 	pool := newPool("p", "ghcr.io/tuist/tuist-runner@sha256:new", 1)
 
@@ -204,6 +212,59 @@ func TestReconcile_LeavesStaleRunningPodAlone(t *testing.T) {
 	// Replicas=1, alive=1 (the running stale pod), gap=0 — no replacement created.
 	if len(pods.Items) != 1 {
 		t.Fatalf("expected no replacement while running stale pod is alive, got %d", len(pods.Items))
+	}
+}
+
+// TestReconcile_DeletesTerminalDeletingPodAndCreatesReplacement
+// covers the production backlog we found live: Pods had already
+// reached Succeeded and already had DeletionTimestamp set, but the
+// lingering tart-kubelet finalizer meant the old Pod and its
+// same-named ServiceAccount never disappeared. The controller now
+// removes that finalizer, force-completes deletion, drops the SA,
+// and fills the replica gap in the same reconcile.
+func TestReconcile_DeletesTerminalDeletingPodAndCreatesReplacement(t *testing.T) {
+	scheme := mustScheme(t)
+	pool := newPool("p", "ghcr.io/tuist/tuist-runner@sha256:new", 1)
+	terminatingPod := newDeletingRunnerPod("p-runner-done", pool.Spec.Image, corev1.PodSucceeded, "p")
+	terminatingSA := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "p-runner-done",
+			Namespace: "tuist-runners",
+		},
+	}
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool, terminatingPod, terminatingSA).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+
+	r := &RunnerPoolReconciler{Client: c, Scheme: scheme, DispatchURL: "http://dispatch"}
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{
+		NamespacedName: nn(pool.Namespace, pool.Name),
+	}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	pods := &corev1.PodList{}
+	if err := c.List(context.Background(), pods); err != nil {
+		t.Fatalf("list pods: %v", err)
+	}
+	for _, p := range pods.Items {
+		if p.Name == "p-runner-done" {
+			t.Fatalf("expected terminal deleting pod to be removed, still present")
+		}
+	}
+	if len(pods.Items) != 1 {
+		t.Fatalf("expected 1 replacement pod, got %d: %+v", len(pods.Items), podNames(pods.Items))
+	}
+	if got := pods.Items[0].Spec.Containers[0].Image; got != pool.Spec.Image {
+		t.Fatalf("replacement pod image = %q, want %q", got, pool.Spec.Image)
+	}
+
+	sa := &corev1.ServiceAccount{}
+	if err := c.Get(context.Background(), nn("tuist-runners", "p-runner-done"), sa); err == nil {
+		t.Fatalf("expected terminal deleting pod SA to be deleted, still present")
 	}
 }
 

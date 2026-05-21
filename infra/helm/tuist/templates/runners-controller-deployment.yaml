@@ -107,9 +107,12 @@ rules:
     # Pods + SAs are direct owner-ref children of the RunnerPool.
     # The reconciler creates them to bring the alive Pod count up
     # to `spec.replicas` and deletes terminal Pods + their sibling
-    # SAs before booting replacements.
+    # SAs before booting replacements. It also clears the
+    # tart-kubelet finalizer on terminal Pods that are already
+    # deleting so stuck `Terminating` backlog drains without an
+    # operator patch loop.
     resources: [pods, serviceaccounts]
-    verbs: [get, list, watch, create, delete]
+    verbs: [get, list, watch, create, update, delete]
   - apiGroups: [""]
     resources: [events]
     verbs: [create, patch]

@@ -48,9 +48,11 @@ type RunnerPoolReconciler struct {
 	DispatchInternalURL string
 }
 
+const tartKubeletPodFinalizer = "tart-kubelet.tuist.dev/vm-cleanup"
+
 // +kubebuilder:rbac:groups=tuist.dev,resources=runnerpools,verbs=get;list;watch;update;patch
 // +kubebuilder:rbac:groups=tuist.dev,resources=runnerpools/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;create;delete
+// +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;create;update;delete
 // +kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list;watch;create;delete
 
 func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -90,6 +92,7 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 	alive := 0
 	reaped := 0
+	terminatingReaped := 0
 	staleDeleted := 0
 	var idleAlive []*corev1.Pod
 	for i := range pods.Items {
@@ -135,7 +138,21 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			if isIdle(p) {
 				idleAlive = append(idleAlive, p)
 			}
-		case p.DeletionTimestamp.IsZero():
+		case isDeletingTerminal(p):
+			// Terminal Pods that are already deleting can still get
+			// stuck behind tart-kubelet's finalizer if the host-side
+			// reconciler never comes back to clear it. That leaves the
+			// Pod and its same-named ServiceAccount around forever,
+			// which is exactly the backlog we saw live in production.
+			// By this point the VM is already gone: tart-kubelet tears
+			// it down before it ever publishes Succeeded/Failed, so the
+			// only remaining work here is API object cleanup.
+			if err := r.reapDeletingTerminalRunner(ctx, p); err != nil {
+				logger.Error(err, "reap deleting terminal runner; will retry", "pod", p.Name)
+				return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+			}
+			terminatingReaped++
+		case isTerminal(p):
 			// Terminal Pod (Succeeded/Failed) with no deletion in
 			// flight. Reap the Pod and its sibling ServiceAccount.
 			// Without explicit cleanup the namespace fills with
@@ -161,6 +178,7 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		"target", pool.Spec.Replicas,
 		"observed", alive,
 		"reaped", reaped,
+		"terminatingReaped", terminatingReaped,
 		"staleDeleted", staleDeleted,
 		"gap", gap,
 		"overflow", overflow,
@@ -249,6 +267,34 @@ func (r *RunnerPoolReconciler) reapRunner(ctx context.Context, pod *corev1.Pod) 
 	if err := r.Delete(ctx, pod); err != nil && !apierrors.IsNotFound(err) {
 		return fmt.Errorf("delete pod %s: %w", pod.Name, err)
 	}
+	return r.deleteSiblingServiceAccount(ctx, pod)
+}
+
+// reapDeletingTerminalRunner completes cleanup for a Pod that is
+// already terminal and already deleting. If tart-kubelet never
+// returns to clear its finalizer, the owning controller has to do
+// it so the namespace does not accumulate an unbounded backlog of
+// `Terminating` Pods and same-named ServiceAccounts.
+func (r *RunnerPoolReconciler) reapDeletingTerminalRunner(ctx context.Context, pod *corev1.Pod) error {
+	if controllerutil.RemoveFinalizer(pod, tartKubeletPodFinalizer) {
+		if err := r.Update(ctx, pod); err != nil && !apierrors.IsNotFound(err) {
+			return fmt.Errorf("remove tart finalizer from pod %s: %w", pod.Name, err)
+		}
+	}
+
+	terminatingPod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: pod.Namespace,
+			Name:      pod.Name,
+		},
+	}
+	if err := r.Delete(ctx, terminatingPod, client.GracePeriodSeconds(0)); err != nil && !apierrors.IsNotFound(err) {
+		return fmt.Errorf("force delete pod %s: %w", pod.Name, err)
+	}
+	return r.deleteSiblingServiceAccount(ctx, pod)
+}
+
+func (r *RunnerPoolReconciler) deleteSiblingServiceAccount(ctx context.Context, pod *corev1.Pod) error {
 	sa := &corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: pod.Namespace,
@@ -276,12 +322,20 @@ func isAlive(pod *corev1.Pod) bool {
 	if !pod.DeletionTimestamp.IsZero() {
 		return false
 	}
+	return !isTerminal(pod)
+}
+
+func isTerminal(pod *corev1.Pod) bool {
 	switch pod.Status.Phase {
 	case corev1.PodSucceeded, corev1.PodFailed:
-		return false
-	default:
 		return true
+	default:
+		return false
 	}
+}
+
+func isDeletingTerminal(pod *corev1.Pod) bool {
+	return !pod.DeletionTimestamp.IsZero() && isTerminal(pod)
 }
 
 // isIdle returns true for alive Pods that have NOT yet claimed a
