@@ -33,6 +33,8 @@ use crate::{
     utils::{BodyReadError, action_cache_key, blob_key, module_key, read_request_to_temp},
 };
 
+const RESPONSE_STREAM_CHUNK_BYTES: usize = 256 * 1024;
+
 pub fn public_router(state: SharedState) -> Router {
     public_routes()
         .layer(middleware::from_fn_with_state(
@@ -502,22 +504,47 @@ async fn apply_extensions(State(state): State<SharedState>, req: Request, next: 
         .get::<MatchedPath>()
         .map(|path| path.as_str().to_owned())
         .unwrap_or_else(|| req.uri().path().to_owned());
+    let mut req = req;
     let path = req.uri().path().to_owned();
     if should_skip_extension_route(&route) {
         return next.run(req).await;
     }
 
     let method = req.method().to_string();
-    let query = parse_query_map(req.uri().query());
+    let mut query = parse_query_map(req.uri().query());
     let request_headers = header_map_to_btree(req.headers());
+    let mut request_body = None;
+
+    if route == "/api/cache/keyvalue" && !query.contains_key("cas_id") {
+        let (parts, body) = req.into_parts();
+        match to_bytes(body, state.config.max_keyvalue_bytes).await {
+            Ok(body_bytes) => {
+                if let Some(cas_id) = keyvalue_cas_id_from_body(&body_bytes) {
+                    query.insert("cas_id".to_owned(), cas_id);
+                }
+                request_body = Some(body_bytes.to_vec());
+                req = Request::from_parts(parts, Body::from(body_bytes));
+            }
+            Err(_) => {
+                return error_response(
+                    StatusCode::PAYLOAD_TOO_LARGE,
+                    "Failed to read key-value request body",
+                );
+            }
+        }
+    }
+
     let context = extension_context_from_http(
         &state,
-        &route,
-        &method,
-        &path,
-        &query,
-        &request_headers,
-        None,
+        HttpExtensionRequest {
+            route: &route,
+            method: &method,
+            path: &path,
+            query: &query,
+            headers: &request_headers,
+            body: request_body.as_deref(),
+            status_code: None,
+        },
     )
     .await;
 
@@ -532,12 +559,15 @@ async fn apply_extensions(State(state): State<SharedState>, req: Request, next: 
 
     let response_context = extension_context_from_http(
         &state,
-        &route,
-        &method,
-        &path,
-        &query,
-        &request_headers,
-        Some(response.status().as_u16()),
+        HttpExtensionRequest {
+            route: &route,
+            method: &method,
+            path: &path,
+            query: &query,
+            headers: &request_headers,
+            body: request_body.as_deref(),
+            status_code: Some(response.status().as_u16()),
+        },
     )
     .await;
     let headers = extension
@@ -569,18 +599,21 @@ fn is_http1(version: Version) -> bool {
 
 async fn extension_context_from_http(
     state: &SharedState,
-    route: &str,
-    method: &str,
-    path: &str,
-    query: &HashMap<String, String>,
-    headers: &BTreeMap<String, String>,
-    status_code: Option<u16>,
+    request: HttpExtensionRequest<'_>,
 ) -> ExtensionContext {
-    let metadata = http_extension_metadata(state, route, method, path, query).await;
+    let metadata = http_extension_metadata(
+        state,
+        request.route,
+        request.method,
+        request.path,
+        request.query,
+        request.body,
+    )
+    .await;
     ExtensionContext {
         transport: "http".into(),
-        route: route.to_owned(),
-        method: method.to_owned(),
+        route: request.route.to_owned(),
+        method: request.method.to_owned(),
         operation: metadata.operation,
         server_tenant_id: state.config.tenant_id.clone(),
         tenant_id: metadata.tenant_id,
@@ -588,13 +621,24 @@ async fn extension_context_from_http(
         producer: metadata.producer,
         artifact_key: metadata.artifact_key,
         artifact_hash: metadata.artifact_hash,
-        headers: headers.clone(),
-        query: query
+        headers: request.headers.clone(),
+        query: request
+            .query
             .iter()
             .map(|(key, value)| (key.clone(), value.clone()))
             .collect(),
-        status_code,
+        status_code: request.status_code,
     }
+}
+
+struct HttpExtensionRequest<'a> {
+    route: &'a str,
+    method: &'a str,
+    path: &'a str,
+    query: &'a HashMap<String, String>,
+    headers: &'a BTreeMap<String, String>,
+    body: Option<&'a [u8]>,
+    status_code: Option<u16>,
 }
 
 struct HttpExtensionMetadata {
@@ -612,6 +656,7 @@ async fn http_extension_metadata(
     method: &str,
     path: &str,
     query: &HashMap<String, String>,
+    request_body: Option<&[u8]>,
 ) -> HttpExtensionMetadata {
     let tenant_id = param_value(query, "tenant_id").cloned();
     let mut namespace_id = param_value(query, "namespace_id").cloned();
@@ -631,7 +676,12 @@ async fn http_extension_metadata(
             tenant_id,
             namespace_id,
             producer: Some("xcode".into()),
-            artifact_key: query.get("cas_id").map(|cas_id| action_cache_key(cas_id)),
+            artifact_key: query
+                .get("cas_id")
+                .cloned()
+                .or_else(|| request_body.and_then(keyvalue_cas_id_from_body))
+                .as_deref()
+                .map(action_cache_key),
             artifact_hash: None,
         },
         "/api/cache/cas/{id}" => HttpExtensionMetadata {
@@ -749,6 +799,12 @@ async fn http_extension_metadata(
             artifact_hash: None,
         },
     }
+}
+
+fn keyvalue_cas_id_from_body(body: &[u8]) -> Option<String> {
+    serde_json::from_slice::<KeyValuePutRequest>(body)
+        .ok()
+        .map(|request| request.cas_id)
 }
 
 fn module_key_from_query(query: &HashMap<String, String>) -> String {
@@ -883,15 +939,41 @@ async fn get_keyvalue(
         Err(message) => return error_response(StatusCode::BAD_REQUEST, message),
     };
 
-    get_artifact(
-        state,
+    let key = action_cache_key(&cas_id);
+    match state.store.fetch_inline_artifact_bytes(
         ArtifactProducer::Xcode,
         &namespace.namespace_id,
-        &action_cache_key(&cas_id),
-        None,
-        None,
-    )
-    .await
+        &key,
+    ) {
+        Ok(Some(bytes)) => {
+            state
+                .metrics
+                .record_artifact_read(ArtifactProducer::Xcode, "ok", bytes.len() as u64);
+            (
+                [(
+                    axum::http::header::CONTENT_TYPE,
+                    HeaderValue::from_static("application/json"),
+                )],
+                bytes,
+            )
+                .into_response()
+        }
+        Ok(None) => {
+            state
+                .metrics
+                .record_artifact_read(ArtifactProducer::Xcode, "not_found", 0);
+            StatusCode::NOT_FOUND.into_response()
+        }
+        Err(error) => {
+            state
+                .metrics
+                .record_artifact_read(ArtifactProducer::Xcode, "error", 0);
+            error_response(
+                StatusCode::SERVICE_UNAVAILABLE,
+                format!("Failed to fetch artifact: {error}"),
+            )
+        }
+    }
 }
 
 async fn get_nx(AxumPath(hash): AxumPath<String>, State(state): State<SharedState>) -> Response {
@@ -1427,7 +1509,11 @@ async fn internal_bootstrap_artifact(
     AxumPath(artifact_id): AxumPath<String>,
     State(state): State<SharedState>,
 ) -> Response {
-    match state.store.manifest(&artifact_id) {
+    match state
+        .store
+        .fetch_artifact_by_id_for_serving(&artifact_id)
+        .await
+    {
         Ok(Some(manifest)) => serve_file(&state, StatusCode::OK, &manifest).await,
         Ok(None) => StatusCode::NOT_FOUND.into_response(),
         Err(error) => error_response(
@@ -1632,15 +1718,15 @@ async fn get_artifact(
 ) -> Response {
     match state
         .store
-        .fetch_artifact(producer, namespace_id, key)
+        .fetch_artifact_for_serving(producer, namespace_id, key)
         .await
     {
         Ok(Some(manifest)) => {
-            state
-                .metrics
-                .record_artifact_read(producer, "ok", manifest.size);
             let response = serve_file(&state, StatusCode::OK, &manifest).await;
             if response.status().is_success() {
+                state
+                    .metrics
+                    .record_artifact_read(producer, "ok", manifest.size);
                 record_legacy_cache_event(
                     &state,
                     producer,
@@ -1649,6 +1735,10 @@ async fn get_artifact(
                     analytics_key.unwrap_or(key),
                     manifest.size,
                 );
+            } else if response.status() == StatusCode::NOT_FOUND {
+                state.metrics.record_artifact_read(producer, "not_found", 0);
+            } else {
+                state.metrics.record_artifact_read(producer, "error", 0);
             }
             response
         }
@@ -1788,13 +1878,18 @@ async fn serve_file(
 ) -> Response {
     match state.store.open_artifact_reader(manifest).await {
         Ok(reader) => {
-            let stream = ReaderStream::new(reader);
+            let stream = ReaderStream::with_capacity(reader, RESPONSE_STREAM_CHUNK_BYTES);
             let mut response = Response::new(Body::from_stream(stream));
             *response.status_mut() = status;
             response.headers_mut().insert(
                 axum::http::header::CONTENT_TYPE,
                 HeaderValue::from_str(&manifest.content_type)
                     .unwrap_or_else(|_| HeaderValue::from_static("application/octet-stream")),
+            );
+            response.headers_mut().insert(
+                axum::http::header::CONTENT_LENGTH,
+                HeaderValue::from_str(&manifest.size.to_string())
+                    .unwrap_or_else(|_| HeaderValue::from_static("0")),
             );
             response
         }
@@ -2429,6 +2524,12 @@ mod tests {
             .await
             .expect("get request failed");
         assert_eq!(get.status(), StatusCode::OK);
+        assert_eq!(
+            get.headers()
+                .get(axum::http::header::CONTENT_LENGTH)
+                .and_then(|value| value.to_str().ok()),
+            Some("17")
+        );
         assert_eq!(response_text(get).await, "part-one-part-two");
     }
 
@@ -2445,12 +2546,15 @@ mod tests {
 
         let extension_context = extension_context_from_http(
             &context.state,
-            "/api/cache/module/part",
-            "POST",
-            "/api/cache/module/part",
-            &query,
-            &headers,
-            None,
+            HttpExtensionRequest {
+                route: "/api/cache/module/part",
+                method: "POST",
+                path: "/api/cache/module/part",
+                query: &query,
+                headers: &headers,
+                body: None,
+                status_code: None,
+            },
         )
         .await;
 
@@ -2469,17 +2573,45 @@ mod tests {
         let query = parse_query_map(Some("account_handle=acme&project_handle=ios&hash=hash-1"));
         let extension_context = extension_context_from_http(
             &context.state,
-            "/api/cache/cas/{id}",
-            "GET",
-            "/api/cache/cas/artifact-1",
-            &query,
-            &BTreeMap::new(),
-            None,
+            HttpExtensionRequest {
+                route: "/api/cache/cas/{id}",
+                method: "GET",
+                path: "/api/cache/cas/artifact-1",
+                query: &query,
+                headers: &BTreeMap::new(),
+                body: None,
+                status_code: None,
+            },
         )
         .await;
 
         assert_eq!(extension_context.tenant_id.as_deref(), Some("acme"));
         assert_eq!(extension_context.namespace_id.as_deref(), Some("ios"));
+    }
+
+    #[tokio::test]
+    async fn extension_context_uses_keyvalue_cas_id_from_request_body() {
+        let context = test_context(|_| {}).await;
+        let query = parse_query_map(Some("tenant_id=acme&namespace_id=ios"));
+        let request_body = br#"{"cas_id":"cas-1","entries":[{"value":"hello"},{"value":"world"}]}"#;
+        let extension_context = extension_context_from_http(
+            &context.state,
+            HttpExtensionRequest {
+                route: "/api/cache/keyvalue",
+                method: "PUT",
+                path: "/api/cache/keyvalue",
+                query: &query,
+                headers: &BTreeMap::new(),
+                body: Some(request_body),
+                status_code: None,
+            },
+        )
+        .await;
+
+        assert_eq!(
+            extension_context.artifact_key.as_deref(),
+            Some("action_cache/cas-1")
+        );
     }
 
     #[tokio::test]

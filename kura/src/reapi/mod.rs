@@ -23,7 +23,7 @@ use bazel_remote_apis::{
 use futures_util::StreamExt;
 use prost::Message;
 use sha2::{Digest as _, Sha256};
-use tokio::{io::AsyncReadExt, net::TcpListener};
+use tokio::net::TcpListener;
 use tokio_stream::wrappers::TcpListenerStream;
 use tokio_util::io::ReaderStream;
 use tonic::{
@@ -42,6 +42,7 @@ use crate::{
 };
 
 const DEFAULT_INSTANCE_NAME: &str = "default";
+const REAPI_READ_STREAM_CHUNK_BYTES: usize = 256 * 1024;
 
 #[derive(Clone)]
 pub struct ReapiService {
@@ -236,7 +237,7 @@ impl ActionCache for ReapiService {
             artifact_hash: Some(digest.hash.clone()),
         };
         let principal = self.authorize_request(&request, extension.clone()).await?;
-        let (manifest, mut action_result) = fetch_keyvalue_proto::<reapi::ActionResult>(
+        let (size_bytes, mut action_result) = fetch_keyvalue_proto::<reapi::ActionResult>(
             &self.state,
             namespace_id,
             &key,
@@ -288,7 +289,7 @@ impl ActionCache for ReapiService {
             .await?;
         self.state
             .metrics
-            .record_artifact_read(ArtifactProducer::Reapi, "ok", manifest.size);
+            .record_artifact_read(ArtifactProducer::Reapi, "ok", size_bytes);
         Ok(response)
     }
 
@@ -543,7 +544,7 @@ impl ByteStream for ReapiService {
         let manifest = match self
             .state
             .store
-            .fetch_artifact(
+            .fetch_artifact_for_serving(
                 ArtifactProducer::Reapi,
                 &resource.namespace_id,
                 &resource.key,
@@ -592,17 +593,18 @@ impl ByteStream for ReapiService {
         self.state
             .metrics
             .record_artifact_read(ArtifactProducer::Reapi, "ok", bytes_to_read);
-        let stream = ReaderStream::new(reader).map(move |result| {
-            let _keep_guard_alive = &request_guard;
-            match result {
-                Ok(bytes) => Ok(bytestream::ReadResponse {
-                    data: bytes.to_vec(),
-                }),
-                Err(error) => Err(Status::internal(format!(
-                    "failed to stream blob chunk: {error}"
-                ))),
-            }
-        });
+        let stream =
+            ReaderStream::with_capacity(reader, REAPI_READ_STREAM_CHUNK_BYTES).map(move |result| {
+                let _keep_guard_alive = &request_guard;
+                match result {
+                    Ok(bytes) => Ok(bytestream::ReadResponse {
+                        data: bytes.to_vec(),
+                    }),
+                    Err(error) => Err(Status::internal(format!(
+                        "failed to stream blob chunk: {error}"
+                    ))),
+                }
+            });
 
         let mut response = Response::new(Box::pin(stream) as Self::ReadStream);
         self.apply_response_headers(&mut response, extension, principal.as_ref())
@@ -795,44 +797,36 @@ async fn fetch_keyvalue_proto<T>(
     namespace_id: &str,
     key: &str,
     label: &str,
-) -> Result<(ArtifactManifest, T), Status>
+) -> Result<(u64, T), Status>
 where
     T: Message + Default,
 {
-    let manifest = match state
-        .store
-        .fetch_artifact(ArtifactProducer::Reapi, namespace_id, key)
-        .await
-    {
-        Ok(Some(manifest)) => manifest,
-        Ok(None) => {
-            state
-                .metrics
-                .record_artifact_read(ArtifactProducer::Reapi, "not_found", 0);
-            return Err(Status::not_found(format!("{label} not found")));
-        }
-        Err(error) => {
-            state
-                .metrics
-                .record_artifact_read(ArtifactProducer::Reapi, "error", 0);
-            return Err(Status::internal(format!("failed to load {label}: {error}")));
-        }
-    };
-    let bytes = read_manifest_bytes(state, &manifest)
-        .await
-        .map_err(|error| {
-            state
-                .metrics
-                .record_artifact_read(ArtifactProducer::Reapi, "error", 0);
-            Status::internal(format!("failed to read {label}: {error}"))
-        })?;
+    let bytes =
+        match state
+            .store
+            .fetch_inline_artifact_bytes(ArtifactProducer::Reapi, namespace_id, key)
+        {
+            Ok(Some(bytes)) => bytes,
+            Ok(None) => {
+                state
+                    .metrics
+                    .record_artifact_read(ArtifactProducer::Reapi, "not_found", 0);
+                return Err(Status::not_found(format!("{label} not found")));
+            }
+            Err(error) => {
+                state
+                    .metrics
+                    .record_artifact_read(ArtifactProducer::Reapi, "error", 0);
+                return Err(Status::internal(format!("failed to load {label}: {error}")));
+            }
+        };
     let decoded = T::decode(bytes.as_slice()).map_err(|error| {
         state
             .metrics
             .record_artifact_read(ArtifactProducer::Reapi, "error", 0);
         Status::internal(format!("failed to decode {label}: {error}"))
     })?;
-    Ok((manifest, decoded))
+    Ok((bytes.len() as u64, decoded))
 }
 
 async fn maybe_read_cas_bytes(
@@ -843,7 +837,7 @@ async fn maybe_read_cas_bytes(
     let key = blob_key(&digest_key(digest).map_err(|error| error.message().to_owned())?);
     let Some(manifest) = state
         .store
-        .fetch_artifact(ArtifactProducer::Reapi, namespace_id, &key)
+        .fetch_artifact_for_serving(ArtifactProducer::Reapi, namespace_id, &key)
         .await
         .inspect_err(|_| {
             state
@@ -900,13 +894,7 @@ async fn read_manifest_bytes(
     state: &SharedState,
     manifest: &ArtifactManifest,
 ) -> Result<Vec<u8>, String> {
-    let mut reader = state.store.open_artifact_reader(manifest).await?;
-    let mut bytes = Vec::with_capacity(manifest.size.min(1024 * 1024) as usize);
-    reader
-        .read_to_end(&mut bytes)
-        .await
-        .map_err(|error| format!("failed to read artifact bytes: {error}"))?;
-    Ok(bytes)
+    state.store.read_artifact_bytes(manifest).await
 }
 
 fn validate_digest_bytes(digest: &reapi::Digest, bytes: &[u8]) -> Result<(), String> {
