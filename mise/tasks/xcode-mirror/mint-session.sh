@@ -112,13 +112,17 @@ EOF
 fi
 
 APPLE_ID="${usage_apple_id:-${1:-}}"
+# Always prefer the authoritative source (the Tuist Apple ID login
+# item). The session item also stores `apple_id` for convenience
+# but it's category-coerced into a concealed field, so reading
+# it without --reveal returns the `[use 'op ... --reveal']`
+# placeholder. Avoid that whole class of bug by reading the
+# username from the dedicated Apple ID item first.
 if [ -z "$APPLE_ID" ]; then
-  APPLE_ID="$(op item get "$OP_ITEM" --vault "$OP_VAULT" --fields apple_id 2>/dev/null || true)"
+  APPLE_ID="$(op item get "$OP_APPLE_ITEM" --vault "$OP_APPLE_VAULT" --fields username --reveal 2>/dev/null || true)"
 fi
 if [ -z "$APPLE_ID" ]; then
-  # Fall back to the username on the source Apple ID item — same
-  # account either way, just a different 1P field.
-  APPLE_ID="$(op item get "$OP_APPLE_ITEM" --vault "$OP_APPLE_VAULT" --fields username 2>/dev/null || true)"
+  APPLE_ID="$(op item get "$OP_ITEM" --vault "$OP_VAULT" --fields apple_id --reveal 2>/dev/null || true)"
 fi
 if [ -z "$APPLE_ID" ]; then
   echo
@@ -175,51 +179,46 @@ xcodes signout >/dev/null 2>&1 || true
 SESSION_FILE="$HOME/Library/Application Support/xcodes/session.json"
 rm -f "$SESSION_FILE"
 
-# Trigger auth via `xcodes runtimes downloadable` — it queries
-# Apple's developer-portal API for the runtime list, which is
-# auth-walled. We don't care about the runtime list; we care that
-# xcodes goes through its SRP login + 2FA dance and persists the
-# session on success.
+# Trigger auth via `xcodes runtimes install <fake-name>`. xcodes
+# only knows the catalog of installable runtimes after querying
+# Apple's auth-walled developer-portal API, so the install command
+# has to authenticate (SRP signin → 2FA push → 2FA code) before
+# it can decide whether `<fake-name>` exists. By the time it bails
+# out with "no such runtime", session.json has been persisted —
+# which is the only thing we actually wanted.
+#
+# `xcodes runtimes downloadable` doesn't exist in xcodes 1.6.x
+# (the runtimes subcommands are: installed | install | download |
+# delete). `xcodes signin` was removed too. Using `install` with
+# a sentinel name is the cleanest auth-only trigger.
 #
 # Credentials flow via env vars; xcodes reads `XCODES_USERNAME`
-# and `XCODES_PASSWORD` (avoiding the per-command `--apple-id`
-# flag that doesn't exist on every subcommand). The 2FA prompt
-# stays interactive — xcodes reads the 6-digit code from the
-# terminal, the operator types it after approving the trusted-
-# device push on their iPhone.
-#
-# Output is filtered to drop the noisy runtime list; auth-related
-# lines (sign-in progress, 2FA prompt) still reach the terminal
-# via stderr.
+# and `XCODES_PASSWORD` (the per-command `--apple-id` flag doesn't
+# exist on every subcommand). The 2FA prompt stays interactive —
+# xcodes reads the 6-digit code from the terminal, the operator
+# types it after approving the trusted-device push.
 echo
 echo "Signing in to developer.apple.com as $APPLE_ID via xcodes..."
 echo "(Approve the prompt on your trusted Apple device, then enter the 6-digit code.)"
 echo
 
+# Sentinel runtime name. Apple's catalog never contains this, so
+# xcodes always errors on the lookup *after* auth completes.
+PROBE='__tuist_xcode_mirror_auth_probe__'
+
 set +e
 XCODES_USERNAME="$APPLE_ID" XCODES_PASSWORD="$APPLE_PASSWORD" \
-  xcodes runtimes downloadable >/dev/null
-xcodes_status=$?
+  xcodes runtimes install "$PROBE" 2>&1 \
+    | grep -viE "no (such|matching) runtime|Sorry, that runtime" \
+    || true
 set -e
 unset APPLE_PASSWORD
 
-if [ "$xcodes_status" -ne 0 ]; then
-  # `xcodes runtimes downloadable` returns non-zero if auth fails
-  # *or* if the runtime list query fails post-auth. Distinguish by
-  # checking whether the session file was written.
-  if [ ! -f "$SESSION_FILE" ]; then
-    echo "Error: xcodes auth failed (exit $xcodes_status)." >&2
-    echo "Re-run with verbose xcodes output to debug:" >&2
-    echo "  XCODES_USERNAME=$APPLE_ID xcodes runtimes downloadable" >&2
-    exit 1
-  fi
-  # Session file exists → auth worked, the runtime list query
-  # itself flaked (Apple's API is sometimes slow). Continue.
-fi
-
 if [ ! -f "$SESSION_FILE" ]; then
-  echo "Error: xcodes returned success but didn't persist a session." >&2
-  echo "Expected: $SESSION_FILE" >&2
+  echo "Error: xcodes didn't persist a session at $SESSION_FILE after auth." >&2
+  echo "(If auth failed entirely, re-run for the error trace; if xcodes 1.6.x" >&2
+  echo " changed the session-file path, check ~/Library/Application Support/" >&2
+  echo " for the new location.)" >&2
   exit 1
 fi
 
