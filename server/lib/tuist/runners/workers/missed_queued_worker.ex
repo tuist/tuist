@@ -11,10 +11,17 @@ defmodule Tuist.Runners.Workers.MissedQueuedWorker do
   indefinitely with no row, no metric, no alert on our side.
 
   For each account with `runner_max_concurrent > 0`, walks the
-  installation's repos, lists `?status=queued` workflow runs in a
-  `@lookback_minutes` window, and for any job with a matching pool
-  label that we don't already have in CH (`Jobs.exists?/1`), calls
-  `Jobs.enqueue/1`.
+  installation's repos, lists both `?status=queued` (15-min window)
+  and `?status=in_progress` (4-hour window) workflow runs, and for
+  any job with a matching pool label that we don't already have in
+  CH (`Jobs.exists?/1`), calls `Jobs.enqueue/1`.
+
+  The two-status enumeration is necessary because matrix siblings
+  and `needs:`-downstream jobs become queued while the parent run
+  is already `in_progress`. Filtering candidates by the job's own
+  `created_at` (not the parent run's) is what makes those jobs
+  recoverable; the per-status run-discovery windows are coarse
+  caps on API cost.
 
   Emits `tuist_runners_recovery_count{kind="missed_queued"}` per
   recovery alongside the existing `stale_claim` / `orphan_*` kinds.
@@ -31,15 +38,26 @@ defmodule Tuist.Runners.Workers.MissedQueuedWorker do
 
   require Logger
 
-  @lookback_minutes 15
+  # Run-discovery lookback for `status=queued` workflow_runs. A run
+  # in this state hasn't started, so its `created_at` is close to the
+  # workflow_job's `created_at` — a tight window catches the typical
+  # missed-webhook case cheaply.
+  @queued_run_lookback_minutes 15
 
-  # GitHub-side "queued for at least this long" gate. Without it,
-  # the worker races every legitimately-delivered webhook — a
-  # workflow_job that arrived 2s ago hasn't had time to traverse
-  # webhook → DispatchWorker → CH enqueue, but it's already in
-  # GitHub's queue and would look "missed" from our side. The
-  # threshold gives the normal path comfortably enough time to
-  # complete before we second-guess it.
+  # Run-discovery lookback for `status=in_progress` runs. Matrix
+  # siblings and `needs:`-downstream jobs can transition to `queued`
+  # long after the parent run started, so the parent's `created_at`
+  # is a useless discriminator here. We use a generous window to
+  # cap API cost and rely on the job-level `created_at` filter
+  # below to pick out the actually-recoverable jobs.
+  @in_progress_run_lookback_minutes 240
+
+  # GitHub-side "queued for at least this long" gate on the job.
+  # Without it, the worker races every legitimately-delivered
+  # webhook — a workflow_job that arrived 2s ago hasn't had time
+  # to traverse webhook → DispatchWorker → CH enqueue, but it's
+  # already in GitHub's queue and would look "missed" from our
+  # side.
   @min_age_seconds 60
 
   @impl Oban.Worker
@@ -50,10 +68,7 @@ defmodule Tuist.Runners.Workers.MissedQueuedWorker do
       end)
 
     if recovered > 0 do
-      Logger.warning("runners: recovered missed-queued webhooks",
-        count: recovered,
-        lookback_minutes: @lookback_minutes
-      )
+      Logger.warning("runners: recovered missed-queued webhooks", count: recovered)
     end
 
     :ok
@@ -118,26 +133,44 @@ defmodule Tuist.Runners.Workers.MissedQueuedWorker do
   defp recover_for_repo(installation, account, repo) do
     full_name = repo[:full_name] || ""
 
-    case GitHubClient.list_queued_workflow_runs(installation, full_name, created_after: lookback_threshold()) do
-      {:ok, runs} ->
-        Enum.reduce(runs, 0, fn run, acc ->
-          acc + recover_for_run(installation, account, full_name, run)
-        end)
+    queued = collect_runs(installation, account, full_name, "queued", @queued_run_lookback_minutes)
+    in_progress = collect_runs(installation, account, full_name, "in_progress", @in_progress_run_lookback_minutes)
+
+    (queued ++ in_progress)
+    |> Enum.uniq_by(& &1.id)
+    |> Enum.reduce(0, fn run, acc ->
+      acc + recover_for_run(installation, account, full_name, run)
+    end)
+  end
+
+  defp collect_runs(installation, account, full_name, status, lookback_minutes) do
+    threshold = DateTime.add(DateTime.utc_now(), -lookback_minutes * 60, :second)
+    collect_runs_pages(installation, account, full_name, status, [created_after: threshold], [])
+  end
+
+  defp collect_runs_pages(installation, account, full_name, status, opts, acc) do
+    case GitHubClient.list_workflow_runs(installation, full_name, status, opts) do
+      {:ok, %{meta: %{next_url: nil}, runs: runs}} ->
+        acc ++ runs
+
+      {:ok, %{meta: %{next_url: next_url}, runs: runs}} ->
+        collect_runs_pages(installation, account, full_name, status, [next_url: next_url], acc ++ runs)
 
       {:error, :not_found} ->
         # The installation lost access to the repo between our
         # list_repos call and now (uninstall, permission change).
         # Not our concern; skip.
-        0
+        acc
 
       {:error, reason} ->
         Logger.warning("runners: missed-queued worker list-runs failed",
           account: account.name,
           repo: full_name,
+          status: status,
           reason: inspect(reason)
         )
 
-        0
+        acc
     end
   end
 
@@ -145,7 +178,7 @@ defmodule Tuist.Runners.Workers.MissedQueuedWorker do
     case GitHubClient.list_workflow_run_jobs(installation, full_name, run_id) do
       {:ok, jobs} ->
         jobs
-        |> Enum.filter(&queued_long_enough?/1)
+        |> Enum.filter(&queued_and_aged_in?/1)
         |> Enum.count(&recover_for_job(account, full_name, &1))
 
       {:error, :not_found} ->
@@ -165,11 +198,16 @@ defmodule Tuist.Runners.Workers.MissedQueuedWorker do
 
   defp recover_for_run(_installation, _account, _full_name, _), do: 0
 
-  defp queued_long_enough?(%{status: "queued", created_at: %DateTime{} = created_at}) do
+  # The job's own `created_at` is what matters — not the parent run's.
+  # A downstream `needs:` job can become queued hours after the run
+  # started. The lower bound prevents racing in-flight webhooks; we
+  # impose no upper bound here because `Jobs.exists?/1` handles dedup
+  # against any recovery we've already done.
+  defp queued_and_aged_in?(%{status: "queued", created_at: %DateTime{} = created_at}) do
     DateTime.diff(DateTime.utc_now(), created_at, :second) >= @min_age_seconds
   end
 
-  defp queued_long_enough?(_), do: false
+  defp queued_and_aged_in?(_), do: false
 
   defp recover_for_job(account, full_name, job) do
     case Dispatch.match_pool(job.labels) do
@@ -223,9 +261,5 @@ defmodule Tuist.Runners.Workers.MissedQueuedWorker do
 
         true
     end
-  end
-
-  defp lookback_threshold do
-    DateTime.add(DateTime.utc_now(), -@lookback_minutes * 60, :second)
   end
 end

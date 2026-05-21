@@ -432,29 +432,30 @@ defmodule Tuist.GitHub.Client do
   end
 
   @doc """
-  Lists `workflow_run`s in `status='queued'` for a repository.
-  `:created_after` (a `DateTime`) caps the lookback window with the
-  GitHub `created=>=...` query filter so we don't paginate over
-  ancient queued runs the customer has already abandoned.
+  Lists `workflow_run`s for a repository, filtered by `status`. Used
+  by `Tuist.Runners.Workers.MissedQueuedWorker` to enumerate runs
+  that might contain queued workflow_jobs whose `workflow_job.queued`
+  webhooks were never delivered.
 
-  Used by `Tuist.Runners.Workers.MissedQueuedWorker` to recover
-  `workflow_job.queued` webhooks GitHub never delivered (or our
-  endpoint missed). One repo per call — caller is responsible for
-  enumerating repos via `list_installation_repositories/2`.
+  Pass `:created_after` (a `DateTime`) to cap the API result size via
+  GitHub's `created=>=...` filter. The caller is responsible for any
+  pagination — when `meta.next_url` is non-nil, pass it as `:next_url`
+  on the next call to fetch the subsequent page.
 
-  Returns `{:ok, [%{id, name, head_branch, head_sha, run_attempt}]}`
-  with just the fields the recovery worker needs to then list the
-  run's jobs. `per_page=100` without pagination — a single repo with
-  100+ queued runs inside the recovery window is well outside the
-  failure mode we're recovering from.
+  Returns `{:ok, %{meta: %{next_url}, runs: [...]}}`.
 
   See: https://docs.github.com/en/rest/actions/workflow-runs#list-workflow-runs-for-a-repository
   """
-  def list_queued_workflow_runs(installation, repository_full_handle, opts \\ [])
-      when is_binary(repository_full_handle) do
+  def list_workflow_runs(installation, repository_full_handle, status, opts \\ [])
+      when is_binary(repository_full_handle) and is_binary(status) do
     api_url = installation_api_url(installation)
-    query = build_queued_runs_query(opts)
-    url = "#{api_url}/repos/#{repository_full_handle}/actions/runs?#{query}"
+
+    url =
+      Keyword.get(
+        opts,
+        :next_url,
+        "#{api_url}/repos/#{repository_full_handle}/actions/runs?#{build_runs_query(status, opts)}"
+      )
 
     with {:ok, %{token: token}} <- App.get_installation_token(installation, api_url: api_url),
          {:ok, request_url, ssrf_opts} <- pin_ghes_url(url, api_url) do
@@ -465,8 +466,8 @@ defmodule Tuist.GitHub.Client do
         ] ++ ssrf_opts ++ Retry.retry_options()
 
       case Req.get(req_opts) do
-        {:ok, %{status: 200, body: %{"workflow_runs" => runs}}} when is_list(runs) ->
-          {:ok, Enum.map(runs, &format_workflow_run/1)}
+        {:ok, %{status: 200, body: %{"workflow_runs" => runs}, headers: headers}} when is_list(runs) ->
+          {:ok, %{meta: %{next_url: extract_next_url(headers)}, runs: Enum.map(runs, &format_workflow_run/1)}}
 
         {:ok, %{status: 404}} ->
           {:error, :not_found}
@@ -480,8 +481,8 @@ defmodule Tuist.GitHub.Client do
     end
   end
 
-  defp build_queued_runs_query(opts) do
-    base = [{"status", "queued"}, {"per_page", "100"}]
+  defp build_runs_query(status, opts) do
+    base = [{"status", status}, {"per_page", "100"}]
 
     base =
       case Keyword.get(opts, :created_after) do
@@ -503,18 +504,15 @@ defmodule Tuist.GitHub.Client do
   end
 
   @doc """
-  Lists `workflow_job`s for a `workflow_run`. Used by
-  `Tuist.Runners.Workers.MissedQueuedWorker` to discover individual
-  queued jobs whose `workflow_job.queued` webhooks never made it to
-  our endpoint.
+  Lists ALL `workflow_job`s for a `workflow_run`, paginating
+  internally through GitHub's `Link: rel="next"` header. Matrix
+  workflows can expand to hundreds of jobs; returning only the first
+  page would silently drop the rest, defeating recovery for any
+  missed webhook on page 2+.
 
   `filter` controls which run attempts GitHub returns:
     * `"latest"` (default) — only the most recent attempt's jobs.
     * `"all"` — every attempt's jobs.
-
-  We default to `"latest"` because the recovery path only needs the
-  attempt that's actually waiting; earlier attempts are by definition
-  done or superseded.
 
   See: https://docs.github.com/en/rest/actions/workflow-jobs#list-jobs-for-a-workflow-run
   """
@@ -524,6 +522,12 @@ defmodule Tuist.GitHub.Client do
     filter = Keyword.get(opts, :filter, "latest")
     url = "#{api_url}/repos/#{repository_full_handle}/actions/runs/#{run_id}/jobs?filter=#{filter}&per_page=100"
 
+    fetch_jobs_pages(installation, api_url, url, [])
+  end
+
+  defp fetch_jobs_pages(_installation, _api_url, nil, acc), do: {:ok, acc}
+
+  defp fetch_jobs_pages(installation, api_url, url, acc) do
     with {:ok, %{token: token}} <- App.get_installation_token(installation, api_url: api_url),
          {:ok, request_url, ssrf_opts} <- pin_ghes_url(url, api_url) do
       req_opts =
@@ -533,8 +537,9 @@ defmodule Tuist.GitHub.Client do
         ] ++ ssrf_opts ++ Retry.retry_options()
 
       case Req.get(req_opts) do
-        {:ok, %{status: 200, body: %{"jobs" => jobs}}} when is_list(jobs) ->
-          {:ok, Enum.map(jobs, &format_workflow_job/1)}
+        {:ok, %{status: 200, body: %{"jobs" => jobs}, headers: headers}} when is_list(jobs) ->
+          next_url = extract_next_url(headers)
+          fetch_jobs_pages(installation, api_url, next_url, acc ++ Enum.map(jobs, &format_workflow_job/1))
 
         {:ok, %{status: 404}} ->
           {:error, :not_found}

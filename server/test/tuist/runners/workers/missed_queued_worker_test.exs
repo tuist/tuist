@@ -35,6 +35,32 @@ defmodule Tuist.Runners.Workers.MissedQueuedWorkerTest do
     }
   end
 
+  defp gh_run(opts) do
+    %{
+      id: Keyword.get(opts, :id, 555_666_777),
+      name: Keyword.get(opts, :name, "CI"),
+      head_branch: Keyword.get(opts, :head_branch, "main"),
+      head_sha: Keyword.get(opts, :head_sha, "abc123"),
+      run_attempt: Keyword.get(opts, :run_attempt, 1)
+    }
+  end
+
+  defp single_repo do
+    {:ok,
+     %{
+       meta: %{next_url: nil},
+       repositories: [%{id: 1, name: "app", full_name: "tuist/app", private: false, default_branch: "main"}]
+     }}
+  end
+
+  defp empty_runs do
+    {:ok, %{meta: %{next_url: nil}, runs: []}}
+  end
+
+  defp runs_page(runs) do
+    {:ok, %{meta: %{next_url: nil}, runs: runs}}
+  end
+
   describe "perform/1" do
     test "is a no-op when no accounts have runners enabled" do
       expect(Accounts, :list_accounts_with_runners_enabled, fn -> [] end)
@@ -48,6 +74,7 @@ defmodule Tuist.Runners.Workers.MissedQueuedWorkerTest do
     test "enqueues the missing workflow_job when GitHub has a queued job we don't know about" do
       account = enabled_account()
       job = gh_job()
+      run = gh_run(id: job.run_id)
 
       expect(Accounts, :list_accounts_with_runners_enabled, fn -> [account] end)
 
@@ -56,20 +83,19 @@ defmodule Tuist.Runners.Workers.MissedQueuedWorkerTest do
         {:ok, %{installation_id: 42, client_url: "https://github.com"}}
       end)
 
-      expect(GitHubClient, :list_installation_repositories, fn _installation, _opts ->
-        {:ok,
-         %{
-           meta: %{next_url: nil},
-           repositories: [%{id: 1, name: "app", full_name: "tuist/app", private: false, default_branch: "main"}]
-         }}
+      expect(GitHubClient, :list_installation_repositories, fn _i, _opts -> single_repo() end)
+
+      expect(GitHubClient, :list_workflow_runs, 2, fn
+        _i, "tuist/app", "queued", opts ->
+          assert match?(%DateTime{}, Keyword.get(opts, :created_after))
+          runs_page([run])
+
+        _i, "tuist/app", "in_progress", opts ->
+          assert match?(%DateTime{}, Keyword.get(opts, :created_after))
+          empty_runs()
       end)
 
-      expect(GitHubClient, :list_queued_workflow_runs, fn _installation, "tuist/app", opts ->
-        assert match?(%DateTime{}, Keyword.get(opts, :created_after))
-        {:ok, [%{id: job.run_id, name: "CI", head_branch: "main", head_sha: "abc123", run_attempt: 1}]}
-      end)
-
-      expect(GitHubClient, :list_workflow_run_jobs, fn _installation, "tuist/app", run_id ->
+      expect(GitHubClient, :list_workflow_run_jobs, fn _i, "tuist/app", run_id ->
         assert run_id == job.run_id
         {:ok, [job]}
       end)
@@ -99,12 +125,21 @@ defmodule Tuist.Runners.Workers.MissedQueuedWorkerTest do
       assert :ok = MissedQueuedWorker.perform(%Oban.Job{})
     end
 
-    test "skips workflow_jobs we already have in ClickHouse (late webhook arrived first)" do
-      # The dedup gate that keeps the recovery path idempotent
-      # against a webhook landing between our list-jobs call and
-      # our enqueue call.
+    test "recovers a queued job inside an in_progress run (matrix / needs: downstream case)" do
+      # Matrix siblings and `needs:` downstream jobs become queued
+      # while the parent run is already `in_progress` — invisible to
+      # a `?status=queued` enumeration alone. The job's own
+      # `created_at` is recent even when the run's `created_at` is
+      # not, so the job-age filter is what makes recovery work here.
       account = enabled_account()
-      job = gh_job()
+      downstream_job = gh_job(id: 700_001, run_id: 800_001)
+
+      old_run =
+        gh_run(
+          id: downstream_job.run_id,
+          name: "CI",
+          head_branch: "main"
+        )
 
       expect(Accounts, :list_accounts_with_runners_enabled, fn -> [account] end)
 
@@ -112,37 +147,41 @@ defmodule Tuist.Runners.Workers.MissedQueuedWorkerTest do
         {:ok, %{installation_id: 42, client_url: "https://github.com"}}
       end)
 
-      expect(GitHubClient, :list_installation_repositories, fn _installation, _opts ->
-        {:ok,
-         %{
-           meta: %{next_url: nil},
-           repositories: [%{id: 1, name: "app", full_name: "tuist/app", private: false, default_branch: "main"}]
-         }}
+      expect(GitHubClient, :list_installation_repositories, fn _i, _opts -> single_repo() end)
+
+      expect(GitHubClient, :list_workflow_runs, 2, fn
+        _i, _r, "queued", _opts ->
+          empty_runs()
+
+        _i, _r, "in_progress", _opts ->
+          runs_page([old_run])
       end)
 
-      expect(GitHubClient, :list_queued_workflow_runs, fn _i, "tuist/app", _opts ->
-        {:ok, [%{id: job.run_id, name: "CI", head_branch: "main", head_sha: "abc123", run_attempt: 1}]}
-      end)
-
-      expect(GitHubClient, :list_workflow_run_jobs, fn _i, "tuist/app", _run_id ->
-        {:ok, [job]}
+      expect(GitHubClient, :list_workflow_run_jobs, fn _i, _r, _id ->
+        {:ok, [downstream_job]}
       end)
 
       expect(Dispatch, :match_pool, fn _labels ->
         {:ok, %{name: "default", dispatch_label: "tuist-mac", runner_labels: []}}
       end)
 
-      expect(Jobs, :exists?, fn _id -> true end)
-      reject(&Jobs.enqueue/1)
+      expect(Jobs, :exists?, fn _ -> false end)
+
+      expect(Jobs, :enqueue, fn attrs ->
+        assert attrs.workflow_job_id == downstream_job.id
+        :ok
+      end)
 
       assert :ok = MissedQueuedWorker.perform(%Oban.Job{})
     end
 
-    test "skips workflow_jobs whose labels do not match any pool" do
-      # `runs-on: ubuntu-latest` or another provider's label.
-      # Recovery is only for our own queued jobs.
+    test "dedupes runs that appear in both status enumerations" do
+      # A run can transition from `queued` → `in_progress` between
+      # the two API calls; we don't want to list its jobs twice
+      # (which would double-count recoveries and double-bill API).
       account = enabled_account()
-      job = gh_job(labels: ["ubuntu-latest"])
+      job = gh_job()
+      run = gh_run(id: job.run_id)
 
       expect(Accounts, :list_accounts_with_runners_enabled, fn -> [account] end)
 
@@ -150,16 +189,71 @@ defmodule Tuist.Runners.Workers.MissedQueuedWorkerTest do
         {:ok, %{installation_id: 42, client_url: "https://github.com"}}
       end)
 
-      expect(GitHubClient, :list_installation_repositories, fn _i, _opts ->
-        {:ok,
-         %{
-           meta: %{next_url: nil},
-           repositories: [%{id: 1, name: "app", full_name: "tuist/app", private: false, default_branch: "main"}]
-         }}
+      expect(GitHubClient, :list_installation_repositories, fn _i, _opts -> single_repo() end)
+
+      expect(GitHubClient, :list_workflow_runs, 2, fn
+        _i, _r, "queued", _opts -> runs_page([run])
+        _i, _r, "in_progress", _opts -> runs_page([run])
       end)
 
-      expect(GitHubClient, :list_queued_workflow_runs, fn _i, _r, _opts ->
-        {:ok, [%{id: job.run_id, name: "", head_branch: "", head_sha: "", run_attempt: 1}]}
+      expect(GitHubClient, :list_workflow_run_jobs, fn _i, _r, _id -> {:ok, [job]} end)
+
+      expect(Dispatch, :match_pool, fn _ ->
+        {:ok, %{name: "default", dispatch_label: "tuist-mac", runner_labels: []}}
+      end)
+
+      expect(Jobs, :exists?, fn _ -> false end)
+      expect(Jobs, :enqueue, fn _ -> :ok end)
+
+      assert :ok = MissedQueuedWorker.perform(%Oban.Job{})
+    end
+
+    test "skips workflow_jobs we already have in ClickHouse (late webhook arrived first)" do
+      account = enabled_account()
+      job = gh_job()
+      run = gh_run(id: job.run_id)
+
+      expect(Accounts, :list_accounts_with_runners_enabled, fn -> [account] end)
+
+      expect(Tuist.VCS, :get_github_app_installation_for_account, fn _id ->
+        {:ok, %{installation_id: 42, client_url: "https://github.com"}}
+      end)
+
+      expect(GitHubClient, :list_installation_repositories, fn _i, _opts -> single_repo() end)
+
+      expect(GitHubClient, :list_workflow_runs, 2, fn
+        _i, _r, "queued", _opts -> runs_page([run])
+        _i, _r, "in_progress", _opts -> empty_runs()
+      end)
+
+      expect(GitHubClient, :list_workflow_run_jobs, fn _i, _r, _id -> {:ok, [job]} end)
+
+      expect(Dispatch, :match_pool, fn _ ->
+        {:ok, %{name: "default", dispatch_label: "tuist-mac", runner_labels: []}}
+      end)
+
+      expect(Jobs, :exists?, fn _ -> true end)
+      reject(&Jobs.enqueue/1)
+
+      assert :ok = MissedQueuedWorker.perform(%Oban.Job{})
+    end
+
+    test "skips workflow_jobs whose labels do not match any pool" do
+      account = enabled_account()
+      job = gh_job(labels: ["ubuntu-latest"])
+      run = gh_run(id: job.run_id)
+
+      expect(Accounts, :list_accounts_with_runners_enabled, fn -> [account] end)
+
+      expect(Tuist.VCS, :get_github_app_installation_for_account, fn _id ->
+        {:ok, %{installation_id: 42, client_url: "https://github.com"}}
+      end)
+
+      expect(GitHubClient, :list_installation_repositories, fn _i, _opts -> single_repo() end)
+
+      expect(GitHubClient, :list_workflow_runs, 2, fn
+        _i, _r, "queued", _opts -> runs_page([run])
+        _i, _r, "in_progress", _opts -> empty_runs()
       end)
 
       expect(GitHubClient, :list_workflow_run_jobs, fn _i, _r, _id -> {:ok, [job]} end)
@@ -173,12 +267,9 @@ defmodule Tuist.Runners.Workers.MissedQueuedWorkerTest do
     end
 
     test "skips workflow_jobs queued for less than the minimum age (let the normal webhook path land first)" do
-      # Without this gate, the worker races every legitimately-
-      # delivered webhook — a job that GitHub fired into our endpoint
-      # 2s ago is still in flight through DispatchWorker and would
-      # look "missed" to us.
       account = enabled_account()
       fresh_job = gh_job(created_at: DateTime.add(DateTime.utc_now(), -5, :second))
+      run = gh_run(id: fresh_job.run_id)
 
       expect(Accounts, :list_accounts_with_runners_enabled, fn -> [account] end)
 
@@ -186,16 +277,11 @@ defmodule Tuist.Runners.Workers.MissedQueuedWorkerTest do
         {:ok, %{installation_id: 42, client_url: "https://github.com"}}
       end)
 
-      expect(GitHubClient, :list_installation_repositories, fn _i, _opts ->
-        {:ok,
-         %{
-           meta: %{next_url: nil},
-           repositories: [%{id: 1, name: "app", full_name: "tuist/app", private: false, default_branch: "main"}]
-         }}
-      end)
+      expect(GitHubClient, :list_installation_repositories, fn _i, _opts -> single_repo() end)
 
-      expect(GitHubClient, :list_queued_workflow_runs, fn _i, _r, _opts ->
-        {:ok, [%{id: fresh_job.run_id, name: "", head_branch: "", head_sha: "", run_attempt: 1}]}
+      expect(GitHubClient, :list_workflow_runs, 2, fn
+        _i, _r, "queued", _opts -> runs_page([run])
+        _i, _r, "in_progress", _opts -> empty_runs()
       end)
 
       expect(GitHubClient, :list_workflow_run_jobs, fn _i, _r, _id -> {:ok, [fresh_job]} end)
@@ -210,6 +296,7 @@ defmodule Tuist.Runners.Workers.MissedQueuedWorkerTest do
     test "skips jobs not in queued state (already claimed / running / completed)" do
       account = enabled_account()
       running = gh_job(status: "in_progress")
+      run = gh_run(id: running.run_id)
 
       expect(Accounts, :list_accounts_with_runners_enabled, fn -> [account] end)
 
@@ -217,16 +304,11 @@ defmodule Tuist.Runners.Workers.MissedQueuedWorkerTest do
         {:ok, %{installation_id: 42, client_url: "https://github.com"}}
       end)
 
-      expect(GitHubClient, :list_installation_repositories, fn _i, _opts ->
-        {:ok,
-         %{
-           meta: %{next_url: nil},
-           repositories: [%{id: 1, name: "app", full_name: "tuist/app", private: false, default_branch: "main"}]
-         }}
-      end)
+      expect(GitHubClient, :list_installation_repositories, fn _i, _opts -> single_repo() end)
 
-      expect(GitHubClient, :list_queued_workflow_runs, fn _i, _r, _opts ->
-        {:ok, [%{id: running.run_id, name: "", head_branch: "", head_sha: "", run_attempt: 1}]}
+      expect(GitHubClient, :list_workflow_runs, 2, fn
+        _i, _r, "queued", _opts -> empty_runs()
+        _i, _r, "in_progress", _opts -> runs_page([run])
       end)
 
       expect(GitHubClient, :list_workflow_run_jobs, fn _i, _r, _id -> {:ok, [running]} end)
@@ -241,6 +323,7 @@ defmodule Tuist.Runners.Workers.MissedQueuedWorkerTest do
     test "paginates through the installation's repositories" do
       account = enabled_account()
       job = gh_job()
+      run = gh_run(id: job.run_id)
 
       expect(Accounts, :list_accounts_with_runners_enabled, fn -> [account] end)
 
@@ -268,13 +351,10 @@ defmodule Tuist.Runners.Workers.MissedQueuedWorkerTest do
         end
       end)
 
-      # Both repos get listed for queued runs. Only "tuist/b" has one.
-      expect(GitHubClient, :list_queued_workflow_runs, 2, fn
-        _i, "tuist/a", _opts ->
-          {:ok, []}
-
-        _i, "tuist/b", _opts ->
-          {:ok, [%{id: job.run_id, name: "", head_branch: "", head_sha: "", run_attempt: 1}]}
+      expect(GitHubClient, :list_workflow_runs, 4, fn
+        _i, "tuist/a", _status, _opts -> empty_runs()
+        _i, "tuist/b", "queued", _opts -> runs_page([run])
+        _i, "tuist/b", "in_progress", _opts -> empty_runs()
       end)
 
       expect(GitHubClient, :list_workflow_run_jobs, fn _i, "tuist/b", _id -> {:ok, [job]} end)
@@ -293,13 +373,59 @@ defmodule Tuist.Runners.Workers.MissedQueuedWorkerTest do
       assert :ok = MissedQueuedWorker.perform(%Oban.Job{})
     end
 
+    test "paginates through pages of workflow runs within a single repo" do
+      # When list_workflow_runs reports a next_url, the worker keeps
+      # fetching subsequent pages. Matters for active CI customers
+      # whose `in_progress` set comfortably exceeds 100 runs in the
+      # 4-hour window.
+      account = enabled_account()
+      job_a = gh_job(id: 1_001, run_id: 2_001)
+      job_b = gh_job(id: 1_002, run_id: 2_002)
+      run_a = gh_run(id: 2_001)
+      run_b = gh_run(id: 2_002)
+
+      expect(Accounts, :list_accounts_with_runners_enabled, fn -> [account] end)
+
+      expect(Tuist.VCS, :get_github_app_installation_for_account, fn _id ->
+        {:ok, %{installation_id: 42, client_url: "https://github.com"}}
+      end)
+
+      expect(GitHubClient, :list_installation_repositories, fn _i, _opts -> single_repo() end)
+
+      # Three calls: page 1 of queued (with next_url), page 2 of queued
+      # (terminal), and the in_progress call (empty).
+      expect(GitHubClient, :list_workflow_runs, 3, fn
+        _i, _r, "queued", opts ->
+          if Keyword.has_key?(opts, :next_url) do
+            {:ok, %{meta: %{next_url: nil}, runs: [run_b]}}
+          else
+            {:ok, %{meta: %{next_url: "https://api.github.com/repos/tuist/app/actions/runs?page=2"}, runs: [run_a]}}
+          end
+
+        _i, _r, "in_progress", _opts ->
+          empty_runs()
+      end)
+
+      expect(GitHubClient, :list_workflow_run_jobs, 2, fn
+        _i, _r, 2_001 -> {:ok, [job_a]}
+        _i, _r, 2_002 -> {:ok, [job_b]}
+      end)
+
+      expect(Dispatch, :match_pool, 2, fn _ ->
+        {:ok, %{name: "default", dispatch_label: "tuist-mac", runner_labels: []}}
+      end)
+
+      expect(Jobs, :exists?, 2, fn _ -> false end)
+      expect(Jobs, :enqueue, 2, fn _ -> :ok end)
+
+      assert :ok = MissedQueuedWorker.perform(%Oban.Job{})
+    end
+
     test "continues iterating other accounts when one account's GitHub lookup fails" do
-      # Per-account isolation: a customer's installation being
-      # revoked / suspended / rate-limited must not stall recovery
-      # for everyone else.
       account_a = enabled_account()
       account_b = enabled_account()
       job = gh_job()
+      run = gh_run(id: job.run_id)
 
       expect(Accounts, :list_accounts_with_runners_enabled, fn -> [account_a, account_b] end)
 
@@ -319,8 +445,9 @@ defmodule Tuist.Runners.Workers.MissedQueuedWorkerTest do
          }}
       end)
 
-      expect(GitHubClient, :list_queued_workflow_runs, fn _i, _r, _opts ->
-        {:ok, [%{id: job.run_id, name: "", head_branch: "", head_sha: "", run_attempt: 1}]}
+      expect(GitHubClient, :list_workflow_runs, 2, fn
+        _i, _r, "queued", _opts -> runs_page([run])
+        _i, _r, "in_progress", _opts -> empty_runs()
       end)
 
       expect(GitHubClient, :list_workflow_run_jobs, fn _i, _r, _id -> {:ok, [job]} end)
@@ -338,6 +465,7 @@ defmodule Tuist.Runners.Workers.MissedQueuedWorkerTest do
     test "continues iterating other repos when one repo's list-runs call fails (transient API error)" do
       account = enabled_account()
       job = gh_job()
+      run = gh_run(id: job.run_id)
 
       expect(Accounts, :list_accounts_with_runners_enabled, fn -> [account] end)
 
@@ -356,12 +484,10 @@ defmodule Tuist.Runners.Workers.MissedQueuedWorkerTest do
          }}
       end)
 
-      expect(GitHubClient, :list_queued_workflow_runs, 2, fn
-        _i, "tuist/a", _opts ->
-          {:error, {:http, 502, "bad gateway"}}
-
-        _i, "tuist/b", _opts ->
-          {:ok, [%{id: job.run_id, name: "", head_branch: "", head_sha: "", run_attempt: 1}]}
+      expect(GitHubClient, :list_workflow_runs, 4, fn
+        _i, "tuist/a", _status, _opts -> {:error, {:http, 502, "bad gateway"}}
+        _i, "tuist/b", "queued", _opts -> runs_page([run])
+        _i, "tuist/b", "in_progress", _opts -> empty_runs()
       end)
 
       expect(GitHubClient, :list_workflow_run_jobs, fn _i, "tuist/b", _id -> {:ok, [job]} end)
@@ -379,6 +505,7 @@ defmodule Tuist.Runners.Workers.MissedQueuedWorkerTest do
     test "emits recovery telemetry with kind=missed_queued" do
       account = enabled_account()
       job = gh_job()
+      run = gh_run(id: job.run_id)
 
       :telemetry.attach(
         "missed-queued-test",
@@ -405,8 +532,9 @@ defmodule Tuist.Runners.Workers.MissedQueuedWorkerTest do
          }}
       end)
 
-      expect(GitHubClient, :list_queued_workflow_runs, fn _i, _r, _opts ->
-        {:ok, [%{id: job.run_id, name: "", head_branch: "", head_sha: "", run_attempt: 1}]}
+      expect(GitHubClient, :list_workflow_runs, 2, fn
+        _i, _r, "queued", _opts -> runs_page([run])
+        _i, _r, "in_progress", _opts -> empty_runs()
       end)
 
       expect(GitHubClient, :list_workflow_run_jobs, fn _i, _r, _id -> {:ok, [job]} end)
