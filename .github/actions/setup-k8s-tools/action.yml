@@ -1,0 +1,71 @@
+name: Setup Kubernetes tools
+description: Install kubectl and helm from the versions pinned in the repo root mise.toml.
+
+inputs:
+  install-helm:
+    description: Whether to install helm
+    required: false
+    default: "true"
+  install-kubectl:
+    description: Whether to install kubectl
+    required: false
+    default: "true"
+
+runs:
+  using: composite
+  steps:
+    - name: Install kubectl and helm
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        config_file="$GITHUB_WORKSPACE/mise.toml"
+        if [ ! -f "$config_file" ]; then
+          echo "Expected $config_file to exist before setting up k8s tools." >&2
+          exit 1
+        fi
+
+        version_from_mise() {
+          local tool="$1"
+          local version
+          version="$(awk -F'"' -v tool="$tool" '$1 ~ "^[[:space:]]*" tool " = " { print $2; exit }' "$config_file")"
+          if [ -z "$version" ]; then
+            echo "Unable to resolve $tool version from $config_file" >&2
+            exit 1
+          fi
+          printf '%s\n' "$version"
+        }
+
+        arch="$(uname -m)"
+        case "$arch" in
+          x86_64|amd64) arch="amd64" ;;
+          arm64|aarch64) arch="arm64" ;;
+          *)
+            echo "Unsupported runner architecture: $arch" >&2
+            exit 1
+            ;;
+        esac
+
+        bin_dir="${RUNNER_TEMP:-${TMPDIR:-/tmp}}/k8s-tools/bin"
+        mkdir -p "$bin_dir"
+        echo "$bin_dir" >> "$GITHUB_PATH"
+
+        if [ "${{ inputs.install-kubectl }}" = "true" ]; then
+          kubectl_version="$(version_from_mise kubectl)"
+          curl -fsSL "https://dl.k8s.io/release/v${kubectl_version}/bin/linux/${arch}/kubectl" \
+            -o "$bin_dir/kubectl"
+          chmod 0755 "$bin_dir/kubectl"
+          "$bin_dir/kubectl" version --client
+        fi
+
+        if [ "${{ inputs.install-helm }}" = "true" ]; then
+          helm_version="$(version_from_mise helm)"
+          tmp_dir="$(mktemp -d)"
+          trap 'rm -rf "$tmp_dir"' EXIT
+          curl -fsSL "https://get.helm.sh/helm-v${helm_version}-linux-${arch}.tar.gz" \
+            -o "$tmp_dir/helm.tgz"
+          tar -xzf "$tmp_dir/helm.tgz" -C "$tmp_dir"
+          mv "$tmp_dir/linux-${arch}/helm" "$bin_dir/helm"
+          chmod 0755 "$bin_dir/helm"
+          "$bin_dir/helm" version --short
+        fi

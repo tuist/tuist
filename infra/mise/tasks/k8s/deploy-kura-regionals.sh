@@ -58,14 +58,14 @@ deploy_region() {
   echo "Deploying Kura controller to $region"
   KUBECONFIG="$kubeconfig" kubectl --request-timeout=10s get --raw /version >/dev/null
 
-  require_onepassword_bootstrap "$kubeconfig" "$cluster_name" "$kubeconfig_item"
+  require_managed_secret_store "$kubeconfig" "$cluster_name" "$kubeconfig_item"
 
   # Cluster names must match the CAPI Cluster CR names in
   # infra/k8s/clusters/cluster-production-us-{east,west}.yaml. They
   # drive external-dns.txtOwnerId and the Hetzner ingress LB annotation
   # set by k8s:install-platform, so drifting them would churn TXT
   # records and rename LBs on every deploy.
-  mise -C "$REPO_ROOT/infra" run k8s:install-platform \
+  "$REPO_ROOT/infra/mise/tasks/k8s/install-platform.sh" \
     "$kubeconfig" "$cluster_name"
 
   # Monitoring and the Kura controller chart both resolve secrets through
