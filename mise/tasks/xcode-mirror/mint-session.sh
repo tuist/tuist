@@ -14,16 +14,27 @@
 # does its main job — populating the session cookies. No manual
 # 1P clicking, no manual `brew install`.
 #
+# Auth tool: `fastlane spaceauth`. Older versions of this script
+# tried `xcodes signin` but xcodes only authenticates as part of
+# a `download`/`install` operation — there's no standalone signin.
+# Fastlane's spaceauth is the documented, decade-old tool for
+# minting a developer.apple.com session that's portable to other
+# clients (cookie replay), which is exactly what our Elixir worker
+# does. The session cookies it emits include `myacinfo` (Apple's
+# SSO cookie that covers developer-portal downloads) plus the
+# `dqsid` session token.
+#
 # Flow:
-#   1. Install missing prerequisites (`xcodes`, `oras`, `jq`,
-#      `1password-cli`) via brew.
+#   1. Install missing prerequisites (`oras`, `jq`, `1password-cli`,
+#      `fastlane`) via brew.
 #   2. Ensure `op` is signed in.
 #   3. Bootstrap 1P items if absent (one-time, on first run for a
 #      given env's vault).
-#   4. Spawn `xcodes signin <apple-id>` — interactive 2FA on a
-#      trusted device. The session lands in your login keychain.
-#   5. Read the just-stored session cookies out of the keychain.
-#   6. Write them straight into the `Tuist Xcode Mirror Session`
+#   4. Run `fastlane spaceauth -u <apple-id>` — interactive 2FA
+#      on a trusted device.
+#   5. Parse Fastlane's YAML-encoded session into our `{name: value}`
+#      JSON cookie jar.
+#   6. Write it straight into the `Tuist Xcode Mirror Session`
 #      item via `op item edit`. External Secrets propagates within
 #      ~5 min; the next worker tick uses the fresh cookies.
 
@@ -33,21 +44,17 @@ OP_VAULT="${usage_vault:-${TUIST_XCODE_MIRROR_OP_VAULT:-tuist-k8s-staging}}"
 OP_ITEM="${TUIST_XCODE_MIRROR_OP_ITEM:-Tuist Xcode Mirror Session}"
 OP_FIELD="${TUIST_XCODE_MIRROR_OP_FIELD:-session_cookies}"
 OP_GHCR_ITEM="${TUIST_XCODE_MIRROR_OP_GHCR_ITEM:-GHCR_TUIST_BOT}"
-KEYCHAIN_SERVICE="${TUIST_XCODE_MIRROR_KEYCHAIN_SERVICE:-xcodes}"
 
 # === 1. Auto-install prerequisites ===========================================
 
-# Map command names to brew formula / cask names. Most match
-# 1:1; the 1Password CLI's command is `op` but the formula is
-# `1password-cli`.
 declare -a missing
 declare -A brew_formula=(
-  [xcodes]="xcodes"
   [oras]="oras"
   [jq]="jq"
   [op]="1password-cli"
+  [fastlane]="fastlane"
 )
-for cmd in xcodes oras jq op; do
+for cmd in oras jq op fastlane; do
   if ! command -v "$cmd" >/dev/null 2>&1; then
     missing+=("${brew_formula[$cmd]}")
   fi
@@ -65,9 +72,6 @@ fi
 # === 2. Ensure op is signed in ==============================================
 
 if ! op whoami >/dev/null 2>&1; then
-  # Try the desktop-app biometric integration first (silent if
-  # configured, no-op otherwise). If that doesn't work, fall back
-  # to interactive `op signin`.
   echo "1Password CLI not signed in. Trying interactive sign-in..."
   eval "$(op signin)" || true
 fi
@@ -148,8 +152,8 @@ fi
 
 # Tuist Xcode Mirror Session item — created with a placeholder
 # session_cookies field that the rest of the script overwrites
-# with real cookies after `xcodes signin`. Splitting create vs.
-# edit avoids needing a real cookie jar to bootstrap.
+# after fastlane spaceauth succeeds. Splitting create vs. edit
+# avoids needing a real cookie jar to bootstrap.
 if ! op item get "$OP_ITEM" --vault "$OP_VAULT" >/dev/null 2>&1; then
   echo "Creating $OP_VAULT / $OP_ITEM (placeholder, will populate below)..."
   op item create \
@@ -161,45 +165,79 @@ if ! op item get "$OP_ITEM" --vault "$OP_VAULT" >/dev/null 2>&1; then
     >/dev/null
 fi
 
-# === 4. Sign in to xcodes ===================================================
+# === 4. Mint Apple session via fastlane spaceauth ============================
 
 echo
-echo "Signing in to xcodes as $APPLE_ID..."
+echo "Signing in to developer.apple.com as $APPLE_ID via fastlane spaceauth..."
 echo "(2FA prompt → approve on your trusted Apple device → enter 6-digit code below.)"
 echo
 
-xcodes signin "$APPLE_ID"
+# Capture fastlane's stdout/stderr to a temp file while still
+# letting it interact with the TTY for password + 2FA prompts.
+# `tee` keeps the user looking at progress; the temp file is what
+# we parse afterwards. Trap-clean it on exit so a session token
+# doesn't linger on disk.
+tmp_output="$(mktemp -t fastlane_spaceauth.XXXXXX)"
+trap 'rm -f "$tmp_output"' EXIT
 
-# === 5. Read session cookies from keychain ===================================
-
-echo
-echo "Reading session cookies from keychain..."
-
-raw_session=$(security find-generic-password -s "$KEYCHAIN_SERVICE" -a "$APPLE_ID" -w 2>/dev/null || true)
-
-if [ -z "$raw_session" ]; then
-  echo "Error: no '$KEYCHAIN_SERVICE' keychain entry for $APPLE_ID after signin." >&2
-  echo "(xcodes' keychain layout may have changed; check \`security find-generic-password -s $KEYCHAIN_SERVICE\`.)" >&2
+if ! fastlane spaceauth -u "$APPLE_ID" 2>&1 | tee "$tmp_output"; then
+  echo "Error: fastlane spaceauth failed. See output above." >&2
   exit 1
 fi
 
-if ! cookies_json=$(echo "$raw_session" | jq -c '.' 2>/dev/null); then
-  echo "Error: keychain value isn't valid JSON. xcodes may have changed its session format." >&2
-  echo "Raw value (first 200 chars):" >&2
-  echo "$raw_session" | head -c 200 >&2
+# === 5. Parse Fastlane's YAML session into our JSON cookie jar ==============
+
+# fastlane spaceauth prints something like:
+#
+#   Pass the following via the FASTLANE_SESSION environment variable:
+#   ---
+#   - !ruby/object:HTTP::Cookie
+#     name: myacinfo
+#     value: DAW...
+#     ...
+#   Example:
+#   export FASTLANE_SESSION='---\n- !ruby/object:...'
+#
+# We grab the `export FASTLANE_SESSION='...'` line — single-line,
+# easier to parse than the multi-line YAML block above.
+session_line="$(grep -E "^export FASTLANE_SESSION=" "$tmp_output" | head -n1 || true)"
+if [ -z "$session_line" ]; then
+  echo "Error: fastlane spaceauth didn't produce a FASTLANE_SESSION line." >&2
+  echo "(Check the output above for what went wrong.)" >&2
   exit 1
 fi
 
-n=$(echo "$cookies_json" | jq 'if type == "object" then length else -1 end')
-if [ "$n" -lt 1 ]; then
-  echo "Error: keychain JSON has no cookie entries." >&2
-  echo "$cookies_json" >&2
+# Strip the `export FASTLANE_SESSION='` prefix and the trailing `'`.
+session_yaml="${session_line#export FASTLANE_SESSION=\'}"
+session_yaml="${session_yaml%\'}"
+
+# Convert the Ruby-flavoured YAML to our {name: value} JSON. Pass
+# the YAML via stdin to dodge the bash single-quote escaping
+# fastlane uses in its `export` line (`'\''` → `'`); Ruby's `gets`
+# preserves whatever fastlane wrote literally. `unsafe_load` is
+# needed to deserialise the `!ruby/object:HTTP::Cookie` tagged
+# values — they're trusted (we just minted them).
+cookies_json="$(printf '%s' "$session_yaml" | ruby -ryaml -rjson -e '
+  yaml = STDIN.read
+  cookies = YAML.unsafe_load(yaml)
+  result = cookies.each_with_object({}) do |c, acc|
+    name = c.respond_to?(:name) ? c.name : c["name"]
+    value = c.respond_to?(:value) ? c.value : c["value"]
+    acc[name] = value if name && value
+  end
+  raise "no cookies extracted from fastlane session" if result.empty?
+  puts result.to_json
+')"
+
+if [ -z "$cookies_json" ]; then
+  echo "Error: failed to extract cookies from fastlane session." >&2
   exit 1
 fi
 
+n="$(echo "$cookies_json" | jq 'length')"
 echo "Captured $n cookie(s)."
 
-# === 6. Write to 1Password ==================================================
+# === 6. Write to 1Password =================================================
 
 echo "Writing to 1Password ($OP_VAULT / $OP_ITEM / $OP_FIELD)..."
 
