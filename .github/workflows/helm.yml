@@ -62,6 +62,7 @@ jobs:
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
+          install: "false"
       - name: Install helm
         run: mise use -g "helm@${HELM_VERSION}"
       - name: helm lint
@@ -106,6 +107,7 @@ jobs:
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
+          install: "false"
       - name: Install helm
         run: mise use -g "helm@${HELM_VERSION}"
       - name: Install kubeconform
