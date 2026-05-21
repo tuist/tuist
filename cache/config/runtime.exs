@@ -145,6 +145,7 @@ if config_env() == :prod do
 
   config :cache,
     server_url: System.get_env("SERVER_URL") || "https://tuist.dev",
+    server_ca_cert_pem: System.get_env("SERVER_CA_CERT_PEM") || System.get_env("TUIST_SERVER_CA_CERT_PEM"),
     storage_dir: System.get_env("STORAGE_DIR") || raise("environment variable STORAGE_DIR is missing"),
     disk_usage_high_watermark_percent: Cache.Config.float_env("DISK_HIGH_WATERMARK_PERCENT", 75.0),
     disk_usage_target_percent: Cache.Config.float_env("DISK_TARGET_PERCENT", 60.0),

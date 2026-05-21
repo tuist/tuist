@@ -166,11 +166,25 @@ spec:
           # box ends up unreachable post-install. Augment with a
           # higher-priority netplan drop-in (netplan merges in
           # alphabetical order, 99 wins).
-          cat > /etc/netplan/99-tuist-disable-dhcp6.yaml <<'NETPLAN'
+          #
+          # Detect the primary interface name from Hetzner's
+          # installimage-written `01-netcfg.yaml` rather than
+          # hardcoding it. AX42-U boxes use `enp3s0`, AX162-R
+          # (EPYC 9454P) uses a different name — hardcoding broke
+          # provisioning on production. The awk picks the first
+          # `ethernets:` child, which is the single Hetzner-
+          # configured uplink across every AX-class box we use.
+          PRIMARY_NIC=$(awk '/^[[:space:]]+ethernets:[[:space:]]*$/{flag=1; next} flag && /^[[:space:]]+[a-z0-9]+:[[:space:]]*$/{gsub(":","",$1); print $1; exit}' /etc/netplan/01-netcfg.yaml)
+          if [ -z "$PRIMARY_NIC" ]; then
+            echo "FATAL: could not detect primary NIC from /etc/netplan/01-netcfg.yaml" >&2
+            cat /etc/netplan/01-netcfg.yaml >&2
+            exit 1
+          fi
+          cat > /etc/netplan/99-tuist-disable-dhcp6.yaml <<NETPLAN
           network:
             version: 2
             ethernets:
-              enp3s0:
+              $PRIMARY_NIC:
                 dhcp6: false
                 accept-ra: false
           NETPLAN

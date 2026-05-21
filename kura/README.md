@@ -260,6 +260,7 @@ KURA_OTEL_DEPLOYMENT_ENVIRONMENT=production \
 ```
 
 Set `KURA_SENTRY_DSN` to also forward panics and `tracing::error!` events to Sentry. In Helm deployments, inject it via `extraEnv` or `extraEnvFrom`.
+`KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` accepts either an OTLP HTTP signal path such as `http://otel-collector:4318/v1/traces` or an OTLP gRPC root endpoint such as `http://otel-collector:4317`.
 
 ## 📊 Observability
 
@@ -317,7 +318,7 @@ Subdivision resolution: `KURA_NODE_SUBDIVISION` env var (operator override; ISO 
 
 ### Disabling OTLP tracing
 
-OTLP tracing is optional. Leaving `KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` unset (or empty) makes Kura skip exporter initialization and run without distributed traces — useful in environments without a collector (local kind, isolated edge nodes). Helm operators control it by setting `config.telemetry.otlpTracesEndpoint: ""` in a values overlay; the chart only renders the env when the value is non-empty, so an empty overlay disables tracing without crashlooping the pod.
+OTLP tracing is optional. Leaving `KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` unset (or empty) makes Kura skip exporter initialization and run without distributed traces — useful in environments without a collector (local kind, isolated edge nodes). When it is set, Kura auto-detects OTLP HTTP vs gRPC from the endpoint shape: `/v1/traces` paths use HTTP, while root collector endpoints such as `http://collector:4317` use gRPC. Helm operators control it by setting `config.telemetry.otlpTracesEndpoint: ""` in a values overlay; the chart only renders the env when the value is non-empty, so an empty overlay disables tracing without crashlooping the pod.
 
 ## 📣 Runtime Analytics
 

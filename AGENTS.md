@@ -56,6 +56,18 @@ Examples:
 - `feat(skills): add new migration skill`
 - `docs(handbook): update project setup guide`
 
+When creating pull requests, write descriptions that preserve the reasoning from the implementation work, not just the surface diff.
+
+Pull request descriptions should cover:
+- What changed
+- Why it changed
+- The root cause when the change is a fix
+- Why the chosen solution was selected over the obvious alternatives when that context matters
+- User or developer impact
+- The concrete validation that was run
+
+Avoid minimal PR descriptions that only restate the code diff. The goal is that a reviewer can understand the problem, the reasoning, and the validation without reopening the full agent session.
+
 # Tuist CLI (Swift)
 
 ## Code style

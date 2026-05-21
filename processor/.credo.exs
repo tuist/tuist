@@ -19,7 +19,7 @@ alias Credo.Checks.DisallowSpec
         extra: [
           {Credo.Check.Refactor.Nesting, [max_nesting: 3]},
           {DisallowSpec, []},
-          {DisallowDirectivesInFunction, files: %{included: ["lib/"]}},
+          {DisallowDirectivesInFunction, files: %{included: ["lib/", "test/"]}},
           {DisallowJason, []},
           {DisallowGlobalStateMutation, files: %{included: ["test/"]}}
         ],

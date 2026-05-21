@@ -2,6 +2,8 @@ defmodule Cache.Registry.LockTest do
   use ExUnit.Case, async: true
   use Mimic
 
+  import ExUnit.CaptureLog
+
   alias Cache.Registry.Lock
 
   setup :set_mimic_from_context
@@ -107,8 +109,6 @@ defmodule Cache.Registry.LockTest do
     end
 
     test "returns ok even if delete fails" do
-      import ExUnit.CaptureLog
-
       expect(ExAws, :request, fn %{http_method: :delete} ->
         {:error, {:http_error, 500, ""}}
       end)

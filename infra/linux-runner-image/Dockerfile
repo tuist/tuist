@@ -124,6 +124,29 @@ RUN apt-get update \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
+# kubectl + helm: GitHub's Ubuntu runner image pre-installs both
+# via `install-kubernetes-tools.sh` so every k8s deploy / sweep
+# workflow in the repo assumes they're on `/usr/local/bin`.
+# Mirror that posture here. Versions are Renovate-managed; bumps
+# land as `fix(linux-runner-image): …` and route through the
+# release flow same as `RUNNER_VERSION`.
+# renovate: datasource=github-releases depName=kubernetes/kubernetes
+ARG KUBECTL_VERSION=1.36.1
+# renovate: datasource=github-releases depName=helm/helm
+ARG HELM_VERSION=4.2.0
+RUN ARCH="$(dpkg --print-architecture)" \
+    && curl -fSL "https://dl.k8s.io/release/v${KUBECTL_VERSION}/bin/linux/${ARCH}/kubectl" \
+         -o /usr/local/bin/kubectl \
+    && chmod 0755 /usr/local/bin/kubectl \
+    && kubectl version --client \
+    && curl -fSL "https://get.helm.sh/helm-v${HELM_VERSION}-linux-${ARCH}.tar.gz" \
+         -o /tmp/helm.tgz \
+    && tar -xzf /tmp/helm.tgz -C /tmp \
+    && mv "/tmp/linux-${ARCH}/helm" /usr/local/bin/helm \
+    && rm -rf /tmp/helm.tgz "/tmp/linux-${ARCH}" \
+    && chmod 0755 /usr/local/bin/helm \
+    && helm version --short
+
 # Non-root runner user. `actions/runner` refuses to register as
 # root unless `RUNNER_ALLOW_RUNASROOT=1` is set — explicitly opt
 # out by creating a dedicated user. The user gets passwordless

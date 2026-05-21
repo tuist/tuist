@@ -2081,9 +2081,10 @@ defmodule Tuist.AccountsTest do
     end
 
     test "updates the password", %{user: user} do
-      {:ok, _} =
+      {:ok, %{user: updated_user}} =
         Accounts.reset_user_password(user, %{"password" => "new valid password"})
 
+      assert updated_user.id == user.id
       assert Accounts.get_user_by_email_and_password(user.email, "new valid password")
     end
 
@@ -2091,6 +2092,15 @@ defmodule Tuist.AccountsTest do
       _ = Accounts.generate_user_session_token(user)
       {:ok, _} = Accounts.reset_user_password(user, %{"password" => "new valid password"})
       refute Repo.get_by(UserToken, user_id: user.id)
+    end
+
+    test "returns revoked session live socket ids", %{user: user} do
+      session_token = Accounts.generate_user_session_token(user)
+
+      assert {:ok, %{revoked_session_live_socket_ids: [live_socket_id]}} =
+               Accounts.reset_user_password(user, %{"password" => "new valid password"})
+
+      assert live_socket_id == UserToken.live_socket_id(session_token)
     end
   end
 

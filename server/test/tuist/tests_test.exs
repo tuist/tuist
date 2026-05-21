@@ -2,6 +2,8 @@ defmodule Tuist.TestsTest do
   use TuistTestSupport.Cases.DataCase
   use Mimic
 
+  import Ecto.Query
+
   alias Tuist.Automations
   alias Tuist.Automations.ActionExecutor
   alias Tuist.ClickHouseRepo
@@ -2110,8 +2112,6 @@ defmodule Tuist.TestsTest do
     end
 
     test "shard run is created for each shard" do
-      import Ecto.Query
-
       project = ProjectsFixtures.project_fixture()
       account = AccountsFixtures.user_fixture(preload: [:account]).account
       plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)

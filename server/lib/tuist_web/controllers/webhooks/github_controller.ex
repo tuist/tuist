@@ -2,7 +2,7 @@ defmodule TuistWeb.Webhooks.GitHubController do
   use TuistWeb, :controller
 
   alias Tuist.Environment
-  alias Tuist.Runners.Dispatch
+  alias Tuist.Runners.Workers.DispatchWorker
   alias Tuist.VCS
 
   require Logger
@@ -208,6 +208,34 @@ defmodule TuistWeb.Webhooks.GitHubController do
     end
   end
 
+  # Hand off to the `:webhooks` Oban queue and acknowledge to
+  # GitHub immediately. The synchronous variant of this handler
+  # (account lookup + K8s LIST + ClickHouse INSERT inside the
+  # request) caused the 2026-05-19 incident: every webhook held
+  # a Phoenix worker for the full 10 s GitHub timeout while
+  # downstream stalled, so the HTTP body-read pool saturated and
+  # the ingress started 5xx-ing.
+  #
+  # Failure modes after this change:
+  #
+  #   * Payload missing `installation.id` → 200 OK, no enqueue.
+  #     GitHub won't redeliver and there's nothing to dispatch
+  #     against — same shape as the previous `:ignored` branch.
+  #   * `Oban.insert/1` returns `{:error, _}` → 503 so GitHub
+  #     retries. Only triggers if PG is unreachable, which
+  #     would have us 503-ing anyway.
+  #   * Worker errors → Oban retries with backoff up to
+  #     `max_attempts`. The HTTP layer is done.
+  # Actions that the dispatch pipeline persists or claims against.
+  # `Tuist.Runners.Dispatch.handle_webhook/2` only branches on these
+  # two — every other action (notably `in_progress`, ~33 % of
+  # `workflow_job` traffic) falls through to the catch-all
+  # `:ignored` branch in the worker. Short-circuiting here removes
+  # the Oban.insert (and its Postgres write) for those events,
+  # which under burst load was costing us ~one PG checkout per
+  # webhook for work the worker was going to discard anyway.
+  @dispatchable_workflow_job_actions ~w(queued completed)
+
   defp handle_workflow_job(conn, params) do
     installation_id =
       case params do
@@ -215,35 +243,36 @@ defmodule TuistWeb.Webhooks.GitHubController do
         _ -> nil
       end
 
-    result =
-      if installation_id do
-        Dispatch.handle_webhook(params, installation_id)
-      else
-        :ignored
-      end
+    delivery_guid = conn |> get_req_header("x-github-delivery") |> List.first()
+    action = Map.get(params, "action")
 
-    case result do
-      # `:ok` shapes (`:queued` / `:completed`) and `:ignored`
-      # (a job we deliberately don't handle: no account match,
-      # cap=0, no matching pool, ambiguous pool) are terminal
-      # and return 200 so GitHub doesn't replay them. GitHub
-      # will not redeliver a `queued` event for the same job
-      # — the queue lives on its side until a runner claims it
-      # — so a permanent decision has to land here, not later.
-      {:ok, _} ->
+    cond do
+      is_nil(installation_id) ->
         conn |> put_status(:ok) |> json(%{status: "ok"})
 
-      :ignored ->
+      action not in @dispatchable_workflow_job_actions ->
+        conn |> put_status(:ok) |> json(%{status: "ok"})
+
+      true ->
+        enqueue_dispatch(conn, params, installation_id, delivery_guid)
+    end
+  end
+
+  defp enqueue_dispatch(conn, params, installation_id, delivery_guid) do
+    args = %{
+      "payload" => params,
+      "installation_id" => installation_id,
+      "delivery_guid" => delivery_guid
+    }
+
+    case args |> DispatchWorker.new() |> Oban.insert() do
+      {:ok, _job} ->
         conn |> put_status(:ok) |> json(%{status: "ok"})
 
       {:error, reason} ->
-        # Transient failure — e.g. the K8s LIST for RunnerPools
-        # raced a deploy, the ClickHouse INSERT timed out, or
-        # the account lookup blew up. Return 5xx so GitHub
-        # retries with backoff; without that, the job stays
-        # queued in GitHub indefinitely and no warm runner can
-        # claim it (our CH queue never got the row).
-        Logger.warning("runners: webhook returning 503 for retry", reason: inspect(reason))
+        Logger.warning("runners: failed to enqueue dispatch worker; returning 503",
+          reason: inspect(reason)
+        )
 
         conn
         |> put_status(:service_unavailable)

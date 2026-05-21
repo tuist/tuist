@@ -61,15 +61,27 @@ node:
   #
   # Helm replaces (rather than merges) `node.affinity` when set, so
   # the chart's upstream Robot exclusions (`is-root-server`,
-  # `provided-by=robot`) are re-declared here alongside our pool
-  # rule. All three live in one `matchExpressions` list so they AND
+  # `provided-by=robot`) are re-declared here alongside our own
+  # rules. All match expressions live in one list so they AND
   # together — a node schedules the pod only if it is none of:
-  # Hetzner root server, Robot-provisioned, or in `runners-linux`.
-  # Our CAPI HCCM doesn't set the `is-root-server` / `provided-by`
-  # labels today (upstream chart with no Robot creds), so the pool
-  # rule is what actually filters in this cluster; the others are
-  # forward-compat with a Syself-style HCCM or a future Robot-aware
-  # upstream. Future bare-metal pools should carry the same
+  # Hetzner root server, Robot-provisioned, in `runners-linux`, or
+  # running darwin. Our CAPI HCCM doesn't set the `is-root-server` /
+  # `provided-by` labels today (upstream chart with no Robot creds),
+  # so the pool and OS rules are what actually filter in this
+  # cluster; the others are forward-compat with a Syself-style HCCM
+  # or a future Robot-aware upstream.
+  #
+  # The darwin exclusion catches the Scaleway Apple Silicon Mac
+  # minis joined via tart-cri (`kubernetes.io/os: darwin`,
+  # `tuist.dev/runtime: tart`). Hetzner Cloud Volumes can't attach
+  # to those — they're not on Hetzner at all — so the driver has
+  # nothing to do, and without this filter its pods sit Pending
+  # indefinitely waiting on hostPath mounts and a Linux kernel
+  # interface that doesn't exist. NotIn with an absent label
+  # matches (= node included), so this rule only filters out nodes
+  # that explicitly advertise darwin; everything else still passes.
+  #
+  # Future bare-metal pools should carry the same
   # `node.cluster.x-k8s.io/pool` label convention so this affinity
   # can be extended with another `values:` entry.
   affinity:
@@ -89,6 +101,10 @@ node:
                 operator: NotIn
                 values:
                   - runners-linux
+              - key: kubernetes.io/os
+                operator: NotIn
+                values:
+                  - darwin
   resources:
     requests:
       cpu: 25m
