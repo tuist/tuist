@@ -306,7 +306,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.resolve.outputs.ref }}
-      - uses: ./.github/actions/setup-k8s-tools
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "helm kubectl"
+          cache: "false"
       - name: Load kubeconfig
         run: |
           mkdir -p "$(dirname "$KUBECONFIG")"
@@ -468,8 +471,10 @@ jobs:
       RELEASE: ${{ needs.resolve.outputs.release }}
       NAMESPACE: ${{ needs.resolve.outputs.namespace }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/setup-k8s-tools
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "helm kubectl"
+          cache: "false"
       - name: Load kubeconfig
         run: |
           mkdir -p "$(dirname "$KUBECONFIG")"

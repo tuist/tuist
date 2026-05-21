@@ -68,9 +68,10 @@ jobs:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
     steps:
       - uses: actions/checkout@v4
-      - uses: ./.github/actions/setup-k8s-tools
+      - uses: jdx/mise-action@v3.2.0
         with:
-          install-helm: "false"
+          install_args: "kubectl"
+          cache: "false"
       - uses: 1password/install-cli-action@v2
       - name: Load mgmt kubeconfig from 1Password
         env:

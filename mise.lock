@@ -246,25 +246,32 @@ version = "4.2.0"
 backend = "aqua:helm/helm"
 
 [tools.helm."platforms.linux-arm64"]
-url = "https://get.helm.sh/helm-4.2.0-linux-arm64.tar.gz"
+checksum = "sha256:1f8de130dfbd04de64978e7b852a7a547be1404956a366608276d2520b678670"
+url = "https://get.helm.sh/helm-v4.2.0-linux-arm64.tar.gz"
 
 [tools.helm."platforms.linux-arm64-musl"]
-url = "https://get.helm.sh/helm-4.2.0-linux-arm64.tar.gz"
+checksum = "sha256:1f8de130dfbd04de64978e7b852a7a547be1404956a366608276d2520b678670"
+url = "https://get.helm.sh/helm-v4.2.0-linux-arm64.tar.gz"
 
 [tools.helm."platforms.linux-x64"]
-url = "https://get.helm.sh/helm-4.2.0-linux-amd64.tar.gz"
+checksum = "sha256:97dbeb971be4ac4b27e3839976d9564c0fb35c6f3b1da89dd1e292d236af4096"
+url = "https://get.helm.sh/helm-v4.2.0-linux-amd64.tar.gz"
 
 [tools.helm."platforms.linux-x64-musl"]
-url = "https://get.helm.sh/helm-4.2.0-linux-amd64.tar.gz"
+checksum = "sha256:97dbeb971be4ac4b27e3839976d9564c0fb35c6f3b1da89dd1e292d236af4096"
+url = "https://get.helm.sh/helm-v4.2.0-linux-amd64.tar.gz"
 
 [tools.helm."platforms.macos-arm64"]
-url = "https://get.helm.sh/helm-4.2.0-darwin-arm64.tar.gz"
+checksum = "sha256:f13f959015447b6bc309f9fd506509926543988a39035c088b52522ec95e2acb"
+url = "https://get.helm.sh/helm-v4.2.0-darwin-arm64.tar.gz"
 
 [tools.helm."platforms.macos-x64"]
-url = "https://get.helm.sh/helm-4.2.0-darwin-amd64.tar.gz"
+checksum = "sha256:1376ea697140e4db316736e760d5a47d12afc1524dce704476ef06fd7fdeddc6"
+url = "https://get.helm.sh/helm-v4.2.0-darwin-amd64.tar.gz"
 
 [tools.helm."platforms.windows-x64"]
-url = "https://get.helm.sh/helm-4.2.0-windows-amd64.tar.gz"
+checksum = "sha256:34bf9659f8f04f3841a60131183b8e2acc44e260db4c93b889ff09718cacca6f"
+url = "https://get.helm.sh/helm-v4.2.0-windows-amd64.tar.gz"
 
 [[tools.java]]
 version = "21.0.2"

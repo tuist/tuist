@@ -30,8 +30,10 @@ jobs:
     env:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
     steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/setup-k8s-tools
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "helm kubectl"
+          cache: "false"
       - name: Load kubeconfig
         run: |
           mkdir -p "$(dirname "$KUBECONFIG")"

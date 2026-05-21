@@ -170,7 +170,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ env.DEPLOY_SHA }}
-      - uses: ./.github/actions/setup-k8s-tools
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "helm kubectl"
+          cache: "false"
       - uses: 1password/install-cli-action@v2
       - name: Load kubeconfig from 1Password
         env:
@@ -249,7 +252,10 @@ jobs:
             echo "$VALUES not present; skipping tailscale-operator install for this env."
           fi
       - if: steps.check-values.outputs.exists == 'true'
-        uses: ./.github/actions/setup-k8s-tools
+        uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "helm kubectl"
+          cache: "false"
       - if: steps.check-values.outputs.exists == 'true'
         uses: 1password/install-cli-action@v2
       - if: steps.check-values.outputs.exists == 'true'
@@ -310,7 +316,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ env.DEPLOY_SHA }}
-      - uses: ./.github/actions/setup-k8s-tools
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "helm kubectl"
+          cache: "false"
       - uses: 1password/install-cli-action@v2
       - name: Load kubeconfig from 1Password
         env:
