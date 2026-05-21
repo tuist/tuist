@@ -118,10 +118,18 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 			// virtio-fs lacks the xattr surface BuildKit needs for
 			// checksum computation, so COPY operations fail with
 			// "operation not supported". tmpfs inside the microVM
-			// is a real Linux FS with full xattr support. The pod's
-			// memory request must cover dockerd's working set
-			// (layers + build cache) plus the runner's own usage.
-			corev1.Volume{Name: "dind-storage", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{Medium: corev1.StorageMediumMemory}}},
+			// is a real Linux FS with full xattr support.
+			//
+			// sizeLimit caps the tmpfs so a runaway layer pull
+			// can't crowd out compile RAM. The pod's memory limit
+			// has to cover this AND the largest process working
+			// set (mix compile for the server build sits around
+			// 2-3 GiB), so keep the cap a meaningful fraction
+			// under PodMemoryMB.
+			corev1.Volume{Name: "dind-storage", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{
+				Medium:    corev1.StorageMediumMemory,
+				SizeLimit: ptr(resource.MustParse("6Gi")),
+			}}},
 		)
 		extraVolumeMounts = append(extraVolumeMounts,
 			corev1.VolumeMount{Name: "dind-sock", MountPath: "/var/run"},

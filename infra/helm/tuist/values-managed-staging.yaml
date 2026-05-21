@@ -303,11 +303,14 @@ runnersFleetLinux:
       # kata-qemu microVM is the safety boundary.
       runtimeClass: kata-qemu
       pod:
-        # Bumped from 4 GB → 8 GB to give the dind sidecar's tmpfs
-        # /var/lib/docker (default 50% of pod memory) room to host
-        # a full server build alongside the runner's own working set.
+        # 16 GB pod budget: 6 GB tmpfs /var/lib/docker + ~10 GB
+        # for the runner process + dockerd + mix compile working
+        # set (the Tuist server's Elixir compile alone peaks
+        # around 2-3 GiB). 8 GB OOMed during mix compile because
+        # tmpfs (4 GB cap) plus layer-pull memory pressure ate
+        # too much of the budget.
         cpuMilli: 2000
-        memoryMB: 8192
+        memoryMB: 16384
       # Queue-depth driven autoscaling. Pod-level only — the operator
       # manages bare-metal Host count manually via the cluster topology
       # in `infra/k8s/clusters/cluster-staging.yaml`. Bare-metal hosts
@@ -320,9 +323,9 @@ runnersFleetLinux:
       autoscaling:
         enabled: true
         minWarmPoolFloor: 2
-        # Halved with the 4 GB → 8 GB pod bump above. AX42-U fits
-        # ~7 of the new slots cleanly.
-        maxReplicas: 7
+        # AX42-U has 64 GB; at 16 GB pod budget that's ~3 slots
+        # leaving headroom for system DaemonSets + kernel cache.
+        maxReplicas: 3
         scaleDownCooldownSeconds: 300
 
 # Staging-only override for the runners-controller image, ahead of
