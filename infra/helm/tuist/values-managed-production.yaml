@@ -6,6 +6,11 @@
 #     -f infra/helm/tuist/values-managed-production.yaml \
 #     --set server.image.tag=$GIT_SHA
 
+# The production workload cluster still serves per-region Kura HTTPS and
+# gRPC traffic directly via Hetzner LoadBalancer Services. Disable the
+# Cloudflare-fronted global endpoint layer here too until the Cloudflare
+# pool quota is raised.
+kuraGlobalEndpointsEnabled: false
 kuraGlobalEndpointsRequired: false
 
 server:
@@ -99,6 +104,9 @@ server:
 
 kuraController:
   cloudflareLoadBalancing:
+    # Keep Cloudflare credentials wired so destroy flows can still clean
+    # up any previously provisioned global endpoints after reconciliation
+    # is re-enabled.
     enabled: true
     zoneName: tuist.dev
     apiTokenSecret:
