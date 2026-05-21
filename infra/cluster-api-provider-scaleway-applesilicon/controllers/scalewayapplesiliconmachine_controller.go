@@ -867,15 +867,6 @@ func (r *ScalewayAppleSiliconMachineReconciler) acquireServer(
 	ctx context.Context,
 	machine *infrav1.ScalewayAppleSiliconMachine,
 ) (*scaleway.Server, time.Duration, error) {
-	if machine.Spec.AdoptPoolPrefix == "" {
-		conditions.MarkFalse(machine, ProvisionedCondition, "MissingAdoptPoolPrefix",
-			clusterv1.ConditionSeverityError,
-			"Spec.AdoptPoolPrefix is required; auto-order via CreateServer is no longer supported")
-		r.Recorder.Eventf(machine, corev1.EventTypeWarning, "MissingAdoptPoolPrefix",
-			"Spec.AdoptPoolPrefix is required; pre-order capacity and set the prefix on the MachineTemplate")
-		return nil, 5 * time.Minute, nil
-	}
-
 	machine.Status.Phase = "Adopting"
 	r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Adopting",
 		"Searching pool %q for an unclaimed %s Mac mini in zone %s",
