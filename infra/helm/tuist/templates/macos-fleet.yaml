@@ -35,7 +35,7 @@ spec:
     spec:
       type: {{ .Values.macosFleet.machine.type | default "M2-L" | quote }}
       zone: {{ .Values.macosFleet.machine.zone | default "fr-par-1" | quote }}
-      os: {{ .Values.macosFleet.machine.os | default "macos-tahoe-26.0" | quote }}
+      os: {{ .Values.macosFleet.machine.os | default "macos-tahoe-26.3" | quote }}
       fleetName: {{ $fleetName }}
       {{- with .Values.macosFleet.machine.hostCPU }}
       hostCPU: {{ . }}
