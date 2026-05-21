@@ -82,13 +82,14 @@ server:
   github:
     managedSecrets: true
 
-  # Tuist.XcodeMirror worker. Wired across all hosted envs but
-  # gated by `mode` (default "observe" in values.yaml) so the
-  # worker computes the Apple-vs-mirror diff and emits structured
-  # logs / Sentry messages without downloading until we flip to
-  # "mirror" — staged rollout per the PR runbook.
-  xcodeMirror:
-    managedSecrets: true
+  # Tuist.XcodeMirror worker — opt-in per env, see
+  # values-managed-staging/canary/production.yaml. Each env's
+  # overlay flips `xcodeMirror.managedSecrets: true` only after
+  # the operator has seeded `Tuist Xcode Mirror Session` and
+  # `GHCR_TUIST_BOT` items in that env's 1Password vault. Until
+  # then the worker runs without credentials, finds the env vars
+  # absent, and stays in `observe` mode — no Pod-startup failure
+  # from dangling secretKeyRefs.
 
   database:
     ssl: true
