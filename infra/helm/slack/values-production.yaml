@@ -1,0 +1,31 @@
+global:
+  commonLabels:
+    tuist.dev/service: slack
+    tuist.dev/stack: managed
+
+ingress:
+  enabled: true
+  className: nginx
+  host: slack.tuist.dev
+  tlsSecretName: slack-tls
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-cloudflare
+
+runtimeSecrets:
+  externalSecret:
+    enabled: true
+    item: SLACK_INVITATION_APP
+
+networkPolicy:
+  enabled: true
+
+resources:
+  requests:
+    cpu: "100m"
+    memory: "256Mi"
+  limits:
+    cpu: "500m"
+    memory: "512Mi"
+
+nodeSelector:
+  node.cluster.x-k8s.io/pool: general
