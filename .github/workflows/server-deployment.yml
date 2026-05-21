@@ -172,7 +172,7 @@ jobs:
           ref: ${{ env.DEPLOY_SHA }}
       - uses: jdx/mise-action@v3.2.0
         with:
-          install_args: "helm kubectl"
+          install_args: "helm@3.16.3 kubectl@1.31.3"
           cache: "false"
       - uses: 1password/install-cli-action@v2
       - name: Load kubeconfig from 1Password
@@ -254,7 +254,7 @@ jobs:
       - if: steps.check-values.outputs.exists == 'true'
         uses: jdx/mise-action@v3.2.0
         with:
-          install_args: "helm kubectl"
+          install_args: "helm@3.16.3 kubectl@1.31.3"
           cache: "false"
       - if: steps.check-values.outputs.exists == 'true'
         uses: 1password/install-cli-action@v2
@@ -318,7 +318,7 @@ jobs:
           ref: ${{ env.DEPLOY_SHA }}
       - uses: jdx/mise-action@v3.2.0
         with:
-          install_args: "helm kubectl"
+          install_args: "helm@3.16.3 kubectl@1.31.3"
           cache: "false"
       - uses: 1password/install-cli-action@v2
       - name: Load kubeconfig from 1Password
