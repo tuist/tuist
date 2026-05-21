@@ -13,5 +13,3 @@ runtimeSecrets:
     turnstileSecretKey: validation-turnstile-secret-key
     mailgunApiKey: validation-mailgun-api-key
     slackInviteUrl: https://slack.example.com/invite
-    slackBotToken: xoxb-validation
-    slackChannelId: C0123456789

@@ -42,6 +42,10 @@ The production overlay expects one 1Password item named
 - `turnstile-secret-key`
 - `mailgun-api-key`
 - `slack-invite-url`
+
+These fields are optional. When omitted, the app still boots and simply
+disables the internal Slack notification hook:
+
 - `slack-bot-token`
 - `slack-channel-id`
 
