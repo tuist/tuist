@@ -304,6 +304,14 @@ jobs:
           submodules: false
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+        with:
+          # docker-container driver runs BuildKit in a child container whose
+          # /var/lib/buildkit lives on overlay2-over-tmpfs (nested overlay)
+          # inside the kata microVM — that combination trips
+          # "operation not supported" during checksum hashing. The `docker`
+          # driver uses dockerd's built-in BuildKit, which writes directly
+          # to /var/lib/docker (tmpfs in the sidecar) — no nested overlay.
+          driver: docker
       - name: Docker build
         uses: docker/build-push-action@v6
         with:
