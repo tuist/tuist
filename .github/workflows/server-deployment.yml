@@ -541,33 +541,24 @@ jobs:
         #
         # --wait=hookOnly (helm 4 default) waits only for chart hooks —
         # the pre-upgrade migration Job — not for every resource the
-        # chart renders. The chart owns three CAPI MachineDeployments
-        # (macos / runners / builders fleets) whose readiness lives
-        # behind a slow async CAPI reconciliation loop driven by an
-        # out-of-cluster Scaleway control plane: Scaleway DeleteServer
-        # is gated by a multi-week billing-floor that the controller
-        # can't shortcut, and CreateServer on a fresh host runs 50+
-        # min. The chart's `OnDelete` rollout strategy was picked for
-        # exactly this reason (manual machine churn by the operator,
-        # not auto-rolling on every chart change), and the assumption
-        # is that the operator times Machine churn against the billing
-        # floor. Gating the server rollout on that loop means any
-        # CAPI hiccup — billing-floor on a Machine that's mid-roll,
-        # network blip to the Scaleway API, stuck adoption — cascades
-        # into a multi-hour deploy hang while the server change itself
-        # has nothing to do with the fleets.
+        # chart renders. The chart owns resources whose readiness sits
+        # behind slow async reconciliation loops outside this deploy's
+        # critical path (e.g. infrastructure CRs that reconcile
+        # against external control planes); gating the server rollout
+        # on them turns any out-of-band reconciliation hiccup into a
+        # multi-hour deploy hang on a change that has nothing to do
+        # with those resources. Readiness for everything we actually
+        # ship in a code deploy (server, processors, controllers) is
+        # verified by the `kubectl rollout status` loop below.
         #
-        # Readiness for everything we ship in a code deploy (server,
-        # processors, controllers) is verified by the `kubectl rollout
-        # status` loop below. On any helm failure or rollout failure
-        # we roll back to the revision that was `deployed` *before*
-        # this upgrade started (captured up front; awk-ing
-        # `helm history` after the fact would pick the just-completed
-        # bad revision since helm marks it `deployed` once manifests
-        # apply, before the rollout-status loop runs). That's the
-        # safety net the legacy `--atomic` flag used to provide,
-        # restricted to the resources whose readiness actually gates
-        # "deploy good."
+        # On any helm failure or rollout failure we roll back to the
+        # revision that was `deployed` *before* this upgrade started
+        # (captured up front; awk-ing `helm history` after the fact
+        # would pick the just-completed bad revision since helm marks
+        # it `deployed` once manifests apply, before the rollout-
+        # status loop runs). That's the safety net the legacy
+        # `--atomic` flag used to provide, restricted to the resources
+        # whose readiness actually gates "deploy good."
         timeout-minutes: 25
         run: |
           # Stream cluster state every 30s while helm and the rollout
