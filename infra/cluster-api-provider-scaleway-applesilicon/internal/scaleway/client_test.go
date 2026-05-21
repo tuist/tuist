@@ -150,10 +150,10 @@ type fakeAppleSiliconAPI struct {
 	// a server still inside its 24h Apple-licensing floor, then
 	// observe the schedule-deletion UpdateServer call that should
 	// follow.
-	deleteErrors  map[int]error
-	deleteCalls   int
-	deletedIDs    []string
-	scheduledIDs  []string
+	deleteErrors map[int]error
+	deleteCalls  int
+	deletedIDs   []string
+	scheduledIDs []string
 
 	// reinstallErrors maps `<call-index> -> error` for ReinstallServer;
 	// an absent / nil entry returns success and appends to
