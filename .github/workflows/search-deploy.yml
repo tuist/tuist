@@ -26,7 +26,7 @@ env:
 
 jobs:
   deploy:
-    runs-on: namespace-profile-default
+    runs-on: tuist-production-linux
     timeout-minutes: 30
     environment: search-production
     steps:
@@ -35,7 +35,6 @@ jobs:
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
-          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
           working_directory: search
       - name: Setup SSH
         uses: webfactory/ssh-agent@v0.9.1

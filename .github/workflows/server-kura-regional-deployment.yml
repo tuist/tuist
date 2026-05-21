@@ -37,7 +37,7 @@ jobs:
     if: >-
       github.event_name == 'workflow_dispatch' ||
       github.event.workflow_run.conclusion == 'success'
-    runs-on: namespace-profile-default
+    runs-on: tuist-production-linux
     environment:
       name: server-k8s-production
     concurrency:

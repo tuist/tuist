@@ -170,12 +170,17 @@ public struct ResourcesProjectMapper: ProjectMapping {
 
         // Asset catalogs (.xcassets) sit on the main target's Sources phase so Xcode generates
         // typed asset symbols, and on the companion bundle's Resources phase so the catalog is
-        // actually compiled. Mirrors SwiftPM's PIF builder:
+        // actually compiled. This applies both to explicit `resources` entries and to catalogs
+        // discovered inside buildable folders. Mirrors SwiftPM's PIF builder:
         //   - https://github.com/swiftlang/swift-package-manager/blob/main/Sources/XCBuildSupport/PIFBuilder.swift#L944-L952
         //   - https://github.com/swiftlang/swift-package-manager/blob/main/Sources/SwiftBuildSupport/PackagePIFProjectBuilder.swift#L347-L353
-        for resource in target.resources.resources where resource.path.extension == "xcassets" {
-            modifiedTarget.sources.append(SourceFile(path: resource.path))
-        }
+        appendUniqueSourceFiles(
+            paths: target.resources.resources.compactMap { resource in
+                guard resource.path.extension?.lowercased() == "xcassets" else { return nil }
+                return resource.path
+            } + buildableFolderAssetCatalogPaths(target.buildableFolders),
+            to: &modifiedTarget
+        )
 
         // String catalogs (.xcstrings) stay on the main target's Resources phase so Xcode runs
         // localization extraction and stale-string detection in the same target where the Swift
@@ -296,5 +301,33 @@ public struct ResourcesProjectMapper: ProjectMapping {
 
         sideEffects.append(.file(.init(path: header.path, contents: header.contents, state: .present)))
         sideEffects.append(.file(.init(path: implementation.path, contents: implementation.contents, state: .present)))
+    }
+
+    private func appendUniqueSourceFiles(paths: [AbsolutePath], to target: inout Target) {
+        guard !paths.isEmpty else { return }
+
+        var existingPaths = Set(target.sources.map(\.path))
+        for path in paths where existingPaths.insert(path).inserted {
+            target.sources.append(SourceFile(path: path))
+        }
+    }
+
+    private func buildableFolderAssetCatalogPaths(_ folders: [BuildableFolder]) -> [AbsolutePath] {
+        var assetCatalogPaths: [AbsolutePath] = []
+        var seenPaths = Set<AbsolutePath>()
+
+        for folder in folders {
+            if folder.path.extension?.lowercased() == "xcassets", seenPaths.insert(folder.path).inserted {
+                assetCatalogPaths.append(folder.path)
+            }
+
+            for resolvedFile in folder.resolvedFiles where resolvedFile.path.extension?.lowercased() == "xcassets" {
+                if seenPaths.insert(resolvedFile.path).inserted {
+                    assetCatalogPaths.append(resolvedFile.path)
+                }
+            }
+        }
+
+        return assetCatalogPaths
     }
 }

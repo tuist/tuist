@@ -21,6 +21,8 @@
     caddy = "2.11.2"
     "github:tuist/blick" = "0.8.0"
     "npm:opencode-ai" = "1.14.39"
+    kubectl = "1.36.1"
+    helm = "4.2.0"
 
 [hooks]
     postinstall = "{{config_root}}/mise/tasks/install.sh"

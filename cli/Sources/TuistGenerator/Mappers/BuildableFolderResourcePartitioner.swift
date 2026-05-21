@@ -153,10 +153,10 @@ extension BuildableFolder {
 /// detection and lives in the bundle's Resources phase for runtime resolution).
 ///
 /// SwiftPM additionally adds `.xcassets`, `.xcdatamodeld`, `.xcdatamodel`, `.mlmodel` and
-/// `.mlpackage` to *both* targets so the main target can run typed-symbol / codegen tasks. For
-/// `target.resources` Tuist matches that shape for `.xcassets` (via a separate code path in
-/// `synthesizeCompanionBundle`) and `.xcdatamodeld` (via `target.coreDataModels`). The same
-/// "shared with main target" treatment for buildable folders is a known gap; see #TODO.
+/// `.mlpackage` to *both* targets so the main target can run typed-symbol / codegen tasks. Tuist
+/// matches that shape for `.xcassets` by promoting catalogs onto the main target's Sources phase
+/// in `ResourcesProjectMapper.synthesizeCompanionBundle`, and handles `.xcdatamodeld` via
+/// `target.coreDataModels`.
 ///
 /// References:
 /// - https://github.com/swiftlang/swift-package-manager/blob/main/Sources/PackageLoading/TargetSourcesBuilder.swift#L811-L865
