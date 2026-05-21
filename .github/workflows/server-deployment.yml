@@ -172,14 +172,8 @@ jobs:
           ref: ${{ env.DEPLOY_SHA }}
       - uses: jdx/mise-action@v3.2.0
         with:
-          install_args: "helm@3.16.3 kubectl@1.31.3"
+          install_args: "helm kubectl"
           cache: "false"
-      - name: Activate mise-installed tools
-        # `mise install foo@x.y` materializes the binary but the shim
-        # still needs a mise config to resolve which version to use.
-        # `use --global` writes ~/.config/mise/config.toml so the shim
-        # works in subsequent steps without per-step CWD juggling.
-        run: mise use --global helm@3.16.3 kubectl@1.31.3
       - uses: 1password/install-cli-action@v2
       - name: Load kubeconfig from 1Password
         env:
@@ -260,14 +254,8 @@ jobs:
       - if: steps.check-values.outputs.exists == 'true'
         uses: jdx/mise-action@v3.2.0
         with:
-          install_args: "helm@3.16.3 kubectl@1.31.3"
+          install_args: "helm kubectl"
           cache: "false"
-      - name: Activate mise-installed tools
-        # `mise install foo@x.y` materializes the binary but the shim
-        # still needs a mise config to resolve which version to use.
-        # `use --global` writes ~/.config/mise/config.toml so the shim
-        # works in subsequent steps without per-step CWD juggling.
-        run: mise use --global helm@3.16.3 kubectl@1.31.3
       - if: steps.check-values.outputs.exists == 'true'
         uses: 1password/install-cli-action@v2
       - if: steps.check-values.outputs.exists == 'true'
@@ -330,14 +318,8 @@ jobs:
           ref: ${{ env.DEPLOY_SHA }}
       - uses: jdx/mise-action@v3.2.0
         with:
-          install_args: "helm@3.16.3 kubectl@1.31.3"
+          install_args: "helm kubectl"
           cache: "false"
-      - name: Activate mise-installed tools
-        # `mise install foo@x.y` materializes the binary but the shim
-        # still needs a mise config to resolve which version to use.
-        # `use --global` writes ~/.config/mise/config.toml so the shim
-        # works in subsequent steps without per-step CWD juggling.
-        run: mise use --global helm@3.16.3 kubectl@1.31.3
       - uses: 1password/install-cli-action@v2
       - name: Load kubeconfig from 1Password
         env:
