@@ -29,6 +29,44 @@ fi
 
 log() { printf '\n\033[1;34m==> %s\033[0m\n' "$*"; }
 
+adopt_platform_crd() {
+  local crd="$1"
+  KUBECONFIG="$WL_KUBECONFIG" kubectl label crd "$crd" \
+    app.kubernetes.io/managed-by=Helm --overwrite >/dev/null
+  KUBECONFIG="$WL_KUBECONFIG" kubectl annotate crd "$crd" \
+    meta.helm.sh/release-name=platform \
+    meta.helm.sh/release-namespace=platform \
+    --overwrite >/dev/null
+}
+
+wait_for_cert_manager_webhook() {
+  log "Waiting for cert-manager webhook readiness before creating ClusterIssuer"
+
+  KUBECONFIG="$WL_KUBECONFIG" kubectl -n platform wait \
+    --for=condition=Available deploy/platform-cert-manager \
+    deploy/platform-cert-manager-cainjector \
+    deploy/platform-cert-manager-webhook \
+    --timeout=5m
+
+  for _ in $(seq 1 60); do
+    webhook_ca="$(
+      KUBECONFIG="$WL_KUBECONFIG" kubectl get validatingwebhookconfiguration platform-cert-manager-webhook \
+        -o jsonpath='{.webhooks[0].clientConfig.caBundle}' 2>/dev/null || true
+    )"
+    webhook_endpoints="$(
+      KUBECONFIG="$WL_KUBECONFIG" kubectl -n platform get endpoints platform-cert-manager-webhook \
+        -o jsonpath='{.subsets[0].addresses[0].ip}' 2>/dev/null || true
+    )"
+    if [ -n "$webhook_ca" ] && [ -n "$webhook_endpoints" ]; then
+      return 0
+    fi
+    sleep 5
+  done
+
+  echo "ERROR: cert-manager webhook never became callable" >&2
+  exit 1
+}
+
 if [ ! -r "$WL_KUBECONFIG" ]; then
   echo "ERROR: kubeconfig not readable: $WL_KUBECONFIG" >&2
   exit 1
@@ -86,7 +124,19 @@ HELM_TIMEOUT="15m"
 # regional clusters predate the platform chart's cert-manager wiring, so
 # an upgrade can see `clusterissuers.cert-manager.io` missing forever.
 # Apply the cert-manager chart CRDs explicitly before templating our
-# ClusterIssuer.
+# ClusterIssuer. If we have to seed them ourselves, also stamp the Helm
+# ownership metadata that `helm upgrade --install platform` expects on a
+# fresh release; otherwise the later install aborts because the CRDs
+# already exist but do not belong to the `platform` release yet.
+CERT_MANAGER_CRDS=(
+  certificaterequests.cert-manager.io
+  certificates.cert-manager.io
+  challenges.acme.cert-manager.io
+  clusterissuers.cert-manager.io
+  issuers.cert-manager.io
+  orders.acme.cert-manager.io
+)
+
 if ! KUBECONFIG="$WL_KUBECONFIG" kubectl get crd clusterissuers.cert-manager.io >/dev/null 2>&1; then
   log "ClusterIssuer CRD missing; applying cert-manager CRDs"
 
@@ -108,6 +158,12 @@ if ! KUBECONFIG="$WL_KUBECONFIG" kubectl get crd clusterissuers.cert-manager.io 
   KUBECONFIG="$WL_KUBECONFIG" kubectl wait \
     --for=condition=Established crd/clusterissuers.cert-manager.io --timeout=2m
 fi
+
+for crd in "${CERT_MANAGER_CRDS[@]}"; do
+  if KUBECONFIG="$WL_KUBECONFIG" kubectl get crd "$crd" >/dev/null 2>&1; then
+    adopt_platform_crd "$crd"
+  fi
+done
 
 # The ingress-nginx admission cert jobs are Helm hooks. Re-running them on
 # every server deploy makes the deploy path depend on a short-lived certgen
@@ -173,20 +229,39 @@ dump_diagnostics() {
 }
 trap dump_diagnostics EXIT
 
-HELM_CMD=(
-  helm upgrade --install platform "$CHART_PATH"
-  --namespace platform
-  "${HELM_VALUES_ARGS[@]}"
-  "${HELM_SET_ARGS[@]}"
-)
+platform_release_status="$(
+  KUBECONFIG="$WL_KUBECONFIG" helm status platform -n platform -o json 2>/dev/null \
+    | jq -r '.info.status // empty' \
+    || true
+)"
 
-if [ "${#HELM_EXTRA_ARGS[@]}" -gt 0 ]; then
-  HELM_CMD+=("${HELM_EXTRA_ARGS[@]}")
+run_platform_helm() {
+  local extra_set_args=("$@")
+  local helm_cmd=(
+    helm upgrade --install platform "$CHART_PATH"
+    --namespace platform
+    "${HELM_VALUES_ARGS[@]}"
+    "${HELM_SET_ARGS[@]}"
+  )
+
+  if [ "${#extra_set_args[@]}" -gt 0 ]; then
+    helm_cmd+=("${extra_set_args[@]}")
+  fi
+  if [ "${#HELM_EXTRA_ARGS[@]}" -gt 0 ]; then
+    helm_cmd+=("${HELM_EXTRA_ARGS[@]}")
+  fi
+
+  helm_cmd+=(
+    --wait
+    --timeout "$HELM_TIMEOUT"
+  )
+
+  KUBECONFIG="$WL_KUBECONFIG" "${helm_cmd[@]}"
+}
+
+if [ -z "$platform_release_status" ] || [ "$platform_release_status" != "deployed" ]; then
+  run_platform_helm --set clusterIssuer.enabled=false
+  wait_for_cert_manager_webhook
 fi
 
-HELM_CMD+=(
-  --wait
-  --timeout "$HELM_TIMEOUT"
-)
-
-KUBECONFIG="$WL_KUBECONFIG" "${HELM_CMD[@]}"
+run_platform_helm

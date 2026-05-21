@@ -286,7 +286,7 @@ log "Step 8/13: install Cluster API core (Mac mini fleet substrate)"
 # up, so we're good to install here.
 
 CAPI_CORE_VERSION="v1.10.4"
-CLUSTERCTL_BIN="$RUNNER_TEMP/clusterctl"
+CLUSTERCTL_BIN="${RUNNER_TEMP:-}/clusterctl"
 
 if [ -z "${RUNNER_TEMP:-}" ]; then
   CLUSTERCTL_BIN="${TMPDIR:-/tmp}/clusterctl"
@@ -360,11 +360,19 @@ if [ "$IS_KURA_REGIONAL_CLUSTER" = true ]; then
   MONITORING_SET_ARGS+=(--set "k8s-monitoring.cluster.name=${CLUSTER_NAME}")
 fi
 
-KUBECONFIG="$WL_KUBECONFIG" helm upgrade --install k8s-monitoring "$REPO_ROOT/infra/helm/k8s-monitoring" \
-  --namespace observability \
-  -f "$MONITORING_VALUES_FILE" \
-  "${MONITORING_SET_ARGS[@]}" \
-  --wait --timeout 5m || echo "WARN: monitoring chart didn't go Ready in 5min; continuing (not blocking the cluster)"
+MONITORING_HELM_CMD=(
+  helm upgrade --install k8s-monitoring "$REPO_ROOT/infra/helm/k8s-monitoring"
+  --namespace observability
+  -f "$MONITORING_VALUES_FILE"
+)
+if [ "${#MONITORING_SET_ARGS[@]}" -gt 0 ]; then
+  MONITORING_HELM_CMD+=("${MONITORING_SET_ARGS[@]}")
+fi
+MONITORING_HELM_CMD+=(
+  --wait --timeout 5m
+)
+
+KUBECONFIG="$WL_KUBECONFIG" "${MONITORING_HELM_CMD[@]}" || echo "WARN: monitoring chart didn't go Ready in 5min; continuing (not blocking the cluster)"
 
 if [ "$IS_KURA_REGIONAL_CLUSTER" = true ]; then
   # ---------------------------------------------------------------------------
@@ -503,9 +511,12 @@ echo "ingress LB responded HTTP $SMOKE_HTTP. Routing is healthy."
 
 # Stash the freshly-minted workload kubeconfig in the per-env vault
 # so CI (server-deployment.yml) can read it via the per-env
-# OP_SERVICE_ACCOUNT_TOKEN. Only runs after the smoke above passes, so
-# a stale kubeconfig never overwrites a working one when bootstrap is
-# invoked against a half-built cluster.
+# OP_SERVICE_ACCOUNT_TOKEN. This is the admin kubeconfig minted by
+# `clusterctl get kubeconfig`; the deploy workflow still needs that
+# breadth today because it reconciles cluster-scoped CRDs plus shared
+# platform assets. Only runs after the smoke above passes, so a stale
+# kubeconfig never overwrites a working one when bootstrap is invoked
+# against a half-built cluster.
 # By default, app cluster document names follow env, not cluster_name,
 # so the deploy workflow can look up `kubeconfig: tuist-${env}`
 # uniformly across all environments. Regional Kura production clusters
