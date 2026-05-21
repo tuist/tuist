@@ -132,12 +132,29 @@ work_dir="$(mktemp -d -t xcode_mirror_mint.XXXXXX)"
 cookie_jar="$work_dir/cookies"
 trap 'rm -rf "$work_dir"' EXIT
 
+# Apple's auth endpoints sit behind an anti-bot CDN that rejects
+# requests missing the iframe-style headers their JS widget sends.
+# A realistic Safari UA + Origin/Referer pinned to idmsa.apple.com
+# clears the check; without them the CDN returns 503 +
+# `WidgetServiceUnavailable` before the request hits the auth
+# backend. The OAuth-flavoured headers (X-Apple-OAuth-*) mirror
+# what fastlane's spaceship sends — Apple treats them as
+# load-bearing for the signin flow even though they're nominally
+# OAuth params.
+ua_safari='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Safari/605.1.15'
+oauth_state="$(uuidgen | tr 'A-Z' 'a-z')"
+
 # 4a. Widget key — the value Apple's web SSO uses to identify the
 # requesting "service". App Store Connect publishes it through an
 # unauthenticated config endpoint; same key works for the
-# developer portal cookies we care about.
+# developer portal cookies we care about. We capture the response
+# into the same cookie jar the signin call uses; Apple's CDN sets
+# session cookies (`aaa_si`, `axx_s`) here that signin requires.
 widget_key="$(
-  curl -fsSL 'https://appstoreconnect.apple.com/olympus/v1/app/config?hostname=itunesconnect.apple.com' \
+  curl -fsSL \
+    -A "$ua_safari" \
+    -c "$cookie_jar" -b "$cookie_jar" \
+    'https://appstoreconnect.apple.com/olympus/v1/app/config?hostname=itunesconnect.apple.com' \
     | jq -r '.authServiceKey'
 )"
 if [ -z "$widget_key" ] || [ "$widget_key" = "null" ]; then
@@ -146,7 +163,18 @@ if [ -z "$widget_key" ] || [ "$widget_key" = "null" ]; then
   exit 1
 fi
 
-# 4b. Prompt for password. -s suppresses echo. We never persist
+# 4b. Warm the cookie jar with the auth-widget landing page. The
+# CDN sets a couple of additional cookies on this hit that signin
+# then expects. Skipping this step is what produced the
+# `WidgetServiceUnavailable` 503 on earlier iterations of this
+# script.
+curl -fsSL -o /dev/null \
+  -A "$ua_safari" \
+  -c "$cookie_jar" -b "$cookie_jar" \
+  "https://appleid.apple.com/auth/authorize/signin?client_id=${widget_key}&redirect_uri=https%3A%2F%2Fappstoreconnect.apple.com&response_type=code&response_mode=web_message&state=${oauth_state}&frame_id=auth-${oauth_state}&language=en_US" \
+  || true
+
+# 4c. Prompt for password. -s suppresses echo. We never persist
 # this anywhere; it goes straight into the signin request and out
 # of scope.
 echo
@@ -154,7 +182,7 @@ echo "Signing in to developer.apple.com as $APPLE_ID..."
 read -rsp "Apple ID password: " APPLE_PASSWORD
 echo
 
-# 4c. POST /signin. Apple returns 409 with `scnt` +
+# 4d. POST /signin. Apple returns 409 with `scnt` +
 # `X-Apple-ID-Session-Id` response headers when 2FA is required
 # (the common case for any account that's not exempted from
 # Apple's MFA mandate, which is now everyone). 200 means the
@@ -164,12 +192,23 @@ signin_headers="$work_dir/signin.headers"
 signin_status="$(
   curl -sS -o "$signin_body" -D "$signin_headers" \
     -w '%{http_code}' \
-    -c "$cookie_jar" \
+    -A "$ua_safari" \
+    -c "$cookie_jar" -b "$cookie_jar" \
     -X POST \
     -H 'Accept: application/json, text/javascript' \
+    -H 'Accept-Language: en-US,en;q=0.9' \
     -H 'Content-Type: application/json' \
+    -H 'Origin: https://idmsa.apple.com' \
+    -H 'Referer: https://idmsa.apple.com/' \
     -H "X-Apple-Widget-Key: $widget_key" \
     -H 'X-Requested-With: XMLHttpRequest' \
+    -H "X-Apple-OAuth-Client-Id: $widget_key" \
+    -H 'X-Apple-OAuth-Client-Type: firstPartyAuth' \
+    -H 'X-Apple-OAuth-Redirect-URI: https://appstoreconnect.apple.com' \
+    -H 'X-Apple-OAuth-Require-Grant-Code: true' \
+    -H 'X-Apple-OAuth-Response-Mode: web_message' \
+    -H 'X-Apple-OAuth-Response-Type: code' \
+    -H "X-Apple-OAuth-State: $oauth_state" \
     --data-binary "$(jq -nc --arg id "$APPLE_ID" --arg pw "$APPLE_PASSWORD" \
         '{accountName:$id, password:$pw, rememberMe:true}')" \
     'https://idmsa.apple.com/appleauth/auth/signin'
@@ -193,9 +232,14 @@ case "$signin_status" in
     fi
 
     # Trigger the trusted-device push so the user gets the prompt.
+    # Same Origin/Referer/UA discipline as signin — Apple's CDN
+    # bounces these too if they smell like a bot.
     curl -sS -o /dev/null -c "$cookie_jar" -b "$cookie_jar" \
+      -A "$ua_safari" \
       -X GET \
       -H 'Accept: application/json' \
+      -H 'Origin: https://idmsa.apple.com' \
+      -H 'Referer: https://idmsa.apple.com/' \
       -H "X-Apple-Widget-Key: $widget_key" \
       -H "X-Apple-ID-Session-Id: $session_id" \
       -H "scnt: $scnt" \
@@ -211,10 +255,13 @@ case "$signin_status" in
     verify_status="$(
       curl -sS -o /dev/null -D "$work_dir/verify.headers" \
         -w '%{http_code}' \
+        -A "$ua_safari" \
         -c "$cookie_jar" -b "$cookie_jar" \
         -X POST \
         -H 'Accept: application/json' \
         -H 'Content-Type: application/json' \
+        -H 'Origin: https://idmsa.apple.com' \
+        -H 'Referer: https://idmsa.apple.com/' \
         -H "X-Apple-Widget-Key: $widget_key" \
         -H "X-Apple-ID-Session-Id: $session_id" \
         -H "scnt: $scnt" \
@@ -232,9 +279,12 @@ case "$signin_status" in
     # outlasts the default few-hours window. Returns the bulk of
     # the session cookies we care about (myacinfo + dqsid).
     curl -sS -o /dev/null \
+      -A "$ua_safari" \
       -c "$cookie_jar" -b "$cookie_jar" \
       -X GET \
       -H 'Accept: application/json' \
+      -H 'Origin: https://idmsa.apple.com' \
+      -H 'Referer: https://idmsa.apple.com/' \
       -H "X-Apple-Widget-Key: $widget_key" \
       -H "X-Apple-ID-Session-Id: $session_id" \
       -H "scnt: $scnt" \
@@ -248,11 +298,12 @@ case "$signin_status" in
     ;;
 esac
 
-# 4d. Hit developer.apple.com once to upgrade the cookie set into
+# 4e. Hit developer.apple.com once to upgrade the cookie set into
 # the form the dev-portal CDN accepts — Apple sets additional
 # scoped cookies on the first authenticated request to that
 # subdomain.
 curl -sS -o /dev/null \
+  -A "$ua_safari" \
   -c "$cookie_jar" -b "$cookie_jar" \
   'https://developer.apple.com/account/' \
   >/dev/null 2>&1 || true
