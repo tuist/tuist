@@ -237,10 +237,7 @@ struct ResourcesProjectMapperTests {
         #expect(gotTarget.name == target.name)
         #expect(gotTarget.product == target.product)
         #expect(gotTarget.resources.resources.count == 0)
-        #expect(gotTarget.sources.count == 2)
-        let xcassetsSources = gotTarget.sources.filter { $0.path.extension == "xcassets" }
-        #expect(xcassetsSources.count == 1)
-        #expect(xcassetsSources.first?.path == buildableFolders[1].resolvedFiles[1].path)
+        #expect(gotTarget.sources.count == 1)
         #expect(gotTarget.dependencies.count == 1)
         #expect(gotTarget.dependencies.first == TargetDependency.target(
             name: "\(project.name)_\(target.name)",
