@@ -12,6 +12,7 @@ defmodule TuistWeb.TestRunsLiveTest do
   describe "lists latest test runs" do
     setup do
       copy(RunsAnalytics)
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
 
       stub(RunsAnalytics, :runs_analytics, fn _, _, _ ->
         %{runs_per_period: %{}, dates: [], values: [], count: 0, trend: 0}
@@ -29,7 +30,7 @@ defmodule TuistWeb.TestRunsLiveTest do
       organization: organization,
       project: project
     } do
-      ran_at = NaiveDateTime.add(NaiveDateTime.utc_now(), -60)
+      ran_at = ~N[2024-04-30 10:19:30]
 
       {:ok, _test_run1} =
         RunsFixtures.test_fixture(
@@ -60,12 +61,15 @@ defmodule TuistWeb.TestRunsLiveTest do
       organization: organization,
       project: project
     } do
+      ran_at = ~N[2024-04-30 10:20:00]
+
       for i <- 1..25 do
         RunsFixtures.test_fixture(
           project_id: project.id,
           account_id: organization.account.id,
           scheme: "App-#{i}",
-          duration: i * 1000
+          duration: i * 1000,
+          ran_at: ran_at
         )
       end
 

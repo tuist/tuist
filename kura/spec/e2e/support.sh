@@ -46,6 +46,43 @@ status_only() {
   curl -sS -o /dev/null -w "%{http_code}" "$@"
 }
 
+container_status() {
+  docker inspect --format '{{.State.Status}}' "$(dc_container_id "$1")"
+}
+
+container_restart_count() {
+  docker inspect --format '{{.RestartCount}}' "$(dc_container_id "$1")"
+}
+
+container_oom_killed() {
+  docker inspect --format '{{.State.OOMKilled}}' "$(dc_container_id "$1")"
+}
+
+run_parallel_http_gets() {
+  local url="$1"
+  local workers="$2"
+  local iterations="$3"
+  local failures=0
+  local pids=()
+
+  for worker in $(seq 1 "$workers"); do
+    (
+      for _ in $(seq 1 "$iterations"); do
+        curl -fsS --max-time 20 -o /dev/null "$url" || exit 1
+      done
+    ) &
+    pids+=("$!")
+  done
+
+  for pid in "${pids[@]}"; do
+    if ! wait "$pid"; then
+      failures=1
+    fi
+  done
+
+  return "$failures"
+}
+
 wait_for_http() {
   local url="$1"
   local attempts="${2:-90}"

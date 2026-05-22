@@ -312,6 +312,34 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
         ])
     }
 
+    func test_generateStructure_addsDependenciesToADependenciesGroup_withCustomScratchDirectory() async throws {
+        // Given
+        let xcodeProjPaths = try createFolders([
+            "/path/to/workspace/CustomScratch/tuist-derived/Projects/AEXML/AEXML.xcodeproj",
+            "/path/to/workspace/CustomScratch/tuist-derived/Projects/SwiftSyntax/SwiftSyntax.xcodeproj",
+        ])
+
+        let workspace = Workspace.test()
+
+        // When
+        let structure = try await subject.generateStructure(
+            path: "/path/to/workspace",
+            workspace: workspace,
+            xcodeProjPaths: xcodeProjPaths,
+            fileSystem: fileSystem
+        )
+
+        // Then
+        XCTAssertEqual(structure.contents, [
+            .virtualGroup(name: "Dependencies", contents: [
+                .project("/path/to/workspace/CustomScratch/tuist-derived/Projects/AEXML/AEXML.xcodeproj"),
+                .project(
+                    "/path/to/workspace/CustomScratch/tuist-derived/Projects/SwiftSyntax/SwiftSyntax.xcodeproj"
+                ),
+            ]),
+        ])
+    }
+
     // MARK: - Helpers
 
     @discardableResult

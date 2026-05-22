@@ -69,6 +69,20 @@ Kura splits durable state into two planes so that the hot path is simple and the
 
 The metadata store uses tunable RocksDB budgets (`KURA_METADATA_STORE_*`) that auto-derive from the host's memory and FD limits.
 
+## Memory Pressure And Shedding
+
+Kura treats memory as an admission-controlled shared resource, not just a set of independent caches:
+
+- **RocksDB** block cache and write buffers are explicitly budgeted from the host memory limit.
+- The in-process **manifest cache** is byte-bounded and trimmed more aggressively as memory pressure rises.
+- The **existence cache** and **segment handle cache** are bounded caches that also shed entries under pressure.
+- Public HTTP artifact reads and REAPI ByteStream reads stay **streaming**, so they do not materialize whole artifacts in memory.
+- REAPI surfaces that must build whole responses in memory (`BatchReadBlobs`, `GetActionResult` inline expansions, action-cache proto loads) use two gates:
+  1. a **per-request materialization budget** that shrinks from normal → constrained → critical memory pressure
+  2. a **shared concurrent materialization pool** across the node, so many concurrent inline reads cannot oversubscribe memory together
+
+When a request would exceed either REAPI gate, Kura returns `RESOURCE_EXHAUSTED` instead of continuing toward an OOM path. Under **critical** pressure it also pauses optional background work, trims opportunistic caches to zero, and clears extension authz/authn caches because they are performance state, not correctness state.
+
 ## Replication Model
 
 Replication is **leaderless and eventually consistent**:

@@ -10,6 +10,7 @@ Platform-level Helm umbrella chart installed **once per Kubernetes cluster** tha
 | `ingress-nginx` | Ingress controller backed by a cloud LoadBalancer |
 | `external-dns` | Sync Ingress / Service hostnames into Cloudflare DNS |
 | `external-secrets` | Pull secrets from external stores (1Password, SOPS, etc.) into the cluster |
+| `metrics-server` | Resource metrics API (`pods.metrics.k8s.io`) consumed by HPAs and `kubectl top` |
 | `ClusterIssuer` | Shared Let's Encrypt issuer wired to Cloudflare DNS-01 |
 
 ## Bootstrap

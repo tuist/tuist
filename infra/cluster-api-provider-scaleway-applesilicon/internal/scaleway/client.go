@@ -41,6 +41,7 @@ type AppleSiliconAPI interface {
 	ListServers(req *applesilicon.ListServersRequest, opts ...scw.RequestOption) (*applesilicon.ListServersResponse, error)
 	UpdateServer(req *applesilicon.UpdateServerRequest, opts ...scw.RequestOption) (*applesilicon.Server, error)
 	DeleteServer(req *applesilicon.DeleteServerRequest, opts ...scw.RequestOption) error
+	ReinstallServer(req *applesilicon.ReinstallServerRequest, opts ...scw.RequestOption) (*applesilicon.Server, error)
 	WaitForServer(req *applesilicon.WaitForServerRequest, opts ...scw.RequestOption) (*applesilicon.Server, error)
 	ListOS(req *applesilicon.ListOSRequest, opts ...scw.RequestOption) (*applesilicon.ListOSResponse, error)
 }
@@ -51,6 +52,16 @@ type AppleSiliconAPI interface {
 type Client struct {
 	API AppleSiliconAPI
 	IAM *iam.API
+
+	// DefaultProjectID is the SCW_DEFAULT_PROJECT_ID the underlying
+	// scw client was constructed with. Captured at NewClient time
+	// so IAM calls that Scaleway strictly enforces project scope on
+	// (notably ListSSHKeys / CreateSSHKey under a project-scoped
+	// `SSHKeysFullAccess` policy) can include it explicitly. The
+	// SDK won't back-fill it into IAM resource requests on its own —
+	// without an explicit ProjectID, ListSSHKeys ends up asking for
+	// org-wide list and Scaleway returns "insufficient permissions".
+	DefaultProjectID string
 
 	// adoptMu serializes AdoptByPrefix across all goroutines in this
 	// process. Scaleway's UpdateServer is not conditional — two
@@ -77,7 +88,8 @@ func NewClient() (*Client, error) {
 		if err != nil {
 			return nil, fmt.Errorf("scaleway client: %w", err)
 		}
-		return &Client{API: applesilicon.NewAPI(client), IAM: iam.NewAPI(client)}, nil
+		projectID, _ := client.GetDefaultProjectID()
+		return &Client{API: applesilicon.NewAPI(client), IAM: iam.NewAPI(client), DefaultProjectID: projectID}, nil
 	}
 	profile, err := cfg.GetActiveProfile()
 	if err != nil {
@@ -87,7 +99,8 @@ func NewClient() (*Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("scaleway client: %w", err)
 	}
-	return &Client{API: applesilicon.NewAPI(client), IAM: iam.NewAPI(client)}, nil
+	projectID, _ := client.GetDefaultProjectID()
+	return &Client{API: applesilicon.NewAPI(client), IAM: iam.NewAPI(client), DefaultProjectID: projectID}, nil
 }
 
 // EnsureSSHKey registers `publicKey` with Scaleway under `name`.
@@ -100,13 +113,28 @@ func NewClient() (*Client, error) {
 func (c *Client) EnsureSSHKey(ctx context.Context, name, publicKey string) (string, error) {
 	wantPub := normalizePubKey(publicKey)
 
+	// Scope every IAM request to the env-default project. Scaleway
+	// gates `iam:ListSSHKeys` under a project-scoped
+	// `SSHKeysFullAccess` policy strictly: without an explicit
+	// ProjectID filter, the listing is implicitly org-wide and gets
+	// denied with `insufficient permissions: list ssh_key`. Bundle
+	// the same filter into the create call so the new key lands in
+	// the same project the existing fleet keys live in (matches the
+	// AGENTS.md "project scope" convention for the IAM application).
+	var projectIDFilter *string
+	if c.DefaultProjectID != "" {
+		p := c.DefaultProjectID
+		projectIDFilter = &p
+	}
+
 	page := int32(1)
 	pageSize := uint32(100)
 	for {
 		resp, err := c.IAM.ListSSHKeys(&iam.ListSSHKeysRequest{
-			Name:     &name,
-			Page:     &page,
-			PageSize: &pageSize,
+			Name:      &name,
+			ProjectID: projectIDFilter,
+			Page:      &page,
+			PageSize:  &pageSize,
 		}, scw.WithContext(ctx))
 		if err != nil {
 			return "", fmt.Errorf("list ssh keys: %w", err)
@@ -134,6 +162,7 @@ func (c *Client) EnsureSSHKey(ctx context.Context, name, publicKey string) (stri
 	created, err := c.IAM.CreateSSHKey(&iam.CreateSSHKeyRequest{
 		Name:      name,
 		PublicKey: publicKey,
+		ProjectID: c.DefaultProjectID,
 	}, scw.WithContext(ctx))
 	if err != nil {
 		return "", fmt.Errorf("create ssh key: %w", err)
@@ -489,9 +518,112 @@ func (c *Client) DeleteServer(ctx context.Context, id, zone string) error {
 	return nil
 }
 
+// ReleaseToPool returns a Mac mini to the adopt pool instead of
+// physically terminating it. Operator-driven physical destruction
+// is intentionally separated from cluster-driven Machine churn: the
+// 24h Apple-licensing floor makes destroy-and-recreate wildly
+// expensive (you pay for the floor regardless of whether the host is
+// in your cluster), and the operator already owns host capacity
+// planning via the pre-order workflow. So "Machine deleted" should
+// mean "host returned to the pool, freshly reinstalled, ready for
+// the next adopt" — not "Scaleway DeleteServer fires."
+//
+// Two-step:
+//
+//  1. Rename the server back into the pool namespace via
+//     UpdateServer. The new name is `poolPrefix + uuid` — a fresh
+//     UUID so we don't collide with any other pool host that's been
+//     parked at the same name earlier in the host's lifetime, and
+//     because AdoptByPrefix scans on the prefix (the exact suffix
+//     doesn't matter). Once renamed, the host is invisible to
+//     `findServerByName(claimName)` lookups (the per-Machine name
+//     is gone) and visible to future `AdoptByPrefix` scans.
+//
+//  2. Trigger ReinstallServer, which wipes the disk and reimages
+//     with the server type's default OS. Async on Scaleway's side
+//     (~5-15 min on M2-L); we fire-and-forget because
+//     AdoptByPrefix already filters on `Delivered + Status == Ready`
+//     and the host transitions through `reinstalling → ready` on
+//     its own. Means: next adopt sees factory-default state — no
+//     stale tart-kubelet config, no leftover Tailscale auth, no
+//     cached secrets — so bootstrap doesn't need to be re-entrant.
+//
+// Idempotency: callers retry on error. Step 1 is safe to repeat —
+// renaming to a different UUID just lands the host at a different
+// pool name, both eligible for adoption. Step 2 returns a
+// TransientStateError if the server is already mid-reinstall from a
+// previous attempt; we swallow it as success. 404 on either step
+// means the operator deleted the host out-of-band; also success.
+//
+// Callers that want the legacy physical-terminate semantics — for
+// broken hosts that must not be re-adopted — should call
+// DeleteServer directly and skip this entry point.
+func (c *Client) ReleaseToPool(ctx context.Context, id, zone, poolPrefix string) error {
+	if poolPrefix == "" {
+		return fmt.Errorf("ReleaseToPool: poolPrefix is required")
+	}
+
+	newName := poolPrefix + uuid.NewString()
+	if _, err := c.API.UpdateServer(&applesilicon.UpdateServerRequest{
+		ServerID: id,
+		Zone:     scw.Zone(zone),
+		Name:     &newName,
+	}, scw.WithContext(ctx)); err != nil {
+		if IsNotFound(err) {
+			return nil
+		}
+		return fmt.Errorf("rename server %s into pool: %w", id, err)
+	}
+
+	if _, err := c.API.ReinstallServer(&applesilicon.ReinstallServerRequest{
+		ServerID: id,
+		Zone:     scw.Zone(zone),
+	}, scw.WithContext(ctx)); err != nil {
+		if IsNotFound(err) {
+			return nil
+		}
+		if isTransientState(err) {
+			// Server is already in `reinstalling` (or some other
+			// transient phase) from a prior reconcile attempt or an
+			// out-of-band operator action. Either way the reinstall is
+			// in flight and we don't need to kick off another one.
+			return nil
+		}
+		return fmt.Errorf("reinstall server %s: %w", id, err)
+	}
+
+	return nil
+}
+
+// isTransientState detects scaleway-sdk-go's typed
+// `*scw.TransientStateError`, which the SDK returns when a request
+// can't proceed because the resource is in a transitional phase
+// (`reinstalling`, `deleting`, …). Same shape consideration as
+// isPreconditionFailed: this is parsed into its own concrete type
+// inside hasResponseError, so checking *ResponseError alone misses
+// it.
+func isTransientState(err error) bool {
+	var transientErr *scw.TransientStateError
+	return errors.As(err, &transientErr)
+}
+
 // isPreconditionFailed detects Scaleway's HTTP 412 — typically the
 // 24h Apple-licensing floor on DeleteServer.
+//
+// The SDK parses standard error types into their own concrete types
+// (PreconditionFailedError, ResourceNotFoundError, …) inside
+// hasResponseError before they reach us; the generic ResponseError is
+// only returned for unparsed responses (non-JSON body, unknown error
+// type). Match both so DeleteServer's schedule-deletion fallback
+// actually fires — otherwise the controller loops DeleteServer every
+// 60 s for the multi-week Apple billing floor while the
+// MachineDeployment sits at 0 available, wedging every helm upgrade
+// that gates on it.
 func isPreconditionFailed(err error) bool {
+	var preconditionErr *scw.PreconditionFailedError
+	if errors.As(err, &preconditionErr) {
+		return true
+	}
 	var scwErr *scw.ResponseError
 	if errors.As(err, &scwErr) {
 		return scwErr.StatusCode == http.StatusPreconditionFailed

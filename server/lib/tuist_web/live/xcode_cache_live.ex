@@ -67,12 +67,13 @@ defmodule TuistWeb.XcodeCacheLive do
       |> assign(:uri, uri)
       |> push_event("replace-url", %{url: "?" <> query})
 
-    if socket.assigns.uploads_analytics.ok? do
+    if socket.assigns.transfer_analytics.ok? do
       chart_data =
         analytics_chart_data(
           widget,
-          socket.assigns.uploads_analytics.result,
-          socket.assigns.downloads_analytics.result,
+          socket.assigns.transfer_analytics.result,
+          socket.assigns.latency_analytics.result,
+          socket.assigns.throughput_analytics.result,
           socket.assigns.hit_rate_analytics.result
         )
 
@@ -96,6 +97,18 @@ defmodule TuistWeb.XcodeCacheLive do
       )
 
     {:noreply, socket}
+  end
+
+  def handle_event("select_transfer_type", %{"type" => type}, socket) do
+    {:noreply, replace_split_query_param(socket, "transfer-type", type)}
+  end
+
+  def handle_event("select_latency_type", %{"type" => type}, socket) do
+    {:noreply, replace_split_query_param(socket, "latency-type", type)}
+  end
+
+  def handle_event("select_throughput_type", %{"type" => type}, socket) do
+    {:noreply, replace_split_query_param(socket, "throughput-type", type)}
   end
 
   def handle_event("select_cache_hit_rate_chart_type", %{"type" => type}, socket) do
@@ -132,6 +145,18 @@ defmodule TuistWeb.XcodeCacheLive do
     {:noreply, socket}
   end
 
+  defp replace_split_query_param(
+         %{assigns: %{selected_account: selected_account, selected_project: selected_project, uri: uri}} = socket,
+         key,
+         value
+       ) do
+    push_patch(
+      socket,
+      to: "/#{selected_account.name}/#{selected_project.name}/xcode-cache?#{Query.put(uri.query, key, value)}",
+      replace: true
+    )
+  end
+
   defp assign_analytics(%{assigns: %{selected_project: project}} = socket, params) do
     %{preset: preset, period: {start_datetime, end_datetime} = period} =
       DatePicker.date_picker_params(params, "analytics")
@@ -144,45 +169,48 @@ defmodule TuistWeb.XcodeCacheLive do
 
     uri = URI.new!("?" <> URI.encode_query(params))
 
-    analytics_selected_widget = params["analytics-selected-widget"] || "cache_hit_rate"
-
-    cache_hit_rate_chart_type = params["cache-hit-rate-chart-type"] || "line"
-    cache_hit_rate_scatter_group_by = params["cache-hit-rate-scatter-group-by"] || "scheme"
-
-    scatter_group_by_atom =
-      case cache_hit_rate_scatter_group_by do
-        "environment" -> :environment
-        _ -> :scheme
-      end
+    analytics_selected_widget = Map.get(params, "analytics-selected-widget", "cache_hit_rate")
+    cache_hit_rate_chart_type = Map.get(params, "cache-hit-rate-chart-type", "line")
+    cache_hit_rate_scatter_group_by = Map.get(params, "cache-hit-rate-scatter-group-by", "scheme")
+    scatter_group_by_atom = scatter_group_by_atom(cache_hit_rate_scatter_group_by)
 
     socket
     |> assign(:analytics_preset, preset)
     |> assign(:analytics_period, period)
     |> assign(:analytics_trend_label, analytics_trend_label(preset))
     |> assign(:analytics_selected_widget, analytics_selected_widget)
-    |> assign(:selected_hit_rate_type, params["hit-rate-type"] || "avg")
+    |> assign(:selected_hit_rate_type, Map.get(params, "hit-rate-type", "avg"))
+    |> assign(:selected_transfer_type, Map.get(params, "transfer-type", "combined"))
+    |> assign(:selected_latency_type, Map.get(params, "latency-type", "combined"))
+    |> assign(:selected_throughput_type, Map.get(params, "throughput-type", "combined"))
     |> assign(:cache_hit_rate_chart_type, cache_hit_rate_chart_type)
     |> assign(:cache_hit_rate_scatter_group_by, cache_hit_rate_scatter_group_by)
     |> assign(:uri, uri)
-    |> assign_async([:uploads_analytics, :downloads_analytics, :hit_rate_analytics, :analytics_chart_data], fn ->
-      uploads_analytics = Analytics.cas_uploads_analytics(project.id, opts)
-      downloads_analytics = Analytics.cas_downloads_analytics(project.id, opts)
-      hit_rate_analytics = Analytics.build_cache_hit_rate_analytics(project.id, opts)
+    |> assign_async(
+      [:transfer_analytics, :latency_analytics, :throughput_analytics, :hit_rate_analytics, :analytics_chart_data],
+      fn ->
+        transfer_analytics = Analytics.cas_transfer_analytics(project.id, opts)
+        latency_analytics = Analytics.cas_latency_analytics(project.id, opts)
+        throughput_analytics = Analytics.cas_throughput_analytics(project.id, opts)
+        hit_rate_analytics = Analytics.build_cache_hit_rate_analytics(project.id, opts)
 
-      {:ok,
-       %{
-         uploads_analytics: uploads_analytics,
-         downloads_analytics: downloads_analytics,
-         hit_rate_analytics: hit_rate_analytics,
-         analytics_chart_data:
-           analytics_chart_data(
-             analytics_selected_widget,
-             uploads_analytics,
-             downloads_analytics,
-             hit_rate_analytics
-           )
-       }}
-    end)
+        {:ok,
+         %{
+           transfer_analytics: transfer_analytics,
+           latency_analytics: latency_analytics,
+           throughput_analytics: throughput_analytics,
+           hit_rate_analytics: hit_rate_analytics,
+           analytics_chart_data:
+             analytics_chart_data(
+               analytics_selected_widget,
+               transfer_analytics,
+               latency_analytics,
+               throughput_analytics,
+               hit_rate_analytics
+             )
+         }}
+      end
+    )
     |> assign_cache_hit_rate_chart(cache_hit_rate_chart_type, scatter_group_by_atom, opts)
     |> assign_async(:hit_rate_p99, fn ->
       {:ok, %{hit_rate_p99: Analytics.build_cache_hit_rate_percentile(project.id, 0.99, opts)}}
@@ -195,32 +223,110 @@ defmodule TuistWeb.XcodeCacheLive do
     end)
   end
 
-  defp analytics_chart_data("cache_uploads", uploads_analytics, _downloads_analytics, _hit_rate_analytics) do
+  defp analytics_chart_data("cache_transfer", transfer, _latency, _throughput, _hit_rate) do
     %{
-      dates: uploads_analytics.dates,
-      values: uploads_analytics.values,
-      name: dgettext("dashboard_cache", "Cache uploads"),
-      value_formatter: "fn:formatBytes"
+      dates: transfer.dates,
+      value_formatter: "fn:formatBytes",
+      series: [
+        %{
+          name: dgettext("dashboard_cache", "Cache transfer"),
+          color: "var:noora-chart-p50",
+          values: transfer.values
+        },
+        %{
+          name: dgettext("dashboard_cache", "Cache downloads"),
+          color: "var:noora-chart-secondary",
+          values: transfer.downloads.values
+        },
+        %{
+          name: dgettext("dashboard_cache", "Cache uploads"),
+          color: "var:noora-chart-p99",
+          values: transfer.uploads.values
+        }
+      ]
     }
   end
 
-  defp analytics_chart_data("cache_downloads", _uploads_analytics, downloads_analytics, _hit_rate_analytics) do
+  defp analytics_chart_data("cache_latency", _transfer, latency, _throughput, _hit_rate) do
     %{
-      dates: downloads_analytics.dates,
-      values: downloads_analytics.values,
-      name: dgettext("dashboard_cache", "Cache downloads"),
-      value_formatter: "fn:formatBytes"
+      dates: latency.dates,
+      value_formatter: "fn:formatMilliseconds",
+      series: [
+        %{
+          name: dgettext("dashboard_cache", "Cache latency"),
+          color: "var:noora-chart-p90",
+          values: latency.values
+        },
+        %{
+          name: dgettext("dashboard_cache", "Read latency"),
+          color: "var:noora-chart-secondary",
+          values: latency.downloads.values
+        },
+        %{
+          name: dgettext("dashboard_cache", "Write latency"),
+          color: "var:noora-chart-p99",
+          values: latency.uploads.values
+        }
+      ]
     }
   end
 
-  defp analytics_chart_data(_cache_hit_rate, _uploads_analytics, _downloads_analytics, hit_rate_analytics) do
+  defp analytics_chart_data("cache_throughput", _transfer, _latency, throughput, _hit_rate) do
     %{
-      dates: hit_rate_analytics.dates,
-      values: hit_rate_analytics.values,
-      name: dgettext("dashboard_cache", "Cache hit rate"),
-      value_formatter: "{value}%"
+      dates: throughput.dates,
+      value_formatter: "fn:formatMbps",
+      series: [
+        %{
+          name: dgettext("dashboard_cache", "Cache throughput"),
+          color: "var:noora-chart-flaky",
+          values: throughput.values
+        },
+        %{
+          name: dgettext("dashboard_cache", "Download throughput"),
+          color: "var:noora-chart-secondary",
+          values: throughput.downloads.values
+        },
+        %{
+          name: dgettext("dashboard_cache", "Upload throughput"),
+          color: "var:noora-chart-p99",
+          values: throughput.uploads.values
+        }
+      ]
     }
   end
+
+  defp analytics_chart_data(_cache_hit_rate, _transfer, _latency, _throughput, hit_rate) do
+    %{
+      dates: hit_rate.dates,
+      value_formatter: "{value}%",
+      series: [
+        %{
+          name: dgettext("dashboard_cache", "Cache hit rate"),
+          color: "var:noora-chart-primary",
+          values: hit_rate.values
+        }
+      ]
+    }
+  end
+
+  def transfer_value(result, "downloads"), do: result.downloads.total
+  def transfer_value(result, "uploads"), do: result.uploads.total
+  def transfer_value(result, _combined), do: result.total
+
+  def latency_value(result, "read"), do: result.downloads.total
+  def latency_value(result, "write"), do: result.uploads.total
+  def latency_value(result, _combined), do: result.total
+
+  def throughput_value(result, "downloads"), do: result.downloads.total
+  def throughput_value(result, "uploads"), do: result.uploads.total
+  def throughput_value(result, _combined), do: result.total
+
+  def split_legend_color(selected, combined_color \\ "primary")
+  def split_legend_color("downloads", _combined_color), do: "secondary"
+  def split_legend_color("uploads", _combined_color), do: "p99"
+  def split_legend_color("read", _combined_color), do: "secondary"
+  def split_legend_color("write", _combined_color), do: "p99"
+  def split_legend_color(_combined, combined_color), do: combined_color
 
   defp analytics_trend_label("last-24-hours"), do: dgettext("dashboard_cache", "since yesterday")
   defp analytics_trend_label("last-7-days"), do: dgettext("dashboard_cache", "since last week")
