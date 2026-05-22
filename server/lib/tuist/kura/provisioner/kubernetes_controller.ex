@@ -14,8 +14,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   alias Tuist.Kura.Server
 
   @namespace "kura"
-  @account_scope_namespace "~account"
-
   @impl true
   def provision(%{name: handle}, %Regions{} = region, %Server{}) do
     {:ok, instance_name(handle, region)}
@@ -211,7 +209,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
       env_var("KURA_EXTENSION_FAIL_CLOSED_AUTHENTICATE", "true"),
       env_var("KURA_EXTENSION_FAIL_CLOSED_AUTHORIZE", "true"),
       env_var("KURA_EXTENSION_HOOK_TIMEOUT_MS", "5000"),
-      env_var("KURA_DEFAULT_NAMESPACE_ID", @account_scope_namespace),
       env_var("KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL", tuist_base_url(region)),
       env_var("KURA_EXTENSION_HTTP_CLIENT_TUIST_CONNECT_TIMEOUT_MS", "3000"),
       env_var("KURA_EXTENSION_HTTP_CLIENT_TUIST_REQUEST_TIMEOUT_MS", "4000")
