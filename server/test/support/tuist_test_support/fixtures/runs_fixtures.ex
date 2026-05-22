@@ -123,6 +123,7 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
         duration: Keyword.get(attrs, :duration, 2000),
         status: Keyword.get(attrs, :status, "success"),
         scheme: Keyword.get(attrs, :scheme),
+        test_plan: Keyword.get(attrs, :test_plan),
         model_identifier: Keyword.get(attrs, :model_identifier, "Mac15,6"),
         macos_version: Keyword.get(attrs, :macos_version, "11.2.3"),
         xcode_version: Keyword.get(attrs, :xcode_version, "12.4"),

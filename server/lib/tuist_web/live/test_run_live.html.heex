@@ -57,6 +57,13 @@
           style="light-fill"
           size="large"
         />
+        <.badge
+          :if={@run.test_plan not in [nil, ""]}
+          label={dgettext("dashboard_tests", "Test plan: %{name}", name: @run.test_plan)}
+          color="information"
+          style="light-fill"
+          size="large"
+        />
       </div>
       <.link_button
         :if={@run.build_run}
