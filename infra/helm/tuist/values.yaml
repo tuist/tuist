@@ -488,15 +488,13 @@ macosFleet:
   name: ""             # default: <release>-macos-fleet
   replicas: 1
   kubeletVersion: 1.32.1
-  # See `runnersFleet.adoptPoolPrefix` for the full operator
-  # workflow + adoption semantics. Empty (default) preserves
-  # auto-order behavior; set per-env to a Scaleway-name prefix to
-  # claim from a pre-ordered pool. Sharing the same prefix with
-  # `runnersFleet.adoptPoolPrefix` lets one pool of pre-ordered
+  # Required. See `runnersFleet.adoptPoolPrefix` for the full
+  # operator workflow + adoption semantics. Sharing the same prefix
+  # with `runnersFleet.adoptPoolPrefix` lets one pool of pre-ordered
   # Mac minis serve both fleets — the controller claims the first
   # match per Machine, so whichever MachineDeployment scales first
   # gets the next host.
-  adoptPoolPrefix: ""
+  adoptPoolPrefix: "tuist-pool-"
   controlPlane:
     host: ""           # API server endpoint Mac minis dial when joining
     port: 6443
@@ -693,18 +691,16 @@ runnersFleet:
   # `helm.sh/resource-policy: keep` so an uninstall doesn't yank in-
   # flight Pods. Per-namespace RBAC + NetworkPolicy live alongside.
   namespace: tuist-runners
-  # Number of Mac mini hosts the CAPI MachineDeployment provisions
-  # (orders, or adopts when `adoptPoolPrefix` is set — see below).
-  # Sum of `pools[*].replicas` must fit within `hostCount` (one
-  # VM per host today).
+  # Number of Mac mini hosts the CAPI MachineDeployment adopts
+  # from the pool. Sum of `pools[*].replicas` must fit within
+  # `hostCount` (one VM per host today).
   hostCount: 0
-  # When set, the CAPI controller skips Scaleway CreateServer and
-  # instead claims a pre-ordered Mac mini whose Scaleway-side name
-  # starts with this prefix. Recommended for the customer-runner
-  # fleet: Scaleway Mac mini stock is unreliable and Apple's 24h
-  # licensing floor makes speculative auto-ordering expensive — the
-  # operationally sane path is to pre-order Mac minis days in
-  # advance and let the controller adopt them on demand.
+  # Required. The controller claims a pre-ordered Mac mini whose
+  # Scaleway-side name starts with this prefix; there is no
+  # auto-order path. Scaleway Mac mini stock is unreliable and
+  # Apple's 24h licensing floor makes speculative auto-ordering
+  # expensive, so capacity planning is operator-owned via the
+  # Scaleway console.
   #
   # Operator workflow:
   #
@@ -719,22 +715,15 @@ runnersFleet:
   #      bootstraps tart-kubelet on it.
   #
   # When no compatible pre-ordered host is available, the CR stays
-  # in `Provisioning` phase with a `NoAvailableHost` event so the
+  # in `Adopting` phase with a `NoAvailableHost` event so the
   # operator sees the queue and knows to pre-order more capacity.
-  # No auto-order fallback.
-  #
-  # Empty string preserves the auto-order behavior. We default to
-  # empty (i.e. auto-order) so a greenfield bring-up can land a
-  # cluster without pre-staging hardware; production envs override
-  # this in their `values-managed-<env>.yaml`.
-  adoptPoolPrefix: ""
+  adoptPoolPrefix: "tuist-pool-"
   machine:
     # Match the existing macosFleet shape — same M2-L baseline.
     # Override per-env when product demands a beefier SKU (M4-M for
-    # memory-heavy iOS apps, etc.). When `adoptPoolPrefix` is set,
-    # the operator pre-orders Mac minis matching these `type` /
-    # `zone` / `os` values; the controller's adoption query filters
-    # on the same three.
+    # memory-heavy iOS apps, etc.). The operator pre-orders Mac
+    # minis matching these `type` / `zone` / `os` values; the
+    # controller's adoption query filters on the same three.
     type: M2-L
     zone: fr-par-1
     os: macos-tahoe-26.3
@@ -872,11 +861,10 @@ buildersFleet:
   # `kubectl scale machinedeployment <name> --replicas=N` after
   # install if you'd rather drive scaling out-of-band.
   replicas: 0
-  # Adopt from the same `tuist-pool-` pre-ordered pool the other
-  # two fleets use. See `runnersFleet.adoptPoolPrefix` for the
-  # full operator workflow. Empty preserves auto-order; production
-  # envs set this in their `values-managed-<env>.yaml`.
-  adoptPoolPrefix: ""
+  # Required. Adopts from the same `tuist-pool-` pre-ordered pool
+  # the other two fleets use. See `runnersFleet.adoptPoolPrefix`
+  # for the full operator workflow.
+  adoptPoolPrefix: "tuist-pool-"
   # GitHub Actions runner agent configuration. The agent registers
   # with GitHub at host bootstrap time and picks up jobs from then
   # on; ghOrg + ghRunnerLabels must match the workflow `runs-on:`
