@@ -6915,6 +6915,11 @@ struct PackageInfoMapperTests {
                             "Singular",
                             basePath: basePath,
                             customProductName: "SingularWrapper",
+                            dependencies: [.xcframework(path: .path(
+                                basePath
+                                    .appending(try RelativePath(validating: "Singular.xcframework"))
+                                    .pathString
+                            ))],
                             customSettings: [
                                 "HEADER_SEARCH_PATHS": ["$(inherited)", "$(SRCROOT)/Sources/Singular/include"],
                                 "DEFINES_MODULE": "NO",
