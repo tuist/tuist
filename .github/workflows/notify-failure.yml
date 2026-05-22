@@ -20,6 +20,8 @@ on:
       - Processor Deploy
       - Release
       - Secret Scanning
+      - Slack
+      - Slack Deployment
       - Server
       - Server Deployment
       - Server Kura Regional Deployment

@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	applesilicon "github.com/scaleway/scaleway-sdk-go/api/applesilicon/v1alpha1"
+	"github.com/scaleway/scaleway-sdk-go/scw"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -21,6 +23,7 @@ import (
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/api/v1alpha1"
 	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/internal/credentials"
+	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/internal/scaleway"
 )
 
 // recordUpdateFailure is the safety primitive that bounds the
@@ -478,4 +481,253 @@ func TestReconcileTailscaleEgressService_IdempotentAndPreservesOperatorRewrite(t
 		t.Errorf("re-reconcile clobbered operator's externalName rewrite (now %q)",
 			got.Spec.ExternalName)
 	}
+}
+
+// --- release policy --------------------------------------------------------
+//
+// shouldReleaseToPool decides whether reconcileDelete returns the
+// Scaleway server to the adopt pool (rename + reinstall) or
+// physically terminates it. The contract:
+//
+//   - Pool-adopted Machine, no annotation → pool (default).
+//   - Pool-adopted Machine, `release-policy: terminate` → terminate
+//     (operator opt-out for broken hosts that shouldn't re-adopt).
+//   - Auto-order Machine (no AdoptPoolPrefix) → always terminate;
+//     there's no pool to return to and the annotation is ignored.
+//   - Unknown / empty annotation value → default (pool when
+//     AdoptPoolPrefix set, terminate otherwise).
+
+func TestShouldReleaseToPool_PoolAdoptedDefault(t *testing.T) {
+	m := &infrav1.ScalewayAppleSiliconMachine{
+		Spec: infrav1.ScalewayAppleSiliconMachineSpec{AdoptPoolPrefix: "tuist-pool-"},
+	}
+	if !shouldReleaseToPool(m) {
+		t.Fatal("pool-adopted Machine with no annotation should default to pool release")
+	}
+}
+
+func TestShouldReleaseToPool_PoolAdoptedTerminateOptOut(t *testing.T) {
+	m := &infrav1.ScalewayAppleSiliconMachine{
+		ObjectMeta: metav1.ObjectMeta{
+			Annotations: map[string]string{ReleasePolicyAnnotation: ReleasePolicyTerminate},
+		},
+		Spec: infrav1.ScalewayAppleSiliconMachineSpec{AdoptPoolPrefix: "tuist-pool-"},
+	}
+	if shouldReleaseToPool(m) {
+		t.Fatal("terminate annotation should force the physical-delete path")
+	}
+}
+
+func TestShouldReleaseToPool_AutoOrderAlwaysTerminate(t *testing.T) {
+	// AdoptPoolPrefix empty: there's nowhere to return the host to,
+	// so even an explicit `release-policy: pool` annotation falls
+	// back to terminate.
+	m := &infrav1.ScalewayAppleSiliconMachine{
+		ObjectMeta: metav1.ObjectMeta{
+			Annotations: map[string]string{ReleasePolicyAnnotation: ReleasePolicyPool},
+		},
+		Spec: infrav1.ScalewayAppleSiliconMachineSpec{AdoptPoolPrefix: ""},
+	}
+	if shouldReleaseToPool(m) {
+		t.Fatal("auto-order Machine has no pool; must always terminate regardless of annotation")
+	}
+}
+
+func TestShouldReleaseToPool_UnknownAnnotationFallsThroughToDefault(t *testing.T) {
+	m := &infrav1.ScalewayAppleSiliconMachine{
+		ObjectMeta: metav1.ObjectMeta{
+			Annotations: map[string]string{ReleasePolicyAnnotation: "garbage"},
+		},
+		Spec: infrav1.ScalewayAppleSiliconMachineSpec{AdoptPoolPrefix: "tuist-pool-"},
+	}
+	if !shouldReleaseToPool(m) {
+		t.Fatal("unknown annotation value should not flip the default; pool-adopted defaults to pool")
+	}
+}
+
+// --- reconcileDelete branching -------------------------------------------
+//
+// End-to-end check that reconcileDelete actually calls
+// ScalewayClient.ReleaseToPool for pool-adopted Machines and
+// ScalewayClient.DeleteServer for the terminate-annotated case. Uses
+// a real *scaleway.Client backed by a minimal in-memory API so the
+// recorded side-effects (rename + reinstall vs delete) are visible.
+
+// scalewayAPIStub is a tiny implementation of
+// scaleway.AppleSiliconAPI sufficient for the deletion path. Every
+// method we don't care about returns an error so an unexpected call
+// is loud in test output rather than silently doing nothing.
+type scalewayAPIStub struct {
+	servers         []*applesilicon.Server
+	updateCalls     int
+	updatedNames    []string
+	deletedIDs      []string
+	reinstalledIDs  []string
+	reinstallErrors map[int]error
+	reinstallCalls  int
+}
+
+func (f *scalewayAPIStub) ListServers(*applesilicon.ListServersRequest, ...scw.RequestOption) (*applesilicon.ListServersResponse, error) {
+	return nil, errors.New("ListServers not implemented in stub")
+}
+
+func (f *scalewayAPIStub) GetServer(req *applesilicon.GetServerRequest, _ ...scw.RequestOption) (*applesilicon.Server, error) {
+	for _, s := range f.servers {
+		if s.ID == req.ServerID {
+			return s, nil
+		}
+	}
+	return nil, errors.New("not found")
+}
+
+func (f *scalewayAPIStub) UpdateServer(req *applesilicon.UpdateServerRequest, _ ...scw.RequestOption) (*applesilicon.Server, error) {
+	f.updateCalls++
+	for _, s := range f.servers {
+		if s.ID == req.ServerID {
+			if req.Name != nil {
+				s.Name = *req.Name
+				f.updatedNames = append(f.updatedNames, *req.Name)
+			}
+			return s, nil
+		}
+	}
+	return nil, errors.New("not found")
+}
+
+func (f *scalewayAPIStub) CreateServer(*applesilicon.CreateServerRequest, ...scw.RequestOption) (*applesilicon.Server, error) {
+	return nil, errors.New("CreateServer not implemented in stub")
+}
+
+func (f *scalewayAPIStub) DeleteServer(req *applesilicon.DeleteServerRequest, _ ...scw.RequestOption) error {
+	f.deletedIDs = append(f.deletedIDs, req.ServerID)
+	return nil
+}
+
+func (f *scalewayAPIStub) ReinstallServer(req *applesilicon.ReinstallServerRequest, _ ...scw.RequestOption) (*applesilicon.Server, error) {
+	f.reinstallCalls++
+	if err, ok := f.reinstallErrors[f.reinstallCalls]; ok {
+		return nil, err
+	}
+	for _, s := range f.servers {
+		if s.ID == req.ServerID {
+			f.reinstalledIDs = append(f.reinstalledIDs, s.ID)
+			return s, nil
+		}
+	}
+	return nil, errors.New("not found")
+}
+
+func (f *scalewayAPIStub) WaitForServer(*applesilicon.WaitForServerRequest, ...scw.RequestOption) (*applesilicon.Server, error) {
+	return nil, errors.New("WaitForServer not implemented in stub")
+}
+
+func (f *scalewayAPIStub) ListOS(*applesilicon.ListOSRequest, ...scw.RequestOption) (*applesilicon.ListOSResponse, error) {
+	return nil, errors.New("ListOS not implemented in stub")
+}
+
+func TestReconcileDelete_PoolAdoptedReleasesToPool(t *testing.T) {
+	api := &scalewayAPIStub{
+		servers: []*applesilicon.Server{{ID: "srv-1", Name: "tuist-tuist-macos-fleet-0"}},
+	}
+	machine := &infrav1.ScalewayAppleSiliconMachine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       "macos-fleet-0",
+			Namespace:  "ns",
+			Finalizers: []string{MachineFinalizer},
+		},
+		Spec: infrav1.ScalewayAppleSiliconMachineSpec{
+			AdoptPoolPrefix: "tuist-pool-",
+			Zone:            "fr-par-1",
+		},
+		Status: infrav1.ScalewayAppleSiliconMachineStatus{ServerID: "srv-1"},
+	}
+	r := newReconciler(t)
+	r.ScalewayClient = &scaleway.Client{API: api}
+
+	if _, err := r.reconcileDelete(context.Background(), machine); err != nil {
+		t.Fatalf("reconcileDelete: %v", err)
+	}
+
+	if len(api.deletedIDs) != 0 {
+		t.Fatalf("pool-adopted delete must NOT call DeleteServer; got deletes for %v", api.deletedIDs)
+	}
+	if got := api.reinstalledIDs; len(got) != 1 || got[0] != "srv-1" {
+		t.Fatalf("expected ReinstallServer call for srv-1, got %v", got)
+	}
+	if got := api.updatedNames; len(got) != 1 || !startsWith(got[0], "tuist-pool-") {
+		t.Fatalf("expected rename into the pool namespace, got %v", got)
+	}
+	if machine.Status.ServerID != "" {
+		t.Fatalf("Status.ServerID should be cleared after release, got %q", machine.Status.ServerID)
+	}
+}
+
+func TestReconcileDelete_TerminateAnnotationFallsBackToDeleteServer(t *testing.T) {
+	api := &scalewayAPIStub{
+		servers: []*applesilicon.Server{{ID: "srv-2", Name: "tuist-tuist-macos-fleet-1"}},
+	}
+	machine := &infrav1.ScalewayAppleSiliconMachine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        "macos-fleet-1",
+			Namespace:   "ns",
+			Finalizers:  []string{MachineFinalizer},
+			Annotations: map[string]string{ReleasePolicyAnnotation: ReleasePolicyTerminate},
+		},
+		Spec: infrav1.ScalewayAppleSiliconMachineSpec{
+			AdoptPoolPrefix: "tuist-pool-",
+			Zone:            "fr-par-1",
+		},
+		Status: infrav1.ScalewayAppleSiliconMachineStatus{ServerID: "srv-2"},
+	}
+	r := newReconciler(t)
+	r.ScalewayClient = &scaleway.Client{API: api}
+
+	if _, err := r.reconcileDelete(context.Background(), machine); err != nil {
+		t.Fatalf("reconcileDelete: %v", err)
+	}
+
+	if got := api.deletedIDs; len(got) != 1 || got[0] != "srv-2" {
+		t.Fatalf("expected DeleteServer call for srv-2, got %v", got)
+	}
+	if len(api.reinstalledIDs) != 0 {
+		t.Fatalf("terminate path must NOT reinstall; got reinstalls for %v", api.reinstalledIDs)
+	}
+	if len(api.updatedNames) != 0 {
+		t.Fatalf("terminate path must NOT rename; got renames %v", api.updatedNames)
+	}
+}
+
+func TestReconcileDelete_AutoOrderUsesDeleteServer(t *testing.T) {
+	api := &scalewayAPIStub{
+		servers: []*applesilicon.Server{{ID: "srv-3", Name: "tuist-tuist-macos-fleet-2"}},
+	}
+	machine := &infrav1.ScalewayAppleSiliconMachine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       "macos-fleet-2",
+			Namespace:  "ns",
+			Finalizers: []string{MachineFinalizer},
+		},
+		Spec: infrav1.ScalewayAppleSiliconMachineSpec{
+			// AdoptPoolPrefix empty → auto-order, no pool to return to.
+			Zone: "fr-par-1",
+		},
+		Status: infrav1.ScalewayAppleSiliconMachineStatus{ServerID: "srv-3"},
+	}
+	r := newReconciler(t)
+	r.ScalewayClient = &scaleway.Client{API: api}
+
+	if _, err := r.reconcileDelete(context.Background(), machine); err != nil {
+		t.Fatalf("reconcileDelete: %v", err)
+	}
+
+	if got := api.deletedIDs; len(got) != 1 || got[0] != "srv-3" {
+		t.Fatalf("auto-order Machine should DeleteServer, got %v", got)
+	}
+	if len(api.reinstalledIDs) != 0 {
+		t.Fatalf("auto-order Machine must NOT reinstall; got %v", api.reinstalledIDs)
+	}
+}
+
+func startsWith(s, prefix string) bool {
+	return len(s) >= len(prefix) && s[:len(prefix)] == prefix
 }

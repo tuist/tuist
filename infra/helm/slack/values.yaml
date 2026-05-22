@@ -1,0 +1,141 @@
+global:
+  commonLabels: {}
+  podLabels: {}
+  imagePullSecrets: []
+  nodeSelector: {}
+  tolerations: []
+
+nameOverride: ""
+fullnameOverride: ""
+
+replicaCount: 1
+
+image:
+  repository: ghcr.io/tuist/slack
+  tag: ""
+  pullPolicy: IfNotPresent
+
+secretKeyBase: ""
+releaseCookie: ""
+
+# Optional explicit PHX_HOST override. When unset, the Deployment falls back to
+# ingress.host.
+host: ""
+
+deploymentStrategy:
+  type: Recreate
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+automountServiceAccountToken: false
+
+database:
+  path: /data/slack.db
+  poolSize: "5"
+
+mailer:
+  fromName: Tuist
+  fromEmail: hello@tuist.dev
+  mailgunDomain: mail.tuist.dev
+  mailgunBaseUrl: https://api.eu.mailgun.net/v3
+
+runtimeSecrets:
+  secretName: ""
+  inline:
+    adminUsername: ""
+    adminPassword: ""
+    turnstileSiteKey: ""
+    turnstileSecretKey: ""
+    mailgunApiKey: ""
+    slackInviteUrl: ""
+    slackBotToken: ""
+    slackChannelId: ""
+  externalSecret:
+    enabled: false
+    refreshInterval: "1h"
+    storeRef:
+      kind: ClusterSecretStore
+      name: onepassword
+    item: ""
+    fields:
+      adminUsername: admin-username
+      adminPassword: admin-password
+      turnstileSiteKey: turnstile-site-key
+      turnstileSecretKey: turnstile-secret-key
+      mailgunApiKey: mailgun-api-key
+      slackInviteUrl: slack-invite-url
+      slackBotToken: slack-bot-token
+      slackChannelId: slack-channel-id
+
+persistence:
+  create: true
+  existingClaim: ""
+  storageClassName: ""
+  accessModes:
+    - ReadWriteOnce
+  size: 1Gi
+
+ingress:
+  enabled: false
+  className: ""
+  host: ""
+  tlsSecretName: ""
+  annotations: {}
+
+resources: {}
+podSecurityContext:
+  fsGroup: 65534
+  fsGroupChangePolicy: OnRootMismatch
+  seccompProfile:
+    type: RuntimeDefault
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 65534
+extraEnv: []
+extraEnvFrom: []
+podAnnotations: {}
+podLabels: {}
+affinity: {}
+nodeSelector: {}
+tolerations: []
+terminationGracePeriodSeconds: 30
+networkPolicy:
+  enabled: false
+  ingressControllerNamespace: platform
+  ingressControllerPodLabels:
+    app.kubernetes.io/name: ingress-nginx
+    app.kubernetes.io/component: controller
+  dnsNamespace: kube-system
+
+probes:
+  readiness:
+    path: /
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+  liveness:
+    path: /
+    initialDelaySeconds: 30
+    periodSeconds: 20
+    timeoutSeconds: 3
+    failureThreshold: 3
+  startup:
+    path: /
+    initialDelaySeconds: 0
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 60

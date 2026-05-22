@@ -3,11 +3,12 @@ name: Server Production Deployment
 # Promotion cascade: build → canary → acceptance tests → production.
 #
 # Triggers:
-#   push to main     - standard promotion. Commits whose subject contains
-#                      "(hotfix)" fast-path to production without waiting
-#                      for canary + tests.
+#   push to main      - standard promotion. Commits whose subject contains
+#                       "(hotfix)" fast-path to production without waiting
+#                       for canary + tests.
 #   workflow_dispatch - run the cascade against a pinned SHA (useful to
-#                      re-promote a past commit).
+#                       re-promote a past commit or to re-roll the same
+#                       server image against a freshly released Kura tag).
 #
 # Image architecture: the Docker image is env-agnostic (built once with
 # MIX_ENV=prod) so the same `sha-<SHA>` tag is promoted from canary to
@@ -21,7 +22,9 @@ name: Server Production Deployment
 # Kura regional controller/platform rollouts are handled by
 # server-kura-regional-deployment.yml after production succeeds so
 # regional capacity incidents do not mark the main production deploy as
-# failed.
+# failed. Kura runtime rollouts are release-driven via
+# kura-release-deployment.yml after the `kura@...` tag exists, so the
+# server promotion path never races ahead of the published runtime tag.
 #
 # Slack notifications:
 #   - Any failure on main → .github/workflows/notify-failure.yml picks up
@@ -43,7 +46,6 @@ on:
       - main
     paths:
       - server/**
-      - kura/**
       - tuist_common/**
       - noora/**
       - infra/kura-controller/**
@@ -56,6 +58,9 @@ on:
     inputs:
       commit_sha:
         description: Commit SHA to deploy (defaults to the event's SHA)
+        required: false
+      kura_runtime_image_tag:
+        description: Pre-built Kura runtime image tag to deploy
         required: false
 
 permissions:
@@ -130,6 +135,7 @@ jobs:
       environment: canary
       commit_sha: ${{ inputs.commit_sha || github.sha }}
       image_tag: ${{ needs.build.outputs.image_tag }}
+      kura_runtime_image_tag: ${{ inputs.kura_runtime_image_tag }}
     secrets: inherit
 
   acceptance-tests:
@@ -182,6 +188,7 @@ jobs:
       environment: production
       commit_sha: ${{ inputs.commit_sha || github.sha }}
       image_tag: ${{ needs.build.outputs.image_tag }}
+      kura_runtime_image_tag: ${{ inputs.kura_runtime_image_tag }}
     secrets: inherit
 
   # --------------------------------------------------------------------------
@@ -198,4 +205,5 @@ jobs:
       environment: production
       commit_sha: ${{ github.sha }}
       image_tag: ${{ needs.build.outputs.image_tag }}
+      kura_runtime_image_tag: ${{ inputs.kura_runtime_image_tag }}
     secrets: inherit

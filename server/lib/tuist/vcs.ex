@@ -201,6 +201,39 @@ defmodule Tuist.VCS do
     end
   end
 
+  @doc """
+  Returns the distinct GitHub Apps Tuist should act as for App-level
+  operations (e.g. webhook delivery log introspection). Each item is
+  `%{credentials, api_url}`.
+
+  Includes the globally-configured github.com App when the env-var
+  credentials are present, plus any per-installation Apps registered
+  via the GHES manifest flow (deduped by `(app_id, client_url)`, so
+  multiple installations on the same GHES App produce one entry).
+  """
+  def list_github_apps do
+    global =
+      case github_app_credentials() do
+        %{} = creds -> [%{credentials: creds, api_url: api_url(:github, nil)}]
+        _ -> []
+      end
+
+    per_installation =
+      GitHubAppInstallation
+      |> where([i], not is_nil(i.app_id) and not is_nil(i.private_key))
+      |> Repo.all()
+      |> Enum.uniq_by(fn i -> {i.app_id, i.client_url} end)
+      |> Enum.map(fn installation ->
+        case github_app_credentials(installation) do
+          %{} = creds -> %{credentials: creds, api_url: installation_api_url(installation)}
+          _ -> nil
+        end
+      end)
+      |> Enum.reject(&is_nil/1)
+
+    global ++ per_installation
+  end
+
   def get_repository_content(
         %{repository_full_handle: repository_full_handle, provider: provider, token: token},
         opts \\ []
