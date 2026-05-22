@@ -147,9 +147,14 @@ xcresultProcessor:
 # CR per replica; the cluster-api-provider-scaleway-applesilicon
 # operator orders each Mac mini, then SSH-bootstraps it with
 # tart-kubelet. The Mac mini joins the cluster as a real Node.
+# Temporarily disabled — staging Mac mini node's tart-kubelet has
+# stopped posting status, so the macosFleet Machine never converges
+# and helm --wait stalls on it. Re-enable once Mac mini capacity
+# returns (same recovery window as buildersFleet / xcresultProcessor
+# above).
 macosFleet:
-  enabled: true
-  replicas: 1
+  enabled: false
+  replicas: 0
   # Share the pre-ordered pool with runnersFleet (same prefix
   # below). Both MachineDeployments draw from one Scaleway-side
   # pool of `tuist-pool-*` hosts; the controller claims the first
