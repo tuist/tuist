@@ -5281,14 +5281,6 @@ final class TestServiceTests: TuistUnitTestCase {
     }
 
     func test_run_build_recordsCacheItemsForDefaultTestPlanOnly_whenSchemeHasMultiplePlans() async throws {
-        // The split build/test topology (`tuist test --build-only` followed
-        // by `tuist test --without-building`) only ever runs the default
-        // test plan, because xcodebuild test-without-building picks the
-        // default .xctestrun when no -testPlan is forwarded. The build phase
-        // used to record selective-testing cache items for every plan, which
-        // made the dashboard report "selective test misses" for targets the
-        // test phase will never execute.
-
         // Given
         givenGenerator()
         let path = try temporaryPath()
@@ -5379,15 +5371,6 @@ final class TestServiceTests: TuistUnitTestCase {
     }
 
     func test_run_build_persistsResultBundlePathToRunMetadata_soXcresultUploadsForBuildOnly() async throws {
-        // --build-only previously skipped the test-summary upload (action !=
-        // .build guard in uploadResultBundleIfNeeded), and never set the
-        // result bundle path on RunMetadataStorage, so the TrackableCommand
-        // analytics upload had nothing to attach either. The build run
-        // detail page's "Download result" lookup is keyed on
-        // command_event.id — which only matches when the xcresult is
-        // uploaded through UploadAnalyticsService.upload, which reads the
-        // path from RunMetadataStorage.
-
         // Given
         givenGenerator()
         let path = try temporaryPath()

@@ -391,13 +391,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
             config: config
         )
 
-        // --build-only never reached uploadResultBundleIfNeeded (that path
-        // guards on `action != .build` because the build phase has nothing
-        // to parse into a TestSummary). Threading the path into
-        // RunMetadataStorage lets the TrackableCommand wrapper upload the
-        // xcresult via UploadAnalyticsService.upload, which keys storage on
-        // the command_event id the dashboard's "Download result" button
-        // resolves against.
+        // `.build` skips the test-summary upload path, so route the xcresult
+        // through the TrackableCommand analytics upload instead.
         if action == .build, let resultBundlePath {
             await RunMetadataStorage.current.update(resultBundlePath: resultBundlePath)
         }
@@ -1267,13 +1262,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
         testPlanConfiguration: TestPlanConfiguration?,
         action: XcodeBuildTestAction
     ) async {
-        // Selective-testing analytics should reflect what xcodebuild
-        // test-without-building will actually execute (the scheme's default
-        // test plan, or testAction.targets when there are no plans). The
-        // .build branch in testActionTargetReferences expands to every test
-        // plan's targets so we can persist comprehensive hashes in the
-        // bundle's selective-testing graph, but counting all of them here
-        // over-reports "selective test misses" for tests that never run.
+        // Analytics tracks what runs, not what builds — `.build` fans out to
+        // every test plan for the on-disk selective-testing graph.
         let runtimeAction: XcodeBuildTestAction = action == .build ? .test : action
         let initialTestTargets = initialTestTargets(
             mapperEnvironment: mapperEnvironment,
