@@ -1062,7 +1062,6 @@ fn grpc_extension_context(
         server_tenant_id: server_tenant_id.to_owned(),
         tenant_id: None,
         namespace_id: spec.namespace_id.map(ToOwned::to_owned),
-        namespace_explicit: spec.namespace_id.is_some(),
         producer: spec.producer.map(ToOwned::to_owned),
         artifact_key: spec.artifact_key.clone(),
         artifact_hash: spec.artifact_hash.clone(),

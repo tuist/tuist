@@ -68,10 +68,6 @@ spec:
               value: {{ printf "%d" (int .Values.service.grpcPort) | quote }}
             - name: KURA_TENANT_ID
               value: {{ .Values.config.tenantId | quote }}
-            {{- if .Values.config.defaultNamespaceId }}
-            - name: KURA_DEFAULT_NAMESPACE_ID
-              value: {{ .Values.config.defaultNamespaceId | quote }}
-            {{- end }}
             - name: KURA_REGION
               value: {{ .Values.config.region | quote }}
             - name: KURA_TMP_DIR

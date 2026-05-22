@@ -11,7 +11,6 @@ use crate::constants::{
 const KURA_PORT: &str = "KURA_PORT";
 const KURA_GRPC_PORT: &str = "KURA_GRPC_PORT";
 const KURA_TENANT_ID: &str = "KURA_TENANT_ID";
-const KURA_DEFAULT_NAMESPACE_ID: &str = "KURA_DEFAULT_NAMESPACE_ID";
 const KURA_REGION: &str = "KURA_REGION";
 const KURA_TMP_DIR: &str = "KURA_TMP_DIR";
 const KURA_DATA_DIR: &str = "KURA_DATA_DIR";
@@ -81,7 +80,6 @@ pub struct Config {
     pub grpc_port: u16,
     pub internal_port: u16,
     pub tenant_id: String,
-    pub default_namespace_id: Option<String>,
     pub region: String,
     pub tmp_dir: PathBuf,
     pub data_dir: PathBuf,
@@ -313,9 +311,6 @@ impl Config {
                     })
             });
         let tenant_id = required_value(&mut lookup, KURA_TENANT_ID, &mut missing);
-        let default_namespace_id = lookup(KURA_DEFAULT_NAMESPACE_ID)
-            .map(|value| value.trim().to_owned())
-            .filter(|value| !value.is_empty());
         let region = required_value(&mut lookup, KURA_REGION, &mut missing);
         let tmp_dir = required_value(&mut lookup, KURA_TMP_DIR, &mut missing).map(PathBuf::from);
         let data_dir = required_value(&mut lookup, KURA_DATA_DIR, &mut missing).map(PathBuf::from);
@@ -971,7 +966,6 @@ impl Config {
             internal_port: internal_port
                 .expect("internal_port should be present when configuration is valid"),
             tenant_id: tenant_id.expect("tenant_id should be present when configuration is valid"),
-            default_namespace_id,
             region: region.expect("region should be present when configuration is valid"),
             tmp_dir: tmp_dir.expect("tmp_dir should be present when configuration is valid"),
             data_dir: data_dir.expect("data_dir should be present when configuration is valid"),
@@ -1229,7 +1223,6 @@ mod tests {
             config_from(&[]).expect("expected config defaults to derive from host resources");
 
         assert_eq!(config.internal_port, 7443);
-        assert_eq!(config.default_namespace_id, None);
         assert_eq!(
             config.peers,
             vec!["http://kura.example.com:7443".to_owned()]
@@ -1300,7 +1293,6 @@ mod tests {
         assert_eq!(config.grpc_port, 5500);
         assert_eq!(config.internal_port, 7443);
         assert_eq!(config.tenant_id, "acme");
-        assert_eq!(config.default_namespace_id, None);
         assert_eq!(config.region, "eu_west");
         assert_eq!(config.tmp_dir, PathBuf::from("/tmp/kura"));
         assert_eq!(config.data_dir, PathBuf::from("/tmp/kura-data"));
@@ -1365,14 +1357,6 @@ mod tests {
         .expect("expected geoip config to parse");
 
         assert_eq!(config.geoip_refresh_interval_secs, 3_600);
-    }
-
-    #[test]
-    fn from_lookup_parses_default_namespace_override() {
-        let config = config_from(&[(KURA_DEFAULT_NAMESPACE_ID, " ~account ")])
-            .expect("expected default namespace config to parse");
-
-        assert_eq!(config.default_namespace_id.as_deref(), Some("~account"));
     }
 
     #[test]

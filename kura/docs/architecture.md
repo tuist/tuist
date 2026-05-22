@@ -69,7 +69,7 @@ Kura splits durable state into two planes so that the hot path is simple and the
 
 The metadata store uses tunable RocksDB budgets (`KURA_METADATA_STORE_*`) that auto-derive from the host's memory and FD limits.
 
-Every public HTTP cache write and read is scoped to a `(tenant_id, namespace_id)` pair before it reaches storage. Operators may configure `KURA_DEFAULT_NAMESPACE_ID` so selected integrations can omit `namespace_id` on the wire while still landing in a concrete namespace internally. Kura preserves whether that namespace was explicit or inherited in the extension context and multipart upload metadata so policy hooks can distinguish account-scoped traffic from project-scoped traffic.
+Every public HTTP cache write and read is scoped to a `(tenant_id, namespace_id)` pair before it reaches storage. Integrations that want account-scoped traffic should choose a concrete reserved namespace and send it explicitly, so Kura stays generic while policy hooks can still interpret special namespaces however they need.
 
 ## Memory Pressure And Shedding
 
@@ -180,7 +180,6 @@ Helm and the local docker-compose stack ship a complete Grafana/Prometheus/Loki/
 All configuration is environment-driven (`src/config.rs`). The full table lives in [`README.md`](../README.md#-runtime-model-and-limits). Highlights:
 
 - Required identity and addressing: `KURA_TENANT_ID`, `KURA_REGION`, `KURA_NODE_URL`, `KURA_PORT`, `KURA_GRPC_PORT`, `KURA_INTERNAL_PORT`, `KURA_DATA_DIR`, `KURA_TMP_DIR`.
-- Optional HTTP namespace defaulting: `KURA_DEFAULT_NAMESPACE_ID`.
 - Peer plane: `KURA_PEERS`, `KURA_DISCOVERY_DNS_NAME`, optional `KURA_INTERNAL_TLS_*` for peer mTLS.
 - Resource budgets: file-descriptor pool, memory soft/hard limits, manifest cache, RocksDB write buffer pool, all with `auto` defaults derived from the host.
 - Drain timing: `KURA_DRAIN_COMPLETION_TIMEOUT_MS`.

@@ -18,17 +18,17 @@
 --
 --   2. authorize — the principal carries first-class account-scoped
 --      and project-scoped cache access. We resolve the request target
---      from `ctx.tenant_id` / `ctx.namespace_id` plus the
---      `ctx.namespace_explicit` signal. Requests that omitted a
---      namespace and were routed through Kura's default namespace are
---      authorized as account scope; explicit namespaces remain
---      project-scoped. We also require the requested tenant to match
---      `ctx.server_tenant_id` so one account's Kura mesh cannot serve
---      another account's namespace.
+--      from `ctx.tenant_id` / `ctx.namespace_id`. Tuist reserves one
+--      explicit namespace (`~account`) for account-scoped binaries;
+--      every other namespace remains project-scoped. We also require
+--      the requested tenant to match `ctx.server_tenant_id` so one
+--      account's Kura mesh cannot serve another account's namespace.
 --
 -- Required Kura extension config (set by the chart / rollout worker):
 --   * KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL  → https://tuist.dev (or staging)
 --   * KURA_EXTENSION_JWT_VERIFIER_TUIST_*        → Guardian verifier for Tuist JWTs
+
+local ACCOUNT_SCOPE_NAMESPACE = "~account"
 
 local function authorization_header(headers)
   local authorization = headers.authorization or headers.Authorization
@@ -115,23 +115,6 @@ local function request_tenant(ctx)
   return nil
 end
 
-local function request_namespace_explicit(ctx)
-  if ctx.namespace_explicit ~= nil then
-    return ctx.namespace_explicit
-  end
-
-  if ctx.query ~= nil then
-    if ctx.query.project_handle ~= nil and ctx.query.project_handle ~= "" then
-      return true
-    end
-    if ctx.query.namespace_id ~= nil and ctx.query.namespace_id ~= "" then
-      return true
-    end
-  end
-
-  return false
-end
-
 local function request_namespace(ctx)
   local namespace = ctx.namespace_id
 
@@ -167,24 +150,24 @@ local function request_target(ctx)
     }
   end
 
-  if request_namespace_explicit(ctx) then
-    if namespace == nil then
-      return nil, { status = 403, message = "Missing namespace_id/project_handle on request" }
-    end
+  if namespace == nil then
+    return nil, { status = 403, message = "Missing namespace_id/project_handle on request" }
+  end
 
+  if namespace == ACCOUNT_SCOPE_NAMESPACE then
     return {
-      scope = "project",
+      scope = "account",
       account = tenant,
       namespace = namespace,
-      identifier = tenant .. "/" .. namespace,
+      identifier = tenant,
     }, nil
   end
 
   return {
-    scope = "account",
+    scope = "project",
     account = tenant,
     namespace = namespace,
-    identifier = tenant,
+    identifier = tenant .. "/" .. namespace,
   }, nil
 end
 
