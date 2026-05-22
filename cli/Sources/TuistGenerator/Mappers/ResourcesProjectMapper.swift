@@ -117,15 +117,21 @@ public struct ResourcesProjectMapper: ProjectMapping {
     }
 
     private func targetNeedsObjcAccessor(_ target: Target, project: Project) -> Bool {
-        guard case .external = project.type else { return false }
         let containsObjc = target.sources.contains {
             $0.path.extension == "m" || $0.path.extension == "mm"
         }
+        guard containsObjc else { return false }
+
         let hasBundleResources = !target.resources.resources
             .filter { $0.path.extension != "xcprivacy" }
             .isEmpty
         let needsBundle = !target.supportsResources || target.product == .staticFramework
-        return containsObjc && hasBundleResources && needsBundle
+        guard hasBundleResources && needsBundle else { return false }
+
+        // External targets always need the C-function + macro accessor.
+        // For local/internal targets, only generate ObjC accessor if the target has
+        // NO Swift sources (mixed targets already get `{Target}Resources` from Swift).
+        return project.type == .external || !target.sources.contains(where: { $0.path.extension == "swift" })
     }
 
     /// Files inside buildable folders that should trip bundle synthesis but aren't caught by
@@ -282,25 +288,51 @@ public struct ResourcesProjectMapper: ProjectMapping {
         project: Project,
         bundleName: String
     ) throws {
-        let header = bundleAccessorTemplate.objcAccessorHeader(target: target, project: project)
-        let implementation = bundleAccessorTemplate.objcAccessorImplementation(
-            target: target,
-            bundleName: bundleName,
-            project: project
-        )
+        switch project.type {
+        case .external:
+            let header = bundleAccessorTemplate.objcAccessorHeader(target: target, project: project)
+            let implementation = bundleAccessorTemplate.objcAccessorImplementation(
+                target: target,
+                bundleName: bundleName,
+                project: project
+            )
 
-        // Point the target's prefix header at the synthesised .h so every Obj-C file picks up
-        // `SWIFTPM_MODULE_BUNDLE` without an explicit `#import`.
-        let prefixHeaderPath = "$(SRCROOT)/\(header.path.relative(to: project.path).pathString)"
-        var settings = modifiedTarget.settings?.base ?? SettingsDictionary()
-        settings["GCC_PREFIX_HEADER"] = .string(prefixHeaderPath)
-        modifiedTarget.settings = modifiedTarget.settings?.with(base: settings)
+            // Point the target's prefix header at the synthesised .h so every Obj-C file
+            // picks up `SWIFTPM_MODULE_BUNDLE` without an explicit `#import`.
+            let prefixHeaderPath = "$(SRCROOT)/\(header.path.relative(to: project.path).pathString)"
+            var settings = modifiedTarget.settings?.base ?? SettingsDictionary()
+            settings["GCC_PREFIX_HEADER"] = .string(prefixHeaderPath)
+            modifiedTarget.settings = modifiedTarget.settings?.with(base: settings)
 
-        let implementationHash = try implementation.contents.map(contentHasher.hash)
-        modifiedTarget.sources.append(SourceFile(path: implementation.path, contentHash: implementationHash))
+            let implementationHash = try implementation.contents.map(contentHasher.hash)
+            modifiedTarget.sources.append(SourceFile(
+                path: implementation.path,
+                contentHash: implementationHash
+            ))
 
-        sideEffects.append(.file(.init(path: header.path, contents: header.contents, state: .present)))
-        sideEffects.append(.file(.init(path: implementation.path, contents: implementation.contents, state: .present)))
+            sideEffects.append(.file(.init(path: header.path, contents: header.contents, state: .present)))
+            sideEffects.append(.file(.init(path: implementation.path, contents: implementation.contents, state: .present)))
+
+        case .local:
+            // Use the class-based `{Target}Resources` interface for internal targets.
+            // No GCC_PREFIX_HEADER needed — users call `[TargetNameResources bundle]`
+            // or explicitly import the header.
+            let header = bundleAccessorTemplate.objcInternalAccessorHeader(target: target, project: project)
+            let implementation = bundleAccessorTemplate.objcInternalAccessorImplementation(
+                target: target,
+                bundleName: bundleName,
+                project: project
+            )
+
+            let implementationHash = try implementation.contents.map(contentHasher.hash)
+            modifiedTarget.sources.append(SourceFile(
+                path: implementation.path,
+                contentHash: implementationHash
+            ))
+
+            sideEffects.append(.file(.init(path: header.path, contents: header.contents, state: .present)))
+            sideEffects.append(.file(.init(path: implementation.path, contents: implementation.contents, state: .present)))
+        }
     }
 
     private func appendUniqueSourceFiles(paths: [AbsolutePath], to target: inout Target) {

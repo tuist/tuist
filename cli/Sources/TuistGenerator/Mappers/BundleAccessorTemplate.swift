@@ -23,6 +23,10 @@ public protocol BundleAccessorTemplating {
     func swiftAccessor(target: Target, bundleName: String, project: Project) -> SynthesizedBundleAccessorFile
     func objcAccessorHeader(target: Target, project: Project) -> SynthesizedBundleAccessorFile
     func objcAccessorImplementation(target: Target, bundleName: String, project: Project) -> SynthesizedBundleAccessorFile
+    /// Generates the ObjC header declaring a `{Target}Resources` class for local/internal targets.
+    func objcInternalAccessorHeader(target: Target, project: Project) -> SynthesizedBundleAccessorFile
+    /// Generates the ObjC implementation of the `{Target}Resources` class for local/internal targets.
+    func objcInternalAccessorImplementation(target: Target, bundleName: String, project: Project) -> SynthesizedBundleAccessorFile
 }
 
 public struct BundleAccessorTemplate: BundleAccessorTemplating {
@@ -57,6 +61,26 @@ public struct BundleAccessorTemplate: BundleAccessorTemplating {
         return SynthesizedBundleAccessorFile(
             path: path,
             contents: Self.objcImplementationContents(targetName: target.name, bundleName: bundleName).data(using: .utf8)
+        )
+    }
+
+    public func objcInternalAccessorHeader(target: Target, project: Project) -> SynthesizedBundleAccessorFile {
+        let path = Self.objcAccessorPath(target: target, project: project, fileExtension: "h")
+        return SynthesizedBundleAccessorFile(
+            path: path,
+            contents: Self.objcInternalHeaderContents(targetName: target.name).data(using: .utf8)
+        )
+    }
+
+    public func objcInternalAccessorImplementation(
+        target: Target,
+        bundleName: String,
+        project: Project
+    ) -> SynthesizedBundleAccessorFile {
+        let path = Self.objcAccessorPath(target: target, project: project, fileExtension: "m")
+        return SynthesizedBundleAccessorFile(
+            path: path,
+            contents: Self.objcInternalImplementationContents(targetName: target.name, bundleName: bundleName).data(using: .utf8)
         )
     }
 
@@ -155,6 +179,67 @@ public struct BundleAccessorTemplate: BundleAccessorTemplating {
 
             [NSException raise:@"BundleNotFound" format:nil];
         }
+        """
+    }
+
+    /// Header for local/internal targets: ObjC `{Target}Resources` class declaration.
+    /// Users call `[TargetName bundle]` — no `GCC_PREFIX_HEADER` needed.
+    static func objcInternalHeaderContents(targetName: String) -> String {
+        let identifier = targetName.toValidSwiftIdentifier()
+        return """
+        #import <Foundation/Foundation.h>
+
+        @interface \(identifier)Resources : NSObject
+        @property (class, nonatomic, readonly) NSBundle *bundle;
+        @end
+        """
+    }
+
+    /// Implementation for local/internal targets: `{Target}Resources` class with
+    /// SPM-compatible bundle lookup logic.
+    static func objcInternalImplementationContents(targetName: String, bundleName: String) -> String {
+        let identifier = targetName.toValidSwiftIdentifier()
+        return """
+        #import <Foundation/Foundation.h>
+        #import "TuistBundle+\(targetName).h"
+
+        @interface \(identifier)BundleFinder : NSObject
+        @end
+
+        @implementation \(identifier)BundleFinder
+        @end
+
+        @implementation \(identifier)Resources
+
+        + (NSBundle *)bundle {
+            NSURL *bundleURL = [[NSBundle bundleForClass:[\(identifier)BundleFinder class]] resourceURL];
+            NSMutableArray *candidates = [NSMutableArray arrayWithObjects:
+                                          [[NSBundle mainBundle] resourceURL],
+                                          bundleURL,
+                                          [[NSBundle mainBundle] bundleURL],
+                                          nil];
+
+            NSString *override = [[[NSProcessInfo processInfo] environment] objectForKey:@"PACKAGE_RESOURCE_BUNDLE_PATH"];
+            if (override) {
+                [candidates addObject:override];
+                NSArray<NSString *> *subpaths = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:override error:nil];
+                if (subpaths) {
+                    for (NSString *subpath in subpaths) {
+                        if ([subpath hasSuffix:@".framework"]) {
+                            [candidates addObject:[NSURL fileURLWithPath:[NSString stringWithFormat:@"%@/%@", override, subpath]]];
+                        }
+                    }
+                }
+            }
+
+            for (NSURL *candidate in candidates) {
+                NSURL *bundlePath = [candidate URLByAppendingPathComponent:[NSString stringWithFormat:@"%@%@", @"\(bundleName)", @".bundle"]];
+                NSBundle *bundle = [NSBundle bundleWithURL:bundlePath];
+                if (bundle) { return bundle; }
+            }
+            return nil;
+        }
+        @end
         """
     }
 
