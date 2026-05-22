@@ -263,9 +263,14 @@ runnersFleet:
 # the tuist org. The runner agent's registration token is minted
 # on every bootstrap by the CAPI reconciler from the
 # `BUILDERS_FLEET_GITHUB_APP` 1P item synced via ESO.
+# Temporarily disabled while validating the runners-controller dind
+# sidecar — the staging Scaleway Mac mini pool is dry and the
+# builders-fleet ScalewayAppleSiliconMachine sits in NoAvailableHost,
+# blocking helm --wait for the whole release. Re-enable once Mac mini
+# inventory comes back.
 buildersFleet:
-  enabled: true
-  replicas: 1
+  enabled: false
+  replicas: 0
   adoptPoolPrefix: "tuist-pool-"
   externalSecrets:
     enabled: true
