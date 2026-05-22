@@ -5280,6 +5280,176 @@ final class TestServiceTests: TuistUnitTestCase {
         XCTAssertEqual(writtenGraph.attemptedTestPlans.sorted(), ["IntegrationTestSuite", "Smoke"])
     }
 
+    func test_run_build_recordsCacheItemsForDefaultTestPlanOnly_whenSchemeHasMultiplePlans() async throws {
+        // The split build/test topology (`tuist test --build-only` followed
+        // by `tuist test --without-building`) only ever runs the default
+        // test plan, because xcodebuild test-without-building picks the
+        // default .xctestrun when no -testPlan is forwarded. The build phase
+        // used to record selective-testing cache items for every plan, which
+        // made the dashboard report "selective test misses" for targets the
+        // test phase will never execute.
+
+        // Given
+        givenGenerator()
+        let path = try temporaryPath()
+        let projectPath = path.appending(component: "Project")
+        let defaultPlanPath = projectPath.appending(components: "TestPlans", "Default.xctestplan")
+        let secondaryPlanPath = projectPath.appending(components: "TestPlans", "Secondary.xctestplan")
+        let defaultTarget = TestableTarget(target: TargetReference(projectPath: projectPath, name: "DefaultTests"))
+        let secondaryTarget = TestableTarget(target: TargetReference(projectPath: projectPath, name: "SecondaryTests"))
+        let scheme = Scheme.test(
+            name: "TestScheme",
+            testAction: .test(
+                testPlans: [
+                    .init(path: defaultPlanPath, testTargets: [defaultTarget], isDefault: true),
+                    .init(path: secondaryPlanPath, testTargets: [secondaryTarget], isDefault: false),
+                ]
+            )
+        )
+        let graph: Graph = .test(
+            workspace: .test(schemes: [.test(name: "App-Workspace")]),
+            projects: [
+                projectPath: .test(
+                    path: projectPath,
+                    targets: [
+                        .test(name: "DefaultTests"),
+                        .test(name: "SecondaryTests"),
+                    ],
+                    schemes: [scheme]
+                ),
+            ]
+        )
+        var environment = MapperEnvironment()
+        environment.initialGraph = graph
+        environment.targetTestHashes = [
+            projectPath: [
+                "DefaultTests": "hash-default",
+                "SecondaryTests": "hash-secondary",
+            ],
+        ]
+        given(generator)
+            .generateWithGraph(path: .any, options: .any)
+            .willProduce { path, _ in
+                (path, graph, environment)
+            }
+        given(buildGraphInspector)
+            .testableSchemes(graphTraverser: .any)
+            .willReturn([scheme])
+        given(buildGraphInspector)
+            .testableTarget(
+                scheme: .any,
+                testPlan: .any,
+                testTargets: .any,
+                skipTestTargets: .any,
+                graphTraverser: .any,
+                action: .any
+            )
+            .willProduce { scheme, _, _, _, _, _ in
+                GraphTarget.test(target: Target.test(name: scheme.name))
+            }
+        given(buildGraphInspector)
+            .workspaceSchemes(graphTraverser: .any)
+            .willReturn([])
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
+
+        // When
+        try await testRun(
+            schemeName: "TestScheme",
+            path: path,
+            action: .build
+        )
+
+        // Then — only the default test plan's target should be in analytics
+        let selectiveTestingCacheItems = await runMetadataStorage.selectiveTestingCacheItems
+        XCTAssertEqual(
+            selectiveTestingCacheItems,
+            [
+                projectPath: [
+                    "DefaultTests": .test(
+                        name: "DefaultTests",
+                        hash: "hash-default",
+                        source: .miss,
+                        cacheCategory: .selectiveTests
+                    ),
+                ],
+            ]
+        )
+    }
+
+    func test_run_build_persistsResultBundlePathToRunMetadata_soXcresultUploadsForBuildOnly() async throws {
+        // --build-only previously skipped the test-summary upload (action !=
+        // .build guard in uploadResultBundleIfNeeded), and never set the
+        // result bundle path on RunMetadataStorage, so the TrackableCommand
+        // analytics upload had nothing to attach either. The build run
+        // detail page's "Download result" lookup is keyed on
+        // command_event.id — which only matches when the xcresult is
+        // uploaded through UploadAnalyticsService.upload, which reads the
+        // path from RunMetadataStorage.
+
+        // Given
+        givenGenerator()
+        let path = try temporaryPath()
+        let projectPath = path.appending(component: "Project")
+        let scheme = Scheme.test(
+            name: "TestScheme",
+            testAction: .test(targets: [TestableTarget(target: TargetReference(projectPath: projectPath, name: "Tests"))])
+        )
+        let graph: Graph = .test(
+            workspace: .test(schemes: [.test(name: "App-Workspace")]),
+            projects: [
+                projectPath: .test(
+                    path: projectPath,
+                    targets: [.test(name: "Tests")],
+                    schemes: [scheme]
+                ),
+            ]
+        )
+        var environment = MapperEnvironment()
+        environment.initialGraph = graph
+        given(generator)
+            .generateWithGraph(path: .any, options: .any)
+            .willProduce { path, _ in
+                (path, graph, environment)
+            }
+        given(buildGraphInspector)
+            .testableSchemes(graphTraverser: .any)
+            .willReturn([scheme])
+        given(buildGraphInspector)
+            .testableTarget(
+                scheme: .any,
+                testPlan: .any,
+                testTargets: .any,
+                skipTestTargets: .any,
+                graphTraverser: .any,
+                action: .any
+            )
+            .willProduce { scheme, _, _, _, _, _ in
+                GraphTarget.test(target: Target.test(name: scheme.name))
+            }
+        given(buildGraphInspector)
+            .workspaceSchemes(graphTraverser: .any)
+            .willReturn([])
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(fullHandle: "tuist/tuist", project: .testGeneratedProject()))
+
+        let passedResultBundlePath = path.appending(component: "MyApp.xcresult")
+
+        // When
+        try await testRun(
+            schemeName: "TestScheme",
+            path: path,
+            action: .build,
+            resultBundlePath: passedResultBundlePath
+        )
+
+        // Then
+        let storedResultBundlePath = await runMetadataStorage.resultBundlePath
+        XCTAssertEqual(storedResultBundlePath, passedResultBundlePath)
+    }
+
     fileprivate func testRun(
         runId: String = "run-id",
         schemeName: String? = nil,

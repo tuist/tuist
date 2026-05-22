@@ -391,6 +391,17 @@ public struct TestService { // swiftlint:disable:this type_body_length
             config: config
         )
 
+        // --build-only never reached uploadResultBundleIfNeeded (that path
+        // guards on `action != .build` because the build phase has nothing
+        // to parse into a TestSummary). Threading the path into
+        // RunMetadataStorage lets the TrackableCommand wrapper upload the
+        // xcresult via UploadAnalyticsService.upload, which keys storage on
+        // the command_event id the dashboard's "Download result" button
+        // resolves against.
+        if action == .build, let resultBundlePath {
+            await RunMetadataStorage.current.update(resultBundlePath: resultBundlePath)
+        }
+
         let schemes: [Scheme]
         if let schemeName {
             guard let scheme = graphTraverser.schemes().first(where: { $0.name == schemeName })
@@ -1256,11 +1267,19 @@ public struct TestService { // swiftlint:disable:this type_body_length
         testPlanConfiguration: TestPlanConfiguration?,
         action: XcodeBuildTestAction
     ) async {
+        // Selective-testing analytics should reflect what xcodebuild
+        // test-without-building will actually execute (the scheme's default
+        // test plan, or testAction.targets when there are no plans). The
+        // .build branch in testActionTargetReferences expands to every test
+        // plan's targets so we can persist comprehensive hashes in the
+        // bundle's selective-testing graph, but counting all of them here
+        // over-reports "selective test misses" for tests that never run.
+        let runtimeAction: XcodeBuildTestAction = action == .build ? .test : action
         let initialTestTargets = initialTestTargets(
             mapperEnvironment: mapperEnvironment,
             schemes: schemes,
             testPlanConfiguration: testPlanConfiguration,
-            action: action
+            action: runtimeAction
         )
 
         await RunMetadataStorage.current.update(
