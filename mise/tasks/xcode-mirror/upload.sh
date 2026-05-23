@@ -2,24 +2,21 @@
 #MISE description "Download an Xcode .xip from Apple via xcodes and push it to ghcr.io/tuist/xcode-xips."
 #USAGE arg "<version>" help="Xcode version to publish (e.g. 26.4.1, 26.5)."
 
-# Local maintainer task — the break-glass path for the xcode-mirror
-# service. Use when:
-#   * a new Xcode is out and the in-cluster Tuist.XcodeMirror worker
-#     hasn't picked it up yet (cookies expired, Apple API change, etc.)
-#   * you need to seed a brand-new version in CI before the worker's
-#     next tick
+# Local maintainer task — populates the in-house Xcode .xip mirror
+# at `ghcr.io/tuist/xcode-xips:<version>` that the
+# `.github/workflows/macos-xcode-image.yml` workflow pulls from.
 #
-# Steady state: the in-cluster worker handles this. See
-# `infra/macos-xcode-image/AGENTS.md` for the architecture.
+# Run this when an xcodereleases.com RSS notification lands in
+# the infra-ops Slack channel announcing a new Xcode release. See
+# `infra/macos-xcode-image/AGENTS.md` for the architecture and the
+# RSS subscription command.
 #
 # Tools come from the repo-root mise.toml (xcodes, oras, jq, gh).
 # Beyond that the task self-bootstraps: it uses the operator's
 # existing `gh` token to log oras into ghcr.io so they don't have
-# to remember the manual login command.
-#
-# The only state outside this task that the operator has to set up
-# *before* running it is a signed-in xcodes session, which is
-# bootstrapped by `mise run xcode-mirror:mint-session`.
+# to remember the manual login command. xcodes prompts for Apple
+# ID password + 2FA the first time per ~30-day window and caches
+# the session in the local keychain afterwards.
 
 set -euo pipefail
 
@@ -79,7 +76,8 @@ if [ -n "$EXISTING_XIP" ] && [ -f "$EXISTING_XIP" ]; then
   XIP="$EXISTING_XIP"
 else
   echo "Downloading Xcode ${VERSION} from Apple..."
-  echo "(Requires a signed-in xcodes session — run \`mise run xcode-mirror:mint-session\` if absent.)"
+  echo "(xcodes prompts for Apple ID + 2FA the first time per ~30-day window;"
+  echo " subsequent runs reuse the keychain-cached session silently.)"
   xcodes download "${VERSION}" --directory "${CACHE_DIR}"
   XIP="$(ls "${CACHE_DIR}"/Xcode-"${VERSION}"*.xip | head -n1)"
   if [ ! -f "$XIP" ]; then
