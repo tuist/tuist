@@ -6,6 +6,11 @@
 #     -f infra/helm/tuist/values-managed-production.yaml \
 #     --set server.image.tag=$GIT_SHA
 
+# The production workload cluster still serves per-region Kura HTTPS and
+# gRPC traffic directly via Hetzner LoadBalancer Services. Disable the
+# Cloudflare-fronted global endpoint layer here too until the Cloudflare
+# pool quota is raised.
+kuraGlobalEndpointsEnabled: false
 kuraGlobalEndpointsRequired: false
 
 server:
@@ -99,6 +104,9 @@ server:
 
 kuraController:
   cloudflareLoadBalancing:
+    # Keep Cloudflare credentials wired so destroy flows can still clean
+    # up any previously provisioned global endpoints after reconciliation
+    # is re-enabled.
     enabled: true
     zoneName: tuist.dev
     apiTokenSecret:
@@ -204,8 +212,9 @@ macosFleet:
   tailscale:
     enabled: true
     tags: ["tag:tuist-macmini-production"]
-  # Claim pre-ordered Mac minis during the CAPI MachineDeployment
-  # cutover instead of auto-ordering fresh production hosts.
+  # Claim pre-ordered Mac minis from the shared `tuist-pool-`
+  # pool. The CAPI controller has no auto-order path; operators
+  # pre-order capacity in the Scaleway console.
   adoptPoolPrefix: "tuist-pool-"
   machine:
     # Production tracks the chart default — M2-L on Scaleway:

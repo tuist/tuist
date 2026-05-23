@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
+* preserve module names for xcframework wrappers by [@pepicrft](https://github.com/pepicrft) in [#10938](https://github.com/tuist/tuist/pull/10938)
+* stop duplicating SwiftPM output during tuist install by [@shgew](https://github.com/shgew) in [#10931](https://github.com/tuist/tuist/pull/10931)
+* respect configured SwiftPM scratch paths by [@sanghyeok-kim](https://github.com/sanghyeok-kim) in [#9253](https://github.com/tuist/tuist/pull/9253)
+* canonicalize xcodebuild analytics metadata by [@pepicrft](https://github.com/pepicrft) in [#10920](https://github.com/tuist/tuist/pull/10920)
 * ignore embeddable watch apps in redundant dependency inspection by [@shgew](https://github.com/shgew) in [#10771](https://github.com/tuist/tuist/pull/10771)
 * preserve asset symbol generation for buildable-folder xcassets by [@pepicrft](https://github.com/pepicrft) in [#10911](https://github.com/tuist/tuist/pull/10911)
 * emit cross-project PBXTargetDependency for foreign build consumers by [@fortmarek](https://github.com/fortmarek) in [#10885](https://github.com/tuist/tuist/pull/10885)

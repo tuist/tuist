@@ -8,8 +8,11 @@ ingress:
   className: nginx
   host: storybook.noora.tuist.dev
   tlsSecretName: noora-storybook-tls
-  annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-cloudflare
+
+certificate:
+  enabled: true
+  issuerRef:
+    name: letsencrypt-cloudflare
 
 networkPolicy:
   enabled: true

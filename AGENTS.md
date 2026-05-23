@@ -6,6 +6,7 @@ This file provides guidance to AI agents when working with code in this reposito
 - `cli/` - Tuist CLI (Swift) - see `cli/AGENTS.md`
 - `server/` - Tuist Server (Elixir/Phoenix) - see `server/AGENTS.md`
 - `cache/` - Tuist cache service (Elixir/Phoenix) - see `cache/AGENTS.md`
+- `slack/` - Tuist Slack invitation app (Elixir/Phoenix + SQLite) - see `slack/AGENTS.md`
 - `kura/` - Kura distributed cache mesh (Rust) - see `kura/AGENTS.md`
 - `tuist_common/` - Shared Elixir utilities used across services - see `tuist_common/AGENTS.md`
 - `app/` - Tuist iOS and macOS app - see `app/AGENTS.md`
@@ -39,6 +40,7 @@ When creating commits and pull requests, use these conventional commit scopes:
 - `android` - Changes to the Tuist Android app
 - `server` - Changes to the Tuist server (Elixir/Phoenix)
 - `cache` - Changes to the Tuist cache service (Elixir/Phoenix)
+- `slack` - Changes to the Tuist Slack invitation app (Elixir/Phoenix)
 - `kura` - Changes to the Kura distributed cache mesh service
 - `cli` - Changes to the Tuist CLI (Swift)
 - `noora` - Changes to the Noora web component library

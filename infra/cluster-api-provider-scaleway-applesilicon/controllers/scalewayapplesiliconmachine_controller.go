@@ -128,7 +128,7 @@ type ScalewayAppleSiliconMachineReconciler struct {
 	// MaxConcurrentReconciles is how many machines this controller
 	// reconciles in parallel. controller-runtime's default of 1
 	// serializes first-time fleet bring-up: each Mac mini's
-	// CreateServer + SSH bootstrap blocks the worker for ~50 min, so
+	// AdoptFromPool + SSH bootstrap blocks the worker for ~50 min, so
 	// N machines take N × that wall-clock. Reconciles for the same
 	// machine are still serialized by controller-runtime's per-key
 	// locking — bumping this only parallelizes across distinct CRs.
@@ -185,8 +185,8 @@ type ScalewayAppleSiliconMachineReconciler struct {
 // variable that Go has already evaluated for the return — the defer
 // would silently swallow the patch failure and the function would
 // report success, leaving Status.ServerID unpersisted after a
-// successful CreateServer and letting the next reconcile order a
-// second Mac mini.
+// successful AdoptFromPool and letting the next reconcile claim a
+// second Mac mini from the pool.
 func (r *ScalewayAppleSiliconMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request) (result ctrl.Result, err error) {
 	logger := log.FromContext(ctx).WithValues("machine", req.NamespacedName)
 	logger.Info("reconcile entry")
@@ -256,7 +256,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) Reconcile(ctx context.Context, r
 	// spec.ProviderID before a `kubectl delete` (e.g. to release a CR
 	// without releasing its underlying Scaleway server — the
 	// duplicate-claim recovery dance), the reconciler must NOT see the
-	// transient "fresh CR" shape and run AdoptByPrefix against the pool
+	// transient "fresh CR" shape and run AdoptFromPool against the pool
 	// in between. Set the annotation first, patch second, delete
 	// third; the annotation latches reconcileNormal off until the
 	// DeletionTimestamp lands and reconcileDelete (which runs above,
@@ -300,11 +300,12 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 	logger := log.FromContext(ctx)
 
 	// Stage 0: ensure the per-fleet SSH key is registered with Scaleway
-	// BEFORE we order the Mac mini. Scaleway only injects project SSH
-	// keys at first-boot — keys registered after CreateServer are not
-	// auto-installed on the host, leaving us locked out of SSH and
-	// unable to bootstrap kubelet. Doing this first means the Mac mini
-	// comes up with our pubkey already in ~/.ssh/authorized_keys.
+	// BEFORE we adopt the Mac mini. Scaleway only injects project SSH
+	// keys at the host's first-boot — keys registered after the order
+	// are not auto-installed, leaving us locked out of SSH and unable
+	// to bootstrap kubelet. Doing this first means a freshly pre-
+	// ordered Mac mini comes up with our pubkey already in
+	// ~/.ssh/authorized_keys, ready for adoption.
 	fleet := machine.Spec.FleetName
 	if fleet == "" {
 		fleet = machine.Namespace + "-" + machine.Name
@@ -359,7 +360,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 	}
 	if bootstrapCreds == nil {
 		// Stage 1 didn't write the Secret yet (fresh CR mid-reconcile,
-		// or operator pod that crashed between CreateServer + Secret
+		// or operator pod that crashed between AdoptFromPool + Secret
 		// write). Requeue.
 		return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 	}
@@ -676,20 +677,43 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileDelete(
 	logger := log.FromContext(ctx)
 	machine.Status.Phase = "Deleting"
 
-	// Stage 1: release the Scaleway server. Skip if already released
-	// (mid-cleanup retry).
+	// Stage 1: release the Scaleway server back into the pool —
+	// rename + reinstall — so the host stays alive for the next
+	// adopt. Skip if already released (mid-cleanup retry).
+	//
+	// Legacy CRs predating the required-AdoptPoolPrefix contract may
+	// still exist with the field unset (the older chart only
+	// rendered `adoptPoolPrefix` when the value was non-empty, so
+	// fleets that didn't set it produced bare CRs). For those we
+	// can't ReleaseToPool — the client rejects an empty prefix as a
+	// guard against orphaning hosts outside the pool namespace — so
+	// skip the Scaleway release stage entirely, leave the host
+	// running, and let the operator clean it up via the Scaleway
+	// console. Without this fallthrough, deleting a legacy CR would
+	// loop forever on a precondition error and block fleet teardown.
 	if machine.Status.ServerID != "" {
-		r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Deleting",
-			"Releasing Scaleway server %s", machine.Status.ServerID)
-		if err := r.ScalewayClient.DeleteServer(ctx, machine.Status.ServerID, machine.Spec.Zone); err != nil {
-			logger.Error(err, "Scaleway delete failed; will retry")
-			r.Recorder.Eventf(machine, corev1.EventTypeWarning, "DeleteFailed",
-				"Scaleway DeleteServer: %v (will retry)", err)
-			return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
+		switch {
+		case machine.Spec.AdoptPoolPrefix == "":
+			r.Recorder.Eventf(machine, corev1.EventTypeWarning, "ReleaseSkipped",
+				"Spec.AdoptPoolPrefix is empty (legacy CR); skipping Scaleway release of %s — clean up the host via the Scaleway console if needed",
+				machine.Status.ServerID)
+			logger.Info("legacy CR without AdoptPoolPrefix; skipping Scaleway release",
+				"serverID", machine.Status.ServerID)
+			machine.Status.ServerID = ""
+		default:
+			r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Releasing",
+				"Returning Scaleway server %s to pool %q (with reinstall)",
+				machine.Status.ServerID, machine.Spec.AdoptPoolPrefix)
+			if err := r.ScalewayClient.ReleaseToPool(ctx, machine.Status.ServerID, machine.Spec.Zone, machine.Spec.AdoptPoolPrefix); err != nil {
+				logger.Error(err, "Scaleway release-to-pool failed; will retry")
+				r.Recorder.Eventf(machine, corev1.EventTypeWarning, "ReleaseFailed",
+					"Scaleway ReleaseToPool: %v (will retry)", err)
+				return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
+			}
+			machine.Status.ServerID = ""
+			r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Released",
+				"Scaleway server returned to pool; reinstall triggered")
 		}
-		machine.Status.ServerID = ""
-		r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Deleted",
-			"Scaleway server released")
 	}
 
 	// Stage 2: drop the per-machine kubelet identity. The token is
@@ -854,71 +878,49 @@ func recordUpdateFailure(machine *infrav1.ScalewayAppleSiliconMachine, err error
 		machine.Status.TartKubeletUpdateAttempts, maxAttempts, err)
 }
 
-// acquireServer either claims a pre-ordered host from the pool
-// (when `Spec.AdoptPoolPrefix` is set) or orders a new one. The
-// adoption path returns (nil, requeue, nil) on
-// `ErrNoAvailableHost` — that's a transient "wait for operator
-// pre-order" state, not a failure; surfaces a `NoAvailableHost`
-// event so the operator sees the queue. On any other error the
-// caller requeues and the condition message carries the detail.
+// acquireServer claims a pre-ordered host from the pool. Returns
+// (nil, requeue, nil) on `ErrNoAvailableHost` — that's a transient
+// "wait for operator pre-order" state, not a failure; surfaces a
+// `NoAvailableHost` event so the operator sees the queue. On any
+// other error the caller requeues and the condition message carries
+// the detail.
 func (r *ScalewayAppleSiliconMachineReconciler) acquireServer(
 	ctx context.Context,
 	machine *infrav1.ScalewayAppleSiliconMachine,
 ) (*scaleway.Server, time.Duration, error) {
-	if machine.Spec.AdoptPoolPrefix != "" {
-		machine.Status.Phase = "Adopting"
-		r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Adopting",
-			"Searching pool %q for an unclaimed %s Mac mini in zone %s",
-			machine.Spec.AdoptPoolPrefix, machine.Spec.Type, machine.Spec.Zone)
-		srv, err := r.ScalewayClient.AdoptByPrefix(
-			ctx,
-			machine.Name,
-			machine.Spec.Zone,
-			machine.Spec.Type,
-			machine.Spec.OS,
-			machine.Spec.AdoptPoolPrefix,
-		)
-		if errors.Is(err, scaleway.ErrNoAvailableHost) {
-			conditions.MarkFalse(machine, ProvisionedCondition, "NoAvailableHost",
-				clusterv1.ConditionSeverityWarning,
-				"no server with prefix %q matching %s/%s/%s in zone %s; pre-order more capacity",
-				machine.Spec.AdoptPoolPrefix, machine.Spec.Type, machine.Spec.OS,
-				"ready", machine.Spec.Zone)
-			r.Recorder.Eventf(machine, corev1.EventTypeWarning, "NoAvailableHost",
-				"No pre-ordered Mac mini matching pool=%q type=%s os=%s zone=%s; waiting for operator to pre-order more capacity",
-				machine.Spec.AdoptPoolPrefix, machine.Spec.Type, machine.Spec.OS, machine.Spec.Zone)
-			return nil, 60 * time.Second, nil
-		}
-		if err != nil {
-			conditions.MarkFalse(machine, ProvisionedCondition, "ScalewayAdoptFailed",
-				clusterv1.ConditionSeverityError, "%v", err)
-			r.Recorder.Eventf(machine, corev1.EventTypeWarning, "ProvisioningFailed",
-				"Scaleway AdoptByPrefix: %v", err)
-			return nil, 30 * time.Second, err
-		}
-		r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Adopted",
-			"Claimed Mac mini %s from pool %q (renamed to %s)",
-			srv.ID, machine.Spec.AdoptPoolPrefix, machine.Name)
-		return srv, 0, nil
-	}
-
-	machine.Status.Phase = "Provisioning"
-	r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Provisioning",
-		"Ordering %s Mac mini in zone %s", machine.Spec.Type, machine.Spec.Zone)
-	srv, err := r.ScalewayClient.CreateServer(
+	machine.Status.Phase = "Adopting"
+	r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Adopting",
+		"Searching pool %q for an unclaimed %s Mac mini in zone %s",
+		machine.Spec.AdoptPoolPrefix, machine.Spec.Type, machine.Spec.Zone)
+	srv, err := r.ScalewayClient.AdoptFromPool(
 		ctx,
 		machine.Name,
 		machine.Spec.Zone,
 		machine.Spec.Type,
 		machine.Spec.OS,
+		machine.Spec.AdoptPoolPrefix,
 	)
+	if errors.Is(err, scaleway.ErrNoAvailableHost) {
+		conditions.MarkFalse(machine, ProvisionedCondition, "NoAvailableHost",
+			clusterv1.ConditionSeverityWarning,
+			"no server with prefix %q matching %s/%s/%s in zone %s; pre-order more capacity",
+			machine.Spec.AdoptPoolPrefix, machine.Spec.Type, machine.Spec.OS,
+			"ready", machine.Spec.Zone)
+		r.Recorder.Eventf(machine, corev1.EventTypeWarning, "NoAvailableHost",
+			"No pre-ordered Mac mini matching pool=%q type=%s os=%s zone=%s; waiting for operator to pre-order more capacity",
+			machine.Spec.AdoptPoolPrefix, machine.Spec.Type, machine.Spec.OS, machine.Spec.Zone)
+		return nil, 60 * time.Second, nil
+	}
 	if err != nil {
-		conditions.MarkFalse(machine, ProvisionedCondition, "ScalewayCreateFailed",
+		conditions.MarkFalse(machine, ProvisionedCondition, "ScalewayAdoptFailed",
 			clusterv1.ConditionSeverityError, "%v", err)
 		r.Recorder.Eventf(machine, corev1.EventTypeWarning, "ProvisioningFailed",
-			"Scaleway CreateServer: %v", err)
-		return nil, 60 * time.Second, err
+			"Scaleway AdoptFromPool: %v", err)
+		return nil, 30 * time.Second, err
 	}
+	r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Adopted",
+		"Claimed Mac mini %s from pool %q (renamed to %s)",
+		srv.ID, machine.Spec.AdoptPoolPrefix, machine.Name)
 	return srv, 0, nil
 }
 

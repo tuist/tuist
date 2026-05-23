@@ -69,6 +69,7 @@ jobs:
         run: |
           set -uo pipefail
           configs=(
+            "infra/helm/slack|values-ci.yaml"
             "infra/helm/noora-storybook|values-ci.yaml"
             "infra/helm/tuist|values-ci.yaml"
             "infra/helm/k8s-monitoring|"
@@ -132,6 +133,7 @@ jobs:
         run: |
           set -uo pipefail
           configs=(
+            "slack (production)|infra/helm/slack|slack|values-production.yaml values-ci.yaml"
             "noora-storybook (production)|infra/helm/noora-storybook|noora-storybook|values-production.yaml values-ci.yaml"
             "tuist (production)|infra/helm/tuist|tuist|values-managed-common.yaml values-managed-production.yaml values-ci.yaml"
             "k8s-monitoring (production)|infra/helm/k8s-monitoring|k8s-monitoring|values-production.yaml"

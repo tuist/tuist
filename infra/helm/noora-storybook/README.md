@@ -40,5 +40,6 @@ helm upgrade --install noora-storybook infra/helm/noora-storybook \
   --set image.tag=<sha-tag>
 ```
 
-`external-dns` reconciles the Ingress hostname into Cloudflare and `cert-manager`
-issues the TLS certificate through the cluster's `letsencrypt-cloudflare` issuer.
+`external-dns` reconciles the Ingress hostname into Cloudflare and the chart creates
+an explicit `cert-manager.io/v1` `Certificate` for the `storybook.noora.tuist.dev`
+secret through the cluster's `letsencrypt-cloudflare` issuer.

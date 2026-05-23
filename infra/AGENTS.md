@@ -14,6 +14,9 @@ When editing this chart, anything gated behind `managedSecrets` must stay gated 
 ### `helm/noora-storybook/` — standalone Noora Storybook chart
 Dedicated chart for the public `storybook.noora.tuist.dev` release. It deploys independently from the Tuist server so Noora Storybook changes do not have to share the server release boundary.
 
+### `helm/slack/` — standalone Slack invitation chart
+Dedicated chart for the public `slack.tuist.dev` release. It deploys independently from the Tuist server so Slack invitation-flow changes and operational state (SQLite PVC + ExternalSecret wiring) stay isolated from the main app release.
+
 ### `helm/k8s-monitoring/` — in-cluster Grafana Kubernetes Monitoring (managed only)
 Wraps the upstream `grafana/k8s-monitoring` chart and adds the 1Password-via-ESO token sync. Ships the full Kubernetes telemetry picture (cluster / pod / node metrics + events + pod logs + OTLP receivers for managed workload traces, including server and Kura) to Grafana Cloud, so the Grafana Cloud Kubernetes app lights up without dashboard imports. Self-hosters get embedded Grafana / Prometheus / Loki / Tempo via the main chart's `observability.enabled` block instead; they never touch this chart.
 
@@ -60,6 +63,7 @@ Each file is a `dashboard.grafana.app/v1` resource. The raw dashboard JSON lives
   - `.github/workflows/server-deployment.yml` — build + deploy to one environment (workflow_dispatch or workflow_call).
   - `.github/workflows/server-production-deployment.yml` — cascade on push-to-main: canary → acceptance tests → production, with hotfix fast-path.
 - **Noora Storybook** (managed) is deployed via `.github/workflows/noora-storybook-deployment.yml` using the standalone `infra/helm/noora-storybook` chart.
+- **Slack invitation app** (managed) is deployed via `.github/workflows/slack-deployment.yml` using the standalone `infra/helm/slack` chart.
 - **Registry Router** — `wrangler deploy` from `registry-router/`.
 - **Helm charts** under `helm/` target Kubernetes (managed + self-hosted).
 

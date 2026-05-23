@@ -40,6 +40,13 @@ ingress:
   tlsSecretName: ""
   annotations: {}
 
+certificate:
+  enabled: false
+  issuerRef:
+    group: cert-manager.io
+    kind: ClusterIssuer
+    name: ""
+
 resources: {}
 podSecurityContext:
   seccompProfile:
