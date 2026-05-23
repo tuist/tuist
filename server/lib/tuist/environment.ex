@@ -193,26 +193,6 @@ defmodule Tuist.Environment do
     end
   end
 
-  @doc """
-  Mode for the Xcode .xip mirror reconcile worker.
-
-  Legal values:
-
-    * `"off"` — skip every tick. Incident-response kill switch.
-    * `"observe"` — compute the Apple-vs-mirror diff and log /
-      Sentry-emit it, but don't download anything. Phase 2
-      default; validates Apple + GHCR connectivity before
-      trusting the worker with multi-GB transfers.
-    * `"mirror"` — full download + push loop. Phase 3 production
-      default.
-
-  Returns `nil` when unset so the worker can fall back to its
-  own phase-aware default.
-  """
-  def xcode_mirror_mode(secrets \\ secrets()) do
-    System.get_env("TUIST_XCODE_MIRROR_MODE") || get([:xcode_mirror, :mode], secrets)
-  end
-
   def prometheus_enabled? do
     prometheus_enabled = System.get_env("TUIST_PROMETHEUS_ENABLED")
 

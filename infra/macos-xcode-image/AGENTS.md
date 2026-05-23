@@ -83,43 +83,54 @@ it themselves via mise / brew so the version is theirs to pin.
 
 The build workflow does **not** talk to Apple. It pulls the .xip
 from `ghcr.io/tuist/xcode-xips:<version>` via oras — an in-house
-mirror that holds every Xcode .xip we've published. The Apple-auth
-concern is confined to one of two places, neither of them tied to
-a specific Mac mini:
+mirror that holds every Xcode .xip we've published. CAPI-managed
+builder Macs can rotate without breaking CI; the workflow has no
+session state to lose.
 
-1. **Steady state — `Tuist.XcodeMirror` in-cluster worker.** An
-   Oban worker in the Tuist server polls `xcodereleases.com` every
-   6 hours, diffs against `ghcr.io/tuist/xcode-xips`, downloads any
-   missing versions from Apple's CDN using a session cookie jar
-   stored in 1Password, and pushes them to GHCR. Operator does
-   nothing per Xcode release.
-2. **Break-glass — `mise run xcode-mirror:upload <version>`.**
-   When the worker hasn't picked up a brand-new Xcode yet (cookies
-   expired, Apple API change, version absent from
-   xcodereleases.com), the local maintainer task downloads from
-   Apple via xcodes and pushes to GHCR by hand. Same effect as a
-   worker tick, just operator-initiated. See
-   `mise/tasks/xcode-mirror/upload.sh` for prerequisites.
+The mirror is operator-populated. Apple's `developer.apple.com`
+auth requires a real Apple ID + post-2FA cookies that we can't
+keep alive non-interactively in the cluster (xcodes can't be
+driven without 2FA when its session lapses, Apple migrated the
+signin endpoint to SRP so plain `curl` is out, and there's no
+machine-credential surface that authorises Xcode downloads). So
+we run that part locally on demand and skip the in-cluster
+auto-download entirely:
 
-When the worker's session expires (~30 days in practice based on
-Apple's lifetime), Sentry fires `xcode_mirror.session_expired`.
-Refresh the cookie jar from any maintainer's Mac — no SSH into
-any host:
+1. **Notification: subscribe Slack to `xcodereleases.com`'s RSS
+   feed.** In whichever Slack channel handles infra ops:
 
-```
-mise run xcode-mirror:mint-session
-```
+   ```
+   /feed subscribe https://xcodereleases.com/api/all.rss
+   ```
 
-The task spawns `xcodes signin`, captures the post-2FA session
-cookies from xcodes' keychain entry, and writes them straight into
-the 1Password item via `op item edit`. External Secrets propagates
-the new value to the cluster within ~5 min; the next worker tick
-uses the fresh cookies. See `server/lib/tuist/xcode_mirror/` for
-the worker code and `infra/helm/tuist/templates/xcode-mirror-external-secrets.yaml`
-for the secret wiring.
+   You'll get a message in the channel within minutes of any new
+   Xcode (or RC, beta, etc.) Apple ships. xcodereleases.com is
+   the same data source xcodes uses internally and has been
+   community-maintained since 2019.
 
-The Apple ID used here is the one designated in our 1Password
-vault under `Tuist macOS image-builder Apple ID`.
+2. **Upload the .xip to the mirror — `mise run xcode-mirror:upload
+   <version>`.** On any maintainer's Mac:
+
+   ```
+   mise run xcode-mirror:upload 26.5.0
+   ```
+
+   The task uses `xcodes` to authenticate against Apple (the
+   maintainer's keychain caches the post-2FA session, so this is
+   prompt-free after the first run per ~30-day window), downloads
+   the .xip, and `oras push`es it to
+   `ghcr.io/tuist/xcode-xips:<version>`. ~10 min wall-clock for
+   the download; ~2 min for the push.
+
+3. **Promote**. Bump the relevant `infra/runner-image/XCODE_VERSION`
+   or `infra/xcresult-processor-image/XCODE_VERSION` pin file and
+   merge — the release flow rebuilds Layer 2 against the new
+   Layer 1 and updates the chart digest pin.
+
+The Apple ID used for the local mint is the one stored in 1Password
+under `Tuist Apple ID` (Employee vault). `mise.toml` pins the
+operator's `xcodes` + `oras` versions so anyone running the task
+gets the same toolchain.
 
 ## Triggering a build
 

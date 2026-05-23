@@ -180,41 +180,6 @@ server:
       tokenUpdatePackages:
         item: GITHUB_TOKEN_UPDATE_PACKAGES
         field: password
-  xcodeMirror:
-    # Off by default. Tuist-hosted production / canary / staging flip
-    # this on via the per-env values overlay; self-hosted deployments
-    # never see the worker. The cron registration is also gated by
-    # `tuist_hosted?` in Tuist.Oban.RuntimeConfig.
-    managedSecrets: false
-    # "observe" by default — the worker computes the Apple-vs-mirror
-    # diff and emits structured logs / Sentry messages but doesn't
-    # download .xips. Flip to "mirror" once the Apple-API stability
-    # and session-cookie alerting have been validated in observe mode.
-    # "off" is the incident kill-switch.
-    mode: "observe"
-    externalSecrets:
-      refreshInterval: "1h"
-      storeRef:
-        kind: ClusterSecretStore
-        name: onepassword
-      session:
-        # Single 1Password item containing both:
-        #   * `session_cookies` — JSON cookie jar refreshed by
-        #     `mise run xcode-mirror:mint-session`.
-        #   * `apple_id` — the Apple ID the cookies belong to,
-        #     so the mint-session task can bootstrap without an
-        #     argument.
-        item: "Tuist Xcode Mirror Session"
-        fields:
-          sessionCookies: session_cookies
-      # tuist-bot PAT scoped to write:packages on the tuist org —
-      # used by the worker's `oras push`. Same item can be shared
-      # with other workflows that need to push to ghcr.io/tuist/*.
-      ghcr:
-        item: GHCR_TUIST_BOT
-        fields:
-          username: username
-          token: token
   license:
     key: ""
     certificateBase64: ""

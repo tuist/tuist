@@ -28,14 +28,7 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"* * * * *", Tuist.Kura.Reconciler},
     {"* * * * *", Tuist.Runners.Workers.StaleClaimsWorker},
     {"* * * * *", Tuist.Runners.Workers.OrphanedRunnersWorker},
-    {"*/5 * * * *", Tuist.Runners.Workers.WebhookRedeliveryWorker},
-    # Mirror reconcile every 6h. New Xcode releases are rare
-    # (a few per year) and Apple's CDN doesn't rate-limit listing,
-    # so the cadence is dominated by "how fresh do we want to
-    # claim the mirror is" rather than throughput pressure. 6h
-    # lands us within half a working day of an Apple release on
-    # average.
-    {"0 */6 * * *", Tuist.XcodeMirror.Workers.ReconcileWorker}
+    {"*/5 * * * *", Tuist.Runners.Workers.WebhookRedeliveryWorker}
   ]
 
   @prod_like_envs [:prod, :stag, :can]

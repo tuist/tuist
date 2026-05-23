@@ -130,7 +130,6 @@ spec:
             {{- end }}
             {{- include "tuist.licenseEnv" . | nindent 12 }}
             {{- include "tuist.githubEnv" . | nindent 12 }}
-            {{- include "tuist.xcodeMirrorEnv" . | nindent 12 }}
             {{- if or .Values.server.masterKey .Values.server.managedSecrets }}
             - name: MASTER_KEY
               valueFrom:
