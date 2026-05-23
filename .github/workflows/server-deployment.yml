@@ -172,7 +172,7 @@ jobs:
       name: server-k8s-${{ inputs.environment }}
     concurrency:
       group: server-deploy-${{ inputs.environment }}
-      cancel-in-progress: false
+      cancel-in-progress: true
     timeout-minutes: 15
     env:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
@@ -238,7 +238,7 @@ jobs:
       name: server-k8s-${{ inputs.environment }}
     concurrency:
       group: server-deploy-${{ inputs.environment }}
-      cancel-in-progress: false
+      cancel-in-progress: true
     timeout-minutes: 15
     env:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
@@ -315,7 +315,7 @@ jobs:
       name: server-k8s-${{ inputs.environment }}
     concurrency:
       group: server-deploy-${{ inputs.environment }}
-      cancel-in-progress: false
+      cancel-in-progress: true
     timeout-minutes: 20
     env:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
@@ -379,7 +379,7 @@ jobs:
     # runs don't race on the Helm release.
     concurrency:
       group: server-deploy-${{ inputs.environment }}
-      cancel-in-progress: false
+      cancel-in-progress: true
     # helm-upgrade waits up to 30m and setup/teardown adds ~5m. 50m
     # leaves a healthy buffer around that stack and keeps a
     # SIGTERM-stuck helm from holding the slot indefinitely.
