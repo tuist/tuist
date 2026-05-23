@@ -326,14 +326,16 @@ runnersFleetLinux:
       # kata-qemu microVM is the safety boundary.
       runtimeClass: kata-qemu
       pod:
-        # 16 GB pod budget: 6 GB tmpfs /var/lib/docker + ~10 GB
-        # for the runner process + dockerd + mix compile working
-        # set (the Tuist server's Elixir compile alone peaks
-        # around 2-3 GiB). 8 GB OOMed during mix compile because
-        # tmpfs (4 GB cap) plus layer-pull memory pressure ate
-        # too much of the budget.
+        # 32 GB pod budget: the dind sidecar's `medium: Memory`
+        # emptyDir for /var/lib/docker is capped by the kernel at
+        # 50 % of VM memory regardless of the k8s sizeLimit we set
+        # (that's a kubelet-eviction threshold, not a tmpfs mount
+        # option). At 16 GB pod we still OOM'd mix compile because
+        # the tmpfs grew to ~8 GB while image layers + compile
+        # working set fought for the remainder. 32 GB gives the
+        # tmpfs ~16 GB headroom AND leaves ~10 GB for compile.
         cpuMilli: 2000
-        memoryMB: 16384
+        memoryMB: 32768
       # Queue-depth driven autoscaling. Pod-level only — the operator
       # manages bare-metal Host count manually via the cluster topology
       # in `infra/k8s/clusters/cluster-staging.yaml`. Bare-metal hosts
@@ -345,10 +347,10 @@ runnersFleetLinux:
       # another `tuist-bm-*` host.
       autoscaling:
         enabled: true
-        minWarmPoolFloor: 2
-        # AX42-U has 64 GB; at 16 GB pod budget that's ~3 slots
-        # leaving headroom for system DaemonSets + kernel cache.
-        maxReplicas: 3
+        # 32 GB pods fit ~1.5 per AX42-U after system reserves;
+        # cap at 2 so a busy moment doesn't push the host to swap.
+        minWarmPoolFloor: 1
+        maxReplicas: 2
         scaleDownCooldownSeconds: 300
 
 # Staging-only override for the runners-controller image, ahead of
