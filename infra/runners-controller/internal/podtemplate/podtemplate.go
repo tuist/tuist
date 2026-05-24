@@ -113,23 +113,15 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 		extraVolumes = append(extraVolumes,
 			corev1.Volume{Name: "dind-sock", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
 			corev1.Volume{Name: "work", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
-			// /var/lib/docker on tmpfs (in-VM RAM). Default emptyDir
-			// backs onto node disk which kata serves via virtio-fs;
-			// virtio-fs lacks the xattr surface BuildKit needs for
-			// checksum computation, so COPY operations fail with
-			// "operation not supported". tmpfs inside the microVM
-			// is a real Linux FS with full xattr support.
-			//
-			// sizeLimit caps the tmpfs so a runaway layer pull
-			// can't crowd out compile RAM. The pod's memory limit
-			// has to cover this AND the largest process working
-			// set (mix compile for the server build sits around
-			// 2-3 GiB), so keep the cap a meaningful fraction
-			// under PodMemoryMB.
-			corev1.Volume{Name: "dind-storage", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{
-				Medium:    corev1.StorageMediumMemory,
-				SizeLimit: ptr(resource.MustParse("6Gi")),
-			}}},
+			// /var/lib/docker on a disk-backed emptyDir. tmpfs
+			// medium ran out of space pulling large node_modules
+			// trees; node-disk emptyDir trades virtio-fs through
+			// kata for tens of GB of headroom. The xattr-on-
+			// virtio-fs trap that broke buildx earlier is specific
+			// to the docker-container buildx driver's snapshotter;
+			// the docker driver (dockerd's built-in BuildKit) goes
+			// through a different code path that copes with it.
+			corev1.Volume{Name: "dind-storage", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
 		)
 		extraVolumeMounts = append(extraVolumeMounts,
 			corev1.VolumeMount{Name: "dind-sock", MountPath: "/var/run"},
