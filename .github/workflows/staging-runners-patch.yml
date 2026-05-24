@@ -1,0 +1,121 @@
+name: Staging Runners Direct Patch
+
+# One-off workflow that bumps the staging runners-controller image
+# and the Linux RunnerPool's pod resources directly via kubectl —
+# bypassing the full Server Deployment helm path. Used to validate
+# runner-pod changes when the staging helm release is stuck in
+# pending-rollback for unrelated reasons (Mac mini outage, etc.).
+#
+# This is NOT a substitute for the regular deploy; values applied
+# here will be overwritten by the next successful Server Deployment
+# run.
+
+on:
+  workflow_dispatch:
+    inputs:
+      controller_image:
+        description: Controller image tag (e.g. sha-009aa3f528ee)
+        required: true
+      runner_image:
+        description: Runner image tag (e.g. sha-009aa3f528ee)
+        required: true
+      pod_memory_mb:
+        description: Per-pod memory budget in MiB
+        required: true
+        default: "32768"
+      pod_cpu_milli:
+        description: Per-pod CPU budget in milli-cores
+        required: true
+        default: "2000"
+
+permissions:
+  contents: read
+
+env:
+  KUBECONFIG: ${{ github.workspace }}/.kube/config
+  NAMESPACE_SERVER: tuist-staging
+  NAMESPACE_RUNNERS: tuist-runners
+  CONTROLLER_DEPLOY: tuist-tuist-runners-controller
+  RUNNER_POOL: tuist-tuist-runner-pool-linux-ubuntu-22-04
+
+jobs:
+  patch:
+    runs-on: tuist-production-linux
+    environment:
+      name: server-k8s-staging
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "kubectl@1.31.3"
+          cache: "false"
+      - run: mise use --global kubectl@1.31.3
+      - uses: 1password/install-cli-action@v2
+      - name: Load kubeconfig from 1Password
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          op document get "kubeconfig: tuist-staging" \
+            --vault "tuist-k8s-staging" --output "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
+      - name: Verify reachability
+        run: kubectl --request-timeout=10s get --raw /version >/dev/null
+      - name: Patch controller image
+        run: |
+          set -euo pipefail
+          kubectl -n "$NAMESPACE_SERVER" set image \
+            deployment/"$CONTROLLER_DEPLOY" \
+            manager=ghcr.io/tuist/tuist-runners-controller:${{ inputs.controller_image }}
+          kubectl -n "$NAMESPACE_SERVER" rollout status \
+            deployment/"$CONTROLLER_DEPLOY" --timeout=5m
+      - name: Patch RunnerPool spec
+        run: |
+          set -euo pipefail
+          kubectl -n "$NAMESPACE_RUNNERS" patch runnerpool "$RUNNER_POOL" \
+            --type=merge \
+            -p "$(cat <<EOF
+          {
+            "spec": {
+              "image": "ghcr.io/tuist/tuist-linux-runner:${{ inputs.runner_image }}",
+              "podCPUMilli": ${{ inputs.pod_cpu_milli }},
+              "podMemoryMB": ${{ inputs.pod_memory_mb }}
+            }
+          }
+          EOF
+          )"
+      - name: Reap existing warm pool so new template takes effect
+        # The controller only auto-reaps stale-image Pending pods.
+        # Manually delete idle Running pods so the new spec.image +
+        # pod resources take effect immediately rather than after
+        # natural exit.
+        run: |
+          set -euo pipefail
+          kubectl -n "$NAMESPACE_RUNNERS" get pods \
+            -l tuist.dev/runner-pool="$RUNNER_POOL" \
+            -o jsonpath='{range .items[?(!@.metadata.labels.tuist\.dev/runner-pool-owner)]}{.metadata.name}{"\n"}{end}' \
+            | xargs -r -n1 kubectl -n "$NAMESPACE_RUNNERS" delete pod --grace-period=10
+      - name: Wait for new warm pool to refill
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 30); do
+            ready=$(kubectl -n "$NAMESPACE_RUNNERS" get pods \
+              -l tuist.dev/runner-pool="$RUNNER_POOL" \
+              --field-selector=status.phase=Running \
+              -o jsonpath='{.items[*].metadata.name}' | wc -w)
+            echo "ready: $ready"
+            [ "$ready" -ge 1 ] && break
+            sleep 10
+          done
+      - name: Inspect one new pod
+        run: |
+          set -euo pipefail
+          POD=$(kubectl -n "$NAMESPACE_RUNNERS" get pods \
+            -l tuist.dev/runner-pool="$RUNNER_POOL" \
+            --field-selector=status.phase=Running \
+            -o jsonpath='{.items[0].metadata.name}')
+          echo "::group::pod $POD"
+          kubectl -n "$NAMESPACE_RUNNERS" get pod "$POD" -o yaml | \
+            grep -E 'image:|memory:|cpu:|resources:|securityContext:|/var/run|/var/lib/docker|sizeLimit' | head -40
+          echo "::endgroup::"
