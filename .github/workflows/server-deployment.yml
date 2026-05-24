@@ -769,11 +769,15 @@ jobs:
           JSON
           )"
       - name: Reap idle pods so the new template takes effect
+        # kubectl JSONPath doesn't support a `!` operator; emit each
+        # pod's owner label alongside the name and filter empties in
+        # awk (= no current customer job).
         run: |
           set -euo pipefail
           kubectl -n "$NAMESPACE_RUNNERS" get pods \
             -l tuist.dev/runner-pool="$RUNNER_POOL" \
-            -o jsonpath='{range .items[?(!@.metadata.labels.tuist\.dev/runner-pool-owner)]}{.metadata.name}{"\n"}{end}' \
+            -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.metadata.labels.tuist\.dev/runner-pool-owner}{"\n"}{end}' \
+            | awk -F'\t' '$2 == "" { print $1 }' \
             | xargs -r -n1 kubectl -n "$NAMESPACE_RUNNERS" delete pod --grace-period=10
       - name: Wait for the warm pool to refill
         run: |
