@@ -1,4 +1,4 @@
-#runner-jobs {
+#runner-workflows {
   display: flex;
   flex-direction: column;
   gap: var(--noora-spacing-6);
@@ -36,7 +36,8 @@
     padding-top: var(--noora-spacing-7);
   }
 
-  & [data-part="runner-jobs-card-section"] {
+  & [data-part="workflows-card-section"],
+  & [data-part="runner-workflows-card-section"] {
     gap: var(--noora-spacing-8);
   }
 

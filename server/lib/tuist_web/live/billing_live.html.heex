@@ -1,12 +1,7 @@
 <div id="billing">
   <div data-part="header">
-    <h1 data-part="title">{dgettext("dashboard_account", "Settings")}</h1>
+    <h1 data-part="title">{dgettext("dashboard_account", "Billing")}</h1>
   </div>
-  <TuistWeb.AppLayoutComponents.settings_tab_menu
-    selected_account={@selected_account}
-    current_path={@current_path}
-    current_user={@current_user}
-  />
   <.card
     data-part="current-plan-card"
     icon="package"

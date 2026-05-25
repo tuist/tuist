@@ -1,0 +1,112 @@
+#runner-workflow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-6);
+  padding: var(--noora-spacing-7) var(--noora-spacing-5);
+
+  & [data-part="filters"] {
+    display: flex;
+    align-items: center;
+    gap: var(--noora-spacing-6);
+
+    & [data-part="search"] {
+      width: 280px;
+    }
+  }
+
+  & [data-part="active-filters"] {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--noora-spacing-4);
+  }
+
+  & [data-part="runner-workflow-jobs-card-section"] {
+    gap: var(--noora-spacing-8);
+  }
+
+  & [data-part="widgets"] {
+    display: flex;
+    flex-direction: row;
+    gap: var(--noora-spacing-4);
+
+    & > * {
+      flex: 1;
+    }
+
+    @media (max-width: 768px) {
+      & {
+        flex-direction: column;
+      }
+    }
+  }
+
+  & [data-part="analytics-card-chart-section"] {
+    & .noora-chart {
+      height: 280px;
+    }
+  }
+
+  & > [data-part="back-button"] {
+    align-self: flex-start;
+  }
+
+  & > [data-part="header"] {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--noora-spacing-4);
+
+    & > [data-part="title-group"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-4);
+      min-width: 0;
+
+      & > [data-part="title"] {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: var(--noora-spacing-4);
+
+        & > [data-part="label"] {
+          margin: var(--noora-spacing-0);
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+          word-break: break-word;
+        }
+      }
+
+      & > [data-part="badges"] {
+        display: flex;
+        flex-direction: row;
+        gap: var(--noora-spacing-3);
+
+        & > [data-part="repo-link"] {
+          text-decoration: none;
+          color: inherit;
+        }
+      }
+    }
+
+    & > [data-part="actions"] {
+      display: flex;
+      flex-shrink: 0;
+      flex-direction: row;
+      gap: var(--noora-spacing-4);
+    }
+  }
+
+  & [data-part="runner-workflow-jobs-card-section"] {
+    gap: var(--noora-spacing-8);
+  }
+
+  & [data-part="pagination"] {
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+    gap: var(--noora-spacing-4);
+    padding-top: var(--noora-spacing-7);
+  }
+}

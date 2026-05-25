@@ -85,7 +85,7 @@ defmodule TuistWeb.WebhookLive do
 
   def handle_event("delete_endpoint", _params, %{assigns: %{endpoint: endpoint, selected_account: account}} = socket) do
     {:ok, _} = Webhooks.delete_endpoint(endpoint)
-    {:noreply, push_navigate(socket, to: ~p"/#{account.name}/settings/webhooks")}
+    {:noreply, push_navigate(socket, to: ~p"/#{account.name}/webhooks")}
   end
 
   # Prime the form with the endpoint's current values before showing the
@@ -362,7 +362,7 @@ defmodule TuistWeb.WebhookLive do
   end
 
   defp detail_path(socket, query) when is_binary(query) do
-    "/#{socket.assigns.selected_account.name}/settings/webhooks/#{socket.assigns.endpoint.id}?#{query}"
+    "/#{socket.assigns.selected_account.name}/webhooks/#{socket.assigns.endpoint.id}?#{query}"
   end
 
   defp reset_disclosure(socket), do: assign(socket, :disclosure, nil)

@@ -9,6 +9,7 @@ defmodule TuistWeb.AppLayoutComponents do
 
   alias Tuist.Accounts
   alias Tuist.Authorization
+  alias Tuist.FeatureFlags
   alias Tuist.Projects.Project
 
   attr(:selected_project, :map, required: true)
@@ -387,6 +388,7 @@ defmodule TuistWeb.AppLayoutComponents do
         }
       />
       <.sidebar_group
+        :if={FeatureFlags.runners_enabled?(@selected_account)}
         id="sidebar-runners"
         label={dgettext("dashboard", "Runners")}
         icon="server"
@@ -418,6 +420,20 @@ defmodule TuistWeb.AppLayoutComponents do
       />
       <.sidebar_item
         :if={Authorization.authorize(:account_update, @current_user, @selected_account) == :ok}
+        label={dgettext("dashboard", "Webhooks")}
+        icon="webhook"
+        navigate={~p"/#{@selected_account.name}/webhooks"}
+        selected={String.starts_with?(@current_path, ~p"/#{@selected_account.name}/webhooks")}
+      />
+      <.sidebar_item
+        :if={Authorization.authorize(:account_update, @current_user, @selected_account) == :ok}
+        label={dgettext("dashboard", "Billing")}
+        icon="credit_card"
+        navigate={~p"/#{@selected_account.name}/billing"}
+        selected={String.starts_with?(@current_path, ~p"/#{@selected_account.name}/billing")}
+      />
+      <.sidebar_item
+        :if={Authorization.authorize(:account_update, @current_user, @selected_account) == :ok}
         label={dgettext("dashboard", "Settings")}
         icon="settings"
         navigate={~p"/#{@selected_account.name}/settings"}
@@ -436,9 +452,7 @@ defmodule TuistWeb.AppLayoutComponents do
     <.tab_menu_horizontal>
       <% general_path = ~p"/#{@selected_account.name}/settings" %>
       <% integrations_path = ~p"/#{@selected_account.name}/settings/integrations" %>
-      <% billing_path = ~p"/#{@selected_account.name}/settings/billing" %>
       <% authentication_path = ~p"/#{@selected_account.name}/settings/authentication" %>
-      <% webhooks_path = ~p"/#{@selected_account.name}/settings/webhooks" %>
       <.tab_menu_horizontal_item
         label={dgettext("dashboard", "General")}
         selected={@current_path == general_path}
@@ -451,12 +465,6 @@ defmodule TuistWeb.AppLayoutComponents do
         navigate={integrations_path}
       />
       <.tab_menu_horizontal_item
-        :if={Authorization.authorize(:account_update, @current_user, @selected_account) == :ok}
-        label={dgettext("dashboard", "Billing")}
-        selected={String.starts_with?(@current_path, billing_path)}
-        navigate={billing_path}
-      />
-      <.tab_menu_horizontal_item
         :if={
           Accounts.organization?(@selected_account) and
             Authorization.authorize(:account_update, @current_user, @selected_account) == :ok
@@ -464,12 +472,6 @@ defmodule TuistWeb.AppLayoutComponents do
         label={dgettext("dashboard", "Authentication")}
         selected={String.starts_with?(@current_path, authentication_path)}
         navigate={authentication_path}
-      />
-      <.tab_menu_horizontal_item
-        :if={Authorization.authorize(:account_update, @current_user, @selected_account) == :ok}
-        label={dgettext("dashboard", "Webhooks")}
-        selected={String.starts_with?(@current_path, webhooks_path)}
-        navigate={webhooks_path}
       />
     </.tab_menu_horizontal>
     """

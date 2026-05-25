@@ -56,7 +56,7 @@ defmodule TuistWeb.BillingLiveTest do
 
   test "sets the right title", %{conn: conn, account: account} do
     # When
-    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/settings/billing")
+    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/billing")
 
     assert html =~ "Billing · #{account.name} · Tuist"
   end
@@ -64,7 +64,7 @@ defmodule TuistWeb.BillingLiveTest do
   describe "no active plan" do
     test "renders the correct information", %{conn: conn, account: account} do
       # When
-      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/billing")
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
 
       # Then
       assert has_element?(lv, "[data-part='current-plan-card-section']", "Air")
@@ -90,7 +90,7 @@ defmodule TuistWeb.BillingLiveTest do
       end)
 
       # When
-      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/billing")
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
 
       # Then
       assert has_element?(lv, "[data-part='current-plan-card-section']", "Air")
@@ -116,7 +116,7 @@ defmodule TuistWeb.BillingLiveTest do
       end)
 
       # When
-      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/billing")
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
 
       # Then
       assert has_element?(lv, "[data-part='current-plan-card-section']", "Air")
@@ -139,7 +139,7 @@ defmodule TuistWeb.BillingLiveTest do
       end)
 
       # When
-      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/billing")
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
 
       # Then
       assert has_element?(lv, "[data-part='current-plan-card-section']", "Air")
@@ -160,7 +160,7 @@ defmodule TuistWeb.BillingLiveTest do
       end)
 
       # When
-      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/billing")
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
 
       # Then
       assert has_element?(lv, "[data-part='current-plan-card-section']", "Enterprise")
@@ -193,7 +193,7 @@ defmodule TuistWeb.BillingLiveTest do
       end)
 
       # When/Then
-      assert {:ok, _lv, _html} = live(conn, ~p"/#{account.name}/settings/billing")
+      assert {:ok, _lv, _html} = live(conn, ~p"/#{account.name}/billing")
     end
   end
 end

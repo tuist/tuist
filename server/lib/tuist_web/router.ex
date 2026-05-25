@@ -958,22 +958,13 @@ defmodule TuistWeb.Router do
       live "/runners/jobs", RunnerJobsLive
       live "/runners/jobs/:workflow_job_id", RunnerJobLive
       live "/members", MembersLive
+      live "/webhooks", WebhooksLive
+      live "/webhooks/:id", WebhookLive
+      live "/webhooks/:id/events/:attempt_id", WebhookEventLive
+      live "/billing", BillingLive
       live "/settings", AccountSettingsLive
       live "/settings/integrations", IntegrationsLive
-      live "/settings/billing", BillingLive
       live "/settings/authentication", AuthenticationSettingsLive
-      live "/settings/webhooks", WebhooksLive
-    end
-
-    live_session :webhook_detail,
-      layout: {TuistWeb.Layouts, :headerbar},
-      on_mount: [
-        {TuistWeb.Authentication, :ensure_authenticated},
-        {TuistWeb.Locale, :assign_locale},
-        {TuistWeb.LayoutLive, :account}
-      ] do
-      live "/settings/webhooks/:id", WebhookLive
-      live "/settings/webhooks/:id/events/:attempt_id", WebhookEventLive
     end
   end
 

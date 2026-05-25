@@ -29,7 +29,11 @@
 @import "./pages/project_notifications.css";
 @import "./pages/project_settings.css";
 @import "./pages/run_detail.css";
+@import "./pages/runner_job.css";
 @import "./pages/runner_jobs.css";
+@import "./pages/runner_workflow.css";
+@import "./pages/runner_workflows.css";
+@import "./pages/runners.css";
 @import "./pages/connect.css";
 @import "./pages/tests.css";
 @import "./pages/test_runs.css";

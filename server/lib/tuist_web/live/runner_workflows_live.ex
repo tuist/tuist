@@ -9,17 +9,19 @@ defmodule TuistWeb.RunnerWorkflowsLive do
   import TuistWeb.Widget
 
   alias Tuist.Authorization
+  alias Tuist.FeatureFlags
   alias Tuist.Runners.Analytics
   alias Tuist.Runners.Jobs
   alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Utilities.Query
 
-  @page_size 25
+  @page_size 20
 
   @impl true
   def mount(_params, _session, %{assigns: %{selected_account: selected_account, current_user: current_user}} = socket) do
-    if Authorization.authorize(:projects_read, current_user, selected_account) != :ok do
+    if Authorization.authorize(:projects_read, current_user, selected_account) != :ok or
+         not FeatureFlags.runners_enabled?(selected_account) do
       raise TuistWeb.Errors.NotFoundError,
             dgettext("dashboard_runners", "The page you are looking for doesn't exist or has been moved.")
     end
@@ -69,7 +71,7 @@ defmodule TuistWeb.RunnerWorkflowsLive do
   # Bound the sort_by URL param to the values the backend knows how
   # to ORDER BY — anything else falls back to the default so a
   # malformed URL doesn't surface a 500.
-  defp sort_by_param(value) when value in ["workflow", "success_rate", "jobs"], do: value
+  defp sort_by_param(value) when value in ["workflow", "success_rate", "jobs", "avg_duration"], do: value
   defp sort_by_param(_), do: "workflow"
 
   # Sort order is bounded to asc|desc. The default differs by column
@@ -113,12 +115,13 @@ defmodule TuistWeb.RunnerWorkflowsLive do
     # Reset to page 1 on every keystroke — leaving page=3 attached
     # while the result set shrinks past page 1 would land the viewer
     # on an empty page until assign_workflows clamps it back.
-    query =
+    params =
       uri.query
       |> Query.put("search", search)
       |> Query.put("page", "1")
+      |> URI.decode_query()
 
-    {:noreply, push_patch(socket, to: ~p"/#{account.name}/runners/workflows?#{query}")}
+    {:noreply, push_patch(socket, to: ~p"/#{account.name}/runners/workflows?#{params}")}
   end
 
   # Re-runs all three account-level analytics queries whenever the
@@ -265,6 +268,7 @@ defmodule TuistWeb.RunnerWorkflowsLive do
 
   def sort_by_label("jobs"), do: dgettext("dashboard_runners", "Jobs")
   def sort_by_label("success_rate"), do: dgettext("dashboard_runners", "Success rate")
+  def sort_by_label("avg_duration"), do: dgettext("dashboard_runners", "Avg duration")
   def sort_by_label(_workflow_default), do: dgettext("dashboard_runners", "Workflow")
 
   # The trend chip on each widget reads "since last <unit>" — pair

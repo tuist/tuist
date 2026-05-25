@@ -323,6 +323,14 @@
           >
             <:right_icon :if={@sort_by == "success_rate"}><.check /></:right_icon>
           </.dropdown_item>
+          <.dropdown_item
+            value="avg_duration"
+            label={dgettext("dashboard_runners", "Avg duration")}
+            patch={TuistWeb.RunnerWorkflowsLive.column_sort_patch(assigns, "avg_duration")}
+            data-selected={@sort_by == "avg_duration"}
+          >
+            <:right_icon :if={@sort_by == "avg_duration"}><.check /></:right_icon>
+          </.dropdown_item>
         </.dropdown>
       </div>
       <div :if={not Enum.empty?(@workflows)} data-part="runner-workflows-table">
@@ -370,7 +378,14 @@
           >
             <.text_cell label={TuistWeb.RunnerWorkflowsLive.success_rate(w)} />
           </:col>
-          <:col :let={w} label={dgettext("dashboard_runners", "Avg duration")}>
+          <:col
+            :let={w}
+            label={dgettext("dashboard_runners", "Avg duration")}
+            patch={TuistWeb.RunnerWorkflowsLive.column_sort_patch(assigns, "avg_duration")}
+            icon={
+              @sort_by == "avg_duration" && TuistWeb.RunnerWorkflowsLive.sort_icon(@sort_order)
+            }
+          >
             <.text_cell
               icon="history"
               label={TuistWeb.RunnerWorkflowsLive.format_duration_ms(w.avg_duration_ms)}
@@ -389,12 +404,6 @@
           >
             <:icon_left><.chevron_left /></:icon_left>
           </.button>
-          <span data-part="page-label">
-            {dgettext("dashboard_runners", "Page %{page} of %{total}",
-              page: @page,
-              total: @total_pages
-            )}
-          </span>
           <.button
             variant="secondary"
             label={dgettext("dashboard_runners", "Next")}

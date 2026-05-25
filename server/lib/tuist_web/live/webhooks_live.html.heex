@@ -1,11 +1,6 @@
 <div id="account-webhooks">
-  <h1 data-part="title">{dgettext("dashboard_account", "Settings")}</h1>
-  <TuistWeb.AppLayoutComponents.settings_tab_menu
-    selected_account={@selected_account}
-    current_path={@current_path}
-    current_user={@current_user}
-  />
   <div data-part="page-header">
+    <h1 data-part="title">{dgettext("dashboard_account", "Webhooks")}</h1>
     <span data-part="subtitle">
       {dgettext(
         "dashboard_account",
@@ -134,7 +129,7 @@
     <.table
       id="webhook-endpoints-table"
       rows={@endpoints}
-      row_navigate={fn endpoint -> ~p"/#{@selected_account.name}/settings/webhooks/#{endpoint.id}" end}
+      row_navigate={fn endpoint -> ~p"/#{@selected_account.name}/webhooks/#{endpoint.id}" end}
     >
       <:col :let={endpoint} label={dgettext("dashboard_account", "Name")}>
         <.text_cell label={endpoint.name} />

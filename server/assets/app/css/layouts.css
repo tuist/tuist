@@ -17,10 +17,10 @@
     position: sticky;
     top: 0;
     flex-shrink: 0;
-    align-self: flex-start;
-    margin-top: var(--noora-spacing-5);
+    align-self: stretch;
     max-height: 100vh;
     overflow-y: auto;
+    border-right: 1px solid var(--noora-surface-border-primary);
   }
 }
 
@@ -38,4 +38,9 @@
   padding: var(--noora-spacing-5);
   min-width: 0;
   overflow: hidden;
+}
+
+.layout__content--account {
+  padding-inline: var(--noora-spacing-7);
+  padding-top: var(--noora-spacing-9);
 }

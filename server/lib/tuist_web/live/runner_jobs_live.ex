@@ -14,17 +14,19 @@ defmodule TuistWeb.RunnerJobsLive do
   alias Noora.Filter
   alias Phoenix.LiveView.AsyncResult
   alias Tuist.Authorization
+  alias Tuist.FeatureFlags
   alias Tuist.Runners.Analytics
   alias Tuist.Runners.Jobs
   alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Utilities.Query
 
-  @page_size 50
+  @page_size 20
 
   @impl true
   def mount(_params, _session, %{assigns: %{selected_account: selected_account, current_user: current_user}} = socket) do
-    if Authorization.authorize(:projects_read, current_user, selected_account) != :ok do
+    if Authorization.authorize(:projects_read, current_user, selected_account) != :ok or
+         not FeatureFlags.runners_enabled?(selected_account) do
       raise TuistWeb.Errors.NotFoundError,
             dgettext("dashboard_runners", "The page you are looking for doesn't exist or has been moved.")
     end
@@ -53,6 +55,9 @@ defmodule TuistWeb.RunnerJobsLive do
     repository = params["repository"] || "any"
     platform = platform_param(params["platform"])
     page = parse_page(params["page"])
+    search = params["search"] || ""
+    sort_by = sort_by_param(params["sort_by"])
+    sort_order = sort_order_param(params["sort_order"], sort_by)
 
     %{preset: preset, period: {start_datetime, end_datetime} = period} =
       DatePicker.date_picker_params(params, "analytics")
@@ -68,7 +73,10 @@ defmodule TuistWeb.RunnerJobsLive do
      |> assign(:active_filters, filters)
      |> assign(:repository, repository)
      |> assign(:platform, platform)
+     |> assign(:search, search)
      |> assign(:page, page)
+     |> assign(:sort_by, sort_by)
+     |> assign(:sort_order, sort_order)
      |> assign(:analytics_preset, preset)
      |> assign(:analytics_period, period)
      |> assign(:analytics_trend_label, trend_label(preset))
@@ -98,6 +106,17 @@ defmodule TuistWeb.RunnerJobsLive do
 
   defp platform_param(value) when value in ["macos", "linux"], do: value
   defp platform_param(_), do: "any"
+
+  # Bound the sort_by URL param so a typo doesn't reach the backend
+  # and produce an unstable order. Mirrors the Workflows page
+  # pattern.
+  defp sort_by_param(value) when value in ["enqueued", "job", "workflow", "duration"], do: value
+  defp sort_by_param(_), do: "enqueued"
+
+  defp sort_order_param(value, _sort_by) when value in ["asc", "desc"], do: value
+  defp sort_order_param(_, "job"), do: "asc"
+  defp sort_order_param(_, "workflow"), do: "asc"
+  defp sort_order_param(_, _numerical), do: "desc"
 
   defp chart_type_param("scatter"), do: "scatter"
   defp chart_type_param(_), do: "line"
@@ -265,7 +284,7 @@ defmodule TuistWeb.RunnerJobsLive do
   end
 
   def handle_event("add_filter", %{"value" => filter_id}, socket) do
-    updated_params = Filter.Operations.add_filter_to_query(filter_id, socket)
+    updated_params = Filter.Operations.add_filter_to_query(filter_id, socket, decoded_query(socket))
 
     {:noreply,
      socket
@@ -275,13 +294,23 @@ defmodule TuistWeb.RunnerJobsLive do
   end
 
   def handle_event("update_filter", params, socket) do
-    updated_params = Filter.Operations.update_filters_in_query(params, socket)
+    updated_params = Filter.Operations.update_filters_in_query(params, socket, decoded_query(socket))
 
     {:noreply,
      socket
      |> push_patch(to: ~p"/#{socket.assigns.selected_account.name}/runners/jobs?#{updated_params}")
      |> push_event("close-dropdown", %{id: "all", all: true})
      |> push_event("close-popover", %{id: "all", all: true})}
+  end
+
+  def handle_event("search-jobs", %{"search" => search}, %{assigns: %{selected_account: account, uri: uri}} = socket) do
+    params =
+      uri.query
+      |> Query.put("search", search)
+      |> Query.drop("page")
+      |> URI.decode_query()
+
+    {:noreply, push_patch(socket, to: ~p"/#{account.name}/runners/jobs?#{params}")}
   end
 
   def handle_event(
@@ -305,6 +334,13 @@ defmodule TuistWeb.RunnerJobsLive do
     {:noreply, push_patch(socket, to: ~p"/#{account.name}/runners/jobs?#{query}")}
   end
 
+  # `Noora.Filter.Operations` defaults to `URI.decode_query(uri.query)`,
+  # which raises when `uri.query` is `nil` (the case on a fresh URL
+  # with no `?`). Pass a decoded params map so the very first filter
+  # click can't take down the LiveView.
+  defp decoded_query(%{assigns: %{uri: %URI{query: nil}}}), do: %{}
+  defp decoded_query(%{assigns: %{uri: %URI{query: query}}}), do: URI.decode_query(query)
+
   @impl true
   def handle_info({:runner_jobs_status_changed, _payload}, socket) do
     # Refresh the live Running / Queued counts plus the jobs table on
@@ -321,7 +357,16 @@ defmodule TuistWeb.RunnerJobsLive do
   end
 
   defp assign_jobs(
-         %{assigns: %{selected_account: account, active_filters: filters, page: page}} = socket,
+         %{
+           assigns: %{
+             selected_account: account,
+             active_filters: filters,
+             page: page,
+             search: search,
+             sort_by: sort_by,
+             sort_order: sort_order
+           }
+         } = socket,
          repository,
          platform
        ) do
@@ -329,11 +374,12 @@ defmodule TuistWeb.RunnerJobsLive do
       []
       |> maybe_repo(repository)
       |> maybe_platform(platform)
+      |> maybe_put_search(search)
+      |> Keyword.put(:sort_by, sort_by)
+      |> Keyword.put(:sort_order, sort_order)
       |> add_filter_opt(filters, "workflow", :workflow_name)
-      |> add_filter_opt(filters, "job", :job_name)
       |> add_filter_opt(filters, "branch", :head_branch)
-      |> add_option_opt(filters, "status", :status)
-      |> add_option_opt(filters, "conclusion", :conclusion)
+      |> add_status_filter_opt(filters)
 
     total = Jobs.count_for_account(account.id, base_opts)
     total_pages = max(1, ceil_div(total, @page_size))
@@ -366,10 +412,29 @@ defmodule TuistWeb.RunnerJobsLive do
     end
   end
 
-  defp add_option_opt(opts, filters, filter_id, opt_key) do
-    case Enum.find(filters, &(&1.id == filter_id)) do
+  defp maybe_put_search(opts, ""), do: opts
+  defp maybe_put_search(opts, nil), do: opts
+  defp maybe_put_search(opts, value) when is_binary(value), do: Keyword.put(opts, :search, value)
+
+  # The unified Status filter exposes both lifecycle (queued/claimed/
+  # running) and conclusion (success/failure/cancelled/skipped)
+  # values. Translate to the right SQL column so the picked value
+  # actually narrows the table.
+  defp add_status_filter_opt(opts, filters) do
+    case Enum.find(filters, &(&1.id == "status")) do
       %{value: value} when not is_nil(value) ->
-        Keyword.put(opts, opt_key, to_string(value))
+        value = to_string(value)
+
+        cond do
+          value in ~w(success failure cancelled skipped) ->
+            opts |> Keyword.put(:conclusion, value) |> Keyword.put(:status, "completed")
+
+          value in ~w(queued claimed running completed) ->
+            Keyword.put(opts, :status, value)
+
+          true ->
+            opts
+        end
 
       _ ->
         opts
@@ -379,21 +444,6 @@ defmodule TuistWeb.RunnerJobsLive do
   defp available_filters do
     [
       %Filter.Filter{
-        id: "status",
-        field: :status,
-        display_name: dgettext("dashboard_runners", "Status"),
-        type: :option,
-        options: [:queued, :claimed, :running, :completed],
-        options_display_names: %{
-          queued: dgettext("dashboard_runners", "Queued"),
-          claimed: dgettext("dashboard_runners", "Claimed"),
-          running: dgettext("dashboard_runners", "Running"),
-          completed: dgettext("dashboard_runners", "Completed")
-        },
-        operator: :==,
-        value: nil
-      },
-      %Filter.Filter{
         id: "workflow",
         field: :workflow_name,
         display_name: dgettext("dashboard_runners", "Workflow"),
@@ -401,13 +451,30 @@ defmodule TuistWeb.RunnerJobsLive do
         operator: :=~,
         value: ""
       },
+      # Single "Status" filter mirroring the unified status column.
+      # The lifecycle states (queued/claimed/running) and the
+      # terminal conclusions (success/failure/cancelled/skipped) are
+      # both visually rendered as the same "Status" badge in the
+      # table, so the filter exposes the union and `assign_jobs/3`
+      # routes the chosen value to either the `:status` or
+      # `:conclusion` column.
       %Filter.Filter{
-        id: "job",
-        field: :job_name,
-        display_name: dgettext("dashboard_runners", "Job"),
-        type: :text,
-        operator: :=~,
-        value: ""
+        id: "status",
+        field: :status,
+        display_name: dgettext("dashboard_runners", "Status"),
+        type: :option,
+        options: [:queued, :claimed, :running, :success, :failure, :cancelled, :skipped],
+        options_display_names: %{
+          queued: dgettext("dashboard_runners", "Queued"),
+          claimed: dgettext("dashboard_runners", "Claimed"),
+          running: dgettext("dashboard_runners", "Running"),
+          success: dgettext("dashboard_runners", "Success"),
+          failure: dgettext("dashboard_runners", "Failure"),
+          cancelled: dgettext("dashboard_runners", "Cancelled"),
+          skipped: dgettext("dashboard_runners", "Skipped")
+        },
+        operator: :==,
+        value: nil
       },
       %Filter.Filter{
         id: "branch",
@@ -416,21 +483,6 @@ defmodule TuistWeb.RunnerJobsLive do
         type: :text,
         operator: :=~,
         value: ""
-      },
-      %Filter.Filter{
-        id: "conclusion",
-        field: :conclusion,
-        display_name: dgettext("dashboard_runners", "Conclusion"),
-        type: :option,
-        options: [:success, :failure, :cancelled, :skipped],
-        options_display_names: %{
-          success: dgettext("dashboard_runners", "Success"),
-          failure: dgettext("dashboard_runners", "Failure"),
-          cancelled: dgettext("dashboard_runners", "Cancelled"),
-          skipped: dgettext("dashboard_runners", "Skipped")
-        },
-        operator: :==,
-        value: nil
       }
     ]
   end
@@ -485,6 +537,17 @@ defmodule TuistWeb.RunnerJobsLive do
   def format_duration(ms) when is_integer(ms) and ms > 0, do: DateFormatter.format_duration_from_milliseconds(ms)
   def format_duration(_), do: "–"
 
+  @doc """
+  Relative-time formatter for `enqueued_at` (and any other DateTime
+  column) — collapses the epoch sentinel that the schema uses for
+  not-yet-set timestamps to a dash so the column stays clean.
+  """
+  def format_relative_time(%DateTime{} = ts) do
+    if epoch?(ts), do: "–", else: DateFormatter.from_now(ts)
+  end
+
+  def format_relative_time(_), do: "–"
+
   def short_sha(""), do: "–"
   def short_sha(nil), do: "–"
   def short_sha(sha) when is_binary(sha), do: String.slice(sha, 0, 7)
@@ -517,6 +580,70 @@ defmodule TuistWeb.RunnerJobsLive do
   def platform_label("macos"), do: dgettext("dashboard_runners", "macOS")
   def platform_label("linux"), do: dgettext("dashboard_runners", "Linux")
   def platform_label(_any), do: dgettext("dashboard_runners", "Any")
+
+  def sort_by_label("job"), do: dgettext("dashboard_runners", "Job")
+  def sort_by_label("workflow"), do: dgettext("dashboard_runners", "Workflow")
+  def sort_by_label("duration"), do: dgettext("dashboard_runners", "Duration")
+  def sort_by_label(_enqueued_default), do: dgettext("dashboard_runners", "Enqueued at")
+
+  def sort_icon("asc"), do: "square_rounded_arrow_up"
+  def sort_icon(_desc), do: "square_rounded_arrow_down"
+
+  @doc """
+  Builds the patch URL for a sortable column header. Clicking the
+  already-active column toggles asc/desc; clicking a different
+  column switches to it with its default direction (asc for the
+  alphabetical sorts, desc otherwise). Always drops `page` so a
+  fresh sort starts on page 1.
+  """
+  def column_sort_patch(assigns, column) do
+    new_order =
+      cond do
+        assigns.sort_by == column -> toggle_sort_order(assigns.sort_order)
+        column in ["job", "workflow"] -> "asc"
+        true -> "desc"
+      end
+
+    "?" <>
+      (assigns.uri.query
+       |> Query.put("sort_by", column)
+       |> Query.put("sort_order", new_order)
+       |> Query.drop("page"))
+  end
+
+  defp toggle_sort_order("asc"), do: "desc"
+  defp toggle_sort_order(_desc), do: "asc"
+
+  @doc """
+  Resolves the localized platform label for a job's `fleet_name` so
+  the Platform column can replace the raw `macos-large-arm64`-style
+  fleet identifier with "macOS" / "Linux".
+  """
+  def platform_label_from_fleet(fleet_name) when is_binary(fleet_name) do
+    cond do
+      String.starts_with?(fleet_name, "macos-") -> dgettext("dashboard_runners", "macOS")
+      String.starts_with?(fleet_name, "linux-") -> dgettext("dashboard_runners", "Linux")
+      true -> dgettext("dashboard_runners", "Unknown")
+    end
+  end
+
+  def platform_label_from_fleet(_), do: dgettext("dashboard_runners", "Unknown")
+
+  @doc """
+  Noora badge color for the Platform column. macOS leans on
+  `information` (cool blue) while Linux uses `attention` (warm
+  yellow) so the two read at a glance without either pulling
+  status-style weight.
+  """
+  def platform_badge_color(fleet_name) when is_binary(fleet_name) do
+    cond do
+      String.starts_with?(fleet_name, "macos-") -> "information"
+      String.starts_with?(fleet_name, "linux-") -> "attention"
+      true -> "neutral"
+    end
+  end
+
+  def platform_badge_color(_), do: "neutral"
 
   def platforms, do: ["macos", "linux"]
 

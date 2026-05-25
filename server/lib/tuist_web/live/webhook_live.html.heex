@@ -5,7 +5,7 @@
       data-part="back-button"
       variant="secondary"
       size="medium"
-      navigate={~p"/#{@selected_account.name}/settings/webhooks"}
+      navigate={~p"/#{@selected_account.name}/webhooks"}
     >
       <:icon_left>
         <.icon name="arrow_left" />
@@ -261,7 +261,7 @@
         rows={@deliveries}
         row_navigate={
           fn delivery ->
-            ~p"/#{@selected_account.name}/settings/webhooks/#{@endpoint.id}/events/#{delivery.id}"
+            ~p"/#{@selected_account.name}/webhooks/#{@endpoint.id}/events/#{delivery.id}"
           end
         }
       >

@@ -397,8 +397,10 @@
                   else: run.workflow_name
                 )
               }
-              sublabel={if(run.repo == "", do: "–", else: run.repo)}
             />
+          </:col>
+          <:col :let={run} label={dgettext("dashboard_runners", "Repository")}>
+            <.text_cell label={if(run.repo == "", do: "–", else: run.repo)} />
           </:col>
           <:col :let={run} label={dgettext("dashboard_runners", "Status")}>
             <.status_badge_cell
@@ -417,17 +419,11 @@
               }
             />
           </:col>
-          <:col :let={run} label={dgettext("dashboard_runners", "Commit")}>
-            <.text_cell icon="git_commit" label={TuistWeb.RunnersLive.short_sha(run.head_sha)} />
-          </:col>
           <:col :let={run} label={dgettext("dashboard_runners", "Duration")}>
             <.text_cell
               icon="history"
               label={TuistWeb.RunnersLive.fmt_duration_ms(run.duration_ms)}
             />
-          </:col>
-          <:col :let={run} label={dgettext("dashboard_runners", "Updated")}>
-            <.text_cell sublabel={TuistWeb.RunnersLive.from_now_or_dash(run.updated_at)} />
           </:col>
         </.table>
       </div>
@@ -532,6 +528,9 @@
             end
           }
         >
+          <:col :let={job} label={dgettext("dashboard_runners", "Job")}>
+            <.text_cell label={if(job.job_name == "", do: "–", else: job.job_name)} />
+          </:col>
           <:col :let={job} label={dgettext("dashboard_runners", "Workflow")}>
             <.text_cell label={
               if(job.workflow_name == "",
@@ -540,8 +539,10 @@
               )
             } />
           </:col>
-          <:col :let={job} label={dgettext("dashboard_runners", "Job")}>
-            <.text_cell label={if(job.job_name == "", do: "–", else: job.job_name)} />
+          <:col :let={job} label={dgettext("dashboard_runners", "Repository")}>
+            <.text_cell label={
+              if(job.repo == "", do: dgettext("dashboard_runners", "Unknown"), else: job.repo)
+            } />
           </:col>
           <:col :let={job} label={dgettext("dashboard_runners", "Status")}>
             <% props =
@@ -554,13 +555,22 @@
               end %>
             <.status_badge_cell label={props.label} status={props.status} />
           </:col>
-          <:col :let={job} label={dgettext("dashboard_runners", "Repository")}>
-            <.text_cell label={
-              if(job.repo == "", do: dgettext("dashboard_runners", "Unknown"), else: job.repo)
-            } />
+          <:col :let={job} label={dgettext("dashboard_runners", "Branch")}>
+            <.text_cell
+              icon="git_branch"
+              label={
+                if(job.head_branch == "",
+                  do: dgettext("dashboard_runners", "Unknown"),
+                  else: job.head_branch
+                )
+              }
+            />
           </:col>
-          <:col :let={job} label={dgettext("dashboard_runners", "Updated")}>
-            <.text_cell sublabel={TuistWeb.RunnersLive.from_now(job.updated_at)} />
+          <:col :let={job} label={dgettext("dashboard_runners", "Duration")}>
+            <.text_cell
+              icon="history"
+              label={TuistWeb.RunnersLive.fmt_duration_ms(TuistWeb.RunnersLive.job_duration_ms(job))}
+            />
           </:col>
         </.table>
       </div>

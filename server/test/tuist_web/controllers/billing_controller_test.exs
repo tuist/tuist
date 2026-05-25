@@ -18,7 +18,7 @@ defmodule TuistWeb.BillingControllerTest do
           preload: [:account]
         )
 
-      success_url = url(~p"/#{account.name}/settings/billing") <> "?new_plan=pro"
+      success_url = url(~p"/#{account.name}/billing") <> "?new_plan=pro"
       account_with_customer_id = %{account | customer_id: UUIDv7.generate()}
 
       stub(Accounts, :create_customer_when_absent, fn _ ->
@@ -46,7 +46,7 @@ defmodule TuistWeb.BillingControllerTest do
       %{account: account} =
         user = AccountsFixtures.user_fixture(email: "tuist@tuist.dev", preload: [:account])
 
-      success_url = url(~p"/#{account.name}/settings/billing") <> "?new_plan=pro"
+      success_url = url(~p"/#{account.name}/billing") <> "?new_plan=pro"
 
       expect(Billing, :update_plan, fn %{
                                          plan: :pro,
@@ -70,7 +70,7 @@ defmodule TuistWeb.BillingControllerTest do
       %{account: account} =
         user = AccountsFixtures.user_fixture(email: "tuist@tuist.dev", preload: [:account])
 
-      success_url = url(~p"/#{account.name}/settings/billing") <> "?new_plan=pro"
+      success_url = url(~p"/#{account.name}/billing") <> "?new_plan=pro"
 
       expect(Billing, :update_plan, fn %{
                                          plan: :pro,
@@ -85,7 +85,7 @@ defmodule TuistWeb.BillingControllerTest do
         |> log_in_user(user)
         |> get("/#{account.name}/billing/upgrade")
 
-      assert redirected_to(conn) == ~p"/#{account.name}/settings/billing"
+      assert redirected_to(conn) == ~p"/#{account.name}/billing"
     end
 
     test "raises UnauthorizedError when user does not have permission", %{conn: conn} do

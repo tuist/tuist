@@ -3,9 +3,8 @@ defmodule TuistWeb.RunnerJobLive do
   use TuistWeb, :live_view
   use Noora
 
-  import TuistWeb.Components.EmptyCardSection
-
   alias Tuist.Authorization
+  alias Tuist.FeatureFlags
   alias Tuist.Runners.Jobs
   alias Tuist.Utilities.DateFormatter
 
@@ -15,7 +14,8 @@ defmodule TuistWeb.RunnerJobLive do
         _session,
         %{assigns: %{selected_account: selected_account, current_user: current_user}} = socket
       ) do
-    if Authorization.authorize(:projects_read, current_user, selected_account) != :ok do
+    if Authorization.authorize(:projects_read, current_user, selected_account) != :ok or
+         not FeatureFlags.runners_enabled?(selected_account) do
       raise TuistWeb.Errors.NotFoundError,
             dgettext("dashboard_runners", "The page you are looking for doesn't exist or has been moved.")
     end
@@ -105,6 +105,22 @@ defmodule TuistWeb.RunnerJobLive do
 
   def platform_label(_), do: dgettext("dashboard_runners", "Unknown")
 
+  @doc """
+  Noora badge color paired with `platform_label/1` so the Platform
+  field in the CI Details card reads the same as the Platform column
+  on the Jobs table — `information` (cool blue) for macOS,
+  `attention` (warm yellow) for Linux.
+  """
+  def platform_badge_color(fleet_name) when is_binary(fleet_name) do
+    cond do
+      String.starts_with?(fleet_name, "macos-") -> "information"
+      String.starts_with?(fleet_name, "linux-") -> "attention"
+      true -> "neutral"
+    end
+  end
+
+  def platform_badge_color(_), do: "neutral"
+
   def github_job_url(%{repo: repo, workflow_run_id: run_id, workflow_job_id: job_id})
       when is_binary(repo) and repo != "" and is_integer(run_id) and run_id > 0 and is_integer(job_id) and job_id > 0 do
     "https://github.com/#{repo}/actions/runs/#{run_id}/job/#{job_id}"
@@ -120,27 +136,11 @@ defmodule TuistWeb.RunnerJobLive do
     end
   end
 
-  def claim_duration_ms(%{claimed_at: claimed, started_at: started}) do
-    cond do
-      epoch?(claimed) -> 0
-      epoch?(started) -> ms_since(claimed)
-      true -> DateTime.diff(started, claimed, :millisecond)
-    end
-  end
-
   def run_duration_ms(%{started_at: started, completed_at: completed}) do
     cond do
       epoch?(started) -> 0
       epoch?(completed) -> ms_since(started)
       true -> DateTime.diff(completed, started, :millisecond)
-    end
-  end
-
-  def total_duration_ms(%{enqueued_at: enqueued, completed_at: completed}) do
-    cond do
-      epoch?(enqueued) -> 0
-      epoch?(completed) -> ms_since(enqueued)
-      true -> DateTime.diff(completed, enqueued, :millisecond)
     end
   end
 

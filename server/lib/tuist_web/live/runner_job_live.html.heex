@@ -1,13 +1,13 @@
 <div id="runner-job">
-  <.link_button
+  <.button
     navigate={~p"/#{@selected_account.name}/runners/jobs"}
     variant="secondary"
-    size="large"
+    size="medium"
     label={dgettext("dashboard_runners", "All jobs")}
     data-part="back-button"
   >
     <:icon_left><.arrow_left /></:icon_left>
-  </.link_button>
+  </.button>
 
   <% status_props = TuistWeb.RunnerJobLive.status_badge_props(@job) %>
   <% status_kind = TuistWeb.RunnerJobLive.header_status(@job) %>
@@ -33,23 +33,23 @@
       </div>
     </div>
     <div data-part="actions">
-      <.link_button
+      <.button
         :if={github_url}
         href={github_url}
         target="_blank"
         rel="noopener noreferrer"
         variant="secondary"
         size="medium"
-        label={dgettext("dashboard_runners", "GitHub CI")}
+        label={dgettext("dashboard_runners", "GitHub")}
       >
-        <:icon_left><.external_link /></:icon_left>
-      </.link_button>
+        <:icon_left><.brand_github /></:icon_left>
+      </.button>
     </div>
   </div>
 
   <.card
     title={dgettext("dashboard_runners", "CI Details")}
-    icon="chart_arcs"
+    icon="git_merge"
     data-part="ci-details"
   >
     <.card_section data-part="ci-details-section">
@@ -58,15 +58,6 @@
           <div data-part="metadata">
             <div data-part="title">{dgettext("dashboard_runners", "Status")}</div>
             <.badge label={status_props.label} color={status_props.color} style="fill" size="large" />
-          </div>
-          <div data-part="metadata">
-            <div data-part="title">{dgettext("dashboard_runners", "Triggered by")}</div>
-            <.badge
-              label={dgettext("dashboard_runners", "GitHub Actions")}
-              color="information"
-              style="light-fill"
-              size="large"
-            />
           </div>
           <div data-part="metadata">
             <div data-part="title">{dgettext("dashboard_runners", "CI duration")}</div>
@@ -78,28 +69,42 @@
             </span>
           </div>
           <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_runners", "Queue time")}</div>
+            <span data-part="label">
+              <.history />
+              {TuistWeb.RunnerJobLive.format_duration(
+                TuistWeb.RunnerJobLive.queued_duration_ms(@job)
+              )}
+            </span>
+          </div>
+          <div data-part="metadata">
             <div data-part="title">{dgettext("dashboard_runners", "Ran at")}</div>
             <span data-part="label">
-              {TuistWeb.RunnerJobLive.format_timestamp(@job.started_at)}
+              <.tooltip
+                id="ran-at-tooltip"
+                title={TuistWeb.RunnerJobLive.format_absolute(@job.started_at)}
+              >
+                <:trigger :let={attrs}>
+                  <span {attrs}>
+                    {TuistWeb.RunnerJobLive.format_timestamp(@job.started_at)}
+                  </span>
+                </:trigger>
+              </.tooltip>
             </span>
           </div>
         </div>
         <div data-part="metadata-row">
           <div data-part="metadata">
-            <div data-part="title">{dgettext("dashboard_runners", "Machine")}</div>
-            <span data-part="label">
-              <.device_laptop />
-              {platform_label}
-            </span>
+            <div data-part="title">{dgettext("dashboard_runners", "Platform")}</div>
+            <.badge
+              label={platform_label}
+              color={TuistWeb.RunnerJobLive.platform_badge_color(@job.fleet_name)}
+              style="light-fill"
+              size="large"
+            />
           </div>
           <div data-part="metadata">
-            <div data-part="title">{dgettext("dashboard_runners", "Fleet")}</div>
-            <span data-part="label">
-              {TuistWeb.RunnerJobLive.display(@job.fleet_name)}
-            </span>
-          </div>
-          <div data-part="metadata">
-            <div data-part="title">{dgettext("dashboard_runners", "Source")}</div>
+            <div data-part="title">{dgettext("dashboard_runners", "Branch")}</div>
             <span data-part="label">
               <.git_branch />
               {if(@job.head_branch == "",
@@ -109,116 +114,19 @@
             </span>
           </div>
           <div data-part="metadata">
-            <div data-part="title">{dgettext("dashboard_runners", "Commit")}</div>
+            <div data-part="title">{dgettext("dashboard_runners", "Commit SHA")}</div>
             <span data-part="command-label">
               {TuistWeb.RunnerJobLive.short_sha(@job.head_sha)}
             </span>
           </div>
-        </div>
-        <div data-part="metadata-row">
           <div data-part="metadata">
             <div data-part="title">{dgettext("dashboard_runners", "Repository")}</div>
             <span data-part="label">
               {TuistWeb.RunnerJobLive.display(@job.repo)}
             </span>
           </div>
-          <div data-part="metadata">
-            <div data-part="title">{dgettext("dashboard_runners", "Runner")}</div>
-            <span data-part="label">
-              {TuistWeb.RunnerJobLive.display(@job.runner_name)}
-            </span>
-          </div>
-          <div data-part="metadata">
-            <div data-part="title">{dgettext("dashboard_runners", "Run attempt")}</div>
-            <span data-part="label">{@job.run_attempt}</span>
-          </div>
-          <div data-part="metadata">
-            <div data-part="title">{dgettext("dashboard_runners", "Workflow run ID")}</div>
-            <span data-part="command-label">{@job.workflow_run_id}</span>
-          </div>
         </div>
       </div>
     </.card_section>
-  </.card>
-
-  <.card
-    title={dgettext("dashboard_runners", "Timeline")}
-    icon="history"
-    data-part="runner-job-timeline-card"
-  >
-    <.card_section data-part="timeline-section">
-      <div data-part="timeline-grid">
-        <div data-part="timeline-item">
-          <span data-part="label">{dgettext("dashboard_runners", "Time in queue")}</span>
-          <span data-part="value">
-            {TuistWeb.RunnerJobLive.format_duration(
-              TuistWeb.RunnerJobLive.queued_duration_ms(@job)
-            )}
-          </span>
-        </div>
-        <div data-part="timeline-item">
-          <span data-part="label">{dgettext("dashboard_runners", "Claim → start")}</span>
-          <span data-part="value">
-            {TuistWeb.RunnerJobLive.format_duration(
-              TuistWeb.RunnerJobLive.claim_duration_ms(@job)
-            )}
-          </span>
-        </div>
-        <div data-part="timeline-item">
-          <span data-part="label">{dgettext("dashboard_runners", "Runtime")}</span>
-          <span data-part="value">
-            {TuistWeb.RunnerJobLive.format_duration(
-              TuistWeb.RunnerJobLive.run_duration_ms(@job)
-            )}
-          </span>
-        </div>
-        <div data-part="timeline-item">
-          <span data-part="label">{dgettext("dashboard_runners", "Total")}</span>
-          <span data-part="value">
-            {TuistWeb.RunnerJobLive.format_duration(
-              TuistWeb.RunnerJobLive.total_duration_ms(@job)
-            )}
-          </span>
-        </div>
-      </div>
-      <div data-part="timestamps-grid">
-        <div data-part="timestamp-item">
-          <span data-part="label">{dgettext("dashboard_runners", "Enqueued")}</span>
-          <span data-part="primary">{TuistWeb.RunnerJobLive.format_timestamp(@job.enqueued_at)}</span>
-          <span data-part="secondary">{TuistWeb.RunnerJobLive.format_absolute(@job.enqueued_at)}</span>
-        </div>
-        <div data-part="timestamp-item">
-          <span data-part="label">{dgettext("dashboard_runners", "Claimed")}</span>
-          <span data-part="primary">{TuistWeb.RunnerJobLive.format_timestamp(@job.claimed_at)}</span>
-          <span data-part="secondary">{TuistWeb.RunnerJobLive.format_absolute(@job.claimed_at)}</span>
-        </div>
-        <div data-part="timestamp-item">
-          <span data-part="label">{dgettext("dashboard_runners", "Started")}</span>
-          <span data-part="primary">{TuistWeb.RunnerJobLive.format_timestamp(@job.started_at)}</span>
-          <span data-part="secondary">{TuistWeb.RunnerJobLive.format_absolute(@job.started_at)}</span>
-        </div>
-        <div data-part="timestamp-item">
-          <span data-part="label">{dgettext("dashboard_runners", "Completed")}</span>
-          <span data-part="primary">{TuistWeb.RunnerJobLive.format_timestamp(@job.completed_at)}</span>
-          <span data-part="secondary">{TuistWeb.RunnerJobLive.format_absolute(@job.completed_at)}</span>
-        </div>
-      </div>
-    </.card_section>
-  </.card>
-
-  <.card
-    title={dgettext("dashboard_runners", "Steps")}
-    icon="list_tree"
-    data-part="runner-job-steps-card"
-  >
-    <.empty_card_section
-      title={dgettext("dashboard_runners", "Step-level breakdown coming soon")}
-      data-part="empty-runner-steps-card-section"
-    >
-      <:image>
-        <img src="/images/empty_table_light.png" data-theme="light" />
-        <img src="/images/empty_table_dark.png" data-theme="dark" />
-      </:image>
-    </.empty_card_section>
   </.card>
 </div>

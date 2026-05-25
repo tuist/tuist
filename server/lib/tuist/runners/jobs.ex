@@ -323,14 +323,75 @@ defmodule Tuist.Runners.Jobs do
   def list_for_account(account_id, opts \\ []) when is_integer(account_id) and is_list(opts) do
     limit = Keyword.get(opts, :limit, 50)
     offset = Keyword.get(opts, :offset, 0)
+    sort_by = Keyword.get(opts, :sort_by, "enqueued")
+    sort_order = Keyword.get(opts, :sort_order, default_jobs_sort_order(sort_by))
 
     account_id
     |> filtered_jobs_query(opts)
-    |> order_by([j], desc: j.updated_at, desc: j.workflow_job_id)
+    |> jobs_order_by(sort_by, sort_order)
     |> limit(^limit)
     |> offset(^offset)
     |> ClickHouseRepo.all()
   end
+
+  # Alphabetical sorts feel natural ascending; everything else
+  # (timestamps, durations) defaults to descending so the freshest
+  # / longest rows land at the top.
+  defp default_jobs_sort_order("job"), do: "asc"
+  defp default_jobs_sort_order("workflow"), do: "asc"
+  defp default_jobs_sort_order(_), do: "desc"
+
+  defp jobs_order_by(query, "job", "asc"),
+    do: order_by(query, [j], asc: j.job_name, desc: j.workflow_job_id)
+
+  defp jobs_order_by(query, "job", _desc),
+    do: order_by(query, [j], desc: j.job_name, desc: j.workflow_job_id)
+
+  defp jobs_order_by(query, "workflow", "asc"),
+    do: order_by(query, [j], asc: j.workflow_name, desc: j.workflow_job_id)
+
+  defp jobs_order_by(query, "workflow", _desc),
+    do: order_by(query, [j], desc: j.workflow_name, desc: j.workflow_job_id)
+
+  # `duration` orders by elapsed runtime (completed_at - started_at)
+  # in milliseconds. Rows without both timestamps (still queued /
+  # running / claimed) coalesce to 0 so they cluster at the bottom of
+  # a descending sort instead of producing nan.
+  defp jobs_order_by(query, "duration", "asc") do
+    order_by(query, [j],
+      asc:
+        fragment(
+          "if(? = 'completed' AND toUnixTimestamp64Milli(?) > 0 AND toUnixTimestamp64Milli(?) > 0, toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?), 0)",
+          j.status,
+          j.started_at,
+          j.completed_at,
+          j.completed_at,
+          j.started_at
+        ),
+      desc: j.workflow_job_id
+    )
+  end
+
+  defp jobs_order_by(query, "duration", _desc) do
+    order_by(query, [j],
+      desc:
+        fragment(
+          "if(? = 'completed' AND toUnixTimestamp64Milli(?) > 0 AND toUnixTimestamp64Milli(?) > 0, toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?), 0)",
+          j.status,
+          j.started_at,
+          j.completed_at,
+          j.completed_at,
+          j.started_at
+        ),
+      desc: j.workflow_job_id
+    )
+  end
+
+  defp jobs_order_by(query, _enqueued_default, "asc"),
+    do: order_by(query, [j], asc: j.enqueued_at, desc: j.workflow_job_id)
+
+  defp jobs_order_by(query, _enqueued_default, _desc),
+    do: order_by(query, [j], desc: j.enqueued_at, desc: j.workflow_job_id)
 
   @doc """
   Total count of jobs matching the same filters used by
@@ -361,6 +422,17 @@ defmodule Tuist.Runners.Jobs do
     |> maybe_filter_like(:job_name, Keyword.get(opts, :job_name))
     |> maybe_filter_like(:head_branch, Keyword.get(opts, :head_branch))
     |> maybe_filter_platform(Keyword.get(opts, :platform))
+    |> maybe_filter_search(Keyword.get(opts, :search))
+  end
+
+  # Search input is scoped to `job_name`. Workflow filtering happens
+  # through the dedicated Workflow filter chip.
+  defp maybe_filter_search(query, nil), do: query
+  defp maybe_filter_search(query, ""), do: query
+
+  defp maybe_filter_search(query, value) when is_binary(value) do
+    pattern = "%#{value}%"
+    where(query, [j], ilike(j.job_name, ^pattern))
   end
 
   # Platform filter narrows on the `fleet_name` prefix — every
@@ -619,6 +691,40 @@ defmodule Tuist.Runners.Jobs do
     order_by(query, [j], desc: count(j.workflow_job_id), desc: max(j.enqueued_at))
   end
 
+  # "avg_duration" mirrors the avg_duration_ms select fragment so the
+  # ORDER BY uses the same conditional average — workflows without
+  # any completed runs collapse to 0 instead of nan and land at the
+  # bottom of the descending list.
+  defp workflows_order_by(query, "avg_duration", "asc") do
+    order_by(query, [j],
+      asc:
+        fragment(
+          "coalesce(avgIf((toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?)), ? = 'completed' AND toUnixTimestamp64Milli(?) > 0 AND toUnixTimestamp64Milli(?) > 0), 0)",
+          j.completed_at,
+          j.started_at,
+          j.status,
+          j.started_at,
+          j.completed_at
+        ),
+      desc: max(j.enqueued_at)
+    )
+  end
+
+  defp workflows_order_by(query, "avg_duration", _desc) do
+    order_by(query, [j],
+      desc:
+        fragment(
+          "coalesce(avgIf((toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?)), ? = 'completed' AND toUnixTimestamp64Milli(?) > 0 AND toUnixTimestamp64Milli(?) > 0), 0)",
+          j.completed_at,
+          j.started_at,
+          j.status,
+          j.started_at,
+          j.completed_at
+        ),
+      desc: max(j.enqueued_at)
+    )
+  end
+
   defp workflows_order_by(query, _workflow_default, "desc") do
     order_by(query, [j], desc: j.workflow_name, desc: j.repo)
   end
@@ -658,10 +764,16 @@ defmodule Tuist.Runners.Jobs do
       repo: fragment("argMax(?, ?)", j.repo, j.updated_at),
       head_branch: fragment("argMax(?, ?)", j.head_branch, j.updated_at),
       head_sha: fragment("argMax(?, ?)", j.head_sha, j.updated_at),
+      # Skipped / cancelled jobs leave `started_at` as the epoch
+      # sentinel — including those in `min(started_at)` would yield a
+      # 50-year run duration. Filter them out both ways so the
+      # rollup represents real elapsed runtime.
       duration_ms:
         fragment(
-          "toUnixTimestamp64Milli(max(?)) - toUnixTimestamp64Milli(min(?))",
+          "maxIf(toUnixTimestamp64Milli(?), toUnixTimestamp64Milli(?) > 0) - minIf(toUnixTimestamp64Milli(?), toUnixTimestamp64Milli(?) > 0)",
           j.completed_at,
+          j.completed_at,
+          j.started_at,
           j.started_at
         ),
       # Worst conclusion wins: any failure marks the run failed; any

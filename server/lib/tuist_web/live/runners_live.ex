@@ -9,17 +9,20 @@ defmodule TuistWeb.RunnersLive do
   import TuistWeb.Widget
 
   alias Tuist.Authorization
+  alias Tuist.FeatureFlags
   alias Tuist.Runners.Analytics
   alias Tuist.Runners.Jobs
   alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Utilities.Query
 
-  @widget_limit 5
+  @table_limit 5
+  @chart_limit 30
 
   @impl true
   def mount(_params, _session, %{assigns: %{selected_account: selected_account, current_user: current_user}} = socket) do
-    if Authorization.authorize(:projects_read, current_user, selected_account) != :ok do
+    if Authorization.authorize(:projects_read, current_user, selected_account) != :ok or
+         not FeatureFlags.runners_enabled?(selected_account) do
       raise TuistWeb.Errors.NotFoundError,
             dgettext("dashboard_runners", "The page you are looking for doesn't exist or has been moved.")
     end
@@ -97,12 +100,12 @@ defmodule TuistWeb.RunnersLive do
     {:noreply, push_patch_with_param(socket, "widget", widget)}
   end
 
-  def handle_event("select_job_duration_percentile", %{"value" => value}, socket) do
-    {:noreply, push_patch_with_param(socket, "job-duration", value)}
+  def handle_event("select_job_duration_percentile", %{"type" => type}, socket) do
+    {:noreply, push_patch_with_param(socket, "job-duration", type)}
   end
 
-  def handle_event("select_workflow_duration_percentile", %{"value" => value}, socket) do
-    {:noreply, push_patch_with_param(socket, "workflow-duration", value)}
+  def handle_event("select_workflow_duration_percentile", %{"type" => type}, socket) do
+    {:noreply, push_patch_with_param(socket, "workflow-duration", type)}
   end
 
   def handle_event(
@@ -133,42 +136,46 @@ defmodule TuistWeb.RunnersLive do
     # Tests page — it's a chronicle of finished work, not a live
     # status board. Filter to completed runs only so the bars carry
     # a real duration and the success/failure legends count
-    # something other than zero.
+    # something other than zero. The chart spans up to
+    # `@chart_limit` so the bar trail conveys a trend, while the
+    # table below shows only the freshest `@table_limit` rows.
     opts =
-      [status: "completed", limit: @widget_limit]
+      [status: "completed", limit: @chart_limit]
       |> maybe_repo(repository)
       |> maybe_platform(platform)
 
-    recent_jobs = Jobs.list_for_account(account_id, opts)
+    recent_jobs_chart = Jobs.list_for_account(account_id, opts)
+    recent_jobs_table = Enum.take(recent_jobs_chart, @table_limit)
 
     socket
-    |> assign(:recent_jobs, recent_jobs)
-    |> assign(:recent_jobs_chart_data, recent_jobs_chart_data(recent_jobs, socket.assigns.selected_account.name))
-    |> assign(:recent_jobs_successful_count, Enum.count(recent_jobs, &(&1.conclusion == "success")))
-    |> assign(:recent_jobs_failed_count, Enum.count(recent_jobs, &(&1.conclusion == "failure")))
+    |> assign(:recent_jobs, recent_jobs_table)
+    |> assign(:recent_jobs_chart_data, recent_jobs_chart_data(recent_jobs_chart, socket.assigns.selected_account.name))
+    |> assign(:recent_jobs_successful_count, Enum.count(recent_jobs_chart, &(&1.conclusion == "success")))
+    |> assign(:recent_jobs_failed_count, Enum.count(recent_jobs_chart, &(&1.conclusion == "failure")))
   end
 
   defp assign_recent_workflow_runs(socket, account_id, repository, platform) do
     opts =
-      [limit: @widget_limit]
+      [limit: @chart_limit]
       |> maybe_repo(repository)
       |> maybe_platform(platform)
 
-    recent_workflow_runs = Jobs.list_recent_workflow_runs_for_account(account_id, opts)
+    recent_workflow_runs_chart = Jobs.list_recent_workflow_runs_for_account(account_id, opts)
+    recent_workflow_runs_table = Enum.take(recent_workflow_runs_chart, @table_limit)
 
     socket
-    |> assign(:recent_workflow_runs, recent_workflow_runs)
+    |> assign(:recent_workflow_runs, recent_workflow_runs_table)
     |> assign(
       :recent_workflow_runs_chart_data,
-      recent_workflow_runs_chart_data(recent_workflow_runs, socket.assigns.selected_account.name)
+      recent_workflow_runs_chart_data(recent_workflow_runs_chart, socket.assigns.selected_account.name)
     )
     |> assign(
       :recent_workflow_runs_successful_count,
-      Enum.count(recent_workflow_runs, &(&1.conclusion == "success"))
+      Enum.count(recent_workflow_runs_chart, &(&1.conclusion == "success"))
     )
     |> assign(
       :recent_workflow_runs_failed_count,
-      Enum.count(recent_workflow_runs, &(&1.conclusion == "failure"))
+      Enum.count(recent_workflow_runs_chart, &(&1.conclusion == "failure"))
     )
   end
 
@@ -334,6 +341,27 @@ defmodule TuistWeb.RunnersLive do
 
   def fmt_duration_ms(_), do: "–"
 
+  @doc """
+  Runtime in milliseconds for a recent job row. Mirrors the bar
+  chart's `duration_seconds/1` (running / completed branches) so the
+  table column and the chart bar represent the same elapsed time.
+  """
+  def job_duration_ms(%{status: "completed", started_at: started, completed_at: completed}) do
+    cond do
+      is_nil(started) or epoch?(started) -> 0
+      is_nil(completed) or epoch?(completed) -> 0
+      true -> DateTime.diff(completed, started, :millisecond)
+    end
+  end
+
+  def job_duration_ms(%{status: "running", started_at: started}) do
+    if is_nil(started) or epoch?(started),
+      do: 0,
+      else: DateTime.diff(DateTime.utc_now(), started, :millisecond)
+  end
+
+  def job_duration_ms(_), do: 0
+
   def percentile_value(stats, "p50"), do: Map.get(stats, :p50)
   def percentile_value(stats, "p90"), do: Map.get(stats, :p90)
   def percentile_value(stats, "p99"), do: Map.get(stats, :p99)
@@ -413,7 +441,7 @@ defmodule TuistWeb.RunnersLive do
         itemWidth: 8,
         itemHeight: 4
       },
-      grid: %{width: "97%", left: "0.4%", height: "60%", top: "10%"},
+      grid: %{width: "97%", left: "0.4%", height: "78%", top: "8%"},
       xAxis: %{
         boundaryGap: false,
         type: "category",

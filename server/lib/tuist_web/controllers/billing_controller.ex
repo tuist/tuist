@@ -25,14 +25,14 @@ defmodule TuistWeb.BillingController do
     case Billing.update_plan(%{
            plan: :pro,
            account: billing_account,
-           success_url: url(~p"/#{billing_account.name}/settings/billing") <> "?new_plan=pro"
+           success_url: url(~p"/#{billing_account.name}/billing") <> "?new_plan=pro"
          }) do
       # It requires redirecting to Stripe
       {:ok, {:external_redirect, session_url}} ->
         conn |> redirect(external: session_url) |> halt()
 
       :ok ->
-        conn |> redirect(to: ~p"/#{billing_account.name}/settings/billing") |> halt()
+        conn |> redirect(to: ~p"/#{billing_account.name}/billing") |> halt()
     end
   end
 
