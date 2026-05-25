@@ -14,6 +14,20 @@ defmodule Tuist.Runners.Analytics do
   Each function returns a map with the value + a per-bucket time
   series (`%{dates: […], values: […]}`) so the LiveView can drop it
   straight into a chart.
+
+  ## Why we don't use `FINAL`
+
+  `runner_jobs` is a ReplacingMergeTree. The classic
+  `FROM runner_jobs FINAL` selects the latest version per
+  `workflow_job_id`, but the merge runs at query time across every
+  unmerged part — single-threaded per part — and gets dramatically
+  more expensive as state-transition INSERTs pile up. For analytics
+  workloads the canonical pattern is a GROUP BY + argMax subquery
+  that picks the latest version once, then aggregates over the
+  collapsed view. That's what `latest_jobs_enqueued_between/4` and
+  `latest_jobs_claimed_between/4` do — every analytics function in
+  this module dedupes once via a subquery and never asks ClickHouse
+  to merge parts at read time.
   """
 
   use Gettext, backend: TuistWeb.Gettext
@@ -51,24 +65,35 @@ defmodule Tuist.Runners.Analytics do
   end
 
   defp jobs_count_in_range(account_id, start_dt, end_dt, opts) do
+    sub = latest_jobs_enqueued_between(account_id, start_dt, end_dt, opts)
+
     [%{count: count} | _] =
-      Job
-      |> from(hints: ["FINAL"])
-      |> where([j], j.account_id == ^account_id and j.enqueued_at >= ^start_dt and j.enqueued_at <= ^end_dt)
-      |> scope_workflow(opts)
-      |> select([j], %{count: count(j.workflow_job_id)})
+      from(j in subquery(sub), select: %{count: count(j.workflow_job_id)})
       |> ClickHouseRepo.all()
       |> default_empty(%{count: 0})
 
     count
   end
 
+  defp jobs_count_per_day(account_id, start_dt, end_dt, opts) do
+    sub = latest_jobs_enqueued_between(account_id, start_dt, end_dt, opts)
+
+    from(j in subquery(sub),
+      group_by: fragment("toDate(?)", j.enqueued_at),
+      order_by: fragment("toDate(?)", j.enqueued_at),
+      select: %{
+        date: fragment("toDate(?)", j.enqueued_at),
+        value: count(j.workflow_job_id)
+      }
+    )
+    |> ClickHouseRepo.all()
+  end
+
   @doc """
   Total count of failed jobs over the window + daily series + trend.
-  A "failed" job is one that reached `status='completed'` with a
-  `conclusion='failure'`. Cancelled/skipped don't count — the
-  customer cares about runner-attributable failures, not the
-  build-author's choices.
+  A "failed" job is one whose latest state is `completed`/`failure`.
+  Cancelled/skipped don't count — the customer cares about
+  runner-attributable failures, not the build-author's choices.
   """
   def failed_jobs_count(account_id, opts \\ []) when is_integer(account_id) do
     {start_dt, end_dt} = window(opts)
@@ -88,17 +113,13 @@ defmodule Tuist.Runners.Analytics do
   end
 
   defp failed_count_in_range(account_id, start_dt, end_dt, opts) do
+    sub = latest_jobs_enqueued_between(account_id, start_dt, end_dt, opts)
+
     [%{count: count} | _] =
-      Job
-      |> from(hints: ["FINAL"])
-      |> where(
-        [j],
-        j.account_id == ^account_id and j.enqueued_at >= ^start_dt and
-          j.enqueued_at <= ^end_dt and j.status == "completed" and
-          j.conclusion == "failure"
+      from(j in subquery(sub),
+        where: j.status == "completed" and j.conclusion == "failure",
+        select: %{count: count(j.workflow_job_id)}
       )
-      |> scope_workflow(opts)
-      |> select([j], %{count: count(j.workflow_job_id)})
       |> ClickHouseRepo.all()
       |> default_empty(%{count: 0})
 
@@ -106,34 +127,17 @@ defmodule Tuist.Runners.Analytics do
   end
 
   defp failed_jobs_per_day(account_id, start_dt, end_dt, opts) do
-    Job
-    |> from(hints: ["FINAL"])
-    |> where(
-      [j],
-      j.account_id == ^account_id and j.enqueued_at >= ^start_dt and j.enqueued_at <= ^end_dt and
-        j.status == "completed" and j.conclusion == "failure"
-    )
-    |> scope_workflow(opts)
-    |> group_by([j], fragment("toDate(?)", j.completed_at))
-    |> select([j], %{
-      date: fragment("toDate(?)", j.completed_at),
-      value: count(j.workflow_job_id)
-    })
-    |> order_by([j], asc: fragment("toDate(?)", j.completed_at))
-    |> ClickHouseRepo.all()
-  end
+    sub = latest_jobs_enqueued_between(account_id, start_dt, end_dt, opts)
 
-  defp jobs_count_per_day(account_id, start_dt, end_dt, opts) do
-    Job
-    |> from(hints: ["FINAL"])
-    |> where([j], j.account_id == ^account_id and j.enqueued_at >= ^start_dt and j.enqueued_at <= ^end_dt)
-    |> scope_workflow(opts)
-    |> group_by([j], fragment("toDate(?)", j.enqueued_at))
-    |> select([j], %{
-      date: fragment("toDate(?)", j.enqueued_at),
-      value: count(j.workflow_job_id)
-    })
-    |> order_by([j], asc: fragment("toDate(?)", j.enqueued_at))
+    from(j in subquery(sub),
+      where: j.status == "completed" and j.conclusion == "failure",
+      group_by: fragment("toDate(?)", j.completed_at),
+      order_by: fragment("toDate(?)", j.completed_at),
+      select: %{
+        date: fragment("toDate(?)", j.completed_at),
+        value: count(j.workflow_job_id)
+      }
+    )
     |> ClickHouseRepo.all()
   end
 
@@ -148,22 +152,25 @@ defmodule Tuist.Runners.Analytics do
     total_ms = total_completed_ms(account_id, start_dt, end_dt, opts)
     previous_total_ms = total_completed_ms(account_id, prev_start_dt, prev_end_dt, opts)
 
+    sub = latest_jobs_enqueued_between(account_id, start_dt, end_dt, opts)
+
     rows =
-      Job
-      |> from(hints: ["FINAL"])
-      |> completed_in_window(account_id, start_dt, end_dt)
-      |> scope_workflow(opts)
-      |> group_by([j], fragment("toDate(?)", j.completed_at))
-      |> select([j], %{
-        date: fragment("toDate(?)", j.completed_at),
-        value:
-          fragment(
-            "sum(toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?))",
-            j.completed_at,
-            j.started_at
-          )
-      })
-      |> order_by([j], asc: fragment("toDate(?)", j.completed_at))
+      from(j in subquery(sub),
+        where: j.status == "completed" and
+                 fragment("toUnixTimestamp64Milli(?) > 0", j.started_at) and
+                 fragment("toUnixTimestamp64Milli(?) > 0", j.completed_at),
+        group_by: fragment("toDate(?)", j.completed_at),
+        order_by: fragment("toDate(?)", j.completed_at),
+        select: %{
+          date: fragment("toDate(?)", j.completed_at),
+          value:
+            fragment(
+              "sum(toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?))",
+              j.completed_at,
+              j.started_at
+            )
+        }
+      )
       |> ClickHouseRepo.all()
 
     minute_rows =
@@ -182,19 +189,22 @@ defmodule Tuist.Runners.Analytics do
   end
 
   defp total_completed_ms(account_id, start_dt, end_dt, opts) do
+    sub = latest_jobs_enqueued_between(account_id, start_dt, end_dt, opts)
+
     [%{total_ms: total_ms} | _] =
-      Job
-      |> from(hints: ["FINAL"])
-      |> completed_in_window(account_id, start_dt, end_dt)
-      |> scope_workflow(opts)
-      |> select([j], %{
-        total_ms:
-          fragment(
-            "sum(toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?))",
-            j.completed_at,
-            j.started_at
-          )
-      })
+      from(j in subquery(sub),
+        where: j.status == "completed" and
+                 fragment("toUnixTimestamp64Milli(?) > 0", j.started_at) and
+                 fragment("toUnixTimestamp64Milli(?) > 0", j.completed_at),
+        select: %{
+          total_ms:
+            fragment(
+              "sum(toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?))",
+              j.completed_at,
+              j.started_at
+            )
+        }
+      )
       |> ClickHouseRepo.all()
       |> default_empty(%{total_ms: 0})
 
@@ -233,37 +243,40 @@ defmodule Tuist.Runners.Analytics do
   end
 
   defp jobs_duration_aggregates(account_id, start_dt, end_dt, opts) do
+    sub = latest_jobs_enqueued_between(account_id, start_dt, end_dt, opts)
+
     [aggregates | _] =
-      Job
-      |> from(hints: ["FINAL"])
-      |> completed_in_window(account_id, start_dt, end_dt)
-      |> scope_workflow(opts)
-      |> select([j], %{
-        avg:
-          fragment(
-            "avg(toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?))",
-            j.completed_at,
-            j.started_at
-          ),
-        p50:
-          fragment(
-            "quantile(0.5)(toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?))",
-            j.completed_at,
-            j.started_at
-          ),
-        p90:
-          fragment(
-            "quantile(0.9)(toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?))",
-            j.completed_at,
-            j.started_at
-          ),
-        p99:
-          fragment(
-            "quantile(0.99)(toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?))",
-            j.completed_at,
-            j.started_at
-          )
-      })
+      from(j in subquery(sub),
+        where: j.status == "completed" and
+                 fragment("toUnixTimestamp64Milli(?) > 0", j.started_at) and
+                 fragment("toUnixTimestamp64Milli(?) > 0", j.completed_at),
+        select: %{
+          avg:
+            fragment(
+              "avg(toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?))",
+              j.completed_at,
+              j.started_at
+            ),
+          p50:
+            fragment(
+              "quantile(0.5)(toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?))",
+              j.completed_at,
+              j.started_at
+            ),
+          p90:
+            fragment(
+              "quantile(0.9)(toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?))",
+              j.completed_at,
+              j.started_at
+            ),
+          p99:
+            fragment(
+              "quantile(0.99)(toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?))",
+              j.completed_at,
+              j.started_at
+            )
+        }
+      )
       |> ClickHouseRepo.all()
       |> default_empty(%{avg: 0, p50: 0, p90: 0, p99: 0})
 
@@ -301,16 +314,16 @@ defmodule Tuist.Runners.Analytics do
   end
 
   defp breakdown_totals(account_id, start_dt, end_dt, opts) do
+    sub = latest_jobs_enqueued_between(account_id, start_dt, end_dt, opts)
+
     [aggregates | _] =
-      Job
-      |> from(hints: ["FINAL"])
-      |> where([j], j.account_id == ^account_id and j.enqueued_at >= ^start_dt and j.enqueued_at <= ^end_dt)
-      |> scope_workflow(opts)
-      |> select([j], %{
-        total: count(j.workflow_job_id),
-        successful: fragment("countIf(? = 'completed' AND ? = 'success')", j.status, j.conclusion),
-        failed: fragment("countIf(? = 'completed' AND ? = 'failure')", j.status, j.conclusion)
-      })
+      from(j in subquery(sub),
+        select: %{
+          total: count(j.workflow_job_id),
+          successful: fragment("countIf(? = 'completed' AND ? = 'success')", j.status, j.conclusion),
+          failed: fragment("countIf(? = 'completed' AND ? = 'failure')", j.status, j.conclusion)
+        }
+      )
       |> ClickHouseRepo.all()
       |> default_empty(%{total: 0, successful: 0, failed: 0})
 
@@ -318,18 +331,18 @@ defmodule Tuist.Runners.Analytics do
   end
 
   defp breakdown_per_day(account_id, start_dt, end_dt, opts) do
-    Job
-    |> from(hints: ["FINAL"])
-    |> where([j], j.account_id == ^account_id and j.enqueued_at >= ^start_dt and j.enqueued_at <= ^end_dt)
-    |> scope_workflow(opts)
-    |> group_by([j], fragment("toDate(?)", j.enqueued_at))
-    |> select([j], %{
-      date: fragment("toDate(?)", j.enqueued_at),
-      total: count(j.workflow_job_id),
-      successful: fragment("countIf(? = 'completed' AND ? = 'success')", j.status, j.conclusion),
-      failed: fragment("countIf(? = 'completed' AND ? = 'failure')", j.status, j.conclusion)
-    })
-    |> order_by([j], asc: fragment("toDate(?)", j.enqueued_at))
+    sub = latest_jobs_enqueued_between(account_id, start_dt, end_dt, opts)
+
+    from(j in subquery(sub),
+      group_by: fragment("toDate(?)", j.enqueued_at),
+      order_by: fragment("toDate(?)", j.enqueued_at),
+      select: %{
+        date: fragment("toDate(?)", j.enqueued_at),
+        total: count(j.workflow_job_id),
+        successful: fragment("countIf(? = 'completed' AND ? = 'success')", j.status, j.conclusion),
+        failed: fragment("countIf(? = 'completed' AND ? = 'failure')", j.status, j.conclusion)
+      }
+    )
     |> ClickHouseRepo.all()
   end
 
@@ -384,12 +397,51 @@ defmodule Tuist.Runners.Analytics do
   end
 
   defp queue_time_aggregates(account_id, start_dt, end_dt, opts) do
+    sub = latest_jobs_claimed_between(account_id, start_dt, end_dt, opts)
+
     [aggregates | _] =
-      Job
-      |> from(hints: ["FINAL"])
-      |> claimed_in_window(account_id, start_dt, end_dt)
-      |> scope_workflow(opts)
-      |> select([j], %{
+      from(j in subquery(sub),
+        select: %{
+          avg:
+            fragment(
+              "avg(toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?))",
+              j.claimed_at,
+              j.enqueued_at
+            ),
+          p50:
+            fragment(
+              "quantile(0.5)(toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?))",
+              j.claimed_at,
+              j.enqueued_at
+            ),
+          p90:
+            fragment(
+              "quantile(0.9)(toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?))",
+              j.claimed_at,
+              j.enqueued_at
+            ),
+          p99:
+            fragment(
+              "quantile(0.99)(toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?))",
+              j.claimed_at,
+              j.enqueued_at
+            )
+        }
+      )
+      |> ClickHouseRepo.all()
+      |> default_empty(%{avg: 0, p50: 0, p90: 0, p99: 0})
+
+    aggregates
+  end
+
+  defp queue_time_buckets_per_day(account_id, start_dt, end_dt, opts) do
+    sub = latest_jobs_claimed_between(account_id, start_dt, end_dt, opts)
+
+    from(j in subquery(sub),
+      group_by: fragment("toDate(?)", j.claimed_at),
+      order_by: fragment("toDate(?)", j.claimed_at),
+      select: %{
+        date: fragment("toDate(?)", j.claimed_at),
         avg:
           fragment(
             "avg(toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?))",
@@ -414,62 +466,9 @@ defmodule Tuist.Runners.Analytics do
             j.claimed_at,
             j.enqueued_at
           )
-      })
-      |> ClickHouseRepo.all()
-      |> default_empty(%{avg: 0, p50: 0, p90: 0, p99: 0})
-
-    aggregates
-  end
-
-  defp queue_time_buckets_per_day(account_id, start_dt, end_dt, opts) do
-    Job
-    |> from(hints: ["FINAL"])
-    |> claimed_in_window(account_id, start_dt, end_dt)
-    |> scope_workflow(opts)
-    |> group_by([j], fragment("toDate(?)", j.claimed_at))
-    |> order_by([j], asc: fragment("toDate(?)", j.claimed_at))
-    |> select([j], %{
-      date: fragment("toDate(?)", j.claimed_at),
-      avg:
-        fragment(
-          "avg(toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?))",
-          j.claimed_at,
-          j.enqueued_at
-        ),
-      p50:
-        fragment(
-          "quantile(0.5)(toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?))",
-          j.claimed_at,
-          j.enqueued_at
-        ),
-      p90:
-        fragment(
-          "quantile(0.9)(toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?))",
-          j.claimed_at,
-          j.enqueued_at
-        ),
-      p99:
-        fragment(
-          "quantile(0.99)(toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?))",
-          j.claimed_at,
-          j.enqueued_at
-        )
-    })
-    |> ClickHouseRepo.all()
-  end
-
-  # Jobs that left the queue in the window — `claimed_at` past epoch
-  # within `[start_dt, end_dt]`. We bucket on `claimed_at` (not
-  # `enqueued_at`) so a job enqueued just before the window but
-  # claimed inside it still contributes to the day it was picked up.
-  defp claimed_in_window(query, account_id, start_dt, end_dt) do
-    where(
-      query,
-      [j],
-      j.account_id == ^account_id and j.claimed_at >= ^start_dt and j.claimed_at <= ^end_dt and
-        fragment("toUnixTimestamp64Milli(?) > 0", j.enqueued_at) and
-        fragment("toUnixTimestamp64Milli(?) > 0", j.claimed_at)
+      }
     )
+    |> ClickHouseRepo.all()
   end
 
   @doc """
@@ -498,16 +497,13 @@ defmodule Tuist.Runners.Analytics do
   end
 
   defp workflow_runs_count_in_range(account_id, start_dt, end_dt, opts) do
+    sub = latest_jobs_enqueued_between(account_id, start_dt, end_dt, opts)
+
     [%{count: count} | _] =
-      Job
-      |> from(hints: ["FINAL"])
-      |> where(
-        [j],
-        j.account_id == ^account_id and j.enqueued_at >= ^start_dt and
-          j.enqueued_at <= ^end_dt and j.workflow_run_id > 0
+      from(j in subquery(sub),
+        where: j.workflow_run_id > 0,
+        select: %{count: fragment("uniqExact(?)", j.workflow_run_id)}
       )
-      |> scope_workflow(opts)
-      |> select([j], %{count: fragment("uniqExact(?)", j.workflow_run_id)})
       |> ClickHouseRepo.all()
       |> default_empty(%{count: 0})
 
@@ -515,20 +511,17 @@ defmodule Tuist.Runners.Analytics do
   end
 
   defp workflow_runs_per_day(account_id, start_dt, end_dt, opts) do
-    Job
-    |> from(hints: ["FINAL"])
-    |> where(
-      [j],
-      j.account_id == ^account_id and j.enqueued_at >= ^start_dt and j.enqueued_at <= ^end_dt and
-        j.workflow_run_id > 0
+    sub = latest_jobs_enqueued_between(account_id, start_dt, end_dt, opts)
+
+    from(j in subquery(sub),
+      where: j.workflow_run_id > 0,
+      group_by: fragment("toDate(?)", j.enqueued_at),
+      order_by: fragment("toDate(?)", j.enqueued_at),
+      select: %{
+        date: fragment("toDate(?)", j.enqueued_at),
+        value: fragment("uniqExact(?)", j.workflow_run_id)
+      }
     )
-    |> scope_workflow(opts)
-    |> group_by([j], fragment("toDate(?)", j.enqueued_at))
-    |> select([j], %{
-      date: fragment("toDate(?)", j.enqueued_at),
-      value: fragment("uniqExact(?)", j.workflow_run_id)
-    })
-    |> order_by([j], asc: fragment("toDate(?)", j.enqueued_at))
     |> ClickHouseRepo.all()
   end
 
@@ -556,10 +549,14 @@ defmodule Tuist.Runners.Analytics do
   end
 
   defp failed_workflow_runs_in_range(account_id, start_dt, end_dt, opts) do
+    sub = latest_jobs_enqueued_between(account_id, start_dt, end_dt, opts)
+
     [%{count: count} | _] =
-      account_id
-      |> failed_workflow_runs_base_query(start_dt, end_dt, opts)
-      |> select([j], %{count: fragment("uniqExact(?)", j.workflow_run_id)})
+      from(j in subquery(sub),
+        where:
+          j.workflow_run_id > 0 and j.status == "completed" and j.conclusion == "failure",
+        select: %{count: fragment("uniqExact(?)", j.workflow_run_id)}
+      )
       |> ClickHouseRepo.all()
       |> default_empty(%{count: 0})
 
@@ -567,31 +564,19 @@ defmodule Tuist.Runners.Analytics do
   end
 
   defp failed_workflow_runs_per_day(account_id, start_dt, end_dt, opts) do
-    account_id
-    |> failed_workflow_runs_base_query(start_dt, end_dt, opts)
-    |> group_by([j], fragment("toDate(?)", j.enqueued_at))
-    |> select([j], %{
-      date: fragment("toDate(?)", j.enqueued_at),
-      value: fragment("uniqExact(?)", j.workflow_run_id)
-    })
-    |> order_by([j], asc: fragment("toDate(?)", j.enqueued_at))
-    |> ClickHouseRepo.all()
-  end
+    sub = latest_jobs_enqueued_between(account_id, start_dt, end_dt, opts)
 
-  # A workflow_run is "failed" when any of its jobs completed with
-  # `conclusion='failure'`. We filter rows directly rather than rolling
-  # the run up first because `uniqExact(workflow_run_id)` over the
-  # filtered rows produces the same distinct count without the extra
-  # subquery roundtrip.
-  defp failed_workflow_runs_base_query(account_id, start_dt, end_dt, opts) do
-    Job
-    |> from(hints: ["FINAL"])
-    |> where(
-      [j],
-      j.account_id == ^account_id and j.enqueued_at >= ^start_dt and j.enqueued_at <= ^end_dt and
-        j.workflow_run_id > 0 and j.status == "completed" and j.conclusion == "failure"
+    from(j in subquery(sub),
+      where:
+        j.workflow_run_id > 0 and j.status == "completed" and j.conclusion == "failure",
+      group_by: fragment("toDate(?)", j.enqueued_at),
+      order_by: fragment("toDate(?)", j.enqueued_at),
+      select: %{
+        date: fragment("toDate(?)", j.enqueued_at),
+        value: fragment("uniqExact(?)", j.workflow_run_id)
+      }
     )
-    |> scope_workflow(opts)
+    |> ClickHouseRepo.all()
   end
 
   @doc """
@@ -663,21 +648,24 @@ defmodule Tuist.Runners.Analytics do
   end
 
   defp workflow_runs_subquery(account_id, start_dt, end_dt, opts) do
-    Job
-    |> from(hints: ["FINAL"])
-    |> completed_in_window(account_id, start_dt, end_dt)
-    |> scope_workflow(opts)
-    |> where([j], j.workflow_run_id > 0)
-    |> group_by([j], [j.workflow_run_id])
-    |> select([j], %{
-      completion_date: fragment("toDate(max(?))", j.completed_at),
-      run_ms:
-        fragment(
-          "toUnixTimestamp64Milli(max(?)) - toUnixTimestamp64Milli(min(?))",
-          j.completed_at,
-          j.started_at
-        )
-    })
+    latest = latest_jobs_enqueued_between(account_id, start_dt, end_dt, opts)
+
+    from(j in subquery(latest),
+      where:
+        j.status == "completed" and j.workflow_run_id > 0 and
+          fragment("toUnixTimestamp64Milli(?) > 0", j.started_at) and
+          fragment("toUnixTimestamp64Milli(?) > 0", j.completed_at),
+      group_by: j.workflow_run_id,
+      select: %{
+        completion_date: fragment("toDate(max(?))", j.completed_at),
+        run_ms:
+          fragment(
+            "toUnixTimestamp64Milli(max(?)) - toUnixTimestamp64Milli(min(?))",
+            j.completed_at,
+            j.started_at
+          )
+      }
+    )
   end
 
   # Percentage change from previous to current. Returns 0.0 when
@@ -693,39 +681,42 @@ defmodule Tuist.Runners.Analytics do
   defp trend(_, _), do: 0.0
 
   defp duration_buckets_per_day(account_id, start_dt, end_dt, opts) do
-    Job
-    |> from(hints: ["FINAL"])
-    |> completed_in_window(account_id, start_dt, end_dt)
-    |> scope_workflow(opts)
-    |> group_by([j], fragment("toDate(?)", j.completed_at))
-    |> order_by([j], asc: fragment("toDate(?)", j.completed_at))
-    |> select([j], %{
-      date: fragment("toDate(?)", j.completed_at),
-      avg:
-        fragment(
-          "avg(toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?))",
-          j.completed_at,
-          j.started_at
-        ),
-      p50:
-        fragment(
-          "quantile(0.5)(toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?))",
-          j.completed_at,
-          j.started_at
-        ),
-      p90:
-        fragment(
-          "quantile(0.9)(toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?))",
-          j.completed_at,
-          j.started_at
-        ),
-      p99:
-        fragment(
-          "quantile(0.99)(toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?))",
-          j.completed_at,
-          j.started_at
-        )
-    })
+    sub = latest_jobs_enqueued_between(account_id, start_dt, end_dt, opts)
+
+    from(j in subquery(sub),
+      where: j.status == "completed" and
+               fragment("toUnixTimestamp64Milli(?) > 0", j.started_at) and
+               fragment("toUnixTimestamp64Milli(?) > 0", j.completed_at),
+      group_by: fragment("toDate(?)", j.completed_at),
+      order_by: fragment("toDate(?)", j.completed_at),
+      select: %{
+        date: fragment("toDate(?)", j.completed_at),
+        avg:
+          fragment(
+            "avg(toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?))",
+            j.completed_at,
+            j.started_at
+          ),
+        p50:
+          fragment(
+            "quantile(0.5)(toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?))",
+            j.completed_at,
+            j.started_at
+          ),
+        p90:
+          fragment(
+            "quantile(0.9)(toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?))",
+            j.completed_at,
+            j.started_at
+          ),
+        p99:
+          fragment(
+            "quantile(0.99)(toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?))",
+            j.completed_at,
+            j.started_at
+          )
+      }
+    )
     |> ClickHouseRepo.all()
   end
 
@@ -742,30 +733,32 @@ defmodule Tuist.Runners.Analytics do
   def job_duration_scatter(account_id, opts \\ []) when is_integer(account_id) do
     {start_dt, end_dt} = window(opts)
     group_by = group_by_opt(Keyword.get(opts, :group_by))
+    sub = latest_jobs_enqueued_between(account_id, start_dt, end_dt, opts)
 
     rows =
-      Job
-      |> from(hints: ["FINAL"])
-      |> completed_in_window(account_id, start_dt, end_dt)
-      |> scope_workflow(opts)
-      |> select([j], %{
-        id: j.workflow_job_id,
-        x_at: j.completed_at,
-        duration_ms:
-          fragment(
-            "toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?)",
-            j.completed_at,
-            j.started_at
-          ),
-        job_name: j.job_name,
-        workflow_name: j.workflow_name,
-        repo: j.repo,
-        head_branch: j.head_branch,
-        conclusion: j.conclusion,
-        fleet_name: j.fleet_name
-      })
-      |> order_by([j], desc: j.completed_at)
-      |> limit(@scatter_data_limit)
+      from(j in subquery(sub),
+        where: j.status == "completed" and
+                 fragment("toUnixTimestamp64Milli(?) > 0", j.started_at) and
+                 fragment("toUnixTimestamp64Milli(?) > 0", j.completed_at),
+        order_by: [desc: j.completed_at],
+        limit: ^@scatter_data_limit,
+        select: %{
+          id: j.workflow_job_id,
+          x_at: j.completed_at,
+          duration_ms:
+            fragment(
+              "toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?)",
+              j.completed_at,
+              j.started_at
+            ),
+          job_name: j.job_name,
+          workflow_name: j.workflow_name,
+          repo: j.repo,
+          head_branch: j.head_branch,
+          conclusion: j.conclusion,
+          fleet_name: j.fleet_name
+        }
+      )
       |> ClickHouseRepo.all()
 
     points_to_scatter_payload(rows, group_by)
@@ -778,30 +771,29 @@ defmodule Tuist.Runners.Analytics do
   def queue_time_scatter(account_id, opts \\ []) when is_integer(account_id) do
     {start_dt, end_dt} = window(opts)
     group_by = group_by_opt(Keyword.get(opts, :group_by))
+    sub = latest_jobs_claimed_between(account_id, start_dt, end_dt, opts)
 
     rows =
-      Job
-      |> from(hints: ["FINAL"])
-      |> claimed_in_window(account_id, start_dt, end_dt)
-      |> scope_workflow(opts)
-      |> select([j], %{
-        id: j.workflow_job_id,
-        x_at: j.claimed_at,
-        duration_ms:
-          fragment(
-            "toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?)",
-            j.claimed_at,
-            j.enqueued_at
-          ),
-        job_name: j.job_name,
-        workflow_name: j.workflow_name,
-        repo: j.repo,
-        head_branch: j.head_branch,
-        conclusion: j.conclusion,
-        fleet_name: j.fleet_name
-      })
-      |> order_by([j], desc: j.claimed_at)
-      |> limit(@scatter_data_limit)
+      from(j in subquery(sub),
+        order_by: [desc: j.claimed_at],
+        limit: ^@scatter_data_limit,
+        select: %{
+          id: j.workflow_job_id,
+          x_at: j.claimed_at,
+          duration_ms:
+            fragment(
+              "toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?)",
+              j.claimed_at,
+              j.enqueued_at
+            ),
+          job_name: j.job_name,
+          workflow_name: j.workflow_name,
+          repo: j.repo,
+          head_branch: j.head_branch,
+          conclusion: j.conclusion,
+          fleet_name: j.fleet_name
+        }
+      )
       |> ClickHouseRepo.all()
 
     points_to_scatter_payload(rows, group_by)
@@ -910,15 +902,70 @@ defmodule Tuist.Runners.Analytics do
   defp maybe_to_naive(%DateTime{} = dt), do: DateTime.to_naive(dt)
   defp maybe_to_naive(%NaiveDateTime{} = nd), do: nd
 
-  defp completed_in_window(query, account_id, start_dt, end_dt) do
-    where(
-      query,
+  # Returns a subquery containing one row per `workflow_job_id` for
+  # the account, with each field collapsed to its latest version
+  # (argMax over `updated_at`). The inner WHERE prunes by partition
+  # via `enqueued_at` — partition-aligned on `toYYYYMM(enqueued_at)`
+  # — and applies the workflow scope (repo / workflow_name /
+  # platform) so we never carry rows we'll later drop. Use this for
+  # every metric keyed off enqueued / completed time.
+  defp latest_jobs_enqueued_between(account_id, start_dt, end_dt, opts) do
+    Job
+    |> where(
       [j],
-      j.account_id == ^account_id and j.status == "completed" and
-        j.enqueued_at >= ^start_dt and j.enqueued_at <= ^end_dt and
-        fragment("toUnixTimestamp64Milli(?) > 0", j.started_at) and
-        fragment("toUnixTimestamp64Milli(?) > 0", j.completed_at)
+      j.account_id == ^account_id and j.enqueued_at >= ^start_dt and j.enqueued_at <= ^end_dt
     )
+    |> scope_workflow(opts)
+    |> group_by([j], j.workflow_job_id)
+    |> select([j], %{
+      workflow_job_id: j.workflow_job_id,
+      workflow_run_id: fragment("argMax(?, ?)", j.workflow_run_id, j.updated_at),
+      status: fragment("argMax(?, ?)", j.status, j.updated_at),
+      conclusion: fragment("argMax(?, ?)", j.conclusion, j.updated_at),
+      enqueued_at: fragment("argMax(?, ?)", j.enqueued_at, j.updated_at),
+      claimed_at: fragment("argMax(?, ?)", j.claimed_at, j.updated_at),
+      started_at: fragment("argMax(?, ?)", j.started_at, j.updated_at),
+      completed_at: fragment("argMax(?, ?)", j.completed_at, j.updated_at),
+      fleet_name: fragment("argMax(?, ?)", j.fleet_name, j.updated_at),
+      workflow_name: fragment("argMax(?, ?)", j.workflow_name, j.updated_at),
+      job_name: fragment("argMax(?, ?)", j.job_name, j.updated_at),
+      repo: fragment("argMax(?, ?)", j.repo, j.updated_at),
+      head_branch: fragment("argMax(?, ?)", j.head_branch, j.updated_at)
+    })
+  end
+
+  # Variant for queue-time metrics, where the natural window is the
+  # claim time rather than the enqueue time. Filters per-row by
+  # `claimed_at` in [start, end] so we exclude the still-queued
+  # versions (claimed_at = epoch) and any post-window rows. After
+  # the GROUP BY the latest claimed_at is consistent across the
+  # surviving rows (claimed_at is set once on transition and then
+  # preserved by `job_to_row`).
+  defp latest_jobs_claimed_between(account_id, start_dt, end_dt, opts) do
+    Job
+    |> where(
+      [j],
+      j.account_id == ^account_id and j.claimed_at >= ^start_dt and j.claimed_at <= ^end_dt and
+        fragment("toUnixTimestamp64Milli(?) > 0", j.enqueued_at) and
+        fragment("toUnixTimestamp64Milli(?) > 0", j.claimed_at)
+    )
+    |> scope_workflow(opts)
+    |> group_by([j], j.workflow_job_id)
+    |> select([j], %{
+      workflow_job_id: j.workflow_job_id,
+      workflow_run_id: fragment("argMax(?, ?)", j.workflow_run_id, j.updated_at),
+      status: fragment("argMax(?, ?)", j.status, j.updated_at),
+      conclusion: fragment("argMax(?, ?)", j.conclusion, j.updated_at),
+      enqueued_at: fragment("argMax(?, ?)", j.enqueued_at, j.updated_at),
+      claimed_at: fragment("argMax(?, ?)", j.claimed_at, j.updated_at),
+      started_at: fragment("argMax(?, ?)", j.started_at, j.updated_at),
+      completed_at: fragment("argMax(?, ?)", j.completed_at, j.updated_at),
+      fleet_name: fragment("argMax(?, ?)", j.fleet_name, j.updated_at),
+      workflow_name: fragment("argMax(?, ?)", j.workflow_name, j.updated_at),
+      job_name: fragment("argMax(?, ?)", j.job_name, j.updated_at),
+      repo: fragment("argMax(?, ?)", j.repo, j.updated_at),
+      head_branch: fragment("argMax(?, ?)", j.head_branch, j.updated_at)
+    })
   end
 
   defp window(opts) do
