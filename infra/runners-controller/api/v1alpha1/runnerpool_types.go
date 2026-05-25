@@ -89,8 +89,10 @@ type RunnerPoolSpec struct {
 	// RuntimeClass, when set, is stamped on the runner Pod's
 	// `spec.runtimeClassName`. The chart's `kata-qemu` RuntimeClass
 	// wraps each Pod in a microVM with its own kernel — required on
-	// Linux pools because the controller stamps `privileged: true`
-	// on every Linux runner container so workflows can use dockerd.
+	// Linux pools because the controller attaches a privileged
+	// docker:dind sidecar to every Linux runner Pod. The microVM
+	// keeps the sidecar's privileged surface off the bare-metal
+	// host.
 	// +optional
 	RuntimeClass string `json:"runtimeClass,omitempty"`
 
