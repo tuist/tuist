@@ -113,15 +113,16 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 		extraVolumes = append(extraVolumes,
 			corev1.Volume{Name: "dind-sock", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
 			corev1.Volume{Name: "work", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
-			// /var/lib/docker on a disk-backed emptyDir. tmpfs
-			// medium ran out of space pulling large node_modules
-			// trees; node-disk emptyDir trades virtio-fs through
-			// kata for tens of GB of headroom. The xattr-on-
-			// virtio-fs trap that broke buildx earlier is specific
-			// to the docker-container buildx driver's snapshotter;
-			// the docker driver (dockerd's built-in BuildKit) goes
-			// through a different code path that copes with it.
-			corev1.Volume{Name: "dind-storage", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
+			// /var/lib/docker on tmpfs (in-VM RAM). Node-disk
+			// emptyDir trades RAM for size but kata serves it via
+			// virtio-fs, which forces dockerd onto the vfs storage
+			// driver — and vfs still lacks the xattr surface buildx
+			// needs at checksum time. tmpfs is the only filesystem
+			// inside the microVM that supports overlay2 + the full
+			// xattr set. Pod memory has to be sized to fit both
+			// the build's process working set AND the tmpfs (which
+			// the kernel caps at 50 % of VM memory).
+			corev1.Volume{Name: "dind-storage", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{Medium: corev1.StorageMediumMemory}}},
 		)
 		extraVolumeMounts = append(extraVolumeMounts,
 			corev1.VolumeMount{Name: "dind-sock", MountPath: "/var/run"},
