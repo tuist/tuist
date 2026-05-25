@@ -132,10 +132,19 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 		initContainers = []corev1.Container{{
 			Name:  "dind",
 			Image: dindImage,
-			// --group pins the docker.sock GID so the runner user
-			// (member of `docker` group, GID 123) can reach it
-			// without sudo. The Dockerfile pins the same GID.
-			Args: []string{"dockerd", "--host=unix:///var/run/docker.sock", "--group=123"},
+			// kubelet creates the medium=Memory emptyDir as a
+			// tmpfs with the kernel default of ~1 inode per 16 KiB,
+			// which exhausts at a few million files — npm
+			// node_modules trees hit it before they hit the byte
+			// cap. Remount with nr_inodes=0 (unlimited) before
+			// dockerd touches /var/lib/docker. --group pins the
+			// docker.sock GID so the runner user (member of
+			// `docker` group, GID 123) can reach it.
+			Command: []string{"sh", "-c"},
+			Args: []string{
+				"mount -o remount,nr_inodes=0 /var/lib/docker && " +
+					"exec dockerd --host=unix:///var/run/docker.sock --group=123",
+			},
 			SecurityContext: &corev1.SecurityContext{
 				Privileged: ptr(true),
 			},
