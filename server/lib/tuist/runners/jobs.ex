@@ -56,6 +56,7 @@ defmodule Tuist.Runners.Jobs do
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
   alias Tuist.Runners.Job
+  alias Tuist.Runners.RunnerSessions
   alias Tuist.Runners.Telemetry
 
   require Logger
@@ -156,6 +157,19 @@ defmodule Tuist.Runners.Jobs do
     row = Map.merge(candidate, %{status: "claimed", claimed_at: claimed_at, pod_name: pod_name, updated_at: now})
 
     insert_row!(row)
+
+    # Open the per-Pod billing session. `claimed_at` is within a
+    # few hundred ms of the controller actually creating the
+    # Pod, which is the best server-side approximation we have
+    # until the controller reports Pod timestamps directly. See
+    # `Tuist.Runners.RunnerSessions` for the rationale.
+    RunnerSessions.open(%{
+      workflow_job_id: Map.fetch!(candidate, :workflow_job_id),
+      account_id: Map.fetch!(candidate, :account_id),
+      fleet_name: Map.get(candidate, :fleet_name, ""),
+      pod_name: pod_name,
+      started_at: claimed_at
+    })
 
     :telemetry.execute(
       Telemetry.event_name_job_claim(),
@@ -275,6 +289,13 @@ defmodule Tuist.Runners.Jobs do
           })
 
         insert_row!(row)
+
+        # Close the per-Pod billing session. The controller will
+        # tear down the Pod a few seconds later in response to
+        # the same completion webhook, so this slightly
+        # under-bills until the controller reports Pod-delete
+        # directly.
+        RunnerSessions.close(workflow_job_id, now)
 
         :telemetry.execute(
           Telemetry.event_name_job_completed(),

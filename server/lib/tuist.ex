@@ -175,6 +175,7 @@ defmodule Tuist do
       # rows live in ClickHouse (`runner_jobs`).
       Runners,
       Runners.Analytics,
+      Runners.Billing,
       Runners.Dispatch,
       Runners.Workers.DispatchWorker,
       Runners.Workers.WebhookRedeliveryWorker,
@@ -182,6 +183,8 @@ defmodule Tuist do
       Runners.Claim,
       Runners.Jobs,
       Runners.Job,
+      Runners.RunnerSession,
+      Runners.RunnerSessions,
       Runners.PromExPlugin,
       Runners.Telemetry,
       Kubernetes.Client

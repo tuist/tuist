@@ -1,6 +1,7 @@
 defmodule Tuist.Runners.JobsTest do
   use TuistTestSupport.Cases.DataCase
 
+  import Ecto.Query
   import TuistTestSupport.Fixtures.AccountsFixtures
 
   alias Tuist.Runners.Jobs
@@ -81,6 +82,25 @@ defmodule Tuist.Runners.JobsTest do
       counts = Jobs.status_counts(account.id)
       assert Map.get(counts, "claimed", 0) == 1
       assert Map.get(counts, "queued", 0) == 0
+    end
+
+    test "opens a billing session anchored on claimed_at" do
+      account = account_fixture()
+      :ok = enqueue_fixture(account, 5002, fleet: "fleet-bs")
+      {:ok, candidate} = Jobs.pick_queued("fleet-bs", [])
+      claimed_at = DateTime.utc_now()
+
+      assert :ok = Jobs.record_claimed(candidate, "pod-bs", claimed_at)
+
+      [session] =
+        Tuist.Repo.all(
+          from(s in Tuist.Runners.RunnerSession, where: s.workflow_job_id == 5002)
+        )
+
+      assert session.account_id == account.id
+      assert session.pod_name == "pod-bs"
+      assert session.ended_at == nil
+      assert DateTime.compare(session.started_at, claimed_at) == :eq
     end
   end
 
@@ -504,6 +524,24 @@ defmodule Tuist.Runners.JobsTest do
 
     test "returns :not_found for an unknown workflow_job_id" do
       assert {:error, :not_found} = Jobs.complete(9_999_999, "success")
+    end
+
+    test "closes the billing session for the workflow_job" do
+      account = account_fixture()
+      :ok = enqueue_fixture(account, 7200, fleet: "fleet-bs-close")
+      {:ok, candidate} = Jobs.pick_queued("fleet-bs-close", [])
+      :ok = Jobs.record_claimed(candidate, "pod-bs-close", DateTime.utc_now())
+      :ok = Jobs.record_running(7200, "runner-bs")
+
+      assert {:ok, _} = Jobs.complete(7200, "success")
+
+      [session] =
+        Tuist.Repo.all(
+          from(s in Tuist.Runners.RunnerSession, where: s.workflow_job_id == 7200)
+        )
+
+      assert session.ended_at != nil
+      assert DateTime.compare(session.ended_at, session.started_at) == :gt
     end
   end
 
