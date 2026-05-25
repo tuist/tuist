@@ -7,19 +7,17 @@ defmodule Tuist.Runners.JobsTest do
   alias Tuist.Runners.Telemetry
 
   defp enqueue_fixture(account, workflow_job_id, opts \\ []) do
-    fleet = Keyword.get(opts, :fleet, "fleet-a")
-    repo = Keyword.get(opts, :repo, "acme/cli")
-
     Jobs.enqueue(%{
       workflow_job_id: workflow_job_id,
       account_id: account.id,
-      fleet_name: fleet,
-      repo: repo,
-      workflow_run_id: workflow_job_id * 10,
-      run_attempt: 1,
-      job_name: "build",
-      head_branch: "main",
-      head_sha: "deadbeef"
+      fleet_name: Keyword.get(opts, :fleet, "fleet-a"),
+      repo: Keyword.get(opts, :repo, "acme/cli"),
+      workflow_run_id: Keyword.get(opts, :workflow_run_id, workflow_job_id * 10),
+      run_attempt: Keyword.get(opts, :run_attempt, 1),
+      workflow_name: Keyword.get(opts, :workflow_name, ""),
+      job_name: Keyword.get(opts, :job_name, "build"),
+      head_branch: Keyword.get(opts, :head_branch, "main"),
+      head_sha: Keyword.get(opts, :head_sha, "deadbeef")
     })
   end
 
@@ -156,6 +154,72 @@ defmodule Tuist.Runners.JobsTest do
 
       assert length(Jobs.list_for_account(account.id, limit: 2)) == 2
     end
+
+    test "sorts by :sort_by 'job' ascending and descending" do
+      account = account_fixture()
+
+      :ok = enqueue_fixture(account, 8301, job_name: "Charlie")
+      :ok = enqueue_fixture(account, 8302, job_name: "Alpha")
+      :ok = enqueue_fixture(account, 8303, job_name: "Bravo")
+
+      asc = Jobs.list_for_account(account.id, sort_by: "job", sort_order: "asc")
+      desc = Jobs.list_for_account(account.id, sort_by: "job", sort_order: "desc")
+
+      assert Enum.map(asc, & &1.job_name) == ["Alpha", "Bravo", "Charlie"]
+      assert Enum.map(desc, & &1.job_name) == ["Charlie", "Bravo", "Alpha"]
+    end
+
+    test "sorts by :sort_by 'workflow' ascending" do
+      account = account_fixture()
+
+      :ok = enqueue_fixture(account, 8401, workflow_name: "Server")
+      :ok = enqueue_fixture(account, 8402, workflow_name: "CLI")
+      :ok = enqueue_fixture(account, 8403, workflow_name: "Noora")
+
+      jobs = Jobs.list_for_account(account.id, sort_by: "workflow", sort_order: "asc")
+
+      assert Enum.map(jobs, & &1.workflow_name) == ["CLI", "Noora", "Server"]
+    end
+
+    test "sorts by :sort_by 'duration' descending — completed jobs ordered by elapsed runtime" do
+      account = account_fixture()
+
+      # Two jobs taken through the full lifecycle so completed_at -
+      # started_at yields different elapsed times. Short job first
+      # (sleep 30ms between started → completed), long job second
+      # (sleep 120ms).
+      :ok = enqueue_fixture(account, 8501, fleet: "fleet-d-short", job_name: "short")
+      {:ok, short} = Jobs.pick_queued("fleet-d-short", [])
+      :ok = Jobs.record_claimed(short, "pod-1", DateTime.utc_now())
+      :ok = Jobs.record_running(8501, "runner-1")
+      Process.sleep(30)
+      {:ok, _} = Jobs.complete(8501, "success")
+
+      :ok = enqueue_fixture(account, 8502, fleet: "fleet-d-long", job_name: "long")
+      {:ok, long} = Jobs.pick_queued("fleet-d-long", [])
+      :ok = Jobs.record_claimed(long, "pod-2", DateTime.utc_now())
+      :ok = Jobs.record_running(8502, "runner-2")
+      Process.sleep(120)
+      {:ok, _} = Jobs.complete(8502, "success")
+
+      [first | _] = Jobs.list_for_account(account.id, sort_by: "duration", sort_order: "desc")
+      [bottom | _] = Jobs.list_for_account(account.id, sort_by: "duration", sort_order: "asc")
+
+      assert first.workflow_job_id == 8502
+      assert bottom.workflow_job_id == 8501
+    end
+
+    test "filters by :search via job_name ILIKE substring" do
+      account = account_fixture()
+
+      :ok = enqueue_fixture(account, 8601, job_name: "Docker build")
+      :ok = enqueue_fixture(account, 8602, job_name: "Format")
+      :ok = enqueue_fixture(account, 8603, job_name: "Build acceptance tests")
+
+      hits = Jobs.list_for_account(account.id, search: "build")
+
+      assert hits |> Enum.map(& &1.workflow_job_id) |> Enum.sort() == [8601, 8603]
+    end
   end
 
   describe "list_workflows_for_account/2" do
@@ -211,6 +275,161 @@ defmodule Tuist.Runners.JobsTest do
       [w] = Jobs.list_workflows_for_account(account.id, repo: "acme")
 
       assert w.repo == "acme/a"
+    end
+
+    test "sorts rollups by :sort_by 'avg_duration' descending" do
+      account = account_fixture()
+
+      # Workflow A: one short completed job. Workflow B: one long
+      # completed job. Descending sort should land B first.
+      :ok =
+        enqueue_fixture(account, 54_001,
+          repo: "acme/short",
+          workflow_name: "Short",
+          fleet: "fleet-avg-short"
+        )
+
+      {:ok, short} = Jobs.pick_queued("fleet-avg-short", [])
+      :ok = Jobs.record_claimed(short, "pod-1", DateTime.utc_now())
+      :ok = Jobs.record_running(54_001, "runner-1")
+      Process.sleep(30)
+      {:ok, _} = Jobs.complete(54_001, "success")
+
+      :ok =
+        enqueue_fixture(account, 54_002,
+          repo: "acme/long",
+          workflow_name: "Long",
+          fleet: "fleet-avg-long"
+        )
+
+      {:ok, long} = Jobs.pick_queued("fleet-avg-long", [])
+      :ok = Jobs.record_claimed(long, "pod-2", DateTime.utc_now())
+      :ok = Jobs.record_running(54_002, "runner-2")
+      Process.sleep(150)
+      {:ok, _} = Jobs.complete(54_002, "success")
+
+      [first, second] =
+        Jobs.list_workflows_for_account(account.id,
+          sort_by: "avg_duration",
+          sort_order: "desc"
+        )
+
+      assert first.workflow_name == "Long"
+      assert second.workflow_name == "Short"
+      assert first.avg_duration_ms > second.avg_duration_ms
+    end
+  end
+
+  describe "list_recent_workflow_runs_for_account/2" do
+    test "rolls a workflow_run's completed jobs into a single row" do
+      account = account_fixture()
+
+      :ok =
+        enqueue_fixture(account, 60_001,
+          workflow_run_id: 7_001,
+          fleet: "fleet-rwr-a",
+          job_name: "Lint"
+        )
+
+      {:ok, c1} = Jobs.pick_queued("fleet-rwr-a", [])
+      :ok = Jobs.record_claimed(c1, "pod-1", DateTime.utc_now())
+      :ok = Jobs.record_running(60_001, "runner-1")
+      {:ok, _} = Jobs.complete(60_001, "success")
+
+      :ok =
+        enqueue_fixture(account, 60_002,
+          workflow_run_id: 7_001,
+          fleet: "fleet-rwr-b",
+          job_name: "Test"
+        )
+
+      {:ok, c2} = Jobs.pick_queued("fleet-rwr-b", [])
+      :ok = Jobs.record_claimed(c2, "pod-2", DateTime.utc_now())
+      :ok = Jobs.record_running(60_002, "runner-2")
+      {:ok, _} = Jobs.complete(60_002, "success")
+
+      [run] = Jobs.list_recent_workflow_runs_for_account(account.id)
+
+      assert run.workflow_run_id == 7_001
+      assert run.conclusion == "success"
+    end
+
+    test "excludes runs that still have non-completed jobs" do
+      account = account_fixture()
+
+      :ok = enqueue_fixture(account, 61_001, workflow_run_id: 7_101, fleet: "fleet-mixed")
+
+      {:ok, c} = Jobs.pick_queued("fleet-mixed", [])
+      :ok = Jobs.record_claimed(c, "pod", DateTime.utc_now())
+      :ok = Jobs.record_running(61_001, "runner")
+      {:ok, _} = Jobs.complete(61_001, "success")
+
+      # Second job in the same run is still queued — having clause
+      # should hide the rollup entirely.
+      :ok = enqueue_fixture(account, 61_002, workflow_run_id: 7_101)
+
+      assert Jobs.list_recent_workflow_runs_for_account(account.id) == []
+    end
+
+    test "duration_ms ignores the epoch sentinel for skipped jobs" do
+      account = account_fixture()
+
+      # Job A: full lifecycle so started_at is real and ~150ms before
+      # completed_at.
+      :ok =
+        enqueue_fixture(account, 62_001,
+          workflow_run_id: 7_201,
+          fleet: "fleet-epoch-a",
+          job_name: "Test"
+        )
+
+      {:ok, c} = Jobs.pick_queued("fleet-epoch-a", [])
+      :ok = Jobs.record_claimed(c, "pod", DateTime.utc_now())
+      :ok = Jobs.record_running(62_001, "runner")
+      Process.sleep(150)
+      {:ok, _} = Jobs.complete(62_001, "success")
+
+      # Job B: queued → completed("skipped") directly. `started_at`
+      # stays at the epoch sentinel — the rollup must NOT pull this
+      # into min(started_at) or the duration explodes to ~57 years.
+      :ok =
+        enqueue_fixture(account, 62_002,
+          workflow_run_id: 7_201,
+          fleet: "fleet-epoch-b",
+          job_name: "Skipped"
+        )
+
+      {:ok, _} = Jobs.complete(62_002, "skipped")
+
+      [run] = Jobs.list_recent_workflow_runs_for_account(account.id)
+
+      # A 57-year regression would put this in the 1_700_000_000_000+
+      # millisecond range. Any value comfortably under a day proves
+      # the minIf filter is excluding the epoch row.
+      one_day_ms = 24 * 60 * 60 * 1_000
+      assert run.duration_ms < one_day_ms
+      assert run.duration_ms >= 0
+    end
+
+    test "scopes results to the given account" do
+      mine = account_fixture()
+      other = account_fixture()
+
+      :ok = enqueue_fixture(mine, 63_001, workflow_run_id: 7_301, fleet: "fleet-mine")
+      {:ok, c1} = Jobs.pick_queued("fleet-mine", [])
+      :ok = Jobs.record_claimed(c1, "pod-1", DateTime.utc_now())
+      :ok = Jobs.record_running(63_001, "runner-1")
+      {:ok, _} = Jobs.complete(63_001, "success")
+
+      :ok = enqueue_fixture(other, 63_002, workflow_run_id: 7_302, fleet: "fleet-other")
+      {:ok, c2} = Jobs.pick_queued("fleet-other", [])
+      :ok = Jobs.record_claimed(c2, "pod-2", DateTime.utc_now())
+      :ok = Jobs.record_running(63_002, "runner-2")
+      {:ok, _} = Jobs.complete(63_002, "success")
+
+      runs = Jobs.list_recent_workflow_runs_for_account(mine.id)
+
+      assert Enum.map(runs, & &1.workflow_run_id) == [7_301]
     end
   end
 

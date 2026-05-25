@@ -41,7 +41,7 @@ defmodule TuistWeb.RunnerJobsLiveTest do
       Jobs.enqueue(%{
         workflow_job_id: 99_001,
         account_id: account.id,
-        fleet_name: "fleet-default",
+        fleet_name: "macos-xcode-26.4",
         repo: "tuist/tuist",
         workflow_run_id: 990_010,
         workflow_name: "Server",
@@ -56,7 +56,9 @@ defmodule TuistWeb.RunnerJobsLiveTest do
     assert html =~ "Server"
     assert html =~ "Docker build"
     assert html =~ "tuist/tuist"
-    assert html =~ "fleet-default"
+    # Fleet column was replaced with a Platform badge derived from
+    # the fleet_name prefix.
+    assert html =~ "macOS"
     assert html =~ "Queued"
   end
 
@@ -168,6 +170,110 @@ defmodule TuistWeb.RunnerJobsLiveTest do
     # The LV re-runs `assign_jobs` from the same broadcast, so the new
     # row appears in the table without any client-side reload.
     assert render(lv) =~ "broadcast-job"
+  end
+
+  test "search narrows the table by job name", %{conn: conn, account: account} do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 99_401,
+        account_id: account.id,
+        fleet_name: "fleet-a",
+        repo: "tuist/tuist",
+        workflow_run_id: 994_010,
+        workflow_name: "Server",
+        run_attempt: 1,
+        job_name: "Docker build",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 99_402,
+        account_id: account.id,
+        fleet_name: "fleet-a",
+        repo: "tuist/tuist",
+        workflow_run_id: 994_020,
+        workflow_name: "Server",
+        run_attempt: 1,
+        job_name: "Format",
+        head_branch: "main",
+        head_sha: "def"
+      })
+
+    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/jobs?search=Docker")
+
+    assert html =~ "Docker build"
+    refute html =~ ~r{>\s*Format\s*<}
+  end
+
+  test "?sort_by=job switches the table order", %{conn: conn, account: account} do
+    # Insert three jobs in non-alphabetical order so the natural
+    # enqueued-desc ordering and the job-asc ordering disagree.
+    Enum.each(
+      [{99_501, "Charlie"}, {99_502, "Alpha"}, {99_503, "Bravo"}],
+      fn {id, name} ->
+        :ok =
+          Jobs.enqueue(%{
+            workflow_job_id: id,
+            account_id: account.id,
+            fleet_name: "fleet-sort",
+            repo: "tuist/tuist",
+            workflow_run_id: id * 10,
+            workflow_name: "Server",
+            run_attempt: 1,
+            job_name: name,
+            head_branch: "main",
+            head_sha: "sha-#{id}"
+          })
+      end
+    )
+
+    {:ok, _lv, html} =
+      live(conn, ~p"/#{account.name}/runners/jobs?sort_by=job&sort_order=asc")
+
+    # Alpha must appear before Charlie in the rendered HTML when
+    # sorting asc by job name.
+    [alpha_idx, charlie_idx] =
+      Enum.map(["Alpha", "Charlie"], fn name ->
+        :binary.match(html, name) |> elem(0)
+      end)
+
+    assert alpha_idx < charlie_idx
+  end
+
+  test "pagination Prev/Next appears once the result count exceeds @page_size", %{
+    conn: conn,
+    account: account
+  } do
+    # The Jobs page size is 20. Seed 21 jobs so the table spills onto
+    # a second page and the pagination controls render.
+    Enum.each(1..21, fn i ->
+      :ok =
+        Jobs.enqueue(%{
+          workflow_job_id: 99_600 + i,
+          account_id: account.id,
+          fleet_name: "fleet-page",
+          repo: "tuist/tuist",
+          workflow_run_id: (99_600 + i) * 10,
+          workflow_name: "Server",
+          run_attempt: 1,
+          job_name: "Job #{i}",
+          head_branch: "main",
+          head_sha: "sha#{i}"
+        })
+    end)
+
+    {:ok, _lv, page_1_html} = live(conn, ~p"/#{account.name}/runners/jobs")
+    {:ok, _lv, page_2_html} = live(conn, ~p"/#{account.name}/runners/jobs?page=2")
+
+    assert page_1_html =~ "Next"
+    assert page_1_html =~ "Prev"
+
+    # The two pages render different rows — the second page must
+    # contain the oldest job, which never fits on page one.
+    refute page_1_html =~ ~r{>\s*Job 1\s*<}
+    assert page_2_html =~ ~r{>\s*Job 1\s*<}
   end
 
   test "does not show jobs from other accounts", %{conn: conn, account: account} do
