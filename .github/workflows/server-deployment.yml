@@ -785,7 +785,7 @@ jobs:
       - name: Wait for the warm pool to refill
         run: |
           set -euo pipefail
-          for i in $(seq 1 30); do
+          for i in $(seq 1 60); do
             ready=$(kubectl -n "$NAMESPACE_RUNNERS" get pods \
               -l tuist.dev/runner-pool="$RUNNER_POOL" \
               --field-selector=status.phase=Running \
@@ -794,6 +794,11 @@ jobs:
             [ "$ready" -ge 1 ] && break
             sleep 10
           done
+          # Dump the pool's pods so a scheduling failure is visible
+          # in the log rather than swallowed by the inspect step's
+          # array-out-of-bounds.
+          kubectl -n "$NAMESPACE_RUNNERS" get pods \
+            -l tuist.dev/runner-pool="$RUNNER_POOL" -o wide
       - name: Inspect one new pod
         run: |
           set -euo pipefail
