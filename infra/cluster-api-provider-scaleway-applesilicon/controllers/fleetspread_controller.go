@@ -30,11 +30,16 @@ const FleetHashAnnotation = "tuist.dev/fleet-hash"
 
 const rolloutRequeueAfter = 30 * time.Second
 
-// FleetNodeSelector picks out Mac mini Nodes (the ones tart-kubelet
-// registered) from the rest of the cluster. Matches the nodeSelector
-// the chart's xcresult-processor Deployment uses, so the hash is over
-// exactly the set of hosts that workload can schedule on.
-var FleetNodeSelector = labels.SelectorFromSet(labels.Set{
+// baseFleetNodeSelector picks out Mac mini Nodes (the ones
+// tart-kubelet registered) from the rest of the cluster. The
+// reconciler narrows further at runtime using the target
+// Deployment's own `spec.template.spec.nodeSelector` so that, e.g.,
+// scaling a builders-fleet (which carries `tuist.dev/runtime=tart`
+// but a different `tuist.dev/fleet` value) doesn't unnecessarily
+// roll a Deployment scheduled to a different fleet. SetupWithManager
+// uses this base selector for the cache-side watch predicate, where
+// we don't have a per-Deployment view yet.
+var baseFleetNodeSelector = labels.SelectorFromSet(labels.Set{
 	"kubernetes.io/os":  "darwin",
 	"tuist.dev/runtime": "tart",
 })
@@ -87,12 +92,6 @@ type FleetSpreadReconciler struct {
 func (r *FleetSpreadReconciler) Reconcile(ctx context.Context, _ ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx).WithValues("deployment", r.DeploymentName, "namespace", r.Namespace)
 
-	var nodes corev1.NodeList
-	if err := r.List(ctx, &nodes, &client.ListOptions{LabelSelector: FleetNodeSelector}); err != nil {
-		return ctrl.Result{}, err
-	}
-	hash := readyNodeHash(nodes.Items)
-
 	reader := r.APIReader
 	if reader == nil {
 		reader = r.Client
@@ -109,6 +108,25 @@ func (r *FleetSpreadReconciler) Reconcile(ctx context.Context, _ ctrl.Request) (
 		}
 		return ctrl.Result{}, err
 	}
+
+	// Hash only Nodes the target Deployment can actually schedule
+	// on. The Deployment's pod template carries a nodeSelector
+	// (e.g. `tuist.dev/fleet=<macosFleet>` for xcresult-processor);
+	// folding it into the Node list filter means scaling a sibling
+	// fleet (the builders fleet shares `kubernetes.io/os=darwin` +
+	// `tuist.dev/runtime=tart` but pins a different
+	// `tuist.dev/fleet` value) doesn't trip a rollout of this
+	// Deployment. The base selector still applies — we never want
+	// to hash, say, Linux Nodes — but it's combined with whatever
+	// the Deployment itself selects on.
+	deploymentSelector := labels.SelectorFromSet(labels.Set(dep.Spec.Template.Spec.NodeSelector))
+	combinedSelector := mergeSelectors(baseFleetNodeSelector, deploymentSelector)
+
+	var nodes corev1.NodeList
+	if err := r.List(ctx, &nodes, &client.ListOptions{LabelSelector: combinedSelector}); err != nil {
+		return ctrl.Result{}, err
+	}
+	hash := readyNodeHash(nodes.Items)
 
 	if dep.Spec.Template.Annotations[FleetHashAnnotation] == hash {
 		return ctrl.Result{}, nil
@@ -183,6 +201,24 @@ func isNodeReady(n corev1.Node) bool {
 	return false
 }
 
+// mergeSelectors combines two label selectors with AND semantics:
+// a Node must satisfy both to pass. The Kubernetes labels package
+// exposes `Selector.Add` for this; we use the requirements form so
+// the call site doesn't have to deal with label.Requirement
+// construction directly.
+//
+// Returns Nothing() (matches no labels) if either input is nil to
+// fail safe — a reconcile with a malformed selector shouldn't
+// silently hash the entire Node list and trip a rollout.
+func mergeSelectors(a, b labels.Selector) labels.Selector {
+	if a == nil || b == nil {
+		return labels.Nothing()
+	}
+	reqs, _ := a.Requirements()
+	bReqs, _ := b.Requirements()
+	return a.Add(append([]labels.Requirement{}, bReqs...)...).Add(reqs...)
+}
+
 // SetupWithManager watches Nodes filtered to the Mac mini fleet —
 // that's the source of truth for "Pod can schedule here." Predicate
 // trims the watch to fleet Nodes server-side via the cache's label
@@ -190,7 +226,7 @@ func isNodeReady(n corev1.Node) bool {
 // updates from the rest of the cluster.
 func (r *FleetSpreadReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	fleetNode := predicate.NewPredicateFuncs(func(o client.Object) bool {
-		return FleetNodeSelector.Matches(labels.Set(o.GetLabels()))
+		return baseFleetNodeSelector.Matches(labels.Set(o.GetLabels()))
 	})
 	return ctrl.NewControllerManagedBy(mgr).
 		Named("fleet-spread").

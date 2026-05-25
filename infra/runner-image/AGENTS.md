@@ -75,9 +75,12 @@ CI:
   hatch for non-versioned rebuilds.
 
 Both flows run on the bare-metal `vm-image-builder` Mac mini
-that also builds xcresult-processor — Tart needs a live GUI
+fleet that also builds xcresult-processor. Tart needs a live GUI
 session for Virtualization.framework, so this can't run on
-hosted runners.
+hosted runners. Builder fleet operator runbook:
+[`../vm-image-builder.md`](../vm-image-builder.md) — cluster-
+managed via the same CAPI provider as the macOS Node fleets;
+scale via `buildersFleet.replicas` / `kubectl scale`.
 
 ## How it ends up serving traffic
 

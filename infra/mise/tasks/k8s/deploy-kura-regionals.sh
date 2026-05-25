@@ -26,6 +26,25 @@ export CLOUDFLARE_API_TOKEN
 
 helm dependency update "$MONITORING_CHART_PATH" >/dev/null
 
+require_managed_secret_store() {
+  local kubeconfig="$1"
+  local cluster_name="$2"
+  local kubeconfig_item="$3"
+
+  if ! KUBECONFIG="$kubeconfig" kubectl get clustersecretstore onepassword >/dev/null 2>&1; then
+    echo "ERROR: $cluster_name is missing ClusterSecretStore/onepassword required by managed ExternalSecrets." >&2
+    echo "Run: mise -C \"$REPO_ROOT/infra\" run k8s:bootstrap-workload \"$cluster_name\" production \"$kubeconfig_item\"" >&2
+    exit 1
+  fi
+
+  if ! KUBECONFIG="$kubeconfig" kubectl wait \
+    --for=condition=Ready clustersecretstore/onepassword --timeout=2m >/dev/null; then
+    echo "ERROR: $cluster_name ClusterSecretStore/onepassword is not Ready; managed ExternalSecrets will not reconcile." >&2
+    echo "Run: mise -C \"$REPO_ROOT/infra\" run k8s:bootstrap-workload \"$cluster_name\" production \"$kubeconfig_item\"" >&2
+    exit 1
+  fi
+}
+
 deploy_region() {
   local region="$1"
   local cluster_name="$2"
@@ -39,6 +58,8 @@ deploy_region() {
   echo "Deploying Kura controller to $region"
   KUBECONFIG="$kubeconfig" kubectl --request-timeout=10s get --raw /version >/dev/null
 
+  require_onepassword_bootstrap "$kubeconfig" "$cluster_name" "$kubeconfig_item"
+
   # Cluster names must match the CAPI Cluster CR names in
   # infra/k8s/clusters/cluster-production-us-{east,west}.yaml. They
   # drive external-dns.txtOwnerId and the Hetzner ingress LB annotation
@@ -46,6 +67,11 @@ deploy_region() {
   # records and rename LBs on every deploy.
   mise -C "$REPO_ROOT/infra" run k8s:install-platform \
     "$kubeconfig" "$cluster_name"
+
+  # Monitoring and the Kura controller chart both resolve secrets through
+  # ClusterSecretStore/onepassword. Gate on that contract instead of the
+  # bootstrap implementation details behind it.
+  require_managed_secret_store "$kubeconfig" "$cluster_name" "$kubeconfig_item"
 
   echo "Deploying Grafana monitoring to $region"
   KUBECONFIG="$kubeconfig" helm upgrade --install k8s-monitoring "$MONITORING_CHART_PATH" \

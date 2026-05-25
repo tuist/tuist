@@ -45,19 +45,6 @@ enum TuistCleanCategory: ExpressibleByArgument, CaseIterable, Equatable {
             return nil
         }
     }
-
-    func directory(
-        packageDirectory: AbsolutePath?
-    ) throws -> Path.AbsolutePath? {
-        switch self {
-        case let .global(category):
-            return try CacheDirectoriesProvider().cacheDirectory(for: category)
-        case .dependencies:
-            return packageDirectory?.appending(
-                component: Constants.SwiftPackageManager.packageBuildDirectoryName
-            )
-        }
-    }
 }
 
 struct CleanService {
@@ -70,6 +57,7 @@ struct CleanService {
     private let cleanProjectCacheService: CleanProjectCacheServicing
     private let getCacheEndpointsService: GetCacheEndpointsServicing
     private let serverAuthenticationController: ServerAuthenticationControlling
+    private let swiftPackageManagerScratchDirectoryLocator: SwiftPackageManagerScratchDirectoryLocator
     private let fileSystem: FileSystem
 
     init(
@@ -82,6 +70,8 @@ struct CleanService {
         cleanProjectCacheService: CleanProjectCacheServicing,
         getCacheEndpointsService: GetCacheEndpointsServicing,
         serverAuthenticationController: ServerAuthenticationControlling,
+        swiftPackageManagerScratchDirectoryLocator: SwiftPackageManagerScratchDirectoryLocator =
+            SwiftPackageManagerScratchDirectoryLocator(),
         fileSystem: FileSystem
     ) {
         self.rootDirectoryLocator = rootDirectoryLocator
@@ -93,6 +83,7 @@ struct CleanService {
         self.cleanProjectCacheService = cleanProjectCacheService
         self.getCacheEndpointsService = getCacheEndpointsService
         self.serverAuthenticationController = serverAuthenticationController
+        self.swiftPackageManagerScratchDirectoryLocator = swiftPackageManagerScratchDirectoryLocator
         self.fileSystem = fileSystem
     }
 
@@ -107,6 +98,7 @@ struct CleanService {
             cleanProjectCacheService: CleanProjectCacheService(),
             getCacheEndpointsService: GetCacheEndpointsService(),
             serverAuthenticationController: ServerAuthenticationController(),
+            swiftPackageManagerScratchDirectoryLocator: SwiftPackageManagerScratchDirectoryLocator(),
             fileSystem: FileSystem()
         )
     }
@@ -119,6 +111,10 @@ struct CleanService {
         let resolvedPath = try await Environment.current.pathRelativeToWorkingDirectory(path)
 
         let packageDirectory = try await manifestFilesLocator.locatePackageManifest(at: resolvedPath)?.parentDirectory
+        let swiftPackageManagerScratchDirectory = try await swiftPackageManagerScratchDirectory(
+            packageDirectory: packageDirectory,
+            path: resolvedPath
+        )
 
         for category in categories {
             let directory: AbsolutePath?
@@ -126,9 +122,7 @@ struct CleanService {
             case let .global(category):
                 directory = try cacheDirectoriesProvider.cacheDirectory(for: category)
             case .dependencies:
-                directory = packageDirectory?.appending(
-                    component: Constants.SwiftPackageManager.packageBuildDirectoryName
-                )
+                directory = swiftPackageManagerScratchDirectory
             }
             if let directory,
                try await fileSystem.exists(directory)
@@ -182,5 +176,21 @@ struct CleanService {
 
             Logger.current.notice("Successfully cleaned the remote storage.")
         }
+    }
+
+    private func swiftPackageManagerScratchDirectory(
+        packageDirectory: AbsolutePath?,
+        path: AbsolutePath
+    ) async throws -> AbsolutePath? {
+        guard let packageDirectory else { return nil }
+
+        let config = try await configLoader.loadConfig(path: path)
+        let arguments = config.project.generatedProject?.installOptions.passthroughSwiftPackageManagerArguments ?? []
+        return try swiftPackageManagerScratchDirectoryLocator.locate(
+            packagePath: packageDirectory,
+            arguments: arguments,
+            environment: Environment.current.variables,
+            workingDirectory: try await Environment.current.currentWorkingDirectory()
+        )
     }
 }

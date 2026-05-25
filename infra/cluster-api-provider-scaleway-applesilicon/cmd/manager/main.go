@@ -41,7 +41,9 @@ import (
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/api/v1alpha1"
 	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/controllers"
 	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/internal/credentials"
+	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/internal/githubapp"
 	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/internal/kubeconfig"
+	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/internal/runner"
 	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/internal/scaleway"
 )
 
@@ -154,7 +156,7 @@ func main() {
 		"How many ScalewayAppleSiliconMachine reconciles run in parallel. The "+
 			"default of 1 (controller-runtime's default) serializes the whole "+
 			"fleet behind one worker — first-time bring-up of N Mac minis takes "+
-			"N × bootstrap time because each CreateServer + SSH bootstrap "+
+			"N × bootstrap time because each AdoptFromPool + SSH bootstrap "+
 			"blocks the worker for ~50 min. Bumping this lets distinct machines "+
 			"provision in parallel; reconciles for the same machine remain "+
 			"serialized by controller-runtime's per-key locking. 4 covers the "+
@@ -318,6 +320,16 @@ func main() {
 		APIServerURL: apiServerURL,
 	}
 
+	// One Client per manager process, not per-Machine: the underlying
+	// http.Client keeps its TLS session pool warm across reconciles
+	// so a fleet bring-up doesn't re-handshake api.github.com on
+	// every host.
+	ghAppClient := &githubapp.Client{}
+	runnerResolver := &runner.GitHubAppResolver{
+		Client: mgr.GetClient(),
+		Minter: ghAppClient,
+	}
+
 	if err := (&controllers.ScalewayAppleSiliconMachineReconciler{
 		Client:               mgr.GetClient(),
 		Scheme:               mgr.GetScheme(),
@@ -345,6 +357,7 @@ func main() {
 		EgressNamespace:              egressNamespace,
 		EgressProxyGroup:             egressProxyGroup,
 		EgressMagicDNSSuffix:         egressMagicDNSSuffix,
+		RunnerResolver:               runnerResolver,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup MachineReconciler")
 		os.Exit(1)

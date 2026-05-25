@@ -27,8 +27,8 @@ API group: `infrastructure.cluster.x-k8s.io/v1alpha1`. Short names:
  ┌──────────────────────────────────────────────┐
  │ capi-scaleway-applesilicon manager           │
  │   ├── ScalewayAppleSiliconMachineReconciler  │
- │   │   ├── 1. Stage: Provisioning             │
- │   │   │      scaleway.CreateServer(...)      │
+ │   │   ├── 1. Stage: Adopting                 │
+ │   │   │      scaleway.AdoptFromPool(...)     │
  │   │   │      → ProviderID, IP, sudo password │
  │   │   ├── 2. Stage: Bootstrapping            │
  │   │   │      bootstrap.Run(SSH, Tart, kubelet,│
@@ -173,16 +173,29 @@ them Ready.
 ```bash
 kubectl scale machinedeployment <fleet-name> --replicas=1
 ```
-CAPI core picks the most-recently-created Machines for deletion;
-operator releases them via Scaleway's API (the 24h Apple licensing
-floor still applies — Scaleway keeps charging until the boundary).
+CAPI core picks the most-recently-created Machines for deletion. The
+controller renames the host back into the pool namespace
+(`<poolPrefix><uuid>`) and triggers a Scaleway OS reinstall; the
+host stays alive, returns to factory-default state, and becomes
+eligible for the next adoption once Scaleway flips it back to
+`Delivered + Ready`. The 24h Apple licensing floor stays in
+operator-owned territory — you keep paying for capacity you already
+pre-ordered until you decide to release it via the Scaleway console.
 
 ### Replace a wedged host
 ```bash
 kubectl delete machine <machine-name>
 ```
 The MachineSet immediately creates a replacement; the old Mac mini
-is released back to Scaleway after the operator's delete reconcile.
+is renamed back into the pool, reinstalled, and re-eligible for the
+next adoption. The replacement Machine will adopt either this host
+(post-reinstall) or any other available pool host, whichever
+Scaleway returns to `Ready` first.
+
+If the host is genuinely broken (kernel panic loop, hardware fault,
+retired SKU) and must not be re-adopted, release it via the
+Scaleway console before deleting the Machine — the controller has
+no physical-terminate path.
 
 ### Investigate a failure
 ```bash
@@ -240,13 +253,14 @@ Reserved for recovering from a duplicate-claim state (multiple CRs
 ended up bound to the same Scaleway server) or for hand-rolling a CR
 off a host that's actively serving traffic. The standard
 `kubectl delete machine <name>` path always calls Scaleway's
-`DeleteServer` against the bound host, which is the wrong move when
-the host is shared OR you want to keep the host paid up.
+`ReleaseToPool` against the bound host (rename + reinstall), which
+is the wrong move when the host is shared OR you want to keep its
+current state intact.
 
 The reconciler skips Scaleway release whenever `status.serverID` is
 empty at delete time. But clearing `status.serverID` before the
 delete races the reconcile loop — it sees the empty serverID and
-runs `AdoptByPrefix` against the pool. To latch the loop off
+runs `AdoptFromPool` against the pool. To latch the loop off
 during cleanup, set the CAPI `cluster.x-k8s.io/paused` annotation
 on the CR *before* clearing status:
 
@@ -259,7 +273,7 @@ NAME=tuist-tuist-runners-fleet-mndbc-xxxxx
 kubectl -n "$NS" annotate scalewayapplesiliconmachine "$NAME" \
   cluster.x-k8s.io/paused=true --overwrite
 
-# 2. Clear status.serverID (so reconcileDelete skips DeleteServer)
+# 2. Clear status.serverID (so reconcileDelete skips ReleaseToPool)
 #    and spec.providerID (so CAPI core doesn't keep referencing
 #    the abandoned binding).
 kubectl -n "$NS" patch scalewayapplesiliconmachine "$NAME" \
@@ -279,7 +293,7 @@ which adopts an unclaimed pool host on its next reconcile.
 
 After cleanup, if you renamed the original Scaleway host
 out-of-band (e.g. during a duplicate-claim untangling), rename it
-back so the pool prefix matches and a future `AdoptByPrefix` can
+back so the pool prefix matches and a future `AdoptFromPool` can
 pick it up:
 
 ```bash

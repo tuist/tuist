@@ -550,20 +550,6 @@ defmodule TuistWeb.AccountSettingsLive do
         </.modal>
       </div>
       <div data-part="content">
-        <.alert
-          :if={@global_endpoint_url && Enum.any?(@kura_servers)}
-          status="information"
-          type="secondary"
-          size="large"
-          title={dgettext("dashboard_account", "Global Kura endpoint")}
-          description={
-            dgettext(
-              "dashboard_account",
-              "Point clients at %{url}. It routes to the nearest healthy region automatically.",
-              url: @global_endpoint_url
-            )
-          }
-        />
         <.table
           :if={Enum.any?(@kura_servers) or Enum.any?(@available_kura_regions)}
           id="kura-servers-table"
@@ -580,7 +566,7 @@ defmodule TuistWeb.AccountSettingsLive do
             />
           </:col>
           <:col :let={row} label={dgettext("dashboard_account", "Domain")}>
-            <.text_cell label={kura_row_domain_label(row)} />
+            <.text_cell label={kura_row_domain_label(row, @global_endpoint_url)} />
           </:col>
           <:col :let={row} label={dgettext("dashboard_account", "Version")}>
             <.text_cell label={kura_row_version_label(row)} />
@@ -664,11 +650,17 @@ defmodule TuistWeb.AccountSettingsLive do
   defp kura_row_status_color(%{type: :server, server: server}), do: kura_display_status_color(server)
   defp kura_row_status_color(%{type: :available_region}), do: "neutral"
 
-  defp kura_row_domain_label(%{type: :server, server: server}) do
+  defp kura_row_domain_label(%{type: :server}, global_endpoint_url)
+       when is_binary(global_endpoint_url) and global_endpoint_url != "" do
+    global_endpoint_url
+  end
+
+  defp kura_row_domain_label(%{type: :server, server: server}, _global_endpoint_url) do
     server.url || dgettext("dashboard_account", "Pending")
   end
 
-  defp kura_row_domain_label(%{type: :available_region}), do: dgettext("dashboard_account", "Pending")
+  defp kura_row_domain_label(%{type: :available_region}, _global_endpoint_url),
+    do: dgettext("dashboard_account", "Pending")
 
   # Prefer the image the cluster actually reports running
   # (`observed_image_tag`) over the last activated image, so a rollout

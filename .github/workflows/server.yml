@@ -60,7 +60,7 @@ jobs:
         run: swift test --replace-scm-with-registry
   gettext:
     name: Gettext
-    runs-on: namespace-profile-default-with-volume
+    runs-on: tuist-production-linux
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
@@ -159,6 +159,8 @@ jobs:
           echo "✅ All dashboard translation templates present"
   test:
     name: Test
+    # TODO: migrate to tuist-production-linux once the runner image ships
+    # a docker daemon — required for the postgres service container.
     runs-on: namespace-profile-default-with-volume
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
@@ -193,19 +195,20 @@ jobs:
         run: mix test --warnings-as-errors
   credo:
     name: Credo
-    runs-on: namespace-profile-default-with-volume
+    runs-on: tuist-production-linux
     timeout-minutes: 15
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-server-mix
         with:
           mise-version: ${{ env.MISE_VERSION }}
       - name: Run Credo
+        env:
+          MIX_OS_DEPS_COMPILE_PARTITION_COUNT: 1
         run: mix credo
   format:
     name: Format
-    runs-on: namespace-profile-default-with-volume
+    runs-on: tuist-production-linux
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
@@ -227,7 +230,7 @@ jobs:
         run: mise run --no-deps format --check
   esbuild:
     name: esbuild
-    runs-on: namespace-profile-default-with-volume
+    runs-on: tuist-production-linux
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
@@ -251,6 +254,8 @@ jobs:
           aube install
           aube run build
       - name: Install esbuild
+        env:
+          MIX_OS_DEPS_COMPILE_PARTITION_COUNT: 1
         run: mix esbuild.install
       - name: Check esbuild output
         run: |
@@ -270,7 +275,7 @@ jobs:
           fi
   security:
     name: Security
-    runs-on: namespace-profile-default-with-volume
+    runs-on: tuist-production-linux
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
@@ -286,9 +291,13 @@ jobs:
           sudo tar xzf /tmp/trivy.tar.gz -C /usr/local/bin trivy
           rm /tmp/trivy.tar.gz
       - name: Check
+        env:
+          MIX_OS_DEPS_COMPILE_PARTITION_COUNT: 1
         run: ./mise/tasks/security.sh
   docker_build:
     name: Docker build
+    # TODO: migrate to tuist-production-linux once the runner image ships a
+    # docker daemon — buildx requires a working docker engine.
     runs-on: namespace-profile-default-with-volume
     timeout-minutes: 15
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
@@ -297,7 +306,7 @@ jobs:
         with:
           submodules: false
       - name: Set up Docker Buildx
-        uses: namespacelabs/nscloud-setup-buildx-action@v0
+        uses: docker/setup-buildx-action@v3
       - name: Docker build
         uses: docker/build-push-action@v6
         with:
@@ -368,6 +377,8 @@ jobs:
   #         fi
   seed:
     name: Seed
+    # TODO: migrate to tuist-production-linux once the runner image ships
+    # a docker daemon — required for the postgres service container.
     runs-on: namespace-profile-default-with-volume
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'

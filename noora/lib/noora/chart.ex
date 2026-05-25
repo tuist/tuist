@@ -22,6 +22,7 @@ defmodule Noora.Chart do
   - `formatMilliseconds`: Formats milliseconds into human readable time
   - `formatHours`: Formats hours into human readable time (e.g., "30m", "2h 30m", "1d 5h")
   - `formatBytes`: Formats bytes into human readable size (e.g., "1.5 KB", "2 MB", "1 GB")
+  - `formatMbps`: Formats bytes/second into human readable throughput in megabits per second (e.g., "1.0 Mbps", "10.0 Mbps")
   - `toLocaleDate`: Formats dates into locale-specific format
   - `firstAndLastDate`: Renders the first and last label only as dates. This is useful for time series charts.
 

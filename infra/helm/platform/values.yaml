@@ -50,10 +50,16 @@ ingress-nginx:
     # Proxy protocol is a Hetzner-oriented default because that's where the
     # managed Tuist cluster runs. Other providers should disable these in
     # their own overlay when their LB doesn't pass through PROXY headers.
+    #
+    # upstream-keepalive-timeout must stay below Bandit's
+    # thousand_island_options.read_timeout (15s in server/config/runtime.exs).
+    # Otherwise nginx reuses a connection the backend has already FIN'd,
+    # producing 502s with Bandit `reason=protocol_error`.
     config:
       use-forwarded-headers: "true"
       use-proxy-protocol: "true"
       compute-full-forwarded-for: "true"
+      upstream-keepalive-timeout: "10"
     metrics:
       enabled: true
 
@@ -87,6 +93,22 @@ external-secrets:
   installCRDs: true
   webhook:
     port: 9443
+
+# Backs the pods.metrics.k8s.io API the HPA reads. Without it, HPAs report
+# `FailedGetResourceMetric` and refuse to scale.
+# --kubelet-insecure-tls because kubeadm kubelets serve a self-signed cert
+# the kube-apiserver CA can't validate (CSR auto-approval is opt-in).
+metrics-server:
+  enabled: true
+  args:
+    - --kubelet-insecure-tls
+  resources:
+    requests:
+      cpu: 50m
+      memory: 80Mi
+    limits:
+      cpu: 200m
+      memory: 200Mi
 
 # Whether to emit the ClusterIssuer template below. Turn off if you manage
 # cert-manager issuers with a separate GitOps process.

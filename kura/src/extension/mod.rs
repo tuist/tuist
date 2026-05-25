@@ -412,6 +412,19 @@ impl ExtensionEngine {
         }
     }
 
+    pub async fn clear_caches(&self) -> usize {
+        let mut principal_cache = self.principal_cache.write().await;
+        let principal_evicted = principal_cache.len();
+        principal_cache.clear();
+        drop(principal_cache);
+
+        let mut decision_cache = self.decision_cache.write().await;
+        let decision_evicted = decision_cache.len();
+        decision_cache.clear();
+
+        principal_evicted + decision_evicted
+    }
+
     async fn run_authenticate(
         &self,
         ctx: &ExtensionContext,

@@ -22,6 +22,7 @@ public struct XcodeBuildController: XcodeBuildControlling {
     private let formatter: Formatting
     private let simulatorController: SimulatorController
     private let commandRunner: CommandRunning
+    private static let showBuildSettingsTimeout: Duration = .seconds(20)
 
     public init() {
         self.init(
@@ -376,7 +377,7 @@ public struct XcodeBuildController: XcodeBuildControlling {
             }
             
             let timeoutTask = Task {
-                try await Task.sleep(nanoseconds: 20_000_000)
+                try await Task.sleep(for: Self.showBuildSettingsTimeout)
                 commandTask.cancel()
             }
             

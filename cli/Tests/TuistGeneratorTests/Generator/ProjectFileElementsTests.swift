@@ -552,6 +552,48 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         ])
     }
 
+    func test_generateProjectFiles_whenExplicitSourceIsInsideSynchronizedGroup() throws {
+        // Given
+        let xcassetsPath = try AbsolutePath(validating: "/project/Resources/Assets.xcassets")
+        let target = Target.test(
+            sources: [SourceFile(path: xcassetsPath)],
+            buildableFolders: [
+                BuildableFolder(
+                    path: "/project/Resources",
+                    exceptions: BuildableFolderExceptions(exceptions: []),
+                    resolvedFiles: [
+                        BuildableFolderFile(path: xcassetsPath, compilerFlags: nil),
+                    ]
+                ),
+            ]
+        )
+        let project = Project.test(
+            path: "/project",
+            sourceRootPath: "/project",
+            xcodeProjPath: "/project/Project.xcodeproj",
+            targets: [target]
+        )
+        let graph = Graph.test()
+        let graphTraverser = GraphTraverser(graph: graph)
+        let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj)
+
+        // When
+        try subject.generateProjectFiles(
+            project: project,
+            graphTraverser: graphTraverser,
+            groups: groups,
+            pbxproj: pbxproj
+        )
+
+        // Then
+        XCTAssertNotNil(subject.file(path: xcassetsPath))
+        let projectGroup = groups.sortedMain.group(named: "Project")
+        XCTAssertEqual(projectGroup?.flattenedChildren.sorted(), [
+            "Assets.xcassets",
+            "Resources",
+        ])
+    }
+
     func test_generateProjectFiles_whenExplicitResourceIsInsideNestedSynchronizedGroup() throws {
         // Given
         let xcstringsPath = try AbsolutePath(validating: "/project/Resources/MyModule/Localizable.xcstrings")
@@ -740,6 +782,55 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
             (element as? PBXFileReference)?.name == "StytchCore.xcframework"
         }
         XCTAssertFalse(projectGroupHasXCFramework, "XCFramework from .build/ should not appear in the project group")
+    }
+
+    func test_generateDependencies_whenPrecompiledNodeFromCustomSPMScratchDirectory() throws {
+        let pbxproj = PBXProj()
+        let sourceRootPath = try AbsolutePath(validating: "/path/to/project")
+        let target = Target.test()
+        let projectGroupName = "Project"
+        let projectGroup: ProjectGroup = .group(name: projectGroupName)
+        let project = Project.test(
+            path: sourceRootPath,
+            sourceRootPath: sourceRootPath,
+            xcodeProjPath: sourceRootPath.appending(component: "Project.xcodeproj"),
+            filesGroup: projectGroup,
+            targets: [target]
+        )
+        let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj)
+        let scratchDirectory = try AbsolutePath(validating: "/path/to/custom-scratch")
+        let subject = ProjectFileElements(
+            cacheDirectoriesProvider: cacheDirectoriesProvider,
+            swiftPackageManagerScratchDirectories: [scratchDirectory]
+        )
+        var dependencies: Set<GraphDependencyReference> = Set()
+        let xcframeworkPath = scratchDirectory.appending(
+            components: "artifacts", "stytch-ios", "StytchCore.xcframework"
+        )
+        let precompiledNode = GraphDependencyReference.testXCFramework(path: xcframeworkPath)
+        dependencies.insert(precompiledNode)
+
+        try subject.generate(
+            dependencyReferences: dependencies,
+            groups: groups,
+            pbxproj: pbxproj,
+            sourceRootPath: sourceRootPath,
+            filesGroup: project.filesGroup
+        )
+
+        let frameworksGroup = groups.frameworks
+        let fileReference = frameworksGroup.children.first as? PBXFileReference
+        XCTAssertEqual(fileReference?.name, "StytchCore.xcframework")
+        XCTAssertEqual(fileReference?.sourceTree, .absolute)
+
+        let projectGroupChildren = groups.sortedMain.group(named: projectGroupName)?.children ?? []
+        let projectGroupHasXCFramework = projectGroupChildren.contains { element in
+            (element as? PBXFileReference)?.name == "StytchCore.xcframework"
+        }
+        XCTAssertFalse(
+            projectGroupHasXCFramework,
+            "XCFramework from a configured SwiftPM scratch directory should not appear in the project group"
+        )
     }
 
     func test_generatePath_whenGroupIsSpecified() throws {
