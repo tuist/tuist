@@ -80,7 +80,7 @@ defmodule TuistWeb.TestRunLiveTest do
     refute has_element?(lv, "[data-part='run-destinations']")
   end
 
-  test "shows the test plan badge when a test plan was used", %{
+  test "shows the test plan in test details when a test plan was used", %{
     conn: conn,
     organization: organization,
     project: project
@@ -93,11 +93,13 @@ defmodule TuistWeb.TestRunLiveTest do
     {:ok, lv, _html} =
       live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
 
-    # Then
-    assert render(lv) =~ "Test plan: Smoke"
+    # Then — rendered inside the Test Details card, not as a header badge
+    html = render(lv)
+    assert html =~ "Test plan"
+    assert html =~ "Smoke"
   end
 
-  test "omits the test plan badge when no test plan was used", %{
+  test "omits the test plan row when no test plan was used", %{
     conn: conn,
     organization: organization,
     project: project
@@ -110,7 +112,7 @@ defmodule TuistWeb.TestRunLiveTest do
       live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
 
     # Then
-    refute render(lv) =~ "Test plan:"
+    refute render(lv) =~ "Test plan"
   end
 
   test "shows test cases table", %{
