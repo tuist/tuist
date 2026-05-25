@@ -225,11 +225,36 @@ Shape:
 - `work` emptyDir mounted at `/home/runner/actions-runner/_work`
   in both containers so `docker run -v $PWD:/x` paths resolve
   the same on either side.
+- `dind-storage` emptyDir with `medium: Memory` (tmpfs) at
+  `/var/lib/docker` on the sidecar only. Disk-backed emptyDir
+  forces dockerd onto the `vfs` storage driver because kata
+  serves it through virtio-fs and overlay2 can't carry its
+  `trusted.overlay.*` xattrs there; tmpfs inside the microVM is
+  the only filesystem that supports overlay2 + the full xattr
+  set buildx needs at checksum time.
+- The sidecar wraps `dockerd` in `sh -c "mount -o remount,
+  nr_inodes=0 /var/lib/docker && exec dockerd ..."`. Without the
+  remount the medium=Memory emptyDir inherits the kernel default
+  of one inode per 16 KiB, which exhausts at a few million files
+  — npm `node_modules` trees hit the limit before they hit the
+  byte cap.
 - `DOCKER_HOST=unix:///var/run/docker.sock` injected into the
   runner so the docker CLI hits the sidecar.
 - `--group=123` passed to dockerd so the socket GID matches the
   `docker` group inside the runner image (pinned at Dockerfile
   build time).
+
+Pod memory has to cover both the runner's process working set
+**and** the tmpfs at `/var/lib/docker` (which the kernel caps at
+50 % of VM memory). For the Tuist server build, 48 GiB pod gives
+~24 GiB tmpfs ceiling plus ~6 GiB compile headroom; smaller
+images may need less.
+
+Buildx must use `driver: docker` (dockerd's built-in BuildKit).
+The `docker-container` driver spins up its own buildkit container
+whose `/var/lib/buildkit` lives on overlay2-over-tmpfs (nested
+overlay), which trips "operation not supported" at COPY hashing
+time.
 
 The sidecar image is pinned via the chart's
 `runnersController.dindImage` value and threaded into the

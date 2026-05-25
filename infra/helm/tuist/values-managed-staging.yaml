@@ -131,12 +131,16 @@ processor:
       memory: "1536Mi"
 
 xcresultProcessor:
-  # Temporarily disabled — staging Mac mini node is NotReady and
-  # the xcresult-processor pod stuck Pending blocks helm --wait
-  # for the whole release. Re-enable once Mac mini capacity
-  # comes back (same recovery window as buildersFleet above).
-  enabled: false
-  replicaCount: 0
+  # Single replica in staging. Inherits the chart default rolling
+  # strategy (maxSurge=1, maxUnavailable=0) so helm upgrade --wait
+  # actually blocks on the new Tart-VM Pod becoming Ready before
+  # marking the rollout done — without this, replicas=1 +
+  # maxUnavailable=1 lets a Deployment look "Available" with zero
+  # actually-running Pods, and a stuck rollout slips past --atomic.
+  # Surge-during-roll fits within tart-kubelet's max-pods=3
+  # (chart default): csi-daemonset(1) + old(1) + new(1) = 3.
+  enabled: true
+  replicaCount: 1
   extraEnv:
     - name: TUIST_DEPLOY_ENV
       value: stag
@@ -147,14 +151,9 @@ xcresultProcessor:
 # CR per replica; the cluster-api-provider-scaleway-applesilicon
 # operator orders each Mac mini, then SSH-bootstraps it with
 # tart-kubelet. The Mac mini joins the cluster as a real Node.
-# Temporarily disabled — staging Mac mini node's tart-kubelet has
-# stopped posting status, so the macosFleet Machine never converges
-# and helm --wait stalls on it. Re-enable once Mac mini capacity
-# returns (same recovery window as buildersFleet / xcresultProcessor
-# above).
 macosFleet:
-  enabled: false
-  replicas: 0
+  enabled: true
+  replicas: 1
   # Share the pre-ordered pool with runnersFleet (same prefix
   # below). Both MachineDeployments draw from one Scaleway-side
   # pool of `tuist-pool-*` hosts; the controller claims the first
@@ -264,14 +263,9 @@ runnersFleet:
 # the tuist org. The runner agent's registration token is minted
 # on every bootstrap by the CAPI reconciler from the
 # `BUILDERS_FLEET_GITHUB_APP` 1P item synced via ESO.
-# Temporarily disabled while validating the runners-controller dind
-# sidecar — the staging Scaleway Mac mini pool is dry and the
-# builders-fleet ScalewayAppleSiliconMachine sits in NoAvailableHost,
-# blocking helm --wait for the whole release. Re-enable once Mac mini
-# inventory comes back.
 buildersFleet:
-  enabled: false
-  replicas: 0
+  enabled: true
+  replicas: 1
   adoptPoolPrefix: "tuist-pool-"
   externalSecrets:
     enabled: true
@@ -326,16 +320,15 @@ runnersFleetLinux:
       # kata-qemu microVM is the safety boundary.
       runtimeClass: kata-qemu
       pod:
-        # 32 GB pod budget: the dind sidecar's `medium: Memory`
-        # emptyDir for /var/lib/docker is capped by the kernel at
-        # 50 % of VM memory regardless of the k8s sizeLimit we set
-        # (that's a kubelet-eviction threshold, not a tmpfs mount
-        # option). At 16 GB pod we still OOM'd mix compile because
-        # the tmpfs grew to ~8 GB while image layers + compile
-        # working set fought for the remainder. 32 GB gives the
-        # tmpfs ~16 GB headroom AND leaves ~10 GB for compile.
+        # 48 GB pod budget. The dind sidecar's
+        # `medium: Memory` emptyDir for /var/lib/docker is capped
+        # by the kernel at 50 % of VM memory (`sizeLimit` only
+        # drives kubelet eviction). At 48 GB the tmpfs gets ~24 GB
+        # ceiling, which fits a full server build's image layers
+        # plus the npm/aube/swift snapshot trees with room for
+        # ~6 GB of mix compile working set alongside.
         cpuMilli: 2000
-        memoryMB: 32768
+        memoryMB: 49152
       # Queue-depth driven autoscaling. Pod-level only — the operator
       # manages bare-metal Host count manually via the cluster topology
       # in `infra/k8s/clusters/cluster-staging.yaml`. Bare-metal hosts
@@ -347,16 +340,9 @@ runnersFleetLinux:
       # another `tuist-bm-*` host.
       autoscaling:
         enabled: true
-        # 32 GB pods fit ~1.5 per AX42-U after system reserves;
-        # cap at 2 so a busy moment doesn't push the host to swap.
+        # 48 GB pods fit one per AX42-U after system reserves.
+        # minWarmPoolFloor/maxReplicas track that — capacity grows
+        # by ordering another bare-metal host.
         minWarmPoolFloor: 1
-        maxReplicas: 2
+        maxReplicas: 1
         scaleDownCooldownSeconds: 300
-
-# Staging-only override for the runners-controller image, ahead of
-# the common pin in values-managed-common.yaml. Pre-merge validation
-# of the dind sidecar plumbing — canary/prod stay on the previous
-# digest until this PR lands on main.
-runnersController:
-  image:
-    tag: "sha-40b0819a2ae8"

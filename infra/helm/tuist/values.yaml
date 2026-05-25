@@ -840,16 +840,21 @@ runnersFleetLinux:
     #     - Linux
     #     - X64
     #   pod:
+    #     # Has to cover the runner's working set AND the dind
+    #     # sidecar's tmpfs /var/lib/docker (kernel-capped at
+    #     # 50 % of VM memory). 48 GiB fits a full Tuist server
+    #     # docker_build; smaller images may need less.
     #     cpuMilli: 4000
-    #     memoryMB: 16384
-    #   # Required on Linux pools. The controller stamps `privileged:
-    #   # true` on every Linux runner container so workflows can use
-    #   # dockerd; the kata-qemu microVM is the safety boundary.
+    #     memoryMB: 49152
+    #   # Required on Linux pools. The controller injects a
+    #   # docker:dind native sidecar that runs `privileged: true`;
+    #   # the kata-qemu microVM is the safety boundary that keeps
+    #   # the privileged sidecar off the bare-metal host kernel.
     #   runtimeClass: kata-qemu
     #   autoscaling:
     #     enabled: true
-    #     minWarmPoolFloor: 3
-    #     maxReplicas: 30
+    #     minWarmPoolFloor: 1
+    #     maxReplicas: 1
     #     scaleDownCooldownSeconds: 300
 
 # Bare-metal vm-image-builder fleet — sibling of macosFleet and
