@@ -1,0 +1,4 @@
+.layout__content--account {
+  padding-inline: var(--noora-spacing-7);
+  padding-top: var(--noora-spacing-9);
+}

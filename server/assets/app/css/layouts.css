@@ -1,3 +1,4 @@
+@import "./layouts/account.css";
 @import "./layouts/header_bar.css";
 
 .layout {
@@ -38,9 +39,4 @@
   padding: var(--noora-spacing-5);
   min-width: 0;
   overflow: hidden;
-}
-
-.layout__content--account {
-  padding-inline: var(--noora-spacing-7);
-  padding-top: var(--noora-spacing-9);
 }
