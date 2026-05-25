@@ -717,7 +717,10 @@ jobs:
     # unrecoverable) and we need to validate runner-pod plumbing.
     name: Patch runners (kubectl, no helm)
     if: ${{ inputs.patch_runners_only }}
-    runs-on: tuist-production-linux
+    # Use Namespace so the patch doesn't need our self-hosted
+    # Linux fleet to be healthy — the whole point of this escape
+    # hatch is to unstick the fleet itself.
+    runs-on: namespace-profile-default
     environment:
       name: server-k8s-${{ inputs.environment }}
     timeout-minutes: 15
